@@ -22,22 +22,22 @@ open GraphQL.IncrementalDelivery.Execution (DeliveryNode)
 no contributing task. Witness: an owner supplies a node descriptor; empty accounting can
 neither publish nor cancel that task. The reverse direction is vacuous accounting.
 -/
-theorem dependencySatisfied_initial_iff_noContributor {work matching key}
-    : DependencySatisfied work [] matching [] [] key
-      ↔ ∀ occurrence owners, TaskHasOwners work occurrence owners → key ∉ owners := by
+theorem dependencySatisfied_initial_iff_noContributor {work matching ref}
+    : DependencySatisfied work [] matching [] [] ref
+      ↔ ∀ occurrence owners, TaskHasOwners work occurrence owners → ref ∉ owners := by
   constructor
   · intro satisfied occurrence owners task owner
     rcases satisfied.2 with absent | completed | ⟨_, accounted⟩
     · obtain ⟨producer, payload, known⟩ := task
       obtain ⟨node, kind, dependencies, birth, descriptor, same⟩ := known.owner_known owner
       exact absent ⟨birth, node, kind, dependencies, descriptor, same⟩
-    · simp [completedKeys] at completed
+    · simp [completedRefs] at completed
     · rcases accounted occurrence owners task owner with cancelled | published
       · exact cancelled.nonempty rfl
       · simp [Published] at published
   · intro absent
     refine ⟨fun failure => failure.nonempty rfl, Or.inr (Or.inr ⟨?_, ?_⟩)⟩
-    · simp [announcedKeys, pendingKeys]
+    · simp [announcedRefs, pendingRefs]
     · intro occurrence owners task owner
       exact False.elim (absent occurrence owners task owner)
 
@@ -50,25 +50,25 @@ theorem group_canAnnounce_initial_iff {work node dependencies producer}
     : CanAnnounce work [] (fun _ => .executionGroup []) [] [] node .group
         dependencies producer
       ↔ producer = none
-        ∧ ∀ key ∈ dependencies,
-            ∀ occurrence owners, TaskHasOwners work occurrence owners → key ∉ owners := by
+        ∧ ∀ ref ∈ dependencies,
+            ∀ occurrence owners, TaskHasOwners work occurrence owners → ref ∉ owners := by
   constructor
   · intro eligible
-    refine ⟨?_, fun key member =>
-      dependencySatisfied_initial_iff_noContributor.mp (eligible.2.2.2 key member)⟩
+    refine ⟨?_, fun ref member =>
+      dependencySatisfied_initial_iff_noContributor.mp (eligible.2.2.2 ref member)⟩
     cases producer with
     | none => rfl
     | some occurrence =>
         have impossible := eligible.2.2.1 occurrence rfl
         simp [Published] at impossible
   · rintro ⟨rfl, absent⟩
-    refine ⟨by simp [announcedKeys, pendingKeys],
+    refine ⟨by simp [announcedRefs, pendingRefs],
       Or.inl ⟨fun failure => failure.nonempty rfl,
         Or.inr (group_not_initially_accounted known)⟩, ?_, ?_⟩
     · intro occurrence impossible
       cases impossible
-    · intro key member
-      exact dependencySatisfied_initial_iff_noContributor.mpr (absent key member)
+    · intro ref member
+      exact dependencySatisfied_initial_iff_noContributor.mpr (absent ref member)
 
 -----------------------------------------------------------------------------------------
 -- What the concrete constructor already guarantees
@@ -85,7 +85,7 @@ theorem initialStreams_canAnnounce (work : Execution.Work) {stream}
           none := by
   refine ⟨
     (createWorkQueue_initialStreams_nodeAt work).2 stream member,
-    by simp [announcedKeys, pendingKeys],
+    by simp [announcedRefs, pendingRefs],
     Or.inl ⟨fun failure => failure.nonempty rfl, Or.inl rfl⟩,
     ?_,
     Or.inl rfl
@@ -93,20 +93,20 @@ theorem initialStreams_canAnnounce (work : Execution.Work) {stream}
   intro occurrence impossible
   cases impossible
 
-/-- Root-stream registration emits distinct stream keys, even for repeated raw input.
-Witness: the fresh-stream fold appends only keys absent from its selected prefix.
+/-- Root-stream registration emits distinct stream refs, even for repeated raw input.
+Witness: the fresh-stream fold appends only refs absent from its selected prefix.
 -/
-theorem State.addStreams_newKeys_unique (queue : State) (streams : List Stream)
-    : (((queue.addStreams streams none).2).map DeliveryNode.key).Nodup := by
+theorem State.addStreams_newRefs_unique (queue : State) (streams : List Stream)
+    : (((queue.addStreams streams none).2).map DeliveryNode.ref).Nodup := by
   let step (selected : List Stream) (stream : Stream) :=
-    if (queue.stream? stream.node.key).isSome
-        || selected.any (fun known => known.node.key == stream.node.key) then
+    if (queue.stream? stream.node.ref).isSome
+        || selected.any (fun known => known.node.ref == stream.node.ref) then
       selected
     else
       selected ++ [stream]
   have loop (more selected : List Stream)
-      (unique : (selected.map (fun stream => stream.node.key)).Nodup)
-      : ((more.foldl step selected).map (fun stream => stream.node.key)).Nodup := by
+      (unique : (selected.map (fun stream => stream.node.ref)).Nodup)
+      : ((more.foldl step selected).map (fun stream => stream.node.ref)).Nodup := by
     induction more generalizing selected with
     | nil => exact unique
     | cons stream rest ih =>
@@ -117,24 +117,24 @@ theorem State.addStreams_newKeys_unique (queue : State) (streams : List Stream)
         · rename_i fresh
           rw [List.map_append, List.map_singleton, List.nodup_append]
           refine ⟨unique, by simp, ?_⟩
-          intro key member other included same
+          intro ref member other included same
           obtain rfl := List.mem_singleton.mp included
-          obtain ⟨prior, priorMember, priorKey⟩ := List.mem_map.mp member
-          have present : selected.any (fun known => known.node.key == stream.node.key)
+          obtain ⟨prior, priorMember, priorRef⟩ := List.mem_map.mp member
+          have present : selected.any (fun known => known.node.ref == stream.node.ref)
               = true :=
             List.any_eq_true.mpr
-              ⟨prior, priorMember, beq_iff_eq.mpr (priorKey.trans same)⟩
+              ⟨prior, priorMember, beq_iff_eq.mpr (priorRef.trans same)⟩
           exact fresh (by simp [present])
   simpa only [State.addStreams, List.map_map, step, Function.comp_def]
     using loop streams [] (by simp)
 
-/-- Actual initial stream notices have distinct keys for arbitrary execution work.
+/-- Actual initial stream notices have distinct refs for arbitrary execution work.
 Witness: initialization retains the root-stream registration result exactly.
 -/
 theorem initialStreams_unique (work : Execution.Work)
     : ((State.initialize (Work.fromExecution work)).initialStreams.map
-        DeliveryNode.key).Nodup :=
-  State.addStreams_newKeys_unique _ _
+        DeliveryNode.ref).Nodup :=
+  State.addStreams_newRefs_unique _ _
 
 /-- Initial group notices retain contributor-or-ancestor registration metadata.
 Witness: immediate lowering supplies each candidate and registry record; pruning only
@@ -169,59 +169,59 @@ theorem ExecutedWork.initialGroups_nodeAt {work : Execution.Work}
     (generated : ExecutedWork work)
     {group} (member : group ∈ (State.initialize (Work.fromExecution work)).initialGroups)
     : ∃ dependencies, NodeAt work group .group dependencies none := by
-  have support : (State.initialize (Work.fromExecution work)).GroupKeySupport
-      (fun key => ∃ node dependencies, NodeAt work node .group dependencies none
-        ∧ node.key = key) := by
-    apply createWorkQueue_groupKeySupport
+  have support : (State.initialize (Work.fromExecution work)).GroupRefSupport
+      (fun ref => ∃ node dependencies, NodeAt work node .group dependencies none
+        ∧ node.ref = ref) := by
+    apply createWorkQueue_groupRefSupport
     intro task included owner contributes
     obtain ⟨address, payload, occurrence, known⟩ :=
       workFromSpec_tasks_taskAt Located.root included
     rw [occurrence] at known
     exact TaskAt.executionGroup_owner known (List.mem_map_of_mem contributes)
-  have active : group.key ∈ (State.initialize (Work.fromExecution work)).rootGroups := by
+  have active : group.ref ∈ (State.initialize (Work.fromExecution work)).rootGroups := by
     rw [createWorkQueue_rootGroups]
     exact List.mem_map_of_mem member
-  obtain ⟨node, dependencies, known, same⟩ := support.roots group.key active
+  obtain ⟨node, dependencies, known, same⟩ := support.roots group.ref active
   obtain ⟨recordDependencies, record⟩ := initialGroups_recordAt work member
   have equal := generated.record_eq_node record known same.symm
   exact ⟨dependencies, equal ▸ known⟩
 
-/-- The complete initialized frontier has distinct keys on executed work.
-Witness: generated pruning gives unique group keys, stream registration gives unique
-stream keys, and execution assigns disjoint key roles to groups and streams.
+/-- The complete initialized frontier has distinct refs on executed work.
+Witness: generated pruning gives unique group refs, stream registration gives unique
+stream refs, and execution assigns disjoint ref roles to groups and streams.
 -/
-theorem ExecutedWork.initialNoticeKeys_unique {work : Execution.Work}
+theorem ExecutedWork.initialNoticeRefs_unique {work : Execution.Work}
     (generated : ExecutedWork work)
     : (((State.initialize (Work.fromExecution work)).initialGroups
         ++ (State.initialize (Work.fromExecution work)).initialStreams).map
-        DeliveryNode.key).Nodup := by
+        DeliveryNode.ref).Nodup := by
   rw [List.map_append, List.nodup_append]
   refine ⟨generated.initialGroups_unique, initialStreams_unique work, ?_⟩
-  intro key member other included same
+  intro ref member other included same
   obtain ⟨group, groupMember, rfl⟩ := List.mem_map.mp member
   obtain ⟨stream, streamMember, rfl⟩ := List.mem_map.mp included
   obtain ⟨dependencies, known⟩ := generated.initialGroups_nodeAt groupMember
-  exact generated.groupStreamKeysDisjoint known
+  exact generated.groupStreamRefsDisjoint known
     ((createWorkQueue_initialStreams_nodeAt work).2 stream streamMember) same
 
 -----------------------------------------------------------------------------------------
 -- Exact remaining constructor obligations, without history or source premises
 -----------------------------------------------------------------------------------------
 
-/-- Concrete initialization reduces exactly to distinct keys, producer-free groups with
+/-- Concrete initialization reduces exactly to distinct refs, producer-free groups with
 taskless ancestors, and a nonempty frontier. Witness: stream eligibility is unconditional;
 group eligibility is the static characterization above. No obligation is assumed here.
 -/
 theorem initializes_iff_static_frontier (work : Execution.Work)
     : let queue := State.initialize (Work.fromExecution work)
       Initializes work queue.initialGroups queue.initialStreams
-      ↔ ((queue.initialGroups ++ queue.initialStreams).map DeliveryNode.key).Nodup
+      ↔ ((queue.initialGroups ++ queue.initialStreams).map DeliveryNode.ref).Nodup
         ∧ (∀ group ∈ queue.initialGroups,
             ∃ dependencies,
               NodeAt work group .group dependencies none
-              ∧ ∀ key ∈ dependencies,
+              ∧ ∀ ref ∈ dependencies,
                   ∀ occurrence owners,
-                    TaskHasOwners work occurrence owners → key ∉ owners)
+                    TaskHasOwners work occurrence owners → ref ∉ owners)
         ∧ queue.initialGroups ++ queue.initialStreams ≠ [] := by
   intro queue
   constructor
@@ -242,7 +242,7 @@ theorem initializes_iff_static_frontier (work : Execution.Work)
 
 /-- Executed-work initialization has only two remaining obligations: eligible group
 descriptors and a nonempty frontier. Witness: the static characterization and disjoint
-group/stream key roles derive uniqueness rather than assuming it separately.
+group/stream ref roles derive uniqueness rather than assuming it separately.
 -/
 theorem ExecutedWork.initializes_iff_groups_and_nonempty {work : Execution.Work}
     (generated : ExecutedWork work)
@@ -251,14 +251,14 @@ theorem ExecutedWork.initializes_iff_groups_and_nonempty {work : Execution.Work}
       ↔ (∀ group ∈ queue.initialGroups,
           ∃ dependencies,
             NodeAt work group .group dependencies none
-            ∧ ∀ key ∈ dependencies,
-                ∀ occurrence owners, TaskHasOwners work occurrence owners → key ∉ owners)
+            ∧ ∀ ref ∈ dependencies,
+                ∀ occurrence owners, TaskHasOwners work occurrence owners → ref ∉ owners)
         ∧ queue.initialGroups ++ queue.initialStreams ≠ [] := by
   intro queue
   constructor
   · exact fun facts => ((initializes_iff_static_frontier work).mp facts).2
   · rintro ⟨groups, nonempty⟩
     apply (initializes_iff_static_frontier work).mpr
-    exact ⟨generated.initialNoticeKeys_unique, groups, nonempty⟩
+    exact ⟨generated.initialNoticeRefs_unique, groups, nonempty⟩
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

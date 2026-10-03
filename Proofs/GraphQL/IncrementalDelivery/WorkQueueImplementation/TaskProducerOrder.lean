@@ -36,7 +36,7 @@ theorem State.handleGraphEvent_taskChunk (queue : State) (event : GraphEvent)
   | taskFailure occurrence errors =>
       exact .inl (queue.taskFailure_tasks occurrence errors)
   | streamItems stream items =>
-      cases active : queue.rootStreams.contains stream.key with
+      cases active : queue.rootStreams.contains stream.ref with
       | false =>
           left
           simp only [State.handleGraphEvent, State.streamItems, active, Bool.not_false,

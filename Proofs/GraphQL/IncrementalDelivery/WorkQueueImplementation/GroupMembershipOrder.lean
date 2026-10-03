@@ -61,8 +61,8 @@ theorem State.GroupMembershipOrder.addGroups {queue : State}
         match current.groupNode? parent with
         | none => current
         | some node =>
-            let children := if node.childGroups.contains group.node.key then
-              node.childGroups else node.childGroups ++ [group.node.key]
+            let children := if node.childGroups.contains group.node.ref then
+              node.childGroups else node.childGroups ++ [group.node.ref]
             current.putGroupNode { node with childGroups := children }
   have links (more : List Group) (current : State) (prior : current.GroupMembershipOrder)
       : (more.foldl step current).GroupMembershipOrder := by
@@ -93,7 +93,7 @@ theorem State.GroupMembershipOrder.addTask {queue : State}
     : (queue.addTask task).GroupMembershipOrder := by
   let registered : State := { queue with tasks := queue.tasks ++ [task] }
   let step (current : State) (group : Execution.DeliveryNode) : State :=
-    match current.groupNode? group.key with
+    match current.groupNode? group.ref with
     | none => current
     | some node =>
         if node.tasks.contains task.occurrence then current
@@ -133,7 +133,7 @@ theorem State.GroupMembershipOrder.addTask {queue : State}
     exact List.sublist_append_of_sublist_left (ordered node member)
   have result := loop task.groups registered initial rfl
   let current := task.groups.foldl step registered
-  change (if task.groups.any (fun group => current.rootGroups.contains group.key)
+  change (if task.groups.any (fun group => current.rootGroups.contains group.ref)
       && (current.taskNode? task.occurrence).isNone then
       { current with taskNodes := current.taskNodes ++ [{ task }] }
     else current).GroupMembershipOrder
@@ -222,8 +222,8 @@ theorem State.GroupMembershipOrder.removeTask {queue : State}
 Witness: membership in the filtered nodes implies membership in the old queue.
 -/
 theorem State.GroupMembershipOrder.removeGroup {queue : State}
-    (ordered : queue.GroupMembershipOrder) (key : Nat)
-    : (queue.removeGroup key).GroupMembershipOrder := by
+    (ordered : queue.GroupMembershipOrder) (ref : NodeRef)
+    : (queue.removeGroup ref).GroupMembershipOrder := by
   intro node member
   exact ordered node (List.mem_filter.mp member).1
 
@@ -233,7 +233,7 @@ Witness: the group-removal preservation theorem.
 theorem State.GroupMembershipOrder.finishGroupFailure {queue : State}
     (ordered : queue.GroupMembershipOrder) (group : GroupNode) (errors : Nat)
     : (queue.finishGroupFailure group errors).1.GroupMembershipOrder :=
-  ordered.removeGroup group.group.node.key
+  ordered.removeGroup group.group.node.ref
 
 private theorem fold_preserves {α β : Type} (step : β → α → β) (property : β → Prop)
     (preserves : ∀ current next, property current → property (step current next))
@@ -249,7 +249,7 @@ Witness: the actual task-flush fold preserves ordered subsequences, followed by 
 theorem State.GroupMembershipOrder.finishGroupSuccess {queue : State}
     (ordered : queue.GroupMembershipOrder) (group : GroupNode)
     : (queue.finishGroupSuccess group).1.GroupMembershipOrder := by
-  have step (acc : State × List ExecutionGroupValue × Keys) (occurrence : Occurrence)
+  have step (acc : State × List ExecutionGroupValue × NodeRefs) (occurrence : Occurrence)
       (prior : acc.1.GroupMembershipOrder)
       : (flushGroupTask acc occurrence).1.GroupMembershipOrder := by
     obtain ⟨current, values, streams⟩ := acc
@@ -263,8 +263,8 @@ theorem State.GroupMembershipOrder.finishGroupSuccess {queue : State}
       step group.tasks (queue, [], []) ordered
   let current : State := { flushed with
     groupNodes := flushed.groupNodes.filter
-      (fun node => node.group.node.key != group.group.node.key)
-    rootGroups := flushed.rootGroups.filter (· != group.group.node.key) }
+      (fun node => node.group.node.ref != group.group.node.ref)
+    rootGroups := flushed.rootGroups.filter (· != group.group.node.ref) }
   have currentOrder : current.GroupMembershipOrder := by
     intro node member
     exact flushedOrder node (List.mem_filter.mp member).1
@@ -462,7 +462,7 @@ theorem State.finishGroupSuccess_orderedSelection {queue : State}
         ∧ (∀ occurrence ∈ group.tasks,
             ∀ node, queue.taskNode? occurrence = some node → node ∈ selected)
         ∧ (∀ stream ∈ (queue.finishGroupSuccess group).2.2.newStreams,
-            ∃ node ∈ selected, stream.key ∈ node.childStreams) := by
+            ∃ node ∈ selected, stream.ref ∈ node.childStreams) := by
   obtain ⟨selected, unique, known, events, _, _, streams, complete, subsequence⟩ :=
     queue.finishGroupSuccess_completeSelection group
   exact ⟨selected, unique, subsequence.trans (ordered group live), known, events,

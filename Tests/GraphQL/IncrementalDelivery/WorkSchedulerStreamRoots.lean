@@ -30,7 +30,7 @@ vacuous, and no task-success event is excluded from the prefix. -/
 theorem activated_roots
     : queue.rootGroups = []
       ∧ (queue.streamItems stream [item 1]).1.rootGroups
-        = [(successGroup 1).key, (failureGroup 1).key] := by
+        = [(successGroup 1).ref, (failureGroup 1).ref] := by
   constructor <;> cbv
 
 /-- Next-item pruning cannot promote descendants after success and failure.
@@ -41,17 +41,17 @@ theorem no_promotion_after_success
       ∧ (integrated.1.pruneEmptyGroups integrated.2.newGroups).2.Subset
           integrated.2.newGroups :=
   State.maybeIntegrateWork_prune_freshRoots
-    (createWorkQueue_runNormalized_groupKeysUnique _ _) (item 1).work
+    (createWorkQueue_runNormalized_groupRefsUnique _ _) (item 1).work
     (by cbv; simp)
 
 /-- New item-local groups are independent of the first item's failed contributor.
 Witness: generated invalidation flattens to the one recorded failed task; the second
-item's descriptors have distinct keys and no defer ancestors.
+item's descriptors have distinct refs and no defer ancestors.
 -/
 private theorem next_group_healthy {node producer}
     (known : NodeAt work node .group [] producer)
-    (different : node.key ≠ (failureGroup 0).key)
-    : ¬GroupInvalidated work [failedTask] node.key := by
+    (different : node.ref ≠ (failureGroup 0).ref)
+    : ¬GroupInvalidated work [failedTask] node.ref := by
   intro failure
   obtain ⟨occurrence, owners, owner, task, member, contributes, related⟩ :=
     (generated.groupInvalidated_iff known).mp failure
@@ -64,20 +64,20 @@ private theorem next_group_healthy {node producer}
   have nodeEq := List.mem_singleton.mp related
   exact different (nodeEq.symm.trans ownerEq)
 
-/-- Both new active roots are healthy, not merely available registration keys.
+/-- Both new active roots are healthy, not merely available registration refs.
 Witness: exact root activation and the independent second-item descriptors.
 -/
 theorem new_roots_healthy
     : (queue.streamItems stream [item 1]).1.RootGroupsHealthy work [failedTask] := by
-  intro key active
+  intro ref active
   rw [activated_roots.2] at active
   rcases List.mem_cons.mp active with same | last
-  · subst key
+  · subst ref
     apply next_group_healthy (different := by decide)
     exact ⟨[0, 0, 1, 1, 1, 0], [⟨successGroup 1, []⟩], _, _, _, [],
       ⟨successGroup 1, []⟩, by cbv, by simp, rfl, rfl⟩
   · have same := List.mem_singleton.mp last
-    subst key
+    subst ref
     apply next_group_healthy (different := by decide)
     exact ⟨[0, 0, 1, 1, 1, 1, 0], [⟨failureGroup 1, []⟩], _, _, _, [],
       ⟨failureGroup 1, []⟩, by cbv, by simp, rfl, rfl⟩
@@ -91,14 +91,14 @@ Witness: evaluate the actual continuation's lookup after adding the second item.
 theorem failed_owner_stays_absent
     : ((State.initialize (Work.fromExecution work)).runNormalized
         (before ++ [[second]])).1.groupNode?
-        (failureGroup 0).key
+        (failureGroup 0).ref
       = none := by
   cbv
 
 /-- A genuinely live, ancestor-free group is healthy beyond earlier success and failure.
 Witness: its structural descriptor and the independently failed first-item task. -/
 theorem live_group_healthy_after_continuation
-    : ¬GroupInvalidated work [failedTask] (successGroup 1).key := by
+    : ¬GroupInvalidated work [failedTask] (successGroup 1).ref := by
   have known : NodeAt work (successGroup 1) .group [] (some (item 1).occurrence) := by
     refine ⟨[0, 0, 1, 1, 1, 0], [⟨successGroup 1, []⟩], (successGroup 1).path,
       .ok (data 1, 0), .combine .empty .empty, [], ⟨successGroup 1, []⟩,
@@ -258,7 +258,7 @@ theorem ordered_publication_matching
   exact createWorkQueue_runNormalized_orderedMatching generated valid started
 
 -----------------------------------------------------------------------------------------
--- Duplicate raw stream keys explain the generated-work premise in the order theorem
+-- Duplicate raw stream refs explain the generated-work premise in the order theorem
 -----------------------------------------------------------------------------------------
 
 private def duplicateStreamWork : Execution.Work :=
@@ -274,8 +274,8 @@ private def rightItem : StreamItem :=
 private def duplicateStreamInputs : List GraphEvent :=
   [.streamItems stream [leftItem], .streamItems stream [rightItem]]
 
-/-- Raw duplicate keys let one stream's first item advance the other stream's source cursor.
-Witness: both inputs match their fixed outcomes and satisfy the existing key-based source
+/-- Raw duplicate refs let one stream's first item advance the other stream's source cursor.
+Witness: both inputs match their fixed outcomes and satisfy the existing ref-based source
 readiness and start checks. This raw work is deliberately not claimed to be generated.
 -/
 theorem duplicate_stream_inputs_valid_started
@@ -290,7 +290,7 @@ theorem duplicate_stream_inputs_valid_started
     · intro item member
       have same := List.mem_singleton.mp member
       subst item
-      exact ⟨[stream.key], none,
+      exact ⟨[stream.ref], none,
         ⟨stream, _, [], .ok (.null, 0), .empty, leftLocated, rfl, rfl, rfl⟩, by cbv⟩
     · exact ⟨[0], _, none, [], leftLocated, by simp, by simp,
         (by intro source impossible; cases impossible), by cbv⟩
@@ -299,7 +299,7 @@ theorem duplicate_stream_inputs_valid_started
     · intro item member
       have same := List.mem_singleton.mp member
       subst item
-      exact ⟨[stream.key], none,
+      exact ⟨[stream.ref], none,
         ⟨stream, _, [], .ok (.null, 0), .empty, rightLocated, rfl, rfl, rfl⟩, by cbv⟩
     · simp [GraphEvent.Fresh, GraphEvent.identities, leftItem, rightItem]
     · exact ⟨[1], _, none, [], rightLocated, by simp, by simp [GraphEvent.identities],
@@ -316,13 +316,13 @@ theorem duplicate_stream_missing_predecessor
         ∉ (duplicateStreamInputs.flatMap GraphEvent.itemPublications).map Prod.fst := by
   simp [duplicateStreamInputs, GraphEvent.itemPublications, leftItem, rightItem]
 
-/-- The counterexample cannot be produced by execution, because it allocates a key twice.
+/-- The counterexample cannot be produced by execution, because it allocates a ref twice.
 Witness: generated stream-allocation uniqueness contradicts its repeated allocation list.
 -/
 theorem duplicate_stream_not_generated : ¬ExecutedWork duplicateStreamWork := by
   intro generated
-  have unique := generated.streamKeysUnique
-  simp [duplicateStreamWork, Semantics.GeneralScheduling.streamAllocationKeys] at unique
+  have unique := generated.streamRefsUnique
+  simp [duplicateStreamWork, Semantics.GeneralScheduling.streamAllocationRefs] at unique
 
 -----------------------------------------------------------------------------------------
 -- Older counter equations are genuinely unnecessary for the local pruning result
@@ -332,7 +332,7 @@ private def stale : State :=
   {
     groupNodes :=
       [{
-        group := ⟨{ key := 99, path := [] }, none⟩
+        group := ⟨{ ref := 99, path := [] }, none⟩
         tasks := [.executionGroup []]
         pending := 0
       }]

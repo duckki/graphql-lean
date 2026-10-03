@@ -15,7 +15,7 @@ open GraphQL.IncrementalDelivery.Execution
 announced from these outputs, matching, and failures. Ineligible future nodes may remain
 unannounced. This property restricts a proof's construction, not public queue admission.
 -/
-def NoticesCovered (work : Work) (initial : Keys) (matching : PublicationMatching)
+def NoticesCovered (work : Work) (initial : NodeRefs) (matching : PublicationMatching)
     (events : List WorkQueueEvent) (failed : FailureCuts)
     : Prop :=
   ∀ node kind dependencies producer,
@@ -31,7 +31,7 @@ theorem CanAnnounce.fewer_notices
       dependencies producer}
     (eligible
       : CanAnnounce work initial matching events failed node kind dependencies producer)
-    (notices : (announcedKeys oldInitial before).Subset (announcedKeys initial events))
+    (notices : (announcedRefs oldInitial before).Subset (announcedRefs initial events))
     (publications
       : ∀ occurrence,
           Published oldMatching before occurrence ↔ Published matching events occurrence)
@@ -39,23 +39,23 @@ theorem CanAnnounce.fewer_notices
       : NodeFailed work oldMatching before failed = NodeFailed work matching events failed
         ∧ TaskCancelled work oldMatching before failed
           = TaskCancelled work matching events failed)
-    (completions : (completedKeys events).Subset (completedKeys before))
+    (completions : (completedRefs events).Subset (completedRefs before))
     (failures
       : (failedBefore failed events.length).Subset (failedBefore failed before.length))
     : CanAnnounce work oldInitial oldMatching before failed node kind dependencies
         producer := by
-  have accounting (key : Nat) : NodeAccounted work oldMatching before failed key
-      ↔ NodeAccounted work matching events failed key := by
+  have accounting (ref : NodeRef) : NodeAccounted work oldMatching before failed ref
+      ↔ NodeAccounted work matching events failed ref := by
     simp only [NodeAccounted, TaskAccounted, publications, causal.2]
-  have dependency {key}
-      (satisfied : DependencySatisfied work initial matching events failed key)
-      : DependencySatisfied work oldInitial oldMatching before failed key := by
+  have dependency {ref}
+      (satisfied : DependencySatisfied work initial matching events failed ref)
+      : DependencySatisfied work oldInitial oldMatching before failed ref := by
     refine ⟨by simpa only [causal.1] using satisfied.1, ?_⟩
     rcases satisfied.2 with absent | completed | ⟨unannounced, accounted⟩
     · exact Or.inl absent
     · exact Or.inr (Or.inl (completions completed))
     · exact Or.inr (Or.inr ⟨fun member => unannounced (notices member),
-        (accounting key).mpr accounted⟩)
+        (accounting ref).mpr accounted⟩)
   refine ⟨
     fun member => eligible.1 (notices member),
     ?_,
@@ -65,18 +65,18 @@ theorem CanAnnounce.fewer_notices
   · rcases eligible.2.1 with ⟨healthy, outstanding⟩ | ⟨group, recorded⟩
     · exact Or.inl ⟨by simpa only [causal.1] using healthy,
         outstanding.imp_right
-          (fun unaccounted accounted => unaccounted ((accounting node.key).mp accounted))⟩
+          (fun unaccounted accounted => unaccounted ((accounting node.ref).mp accounted))⟩
     · obtain ⟨occurrence, owners, recorded, known, owner⟩ := recorded
       exact Or.inr ⟨group, occurrence, owners, failures recorded, known, owner⟩
   · exact fun producerOccurrence same =>
       (publications producerOccurrence).mpr
         (eligible.2.2.1 producerOccurrence same)
   · cases kind with
-    | group => exact fun key member => dependency (eligible.2.2.2 key member)
+    | group => exact fun ref member => dependency (eligible.2.2.2 ref member)
     | stream =>
-        rcases eligible.2.2.2 with empty | ⟨key, member, satisfied⟩
+        rcases eligible.2.2.2 with empty | ⟨ref, member, satisfied⟩
         · exact Or.inl empty
-        · exact Or.inr ⟨key, member, dependency satisfied⟩
+        · exact Or.inr ⟨ref, member, dependency satisfied⟩
 
 -----------------------------------------------------------------------------------------
 -- Covering initialization and actual notice-bearing events
@@ -92,19 +92,19 @@ theorem NoticesCovered.initial {work} {groups streams : List DeliveryNode}
           NodeAt work node kind dependencies birth
           → CanAnnounce work [] (fun _ => .executionGroup []) [] [] node kind dependencies
               birth
-          → node.key ∈ (groups ++ streams).map DeliveryNode.key)
+          → node.ref ∈ (groups ++ streams).map DeliveryNode.ref)
     (matching : PublicationMatching)
-    : NoticesCovered work ((groups ++ streams).map DeliveryNode.key) matching [] [] := by
+    : NoticesCovered work ((groups ++ streams).map DeliveryNode.ref) matching [] [] := by
   intro node kind dependencies birth known eligible
   have before := eligible.fewer_notices
     (oldInitial := []) (oldMatching := fun _ => .executionGroup []) (before := [])
-    (by intro key member; simp [announcedKeys, pendingKeys] at member)
+    (by intro ref member; simp [announcedRefs, pendingRefs] at member)
     (by simp [Published])
-    (by constructor <;> funext key <;> simp [NodeFailed, TaskCancelled])
+    (by constructor <;> funext ref <;> simp [NodeFailed, TaskCancelled])
     (List.Subset.refl _)
     (List.Subset.refl _)
   apply eligible.1
-  simpa [announcedKeys, pendingKeys]
+  simpa [announcedRefs, pendingRefs]
     using covers node kind dependencies birth known before
 
 /-- A covering carrier leaves no eligible node unannounced after its actual notices.
@@ -113,7 +113,7 @@ the supplied complete frontier then contradicts the node's claimed freshness.
 -/
 theorem NoticesCovered.carrier {work initial matching events failed plain actual}
     {groups streams : List DeliveryNode} (noNotices : eventPending plain = [])
-    (notices : eventPending actual = (groups ++ streams).map DeliveryNode.key)
+    (notices : eventPending actual = (groups ++ streams).map DeliveryNode.ref)
     (sameValue : IsValue plain ↔ IsValue actual)
     (sameCompleted : eventCompleted plain = eventCompleted actual)
     (covers
@@ -121,7 +121,7 @@ theorem NoticesCovered.carrier {work initial matching events failed plain actual
           NodeAt work node kind dependencies birth
           → CanAnnounce work initial matching (events ++ [plain]) failed
               node kind dependencies birth
-          → node.key ∈ (groups ++ streams).map DeliveryNode.key)
+          → node.ref ∈ (groups ++ streams).map DeliveryNode.ref)
     : NoticesCovered work initial matching (events ++ [actual]) failed := by
   intro node kind dependencies birth known eligible
   have snapshots (cut : Nat) :
@@ -142,7 +142,7 @@ theorem NoticesCovered.carrier {work initial matching events failed plain actual
         = NodeFailed work matching (events ++ [actual]) failed
       ∧ TaskCancelled work matching (events ++ [plain]) failed
         = TaskCancelled work matching (events ++ [actual]) failed := by
-    constructor <;> funext key <;>
+    constructor <;> funext ref <;>
       simp only [NodeFailed, TaskCancelled, List.length_append, List.length_singleton,
         snapshots]
   have before :=
@@ -151,23 +151,23 @@ theorem NoticesCovered.carrier {work initial matching events failed plain actual
       (oldMatching := matching)
       (before := events ++ [plain])
       (by
-        simp only [announcedKeys, pendingKeys, List.flatMap_append, List.flatMap_cons,
+        simp only [announcedRefs, pendingRefs, List.flatMap_append, List.flatMap_cons,
           List.flatMap_nil, List.append_nil, noNotices]
-        intro key member
+        intro ref member
         simpa only [List.append_assoc]
           using List.mem_append_left (eventPending actual) member)
       (by intro occurrence; simp only [published_append_singleton_iff, sameValue])
       causal
       (by
-        simp only [completedKeys, List.flatMap_append, List.flatMap_cons,
+        simp only [completedRefs, List.flatMap_append, List.flatMap_cons,
           List.flatMap_nil, List.append_nil, sameCompleted]
         exact List.Subset.refl _)
       (by simp only [List.length_append, List.length_singleton]; exact List.Subset.refl _)
   apply eligible.1
   have member := covers node kind dependencies birth known before
-  simpa only [announcedKeys, pendingKeys, List.flatMap_append, List.flatMap_cons,
+  simpa only [announcedRefs, pendingRefs, List.flatMap_append, List.flatMap_cons,
     List.flatMap_nil, List.append_nil, List.append_assoc, notices]
-    using List.mem_append_right (announcedKeys initial events) member
+    using List.mem_append_right (announcedRefs initial events) member
 
 /-- A ready stream item can publish while covering every currently eligible notice.
 Witness: the existing covering-frontier construction, followed by carrier coverage.
@@ -179,13 +179,13 @@ theorem Explains.publish_item_noticesCovered
     (known : TaskAt work occurrence owners producer (.item node (.ok (item, errors))))
     (ready : CanPublish work matching events failures occurrence producer)
     (owner
-      : PublicationOwner work ((groups ++ streams).map DeliveryNode.key) matching events
+      : PublicationOwner work ((groups ++ streams).map DeliveryNode.ref) matching events
           failures owners node)
     : ∃ newGroups newStreams,
         Explains work groups streams
           (events ++ [.streamValues node [{ item, errors }] newGroups newStreams])
           (matchNext matching events.length occurrence) failures
-        ∧ NoticesCovered work ((groups ++ streams).map DeliveryNode.key)
+        ∧ NoticesCovered work ((groups ++ streams).map DeliveryNode.ref)
             (matchNext matching events.length occurrence)
             (events ++ [.streamValues node [{ item, errors }] newGroups newStreams])
             failures := by
@@ -202,13 +202,13 @@ theorem Explains.complete_group_noticesCovered
     {work groups streams events matching failures node dependencies birth}
     (explained : Explains work groups streams events matching failures)
     (known : NodeAt work node .group dependencies birth)
-    (opened : Open ((groups ++ streams).map DeliveryNode.key) events node.key)
-    (healthy : ¬NodeFailed work matching events failures node.key)
-    (accounted : NodeAccounted work matching events failures node.key)
+    (opened : Open ((groups ++ streams).map DeliveryNode.ref) events node.ref)
+    (healthy : ¬NodeFailed work matching events failures node.ref)
+    (accounted : NodeAccounted work matching events failures node.ref)
     : ∃ newGroups newStreams,
         Explains work groups streams (events ++ [.groupSuccess node newGroups newStreams])
           matching failures
-        ∧ NoticesCovered work ((groups ++ streams).map DeliveryNode.key) matching
+        ∧ NoticesCovered work ((groups ++ streams).map DeliveryNode.ref) matching
             (events ++ [.groupSuccess node newGroups newStreams])
             failures := by
   obtain ⟨newGroups, newStreams, extended, covers⟩ :=

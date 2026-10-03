@@ -30,8 +30,8 @@ private def work : Execution.Work :=
       selections).run
     0).1.work
 
-private def node (key : Nat) (label : String) : DeliveryNode :=
-  { key, path := [], label := some (.string label) }
+private def node (ref : NodeRef) (label : String) : DeliveryNode :=
+  { ref, path := [], label := some (.string label) }
 
 private def parent : DeliveryNode := node 0 "P"
 private def child : DeliveryNode := node 3 "C3"
@@ -130,7 +130,7 @@ theorem initialized : Initializes work initial.initialGroups initial.initialStre
     cbv
   have eligible (group : DeliveryNode) (known : NodeAt work group .group [] none)
       : CanAnnounce work [] (fun _ => .executionGroup []) [] [] group .group [] none := by
-    exact ⟨by simp [announcedKeys, pendingKeys], Or.inl ⟨fun failure => failure.nonempty rfl,
+    exact ⟨by simp [announcedRefs, pendingRefs], Or.inl ⟨fun failure => failure.nonempty rfl,
         Or.inr (group_not_initially_accounted known)⟩, by simp, by simp⟩
   have notices : initial.initialGroups = [parent, node 4 "R1", node 5 "R2"]
       ∧ initial.initialStreams = [] := by cbv
@@ -158,10 +158,10 @@ theorem failure_prefix_accounted
 Witness: concrete pre-parent-failure metadata; these are retained links, not stale links.
 -/
 theorem retained_links
-    : before.groupNodes.map (fun group => group.group.node.key) = [0, 1, 2, 3]
-      ∧ (before.groupNode? parent.key).map GroupNode.childGroups = some [1, 2, 3]
-      ∧ (before.groupNode? child.key).map (fun group => group.group.parent)
-        = some (some parent.key) := by
+    : before.groupNodes.map (fun group => group.group.node.ref) = [0, 1, 2, 3]
+      ∧ (before.groupNode? parent.ref).map GroupNode.childGroups = some [1, 2, 3]
+      ∧ (before.groupNode? child.ref).map (fun group => group.group.parent)
+        = some (some parent.ref) := by
   cbv
 
 /-- Each latent child preserves its own error while awaiting the parent's outcome.
@@ -175,7 +175,7 @@ theorem failures_retained
 /-- The healthy child remains connected beside the two retained failed siblings.
 Witness: extract the actual parent/child lookups from the checked queue-state projection.
 -/
-theorem surviving_child_path : before.LiveDescendant parent.key child.key := by
+theorem surviving_child_path : before.LiveDescendant parent.ref child.ref := by
   obtain ⟨parentNode, parentFound, children⟩ := Option.map_eq_some_iff.mp retained_links.2.1
   obtain ⟨childNode, childFound, _⟩ := Option.map_eq_some_iff.mp retained_links.2.2
   exact .child parentFound (by simp [children, child, node]) (.self childFound)
@@ -185,14 +185,14 @@ Witness: valid input-prefix replay supplies the forest automatically; only the a
 stored live path is supplied, not an evaluated removal result or an added queue premise.
 -/
 theorem removal_covers_surviving_child
-    : (before.removeGroup parent.key).groupNode? child.key = none
-      ∧ child.key ∉ (before.removeGroup parent.key).rootGroups := by
+    : (before.removeGroup parent.ref).groupNode? child.ref = none
+      ∧ child.ref ∉ (before.removeGroup parent.ref).rootGroups := by
   have valid : ValidGraphEvents work [[firstFailure], [secondFailure]].flatten :=
     inputs_valid.prefix ⟨[parentFailure], rfl⟩
   have same : (initial.runNormalized [[firstFailure], [secondFailure]]).1 = before := by
     cbv
   have path : (initial.runNormalized [[firstFailure], [secondFailure]]).1.LiveDescendant
-      parent.key child.key := same.symm ▸ surviving_child_path
+      parent.ref child.ref := same.symm ▸ surviving_child_path
   have absent := generated.runNormalized_removeGroup_covers
     [[firstFailure], [secondFailure]] valid path
   rw [← same]
@@ -203,8 +203,8 @@ Witness: the generated replay theorem follows the actual stored task's owner loo
 evaluation is used only to identify that task and the pre-handler state.
 -/
 theorem taskFailure_covers_surviving_child
-    : (before.taskFailure parentTask 1).1.groupNode? child.key = none
-      ∧ child.key ∉ (before.taskFailure parentTask 1).1.rootGroups := by
+    : (before.taskFailure parentTask 1).1.groupNode? child.ref = none
+      ∧ child.ref ∉ (before.taskFailure parentTask 1).1.rootGroups := by
   have valid : ValidGraphEvents work [[firstFailure], [secondFailure]].flatten :=
     inputs_valid.prefix ⟨[parentFailure], rfl⟩
   have same : (initial.runNormalized [[firstFailure], [secondFailure]]).1 = before := by
@@ -215,7 +215,7 @@ theorem taskFailure_covers_surviving_child
   have replayFound : (initial.runNormalized [[firstFailure], [secondFailure]]).1.taskNode?
       parentTask = some task := by simpa only [same] using found
   have path : (initial.runNormalized [[firstFailure], [secondFailure]]).1.LiveDescendant
-      parent.key child.key := same.symm ▸ surviving_child_path
+      parent.ref child.ref := same.symm ▸ surviving_child_path
   have absent := generated.runNormalized_taskFailure_covers
     [[firstFailure], [secondFailure]] valid (errors := 1) replayFound
     (by
@@ -230,13 +230,13 @@ theorem taskFailure_covers_surviving_child
 /-- The live child is invalidated when its parent fails even though it has no failed
 contributor of its own. Witness: the genuine generated defer-ancestor relation.
 -/
-theorem child_invalidated : GroupInvalidated work [parentTask] child.key := by
-  have childKnown : NodeAt work child .group [parent.key] none := by
+theorem child_invalidated : GroupInvalidated work [parentTask] child.ref := by
+  have childKnown : NodeAt work child .group [parent.ref] none := by
     refine ⟨[1, 1, 1, 1, 0], [{ node := child, ancestors := [parent] }], [],
       .ok ([("a", .scalar "a")], 0), .combine .empty .empty, [],
       { node := child, ancestors := [parent] }, ?_, by simp, rfl, rfl⟩
     cbv
-  exact .groupDependency (ancestor := parent.key) ⟨child, none, childKnown, rfl⟩ (by simp)
+  exact .groupDependency (ancestor := parent.ref) ⟨child, none, childKnown, rfl⟩ (by simp)
     (.task ⟨none, _, parent_known⟩ (by simp [parent, node]) (by simp))
 
 /-- Cleanup handles the retained failed siblings and removes
@@ -244,10 +244,10 @@ the remaining descendant. Witness: reduce direct removal and the actual failure 
 The previous traversal left the child behind in both cases.
 -/
 theorem removal_clears_descendant
-    : (before.removeGroup parent.key).groupNodes.map (fun group => group.group.node.key)
+    : (before.removeGroup parent.ref).groupNodes.map (fun group => group.group.node.ref)
         = []
       ∧ (before.handleGraphEvent parentFailure).1.groupNodes.map
-          (fun group => group.group.node.key)
+          (fun group => group.group.node.ref)
         = [] := by
   cbv
 
@@ -273,17 +273,17 @@ private def sequentialQueue : State :=
     taskNodes := [removalTask]
   }
 
-private def removalParents (key : Nat) : Keys := if key = 0 then [] else [0]
+private def removalParents (ref : NodeRef) : NodeRefs := if ref = 0 then [] else [0]
 
 /-- The raw fixture is a finite canonical removal forest.
-Witness: its only stored edges are distinct increasing edges from key zero.
+Witness: its only stored edges are distinct increasing edges from ref zero.
 -/
 private theorem sequential_forest : sequentialQueue.RemovalForest removalParents := by
   constructor
   · intro group member
     simp only [sequentialQueue, List.mem_cons, List.not_mem_nil, or_false] at member
     rcases member with rfl | rfl | rfl <;> decide
-  · intro group member key linked
+  · intro group member ref linked
     simp only [sequentialQueue, List.mem_cons, List.not_mem_nil, or_false] at member
     rcases member with rfl | rfl | rfl
     · simp only [List.mem_cons, List.not_mem_nil, or_false] at linked

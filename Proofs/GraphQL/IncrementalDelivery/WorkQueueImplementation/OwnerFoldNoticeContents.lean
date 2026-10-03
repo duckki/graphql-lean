@@ -18,11 +18,11 @@ its pruned frontier. Taskless ancestor promotion is covered by the same contents
 -/
 theorem successGroupStep_noticeContents {work : Execution.Work}
     (generated : ExecutedWork work) (acc : State × List WorkQueueEvent × NewWork)
-    (owner : Execution.DeliveryNode) (keys : acc.1.GroupKeysUnique)
+    (owner : Execution.DeliveryNode) (refs : acc.1.GroupRefsUnique)
     (records : acc.1.GroupNodesMatchWork work)
     (support
-      : acc.1.GroupKeySupport
-          (fun key => ∃ dependencies, NodeHasDependencies work key .group dependencies))
+      : acc.1.GroupRefSupport
+          (fun ref => ∃ dependencies, NodeHasDependencies work ref .group dependencies))
     {index group groups streams child}
     (selected
       : (successGroupStep acc owner).2.1[index]?
@@ -30,13 +30,13 @@ theorem successGroupStep_noticeContents {work : Execution.Work}
     (newOutput : acc.2.1.length ≤ index) (noticed : child ∈ groups)
     : (∃ dependencies producer, NodeAt work child .group dependencies producer)
       ∧ ∃ node,
-          (successGroupStep acc owner).1.groupNode? child.key = some node
+          (successGroupStep acc owner).1.groupNode? child.ref = some node
           ∧ node.group.node = child
           ∧ (node.tasks ≠ [] ∨ node.failure.isSome = true) := by
   obtain ⟨queue, events, released⟩ := acc
-  dsimp only at keys records support newOutput
+  dsimp only at refs records support newOutput
   dsimp only [successGroupStep] at selected ⊢
-  cases found : queue.groupNode? owner.key with
+  cases found : queue.groupNode? owner.ref with
   | none =>
       simp only [found] at selected
       have inside := (List.getElem?_eq_some_iff.mp selected).1
@@ -50,11 +50,11 @@ theorem successGroupStep_noticeContents {work : Execution.Work}
         let updated := { node with pending := node.pending - 1 }
         let current := queue.putGroupNode updated
         have live := List.mem_of_find?_eq_some found
-        have nextKeys : current.GroupKeysUnique := keys.putGroupNode updated
+        have nextRefs : current.GroupRefsUnique := refs.putGroupNode updated
         have nextRecords : current.GroupNodesMatchWork work :=
           records.putGroupNode updated (records node live)
-        have nextSupport : current.GroupKeySupport
-            (fun key => ∃ dependencies, NodeHasDependencies work key .group dependencies) :=
+        have nextSupport : current.GroupRefSupport
+            (fun ref => ∃ dependencies, NodeHasDependencies work ref .group dependencies) :=
           support.putGroupNode updated (fun empty => support.contents node live empty)
         have member := List.mem_of_getElem? selected
         obtain ⟨values, _, _, output, _, _⟩ := current.finishGroupSuccess_publications updated
@@ -65,7 +65,7 @@ theorem successGroupStep_noticeContents {work : Execution.Work}
           · have impossible := List.mem_singleton.mp value
             cases impossible
         · have same := Execution.WorkQueueEvent.groupSuccess.inj (List.mem_singleton.mp closure)
-          exact current.finishGroupSuccess_noticeContents generated nextKeys nextRecords
+          exact current.finishGroupSuccess_noticeContents generated nextRefs nextRecords
             nextSupport updated (same.2.1 ▸ noticed)
       · have inside := (List.getElem?_eq_some_iff.mp selected).1
         dsimp only at inside
@@ -81,11 +81,11 @@ and inspect that step's pruned contents. The same boundary ends at the indexed c
 neither the final owner-fold state nor the later drain is substituted for it.
 -/
 theorem State.successGroupFold_noticeContents {queue : State} {work}
-    (generated : ExecutedWork work) (keys : queue.GroupKeysUnique)
+    (generated : ExecutedWork work) (refs : queue.GroupRefsUnique)
     (records : queue.GroupNodesMatchWork work)
     (support
-      : queue.GroupKeySupport
-          (fun key => ∃ dependencies, NodeHasDependencies work key .group dependencies))
+      : queue.GroupRefSupport
+          (fun ref => ∃ dependencies, NodeHasDependencies work ref .group dependencies))
     (owners : List Execution.DeliveryNode) {index group groups streams child}
     (selected
       : (owners.foldl successGroupStep (queue, [], {})).2.1[index]?
@@ -98,7 +98,7 @@ theorem State.successGroupFold_noticeContents {queue : State} {work}
             = boundary.2.1
           ∧ (∃ dependencies producer, NodeAt work child .group dependencies producer)
           ∧ ∃ node,
-              boundary.1.groupNode? child.key = some node
+              boundary.1.groupNode? child.ref = some node
               ∧ node.group.node = child
               ∧ (node.tasks ≠ [] ∨ node.failure.isSome = true) := by
   obtain ⟨steps, bound, lower, _, found, exactPrefix⟩ :=
@@ -110,10 +110,10 @@ theorem State.successGroupFold_noticeContents {queue : State} {work}
       List.foldl_nil]
   rw [next] at found
   have last := successGroupStep_carrier_last _ _ found lower
-  obtain ⟨currentKeys, currentRecords, currentSupport⟩ :=
-    State.successGroupFold_noticeMetadata generated keys records support (owners.take steps)
+  obtain ⟨currentRefs, currentRecords, currentSupport⟩ :=
+    State.successGroupFold_noticeMetadata generated refs records support (owners.take steps)
   have contents := successGroupStep_noticeContents generated _ owners[steps]
-    currentKeys currentRecords currentSupport found lower noticed
+    currentRefs currentRecords currentSupport found lower noticed
   refine ⟨steps, bound, ?_, ?_⟩
   · exact exactPrefix.trans (by rw [next, last, List.take_length])
   · simpa only [next] using contents
@@ -152,7 +152,7 @@ theorem ExecutedWork.taskSuccess_ownerNoticeContents
             output.take (index + 1) = boundary.2.1
             ∧ (∃ dependencies producer, NodeAt work child .group dependencies producer)
             ∧ ∃ node,
-                boundary.1.groupNode? child.key = some node
+                boundary.1.groupNode? child.ref = some node
                 ∧ node.group.node = child
                 ∧ (node.tasks ≠ [] ∨ node.failure.isSome = true)
                 ∧ ∀ publication ∈
@@ -168,11 +168,11 @@ theorem ExecutedWork.taskSuccess_ownerNoticeContents
   obtain ⟨matching, _, _⟩ := valid.atPrefix (show
     (before ++ [GraphEvent.taskSuccess occurrence result]).IsPrefix
       (before ++ GraphEvent.taskSuccess occurrence result :: after) from ⟨after, by simp⟩)
-  obtain ⟨keys, records, support⟩ :=
+  obtain ⟨refs, records, support⟩ :=
     generated.taskSuccess_prepared_noticeMetadata (fun _ member => prior.eachMatches member)
       matching incoming
   obtain ⟨steps, bounded, exactPrefix, located, node, lookup, same, contents⟩ :=
-    State.successGroupFold_noticeContents generated keys records support incoming.task.groups
+    State.successGroupFold_noticeContents generated refs records support incoming.task.groups
       selected noticed
   refine ⟨steps, bounded, exactPrefix, located, node, lookup, same, contents, ?_⟩
   have count : (((incoming.task.groups.take (steps + 1)).foldl successGroupStep

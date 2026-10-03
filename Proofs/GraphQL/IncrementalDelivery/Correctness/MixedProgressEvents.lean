@@ -16,23 +16,23 @@ open WorkQueueSemantics
 
 /-- A healthy stream can complete without uncovering supported notices.
 Witness: completion changes no publication and its stream role excludes every defer
-dependency key. Existing accounted tasks remain accounted for in the extended history.
+dependency ref. Existing accounted tasks remain accounted for in the extended history.
 -/
 theorem supported_complete_stream
     {ancestry bound roles work groups streams events matching failures node dependencies
       producer}
-    (valid : Valid ancestry bound) (coherent : MixedKeys.WorkAt ancestry 0 bound work)
-    (roleCoherent : KeyRoles.WorkRoles roles work)
+    (valid : Valid ancestry bound) (coherent : MixedRefs.WorkAt ancestry 0 bound work)
+    (roleCoherent : RefRoles.WorkRoles roles work)
     (explained : Explains work groups streams events matching failures)
     (covered
-      : SupportedNoticesCovered ancestry work ((groups ++ streams).map DeliveryNode.key)
+      : SupportedNoticesCovered ancestry work ((groups ++ streams).map DeliveryNode.ref)
           matching events failures)
     (known : NodeAt work node .stream dependencies producer)
-    (opened : Open ((groups ++ streams).map DeliveryNode.key) events node.key)
-    (healthy : ¬NodeFailed work matching events failures node.key)
-    (accounted : NodeAccounted work matching events failures node.key)
+    (opened : Open ((groups ++ streams).map DeliveryNode.ref) events node.ref)
+    (healthy : ¬NodeFailed work matching events failures node.ref)
+    (accounted : NodeAccounted work matching events failures node.ref)
     : Explains work groups streams (events ++ [.streamSuccess node]) matching failures
-      ∧ SupportedNoticesCovered ancestry work ((groups ++ streams).map DeliveryNode.key)
+      ∧ SupportedNoticesCovered ancestry work ((groups ++ streams).map DeliveryNode.ref)
           matching (events ++ [.streamSuccess node]) failures := by
   have extended : Explains work groups streams
       (events ++ [.streamSuccess node]) matching failures := by
@@ -42,21 +42,21 @@ theorem supported_complete_stream
   refine ⟨extended, ?_⟩
   apply supported_coverage_control valid coherent roleCoherent explained covered extended
     (fun _ failure => failure.append _)
-  · intro key member
-    simpa [announcedKeys, pendingKeys, eventPending] using member
-  · intro key role _ completed
-    simp only [completedKeys, List.flatMap_append, List.flatMap_cons, List.flatMap_nil,
+  · intro ref member
+    simpa [announcedRefs, pendingRefs, eventPending] using member
+  · intro ref role _ completed
+    simp only [completedRefs, List.flatMap_append, List.flatMap_cons, List.flatMap_nil,
       List.append_nil, eventCompleted, List.mem_append, List.mem_singleton] at completed
     rcases completed with earlier | rfl
     · exact earlier
-    · have streamRole : roles node.key = true := node_key_role roleCoherent known
+    · have streamRole : roles node.ref = true := node_ref_role roleCoherent known
       rw [role] at streamRole
       cases streamRole
   · intro task published
     rcases published_append_singleton_iff.mp published with earlier | ⟨value, _⟩
     · exact earlier
     · cases value
-  · intro key accounted occurrence owners projected member
+  · intro ref accounted occurrence owners projected member
     exact (accounted occurrence owners projected member).append _
 
 /-- A ready failure extends a supported history with an actual counted completion.
@@ -66,19 +66,19 @@ the generic nonpublishing preservation theorem applies even to mixed cancellatio
 theorem supported_failure
     {ancestry bound roles work groups streams events matching failures occurrence owners
       producer payload}
-    (valid : Valid ancestry bound) (coherent : MixedKeys.WorkAt ancestry 0 bound work)
-    (roleCoherent : KeyRoles.WorkRoles roles work)
+    (valid : Valid ancestry bound) (coherent : MixedRefs.WorkAt ancestry 0 bound work)
+    (roleCoherent : RefRoles.WorkRoles roles work)
     (explained : Explains work groups streams events matching failures)
     (covered
-      : SupportedNoticesCovered ancestry work ((groups ++ streams).map DeliveryNode.key)
+      : SupportedNoticesCovered ancestry work ((groups ++ streams).map DeliveryNode.ref)
           matching events failures)
     (known : TaskAt work occurrence owners producer payload)
     (ready : CanPublish work matching events failures occurrence producer)
     (fails : payload.failure.isSome = true)
-    (opened : ∃ key ∈ owners, Open ((groups ++ streams).map DeliveryNode.key) events key)
+    (opened : ∃ ref ∈ owners, Open ((groups ++ streams).map DeliveryNode.ref) events ref)
     : ∃ event cuts,
         Explains work groups streams (events ++ [event]) matching cuts
-        ∧ SupportedNoticesCovered ancestry work ((groups ++ streams).map DeliveryNode.key)
+        ∧ SupportedNoticesCovered ancestry work ((groups ++ streams).map DeliveryNode.ref)
             matching (events ++ [event]) cuts := by
   obtain ⟨node, count, event, contributes, control, _, extended⟩ :=
     explained.failure_step known fails (ready.reachable explained known) opened
@@ -86,19 +86,19 @@ theorem supported_failure
   have included : failures ⊆ failures ++ [(events.length, occurrence)] :=
     List.subset_append_left _ _
   have failed : NodeFailed work matching (events ++ [event])
-      (failures ++ [(events.length, occurrence)]) node.key :=
+      (failures ++ [(events.length, occurrence)]) node.ref :=
     .task known contributes (by simp [failedBefore, List.filter_append])
   have noNotices : eventPending event = [] := by
     rcases control with rfl | rfl <;> rfl
-  have completion : eventCompleted event = [node.key] := by
+  have completion : eventCompleted event = [node.ref] := by
     rcases control with rfl | rfl <;> rfl
   refine ⟨event, _, extended, ?_⟩
   apply supported_coverage_control valid coherent roleCoherent explained covered extended
     (fun _ failure => (failure.mono included).append _)
-  · intro key member
-    simpa [announcedKeys, pendingKeys, noNotices] using member
-  · intro key _ healthy completed
-    simp only [completedKeys, List.flatMap_append, List.flatMap_cons, List.flatMap_nil,
+  · intro ref member
+    simpa [announcedRefs, pendingRefs, noNotices] using member
+  · intro ref _ healthy completed
+    simp only [completedRefs, List.flatMap_append, List.flatMap_cons, List.flatMap_nil,
       List.append_nil, completion, List.mem_append, List.mem_singleton] at completed
     rcases completed with earlier | rfl
     · exact earlier
@@ -107,7 +107,7 @@ theorem supported_failure
     rcases published_append_singleton_iff.mp published with earlier | ⟨value, _⟩
     · exact earlier
     · rcases control with rfl | rfl <;> cases value
-  · intro key accounted occurrence owners projected member
+  · intro ref accounted occurrence owners projected member
     exact ((accounted occurrence owners projected member).more_failures included).append [event]
 
 -----------------------------------------------------------------------------------------
@@ -120,28 +120,28 @@ or the actual failure-cut extension. Neither payload success nor singleton owner
 assumed; generated paths supply a permitted owner when several groups overlap.
 -/
 theorem extend_ready_supported
-    {ancestry keyBound roles paths pathBound work groups streams events matching failures
+    {ancestry refBound roles paths pathBound work groups streams events matching failures
       occurrence owners producer payload}
-    (valid : Valid ancestry keyBound) (keys : MixedKeys.WorkAt ancestry 0 keyBound work)
-    (roleCoherent : KeyRoles.WorkRoles roles work)
+    (valid : Valid ancestry refBound) (refs : MixedRefs.WorkAt ancestry 0 refBound work)
+    (roleCoherent : RefRoles.WorkRoles roles work)
     (continuous : DeferContinuous ancestry work) (ordered : StreamOwnersOrdered work)
     (coherent : MixedOwnerPaths.WorkAt paths pathBound work)
     (explained : Explains work groups streams events matching failures)
     (covered
-      : SupportedNoticesCovered ancestry work ((groups ++ streams).map DeliveryNode.key)
+      : SupportedNoticesCovered ancestry work ((groups ++ streams).map DeliveryNode.ref)
           matching events failures)
     (known : TaskAt work occurrence owners producer payload)
     (ready : CanPublish work matching events failures occurrence producer)
     (announced
-      : ∃ key ∈ owners,
-          key ∈ announcedKeys ((groups ++ streams).map DeliveryNode.key) events
-          ∧ ¬NodeFailed work matching events failures key)
+      : ∃ ref ∈ owners,
+          ref ∈ announcedRefs ((groups ++ streams).map DeliveryNode.ref) events
+          ∧ ¬NodeFailed work matching events failures ref)
     : ∃ event next cuts,
         Explains work groups streams (events ++ [event]) next cuts
-        ∧ SupportedNoticesCovered ancestry work ((groups ++ streams).map DeliveryNode.key)
+        ∧ SupportedNoticesCovered ancestry work ((groups ++ streams).map DeliveryNode.ref)
             next (events ++ [event]) cuts := by
-  obtain ⟨key, member, notified, healthy⟩ := announced
-  have opened : Open ((groups ++ streams).map DeliveryNode.key) events key := by
+  obtain ⟨ref, member, notified, healthy⟩ := announced
+  have opened : Open ((groups ++ streams).map DeliveryNode.ref) events ref := by
     refine ⟨notified, ?_⟩
     intro completed
     rcases explained.completed_accounted completed with failed | accounted
@@ -152,10 +152,10 @@ theorem extend_ready_supported
       · exact ready.1 published
   have failing (fails : payload.failure.isSome = true) :
       ∃ event next cuts, Explains work groups streams (events ++ [event]) next cuts
-        ∧ SupportedNoticesCovered ancestry work ((groups ++ streams).map DeliveryNode.key)
+        ∧ SupportedNoticesCovered ancestry work ((groups ++ streams).map DeliveryNode.ref)
             next (events ++ [event]) cuts := by
-    obtain ⟨event, cuts, extended, retained⟩ := supported_failure valid keys roleCoherent
-      explained covered known ready fails ⟨key, member, opened⟩
+    obtain ⟨event, cuts, extended, retained⟩ := supported_failure valid refs roleCoherent
+      explained covered known ready fails ⟨ref, member, opened⟩
     exact ⟨event, matching, cuts, extended, retained⟩
   cases payload with
   | object path result =>
@@ -176,32 +176,32 @@ theorem extend_ready_supported
           have extended := explained.publish_object known ready selected
           let event := WorkQueueEvent.groupValues owner [{ path, data, errors }]
           refine ⟨event, _, failures, extended, ?_⟩
-          have failureTransport : ∀ key,
-              NodeFailed work matching events failures key →
+          have failureTransport : ∀ ref,
+              NodeFailed work matching events failures ref →
                 NodeFailed work (matchNext matching events.length (.executionGroup address))
-                  (events ++ [event]) failures key := by
-            intro key failure
+                  (events ++ [event]) failures ref := by
+            intro ref failure
             have same := nodeFailed_matching_eq (work := work) (events := events)
               (failures := failures)
               (fun _ before => matchNext_before matching (.executionGroup address) before)
             exact (same ▸ failure).append [event]
-          apply supported_coverage_publication valid keys roleCoherent continuous ordered
+          apply supported_coverage_publication valid refs roleCoherent continuous ordered
             covered extended failureTransport known ready
-          · intro key contributes dependency
+          · intro ref contributes dependency
             exact ready_owner_dependency_unsatisfied explained known contributes ready
               dependency
           · exact fun _ _ _ _ task published => explained.published_producer task published
-          · intro key member
-            simpa [announcedKeys, pendingKeys, event, eventPending] using member
-          · intro key member
-            simpa [completedKeys, event, eventCompleted] using member
+          · intro ref member
+            simpa [announcedRefs, pendingRefs, event, eventPending] using member
+          · intro ref member
+            simpa [completedRefs, event, eventCompleted] using member
           · intro task published
             rcases published_append_singleton_iff.mp published with earlier | ⟨_, same⟩
             · have same := published_matching_eq (events := events)
                 (fun _ before => matchNext_before matching (.executionGroup address) before)
               exact Or.inl (same ▸ earlier)
             · exact Or.inr (by simpa only [matchNext, ↓reduceIte] using same.symm)
-          · intro key accounted occurrence owners projected member
+          · intro ref accounted occurrence owners projected member
             exact (accounted occurrence owners projected member).matchNext_append
               (.executionGroup address) event
   | item node result =>
@@ -209,11 +209,11 @@ theorem extend_ready_supported
       | error errors => exact failing rfl
       | ok value =>
           obtain ⟨item, errors⟩ := value
-          have ownerKey : key = node.key := by
+          have ownerRef : ref = node.ref := by
             cases StructuralEquivalence.taskAt_of_current known with
             | item located selected => exact List.mem_singleton.mp member
-          have selected := stream_owner_of_open coherent known (ownerKey ▸ opened)
-            (ownerKey ▸ healthy)
+          have selected := stream_owner_of_open coherent known (ownerRef ▸ opened)
+            (ownerRef ▸ healthy)
           obtain ⟨newGroups, newStreams, extended, notices⟩ :=
             explained.publish_item_noticesCovered known ready selected
           exact ⟨_, _, _, extended, supportedNoticesCovered_of_noticesCovered notices⟩

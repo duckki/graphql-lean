@@ -22,11 +22,11 @@ def PublicationSupport (work : Work) (matching : PublicationMatching)
   ∀ index event,
     events[index]? = some event
     → IsValue event
-    → ∃ owners producer payload key,
+    → ∃ owners producer payload ref,
         TaskAt work (matching index) owners producer payload
         ∧ payload.failure = none
-        ∧ key ∈ owners
-        ∧ ¬NodeFailed work matching (events.take index) failures key
+        ∧ ref ∈ owners
+        ∧ ¬NodeFailed work matching (events.take index) failures ref
         ∧ ∀ parent, producer = some parent → Published matching (events.take index) parent
 
 /-- Supported publications cannot revive historically cancelled tasks.
@@ -61,7 +61,7 @@ theorem PublicationSupport.cancelled_unpublished
         have inside := (List.getElem?_eq_some_iff.mp selected).1
         have length : (events.take index).length = index := by
           simp [List.length_take, Nat.min_eq_left (Nat.le_of_lt inside)]
-        obtain ⟨owners, producer, payload, key, known, _, owns, healthy, parentReady⟩ :=
+        obtain ⟨owners, producer, payload, ref, known, _, owns, healthy, parentReady⟩ :=
           support index event selected value
         cases cause with
         | owners other _ _ failed =>
@@ -70,7 +70,7 @@ theorem PublicationSupport.cancelled_unpublished
             apply healthy
             refine ⟨cut, member, by omega, ?_⟩
             simpa only [List.take_take, Nat.min_eq_left cutoff]
-              using failed key (same ▸ owns)
+              using failed ref (same ▸ owns)
         | producerFailed other _ failure =>
             obtain ⟨otherOwners, otherPayload, otherKnown⟩ := other
             have same := (known.unique otherKnown).2.1
@@ -145,7 +145,7 @@ theorem PublicationSupport.canPublish
           → Published matching (events.take index) (.item address first))
     : CanPublish work matching (events.take index) failures (matching index)
         producer := by
-  obtain ⟨otherOwners, otherProducer, otherPayload, key, otherKnown, _, _, _, ready⟩ :=
+  obtain ⟨otherOwners, otherProducer, otherPayload, ref, otherKnown, _, _, _, ready⟩ :=
     support index event selected value
   have sameProducer := (known.unique otherKnown).2.1
   refine ⟨fresh, support.not_cancelled_at failedPayloads selected value, ?_, ?_⟩

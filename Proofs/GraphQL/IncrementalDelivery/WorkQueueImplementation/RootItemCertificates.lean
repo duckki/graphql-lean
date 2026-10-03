@@ -15,7 +15,7 @@ def RootItemsSafe (work : Execution.Work) (received : List GraphEvent) (w : Witn
     : Prop :=
   ∀ source index stream result,
     NodeAt work stream .stream [] none
-    → TaskAt work (.item source index) [stream.key] none (.item stream result)
+    → TaskAt work (.item source index) [stream.ref] none (.item stream result)
     → Occurrence.item source index ∈ received.flatMap GraphEvent.successes
     → ¬TaskCancelled work w.matching w.events w.failures (.item source index)
 

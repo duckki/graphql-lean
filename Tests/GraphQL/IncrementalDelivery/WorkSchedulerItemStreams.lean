@@ -9,10 +9,10 @@ open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
-private def outer : DeliveryNode := { key := 0, path := [.field "users"] }
+private def outer : DeliveryNode := { ref := 0, path := [.field "users"] }
 
 private def child (index : Nat) : DeliveryNode :=
-  { key := index + 1, path := [.field "users", .index index, .field "values"] }
+  { ref := index + 1, path := [.field "users", .index index, .field "values"] }
 
 private def childItems : List (Result ResponseValue × Execution.Work) :=
   [
@@ -68,7 +68,7 @@ private theorem itemMatches (index : Nat) (bound : index < 2)
     have casesIndex : index = 0 ∨ index = 1 := by omega
     rcases casesIndex with rfl | rfl <;> rfl
   refine ⟨
-    [outer.key],
+    [outer.ref],
     none,
     ⟨outer, entries, [], .ok (value, 0), children index, outerLocated, entry, rfl, rfl⟩,
     ?_
@@ -196,7 +196,7 @@ theorem continued_inputs_valid_started
   · intro supplied member
     have same := List.mem_singleton.mp member
     subst supplied
-    refine ⟨[(child 0).key], some (item 0).occurrence, ?_, by cbv⟩
+    refine ⟨[(child 0).ref], some (item 0).occurrence, ?_, by cbv⟩
     exact ⟨child 0, childItems, [], .ok (.scalar "x", 0), .empty,
       childLocated 0 (by omega), rfl, rfl, rfl⟩
   · simp [joined, next, leaf, item, GraphEvent.Fresh, GraphEvent.identities]
@@ -252,7 +252,7 @@ theorem stream_values_ready_without_cuts
             atoms[index]? = some (.streamValues stream values groups streams)
             → ∃ value producer,
                 values = [value]
-                ∧ TaskAt work (matching index) [stream.key] producer
+                ∧ TaskAt work (matching index) [stream.ref] producer
                     (.item stream (.ok (value.item, value.errors)))
                 ∧ CanPublish work matching (atoms.take index) [] (matching index)
                     producer := by
@@ -282,7 +282,7 @@ theorem cancellation_cut_still_blocks
       let atoms := outputs.flatten.flatMap publicationAtoms
       ∃ matching : PublicationMatching,
       ∃ producer,
-        TaskAt work (matching 0) [outer.key] producer (.item outer (.ok (value, 0)))
+        TaskAt work (matching 0) [outer.ref] producer (.item outer (.ok (value, 0)))
         ∧ ¬CanPublish work matching (atoms.take 0) [(0, matching 0)] (matching 0)
             producer := by
   obtain ⟨matching, _, _, ready⟩ :=
@@ -301,10 +301,10 @@ theorem cancellation_cut_still_blocks
   apply Causality.TaskCancelled.owners ⟨producer, _, known⟩
   · simp [Published]
   · simp
-  · intro key member
+  · intro ref member
     exact Causality.NodeFailed.task ⟨producer, _, known⟩ member (by simp [failedBefore])
 
-/-- Root and item-produced streams use open keys at each actual reference.
+/-- Root and item-produced streams use open refs at each actual reference.
 Witness: the generated-work openness theorem, including the first child reference after
 the shared carrier announces two equal-valued outer items' distinct child streams.
 -/
@@ -313,11 +313,11 @@ theorem nested_stream_references_open
         (initial.runNormalized [[joined], [next]]).2.flatten.flatMap publicationAtoms
       ∀ index event,
         atoms[index]? = some event
-        → ∀ key ∈ streamReferenceKeys event,
-            Open ((initial.initialGroups ++ initial.initialStreams).map DeliveryNode.key)
-              (atoms.take index) key := by
+        → ∀ ref ∈ streamReferenceRefs event,
+            Open ((initial.initialGroups ++ initial.initialStreams).map DeliveryNode.ref)
+              (atoms.take index) ref := by
   dsimp only
-  intro index event atEvent key reference
+  intro index event atEvent ref reference
   exact createWorkQueue_runNormalized_streamOpenAt generated
     (batches := [[joined], [next]]) continued_inputs_valid_started.1 atEvent reference
 

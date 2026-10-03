@@ -61,7 +61,7 @@ example : ¬skipsPrefix.Allows [1, 2] := by
   have firstAllowed := h [1] ⟨[2], rfl⟩
   simp [skipsPrefix] at firstAllowed
 
-def node : DeliveryNode := { key := 7, path := [] }
+def node : DeliveryNode := { ref := 7, path := [] }
 
 def events : List WorkQueueEvent :=
   [

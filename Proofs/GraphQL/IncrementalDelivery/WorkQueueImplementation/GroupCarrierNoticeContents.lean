@@ -22,7 +22,7 @@ def RetainedNoticeContents (work : Execution.Work) (matching : PublicationMatchi
   (∃ dependencies producer, NodeAt work child .group dependencies producer)
   ∧ ∃ queue : State,
     ∃ node : GroupNode,
-      queue.groupNode? child.key = some node
+      queue.groupNode? child.ref = some node
       ∧ node.group.node = child
       ∧ (node.tasks ≠ [] ∨ node.failure.isSome = true)
       ∧ queue.GroupMembershipSound
@@ -41,10 +41,10 @@ theorem RetainedNoticeContents.recorded_or_unpublished
     (contents
       : RetainedNoticeContents work matching events (failedBefore failures cut) received
           child)
-    : HasRecordedFailure work failures cut child.key
+    : HasRecordedFailure work failures cut child.ref
       ∨ ∃ occurrence owners,
           TaskHasOwners work occurrence owners
-          ∧ child.key ∈ owners
+          ∧ child.ref ∈ owners
           ∧ ¬Published matching events occurrence := by
   obtain ⟨_, queue, node, found, same, retained, sound, registered, cached,
     _, unpublished⟩ := contents
@@ -203,7 +203,7 @@ theorem ExecutedWork.streamItems_groupNotice_unpublished
   have sourceReady := (createWorkQueue_replayGraphEvents_producerOrder prior).1.mono
     (List.subset_append_left before (.streamItems stream items :: after))
   rw [current.streamItems_eq stream items] at selected count
-  cases active : current.rootStreams.contains stream.key with
+  cases active : current.rootStreams.contains stream.ref with
   | false =>
       simp only [active, Bool.not_false, ↓reduceIte, List.getElem?_nil, reduceCtorEq] at selected
   | true =>
@@ -277,11 +277,11 @@ theorem ExecutedWork.handleGraphEvent_groupNotice_unpublished
       exact False.elim
         (current.taskFailure_noGroupSuccess occurrence errors group groups streams member)
   | streamSuccess stream =>
-      cases active : current.rootStreams.contains stream.key <;>
+      cases active : current.rootStreams.contains stream.ref <;>
         simp only [State.handleGraphEvent, State.streamSuccess, active,
           Bool.false_eq_true, ↓reduceIte] at member <;> simp at member
   | streamFailure stream errors =>
-      cases active : current.rootStreams.contains stream.key <;>
+      cases active : current.rootStreams.contains stream.ref <;>
         simp only [State.handleGraphEvent, State.streamFailure, active,
           Bool.false_eq_true, ↓reduceIte] at member <;> simp at member
 

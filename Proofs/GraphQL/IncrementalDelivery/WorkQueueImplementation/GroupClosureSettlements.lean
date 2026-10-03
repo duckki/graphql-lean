@@ -29,28 +29,28 @@ failure-closure equivalence transfers health; an unsettled contributor would req
 live owner, contradicting retirement. The resulting token names an actual source event.
 -/
 theorem ExecutedWork.replayGraphEvents_retiredContributor_succeeded
-    {work events key task} (generated : ExecutedWork work)
+    {work events ref task} (generated : ExecutedWork work)
     (valid : ValidGraphEvents work events)
     (started : (State.initialize (Work.fromExecution work)).acceptsBatch events = true)
     (registered
       : task
         ∈ ((State.initialize (Work.fromExecution work)).replayGraphEvents events).tasks)
-    (contributes : key ∈ task.groups.map Execution.DeliveryNode.key)
+    (contributes : ref ∈ task.groups.map Execution.DeliveryNode.ref)
     (retired
       : ((State.initialize (Work.fromExecution work)).replayGraphEvents
           events).RetiredGroup
-          key)
+          ref)
     (healthy
       : ¬GroupRecordInvalidated work
           ((State.initialize (Work.fromExecution work)).objectFailureContributions events)
-          key)
+          ref)
     : ∃ result, GraphEvent.taskSuccess task.occurrence result ∈ events := by
   obtain ⟨_, _, ledger⟩ :=
     generated.replayGraphEvents_ownerAccounting_of_started events valid started
-  have sourceHealthy : ¬GroupInvalidated work (GraphEvent.failureSettlements events) key := by
+  have sourceHealthy : ¬GroupInvalidated work (GraphEvent.failureSettlements events) ref := by
     intro failed
     exact healthy ((generated.failureInventories_groupInvalidated_iff events valid started
-      key).mp failed).toRecordInvalidated
+      ref).mp failed).toRecordInvalidated
   exact groupSettlement_source
     (ledger.healthyRegisteredTasks.retired_contributor_settled registered contributes
       sourceHealthy retired)
@@ -75,7 +75,7 @@ theorem ExecutedWork.successfulCarrier_registeredContributor_succeeded
       : task
         ∈ ((State.initialize (Work.fromExecution work)).replayGraphEvents
             (before ++ [event])).tasks)
-    (contributes : group.key ∈ task.groups.map Execution.DeliveryNode.key)
+    (contributes : group.ref ∈ task.groups.map Execution.DeliveryNode.ref)
     : ∃ result, GraphEvent.taskSuccess task.occurrence result ∈ before ++ [event] := by
   obtain ⟨_, _, retired, healthy, _⟩ :=
     generated.replayGraphEvents_successfulCarrier_retiredHealthy valid
@@ -106,7 +106,7 @@ theorem ExecutedWork.successfulCarrier_rootContributor_succeeded
               before).handleGraphEvent
             event).2)
     (known : TaskAt work (.executionGroup address) owners none payload)
-    (contributes : group.key ∈ owners)
+    (contributes : group.ref ∈ owners)
     : ∃ result,
         GraphEvent.taskSuccess (.executionGroup address) result ∈ before ++ [event] := by
   obtain ⟨task, registered, occurrence, groups⟩ :=
@@ -128,7 +128,7 @@ theorem ExecutedWork.runNormalized_successfulCarrier_rootContributor_prefix
       : Execution.WorkQueueEvent.groupSuccess group groups streams
         ∈ ((State.initialize (Work.fromExecution work)).runNormalized batches).2.flatten)
     (known : TaskAt work (.executionGroup address) owners none payload)
-    (contributes : group.key ∈ owners)
+    (contributes : group.ref ∈ owners)
     : ∃ before event after result,
         batches.flatten = before ++ event :: after
         ∧ Execution.WorkQueueEvent.groupSuccess group groups streams

@@ -74,19 +74,19 @@ theorem ExecutedWork.descriptorAssignment {work : Execution.Work}
     variables fuel parentType source selections 0
   exact ⟨nodes, _, same ▸ known⟩
 
-/-- Equal generated keys identify the entire node, not only its attachment path.
+/-- Equal generated refs identify the entire node, not only its attachment path.
 Witness: both structural nodes agree with the same allocation assignment.
 Conformance derives this fact internally from generated work.
 -/
-theorem ExecutedWork.nodeKeyCoherent {work : Execution.Work}
+theorem ExecutedWork.nodeRefCoherent {work : Execution.Work}
     (generated : ExecutedWork work)
-    : NodeKeyCoherent work := by
+    : NodeRefCoherent work := by
   obtain ⟨nodes, bound, assigned⟩ := generated.descriptorAssignment
   intro first firstKind firstDependencies firstProducer
     second secondKind secondDependencies secondProducer firstAt secondAt same
   exact (assigned.node firstAt).2.symm.trans (same ▸ (assigned.node secondAt).2)
 
-/-- A registration record and an actual contributor at the same generated key are equal.
+/-- A registration record and an actual contributor at the same generated ref are equal.
 Witness: ancestor metadata and structural contributor metadata use one complete assignment.
 -/
 theorem ExecutedWork.record_eq_node
@@ -94,18 +94,18 @@ theorem ExecutedWork.record_eq_node
     (generated : ExecutedWork work)
     (recordAt : GroupRecordAt work record recordDependencies)
     (nodeAt : NodeAt work node .group dependencies producer)
-    (same : record.key = node.key)
+    (same : record.ref = node.ref)
     : record = node := by
   obtain ⟨nodes, bound, assigned⟩ := generated.descriptorAssignment
   exact (assigned.record recordAt).2.symm.trans (same ▸ (assigned.node nodeAt).2)
 
-/-- Contributor-key support upgrades a generated registration record to exact provenance.
-Witness: find the real contributor at that key and identify its complete descriptor.
-No structural node is fabricated for an ancestor key without a contributing task.
+/-- Contributor-ref support upgrades a generated registration record to exact provenance.
+Witness: find the real contributor at that ref and identify its complete descriptor.
+No structural node is fabricated for an ancestor ref without a contributing task.
 -/
 theorem ExecutedWork.record_contributor {work node recordDependencies}
     (generated : ExecutedWork work) (record : GroupRecordAt work node recordDependencies)
-    (contributes : ∃ dependencies, NodeHasDependencies work node.key .group dependencies)
+    (contributes : ∃ dependencies, NodeHasDependencies work node.ref .group dependencies)
     : ∃ dependencies producer, NodeAt work node .group dependencies producer := by
   obtain ⟨dependencies, contributor, producer, located, same⟩ := contributes
   have equal := generated.record_eq_node record located same.symm

@@ -9,20 +9,20 @@ namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
 -----------------------------------------------------------------------------------------
 
 /-- The drain's selected record is live and active, with a cached failure or zero pending.
-Witness: invert the actual root-key search and its successful group lookup.
+Witness: invert the actual root-ref search and its successful group lookup.
 -/
 private theorem ready_group {queue : State} {group : GroupNode}
     (selected
       : queue.rootGroups.findSome?
-          (fun key => do
-            let node ← queue.groupNode? key
+          (fun ref => do
+            let node ← queue.groupNode? ref
             if node.failure.isSome || node.pending == 0 then some node else none)
         = some group)
-    : queue.groupNode? group.group.node.key = some group
-      ∧ group.group.node.key ∈ queue.rootGroups
+    : queue.groupNode? group.group.node.ref = some group
+      ∧ group.group.node.ref ∈ queue.rootGroups
       ∧ (group.failure.isSome = true ∨ group.pending = 0) := by
-  obtain ⟨key, active, choice⟩ := List.exists_of_findSome?_eq_some selected
-  cases found : queue.groupNode? key with
+  obtain ⟨ref, active, choice⟩ := List.exists_of_findSome?_eq_some selected
+  cases found : queue.groupNode? ref with
   | none => simp [found] at choice
   | some node =>
       simp only [found] at choice
@@ -31,7 +31,7 @@ private theorem ready_group {queue : State} {group : GroupNode}
       split at choice
       · rename_i ready
         obtain rfl := Option.some.inj choice
-        have same := State.groupNode?_key found
+        have same := State.groupNode?_ref found
         exact ⟨same ▸ found, same ▸ active, by simpa using ready⟩
       · contradiction
 
@@ -108,9 +108,9 @@ theorem State.drainReadyGroups_go_value_boundary (fuel : Nat) (queue : State)
         = some (.groupValues group values))
     : ∃ steps node,
         steps < fuel
-        ∧ (State.drainReadyGroups.go steps queue).1.groupNode? node.group.node.key
+        ∧ (State.drainReadyGroups.go steps queue).1.groupNode? node.group.node.ref
           = some node
-        ∧ node.group.node.key ∈ (State.drainReadyGroups.go steps queue).1.rootGroups
+        ∧ node.group.node.ref ∈ (State.drainReadyGroups.go steps queue).1.rootGroups
         ∧ node.failure = none
         ∧ node.pending = 0
         ∧ node.group.node = group
@@ -121,8 +121,8 @@ theorem State.drainReadyGroups_go_value_boundary (fuel : Nat) (queue : State)
   | succ fuel ih =>
       cases ready
             : queue.rootGroups.findSome?
-                (fun key => do
-                  let node ← queue.groupNode? key
+                (fun ref => do
+                  let node ← queue.groupNode? ref
                   if node.failure.isSome || node.pending == 0 then
                     some node
                   else
@@ -191,9 +191,9 @@ theorem State.drainReadyGroups_go_success_boundary (fuel : Nat) (queue : State)
         = some (.groupSuccess group groups streams))
     : ∃ steps node before,
         steps < fuel
-        ∧ (State.drainReadyGroups.go steps queue).1.groupNode? node.group.node.key
+        ∧ (State.drainReadyGroups.go steps queue).1.groupNode? node.group.node.ref
           = some node
-        ∧ node.group.node.key ∈ (State.drainReadyGroups.go steps queue).1.rootGroups
+        ∧ node.group.node.ref ∈ (State.drainReadyGroups.go steps queue).1.rootGroups
         ∧ node.failure = none
         ∧ node.pending = 0
         ∧ node.group.node = group
@@ -206,8 +206,8 @@ theorem State.drainReadyGroups_go_success_boundary (fuel : Nat) (queue : State)
   | succ fuel ih =>
       cases ready
             : queue.rootGroups.findSome?
-                (fun key => do
-                  let node ← queue.groupNode? key
+                (fun ref => do
+                  let node ← queue.groupNode? ref
                   if node.failure.isSome || node.pending == 0 then
                     some node
                   else

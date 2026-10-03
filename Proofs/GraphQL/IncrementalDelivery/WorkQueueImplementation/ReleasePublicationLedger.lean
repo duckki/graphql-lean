@@ -19,7 +19,7 @@ selection for conservation, strict closure coverage, and child-stream producer l
 private theorem successGroupStep_jointCoverage {work property published}
     (generated : ExecutedWork work) (original : State)
     (acc : State × List WorkQueueEvent × NewWork) (group : Execution.DeliveryNode)
-    (keys : acc.1.GroupKeysUnique) (links : acc.1.StoredTaskLinks)
+    (refs : acc.1.GroupRefsUnique) (links : acc.1.StoredTaskLinks)
     (settled : acc.1.ChildStreamsSettled) (children : acc.1.ChildStreamsMatchWork work)
     {added : List ObjectPublication}
     (values : added.map Prod.snd = acc.2.1.flatMap WorkQueueEvent.objectValues)
@@ -36,7 +36,7 @@ private theorem successGroupStep_jointCoverage {work property published}
     (owners : original.StoredOwnersConserved added acc.1)
     (cleared : ∀ publication ∈ added, acc.1.TaskMembershipAbsent publication.1)
     : let next := successGroupStep acc group
-      next.1.GroupKeysUnique
+      next.1.GroupRefsUnique
       ∧ next.1.StoredTaskLinks
       ∧ next.1.ChildStreamsSettled
       ∧ next.1.ChildStreamsMatchWork work
@@ -56,13 +56,13 @@ private theorem successGroupStep_jointCoverage {work property published}
   obtain ⟨current, events, released⟩ := acc
   dsimp only [successGroupStep]
   split
-  · exact ⟨keys, links, settled, children, added, values, inventory, covered, conserved,
+  · exact ⟨refs, links, settled, children, added, values, inventory, covered, conserved,
       streams, ordered, owners, cleared, List.prefix_refl _⟩
   · rename_i node found
     let updated := { node with pending := node.pending - 1 }
     have live := List.mem_of_find?_eq_some found
-    have nextKeys := keys.putGroupNode updated
-    have nextLinks := links.putGroupNodeSameTasks keys node live updated rfl rfl
+    have nextRefs := refs.putGroupNode updated
+    have nextLinks := links.putGroupNodeSameTasks refs node live updated rfl rfl
     have nextSettled := settled.putGroupNode updated
     have nextChildren := children.putGroupNode updated
     have nextInventory := inventory.putGroupNode updated
@@ -79,7 +79,7 @@ private theorem successGroupStep_jointCoverage {work property published}
       obtain ⟨extra, extraValues, final, extraCoverage, extraConserved, extraStreams,
         extraOrder, extraOwners, extraCleared⟩ :=
         nextInventory.finishGroupSuccess_bufferedCoverage nextLinks updated updatedLive
-      refine ⟨nextKeys.finishGroupSuccess _, nextLinks.finishGroupSuccess _,
+      refine ⟨nextRefs.finishGroupSuccess _, nextLinks.finishGroupSuccess _,
         nextSettled.finishGroupSuccess _, nextChildren.finishGroupSuccess _, added ++ extra,
         ?_, ?_, covered.append extraCoverage values conserved, ?_,
         streams.append (extraStreams work generated nextSettled nextChildren) values, ?_, ?_,
@@ -104,7 +104,7 @@ private theorem successGroupStep_jointCoverage {work property published}
         exact (List.mem_append.mp member).elim
           (fun old => (nextCleared publication old).finishGroupSuccess updated)
           (extraCleared publication)
-    · exact ⟨nextKeys, nextLinks, nextSettled, nextChildren,
+    · exact ⟨nextRefs, nextLinks, nextSettled, nextChildren,
         added, values, nextInventory, covered, conserved, streams, ordered, nextOwners,
         nextCleared, List.prefix_refl _⟩
 
@@ -118,12 +118,12 @@ publish-or-retain conservation throughout the actual single-pass implementation.
 -/
 theorem State.PublicationInventory.successGroupFold_prefixCoverage {queue : State}
     {work property published} (inventory : queue.PublicationInventory property published)
-    (generated : ExecutedWork work) (keys : queue.GroupKeysUnique)
+    (generated : ExecutedWork work) (refs : queue.GroupRefsUnique)
     (links : queue.StoredTaskLinks) (settled : queue.ChildStreamsSettled)
     (children : queue.ChildStreamsMatchWork work) (groups : List Execution.DeliveryNode)
     (memberships : queue.GroupMembershipOrder)
     : let result := groups.foldl successGroupStep (queue, [], {})
-      result.1.GroupKeysUnique
+      result.1.GroupRefsUnique
       ∧ result.1.StoredTaskLinks
       ∧ result.1.ChildStreamsSettled
       ∧ result.1.ChildStreamsMatchWork work
@@ -153,7 +153,7 @@ theorem State.PublicationInventory.successGroupFold_prefixCoverage {queue : Stat
                   boundary.1 := by
   let invariant (acc : State × List WorkQueueEvent × NewWork)
       (added : List ObjectPublication) :=
-    acc.1.GroupKeysUnique ∧ acc.1.StoredTaskLinks
+    acc.1.GroupRefsUnique ∧ acc.1.StoredTaskLinks
     ∧ acc.1.ChildStreamsSettled ∧ acc.1.ChildStreamsMatchWork work
     ∧ added.map Prod.snd = acc.2.1.flatMap WorkQueueEvent.objectValues
         ∧ acc.1.PublicationInventory property (published ++ added)
@@ -190,16 +190,16 @@ theorem State.PublicationInventory.successGroupFold_prefixCoverage {queue : Stat
         simpa only [boundary, List.take_zero, List.foldl_nil, ← size, List.take_length]
           using And.intro prior.2.2.2.2.2.2.2.2.2.2.2 prior.2.2.2.2.2.2.2.2.2.2.1
     | cons group rest ih =>
-        obtain ⟨currentKeys, currentLinks, currentSettled, currentChildren,
+        obtain ⟨currentRefs, currentLinks, currentSettled, currentChildren,
           values, ledger, covered, conserved, streams, ordered, owners, cleared⟩ := prior
-        obtain ⟨nextKeys, nextLinks, nextSettled, nextChildren, nextLabels,
+        obtain ⟨nextRefs, nextLinks, nextSettled, nextChildren, nextLabels,
           nextValues, nextInventory, nextCoverage, nextConserved, nextStreams, nextOrder,
           nextOwners, nextCleared, extended⟩ :=
-          successGroupStep_jointCoverage generated queue acc group currentKeys
+          successGroupStep_jointCoverage generated queue acc group currentRefs
           currentLinks currentSettled currentChildren values ledger covered conserved streams
           order same ordered owners cleared
         obtain ⟨labels, final, extendsFurther, boundaries⟩ := ih _ nextLabels
-          ⟨nextKeys, nextLinks, nextSettled, nextChildren, nextValues, nextInventory,
+          ⟨nextRefs, nextLinks, nextSettled, nextChildren, nextValues, nextInventory,
             nextCoverage, nextConserved, nextStreams, nextOrder, nextOwners, nextCleared⟩
           (successGroupStep_groupMembershipOrder acc group order)
           ((successGroupStep_tasks acc group).trans same)
@@ -217,7 +217,7 @@ theorem State.PublicationInventory.successGroupFold_prefixCoverage {queue : Stat
             exact boundaries steps (by simpa using bounded)
   obtain ⟨added, final, _, boundaries⟩ := loop groups (queue, [], {}) []
     ⟨
-      keys,
+      refs,
       links,
       settled,
       children,
@@ -230,9 +230,9 @@ theorem State.PublicationInventory.successGroupFold_prefixCoverage {queue : Stat
       .refl queue,
       by simp
     ⟩ memberships rfl
-  obtain ⟨finalKeys, finalLinks, finalSettled, finalChildren, values, ledger, covered,
+  obtain ⟨finalRefs, finalLinks, finalSettled, finalChildren, values, ledger, covered,
     conserved, streams, order, owners, cleared⟩ := final
-  exact ⟨finalKeys, finalLinks, finalSettled, finalChildren, added, values, ledger,
+  exact ⟨finalRefs, finalLinks, finalSettled, finalChildren, added, values, ledger,
     covered, conserved, streams, order, owners, cleared,
     fun steps bound => (boundaries steps bound).1,
     fun steps bound => (boundaries steps bound).2⟩
@@ -243,12 +243,12 @@ every closure, stream, membership and endpoint conservation result unchanged.
 -/
 theorem State.PublicationInventory.successGroupFold_bufferedCoverage {queue : State}
     {work property published} (inventory : queue.PublicationInventory property published)
-    (generated : ExecutedWork work) (keys : queue.GroupKeysUnique)
+    (generated : ExecutedWork work) (refs : queue.GroupRefsUnique)
     (links : queue.StoredTaskLinks) (settled : queue.ChildStreamsSettled)
     (children : queue.ChildStreamsMatchWork work) (groups : List Execution.DeliveryNode)
     (memberships : queue.GroupMembershipOrder)
     : let result := groups.foldl successGroupStep (queue, [], {})
-      result.1.GroupKeysUnique
+      result.1.GroupRefsUnique
       ∧ result.1.StoredTaskLinks
       ∧ result.1.ChildStreamsSettled
       ∧ result.1.ChildStreamsMatchWork work
@@ -270,11 +270,11 @@ theorem State.PublicationInventory.successGroupFold_bufferedCoverage {queue : St
                 ∀ publication ∈
                   added.take (boundary.2.1.flatMap WorkQueueEvent.objectValues).length,
                   boundary.1.TaskMembershipAbsent publication.1 := by
-  obtain ⟨finalKeys, finalLinks, finalSettled, finalChildren, added, values, ledger,
+  obtain ⟨finalRefs, finalLinks, finalSettled, finalChildren, added, values, ledger,
     covered, conserved, streams, order, owners, cleared, boundaries, _⟩ :=
-    inventory.successGroupFold_prefixCoverage generated keys links settled children groups
+    inventory.successGroupFold_prefixCoverage generated refs links settled children groups
       memberships
-  exact ⟨finalKeys, finalLinks, finalSettled, finalChildren, added, values, ledger,
+  exact ⟨finalRefs, finalLinks, finalSettled, finalChildren, added, values, ledger,
     covered, conserved, streams, order, owners, cleared, boundaries⟩
 
 -----------------------------------------------------------------------------------------
@@ -337,7 +337,7 @@ def State.ReleaseDrainOwners (queue : State) (groups : List Execution.DeliveryNo
 
 /-- Every processed-owner and drain boundary conserves the same initial buffered owners.
 `published` labels the complete owner-fold/drain output; each boundary selects its exact
-object-count prefix, including retirement that emits no completion for the removed key.
+object-count prefix, including retirement that emits no completion for the removed ref.
 -/
 structure State.ReleaseOwners (queue : State) (groups : List Execution.DeliveryNode)
     (published : List ObjectPublication)
@@ -384,7 +384,7 @@ every successful carrier and its stream producers across both parts of the phase
 -/
 theorem State.PublicationInventory.successGroupFold_drain_bufferedCoverage {queue : State}
     {work property published} (inventory : queue.PublicationInventory property published)
-    (generated : ExecutedWork work) (keys : queue.GroupKeysUnique)
+    (generated : ExecutedWork work) (refs : queue.GroupRefsUnique)
     (links : queue.StoredTaskLinks) (settled : queue.ChildStreamsSettled)
     (children : queue.ChildStreamsMatchWork work) (groups : List Execution.DeliveryNode)
     (memberships : queue.GroupMembershipOrder)
@@ -399,7 +399,7 @@ theorem State.PublicationInventory.successGroupFold_drain_bufferedCoverage {queu
             queue.taskNode? occurrence = some node
             → node.value = some value
             → (∃ contributor ∈ node.task.groups,
-                ∃ owner, drained.1.groupNode? contributor.key = some owner)
+                ∃ owner, drained.1.groupNode? contributor.ref = some owner)
             → (occurrence, value) ∈ added ∨ drained.1.taskNode? occurrence = some node)
         ∧ StreamReleasePublications work added (released.2.1 ++ drained.2)
         ∧ BlocksFollowRegistrations queue.tasks added (released.2.1 ++ drained.2)
@@ -411,7 +411,7 @@ theorem State.PublicationInventory.successGroupFold_drain_bufferedCoverage {queu
   obtain ⟨_, currentLinks, currentSettled, currentChildren, first, firstValues,
     flushed, firstCoverage, firstConserved, firstStreams, firstOrder,
     firstOwners, firstCleared, foldCleared, foldOwners⟩ :=
-    inventory.successGroupFold_prefixCoverage generated keys links settled children groups
+    inventory.successGroupFold_prefixCoverage generated refs links settled children groups
       memberships
   have activated := State.PublicationInventory.mk flushed.unique flushed.provenance
     (flushed.stored.startNewWork released.2.2)
@@ -541,7 +541,7 @@ theorem State.PublicationInventory.taskSuccess_preparedCoverage {queue : State}
             → buffered.value = some value
             → (∃ contributor ∈ buffered.task.groups,
                 ∃ owner,
-                  (queue.taskSuccess occurrence result).1.groupNode? contributor.key
+                  (queue.taskSuccess occurrence result).1.groupNode? contributor.ref
                   = some owner)
             → (task, value) ∈ added
               ∨ (queue.taskSuccess occurrence result).1.taskNode? task = some buffered)
@@ -557,11 +557,11 @@ theorem State.PublicationInventory.taskSuccess_preparedCoverage {queue : State}
     (fun _ => accounted.links node.task registered (known.2.symm ▸ fresh))
   have installedStarted := accounted.started.putTaskNode
     { node with value := some result.value } registered
-  have preparedLinks := installedLinks.maybeIntegrateWork accounted.keys accounted.taskGroups
+  have preparedLinks := installedLinks.maybeIntegrateWork accounted.refs accounted.taskGroups
     installedStarted result.work (some occurrence)
-  have storedKeys : (queue.putTaskNode { node with value := some result.value }).GroupKeysUnique :=
-    accounted.keys
-  have preparedKeys := storedKeys.maybeIntegrateWork result.work (some occurrence)
+  have storedRefs : (queue.putTaskNode { node with value := some result.value }).GroupRefsUnique :=
+    accounted.refs
+  have preparedRefs := storedRefs.maybeIntegrateWork result.work (some occurrence)
   have installed := inventory.stored.putTaskNode { node with value := some result.value } (by
     intro value same
     cases same
@@ -574,7 +574,7 @@ theorem State.PublicationInventory.taskSuccess_preparedCoverage {queue : State}
       intro producer same stream member
       cases same
       exact matching.childStream_producer member)
-  have joint := preparedInventory.successGroupFold_drain_bufferedCoverage generated preparedKeys
+  have joint := preparedInventory.successGroupFold_drain_bufferedCoverage generated preparedRefs
     preparedLinks preparedSettled preparedChildren node.task.groups
     (State.GroupMembershipOrder.maybeIntegrateWork
       (queue := queue.putTaskNode { node with value := some result.value }) memberships

@@ -42,12 +42,12 @@ theorem FailureWitness.announced_owner
     (h : FailureWitness work initial matching events failures)
     (member : (cut, occurrence) ∈ failures) {owners producer payload}
     (known : TaskAt work occurrence owners producer payload)
-    : ∃ key ∈ owners, key ∈ announcedKeys initial (events.take cut) := by
+    : ∃ ref ∈ owners, ref ∈ announcedRefs initial (events.take cut) := by
   obtain ⟨before, after, equal⟩ := List.mem_iff_append.mp member
-  obtain ⟨more, otherProducer, other, task, _, _, key, owner, opened⟩ :=
+  obtain ⟨more, otherProducer, other, task, _, _, ref, owner, opened⟩ :=
     (h before cut occurrence after equal).2.2.1
   obtain ⟨rfl, _, _⟩ := known.unique task
-  exact ⟨key, owner, opened⟩
+  exact ⟨ref, owner, opened⟩
 
 /-- The first settlement cut bounds every later cut; witness: split membership and use
 the witness's ordered-prefix condition.
@@ -76,9 +76,9 @@ theorem le_sum {values : List Nat} {value : Nat} (h : value ∈ values)
 the summand for that task and uniqueness of its payload.
 -/
 theorem NodeErrors.contribution_le
-    {work failed key errors occurrence owners producer payload}
-    (h : NodeErrors work failed key errors) (member : occurrence ∈ failed)
-    (known : TaskAt work occurrence owners producer payload) (owner : key ∈ owners)
+    {work failed ref errors occurrence owners producer payload}
+    (h : NodeErrors work failed ref errors) (member : occurrence ∈ failed)
+    (known : TaskAt work occurrence owners producer payload) (owner : ref ∈ owners)
     : payload.failure.getD 0 ≤ errors := by
   obtain ⟨contribution, counts, rfl⟩ := h
   obtain ⟨more, otherProducer, other, task, counted⟩ := counts occurrence member
@@ -99,34 +99,34 @@ def failureErrors : WorkQueueEvent → Nat
 Witness: successful closure contradicts failure, and failure closure counts its tasks.
 -/
 theorem EventAllowed.failure_completion
-    {work initial matching before failed event occurrence owners producer payload key}
+    {work initial matching before failed event occurrence owners producer payload ref}
     (h : EventAllowed work initial matching before failed event)
     (member : occurrence ∈ failedBefore failed before.length)
-    (known : TaskAt work occurrence owners producer payload) (owner : key ∈ owners)
-    (closed : key ∈ eventCompleted event)
+    (known : TaskAt work occurrence owners producer payload) (owner : ref ∈ owners)
+    (closed : ref ∈ eventCompleted event)
     : ∃ node errors,
-        node.key = key
+        node.ref = ref
         ∧ (event = .groupFailure node errors ∨ event = .streamFailure node errors)
         ∧ payload.failure.getD 0 ≤ errors := by
   cases event <;>
     simp only [EventAllowed, nodeFailed_filter (Nat.le_refl _),
       failedBefore_filter _ (Nat.le_refl _)] at h
   all_goals
-    have failure : NodeFailed work matching before failed key :=
+    have failure : NodeFailed work matching before failed ref :=
       NodeFailed.task known owner member
     simp only [eventCompleted, List.mem_singleton] at closed
   case groupValues | streamValues => contradiction
   case groupSuccess node groups streams =>
-    subst key
+    subst ref
     exact False.elim (h.2.2.1 failure)
   case streamSuccess node =>
-    subst key
+    subst ref
     exact False.elim (h.2.2.1 failure)
   case groupFailure node errors =>
-    subst key
+    subst ref
     exact ⟨node, errors, rfl, Or.inl rfl, h.2.2.2.contribution_le member known owner⟩
   case streamFailure node errors =>
-    subst key
+    subst ref
     exact ⟨node, errors, rfl, Or.inr rfl, h.2.2.2.contribution_le member known owner⟩
 
 /-- A recorded failure with a still-open owner has a later completion reporting at least
@@ -135,29 +135,29 @@ its error count. Witness: that owner must close, and cannot close successfully.
 theorem Explains.failure_reported {work groups streams events matching failures}
     (h : Explains work groups streams events matching failures)
     (done
-      : Terminal work ((groups ++ streams).map DeliveryNode.key) matching events failures)
+      : Terminal work ((groups ++ streams).map DeliveryNode.ref) matching events failures)
     {cut occurrence owners producer payload}
     (member : (cut, occurrence) ∈ failures)
     (known : TaskAt work occurrence owners producer payload)
     (openOwner
-      : ∃ key ∈ owners,
-          Open ((groups ++ streams).map DeliveryNode.key) (events.take cut) key)
+      : ∃ ref ∈ owners,
+          Open ((groups ++ streams).map DeliveryNode.ref) (events.take cut) ref)
     : ∃ index node errors,
         cut ≤ index
-        ∧ node.key ∈ owners
+        ∧ node.ref ∈ owners
         ∧ (events[index]? = some (.groupFailure node errors)
             ∨ events[index]? = some (.streamFailure node errors))
         ∧ payload.failure.getD 0 ≤ errors := by
-  obtain ⟨key, owner, opened⟩ := openOwner
+  obtain ⟨ref, owner, opened⟩ := openOwner
   have announced
-      : key ∈ announcedKeys ((groups ++ streams).map DeliveryNode.key) events := by
+      : ref ∈ announcedRefs ((groups ++ streams).map DeliveryNode.ref) events := by
     rcases List.mem_append.mp opened.1 with initial | later
     · exact List.mem_append_left _ initial
     · obtain ⟨event, selected, contains⟩ := List.mem_flatMap.mp later
       exact List.mem_append_right _
         (List.mem_flatMap.mpr ⟨event, List.mem_of_mem_take selected, contains⟩)
   obtain ⟨event, selected, closes⟩ :=
-    List.mem_flatMap.mp (h.allCompleted done key announced)
+    List.mem_flatMap.mp (h.allCompleted done ref announced)
   obtain ⟨index, selected⟩ := List.mem_iff_getElem?.mp selected
   have afterCut : cut ≤ index := by
     apply Nat.le_of_not_lt
@@ -183,13 +183,13 @@ in a terminal history; witness: its later completion is one summand.
 theorem Explains.failure_le_total {work groups streams events matching failures}
     (h : Explains work groups streams events matching failures)
     (done
-      : Terminal work ((groups ++ streams).map DeliveryNode.key) matching events failures)
+      : Terminal work ((groups ++ streams).map DeliveryNode.ref) matching events failures)
     {cut occurrence owners producer payload}
     (member : (cut, occurrence) ∈ failures)
     (known : TaskAt work occurrence owners producer payload)
     (openOwner
-      : ∃ key ∈ owners,
-          Open ((groups ++ streams).map DeliveryNode.key) (events.take cut) key)
+      : ∃ ref ∈ owners,
+          Open ((groups ++ streams).map DeliveryNode.ref) (events.take cut) ref)
     : payload.failure.getD 0 ≤ (events.map failureErrors).sum := by
   obtain ⟨index, node, errors, _, _, reports, bound⟩ :=
     h.failure_reported done member known openOwner
@@ -266,10 +266,10 @@ theorem Explains.first_failure_open_owner
     {work groups streams events matching cut occurrence rest owners producer payload}
     (h : Explains work groups streams events matching ((cut, occurrence) :: rest))
     (known : TaskAt work occurrence owners producer payload)
-    : ∃ key ∈ owners,
-        Open ((groups ++ streams).map DeliveryNode.key) (events.take cut) key := by
-  obtain ⟨key, owner, announced⟩ := h.2.1.announced_owner (cut := cut) (by simp) known
-  refine ⟨key, owner, announced, ?_⟩
+    : ∃ ref ∈ owners,
+        Open ((groups ++ streams).map DeliveryNode.ref) (events.take cut) ref := by
+  obtain ⟨ref, owner, announced⟩ := h.2.1.announced_owner (cut := cut) (by simp) known
+  refine ⟨ref, owner, announced, ?_⟩
   intro completed
   obtain ⟨event, selected, closes⟩ := List.mem_flatMap.mp completed
   obtain ⟨index, selected⟩ := List.mem_iff_getElem?.mp selected
@@ -305,10 +305,10 @@ theorem Explains.first_failure_open_owner
   all_goals simp only [EventAllowed, noFailures] at allowed
   case groupValues | streamValues => contradiction
   case groupSuccess node _ _ =>
-    subst key
+    subst ref
     exact unpaid (allowed.2.2.2.1 occurrence owners ⟨producer, payload, known⟩ owner)
   case streamSuccess node =>
-    subst key
+    subst ref
     exact unpaid (allowed.2.2.2 occurrence owners ⟨producer, payload, known⟩ owner)
   case groupFailure | streamFailure => exact allowed.2.2.1.nonempty rfl
 
@@ -321,7 +321,7 @@ theorem AdmissibleRun.first_failure_accounting {work history}
         Explains work history.initialGroups history.initialStreams events matching
           failures
         ∧ Terminal work
-            ((history.initialGroups ++ history.initialStreams).map DeliveryNode.key)
+            ((history.initialGroups ++ history.initialStreams).map DeliveryNode.ref)
             matching events failures
         ∧ WorkBatching (events ++ [.workQueueTermination]) history.batches
         ∧ ∀ cut occurrence rest owners producer payload,

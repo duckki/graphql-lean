@@ -127,9 +127,9 @@ theorem StreamReleasePublications.flush {work : Execution.Work}
 -----------------------------------------------------------------------------------------
 
 /-- A successful flush supplies one inventory for both freshness and stream release.
-Witness: use a single executable node selection for value labels and child keys. The
+Witness: use a single executable node selection for value labels and child refs. The
 settled-link invariant gives each selected producer a value; structural provenance and
-generated key uniqueness identify it as the released stream's producer.
+generated ref uniqueness identify it as the released stream's producer.
 -/
 theorem State.PublicationInventory.finishGroupSuccess_streamRelease {queue : State}
     {work property published} (inventory : queue.PublicationInventory property published)

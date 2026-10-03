@@ -30,12 +30,12 @@ theorem single_run_exists (result : Result (List (Name × ResponseValue)))
   have initial := single_initial result WorkQueueSemantics.matching
   have task : TaskAt (WorkQueueSemantics.single result) (.executionGroup []) [0] none
       (.object [] result) := .executionGroup .root
-  have openKey : Open [0] [] 0 := by
-    simp [Open, announcedKeys, pendingKeys, completedKeys]
+  have openRef : Open [0] [] 0 := by
+    simp [Open, announcedRefs, pendingRefs, completedRefs]
   cases result with
   | error errors =>
       have recorded := initial.record_failure task rfl (.root ⟨_, _, task⟩)
-        (by exact ⟨0, by simp, openKey⟩) (WorkQueueSemantics.noCancellation _ _)
+        (by exact ⟨0, by simp, openRef⟩) (WorkQueueSemantics.noCancellation _ _)
       refine ⟨[WorkQueueSemantics.node], [], [], WorkQueueSemantics.matching,
         [(0, .executionGroup [])], recorded, ?_⟩
       intro occurrence owners producer payload known
@@ -53,7 +53,7 @@ theorem single_run_exists (result : Result (List (Name × ResponseValue)))
         have opened : OpenOwner (WorkQueueSemantics.single (.ok (data, errors))) [0] [] [0]
             WorkQueueSemantics.node :=
           ⟨⟨.group, [], none, .group (group := { node := WorkQueueSemantics.node })
-            .root (by simp)⟩, by simp [WorkQueueSemantics.node], openKey⟩
+            .root (by simp)⟩, by simp [WorkQueueSemantics.node], openRef⟩
         refine ⟨opened, ⟨WorkQueueSemantics.node, opened, WorkQueueSemantics.noFailure _ _⟩, ?_⟩
         intro other available
         obtain ⟨kind, parents, birth, known⟩ := available.1
@@ -114,11 +114,11 @@ example
   have completed := (WorkBatching.singletons
     [HistoryScheduling.value HistoryScheduling.left]).finish_accounted published
       (by simpa [failedBefore] using accounted)
-  simpa [announcedKeys, pendingKeys, eventPending, HistoryScheduling.value]
+  simpa [announcedRefs, pendingRefs, eventPending, HistoryScheduling.value]
     using completed
 
 /-- Selected closure can reserve the other shared owner for a later notice carrier.
-Witness: close key zero despite its repeated selection, while key one remains open.
+Witness: close ref zero despite its repeated selection, while ref one remains open.
 -/
 example
     : ∃ tail : List WorkQueueEvent,
@@ -126,7 +126,7 @@ example
           [HistoryScheduling.left, HistoryScheduling.right] []
           ([HistoryScheduling.value HistoryScheduling.left] ++ tail)
           HistoryScheduling.matching []
-        ∧ 0 ∈ completedKeys ([HistoryScheduling.value HistoryScheduling.left] ++ tail)
+        ∧ 0 ∈ completedRefs ([HistoryScheduling.value HistoryScheduling.left] ++ tail)
         ∧ Open [0, 1] ([HistoryScheduling.value HistoryScheduling.left] ++ tail) 1
         ∧ tail.length ≤ 2 := by
   have initial : Explains HistoryScheduling.shared
@@ -138,17 +138,17 @@ example
         simpa [failedBefore, HistoryScheduling.left, HistoryScheduling.right]
           using HistoryScheduling.publishes HistoryScheduling.left (by simp))
   obtain ⟨tail, bounded, _, finished, closes, selected⟩ :=
-    published.close_accounted_keys [0, 0]
-      (by simp [announcedKeys, pendingKeys, HistoryScheduling.left, HistoryScheduling.right,
+    published.close_accounted_refs [0, 0]
+      (by simp [announcedRefs, pendingRefs, HistoryScheduling.left, HistoryScheduling.right,
         eventPending, HistoryScheduling.value])
       (by
-        intro key member occurrence owners projected _
+        intro ref member occurrence owners projected _
         obtain ⟨producer, payload, known⟩ := projected
         have same := HistoryScheduling.task_shared known
         subst occurrence
         exact Or.inr ⟨0, _, rfl, trivial, rfl⟩)
   have opened : Open [0, 1] [HistoryScheduling.value HistoryScheduling.left] 1 := by
-    simp [Open, announcedKeys, pendingKeys, completedKeys, eventPending, eventCompleted,
+    simp [Open, announcedRefs, pendingRefs, completedRefs, eventPending, eventCompleted,
       HistoryScheduling.value]
   exact ⟨
     tail,
@@ -171,7 +171,7 @@ Witness: the generic failure-step constructor from an initialized, nonterminal p
 -/
 example
     : ∃ node errors event,
-        node.key ∈ [0]
+        node.ref ∈ [0]
         ∧ (event = .groupFailure node errors ∨ event = .streamFailure node errors)
         ∧ 2 ≤ errors
         ∧ Explains WorkQueueSemantics.failingWork [WorkQueueSemantics.node] [] [event]
@@ -183,7 +183,7 @@ example
     ⟨
       0,
       by simp,
-      by simp [Open, announcedKeys, pendingKeys, completedKeys,
+      by simp [Open, announcedRefs, pendingRefs, completedRefs,
         WorkQueueSemantics.node]
     ⟩ (WorkQueueSemantics.noCancellation _ _)
 
@@ -210,19 +210,19 @@ example
         ∧ (∀ event ∈ tail, eventPending event = [] ∧ ¬IsValue event)
         ∧ Explains WorkQueueSemantics.work [WorkQueueSemantics.node] []
             (WorkQueueSemantics.events ++ tail) WorkQueueSemantics.matching []
-        ∧ ∀ key ∈ announcedKeys [0] (WorkQueueSemantics.events ++ tail),
-            key ∈ completedKeys (WorkQueueSemantics.events ++ tail) := by
-  apply WorkQueueSemantics.explained.close_open_keys
+        ∧ ∀ ref ∈ announcedRefs [0] (WorkQueueSemantics.events ++ tail),
+            ref ∈ completedRefs (WorkQueueSemantics.events ++ tail) := by
+  apply WorkQueueSemantics.explained.close_open_refs
     (by
       simpa [failedBefore, WorkQueueSemantics.node]
         using WorkQueueSemantics.terminal.1) []
-  intro key opened
+  intro ref opened
   exact False.elim
     (opened.2
       (WorkQueueSemantics.explained.allCompleted
         (by
           simpa [WorkQueueSemantics.node, failedBefore] using WorkQueueSemantics.terminal)
-        key opened.1))
+        ref opened.1))
 
 /-- Equal-valued stream items have separate publication tokens, but share one closure.
 Witness: the structural item ordinals, independent of payload equality.

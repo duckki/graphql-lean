@@ -57,6 +57,10 @@ and finite work independently of observation order. Work stores precomputed pure
 not suspended resolvers. `Work.combine` joins structural components without choosing a
 completion order; each nested occurrence has one producer, while group ancestry and
 enclosing owners supply separate dependencies. Shared tasks can have multiple owners.
+`NodeRef := Nat` models stable defer/stream object identity through `DeferUsage.ref` and
+`DeliveryNode.ref`; `NodeRefs := List NodeRef` names reference lists. These are distinct
+roles from resolver `ObjectRef`, structural occurrences, and wire IDs, but the
+abbreviations do not enforce separate numeric types.
 
 `executeQuery`, `executeQueryWithFuel`, and `executeRootSelectionSet` return
 `ExecutionResult`: an ordinary response when work is empty, otherwise an initial

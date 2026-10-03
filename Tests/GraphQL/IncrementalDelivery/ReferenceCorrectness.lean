@@ -53,8 +53,8 @@ example (cursor : ResponseStreamCursor) (batch : List GraphEvent)
         (next.1.toList ++ last.1, last.2) :=
   cursor.run_cons batch rest
 
-private def group : Execution.DeliveryNode := { key := 0, path := [] }
-private def deepGroup : Execution.DeliveryNode := { key := 1, path := [.field "obj"] }
+private def group : Execution.DeliveryNode := { ref := 0, path := [] }
+private def deepGroup : Execution.DeliveryNode := { ref := 1, path := [.field "obj"] }
 
 private def sharedWork : Execution.Work :=
   .executionGroup [{ node := group }, { node := deepGroup }] [.field "obj"]

@@ -67,7 +67,7 @@ theorem failureWitness_of_defer {work : Execution.Work}
       let failures :=
         sourceObjectFailureCuts 0
           (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher inputs).2.2)
-      FailureWitness work (initialKeys work) matching (queue.nonterminalAtoms inputs)
+      FailureWitness work (initialRefs work) matching (queue.nonterminalAtoms inputs)
         failures := by
   have certificates := defer_failureCertificates generated shape valid started matching
   exact failureWitness certificates.2.1 certificates.2.2

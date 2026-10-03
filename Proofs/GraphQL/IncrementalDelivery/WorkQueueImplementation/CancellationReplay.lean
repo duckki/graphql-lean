@@ -25,7 +25,7 @@ theorem State.CancelledRecordsSupported.handleGraphEvent_contribution
     (links : queue.ChildLinksCanonical parents)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (event : GraphEvent) (source : event.MatchesWork work)
     : (queue.handleGraphEvent event).1.CancelledRecordsSupported work
         (queue.objectFailureContribution event ++ failed) := by
@@ -110,7 +110,7 @@ theorem State.CancelledRecordsSupported.replayGraphEvents {queue work parents fa
     (links : queue.ChildLinksCanonical parents)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (events : List GraphEvent) (sources : ∀ event ∈ events, event.MatchesWork work)
     : (queue.replayGraphEvents events).CancelledRecordsSupported work
         (queue.objectFailureContributions events ++ failed) := by
@@ -178,13 +178,13 @@ Witness: record cancellation support and generated contributor equivalence exclu
 theorem ExecutedWork.runNormalized_healthy_not_cancelled {work : Execution.Work}
     (generated : ExecutedWork work) (batches : List (List GraphEvent))
     (valid : ValidGraphEvents work batches.flatten)
-    (started : inputsStarted work batches = true) {key : Nat}
-    (contributor : ∃ dependencies, NodeHasDependencies work key .group dependencies)
+    (started : inputsStarted work batches = true) {ref : NodeRef}
+    (contributor : ∃ dependencies, NodeHasDependencies work ref .group dependencies)
     (healthy
       : ¬GroupInvalidated work
           ((State.initialize (Work.fromExecution work)).objectFailureContributions
-            batches.flatten) key)
-    : key
+            batches.flatten) ref)
+    : ref
       ∉ ((State.initialize (Work.fromExecution work)).runNormalized
           batches).1.cancelledGroups := by
   obtain ⟨dependencies, source, producer, known, same⟩ := contributor
@@ -220,19 +220,19 @@ This is guard completeness, not yet the converse guard-soundness theorem. -/
 theorem ExecutedWork.runNormalized_groupIsHealthy_of_uninvalidated
     {work : Execution.Work} (generated : ExecutedWork work)
     (batches : List (List GraphEvent)) (valid : ValidGraphEvents work batches.flatten)
-    (started : inputsStarted work batches = true) {key : Nat} {node : GroupNode}
-    (contributor : ∃ dependencies, NodeHasDependencies work key .group dependencies)
+    (started : inputsStarted work batches = true) {ref : NodeRef} {node : GroupNode}
+    (contributor : ∃ dependencies, NodeHasDependencies work ref .group dependencies)
     (found
       : ((State.initialize (Work.fromExecution work)).runNormalized batches).1.groupNode?
-          key
+          ref
         = some node)
     (healthy
       : ¬GroupInvalidated work
           ((State.initialize (Work.fromExecution work)).objectFailureContributions
-            batches.flatten) key)
+            batches.flatten) ref)
     : ((State.initialize (Work.fromExecution work)).runNormalized
         batches).1.groupIsHealthy
-        key
+        ref
       = true := by
   obtain ⟨parents, canonical⟩ := generated.groupRecordsCanonical
   have parentMetadata :=

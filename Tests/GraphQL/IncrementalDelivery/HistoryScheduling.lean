@@ -7,8 +7,8 @@ namespace GraphQL.IncrementalDelivery.Tests.HistoryScheduling
 open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
-def left : DeliveryNode := { key := 0, path := [] }
-def right : DeliveryNode := { key := 1, path := [] }
+def left : DeliveryNode := { ref := 0, path := [] }
+def right : DeliveryNode := { ref := 1, path := [] }
 
 def shared : Work :=
   .executionGroup [{ node := left }, { node := right }] [] (.ok ([], 0)) .empty
@@ -66,13 +66,13 @@ theorem initialized : Initializes shared [left, right] [] := by
     [],
     none,
     known,
-    by simp [announcedKeys, pendingKeys],
+    by simp [announcedRefs, pendingRefs],
     Or.inl ⟨WorkQueueSemantics.noFailure _ _, Or.inr ?_⟩,
     by simp,
     by simp
   ⟩
   intro accounted
-  have owner : node.key ∈ [0, 1] := by
+  have owner : node.ref ∈ [0, 1] := by
     rcases (node_shared known).1 with rfl | rfl <;> simp [left, right]
   have impossible := accounted (.executionGroup []) [0, 1]
     ⟨none, .object [] (.ok ([], 0)), .executionGroup .root⟩ owner
@@ -88,11 +88,11 @@ theorem owner (node : DeliveryNode) (member : node ∈ [left, right])
     rcases member with rfl | rfl
     · exact .group (group := { node := left }) .root (by simp)
     · exact .group (group := { node := right }) .root (by simp)
-  have key : node.key ∈ [0, 1] := by
+  have ref : node.ref ∈ [0, 1] := by
     rcases (node_shared known).1 with rfl | rfl <;> simp [left, right]
   have opened : OpenOwner shared [0, 1] [] [0, 1] node :=
-    ⟨⟨.group, [], none, known⟩, key,
-      by simpa [Open, announcedKeys, pendingKeys, completedKeys] using key⟩
+    ⟨⟨.group, [], none, known⟩, ref,
+      by simpa [Open, announcedRefs, pendingRefs, completedRefs] using ref⟩
   refine ⟨opened, ⟨node, opened, WorkQueueSemantics.noFailure _ _⟩, ?_⟩
   intro other available
   obtain ⟨kind, parents, birth, otherKnown⟩ := available.1
@@ -120,8 +120,8 @@ theorem nextOwner (node : DeliveryNode) (member : node ∈ [left, right])
     : AdmissibleNext shared initial [value node] := by
   refine ⟨Or.inl initialAdmitted, ?_, by simp, Or.inl ?_⟩
   · intro terminal
-    have count := terminal.keysCompleteExactlyOnce 0 (by simp [initial, left])
-    simp [initial, completedKeys] at count
+    have count := terminal.refsCompleteExactlyOnce 0 (by simp [initial, left])
+    simp [initial, completedRefs] at count
   · refine ⟨
       [value node],
       matching,
@@ -176,7 +176,7 @@ theorem closes (node : DeliveryNode) (member : node ∈ [left, right])
     ?_,
     by simp [Announcements]
   ⟩
-  · simpa [Open, announcedKeys, pendingKeys, eventPending, completedKeys, eventCompleted,
+  · simpa [Open, announcedRefs, pendingRefs, eventPending, completedRefs, eventCompleted,
       value] using available.2.2.1
   · rintro occurrence owners ⟨producer, payload, task⟩ _
     have same := task_shared task
@@ -190,8 +190,8 @@ theorem nextClosure (node : DeliveryNode) (member : node ∈ [left, right])
     : AdmissibleNext shared publishedHistory [.groupSuccess node [] []] := by
   refine ⟨(nextOwner left (by simp)).2.2.2, ?_, by simp, Or.inl ?_⟩
   · intro terminal
-    have count := terminal.keysCompleteExactlyOnce 0 (by simp [publishedHistory, initial, left])
-    simp [publishedHistory, completedKeys, value, eventCompleted] at count
+    have count := terminal.refsCompleteExactlyOnce 0 (by simp [publishedHistory, initial, left])
+    simp [publishedHistory, completedRefs, value, eventCompleted] at count
   · refine ⟨
       [value left, .groupSuccess node [] []],
       matching,
@@ -223,7 +223,7 @@ example
       ∧ AdmissibleNext shared publishedHistory [.groupSuccess right [] []] :=
   ⟨nextClosure left (by simp), nextClosure right (by simp)⟩
 
-def stream : DeliveryNode := { key := 2, path := [.field "items"] }
+def stream : DeliveryNode := { ref := 2, path := [.field "items"] }
 def items : Work := .stream stream [(.ok (.null, 0), .empty), (.ok (.null, 0), .empty)]
 def itemMatching (index : Nat) : Occurrence := .item [] index
 def itemValue : WorkQueueEvent := .streamValues stream [{ item := .null }] [] []
@@ -314,18 +314,18 @@ example
 
 /-- A dependency can be satisfied without a success notification for an unannounced node.
 -/
-example {work initial matching events failed key}
-    (notFailed : ¬NodeFailed work matching events failed key)
-    (unannounced : key ∉ announcedKeys initial events)
-    (accounted : NodeAccounted work matching events failed key)
-    : DependencySatisfied work initial matching events failed key :=
+example {work initial matching events failed ref}
+    (notFailed : ¬NodeFailed work matching events failed ref)
+    (unannounced : ref ∉ announcedRefs initial events)
+    (accounted : NodeAccounted work matching events failed ref)
+    : DependencySatisfied work initial matching events failed ref :=
   ⟨notFailed, Or.inr (Or.inr ⟨unannounced, accounted⟩)⟩
 
 /-- Without protected publications, the kernel preserves the former raw-work rules.
 -/
-example {work failed key}
-    : FailureEquivalence.NodeFailed work failed key
-      ↔ Causality.NodeFailed work failed (fun _ => False) key :=
+example {work failed ref}
+    : FailureEquivalence.NodeFailed work failed ref
+      ↔ Causality.NodeFailed work failed (fun _ => False) ref :=
   FailureEquivalence.nodeFailed_iff
 
 /-- Without protected publications, the removed wrapper has the same alternatives. -/
@@ -337,10 +337,10 @@ example {work failed occurrence}
 
 namespace Lookup
 
-def rootNode : DeliveryNode := { key := 7, path := [] }
-def nestedNode : DeliveryNode := { key := 7, path := [.field "nested"] }
+def rootNode : DeliveryNode := { ref := 7, path := [] }
+def nestedNode : DeliveryNode := { ref := 7, path := [.field "nested"] }
 
-/-- Repeated keys have different metadata and producers in permissive raw work. -/
+/-- Repeated refs have different metadata and producers in permissive raw work. -/
 def repeated : Work :=
   .combine (.executionGroup [{ node := rootNode }] [] (.ok ([], 0)) .empty)
     (.executionGroup [{ node := right }] [] (.ok ([], 0))
@@ -364,7 +364,7 @@ example
         (.item nestedNode (.ok (.null, 0))) :=
   .item (.executionGroup (.right .root)) rfl
 
-/-- Both descriptors survive: lookup does not select one representative of a shared key.
+/-- Both descriptors survive: lookup does not select one representative of a shared ref.
 -/
 example
     : NodeAt repeated rootNode .group [] none
@@ -373,7 +373,7 @@ example
   · exact .group (group := { node := rootNode }) (.left .root) (by simp)
   · exact .stream (.executionGroup (.right .root))
 
-/-- The causal projections retain both the root and nested producer for the same key.
+/-- The causal projections retain both the root and nested producer for the same ref.
 -/
 theorem producers
     : NodeHasProducer repeated 7 none

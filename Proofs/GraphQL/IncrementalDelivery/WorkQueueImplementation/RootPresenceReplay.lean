@@ -32,31 +32,31 @@ theorem ExecutedWork.taskSuccess_drain_liveRootFrame {work before occurrence res
       let active := released.1.startNewWork released.2.2
       ∃ parents,
         (∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
         ∧ LiveRootFrame active work parents := by
   intro queue prepared released active
   obtain ⟨parents, canonical, records, links, live, tasks, roots, retired⟩ :=
     generated.replayGraphEvents_preparedRetirement before matching matched incoming
-  obtain ⟨keys, _, support⟩ :=
+  obtain ⟨refs, _, support⟩ :=
     generated.taskSuccess_prepared_noticeMetadata matching matched incoming
   have storedPresent :
       (queue.putTaskNode { incoming with value := some result.value }).RootGroupsPresent := present
   have preparedPresent := storedPresent.maybeIntegrateWork result.work (some occurrence)
-  have presence := successGroupFold_supported_rootsPresent generated keys records links
+  have presence := successGroupFold_supported_rootsPresent generated refs records links
     canonical live tasks roots support preparedPresent incoming.task.groups
   have folded := successGroupFold_uncancelledRetirement retired generated records links
     canonical live tasks roots incoming.task.groups
   have ancestry := successGroupFold_ancestorsRetired generated records links canonical
     live tasks roots incoming.task.groups
   have coverage := State.startNewWork_registration folded.2.2.1 folded.2.2.2.1 released.2.2
-  obtain ⟨activeKeys, activeRecords, activeSupport⟩ :=
+  obtain ⟨activeRefs, activeRecords, activeSupport⟩ :=
     generated.taskSuccess_drain_noticeMetadata matching matched incoming
   refine ⟨parents, canonical,
-    ⟨activeKeys, activeRecords, folded.2.1.startNewWork _, coverage.1, coverage.2,
+    ⟨activeRefs, activeRecords, folded.2.1.startNewWork _, coverage.1, coverage.2,
       folded.2.2.2.2.1.startNewWork _ ancestry.2, activeSupport, ?_⟩⟩
   exact presence.1.startNewWork _
     (by
-      intro key member
+      intro ref member
       obtain ⟨node, included, same⟩ := List.mem_map.mp member
       exact same ▸ (presence.2 node included).2.1)
 
@@ -99,19 +99,19 @@ theorem ExecutedWork.streamItems_prepared_liveRootFrame {work before stream item
           before).RootGroupsPresent)
     : ∃ parents,
         (∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
         ∧ LiveRootFrame
             (((State.initialize (Work.fromExecution work)).replayGraphEvents
                 before).preparedStreamItems
               items) work parents := by
   obtain ⟨parents, canonical, records, links, live, tasks, roots, _⟩ :=
     generated.replayGraphEvents_streamPreparedRetirement before matching matched
-  obtain ⟨keys, _, support⟩ := generated.streamItems_prepared_noticeMetadata matching matched
-  obtain ⟨priorKeys, _, _⟩ := generated.replay_noticeMetadata matching
+  obtain ⟨refs, _, support⟩ := generated.streamItems_prepared_noticeMetadata matching matched
+  obtain ⟨priorRefs, _, _⟩ := generated.replay_noticeMetadata matching
   have registration := createWorkQueue_registration work
   have prior := State.replayGraphEvents_registration registration.1 registration.2 before matching
-  exact ⟨parents, canonical, ⟨keys, records, links, live, tasks, roots, support,
-    present.preparedStreamItems priorKeys prior.1 prior.2.1 matched⟩⟩
+  exact ⟨parents, canonical, ⟨refs, records, links, live, tasks, roots, support,
+    present.preparedStreamItems priorRefs prior.1 prior.2.1 matched⟩⟩
 
 /-- Matching stream items preserve live active roots through preparation and draining.
 Witness: inactive streams do nothing; accepted batches use the actual prepared frame.

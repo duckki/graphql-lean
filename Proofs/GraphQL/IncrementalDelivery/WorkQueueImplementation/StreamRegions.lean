@@ -1,20 +1,20 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.GraphEvents
-import Proofs.GraphQL.IncrementalDelivery.Semantics.ExecutedKeyRegions
+import Proofs.GraphQL.IncrementalDelivery.Semantics.ExecutedRefRegions
 
-/-! Stream-item identities index the executor's already-separated key regions. -/
+/-! Stream-item identities index the executor's already-separated ref regions. -/
 
 namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
-open Semantics.KeyRegions
+open Semantics.RefRegions
 
 -----------------------------------------------------------------------------------------
 -- Label the existing hidden regions by their producing stream-item occurrence
 -----------------------------------------------------------------------------------------
 
-/-- Hidden key regions paired with the stream-item occurrence that reveals them.
+/-- Hidden ref regions paired with the stream-item occurrence that reveals them.
 The address is the current subtree's absolute structural address in the original work. -/
 def streamRegions (work : Execution.Work) (address : Address := [])
-    : List (Occurrence × Keys) :=
+    : List (Occurrence × NodeRefs) :=
   match work with
   | .empty => []
   | .combine left right =>
@@ -23,7 +23,7 @@ def streamRegions (work : Execution.Work) (address : Address := [])
   | .stream _ items =>
       items.zipIdx.attach.flatMap
         fun pair =>
-          (.item address pair.val.2, rootKeys pair.val.1.2)
+          (.item address pair.val.2, rootRefs pair.val.1.2)
           :: streamRegions pair.val.1.2 (address ++ [pair.val.2])
 termination_by sizeOf work
 decreasing_by
@@ -44,32 +44,32 @@ theorem streamRegions_stream (node : Execution.DeliveryNode)
     : streamRegions (.stream node items) address
       = items.zipIdx.flatMap
           fun pair =>
-            (.item address pair.2, rootKeys pair.1.2)
+            (.item address pair.2, rootRefs pair.1.2)
             :: streamRegions pair.1.2 (address ++ [pair.2]) := by
   rw [streamRegions, List.flatMap_subtype
-    (g := fun pair => (.item address pair.2, rootKeys pair.1.2)
+    (g := fun pair => (.item address pair.2, rootRefs pair.1.2)
       :: streamRegions pair.1.2 (address ++ [pair.2])) (fun _ _ => rfl)]
   simp
 
 /-- Erasing occurrence labels recovers exactly the original hidden-region list.
 Witness: structural recursion; enumeration adds indices without changing item order. -/
-theorem streamRegions_keys (work : Execution.Work) (address : Address)
+theorem streamRegions_refs (work : Execution.Work) (address : Address)
     : (streamRegions work address).map Prod.snd = hiddenRegions work := by
   cases work with
   | empty => simp [streamRegions, hiddenRegions]
   | combine left right =>
       simp only [streamRegions, List.map_append, hiddenRegions]
-      rw [streamRegions_keys left, streamRegions_keys right]
+      rw [streamRegions_refs left, streamRegions_refs right]
   | executionGroup groups path result children =>
       simpa only [streamRegions, hiddenRegions]
-        using streamRegions_keys children (address ++ [0])
+        using streamRegions_refs children (address ++ [0])
   | stream node items =>
       simp only [streamRegions_stream, List.map_flatMap, List.map_cons]
       have erased : ∀ pair ∈ items.zipIdx,
-          rootKeys pair.1.2 :: (streamRegions pair.1.2 (address ++ [pair.2])).map Prod.snd
-            = rootKeys pair.1.2 :: hiddenRegions pair.1.2 := by
+          rootRefs pair.1.2 :: (streamRegions pair.1.2 (address ++ [pair.2])).map Prod.snd
+            = rootRefs pair.1.2 :: hiddenRegions pair.1.2 := by
         intro pair member
-        rw [streamRegions_keys pair.1.2]
+        rw [streamRegions_refs pair.1.2]
       rw [List.flatMap_def, List.map_congr_left erased, ← List.flatMap_def]
       rw [hiddenRegions]
       change items.zipIdx.flatMap (fun pair => regions pair.1.2) =
@@ -111,20 +111,20 @@ theorem Located.streamRegions_subset {root address current producer owners}
       exact List.mem_flatMap.mpr ⟨((result, children), index),
         List.mk_mem_zipIdx_iff_getElem?.mpr entry, List.mem_cons_of_mem _ member⟩
 
-/-- A stream-item lookup identifies its exact labelled root-key region.
+/-- A stream-item lookup identifies its exact labelled root-ref region.
 Witness: the located stream's enumeration and the structural inclusion theorem. -/
 theorem Located.streamRegion_member
     {root address node items producer owners index result children}
     (located : Located root address (.stream node items) producer owners)
     (entry : items[index]? = some (result, children))
-    : (.item address index, rootKeys children) ∈ streamRegions root [] := by
+    : (.item address index, rootRefs children) ∈ streamRegions root [] := by
   apply Located.streamRegions_subset located
   rw [streamRegions_stream]
   exact List.mem_flatMap.mpr ⟨((result, children), index),
     List.mk_mem_zipIdx_iff_getElem?.mpr entry, List.mem_cons_self⟩
 
 -----------------------------------------------------------------------------------------
--- Generated separation excludes keys of every still-hidden item
+-- Generated separation excludes refs of every still-hidden item
 -----------------------------------------------------------------------------------------
 
 /-- Pure execution already separates the root region from all stream-item regions.
@@ -140,15 +140,15 @@ theorem ExecutedWork.regionsSeparated {work : Execution.Work}
 /-- A labelled stream-item region is disjoint from the original root region.
 Witness: erase its label and apply the head clause of execution-region separation. -/
 theorem streamRegion_disjoint_root {work : Execution.Work}
-    (separated : WorkSeparated work) {occurrence keys}
-    (member : (occurrence, keys) ∈ streamRegions work [])
-    : Disjoint (rootKeys work) keys := by
-  apply ((separated_iff work).mp separated).1 keys
-  rw [← streamRegions_keys work []]
+    (separated : WorkSeparated work) {occurrence refs}
+    (member : (occurrence, refs) ∈ streamRegions work [])
+    : Disjoint (rootRefs work) refs := by
+  apply ((separated_iff work).mp separated).1 refs
+  rw [← streamRegions_refs work []]
   exact List.mem_map_of_mem member
 
-/-- Distinct stream-item occurrences have disjoint key regions, including nested items.
-Witness: pairwise separation of the labelled list; two entries sharing a key must be
+/-- Distinct stream-item occurrences have disjoint ref regions, including nested items.
+Witness: pairwise separation of the labelled list; two entries sharing a ref must be
 the very same entry. Empty regions require no identity-uniqueness assumption. -/
 theorem streamRegions_disjoint {work : Execution.Work} (separated : WorkSeparated work)
     {first second left right}
@@ -156,9 +156,9 @@ theorem streamRegions_disjoint {work : Execution.Work} (separated : WorkSeparate
     (rightMember : (second, right) ∈ streamRegions work []) (different : first ≠ second)
     : Disjoint left right := by
   have pairwise : (streamRegions work []).Pairwise (fun left right => Disjoint left.2 right.2) := by
-    rw [← List.pairwise_map, streamRegions_keys]
+    rw [← List.pairwise_map, streamRegions_refs]
     exact ((separated_iff work).mp separated).2
-  have distinct (regions : List (Occurrence × Keys))
+  have distinct (regions : List (Occurrence × NodeRefs))
       (separate : regions.Pairwise (fun left right => Disjoint left.2 right.2))
       (firstMember : (first, left) ∈ regions) (secondMember : (second, right) ∈ regions)
       : Disjoint left right := by
@@ -178,48 +178,48 @@ theorem streamRegions_disjoint {work : Execution.Work} (separated : WorkSeparate
   exact distinct _ pairwise leftMember rightMember
 
 -----------------------------------------------------------------------------------------
--- Only observed stream items expose a new key region
+-- Only observed stream items expose a new ref region
 -----------------------------------------------------------------------------------------
 
-/-- A key is exposed by the root work or by one of the recorded stream-item occurrences.
+/-- A ref is exposed by the root work or by one of the recorded stream-item occurrences.
 Recording execution-group occurrences does not expose an additional region. -/
-def ExposedKey (work : Execution.Work) (seen : List Occurrence) (key : Nat) : Prop :=
-  key ∈ rootKeys work
-  ∨ ∃ occurrence ∈ seen, ∃ keys, (occurrence, keys) ∈ streamRegions work [] ∧ key ∈ keys
+def ExposedRef (work : Execution.Work) (seen : List Occurrence) (ref : NodeRef) : Prop :=
+  ref ∈ rootRefs work
+  ∨ ∃ occurrence ∈ seen, ∃ refs, (occurrence, refs) ∈ streamRegions work [] ∧ ref ∈ refs
 
-/-- Recording more occurrences preserves every exposed key.
+/-- Recording more occurrences preserves every exposed ref.
 Witness: retain the root case or the same recorded region witness. -/
-theorem ExposedKey.mono {work before after key} (exposed : ExposedKey work before key)
+theorem ExposedRef.mono {work before after ref} (exposed : ExposedRef work before ref)
     (included : before.Subset after)
-    : ExposedKey work after key := by
-  rcases exposed with root | ⟨occurrence, member, keys, region, contains⟩
+    : ExposedRef work after ref := by
+  rcases exposed with root | ⟨occurrence, member, refs, region, contains⟩
   · exact .inl root
-  · exact .inr ⟨occurrence, included member, keys, region, contains⟩
+  · exact .inr ⟨occurrence, included member, refs, region, contains⟩
 
-/-- No key in an unobserved stream-item region has already been exposed.
+/-- No ref in an unobserved stream-item region has already been exposed.
 Witness: root/item separation and disjointness from every previously recorded item.
 This also distinguishes different items of the same stream and nested streams. -/
 theorem streamRegion_unexposed {work : Execution.Work} (separated : WorkSeparated work)
-    {seen occurrence keys key} (region : (occurrence, keys) ∈ streamRegions work [])
-    (fresh : occurrence ∉ seen) (member : key ∈ keys)
-    : ¬ExposedKey work seen key := by
-  rintro (root | ⟨earlier, recorded, earlierKeys, prior, contains⟩)
-  · exact streamRegion_disjoint_root separated region key root member
+    {seen occurrence refs ref} (region : (occurrence, refs) ∈ streamRegions work [])
+    (fresh : occurrence ∉ seen) (member : ref ∈ refs)
+    : ¬ExposedRef work seen ref := by
+  rintro (root | ⟨earlier, recorded, earlierRefs, prior, contains⟩)
+  · exact streamRegion_disjoint_root separated region ref root member
   · exact streamRegions_disjoint separated prior region
-      (fun same => fresh (same ▸ recorded)) key contains member
+      (fun same => fresh (same ▸ recorded)) ref contains member
 
-/-- Every immediate registration key belongs to the current root-key region.
+/-- Every immediate registration ref belongs to the current root-ref region.
 Witness: the region includes contributors and full ancestors; lowering selects a suffix.
 -/
-theorem workFromSpec_group_rootKey (work : Execution.Work) (address : Address)
+theorem workFromSpec_group_rootRef (work : Execution.Work) (address : Address)
     {group : Group} (member : group ∈ (Work.fromExecution work address).groups)
-    : group.node.key ∈ rootKeys work := by
+    : group.node.ref ∈ rootRefs work := by
   cases work with
   | empty => cases member
   | combine left right =>
       rcases List.mem_append.mp member with leftMember | rightMember
-      · exact List.mem_append_left _ (workFromSpec_group_rootKey left _ leftMember)
-      · exact List.mem_append_right _ (workFromSpec_group_rootKey right _ rightMember)
+      · exact List.mem_append_left _ (workFromSpec_group_rootRef left _ leftMember)
+      · exact List.mem_append_right _ (workFromSpec_group_rootRef right _ rightMember)
   | executionGroup groups path result children =>
       obtain ⟨fragment, fragmentMember, inChain⟩ := List.mem_flatMap.mp member
       obtain ⟨ancestors, suffix, _⟩ := workFromSpec_groupChain_member inChain
@@ -229,29 +229,29 @@ theorem workFromSpec_group_rootKey (work : Execution.Work) (address : Address)
   | stream => cases member
 termination_by sizeOf work
 
-/-- All keys in a registered task's own defer region have been exposed.
+/-- All refs in a registered task's own defer region have been exposed.
 The lookup keeps the property independent of task outcomes or queue data values. -/
 def TaskRegionCovered (work : Execution.Work) (seen : List Occurrence) (task : Task)
     : Prop :=
   ∀ address location,
     task.occurrence = .executionGroup address
     → locateWork work address = some location
-    → ∀ key ∈ rootKeys location.current, ExposedKey work seen key
+    → ∀ ref ∈ rootRefs location.current, ExposedRef work seen ref
 
 /-- A task's region certificate persists as more stream items are recorded.
-Witness: monotonicity of exposed keys at each located key. -/
+Witness: monotonicity of exposed refs at each located ref. -/
 theorem TaskRegionCovered.mono {work before after task}
     (covered : TaskRegionCovered work before task) (included : before.Subset after)
     : TaskRegionCovered work after task := by
-  intro address location same found key member
-  exact (covered address location same found key member).mono included
+  intro address location same found ref member
+  exact (covered address location same found ref member).mono included
 
 /-- Lowering a covered subtree yields covered immediate task regions.
 Witness: combines narrow the current region; each group task identifies its own location.
 No future item region is exposed by descending through an execution-group child. -/
 theorem workFromSpec_tasks_regionCovered {root current address producer owners seen}
     (located : Located root address current producer owners)
-    (covered : ∀ key ∈ rootKeys current, ExposedKey root seen key)
+    (covered : ∀ ref ∈ rootRefs current, ExposedRef root seen ref)
     : ∀ task ∈ (Work.fromExecution current address).tasks,
         TaskRegionCovered root seen task := by
   cases current with
@@ -260,9 +260,9 @@ theorem workFromSpec_tasks_regionCovered {root current address producer owners s
       intro task member
       rcases List.mem_append.mp member with leftMember | rightMember
       · exact workFromSpec_tasks_regionCovered (Located.left located)
-          (fun key member => covered key (List.mem_append_left _ member)) task leftMember
+          (fun ref member => covered ref (List.mem_append_left _ member)) task leftMember
       · exact workFromSpec_tasks_regionCovered (Located.right located)
-          (fun key member => covered key (List.mem_append_right _ member)) task rightMember
+          (fun ref member => covered ref (List.mem_append_right _ member)) task rightMember
   | executionGroup groups path result children =>
       intro task member query location same found
       have taskEq := List.mem_singleton.mp member
@@ -275,7 +275,7 @@ theorem workFromSpec_tasks_regionCovered {root current address producer owners s
   | stream => intro task member; cases member
 termination_by sizeOf current
 
-/-- A matching stream item reveals exactly one located root-key region.
+/-- A matching stream item reveals exactly one located root-ref region.
 Witness: source matching identifies the original item child work and its lowering. -/
 theorem GraphEvent.MatchesWork.streamItem_region {work stream items}
     (matching : (GraphEvent.streamItems stream items).MatchesWork work)
@@ -283,7 +283,7 @@ theorem GraphEvent.MatchesWork.streamItem_region {work stream items}
     : ∃ children address producer owners,
         Located work address children producer owners
         ∧ item.work = Work.fromExecution children address
-        ∧ (item.occurrence, rootKeys children) ∈ streamRegions work [] := by
+        ∧ (item.occurrence, rootRefs children) ∈ streamRegions work [] := by
   obtain ⟨_, producer, known, childrenWork⟩ := matching item member
   cases occurrence : item.occurrence with
   | executionGroup => simp [streamItemWork?, occurrence] at childrenWork

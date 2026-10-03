@@ -31,9 +31,9 @@ theorem groupsInContext_add (usage : Option DeferUsage)
   | cons head rest ih =>
       have hh := hs head (by simp)
       have ht : GroupsInContext usage rest := fun g h => hs g (by simp [h])
-      rcases group with ⟨key, fields⟩
+      rcases group with ⟨ref, fields⟩
       rcases head with ⟨name, existing⟩
-      by_cases h : name == key
+      by_cases h : name == ref
       · simp only [CollectedFieldsMap.addFieldSet, h, ↓reduceIte]
         intro candidate hc
         simp only [List.mem_cons] at hc
@@ -171,22 +171,22 @@ theorem collectSubfields_inContext (schema : Schema) (variables : VariableValues
       have hp := collectionInContext_append usage ⟨rfl, hhn, hhp⟩ ⟨rfl, htn, htp⟩
       simpa [collectSubfields, hf.1, run_bind, run_map, hhout, htout] using hp
 
-def contextKeys (usage : Option DeferUsage) : List Nat :=
-  usage.toList.map DeferUsage.key
+def contextRefs (usage : Option DeferUsage) : List Nat :=
+  usage.toList.map DeferUsage.ref
 
 def ContextWellFormed (usage : Option DeferUsage) : Prop :=
-  ∀ value ∈ usage, value.key ∉ value.ancestors
+  ∀ value ∈ usage, value.ref ∉ value.ancestors
 
 theorem filteredUsages_inContext (usage : Option DeferUsage)
     (hvalid : ContextWellFormed usage) (fields : List FieldDetails)
     (hne : fields ≠ []) (hfields : FieldsInContext usage fields)
-    : getFilteredDeferUsageSet fields = contextKeys usage := by
+    : getFilteredDeferUsageSet fields = contextRefs usage := by
   cases fields with
   | nil => exact False.elim (hne rfl)
   | cons field rest =>
       have hf := (hfields field (by simp)).1
       cases usage with
-      | none => simp [getFilteredDeferUsageSet, hf, contextKeys]
+      | none => simp [getFilteredDeferUsageSet, hf, contextRefs]
       | some usage =>
           have hall : ∀ f ∈ field :: rest, f.deferUsage = some usage :=
             fun f hm => (hfields f hm).1
@@ -204,25 +204,25 @@ theorem filteredUsages_inContext (usage : Option DeferUsage)
             apply List.any_eq_false.mpr
             intro f hf
             simp [hall f hf]
-          have hv : usage.key ∉ usage.ancestors := hvalid usage (by simp)
-          have hnot : ∀ key ∈ usage.ancestors, key ≠ usage.key := by
-            intro key hk he
+          have hv : usage.ref ∉ usage.ancestors := hvalid usage (by simp)
+          have hnot : ∀ ref ∈ usage.ancestors, ref ≠ usage.ref := by
+            intro ref hk he
             exact hv (he ▸ hk)
           simp [getFilteredDeferUsageSet, ha, hm _ hall, List.map_replicate,
-            List.replicate_succ, List.eraseDups_cons, contextKeys]
+            List.replicate_succ, List.eraseDups_cons, contextRefs]
           exact ⟨hnot, Or.inr hnot⟩
 
 theorem buildExecutionPlan_inContext (usage : Option DeferUsage)
     (hvalid : ContextWellFormed usage) (groups : CollectedFieldsMap)
     (hgroups : GroupsInContext usage groups)
-    : buildExecutionPlan groups (contextKeys usage)
+    : buildExecutionPlan groups (contextRefs usage)
       = { collectedFieldsMap := groups } := by
-  have heq : deferUsageSetsEquivalent (contextKeys usage) (contextKeys usage) = true := by
-    cases usage <;> simp [contextKeys, deferUsageSetsEquivalent]
+  have heq : deferUsageSetsEquivalent (contextRefs usage) (contextRefs usage) = true := by
+    cases usage <;> simp [contextRefs, deferUsageSetsEquivalent]
   have aux : ∀ (initial : ExecutionPlan),
       groups.foldl (fun plan group =>
         let usages := getFilteredDeferUsageSet group.2
-        if deferUsageSetsEquivalent usages (contextKeys usage) then
+        if deferUsageSetsEquivalent usages (contextRefs usage) then
           { plan with collectedFieldsMap := plan.collectedFieldsMap ++ [group] }
         else { plan with newCollectedFieldsMaps :=
           addExecutionPartition usages group plan.newCollectedFieldsMaps }) initial
@@ -246,14 +246,14 @@ theorem buildExecutionPlan_deferred (usage : DeferUsage)
     (hvalid : ContextWellFormed (some usage)) (groups : CollectedFieldsMap)
     (hgroups : GroupsInContext (some usage) groups) (hne : groups ≠ [])
     : buildExecutionPlan groups []
-      = { newCollectedFieldsMaps := [([usage.key], groups)] } := by
-  have hdiff : deferUsageSetsEquivalent [usage.key] [] = false := rfl
-  have hsame : deferUsageSetsEquivalent [usage.key] [usage.key] = true := by
+      = { newCollectedFieldsMaps := [([usage.ref], groups)] } := by
+  have hdiff : deferUsageSetsEquivalent [usage.ref] [] = false := rfl
+  have hsame : deferUsageSetsEquivalent [usage.ref] [usage.ref] = true := by
     simp [deferUsageSetsEquivalent]
-  have hg (group) (hm : group ∈ groups) : getFilteredDeferUsageSet group.2 = [usage.key] :=
+  have hg (group) (hm : group ∈ groups) : getFilteredDeferUsageSet group.2 = [usage.ref] :=
     filteredUsages_inContext (some usage) hvalid group.2 (hgroups group hm).1 (hgroups group hm).2
   have aux (rest : CollectedFieldsMap)
-      (hr : ∀ group ∈ rest, getFilteredDeferUsageSet group.2 = [usage.key])
+      (hr : ∀ group ∈ rest, getFilteredDeferUsageSet group.2 = [usage.ref])
       (accumulated : CollectedFieldsMap) :
       rest.foldl (fun (plan : ExecutionPlan) group =>
         let usages := getFilteredDeferUsageSet group.2
@@ -261,8 +261,8 @@ theorem buildExecutionPlan_deferred (usage : DeferUsage)
           { plan with collectedFieldsMap := plan.collectedFieldsMap ++ [group] }
         else { plan with newCollectedFieldsMaps :=
           addExecutionPartition usages group plan.newCollectedFieldsMaps })
-        { newCollectedFieldsMaps := [([usage.key], accumulated)] }
-      = { newCollectedFieldsMaps := [([usage.key], accumulated ++ rest)] } := by
+        { newCollectedFieldsMaps := [([usage.ref], accumulated)] }
+      = { newCollectedFieldsMaps := [([usage.ref], accumulated ++ rest)] } := by
     induction rest generalizing accumulated with
     | nil => simp
     | cons group rest ih =>

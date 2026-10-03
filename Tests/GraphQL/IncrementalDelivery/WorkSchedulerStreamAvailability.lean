@@ -16,12 +16,12 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 -----------------------------------------------------------------------------------------
 
 /-- The root stream shared by the item-registration regressions. -/
-def stream : DeliveryNode := { key := 0, path := [.field "users"] }
+def stream : DeliveryNode := { ref := 0, path := [.field "users"] }
 
 /-- The successful deferred group introduced by the item at `index`. -/
 def successGroup (index : Nat) : DeliveryNode :=
   {
-    key := 2 * index + 1,
+    ref := 2 * index + 1,
     path := [.field "users", .index index],
     label := some (.string "S")
   }
@@ -29,7 +29,7 @@ def successGroup (index : Nat) : DeliveryNode :=
 /-- The failing deferred group introduced by the item at `index`. -/
 def failureGroup (index : Nat) : DeliveryNode :=
   {
-    key := 2 * index + 2,
+    ref := 2 * index + 2,
     path := [.field "users", .index index],
     label := some (.string "F")
   }
@@ -123,7 +123,7 @@ theorem itemMatches (index : Nat) (bound : index < 2)
   have entry : entries[index]? = some (.ok (.object [], 0), children index) := by
     have casesIndex : index = 0 ∨ index = 1 := by omega
     rcases casesIndex with rfl | rfl <;> rfl
-  refine ⟨[stream.key], none, ?_, ?_⟩
+  refine ⟨[stream.ref], none, ?_, ?_⟩
   · exact ⟨stream, entries, [], .ok (.object [], 0), children index,
       streamLocated, entry, rfl, rfl⟩
   · have located : locateWork work [0, 0, 1] = some ⟨.stream stream entries, none, []⟩ :=
@@ -132,7 +132,7 @@ theorem itemMatches (index : Nat) (bound : index < 2)
 
 /-- The first item's name task succeeds. Witness: its exact execution-group descriptor. -/
 theorem successKnown
-    : TaskAt work successfulTask [(successGroup 0).key] (some (item 0).occurrence)
+    : TaskAt work successfulTask [(successGroup 0).ref] (some (item 0).occurrence)
         (.object (successGroup 0).path (.ok (data 0, 0))) := by
   refine ⟨[⟨successGroup 0, []⟩], (successGroup 0).path, _, .combine .empty .empty,
     [], ?_, rfl, rfl⟩
@@ -140,7 +140,7 @@ theorem successKnown
 
 /-- The first item's required-field task fails. Witness: its fixed non-null outcome. -/
 theorem failureKnown
-    : TaskAt work failedTask [(failureGroup 0).key] (some (item 0).occurrence)
+    : TaskAt work failedTask [(failureGroup 0).ref] (some (item 0).occurrence)
         (.object (failureGroup 0).path (.error 1)) := by
   refine ⟨[⟨failureGroup 0, []⟩], (failureGroup 0).path, _, .empty, [], ?_, rfl, rfl⟩
   cbv
@@ -222,8 +222,8 @@ theorem next_item_task_announced
         TaskHasOwners work (.executionGroup [0, 0, 1, 1, 1, 0]) owners
         ∧ owner ∈ owners
         ∧ owner
-          ∈ initial.initialGroups.map DeliveryNode.key
-            ++ (initial.rawEventReplay events).2.flatMap rawGroupNoticeKeys := by
+          ∈ initial.initialGroups.map DeliveryNode.ref
+            ++ (initial.rawEventReplay events).2.flatMap rawGroupNoticeRefs := by
   have found
       : ((State.initialize (Work.fromExecution work)).replayGraphEvents
           (before.flatten ++ [second])).taskNode? (.executionGroup [0, 0, 1, 1, 1, 0])
@@ -249,13 +249,13 @@ theorem initialized
     [],
     none,
     ⟨[0, 0, 1], entries, streamLocated⟩,
-    by simp [announcedKeys, pendingKeys],
+    by simp [announcedRefs, pendingRefs],
     .inl ⟨fun failure => failure.nonempty rfl, .inl rfl⟩,
     by simp,
     .inl rfl
   ⟩
 
-/-- After success and failure in item zero, item one's keys are still unregistered.
+/-- After success and failure in item zero, item one's refs are still unregistered.
 Witness: source freshness and disjoint generated regions at the actual replay boundary.
 This uses no pending ledger, evaluated group map, or health assumption. -/
 theorem next_item_available
@@ -291,7 +291,7 @@ Witness: unconditional joint owner/ancestry replay on the generated valid starte
 all integration availability is derived internally, including the next item's child groups.
 -/
 theorem continuation_ownerAccounting
-    : ∃ parents : Nat → Keys,
+    : ∃ parents : Nat → NodeRefs,
         ((State.initialize (Work.fromExecution work)).runNormalized
           (before ++ [[second]])).1.OwnerAccounting
           work parents (before ++ [[second]]).flatten := by
@@ -327,7 +327,7 @@ Witness: unconditional joint replay derives availability at each intermediate it
 and preserves ancestry through the event's final recursive drain.
 -/
 theorem together_ownerAccounting
-    : ∃ parents : Nat → Keys,
+    : ∃ parents : Nat → NodeRefs,
         ((State.initialize (Work.fromExecution work)).runNormalized
           [[.streamItems stream [item 0, item 1]]]).1.OwnerAccounting
           work parents [.streamItems stream [item 0, item 1]] := by

@@ -48,10 +48,10 @@ private def work : Execution.Work :=
       (.object "Query" 0) selections).run
     0).1.work
 
-private def outer : DeliveryNode := { key := 0, path := [.field "users"] }
+private def outer : DeliveryNode := { ref := 0, path := [.field "users"] }
 
 private def child : DeliveryNode :=
-  { key := 1, path := [.field "users", .index 0, .field "values"] }
+  { ref := 1, path := [.field "users", .index 0, .field "values"] }
 
 private def parent : Occurrence := .item [0, 0, 1] 0
 private def failedItem : Occurrence := .item [0, 0, 1] 1
@@ -113,7 +113,7 @@ theorem source_valid
     intro item member
     have same := List.mem_singleton.mp member
     subst item
-    exact ⟨[outer.key], none, TaskAt.item outer_located rfl, by cbv⟩
+    exact ⟨[outer.ref], none, TaskAt.item outer_located rfl, by cbv⟩
   have initial : ValidGraphEvents work [first] :=
     .append .nil itemMatches (by simp [first, GraphEvent.Fresh, GraphEvent.identities])
       ⟨_, _, _, _, outer_located, by simp, by simp,
@@ -141,7 +141,7 @@ private theorem failed_payloads (cut occurrence) (member : (cut, occurrence) ∈
   have same : cut = 1 ∧ occurrence = failedItem := by
     simpa only [cuts, List.mem_singleton, Prod.mk.injEq] using member
   rcases same with ⟨rfl, rfl⟩
-  exact ⟨[outer.key], none, _, TaskAt.item outer_located rfl, rfl⟩
+  exact ⟨[outer.ref], none, _, TaskAt.item outer_located rfl, rfl⟩
 
 /-- The actual history has supported publication without using any event-admission premise.
 Witness: its only value is the producer-free first item, emitted before the failure cut.
@@ -153,7 +153,7 @@ private theorem supported : PublicationSupport work matching atoms cuts := by
       have same : event = .streamValues outer [⟨value, 0⟩] [] [child] := by
         simpa [output] using selected.symm
       subst event
-      refine ⟨[outer.key], none, _, outer.key, TaskAt.item outer_located rfl,
+      refine ⟨[outer.ref], none, _, outer.ref, TaskAt.item outer_located rfl,
         rfl, List.mem_cons_self, ?_, ?_⟩
       · rintro ⟨cut, member, reached, _⟩
         have same : cut = 1 := by simpa [cuts] using member
@@ -178,7 +178,7 @@ private theorem parent_published : Published matching atoms parent :=
 Witness: exact failure causality and the derived no-revival theorem on actual support.
 -/
 theorem parent_survives
-    : NodeFailed work matching atoms cuts outer.key
+    : NodeFailed work matching atoms cuts outer.ref
       ∧ ¬TaskCancelled work matching atoms cuts parent := by
   refine ⟨
     NodeFailed.task (TaskAt.item outer_located (index := 1) rfl)
@@ -193,14 +193,14 @@ Witness: support-based stream decomposition excludes producer cancellation using
 earlier publication, excludes direct failure by task uniqueness, and uses empty defer
 dependencies. This applies the general bridge without Explains or FailureWitness.
 -/
-theorem child_survives : ¬NodeFailed work matching atoms cuts child.key := by
+theorem child_survives : ¬NodeFailed work matching atoms cuts child.ref := by
   apply supported.streamHealthy generated failed_payloads child_known
     (by intro source same; cases same; exact parent_published) ?_ (.inl rfl)
   intro occurrence owners ⟨producer, payload, known⟩ owner failed
   have same : occurrence = failedItem := by
     simpa [failedBefore, cuts, output] using failed
   subst occurrence
-  have exactTask : TaskAt work failedItem [outer.key] none (.item outer (.error 1)) :=
+  have exactTask : TaskAt work failedItem [outer.ref] none (.item outer (.error 1)) :=
     TaskAt.item outer_located rfl
   rw [(known.unique exactTask).1] at owner
   simp [outer, child] at owner
@@ -209,10 +209,10 @@ theorem child_survives : ¬NodeFailed work matching atoms cuts child.key := by
 Witness: apply both general transports, retaining the nonempty cut and published parent.
 -/
 theorem snapshot_agreement
-    : (∀ key,
-        NodeFailed work matching atoms cuts key
+    : (∀ ref,
+        NodeFailed work matching atoms cuts ref
         ↔ Causality.NodeFailed work (failedBefore cuts atoms.length)
-            (Published matching atoms) key)
+            (Published matching atoms) ref)
       ∧ (∀ occurrence,
           TaskCancelled work matching atoms cuts occurrence
           ↔ Causality.TaskCancelled work (failedBefore cuts atoms.length)
@@ -244,7 +244,7 @@ theorem next_source_valid
   · intro item member
     have same := List.mem_singleton.mp member
     subst item
-    exact ⟨[child.key], some parent, TaskAt.item child_located rfl, by cbv⟩
+    exact ⟨[child.ref], some parent, TaskAt.item child_located rfl, by cbv⟩
   · simp [nextItem, inputs, first, GraphEvent.Fresh, GraphEvent.identities,
       childItem, parent, outer, child]
   · exact ⟨_, _, _, _, child_located, by simp,
@@ -266,7 +266,7 @@ Witness: actual child health and earlier producer publication extend the certifi
 freshness and ordinal zero then derive CanPublish without assuming noncancellation.
 -/
 theorem next_ready : CanPublish work matching atoms cuts childItem (some parent) := by
-  have source : TaskAt work (matching atoms.length) [child.key] (some parent)
+  have source : TaskAt work (matching atoms.length) [child.ref] (some parent)
       (.item child (.ok (.scalar "x", 0))) := by
     simpa only [output, List.length_cons, List.length_nil, matching, Nat.reduceAdd,
       Nat.reduceEqDiff, ↓reduceIte, childItem]
@@ -366,7 +366,7 @@ theorem completion_admitted
     : ∃ w : ConformancePlan.Witness,
         w.events = atoms ++ [nextEvent, .streamSuccess child]
         ∧ ConformancePlan.BatchShape work completedInputs w
-        ∧ FailureWitness work (ConformancePlan.initialKeys work)
+        ∧ FailureWitness work (ConformancePlan.initialRefs work)
             w.matching w.events w.failures
         ∧ ConformancePlan.FailureAdmission work w
         ∧ ConformancePlan.StreamSuccessAdmission work w := by
@@ -386,9 +386,9 @@ theorem child_publication_admitted
     : ∃ w : ConformancePlan.Witness,
         w.events = atoms ++ [nextEvent]
         ∧ ConformancePlan.BatchShape work (inputs ++ [[nextItem]]) w
-        ∧ FailureWitness work (ConformancePlan.initialKeys work)
+        ∧ FailureWitness work (ConformancePlan.initialRefs work)
             w.matching w.events w.failures
-        ∧ EventAllowed work (ConformancePlan.initialKeys work) w.matching
+        ∧ EventAllowed work (ConformancePlan.initialRefs work) w.matching
             (w.events.take 2) w.failures nextEvent := by
   obtain ⟨w, history, shape, announced, uncancelled, _, _, ready⟩ :=
     ConformancePlan.mixed_eventCertificates generated next_source_valid.1 next_source_valid.2

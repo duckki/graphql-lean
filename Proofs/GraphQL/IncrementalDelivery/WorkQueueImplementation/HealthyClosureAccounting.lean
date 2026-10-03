@@ -5,17 +5,17 @@ import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.GroupEventAcco
 namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue.ConformancePlan
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
-/-- A healthy completed key is task-accounted at every prefix of the common witness.
+/-- A healthy completed ref is task-accounted at every prefix of the common witness.
 Witness: locate its completion. Successful group and stream certificates supply earlier
 accounting, which survives the intervening outputs; an admitted failure completion would
 contradict present health. Carried-notice admission and terminal accounting are not used.
 -/
-theorem healthy_completed_accounted {work w count key}
+theorem healthy_completed_accounted {work w count ref}
     (groups : GroupSuccessesAccounted work w)
     (streams : StreamSuccessAdmission work w) (failures : FailureAdmission work w)
-    (closed : key ∈ completedKeys (w.events.take count))
-    (healthy : ¬NodeFailed work w.matching (w.events.take count) w.failures key)
-    : NodeAccounted work w.matching (w.events.take count) w.failures key := by
+    (closed : ref ∈ completedRefs (w.events.take count))
+    (healthy : ¬NodeFailed work w.matching (w.events.take count) w.failures ref)
+    : NodeAccounted work w.matching (w.events.take count) w.failures ref := by
   obtain ⟨event, member, closes⟩ := List.mem_flatMap.mp closed
   obtain ⟨index, atPrefix⟩ := List.mem_iff_getElem?.mp member
   have within : index < count := by
@@ -27,13 +27,13 @@ theorem healthy_completed_accounted {work w count key}
   have earlier : (w.events.take count).take index = w.events.take index := by
     simp only [List.take_take, Nat.min_eq_left (Nat.le_of_lt within)]
   have extendAccounted
-      (prior : NodeAccounted work w.matching (w.events.take index) w.failures key)
-      : NodeAccounted work w.matching (w.events.take count) w.failures key := by
+      (prior : NodeAccounted work w.matching (w.events.take index) w.failures ref)
+      : NodeAccounted work w.matching (w.events.take count) w.failures ref := by
     have extended := prior.append ((w.events.take count).drop index)
     rwa [← earlier, List.take_append_drop] at extended
   have extendFailure
-      (prior : NodeFailed work w.matching (w.events.take index) w.failures key)
-      : NodeFailed work w.matching (w.events.take count) w.failures key := by
+      (prior : NodeFailed work w.matching (w.events.take index) w.failures ref)
+      : NodeFailed work w.matching (w.events.take count) w.failures ref := by
     have extended := prior.append ((w.events.take count).drop index)
     rwa [← earlier, List.take_append_drop] at extended
   cases event with
@@ -59,21 +59,21 @@ theorem healthy_completed_accounted {work w count key}
       rw [nodeFailed_filter (Nat.le_refl _)] at failed
       exact False.elim (healthy (extendFailure (same ▸ failed)))
 
-/-- Healthy completed keys remain accounted when failures are frozen at the carrier's start.
+/-- Healthy completed refs remain accounted when failures are frozen at the carrier's start.
 Witness: each earlier completion uses only cuts through its own strict prefix, all within
 the supplied bound. Its accounting extends with those same cuts; an earlier failure
 completion contradicts health. Failures recorded after the carrier are never imported.
 -/
-theorem healthy_completed_accounted_frozen {work w count bound key}
+theorem healthy_completed_accounted_frozen {work w count bound ref}
     (groups : GroupSuccessesAccounted work w)
     (streams : StreamSuccessAdmission work w) (failures : FailureAdmission work w)
     (within : count ≤ bound + 1)
-    (closed : key ∈ completedKeys (w.events.take count))
+    (closed : ref ∈ completedRefs (w.events.take count))
     (healthy
       : ¬NodeFailed work w.matching (w.events.take count)
-          (w.failures.filter (fun entry => entry.1 ≤ bound)) key)
+          (w.failures.filter (fun entry => entry.1 ≤ bound)) ref)
     : NodeAccounted work w.matching (w.events.take count)
-        (w.failures.filter (fun entry => entry.1 ≤ bound)) key := by
+        (w.failures.filter (fun entry => entry.1 ≤ bound)) ref := by
   obtain ⟨event, member, closes⟩ := List.mem_flatMap.mp closed
   obtain ⟨index, atPrefix⟩ := List.mem_iff_getElem?.mp member
   have earlierIndex : index < count := by
@@ -88,16 +88,16 @@ theorem healthy_completed_accounted_frozen {work w count bound key}
   have earlier : (w.events.take count).take index = w.events.take index := by
     simp only [List.take_take, Nat.min_eq_left (Nat.le_of_lt earlierIndex)]
   have extendAccounted
-      (prior : NodeAccounted work w.matching (w.events.take index) w.failures key)
+      (prior : NodeAccounted work w.matching (w.events.take index) w.failures ref)
       : NodeAccounted work w.matching (w.events.take count)
-          (w.failures.filter (fun entry => entry.1 ≤ bound)) key := by
+          (w.failures.filter (fun entry => entry.1 ≤ bound)) ref := by
     have frozen := (nodeAccounted_filter reached).mpr prior
     have extended := frozen.append ((w.events.take count).drop index)
     rwa [← earlier, List.take_append_drop] at extended
   have excludeFailure
-      (prior : NodeFailed work w.matching (w.events.take index) w.failures key) : False := by
+      (prior : NodeFailed work w.matching (w.events.take index) w.failures ref) : False := by
     have frozen : NodeFailed work w.matching (w.events.take index)
-        (w.failures.filter (fun entry => entry.1 ≤ bound)) key := by
+        (w.failures.filter (fun entry => entry.1 ≤ bound)) ref := by
       rwa [nodeFailed_filter reached]
     have extended := frozen.append ((w.events.take count).drop index)
     rw [← earlier, List.take_append_drop] at extended

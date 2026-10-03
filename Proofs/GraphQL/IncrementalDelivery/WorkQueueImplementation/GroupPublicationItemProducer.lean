@@ -53,7 +53,7 @@ theorem Witness.groupPublication_groupItemProducerPublished
           }
           ((initialQueue work).rawEventReplay inputs.flatten).2 index owner payload)
     (known : NodeAt work node .group dependencies (some (.item source ordinal)))
-    (sameKey : node.key = origin.group.key)
+    (sameRef : node.ref = origin.group.ref)
     : Published w.matching (w.events.take index) (.item source ordinal) := by
   obtain ⟨_, _, _, _, interpret⟩ := ledger
   have accepted : (initialQueue work).batchesStarted inputs = true := by
@@ -64,7 +64,7 @@ theorem Witness.groupPublication_groupItemProducerPublished
       origin.rawEq
     simpa using same
   have delivered := generated.rawEventReplay_groupValues_itemProducer_prefix valid
-    ((initialQueue work).batchesStarted_acceptsBatch inputs accepted) atRaw known sameKey
+    ((initialQueue work).batchesStarted_acceptsBatch inputs accepted) atRaw known sameRef
   have beforeEq : ((initialQueue work).rawEventReplay inputs.flatten).2.take
       origin.before.length = origin.before := by
     have same := congrArg (List.take origin.before.length) origin.rawEq
@@ -103,10 +103,10 @@ theorem GroupPublicationReleases.itemProducerPublished
       cases impossible
   | executionGroup address =>
       rw [matched] at known
-      obtain ⟨node, dependencies, groupKnown, sameKey⟩ :=
+      obtain ⟨node, dependencies, groupKnown, sameRef⟩ :=
         TaskAt.executionGroup_owner known available.1.2.1
       exact Witness.groupPublication_groupItemProducerPublished generated valid started
-        history ledger origin groupKnown sameKey
+        history ledger origin groupKnown sameRef
 
 end ConformancePlan
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

@@ -86,14 +86,14 @@ private theorem generated : ExecutedWork work :=
   ⟨Nat, schema, resolvers, [], 50, "Query", .object "Query" 0, selections, by cbv⟩
 
 private theorem valid : ValidGraphEvents work received := by
-  have failureKnown : TaskAt work failedTask [root.key, failed.key] none (.object [] (.error 1)) :=
+  have failureKnown : TaskAt work failedTask [root.ref, failed.ref] none (.object [] (.error 1)) :=
     .executionGroup (groups := [⟨root, []⟩, ⟨failed, [parent]⟩])
       (children := .empty) (owners := []) (by cbv)
-  have sharedKnown : TaskAt work sharedTask [root.key, child.key] none
+  have sharedKnown : TaskAt work sharedTask [root.ref, child.ref] none
       (.object [] (.ok (sharedValue.data, 0))) :=
     .executionGroup (groups := [⟨root, []⟩, ⟨child, [parent]⟩])
       (children := .combine .empty .empty) (owners := []) (by cbv)
-  have parentKnown : TaskAt work parentTask [parent.key] none
+  have parentKnown : TaskAt work parentTask [parent.ref] none
       (.object [] (.ok (parentValue.data, 0))) :=
     .executionGroup (groups := [⟨parent, []⟩])
       (children := .combine .empty .empty) (owners := []) (by cbv)
@@ -123,14 +123,14 @@ theorem failure_before_notice_carrier
   cbv
 
 private theorem grandchildKnown
-    : NodeAt work grandchild .group [child.key, parent.key] none :=
+    : NodeAt work grandchild .group [child.ref, parent.ref] none :=
   .group (work := work) (producer := none) (group := ⟨grandchild, [child, parent]⟩)
     (address := [1, 1, 1, 1, 0]) (groups := [⟨grandchild, [child, parent]⟩])
     (path := []) (result := .ok ([("c", .scalar "c")], 0))
     (children := .combine .empty .empty) (owners := []) (by cbv) List.mem_cons_self
 
 private theorem child_uncancelled
-    : child.key ∉ ready.drainReadyGroups.1.cancelledGroups := by
+    : child.ref ∉ ready.drainReadyGroups.1.cancelledGroups := by
   cbv
   intro member
   cases member with
@@ -144,12 +144,12 @@ private theorem child_announced
   exact .tail _ (.head _)
 
 private theorem child_announced_before_carrier
-    : child.key
+    : child.ref
       ∈ initial.rootGroups
         ++ (((initial.rawEventReplay [failure, buffered]).2
               ++ released.2.1
               ++ ready.drainReadyGroups.2.take 3).flatMap
-              rawGroupNoticeKeys) := by
+              rawGroupNoticeRefs) := by
   apply List.mem_append_right
   rw [List.flatMap_append, List.flatMap_append]
   apply List.mem_append_left
@@ -167,18 +167,18 @@ Witness: source-prefix tracking includes P's earlier C notice and the intervenin
 failure. The general handler theorem derives completion by the exact D carrier.
 -/
 theorem ancestor_completed_after_cached_failure
-    : child.key
+    : child.ref
       ∈ (((initial.rawEventReplay [failure, buffered]).2
           ++ released.2.1
           ++ ready.drainReadyGroups.2.take 3).flatMap
-          rawGroupClosureKeys) := by
+          rawGroupClosureRefs) := by
   have prior : ∀ source ∈ [failure, buffered], source.MatchesWork work :=
     fun _ member => valid.eachMatches (List.mem_append_left [finish] member)
   have matched := valid.eachMatches
     (List.mem_append_right [failure, buffered] List.mem_cons_self)
   exact generated.taskDrainNoticeAncestor_completed
     (before := [failure, buffered]) (occurrence := parentTask) (result := ⟨parentValue, {}⟩)
-    (key := child.key) prior matched
+    (ref := child.ref) prior matched
     (groupRecordAt_of_nodeAt grandchildKnown)
     List.mem_cons_self
     (incoming := incoming)
@@ -196,8 +196,8 @@ Witness: the general raw-history theorem derives noncancellation and recovers th
 source handler and recursive-drain origin, including all earlier cached-failure output.
 -/
 theorem raw_notice_ancestor_completed
-    : child.key
-      ∈ ((initial.rawEventReplay received).2.take 6).flatMap rawGroupClosureKeys := by
+    : child.ref
+      ∈ ((initial.rawEventReplay received).2.take 6).flatMap rawGroupClosureRefs := by
   have selected : (initial.rawEventReplay received).2[5]?
       = some (.groupSuccess child [grandchild] []) := by cbv
   exact generated.rawEventReplay_groupNoticeAncestor_completed valid
@@ -220,7 +220,7 @@ Witness: the general tracking theorem plus C's concrete notice and endpoint abse
 both active roots and cancellation history. The completion itself is not a premise.
 -/
 theorem announced_child_has_completion
-    : child.key ∈ (initial.rawEventReplay received).2.flatMap rawGroupClosureKeys := by
+    : child.ref ∈ (initial.rawEventReplay received).2.flatMap rawGroupClosureRefs := by
   apply mixed_replay_tracks_notices.completed_of_inactive_uncancelled
   · cbv
     exact .tail _ (.tail _ (.tail _ (.head _)))
@@ -244,7 +244,7 @@ theorem cached_notice_has_accepted_contributor
       ∧ (∀ fuel,
           (State.drainReadyGroups.go fuel ready).1.CachedFailuresSupported work
             [failedTask])
-      ∧ ∃ owners, TaskHasOwners work failedTask owners ∧ failed.key ∈ owners := by
+      ∧ ∃ owners, TaskHasOwners work failedTask owners ∧ failed.ref ∈ owners := by
   have prior : ValidGraphEvents work [failure, buffered] :=
     valid.prefix ⟨[finish], rfl⟩
   have supported := generated.taskSuccess_drain_cachedAcceptedFailures
@@ -257,7 +257,7 @@ theorem cached_notice_has_accepted_contributor
   refine ⟨supported, supported.drainReadyGroups_go, ?_⟩
   have cache : ∃ node ∈ ready.groupNodes,
       node.group.node = failed ∧ node.failure.isSome = true := by
-    refine ⟨{ group := ⟨failed, some parent.key⟩, failure := some 1 }, ?_, rfl, rfl⟩
+    refine ⟨{ group := ⟨failed, some parent.ref⟩, failure := some 1 }, ?_, rfl, rfl⟩
     cbv
     exact .head _
   obtain ⟨node, member, same, cached⟩ := cache
@@ -280,7 +280,7 @@ theorem retained_notice_after_failure_on_common_witness
             ∧ ready.drainReadyGroups.2.take 3
               = (State.drainReadyGroups.go (steps + 1) ready).2
             ∧ ∃ node,
-                (State.drainReadyGroups.go (steps + 1) ready).1.groupNode? grandchild.key
+                (State.drainReadyGroups.go (steps + 1) ready).1.groupNode? grandchild.ref
                   = some node
                 ∧ node.group.node = grandchild
                 ∧ (node.tasks ≠ [] ∨ node.failure.isSome = true)
@@ -381,7 +381,7 @@ No carried-notice admission is assumed for that prefix.
 theorem healthy_parent_accounted_at_notice
     : ∃ w : ConformancePlan.Witness,
         ConformancePlan.GroupPublicationAdmission work w
-        ∧ NodeAccounted work w.matching (w.events.take 3) w.failures parent.key := by
+        ∧ NodeAccounted work w.matching (w.events.take 3) w.failures parent.ref := by
   obtain ⟨w, history, _, _, _, failures, streams, _, healthy, accounted,
     _, _, _, _, admitted⟩ :=
     ConformancePlan.mixed_groupPublicationCertificates generated
@@ -389,7 +389,7 @@ theorem healthy_parent_accounted_at_notice
   have selected : w.events[2]? = some (.groupSuccess parent [failed, child] []) := by
     rw [history]
     cbv
-  have closed : parent.key ∈ completedKeys (w.events.take 3) := by
+  have closed : parent.ref ∈ completedRefs (w.events.take 3) := by
     rw [history]
     cbv
     exact .tail _ (.head _)
@@ -410,7 +410,7 @@ theorem error_only_notice_sourceReady
         ConformancePlan.GroupPublicationAdmission work w
         ∧ ∃ address owners producer payload,
             TaskAt work (.executionGroup address) owners producer payload
-            ∧ failed.key ∈ owners
+            ∧ failed.ref ∈ owners
             ∧ ∀ source,
                 producer = some source
                 → source ∈ received.flatMap GraphEvent.successes := by
@@ -488,11 +488,11 @@ theorem error_only_notice_canAnnounce
         ConformancePlan.GroupPublicationAdmission work w
         ∧ w.events[2]? = some (.groupSuccess parent [failed, child] [])
         ∧ ∃ birth,
-            NodeAt work failed .group [parent.key] birth
-            ∧ CanAnnounce work (ConformancePlan.initialKeys work) w.matching
+            NodeAt work failed .group [parent.ref] birth
+            ∧ CanAnnounce work (ConformancePlan.initialRefs work) w.matching
                 (w.events.take 2 ++ [.groupSuccess parent [] []])
                 (w.failures.filter (fun entry => entry.1 ≤ 2))
-                failed .group [parent.key] birth := by
+                failed .group [parent.ref] birth := by
   obtain ⟨w, history, _, announced, _, failures, streams, streamReady, _, groups,
     ledger, _, support, _, admitted, safe, streamCuts, cuts, exactCuts⟩ :=
     ConformancePlan.mixed_groupPublicationCertificates_with_noticeSafety
@@ -504,7 +504,7 @@ theorem error_only_notice_canAnnounce
   have contents := ConformancePlan.groupGroupNotice_unpublished generated
     (inputs := [received]) valid (by cbv) history ledger admitted streamReady
     partition selected (child := failed) List.mem_cons_self
-  have known : NodeAt work failed .group [parent.key] none :=
+  have known : NodeAt work failed .group [parent.ref] none :=
     NodeAt.group (work := work) (producer := none) (group := ⟨failed, [parent]⟩)
       (address := [1, 0]) (groups := [⟨root, []⟩, ⟨failed, [parent]⟩])
       (path := []) (result := .error 1) (children := .empty) (owners := [])
@@ -516,17 +516,17 @@ theorem error_only_notice_canAnnounce
     (by cbv)
     history announced support safe groups streams
     failures streamReady ledger cuts partition contents selected
-    (by simp [groupNoticeKeys])
+    (by simp [groupNoticeRefs])
     known
 
-/-- Cached failure cleanup and later draining never duplicate any announced group key.
+/-- Cached failure cleanup and later draining never duplicate any announced group ref.
 Witness: global raw uniqueness combines local unique frontiers with cross-carrier
 separation for this generated matching replay; it does not evaluate the final notice list.
 -/
-theorem cached_failure_group_keys_unique
+theorem cached_failure_group_refs_unique
     : (initial.rootGroups
-        ++ (initial.rawEventReplay received).2.flatMap rawGroupNoticeKeys).Nodup :=
-  generated.rawEventReplay_groupKeys_nodup received
+        ++ (initial.rawEventReplay received).2.flatMap rawGroupNoticeRefs).Nodup :=
+  generated.rawEventReplay_groupRefs_nodup received
     (fun _ member => valid.eachMatches member)
 
 /-- A cached error's newly announced group actually completes in the same handler.
@@ -534,9 +534,9 @@ Witness: general exact notice tracking, not mere membership in cancelledGroups, 
 the closure once the concrete end state no longer contains F as an active root.
 -/
 theorem cached_error_notice_completed
-    : failed.key ∈ (initial.rawEventReplay received).2.flatMap rawGroupClosureKeys := by
+    : failed.ref ∈ (initial.rawEventReplay received).2.flatMap rawGroupClosureRefs := by
   have tracked := generated.rawEventReplay_groupNoticeCompletion received
-    (fun _ member => valid.eachMatches member) failed.key (by
+    (fun _ member => valid.eachMatches member) failed.ref (by
       cbv
       change (2 : Nat) ∈ [0, 1, 2, 3, 4]
       decide)
@@ -593,12 +593,12 @@ theorem drain_notice_ancestor_published_on_common_witness
   obtain ⟨published, batches, matching, _⟩ := ledger
   have covered := batches.flatten (by rw [← inputsStarted_eq_batchesStarted]; cbv)
   have prefixes := covered.atPrefixDrainOwners [failure, buffered] finish []
-  have childKnown : NodeAt work grandchild .group [child.key, parent.key] none :=
+  have childKnown : NodeAt work grandchild .group [child.ref, parent.ref] none :=
     .group (work := work) (producer := none) (group := ⟨grandchild, [child, parent]⟩)
       (address := [1, 1, 1, 1, 0]) (groups := [⟨grandchild, [child, parent]⟩])
       (path := []) (result := .ok ([("c", .scalar "c")], 0))
       (children := .combine .empty .empty) (owners := []) (by cbv) List.mem_cons_self
-  have taskKnown : TaskAt work sharedTask [root.key, child.key] none
+  have taskKnown : TaskAt work sharedTask [root.ref, child.ref] none
       (.object [] (.ok (sharedValue.data, 0))) :=
     .executionGroup (groups := [⟨root, []⟩, ⟨child, [parent]⟩])
       (children := .combine .empty .empty) (owners := []) (by cbv)
@@ -609,7 +609,7 @@ theorem drain_notice_ancestor_published_on_common_witness
       (fun _ member => valid.eachMatches (List.mem_append_left [finish] member))
       (valid.eachMatches (List.mem_append_right [failure, buffered] List.mem_cons_self))
       (groupRecordAt_of_nodeAt childKnown)
-      (key := child.key)
+      (ref := child.ref)
       List.mem_cons_self
       (node := node)
       ⟨none, _, taskKnown⟩
@@ -664,12 +664,12 @@ theorem structural_ancestor_before_drain_notice
       (inputs := [received]) valid (by cbv)
   obtain ⟨published, batches, matching, _⟩ := ledger
   have covered := batches.flatten (by rw [← inputsStarted_eq_batchesStarted]; cbv)
-  have childKnown : NodeAt work grandchild .group [child.key, parent.key] none :=
+  have childKnown : NodeAt work grandchild .group [child.ref, parent.ref] none :=
     .group (work := work) (producer := none) (group := ⟨grandchild, [child, parent]⟩)
       (address := [1, 1, 1, 1, 0]) (groups := [⟨grandchild, [child, parent]⟩])
       (path := []) (result := .ok ([("c", .scalar "c")], 0))
       (children := .combine .empty .empty) (owners := []) (by cbv) List.mem_cons_self
-  have taskKnown : TaskAt work sharedTask [root.key, child.key] none
+  have taskKnown : TaskAt work sharedTask [root.ref, child.ref] none
       (.object [] (.ok (sharedValue.data, 0))) :=
     .executionGroup (groups := [⟨root, []⟩, ⟨child, [parent]⟩])
       (children := .combine .empty .empty) (owners := []) (by cbv)
@@ -677,7 +677,7 @@ theorem structural_ancestor_before_drain_notice
     (before := [failure, buffered]) (event := finish) valid (by cbv) covered
     (position := 4) (group := child) (groups := [grandchild]) (streams := []) (by cbv)
     List.mem_cons_self (groupRecordAt_of_nodeAt childKnown)
-    (key := child.key) List.mem_cons_self taskKnown (by simp)
+    (ref := child.ref) List.mem_cons_self taskKnown (by simp)
   have count : ((initial.rawEventReplay [failure, buffered]).2.flatMap
       WorkQueueEvent.objectValues).length
       + ((((initial.replayGraphEvents [failure, buffered]).handleGraphEvent finish).2.take

@@ -26,33 +26,33 @@ inductive Reachable (work : Work) : Occurrence → Prop where
     : Reachable work occurrence
 
 mutual
-  /-- (NodeFailed work failed key) derives failure of node key in work from supplied
+  /-- (NodeFailed work failed ref) derives failure of node ref in work from supplied
   failed occurrences.
   -/
   inductive NodeFailed (work : Work) (failed : List Occurrence) : Nat → Prop where
-    | task {occurrence owners producer payload key}
+    | task {occurrence owners producer payload ref}
       (known : TaskAt work occurrence owners producer payload)
-      (owner : key ∈ owners) (finished : occurrence ∈ failed)
-      : NodeFailed work failed key
-    | groupDependency {node dependencies birth key}
+      (owner : ref ∈ owners) (finished : occurrence ∈ failed)
+      : NodeFailed work failed ref
+    | groupDependency {node dependencies birth ref}
       (known : NodeAt work node .group dependencies birth)
-      (dependency : key ∈ dependencies) (failure : NodeFailed work failed key)
-      : NodeFailed work failed node.key
+      (dependency : ref ∈ dependencies) (failure : NodeFailed work failed ref)
+      : NodeFailed work failed node.ref
     | streamDependencies {node dependencies birth}
       (known : NodeAt work node .stream dependencies birth) (nonempty : dependencies ≠ [])
-      (failures : ∀ key ∈ dependencies, NodeFailed work failed key)
-      : NodeFailed work failed node.key
+      (failures : ∀ ref ∈ dependencies, NodeFailed work failed ref)
+      : NodeFailed work failed node.ref
     | producers {node kind dependencies birth}
       (known : NodeAt work node kind dependencies birth)
       (noRoot
         : ∀ other otherKind otherDependencies,
-            NodeAt work other otherKind otherDependencies none → other.key ≠ node.key)
+            NodeAt work other otherKind otherDependencies none → other.ref ≠ node.ref)
       (unavailable
         : ∀ other otherKind otherDependencies producerOccurrence,
             NodeAt work other otherKind otherDependencies (some producerOccurrence)
-            → other.key = node.key
+            → other.ref = node.ref
             → ProducerUnavailable work failed producerOccurrence)
-      : NodeFailed work failed node.key
+      : NodeFailed work failed node.ref
 
   /-- (TaskCancelled work failed occurrence) derives cancellation of the task occurrence
   in work from supplied failed occurrences and their causal consequences.
@@ -61,7 +61,7 @@ mutual
       : Occurrence → Prop where
     | owners {occurrence owners producer payload}
       (known : TaskAt work occurrence owners producer payload) (nonempty : owners ≠ [])
-      (failures : ∀ key ∈ owners, NodeFailed work failed key)
+      (failures : ∀ ref ∈ owners, NodeFailed work failed ref)
       : TaskCancelled work failed occurrence
     | producer {occurrence owners producerOccurrence payload}
       (known : TaskAt work occurrence owners (some producerOccurrence) payload)
@@ -82,8 +82,8 @@ end
 /-- Former node failures satisfy the kernel with no protected publications.
 Witness: mutual causal induction, making each publication exclusion trivial.
 -/
-theorem NodeFailed.toCurrent {work failed key} (h : NodeFailed work failed key)
-    : Causality.NodeFailed work failed (fun _ => False) key := by
+theorem NodeFailed.toCurrent {work failed ref} (h : NodeFailed work failed ref)
+    : Causality.NodeFailed work failed (fun _ => False) ref := by
   induction h
     using NodeFailed.rec
       (motive_2 :=
@@ -120,7 +120,7 @@ theorem TaskCancelled.toCurrent {work failed occurrence}
     : Causality.TaskCancelled work failed (fun _ => False) occurrence := by
   induction h
     using TaskCancelled.rec
-      (motive_1 := fun key _ => Causality.NodeFailed work failed (fun _ => False) key)
+      (motive_1 := fun ref _ => Causality.NodeFailed work failed (fun _ => False) ref)
       (motive_3 :=
         fun occurrence _ =>
           occurrence ∈ failed
@@ -146,9 +146,9 @@ theorem TaskCancelled.toCurrent {work failed occurrence}
 
 /-- Current node failures have former witnesses, by splitting failed/cancelled producers.
 -/
-theorem nodeFailed_of_current {work failed key}
-    (h : Causality.NodeFailed work failed (fun _ => False) key)
-    : NodeFailed work failed key := by
+theorem nodeFailed_of_current {work failed ref}
+    (h : Causality.NodeFailed work failed (fun _ => False) ref)
+    : NodeFailed work failed ref := by
   induction h
     using Causality.NodeFailed.rec
       (motive_2 := fun occurrence _ => TaskCancelled work failed occurrence) with
@@ -188,7 +188,7 @@ theorem taskCancelled_of_current {work failed occurrence}
     : TaskCancelled work failed occurrence := by
   induction h
     using Causality.TaskCancelled.rec
-      (motive_1 := fun key _ => NodeFailed work failed key) with
+      (motive_1 := fun ref _ => NodeFailed work failed ref) with
   | task known owner member =>
       obtain ⟨producer, payload, known⟩ := known
       exact .task known owner member
@@ -248,9 +248,9 @@ theorem reachable_iff {work occurrence}
 /-- Node failure agrees for all raw work when no publications are protected.
 Witness: the two causal-kernel translations, not a whole-history normalization.
 -/
-theorem nodeFailed_iff {work failed key}
-    : NodeFailed work failed key
-      ↔ Causality.NodeFailed work failed (fun _ => False) key :=
+theorem nodeFailed_iff {work failed ref}
+    : NodeFailed work failed ref
+      ↔ Causality.NodeFailed work failed (fun _ => False) ref :=
   ⟨NodeFailed.toCurrent, nodeFailed_of_current⟩
 
 /-- Cancellation agrees for all raw work when no publications are protected.

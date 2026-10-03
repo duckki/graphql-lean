@@ -57,7 +57,7 @@ theorem State.PendingAccounting.withTerminated
   ⟨
     prior.pending,
     prior.links,
-    prior.keys,
+    prior.refs,
     prior.memberships,
     prior.liveGroups,
     prior.taskGroups,

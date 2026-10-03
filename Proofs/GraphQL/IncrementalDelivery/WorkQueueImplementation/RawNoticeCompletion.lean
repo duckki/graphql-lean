@@ -17,10 +17,10 @@ use the source-history completion theorem for that phase. Earlier cancellation w
 persist to the endpoint, where the caller excludes it.
 -/
 theorem ExecutedWork.taskSuccess_noticeAncestor_completed
-    {work before occurrence result index group groups streams child dependencies key}
+    {work before occurrence result index group groups streams child dependencies ref}
     (generated : ExecutedWork work) (matching : ∀ event ∈ before, event.MatchesWork work)
     (matched : (GraphEvent.taskSuccess occurrence result).MatchesWork work)
-    (known : GroupRecordAt work child dependencies) (ancestor : key ∈ dependencies)
+    (known : GroupRecordAt work child dependencies) (ancestor : ref ∈ dependencies)
     : let initial := State.initialize (Work.fromExecution work)
       let queue := initial.replayGraphEvents before
       let outputs :=
@@ -29,11 +29,11 @@ theorem ExecutedWork.taskSuccess_noticeAncestor_completed
       (queue.taskSuccess occurrence result).2[index]?
         = some (.groupSuccess group groups streams)
       → child ∈ groups
-      → key ∉ (queue.taskSuccess occurrence result).1.cancelledGroups
-      → key ∈ initial.rootGroups ++ outputs.flatMap rawGroupNoticeKeys
-      → key ∈ outputs.flatMap rawGroupClosureKeys := by
+      → ref ∉ (queue.taskSuccess occurrence result).1.cancelledGroups
+      → ref ∈ initial.rootGroups ++ outputs.flatMap rawGroupNoticeRefs
+      → ref ∈ outputs.flatMap rawGroupClosureRefs := by
   intro initial queue outputs selected noticed uncancelled announced
-  have priorUncancelled : key ∉ queue.cancelledGroups :=
+  have priorUncancelled : ref ∉ queue.cancelledGroups :=
     fun member => uncancelled (queue.taskSuccess_cancelledGroups_subset _ _ member)
   cases found : queue.taskNode? occurrence with
   | none => simp [State.taskSuccess, found] at selected
@@ -78,10 +78,10 @@ Witness: a group-success output cannot be the leading item carrier; its successo
 selects the exact recursive-drain prefix, including the original leading notice frontier.
 -/
 theorem ExecutedWork.streamItems_groupNoticeAncestor_completed
-    {work before stream items index group groups streams child dependencies key}
+    {work before stream items index group groups streams child dependencies ref}
     (generated : ExecutedWork work) (matching : ∀ event ∈ before, event.MatchesWork work)
     (matched : (GraphEvent.streamItems stream items).MatchesWork work)
-    (known : GroupRecordAt work child dependencies) (ancestor : key ∈ dependencies)
+    (known : GroupRecordAt work child dependencies) (ancestor : ref ∈ dependencies)
     : let initial := State.initialize (Work.fromExecution work)
       let queue := initial.replayGraphEvents before
       let outputs :=
@@ -90,13 +90,13 @@ theorem ExecutedWork.streamItems_groupNoticeAncestor_completed
       (queue.streamItems stream items).2[index]?
         = some (.groupSuccess group groups streams)
       → child ∈ groups
-      → key ∉ (queue.streamItems stream items).1.cancelledGroups
-      → key ∈ initial.rootGroups ++ outputs.flatMap rawGroupNoticeKeys
-      → key ∈ outputs.flatMap rawGroupClosureKeys := by
+      → ref ∉ (queue.streamItems stream items).1.cancelledGroups
+      → ref ∈ initial.rootGroups ++ outputs.flatMap rawGroupNoticeRefs
+      → ref ∈ outputs.flatMap rawGroupClosureRefs := by
   intro initial queue outputs selected noticed uncancelled announced
   dsimp only [outputs] at announced ⊢
   rw [queue.streamItems_eq stream items] at selected uncancelled announced ⊢
-  cases active : queue.rootStreams.contains stream.key with
+  cases active : queue.rootStreams.contains stream.ref with
   | false =>
       simp only [active, Bool.not_false, ↓reduceIte, List.getElem?_nil, reduceCtorEq]
         at selected
@@ -121,10 +121,10 @@ Witness: source validity derives ancestor health and endpoint noncancellation. O
 task-success and item handlers can carry group notices, and both preserve the exact cut.
 -/
 theorem ExecutedWork.handleGraphEvent_groupNoticeAncestor_completed
-    {work before event index group groups streams child dependencies key}
+    {work before event index group groups streams child dependencies ref}
     (generated : ExecutedWork work) (valid : ValidGraphEvents work (before ++ [event]))
     (started : (State.initialize (Work.fromExecution work)).acceptsBatch before = true)
-    (known : GroupRecordAt work child dependencies) (ancestor : key ∈ dependencies)
+    (known : GroupRecordAt work child dependencies) (ancestor : ref ∈ dependencies)
     : let initial := State.initialize (Work.fromExecution work)
       let queue := initial.replayGraphEvents before
       let outputs :=
@@ -132,8 +132,8 @@ theorem ExecutedWork.handleGraphEvent_groupNoticeAncestor_completed
         ++ (queue.handleGraphEvent event).2.take (index + 1)
       (queue.handleGraphEvent event).2[index]? = some (.groupSuccess group groups streams)
       → child ∈ groups
-      → key ∈ initial.rootGroups ++ outputs.flatMap rawGroupNoticeKeys
-      → key ∈ outputs.flatMap rawGroupClosureKeys := by
+      → ref ∈ initial.rootGroups ++ outputs.flatMap rawGroupNoticeRefs
+      → ref ∈ outputs.flatMap rawGroupClosureRefs := by
   intro initial queue outputs selected noticed announced
   have matching : ∀ entry ∈ before, entry.MatchesWork work :=
     fun _ member => (valid.prefix (List.prefix_append before [_])).eachMatches member
@@ -170,10 +170,10 @@ notices. Source-derived noncancellation propagates back to handler entry, where 
 prepared-root completion theorem applies without using any later drain output.
 -/
 theorem ExecutedWork.handleGraphEvent_itemNoticeAncestor_completed
-    {work before event index stream values groups streams child dependencies key}
+    {work before event index stream values groups streams child dependencies ref}
     (generated : ExecutedWork work) (valid : ValidGraphEvents work (before ++ [event]))
     (started : (State.initialize (Work.fromExecution work)).acceptsBatch before = true)
-    (known : GroupRecordAt work child dependencies) (ancestor : key ∈ dependencies)
+    (known : GroupRecordAt work child dependencies) (ancestor : ref ∈ dependencies)
     : let initial := State.initialize (Work.fromExecution work)
       let queue := initial.replayGraphEvents before
       let outputs :=
@@ -181,15 +181,15 @@ theorem ExecutedWork.handleGraphEvent_itemNoticeAncestor_completed
       (queue.handleGraphEvent event).2[index]?
         = some (.streamValues stream values groups streams)
       → child ∈ groups
-      → key ∈ initial.rootGroups ++ outputs.flatMap rawGroupNoticeKeys
-      → key ∈ outputs.flatMap rawGroupClosureKeys := by
+      → ref ∈ initial.rootGroups ++ outputs.flatMap rawGroupNoticeRefs
+      → ref ∈ outputs.flatMap rawGroupClosureRefs := by
   intro initial queue outputs selected noticed announced
   obtain ⟨owner, items, rfl⟩ := queue.handleGraphEvent_streamValues_source event selected
   obtain ⟨_, rfl, notices⟩ := queue.streamItems_noticeGroups owner items selected
   have uncancelled := (generated.noticeAncestor_healthy_uncancelled valid started
     (List.mem_of_getElem? selected) (List.mem_map_of_mem noticed) known ancestor).2
   rw [State.replayGraphEvents_append] at uncancelled
-  have priorUncancelled : key ∉ queue.cancelledGroups :=
+  have priorUncancelled : ref ∉ queue.cancelledGroups :=
     fun member => uncancelled (queue.streamItems_cancelledGroups_subset _ _ member)
   have matching : ∀ entry ∈ before, entry.MatchesWork work :=
     fun _ member => (valid.prefix (List.prefix_append before [_])).eachMatches member

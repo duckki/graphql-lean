@@ -22,25 +22,25 @@ theorem State.streamItems_bufferedStreamsConserved {queue : State} {work settled
     : queue.BufferedStreamsConserved (queue.streamItems stream items).2
         (queue.streamItems stream items).1 := by
   let invariant (current : State) :=
-    current.GroupKeysUnique ∧ current.LiveGroupsRegistered ∧ current.TaskGroupsRegistered
+    current.GroupRefsUnique ∧ current.LiveGroupsRegistered ∧ current.TaskGroupsRegistered
     ∧ current.StartedTasksRegistered ∧ current.StoredTaskLinks ∧ current.ChildStreamInventory
     ∧ (∀ occurrence node, queue.taskNode? occurrence = some node
       → current.taskNode? occurrence = some node)
     ∧ ∀ occurrence node value,
         queue.taskNode? occurrence = some node → node.value = some value
-        → ∀ key ∈ node.task.groups.map Execution.DeliveryNode.key,
-          key ∈ queue.groupNodes.map (fun owner => owner.group.node.key)
-          → key ∈ current.groupNodes.map (fun owner => owner.group.node.key)
+        → ∀ ref ∈ node.task.groups.map Execution.DeliveryNode.ref,
+          ref ∈ queue.groupNodes.map (fun owner => owner.group.node.ref)
+          → ref ∈ current.groupNodes.map (fun owner => owner.group.node.ref)
   have initial : invariant queue :=
-    ⟨accounted.keys, accounted.liveGroups, accounted.taskGroups, accounted.started,
+    ⟨accounted.refs, accounted.liveGroups, accounted.taskGroups, accounted.started,
       links, inventory, fun _ _ found => found, fun _ _ _ _ _ _ _ present => present⟩
   have prepared : invariant (queue.preparedStreamItems items) := by
     apply State.preparedStreamItems_preserves invariant initial items
     intro current item member prior
-    obtain ⟨keys, live, registered, started, linked, children, retained, owners⟩ := prior
+    obtain ⟨refs, live, registered, started, linked, children, retained, owners⟩ := prior
     have nextRegistry := current.integrateStreamItem_registration live registered matching member
-    have integratedLinks := linked.maybeIntegrateWork keys registered started item.work
-    refine ⟨((keys.maybeIntegrateWork item.work none).pruneEmptyGroups _).startNewWork _,
+    have integratedLinks := linked.maybeIntegrateWork refs registered started item.work
+    refine ⟨((refs.maybeIntegrateWork item.work none).pruneEmptyGroups _).startNewWork _,
       nextRegistry.1, nextRegistry.2.1,
       ((started.maybeIntegrateWork item.work none).pruneEmptyGroups _).startNewWork _,
       (integratedLinks.pruneEmptyGroups _).startNewWork _,
@@ -50,13 +50,13 @@ theorem State.streamItems_bufferedStreamsConserved {queue : State} {work settled
       change ((current.maybeIntegrateWork item.work).1.pruneEmptyGroups _).1.taskNodes.find? _ = _
       rw [State.pruneEmptyGroups_taskNodes]
       exact State.maybeIntegrateWork_lookup_other (retained occurrence node found) item.work
-    · intro occurrence node value found stored key contributes present
+    · intro occurrence node value found stored ref contributes present
       have integratedLookup := State.maybeIntegrateWork_lookup_other
         (retained occurrence node found) item.work
       have kept := State.pruneEmptyGroups_bufferedOwner_present integratedLinks
         (State.taskNode?_some integratedLookup).1 (by simp [stored]) contributes
-        (current.maybeIntegrateWork_includesKeys item.work none key
-          (owners occurrence node value found stored key contributes present))
+        (current.maybeIntegrateWork_includesRefs item.work none ref
+          (owners occurrence node value found stored ref contributes present))
         (current.maybeIntegrateWork item.work).2.newGroups
       dsimp only [State.integrateStreamItem]
       rwa [(State.startNewWork_groupCore _ _).1]

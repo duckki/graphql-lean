@@ -29,12 +29,12 @@ theorem groupNotice_canAnnounce_iff_contents
     (known : NodeAt work node .group dependencies producer)
     (produced : ∀ source, producer = some source → Published matching events source)
     (ready
-      : ∀ key ∈ dependencies,
-          DependencySatisfied work initial matching events failures key)
+      : ∀ ref ∈ dependencies,
+          DependencySatisfied work initial matching events failures ref)
     : CanAnnounce work initial matching events failures node .group dependencies producer
-      ↔ node.key ∉ announcedKeys initial events
-        ∧ (¬NodeAccounted work matching events failures node.key
-            ∨ HasRecordedFailure work failures events.length node.key) := by
+      ↔ node.ref ∉ announcedRefs initial events
+        ∧ (¬NodeAccounted work matching events failures node.ref
+            ∨ HasRecordedFailure work failures events.length node.ref) := by
   constructor
   · rintro ⟨fresh, eligible, _, _⟩
     refine ⟨fresh, ?_⟩
@@ -45,13 +45,13 @@ theorem groupNotice_canAnnounce_iff_contents
   · rintro ⟨fresh, contents⟩
     refine ⟨fresh, ?_, produced, ready⟩
     classical
-    by_cases recorded : HasRecordedFailure work failures events.length node.key
+    by_cases recorded : HasRecordedFailure work failures events.length node.ref
     · exact .inr ⟨rfl, recorded⟩
     · refine .inl ⟨?_, .inr (contents.resolve_right recorded)⟩
       intro failed
       rcases support.groupFailure_causes generated failedPayloads known produced failed with
-        ⟨occurrence, owners, task, owner, member⟩ | ⟨key, member, ancestor⟩
+        ⟨occurrence, owners, task, owner, member⟩ | ⟨ref, member, ancestor⟩
       · exact recorded ⟨occurrence, owners, member, task, owner⟩
-      · exact (ready key member).1 ancestor
+      · exact (ready ref member).1 ancestor
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

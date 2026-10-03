@@ -52,7 +52,7 @@ Implementation `Work` has GraphQL.js-shaped `groups`, `tasks`, and `streams` col
 
 | Record | Contents |
 | --- | --- |
-| `Group` | Delivery node and immediate defer-parent key. |
+| `Group` | Delivery node and immediate defer-parent reference. |
 | `Task` | Structural task occurrence and all contributing delivery groups. |
 | `Stream` | Delivery node; subsequent items arrive through host events. |
 
@@ -87,7 +87,7 @@ not identify task occurrences; the proof separately constructs publication prove
 
 ### State and transitions
 
-`State` holds active roots, live group/task nodes, registration and cancellation keys,
+`State` holds active roots, live group/task nodes, registration and cancellation references,
 started task/stream descriptors, initial notices, and a termination flag. `GroupNode`
 stores child links, task memberships, pending count, and an optional accumulated failure.
 `TaskNode` stores its task, an optional settled value, and produced child streams.
@@ -114,7 +114,7 @@ Missing stale child links do not consume its live-node traversal budget.
 
 Both task handlers check `taskHasHealthyOwner` once before processing the settlement.
 `groupIsHealthy` requires a live record and no retained failure in its ancestor chain.
-An absent ancestor is acceptable only when its key is not cancelled. Unannounced does
+An absent ancestor is acceptable only when its reference is not cancelled. Unannounced does
 not mean unhealthy. A finite traversal bound rejects cyclic raw parent links;
 execution-generated ancestry is acyclic.
 
@@ -214,11 +214,11 @@ proves all four independent contract clauses:
 
 ### Initialization
 
-`ExecutedWork.nodeKeyCoherent` and `ExecutedWork.initializes` derive coherence and
+`ExecutedWork.nodeRefCoherent` and `ExecutedWork.initializes` derive coherence and
 initial-notice correctness. Neither is a caller premise or hidden in the host-source law.
 
 [Initialization](../../Proofs/GraphQL/IncrementalDelivery/WorkQueueImplementation/Initialization.lean)
-proves structural eligibility and key uniqueness.
+proves structural eligibility and reference uniqueness.
 [InitialAncestorAccounting](../../Proofs/GraphQL/IncrementalDelivery/WorkQueueImplementation/InitialAncestorAccounting.lean)
 proves that every initially announced group's ancestors have no contributing task in
 the full execution work.
@@ -245,7 +245,7 @@ ordered failure cuts. All seven obligations must hold for that same witness:
 | `PublicationAdmission` | `mixed_publicationCertificates` supplies payload, freshness, producer/item order, effective ownership, and carried notices. |
 | `ControlAdmission` | `mixed_admissionCertificates` supplies group/stream controls and their notices on the same history. |
 | `TaskAccounting` | `terminal_generatedTasks_accounted` uses producer-rank induction: available tasks publish or cancel; unavailable descendants inherit cancellation. |
-| `NodeAccounting` | `terminal_nodes_of_tasks` combines task coverage with actual completion of announced keys. |
+| `NodeAccounting` | `terminal_nodes_of_tasks` combines task coverage with actual completion of announced references. |
 
 `replayWitnessExists_holds` constructs all seven jointly.
 `conforms_of_replayWitnessExists` transports them to the source contract, using the
@@ -317,7 +317,8 @@ The draft remains authoritative.
 
 Modeling adapters:
 
-- Stable keys and structural occurrences replace object identity. Lists replace maps/sets.
+- `NodeRef` values stand in for defer/stream object references; structural occurrences
+  identify tasks. Finite lists replace maps/sets.
 - Pure finite outcomes validate supplied events; errors are counts, not error objects.
 - `Work.fromExecution` and permanent registration recover new declarations from repeated
   contributor metadata. Taskless ancestors retain release and cancellation links.
@@ -380,7 +381,7 @@ immediately. These are recorded audit findings, not a JavaScript refinement theo
 checks generated work with failures, a later successful shared producer, and delayed child
 registration. The cancellation registry prevents the invalid late contribution.
 [WorkSchedulerReactivation](../../Tests/GraphQL/IncrementalDelivery/WorkSchedulerReactivation.lean)
-checks permanent refusal of cancelled keys, while
+checks permanent refusal of cancelled references, while
 [WorkSchedulerTasklessParent](../../Tests/GraphQL/IncrementalDelivery/WorkSchedulerTasklessParent.lean)
 checks release/cancellation through taskless ancestors.
 

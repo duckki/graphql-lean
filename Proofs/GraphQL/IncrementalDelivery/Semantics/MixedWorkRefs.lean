@@ -1,18 +1,18 @@
 import Proofs.GraphQL.IncrementalDelivery.Semantics.AncestryPlanning
-import Proofs.GraphQL.IncrementalDelivery.Semantics.DeferKeys
+import Proofs.GraphQL.IncrementalDelivery.Semantics.DeferRefs
 
-/-! Key bounds for generated work with both defer and stream tasks.
+/-! Ref bounds for generated work with both defer and stream tasks.
 Deferred fragments retain their coherent ancestry; every stream item starts a fresh
-key region strictly after its owning stream node, including nested stream work.
+ref region strictly after its owning stream node, including nested stream work.
 -/
 
-namespace GraphQL.IncrementalDelivery.Semantics.MixedKeys
+namespace GraphQL.IncrementalDelivery.Semantics.MixedRefs
 
 open GraphQL.IncrementalDelivery.Execution
 open Ancestry
 
 def MapLower (lower : Nat) (deferMap : DeferMap) : Prop :=
-  ∀ key ∈ mapKeys deferMap, lower ≤ key
+  ∀ ref ∈ mapRefs deferMap, lower ≤ ref
 
 def WorkAt (parents : Assignment) (lower bound : Nat) : Work → Prop
   | .empty => True
@@ -20,12 +20,12 @@ def WorkAt (parents : Assignment) (lower bound : Nat) : Work → Prop
       WorkAt parents lower bound left ∧ WorkAt parents lower bound right
   | .executionGroup groups _ _ children =>
       groups ≠ []
-      ∧ (∀ group ∈ groups, lower ≤ group.node.key ∧ FragmentAt parents bound group)
+      ∧ (∀ group ∈ groups, lower ≤ group.node.ref ∧ FragmentAt parents bound group)
       ∧ WorkAt parents lower bound children
   | .stream node items =>
-      lower ≤ node.key
-      ∧ node.key < bound
-      ∧ ∀ item ∈ items, WorkAt parents (node.key + 1) bound item.2
+      lower ≤ node.ref
+      ∧ node.ref < bound
+      ∧ ∀ item ∈ items, WorkAt parents (node.ref + 1) bound item.2
 termination_by work => sizeOf work
 decreasing_by
   all_goals subst_vars; simp_wf
@@ -122,22 +122,22 @@ theorem workAt_nonNull (parents : Assignment) (lower bound : Nat)
   · exact h
 
 theorem deferred_workAt (parents : Assignment) (lower bound : Nat) (deferMap : DeferMap)
-    (keys : List Nat) (path : ResponsePath)
+    (refs : List Nat) (path : ResponsePath)
     (result : Result (List (Name × ResponseValue))) (children : Work)
-    (hm : MapAt parents bound deferMap) (hl : MapLower lower deferMap) (hne : keys ≠ [])
-    (hk : keys.Subset (mapKeys deferMap)) (hc : WorkAt parents lower bound children)
+    (hm : MapAt parents bound deferMap) (hl : MapLower lower deferMap) (hne : refs ≠ [])
+    (hk : refs.Subset (mapRefs deferMap)) (hc : WorkAt parents lower bound children)
     : WorkAt parents lower bound
-        (.executionGroup (keys.filterMap (lookupDeferredFragment? deferMap)) path result
+        (.executionGroup (refs.filterMap (lookupDeferredFragment? deferMap)) path result
           children) := by
   rw [WorkAt]
   refine ⟨?_, ?_, hc⟩
   · intro he
-    have hkeys := filterMap_fragment_keys deferMap keys hk
-    simp only [he, mapKeys, List.map_nil] at hkeys
-    exact hne hkeys.symm
+    have hrefs := filterMap_fragment_refs deferMap refs hk
+    simp only [he, mapRefs, List.map_nil] at hrefs
+    exact hne hrefs.symm
   · intro group hg
-    obtain ⟨key, hkey, hlookup⟩ := List.mem_filterMap.mp hg
-    exact ⟨by simpa only [lookup_key hlookup] using hl key (hk hkey),
+    obtain ⟨ref, href, hlookup⟩ := List.mem_filterMap.mp hg
+    exact ⟨by simpa only [lookup_ref hlookup] using hl ref (hk href),
       (hm group (List.mem_of_find?_eq_some hlookup)).1⟩
 
 theorem optionalUsageAt_before {parents : Assignment} {state : Nat} {deferMap : DeferMap}
@@ -146,44 +146,45 @@ theorem optionalUsageAt_before {parents : Assignment} {state : Nat} {deferMap : 
     : UsageBefore state usage := by
   intro actual ha
   have hh := hu actual ha
-  exact ⟨hh.1, fun ancestor hm => (hv actual.key hh.1 ancestor (hh.2.1.symm ▸ hm)).1⟩
+  exact ⟨hh.1, fun ancestor hm => (hv actual.ref hh.1 ancestor (hh.2.1.symm ▸ hm)).1⟩
 
 theorem mapLower_new (lower state : Nat) (deferMap : DeferMap) (usages : List DeferUsage)
     (path : ResponsePath) (hl : MapLower lower deferMap) (hle : lower ≤ state)
-    (hu : ∀ usage ∈ usages, state ≤ usage.key)
+    (hu : ∀ usage ∈ usages, state ≤ usage.ref)
     : MapLower lower (getNewDeferMap usages path deferMap) := by
-  intro key hk
-  rw [getNewDeferMap_keys] at hk
+  intro ref hk
+  rw [getNewDeferMap_refs] at hk
   rcases List.mem_append.mp hk with hk | hk
-  · exact hl key hk
+  · exact hl ref hk
   · obtain ⟨usage, hm, rfl⟩ := List.mem_map.mp hk
     exact Nat.le_trans hle (hu usage hm)
 
-/-- Task keys anywhere in the work tree, including not-yet-registered stream items.
-Ancestor placeholders are metadata, not additional task-key occurrences.
+/-- Task refs anywhere in the work tree, including not-yet-registered stream items.
+Ancestor placeholders are metadata, not additional task-ref occurrences.
 -/
-inductive TaskKey (key : Nat) : Work → Prop where
+inductive TaskRef (ref : NodeRef) : Work → Prop where
   | combine_left {left right : Work}
-    : TaskKey key left → TaskKey key (.combine left right)
+    : TaskRef ref left → TaskRef ref (.combine left right)
   | combine_right {left right : Work}
-    : TaskKey key right → TaskKey key (.combine left right)
+    : TaskRef ref right → TaskRef ref (.combine left right)
   | deferred_here {groups : List DeferredFragment} {path : ResponsePath}
     {result : Result (List (Name × ResponseValue))} {children : Work}
     {group : DeferredFragment}
-    : group ∈ groups → group.node.key = key
-      → TaskKey key (.executionGroup groups path result children)
+    : group ∈ groups → group.node.ref = ref
+      → TaskRef ref (.executionGroup groups path result children)
   | deferred_child {groups : List DeferredFragment} {path : ResponsePath}
     {result : Result (List (Name × ResponseValue))} {children : Work}
-    : TaskKey key children → TaskKey key (.executionGroup groups path result children)
+    : TaskRef ref children → TaskRef ref (.executionGroup groups path result children)
   | stream_here {node : DeliveryNode} {items : List (Result ResponseValue × Work)}
-    : node.key = key → TaskKey key (.stream node items)
+    : node.ref = ref → TaskRef ref (.stream node items)
   | stream_child {node : DeliveryNode} {items : List (Result ResponseValue × Work)}
     {item : Result ResponseValue × Work}
-    : item ∈ items → TaskKey key item.2 → TaskKey key (.stream node items)
+    : item ∈ items → TaskRef ref item.2 → TaskRef ref (.stream node items)
 
-theorem WorkAt.key_bounds {parents : Assignment} {lower bound key : Nat} {work : Work}
-    (h : WorkAt parents lower bound work) (hk : TaskKey key work)
-    : lower ≤ key ∧ key < bound := by
+theorem WorkAt.ref_bounds {parents : Assignment} {lower bound : Nat} {ref : NodeRef}
+    {work : Work}
+    (h : WorkAt parents lower bound work) (hk : TaskRef ref work)
+    : lower ≤ ref ∧ ref < bound := by
   induction hk generalizing lower with
   | combine_left _ ih =>
       rw [WorkAt] at h; exact ih h.1
@@ -205,11 +206,11 @@ theorem WorkAt.key_bounds {parents : Assignment} {lower bound key : Nat} {work :
 theorem WorkAt.stream_child_fresh {parents : Assignment} {lower bound : Nat}
     {node : DeliveryNode} {items : List (Result ResponseValue × Work)}
     (h : WorkAt parents lower bound (.stream node items))
-    {item : Result ResponseValue × Work} (hi : item ∈ items) {key : Nat}
-    (hk : TaskKey key item.2)
-    : node.key < key := by
+    {item : Result ResponseValue × Work} (hi : item ∈ items) {ref : NodeRef}
+    (hk : TaskRef ref item.2)
+    : node.ref < ref := by
   rw [WorkAt] at h
-  exact (h.2.2 item hi).key_bounds hk |>.1
+  exact (h.2.2 item hi).ref_bounds hk |>.1
 
 theorem WorkAt.fragment_ancestors_ordered {parents : Assignment} {lower bound : Nat}
     {groups : List DeferredFragment} {path : ResponsePath}
@@ -217,9 +218,9 @@ theorem WorkAt.fragment_ancestors_ordered {parents : Assignment} {lower bound : 
     (h : WorkAt parents lower bound (.executionGroup groups path result children))
     (hv : Valid parents bound) {group : DeferredFragment} (hg : group ∈ groups)
     {ancestor : DeliveryNode} (ha : ancestor ∈ group.ancestors)
-    : ancestor.key < group.node.key := by
+    : ancestor.ref < group.node.ref := by
   rw [WorkAt] at h
   have hf := (h.2.1 group hg).2
-  exact (hv group.node.key hf.1 ancestor.key (hf.2 ▸ List.mem_map.mpr ⟨ancestor, ha, rfl⟩)).1
+  exact (hv group.node.ref hf.1 ancestor.ref (hf.2 ▸ List.mem_map.mpr ⟨ancestor, ha, rfl⟩)).1
 
-end GraphQL.IncrementalDelivery.Semantics.MixedKeys
+end GraphQL.IncrementalDelivery.Semantics.MixedRefs

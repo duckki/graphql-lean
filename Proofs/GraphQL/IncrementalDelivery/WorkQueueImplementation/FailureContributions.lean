@@ -15,7 +15,7 @@ in `inputs`. This is source provenance, not completeness over all failures or a 
 cut.
 -/
 def GroupFailureTotal (work : Execution.Work) (inputs : List GraphEvent)
-    (key errors : Nat)
+    (ref : NodeRef) (errors : Nat)
     : Prop :=
   ∃ contributions : List (Occurrence × Nat),
     contributions ≠ []
@@ -26,14 +26,14 @@ def GroupFailureTotal (work : Execution.Work) (inputs : List GraphEvent)
         → .taskFailure occurrence count ∈ inputs
           ∧ ∃ owners producer path,
               TaskAt work occurrence owners producer (.object path (.error count))
-              ∧ key ∈ owners
+              ∧ ref ∈ owners
 
 /-- An extended input history retains each earlier contributor and its exact count.
 Witness: transport source membership, leaving the sum and occurrence uniqueness unchanged.
 -/
-theorem GroupFailureTotal.weaken {work before after key errors}
-    (total : GroupFailureTotal work before key errors) (included : before.Subset after)
-    : GroupFailureTotal work after key errors := by
+theorem GroupFailureTotal.weaken {work before after ref errors}
+    (total : GroupFailureTotal work before ref errors) (included : before.Subset after)
+    : GroupFailureTotal work after ref errors := by
   obtain ⟨parts, nonempty, unique, sum, sources⟩ := total
   refine ⟨parts, nonempty, unique, sum, ?_⟩
   intro occurrence count member
@@ -42,11 +42,11 @@ theorem GroupFailureTotal.weaken {work before after key errors}
 /-- A single matching failed task supplies a one-contributor total for each owner.
 Witness: the singleton list has exactly the supplied error count and no duplicate task.
 -/
-theorem GroupFailureTotal.single {work inputs key occurrence errors owners producer path}
+theorem GroupFailureTotal.single {work inputs ref occurrence errors owners producer path}
     (source : GraphEvent.taskFailure occurrence errors ∈ inputs)
     (known : TaskAt work occurrence owners producer (.object path (.error errors)))
-    (owner : key ∈ owners)
-    : GroupFailureTotal work inputs key errors := by
+    (owner : ref ∈ owners)
+    : GroupFailureTotal work inputs ref errors := by
   refine ⟨[(occurrence, errors)], by simp, by simp, by simp, ?_⟩
   intro task count member
   cases List.mem_singleton.mp member
@@ -56,12 +56,12 @@ theorem GroupFailureTotal.single {work inputs key occurrence errors owners produ
 Witness: prepend its occurrence/count pair; source freshness excludes every earlier pair.
 -/
 theorem GroupFailureTotal.accumulate
-    {work before key prior occurrence errors owners producer path}
-    (total : GroupFailureTotal work before key prior)
+    {work before ref prior occurrence errors owners producer path}
+    (total : GroupFailureTotal work before ref prior)
     (known : TaskAt work occurrence owners producer (.object path (.error errors)))
-    (owner : key ∈ owners)
+    (owner : ref ∈ owners)
     (fresh : (GraphEvent.taskFailure occurrence errors).Fresh before)
-    : GroupFailureTotal work (before ++ [.taskFailure occurrence errors]) key
+    : GroupFailureTotal work (before ++ [.taskFailure occurrence errors]) ref
         (prior + errors) := by
   obtain ⟨parts, _, unique, sum, sources⟩ := total
   have absent : occurrence ∉ parts.map Prod.fst := by
@@ -92,8 +92,8 @@ theorem GroupFailureTotal.accumulate
 Witness: nonempty contributions select the sole input, and occurrence uniqueness rules
 out a second contribution from the same task, even when the reported count is zero.
 -/
-theorem GroupFailureTotal.singleton_count {work key total occurrence errors}
-    (accounted : GroupFailureTotal work [.taskFailure occurrence errors] key total)
+theorem GroupFailureTotal.singleton_count {work ref total occurrence errors}
+    (accounted : GroupFailureTotal work [.taskFailure occurrence errors] ref total)
     : total = errors := by
   obtain ⟨parts, nonempty, unique, sum, sources⟩ := accounted
   cases parts with
@@ -143,12 +143,12 @@ theorem State.CachedErrorsSatisfy.taskFailure_totals {queue : State} {work befor
       obtain ⟨owners, producer, path, failed⟩ := source
       have sameOwners := (known.unique failed).1
       intro node live count cached
-      obtain ⟨old, oldLive, sameKey, updated⟩ := queue.taskFailure_cachedErrors
+      obtain ⟨old, oldLive, sameRef, updated⟩ := queue.taskFailure_cachedErrors
         occurrence errors task found distinct live
       by_cases owns :
         queue.taskHasHealthyOwner task.task = true
-          ∧ node.group.node.key ∈ task.task.groups.map Execution.DeliveryNode.key
-      · have owner : node.group.node.key ∈ owners := sameOwners ▸ owns.2
+          ∧ node.group.node.ref ∈ task.task.groups.map Execution.DeliveryNode.ref
+      · have owner : node.group.node.ref ∈ owners := sameOwners ▸ owns.2
         simp only [owns] at updated
         have equal := Option.some.inj (cached.symm.trans updated)
         subst count
@@ -157,10 +157,10 @@ theorem State.CachedErrorsSatisfy.taskFailure_totals {queue : State} {work befor
             simpa [prior] using GroupFailureTotal.single (by simp) failed owner
         | some previous =>
             have total := totals old oldLive previous prior
-            rw [sameKey] at total
+            rw [sameRef] at total
             simpa [prior] using total.accumulate failed owner fresh
       · simp only [owns, ↓reduceIte] at updated
-        exact sameKey ▸ extended old oldLive count (updated.symm.trans cached)
+        exact sameRef ▸ extended old oldLive count (updated.symm.trans cached)
 
 /-- Every handler preserves exact source totals through a fresh matching input event.
 Witness: only task failure adds a contribution; all other handlers preserve exact caches.
@@ -247,7 +247,7 @@ theorem State.CachedErrorsSatisfy.handleGraphEvent_outputTotal {queue : State}
     (emitted
       : Execution.WorkQueueEvent.groupFailure group errors
         ∈ (queue.handleGraphEvent event).2)
-    : GroupFailureTotal work (before ++ [event]) group.key errors := by
+    : GroupFailureTotal work (before ++ [event]) group.ref errors := by
   rcases queue.handleGraphEvent_groupFailure_origin event emitted with current | cached
   · obtain ⟨occurrence, task, rfl, found, owner⟩ := current
     have atTask := (State.taskNode?_some found).2
@@ -256,9 +256,9 @@ theorem State.CachedErrorsSatisfy.handleGraphEvent_outputTotal {queue : State}
     rw [atTask] at known
     obtain ⟨owners, producer, path, failed⟩ := matching
     exact GroupFailureTotal.single (by simp) failed ((known.unique failed).1 ▸ owner)
-  · obtain ⟨node, live, key, cached⟩ := cached
+  · obtain ⟨node, live, ref, cached⟩ := cached
     have total := totals node live errors cached
-    rw [key] at total
+    rw [ref] at total
     exact total.weaken (List.subset_append_left before _)
 
 /-- A failed closure after source replay reports a sum of distinct contributing failures.
@@ -274,7 +274,7 @@ theorem ExecutedWork.replayGraphEvents_groupFailureTotal {work : Execution.Work}
         ∈ (State.handleGraphEvent
             ((State.initialize (Work.fromExecution work)).replayGraphEvents before)
             event).2)
-    : GroupFailureTotal work (before ++ [event]) group.key errors := by
+    : GroupFailureTotal work (before ++ [event]) group.ref errors := by
   obtain ⟨totals, registered, tasks⟩ := generated.replayGraphEvents_failureInventory valid
   exact totals.handleGraphEvent_outputTotal registered tasks event matching emitted
 

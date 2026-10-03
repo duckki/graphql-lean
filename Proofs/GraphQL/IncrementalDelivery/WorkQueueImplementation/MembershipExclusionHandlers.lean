@@ -137,10 +137,10 @@ theorem State.TaskMembershipAbsent.taskFailure {queue : State} {occurrence}
     (absent : queue.TaskMembershipAbsent occurrence) (failed : Occurrence) (errors : Nat)
     : (queue.taskFailure failed errors).1.TaskMembershipAbsent occurrence := by
   let step (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode) :=
-    match acc.1.groupNode? group.key with
+    match acc.1.groupNode? group.ref with
     | none => acc
     | some node =>
-        if acc.1.rootGroups.contains group.key then
+        if acc.1.rootGroups.contains group.ref then
           let (next, failure) := acc.1.finishGroupFailure node errors
           (next, acc.2 ++ [failure])
         else

@@ -50,10 +50,10 @@ private def nestedResolvers : Resolvers Nat :=
     resolve_argumentsEquivalent := by intros; rfl
   }
 
-private def parent : DeliveryNode := { key := 0, path := [], label := some (.string "P") }
+private def parent : DeliveryNode := { ref := 0, path := [], label := some (.string "P") }
 
 private def child : DeliveryNode :=
-  { key := 1, path := [.field "user", .field "friend"], label := some (.string "C") }
+  { ref := 1, path := [.field "user", .field "friend"], label := some (.string "C") }
 
 private def parentTask : Occurrence := .executionGroup [0, 0, 1, 0]
 private def childTask : Occurrence := .executionGroup [0, 0, 1, 0, 0, 0, 1, 0]
@@ -122,15 +122,15 @@ private theorem generated : ExecutedWork work := by
   cbv
 
 private theorem parent_known
-    : TaskAt work parentTask [parent.key] none
+    : TaskAt work parentTask [parent.ref] none
         (.object parentValue.path (.ok (parentValue.data, 0))) := by
   refine ⟨[⟨parent, []⟩], parentValue.path, _, children, [], ?_, rfl, rfl⟩
   cbv
 
 private theorem child_known
-    : TaskAt work childTask [child.key] (some parentTask)
+    : TaskAt work childTask [child.ref] (some parentTask)
         (.object childValue.path (.ok (childValue.data, 0))) := by
-  refine ⟨[⟨child, [parent]⟩], childValue.path, _, .combine .empty .empty, [parent.key],
+  refine ⟨[⟨child, [parent]⟩], childValue.path, _, .combine .empty .empty, [parent.ref],
     ?_, rfl, rfl⟩
   cbv
 
@@ -139,7 +139,7 @@ private theorem valid : ValidGraphEvents work (before ++ [finish]) := by
     .append .nil ⟨_, _, parent_known, by cbv, by cbv⟩
       (by simp [GraphEvent.Fresh, GraphEvent.identities])
       ⟨_, _, _, parent_known, by intro source impossible; cases impossible⟩
-  have blockerKnown : TaskAt work blockerTask [parent.key] none
+  have blockerKnown : TaskAt work blockerTask [parent.ref] none
       (.object [] (.ok (blockerValue.data, 0))) := by
     refine ⟨[⟨parent, []⟩], [], _, .combine .empty .empty, [], ?_, rfl, rfl⟩
     cbv
@@ -171,12 +171,12 @@ coverage concerns only P; C is absent before integration and is not assumed cove
 -/
 theorem produced_child_inherits_root_coverage
     : let integrated := (initial.maybeIntegrateWork parentResult.work (some parentTask)).1
-      initial.groupNode? child.key = none
-      ∧ ∃ root ∈ integrated.rootGroups, integrated.LiveDescendant root child.key := by
+      initial.groupNode? child.ref = none
+      ∧ ∃ root ∈ integrated.rootGroups, integrated.LiveDescendant root child.ref := by
   intro integrated
   refine ⟨by cbv, ?_⟩
   obtain ⟨parents, canonical⟩ := generated.groupRecordsCanonical
-  have keys := createWorkQueue_groupKeysUnique (Work.fromExecution work)
+  have refs := createWorkQueue_groupRefsUnique (Work.fromExecution work)
   have registered := createWorkQueue_registration work
   have linked := createWorkQueue_parentLinksComplete (Work.fromExecution work) parents
     (fun _ member => workFromSpec_groups_parentCanonical Located.root canonical member)
@@ -185,11 +185,11 @@ theorem produced_child_inherits_root_coverage
     exact List.mem_cons_self
   have matching : (GraphEvent.taskSuccess parentTask parentResult).MatchesWork work :=
     ⟨_, _, parent_known, by cbv, by cbv⟩
-  have member : (⟨child, some parent.key⟩ : Group) ∈ parentResult.work.groups := by
+  have member : (⟨child, some parent.ref⟩ : Group) ∈ parentResult.work.groups := by
     cbv
     exact List.mem_cons_of_mem _ List.mem_cons_self
   have contributing : ∃ task ∈ parentResult.work.tasks,
-      child.key ∈ task.groups.map DeliveryNode.key := by
+      child.ref ∈ task.groups.map DeliveryNode.ref := by
     refine ⟨⟨childTask, [child]⟩, ?_, ?_⟩
     · cbv
       exact List.mem_cons_self
@@ -200,17 +200,17 @@ theorem produced_child_inherits_root_coverage
     (createWorkQueue_fromSpec_registeredTasksMatch work) generated
     (createWorkQueue_groupNodesMatchWork work)
     (createWorkQueue_healthyRetiredAncestors generated)
-    (createWorkQueue_cancelledRecordsSupported _ work []) linked keys registered.1
+    (createWorkQueue_cancelledRecordsSupported _ work []) linked refs registered.1
     registered.2 (createWorkQueue_parentRegistryClosed canonical) canonical producerMember
     (by simp) matching member contributing (fun invalid => invalid.nonempty rfl)
   · intro node present contributes _
-    have same : node.group.node.key = parent.key := List.mem_singleton.mp contributes
-    refine ⟨parent.key, ?_, ?_⟩
+    have same : node.group.node.ref = parent.ref := List.mem_singleton.mp contributes
+    refine ⟨parent.ref, ?_, ?_⟩
     · cbv
       exact List.mem_cons_self
     · rw [same]
-      exact .self (same ▸ keys.groupNode?_of_mem present)
-  · refine ⟨{ group := ⟨child, some parent.key⟩, tasks := [childTask], pending := 1 }, ?_⟩
+      exact .self (same ▸ refs.groupNode?_of_mem present)
+  · refine ⟨{ group := ⟨child, some parent.ref⟩, tasks := [childTask], pending := 1 }, ?_⟩
     cbv
 
 /-- P's object buffers until its independent blocker settles; only then can C start.
@@ -219,7 +219,7 @@ boundary would violate the existing source-start premise, not expose an ordering
 -/
 theorem buffered_release_output
     : (initial.rawEventReplay before).2 = []
-      ∧ child.key ∉ waiting.rootGroups
+      ∧ child.ref ∉ waiting.rootGroups
       ∧ waiting.acceptsGraphEvent (.taskSuccess childTask childResult) = false
       ∧ (waiting.handleGraphEvent finish).2
         = [
@@ -232,8 +232,8 @@ theorem buffered_release_output
   refine ⟨by cbv, ?_, by cbv, by cbv, by cbv⟩
   cbv; intro impossible; cases impossible; contradiction
 
-private theorem waitingChildLive : ∃ node, waiting.groupNode? child.key = some node := by
-  refine ⟨{ group := ⟨child, some parent.key⟩, tasks := [childTask], pending := 1 }, ?_⟩
+private theorem waitingChildLive : ∃ node, waiting.groupNode? child.ref = some node := by
+  refine ⟨{ group := ⟨child, some parent.ref⟩, tasks := [childTask], pending := 1 }, ?_⟩
   cbv
 
 private theorem waitingChildRegistered
@@ -246,15 +246,15 @@ Witness: the general generated replay-coverage theorem, not an assumed child not
 output-admission certificate. C is live but is not itself an active root at this boundary.
 -/
 theorem buffered_child_has_active_ancestor
-    : child.key ∉ waiting.rootGroups
-      ∧ ∃ root ∈ waiting.rootGroups, waiting.LiveDescendant root child.key := by
+    : child.ref ∉ waiting.rootGroups
+      ∧ ∃ root ∈ waiting.rootGroups, waiting.LiveDescendant root child.ref := by
   have prior := valid.prefix (List.prefix_append before [finish])
   have coverage := generated.replayGraphEvents_healthyContributorsCovered before prior (by cbv)
   have noFailures : initial.objectFailureContributions before = [] := by cbv
   refine ⟨buffered_release_output.2.1, ?_⟩
-  apply coverage ⟨childTask, [child]⟩ waitingChildRegistered child.key List.mem_cons_self
+  apply coverage ⟨childTask, [child]⟩ waitingChildRegistered child.ref List.mem_cons_self
     ?_ waitingChildLive
-  change ¬GroupInvalidated work (initial.objectFailureContributions before) child.key
+  change ¬GroupInvalidated work (initial.objectFailureContributions before) child.ref
   rw [noFailures]
   exact fun invalid => invalid.nonempty rfl
 
@@ -265,18 +265,18 @@ This is the pre-announcement contents obligation, not premature notice eligibili
 -/
 theorem buffered_child_unaccounted
     : ¬Published (fun _ => parentTask) [] parentTask
-      ∧ ¬NodeAccounted work (fun _ => parentTask) [] [] child.key := by
+      ∧ ¬NodeAccounted work (fun _ => parentTask) [] [] child.ref := by
   have prior := valid.prefix (List.prefix_append before [finish])
   have contents : RetainedNoticeContents work (fun _ => parentTask) [] [] before child := by
-    have known : NodeAt work child .group [parent.key] (some parentTask) :=
+    have known : NodeAt work child .group [parent.ref] (some parentTask) :=
       .group (address := [0, 0, 1, 0, 0, 0, 1, 0])
         (groups := [⟨child, [parent]⟩]) (path := child.path)
         (result := .ok (childValue.data, 0)) (children := .combine .empty .empty)
-        (owners := [parent.key]) (by cbv) List.mem_cons_self
+        (owners := [parent.ref]) (by cbv) List.mem_cons_self
     let node : GroupNode :=
-      { group := ⟨child, some parent.key⟩, tasks := [childTask], pending := 1 }
+      { group := ⟨child, some parent.ref⟩, tasks := [childTask], pending := 1 }
     refine ⟨
-      ⟨[parent.key], some parentTask, known⟩,
+      ⟨[parent.ref], some parentTask, known⟩,
       waiting,
       node,
       by cbv,
@@ -320,10 +320,10 @@ theorem buffered_parent_derived
             GraphEvent.taskSuccess parentTask result ∈ before
             ∧ waiting.taskNode? parentTask = some node
             ∧ node.value = some result.value
-            ∧ TaskHasOwners work parentTask (node.task.groups.map DeliveryNode.key)
-            ∧ parent.key ∈ node.task.groups.map DeliveryNode.key
-            ∧ parent.key
-              ∈ waiting.groupNodes.map (fun owner => owner.group.node.key) := by
+            ∧ TaskHasOwners work parentTask (node.task.groups.map DeliveryNode.ref)
+            ∧ parent.ref ∈ node.task.groups.map DeliveryNode.ref
+            ∧ parent.ref
+              ∈ waiting.groupNodes.map (fun owner => owner.group.node.ref) := by
   obtain ⟨w, history, _, _, _, _, _, _, _, _, ledger⟩ :=
     ConformancePlan.mixed_groupAccountingCertificates (inputs := [before ++ [finish]])
       generated valid (by cbv)
@@ -334,7 +334,7 @@ theorem buffered_parent_derived
       using batched.flatten (by cbv)
   have source : GraphEvent.taskSuccess parentTask parentResult ∈ before := List.mem_cons_self
   have healthy : ¬GroupRecordInvalidated work (initial.objectFailureContributions before)
-      parent.key := by
+      parent.ref := by
     intro failed
     exact failed.nonempty (by cbv)
   have prior := generated.healthy_success_published_or_buffered
@@ -382,9 +382,9 @@ theorem child_value_has_prior_producer
     simpa only [List.flatten_cons, List.flatten_nil, List.append_nil, initial,
       ConformancePlan.initialQueue]
       using batched.flatten (by cbv)
-  have nodeKnown : NodeAt work child .group [parent.key] (some parentTask) :=
+  have nodeKnown : NodeAt work child .group [parent.ref] (some parentTask) :=
     ⟨[0, 0, 1, 0, 0, 0, 1, 0], [⟨child, [parent]⟩], child.path, _,
-      .combine .empty .empty, [parent.key], ⟨child, [parent]⟩,
+      .combine .empty .empty, [parent.ref], ⟨child, [parent]⟩,
       by cbv, List.mem_cons_self, rfl, rfl⟩
   obtain ⟨value, delivered⟩ := generated.taskSuccess_ancestorProducer_beforeValue child_valid
     (by cbv) replay (position := 0) (group := child) (values := [childValue])
@@ -402,7 +402,7 @@ theorem child_value_admitted
         w.events
           = initial.nonterminalAtoms
               [before ++ [finish] ++ [.taskSuccess childTask childResult]]
-        ∧ EventAllowed work (ConformancePlan.initialKeys work) w.matching
+        ∧ EventAllowed work (ConformancePlan.initialRefs work) w.matching
             (w.events.take 3) w.failures
             (.groupValues child [childValue]) := by
   obtain ⟨w, history, _, _, _, _, _, _, _, _, _, _, _, _, publications⟩ :=

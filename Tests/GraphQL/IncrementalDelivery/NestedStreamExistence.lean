@@ -9,9 +9,9 @@ open GraphQL.IncrementalDelivery.Correctness
 open GraphQL.IncrementalDelivery.Semantics
 open WorkQueueSemantics
 
-/-- Four differently keyed streams share a harmless fixed owner path in this raw fixture.
+/-- Four streams with distinct refs share a harmless fixed owner path in this raw fixture.
 -/
-def node (key : Nat) : DeliveryNode := { key, path := [] }
+def node (ref : NodeRef) : DeliveryNode := { ref, path := [] }
 
 /-- Three publication levels and a sibling empty stream exercise dynamically introduced
 notices, combine navigation, and cancellation of unpublished descendants after failures.

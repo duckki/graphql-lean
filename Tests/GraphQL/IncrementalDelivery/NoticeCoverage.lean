@@ -15,7 +15,7 @@ example (matching : PublicationMatching)
     : ∃ groups streams,
         Initializes HistoryScheduling.shared groups streams
         ∧ NoticesCovered HistoryScheduling.shared
-            ((groups ++ streams).map DeliveryNode.key) matching [] [] := by
+            ((groups ++ streams).map DeliveryNode.ref) matching [] [] := by
   obtain ⟨groups, streams, initialized, covers⟩ := HistoryScheduling.initialized.covering_exists
   exact ⟨groups, streams, initialized, NoticesCovered.initial covers matching⟩
 
@@ -34,11 +34,11 @@ example
     (show TaskAt WorkQueueSemantics.work (.executionGroup []) [0] none (.object [] (.ok ([], 0)))
       from .executionGroup .root)
     (fun failure => failure.nonempty rfl)
-  simpa [WorkQueueSemantics.node, WorkQueueSemantics.value, completedKeys, eventCompleted,
+  simpa [WorkQueueSemantics.node, WorkQueueSemantics.value, completedRefs, eventCompleted,
     failedBefore]
     using reduction
 
-/-- Shared ownership really can account for an unannounced healthy key. Witness: announce
+/-- Shared ownership really can account for an unannounced healthy ref. Witness: announce
 only the left owner and publish once; the right owner's dependency is satisfied without
 a completion. This guards against applying singleton dependency reduction to shared work.
 -/
@@ -46,8 +46,8 @@ example
     : ∃ events matching,
         Explains HistoryScheduling.shared [HistoryScheduling.left] [] events matching []
         ∧ DependencySatisfied HistoryScheduling.shared [0] matching events [] 1
-        ∧ 1 ∉ announcedKeys [0] events
-        ∧ 1 ∉ completedKeys events := by
+        ∧ 1 ∉ announcedRefs [0] events
+        ∧ 1 ∉ completedRefs events := by
   have task : TaskAt HistoryScheduling.shared (.executionGroup []) [0, 1] none
       (.object [] (.ok ([], 0))) := .executionGroup .root
   have initial : Explains HistoryScheduling.shared [HistoryScheduling.left] [] []
@@ -66,7 +66,7 @@ example
         HistoryScheduling.left :=
       ⟨⟨.group, [], none, .group (group := { node := HistoryScheduling.left })
         .root (by simp)⟩, by simp [HistoryScheduling.left],
-        by simp [Open, announcedKeys, pendingKeys, completedKeys, HistoryScheduling.left]⟩
+        by simp [Open, announcedRefs, pendingRefs, completedRefs, HistoryScheduling.left]⟩
     refine ⟨opened, ⟨HistoryScheduling.left, opened, fun failure => failure.nonempty rfl⟩,
       ?_⟩
     intro other available
@@ -79,13 +79,13 @@ example
   let next := matchNext HistoryScheduling.matching 0 (.executionGroup [])
   refine ⟨[event], next, published, ⟨fun failure => failure.nonempty rfl,
     Or.inr (Or.inr ⟨?_, ?_⟩)⟩, ?_, ?_⟩
-  · simp [announcedKeys, pendingKeys, event, eventPending]
+  · simp [announcedRefs, pendingRefs, event, eventPending]
   · rintro occurrence owners ⟨producer, payload, known⟩ _
     have same := HistoryScheduling.task_shared known
     subst occurrence
     exact Or.inr (published_matchNext (event := event) trivial
       HistoryScheduling.matching [] (.executionGroup []))
-  · simp [announcedKeys, pendingKeys, event, eventPending]
-  · simp [completedKeys, event, eventCompleted]
+  · simp [announcedRefs, pendingRefs, event, eventPending]
+  · simp [completedRefs, event, eventCompleted]
 
 end GraphQL.IncrementalDelivery.Tests.NoticeCoverage

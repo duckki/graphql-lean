@@ -6,55 +6,55 @@ namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.Execution (WorkQueueEvent)
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
-/-- A proof-only stream action contains its key and whether this action closes the stream.
+/-- A proof-only stream action contains its ref and whether this action closes the stream.
 Items use false; successful and failed closure use true. Payloads and notices are omitted.
 -/
 abbrev StreamAction := Nat × Bool
 
 /-- Source stream actions; task settlements do not reference or close streams. -/
 def GraphEvent.streamAction : GraphEvent → Option StreamAction
-  | .streamItems stream _ => some (stream.key, false)
-  | .streamSuccess stream | .streamFailure stream _ => some (stream.key, true)
+  | .streamItems stream _ => some (stream.ref, false)
+  | .streamSuccess stream | .streamFailure stream _ => some (stream.ref, true)
   | _ => none
 
 /-- Raw stream actions; group events and queue termination have no stream action. -/
 def _root_.GraphQL.IncrementalDelivery.Execution.WorkQueueEvent.streamAction
     : WorkQueueEvent → Option StreamAction
-  | .streamValues stream _ _ _ => some (stream.key, false)
-  | .streamSuccess stream | .streamFailure stream _ => some (stream.key, true)
+  | .streamValues stream _ _ _ => some (stream.ref, false)
+  | .streamSuccess stream | .streamFailure stream _ => some (stream.ref, true)
   | _ => none
 
 /-- Normalized stream actions, before expanding a multi-item publication into atoms. -/
 def streamAction : Execution.WorkQueueEvent → Option StreamAction
-  | .streamValues stream _ _ _ => some (stream.key, false)
-  | .streamSuccess stream | .streamFailure stream _ => some (stream.key, true)
+  | .streamValues stream _ _ _ => some (stream.ref, false)
+  | .streamSuccess stream | .streamFailure stream _ => some (stream.ref, true)
   | _ => none
 
 -----------------------------------------------------------------------------------------
 -- Raw replay may ignore an input, but cannot introduce or reorder stream actions
 -----------------------------------------------------------------------------------------
 
-/-- Raw stream actions have exactly the previously defined stream-reference keys.
-Witness: each value/closure contributes one key; all other events contribute neither.
+/-- Raw stream actions have exactly the previously defined stream-reference refs.
+Witness: each value/closure contributes one ref; all other events contribute neither.
 -/
-theorem rawStreamActions_keys (events : List WorkQueueEvent)
+theorem rawStreamActions_refs (events : List WorkQueueEvent)
     : (events.filterMap WorkQueueEvent.streamAction).map Prod.fst
-      = events.flatMap rawStreamReferenceKeys := by
+      = events.flatMap rawStreamReferenceRefs := by
   induction events with
   | nil => rfl
   | cons event rest ih =>
       cases event <;> simp [List.filterMap_cons, WorkQueueEvent.streamAction,
-        rawStreamReferenceKeys, ih]
+        rawStreamReferenceRefs, ih]
 
 /-- Recursive draining has no stream action: it emits only group values and group closures.
-Witness: the action-key projection agrees with the drain's empty stream-reference list.
+Witness: the action-ref projection agrees with the drain's empty stream-reference list.
 -/
 theorem State.drainReadyGroups_streamActions (queue : State)
     : queue.drainReadyGroups.2.filterMap WorkQueueEvent.streamAction = [] := by
   apply List.map_eq_nil_iff.mp
-  rw [rawStreamActions_keys, State.drainReadyGroups_streamReferences]
+  rw [rawStreamActions_refs, State.drainReadyGroups_streamReferences]
 
-/-- A handler emits at most its input's one stream action, with the same key and closure flag.
+/-- A handler emits at most its input's one stream action, with the same ref and closure flag.
 Witness: task handlers emit no stream references; guarded stream handlers copy one action
 or ignore the input. No start or payload premise is needed for this projection.
 -/
@@ -66,14 +66,14 @@ theorem State.handleGraphEvent_streamActions (queue : State) (event : GraphEvent
       have empty : (queue.taskSuccess occurrence result).2.filterMap
           WorkQueueEvent.streamAction = [] := by
         apply List.map_eq_nil_iff.mp
-        rw [rawStreamActions_keys, queue.taskSuccess_streamReferences]
+        rw [rawStreamActions_refs, queue.taskSuccess_streamReferences]
       rw [State.handleGraphEvent, empty]
       exact List.nil_sublist _
   | taskFailure occurrence errors =>
       have empty : (queue.taskFailure occurrence errors).2.filterMap
           WorkQueueEvent.streamAction = [] := by
         apply List.map_eq_nil_iff.mp
-        rw [rawStreamActions_keys, queue.taskFailure_streamReferences]
+        rw [rawStreamActions_refs, queue.taskFailure_streamReferences]
       rw [State.handleGraphEvent, empty]
       exact List.nil_sublist _
   | streamItems stream items =>

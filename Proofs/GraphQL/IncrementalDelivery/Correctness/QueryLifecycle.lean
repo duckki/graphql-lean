@@ -39,7 +39,7 @@ theorem WorkObservation.control {response work result}
           · intro empty
             change pending = [] at empty
             obtain ⟨node, member⟩ := List.exists_mem_of_ne_nil _ initialNonempty
-            obtain ⟨id, present, _⟩ := (getPendingEntry_of_eq allocated).2.fromKey node.key
+            obtain ⟨id, present, _⟩ := (getPendingEntry_of_eq allocated).2.fromRef node.ref
               (List.mem_map.mpr ⟨node, member, rfl⟩)
             simp [empty] at present
           · have outputsNonempty :

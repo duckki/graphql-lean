@@ -29,10 +29,10 @@ theorem State.taskFailure_noGroupSuccess (queue : State) (occurrence : Occurrenc
     : Execution.WorkQueueEvent.groupSuccess group groups streams
       ∉ (queue.taskFailure occurrence errors).2 := by
   let step (acc : State × List WorkQueueEvent) (owner : Execution.DeliveryNode) :=
-    match acc.1.groupNode? owner.key with
+    match acc.1.groupNode? owner.ref with
     | none => acc
     | some node =>
-        if acc.1.rootGroups.contains owner.key then
+        if acc.1.rootGroups.contains owner.ref then
           let (next, failure) := acc.1.finishGroupFailure node errors
           (next, acc.2 ++ [failure])
         else (acc.1.putGroupNode

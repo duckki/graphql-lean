@@ -21,12 +21,12 @@ private theorem fold_preserves {α β : Type} (step : β → α → β) (propert
   | nil => exact initial
   | cons item rest ih => exact ih _ (preserved state item initial)
 
-/-- Registration creates a retired key only when it records that key as cancelled.
-Witness: the refused-child branch records its key; ordinary registration installs a live
+/-- Registration creates a retired ref only when it records that ref as cancelled.
+Witness: the refused-child branch records its ref; ordinary registration installs a live
 shell. Earlier retirements persist in either branch. -/
-theorem State.addGroup_retired_or_cancelled (queue : State) (group : Group) (key : Nat)
-    (retired : (queue.addGroup group).RetiredGroup key)
-    : queue.RetiredGroup key ∨ key ∈ (queue.addGroup group).cancelledGroups := by
+theorem State.addGroup_retired_or_cancelled (queue : State) (group : Group)
+    (ref : NodeRef) (retired : (queue.addGroup group).RetiredGroup ref)
+    : queue.RetiredGroup ref ∨ ref ∈ (queue.addGroup group).cancelledGroups := by
   revert retired
   unfold State.addGroup
   split
@@ -41,29 +41,29 @@ theorem State.addGroup_retired_or_cancelled (queue : State) (group : Group) (key
       rcases List.mem_append.mp retired.1 with old | new
       · exact Or.inl ⟨old, fun live => retired.2 (by
           simpa only [List.map_append, List.map_cons, List.map_nil] using
-            List.mem_append_left [group.node.key] live)⟩
+            List.mem_append_left [group.node.ref] live)⟩
       · have same := List.mem_singleton.mp new
         exact False.elim (retired.2 (by simp [same]))
 
-/-- Registration preserves retirement exactly for a key not recorded as cancelled.
+/-- Registration preserves retirement exactly for a ref not recorded as cancelled.
 Witness: exclude the only new-retirement branch using its retained cancellation marker. -/
-theorem State.addGroup_retired_iff (queue : State) (group : Group) (key : Nat)
-    (uncancelled : key ∉ (queue.addGroup group).cancelledGroups)
-    : (queue.addGroup group).RetiredGroup key ↔ queue.RetiredGroup key := by
+theorem State.addGroup_retired_iff (queue : State) (group : Group) (ref : NodeRef)
+    (uncancelled : ref ∉ (queue.addGroup group).cancelledGroups)
+    : (queue.addGroup group).RetiredGroup ref ↔ queue.RetiredGroup ref := by
   constructor
   · intro retired
-    exact (queue.addGroup_retired_or_cancelled group key retired).resolve_right uncancelled
+    exact (queue.addGroup_retired_or_cancelled group ref retired).resolve_right uncancelled
   · exact fun retired => retired.addGroup group
 
 /-- Batch registration reflects every retirement to the old state or cancellation list.
 Witness: registration-fold induction transports earlier markers; link installation changes
 neither retirement nor cancellation history, including child-first candidate order. -/
 theorem State.addGroups_retired_or_cancelled (queue : State) (groups : List Group)
-    (key : Nat) (retired : (queue.addGroups groups).1.RetiredGroup key)
-    : queue.RetiredGroup key ∨ key ∈ (queue.addGroups groups).1.cancelledGroups := by
+    (ref : NodeRef) (retired : (queue.addGroups groups).1.RetiredGroup ref)
+    : queue.RetiredGroup ref ∨ ref ∈ (queue.addGroups groups).1.cancelledGroups := by
   let fresh := groups.filter (fun group =>
-    !queue.registeredGroups.contains group.node.key
-      && (queue.groupNode? group.node.key).isNone)
+    !queue.registeredGroups.contains group.node.ref
+      && (queue.groupNode? group.node.ref).isNone)
   let link (current : State) (group : Group) :=
     match group.parent with
     | none => current
@@ -71,15 +71,15 @@ theorem State.addGroups_retired_or_cancelled (queue : State) (groups : List Grou
         match current.groupNode? parent with
         | none => current
         | some node =>
-            let children := if node.childGroups.contains group.node.key then node.childGroups
-              else node.childGroups ++ [group.node.key]
+            let children := if node.childGroups.contains group.node.ref then node.childGroups
+              else node.childGroups ++ [group.node.ref]
             current.putGroupNode { node with childGroups := children }
-  let property (current : State) := current.RetiredGroup key →
-    queue.RetiredGroup key ∨ key ∈ current.cancelledGroups
+  let property (current : State) := current.RetiredGroup ref →
+    queue.RetiredGroup ref ∨ ref ∈ current.cancelledGroups
   have registered (current : State) (group : Group) (prior : property current)
       : property (current.addGroup group) := by
     intro retired
-    rcases current.addGroup_retired_or_cancelled group key retired with old | cancelled
+    rcases current.addGroup_retired_or_cancelled group ref retired with old | cancelled
     · exact (prior old).imp_right
         (fun member => current.addGroup_cancelledGroups_subset group member)
     · exact Or.inr cancelled
@@ -92,33 +92,33 @@ theorem State.addGroups_retired_or_cancelled (queue : State) (groups : List Grou
       · exact prior
       · intro retired
         apply prior
-        exact ⟨retired.1, by simpa only [State.putGroupNode_keys] using retired.2⟩
+        exact ⟨retired.1, by simpa only [State.putGroupNode_refs] using retired.2⟩
   exact fold_preserves link property linked fresh _
     (fold_preserves State.addGroup property registered fresh queue Or.inl) retired
 
 /-- Candidate registration preserves ancestor closure for healthy retired groups.
-Witness: supported cancellation excludes new retirement of a healthy key; old ancestor
+Witness: supported cancellation excludes new retirement of a healthy ref; old ancestor
 retirements remain permanent. Support belongs to the resulting registration state. -/
 theorem State.HealthyRetiredAncestors.addGroups {queue : State} {work failed}
     (prior : queue.HealthyRetiredAncestors work failed) (groups : List Group)
     (supported : (queue.addGroups groups).1.CancelledRecordsSupported work failed)
     : (queue.addGroups groups).1.HealthyRetiredAncestors work failed := by
-  intro key retired healthy
-  have old := (queue.addGroups_retired_or_cancelled groups key retired).resolve_right
+  intro ref retired healthy
+  have old := (queue.addGroups_retired_or_cancelled groups ref retired).resolve_right
     (supported.healthy_not_mem healthy)
-  exact (prior key old healthy).mono (fun _ retired => retired.addGroups groups)
+  exact (prior ref old healthy).mono (fun _ retired => retired.addGroups groups)
 
 /-- Registering task memberships preserves healthy-retirement closure.
-Witness: the registry is unchanged and existing live keys are retained; old retirement
+Witness: the registry is unchanged and existing live refs are retained; old retirement
 also persists, giving the exact reflection needed by the generic transport lemma. -/
 theorem State.HealthyRetiredAncestors.addTask {queue : State} {work failed}
     (prior : queue.HealthyRetiredAncestors work failed) (task : Task)
     : (queue.addTask task).HealthyRetiredAncestors work failed := by
   apply prior.of_sameRetirements
-  intro key
+  intro ref
   constructor
   · intro retired
-    refine ⟨?_, fun live => retired.2 (queue.addTask_includesKeys task key live)⟩
+    refine ⟨?_, fun live => retired.2 (queue.addTask_includesRefs task ref live)⟩
     have registered := retired.1
     rw [queue.addTask_registeredGroups task] at registered
     exact registered
@@ -170,30 +170,30 @@ theorem State.maybeIntegrateWork_prune_retirement {queue : State} {work parents 
     (links : queue.ChildLinksCanonical parents)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (live : queue.LiveGroupsRegistered) (tasks : queue.TaskGroupsRegistered)
     (newWork : Work)
     (known
       : ∀ group ∈ newWork.groups,
           ∃ dependencies, GroupRecordAt work group.node dependencies)
     (parentLinks
-      : ∀ group ∈ newWork.groups, group.parent = (parents group.node.key).head?)
+      : ∀ group ∈ newWork.groups, group.parent = (parents group.node.ref).head?)
     (covered
       : ∀ task ∈ newWork.tasks,
-        ∀ key ∈ task.groups.map Execution.DeliveryNode.key,
-          ∃ group ∈ newWork.groups, group.node.key = key)
+        ∀ ref ∈ task.groups.map Execution.DeliveryNode.ref,
+          ∃ group ∈ newWork.groups, group.node.ref = ref)
     (supported
       : (queue.maybeIntegrateWork newWork).1.CancelledRecordsSupported work failed)
     : let integrated := queue.maybeIntegrateWork newWork
       let pruned := integrated.1.pruneEmptyGroups integrated.2.newGroups
-      (∀ node ∈ pruned.2, pruned.1.AncestorsRetired work node.key)
+      (∀ node ∈ pruned.2, pruned.1.AncestorsRetired work node.ref)
       ∧ (queue.HealthyRetiredAncestors work failed
           → pruned.1.HealthyRetiredAncestors work failed) := by
   have matched := matching.maybeIntegrateWork newWork known
   have linked := links.maybeIntegrateWork newWork parentLinks
   have registered := (queue.maybeIntegrateWork_registration live tasks newWork covered).1
   have protectedRoots : ∀ node ∈ (queue.maybeIntegrateWork newWork).2.newGroups,
-      (queue.maybeIntegrateWork newWork).1.AncestorsRetired work node.key := by
+      (queue.maybeIntegrateWork newWork).1.AncestorsRetired work node.ref := by
     intro node member
     rw [State.maybeIntegrateWork_newGroups] at member
     obtain ⟨group, candidate, same, parentless, _⟩ :=
@@ -230,7 +230,7 @@ theorem ExecutedWork.initialRetirement {work : Execution.Work}
       ⟨dependencies, record⟩)
     (fun group member => workFromSpec_groups_parentCanonical Located.root canonical member)
     (workFromSpec_immediateGroupsCoverTasks work [])
-    (by intro key member
+    (by intro ref member
         rw [State.maybeIntegrateWork_cancelledGroups,
           State.addGroups_cancelledGroups_empty rfl] at member
         exact False.elim (List.not_mem_nil member))
@@ -238,12 +238,12 @@ theorem ExecutedWork.initialRetirement {work : Execution.Work}
   let result := integrated.1.pruneEmptyGroups integrated.2.newGroups
   let released := { integrated.2 with newGroups := result.2 }
   refine ⟨?_, (pruned.2 ?_).startNewWork released⟩
-  · intro key active
+  · intro ref active
     rw [createWorkQueue_rootGroups] at active
     obtain ⟨node, member, same⟩ := List.mem_map.mp active
     exact same ▸ (pruned.1 node member).mono
       (fun _ retired => retired.startNewWork released)
-  · intro key retired
+  · intro ref retired
     exact False.elim (List.not_mem_nil retired.1)
 
 /-- Generated initialization has ancestor-closed healthy retirement, without assuming
@@ -271,7 +271,7 @@ theorem State.integrateStreamItem_retirement {queue : State} {work parents faile
     (links : queue.ChildLinksCanonical parents)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (live : queue.LiveGroupsRegistered) (tasks : queue.TaskGroupsRegistered)
     (protectedRoots : queue.RootAncestorsRetired work)
     (retirement : queue.HealthyRetiredAncestors work failed)
@@ -291,13 +291,13 @@ theorem State.integrateStreamItem_retirement {queue : State} {work parents faile
     (fun _ candidate => matching.streamItem_childGroups_parentCanonical canonical member candidate)
     (matching.streamItem_childTasksCovered member) supported
   refine ⟨?_, (certificates.2 retirement).startNewWork released⟩
-  intro key active
-  change key ∈ (pruned.1.startNewWork released).rootGroups at active
+  intro ref active
+  change ref ∈ (pruned.1.startNewWork released).rootGroups at active
   rw [(pruned.1.startNewWork_groupCore released).2.2] at active
   rcases List.mem_append.mp active with old | added
-  · change key ∈ (integrated.1.pruneEmptyGroups integrated.2.newGroups).1.rootGroups at old
+  · change ref ∈ (integrated.1.pruneEmptyGroups integrated.2.newGroups).1.rootGroups at old
     rw [State.pruneEmptyGroups_rootGroups, State.maybeIntegrateWork_rootGroups] at old
-    exact (protectedRoots key old).mono (fun _ retired =>
+    exact (protectedRoots ref old).mono (fun _ retired =>
       ((retired.maybeIntegrateWork item.work).pruneEmptyGroups integrated.2.newGroups).startNewWork
         released)
   · obtain ⟨node, announced, same⟩ := List.mem_map.mp added

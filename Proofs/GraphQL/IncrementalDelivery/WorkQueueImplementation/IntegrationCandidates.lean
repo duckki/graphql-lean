@@ -17,7 +17,7 @@ private theorem mem_distinctDeliveryNodes {nodes : List Execution.DeliveryNode}
   have loop (more selected : List Execution.DeliveryNode)
       : ∀ node ∈ more.foldl
           (fun selected node =>
-            if selected.any (fun known => known.key == node.key) then selected
+            if selected.any (fun known => known.ref == node.ref) then selected
             else selected ++ [node]) selected,
           node ∈ selected ++ more := by
     induction more generalizing selected with
@@ -41,17 +41,17 @@ theorem State.addGroups_newGroup_candidate (queue : State) (groups : List Group)
     : ∃ group ∈ groups,
         group.node = node
         ∧ group.parent = none
-        ∧ node.key ∉ queue.registeredGroups
-        ∧ queue.groupNode? node.key = none := by
+        ∧ node.ref ∉ queue.registeredGroups
+        ∧ queue.groupNode? node.ref = none := by
   have filtered := mem_distinctDeliveryNodes member
   obtain ⟨group, fresh, selected⟩ := List.mem_filterMap.mp filtered
   obtain ⟨candidate, absent⟩ := List.mem_filter.mp fresh
   cases parent : group.parent with
-  | some key => simp [parent] at selected
+  | some ref => simp [parent] at selected
   | none =>
       have same : group.node = node := by simpa [parent] using selected
-      have missing : group.node.key ∉ queue.registeredGroups
-          ∧ queue.groupNode? group.node.key = none := by simpa using absent
+      have missing : group.node.ref ∉ queue.registeredGroups
+          ∧ queue.groupNode? group.node.ref = none := by simpa using absent
       exact ⟨group, candidate, same, parent, same ▸ missing⟩
 
 /-- Task and stream registration do not change the group-root candidate list.
@@ -71,47 +71,47 @@ Witness: install the link at its task-registration step and preserve it through 
 task and stream registrations. No old-task accounting or availability premise is needed.
 -/
 theorem State.maybeIntegrateWork_newTask_linked
-    {queue : State} (unique : queue.GroupKeysUnique) (work : Work)
+    {queue : State} (unique : queue.GroupRefsUnique) (work : Work)
     (parentTask : Option Occurrence := none)
     {task : Task} (member : task ∈ work.tasks)
     : (queue.maybeIntegrateWork work parentTask).1.TaskLinkedOn task.occurrence
-        (task.groups.map Execution.DeliveryNode.key) := by
+        (task.groups.map Execution.DeliveryNode.ref) := by
   have preserve (more : List Task) {current : State}
-      (keys : current.GroupKeysUnique)
+      (refs : current.GroupRefsUnique)
       (linked : current.TaskLinkedOn task.occurrence
-        (task.groups.map Execution.DeliveryNode.key))
+        (task.groups.map Execution.DeliveryNode.ref))
       : (more.foldl State.addTask current).TaskLinkedOn task.occurrence
-          (task.groups.map Execution.DeliveryNode.key) := by
+          (task.groups.map Execution.DeliveryNode.ref) := by
     induction more generalizing current with
     | nil => exact linked
-    | cons head rest ih => exact ih (keys.addTask head) (linked.addTask keys head)
+    | cons head rest ih => exact ih (refs.addTask head) (linked.addTask refs head)
   have install (more : List Task) {current : State}
-      (keys : current.GroupKeysUnique) (member : task ∈ more)
+      (refs : current.GroupRefsUnique) (member : task ∈ more)
       : (more.foldl State.addTask current).TaskLinkedOn task.occurrence
-          (task.groups.map Execution.DeliveryNode.key) := by
+          (task.groups.map Execution.DeliveryNode.ref) := by
     induction more generalizing current with
     | nil => cases member
     | cons head rest ih =>
         rcases List.mem_cons.mp member with same | later
         · subst head
-          exact preserve rest (keys.addTask task) (current.addTask_links keys task)
-        · exact ih (keys.addTask head) later
+          exact preserve rest (refs.addTask task) (current.addTask_links refs task)
+        · exact ih (refs.addTask head) later
   exact (install work.tasks (unique.addGroups work.groups) member).addStreams
     work.streams parentTask
 
 /-- If each present candidate is nonempty, pruning removes no nodes and returns only
-original candidates. Witness: fuel induction; missing keys are skipped, and the branch
+original candidates. Witness: fuel induction; missing refs are skipped, and the branch
 that promotes descendants is impossible. No candidate-presence assumption is needed. -/
 theorem State.pruneEmptyGroups_of_nonempty (queue : State)
     (groups : List Execution.DeliveryNode)
     (nonzero
       : ∀ group ∈ groups,
-          ∀ node, queue.groupNode? group.key = some node → node.tasks ≠ [])
+          ∀ node, queue.groupNode? group.ref = some node → node.tasks ≠ [])
     : (queue.pruneEmptyGroups groups).1 = queue
       ∧ (queue.pruneEmptyGroups groups).2.Subset groups := by
   have loop (fuel : Nat) (remaining kept : List Execution.DeliveryNode)
       (positive : ∀ group ∈ remaining, ∀ node,
-        queue.groupNode? group.key = some node → node.tasks ≠ [])
+        queue.groupNode? group.ref = some node → node.tasks ≠ [])
       : (State.pruneEmptyGroups.go fuel queue remaining kept).1 = queue
         ∧ (State.pruneEmptyGroups.go fuel queue remaining kept).2.Subset
             (kept ++ remaining) := by

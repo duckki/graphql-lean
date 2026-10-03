@@ -14,7 +14,7 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
 namespace Root
 
-private def node : DeliveryNode := { key := 0, path := [.field "empty"] }
+private def node : DeliveryNode := { ref := 0, path := [.field "empty"] }
 private def selections : List Selection := [field "empty" [] [.stream]]
 
 private def work : Execution.Work :=
@@ -49,7 +49,7 @@ theorem completion_admitted
     : ∃ w : ConformancePlan.Witness,
         w.events = [.streamSuccess node]
         ∧ ConformancePlan.BatchShape work inputs w
-        ∧ FailureWitness work (ConformancePlan.initialKeys work)
+        ∧ FailureWitness work (ConformancePlan.initialRefs work)
             w.matching w.events w.failures
         ∧ ConformancePlan.StreamSuccessAdmission work w := by
   obtain ⟨w, history, shape, announced, uncancelled, _, successful⟩ :=
@@ -73,8 +73,8 @@ private def work : Execution.Work :=
       selections).run
     0).1.work
 
-private def group : DeliveryNode := { key := 0, path := [] }
-private def stream : DeliveryNode := { key := 1, path := [.field "empty"] }
+private def group : DeliveryNode := { ref := 0, path := [] }
+private def stream : DeliveryNode := { ref := 1, path := [.field "empty"] }
 private def producer : Occurrence := .executionGroup [1, 0]
 
 private def children : Execution.Work :=
@@ -99,15 +99,15 @@ Witness: exact task lowering, child location, prior success, and executable star
 -/
 theorem source_valid
     : ValidGraphEvents work inputs.flatten ∧ inputsStarted work inputs = true := by
-  have parent : TaskAt work producer [group.key] none (.object [] (.ok (value.data, 0))) :=
+  have parent : TaskAt work producer [group.ref] none (.object [] (.ok (value.data, 0))) :=
     .executionGroup (groups := [⟨group, []⟩]) (children := children) (owners := []) (by cbv)
   have located : Located work [1, 0, 0, 0, 1]
-      (.stream stream []) (some producer) [group.key] := by cbv
+      (.stream stream []) (some producer) [group.ref] := by cbv
   have prior : ValidGraphEvents work [first] :=
     .append .nil ⟨_, _, parent, by cbv, by cbv⟩
       (by simp [first, GraphEvent.Fresh, GraphEvent.identities])
       ⟨_, _, _, parent, by intro source impossible; cases impossible⟩
-  refine ⟨.append prior ⟨[group.key], some producer, ⟨_, _, located⟩⟩ ?_ ?_, by cbv⟩
+  refine ⟨.append prior ⟨[group.ref], some producer, ⟨_, _, located⟩⟩ ?_ ?_, by cbv⟩
   · simp [first, GraphEvent.Fresh, GraphEvent.identities]
   · exact ⟨_, _, _, _, located,
       (by intro source same; cases same; simp [first, GraphEvent.successes]), rfl⟩
@@ -131,7 +131,7 @@ theorem completion_admitted
             .streamSuccess stream
           ]
         ∧ ConformancePlan.BatchShape work inputs w
-        ∧ FailureWitness work (ConformancePlan.initialKeys work)
+        ∧ FailureWitness work (ConformancePlan.initialRefs work)
             w.matching w.events w.failures
         ∧ ConformancePlan.StreamSuccessAdmission work w := by
   obtain ⟨w, history, shape, announced, uncancelled, _, successful⟩ :=

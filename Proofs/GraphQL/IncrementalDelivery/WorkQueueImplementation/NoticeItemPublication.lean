@@ -87,16 +87,16 @@ namespace ConformancePlan
 
 /-- A canonical group notice retains its raw carrier and inclusive item-prefix count.
 Witness: group carriers preserve their strict rank and carry no items; item notices occur
-only on the final atom of their raw batch. Both retain the same noticed key and index.
+only on the final atom of their raw batch. Both retain the same noticed ref and index.
 -/
-theorem Witness.groupNotice_itemRawPrefix {work inputs} {w : Witness} {index event key}
+theorem Witness.groupNotice_itemRawPrefix {work inputs} {w : Witness} {index event ref}
     (started : inputsStarted work inputs = true)
     (history : w.events = (initialQueue work).nonterminalAtoms inputs)
     (selected : w.events[index]? = some event)
-    (noticed : key ∈ groupNoticeKeys event)
+    (noticed : ref ∈ groupNoticeRefs event)
     : ∃ position output,
         ((initialQueue work).rawEventReplay inputs.flatten).2[position]? = some output
-        ∧ key ∈ rawGroupNoticeKeys output
+        ∧ ref ∈ rawGroupNoticeRefs output
         ∧ ((w.events.take (index + 1)).flatMap normalizedItemValues).length
           = ((((initialQueue work).rawEventReplay inputs.flatten).2.take
                 (position + 1)).flatMap
@@ -138,7 +138,7 @@ theorem Witness.groupNotice_itemProducerPublished
     (ledger : BufferedClosureLedger work inputs w)
     (selected : w.events[index]? = some event)
     (known : NodeAt work node .group dependencies (some (.item source ordinal)))
-    (noticed : node.key ∈ groupNoticeKeys event)
+    (noticed : node.ref ∈ groupNoticeRefs event)
     : Published w.matching (w.events.take (index + 1)) (.item source ordinal) := by
   obtain ⟨_, _, _, _, interpret⟩ := ledger
   have batches : (initialQueue work).batchesStarted inputs = true := by

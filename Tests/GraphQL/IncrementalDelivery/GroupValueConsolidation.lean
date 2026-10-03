@@ -16,8 +16,8 @@ example (result : TaskResult) : ExecutionGroupValue := result.value
 
 example (item : StreamItem) : StreamItemValue := item.value
 
-def parent : DeliveryNode := { key := 0, path := [] }
-def child : DeliveryNode := { key := 1, path := [.field "obj"] }
+def parent : DeliveryNode := { ref := 0, path := [] }
+def child : DeliveryNode := { ref := 1, path := [.field "obj"] }
 
 def value : ExecutionGroupValue :=
   { path := child.path, data := [("x", .scalar "X")], deliveryGroups := [parent, child] }
@@ -62,7 +62,7 @@ example (ids : IDState)
 example (work initial matching before failures owner)
     : EventAllowed work initial matching before failures
         (.groupValues owner
-          [{ value with deliveryGroups := [{ key := 999, path := [] }] }])
+          [{ value with deliveryGroups := [{ ref := 999, path := [] }] }])
       ↔ EventAllowed work initial matching before failures (.groupValues owner [value]) :=
   eventAllowed_groupValues_metadata _ _ _ _ _ _ _ _
 

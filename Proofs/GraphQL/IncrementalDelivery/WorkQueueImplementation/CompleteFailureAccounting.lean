@@ -3,7 +3,7 @@ import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.FailureProject
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.DrainAccounting
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.RegistrationCoverage
 
-/-! Complete error accounting for live caches and not-yet-registered group keys. -/
+/-! Complete error accounting for live caches and not-yet-registered group refs. -/
 
 namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.Execution (
@@ -14,18 +14,18 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 -- NodeErrors counts the chosen failure inventory, including nonowner zero contributions
 -----------------------------------------------------------------------------------------
 
-/-- Prepending a known task adds its exact contribution, whether or not it owns the key.
+/-- Prepending a known task adds its exact contribution, whether or not it owns the ref.
 Witness: extend the old contribution function at that task. Descriptor uniqueness makes
 the extension agree on earlier occurrences too, so no freshness or positivity is required.
 -/
-theorem nodeErrors_cons {work failed key errors occurrence owners producer payload}
-    (counts : NodeErrors work failed key errors)
+theorem nodeErrors_cons {work failed ref errors occurrence owners producer payload}
+    (counts : NodeErrors work failed ref errors)
     (known : TaskAt work occurrence owners producer payload)
-    : NodeErrors work (occurrence :: failed) key
-        ((if key ∈ owners then payload.failure.getD 0 else 0) + errors) := by
+    : NodeErrors work (occurrence :: failed) ref
+        ((if ref ∈ owners then payload.failure.getD 0 else 0) + errors) := by
   classical
   obtain ⟨contribution, assigned, total⟩ := counts
-  let count := if key ∈ owners then payload.failure.getD 0 else 0
+  let count := if ref ∈ owners then payload.failure.getD 0 else 0
   let extended := fun other => if other = occurrence then count else contribution other
   have same : ∀ other ∈ failed, extended other = contribution other := by
     intro other member
@@ -45,26 +45,27 @@ theorem nodeErrors_cons {work failed key errors occurrence owners producer paylo
   · rw [List.map_cons, List.sum_cons, List.map_congr_left same]
     simpa [extended, count] using congrArg (count + ·) total
 
-/-- The empty failure inventory contributes zero to every key.
+/-- The empty failure inventory contributes zero to every ref.
 Witness: the constant-zero contribution function and empty sum.
 -/
-theorem nodeErrors_nil (work : Execution.Work) (key : Nat) : NodeErrors work [] key 0 :=
+theorem nodeErrors_nil (work : Execution.Work) (ref : NodeRef)
+    : NodeErrors work [] ref 0 :=
   ⟨fun _ => 0, by simp, rfl⟩
 
 -----------------------------------------------------------------------------------------
 -- Full inventory accounting includes empty caches and future fresh registrations
 -----------------------------------------------------------------------------------------
 
-/-- Every live cache counts all `failed` tasks; an unregistered key counts zero.
+/-- Every live cache counts all `failed` tasks; an unregistered ref counts zero.
 Replay instantiates this proof-only inventory with eligible object failures, excluding
-ignored settlements. Fresh-key accounting lets later integration retain prior totals.
+ignored settlements. Fresh-ref accounting lets later integration retain prior totals.
 -/
 def State.GroupErrorAccounting (queue : State) (work : Execution.Work)
     (failed : List Occurrence)
     : Prop :=
   (∀ node ∈ queue.groupNodes,
-    NodeErrors work failed node.group.node.key (node.failure.getD 0))
-  ∧ ∀ key, key ∉ queue.registeredGroups → NodeErrors work failed key 0
+    NodeErrors work failed node.group.node.ref (node.failure.getD 0))
+  ∧ ∀ ref, ref ∉ queue.registeredGroups → NodeErrors work failed ref 0
 
 /-- Complete accounting supplies every live cache's exact full-inventory total.
 Witness: project the live-node clause.
@@ -72,15 +73,15 @@ Witness: project the live-node clause.
 theorem State.GroupErrorAccounting.live {queue : State} {work failed}
     (counts : queue.GroupErrorAccounting work failed)
     : ∀ node ∈ queue.groupNodes,
-        NodeErrors work failed node.group.node.key (node.failure.getD 0) :=
+        NodeErrors work failed node.group.node.ref (node.failure.getD 0) :=
   counts.1
 
-/-- Complete accounting supplies zero contribution at every unregistered key.
-Witness: project the fresh-key clause, including failure descriptors for the full inventory.
+/-- Complete accounting supplies zero contribution at every unregistered ref.
+Witness: project the fresh-ref clause, including failure descriptors for the full inventory.
 -/
 theorem State.GroupErrorAccounting.fresh {queue : State} {work failed}
     (counts : queue.GroupErrorAccounting work failed)
-    : ∀ key, key ∉ queue.registeredGroups → NodeErrors work failed key 0 :=
+    : ∀ ref, ref ∉ queue.registeredGroups → NodeErrors work failed ref 0 :=
   counts.2
 
 /-- Replacing a group preserves complete accounting when its cache has the exact count.
@@ -88,7 +89,7 @@ Witness: each mapped node is old or the certified replacement; registrations do 
 -/
 theorem State.GroupErrorAccounting.putGroupNode {queue : State} {work failed}
     (counts : queue.GroupErrorAccounting work failed) (updated : GroupNode)
-    (exactCount : NodeErrors work failed updated.group.node.key (updated.failure.getD 0))
+    (exactCount : NodeErrors work failed updated.group.node.ref (updated.failure.getD 0))
     : (queue.putGroupNode updated).GroupErrorAccounting work failed := by
   refine ⟨?_, counts.fresh⟩
   intro node member
@@ -108,24 +109,24 @@ theorem State.GroupErrorAccounting.addGroup {queue : State} {work failed}
   split
   · exact counts
   · rename_i fresh
-    have unregistered : group.node.key ∉ queue.registeredGroups := by
+    have unregistered : group.node.ref ∉ queue.registeredGroups := by
       simp only [Bool.or_eq_true, List.contains_iff_mem, not_or] at fresh
       exact fresh.1
     dsimp only
     split
-    · exact ⟨counts.live, fun key absent =>
-        counts.fresh key (fun member => absent (List.mem_append_left _ member))⟩
+    · exact ⟨counts.live, fun ref absent =>
+        counts.fresh ref (fun member => absent (List.mem_append_left _ member))⟩
     · refine ⟨?_, ?_⟩
       · intro node member
         rcases List.mem_append.mp member with old | added
         · exact counts.live node old
         · cases List.mem_singleton.mp added
-          exact counts.fresh group.node.key unregistered
-      · intro key absent
-        exact counts.fresh key (fun member => absent (List.mem_append_left _ member))
+          exact counts.fresh group.node.ref unregistered
+      · intro ref absent
+        exact counts.fresh ref (fun member => absent (List.mem_append_left _ member))
 
 /-- Task removal changes memberships but neither error counts nor registration history.
-Witness: the group map retains each node's key and exact cache.
+Witness: the group map retains each node's ref and exact cache.
 -/
 theorem State.GroupErrorAccounting.removeTask {queue : State} {work failed}
     (counts : queue.GroupErrorAccounting work failed) (occurrence : Occurrence)
@@ -135,18 +136,18 @@ theorem State.GroupErrorAccounting.removeTask {queue : State} {work failed}
   obtain ⟨old, oldMember, rfl⟩ := List.mem_map.mp member
   exact counts.live old oldMember
 
-/-- Cancellation preserves the exact totals of surviving groups and future fresh keys.
+/-- Cancellation preserves the exact totals of surviving groups and future fresh refs.
 Witness: live nodes are only filtered and the permanent registry remains unchanged.
 -/
 theorem State.GroupErrorAccounting.removeGroup {queue : State} {work failed}
-    (counts : queue.GroupErrorAccounting work failed) (key : Nat)
-    : (queue.removeGroup key).GroupErrorAccounting work failed :=
+    (counts : queue.GroupErrorAccounting work failed) (ref : NodeRef)
+    : (queue.removeGroup ref).GroupErrorAccounting work failed :=
   ⟨fun node member => counts.live node (List.mem_filter.mp member).1, counts.fresh⟩
 
 /-- An eligible failure adds its contribution to every surviving owning cache.
 Witness: the once-per-owner recurrence and NodeErrors extension over the entire inventory.
 Ignored settlements retain the old ledger and caches; registered ownership keeps every
-still-fresh key's count at zero in the eligible branch.
+still-fresh ref's count at zero in the eligible branch.
 -/
 theorem State.GroupErrorAccounting.taskFailure {queue : State} {work failed}
     (counts : queue.GroupErrorAccounting work failed) (generated : ExecutedWork work)
@@ -174,26 +175,26 @@ theorem State.GroupErrorAccounting.taskFailure {queue : State} {work failed}
       have sameOwners := (descriptor.unique known).1
       refine ⟨?_, ?_⟩
       · intro node member
-        obtain ⟨old, oldMember, sameKey, updated⟩ := queue.taskFailure_cachedErrors
+        obtain ⟨old, oldMember, sameRef, updated⟩ := queue.taskFailure_cachedErrors
           occurrence errors task found distinct member
         have next := nodeErrors_cons (counts.live old oldMember) known
-        rw [sameKey] at next
+        rw [sameRef] at next
         rw [updated]
         simp only [eligible, true_and]
-        by_cases owner : node.group.node.key ∈ task.task.groups.map Execution.DeliveryNode.key
-        · have owns : node.group.node.key ∈ owners := sameOwners ▸ owner
+        by_cases owner : node.group.node.ref ∈ task.task.groups.map Execution.DeliveryNode.ref
+        · have owns : node.group.node.ref ∈ owners := sameOwners ▸ owner
           simpa [owner, owns, Payload.failure, Nat.add_comm] using next
-        · have absent : node.group.node.key ∉ owners := sameOwners ▸ owner
+        · have absent : node.group.node.ref ∉ owners := sameOwners ▸ owner
           simpa [owner, absent] using next
-      · intro key absent
+      · intro ref absent
         rw [(queue.taskFailure_registration live covered occurrence errors).2.2] at absent
-        have nonowner : key ∉ owners := by
+        have nonowner : ref ∉ owners := by
           intro owner
-          exact absent (covered task.task registeredTask key (sameOwners.symm ▸ owner))
-        simpa [nonowner] using nodeErrors_cons (counts.fresh key absent) known
+          exact absent (covered task.task registeredTask ref (sameOwners.symm ▸ owner))
+        simpa [nonowner] using nodeErrors_cons (counts.fresh ref absent) known
 
 -----------------------------------------------------------------------------------------
--- Integration cannot forget a contribution recorded before a key was registered
+-- Integration cannot forget a contribution recorded before a ref was registered
 -----------------------------------------------------------------------------------------
 
 /-- A state invariant survives a fold of preserving operations.
@@ -209,14 +210,14 @@ private theorem fold_preserves {α β : Type} (property : β → Prop)
   | cons item rest ih => exact ih _ (preserved state item valid)
 
 /-- Group integration preserves complete totals through registration and parent linking.
-Witness: fresh registrations count zero; link installation changes neither keys nor caches.
+Witness: fresh registrations count zero; link installation changes neither refs nor caches.
 -/
 theorem State.GroupErrorAccounting.addGroups {queue : State} {work failed}
     (counts : queue.GroupErrorAccounting work failed) (groups : List Group)
     : (queue.addGroups groups).1.GroupErrorAccounting work failed := by
   let fresh := groups.filter (fun group =>
-    !queue.registeredGroups.contains group.node.key
-      && (queue.groupNode? group.node.key).isNone)
+    !queue.registeredGroups.contains group.node.ref
+      && (queue.groupNode? group.node.ref).isNone)
   let link (current : State) (group : Group) :=
     match group.parent with
     | none => current
@@ -224,8 +225,8 @@ theorem State.GroupErrorAccounting.addGroups {queue : State} {work failed}
         match current.groupNode? parent with
         | none => current
         | some node =>
-            let children := if node.childGroups.contains group.node.key then
-              node.childGroups else node.childGroups ++ [group.node.key]
+            let children := if node.childGroups.contains group.node.ref then
+              node.childGroups else node.childGroups ++ [group.node.ref]
             current.putGroupNode { node with childGroups := children }
   have linked (current : State) (group : Group)
       (valid : current.GroupErrorAccounting work failed)
@@ -243,14 +244,14 @@ theorem State.GroupErrorAccounting.addGroups {queue : State} {work failed}
       State.addGroup fresh (fun _ group valid => valid.addGroup group) queue counts)
 
 /-- Task registration adds memberships without changing complete error totals.
-Witness: each contributor update preserves its key/cache and the permanent registry.
+Witness: each contributor update preserves its ref/cache and the permanent registry.
 -/
 theorem State.GroupErrorAccounting.addTask {queue : State} {work failed}
     (counts : queue.GroupErrorAccounting work failed) (task : Task)
     : (queue.addTask task).GroupErrorAccounting work failed := by
   let registered : State := { queue with tasks := queue.tasks ++ [task] }
   let step (current : State) (group : Execution.DeliveryNode) :=
-    match current.groupNode? group.key with
+    match current.groupNode? group.ref with
     | none => current
     | some node =>
         if node.tasks.contains task.occurrence then current
@@ -283,7 +284,7 @@ theorem State.GroupErrorAccounting.addStreams {queue : State} {work failed}
   · split <;> exact counts
 
 /-- Integrating arbitrary child work preserves every full-inventory group total.
-Witness: group, task, and stream registration, including fresh-key zero accounting.
+Witness: group, task, and stream registration, including fresh-ref zero accounting.
 No availability or already-admitted-output assumption is required for error arithmetic.
 -/
 theorem State.GroupErrorAccounting.maybeIntegrateWork {queue : State} {work failed}
@@ -299,7 +300,7 @@ theorem State.GroupErrorAccounting.maybeIntegrateWork {queue : State} {work fail
 -- Release and drain retain exact totals on every surviving group
 -----------------------------------------------------------------------------------------
 
-/-- Pruning only filters live nodes and preserves the fresh-key zero-count certificate.
+/-- Pruning only filters live nodes and preserves the fresh-ref zero-count certificate.
 Witness: induction over the pruning budget with the complete invariant.
 -/
 theorem State.GroupErrorAccounting.pruneEmptyGroups {queue : State} {work failed}
@@ -325,7 +326,7 @@ theorem State.GroupErrorAccounting.pruneEmptyGroups {queue : State} {work failed
               · exact ih _ _ _ valid
   exact loop _ queue groups [] counts
 
-/-- Activation preserves all live cache totals and zero totals for unregistered keys.
+/-- Activation preserves all live cache totals and zero totals for unregistered refs.
 Witness: group/task/stream starts change no error cache or permanent group registration.
 -/
 theorem State.GroupErrorAccounting.startNewWork {queue : State} {work failed}
@@ -338,9 +339,9 @@ theorem State.GroupErrorAccounting.startNewWork {queue : State} {work failed}
     split
     · exact valid
     · split <;> exact valid
-  have groupStable (current : State) (key : Nat)
+  have groupStable (current : State) (ref : NodeRef)
       (valid : current.GroupErrorAccounting work failed)
-      : (current.startGroup key).GroupErrorAccounting work failed := by
+      : (current.startGroup ref).GroupErrorAccounting work failed := by
     unfold State.startGroup
     split
     · exact valid
@@ -348,22 +349,22 @@ theorem State.GroupErrorAccounting.startNewWork {queue : State} {work failed}
       split
       · exact valid
       · exact fold_preserves _ State.startTask node.tasks taskStable current valid
-  have streamStable (current : State) (key : Nat)
+  have streamStable (current : State) (ref : NodeRef)
       (valid : current.GroupErrorAccounting work failed)
-      : (current.startStream key).GroupErrorAccounting work failed := by
+      : (current.startStream ref).GroupErrorAccounting work failed := by
     unfold State.startStream
     split <;> exact valid
   exact fold_preserves _ State.startStream _ streamStable _
     (fold_preserves _ State.startGroup _ groupStable _ counts)
 
 /-- A successful flush retains complete totals on all surviving groups.
-Witness: task retirement, closing-key filtering, and descendant pruning preserve the
+Witness: task retirement, closing-ref filtering, and descendant pruning preserve the
 full-inventory invariant, even when other groups have cached failures.
 -/
 theorem State.GroupErrorAccounting.finishGroupSuccess {queue : State} {work failed}
     (counts : queue.GroupErrorAccounting work failed) (group : GroupNode)
     : (queue.finishGroupSuccess group).1.GroupErrorAccounting work failed := by
-  let step (acc : State × List ExecutionGroupValue × Keys) (occurrence : Occurrence) :=
+  let step (acc : State × List ExecutionGroupValue × NodeRefs) (occurrence : Occurrence) :=
     let (current, values, streams) := acc
     match current.taskNode? occurrence with
     | none => (current, values, streams)
@@ -372,7 +373,7 @@ theorem State.GroupErrorAccounting.finishGroupSuccess {queue : State} {work fail
           | none => values
           | some value => values ++ [value]
         (current.removeTask occurrence, values, streams ++ node.childStreams)
-  have stable (acc : State × List ExecutionGroupValue × Keys) (occurrence : Occurrence)
+  have stable (acc : State × List ExecutionGroupValue × NodeRefs) (occurrence : Occurrence)
       (valid : acc.1.GroupErrorAccounting work failed)
       : (step acc occurrence).1.GroupErrorAccounting work failed := by
     obtain ⟨current, values, streams⟩ := acc
@@ -386,8 +387,8 @@ theorem State.GroupErrorAccounting.finishGroupSuccess {queue : State} {work fail
   let current : State :=
     { flushed with
       groupNodes := flushed.groupNodes.filter
-        (fun node => node.group.node.key != group.group.node.key)
-      rootGroups := flushed.rootGroups.filter (· != group.group.node.key) }
+        (fun node => node.group.node.ref != group.group.node.ref)
+      rootGroups := flushed.rootGroups.filter (· != group.group.node.ref) }
   have filtered : current.GroupErrorAccounting work failed :=
     ⟨fun node member => prior.live node (List.mem_filter.mp member).1, prior.fresh⟩
   exact filtered.pruneEmptyGroups _
@@ -403,15 +404,15 @@ theorem State.GroupErrorAccounting.drainReadyGroups {queue : State} {work failed
   · intro current node valid _ _ _ _
     exact (valid.finishGroupSuccess node).startNewWork _
   · intro current node errors valid _ _ _
-    exact valid.removeGroup node.group.node.key
+    exact valid.removeGroup node.group.node.ref
 
 /-- Initial work integration establishes complete zero-error accounting.
-Witness: the empty source inventory counts zero at every key, through integration and start.
+Witness: the empty source inventory counts zero at every ref, through integration and start.
 -/
 theorem createWorkQueue_groupErrorAccounting (input : Work) (work : Execution.Work)
     : (State.initialize input).GroupErrorAccounting work [] := by
   have empty : ({} : State).GroupErrorAccounting work [] :=
-    ⟨(by intro node member; cases member), fun key _ => nodeErrors_nil work key⟩
+    ⟨(by intro node member; cases member), fun ref _ => nodeErrors_nil work ref⟩
   exact ((empty.maybeIntegrateWork input).pruneEmptyGroups _).startNewWork _
 
 -----------------------------------------------------------------------------------------
@@ -427,12 +428,12 @@ theorem State.GroupErrorAccounting.taskSuccess {queue : State} {work failed}
     : (queue.taskSuccess occurrence result).1.GroupErrorAccounting work failed := by
   let step (acc : State × List WorkQueueEvent × NewWork) (group : Execution.DeliveryNode) :=
     let (current, outputs, released) := acc
-    match current.groupNode? group.key with
+    match current.groupNode? group.ref with
     | none => (current, outputs, released)
     | some old =>
         let node := { old with pending := old.pending - 1 }
         let current := current.putGroupNode node
-        if current.rootGroups.contains group.key && node.pending == 0 && node.failure.isNone then
+        if current.rootGroups.contains group.ref && node.pending == 0 && node.failure.isNone then
           let (next, finished, more) := current.finishGroupSuccess node
           (next, outputs ++ finished,
             ⟨released.newGroups ++ more.newGroups, released.newStreams ++ more.newStreams⟩)
@@ -464,7 +465,7 @@ theorem State.GroupErrorAccounting.taskSuccess {queue : State} {work failed}
     exact (released.startNewWork _).drainReadyGroups
 
 /-- Stream-item integration and draining preserve complete group error totals.
-Witness: every item uses the same fresh-key certificates and retains the prior failure list.
+Witness: every item uses the same fresh-ref certificates and retains the prior failure list.
 -/
 theorem State.GroupErrorAccounting.streamItems {queue : State} {work failed}
     (counts : queue.GroupErrorAccounting work failed) (stream : Execution.DeliveryNode)

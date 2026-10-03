@@ -98,7 +98,7 @@ theorem State.streamItems_objectProducersRegisteredBefore {queue : State}
     {work stream items} (ordered : ObjectProducersRegisteredBefore work queue.tasks)
     (matching : (GraphEvent.streamItems stream items).MatchesWork work)
     : ObjectProducersRegisteredBefore work (queue.streamItems stream items).1.tasks := by
-  cases active : queue.rootStreams.contains stream.key with
+  cases active : queue.rootStreams.contains stream.ref with
   | false =>
       simpa only [State.streamItems, active, Bool.not_false, ↓reduceIte] using ordered
   | true =>

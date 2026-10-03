@@ -29,17 +29,17 @@ theorem State.drainReadyGroups_go_groupEdgesFrom (fuel : Nat) (queue : State)
         | none =>
             dsimp only
             apply (ih _).trans
-            intro key node found
+            intro ref node found
             rw [State.groupNode?, (State.startNewWork_groupCore _ _).1] at found
-            exact (queue.finishGroupSuccess_descendants group).1 key node found
+            exact (queue.finishGroupSuccess_descendants group).1 ref node found
         | some errors =>
             dsimp only
             apply (ih _).trans
-            intro key node found
-            exact queue.filterKeys_groupEdgesFrom
-              (fun key => !(State.removeGroup.collect (queue.groupNodes.length + 1)
-                queue [group.group.node.key] []).contains key)
-              key node found
+            intro ref node found
+            exact queue.filterRefs_groupEdgesFrom
+              (fun ref => !(State.removeGroup.collect (queue.groupNodes.length + 1)
+                queue [group.group.node.ref] []).contains ref)
+              ref node found
 
 -----------------------------------------------------------------------------------------
 -- One occurrence-labelled ledger covers successful flushes and failed cleanup together
@@ -85,7 +85,7 @@ theorem State.PublicationInventory.drainReadyGroups_go_conserves {queue : State}
             → node.value = some value
             → (∃ contributor ∈ node.task.groups,
                 ∃ owner,
-                  (State.drainReadyGroups.go fuel queue).1.groupNode? contributor.key
+                  (State.drainReadyGroups.go fuel queue).1.groupNode? contributor.ref
                   = some owner)
             → (occurrence, value) ∈ added
               ∨ (State.drainReadyGroups.go fuel queue).1.taskNode? occurrence
@@ -127,7 +127,7 @@ theorem State.PublicationInventory.drainReadyGroups_go_conserves {queue : State}
         | some errors =>
             dsimp only
             have cleaned := State.PublicationInventory.mk inventory.unique inventory.provenance
-              (inventory.stored.removeGroup group.group.node.key)
+              (inventory.stored.removeGroup group.group.node.ref)
             obtain ⟨added, values, final, conserved⟩ := ih cleaned
             refine ⟨added, ?_, final, ?_⟩
             · simpa only [State.finishGroupFailure, List.flatMap_append,
@@ -136,8 +136,8 @@ theorem State.PublicationInventory.drainReadyGroups_go_conserves {queue : State}
               obtain ⟨contributor, contributes, owner, finalOwner⟩ := live
               obtain ⟨survivor, survives, _⟩ :=
                 State.drainReadyGroups_go_groupEdgesFrom fuel _ _ _ finalOwner
-              have kept := State.removeGroup_lookup_survivingOwner found group.group.node.key
-                contributes (List.mem_of_find?_eq_some survives) (State.groupNode?_key survives)
+              have kept := State.removeGroup_lookup_survivingOwner found group.group.node.ref
+                contributes (List.mem_of_find?_eq_some survives) (State.groupNode?_ref survives)
               exact conserved occurrence node value kept stored
                 ⟨contributor, contributes, owner, finalOwner⟩
 
@@ -154,7 +154,7 @@ theorem State.PublicationInventory.drainReadyGroups_conserves {queue : State}
             queue.taskNode? occurrence = some node
             → node.value = some value
             → (∃ contributor ∈ node.task.groups,
-                ∃ owner, queue.drainReadyGroups.1.groupNode? contributor.key = some owner)
+                ∃ owner, queue.drainReadyGroups.1.groupNode? contributor.ref = some owner)
             → (occurrence, value) ∈ added
               ∨ queue.drainReadyGroups.1.taskNode? occurrence = some node) :=
   inventory.drainReadyGroups_go_conserves queue.groupNodes.length
@@ -174,9 +174,9 @@ theorem State.PublicationInventory.drainPrefix_finishGroupSuccess_contributors
     (inventory : queue.PublicationInventory property published)
     (fuel : Nat) (group : GroupNode)
     (found
-      : (State.drainReadyGroups.go fuel queue).1.groupNode? group.group.node.key
+      : (State.drainReadyGroups.go fuel queue).1.groupNode? group.group.node.ref
         = some group)
-    (active : group.group.node.key ∈ (State.drainReadyGroups.go fuel queue).1.rootGroups)
+    (active : group.group.node.ref ∈ (State.drainReadyGroups.go fuel queue).1.rootGroups)
     (links : (State.drainReadyGroups.go fuel queue).1.ActiveTaskLinks)
     : let drained := State.drainReadyGroups.go fuel queue
       let closed := drained.1.finishGroupSuccess group
@@ -189,7 +189,7 @@ theorem State.PublicationInventory.drainPrefix_finishGroupSuccess_contributors
         ∧ (∀ occurrence node value,
             queue.taskNode? occurrence = some node
             → node.value = some value
-            → group.group.node.key ∈ node.task.groups.map Execution.DeliveryNode.key
+            → group.group.node.ref ∈ node.task.groups.map Execution.DeliveryNode.ref
             → (occurrence, value) ∈ added) := by
   dsimp only
   obtain ⟨first, firstValues, advanced, conserved⟩ :=
@@ -203,7 +203,7 @@ theorem State.PublicationInventory.drainPrefix_finishGroupSuccess_contributors
   · intro occurrence node value lookup stored contributes
     obtain ⟨contributor, member, same⟩ := List.mem_map.mp contributes
     have live : ∃ contributor ∈ node.task.groups, ∃ owner,
-        (State.drainReadyGroups.go fuel queue).1.groupNode? contributor.key = some owner :=
+        (State.drainReadyGroups.go fuel queue).1.groupNode? contributor.ref = some owner :=
       ⟨contributor, member, group, same.symm ▸ found⟩
     rcases conserved occurrence node value lookup stored live with earlier | retained
     · exact List.mem_append_left _ earlier

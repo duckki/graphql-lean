@@ -2,7 +2,7 @@ import Proofs.GraphQL.IncrementalDelivery.Correctness.TypedResponse
 import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Uniqueness.ReorderingSoundness
 
 /-! Typed absolute entries determine a response up to object-field ordering.
-Unique paths rule out ambiguous duplicate object keys; list indices retain order.
+Unique paths rule out ambiguous duplicate object refs; list indices retain order.
 The hypotheses concern ordinary values, without assuming execution equivalence.
 -/
 

@@ -23,10 +23,10 @@ theorem publicationAtoms_groupSuccess_controls (events : List Execution.WorkQueu
         = some (.groupSuccess group groups streams))
     : ∃ sourceIndex,
         events[sourceIndex]? = some (.groupSuccess group groups streams)
-        ∧ ((events.flatMap publicationAtoms).take index).flatMap groupNoticeKeys
-          = (events.take sourceIndex).flatMap groupNoticeKeys
-        ∧ ((events.flatMap publicationAtoms).take index).flatMap groupClosureKeys
-          = (events.take sourceIndex).flatMap groupClosureKeys := by
+        ∧ ((events.flatMap publicationAtoms).take index).flatMap groupNoticeRefs
+          = (events.take sourceIndex).flatMap groupNoticeRefs
+        ∧ ((events.flatMap publicationAtoms).take index).flatMap groupClosureRefs
+          = (events.take sourceIndex).flatMap groupClosureRefs := by
   induction events generalizing index with
   | nil => simp at selected
   | cons event rest ih =>
@@ -44,7 +44,7 @@ theorem publicationAtoms_groupSuccess_controls (events : List Execution.WorkQueu
             notices, publicationAtoms_groupNotices event (nonempty event List.mem_cons_self)]
           rfl
         · rw [List.take_append, List.take_of_length_le later, List.flatMap_append,
-            closures, publicationAtoms_groupClosureKeys]
+            closures, publicationAtoms_groupClosureRefs]
           rfl
 
 /-- Normalizing a group-success carrier retains its exact earlier notices and closures.
@@ -59,10 +59,10 @@ theorem IncrementalPublisher.normalizeBatch_groupSuccess_controls
         = some (.groupSuccess group groups streams))
     : ∃ sourceIndex,
         events[sourceIndex]? = some (.groupSuccess group groups streams)
-        ∧ ((publisher.normalizeBatch events).2.take index).flatMap groupNoticeKeys
-          = (events.take sourceIndex).flatMap rawGroupNoticeKeys
-        ∧ ((publisher.normalizeBatch events).2.take index).flatMap groupClosureKeys
-          = (events.take sourceIndex).flatMap rawGroupClosureKeys := by
+        ∧ ((publisher.normalizeBatch events).2.take index).flatMap groupNoticeRefs
+          = (events.take sourceIndex).flatMap rawGroupNoticeRefs
+        ∧ ((publisher.normalizeBatch events).2.take index).flatMap groupClosureRefs
+          = (events.take sourceIndex).flatMap rawGroupClosureRefs := by
   induction events generalizing publisher index with
   | nil => simp [IncrementalPublisher.normalizeBatch] at selected
   | cons event rest ih =>
@@ -79,13 +79,13 @@ theorem IncrementalPublisher.normalizeBatch_groupSuccess_controls
         obtain ⟨sourceIndex, atSource, notices, closures⟩ := ih head.1
           ((List.getElem?_append_right later).symm.trans selected)
         refine ⟨sourceIndex + 1, atSource, ?_, ?_⟩
-        · change ((head.2 ++ tail.2).take index).flatMap groupNoticeKeys = _
+        · change ((head.2 ++ tail.2).take index).flatMap groupNoticeRefs = _
           rw [List.take_append, List.take_of_length_le later, List.flatMap_append, notices]
           rw [publisher.handleWorkQueueEvent_groupNotices event]
           rfl
-        · change ((head.2 ++ tail.2).take index).flatMap groupClosureKeys = _
+        · change ((head.2 ++ tail.2).take index).flatMap groupClosureRefs = _
           rw [List.take_append, List.take_of_length_le later, List.flatMap_append, closures]
-          rw [publisher.handleWorkQueueEvent_groupClosureKeys event]
+          rw [publisher.handleWorkQueueEvent_groupClosureRefs event]
           rfl
 
 -----------------------------------------------------------------------------------------
@@ -98,7 +98,7 @@ Witness: every nonfinal item has empty child lists, and a singleton's strict pre
 theorem streamPublicationAtoms_before_groupNotices (stream groups streams values)
     {index : Nat} (last : index + 1 = values.length)
     : ((streamPublicationAtoms stream groups streams values).take index).flatMap
-        groupNoticeKeys
+        groupNoticeRefs
       = [] := by
   induction values using streamPublicationAtoms.induct generalizing index with
   | case1 => simp at last
@@ -111,7 +111,7 @@ theorem streamPublicationAtoms_before_groupNotices (stream groups streams values
       | zero => rfl
       | succ index =>
           simp only [streamPublicationAtoms, List.take_succ_cons, List.flatMap_cons,
-            groupNoticeKeys, List.map_nil, List.nil_append]
+            groupNoticeRefs, List.map_nil, List.nil_append]
           exact ih (by simp only [List.length_cons] at last ⊢; omega)
 
 /-- An item-notice atom retains both earlier group-control projections at one source index.
@@ -127,10 +127,10 @@ theorem publicationAtoms_itemNotice_controls (events : List Execution.WorkQueueE
     (noticed : child ∈ groups ++ streams)
     : ∃ sourceIndex sourceValues,
         events[sourceIndex]? = some (.streamValues owner sourceValues groups streams)
-        ∧ ((events.flatMap publicationAtoms).take index).flatMap groupNoticeKeys
-          = (events.take sourceIndex).flatMap groupNoticeKeys
-        ∧ ((events.flatMap publicationAtoms).take index).flatMap groupClosureKeys
-          = (events.take sourceIndex).flatMap groupClosureKeys := by
+        ∧ ((events.flatMap publicationAtoms).take index).flatMap groupNoticeRefs
+          = (events.take sourceIndex).flatMap groupNoticeRefs
+        ∧ ((events.flatMap publicationAtoms).take index).flatMap groupClosureRefs
+          = (events.take sourceIndex).flatMap groupClosureRefs := by
   induction events generalizing index with
   | nil => simp at selected
   | cons event rest ih =>
@@ -147,7 +147,7 @@ theorem publicationAtoms_itemNotice_controls (events : List Execution.WorkQueueE
           apply List.flatMap_eq_nil_iff.mpr
           intro entry member
           exact List.flatMap_eq_nil_iff.mp
-            (publicationAtoms_groupClosureKeys (.streamValues owner sourceValues groups streams))
+            (publicationAtoms_groupClosureRefs (.streamValues owner sourceValues groups streams))
             entry (List.mem_of_mem_take member)
       · have later : (publicationAtoms event).length ≤ index := by omega
         obtain ⟨sourceIndex, sourceValues, atSource, notices, closures⟩ := ih
@@ -158,7 +158,7 @@ theorem publicationAtoms_itemNotice_controls (events : List Execution.WorkQueueE
             notices, publicationAtoms_groupNotices event (nonempty event List.mem_cons_self)]
           rfl
         · rw [List.take_append, List.take_of_length_le later, List.flatMap_append,
-            closures, publicationAtoms_groupClosureKeys]
+            closures, publicationAtoms_groupClosureRefs]
           rfl
 
 /-- A normalized item carrier retains the raw strict notice and closure prefix together.
@@ -173,10 +173,10 @@ theorem IncrementalPublisher.normalizeBatch_itemNotice_controls
         = some (.streamValues owner values groups streams))
     : ∃ sourceIndex sourceValues,
         events[sourceIndex]? = some (.streamValues owner sourceValues groups streams)
-        ∧ ((publisher.normalizeBatch events).2.take index).flatMap groupNoticeKeys
-          = (events.take sourceIndex).flatMap rawGroupNoticeKeys
-        ∧ ((publisher.normalizeBatch events).2.take index).flatMap groupClosureKeys
-          = (events.take sourceIndex).flatMap rawGroupClosureKeys := by
+        ∧ ((publisher.normalizeBatch events).2.take index).flatMap groupNoticeRefs
+          = (events.take sourceIndex).flatMap rawGroupNoticeRefs
+        ∧ ((publisher.normalizeBatch events).2.take index).flatMap groupClosureRefs
+          = (events.take sourceIndex).flatMap rawGroupClosureRefs := by
   induction events generalizing publisher index with
   | nil => simp [IncrementalPublisher.normalizeBatch] at selected
   | cons event rest ih =>
@@ -193,13 +193,13 @@ theorem IncrementalPublisher.normalizeBatch_itemNotice_controls
         obtain ⟨sourceIndex, sourceValues, atSource, notices, closures⟩ := ih head.1
           ((List.getElem?_append_right later).symm.trans selected)
         refine ⟨sourceIndex + 1, sourceValues, atSource, ?_, ?_⟩
-        · change ((head.2 ++ tail.2).take index).flatMap groupNoticeKeys = _
+        · change ((head.2 ++ tail.2).take index).flatMap groupNoticeRefs = _
           rw [List.take_append, List.take_of_length_le later, List.flatMap_append, notices]
           rw [publisher.handleWorkQueueEvent_groupNotices event]
           rfl
-        · change ((head.2 ++ tail.2).take index).flatMap groupClosureKeys = _
+        · change ((head.2 ++ tail.2).take index).flatMap groupClosureRefs = _
           rw [List.take_append, List.take_of_length_le later, List.flatMap_append, closures]
-          rw [publisher.handleWorkQueueEvent_groupClosureKeys event]
+          rw [publisher.handleWorkQueueEvent_groupClosureRefs event]
           rfl
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

@@ -62,14 +62,14 @@ mutual
                   using collectFields_nonempty schema variables parentType source children
                     usage state
             | some label =>
-                simpa [collectSelection, ha, ht, hd, freshExecutionKey]
+                simpa [collectSelection, ha, ht, hd, freshNodeRef]
                   using collectFields_nonempty schema variables parentType source children
                     (some
                       {
-                        key := state
+                        ref := state
                         label := label
                         ancestors :=
-                          (usage.map (fun parent => parent.key :: parent.ancestors)).getD
+                          (usage.map (fun parent => parent.ref :: parent.ancestors)).getD
                             []
                       })
                     (state + 1)

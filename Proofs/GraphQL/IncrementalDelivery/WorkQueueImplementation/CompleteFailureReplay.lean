@@ -77,7 +77,7 @@ theorem State.GroupErrorAccounting.runNormalized {queue : State} {work before fa
 
 /-- Every live cache counts exactly the prior eligible object-failure inventory.
 Witness: initialization and normalized replay with the executable owner guard. The same
-inventory is used at every key; no per-cache subset or output-admission premise is assumed.
+inventory is used at every ref; no per-cache subset or output-admission premise is assumed.
 -/
 theorem ExecutedWork.runNormalized_groupErrorAccounting {work : Execution.Work}
     (generated : ExecutedWork work) (batches : List (List GraphEvent))
@@ -103,7 +103,7 @@ Witness: specialize the live-node clause at its stored option value.
 theorem State.GroupErrorAccounting.cached {queue : State} {work failed}
     (counts : queue.GroupErrorAccounting work failed)
     : queue.CachedErrorsSatisfy
-        (fun key errors => NodeErrors work failed key errors) := by
+        (fun ref errors => NodeErrors work failed ref errors) := by
   intro node member errors cached
   simpa only [cached, Option.getD_some] using counts.live node member
 
@@ -117,7 +117,7 @@ theorem State.GroupErrorAccounting.taskSuccess_output {queue : State} {work fail
     (emitted
       : Execution.WorkQueueEvent.groupFailure group errors
         ∈ (queue.taskSuccess occurrence result).2)
-    : NodeErrors work failed group.key errors :=
+    : NodeErrors work failed group.ref errors :=
   counts.cached.taskSuccess_output occurrence result emitted
 
 /-- Failed closures released by stream items count all previous object failures.
@@ -129,7 +129,7 @@ theorem State.GroupErrorAccounting.streamItems_output {queue : State} {work fail
     (emitted
       : Execution.WorkQueueEvent.groupFailure group errors
         ∈ (queue.streamItems stream items).2)
-    : NodeErrors work failed group.key errors :=
+    : NodeErrors work failed group.ref errors :=
   counts.cached.streamItems_output stream items emitted
 
 /-- A later task success reports the complete failure total derived from actual prior replay.
@@ -149,7 +149,7 @@ theorem ExecutedWork.runNormalized_taskSuccess_nodeErrors {work : Execution.Work
     : NodeErrors work
         ((State.initialize (Work.fromExecution work)).objectFailureContributions
           batches.flatten)
-        group.key errors :=
+        group.ref errors :=
   (generated.runNormalized_groupErrorAccounting batches valid started).taskSuccess_output
     occurrence result emitted
 
@@ -169,7 +169,7 @@ theorem ExecutedWork.runNormalized_streamItems_nodeErrors {work : Execution.Work
     : NodeErrors work
         ((State.initialize (Work.fromExecution work)).objectFailureContributions
           batches.flatten)
-        group.key errors :=
+        group.ref errors :=
   (generated.runNormalized_groupErrorAccounting batches valid started).streamItems_output
     stream items emitted
 

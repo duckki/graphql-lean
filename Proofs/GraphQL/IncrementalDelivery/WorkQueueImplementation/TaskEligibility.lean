@@ -14,7 +14,7 @@ Witness: the existential membership characterization of Boolean list search.
 -/
 theorem State.taskHasHealthyOwner_iff {queue : State} {task : Task}
     : queue.taskHasHealthyOwner task = true
-      ↔ ∃ group ∈ task.groups, queue.groupIsHealthy group.key = true := by
+      ↔ ∃ group ∈ task.groups, queue.groupIsHealthy group.ref = true := by
   simp [State.taskHasHealthyOwner, List.any_eq_true]
 
 /-- A rejected task has no healthy contributor, whether announced or still latent.
@@ -22,15 +22,15 @@ Witness: negate the existential healthy-owner characterization.
 -/
 theorem State.taskHasHealthyOwner_false_iff {queue : State} {task : Task}
     : queue.taskHasHealthyOwner task = false
-      ↔ ∀ group ∈ task.groups, queue.groupIsHealthy group.key = false := by
+      ↔ ∀ group ∈ task.groups, queue.groupIsHealthy group.ref = false := by
   simp [State.taskHasHealthyOwner, List.any_eq_false]
 
 /-- A healthy group has a present record without a cached failure of its own.
 Witness: inspect the first lookup and the first conjunct of the ancestor check.
 -/
-theorem State.groupIsHealthy_present {queue : State} {key : Nat}
-    (healthy : queue.groupIsHealthy key = true)
-    : ∃ node, queue.groupNode? key = some node ∧ node.failure = none := by
+theorem State.groupIsHealthy_present {queue : State} {ref : NodeRef}
+    (healthy : queue.groupIsHealthy ref = true)
+    : ∃ node, queue.groupNode? ref = some node ∧ node.failure = none := by
   unfold State.groupIsHealthy at healthy
   split at healthy
   · cases healthy
@@ -38,62 +38,61 @@ theorem State.groupIsHealthy_present {queue : State} {key : Nat}
     exact ⟨node, found, Option.isNone_iff_eq_none.mp (Bool.and_eq_true_iff.mp healthy).1⟩
 
 /-- An ancestor-closed healthy predicate makes the executable group guard succeed.
-Witness: strictly decreasing parent keys give distinct visited records, so the finite
-node-count budget cannot expire before the parent walk ends. Healthy keys are excluded
+Witness: strictly decreasing parent refs give distinct visited records, so the finite
+node-count budget cannot expire before the parent walk ends. Healthy refs are excluded
 from cancellation history, so missing healthy ancestors end the walk successfully.
 No assumption requires successfully completed ancestors to remain present.
 -/
-theorem State.groupIsHealthy_of_invariant {queue : State} {key : Nat} {node : GroupNode}
-    (found : queue.groupNode? key = some node) (healthy : Nat → Prop)
+theorem State.groupIsHealthy_of_invariant {queue : State} {ref : NodeRef}
+    {node : GroupNode} (found : queue.groupNode? ref = some node) (healthy : Nat → Prop)
     (caches
-      : ∀ node ∈ queue.groupNodes, healthy node.group.node.key → node.failure = none)
+      : ∀ node ∈ queue.groupNodes, healthy node.group.node.ref → node.failure = none)
     (parents
       : ∀ node ∈ queue.groupNodes,
           ∀ parent,
             node.group.parent = some parent
-            → healthy node.group.node.key
+            → healthy node.group.node.ref
             → healthy parent)
     (decreasing
       : ∀ node ∈ queue.groupNodes,
-          ∀ parent, node.group.parent = some parent → parent < node.group.node.key)
-    (uncancelled : ∀ key, healthy key → key ∉ queue.cancelledGroups)
-    (safe : healthy key)
-    : queue.groupIsHealthy key = true := by
-  have lookupKey {key : Nat} {node : GroupNode}
-      (found : queue.groupNode? key = some node) : node.group.node.key = key := by
+          ∀ parent, node.group.parent = some parent → parent < node.group.node.ref)
+    (uncancelled : ∀ ref, healthy ref → ref ∉ queue.cancelledGroups) (safe : healthy ref)
+    : queue.groupIsHealthy ref = true := by
+  have lookupRef {ref : NodeRef} {node : GroupNode}
+      (found : queue.groupNode? ref = some node) : node.group.node.ref = ref := by
     have selected := List.find?_some
-      (p := fun candidate : GroupNode => candidate.group.node.key == key) found
+      (p := fun candidate : GroupNode => candidate.group.node.ref == ref) found
     exact beq_iff_eq.mp selected
-  let keys := queue.groupNodes.map (fun node => node.group.node.key)
-  have walk (fuel : Nat) (current : Option Nat) (visited : Keys)
-      (unique : visited.Nodup) (listed : visited.Subset keys)
+  let refs := queue.groupNodes.map (fun node => node.group.node.ref)
+  have walk (fuel : Nat) (current : Option Nat) (visited : NodeRefs)
+      (unique : visited.Nodup) (listed : visited.Subset refs)
       (room : queue.groupNodes.length < visited.length + fuel)
-      (earlier : ∀ key, current = some key → ∀ old ∈ visited, key < old)
-      (safe : ∀ key, current = some key → healthy key)
+      (earlier : ∀ ref, current = some ref → ∀ old ∈ visited, ref < old)
+      (safe : ∀ ref, current = some ref → healthy ref)
       : State.groupIsHealthy.ancestorsHealthy queue fuel current = true := by
     induction fuel generalizing current visited with
     | zero =>
         have bound := unique.length_le_of_subset listed
-        have length : keys.length = queue.groupNodes.length := List.length_map _
+        have length : refs.length = queue.groupNodes.length := List.length_map _
         omega
     | succ fuel ih =>
         cases current with
         | none => rfl
-        | some key =>
-            cases found : queue.groupNode? key with
+        | some ref =>
+            cases found : queue.groupNode? ref with
             | none =>
                 simp [State.groupIsHealthy.ancestorsHealthy, found,
-                  uncancelled key (safe key rfl)]
+                  uncancelled ref (safe ref rfl)]
             | some node =>
                 have member := List.mem_of_find?_eq_some found
-                have same := lookupKey found
-                have nodeSafe : healthy node.group.node.key := same ▸ safe key rfl
+                have same := lookupRef found
+                have nodeSafe : healthy node.group.node.ref := same ▸ safe ref rfl
                 have uncached := caches node member nodeSafe
                 simp only [State.groupIsHealthy.ancestorsHealthy, found, uncached,
                   Option.isNone_none, Bool.true_and]
-                apply ih node.group.parent (key :: visited)
+                apply ih node.group.parent (ref :: visited)
                 · exact List.nodup_cons.mpr
-                    ⟨fun present => Nat.lt_irrefl key (earlier key rfl key present), unique⟩
+                    ⟨fun present => Nat.lt_irrefl ref (earlier ref rfl ref present), unique⟩
                 · intro other present
                   rcases List.mem_cons.mp present with rfl | old
                   · exact List.mem_map.mpr ⟨node, member, same⟩
@@ -101,18 +100,18 @@ theorem State.groupIsHealthy_of_invariant {queue : State} {key : Nat} {node : Gr
                 · simp only [List.length_cons]
                   omega
                 · intro parent parentEq old oldMember
-                  have smaller : parent < key := same ▸ decreasing node member parent parentEq
+                  have smaller : parent < ref := same ▸ decreasing node member parent parentEq
                   rcases List.mem_cons.mp oldMember with rfl | prior
                   · exact smaller
-                  · exact Nat.lt_trans smaller (earlier key rfl old prior)
+                  · exact Nat.lt_trans smaller (earlier ref rfl old prior)
                 · intro parent parentEq
                   exact parents node member parent parentEq nodeSafe
   have member := List.mem_of_find?_eq_some found
-  have same := lookupKey found
-  have nodeSafe : healthy node.group.node.key := same ▸ safe
+  have same := lookupRef found
+  have nodeSafe : healthy node.group.node.ref := same ▸ safe
   simp only [State.groupIsHealthy, found, caches node member nodeSafe,
     Option.isNone_none, Bool.true_and]
-  apply walk queue.groupNodes.length node.group.parent [key] (by simp)
+  apply walk queue.groupNodes.length node.group.parent [ref] (by simp)
   · intro other present
     have equal := List.mem_singleton.mp present
     subst other

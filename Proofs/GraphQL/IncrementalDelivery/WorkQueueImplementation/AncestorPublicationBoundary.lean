@@ -17,7 +17,7 @@ excludes inherited failure. Healthy-retirement publication applies to the earlie
 prefix on the existing ledger. No completion notice for the ancestor is required.
 -/
 theorem ExecutedWork.activeAncestorContributor_published_before_handler
-    {work before event published group groups streams dependencies key address owners
+    {work before event published group groups streams dependencies ref address owners
       producer payload}
     (generated : ExecutedWork work)
     (valid : ValidGraphEvents work (before ++ [event]))
@@ -33,12 +33,12 @@ theorem ExecutedWork.activeAncestorContributor_published_before_handler
               before).handleGraphEvent
             event).2)
     (active
-      : group.key
+      : group.ref
         ∈ ((State.initialize (Work.fromExecution work)).replayGraphEvents
             before).rootGroups)
-    (record : GroupRecordAt work group dependencies) (ancestor : key ∈ dependencies)
+    (record : GroupRecordAt work group dependencies) (ancestor : ref ∈ dependencies)
     (known : TaskAt work (.executionGroup address) owners producer payload)
-    (contributes : key ∈ owners)
+    (contributes : ref ∈ owners)
     : ∃ value,
         (Occurrence.executionGroup address, value)
         ∈ published.take
@@ -49,12 +49,12 @@ theorem ExecutedWork.activeAncestorContributor_published_before_handler
   have accepted := State.acceptsBatch_prefix started
   have roots := (generated.replayGraphEvents_structuralRetirement before
     (fun _ member => prior.eachMatches member)).1
-  have retired := roots group.key active group dependencies record rfl key ancestor
+  have retired := roots group.ref active group dependencies record rfl ref ancestor
     (.executionGroup address) owners ⟨producer, payload, known⟩ contributes
   obtain ⟨_, _, _, healthy, _⟩ :=
     generated.replayGraphEvents_successfulCarrier_retiredHealthy valid accepted carrier
   have ownerHealthy : ¬GroupRecordInvalidated work
-      ((State.initialize (Work.fromExecution work)).objectFailureContributions before) key := by
+      ((State.initialize (Work.fromExecution work)).objectFailureContributions before) ref := by
     intro invalid
     apply healthy
     apply GroupRecordInvalidated.ancestor record ancestor

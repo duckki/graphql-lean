@@ -1,8 +1,8 @@
-import Proofs.GraphQL.IncrementalDelivery.Semantics.DeferKeys
+import Proofs.GraphQL.IncrementalDelivery.Semantics.DeferRefs
 
 /-! Allocation bounds independent of inherited usage validity. All new usages come from
-the current fresh-key supply, even if the input usage is arbitrary proof context.
-This weaker bound is sufficient to assign paths to new keys without aliasing old keys.
+the current fresh-ref supply, even if the input usage is arbitrary proof context.
+This weaker bound is sufficient to assign paths to new refs without aliasing old refs.
 -/
 
 namespace GraphQL.IncrementalDelivery.Semantics.OwnerPaths
@@ -13,7 +13,7 @@ attribute [local simp] id_pure_eq id_bind_eq id_map_eq run_bind run_map
 
 def SupplyBounds (start : Nat) (output : FieldCollection × Nat) : Prop :=
   start ≤ output.2
-  ∧ ∀ usage ∈ output.1.newDeferUsages, start ≤ usage.key ∧ usage.key < output.2
+  ∧ ∀ usage ∈ output.1.newDeferUsages, start ≤ usage.ref ∧ usage.ref < output.2
 
 theorem supplyBounds_append {start middle finish : Nat} {left right : FieldCollection}
     (hl : SupplyBounds start (left, middle)) (hr : SupplyBounds middle (right, finish))
@@ -50,16 +50,16 @@ mutual
             | some label =>
                 have hc := collectFields_supply schema variables parentType source children
                   (some {
-                    key := state
+                    ref := state
                     label := label
-                    ancestors := (usage.map (fun value => value.key :: value.ancestors)).getD [] }) (state + 1)
+                    ancestors := (usage.map (fun value => value.ref :: value.ancestors)).getD [] }) (state + 1)
                 simp only [collectSelection, ha, Bool.not_true, Bool.false_eq_true, ↓reduceIte,
-                  ht, hd, freshExecutionKey, run_bind, StateT.run_pure, id_pure_eq,
+                  ht, hd, freshNodeRef, run_bind, StateT.run_pure, id_pure_eq,
                   StateT.run_get, StateT.run_set]
                 refine ⟨by have := hc.1; omega, ?_⟩
                 intro value hv
                 rcases List.mem_cons.mp hv with rfl | hv
-                · exact ⟨Nat.le_refl _, by have := hc.1; dsimp only; omega⟩
+                · exact ⟨Nat.le_refl _, Nat.lt_of_lt_of_le (Nat.lt_succ_self state) hc.1⟩
                 · have hh := hc.2 value hv
                   exact ⟨by omega, hh.2⟩
   termination_by sizeOf selection

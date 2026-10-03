@@ -50,7 +50,7 @@ Witness: each selected task is removed globally; a missing lookup changes nothin
 -/
 theorem State.TaskMembershipAbsent.flushGroupTasks {queue : State} {occurrence}
     (absent : queue.TaskMembershipAbsent occurrence) (tasks : List Occurrence)
-    (values : List ExecutionGroupValue) (streams : Keys)
+    (values : List ExecutionGroupValue) (streams : NodeRefs)
     : (tasks.foldl flushGroupTask (queue, values, streams)).1.TaskMembershipAbsent
         occurrence := by
   induction tasks generalizing queue values streams with
@@ -64,10 +64,10 @@ theorem State.TaskMembershipAbsent.flushGroupTasks {queue : State} {occurrence}
 /-- An initially findable selected task is absent from every group after the flush.
 Witness: its first selected occurrence removes it globally. Earlier different removals
 preserve its exact lookup, and the remaining loop preserves the exclusion. No source,
-key uniqueness, distinct membership, or already-admitted-history premise is needed.
+ref uniqueness, distinct membership, or already-admitted-history premise is needed.
 -/
 theorem flushGroupTask_membershipAbsent {queue : State} {tasks : List Occurrence}
-    (values : List ExecutionGroupValue) (streams : Keys) {occurrence node}
+    (values : List ExecutionGroupValue) (streams : NodeRefs) {occurrence node}
     (member : occurrence ∈ tasks) (found : queue.taskNode? occurrence = some node)
     : (tasks.foldl flushGroupTask (queue, values, streams)).1.TaskMembershipAbsent
         occurrence := by
@@ -99,8 +99,8 @@ theorem State.TaskMembershipAbsent.finishGroupSuccess {queue : State} {occurrenc
   let values := group.tasks.foldl flushGroupTask (queue, [], [])
   let current : State := { values.1 with
     groupNodes := values.1.groupNodes.filter
-      (fun node => node.group.node.key != group.group.node.key)
-    rootGroups := values.1.rootGroups.filter (· != group.group.node.key) }
+      (fun node => node.group.node.ref != group.group.node.ref)
+    rootGroups := values.1.rootGroups.filter (· != group.group.node.ref) }
   have removed : current.TaskMembershipAbsent occurrence :=
     fun node member => flushed node (List.mem_filter.mp member).1
   exact removed.pruneEmptyGroups _
@@ -118,8 +118,8 @@ theorem State.finishGroupSuccess_membershipAbsent {queue : State} (group : Group
   let values := group.tasks.foldl flushGroupTask (queue, [], [])
   let current : State := { values.1 with
     groupNodes := values.1.groupNodes.filter
-      (fun node => node.group.node.key != group.group.node.key)
-    rootGroups := values.1.rootGroups.filter (· != group.group.node.key) }
+      (fun node => node.group.node.ref != group.group.node.ref)
+    rootGroups := values.1.rootGroups.filter (· != group.group.node.ref) }
   have removed : current.TaskMembershipAbsent occurrence :=
     fun node member => flushed node (List.mem_filter.mp member).1
   exact removed.pruneEmptyGroups _
@@ -183,8 +183,8 @@ theorem State.TaskMembershipAbsent.startNewWork {queue : State} {occurrence}
 Witness: surviving records belong to the original group-node map.
 -/
 theorem State.TaskMembershipAbsent.removeGroup {queue : State} {occurrence}
-    (absent : queue.TaskMembershipAbsent occurrence) (key : Nat)
-    : (queue.removeGroup key).TaskMembershipAbsent occurrence :=
+    (absent : queue.TaskMembershipAbsent occurrence) (ref : NodeRef)
+    : (queue.removeGroup ref).TaskMembershipAbsent occurrence :=
   fun node member => absent node (List.mem_filter.mp member).1
 
 /-- Every bounded drain prefix preserves any earlier publication's membership exclusion.

@@ -33,7 +33,7 @@ theorem Witness.groupPublication_reusedProducerPublished
           ((initialQueue work).rawEventReplay inputs.flatten).2 index owner payload)
     (produced : TaskHasProducer work (w.matching index) (some (.executionGroup source)))
     (parent : TaskAt work (.executionGroup source) parentOwners ancestor parentPayload)
-    (contributes : origin.group.key ∈ parentOwners)
+    (contributes : origin.group.ref ∈ parentOwners)
     : Published w.matching (w.events.take index) (.executionGroup source) := by
   obtain ⟨published, batched, exactLedger, interpret, _⟩ := ledger
   have accepted : (initialQueue work).batchesStarted inputs = true := by

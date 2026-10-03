@@ -18,7 +18,7 @@ The group descriptor indexes the total; its count need not match any single inpu
 abbrev GroupFailureOrigin (work : Execution.Work) (inputs : List GraphEvent)
     (group : Execution.DeliveryNode) (errors : Nat)
     : Prop :=
-  GroupFailureTotal work inputs group.key errors
+  GroupFailureTotal work inputs group.ref errors
 
 /-- A successful flush itself emits no failed group closure.
 Witness: its exact output is optional values followed by successful completion.
@@ -40,7 +40,7 @@ theorem State.taskFailure_groupFailure_source (queue : State) (occurrence : Occu
         ∈ (queue.taskFailure occurrence errors).2)
     : ∃ node,
         queue.taskNode? occurrence = some node
-        ∧ group.key ∈ node.task.groups.map Execution.DeliveryNode.key
+        ∧ group.ref ∈ node.task.groups.map Execution.DeliveryNode.ref
         ∧ count = errors :=
   queue.taskFailure_groupFailure_current occurrence errors emitted
 
@@ -288,7 +288,7 @@ theorem createWorkQueue_runNormalized_groupFailure_accounting {work : Execution.
             → GraphEvent.taskFailure occurrence count ∈ batches.flatten
               ∧ (∃ owners producer path,
                   TaskAt work occurrence owners producer (.object path (.error count))
-                  ∧ group.key ∈ owners)
+                  ∧ group.ref ∈ owners)
               ∧ Reachable work occurrence
               ∧ ¬Published matching
                   (((State.initialize (Work.fromExecution work)).runNormalized

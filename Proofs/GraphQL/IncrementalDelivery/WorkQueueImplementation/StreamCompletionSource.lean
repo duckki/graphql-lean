@@ -32,16 +32,16 @@ def streamCompletion : Execution.WorkQueueEvent → Option GraphEvent
 -----------------------------------------------------------------------------------------
 
 /-- Without raw stream references there can be no raw stream completion.
-Witness: every retained completion has a reference key in its original event.
+Witness: every retained completion has a reference ref in its original event.
 -/
 theorem no_streamCompletions_of_no_references {events : List WorkQueueEvent}
-    (empty : events.flatMap rawStreamReferenceKeys = [])
+    (empty : events.flatMap rawStreamReferenceRefs = [])
     : events.filterMap WorkQueueEvent.streamCompletion = [] := by
   apply List.filterMap_eq_nil_iff.mpr
   intro event member
-  have references : rawStreamReferenceKeys event = [] :=
+  have references : rawStreamReferenceRefs event = [] :=
     List.flatMap_eq_nil_iff.mp empty event member
-  cases event <;> simp_all [rawStreamReferenceKeys, WorkQueueEvent.streamCompletion]
+  cases event <;> simp_all [rawStreamReferenceRefs, WorkQueueEvent.streamCompletion]
 
 /-- A release-time drain emits no stream completion, even when it releases failed groups.
 Witness: its group-only output has no stream reference from which to recover a completion.

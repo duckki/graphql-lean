@@ -17,17 +17,17 @@ counts transport that entry through normalization and atomization to the shared 
 No completion notice, output admission, or separately chosen publication witness is needed.
 -/
 theorem retiredGroup_contributorPublished
-    {work inputs address owners producer payload key} {w : Witness}
+    {work inputs address owners producer payload ref} {w : Witness}
     (generated : ExecutedWork work) (valid : ValidGraphEvents work inputs.flatten)
     (started : inputsStarted work inputs = true)
     (history : w.events = (initialQueue work).nonterminalAtoms inputs)
     (ledger : BufferedClosureLedger work inputs w)
     (known : TaskAt work (.executionGroup address) owners producer payload)
-    (contributes : key ∈ owners)
-    (retired : ((initialQueue work).replayGraphEvents inputs.flatten).RetiredGroup key)
+    (contributes : ref ∈ owners)
+    (retired : ((initialQueue work).replayGraphEvents inputs.flatten).RetiredGroup ref)
     (healthy
       : ¬GroupRecordInvalidated work
-          ((initialQueue work).objectFailureContributions inputs.flatten) key)
+          ((initialQueue work).objectFailureContributions inputs.flatten) ref)
     : Published w.matching w.events (.executionGroup address) := by
   obtain ⟨published, covered, _, interpret, _⟩ := ledger
   have accepted : (initialQueue work).batchesStarted inputs = true := by
@@ -49,7 +49,7 @@ theorem retiredGroup_contributorPublished
 
 /-- A healthy retired structural group is fully accounted, even if it was never announced.
 Witness: every object contributor is published under the canonical matching. Generated
-group/stream key separation excludes item contributors, so no cancellation premise is used.
+group/stream ref separation excludes item contributors, so no cancellation premise is used.
 -/
 theorem retiredGroup_nodeAccounted
     {work inputs group dependencies producer} {w : Witness}
@@ -59,11 +59,11 @@ theorem retiredGroup_nodeAccounted
     (ledger : BufferedClosureLedger work inputs w)
     (known : NodeAt work group .group dependencies producer)
     (retired
-      : ((initialQueue work).replayGraphEvents inputs.flatten).RetiredGroup group.key)
+      : ((initialQueue work).replayGraphEvents inputs.flatten).RetiredGroup group.ref)
     (healthy
       : ¬GroupRecordInvalidated work
-          ((initialQueue work).objectFailureContributions inputs.flatten) group.key)
-    : NodeAccounted work w.matching w.events w.failures group.key := by
+          ((initialQueue work).objectFailureContributions inputs.flatten) group.ref)
+    : NodeAccounted work w.matching w.events w.failures group.ref := by
   intro occurrence owners ⟨taskProducer, payload, task⟩ contributes
   cases occurrence with
   | executionGroup address =>
@@ -73,7 +73,7 @@ theorem retiredGroup_nodeAccounted
       obtain ⟨stream, entries, enclosing, result, children, located, entry, sameOwners,
         samePayload⟩ := task
       rw [sameOwners] at contributes
-      exact False.elim (generated.groupStreamKeysDisjoint known (.stream located)
+      exact False.elim (generated.groupStreamRefsDisjoint known (.stream located)
         (List.mem_singleton.mp contributes))
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue.ConformancePlan

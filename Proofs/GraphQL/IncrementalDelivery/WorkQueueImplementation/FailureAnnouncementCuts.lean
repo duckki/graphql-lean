@@ -19,8 +19,8 @@ evidence about actual output, not a restriction on the scheduler or event source
 private def SourceBlockNotices : State → List SourceOutputBlock → Prop
   | _, [] => True
   | queue, block :: rest =>
-      (queue.rawEventReplay block.1.toList).2.flatMap rawGroupNoticeKeys
-        = block.2.flatMap groupNoticeKeys
+      (queue.rawEventReplay block.1.toList).2.flatMap rawGroupNoticeRefs
+        = block.2.flatMap groupNoticeRefs
       ∧ SourceBlockNotices (queue.replayGraphEvents block.1.toList) rest
 
 /-- Notice preservation composes at the exact received source prefix.
@@ -52,24 +52,24 @@ Witness: source replay and output concatenation follow the same original block o
 -/
 private theorem SourceBlockNotices.notices {queue blocks}
     (known : SourceBlockNotices queue blocks)
-    : (queue.rawEventReplay (blocks.filterMap Prod.fst)).2.flatMap rawGroupNoticeKeys
-      = (blocks.flatMap Prod.snd).flatMap groupNoticeKeys := by
+    : (queue.rawEventReplay (blocks.filterMap Prod.fst)).2.flatMap rawGroupNoticeRefs
+      = (blocks.flatMap Prod.snd).flatMap groupNoticeRefs := by
   induction blocks generalizing queue with
   | nil => rfl
   | cons block rest ih =>
       cases source : block.1 with
       | none =>
-          have empty : block.2.flatMap groupNoticeKeys = [] := by
+          have empty : block.2.flatMap groupNoticeRefs = [] := by
             simpa [source, State.rawEventReplay] using known.1.symm
           simpa [source, List.flatMap_append, empty, State.replayGraphEvents]
             using ih known.2
       | some event =>
-          have head : (queue.handleGraphEvent event).2.flatMap rawGroupNoticeKeys
-              = block.2.flatMap groupNoticeKeys := by
+          have head : (queue.handleGraphEvent event).2.flatMap rawGroupNoticeRefs
+              = block.2.flatMap groupNoticeRefs := by
             simpa [source, State.rawEventReplay, rawEventStep] using known.1
           simpa [source, State.rawEventReplay_cons, List.flatMap_append, head,
             State.replayGraphEvents]
-            using congrArg ((block.2.flatMap groupNoticeKeys) ++ ·) (ih known.2)
+            using congrArg ((block.2.flatMap groupNoticeRefs) ++ ·) (ih known.2)
 
 /-- Normalizing and atomizing legal raw output preserves its exact group notices.
 Witness: publisher notice copying and the nonempty payload atomization equations.
@@ -78,12 +78,12 @@ theorem atomicGroupNotices (publisher : IncrementalPublisher)
     (events : List WorkQueueEvent)
     (nonempty : ∀ event ∈ events, event.NonemptyValues)
     : ((publisher.normalizeBatch events).2.flatMap publicationAtoms).flatMap
-        groupNoticeKeys
-      = events.flatMap rawGroupNoticeKeys := by
+        groupNoticeRefs
+      = events.flatMap rawGroupNoticeRefs := by
   have expand (outputs : List Execution.WorkQueueEvent)
       (shape : ∀ event ∈ outputs, NonemptyValues event)
-      : (outputs.flatMap publicationAtoms).flatMap groupNoticeKeys
-        = outputs.flatMap groupNoticeKeys := by
+      : (outputs.flatMap publicationAtoms).flatMap groupNoticeRefs
+        = outputs.flatMap groupNoticeRefs := by
     induction outputs with
     | nil => rfl
     | cons event rest ih =>
@@ -91,7 +91,7 @@ theorem atomicGroupNotices (publisher : IncrementalPublisher)
           publicationAtoms_groupNotices event (shape event (by simp)),
           ih (fun next member => shape next (List.mem_cons_of_mem _ member))]
   calc
-    _ = (publisher.normalizeBatch events).2.flatMap groupNoticeKeys := by
+    _ = (publisher.normalizeBatch events).2.flatMap groupNoticeRefs := by
       exact expand _ (publisher.normalizeBatch_nonemptyValues events nonempty).2
     _ = _ := publisher.normalizeBatch_groupNotices events
 
@@ -166,16 +166,16 @@ private theorem State.sourceRunBlocks_groupNotices (queue : State)
 -- An accepted object settlement has a previously announced structural contributor
 -----------------------------------------------------------------------------------------
 
-/-- Group-only notice keys occur in the scheduler's combined group/stream notice list.
-Witness: each carrier appends its stream keys after its group keys.
+/-- Group-only notice refs occur in the scheduler's combined group/stream notice list.
+Witness: each carrier appends its stream refs after its group refs.
 -/
 private theorem groupNotices_subset_pending (events : List Execution.WorkQueueEvent)
-    : (events.flatMap groupNoticeKeys).Subset (pendingKeys events) := by
-  intro key member
+    : (events.flatMap groupNoticeRefs).Subset (pendingRefs events) := by
+  intro ref member
   obtain ⟨event, emitted, announced⟩ := List.mem_flatMap.mp member
   apply List.mem_flatMap.mpr
   refine ⟨event, emitted, ?_⟩
-  cases event <;> simp_all [groupNoticeKeys, eventPending, List.map_append]
+  cases event <;> simp_all [groupNoticeRefs, eventPending, List.map_append]
 
 /-- Every actual eligible object-failure cut has a previously announced contributing owner.
 Witness: recover the exact source prefix, use historical task-start ownership, and transport
@@ -198,9 +198,9 @@ theorem createWorkQueue_eligibleObjectFailureCuts_announcedOwner {work : Executi
         TaskHasOwners work occurrence owners
         ∧ owner ∈ owners
         ∧ owner
-          ∈ announcedKeys
+          ∈ announcedRefs
               ((queue.initialGroups ++ queue.initialStreams).map
-                Execution.DeliveryNode.key)
+                Execution.DeliveryNode.ref)
               (((queue.runNormalized batches).2.flatten.flatMap publicationAtoms).take
                 cut) := by
   let queue := State.initialize (Work.fromExecution work)
@@ -235,13 +235,13 @@ theorem createWorkQueue_announcedFailureInventory_exists {work : Execution.Work}
     : let queue := State.initialize (Work.fromExecution work)
       let atoms := (queue.runNormalized batches).2.flatten.flatMap publicationAtoms
       let initial :=
-        (queue.initialGroups ++ queue.initialStreams).map Execution.DeliveryNode.key
+        (queue.initialGroups ++ queue.initialStreams).map Execution.DeliveryNode.ref
       ∃ failures : FailureCuts,
         CompleteFailureInventory work atoms failures
         ∧ ∀ entry ∈ failures,
             ∃ owners,
               TaskHasOwners work entry.2 owners
-              ∧ ∃ key ∈ owners, key ∈ announcedKeys initial (atoms.take entry.1) := by
+              ∧ ∃ ref ∈ owners, ref ∈ announcedRefs initial (atoms.take entry.1) := by
   dsimp only
   let queue := State.initialize (Work.fromExecution work)
   let publisher : IncrementalPublisher :=
@@ -259,12 +259,12 @@ theorem createWorkQueue_announcedFailureInventory_exists {work : Execution.Work}
   intro entry member
   rcases List.mem_append.mp ((mergeFailureCuts_partition objects streams).mem_iff.mp member)
       with fromStream | fromObject
-  · obtain ⟨key, owners, opened⟩ := (supported entry fromStream).2.2
-    exact ⟨[key], owners, key, List.mem_cons_self, opened.1⟩
+  · obtain ⟨ref, owners, opened⟩ := (supported entry fromStream).2.2
+    exact ⟨[ref], owners, ref, List.mem_cons_self, opened.1⟩
   · obtain ⟨before, after, split⟩ := List.mem_iff_append.mp fromObject
-    obtain ⟨owners, key, structural, contributes, announced⟩ :=
+    obtain ⟨owners, ref, structural, contributes, announced⟩ :=
       createWorkQueue_eligibleObjectFailureCuts_announcedOwner valid started split
-    exact ⟨owners, structural, key, contributes, announced⟩
+    exact ⟨owners, structural, ref, contributes, announced⟩
 
 /-- A complete, announced mixed inventory needs only earlier-cancellation exclusion.
 Witness: project the general complete-inventory equivalence after discharging notices;
@@ -277,7 +277,7 @@ theorem CompleteFailureInventory.failureWitness_iff_uncancelled
       : ∀ entry ∈ failures,
           ∃ owners,
             TaskHasOwners work entry.2 owners
-            ∧ ∃ key ∈ owners, key ∈ announcedKeys initial (events.take entry.1))
+            ∧ ∃ ref ∈ owners, ref ∈ announcedRefs initial (events.take entry.1))
     : FailureWitness work initial matching events failures
       ↔ ∀ before cut occurrence after,
           failures = before ++ (cut, occurrence) :: after

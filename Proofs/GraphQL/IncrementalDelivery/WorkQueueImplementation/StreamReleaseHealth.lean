@@ -13,9 +13,9 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 /-- Every later source handler preserves a previously retired group.
 Witness: induction through the actual state fold using per-handler retirement preservation.
 -/
-theorem State.RetiredGroup.replayGraphEvents {queue : State} {key}
-    (retired : queue.RetiredGroup key) (received : List GraphEvent)
-    : (queue.replayGraphEvents received).RetiredGroup key := by
+theorem State.RetiredGroup.replayGraphEvents {queue : State} {ref}
+    (retired : queue.RetiredGroup ref) (received : List GraphEvent)
+    : (queue.replayGraphEvents received).RetiredGroup ref := by
   induction received generalizing queue with
   | nil => exact retired
   | cons event rest ih => exact ih (retired.handleGraphEvent event)
@@ -35,9 +35,9 @@ theorem ExecutedWork.replayGraphEvents_retiredGroupHealthy_after_prefix
     (retired
       : ((State.initialize (Work.fromExecution work)).replayGraphEvents
           before).RetiredGroup
-          node.key)
+          node.ref)
     (uncancelled
-      : node.key
+      : node.ref
         ∉ ((State.initialize (Work.fromExecution work)).replayGraphEvents
             before).cancelledGroups)
     (failedPayloads
@@ -57,7 +57,7 @@ theorem ExecutedWork.replayGraphEvents_retiredGroupHealthy_after_prefix
       : ∀ source index,
           Occurrence.item source index ∈ received.flatMap GraphEvent.successes
           → ¬TaskCancelled work matching events failures (.item source index))
-    : ¬NodeFailed work matching events failures node.key := by
+    : ¬NodeFailed work matching events failures node.ref := by
   have priorStarted : (State.initialize (Work.fromExecution work)).acceptsBatch before = true := by
     obtain ⟨after, same⟩ := earlier
     exact State.acceptsBatch_prefix (same ▸ started)
@@ -66,7 +66,7 @@ theorem ExecutedWork.replayGraphEvents_retiredGroupHealthy_after_prefix
     priorStarted).1 node dependencies record retired uncancelled
   have durable := generated.retiredRecord_health_stable valid started record earlier retired prior
   have later : ((State.initialize (Work.fromExecution work)).replayGraphEvents
-      received).RetiredGroup node.key := by
+      received).RetiredGroup node.ref := by
     obtain ⟨after, same⟩ := earlier
     rw [← same, State.replayGraphEvents, List.foldl_append]
     exact retired.replayGraphEvents after
@@ -87,18 +87,18 @@ supplies its historical health and the mixed stream bridge discharges both guard
 The earlier boundary may precede arbitrary further matched, started source events.
 -/
 theorem ExecutedWork.replayGraphEvents_objectStreamHealthy_after_retirement
-    {work received before matching events failures stream dependencies source key}
+    {work received before matching events failures stream dependencies source ref}
     (generated : ExecutedWork work) (valid : ValidGraphEvents work received)
     (started : (State.initialize (Work.fromExecution work)).acceptsBatch received = true)
     (known : NodeAt work stream .stream dependencies (some (.executionGroup source)))
     (settled : Occurrence.executionGroup source ∈ received.flatMap GraphEvent.successes)
-    (member : key ∈ dependencies) (earlier : before.IsPrefix received)
+    (member : ref ∈ dependencies) (earlier : before.IsPrefix received)
     (retired
       : ((State.initialize (Work.fromExecution work)).replayGraphEvents
           before).RetiredGroup
-          key)
+          ref)
     (uncancelled
-      : key
+      : ref
         ∉ ((State.initialize (Work.fromExecution work)).replayGraphEvents
             before).cancelledGroups)
     (failedPayloads
@@ -121,10 +121,10 @@ theorem ExecutedWork.replayGraphEvents_objectStreamHealthy_after_retirement
     (contributors
       : ∀ occurrence owners,
           TaskHasOwners work occurrence owners
-          → stream.key ∈ owners
+          → stream.ref ∈ owners
           → occurrence ∉ failedBefore failures events.length)
     : ¬TaskCancelled work matching events failures (.executionGroup source)
-      ∧ ¬NodeFailed work matching events failures stream.key := by
+      ∧ ¬NodeFailed work matching events failures stream.ref := by
   obtain ⟨ancestor, path, result, producer⟩ := NodeAt.stream_objectProducer_owners known
   obtain ⟨group, groupDependencies, descriptor, same⟩ :=
     TaskAt.executionGroup_owner producer member

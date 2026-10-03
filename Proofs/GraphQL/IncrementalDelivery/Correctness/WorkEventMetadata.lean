@@ -120,10 +120,10 @@ theorem history_node_paths {paths bound work history}
     (coherent : MixedOwnerPaths.WorkAt paths bound work)
     (admitted : AdmissiblePrefix work history ∨ AdmissibleRun work history)
     : (∀ node ∈ history.initialGroups ++ history.initialStreams,
-        paths node.key = node.path)
+        paths node.ref = node.path)
       ∧ ∀ node ∈ history.batches.flatten.flatMap eventNodes,
-          paths node.key = node.path := by
-  have fromKnown {node} (known : KnownNode work node) : paths node.key = node.path := by
+          paths node.ref = node.path := by
+  have fromKnown {node} (known : KnownNode work node) : paths node.ref = node.path := by
     obtain ⟨kind, dependencies, producer, known⟩ := known
     exact (workAt_node coherent known).2
   rcases admitted with ⟨events, matching, failures, explained, grouped⟩

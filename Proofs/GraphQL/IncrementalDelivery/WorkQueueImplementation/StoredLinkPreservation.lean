@@ -8,7 +8,7 @@ open GraphQL.IncrementalDelivery.Execution (StreamItemValue WorkQueueEvent)
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
 -----------------------------------------------------------------------------------------
--- Registration protects old contributor keys, even when their records have retired
+-- Registration protects old contributor refs, even when their records have retired
 -----------------------------------------------------------------------------------------
 
 /-- Installing a value preserves buffered links when its task already has those links.
@@ -20,7 +20,7 @@ theorem State.StoredTaskLinks.putTaskNode {queue : State} (linked : queue.Stored
     (allowed
       : updated.value.isSome = true
         → queue.TaskLinkedOn updated.task.occurrence
-            (updated.task.groups.map Execution.DeliveryNode.key))
+            (updated.task.groups.map Execution.DeliveryNode.ref))
     : (queue.putTaskNode updated).StoredTaskLinks := by
   intro node member stored
   obtain ⟨old, oldMember, same⟩ := List.mem_map.mp member
@@ -31,24 +31,24 @@ theorem State.StoredTaskLinks.putTaskNode {queue : State} (linked : queue.Stored
     exact linked old oldMember stored
 
 /-- Counter/cache updates preserve buffered links when the selected memberships stay fixed.
-Witness: the unique-key replacement theorem for each stored task's links.
+Witness: the unique-ref replacement theorem for each stored task's links.
 -/
 theorem State.StoredTaskLinks.putGroupNodeSameTasks {queue : State}
-    (linked : queue.StoredTaskLinks) (unique : queue.GroupKeysUnique)
+    (linked : queue.StoredTaskLinks) (unique : queue.GroupRefsUnique)
     (node : GroupNode) (member : node ∈ queue.groupNodes)
-    (updated : GroupNode) (sameKey : updated.group.node.key = node.group.node.key)
+    (updated : GroupNode) (sameRef : updated.group.node.ref = node.group.node.ref)
     (sameTasks : updated.tasks = node.tasks)
     : (queue.putGroupNode updated).StoredTaskLinks := by
   intro task present stored
   exact (linked task present stored).putGroupNodeSameTasks unique node member updated
-    sameKey sameTasks
+    sameRef sameTasks
 
 /-- Group registration cannot recreate an absent contributor of a buffered task.
 Witness: started-task registration and permanent contributor coverage protect every old
-key; the group-registration operation leaves the stored task map unchanged.
+ref; the group-registration operation leaves the stored task map unchanged.
 -/
 theorem State.StoredTaskLinks.addGroups {queue : State} (linked : queue.StoredTaskLinks)
-    (unique : queue.GroupKeysUnique) (registered : queue.TaskGroupsRegistered)
+    (unique : queue.GroupRefsUnique) (registered : queue.TaskGroupsRegistered)
     (started : queue.StartedTasksRegistered) (groups : List Group)
     : (queue.addGroups groups).1.StoredTaskLinks := by
   intro node member stored
@@ -60,7 +60,7 @@ theorem State.StoredTaskLinks.addGroups {queue : State} (linked : queue.StoredTa
 Witness: old-or-new node inversion and per-task preservation of existing links.
 -/
 theorem State.StoredTaskLinks.addTask {queue : State} (linked : queue.StoredTaskLinks)
-    (unique : queue.GroupKeysUnique) (task : Task)
+    (unique : queue.GroupRefsUnique) (task : Task)
     : (queue.addTask task).StoredTaskLinks := by
   intro node member stored
   rcases queue.addTask_startedOldOrNew task member with old | new
@@ -69,7 +69,7 @@ theorem State.StoredTaskLinks.addTask {queue : State} (linked : queue.StoredTask
     cases stored
 
 /-- Child-stream registration changes neither the producer's task nor its buffered value.
-Witness: only child-stream keys are appended to the selected task node.
+Witness: only child-stream refs are appended to the selected task node.
 -/
 theorem State.StoredTaskLinks.addStreams {queue : State} (linked : queue.StoredTaskLinks)
     (streams : List Stream) (producer : Option Occurrence)
@@ -89,16 +89,16 @@ Witness: protected group registration, empty-node task integration, and child-st
 Permanent registry coverage, not live-owner existence, protects earlier contributors.
 -/
 theorem State.StoredTaskLinks.maybeIntegrateWork {queue : State}
-    (linked : queue.StoredTaskLinks) (unique : queue.GroupKeysUnique)
+    (linked : queue.StoredTaskLinks) (unique : queue.GroupRefsUnique)
     (registered : queue.TaskGroupsRegistered) (started : queue.StartedTasksRegistered)
     (work : Work) (producer : Option Occurrence := none)
     : (queue.maybeIntegrateWork work producer).1.StoredTaskLinks := by
   have loop (tasks : List Task) (current : State) (prior : current.StoredTaskLinks)
-      (keys : current.GroupKeysUnique)
+      (refs : current.GroupRefsUnique)
       : (tasks.foldl State.addTask current).StoredTaskLinks := by
     induction tasks generalizing current with
     | nil => exact prior
-    | cons task rest ih => exact ih _ (prior.addTask keys task) (keys.addTask task)
+    | cons task rest ih => exact ih _ (prior.addTask refs task) (refs.addTask task)
   exact (loop work.tasks _ (linked.addGroups unique registered started work.groups)
     (unique.addGroups work.groups)).addStreams work.streams producer
 
@@ -107,11 +107,11 @@ theorem State.StoredTaskLinks.maybeIntegrateWork {queue : State}
 -----------------------------------------------------------------------------------------
 
 /-- The actual single-pass success fold preserves buffered memberships.
-Witness: retain unique group keys alongside links across counter updates and complete
+Witness: retain unique group refs alongside links across counter updates and complete
 flushes. This invariant needs no successful-settlement count or owner-health premise.
 -/
 theorem State.StoredTaskLinks.successGroupFold {queue : State}
-    (linked : queue.StoredTaskLinks) (unique : queue.GroupKeysUnique)
+    (linked : queue.StoredTaskLinks) (unique : queue.GroupRefsUnique)
     (groups : List Execution.DeliveryNode) (events : List WorkQueueEvent)
     (released : NewWork)
     : (groups.foldl successGroupStep (queue, events, released)).1.StoredTaskLinks := by
@@ -148,12 +148,12 @@ theorem State.StoredTaskLinks.taskSuccess_release {queue : State} {work settled}
     (fun _ => taskLinks)
   have started := accounted.started.putTaskNode
     { node with value := some result.value } registered
-  have integrated := installed.maybeIntegrateWork accounted.keys accounted.taskGroups
+  have integrated := installed.maybeIntegrateWork accounted.refs accounted.taskGroups
     started result.work (some occurrence)
-  have keys : (queue.putTaskNode { node with value := some result.value }).GroupKeysUnique :=
-    accounted.keys
+  have refs : (queue.putTaskNode { node with value := some result.value }).GroupRefsUnique :=
+    accounted.refs
   have flushed := integrated.successGroupFold
-    (keys.maybeIntegrateWork result.work (some occurrence)) node.task.groups [] {}
+    (refs.maybeIntegrateWork result.work (some occurrence)) node.task.groups [] {}
   exact flushed.startNewWork _
 
 /-- Fresh successful settlement preserves buffered links through its full handler.
@@ -182,15 +182,15 @@ Witness: removal drops the failed occurrence; each owner either retires or keeps
 memberships while accumulating a cached error. This also covers ignored late failures.
 -/
 theorem State.StoredTaskLinks.taskFailure {queue : State} (linked : queue.StoredTaskLinks)
-    (unique : queue.GroupKeysUnique) (occurrence : Occurrence) (errors : Nat)
+    (unique : queue.GroupRefsUnique) (occurrence : Occurrence) (errors : Nat)
     : (queue.taskFailure occurrence errors).1.StoredTaskLinks := by
   let step (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode)
       : State × List WorkQueueEvent :=
-    match acc.1.groupNode? group.key with
+    match acc.1.groupNode? group.ref with
     | none => acc
     | some node =>
-        if acc.1.rootGroups.contains group.key then
-          (acc.1.removeGroup node.group.node.key,
+        if acc.1.rootGroups.contains group.ref then
+          (acc.1.removeGroup node.group.node.ref,
             acc.2 ++ [.groupFailure node.group.node errors])
         else
           (acc.1.putGroupNode
@@ -198,7 +198,7 @@ theorem State.StoredTaskLinks.taskFailure {queue : State} (linked : queue.Stored
               pending := node.pending - 1
               failure := some (node.failure.getD 0 + errors) }, acc.2)
   have loop (groups : List Execution.DeliveryNode) (acc : State × List WorkQueueEvent)
-      (prior : acc.1.StoredTaskLinks) (keys : acc.1.GroupKeysUnique)
+      (prior : acc.1.StoredTaskLinks) (refs : acc.1.GroupRefsUnique)
       : (groups.foldl step acc).1.StoredTaskLinks := by
     induction groups generalizing acc with
     | nil => exact prior
@@ -210,14 +210,14 @@ theorem State.StoredTaskLinks.taskFailure {queue : State} (linked : queue.Stored
           · rename_i node found
             split
             · exact prior.removeGroup _
-            · exact prior.putGroupNodeSameTasks keys node (List.mem_of_find?_eq_some found)
+            · exact prior.putGroupNodeSameTasks refs node (List.mem_of_find?_eq_some found)
                 _ rfl rfl
         · unfold step
           split
-          · exact keys
+          · exact refs
           · split
-            · exact keys.removeGroup _
-            · exact keys.putGroupNode _
+            · exact refs.removeGroup _
+            · exact refs.putGroupNode _
   unfold State.taskFailure
   split
   · exact linked
@@ -226,19 +226,19 @@ theorem State.StoredTaskLinks.taskFailure {queue : State} (linked : queue.Stored
     · exact loop _ _ (linked.removeTask occurrence) (unique.removeTask occurrence)
 
 /-- Sequential stream-item integration preserves buffered object memberships.
-Witness: carry permanent registration and unique keys through each actual integration
+Witness: carry permanent registration and unique refs through each actual integration
 state; pruning, activation, and the final drain preserve the buffered-only links.
 -/
 theorem State.StoredTaskLinks.streamItems {queue : State}
-    (linked : queue.StoredTaskLinks) (unique : queue.GroupKeysUnique)
+    (linked : queue.StoredTaskLinks) (unique : queue.GroupRefsUnique)
     (live : queue.LiveGroupsRegistered) (covered : queue.TaskGroupsRegistered)
     (started : queue.StartedTasksRegistered) (stream : Execution.DeliveryNode)
     (items : List StreamItem)
     (allCovered
       : ∀ item ∈ items,
         ∀ task ∈ item.work.tasks,
-        ∀ key ∈ task.groups.map Execution.DeliveryNode.key,
-          ∃ group ∈ item.work.groups, group.node.key = key)
+        ∀ ref ∈ task.groups.map Execution.DeliveryNode.ref,
+          ∃ group ∈ item.work.groups, group.node.ref = ref)
     : (queue.streamItems stream items).1.StoredTaskLinks := by
   let step (acc : State × List Execution.DeliveryNode
       × List Execution.DeliveryNode × List StreamItemValue) (item : StreamItem) :=
@@ -248,13 +248,13 @@ theorem State.StoredTaskLinks.streamItems {queue : State}
     (pruned.startNewWork { newWork with newGroups := nonempty },
       groups ++ nonempty, streams ++ newWork.newStreams, values ++ [item.value])
   let invariant (current : State) :=
-    current.StoredTaskLinks ∧ current.GroupKeysUnique ∧ current.LiveGroupsRegistered
+    current.StoredTaskLinks ∧ current.GroupRefsUnique ∧ current.LiveGroupsRegistered
       ∧ current.TaskGroupsRegistered ∧ current.StartedTasksRegistered
   have preserve (acc) (item : StreamItem) (member : item ∈ items)
       (prior : invariant acc.1) : invariant (step acc item).1 := by
     obtain ⟨current, groups, streams, values⟩ := acc
     have links := prior.1.maybeIntegrateWork prior.2.1 prior.2.2.2.1 prior.2.2.2.2 item.work
-    have keys := prior.2.1.maybeIntegrateWork item.work none
+    have refs := prior.2.1.maybeIntegrateWork item.work none
     have registration := current.maybeIntegrateWork_registration prior.2.2.1 prior.2.2.2.1
       item.work (allCovered item member)
     have pruned := State.pruneEmptyGroups_registration registration.1 registration.2.1
@@ -265,7 +265,7 @@ theorem State.StoredTaskLinks.streamItems {queue : State}
           (current.maybeIntegrateWork item.work).2.newGroups).2 }
     have registered := prior.2.2.2.2.maybeIntegrateWork item.work none
     exact ⟨(links.pruneEmptyGroups _).startNewWork _,
-      (keys.pruneEmptyGroups _).startNewWork _, activated.1, activated.2,
+      (refs.pruneEmptyGroups _).startNewWork _, activated.1, activated.2,
       (registered.pruneEmptyGroups _).startNewWork _⟩
   have loop (more : List StreamItem) (included : more.Subset items) (acc)
       (prior : invariant acc.1) : invariant (more.foldl step acc).1 := by
@@ -299,9 +299,9 @@ theorem State.StoredTaskLinks.handleGraphEvent {queue : State} {work settled bef
         (fun member =>
           fresh.2.2.1 occurrence (by simp [GraphEvent.identities]) (included member))
   | taskFailure occurrence errors =>
-      exact linked.taskFailure accounted.keys occurrence errors
+      exact linked.taskFailure accounted.refs occurrence errors
   | streamItems stream items =>
-      exact linked.streamItems accounted.keys accounted.liveGroups accounted.taskGroups
+      exact linked.streamItems accounted.refs accounted.liveGroups accounted.taskGroups
         accounted.started stream items
         (fun _ member => matching.streamItem_childTasksCovered member)
   | streamSuccess stream =>

@@ -19,13 +19,13 @@ theorem ExecutedWork.rawEventReplay_announcedAncestorsRetired
     {work : Execution.Work} (generated : ExecutedWork work) (events : List GraphEvent)
     (matching : ∀ event ∈ events, event.MatchesWork work)
     : let initial := State.initialize (Work.fromExecution work)
-      ∀ key ∈
+      ∀ ref ∈
         initial.rootGroups
-        ++ (initial.rawEventReplay events).2.flatMap rawGroupNoticeKeys,
-        (initial.replayGraphEvents events).AncestorsRetired work key := by
-  intro initial key announced
+        ++ (initial.rawEventReplay events).2.flatMap rawGroupNoticeRefs,
+        (initial.replayGraphEvents events).AncestorsRetired work ref := by
+  intro initial ref announced
   rcases List.mem_append.mp announced with root | pending
-  · exact (generated.initialRootAncestorsRetired key root).mono
+  · exact (generated.initialRootAncestorsRetired ref root).mono
       (fun _ retired => retired.replayGraphEvents events)
   · obtain ⟨output, member, noticed⟩ := List.mem_flatMap.mp pending
     obtain ⟨index, selected⟩ := List.mem_iff_getElem?.mp member
@@ -40,9 +40,9 @@ theorem ExecutedWork.rawEventReplay_announcedAncestorsRetired
       apply matching
       rw [same]
       exact List.mem_append_left _ included
-    have protectedKey := generated.replayGraphEvents_next_noticeAncestorsRetired prior matched
-      key (List.mem_flatMap.mpr ⟨output, List.mem_of_getElem? carrier, noticed⟩)
-    have later := protectedKey.mono (fun _ retired => retired.replayGraphEvents after)
+    have protectedRef := generated.replayGraphEvents_next_noticeAncestorsRetired prior matched
+      ref (List.mem_flatMap.mpr ⟨output, List.mem_of_getElem? carrier, noticed⟩)
+    have later := protectedRef.mono (fun _ retired => retired.replayGraphEvents after)
     simpa only [same, State.replayGraphEvents, List.foldl_append, List.foldl_cons,
       List.foldl_nil] using later
 
@@ -51,53 +51,53 @@ theorem ExecutedWork.rawEventReplay_announcedAncestorsRetired
 -----------------------------------------------------------------------------------------
 
 /-- A successful flush cannot release a child whose task-bearing ancestors already retired.
-Witness: the actual release path makes the supported closing key an ancestor or the child
+Witness: the actual release path makes the supported closing ref an ancestor or the child
 itself. The first case contradicts its live lookup; the second contradicts its removal.
 Taskless intermediate records are allowed, and the child need not still be an active root.
 -/
 theorem State.AncestorsRetired.not_released
     {queue : State} {work parents child}
-    (protectedKey : queue.AncestorsRetired work child.key)
-    (generated : ExecutedWork work) (keys : queue.GroupKeysUnique)
+    (protectedRef : queue.AncestorsRetired work child.ref)
+    (generated : ExecutedWork work) (refs : queue.GroupRefsUnique)
     (records : queue.GroupNodesMatchWork work) (links : queue.ChildLinksCanonical parents)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (registered : queue.LiveGroupsRegistered)
-    {group : GroupNode} (found : queue.groupNode? group.group.node.key = some group)
+    {group : GroupNode} (found : queue.groupNode? group.group.node.ref = some group)
     {occurrence owners} (task : TaskHasOwners work occurrence owners)
-    (contributes : group.group.node.key ∈ owners)
+    (contributes : group.group.node.ref ∈ owners)
     : child ∉ (queue.finishGroupSuccess group).2.2.newGroups := by
   intro noticed
   have path := State.finishGroupSuccess_released_descendant found noticed
-  have same := protectedKey.supported_path_eq generated records links canonical path
+  have same := protectedRef.supported_path_eq generated records links canonical path
     task contributes
-  have present := State.finishGroupSuccess_newGroupsPresent keys group child.key
+  have present := State.finishGroupSuccess_newGroupsPresent refs group child.ref
     (List.mem_map_of_mem noticed)
   have retired := queue.finishGroupSuccess_retires group
     (registered group (List.mem_of_find?_eq_some found))
   exact retired.2 (same ▸ present)
 
-/-- A supported successful flush emits no previously protected group key.
+/-- A supported successful flush emits no previously protected group ref.
 Witness: the output's notice list is precisely its release frontier; every descriptor
 in that frontier contradicts the protected-child path theorem at the same queue boundary.
 -/
 theorem LiveRootFrame.finishGroupSuccess_noProtectedNotice
-    {queue work parents key} (frame : LiveRootFrame queue work parents)
+    {queue work parents ref} (frame : LiveRootFrame queue work parents)
     (generated : ExecutedWork work)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
-    {group : GroupNode} (found : queue.groupNode? group.group.node.key = some group)
-    (active : group.group.node.key ∈ queue.rootGroups)
-    (protectedKey : queue.AncestorsRetired work key)
-    : key ∉ (queue.finishGroupSuccess group).2.1.flatMap rawGroupNoticeKeys := by
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
+    {group : GroupNode} (found : queue.groupNode? group.group.node.ref = some group)
+    (active : group.group.node.ref ∈ queue.rootGroups)
+    (protectedRef : queue.AncestorsRetired work ref)
+    : ref ∉ (queue.finishGroupSuccess group).2.1.flatMap rawGroupNoticeRefs := by
   intro member
   rw [← State.finishGroupSuccess_groupNotices] at member
-  obtain ⟨child, noticed, sameKey⟩ := List.mem_map.mp member
+  obtain ⟨child, noticed, sameRef⟩ := List.mem_map.mp member
   obtain ⟨dependencies, owner, producer, known, sameOwner⟩ := frame.support.roots _ active
   obtain ⟨occurrence, owners, payload, task, contributes⟩ := known.group_task
-  exact (sameKey ▸ protectedKey).not_released generated frame.keys frame.records frame.links
+  exact (sameRef ▸ protectedRef).not_released generated frame.refs frame.records frame.links
     canonical frame.registered found ⟨producer, payload, task⟩
     (sameOwner ▸ contributes) noticed
 

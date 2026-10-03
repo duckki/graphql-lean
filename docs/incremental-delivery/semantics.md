@@ -46,7 +46,7 @@ Important distinctions:
 - Defer IDs are not tasks: one shared object-result occurrence may have several owners.
 - A failed task can affect cancellation before its failure notification is observed.
 - A work-event batch and a response-event batch are different aggregation layers.
-- Work keys are not wire IDs. Only response mapping allocates the latter.
+- Work references are not wire IDs. Only response mapping allocates the latter.
 - A raw queue's triggering group is not necessarily the effective publication owner.
   The contract applies after owner normalization; see the checked
   [shared-owner adapter](implementation.md#shared-publication-owners).
@@ -166,10 +166,11 @@ is not claimed.
 
 `Occurrence.executionGroup address` identifies an execution-group task occurrence.
 `Occurrence.item address index` identifies one stream item. Addresses describe
-navigation through `Work`, not response paths or allocated queue keys.
+navigation through `Work`, not response paths or allocated queue references.
 
-`Address` and `Keys` are transparent abbreviations for `List Nat`, distinguishing
-structural routes from delivery-node key lists in signatures, not enforcing new types.
+`Address := List Nat` describes structural routes; `NodeRefs := List NodeRef` describes
+delivery-node reference lists. `NodeRef := Nat` represents stable object identity, not a
+wire ID. These transparent abbreviations document roles without enforcing new types.
 `PublicationMatching` and `FailureCuts` similarly name the two witness types.
 
 The module's banners provide an event-oriented reading order:
@@ -211,7 +212,7 @@ not depend on failures, observations, or the mutual cancellation rules.
 `NodeHasProducer`. Owner selection and announcements still retain full node metadata.
 
 All repeated metadata occurrences are inspected structurally. Raw work may contain
-inconsistent descriptors; execution-generated key coherence is a derived invariant, not
+inconsistent descriptors; execution-generated reference coherence is a derived invariant, not
 a restriction on the raw syntax.
 
 ### 3. Successful publication is matched to work
@@ -239,7 +240,7 @@ conformance are proved with this distinction; see
 `NodeAccounted` requires this for every task contributing to a node. Neither predicate
 means that the node's completion notice has already been emitted.
 
-Announcements and closed keys are projections of outputs, not stored progress
+Announcements and closed references are projections of outputs, not stored progress
 fields. Each `EventAllowed` clause checks an atom against its preceding output
 prefix. Carrier publication/closure is visible to notices released by that
 same event, without making those notices visible before their own release.
@@ -289,7 +290,7 @@ introduce additional invariants. The failure and cancellation rules remain mutua
 inductive to enforce least causal closure, rather than permit circular explanations.
 A producer cancels its unpublished child either by failing or by being cancelled itself;
 there is no separate `ProducerUnavailable` judgment in the public model. For node failure,
-every producer occurrence with that node key must be unpublished and either failed
+every producer occurrence with that node reference must be unpublished and either failed
 or cancelled, and no root occurrence may exist. This preserves the handling of
 repeated metadata in raw work. The Lean premise requires every nonfailed producer
 to be cancelled; it is equivalent to the disjunction but avoids nesting a recursive
@@ -355,8 +356,8 @@ of every admitted prefix, or refinement of the actual GraphQL.js implementation.
 
 `EventAllowed.accounting`, `Explains.noticeFacts`, and `Explains.allCompleted` derive
 notice freshness, open references, and terminal closure from output admission.
-`AdmissiblePrefix.uniqueKeys`, `AdmissibleRun.liveKeys`, and
-`keysCompleteExactlyOnce` retain those facts across every permitted grouping.
+`AdmissiblePrefix.uniqueRefs`, `AdmissibleRun.liveRefs`, and
+`refsCompleteExactlyOnce` retain those facts across every permitted grouping.
 Causal failure proofs require actual bounded failure evidence; generated-work error
 positivity and error conservation rule out silently cancelled successful-looking runs.
 
@@ -383,15 +384,15 @@ The progress proof uses these checked facts:
 - `Initialization` and `NoticeFrontiers` provide valid covering initial notices.
 - `GroupAccounting` gives a published contributor to every healthy accounted defer
   group; it does not require cancellation of each task to fail all its owners.
-- `MixedNoticeMetadata` supplies key roles and producer/ancestor support.
+- `MixedNoticeMetadata` supplies reference roles and producer/ancestor support.
   `MixedNoticeCoverage` transports full dependencies backwards, and
   `MixedNoticeExtension` preserves coverage across non-carrier changes.
 - `MixedProgressEvents` applies preservation to actual object publications, justified
   failures, and stream-success completions. Covering group-success and stream-item
   carriers supply the witness directly.
 - `FiniteHistories` supplies a maximal finite history preserving that witness.
-  `LeastKeyProgress` finds a ready task at a least healthy outstanding owner.
-  In a maximal supported history, smaller accounted healthy keys can complete,
+  `LeastRefProgress` finds a ready task at a least healthy outstanding owner.
+  In a maximal supported history, smaller accounted healthy references can complete,
   and that least owner must already be announced. Its task could then take another
   permitted step, contradicting maximality.
 - `CompletionExistence` finalizes the resulting task-accounted history.
@@ -464,7 +465,7 @@ preserving the supplied initial notices, events, and batch boundaries. Existing 
 and failure-cut evidence is existential: the theorem preserves observations, not the
 identity of an implementation's private explanation.
 
-The premises are the existing generated-work ancestry, key-role, continuity,
+The premises are the existing generated-work ancestry, reference-role, continuity,
 stream-owner-order, and path-coherence certificates, plus supported notice coverage at
 the supplied prefix. `mixed_completeRun_exists` establishes covering initialization and
 invokes this continuation theorem.
@@ -523,7 +524,7 @@ proves two conservative local diamonds:
   Both extensions are explained and account for exactly the same task occurrences.
   The owners may coincide; new matching indices track the exchanged publications.
 - `Explains.group_closures_commute`: two already enabled healthy group closures with
-  different keys and no new notices can occur in either order. Completed-key membership
+  different references and no new notices can occur in either order. Completed-reference membership
   agrees. Neither step introduces failures or announces nodes; other nodes may become
   eligible after the closures.
 

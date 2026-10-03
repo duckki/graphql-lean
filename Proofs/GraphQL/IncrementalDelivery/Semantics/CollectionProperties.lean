@@ -18,9 +18,9 @@ theorem groupsSatisfy_add (property : FieldDetails → Prop)
   | cons head rest ih =>
       have hh := hs head (by simp)
       have ht : GroupsSatisfy property rest := fun g h => hs g (by simp [h])
-      rcases group with ⟨key, fields⟩
+      rcases group with ⟨ref, fields⟩
       rcases head with ⟨name, existing⟩
-      by_cases h : name == key
+      by_cases h : name == ref
       · simp only [CollectedFieldsMap.addFieldSet, h, ↓reduceIte]
         intro candidate hc field hf
         simp only [List.mem_cons] at hc
@@ -42,8 +42,8 @@ theorem groupsSatisfy_merge (property : FieldDetails → Prop)
         (groupsSatisfy_add property group left (hr group (by simp)) hl)
         (fun g h => hr g (by simp [h]))
 
-/-- Unlike RunMatches, this assertion permits the fresh-key supply to advance. -/
-def RunEnsures (property : α → Prop) (action : StateM Nat α) : Prop :=
+/-- Unlike RunMatches, this assertion permits the fresh-ref supply to advance. -/
+def RunEnsures (property : α → Prop) (action : StateM NodeRef α) : Prop :=
   ∀ state, property (action.run state).1
 
 theorem runEnsures_pure (property : α → Prop) (value : α) (h : property value)
@@ -51,7 +51,7 @@ theorem runEnsures_pure (property : α → Prop) (value : α) (h : property valu
   fun _ => h
 
 theorem runEnsures_bind (property : α → Prop) (target : β → Prop)
-    (action : StateM Nat α) (next : α → StateM Nat β)
+    (action : StateM NodeRef α) (next : α → StateM NodeRef β)
     (h : RunEnsures property action)
     (hn : ∀ value, property value → RunEnsures target (next value))
     : RunEnsures target (action >>= next) := by

@@ -139,7 +139,7 @@ theorem mixed_failureWitness_exists {work : Execution.Work}
     : ∃ w : Witness,
         w.events = (initialQueue work).nonterminalAtoms inputs
         ∧ BatchShape work inputs w
-        ∧ FailureWitness work (initialKeys work) w.matching w.events w.failures := by
+        ∧ FailureWitness work (initialRefs work) w.matching w.events w.failures := by
   obtain ⟨w, history, shape, announced, uncancelled⟩ :=
     mixed_failureCertificates generated valid started
   exact ⟨w, history, shape, failureWitness announced uncancelled⟩

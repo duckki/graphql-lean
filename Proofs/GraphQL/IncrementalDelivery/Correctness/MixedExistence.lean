@@ -14,7 +14,7 @@ open WorkQueueSemantics
 -- Least outstanding owners have full support, including stream-dependency ancestry
 -----------------------------------------------------------------------------------------
 
-/-- A least outstanding healthy owner is supported once smaller healthy keys satisfy
+/-- A least outstanding healthy owner is supported once smaller healthy refs satisfy
 dependencies. Witness: ordinary eligibility plus, for streams, the selected defer
 dependency's strict, healthy ancestry. This excludes merely early silent-accounting
 notices.
@@ -23,19 +23,19 @@ theorem least_owner_supported
     {ancestry bound work groups streams initial matching events failed occurrence owners
       producer payload node kind dependencies}
     (explained : Explains work groups streams events matching failed)
-    (valid : Valid ancestry bound) (coherent : MixedKeys.WorkAt ancestry 0 bound work)
+    (valid : Valid ancestry bound) (coherent : MixedRefs.WorkAt ancestry 0 bound work)
     (ordered : StreamOwnersOrdered work)
     (known : TaskAt work occurrence owners producer payload)
     (ready : CanPublish work matching events failed occurrence producer)
     (descriptor : NodeAt work node kind dependencies producer)
-    (member : node.key ∈ owners)
-    (healthy : ¬NodeFailed work matching events failed node.key)
-    (fresh : node.key ∉ announcedKeys initial events)
+    (member : node.ref ∈ owners)
+    (healthy : ¬NodeFailed work matching events failed node.ref)
+    (fresh : node.ref ∉ announcedRefs initial events)
     (smaller
-      : ∀ key,
-          key < node.key
-          → ¬NodeFailed work matching events failed key
-          → DependencySatisfied work initial matching events failed key)
+      : ∀ ref,
+          ref < node.ref
+          → ¬NodeFailed work matching events failed ref
+          → DependencySatisfied work initial matching events failed ref)
     : SupportedNotice ancestry work initial matching events failed node kind dependencies
         producer := by
   have eligible := least_owner_announceable explained valid coherent ordered known ready descriptor
@@ -43,17 +43,17 @@ theorem least_owner_supported
   refine ⟨eligible, healthy, ?_⟩
   intro stream
   subst kind
-  rcases eligible.2.2.2 with empty | ⟨key, contributes, dependency⟩
+  rcases eligible.2.2.2 with empty | ⟨ref, contributes, dependency⟩
   · exact Or.inl empty
   · obtain ⟨group, parents, birth, groupKnown, same⟩ :=
       stream_dependency_group descriptor contributes
-    refine Or.inr ⟨key, contributes, dependency, ?_⟩
+    refine Or.inr ⟨ref, contributes, dependency, ?_⟩
     intro ancestor included
     have full := DeferOnly.node_dependencies coherent groupKnown
     have dependencyMember : ancestor ∈ parents := by simpa only [full, same] using included
     apply smaller ancestor
     · have before := coherent_group_dependencies valid coherent groupKnown ancestor dependencyMember
-      have below := coherent_stream_dependencies ordered descriptor key contributes
+      have below := coherent_stream_dependencies ordered descriptor ref contributes
       simpa only [same] using Nat.lt_trans before (same ▸ below)
     · intro failed
       exact dependency.1 (same ▸ NodeFailed.groupDependency groupKnown dependencyMember failed)
@@ -70,13 +70,13 @@ step, contradicting maximality. Matching and failure evidence remain existential
 -/
 theorem mixed_supported_accounted_extension
     {ancestry bound roles paths pathBound work groups streams head matching failures}
-    (valid : Valid ancestry bound) (coherent : MixedKeys.WorkAt ancestry 0 bound work)
-    (roleCoherent : KeyRoles.WorkRoles roles work)
+    (valid : Valid ancestry bound) (coherent : MixedRefs.WorkAt ancestry 0 bound work)
+    (roleCoherent : RefRoles.WorkRoles roles work)
     (continuous : DeferContinuous ancestry work) (ordered : StreamOwnersOrdered work)
     (pathCoherent : MixedOwnerPaths.WorkAt paths pathBound work)
     (initial : Explains work groups streams head matching failures)
     (coverage
-      : SupportedNoticesCovered ancestry work ((groups ++ streams).map DeliveryNode.key)
+      : SupportedNoticesCovered ancestry work ((groups ++ streams).map DeliveryNode.ref)
           matching head failures)
     : ∃ tail next cuts,
         Explains work groups streams (head ++ tail) next cuts
@@ -87,19 +87,19 @@ theorem mixed_supported_accounted_extension
   obtain ⟨tail, matching, failures, explained, covered, maximal⟩ :=
     initial.maximal_extension_preserving
       (fun events matching failures => SupportedNoticesCovered ancestry work
-        ((groups ++ streams).map DeliveryNode.key) matching events failures)
+        ((groups ++ streams).map DeliveryNode.ref) matching events failures)
       coverage
   generalize joined : head ++ tail = events at explained covered maximal
-  have dependency {key}
-      (healthy : ¬NodeFailed work matching events failures key)
-      (accounted : NodeAccounted work matching events failures key)
-      : DependencySatisfied work ((groups ++ streams).map DeliveryNode.key) matching events
-          failures key := by
+  have dependency {ref}
+      (healthy : ¬NodeFailed work matching events failures ref)
+      (accounted : NodeAccounted work matching events failures ref)
+      : DependencySatisfied work ((groups ++ streams).map DeliveryNode.ref) matching events
+          failures ref := by
     refine ⟨healthy, ?_⟩
-    by_cases supported : ∃ birth, NodeHasProducer work key birth
+    by_cases supported : ∃ birth, NodeHasProducer work ref birth
     · by_cases announced :
-        key ∈ announcedKeys ((groups ++ streams).map DeliveryNode.key) events
-      · by_cases completed : key ∈ completedKeys events
+        ref ∈ announcedRefs ((groups ++ streams).map DeliveryNode.ref) events
+      · by_cases completed : ref ∈ completedRefs events
         · exact Or.inr (Or.inl completed)
         · obtain ⟨birth, node, kind, parents, descriptor, same⟩ := supported
           cases kind with
@@ -124,9 +124,9 @@ theorem mixed_supported_accounted_extension
     intro occurrence owners producer payload known
     apply Classical.byContradiction
     intro outstanding
-    obtain ⟨next, nextOwners, nextProducer, result, key, task, ready, member, healthy, least⟩ :=
+    obtain ⟨next, nextOwners, nextProducer, result, ref, task, ready, member, healthy, least⟩ :=
       least_ready_owner valid coherent continuous ordered explained known outstanding
-    have notified : key ∈ announcedKeys ((groups ++ streams).map DeliveryNode.key) events := by
+    have notified : ref ∈ announcedRefs ((groups ++ streams).map DeliveryNode.ref) events := by
       apply Classical.byContradiction
       intro fresh
       obtain ⟨node, kind, dependencies, descriptor, same⟩ := task.owner_at_producer member
@@ -138,7 +138,7 @@ theorem mixed_supported_accounted_extension
         supported
     obtain ⟨event, nextMatching, cuts, extended, retained⟩ :=
       extend_ready_supported valid coherent roleCoherent continuous ordered pathCoherent
-        explained covered task ready ⟨key, member, notified, healthy⟩
+        explained covered task ready ⟨ref, member, notified, healthy⟩
     have impossible := maximal [event] nextMatching cuts extended retained
     cases impossible
   exact ⟨tail, matching, failures, joined.symm ▸ explained, joined.symm ▸ accounted⟩
@@ -150,13 +150,13 @@ then use the existing finalization theorem. No scheduler policy or host fairness
 theorem mixed_supported_continuation
     {ancestry bound roles paths pathBound work groups streams events matching failures
       batches}
-    (valid : Valid ancestry bound) (coherent : MixedKeys.WorkAt ancestry 0 bound work)
-    (roleCoherent : KeyRoles.WorkRoles roles work)
+    (valid : Valid ancestry bound) (coherent : MixedRefs.WorkAt ancestry 0 bound work)
+    (roleCoherent : RefRoles.WorkRoles roles work)
     (continuous : DeferContinuous ancestry work) (ordered : StreamOwnersOrdered work)
     (pathCoherent : MixedOwnerPaths.WorkAt paths pathBound work)
     (explained : Explains work groups streams events matching failures)
     (covered
-      : SupportedNoticesCovered ancestry work ((groups ++ streams).map DeliveryNode.key)
+      : SupportedNoticesCovered ancestry work ((groups ++ streams).map DeliveryNode.ref)
           matching events failures)
     (batched : WorkBatching events batches)
     : (History.mk groups streams batches).CanFinish work := by
@@ -174,8 +174,8 @@ This does not assert completion of arbitrary admitted prefixes or host fairness.
 -/
 theorem mixed_completeRun_exists
     {ancestry bound roles paths pathBound work}
-    (valid : Valid ancestry bound) (coherent : MixedKeys.WorkAt ancestry 0 bound work)
-    (roleCoherent : KeyRoles.WorkRoles roles work)
+    (valid : Valid ancestry bound) (coherent : MixedRefs.WorkAt ancestry 0 bound work)
+    (roleCoherent : RefRoles.WorkRoles roles work)
     (continuous : DeferContinuous ancestry work) (ordered : StreamOwnersOrdered work)
     (pathCoherent : MixedOwnerPaths.WorkAt paths pathBound work)
     (nonempty : work.size ≠ 0)

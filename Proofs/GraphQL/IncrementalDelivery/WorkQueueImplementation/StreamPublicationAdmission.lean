@@ -19,20 +19,20 @@ def StreamPublicationReady (work : Execution.Work) (w : Witness) : Prop :=
     w.events[index]? = some (.streamValues stream values groups children)
     → ∃ value producer,
         values = [value]
-        ∧ TaskAt work (w.matching index) [stream.key] producer
+        ∧ TaskAt work (w.matching index) [stream.ref] producer
             (.item stream (.ok (value.item, value.errors)))
         ∧ CanPublish work w.matching (w.events.take index) w.failures (w.matching index)
             producer
-        ∧ PublicationOwner work (initialKeys work) w.matching (w.events.take index)
-            w.failures [stream.key] stream
+        ∧ PublicationOwner work (initialRefs work) w.matching (w.events.take index)
+            w.failures [stream.ref] stream
 
 /-- The canonical stream-readiness certificate has a healthy longest-path owner.
 Witness: the actual stream action is open and healthy; exact item provenance gives its
-sole owner. Existing key coherence identifies every competing descriptor with that same
+sole owner. Existing ref coherence identifies every competing descriptor with that same
 stream, so longest-path selection introduces no new choice or source assumption.
 -/
 theorem streamPublicationReady_of_certificates {work inputs w streams}
-    (generated : ExecutedWork work) (coherent : NodeKeyCoherent work)
+    (generated : ExecutedWork work) (coherent : NodeRefCoherent work)
     (valid : ValidGraphEvents work inputs.flatten)
     (started : inputsStarted work inputs = true)
     (history : w.events = (initialQueue work).nonterminalAtoms inputs)
@@ -65,7 +65,7 @@ theorem streamPublicationReady_of_certificates {work inputs w streams}
   have healthy := streamAction_healthy_of_successfulItems generated valid started history
     announced safe cuts exactCuts known selected rfl
       (by intros; intro impossible; cases impossible)
-  have active : OpenOwner work (initialKeys work) (w.events.take index) [stream.key]
+  have active : OpenOwner work (initialRefs work) (w.events.take index) [stream.ref]
       stream := ⟨⟨.stream, dependencies, producer, known⟩, List.mem_cons_self, opened⟩
   refine ⟨value, producer, singleton, task, canPublish,
     active, ⟨stream, active, healthy⟩, ?_⟩
@@ -88,9 +88,9 @@ frozen at the event start even though notices see the carrier publication.
 theorem streamValueAllowed_iff_announcements {work w index stream values groups children}
     (ready : StreamPublicationReady work w)
     (selected : w.events[index]? = some (.streamValues stream values groups children))
-    : EventAllowed work (initialKeys work) w.matching (w.events.take index) w.failures
+    : EventAllowed work (initialRefs work) w.matching (w.events.take index) w.failures
         (.streamValues stream values groups children)
-      ↔ Announcements work (initialKeys work) w.matching
+      ↔ Announcements work (initialRefs work) w.matching
           (w.events.take index ++ [.streamValues stream values [] []])
           (w.failures.filter (fun entry => entry.1 ≤ index)) groups children := by
   have length : (w.events.take index).length = index :=
@@ -102,7 +102,7 @@ theorem streamValueAllowed_iff_announcements {work w index stream values groups 
   · intro announcements
     obtain ⟨value, producer, singleton, task, canPublish, owner⟩ :=
       ready index stream values groups children selected
-    refine ⟨[stream.key], producer, value, singleton, task,
+    refine ⟨[stream.ref], producer, value, singleton, task,
       ?_, ?_, announcements⟩
     · exact (canPublish_filter (Nat.le_of_eq length)).mpr canPublish
     · exact (owner_filter (Nat.le_of_eq length)).mpr owner
@@ -114,7 +114,7 @@ The original event and history are unchanged; notices are not dropped from other
 theorem streamValueAllowed_without_notices {work w index stream values}
     (ready : StreamPublicationReady work w)
     (selected : w.events[index]? = some (.streamValues stream values [] []))
-    : EventAllowed work (initialKeys work) w.matching (w.events.take index) w.failures
+    : EventAllowed work (initialRefs work) w.matching (w.events.take index) w.failures
         (.streamValues stream values [] []) := by
   apply (streamValueAllowed_iff_announcements ready selected).mpr
   simp [Announcements]
@@ -141,7 +141,7 @@ theorem mixed_eventCertificates {work inputs}
     failureAdmission_of_announced generated valid history announced,
     streamSuccessAdmission_of_successfulItems generated valid started history announced
       accounted safe cuts exactCuts,
-    streamPublicationReady_of_certificates generated generated.nodeKeyCoherent valid started
+    streamPublicationReady_of_certificates generated generated.nodeRefCoherent valid started
       history announced
       ready safe cuts exactCuts⟩
 

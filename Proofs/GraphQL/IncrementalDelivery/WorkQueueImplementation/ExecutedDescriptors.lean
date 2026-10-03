@@ -1,6 +1,6 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.DescriptorMetadata
 
-/-! Pure execution allocates one complete descriptor per key, including ancestor
+/-! Pure execution allocates one complete descriptor per ref, including ancestor
   records. -/
 
 namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue.DescriptorMetadata
@@ -257,15 +257,15 @@ mutual
         · exact ⟨hle, middle, he, workAt_catchNull middle _ _ _ hw⟩
         · let mid := ((completeListValue schema resolvers variables fuel inner fields
             (values.take usage.initialCount) path 0 usages deferMap).run state).2
-          let node : DeliveryNode := {key := mid, path, label := usage.label}
+          let node : DeliveryNode := {ref := mid, path, label := usage.label}
           obtain ⟨hfresh, hnode⟩ := assigned_fresh middle mid node rfl
           obtain ⟨hlt, final, het, hitems⟩ := completeStreamItems_descriptors schema
             resolvers variables fuel
             inner (fields.map (fun field => {field with deferUsage := none}))
             (values.drop usage.initialCount) path usage.initialCount
-            (fun key => if key = mid then node else middle key) (mid + 1)
+            (fun ref => if ref = mid then node else middle ref) (mid + 1)
           dsimp only [mid] at hlt
-          simp only [freshExecutionKey, run_bind, StateT.run_get, StateT.run_set,
+          simp only [freshNodeRef, run_bind, StateT.run_get, StateT.run_set,
             StateT.run_pure, id_pure_eq]
           refine ⟨by omega, final, he.trans (hfresh.trans het (by omega)) hle, ?_⟩
           rw [WorkAt]
@@ -369,7 +369,7 @@ theorem executeRoot_descriptors (schema : Schema) (resolvers : Resolvers ObjectR
               selections).run
             state).1.work := by
   have hs := collectFields_supply schema variables parentType source selections none state
-  obtain ⟨assigned, _, hm⟩ := mapAt_new (fun key => ⟨key, [], none⟩) state _ [] [] _
+  obtain ⟨assigned, _, hm⟩ := mapAt_new (fun ref => ⟨ref, [], none⟩) state _ [] [] _
     (by simp [MapAt, mapNodes]) hs.1 hs.2
     (collectFields_labels schema variables parentType source selections none state)
   obtain ⟨_, nodes, _, hw⟩ := executePlan_descriptors schema resolvers variables fuel

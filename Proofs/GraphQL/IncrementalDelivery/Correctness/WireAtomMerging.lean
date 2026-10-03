@@ -18,15 +18,15 @@ theorem EntryPositionAtoms.apply {paths ids entry atoms notices}
     : ResponseMerging.applyPatch notices data entry = applyAtoms atoms data := by
   obtain ⟨notice, found⟩ := notice_exists announced
   cases encoded with
-  | @object key id incoming errors subPath known =>
-      have path := metadata.lookup (node := {key, path := paths key}) allocated known rfl found
+  | @object ref id incoming errors subPath known =>
+      have path := metadata.lookup (node := {ref, path := paths ref}) allocated known rfl found
       simp only [IncrementalResult.id] at found
       simp only [ResponseMerging.applyPatch, IncrementalResult.id, found,
         Option.bind_eq_bind, Option.bind_some, path, applyAtoms, List.foldlM_cons,
         List.foldlM_nil, Option.pure_def, Option.bind_fun_some]
       rfl
-  | @list key id incoming errors known nonempty =>
-      have path := metadata.lookup (node := {key, path := paths key}) allocated known rfl found
+  | @list ref id incoming errors known nonempty =>
+      have path := metadata.lookup (node := {ref, path := paths ref}) allocated known rfl found
       simp only [IncrementalResult.id] at found
       rw [applyAtoms_items _ _ nonempty]
       simp only [ResponseMerging.applyPatch, IncrementalResult.id, found,

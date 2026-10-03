@@ -90,11 +90,11 @@ theorem ExecutedWork.replayGraphEvents_successfulCarrier_retiredHealthy
         (State.initialize (Work.fromExecution work)).replayGraphEvents (before ++ [event])
       ∃ dependencies,
         GroupRecordAt work group dependencies
-        ∧ queue.RetiredGroup group.key
+        ∧ queue.RetiredGroup group.ref
         ∧ ¬GroupRecordInvalidated work
             ((State.initialize (Work.fromExecution work)).objectFailureContributions
-              (before ++ [event])) group.key
-        ∧ group.key ∉ queue.cancelledGroups := by
+              (before ++ [event])) group.ref
+        ∧ group.ref ∉ queue.cancelledGroups := by
   obtain ⟨dependencies, known, healthy⟩ :=
     generated.replayGraphEvents_next_successfulGroupsHealthy valid started
       group groups streams carrier
@@ -108,7 +108,7 @@ theorem ExecutedWork.replayGraphEvents_successfulCarrier_retiredHealthy
       apply State.acceptsBatch_atPrefix _ past next after
       simpa only [← same, List.append_assoc, List.singleton_append] using started)
   have retired := (State.handleGraphEvent_closureAccounting ledger.pending.liveGroups
-    ledger.pending.taskGroups event source).closed group.key
+    ledger.pending.taskGroups event source).closed group.ref
       (List.mem_flatMap.mpr ⟨_, carrier, List.mem_cons_self⟩)
   refine ⟨dependencies, known, ?_, healthy, ?_⟩
   · rwa [State.replayGraphEvents_append]
@@ -133,12 +133,12 @@ theorem ExecutedWork.runNormalized_successfulCarrier_retiredHealthy
     : let queue := ((State.initialize (Work.fromExecution work)).runNormalized batches).1
       ∃ dependencies,
         GroupRecordAt work group dependencies
-        ∧ queue.RetiredGroup group.key
+        ∧ queue.RetiredGroup group.ref
         ∧ ¬GroupRecordInvalidated work
             ((State.initialize (Work.fromExecution work)).objectFailureContributions
               batches.flatten)
-            group.key
-        ∧ group.key ∉ queue.cancelledGroups := by
+            group.ref
+        ∧ group.ref ∉ queue.cancelledGroups := by
   obtain ⟨before, event, after, same, emitted⟩ :=
     createWorkQueue_runNormalized_groupSuccess_origin batches started carrier
   have earlier : (before ++ [event]).IsPrefix batches.flatten :=
@@ -155,14 +155,14 @@ theorem ExecutedWork.runNormalized_successfulCarrier_retiredHealthy
   refine ⟨dependencies, known, ?_, durable, ?_⟩
   · exact (State.runNormalized_groupClosures (createWorkQueue_registration work).1
       (createWorkQueue_registration work).2 batches (fun _ member => valid.eachMatches member)).2
-        group.key (List.mem_flatMap.mpr ⟨_, carrier, List.mem_cons_self⟩)
+        group.ref (List.mem_flatMap.mpr ⟨_, carrier, List.mem_cons_self⟩)
   · exact (generated.runNormalized_cancelledRecordsSupported batches valid started).healthy_not_mem
       durable
 
 /-- Every group-carried stream has a derived uncancelled, retired contributing dependency.
 Witness: exact release ownership identifies the carrier as a dependency; actual successful
 closure health proves its uncancelledness even after later source failures. No supplied
-supporting key, queue-state invariant, or output-admission hypothesis is required.
+supporting ref, queue-state invariant, or output-admission hypothesis is required.
 -/
 theorem ExecutedWork.runNormalized_streamHealthyDependency
     {work batches group groups streams stream dependencies producer}
@@ -173,11 +173,11 @@ theorem ExecutedWork.runNormalized_streamHealthyDependency
         ∈ ((State.initialize (Work.fromExecution work)).runNormalized batches).2.flatten)
     (released : stream ∈ streams)
     (known : NodeAt work stream .stream dependencies producer)
-    : group.key ∈ dependencies
+    : group.ref ∈ dependencies
       ∧ ((State.initialize (Work.fromExecution work)).runNormalized
           batches).1.RetiredGroup
-          group.key
-      ∧ group.key
+          group.ref
+      ∧ group.ref
         ∉ ((State.initialize (Work.fromExecution work)).runNormalized
             batches).1.cancelledGroups := by
   obtain ⟨_, _, retired, _, uncancelled⟩ :=

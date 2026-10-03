@@ -86,17 +86,17 @@ theorem objectFailuresSafe_of_successfulItems {work inputs w streams}
   obtain ⟨⟨_, payload, producer, _, task⟩, _⟩ :=
     bookkeeping.matching node.task registeredTask
   have task : TaskAt work (.executionGroup address)
-      (node.task.groups.map Execution.DeliveryNode.key) producer payload := occurrenceEq ▸ task
+      (node.task.groups.map Execution.DeliveryNode.ref) producer payload := occurrenceEq ▸ task
   obtain ⟨owner, contributes, guard⟩ := State.taskHasHealthyOwner_iff.mp healthy
-  have owns : owner.key ∈ node.task.groups.map Execution.DeliveryNode.key :=
+  have owns : owner.ref ∈ node.task.groups.map Execution.DeliveryNode.ref :=
     List.mem_map.mpr ⟨owner, contributes, rfl⟩
-  obtain ⟨group, dependencies, descriptor, keyEq⟩ := task.executionGroup_owner owns
-  have ownerHealthy : ¬NodeFailed work w.matching (w.events.take cut) before owner.key := by
-    rw [← keyEq]
+  obtain ⟨group, dependencies, descriptor, refEq⟩ := task.executionGroup_owner owns
+  have ownerHealthy : ¬NodeFailed work w.matching (w.events.take cut) before owner.ref := by
+    rw [← refEq]
     apply generated.replayGraphEvents_groupHealthy_of_itemSafety priorValid priorAccepted
       descriptor
-      (keyEq.symm ▸ bookkeeping.taskGroups node.task registeredTask owner.key owns)
-      (keyEq.symm ▸ guard) failedPayloads
+      (refEq.symm ▸ bookkeeping.taskGroups node.task registeredTask owner.ref owns)
+      (refEq.symm ▸ guard) failedPayloads
     · intro occurrence owners producer path result known member
       obtain ⟨entry, selected, same⟩ := List.mem_map.mp member
       have preceding := retained entry (List.mem_filter.mp selected).1

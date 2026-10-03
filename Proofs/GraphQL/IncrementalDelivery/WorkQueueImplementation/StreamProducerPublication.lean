@@ -17,7 +17,7 @@ cancellation; the common ledger must therefore contain the earlier producer valu
 -/
 theorem ExecutedWork.streamItems_ancestorProducer_beforeValue
     {work before stream items published position group values address owners source
-      payload dependencies key parentOwners parentProducer parentPayload}
+      payload dependencies ref parentOwners parentProducer parentPayload}
     (generated : ExecutedWork work)
     (valid : ValidGraphEvents work (before ++ [.streamItems stream items]))
     (started
@@ -35,11 +35,11 @@ theorem ExecutedWork.streamItems_ancestorProducer_beforeValue
     (known
       : TaskAt work (.executionGroup address) owners
           (some (.executionGroup source)) payload)
-    (contributes : group.key ∈ owners)
-    (record : GroupRecordAt work group dependencies) (ancestor : key ∈ dependencies)
+    (contributes : group.ref ∈ owners)
+    (record : GroupRecordAt work group dependencies) (ancestor : ref ∈ dependencies)
     (parentKnown
       : TaskAt work (.executionGroup source) parentOwners parentProducer parentPayload)
-    (parentContributes : key ∈ parentOwners)
+    (parentContributes : ref ∈ parentOwners)
     : ∃ value,
         (Occurrence.executionGroup source, value)
         ∈ published.take
@@ -75,7 +75,7 @@ theorem ExecutedWork.streamItems_ancestorProducer_beforeValue
       generated.replayGraphEvents_successfulCarrier_retiredHealthy valid
         (State.acceptsBatch_prefix started) carrier
     have ancestorHealthy : ¬GroupRecordInvalidated work
-        (initial.objectFailureContributions (before ++ [.streamItems stream items])) key :=
+        (initial.objectFailureContributions (before ++ [.streamItems stream items])) ref :=
       fun invalid => healthy (.ancestor record ancestor invalid)
     have notCancelled :=
       (generated.replayGraphEvents_cancelledRecordsSupported _ valid).healthy_not_mem

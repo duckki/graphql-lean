@@ -6,14 +6,14 @@ namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.Execution (WorkQueueEvent)
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
-/-- An operation that cannot recreate absent keys has no new surviving lookup.
+/-- An operation that cannot recreate absent refs has no new surviving lookup.
 Witness: case-split the earlier lookup; absence preservation rules out the missing case.
 -/
-private theorem earlier_lookup {before after : State} {key}
-    (noRevival : before.groupNode? key = none → after.groupNode? key = none)
-    (survives : ∃ node, after.groupNode? key = some node)
-    : ∃ node, before.groupNode? key = some node := by
-  cases found : before.groupNode? key with
+private theorem earlier_lookup {before after : State} {ref}
+    (noRevival : before.groupNode? ref = none → after.groupNode? ref = none)
+    (survives : ∃ node, after.groupNode? ref = some node)
+    : ∃ node, before.groupNode? ref = some node := by
+  cases found : before.groupNode? ref with
   | some node => exact ⟨node, rfl⟩
   | none =>
       obtain ⟨node, lookup⟩ := survives
@@ -29,14 +29,14 @@ Witness: the fold preserves its removal forest; immediate failure removes whole 
 whereas cached failure changes only counters. The proof needs no semantic health premise.
 -/
 theorem State.taskFailure_root_coverage {queue : State} {parents target}
-    (unique : queue.GroupKeysUnique) (forest : queue.RemovalForest parents)
+    (unique : queue.GroupRefsUnique) (forest : queue.RemovalForest parents)
     (occurrence : Occurrence) (errors : Nat)
     (covered : ∃ root ∈ queue.rootGroups, queue.LiveDescendant root target)
     (survives
       : ∃ node, (queue.taskFailure occurrence errors).1.groupNode? target = some node)
     : ∃ root ∈ (queue.taskFailure occurrence errors).1.rootGroups,
         (queue.taskFailure occurrence errors).1.LiveDescendant root target := by
-  let property (current : State) := current.GroupKeysUnique ∧ current.RemovalForest parents
+  let property (current : State) := current.GroupRefsUnique ∧ current.RemovalForest parents
     ∧ ((∃ node, current.groupNode? target = some node)
       → ∃ root ∈ current.rootGroups, current.LiveDescendant root target)
   have step (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode)
@@ -48,10 +48,10 @@ theorem State.taskFailure_root_coverage {queue : State} {parents target}
     · rename_i node found
       split
       · refine ⟨prior.1.finishGroupFailure node errors,
-          prior.2.1.removeGroup node.group.node.key, ?_⟩
+          prior.2.1.removeGroup node.group.node.ref, ?_⟩
         intro live
         have earlier := earlier_lookup
-          (fun absent => State.removeGroup_groupNodeAbsent absent node.group.node.key) live
+          (fun absent => State.removeGroup_groupNodeAbsent absent node.group.node.ref) live
         exact State.removeGroup_root_coverage prior.2.1 _ (prior.2.2 earlier) live
       · refine ⟨prior.1.putGroupNode _,
           prior.2.1.putCounters prior.1 found _ _, ?_⟩
@@ -93,21 +93,21 @@ failure-fold coverage applies. Additional accepted failures may subsequently nar
 -/
 theorem State.HealthyContributorsCovered.taskFailure {queue : State} {work failed parents}
     (covered : queue.HealthyContributorsCovered work failed)
-    (unique : queue.GroupKeysUnique) (forest : queue.RemovalForest parents)
+    (unique : queue.GroupRefsUnique) (forest : queue.RemovalForest parents)
     (registered : queue.TaskGroupsRegistered)
     (occurrence : Occurrence) (errors : Nat)
     : (queue.taskFailure occurrence errors).1.HealthyContributorsCovered work failed := by
-  intro task member key contributes healthy survives
+  intro task member ref contributes healthy survives
   rw [State.taskFailure_tasks] at member
   have earlier := earlier_lookup
     (fun absent => ((State.RetiredGroup.of_lookup_none
-      (registered task member key contributes) absent).taskFailure occurrence errors).lookup_none)
+      (registered task member ref contributes) absent).taskFailure occurrence errors).lookup_none)
     survives
   exact State.taskFailure_root_coverage unique forest occurrence errors
-    (covered task member key contributes healthy earlier) survives
+    (covered task member ref contributes healthy earlier) survives
 
 /-- Stream exhaustion does not alter group contributor coverage.
-Witness: only the active stream-key list changes; the same group roots and paths remain.
+Witness: only the active stream-ref list changes; the same group roots and paths remain.
 -/
 theorem State.HealthyContributorsCovered.streamSuccess {queue : State} {work failed}
     (covered : queue.HealthyContributorsCovered work failed)
@@ -115,8 +115,8 @@ theorem State.HealthyContributorsCovered.streamSuccess {queue : State} {work fai
     : (queue.streamSuccess stream).1.HealthyContributorsCovered work failed := by
   unfold State.streamSuccess
   split
-  · intro task member key contributes healthy live
-    obtain ⟨root, active, path⟩ := covered task member key contributes healthy live
+  · intro task member ref contributes healthy live
+    obtain ⟨root, active, path⟩ := covered task member ref contributes healthy live
     exact ⟨root, active, path.of_groupNodes_eq (queue := queue) rfl⟩
   · exact covered
 
@@ -129,8 +129,8 @@ theorem State.HealthyContributorsCovered.streamFailure {queue : State} {work fai
     : (queue.streamFailure stream errors).1.HealthyContributorsCovered work failed := by
   unfold State.streamFailure
   split
-  · intro task member key contributes healthy live
-    obtain ⟨root, active, path⟩ := covered task member key contributes healthy live
+  · intro task member ref contributes healthy live
+    obtain ⟨root, active, path⟩ := covered task member ref contributes healthy live
     exact ⟨root, active, path.of_groupNodes_eq (queue := queue) rfl⟩
   · exact covered
 

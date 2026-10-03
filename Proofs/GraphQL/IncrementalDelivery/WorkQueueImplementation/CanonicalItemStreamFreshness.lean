@@ -12,7 +12,7 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 -- Registration remembers old notices even after their streams have completed
 -----------------------------------------------------------------------------------------
 
-/-- A raw item-carried stream key repeats neither an old registration nor an earlier notice.
+/-- A raw item-carried stream ref repeats neither an old registration nor an earlier notice.
 Witness: its carrier leads its source handler, whose fresh-selection theorem excludes the
 entry registry; every earlier notice remains in that registry after arbitrary replay.
 -/
@@ -22,9 +22,9 @@ theorem State.rawEventReplay_itemStreamNoticeFresh (queue : State)
       : (queue.rawEventReplay events).2[index]?
         = some (.streamValues owner values groups streams))
     (noticed : child ∈ streams)
-    : child.key
-      ∉ queue.streams.map (fun stream => stream.node.key)
-        ++ ((queue.rawEventReplay events).2.take index).flatMap rawStreamNoticeKeys := by
+    : child.ref
+      ∉ queue.streams.map (fun stream => stream.node.ref)
+        ++ ((queue.rawEventReplay events).2.take index).flatMap rawStreamNoticeRefs := by
   obtain ⟨before, event, after, position, _, emitted, prior⟩ :=
     queue.rawEventReplay_output_prefix_at events selected
   obtain ⟨stream, items, rfl⟩ :=
@@ -39,8 +39,8 @@ theorem State.rawEventReplay_itemStreamNoticeFresh (queue : State)
 
 namespace ConformancePlan
 
-/-- An announced structural stream key came from an initial or carried stream notice.
-Witness: generated node roles exclude initial supported group keys and actual group
+/-- An announced structural stream ref came from an initial or carried stream notice.
+Witness: generated node roles exclude initial supported group refs and actual group
 notices. This does not assume either notice freshness or output admission.
 -/
 theorem streamNode_announced_stream {work inputs index child dependencies producer}
@@ -48,18 +48,18 @@ theorem streamNode_announced_stream {work inputs index child dependencies produc
     (valid : ValidGraphEvents work inputs.flatten)
     (history : w.events = (initialQueue work).nonterminalAtoms inputs)
     (known : NodeAt work child .stream dependencies producer)
-    (announced : child.key ∈ announcedKeys (initialKeys work) (w.events.take index))
-    : child.key
-      ∈ (initialQueue work).initialStreams.map Execution.DeliveryNode.key
-        ++ (w.events.take index).flatMap streamNoticeKeys := by
+    (announced : child.ref ∈ announcedRefs (initialRefs work) (w.events.take index))
+    : child.ref
+      ∈ (initialQueue work).initialStreams.map Execution.DeliveryNode.ref
+        ++ (w.events.take index).flatMap streamNoticeRefs := by
   rcases List.mem_append.mp announced with initial | pending
-  · rw [initialKeys, List.map_append] at initial
+  · rw [initialRefs, List.map_append] at initial
     rcases List.mem_append.mp initial with group | stream
-    · have active : child.key ∈ (initialQueue work).rootGroups := by
+    · have active : child.ref ∈ (initialQueue work).rootGroups := by
         rwa [createWorkQueue_rootGroups]
       obtain ⟨parents, group, birth, descriptor, same⟩ :=
-        (createWorkQueue_fromSpec_groupKeySupport work).roots child.key active
-      exact False.elim (generated.groupStreamKeysDisjoint descriptor known same)
+        (createWorkQueue_fromSpec_groupRefSupport work).roots child.ref active
+      exact False.elim (generated.groupStreamRefsDisjoint descriptor known same)
     · exact List.mem_append_left _ stream
   · obtain ⟨event, prior, notice⟩ := List.mem_flatMap.mp pending
     obtain ⟨position, selected⟩ := List.mem_iff_getElem?.mp (List.mem_of_mem_take prior)
@@ -74,7 +74,7 @@ theorem streamNode_announced_stream {work inputs index child dependencies produc
       rcases List.mem_append.mp notice with groupNotice | streamNotice
       · obtain ⟨group, member, same⟩ := List.mem_map.mp groupNotice
         obtain ⟨parents, birth, descriptor⟩ := groupsKnown group member
-        exact False.elim (generated.groupStreamKeysDisjoint descriptor known same)
+        exact False.elim (generated.groupStreamRefsDisjoint descriptor known same)
       · exact streamNotice
     all_goals cases notice
 
@@ -92,9 +92,9 @@ theorem Witness.itemNotice_rawStreamPrefix {work inputs} {w : Witness}
     : ∃ position rawValues,
         ((initialQueue work).rawEventReplay inputs.flatten).2[position]?
           = some (.streamValues owner rawValues groups streams)
-        ∧ (w.events.take index).flatMap streamNoticeKeys
+        ∧ (w.events.take index).flatMap streamNoticeRefs
           = (((initialQueue work).rawEventReplay inputs.flatten).2.take position).flatMap
-              rawStreamNoticeKeys := by
+              rawStreamNoticeRefs := by
   have exactHistory := history.trans (createWorkQueue_nonterminalAtoms_flattened inputs started)
   rw [exactHistory] at selected ⊢
   have rawShape := (initialQueue work).rawEventReplay_nonemptyValues inputs.flatten
@@ -117,7 +117,7 @@ theorem itemStreamNotice_fresh {work inputs index owner values groups streams ch
     (history : w.events = (initialQueue work).nonterminalAtoms inputs)
     (selected : w.events[index]? = some (.streamValues owner values groups streams))
     (noticed : child ∈ streams)
-    : child.key ∉ announcedKeys (initialKeys work) (w.events.take index) := by
+    : child.ref ∉ announcedRefs (initialRefs work) (w.events.take index) := by
   have known := createWorkQueue_runNormalized_atomicStreamNoticesLocated valid _
     (List.mem_of_getElem? (Witness.canonical_event history selected).1) child noticed
   obtain ⟨dependencies, producer, descriptor⟩ := known
@@ -143,7 +143,7 @@ theorem itemStreamNotice_fresh {work inputs index owner values groups streams ch
       rw [State.startNewWork_streams, State.pruneEmptyGroups_streams]
     rw [registry]
     exact List.mem_map.mpr ⟨stream, stored,
-      (congrArg Execution.DeliveryNode.key equal).trans same⟩
+      (congrArg Execution.DeliveryNode.ref equal).trans same⟩
   · exact List.mem_append_right _ prior
 
 /-- Item-produced stream notices satisfy full eligibility without an extra freshness law.
@@ -162,7 +162,7 @@ theorem itemStreamNotice_canAnnounce_of_replay
     (noticed : child ∈ streams)
     : ∃ producer,
         NodeAt work child .stream [] producer
-        ∧ CanAnnounce work (initialKeys work) w.matching
+        ∧ CanAnnounce work (initialRefs work) w.matching
             (w.events.take index ++ [.streamValues stream values [] []])
             (w.failures.filter (fun entry => decide (entry.1 ≤ index)))
             child .stream [] producer :=
@@ -171,19 +171,19 @@ theorem itemStreamNotice_canAnnounce_of_replay
     (itemStreamNotice_fresh generated valid started history selected noticed)
 
 -----------------------------------------------------------------------------------------
--- Both child lists on one item carrier have distinct keys
+-- Both child lists on one item carrier have distinct refs
 -----------------------------------------------------------------------------------------
 
-/-- A canonical item carrier's stream-notice keys are internally unique.
+/-- A canonical item carrier's stream-notice refs are internally unique.
 Witness: recover its exact raw handler and reuse the concrete multi-item fresh inventory;
 an empty notice list is immediate and requires no carrier-position inversion.
 -/
-theorem itemStreamNoticeKeys_nodup {work inputs owner values groups streams} {index : Nat}
+theorem itemStreamNoticeRefs_nodup {work inputs owner values groups streams} {index : Nat}
     {w : Witness} (valid : ValidGraphEvents work inputs.flatten)
     (started : inputsStarted work inputs = true)
     (history : w.events = (initialQueue work).nonterminalAtoms inputs)
     (selected : w.events[index]? = some (.streamValues owner values groups streams))
-    : (streams.map Execution.DeliveryNode.key).Nodup := by
+    : (streams.map Execution.DeliveryNode.ref).Nodup := by
   cases streams with
   | nil => simp
   | cons child rest =>
@@ -197,19 +197,19 @@ theorem itemStreamNoticeKeys_nodup {work inputs owner values groups streams} {in
       exact (((initialQueue work).replayGraphEvents before).streamItems_notices_fresh
         stream items emitted).1
 
-/-- The combined group/stream notice list on an item carrier has no repeated key.
+/-- The combined group/stream notice list on an item carrier has no repeated ref.
 Witness: global group uniqueness gives its group sublist; fresh registration gives stream
 uniqueness; generated group/stream roles exclude collisions between the two lists.
 -/
-theorem itemNoticeKeys_nodup {work inputs owner values groups streams} {index : Nat}
+theorem itemNoticeRefs_nodup {work inputs owner values groups streams} {index : Nat}
     {w : Witness} (generated : ExecutedWork work)
     (valid : ValidGraphEvents work inputs.flatten)
     (started : inputsStarted work inputs = true)
     (history : w.events = (initialQueue work).nonterminalAtoms inputs)
     (selected : w.events[index]? = some (.streamValues owner values groups streams))
-    : ((groups ++ streams).map Execution.DeliveryNode.key).Nodup := by
+    : ((groups ++ streams).map Execution.DeliveryNode.ref).Nodup := by
   have unique := (List.nodup_append.mp
-    (groupNoticeKeys_nodup generated valid started history)).2.1
+    (groupNoticeRefs_nodup generated valid started history)).2.1
   obtain ⟨before, after, split⟩ := List.mem_iff_append.mp (List.mem_of_getElem? selected)
   rw [split, List.flatMap_append, List.flatMap_cons] at unique
   have groupsUnique := (List.nodup_append.mp (List.nodup_append.mp unique).2.1).1
@@ -219,14 +219,14 @@ theorem itemNoticeKeys_nodup {work inputs owner values groups streams} {index : 
   have streamKnown := createWorkQueue_runNormalized_atomicStreamNoticesLocated valid _ atFull
   rw [List.map_append]
   refine List.nodup_append.mpr ⟨groupsUnique,
-    itemStreamNoticeKeys_nodup valid started history selected, ?_⟩
+    itemStreamNoticeRefs_nodup valid started history selected, ?_⟩
   intro first groupMember second streamMember same
-  obtain ⟨group, included, groupKey⟩ := List.mem_map.mp groupMember
-  obtain ⟨stream, noticed, streamKey⟩ := List.mem_map.mp streamMember
+  obtain ⟨group, included, groupRef⟩ := List.mem_map.mp groupMember
+  obtain ⟨stream, noticed, streamRef⟩ := List.mem_map.mp streamMember
   obtain ⟨parents, birth, descriptor⟩ := groupKnown group included
   obtain ⟨enclosing, producer, known⟩ := streamKnown stream noticed
-  exact generated.groupStreamKeysDisjoint descriptor known
-    (groupKey.trans (same.trans streamKey.symm))
+  exact generated.groupStreamRefsDisjoint descriptor known
+    (groupRef.trans (same.trans streamRef.symm))
 
 end ConformancePlan
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

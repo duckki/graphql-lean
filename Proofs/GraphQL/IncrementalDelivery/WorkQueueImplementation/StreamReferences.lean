@@ -1,6 +1,6 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.StreamAnnouncements
 
-/-! Stream publications and closures refer to keys announced in their strict output prefix. -/
+/-! Stream publications and closures refer to refs announced in their strict output prefix. -/
 
 namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.Execution (WorkQueueEvent)
@@ -10,20 +10,21 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 -- Notice-before-reference accounting composes across output segments
 -----------------------------------------------------------------------------------------
 
-/-- With the supplied key projections, each event references only initial or earlier notices.
+/-- With the supplied ref projections, each event references only initial or earlier notices.
 This proof-only relation remembers prior announcements, not whether a notice remains open.
 -/
-def ReferencesAnnounced {α : Type} (notices references : α → Keys) (initial : Keys)
+def ReferencesAnnounced {α : Type} (notices references : α → NodeRefs)
+    (initial : NodeRefs)
     : List α → Prop
   | [] => True
   | event :: rest =>
       (references event).Subset initial
       ∧ ReferencesAnnounced notices references (initial ++ notices event) rest
 
-/-- Adding previously known keys preserves notice-before-reference accounting.
-Witness: list induction, extending the same initial-key inclusion with each notice list.
+/-- Adding previously known refs preserves notice-before-reference accounting.
+Witness: list induction, extending the same initial-ref inclusion with each notice list.
 -/
-theorem ReferencesAnnounced.mono {α : Type} {notices references : α → Keys}
+theorem ReferencesAnnounced.mono {α : Type} {notices references : α → NodeRefs}
     {initial enlarged events}
     (known : ReferencesAnnounced notices references initial events)
     (included : initial.Subset enlarged)
@@ -32,30 +33,30 @@ theorem ReferencesAnnounced.mono {α : Type} {notices references : α → Keys}
   | nil => trivial
   | cons event rest ih =>
       refine ⟨fun _ member => included (known.1 member), ih known.2 ?_⟩
-      intro key member
+      intro ref member
       rcases List.mem_append.mp member with old | added
       · exact List.mem_append_left _ (included old)
       · exact List.mem_append_right _ added
 
-/-- Output that references only already-known keys satisfies strict-prefix announcement.
-Witness: each head uses the original keys; its tail may additionally use that head's notices.
+/-- Output that references only already-known refs satisfies strict-prefix announcement.
+Witness: each head uses the original refs; its tail may additionally use that head's notices.
 -/
-theorem ReferencesAnnounced.of_references {α : Type} {notices references : α → Keys}
+theorem ReferencesAnnounced.of_references {α : Type} {notices references : α → NodeRefs}
     {initial events} (included : (events.flatMap references).Subset initial)
     : ReferencesAnnounced notices references initial events := by
   induction events with
   | nil => trivial
   | cons event rest ih =>
       refine ⟨?_, (ih ?_).mono (fun _ member => List.mem_append_left _ member)⟩
-      · intro key member
+      · intro ref member
         exact included (List.mem_append_left _ member)
-      · intro key member
+      · intro ref member
         exact included (List.mem_append_right _ member)
 
 /-- A later segment may use every notice emitted by the earlier segment.
-Witness: peel the earlier events, preserving their order and the accumulated notice keys.
+Witness: peel the earlier events, preserving their order and the accumulated notice refs.
 -/
-theorem ReferencesAnnounced.append {α : Type} {notices references : α → Keys}
+theorem ReferencesAnnounced.append {α : Type} {notices references : α → NodeRefs}
     {initial left right} (before : ReferencesAnnounced notices references initial left)
     (after
       : ReferencesAnnounced notices references (initial ++ left.flatMap notices) right)
@@ -66,10 +67,10 @@ theorem ReferencesAnnounced.append {α : Type} {notices references : α → Keys
       refine ⟨before.1, ih before.2 ?_⟩
       simpa only [List.flatMap_cons, List.append_assoc] using after
 
-/-- At any selected output event, its references occur in the strict prefix's notice keys.
+/-- At any selected output event, its references occur in the strict prefix's notice refs.
 Witness: index induction through the same ordered notice accumulation.
 -/
-theorem ReferencesAnnounced.atEvent {α : Type} {notices references : α → Keys}
+theorem ReferencesAnnounced.atEvent {α : Type} {notices references : α → NodeRefs}
     {initial events} (known : ReferencesAnnounced notices references initial events)
     {index event} (atEvent : events[index]? = some event)
     : (references event).Subset (initial ++ (events.take index).flatMap notices) := by
@@ -85,18 +86,18 @@ theorem ReferencesAnnounced.atEvent {α : Type} {notices references : α → Key
           have later := ih known.2 atEvent
           simpa only [List.take_succ_cons, List.flatMap_cons, List.append_assoc] using later
 
-/-- Stream keys used by raw value or closure events; newly announced child keys are excluded.
+/-- Stream refs used by raw value or closure events; newly announced child refs are excluded.
 -/
-def rawStreamReferenceKeys : WorkQueueEvent → Keys
+def rawStreamReferenceRefs : WorkQueueEvent → NodeRefs
   | .streamValues stream _ _ _ | .streamSuccess stream | .streamFailure stream _ =>
-      [stream.key]
+      [stream.ref]
   | _ => []
 
-/-- Stream keys used by normalized value or closure events, before wire ID allocation.
+/-- Stream refs used by normalized value or closure events, before wire ID allocation.
 -/
-def streamReferenceKeys : Execution.WorkQueueEvent → Keys
+def streamReferenceRefs : Execution.WorkQueueEvent → NodeRefs
   | .streamValues stream _ _ _ | .streamSuccess stream | .streamFailure stream _ =>
-      [stream.key]
+      [stream.ref]
   | _ => []
 
 -----------------------------------------------------------------------------------------
@@ -107,18 +108,18 @@ def streamReferenceKeys : Execution.WorkQueueEvent → Keys
 Witness: the exact flush output contains only group values and group completion.
 -/
 theorem State.finishGroupSuccess_streamReferences (queue : State) (group : GroupNode)
-    : (queue.finishGroupSuccess group).2.1.flatMap rawStreamReferenceKeys = [] := by
+    : (queue.finishGroupSuccess group).2.1.flatMap rawStreamReferenceRefs = [] := by
   obtain ⟨selected, _, _, events, _, _⟩ := queue.finishGroupSuccess_publications group
   rw [events]
-  split <;> simp [rawStreamReferenceKeys]
+  split <;> simp [rawStreamReferenceRefs]
 
 /-- Recursive group draining emits no stream reference, even when it announces new streams.
 Witness: induction over the executable drain; both success and failure emit only group events.
 -/
 theorem State.drainReadyGroups_streamReferences (queue : State)
-    : queue.drainReadyGroups.2.flatMap rawStreamReferenceKeys = [] := by
+    : queue.drainReadyGroups.2.flatMap rawStreamReferenceRefs = [] := by
   have loop (fuel : Nat) (current : State)
-      : (State.drainReadyGroups.go fuel current).2.flatMap rawStreamReferenceKeys = [] := by
+      : (State.drainReadyGroups.go fuel current).2.flatMap rawStreamReferenceRefs = [] := by
     induction fuel generalizing current with
     | zero => rfl
     | succ fuel ih =>
@@ -133,18 +134,18 @@ theorem State.drainReadyGroups_streamReferences (queue : State)
                 ih, List.nil_append]
           | some errors =>
               simp only [State.finishGroupFailure, List.flatMap_append,
-                List.flatMap_singleton, rawStreamReferenceKeys, ih, List.nil_append]
+                List.flatMap_singleton, rawStreamReferenceRefs, ih, List.nil_append]
   exact loop _ queue
 
 /-- Recursive draining cannot emit a stream-value carrier, even one with no items.
-Witness: such a carrier would contribute a key to the empty stream-reference projection.
+Witness: such a carrier would contribute a ref to the empty stream-reference projection.
 -/
 theorem State.drainReadyGroups_noStreamValues (queue : State)
     (stream : Execution.DeliveryNode) (values groups streams)
     : Execution.WorkQueueEvent.streamValues stream values groups streams
       ∉ queue.drainReadyGroups.2 := by
   intro emitted
-  have impossible : stream.key ∈ queue.drainReadyGroups.2.flatMap rawStreamReferenceKeys :=
+  have impossible : stream.ref ∈ queue.drainReadyGroups.2.flatMap rawStreamReferenceRefs :=
     List.mem_flatMap.mpr ⟨_, emitted, List.mem_cons_self⟩
   rw [State.drainReadyGroups_streamReferences] at impossible
   cases impossible
@@ -154,10 +155,10 @@ Witness: the contributor fold and final drain append only group events.
 -/
 theorem State.taskSuccess_streamReferences (queue : State) (occurrence : Occurrence)
     (result : TaskResult)
-    : (queue.taskSuccess occurrence result).2.flatMap rawStreamReferenceKeys = [] := by
+    : (queue.taskSuccess occurrence result).2.flatMap rawStreamReferenceRefs = [] := by
   have loop (groups : List Execution.DeliveryNode) (acc : State × List WorkQueueEvent × NewWork)
-      : (groups.foldl successGroupStep acc).2.1.flatMap rawStreamReferenceKeys
-        = acc.2.1.flatMap rawStreamReferenceKeys := by
+      : (groups.foldl successGroupStep acc).2.1.flatMap rawStreamReferenceRefs
+        = acc.2.1.flatMap rawStreamReferenceRefs := by
     induction groups generalizing acc with
     | nil => rfl
     | cons group rest ih =>
@@ -183,20 +184,20 @@ Witness: the contributor loop emits group failures or silently caches group erro
 -/
 theorem State.taskFailure_streamReferences (queue : State) (occurrence : Occurrence)
     (errors : Nat)
-    : (queue.taskFailure occurrence errors).2.flatMap rawStreamReferenceKeys = [] := by
+    : (queue.taskFailure occurrence errors).2.flatMap rawStreamReferenceRefs = [] := by
   let step (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode) :=
-    match acc.1.groupNode? group.key with
+    match acc.1.groupNode? group.ref with
     | none => acc
     | some node =>
-        if acc.1.rootGroups.contains group.key then
+        if acc.1.rootGroups.contains group.ref then
           let failure := acc.1.finishGroupFailure node errors
           (failure.1, acc.2 ++ [failure.2])
         else (acc.1.putGroupNode
           { node with pending := node.pending - 1
                       failure := some (node.failure.getD 0 + errors) }, acc.2)
   have loop (groups : List Execution.DeliveryNode) (acc : State × List WorkQueueEvent)
-      : (groups.foldl step acc).2.flatMap rawStreamReferenceKeys
-        = acc.2.flatMap rawStreamReferenceKeys := by
+      : (groups.foldl step acc).2.flatMap rawStreamReferenceRefs
+        = acc.2.flatMap rawStreamReferenceRefs := by
     induction groups generalizing acc with
     | nil => rfl
     | cons group rest ih =>
@@ -205,7 +206,7 @@ theorem State.taskFailure_streamReferences (queue : State) (occurrence : Occurre
         split
         · rfl
         · split
-          · simp [State.finishGroupFailure, List.flatMap_append, rawStreamReferenceKeys]
+          · simp [State.finishGroupFailure, List.flatMap_append, rawStreamReferenceRefs]
           · rfl
   unfold State.taskFailure
   split
@@ -219,7 +220,7 @@ Witness: task handlers have no references; stream handlers check rootStreams bef
 Even arbitrary unaccepted host events cannot bypass that output guard.
 -/
 theorem State.handleGraphEvent_streamReferences (queue : State) (event : GraphEvent)
-    : ((queue.handleGraphEvent event).2.flatMap rawStreamReferenceKeys).Subset
+    : ((queue.handleGraphEvent event).2.flatMap rawStreamReferenceRefs).Subset
         queue.rootStreams := by
   cases event with
   | taskSuccess occurrence result =>
@@ -233,20 +234,20 @@ theorem State.handleGraphEvent_streamReferences (queue : State) (event : GraphEv
       split
       · simp [List.Subset]
       · rename_i active
-        simpa [rawStreamReferenceKeys, List.Subset,
+        simpa [rawStreamReferenceRefs, List.Subset,
           State.drainReadyGroups_streamReferences]
           using active
   | streamSuccess stream =>
       simp only [State.handleGraphEvent, State.streamSuccess]
       split
       · rename_i active
-        simpa [rawStreamReferenceKeys, List.Subset] using active
+        simpa [rawStreamReferenceRefs, List.Subset] using active
       · simp [List.Subset]
   | streamFailure stream errors =>
       simp only [State.handleGraphEvent, State.streamFailure]
       split
       · rename_i active
-        simpa [rawStreamReferenceKeys, List.Subset] using active
+        simpa [rawStreamReferenceRefs, List.Subset] using active
       · simp [List.Subset]
 
 -----------------------------------------------------------------------------------------
@@ -259,7 +260,7 @@ from the old roots and the earlier handler's actual output notices.
 -/
 theorem State.rawEventReplay_streamReferencesAnnounced (queue : State)
     (events : List GraphEvent)
-    : ReferencesAnnounced rawStreamNoticeKeys rawStreamReferenceKeys queue.rootStreams
+    : ReferencesAnnounced rawStreamNoticeRefs rawStreamReferenceRefs queue.rootStreams
         (queue.rawEventReplay events).2 := by
   induction events generalizing queue with
   | nil => trivial
@@ -274,7 +275,7 @@ Witness: terminated input is ignored; appending queue termination adds no refere
 -/
 theorem State.handleGraphEvents_streamReferencesAnnounced
     (queue : State) (events : List GraphEvent)
-    : ReferencesAnnounced rawStreamNoticeKeys rawStreamReferenceKeys queue.rootStreams
+    : ReferencesAnnounced rawStreamNoticeRefs rawStreamReferenceRefs queue.rootStreams
         (queue.handleGraphEvents events).2 := by
   rw [State.handleGraphEvents_eq_rawEventReplay]
   split
@@ -282,7 +283,7 @@ theorem State.handleGraphEvents_streamReferencesAnnounced
   · have announced := queue.rawEventReplay_streamReferencesAnnounced events
     dsimp only
     split
-    · exact announced.append ⟨by simp [rawStreamReferenceKeys, List.Subset], trivial⟩
+    · exact announced.append ⟨by simp [rawStreamReferenceRefs, List.Subset], trivial⟩
     · exact announced
 
 -----------------------------------------------------------------------------------------
@@ -294,20 +295,20 @@ Witness: owner selection expands only group values; all stream events remain sin
 -/
 theorem IncrementalPublisher.handleWorkQueueEvent_streamReferences
     (publisher : IncrementalPublisher) (event : WorkQueueEvent)
-    : (publisher.handleWorkQueueEvent event).2.flatMap streamReferenceKeys
-      = rawStreamReferenceKeys event := by
-  cases event <;> simp [IncrementalPublisher.handleWorkQueueEvent, rawStreamReferenceKeys,
-    streamReferenceKeys, List.flatMap_map]
+    : (publisher.handleWorkQueueEvent event).2.flatMap streamReferenceRefs
+      = rawStreamReferenceRefs event := by
+  cases event <;> simp [IncrementalPublisher.handleWorkQueueEvent, rawStreamReferenceRefs,
+    streamReferenceRefs, List.flatMap_map]
 
 /-- Publisher normalization transports strict-prefix stream announcement without new premises.
-Witness: normalize each head with its existing keys, then use its exact stream notices for
+Witness: normalize each head with its existing refs, then use its exact stream notices for
 the recursively normalized tail. Group-value expansion cannot move a stream reference.
 -/
 theorem ReferencesAnnounced.normalizeBatch {initial events}
     (announced
-      : ReferencesAnnounced rawStreamNoticeKeys rawStreamReferenceKeys initial events)
+      : ReferencesAnnounced rawStreamNoticeRefs rawStreamReferenceRefs initial events)
     (publisher : IncrementalPublisher)
-    : ReferencesAnnounced streamNoticeKeys streamReferenceKeys initial
+    : ReferencesAnnounced streamNoticeRefs streamReferenceRefs initial
         (publisher.normalizeBatch events).2 := by
   induction events generalizing initial publisher with
   | nil => trivial
@@ -325,12 +326,12 @@ Witness: the batch's raw reference law, notice-preserving normalization, and ent
 accounting compose with the previous output's announcement law.
 -/
 theorem normalizedStep_streamReferencesAnnounced (acc : NormalizedAcc)
-    (batch : List GraphEvent) {initial : Keys}
+    (batch : List GraphEvent) {initial : NodeRefs}
     (roots
-      : acc.1.rootStreams.Subset (initial ++ acc.2.2.flatten.flatMap streamNoticeKeys))
+      : acc.1.rootStreams.Subset (initial ++ acc.2.2.flatten.flatMap streamNoticeRefs))
     (announced
-      : ReferencesAnnounced streamNoticeKeys streamReferenceKeys initial acc.2.2.flatten)
-    : ReferencesAnnounced streamNoticeKeys streamReferenceKeys initial
+      : ReferencesAnnounced streamNoticeRefs streamReferenceRefs initial acc.2.2.flatten)
+    : ReferencesAnnounced streamNoticeRefs streamReferenceRefs initial
         (normalizedStep acc batch).2.2.flatten := by
   rw [normalizedStep_flatten]
   exact announced.append
@@ -344,16 +345,16 @@ and arbitrary input batches; it does not assert freshness, openness, or full adm
 -/
 theorem createWorkQueue_runNormalized_streamReferencesAnnounced (work : Work)
     (batches : List (List GraphEvent))
-    : ReferencesAnnounced streamNoticeKeys streamReferenceKeys
-        ((State.initialize work).initialStreams.map Execution.DeliveryNode.key)
+    : ReferencesAnnounced streamNoticeRefs streamReferenceRefs
+        ((State.initialize work).initialStreams.map Execution.DeliveryNode.ref)
         ((State.initialize work).runNormalized batches).2.flatten := by
-  let initial := (State.initialize work).initialStreams.map Execution.DeliveryNode.key
+  let initial := (State.initialize work).initialStreams.map Execution.DeliveryNode.ref
   have loop (more : List (List GraphEvent)) (acc : NormalizedAcc)
       (roots : acc.1.rootStreams.Subset
-        (initial ++ acc.2.2.flatten.flatMap streamNoticeKeys))
-      (announced : ReferencesAnnounced streamNoticeKeys streamReferenceKeys initial
+        (initial ++ acc.2.2.flatten.flatMap streamNoticeRefs))
+      (announced : ReferencesAnnounced streamNoticeRefs streamReferenceRefs initial
         acc.2.2.flatten)
-      : ReferencesAnnounced streamNoticeKeys streamReferenceKeys initial
+      : ReferencesAnnounced streamNoticeRefs streamReferenceRefs initial
           (more.foldl normalizedStep acc).2.2.flatten := by
     induction more generalizing acc with
     | nil => exact announced
@@ -364,7 +365,7 @@ theorem createWorkQueue_runNormalized_streamReferencesAnnounced (work : Work)
   let publisher : IncrementalPublisher := { active := queue.initialGroups ++ queue.initialStreams }
   exact loop batches (queue, publisher, [])
     (by
-      intro key member
+      intro ref member
       exact List.mem_append_left _ (createWorkQueue_streamRoots work member))
     trivial
 

@@ -18,7 +18,7 @@ such a buffer without appealing to a later drain publication or closure.
 -/
 theorem ExecutedWork.streamItems_leadingAncestor_contributor_before
     {work before stream items published owner values groups streams child
-      dependencies key address owners producer payload}
+      dependencies ref address owners producer payload}
     {position : Nat}
     (generated : ExecutedWork work)
     (valid : ValidGraphEvents work (before ++ [.streamItems stream items]))
@@ -35,9 +35,9 @@ theorem ExecutedWork.streamItems_leadingAncestor_contributor_before
           stream items).2[position]?
         = some (Execution.WorkQueueEvent.streamValues owner values groups streams))
     (noticed : child ∈ groups) (known : GroupRecordAt work child dependencies)
-    (ancestor : key ∈ dependencies)
+    (ancestor : ref ∈ dependencies)
     (task : TaskAt work (.executionGroup address) owners producer payload)
-    (contributes : key ∈ owners)
+    (contributes : ref ∈ owners)
     : ∃ value,
         (Occurrence.executionGroup address, value)
         ∈ published.take
@@ -46,12 +46,12 @@ theorem ExecutedWork.streamItems_leadingAncestor_contributor_before
               WorkQueueEvent.objectValues).length := by
   let initial := State.initialize (Work.fromExecution work)
   let queue := initial.replayGraphEvents before
-  have keyNoticed : child.key ∈ rawGroupNoticeKeys (.streamValues owner values groups streams) :=
+  have refNoticed : child.ref ∈ rawGroupNoticeRefs (.streamValues owner values groups streams) :=
     List.mem_map_of_mem noticed
   have emitted := List.mem_of_getElem? selected
   obtain ⟨result, impossible | ⟨_, prior | buffered⟩⟩ :=
     generated.noticeAncestor_contributor_published_buffered_or_current valid started covered
-      emitted keyNoticed known ancestor task contributes
+      emitted refNoticed known ancestor task contributes
   · cases impossible
   · exact ⟨result.value, prior⟩
   · obtain ⟨node, lookup, stored, taskOwners, nodeContributes, present⟩ := buffered
@@ -60,20 +60,20 @@ theorem ExecutedWork.streamItems_leadingAncestor_contributor_before
     have retired := generated.streamItems_prepared_noticeAncestorsRetired
       (fun _ member => (valid.prefix (List.prefix_append before [_])).eachMatches member)
       matched child (notices ▸ noticed)
-      child dependencies known rfl key ancestor _ _ taskOwners nodeContributes
+      child dependencies known rfl ref ancestor _ _ taskOwners nodeContributes
     have notCancelled := (generated.noticeAncestor_healthy_uncancelled valid
-      (State.acceptsBatch_prefix started) emitted keyNoticed known ancestor).2
+      (State.acceptsBatch_prefix started) emitted refNoticed known ancestor).2
     have endpoint : initial.replayGraphEvents (before ++ [.streamItems stream items])
         = (queue.preparedStreamItems items).drainReadyGroups.1 := by
       rw [State.replayGraphEvents_append, State.handleGraphEvent,
         State.streamItems_eq, active]
       rfl
     rw [endpoint] at notCancelled
-    have healthy : key ∉ (queue.preparedStreamItems items).cancelledGroups :=
+    have healthy : ref ∉ (queue.preparedStreamItems items).cancelledGroups :=
       fun member => notCancelled (State.drainReadyGroups_go_cancelledGroups_subset _ _ member)
     have prefixes := covered.atPrefixDrainOwners before (.streamItems stream items) []
     have conserved := prefixes active 0 (Nat.zero_le _) _ node result.value lookup stored
-      key nodeContributes present healthy
+      ref nodeContributes present healthy
     rcases conserved with published | retained
     · simp [State.drainReadyGroups.go] at published
     · exact False.elim (retired.2 retained.2)
@@ -87,7 +87,7 @@ Witness: locate the actual source input, which must be a stream-items event. Its
 occupies the object-free leading output, so the handler-entry ledger is the strict prefix.
 -/
 theorem ExecutedWork.rawEventReplay_itemNoticeAncestor_covered
-    {work events published index owner values groups streams child dependencies key
+    {work events published index owner values groups streams child dependencies ref
       address owners producer payload}
     (generated : ExecutedWork work) (valid : ValidGraphEvents work events)
     (started : (State.initialize (Work.fromExecution work)).acceptsBatch events = true)
@@ -98,9 +98,9 @@ theorem ExecutedWork.rawEventReplay_itemNoticeAncestor_covered
       : ((State.initialize (Work.fromExecution work)).rawEventReplay events).2[index]?
         = some (.streamValues owner values groups streams))
     (noticed : child ∈ groups) (known : GroupRecordAt work child dependencies)
-    (ancestor : key ∈ dependencies)
+    (ancestor : ref ∈ dependencies)
     (task : TaskAt work (.executionGroup address) owners producer payload)
-    (contributes : key ∈ owners)
+    (contributes : ref ∈ owners)
     : ∃ value,
         (Occurrence.executionGroup address, value)
         ∈ published.take
@@ -137,7 +137,7 @@ Witness: the joint raw/atomic carrier bridge preserves the strict object count. 
 that prefix with the original buffered closure ledger, without choosing new labels.
 -/
 theorem itemGroupNoticeAncestor_objectContributor_published
-    {work inputs w index owner values groups streams child dependencies key address owners
+    {work inputs w index owner values groups streams child dependencies ref address owners
       producer payload}
     (generated : ExecutedWork work) (valid : ValidGraphEvents work inputs.flatten)
     (started : inputsStarted work inputs = true)
@@ -145,9 +145,9 @@ theorem itemGroupNoticeAncestor_objectContributor_published
     (ledger : BufferedClosureLedger work inputs w)
     (selected : w.events[index]? = some (.streamValues owner values groups streams))
     (noticed : child ∈ groups) (known : GroupRecordAt work child dependencies)
-    (ancestor : key ∈ dependencies)
+    (ancestor : ref ∈ dependencies)
     (task : TaskAt work (.executionGroup address) owners producer payload)
-    (contributes : key ∈ owners)
+    (contributes : ref ∈ owners)
     : Published w.matching (w.events.take index) (.executionGroup address) := by
   obtain ⟨published, batched, _, interpret, _⟩ := ledger
   have accepted : (initialQueue work).batchesStarted inputs = true := by
@@ -167,15 +167,15 @@ Witness: object contributors precede the item handler, and execution-generated r
 exclude stream contributors. This holds for arbitrary failure cuts, without cancellation.
 -/
 theorem itemGroupNoticeAncestor_nodeAccounted
-    {work inputs w index owner values groups streams child dependencies key}
+    {work inputs w index owner values groups streams child dependencies ref}
     (generated : ExecutedWork work) (valid : ValidGraphEvents work inputs.flatten)
     (started : inputsStarted work inputs = true)
     (history : w.events = (initialQueue work).nonterminalAtoms inputs)
     (ledger : BufferedClosureLedger work inputs w)
     (selected : w.events[index]? = some (.streamValues owner values groups streams))
     (noticed : child ∈ groups) (known : GroupRecordAt work child dependencies)
-    (ancestor : key ∈ dependencies) (failures : FailureCuts)
-    : NodeAccounted work w.matching (w.events.take index) failures key := by
+    (ancestor : ref ∈ dependencies) (failures : FailureCuts)
+    : NodeAccounted work w.matching (w.events.take index) failures ref := by
   intro occurrence owners ⟨producer, payload, task⟩ contributes
   cases occurrence with
   | executionGroup address =>

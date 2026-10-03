@@ -87,10 +87,10 @@ example {work inputs} (premises : ReplayPremises work inputs)
         ∧ ControlAdmission work w
         ∧ ∀ node kind dependencies,
             NodeAt work node kind dependencies none
-            → node.key ∈ completedKeys w.events
-              ∨ node.key ∉ announcedKeys (initialKeys work) w.events
-                ∧ (NodeFailed work w.matching w.events w.failures node.key
-                    ∨ NodeAccounted work w.matching w.events w.failures node.key) := by
+            → node.ref ∈ completedRefs w.events
+              ∨ node.ref ∉ announcedRefs (initialRefs work) w.events
+                ∧ (NodeFailed work w.matching w.events w.failures node.ref
+                    ∨ NodeAccounted work w.matching w.events w.failures node.ref) := by
   obtain ⟨w, _, batching, _, _, publications, controls, _, _, roots, _⟩ :=
     mixed_rootTerminalCertificates premises
   exact ⟨w, batching, publications, controls, roots ended⟩
@@ -108,10 +108,10 @@ example {work inputs} (premises : ReplayPremises work inputs)
         ∧ ∀ node kind dependencies address index,
             NodeAt work node kind dependencies (some (.item address index))
             → Published w.matching w.events (.item address index)
-            → node.key ∈ completedKeys w.events
-              ∨ node.key ∉ announcedKeys (initialKeys work) w.events
-                ∧ (NodeFailed work w.matching w.events w.failures node.key
-                    ∨ NodeAccounted work w.matching w.events w.failures node.key) := by
+            → node.ref ∈ completedRefs w.events
+              ∨ node.ref ∉ announcedRefs (initialRefs work) w.events
+                ∧ (NodeFailed work w.matching w.events w.failures node.ref
+                    ∨ NodeAccounted work w.matching w.events w.failures node.ref) := by
   obtain ⟨w, _, batching, _, _, publications, controls, _, children⟩ :=
     mixed_itemTerminalCertificates premises
   exact ⟨w, batching, publications, controls, children ended⟩
@@ -130,8 +130,8 @@ example {work inputs} (premises : ReplayPremises work inputs)
             NodeAt work group .group dependencies producer
             → (∀ occurrence,
                 producer = some occurrence → Published w.matching w.events occurrence)
-            → NodeFailed work w.matching w.events w.failures group.key
-              ∨ NodeAccounted work w.matching w.events w.failures group.key := by
+            → NodeFailed work w.matching w.events w.failures group.ref
+              ∨ NodeAccounted work w.matching w.events w.failures group.ref := by
   obtain ⟨w, _, batching, _, _, publications, controls, _, groups⟩ :=
     mixed_producedGroupTerminalCertificates premises
   exact ⟨w, batching, publications, controls, groups ended⟩
@@ -149,7 +149,7 @@ example {work inputs} (premises : ReplayPremises work inputs)
         ∧ ∀ stream dependencies address,
             NodeAt work stream .stream dependencies (some (.executionGroup address))
             → Published w.matching w.events (.executionGroup address)
-            → stream.key ∈ completedKeys w.events := by
+            → stream.ref ∈ completedRefs w.events := by
   obtain ⟨w, history, batching, _, _, publications, controls, _, _, _, _, _, ledger, _⟩ :=
     mixed_admissionCertificates premises.generated premises.valid premises.started
   exact ⟨w, batching, publications, controls, fun _ _ _ known published =>
@@ -179,8 +179,8 @@ example {work inputs node dependencies producer} {w : Witness}
     (history : w.events = (initialQueue work).nonterminalAtoms inputs)
     (ended : ((initialQueue work).runNormalized inputs).1.terminated = true)
     (known : NodeAt work node .group dependencies producer)
-    (announced : node.key ∈ announcedKeys (initialKeys work) w.events)
-    : node.key ∈ completedKeys w.events :=
+    (announced : node.ref ∈ announcedRefs (initialRefs work) w.events)
+    : node.ref ∈ completedRefs w.events :=
   groupNode_terminalCompleted premises.generated premises.valid premises.started history
     ended known announced
 
@@ -214,9 +214,9 @@ theorem retired_groups_accounted_on_shared_witness {work inputs}
         ∧ UncancelledFailures work w
         ∧ ∀ node dependencies producer,
             NodeAt work node .group dependencies producer
-            → ((initialQueue work).replayGraphEvents inputs.flatten).RetiredGroup node.key
-            → NodeFailed work w.matching w.events w.failures node.key
-              ∨ NodeAccounted work w.matching w.events w.failures node.key := by
+            → ((initialQueue work).replayGraphEvents inputs.flatten).RetiredGroup node.ref
+            → NodeFailed work w.matching w.events w.failures node.ref
+              ∨ NodeAccounted work w.matching w.events w.failures node.ref := by
   obtain ⟨w, history, batching, announced, uncancelled, _, _, _, _, _, ledger, _,
     support, _, _, _, streams, _, exactCuts⟩ :=
     mixed_groupPublicationCertificates_with_noticeSafety generated valid started
@@ -227,7 +227,7 @@ theorem retired_groups_accounted_on_shared_witness {work inputs}
   exact retiredGroup_failed_or_accounted generated valid started history ledger
     announced.1 support visible known retired
 
-private def stream : Execution.DeliveryNode := { key := 0, path := [] }
+private def stream : Execution.DeliveryNode := { ref := 0, path := [] }
 private def work : Execution.Work := .stream stream []
 private def emptyWitness : Witness := ⟨[], fun _ => .executionGroup [], []⟩
 
@@ -265,9 +265,9 @@ theorem initial_obligations : Obligations work [] emptyWitness := by
 Witness: the general raw-stream completion theorem after the concrete stream-success input.
 -/
 example
-    : stream.key
+    : stream.ref
       ∈ ((initialQueue work).rawEventReplay [.streamSuccess stream]).2.flatMap
-          rawStreamClosureKeys :=
+          rawStreamClosureRefs :=
   createWorkQueue_terminalStreamCompleted (inputs := [[.streamSuccess stream]])
     (by decide) (by decide) (by decide)
 

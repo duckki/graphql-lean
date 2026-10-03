@@ -18,8 +18,8 @@ theorem addExecutionPartition_perm (usages : List Nat)
   induction partitions with
   | nil => simp [addExecutionPartition]
   | cons partition rest ih =>
-      rcases partition with ⟨keys, fields⟩
-      cases he : deferUsageSetsEquivalent keys usages
+      rcases partition with ⟨refs, fields⟩
+      cases he : deferUsageSetsEquivalent refs usages
       · simp only [addExecutionPartition, he, Bool.false_eq_true, ↓reduceIte,
           List.flatMap_cons]
         exact (ih.append_left fields).trans List.perm_middle

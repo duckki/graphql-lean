@@ -17,14 +17,14 @@ open GraphQL.IncrementalDelivery.Execution
 announced. The matching and failure list describe the supplied output prefix, not future
 work.
 -/
-def DependencyFreeStreamsNotified (work : Work) (initial : Keys)
+def DependencyFreeStreamsNotified (work : Work) (initial : NodeRefs)
     (matching : PublicationMatching) (events : List WorkQueueEvent) (failed : FailureCuts)
     : Prop :=
   ∀ node producer,
     NodeAt work node .stream [] producer
     → (∀ source, producer = some source → Published matching events source)
-    → ¬NodeFailed work matching events failed node.key
-    → node.key ∈ announcedKeys initial events
+    → ¬NodeFailed work matching events failed node.ref
+    → node.ref ∈ announcedRefs initial events
 
 /-- A covering initial frontier includes every ready dependency-free stream. Witness:
 its producer publication and unconditional stream eligibility license the notice.
@@ -35,14 +35,14 @@ theorem DependencyFreeStreamsNotified.initial {work} {groups streams : List Deli
           NodeAt work node kind dependencies birth
           → CanAnnounce work [] (fun _ => .executionGroup []) [] [] node kind dependencies
               birth
-          → node.key ∈ (groups ++ streams).map DeliveryNode.key)
-    : DependencyFreeStreamsNotified work ((groups ++ streams).map DeliveryNode.key)
+          → node.ref ∈ (groups ++ streams).map DeliveryNode.ref)
+    : DependencyFreeStreamsNotified work ((groups ++ streams).map DeliveryNode.ref)
         (fun _ => .executionGroup []) [] [] := by
   intro node producer known ready healthy
-  simpa only [announcedKeys, pendingKeys, List.flatMap_nil, List.append_nil]
+  simpa only [announcedRefs, pendingRefs, List.flatMap_nil, List.append_nil]
     using covers node .stream [] producer known
       ⟨
-        by simp [announcedKeys, pendingKeys],
+        by simp [announcedRefs, pendingRefs],
         Or.inl ⟨healthy, Or.inl rfl⟩,
         ready,
         Or.inl rfl
@@ -64,7 +64,7 @@ theorem DependencyFreeStreamsNotified.append_control
     · exact False.elim (control new.1)
   have member := notified node producer known earlier
     (fun failure => healthy ((failure.mono included).append [event]))
-  simpa only [announcedKeys, pendingKeys, List.flatMap_append, List.flatMap_cons,
+  simpa only [announcedRefs, pendingRefs, List.flatMap_append, List.flatMap_cons,
     List.flatMap_nil, List.append_nil, List.append_assoc]
     using List.mem_append_left (eventPending event) member
 
@@ -74,7 +74,7 @@ theorem DependencyFreeStreamsNotified.append_control
 
 /-- A stream item can publish while covering all healthy dependency-free streams then
 ready. Witness: the complete eligible frontier, with publication lookup unchanged by
-attaching its notices. This can introduce arbitrarily many nested stream keys on the same
+attaching its notices. This can introduce arbitrarily many nested stream refs on the same
 event.
 -/
 theorem Explains.publish_item_notified
@@ -84,13 +84,13 @@ theorem Explains.publish_item_notified
     (known : TaskAt work occurrence owners producer (.item node (.ok (item, errors))))
     (ready : CanPublish work matching events failures occurrence producer)
     (selected
-      : PublicationOwner work ((groups ++ streams).map DeliveryNode.key) matching events
+      : PublicationOwner work ((groups ++ streams).map DeliveryNode.ref) matching events
           failures owners node)
     : ∃ newGroups newStreams,
         Explains work groups streams
           (events ++ [.streamValues node [{ item, errors }] newGroups newStreams])
           (matchNext matching events.length occurrence) failures
-        ∧ DependencyFreeStreamsNotified work ((groups ++ streams).map DeliveryNode.key)
+        ∧ DependencyFreeStreamsNotified work ((groups ++ streams).map DeliveryNode.ref)
             (matchNext matching events.length occurrence)
             (events ++ [.streamValues node [{ item, errors }] newGroups newStreams])
             failures := by
@@ -100,17 +100,17 @@ theorem Explains.publish_item_notified
   refine ⟨newGroups, newStreams, extended, ?_⟩
   intro child birth descriptor produced healthy
   by_cases old :
-    child.key ∈ announcedKeys ((groups ++ streams).map DeliveryNode.key) events
-  · simpa only [announcedKeys, pendingKeys, List.flatMap_append, List.flatMap_cons,
+    child.ref ∈ announcedRefs ((groups ++ streams).map DeliveryNode.ref) events
+  · simpa only [announcedRefs, pendingRefs, List.flatMap_append, List.flatMap_cons,
       List.flatMap_nil, List.append_nil, List.append_assoc]
       using List.mem_append_left
         (eventPending (.streamValues node [{ item, errors }] newGroups newStreams)) old
-  · have eligible : CanAnnounce work ((groups ++ streams).map DeliveryNode.key)
+  · have eligible : CanAnnounce work ((groups ++ streams).map DeliveryNode.ref)
         (matchNext matching events.length occurrence)
         (events ++ [.streamValues node [{ item, errors }] [] []])
         failures child .stream [] birth := by
       refine ⟨?_, Or.inl ⟨?_, Or.inl rfl⟩, ?_, Or.inl rfl⟩
-      · simpa [announcedKeys, pendingKeys, eventPending] using old
+      · simpa [announcedRefs, pendingRefs, eventPending] using old
       · simpa only [(causality_carrier_eq (work := work) (failures := failures)
           (matching := matchNext matching events.length occurrence)
           (events := events) (left := .streamValues node [{ item, errors }] [] [])
@@ -119,9 +119,9 @@ theorem Explains.publish_item_notified
       · intro source same
         simpa only [published_append_singleton_iff, IsValue] using produced source same
     have added := covers child .stream [] birth descriptor eligible
-    simpa only [announcedKeys, pendingKeys, List.flatMap_append, List.flatMap_cons,
+    simpa only [announcedRefs, pendingRefs, List.flatMap_append, List.flatMap_cons,
       List.flatMap_nil, List.append_nil, List.append_assoc, eventPending]
       using List.mem_append_right
-        (announcedKeys ((groups ++ streams).map DeliveryNode.key) events) added
+        (announcedRefs ((groups ++ streams).map DeliveryNode.ref) events) added
 
 end GraphQL.IncrementalDelivery.WorkQueueSemantics

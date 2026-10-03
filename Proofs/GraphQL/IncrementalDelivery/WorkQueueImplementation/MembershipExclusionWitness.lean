@@ -65,7 +65,7 @@ theorem State.PreparedMembershipsCleared.handler_membershipAbsent
                 healthy, Bool.not_true, Bool.false_eq_true, ↓reduceIte, State.drainReadyGroups,
                 active, released, prepared, stored] using member
   | streamItems stream items =>
-      cases active : queue.rootStreams.contains stream.key with
+      cases active : queue.rootStreams.contains stream.ref with
       | false =>
           simp only [State.handleGraphEvent, State.streamItems_eq, active, Bool.not_false,
             ↓reduceIte, List.flatMap_nil, List.length_nil, List.take_zero,

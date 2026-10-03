@@ -20,11 +20,11 @@ open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
-private def stream : DeliveryNode := { key := 0, path := [.field "users"] }
+private def stream : DeliveryNode := { ref := 0, path := [.field "users"] }
 
 private def child (index : Nat) : DeliveryNode :=
   {
-    key := index + 1, path := [.field "users", .index index], label := some (.string "C")
+    ref := index + 1, path := [.field "users", .index index], label := some (.string "C")
   }
 
 private def children (index : Nat) : Execution.Work :=
@@ -72,7 +72,7 @@ private theorem stream_located
     : Located work [0, 0, 1] (.stream stream entries) none [] := by cbv
 
 private theorem known
-    : TaskAt work occurrence [(child 0).key] (some producer)
+    : TaskAt work occurrence [(child 0).ref] (some producer)
         (.object (child 0).path (.ok ([("name", .scalar "name1")], 0))) :=
   .executionGroup (groups := [⟨child 0, []⟩]) (children := .combine .empty .empty)
     (owners := []) (by cbv)
@@ -141,7 +141,7 @@ theorem item_produced_value_admitted
         w.events
           = initial.nonterminalAtoms
               [[.streamItems stream [item]], [.taskSuccess occurrence result]]
-        ∧ EventAllowed work (ConformancePlan.initialKeys work) w.matching
+        ∧ EventAllowed work (ConformancePlan.initialRefs work) w.matching
             (w.events.take 1) w.failures
             (.groupValues (child 0) [result.value]) := by
   obtain ⟨w, history, _, _, _, _, _, _, _, _, _, _, _, _, publications⟩ :=
@@ -174,14 +174,14 @@ private theorem valid_with_second
 Witness: old registrations exclude the leading item frontier, while permanent ancestry
 excludes every later drain notice, even though the earlier child has already closed.
 -/
-theorem second_item_does_not_reannounce {key}
+theorem second_item_does_not_reannounce {ref}
     (announced
-      : key
+      : ref
         ∈ initial.rootGroups
-          ++ (initial.rawEventReplay received).2.flatMap rawGroupNoticeKeys)
-    : key
+          ++ (initial.rawEventReplay received).2.flatMap rawGroupNoticeRefs)
+    : ref
       ∉ ((initial.replayGraphEvents received).streamItems stream [secondItem]).2.flatMap
-          rawGroupNoticeKeys :=
+          rawGroupNoticeRefs :=
   generated.streamItems_noEarlierGroupNotice (before := received)
     (fun _ member => valid.eachMatches member) secondMatches announced
 
@@ -216,7 +216,7 @@ theorem later_item_notice_excludes_prior_publication
               let boundary :=
                 (current.preparedStreamItems earlier).integrateStreamItem supplied
               ∃ node,
-                boundary.groupNode? (child 1).key = some node
+                boundary.groupNode? (child 1).ref = some node
                 ∧ node.group.node = child 1
                 ∧ (node.tasks ≠ [] ∨ node.failure.isSome = true)
                 ∧ (∀ publication ∈ published.take 1, publication.1 ∉ node.tasks)
@@ -255,7 +255,7 @@ theorem atomic_item_notice_unpublished
         ∧ w.events[3]? = some (.streamValues stream [wireValue] [child 1] [])
         ∧ ∃ queue : State,
           ∃ node : GroupNode,
-            queue.groupNode? (child 1).key = some node
+            queue.groupNode? (child 1).ref = some node
             ∧ node.group.node = child 1
             ∧ (node.tasks ≠ [] ∨ node.failure.isSome = true)
             ∧ ∀ task ∈ node.tasks, ¬Published w.matching (w.events.take 3) task := by
@@ -352,7 +352,7 @@ theorem atomic_notice_itemProducer_published
     admitted,
     selected,
     w.groupNotice_itemProducerPublished generated source (by cbv) history ledger selected
-      located (by simp [groupNoticeKeys])
+      located (by simp [groupNoticeRefs])
   ⟩
 
 private theorem valid_batched
@@ -402,9 +402,9 @@ theorem batched_notice_itemProducers_published
     admitted,
     selected,
     w.groupNotice_itemProducerPublished generated source (by cbv) history ledger selected
-      first (by simp [groupNoticeKeys]),
+      first (by simp [groupNoticeRefs]),
     w.groupNotice_itemProducerPublished generated source (by cbv) history ledger selected
-      second (by simp [groupNoticeKeys])
+      second (by simp [groupNoticeRefs])
   ⟩
 
 /-- A later item's notice is fully eligible on the canonical mixed witness.
@@ -418,7 +418,7 @@ theorem atomic_item_notice_canAnnounce
         ∧ w.events[3]? = some (.streamValues stream [wireValue] [child 1] [])
         ∧ ∃ birth,
             NodeAt work (child 1) .group [] birth
-            ∧ CanAnnounce work (ConformancePlan.initialKeys work) w.matching
+            ∧ CanAnnounce work (ConformancePlan.initialRefs work) w.matching
                 (w.events.take 3 ++ [.streamValues stream [wireValue] [] []])
                 (w.failures.filter (fun entry => entry.1 ≤ 3)) (child 1) .group []
                 birth := by
@@ -445,7 +445,7 @@ theorem atomic_item_notice_canAnnounce
     (by cbv)
     history announced support safe groups streams failures streamReady ledger
     cuts partition contents selected
-    (by simp [groupNoticeKeys])
+    (by simp [groupNoticeRefs])
     located
 
 /-- One multi-item carrier retains the healthy ancestry of every introduced group.
@@ -528,17 +528,17 @@ private def nestedInitial : State := State.initialize (Work.fromExecution nested
 
 private def nestedNext : State := nestedInitial.integrateStreamItem (nestedItem 0)
 
-private theorem nestedShellPruned : nestedNext.groupNode? (shell 0).key = none := by cbv
+private theorem nestedShellPruned : nestedNext.groupNode? (shell 0).ref = none := by cbv
 
 private theorem nestedChildCandidate
-    : (⟨nestedChild 0, some (shell 0).key⟩ : Group) ∈ (nestedItem 0).work.groups := by
+    : (⟨nestedChild 0, some (shell 0).ref⟩ : Group) ∈ (nestedItem 0).work.groups := by
   cbv
   exact List.mem_cons_of_mem _ List.mem_cons_self
 
 private theorem nestedChildSurvives
-    : ∃ node, nestedNext.groupNode? (nestedChild 0).key = some node := by
+    : ∃ node, nestedNext.groupNode? (nestedChild 0).ref = some node := by
   refine ⟨{
-    group := ⟨nestedChild 0, some (shell 0).key⟩
+    group := ⟨nestedChild 0, some (shell 0).ref⟩
     tasks := [.executionGroup [0, 0, 1, 0, 1, 0]]
     pending := 1 }, ?_⟩
   cbv
@@ -550,19 +550,19 @@ work. No child coverage or announcement is assumed before integration.
 theorem taskless_item_child_root_covered
     : let initial := State.initialize (Work.fromExecution nested)
       let next := initial.integrateStreamItem (nestedItem 0)
-      next.groupNode? (shell 0).key = none
-      ∧ ∃ root ∈ next.rootGroups, next.LiveDescendant root (nestedChild 0).key := by
-  change nestedNext.groupNode? (shell 0).key = none
-    ∧ ∃ root ∈ nestedNext.rootGroups, nestedNext.LiveDescendant root (nestedChild 0).key
+      next.groupNode? (shell 0).ref = none
+      ∧ ∃ root ∈ next.rootGroups, next.LiveDescendant root (nestedChild 0).ref := by
+  change nestedNext.groupNode? (shell 0).ref = none
+    ∧ ∃ root ∈ nestedNext.rootGroups, nestedNext.LiveDescendant root (nestedChild 0).ref
   refine ⟨nestedShellPruned, ?_⟩
   obtain ⟨parents, canonical⟩ := generatedNested.groupRecordsCanonical
   have initialCanonical : ∀ group ∈ (Work.fromExecution nested).groups,
-      group.parent = (parents group.node.key).head? :=
+      group.parent = (parents group.node.ref).head? :=
     fun _ member => workFromSpec_groups_parentCanonical Located.root canonical member
   have registered := createWorkQueue_registration nested
   apply (createWorkQueue_regionInventory nested).streamItem_healthy_group_root_coverage
     generatedNested (createWorkQueue_parentLinksComplete _ parents initialCanonical)
-    (createWorkQueue_groupKeysUnique _) registered.1
+    (createWorkQueue_groupRefsUnique _) registered.1
     (createWorkQueue_parentRegistryClosed canonical)
     (createWorkQueue_cancelledRecordsSupported _ nested [])
     (createWorkQueue_groupNodesMatchWork nested) (createWorkQueue_childGroupsUnique _)
@@ -580,7 +580,7 @@ theorem batched_preparation_roots_present
         [nestedItem 0, nestedItem 1]).RootGroupsPresent := by
   have registration := createWorkQueue_registration nested
   exact (createWorkQueue_rootGroupsPresent (Work.fromExecution nested)).preparedStreamItems
-    (createWorkQueue_groupKeysUnique _) registration.1 registration.2
+    (createWorkQueue_groupRefsUnique _) registration.1 registration.2
     (validNested.eachMatches List.mem_cons_self)
 
 /-- Generated replay retains live roots after the same batched item carrier and its drain.
@@ -593,7 +593,7 @@ theorem batched_replay_roots_present
     (fun _ member => validNested.eachMatches member)
 
 private theorem childKnown (index : Nat) (bound : index < 2)
-    : NodeAt nested (nestedChild index) .group [(shell index).key]
+    : NodeAt nested (nestedChild index) .group [(shell index).ref]
         (some (.item [0, 0, 1] index)) := by
   have alternatives : index = 0 ∨ index = 1 := by omega
   rcases alternatives with rfl | rfl
@@ -621,7 +621,7 @@ theorem batched_notice_ancestors_accounted
         ∧ ∀ ordinal < 2,
             ∀ failures,
               NodeAccounted nested w.matching (w.events.take 1) failures
-                (shell ordinal).key := by
+                (shell ordinal).ref := by
   let inputs := [[GraphEvent.streamItems stream [nestedItem 0, nestedItem 1]]]
   have source : ValidGraphEvents nested inputs.flatten := validNested
   obtain ⟨w, history, _, _, _, _, _, _, _, _, ledger, _⟩ :=
@@ -648,7 +648,7 @@ theorem batched_notice_ancestors_healthy_at_carrier
         ∧ ∀ ordinal < 2,
             ¬NodeFailed nested w.matching
               (w.events.take 1 ++ [.streamValues stream [wireValue] [] []])
-              (w.failures.filter (fun entry => entry.1 ≤ 1)) (shell ordinal).key := by
+              (w.failures.filter (fun entry => entry.1 ≤ 1)) (shell ordinal).ref := by
   let inputs := [[GraphEvent.streamItems stream [nestedItem 0, nestedItem 1]]]
   have source : ValidGraphEvents nested inputs.flatten := validNested
   obtain ⟨w, history, _, announced, _, _, _, _, _, _, ledger, _, support, _⟩ :=
@@ -674,9 +674,9 @@ theorem batched_notice_ancestors_ready
         w.events[1]?
           = some (.streamValues stream [wireValue] [nestedChild 0, nestedChild 1] [])
         ∧ ∀ ordinal < 2,
-            DependencySatisfied nested (ConformancePlan.initialKeys nested) w.matching
+            DependencySatisfied nested (ConformancePlan.initialRefs nested) w.matching
               (w.events.take 1 ++ [.streamValues stream [wireValue] [] []])
-              (w.failures.filter (fun entry => entry.1 ≤ 1)) (shell ordinal).key := by
+              (w.failures.filter (fun entry => entry.1 ≤ 1)) (shell ordinal).ref := by
   let inputs := [[GraphEvent.streamItems stream [nestedItem 0, nestedItem 1]]]
   have source : ValidGraphEvents nested inputs.flatten := validNested
   obtain ⟨w, history, _, announced, _, _, _, _, _, _, ledger, _, support, _⟩ :=
@@ -696,13 +696,13 @@ theorem batched_notice_ancestors_ready
 Witness: the canonical shared construction retains the exact raw notice inventory, and
 the generic global uniqueness theorem covers both children without fixture reduction.
 -/
-theorem batched_group_keys_unique
+theorem batched_group_refs_unique
     : ∃ w : ConformancePlan.Witness,
         w.events
           = (ConformancePlan.initialQueue nested).nonterminalAtoms
               [[.streamItems stream [nestedItem 0, nestedItem 1]]]
         ∧ ((ConformancePlan.initialQueue nested).rootGroups
-            ++ w.events.flatMap groupNoticeKeys).Nodup := by
+            ++ w.events.flatMap groupNoticeRefs).Nodup := by
   let inputs := [[GraphEvent.streamItems stream [nestedItem 0, nestedItem 1]]]
   have source : ValidGraphEvents nested inputs.flatten := validNested
   obtain ⟨w, history, _⟩ :=
@@ -710,7 +710,7 @@ theorem batched_group_keys_unique
   exact ⟨
     w,
     history,
-    ConformancePlan.groupNoticeKeys_nodup generatedNested source (by cbv) history
+    ConformancePlan.groupNoticeRefs_nodup generatedNested source (by cbv) history
   ⟩
 
 end TasklessAncestors

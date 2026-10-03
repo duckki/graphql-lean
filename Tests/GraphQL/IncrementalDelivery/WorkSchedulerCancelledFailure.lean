@@ -24,11 +24,11 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 -- Generated shared contributors with a failed defer ancestor
 -----------------------------------------------------------------------------------------
 
-private def root : DeliveryNode := { key := 0, path := [], label := some (.string "R") }
-private def parent : DeliveryNode := { key := 1, path := [], label := some (.string "P") }
-private def child : DeliveryNode := { key := 2, path := [], label := some (.string "C") }
-private def other : DeliveryNode := { key := 3, path := [], label := some (.string "D") }
-private def nested : DeliveryNode := { key := 4, path := [], label := some (.string "E") }
+private def root : DeliveryNode := { ref := 0, path := [], label := some (.string "R") }
+private def parent : DeliveryNode := { ref := 1, path := [], label := some (.string "P") }
+private def child : DeliveryNode := { ref := 2, path := [], label := some (.string "C") }
+private def other : DeliveryNode := { ref := 3, path := [], label := some (.string "D") }
+private def nested : DeliveryNode := { ref := 4, path := [], label := some (.string "E") }
 private def firstTask : Occurrence := .executionGroup [1, 0]
 private def secondTask : Occurrence := .executionGroup [1, 1, 0]
 private def parentTask : Occurrence := .executionGroup [1, 1, 1, 0]
@@ -79,17 +79,17 @@ Witness: the unchanged sequential start checker accepts the late settlement.
 theorem inputs_started : inputsStarted work inputs = true := by cbv
 
 private theorem first_known
-    : TaskAt work firstTask [root.key, child.key, other.key] none
+    : TaskAt work firstTask [root.ref, child.ref, other.ref] none
         (.object [] (.error 1)) :=
   ⟨_, [], .error 1, .empty, [], rfl, rfl, rfl⟩
 
 private theorem second_known
-    : TaskAt work secondTask [root.key, child.key, nested.key] none
+    : TaskAt work secondTask [root.ref, child.ref, nested.ref] none
         (.object [] (.error 2)) :=
   ⟨_, [], .error 2, .empty, [], rfl, rfl, rfl⟩
 
 private theorem parent_known
-    : TaskAt work parentTask [parent.key] none (.object [] (.ok (data, 0))) :=
+    : TaskAt work parentTask [parent.ref] none (.object [] (.ok (data, 0))) :=
   ⟨_, [], .ok (data, 0), .combine .empty .empty, [], rfl, rfl, rfl⟩
 
 /-- Both failures and the later parent success satisfy the unchanged source semantics.
@@ -175,7 +175,7 @@ theorem second_pendingBound
   have found : initial.taskNode? firstTask = some taskNode := by
     dsimp only [initial, taskNode]
     cbv
-  have owned : initial.OwnedExactlyBy firstTask [root.key, child.key, other.key] := by
+  have owned : initial.OwnedExactlyBy firstTask [root.ref, child.ref, other.ref] := by
     intro node member
     dsimp only [initial] at member
     cbv at member
@@ -190,7 +190,7 @@ theorem second_pendingBound
     obtain rfl := List.mem_singleton.mp member
     simp [firstTask, root, child, other]
   have prior := (createWorkQueue_pendingBound_empty (Work.fromExecution work)).taskFailure
-    (createWorkQueue_groupKeysUnique _) (createWorkQueue_taskMembershipsUnique _)
+    (createWorkQueue_groupRefsUnique _) (createWorkQueue_taskMembershipsUnique _)
     firstTask 1 taskNode found (by simp) (by decide) owned
   exact prior.taskFailure_of_noHealthyOwner
     (node := { task := ⟨secondTask, [root, child, nested]⟩ })
@@ -274,13 +274,13 @@ theorem contributing_failures
 
 /-- Dropping the ignored token leaves every group with the same invalidation status.
 Witness: the general generated-source ledger equivalence, not this fixture's admitted
-output witness or a case analysis over its group keys.
+output witness or a case analysis over its group refs.
 -/
-theorem contributing_failures_health (key : Nat)
-    : GroupInvalidated work [secondTask, firstTask] key
-      ↔ GroupInvalidated work [firstTask] key := by
+theorem contributing_failures_health (ref : NodeRef)
+    : GroupInvalidated work [secondTask, firstTask] ref
+      ↔ GroupInvalidated work [firstTask] ref := by
   have same := generated.inputsStarted_objectFailureContributions source_valid
-    inputs_started key
+    inputs_started ref
   rw [contributing_failures] at same
   exact same
 
@@ -354,7 +354,7 @@ Witness: general next-handler output accounting after generated started replay, 
 actual child failure selected from the parent's successful release and recursive drain.
 Neither output admission nor an independently chosen per-completion subset is assumed.
 -/
-theorem child_error_from_replay : NodeErrors work [firstTask] child.key 1 := by
+theorem child_error_from_replay : NodeErrors work [firstTask] child.ref 1 := by
   obtain ⟨_, matching, _⟩ := validGraphEvents_last
     (before := [first, second]) (event := finish) source_valid
   have count := generated.runNormalized_groupFailure_nodeErrors [[first], [second]]
@@ -390,11 +390,11 @@ the child may have a surplus pending count, but that does not weaken traversal c
 theorem retained_parent_removal_covers_child
     : let queue :=
         ((State.initialize (Work.fromExecution work)).runNormalized [[first], [second]]).1
-      (queue.removeGroup other.key).groupNode? nested.key = none
-      ∧ nested.key ∉ (queue.removeGroup other.key).rootGroups := by
+      (queue.removeGroup other.ref).groupNode? nested.ref = none
+      ∧ nested.ref ∉ (queue.removeGroup other.ref).rootGroups := by
   apply generated.runNormalized_removeGroup_covers [[first], [second]]
     (source_valid.prefix ⟨[finish], rfl⟩)
-  apply State.LiveDescendant.child (child := nested.key)
+  apply State.LiveDescendant.child (child := nested.ref)
   · cbv
   · simp [nested]
   · exact .self (by cbv)
@@ -415,7 +415,7 @@ theorem eligible_candidate_cuts : eligibleCandidateCuts = [(0, firstTask)] := by
 Witness: general complete normalized error accounting, not the hand-built admitted run.
 -/
 theorem child_error_at_eligible_cut
-    : NodeErrors work (failedBefore eligibleCandidateCuts 3) child.key 1 := by
+    : NodeErrors work (failedBefore eligibleCandidateCuts 3) child.ref 1 := by
   apply createWorkQueue_sourceObjectFailureCuts_nodeErrors generated source_valid inputs_started
     (batches := inputs) (group := child)
   rw [output]
@@ -443,7 +443,7 @@ theorem second_not_pendingTracks
   dsimp only
   intro exactCounts
   let node : GroupNode :=
-    { group := { node := child, parent := some parent.key }, pending := 1,
+    { group := { node := child, parent := some parent.ref }, pending := 1,
       failure := some 1 }
   have member : node ∈
       ((((State.initialize (Work.fromExecution work)).handleGraphEvent first).1).handleGraphEvent
@@ -489,10 +489,10 @@ Witness: group-only structural roles and the three possible execution-group loca
 private theorem node_cases {node kind dependencies producer}
     (known : NodeAt work node kind dependencies producer)
     : node = root ∨ node = child ∨ node = other ∨ node = nested ∨ node = parent := by
-  have roles : Semantics.KeyRoles.WorkRoles (fun _ => false) work := by
-    simp [Semantics.KeyRoles.WorkRoles, work]
+  have roles : Semantics.RefRoles.WorkRoles (fun _ => false) work := by
+    simp [Semantics.RefRoles.WorkRoles, work]
   have groupKind : kind = .group := by
-    have role := Correctness.node_key_role roles known
+    have role := Correctness.node_ref_role roles known
     cases kind with
     | group => rfl
     | stream => change false = true at role; cases role
@@ -500,7 +500,7 @@ private theorem node_cases {node kind dependencies producer}
   obtain ⟨address, groups, path, result, children, enclosing, group,
     located, member, rfl, _⟩ := known
   have task : TaskAt work (.executionGroup address)
-      (groups.map (fun group => group.node.key)) producer (.object path result) :=
+      (groups.map (fun group => group.node.ref)) producer (.object path result) :=
     ⟨groups, path, result, children, enclosing, located, rfl, rfl⟩
   rcases task_cases task with same | same | same
   · have addressEq := Occurrence.executionGroup.inj same
@@ -535,12 +535,12 @@ private theorem node_cases {node kind dependencies producer}
     subst group
     simp
 
-/-- Repeated group keys retain identical node metadata, as public conformance requires.
-Witness: the finite descriptor classification and distinct keys of the five groups.
+/-- Repeated group refs retain identical node metadata, as public conformance requires.
+Witness: the finite descriptor classification and distinct refs of the five groups.
 -/
-theorem coherent : NodeKeyCoherent work := by
+theorem coherent : NodeRefCoherent work := by
   intro left leftKind leftDependencies leftProducer right rightKind rightDependencies
-    rightProducer leftKnown rightKnown sameKey
+    rightProducer leftKnown rightKnown sameRef
   rcases node_cases leftKnown with rfl | rfl | rfl | rfl | rfl
     <;> rcases node_cases rightKnown with rfl | rfl | rfl | rfl | rfl
     <;> simp_all [root, child, other, nested, parent]
@@ -552,9 +552,9 @@ theorem initialized
     : let queue := State.initialize (Work.fromExecution work)
       Initializes work queue.initialGroups queue.initialStreams := by
   have eligible {node occurrence owners payload}
-      (known : TaskAt work occurrence owners none payload) (owner : node.key ∈ owners)
+      (known : TaskAt work occurrence owners none payload) (owner : node.ref ∈ owners)
       : CanAnnounce work [] (fun _ => .executionGroup []) [] [] node .group [] none := by
-    refine ⟨by simp [announcedKeys, pendingKeys],
+    refine ⟨by simp [announcedRefs, pendingRefs],
       Or.inl ⟨by simp [NodeFailed], Or.inr ?_⟩, by simp, by simp⟩
     intro accounted
     rcases accounted occurrence owners ⟨_, _, known⟩ owner with cancelled | published
@@ -582,7 +582,7 @@ theorem initialized
 /-- R's one-error completion must record the first task, and cannot record the second.
 Witness: the second contributes at least two errors; without either task every sum is zero.
 -/
-private theorem root_count {failed} (counted : NodeErrors work failed root.key 1)
+private theorem root_count {failed} (counted : NodeErrors work failed root.ref 1)
     : firstTask ∈ failed ∧ secondTask ∉ failed := by
   have absent : secondTask ∉ failed := by
     intro member
@@ -612,7 +612,7 @@ private theorem root_count {failed} (counted : NodeErrors work failed root.key 1
 Witness: the first task is its only remaining nonzero summand and cannot be duplicated.
 -/
 private theorem child_requires_second {failed}
-    (unique : failed.Nodup) (counted : NodeErrors work failed child.key 3)
+    (unique : failed.Nodup) (counted : NodeErrors work failed child.ref 3)
     : secondTask ∈ failed := by
   apply Classical.byContradiction
   intro absent
@@ -653,7 +653,7 @@ private theorem child_requires_second {failed}
     exact go failed unique
   omega
 
-private theorem nested_node : NodeAt work nested .group [other.key, parent.key] none :=
+private theorem nested_node : NodeAt work nested .group [other.ref, parent.ref] none :=
   ⟨
     [1, 1, 0],
     _,
@@ -687,12 +687,12 @@ private theorem second_cancelled {matching events before cut}
   · intro published
     apply unpublished
     simpa only [List.take_append_drop] using published.append (events.drop cut)
-  · intro key member
+  · intro ref member
     simp only [List.mem_cons, List.not_mem_nil, or_false] at member
     rcases member with rfl | rfl | rfl
     · exact .task ⟨_, _, first_known⟩ (by simp) failed
     · exact .task ⟨_, _, first_known⟩ (by simp) failed
-    · exact .groupDependency (dependency := other.key) ⟨nested, none, nested_node, rfl⟩ (by simp)
+    · exact .groupDependency (dependency := other.ref) ⟨nested, none, nested_node, rfl⟩ (by simp)
         (.task ⟨_, _, first_known⟩ (by simp) failed)
 
 /-- No explained history can emit R's one-error closure and C's three-error closure.
@@ -848,7 +848,7 @@ theorem runner_avoids_rejected_output
 
 private def matching : PublicationMatching := fun _ => parentTask
 private def failures : FailureCuts := [(0, firstTask)]
-private def initial : Keys := [root.key, parent.key]
+private def initial : NodeRefs := [root.ref, parent.ref]
 
 private def events : List Execution.WorkQueueEvent :=
   [
@@ -878,17 +878,17 @@ private theorem parent_node : NodeAt work parent .group [] none :=
     rfl
   ⟩
 
-private theorem child_node : NodeAt work child .group [parent.key] none :=
+private theorem child_node : NodeAt work child .group [parent.ref] none :=
   ⟨[1, 0], _, [], .error 1, .empty, [], ⟨child, [parent]⟩, rfl, by simp, rfl, rfl⟩
 
-private theorem other_node : NodeAt work other .group [parent.key] none :=
+private theorem other_node : NodeAt work other .group [parent.ref] none :=
   ⟨[1, 0], _, [], .error 1, .empty, [], ⟨other, [parent]⟩, rfl, by simp, rfl, rfl⟩
 
 /-- The only retained failure cannot invalidate the independent successful parent.
 Witness: the generated root-group criterion excludes both contributors and ancestry.
 -/
 private theorem parent_healthy (observed : List Execution.WorkQueueEvent)
-    : ¬NodeFailed work matching observed failures parent.key := by
+    : ¬NodeFailed work matching observed failures parent.ref := by
   rintro ⟨cut, member, _, cause⟩
   have zero : cut = 0 := by simpa [failures] using member
   subst cut
@@ -912,7 +912,7 @@ private theorem parent_uncancelled (observed : List Execution.WorkQueueEvent)
   | owners known _ _ failed =>
       obtain ⟨producer, payload, known⟩ := known
       obtain ⟨rfl, _, _⟩ := known.unique parent_known
-      exact parent_healthy observed ⟨0, member, bound, failed parent.key (by simp)⟩
+      exact parent_healthy observed ⟨0, member, bound, failed parent.ref (by simp)⟩
   | producerFailed known _ _ | producerCancelled known _ _ =>
       obtain ⟨owners, payload, known⟩ := known
       cases (known.unique parent_known).2.1
@@ -920,8 +920,8 @@ private theorem parent_uncancelled (observed : List Execution.WorkQueueEvent)
 /-- One recorded task supplies exactly one error to each of R, C, and D.
 Witness: its singleton contribution; the cancelled second task is not recorded.
 -/
-private theorem first_errors {key} (owner : key ∈ [root.key, child.key, other.key])
-    : NodeErrors work [firstTask] key 1 := by
+private theorem first_errors {ref} (owner : ref ∈ [root.ref, child.ref, other.ref])
+    : NodeErrors work [firstTask] ref 1 := by
   refine ⟨fun _ => 1, ?_, rfl⟩
   intro occurrence member
   have same := List.mem_singleton.mp member
@@ -950,7 +950,7 @@ private theorem failure_licensed
     first_known,
     rfl,
     .root ⟨_, _, first_known⟩,
-    root.key,
+    root.ref,
     by simp,
     by decide
   ⟩
@@ -981,20 +981,20 @@ private theorem notice_allowed
     · exact Or.inr parent_published
   · refine ⟨by decide, ?_, by simp⟩
     intro node member
-    have notice (node : DeliveryNode) (known : NodeAt work node .group [parent.key] none)
-        (fresh : node.key ∉ announcedKeys initial
+    have notice (node : DeliveryNode) (known : NodeAt work node .group [parent.ref] none)
+        (fresh : node.ref ∉ announcedRefs initial
           (events.take 2 ++ [.groupSuccess parent [] []]))
-        (owner : node.key ∈ [root.key, child.key, other.key])
+        (owner : node.ref ∈ [root.ref, child.ref, other.ref])
         : ∃ dependencies producer, NodeAt work node .group dependencies producer
             ∧ CanAnnounce work initial matching
               (events.take 2 ++ [.groupSuccess parent [] []]) failures
               node .group dependencies producer := by
-      refine ⟨[parent.key], none, known, fresh, Or.inr ?_, by simp, ?_⟩
+      refine ⟨[parent.ref], none, known, fresh, Or.inr ?_, by simp, ?_⟩
       · exact ⟨rfl, firstTask, _, by simp [failedBefore, failures],
           ⟨_, _, first_known⟩, owner⟩
-      · intro key member
+      · intro ref member
         have same := List.mem_singleton.mp member
-        subst key
+        subst ref
         exact ⟨parent_healthy _, Or.inr (Or.inl (by decide))⟩
     rcases List.mem_cons.mp member with rfl | member
     · exact notice child child_node (by decide) (by simp)
@@ -1016,7 +1016,7 @@ theorem atomic_explanation
       exact NodeFailed.task first_known (by simp) (by simp [failedBefore, failures])
   | 1 =>
       cases selected
-      refine ⟨[parent.key], none,
+      refine ⟨[parent.ref], none,
         { path := [], data := data, deliveryGroups := [parent] },
         rfl, parent_known, ?_, ?_⟩
       · refine ⟨?_, parent_uncancelled _, by simp, trivial⟩
@@ -1024,7 +1024,7 @@ theorem atomic_explanation
         cases index with
         | zero => cases selected; exact value
         | succ index => simp [events] at selected
-      · have opened : OpenOwner work initial (events.take 1) [parent.key] parent :=
+      · have opened : OpenOwner work initial (events.take 1) [parent.ref] parent :=
           ⟨⟨.group, [], none, parent_node⟩, by simp, by unfold Open; decide⟩
         refine ⟨opened, ⟨parent, opened, parent_healthy _⟩, ?_⟩
         intro owner available
@@ -1034,7 +1034,7 @@ theorem atomic_explanation
   | 3 =>
       cases selected
       refine ⟨
-        ⟨[parent.key], none, child_node⟩,
+        ⟨[parent.ref], none, child_node⟩,
         by unfold Open; decide,
         ?_,
         first_errors (by simp)
@@ -1043,7 +1043,7 @@ theorem atomic_explanation
   | 4 =>
       cases selected
       refine ⟨
-        ⟨[parent.key], none, other_node⟩,
+        ⟨[parent.ref], none, other_node⟩,
         by unfold Open; decide,
         ?_,
         first_errors (by simp)
@@ -1062,7 +1062,7 @@ private theorem terminal : Terminal work initial matching events failures := by
       refine ⟨0, by simp [failures], by simp, ?_⟩
       apply Causality.TaskCancelled.owners ⟨_, _, first_known⟩
         (by simp [Published]) (by simp)
-      intro key member
+      intro ref member
       exact .task ⟨_, _, first_known⟩ member (by simp [failedBefore, failures])
     · apply Or.inl
       apply second_cancelled (cut := 0) (by simp [failures]) (by simp)
@@ -1076,7 +1076,7 @@ private theorem terminal : Terminal work initial matching events failures := by
     · exact Or.inl (by decide)
     · refine Or.inr ⟨by decide, Or.inl ?_⟩
       refine ⟨0, by simp [failures], by simp, ?_⟩
-      exact .groupDependency (dependency := other.key) ⟨nested, none, nested_node, rfl⟩
+      exact .groupDependency (dependency := other.ref) ⟨nested, none, nested_node, rfl⟩
         (by simp) (.task ⟨_, _, first_known⟩ (by simp) (by simp [failedBefore, failures]))
     · exact Or.inl (by decide)
 

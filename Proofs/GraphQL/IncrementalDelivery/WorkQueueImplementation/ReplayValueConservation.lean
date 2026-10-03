@@ -10,21 +10,21 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 -- Permanent registration rules out a vanished contributor reappearing later
 -----------------------------------------------------------------------------------------
 
-/-- An earlier registered key that is live after replay was already live before replay.
+/-- An earlier registered ref that is live after replay was already live before replay.
 Witness: otherwise it was retired, and every source handler preserves that retirement.
 No source matching, freshness, or admission premise is needed for this backward fact.
 -/
-theorem State.replayGraphEvents_live_registered {queue : State} {key}
-    (registered : key ∈ queue.registeredGroups) (events : List GraphEvent)
-    {owner} (live : (queue.replayGraphEvents events).groupNode? key = some owner)
-    : ∃ earlier, queue.groupNode? key = some earlier := by
-  cases found : queue.groupNode? key with
+theorem State.replayGraphEvents_live_registered {queue : State} {ref}
+    (registered : ref ∈ queue.registeredGroups) (events : List GraphEvent)
+    {owner} (live : (queue.replayGraphEvents events).groupNode? ref = some owner)
+    : ∃ earlier, queue.groupNode? ref = some earlier := by
+  cases found : queue.groupNode? ref with
   | some node => exact ⟨node, rfl⟩
   | none =>
       have retired := State.RetiredGroup.of_lookup_none registered found
       have preserve (events : List GraphEvent) (current : State)
-          (prior : current.RetiredGroup key)
-          : (current.replayGraphEvents events).RetiredGroup key := by
+          (prior : current.RetiredGroup ref)
+          : (current.replayGraphEvents events).RetiredGroup ref := by
         induction events generalizing current with
         | nil => exact prior
         | cons event rest ih => exact ih _ (prior.handleGraphEvent event)
@@ -58,7 +58,7 @@ theorem State.ReplayClosuresCovered.conserves {queue : State} {work events publi
       have next := queue.handleGraphEvent_registration live registered event
         (matching event List.mem_cons_self)
       have known := State.taskNode?_some found
-      have recorded := registered node.task (started node known.1) contributor.key
+      have recorded := registered node.task (started node known.1) contributor.ref
         (List.mem_map.mpr ⟨contributor, contributes, rfl⟩)
       obtain ⟨currentOwner, currentLive⟩ := State.replayGraphEvents_live_registered
         (next.2.2 recorded) rest survives

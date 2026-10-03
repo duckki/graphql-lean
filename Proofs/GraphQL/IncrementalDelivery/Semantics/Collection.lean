@@ -24,7 +24,7 @@ theorem id_map_eq {α β : Type} (f : α → β) (value : α) : (f <$> value : I
 
 /-- State binding threads the intermediate state; witness: definitional equality. -/
 @[simp]
-theorem run_bind {α β : Type} (action : StateM Nat α) (next : α → StateM Nat β)
+theorem run_bind {α β : Type} (action : StateM NodeRef α) (next : α → StateM NodeRef β)
     (state : Nat)
     : (action >>= next).run state
       = (next (action.run state).1).run (action.run state).2 :=
@@ -32,7 +32,7 @@ theorem run_bind {α β : Type} (action : StateM Nat α) (next : α → StateM N
 
 /-- State mapping changes only the returned value; witness: definitional equality. -/
 @[simp]
-theorem run_map {α β : Type} (f : α → β) (action : StateM Nat α) (state : Nat)
+theorem run_map {α β : Type} (f : α → β) (action : StateM NodeRef α) (state : Nat)
     : (f <$> action).run state = (f (action.run state).1, (action.run state).2) :=
   rfl
 
@@ -100,9 +100,9 @@ theorem eraseGroups_add (group : Name × List FieldDetails) (groups : CollectedF
   induction groups with
   | nil => rfl
   | cons head rest ih =>
-      rcases group with ⟨key, fields⟩
+      rcases group with ⟨ref, fields⟩
       rcases head with ⟨name, existing⟩
-      by_cases h : name == key
+      by_cases h : name == ref
       · simp [CollectedFieldsMap.addFieldSet, GraphQL.Execution.addExecutableGroup, h,
           eraseGroups, eraseGroup, List.map_append]
       · simpa [CollectedFieldsMap.addFieldSet, GraphQL.Execution.addExecutableGroup, h,
@@ -132,9 +132,9 @@ theorem groupsPlain_add (group : Name × List FieldDetails)
   | cons head rest ih =>
       have hh : FieldsPlain head.snd := hs head (by simp)
       have ht : GroupsPlain rest := fun g h => hs g (by simp [h])
-      rcases group with ⟨key, fields⟩
+      rcases group with ⟨ref, fields⟩
       rcases head with ⟨name, existing⟩
-      by_cases h : name == key
+      by_cases h : name == ref
       · simp only [CollectedFieldsMap.addFieldSet, h, ↓reduceIte]
         intro candidate hc field hf
         simp only [List.mem_cons] at hc
@@ -187,7 +187,7 @@ theorem collectionMatches_append {left right : FieldCollection} {state : Nat}
   ⟩
 
 mutual
-  /-- A plain selection collects exactly its erasure without new work keys; mutual syntax
+  /-- A plain selection collects exactly its erasure without new work refs; mutual syntax
   induction.
   -/
   theorem collectSelection_plain (schema : Schema) (variables : VariableValues)

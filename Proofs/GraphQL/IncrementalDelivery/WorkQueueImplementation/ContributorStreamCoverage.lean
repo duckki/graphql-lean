@@ -14,14 +14,14 @@ and the pointwise root-coverage theorem transports the actual stored path.
 theorem State.HealthyContributorsCovered.drainReadyGroups
     {queue : State} {work failed parents}
     (covered : queue.HealthyContributorsCovered work failed)
-    (unique : queue.GroupKeysUnique) (forest : queue.RemovalForest parents)
+    (unique : queue.GroupRefsUnique) (forest : queue.RemovalForest parents)
     : queue.drainReadyGroups.1.HealthyContributorsCovered work failed := by
-  intro task member key contributes healthy survives
+  intro task member ref contributes healthy survives
   rw [State.drainReadyGroups_tasks] at member
   obtain ⟨node, found⟩ := survives
-  obtain ⟨old, earlier, _⟩ := (queue.drainReadyGroups_descendants unique).1 key node found
-  exact State.drainReadyGroups_root_coverage unique forest key
-    (covered task member key contributes healthy ⟨old, earlier⟩) ⟨node, found⟩
+  obtain ⟨old, earlier, _⟩ := (queue.drainReadyGroups_descendants unique).1 ref node found
+  exact State.drainReadyGroups_root_coverage unique forest ref
+    (covered task member ref contributes healthy ⟨old, earlier⟩) ⟨node, found⟩
 
 -----------------------------------------------------------------------------------------
 -- Item registration covers both old contributors and fresh-region contributors
@@ -35,7 +35,7 @@ theorem State.HealthyContributorsCovered.integrateStreamItem
     {queue : State} {work : Execution.Work} {parents failed seen}
     (covered : queue.HealthyContributorsCovered work failed)
     (inventory : queue.RegionInventory work seen) (generated : ExecutedWork work)
-    (complete : queue.ParentLinksComplete parents) (unique : queue.GroupKeysUnique)
+    (complete : queue.ParentLinksComplete parents) (unique : queue.GroupRefsUnique)
     (registered : queue.LiveGroupsRegistered) (tasks : queue.TaskGroupsRegistered)
     (closed : queue.ParentRegistryClosed parents)
     (cancelled : queue.CancelledRecordsSupported work failed)
@@ -43,18 +43,18 @@ theorem State.HealthyContributorsCovered.integrateStreamItem
     (links : queue.ChildLinksCanonical parents)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     {stream items} (matching : (GraphEvent.streamItems stream items).MatchesWork work)
     {item : StreamItem} (itemMember : item ∈ items) (fresh : item.occurrence ∉ seen)
     : (queue.integrateStreamItem item).HealthyContributorsCovered work failed := by
-  intro task member key contributes healthy survives
+  intro task member ref contributes healthy survives
   rw [State.integrateStreamItem_tasks] at member
   rcases List.mem_append.mp member with old | new
-  · have priorLive : ∃ node, queue.groupNode? key = some node := by
-      cases earlier : queue.groupNode? key with
+  · have priorLive : ∃ node, queue.groupNode? ref = some node := by
+      cases earlier : queue.groupNode? ref with
       | some node => exact ⟨node, rfl⟩
       | none =>
-          have retired := State.RetiredGroup.of_lookup_none (tasks task old key contributes) earlier
+          have retired := State.RetiredGroup.of_lookup_none (tasks task old ref contributes) earlier
           have integrated := retired.maybeIntegrateWork item.work
           let candidates := (queue.maybeIntegrateWork item.work).2.newGroups
           have pruned := integrated.pruneEmptyGroups candidates
@@ -63,13 +63,13 @@ theorem State.HealthyContributorsCovered.integrateStreamItem
               newGroups := ((queue.maybeIntegrateWork item.work).1.pruneEmptyGroups
                 (queue.maybeIntegrateWork item.work).2.newGroups).2 }
           obtain ⟨node, lookup⟩ := survives
-          have absent : (queue.integrateStreamItem item).groupNode? key = none := next.lookup_none
+          have absent : (queue.integrateStreamItem item).groupNode? ref = none := next.lookup_none
           rw [absent] at lookup
           contradiction
     exact State.integrateStreamItem_old_root_coverage unique registered item
-      (covered task old key contributes healthy priorLive)
+      (covered task old ref contributes healthy priorLive)
   · obtain ⟨group, member, same⟩ := matching.streamItem_childTasksCovered itemMember
-      task new key contributes
+      task new ref contributes
     have taskMatch : TaskMatches work task := by
       obtain ⟨address, payload, equation, known⟩ :=
         matching.streamItem_childTask_producer itemMember new
@@ -88,12 +88,12 @@ theorem State.HealthyContributorsCovered.integrateStreamItem
 Every field is independently derived bookkeeping; only `covered` is the new induction goal.
 -/
 private structure StreamCoverageFrame (queue : State) (work : Execution.Work)
-    (parents : Nat → Keys) (failed seen : List Occurrence)
+    (parents : Nat → NodeRefs) (failed seen : List Occurrence)
     : Prop where
   covered : queue.HealthyContributorsCovered work failed
   inventory : queue.RegionInventory work seen
   complete : queue.ParentLinksComplete parents
-  unique : queue.GroupKeysUnique
+  unique : queue.GroupRefsUnique
   registered : queue.LiveGroupsRegistered
   tasks : queue.TaskGroupsRegistered
   closed : queue.ParentRegistryClosed parents
@@ -111,13 +111,13 @@ private theorem StreamCoverageFrame.integrateStreamItem {queue : State}
     (generated : ExecutedWork work)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (matching : (GraphEvent.streamItems stream items).MatchesWork work)
     {item : StreamItem} (member : item ∈ items) (fresh : item.occurrence ∉ seen)
     : StreamCoverageFrame (queue.integrateStreamItem item) work parents failed
         (item.occurrence :: seen) := by
   have exactParents : ∀ group ∈ item.work.groups,
-      group.parent = (parents group.node.key).head? :=
+      group.parent = (parents group.node.ref).head? :=
     fun _ included => matching.streamItem_childGroups_parentCanonical canonical member included
   have descriptors : ∀ group ∈ item.work.groups,
       ∃ dependencies, GroupRecordAt work group.node dependencies :=
@@ -149,8 +149,8 @@ private theorem StreamCoverageFrame.integrateStreamItem {queue : State}
       _).startNewWork
       _
   ⟩
-  intro key included
-  apply cancelled key
+  intro ref included
+  apply cancelled ref
   simpa only [State.integrateStreamItem, State.startNewWork_cancelledGroups,
     State.pruneEmptyGroups_cancelledGroups]
     using included
@@ -163,7 +163,7 @@ theorem State.HealthyContributorsCovered.streamItems
     {queue : State} {work : Execution.Work} {parents failed seen}
     (covered : queue.HealthyContributorsCovered work failed)
     (inventory : queue.RegionInventory work seen) (generated : ExecutedWork work)
-    (complete : queue.ParentLinksComplete parents) (unique : queue.GroupKeysUnique)
+    (complete : queue.ParentLinksComplete parents) (unique : queue.GroupRefsUnique)
     (registered : queue.LiveGroupsRegistered) (tasks : queue.TaskGroupsRegistered)
     (closed : queue.ParentRegistryClosed parents)
     (cancelled : queue.CancelledRecordsSupported work failed)
@@ -171,7 +171,7 @@ theorem State.HealthyContributorsCovered.streamItems
     (links : queue.ChildLinksCanonical parents)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     {stream items} (matching : (GraphEvent.streamItems stream items).MatchesWork work)
     (distinct : (items.map StreamItem.occurrence).Nodup)
     (fresh : ∀ item ∈ items, item.occurrence ∉ seen)

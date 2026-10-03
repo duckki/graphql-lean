@@ -10,21 +10,21 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 -----------------------------------------------------------------------------------------
 
 /-- A task contributing to a generated group is an execution-group occurrence.
-Witness: an item's only owner is its stream key, disjoint from every generated group key.
+Witness: an item's only owner is its stream ref, disjoint from every generated group ref.
 -/
 theorem ExecutedWork.groupContributor_object
     {work child dependencies birth occurrence owners producer payload}
     (generated : ExecutedWork work)
     (group : NodeAt work child .group dependencies birth)
-    (known : TaskAt work occurrence owners producer payload) (owner : child.key ∈ owners)
+    (known : TaskAt work occurrence owners producer payload) (owner : child.ref ∈ owners)
     : ∃ address, occurrence = .executionGroup address := by
   cases occurrence with
   | executionGroup address => exact ⟨address, rfl⟩
   | item address ordinal =>
       obtain ⟨stream, items, enclosing, result, children, located, _, same, _⟩ := known
-      have keyEq : child.key = stream.key := by simpa only [same, List.mem_singleton] using owner
+      have refEq : child.ref = stream.ref := by simpa only [same, List.mem_singleton] using owner
       exact False.elim
-        (generated.groupStreamKeysDisjoint group ⟨address, items, located⟩ keyEq)
+        (generated.groupStreamRefsDisjoint group ⟨address, items, located⟩ refEq)
 
 -----------------------------------------------------------------------------------------
 -- Cached failures retain their original source prerequisite after task removal
@@ -47,7 +47,7 @@ theorem RetainedNoticeContents.sourceReadyContributor
               producer = some source → source ∈ received.flatMap GraphEvent.successes)
     : ∃ address owners producer payload,
         TaskAt work (.executionGroup address) owners producer payload
-        ∧ child.key ∈ owners
+        ∧ child.ref ∈ owners
         ∧ ∀ source,
             producer = some source → source ∈ received.flatMap GraphEvent.successes := by
   obtain ⟨⟨dependencies, birth, located⟩, queue, node, found, same, retained,
@@ -62,7 +62,7 @@ theorem RetainedNoticeContents.sourceReadyContributor
     exact producers task taskMember source ⟨_, payload, parent ▸ known⟩
   · obtain ⟨occurrence, failed, owners, ⟨producer, payload, known⟩, owner⟩ :=
       cached node member (retained.resolve_left hasTasks)
-    have contributes : child.key ∈ owners := same ▸ owner
+    have contributes : child.ref ∈ owners := same ▸ owner
     obtain ⟨address, rfl⟩ := generated.groupContributor_object located known contributes
     exact ⟨address, owners, producer, payload, known, contributes,
       failedReady address owners producer payload known failed⟩
@@ -101,20 +101,20 @@ theorem RetainedNoticeContents.readyDescriptor
           → Occurrence.item source index ∈ received.flatMap GraphEvent.successes
           → Published matching events (.item source index))
     (ready
-      : ∀ key ∈ dependencies,
-          DependencySatisfied work initial matching events failures key)
+      : ∀ ref ∈ dependencies,
+          DependencySatisfied work initial matching events failures ref)
     (closed
-      : ∀ key ∈ dependencies,
-          key ∈ completedKeys events
-          → ¬NodeFailed work matching events failures key
-          → NodeAccounted work matching events failures key)
+      : ∀ ref ∈ dependencies,
+          ref ∈ completedRefs events
+          → ¬NodeFailed work matching events failures ref
+          → NodeAccounted work matching events failures ref)
     : ∃ producer,
         NodeAt work child .group dependencies producer
         ∧ ∀ source, producer = some source → Published matching events source := by
   obtain ⟨address, owners, producer, payload, task, owner, sourceReady⟩ :=
     contents.sourceReadyContributor generated failedReady
   obtain ⟨node, parents, descriptor, same⟩ := task.executionGroup_owner owner
-  have nodeEq := generated.nodeKeyCoherent _ _ _ _ _ _ _ _ descriptor known same
+  have nodeEq := generated.nodeRefCoherent _ _ _ _ _ _ _ _ descriptor known same
   obtain ⟨assignment, canonical⟩ := generated.groupDependenciesCanonical
   have parentsEq : parents = dependencies := by
     rw [canonical _ _ _ descriptor, canonical _ _ _ known, same]

@@ -115,12 +115,12 @@ theorem GraphEvent.MatchesWork.success_contributorsLocated
         simpa [taskGroups?, located] using exactGroups
       rw [← mapped] at member
       obtain ⟨fragment, inGroups, same⟩ := List.mem_map.mp member
-      refine ⟨fragment.ancestors.map Execution.DeliveryNode.key,
+      refine ⟨fragment.ancestors.map Execution.DeliveryNode.ref,
         producer, ?_⟩
       exact ⟨address, groups, path, outcome, children, enclosing,
         fragment, located, inGroups, same.symm, rfl⟩
 
-/-- A matched successful task reports distinct contributor keys. Witness:
+/-- A matched successful task reports distinct contributor refs. Witness:
 exact group-list matching transports the generated task's structural owner
 uniqueness into the host's execution-group value.
 -/
@@ -128,7 +128,7 @@ theorem GraphEvent.MatchesWork.success_contributorsNodup
     {work : Execution.Work} {occurrence : Occurrence} {result : TaskResult}
     (generated : ExecutedWork work)
     (matching : (GraphEvent.taskSuccess occurrence result).MatchesWork work)
-    : (result.value.deliveryGroups.map Execution.DeliveryNode.key).Nodup := by
+    : (result.value.deliveryGroups.map Execution.DeliveryNode.ref).Nodup := by
   obtain ⟨owners, producer, known, exactGroups, _⟩ := matching
   cases occurrence with
   | item address index =>
@@ -154,13 +154,13 @@ observed before the parent settlement that releases it.
 -/
 theorem workFromSpec_tasks_taskAt
     {root current : Execution.Work} {address : Address}
-    {producer : Option Occurrence} {enclosing : Keys}
+    {producer : Option Occurrence} {enclosing : NodeRefs}
     (located : Located root address current producer enclosing)
     {task : Task} (member : task ∈ (Work.fromExecution current address).tasks)
     : ∃ taskAddress payload,
         task.occurrence = .executionGroup taskAddress
         ∧ TaskAt root task.occurrence
-            (task.groups.map Execution.DeliveryNode.key) producer payload := by
+            (task.groups.map Execution.DeliveryNode.ref) producer payload := by
   cases current with
   | empty => simp [Work.fromExecution] at member
   | combine left right =>
@@ -182,11 +182,11 @@ decreasing_by
   all_goals omega
 
 /-- Lowering preserves the complete contributor descriptors, not just their
-keys. The exact list matters when comparing queued tasks with host values.
+refs. The exact list matters when comparing queued tasks with host values.
 -/
 theorem workFromSpec_tasks_groupsExact
     {root current : Execution.Work} {address : Address}
-    {producer : Option Occurrence} {enclosing : Keys}
+    {producer : Option Occurrence} {enclosing : NodeRefs}
     (located : Located root address current producer enclosing)
     {task : Task} (member : task ∈ (Work.fromExecution current address).tasks)
     : taskGroups? root task.occurrence = some task.groups := by
@@ -212,15 +212,15 @@ decreasing_by
   all_goals omega
 
 /-- Every task immediately lowered from a located subtree of generated Work
-has distinct contributor keys, regardless of the subtree's producer.
+has distinct contributor refs, regardless of the subtree's producer.
 -/
 private theorem workFromSpec_tasks_contributorsNodup
     {root current : Execution.Work} {address : Address}
-    {producer : Option Occurrence} {enclosing : Keys}
+    {producer : Option Occurrence} {enclosing : NodeRefs}
     (generated : ExecutedWork root)
     (located : Located root address current producer enclosing)
     {task : Task} (member : task ∈ (Work.fromExecution current address).tasks)
-    : (task.groups.map Execution.DeliveryNode.key).Nodup := by
+    : (task.groups.map Execution.DeliveryNode.ref).Nodup := by
   obtain ⟨taskAddress, payload, _, known⟩ :=
     workFromSpec_tasks_taskAt located member
   exact generated.taskOwners_nodup known
@@ -235,7 +235,7 @@ theorem GraphEvent.MatchesWork.childTask_producer
     : ∃ taskAddress payload,
         task.occurrence = .executionGroup taskAddress
         ∧ TaskAt work task.occurrence
-            (task.groups.map Execution.DeliveryNode.key)
+            (task.groups.map Execution.DeliveryNode.ref)
             (some occurrence) payload := by
   obtain ⟨owners, producer, known, _, childrenWork⟩ := matching
   cases occurrence with
@@ -254,7 +254,7 @@ theorem GraphEvent.MatchesWork.childTask_producer
       rw [childLowering] at member
       have childLocated : Located work (address ++ [0]) children
           (some (.executionGroup address))
-          (groups.map (fun group => group.node.key)) :=
+          (groups.map (fun group => group.node.ref)) :=
         WorkQueueSemantics.Located.executionGroup located
       exact workFromSpec_tasks_taskAt childLocated member
 
@@ -262,13 +262,13 @@ theorem GraphEvent.MatchesWork.childTask_producer
 agrees with the generated work's global ancestor assignment. -/
 theorem GraphEvent.MatchesWork.taskChildGroups_parentCanonical
     {work : Execution.Work} {occurrence : Occurrence} {result : TaskResult}
-    {parents : Nat → Keys}
+    {parents : Nat → NodeRefs}
     (matching : (GraphEvent.taskSuccess occurrence result).MatchesWork work)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     {group : Group} (member : group ∈ result.work.groups)
-    : group.parent = (parents group.node.key).head? := by
+    : group.parent = (parents group.node.ref).head? := by
   obtain ⟨owners, producer, known, _, childrenWork⟩ := matching
   cases occurrence with
   | item address index =>
@@ -286,7 +286,7 @@ theorem GraphEvent.MatchesWork.taskChildGroups_parentCanonical
       rw [childLowering] at member
       have childLocated : Located work (address ++ [0]) children
           (some (.executionGroup address))
-          (groups.map (fun group => group.node.key)) :=
+          (groups.map (fun group => group.node.ref)) :=
         WorkQueueSemantics.Located.executionGroup located
       exact workFromSpec_groups_parentCanonical childLocated canonical member
 
@@ -315,7 +315,7 @@ theorem GraphEvent.MatchesWork.childTask_groupsExact
       rw [childLowering] at member
       have childLocated : Located work (address ++ [0]) children
           (some (.executionGroup address))
-          (groups.map (fun group => group.node.key)) :=
+          (groups.map (fun group => group.node.ref)) :=
         WorkQueueSemantics.Located.executionGroup located
       exact workFromSpec_tasks_groupsExact childLocated member
 
@@ -331,7 +331,7 @@ theorem GraphEvent.MatchesWork.streamItem_childTask_producer
     : ∃ taskAddress payload,
         task.occurrence = .executionGroup taskAddress
         ∧ TaskAt work task.occurrence
-            (task.groups.map Execution.DeliveryNode.key)
+            (task.groups.map Execution.DeliveryNode.ref)
             (some item.occurrence) payload := by
   cases item with
   | mk itemOccurrence itemValue itemWork =>
@@ -386,14 +386,14 @@ theorem GraphEvent.MatchesWork.streamItem_childTask_groupsExact
 generated work's globally assigned primary parent. -/
 theorem GraphEvent.MatchesWork.streamItem_childGroups_parentCanonical
     {work : Execution.Work} {stream : Execution.DeliveryNode} {items : List StreamItem}
-    {parents : Nat → Keys}
+    {parents : Nat → NodeRefs}
     (matching : (GraphEvent.streamItems stream items).MatchesWork work)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     {item : StreamItem} (itemMember : item ∈ items)
     {group : Group} (groupMember : group ∈ item.work.groups)
-    : group.parent = (parents group.node.key).head? := by
+    : group.parent = (parents group.node.ref).head? := by
   cases item with
   | mk itemOccurrence itemValue itemWork =>
       obtain ⟨owners, producer, known, childrenWork⟩ := matching _ itemMember
@@ -416,19 +416,19 @@ theorem GraphEvent.MatchesWork.streamItem_childGroups_parentCanonical
           exact workFromSpec_groups_parentCanonical childLocated canonical groupMember
 
 /-- Successful task settlement releases only child tasks with distinct
-contributor keys. Witness: exact child-work matching and generated structure.
+contributor refs. Witness: exact child-work matching and generated structure.
 -/
 private theorem GraphEvent.MatchesWork.childTasksContributorsNodup
     {work : Execution.Work} {occurrence : Occurrence} {result : TaskResult}
     (generated : ExecutedWork work)
     (matching : (GraphEvent.taskSuccess occurrence result).MatchesWork work)
     {task : Task} (member : task ∈ result.work.tasks)
-    : (task.groups.map Execution.DeliveryNode.key).Nodup := by
+    : (task.groups.map Execution.DeliveryNode.ref).Nodup := by
   obtain ⟨taskAddress, payload, _, known⟩ := matching.childTask_producer member
   exact generated.taskOwners_nodup known
 
 /-- Stream-item publication likewise releases only child tasks with distinct
-contributor keys, independently of item batching and observation order.
+contributor refs, independently of item batching and observation order.
 -/
 private theorem GraphEvent.MatchesWork.streamItem_childTasksContributorsNodup
     {work : Execution.Work} {stream : Execution.DeliveryNode} {items : List StreamItem}
@@ -436,7 +436,7 @@ private theorem GraphEvent.MatchesWork.streamItem_childTasksContributorsNodup
     (matching : (GraphEvent.streamItems stream items).MatchesWork work)
     {item : StreamItem} (itemMember : item ∈ items)
     {task : Task} (taskMember : task ∈ item.work.tasks)
-    : (task.groups.map Execution.DeliveryNode.key).Nodup := by
+    : (task.groups.map Execution.DeliveryNode.ref).Nodup := by
   obtain ⟨taskAddress, payload, _, known⟩ :=
     matching.streamItem_childTask_producer itemMember taskMember
   exact generated.taskOwners_nodup known
@@ -448,7 +448,7 @@ event's readiness premise and the uniqueness of structural task metadata.
 theorem ValidGraphEvents.groupSettlement_producerBefore
     {work : Execution.Work} {events : List GraphEvent}
     (valid : ValidGraphEvents work events)
-    {address : Address} {owners : Keys} {producer : Occurrence} {payload : Payload}
+    {address : Address} {owners : NodeRefs} {producer : Occurrence} {payload : Payload}
     (known : TaskAt work (.executionGroup address) owners (some producer) payload)
     (settled
       : (.executionGroup address) ∈ events.flatMap (fun event => event.identities.1))

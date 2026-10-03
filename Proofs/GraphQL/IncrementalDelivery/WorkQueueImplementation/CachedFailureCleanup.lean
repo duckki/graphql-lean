@@ -17,13 +17,13 @@ theorem State.CachedFailuresSupported.finishGroupFailure_recordHealthyRetained
     (matching : queue.GroupNodesMatchWork work)
     (canonical
       : ∀ group dependencies,
-          GroupRecordAt work group dependencies → dependencies = parents group.key)
+          GroupRecordAt work group dependencies → dependencies = parents group.ref)
     (member : node ∈ queue.groupNodes) (cached : node.failure = some errors)
     : ∀ other ∈ queue.groupNodes,
-        ¬GroupRecordInvalidated work failed other.group.node.key
+        ¬GroupRecordInvalidated work failed other.group.node.ref
         → other ∈ (queue.finishGroupFailure node errors).1.groupNodes := by
   exact queue.removeGroup_recordHealthyRetained links matching canonical
-    node.group.node.key
+    node.group.node.ref
     (supported.invalidated member (by simp [cached])).toRecordInvalidated
 
 /-- A cached-failure closure preserves all registered unsettled tasks' healthy owners.
@@ -40,12 +40,12 @@ theorem State.HealthyRegisteredTaskAccounting.finishCachedGroupFailure
     (matching : queue.GroupNodesMatchWork work)
     (canonical
       : ∀ group dependencies,
-          GroupRecordAt work group dependencies → dependencies = parents group.key)
+          GroupRecordAt work group dependencies → dependencies = parents group.ref)
     (member : node ∈ queue.groupNodes) (cached : node.failure = some errors)
     : (queue.finishGroupFailure node errors).1.HealthyRegisteredTaskAccounting
         work settled failed := by
   exact accounted.removeInvalidatedGroup tasksMatch generated links matching canonical
-    node.group.node.key
+    node.group.node.ref
     (supported.invalidated member (by simp [cached])).toRecordInvalidated
 
 /-- A cached-failure closure also preserves the healthy pending-count ledger.
@@ -55,6 +55,6 @@ theorem State.HealthyPendingTracks.finishGroupFailure {queue work settled failed
     (tracks : State.HealthyPendingTracks queue work settled failed)
     (node : GroupNode) (errors : Nat)
     : (queue.finishGroupFailure node errors).1.HealthyPendingTracks work settled failed :=
-  tracks.removeGroup node.group.node.key
+  tracks.removeGroup node.group.node.ref
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

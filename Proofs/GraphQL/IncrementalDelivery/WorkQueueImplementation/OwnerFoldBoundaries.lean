@@ -87,7 +87,7 @@ theorem successGroupStep_carrier_last (acc : State × List WorkQueueEvent × New
   obtain ⟨queue, events, released⟩ := acc
   dsimp only at newOutput
   dsimp only [successGroupStep] at selected ⊢
-  cases found : queue.groupNode? owner.key with
+  cases found : queue.groupNode? owner.ref with
   | none =>
       simp only [found] at selected ⊢
       have inside := (List.getElem?_eq_some_iff.mp selected).1

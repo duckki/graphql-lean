@@ -66,8 +66,8 @@ example {ObjectRef : Type} (schema : Schema) (resolvers : Resolvers ObjectRef)
 /-- Coalescing may reorder notices inside a batch, but preserves multiplicity. -/
 example {events batches}
     (grouped : GraphQL.IncrementalDelivery.WorkQueueSemantics.WorkBatching events batches)
-    : (GraphQL.IncrementalDelivery.WorkQueueSemantics.pendingKeys batches.flatten).Perm
-        (GraphQL.IncrementalDelivery.WorkQueueSemantics.pendingKeys events) :=
-  grouped.keyPermutation.pending
+    : (GraphQL.IncrementalDelivery.WorkQueueSemantics.pendingRefs batches.flatten).Perm
+        (GraphQL.IncrementalDelivery.WorkQueueSemantics.pendingRefs events) :=
+  grouped.refPermutation.pending
 
 end GraphQL.IncrementalDelivery.Tests.Identity

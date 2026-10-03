@@ -8,17 +8,17 @@ open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.Correctness
 open WorkQueueSemantics
 
-/-- Root owner, its dependent co-owner, and their produced stream use separate keys. -/
-def node (key : Nat) : DeliveryNode := { key, path := [] }
+/-- Root owner, its dependent co-owner, and their produced stream use separate refs. -/
+def node (ref : NodeRef) : DeliveryNode := { ref, path := [] }
 
 /-- One shared task accounts for both owners and reveals an empty stream. -/
 def work : Work :=
   .executionGroup [{ node := node 0 }, { node := node 1, ancestors := [node 0] }]
     [] (.ok ([], 0)) (.stream (node 2) [])
 
-/-- Key one retains its ancestor; the stream's dependencies come from structural owners.
+/-- Ref one retains its ancestor; the stream's dependencies come from structural owners.
 -/
-def ancestry (key : Nat) : Keys := if key = 1 then [0] else []
+def ancestry (ref : NodeRef) : NodeRefs := if ref = 1 then [0] else []
 
 /-- This fixture has one publication occurrence, independent of its chosen owner. -/
 def matching (_ : Nat) : Occurrence := .executionGroup []
@@ -80,7 +80,7 @@ theorem task_work {occurrence owners producer payload}
   | item located selected =>
       rcases located_work located.toCurrent with h | h <;> simp_all [work]
 
-/-- Only key zero is initially announced, and that frontier is valid.
+/-- Only ref zero is initially announced, and that frontier is valid.
 Witness: its root descriptor has no dependencies and its shared task is still outstanding.
 -/
 theorem initialized : Initializes work [node 0] [] := by
@@ -94,7 +94,7 @@ theorem initialized : Initializes work [node 0] [] := by
     [],
     none,
     known,
-    by simp [announcedKeys, pendingKeys],
+    by simp [announcedRefs, pendingRefs],
     Or.inl
       ⟨fun failed => failed.nonempty rfl, Or.inr (group_not_initially_accounted known)⟩,
     by simp,
@@ -113,13 +113,13 @@ theorem initial_ready
   ⟩
 
 /-- Initialization covers every actually eligible node in this fixture.
-Witness: key one still depends on the ready root task; the stream producer is unpublished.
+Witness: ref one still depends on the ready root task; the stream producer is unpublished.
 -/
 theorem initial_covered : NoticesCovered work [0] matching [] [] := by
   intro other kind parents birth known eligible
   rcases node_work known with ⟨rfl, rfl, rfl, rfl⟩
     | ⟨rfl, rfl, rfl, rfl⟩ | ⟨rfl, rfl, rfl, rfl⟩
-  · exact eligible.1 (by simp [node, announcedKeys, pendingKeys])
+  · exact eligible.1 (by simp [node, announcedRefs, pendingRefs])
   · exact ready_owner_dependency_unsatisfied initial_ready.1
       (show TaskAt work (.executionGroup []) [0, 1] none (.object [] (.ok ([], 0)))
         from .executionGroup .root) (by simp : 0 ∈ [0, 1]) initial_ready.2
@@ -136,14 +136,14 @@ theorem published : Explains work [node 0] [] [value] matching [] := by
     .executionGroup .root, initial_ready.2, ?_⟩
   have opened : OpenOwner work [0] [] [0, 1] (node 0) :=
     ⟨⟨.group, [], none, .group (group := { node := node 0 }) .root (by simp)⟩,
-      by simp [node], by simp [Open, announcedKeys, pendingKeys, completedKeys, node]⟩
+      by simp [node], by simp [Open, announcedRefs, pendingRefs, completedRefs, node]⟩
   refine ⟨opened, ⟨node 0, opened, fun failed => failed.nonempty rfl⟩, ?_⟩
   intro other available
   obtain ⟨kind, parents, birth, known⟩ := available.1
   rcases node_work known with ⟨rfl, _, _, _⟩ | ⟨rfl, _, _, _⟩ | ⟨rfl, _, _, _⟩
   all_goals simp [node]
 
-/-- Publication silently accounts for key one, making the stream eligible immediately.
+/-- Publication silently accounts for ref one, making the stream eligible immediately.
 Witness: its producer has published and its unannounced co-owner is accounted for.
 -/
 theorem stream_eligible
@@ -151,7 +151,7 @@ theorem stream_eligible
         [0, 1] (some (.executionGroup [])) := by
   have output : Published matching [value] (.executionGroup []) := ⟨0, value, rfl, trivial, rfl⟩
   refine ⟨
-    by simp [node, announcedKeys, pendingKeys, value, eventPending],
+    by simp [node, announcedRefs, pendingRefs, value, eventPending],
     Or.inl ⟨fun failed => failed.nonempty rfl, Or.inl rfl⟩,
     ?_,
     Or.inr ⟨1, by simp, ?_⟩
@@ -160,7 +160,7 @@ theorem stream_eligible
     have equal := Option.some.inj same
     exact equal ▸ output
   · refine ⟨fun failed => failed.nonempty rfl, Or.inr (Or.inr ⟨?_, ?_⟩)⟩
-    · simp [announcedKeys, pendingKeys, value, eventPending]
+    · simp [announcedRefs, pendingRefs, value, eventPending]
     · intro occurrence owners projected _
       obtain ⟨producer, payload, known⟩ := projected
       exact Or.inr (task_work known ▸ output)
@@ -173,7 +173,7 @@ example : ¬NoticesCovered work [0] matching [value] [] := by
   exact covered (node 2) .stream [0, 1] (some (.executionGroup []))
     (NodeAt.stream (.executionGroup .root)) stream_eligible
 
-/-- Key zero remains an open, unsatisfied dependency after publication.
+/-- Ref zero remains an open, unsatisfied dependency after publication.
 Witness: it is represented and announced but has no completion entry yet.
 -/
 theorem zero_dependency_blocked
@@ -181,17 +181,17 @@ theorem zero_dependency_blocked
   rintro ⟨_, absent | completed | ⟨fresh, _⟩⟩
   · exact absent ⟨none, node 0, .group, [],
       .group (group := { node := node 0 }) .root (by simp), rfl⟩
-  · simp [completedKeys, value, eventCompleted] at completed
-  · exact fresh (by simp [announcedKeys, pendingKeys, value, eventPending])
+  · simp [completedRefs, value, eventCompleted] at completed
+  · exact fresh (by simp [announcedRefs, pendingRefs, value, eventPending])
 
 /-- The produced stream does not yet have full ancestry support, although it is eligible.
-Witness: either selected co-owner requires key zero itself or its unsatisfied ancestry.
+Witness: either selected co-owner requires ref zero itself or its unsatisfied ancestry.
 -/
 theorem stream_not_supported
     : ¬SupportedNotice ancestry work [0] matching [value] []
         (node 2) .stream [0, 1] (some (.executionGroup [])) := by
   intro supported
-  rcases supported.2.2 rfl with impossible | ⟨key, member, dependency, ancestors⟩
+  rcases supported.2.2 rfl with impossible | ⟨ref, member, dependency, ancestors⟩
   · cases impossible
   · simp at member
     rcases member with rfl | rfl
@@ -204,7 +204,7 @@ ancestry support. The ordinary scheduler still permits announcing that stream ea
 -/
 theorem published_supported
     : SupportedNoticesCovered ancestry work [0] matching [value] [] := by
-  have accounted (key : Nat) : NodeAccounted work matching [value] [] key := by
+  have accounted (ref : NodeRef) : NodeAccounted work matching [value] [] ref := by
     intro occurrence owners projected _
     obtain ⟨producer, payload, known⟩ := projected
     exact Or.inr (task_work known ▸
@@ -219,22 +219,22 @@ theorem published_supported
   · exact stream_not_supported supported
 
 /-- The same fixture still has a complete run despite losing full notice coverage.
-Witness: supported mixed progress with its explicit ancestry, key roles, and paths.
+Witness: supported mixed progress with its explicit ancestry, ref roles, and paths.
 The stream may wait for a later carrier under the unchanged admission rules.
 -/
 example : ∃ history, AdmissibleRun work history := by
   open GraphQL.IncrementalDelivery.Semantics in
   open Ancestry GeneralScheduling in
   apply mixed_completeRun_exists (ancestry := ancestry) (bound := 3)
-    (roles := fun key => key == 2) (paths := fun _ => []) (pathBound := 3)
-  · intro key bounded parent member
-    by_cases one : key = 1
+    (roles := fun ref => ref == 2) (paths := fun _ => []) (pathBound := 3)
+  · intro ref bounded parent member
+    by_cases one : ref = 1
     · simp [ancestry, one] at member
       subst parent
       simp [one, ancestry, List.Subset]
     · simp [ancestry, one] at member
-  · simp [work, MixedKeys.WorkAt, FragmentAt, node, ancestry]
-  · simp [work, KeyRoles.WorkRoles, node]
+  · simp [work, MixedRefs.WorkAt, FragmentAt, node, ancestry]
+  · simp [work, RefRoles.WorkRoles, node]
   · simp [work, DeferContinuous, DeferUnder, node]
   · simp [work, StreamOwnersOrdered, OwnersBefore, node]
   · simp [work, MixedOwnerPaths.WorkAt, OwnerPaths.MapAt, OwnerPaths.mapNodes,

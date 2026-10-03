@@ -67,7 +67,7 @@ theorem Flat.root_singleton {work} (flat : Flat work) : RootSingletonGroups work
     cases StructuralEquivalence.taskAt_of_current known with
     | executionGroup located =>
         rcases flat.located located.toCurrent with ⟨⟨⟨group, rfl⟩, _⟩, _⟩ | impossible
-        · exact ⟨group.node.key, rfl⟩
+        · exact ⟨group.node.ref, rfl⟩
         · simp [Work.size] at impossible
     | item located entry =>
         rcases flat.located located.toCurrent with ⟨impossible, _⟩ | impossible

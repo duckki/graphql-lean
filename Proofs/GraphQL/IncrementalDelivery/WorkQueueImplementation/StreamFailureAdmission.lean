@@ -16,7 +16,7 @@ the event's prefix. No already-admitted history or failure licensing is assumed.
 theorem StreamFailureCuts.nodeFailed {work events failures index stream errors matching}
     (cuts : StreamFailureCuts work events failures)
     (atEvent : events[index]? = some (.streamFailure stream errors))
-    : NodeFailed work matching (events.take index) failures stream.key := by
+    : NodeFailed work matching (events.take index) failures stream.ref := by
   obtain ⟨occurrence, member⟩ := cuts.covers atEvent
   obtain ⟨node, count, producer, selected, task⟩ := cuts.2 _ member
   obtain ⟨sameNode, sameCount⟩ :=
@@ -37,7 +37,7 @@ theorem StreamFailureCuts.eventAllowed
     (cuts : StreamFailureCuts work events failures)
     (ordered : (events.filterMap streamAction).Pairwise StreamAction.Before)
     (atEvent : events[index]? = some (.streamFailure stream errors))
-    (opened : Open initial (events.take index) stream.key)
+    (opened : Open initial (events.take index) stream.ref)
     : EventAllowed work initial matching (events.take index) failures
         (.streamFailure stream errors) := by
   obtain ⟨occurrence, member⟩ := cuts.covers atEvent
@@ -80,7 +80,7 @@ theorem createWorkQueue_runNormalized_streamFailure_eventAllowed {work : Executi
     : EventAllowed work
         (((State.initialize (Work.fromExecution work)).initialGroups
           ++ (State.initialize (Work.fromExecution work)).initialStreams).map
-          Execution.DeliveryNode.key) matching
+          Execution.DeliveryNode.ref) matching
         ((((State.initialize (Work.fromExecution work)).runNormalized
             batches).2.flatten.flatMap
             publicationAtoms).take
@@ -88,6 +88,6 @@ theorem createWorkQueue_runNormalized_streamFailure_eventAllowed {work : Executi
   apply cuts.eventAllowed
     (createWorkQueue_runNormalized_atomicStreamActions_ordered valid) atEvent
   exact createWorkQueue_runNormalized_streamOpenAt generated valid atEvent
-    (by simp [streamReferenceKeys])
+    (by simp [streamReferenceRefs])
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

@@ -26,12 +26,12 @@ theorem Witness.groupNotice_rawControls {work inputs} {w : Witness}
     : ∃ position,
         ((initialQueue work).rawEventReplay inputs.flatten).2[position]?
           = some (.groupSuccess group groups streams)
-        ∧ (w.events.take index).flatMap groupNoticeKeys
+        ∧ (w.events.take index).flatMap groupNoticeRefs
           = (((initialQueue work).rawEventReplay inputs.flatten).2.take position).flatMap
-              rawGroupNoticeKeys
-        ∧ (w.events.take index).flatMap groupClosureKeys
+              rawGroupNoticeRefs
+        ∧ (w.events.take index).flatMap groupClosureRefs
           = (((initialQueue work).rawEventReplay inputs.flatten).2.take position).flatMap
-              rawGroupClosureKeys := by
+              rawGroupClosureRefs := by
   have exactHistory := history.trans (createWorkQueue_nonterminalAtoms_flattened inputs started)
   rw [exactHistory] at selected ⊢
   have rawShape := (initialQueue work).rawEventReplay_nonemptyValues inputs.flatten
@@ -56,12 +56,12 @@ theorem Witness.itemNotice_rawControls {work inputs} {w : Witness}
     : ∃ position rawValues,
         ((initialQueue work).rawEventReplay inputs.flatten).2[position]?
           = some (.streamValues owner rawValues groups streams)
-        ∧ (w.events.take index).flatMap groupNoticeKeys
+        ∧ (w.events.take index).flatMap groupNoticeRefs
           = (((initialQueue work).rawEventReplay inputs.flatten).2.take position).flatMap
-              rawGroupNoticeKeys
-        ∧ (w.events.take index).flatMap groupClosureKeys
+              rawGroupNoticeRefs
+        ∧ (w.events.take index).flatMap groupClosureRefs
           = (((initialQueue work).rawEventReplay inputs.flatten).2.take position).flatMap
-              rawGroupClosureKeys := by
+              rawGroupClosureRefs := by
   have exactHistory := history.trans (createWorkQueue_nonterminalAtoms_flattened inputs started)
   rw [exactHistory] at selected ⊢
   have rawShape := (initialQueue work).rawEventReplay_nonemptyValues inputs.flatten
@@ -74,24 +74,24 @@ theorem Witness.itemNotice_rawControls {work inputs} {w : Witness}
   exact ⟨position, rawValues, rawAt, notices.trans rawNotices, closures.trans rawClosures⟩
 
 -----------------------------------------------------------------------------------------
--- An ancestor key cannot be supplied by an unrelated stream's announcement
+-- An ancestor ref cannot be supplied by an unrelated stream's announcement
 -----------------------------------------------------------------------------------------
 
 /-- An announced defer ancestor comes from initial groups or prior group notices.
-Witness: generated key roles exclude every initial or carried stream descriptor, including
+Witness: generated ref roles exclude every initial or carried stream descriptor, including
 taskless ancestor records. Only actual output provenance is used, not notice admission.
 -/
 theorem groupNoticeAncestor_announced_group
-    {work inputs index child dependencies key} {w : Witness}
+    {work inputs index child dependencies ref} {w : Witness}
     (generated : ExecutedWork work) (valid : ValidGraphEvents work inputs.flatten)
     (history : w.events = (initialQueue work).nonterminalAtoms inputs)
-    (known : GroupRecordAt work child dependencies) (ancestor : key ∈ dependencies)
-    (announced : key ∈ announcedKeys (initialKeys work) (w.events.take index))
-    : key
+    (known : GroupRecordAt work child dependencies) (ancestor : ref ∈ dependencies)
+    (announced : ref ∈ announcedRefs (initialRefs work) (w.events.take index))
+    : ref
       ∈ (initialQueue work).rootGroups
-        ++ (w.events.take index).flatMap groupNoticeKeys := by
+        ++ (w.events.take index).flatMap groupNoticeRefs := by
   rcases List.mem_append.mp announced with initial | pending
-  · rw [initialKeys, List.map_append] at initial
+  · rw [initialRefs, List.map_append] at initial
     rcases List.mem_append.mp initial with group | stream
     · apply List.mem_append_left
       rwa [createWorkQueue_rootGroups]
@@ -119,14 +119,14 @@ theorem groupNoticeAncestor_announced_group
 
 /-- Every group-only closure is also a scheduler completion.
 Witness: group success and failure are completion constructors; other group projections
-are empty. Stream completion keys may additionally occur in the target list.
+are empty. Stream completion refs may additionally occur in the target list.
 -/
-theorem groupClosureKeys_subset_completed (events : List Execution.WorkQueueEvent)
-    : (events.flatMap groupClosureKeys).Subset (completedKeys events) := by
-  intro key member
+theorem groupClosureRefs_subset_completed (events : List Execution.WorkQueueEvent)
+    : (events.flatMap groupClosureRefs).Subset (completedRefs events) := by
+  intro ref member
   obtain ⟨event, emitted, closed⟩ := List.mem_flatMap.mp member
   refine List.mem_flatMap.mpr ⟨event, emitted, ?_⟩
-  cases event <;> simp_all [groupClosureKeys, eventCompleted]
+  cases event <;> simp_all [groupClosureRefs, eventCompleted]
 
 -----------------------------------------------------------------------------------------
 -- Discharge the concrete announced-or-completed status alternative
@@ -137,15 +137,15 @@ Witness: role separation identifies its group announcement; the joint raw-prefix
 and source-history completion theorem transport its closure through the same carrier.
 -/
 theorem groupNoticeAncestor_completed
-    {work inputs index group groups streams child dependencies key} {w : Witness}
+    {work inputs index group groups streams child dependencies ref} {w : Witness}
     (generated : ExecutedWork work) (valid : ValidGraphEvents work inputs.flatten)
     (started : inputsStarted work inputs = true)
     (history : w.events = (initialQueue work).nonterminalAtoms inputs)
     (selected : w.events[index]? = some (.groupSuccess group groups streams))
     (noticed : child ∈ groups) (known : GroupRecordAt work child dependencies)
-    (ancestor : key ∈ dependencies)
-    (announced : key ∈ announcedKeys (initialKeys work) (w.events.take index))
-    : key ∈ completedKeys (w.events.take index ++ [.groupSuccess group [] []]) := by
+    (ancestor : ref ∈ dependencies)
+    (announced : ref ∈ announcedRefs (initialRefs work) (w.events.take index))
+    : ref ∈ completedRefs (w.events.take index ++ [.groupSuccess group [] []]) := by
   have groupNotice := groupNoticeAncestor_announced_group generated valid history known
     ancestor announced
   obtain ⟨position, atRaw, notices, closures⟩ :=
@@ -157,24 +157,24 @@ theorem groupNoticeAncestor_completed
     noticed known ancestor groupNotice
   rw [List.take_add_one, atRaw] at closed
   simp only [Option.toList_some, List.flatMap_append, List.flatMap_singleton,
-    rawGroupClosureKeys, ← closures] at closed
-  apply groupClosureKeys_subset_completed
-  simpa only [List.flatMap_append, List.flatMap_singleton, groupClosureKeys] using closed
+    rawGroupClosureRefs, ← closures] at closed
+  apply groupClosureRefs_subset_completed
+  simpa only [List.flatMap_append, List.flatMap_singleton, groupClosureRefs] using closed
 
 /-- An announced ancestor of an item-carried group notice completes strictly before it.
 Witness: the item carrier's joint raw boundary retains group controls, and its source
 completion theorem rules out using any closure from the current handler's later drain.
 -/
 theorem itemGroupNoticeAncestor_completed
-    {work inputs index owner values groups streams child dependencies key} {w : Witness}
+    {work inputs index owner values groups streams child dependencies ref} {w : Witness}
     (generated : ExecutedWork work) (valid : ValidGraphEvents work inputs.flatten)
     (started : inputsStarted work inputs = true)
     (history : w.events = (initialQueue work).nonterminalAtoms inputs)
     (selected : w.events[index]? = some (.streamValues owner values groups streams))
     (noticed : child ∈ groups) (known : GroupRecordAt work child dependencies)
-    (ancestor : key ∈ dependencies)
-    (announced : key ∈ announcedKeys (initialKeys work) (w.events.take index))
-    : key ∈ completedKeys (w.events.take index) := by
+    (ancestor : ref ∈ dependencies)
+    (announced : ref ∈ announcedRefs (initialRefs work) (w.events.take index))
+    : ref ∈ completedRefs (w.events.take index) := by
   have groupNotice := groupNoticeAncestor_announced_group generated valid history known
     ancestor announced
   obtain ⟨position, rawValues, atRaw, notices, closures⟩ :=
@@ -184,7 +184,7 @@ theorem itemGroupNoticeAncestor_completed
     (by rwa [← inputsStarted_eq_batchesStarted])
   have closed := generated.rawEventReplay_itemNoticeAncestor_completed valid accepted atRaw
     noticed known ancestor groupNotice
-  apply groupClosureKeys_subset_completed
+  apply groupClosureRefs_subset_completed
   rwa [closures]
 
 -----------------------------------------------------------------------------------------
@@ -193,7 +193,7 @@ theorem itemGroupNoticeAncestor_completed
 
 /-- Every ancestor of an actual group-success notice is ready at its frozen carrier cut.
 Witness: canonical publication accounting supplies all ancestor tasks, supported
-publication supplies health, and the exact completion bridge closes any announced key.
+publication supplies health, and the exact completion bridge closes any announced ref.
 Unannounced ancestors use silent accounting, including taskless registration shells.
 -/
 theorem groupNoticeAncestor_dependencySatisfied
@@ -206,18 +206,18 @@ theorem groupNoticeAncestor_dependencySatisfied
     (failures : AnnouncedFailures work w)
     (selected : w.events[index]? = some (.groupSuccess group groups streams))
     (noticed : child ∈ groups) (known : GroupRecordAt work child dependencies)
-    : ∀ key ∈ dependencies,
-        DependencySatisfied work (initialKeys work) w.matching
+    : ∀ ref ∈ dependencies,
+        DependencySatisfied work (initialRefs work) w.matching
           (w.events.take index ++ [.groupSuccess group [] []])
-          (w.failures.filter (fun entry => entry.1 ≤ index)) key := by
+          (w.failures.filter (fun entry => entry.1 ≤ index)) ref := by
   classical
-  intro key ancestor
+  intro ref ancestor
   apply dependencySatisfied_noticeCarrier_of_status selected
     (groupNoticeAncestor_healthy generated valid started history ledger support failures
-      selected noticed known key ancestor)
+      selected noticed known ref ancestor)
     (groupNoticeAncestor_nodeAccounted generated valid started history ledger selected
       noticed known ancestor _)
-  by_cases announced : key ∈ announcedKeys (initialKeys work) (w.events.take index)
+  by_cases announced : ref ∈ announcedRefs (initialRefs work) (w.events.take index)
   · exact .inl (groupNoticeAncestor_completed generated valid started history selected
       noticed known ancestor announced)
   · exact .inr announced
@@ -237,22 +237,22 @@ theorem itemGroupNoticeAncestor_dependencySatisfied
     (failures : AnnouncedFailures work w)
     (selected : w.events[index]? = some (.streamValues owner values groups streams))
     (noticed : child ∈ groups) (known : GroupRecordAt work child dependencies)
-    : ∀ key ∈ dependencies,
-        DependencySatisfied work (initialKeys work) w.matching
+    : ∀ ref ∈ dependencies,
+        DependencySatisfied work (initialRefs work) w.matching
           (w.events.take index ++ [.streamValues owner values [] []])
-          (w.failures.filter (fun entry => entry.1 ≤ index)) key := by
+          (w.failures.filter (fun entry => entry.1 ≤ index)) ref := by
   classical
-  intro key ancestor
+  intro ref ancestor
   apply dependencySatisfied_noticeCarrier_of_status selected
     (itemGroupNoticeAncestor_healthy generated valid started history ledger support failures
-      selected noticed known key ancestor)
+      selected noticed known ref ancestor)
     (itemGroupNoticeAncestor_nodeAccounted generated valid started history ledger selected
       noticed known ancestor _)
-  by_cases announced : key ∈ announcedKeys (initialKeys work) (w.events.take index)
+  by_cases announced : ref ∈ announcedRefs (initialRefs work) (w.events.take index)
   · left
     have closed := itemGroupNoticeAncestor_completed generated valid started history selected
       noticed known ancestor announced
-    simpa only [completedKeys, List.flatMap_append, List.flatMap_singleton,
+    simpa only [completedRefs, List.flatMap_append, List.flatMap_singleton,
       withoutChildNotices, eventCompleted, List.append_nil] using closed
   · exact .inr announced
 

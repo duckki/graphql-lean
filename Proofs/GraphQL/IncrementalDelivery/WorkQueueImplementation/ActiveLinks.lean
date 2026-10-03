@@ -10,15 +10,15 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 def State.ActiveTaskLinks (queue : State) : Prop :=
   ∀ taskNode ∈ queue.taskNodes,
     queue.RootTaskLinkedOn taskNode.task.occurrence
-      (taskNode.task.groups.map Execution.DeliveryNode.key)
+      (taskNode.task.groups.map Execution.DeliveryNode.ref)
 
 /-- Starting released work leaves the registered group and task maps unchanged;
-only the root set grows by the keys being activated. -/
+only the root set grows by the refs being activated. -/
 theorem State.startNewWork_groupCore (queue : State) (newWork : NewWork)
     : (queue.startNewWork newWork).groupNodes = queue.groupNodes
       ∧ (queue.startNewWork newWork).tasks = queue.tasks
       ∧ (queue.startNewWork newWork).rootGroups
-        = queue.rootGroups ++ newWork.newGroups.map Execution.DeliveryNode.key := by
+        = queue.rootGroups ++ newWork.newGroups.map Execution.DeliveryNode.ref := by
   have taskCore (state : State) (occurrence : Occurrence) :
       (state.startTask occurrence).groupNodes = state.groupNodes
       ∧ (state.startTask occurrence).tasks = state.tasks
@@ -27,10 +27,10 @@ theorem State.startNewWork_groupCore (queue : State) (newWork : NewWork)
     split
     · exact ⟨rfl, rfl, rfl⟩
     · split <;> exact ⟨rfl, rfl, rfl⟩
-  have groupCore (state : State) (key : Nat) :
-      (state.startGroup key).groupNodes = state.groupNodes
-      ∧ (state.startGroup key).tasks = state.tasks
-      ∧ (state.startGroup key).rootGroups = state.rootGroups := by
+  have groupCore (state : State) (ref : NodeRef) :
+      (state.startGroup ref).groupNodes = state.groupNodes
+      ∧ (state.startGroup ref).tasks = state.tasks
+      ∧ (state.startGroup ref).rootGroups = state.rootGroups := by
     unfold State.startGroup
     split
     · exact ⟨rfl, rfl, rfl⟩
@@ -50,38 +50,38 @@ theorem State.startNewWork_groupCore (queue : State) (newWork : NewWork)
       split
       · exact ⟨rfl, rfl, rfl⟩
       · exact foldCore node.tasks state
-  have streamCore (state : State) (key : Nat) :
-      (state.startStream key).groupNodes = state.groupNodes
-      ∧ (state.startStream key).tasks = state.tasks
-      ∧ (state.startStream key).rootGroups = state.rootGroups := by
+  have streamCore (state : State) (ref : NodeRef) :
+      (state.startStream ref).groupNodes = state.groupNodes
+      ∧ (state.startStream ref).tasks = state.tasks
+      ∧ (state.startStream ref).rootGroups = state.rootGroups := by
     unfold State.startStream
     split <;> exact ⟨rfl, rfl, rfl⟩
-  have groupFold (more : Keys) :
+  have groupFold (more : NodeRefs) :
       ∀ current : State,
         (more.foldl State.startGroup current).groupNodes = current.groupNodes
         ∧ (more.foldl State.startGroup current).tasks = current.tasks
         ∧ (more.foldl State.startGroup current).rootGroups = current.rootGroups := by
     induction more with
     | nil => intro current; exact ⟨rfl, rfl, rfl⟩
-    | cons key rest ih =>
+    | cons ref rest ih =>
         intro current
-        obtain ⟨groups, tasks, roots⟩ := ih (current.startGroup key)
-        obtain ⟨oneGroups, oneTasks, oneRoots⟩ := groupCore current key
+        obtain ⟨groups, tasks, roots⟩ := ih (current.startGroup ref)
+        obtain ⟨oneGroups, oneTasks, oneRoots⟩ := groupCore current ref
         exact ⟨groups.trans oneGroups, tasks.trans oneTasks, roots.trans oneRoots⟩
-  have streamFold (more : Keys) :
+  have streamFold (more : NodeRefs) :
       ∀ current : State,
         (more.foldl State.startStream current).groupNodes = current.groupNodes
         ∧ (more.foldl State.startStream current).tasks = current.tasks
         ∧ (more.foldl State.startStream current).rootGroups = current.rootGroups := by
     induction more with
     | nil => intro current; exact ⟨rfl, rfl, rfl⟩
-    | cons key rest ih =>
+    | cons ref rest ih =>
         intro current
-        obtain ⟨groups, tasks, roots⟩ := ih (current.startStream key)
-        obtain ⟨oneGroups, oneTasks, oneRoots⟩ := streamCore current key
+        obtain ⟨groups, tasks, roots⟩ := ih (current.startStream ref)
+        obtain ⟨oneGroups, oneTasks, oneRoots⟩ := streamCore current ref
         exact ⟨groups.trans oneGroups, tasks.trans oneTasks, roots.trans oneRoots⟩
-  let groups := newWork.newGroups.map Execution.DeliveryNode.key
-  let streams := newWork.newStreams.map Execution.DeliveryNode.key
+  let groups := newWork.newGroups.map Execution.DeliveryNode.ref
+  let streams := newWork.newStreams.map Execution.DeliveryNode.ref
   let current : State := { queue with rootGroups := queue.rootGroups ++ groups }
   let started := groups.foldl State.startGroup current
   obtain ⟨groupNodes, groupTasks, groupRoots⟩ := groupFold groups current
@@ -93,29 +93,29 @@ theorem State.startNewWork_groupCore (queue : State) (newWork : NewWork)
   exact ⟨streamNodes.trans groupNodes, streamTasks.trans groupTasks,
     streamRoots.trans groupRoots⟩
 
-/-- Activating group keys preserves root presence when each released key still
+/-- Activating group refs preserves root presence when each released ref still
 has a live group node. The queue's release and pruning stages must establish
 the latter condition. -/
 theorem State.RootGroupsPresent.startNewWork
     {queue : State} (present : queue.RootGroupsPresent)
     (newWork : NewWork)
     (released
-      : ∀ key ∈ newWork.newGroups.map Execution.DeliveryNode.key,
-          key ∈ queue.groupNodes.map (fun node => node.group.node.key))
+      : ∀ ref ∈ newWork.newGroups.map Execution.DeliveryNode.ref,
+          ref ∈ queue.groupNodes.map (fun node => node.group.node.ref))
     : (queue.startNewWork newWork).RootGroupsPresent := by
-  intro key rootMember
+  intro ref rootMember
   obtain ⟨sameGroups, _, newRoots⟩ := queue.startNewWork_groupCore newWork
   rw [newRoots] at rootMember
   rw [sameGroups]
   rcases List.mem_append.mp rootMember with old | fresh
-  · exact present key old
-  · exact released key fresh
+  · exact present ref old
+  · exact released ref fresh
 
 /-- Task occurrences requested by the newly activated group roots. -/
 def State.releaseRequests (queue : State) (newWork : NewWork) : List Occurrence :=
   queue.groupNodes.flatMap
     fun node =>
-      if node.group.node.key ∈ newWork.newGroups.map Execution.DeliveryNode.key then
+      if node.group.node.ref ∈ newWork.newGroups.map Execution.DeliveryNode.ref then
         node.tasks
       else
         []
@@ -144,11 +144,11 @@ private theorem State.startTask_oldOrRequested
 
 /-- A group starts only its listed task occurrences. -/
 private theorem State.startGroup_oldOrRequested
-    (queue : State) (key : Nat)
-    {taskNode : TaskNode} (member : taskNode ∈ (queue.startGroup key).taskNodes)
+    (queue : State) (ref : NodeRef)
+    {taskNode : TaskNode} (member : taskNode ∈ (queue.startGroup ref).taskNodes)
     : taskNode ∈ queue.taskNodes
       ∨ ∃ groupNode,
-          queue.groupNode? key = some groupNode
+          queue.groupNode? ref = some groupNode
           ∧ taskNode.task.occurrence ∈ groupNode.tasks := by
   have foldTasks (more : List Occurrence) :
       ∀ current : State, ∀ node : TaskNode,
@@ -176,8 +176,8 @@ private theorem State.startGroup_oldOrRequested
       · exact Or.inr ⟨groupNode, found, requested⟩
 
 /-- Task and group activation do not mutate the group-node map. -/
-private theorem State.startGroup_groupNodes (queue : State) (key : Nat)
-    : (queue.startGroup key).groupNodes = queue.groupNodes := by
+private theorem State.startGroup_groupNodes (queue : State) (ref : NodeRef)
+    : (queue.startGroup ref).groupNodes = queue.groupNodes := by
   have startTaskNodes (current : State) (occurrence : Occurrence) :
       (current.startTask occurrence).groupNodes = current.groupNodes := by
     unfold State.startTask
@@ -208,23 +208,23 @@ theorem State.startNewWork_oldOrRequested
     (member : taskNode ∈ (queue.startNewWork newWork).taskNodes)
     : taskNode ∈ queue.taskNodes
       ∨ taskNode.task.occurrence ∈ queue.releaseRequests newWork := by
-  let groups := newWork.newGroups.map Execution.DeliveryNode.key
-  let streams := newWork.newStreams.map Execution.DeliveryNode.key
+  let groups := newWork.newGroups.map Execution.DeliveryNode.ref
+  let streams := newWork.newStreams.map Execution.DeliveryNode.ref
   let initial : State := { queue with rootGroups := queue.rootGroups ++ groups }
-  have streamNodes (current : State) (key : Nat) :
-      (current.startStream key).taskNodes = current.taskNodes := by
+  have streamNodes (current : State) (ref : NodeRef) :
+      (current.startStream ref).taskNodes = current.taskNodes := by
     unfold State.startStream
     split <;> rfl
-  have streamFold (more : Keys) :
+  have streamFold (more : NodeRefs) :
       ∀ current, (more.foldl State.startStream current).taskNodes
         = current.taskNodes := by
     induction more with
     | nil => intro current; rfl
-    | cons key rest ih =>
+    | cons ref rest ih =>
         intro current
         simp only [List.foldl_cons, ih, streamNodes]
-  have groupFold (more : Keys)
-      (subset : ∀ key ∈ more, key ∈ groups) :
+  have groupFold (more : NodeRefs)
+      (subset : ∀ ref ∈ more, ref ∈ groups) :
       ∀ current : State, current.groupNodes = queue.groupNodes
         → ∀ node : TaskNode,
           node ∈ (more.foldl State.startGroup current).taskNodes
@@ -234,40 +234,40 @@ theorem State.startNewWork_oldOrRequested
     | nil =>
         intro current _ node nodeMember
         exact Or.inl nodeMember
-    | cons key rest ih =>
+    | cons ref rest ih =>
         intro current sameGroups node nodeMember
-        have nextGroups : (current.startGroup key).groupNodes = queue.groupNodes :=
-          (current.startGroup_groupNodes key).trans sameGroups
+        have nextGroups : (current.startGroup ref).groupNodes = queue.groupNodes :=
+          (current.startGroup_groupNodes ref).trans sameGroups
         have restSubset : ∀ next ∈ rest, next ∈ groups := by
           intro next nextMember
           exact subset next (by simp [nextMember])
-        rcases ih restSubset (current.startGroup key) nextGroups node nodeMember with
+        rcases ih restSubset (current.startGroup ref) nextGroups node nodeMember with
           inStartGroup | alreadyRequested
-        · rcases current.startGroup_oldOrRequested key inStartGroup with
+        · rcases current.startGroup_oldOrRequested ref inStartGroup with
             old | requested
           · exact Or.inl old
           · obtain ⟨groupNode, found, requested⟩ := requested
             right
-            have foundQueue : queue.groupNode? key = some groupNode := by
+            have foundQueue : queue.groupNode? ref = some groupNode := by
               simpa [State.groupNode?, sameGroups] using found
             have groupMember : groupNode ∈ queue.groupNodes :=
               List.mem_of_find?_eq_some foundQueue
-            have keyMember : groupNode.group.node.key ∈ groups := by
-              rw [queue.groupNode?_key foundQueue]
-              exact subset key (by simp)
+            have refMember : groupNode.group.node.ref ∈ groups := by
+              rw [queue.groupNode?_ref foundQueue]
+              exact subset ref (by simp)
             unfold State.releaseRequests
             apply List.mem_flatMap.mpr
             refine ⟨groupNode, groupMember, ?_⟩
-            change groupNode.group.node.key ∈
-              newWork.newGroups.map Execution.DeliveryNode.key at keyMember
-            simpa [keyMember] using requested
+            change groupNode.group.node.ref ∈
+              newWork.newGroups.map Execution.DeliveryNode.ref at refMember
+            simpa [refMember] using requested
         · exact Or.inr alreadyRequested
   unfold State.startNewWork at member
   change taskNode ∈
     (streams.foldl State.startStream
       (groups.foldl State.startGroup initial)).taskNodes at member
   rw [streamFold streams] at member
-  rcases groupFold groups (by intro key keyMember; exact keyMember) initial rfl
+  rcases groupFold groups (by intro ref refMember; exact refMember) initial rfl
       taskNode member with old | requested
   · exact Or.inl old
   · exact Or.inr requested
@@ -286,9 +286,9 @@ private theorem State.startNewWork_preservesTaskNodes
     · split
       · exact member
       · exact List.mem_append.mpr (Or.inl member)
-  have startGroupPreserves (current : State) (key : Nat)
+  have startGroupPreserves (current : State) (ref : NodeRef)
       {node : TaskNode} (member : node ∈ current.taskNodes)
-      : node ∈ (current.startGroup key).taskNodes := by
+      : node ∈ (current.startGroup ref).taskNodes := by
     unfold State.startGroup
     split
     · exact member
@@ -306,29 +306,29 @@ private theorem State.startNewWork_preservesTaskNodes
       split
       · exact member
       · exact foldTasks groupNode.tasks current node member
-  have groupFold (more : Keys) :
+  have groupFold (more : NodeRefs) :
       ∀ current : State, ∀ node : TaskNode,
         node ∈ current.taskNodes
           → node ∈ (more.foldl State.startGroup current).taskNodes := by
     induction more with
     | nil => intro current node old; exact old
-    | cons key rest ih =>
+    | cons ref rest ih =>
         intro current node old
-        exact ih (current.startGroup key) node
-          (startGroupPreserves current key old)
-  have streamFold (more : Keys) :
+        exact ih (current.startGroup ref) node
+          (startGroupPreserves current ref old)
+  have streamFold (more : NodeRefs) :
       ∀ current : State, (more.foldl State.startStream current).taskNodes
         = current.taskNodes := by
     induction more with
     | nil => intro current; rfl
-    | cons key rest ih =>
+    | cons ref rest ih =>
         intro current
-        have one : (current.startStream key).taskNodes = current.taskNodes := by
+        have one : (current.startStream ref).taskNodes = current.taskNodes := by
           unfold State.startStream
           split <;> rfl
         simp only [List.foldl_cons, ih, one]
-  let groups := newWork.newGroups.map Execution.DeliveryNode.key
-  let streams := newWork.newStreams.map Execution.DeliveryNode.key
+  let groups := newWork.newGroups.map Execution.DeliveryNode.ref
+  let streams := newWork.newStreams.map Execution.DeliveryNode.ref
   let initial : State := { queue with rootGroups := queue.rootGroups ++ groups }
   unfold State.startNewWork
   change node ∈
@@ -360,9 +360,9 @@ private def State.ReleaseTaskLinks (queue : State) (newWork : NewWork) : Prop :=
   ∀ node ∈ queue.groupNodes,
     (task.occurrence ∈ queue.taskNodes.map (fun started => started.task.occurrence)
       ∨ task.occurrence ∈ queue.releaseRequests newWork)
-    → node.group.node.key
-      ∈ queue.rootGroups ++ newWork.newGroups.map Execution.DeliveryNode.key
-    → node.group.node.key ∈ task.groups.map Execution.DeliveryNode.key
+    → node.group.node.ref
+      ∈ queue.rootGroups ++ newWork.newGroups.map Execution.DeliveryNode.ref
+    → node.group.node.ref ∈ task.groups.map Execution.DeliveryNode.ref
     → task.occurrence ∈ node.tasks
 
 /-- Releasing groups preserves active task links when the registered task/group
@@ -375,15 +375,15 @@ theorem State.ActiveTaskLinks.startNewWork
   obtain ⟨sameGroups, sameTasks, roots⟩ := queue.startNewWork_groupCore newWork
   have finalRegistered : final.StartedTasksRegistered :=
     registered.startNewWork newWork
-  intro taskNode member node groupMember rootMember keyMember
+  intro taskNode member node groupMember rootMember refMember
   have taskMember : taskNode.task ∈ queue.tasks := by
     rw [← sameTasks]
     exact finalRegistered taskNode member
   have originalGroup : node ∈ queue.groupNodes := by
     rw [← sameGroups]
     exact groupMember
-  have originalRoot : node.group.node.key ∈
-      queue.rootGroups ++ newWork.newGroups.map Execution.DeliveryNode.key := by
+  have originalRoot : node.group.node.ref ∈
+      queue.rootGroups ++ newWork.newGroups.map Execution.DeliveryNode.ref := by
     rw [← roots]
     exact rootMember
   have requested : taskNode.task.occurrence ∈
@@ -393,14 +393,14 @@ theorem State.ActiveTaskLinks.startNewWork
     · exact Or.inl (List.mem_map.mpr ⟨taskNode, old, rfl⟩)
     · exact Or.inr released
   exact ready taskNode.task taskMember node originalGroup requested originalRoot
-    keyMember
+    refMember
 
 /-- Before a queue begins processing events, every registered task is linked to
 every live group in its contributor list. This stronger base invariant may be
 lost after failure and must not be assumed for arbitrary replay states. -/
 def State.InitialTaskLinks (queue : State) : Prop :=
   ∀ task ∈ queue.tasks,
-    queue.TaskLinkedOn task.occurrence (task.groups.map Execution.DeliveryNode.key)
+    queue.TaskLinkedOn task.occurrence (task.groups.map Execution.DeliveryNode.ref)
 
 /-- Registering one task appends its definition and changes no older task
 definitions. -/
@@ -408,7 +408,7 @@ theorem State.addTask_tasks (queue : State) (task : Task)
     : (queue.addTask task).tasks = queue.tasks ++ [task] := by
   let registered : State := { queue with tasks := queue.tasks ++ [task] }
   let step (current : State) (group : Execution.DeliveryNode) : State :=
-    match current.groupNode? group.key with
+    match current.groupNode? group.ref with
     | none => current
     | some node =>
         if node.tasks.contains task.occurrence then current
@@ -434,16 +434,16 @@ theorem State.addTask_tasks (queue : State) (task : Task)
   let current := task.groups.foldl step registered
   have currentTasks : current.tasks = queue.tasks ++ [task] :=
     foldTasks task.groups registered
-  change (if task.groups.any (fun group => current.rootGroups.contains group.key)
+  change (if task.groups.any (fun group => current.rootGroups.contains group.ref)
       && (current.taskNode? task.occurrence).isNone then
       { current with taskNodes := current.taskNodes ++ [{ task }] }
     else current).tasks = queue.tasks ++ [task]
   split <;> exact currentTasks
 
 /-- Task registration establishes its own links and preserves earlier task
-links while the group-key registry remains unique. -/
+links while the group-ref registry remains unique. -/
 theorem State.InitialTaskLinks.addTask
-    {queue : State} (unique : queue.GroupKeysUnique)
+    {queue : State} (unique : queue.GroupRefsUnique)
     (links : queue.InitialTaskLinks) (task : Task)
     : (queue.addTask task).InitialTaskLinks := by
   intro registered member
@@ -465,10 +465,10 @@ theorem State.addGroups_tasks (queue : State) (groups : List Group)
         | none => current
         | some node =>
             let children :=
-              if node.childGroups.contains group.node.key then
+              if node.childGroups.contains group.node.ref then
                 node.childGroups
               else
-                node.childGroups ++ [group.node.key]
+                node.childGroups ++ [group.node.ref]
             current.putGroupNode { node with childGroups := children }
   have registerStep (current : State) (group : Group) :
       (current.addGroup group).tasks = current.tasks := by
@@ -497,8 +497,8 @@ theorem State.addGroups_tasks (queue : State) (groups : List Group)
         intro current
         simp only [List.foldl_cons, ih, linkStepTasks]
   let fresh := groups.filter (fun group =>
-    !queue.registeredGroups.contains group.node.key
-      && (queue.groupNode? group.node.key).isNone)
+    !queue.registeredGroups.contains group.node.ref
+      && (queue.groupNode? group.node.ref).isNone)
   change (fresh.foldl linkStep
     (fresh.foldl State.addGroup queue)).tasks = queue.tasks
   rw [linkFold, registerFold]
@@ -570,12 +570,12 @@ theorem State.initialWorkTaskLinks (work : Work)
     intro task member
     rw [groupedEmpty] at member
     cases member
-  have groupedUnique : grouped.GroupKeysUnique := by
-    have emptyUnique : ({} : State).GroupKeysUnique := by
-      simp [State.GroupKeysUnique]
+  have groupedUnique : grouped.GroupRefsUnique := by
+    have emptyUnique : ({} : State).GroupRefsUnique := by
+      simp [State.GroupRefsUnique]
     exact emptyUnique.addGroups work.groups
   have taskFold (more : List Task) :
-      ∀ current, current.GroupKeysUnique → current.InitialTaskLinks
+      ∀ current, current.GroupRefsUnique → current.InitialTaskLinks
         → (more.foldl State.addTask current).InitialTaskLinks := by
     induction more with
     | nil => intro current _ links; exact links
@@ -608,8 +608,8 @@ private theorem createWorkQueue_activeTaskLinks (work : Work)
   have registered : pruned.StartedTasksRegistered :=
     (emptyRegistered.maybeIntegrateWork work).pruneEmptyGroups newWork.newGroups
   have ready : pruned.ReleaseTaskLinks roots := by
-    intro task taskMember node nodeMember _ _ keyMember
-    exact prunedLinks task taskMember node nodeMember keyMember
+    intro task taskMember node nodeMember _ _ refMember
+    exact prunedLinks task taskMember node nodeMember refMember
   have startedLinks : started.ActiveTaskLinks :=
     State.ActiveTaskLinks.startNewWork registered roots ready
   change State.ActiveTaskLinks
@@ -637,40 +637,40 @@ theorem State.ActiveTaskLinks.putTaskNodeSameTask
 
 /-- Updating a unique group node's pending count leaves task links intact. -/
 theorem State.ActiveTaskLinks.putGroupNodeSameTasks
-    {queue : State} (unique : queue.GroupKeysUnique)
+    {queue : State} (unique : queue.GroupRefsUnique)
     (links : queue.ActiveTaskLinks)
     (node : GroupNode) (member : node ∈ queue.groupNodes)
     (updated : GroupNode)
-    (sameKey : updated.group.node.key = node.group.node.key)
+    (sameRef : updated.group.node.ref = node.group.node.ref)
     (sameTasks : updated.tasks = node.tasks)
     : (queue.putGroupNode updated).ActiveTaskLinks := by
   intro taskNode taskMember
   have old : taskNode ∈ queue.taskNodes := taskMember
-  have fixed := (links taskNode old).activeKeys
+  have fixed := (links taskNode old).activeRefs
   have updatedLinks := fixed.putGroupNodeSameTasks unique node member updated
-    sameKey sameTasks
-  exact updatedLinks.ofActiveKeys rfl
+    sameRef sameTasks
+  exact updatedLinks.ofActiveRefs rfl
 
 /-- Decrementing the pending counters of several contributing groups never
 changes the active task-membership links. -/
 theorem State.ActiveTaskLinks.settleTaskGroups
-    {queue : State} (unique : queue.GroupKeysUnique)
+    {queue : State} (unique : queue.GroupRefsUnique)
     (links : queue.ActiveTaskLinks)
     (groups : List Execution.DeliveryNode)
     : (groups.foldl
         (fun current group =>
-          match current.groupNode? group.key with
+          match current.groupNode? group.ref with
           | none => current
           | some node => current.putGroupNode { node with pending := node.pending - 1 })
         queue).ActiveTaskLinks := by
   let step (current : State) (group : Execution.DeliveryNode) : State :=
-    match current.groupNode? group.key with
+    match current.groupNode? group.ref with
     | none => current
     | some node => current.putGroupNode { node with pending := node.pending - 1 }
   have stepFacts (current : State) (group : Execution.DeliveryNode)
-      (currentUnique : current.GroupKeysUnique)
+      (currentUnique : current.GroupRefsUnique)
       (currentLinks : current.ActiveTaskLinks)
-      : (step current group).GroupKeysUnique
+      : (step current group).GroupRefsUnique
         ∧ (step current group).ActiveTaskLinks := by
     unfold step
     split
@@ -681,7 +681,7 @@ theorem State.ActiveTaskLinks.settleTaskGroups
         currentLinks.putGroupNodeSameTasks currentUnique node member
           { node with pending := node.pending - 1 } rfl rfl⟩
   have foldFacts (more : List Execution.DeliveryNode) :
-      ∀ current, current.GroupKeysUnique → current.ActiveTaskLinks
+      ∀ current, current.GroupRefsUnique → current.ActiveTaskLinks
         → (more.foldl step current).ActiveTaskLinks := by
     induction more with
     | nil => intro current _ currentLinks; exact currentLinks
@@ -701,8 +701,8 @@ theorem State.ActiveTaskLinks.addStreams
   let fresh :=
     streams.foldl
       (fun selected stream =>
-        if (queue.stream? stream.node.key).isSome
-            || selected.any (fun known => known.node.key == stream.node.key) then
+        if (queue.stream? stream.node.ref).isSome
+            || selected.any (fun known => known.node.ref == stream.node.ref) then
           selected
         else
           selected ++ [stream])
@@ -720,7 +720,7 @@ theorem State.ActiveTaskLinks.addStreams
           List.mem_of_find?_eq_some found
         exact currentLinks.putTaskNodeSameTask node member
           { node with childStreams := node.childStreams ++
-              fresh.map (fun stream => stream.node.key) } rfl
+              fresh.map (fun stream => stream.node.ref) } rfl
 
 /-- Group integration updates group nodes only; it cannot start a task until
 the subsequent task-registration phase. -/
@@ -734,10 +734,10 @@ theorem State.addGroups_taskNodes (queue : State) (groups : List Group)
         | none => current
         | some node =>
             let children :=
-              if node.childGroups.contains group.node.key then
+              if node.childGroups.contains group.node.ref then
                 node.childGroups
               else
-                node.childGroups ++ [group.node.key]
+                node.childGroups ++ [group.node.ref]
             current.putGroupNode { node with childGroups := children }
   have registerStep (current : State) (group : Group) :
       (current.addGroup group).taskNodes = current.taskNodes := by
@@ -768,8 +768,8 @@ theorem State.addGroups_taskNodes (queue : State) (groups : List Group)
         intro current
         simp only [List.foldl_cons, ih, linkStepNodes]
   let fresh := groups.filter (fun group =>
-    !queue.registeredGroups.contains group.node.key
-      && (queue.groupNode? group.node.key).isNone)
+    !queue.registeredGroups.contains group.node.ref
+      && (queue.groupNode? group.node.ref).isNone)
   change (fresh.foldl linkStep
     (fresh.foldl State.addGroup queue)).taskNodes = queue.taskNodes
   rw [linkFold, registerFold]
@@ -778,7 +778,7 @@ theorem State.addGroups_taskNodes (queue : State) (groups : List Group)
 tasks. The root-presence premise excludes orphaned active groups.
 -/
 theorem State.ActiveTaskLinks.addGroups
-    {queue : State} (unique : queue.GroupKeysUnique)
+    {queue : State} (unique : queue.GroupRefsUnique)
     (rootsPresent : queue.RootGroupsPresent)
     (links : queue.ActiveTaskLinks) (groups : List Group)
     : (queue.addGroups groups).1.ActiveTaskLinks := by
@@ -794,21 +794,21 @@ theorem State.ActiveTaskLinks.addGroups
 task's links to every live contributor group.
 -/
 theorem State.ActiveTaskLinks.addTask
-    {queue : State} (unique : queue.GroupKeysUnique)
+    {queue : State} (unique : queue.GroupRefsUnique)
     (links : queue.ActiveTaskLinks) (task : Task)
     : (queue.addTask task).ActiveTaskLinks := by
   intro taskNode member
   rcases queue.addTask_startedOldOrNew task member with old | new
   · exact (links taskNode old).addTask unique task
   · subst taskNode
-    intro groupNode groupMember _ keyMember
-    exact queue.addTask_links unique task groupNode groupMember keyMember
+    intro groupNode groupMember _ refMember
+    exact queue.addTask_links unique task groupNode groupMember refMember
 
 /-- Integrating child Work preserves links for old started tasks and every
 new task started under an already active root group.
 -/
 theorem State.ActiveTaskLinks.maybeIntegrateWork
-    {queue : State} (unique : queue.GroupKeysUnique)
+    {queue : State} (unique : queue.GroupRefsUnique)
     (rootsPresent : queue.RootGroupsPresent)
     (links : queue.ActiveTaskLinks)
     (newWork : Work) (parentTask : Option Occurrence)
@@ -817,9 +817,9 @@ theorem State.ActiveTaskLinks.maybeIntegrateWork
   let withTasks := newWork.tasks.foldl State.addTask withGroups
   have groupLinks : withGroups.ActiveTaskLinks :=
     links.addGroups unique rootsPresent newWork.groups
-  have groupUnique : withGroups.GroupKeysUnique := unique.addGroups newWork.groups
+  have groupUnique : withGroups.GroupRefsUnique := unique.addGroups newWork.groups
   have taskFold (tasks : List Task) :
-      ∀ current, current.GroupKeysUnique
+      ∀ current, current.GroupRefsUnique
         → current.ActiveTaskLinks
         → (tasks.foldl State.addTask current).ActiveTaskLinks := by
     induction tasks with
@@ -849,9 +849,9 @@ theorem State.ActiveTaskLinks.removeTask
     have equalBool : (removed == removed) = true :=
       (occurrence_beq_iff_eq _ _).mpr rfl
     simp [bne, equalBool] at kept
-  have static := (links taskNode old).activeKeys
+  have static := (links taskNode old).activeRefs
   have afterStatic := static.removeOtherTask removed different
-  exact afterStatic.ofActiveKeys rfl
+  exact afterStatic.ofActiveRefs rfl
 
 /-- Pruning removes group nodes only; active links of surviving task nodes
 remain valid even if a separate invariant must show roots still have nodes.
@@ -875,9 +875,9 @@ theorem State.ActiveTaskLinks.pruneEmptyGroups
             · exact ih _ _ _ currentLinks
             · split
               · apply ih
-                intro taskNode taskMember groupNode groupMember rootMember keyMember
+                intro taskNode taskMember groupNode groupMember rootMember refMember
                 exact currentLinks taskNode taskMember groupNode
-                  (List.mem_filter.mp groupMember).1 rootMember keyMember
+                  (List.mem_filter.mp groupMember).1 rootMember refMember
               · exact ih _ _ _ currentLinks
   exact loop _ queue groups [] links
 
@@ -887,7 +887,7 @@ it does not disturb links belonging to surviving started tasks.
 theorem State.ActiveTaskLinks.finishGroupSuccess
     {queue : State} (links : queue.ActiveTaskLinks) (group : GroupNode)
     : (queue.finishGroupSuccess group).1.ActiveTaskLinks := by
-  let step (acc : State × List ExecutionGroupValue × Keys)
+  let step (acc : State × List ExecutionGroupValue × NodeRefs)
       (task : Occurrence) :=
     let (current, values, streams) := acc
     match current.taskNode? task with
@@ -898,7 +898,7 @@ theorem State.ActiveTaskLinks.finishGroupSuccess
           | none => values
           | some value => values ++ [value]
         (current.removeTask task, values, streams ++ taskNode.childStreams)
-  have stepLinks (acc : State × List ExecutionGroupValue × Keys)
+  have stepLinks (acc : State × List ExecutionGroupValue × NodeRefs)
       (task : Occurrence) (currentLinks : acc.1.ActiveTaskLinks)
       : (step acc task).1.ActiveTaskLinks := by
     obtain ⟨current, values, streams⟩ := acc
@@ -907,7 +907,7 @@ theorem State.ActiveTaskLinks.finishGroupSuccess
     · exact currentLinks
     · exact currentLinks.removeTask task
   have foldLinks (tasks : List Occurrence) :
-      ∀ acc : State × List ExecutionGroupValue × Keys,
+      ∀ acc : State × List ExecutionGroupValue × NodeRefs,
         acc.1.ActiveTaskLinks
           → (tasks.foldl step acc).1.ActiveTaskLinks := by
     induction tasks with
@@ -921,15 +921,15 @@ theorem State.ActiveTaskLinks.finishGroupSuccess
   let current : State :=
     { flushed with
         groupNodes := flushed.groupNodes.filter
-          (fun node => node.group.node.key != group.group.node.key)
-        rootGroups := flushed.rootGroups.filter (· != group.group.node.key) }
+          (fun node => node.group.node.ref != group.group.node.ref)
+        rootGroups := flushed.rootGroups.filter (· != group.group.node.ref) }
   have currentLinks : current.ActiveTaskLinks := by
-    intro taskNode taskMember groupNode groupMember rootMember keyMember
+    intro taskNode taskMember groupNode groupMember rootMember refMember
     exact flushedLinks taskNode taskMember groupNode
       (List.mem_filter.mp groupMember).1
-      (List.mem_filter.mp rootMember).1 keyMember
+      (List.mem_filter.mp rootMember).1 refMember
   let children := group.childGroups.filterMap
-    (fun key => (current.groupNode? key).map (fun node => node.group.node))
+    (fun ref => (current.groupNode? ref).map (fun node => node.group.node))
   change (current.pruneEmptyGroups children).1.ActiveTaskLinks
   exact currentLinks.pruneEmptyGroups children
 
@@ -950,10 +950,10 @@ theorem State.ActiveTaskLinks.releaseTaskGroups
     : (groups.foldl
         (fun (acc : State × List WorkQueueEvent × NewWork) group =>
           let (current, events, released) := acc
-          match current.groupNode? group.key with
+          match current.groupNode? group.ref with
           | none => (current, events, released)
           | some node =>
-              if current.rootGroups.contains group.key && node.pending == 0 then
+              if current.rootGroups.contains group.ref && node.pending == 0 then
                 let (next, finished, newWork) := current.finishGroupSuccess node
                 (
                   next,
@@ -969,10 +969,10 @@ theorem State.ActiveTaskLinks.releaseTaskGroups
   let step (acc : State × List WorkQueueEvent × NewWork)
       (group : Execution.DeliveryNode) : State × List WorkQueueEvent × NewWork :=
     let (current, events, released) := acc
-    match current.groupNode? group.key with
+    match current.groupNode? group.ref with
     | none => (current, events, released)
     | some node =>
-        if current.rootGroups.contains group.key && node.pending == 0 then
+        if current.rootGroups.contains group.ref && node.pending == 0 then
           let (next, finished, newWork) := current.finishGroupSuccess node
           (next, events ++ finished,
             ⟨released.newGroups ++ newWork.newGroups,

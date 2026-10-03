@@ -17,9 +17,9 @@ Witness: the exact registration guard; membership updates preserve roots and tas
 theorem State.addTask_startedOldOrRootOwner (queue : State) (task : Task)
     {node : TaskNode} (member : node ∈ (queue.addTask task).taskNodes)
     : node ∈ queue.taskNodes
-      ∨ node = { task } ∧ ∃ owner ∈ task.groups, owner.key ∈ queue.rootGroups := by
+      ∨ node = { task } ∧ ∃ owner ∈ task.groups, owner.ref ∈ queue.rootGroups := by
   let step (current : State) (group : Execution.DeliveryNode) : State :=
-    match current.groupNode? group.key with
+    match current.groupNode? group.ref with
     | none => current
     | some groupNode =>
         if groupNode.tasks.contains task.occurrence then current
@@ -44,7 +44,7 @@ theorem State.addTask_startedOldOrRootOwner (queue : State) (task : Task)
           (ih (step current group)).2.trans (stepCore current group).2⟩
   let current := task.groups.foldl step { queue with tasks := queue.tasks ++ [task] }
   have core := foldCore task.groups { queue with tasks := queue.tasks ++ [task] }
-  change node ∈ (if task.groups.any (fun group => current.rootGroups.contains group.key)
+  change node ∈ (if task.groups.any (fun group => current.rootGroups.contains group.ref)
       && (current.taskNode? task.occurrence).isNone then
         { current with taskNodes := current.taskNodes ++ [{ task }] }
       else current).taskNodes at member
@@ -68,13 +68,13 @@ theorem State.startNewWork_startedOldOrOwner {queue : State} {work : Execution.W
     {node : TaskNode} (member : node ∈ (queue.startNewWork newWork).taskNodes)
     : node ∈ queue.taskNodes
       ∨ ∃ owner ∈ node.task.groups,
-          owner.key ∈ newWork.newGroups.map Execution.DeliveryNode.key := by
+          owner.ref ∈ newWork.newGroups.map Execution.DeliveryNode.ref := by
   rcases queue.startNewWork_oldOrRequested newWork member with old | requested
   · exact Or.inl old
   · right
     obtain ⟨group, groupMember, listed⟩ := List.mem_flatMap.mp requested
     change node.task.occurrence ∈
-      (if group.group.node.key ∈ newWork.newGroups.map Execution.DeliveryNode.key
+      (if group.group.node.ref ∈ newWork.newGroups.map Execution.DeliveryNode.ref
         then group.tasks else []) at listed
     split at listed
     · rename_i released
@@ -85,24 +85,24 @@ theorem State.startNewWork_startedOldOrOwner {queue : State} {work : Execution.W
         rwa [(queue.startNewWork_groupCore newWork).1]
       have contributes := finalSound.startedOwner finalRegistered finalMatching
         member finalGroup listed
-      obtain ⟨owner, ownerMember, keyEq⟩ := List.mem_map.mp contributes
-      exact ⟨owner, ownerMember, keyEq ▸ released⟩
+      obtain ⟨owner, ownerMember, refEq⟩ := List.mem_map.mp contributes
+      exact ⟨owner, ownerMember, refEq ▸ released⟩
     · cases listed
 
 -----------------------------------------------------------------------------------------
 -- Preserve historical notices, even after their announcing owner has closed
 -----------------------------------------------------------------------------------------
 
-/-- Each live task node has a contributor in the historical group-notice keys `announced`.
+/-- Each live task node has a contributor in the historical group-notice refs `announced`.
 This is proof-only evidence; it does not require that contributor to remain active.
 -/
-def State.StartedTasksAnnounced (queue : State) (announced : Keys) : Prop :=
-  ∀ node ∈ queue.taskNodes, ∃ owner ∈ node.task.groups, owner.key ∈ announced
+def State.StartedTasksAnnounced (queue : State) (announced : NodeRefs) : Prop :=
+  ∀ node ∈ queue.taskNodes, ∃ owner ∈ node.task.groups, owner.ref ∈ announced
 
 /-- Enlarging the notice history preserves all recorded start justifications.
-Witness: transport the contributing owner's membership along the key inclusion.
+Witness: transport the contributing owner's membership along the ref inclusion.
 -/
-theorem State.StartedTasksAnnounced.mono {queue : State} {before after : Keys}
+theorem State.StartedTasksAnnounced.mono {queue : State} {before after : NodeRefs}
     (known : queue.StartedTasksAnnounced before) (included : before.Subset after)
     : queue.StartedTasksAnnounced after := by
   intro node member
@@ -112,9 +112,9 @@ theorem State.StartedTasksAnnounced.mono {queue : State} {before after : Keys}
 /-- Updating one task node preserves announcement evidence supplied for its task.
 Witness: every updated map entry is either the replacement or an unchanged old node.
 -/
-theorem State.StartedTasksAnnounced.putTaskNode {queue : State} {announced : Keys}
+theorem State.StartedTasksAnnounced.putTaskNode {queue : State} {announced : NodeRefs}
     (known : queue.StartedTasksAnnounced announced) (updated : TaskNode)
-    (owner : ∃ group ∈ updated.task.groups, group.key ∈ announced)
+    (owner : ∃ group ∈ updated.task.groups, group.ref ∈ announced)
     : (queue.putTaskNode updated).StartedTasksAnnounced announced := by
   intro node member
   obtain ⟨old, oldMember, same⟩ := List.mem_map.mp member
@@ -127,7 +127,7 @@ theorem State.StartedTasksAnnounced.putTaskNode {queue : State} {announced : Key
 /-- Removing a completed or cancelled task preserves surviving start justifications.
 Witness: task cleanup filters old task nodes without changing their contributors.
 -/
-theorem State.StartedTasksAnnounced.removeTask {queue : State} {announced : Keys}
+theorem State.StartedTasksAnnounced.removeTask {queue : State} {announced : NodeRefs}
     (known : queue.StartedTasksAnnounced announced) (occurrence : Occurrence)
     : (queue.removeTask occurrence).StartedTasksAnnounced announced :=
   fun node member => known node (List.mem_filter.mp member).1
@@ -135,15 +135,15 @@ theorem State.StartedTasksAnnounced.removeTask {queue : State} {announced : Keys
 /-- Group cancellation preserves historical witnesses even when their owner is removed.
 Witness: surviving task nodes are unchanged; the notice history is not filtered.
 -/
-theorem State.StartedTasksAnnounced.removeGroup {queue : State} {announced : Keys}
-    (known : queue.StartedTasksAnnounced announced) (key : Nat)
-    : (queue.removeGroup key).StartedTasksAnnounced announced :=
+theorem State.StartedTasksAnnounced.removeGroup {queue : State} {announced : NodeRefs}
+    (known : queue.StartedTasksAnnounced announced) (ref : NodeRef)
+    : (queue.removeGroup ref).StartedTasksAnnounced announced :=
   fun node member => known node (List.mem_filter.mp member).1
 
 /-- Accepted or ignored task failures preserve surviving tasks' historical notice owners.
 Witness: the executable failure handler keeps only unchanged old task nodes.
 -/
-theorem State.StartedTasksAnnounced.taskFailure {queue : State} {announced : Keys}
+theorem State.StartedTasksAnnounced.taskFailure {queue : State} {announced : NodeRefs}
     (known : queue.StartedTasksAnnounced announced) (occurrence : Occurrence)
     (errors : Nat)
     : (queue.taskFailure occurrence errors).1.StartedTasksAnnounced announced :=
@@ -152,7 +152,7 @@ theorem State.StartedTasksAnnounced.taskFailure {queue : State} {announced : Key
 /-- Group registration cannot change a started task's historical notice witness.
 Witness: the exact task-node map equation for group integration.
 -/
-theorem State.StartedTasksAnnounced.addGroups {queue : State} {announced : Keys}
+theorem State.StartedTasksAnnounced.addGroups {queue : State} {announced : NodeRefs}
     (known : queue.StartedTasksAnnounced announced) (groups : List Group)
     : (queue.addGroups groups).1.StartedTasksAnnounced announced := by
   intro node member
@@ -162,7 +162,7 @@ theorem State.StartedTasksAnnounced.addGroups {queue : State} {announced : Keys}
 /-- Registration starts tasks only through already announced active contributors.
 Witness: preserve old nodes' historical witness or use the executable registration guard.
 -/
-theorem State.StartedTasksAnnounced.addTask {queue : State} {announced : Keys}
+theorem State.StartedTasksAnnounced.addTask {queue : State} {announced : NodeRefs}
     (known : queue.StartedTasksAnnounced announced)
     (roots : queue.rootGroups.Subset announced) (task : Task)
     : (queue.addTask task).StartedTasksAnnounced announced := by
@@ -175,7 +175,7 @@ theorem State.StartedTasksAnnounced.addTask {queue : State} {announced : Keys}
 /-- Stream registration only changes an existing producer task's child-stream list.
 Witness: the producer keeps its task and therefore the same historical notice witness.
 -/
-theorem State.StartedTasksAnnounced.addStreams {queue : State} {announced : Keys}
+theorem State.StartedTasksAnnounced.addStreams {queue : State} {announced : NodeRefs}
     (known : queue.StartedTasksAnnounced announced) (streams : List Stream)
     (parentTask : Option Occurrence)
     : (queue.addStreams streams parentTask).1.StartedTasksAnnounced announced := by
@@ -190,10 +190,10 @@ theorem State.StartedTasksAnnounced.addStreams {queue : State} {announced : Keys
         exact known node (List.mem_of_find?_eq_some found)
 
 /-- Integrating child work starts tasks only under already announced active roots.
-Witness: registration preserves root keys; each task insertion supplies its active owner.
+Witness: registration preserves root refs; each task insertion supplies its active owner.
 -/
-theorem State.StartedTasksAnnounced.maybeIntegrateWork {queue : State} {announced : Keys}
-    (known : queue.StartedTasksAnnounced announced)
+theorem State.StartedTasksAnnounced.maybeIntegrateWork {queue : State}
+    {announced : NodeRefs} (known : queue.StartedTasksAnnounced announced)
     (roots : queue.rootGroups.Subset announced) (newWork : Work)
     (parentTask : Option Occurrence := none)
     : (queue.maybeIntegrateWork newWork parentTask).1.StartedTasksAnnounced
@@ -214,8 +214,9 @@ theorem State.StartedTasksAnnounced.maybeIntegrateWork {queue : State} {announce
 /-- Pruning empty group shells keeps every started task's notice witness.
 Witness: pruning changes only the group-node map, not task nodes.
 -/
-theorem State.StartedTasksAnnounced.pruneEmptyGroups {queue : State} {announced : Keys}
-    (known : queue.StartedTasksAnnounced announced) (groups : List Execution.DeliveryNode)
+theorem State.StartedTasksAnnounced.pruneEmptyGroups {queue : State}
+    {announced : NodeRefs} (known : queue.StartedTasksAnnounced announced)
+    (groups : List Execution.DeliveryNode)
     : (queue.pruneEmptyGroups groups).1.StartedTasksAnnounced announced := by
   intro node member
   rw [State.pruneEmptyGroups_taskNodes] at member
@@ -225,11 +226,11 @@ theorem State.StartedTasksAnnounced.pruneEmptyGroups {queue : State} {announced 
 Witness: sound activation ownership and monotonic transport of old historical notices.
 -/
 theorem State.StartedTasksAnnounced.startNewWork {queue : State} {work : Execution.Work}
-    {announced : Keys} (known : queue.StartedTasksAnnounced announced)
+    {announced : NodeRefs} (known : queue.StartedTasksAnnounced announced)
     (sound : queue.GroupMembershipSound) (registered : queue.StartedTasksRegistered)
     (matching : queue.RegisteredTasksMatch work) (newWork : NewWork)
     : (queue.startNewWork newWork).StartedTasksAnnounced
-        (announced ++ newWork.newGroups.map Execution.DeliveryNode.key) := by
+        (announced ++ newWork.newGroups.map Execution.DeliveryNode.ref) := by
   intro node member
   rcases queue.startNewWork_startedOldOrOwner sound registered matching newWork member with
     old | fresh
@@ -244,8 +245,9 @@ theorem State.StartedTasksAnnounced.startNewWork {queue : State} {work : Executi
 /-- Successful group flushing preserves notice witnesses for surviving task nodes.
 Witness: the flush selects and removes task nodes; retained nodes have unchanged tasks.
 -/
-theorem State.StartedTasksAnnounced.finishGroupSuccess {queue : State} {announced : Keys}
-    (known : queue.StartedTasksAnnounced announced) (group : GroupNode)
+theorem State.StartedTasksAnnounced.finishGroupSuccess {queue : State}
+    {announced : NodeRefs} (known : queue.StartedTasksAnnounced announced)
+    (group : GroupNode)
     : (queue.finishGroupSuccess group).1.StartedTasksAnnounced announced := by
   obtain ⟨_, _, _, _, retained, _, _⟩ := queue.finishGroupSuccess_selection group
   exact fun node member => known node (retained member)
@@ -255,19 +257,19 @@ Witness: induction over the executable drain, composing success activation with 
 historical notices; cached failure closures only remove task nodes and keep old witnesses.
 -/
 theorem State.StartedTasksAnnounced.drainReadyGroups {queue : State}
-    {work : Execution.Work} {announced : Keys}
+    {work : Execution.Work} {announced : NodeRefs}
     (known : queue.StartedTasksAnnounced announced) (sound : queue.GroupMembershipSound)
     (registered : queue.StartedTasksRegistered)
     (matching : queue.RegisteredTasksMatch work)
     : queue.drainReadyGroups.1.StartedTasksAnnounced
-        (announced ++ queue.drainReadyGroups.2.flatMap rawGroupNoticeKeys) := by
-  have loop (fuel : Nat) (current : State) (seen : Keys)
+        (announced ++ queue.drainReadyGroups.2.flatMap rawGroupNoticeRefs) := by
+  have loop (fuel : Nat) (current : State) (seen : NodeRefs)
       (currentKnown : current.StartedTasksAnnounced seen)
       (currentSound : current.GroupMembershipSound)
       (currentRegistered : current.StartedTasksRegistered)
       (currentMatching : current.RegisteredTasksMatch work)
       : (State.drainReadyGroups.go fuel current).1.StartedTasksAnnounced
-          (seen ++ (State.drainReadyGroups.go fuel current).2.flatMap rawGroupNoticeKeys) := by
+          (seen ++ (State.drainReadyGroups.go fuel current).2.flatMap rawGroupNoticeRefs) := by
     induction fuel generalizing current seen with
     | zero => simpa [State.drainReadyGroups.go] using currentKnown
     | succ fuel ih =>
@@ -292,9 +294,9 @@ theorem State.StartedTasksAnnounced.drainReadyGroups {queue : State}
               simpa only [List.flatMap_append, List.append_assoc]
                 using ih _ _ firstKnown firstSound firstRegistered firstMatching
           | some errors =>
-              have firstKnown := currentKnown.removeGroup node.group.node.key
+              have firstKnown := currentKnown.removeGroup node.group.node.ref
               simpa only [State.finishGroupFailure, List.flatMap_append,
-                List.flatMap_singleton, rawGroupNoticeKeys, List.nil_append]
+                List.flatMap_singleton, rawGroupNoticeRefs, List.nil_append]
                 using ih _ _ firstKnown (currentSound.finishGroupFailure node errors)
                   (currentRegistered.finishGroupFailure node errors)
                   (currentMatching.finishGroupFailure node errors)
@@ -311,7 +313,7 @@ owner for every newly started task. No generated-work or output-admission premis
 theorem createWorkQueue_startedTasksAnnounced (work : Execution.Work)
     : let queue := State.initialize (Work.fromExecution work)
       queue.StartedTasksAnnounced
-        (queue.initialGroups.map Execution.DeliveryNode.key) := by
+        (queue.initialGroups.map Execution.DeliveryNode.ref) := by
   let integrated := (({} : State).maybeIntegrateWork (Work.fromExecution work)).1
   let newWork := (({} : State).maybeIntegrateWork (Work.fromExecution work)).2
   let pruned := (integrated.pruneEmptyGroups newWork.newGroups).1
@@ -321,7 +323,7 @@ theorem createWorkQueue_startedTasksAnnounced (work : Execution.Work)
     intro node member
     cases member
   have integratedKnown : integrated.StartedTasksAnnounced [] :=
-    emptyKnown.maybeIntegrateWork (by intro key member; cases member) (Work.fromExecution work)
+    emptyKnown.maybeIntegrateWork (by intro ref member; cases member) (Work.fromExecution work)
   have prunedKnown : pruned.StartedTasksAnnounced [] :=
     integratedKnown.pruneEmptyGroups newWork.newGroups
   have emptySound : ({} : State).GroupMembershipSound := by

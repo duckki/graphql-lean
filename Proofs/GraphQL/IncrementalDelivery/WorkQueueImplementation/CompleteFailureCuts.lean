@@ -18,7 +18,7 @@ def SourceBlocksHaveCompleteTotals (work : Execution.Work)
       (∀ group errors,
         Execution.WorkQueueEvent.groupFailure group errors ∈ block.2
         → NodeErrors work (GraphEvent.failureSettlements (before ++ block.1.toList))
-            group.key errors)
+            group.ref errors)
       ∧ SourceBlocksHaveCompleteTotals work (before ++ block.1.toList) rest
 
 /-- Appending certified blocks retains their precise intervening source prefix.
@@ -45,7 +45,7 @@ theorem SourceBlocksHaveCompleteTotals.atBlock {work initial before block after}
     : NodeErrors work
         (GraphEvent.failureSettlements
           (initial ++ before.filterMap Prod.fst ++ block.1.toList))
-        group.key errors := by
+        group.ref errors := by
   induction before generalizing initial with
   | nil => simpa using totals.1 group errors emitted
   | cons head rest ih =>
@@ -95,7 +95,7 @@ theorem State.GroupErrorAccounting.sourceOutputBlocks_completeTotals {queue : St
       rw [← GraphEvent.taskSettlements_append] at nextLedger
       refine ⟨
         ?_,
-        ih selectedCounts nextLedger (clear.handleGraphEvent ledger.keys event) _
+        ih selectedCounts nextLedger (clear.handleGraphEvent ledger.refs event) _
           (by simpa [List.append_assoc] using valid) accepts.2
       ⟩
       intro group errors emitted
@@ -154,7 +154,7 @@ theorem State.GroupErrorAccounting.sourceRunBlocks_completeTotals
           have nextCounts := counts.handleGraphEvents ledger generated batch firstValid
             running accepted
           have nextLedger := ledger.handleGraphEvents generated batch firstValid running accepted
-          have nextClear := clear.handleGraphEvents ledger.keys batch
+          have nextClear := clear.handleGraphEvents ledger.refs batch
           have stillOpen := ((queue.handleGraphEvents batch).1.batchesStarted_cons next rest
             restStarted).1
           have unchanged := queue.handleGraphEvents_nonterminalState batch running stillOpen
@@ -226,7 +226,7 @@ theorem sourceObjectFailureCuts_nodeErrors {work : Execution.Work}
     {group : Execution.DeliveryNode} {errors : Nat}
     (atEvent : (blocks.flatMap Prod.snd)[index]? = some (.groupFailure group errors))
     : NodeErrors work
-        (failedBefore (sourceObjectFailureCuts offset blocks) (offset + index)) group.key
+        (failedBefore (sourceObjectFailureCuts offset blocks) (offset + index)) group.ref
         errors := by
   obtain ⟨before, block, after, localIndex, same, position, atLocal⟩ :=
     sourceOutputBlocks_at atEvent
@@ -265,7 +265,7 @@ theorem createWorkQueue_sourceObjectFailureCuts_nodeErrors {work : Execution.Wor
       let cuts :=
         sourceObjectFailureCuts 0
           (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher batches).2.2)
-      NodeErrors work (failedBefore cuts index) group.key errors := by
+      NodeErrors work (failedBefore cuts index) group.ref errors := by
   dsimp only
   simpa only [Nat.zero_add]
     using sourceObjectFailureCuts_nodeErrors

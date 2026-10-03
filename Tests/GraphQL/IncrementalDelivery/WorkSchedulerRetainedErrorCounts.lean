@@ -27,13 +27,13 @@ open GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
 private def firstRoot : DeliveryNode :=
-  { key := 0, path := [], label := some (.string "R") }
+  { ref := 0, path := [], label := some (.string "R") }
 
 private def secondRoot : DeliveryNode :=
-  { key := 1, path := [], label := some (.string "S") }
+  { ref := 1, path := [], label := some (.string "S") }
 
-private def parent : DeliveryNode := { key := 2, path := [], label := some (.string "P") }
-private def child : DeliveryNode := { key := 3, path := [], label := some (.string "C") }
+private def parent : DeliveryNode := { ref := 2, path := [], label := some (.string "P") }
+private def child : DeliveryNode := { ref := 3, path := [], label := some (.string "C") }
 private def firstTask : Occurrence := .executionGroup [1, 0]
 private def secondTask : Occurrence := .executionGroup [1, 1, 0]
 private def parentTask : Occurrence := .executionGroup [1, 1, 1, 0]
@@ -85,15 +85,15 @@ theorem generated : ExecutedWork work := by
   cbv
 
 private theorem first_known
-    : TaskAt work firstTask [firstRoot.key, child.key] none (.object [] (.error 1)) :=
+    : TaskAt work firstTask [firstRoot.ref, child.ref] none (.object [] (.error 1)) :=
   ⟨[⟨firstRoot, []⟩, ⟨child, [parent]⟩], [], .error 1, .empty, [], rfl, rfl, rfl⟩
 
 private theorem second_known
-    : TaskAt work secondTask [secondRoot.key, child.key] none (.object [] (.error 2)) :=
+    : TaskAt work secondTask [secondRoot.ref, child.ref] none (.object [] (.error 2)) :=
   ⟨[⟨secondRoot, []⟩, ⟨child, [parent]⟩], [], .error 2, .empty, [], rfl, rfl, rfl⟩
 
 private theorem parent_known
-    : TaskAt work parentTask [parent.key] none (.object [] (.ok (data, 0))) :=
+    : TaskAt work parentTask [parent.ref] none (.object [] (.ok (data, 0))) :=
   ⟨[⟨parent, []⟩], [], .ok (data, 0), .combine .empty .empty, [], rfl, rfl, rfl⟩
 
 /-- The independent failures and parent success obey all graph-event laws.
@@ -127,7 +127,7 @@ theorem output
 /-- C's two recorded contributors require three errors, not the retained first count.
 Witness: exact source payloads instantiate the independent NodeErrors contract.
 -/
-theorem expected_errors : NodeErrors work [firstTask, secondTask] child.key 3 := by
+theorem expected_errors : NodeErrors work [firstTask, secondTask] child.ref 3 := by
   refine ⟨fun occurrence => if occurrence = firstTask then 1 else 2, ?_, ?_⟩
   · intro occurrence member
     simp only [List.mem_cons, List.not_mem_nil, or_false] at member
@@ -141,10 +141,10 @@ theorem expected_errors : NodeErrors work [firstTask, secondTask] child.key 3 :=
 Witness: the general per-contributor lower bound in NodeErrors.
 -/
 theorem wrong_errors {failed : List Occurrence} (recorded : secondTask ∈ failed)
-    : ¬NodeErrors work failed child.key 1 := by
+    : ¬NodeErrors work failed child.ref 1 := by
   intro counted
   have bound := counted.contribution_le recorded second_known
-    (by simp : child.key ∈ [secondRoot.key, child.key])
+    (by simp : child.ref ∈ [secondRoot.ref, child.ref])
   change 2 ≤ 1 at bound
   omega
 
@@ -161,7 +161,7 @@ private theorem task_cases {occurrence owners producer payload}
 Witness: every other task contributes zero errors to S.
 -/
 private theorem second_recorded {failed : List Occurrence}
-    (counted : NodeErrors work failed secondRoot.key 2)
+    (counted : NodeErrors work failed secondRoot.ref 2)
     : secondTask ∈ failed := by
   classical
   apply Classical.byContradiction
@@ -322,7 +322,7 @@ theorem firstOnly_invalid
 
 private def matching : PublicationMatching := fun _ => parentTask
 private def failures : FailureCuts := [(0, firstTask), (0, secondTask)]
-private def initial : Keys := [firstRoot.key, parent.key, secondRoot.key]
+private def initial : NodeRefs := [firstRoot.ref, parent.ref, secondRoot.ref]
 private def events : List Execution.WorkQueueEvent := (batches 3).flatten.take 5
 
 /-- The three task addresses expose only R, S, P and the repeated descriptor for C.
@@ -335,11 +335,11 @@ private theorem node_cases {node kind dependencies producer}
       ∧ ((node = firstRoot ∧ dependencies = [])
           ∨ (node = secondRoot ∧ dependencies = [])
           ∨ (node = parent ∧ dependencies = [])
-          ∨ (node = child ∧ dependencies = [parent.key])) := by
-  have roles : Semantics.KeyRoles.WorkRoles (fun _ => false) work := by
-    simp [Semantics.KeyRoles.WorkRoles, work]
+          ∨ (node = child ∧ dependencies = [parent.ref])) := by
+  have roles : Semantics.RefRoles.WorkRoles (fun _ => false) work := by
+    simp [Semantics.RefRoles.WorkRoles, work]
   have group : kind = .group := by
-    have role := Correctness.node_key_role roles known
+    have role := Correctness.node_ref_role roles known
     cases kind with
     | group => rfl
     | stream => change false = true at role; cases role
@@ -347,7 +347,7 @@ private theorem node_cases {node kind dependencies producer}
   obtain ⟨address, groups, path, result, children, enclosing, group,
     located, member, rfl, rfl⟩ := known
   have task : TaskAt work (.executionGroup address)
-      (groups.map (fun group => group.node.key)) producer (.object path result) :=
+      (groups.map (fun group => group.node.ref)) producer (.object path result) :=
     ⟨groups, path, result, children, enclosing, located, rfl, rfl⟩
   rcases task_cases task with same | same | same
   · have addressEq : address = [1, 0] := Occurrence.executionGroup.inj same
@@ -400,18 +400,18 @@ private theorem parent_node : NodeAt work parent .group [] none :=
     rfl
   ⟩
 
-private theorem child_node : NodeAt work child .group [parent.key] none :=
+private theorem child_node : NodeAt work child .group [parent.ref] none :=
   ⟨[1, 0], _, [], .error 1, .empty, [], ⟨child, [parent]⟩, rfl, by simp, rfl, rfl⟩
 
 /-- An independent root with no failed contributor has no causal failure derivation.
 Witness: it has no dependencies or producer, and every direct failure is excluded.
 -/
 private theorem root_healthy {node failed published}
-    (known : NodeAt work node .group [] none) (notChild : node.key ≠ child.key)
+    (known : NodeAt work node .group [] none) (notChild : node.ref ≠ child.ref)
     (noOwner
       : ∀ occurrence ∈ failed,
-          ∀ owners, TaskHasOwners work occurrence owners → node.key ∉ owners)
-    : ¬Causality.NodeFailed work failed published node.key := by
+          ∀ owners, TaskHasOwners work occurrence owners → node.ref ∉ owners)
+    : ¬Causality.NodeFailed work failed published node.ref := by
   intro cause
   cases cause with
   | task task owner recorded => exact noOwner _ recorded _ task owner
@@ -432,7 +432,7 @@ private theorem root_healthy {node failed published}
 Witness: neither failed task owns P, and P has no parent or structural producer.
 -/
 private theorem parent_healthy (observed : List Execution.WorkQueueEvent)
-    : ¬NodeFailed work matching observed failures parent.key := by
+    : ¬NodeFailed work matching observed failures parent.ref := by
   rintro ⟨cut, member, _, cause⟩
   have zero : cut = 0 := by simpa [failures] using member
   subst cut
@@ -456,7 +456,7 @@ private theorem parent_uncancelled (observed : List Execution.WorkQueueEvent)
   | owners known _ _ failed =>
       obtain ⟨birth, payload, known⟩ := known
       obtain ⟨rfl, _, _⟩ := known.unique parent_known
-      exact parent_healthy observed ⟨cut, member, bound, failed parent.key (by simp)⟩
+      exact parent_healthy observed ⟨cut, member, bound, failed parent.ref (by simp)⟩
   | producerFailed known _ _ | producerCancelled known _ _ =>
       obtain ⟨owners, payload, known⟩ := known
       cases (known.unique parent_known).2.1
@@ -473,7 +473,7 @@ private theorem second_uncancelled
   | owners known _ _ failed =>
       obtain ⟨birth, payload, known⟩ := known
       obtain ⟨rfl, _, _⟩ := known.unique second_known
-      apply root_healthy second_node (by decide) ?_ (failed secondRoot.key (by simp))
+      apply root_healthy second_node (by decide) ?_ (failed secondRoot.ref (by simp))
       intro occurrence member owners ⟨birth, payload, task⟩
       change occurrence ∈ [firstTask] at member
       have same := List.mem_singleton.mp member
@@ -502,7 +502,7 @@ private theorem failure_licensed
         first_known,
         rfl,
         .root ⟨_, _, first_known⟩,
-        firstRoot.key,
+        firstRoot.ref,
         by simp,
         by decide
       ⟩
@@ -520,7 +520,7 @@ private theorem failure_licensed
             second_known,
             rfl,
             .root ⟨_, _, second_known⟩,
-            secondRoot.key,
+            secondRoot.ref,
             by simp,
             by decide
           ⟩
@@ -532,10 +532,10 @@ private theorem failure_licensed
 Witness: each root's unpublished contributor and empty prior failure evidence.
 -/
 private theorem initial_eligible {node occurrence owners payload}
-    (known : TaskAt work occurrence owners none payload) (owner : node.key ∈ owners)
+    (known : TaskAt work occurrence owners none payload) (owner : node.ref ∈ owners)
     : CanAnnounce work [] (fun _ => .executionGroup []) [] [] node .group [] none := by
   refine ⟨
-    by simp [announcedKeys, pendingKeys],
+    by simp [announcedRefs, pendingRefs],
     Or.inl ⟨by simp [NodeFailed], Or.inr ?_⟩,
     by simp,
     by simp
@@ -557,15 +557,15 @@ private theorem initialized : Initializes work [firstRoot, parent, secondRoot] [
 /-- Every owner receives exactly the sum of its two recorded task contributions.
 Witness: the fixed one-error and two-error payloads, with zero for non-owners.
 -/
-private theorem recorded_errors {key errors}
+private theorem recorded_errors {ref errors}
     (total
       : errors
-        = (if key ∈ [firstRoot.key, child.key] then 1 else 0)
-          + (if key ∈ [secondRoot.key, child.key] then 2 else 0))
-    : NodeErrors work [firstTask, secondTask] key errors := by
+        = (if ref ∈ [firstRoot.ref, child.ref] then 1 else 0)
+          + (if ref ∈ [secondRoot.ref, child.ref] then 2 else 0))
+    : NodeErrors work [firstTask, secondTask] ref errors := by
   refine ⟨fun occurrence => if occurrence = firstTask then
-    (if key ∈ [firstRoot.key, child.key] then 1 else 0)
-    else (if key ∈ [secondRoot.key, child.key] then 2 else 0), ?_, ?_⟩
+    (if ref ∈ [firstRoot.ref, child.ref] then 1 else 0)
+    else (if ref ∈ [secondRoot.ref, child.ref] then 2 else 0), ?_, ?_⟩
   · intro occurrence member
     simp only [List.mem_cons, List.not_mem_nil, or_false] at member
     rcases member with rfl | rfl
@@ -594,7 +594,7 @@ private theorem parent_value_allowed
     : EventAllowed work initial matching (events.take 2) failures
         (.groupValues parent
           [{ path := [], data := data, errors := 0, deliveryGroups := [parent] }]) := by
-  refine ⟨[parent.key], none,
+  refine ⟨[parent.ref], none,
     { path := [], data := data, deliveryGroups := [parent] },
     rfl, parent_known, ?_, ?_⟩
   · refine ⟨?_, parent_uncancelled _, by simp, trivial⟩
@@ -603,7 +603,7 @@ private theorem parent_value_allowed
     | 0 => cases selected; exact value
     | 1 => cases selected; exact value
     | index + 2 => simp [events, batches] at selected
-  · have opened : OpenOwner work initial (events.take 2) [parent.key] parent :=
+  · have opened : OpenOwner work initial (events.take 2) [parent.ref] parent :=
       ⟨⟨.group, [], none, parent_node⟩, by simp, by unfold Open; decide⟩
     refine ⟨opened, ⟨parent, opened, parent_healthy _⟩, ?_⟩
     intro other available
@@ -639,19 +639,19 @@ private theorem parent_success_allowed
     intro node member
     have same := List.mem_singleton.mp member
     subst node
-    refine ⟨[parent.key], none, child_node, by decide, Or.inr ?_, by simp, ?_⟩
-    · exact ⟨rfl, firstTask, [firstRoot.key, child.key],
+    refine ⟨[parent.ref], none, child_node, by decide, Or.inr ?_, by simp, ?_⟩
+    · exact ⟨rfl, firstTask, [firstRoot.ref, child.ref],
         by simp [failedBefore, failures], ⟨_, _, first_known⟩, by simp⟩
-    · intro key member
+    · intro ref member
       have same := List.mem_singleton.mp member
-      subst key
+      subst ref
       exact ⟨parent_healthy _, Or.inr (Or.inl (by decide))⟩
 
 private theorem child_failure_allowed
     : EventAllowed work initial matching (events.take 4) failures
         (.groupFailure child 3) := by
   refine ⟨
-    ⟨[parent.key], none, child_node⟩,
+    ⟨[parent.ref], none, child_node⟩,
     by unfold Open; decide,
     ?_,
     recorded_errors (by decide)
@@ -684,14 +684,14 @@ private theorem terminal : Terminal work initial matching events failures := by
       refine ⟨0, by simp [failures], by simp, ?_⟩
       apply Causality.TaskCancelled.owners ⟨_, _, first_known⟩
         (by simp [Published]) (by simp)
-      intro key member
+      intro ref member
       exact Causality.NodeFailed.task ⟨_, _, first_known⟩ member
         (by simp [failedBefore, failures])
     · apply Or.inl
       refine ⟨0, by simp [failures], by simp, ?_⟩
       apply Causality.TaskCancelled.owners ⟨_, _, second_known⟩
         (by simp [Published]) (by simp)
-      intro key member
+      intro ref member
       exact Causality.NodeFailed.task ⟨_, _, second_known⟩ member
         (by simp [failedBefore, failures])
     · exact Or.inr ⟨2, .groupValues parent [{ path := [], data := data, errors := 0, deliveryGroups := [parent] }], rfl, trivial, rfl⟩
@@ -760,7 +760,7 @@ Witness: exact replay of the two failure batches, before the release-time drain.
 theorem retained_cache
     : let queue :=
         ((State.initialize (Work.fromExecution work)).runNormalized [[first], [second]]).1
-      (queue.groupNode? child.key).map GroupNode.failure = some (some 3) := by
+      (queue.groupNode? child.ref).map GroupNode.failure = some (some 3) := by
   cbv
 
 /-- The nonempty retained cache is backed by an actual contributing source failure.
@@ -770,11 +770,11 @@ theorem retained_failure_provenance
     : ∃ occurrence errors owners,
         .taskFailure occurrence errors ∈ [first, second]
         ∧ TaskHasOwners work occurrence owners
-        ∧ child.key ∈ owners := by
+        ∧ child.ref ∈ owners := by
   let queue := ((State.initialize (Work.fromExecution work)).runNormalized [[first], [second]]).1
   have cache := retained_cache
-  change (queue.groupNode? child.key).map GroupNode.failure = some (some 3) at cache
-  cases found : queue.groupNode? child.key with
+  change (queue.groupNode? child.ref).map GroupNode.failure = some (some 3) at cache
+  cases found : queue.groupNode? child.ref with
   | none => simp [found] at cache
   | some node =>
       have failure : node.failure = some 3 := by simpa [found] using cache
@@ -782,7 +782,7 @@ theorem retained_failure_provenance
         (work := work) (batches := [[first], [second]])
         (inputs_valid.prefix ⟨[finish], rfl⟩) (List.mem_of_find?_eq_some found)
         (by simp [failure])
-      simpa [queue.groupNode?_key found] using source
+      simpa [queue.groupNode?_ref found] using source
 
 /-- The second failing task adds its two errors once to each surviving C cache.
 Witness: instantiate the general distinct-contributor fold theorem on the real prefix.
@@ -792,26 +792,26 @@ theorem second_failure_increments_once
     : let before :=
         ((State.initialize (Work.fromExecution work)).runNormalized [[first]]).1
       ∀ node ∈ (before.taskFailure secondTask 2).1.groupNodes,
-        node.group.node.key = child.key
+        node.group.node.ref = child.ref
         → ∃ old ∈ before.groupNodes,
-            old.group.node.key = child.key
+            old.group.node.ref = child.ref
             ∧ node.failure = some (old.failure.getD 0 + 2) := by
   let before := ((State.initialize (Work.fromExecution work)).runNormalized [[first]]).1
   change ∀ node ∈ (before.taskFailure secondTask 2).1.groupNodes,
-    node.group.node.key = child.key → ∃ old ∈ before.groupNodes,
-      old.group.node.key = child.key ∧ node.failure = some (old.failure.getD 0 + 2)
-  intro node member key
+    node.group.node.ref = child.ref → ∃ old ∈ before.groupNodes,
+      old.group.node.ref = child.ref ∧ node.failure = some (old.failure.getD 0 + 2)
+  intro node member ref
   let task : TaskNode := { task := ⟨secondTask, [secondRoot, child]⟩ }
   have found : before.taskNode? secondTask = some task := by
     dsimp only [before, task]
     cbv
   obtain ⟨old, live, same, count⟩ := before.taskFailure_cachedErrors secondTask 2 task found
     (by decide) (node := node) member
-  refine ⟨old, live, same.trans key, ?_⟩
+  refine ⟨old, live, same.trans ref, ?_⟩
   have eligible : before.taskHasHealthyOwner task.task = true := by
     dsimp only [before, task]
     cbv
-  simpa [task, key, eligible] using count
+  simpa [task, ref, eligible] using count
 
 /-- P's success releases C's earlier three-error cache without changing its total.
 Witness: the general task-success cache-origin theorem applied to an actual failed closure.
@@ -820,7 +820,7 @@ theorem released_total_has_exact_cache
     : let before :=
         ((State.initialize (Work.fromExecution work)).runNormalized [[first], [second]]).1
       ∃ node ∈ before.groupNodes,
-        node.group.node.key = child.key ∧ node.failure = some 3 := by
+        node.group.node.ref = child.ref ∧ node.failure = some 3 := by
   let before := ((State.initialize (Work.fromExecution work)).runNormalized [[first], [second]]).1
   apply before.taskSuccess_groupFailure_cached parentTask
     { value := { deliveryGroups := [parent], path := [], data },
@@ -837,12 +837,12 @@ together with the independently checked three-error lookup.
 theorem retained_metadata
     : let queue :=
         ((State.initialize (Work.fromExecution work)).runNormalized [[first], [second]]).1
-      ∃ parents : Nat → Keys,
+      ∃ parents : Nat → NodeRefs,
         (∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
         ∧ queue.ChildLinksCanonical parents
         ∧ queue.GroupNodesMatchWork work
-        ∧ (queue.groupNode? child.key).map GroupNode.failure = some (some 3) := by
+        ∧ (queue.groupNode? child.ref).map GroupNode.failure = some (some 3) := by
   obtain ⟨parents, canonical, links, provenance⟩ := generated.runNormalized_groupMetadata
     (batches := [[first], [second]]) (inputs_valid.prefix ⟨[finish], rfl⟩)
   exact ⟨parents, canonical, links, provenance, retained_cache⟩
@@ -851,25 +851,25 @@ theorem retained_metadata
 Witness: the general generated replay theorem, with the independently checked cache lookup.
 -/
 theorem retained_distinct_source_total
-    : GroupFailureTotal work [first, second] child.key 3 := by
+    : GroupFailureTotal work [first, second] child.ref 3 := by
   let queue := ((State.initialize (Work.fromExecution work)).runNormalized [[first], [second]]).1
   have cache := retained_cache
-  change (queue.groupNode? child.key).map GroupNode.failure = some (some 3) at cache
+  change (queue.groupNode? child.ref).map GroupNode.failure = some (some 3) at cache
   have totals := generated.runNormalized_cachedFailureTotals (batches := [[first], [second]])
     (inputs_valid.prefix ⟨[finish], rfl⟩) (by cbv)
-  cases found : queue.groupNode? child.key with
+  cases found : queue.groupNode? child.ref with
   | none => simp [found] at cache
   | some node =>
       have failure : node.failure = some 3 := by simpa [found] using cache
       have total := totals node (List.mem_of_find?_eq_some found) 3 failure
-      simpa [queue.groupNode?_key found] using total
+      simpa [queue.groupNode?_ref found] using total
 
 /-- The later failed closure retains a distinct-source total, not P's successful payload.
 Witness: the all-handler output theorem after the two-failure source prefix; evaluation
 checks the actual group failure in this success handler's output.
 -/
 theorem released_distinct_source_total
-    : GroupFailureTotal work [first, second, finish] child.key 3 := by
+    : GroupFailureTotal work [first, second, finish] child.ref 3 := by
   apply generated.replayGraphEvents_groupFailureTotal
     (before := [first, second])
     (inputs_valid.prefix ⟨[finish], rfl⟩) finish ⟨_, _, parent_known, rfl, rfl⟩
@@ -880,7 +880,7 @@ theorem released_distinct_source_total
 /-- The total predicate does not allow counting the same one-error failure three times.
 Witness: the general singleton-source bound forces total one, contradicting total three.
 -/
-theorem duplicate_contributor_rejected : ¬GroupFailureTotal work [first] child.key 3 := by
+theorem duplicate_contributor_rejected : ¬GroupFailureTotal work [first] child.ref 3 := by
   intro total
   have impossible := total.singleton_count
   contradiction
@@ -921,7 +921,7 @@ theorem normalized_failure_contributors
             → GraphEvent.taskFailure occurrence count ∈ [first, second, finish]
               ∧ (∃ owners producer path,
                   TaskAt work occurrence owners producer (.object path (.error count))
-                  ∧ child.key ∈ owners)
+                  ∧ child.ref ∈ owners)
               ∧ Reachable work occurrence
               ∧ ¬Published matching atoms occurrence := by
   obtain ⟨matching, _, exactValues⟩ := createWorkQueue_runNormalized_publicationMatching
@@ -943,7 +943,7 @@ theorem retained_pending_accounting
       (∃ settled,
         settled.Subset ([first].flatMap (fun event => event.identities.1))
         ∧ queue.PendingAccounting work settled)
-      ∧ (queue.groupNode? child.key).map (fun node => (node.pending, node.failure))
+      ∧ (queue.groupNode? child.ref).map (fun node => (node.pending, node.failure))
         = some (1, some 1) := by
   constructor
   · exact generated.runNormalized_pendingAccounting [[first]]
@@ -958,12 +958,12 @@ theorem normalized_nodeErrors_inventory
     : ∃ failed : List Occurrence,
         failed ≠ []
         ∧ failed.Nodup
-        ∧ NodeErrors work failed child.key 3
+        ∧ NodeErrors work failed child.ref 3
         ∧ ∀ occurrence ∈ failed,
             ∃ count owners producer path,
               GraphEvent.taskFailure occurrence count ∈ [first, second, finish]
               ∧ TaskAt work occurrence owners producer (.object path (.error count))
-              ∧ child.key ∈ owners := by
+              ∧ child.ref ∈ owners := by
   apply createWorkQueue_runNormalized_groupFailure_nodeErrorsWitness generated inputs_valid
     (batches := [[first], [second], [finish]]) (group := child)
   rw [output.2]
@@ -974,8 +974,8 @@ Witness: the singleton-source sum and the general complete-contributor bridge; S
 failure contributes zero to R. This is error arithmetic, not a cut-timing claim.
 -/
 theorem unrelated_failure_preserves_root_total
-    : NodeErrors work [secondTask, firstTask] firstRoot.key 1 := by
-  have one : NodeErrors work [firstTask] firstRoot.key 1 := by
+    : NodeErrors work [secondTask, firstTask] firstRoot.ref 1 := by
+  have one : NodeErrors work [firstTask] firstRoot.ref 1 := by
     apply failureContributions_nodeErrors (parts := [(firstTask, 1)]) (by simp)
     intro occurrence errors member
     cases List.mem_singleton.mp member
@@ -999,8 +999,8 @@ Witness: build NodeErrors from occurrence/count pairs, then transport it to the 
 cut inventory by completeness and uniqueness, rather than hard-coding a count function.
 -/
 theorem retained_cut_error_total
-    : NodeErrors work (failedBefore failures 4) child.key 3 := by
-  have both : NodeErrors work [secondTask, firstTask] child.key 3 := by
+    : NodeErrors work (failedBefore failures 4) child.ref 3 := by
+  have both : NodeErrors work [secondTask, firstTask] child.ref 3 := by
     apply failureContributions_nodeErrors (parts := [(secondTask, 2), (firstTask, 1)])
       (by decide)
     intro occurrence errors member
@@ -1009,7 +1009,7 @@ theorem retained_cut_error_total
       exact ⟨_, _, _, second_known, by simp⟩
     · cases List.mem_singleton.mp remaining
       exact ⟨_, _, _, first_known, by simp⟩
-  change NodeErrors work [firstTask, secondTask] child.key 3
+  change NodeErrors work [firstTask, secondTask] child.ref 3
   apply nodeErrors_of_complete_contributors both (by decide) (by decide)
     (by simp [List.Subset, or_comm])
   · intro occurrence member
@@ -1027,10 +1027,10 @@ theorem missing_contributor_not_complete
     : ¬(∀ occurrence ∈ [firstTask, secondTask],
           ∀ owners,
             TaskHasOwners work occurrence owners
-            → child.key ∈ owners
+            → child.ref ∈ owners
             → occurrence ∈ [firstTask]) := by
   intro complete
-  have missing := complete secondTask (by simp) [secondRoot.key, child.key]
+  have missing := complete secondTask (by simp) [secondRoot.ref, child.ref]
     ⟨none, _, second_known⟩ (by simp)
   simp [firstTask, secondTask] at missing
 
@@ -1079,7 +1079,7 @@ theorem delayed_replay_cut_inventory
     : ∃ failed : List Occurrence,
         failed ≠ []
         ∧ failed.Nodup
-        ∧ NodeErrors work failed child.key 3
+        ∧ NodeErrors work failed child.ref 3
         ∧ failed.Subset (failedBefore replayCandidateCuts 4) := by
   apply createWorkQueue_sourceObjectFailureCuts_nodeErrorsInventory generated inputs_valid
     (batches := [[first], [second], [finish]]) (group := child)
@@ -1092,7 +1092,7 @@ source handler is successful. No already-admitted-history premise is supplied.
 -/
 theorem delayed_replay_nodeFailed (matching : PublicationMatching)
     : NodeFailed work matching (((batches 3).flatten.flatMap publicationAtoms).take 4)
-        replayCandidateCuts child.key := by
+        replayCandidateCuts child.ref := by
   have result := createWorkQueue_sourceObjectFailureCuts_nodeFailed generated inputs_valid
     matching (batches := [[first], [second], [finish]]) (index := 4) (group := child)
     (errors := 3) (by rw [output.2]; rfl)
@@ -1103,7 +1103,7 @@ Witness: the general complete-count theorem at the actual closing atom. Neither 
 positions nor the contributing task list are supplied manually; licensing is separate.
 -/
 theorem replay_candidate_child_errors
-    : NodeErrors work (failedBefore replayCandidateCuts 4) child.key 3 := by
+    : NodeErrors work (failedBefore replayCandidateCuts 4) child.ref 3 := by
   rw [← eligible_replay_candidates_eq]
   apply createWorkQueue_sourceObjectFailureCuts_nodeErrors generated inputs_valid output.1
     (batches := [[first], [second], [finish]]) (group := child)
@@ -1118,7 +1118,7 @@ theorem every_candidate_total_complete {index : Nat} {group : DeliveryNode} {err
     (atEvent
       : ((batches 3).flatten.flatMap publicationAtoms)[index]?
         = some (.groupFailure group errors))
-    : NodeErrors work (failedBefore replayCandidateCuts index) group.key errors := by
+    : NodeErrors work (failedBefore replayCandidateCuts index) group.ref errors := by
   rw [← eligible_replay_candidates_eq]
   apply createWorkQueue_sourceObjectFailureCuts_nodeErrors generated inputs_valid output.1
     (batches := [[first], [second], [finish]])
@@ -1137,7 +1137,7 @@ theorem joined_candidate_child_errors
             (queue.sourceRunBlocks
               { active := queue.initialGroups ++ queue.initialStreams }
               [[first, second, finish]]).2.2)
-      NodeErrors work (failedBefore cuts 4) child.key 3 := by
+      NodeErrors work (failedBefore cuts 4) child.ref 3 := by
   apply createWorkQueue_sourceObjectFailureCuts_nodeErrors generated inputs_valid batched_output.1
     (batches := [[first, second, finish]]) (group := child)
   rw [batched_output.2]
@@ -1189,7 +1189,7 @@ Witness: the general replay-and-success-output theorem, with actual handler memb
 No explicit counted-task list or contributor-completeness premise is supplied.
 -/
 theorem released_complete_source_total
-    : NodeErrors work (GraphEvent.failureSettlements [first, second]) child.key 3 := by
+    : NodeErrors work (GraphEvent.failureSettlements [first, second]) child.ref 3 := by
   rw [← both_failures_eligible]
   apply generated.runNormalized_taskSuccess_nodeErrors [[first], [second]]
     (inputs_valid.prefix ⟨[finish], rfl⟩) (by cbv) parentTask
@@ -1202,9 +1202,9 @@ theorem released_complete_source_total
   exact .tail _ (.tail _ (.head _))
 
 /-- A fresh group's zero count already accounts for all earlier failures.
-Witness: the fresh-key clause derived from replay, not an empty-cache initialization guess.
+Witness: the fresh-ref clause derived from replay, not an empty-cache initialization guess.
 -/
-theorem fresh_key_has_zero_prior_errors
+theorem fresh_ref_has_zero_prior_errors
     : NodeErrors work (GraphEvent.failureSettlements [first, second]) 99 0 :=
   retained_complete_accounting.fresh 99 (by cbv; intro impossible; nomatch impossible)
 
@@ -1213,8 +1213,8 @@ Witness: R's one-error task supplies a valid subtotal, but C also owns the two-e
 whose contribution alone exceeds one under the full source inventory.
 -/
 theorem partial_total_is_not_complete
-    : GroupFailureTotal work [first, second] child.key 1
-      ∧ ¬NodeErrors work (GraphEvent.failureSettlements [first, second]) child.key 1 := by
+    : GroupFailureTotal work [first, second] child.ref 1
+      ∧ ¬NodeErrors work (GraphEvent.failureSettlements [first, second]) child.ref 1 := by
   refine ⟨GroupFailureTotal.single (by simp [first]) first_known (by simp), ?_⟩
   intro counted
   have bound := counted.contribution_le (occurrence := secondTask)
@@ -1240,9 +1240,9 @@ Witness: one general all-handler theorem covers immediate R/S failures and C's d
 release. S's total retains R in the inventory but counts R's contribution as zero.
 -/
 theorem every_handler_total_complete
-    : NodeErrors work (GraphEvent.failureSettlements [first]) firstRoot.key 1
-      ∧ NodeErrors work (GraphEvent.failureSettlements [first, second]) secondRoot.key 2
-      ∧ NodeErrors work (GraphEvent.failureSettlements [first, second, finish]) child.key
+    : NodeErrors work (GraphEvent.failureSettlements [first]) firstRoot.ref 1
+      ∧ NodeErrors work (GraphEvent.failureSettlements [first, second]) secondRoot.ref 2
+      ∧ NodeErrors work (GraphEvent.failureSettlements [first, second, finish]) child.ref
           3 := by
   refine ⟨?_, ?_, ?_⟩
   · apply generated.runNormalized_groupFailure_nodeErrors [] .nil (by cbv) first
@@ -1297,9 +1297,9 @@ theorem retained_healthy_accounting
         ((State.initialize (Work.fromExecution work)).runNormalized [[first]]).1
       queue.HealthyPendingTracks work [] [firstTask]
       ∧ queue.HealthyTaskLinks work [] [firstTask]
-      ∧ (queue.groupNode? parent.key).map GroupNode.pending = some 1
-      ∧ (queue.groupNode? secondRoot.key).map GroupNode.pending = some 1
-      ∧ (queue.groupNode? child.key).map GroupNode.failure = some (some 1) := by
+      ∧ (queue.groupNode? parent.ref).map GroupNode.pending = some 1
+      ∧ (queue.groupNode? secondRoot.ref).map GroupNode.pending = some 1
+      ∧ (queue.groupNode? child.ref).map GroupNode.failure = some (some 1) := by
   have recovered := generated.runNormalized_healthyPendingAndLinks [[first]]
     (inputs_valid.prefix ⟨[second, finish], rfl⟩) (by cbv)
   exact ⟨recovered.1, recovered.2, by cbv⟩
@@ -1329,9 +1329,9 @@ theorem release_before_second_failure_retains_owner
     : let queue :=
         ((State.initialize (Work.fromExecution work)).runNormalized [[first], [finish]]).1
       queue.HealthyRegisteredTaskAccounting work [parentTask, firstTask] [firstTask]
-      ∧ (queue.groupNode? secondRoot.key).map (fun node => (node.pending, node.tasks))
+      ∧ (queue.groupNode? secondRoot.ref).map (fun node => (node.pending, node.tasks))
         = some (1, [secondTask])
-      ∧ queue.groupNode? child.key = none
+      ∧ queue.groupNode? child.ref = none
       ∧ queue.terminated = false := by
   have owners := (generated.runNormalized_healthyRegisteredOwners
     [[first], [finish]] release_before_second_failure_inputs.1
@@ -1362,15 +1362,15 @@ not equality. P releases failed C, whose remaining task is also still owned by S
 -/
 private def releaseBoundary : State :=
   {
-    rootGroups := [secondRoot.key, parent.key]
-    registeredGroups := [secondRoot.key, parent.key, child.key]
+    rootGroups := [secondRoot.ref, parent.ref]
+    registeredGroups := [secondRoot.ref, parent.ref, child.ref]
     tasks := [⟨secondTask, [secondRoot, child]⟩]
     groupNodes :=
       [
         { group := ⟨secondRoot, none⟩, tasks := [secondTask], pending := 3 },
-        { group := ⟨parent, none⟩, childGroups := [child.key] },
+        { group := ⟨parent, none⟩, childGroups := [child.ref] },
         {
-          group := ⟨child, some parent.key⟩,
+          group := ⟨child, some parent.ref⟩,
           tasks := [secondTask],
           pending := 1,
           failure := some 1
@@ -1388,11 +1388,11 @@ theorem drain_preserves_shared_owner
         work [] [firstTask]
       ∧ releaseBoundary.drainReadyGroups.2
         = [.groupSuccess parent [child] [], .groupFailure child 1]
-      ∧ (releaseBoundary.drainReadyGroups.1.groupNode? secondRoot.key).map GroupNode.tasks
+      ∧ (releaseBoundary.drainReadyGroups.1.groupNode? secondRoot.ref).map GroupNode.tasks
         = some [secondTask] := by
   obtain ⟨parents, canonical⟩ := generated.groupRecordsCanonical
   have links : releaseBoundary.ChildLinksCanonical parents := by
-    have childParents := (canonical child [parent.key] (groupRecordAt_of_nodeAt child_node)).symm
+    have childParents := (canonical child [parent.ref] (groupRecordAt_of_nodeAt child_node)).symm
     simp [State.ChildLinksCanonical, releaseBoundary, childParents]
   have matching : releaseBoundary.GroupNodesMatchWork work := by
     intro node member
@@ -1400,18 +1400,18 @@ theorem drain_preserves_shared_owner
     rcases member with rfl | rfl | rfl
     · exact ⟨[], groupRecordAt_of_nodeAt second_node⟩
     · exact ⟨[], groupRecordAt_of_nodeAt parent_node⟩
-    · exact ⟨[parent.key], groupRecordAt_of_nodeAt child_node⟩
+    · exact ⟨[parent.ref], groupRecordAt_of_nodeAt child_node⟩
   have support : releaseBoundary.CachedFailuresSupported work [firstTask] := by
     intro node member cached
     simp only [releaseBoundary, List.mem_cons, List.not_mem_nil, or_false] at member
     rcases member with rfl | rfl | rfl
     · contradiction
     · contradiction
-    · refine ⟨firstTask, by simp, [firstRoot.key, child.key], ?_, by simp⟩
+    · refine ⟨firstTask, by simp, [firstRoot.ref, child.ref], ?_, by simp⟩
       exact ⟨none, .object [] (.error 1),
         [⟨firstRoot, []⟩, ⟨child, [parent]⟩], [], .error 1, .empty, [], rfl, rfl, rfl⟩
   have accounted : releaseBoundary.HealthyRegisteredTaskAccounting work [] [firstTask] := by
-    intro task member _ key contributor _
+    intro task member _ ref contributor _
     have same := List.mem_singleton.mp member
     subst task
     simp only [List.map_cons, List.map_nil, List.mem_cons, List.not_mem_nil, or_false]
@@ -1419,14 +1419,14 @@ theorem drain_preserves_shared_owner
     rcases contributor with rfl | rfl
     · exact ⟨{ group := ⟨secondRoot, none⟩, tasks := [secondTask], pending := 3 },
         by simp [releaseBoundary], rfl, by simp⟩
-    · exact ⟨{ group := ⟨child, some parent.key⟩
+    · exact ⟨{ group := ⟨child, some parent.ref⟩
                tasks := [secondTask]
                pending := 1
                failure := some 1 }, by simp [releaseBoundary], rfl, by simp⟩
   have bounded : releaseBoundary.PendingBound (fun _ => True) [] := by
     simp [State.PendingBound, releaseBoundary, unsettledCount]
-  have unique : releaseBoundary.GroupKeysUnique := by
-    unfold State.GroupKeysUnique
+  have unique : releaseBoundary.GroupRefsUnique := by
+    unfold State.GroupRefsUnique
     decide
   have taskMatching : releaseBoundary.RegisteredTasksMatch work := by
     intro task member
@@ -1445,11 +1445,11 @@ The fixture is an internal drain boundary, not an extra source-law assumption.
 theorem drain_preserves_ancestor_certificates
     : releaseBoundary.drainReadyGroups.1.RootAncestorsRetired work
       ∧ releaseBoundary.drainReadyGroups.1.HealthyRetiredAncestors work [firstTask]
-      ∧ releaseBoundary.drainReadyGroups.1.RetiredGroup parent.key
-      ∧ releaseBoundary.drainReadyGroups.1.RetiredGroup child.key := by
+      ∧ releaseBoundary.drainReadyGroups.1.RetiredGroup parent.ref
+      ∧ releaseBoundary.drainReadyGroups.1.RetiredGroup child.ref := by
   obtain ⟨parents, canonical⟩ := generated.groupRecordsCanonical
   have links : releaseBoundary.ChildLinksCanonical parents := by
-    have childParents := (canonical child [parent.key] (groupRecordAt_of_nodeAt child_node)).symm
+    have childParents := (canonical child [parent.ref] (groupRecordAt_of_nodeAt child_node)).symm
     simp [State.ChildLinksCanonical, releaseBoundary, childParents]
   have matching : releaseBoundary.GroupNodesMatchWork work := by
     intro node member
@@ -1457,23 +1457,23 @@ theorem drain_preserves_ancestor_certificates
     rcases member with rfl | rfl | rfl
     · exact ⟨[], groupRecordAt_of_nodeAt second_node⟩
     · exact ⟨[], groupRecordAt_of_nodeAt parent_node⟩
-    · exact ⟨[parent.key], groupRecordAt_of_nodeAt child_node⟩
+    · exact ⟨[parent.ref], groupRecordAt_of_nodeAt child_node⟩
   have support : releaseBoundary.CachedFailuresSupported work [firstTask] := by
     intro node member cached
     simp only [releaseBoundary, List.mem_cons, List.not_mem_nil, or_false] at member
     rcases member with rfl | rfl | rfl
     · contradiction
     · contradiction
-    · exact ⟨firstTask, by simp, [firstRoot.key, child.key],
+    · exact ⟨firstTask, by simp, [firstRoot.ref, child.ref],
         ⟨none, .object [] (.error 1), first_known⟩, by simp⟩
   have roots : releaseBoundary.RootAncestorsRetired work := by
-    intro key active
+    intro ref active
     simp only [releaseBoundary, List.mem_cons, List.not_mem_nil, or_false] at active
     rcases active with rfl | rfl
     · exact State.AncestorsRetired.of_descriptor generated second_node (by simp)
     · exact State.AncestorsRetired.of_descriptor generated parent_node (by simp)
   have retirement : releaseBoundary.HealthyRetiredAncestors work [firstTask] := by
-    intro key retired _
+    intro ref retired _
     exact (retired.2 (by simpa [releaseBoundary] using retired.1)).elim
   have registered : releaseBoundary.LiveGroupsRegistered := by
     simp [State.LiveGroupsRegistered, releaseBoundary]
@@ -1492,10 +1492,10 @@ Witness: the generic item-handler output theorem and an exact nonempty output ch
 This is an internal handler boundary, not a claim that this fixture is a generated run.
 -/
 theorem item_release_preserves_cached_count
-    : let stream : DeliveryNode := { key := 4, path := [.field "items"] }
+    : let stream : DeliveryNode := { ref := 4, path := [.field "items"] }
       let item : StreamItem :=
         { occurrence := .item [4] 0, value := { item := .scalar "item" } }
-      let before := { releaseBoundary with rootStreams := [stream.key] }
+      let before := { releaseBoundary with rootStreams := [stream.ref] }
       (before.streamItems stream [item]).2
         = [
           .streamValues stream [item.value] [] [],
@@ -1503,12 +1503,12 @@ theorem item_release_preserves_cached_count
           .groupFailure child 1
         ]
       ∧ ∃ node ∈ before.groupNodes,
-          node.group.node.key = child.key ∧ node.failure = some 1 := by
+          node.group.node.ref = child.ref ∧ node.failure = some 1 := by
   dsimp only
   constructor
   · cbv
   · apply State.streamItems_groupFailure_cached { releaseBoundary with rootStreams := [4] }
-      { key := 4, path := [.field "items"] }
+      { ref := 4, path := [.field "items"] }
       [{ occurrence := .item [4] 0, value := { item := .scalar "item" } }]
       (group := child) (errors := 1)
     cbv

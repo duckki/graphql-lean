@@ -17,11 +17,11 @@ Witness: its carrier copies the pruning result; starting released work changes n
 records. Values preceding the carrier cannot masquerade as another successful closure.
 -/
 theorem State.finishGroupSuccess_activated_noticeContents {queue : State} {work}
-    (generated : ExecutedWork work) (keys : queue.GroupKeysUnique)
+    (generated : ExecutedWork work) (refs : queue.GroupRefsUnique)
     (records : queue.GroupNodesMatchWork work)
     (support
-      : queue.GroupKeySupport
-          (fun key => ∃ dependencies, NodeHasDependencies work key .group dependencies))
+      : queue.GroupRefSupport
+          (fun ref => ∃ dependencies, NodeHasDependencies work ref .group dependencies))
     (node : GroupNode) {index : Nat} {group groups streams child}
     (selected
       : (queue.finishGroupSuccess node).2.1[index]?
@@ -31,7 +31,7 @@ theorem State.finishGroupSuccess_activated_noticeContents {queue : State} {work}
       let current := finished.1.startNewWork finished.2.2
       (∃ dependencies producer, NodeAt work child .group dependencies producer)
       ∧ ∃ kept,
-          current.groupNode? child.key = some kept
+          current.groupNode? child.ref = some kept
           ∧ kept.group.node = child
           ∧ (kept.tasks ≠ [] ∨ kept.failure.isSome = true) := by
   have member := List.mem_of_getElem? selected
@@ -44,7 +44,7 @@ theorem State.finishGroupSuccess_activated_noticeContents {queue : State} {work}
       cases impossible
   · have same := Execution.WorkQueueEvent.groupSuccess.inj (List.mem_singleton.mp closure)
     obtain ⟨known, kept, found, descriptor, contents⟩ :=
-      queue.finishGroupSuccess_noticeContents generated keys records support node
+      queue.finishGroupSuccess_noticeContents generated refs records support node
         (same.2.1 ▸ noticed)
     refine ⟨known, kept, ?_, descriptor, contents⟩
     simpa only [State.groupNode?, (State.startNewWork_groupCore _ _).1] using found
@@ -59,11 +59,11 @@ at its carrier; preceding blocks extend both the output offset and the iteration
 The recovered state is before any later iteration, including later cancellation cleanup.
 -/
 theorem State.drainReadyGroups_go_noticeContents {queue : State} {work}
-    (generated : ExecutedWork work) (keys : queue.GroupKeysUnique)
+    (generated : ExecutedWork work) (refs : queue.GroupRefsUnique)
     (records : queue.GroupNodesMatchWork work)
     (support
-      : queue.GroupKeySupport
-          (fun key => ∃ dependencies, NodeHasDependencies work key .group dependencies))
+      : queue.GroupRefSupport
+          (fun ref => ∃ dependencies, NodeHasDependencies work ref .group dependencies))
     (fuel : Nat) {index group groups streams child}
     (selected
       : (State.drainReadyGroups.go fuel queue).2[index]?
@@ -75,7 +75,7 @@ theorem State.drainReadyGroups_go_noticeContents {queue : State} {work}
           (State.drainReadyGroups.go fuel queue).2.take (index + 1) = boundary.2
           ∧ (∃ dependencies producer, NodeAt work child .group dependencies producer)
           ∧ ∃ node,
-              boundary.1.groupNode? child.key = some node
+              boundary.1.groupNode? child.ref = some node
               ∧ node.group.node = child
               ∧ (node.tasks ≠ [] ∨ node.failure.isSome = true) := by
   induction fuel generalizing queue index with
@@ -83,8 +83,8 @@ theorem State.drainReadyGroups_go_noticeContents {queue : State} {work}
   | succ fuel ih =>
       cases ready
             : queue.rootGroups.findSome?
-                (fun key => do
-                  let node ← queue.groupNode? key
+                (fun ref => do
+                  let node ← queue.groupNode? ref
                   if node.failure.isSome || node.pending == 0 then
                     some node
                   else
@@ -109,7 +109,7 @@ theorem State.drainReadyGroups_go_noticeContents {queue : State} {work}
                 rw [List.getElem?_append_left inside] at atFlush
                 have last := queue.finishGroupSuccess_carrier_last node atFlush
                 have contents := queue.finishGroupSuccess_activated_noticeContents generated
-                  keys records support node atFlush noticed
+                  refs records support node atFlush noticed
                 refine ⟨0, by omega, ?_, ?_⟩
                 · rw [step fuel, step 0]
                   simp only [State.drainReadyGroups.go, List.append_nil]
@@ -117,11 +117,11 @@ theorem State.drainReadyGroups_go_noticeContents {queue : State} {work}
                 · simpa only [State.drainReadyGroups.go, ready, cached] using contents
               · have outside : emitted.length ≤ index := by omega
                 rw [List.getElem?_append_right outside] at selected
-                obtain ⟨nextKeys, nextRecords, nextSupport⟩ :=
+                obtain ⟨nextRefs, nextRecords, nextSupport⟩ :=
                   queue.finishGroupSuccess_activated_noticeMetadata generated
-                    keys records support node
+                    refs records support node
                 obtain ⟨steps, bound, exactPrefix, contents⟩ :=
-                  ih nextKeys nextRecords nextSupport selected
+                  ih nextRefs nextRecords nextSupport selected
                 refine ⟨steps + 1, by omega, ?_, ?_⟩
                 · rw [step fuel, List.take_append,
                     List.take_of_length_le (by omega : emitted.length ≤ index + 1),
@@ -142,7 +142,7 @@ theorem State.drainReadyGroups_go_noticeContents {queue : State} {work}
               | zero => cases selected
               | succ index =>
                   obtain ⟨steps, bound, exactPrefix, contents⟩ :=
-                    ih (queue := next) (keys.removeGroup _) (records.removeGroup _)
+                    ih (queue := next) (refs.removeGroup _) (records.removeGroup _)
                       (support.removeGroup _)
                       selected
                   refine ⟨steps + 1, by omega, ?_, ?_⟩
@@ -160,11 +160,11 @@ The carrier contributes no object value, so its strict prefix selects the same l
 `offset` counts object values emitted before this drain starts.
 -/
 theorem State.drainReadyGroups_go_noticeContents_excluding {queue : State} {work}
-    (generated : ExecutedWork work) (keys : queue.GroupKeysUnique)
+    (generated : ExecutedWork work) (refs : queue.GroupRefsUnique)
     (records : queue.GroupNodesMatchWork work)
     (support
-      : queue.GroupKeySupport
-          (fun key => ∃ dependencies, NodeHasDependencies work key .group dependencies))
+      : queue.GroupRefSupport
+          (fun ref => ∃ dependencies, NodeHasDependencies work ref .group dependencies))
     (fuel : Nat) {published : List ObjectPublication} {offset : Nat}
     (excluded
       : ∀ steps,
@@ -187,7 +187,7 @@ theorem State.drainReadyGroups_go_noticeContents_excluding {queue : State} {work
           (State.drainReadyGroups.go fuel queue).2.take (index + 1) = boundary.2
           ∧ (∃ dependencies producer, NodeAt work child .group dependencies producer)
           ∧ ∃ node,
-              boundary.1.groupNode? child.key = some node
+              boundary.1.groupNode? child.ref = some node
               ∧ node.group.node = child
               ∧ (node.tasks ≠ [] ∨ node.failure.isSome = true)
               ∧ ∀ publication ∈
@@ -197,7 +197,7 @@ theorem State.drainReadyGroups_go_noticeContents_excluding {queue : State} {work
                           WorkQueueEvent.objectValues).length),
                   publication.1 ∉ node.tasks := by
   obtain ⟨steps, bound, exactPrefix, located, node, found, same, contents⟩ :=
-    State.drainReadyGroups_go_noticeContents generated keys records support fuel selected noticed
+    State.drainReadyGroups_go_noticeContents generated refs records support fuel selected noticed
   refine ⟨steps, bound, exactPrefix, located, node, found, same, contents, ?_⟩
   have count : ((State.drainReadyGroups.go (steps + 1) queue).2.flatMap
       WorkQueueEvent.objectValues).length
@@ -239,7 +239,7 @@ theorem ExecutedWork.taskSuccess_drainNoticeContents
             active.drainReadyGroups.2.take (index + 1) = boundary.2
             ∧ (∃ dependencies producer, NodeAt work child .group dependencies producer)
             ∧ ∃ node,
-                boundary.1.groupNode? child.key = some node
+                boundary.1.groupNode? child.ref = some node
                 ∧ node.group.node = child
                 ∧ (node.tasks ≠ [] ∨ node.failure.isSome = true)
                 ∧ ∀ publication ∈
@@ -255,11 +255,11 @@ theorem ExecutedWork.taskSuccess_drainNoticeContents
   obtain ⟨matching, _, _⟩ := valid.atPrefix (show
     (before ++ [GraphEvent.taskSuccess occurrence result]).IsPrefix
       (before ++ GraphEvent.taskSuccess occurrence result :: after) from ⟨after, by simp⟩)
-  obtain ⟨keys, records, support⟩ := generated.taskSuccess_drain_noticeMetadata
+  obtain ⟨refs, records, support⟩ := generated.taskSuccess_drain_noticeMetadata
     (fun _ member => prior.eachMatches member) matching incoming
   have excluded := createWorkQueue_taskSuccess_drainMemberships covered valid found healthy
   simp only [List.flatMap_append, List.length_append, ← Nat.add_assoc] at excluded ⊢
-  exact State.drainReadyGroups_go_noticeContents_excluding generated keys records support
+  exact State.drainReadyGroups_go_noticeContents_excluding generated refs records support
     active.groupNodes.length excluded selected noticed
 
 /-- Generated item-handler drains retain child contents excluding the full prior history.
@@ -276,7 +276,7 @@ theorem ExecutedWork.streamItems_drainNoticeContents
     (valid : ValidGraphEvents work (before ++ .streamItems stream items :: after))
     : let current := (State.initialize (Work.fromExecution work)).replayGraphEvents before
       let prepared := current.preparedStreamItems items
-      current.rootStreams.contains stream.key = true
+      current.rootStreams.contains stream.ref = true
       → prepared.drainReadyGroups.2[index]? = some (.groupSuccess group groups streams)
       → child ∈ groups
       → ∃ steps,
@@ -285,7 +285,7 @@ theorem ExecutedWork.streamItems_drainNoticeContents
             prepared.drainReadyGroups.2.take (index + 1) = boundary.2
             ∧ (∃ dependencies producer, NodeAt work child .group dependencies producer)
             ∧ ∃ node,
-                boundary.1.groupNode? child.key = some node
+                boundary.1.groupNode? child.ref = some node
                 ∧ node.group.node = child
                 ∧ (node.tasks ≠ [] ∨ node.failure.isSome = true)
                 ∧ ∀ publication ∈
@@ -301,9 +301,9 @@ theorem ExecutedWork.streamItems_drainNoticeContents
   obtain ⟨matching, _, _⟩ := valid.atPrefix (show
     (before ++ [GraphEvent.streamItems stream items]).IsPrefix
       (before ++ GraphEvent.streamItems stream items :: after) from ⟨after, by simp⟩)
-  obtain ⟨keys, records, support⟩ := generated.streamItems_prepared_noticeMetadata
+  obtain ⟨refs, records, support⟩ := generated.streamItems_prepared_noticeMetadata
     (fun _ member => prior.eachMatches member) matching
-  exact State.drainReadyGroups_go_noticeContents_excluding generated keys records support
+  exact State.drainReadyGroups_go_noticeContents_excluding generated refs records support
     prepared.groupNodes.length
     (createWorkQueue_streamItems_drainMemberships covered valid active) selected noticed
 

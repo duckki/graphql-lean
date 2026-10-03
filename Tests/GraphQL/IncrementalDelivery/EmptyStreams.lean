@@ -23,8 +23,8 @@ def prepared (operation : Operation) : Completion (List (Name × ResponseValue))
       operation.selectionSet).run
     0).1
 
-/-- The exhausted stream's key and response path are still allocated normally. -/
-def node (name : Name) : DeliveryNode := { key := 0, path := [.field name] }
+/-- The exhausted stream's ref and response path are still allocated normally. -/
+def node (name : Name) : DeliveryNode := { ref := 0, path := [.field name] }
 
 -----------------------------------------------------------------------------------------
 -- A boundary can complete without publishing an item
@@ -84,13 +84,13 @@ theorem BoundaryTree.run {node work} (shape : BoundaryTree node work)
     refine ⟨⟨by simp, by simp, ?_⟩, by simp⟩
     intro stream member
     obtain rfl := List.mem_singleton.mp member
-    exact ⟨[], none, known, by simp [announcedKeys, pendingKeys],
+    exact ⟨[], none, known, by simp [announcedRefs, pendingRefs],
       Or.inl ⟨fun failure => failure.nonempty rfl, Or.inl rfl⟩, by simp, Or.inl rfl⟩
   have initial : Explains work [] [node] [] matching [] :=
     ⟨initialized, by simp [FailureWitness], by simp⟩
-  have allowed : EventAllowed work [node.key] matching [] [] (.streamSuccess node) := by
+  have allowed : EventAllowed work [node.ref] matching [] [] (.streamSuccess node) := by
     refine ⟨⟨[], none, known⟩, ?_, fun failure => failure.nonempty rfl, ?_⟩
-    · simp [Open, announcedKeys, completedKeys]
+    · simp [Open, announcedRefs, completedRefs]
     · rintro occurrence owners ⟨producer, payload, task⟩ _
       exact False.elim (shape.noTask task)
   have explained := initial.append_event (by simpa [failedBefore] using allowed)
@@ -100,7 +100,7 @@ theorem BoundaryTree.run {node work} (shape : BoundaryTree node work)
       exact False.elim (shape.noTask task)
     · intro other kind parents birth descriptor
       obtain rfl := shape.node descriptor
-      exact Or.inl (by simp [completedKeys, eventCompleted])
+      exact Or.inl (by simp [completedRefs, eventCompleted])
   · exact .cons (tail := []) (by simp) (.separate _ (.separate _ .nil)) .nil
 
 /-- The precise wire trace has a pending ID and its completion, but no item patch. -/
@@ -296,7 +296,7 @@ example
               [field "empty" [] [.stream (.boolean true) (some (.string "E"))]
                 (some "alias")]
           }).work
-      = [({ key := 0, path := [.field "alias"], label := some (.string "E") }, 0)] := by
+      = [({ ref := 0, path := [.field "alias"], label := some (.string "E") }, 0)] := by
   cbv
 
 /-- Inner list wrappers remain synchronous at an exact outer boundary.
@@ -315,9 +315,9 @@ example
             selectionSet :=
               [field "user" [(field "values" [] [.stream (.boolean true) none (.int 3)])]]
           }).work
-      = [({ key := 0, path := [.field "user", .field "values"] }, 0)] := by cbv
+      = [({ ref := 0, path := [.field "user", .field "values"] }, 0)] := by cbv
 
-/-- Deferred producers retain empty child streams. Witness: the child has its own key.
+/-- Deferred producers retain empty child streams. Witness: the child has its own ref.
 -/
 example
     : boundaries 20
@@ -326,9 +326,9 @@ example
             selectionSet :=
               [defer (streamed "values" 3).selectionSet]
           }).work
-      = [({ key := 1, path := [.field "values"] }, 0)] := by cbv
+      = [({ ref := 1, path := [.field "values"] }, 0)] := by cbv
 
-/-- Two streamed objects each produce an empty child stream with a fresh key and index.
+/-- Two streamed objects each produce an empty child stream with a fresh ref and index.
 Witness: finite generated work, including future item children.
 -/
 example
@@ -339,12 +339,12 @@ example
               [field "users" (streamed "values" 3).selectionSet [.stream]]
           }).work
       = [
-        ({ key := 0, path := [.field "users"] }, 2),
-        ({ key := 1, path := [.field "users", .index 0, .field "values"] }, 0),
-        ({ key := 2, path := [.field "users", .index 1, .field "values"] }, 0)
+        ({ ref := 0, path := [.field "users"] }, 2),
+        ({ ref := 1, path := [.field "users", .index 0, .field "values"] }, 0),
+        ({ ref := 2, path := [.field "users", .index 1, .field "values"] }, 0)
       ] := by cbv
 
-/-- Independent empty and nonempty streams consume distinct keys.
+/-- Independent empty and nonempty streams consume distinct refs.
 Witness: the empty stream is not erased from work allocation.
 -/
 example
@@ -354,7 +354,7 @@ example
             selectionSet :=
               (streamed "empty" 0).selectionSet ++ (streamed "values" 2).selectionSet
           }).work
-      = [(node "empty", 0), ({ key := 1, path := [.field "values"] }, 1)] := by cbv
+      = [(node "empty", 0), ({ ref := 1, path := [.field "values"] }, 1)] := by cbv
 
 /-- Overlapping defer owners still share a single empty child stream.
 Witness: field partitioning precedes the stream-boundary allocation.
@@ -369,7 +369,7 @@ example
                 defer (streamed "values" 3).selectionSet
               ]
           }).work
-      = [({ key := 2, path := [.field "values"] }, 0)] := by cbv
+      = [({ ref := 2, path := [.field "values"] }, 0)] := by cbv
 
 /-- The new exact-count trace satisfies the existing lifecycle theorem.
 Witness: the public theorem applied to its actual query outcome.

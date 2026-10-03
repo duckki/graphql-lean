@@ -12,12 +12,12 @@ path assignment. Stream entries retain the independently derived nonempty-value 
 -/
 inductive EntryPositionAtoms (paths : Nat → ResponsePath) (ids : IDState)
     : IncrementalResult → List PositionAtom → Prop where
-  | object {key id data errors subPath} (known : Known ids key id)
+  | object {ref id data errors subPath} (known : Known ids ref id)
     : EntryPositionAtoms paths ids (.object id data errors subPath)
-        [.object (paths key ++ subPath) data]
-  | list {key id data errors} (known : Known ids key id) (nonempty : data ≠ [])
+        [.object (paths ref ++ subPath) data]
+  | list {ref id data errors} (known : Known ids ref id) (nonempty : data ≠ [])
     : EntryPositionAtoms paths ids (.list id data errors)
-        (data.map (PositionAtom.item (paths key)))
+        (data.map (PositionAtom.item (paths ref)))
 
 /-- Wire entries encode concatenated absolute atoms in the same order. -/
 inductive EntriesPositionAtoms (paths : Nat → ResponsePath) (ids : IDState)
@@ -89,23 +89,23 @@ theorem EntryPositionAtoms.decode
         ∧ CursorEquivalent final next := by
   obtain ⟨notice, found⟩ := notice_exists announced
   cases encoded with
-  | @object key id data errors subPath known =>
-      have path := metadata.lookup (node := { key, path := paths key }) allocated known rfl found
+  | @object ref id data errors subPath known =>
+      have path := metadata.lookup (node := { ref, path := paths ref }) allocated known rfl found
       simp [decodeAtoms, PositionAtom.decode] at decoded
       obtain ⟨rfl, rfl⟩ := decoded
       refine ⟨_, ?_, fun _ => rfl⟩
       simpa only [path, IncrementalResult.id] using DeliveryTrace.decodePatch_object
         (containers := containers) (cursors := cursors) (data := data)
         (errors := errors) (subPath := subPath) found
-  | @list key id data errors known nonempty =>
-      have path := metadata.lookup (node := { key, path := paths key }) allocated known rfl found
-      cases cursor : ResponsePositions.cursorAt cursors (paths key) with
+  | @list ref id data errors known nonempty =>
+      have path := metadata.lookup (node := { ref, path := paths ref }) allocated known rfl found
+      cases cursor : ResponsePositions.cursorAt cursors (paths ref) with
       | none =>
           cases data with
           | nil => exact False.elim (nonempty rfl)
           | cons head tail => simp [decodeAtoms, PositionAtom.decode, cursor] at decoded
       | some index =>
-          obtain ⟨result, same, equivalent⟩ := decodeAtoms_items containers (paths key)
+          obtain ⟨result, same, equivalent⟩ := decodeAtoms_items containers (paths ref)
             data cursors index cursor
           obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Option.some.inj (same.symm.trans decoded))
           refine ⟨_, ?_, equivalent⟩

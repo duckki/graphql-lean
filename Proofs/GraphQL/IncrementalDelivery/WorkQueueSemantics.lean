@@ -30,5 +30,5 @@ import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.Publication
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.PublicationOrder
 
 /-! Structural and causal equivalence, work-history accounting, and conditional liveness.
-These are node-key properties; transport to wire IDs and public query claims remains separate.
+These are node-ref properties; transport to wire IDs and public query claims remains separate.
 -/

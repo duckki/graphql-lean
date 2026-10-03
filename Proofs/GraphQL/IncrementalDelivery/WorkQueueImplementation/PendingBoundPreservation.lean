@@ -19,7 +19,7 @@ Witness: each updated record is either the replacement or an unchanged earlier n
 theorem State.PendingBound.putGroupNode {queue : State} {eligible settled}
     (bounded : queue.PendingBound eligible settled) (updated : GroupNode)
     (balanced
-      : eligible updated.group.node.key
+      : eligible updated.group.node.ref
         → unsettledCount updated.tasks settled ≤ updated.pending)
     : (queue.putGroupNode updated).PendingBound eligible settled := by
   intro node member relevant
@@ -61,8 +61,8 @@ theorem State.PendingBound.addGroups {queue : State} {eligible settled}
         match current.groupNode? parent with
         | none => current
         | some node =>
-            let children := if node.childGroups.contains group.node.key then
-              node.childGroups else node.childGroups ++ [group.node.key]
+            let children := if node.childGroups.contains group.node.ref then
+              node.childGroups else node.childGroups ++ [group.node.ref]
             current.putGroupNode { node with childGroups := children }
   have linkBound (current : State) (group : Group)
       (prior : current.PendingBound eligible settled)
@@ -86,8 +86,8 @@ theorem State.PendingBound.addGroups {queue : State} {eligible settled}
     | nil => exact bounded
     | cons group rest ih => exact ih (bounded.addGroup group)
   let fresh := groups.filter (fun group =>
-    !queue.registeredGroups.contains group.node.key
-      && (queue.groupNode? group.node.key).isNone)
+    !queue.registeredGroups.contains group.node.ref
+      && (queue.groupNode? group.node.ref).isNone)
   change (fresh.foldl linkStep (fresh.foldl State.addGroup queue)).PendingBound eligible settled
   exact linkFold fresh _ (registered fresh)
 
@@ -113,7 +113,7 @@ theorem State.PendingBound.addTask {queue : State} {eligible settled}
     : (queue.addTask task).PendingBound eligible settled := by
   let registered : State := { queue with tasks := queue.tasks ++ [task] }
   let step (current : State) (group : Execution.DeliveryNode) : State :=
-    match current.groupNode? group.key with
+    match current.groupNode? group.ref with
     | none => current
     | some node =>
         if node.tasks.contains task.occurrence then current
@@ -141,7 +141,7 @@ theorem State.PendingBound.addTask {queue : State} {eligible settled}
   let current := task.groups.foldl step registered
   have currentBound : current.PendingBound eligible settled :=
     foldBound task.groups registered bounded
-  change (if task.groups.any (fun group => current.rootGroups.contains group.key)
+  change (if task.groups.any (fun group => current.rootGroups.contains group.ref)
       && (current.taskNode? task.occurrence).isNone then
       { current with taskNodes := current.taskNodes ++ [{ task }] }
     else current).PendingBound eligible settled
@@ -200,9 +200,9 @@ theorem State.PendingBound.finishGroupSuccess {queue : State} {eligible settled}
 Witness: failure only filters group records, preserving their counters and memberships.
 -/
 theorem State.PendingBound.removeGroup {queue : State} {eligible settled}
-    (bounded : queue.PendingBound eligible settled) (key : Nat)
-    : (queue.removeGroup key).PendingBound eligible settled :=
-  ((State.pendingDebtBound_nil.mpr bounded).removeGroup key).toBound
+    (bounded : queue.PendingBound eligible settled) (ref : NodeRef)
+    : (queue.removeGroup ref).PendingBound eligible settled :=
+  ((State.pendingDebtBound_nil.mpr bounded).removeGroup ref).toBound
 
 /-- Work activation leaves the group-node map, hence every pending bound, unchanged.
 Witness: the independently proved activation group-core equation.
@@ -225,7 +225,7 @@ theorem State.PendingBound.drainReadyGroups {queue : State} {settled}
     (fun state => state.PendingBound (fun _ => True) settled)
     (fun _ node prior member _ _ zero =>
       (prior.finishGroupSuccess node (prior.allSettled member trivial zero)).startNewWork _)
-    (fun _ node _ prior _ _ _ => prior.removeGroup node.group.node.key) bounded
+    (fun _ node _ prior _ _ _ => prior.removeGroup node.group.node.ref) bounded
 
 -----------------------------------------------------------------------------------------
 -- Both branches of each executable handler preserve counter safety
@@ -237,14 +237,14 @@ decrement per distinct owner. The healthy-owner guard is not an assumption of th
 -/
 theorem State.PendingBound.taskFailure {queue : State} {settled}
     (bounded : queue.PendingBound (fun _ => True) settled)
-    (keyUnique : queue.GroupKeysUnique) (taskUnique : queue.TaskMembershipsUnique)
+    (refUnique : queue.GroupRefsUnique) (taskUnique : queue.TaskMembershipsUnique)
     (occurrence : Occurrence) (errors : Nat)
     (taskNode : TaskNode) (found : queue.taskNode? occurrence = some taskNode)
     (fresh : occurrence ∉ settled)
-    (uniqueContributors : (taskNode.task.groups.map Execution.DeliveryNode.key).Nodup)
+    (uniqueContributors : (taskNode.task.groups.map Execution.DeliveryNode.ref).Nodup)
     (owned
       : queue.OwnedExactlyBy occurrence
-          (taskNode.task.groups.map Execution.DeliveryNode.key))
+          (taskNode.task.groups.map Execution.DeliveryNode.ref))
     : (queue.taskFailure occurrence errors).1.PendingBound (fun _ => True)
         (occurrence :: settled) := by
   cases active : queue.taskHasHealthyOwner taskNode.task with
@@ -253,11 +253,11 @@ theorem State.PendingBound.taskFailure {queue : State} {settled}
       have debt := bounded.beginSettlement taskUnique (fun node member _ => owned node member)
         fresh
       have facts := failureGroupFold_preservesBound (fun _ => True) (occurrence :: settled)
-        State.GroupKeysUnique (fun _ valid => valid)
+        State.GroupRefsUnique (fun _ valid => valid)
         (fun _ _ _ valid _ => valid.putGroupNode _)
-        (fun _ key valid => valid.removeGroup key)
+        (fun _ ref valid => valid.removeGroup ref)
         errors taskNode.task.groups uniqueContributors (queue.removeTask occurrence, [])
-        (keyUnique.removeTask occurrence) (debt.removeTask occurrence (by simp))
+        (refUnique.removeTask occurrence) (debt.removeTask occurrence (by simp))
       rw [queue.taskFailure_eq occurrence errors taskNode found]
       simpa only [active, Bool.not_true, Bool.false_eq_true, ↓reduceIte] using facts.2
 
@@ -267,16 +267,16 @@ single-pass owner loop. Ignored successes need not integrate their supplied chil
 -/
 theorem State.PendingBound.taskSuccess {queue : State} {settled}
     (bounded : queue.PendingBound (fun _ => True) settled)
-    (keyUnique : queue.GroupKeysUnique) (taskUnique : queue.TaskMembershipsUnique)
+    (refUnique : queue.GroupRefsUnique) (taskUnique : queue.TaskMembershipsUnique)
     (occurrence : Occurrence) (result : TaskResult)
     (taskNode : TaskNode) (found : queue.taskNode? occurrence = some taskNode)
     (fresh : occurrence ∉ settled)
-    (uniqueContributors : (taskNode.task.groups.map Execution.DeliveryNode.key).Nodup)
+    (uniqueContributors : (taskNode.task.groups.map Execution.DeliveryNode.ref).Nodup)
     (owned
       : ((queue.putTaskNode
             { taskNode with value := some result.value }).maybeIntegrateWork
           result.work (some occurrence)).1.OwnedExactlyBy
-          occurrence (taskNode.task.groups.map Execution.DeliveryNode.key))
+          occurrence (taskNode.task.groups.map Execution.DeliveryNode.ref))
     : (queue.taskSuccess occurrence result).1.PendingBound (fun _ => True)
         (occurrence :: settled) := by
   cases active : queue.taskHasHealthyOwner taskNode.task with
@@ -284,22 +284,22 @@ theorem State.PendingBound.taskSuccess {queue : State} {settled}
   | true =>
       let withValue := queue.putTaskNode { taskNode with value := some result.value }
       have valueBound : withValue.PendingBound (fun _ => True) settled := bounded
-      have valueKeys : withValue.GroupKeysUnique := keyUnique
+      have valueRefs : withValue.GroupRefsUnique := refUnique
       have valueTasks : withValue.TaskMembershipsUnique := taskUnique
       let integrated := (withValue.maybeIntegrateWork result.work (some occurrence)).1
       have integratedBound : integrated.PendingBound (fun _ => True) settled :=
         valueBound.maybeIntegrateWork result.work (some occurrence)
-      have integratedKeys : integrated.GroupKeysUnique :=
-        valueKeys.maybeIntegrateWork result.work (some occurrence)
+      have integratedRefs : integrated.GroupRefsUnique :=
+        valueRefs.maybeIntegrateWork result.work (some occurrence)
       have integratedTasks : integrated.TaskMembershipsUnique :=
         valueTasks.maybeIntegrateWork result.work (some occurrence)
       have debt := integratedBound.beginSettlement integratedTasks
         (fun node member _ => owned node member) fresh
       have facts := successGroupFold_preservesBound (fun _ => True) (occurrence :: settled)
-        State.GroupKeysUnique (fun _ valid => valid) (by intros; trivial)
+        State.GroupRefsUnique (fun _ valid => valid) (by intros; trivial)
         (fun _ _ valid _ => valid.putGroupNode _)
         (fun _ node _ valid _ _ _ _ _ => valid.finishGroupSuccess node)
-        taskNode.task.groups uniqueContributors (integrated, [], {}) integratedKeys debt
+        taskNode.task.groups uniqueContributors (integrated, [], {}) integratedRefs debt
       rw [queue.taskSuccess_eq occurrence result taskNode found]
       simp only [active, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
       exact (facts.2.startNewWork _).drainReadyGroups

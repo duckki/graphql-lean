@@ -15,22 +15,22 @@ by the supplied equivalence, then the same defer dependencies propagate it.
 -/
 theorem groupInvalidated_cons_congr {work : Execution.Work}
     {before after : List Occurrence}
-    (same : ∀ key, GroupInvalidated work before key ↔ GroupInvalidated work after key)
-    (occurrence : Occurrence) (key : Nat)
-    : GroupInvalidated work (occurrence :: before) key
-      ↔ GroupInvalidated work (occurrence :: after) key := by
+    (same : ∀ ref, GroupInvalidated work before ref ↔ GroupInvalidated work after ref)
+    (occurrence : Occurrence) (ref : NodeRef)
+    : GroupInvalidated work (occurrence :: before) ref
+      ↔ GroupInvalidated work (occurrence :: after) ref := by
   have transfer {left right : List Occurrence}
-      (translate : ∀ key, GroupInvalidated work left key → GroupInvalidated work right key)
-      {key : Nat} (failure : GroupInvalidated work (occurrence :: left) key)
-      : GroupInvalidated work (occurrence :: right) key := by
+      (translate : ∀ ref, GroupInvalidated work left ref → GroupInvalidated work right ref)
+      {ref : NodeRef} (failure : GroupInvalidated work (occurrence :: left) ref)
+      : GroupInvalidated work (occurrence :: right) ref := by
     induction failure with
-    | @task task owners key known owner member =>
+    | @task task owners ref known owner member =>
         rcases List.mem_cons.mp member with latest | earlier
         · exact .task known owner (List.mem_cons.mpr (.inl latest))
-        · exact (translate key (.task known owner earlier)).mono
+        · exact (translate ref (.task known owner earlier)).mono
             (fun _ member => List.mem_cons_of_mem _ member)
     | groupDependency known member _ ih => exact .groupDependency known member ih
-  exact ⟨transfer (fun key => (same key).mp), transfer (fun key => (same key).mpr)⟩
+  exact ⟨transfer (fun ref => (same ref).mp), transfer (fun ref => (same ref).mpr)⟩
 
 /-- Group-invalidation equivalence also covers taskless registration records.
 Witness: translate direct failed-owner causes using group equivalence, then reuse each
@@ -38,18 +38,18 @@ record-ancestry step. Taskless records need no fictitious contributor descriptor
 -/
 theorem groupRecordInvalidated_congr {work : Execution.Work}
     {before after : List Occurrence}
-    (same : ∀ key, GroupInvalidated work before key ↔ GroupInvalidated work after key)
-    (key : Nat)
-    : GroupRecordInvalidated work before key ↔ GroupRecordInvalidated work after key := by
+    (same : ∀ ref, GroupInvalidated work before ref ↔ GroupInvalidated work after ref)
+    (ref : NodeRef)
+    : GroupRecordInvalidated work before ref ↔ GroupRecordInvalidated work after ref := by
   have transfer {left right : List Occurrence}
-      (translate : ∀ key, GroupInvalidated work left key → GroupInvalidated work right key)
-      {key : Nat} (failure : GroupRecordInvalidated work left key)
-      : GroupRecordInvalidated work right key := by
+      (translate : ∀ ref, GroupInvalidated work left ref → GroupInvalidated work right ref)
+      {ref : NodeRef} (failure : GroupRecordInvalidated work left ref)
+      : GroupRecordInvalidated work right ref := by
     induction failure with
     | task known owner member =>
         exact (translate _ (.task known owner member)).toRecordInvalidated
     | ancestor known member _ ih => exact .ancestor known member ih
-  exact ⟨transfer (fun key => (same key).mp), transfer (fun key => (same key).mpr)⟩
+  exact ⟨transfer (fun ref => (same ref).mp), transfer (fun ref => (same ref).mpr)⟩
 
 -----------------------------------------------------------------------------------------
 -- Ignored source failures add no new invalidated owners during generated started replay
@@ -70,32 +70,32 @@ theorem ExecutedWork.failureInventories_groupInvalidated_iff_of_eachAccepted
               before).acceptsGraphEvent
               event
             = true)
-    : ∀ key,
-        GroupInvalidated work (GraphEvent.failureSettlements events) key
+    : ∀ ref,
+        GroupInvalidated work (GraphEvent.failureSettlements events) ref
         ↔ GroupInvalidated work
             ((State.initialize (Work.fromExecution work)).objectFailureContributions
               events)
-            key := by
+            ref := by
   obtain ⟨parents, canonical⟩ := generated.groupRecordsCanonical
   induction valid with
-  | nil => intro key; rfl
+  | nil => intro ref; rfl
   | @append before event valid matching fresh ready ih =>
       have prefixAccepted := fun past next (earlier : (past ++ [next]).IsPrefix before) =>
         acceptedAt past next (earlier.trans (List.prefix_append before [event]))
       have prior := ih prefixAccepted
       have accepted := acceptedAt before event (List.prefix_refl _)
-      intro key
+      intro ref
       rw [GraphEvent.failureSettlements_append, State.objectFailureContributions_append]
       simp only [State.objectFailureContributions, List.nil_append]
       cases event with
-      | taskSuccess | streamItems | streamSuccess | streamFailure => exact prior key
+      | taskSuccess | streamItems | streamSuccess | streamFailure => exact prior ref
       | taskFailure occurrence errors =>
           let queue := (State.initialize (Work.fromExecution work)).replayGraphEvents before
           change queue.acceptsGraphEvent (.taskFailure occurrence errors) = true at accepted
-          change GroupInvalidated work (occurrence :: GraphEvent.failureSettlements before) key
+          change GroupInvalidated work (occurrence :: GraphEvent.failureSettlements before) ref
             ↔ GroupInvalidated work
               (queue.objectFailureContribution (.taskFailure occurrence errors)
-                ++ (State.initialize (Work.fromExecution work)).objectFailureContributions before) key
+                ++ (State.initialize (Work.fromExecution work)).objectFailureContributions before) ref
           have ledger : queue.OwnerAccounting work parents before :=
             generated.replayGraphEvents_ownerAccounting_of_eachAccepted canonical valid
               prefixAccepted
@@ -106,7 +106,7 @@ theorem ExecutedWork.failureInventories_groupInvalidated_iff_of_eachAccepted
               | true =>
                   simpa only [GraphEvent.groupFailures, State.objectFailureContribution,
                     found, guarded, ↓reduceIte, List.singleton_append]
-                    using groupInvalidated_cons_congr prior occurrence key
+                    using groupInvalidated_cons_congr prior occurrence ref
               | false =>
                   obtain ⟨member, same⟩ := State.taskNode?_some found
                   have registered := ledger.pending.started node member
@@ -119,12 +119,12 @@ theorem ExecutedWork.failureInventories_groupInvalidated_iff_of_eachAccepted
                   have redundant := ledger.owners.rejectedTask_invalidation_iff
                     ledger.pending.matching ledger.supported ledger.cancelled generated
                     (ledger.toHealthyCounterAccounting.descriptors canonical)
-                    registered unsettled ⟨producer, payload, known⟩ guarded key
+                    registered unsettled ⟨producer, payload, known⟩ guarded ref
                   rw [same] at redundant
                   simpa only [GraphEvent.groupFailures, State.objectFailureContribution,
                     found, guarded, Bool.false_eq_true, ↓reduceIte, List.singleton_append,
                     List.nil_append]
-                    using redundant.trans (prior key)
+                    using redundant.trans (prior ref)
 
 /-- Valid source events accepted by the start checker have equivalent failure closures.
 Witness: executable prefix acceptance supplies the eventwise induction's only start law.
@@ -133,12 +133,12 @@ theorem ExecutedWork.failureInventories_groupInvalidated_iff
     {work : Execution.Work} (generated : ExecutedWork work) (events : List GraphEvent)
     (valid : ValidGraphEvents work events)
     (started : (State.initialize (Work.fromExecution work)).acceptsBatch events = true)
-    (key : Nat)
-    : GroupInvalidated work (GraphEvent.failureSettlements events) key
+    (ref : NodeRef)
+    : GroupInvalidated work (GraphEvent.failureSettlements events) ref
       ↔ GroupInvalidated work
           ((State.initialize (Work.fromExecution work)).objectFailureContributions events)
-          key := by
-  apply generated.failureInventories_groupInvalidated_iff_of_eachAccepted valid _ key
+          ref := by
+  apply generated.failureInventories_groupInvalidated_iff_of_eachAccepted valid _ ref
   intro before event earlier
   obtain ⟨after, same⟩ := earlier
   apply State.acceptsBatch_atPrefix _ before event after
@@ -150,14 +150,14 @@ Witness: batch start discipline gives every actual sequential-prefix acceptance.
 theorem ExecutedWork.runNormalized_failureInventories_groupInvalidated_iff
     {work : Execution.Work} (generated : ExecutedWork work)
     (batches : List (List GraphEvent)) (valid : ValidGraphEvents work batches.flatten)
-    (started : inputsStarted work batches = true) (key : Nat)
-    : GroupInvalidated work (GraphEvent.failureSettlements batches.flatten) key
+    (started : inputsStarted work batches = true) (ref : NodeRef)
+    : GroupInvalidated work (GraphEvent.failureSettlements batches.flatten) ref
       ↔ GroupInvalidated work
           ((State.initialize (Work.fromExecution work)).objectFailureContributions
             batches.flatten)
-          key :=
+          ref :=
   generated.failureInventories_groupInvalidated_iff_of_eachAccepted valid
-    (inputsStarted_eachAccepted work batches started) key
+    (inputsStarted_eachAccepted work batches started) ref
 
 -----------------------------------------------------------------------------------------
 -- Transfer the checked owner and pending ledgers without equating failure tokens
@@ -170,10 +170,10 @@ The actual queue, settlement ledger, owner node, and task membership are unchang
 theorem State.HealthyRegisteredTaskAccounting.congr_failures {queue : State}
     {work settled before after}
     (prior : queue.HealthyRegisteredTaskAccounting work settled before)
-    (same : ∀ key, GroupInvalidated work before key ↔ GroupInvalidated work after key)
+    (same : ∀ ref, GroupInvalidated work before ref ↔ GroupInvalidated work after ref)
     : queue.HealthyRegisteredTaskAccounting work settled after := by
-  intro task member fresh key contributes healthy
-  exact prior task member fresh key contributes (fun failed => healthy ((same key).mp failed))
+  intro task member fresh ref contributes healthy
+  exact prior task member fresh ref contributes (fun failed => healthy ((same ref).mp failed))
 
 /-- Equivalent invalidation closures transport exact healthy pending counts.
 Witness: the same live group is healthy in both inventories; no counter or count filter
@@ -181,10 +181,10 @@ is modified and no failure occurrence is reclassified as an error contribution.
 -/
 theorem State.HealthyPendingTracks.congr_failures {queue : State}
     {work settled before after} (prior : queue.HealthyPendingTracks work settled before)
-    (same : ∀ key, GroupInvalidated work before key ↔ GroupInvalidated work after key)
+    (same : ∀ ref, GroupInvalidated work before ref ↔ GroupInvalidated work after ref)
     : queue.HealthyPendingTracks work settled after := by
   intro node member healthy
-  exact prior node member (fun failed => healthy ((same node.group.node.key).mp failed))
+  exact prior node member (fun failed => healthy ((same node.group.node.ref).mp failed))
 
 /-- Valid started sequential replay retains owners and exact counters under accepted
 object failures. Witness: full-source owner replay transported by failure-closure

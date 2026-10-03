@@ -16,8 +16,8 @@ private def work : Execution.Work :=
       selections).run
     0).1.work
 
-private def left : DeliveryNode := { key := 0, path := [] }
-private def right : DeliveryNode := { key := 1, path := [] }
+private def left : DeliveryNode := { ref := 0, path := [] }
+private def right : DeliveryNode := { ref := 1, path := [] }
 private def failed : Occurrence := .executionGroup [1, 0]
 private def inputs : List (List GraphEvent) := [[.taskFailure failed 1]]
 
@@ -25,10 +25,10 @@ private def atoms : List Execution.WorkQueueEvent :=
   ((State.initialize (Work.fromExecution work)).runNormalized inputs).2.flatten.flatMap
     publicationAtoms
 
-private def initial : Keys :=
+private def initial : NodeRefs :=
   ((State.initialize (Work.fromExecution work)).initialGroups
     ++ (State.initialize (Work.fromExecution work)).initialStreams).map
-    DeliveryNode.key
+    DeliveryNode.ref
 
 private def cuts : FailureCuts := [(0, failed)]
 
@@ -48,7 +48,7 @@ private theorem generated : ExecutedWork work :=
 Witness: the execution-group projection of the generated shared partition.
 -/
 private theorem task_known
-    : TaskAt work failed [left.key, right.key] none (.object [] (.error 1)) :=
+    : TaskAt work failed [left.ref, right.ref] none (.object [] (.error 1)) :=
   TaskAt.executionGroup (groups := [⟨left, []⟩, ⟨right, []⟩])
     (children := .empty) (owners := []) (by cbv)
 
@@ -94,7 +94,7 @@ Witness: the general source-block coverage theorem at each selected atomic outpu
 -/
 theorem shared_candidate_nodeFailed (matching : PublicationMatching) {index : Nat}
     {group : DeliveryNode} (selected : atoms[index]? = some (.groupFailure group 1))
-    : NodeFailed work matching (atoms.take index) candidateCuts group.key :=
+    : NodeFailed work matching (atoms.take index) candidateCuts group.ref :=
   createWorkQueue_sourceObjectFailureCuts_nodeFailed generated source_valid.1 matching
     selected
 
@@ -164,11 +164,11 @@ theorem shared_failure_licensed (matching : PublicationMatching)
     intro before cut occurrence after impossible
     have sizes := congrArg List.length impossible
     simp at sizes
-  have opened : Open initial [] left.key := by
+  have opened : Open initial [] left.ref := by
     cbv
     exact ⟨.head _, fun impossible => nomatch impossible⟩
   have recorded := empty.record task_known rfl (.root ⟨_, _, task_known⟩)
-    ⟨left.key, List.mem_cons_self, opened⟩ (fun cancelled => cancelled.nonempty rfl)
+    ⟨left.ref, List.mem_cons_self, opened⟩ (fun cancelled => cancelled.nonempty rfl)
   simpa [cuts] using recorded.append atoms
 
 /-- The actual constructed candidate is fully licensed in the shared root-failure fixture.
@@ -183,9 +183,9 @@ theorem shared_candidate_licensed (matching : PublicationMatching)
 Witness: the singleton failure inventory and exact shared owner list, not closure counting.
 -/
 theorem shared_error_counts
-    : ∀ group ∈ [left, right], NodeErrors work (failedBefore cuts 2) group.key 1 := by
+    : ∀ group ∈ [left, right], NodeErrors work (failedBefore cuts 2) group.ref 1 := by
   intro group member
-  have owner : group.key ∈ [left.key, right.key] := List.mem_map_of_mem member
+  have owner : group.ref ∈ [left.ref, right.ref] := List.mem_map_of_mem member
   refine ⟨fun _ => 1, ?_, rfl⟩
   intro occurrence entry
   have same : occurrence = failed := by simpa [failedBefore, cuts] using entry
@@ -210,9 +210,9 @@ private def work : Execution.Work :=
       selections).run
     0).1.work
 
-private def left : DeliveryNode := { key := 0, path := [] }
-private def right : DeliveryNode := { key := 1, path := [] }
-private def stream : DeliveryNode := { key := 2, path := [.field "strict"] }
+private def left : DeliveryNode := { ref := 0, path := [] }
+private def right : DeliveryNode := { ref := 1, path := [] }
+private def stream : DeliveryNode := { ref := 2, path := [.field "strict"] }
 private def leftTask : Occurrence := .executionGroup [1, 0]
 private def rightTask : Occurrence := .executionGroup [1, 1, 0]
 private def failedItem : Occurrence := .item [0, 0, 1] 1
@@ -241,7 +241,7 @@ private theorem generated : ExecutedWork work :=
 Witness: project its exact generated execution-group address.
 -/
 private theorem left_known
-    : TaskAt work leftTask [left.key] none (.object [] (.error 1)) :=
+    : TaskAt work leftTask [left.ref] none (.object [] (.error 1)) :=
   TaskAt.executionGroup (groups := [⟨left, []⟩]) (children := .empty)
     (owners := []) (by cbv)
 
@@ -249,7 +249,7 @@ private theorem left_known
 Witness: locate its nullable-error-plus-non-null-failure partition in the generated work.
 -/
 private theorem right_known
-    : TaskAt work rightTask [right.key] none (.object [] (.error 2)) :=
+    : TaskAt work rightTask [right.ref] none (.object [] (.error 2)) :=
   TaskAt.executionGroup (groups := [⟨right, []⟩]) (children := .empty)
     (owners := []) (by cbv)
 
@@ -271,7 +271,7 @@ theorem prior_source_valid
     intro item member
     have same := List.mem_singleton.mp member
     subst item
-    exact ⟨[stream.key], none, TaskAt.item stream_located rfl, by cbv⟩
+    exact ⟨[stream.ref], none, TaskAt.item stream_located rfl, by cbv⟩
   have firstValid : ValidGraphEvents work [first] :=
     .append .nil firstMatch (by simp [first, GraphEvent.Fresh, GraphEvent.identities])
       ⟨_, _, _, _, stream_located, by simp, by simp,
@@ -325,7 +325,7 @@ theorem mixed_object_candidate_cuts
 Witness: the three actual task descriptors give zero contribution for the earlier group
 and stream failures, and two for the last task.
 -/
-theorem mixed_group_error_count : NodeErrors work (failedBefore cuts 3) right.key 2 := by
+theorem mixed_group_error_count : NodeErrors work (failedBefore cuts 3) right.ref 2 := by
   refine ⟨fun occurrence => if occurrence = rightTask then 2 else 0, ?_, ?_⟩
   · intro occurrence member
     change occurrence ∈ [leftTask, failedItem, rightTask] at member

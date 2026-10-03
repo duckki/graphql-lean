@@ -30,7 +30,7 @@ contributing item has already published. This is not terminal accounting for oth
 def StreamSuccessesAccounted (work : Execution.Work) (w : Witness) : Prop :=
   ∀ index stream,
     w.events[index]? = some (.streamSuccess stream)
-    → ∀ failures, NodeAccounted work w.matching (w.events.take index) failures stream.key
+    → ∀ failures, NodeAccounted work w.matching (w.events.take index) failures stream.ref
 
 /-- Every stream value has its exact item task and full publication readiness.
 The same `w` supplies fresh occurrence labels, producer/predecessor publications, and
@@ -41,7 +41,7 @@ def StreamValuesReady (work : Execution.Work) (w : Witness) : Prop :=
     w.events[index]? = some (.streamValues stream values groups children)
     → ∃ value producer,
         values = [value]
-        ∧ TaskAt work (w.matching index) [stream.key] producer
+        ∧ TaskAt work (w.matching index) [stream.ref] producer
             (.item stream (.ok (value.item, value.errors)))
         ∧ CanPublish work w.matching (w.events.take index) w.failures (w.matching index)
             producer

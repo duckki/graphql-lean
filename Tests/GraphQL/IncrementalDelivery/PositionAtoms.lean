@@ -7,7 +7,7 @@ open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.Correctness
 
 def path : ResponsePath := [.field "items"]
-def node : DeliveryNode := { key := 0, path }
+def node : DeliveryNode := { ref := 0, path }
 def values : List ResponseValue := [.list [.null], .list [.null, .null]]
 
 /-- Coalescing keeps one absolute atom per item, even when the values are themselves lists.

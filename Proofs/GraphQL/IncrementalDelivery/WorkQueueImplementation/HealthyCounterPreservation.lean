@@ -17,12 +17,12 @@ every flush, even when its owner is not among the groups requiring an exact coun
 -/
 theorem successGroupFold_preservesSelected (eligible : Nat → Prop)
     (settled : List Occurrence) (groups : List Execution.DeliveryNode)
-    (unique : (groups.map Execution.DeliveryNode.key).Nodup)
-    (acc : State × List WorkQueueEvent × NewWork) (keys : acc.1.GroupKeysUnique)
-    (tracks : acc.1.PendingDebt eligible settled (groups.map Execution.DeliveryNode.key))
+    (unique : (groups.map Execution.DeliveryNode.ref).Nodup)
+    (acc : State × List WorkQueueEvent × NewWork) (refs : acc.1.GroupRefsUnique)
+    (tracks : acc.1.PendingDebt eligible settled (groups.map Execution.DeliveryNode.ref))
     (bounded
       : acc.1.PendingDebtBound (fun _ => True) settled
-          (groups.map Execution.DeliveryNode.key))
+          (groups.map Execution.DeliveryNode.ref))
     : (groups.foldl successGroupStep acc).1.PendingDebt eligible settled []
       ∧ (groups.foldl successGroupStep acc).1.PendingBound (fun _ => True) settled := by
   suffices final : (groups.foldl successGroupStep acc).1.PendingDebt eligible settled [] ∧
@@ -32,20 +32,20 @@ theorem successGroupFold_preservesSelected (eligible : Nat → Prop)
   | nil => exact ⟨tracks, bounded⟩
   | cons group rest ih =>
       obtain ⟨absent, tailUnique⟩ := List.nodup_cons.mp unique
-      have step : (successGroupStep acc group).1.GroupKeysUnique ∧
+      have step : (successGroupStep acc group).1.GroupRefsUnique ∧
           (successGroupStep acc group).1.PendingDebt eligible settled
-            (rest.map Execution.DeliveryNode.key) ∧
+            (rest.map Execution.DeliveryNode.ref) ∧
           (successGroupStep acc group).1.PendingDebtBound (fun _ => True) settled
-            (rest.map Execution.DeliveryNode.key) := by
+            (rest.map Execution.DeliveryNode.ref) := by
         obtain ⟨queue, events, released⟩ := acc
         dsimp only [successGroupStep]
         split
         · rename_i missing
-          exact ⟨keys, tracks.skipMissing missing, bounded.skipMissing missing⟩
+          exact ⟨refs, tracks.skipMissing missing, bounded.skipMissing missing⟩
         · rename_i node found
-          have nextKeys := keys.putGroupNode { node with pending := node.pending - 1 }
-          have nextTracks := tracks.decrement keys absent found
-          have nextBound := bounded.decrement keys absent found
+          have nextRefs := refs.putGroupNode { node with pending := node.pending - 1 }
+          have nextTracks := tracks.decrement refs absent found
+          have nextBound := bounded.decrement refs absent found
           split
           · rename_i ready
             have zero : node.pending - 1 = 0 := by
@@ -54,9 +54,9 @@ theorem successGroupFold_preservesSelected (eligible : Nat → Prop)
                 (queue.putGroupNode { node with pending := node.pending - 1 }).groupNodes := by
               exact List.mem_map.mpr ⟨node, List.mem_of_find?_eq_some found, by simp⟩
             have all := nextBound.allSettled member trivial zero
-            exact ⟨nextKeys.finishGroupSuccess _, nextTracks.finishGroupSuccess _ all,
+            exact ⟨nextRefs.finishGroupSuccess _, nextTracks.finishGroupSuccess _ all,
               nextBound.finishGroupSuccess _ all⟩
-          · exact ⟨nextKeys, nextTracks, nextBound⟩
+          · exact ⟨nextRefs, nextTracks, nextBound⟩
       exact ih tailUnique _ step.1 step.2.1 step.2.2
 
 /-- Exact healthy counters survive draining even when some active roots have failed.
@@ -76,7 +76,7 @@ theorem State.HealthyPendingTracks.drainReadyGroups_ofBound {queue : State}
       exact ⟨(prior.1.finishGroupSuccess node all).startNewWork _,
         (prior.2.finishGroupSuccess node all).startNewWork _⟩)
     (fun _ node _ prior _ _ _ =>
-      ⟨prior.1.removeGroup node.group.node.key, prior.2.removeGroup node.group.node.key⟩)
+      ⟨prior.1.removeGroup node.group.node.ref, prior.2.removeGroup node.group.node.ref⟩)
     ⟨tracks, bounded⟩
   exact final.1
 
@@ -88,9 +88,9 @@ theorem State.HealthyPendingTracks.drainReadyGroups_ofBound {queue : State}
 Witness: the task's exact structural owner list licenses direct group invalidation.
 -/
 theorem TaskMatches.not_failed_of_healthy {work : Execution.Work} {task : Task}
-    (matching : TaskMatches work task) {failed : List Occurrence} {key : Nat}
-    (contributor : key ∈ task.groups.map Execution.DeliveryNode.key)
-    (healthy : ¬GroupInvalidated work failed key)
+    (matching : TaskMatches work task) {failed : List Occurrence} {ref : NodeRef}
+    (contributor : ref ∈ task.groups.map Execution.DeliveryNode.ref)
+    (healthy : ¬GroupInvalidated work failed ref)
     : task.occurrence ∉ failed := by
   obtain ⟨address, payload, producer, same, known⟩ := matching.1
   intro member
@@ -104,7 +104,7 @@ theorem State.GroupMembershipSound.healthyMembership_not_failed {queue : State}
     {work failed} (sound : queue.GroupMembershipSound)
     (matching : queue.RegisteredTasksMatch work) {node : GroupNode}
     (member : node ∈ queue.groupNodes)
-    (healthy : ¬GroupInvalidated work failed node.group.node.key)
+    (healthy : ¬GroupInvalidated work failed node.group.node.ref)
     {occurrence : Occurrence} (taskMember : occurrence ∈ node.tasks)
     : occurrence ∉ failed := by
   obtain ⟨task, registered, same, contributor⟩ := sound node member occurrence taskMember
@@ -165,7 +165,7 @@ theorem State.HealthyPendingTracks.taskSuccess_allOutcomes {queue : State}
     (occurrence : Occurrence) (result : TaskResult) (taskNode : TaskNode)
     (found : queue.taskNode? occurrence = some taskNode) (fresh : occurrence ∉ settled)
     (freshChildren : ∀ task ∈ result.work.tasks, task.occurrence ∉ settled)
-    (uniqueOwners : (taskNode.task.groups.map Execution.DeliveryNode.key).Nodup)
+    (uniqueOwners : (taskNode.task.groups.map Execution.DeliveryNode.ref).Nodup)
     (childrenMatch : ∀ task ∈ result.work.tasks, TaskMatches work task)
     : (queue.taskSuccess occurrence result).1.HealthyPendingTracks work
         (occurrence :: settled) failed := by
@@ -178,7 +178,7 @@ theorem State.HealthyPendingTracks.taskSuccess_allOutcomes {queue : State}
       let integrated := (stored.maybeIntegrateWork result.work (some occurrence)).1
       have storedTracks : stored.HealthyPendingTracks work settled failed := tracks
       have storedBound : stored.PendingBound (fun _ => True) settled := accounted.pending
-      have storedKeys : stored.GroupKeysUnique := accounted.keys
+      have storedRefs : stored.GroupRefsUnique := accounted.refs
       have storedMembers : stored.TaskMembershipsUnique := accounted.memberships
       have storedCovered : stored.TaskGroupsRegistered := accounted.taskGroups
       have storedSound : stored.GroupMembershipSound := accounted.sound
@@ -186,9 +186,9 @@ theorem State.HealthyPendingTracks.taskSuccess_allOutcomes {queue : State}
       have integratedTracks := storedTracks.maybeIntegrateWork result.work freshChildren
         (some occurrence)
       have integratedBound := storedBound.maybeIntegrateWork result.work (some occurrence)
-      have integratedKeys := storedKeys.maybeIntegrateWork result.work (some occurrence)
+      have integratedRefs := storedRefs.maybeIntegrateWork result.work (some occurrence)
       have integratedMembers := storedMembers.maybeIntegrateWork result.work (some occurrence)
-      have integratedLinks := (accounted.links.putTaskNode _).maybeIntegrateWork storedKeys
+      have integratedLinks := (accounted.links.putTaskNode _).maybeIntegrateWork storedRefs
         storedCovered result.work (some occurrence)
       have integratedSound := storedSound.maybeIntegrateWork result.work (some occurrence)
       have integratedMatch := storedMatch.maybeIntegrateWork result.work childrenMatch
@@ -203,15 +203,15 @@ theorem State.HealthyPendingTracks.taskSuccess_allOutcomes {queue : State}
       have owned := integratedLinks.ownedExactlyBy integratedSound integratedMatch member
         (same.symm ▸ fresh)
       rw [same] at owned
-      have debt : integrated.PendingDebt (fun key => ¬GroupInvalidated work failed key)
-          (occurrence :: settled) (taskNode.task.groups.map Execution.DeliveryNode.key) :=
+      have debt : integrated.PendingDebt (fun ref => ¬GroupInvalidated work failed ref)
+          (occurrence :: settled) (taskNode.task.groups.map Execution.DeliveryNode.ref) :=
         State.PendingDebt.beginSettlement integratedTracks integratedMembers
           (fun node member _ => owned node member) fresh
       have bound := integratedBound.beginSettlement integratedMembers
         (fun node member _ => owned node member) fresh
       have final := successGroupFold_preservesSelected
-        (fun key => ¬GroupInvalidated work failed key) (occurrence :: settled)
-        taskNode.task.groups uniqueOwners (integrated, [], {}) integratedKeys debt bound
+        (fun ref => ¬GroupInvalidated work failed ref) (occurrence :: settled)
+        taskNode.task.groups uniqueOwners (integrated, [], {}) integratedRefs debt bound
       let released := taskNode.task.groups.foldl successGroupStep (integrated, [], {})
       have releasedTracks : released.1.HealthyPendingTracks work (occurrence :: settled)
           failed := by

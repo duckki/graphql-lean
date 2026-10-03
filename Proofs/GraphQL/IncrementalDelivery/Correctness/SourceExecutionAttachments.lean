@@ -114,7 +114,7 @@ mutual
     all_goals repeat first | apply Prod.Lex.left; omega | apply Prod.Lex.right
     all_goals omega
 
-  /-- Collected fields preserve attachments, by field execution and disjoint key
+  /-- Collected fields preserve attachments, by field execution and disjoint ref
   scopes.
   -/
   theorem executeCollectedFields_attached (available : List Entry) (schema : Schema)
@@ -308,7 +308,7 @@ mutual
               simpa only [List.length_take, Nat.min_eq_left hcount]
                 using hlength data.1 data.2 he
             refine runEnsures_bind (fun _ : Nat => True) _ _ _ (fun _ => trivial) ?_
-            intro key _
+            intro ref _
             refine runEnsures_bind
               (OwnedAttachedItems (available ++ [(path, Atom.list)]) path
                 usage.initialCount (UnderItems path usage.initialCount))

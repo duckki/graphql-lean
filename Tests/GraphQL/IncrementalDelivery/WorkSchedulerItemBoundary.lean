@@ -47,10 +47,10 @@ private def work : Execution.Work :=
       (.object "Query" 0) selections).run
     0).1.work
 
-private def stream : DeliveryNode := { key := 0, path := [.field "users"] }
+private def stream : DeliveryNode := { ref := 0, path := [.field "users"] }
 
 private def child : DeliveryNode :=
-  { key := 1, path := [.field "users", .index 0], label := some (.string "C") }
+  { ref := 1, path := [.field "users", .index 0], label := some (.string "C") }
 
 private def firstItem : Occurrence := .item [0, 0, 1] 0
 private def failedItem : Occurrence := .item [0, 0, 1] 1
@@ -84,15 +84,15 @@ private theorem stream_located
         [] := by cbv
 
 private theorem first_known
-    : TaskAt work firstItem [stream.key] none (.item stream (.ok (.object [], 0))) :=
+    : TaskAt work firstItem [stream.ref] none (.item stream (.ok (.object [], 0))) :=
   .item stream_located rfl
 
 private theorem failed_known
-    : TaskAt work failedItem [stream.key] none (.item stream (.error 1)) :=
+    : TaskAt work failedItem [stream.ref] none (.item stream (.error 1)) :=
   .item stream_located rfl
 
 private theorem child_known
-    : TaskAt work childTask [child.key] (some firstItem)
+    : TaskAt work childTask [child.ref] (some firstItem)
         (.object child.path (.error 1)) :=
   .executionGroup (groups := [⟨child, []⟩]) (children := .empty) (owners := []) (by cbv)
 
@@ -147,7 +147,7 @@ theorem item_child_registration_boundary
       ∧ ∃ task ∈
           ((State.initialize (Work.fromExecution work)).replayGraphEvents received).tasks,
           task.occurrence = childTask
-          ∧ task.groups.map DeliveryNode.key = [child.key] := by
+          ∧ task.groups.map DeliveryNode.ref = [child.ref] := by
   refine ⟨by cbv, ?_⟩
   exact TaskAt.executionGroup_registered_of_itemSuccess child_known source_valid.1
     (by cbv) (by simp [received, GraphEvent.successes, item, firstItem])
@@ -208,7 +208,7 @@ private theorem items_safe
 Witness: the general mixed bridge, genuine item-failure provenance, and first-item safety.
 The earlier failure is retained in the cut list rather than discarded from the claim.
 -/
-theorem child_healthy : ¬NodeFailed work matching events cuts child.key := by
+theorem child_healthy : ¬NodeFailed work matching events cuts child.ref := by
   apply generated.replayGraphEvents_groupHealthy_of_itemSafety source_valid.1
     (by cbv)
     child_node
@@ -319,7 +319,7 @@ theorem unpublished_boundary_cancels_child
     cases impossible
   apply Causality.TaskCancelled.producerCancelled ⟨_, _, child_known⟩ (unpublished _)
   apply Causality.TaskCancelled.owners ⟨_, _, first_known⟩ (unpublished _) (by simp)
-  intro key member
+  intro ref member
   obtain rfl := List.mem_singleton.mp member
   exact .task ⟨_, _, failed_known⟩ List.mem_cons_self (by simp [failedBefore])
 

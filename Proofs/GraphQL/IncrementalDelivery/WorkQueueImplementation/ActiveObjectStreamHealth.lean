@@ -14,7 +14,7 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 /-- An active object-produced stream has a prior group-success carrier in the same replay.
 Witness: activation requires an initial or emitted notice. Initial streams have no producer;
 item-carried streams have no defer dependencies, unlike a generated object task's nonempty
-owners. Notice provenance identifies the remaining carrier's exact producer and key.
+owners. Notice provenance identifies the remaining carrier's exact producer and ref.
 -/
 theorem ExecutedWork.runNormalized_activeObjectStream_carrier
     {work batches stream dependencies source}
@@ -22,14 +22,14 @@ theorem ExecutedWork.runNormalized_activeObjectStream_carrier
     (started : inputsStarted work batches = true)
     (known : NodeAt work stream .stream dependencies (some (.executionGroup source)))
     (active
-      : stream.key
+      : stream.ref
         ∈ ((State.initialize (Work.fromExecution work)).runNormalized
             batches).1.rootStreams)
     : ∃ group groups streams child owners,
         Execution.WorkQueueEvent.groupSuccess group groups streams
           ∈ ((State.initialize (Work.fromExecution work)).runNormalized batches).2.flatten
         ∧ child ∈ streams
-        ∧ child.key = stream.key
+        ∧ child.ref = stream.ref
         ∧ NodeAt work child .stream owners (some (.executionGroup source)) := by
   have noticed := createWorkQueue_runNormalized_streamRoots (Work.fromExecution work) batches active
   rcases List.mem_append.mp noticed with initial | later
@@ -66,7 +66,7 @@ theorem ExecutedWork.replayGraphEvents_activeObjectStreamHealthy_of_itemSafety
     (started : (State.initialize (Work.fromExecution work)).acceptsBatch received = true)
     (known : NodeAt work stream .stream dependencies (some (.executionGroup source)))
     (active
-      : stream.key
+      : stream.ref
         ∈ ((State.initialize (Work.fromExecution work)).replayGraphEvents
             received).rootStreams)
     (failedPayloads
@@ -89,10 +89,10 @@ theorem ExecutedWork.replayGraphEvents_activeObjectStreamHealthy_of_itemSafety
     (contributors
       : ∀ occurrence owners,
           TaskHasOwners work occurrence owners
-          → stream.key ∈ owners
+          → stream.ref ∈ owners
           → occurrence ∉ failedBefore failures events.length)
     : ¬TaskCancelled work matching events failures (.executionGroup source)
-      ∧ ¬NodeFailed work matching events failures stream.key := by
+      ∧ ¬NodeFailed work matching events failures stream.ref := by
   have nonempty : received ≠ [] := by
     intro empty
     subst received
@@ -102,7 +102,7 @@ theorem ExecutedWork.replayGraphEvents_activeObjectStreamHealthy_of_itemSafety
     rw [inputsStarted_eq_batchesStarted]
     simp [State.batchesStarted, createWorkQueue_terminated, nonempty, started]
   have batchValid : ValidGraphEvents work [received].flatten := by simpa using valid
-  have batchActive : stream.key ∈
+  have batchActive : stream.ref ∈
       ((State.initialize (Work.fromExecution work)).runNormalized [received]).1.rootStreams := by
     obtain ⟨terminal, state⟩ := createWorkQueue_runNormalized_stateCore batchStarted
     rw [state]
@@ -150,7 +150,7 @@ theorem ExecutedWork.atomicObjectStreamHealthy_of_earlierItems
             batches).2.flatten.flatMap
           publicationAtoms)[index]?
         = some event)
-    (action : streamAction event = some (stream.key, closing))
+    (action : streamAction event = some (stream.ref, closing))
     (nonfailure : ∀ node errors, event ≠ .streamFailure node errors)
     : let atoms :=
         ((State.initialize (Work.fromExecution work)).runNormalized
@@ -158,7 +158,7 @@ theorem ExecutedWork.atomicObjectStreamHealthy_of_earlierItems
           publicationAtoms
       ∃ before input after,
         batches.flatten = before ++ input :: after
-        ∧ input.streamAction = some (stream.key, closing)
+        ∧ input.streamAction = some (stream.ref, closing)
         ∧ (before.flatMap GraphEvent.itemPublications).length
           ≤ ((atoms.take index).flatMap normalizedItemValues).length
         ∧ ((∀ address ordinal,
@@ -167,7 +167,7 @@ theorem ExecutedWork.atomicObjectStreamHealthy_of_earlierItems
                   (.item address ordinal))
             → ¬TaskCancelled work matching (atoms.take index) failures
                 (.executionGroup source)
-              ∧ ¬NodeFailed work matching (atoms.take index) failures stream.key) := by
+              ∧ ¬NodeFailed work matching (atoms.take index) failures stream.ref) := by
   let queue := State.initialize (Work.fromExecution work)
   let publisher : IncrementalPublisher :=
     { active := queue.initialGroups ++ queue.initialStreams }
@@ -200,12 +200,12 @@ theorem ExecutedWork.atomicObjectStreamHealthy_of_earlierItems
     (by rwa [← inputsStarted_eq_batchesStarted])
   rw [split] at acceptedAll
   have acceptedBefore := State.acceptsBatch_prefix acceptedAll
-  have active : stream.key ∈ (queue.replayGraphEvents before).rootStreams := by
+  have active : stream.ref ∈ (queue.replayGraphEvents before).rootStreams := by
     cases input <;> simp only [GraphEvent.streamAction] at sameAction
     all_goals try contradiction
     all_goals
-      have keyEq := (Prod.mk.inj (Option.some.inj sameAction)).1
-      simpa [State.acceptsGraphEvent, keyEq] using accepted
+      have refEq := (Prod.mk.inj (Option.some.inj sameAction)).1
+      simpa [State.acceptsGraphEvent, refEq] using accepted
   have length : (atoms.take index).length = index :=
     List.length_take_of_le (Nat.le_of_lt (List.getElem?_eq_some_iff.mp selected).1)
   apply generated.replayGraphEvents_activeObjectStreamHealthy_of_itemSafety

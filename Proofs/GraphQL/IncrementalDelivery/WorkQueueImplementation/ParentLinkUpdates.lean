@@ -6,7 +6,7 @@ namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
 -----------------------------------------------------------------------------------------
--- Frame rules for unchanged, filtered, and key-preserving group records
+-- Frame rules for unchanged, filtered, and ref-preserving group records
 -----------------------------------------------------------------------------------------
 
 /-- Restricting the live map retains every surviving canonical parent-child edge.
@@ -19,12 +19,12 @@ theorem State.ParentLinksComplete.of_subset {queue next : State} {parents}
   fun child childMember parent parentMember head =>
     complete child (subset childMember) parent (subset parentMember) head
 
-/-- Key-preserving record updates retain completeness when every child list grows.
+/-- Ref-preserving record updates retain completeness when every child list grows.
 Witness: recover the old records, retain the canonical relation, and transport its edge.
 -/
 theorem State.ParentLinksComplete.mapGroupNodes {queue : State} {parents}
     (complete : queue.ParentLinksComplete parents) (update : GroupNode → GroupNode)
-    (keys : ∀ node, (update node).group.node.key = node.group.node.key)
+    (refs : ∀ node, (update node).group.node.ref = node.group.node.ref)
     (children
       : ∀ node ∈ queue.groupNodes, node.childGroups.Subset (update node).childGroups)
     : ({ queue with groupNodes := queue.groupNodes.map update }).ParentLinksComplete
@@ -32,22 +32,22 @@ theorem State.ParentLinksComplete.mapGroupNodes {queue : State} {parents}
   intro child childMember parent parentMember head
   obtain ⟨oldChild, oldChildMember, rfl⟩ := List.mem_map.mp childMember
   obtain ⟨oldParent, oldParentMember, rfl⟩ := List.mem_map.mp parentMember
-  rw [keys, keys] at head
-  rw [keys]
+  rw [refs, refs] at head
+  rw [refs]
   exact children oldParent oldParentMember
     (complete oldChild oldChildMember oldParent oldParentMember head)
 
-/-- Replacing a looked-up record retains complete links when its key and children survive.
-Witness: unique keys identify every replaced record with the original lookup.
+/-- Replacing a looked-up record retains complete links when its ref and children survive.
+Witness: unique refs identify every replaced record with the original lookup.
 -/
-theorem State.ParentLinksComplete.putGroupNode {queue : State} {parents key node}
-    (complete : queue.ParentLinksComplete parents) (unique : queue.GroupKeysUnique)
-    (found : queue.groupNode? key = some node) (updated : GroupNode)
-    (sameKey : updated.group.node.key = node.group.node.key)
+theorem State.ParentLinksComplete.putGroupNode {queue : State} {parents ref node}
+    (complete : queue.ParentLinksComplete parents) (unique : queue.GroupRefsUnique)
+    (found : queue.groupNode? ref = some node) (updated : GroupNode)
+    (sameRef : updated.group.node.ref = node.group.node.ref)
     (children : node.childGroups.Subset updated.childGroups)
     : (queue.putGroupNode updated).ParentLinksComplete parents := by
   apply complete.mapGroupNodes
-    (fun old => if old.group.node.key == updated.group.node.key then updated else old)
+    (fun old => if old.group.node.ref == updated.group.node.ref then updated else old)
   · intro old
     split
     · rename_i same
@@ -57,7 +57,7 @@ theorem State.ParentLinksComplete.putGroupNode {queue : State} {parents key node
     split
     · rename_i same
       have equal := unique.sameNode member (List.mem_of_find?_eq_some found)
-        ((beq_iff_eq.mp same).trans sameKey)
+        ((beq_iff_eq.mp same).trans sameRef)
       exact equal ▸ children
     · exact List.Subset.refl _
 
@@ -66,22 +66,22 @@ theorem State.ParentLinksComplete.putGroupNode {queue : State} {parents key node
 -----------------------------------------------------------------------------------------
 
 /-- Registering task memberships retains every live canonical parent edge.
-Witness: each looked-up owner update preserves its key and child list.
+Witness: each looked-up owner update preserves its ref and child list.
 -/
 theorem State.ParentLinksComplete.addTask {queue : State} {parents}
-    (complete : queue.ParentLinksComplete parents) (unique : queue.GroupKeysUnique)
+    (complete : queue.ParentLinksComplete parents) (unique : queue.GroupRefsUnique)
     (task : Task)
     : (queue.addTask task).ParentLinksComplete parents := by
   let registered : State := { queue with tasks := queue.tasks ++ [task] }
   let step (current : State) (group : Execution.DeliveryNode) : State :=
-    match current.groupNode? group.key with
+    match current.groupNode? group.ref with
     | none => current
     | some node =>
         if node.tasks.contains task.occurrence then current
         else current.putGroupNode
           { node with tasks := node.tasks ++ [task.occurrence], pending := node.pending + 1 }
   have loop (more : List Execution.DeliveryNode) (current : State)
-      (keys : current.GroupKeysUnique) (covered : current.ParentLinksComplete parents)
+      (refs : current.GroupRefsUnique) (covered : current.ParentLinksComplete parents)
       : (more.foldl step current).ParentLinksComplete parents := by
     induction more generalizing current with
     | nil => exact covered
@@ -89,15 +89,15 @@ theorem State.ParentLinksComplete.addTask {queue : State} {parents}
         rw [List.foldl_cons]
         unfold step
         split
-        · exact ih _ keys covered
+        · exact ih _ refs covered
         · rename_i node found
           split
-          · exact ih _ keys covered
-          · exact ih _ (keys.putGroupNode _)
-              (covered.putGroupNode keys found _ rfl (List.Subset.refl _))
+          · exact ih _ refs covered
+          · exact ih _ (refs.putGroupNode _)
+              (covered.putGroupNode refs found _ rfl (List.Subset.refl _))
   let current := task.groups.foldl step registered
   have covered := loop task.groups registered unique complete
-  change (if task.groups.any (fun group => current.rootGroups.contains group.key)
+  change (if task.groups.any (fun group => current.rootGroups.contains group.ref)
       && (current.taskNode? task.occurrence).isNone then
     { current with taskNodes := current.taskNodes ++ [{ task }] }
     else current).ParentLinksComplete parents
@@ -121,18 +121,18 @@ Witness: the exact two-pass group theorem followed by shape-preserving task/stre
 Permanent parent closure prevents a newly live parent from leaving an old child unlinked.
 -/
 theorem State.ParentLinksComplete.maybeIntegrateWork {queue : State} {parents}
-    (complete : queue.ParentLinksComplete parents) (unique : queue.GroupKeysUnique)
+    (complete : queue.ParentLinksComplete parents) (unique : queue.GroupRefsUnique)
     (registered : queue.LiveGroupsRegistered)
     (closed : queue.ParentRegistryClosed parents) (work : Work)
-    (canonical : ∀ group ∈ work.groups, group.parent = (parents group.node.key).head?)
+    (canonical : ∀ group ∈ work.groups, group.parent = (parents group.node.ref).head?)
     (parentTask : Option Occurrence := none)
     : (queue.maybeIntegrateWork work parentTask).1.ParentLinksComplete parents := by
   have loop (more : List Task) (current : State)
-      (keys : current.GroupKeysUnique) (covered : current.ParentLinksComplete parents)
+      (refs : current.GroupRefsUnique) (covered : current.ParentLinksComplete parents)
       : (more.foldl State.addTask current).ParentLinksComplete parents := by
     induction more generalizing current with
     | nil => exact covered
-    | cons task rest ih => exact ih _ (keys.addTask task) (covered.addTask keys task)
+    | cons task rest ih => exact ih _ (refs.addTask task) (covered.addTask refs task)
   exact (loop work.tasks _ (unique.addGroups work.groups)
     (complete.addGroups unique registered closed work.groups canonical)).addStreams
     work.streams parentTask
@@ -179,8 +179,8 @@ theorem State.ParentLinksComplete.startNewWork {queue : State} {parents}
 Witness: the removal algorithm only filters the live group map.
 -/
 theorem State.ParentLinksComplete.removeGroup {queue : State} {parents}
-    (complete : queue.ParentLinksComplete parents) (key : Nat)
-    : (queue.removeGroup key).ParentLinksComplete parents :=
+    (complete : queue.ParentLinksComplete parents) (ref : NodeRef)
+    : (queue.removeGroup ref).ParentLinksComplete parents :=
   complete.of_subset (fun _ member => (List.mem_filter.mp member).1)
 
 /-- Removing a task retains all canonical parent edges.
@@ -198,8 +198,8 @@ theorem State.ParentLinksComplete.removeTask {queue : State} {parents}
 Witness: empty-map completeness, exact registration, pruning, and activation preservation.
 The theorem permits child-first input and does not require a notice for every group.
 -/
-theorem createWorkQueue_parentLinksComplete (work : Work) (parents : Nat → Keys)
-    (canonical : ∀ group ∈ work.groups, group.parent = (parents group.node.key).head?)
+theorem createWorkQueue_parentLinksComplete (work : Work) (parents : Nat → NodeRefs)
+    (canonical : ∀ group ∈ work.groups, group.parent = (parents group.node.ref).head?)
     : (State.initialize work).ParentLinksComplete parents := by
   have emptyComplete : ({} : State).ParentLinksComplete parents := by
     intro node member
@@ -208,9 +208,9 @@ theorem createWorkQueue_parentLinksComplete (work : Work) (parents : Nat → Key
     intro node member
     cases member
   have emptyClosed : ({} : State).ParentRegistryClosed parents := by
-    intro key member
+    intro ref member
     cases member
-  have integrated := emptyComplete.maybeIntegrateWork (by simp [State.GroupKeysUnique])
+  have integrated := emptyComplete.maybeIntegrateWork (by simp [State.GroupRefsUnique])
     emptyRegistered emptyClosed work canonical
   exact (integrated.pruneEmptyGroups _).startNewWork _
 

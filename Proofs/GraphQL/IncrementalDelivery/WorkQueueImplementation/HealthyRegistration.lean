@@ -11,16 +11,16 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 newly registered healthy group is a previously missing contributor of one. -/
 theorem State.HealthyTaskLinks.addGroups
     {queue : State} {work : Execution.Work} {settled failed : List Occurrence}
-    (unique : queue.GroupKeysUnique)
+    (unique : queue.GroupRefsUnique)
     (links : queue.HealthyTaskLinks work settled failed)
     (groups : List Group)
     (relevantExisting
       : ∀ taskNode ∈ queue.taskNodes,
           taskNode.task.occurrence ∉ settled
           → ∀ group ∈ groups,
-              group.node.key ∈ taskNode.task.groups.map Execution.DeliveryNode.key
-              → ¬GroupInvalidated work failed group.node.key
-              → ∃ node ∈ queue.groupNodes, node.group.node.key = group.node.key)
+              group.node.ref ∈ taskNode.task.groups.map Execution.DeliveryNode.ref
+              → ¬GroupInvalidated work failed group.node.ref
+              → ∃ node ∈ queue.groupNodes, node.group.node.ref = group.node.ref)
     : (queue.addGroups groups).1.HealthyTaskLinks work settled failed := by
   apply State.HealthyTaskLinks.ofFilteredLinks
   intro taskNode taskMember fresh
@@ -29,55 +29,55 @@ theorem State.HealthyTaskLinks.addGroups
     exact taskMember
   apply (links.toTaskLinkedOn old fresh).addGroups unique groups
   intro group groupMember healthyMember
-  obtain ⟨contributor, healthy⟩ := mem_healthyContributorKeys_iff.mp
+  obtain ⟨contributor, healthy⟩ := mem_healthyContributorRefs_iff.mp
     healthyMember
   exact relevantExisting taskNode old fresh group groupMember contributor healthy
 
 /-- Existing registered tasks keep every healthy contributor membership when
-child groups are integrated; a healthy contributor key was already live. -/
+child groups are integrated; a healthy contributor ref was already live. -/
 theorem State.HealthyRegisteredTaskAccounting.addGroups
     {queue : State} {work : Execution.Work} {settled failed : List Occurrence}
     (accounted : queue.HealthyRegisteredTaskAccounting work settled failed)
-    (unique : queue.GroupKeysUnique)
+    (unique : queue.GroupRefsUnique)
     (groups : List Group)
     : (queue.addGroups groups).1.HealthyRegisteredTaskAccounting work settled failed := by
-  intro task taskMember fresh key contributor healthy
+  intro task taskMember fresh ref contributor healthy
   have oldTask : task ∈ queue.tasks := by
     rw [queue.addGroups_tasks groups] at taskMember
     exact taskMember
-  obtain ⟨oldNode, oldMember, oldKey, _⟩ :=
-    accounted task oldTask fresh key contributor healthy
+  obtain ⟨oldNode, oldMember, oldRef, _⟩ :=
+    accounted task oldTask fresh ref contributor healthy
   have relevantExisting : ∀ group ∈ groups,
-      group.node.key ∈ healthyContributorKeys work failed
-        (task.groups.map Execution.DeliveryNode.key)
-      → ∃ node ∈ queue.groupNodes, node.group.node.key = group.node.key := by
+      group.node.ref ∈ healthyContributorRefs work failed
+        (task.groups.map Execution.DeliveryNode.ref)
+      → ∃ node ∈ queue.groupNodes, node.group.node.ref = group.node.ref := by
     intro group _ relevant
     obtain ⟨groupContributor, groupHealthy⟩ :=
-      mem_healthyContributorKeys_iff.mp relevant
+      mem_healthyContributorRefs_iff.mp relevant
     obtain ⟨node, member, same, _⟩ :=
-      accounted task oldTask fresh group.node.key groupContributor groupHealthy
+      accounted task oldTask fresh group.node.ref groupContributor groupHealthy
     exact ⟨node, member, same⟩
   have linked := (accounted.taskLinkedOn unique oldTask fresh).addGroups
     unique groups relevantExisting
-  have oldKeyMember : key ∈ queue.groupNodes.map
-      (fun node => node.group.node.key) :=
-    List.mem_map.mpr ⟨oldNode, oldMember, oldKey⟩
+  have oldRefMember : ref ∈ queue.groupNodes.map
+      (fun node => node.group.node.ref) :=
+    List.mem_map.mpr ⟨oldNode, oldMember, oldRef⟩
   obtain ⟨node, nodeMember, same⟩ := List.mem_map.mp
-    (queue.addGroups_includesKeys groups key oldKeyMember)
-  have keyMember : key ∈ healthyContributorKeys work failed
-      (task.groups.map Execution.DeliveryNode.key) :=
-    mem_healthyContributorKeys_iff.mpr ⟨contributor, healthy⟩
-  have nodeKeyMember : node.group.node.key ∈ healthyContributorKeys
-      work failed (task.groups.map Execution.DeliveryNode.key) := by
+    (queue.addGroups_includesRefs groups ref oldRefMember)
+  have refMember : ref ∈ healthyContributorRefs work failed
+      (task.groups.map Execution.DeliveryNode.ref) :=
+    mem_healthyContributorRefs_iff.mpr ⟨contributor, healthy⟩
+  have nodeRefMember : node.group.node.ref ∈ healthyContributorRefs
+      work failed (task.groups.map Execution.DeliveryNode.ref) := by
     rw [same]
-    exact keyMember
-  exact ⟨node, nodeMember, same, linked node nodeMember nodeKeyMember⟩
+    exact refMember
+  exact ⟨node, nodeMember, same, linked node nodeMember nodeRefMember⟩
 
 /-- Task registration retains old healthy links and installs all group links
 for a newly started task. -/
 theorem State.HealthyTaskLinks.addTask
     {queue : State} {work : Execution.Work} {settled failed : List Occurrence}
-    (unique : queue.GroupKeysUnique)
+    (unique : queue.GroupRefsUnique)
     (links : queue.HealthyTaskLinks work settled failed)
     (task : Task)
     : (queue.addTask task).HealthyTaskLinks work settled failed := by
@@ -86,8 +86,8 @@ theorem State.HealthyTaskLinks.addTask
   rcases queue.addTask_startedOldOrNew task member with old | new
   · exact (links.toTaskLinkedOn old fresh).addTask unique task
   · subst taskNode
-    intro groupNode groupMember keyMember
-    obtain ⟨contributor, _⟩ := mem_healthyContributorKeys_iff.mp keyMember
+    intro groupNode groupMember refMember
+    obtain ⟨contributor, _⟩ := mem_healthyContributorRefs_iff.mp refMember
     exact queue.addTask_links unique task groupNode groupMember contributor
 
 /-- Registering a task preserves earlier healthy memberships and installs
@@ -95,40 +95,40 @@ the new task's memberships in all already registered contributor groups. -/
 theorem State.HealthyRegisteredTaskAccounting.addTask
     {queue : State} {work : Execution.Work} {settled failed : List Occurrence}
     (accounted : queue.HealthyRegisteredTaskAccounting work settled failed)
-    (unique : queue.GroupKeysUnique)
+    (unique : queue.GroupRefsUnique)
     (task : Task)
     (taskGroupsPresent
-      : ∀ key ∈ task.groups.map Execution.DeliveryNode.key,
-          ¬GroupInvalidated work failed key
-          → ∃ node ∈ queue.groupNodes, node.group.node.key = key)
+      : ∀ ref ∈ task.groups.map Execution.DeliveryNode.ref,
+          ¬GroupInvalidated work failed ref
+          → ∃ node ∈ queue.groupNodes, node.group.node.ref = ref)
     : (queue.addTask task).HealthyRegisteredTaskAccounting work settled failed := by
-  intro registered taskMember fresh key contributor healthy
+  intro registered taskMember fresh ref contributor healthy
   rw [queue.addTask_tasks task] at taskMember
   rcases List.mem_append.mp taskMember with old | new
-  · obtain ⟨oldNode, oldMember, oldKey, _⟩ :=
-      accounted registered old fresh key contributor healthy
+  · obtain ⟨oldNode, oldMember, oldRef, _⟩ :=
+      accounted registered old fresh ref contributor healthy
     have linked := (accounted.taskLinkedOn unique old fresh).addTask unique task
-    have oldKeyMember : key ∈ queue.groupNodes.map
-        (fun node => node.group.node.key) :=
-      List.mem_map.mpr ⟨oldNode, oldMember, oldKey⟩
+    have oldRefMember : ref ∈ queue.groupNodes.map
+        (fun node => node.group.node.ref) :=
+      List.mem_map.mpr ⟨oldNode, oldMember, oldRef⟩
     obtain ⟨node, nodeMember, same⟩ := List.mem_map.mp
-      (queue.addTask_includesKeys task key oldKeyMember)
-    have keyMember : node.group.node.key ∈ healthyContributorKeys
-        work failed (registered.groups.map Execution.DeliveryNode.key) := by
+      (queue.addTask_includesRefs task ref oldRefMember)
+    have refMember : node.group.node.ref ∈ healthyContributorRefs
+        work failed (registered.groups.map Execution.DeliveryNode.ref) := by
       rw [same]
-      exact mem_healthyContributorKeys_iff.mpr ⟨contributor, healthy⟩
-    exact ⟨node, nodeMember, same, linked node nodeMember keyMember⟩
+      exact mem_healthyContributorRefs_iff.mpr ⟨contributor, healthy⟩
+    exact ⟨node, nodeMember, same, linked node nodeMember refMember⟩
   · have same : registered = task := List.mem_singleton.mp new
     subst registered
-    obtain ⟨oldNode, oldMember, oldKey⟩ :=
-      taskGroupsPresent key contributor healthy
-    have oldKeyMember : key ∈ queue.groupNodes.map
-        (fun node => node.group.node.key) :=
-      List.mem_map.mpr ⟨oldNode, oldMember, oldKey⟩
+    obtain ⟨oldNode, oldMember, oldRef⟩ :=
+      taskGroupsPresent ref contributor healthy
+    have oldRefMember : ref ∈ queue.groupNodes.map
+        (fun node => node.group.node.ref) :=
+      List.mem_map.mpr ⟨oldNode, oldMember, oldRef⟩
     obtain ⟨node, nodeMember, same⟩ := List.mem_map.mp
-      (queue.addTask_includesKeys task key oldKeyMember)
-    have nodeContributor : node.group.node.key ∈
-        task.groups.map Execution.DeliveryNode.key := by
+      (queue.addTask_includesRefs task ref oldRefMember)
+    have nodeContributor : node.group.node.ref ∈
+        task.groups.map Execution.DeliveryNode.ref := by
       rw [same]
       exact contributor
     exact ⟨node, nodeMember, same,
@@ -142,29 +142,29 @@ theorem State.HealthyRegisteredTaskAccounting.addStreams
     (streams : List Stream) (parentTask : Option Occurrence)
     : (queue.addStreams streams parentTask).1.HealthyRegisteredTaskAccounting
         work settled failed := by
-  intro task taskMember fresh key contributor healthy
+  intro task taskMember fresh ref contributor healthy
   have old : task ∈ queue.tasks := by
     rw [State.addStreams_tasks] at taskMember
     exact taskMember
   unfold State.addStreams
   split
-  · exact accounted task old fresh key contributor healthy
+  · exact accounted task old fresh ref contributor healthy
   · dsimp
-    split <;> exact accounted task old fresh key contributor healthy
+    split <;> exact accounted task old fresh ref contributor healthy
 
 /-- Coherent child integration retains old links and registers healthy contributors.
 Witness: task provenance identifies actual owners; record-aware cancellation support
-prevents refusing their keys even when other candidates are taskless ancestors.
+prevents refusing their refs even when other candidates are taskless ancestors.
 -/
 theorem State.HealthyRegisteredTaskAccounting.maybeIntegrateWork
     {queue : State} {work : Execution.Work} {settled failed : List Occurrence}
     (accounted : queue.HealthyRegisteredTaskAccounting work settled failed)
-    (unique : queue.GroupKeysUnique)
+    (unique : queue.GroupRefsUnique)
     (newWork : Work) (parentTask : Option Occurrence)
     (covered
       : ∀ task ∈ newWork.tasks,
-        ∀ key ∈ task.groups.map Execution.DeliveryNode.key,
-          ∃ group ∈ newWork.groups, group.node.key = key)
+        ∀ ref ∈ task.groups.map Execution.DeliveryNode.ref,
+          ∃ group ∈ newWork.groups, group.node.ref = ref)
     (available : queue.ChildGroupsAvailable work failed newWork)
     (cancelled : queue.CancelledRecordsSupported work failed)
     (generated : ExecutedWork work)
@@ -180,13 +180,13 @@ theorem State.HealthyRegisteredTaskAccounting.maybeIntegrateWork
   let withTasks := newWork.tasks.foldl State.addTask withGroups
   have groupedAccounting : withGroups.HealthyRegisteredTaskAccounting
       work settled failed := accounted.addGroups unique newWork.groups
-  have groupedUnique : withGroups.GroupKeysUnique := unique.addGroups newWork.groups
+  have groupedUnique : withGroups.GroupRefsUnique := unique.addGroups newWork.groups
   have taskFold (more : List Task)
       (subset : ∀ task ∈ more, task ∈ newWork.tasks) :
       ∀ current : State,
         current.HealthyRegisteredTaskAccounting work settled failed
-        → current.GroupKeysUnique
-        → withGroups.GroupKeysIncluded current
+        → current.GroupRefsUnique
+        → withGroups.GroupRefsIncluded current
         → (more.foldl State.addTask current).HealthyRegisteredTaskAccounting
             work settled failed := by
     induction more with
@@ -194,39 +194,39 @@ theorem State.HealthyRegisteredTaskAccounting.maybeIntegrateWork
     | cons task rest ih =>
         intro current currentAccounting currentUnique included
         have taskCovered := covered task (subset task (by simp))
-        have taskPresent : ∀ key ∈ task.groups.map Execution.DeliveryNode.key,
-            ¬GroupInvalidated work failed key
-            → ∃ node ∈ current.groupNodes, node.group.node.key = key := by
-          intro key contributor healthy
+        have taskPresent : ∀ ref ∈ task.groups.map Execution.DeliveryNode.ref,
+            ¬GroupInvalidated work failed ref
+            → ∃ node ∈ current.groupNodes, node.group.node.ref = ref := by
+          intro ref contributor healthy
           obtain ⟨group, groupMember, same⟩ :=
-            taskCovered key contributor
-          obtain ⟨dependencies, source, producer, known, sourceKey⟩ :=
+            taskCovered ref contributor
+          obtain ⟨dependencies, source, producer, known, sourceRef⟩ :=
             (taskMatching task (subset task (by simp))).contributorKnown contributor
-          have notCancelled : key ∉ withGroups.cancelledGroups := by
-            rw [← sourceKey]
+          have notCancelled : ref ∉ withGroups.cancelledGroups := by
+            rw [← sourceRef]
             have grouped := cancelled.addGroups newWork.groups descriptors
             exact grouped.contributor_healthy_not_mem generated known
-              (sourceKey.symm ▸ healthy)
-          have groupKey : group.node.key ∈ withGroups.groupNodes.map
-              (fun node => node.group.node.key) :=
-            queue.addGroups_registersKeys newWork.groups group groupMember
-              (same ▸ available task (subset task (by simp)) key contributor healthy)
+              (sourceRef.symm ▸ healthy)
+          have groupRef : group.node.ref ∈ withGroups.groupNodes.map
+              (fun node => node.group.node.ref) :=
+            queue.addGroups_registersRefs newWork.groups group groupMember
+              (same ▸ available task (subset task (by simp)) ref contributor healthy)
               (same ▸ notCancelled)
-          rw [same] at groupKey
-          obtain ⟨node, nodeMember, nodeKey⟩ := List.mem_map.mp
-            (included key groupKey)
-          exact ⟨node, nodeMember, nodeKey⟩
+          rw [same] at groupRef
+          obtain ⟨node, nodeMember, nodeRef⟩ := List.mem_map.mp
+            (included ref groupRef)
+          exact ⟨node, nodeMember, nodeRef⟩
         have tailSubset : ∀ next ∈ rest, next ∈ newWork.tasks := by
           intro next member
           exact subset next (by simp [member])
         exact ih tailSubset (current.addTask task)
           (currentAccounting.addTask currentUnique task taskPresent)
           (currentUnique.addTask task)
-          (included.trans (current.addTask_includesKeys task))
+          (included.trans (current.addTask_includesRefs task))
   have taskAccounting : withTasks.HealthyRegisteredTaskAccounting
       work settled failed :=
     taskFold newWork.tasks (fun _ member => member) withGroups
-      groupedAccounting groupedUnique (by intro key member; exact member)
+      groupedAccounting groupedUnique (by intro ref member; exact member)
   change State.HealthyRegisteredTaskAccounting
     (withTasks.addStreams newWork.streams parentTask).1 work settled failed
   exact taskAccounting.addStreams newWork.streams parentTask
@@ -249,44 +249,44 @@ theorem State.HealthyRegisteredTaskAccounting.startNewWork
     : (queue.startNewWork newWork).HealthyRegisteredTaskAccounting
         work settled failed := by
   obtain ⟨sameGroups, sameTasks, _⟩ := queue.startNewWork_groupCore newWork
-  intro task taskMember fresh key contributor healthy
+  intro task taskMember fresh ref contributor healthy
   have oldTask : task ∈ queue.tasks := by
     rw [sameTasks] at taskMember
     exact taskMember
   obtain ⟨node, oldMember, same, linked⟩ :=
-    accounted task oldTask fresh key contributor healthy
+    accounted task oldTask fresh ref contributor healthy
   have finalMember : node ∈ (queue.startNewWork newWork).groupNodes := by
     rw [sameGroups]
     exact oldMember
   exact ⟨node, finalMember, same, linked⟩
 
 /-- A pending-count update preserves every healthy registered-task link when
-the group's stable key and task membership list are unchanged. -/
+the group's stable ref and task membership list are unchanged. -/
 theorem State.HealthyRegisteredTaskAccounting.putGroupNodeSameTasks
     {queue : State} {work : Execution.Work} {settled failed : List Occurrence}
     (accounted : queue.HealthyRegisteredTaskAccounting work settled failed)
-    (unique : queue.GroupKeysUnique)
+    (unique : queue.GroupRefsUnique)
     (node : GroupNode) (nodeMember : node ∈ queue.groupNodes)
     (updated : GroupNode)
-    (sameKey : updated.group.node.key = node.group.node.key)
+    (sameRef : updated.group.node.ref = node.group.node.ref)
     (sameTasks : updated.tasks = node.tasks)
     : (queue.putGroupNode updated).HealthyRegisteredTaskAccounting
         work settled failed := by
-  intro task taskMember fresh key contributor healthy
-  obtain ⟨oldNode, oldMember, oldKey, _⟩ :=
-    accounted task taskMember fresh key contributor healthy
-  have keyMember : key ∈ queue.groupNodes.map
-      (fun entry => entry.group.node.key) :=
-    List.mem_map.mpr ⟨oldNode, oldMember, oldKey⟩
-  rw [← queue.putGroupNode_keys updated] at keyMember
-  obtain ⟨newNode, newMember, newKey⟩ := List.mem_map.mp keyMember
+  intro task taskMember fresh ref contributor healthy
+  obtain ⟨oldNode, oldMember, oldRef, _⟩ :=
+    accounted task taskMember fresh ref contributor healthy
+  have refMember : ref ∈ queue.groupNodes.map
+      (fun entry => entry.group.node.ref) :=
+    List.mem_map.mpr ⟨oldNode, oldMember, oldRef⟩
+  rw [← queue.putGroupNode_refs updated] at refMember
+  obtain ⟨newNode, newMember, newRef⟩ := List.mem_map.mp refMember
   have linked := (accounted.taskLinkedOn unique taskMember fresh).putGroupNodeSameTasks
-    unique node nodeMember updated sameKey sameTasks
-  have healthyKey : newNode.group.node.key ∈ healthyContributorKeys
-      work failed (task.groups.map Execution.DeliveryNode.key) := by
-    rw [newKey]
-    exact mem_healthyContributorKeys_iff.mpr ⟨contributor, healthy⟩
-  exact ⟨newNode, newMember, newKey, linked newNode newMember healthyKey⟩
+    unique node nodeMember updated sameRef sameTasks
+  have healthyRef : newNode.group.node.ref ∈ healthyContributorRefs
+      work failed (task.groups.map Execution.DeliveryNode.ref) := by
+    rw [newRef]
+    exact mem_healthyContributorRefs_iff.mpr ⟨contributor, healthy⟩
+  exact ⟨newNode, newMember, newRef, linked newNode newMember healthyRef⟩
 
 /-- A longer settlement prefix only weakens registered-task accounting. -/
 theorem State.HealthyRegisteredTaskAccounting.weakenSettled
@@ -294,22 +294,22 @@ theorem State.HealthyRegisteredTaskAccounting.weakenSettled
     (accounted : queue.HealthyRegisteredTaskAccounting work before failed)
     (included : before.Subset after)
     : queue.HealthyRegisteredTaskAccounting work after failed := by
-  intro task taskMember fresh key contributor healthy
+  intro task taskMember fresh ref contributor healthy
   exact accounted task taskMember
     (by
       intro prior
       exact fresh (included prior))
-    key contributor healthy
+    ref contributor healthy
 
-/-- Additional failures shrink the healthy-key set, preserving every
+/-- Additional failures shrink the healthy-ref set, preserving every
 previously established registered-task link for surviving groups. -/
 theorem State.HealthyRegisteredTaskAccounting.weakenFailures
     {queue : State} {work : Execution.Work} {settled before after : List Occurrence}
     (accounted : queue.HealthyRegisteredTaskAccounting work settled before)
     (included : before.Subset after)
     : queue.HealthyRegisteredTaskAccounting work settled after := by
-  intro task taskMember fresh key contributor healthy
-  apply accounted task taskMember fresh key contributor
+  intro task taskMember fresh ref contributor healthy
+  apply accounted task taskMember fresh ref contributor
   intro failedBefore
   exact healthy (GroupInvalidated.mono failedBefore included)
 
@@ -320,17 +320,17 @@ theorem State.HealthyRegisteredTaskAccounting.removeGroup
     {queue : State} {work : Execution.Work} {settled before after : List Occurrence}
     (accounted : queue.HealthyRegisteredTaskAccounting work settled before)
     (included : before.Subset after)
-    (key : Nat)
+    (ref : NodeRef)
     (healthyRetained
       : ∀ node ∈ queue.groupNodes,
-          ¬GroupInvalidated work after node.group.node.key
-          → node ∈ (queue.removeGroup key).groupNodes)
-    : (queue.removeGroup key).HealthyRegisteredTaskAccounting work settled after := by
-  intro task taskMember fresh contributorKey contributor healthy
+          ¬GroupInvalidated work after node.group.node.ref
+          → node ∈ (queue.removeGroup ref).groupNodes)
+    : (queue.removeGroup ref).HealthyRegisteredTaskAccounting work settled after := by
+  intro task taskMember fresh contributorRef contributor healthy
   obtain ⟨node, nodeMember, same, linked⟩ :=
     (accounted.weakenFailures included) task taskMember fresh
-      contributorKey contributor healthy
-  have nodeHealthy : ¬GroupInvalidated work after node.group.node.key := by
+      contributorRef contributor healthy
+  have nodeHealthy : ¬GroupInvalidated work after node.group.node.ref := by
     rw [same]
     exact healthy
   exact ⟨node, healthyRetained node nodeMember nodeHealthy, same, linked⟩
@@ -340,26 +340,26 @@ task memberships. -/
 theorem State.HealthyRegisteredTaskAccounting.settleTaskGroups
     {queue : State} {work : Execution.Work} {settled failed : List Occurrence}
     (accounted : queue.HealthyRegisteredTaskAccounting work settled failed)
-    (unique : queue.GroupKeysUnique)
+    (unique : queue.GroupRefsUnique)
     (groups : List Execution.DeliveryNode)
     : (groups.foldl
         (fun current group =>
-          match current.groupNode? group.key with
+          match current.groupNode? group.ref with
           | none => current
           | some node => current.putGroupNode { node with pending := node.pending - 1 })
         queue).HealthyRegisteredTaskAccounting
         work settled failed := by
   let step (current : State) (group : Execution.DeliveryNode) : State :=
-    match current.groupNode? group.key with
+    match current.groupNode? group.ref with
     | none => current
     | some node => current.putGroupNode { node with pending := node.pending - 1 }
   have stepFacts (current : State) (group : Execution.DeliveryNode)
       (currentAccounting : current.HealthyRegisteredTaskAccounting
         work settled failed)
-      (currentUnique : current.GroupKeysUnique)
+      (currentUnique : current.GroupRefsUnique)
       : (step current group).HealthyRegisteredTaskAccounting
           work settled failed
-        ∧ (step current group).GroupKeysUnique := by
+        ∧ (step current group).GroupRefsUnique := by
     unfold step
     split
     · exact ⟨currentAccounting, currentUnique⟩
@@ -372,7 +372,7 @@ theorem State.HealthyRegisteredTaskAccounting.settleTaskGroups
   have foldFacts (more : List Execution.DeliveryNode) :
       ∀ current : State,
         current.HealthyRegisteredTaskAccounting work settled failed
-        → current.GroupKeysUnique
+        → current.GroupRefsUnique
         → (more.foldl step current).HealthyRegisteredTaskAccounting
             work settled failed := by
     induction more with
@@ -389,26 +389,26 @@ so pruning cannot erase that group or its task membership. -/
 theorem State.HealthyRegisteredTaskAccounting.pruneNonemptyGroups
     {queue : State} {work : Execution.Work} {settled failed : List Occurrence}
     (accounted : queue.HealthyRegisteredTaskAccounting work settled failed)
-    (unique : queue.GroupKeysUnique)
+    (unique : queue.GroupRefsUnique)
     (groups : List Execution.DeliveryNode)
     : (queue.pruneEmptyGroups groups).1.HealthyRegisteredTaskAccounting
         work settled failed := by
-  intro task taskMember fresh key contributor healthy
+  intro task taskMember fresh ref contributor healthy
   have oldTask : task ∈ queue.tasks := by
     rw [State.pruneEmptyGroups_tasks] at taskMember
     exact taskMember
-  obtain ⟨node, nodeMember, nodeKey, linked⟩ :=
-    accounted task oldTask fresh key contributor healthy
-  obtain ⟨retained, retainedMember, retainedKey, _⟩ :=
+  obtain ⟨node, nodeMember, nodeRef, linked⟩ :=
+    accounted task oldTask fresh ref contributor healthy
+  obtain ⟨retained, retainedMember, retainedRef, _⟩ :=
     queue.pruneEmptyGroups_preservesNonempty groups unique
-      ⟨node, nodeMember, nodeKey, List.ne_nil_of_mem linked⟩
-  have retainedKeyMember : retained.group.node.key ∈ healthyContributorKeys
-      work failed (task.groups.map Execution.DeliveryNode.key) := by
-    rw [retainedKey]
-    exact mem_healthyContributorKeys_iff.mpr ⟨contributor, healthy⟩
+      ⟨node, nodeMember, nodeRef, List.ne_nil_of_mem linked⟩
+  have retainedRefMember : retained.group.node.ref ∈ healthyContributorRefs
+      work failed (task.groups.map Execution.DeliveryNode.ref) := by
+    rw [retainedRef]
+    exact mem_healthyContributorRefs_iff.mpr ⟨contributor, healthy⟩
   have retainedLink := (accounted.taskLinkedOn unique oldTask fresh).pruneEmptyGroups
-    groups retained retainedMember retainedKeyMember
-  exact ⟨retained, retainedMember, retainedKey, retainedLink⟩
+    groups retained retainedMember retainedRefMember
+  exact ⟨retained, retainedMember, retainedRef, retainedLink⟩
 
 /-- The former lower-bound interface follows from nonempty membership alone.
 Witness: `pruneNonemptyGroups`; pruning does not inspect pending counters.
@@ -417,7 +417,7 @@ theorem State.HealthyRegisteredTaskAccounting.pruneEmptyGroups_ofPendingBound
     {queue : State} {work : Execution.Work} {settled failed : List Occurrence}
     (accounted : queue.HealthyRegisteredTaskAccounting work settled failed)
     (_tracks : queue.HealthyPendingBound work settled failed)
-    (unique : queue.GroupKeysUnique) (groups : List Execution.DeliveryNode)
+    (unique : queue.GroupRefsUnique) (groups : List Execution.DeliveryNode)
     : (queue.pruneEmptyGroups groups).1.HealthyRegisteredTaskAccounting
         work settled failed :=
   accounted.pruneNonemptyGroups unique groups
@@ -427,7 +427,7 @@ theorem State.HealthyRegisteredTaskAccounting.pruneEmptyGroups
     {queue : State} {work : Execution.Work} {settled failed : List Occurrence}
     (accounted : queue.HealthyRegisteredTaskAccounting work settled failed)
     (_tracks : queue.HealthyPendingTracks work settled failed)
-    (unique : queue.GroupKeysUnique)
+    (unique : queue.GroupRefsUnique)
     (groups : List Execution.DeliveryNode)
     : (queue.pruneEmptyGroups groups).1.HealthyRegisteredTaskAccounting
         work settled failed := by
@@ -441,9 +441,9 @@ theorem State.HealthyRegisteredTaskAccounting.removeSettledTask
     (occurrence : Occurrence) (already : occurrence ∈ settled)
     : (queue.removeTask occurrence).HealthyRegisteredTaskAccounting
         work settled failed := by
-  intro task taskMember fresh key contributor healthy
+  intro task taskMember fresh ref contributor healthy
   obtain ⟨node, nodeMember, same, linked⟩ :=
-    accounted task taskMember fresh key contributor healthy
+    accounted task taskMember fresh ref contributor healthy
   have different : task.occurrence ≠ occurrence := by
     intro equal
     exact fresh (equal ▸ already)
@@ -475,7 +475,7 @@ theorem State.HealthyRegisteredTaskAccounting.removeFailedTask
     (occurrence : Occurrence) (recorded : occurrence ∈ failed)
     : (queue.removeTask occurrence).HealthyRegisteredTaskAccounting work settled
         failed := by
-  intro task taskMember fresh key contributor healthy
+  intro task taskMember fresh ref contributor healthy
   have different : task.occurrence ≠ occurrence := by
     intro same
     obtain ⟨_, payload, producer, _, known⟩ := (matching task taskMember).1
@@ -483,94 +483,94 @@ theorem State.HealthyRegisteredTaskAccounting.removeFailedTask
   have enlarged := accounted.weakenSettled
     (after := occurrence :: settled) (by intro item member; simp [member])
   have after := enlarged.removeSettledTask occurrence (by simp)
-  exact after task taskMember (by simp [different, fresh]) key contributor healthy
+  exact after task taskMember (by simp [different, fresh]) ref contributor healthy
 
 /-- Updating an invalidated group's record cannot change a healthy ownership witness.
-Witness: the witness's healthy key differs from the replaced key; no key-uniqueness
+Witness: the witness's healthy ref differs from the replaced ref; no ref-uniqueness
 premise is needed for this specialized replacement.
 -/
 theorem State.HealthyRegisteredTaskAccounting.putInvalidatedGroup
     {queue : State} {work : Execution.Work} {settled failed : List Occurrence}
     (accounted : queue.HealthyRegisteredTaskAccounting work settled failed)
-    (updated : GroupNode) (invalid : GroupInvalidated work failed updated.group.node.key)
+    (updated : GroupNode) (invalid : GroupInvalidated work failed updated.group.node.ref)
     : (queue.putGroupNode updated).HealthyRegisteredTaskAccounting work settled
         failed := by
-  intro task taskMember fresh key contributor healthy
-  obtain ⟨node, member, same, linked⟩ := accounted task taskMember fresh key contributor healthy
-  have different : node.group.node.key ≠ updated.group.node.key := by
+  intro task taskMember fresh ref contributor healthy
+  obtain ⟨node, member, same, linked⟩ := accounted task taskMember fresh ref contributor healthy
+  have different : node.group.node.ref ≠ updated.group.node.ref := by
     intro equal
     exact healthy ((equal.symm.trans same) ▸ invalid)
   refine ⟨node, List.mem_map.mpr ⟨node, member, ?_⟩, same, linked⟩
   simp [different]
 
 /-- Removing a group preserves healthy memberships if a healthy closing group has
-no fresh contributor. Witness: the original owner survives the key filter.
+no fresh contributor. Witness: the original owner survives the ref filter.
 -/
-theorem State.HealthyRegisteredTaskAccounting.filterGroupKey_ifHealthy
+theorem State.HealthyRegisteredTaskAccounting.filterGroupRef_ifHealthy
     {queue : State} {work : Execution.Work} {settled failed : List Occurrence}
     (accounted : queue.HealthyRegisteredTaskAccounting work settled failed)
-    (closedKey : Nat)
+    (closedRef : Nat)
     (noFreshContributor
-      : ¬GroupInvalidated work failed closedKey
+      : ¬GroupInvalidated work failed closedRef
         → ∀ task ∈ queue.tasks,
             task.occurrence ∉ settled
-            → closedKey ∉ task.groups.map Execution.DeliveryNode.key)
+            → closedRef ∉ task.groups.map Execution.DeliveryNode.ref)
     : State.HealthyRegisteredTaskAccounting
         ({
           queue with
             groupNodes :=
-              queue.groupNodes.filter (fun node => node.group.node.key != closedKey)
-            rootGroups := queue.rootGroups.filter (· != closedKey)
+              queue.groupNodes.filter (fun node => node.group.node.ref != closedRef)
+            rootGroups := queue.rootGroups.filter (· != closedRef)
         })
         work settled failed := by
-  intro task taskMember fresh key contributor healthy
+  intro task taskMember fresh ref contributor healthy
   obtain ⟨node, nodeMember, same, linked⟩ :=
-    accounted task taskMember fresh key contributor healthy
-  have different : node.group.node.key ≠ closedKey := by
+    accounted task taskMember fresh ref contributor healthy
+  have different : node.group.node.ref ≠ closedRef := by
     intro equal
-    have closedHealthy : ¬GroupInvalidated work failed closedKey := by
+    have closedHealthy : ¬GroupInvalidated work failed closedRef := by
       simpa [← equal, same] using healthy
     exact noFreshContributor closedHealthy task taskMember fresh
       (equal ▸ (same ▸ contributor))
   have retained : node ∈ queue.groupNodes.filter
-      (fun candidate => candidate.group.node.key != closedKey) :=
+      (fun candidate => candidate.group.node.ref != closedRef) :=
     List.mem_filter.mpr ⟨nodeMember, by simp [different]⟩
   exact ⟨node, retained, same, linked⟩
 
 /-- The unconditional no-fresh-contributor interface is a specialization.
-Witness: `filterGroupKey_ifHealthy` ignores the extra health premise.
+Witness: `filterGroupRef_ifHealthy` ignores the extra health premise.
 -/
-theorem State.HealthyRegisteredTaskAccounting.filterGroupKey
+theorem State.HealthyRegisteredTaskAccounting.filterGroupRef
     {queue : State} {work : Execution.Work} {settled failed : List Occurrence}
     (accounted : queue.HealthyRegisteredTaskAccounting work settled failed)
-    (closedKey : Nat)
+    (closedRef : Nat)
     (noFreshContributor
       : ∀ task ∈ queue.tasks,
           task.occurrence ∉ settled
-          → closedKey ∉ task.groups.map Execution.DeliveryNode.key)
+          → closedRef ∉ task.groups.map Execution.DeliveryNode.ref)
     : State.HealthyRegisteredTaskAccounting
         ({
           queue with
             groupNodes :=
-              queue.groupNodes.filter (fun node => node.group.node.key != closedKey)
-            rootGroups := queue.rootGroups.filter (· != closedKey)
+              queue.groupNodes.filter (fun node => node.group.node.ref != closedRef)
+            rootGroups := queue.rootGroups.filter (· != closedRef)
         })
         work settled failed :=
-  accounted.filterGroupKey_ifHealthy closedKey (fun _ => noFreshContributor)
+  accounted.filterGroupRef_ifHealthy closedRef (fun _ => noFreshContributor)
 
 /-- Flushing a group whose memberships are settled preserves healthy registration,
 even when the closing group is invalidated. Witness: settled removals, a conditional
-key filter, and nonempty membership preservation through descendant pruning.
+ref filter, and nonempty membership preservation through descendant pruning.
 -/
 theorem State.HealthyRegisteredTaskAccounting.finishSettledGroupSuccess
     {queue : State} {work : Execution.Work} {settled failed : List Occurrence}
     (accounted : queue.HealthyRegisteredTaskAccounting work settled failed)
-    (unique : queue.GroupKeysUnique)
+    (unique : queue.GroupRefsUnique)
     (group : GroupNode) (groupMember : group ∈ queue.groupNodes)
     (all : ∀ occurrence ∈ group.tasks, occurrence ∈ settled)
     : (queue.finishGroupSuccess group).1.HealthyRegisteredTaskAccounting
         work settled failed := by
-  let step (acc : State × List ExecutionGroupValue × Keys)
+  let step (acc : State × List ExecutionGroupValue × NodeRefs)
       (occurrence : Occurrence) :=
     let (current, values, streams) := acc
     match current.taskNode? occurrence with
@@ -581,13 +581,13 @@ theorem State.HealthyRegisteredTaskAccounting.finishSettledGroupSuccess
           | none => values
           | some value => values ++ [value]
         (current.removeTask occurrence, values, streams ++ taskNode.childStreams)
-  have stepFacts (acc : State × List ExecutionGroupValue × Keys)
+  have stepFacts (acc : State × List ExecutionGroupValue × NodeRefs)
       (occurrence : Occurrence) (already : occurrence ∈ settled)
       (currentAccounting : acc.1.HealthyRegisteredTaskAccounting
         work settled failed)
-      (currentUnique : acc.1.GroupKeysUnique)
+      (currentUnique : acc.1.GroupRefsUnique)
       : (step acc occurrence).1.HealthyRegisteredTaskAccounting work settled failed
-        ∧ (step acc occurrence).1.GroupKeysUnique
+        ∧ (step acc occurrence).1.GroupRefsUnique
         ∧ (step acc occurrence).1.tasks = acc.1.tasks := by
     obtain ⟨current, values, streams⟩ := acc
     dsimp only [step]
@@ -597,12 +597,12 @@ theorem State.HealthyRegisteredTaskAccounting.finishSettledGroupSuccess
         currentUnique.removeTask occurrence, rfl⟩
   have foldFacts (more : List Occurrence)
       (all : ∀ occurrence ∈ more, occurrence ∈ settled) :
-      ∀ acc : State × List ExecutionGroupValue × Keys,
+      ∀ acc : State × List ExecutionGroupValue × NodeRefs,
         acc.1.HealthyRegisteredTaskAccounting work settled failed
-        → acc.1.GroupKeysUnique
+        → acc.1.GroupRefsUnique
         → (more.foldl step acc).1.HealthyRegisteredTaskAccounting
             work settled failed
-          ∧ (more.foldl step acc).1.GroupKeysUnique
+          ∧ (more.foldl step acc).1.GroupRefsUnique
           ∧ (more.foldl step acc).1.tasks = acc.1.tasks := by
     induction more with
     | nil =>
@@ -626,29 +626,29 @@ theorem State.HealthyRegisteredTaskAccounting.finishSettledGroupSuccess
   let current : State :=
     { flushed with
         groupNodes := flushed.groupNodes.filter
-          (fun node => node.group.node.key != group.group.node.key)
-        rootGroups := flushed.rootGroups.filter (· != group.group.node.key) }
-  have noFreshContributor : ¬GroupInvalidated work failed group.group.node.key
+          (fun node => node.group.node.ref != group.group.node.ref)
+        rootGroups := flushed.rootGroups.filter (· != group.group.node.ref) }
+  have noFreshContributor : ¬GroupInvalidated work failed group.group.node.ref
       → ∀ task ∈ flushed.tasks,
       task.occurrence ∉ settled
-      → group.group.node.key ∉ task.groups.map Execution.DeliveryNode.key := by
+      → group.group.node.ref ∉ task.groups.map Execution.DeliveryNode.ref := by
     intro healthy task taskMember fresh contributor
     have original : task ∈ queue.tasks := by
       rw [flushedTasks] at taskMember
       exact taskMember
-    have groupKey : group.group.node.key ∈ healthyContributorKeys
-        work failed (task.groups.map Execution.DeliveryNode.key) :=
-      mem_healthyContributorKeys_iff.mpr ⟨contributor, healthy⟩
+    have groupRef : group.group.node.ref ∈ healthyContributorRefs
+        work failed (task.groups.map Execution.DeliveryNode.ref) :=
+      mem_healthyContributorRefs_iff.mpr ⟨contributor, healthy⟩
     have linked : task.occurrence ∈ group.tasks :=
-      (accounted.taskLinkedOn unique original fresh) group groupMember groupKey
+      (accounted.taskLinkedOn unique original fresh) group groupMember groupRef
     exact fresh (all task.occurrence linked)
   have currentAccounting : current.HealthyRegisteredTaskAccounting
       work settled failed :=
-    flushedAccounting.filterGroupKey_ifHealthy group.group.node.key noFreshContributor
-  have currentUnique : current.GroupKeysUnique :=
+    flushedAccounting.filterGroupRef_ifHealthy group.group.node.ref noFreshContributor
+  have currentUnique : current.GroupRefsUnique :=
     flushedUnique.filterGroupNodes _
   let children := group.childGroups.filterMap
-    (fun key => (current.groupNode? key).map (fun node => node.group.node))
+    (fun ref => (current.groupNode? ref).map (fun node => node.group.node))
   change (current.pruneEmptyGroups children).1.HealthyRegisteredTaskAccounting
     work settled failed
   exact currentAccounting.pruneNonemptyGroups currentUnique children
@@ -660,9 +660,9 @@ theorem State.HealthyRegisteredTaskAccounting.finishGroupSuccess_ofPendingBound
     {queue : State} {work : Execution.Work} {settled failed : List Occurrence}
     (accounted : queue.HealthyRegisteredTaskAccounting work settled failed)
     (_tracks : queue.HealthyPendingBound work settled failed)
-    (unique : queue.GroupKeysUnique)
+    (unique : queue.GroupRefsUnique)
     (group : GroupNode) (groupMember : group ∈ queue.groupNodes)
-    (_healthy : ¬GroupInvalidated work failed group.group.node.key)
+    (_healthy : ¬GroupInvalidated work failed group.group.node.ref)
     (all : ∀ occurrence ∈ group.tasks, occurrence ∈ settled)
     : (queue.finishGroupSuccess group).1.HealthyRegisteredTaskAccounting
         work settled failed :=
@@ -673,9 +673,9 @@ theorem State.HealthyRegisteredTaskAccounting.finishGroupSuccess
     {queue : State} {work : Execution.Work} {settled failed : List Occurrence}
     (accounted : queue.HealthyRegisteredTaskAccounting work settled failed)
     (tracks : queue.HealthyPendingTracks work settled failed)
-    (unique : queue.GroupKeysUnique)
+    (unique : queue.GroupRefsUnique)
     (group : GroupNode) (groupMember : group ∈ queue.groupNodes)
-    (healthy : ¬GroupInvalidated work failed group.group.node.key)
+    (healthy : ¬GroupInvalidated work failed group.group.node.ref)
     (all : ∀ occurrence ∈ group.tasks, occurrence ∈ settled)
     : (queue.finishGroupSuccess group).1.HealthyRegisteredTaskAccounting
         work settled failed := by
@@ -689,16 +689,16 @@ theorem State.HealthyRegisteredTaskAccounting.releaseTaskGroups
     (accounted : queue.HealthyRegisteredTaskAccounting work settled failed)
     (tracks : queue.HealthyPendingTracks work settled failed)
     (rootsHealthy : queue.RootGroupsHealthy work failed)
-    (unique : queue.GroupKeysUnique)
+    (unique : queue.GroupRefsUnique)
     (groups : List Execution.DeliveryNode)
     : let final :=
         groups.foldl
           (fun (acc : State × List WorkQueueEvent × NewWork) group =>
             let (current, events, released) := acc
-            match current.groupNode? group.key with
+            match current.groupNode? group.ref with
             | none => (current, events, released)
             | some node =>
-                if current.rootGroups.contains group.key && node.pending == 0 then
+                if current.rootGroups.contains group.ref && node.pending == 0 then
                   let (next, finished, newWork) := current.finishGroupSuccess node
                   (
                     next,
@@ -715,10 +715,10 @@ theorem State.HealthyRegisteredTaskAccounting.releaseTaskGroups
   let step (acc : State × List WorkQueueEvent × NewWork)
       (group : Execution.DeliveryNode) : State × List WorkQueueEvent × NewWork :=
     let (current, events, released) := acc
-    match current.groupNode? group.key with
+    match current.groupNode? group.ref with
     | none => (current, events, released)
     | some node =>
-        if current.rootGroups.contains group.key && node.pending == 0 then
+        if current.rootGroups.contains group.ref && node.pending == 0 then
           let (next, finished, newWork) := current.finishGroupSuccess node
           (next, events ++ finished,
             ⟨released.newGroups ++ newWork.newGroups,
@@ -729,11 +729,11 @@ theorem State.HealthyRegisteredTaskAccounting.releaseTaskGroups
       (currentAccounting : acc.1.HealthyRegisteredTaskAccounting work settled failed)
       (currentTracks : acc.1.HealthyPendingTracks work settled failed)
       (currentRoots : acc.1.RootGroupsHealthy work failed)
-      (currentUnique : acc.1.GroupKeysUnique)
+      (currentUnique : acc.1.GroupRefsUnique)
       : (step acc group).1.HealthyRegisteredTaskAccounting work settled failed
         ∧ (step acc group).1.HealthyPendingTracks work settled failed
         ∧ (step acc group).1.RootGroupsHealthy work failed
-        ∧ (step acc group).1.GroupKeysUnique := by
+        ∧ (step acc group).1.GroupRefsUnique := by
     obtain ⟨current, events, released⟩ := acc
     dsimp only [step]
     split
@@ -741,16 +741,16 @@ theorem State.HealthyRegisteredTaskAccounting.releaseTaskGroups
     · rename_i node found
       split
       · rename_i ready
-        have active : node.group.node.key ∈ current.rootGroups := by
+        have active : node.group.node.ref ∈ current.rootGroups := by
           have root := (Bool.and_eq_true_iff.mp ready).1
-          rw [current.groupNode?_key found]
+          rw [current.groupNode?_ref found]
           exact List.contains_iff_mem.mp root
         have zero : node.pending = 0 :=
           beq_iff_eq.mp (Bool.and_eq_true_iff.mp ready).2
         have nodeMember : node ∈ current.groupNodes :=
           List.mem_of_find?_eq_some found
-        have healthy : ¬GroupInvalidated work failed node.group.node.key :=
-          currentRoots node.group.node.key active
+        have healthy : ¬GroupInvalidated work failed node.group.node.ref :=
+          currentRoots node.group.node.ref active
         have all := GroupNode.PendingTracks.allSettled node settled
           (currentTracks node nodeMember healthy) zero
         exact ⟨currentAccounting.finishGroupSuccess currentTracks currentUnique
@@ -764,12 +764,12 @@ theorem State.HealthyRegisteredTaskAccounting.releaseTaskGroups
         acc.1.HealthyRegisteredTaskAccounting work settled failed
         → acc.1.HealthyPendingTracks work settled failed
         → acc.1.RootGroupsHealthy work failed
-        → acc.1.GroupKeysUnique
+        → acc.1.GroupRefsUnique
         → (more.foldl step acc).1.HealthyRegisteredTaskAccounting
             work settled failed
           ∧ (more.foldl step acc).1.HealthyPendingTracks work settled failed
           ∧ (more.foldl step acc).1.RootGroupsHealthy work failed
-          ∧ (more.foldl step acc).1.GroupKeysUnique := by
+          ∧ (more.foldl step acc).1.GroupRefsUnique := by
     induction more with
     | nil =>
         intro acc currentAccounting currentTracks currentRoots currentUnique
@@ -781,31 +781,31 @@ theorem State.HealthyRegisteredTaskAccounting.releaseTaskGroups
         exact ih (step acc group) nextAccounting nextTracks nextRoots nextUnique
   exact (foldFacts groups (queue, [], {}) accounted tracks rootsHealthy unique).1
 
-/-- Pending-count decrements also preserve uniqueness of live group keys. -/
-theorem State.GroupKeysUnique.settleTaskGroups
-    {queue : State} (unique : queue.GroupKeysUnique)
+/-- Pending-count decrements also preserve uniqueness of live group refs. -/
+theorem State.GroupRefsUnique.settleTaskGroups
+    {queue : State} (unique : queue.GroupRefsUnique)
     (groups : List Execution.DeliveryNode)
     : (groups.foldl
         (fun current group =>
-          match current.groupNode? group.key with
+          match current.groupNode? group.ref with
           | none => current
           | some node => current.putGroupNode { node with pending := node.pending - 1 })
-        queue).GroupKeysUnique := by
+        queue).GroupRefsUnique := by
   let step (current : State) (group : Execution.DeliveryNode) : State :=
-    match current.groupNode? group.key with
+    match current.groupNode? group.ref with
     | none => current
     | some node => current.putGroupNode { node with pending := node.pending - 1 }
   have stepUnique (current : State) (group : Execution.DeliveryNode)
-      (currentUnique : current.GroupKeysUnique)
-      : (step current group).GroupKeysUnique := by
+      (currentUnique : current.GroupRefsUnique)
+      : (step current group).GroupRefsUnique := by
     unfold step
     split
     · exact currentUnique
     · exact currentUnique.putGroupNode _
   have foldUnique (more : List Execution.DeliveryNode) :
       ∀ current : State,
-        current.GroupKeysUnique
-        → (more.foldl step current).GroupKeysUnique := by
+        current.GroupRefsUnique
+        → (more.foldl step current).GroupRefsUnique := by
     induction more with
     | nil => intro current currentUnique; exact currentUnique
     | cons group rest ih =>
@@ -821,13 +821,13 @@ theorem State.HealthyRegisteredTaskAccounting.taskSuccess_release
     {queue : State} {work : Execution.Work} {settled failed : List Occurrence}
     (accounted : queue.HealthyRegisteredTaskAccounting work settled failed)
     (rootsHealthy : queue.RootGroupsHealthy work failed)
-    (unique : queue.GroupKeysUnique)
+    (unique : queue.GroupRefsUnique)
     (occurrence : Occurrence) (result : TaskResult)
     (taskNode : TaskNode) (_found : queue.taskNode? occurrence = some taskNode)
     (covered
       : ∀ task ∈ result.work.tasks,
-        ∀ key ∈ task.groups.map Execution.DeliveryNode.key,
-          ∃ group ∈ result.work.groups, group.node.key = key)
+        ∀ ref ∈ task.groups.map Execution.DeliveryNode.ref,
+          ∃ group ∈ result.work.groups, group.node.ref = ref)
     (available : queue.ChildGroupsAvailable work failed result.work)
     (cancelled : queue.CancelledRecordsSupported work failed)
     (generated : ExecutedWork work)
@@ -837,12 +837,12 @@ theorem State.HealthyRegisteredTaskAccounting.taskSuccess_release
           ∃ dependencies,
             GroupRecordAt work group.node dependencies
             ∧ group.parent = dependencies.head?)
-    (uniqueContributors : (taskNode.task.groups.map Execution.DeliveryNode.key).Nodup)
+    (uniqueContributors : (taskNode.task.groups.map Execution.DeliveryNode.ref).Nodup)
     (debt
       : let withValue := queue.putTaskNode { taskNode with value := some result.value }
         let integrated := (withValue.maybeIntegrateWork result.work (some occurrence)).1
-        integrated.PendingDebt (fun key => ¬GroupInvalidated work failed key)
-          (occurrence :: settled) (taskNode.task.groups.map Execution.DeliveryNode.key))
+        integrated.PendingDebt (fun ref => ¬GroupInvalidated work failed ref)
+          (occurrence :: settled) (taskNode.task.groups.map Execution.DeliveryNode.ref))
     : let withValue := queue.putTaskNode { taskNode with value := some result.value }
       let integrated := (withValue.maybeIntegrateWork result.work (some occurrence)).1
       let released := taskNode.task.groups.foldl successGroupStep (integrated, [], {})
@@ -851,25 +851,25 @@ theorem State.HealthyRegisteredTaskAccounting.taskSuccess_release
   let withValue := queue.putTaskNode { taskNode with value := some result.value }
   have withValueAccounting : withValue.HealthyRegisteredTaskAccounting
       work settled failed := accounted.putTaskNode _
-  have withValueKeys : withValue.GroupKeysUnique := unique
+  have withValueRefs : withValue.GroupRefsUnique := unique
   let integrated := (withValue.maybeIntegrateWork result.work (some occurrence)).1
   have integratedAccounting : integrated.HealthyRegisteredTaskAccounting
       work settled failed :=
-    withValueAccounting.maybeIntegrateWork withValueKeys result.work
+    withValueAccounting.maybeIntegrateWork withValueRefs result.work
       (some occurrence) covered available cancelled generated taskMatching descriptors
   have integratedRoots : integrated.RootGroupsHealthy work failed := by
-    intro key member
+    intro ref member
     rw [State.maybeIntegrateWork_rootGroups] at member
-    exact rootsHealthy key member
-  have integratedKeys : integrated.GroupKeysUnique :=
-    withValueKeys.maybeIntegrateWork result.work (some occurrence)
+    exact rootsHealthy ref member
+  have integratedRefs : integrated.GroupRefsUnique :=
+    withValueRefs.maybeIntegrateWork result.work (some occurrence)
   let invariant (current : State) :=
-    current.GroupKeysUnique ∧ current.RootGroupsHealthy work failed ∧
+    current.GroupRefsUnique ∧ current.RootGroupsHealthy work failed ∧
       current.HealthyRegisteredTaskAccounting work (occurrence :: settled) failed
-  have valid : invariant integrated := ⟨integratedKeys, integratedRoots,
+  have valid : invariant integrated := ⟨integratedRefs, integratedRoots,
     integratedAccounting.weakenSettled (by intro task member; simp [member])⟩
   have facts := successGroupFold_preserves
-    (fun key => ¬GroupInvalidated work failed key) (occurrence :: settled)
+    (fun ref => ¬GroupInvalidated work failed ref) (occurrence :: settled)
     invariant (fun _ valid => valid.1) (fun _ valid => valid.2.1)
     (by
       intro current node valid foundNode

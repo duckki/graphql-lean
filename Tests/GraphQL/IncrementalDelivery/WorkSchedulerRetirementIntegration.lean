@@ -11,7 +11,7 @@ open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
-private def stream : DeliveryNode := { key := 0, path := [.field "users"] }
+private def stream : DeliveryNode := { ref := 0, path := [.field "users"] }
 
 private def parent (index : Nat) : DeliveryNode :=
   ⟨2 * index + 1, [.field "users", .index index], some (.string "P")⟩
@@ -61,7 +61,7 @@ Witness: its structural stream position and the pure child-lowering equation.
 theorem matching : (GraphEvent.streamItems stream [item]).MatchesWork work := by
   intro received member
   obtain rfl := List.mem_singleton.mp member
-  exact ⟨[stream.key], none, .item stream_located rfl, by cbv⟩
+  exact ⟨[stream.ref], none, .item stream_located rfl, by cbv⟩
 
 /-- This input is a real accepted source prefix, not just a well-shaped child chunk.
 Witness: stream readiness, the first item's fixed payload, and the actual start checker.
@@ -149,17 +149,17 @@ theorem stream_integration_retirement
 Witness: direct evaluation of the same executable integration step used by the theorem.
 -/
 theorem taskless_parent_pruned
-    : integrated.RetiredGroup (parent 0).key
-      ∧ integrated.rootGroups = [(child 0).key]
-      ∧ (integrated.groupNode? (child 0).key).map (fun node => node.group.parent)
-        = some (some (parent 0).key) := by
+    : integrated.RetiredGroup (parent 0).ref
+      ∧ integrated.rootGroups = [(child 0).ref]
+      ∧ (integrated.groupNode? (child 0).ref).map (fun node => node.group.parent)
+        = some (some (parent 0).ref) := by
   refine ⟨⟨?_, ?_⟩, by cbv, by cbv⟩
-  · have registry : integrated.registeredGroups = [(parent 0).key, (child 0).key] := by cbv
+  · have registry : integrated.registeredGroups = [(parent 0).ref, (child 0).ref] := by cbv
     rw [registry]
     exact List.mem_cons_self
-  · have keys : integrated.groupNodes.map (fun node => node.group.node.key)
-        = [(child 0).key] := by cbv
-    rw [keys]
+  · have refs : integrated.groupNodes.map (fun node => node.group.node.ref)
+        = [(child 0).ref] := by cbv
+    rw [refs]
     decide
 
 /-- The promoted child does not have empty defer dependencies.
@@ -168,7 +168,7 @@ list. This rejects the former proof-helper claim that every stream release is pa
 -/
 theorem promoted_child_not_parentless
     : ¬∃ producer, NodeAt work (child 0) .group [] producer := by
-  have known : NodeAt work (child 0) .group [(parent 0).key] (some item.occurrence) :=
+  have known : NodeAt work (child 0) .group [(parent 0).ref] (some item.occurrence) :=
     ⟨[0, 0, 1, 0, 1, 0], _, _, _, _, _, ⟨child 0, [parent 0]⟩,
       by cbv, List.mem_cons_self, rfl, rfl⟩
   intro ⟨producer, alleged⟩

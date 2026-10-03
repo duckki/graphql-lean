@@ -13,7 +13,7 @@ Witness: stable allocation plus the pending-entry metadata specification.
 -/
 theorem eventLoop_noticePaths {paths : Nat → ResponsePath} (event : WorkQueueEvent)
     (initial update : IncrementalStreamUpdateResult) (ids next : IDState)
-    (coherent : ∀ node ∈ eventNodes event, paths node.key = node.path)
+    (coherent : ∀ node ∈ eventNodes event, paths node.ref = node.path)
     (valid : NoticePaths paths ids initial.pending)
     (mapped : (eventLoop event initial).run ids = (.yield update, next))
     : NoticePaths paths next update.pending := by
@@ -69,7 +69,7 @@ induction. Descriptors are assumed coherent, not lifecycle-valid or successfully
 -/
 theorem loop_noticePaths {paths : Nat → ResponsePath} (events : List WorkQueueEvent)
     (initial : IncrementalStreamUpdateResult) (ids : IDState)
-    (coherent : ∀ node ∈ events.flatMap eventNodes, paths node.key = node.path)
+    (coherent : ∀ node ∈ events.flatMap eventNodes, paths node.ref = node.path)
     (valid : NoticePaths paths ids initial.pending)
     : NoticePaths paths ((forIn events initial eventLoop).run ids).2
         ((forIn events initial eventLoop).run ids).1.pending := by
@@ -88,7 +88,7 @@ theorem loop_noticePaths {paths : Nat → ResponsePath} (events : List WorkQueue
 -/
 theorem mapWorkEventBatch_noticePaths {paths : Nat → ResponsePath}
     (events : List WorkQueueEvent) (ids : IDState)
-    (coherent : ∀ node ∈ events.flatMap eventNodes, paths node.key = node.path)
+    (coherent : ∀ node ∈ events.flatMap eventNodes, paths node.ref = node.path)
     : NoticePaths paths ((mapWorkEventBatch events).run ids).2
         ((mapWorkEventBatch events).run ids).1.pending := by
   rw [mapWorkEventBatch_loop]
@@ -99,7 +99,7 @@ Witness: batch induction and allocation stability through the remaining supplied
 -/
 theorem mappedTrace_noticePaths {paths : Nat → ResponsePath}
     (batches : List (List WorkQueueEvent)) (ids : IDState)
-    (coherent : ∀ node ∈ batches.flatten.flatMap eventNodes, paths node.key = node.path)
+    (coherent : ∀ node ∈ batches.flatten.flatMap eventNodes, paths node.ref = node.path)
     : NoticePaths paths (finalIDs batches ids)
         ((mappedTrace batches ids).flatMap IncrementalStreamUpdateResult.pending) := by
   induction batches generalizing ids with

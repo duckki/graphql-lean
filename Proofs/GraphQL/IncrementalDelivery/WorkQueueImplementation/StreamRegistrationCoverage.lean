@@ -7,39 +7,39 @@ namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
 -----------------------------------------------------------------------------------------
--- First-encounter selection covers every previously unregistered supplied key
+-- First-encounter selection covers every previously unregistered supplied ref
 -----------------------------------------------------------------------------------------
 
-/-- Deduplicating the supplied streams retains every key absent from the old registry.
-Witness: preceding selections retain keys, and the selected descriptor either finds its
-key already selected or appends it. Later selections cannot remove it.
+/-- Deduplicating the supplied streams retains every ref absent from the old registry.
+Witness: preceding selections retain refs, and the selected descriptor either finds its
+ref already selected or appends it. Later selections cannot remove it.
 -/
 theorem State.addStreams_selection_covers (queue : State) (streams : List Stream)
     {stream : Stream} (member : stream ∈ streams)
-    (absent : queue.stream? stream.node.key = none)
+    (absent : queue.stream? stream.node.ref = none)
     : let selected :=
         streams.foldl
           (fun selected candidate =>
-            if (queue.stream? candidate.node.key).isSome
-                || selected.any (fun known => known.node.key == candidate.node.key) then
+            if (queue.stream? candidate.node.ref).isSome
+                || selected.any (fun known => known.node.ref == candidate.node.ref) then
               selected
             else
               selected ++ [candidate])
           []
-      stream.node.key ∈ selected.map (fun candidate => candidate.node.key) := by
+      stream.node.ref ∈ selected.map (fun candidate => candidate.node.ref) := by
   let step (selected : List Stream) (candidate : Stream) :=
-    if (queue.stream? candidate.node.key).isSome
-        || selected.any (fun known => known.node.key == candidate.node.key) then selected
+    if (queue.stream? candidate.node.ref).isSome
+        || selected.any (fun known => known.node.ref == candidate.node.ref) then selected
     else selected ++ [candidate]
   have preserves (selected : List Stream) (candidate : Stream)
-      (present : stream.node.key ∈ selected.map (fun known => known.node.key))
-      : stream.node.key ∈ (step selected candidate).map (fun known => known.node.key) := by
+      (present : stream.node.ref ∈ selected.map (fun known => known.node.ref))
+      : stream.node.ref ∈ (step selected candidate).map (fun known => known.node.ref) := by
     unfold step
     split
     · exact present
     · rw [List.map_append]; exact List.mem_append_left _ present
   have selects (selected : List Stream)
-      : stream.node.key ∈ (step selected stream).map (fun known => known.node.key) := by
+      : stream.node.ref ∈ (step selected stream).map (fun known => known.node.ref) := by
     unfold step
     simp only [absent, Option.isSome_none, Bool.false_or]
     split
@@ -49,8 +49,8 @@ theorem State.addStreams_selection_covers (queue : State) (streams : List Stream
     · rw [List.map_append]
       exact List.mem_append_right _ List.mem_cons_self
   have loop (more selected : List Stream)
-      (present : stream ∈ more ∨ stream.node.key ∈ selected.map (fun known => known.node.key))
-      : stream.node.key ∈ (more.foldl step selected).map (fun known => known.node.key) := by
+      (present : stream ∈ more ∨ stream.node.ref ∈ selected.map (fun known => known.node.ref))
+      : stream.node.ref ∈ (more.foldl step selected).map (fun known => known.node.ref) := by
     induction more generalizing selected with
     | nil =>
         rcases present with impossible | included
@@ -65,30 +65,30 @@ theorem State.addStreams_selection_covers (queue : State) (streams : List Stream
         · exact .inr (preserves selected candidate earlier)
   exact loop streams [] (.inl member)
 
-/-- Registering a fresh root stream returns its key in the immediate notice list.
+/-- Registering a fresh root stream returns its ref in the immediate notice list.
 Witness: complete first-encounter selection and the literal root-return branch.
 -/
 theorem State.addStreams_fresh_root_notice (queue : State) (streams : List Stream)
     {stream : Stream} (member : stream ∈ streams)
-    (absent : queue.stream? stream.node.key = none)
-    : stream.node.key
-      ∈ ((queue.addStreams streams none).2.map Execution.DeliveryNode.key) := by
+    (absent : queue.stream? stream.node.ref = none)
+    : stream.node.ref
+      ∈ ((queue.addStreams streams none).2.map Execution.DeliveryNode.ref) := by
   simpa only [State.addStreams, List.map_map, Function.comp_def]
     using queue.addStreams_selection_covers streams member absent
 
 /-- Registering a fresh child stream attaches it to its live producer and keeps the value.
-Witness: complete selection supplies the child key; exact first-match replacement retains
+Witness: complete selection supplies the child ref; exact first-match replacement retains
 the same task and buffered value while extending its child-stream list.
 -/
 theorem State.addStreams_fresh_child_attached {queue : State} {occurrence node}
     (found : queue.taskNode? occurrence = some node) (streams : List Stream)
     {stream : Stream} (member : stream ∈ streams)
-    (absent : queue.stream? stream.node.key = none)
+    (absent : queue.stream? stream.node.ref = none)
     : ∃ next,
         (queue.addStreams streams (some occurrence)).1.taskNode? occurrence = some next
         ∧ next.task = node.task
         ∧ next.value = node.value
-        ∧ stream.node.key ∈ next.childStreams := by
+        ∧ stream.node.ref ∈ next.childStreams := by
   have selected := queue.addStreams_selection_covers streams member absent
   unfold State.addStreams
   dsimp only
@@ -112,13 +112,13 @@ the final stream stage therefore cannot drop the descriptor or miss the producer
 -/
 theorem State.maybeIntegrateWork_fresh_stream_attached {queue : State} {occurrence node}
     (found : queue.taskNode? occurrence = some node) (work : Work) {stream : Stream}
-    (member : stream ∈ work.streams) (absent : queue.stream? stream.node.key = none)
+    (member : stream ∈ work.streams) (absent : queue.stream? stream.node.ref = none)
     : ∃ next,
         (queue.maybeIntegrateWork work (some occurrence)).1.taskNode? occurrence
           = some next
         ∧ next.task = node.task
         ∧ next.value = node.value
-        ∧ stream.node.key ∈ next.childStreams := by
+        ∧ stream.node.ref ∈ next.childStreams := by
   have grouped : (queue.addGroups work.groups).1.taskNode? occurrence = some node := by
     simpa only [State.taskNode?, State.addGroups_taskNodes] using found
   have loop (tasks : List Task) (current : State)
@@ -157,7 +157,7 @@ theorem ExecutedWork.taskSuccess_prepared_childStream
           = some next
         ∧ next.task = node.task
         ∧ next.value = some result.value
-        ∧ stream.node.key ∈ next.childStreams := by
+        ∧ stream.node.ref ∈ next.childStreams := by
   exact State.maybeIntegrateWork_fresh_stream_attached
     (State.putTaskNode_value_lookup found result.value) result.work member
     (generated.replayGraphEvents_taskChildStream_absent valid matching fresh member)

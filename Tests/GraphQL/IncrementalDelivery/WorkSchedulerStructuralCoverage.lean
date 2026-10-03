@@ -13,10 +13,10 @@ open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
-private def parent : DeliveryNode := { key := 0, path := [], label := some (.string "P") }
+private def parent : DeliveryNode := { ref := 0, path := [], label := some (.string "P") }
 
 private def child : DeliveryNode :=
-  { key := 1, path := [.field "user"], label := some (.string "C") }
+  { ref := 1, path := [.field "user"], label := some (.string "C") }
 
 private def parentTask : Occurrence := .executionGroup [1, 0]
 
@@ -62,14 +62,14 @@ private def received : List GraphEvent :=
   [.taskSuccess parentTask result, .taskSuccess childTask childResult]
 
 private theorem child_known
-    : TaskAt work childTask [child.key] (some parentTask)
+    : TaskAt work childTask [child.ref] (some parentTask)
         (.object child.path (.ok (childResult.value.data, 0))) := by
-  refine ⟨[⟨child, [parent]⟩], child.path, _, .combine .empty .empty, [parent.key],
+  refine ⟨[⟨child, [parent]⟩], child.path, _, .combine .empty .empty, [parent.ref],
     ?_, rfl, rfl⟩
   cbv
 
 private theorem valid : ValidGraphEvents work received := by
-  have parentKnown : TaskAt work parentTask [parent.key] none
+  have parentKnown : TaskAt work parentTask [parent.ref] none
       (.object [] (.ok ([("user", .object [])], 0))) := by
     refine ⟨[⟨parent, []⟩], [], _, children, [], ?_, rfl, rfl⟩
     cbv
@@ -117,10 +117,10 @@ theorem active_child_ancestor_published
       after := [], position := 0, sourceEq := rfl, atHandler := by cbv, count := by cbv
     }
   have selected : w.events[2]? = some (.groupValues child [{ path := child.path, data := [("name", .scalar "name1")], errors := 0, deliveryGroups := [child] }]) := by rw [history]; cbv
-  have childKnown : NodeAt work child .group [parent.key] (some parentTask) :=
+  have childKnown : NodeAt work child .group [parent.ref] (some parentTask) :=
     ⟨[1, 0, 0, 0, 1, 0], [⟨child, [parent]⟩], child.path, _, .combine .empty .empty,
-      [parent.key], ⟨child, [parent]⟩, by cbv, List.mem_cons_self, rfl, rfl⟩
-  have parentKnown : TaskAt work parentTask [parent.key] none
+      [parent.ref], ⟨child, [parent]⟩, by cbv, List.mem_cons_self, rfl, rfl⟩
+  have parentKnown : TaskAt work parentTask [parent.ref] none
       (.object [] (.ok ([("user", .object [])], 0))) :=
     ⟨[⟨parent, []⟩], [], _, children, [], by cbv, rfl, rfl⟩
   exact ⟨
@@ -213,10 +213,10 @@ theorem produced_group_atomic_admission
         w.events
           = (ConformancePlan.initialQueue work).nonterminalAtoms
               [[.taskSuccess parentTask result], [.taskSuccess childTask childResult]]
-        ∧ FailureWitness work (ConformancePlan.initialKeys work) w.matching w.events
+        ∧ FailureWitness work (ConformancePlan.initialRefs work) w.matching w.events
             w.failures
         ∧ ConformancePlan.GroupSuccessesAccounted work w
-        ∧ EventAllowed work (ConformancePlan.initialKeys work) w.matching
+        ∧ EventAllowed work (ConformancePlan.initialRefs work) w.matching
             (w.events.take 3) w.failures (.groupSuccess child [] [])
         ∧ Published w.matching (w.events.take 3) childTask := by
   let inputs := [[GraphEvent.taskSuccess parentTask result], [.taskSuccess childTask childResult]]

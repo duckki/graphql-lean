@@ -10,34 +10,34 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 -- A parentless candidate cannot be refused because of an absent cancelled parent
 -----------------------------------------------------------------------------------------
 
-/-- Registering an available parentless descriptor leaves its key live.
+/-- Registering an available parentless descriptor leaves its ref live.
 Witness: an existing lookup survives; otherwise fresh registration appends its shell.
 This fact does not inspect the candidate's own historical cancellation marker.
 -/
 private theorem parentless_live (queue : State) (group : Group)
-    (available : queue.GroupAvailable group.node.key) (parentless : group.parent = none)
-    : group.node.key
-      ∈ (queue.addGroup group).groupNodes.map (fun node => node.group.node.key) := by
+    (available : queue.GroupAvailable group.node.ref) (parentless : group.parent = none)
+    : group.node.ref
+      ∈ (queue.addGroup group).groupNodes.map (fun node => node.group.node.ref) := by
   rcases available with live | fresh
-  · exact queue.addGroup_includesKeys group _ live
-  · cases found : queue.groupNode? group.node.key with
+  · exact queue.addGroup_includesRefs group _ live
+  · cases found : queue.groupNode? group.node.ref with
     | some node =>
-        exact queue.addGroup_includesKeys group _
-          (List.mem_map.mpr ⟨node, List.mem_of_find?_eq_some found, State.groupNode?_key found⟩)
+        exact queue.addGroup_includesRefs group _
+          (List.mem_map.mpr ⟨node, List.mem_of_find?_eq_some found, State.groupNode?_ref found⟩)
     | none =>
         simp [State.addGroup, fresh, found, parentless]
 
-/-- Other-key registration keeps availability; equal-key parentless registration makes it live.
-Witness: a different fresh key cannot consume the target's permanent-registration slot.
+/-- Other-ref registration keeps availability; equal-ref parentless registration makes it live.
+Witness: a different fresh ref cannot consume the target's permanent-registration slot.
 -/
-private theorem parentless_available {queue : State} {key}
-    (available : queue.GroupAvailable key) (group : Group)
-    (parentless : group.node.key = key → group.parent = none)
-    : (queue.addGroup group).GroupAvailable key := by
-  by_cases same : group.node.key = key
+private theorem parentless_available {queue : State} {ref}
+    (available : queue.GroupAvailable ref) (group : Group)
+    (parentless : group.node.ref = ref → group.parent = none)
+    : (queue.addGroup group).GroupAvailable ref := by
+  by_cases same : group.node.ref = ref
   · exact .inl (same ▸ parentless_live queue group (same.symm ▸ available) (parentless same))
   · rcases available with live | fresh
-    · exact .inl (queue.addGroup_includesKeys group key live)
+    · exact .inl (queue.addGroup_includesRefs group ref live)
     · apply Or.inr
       unfold State.addGroup
       split
@@ -46,24 +46,24 @@ private theorem parentless_available {queue : State} {key}
 
 /-- A registration fold keeps its parentless candidate live, regardless of input order.
 Witness: availability survives preceding descriptors and the matching descriptor installs
-the key; all subsequent registrations preserve it. Equal-key descriptors share parentlessness.
+the ref; all subsequent registrations preserve it. Equal-ref descriptors share parentlessness.
 -/
 private theorem register_parentless_live (queue : State) (groups : List Group)
     {group : Group} (member : group ∈ groups)
-    (available : queue.GroupAvailable group.node.key)
+    (available : queue.GroupAvailable group.node.ref)
     (canonical
       : ∀ candidate ∈ groups,
-          candidate.node.key = group.node.key → candidate.parent = none)
-    : group.node.key
+          candidate.node.ref = group.node.ref → candidate.parent = none)
+    : group.node.ref
       ∈ (groups.foldl State.addGroup queue).groupNodes.map
-          (fun node => node.group.node.key) := by
-  have preserve (more : List Group) (current : State) (key : Nat)
-      (live : key ∈ current.groupNodes.map (fun node => node.group.node.key))
-      : key ∈ (more.foldl State.addGroup current).groupNodes.map
-          (fun node => node.group.node.key) := by
+          (fun node => node.group.node.ref) := by
+  have preserve (more : List Group) (current : State) (ref : NodeRef)
+      (live : ref ∈ current.groupNodes.map (fun node => node.group.node.ref))
+      : ref ∈ (more.foldl State.addGroup current).groupNodes.map
+          (fun node => node.group.node.ref) := by
     induction more generalizing current with
     | nil => exact live
-    | cons head rest ih => exact ih _ (current.addGroup_includesKeys head key live)
+    | cons head rest ih => exact ih _ (current.addGroup_includesRefs head ref live)
   induction groups generalizing queue with
   | nil => cases member
   | cons head rest ih =>
@@ -78,19 +78,19 @@ private theorem register_parentless_live (queue : State) (groups : List Group)
 -----------------------------------------------------------------------------------------
 
 /-- Every canonical fresh parentless candidate remains live after both registration passes.
-Witness: the registration fold installs its shell; the attachment pass preserves all keys.
+Witness: the registration fold installs its shell; the attachment pass preserves all refs.
 No health, pending count, source validity, or descriptor-order premise is needed.
 -/
-theorem State.addGroups_parentless_live {queue : State} {parents : Nat → Keys}
+theorem State.addGroups_parentless_live {queue : State} {parents : Nat → NodeRefs}
     (groups : List Group)
-    (canonical : ∀ group ∈ groups, group.parent = (parents group.node.key).head?)
+    (canonical : ∀ group ∈ groups, group.parent = (parents group.node.ref).head?)
     {group : Group} (member : group ∈ groups) (parentless : group.parent = none)
-    (fresh : group.node.key ∉ queue.registeredGroups)
-    (absent : queue.groupNode? group.node.key = none)
-    : group.node.key
-      ∈ (queue.addGroups groups).1.groupNodes.map (fun node => node.group.node.key) := by
+    (fresh : group.node.ref ∉ queue.registeredGroups)
+    (absent : queue.groupNode? group.node.ref = none)
+    : group.node.ref
+      ∈ (queue.addGroups groups).1.groupNodes.map (fun node => node.group.node.ref) := by
   let candidates := groups.filter (fun group =>
-    !queue.registeredGroups.contains group.node.key && (queue.groupNode? group.node.key).isNone)
+    !queue.registeredGroups.contains group.node.ref && (queue.groupNode? group.node.ref).isNone)
   let link (current : State) (candidate : Group) : State :=
     match candidate.parent with
     | none => current
@@ -98,12 +98,12 @@ theorem State.addGroups_parentless_live {queue : State} {parents : Nat → Keys}
         match current.groupNode? parent with
         | none => current
         | some node =>
-            let children := if node.childGroups.contains candidate.node.key then
-              node.childGroups else node.childGroups ++ [candidate.node.key]
+            let children := if node.childGroups.contains candidate.node.ref then
+              node.childGroups else node.childGroups ++ [candidate.node.ref]
             current.putGroupNode { node with childGroups := children }
   have linked (more : List Group) (current : State)
-      : (more.foldl link current).groupNodes.map (fun node => node.group.node.key)
-        = current.groupNodes.map (fun node => node.group.node.key) := by
+      : (more.foldl link current).groupNodes.map (fun node => node.group.node.ref)
+        = current.groupNodes.map (fun node => node.group.node.ref) := by
     induction more generalizing current with
     | nil => rfl
     | cons candidate rest ih =>
@@ -113,45 +113,45 @@ theorem State.addGroups_parentless_live {queue : State} {parents : Nat → Keys}
         · rfl
         · split
           · rfl
-          · exact current.putGroupNode_keys _
+          · exact current.putGroupNode_refs _
   have live := register_parentless_live queue candidates
     (group := group) (by simp [candidates, member, fresh, absent]) (.inr fresh)
     (by
       intro candidate included same
       rw [canonical candidate (List.mem_filter.mp included).1, same,
         ← canonical group member, parentless])
-  change group.node.key ∈ (candidates.foldl link
-    (candidates.foldl State.addGroup queue)).groupNodes.map (fun node => node.group.node.key)
+  change group.node.ref ∈ (candidates.foldl link
+    (candidates.foldl State.addGroup queue)).groupNodes.map (fun node => node.group.node.ref)
   rwa [linked]
 
 /-- Every new canonical root candidate is live before integration's pruning stage.
 Witness: parentless registration supplies a path of length zero; task and stream
 installation preserve that path. This also covers taskless candidate shells.
 -/
-theorem State.maybeIntegrateWork_candidates_live {queue : State} {parents : Nat → Keys}
-    (unique : queue.GroupKeysUnique) (work : Work)
-    (canonical : ∀ group ∈ work.groups, group.parent = (parents group.node.key).head?)
+theorem State.maybeIntegrateWork_candidates_live {queue : State}
+    {parents : Nat → NodeRefs} (unique : queue.GroupRefsUnique) (work : Work)
+    (canonical : ∀ group ∈ work.groups, group.parent = (parents group.node.ref).head?)
     (parentTask : Option Occurrence := none)
     : ∀ group ∈ (queue.maybeIntegrateWork work parentTask).2.newGroups,
         ∃ node,
-          (queue.maybeIntegrateWork work parentTask).1.groupNode? group.key
+          (queue.maybeIntegrateWork work parentTask).1.groupNode? group.ref
           = some node := by
   intro group member
   obtain ⟨candidate, included, same, parentless, fresh, absent⟩ :=
     queue.addGroups_newGroup_candidate work.groups member
   have present := State.addGroups_parentless_live work.groups canonical
     included parentless (same.symm ▸ fresh) (same.symm ▸ absent)
-  obtain ⟨node, nodeMember, nodeKey⟩ := List.mem_map.mp present
-  have groupedKeys := unique.addGroups work.groups
-  have groupedPath : (queue.addGroups work.groups).1.LiveDescendant group.key group.key :=
-    .self (same ▸ nodeKey ▸ groupedKeys.groupNode?_of_mem nodeMember)
-  have loop (more : List Task) (current : State) (keys : current.GroupKeysUnique)
-      (path : current.LiveDescendant group.key group.key)
-      : (more.foldl State.addTask current).LiveDescendant group.key group.key := by
+  obtain ⟨node, nodeMember, nodeRef⟩ := List.mem_map.mp present
+  have groupedRefs := unique.addGroups work.groups
+  have groupedPath : (queue.addGroups work.groups).1.LiveDescendant group.ref group.ref :=
+    .self (same ▸ nodeRef ▸ groupedRefs.groupNode?_of_mem nodeMember)
+  have loop (more : List Task) (current : State) (refs : current.GroupRefsUnique)
+      (path : current.LiveDescendant group.ref group.ref)
+      : (more.foldl State.addTask current).LiveDescendant group.ref group.ref := by
     induction more generalizing current with
     | nil => exact path
-    | cons task rest ih => exact ih _ (keys.addTask task) (path.addTask keys task)
-  exact ((loop work.tasks _ groupedKeys groupedPath).addStreams work.streams
+    | cons task rest ih => exact ih _ (refs.addTask task) (path.addTask refs task)
+  exact ((loop work.tasks _ groupedRefs groupedPath).addStreams work.streams
           parentTask).target_present
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

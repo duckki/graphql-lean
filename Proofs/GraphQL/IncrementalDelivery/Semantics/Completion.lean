@@ -13,7 +13,7 @@ variable {ObjectRef : Type}
 def CompletionMatches (basic : Result α) (completed : Completion α) : Prop :=
   completed.result = basic ∧ Work.size completed.work = 0
 
-def RunMatches (action : StateM Nat (Completion α)) (basic : Result α) (state : Nat)
+def RunMatches (action : StateM NodeRef (Completion α)) (basic : Result α) (state : Nat)
     : Prop :=
   (action.run state).2 = state ∧ CompletionMatches basic (action.run state).1
 
@@ -28,9 +28,9 @@ theorem runMatches_pure (completed : Completion α) (basic : Result α) (state :
 /-- Sequencing matching completions preserves result and supply, by substituting the
 unchanged state.
 -/
-theorem runMatches_bind (action : StateM Nat (Completion α)) (basic : Result α)
-    (next : Completion α → StateM Nat (Completion β)) (target : Result β) (state : Nat)
-    (h : RunMatches action basic state)
+theorem runMatches_bind (action : StateM NodeRef (Completion α)) (basic : Result α)
+    (next : Completion α → StateM NodeRef (Completion β)) (target : Result β)
+    (state : Nat) (h : RunMatches action basic state)
     (hn
       : ∀ completed,
           CompletionMatches basic completed → RunMatches (next completed) target state)
@@ -94,10 +94,10 @@ theorem completionMatches_field (name : Name) (completed : Completion ResponseVa
 
 /-- Plain collection can feed a matching continuation, using its unchanged-state witness.
 -/
-theorem runMatches_after_collection (action : StateM Nat FieldCollection)
+theorem runMatches_after_collection (action : StateM NodeRef FieldCollection)
     (groups : List (Name × List GraphQL.Execution.ExecutableField))
-    (next : FieldCollection → StateM Nat (Completion α)) (basic : Result α) (state : Nat)
-    (h : CollectionMatches groups state (action.run state))
+    (next : FieldCollection → StateM NodeRef (Completion α)) (basic : Result α)
+    (state : Nat) (h : CollectionMatches groups state (action.run state))
     (hn
       : ∀ collection,
           collection.newDeferUsages = []

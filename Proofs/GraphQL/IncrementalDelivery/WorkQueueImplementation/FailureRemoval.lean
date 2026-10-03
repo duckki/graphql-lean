@@ -10,11 +10,11 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 /-- Root presence rules out an active root whose live group lookup is absent. -/
 private theorem State.RootGroupsPresent.rootAbsentIfMissing
     {queue : State} (present : queue.RootGroupsPresent)
-    (key : Nat) (missing : queue.groupNode? key = none)
-    : key ∉ queue.rootGroups := by
+    (ref : NodeRef) (missing : queue.groupNode? ref = none)
+    : ref ∉ queue.rootGroups := by
   intro rootMember
   obtain ⟨node, nodeMember, same⟩ :=
-    List.mem_map.mp (present key rootMember)
+    List.mem_map.mp (present ref rootMember)
   have noMatch := (List.find?_eq_none.mp missing) node nodeMember
   exact noMatch (beq_iff_eq.mpr same)
 
@@ -26,15 +26,15 @@ private theorem State.taskFailure_ownerRootsAbsent
     (occurrence : Occurrence) (errors : Nat)
     (taskNode : TaskNode) (found : queue.taskNode? occurrence = some taskNode)
     (accepted : queue.taskHasHealthyOwner taskNode.task = true)
-    : ∀ key ∈ taskNode.task.groups.map Execution.DeliveryNode.key,
-        key ∉ (queue.taskFailure occurrence errors).1.rootGroups := by
+    : ∀ ref ∈ taskNode.task.groups.map Execution.DeliveryNode.ref,
+        ref ∉ (queue.taskFailure occurrence errors).1.rootGroups := by
   let step (acc : State × List WorkQueueEvent)
       (group : Execution.DeliveryNode) : State × List WorkQueueEvent :=
     let (current, events) := acc
-    match current.groupNode? group.key with
+    match current.groupNode? group.ref with
     | none => (current, events)
     | some node =>
-        if current.rootGroups.contains group.key then
+        if current.rootGroups.contains group.ref then
           let (next, failure) := current.finishGroupFailure node errors
           (next, events ++ [failure])
         else (current.putGroupNode
@@ -46,57 +46,57 @@ private theorem State.taskFailure_ownerRootsAbsent
       (currentPresent : acc.1.RootGroupsPresent)
       : (step acc group).1.RootGroupsPresent
         ∧ (step acc group).1.rootGroups.Subset acc.1.rootGroups
-        ∧ group.key ∉ (step acc group).1.rootGroups := by
+        ∧ group.ref ∉ (step acc group).1.rootGroups := by
     obtain ⟨current, events⟩ := acc
-    cases nodeFound : current.groupNode? group.key with
+    cases nodeFound : current.groupNode? group.ref with
     | none =>
-        have absent := currentPresent.rootAbsentIfMissing group.key nodeFound
+        have absent := currentPresent.rootAbsentIfMissing group.ref nodeFound
         simpa [step, nodeFound]
           using (show current.RootGroupsPresent
                       ∧ current.rootGroups.Subset current.rootGroups
-                      ∧ group.key ∉ current.rootGroups from ⟨
+                      ∧ group.ref ∉ current.rootGroups from ⟨
                   currentPresent,
                   List.Subset.refl _,
                   absent
                 ⟩)
     | some node =>
-        have nodeKey := current.groupNode?_key nodeFound
-        have removedPresent := currentPresent.removeGroup group.key
-        have removedSubset := current.removeGroup_rootsSubset group.key
-        have removedAbsent := current.removeGroup_rootAbsent group.key node nodeFound
-        by_cases active : group.key ∈ current.rootGroups
-        · simpa [step, nodeFound, active, State.finishGroupFailure, nodeKey]
-            using (show (current.removeGroup group.key).RootGroupsPresent
-                        ∧ (current.removeGroup group.key).rootGroups.Subset
+        have nodeRef := current.groupNode?_ref nodeFound
+        have removedPresent := currentPresent.removeGroup group.ref
+        have removedSubset := current.removeGroup_rootsSubset group.ref
+        have removedAbsent := current.removeGroup_rootAbsent group.ref node nodeFound
+        by_cases active : group.ref ∈ current.rootGroups
+        · simpa [step, nodeFound, active, State.finishGroupFailure, nodeRef]
+            using (show (current.removeGroup group.ref).RootGroupsPresent
+                        ∧ (current.removeGroup group.ref).rootGroups.Subset
                             current.rootGroups
-                        ∧ group.key ∉ (current.removeGroup group.key).rootGroups from ⟨
+                        ∧ group.ref ∉ (current.removeGroup group.ref).rootGroups from ⟨
                     removedPresent,
                     removedSubset,
                     removedAbsent
                   ⟩)
-        · have inactive : current.rootGroups.contains group.key = false := by simpa using active
+        · have inactive : current.rootGroups.contains group.ref = false := by simpa using active
           simp only [step, nodeFound, inactive, Bool.false_eq_true, ite_false]
           refine ⟨?_, List.Subset.refl _, active⟩
-          intro key member
-          change key ∈ ((current.putGroupNode _).groupNodes.map
-            (fun node => node.group.node.key))
-          rw [State.putGroupNode_keys]
-          exact currentPresent key member
+          intro ref member
+          change ref ∈ ((current.putGroupNode _).groupNodes.map
+            (fun node => node.group.node.ref))
+          rw [State.putGroupNode_refs]
+          exact currentPresent ref member
   have stepSubset (acc : State × List WorkQueueEvent)
       (group : Execution.DeliveryNode)
       : (step acc group).1.rootGroups.Subset acc.1.rootGroups := by
     obtain ⟨current, events⟩ := acc
-    cases nodeFound : current.groupNode? group.key with
+    cases nodeFound : current.groupNode? group.ref with
     | none =>
         simp only [step, nodeFound]
         change current.rootGroups.Subset current.rootGroups
         exact List.Subset.refl _
     | some node =>
-        have nodeKey := current.groupNode?_key nodeFound
-        by_cases active : group.key ∈ current.rootGroups
-        · simpa [step, nodeFound, active, State.finishGroupFailure, nodeKey]
-            using current.removeGroup_rootsSubset group.key
-        · have inactive : current.rootGroups.contains group.key = false := by simpa using active
+        have nodeRef := current.groupNode?_ref nodeFound
+        by_cases active : group.ref ∈ current.rootGroups
+        · simpa [step, nodeFound, active, State.finishGroupFailure, nodeRef]
+            using current.removeGroup_rootsSubset group.ref
+        · have inactive : current.rootGroups.contains group.ref = false := by simpa using active
           simp only [step, nodeFound, inactive, Bool.false_eq_true, ite_false]
           exact List.Subset.refl _
   have foldSubset (more : List Execution.DeliveryNode)
@@ -109,31 +109,31 @@ private theorem State.taskFailure_ownerRootsAbsent
   have foldAbsent (more : List Execution.DeliveryNode)
       (acc : State × List WorkQueueEvent)
       (currentPresent : acc.1.RootGroupsPresent)
-      : ∀ key ∈ more.map Execution.DeliveryNode.key,
-          key ∉ (more.foldl step acc).1.rootGroups := by
+      : ∀ ref ∈ more.map Execution.DeliveryNode.ref,
+          ref ∉ (more.foldl step acc).1.rootGroups := by
     induction more generalizing acc with
-    | nil => intro key member; cases member
+    | nil => intro ref member; cases member
     | cons group rest ih =>
-        intro key member
+        intro ref member
         obtain ⟨nextPresent, nextSubset, headAbsent⟩ :=
           stepFacts acc group currentPresent
         simp only [List.map_cons, List.mem_cons] at member
         rcases member with same | tail
-        · subst key
+        · subst ref
           intro rootMember
           exact headAbsent (foldSubset rest (step acc group) rootMember)
-        · exact ih (step acc group) nextPresent key tail
+        · exact ih (step acc group) nextPresent ref tail
   let current := queue.removeTask occurrence
   have currentPresent : current.RootGroupsPresent := by
-    intro key member
-    simpa [current, State.removeTask, List.map_map] using present key member
+    intro ref member
+    simpa [current, State.removeTask, List.map_map] using present ref member
   unfold State.taskFailure
   simp only [found, accepted, Bool.not_true, Bool.false_eq_true, ite_false]
   exact foldAbsent taskNode.task.groups (current, []) currentPresent
 
 /-- A direct owner of an accepted failed task is absent from the resulting roots.
 Witness: exact task provenance identifies the stored and structural contributor lists,
-then the accepted-failure owner fold removes their active keys. -/
+then the accepted-failure owner fold removes their active refs. -/
 private theorem State.taskFailure_directOwnerAbsent
     {queue : State} {work : Execution.Work}
     (present : queue.RootGroupsPresent)
@@ -142,9 +142,9 @@ private theorem State.taskFailure_directOwnerAbsent
     (occurrence : Occurrence) (errors : Nat)
     (taskNode : TaskNode) (found : queue.taskNode? occurrence = some taskNode)
     (accepted : queue.taskHasHealthyOwner taskNode.task = true)
-    {owners : Keys} (known : TaskHasOwners work occurrence owners)
-    {key : Nat} (owner : key ∈ owners)
-    : key ∉ (queue.taskFailure occurrence errors).1.rootGroups := by
+    {owners : NodeRefs} (known : TaskHasOwners work occurrence owners)
+    {ref : NodeRef} (owner : ref ∈ owners)
+    : ref ∉ (queue.taskFailure occurrence errors).1.rootGroups := by
   obtain ⟨producer, payload, taskAt⟩ := known
   have taskMember : taskNode.task ∈ queue.tasks :=
     registered taskNode (List.mem_of_find?_eq_some found)
@@ -159,32 +159,30 @@ private theorem State.taskFailure_directOwnerAbsent
   have ownerEq := (TaskAt.unique taskAt knownTask).1
   rw [ownerEq] at owner
   exact queue.taskFailure_ownerRootsAbsent present occurrence errors
-    taskNode found accepted key owner
+    taskNode found accepted ref owner
 
 /-- A defer group remains uninvalidated after an accepted failure when its ancestors do.
 Witness: a direct failure either predates this step, contradicting old root health,
-or is the just-settled task, whose contributor key was removed. Cleanup invalidation
+or is the just-settled task, whose contributor ref was removed. Cleanup invalidation
 does not inspect the group's producer.
 -/
-theorem State.taskFailure_groupHealthy
-    {queue : State} {work : Execution.Work} {failed : List Occurrence}
-    (generated : ExecutedWork work)
-    (healthy : queue.RootGroupsHealthy work failed)
-    (present : queue.RootGroupsPresent)
+theorem State.taskFailure_groupHealthy {queue : State} {work : Execution.Work}
+    {failed : List Occurrence} (generated : ExecutedWork work)
+    (healthy : queue.RootGroupsHealthy work failed) (present : queue.RootGroupsPresent)
     (registered : queue.StartedTasksRegistered)
-    (matching : queue.RegisteredTasksMatch work)
-    (occurrence : Occurrence) (errors : Nat)
+    (matching : queue.RegisteredTasksMatch work) (occurrence : Occurrence) (errors : Nat)
     (taskNode : TaskNode) (found : queue.taskNode? occurrence = some taskNode)
     (accepted : queue.taskHasHealthyOwner taskNode.task = true)
-    (node : Execution.DeliveryNode) (dependencies : Keys) (producer : Option Occurrence)
-    (active : node.key ∈ (queue.taskFailure occurrence errors).1.rootGroups)
+    (node : Execution.DeliveryNode) (dependencies : NodeRefs)
+    (producer : Option Occurrence)
+    (active : node.ref ∈ (queue.taskFailure occurrence errors).1.rootGroups)
     (known : NodeAt work node .group dependencies producer)
     (ancestorsHealthy
       : ∀ dependency ∈ dependencies,
           ¬GroupInvalidated work (occurrence :: failed) dependency)
-    : ¬GroupInvalidated work (occurrence :: failed) node.key := by
+    : ¬GroupInvalidated work (occurrence :: failed) node.ref := by
   intro failure
-  have oldActive : node.key ∈ queue.rootGroups :=
+  have oldActive : node.ref ∈ queue.rootGroups :=
     queue.taskFailure_rootsSubset occurrence errors active
   rcases generated.groupInvalidated_causes known failure with
     ⟨failedTask, owners, taskKnown, owner, failedMember⟩
@@ -193,7 +191,7 @@ theorem State.taskFailure_groupHealthy
     · subst failedTask
       exact (queue.taskFailure_directOwnerAbsent present registered matching
         occurrence errors taskNode found accepted taskKnown owner) active
-    · exact (healthy node.key oldActive)
+    · exact (healthy node.ref oldActive)
         (GroupInvalidated.task taskKnown owner earlier)
   · exact ancestorsHealthy dependency member ancestorFailure
 
@@ -214,11 +212,11 @@ theorem State.taskFailure_survivorInvalidated_iff
     (accepted : queue.taskHasHealthyOwner taskNode.task = true)
     {owners} (task : TaskHasOwners work occurrence owners)
     {node dependencies producer}
-    (active : node.key ∈ (queue.taskFailure occurrence errors).1.rootGroups)
+    (active : node.ref ∈ (queue.taskFailure occurrence errors).1.rootGroups)
     (known : NodeAt work node .group dependencies producer)
-    : GroupInvalidated work (occurrence :: failed) node.key
+    : GroupInvalidated work (occurrence :: failed) node.ref
       ↔ ∃ owner ∈ owners, owner ∈ dependencies := by
-  have oldHealthy := healthy node.key
+  have oldHealthy := healthy node.ref
     (queue.taskFailure_rootsSubset occurrence errors active)
   rw [generated.groupInvalidated_cons_iff known oldHealthy task]
   constructor
@@ -241,7 +239,7 @@ theorem State.RootGroupsHealthy.taskFailure_initialFrontier
     (healthy : queue.RootGroupsHealthy work failed)
     (generated : ExecutedWork work)
     (initialized : Initializes work groups streams)
-    (frontier : queue.rootGroups.Subset (groups.map Execution.DeliveryNode.key))
+    (frontier : queue.rootGroups.Subset (groups.map Execution.DeliveryNode.ref))
     (present : queue.RootGroupsPresent)
     (registered : queue.StartedTasksRegistered)
     (matching : queue.RegisteredTasksMatch work)
@@ -250,7 +248,7 @@ theorem State.RootGroupsHealthy.taskFailure_initialFrontier
     (accepted : queue.taskHasHealthyOwner taskNode.task = true)
     : (queue.taskFailure occurrence errors).1.RootGroupsHealthy
         work (occurrence :: failed) := by
-  intro key active
+  intro ref active
   have oldActive := queue.taskFailure_rootsSubset occurrence errors active
   obtain ⟨node, member, same⟩ := List.mem_map.mp (frontier oldActive)
   obtain ⟨dependencies, producer, known, protection⟩ :=
@@ -268,7 +266,7 @@ theorem State.RootGroupsHealthy.taskFailure_initialFrontier_contributions
     (healthy : queue.RootGroupsHealthy work failed)
     (generated : ExecutedWork work)
     (initialized : Initializes work groups streams)
-    (frontier : queue.rootGroups.Subset (groups.map Execution.DeliveryNode.key))
+    (frontier : queue.rootGroups.Subset (groups.map Execution.DeliveryNode.ref))
     (present : queue.RootGroupsPresent)
     (registered : queue.StartedTasksRegistered)
     (matching : queue.RegisteredTasksMatch work)
@@ -289,7 +287,7 @@ theorem State.RootGroupsHealthy.taskFailure_initialFrontier_contributions
               present registered matching occurrence errors node found accepted
 
 /-- An accepted failure preserves healthy roots with healthy defer ancestors.
-Witness: contributor-key support supplies a real structural node for each active root;
+Witness: contributor-ref support supplies a real structural node for each active root;
 registration records alone are insufficient because ancestors may be taskless.
 The dependency condition is proof-side evidence, not a public conformance premise.
 -/
@@ -301,22 +299,22 @@ theorem State.RootGroupsHealthy.taskFailure_of_healthyDependencies
     (registered : queue.StartedTasksRegistered)
     (matching : queue.RegisteredTasksMatch work)
     (rootsKnown
-      : ∀ key ∈ queue.rootGroups,
-          ∃ dependencies, NodeHasDependencies work key .group dependencies)
+      : ∀ ref ∈ queue.rootGroups,
+          ∃ dependencies, NodeHasDependencies work ref .group dependencies)
     (occurrence : Occurrence) (errors : Nat)
     (taskNode : TaskNode) (found : queue.taskNode? occurrence = some taskNode)
     (accepted : queue.taskHasHealthyOwner taskNode.task = true)
     (ancestorsHealthy
       : ∀ node dependencies producer,
-          node.key ∈ (queue.taskFailure occurrence errors).1.rootGroups
+          node.ref ∈ (queue.taskFailure occurrence errors).1.rootGroups
           → NodeAt work node .group dependencies producer
           → ∀ dependency ∈ dependencies,
               ¬GroupInvalidated work (occurrence :: failed) dependency)
     : (queue.taskFailure occurrence errors).1.RootGroupsHealthy
         work (occurrence :: failed) := by
-  intro key active
+  intro ref active
   have oldActive := queue.taskFailure_rootsSubset occurrence errors active
-  obtain ⟨dependencies, node, producer, known, same⟩ := rootsKnown key oldActive
+  obtain ⟨dependencies, node, producer, known, same⟩ := rootsKnown ref oldActive
   rw [← same] at active ⊢
   exact queue.taskFailure_groupHealthy generated healthy present registered matching
     occurrence errors taskNode found accepted node dependencies producer active known
@@ -336,9 +334,9 @@ private theorem State.taskFailure_rootGroupHealthy
     (taskNode : TaskNode) (found : queue.taskNode? occurrence = some taskNode)
     (accepted : queue.taskHasHealthyOwner taskNode.task = true)
     : ∀ node : Execution.DeliveryNode,
-        node.key ∈ (queue.taskFailure occurrence errors).1.rootGroups
+        node.ref ∈ (queue.taskFailure occurrence errors).1.rootGroups
         → NodeAt work node .group [] none
-        → ¬GroupInvalidated work (occurrence :: failed) node.key := by
+        → ¬GroupInvalidated work (occurrence :: failed) node.ref := by
   intro node active rootKnown
   exact queue.taskFailure_groupHealthy generated healthy present
     registered matching occurrence errors taskNode found accepted node [] none active
@@ -354,19 +352,19 @@ private theorem State.RootGroupsHealthy.taskFailure_rootOnly
     (registered : queue.StartedTasksRegistered)
     (matching : queue.RegisteredTasksMatch work)
     (rootOnly
-      : ∀ key ∈ queue.rootGroups,
+      : ∀ ref ∈ queue.rootGroups,
           ∃ node : Execution.DeliveryNode,
-            node.key = key ∧ NodeAt work node .group [] none)
+            node.ref = ref ∧ NodeAt work node .group [] none)
     (occurrence : Occurrence) (errors : Nat)
     (taskNode : TaskNode) (found : queue.taskNode? occurrence = some taskNode)
     (accepted : queue.taskHasHealthyOwner taskNode.task = true)
     : (queue.taskFailure occurrence errors).1.RootGroupsHealthy
         work (occurrence :: failed) := by
-  intro key active
-  have oldActive : key ∈ queue.rootGroups :=
+  intro ref active
+  have oldActive : ref ∈ queue.rootGroups :=
     queue.taskFailure_rootsSubset occurrence errors active
-  obtain ⟨node, keyEq, known⟩ := rootOnly key oldActive
-  rw [← keyEq] at active ⊢
+  obtain ⟨node, refEq, known⟩ := rootOnly ref oldActive
+  rw [← refEq] at active ⊢
   exact queue.taskFailure_rootGroupHealthy generated healthy present
     registered matching occurrence errors taskNode found accepted node active known
 

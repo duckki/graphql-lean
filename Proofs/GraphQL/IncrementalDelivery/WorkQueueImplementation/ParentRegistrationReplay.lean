@@ -16,10 +16,10 @@ Witness: full-chain candidate coverage, followed by registry-neutral pruning and
 theorem createWorkQueue_parentRegistryClosed {work : Execution.Work} {parents}
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     : (State.initialize (Work.fromExecution work)).ParentRegistryClosed parents := by
   have empty : ({} : State).ParentRegistryClosed parents := by
-    intro key member
+    intro ref member
     cases member
   have closure := empty.maybeIntegrateWork (by intro node member; cases member)
     (Work.fromExecution work)
@@ -66,7 +66,7 @@ theorem State.ParentRegistryClosed.taskSuccess {queue : State} {work parents}
     (matching : (GraphEvent.taskSuccess occurrence result).MatchesWork work)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     : (queue.taskSuccess occurrence result).1.ParentRegistryClosed parents := by
   let property (current : State) := current.LiveGroupsRegistered
     ∧ current.TaskGroupsRegistered ∧ current.ParentRegistryClosed parents
@@ -125,7 +125,7 @@ theorem State.ParentRegistryClosed.integrateStreamItem {queue : State} {work par
     {item : StreamItem} (member : item ∈ items)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     : (queue.integrateStreamItem item).ParentRegistryClosed parents := by
   have registered := queue.maybeIntegrateWork_registration live tasks item.work
     (matching.streamItem_childTasksCovered member)
@@ -147,7 +147,7 @@ theorem State.ParentRegistryClosed.streamItems {queue : State} {work parents}
     (matching : (GraphEvent.streamItems stream items).MatchesWork work)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     : (queue.streamItems stream items).1.ParentRegistryClosed parents := by
   let step (acc : State × List Execution.DeliveryNode
       × List Execution.DeliveryNode × List StreamItemValue) (item : StreamItem) :=
@@ -193,7 +193,7 @@ theorem State.ParentRegistryClosed.handleGraphEvent {queue : State} {work parent
     (matching : event.MatchesWork work)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     : (queue.handleGraphEvent event).1.ParentRegistryClosed parents := by
   cases event with
   | taskSuccess occurrence result =>
@@ -212,7 +212,7 @@ theorem State.ParentRegistryClosed.handleGraphEvent {queue : State} {work parent
       unfold State.streamFailure
       split <;> exact prior
 
-/-- Matched host batches preserve closure while keeping all live/task keys registered.
+/-- Matched host batches preserve closure while keeping all live/task refs registered.
 Witness: fold over actual handler states and preserve the final done-flag update.
 -/
 theorem State.ParentRegistryClosed.handleGraphEvents {queue : State} {work parents}
@@ -221,7 +221,7 @@ theorem State.ParentRegistryClosed.handleGraphEvents {queue : State} {work paren
     (matching : ∀ event ∈ events, event.MatchesWork work)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     : (queue.handleGraphEvents events).1.ParentRegistryClosed parents := by
   let step (acc : State × List WorkQueueEvent) (event : GraphEvent) :=
     let (current, outputs) := acc
@@ -257,7 +257,7 @@ theorem State.ParentRegistryClosed.runNormalized {queue : State} {work parents}
     (matching : ∀ batch ∈ batches, ∀ event ∈ batch, event.MatchesWork work)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     : (queue.runNormalized batches).1.ParentRegistryClosed parents := by
   let property (current : State) := current.LiveGroupsRegistered
     ∧ current.TaskGroupsRegistered ∧ current.ParentRegistryClosed parents

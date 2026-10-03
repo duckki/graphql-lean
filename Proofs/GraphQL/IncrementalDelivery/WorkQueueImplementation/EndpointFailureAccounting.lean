@@ -60,8 +60,8 @@ theorem groupRecordInvalidated_nodeFailed
     (known : NodeAt work group .group dependencies producer)
     (invalid
       : GroupRecordInvalidated work
-          ((initialQueue work).objectFailureContributions inputs.flatten) group.key)
-    : NodeFailed work w.matching w.events w.failures group.key := by
+          ((initialQueue work).objectFailureContributions inputs.flatten) group.ref)
+    : NodeFailed work w.matching w.events w.failures group.ref := by
   have cause := (generated.groupRecordInvalidated_iff_groupInvalidated known).mp invalid
   apply cause.toNodeFailed_of_support support ?_ visible
   intro cut occurrence member
@@ -85,12 +85,12 @@ theorem retiredGroup_failed_or_accounted
           (failedBefore w.failures w.events.length))
     (known : NodeAt work group .group dependencies producer)
     (retired
-      : ((initialQueue work).replayGraphEvents inputs.flatten).RetiredGroup group.key)
-    : NodeFailed work w.matching w.events w.failures group.key
-      ∨ NodeAccounted work w.matching w.events w.failures group.key := by
+      : ((initialQueue work).replayGraphEvents inputs.flatten).RetiredGroup group.ref)
+    : NodeFailed work w.matching w.events w.failures group.ref
+      ∨ NodeAccounted work w.matching w.events w.failures group.ref := by
   classical
   by_cases invalid : GroupRecordInvalidated work
-      ((initialQueue work).objectFailureContributions inputs.flatten) group.key
+      ((initialQueue work).objectFailureContributions inputs.flatten) group.ref
   · exact .inl (groupRecordInvalidated_nodeFailed generated inventory support visible known
       invalid)
   · exact .inr (retiredGroup_nodeAccounted generated valid started history ledger known

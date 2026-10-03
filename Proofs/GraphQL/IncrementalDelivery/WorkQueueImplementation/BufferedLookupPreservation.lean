@@ -100,7 +100,7 @@ theorem State.putTaskNode_lookup_same {queue : State} {occurrence node}
           simpa [List.find?_cons, selected] using ih tail
   exact loop queue.taskNodes found
 
-/-- Producer attachment retains the task descriptor and value while extending stream keys.
+/-- Producer attachment retains the task descriptor and value while extending stream refs.
 Witness: group/task registration preserves its first lookup; the final stream operation
 only replaces that producer's child-stream list. No well-formedness premise is required.
 -/
@@ -139,7 +139,7 @@ theorem State.maybeIntegrateWork_lookup_producer {queue : State} {occurrence nod
 
 /-- The success handler's prepared state contains its input value and original task.
 Witness: install the exact first-match node, then preserve its descriptor and value
-through child integration; attaching streams may extend only its child-stream keys.
+through child integration; attaching streams may extend only its child-stream refs.
 -/
 theorem State.taskSuccess_prepared_value {queue : State} {occurrence node}
     (found : queue.taskNode? occurrence = some node) (result : TaskResult)

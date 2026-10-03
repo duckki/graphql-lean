@@ -17,7 +17,7 @@ does not filter the executable queue's candidates or impose a new source law.
 -/
 theorem State.ParentLinksComplete.fresh_region_root_coverage {queue : State}
     {work : Execution.Work} {parents failed}
-    (complete : queue.ParentLinksComplete parents) (unique : queue.GroupKeysUnique)
+    (complete : queue.ParentLinksComplete parents) (unique : queue.GroupRefsUnique)
     (registered : queue.LiveGroupsRegistered)
     (closed : queue.ParentRegistryClosed parents)
     (cancelled : queue.CancelledRecordsSupported work failed) (newWork : Work)
@@ -29,67 +29,67 @@ theorem State.ParentLinksComplete.fresh_region_root_coverage {queue : State}
             ∧ group.parent = dependencies.head?)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (parentCovered : newWork.ParentsCovered)
-    (fresh : ∀ group ∈ newWork.groups, group.node.key ∉ queue.registeredGroups)
+    (fresh : ∀ group ∈ newWork.groups, group.node.ref ∉ queue.registeredGroups)
     (forest : (queue.maybeIntegrateWork newWork parentTask).1.RemovalForest parents)
     {group : Group} (member : group ∈ newWork.groups)
-    (healthy : ¬GroupRecordInvalidated work failed group.node.key)
+    (healthy : ¬GroupRecordInvalidated work failed group.node.ref)
     : let integrated := queue.maybeIntegrateWork newWork parentTask
-      ∃ root ∈ integrated.2.newGroups.map Execution.DeliveryNode.key,
-        integrated.1.LiveDescendant root group.node.key := by
+      ∃ root ∈ integrated.2.newGroups.map Execution.DeliveryNode.ref,
+        integrated.1.LiveDescendant root group.node.ref := by
   intro integrated
   classical
   let candidates := newWork.groups.filter
-    (fun candidate => decide (¬GroupRecordInvalidated work failed candidate.node.key))
+    (fun candidate => decide (¬GroupRecordInvalidated work failed candidate.node.ref))
   have eligible {candidate : Group} : candidate ∈ candidates
-      ↔ candidate ∈ newWork.groups ∧ ¬GroupRecordInvalidated work failed candidate.node.key := by
+      ↔ candidate ∈ newWork.groups ∧ ¬GroupRecordInvalidated work failed candidate.node.ref := by
     simp only [candidates, List.mem_filter, decide_eq_true_eq]
   have exactParents : ∀ candidate ∈ newWork.groups,
-      candidate.parent = (parents candidate.node.key).head? := by
+      candidate.parent = (parents candidate.node.ref).head? := by
     intro candidate included
     obtain ⟨dependencies, known, head⟩ := descriptors candidate included
     rwa [canonical _ _ known] at head
   have links := complete.maybeIntegrateWork unique registered closed newWork exactParents parentTask
   have newCancelled := cancelled.maybeIntegrateWork newWork parentTask descriptors
-  have newKeys := unique.maybeIntegrateWork newWork parentTask
+  have newRefs := unique.maybeIntegrateWork newWork parentTask
   apply links.candidates_root_coverage forest candidates
-    (integrated.2.newGroups.map Execution.DeliveryNode.key)
+    (integrated.2.newGroups.map Execution.DeliveryNode.ref)
     (fun candidate included => exactParents candidate (eligible.mp included).1)
   · intro candidate included parent head
     obtain ⟨original, candidateHealthy⟩ := eligible.mp included
-    obtain ⟨ancestor, ancestorMember, ancestorKey⟩ := parentCovered candidate original parent head
+    obtain ⟨ancestor, ancestorMember, ancestorRef⟩ := parentCovered candidate original parent head
     obtain ⟨dependencies, known, parentEq⟩ := descriptors candidate original
     have inDependencies : parent ∈ dependencies := by
       have first := parentEq.symm.trans head
       cases dependencies with
       | nil => cases first
-      | cons key rest => exact List.mem_cons.mpr (.inl (Option.some.inj first).symm)
+      | cons ref rest => exact List.mem_cons.mpr (.inl (Option.some.inj first).symm)
     exact ⟨
       ancestor,
       eligible.mpr
         ⟨
           ancestorMember,
           fun invalid =>
-            candidateHealthy (.ancestor known inDependencies (ancestorKey ▸ invalid))
+            candidateHealthy (.ancestor known inDependencies (ancestorRef ▸ invalid))
         ⟩,
-      ancestorKey
+      ancestorRef
     ⟩
   · intro candidate included
     obtain ⟨original, candidateHealthy⟩ := eligible.mp included
     have uncancelled := newCancelled.healthy_not_mem candidateHealthy
     rw [State.maybeIntegrateWork_cancelledGroups queue newWork parentTask] at uncancelled
-    have present := queue.maybeIntegrateWork_registersKeys newWork parentTask candidate original
+    have present := queue.maybeIntegrateWork_registersRefs newWork parentTask candidate original
       (.inr (fresh candidate original)) uncancelled
-    obtain ⟨node, nodeMember, sameKey⟩ := List.mem_map.mp present
-    exact ⟨node, sameKey ▸ newKeys.groupNode?_of_mem nodeMember⟩
+    obtain ⟨node, nodeMember, sameRef⟩ := List.mem_map.mp present
+    exact ⟨node, sameRef ▸ newRefs.groupNode?_of_mem nodeMember⟩
   · intro candidate included parentless
     have original := (eligible.mp included).1
-    have absent : queue.groupNode? candidate.node.key = none := by
-      cases found : queue.groupNode? candidate.node.key with
+    have absent : queue.groupNode? candidate.node.ref = none := by
+      cases found : queue.groupNode? candidate.node.ref with
       | none => rfl
       | some node =>
-          exact False.elim (fresh candidate original (State.groupNode?_key found ▸
+          exact False.elim (fresh candidate original (State.groupNode?_ref found ▸
             registered node (List.mem_of_find?_eq_some found)))
     exact queue.addGroups_parentless_candidate newWork.groups original parentless
       (fresh candidate original) absent
@@ -106,7 +106,7 @@ the covering retained candidate; no already-announced child premise is used.
 -/
 theorem State.ParentLinksComplete.fresh_item_root_coverage {queue : State}
     {work : Execution.Work} {parents failed}
-    (complete : queue.ParentLinksComplete parents) (unique : queue.GroupKeysUnique)
+    (complete : queue.ParentLinksComplete parents) (unique : queue.GroupRefsUnique)
     (registered : queue.LiveGroupsRegistered)
     (closed : queue.ParentRegistryClosed parents)
     (cancelled : queue.CancelledRecordsSupported work failed) (item : StreamItem)
@@ -117,60 +117,60 @@ theorem State.ParentLinksComplete.fresh_item_root_coverage {queue : State}
             ∧ group.parent = dependencies.head?)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (parentCovered : item.work.ParentsCovered)
-    (fresh : ∀ group ∈ item.work.groups, group.node.key ∉ queue.registeredGroups)
+    (fresh : ∀ group ∈ item.work.groups, group.node.ref ∉ queue.registeredGroups)
     (forest : (queue.maybeIntegrateWork item.work).1.RemovalForest parents)
     {group : Group} (member : group ∈ item.work.groups)
-    (healthy : ¬GroupRecordInvalidated work failed group.node.key)
+    (healthy : ¬GroupRecordInvalidated work failed group.node.ref)
     (survives
-      : ∃ node, (queue.integrateStreamItem item).groupNode? group.node.key = some node)
+      : ∃ node, (queue.integrateStreamItem item).groupNode? group.node.ref = some node)
     : ∃ root ∈ (queue.integrateStreamItem item).rootGroups,
-        (queue.integrateStreamItem item).LiveDescendant root group.node.key := by
+        (queue.integrateStreamItem item).LiveDescendant root group.node.ref := by
   let integrated := queue.maybeIntegrateWork item.work
   let pruned := integrated.1.pruneEmptyGroups integrated.2.newGroups
   let released := { integrated.2 with newGroups := pruned.2 }
   have exactParents : ∀ candidate ∈ item.work.groups,
-      candidate.parent = (parents candidate.node.key).head? := by
+      candidate.parent = (parents candidate.node.ref).head? := by
     intro candidate included
     obtain ⟨dependencies, known, head⟩ := descriptors candidate included
     rwa [canonical _ _ known] at head
   have covered := complete.fresh_region_root_coverage unique registered closed cancelled
     item.work none descriptors canonical parentCovered fresh forest member healthy
   obtain ⟨root, rootMember, path⟩ := covered
-  obtain ⟨candidate, included, candidateKey⟩ := List.mem_map.mp rootMember
+  obtain ⟨candidate, included, candidateRef⟩ := List.mem_map.mp rootMember
   have frontier : integrated.1.GroupFrontier integrated.2.newGroups := by
     intro child member node nodeMember incoming
     obtain ⟨candidate, included, same, parentless, _⟩ :=
       queue.addGroups_newGroup_candidate item.work.groups member
-    have head := forest.canonical node nodeMember child.key incoming
+    have head := forest.canonical node nodeMember child.ref incoming
     rw [← same, ← exactParents candidate included, parentless] at head
     cases head
-  have beforeStart : ∃ node, pruned.1.groupNode? group.node.key = some node := by
+  have beforeStart : ∃ node, pruned.1.groupNode? group.node.ref = some node := by
     change ∃ node,
-      (pruned.1.startNewWork released).groupNode? group.node.key = some node at survives
+      (pruned.1.startNewWork released).groupNode? group.node.ref = some node at survives
     simpa only [State.groupNode?, (State.startNewWork_groupCore _ _).1] using survives
   have rootsLive := State.maybeIntegrateWork_candidates_live unique item.work exactParents
   obtain ⟨retained, retainedMember, below⟩ :=
     State.pruneEmptyGroups_surviving_descendant forest.canonical forest.uniqueChildren frontier
-      (distinctDeliveryNodes_keys_nodup _)
+      (distinctDeliveryNodes_refs_nodup _)
       rootsLive
-      ⟨candidate, included, candidateKey.symm ▸ path⟩ beforeStart
-  refine ⟨retained.key, ?_, ?_⟩
-  · change retained.key ∈ (pruned.1.startNewWork released).rootGroups
+      ⟨candidate, included, candidateRef.symm ▸ path⟩ beforeStart
+  refine ⟨retained.ref, ?_, ?_⟩
+  · change retained.ref ∈ (pruned.1.startNewWork released).rootGroups
     rw [(pruned.1.startNewWork_groupCore released).2.2]
     exact List.mem_append_right _ (List.mem_map_of_mem retainedMember)
   · exact below.of_groupNodes_eq (pruned.1.startNewWork_groupCore released).1
 
 /-- Generated stream-item regions supply all new-group coverage premises from bookkeeping.
-Witness: the region inventory derives key freshness; matched lowering supplies complete
+Witness: the region inventory derives ref freshness; matched lowering supplies complete
 parent chains and descriptors; generated metadata derives the integration forest.
 Only the target's health and survival are conditional, as required for terminal accounting.
 -/
 theorem State.RegionInventory.streamItem_healthy_group_root_coverage {queue : State}
     {work : Execution.Work} {parents failed seen}
     (inventory : queue.RegionInventory work seen) (generated : ExecutedWork work)
-    (complete : queue.ParentLinksComplete parents) (unique : queue.GroupKeysUnique)
+    (complete : queue.ParentLinksComplete parents) (unique : queue.GroupRefsUnique)
     (registered : queue.LiveGroupsRegistered)
     (closed : queue.ParentRegistryClosed parents)
     (cancelled : queue.CancelledRecordsSupported work failed)
@@ -178,17 +178,17 @@ theorem State.RegionInventory.streamItem_healthy_group_root_coverage {queue : St
     (links : queue.ChildLinksCanonical parents)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     {stream items} (matching : (GraphEvent.streamItems stream items).MatchesWork work)
     {item : StreamItem} (itemMember : item ∈ items) (fresh : item.occurrence ∉ seen)
     {group : Group} (member : group ∈ item.work.groups)
-    (healthy : ¬GroupRecordInvalidated work failed group.node.key)
+    (healthy : ¬GroupRecordInvalidated work failed group.node.ref)
     (survives
-      : ∃ node, (queue.integrateStreamItem item).groupNode? group.node.key = some node)
+      : ∃ node, (queue.integrateStreamItem item).groupNode? group.node.ref = some node)
     : ∃ root ∈ (queue.integrateStreamItem item).rootGroups,
-        (queue.integrateStreamItem item).LiveDescendant root group.node.key := by
+        (queue.integrateStreamItem item).LiveDescendant root group.node.ref := by
   have exactParents : ∀ candidate ∈ item.work.groups,
-      candidate.parent = (parents candidate.node.key).head? :=
+      candidate.parent = (parents candidate.node.ref).head? :=
     fun _ included => matching.streamItem_childGroups_parentCanonical canonical itemMember included
   have descriptors : ∀ candidate ∈ item.work.groups,
       ∃ dependencies, GroupRecordAt work candidate.node dependencies :=

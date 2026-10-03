@@ -19,10 +19,10 @@ deferred phase, a reserved success carrier or causal cancellation, then stream c
 theorem multiple_run_exists (first second : Result (List (Name × ResponseValue)))
     : ∃ history, AdmissibleRun (work first second) history := by
   apply completeRun_exists_of_root_deferred_coverage (paths := fun _ => []) (bound := 3)
-    (roles := fun key => key == 2)
+    (roles := fun ref => ref == 2)
   · simp [work, MixedOwnerPaths.WorkAt, OwnerPaths.MapAt, OwnerPaths.mapNodes,
       OwnerPaths.fragmentNodes, OwnerPaths.Assigned, Below, node]
-  · simp [work, KeyRoles.WorkRoles, node]
+  · simp [work, RefRoles.WorkRoles, node]
   · exact initialized first second
   · exact fun _ _ _ _ known => (deferred_task known).1
   · intro address owners producer payload known
@@ -64,13 +64,13 @@ example (outer middle inner : Result ResponseValue)
     (roles := fun _ => true) (groups := []) (streams := [node 9])
   · simp [independentStreams, NestedStreamExistence.nested, NestedStreamExistence.node,
       MixedOwnerPaths.WorkAt, OwnerPaths.Assigned, node]
-  · simp [independentStreams, NestedStreamExistence.nested, KeyRoles.WorkRoles]
+  · simp [independentStreams, NestedStreamExistence.nested, RefRoles.WorkRoles]
   · refine ⟨⟨by simp, by simp, ?_⟩, by simp⟩
     intro stream member
     have same := List.mem_singleton.mp member
     subst stream
     refine ⟨[], none, NodeAt.stream (.left .root), ?_⟩
-    exact ⟨by simp [announcedKeys, pendingKeys],
+    exact ⟨by simp [announcedRefs, pendingRefs],
       Or.inl ⟨fun failure => failure.nonempty rfl, Or.inl rfl⟩, by simp, Or.inl rfl⟩
   · exact fun _ _ _ _ known => (noDeferred known).elim
   · exact fun _ _ _ _ known => (noDeferred known).elim

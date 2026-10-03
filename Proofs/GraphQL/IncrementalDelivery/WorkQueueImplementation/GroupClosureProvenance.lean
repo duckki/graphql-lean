@@ -51,7 +51,7 @@ theorem State.finishGroupSuccess_groupClosureLocated {work : Execution.Work}
     exact known
 
 /-- An immediate task-failure closure has the exact descriptor of a real contributor.
-Witness: the handler's closing record and actual task-owner key agree under generated
+Witness: the handler's closing record and actual task-owner ref agree under generated
 descriptor allocation. Neither output admission nor a cache-support assumption is needed.
 -/
 theorem State.taskFailure_groupFailure_located {queue : State} {work : Execution.Work}
@@ -70,7 +70,7 @@ theorem State.taskFailure_groupFailure_located {queue : State} {work : Execution
   exact generated.record_contributor record (matching.contributorKnown owner)
 
 /-- Every normalized group closure in generated work has its exact structural descriptor.
-Witness: raw-work replay supplies record provenance and contributor-key support separately;
+Witness: raw-work replay supplies record provenance and contributor-ref support separately;
 the generated descriptor assignment identifies the record with that actual contributor.
 This proof-only generated-work premise does not strengthen the public source contract.
 -/
@@ -82,7 +82,7 @@ theorem createWorkQueue_runNormalized_groupClosuresLocated {work : Execution.Wor
         GroupClosureLocated work event := by
   intro event member
   have record := createWorkQueue_runNormalized_groupClosureRecordsLocated valid event member
-  have supported := createWorkQueue_runNormalized_groupClosureKeys valid event member
+  have supported := createWorkQueue_runNormalized_groupClosureRefs valid event member
   cases event <;> try trivial
   all_goals
     obtain ⟨dependencies, record⟩ := record

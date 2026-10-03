@@ -86,7 +86,7 @@ theorem retainedNotice_sourceReadyContributor
           (failedBefore w.failures count) inputs.flatten child)
     : ∃ address owners producer payload,
         TaskAt work (.executionGroup address) owners producer payload
-        ∧ child.key ∈ owners
+        ∧ child.ref ∈ owners
         ∧ ∀ source,
             producer = some source
             → source ∈ inputs.flatten.flatMap GraphEvent.successes := by

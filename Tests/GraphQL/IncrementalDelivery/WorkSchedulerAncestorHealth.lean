@@ -9,8 +9,8 @@ open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
-private def node (key : Nat) (label : String) : DeliveryNode :=
-  { key, path := [], label := some (.string label) }
+private def node (ref : NodeRef) (label : String) : DeliveryNode :=
+  { ref, path := [], label := some (.string label) }
 
 private def parent : DeliveryNode := node 0 "P"
 private def child : DeliveryNode := node 1 "C"
@@ -64,13 +64,13 @@ theorem ancestry_chains : GroupAncestryChains work := generated.groupAncestryCha
 /-- The independent group's fixed result is the supplied failure.
 Witness: direct structural navigation to its execution-group task. -/
 private theorem failureKnown
-    : TaskAt work failedTask [bad.key] none (.object [] (.error 1)) := by
+    : TaskAt work failedTask [bad.ref] none (.object [] (.error 1)) := by
   exact ⟨[⟨bad, []⟩], [], _, .empty, [], rfl, rfl, rfl⟩
 
 /-- The parent's value and child-work lowering match the fixed task.
 Witness: structural lookup and exact matching of the supplied host result. -/
 private theorem parentMatches : parentSuccess.MatchesWork work := by
-  refine ⟨[parent.key], none, ?_, ?_, ?_⟩
+  refine ⟨[parent.ref], none, ?_, ?_, ?_⟩
   · exact ⟨[⟨parent, []⟩], [], _, emptyChildren, [], rfl, rfl, rfl⟩
   · cbv
   · cbv
@@ -78,7 +78,7 @@ private theorem parentMatches : parentSuccess.MatchesWork work := by
 /-- The child's value likewise matches its fixed task and empty produced work.
 Witness: structural lookup under the next combined execution partition. -/
 private theorem childMatches : childSuccess.MatchesWork work := by
-  refine ⟨[child.key], none, ?_, ?_, ?_⟩
+  refine ⟨[child.ref], none, ?_, ?_, ?_⟩
   · exact ⟨[⟨child, [parent]⟩], [], _, emptyChildren, [], rfl, rfl, rfl⟩
   · cbv
   · cbv
@@ -90,7 +90,7 @@ theorem inputs_valid : ValidGraphEvents work [failure, parentSuccess, childSucce
     (by simp [failure, GraphEvent.Fresh, GraphEvent.identities])
     ⟨_, _, _, failureKnown, by intro source impossible; cases impossible⟩
   have parentReady : parentSuccess.Ready work [failure] := by
-    refine ⟨[parent.key], none, .object [] (.ok ([("a", .scalar "a")], 0)), ?_,
+    refine ⟨[parent.ref], none, .object [] (.ok ([("a", .scalar "a")], 0)), ?_,
       by intro source impossible; cases impossible⟩
     exact ⟨[⟨parent, []⟩], [], _, emptyChildren, [], rfl, rfl, rfl⟩
   have first : ValidGraphEvents work [failure, parentSuccess] := .append failed parentMatches
@@ -99,7 +99,7 @@ theorem inputs_valid : ValidGraphEvents work [failure, parentSuccess, childSucce
   apply ValidGraphEvents.append first childMatches
   · simp [failure, parentSuccess, childSuccess, failedTask, parentTask, childTask,
       GraphEvent.Fresh, GraphEvent.identities]
-  · refine ⟨[child.key], none, .object [] (.ok ([("b", .scalar "b")], 0)), ?_,
+  · refine ⟨[child.ref], none, .object [] (.ok ([("b", .scalar "b")], 0)), ?_,
       by intro source impossible; cases impossible⟩
     exact ⟨[⟨child, [parent]⟩], [], _, emptyChildren, [], rfl, rfl, rfl⟩
 
@@ -120,7 +120,7 @@ theorem initialized : Initializes work initial.initialGroups initial.initialStre
       rfl, by simp, rfl, rfl⟩
   have eligible (group : DeliveryNode) (known : NodeAt work group .group [] none)
       : CanAnnounce work [] (fun _ => .executionGroup []) [] [] group .group [] none := by
-    exact ⟨by simp [announcedKeys, pendingKeys], Or.inl ⟨fun failure => failure.nonempty rfl,
+    exact ⟨by simp [announcedRefs, pendingRefs], Or.inl ⟨fun failure => failure.nonempty rfl,
         Or.inr (group_not_initially_accounted known)⟩, by simp, by simp⟩
   have notices : initial.initialGroups = [parent, bad] ∧ initial.initialStreams = [] := by
     cbv
@@ -134,22 +134,22 @@ theorem initialized : Initializes work initial.initialGroups initial.initialStre
 
 private def childNode : GroupNode :=
   {
-    group := ⟨child, some parent.key⟩,
+    group := ⟨child, some parent.ref⟩,
     tasks := [childTask],
     pending := 1,
-    childGroups := [grandchild.key]
+    childGroups := [grandchild.ref]
   }
 
 private def grandchildNode : GroupNode :=
   {
-    group := ⟨grandchild, some child.key⟩,
+    group := ⟨grandchild, some child.ref⟩,
     tasks := [.executionGroup [1, 1, 1, 0]],
     pending := 1
   }
 
 /-- The promoted child retains the completed parent's full-ancestry descriptor.
 Witness: its original execution-group occurrence in the generated work. -/
-private theorem childKnown : NodeAt work child .group [parent.key] none := by
+private theorem childKnown : NodeAt work child .group [parent.ref] none := by
   exact ⟨
     [1, 1, 0],
     [⟨child, [parent]⟩],
@@ -167,7 +167,7 @@ private theorem childKnown : NodeAt work child .group [parent.key] none := by
 /-- The grandchild records both ancestors even after the parent has completed.
 Witness: structural navigation to the final successful nested partition. -/
 private theorem grandchildKnown
-    : NodeAt work grandchild .group [child.key, parent.key] none := by
+    : NodeAt work grandchild .group [child.ref, parent.ref] none := by
   exact ⟨
     [1, 1, 1, 0],
     [⟨grandchild, [child, parent]⟩],
@@ -184,12 +184,12 @@ private theorem grandchildKnown
 
 /-- The unrelated failure cannot invalidate a group or any of its recorded ancestors.
 Witness: generated invalidation has one failed contributor; descriptor uniqueness fixes
-that contributor to F, which is excluded by the supplied dependency-key check.
+that contributor to F, which is excluded by the supplied dependency-ref check.
 -/
 private theorem independent_healthy {group dependencies producer}
     (known : NodeAt work group .group dependencies producer)
-    (apart : bad.key ∉ group.key :: dependencies)
-    : ¬GroupInvalidated work [failedTask] group.key := by
+    (apart : bad.ref ∉ group.ref :: dependencies)
+    : ¬GroupInvalidated work [failedTask] group.ref := by
   intro failure
   obtain ⟨occurrence, owners, owner, task, member, contributes, related⟩ :=
     (generated.groupInvalidated_iff known).mp failure
@@ -204,18 +204,18 @@ private theorem independent_healthy {group dependencies producer}
 Witness: exact active-root lists and each promoted group's full dependency descriptor.
 -/
 theorem promoted_roots
-    : afterParent.rootGroups = [child.key]
+    : afterParent.rootGroups = [child.ref]
       ∧ (afterParent.taskSuccess childTask childResult).1.rootGroups
-        = [grandchild.key] := by
+        = [grandchild.ref] := by
   constructor <;> cbv
 
 /-- The first promoted root is healthy after the independent failure.
 Witness: the child descriptor excludes F from both ownership and ancestry.
 -/
 theorem first_promotion_healthy : afterParent.RootGroupsHealthy work [failedTask] := by
-  intro key member
+  intro ref member
   have same := List.mem_singleton.mp (promoted_roots.1 ▸ member)
-  subst key
+  subst ref
   exact independent_healthy childKnown (by decide)
 
 /-- The second promoted root retains the same health guarantee through both ancestors.
@@ -224,21 +224,21 @@ Witness: the grandchild descriptor and the nonempty evaluated root frontier.
 theorem second_promotion_healthy
     : (afterParent.taskSuccess childTask childResult).1.RootGroupsHealthy
         work [failedTask] := by
-  intro key member
+  intro ref member
   have same := List.mem_singleton.mp (promoted_roots.2 ▸ member)
-  subst key
+  subst ref
   exact independent_healthy grandchildKnown (by decide)
 
 /-- The active child has retired task-bearing ancestors according to current replay.
 Witness: project the joint owner/ancestry invariant, then select the actual active child.
 -/
 theorem promoted_child_ancestors_retired
-    : afterParent.AncestorsRetired work child.key := by
+    : afterParent.AncestorsRetired work child.ref := by
   obtain ⟨_, _, ledger⟩ := generated.runNormalized_ownerAncestry
     [[failure], [parentSuccess]] (inputs_valid.prefix ⟨[childSuccess], rfl⟩) (by cbv)
-  exact ledger.roots child.key
+  exact ledger.roots child.ref
     (by
-      change child.key ∈ afterParent.rootGroups
+      change child.ref ∈ afterParent.rootGroups
       rw [promoted_roots.1]
       simp)
 
@@ -276,31 +276,31 @@ theorem grandchild_ancestors_retired
           [[failure], [parentSuccess], [childSuccess]],
           [[failure, parentSuccess, childSuccess]]
         ],
-        (initial.runNormalized batches).1.RetiredGroup child.key
-        ∧ (initial.runNormalized batches).1.RetiredGroup parent.key := by
+        (initial.runNormalized batches).1.RetiredGroup child.ref
+        ∧ (initial.runNormalized batches).1.RetiredGroup parent.ref := by
   intro batches member
   obtain ⟨parents, ledger⟩ := successive_promotions_accounted batches member
-  have roots : (initial.runNormalized batches).1.rootGroups = [grandchild.key] := by
+  have roots : (initial.runNormalized batches).1.rootGroups = [grandchild.ref] := by
     simp only [List.mem_cons, List.not_mem_nil, or_false] at member
     rcases member with rfl | rfl <;> cbv
-  have chain := ledger.roots grandchild.key (by rw [roots]; simp)
-  have childOwners : TaskHasOwners work childTask [child.key] :=
+  have chain := ledger.roots grandchild.ref (by rw [roots]; simp)
+  have childOwners : TaskHasOwners work childTask [child.ref] :=
     ⟨none, _, ⟨[⟨child, [parent]⟩], [], _, emptyChildren, [], rfl, rfl, rfl⟩⟩
-  have parentOwners : TaskHasOwners work parentTask [parent.key] :=
+  have parentOwners : TaskHasOwners work parentTask [parent.ref] :=
     ⟨none, _, ⟨[⟨parent, []⟩], [], _, emptyChildren, [], rfl, rfl, rfl⟩⟩
   have record := groupRecordAt_of_nodeAt grandchildKnown
   exact ⟨
-    chain grandchild _ record rfl child.key (by simp) _ _ childOwners (by simp),
-    chain grandchild _ record rfl parent.key (by simp) _ _ parentOwners (by simp)
+    chain grandchild _ record rfl child.ref (by simp) _ _ childOwners (by simp),
+    chain grandchild _ record rfl parent.ref (by simp) _ _ parentOwners (by simp)
   ⟩
 
 /-- Completion removes the old parent but retains the child-to-grandchild live suffix.
 Witness: concrete lookups and permanent registration after the checked source prefix.
 -/
 theorem completed_parent_retired
-    : afterParent.RetiredGroup parent.key
-      ∧ afterParent.groupNode? child.key = some childNode
-      ∧ afterParent.groupNode? grandchild.key = some grandchildNode := by
+    : afterParent.RetiredGroup parent.ref
+      ∧ afterParent.groupNode? child.ref = some childNode
+      ∧ afterParent.groupNode? grandchild.ref = some grandchildNode := by
   constructor
   · cbv
     change (0 ∈ ([0, 1, 2, 3] : List Nat)) ∧ 0 ∉ ([1, 2] : List Nat)
@@ -311,9 +311,9 @@ theorem completed_parent_retired
 Witness: checked retirement and independent-failure health, stated directly over lookups.
 -/
 theorem healthy_child_has_completed_gap
-    : afterParent.groupNode? parent.key = none
-      ∧ afterParent.groupNode? child.key = some childNode
-      ∧ ¬GroupInvalidated work [failedTask] child.key :=
+    : afterParent.groupNode? parent.ref = none
+      ∧ afterParent.groupNode? child.ref = some childNode
+      ∧ ¬GroupInvalidated work [failedTask] child.ref :=
   ⟨
     completed_parent_retired.1.lookup_none,
     completed_parent_retired.2.1,
@@ -323,7 +323,7 @@ theorem healthy_child_has_completed_gap
 /-- The remaining live suffix is connected despite the older completed-parent gap.
 Witness: the stored child link and both concrete live endpoints.
 -/
-theorem live_suffix_connected : afterParent.LiveDescendant child.key grandchild.key :=
+theorem live_suffix_connected : afterParent.LiveDescendant child.ref grandchild.ref :=
   .child completed_parent_retired.2.1 (by simp [childNode])
     (.self completed_parent_retired.2.2)
 
@@ -339,7 +339,7 @@ Witness: fixed outcomes and distinct identities in the reversed legal host order
 theorem later_failure_inputs_valid : ValidGraphEvents work [parentSuccess, failure] := by
   have first : ValidGraphEvents work [parentSuccess] := .append .nil parentMatches
     (by simp [GraphEvent.Fresh, GraphEvent.identities, parentSuccess])
-    ⟨[parent.key], none, .object [] (.ok ([("a", .scalar "a")], 0)),
+    ⟨[parent.ref], none, .object [] (.ok ([("a", .scalar "a")], 0)),
       ⟨[⟨parent, []⟩], [], _, emptyChildren, [], rfl, rfl, rfl⟩,
       by intro source impossible; cases impossible⟩
   exact .append first ⟨_, _, [], failureKnown⟩
@@ -368,12 +368,12 @@ Witness: exact active-root membership and the same structural independence proof
 -/
 theorem later_failure_rootsHealthy
     : afterLaterFailure.RootGroupsHealthy work [failedTask]
-      ∧ afterLaterFailure.rootGroups = [child.key] := by
-  have roots : afterLaterFailure.rootGroups = [child.key] := by cbv
+      ∧ afterLaterFailure.rootGroups = [child.ref] := by
+  have roots : afterLaterFailure.rootGroups = [child.ref] := by cbv
   refine ⟨?_, roots⟩
-  intro key active
+  intro ref active
   have same := List.mem_singleton.mp (roots ▸ active)
-  subst key
+  subst ref
   exact independent_healthy childKnown (by decide)
 
 end GraphQL.IncrementalDelivery.Tests.WorkSchedulerAncestorHealth

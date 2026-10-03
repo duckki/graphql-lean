@@ -83,13 +83,13 @@ private theorem generated : ExecutedWork work :=
   ⟨Nat, schema, resolvers, [], 50, "Query", .object "Query" 0, selections, by cbv⟩
 
 private theorem known
-    : TaskAt work occurrence [root.key, silent.key] none
+    : TaskAt work occurrence [root.ref, silent.ref] none
         (.object [] (.ok (value.data, 0))) :=
   .executionGroup (groups := [⟨root, []⟩, ⟨silent, [parent]⟩])
     (children := .combine .empty .empty) (owners := []) (by cbv)
 
 private theorem lastKnown
-    : TaskAt work lastOccurrence [root.key, parent.key] none
+    : TaskAt work lastOccurrence [root.ref, parent.ref] none
         (.object [] (.ok (lastValue.data, 0))) :=
   .executionGroup (groups := [⟨root, []⟩, ⟨parent, []⟩])
     (children := .combine .empty .empty) (owners := []) (by cbv)
@@ -110,14 +110,14 @@ private theorem valid : ValidGraphEvents work [first, event] := by
 Witness: the general cross-input exclusion theorem follows the actual silent-ancestor
 owner pass and its drain, requiring matching inputs but no abstract output admission.
 -/
-theorem shared_handler_does_not_reannounce {key}
+theorem shared_handler_does_not_reannounce {ref}
     (announced
-      : key
+      : ref
         ∈ initial.rootGroups
-          ++ (initial.rawEventReplay [first]).2.flatMap rawGroupNoticeKeys)
-    : key
+          ++ (initial.rawEventReplay [first]).2.flatMap rawGroupNoticeRefs)
+    : ref
       ∉ ((initial.replayGraphEvents [first]).handleGraphEvent event).2.flatMap
-          rawGroupNoticeKeys := by
+          rawGroupNoticeRefs := by
   apply generated.handleGraphEvent_noEarlierGroupNotice (event := event)
     (before := [first]) _ matched announced
   intro source member
@@ -130,20 +130,20 @@ The proof uses the prepared source boundary, not the final handler state or admi
 -/
 theorem closing_root_preserves_other_root
     : ∃ closing,
-        prepared.groupNode? root.key = some closing
-        ∧ parent.key
+        prepared.groupNode? root.ref = some closing
+        ∧ parent.ref
           ∈ (prepared.finishGroupSuccess closing).1.groupNodes.map
-              (fun node => node.group.node.key) := by
+              (fun node => node.group.node.ref) := by
   obtain ⟨parents, canonical, records, links, live, tasks, roots, _⟩ :=
     generated.replayGraphEvents_preparedRetirement [first]
       (by intro source member; obtain rfl := List.mem_singleton.mp member;
           exact ⟨_, _, known, by cbv, by cbv⟩) matched incoming
-  have existsClosing : ∃ closing, prepared.groupNode? root.key = some closing := by
+  have existsClosing : ∃ closing, prepared.groupNode? root.ref = some closing := by
     exact ⟨_, rfl⟩
   obtain ⟨closing, found⟩ := existsClosing
-  have same := State.groupNode?_key found
+  have same := State.groupNode?_ref found
   refine ⟨closing, found, ?_⟩
-  have rootProtected := roots parent.key (by cbv; exact .tail _ (.head _))
+  have rootProtected := roots parent.ref (by cbv; exact .tail _ (.head _))
   exact rootProtected.supported_finishGroupSuccess_present generated records links
     canonical
     (by cbv; exact .tail _ (.head _))
@@ -157,14 +157,14 @@ Witness: source-prefix notice tracking and the generic exact-owner-boundary theo
 It does not borrow the final drain's output or assume notice admission or root presence.
 -/
 theorem parent_completed_by_child_carrier
-    : parent.key
+    : parent.ref
       ∈ ((([root, parent].foldl successGroupStep (prepared, [], {})).2.1.take 3).flatMap
-          rawGroupClosureKeys) := by
+          rawGroupClosureRefs) := by
   have firstMatches : ∀ source ∈ [first], source.MatchesWork work := by
     intro source member
     obtain rfl := List.mem_singleton.mp member
     exact ⟨_, _, known, by cbv, by cbv⟩
-  have childKnown : NodeAt work child .group [silent.key, parent.key] none :=
+  have childKnown : NodeAt work child .group [silent.ref, parent.ref] none :=
     .group (work := work) (producer := none) (group := ⟨child, [silent, parent]⟩)
       (address := [1, 1, 1, 0]) (groups := [⟨child, [silent, parent]⟩])
       (path := []) (result := .ok ([("c", .scalar "c")], 0))
@@ -176,9 +176,9 @@ theorem parent_completed_by_child_carrier
     (by cbv) List.mem_cons_self (by cbv; intro impossible; cases impossible)
     (List.mem_append_left _ (by cbv; exact .tail _ (.head _)))
   have emptyOutput : (initial.rawEventReplay [first]).2 = [] := by cbv
-  change parent.key ∈ (((initial.rawEventReplay [first]).2 ++
+  change parent.ref ∈ (((initial.rawEventReplay [first]).2 ++
     (([root, parent].foldl successGroupStep (prepared, [], {})).2.1.take 3)).flatMap
-      rawGroupClosureKeys) at closed
+      rawGroupClosureRefs) at closed
   rw [emptyOutput, List.nil_append] at closed
   exact closed
 
@@ -194,8 +194,8 @@ theorem silent_ancestor_carrier
           .groupSuccess parent [child] []
         ]
       ∧ (([root, parent].foldl successGroupStep (prepared, [], {})).1).RetiredGroup
-          silent.key
-      ∧ silent.key ∉ initial.initialGroups.map DeliveryNode.key := by
+          silent.ref
+      ∧ silent.ref ∉ initial.initialGroups.map DeliveryNode.ref := by
   refine ⟨by cbv, ⟨?_, ?_⟩, ?_⟩
   · cbv; exact .tail _ (.tail _ (.head _))
   · cbv; intro impossible; cases impossible; contradiction
@@ -227,7 +227,7 @@ theorem silent_ancestor_published_before_notice
     generated.replayGraphEvents_preparedRetirement [first]
       (by intro source member; obtain rfl := List.mem_singleton.mp member;
           exact ⟨_, _, known, by cbv, by cbv⟩) matched incoming
-  have childKnown : NodeAt work child .group [silent.key, parent.key] none :=
+  have childKnown : NodeAt work child .group [silent.ref, parent.ref] none :=
     .group (work := work) (producer := none) (group := ⟨child, [silent, parent]⟩)
       (address := [1, 1, 1, 0]) (groups := [⟨child, [silent, parent]⟩])
       (path := []) (result := .ok ([("c", .scalar "c")], 0))
@@ -235,7 +235,7 @@ theorem silent_ancestor_published_before_notice
   have emitted := certificates.ownerCarrier_ancestorValue generated records links canonical
     live tasks roots (index := 2) (group := parent) (groups := [child]) (streams := [])
     (by cbv) List.mem_cons_self (groupRecordAt_of_nodeAt childKnown)
-    (key := silent.key) List.mem_cons_self (occurrence := occurrence)
+    (ref := silent.ref) List.mem_cons_self (occurrence := occurrence)
     (node := buffered) (value := value)
     (by cbv) rfl ⟨none, _, known⟩ (by simp [buffered])
     (by cbv; exact .tail _ (.tail _ (.head _)))
@@ -264,9 +264,9 @@ notice-admission assumption; S's own completion remains absent.
 -/
 theorem silent_ancestor_healthy
     : ¬GroupRecordInvalidated work (initial.objectFailureContributions [first, event])
-        silent.key
-      ∧ silent.key ∉ (initial.replayGraphEvents [first, event]).cancelledGroups := by
-  have childKnown : NodeAt work child .group [silent.key, parent.key] none :=
+        silent.ref
+      ∧ silent.ref ∉ (initial.replayGraphEvents [first, event]).cancelledGroups := by
+  have childKnown : NodeAt work child .group [silent.ref, parent.ref] none :=
     .group (work := work) (producer := none) (group := ⟨child, [silent, parent]⟩)
       (address := [1, 1, 1, 0]) (groups := [⟨child, [silent, parent]⟩])
       (path := []) (result := .ok ([("c", .scalar "c")], 0))
@@ -281,7 +281,7 @@ theorem silent_ancestor_healthy
       change _ ∈ ((initial.replayGraphEvents [first]).handleGraphEvent event).2
       rw [silent_ancestor_carrier.1]
       simp)
-    (by simp [rawGroupNoticeKeys])
+    (by simp [rawGroupNoticeRefs])
     (groupRecordAt_of_nodeAt childKnown)
     List.mem_cons_self
 
@@ -291,7 +291,7 @@ ownership, even though S has no wire completion and its live record has been pru
 -/
 theorem silent_ancestor_contributor_succeeded
     : ∃ result, GraphEvent.taskSuccess occurrence result ∈ [first, event] := by
-  have childKnown : NodeAt work child .group [silent.key, parent.key] none :=
+  have childKnown : NodeAt work child .group [silent.ref, parent.ref] none :=
     .group (work := work) (producer := none) (group := ⟨child, [silent, parent]⟩)
       (address := [1, 1, 1, 0]) (groups := [⟨child, [silent, parent]⟩])
       (path := []) (result := .ok ([("c", .scalar "c")], 0))
@@ -306,7 +306,7 @@ theorem silent_ancestor_contributor_succeeded
       change _ ∈ ((initial.replayGraphEvents [first]).handleGraphEvent event).2
       rw [silent_ancestor_carrier.1]
       simp)
-    (by simp [rawGroupNoticeKeys])
+    (by simp [rawGroupNoticeRefs])
     (groupRecordAt_of_nodeAt childKnown)
     List.mem_cons_self known
     (by simp)
@@ -328,7 +328,7 @@ theorem all_ancestor_contributors_before_notice
       (inputs := [[first, event]]) valid (by cbv)
   obtain ⟨published, batches, matching, _⟩ := ledger
   have covered := batches.flatten (by rw [← inputsStarted_eq_batchesStarted]; cbv)
-  have childKnown : NodeAt work child .group [silent.key, parent.key] none :=
+  have childKnown : NodeAt work child .group [silent.ref, parent.ref] none :=
     .group (work := work) (producer := none) (group := ⟨child, [silent, parent]⟩)
       (address := [1, 1, 1, 0]) (groups := [⟨child, [silent, parent]⟩])
       (path := []) (result := .ok ([("c", .scalar "c")], 0))
@@ -337,11 +337,11 @@ theorem all_ancestor_contributors_before_notice
       = some (.groupSuccess parent [child] []) := by rw [silent_ancestor_carrier.1]; rfl
   have firstOutput := generated.handleGraphEvent_groupNoticeAncestor_contributor_before
     (before := [first]) (event := event) valid (by cbv) covered selected List.mem_cons_self
-    (groupRecordAt_of_nodeAt childKnown) (key := silent.key) List.mem_cons_self known
+    (groupRecordAt_of_nodeAt childKnown) (ref := silent.ref) List.mem_cons_self known
     (by simp)
   have lastOutput := generated.handleGraphEvent_groupNoticeAncestor_contributor_before
     (before := [first]) (event := event) valid (by cbv) covered selected List.mem_cons_self
-    (groupRecordAt_of_nodeAt childKnown) (key := parent.key) (by simp) lastKnown (by simp)
+    (groupRecordAt_of_nodeAt childKnown) (ref := parent.ref) (by simp) lastKnown (by simp)
   have count : ((initial.rawEventReplay [first]).2.flatMap WorkQueueEvent.objectValues).length
       + ((((initial.replayGraphEvents [first]).handleGraphEvent event).2.take 2).flatMap
           WorkQueueEvent.objectValues).length = 2 := by cbv
@@ -359,20 +359,20 @@ theorem notice_ancestors_accounted_on_common_witness
     : ∃ w : ConformancePlan.Witness,
         ConformancePlan.GroupPublicationAdmission work w
         ∧ w.events[3]? = some (.groupSuccess parent [child] [])
-        ∧ ∀ key ∈ [silent.key, parent.key],
+        ∧ ∀ ref ∈ [silent.ref, parent.ref],
             NodeAccounted work w.matching (w.events.take 3)
-              (w.failures.filter (fun entry => entry.1 ≤ 3)) key := by
+              (w.failures.filter (fun entry => entry.1 ≤ 3)) ref := by
   obtain ⟨w, history, _, _, _, _, _, _, _, _, ledger, _, _, _, admitted⟩ :=
     ConformancePlan.mixed_groupPublicationCertificates generated
       (inputs := [[first, event]]) valid (by cbv)
-  have childKnown : NodeAt work child .group [silent.key, parent.key] none :=
+  have childKnown : NodeAt work child .group [silent.ref, parent.ref] none :=
     .group (work := work) (producer := none) (group := ⟨child, [silent, parent]⟩)
       (address := [1, 1, 1, 0]) (groups := [⟨child, [silent, parent]⟩])
       (path := []) (result := .ok ([("c", .scalar "c")], 0))
       (children := .combine .empty .empty) (owners := []) (by cbv) List.mem_cons_self
   have selected : w.events[3]? = some (.groupSuccess parent [child] []) := by rw [history]; cbv
   refine ⟨w, admitted, selected, ?_⟩
-  intro key member
+  intro ref member
   exact ConformancePlan.groupNoticeAncestor_nodeAccounted generated
     (inputs := [[first, event]]) valid (by cbv) history ledger selected List.mem_cons_self
     (groupRecordAt_of_nodeAt childKnown) member _
@@ -385,14 +385,14 @@ theorem notice_ancestors_ready_at_carrier
     : ∃ w : ConformancePlan.Witness,
         ConformancePlan.GroupPublicationAdmission work w
         ∧ w.events[3]? = some (.groupSuccess parent [child] [])
-        ∧ ∀ key ∈ [silent.key, parent.key],
-            DependencySatisfied work (ConformancePlan.initialKeys work) w.matching
+        ∧ ∀ ref ∈ [silent.ref, parent.ref],
+            DependencySatisfied work (ConformancePlan.initialRefs work) w.matching
               (w.events.take 3 ++ [.groupSuccess parent [] []])
-              (w.failures.filter (fun entry => entry.1 ≤ 3)) key := by
+              (w.failures.filter (fun entry => entry.1 ≤ 3)) ref := by
   obtain ⟨w, history, _, announced, _, _, _, _, _, _, ledger, _, support, _, admitted⟩ :=
     ConformancePlan.mixed_groupPublicationCertificates generated
       (inputs := [[first, event]]) valid (by cbv)
-  have childKnown : NodeAt work child .group [silent.key, parent.key] none :=
+  have childKnown : NodeAt work child .group [silent.ref, parent.ref] none :=
     .group (work := work) (producer := none) (group := ⟨child, [silent, parent]⟩)
       (address := [1, 1, 1, 0]) (groups := [⟨child, [silent, parent]⟩])
       (path := []) (result := .ok ([("c", .scalar "c")], 0))

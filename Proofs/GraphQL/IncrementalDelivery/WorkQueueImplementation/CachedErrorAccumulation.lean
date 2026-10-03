@@ -12,19 +12,19 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 -----------------------------------------------------------------------------------------
 
 /-- Every surviving cache is unchanged or incremented once by the failed task's count.
-Witness: induction through distinct contributor keys. Removal only filters nodes; a
-latent update adds the count once, and the remaining keys cannot update that key again.
+Witness: induction through distinct contributor refs. Removal only filters nodes; a
+latent update adds the count once, and the remaining refs cannot update that ref again.
 No claim is made that a group survives ancestor cancellation.
 -/
 theorem failureGroupFold_cachedErrors (errors : Nat)
     (groups : List Execution.DeliveryNode)
-    (unique : (groups.map Execution.DeliveryNode.key).Nodup)
+    (unique : (groups.map Execution.DeliveryNode.ref).Nodup)
     (acc : State × List WorkQueueEvent) {node : GroupNode}
     (member : node ∈ (groups.foldl (failureGroupStep errors) acc).1.groupNodes)
     : ∃ old ∈ acc.1.groupNodes,
-        old.group.node.key = node.group.node.key
+        old.group.node.ref = node.group.node.ref
         ∧ node.failure
-          = if node.group.node.key ∈ groups.map Execution.DeliveryNode.key then
+          = if node.group.node.ref ∈ groups.map Execution.DeliveryNode.ref then
               some (old.failure.getD 0 + errors)
             else
               old.failure := by
@@ -32,60 +32,60 @@ theorem failureGroupFold_cachedErrors (errors : Nat)
   | nil => exact ⟨node, member, rfl, by simp⟩
   | cons group rest ih =>
       obtain ⟨fresh, uniqueTail⟩ := List.nodup_cons.mp unique
-      obtain ⟨mid, live, key, count⟩ := ih uniqueTail (failureGroupStep errors acc group) member
+      obtain ⟨mid, live, ref, count⟩ := ih uniqueTail (failureGroupStep errors acc group) member
       obtain ⟨current, events⟩ := acc
       dsimp only [failureGroupStep] at live
-      cases found : current.groupNode? group.key with
+      cases found : current.groupNode? group.ref with
       | none =>
           rw [found] at live
-          have different : mid.group.node.key ≠ group.key := by
+          have different : mid.group.node.ref ≠ group.ref := by
             have missing := List.find?_eq_none.mp found mid live
             simpa using missing
-          refine ⟨mid, live, key, ?_⟩
-          simpa [List.map_cons, List.mem_cons, ← key, different] using count
+          refine ⟨mid, live, ref, ?_⟩
+          simpa [List.map_cons, List.mem_cons, ← ref, different] using count
       | some owner =>
           rw [found] at live
           dsimp only at live
-          have ownerKey := current.groupNode?_key found
+          have ownerRef := current.groupNode?_ref found
           split at live
-          · have missing := current.removeGroup_ownGroupAbsent group.key
-            have different : mid.group.node.key ≠ group.key := by
-              have live' : mid ∈ (current.removeGroup group.key).groupNodes := by
-                simpa only [State.finishGroupFailure, ownerKey] using live
-              have noKey := List.find?_eq_none.mp missing mid live'
-              simpa using noKey
-            refine ⟨mid, (List.mem_filter.mp live).1, key, ?_⟩
-            simpa [List.map_cons, List.mem_cons, ← key, different] using count
+          · have missing := current.removeGroup_ownGroupAbsent group.ref
+            have different : mid.group.node.ref ≠ group.ref := by
+              have live' : mid ∈ (current.removeGroup group.ref).groupNodes := by
+                simpa only [State.finishGroupFailure, ownerRef] using live
+              have noRef := List.find?_eq_none.mp missing mid live'
+              simpa using noRef
+            refine ⟨mid, (List.mem_filter.mp live).1, ref, ?_⟩
+            simpa [List.map_cons, List.mem_cons, ← ref, different] using count
           · obtain ⟨old, oldMember, mapped⟩ := List.mem_map.mp live
             split at mapped
             · subst mid
-              have nodeKey : node.group.node.key = group.key := key.symm.trans ownerKey
-              have notLater : node.group.node.key ∉ rest.map Execution.DeliveryNode.key := by
-                simpa only [nodeKey] using fresh
-              refine ⟨owner, List.mem_of_find?_eq_some found, key, ?_⟩
+              have nodeRef : node.group.node.ref = group.ref := ref.symm.trans ownerRef
+              have notLater : node.group.node.ref ∉ rest.map Execution.DeliveryNode.ref := by
+                simpa only [nodeRef] using fresh
+              refine ⟨owner, List.mem_of_find?_eq_some found, ref, ?_⟩
               simp only [notLater, ↓reduceIte] at count
-              simpa [nodeKey] using count
+              simpa [nodeRef] using count
             · rename_i different
               subst mid
-              have notHead : old.group.node.key ≠ group.key := by
-                simpa [ownerKey] using different
-              refine ⟨old, oldMember, key, ?_⟩
-              simpa [List.map_cons, List.mem_cons, ← key, notHead] using count
+              have notHead : old.group.node.ref ≠ group.ref := by
+                simpa [ownerRef] using different
+              refine ⟨old, oldMember, ref, ?_⟩
+              simpa [List.map_cons, List.mem_cons, ← ref, notHead] using count
 
 /-- A failure increments surviving contributor caches only if a healthy owner survives.
-Witness: cancelled-task removal retains caches; the active distinct-key fold adds once.
+Witness: cancelled-task removal retains caches; the active distinct-ref fold adds once.
 The source's contributor uniqueness is sufficient; no output-admission premise is used.
 -/
 theorem State.taskFailure_cachedErrors (queue : State) (occurrence : Occurrence)
     (errors : Nat) (task : TaskNode) (found : queue.taskNode? occurrence = some task)
-    (unique : (task.task.groups.map Execution.DeliveryNode.key).Nodup) {node : GroupNode}
+    (unique : (task.task.groups.map Execution.DeliveryNode.ref).Nodup) {node : GroupNode}
     (member : node ∈ (queue.taskFailure occurrence errors).1.groupNodes)
     : ∃ old ∈ queue.groupNodes,
-        old.group.node.key = node.group.node.key
+        old.group.node.ref = node.group.node.ref
         ∧ node.failure
           = if queue.taskHasHealthyOwner task.task = true
-                ∧ node.group.node.key
-                  ∈ task.task.groups.map Execution.DeliveryNode.key then
+                ∧ node.group.node.ref
+                  ∈ task.task.groups.map Execution.DeliveryNode.ref then
               some (old.failure.getD 0 + errors)
             else
               old.failure := by
@@ -97,10 +97,10 @@ theorem State.taskFailure_cachedErrors (queue : State) (occurrence : Occurrence)
     exact ⟨old, oldMember, rfl, by simp [cancelled]⟩
   · rename_i active
     have healthy : queue.taskHasHealthyOwner task.task = true := by simpa using active
-    obtain ⟨mid, live, key, count⟩ := failureGroupFold_cachedErrors errors task.task.groups
+    obtain ⟨mid, live, ref, count⟩ := failureGroupFold_cachedErrors errors task.task.groups
       unique (queue.removeTask occurrence, []) member
     obtain ⟨old, oldMember, same⟩ := List.mem_map.mp live
     subst mid
-    exact ⟨old, oldMember, key, by simpa only [healthy, true_and] using count⟩
+    exact ⟨old, oldMember, ref, by simpa only [healthy, true_and] using count⟩
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

@@ -65,10 +65,10 @@ Witness: structural descriptors at root addresses and executable start disciplin
 theorem source_valid
     : ValidGraphEvents work [first, finish]
       ∧ inputsStarted work [[first], [finish]] = true := by
-  have sharedKnown : TaskAt work sharedTask [child.key, other.key] none
+  have sharedKnown : TaskAt work sharedTask [child.ref, other.ref] none
       (.object [] (.ok (sharedData, 0))) :=
     ⟨_, [], .ok (sharedData, 0), noChildren, [], rfl, rfl, rfl⟩
-  have parentKnown : TaskAt work parentTask [parent.key] none
+  have parentKnown : TaskAt work parentTask [parent.ref] none
       (.object [] (.ok (parentData, 0))) :=
     ⟨_, [], .ok (parentData, 0), noChildren, [], rfl, rfl, rfl⟩
   have one : ValidGraphEvents work [first] :=
@@ -88,9 +88,9 @@ Witness: exact replay includes C's stored value and closure after its notice car
 while R and D remain active with unfinished work. -/
 theorem output
     : (initial.runNormalized [[first]]).2 = []
-      ∧ before.rootGroups = [parent.key, other.key]
+      ∧ before.rootGroups = [parent.ref, other.ref]
       ∧ (before.taskSuccess parentTask parentResult).1.rootGroups
-        = [other.key, descendant.key]
+        = [other.ref, descendant.ref]
       ∧ (initial.runNormalized [[first], [finish]]).2
         = [[
             .groupValues parent
@@ -119,15 +119,15 @@ theorem drained_root_has_original_path
         ((before.putTaskNode
             { taskNode with value := some parentResult.value }).maybeIntegrateWork
           parentResult.work (some parentTask)).1
-      ∃ root ∈ before.rootGroups, integrated.LiveDescendant root descendant.key := by
+      ∃ root ∈ before.rootGroups, integrated.LiveDescendant root descendant.ref := by
   let taskNode : TaskNode := { task := { occurrence := parentTask, groups := [parent] } }
   have found : before.taskNode? parentTask = some taskNode := by cbv
-  have active : descendant.key ∈ (before.taskSuccess parentTask parentResult).1.rootGroups := by
+  have active : descendant.ref ∈ (before.taskSuccess parentTask parentResult).1.rootGroups := by
     rw [output.2.2.1]
     simp
   have origin := before.taskSuccess_rootOrigins
-    (createWorkQueue_runNormalized_groupKeysUnique _ _) parentTask parentResult taskNode
-    found descendant.key active
+    (createWorkQueue_runNormalized_groupRefsUnique _ _) parentTask parentResult taskNode
+    found descendant.ref active
   exact origin.resolve_left (by rw [output.2.1]; decide)
 
 end GraphQL.IncrementalDelivery.Tests.WorkSchedulerPromotionDrain

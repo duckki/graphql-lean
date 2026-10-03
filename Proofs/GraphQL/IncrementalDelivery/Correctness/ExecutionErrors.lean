@@ -339,7 +339,7 @@ mutual
         · split
           · exact runEnsures_pure _ _ (catchNull _ initial hi)
           · refine runEnsures_bind (fun _ : Nat => True) _ _ _ (fun _ => trivial) ?_
-            intro key _
+            intro ref _
             refine runEnsures_bind ItemsPositive _ _ _ ?_ ?_
             · exact completeStreamItems_positive schema resolvers variables fuel inner
                 _ _ path usage.initialCount

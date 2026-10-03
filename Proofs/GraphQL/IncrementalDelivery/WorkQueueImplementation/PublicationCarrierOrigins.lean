@@ -249,18 +249,18 @@ theorem carrier {publisher raw index owner payload}
   simp [carrierIndex, IncrementalPublisher.handleWorkQueueEvent]
 
 /-- Any prefix of a normalized object block leaves notices and completions unchanged.
-Witness: object publications contribute neither pending nor completed keys.
+Witness: object publications contribute neither pending nor completed refs.
 -/
-theorem object_prefix_keys (publisher : IncrementalPublisher)
+theorem object_prefix_refs (publisher : IncrementalPublisher)
     (group : Execution.DeliveryNode) (values : List ExecutionGroupValue) (count : Nat)
-    : pendingKeys
+    : pendingRefs
           ((publisher.handleWorkQueueEvent (.groupValues group values)).2.take count)
         = []
-      ∧ completedKeys
+      ∧ completedRefs
           ((publisher.handleWorkQueueEvent (.groupValues group values)).2.take count)
         = [] := by
   simp [IncrementalPublisher.handleWorkQueueEvent, ← List.map_take,
-    pendingKeys, completedKeys, List.flatMap_map, eventPending, eventCompleted]
+    pendingRefs, completedRefs, List.flatMap_map, eventPending, eventCompleted]
 
 /-- Notice state is identical before the selected value and its successful carrier.
 Witness: both prefixes differ only by singleton object publications; no intervening
@@ -269,9 +269,9 @@ announcement or closure can explain a newly open supporter at the later boundary
 theorem noticeState {publisher raw index owner payload}
     (origin : GroupPublicationOrigin publisher raw index owner payload)
     : let atoms := (publisher.normalizeBatch raw).2.flatMap publicationAtoms
-      pendingKeys (atoms.take index) = pendingKeys (atoms.take origin.carrierIndex)
-      ∧ completedKeys (atoms.take index)
-        = completedKeys (atoms.take origin.carrierIndex) := by
+      pendingRefs (atoms.take index) = pendingRefs (atoms.take origin.carrierIndex)
+      ∧ completedRefs (atoms.take index)
+        = completedRefs (atoms.take origin.carrierIndex) := by
   dsimp only
   let prior := publisher.normalizeBatch origin.before
   let objects := (prior.1.handleWorkQueueEvent (.groupValues origin.group origin.values)).2
@@ -300,14 +300,14 @@ theorem noticeState {publisher raw index owner payload}
   simp only [← atIndex] at first
   simp only [← atCarrier] at last
   rw [first, last]
-  have selectedKeys := object_prefix_keys prior.1 origin.group origin.values origin.offset
-  have allKeys := object_prefix_keys prior.1 origin.group origin.values objects.length
-  change pendingKeys (prior.2.flatMap publicationAtoms ++ objects.take origin.offset)
-        = pendingKeys (prior.2.flatMap publicationAtoms ++ objects.take objects.length)
-    ∧ completedKeys (prior.2.flatMap publicationAtoms ++ objects.take origin.offset)
-        = completedKeys (prior.2.flatMap publicationAtoms ++ objects.take objects.length)
-  simp only [pendingKeys, completedKeys, List.flatMap_append] at selectedKeys allKeys ⊢
-  exact ⟨by rw [selectedKeys.1, allKeys.1], by rw [selectedKeys.2, allKeys.2]⟩
+  have selectedRefs := object_prefix_refs prior.1 origin.group origin.values origin.offset
+  have allRefs := object_prefix_refs prior.1 origin.group origin.values objects.length
+  change pendingRefs (prior.2.flatMap publicationAtoms ++ objects.take origin.offset)
+        = pendingRefs (prior.2.flatMap publicationAtoms ++ objects.take objects.length)
+    ∧ completedRefs (prior.2.flatMap publicationAtoms ++ objects.take origin.offset)
+        = completedRefs (prior.2.flatMap publicationAtoms ++ objects.take objects.length)
+  simp only [pendingRefs, completedRefs, List.flatMap_append] at selectedRefs allRefs ⊢
+  exact ⟨by rw [selectedRefs.1, allRefs.1], by rw [selectedRefs.2, allRefs.2]⟩
 
 -----------------------------------------------------------------------------------------
 -- Recover the original full value at its object-only rank

@@ -22,7 +22,7 @@ theorem State.pruneIntegratedWork_notice_unregistered {queue : State}
       : child
         ∈ ((queue.maybeIntegrateWork work parentTask).1.pruneEmptyGroups
             (queue.maybeIntegrateWork work parentTask).2.newGroups).2)
-    : child.key ∉ queue.registeredGroups := by
+    : child.ref ∉ queue.registeredGroups := by
   obtain ⟨root, included, path⟩ := (State.pruneEmptyGroups_descendants _ _).2 child noticed
   change root ∈ (queue.addGroups work.groups).2 at included
   obtain ⟨_, _, _, _, fresh, _⟩ := queue.addGroups_newGroup_candidate work.groups included
@@ -33,20 +33,20 @@ theorem State.pruneIntegratedWork_notice_unregistered {queue : State}
 Witness: each fresh pruned frontier excludes the current registry, which monotonically
 contains the entry registry. This permits distinct items to prune genuine taskless parents.
 -/
-theorem State.streamItemFold_noRegisteredNotice {queue : State} {work stream items key}
+theorem State.streamItemFold_noRegisteredNotice {queue : State} {work stream items ref}
     (live : queue.LiveGroupsRegistered) (tasks : queue.TaskGroupsRegistered)
     (matched : (GraphEvent.streamItems stream items).MatchesWork work)
-    (registered : key ∈ queue.registeredGroups)
-    : key
+    (registered : ref ∈ queue.registeredGroups)
+    : ref
       ∉ ((items.foldl streamItemStep (queue, [], [], [])).2.1.map
-          Execution.DeliveryNode.key) := by
+          Execution.DeliveryNode.ref) := by
   have loop (more : List StreamItem) (included : more.Subset items)
       (acc : State × List Execution.DeliveryNode × List Execution.DeliveryNode
         × List StreamItemValue)
       (live : acc.1.LiveGroupsRegistered) (tasks : acc.1.TaskGroupsRegistered)
-      (registered : key ∈ acc.1.registeredGroups)
-      (absent : key ∉ acc.2.1.map Execution.DeliveryNode.key)
-      : key ∉ ((more.foldl streamItemStep acc).2.1.map Execution.DeliveryNode.key) := by
+      (registered : ref ∈ acc.1.registeredGroups)
+      (absent : ref ∉ acc.2.1.map Execution.DeliveryNode.ref)
+      : ref ∉ ((more.foldl streamItemStep acc).2.1.map Execution.DeliveryNode.ref) := by
     induction more generalizing acc with
     | nil => exact absent
     | cons item rest ih =>
@@ -64,46 +64,46 @@ theorem State.streamItemFold_noRegisteredNotice {queue : State} {work stream ite
     (by simp)
 
 -----------------------------------------------------------------------------------------
--- Earlier announced keys are both registered and protected through the later drain
+-- Earlier announced refs are both registered and protected through the later drain
 -----------------------------------------------------------------------------------------
 
 /-- An item handler cannot reannounce any initial or earlier-source group notice.
-Witness: the leading item fold excludes all old registered keys. Its following drain
+Witness: the leading item fold excludes all old registered refs. Its following drain
 excludes their permanently protected ancestry, using the generated prepared live-root frame.
 -/
 theorem ExecutedWork.streamItems_noEarlierGroupNotice
-    {work before stream items key} (generated : ExecutedWork work)
+    {work before stream items ref} (generated : ExecutedWork work)
     (matching : ∀ event ∈ before, event.MatchesWork work)
     (matched : (GraphEvent.streamItems stream items).MatchesWork work)
     (announced
-      : key
+      : ref
         ∈ (State.initialize (Work.fromExecution work)).rootGroups
           ++ ((State.initialize (Work.fromExecution work)).rawEventReplay
                 before).2.flatMap
-              rawGroupNoticeKeys)
-    : key
+              rawGroupNoticeRefs)
+    : ref
       ∉ ((((State.initialize (Work.fromExecution work)).replayGraphEvents
             before).streamItems
             stream items).2.flatMap
-          rawGroupNoticeKeys) := by
+          rawGroupNoticeRefs) := by
   let initial := State.initialize (Work.fromExecution work)
   let queue := initial.replayGraphEvents before
   have registry := createWorkQueue_registration work
   have covered := initial.replayGraphEvents_registration registry.1 registry.2 before matching
   have registered :=
-    createWorkQueue_rawEventReplay_announcedRegistered before matching key announced
-  have protectedKey :=
-    generated.rawEventReplay_announcedAncestorsRetired before matching key announced
+    createWorkQueue_rawEventReplay_announcedRegistered before matching ref announced
+  have protectedRef :=
+    generated.rawEventReplay_announcedAncestorsRetired before matching ref announced
   have noLeading := queue.streamItemFold_noRegisteredNotice covered.1 covered.2.1 matched registered
-  have preparedProtected : (queue.preparedStreamItems items).AncestorsRetired work key :=
-    State.preparedStreamItems_preserves (fun current => current.AncestorsRetired work key)
-      protectedKey items (fun current item _ prior => prior.mono (fun _ retired =>
+  have preparedProtected : (queue.preparedStreamItems items).AncestorsRetired work ref :=
+    State.preparedStreamItems_preserves (fun current => current.AncestorsRetired work ref)
+      protectedRef items (fun current item _ prior => prior.mono (fun _ retired =>
         ((retired.maybeIntegrateWork item.work).pruneEmptyGroups _).startNewWork _))
   obtain ⟨parents, canonical, frame⟩ := generated.streamItems_prepared_liveRootFrame
     matching matched (generated.replayGraphEvents_rootsPresent before matching)
   have noDrain := frame.drainReadyGroups_go_noProtectedNotice generated canonical
     preparedProtected (queue.preparedStreamItems items).groupNodes.length
-  change key ∉ (queue.streamItems stream items).2.flatMap rawGroupNoticeKeys
+  change ref ∉ (queue.streamItems stream items).2.flatMap rawGroupNoticeRefs
   rw [queue.streamItems_eq stream items]
   split
   · simp

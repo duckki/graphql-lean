@@ -11,8 +11,8 @@ open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
-private def parent : DeliveryNode := { key := 0, path := [], label := some (.string "P") }
-private def other : DeliveryNode := { key := 1, path := [], label := some (.string "Q") }
+private def parent : DeliveryNode := { ref := 0, path := [], label := some (.string "P") }
+private def other : DeliveryNode := { ref := 1, path := [], label := some (.string "Q") }
 private def firstTask : Occurrence := .executionGroup [1, 0]
 private def sharedTask : Occurrence := .executionGroup [1, 1, 0]
 
@@ -50,7 +50,7 @@ theorem generated : ExecutedWork work := by
 /-- The first task has a successful null-data result carrying one nullable-field error.
 Witness: its exact generated execution-group descriptor. -/
 private theorem firstKnown
-    : TaskAt work firstTask [parent.key] none
+    : TaskAt work firstTask [parent.ref] none
         (.object [] (.ok (firstValue.data, 1))) := by
   refine ⟨[⟨parent, []⟩], [], _, .combine .empty .empty, [], ?_, rfl, rfl⟩
   cbv
@@ -58,7 +58,7 @@ private theorem firstKnown
 /-- The second task belongs to both pending defer groups and returns b unchanged.
 Witness: its exact generated descriptor, not a single-owner approximation. -/
 private theorem sharedKnown
-    : TaskAt work sharedTask [parent.key, other.key] none
+    : TaskAt work sharedTask [parent.ref, other.ref] none
         (.object [] (.ok (sharedValue.data, 0))) := by
   refine ⟨[⟨parent, []⟩, ⟨other, []⟩], [], _, .combine .empty .empty, [], ?_, rfl, rfl⟩
   cbv
@@ -239,7 +239,7 @@ theorem successful_carrier_root_settlements
       ∀ group ∈ [parent, other],
         ∀ address owners payload,
           TaskAt work (.executionGroup address) owners none payload
-          → group.key ∈ owners
+          → group.ref ∈ owners
           → ∃ before event after result,
               batches.flatten = before ++ event :: after
               ∧ Execution.WorkQueueEvent.groupSuccess group [] []

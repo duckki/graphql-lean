@@ -81,7 +81,7 @@ theorem State.TaskMembershipAbsent.streamItems {queue : State} {occurrence}
 
 /-- No handler restores an excluded occurrence unless it is offered as fresh child work.
 Witness: success/item preservation handles integration; failure and stream closures only
-remove records or update counters, errors, and active-stream keys.
+remove records or update counters, errors, and active-stream refs.
 -/
 theorem State.TaskMembershipAbsent.handleGraphEvent {queue : State} {occurrence}
     (absent : queue.TaskMembershipAbsent occurrence) (event : GraphEvent)

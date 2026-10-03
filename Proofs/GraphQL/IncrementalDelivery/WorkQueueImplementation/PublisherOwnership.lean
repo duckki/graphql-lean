@@ -19,22 +19,22 @@ private theorem IncrementalPublisher.ownerFold_max
     (publisher : IncrementalPublisher)
     (candidates : List Execution.DeliveryNode)
     (initial : Execution.DeliveryNode)
-    (initialActive : publisher.active.any (fun node => node.key == initial.key) = true)
+    (initialActive : publisher.active.any (fun node => node.ref == initial.ref) = true)
     : let choose (best candidate : Execution.DeliveryNode) :=
-        if publisher.active.any (fun node => node.key == candidate.key)
+        if publisher.active.any (fun node => node.ref == candidate.ref)
             && best.path.length < candidate.path.length then
           candidate
         else
           best
       let selected := candidates.foldl choose initial
-      publisher.active.any (fun node => node.key == selected.key) = true
+      publisher.active.any (fun node => node.ref == selected.ref) = true
       ∧ (selected = initial ∨ selected ∈ candidates)
       ∧ initial.path.length ≤ selected.path.length
       ∧ ∀ candidate ∈ candidates,
-          publisher.active.any (fun node => node.key == candidate.key) = true
+          publisher.active.any (fun node => node.ref == candidate.ref) = true
           → candidate.path.length ≤ selected.path.length := by
   let active (node : Execution.DeliveryNode) : Bool :=
-    publisher.active.any (fun known => known.key == node.key)
+    publisher.active.any (fun known => known.ref == node.ref)
   let choose (best candidate : Execution.DeliveryNode) :=
     if active candidate && best.path.length < candidate.path.length then
       candidate else best
@@ -105,13 +105,13 @@ path among all active contributors. Witness: the publisher's max-selection fold.
 theorem IncrementalPublisher.getBestIdAndSubPath_longest
     (publisher : IncrementalPublisher)
     (initial : Execution.DeliveryNode) (value : ExecutionGroupValue)
-    (initialActive : publisher.active.any (fun node => node.key == initial.key) = true)
+    (initialActive : publisher.active.any (fun node => node.ref == initial.ref) = true)
     (initialContributor : initial ∈ value.deliveryGroups)
     : let selected := publisher.getBestIdAndSubPath initial value
-      publisher.active.any (fun node => node.key == selected.key) = true
+      publisher.active.any (fun node => node.ref == selected.ref) = true
       ∧ selected ∈ value.deliveryGroups
       ∧ ∀ candidate ∈ value.deliveryGroups,
-          publisher.active.any (fun node => node.key == candidate.key) = true
+          publisher.active.any (fun node => node.ref == candidate.ref) = true
           → candidate.path.length ≤ selected.path.length := by
   obtain ⟨active, origin, _, longest⟩ :=
     publisher.ownerFold_max value.deliveryGroups initial initialActive
@@ -122,29 +122,29 @@ theorem IncrementalPublisher.getBestIdAndSubPath_longest
     exact initialContributor
   · exact member
 
-/-- With coherent generated node keys, an open owner whose key occurs in
+/-- With coherent generated node refs, an open owner whose ref occurs in
 the value's contributor list is that very contributor, not another node sharing
-its key. Witness: key membership plus `NodeKeyCoherent`.
+its ref. Witness: ref membership plus `NodeRefCoherent`.
 -/
 theorem openOwner_contributor_of_coherent (work : Execution.Work)
-    (coherent : NodeKeyCoherent work) (value : ExecutionGroupValue)
+    (coherent : NodeRefCoherent work) (value : ExecutionGroupValue)
     (contributorsLocated
       : ∀ group ∈ value.deliveryGroups,
           ∃ kind dependencies producer, NodeAt work group kind dependencies producer)
-    (initialKeys : Keys) (events : List Execution.WorkQueueEvent)
+    (initialRefs : NodeRefs) (events : List Execution.WorkQueueEvent)
     (candidate : Execution.DeliveryNode)
     (available
-      : OpenOwner work initialKeys events
-          (value.deliveryGroups.map Execution.DeliveryNode.key) candidate)
+      : OpenOwner work initialRefs events
+          (value.deliveryGroups.map Execution.DeliveryNode.ref) candidate)
     : candidate ∈ value.deliveryGroups := by
   obtain ⟨⟨candidateKind, candidateDependencies, candidateProducer, candidateLocated⟩,
-    candidateKey, _⟩ := available
-  obtain ⟨group, member, keyEquality⟩ := List.mem_map.mp candidateKey
+    candidateRef, _⟩ := available
+  obtain ⟨group, member, refEquality⟩ := List.mem_map.mp candidateRef
   obtain ⟨groupKind, groupDependencies, groupProducer, groupLocated⟩ :=
     contributorsLocated group member
   have same := coherent candidate candidateKind candidateDependencies candidateProducer
     group groupKind groupDependencies groupProducer candidateLocated groupLocated
-      keyEquality.symm
+      refEquality.symm
   exact same.symm ▸ member
 
 /-- Publisher selection satisfies the spec-facing `PublicationOwner` rule once the queue's
@@ -152,26 +152,26 @@ active-contributor registry coincides with open owners and a separate healthy su
 exists. These bridge premises are local proof obligations, not added source laws.
 -/
 theorem IncrementalPublisher.getBestIdAndSubPath_owner (publisher : IncrementalPublisher)
-    (work : Execution.Work) (initialKeys : Keys) (publications : PublicationMatching)
+    (work : Execution.Work) (initialRefs : NodeRefs) (publications : PublicationMatching)
     (events : List Execution.WorkQueueEvent) (failed : FailureCuts)
     (initial : Execution.DeliveryNode) (value : ExecutionGroupValue)
-    (initialActive : publisher.active.any (fun node => node.key == initial.key) = true)
+    (initialActive : publisher.active.any (fun node => node.ref == initial.ref) = true)
     (initialContributor : initial ∈ value.deliveryGroups)
     (activeOpen
       : ∀ candidate ∈ value.deliveryGroups,
-          (publisher.active.any (fun node => node.key == candidate.key) = true)
-          ↔ OpenOwner work initialKeys events
-              (value.deliveryGroups.map Execution.DeliveryNode.key) candidate)
+          (publisher.active.any (fun node => node.ref == candidate.ref) = true)
+          ↔ OpenOwner work initialRefs events
+              (value.deliveryGroups.map Execution.DeliveryNode.ref) candidate)
     (supported
       : ∃ candidate,
-          HealthyOpenOwner work initialKeys publications events failed
-            (value.deliveryGroups.map Execution.DeliveryNode.key) candidate)
-    (coherent : NodeKeyCoherent work)
+          HealthyOpenOwner work initialRefs publications events failed
+            (value.deliveryGroups.map Execution.DeliveryNode.ref) candidate)
+    (coherent : NodeRefCoherent work)
     (contributorsLocated
       : ∀ group ∈ value.deliveryGroups,
           ∃ kind dependencies producer, NodeAt work group kind dependencies producer)
-    : PublicationOwner work initialKeys publications events failed
-        (value.deliveryGroups.map Execution.DeliveryNode.key)
+    : PublicationOwner work initialRefs publications events failed
+        (value.deliveryGroups.map Execution.DeliveryNode.ref)
         (publisher.getBestIdAndSubPath initial value) := by
   obtain ⟨selectedActive, selectedContributor, longest⟩ :=
     publisher.getBestIdAndSubPath_longest initial value initialActive
@@ -181,7 +181,7 @@ theorem IncrementalPublisher.getBestIdAndSubPath_owner (publisher : IncrementalP
   · refine ⟨supported, ?_⟩
     intro candidate candidateAvailable
     have contributor := openOwner_contributor_of_coherent work coherent value
-      contributorsLocated initialKeys events candidate candidateAvailable
+      contributorsLocated initialRefs events candidate candidateAvailable
     exact longest candidate contributor
       ((activeOpen candidate contributor).mpr candidateAvailable)
 
@@ -190,27 +190,27 @@ every contributor's Work location. Active/open agreement and separate healthy su
 connect the publisher's choice to the abstract `PublicationOwner` rule.
 -/
 theorem IncrementalPublisher.taskSuccess_owner (publisher : IncrementalPublisher)
-    (work : Execution.Work) (initialKeys : Keys) (publications : PublicationMatching)
+    (work : Execution.Work) (initialRefs : NodeRefs) (publications : PublicationMatching)
     (events : List Execution.WorkQueueEvent) (failed : FailureCuts)
     (occurrence : Occurrence) (result : TaskResult)
     (matching : (GraphEvent.taskSuccess occurrence result).MatchesWork work)
     (initial : Execution.DeliveryNode)
-    (initialActive : publisher.active.any (fun node => node.key == initial.key) = true)
+    (initialActive : publisher.active.any (fun node => node.ref == initial.ref) = true)
     (initialContributor : initial ∈ result.value.deliveryGroups)
-    (coherent : NodeKeyCoherent work)
+    (coherent : NodeRefCoherent work)
     (activeOpen
       : ∀ candidate ∈ result.value.deliveryGroups,
-          (publisher.active.any (fun node => node.key == candidate.key) = true)
-          ↔ OpenOwner work initialKeys events
-              (result.value.deliveryGroups.map Execution.DeliveryNode.key) candidate)
+          (publisher.active.any (fun node => node.ref == candidate.ref) = true)
+          ↔ OpenOwner work initialRefs events
+              (result.value.deliveryGroups.map Execution.DeliveryNode.ref) candidate)
     (supported
       : ∃ candidate,
-          HealthyOpenOwner work initialKeys publications events failed
-            (result.value.deliveryGroups.map Execution.DeliveryNode.key) candidate)
-    : PublicationOwner work initialKeys publications events failed
-        (result.value.deliveryGroups.map Execution.DeliveryNode.key)
+          HealthyOpenOwner work initialRefs publications events failed
+            (result.value.deliveryGroups.map Execution.DeliveryNode.ref) candidate)
+    : PublicationOwner work initialRefs publications events failed
+        (result.value.deliveryGroups.map Execution.DeliveryNode.ref)
         (publisher.getBestIdAndSubPath initial result.value) := by
-  apply publisher.getBestIdAndSubPath_owner work initialKeys publications events failed initial
+  apply publisher.getBestIdAndSubPath_owner work initialRefs publications events failed initial
     result.value initialActive initialContributor activeOpen supported coherent
   intro group member
   obtain ⟨dependencies, producer, located⟩ :=
@@ -219,7 +219,7 @@ theorem IncrementalPublisher.taskSuccess_owner (publisher : IncrementalPublisher
 
 /-- At the initial frontier, active publisher nodes are precisely announced,
 open contributors. No failure has yet occurred, so a matched task's located
-contributor is available exactly when its key occurs in the initial notices.
+contributor is available exactly when its ref occurs in the initial notices.
 -/
 theorem IncrementalPublisher.initialTask_activeAvailable
     (work : Execution.Work) (initialNodes : List Execution.DeliveryNode)
@@ -228,28 +228,28 @@ theorem IncrementalPublisher.initialTask_activeAvailable
     (matching : (GraphEvent.taskSuccess occurrence result).MatchesWork work)
     (candidate : Execution.DeliveryNode)
     (contributor : candidate ∈ result.value.deliveryGroups)
-    : ((initialNodes.any (fun node => node.key == candidate.key)) = true)
+    : ((initialNodes.any (fun node => node.ref == candidate.ref)) = true)
       ↔ HealthyOpenOwner work
-          (initialNodes.map Execution.DeliveryNode.key) publications [] []
-          (result.value.deliveryGroups.map Execution.DeliveryNode.key) candidate := by
+          (initialNodes.map Execution.DeliveryNode.ref) publications [] []
+          (result.value.deliveryGroups.map Execution.DeliveryNode.ref) candidate := by
   obtain ⟨dependencies, producer, located⟩ :=
     matching.success_contributorsLocated candidate contributor
-  have keyMember : candidate.key ∈
-      result.value.deliveryGroups.map Execution.DeliveryNode.key :=
+  have refMember : candidate.ref ∈
+      result.value.deliveryGroups.map Execution.DeliveryNode.ref :=
     List.mem_map.mpr ⟨candidate, contributor, rfl⟩
-  have activeIff : (initialNodes.any (fun node => node.key == candidate.key)) = true
-      ↔ candidate.key ∈ initialNodes.map Execution.DeliveryNode.key := by
+  have activeIff : (initialNodes.any (fun node => node.ref == candidate.ref)) = true
+      ↔ candidate.ref ∈ initialNodes.map Execution.DeliveryNode.ref := by
     simp [List.any_eq_true]
   constructor
   · intro active
-    refine ⟨⟨⟨.group, dependencies, producer, located⟩, keyMember, ?_⟩, ?_⟩
-    · exact ⟨by simpa [announcedKeys, pendingKeys] using activeIff.mp active,
-        by simp [completedKeys]⟩
+    refine ⟨⟨⟨.group, dependencies, producer, located⟩, refMember, ?_⟩, ?_⟩
+    · exact ⟨by simpa [announcedRefs, pendingRefs] using activeIff.mp active,
+        by simp [completedRefs]⟩
     · intro failure
       exact failure.nonempty rfl
   · intro available
     have announced := available.1.2.2.1
-    exact activeIff.mpr (by simpa [announcedKeys, pendingKeys] using announced)
+    exact activeIff.mpr (by simpa [announcedRefs, pendingRefs] using announced)
 
 /-- For an initially announced group, the concrete publisher selects a valid
 spec owner for a matched task success. This is the zero-history base case of
@@ -260,22 +260,22 @@ theorem IncrementalPublisher.initialTask_owner
     (publications : PublicationMatching)
     (occurrence : Occurrence) (result : TaskResult)
     (matching : (GraphEvent.taskSuccess occurrence result).MatchesWork work)
-    (coherent : NodeKeyCoherent work)
+    (coherent : NodeRefCoherent work)
     (initial : Execution.DeliveryNode)
     (initialNotice : initial ∈ initialNodes)
     (initialContributor : initial ∈ result.value.deliveryGroups)
-    : PublicationOwner work (initialNodes.map Execution.DeliveryNode.key) publications []
-        [] (result.value.deliveryGroups.map Execution.DeliveryNode.key)
+    : PublicationOwner work (initialNodes.map Execution.DeliveryNode.ref) publications []
+        [] (result.value.deliveryGroups.map Execution.DeliveryNode.ref)
         (({ active := initialNodes } : IncrementalPublisher).getBestIdAndSubPath
           initial result.value) := by
   let publisher : IncrementalPublisher := { active := initialNodes }
   have initialActive : publisher.active.any
-      (fun node => node.key == initial.key) = true := by
+      (fun node => node.ref == initial.ref) = true := by
     simp only [publisher]
     simp [List.any_eq_true]
     exact ⟨initial, initialNotice, by simp⟩
   apply publisher.taskSuccess_owner work
-    (initialNodes.map Execution.DeliveryNode.key) publications [] [] occurrence result
+    (initialNodes.map Execution.DeliveryNode.ref) publications [] [] occurrence result
     matching initial initialActive initialContributor coherent
   · intro candidate member
     have available := initialTask_activeAvailable work initialNodes publications occurrence

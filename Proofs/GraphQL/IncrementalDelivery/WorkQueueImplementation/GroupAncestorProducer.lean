@@ -73,7 +73,7 @@ The active-root premise isolates this branch; same-handler activation is separat
 -/
 theorem Witness.groupPublication_activeAncestorProducerPublished
     {work inputs w index owner payload source owners producer parentPayload dependencies
-      key}
+      ref}
     (generated : ExecutedWork work) (valid : ValidGraphEvents work inputs.flatten)
     (started : inputsStarted work inputs = true)
     (history : w.events = (initialQueue work).nonterminalAtoms inputs)
@@ -90,12 +90,12 @@ theorem Witness.groupPublication_activeAncestorProducerPublished
       : GroupPublicationHandlerBoundary (initialQueue work) inputs.flatten origin.group
           origin.values (origin.before.flatMap WorkQueueEvent.objectValues).length)
     (active
-      : origin.group.key
+      : origin.group.ref
         ∈ ((initialQueue work).replayGraphEvents boundary.before).rootGroups)
     (record : GroupRecordAt work origin.group dependencies)
-    (ancestor : key ∈ dependencies)
+    (ancestor : ref ∈ dependencies)
     (known : TaskAt work (.executionGroup source) owners producer parentPayload)
-    (contributes : key ∈ owners)
+    (contributes : ref ∈ owners)
     : Published w.matching (w.events.take index) (.executionGroup source) := by
   obtain ⟨published, batched, _, interpret, _⟩ := ledger
   have accepted : (initialQueue work).batchesStarted inputs = true := by
@@ -154,12 +154,12 @@ theorem Witness.groupPublication_activeObjectProducerPublished
       : GroupPublicationHandlerBoundary (initialQueue work) inputs.flatten origin.group
           origin.values (origin.before.flatMap WorkQueueEvent.objectValues).length)
     (active
-      : origin.group.key
+      : origin.group.ref
         ∈ ((initialQueue work).replayGraphEvents boundary.before).rootGroups)
     (rawKnown
       : ∃ dependencies producer, NodeAt work origin.group .group dependencies producer)
     (contributes
-      : origin.group.key ∈ origin.value.deliveryGroups.map Execution.DeliveryNode.key)
+      : origin.group.ref ∈ origin.value.deliveryGroups.map Execution.DeliveryNode.ref)
     (produced : TaskHasProducer work (w.matching index) (some (.executionGroup source)))
     : Published w.matching (w.events.take index) (.executionGroup source) := by
   obtain ⟨producer, known⟩ := Witness.groupPublication_taskAt started history ledger selected origin
@@ -173,12 +173,12 @@ theorem Witness.groupPublication_activeObjectProducerPublished
       cases impossible
   | executionGroup address =>
       rw [matched] at known
-      obtain ⟨node, dependencies, childKnown, sameKey⟩ :=
+      obtain ⟨node, dependencies, childKnown, sameRef⟩ :=
         TaskAt.executionGroup_owner known contributes
       obtain ⟨rawDependencies, rawProducer, rawKnown⟩ := rawKnown
-      have sameNode := generated.nodeKeyCoherent _ _ _ _ _ _ _ _ childKnown rawKnown sameKey
+      have sameNode := generated.nodeRefCoherent _ _ _ _ _ _ _ _ childKnown rawKnown sameRef
       rw [sameNode] at childKnown
-      obtain ⟨parentOwners, ancestor, parentPayload, key, parentKnown, parentContributes,
+      obtain ⟨parentOwners, ancestor, parentPayload, ref, parentKnown, parentContributes,
         support⟩ := generated.group_objectProducer_support childKnown
       rcases support with reused | dependency
       · apply Witness.groupPublication_reusedProducerPublished generated valid started history

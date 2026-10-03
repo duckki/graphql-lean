@@ -84,7 +84,7 @@ theorem replayResponse_absolute_coverage
   have exactDecode := decode_historyPositionAtoms (containers := containers)
     explained seeded initialHistory disjoint events.length (Nat.le_refl _)
   have nodePaths : ∀ node ∈ (events ++ [WorkQueueEvent.workQueueTermination]).flatMap
-      eventNodes, paths node.key = node.path := by
+      eventNodes, paths node.ref = node.path := by
     intro node member
     simp only [List.flatMap_append, List.flatMap_cons, List.flatMap_nil, eventNodes,
       List.append_nil] at member

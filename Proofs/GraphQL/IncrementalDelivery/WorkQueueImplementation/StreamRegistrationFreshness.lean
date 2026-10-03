@@ -1,41 +1,41 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.StreamRootCoverage
 
-/-! Immediate stream registration gives fresh, internally unique notice keys. -/
+/-! Immediate stream registration gives fresh, internally unique notice refs. -/
 
 namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
 -----------------------------------------------------------------------------------------
--- The executable selection fold excludes every previously registered key
+-- The executable selection fold excludes every previously registered ref
 -----------------------------------------------------------------------------------------
 
-/-- The actual registration fold selects distinct keys absent from the old registry.
-Witness: each append passes both the old-registry lookup and the selected-key guard.
+/-- The actual registration fold selects distinct refs absent from the old registry.
+Witness: each append passes both the old-registry lookup and the selected-ref guard.
 This holds for arbitrary raw states and duplicate incoming descriptors.
 -/
 theorem State.addStreams_selection_fresh (queue : State) (streams : List Stream)
     : let fresh :=
         streams.foldl
           (fun selected stream =>
-            if (queue.stream? stream.node.key).isSome
-                || selected.any (fun known => known.node.key == stream.node.key) then
+            if (queue.stream? stream.node.ref).isSome
+                || selected.any (fun known => known.node.ref == stream.node.ref) then
               selected
             else
               selected ++ [stream]) []
-      (fresh.map (fun stream => stream.node.key)).Nodup
+      (fresh.map (fun stream => stream.node.ref)).Nodup
       ∧ ∀ stream ∈ fresh,
-          stream.node.key ∉ queue.streams.map (fun old => old.node.key) := by
+          stream.node.ref ∉ queue.streams.map (fun old => old.node.ref) := by
   let step (selected : List Stream) (stream : Stream) :=
-    if (queue.stream? stream.node.key).isSome
-        || selected.any (fun known => known.node.key == stream.node.key) then selected
+    if (queue.stream? stream.node.ref).isSome
+        || selected.any (fun known => known.node.ref == stream.node.ref) then selected
     else selected ++ [stream]
   have loop (more selected : List Stream)
-      (unique : (selected.map (fun stream => stream.node.key)).Nodup)
+      (unique : (selected.map (fun stream => stream.node.ref)).Nodup)
       (absent : ∀ stream ∈ selected,
-        stream.node.key ∉ queue.streams.map (fun old => old.node.key))
-      : ((more.foldl step selected).map (fun stream => stream.node.key)).Nodup
+        stream.node.ref ∉ queue.streams.map (fun old => old.node.ref))
+      : ((more.foldl step selected).map (fun stream => stream.node.ref)).Nodup
         ∧ ∀ stream ∈ more.foldl step selected,
-            stream.node.key ∉ queue.streams.map (fun old => old.node.key) := by
+            stream.node.ref ∉ queue.streams.map (fun old => old.node.ref) := by
     induction more generalizing selected with
     | nil => exact ⟨unique, absent⟩
     | cons stream rest ih =>
@@ -44,20 +44,20 @@ theorem State.addStreams_selection_fresh (queue : State) (streams : List Stream)
         split
         · exact ih _ unique absent
         · rename_i fresh
-          have guards : (queue.stream? stream.node.key).isSome = false
-              ∧ (selected.any (fun known => known.node.key == stream.node.key)) = false := by
+          have guards : (queue.stream? stream.node.ref).isSome = false
+              ∧ (selected.any (fun known => known.node.ref == stream.node.ref)) = false := by
             simpa only [Bool.or_eq_true, not_or, Bool.not_eq_true] using fresh
-          have distinct : stream.node.key ∉ selected.map (fun known => known.node.key) := by
+          have distinct : stream.node.ref ∉ selected.map (fun known => known.node.ref) := by
             intro member
             obtain ⟨old, included, same⟩ := List.mem_map.mp member
-            have hit : selected.any (fun known => known.node.key == stream.node.key) = true :=
+            have hit : selected.any (fun known => known.node.ref == stream.node.ref) = true :=
               List.any_eq_true.mpr ⟨old, included, by simp [same]⟩
             simp [guards.2] at hit
-          have unregistered : stream.node.key
-              ∉ queue.streams.map (fun old => old.node.key) := by
+          have unregistered : stream.node.ref
+              ∉ queue.streams.map (fun old => old.node.ref) := by
             intro member
             obtain ⟨old, included, same⟩ := List.mem_map.mp member
-            have found : ∃ known, queue.stream? stream.node.key = some known :=
+            have found : ∃ known, queue.stream? stream.node.ref = some known :=
               State.stream?_exists_of_registered
                 (node := old.node) (List.mem_map.mpr ⟨old, included, rfl⟩) |>
                 fun ⟨known, found⟩ => ⟨known, same ▸ found⟩
@@ -75,15 +75,15 @@ theorem State.addStreams_selection_fresh (queue : State) (streams : List Stream)
             · exact List.mem_singleton.mp new ▸ unregistered
   exact loop streams [] (by simp) (by simp)
 
-/-- Immediate stream notices have unique keys, none previously registered.
+/-- Immediate stream notices have unique refs, none previously registered.
 Witness: root registration returns the exact fresh selection; task attachment returns
 no immediate notice. Existing registry uniqueness is not assumed.
 -/
 theorem State.addStreams_notices_fresh (queue : State) (streams : List Stream)
     (parent : Option Occurrence := none)
-    : ((queue.addStreams streams parent).2.map Execution.DeliveryNode.key).Nodup
+    : ((queue.addStreams streams parent).2.map Execution.DeliveryNode.ref).Nodup
       ∧ ∀ node ∈ (queue.addStreams streams parent).2,
-          node.key ∉ queue.streams.map (fun stream => stream.node.key) := by
+          node.ref ∉ queue.streams.map (fun stream => stream.node.ref) := by
   have selected := queue.addStreams_selection_fresh streams
   unfold State.addStreams
   cases parent with
@@ -97,15 +97,15 @@ theorem State.addStreams_notices_fresh (queue : State) (streams : List Stream)
       dsimp only
       split <;> exact ⟨by simp, by intro node impossible; cases impossible⟩
 
-/-- Full integration preserves immediate stream-notice freshness and key uniqueness.
+/-- Full integration preserves immediate stream-notice freshness and ref uniqueness.
 Witness: group/task registration leaves the stream registry unchanged before selection.
 -/
 theorem State.maybeIntegrateWork_streamNotices_fresh (queue : State) (work : Work)
     (parent : Option Occurrence := none)
     : ((queue.maybeIntegrateWork work parent).2.newStreams.map
-        Execution.DeliveryNode.key).Nodup
+        Execution.DeliveryNode.ref).Nodup
       ∧ ∀ node ∈ (queue.maybeIntegrateWork work parent).2.newStreams,
-          node.key ∉ queue.streams.map (fun stream => stream.node.key) := by
+          node.ref ∉ queue.streams.map (fun stream => stream.node.ref) := by
   have fresh := State.addStreams_notices_fresh
     (work.tasks.foldl State.addTask (queue.addGroups work.groups).1) work.streams parent
   rw [fold_projection State.streams State.addTask State.addTask_streams,

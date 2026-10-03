@@ -158,7 +158,7 @@ theorem State.PublicationInventory.taskSuccess_bufferedCoverage {queue : State}
             simp [healthy] at guard
           · simpa only [State.taskSuccess, found, healthy, Bool.not_false, ↓reduceIte]
               using BlocksFollowRegistrations.nil (queue.removeTask occurrence).tasks []
-          · intro task buffered value lookup stored key contributes present uncancelled
+          · intro task buffered value lookup stored ref contributes present uncancelled
             have known := State.taskNode?_some lookup
             have source := (inventory.stored buffered known.1 value stored).1
             have different : task ≠ occurrence := by
@@ -220,7 +220,7 @@ theorem State.PublicationInventory.taskSuccess_bufferedCoverage {queue : State}
           · rw [State.taskSuccess_tasks found healthy]
             simpa only [State.maybeIntegrateWork_tasks_append, State.putTaskNode] using ordered
           · exact owners.of_lookups retained
-              (State.maybeIntegrateWork_includesKeys
+              (State.maybeIntegrateWork_includesRefs
                 (queue.putTaskNode { node with value := some result.value })
                 result.work (some occurrence))
           · intro other lookup _
@@ -247,7 +247,7 @@ object values, so each bounded drain prefix uses its own object count without an
 def State.StreamDrainOwners (queue : State) (stream : Execution.DeliveryNode)
     (items : List StreamItem) (published : List ObjectPublication)
     : Prop :=
-  queue.rootStreams.contains stream.key = true
+  queue.rootStreams.contains stream.ref = true
   → let prepared := queue.preparedStreamItems items
     ∀ steps,
       steps ≤ prepared.groupNodes.length
@@ -263,7 +263,7 @@ def State.StreamDrainOwners (queue : State) (stream : Execution.DeliveryNode)
 def State.StreamDrainMembershipsCleared (queue : State) (stream : Execution.DeliveryNode)
     (items : List StreamItem) (published : List ObjectPublication)
     : Prop :=
-  queue.rootStreams.contains stream.key = true
+  queue.rootStreams.contains stream.ref = true
   → let prepared := queue.preparedStreamItems items
     ∀ steps,
       steps ≤ prepared.groupNodes.length
@@ -280,7 +280,7 @@ The leading stream-values event contributes no object-publication offset.
 -/
 theorem State.PublicationInventory.streamItems_bufferedCoverage {queue : State}
     {work property published} (inventory : queue.PublicationInventory property published)
-    (generated : ExecutedWork work) (keys : queue.GroupKeysUnique)
+    (generated : ExecutedWork work) (refs : queue.GroupRefsUnique)
     (live : queue.LiveGroupsRegistered) (registered : queue.TaskGroupsRegistered)
     (started : queue.StartedTasksRegistered) (links : queue.StoredTaskLinks)
     (settled : queue.ChildStreamsSettled) (children : queue.ChildStreamsMatchWork work)
@@ -288,8 +288,8 @@ theorem State.PublicationInventory.streamItems_bufferedCoverage {queue : State}
     (allCovered
       : ∀ item ∈ items,
         ∀ task ∈ item.work.tasks,
-        ∀ key ∈ task.groups.map Execution.DeliveryNode.key,
-          ∃ group ∈ item.work.groups, group.node.key = key)
+        ∀ ref ∈ task.groups.map Execution.DeliveryNode.ref,
+          ∃ group ∈ item.work.groups, group.node.ref = ref)
     (memberships : queue.GroupMembershipOrder)
     : ∃ added : List ObjectPublication,
         added.map Prod.snd
@@ -312,7 +312,7 @@ theorem State.PublicationInventory.streamItems_bufferedCoverage {queue : State}
     (pruned.startNewWork { newWork with newGroups := nonempty },
       groups ++ nonempty, streams ++ newWork.newStreams, values ++ [item.value])
   let invariant (current : State) :=
-    current.GroupKeysUnique ∧ current.LiveGroupsRegistered ∧ current.TaskGroupsRegistered
+    current.GroupRefsUnique ∧ current.LiveGroupsRegistered ∧ current.TaskGroupsRegistered
     ∧ current.StartedTasksRegistered ∧ current.StoredTaskLinks
     ∧ current.ChildStreamsSettled ∧ current.ChildStreamsMatchWork work
     ∧ current.PublicationInventory property published
@@ -320,9 +320,9 @@ theorem State.PublicationInventory.streamItems_bufferedCoverage {queue : State}
       → current.taskNode? occurrence = some node)
     ∧ ∀ occurrence node value,
         queue.taskNode? occurrence = some node → node.value = some value
-        → ∀ key ∈ node.task.groups.map Execution.DeliveryNode.key,
-          key ∈ queue.groupNodes.map (fun owner => owner.group.node.key)
-          → key ∈ current.groupNodes.map (fun owner => owner.group.node.key)
+        → ∀ ref ∈ node.task.groups.map Execution.DeliveryNode.ref,
+          ref ∈ queue.groupNodes.map (fun owner => owner.group.node.ref)
+          → ref ∈ current.groupNodes.map (fun owner => owner.group.node.ref)
   have preserve (acc) (item : StreamItem) (member : item ∈ items)
       (prior : invariant acc.1) : invariant (step acc item).1 := by
     obtain ⟨current, groups, streams, values⟩ := acc
@@ -351,13 +351,13 @@ theorem State.PublicationInventory.streamItems_bufferedCoverage {queue : State}
       change ((current.maybeIntegrateWork item.work).1.pruneEmptyGroups _).1.taskNodes.find? _ = _
       rw [State.pruneEmptyGroups_taskNodes]
       exact State.maybeIntegrateWork_lookup_other (retained occurrence node found) item.work
-    · intro occurrence node value found stored key contributes present
+    · intro occurrence node value found stored ref contributes present
       have integratedLookup := State.maybeIntegrateWork_lookup_other
         (retained occurrence node found) item.work
       have kept := State.pruneEmptyGroups_bufferedOwner_present integratedLinks
         (State.taskNode?_some integratedLookup).1 (by simp [stored]) contributes
-        (current.maybeIntegrateWork_includesKeys item.work none key
-          (owners occurrence node value found stored key contributes present))
+        (current.maybeIntegrateWork_includesRefs item.work none ref
+          (owners occurrence node value found stored ref contributes present))
         (current.maybeIntegrateWork item.work).2.newGroups
       rwa [(State.startNewWork_groupCore _ _).1]
   have loop (more : List StreamItem) (included : more.Subset items) (acc)
@@ -369,7 +369,7 @@ theorem State.PublicationInventory.streamItems_bufferedCoverage {queue : State}
           (preserve acc item (included List.mem_cons_self) prior)
   obtain ⟨_, _, _, _, linked, ready, provenance, ledger, retained, owners⟩ :=
     loop items (fun _ member => member) (queue, [], [], [])
-      ⟨keys, live, registered, started, links, settled, children, inventory,
+      ⟨refs, live, registered, started, links, settled, children, inventory,
         (fun _ _ found => found), fun _ _ _ _ _ _ _ present => present⟩
   have orderLoop (more : List StreamItem) (acc)
       (prior : acc.1.GroupMembershipOrder)
@@ -411,16 +411,16 @@ theorem State.PublicationInventory.streamItems_bufferedCoverage {queue : State}
     · have blocks := ordered (orderLoop items (queue, [], [], []) memberships)
       rw [State.drainReadyGroups_tasks]
       exact blocks.control rfl
-    · intro occurrence node value found stored key contributes present uncancelled
+    · intro occurrence node value found stored ref contributes present uncancelled
       have kept := prefixes _ (Nat.le_refl _) occurrence node value
-        (retained occurrence node found) stored key contributes
-        (owners occurrence node value found stored key contributes present) uncancelled
+        (retained occurrence node found) stored ref contributes
+        (owners occurrence node value found stored ref contributes present) uncancelled
       exact kept.imp_left List.mem_of_mem_take
     · intro _
       dsimp only
-      intro steps bounded occurrence node value found stored key contributes present uncancelled
-      exact prefixes steps bounded occurrence node value (retained occurrence node found) stored key
-        contributes (owners occurrence node value found stored key contributes present) uncancelled
+      intro steps bounded occurrence node value found stored ref contributes present uncancelled
+      exact prefixes steps bounded occurrence node value (retained occurrence node found) stored ref
+        contributes (owners occurrence node value found stored ref contributes present) uncancelled
     · intro _
       exact cleared
 
@@ -585,12 +585,12 @@ theorem State.PublicationInventory.handleGraphEvent_bufferedCoverage {queue : St
       obtain ⟨contributor, contributes, owner, live⟩ := survivor
       exact Or.inr
         (State.taskFailure_lookup_survivingOwner found occurrence errors different
-          contributes (List.mem_of_find?_eq_some live) (State.groupNode?_key live))
+          contributes (List.mem_of_find?_eq_some live) (State.groupNode?_ref live))
   | streamItems stream items =>
       obtain ⟨added, values, final, covered, streams, conserved,
         ordered, owners, prefixes, cleared⟩ :=
         current.streamItems_bufferedCoverage
-        generated accounted.keys accounted.liveGroups accounted.taskGroups accounted.started
+        generated accounted.refs accounted.liveGroups accounted.taskGroups accounted.started
         links settled children stream items
         (fun _ member => matching.streamItem_childTasksCovered member) memberships
       exact ⟨added, values, final, covered, trivial, streams, conserved, trivial, ordered,
@@ -600,7 +600,7 @@ theorem State.PublicationInventory.handleGraphEvent_bufferedCoverage {queue : St
         settled children generated (.streamSuccess stream) matching
         (by intro task result impossible; cases impossible)
       have owners : queue.StoredOwnersConserved added (queue.streamSuccess stream).1 := by
-        intro occurrence node value found stored key contributes present uncancelled
+        intro occurrence node value found stored ref contributes present uncancelled
         unfold State.streamSuccess
         split <;> exact Or.inr ⟨found, present⟩
       refine ⟨
@@ -633,7 +633,7 @@ theorem State.PublicationInventory.handleGraphEvent_bufferedCoverage {queue : St
         settled children generated (.streamFailure stream errors) matching
         (by intro task result impossible; cases impossible)
       have owners : queue.StoredOwnersConserved added (queue.streamFailure stream errors).1 := by
-        intro occurrence node value found stored key contributes present uncancelled
+        intro occurrence node value found stored ref contributes present uncancelled
         unfold State.streamFailure
         split <;> exact Or.inr ⟨found, present⟩
       refine ⟨

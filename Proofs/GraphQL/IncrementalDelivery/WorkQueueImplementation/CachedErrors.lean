@@ -8,22 +8,22 @@ open GraphQL.IncrementalDelivery.Execution (
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
 -----------------------------------------------------------------------------------------
--- Queue bookkeeping preserves arbitrary key-indexed cached-error facts
+-- Queue bookkeeping preserves arbitrary ref-indexed cached-error facts
 -----------------------------------------------------------------------------------------
 
-/-- Every present group cache satisfies `property key errors`.
+/-- Every present group cache satisfies `property ref errors`.
 Unlike mere failure support, the predicate retains the exact accumulated error count.
 -/
 def State.CachedErrorsSatisfy (queue : State) (property : Nat → Nat → Prop) : Prop :=
   ∀ node ∈ queue.groupNodes,
-    ∀ errors, node.failure = some errors → property node.group.node.key errors
+    ∀ errors, node.failure = some errors → property node.group.node.ref errors
 
 /-- Pointwise implication weakens the facts certified by every retained error cache.
 Witness: apply the implication to each live node's exact count.
 -/
 theorem State.CachedErrorsSatisfy.mono {queue : State} {before after}
     (cached : queue.CachedErrorsSatisfy before)
-    (weaken : ∀ key errors, before key errors → after key errors)
+    (weaken : ∀ ref errors, before ref errors → after ref errors)
     : queue.CachedErrorsSatisfy after :=
   fun node member errors same => weaken _ _ (cached node member errors same)
 
@@ -46,7 +46,7 @@ theorem State.CachedErrorsSatisfy.putGroupNode {queue : State}
     {property : Nat → Nat → Prop} (supported : State.CachedErrorsSatisfy queue property)
     (updated : GroupNode)
     (replacement
-      : ∀ errors, updated.failure = some errors → property updated.group.node.key errors)
+      : ∀ errors, updated.failure = some errors → property updated.group.node.ref errors)
     : (queue.putGroupNode updated).CachedErrorsSatisfy property := by
   intro node member errors cached
   obtain ⟨old, oldMember, same⟩ := List.mem_map.mp member
@@ -76,15 +76,15 @@ theorem State.CachedErrorsSatisfy.addGroup {queue : State} {property : Nat → N
         subst node
         cases cached
 
-/-- Parent-link installation leaves every cache and delivery key unchanged.
+/-- Parent-link installation leaves every cache and delivery ref unchanged.
 Witness: the two actual folds register empty nodes and replace only child links.
 -/
 theorem State.CachedErrorsSatisfy.addGroups {queue : State} {property : Nat → Nat → Prop}
     (supported : State.CachedErrorsSatisfy queue property) (groups : List Group)
     : (queue.addGroups groups).1.CachedErrorsSatisfy property := by
   let fresh := groups.filter (fun group =>
-    !queue.registeredGroups.contains group.node.key
-      && (queue.groupNode? group.node.key).isNone)
+    !queue.registeredGroups.contains group.node.ref
+      && (queue.groupNode? group.node.ref).isNone)
   let link (current : State) (group : Group) :=
     match group.parent with
     | none => current
@@ -92,8 +92,8 @@ theorem State.CachedErrorsSatisfy.addGroups {queue : State} {property : Nat → 
         match current.groupNode? parent with
         | none => current
         | some node =>
-            let children := if node.childGroups.contains group.node.key then
-              node.childGroups else node.childGroups ++ [group.node.key]
+            let children := if node.childGroups.contains group.node.ref then
+              node.childGroups else node.childGroups ++ [group.node.ref]
             current.putGroupNode { node with childGroups := children }
   have linked (current : State) (group : Group)
       (valid : current.CachedErrorsSatisfy property)
@@ -120,7 +120,7 @@ theorem State.CachedErrorsSatisfy.addTask {queue : State} {property : Nat → Na
     : (queue.addTask task).CachedErrorsSatisfy property := by
   let registered : State := { queue with tasks := queue.tasks ++ [task] }
   let step (current : State) (group : Execution.DeliveryNode) :=
-    match current.groupNode? group.key with
+    match current.groupNode? group.ref with
     | none => current
     | some node =>
         if node.tasks.contains task.occurrence then current
@@ -203,9 +203,9 @@ theorem State.CachedErrorsSatisfy.startNewWork {queue : State}
     split
     · exact valid
     · split <;> exact valid
-  have groupStable (current : State) (key : Nat)
+  have groupStable (current : State) (ref : NodeRef)
       (valid : current.CachedErrorsSatisfy property)
-      : (current.startGroup key).CachedErrorsSatisfy property := by
+      : (current.startGroup ref).CachedErrorsSatisfy property := by
     unfold State.startGroup
     split
     · exact valid
@@ -213,9 +213,9 @@ theorem State.CachedErrorsSatisfy.startNewWork {queue : State}
       split
       · exact valid
       · exact fold_preserves _ State.startTask node.tasks taskStable current valid
-  have streamStable (current : State) (key : Nat)
+  have streamStable (current : State) (ref : NodeRef)
       (valid : current.CachedErrorsSatisfy property)
-      : (current.startStream key).CachedErrorsSatisfy property := by
+      : (current.startStream ref).CachedErrorsSatisfy property := by
     unfold State.startStream
     split <;> exact valid
   exact fold_preserves _ State.startStream _ streamStable _
@@ -236,7 +236,7 @@ theorem createWorkQueue_cachedErrors (input : Work) (property : Nat → Nat → 
 -----------------------------------------------------------------------------------------
 
 /-- Task retirement changes only memberships, retaining every cached-error witness.
-Witness: the group map leaves each delivery key and cached error unchanged.
+Witness: the group map leaves each delivery ref and cached error unchanged.
 -/
 theorem State.CachedErrorsSatisfy.removeTask {queue : State} {property : Nat → Nat → Prop}
     (supported : State.CachedErrorsSatisfy queue property)
@@ -251,8 +251,8 @@ Witness: every surviving node and witness belonged to the original queue.
 -/
 theorem State.CachedErrorsSatisfy.removeGroup {queue : State}
     {property : Nat → Nat → Prop} (supported : State.CachedErrorsSatisfy queue property)
-    (key : Nat)
-    : (queue.removeGroup key).CachedErrorsSatisfy property := by
+    (ref : NodeRef)
+    : (queue.removeGroup ref).CachedErrorsSatisfy property := by
   intro node member
   exact supported node (List.mem_filter.mp member).1
 
@@ -263,7 +263,7 @@ theorem State.CachedErrorsSatisfy.finishGroupSuccess {queue : State}
     {property : Nat → Nat → Prop} (supported : State.CachedErrorsSatisfy queue property)
     (group : GroupNode)
     : (queue.finishGroupSuccess group).1.CachedErrorsSatisfy property := by
-  let step (acc : State × List ExecutionGroupValue × Keys) (occurrence : Occurrence) :=
+  let step (acc : State × List ExecutionGroupValue × NodeRefs) (occurrence : Occurrence) :=
     let (current, values, streams) := acc
     match current.taskNode? occurrence with
     | none => (current, values, streams)
@@ -272,7 +272,7 @@ theorem State.CachedErrorsSatisfy.finishGroupSuccess {queue : State}
           | none => values
           | some value => values ++ [value]
         (current.removeTask occurrence, values, streams ++ node.childStreams)
-  have stable (acc : State × List ExecutionGroupValue × Keys) (occurrence : Occurrence)
+  have stable (acc : State × List ExecutionGroupValue × NodeRefs) (occurrence : Occurrence)
       (valid : acc.1.CachedErrorsSatisfy property)
       : (step acc occurrence).1.CachedErrorsSatisfy property := by
     obtain ⟨current, values, streams⟩ := acc
@@ -286,8 +286,8 @@ theorem State.CachedErrorsSatisfy.finishGroupSuccess {queue : State}
   let current : State :=
     { flushed with
       groupNodes := flushed.groupNodes.filter
-        (fun node => node.group.node.key != group.group.node.key)
-      rootGroups := flushed.rootGroups.filter (· != group.group.node.key) }
+        (fun node => node.group.node.ref != group.group.node.ref)
+      rootGroups := flushed.rootGroups.filter (· != group.group.node.ref) }
   have filtered : current.CachedErrorsSatisfy property := by
     intro node member
     exact prior node (List.mem_filter.mp member).1
@@ -304,7 +304,7 @@ theorem State.CachedErrorsSatisfy.drainReadyGroups {queue : State}
   · intro current node valid _ _ _ _
     exact (valid.finishGroupSuccess node).startNewWork _
   · intro current node errors valid _ _ _
-    exact valid.removeGroup node.group.node.key
+    exact valid.removeGroup node.group.node.ref
 
 /-- Successful settlement never introduces a new retained failure.
 Witness: child integration, each contributor decrement/flush, activation, and full drain.
@@ -315,12 +315,12 @@ theorem State.CachedErrorsSatisfy.taskSuccess {queue : State}
     : (queue.taskSuccess occurrence result).1.CachedErrorsSatisfy property := by
   let step (acc : State × List WorkQueueEvent × NewWork) (group : Execution.DeliveryNode) :=
     let (current, outputs, released) := acc
-    match current.groupNode? group.key with
+    match current.groupNode? group.ref with
     | none => (current, outputs, released)
     | some old =>
         let node := { old with pending := old.pending - 1 }
         let current := current.putGroupNode node
-        if current.rootGroups.contains group.key && node.pending == 0 && node.failure.isNone then
+        if current.rootGroups.contains group.ref && node.pending == 0 && node.failure.isNone then
           let (next, finished, more) := current.finishGroupSuccess node
           (next, outputs ++ finished,
             ⟨released.newGroups ++ more.newGroups, released.newStreams ++ more.newStreams⟩)

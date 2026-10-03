@@ -5,14 +5,14 @@ import GraphQL.IncrementalDelivery.WorkQueueSemantics
 namespace GraphQL.IncrementalDelivery.WorkQueueSemantics
 open GraphQL.IncrementalDelivery.Execution
 
-/-- The delivery-node key occurs in the original work. -/
-def Supported (work : Work) (key : Nat) : Prop :=
+/-- The delivery-node ref occurs in the original work. -/
+def Supported (work : Work) (ref : NodeRef) : Prop :=
   ∃ node kind dependencies birth,
-    NodeAt work node kind dependencies birth ∧ node.key = key
+    NodeAt work node kind dependencies birth ∧ node.ref = ref
 
-/-- Projecting a producer retains exactly the supported keys, by repacking witnesses. -/
-theorem supported_iff_hasProducer {work key}
-    : Supported work key ↔ ∃ birth, NodeHasProducer work key birth := by
+/-- Projecting a producer retains exactly the supported refs, by repacking witnesses. -/
+theorem supported_iff_hasProducer {work ref}
+    : Supported work ref ↔ ∃ birth, NodeHasProducer work ref birth := by
   constructor
   · rintro ⟨node, kind, dependencies, birth, known, same⟩
     exact ⟨birth, node, kind, dependencies, known, same⟩
@@ -21,11 +21,11 @@ theorem supported_iff_hasProducer {work key}
 
 /-- Owner-based accounting is the former full-task condition, by existential elimination.
 -/
-theorem nodeAccounted_iff_taskAt {work matching events failed key}
-    : NodeAccounted work matching events failed key
+theorem nodeAccounted_iff_taskAt {work matching events failed ref}
+    : NodeAccounted work matching events failed ref
       ↔ ∀ occurrence owners producer payload,
           TaskAt work occurrence owners producer payload
-          → key ∈ owners
+          → ref ∈ owners
           → TaskAccounted work matching events failed occurrence := by
   constructor
   · intro accounted occurrence owners producer payload known member
@@ -35,13 +35,13 @@ theorem nodeAccounted_iff_taskAt {work matching events failed key}
 
 /-- Dependency satisfaction keeps its original support condition, by producer projection.
 -/
-theorem dependencySatisfied_iff_supported {work initial matching events failed key}
-    : DependencySatisfied work initial matching events failed key
-      ↔ ¬NodeFailed work matching events failed key
-        ∧ (¬Supported work key
-            ∨ key ∈ completedKeys events
-            ∨ key ∉ announcedKeys initial events
-              ∧ NodeAccounted work matching events failed key) := by
+theorem dependencySatisfied_iff_supported {work initial matching events failed ref}
+    : DependencySatisfied work initial matching events failed ref
+      ↔ ¬NodeFailed work matching events failed ref
+        ∧ (¬Supported work ref
+            ∨ ref ∈ completedRefs events
+            ∨ ref ∉ announcedRefs initial events
+              ∧ NodeAccounted work matching events failed ref) := by
   rw [DependencySatisfied, supported_iff_hasProducer]
 
 /-- An announcement frontier is fresh and structurally supported, by eligibility and
@@ -49,19 +49,19 @@ NodeAt.
 -/
 theorem announcements_facts {work initial matching events failed groups streams}
     (h : Announcements work initial matching events failed groups streams)
-    : ((groups ++ streams).map DeliveryNode.key).Nodup
-      ∧ (∀ key ∈ (groups ++ streams).map DeliveryNode.key,
-          key ∉ announcedKeys initial events)
-      ∧ (∀ key ∈ (groups ++ streams).map DeliveryNode.key, Supported work key) := by
+    : ((groups ++ streams).map DeliveryNode.ref).Nodup
+      ∧ (∀ ref ∈ (groups ++ streams).map DeliveryNode.ref,
+          ref ∉ announcedRefs initial events)
+      ∧ (∀ ref ∈ (groups ++ streams).map DeliveryNode.ref, Supported work ref) := by
   refine ⟨h.1, ?_, ?_⟩
-  · intro key member
+  · intro ref member
     obtain ⟨node, belongs, rfl⟩ := List.mem_map.mp member
     rcases List.mem_append.mp belongs with member | member
     · obtain ⟨dependencies, birth, _, eligible⟩ := h.2.1 node member
       exact eligible.1
     · obtain ⟨dependencies, birth, _, eligible⟩ := h.2.2 node member
       exact eligible.1
-  · intro key member
+  · intro ref member
     obtain ⟨node, belongs, rfl⟩ := List.mem_map.mp member
     rcases List.mem_append.mp belongs with member | member
     · obtain ⟨dependencies, birth, known, _⟩ := h.2.1 node member
@@ -69,19 +69,19 @@ theorem announcements_facts {work initial matching events failed groups streams}
     · obtain ⟨dependencies, birth, known, _⟩ := h.2.2 node member
       exact ⟨node, .stream, dependencies, birth, known, rfl⟩
 
-/-- Derived fresh-notice and open-key-closure facts for the next event after the observed
+/-- Derived fresh-notice and open-ref-closure facts for the next event after the observed
 prefix.
 -/
-structure EventAccounting (work : Work) (initial : Keys)
+structure EventAccounting (work : Work) (initial : NodeRefs)
     (before : List WorkQueueEvent) (event : WorkQueueEvent)
     : Prop where
   pendingUnique : (eventPending event).Nodup
-  fresh : ∀ key ∈ eventPending event, key ∉ announcedKeys initial before
-  supported : ∀ key ∈ eventPending event, Supported work key
+  fresh : ∀ ref ∈ eventPending event, ref ∉ announcedRefs initial before
+  supported : ∀ ref ∈ eventPending event, Supported work ref
   completedUnique : (eventCompleted event).Nodup
-  completion : ∀ key ∈ eventCompleted event, Open initial before key
+  completion : ∀ ref ∈ eventCompleted event, Open initial before ref
 
-/-- Every permitted atom has fresh notices and open-key closures, by its event rule. -/
+/-- Every permitted atom has fresh notices and open-ref closures, by its event rule. -/
 theorem EventAllowed.accounting {work initial matching before failed event}
     (h : EventAllowed work initial matching before failed event)
     : EventAccounting work initial before event := by
@@ -98,12 +98,12 @@ theorem EventAllowed.accounting {work initial matching before failed event}
       obtain ⟨owners, producer, ⟨item, errors⟩, _, _, _, _, releases⟩ := h
       obtain ⟨unique, fresh, support⟩ := announcements_facts releases
       refine ⟨unique, ?_, support, by simp [eventCompleted], by simp [eventCompleted]⟩
-      simpa [announcedKeys, pendingKeys, eventPending] using fresh
+      simpa [announcedRefs, pendingRefs, eventPending] using fresh
   | groupSuccess node groups streams =>
       obtain ⟨_, active, _, _, releases⟩ := h
       obtain ⟨unique, fresh, support⟩ := announcements_facts releases
       refine ⟨unique, ?_, support, by simp [eventCompleted], ?_⟩
-      · simpa [announcedKeys, pendingKeys, eventPending] using fresh
+      · simpa [announcedRefs, pendingRefs, eventPending] using fresh
       · simpa [eventCompleted] using active
   | streamSuccess node | groupFailure node _ | streamFailure node _ =>
       exact ⟨
@@ -116,10 +116,10 @@ theorem EventAllowed.accounting {work initial matching before failed event}
   | workQueueTermination => exact False.elim h
 
 /-- (NoticeHistory work initial before events) extends notice accounting from output
-prefix before through suffix events, using work and initial notice keys; this is
+prefix before through suffix events, using work and initial notice refs; this is
 proof-only, not scheduler state.
 -/
-def NoticeHistory (work : Work) (initial : Keys)
+def NoticeHistory (work : Work) (initial : NodeRefs)
     : List WorkQueueEvent → List WorkQueueEvent → Prop
   | _, [] => True
   | before, event :: rest =>
@@ -131,9 +131,9 @@ induction.
 -/
 theorem Explains.notices {work groups streams events matching failures}
     (h : Explains work groups streams events matching failures)
-    : NoticeHistory work ((groups ++ streams).map DeliveryNode.key) [] events := by
+    : NoticeHistory work ((groups ++ streams).map DeliveryNode.ref) [] events := by
   have go (before rest : List WorkQueueEvent) (equal : events = before ++ rest) :
-      NoticeHistory work ((groups ++ streams).map DeliveryNode.key) before rest := by
+      NoticeHistory work ((groups ++ streams).map DeliveryNode.ref) before rest := by
     induction rest generalizing before with
     | nil => trivial
     | cons event rest ih =>
@@ -146,11 +146,11 @@ theorem Explains.notices {work groups streams events matching failures}
           simpa [List.append_assoc] using equal
   exact go [] events rfl
 
-/-- Initialization yields unique supported node keys, by its structural notice frontier.
+/-- Initialization yields unique supported node refs, by its structural notice frontier.
 -/
 theorem initializes_notices {work groups streams} (h : Initializes work groups streams)
-    : ((groups ++ streams).map DeliveryNode.key).Nodup
-      ∧ ∀ key ∈ (groups ++ streams).map DeliveryNode.key, Supported work key :=
+    : ((groups ++ streams).map DeliveryNode.ref).Nodup
+      ∧ ∀ ref ∈ (groups ++ streams).map DeliveryNode.ref, Supported work ref :=
   ⟨(announcements_facts h.1).1, (announcements_facts h.1).2.2⟩
 
 end GraphQL.IncrementalDelivery.WorkQueueSemantics

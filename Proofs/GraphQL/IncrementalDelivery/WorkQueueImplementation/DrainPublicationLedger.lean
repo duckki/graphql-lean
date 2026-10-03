@@ -27,7 +27,7 @@ def State.BufferedClosuresCovered (queue : State) (published : List ObjectPublic
     → ∀ occurrence node value,
         queue.taskNode? occurrence = some node
         → node.value = some value
-        → group.key ∈ node.task.groups.map Execution.DeliveryNode.key
+        → group.ref ∈ node.task.groups.map Execution.DeliveryNode.ref
         → (occurrence, value)
           ∈ published.take
               ((events.take index).flatMap WorkQueueEvent.objectValues).length
@@ -190,7 +190,7 @@ theorem State.drainReadyGroups_go_success_live (fuel : Nat) (queue : State)
     (selected
       : (State.drainReadyGroups.go fuel queue).2[index]?
         = some (.groupSuccess group groups streams))
-    : ∃ node, queue.groupNode? group.key = some node := by
+    : ∃ node, queue.groupNode? group.ref = some node := by
   obtain ⟨steps, node, _, _, found, _, _, _, same, _⟩ :=
     State.drainReadyGroups_go_success_boundary fuel queue selected
   obtain ⟨old, present, _⟩ := State.drainReadyGroups_go_groupEdgesFrom steps queue _ _ found
@@ -217,7 +217,7 @@ theorem State.PublicationInventory.drainReadyGroups_go_prefixCoverage {queue : S
             → node.value = some value
             → (∃ contributor ∈ node.task.groups,
                 ∃ owner,
-                  (State.drainReadyGroups.go fuel queue).1.groupNode? contributor.key
+                  (State.drainReadyGroups.go fuel queue).1.groupNode? contributor.ref
                   = some owner)
             → (occurrence, value) ∈ added
               ∨ (State.drainReadyGroups.go fuel queue).1.taskNode? occurrence = some node)
@@ -287,8 +287,8 @@ theorem State.PublicationInventory.drainReadyGroups_go_prefixCoverage {queue : S
         | none =>
             dsimp only
             have found : group ∈ queue.groupNodes := by
-              obtain ⟨key, _, choice⟩ := List.exists_of_findSome?_eq_some selected
-              cases lookup : queue.groupNode? key with
+              obtain ⟨ref, _, choice⟩ := List.exists_of_findSome?_eq_some selected
+              cases lookup : queue.groupNode? ref with
               | none => simp [lookup] at choice
               | some node =>
                   simp only [lookup] at choice
@@ -372,10 +372,10 @@ theorem State.PublicationInventory.drainReadyGroups_go_prefixCoverage {queue : S
         | some errors =>
             dsimp only
             have cleaned := State.PublicationInventory.mk inventory.unique inventory.provenance
-              (inventory.stored.removeGroup group.group.node.key)
+              (inventory.stored.removeGroup group.group.node.ref)
             obtain ⟨added, values, final, coverage, conserved, streams,
               ordered, owners, cleared⟩ :=
-              ih cleaned (links.removeGroup group.group.node.key)
+              ih cleaned (links.removeGroup group.group.node.ref)
             refine ⟨added, ?_, final, ?_, ?_, ?_, ?_, ?_, ?_⟩
             · simpa only [State.finishGroupFailure, List.flatMap_append,
                 List.flatMap_singleton, WorkQueueEvent.objectValues, List.nil_append] using values
@@ -385,14 +385,14 @@ theorem State.PublicationInventory.drainReadyGroups_go_prefixCoverage {queue : S
               | zero => cases atEvent
               | succ index =>
                   have atLater : (State.drainReadyGroups.go fuel
-                      (queue.removeGroup group.group.node.key)).2[index]?
+                      (queue.removeGroup group.group.node.ref)).2[index]?
                       = some (.groupSuccess owner groups streams) := atEvent
                   obtain ⟨survivor, survives⟩ :=
                     State.drainReadyGroups_go_success_live fuel _ atLater
                   obtain ⟨contributor, member, same⟩ := List.mem_map.mp contributes
                   have retained := State.removeGroup_lookup_survivingOwner found
-                    group.group.node.key member (List.mem_of_find?_eq_some survives)
-                    ((State.groupNode?_key survives).trans same.symm)
+                    group.group.node.ref member (List.mem_of_find?_eq_some survives)
+                    ((State.groupNode?_ref survives).trans same.symm)
                   simpa only [State.finishGroupFailure, List.singleton_append,
                     List.take_succ_cons, List.flatMap_cons, WorkQueueEvent.objectValues,
                     List.nil_append] using coverage index owner groups streams atLater
@@ -402,8 +402,8 @@ theorem State.PublicationInventory.drainReadyGroups_go_prefixCoverage {queue : S
               obtain ⟨survivor, survives, _⟩ :=
                 State.drainReadyGroups_go_groupEdgesFrom fuel _ _ _ finalOwner
               have retained := State.removeGroup_lookup_survivingOwner found
-                group.group.node.key member (List.mem_of_find?_eq_some survives)
-                (State.groupNode?_key survives)
+                group.group.node.ref member (List.mem_of_find?_eq_some survives)
+                (State.groupNode?_ref survives)
               exact conserved occurrence node value retained stored
                 ⟨contributor, member, owner, finalOwner⟩
             · intro work generated settled childLinks
@@ -423,7 +423,7 @@ theorem State.PublicationInventory.drainReadyGroups_go_prefixCoverage {queue : S
                     State.finishGroupFailure, List.flatMap_append, List.flatMap_singleton,
                     WorkQueueEvent.objectValues, List.nil_append]
                     using (queue.removeGroup_storedOwnersConserved
-                            group.group.node.key).append
+                            group.group.node.ref).append
                       (owners steps (by omega))
                       (State.drainReadyGroups_go_cancelledGroups_subset steps _)
             · intro steps bounded publication member
@@ -453,7 +453,7 @@ theorem State.PublicationInventory.drainReadyGroups_go_bufferedCoverage {queue :
             → node.value = some value
             → (∃ contributor ∈ node.task.groups,
                 ∃ owner,
-                  (State.drainReadyGroups.go fuel queue).1.groupNode? contributor.key
+                  (State.drainReadyGroups.go fuel queue).1.groupNode? contributor.ref
                   = some owner)
             → (occurrence, value) ∈ added
               ∨ (State.drainReadyGroups.go fuel queue).1.taskNode? occurrence = some node)

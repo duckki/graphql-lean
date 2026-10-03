@@ -210,6 +210,11 @@ ExecuteField returns a value, and CompleteListValue does not install a stream ta
 
 ## Model-only definitions and why they exist
 
+- `NodeRef := Nat`: a stable defer/stream object identity, carried by `DeferUsage.ref`
+  and `DeliveryNode.ref`. Other languages may use object references instead. This is
+  separate from resolver `ObjectRef`, structural task occurrences, and string wire IDs.
+  The numeric representation supports fresh allocation; the abbreviation documents its
+  role without enforcing a distinct type. Allocation counters and indices remain `Nat`.
 - `EventSource`: opaque admissible/finished predicates and the already-observed history.
   The state is partial, admitting multiple future continuations; it is not a complete
   schedule or a required task-ledger representation.
@@ -259,7 +264,7 @@ ExecuteField returns a value, and CompleteListValue does not install a stream ta
   list-backed ordered-map accumulation for collection.
 - `deferUsageSetsEquivalent`, `addExecutionPartition`: finite set equality and
   partition-map insertion used by BuildExecutionPlan.
-- `freshExecutionKey`, `lookupDeferredFragment?`: explicit defer/stream node identity
+- `freshNodeRef`, `lookupDeferredFragment?`: explicit defer/stream node identity
   supply and defer-map lookup, not scheduler choices.
 - `Completion.pure`, `error`, `combine`, `map`, `catchNull`, `nonNull`: typed
   data/work/error propagation replacing pseudocode return values and raised errors.
@@ -560,7 +565,7 @@ chooses an ordinary response only when tasks and streams are empty, before queue
 An exhausted stream remains nonempty work: queue initialization cannot switch it back to
 an ordinary response.
 
-An empty stream has a key and a pending/completed lifecycle, but no item publications or
+An empty stream has a reference and a pending/completed lifecycle, but no item publications or
 data positions. The contract permits that lifecycle without a synthetic end task.
 Optional ignoring of active directives and coalescing later updates into the initial
 payload remain outside the model.

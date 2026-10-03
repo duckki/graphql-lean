@@ -18,7 +18,7 @@ theorem State.addTask_taskNode?_of_some {queue : State} {occurrence node}
     (found : queue.taskNode? occurrence = some node) (task : Task)
     : (queue.addTask task).taskNode? occurrence = some node := by
   let step (current : State) (group : Execution.DeliveryNode) : State :=
-    match current.groupNode? group.key with
+    match current.groupNode? group.ref with
     | none => current
     | some groupNode =>
         if groupNode.tasks.contains task.occurrence then current
@@ -38,7 +38,7 @@ theorem State.addTask_taskNode?_of_some {queue : State} {occurrence node}
         · split <;> rfl
   let current := task.groups.foldl step { queue with tasks := queue.tasks ++ [task] }
   have same : current.taskNodes = queue.taskNodes := unchanged _ _
-  change (if task.groups.any (fun group => current.rootGroups.contains group.key)
+  change (if task.groups.any (fun group => current.rootGroups.contains group.ref)
       && (current.taskNode? task.occurrence).isNone then
         { current with taskNodes := current.taskNodes ++ [{ task }] }
       else current).taskNode? occurrence = some node
@@ -235,8 +235,8 @@ theorem State.ChildStreamsSettled.startTask {queue : State}
 /-- Starting a group preserves the invariant through its task-start fold.
 Witness: every individual start creates no producer stream links. -/
 theorem State.ChildStreamsSettled.startGroup {queue : State}
-    (settled : queue.ChildStreamsSettled) (key : Nat)
-    : (queue.startGroup key).ChildStreamsSettled := by
+    (settled : queue.ChildStreamsSettled) (ref : NodeRef)
+    : (queue.startGroup ref).ChildStreamsSettled := by
   unfold State.startGroup
   split
   · exact settled
@@ -248,8 +248,8 @@ theorem State.ChildStreamsSettled.startGroup {queue : State}
 /-- Activating a stream does not modify any task node.
 Witness: both executable branches retain the same task map. -/
 theorem State.ChildStreamsSettled.startStream {queue : State}
-    (settled : queue.ChildStreamsSettled) (key : Nat)
-    : (queue.startStream key).ChildStreamsSettled := by
+    (settled : queue.ChildStreamsSettled) (ref : NodeRef)
+    : (queue.startStream ref).ChildStreamsSettled := by
   unfold State.startStream
   split <;> exact settled
 
@@ -259,18 +259,18 @@ theorem State.ChildStreamsSettled.startNewWork {queue : State}
     (settled : queue.ChildStreamsSettled) (work : NewWork)
     : (queue.startNewWork work).ChildStreamsSettled := by
   let current :=
-    { queue with rootGroups := queue.rootGroups ++ work.newGroups.map Execution.DeliveryNode.key }
+    { queue with rootGroups := queue.rootGroups ++ work.newGroups.map Execution.DeliveryNode.ref }
   have groups := fold_preserves State.ChildStreamsSettled State.startGroup
-    (fun _ key prior => prior.startGroup key)
-    (work.newGroups.map Execution.DeliveryNode.key) current settled
+    (fun _ ref prior => prior.startGroup ref)
+    (work.newGroups.map Execution.DeliveryNode.ref) current settled
   exact fold_preserves State.ChildStreamsSettled State.startStream
-    (fun _ key prior => prior.startStream key) _ _ groups
+    (fun _ ref prior => prior.startStream ref) _ _ groups
 
 /-- Removing a failed group only filters existing task nodes.
 Witness: every retained node belonged to the input task map. -/
 theorem State.ChildStreamsSettled.removeGroup {queue : State}
-    (settled : queue.ChildStreamsSettled) (key : Nat)
-    : (queue.removeGroup key).ChildStreamsSettled :=
+    (settled : queue.ChildStreamsSettled) (ref : NodeRef)
+    : (queue.removeGroup ref).ChildStreamsSettled :=
   fun node member => settled node (List.mem_filter.mp member).1
 
 /-- A successful flush removes task nodes without altering surviving stream links.
@@ -430,8 +430,8 @@ theorem createWorkQueue_runNormalized_childStreamsSettled (work : Work)
 -----------------------------------------------------------------------------------------
 
 /-- Every stream released by a flush has a selected, successfully stored task producer.
-Witness: the exact flush accumulates that node's child keys and value together; lookup
-of the released stream recovers its key. The raw value event precedes the notice carrier.
+Witness: the exact flush accumulates that node's child refs and value together; lookup
+of the released stream recovers its ref. The raw value event precedes the notice carrier.
 -/
 theorem State.ChildStreamsSettled.finishGroupSuccess_release {queue : State}
     (settled : queue.ChildStreamsSettled) (group : GroupNode)
@@ -440,7 +440,7 @@ theorem State.ChildStreamsSettled.finishGroupSuccess_release {queue : State}
     : ∃ node ∈ queue.taskNodes,
         ∃ value values,
           node.task.occurrence ∈ group.tasks
-          ∧ stream.key ∈ node.childStreams
+          ∧ stream.ref ∈ node.childStreams
           ∧ node.value = some value
           ∧ value ∈ values
           ∧ (queue.finishGroupSuccess group).2.1
@@ -456,22 +456,22 @@ theorem State.ChildStreamsSettled.finishGroupSuccess_release {queue : State}
   have exactValues : flushed.2.1 = selected.filterMap TaskNode.value := values
   have exactStreams : flushed.2.2 = selected.flatMap TaskNode.childStreams := streams
   change stream ∈ flushed.2.2.filterMap
-    (fun key => ((queue.finishGroupSuccess group).1.stream? key).map Stream.node) at released
+    (fun ref => ((queue.finishGroupSuccess group).1.stream? ref).map Stream.node) at released
   rw [exactStreams] at released
-  obtain ⟨key, fromSelected, lookup⟩ := List.mem_filterMap.mp released
-  obtain ⟨node, selectedNode, childKey⟩ := List.mem_flatMap.mp fromSelected
-  have sameKey : stream.key = key := by
-    cases found : (queue.finishGroupSuccess group).1.stream? key with
+  obtain ⟨ref, fromSelected, lookup⟩ := List.mem_filterMap.mp released
+  obtain ⟨node, selectedNode, childRef⟩ := List.mem_flatMap.mp fromSelected
+  have sameRef : stream.ref = ref := by
+    cases found : (queue.finishGroupSuccess group).1.stream? ref with
     | none => simp [found] at lookup
     | some registered =>
         have same : registered.node = stream := by simpa [found] using lookup
         rw [← same]
         exact beq_iff_eq.mp
-          (List.find?_some (p := fun entry : Stream => entry.node.key == key) found)
+          (List.find?_some (p := fun entry : Stream => entry.node.ref == ref) found)
   have hasValue : node.value ≠ none := by
     intro empty
     have noStreams := settled node (known node selectedNode).1 empty
-    simp [noStreams] at childKey
+    simp [noStreams] at childRef
   cases stored : node.value with
   | none => exact False.elim (hasValue stored)
   | some value =>
@@ -482,7 +482,7 @@ theorem State.ChildStreamsSettled.finishGroupSuccess_release {queue : State}
         | nil => simp [entries] at valueMember
         | cons => rfl
       refine ⟨node, (known node selectedNode).1, value, selected.filterMap TaskNode.value,
-        (known node selectedNode).2, sameKey ▸ childKey, stored, valueMember, ?_⟩
+        (known node selectedNode).2, sameRef ▸ childRef, stored, valueMember, ?_⟩
       change (if flushed.2.1.isEmpty then []
         else [Execution.WorkQueueEvent.groupValues group.group.node flushed.2.1]) ++ _ = _
       rw [exactValues, nonempty]
@@ -503,7 +503,7 @@ theorem createWorkQueue_runNormalized_streamRelease (work : Work)
       ∃ node ∈ queue.taskNodes,
         ∃ value values,
           node.task.occurrence ∈ group.tasks
-          ∧ stream.key ∈ node.childStreams
+          ∧ stream.ref ∈ node.childStreams
           ∧ node.value = some value
           ∧ value ∈ values
           ∧ (queue.finishGroupSuccess group).2.1
@@ -528,7 +528,7 @@ theorem State.ChildStreamsSettled.finishGroupSuccess_normalized_release {queue :
     : ∃ node ∈ queue.taskNodes,
         ∃ value,
           node.task.occurrence ∈ group.tasks
-          ∧ stream.key ∈ node.childStreams
+          ∧ stream.ref ∈ node.childStreams
           ∧ node.value = some value
           ∧ [
               Execution.WorkQueueEvent.groupValues

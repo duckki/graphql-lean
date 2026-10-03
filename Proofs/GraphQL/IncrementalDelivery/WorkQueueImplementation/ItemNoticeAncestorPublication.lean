@@ -16,7 +16,7 @@ theorem State.streamItems_groupNotice_boundary (queue : State)
     (selected
       : (queue.streamItems stream items).2[position]?
         = some (.groupSuccess group groups streams))
-    : queue.rootStreams.contains stream.key = true
+    : queue.rootStreams.contains stream.ref = true
       ∧ ∃ index,
           (queue.preparedStreamItems items).drainReadyGroups.2[index]?
             = some (.groupSuccess group groups streams)
@@ -27,7 +27,7 @@ theorem State.streamItems_groupNotice_boundary (queue : State)
           ∧ (queue.streamItems stream items).1
             = (queue.preparedStreamItems items).drainReadyGroups.1 := by
   rw [queue.streamItems_eq stream items] at selected ⊢
-  cases active : queue.rootStreams.contains stream.key with
+  cases active : queue.rootStreams.contains stream.ref with
   | false =>
       simp only [active, Bool.not_false, ↓reduceIte, List.getElem?_nil, reduceCtorEq] at selected
   | true =>
@@ -47,7 +47,7 @@ drain-prefix ledger publishes that buffer before the precise successful group ca
 -/
 theorem ExecutedWork.streamItems_groupNoticeAncestor_contributor_before
     {work before stream items published position group groups streams child dependencies
-      key address owners producer payload}
+      ref address owners producer payload}
     (generated : ExecutedWork work)
     (valid : ValidGraphEvents work (before ++ [.streamItems stream items]))
     (started
@@ -63,9 +63,9 @@ theorem ExecutedWork.streamItems_groupNoticeAncestor_contributor_before
           stream items).2[position]?
         = some (.groupSuccess group groups streams))
     (noticed : child ∈ groups) (known : GroupRecordAt work child dependencies)
-    (ancestor : key ∈ dependencies)
+    (ancestor : ref ∈ dependencies)
     (task : TaskAt work (.executionGroup address) owners producer payload)
-    (contributes : key ∈ owners)
+    (contributes : ref ∈ owners)
     : ∃ value,
         (Occurrence.executionGroup address, value)
         ∈ published.take
@@ -79,19 +79,19 @@ theorem ExecutedWork.streamItems_groupNoticeAncestor_contributor_before
                   WorkQueueEvent.objectValues).length) := by
   let initial := State.initialize (Work.fromExecution work)
   let queue := initial.replayGraphEvents before
-  have keyNoticed : child.key ∈ rawGroupNoticeKeys (.groupSuccess group groups streams) :=
+  have refNoticed : child.ref ∈ rawGroupNoticeRefs (.groupSuccess group groups streams) :=
     List.mem_map_of_mem noticed
   have emitted := List.mem_of_getElem? selected
   obtain ⟨result, impossible | ⟨_, prior | buffered⟩⟩ :=
     generated.noticeAncestor_contributor_published_buffered_or_current valid started covered
-      emitted keyNoticed known ancestor task contributes
+      emitted refNoticed known ancestor task contributes
   · cases impossible
   · exact ⟨result.value, List.take_subset_take_left _ (Nat.le_add_right ..) prior⟩
   · obtain ⟨node, lookup, stored, taskOwners, nodeContributes, present⟩ := buffered
     obtain ⟨active, index, atDrain, prefixEq, finalEq⟩ :=
       queue.streamItems_groupNotice_boundary stream items selected
     have notCancelled := (generated.noticeAncestor_healthy_uncancelled valid
-      (State.acceptsBatch_prefix started) emitted keyNoticed known ancestor).2
+      (State.acceptsBatch_prefix started) emitted refNoticed known ancestor).2
     have endpoint : initial.replayGraphEvents (before ++ [.streamItems stream items])
         = (queue.preparedStreamItems items).drainReadyGroups.1 := by
       rw [State.replayGraphEvents_append]
@@ -120,7 +120,7 @@ output accounting; normalized semantic dependency readiness remains a separate b
 -/
 theorem ExecutedWork.handleGraphEvent_groupNoticeAncestor_contributor_before
     {work before event published position group groups streams child dependencies
-      key address owners producer payload}
+      ref address owners producer payload}
     (generated : ExecutedWork work)
     (valid : ValidGraphEvents work (before ++ [event]))
     (started
@@ -135,9 +135,9 @@ theorem ExecutedWork.handleGraphEvent_groupNoticeAncestor_contributor_before
           event).2[position]?
         = some (.groupSuccess group groups streams))
     (noticed : child ∈ groups) (known : GroupRecordAt work child dependencies)
-    (ancestor : key ∈ dependencies)
+    (ancestor : ref ∈ dependencies)
     (task : TaskAt work (.executionGroup address) owners producer payload)
-    (contributes : key ∈ owners)
+    (contributes : ref ∈ owners)
     : ∃ value,
         (Occurrence.executionGroup address, value)
         ∈ published.take

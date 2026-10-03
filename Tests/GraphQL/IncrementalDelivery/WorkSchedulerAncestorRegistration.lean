@@ -32,14 +32,14 @@ example (route : Address)
 /-- Ancestors precede their children and retain every immediate-parent link. -/
 example
     : (Work.fromExecution wrapped).groups.map
-        (fun group => (group.node.key, group.parent))
-      = [(p.key, none), (e.key, some p.key), (c.key, some e.key)] := by cbv
+        (fun group => (group.node.ref, group.parent))
+      = [(p.ref, none), (e.ref, some p.ref), (c.ref, some e.ref)] := by cbv
 
 /-- Ancestor-only groups are not added to the task's contributing owners. -/
 example
     : (Work.fromExecution wrapped).tasks.map
-        (fun task => (task.occurrence, task.groups.map DeliveryNode.key))
-      = [(.executionGroup [], [c.key])] := by cbv
+        (fun task => (task.occurrence, task.groups.map DeliveryNode.ref))
+      = [(.executionGroup [], [c.ref])] := by cbv
 
 /-- Initialization silently prunes taskless ancestors, announcing only C. -/
 example : (State.initialize (Work.fromExecution wrapped)).initialGroups = [c] := by cbv
@@ -47,10 +47,10 @@ example : (State.initialize (Work.fromExecution wrapped)).initialGroups = [c] :=
 /-- Pruning does not cancel the surviving task or retain empty ancestor records. -/
 example
     : let queue := State.initialize (Work.fromExecution wrapped)
-      queue.registeredGroups = [p.key, e.key, c.key]
-      ∧ queue.groupNodes.map (fun node => node.group.node.key) = [c.key]
+      queue.registeredGroups = [p.ref, e.ref, c.ref]
+      ∧ queue.groupNodes.map (fun node => node.group.node.ref) = [c.ref]
       ∧ queue.cancelledGroups = []
-      ∧ queue.groupIsHealthy c.key = true := by cbv
+      ∧ queue.groupIsHealthy c.ref = true := by cbv
 
 private def nested : Execution.Work :=
   .executionGroup [⟨p, []⟩] [] (.ok ([], 0)) wrapped
@@ -72,9 +72,9 @@ private def childSuccess : GraphEvent :=
 example
     : let queue := State.initialize (Work.fromExecution nested)
       let integrated := (queue.maybeIntegrateWork (Work.fromExecution wrapped [0])).1
-      integrated.registeredGroups = [p.key, e.key, c.key]
-      ∧ (integrated.groupNode? p.key).map GroupNode.childGroups = some [e.key]
-      ∧ (integrated.groupNode? e.key).map GroupNode.childGroups = some [c.key] := by cbv
+      integrated.registeredGroups = [p.ref, e.ref, c.ref]
+      ∧ (integrated.groupNode? p.ref).map GroupNode.childGroups = some [e.ref]
+      ∧ (integrated.groupNode? e.ref).map GroupNode.childGroups = some [c.ref] := by cbv
 
 /-- Success promotes C through E without publishing any notice or completion for E. -/
 example
@@ -156,9 +156,9 @@ example
     : let queue := ((State.initialize (Work.fromExecution work)).runNormalized beforeX).1
       queue.registeredGroups = [0, 1, 2, 3, 4, 5, 6]
       ∧ queue.cancelledGroups = [0, 4, 5, 3, 2]
-      ∧ queue.groupNode? e.key = none
-      ∧ queue.groupNode? c.key = none
-      ∧ queue.groupIsHealthy c.key = false := by cbv
+      ∧ queue.groupNode? e.ref = none
+      ∧ queue.groupNode? c.ref = none
+      ∧ queue.groupIsHealthy c.ref = false := by cbv
 
 /-- The same host prefix still obeys the executable start discipline. -/
 example : inputsStarted work inputs = true := by cbv

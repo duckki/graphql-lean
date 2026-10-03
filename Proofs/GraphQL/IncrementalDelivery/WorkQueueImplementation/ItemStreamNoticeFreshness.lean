@@ -11,29 +11,30 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 -- Freshness survives every item in the carrier's actual preparation fold
 -----------------------------------------------------------------------------------------
 
-/-- The item fold retains a fresh, unique notice inventory against any old registered keys.
-Witness: each integration appends only keys absent from the current registry, which already
-contains both excluded old keys and all earlier item notices. Pruning and activation leave
+/-- The item fold retains a fresh, unique notice inventory against any old registered refs.
+Witness: each integration appends only refs absent from the current registry, which already
+contains both excluded old refs and all earlier item notices. Pruning and activation leave
 that registry unchanged. No generated-work or source-validity premise is required.
 -/
-theorem streamItemFold_streamNoticeInventory (items : List StreamItem) (excluded : Keys)
+theorem streamItemFold_streamNoticeInventory (items : List StreamItem)
+    (excluded : NodeRefs)
     (acc
       : State
         × List Execution.DeliveryNode
         × List Execution.DeliveryNode
         × List StreamItemValue)
-    (old : excluded.Subset (acc.1.streams.map (fun stream => stream.node.key)))
+    (old : excluded.Subset (acc.1.streams.map (fun stream => stream.node.ref)))
     (covered
-      : (acc.2.2.1.map Execution.DeliveryNode.key).Subset
-          (acc.1.streams.map (fun stream => stream.node.key)))
-    (unique : (acc.2.2.1.map Execution.DeliveryNode.key).Nodup)
-    (fresh : ∀ key ∈ acc.2.2.1.map Execution.DeliveryNode.key, key ∉ excluded)
+      : (acc.2.2.1.map Execution.DeliveryNode.ref).Subset
+          (acc.1.streams.map (fun stream => stream.node.ref)))
+    (unique : (acc.2.2.1.map Execution.DeliveryNode.ref).Nodup)
+    (fresh : ∀ ref ∈ acc.2.2.1.map Execution.DeliveryNode.ref, ref ∉ excluded)
     : let final := items.foldl streamItemStep acc
-      excluded.Subset (final.1.streams.map (fun stream => stream.node.key))
-      ∧ (final.2.2.1.map Execution.DeliveryNode.key).Subset
-          (final.1.streams.map (fun stream => stream.node.key))
-      ∧ (final.2.2.1.map Execution.DeliveryNode.key).Nodup
-      ∧ ∀ key ∈ final.2.2.1.map Execution.DeliveryNode.key, key ∉ excluded := by
+      excluded.Subset (final.1.streams.map (fun stream => stream.node.ref))
+      ∧ (final.2.2.1.map Execution.DeliveryNode.ref).Subset
+          (final.1.streams.map (fun stream => stream.node.ref))
+      ∧ (final.2.2.1.map Execution.DeliveryNode.ref).Nodup
+      ∧ ∀ ref ∈ final.2.2.1.map Execution.DeliveryNode.ref, ref ∉ excluded := by
   induction items generalizing acc with
   | nil => exact ⟨old, covered, unique, fresh⟩
   | cons item rest ih =>
@@ -45,21 +46,21 @@ theorem streamItemFold_streamNoticeInventory (items : List StreamItem) (excluded
       have notices : next.2.2.1 = acc.2.2.1 ++ integrated.2.newStreams := rfl
       have stored := acc.1.maybeIntegrateWork_streams_registered item.work
       have added := acc.1.maybeIntegrateWork_streamNotices_fresh item.work
-      have retains : (acc.1.streams.map (fun stream => stream.node.key)).Subset
-          (next.1.streams.map (fun stream => stream.node.key)) := by
+      have retains : (acc.1.streams.map (fun stream => stream.node.ref)).Subset
+          (next.1.streams.map (fun stream => stream.node.ref)) := by
         rw [registry]
         exact List.map_subset _ stored.1
-      have newStored : (integrated.2.newStreams.map Execution.DeliveryNode.key).Subset
-          (next.1.streams.map (fun stream => stream.node.key)) := by
+      have newStored : (integrated.2.newStreams.map Execution.DeliveryNode.ref).Subset
+          (next.1.streams.map (fun stream => stream.node.ref)) := by
         rw [registry]
-        intro key member
+        intro ref member
         obtain ⟨node, included, same⟩ := List.mem_map.mp member
         obtain ⟨stream, registered, descriptor⟩ := List.mem_map.mp (stored.2 included)
         exact List.mem_map.mpr ⟨stream, registered,
-          (congrArg Execution.DeliveryNode.key descriptor).trans same⟩
-      have newFresh : ∀ key ∈ integrated.2.newStreams.map Execution.DeliveryNode.key,
-          key ∉ acc.1.streams.map (fun stream => stream.node.key) := by
-        intro key member
+          (congrArg Execution.DeliveryNode.ref descriptor).trans same⟩
+      have newFresh : ∀ ref ∈ integrated.2.newStreams.map Execution.DeliveryNode.ref,
+          ref ∉ acc.1.streams.map (fun stream => stream.node.ref) := by
+        intro ref member
         obtain ⟨node, included, same⟩ := List.mem_map.mp member
         exact same ▸ added.2 node included
       refine ih next (old.trans retains) ?_ ?_ ?_
@@ -70,10 +71,10 @@ theorem streamItemFold_streamNoticeInventory (items : List StreamItem) (excluded
         intro first earlier second later same
         exact newFresh second later (same ▸ covered earlier)
       · rw [notices, List.map_append]
-        intro key member
+        intro ref member
         rcases List.mem_append.mp member with earlier | later
-        · exact fresh key earlier
-        · exact fun previous => newFresh key later (old previous)
+        · exact fresh ref earlier
+        · exact fun previous => newFresh ref later (old previous)
 
 /-- All streams on an actual item carrier are unique and absent from its entry registry.
 Witness: initialize the preparation inventory with no carried notices; the handler emits
@@ -85,9 +86,9 @@ theorem State.streamItems_notices_fresh (queue : State) (stream : Execution.Deli
     (selected
       : (queue.streamItems stream items).2[position]?
         = some (.streamValues owner values groups streams))
-    : (streams.map Execution.DeliveryNode.key).Nodup
+    : (streams.map Execution.DeliveryNode.ref).Nodup
       ∧ ∀ node ∈ streams,
-          node.key ∉ queue.streams.map (fun stream => stream.node.key) := by
+          node.ref ∉ queue.streams.map (fun stream => stream.node.ref) := by
   have zero := queue.streamItems_carrier_index stream items selected
   rw [zero, queue.streamItems_eq] at selected
   split at selected
@@ -95,10 +96,10 @@ theorem State.streamItems_notices_fresh (queue : State) (stream : Execution.Deli
   · have same := Execution.WorkQueueEvent.streamValues.inj (Option.some.inj selected)
     obtain ⟨_, _, _, rfl⟩ := same
     have inventory := streamItemFold_streamNoticeInventory items
-      (queue.streams.map (fun stream => stream.node.key)) (queue, [], [], [])
-      (List.Subset.refl _) (by intro key impossible; cases impossible) (by simp) (by simp)
+      (queue.streams.map (fun stream => stream.node.ref)) (queue, [], [], [])
+      (List.Subset.refl _) (by intro ref impossible; cases impossible) (by simp) (by simp)
     refine ⟨inventory.2.2.1, ?_⟩
     intro node member
-    exact inventory.2.2.2 node.key (List.mem_map_of_mem member)
+    exact inventory.2.2.2 node.ref (List.mem_map_of_mem member)
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

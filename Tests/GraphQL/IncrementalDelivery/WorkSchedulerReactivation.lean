@@ -36,8 +36,8 @@ private def selections : List Selection :=
     defer [field "required"] (some "S")
   ]
 
-private def node (key : Nat) (label : String) : DeliveryNode :=
-  { key, path := [], label := some (.string label) }
+private def node (ref : NodeRef) (label : String) : DeliveryNode :=
+  { ref, path := [], label := some (.string label) }
 
 private def parent : DeliveryNode := node 0 "P"
 private def child : DeliveryNode := node 1 "C"
@@ -89,21 +89,21 @@ theorem generated : ExecutedWork work := by
 
 /-- P's own field completes successfully. Witness: its fixed generated task location. -/
 private theorem parent_known
-    : TaskAt work parentTask [parent.key] none
+    : TaskAt work parentTask [parent.ref] none
         (.object [] (.ok ([("a", .scalar "a")], 0))) := by
   refine ⟨[⟨parent, []⟩], [], _, .combine .empty .empty, [], ?_, rfl, rfl⟩
   cbv
 
 /-- C and S share the non-null failure. Witness: its fixed generated task location. -/
 private theorem failure_known
-    : TaskAt work failedTask [child.key, failureOwner.key] none
+    : TaskAt work failedTask [child.ref, failureOwner.ref] none
         (.object [] (.error 1)) := by
   refine ⟨[childFragment, ⟨failureOwner, []⟩], [], _, .empty, [], ?_, rfl, rfl⟩
   cbv
 
 /-- C and R share both object fields. Witness: their generated task and child work. -/
 private theorem shared_known
-    : TaskAt work sharedTask [child.key, survivor.key] none
+    : TaskAt work sharedTask [child.ref, survivor.ref] none
         (.object [] (.ok (sharedData, 0))) := by
   refine ⟨[childFragment, ⟨survivor, []⟩], [], _, sharedChildren, [], ?_, rfl, rfl⟩
   cbv
@@ -182,7 +182,7 @@ theorem initialized : Initializes work initial.initialGroups initial.initialStre
     cbv
   have eligible (group : DeliveryNode) (known : NodeAt work group .group [] none)
       : CanAnnounce work [] (fun _ => .executionGroup []) [] [] group .group [] none :=
-    ⟨by simp [announcedKeys, pendingKeys], Or.inl ⟨fun failure => failure.nonempty rfl,
+    ⟨by simp [announcedRefs, pendingRefs], Or.inl ⟨fun failure => failure.nonempty rfl,
         Or.inr (group_not_initially_accounted known)⟩, by simp, by simp⟩
   have notices : initial.initialGroups = [parent, failureOwner, survivor]
       ∧ initial.initialStreams = [] := by cbv
@@ -203,31 +203,31 @@ theorem initialized : Initializes work initial.initialGroups initial.initialStre
 Witness: both prefix lookups retain the error, while completed release removes the node.
 -/
 theorem child_retained_until_release
-    : ((initial.runNormalized [[failure]]).1.groupNode? child.key).map GroupNode.failure
+    : ((initial.runNormalized [[failure]]).1.groupNode? child.ref).map GroupNode.failure
         = some (some 1)
-      ∧ (beforeRelease.groupNode? child.key).map GroupNode.failure = some (some 1)
-      ∧ finalState.groupNode? child.key = none := by
+      ∧ (beforeRelease.groupNode? child.ref).map GroupNode.failure = some (some 1)
+      ∧ finalState.groupNode? child.ref = none := by
   constructor
   · cbv
   · constructor <;> cbv
 
-/-- Once normally announced and completed, the child's key cannot be recreated.
+/-- Once normally announced and completed, the child's ref cannot be recreated.
 Witness: its actual permanent retirement and unrestricted replay preservation.
 -/
 theorem child_never_recreated (future : List (List GraphEvent))
-    : (finalState.runNormalized future).1.groupNode? child.key = none := by
-  have retired : finalState.RetiredGroup child.key :=
+    : (finalState.runNormalized future).1.groupNode? child.ref = none := by
+  have retired : finalState.RetiredGroup child.ref :=
     State.RetiredGroup.of_lookup_none (by cbv; exact List.mem_cons_of_mem _ List.mem_cons_self) child_retained_until_release.2.2
   exact retired.never_recreated future
 
 /-- An empty group pruned during initialization also cannot be recreated later.
-Witness: the permanent registration key and unrestricted retirement preservation.
+Witness: the permanent registration ref and unrestricted retirement preservation.
 -/
 theorem pruned_group_never_recreated (future : List (List GraphEvent))
     : ((State.initialize { groups := [⟨child, none⟩] }).runNormalized future).1.groupNode?
-        child.key
+        child.ref
       = none := by
-  have retired : (State.initialize { groups := [⟨child, none⟩] }).RetiredGroup child.key := by
+  have retired : (State.initialize { groups := [⟨child, none⟩] }).RetiredGroup child.ref := by
     constructor
     · change 1 ∈ [1]
       decide
@@ -239,8 +239,8 @@ theorem pruned_group_never_recreated (future : List (List GraphEvent))
 Witness: the nonzero live pending count and the final active root.
 -/
 theorem surviving_children_registered
-    : (beforeRelease.groupNode? survivor.key).map GroupNode.pending = some 2
-      ∧ finalState.rootGroups = [survivor.key] := by
+    : (beforeRelease.groupNode? survivor.ref).map GroupNode.pending = some 2
+      ∧ finalState.rootGroups = [survivor.ref] := by
   constructor <;> cbv
 
 /-- Normal parent release announces the failed child and reports its cached error.
@@ -315,8 +315,8 @@ theorem release_before_failure_accounted
 Witness: concrete final lookups; unlike the historical test, no early retirement is assumed.
 -/
 theorem failed_child_absent_both_orders
-    : finalState.groupNode? child.key = none
-      ∧ (initial.runNormalized releaseBeforeFailure).1.groupNode? child.key = none := by
+    : finalState.groupNode? child.ref = none
+      ∧ (initial.runNormalized releaseBeforeFailure).1.groupNode? child.ref = none := by
   constructor <;> cbv
 
 end GraphQL.IncrementalDelivery.Tests.WorkSchedulerReactivation

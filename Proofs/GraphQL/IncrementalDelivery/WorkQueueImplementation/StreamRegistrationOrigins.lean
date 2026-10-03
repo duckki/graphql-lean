@@ -84,11 +84,11 @@ theorem createWorkQueue_replay_streamProducersSeen {work : Execution.Work}
       | taskFailure | streamSuccess | streamFailure => trivial
 
 -----------------------------------------------------------------------------------------
--- Fresh structural producers cannot collide with any earlier registered stream key
+-- Fresh structural producers cannot collide with any earlier registered stream ref
 -----------------------------------------------------------------------------------------
 
 /-- A stream from an unseen producer has no existing registry lookup.
-Witness: generated key uniqueness identifies producers of equal-key descriptors; an old
+Witness: generated ref uniqueness identifies producers of equal-ref descriptors; an old
 lookup would place the fresh producer among already received identities.
 -/
 theorem State.StreamsSatisfy.freshProducer_streamAbsent {queue : State} {work seen}
@@ -96,17 +96,17 @@ theorem State.StreamsSatisfy.freshProducer_streamAbsent {queue : State} {work se
     (generated : ExecutedWork work) {node dependencies producer}
     (known : NodeAt work node .stream dependencies (some producer))
     (fresh : producer ∉ seen)
-    : queue.stream? node.key = none := by
-  cases found : queue.stream? node.key with
+    : queue.stream? node.ref = none := by
+  cases found : queue.stream? node.ref with
   | none => rfl
   | some stream =>
-      obtain ⟨member, sameKey⟩ := State.stream?_some found
+      obtain ⟨member, sameRef⟩ := State.stream?_some found
       obtain ⟨oldDependencies, oldProducer, descriptor, observed⟩ := origins stream member
-      have same := generated.streamProducer_unique descriptor known sameKey
+      have same := generated.streamProducer_unique descriptor known sameRef
       exact False.elim (fresh (observed producer same))
 
 /-- Every child stream of a fresh object success is absent before that input is handled.
-Witness: replay registration provenance and the unique generated producer for each key.
+Witness: replay registration provenance and the unique generated producer for each ref.
 This excludes accidental deduplication against a stream introduced by another producer.
 -/
 theorem ExecutedWork.replayGraphEvents_taskChildStream_absent
@@ -116,7 +116,7 @@ theorem ExecutedWork.replayGraphEvents_taskChildStream_absent
     (fresh : (GraphEvent.taskSuccess occurrence result).Fresh before)
     {stream : Stream} (member : stream ∈ result.work.streams)
     : ((State.initialize (Work.fromExecution work)).replayGraphEvents before).stream?
-        stream.node.key
+        stream.node.ref
       = none := by
   obtain ⟨dependencies, known⟩ := matching.childStream_producer member
   exact (createWorkQueue_replay_streamProducersSeen valid).freshProducer_streamAbsent

@@ -10,44 +10,44 @@ open GraphQL.IncrementalDelivery.Execution (
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
 /-- In generated Work, every live child link points to a strictly newer
-delivery key. This rules out cycles in the executable queue's child links. -/
-private theorem State.ChildLinksCanonical.childKeyGreater
-    {queue : State} {work : Execution.Work} {parents : Nat → Keys}
+delivery ref. This rules out cycles in the executable queue's child links. -/
+private theorem State.ChildLinksCanonical.childRefGreater
+    {queue : State} {work : Execution.Work} {parents : Nat → NodeRefs}
     (generated : ExecutedWork work)
     (links : queue.ChildLinksCanonical parents)
     (matching : queue.GroupNodesMatchWork work)
     (workCanonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     {parent child : GroupNode}
     (parentMember : parent ∈ queue.groupNodes)
     (childMember : child ∈ queue.groupNodes)
-    (linked : child.group.node.key ∈ parent.childGroups)
-    : parent.group.node.key < child.group.node.key := by
+    (linked : child.group.node.ref ∈ parent.childGroups)
+    : parent.group.node.ref < child.group.node.ref := by
   obtain ⟨dependencies, known⟩ := matching child childMember
-  have head : dependencies.head? = some parent.group.node.key := by
+  have head : dependencies.head? = some parent.group.node.ref := by
     rw [workCanonical child.group.node dependencies known]
-    exact links parent parentMember child.group.node.key linked
+    exact links parent parentMember child.group.node.ref linked
   cases dependencies with
   | nil => simp at head
   | cons first rest =>
       simp only [List.head?_cons] at head
-      have firstEq : first = parent.group.node.key := Option.some.inj head
+      have firstEq : first = parent.group.node.ref := Option.some.inj head
       subst first
       exact generated.groupRecordAncestorSmaller known (by simp)
 
 /-- Replacing a group node preserves child-edge coherence when the replacement
 retains coherent links. -/
 theorem State.ChildLinksCanonical.putGroupNode
-    {queue : State} {parents : Nat → Keys}
+    {queue : State} {parents : Nat → NodeRefs}
     (links : queue.ChildLinksCanonical parents) (updated : GroupNode)
     (updatedLinks
       : ∀ child ∈ updated.childGroups,
-          (parents child).head? = some updated.group.node.key)
+          (parents child).head? = some updated.group.node.ref)
     : (queue.putGroupNode updated).ChildLinksCanonical parents := by
   intro node member child childMember
   change node ∈ queue.groupNodes.map
-    (fun old => if old.group.node.key == updated.group.node.key then updated else old)
+    (fun old => if old.group.node.ref == updated.group.node.ref then updated else old)
     at member
   obtain ⟨old, oldMember, same⟩ := List.mem_map.mp member
   split at same
@@ -58,7 +58,7 @@ theorem State.ChildLinksCanonical.putGroupNode
 
 /-- A new group has no child links until the second integration pass. -/
 theorem State.ChildLinksCanonical.addGroup
-    {queue : State} {parents : Nat → Keys}
+    {queue : State} {parents : Nat → NodeRefs}
     (links : queue.ChildLinksCanonical parents) (group : Group)
     : (queue.addGroup group).ChildLinksCanonical parents := by
   unfold State.addGroup
@@ -76,9 +76,9 @@ theorem State.ChildLinksCanonical.addGroup
 /-- The group-integration link pass adds only the primary-parent edge supplied
 by the generated descriptor; other stored edges are unchanged. -/
 theorem State.ChildLinksCanonical.addGroups
-    {queue : State} {parents : Nat → Keys}
+    {queue : State} {parents : Nat → NodeRefs}
     (links : queue.ChildLinksCanonical parents) (groups : List Group)
-    (all : ∀ group ∈ groups, group.parent = (parents group.node.key).head?)
+    (all : ∀ group ∈ groups, group.parent = (parents group.node.ref).head?)
     : (queue.addGroups groups).1.ChildLinksCanonical parents := by
   let linkStep (current : State) (group : Group) : State :=
     match group.parent with
@@ -88,9 +88,9 @@ theorem State.ChildLinksCanonical.addGroups
         | none => current
         | some node =>
             let children :=
-              if node.childGroups.contains group.node.key then
+              if node.childGroups.contains group.node.ref then
                 node.childGroups
-              else node.childGroups ++ [group.node.key]
+              else node.childGroups ++ [group.node.ref]
             current.putGroupNode { node with childGroups := children }
   have registerFold (more : List Group) :
       ∀ current, current.ChildLinksCanonical parents
@@ -102,7 +102,7 @@ theorem State.ChildLinksCanonical.addGroups
         exact ih (current.addGroup group) (currentLinks.addGroup group)
   have linkOne (current : State) (group : Group)
       (currentLinks : current.ChildLinksCanonical parents)
-      (groupCanonical : group.parent = (parents group.node.key).head?)
+      (groupCanonical : group.parent = (parents group.node.ref).head?)
       : (linkStep current group).ChildLinksCanonical parents := by
     unfold linkStep
     split
@@ -118,10 +118,10 @@ theorem State.ChildLinksCanonical.addGroups
             child childMember
         · rcases List.mem_append.mp childMember with old | fresh
           · exact currentLinks node (List.mem_of_find?_eq_some found) child old
-          · have childEq : child = group.node.key := List.mem_singleton.mp fresh
+          · have childEq : child = group.node.ref := List.mem_singleton.mp fresh
             subst child
             rw [← groupCanonical]
-            simpa [State.groupNode?_key found] using parentEq
+            simpa [State.groupNode?_ref found] using parentEq
   have linkFold (more : List Group)
       (subset : ∀ group ∈ more, group ∈ groups) :
       ∀ current, current.ChildLinksCanonical parents
@@ -136,8 +136,8 @@ theorem State.ChildLinksCanonical.addGroups
         exact ih nextSubset (linkStep current group)
           (linkOne current group currentLinks (all group (subset group (by simp))))
   let fresh := groups.filter (fun group =>
-    !queue.registeredGroups.contains group.node.key
-      && (queue.groupNode? group.node.key).isNone)
+    !queue.registeredGroups.contains group.node.ref
+      && (queue.groupNode? group.node.ref).isNone)
   change (fresh.foldl linkStep
     (fresh.foldl State.addGroup queue)).ChildLinksCanonical parents
   exact linkFold fresh (fun _ member => (List.mem_filter.mp member).1) _
@@ -145,12 +145,12 @@ theorem State.ChildLinksCanonical.addGroups
 
 /-- Adding a task updates group memberships and counters, but no child edge. -/
 theorem State.ChildLinksCanonical.addTask
-    {queue : State} {parents : Nat → Keys}
+    {queue : State} {parents : Nat → NodeRefs}
     (links : queue.ChildLinksCanonical parents) (task : Task)
     : (queue.addTask task).ChildLinksCanonical parents := by
   let registered : State := { queue with tasks := queue.tasks ++ [task] }
   let step (current : State) (group : Execution.DeliveryNode) : State :=
-    match current.groupNode? group.key with
+    match current.groupNode? group.ref with
     | none => current
     | some node =>
         if node.tasks.contains task.occurrence then current
@@ -178,7 +178,7 @@ theorem State.ChildLinksCanonical.addTask
   let current := task.groups.foldl step registered
   have currentLinks : current.ChildLinksCanonical parents :=
     foldLinks task.groups registered links
-  change (if task.groups.any (fun group => current.rootGroups.contains group.key)
+  change (if task.groups.any (fun group => current.rootGroups.contains group.ref)
       && (current.taskNode? task.occurrence).isNone then
     { current with taskNodes := current.taskNodes ++ [{ task }] }
     else current).ChildLinksCanonical parents
@@ -186,7 +186,7 @@ theorem State.ChildLinksCanonical.addTask
 
 /-- Stream registration changes no group child links. -/
 theorem State.ChildLinksCanonical.addStreams
-    {queue : State} {parents : Nat → Keys}
+    {queue : State} {parents : Nat → NodeRefs}
     (links : queue.ChildLinksCanonical parents)
     (streams : List Stream) (parentTask : Option Occurrence)
     : (queue.addStreams streams parentTask).1.ChildLinksCanonical parents := by
@@ -199,10 +199,10 @@ theorem State.ChildLinksCanonical.addStreams
 /-- Integrating new Work preserves child-edge coherence if each new group
 has the primary parent assigned by execution. -/
 theorem State.ChildLinksCanonical.maybeIntegrateWork
-    {queue : State} {parents : Nat → Keys}
+    {queue : State} {parents : Nat → NodeRefs}
     (links : queue.ChildLinksCanonical parents) (work : Work)
     (groupsCanonical
-      : ∀ group ∈ work.groups, group.parent = (parents group.node.key).head?)
+      : ∀ group ∈ work.groups, group.parent = (parents group.node.ref).head?)
     (parentTask : Option Occurrence := none)
     : (queue.maybeIntegrateWork work parentTask).1.ChildLinksCanonical parents := by
   let withGroups := (queue.addGroups work.groups).1
@@ -224,7 +224,7 @@ theorem State.ChildLinksCanonical.maybeIntegrateWork
 
 /-- Pruning removes group nodes but never changes links on survivors. -/
 theorem State.ChildLinksCanonical.pruneEmptyGroups
-    {queue : State} {parents : Nat → Keys}
+    {queue : State} {parents : Nat → NodeRefs}
     (links : queue.ChildLinksCanonical parents)
     (groups : List Execution.DeliveryNode)
     : (queue.pruneEmptyGroups groups).1.ChildLinksCanonical parents := by
@@ -252,7 +252,7 @@ theorem State.ChildLinksCanonical.pruneEmptyGroups
 
 /-- Starting released work changes no stored group edges. -/
 theorem State.ChildLinksCanonical.startNewWork
-    {queue : State} {parents : Nat → Keys}
+    {queue : State} {parents : Nat → NodeRefs}
     (links : queue.ChildLinksCanonical parents) (newWork : NewWork)
     : (queue.startNewWork newWork).ChildLinksCanonical parents := by
   intro node member child childMember
@@ -262,16 +262,16 @@ theorem State.ChildLinksCanonical.startNewWork
 
 /-- Removing a group preserves all edges on remaining nodes. -/
 theorem State.ChildLinksCanonical.removeGroup
-    {queue : State} {parents : Nat → Keys}
-    (links : queue.ChildLinksCanonical parents) (key : Nat)
-    : (queue.removeGroup key).ChildLinksCanonical parents := by
+    {queue : State} {parents : Nat → NodeRefs}
+    (links : queue.ChildLinksCanonical parents) (ref : NodeRef)
+    : (queue.removeGroup ref).ChildLinksCanonical parents := by
   intro node member child childMember
   unfold State.removeGroup at member
   exact links node (List.mem_filter.mp member).1 child childMember
 
 /-- Removing a task changes memberships, not child edges. -/
 theorem State.ChildLinksCanonical.removeTask
-    {queue : State} {parents : Nat → Keys}
+    {queue : State} {parents : Nat → NodeRefs}
     (links : queue.ChildLinksCanonical parents) (occurrence : Occurrence)
     : (queue.removeTask occurrence).ChildLinksCanonical parents := by
   intro node member child childMember
@@ -283,10 +283,10 @@ theorem State.ChildLinksCanonical.removeTask
 
 /-- Once a structurally matched failed task's contributors are invalidated, failure
 cleanup preserves healthy registration. Witness: failed-membership removal, healthy
-subtree retention, and cache updates restricted to invalidated keys.
+subtree retention, and cache updates restricted to invalidated refs.
 -/
 theorem State.HealthyRegisteredTaskAccounting.taskFailure
-    {queue : State} {work : Execution.Work} {parents : Nat → Keys}
+    {queue : State} {work : Execution.Work} {parents : Nat → NodeRefs}
     {settled failed : List Occurrence}
     (accounted : queue.HealthyRegisteredTaskAccounting work settled failed)
     (taskMatching : queue.RegisteredTasksMatch work)
@@ -295,21 +295,21 @@ theorem State.HealthyRegisteredTaskAccounting.taskFailure
     (matching : queue.GroupNodesMatchWork work)
     (workCanonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (occurrence : Occurrence) (errors : Nat)
     (taskNode : TaskNode) (found : queue.taskNode? occurrence = some taskNode)
     (failedOwners
       : ∀ group ∈ taskNode.task.groups,
-          GroupInvalidated work (occurrence :: failed) group.key)
+          GroupInvalidated work (occurrence :: failed) group.ref)
     : (queue.taskFailure occurrence errors).1.HealthyRegisteredTaskAccounting
         work settled (occurrence :: failed) := by
   let step (acc : State × List WorkQueueEvent)
       (group : Execution.DeliveryNode) : State × List WorkQueueEvent :=
     let (current, events) := acc
-    match current.groupNode? group.key with
+    match current.groupNode? group.ref with
     | none => (current, events)
     | some node =>
-        if current.rootGroups.contains group.key then
+        if current.rootGroups.contains group.ref then
           let (next, failure) := current.finishGroupFailure node errors
           (next, events ++ [failure])
         else (current.putGroupNode
@@ -318,7 +318,7 @@ theorem State.HealthyRegisteredTaskAccounting.taskFailure
             failure := some (node.failure.getD 0 + errors) }, events)
   have stepFacts (acc : State × List WorkQueueEvent)
       (group : Execution.DeliveryNode)
-      (groupFailed : GroupInvalidated work (occurrence :: failed) group.key)
+      (groupFailed : GroupInvalidated work (occurrence :: failed) group.ref)
       (currentAccounting : acc.1.HealthyRegisteredTaskAccounting
         work settled (occurrence :: failed))
       (currentLinks : acc.1.ChildLinksCanonical parents)
@@ -331,32 +331,32 @@ theorem State.HealthyRegisteredTaskAccounting.taskFailure
         ∧ (step acc group).1.RegisteredTasksMatch work := by
     obtain ⟨current, events⟩ := acc
     dsimp only [step]
-    cases nodeFound : current.groupNode? group.key with
+    cases nodeFound : current.groupNode? group.ref with
     | none => exact ⟨currentAccounting, currentLinks, currentMatching, currentTasks⟩
     | some node =>
-        have nodeKey : node.group.node.key = group.key :=
-          current.groupNode?_key nodeFound
+        have nodeRef : node.group.node.ref = group.ref :=
+          current.groupNode?_ref nodeFound
         have removeFacts :
-            (current.removeGroup group.key).HealthyRegisteredTaskAccounting
+            (current.removeGroup group.ref).HealthyRegisteredTaskAccounting
               work settled (occurrence :: failed)
-            ∧ (current.removeGroup group.key).ChildLinksCanonical parents
-            ∧ (current.removeGroup group.key).GroupNodesMatchWork work
-            ∧ (current.removeGroup group.key).RegisteredTasksMatch work := by
+            ∧ (current.removeGroup group.ref).ChildLinksCanonical parents
+            ∧ (current.removeGroup group.ref).GroupNodesMatchWork work
+            ∧ (current.removeGroup group.ref).RegisteredTasksMatch work := by
           exact ⟨currentAccounting.removeInvalidatedGroup currentTasks generated currentLinks
-              currentMatching workCanonical group.key groupFailed.toRecordInvalidated,
-            currentLinks.removeGroup group.key,
-            currentMatching.removeGroup group.key, currentTasks.removeGroup group.key⟩
-        cases active : current.rootGroups.contains group.key with
+              currentMatching workCanonical group.ref groupFailed.toRecordInvalidated,
+            currentLinks.removeGroup group.ref,
+            currentMatching.removeGroup group.ref, currentTasks.removeGroup group.ref⟩
+        cases active : current.rootGroups.contains group.ref with
         | false =>
             simp only [Bool.false_eq_true, ite_false]
-            exact ⟨currentAccounting.putInvalidatedGroup _ (nodeKey.symm ▸ groupFailed),
+            exact ⟨currentAccounting.putInvalidatedGroup _ (nodeRef.symm ▸ groupFailed),
               currentLinks.putGroupNode _
                 (currentLinks node (List.mem_of_find?_eq_some nodeFound)),
               currentMatching.putGroupNode _
                 (currentMatching node (List.mem_of_find?_eq_some nodeFound)),
               currentTasks.putGroupNode _⟩
         | true =>
-            simpa [active, State.finishGroupFailure, nodeKey] using removeFacts
+            simpa [active, State.finishGroupFailure, nodeRef] using removeFacts
   have foldFacts (more : List Execution.DeliveryNode)
       (subset : ∀ group ∈ more, group ∈ taskNode.task.groups) :
       ∀ acc : State × List WorkQueueEvent,
@@ -412,7 +412,7 @@ private theorem State.registeredTaskFailure_failsOwners
     (found : queue.taskNode? occurrence = some taskNode)
     (failed : List Occurrence)
     : ∀ group ∈ taskNode.task.groups,
-        GroupInvalidated work (occurrence :: failed) group.key := by
+        GroupInvalidated work (occurrence :: failed) group.ref := by
   have taskMember : taskNode.task ∈ queue.tasks :=
     registered taskNode (List.mem_of_find?_eq_some found)
   obtain ⟨⟨_, payload, producer, _, taskAt⟩, _⟩ := matching taskNode.task taskMember
@@ -423,9 +423,9 @@ private theorem State.registeredTaskFailure_failsOwners
     exact (occurrence_beq_iff_eq _ _).mp selected
   intro group groupMember
   have owners : TaskHasOwners work taskNode.task.occurrence
-      (taskNode.task.groups.map Execution.DeliveryNode.key) :=
+      (taskNode.task.groups.map Execution.DeliveryNode.ref) :=
     ⟨producer, payload, taskAt⟩
-  have owner : group.key ∈ taskNode.task.groups.map Execution.DeliveryNode.key :=
+  have owner : group.ref ∈ taskNode.task.groups.map Execution.DeliveryNode.ref :=
     List.mem_map.mpr ⟨group, groupMember, rfl⟩
   have failedMember : taskNode.task.occurrence ∈ occurrence :: failed := by
     simp [occurrenceEq]
@@ -434,7 +434,7 @@ private theorem State.registeredTaskFailure_failsOwners
 /-- Registered task provenance and canonical child links make task-failure
 preservation unconditional on any extra owner-failure assumption. -/
 private theorem State.HealthyRegisteredTaskAccounting.taskFailure_registered
-    {queue : State} {work : Execution.Work} {parents : Nat → Keys}
+    {queue : State} {work : Execution.Work} {parents : Nat → NodeRefs}
     {settled failed : List Occurrence}
     (accounted : queue.HealthyRegisteredTaskAccounting work settled failed)
     (generated : ExecutedWork work)
@@ -442,7 +442,7 @@ private theorem State.HealthyRegisteredTaskAccounting.taskFailure_registered
     (groupMatching : queue.GroupNodesMatchWork work)
     (workCanonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (registered : queue.StartedTasksRegistered)
     (taskMatching : queue.RegisteredTasksMatch work)
     (occurrence : Occurrence) (errors : Nat)
@@ -456,7 +456,7 @@ private theorem State.HealthyRegisteredTaskAccounting.taskFailure_registered
 /-- Whether or not the task is still started, processing its failure retains
 accounting for every registered task with a uninvalidated owner. -/
 theorem State.HealthyRegisteredTaskAccounting.taskFailure_any
-    {queue : State} {work : Execution.Work} {parents : Nat → Keys}
+    {queue : State} {work : Execution.Work} {parents : Nat → NodeRefs}
     {settled failed : List Occurrence}
     (accounted : queue.HealthyRegisteredTaskAccounting work settled failed)
     (generated : ExecutedWork work)
@@ -464,7 +464,7 @@ theorem State.HealthyRegisteredTaskAccounting.taskFailure_any
     (groupMatching : queue.GroupNodesMatchWork work)
     (workCanonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (registered : queue.StartedTasksRegistered)
     (taskMatching : queue.RegisteredTasksMatch work)
     (occurrence : Occurrence) (errors : Nat)
@@ -481,8 +481,8 @@ theorem State.HealthyRegisteredTaskAccounting.taskFailure_any
 /-- Queue initialization preserves every parent-child edge created by the
 initial Work lowering. -/
 theorem createWorkQueue_childLinksCanonical
-    (initialWork : Work) (parents : Nat → Keys)
-    (all : ∀ group ∈ initialWork.groups, group.parent = (parents group.node.key).head?)
+    (initialWork : Work) (parents : Nat → NodeRefs)
+    (all : ∀ group ∈ initialWork.groups, group.parent = (parents group.node.ref).head?)
     : (State.initialize initialWork).ChildLinksCanonical parents := by
   let integrated := (({} : State).maybeIntegrateWork initialWork).1
   let newWork := (({} : State).maybeIntegrateWork initialWork).2
@@ -505,10 +505,10 @@ theorem createWorkQueue_childLinksCanonical
   exact startedLinks
 
 /-- Every generated root queue begins with primary-parent-correct child
-links, even when a group key has multiple execution occurrences. -/
+links, even when a group ref has multiple execution occurrences. -/
 private theorem ExecutedWork.initialQueueChildLinksCanonical
     {work : Execution.Work} (generated : ExecutedWork work)
-    : ∃ parents : Nat → Keys,
+    : ∃ parents : Nat → NodeRefs,
         (State.initialize (Work.fromExecution work)).ChildLinksCanonical parents := by
   obtain ⟨parents, canonical⟩ := generated.groupRecordsCanonical
   refine ⟨parents, createWorkQueue_childLinksCanonical
@@ -520,10 +520,10 @@ private theorem ExecutedWork.initialQueueChildLinksCanonical
 /-- Flushing a group deletes task memberships and group nodes without
 changing any child edge on a surviving node. -/
 theorem State.ChildLinksCanonical.finishGroupSuccess
-    {queue : State} {parents : Nat → Keys}
+    {queue : State} {parents : Nat → NodeRefs}
     (links : queue.ChildLinksCanonical parents) (group : GroupNode)
     : (queue.finishGroupSuccess group).1.ChildLinksCanonical parents := by
-  let step (acc : State × List ExecutionGroupValue × Keys)
+  let step (acc : State × List ExecutionGroupValue × NodeRefs)
       (occurrence : Occurrence) :=
     let (current, values, streams) := acc
     match current.taskNode? occurrence with
@@ -534,7 +534,7 @@ theorem State.ChildLinksCanonical.finishGroupSuccess
           | none => values
           | some value => values ++ [value]
         (current.removeTask occurrence, values, streams ++ taskNode.childStreams)
-  have stepLinks (acc : State × List ExecutionGroupValue × Keys)
+  have stepLinks (acc : State × List ExecutionGroupValue × NodeRefs)
       (occurrence : Occurrence)
       (currentLinks : acc.1.ChildLinksCanonical parents)
       : (step acc occurrence).1.ChildLinksCanonical parents := by
@@ -544,7 +544,7 @@ theorem State.ChildLinksCanonical.finishGroupSuccess
     · exact currentLinks
     · exact currentLinks.removeTask occurrence
   have foldLinks (tasks : List Occurrence) :
-      ∀ acc : State × List ExecutionGroupValue × Keys,
+      ∀ acc : State × List ExecutionGroupValue × NodeRefs,
         acc.1.ChildLinksCanonical parents
           → (tasks.foldl step acc).1.ChildLinksCanonical parents := by
     induction tasks with
@@ -558,30 +558,30 @@ theorem State.ChildLinksCanonical.finishGroupSuccess
   let current : State :=
     { flushed with
         groupNodes := flushed.groupNodes.filter
-          (fun node => node.group.node.key != group.group.node.key)
-        rootGroups := flushed.rootGroups.filter (· != group.group.node.key) }
+          (fun node => node.group.node.ref != group.group.node.ref)
+        rootGroups := flushed.rootGroups.filter (· != group.group.node.ref) }
   have currentLinks : current.ChildLinksCanonical parents := by
     intro node member child childMember
     exact flushedLinks node (List.mem_filter.mp member).1 child childMember
   let children := group.childGroups.filterMap
-    (fun key => (current.groupNode? key).map (fun node => node.group.node))
+    (fun ref => (current.groupNode? ref).map (fun node => node.group.node))
   change (current.pruneEmptyGroups children).1.ChildLinksCanonical parents
   exact currentLinks.pruneEmptyGroups children
 
 /-- Failure closure only deletes group nodes. -/
 theorem State.ChildLinksCanonical.finishGroupFailure
-    {queue : State} {parents : Nat → Keys}
+    {queue : State} {parents : Nat → NodeRefs}
     (links : queue.ChildLinksCanonical parents)
     (group : GroupNode) (errors : Nat)
     : (queue.finishGroupFailure group errors).1.ChildLinksCanonical parents := by
   unfold State.finishGroupFailure
-  exact links.removeGroup group.group.node.key
+  exact links.removeGroup group.group.node.ref
 
 /-- Recursive drain steps preserve canonical child edges, including cached failures.
 Witness: the generic drain induction transports success, activation, and removal facts.
 -/
 theorem State.ChildLinksCanonical.drainReadyGroups
-    {queue : State} {parents : Nat → Keys} (links : queue.ChildLinksCanonical parents)
+    {queue : State} {parents : Nat → NodeRefs} (links : queue.ChildLinksCanonical parents)
     : queue.drainReadyGroups.1.ChildLinksCanonical parents := by
   exact State.drainReadyGroups_preserves (fun state => state.ChildLinksCanonical parents)
     (fun _ node prior _ _ _ _ => (prior.finishGroupSuccess node).startNewWork _)
@@ -591,17 +591,17 @@ theorem State.ChildLinksCanonical.drainReadyGroups
 Witness: the contributor fold changes counters and failures but no surviving child list.
 -/
 theorem State.ChildLinksCanonical.taskFailure
-    {queue : State} {parents : Nat → Keys}
+    {queue : State} {parents : Nat → NodeRefs}
     (links : queue.ChildLinksCanonical parents)
     (occurrence : Occurrence) (errors : Nat)
     : (queue.taskFailure occurrence errors).1.ChildLinksCanonical parents := by
   let step (acc : State × List WorkQueueEvent)
       (group : Execution.DeliveryNode) :=
     let (current, events) := acc
-    match current.groupNode? group.key with
+    match current.groupNode? group.ref with
     | none => (current, events)
     | some node =>
-        if current.rootGroups.contains group.key then
+        if current.rootGroups.contains group.ref then
           let (next, failure) := current.finishGroupFailure node errors
           (next, events ++ [failure])
         else (current.putGroupNode
@@ -645,14 +645,14 @@ theorem State.ChildLinksCanonical.taskFailure
 /-- Successful task settlement maintains child-edge coherence through child
 integration, co-owner settlement, and sequential group release. -/
 theorem State.ChildLinksCanonical.taskSuccess
-    {queue : State} {parents : Nat → Keys}
+    {queue : State} {parents : Nat → NodeRefs}
     (links : queue.ChildLinksCanonical parents)
     (occurrence : Occurrence) (result : TaskResult)
     (childrenCanonical
-      : ∀ group ∈ result.work.groups, group.parent = (parents group.node.key).head?)
+      : ∀ group ∈ result.work.groups, group.parent = (parents group.node.ref).head?)
     : (queue.taskSuccess occurrence result).1.ChildLinksCanonical parents := by
   let settleStep (current : State) (group : Execution.DeliveryNode) : State :=
-    match current.groupNode? group.key with
+    match current.groupNode? group.ref with
     | none => current
     | some node => current.putGroupNode { node with pending := node.pending - 1 }
   have settleLinks (current : State) (group : Execution.DeliveryNode)
@@ -667,12 +667,12 @@ theorem State.ChildLinksCanonical.taskSuccess
   let releaseStep (acc : State × List WorkQueueEvent × NewWork)
       (group : Execution.DeliveryNode) :=
     let (current, events, released) := acc
-    match current.groupNode? group.key with
+    match current.groupNode? group.ref with
     | none => (current, events, released)
     | some node =>
         let node := { node with pending := node.pending - 1 }
         let current := current.putGroupNode node
-        if current.rootGroups.contains group.key && node.pending == 0
+        if current.rootGroups.contains group.ref && node.pending == 0
             && node.failure.isNone then
           let (next, finished, newWork) := current.finishGroupSuccess node
           (next, events ++ finished,
@@ -724,12 +724,12 @@ theorem State.ChildLinksCanonical.taskSuccess
 /-- Each published stream item integrates canonically parented child work;
 the batch fold therefore retains coherent child edges. -/
 theorem State.ChildLinksCanonical.streamItems
-    {queue : State} {parents : Nat → Keys}
+    {queue : State} {parents : Nat → NodeRefs}
     (links : queue.ChildLinksCanonical parents)
     (stream : Execution.DeliveryNode) (items : List StreamItem)
     (childrenCanonical
       : ∀ item ∈ items,
-        ∀ group ∈ item.work.groups, group.parent = (parents group.node.key).head?)
+        ∀ group ∈ item.work.groups, group.parent = (parents group.node.ref).head?)
     : (queue.streamItems stream items).1.ChildLinksCanonical parents := by
   let step (acc : State × List Execution.DeliveryNode
       × List Execution.DeliveryNode × List StreamItemValue)
@@ -779,7 +779,7 @@ theorem State.ChildLinksCanonical.streamItems
 
 /-- Stream closure only removes the stream root, not group links. -/
 theorem State.ChildLinksCanonical.streamSuccess
-    {queue : State} {parents : Nat → Keys}
+    {queue : State} {parents : Nat → NodeRefs}
     (links : queue.ChildLinksCanonical parents)
     (stream : Execution.DeliveryNode)
     : (queue.streamSuccess stream).1.ChildLinksCanonical parents := by
@@ -788,7 +788,7 @@ theorem State.ChildLinksCanonical.streamSuccess
 
 /-- Stream failure also leaves group links unchanged. -/
 theorem State.ChildLinksCanonical.streamFailure
-    {queue : State} {parents : Nat → Keys}
+    {queue : State} {parents : Nat → NodeRefs}
     (links : queue.ChildLinksCanonical parents)
     (stream : Execution.DeliveryNode) (errors : Nat)
     : (queue.streamFailure stream errors).1.ChildLinksCanonical parents := by
@@ -798,12 +798,12 @@ theorem State.ChildLinksCanonical.streamFailure
 /-- A host event matching generated Work preserves coherent group child
 edges, including edges created by newly revealed child Work. -/
 theorem State.ChildLinksCanonical.handleGraphEvent
-    {queue : State} {work : Execution.Work} {parents : Nat → Keys}
+    {queue : State} {work : Execution.Work} {parents : Nat → NodeRefs}
     (links : queue.ChildLinksCanonical parents)
     (event : GraphEvent) (matching : event.MatchesWork work)
     (workCanonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     : (queue.handleGraphEvent event).1.ChildLinksCanonical parents := by
   cases event with
   | taskSuccess occurrence result =>
@@ -821,13 +821,13 @@ theorem State.ChildLinksCanonical.handleGraphEvent
 
 /-- The event-batch fold preserves coherent child links. -/
 theorem State.ChildLinksCanonical.handleGraphEvents
-    {queue : State} {work : Execution.Work} {parents : Nat → Keys}
+    {queue : State} {work : Execution.Work} {parents : Nat → NodeRefs}
     (links : queue.ChildLinksCanonical parents)
     (batch : List GraphEvent)
     (allMatch : ∀ event ∈ batch, event.MatchesWork work)
     (workCanonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     : (queue.handleGraphEvents batch).1.ChildLinksCanonical parents := by
   let step (acc : State × List WorkQueueEvent) (event : GraphEvent) :=
     let (current, outputs) := acc
@@ -865,13 +865,13 @@ theorem State.ChildLinksCanonical.handleGraphEvents
 
 /-- All finite matched-input replays preserve coherent child edges. -/
 theorem State.ChildLinksCanonical.runNormalized
-    {queue : State} {work : Execution.Work} {parents : Nat → Keys}
+    {queue : State} {work : Execution.Work} {parents : Nat → NodeRefs}
     (links : queue.ChildLinksCanonical parents)
     (batches : List (List GraphEvent))
     (allMatch : ∀ batch ∈ batches, ∀ event ∈ batch, event.MatchesWork work)
     (workCanonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     : (queue.runNormalized batches).1.ChildLinksCanonical parents := by
   have stepLinks (acc : NormalizedAcc) (batch : List GraphEvent)
       (currentLinks : acc.1.ChildLinksCanonical parents)
@@ -919,7 +919,7 @@ theorem ExecutedWork.runNormalized_childLinksCanonical
     {work : Execution.Work} (generated : ExecutedWork work)
     (batches : List (List GraphEvent))
     (valid : ValidGraphEvents work batches.flatten)
-    : ∃ parents : Nat → Keys,
+    : ∃ parents : Nat → NodeRefs,
         (((State.initialize (Work.fromExecution work)).runNormalized
             batches).1).ChildLinksCanonical
           parents := by
@@ -946,9 +946,9 @@ No output-admission or started-input premise is used.
 theorem ExecutedWork.runNormalized_groupMetadata
     {work : Execution.Work} (generated : ExecutedWork work)
     {batches : List (List GraphEvent)} (valid : ValidGraphEvents work batches.flatten)
-    : ∃ parents : Nat → Keys,
+    : ∃ parents : Nat → NodeRefs,
         (∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
         ∧ ((State.initialize (Work.fromExecution work)).runNormalized
             batches).1.ChildLinksCanonical
             parents

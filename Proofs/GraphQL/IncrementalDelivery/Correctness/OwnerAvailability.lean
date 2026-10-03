@@ -55,8 +55,8 @@ theorem owner_exists_of_available
   exact ⟨node, opened, ⟨candidate, active⟩,
     fun other present => equal ▸ greatest.2 _ (member present)⟩
 
-/-- A stream item's own node is a permitted owner whenever its key is open and healthy.
-Witness: its sole owner key and coherent paths make every alternative descriptor's path
+/-- A stream item's own node is a permitted owner whenever its ref is open and healthy.
+Witness: its sole owner ref and coherent paths make every alternative descriptor's path
 the same length, rather than requiring descriptor uniqueness.
 -/
 theorem stream_owner_of_open
@@ -64,13 +64,13 @@ theorem stream_owner_of_open
       failed}
     (coherent : MixedOwnerPaths.WorkAt paths bound work)
     (known : TaskAt work occurrence owners producer (.item node result))
-    (opened : Open initial events node.key)
-    (healthy : ¬NodeFailed work matching events failed node.key)
+    (opened : Open initial events node.ref)
+    (healthy : ¬NodeFailed work matching events failed node.ref)
     : PublicationOwner work initial matching events failed owners node := by
   cases StructuralEquivalence.taskAt_of_current known with
   | item located selected =>
       have streamKnown := NodeAt.stream located.toCurrent
-      have active : OpenOwner work initial events [node.key] node :=
+      have active : OpenOwner work initial events [node.ref] node :=
         ⟨⟨.stream, _, _, streamKnown⟩, by simp, opened⟩
       refine ⟨active, ⟨node, active, healthy⟩, ?_⟩
       intro other available
@@ -84,12 +84,12 @@ Witness: it is represented work; completion or silent accounting would account f
 still-unpublished, uncancelled task. This fact permits arbitrary shared owner lists.
 -/
 theorem ready_owner_dependency_unsatisfied
-    {work groups streams events matching failures occurrence owners producer payload key}
+    {work groups streams events matching failures occurrence owners producer payload ref}
     (explained : Explains work groups streams events matching failures)
-    (known : TaskAt work occurrence owners producer payload) (member : key ∈ owners)
+    (known : TaskAt work occurrence owners producer payload) (member : ref ∈ owners)
     (ready : CanPublish work matching events failures occurrence producer)
-    : ¬DependencySatisfied work ((groups ++ streams).map DeliveryNode.key) matching events
-        failures key := by
+    : ¬DependencySatisfied work ((groups ++ streams).map DeliveryNode.ref) matching events
+        failures ref := by
   rintro ⟨healthy, absent | completed | ⟨_, accounted⟩⟩
   · obtain ⟨node, kind, dependencies, descriptor, same⟩ :=
       known.owner_at_producer member
@@ -122,17 +122,17 @@ theorem extend_ready_announced
     (known : TaskAt work occurrence owners producer payload)
     (ready : CanPublish work matching events failures occurrence producer)
     (announced
-      : ∃ key ∈ owners,
-          key ∈ announcedKeys ((groups ++ streams).map DeliveryNode.key) events
-          ∧ ¬NodeFailed work matching events failures key)
+      : ∃ ref ∈ owners,
+          ref ∈ announcedRefs ((groups ++ streams).map DeliveryNode.ref) events
+          ∧ ¬NodeFailed work matching events failures ref)
     : ∃ event next cuts, Explains work groups streams (events ++ [event]) next cuts := by
-  obtain ⟨key, member, notified, healthy⟩ := announced
+  obtain ⟨ref, member, notified, healthy⟩ := announced
   have outstanding : ¬TaskAccounted work matching events
       failures occurrence := by
     rintro (cancelled | published)
     · exact ready.2.1 cancelled
     · exact ready.1 published
-  have opened : Open ((groups ++ streams).map DeliveryNode.key) events key := by
+  have opened : Open ((groups ++ streams).map DeliveryNode.ref) events ref := by
     refine ⟨notified, ?_⟩
     intro closed
     rcases explained.completed_accounted closed with failure | accounted
@@ -141,7 +141,7 @@ theorem extend_ready_announced
   have failing (fails : payload.failure.isSome = true) :
       ∃ event next cuts, Explains work groups streams (events ++ [event]) next cuts := by
     obtain ⟨node, errors, event, _, _, _, extended⟩ := explained.failure_step known fails
-      (ready.reachable explained known) ⟨key, member, opened⟩
+      (ready.reachable explained known) ⟨ref, member, opened⟩
       ready.2.1
     exact ⟨event, matching, _, extended⟩
   cases payload with
@@ -152,7 +152,7 @@ theorem extend_ready_announced
           obtain ⟨data, errors⟩ := value
           obtain ⟨node, kind, dependencies, nodeProducer, nodeKnown, same⟩ :=
             known.owner_known member
-          have available : HealthyOpenOwner work ((groups ++ streams).map DeliveryNode.key)
+          have available : HealthyOpenOwner work ((groups ++ streams).map DeliveryNode.ref)
               matching events failures owners node :=
             ⟨⟨⟨kind, dependencies, nodeProducer, nodeKnown⟩, same ▸ member,
               same ▸ opened⟩,
@@ -164,11 +164,11 @@ theorem extend_ready_announced
       | error errors => exact failing rfl
       | ok value =>
           obtain ⟨item, errors⟩ := value
-          have ownerKey : key = node.key := by
+          have ownerRef : ref = node.ref := by
             cases StructuralEquivalence.taskAt_of_current known with
             | item located selected => exact List.mem_singleton.mp member
-          have selected := stream_owner_of_open coherent known (ownerKey ▸ opened)
-            (ownerKey ▸ healthy)
+          have selected := stream_owner_of_open coherent known (ownerRef ▸ opened)
+            (ownerRef ▸ healthy)
           exact ⟨_, _, _, explained.publish_item known ready selected⟩
 
 -----------------------------------------------------------------------------------------
@@ -191,15 +191,15 @@ theorem maximal_outstanding_unannounced
     : ∃ next nextOwners nextProducer result,
         TaskAt work next nextOwners nextProducer result
         ∧ CanPublish work matching events failures next nextProducer
-        ∧ ∀ key ∈ nextOwners,
-            ¬NodeFailed work matching events failures key
-            → key ∉ announcedKeys ((groups ++ streams).map DeliveryNode.key) events := by
+        ∧ ∀ ref ∈ nextOwners,
+            ¬NodeFailed work matching events failures ref
+            → ref ∉ announcedRefs ((groups ++ streams).map DeliveryNode.ref) events := by
   obtain ⟨next, nextOwners, nextProducer, result, task, ready⟩ :=
     readyTask_exists known outstanding
   refine ⟨next, nextOwners, nextProducer, result, task, ready, ?_⟩
-  intro key member healthy notified
+  intro ref member healthy notified
   obtain ⟨event, nextMatching, cuts, extended⟩ := extend_ready_announced coherent explained
-    task ready ⟨key, member, notified, healthy⟩
+    task ready ⟨ref, member, notified, healthy⟩
   exact maximal event nextMatching cuts extended
 
 -----------------------------------------------------------------------------------------
@@ -218,7 +218,7 @@ theorem completeRun_exists_of_initial_owner_coverage
     (covered
       : ∀ occurrence owners producer payload,
           TaskAt work occurrence owners producer payload
-          → owners ≠ [] ∧ ∀ key ∈ owners, key ∈ (groups ++ streams).map DeliveryNode.key)
+          → owners ≠ [] ∧ ∀ ref ∈ owners, ref ∈ (groups ++ streams).map DeliveryNode.ref)
     : ∃ history, AdmissibleRun work history := by
   classical
   have initial : Explains work groups streams [] (fun _ => .executionGroup []) [] :=
@@ -241,7 +241,7 @@ theorem completeRun_exists_of_initial_owner_coverage
     · exact ready.2.1 cancelled
     · exact ready.1 published
   obtain ⟨nonempty, announced⟩ := covered next nextOwners nextProducer result task
-  obtain ⟨key, member, healthy, _⟩ := explained.outstanding_owner task nonempty unaccounted
-  exact unannounced key member healthy (List.mem_append_left _ (announced key member))
+  obtain ⟨ref, member, healthy, _⟩ := explained.outstanding_owner task nonempty unaccounted
+  exact unannounced ref member healthy (List.mem_append_left _ (announced ref member))
 
 end GraphQL.IncrementalDelivery.Correctness

@@ -55,7 +55,7 @@ example
       = 5 :=
   rfl
 
-/-- Permissive raw work may reuse keys at incompatible paths, but cannot pass the
+/-- Permissive raw work may reuse refs at incompatible paths, but cannot pass the
 generated-work metadata certificate. The scheduler contract remains unchanged.
 -/
 example (paths : Semantics.OwnerPaths.Assignment) (bound : Nat)

@@ -21,7 +21,7 @@ def State.StoredStreamsComplete (queue : State) (work : Execution.Work)
     → omitted ≠ some node.task.occurrence
     → ∀ stream dependencies,
         NodeAt work stream .stream dependencies (some node.task.occurrence)
-        → stream.key ∈ node.childStreams
+        → stream.ref ∈ node.childStreams
 
 /-- Full coverage also covers all tasks except a chosen temporary producer.
 Witness: discard the exception guard and use the complete boundary invariant.
@@ -57,7 +57,7 @@ theorem State.StoredStreamsComplete.putTaskNode {queue : State} {work omitted}
         → omitted ≠ some updated.task.occurrence
         → ∀ stream dependencies,
             NodeAt work stream .stream dependencies (some updated.task.occurrence)
-            → stream.key ∈ updated.childStreams)
+            → stream.ref ∈ updated.childStreams)
     : (queue.putTaskNode updated).StoredStreamsComplete work omitted := by
   intro node member
   obtain ⟨old, included, same⟩ := List.mem_map.mp member
@@ -130,7 +130,7 @@ theorem State.StoredStreamsComplete.maybeIntegrateWork {queue : State} {work omi
 -----------------------------------------------------------------------------------------
 
 /-- Fresh complete stream inputs restore coverage for the temporarily exempted producer.
-Witness: all required keys survive selection; replacement updates every matching raw node,
+Witness: all required refs survive selection; replacement updates every matching raw node,
 while each nonmatching node was already covered. Task-map uniqueness is unnecessary.
 -/
 theorem State.StoredStreamsComplete.attachProducer {queue : State} {work occurrence node}
@@ -140,7 +140,7 @@ theorem State.StoredStreamsComplete.attachProducer {queue : State} {work occurre
       : ∀ stream dependencies,
           NodeAt work stream .stream dependencies (some occurrence)
           → (⟨stream⟩ : Stream) ∈ streams)
-    (fresh : ∀ stream ∈ streams, queue.stream? stream.node.key = none)
+    (fresh : ∀ stream ∈ streams, queue.stream? stream.node.ref = none)
     : (queue.addStreams streams (some occurrence)).1.StoredStreamsComplete work := by
   have identity := (State.taskNode?_some found).2
   unfold State.addStreams
@@ -174,7 +174,7 @@ theorem State.StoredStreamsComplete.integrateSuccess {queue : State}
     {work occurrence node result} (complete : queue.StoredStreamsComplete work)
     (found : queue.taskNode? occurrence = some node)
     (matching : (GraphEvent.taskSuccess occurrence result).MatchesWork work)
-    (fresh : ∀ stream ∈ result.work.streams, queue.stream? stream.node.key = none)
+    (fresh : ∀ stream ∈ result.work.streams, queue.stream? stream.node.ref = none)
     : ((queue.putTaskNode { node with value := some result.value }).maybeIntegrateWork
         result.work (some occurrence)).1.StoredStreamsComplete
         work := by

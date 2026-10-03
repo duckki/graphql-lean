@@ -53,7 +53,7 @@ theorem DeferredTasksAccounted.extend {work matching events failed more}
 /-- An explained prefix can finish once deferred tasks are accounted for, all stream
 parents are closed, and produced healthy streams are announced. Witness: maximize finite
 extensions retaining accounting and notice coverage; any outstanding task gives another
-stream publication or failure step. Finalization then closes the remaining node keys.
+stream publication or failure step. Finalization then closes the remaining node refs.
 -/
 theorem finish_released_streams
     {paths bound work groups streams events matching failures}
@@ -62,16 +62,16 @@ theorem finish_released_streams
     (deferred : DeferredTasksAccounted work matching events failures)
     (closed : StreamDependenciesCompleted work events)
     (notified
-      : StreamsNotified work ((groups ++ streams).map DeliveryNode.key)
+      : StreamsNotified work ((groups ++ streams).map DeliveryNode.ref)
           matching events failures)
     : ∃ tail next cuts,
         Explains work groups streams (events ++ tail) next cuts
-        ∧ Terminal work ((groups ++ streams).map DeliveryNode.key) next (events ++ tail)
+        ∧ Terminal work ((groups ++ streams).map DeliveryNode.ref) next (events ++ tail)
             cuts := by
   classical
   let property outputs next (cuts : FailureCuts) :=
     DeferredTasksAccounted work next outputs cuts
-    ∧ StreamsNotified work ((groups ++ streams).map DeliveryNode.key) next outputs
+    ∧ StreamsNotified work ((groups ++ streams).map DeliveryNode.ref) next outputs
       cuts
   obtain ⟨tail, next, cuts, admitted, retained, maximal⟩ :=
     explained.maximal_extension_preserving property ⟨deferred, notified⟩
@@ -95,13 +95,13 @@ theorem finish_released_streams
         exact retained.1 _ _ _ _ task
     | @item address stream items producer enclosing index outcome children located entry
       =>
-        obtain ⟨key, member, healthy, uncompleted⟩ :=
+        obtain ⟨ref, member, healthy, uncompleted⟩ :=
           admitted.outstanding_owner task (by simp) unaccounted
         have same := List.mem_singleton.mp member
-        subst key
+        subst ref
         have streamKnown := NodeAt.stream located.toCurrent
-        have opened : Open ((groups ++ streams).map DeliveryNode.key) (events ++ tail)
-            stream.key := by
+        have opened : Open ((groups ++ streams).map DeliveryNode.ref) (events ++ tail)
+            stream.ref := by
           refine ⟨retained.2 stream enclosing _ streamKnown ready.2.2.1 ?_, uncompleted⟩
           exact healthy
         cases outcome with
@@ -119,7 +119,7 @@ theorem finish_released_streams
             cases impossible
         | error errors =>
             obtain ⟨owner, count, event, _, control, _, extended⟩ := admitted.failure_step
-              task rfl (ready.reachable admitted task) ⟨stream.key, by simp, opened⟩
+              task rfl (ready.reachable admitted task) ⟨stream.ref, by simp, opened⟩
               ready.2.1
             have noValue : ¬IsValue event := by
               rcases control with rfl | rfl <;> simp [IsValue]
@@ -151,7 +151,7 @@ theorem released_streams_run_extension
     (deferred : DeferredTasksAccounted work matching events failures)
     (closed : StreamDependenciesCompleted work events)
     (notified
-      : StreamsNotified work ((groups ++ streams).map DeliveryNode.key)
+      : StreamsNotified work ((groups ++ streams).map DeliveryNode.ref)
           matching events failures)
     (batched : WorkBatching events batches)
     : ∃ tail : List WorkQueueEvent,

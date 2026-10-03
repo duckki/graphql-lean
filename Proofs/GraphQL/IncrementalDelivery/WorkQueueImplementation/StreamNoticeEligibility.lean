@@ -13,22 +13,22 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
 /-- A contributor to a generated stream has that stream as its sole owner.
 Witness: role separation excludes object tasks; an item's singleton owner must be the
-supplied stream key. No source execution or output-admission premise is needed.
+supplied stream ref. No source execution or output-admission premise is needed.
 -/
 theorem ExecutedWork.streamContributor_owners {work stream dependencies producer}
     (generated : ExecutedWork work)
     (located : NodeAt work stream .stream dependencies producer)
     {occurrence owners} (known : TaskHasOwners work occurrence owners)
-    (owner : stream.key ∈ owners)
-    : owners = [stream.key] := by
+    (owner : stream.ref ∈ owners)
+    : owners = [stream.ref] := by
   obtain ⟨parent, payload, task⟩ := known
   cases occurrence with
   | executionGroup address =>
       obtain ⟨groups, path, result, children, enclosing, atTask, sameOwners, _⟩ := task
       rw [sameOwners] at owner
-      obtain ⟨group, member, sameKey⟩ := List.mem_map.mp owner
+      obtain ⟨group, member, sameRef⟩ := List.mem_map.mp owner
       exact False.elim
-        (generated.groupStreamKeysDisjoint (.group atTask member) located sameKey)
+        (generated.groupStreamRefsDisjoint (.group atTask member) located sameRef)
   | item address ordinal =>
       obtain ⟨node, items, enclosing, result, children, _, _, sameOwners, _⟩ := task
       rw [sameOwners] at owner
@@ -43,15 +43,15 @@ has only this one owner. Later cuts are excluded rather than used to justify the
 theorem AnnouncedFailures.stream_unrecorded {work w stream dependencies producer count}
     (announced : AnnouncedFailures work w) (generated : ExecutedWork work)
     (located : NodeAt work stream .stream dependencies producer)
-    (fresh : stream.key ∉ announcedKeys (initialKeys work) (w.events.take count))
+    (fresh : stream.ref ∉ announcedRefs (initialRefs work) (w.events.take count))
     {occurrence owners} (known : TaskHasOwners work occurrence owners)
-    (owner : stream.key ∈ owners)
+    (owner : stream.ref ∈ owners)
     : occurrence ∉ failedBefore w.failures count := by
   intro recorded
   obtain ⟨entry, kept, same⟩ := List.mem_map.mp recorded
   obtain ⟨member, reached⟩ := List.mem_filter.mp kept
   have reached : entry.1 ≤ count := by simpa using reached
-  obtain ⟨otherOwners, otherKnown, key, contributes, notified⟩ := announced.2 entry member
+  obtain ⟨otherOwners, otherKnown, ref, contributes, notified⟩ := announced.2 entry member
   obtain ⟨parent, payload, task⟩ := known
   obtain ⟨otherParent, otherPayload, otherTask⟩ := otherKnown
   rw [same] at otherTask
@@ -120,14 +120,14 @@ theorem streamNotice_canAnnounce {work w index event plain stream dependencies p
     (sameValue : IsValue event ↔ IsValue plain) (noNotices : eventPending plain = [])
     (located : NodeAt work stream .stream dependencies (some producer))
     (published : Published w.matching (w.events.take index ++ [plain]) producer)
-    (fresh : stream.key ∉ announcedKeys (initialKeys work) (w.events.take index))
+    (fresh : stream.ref ∉ announcedRefs (initialRefs work) (w.events.take index))
     (dependenciesReady
       : dependencies = []
-        ∨ ∃ key ∈ dependencies,
-            DependencySatisfied work (initialKeys work) w.matching
+        ∨ ∃ ref ∈ dependencies,
+            DependencySatisfied work (initialRefs work) w.matching
               (w.events.take index ++ [plain])
-              (w.failures.filter (fun entry => decide (entry.1 ≤ index))) key)
-    : CanAnnounce work (initialKeys work) w.matching (w.events.take index ++ [plain])
+              (w.failures.filter (fun entry => decide (entry.1 ≤ index))) ref)
+    : CanAnnounce work (initialRefs work) w.matching (w.events.take index ++ [plain])
         (w.failures.filter (fun entry => decide (entry.1 ≤ index)))
         stream .stream dependencies (some producer) := by
   have length : (w.events.take index).length = index :=
@@ -163,18 +163,18 @@ theorem streamNotice_canAnnounce {work w index event plain stream dependencies p
       (by
         intro entry member; simpa only [length]
           using (of_decide_eq_true (List.mem_filter.mp member).2)) [plain]
-  have healthy : ¬NodeFailed work w.matching (w.events.take index) w.failures stream.key := by
+  have healthy : ¬NodeFailed work w.matching (w.events.take index) w.failures stream.ref := by
     apply generated.streamHealthy_of_producerSafety failedPayloads located
       (fun source same => (Option.some.inj same) ▸ succeeded)
       (fun source same => (Option.some.inj same) ▸ safe)
     · intro occurrence owners known owner
       simpa only [length] using announced.stream_unrecorded generated located fresh known owner
-    · rcases dependenciesReady with empty | ⟨key, member, ready⟩
+    · rcases dependenciesReady with empty | ⟨ref, member, ready⟩
       · exact .inl empty
-      · refine .inr ⟨key, member, ?_⟩
+      · refine .inr ⟨ref, member, ?_⟩
         simpa only [frozen.1, nodeFailed_filter (Nat.le_of_eq length)] using ready.1
   refine ⟨?_, .inl ⟨?_, .inl rfl⟩, ?_, dependenciesReady⟩
-  · simpa only [announcedKeys, pendingKeys, List.flatMap_append, List.flatMap_cons,
+  · simpa only [announcedRefs, pendingRefs, List.flatMap_append, List.flatMap_cons,
       List.flatMap_nil, noNotices, List.nil_append, List.append_nil] using fresh
   · simpa only [frozen.1, nodeFailed_filter (Nat.le_of_eq length)] using healthy
   · intro source same

@@ -25,11 +25,11 @@ theorem WorkObservation.idUsageValid {response work complete result}
       | mk pending ids =>
           rw [allocated] at grouped
           obtain ⟨updates, flatten, replay⟩ := grouped
-          have initialKeys := (getPendingEntry_of_eq allocated).2
+          have initialRefs := (getPendingEntry_of_eq allocated).2
           have well : Allocated ids := by
             simpa only [allocated]
               using getPendingEntry_allocated groups streams {} .empty
-          have mapped := mappedTrace_references well initialKeys
+          have mapped := mappedTrace_references well initialRefs
             (.nil : Encodes ids [] []) refs
           rw [replay] at identities ⊢
           exact incremental_idUsageValid_of_references _ _

@@ -28,10 +28,10 @@ theorem ExecutedWork.streamFailure_causes_of_producerSafety
     (safe
       : ∀ source,
           producer = some source → ¬TaskCancelled work matching events failures source)
-    (failure : NodeFailed work matching events failures node.key)
+    (failure : NodeFailed work matching events failures node.ref)
     : (∃ occurrence owners,
         TaskHasOwners work occurrence owners
-        ∧ node.key ∈ owners
+        ∧ node.ref ∈ owners
         ∧ occurrence ∈ failedBefore failures events.length)
       ∨ dependencies ≠ []
         ∧ ∀ dependency ∈ dependencies,
@@ -42,12 +42,12 @@ theorem ExecutedWork.streamFailure_causes_of_producerSafety
       exact .inl ⟨_, _, task, owner, failedBefore_subset failures reached recorded⟩
   | groupDependency descriptor _ _ =>
       obtain ⟨group, birth, located, same⟩ := descriptor
-      exact False.elim (generated.groupStreamKeysDisjoint located known same)
+      exact False.elim (generated.groupStreamRefsDisjoint located known same)
   | streamDependencies descriptor nonempty failed =>
       obtain ⟨stream, birth, located, same⟩ := descriptor
       have equal := generated.streamDependencies_unique located known same
       exact .inr ⟨equal ▸ nonempty,
-        fun key included => ⟨cut, member, reached, failed key (equal.symm ▸ included)⟩⟩
+        fun ref included => ⟨cut, member, reached, failed ref (equal.symm ▸ included)⟩⟩
   | producers _ noRoot _ cancelled =>
       cases producer with
       | none => exact False.elim (noRoot ⟨node, .stream, dependencies, known, rfl⟩)
@@ -77,19 +77,19 @@ theorem ExecutedWork.streamHealthy_of_producerSafety
     (contributors
       : ∀ occurrence owners,
           TaskHasOwners work occurrence owners
-          → node.key ∈ owners
+          → node.ref ∈ owners
           → occurrence ∉ failedBefore failures events.length)
     (owners
       : dependencies = []
-        ∨ ∃ key ∈ dependencies, ¬NodeFailed work matching events failures key)
-    : ¬NodeFailed work matching events failures node.key := by
+        ∨ ∃ ref ∈ dependencies, ¬NodeFailed work matching events failures ref)
+    : ¬NodeFailed work matching events failures node.ref := by
   intro failure
   rcases generated.streamFailure_causes_of_producerSafety failedPayloads known succeeded
-      safe failure with ⟨occurrence, keys, task, owner, recorded⟩ | ⟨nonempty, failed⟩
-  · exact contributors occurrence keys task owner recorded
-  · rcases owners with empty | ⟨key, member, healthy⟩
+      safe failure with ⟨occurrence, refs, task, owner, recorded⟩ | ⟨nonempty, failed⟩
+  · exact contributors occurrence refs task owner recorded
+  · rcases owners with empty | ⟨ref, member, healthy⟩
     · exact nonempty empty
-    · exact healthy (failed key member)
+    · exact healthy (failed ref member)
 
 -----------------------------------------------------------------------------------------
 -- A published nested item inherits safety from its producer and defer support
@@ -123,15 +123,15 @@ theorem StreamFailureCuts.item_safe_mixed
     (exactValue : PublicationAt work (.item address ordinal) event)
     (located : NodeAt work stream .stream dependencies producer)
     (known
-      : TaskAt work (.item address ordinal) [stream.key] producer (.item stream result))
+      : TaskAt work (.item address ordinal) [stream.ref] producer (.item stream result))
     (succeeded : ∀ source, producer = some source → TaskSucceeds work source)
     (safe
       : ∀ source,
           producer = some source → ¬TaskCancelled work matching events failures source)
     (owners
       : dependencies = []
-        ∨ ∃ key ∈ dependencies,
-            ¬NodeFailed work matching (events.take index) failures key)
+        ∨ ∃ ref ∈ dependencies,
+            ¬NodeFailed work matching (events.take index) failures ref)
     : ¬TaskCancelled work matching events failures (.item address ordinal) := by
   have action := exactValue.itemOwner_action ⟨producer, .item stream result, known⟩
     List.mem_cons_self
@@ -141,20 +141,20 @@ theorem StreamFailureCuts.item_safe_mixed
     apply safe source parent
     simpa only [List.take_append_drop] using cancelled.append (events.drop index)
   have healthy := generated.streamHealthy_of_producerSafety failedPayloads located
-    succeeded safeBefore (fun occurrence keys task owner => ?_) owners
+    succeeded safeBefore (fun occurrence refs task owner => ?_) owners
   · apply uncancelled_of_safe_publication selected value matched
     rintro ⟨cut, member, reached, cause⟩
     cases cause with
     | owners other _ _ failed =>
         obtain ⟨birth, payload, descriptor⟩ := other
         exact healthy ⟨cut, member, reached,
-          failed stream.key ((known.unique descriptor).1 ▸ List.mem_cons_self)⟩
+          failed stream.ref ((known.unique descriptor).1 ▸ List.mem_cons_self)⟩
     | producerFailed other _ recorded =>
-        obtain ⟨keys, payload, descriptor⟩ := other
+        obtain ⟨refs, payload, descriptor⟩ := other
         exact taskSucceeds_not_failedBefore
           (succeeded _ (known.unique descriptor).2.1) failedPayloads recorded
     | producerCancelled other _ cancelled =>
-        obtain ⟨keys, payload, descriptor⟩ := other
+        obtain ⟨refs, payload, descriptor⟩ := other
         exact safeBefore _ (known.unique descriptor).2.1 ⟨cut, member, reached, cancelled⟩
   · have length : (events.take index).length = index :=
       List.length_take_of_le (Nat.le_of_lt (List.getElem?_eq_some_iff.mp selected).1)

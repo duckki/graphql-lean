@@ -17,7 +17,7 @@ theorem successful_history {work history}
     : ∃ events matching,
         Explains work history.initialGroups history.initialStreams events matching []
         ∧ Terminal work
-            ((history.initialGroups ++ history.initialStreams).map DeliveryNode.key)
+            ((history.initialGroups ++ history.initialStreams).map DeliveryNode.ref)
             matching events []
         ∧ WorkBatching (events ++ [.workQueueTermination]) history.batches
         ∧ ∀ occurrence owners producer payload,
@@ -52,7 +52,7 @@ theorem replayResponse_successful_history {response : Response} {work : Work}
     (zero : (replayResponse response groups streams batches).totalErrors = 0)
     : ∃ events matching,
         Explains work groups streams events matching []
-        ∧ Terminal work ((groups ++ streams).map DeliveryNode.key) matching events []
+        ∧ Terminal work ((groups ++ streams).map DeliveryNode.ref) matching events []
         ∧ WorkBatching (events ++ [.workQueueTermination]) batches.flatten
         ∧ ∀ occurrence owners producer payload,
             TaskAt work occurrence owners producer payload

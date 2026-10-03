@@ -7,7 +7,7 @@ import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.RetiredHealthR
 
 namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
-open Semantics.KeyRoles
+open Semantics.RefRoles
 
 -----------------------------------------------------------------------------------------
 -- Generated roles and exposed ancestry supply the local induction certificates
@@ -19,7 +19,7 @@ Witness: project the located contributor or stream's metadata.
 private theorem node_role {work roles node kind dependencies producer}
     (assigned : WorkRoles roles work)
     (known : NodeAt work node kind dependencies producer)
-    : roles node.key = (kind == .stream) := by
+    : roles node.ref = (kind == .stream) := by
   cases StructuralEquivalence.nodeAt_of_current known with
   | group located member =>
       have localWork := generatedWorkRoles_located assigned located
@@ -33,10 +33,10 @@ private theorem node_role {work roles node kind dependencies producer}
 /-- Every group dependency has defer role, even if it is a taskless ancestor.
 Witness: the descriptor records its complete ancestor list in one located fragment.
 -/
-private theorem dependency_role {work roles node dependencies producer key}
+private theorem dependency_role {work roles node dependencies producer ref}
     (assigned : WorkRoles roles work)
-    (known : NodeAt work node .group dependencies producer) (member : key ∈ dependencies)
-    : roles key = false := by
+    (known : NodeAt work node .group dependencies producer) (member : ref ∈ dependencies)
+    : roles ref = false := by
   obtain ⟨address, groups, path, result, children, enclosing, fragment,
     located, included, _, same⟩ := known
   rw [same] at member
@@ -47,26 +47,26 @@ private theorem dependency_role {work roles node dependencies producer key}
   exact (localWork.1 fragment included).2 ancestor ancestorMember
 
 /-- An exposed child's supporting object-producer owner is exposed too.
-Witness: generated local defer continuity picks a reused key or full ancestor; exposure
+Witness: generated local defer continuity picks a reused ref or full ancestor; exposure
 is shared across that region. This transfers invalidation without requiring publication.
 -/
 private theorem lift_objectProducer {work failed seen node dependencies source}
     (generated : ExecutedWork work)
     (known : NodeAt work node .group dependencies (some (.executionGroup source)))
-    (exposed : ExposedKey work seen node.key)
+    (exposed : ExposedRef work seen node.ref)
     (invalid
-      : ∀ owners ancestor payload key,
+      : ∀ owners ancestor payload ref,
           TaskAt work (.executionGroup source) owners ancestor payload
-          → key ∈ owners
-          → ExposedKey work seen key
-          → GroupInvalidated work failed key)
-    : GroupInvalidated work failed node.key := by
-  obtain ⟨owners, ancestor, payload, key, task, member, support⟩ :=
+          → ref ∈ owners
+          → ExposedRef work seen ref
+          → GroupInvalidated work failed ref)
+    : GroupInvalidated work failed node.ref := by
+  obtain ⟨owners, ancestor, payload, ref, task, member, support⟩ :=
     generated.group_objectProducer_support known
-  have parentExposed : ExposedKey work seen key := by
+  have parentExposed : ExposedRef work seen ref := by
     apply NodeAt.group_exposedChain known generated.regionsSeparated exposed
     exact List.mem_cons.mpr support
-  have failure := invalid owners ancestor payload key task member parentExposed
+  have failure := invalid owners ancestor payload ref task member parentExposed
   rcases support with same | dependency
   · exact same ▸ failure
   · exact .groupDependency ⟨node, _, known, rfl⟩ dependency failure
@@ -84,7 +84,7 @@ theorem ExecutedWork.exposed_snapshotGroupFailure_invalidated
     {work failed published seen node dependencies producer}
     (generated : ExecutedWork work)
     (known : NodeAt work node .group dependencies producer)
-    (exposed : ExposedKey work seen node.key)
+    (exposed : ExposedRef work seen node.ref)
     (itemsNotFailed
       : ∀ source index,
           Occurrence.item source index ∈ seen → Occurrence.item source index ∉ failed)
@@ -92,21 +92,21 @@ theorem ExecutedWork.exposed_snapshotGroupFailure_invalidated
       : ∀ source index,
           Occurrence.item source index ∈ seen
           → ¬Causality.TaskCancelled work failed published (.item source index))
-    (failure : Causality.NodeFailed work failed published node.key)
-    : GroupInvalidated work failed node.key := by
-  obtain ⟨roles, assigned⟩ := generated.keyRoles
-  have reflect {key} (cause : Causality.NodeFailed work failed published key)
-      : roles key = false → ExposedKey work seen key → GroupInvalidated work failed key := by
+    (failure : Causality.NodeFailed work failed published node.ref)
+    : GroupInvalidated work failed node.ref := by
+  obtain ⟨roles, assigned⟩ := generated.refRoles
+  have reflect {ref} (cause : Causality.NodeFailed work failed published ref)
+      : roles ref = false → ExposedRef work seen ref → GroupInvalidated work failed ref := by
     induction cause
       using Causality.NodeFailed.rec
         (motive_2 :=
           fun occurrence _ =>
-            ∀ address owners producer payload key,
+            ∀ address owners producer payload ref,
               occurrence = .executionGroup address
               → TaskAt work occurrence owners producer payload
-              → key ∈ owners
-              → ExposedKey work seen key
-              → GroupInvalidated work failed key) with
+              → ref ∈ owners
+              → ExposedRef work seen ref
+              → GroupInvalidated work failed ref) with
     | task task owner member => exact fun _ _ => .task task owner member
     | groupDependency projected member _ ih =>
         intro _ exposed
@@ -145,52 +145,52 @@ theorem ExecutedWork.exposed_snapshotGroupFailure_invalidated
                     (itemsNotFailed source index observed)))
             | executionGroup source =>
                 apply same ▸ lift_objectProducer generated descriptor localExposure
-                intro owners ancestor payload key task member parentExposed
+                intro owners ancestor payload ref task member parentExposed
                 by_cases recorded : Occurrence.executionGroup source ∈ failed
                 · exact .task ⟨ancestor, payload, task⟩ member recorded
                 · exact ih _ ⟨group, .group, dependencies, descriptor, same⟩ recorded
-                    source owners ancestor payload key rfl task member parentExposed
+                    source owners ancestor payload ref rfl task member parentExposed
     | owners projected _ _ _ ih =>
-        rename_i address owners producer payload key same task member exposed
+        rename_i address owners producer payload ref same task member exposed
         cases same
         obtain ⟨birth, result, other⟩ := projected
-        obtain ⟨group, dependencies, descriptor, keyEq⟩ := TaskAt.executionGroup_owner task member
-        exact ih key ((task.unique other).1 ▸ member)
-          (keyEq ▸ node_role assigned descriptor) exposed
+        obtain ⟨group, dependencies, descriptor, refEq⟩ := TaskAt.executionGroup_owner task member
+        exact ih ref ((task.unique other).1 ▸ member)
+          (refEq ▸ node_role assigned descriptor) exposed
     | producerFailed projected unpublished recorded =>
-        rename_i address owners producer payload key same task member exposed
+        rename_i address owners producer payload ref same task member exposed
         cases same
         obtain ⟨otherOwners, result, other⟩ := projected
         have parentEq := (task.unique other).2.1
         subst producer
-        obtain ⟨group, dependencies, descriptor, keyEq⟩ := TaskAt.executionGroup_owner task member
+        obtain ⟨group, dependencies, descriptor, refEq⟩ := TaskAt.executionGroup_owner task member
         rename_i parent
         cases parent with
         | item source index =>
             have observed := NodeAt.group_itemProducer_seen descriptor generated.regionsSeparated
-              (keyEq.symm ▸ exposed)
+              (refEq.symm ▸ exposed)
             exact False.elim (itemsNotFailed source index observed recorded)
         | executionGroup source =>
-            apply keyEq ▸ lift_objectProducer generated descriptor (keyEq.symm ▸ exposed)
-            exact fun owners ancestor payload key task member _ =>
+            apply refEq ▸ lift_objectProducer generated descriptor (refEq.symm ▸ exposed)
+            exact fun owners ancestor payload ref task member _ =>
               .task ⟨ancestor, payload, task⟩ member recorded
     | producerCancelled projected unpublished cancelled ih =>
-        rename_i address owners producer payload key same task member exposed
+        rename_i address owners producer payload ref same task member exposed
         cases same
         obtain ⟨otherOwners, result, other⟩ := projected
         have parentEq := (task.unique other).2.1
         subst producer
-        obtain ⟨group, dependencies, descriptor, keyEq⟩ := TaskAt.executionGroup_owner task member
+        obtain ⟨group, dependencies, descriptor, refEq⟩ := TaskAt.executionGroup_owner task member
         rename_i parent
         cases parent with
         | item source index =>
             exact False.elim (itemsSafe source index
               (NodeAt.group_itemProducer_seen descriptor generated.regionsSeparated
-                (keyEq.symm ▸ exposed)) cancelled)
+                (refEq.symm ▸ exposed)) cancelled)
         | executionGroup source =>
-            apply keyEq ▸ lift_objectProducer generated descriptor (keyEq.symm ▸ exposed)
-            exact fun owners ancestor payload key task member parentExposed =>
-              ih source owners ancestor payload key rfl task member parentExposed
+            apply refEq ▸ lift_objectProducer generated descriptor (refEq.symm ▸ exposed)
+            exact fun owners ancestor payload ref task member parentExposed =>
+              ih source owners ancestor payload ref rfl task member parentExposed
   exact reflect failure (node_role assigned known) exposed
 
 /-- Historical group failure reduces to cleanup once successful source items are safe.
@@ -204,7 +204,7 @@ theorem ExecutedWork.exposed_groupFailure_invalidated
     (generated : ExecutedWork work) (valid : ValidGraphEvents work received)
     (known : NodeAt work node .group dependencies producer)
     (exposed
-      : ExposedKey work (received.flatMap (fun event => event.identities.1)) node.key)
+      : ExposedRef work (received.flatMap (fun event => event.identities.1)) node.ref)
     (failedPayloads
       : ∀ cut occurrence,
           (cut, occurrence) ∈ failures
@@ -215,8 +215,8 @@ theorem ExecutedWork.exposed_groupFailure_invalidated
       : ∀ source index,
           Occurrence.item source index ∈ received.flatMap GraphEvent.successes
           → ¬TaskCancelled work matching events failures (.item source index))
-    (failure : NodeFailed work matching events failures node.key)
-    : GroupInvalidated work (failedBefore failures events.length) node.key := by
+    (failure : NodeFailed work matching events failures node.ref)
+    : GroupInvalidated work (failedBefore failures events.length) node.ref := by
   obtain ⟨cut, member, reached, cause⟩ := failure
   have reflected := generated.exposed_snapshotGroupFailure_invalidated known exposed
     (fun source index observed => taskSucceeds_not_failedBefore
@@ -239,13 +239,13 @@ theorem ExecutedWork.replayGraphEvents_groupHealthy_of_itemSafety
     (started : (State.initialize (Work.fromExecution work)).acceptsBatch received = true)
     (known : NodeAt work node .group dependencies producer)
     (registered
-      : node.key
+      : node.ref
         ∈ ((State.initialize (Work.fromExecution work)).replayGraphEvents
             received).registeredGroups)
     (guardHealthy
       : ((State.initialize (Work.fromExecution work)).replayGraphEvents
           received).groupIsHealthy
-          node.key
+          node.ref
         = true)
     (failedPayloads
       : ∀ cut occurrence,
@@ -264,7 +264,7 @@ theorem ExecutedWork.replayGraphEvents_groupHealthy_of_itemSafety
       : ∀ source index,
           Occurrence.item source index ∈ received.flatMap GraphEvent.successes
           → ¬TaskCancelled work matching events failures (.item source index))
-    : ¬NodeFailed work matching events failures node.key := by
+    : ¬NodeFailed work matching events failures node.ref := by
   intro failure
   have exposed := (createWorkQueue_replay_regionInventory valid).registered_exposed registered
   have invalid := generated.exposed_groupFailure_invalidated valid known exposed failedPayloads
@@ -287,9 +287,9 @@ theorem ExecutedWork.replayGraphEvents_retiredGroupHealthy_of_itemSafety
     (retired
       : ((State.initialize (Work.fromExecution work)).replayGraphEvents
           received).RetiredGroup
-          node.key)
+          node.ref)
     (uncancelled
-      : node.key
+      : node.ref
         ∉ ((State.initialize (Work.fromExecution work)).replayGraphEvents
             received).cancelledGroups)
     (failedPayloads
@@ -309,7 +309,7 @@ theorem ExecutedWork.replayGraphEvents_retiredGroupHealthy_of_itemSafety
       : ∀ source index,
           Occurrence.item source index ∈ received.flatMap GraphEvent.successes
           → ¬TaskCancelled work matching events failures (.item source index))
-    : ¬NodeFailed work matching events failures node.key := by
+    : ¬NodeFailed work matching events failures node.ref := by
   intro failure
   have exposed := (createWorkQueue_replay_regionInventory valid).registered_exposed retired.1
   have invalid := generated.exposed_groupFailure_invalidated valid known exposed failedPayloads

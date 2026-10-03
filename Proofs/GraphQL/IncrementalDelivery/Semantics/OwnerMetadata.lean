@@ -1,8 +1,8 @@
 import Proofs.GraphQL.IncrementalDelivery.Semantics.PathOwnership
-import Proofs.GraphQL.IncrementalDelivery.Semantics.DeferKeys
+import Proofs.GraphQL.IncrementalDelivery.Semantics.DeferRefs
 
-/-! Ghost path assignments for execution keys. Fresh allocations may extend an assignment
-above the current supply, but cannot change any previously allocated key's attachment.
+/-! Ghost path assignments for execution refs. Fresh allocations may extend an assignment
+above the current supply, but cannot change any previously allocated ref's attachment.
 The assignment is proof-only and does not change execution or queue representation.
 -/
 
@@ -13,10 +13,10 @@ open GraphQL.IncrementalDelivery.Execution
 abbrev Assignment := Nat → ResponsePath
 
 def Extends (bound : Nat) (old next : Assignment) : Prop :=
-  ∀ key < bound, next key = old key
+  ∀ ref < bound, next ref = old ref
 
 def Assigned (paths : Assignment) (bound : Nat) (node : DeliveryNode) : Prop :=
-  node.key < bound ∧ paths node.key = node.path
+  node.ref < bound ∧ paths node.ref = node.path
 
 def fragmentNodes (fragment : DeferredFragment) : List DeliveryNode :=
   fragment.node :: fragment.ancestors
@@ -42,21 +42,21 @@ def Completed (paths : Assignment) (start : Nat) (output : Completion α × Nat)
   Output paths start output.1.work output.2
 
 theorem Extends.refl (bound : Nat) (paths : Assignment) : Extends bound paths paths := by
-  intro key hk
+  intro ref hk
   rfl
 
 theorem Extends.trans {first middle last : Assignment} {start finish : Nat}
     (h : Extends start first middle) (hnext : Extends finish middle last)
     (hle : start ≤ finish)
     : Extends start first last := by
-  intro key hk
-  exact (hnext key (by omega)).trans (h key hk)
+  intro ref hk
+  exact (hnext ref (by omega)).trans (h ref hk)
 
 theorem Assigned.extend {paths next : Assignment} {start finish : Nat}
     {node : DeliveryNode} (h : Assigned paths start node) (he : Extends start paths next)
     (hle : start ≤ finish)
     : Assigned next finish node :=
-  ⟨by have := h.1; omega, (he node.key h.1).trans h.2⟩
+  ⟨Nat.lt_of_lt_of_le h.1 hle, (he node.ref h.1).trans h.2⟩
 
 theorem MapAt.extend {paths next : Assignment} {start finish : Nat} {path : ResponsePath}
     {deferMap : DeferMap} (h : MapAt paths start path deferMap)
@@ -86,9 +86,9 @@ theorem WorkAt.extend {paths next : Assignment} {start finish : Nat} {work : Wor
 termination_by sizeOf work
 
 theorem mapAt_lookup {paths : Assignment} {bound : Nat} {path : ResponsePath}
-    {deferMap : DeferMap} (h : MapAt paths bound path deferMap) (key : Nat)
+    {deferMap : DeferMap} (h : MapAt paths bound path deferMap) (ref : NodeRef)
     (fragment : DeferredFragment)
-    (hf : lookupDeferredFragment? deferMap key = some fragment)
+    (hf : lookupDeferredFragment? deferMap ref = some fragment)
     : MapAt paths bound path [fragment] := by
   have hm := List.mem_of_find?_eq_some hf
   intro node hn
@@ -100,22 +100,22 @@ theorem mapAt_lookup {paths : Assignment} {bound : Nat} {path : ResponsePath}
   exact ⟨fragment, hm, hn⟩
 
 theorem mapAt_filterMap {paths : Assignment} {bound : Nat} {path : ResponsePath}
-    {deferMap : DeferMap} (h : MapAt paths bound path deferMap) (keys : List Nat)
-    : MapAt paths bound path (keys.filterMap (lookupDeferredFragment? deferMap)) := by
+    {deferMap : DeferMap} (h : MapAt paths bound path deferMap) (refs : List Nat)
+    : MapAt paths bound path (refs.filterMap (lookupDeferredFragment? deferMap)) := by
   intro node hn
   obtain ⟨fragment, hf, hn⟩ := List.mem_flatMap.mp hn
-  obtain ⟨key, _, hk⟩ := List.mem_filterMap.mp hf
-  exact mapAt_lookup h key fragment hk node (by simp [mapNodes, hn])
+  obtain ⟨ref, _, hk⟩ := List.mem_filterMap.mp hf
+  exact mapAt_lookup h ref fragment hk node (by simp [mapNodes, hn])
 
 theorem mapAt_new (paths : Assignment) (start finish : Nat) (path : ResponsePath)
     (deferMap : DeferMap) (usages : List DeferUsage)
     (h : MapAt paths start path deferMap) (hle : start ≤ finish)
-    (hu : ∀ usage ∈ usages, start ≤ usage.key ∧ usage.key < finish)
-    : let next := fun key => if start ≤ key then path else paths key
+    (hu : ∀ usage ∈ usages, start ≤ usage.ref ∧ usage.ref < finish)
+    : let next := fun ref => if start ≤ ref then path else paths ref
       Extends start paths next
       ∧ MapAt next finish path (getNewDeferMap usages path deferMap) := by
-  let next : Assignment := fun key => if start ≤ key then path else paths key
-  have he : Extends start paths next := by intro key hk; simp [next, Nat.not_le.mpr hk]
+  let next : Assignment := fun ref => if start ≤ ref then path else paths ref
+  have he : Extends start paths next := by intro ref hk; simp [next, Nat.not_le.mpr hk]
   refine ⟨he, ?_⟩
   have hm := h.extend he hle
   clear h
@@ -132,10 +132,10 @@ theorem mapAt_new (paths : Assignment) (start finish : Nat) (path : ResponsePath
         · exact hm node hn
         · exact ⟨⟨(hu usage (by simp)).2, by simp [next, (hu usage (by simp)).1]⟩,
             ⟨[], by simp⟩⟩
-        · obtain ⟨key, _, hk⟩ := List.mem_filterMap.mp hn
+        · obtain ⟨ref, _, hk⟩ := List.mem_filterMap.mp hn
           obtain ⟨fragment, hf, hn⟩ := Option.map_eq_some_iff.mp hk
           subst node
-          exact mapAt_lookup hm key fragment hf fragment.node (by simp [mapNodes, fragmentNodes])
+          exact mapAt_lookup hm ref fragment hf fragment.node (by simp [mapNodes, fragmentNodes])
 
 theorem output_empty (paths : Assignment) (state : Nat)
     : Output paths state .empty state :=

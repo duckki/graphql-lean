@@ -14,7 +14,7 @@ source premises are unchanged; no activation or intermediate-state premise is re
 -/
 theorem ExecutedWork.handleGraphEvent_ancestorProducer_beforeValue
     {work before event published position group values address owners source
-      payload dependencies key parentOwners parentProducer parentPayload}
+      payload dependencies ref parentOwners parentProducer parentPayload}
     (generated : ExecutedWork work)
     (valid : ValidGraphEvents work (before ++ [event]))
     (started
@@ -31,11 +31,11 @@ theorem ExecutedWork.handleGraphEvent_ancestorProducer_beforeValue
     (known
       : TaskAt work (.executionGroup address) owners
           (some (.executionGroup source)) payload)
-    (contributes : group.key ∈ owners)
-    (record : GroupRecordAt work group dependencies) (ancestor : key ∈ dependencies)
+    (contributes : group.ref ∈ owners)
+    (record : GroupRecordAt work group dependencies) (ancestor : ref ∈ dependencies)
     (parentKnown
       : TaskAt work (.executionGroup source) parentOwners parentProducer parentPayload)
-    (parentContributes : key ∈ parentOwners)
+    (parentContributes : ref ∈ parentOwners)
     : ∃ value,
         (Occurrence.executionGroup source, value)
         ∈ published.take

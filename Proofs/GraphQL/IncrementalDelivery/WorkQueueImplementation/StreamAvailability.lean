@@ -6,28 +6,28 @@ namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
 -----------------------------------------------------------------------------------------
--- A fresh item has never-registered contributor keys
+-- A fresh item has never-registered contributor refs
 -----------------------------------------------------------------------------------------
 
-/-- Every immediate group of a fresh item has an unregistered key.
+/-- Every immediate group of a fresh item has an unregistered ref.
 Witness: generated region separation excludes all previously exposed regions, while
-registration provenance places every registered key in one of those regions. -/
+registration provenance places every registered ref in one of those regions. -/
 theorem State.RegionInventory.streamItem_groupsFresh {queue : State}
     {work seen stream items} (inventory : queue.RegionInventory work seen)
     (generated : ExecutedWork work)
     (matching : (GraphEvent.streamItems stream items).MatchesWork work)
     {item : StreamItem} (member : item ∈ items) (fresh : item.occurrence ∉ seen)
-    : ∀ group ∈ item.work.groups, group.node.key ∉ queue.registeredGroups := by
+    : ∀ group ∈ item.work.groups, group.node.ref ∉ queue.registeredGroups := by
   obtain ⟨children, address, producer, owners, located, lowering, region⟩ :=
     matching.streamItem_region member
   intro group included registered
   rw [lowering] at included
   exact streamRegion_unexposed generated.regionsSeparated region fresh
-    (workFromSpec_group_rootKey children address included)
+    (workFromSpec_group_rootRef children address included)
     (inventory.registered_exposed registered)
 
 /-- Every healthy contributor needed by a fresh item is available for registration.
-Witness: immediate lowering contains each contributor group, whose key is unregistered.
+Witness: immediate lowering contains each contributor group, whose ref is unregistered.
 The result does not depend on the failure ledger or on whether the contributor is healthy.
 -/
 theorem State.RegionInventory.streamItem_available {queue : State}
@@ -36,9 +36,9 @@ theorem State.RegionInventory.streamItem_available {queue : State}
     (matching : (GraphEvent.streamItems stream items).MatchesWork work)
     {item : StreamItem} (member : item ∈ items) (fresh : item.occurrence ∉ seen)
     : queue.ChildGroupsAvailable work failed item.work := by
-  intro task registered key contributes _
+  intro task registered ref contributes _
   obtain ⟨group, included, same⟩ :=
-    matching.streamItem_childTasksCovered member task registered key contributes
+    matching.streamItem_childTasksCovered member task registered ref contributes
   exact .inr (same ▸ inventory.streamItem_groupsFresh generated matching member fresh
     group included)
 

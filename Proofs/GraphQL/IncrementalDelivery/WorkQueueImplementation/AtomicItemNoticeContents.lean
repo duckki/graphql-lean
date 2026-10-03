@@ -33,10 +33,10 @@ theorem itemGroupNotice_unpublished
         ∧ items = earlier ++ item :: later
         ∧ let current := (initialQueue work).replayGraphEvents before
           let boundary := (current.preparedStreamItems earlier).integrateStreamItem item
-          current.rootStreams.contains stream.key = true
+          current.rootStreams.contains stream.ref = true
           ∧ (∃ dependencies producer, NodeAt work child .group dependencies producer)
           ∧ ∃ node,
-              boundary.groupNode? child.key = some node
+              boundary.groupNode? child.ref = some node
               ∧ node.group.node = child
               ∧ (node.tasks ≠ [] ∨ node.failure.isSome = true)
               ∧ ∀ occurrence ∈ node.tasks,

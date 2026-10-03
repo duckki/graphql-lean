@@ -22,7 +22,7 @@ private structure ClosingFrontier (queue : State) (work : Execution.Work)
     (groups : List Execution.DeliveryNode) (failed : List Occurrence)
     : Prop where
   healthy : queue.RootGroupsHealthy work failed
-  frontier : queue.rootGroups.Subset (groups.map Execution.DeliveryNode.key)
+  frontier : queue.rootGroups.Subset (groups.map Execution.DeliveryNode.ref)
   present : queue.RootGroupsPresent
   registered : queue.StartedTasksRegistered
   matching : queue.RegisteredTasksMatch work

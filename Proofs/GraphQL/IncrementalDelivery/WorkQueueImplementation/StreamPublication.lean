@@ -101,10 +101,10 @@ theorem State.taskFailure_itemValues (queue : State) (occurrence : Occurrence)
     (errors : Nat)
     : (queue.taskFailure occurrence errors).2.flatMap WorkQueueEvent.itemValues = [] := by
   let step (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode) :=
-    match acc.1.groupNode? group.key with
+    match acc.1.groupNode? group.ref with
     | none => acc
     | some node =>
-        if acc.1.rootGroups.contains group.key then
+        if acc.1.rootGroups.contains group.ref then
           let (next, failure) := acc.1.finishGroupFailure node errors
           (next, acc.2 ++ [failure])
         else (acc.1.putGroupNode
@@ -134,7 +134,7 @@ theorem State.taskFailure_itemValues (queue : State) (occurrence : Occurrence)
 Witness: the item accumulator appends each unchanged input value exactly once; child-work
 integration affects notices/state and the final group drain emits no extra items. -/
 theorem State.streamItems_itemValues (queue : State) (stream : Execution.DeliveryNode)
-    (items : List StreamItem) (active : queue.rootStreams.contains stream.key = true)
+    (items : List StreamItem) (active : queue.rootStreams.contains stream.ref = true)
     : (queue.streamItems stream items).2.flatMap WorkQueueEvent.itemValues
       = (GraphEvent.itemPublications (.streamItems stream items)).map Prod.snd := by
   let step (acc : State × List Execution.DeliveryNode

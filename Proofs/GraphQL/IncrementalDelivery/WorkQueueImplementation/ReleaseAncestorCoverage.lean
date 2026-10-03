@@ -23,21 +23,21 @@ theorem State.ReleaseDrainOwners.ancestorValue_before {queue : State}
     (links : queue.ChildLinksCanonical parents)
     (canonical
       : ∀ group dependencies,
-          GroupRecordAt work group dependencies → dependencies = parents group.key)
+          GroupRecordAt work group dependencies → dependencies = parents group.ref)
     (live : queue.LiveGroupsRegistered) (tasks : queue.TaskGroupsRegistered)
     (roots : queue.RootAncestorsRetired work)
     (closed : queue.UncancelledRetiredAncestors work)
-    {index group values dependencies key occurrence node value}
-    (record : GroupRecordAt work group dependencies) (ancestor : key ∈ dependencies)
+    {index group values dependencies ref occurrence node value}
+    (record : GroupRecordAt work group dependencies) (ancestor : ref ∈ dependencies)
     (found : queue.taskNode? occurrence = some node) (stored : node.value = some value)
     (known
-      : TaskHasOwners work occurrence (node.task.groups.map Execution.DeliveryNode.key))
-    (contributes : key ∈ node.task.groups.map Execution.DeliveryNode.key)
-    (present : key ∈ queue.groupNodes.map (fun owner => owner.group.node.key))
+      : TaskHasOwners work occurrence (node.task.groups.map Execution.DeliveryNode.ref))
+    (contributes : ref ∈ node.task.groups.map Execution.DeliveryNode.ref)
+    (present : ref ∈ queue.groupNodes.map (fun owner => owner.group.node.ref))
     : let released := groups.foldl successGroupStep (queue, [], {})
       let activated := released.1.startNewWork released.2.2
       activated.drainReadyGroups.2[index]? = some (.groupValues group values)
-      → key ∉ activated.drainReadyGroups.1.cancelledGroups
+      → ref ∉ activated.drainReadyGroups.1.cancelledGroups
       → (occurrence, value)
         ∈ published.take
             ((released.2.1 ++ activated.drainReadyGroups.2.take index).flatMap
@@ -58,13 +58,13 @@ theorem State.ReleaseDrainOwners.ancestorValue_before {queue : State}
     (folded.1.startNewWork _) (folded.2.1.startNewWork _) canonical
     registered.1 registered.2
     (folded.2.2.2.2.1.startNewWork _ protectedRoots.2) steps).1
-  have retired := prefixRoots current.group.node.key active group dependencies record
-    (congrArg Execution.DeliveryNode.key same.symm) key ancestor occurrence _ known contributes
-  have notCancelled : key ∉ (State.drainReadyGroups.go steps activated).1.cancelledGroups :=
+  have retired := prefixRoots current.group.node.ref active group dependencies record
+    (congrArg Execution.DeliveryNode.ref same.symm) ref ancestor occurrence _ known contributes
+  have notCancelled : ref ∉ (State.drainReadyGroups.go steps activated).1.cancelledGroups :=
     fun member => uncancelled
       (State.drainReadyGroups_go_prefix_cancelledSubset activated (Nat.le_of_lt bounded) member)
   have emitted := (prefixes steps (Nat.le_of_lt bounded)
-    occurrence node value found stored key contributes present notCancelled).resolve_right
+    occurrence node value found stored ref contributes present notCancelled).resolve_right
       (fun retained => retired.2 retained.2)
   change (occurrence, value) ∈ published.take
     ((released.2.1 ++ activated.drainReadyGroups.2.take index).flatMap
@@ -82,14 +82,14 @@ explicit local obligations; no new assumptions are imposed on the host event sou
 -/
 theorem ExecutedWork.taskSuccess_drainAncestorValue_before
     {work events occurrence result incoming} {published : List ObjectPublication}
-    {index group values dependencies key buffered node value}
+    {index group values dependencies ref buffered node value}
     (generated : ExecutedWork work)
     (matching : ∀ event ∈ events, event.MatchesWork work)
     (matched : (GraphEvent.taskSuccess occurrence result).MatchesWork work)
-    (record : GroupRecordAt work group dependencies) (ancestor : key ∈ dependencies)
+    (record : GroupRecordAt work group dependencies) (ancestor : ref ∈ dependencies)
     (known
-      : TaskHasOwners work buffered (node.task.groups.map Execution.DeliveryNode.key))
-    (contributes : key ∈ node.task.groups.map Execution.DeliveryNode.key)
+      : TaskHasOwners work buffered (node.task.groups.map Execution.DeliveryNode.ref))
+    (contributes : ref ∈ node.task.groups.map Execution.DeliveryNode.ref)
     (stored : node.value = some value)
     : let queue := (State.initialize (Work.fromExecution work)).replayGraphEvents events
       let prepared :=
@@ -102,9 +102,9 @@ theorem ExecutedWork.taskSuccess_drainAncestorValue_before
       → queue.taskNode? occurrence = some incoming
       → queue.taskHasHealthyOwner incoming.task = true
       → prepared.taskNode? buffered = some node
-      → key ∈ prepared.groupNodes.map (fun owner => owner.group.node.key)
+      → ref ∈ prepared.groupNodes.map (fun owner => owner.group.node.ref)
       → activated.drainReadyGroups.2[index]? = some (.groupValues group values)
-      → key ∉ activated.drainReadyGroups.1.cancelledGroups
+      → ref ∉ activated.drainReadyGroups.1.cancelledGroups
       → (buffered, value)
         ∈ published.take
             ((released.2.1 ++ activated.drainReadyGroups.2.take index).flatMap

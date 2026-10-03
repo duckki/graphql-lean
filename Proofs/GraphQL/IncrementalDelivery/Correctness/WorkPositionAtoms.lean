@@ -16,11 +16,11 @@ def eventPositionAtoms : WorkQueueEvent → List PositionAtom
   | _ => []
 
 /-- Combining compatible events preserves their ordered absolute atoms. Witness: list
-append for objects and items; coherent key paths identify the coalesced stream's path.
+append for objects and items; coherent ref paths identify the coalesced stream's path.
 -/
 theorem combineValues_positionAtoms {paths : Nat → ResponsePath} {left right combined}
-    (leftPaths : ∀ node ∈ eventNodes left, paths node.key = node.path)
-    (rightPaths : ∀ node ∈ eventNodes right, paths node.key = node.path)
+    (leftPaths : ∀ node ∈ eventNodes left, paths node.ref = node.path)
+    (rightPaths : ∀ node ∈ eventNodes right, paths node.ref = node.path)
     (compatible : combineValues left right = some combined)
     : eventPositionAtoms combined
       = eventPositionAtoms left ++ eventPositionAtoms right := by
@@ -31,10 +31,10 @@ theorem combineValues_positionAtoms {paths : Nat → ResponsePath} {left right c
   case
     streamValues.streamValues node values groups streams other more moreGroups moreStreams
       =>
-    obtain ⟨keys, rfl⟩ := compatible
+    obtain ⟨refs, rfl⟩ := compatible
     have first := leftPaths node (by simp [eventNodes])
     have second := rightPaths other (by simp [eventNodes])
-    have same : node.path = other.path := first.symm.trans (keys ▸ second)
+    have same : node.path = other.path := first.symm.trans (refs ▸ second)
     simp [eventPositionAtoms, same]
 
 /-- Optional value coalescing preserves all absolute data atoms in their original order.
@@ -42,7 +42,7 @@ Witness: grouping induction, retaining source descriptor paths for each intermed
 -/
 theorem valueGrouping_positionAtoms {paths : Nat → ResponsePath} {events grouped}
     (grouping : ValueGrouping events grouped)
-    (coherent : ∀ node ∈ events.flatMap eventNodes, paths node.key = node.path)
+    (coherent : ∀ node ∈ events.flatMap eventNodes, paths node.ref = node.path)
     : grouped.flatMap eventPositionAtoms = events.flatMap eventPositionAtoms := by
   induction grouping with
   | nil => rfl
@@ -50,9 +50,9 @@ theorem valueGrouping_positionAtoms {paths : Nat → ResponsePath} {events group
       have tail := ih (fun node member => coherent node (List.mem_append_right _ member))
       simp only [List.flatMap_cons, tail]
   | @combine head tail first rest merged grouped compatible ih =>
-      have tailPaths : ∀ node ∈ tail.flatMap eventNodes, paths node.key = node.path :=
+      have tailPaths : ∀ node ∈ tail.flatMap eventNodes, paths node.ref = node.path :=
         fun node member => coherent node (List.mem_append_right _ member)
-      have firstPaths : ∀ node ∈ eventNodes first, paths node.key = node.path :=
+      have firstPaths : ∀ node ∈ eventNodes first, paths node.ref = node.path :=
         fun node member => tailPaths node
           (valueGrouping_nodes grouped node (List.mem_append_left _ member))
       have combined := combineValues_positionAtoms
@@ -66,7 +66,7 @@ partition induction, with the value-coalescing theorem inside each partition.
 -/
 theorem workBatching_positionAtoms {paths : Nat → ResponsePath} {events batches}
     (grouping : WorkBatching events batches)
-    (coherent : ∀ node ∈ events.flatMap eventNodes, paths node.key = node.path)
+    (coherent : ∀ node ∈ events.flatMap eventNodes, paths node.ref = node.path)
     : batches.flatten.flatMap eventPositionAtoms = events.flatMap eventPositionAtoms := by
   induction grouping with
   | nil => rfl
@@ -94,7 +94,7 @@ theorem admitted_positionAtoms {paths bound work history}
   have nodePaths {events matching failures}
       (explained : Explains work history.initialGroups history.initialStreams events
         matching failures)
-      : ∀ node ∈ events.flatMap eventNodes, paths node.key = node.path := by
+      : ∀ node ∈ events.flatMap eventNodes, paths node.ref = node.path := by
     intro node member
     obtain ⟨kind, parents, birth, known⟩ := explained_nodes explained node member
     exact (workAt_node coherent known).2
@@ -104,7 +104,7 @@ theorem admitted_positionAtoms {paths bound work history}
       workBatching_positionAtoms grouped (nodePaths explained)⟩
   · refine ⟨events, matching, failures, explained, ?_⟩
     have paths : ∀ node ∈ (events ++ [WorkQueueEvent.workQueueTermination]).flatMap eventNodes,
-        paths node.key = node.path := by
+        paths node.ref = node.path := by
       simpa only [List.flatMap_append, List.flatMap_cons, List.flatMap_nil, eventNodes,
         List.nil_append, List.append_nil]
         using nodePaths explained

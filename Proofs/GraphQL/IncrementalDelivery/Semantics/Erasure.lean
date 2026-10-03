@@ -51,13 +51,13 @@ mutual
               cases hd : activeDefer? variables directives <;>
                 simp [collectSelection, GraphQL.Execution.collectSelection,
                   Selection.eraseIncrementalDirectives, ← selectionDirectivesAllowBool_erase,
-                  ha, hd, freshExecutionKey, hc]
+                  ha, hd, freshNodeRef, hc]
           | some condition =>
               cases ht : doesFragmentTypeApplyBool schema parentType source condition <;>
                 cases hd : activeDefer? variables directives <;>
                 simp [collectSelection, GraphQL.Execution.collectSelection,
                   Selection.eraseIncrementalDirectives, ← selectionDirectivesAllowBool_erase,
-                  ha, ht, hd, freshExecutionKey, hc] <;> rfl
+                  ha, ht, hd, freshNodeRef, hc] <;> rfl
   termination_by sizeOf selection
 
   theorem collectFields_erase (schema : Schema) (variables : VariableValues)

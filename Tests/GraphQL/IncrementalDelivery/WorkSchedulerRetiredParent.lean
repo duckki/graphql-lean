@@ -62,7 +62,7 @@ theorem generated : ExecutedWork work := by
 Witness: direct lookup of its generated root-task address.
 -/
 private theorem other_known
-    : TaskAt work otherTask [other.key] none (.object [] (.error 1)) :=
+    : TaskAt work otherTask [other.ref] none (.object [] (.error 1)) :=
   ⟨_, [], .error 1, .empty, [], rfl, rfl, rfl⟩
 
 /-- Both source settlements obey fixed outcomes, freshness, readiness, and start discipline.
@@ -71,7 +71,7 @@ Witness: the two root descriptors and evaluation of the unchanged start checker.
 theorem source_valid
     : ValidGraphEvents work inputs.flatten ∧ inputsStarted work inputs = true := by
   have parentKnown
-      : TaskAt work parentTask [parent.key] none (.object [] (.ok (parentData, 0))) :=
+      : TaskAt work parentTask [parent.ref] none (.object [] (.ok (parentData, 0))) :=
     ⟨_, [], .ok (parentData, 0), noChildren, [], rfl, rfl, rfl⟩
   have first : ValidGraphEvents work [success] :=
     .append .nil ⟨_, _, parentKnown, rfl, rfl⟩
@@ -85,12 +85,12 @@ theorem source_valid
 Witness: apply the general generated-replay parent-registration theorem to C's live
 record and missing-parent lookup; registration is not separately computed for the fixture.
 -/
-theorem missing_parent_retired : retired.RetiredGroup parent.key := by
+theorem missing_parent_retired : retired.RetiredGroup parent.ref := by
   let node : GroupNode :=
-    { group := ⟨child, some parent.key⟩, tasks := [.executionGroup [1, 1, 0]], pending := 1 }
+    { group := ⟨child, some parent.ref⟩, tasks := [.executionGroup [1, 1, 0]], pending := 1 }
   exact generated.runNormalized_missingParentRetired source_valid.1 node
     (by cbv; exact List.mem_cons_self)
-    parent.key rfl
+    parent.ref rfl
     (by cbv)
 
 /-- Before R's failure, actual source replay keeps the registered-task accounting ledger.
@@ -121,18 +121,18 @@ theorem successful_parent_health_stable (events : List GraphEvent)
     (valid : ValidGraphEvents work events) (started : initial.acceptsBatch events = true)
     (earlier : [success].IsPrefix events)
     : ¬GroupRecordInvalidated work (initial.objectFailureContributions events)
-        parent.key := by
+        parent.ref := by
   have known : GroupRecordAt work parent [] :=
     groupRecordAt_of_nodeAt
       (show NodeAt work parent .group [] none from
         ⟨[1, 0], _, [], .ok (parentData, 0), noChildren, [], ⟨parent, []⟩,
           rfl, List.mem_cons_self, rfl, rfl⟩)
-  have retired : (initial.replayGraphEvents [success]).RetiredGroup parent.key := by
+  have retired : (initial.replayGraphEvents [success]).RetiredGroup parent.ref := by
     constructor
     · cbv; exact List.mem_cons_self
-    · have keys : (initial.replayGraphEvents [success]).groupNodes.map
-          (fun node => node.group.node.key) = [child.key, other.key] := by cbv
-      rw [keys]; decide
+    · have refs : (initial.replayGraphEvents [success]).groupNodes.map
+          (fun node => node.group.node.ref) = [child.ref, other.ref] := by cbv
+      rw [refs]; decide
   exact generated.retiredRecord_health_stable valid started known earlier retired
     (fun invalid => invalid.nonempty (by cbv))
 
@@ -140,7 +140,7 @@ theorem successful_parent_health_stable (events : List GraphEvent)
 Witness: instantiate arbitrary-continuation stability and compute only the token ledger.
 -/
 theorem retired_parent_health_after_failure
-    : ¬GroupRecordInvalidated work [otherTask] parent.key := by
+    : ¬GroupRecordInvalidated work [otherTask] parent.ref := by
   have healthy := successful_parent_health_stable inputs.flatten source_valid.1
     (by cbv) ⟨[failure], rfl⟩
   have inventory : initial.objectFailureContributions inputs.flatten = [otherTask] := by cbv
@@ -152,21 +152,21 @@ the general continuation theorem, not a direct enumeration of failure causes.
 -/
 theorem retired_records_healthy : retired.UncancelledRetiredHealthy work [otherTask] := by
   intro node dependencies known gone uncancelled
-  have registry : retired.registeredGroups = [parent.key, child.key, other.key] := by cbv
-  have live : retired.groupNodes.map (fun node => node.group.node.key) = [child.key] := by cbv
-  have cancelled : retired.cancelledGroups = [other.key] := by cbv
+  have registry : retired.registeredGroups = [parent.ref, child.ref, other.ref] := by cbv
+  have live : retired.groupNodes.map (fun node => node.group.node.ref) = [child.ref] := by cbv
+  have cancelled : retired.cancelledGroups = [other.ref] := by cbv
   have registered := gone.1
   rw [registry] at registered
   rw [cancelled] at uncancelled
   have absent := gone.2
   rw [live] at absent
-  have key : node.key = parent.key := by
+  have ref : node.ref = parent.ref := by
     exact (List.mem_cons.mp registered).resolve_right (by
         intro member
         rcases List.mem_cons.mp member with same | last
         · exact absent (List.mem_singleton.mpr same)
         · exact uncancelled last)
-  exact key ▸ retired_parent_health_after_failure
+  exact ref ▸ retired_parent_health_after_failure
 
 /-- Later registration cannot invalidate the successfully retired parent certificate.
 Witness: general arbitrary-chunk integration preserves the proved nonempty-failure
@@ -196,14 +196,14 @@ theorem missing_parent_health_at_new_failure
 
 /-- The same generic argument survives the actual independent failure cleanup.
 Witness: apply removal preservation, then identify replay's surviving records and
-cancellation keys with that cleanup. No direct enumeration of failure causes is used.
+cancellation refs with that cleanup. No direct enumeration of failure causes is used.
 -/
 theorem missing_parent_health_after_cleanup
     : retired.MissingParentAncestorsHealthy work [otherTask] := by
-  have safe := missing_parent_health_at_new_failure.removeGroup other.key
-  have nodes : retired.groupNodes = (afterSuccess.removeGroup other.key).groupNodes := by cbv
+  have safe := missing_parent_health_at_new_failure.removeGroup other.ref
+  have nodes : retired.groupNodes = (afterSuccess.removeGroup other.ref).groupNodes := by cbv
   have cancelled
-      : retired.cancelledGroups = (afterSuccess.removeGroup other.key).cancelledGroups := by
+      : retired.cancelledGroups = (afterSuccess.removeGroup other.ref).cancelledGroups := by
     cbv
   simpa only [State.MissingParentAncestorsHealthy, State.groupNode?, nodes, cancelled]
     using safe
@@ -215,13 +215,13 @@ Thus missing-parent health cannot be replaced by requiring every parent record t
 theorem successful_missing_parent
     : ∃ node ∈ retired.groupNodes,
         node.group.node = child
-        ∧ node.group.parent = some parent.key
-        ∧ retired.groupNode? parent.key = none
-        ∧ parent.key ∉ retired.cancelledGroups
-        ∧ retired.groupIsHealthy child.key = true
+        ∧ node.group.parent = some parent.ref
+        ∧ retired.groupNode? parent.ref = none
+        ∧ parent.ref ∉ retired.cancelledGroups
+        ∧ retired.groupIsHealthy child.ref = true
         ∧ initial.objectFailureContributions inputs.flatten = [otherTask] := by
   refine ⟨{
-    group := ⟨child, some parent.key⟩,
+    group := ⟨child, some parent.ref⟩,
     tasks := [.executionGroup [1, 1, 0]], pending := 1
   }, ?_⟩
   cbv
@@ -235,20 +235,20 @@ Witness: generated ancestry reduces each possible invalidation to R owning P or 
 contradicting R's exact fixed task descriptor. This does not assume guard soundness.
 -/
 theorem successful_ancestry_healthy
-    : ¬GroupInvalidated work [otherTask] parent.key
-      ∧ ¬GroupInvalidated work [otherTask] child.key := by
+    : ¬GroupInvalidated work [otherTask] parent.ref
+      ∧ ¬GroupInvalidated work [otherTask] child.ref := by
   have root : NodeAt work parent .group [] none :=
     ⟨[1, 0], _, [], .ok (parentData, 0), noChildren, [], ⟨parent, []⟩,
       rfl, by simp, rfl, rfl⟩
-  have nested : NodeAt work child .group [parent.key] none :=
+  have nested : NodeAt work child .group [parent.ref] none :=
     ⟨[1, 1, 0], _, [], .ok ([("b", .scalar "b")], 0), noChildren, [],
       ⟨child, [parent]⟩, rfl, by simp, rfl, rfl⟩
   have excludes {node dependencies producer}
       (known : NodeAt work node .group dependencies producer)
-      (separate : other.key ∉ node.key :: dependencies)
-      : ¬GroupInvalidated work [otherTask] node.key := by
+      (separate : other.ref ∉ node.ref :: dependencies)
+      : ¬GroupInvalidated work [otherTask] node.ref := by
     intro invalid
-    obtain ⟨occurrence, owners, key, ⟨birth, payload, task⟩, member, owner, ancestor⟩ :=
+    obtain ⟨occurrence, owners, ref, ⟨birth, payload, task⟩, member, owner, ancestor⟩ :=
       (generated.groupInvalidated_iff known).mp invalid
     obtain rfl := List.mem_singleton.mp member
     rw [(task.unique other_known).1] at owner
@@ -269,12 +269,12 @@ Witness: generated source laws now supply the boundary through joint health repl
 no fixture-specific missing-parent premise is needed by guard reflection.
 -/
 theorem guard_reflection_after_retirement
-    : ¬GroupRecordInvalidated work [otherTask] child.key := by
+    : ¬GroupRecordInvalidated work [otherTask] child.ref := by
   have inventory : initial.objectFailureContributions inputs.flatten = [otherTask] := by cbv
   have reflected := generated.replayGraphEvents_groupIsHealthy_recordUninvalidated
-    inputs.flatten source_valid.1 (by cbv) (key := child.key) (by cbv)
+    inputs.flatten source_valid.1 (by cbv) (ref := child.ref) (by cbv)
   change ¬GroupRecordInvalidated work (initial.objectFailureContributions inputs.flatten)
-    child.key at reflected
+    child.ref at reflected
   rwa [inventory] at reflected
 
 /-- Every received prefix preserves the missing-parent boundary in this concrete replay.
@@ -299,10 +299,10 @@ Witness: use actual source acceptance and the independently proved prefix bounda
 without assuming causal health or an explained output history.
 -/
 theorem accepted_failure_owner_uninvalidated
-    : ∃ owners key,
+    : ∃ owners ref,
         TaskHasOwners work otherTask owners
-        ∧ key ∈ owners
-        ∧ ¬GroupRecordInvalidated work [] key := by
+        ∧ ref ∈ owners
+        ∧ ¬GroupRecordInvalidated work [] ref := by
   have cut
       : let publisher : IncrementalPublisher :=
           { active := initial.initialGroups ++ initial.initialStreams }
@@ -317,9 +317,9 @@ Witness: changing only P's retained cancellation marker rejects the same live ch
 This last check isolates the guard; the modified state is not claimed to be generated.
 -/
 theorem cancelled_missing_parent_rejected
-    : ({ retired with cancelledGroups := parent.key :: retired.cancelledGroups }
+    : ({ retired with cancelledGroups := parent.ref :: retired.cancelledGroups }
         : State).groupIsHealthy
-        child.key
+        child.ref
       = false := by
   cbv
 

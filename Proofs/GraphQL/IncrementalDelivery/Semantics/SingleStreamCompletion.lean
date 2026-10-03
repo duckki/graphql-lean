@@ -54,7 +54,7 @@ mutual
       (path : ResponsePath) (state : Nat)
       : RunMatches
           (completeValue schema resolvers variables fuel fieldType fields value path
-            (contextKeys usage) deferMap false)
+            (contextRefs usage) deferMap false)
           (GraphQL.Execution.completeValue schema resolvers variables fuel fieldType
             (fields.map eraseField) value)
           state := by
@@ -147,7 +147,7 @@ mutual
       (index state : Nat)
       : RunMatches
           (completeListValue schema resolvers variables fuel itemType fields values
-            path index (contextKeys usage) deferMap)
+            path index (contextRefs usage) deferMap)
           (GraphQL.Execution.completeValueList schema resolvers variables fuel itemType
             (fields.map eraseField) values)
           state := by
@@ -215,7 +215,7 @@ theorem completeStreamItems_itemContext (schema : Schema)
       have hh := completeValue_itemContext none (by simp [ContextWellFormed]) []
         schema resolvers variables fuel itemType fields value hplain
         (path ++ [.index index]) state
-      simp only [RunMatches, CompletionMatches, contextKeys, Option.toList_none,
+      simp only [RunMatches, CompletionMatches, contextRefs, Option.toList_none,
         List.map_nil] at hh
       generalize he : (completeValue schema resolvers variables fuel itemType fields value
         (path ++ [.index index]) [] [] false).run state = pair at hh
@@ -366,7 +366,7 @@ theorem completeList_split_success (usage : Option DeferUsage)
     (path : ResponsePath) (count state : Nat) (initialData tail : List ResponseValue)
     (hinitial
       : ((completeListValue schema resolvers variables fuel itemType fields
-            (values.take count) path 0 (contextKeys usage) deferMap).run
+            (values.take count) path 0 (contextRefs usage) deferMap).run
           state).1.result
         = .ok (initialData, 0))
     (htail
@@ -399,11 +399,11 @@ theorem completeListValueWithStream_stream_run (usage : Option DeferUsage)
       : getStreamUsage variables (fields.head?.map FieldDetails.directives |>.getD [])
         = .ok (some stream))
     : (completeListValueWithStream schema resolvers variables fuel itemType fields values
-        path (contextKeys usage) deferMap true).run
+        path (contextRefs usage) deferMap true).run
         state
       = let initial :=
           ((completeListValue schema resolvers variables fuel itemType fields
-              (values.take stream.initialCount) path 0 (contextKeys usage) deferMap).run
+              (values.take stream.initialCount) path 0 (contextRefs usage) deferMap).run
             state).1
         match initial.result with
         | .error _ => (initial.catchNull ResponseValue.list, state)
@@ -421,7 +421,7 @@ theorem completeListValueWithStream_stream_run (usage : Option DeferUsage)
                   (initial.catchNull ResponseValue.list) with
                     work :=
                       .combine initial.work
-                        (.stream { key := state, path := path, label := stream.label }
+                        (.stream { ref := state, path := path, label := stream.label }
                           items)
                 },
                 state + 1
@@ -433,7 +433,7 @@ theorem completeListValueWithStream_stream_run (usage : Option DeferUsage)
     path stream.initialCount (state + 1)
   simp only [RunMatches] at hi
   generalize he : (completeListValue schema resolvers variables fuel itemType fields
-    (values.take stream.initialCount) path 0 (contextKeys usage) deferMap).run state = initialPair at hi ⊢
+    (values.take stream.initialCount) path 0 (contextRefs usage) deferMap).run state = initialPair at hi ⊢
   rcases initialPair with ⟨initial, next⟩
   have hnext := hi.1
   dsimp only at hnext
@@ -447,7 +447,7 @@ theorem completeListValueWithStream_stream_run (usage : Option DeferUsage)
   subst final
   cases hr : initial.result <;>
     by_cases hempty : values.length < stream.initialCount <;>
-      simp [completeListValueWithStream, hstream, he, hr, freshExecutionKey, heitems,
+      simp [completeListValueWithStream, hstream, he, hr, freshNodeRef, heitems,
         Completion.catchNull, hempty]
 
 theorem catchNull_result_ok (completed : Completion α) (wrap : α → ResponseValue)

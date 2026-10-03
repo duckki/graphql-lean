@@ -88,26 +88,26 @@ theorem createWorkQueue_replayGraphEvents_terminalRoots {work inputs}
 Witness: eventwise notice tracking excludes the active-root alternative. The stronger
 generated-work result in `GroupCompletionReplay` eliminates silent cancellation as well.
 -/
-theorem createWorkQueue_terminalGroupTracking {work inputs key}
+theorem createWorkQueue_terminalGroupTracking {work inputs ref}
     (started : inputsStarted work inputs = true)
     (ended
       : ((State.initialize (Work.fromExecution work)).runNormalized inputs).1.terminated
         = true)
     (announced
-      : key
+      : ref
         ∈ (State.initialize (Work.fromExecution work)).rootGroups
           ++ ((State.initialize (Work.fromExecution work)).rawEventReplay
                 inputs.flatten).2.flatMap
-              rawGroupNoticeKeys)
-    : key
+              rawGroupNoticeRefs)
+    : ref
         ∈ ((State.initialize (Work.fromExecution work)).replayGraphEvents
             inputs.flatten).cancelledGroups
-      ∨ key
+      ∨ ref
         ∈ ((State.initialize (Work.fromExecution work)).rawEventReplay
             inputs.flatten).2.flatMap
-            rawGroupClosureKeys := by
+            rawGroupClosureRefs := by
   have tracked := State.rawEventReplay_groupNoticeTracking
-    (State.initialize (Work.fromExecution work)) inputs.flatten key announced
+    (State.initialize (Work.fromExecution work)) inputs.flatten ref announced
   have empty := (createWorkQueue_replayGraphEvents_terminalRoots started ended).1
   rw [State.rawEventReplay_state] at tracked
   exact tracked.resolve_left (by rw [empty]; simp)

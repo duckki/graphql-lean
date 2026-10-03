@@ -6,7 +6,7 @@ namespace GraphQL.IncrementalDelivery.Tests.WorkSchedulerOwnerContract
 open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
-variable {work : Work} {initial owners : Keys} {matching : PublicationMatching}
+variable {work : Work} {initial owners : NodeRefs} {matching : PublicationMatching}
   {before : List WorkQueueEvent} {failures : FailureCuts} {node supporter : DeliveryNode}
 
 -----------------------------------------------------------------------------------------
@@ -19,9 +19,9 @@ Witness: unfold the factored open-owner predicate and reassociate conjunctions.
 example
     : HealthyOpenOwner work initial matching before failures owners supporter
       ↔ (∃ kind dependencies producer, NodeAt work supporter kind dependencies producer)
-        ∧ supporter.key ∈ owners
-        ∧ Open initial before supporter.key
-        ∧ ¬NodeFailed work matching before failures supporter.key := by
+        ∧ supporter.ref ∈ owners
+        ∧ Open initial before supporter.ref
+        ∧ ¬NodeFailed work matching before failures supporter.ref := by
   simp only [HealthyOpenOwner, OpenOwner, and_assoc]
 
 /-- A failed selected owner is permitted when another healthy contributor supplies support.
@@ -33,9 +33,9 @@ example (selected : OpenOwner work initial before owners node)
       : ∀ other,
           OpenOwner work initial before owners other
           → other.path.length ≤ node.path.length)
-    (failed : NodeFailed work matching before failures node.key)
+    (failed : NodeFailed work matching before failures node.ref)
     : PublicationOwner work initial matching before failures owners node
-      ∧ NodeFailed work matching before failures node.key :=
+      ∧ NodeFailed work matching before failures node.ref :=
   ⟨⟨selected, ⟨supporter, healthy⟩, longest⟩, failed⟩
 
 /-- A wire owner cannot replace the requirement for some healthy publication supporter.
@@ -55,7 +55,7 @@ example
 /-- Selected IDs must still be announced and open, even when healthy support exists.
 Witness: project openness from the selected contributor, not from the supporter.
 -/
-example (closed : ¬Open initial before node.key)
+example (closed : ¬Open initial before node.ref)
     : ¬PublicationOwner work initial matching before failures owners node :=
   fun selected => closed selected.1.2.2
 
@@ -67,12 +67,12 @@ example (selected : PublicationOwner work initial matching before failures owner
     : other.path.length ≤ node.path.length :=
   selected.2.2 other candidate
 
-/-- A singleton owner set still requires the selected key to be healthy.
-Witness: any healthy supporter must have that sole key, as for a stream item.
+/-- A singleton owner set still requires the selected ref to be healthy.
+Witness: any healthy supporter must have that sole ref, as for a stream item.
 -/
 example
-    (selected : PublicationOwner work initial matching before failures [node.key] node)
-    : ¬NodeFailed work matching before failures node.key := by
+    (selected : PublicationOwner work initial matching before failures [node.ref] node)
+    : ¬NodeFailed work matching before failures node.ref := by
   obtain ⟨candidate, available⟩ := selected.2.1
   have same := List.mem_singleton.mp available.1.2.1
   simpa only [same] using available.2

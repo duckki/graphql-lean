@@ -175,16 +175,16 @@ theorem State.handleGraphEvent_itemStreamRelease {work : Execution.Work} (queue 
   | taskSuccess occurrence result =>
       apply ItemStreamReleasePublications.of_noStreamValues
       intro owner values groups streams emitted
-      have impossible : owner.key ∈
-          (queue.taskSuccess occurrence result).2.flatMap rawStreamReferenceKeys :=
+      have impossible : owner.ref ∈
+          (queue.taskSuccess occurrence result).2.flatMap rawStreamReferenceRefs :=
         List.mem_flatMap.mpr ⟨_, emitted, List.mem_cons_self⟩
       rw [State.taskSuccess_streamReferences] at impossible
       cases impossible
   | taskFailure occurrence errors =>
       apply ItemStreamReleasePublications.of_noStreamValues
       intro owner values groups streams emitted
-      have impossible : owner.key ∈
-          (queue.taskFailure occurrence errors).2.flatMap rawStreamReferenceKeys :=
+      have impossible : owner.ref ∈
+          (queue.taskFailure occurrence errors).2.flatMap rawStreamReferenceRefs :=
         List.mem_flatMap.mpr ⟨_, emitted, List.mem_cons_self⟩
       rw [State.taskFailure_streamReferences] at impossible
       cases impossible
@@ -199,7 +199,7 @@ theorem State.handleGraphEvent_itemStreamRelease {work : Execution.Work} (queue 
       have count := congrArg List.length (queue.streamItems_itemValues stream items accepted)
       simp only [List.length_map] at count
       refine ⟨occurrence, known, ?_⟩
-      have active : queue.rootStreams.contains stream.key = true := accepted
+      have active : queue.rootStreams.contains stream.ref = true := accepted
       have whole : ((queue.handleGraphEvent (.streamItems stream items)).2.take 1).flatMap
           WorkQueueEvent.itemValues
           = (queue.streamItems stream items).2.flatMap WorkQueueEvent.itemValues := by

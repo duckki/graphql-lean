@@ -275,7 +275,7 @@ mutual
               simpa only [List.length_take, Nat.min_eq_left hcount]
                 using hlength data.1 data.2 he
             refine runEnsures_bind (fun _ : Nat => True) _ _ _ (fun _ => trivial) ?_
-            intro key _
+            intro ref _
             refine runEnsures_bind (SeedOwnsItems path usage.initialCount
               (UnderItems path usage.initialCount)) _ _ _ ?_ ?_
             · exact completeStreamItems_seeded schema resolvers variables fuel inner _ _  path usage.initialCount

@@ -10,48 +10,48 @@ namespace GraphQL.IncrementalDelivery.Correctness.MapperIdentity
 open GraphQL.IncrementalDelivery.Execution
 open WorkQueueSemantics
 
-def Known (state : IDState) (key : Nat) (id : String) : Prop :=
-  state.ids.find? (fun entry => entry.1 == key) = some (key, id)
+def Known (state : IDState) (ref : NodeRef) (id : String) : Prop :=
+  state.ids.find? (fun entry => entry.1 == ref) = some (ref, id)
 
 def Preserves (before after : IDState) : Prop :=
-  ∀ key id, Known before key id → Known after key id
+  ∀ ref id, Known before ref id → Known after ref id
 
-/-- A state preserves its own key lookups, by identity. -/
+/-- A state preserves its own ref lookups, by identity. -/
 theorem Preserves.refl (state : IDState) : Preserves state state := fun _ _ h => h
 
 /-- Lookup preservation composes through the intermediate state. -/
 theorem Preserves.trans {before middle after : IDState}
     (left : Preserves before middle) (right : Preserves middle after)
     : Preserves before after :=
-  fun key id h => right key id (left key id h)
+  fun ref id h => right ref id (left ref id h)
 
-/-- One key has one ID in a state, by uniqueness of the lookup result. -/
-theorem Known.unique {state : IDState} {key : Nat} {left right : String}
-    (hl : Known state key left) (hr : Known state key right)
+/-- One ref has one ID in a state, by uniqueness of the lookup result. -/
+theorem Known.unique {state : IDState} {ref : NodeRef} {left right : String}
+    (hl : Known state ref left) (hr : Known state ref right)
     : left = right := by
   have he := hl.symm.trans hr
   exact congrArg Prod.snd (Option.some.inj he)
 
-/-- Allocation preserves old lookups and records the requested key, by lookup cases. -/
+/-- Allocation preserves old lookups and records the requested ref, by lookup cases. -/
 theorem ensureID_spec (node : DeliveryNode) (state : IDState)
     : Preserves state (ensureID node state).2
-      ∧ Known (ensureID node state).2 node.key (ensureID node state).1 := by
-  cases h : state.ids.find? (fun entry => entry.1 == node.key) with
+      ∧ Known (ensureID node state).2 node.ref (ensureID node state).1 := by
+  cases h : state.ids.find? (fun entry => entry.1 == node.ref) with
   | none =>
       simp only [ensureID, h]
       constructor
-      · intro key id known
-        change state.ids.find? (fun entry => entry.1 == key) = some (key, id) at known
-        change (state.ids ++ [(node.key, toString state.nextID)]).find?
-          (fun entry => entry.1 == key) = some (key, id)
+      · intro ref id known
+        change state.ids.find? (fun entry => entry.1 == ref) = some (ref, id) at known
+        change (state.ids ++ [(node.ref, toString state.nextID)]).find?
+          (fun entry => entry.1 == ref) = some (ref, id)
         rw [List.find?_append, known]
         rfl
       · simp [Known, List.find?_append, h]
   | some pair =>
-      obtain ⟨key, id⟩ := pair
+      obtain ⟨ref, id⟩ := pair
       have predicate := List.find?_some h
-      have hk : key = node.key := by simpa using predicate
-      subst key
+      have hk : ref = node.ref := by simpa using predicate
+      subst ref
       exact ⟨
         by simpa [ensureID, h] using Preserves.refl state,
         by simp only [ensureID, h]; exact h
@@ -62,50 +62,50 @@ duplicated output entries even when membership sets would remain unchanged.
 -/
 inductive Encodes (state : IDState) : List Nat → List String → Prop where
   | nil : Encodes state [] []
-  | cons {key id keys ids} (known : Known state key id) (tail : Encodes state keys ids)
-    : Encodes state (key :: keys) (id :: ids)
+  | cons {ref id refs ids} (known : Known state ref id) (tail : Encodes state refs ids)
+    : Encodes state (ref :: refs) (id :: ids)
 
-/-- Every encoded ID has a contributing key, by induction on the encoding. -/
-theorem Encodes.fromID {state : IDState} {keys : List Nat} {ids : List String}
-    (h : Encodes state keys ids)
-    : ∀ id ∈ ids, ∃ key ∈ keys, Known state key id := by
+/-- Every encoded ID has a contributing ref, by induction on the encoding. -/
+theorem Encodes.fromID {state : IDState} {refs : List Nat} {ids : List String}
+    (h : Encodes state refs ids)
+    : ∀ id ∈ ids, ∃ ref ∈ refs, Known state ref id := by
   induction h with
   | nil => simp
-  | @cons key id keys ids known tail ih =>
+  | @cons ref id refs ids known tail ih =>
       intro value hv
       rcases List.mem_cons.mp hv with rfl | hv
-      · exact ⟨key, List.mem_cons_self, known⟩
-      · obtain ⟨key, hk, known⟩ := ih value hv
-        exact ⟨key, List.mem_cons_of_mem _ hk, known⟩
+      · exact ⟨ref, List.mem_cons_self, known⟩
+      · obtain ⟨ref, hk, known⟩ := ih value hv
+        exact ⟨ref, List.mem_cons_of_mem _ hk, known⟩
 
-/-- Every encoded key has an ID, by induction on the encoding. -/
-theorem Encodes.fromKey {state : IDState} {keys : List Nat} {ids : List String}
-    (h : Encodes state keys ids)
-    : ∀ key ∈ keys, ∃ id ∈ ids, Known state key id := by
+/-- Every encoded ref has an ID, by induction on the encoding. -/
+theorem Encodes.fromRef {state : IDState} {refs : List Nat} {ids : List String}
+    (h : Encodes state refs ids)
+    : ∀ ref ∈ refs, ∃ id ∈ ids, Known state ref id := by
   induction h with
   | nil => simp
-  | @cons key id keys ids known tail ih =>
+  | @cons ref id refs ids known tail ih =>
       intro value hv
       rcases List.mem_cons.mp hv with rfl | hv
       · exact ⟨id, List.mem_cons_self, known⟩
       · obtain ⟨id, hi, known⟩ := ih value hv
         exact ⟨id, List.mem_cons_of_mem _ hi, known⟩
 
-/-- One known lookup encodes the singleton key/ID pair. -/
-theorem Encodes.singleton {state : IDState} {key : Nat} {id : String}
-    (h : Known state key id)
-    : Encodes state [key] [id] :=
+/-- One known lookup encodes the singleton ref/ID pair. -/
+theorem Encodes.singleton {state : IDState} {ref : NodeRef} {id : String}
+    (h : Known state ref id)
+    : Encodes state [ref] [id] :=
   .cons h .nil
 
 /-- Lookup preservation transports the entire encoding, by induction. -/
-theorem Encodes.mono {before after : IDState} {keys : List Nat} {ids : List String}
-    (h : Encodes before keys ids) (preserves : Preserves before after)
-    : Encodes after keys ids := by
+theorem Encodes.mono {before after : IDState} {refs : List Nat} {ids : List String}
+    (h : Encodes before refs ids) (preserves : Preserves before after)
+    : Encodes after refs ids := by
   induction h with
   | nil => exact .nil
   | cons known tail ih => exact .cons (preserves _ _ known) ih
 
-/-- Concatenated key/ID sequences remain encoded, by induction on the first list. -/
+/-- Concatenated ref/ID sequences remain encoded, by induction on the first list. -/
 theorem Encodes.append {state : IDState} {left right : List Nat} {ids more : List String}
     (hl : Encodes state left ids) (hr : Encodes state right more)
     : Encodes state (left ++ right) (ids ++ more) := by
@@ -129,17 +129,17 @@ theorem mapM_preserves {α β : Type} (action : α → StateM IDState β)
                 hb]
                 using (h value state).trans (ih ((action value).run state).2)
 
-/-- Mapping retains ordered key/ID occurrences, by induction over allocation. -/
+/-- Mapping retains ordered ref/ID occurrences, by induction over allocation. -/
 theorem mapM_encodes {α β : Type} (action : α → StateM IDState β)
-    (keyFor : α → Nat) (idFor : β → String)
+    (refFor : α → Nat) (idFor : β → String)
     (h
       : ∀ value state,
           Preserves state ((action value).run state).2
-          ∧ Known ((action value).run state).2 (keyFor value)
+          ∧ Known ((action value).run state).2 (refFor value)
               (idFor ((action value).run state).1))
     (values : List α) (state : IDState)
     : Preserves state ((values.mapM action).run state).2
-      ∧ Encodes ((values.mapM action).run state).2 (values.map keyFor)
+      ∧ Encodes ((values.mapM action).run state).2 (values.map refFor)
           (((values.mapM action).run state).1.map idFor) := by
   induction values generalizing state with
   | nil => exact ⟨.refl state, .nil⟩
@@ -155,12 +155,12 @@ theorem mapM_encodes {α β : Type} (action : α → StateM IDState β)
                 hb]
                 using And.intro (hp.trans tp) ((Encodes.singleton known).append tk)
 
-/-- Pending notices encode their ordered node keys, using the allocation map. -/
+/-- Pending notices encode their ordered node refs, using the allocation map. -/
 theorem getPendingEntry_spec (groups streams : List DeliveryNode) (state : IDState)
     : let (pending, next) :=
         (getPendingEntry (m := StateM IDState) groups streams ensureID).run state
       Preserves state next
-      ∧ Encodes next ((groups ++ streams).map DeliveryNode.key)
+      ∧ Encodes next ((groups ++ streams).map DeliveryNode.ref)
           (pending.map IncrementalPendingNotice.id) := by
   apply mapM_encodes
   intro node state
@@ -170,7 +170,7 @@ theorem getPendingEntry_spec (groups streams : List DeliveryNode) (state : IDSta
 theorem getCompletedEntry_spec (node : DeliveryNode) (errors : Nat) (state : IDState)
     : let (completed, next) :=
         (getCompletedEntry (m := StateM IDState) node errors ensureID).run state
-      Preserves state next ∧ Known next node.key completed.id :=
+      Preserves state next ∧ Known next node.ref completed.id :=
   ensureID_spec node state
 
 /-- An explicit pending-allocation result inherits the ordered encoding witness. -/
@@ -180,7 +180,7 @@ theorem getPendingEntry_of_eq {groups streams : List DeliveryNode} {state next :
       : (getPendingEntry (m := StateM IDState) groups streams ensureID).run state
         = (pending, next))
     : Preserves state next
-      ∧ Encodes next ((groups ++ streams).map DeliveryNode.key)
+      ∧ Encodes next ((groups ++ streams).map DeliveryNode.ref)
           (pending.map IncrementalPendingNotice.id) := by
   have fact := getPendingEntry_spec groups streams state
   rw [h] at fact
@@ -192,7 +192,7 @@ theorem getCompletedEntry_of_eq {node : DeliveryNode} {errors : Nat}
     (h
       : (getCompletedEntry (m := StateM IDState) node errors ensureID).run state
         = (completed, next))
-    : Preserves state next ∧ Known next node.key completed.id := by
+    : Preserves state next ∧ Known next node.ref completed.id := by
   have fact := getCompletedEntry_spec node errors state
   rw [h] at fact
   exact fact

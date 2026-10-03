@@ -17,10 +17,10 @@ open GraphQL.IncrementalDelivery.Execution (WorkQueueEvent DeliveryNode)
 abbrev initialQueue (work : Execution.Work) : State :=
   State.initialize (Work.fromExecution work)
 
-/-- Initial notice keys used by every branch of the explanation. -/
-def initialKeys (work : Execution.Work) : Keys :=
+/-- Initial notice refs used by every branch of the explanation. -/
+def initialRefs (work : Execution.Work) : NodeRefs :=
   ((initialQueue work).initialGroups ++ (initialQueue work).initialStreams).map
-    DeliveryNode.key
+    DeliveryNode.ref
 
 /-- Public work premises and host laws specialized to one admitted input, together with
 the constructor's derived initialization fact. No resulting-output property is assumed.
@@ -71,7 +71,7 @@ def AnnouncedFailures (work : Execution.Work) (w : Witness) : Prop :=
   ∧ ∀ entry ∈ w.failures,
       ∃ owners,
         TaskHasOwners work entry.2 owners
-        ∧ ∃ key ∈ owners, key ∈ announcedKeys (initialKeys work) (w.events.take entry.1)
+        ∧ ∃ ref ∈ owners, ref ∈ announcedRefs (initialRefs work) (w.events.take entry.1)
 
 /-- No accepted failure was cancelled by its ordered predecessors, using the same
 publication matching as every output-admission and terminal obligation.
@@ -90,7 +90,7 @@ def PublicationAdmission (work : Execution.Work) (w : Witness) : Prop :=
   ∀ index event,
     w.events[index]? = some event
     → IsValue event
-    → EventAllowed work (initialKeys work) w.matching (w.events.take index) w.failures
+    → EventAllowed work (initialRefs work) w.matching (w.events.take index) w.failures
         event
 
 /-- Every nonvalue atom satisfies the closure/error/notice rules. Since termination is
@@ -100,7 +100,7 @@ def ControlAdmission (work : Execution.Work) (w : Witness) : Prop :=
   ∀ index event,
     w.events[index]? = some event
     → ¬IsValue event
-    → EventAllowed work (initialKeys work) w.matching (w.events.take index) w.failures
+    → EventAllowed work (initialRefs work) w.matching (w.events.take index) w.failures
         event
 
 /-- All structural tasks are published or justifiably cancelled (including failure)
@@ -117,10 +117,10 @@ only when concrete replay terminates, including latent nodes and empty streams.
 def NodeAccounting (work : Execution.Work) (w : Witness) : Prop :=
   ∀ node kind dependencies producer,
     NodeAt work node kind dependencies producer
-    → node.key ∈ completedKeys w.events
-      ∨ node.key ∉ announcedKeys (initialKeys work) w.events
-        ∧ (NodeFailed work w.matching w.events w.failures node.key
-            ∨ NodeAccounted work w.matching w.events w.failures node.key)
+    → node.ref ∈ completedRefs w.events
+      ∨ node.ref ∉ announcedRefs (initialRefs work) w.events
+        ∧ (NodeFailed work w.matching w.events w.failures node.ref
+            ∨ NodeAccounted work w.matching w.events w.failures node.ref)
 
 /-- Seven obligations under one witness. This is an internal proof target, not
 a premise added to the public conformance statement or the host event-source contract.
@@ -155,7 +155,7 @@ Witness: the existing complete-inventory equivalence, with no new failure premis
 -/
 theorem failureWitness {work w} (announced : AnnouncedFailures work w)
     (uncancelled : UncancelledFailures work w)
-    : FailureWitness work (initialKeys work) w.matching w.events w.failures :=
+    : FailureWitness work (initialRefs work) w.matching w.events w.failures :=
   (announced.1.failureWitness_iff_uncancelled announced.2).mpr uncancelled
 
 /-- The two event classes exhaust the output history under the same licensed cuts.
@@ -180,7 +180,7 @@ theorem explains {work w}
 Witness: pair the coverage proofs without changing their matching or cuts.
 -/
 theorem terminal {work w} (tasks : TaskAccounting work w) (nodes : NodeAccounting work w)
-    : Terminal work (initialKeys work) w.matching w.events w.failures :=
+    : Terminal work (initialRefs work) w.matching w.events w.failures :=
   ⟨tasks, nodes⟩
 
 private theorem batching_termination_mem {events batches}
@@ -203,7 +203,7 @@ theorem run_iff_terminated {work inputs w}
     (batching : BatchShape work inputs w)
     (accounted
       : ((initialQueue work).runNormalized inputs).1.terminated = true
-        → Terminal work (initialKeys work) w.matching w.events w.failures)
+        → Terminal work (initialRefs work) w.matching w.events w.failures)
     : AdmissibleRun work ((initialQueue work).normalizedHistory inputs)
       ↔ ((initialQueue work).runNormalized inputs).1.terminated = true := by
   constructor

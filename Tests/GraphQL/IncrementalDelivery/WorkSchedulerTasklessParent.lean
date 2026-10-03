@@ -142,34 +142,34 @@ theorem generated : ExecutedWork work := by
   cbv
 
 /-- P's private failure descriptor. Witness: the root task's structural address. -/
-private theorem p_known : TaskAt work pTask [p.key] none (.object [] (.error 1)) :=
+private theorem p_known : TaskAt work pTask [p.ref] none (.object [] (.error 1)) :=
   ⟨_, [], .error 1, .empty, [], rfl, rfl, rfl⟩
 
 /-- The shared producer descriptor. Witness: its four root owners and fixed user value. -/
 private theorem u_known
-    : TaskAt work uTask [p.key, q.key, r.key, s.key] none
+    : TaskAt work uTask [p.ref, q.ref, r.ref, s.ref] none
         (.object [] (.ok (userData, 0))) :=
   ⟨_, [], .ok (userData, 0), children, [], rfl, rfl, rfl⟩
 
 /-- X's descriptor. Witness: the first nested failure under the shared producer. -/
 private theorem x_known
-    : TaskAt work xTask [c.key, d.key, r.key] (some uTask)
+    : TaskAt work xTask [c.ref, d.ref, r.ref] (some uTask)
         (.object [.field "user"] (.error 1)) :=
   ⟨_, _, .error 1, .empty, _, rfl, rfl, rfl⟩
 
 /-- Y's descriptor. Witness: the second nested failure under the shared producer. -/
 private theorem y_known
-    : TaskAt work yTask [d.key, s.key] (some uTask)
+    : TaskAt work yTask [d.ref, s.ref] (some uTask)
         (.object [.field "user"] (.error 1)) :=
   ⟨_, _, .error 1, .empty, _, rfl, rfl, rfl⟩
 
 /-- Q's remaining success descriptor. Witness: its root address and fixed scalar value. -/
 private theorem q_known
-    : TaskAt work qTask [q.key] none (.object [] (.ok (keepData, 0))) :=
+    : TaskAt work qTask [q.ref] none (.object [] (.ok (keepData, 0))) :=
   ⟨_, [], .ok (keepData, 0), .combine .empty .empty, [], rfl, rfl, rfl⟩
 
 /-- R's private two-error descriptor. Witness: the last root task's structural address. -/
-private theorem r_known : TaskAt work rTask [r.key] none (.object [] (.error 2)) :=
+private theorem r_known : TaskAt work rTask [r.ref] none (.object [] (.error 2)) :=
   ⟨_, [], .error 2, .empty, [], rfl, rfl, rfl⟩
 
 /-- Every settlement matches its fixed outcome, is fresh, and follows its producer.
@@ -219,7 +219,7 @@ theorem object_child_registration_boundary
           ((State.initialize (Work.fromExecution work)).replayGraphEvents
             inputs.flatten).tasks,
           task.occurrence = xTask
-          ∧ task.groups.map DeliveryNode.key = [c.key, d.key, r.key] := by
+          ∧ task.groups.map DeliveryNode.ref = [c.ref, d.ref, r.ref] := by
   refine ⟨?_, ?_⟩
   · change xTask ∉ [pTask, uTask, qTask, rTask]
     simp [xTask, pTask, uTask, qTask, rTask]
@@ -244,9 +244,9 @@ theorem expanded_parents_registered
 Witness: generated ancestry and valid input matching discharge the general replay theorem.
 -/
 theorem replay_record_metadata
-    : ∃ parents : Nat → Keys,
+    : ∃ parents : Nat → NodeRefs,
         (∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
         ∧ State.ChildLinksCanonical
             ((State.initialize (Work.fromExecution work)).runNormalized inputs).1 parents
         ∧ State.GroupNodesMatchWork
@@ -259,14 +259,14 @@ Witness: the pure execution allocation certificate, including paths and optional
 theorem record_contributor_descriptor {record dependencies node nodeDependencies producer}
     (recordAt : GroupRecordAt work record dependencies)
     (nodeAt : NodeAt work node .group nodeDependencies producer)
-    (same : record.key = node.key)
+    (same : record.ref = node.ref)
     : record = node :=
   generated.record_eq_node recordAt nodeAt same
 
 /-- Node coherence follows from execution itself, independently of the fixture inventory.
 Witness: the general complete-descriptor assignment theorem for generated work.
 -/
-theorem generated_node_keys_coherent : NodeKeyCoherent work := generated.nodeKeyCoherent
+theorem generated_node_refs_coherent : NodeRefCoherent work := generated.nodeRefCoherent
 
 /-- Full replay's cancellation registry is supported by exactly its accepted failures.
 Witness: source validity and executable start discipline instantiate the replay invariant,
@@ -307,22 +307,22 @@ theorem replay_owner_accounting
 /-- Initial populated groups and active roots are real contributors, not ancestor shells.
 Witness: the general pruning/activation theorem applied to the generated regression work.
 -/
-theorem initial_group_keys_contribute
-    : (State.initialize (Work.fromExecution work)).GroupKeySupport
-        (fun key => ∃ dependencies, NodeHasDependencies work key .group dependencies) :=
-  createWorkQueue_fromSpec_groupKeySupport work
+theorem initial_group_refs_contribute
+    : (State.initialize (Work.fromExecution work)).GroupRefSupport
+        (fun ref => ∃ dependencies, NodeHasDependencies work ref .group dependencies) :=
+  createWorkQueue_fromSpec_groupRefSupport work
 
 /-- Full corrected replay retains contributor support for populated records and roots.
 Witness: fixed source matching instantiates the general joint state/output support theorem.
 -/
-theorem replay_group_keys_contribute
+theorem replay_group_refs_contribute
     : ((State.initialize (Work.fromExecution work)).runNormalized
-        inputs).1.GroupKeySupport
-        (fun key => ∃ dependencies, NodeHasDependencies work key .group dependencies) :=
-  createWorkQueue_runNormalized_groupKeySupport source_valid
+        inputs).1.GroupRefSupport
+        (fun ref => ∃ dependencies, NodeHasDependencies work ref .group dependencies) :=
+  createWorkQueue_runNormalized_groupRefSupport source_valid
 
 /-- Every group closure in any matching replay has its exact contributing descriptor.
-Witness: generated allocation upgrades registration records and contributor keys to
+Witness: generated allocation upgrades registration records and contributor refs to
 structural nodes, without treating taskless ancestors as contributors.
 -/
 theorem replay_group_closures_located {batches : List (List GraphEvent)}
@@ -333,22 +333,22 @@ theorem replay_group_closures_located {batches : List (List GraphEvent)}
   createWorkQueue_runNormalized_groupClosuresLocated generated valid
 
 /-- No matching source replay can emit a completion for the taskless wrapper E.
-Witness: every emitted closure key has a real contributor, whereas the structural node
-inventory contains no E key. This covers arbitrary batching, not just the example trace.
+Witness: every emitted closure ref has a real contributor, whereas the structural node
+inventory contains no E ref. This covers arbitrary batching, not just the example trace.
 -/
 theorem wrapper_never_completes {batches : List (List GraphEvent)}
     (valid : ValidGraphEvents work batches.flatten)
     : ∀ event ∈
         ((State.initialize (Work.fromExecution work)).runNormalized batches).2.flatten,
-        GroupClosureKeySupported (fun key => key ≠ e.key) event := by
+        GroupClosureRefSupported (fun ref => ref ≠ e.ref) event := by
   intro event member
-  have known := createWorkQueue_runNormalized_groupClosureKeys valid event member
+  have known := createWorkQueue_runNormalized_groupClosureRefs valid event member
   cases event <;> try trivial
   all_goals
-    intro sameKey
+    intro sameRef
     obtain ⟨dependencies, node, producer, located, equal⟩ := known
     have token := located.observationToken
-    rw [equal, sameKey] at token
+    rw [equal, sameRef] at token
     simp [observationTokens, work, children, p, q, r, s, e, c, d] at token
 
 -----------------------------------------------------------------------------------------
@@ -358,7 +358,7 @@ theorem wrapper_never_completes {batches : List (List GraphEvent)}
 /-- E is a registration record even though it has no directly contributing task.
 Witness: its full parent suffix is present in X's C contributor descriptor.
 -/
-private theorem e_record : GroupRecordAt work e [p.key] := by
+private theorem e_record : GroupRecordAt work e [p.ref] := by
   refine ⟨[1, 1, 0, 0, 0, 1, 0], [⟨c, [e, p]⟩, ⟨d, [q]⟩, ⟨r, []⟩],
     [.field "user"], .error 1, .empty, some uTask, _, ⟨c, [e, p]⟩,
     [p], rfl, List.mem_cons_self, ?_, rfl⟩
@@ -381,18 +381,18 @@ general theorem supplies the producer's supporting owner and the full ancestor l
 theorem contributing_child_producer_support
     : ∃ dependencies,
         NodeAt work c .group dependencies (some uTask)
-        ∧ ∃ owner ∈ [p.key, q.key, r.key, s.key],
-            owner = c.key ∨ owner ∈ dependencies := by
+        ∧ ∃ owner ∈ [p.ref, q.ref, r.ref, s.ref],
+            owner = c.ref ∨ owner ∈ dependencies := by
   let result : TaskResult :=
     ⟨{ path := [], data := userData, deliveryGroups := [p, q, r, s] },
       Work.fromExecution children [1, 1, 0, 0]⟩
   have matching : (GraphEvent.taskSuccess uTask result).MatchesWork work :=
     ⟨_, _, u_known, rfl, rfl⟩
-  have candidate : (⟨c, some e.key⟩ : Group) ∈ result.work.groups := by
+  have candidate : (⟨c, some e.ref⟩ : Group) ∈ result.work.groups := by
     simp [result, children, Work.fromExecution, Work.fromExecution.groupChain,
       ReferenceWorkQueue.Work.combine]
   have contributing
-      : ∃ task ∈ result.work.tasks, c.key ∈ task.groups.map DeliveryNode.key := by
+      : ∃ task ∈ result.work.tasks, c.ref ∈ task.groups.map DeliveryNode.ref := by
     refine ⟨⟨xTask, [c, d, r]⟩, ?_, List.mem_cons_self⟩
     exact List.mem_cons_self
   exact matching.childGroup_producer_support generated candidate contributing
@@ -401,19 +401,19 @@ theorem contributing_child_producer_support
 must already be retired. Witness: E's record ancestry and P's genuine task descriptor.
 -/
 theorem wrapper_retirement_requires_parent {queue : State}
-    (protectedWrapper : queue.AncestorsRetired work e.key)
-    : queue.RetiredGroup p.key :=
-  protectedWrapper e [p.key] e_record rfl p.key List.mem_cons_self pTask [p.key]
+    (protectedWrapper : queue.AncestorsRetired work e.ref)
+    : queue.RetiredGroup p.ref :=
+  protectedWrapper e [p.ref] e_record rfl p.ref List.mem_cons_self pTask [p.ref]
     ⟨_, _, p_known⟩ List.mem_cons_self
 
 /-- Retiring taskless E carries P's retirement certificate onward to contributing C.
 Witness: the general record-chain theorem, without inventing an E task or producer.
 -/
 theorem child_retirement_through_wrapper {queue : State}
-    (protectedWrapper : queue.AncestorsRetired work e.key)
-    (retired : queue.RetiredGroup e.key)
-    : queue.AncestorsRetired work c.key := by
-  have childRecord : GroupRecordAt work c [e.key, p.key] :=
+    (protectedWrapper : queue.AncestorsRetired work e.ref)
+    (retired : queue.RetiredGroup e.ref)
+    : queue.AncestorsRetired work c.ref := by
+  have childRecord : GroupRecordAt work c [e.ref, p.ref] :=
     ⟨[1, 1, 0, 0, 0, 1, 0], _, _, _, _, _, _, ⟨c, [e, p]⟩,
       [e, p], rfl, List.mem_cons_self, List.suffix_rfl, rfl⟩
   exact .child generated childRecord e_record rfl protectedWrapper retired
@@ -421,14 +421,14 @@ theorem child_retirement_through_wrapper {queue : State}
 /-- P's settled failure justifies E's cancellation without fabricating an E task.
 Witness: one real task-failure leaf followed by the record-ancestry rule.
 -/
-theorem wrapper_record_invalidated : GroupRecordInvalidated work [pTask] e.key :=
+theorem wrapper_record_invalidated : GroupRecordInvalidated work [pTask] e.ref :=
   .ancestor e_record List.mem_cons_self
     (.task ⟨_, _, p_known⟩ List.mem_cons_self List.mem_cons_self)
 
 /-- The old contributor-only invalidation cannot describe E's cancellation.
 Witness: it would imply a contributing E task, absent from the finite node inventory.
 -/
-theorem wrapper_not_groupInvalidated : ¬GroupInvalidated work [pTask] e.key := by
+theorem wrapper_not_groupInvalidated : ¬GroupInvalidated work [pTask] e.ref := by
   intro failure
   obtain ⟨occurrence, owners, ⟨producer, payload, task⟩, owner⟩ := failure.hasContributor
   obtain ⟨node, kind, dependencies, birth, known, same⟩ := task.owner_known owner
@@ -440,15 +440,15 @@ theorem wrapper_not_groupInvalidated : ¬GroupInvalidated work [pTask] e.key := 
 Witness: the generated-work equivalence applied to C's structural node descriptor.
 -/
 theorem child_record_invalidation_agrees
-    : GroupRecordInvalidated work [pTask] c.key
-      ↔ GroupInvalidated work [pTask] c.key := by
+    : GroupRecordInvalidated work [pTask] c.ref
+      ↔ GroupInvalidated work [pTask] c.ref := by
   apply generated.groupRecordInvalidated_iff_groupInvalidated
-    (dependencies := [e.key, p.key]) (producer := some uTask)
+    (dependencies := [e.ref, p.ref]) (producer := some uTask)
   exact ⟨[1, 1, 0, 0, 0, 1, 0], _, _, _, _, _, ⟨c, [e, p]⟩,
     rfl, List.mem_cons_self, rfl, rfl⟩
 
 /-- The concrete late-registration prefix has record-supported cancellations P/E/C.
-Witness: exact replay keys plus P's direct cause and the two record-ancestry steps.
+Witness: exact replay refs plus P's direct cause and the two record-ancestry steps.
 -/
 theorem late_registration_records_supported
     : State.CancelledRecordsSupported
@@ -456,11 +456,11 @@ theorem late_registration_records_supported
         work [pTask] := by
   have cancelled
       : (((State.initialize (Work.fromExecution work)).runNormalized [[killP], [expand]]).1
-          ).cancelledGroups = [p.key, e.key, c.key] := by cbv
-  have child : GroupRecordAt work c [e.key, p.key] :=
+          ).cancelledGroups = [p.ref, e.ref, c.ref] := by cbv
+  have child : GroupRecordAt work c [e.ref, p.ref] :=
     ⟨[1, 1, 0, 0, 0, 1, 0], _, _, _, _, _, _, ⟨c, [e, p]⟩,
       [e, p], rfl, List.mem_cons_self, List.suffix_rfl, rfl⟩
-  intro key member
+  intro ref member
   rw [cancelled] at member
   rcases List.mem_cons.mp member with rfl | more
   · exact .task ⟨_, _, p_known⟩ List.mem_cons_self List.mem_cons_self
@@ -469,7 +469,7 @@ theorem late_registration_records_supported
     · obtain rfl := List.mem_singleton.mp last
       exact .ancestor child List.mem_cons_self wrapper_record_invalidated
 
-/-- Removing already integrated P/E/C records has the same supported cancellation keys.
+/-- Removing already integrated P/E/C records has the same supported cancellation refs.
 Witness: reverse the two input batches, then reduce the collector's retained history.
 This exercises recursive removal through a live taskless wrapper, not refused insertion.
 -/
@@ -481,12 +481,12 @@ theorem early_removal_records_supported
   have early
       : (((State.initialize (Work.fromExecution work)).runNormalized [[expand], [killP]]).1
           ).cancelledGroups
-        = [c.key, e.key, p.key] := by cbv
+        = [c.ref, e.ref, p.ref] := by cbv
   have late
       : (((State.initialize (Work.fromExecution work)).runNormalized [[killP], [expand]]).1
-          ).cancelledGroups = [p.key, e.key, c.key] := by cbv
-  intro key member
-  apply supported key
+          ).cancelledGroups = [p.ref, e.ref, c.ref] := by cbv
+  intro ref member
+  apply supported ref
   rw [late]
   rw [early] at member
   simpa only [List.mem_cons, List.not_mem_nil, or_false, or_comm, or_left_comm, or_assoc]
@@ -536,20 +536,20 @@ open Classical in
 /-- Only the four failing tasks contribute errors, once each in a unique inventory.
 Witness: fixed task descriptors determine each summand; finite indicator sums count it.
 -/
-private theorem counts {failed key errors} (unique : failed.Nodup)
-    (counted : NodeErrors work failed key errors)
+private theorem counts {failed ref errors} (unique : failed.Nodup)
+    (counted : NodeErrors work failed ref errors)
     : errors
-      = (if pTask ∈ failed then if key ∈ [p.key] then 1 else 0 else 0)
-        + (if xTask ∈ failed then if key ∈ [c.key, d.key, r.key] then 1 else 0 else 0)
-        + (if yTask ∈ failed then if key ∈ [d.key, s.key] then 1 else 0 else 0)
-        + (if rTask ∈ failed then if key ∈ [r.key] then 2 else 0 else 0) := by
+      = (if pTask ∈ failed then if ref ∈ [p.ref] then 1 else 0 else 0)
+        + (if xTask ∈ failed then if ref ∈ [c.ref, d.ref, r.ref] then 1 else 0 else 0)
+        + (if yTask ∈ failed then if ref ∈ [d.ref, s.ref] then 1 else 0 else 0)
+        + (if rTask ∈ failed then if ref ∈ [r.ref] then 2 else 0 else 0) := by
   obtain ⟨contribution, values, total⟩ := counted
   have exactValue : ∀ occurrence ∈ failed,
       contribution occurrence =
-        (if occurrence = pTask then if key ∈ [p.key] then 1 else 0 else 0)
-        + (if occurrence = xTask then if key ∈ [c.key, d.key, r.key] then 1 else 0 else 0)
-        + (if occurrence = yTask then if key ∈ [d.key, s.key] then 1 else 0 else 0)
-        + (if occurrence = rTask then if key ∈ [r.key] then 2 else 0 else 0) := by
+        (if occurrence = pTask then if ref ∈ [p.ref] then 1 else 0 else 0)
+        + (if occurrence = xTask then if ref ∈ [c.ref, d.ref, r.ref] then 1 else 0 else 0)
+        + (if occurrence = yTask then if ref ∈ [d.ref, s.ref] then 1 else 0 else 0)
+        + (if occurrence = rTask then if ref ∈ [r.ref] then 2 else 0 else 0) := by
     intro occurrence member
     obtain ⟨owners, producer, payload, known, assigned⟩ := values occurrence member
     rcases task_cases known with rfl | rfl | rfl | rfl | rfl | rfl
@@ -569,13 +569,13 @@ private theorem counts {failed key errors} (unique : failed.Nodup)
   simp only [sum_add, sum_indicator failed unique]
 
 /-- P's report forces its own failure; S's report forces Y; R2 excludes X; D2 needs X.
-Witness: specialize the exact finite count formula at the four reporting group keys.
+Witness: specialize the exact finite count formula at the four reporting group refs.
 -/
 private theorem count_constraints {failed} (unique : failed.Nodup)
-    : (NodeErrors work failed p.key 1 → pTask ∈ failed)
-      ∧ (NodeErrors work failed s.key 1 → yTask ∈ failed)
-      ∧ (NodeErrors work failed r.key 2 → rTask ∈ failed ∧ xTask ∉ failed)
-      ∧ (NodeErrors work failed d.key 2 → xTask ∈ failed) := by
+    : (NodeErrors work failed p.ref 1 → pTask ∈ failed)
+      ∧ (NodeErrors work failed s.ref 1 → yTask ∈ failed)
+      ∧ (NodeErrors work failed r.ref 2 → rTask ∈ failed ∧ xTask ∉ failed)
+      ∧ (NodeErrors work failed d.ref 2 → xTask ∈ failed) := by
   classical
   refine ⟨?_, ?_, ?_, ?_⟩
   · intro counted
@@ -637,7 +637,7 @@ private theorem prior_entry {initial matching events failures before after cut o
       omega
 
 /-- C inherits P's failure despite its separate producer. Witness: X's descriptor. -/
-private theorem c_known : NodeAt work c .group [e.key, p.key] (some uTask) :=
+private theorem c_known : NodeAt work c .group [e.ref, p.ref] (some uTask) :=
   ⟨[1, 1, 0, 0, 0, 1, 0], _, _, .error 1, .empty, _, ⟨c, [e, p]⟩, rfl, by simp, rfl, rfl⟩
 
 -----------------------------------------------------------------------------------------
@@ -652,13 +652,13 @@ private def beforeX : State :=
 Witness: evaluate full-chain lowering and the actual queue before X settles.
 -/
 theorem taskless_parent_retained
-    : e.key
+    : e.ref
         ∈ (Work.fromExecution children [1, 1, 0, 0]).groups.map
-            (fun group => group.node.key)
-      ∧ beforeX.groupNode? e.key = none
-      ∧ e.key ∈ beforeX.registeredGroups
-      ∧ e.key ∈ beforeX.cancelledGroups
-      ∧ p.key ∈ beforeX.cancelledGroups := by
+            (fun group => group.node.ref)
+      ∧ beforeX.groupNode? e.ref = none
+      ∧ e.ref ∈ beforeX.registeredGroups
+      ∧ e.ref ∈ beforeX.cancelledGroups
+      ∧ p.ref ∈ beforeX.cancelledGroups := by
   have registered : beforeX.registeredGroups = [0, 1, 2, 3, 4, 5, 6] := by cbv
   have cancelled : beforeX.cancelledGroups = [0, 4, 5, 3, 2] := by cbv
   exact ⟨
@@ -673,8 +673,8 @@ theorem taskless_parent_retained
 Witness: executable reduction and inherited failure from P's actual accepted task.
 -/
 theorem guard_rejects_invalidated
-    : beforeX.groupIsHealthy c.key = false
-      ∧ GroupInvalidated work [rTask, yTask, pTask] c.key := by
+    : beforeX.groupIsHealthy c.ref = false
+      ∧ GroupInvalidated work [rTask, yTask, pTask] c.ref := by
   refine ⟨by cbv, ?_⟩
   exact .groupDependency ⟨c, some uTask, c_known, rfl⟩ (by simp)
     (.task ⟨none, _, p_known⟩ List.mem_cons_self (by simp))
@@ -683,7 +683,7 @@ theorem guard_rejects_invalidated
 Witness: parent-first registration propagates the cancellation registry through E.
 -/
 theorem late_child_retired
-    : beforeX.groupNode? c.key = none ∧ c.key ∈ beforeX.cancelledGroups := by
+    : beforeX.groupNode? c.ref = none ∧ c.ref ∈ beforeX.cancelledGroups := by
   have cancelled : beforeX.cancelledGroups = [0, 4, 5, 3, 2] := by cbv
   exact ⟨by cbv, by simp [cancelled, c]⟩
 
@@ -722,10 +722,10 @@ private theorem x_cancelled {matching events before pCut yCut rCut}
   · intro published
     apply unpublished
     simpa only [List.take_append_drop] using published.append (events.drop cut)
-  · intro key member
+  · intro ref member
     simp only [List.mem_cons, List.not_mem_nil, or_false] at member
     rcases member with rfl | rfl | rfl
-    · exact .groupDependency (dependency := p.key) ⟨c, some uTask, c_known, rfl⟩ (by simp)
+    · exact .groupDependency (dependency := p.ref) ⟨c, some uTask, c_known, rfl⟩ (by simp)
         (.task ⟨_, _, p_known⟩ (by simp) (mem_failedBefore pRecorded (by dsimp [cut]; omega)))
     · exact .task ⟨_, _, y_known⟩ (by simp)
         (mem_failedBefore yRecorded (by dsimp [cut]; omega))
@@ -867,12 +867,12 @@ theorem output_not_valid : ¬ValidHistory work ⟨[p, q, r, s], [], rejectedOutp
 -- The same generated work and host source remain within the public conformance premises
 -----------------------------------------------------------------------------------------
 
-/-- All nodes in this stream-free work agree with the key-to-descriptor assignment. -/
+/-- All nodes in this stream-free work agree with the ref-to-descriptor assignment. -/
 private def NodesAssigned (assigned : Nat → DeliveryNode) : Execution.Work → Prop
   | .empty => True
   | .combine left right => NodesAssigned assigned left ∧ NodesAssigned assigned right
   | .executionGroup groups _ _ nested =>
-      (∀ group ∈ groups, group.node = assigned group.node.key)
+      (∀ group ∈ groups, group.node = assigned group.node.ref)
       ∧ NodesAssigned assigned nested
   | .stream .. => False
 
@@ -894,19 +894,19 @@ private theorem NodesAssigned.located {assigned root address current producer ow
 private theorem NodesAssigned.node {assigned work node kind dependencies producer}
     (assignment : NodesAssigned assigned work)
     (known : NodeAt work node kind dependencies producer)
-    : node = assigned node.key := by
+    : node = assigned node.ref := by
   cases StructuralEquivalence.nodeAt_of_current known with
   | group located member => exact (assignment.located located.toCurrent).1 _ member
   | stream located => exact False.elim (assignment.located located.toCurrent)
 
-/-- Repeated group keys have identical full node metadata throughout this generated work.
+/-- Repeated group refs have identical full node metadata throughout this generated work.
 Witness: a six contributing-node assignment is preserved by structural navigation to
 every descriptor.
 -/
-theorem node_keys_coherent : NodeKeyCoherent work := by
-  let assigned (key : Nat) :=
-    if key = 0 then p else if key = 1 then q else if key = 2 then r else
-      if key = 3 then s else if key = 5 then c else d
+theorem node_refs_coherent : NodeRefCoherent work := by
+  let assigned (ref : NodeRef) :=
+    if ref = 0 then p else if ref = 1 then q else if ref = 2 then r else
+      if ref = 3 then s else if ref = 5 then c else d
   have assignment : NodesAssigned assigned work := by
     simp [NodesAssigned, assigned, work, children, p, q, r, s, c, d]
   intro first firstKind firstDeps firstProducer second secondKind secondDeps secondProducer
@@ -919,9 +919,9 @@ Witness: all four own the shared producer, which is not initially accounted for.
 theorem initialized
     : let queue := State.initialize (Work.fromExecution work)
       Initializes work queue.initialGroups queue.initialStreams := by
-  have eligible {node : DeliveryNode} (owner : node.key ∈ [p.key, q.key, r.key, s.key])
+  have eligible {node : DeliveryNode} (owner : node.ref ∈ [p.ref, q.ref, r.ref, s.ref])
       : CanAnnounce work [] (fun _ => .executionGroup []) [] [] node .group [] none := by
-    refine ⟨by simp [announcedKeys, pendingKeys],
+    refine ⟨by simp [announcedRefs, pendingRefs],
       Or.inl ⟨by simp [NodeFailed], Or.inr ?_⟩, by simp, by simp⟩
     intro accounted
     rcases accounted uTask _ ⟨_, _, u_known⟩ owner with cancelled | published
@@ -1061,7 +1061,7 @@ theorem producer_publication_requirement_refuted (matching : PublicationMatching
 Witness: generated root-group failure decomposition and P's unique owner descriptor.
 -/
 private theorem q_healthy_at_child_cut (matching : PublicationMatching)
-    : ¬NodeFailed work matching [.groupFailure p 1] [(0, pTask)] q.key := by
+    : ¬NodeFailed work matching [.groupFailure p 1] [(0, pTask)] q.ref := by
   have root : NodeAt work q .group [] none :=
     ⟨[1, 1, 0], _, [], .ok (userData, 0), children, [], ⟨q, []⟩,
       rfl, by simp, rfl, rfl⟩
@@ -1084,7 +1084,7 @@ theorem buffered_producer_uncancelled (matching : PublicationMatching)
         (((State.initialize (Work.fromExecution work)).nonterminalAtoms inputs).take 1)
         [(0, pTask)] uTask := by
   rw [child_failure_prefix]
-  apply task_uncancelled_of_producerSafety (key := q.key) ?_
+  apply task_uncancelled_of_producerSafety (ref := q.ref) ?_
     (.root ⟨_, _, u_known⟩) u_known (by simp) (q_healthy_at_child_cut matching)
   · intro producer impossible
     cases impossible
@@ -1105,8 +1105,8 @@ theorem taskless_parent_chain
     : ∃ childDependencies parentDependencies,
         GroupRecordAt work c childDependencies
         ∧ GroupRecordAt work e parentDependencies
-        ∧ childDependencies = e.key :: parentDependencies := by
-  have child : GroupRecordAt work c [e.key, p.key] :=
+        ∧ childDependencies = e.ref :: parentDependencies := by
+  have child : GroupRecordAt work c [e.ref, p.ref] :=
     ⟨[1, 1, 0, 0, 0, 1, 0], _, _, _, _, _, _, ⟨c, [e, p]⟩,
       [e, p], rfl, List.mem_cons_self, List.suffix_rfl, rfl⟩
   exact ⟨_, _, child, e_record, generated.groupRecordAncestryChain child e_record rfl⟩
@@ -1119,9 +1119,9 @@ theorem taskless_parent_chain
 Witness: structural navigation retains the fixture's group-only node assignment.
 -/
 theorem defer_only : Correctness.DeferOnly work := by
-  let assigned (key : Nat) :=
-    if key = 0 then p else if key = 1 then q else if key = 2 then r else
-      if key = 3 then s else if key = 5 then c else d
+  let assigned (ref : NodeRef) :=
+    if ref = 0 then p else if ref = 1 then q else if ref = 2 then r else
+      if ref = 3 then s else if ref = 5 then c else d
   have assignment : NodesAssigned assigned work := by
     simp [NodesAssigned, assigned, work, children, p, q, r, s, c, d]
   intro node kind dependencies producer known
@@ -1133,7 +1133,7 @@ theorem defer_only : Correctness.DeferOnly work := by
 Witness: S has a root descriptor, no dependencies, and no contribution from P's task.
 -/
 private theorem s_healthy_at_child_cut (matching : PublicationMatching)
-    : ¬NodeFailed work matching [.groupFailure p 1] [(0, pTask)] s.key := by
+    : ¬NodeFailed work matching [.groupFailure p 1] [(0, pTask)] s.ref := by
   have root : NodeAt work s .group [] none :=
     ⟨[1, 1, 0], _, [], .ok (userData, 0), children, [], ⟨s, []⟩,
       rfl, by simp, rfl, rfl⟩
@@ -1159,7 +1159,7 @@ theorem buffered_failure_safe_from_child_owner (matching : PublicationMatching)
           (((State.initialize (Work.fromExecution work)).nonterminalAtoms inputs).take 1)
           [(0, pTask)] uTask := by
   rw [child_failure_prefix]
-  have owner : s.key ∈ [d.key, s.key] := by simp
+  have owner : s.ref ∈ [d.ref, s.ref] := by simp
   exact ⟨
     fun cancelled => s_healthy_at_child_cut matching
       (generated.defer_cancelled_owner_failed defer_only y_known owner cancelled),
@@ -1173,13 +1173,13 @@ P ancestry. The conclusion holds for arbitrary observations and publication matc
 -/
 theorem taskless_cleanup_not_semantic_failure (matching : PublicationMatching)
     (events : List WorkQueueEvent)
-    : ¬NodeFailed work matching events [(0, pTask)] e.key
-      ∧ NodeFailed work matching events [(0, pTask)] c.key := by
+    : ¬NodeFailed work matching events [(0, pTask)] e.ref
+      ∧ NodeFailed work matching events [(0, pTask)] c.ref := by
   have inventory : failedBefore [(0, pTask)] events.length = [pTask] := by
     simp [failedBefore]
   rw [generated.defer_nodeFailed_iff_invalidated defer_only,
     generated.defer_nodeFailed_iff_invalidated defer_only, inventory]
-  have parent : GroupInvalidated work [pTask] p.key :=
+  have parent : GroupInvalidated work [pTask] p.ref :=
     .task ⟨none, _, p_known⟩ (by simp) (by simp)
   exact ⟨
     wrapper_not_groupInvalidated,
@@ -1202,20 +1202,20 @@ theorem distinct_failure_inventories
 /-- Ignoring X changes neither contributor invalidation nor taskless-record invalidation.
 Witness: general started-replay equivalence, including the record-ancestry transport.
 -/
-theorem equivalent_failure_closures (key : Nat)
-    : (GroupInvalidated work (GraphEvent.failureSettlements inputs.flatten) key
+theorem equivalent_failure_closures (ref : NodeRef)
+    : (GroupInvalidated work (GraphEvent.failureSettlements inputs.flatten) ref
         ↔ GroupInvalidated work
             ((State.initialize (Work.fromExecution work)).objectFailureContributions
               inputs.flatten)
-            key)
-      ∧ (GroupRecordInvalidated work (GraphEvent.failureSettlements inputs.flatten) key
+            ref)
+      ∧ (GroupRecordInvalidated work (GraphEvent.failureSettlements inputs.flatten) ref
           ↔ GroupRecordInvalidated work
               ((State.initialize (Work.fromExecution work)).objectFailureContributions
                 inputs.flatten)
-              key) := by
+              ref) := by
   have same := generated.runNormalized_failureInventories_groupInvalidated_iff
     inputs source_valid inputs_started
-  exact ⟨same key, groupRecordInvalidated_congr same key⟩
+  exact ⟨same ref, groupRecordInvalidated_congr same ref⟩
 
 /-- Accepted failures suffice for owner accounting and exact healthy pending counts.
 Witness: transfer the source ledger along the proved closure equivalence, without assuming
@@ -1256,12 +1256,12 @@ Witness: general defer-only licensing retains P, Y, and R at their actual cuts a
 ignored X. In particular Y is safe even while its producer's success is still buffered.
 -/
 theorem accepted_failures_licensed (matching : PublicationMatching)
-    : FailureWitness work (ConformancePlan.initialKeys work) matching
+    : FailureWitness work (ConformancePlan.initialRefs work) matching
         ((State.initialize (Work.fromExecution work)).nonterminalAtoms inputs)
         [(0, pTask), (1, yTask), (2, rTask)] := by
   have licensed := ConformancePlan.failureWitness_of_defer generated defer_only
     source_valid inputs_started matching
-  change FailureWitness work (ConformancePlan.initialKeys work) matching
+  change FailureWitness work (ConformancePlan.initialRefs work) matching
     ((State.initialize (Work.fromExecution work)).nonterminalAtoms inputs) sourceCuts at licensed
   rwa [accepted_source_cuts] at licensed
 

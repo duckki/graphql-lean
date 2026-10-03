@@ -1,7 +1,7 @@
 import Proofs.GraphQL.IncrementalDelivery.Semantics.CollectedSupply
 
 /-! Stream-node allocation occurrences, including every hidden item's work.
-These keys count stream nodes once, not the repeated pulls of their delivery cursors.
+These refs count stream nodes once, not the repeated pulls of their delivery cursors.
 Disjoint allocation intervals establish uniqueness across sibling computations.
 -/
 
@@ -9,12 +9,12 @@ namespace GraphQL.IncrementalDelivery.Semantics.GeneralScheduling
 
 open GraphQL.IncrementalDelivery.Execution
 
-def streamAllocationKeys : Work → List Nat
+def streamAllocationRefs : Work → List Nat
   | .empty => []
-  | .combine left right => streamAllocationKeys left ++ streamAllocationKeys right
-  | .executionGroup _ _ _ children => streamAllocationKeys children
+  | .combine left right => streamAllocationRefs left ++ streamAllocationRefs right
+  | .executionGroup _ _ _ children => streamAllocationRefs children
   | .stream node items =>
-      node.key :: items.flatMap (fun item => streamAllocationKeys item.2)
+      node.ref :: items.flatMap (fun item => streamAllocationRefs item.2)
 termination_by work => sizeOf work
 decreasing_by
   all_goals subst_vars; simp_wf
@@ -25,68 +25,68 @@ decreasing_by
   dsimp only
   omega
 
-structure KeysAllocated (start : Nat) (keys : List Nat) (finish : Nat) : Prop where
+structure RefsAllocated (start : Nat) (refs : List Nat) (finish : Nat) : Prop where
   monotone : start ≤ finish
-  bounds : ∀ key ∈ keys, start ≤ key ∧ key < finish
-  unique : keys.Nodup
+  bounds : ∀ ref ∈ refs, start ≤ ref ∧ ref < finish
+  unique : refs.Nodup
 
 def StreamAllocated (start : Nat) (work : Work) (finish : Nat) : Prop :=
-  KeysAllocated start (streamAllocationKeys work) finish
+  RefsAllocated start (streamAllocationRefs work) finish
 
 def StreamsCompleted (start : Nat) (output : Completion α × Nat) : Prop :=
   StreamAllocated start output.1.work output.2
 
-def itemAllocationKeys (items : List (Result ResponseValue × Work)) : List Nat :=
-  items.flatMap (fun item => streamAllocationKeys item.2)
+def itemAllocationRefs (items : List (Result ResponseValue × Work)) : List Nat :=
+  items.flatMap (fun item => streamAllocationRefs item.2)
 
-theorem KeysAllocated.empty {start finish : Nat} (h : start ≤ finish)
-    : KeysAllocated start [] finish :=
+theorem RefsAllocated.empty {start finish : Nat} (h : start ≤ finish)
+    : RefsAllocated start [] finish :=
   ⟨h, by simp, by simp⟩
 
-theorem KeysAllocated.widen {start finish lower upper : Nat} {keys : List Nat}
-    (h : KeysAllocated start keys finish) (hl : lower ≤ start) (hu : finish ≤ upper)
-    : KeysAllocated lower keys upper :=
+theorem RefsAllocated.widen {start finish lower upper : Nat} {refs : List Nat}
+    (h : RefsAllocated start refs finish) (hl : lower ≤ start) (hu : finish ≤ upper)
+    : RefsAllocated lower refs upper :=
   ⟨
     Nat.le_trans hl (Nat.le_trans h.monotone hu),
-    fun key hk =>
-      ⟨Nat.le_trans hl (h.bounds key hk).1, Nat.lt_of_lt_of_le (h.bounds key hk).2 hu⟩,
+    fun ref hk =>
+      ⟨Nat.le_trans hl (h.bounds ref hk).1, Nat.lt_of_lt_of_le (h.bounds ref hk).2 hu⟩,
     h.unique
   ⟩
 
-theorem KeysAllocated.disjoint {start middle finish : Nat} {left right : List Nat}
-    (hl : KeysAllocated start left middle) (hr : KeysAllocated middle right finish)
-    : ∀ key ∈ left, key ∉ right := by
-  intro key hleft hright
-  have := (hl.bounds key hleft).2
-  have := (hr.bounds key hright).1
+theorem RefsAllocated.disjoint {start middle finish : Nat} {left right : List Nat}
+    (hl : RefsAllocated start left middle) (hr : RefsAllocated middle right finish)
+    : ∀ ref ∈ left, ref ∉ right := by
+  intro ref hleft hright
+  have := (hl.bounds ref hleft).2
+  have := (hr.bounds ref hright).1
   omega
 
-theorem KeysAllocated.append {start middle finish : Nat} {left right : List Nat}
-    (hl : KeysAllocated start left middle) (hr : KeysAllocated middle right finish)
-    : KeysAllocated start (left ++ right) finish := by
+theorem RefsAllocated.append {start middle finish : Nat} {left right : List Nat}
+    (hl : RefsAllocated start left middle) (hr : RefsAllocated middle right finish)
+    : RefsAllocated start (left ++ right) finish := by
   refine ⟨Nat.le_trans hl.monotone hr.monotone, ?_,
     List.nodup_append.mpr ⟨hl.unique, hr.unique,
-      fun key hk other ho he => hl.disjoint hr key hk (he ▸ ho)⟩⟩
-  intro key hk
+      fun ref hk other ho he => hl.disjoint hr ref hk (he ▸ ho)⟩⟩
+  intro ref hk
   rcases List.mem_append.mp hk with hk | hk
-  · exact ⟨(hl.bounds key hk).1, Nat.lt_of_lt_of_le (hl.bounds key hk).2 hr.monotone⟩
-  · exact ⟨Nat.le_trans hl.monotone (hr.bounds key hk).1, (hr.bounds key hk).2⟩
+  · exact ⟨(hl.bounds ref hk).1, Nat.lt_of_lt_of_le (hl.bounds ref hk).2 hr.monotone⟩
+  · exact ⟨Nat.le_trans hl.monotone (hr.bounds ref hk).1, (hr.bounds ref hk).2⟩
 
-theorem KeysAllocated.fresh {start finish : Nat} {keys : List Nat}
-    (h : KeysAllocated (start + 1) keys finish)
-    : KeysAllocated start (start :: keys) finish := by
+theorem RefsAllocated.fresh {start finish : Nat} {refs : List Nat}
+    (h : RefsAllocated (start + 1) refs finish)
+    : RefsAllocated start (start :: refs) finish := by
   refine ⟨by have := h.monotone; omega, ?_, List.nodup_cons.mpr ⟨?_, h.unique⟩⟩
-  · intro key hk
+  · intro ref hk
     rcases List.mem_cons.mp hk with rfl | hk
     · exact ⟨Nat.le_refl _, h.monotone⟩
-    · exact ⟨Nat.le_trans (Nat.le_succ _) (h.bounds key hk).1, (h.bounds key hk).2⟩
+    · exact ⟨Nat.le_trans (Nat.le_succ _) (h.bounds ref hk).1, (h.bounds ref hk).2⟩
   · intro hk
     have := (h.bounds start hk).1
     omega
 
 theorem streams_empty_of_le {start finish : Nat} (h : start ≤ finish)
     : StreamAllocated start .empty finish := by
-  simpa only [StreamAllocated, streamAllocationKeys] using KeysAllocated.empty h
+  simpa only [StreamAllocated, streamAllocationRefs] using RefsAllocated.empty h
 
 theorem streams_empty (state : Nat) : StreamAllocated state .empty state :=
   streams_empty_of_le (Nat.le_refl _)
@@ -94,7 +94,7 @@ theorem streams_empty (state : Nat) : StreamAllocated state .empty state :=
 theorem streams_combine {start middle finish : Nat} {left right : Work}
     (hl : StreamAllocated start left middle) (hr : StreamAllocated middle right finish)
     : StreamAllocated start (.combine left right) finish := by
-  rw [StreamAllocated, streamAllocationKeys]
+  rw [StreamAllocated, streamAllocationRefs]
   exact hl.append hr
 
 theorem streams_completionCombine {start middle finish : Nat} (f : α → β → γ)

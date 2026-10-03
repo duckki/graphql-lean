@@ -7,7 +7,7 @@ open GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.ReferenceWorkQueue.ConformancePlan
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
-private def stream : Execution.DeliveryNode := { key := 0, path := [] }
+private def stream : Execution.DeliveryNode := { ref := 0, path := [] }
 
 private def work : Execution.Work :=
   .stream stream [(.error 1, .empty), (.error 2, .empty)]
@@ -19,11 +19,11 @@ private def single : Witness := ⟨[], matching, [(0, first)]⟩
 private def pair : Witness := ⟨[], matching, [(0, first), (0, second)]⟩
 
 private theorem first_known
-    : TaskAt work first [stream.key] none (.item stream (.error 1)) :=
+    : TaskAt work first [stream.ref] none (.item stream (.error 1)) :=
   .item (by rfl) rfl
 
 private theorem second_known
-    : TaskAt work second [stream.key] none (.item stream (.error 2)) :=
+    : TaskAt work second [stream.ref] none (.item stream (.error 2)) :=
   .item (by rfl) rfl
 
 private theorem singleton_split {before after : FailureCuts} {cut occurrence}
@@ -47,8 +47,8 @@ theorem single_announced : AnnouncedFailures work single := by
     · intro entry member
       have same : entry = (0, first) := List.mem_singleton.mp member
       subst entry
-      exact ⟨Nat.le_refl _, .root ⟨[stream.key], _, first_known⟩,
-        [stream.key], none, _, first_known, rfl⟩
+      exact ⟨Nat.le_refl _, .root ⟨[stream.ref], _, first_known⟩,
+        [stream.ref], none, _, first_known, rfl⟩
     · intro index group errors impossible
       cases impossible
     · intro index node errors impossible
@@ -56,7 +56,7 @@ theorem single_announced : AnnouncedFailures work single := by
   · intro entry member
     have same : entry = (0, first) := List.mem_singleton.mp member
     subst entry
-    exact ⟨[stream.key], ⟨none, _, first_known⟩, stream.key, List.mem_cons_self,
+    exact ⟨[stream.ref], ⟨none, _, first_known⟩, stream.ref, List.mem_cons_self,
       by decide⟩
 
 /-- No earlier cut threatens the first failing item's owner.
@@ -65,7 +65,7 @@ Witness: singleton-list splitting leaves no predecessor failure, even at cut zer
 theorem single_ownerHealthy : FailureCutOwnerHealth work single := by
   intro before cut occurrence after split
   obtain ⟨rfl, rfl, rfl, rfl⟩ := singleton_split split
-  refine ⟨[stream.key], stream.key, ⟨none, _, first_known⟩, List.mem_cons_self, ?_⟩
+  refine ⟨[stream.ref], stream.ref, ⟨none, _, first_known⟩, List.mem_cons_self, ?_⟩
   rintro ⟨cut, member, _⟩
   cases member
 
@@ -82,7 +82,7 @@ theorem single_producerSafe : FailureCutProducerSafety work single := by
 Witness: compose the two checked cut-local obligations and the announced inventory.
 -/
 theorem single_licensed
-    : FailureWitness work (initialKeys work) single.matching single.events
+    : FailureWitness work (initialRefs work) single.matching single.events
         single.failures :=
   failureWitness_of_cutSafety single_announced single_ownerHealthy single_producerSafe
 
@@ -97,9 +97,9 @@ theorem same_cut_second_cancelled : ¬UncancelledFailures work pair := by
   refine Causality.TaskCancelled.owners ⟨none, _, second_known⟩ ?_ (by simp) ?_
   · rintro ⟨index, event, impossible, _⟩
     cases impossible
-  · intro key member
-    have same : key = stream.key := List.mem_singleton.mp member
-    subst key
+  · intro ref member
+    have same : ref = stream.ref := List.mem_singleton.mp member
+    subst ref
     exact .task ⟨none, _, first_known⟩ List.mem_cons_self (by simp [failedBefore])
 
 /-- The unsafe second settlement is rejected by the owner-health subgoal itself.
@@ -107,11 +107,11 @@ Witness: its unique owner has already failed at the earlier equal-index cut.
 -/
 theorem same_cut_owner_health_rejected : ¬FailureCutOwnerHealth work pair := by
   intro healthy
-  obtain ⟨owners, key, ⟨producer, payload, known⟩, member, safe⟩ :=
+  obtain ⟨owners, ref, ⟨producer, payload, known⟩, member, safe⟩ :=
     healthy [(0, first)] 0 second [] rfl
   have ownersEq := (known.unique second_known).1
-  have same : key = stream.key := List.mem_singleton.mp (ownersEq ▸ member)
-  subst key
+  have same : ref = stream.ref := List.mem_singleton.mp (ownersEq ▸ member)
+  subst ref
   exact safe
     (NodeFailed.task first_known List.mem_cons_self (by simp [failedBefore, pair]))
 

@@ -61,7 +61,7 @@ Witness: unfold the proof helper; no scheduling or generated-work premise is inv
 theorem State.streamItems_eq (queue : State) (stream : Execution.DeliveryNode)
     (items : List StreamItem)
     : queue.streamItems stream items
-      = if !queue.rootStreams.contains stream.key then
+      = if !queue.rootStreams.contains stream.ref then
           (queue, [])
         else
           let prepared := items.foldl streamItemStep (queue, [], [], [])
@@ -80,7 +80,7 @@ theorem State.streamItems_value_boundary (queue : State) (stream : Execution.Del
     (items : List StreamItem) {position group values}
     (selected
       : (queue.streamItems stream items).2[position]? = some (.groupValues group values))
-    : queue.rootStreams.contains stream.key = true
+    : queue.rootStreams.contains stream.ref = true
       ∧ ∃ index,
           (queue.preparedStreamItems items).drainReadyGroups.2[index]?
             = some (.groupValues group values)
@@ -91,7 +91,7 @@ theorem State.streamItems_value_boundary (queue : State) (stream : Execution.Del
           ∧ (queue.streamItems stream items).1
             = (queue.preparedStreamItems items).drainReadyGroups.1 := by
   rw [queue.streamItems_eq stream items] at selected ⊢
-  cases active : queue.rootStreams.contains stream.key with
+  cases active : queue.rootStreams.contains stream.ref with
   | false =>
       simp only [active, Bool.not_false, ↓reduceIte, List.getElem?_nil,
         reduceCtorEq] at selected

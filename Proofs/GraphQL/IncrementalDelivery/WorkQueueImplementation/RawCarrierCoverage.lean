@@ -76,7 +76,7 @@ theorem ExecutedWork.rawEventReplay_groupContributor_covered
       : ((State.initialize (Work.fromExecution work)).rawEventReplay events).2[index]?
         = some (.groupSuccess group groups streams))
     (known : TaskAt work (.executionGroup address) owners producer payload)
-    (contributes : group.key ∈ owners)
+    (contributes : group.ref ∈ owners)
     : ∃ value,
         (Occurrence.executionGroup address, value)
         ∈ published.take

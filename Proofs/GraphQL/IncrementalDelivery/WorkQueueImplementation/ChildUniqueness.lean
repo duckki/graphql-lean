@@ -11,7 +11,7 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 -- Registration is the only operation that adds child links
 -----------------------------------------------------------------------------------------
 
-/-- Each live group's stored child-key list has no duplicates, including stale keys.
+/-- Each live group's stored child-ref list has no duplicates, including stale refs.
 This concrete invariant is preserved even by raw inputs with no generated-work premise.
 -/
 def State.ChildGroupsUnique (queue : State) : Prop :=
@@ -28,7 +28,7 @@ theorem State.ChildGroupsUnique.putGroupNode
     : (queue.putGroupNode updated).ChildGroupsUnique := by
   intro node member
   change node ∈ queue.groupNodes.map
-    (fun old => if old.group.node.key == updated.group.node.key then updated else old)
+    (fun old => if old.group.node.ref == updated.group.node.ref then updated else old)
     at member
   obtain ⟨old, oldMember, same⟩ := List.mem_map.mp member
   split at same
@@ -57,7 +57,7 @@ theorem State.ChildGroupsUnique.addGroup
         subst node
         exact List.nodup_nil
 
-/-- Parent linking adds a child key only when it is absent.
+/-- Parent linking adds a child ref only when it is absent.
 Witness: registration preserves empty child lists; the linking fold preserves Nodup.
 -/
 theorem State.ChildGroupsUnique.addGroups
@@ -73,10 +73,10 @@ theorem State.ChildGroupsUnique.addGroups
         | none => current
         | some node =>
             let children :=
-              if node.childGroups.contains group.node.key then
+              if node.childGroups.contains group.node.ref then
                 node.childGroups
               else
-                node.childGroups ++ [group.node.key]
+                node.childGroups ++ [group.node.ref]
             current.putGroupNode { node with childGroups := children }
   have registerFold (more : List Group) :
       ∀ current, current.ChildGroupsUnique
@@ -109,8 +109,8 @@ theorem State.ChildGroupsUnique.addGroups
               subst child
               contradiction
   let fresh := groups.filter (fun group =>
-    !queue.registeredGroups.contains group.node.key
-      && (queue.groupNode? group.node.key).isNone)
+    !queue.registeredGroups.contains group.node.ref
+      && (queue.groupNode? group.node.ref).isNone)
   change (fresh.foldl linkStep
     (fresh.foldl State.addGroup queue)).ChildGroupsUnique
   exact linkFold fresh _
@@ -125,7 +125,7 @@ theorem State.ChildGroupsUnique.addTask
     : (queue.addTask task).ChildGroupsUnique := by
   let registered : State := { queue with tasks := queue.tasks ++ [task] }
   let step (current : State) (group : Execution.DeliveryNode) : State :=
-    match current.groupNode? group.key with
+    match current.groupNode? group.ref with
     | none => current
     | some node =>
         if node.tasks.contains task.occurrence then current
@@ -157,7 +157,7 @@ theorem State.ChildGroupsUnique.addTask
   let current := task.groups.foldl step registered
   have currentUniqueChildren : current.ChildGroupsUnique :=
     foldUniqueChildren task.groups registered uniqueChildren
-  change (if task.groups.any (fun group => current.rootGroups.contains group.key)
+  change (if task.groups.any (fun group => current.rootGroups.contains group.ref)
       && (current.taskNode? task.occurrence).isNone then
       { current with taskNodes := current.taskNodes ++ [{ task }] }
     else current).ChildGroupsUnique
@@ -174,8 +174,8 @@ theorem State.ChildGroupsUnique.addStreams
   let fresh :=
     streams.foldl
       (fun selected stream =>
-        if (queue.stream? stream.node.key).isSome
-            || selected.any (fun known => known.node.key == stream.node.key) then
+        if (queue.stream? stream.node.ref).isSome
+            || selected.any (fun known => known.node.ref == stream.node.ref) then
           selected
         else
           selected ++ [stream])
@@ -263,8 +263,8 @@ Witness: the handler filters group records without altering their child lists.
 -/
 theorem State.ChildGroupsUnique.removeGroup
     {queue : State}
-    (uniqueChildren : queue.ChildGroupsUnique) (key : Nat)
-    : (queue.removeGroup key).ChildGroupsUnique := by
+    (uniqueChildren : queue.ChildGroupsUnique) (ref : NodeRef)
+    : (queue.removeGroup ref).ChildGroupsUnique := by
   intro node member
   unfold State.removeGroup at member
   exact uniqueChildren node (List.mem_filter.mp member).1
@@ -318,7 +318,7 @@ theorem State.ChildGroupsUnique.finishGroupSuccess
     {queue : State}
     (uniqueChildren : queue.ChildGroupsUnique) (group : GroupNode)
     : (queue.finishGroupSuccess group).1.ChildGroupsUnique := by
-  let step (acc : State × List ExecutionGroupValue × Keys)
+  let step (acc : State × List ExecutionGroupValue × NodeRefs)
       (occurrence : Occurrence) :=
     let (current, values, streams) := acc
     match current.taskNode? occurrence with
@@ -329,7 +329,7 @@ theorem State.ChildGroupsUnique.finishGroupSuccess
           | none => values
           | some value => values ++ [value]
         (current.removeTask occurrence, values, streams ++ taskNode.childStreams)
-  have stepUniqueChildren (acc : State × List ExecutionGroupValue × Keys)
+  have stepUniqueChildren (acc : State × List ExecutionGroupValue × NodeRefs)
       (occurrence : Occurrence)
       (currentUniqueChildren : acc.1.ChildGroupsUnique)
       : (step acc occurrence).1.ChildGroupsUnique := by
@@ -339,7 +339,7 @@ theorem State.ChildGroupsUnique.finishGroupSuccess
     · exact currentUniqueChildren
     · exact currentUniqueChildren.removeTask occurrence
   have foldUniqueChildren (tasks : List Occurrence) :
-      ∀ acc : State × List ExecutionGroupValue × Keys,
+      ∀ acc : State × List ExecutionGroupValue × NodeRefs,
         acc.1.ChildGroupsUnique
           → (tasks.foldl step acc).1.ChildGroupsUnique := by
     induction tasks with
@@ -354,13 +354,13 @@ theorem State.ChildGroupsUnique.finishGroupSuccess
   let current : State :=
     { flushed with
         groupNodes := flushed.groupNodes.filter
-          (fun node => node.group.node.key != group.group.node.key)
-        rootGroups := flushed.rootGroups.filter (· != group.group.node.key) }
+          (fun node => node.group.node.ref != group.group.node.ref)
+        rootGroups := flushed.rootGroups.filter (· != group.group.node.ref) }
   have currentUniqueChildren : current.ChildGroupsUnique := by
     intro node member
     exact flushedUniqueChildren node (List.mem_filter.mp member).1
   let children := group.childGroups.filterMap
-    (fun key => (current.groupNode? key).map (fun node => node.group.node))
+    (fun ref => (current.groupNode? ref).map (fun node => node.group.node))
   change (current.pruneEmptyGroups children).1.ChildGroupsUnique
   exact currentUniqueChildren.pruneEmptyGroups children
 
@@ -373,7 +373,7 @@ theorem State.ChildGroupsUnique.finishGroupFailure
     (group : GroupNode) (errors : Nat)
     : (queue.finishGroupFailure group errors).1.ChildGroupsUnique := by
   unfold State.finishGroupFailure
-  exact uniqueChildren.removeGroup group.group.node.key
+  exact uniqueChildren.removeGroup group.group.node.ref
 
 /-- Recursive draining preserves duplicate-free child lists, including stale links.
 Witness: every success/failure closure and subsequent activation preserves uniqueness.

@@ -12,12 +12,12 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
 /-- Adding a fresh registered task to the failure inventory preserves healthy retired
 ancestry. Witness: direct old failures contradict prior health; a new contribution would
-require a live pending owner at a retired key. Generated transitivity handles taskless
+require a live pending owner at a retired ref. Generated transitivity handles taskless
 intermediate records. This concerns the inventory extension, before changing queue state.
 -/
 theorem State.AncestorsRetired.healthy_append_fresh
     {queue : State} {work settled failed node dependencies}
-    (protectedAncestors : queue.AncestorsRetired work node.key)
+    (protectedAncestors : queue.AncestorsRetired work node.ref)
     (generated : ExecutedWork work) (record : GroupRecordAt work node dependencies)
     (healthy : ∀ ancestor ∈ dependencies, ¬GroupRecordInvalidated work failed ancestor)
     (accounted : queue.HealthyRegisteredTaskAccounting work settled failed)
@@ -26,24 +26,24 @@ theorem State.AncestorsRetired.healthy_append_fresh
     : ∀ ancestor ∈ dependencies,
         ¬GroupRecordInvalidated work (failed ++ [task.occurrence]) ancestor := by
   intro ancestor member invalid
-  have excludes {key} (failure : GroupRecordInvalidated work (failed ++ [task.occurrence]) key)
-      : key ∈ dependencies → False := by
+  have excludes {ref} (failure : GroupRecordInvalidated work (failed ++ [task.occurrence]) ref)
+      : ref ∈ dependencies → False := by
     induction failure with
-    | @task occurrence owners key known owner recorded =>
+    | @task occurrence owners ref known owner recorded =>
         intro dependency
         rcases List.mem_append.mp recorded with old | new
-        · exact healthy key dependency (.task known owner old)
+        · exact healthy ref dependency (.task known owner old)
         · obtain rfl := List.mem_singleton.mp new
           obtain ⟨birth, payload, structural⟩ := known
           obtain ⟨⟨address, actualPayload, actualBirth, _, actual⟩, _⟩ := matching
-          have contributor : key ∈ task.groups.map Execution.DeliveryNode.key :=
+          have contributor : ref ∈ task.groups.map Execution.DeliveryNode.ref :=
             (structural.unique actual).1 ▸ owner
-          have retired := protectedAncestors node dependencies record rfl key dependency
+          have retired := protectedAncestors node dependencies record rfl ref dependency
             task.occurrence owners ⟨birth, payload, structural⟩ owner
           have wasSettled := accounted.retired_contributor_settled registered contributor
-            (fun failure => healthy key dependency failure.toRecordInvalidated) retired
+            (fun failure => healthy ref dependency failure.toRecordInvalidated) retired
           exact fresh wasSettled
-    | @ancestor other otherDependencies key known earlier _ ih =>
+    | @ancestor other otherDependencies ref known earlier _ ih =>
         intro dependency
         exact ih ((generated.groupRecordAncestors_trans record known dependency) earlier)
   exact excludes invalid member
@@ -62,7 +62,7 @@ def State.MissingParentAncestorsRetired (queue : State) (work : Execution.Work) 
       node.group.parent = some parent
       → queue.groupNode? parent = none
       → parent ∉ queue.cancelledGroups
-      → queue.AncestorsRetired work node.group.node.key
+      → queue.AncestorsRetired work node.group.node.ref
 
 /-- At a protected missing-parent boundary, recording a fresh registered settlement
 preserves the health obligation. Witness: instantiate retired-ancestry preservation for
@@ -88,8 +88,8 @@ theorem State.MissingParentAncestorsHealthy.append_fresh
 -- Failure removal cannot create a new uncancelled missing-parent boundary
 -----------------------------------------------------------------------------------------
 
-/-- An absent uncancelled key after failure removal was already absent and uncancelled.
-Witness: every filtered-out key is recorded as cancelled by the same operation. This
+/-- An absent uncancelled ref after failure removal was already absent and uncancelled.
+Witness: every filtered-out ref is recorded as cancelled by the same operation. This
 needs no generated-work, subtree-coverage, or traversal-budget premise.
 -/
 theorem State.removeGroup_missing_uncancelled (queue : State) (root parent : Nat)
@@ -104,18 +104,18 @@ theorem State.removeGroup_missing_uncancelled (queue : State) (root parent : Nat
   cases found : queue.groupNode? parent with
   | none => rfl
   | some node =>
-      have same := State.groupNode?_key found
+      have same := State.groupNode?_ref found
       have notRemoved : parent ∉ removed :=
         fun member => noCancellation (List.mem_append_right _ member)
       have retained : node ∈ (queue.removeGroup root).groupNodes :=
         List.mem_filter.mpr ⟨List.mem_of_find?_eq_some found, by
-          change (!removed.contains node.group.node.key) = true
+          change (!removed.contains node.group.node.ref) = true
           simp [same, notRemoved]⟩
       have absent := List.find?_eq_none.mp missing node retained
       exact False.elim (absent (beq_iff_eq.mpr same))
 
 /-- Failure cleanup preserves missing-parent retirement certificates.
-Witness: surviving records retain their parents, newly absent keys are cancelled, and
+Witness: surviving records retain their parents, newly absent refs are cancelled, and
 permanent ancestor retirement survives removal.
 -/
 theorem State.MissingParentAncestorsRetired.removeGroup {queue : State} {work}

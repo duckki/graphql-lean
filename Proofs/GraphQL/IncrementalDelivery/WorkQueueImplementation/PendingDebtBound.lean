@@ -11,16 +11,16 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 -----------------------------------------------------------------------------------------
 
 /-- Selected groups have enough pending tokens for unsettled memberships and the one
-decrement still owed at each remaining contributor key. Surplus tokens are permitted:
+decrement still owed at each remaining contributor ref. Surplus tokens are permitted:
 ignored cancelled settlements remove memberships without decrementing failed groups.
 -/
 def State.PendingDebtBound (queue : State) (eligible : Nat → Prop)
-    (settled : List Occurrence) (remaining : Keys)
+    (settled : List Occurrence) (remaining : NodeRefs)
     : Prop :=
   ∀ node ∈ queue.groupNodes,
-    eligible node.group.node.key
+    eligible node.group.node.ref
     → unsettledCount node.tasks settled
-        + (if node.group.node.key ∈ remaining then 1 else 0)
+        + (if node.group.node.ref ∈ remaining then 1 else 0)
       ≤ node.pending
 
 /-- Exact decrement debt implies its lower bound. Witness: equality implies inequality.
@@ -41,7 +41,7 @@ theorem State.PendingDebtBound.toBound {queue : State} {eligible settled remaini
   exact Nat.le_trans (Nat.le_add_right _ _) (bounded node member relevant)
 
 /-- With no decrement left, the debt bound is the ordinary safety bound.
-Witness: the remaining-key membership test is false.
+Witness: the remaining-ref membership test is false.
 -/
 theorem State.pendingDebtBound_nil {queue : State} {eligible settled}
     : queue.PendingDebtBound eligible settled []
@@ -50,21 +50,21 @@ theorem State.pendingDebtBound_nil {queue : State} {eligible settled}
 
 /-- A fresh settlement reserves one decrement token at each contributor, even when
 failed groups already overcount. Witness: unique memberships remove exactly one token;
-the owner equation identifies precisely the keys that owe a decrement.
+the owner equation identifies precisely the refs that owe a decrement.
 -/
 theorem State.PendingBound.beginSettlement {queue : State} {eligible : Nat → Prop}
-    {settled : List Occurrence} {occurrence : Occurrence} {keys : Keys}
+    {settled : List Occurrence} {occurrence : Occurrence} {refs : NodeRefs}
     (bounded : queue.PendingBound eligible settled)
     (unique : queue.TaskMembershipsUnique)
     (owned
       : ∀ node ∈ queue.groupNodes,
-          eligible node.group.node.key
-          → (occurrence ∈ node.tasks ↔ node.group.node.key ∈ keys))
+          eligible node.group.node.ref
+          → (occurrence ∈ node.tasks ↔ node.group.node.ref ∈ refs))
     (fresh : occurrence ∉ settled)
-    : queue.PendingDebtBound eligible (occurrence :: settled) keys := by
+    : queue.PendingDebtBound eligible (occurrence :: settled) refs := by
   intro node member relevant
   have count := bounded node member relevant
-  by_cases contributes : node.group.node.key ∈ keys
+  by_cases contributes : node.group.node.ref ∈ refs
   · rw [ite_eq_left contributes]
     rw [unsettledCount_settle node.tasks settled occurrence (unique node member)
       ((owned node member relevant).mpr contributes) fresh] at count
@@ -84,7 +84,7 @@ theorem State.PendingDebtBound.removeTask {queue : State} {eligible settled rema
   intro node member relevant
   obtain ⟨old, oldMember, rfl⟩ := List.mem_map.mp member
   change unsettledCount (old.tasks.filter (· != occurrence)) settled
-    + (if old.group.node.key ∈ remaining then 1 else 0) ≤ old.pending
+    + (if old.group.node.ref ∈ remaining then 1 else 0) ≤ old.pending
   rw [unsettledCount_remove_settled _ _ _ already]
   exact bounded old oldMember relevant
 
@@ -124,7 +124,7 @@ theorem State.PendingDebtBound.finishGroupSuccess {queue : State}
     (bounded : queue.PendingDebtBound eligible settled remaining) (group : GroupNode)
     (all : ∀ occurrence ∈ group.tasks, occurrence ∈ settled)
     : (queue.finishGroupSuccess group).1.PendingDebtBound eligible settled remaining := by
-  let step (acc : State × List ExecutionGroupValue × Keys) (occurrence : Occurrence) :=
+  let step (acc : State × List ExecutionGroupValue × NodeRefs) (occurrence : Occurrence) :=
     let (current, values, streams) := acc
     match current.taskNode? occurrence with
     | none => (current, values, streams)
@@ -135,7 +135,7 @@ theorem State.PendingDebtBound.finishGroupSuccess {queue : State}
         (current.removeTask occurrence, values, streams ++ taskNode.childStreams)
   have foldBound (tasks : List Occurrence)
       (included : ∀ occurrence ∈ tasks, occurrence ∈ settled) :
-      ∀ acc : State × List ExecutionGroupValue × Keys,
+      ∀ acc : State × List ExecutionGroupValue × NodeRefs,
         acc.1.PendingDebtBound eligible settled remaining →
         (tasks.foldl step acc).1.PendingDebtBound eligible settled remaining := by
     induction tasks with
@@ -154,8 +154,8 @@ theorem State.PendingDebtBound.finishGroupSuccess {queue : State}
   let current : State :=
     { flushed with
         groupNodes := flushed.groupNodes.filter
-          (fun node => node.group.node.key != group.group.node.key)
-        rootGroups := flushed.rootGroups.filter (· != group.group.node.key) }
+          (fun node => node.group.node.ref != group.group.node.ref)
+        rootGroups := flushed.rootGroups.filter (· != group.group.node.ref) }
   have currentBound : current.PendingDebtBound eligible settled remaining := by
     intro node member relevant
     exact flushedBound node (List.mem_filter.mp member).1 relevant
@@ -165,8 +165,8 @@ theorem State.PendingDebtBound.finishGroupSuccess {queue : State}
 Witness: surviving group records are unchanged members of the earlier list.
 -/
 theorem State.PendingDebtBound.removeGroup {queue : State} {eligible settled remaining}
-    (bounded : queue.PendingDebtBound eligible settled remaining) (key : Nat)
-    : (queue.removeGroup key).PendingDebtBound eligible settled remaining := by
+    (bounded : queue.PendingDebtBound eligible settled remaining) (ref : NodeRef)
+    : (queue.removeGroup ref).PendingDebtBound eligible settled remaining := by
   intro node member relevant
   exact bounded node (List.mem_filter.mp member).1 relevant
 
@@ -176,22 +176,22 @@ Witness: the ordinary pending bound derived by forgetting remaining decrement de
 theorem State.PendingDebtBound.allSettled {queue : State} {eligible settled remaining}
     (bounded : queue.PendingDebtBound eligible settled remaining)
     {node : GroupNode} (member : node ∈ queue.groupNodes)
-    (relevant : eligible node.group.node.key) (zero : node.pending = 0)
+    (relevant : eligible node.group.node.ref) (zero : node.pending = 0)
     : ∀ occurrence ∈ node.tasks, occurrence ∈ settled :=
   bounded.toBound.allSettled member relevant zero
 
 /-- Paying a contributor's reserved decrement preserves all remaining lower bounds.
-Witness: unique group keys isolate the update and the old bound reserves one token.
+Witness: unique group refs isolate the update and the old bound reserves one token.
 -/
-theorem State.PendingDebtBound.decrement {queue : State} {eligible settled remaining key}
-    (bounded : queue.PendingDebtBound eligible settled (key :: remaining))
-    (unique : queue.GroupKeysUnique) (absent : key ∉ remaining)
-    {node : GroupNode} (found : queue.groupNode? key = some node)
+theorem State.PendingDebtBound.decrement {queue : State} {eligible settled remaining ref}
+    (bounded : queue.PendingDebtBound eligible settled (ref :: remaining))
+    (unique : queue.GroupRefsUnique) (absent : ref ∉ remaining)
+    {node : GroupNode} (found : queue.groupNode? ref = some node)
     (failure : Option Nat := node.failure)
     : (queue.putGroupNode
         { node with pending := node.pending - 1, failure }).PendingDebtBound
         eligible settled remaining := by
-  have nodeKey := queue.groupNode?_key found
+  have nodeRef := queue.groupNode?_ref found
   have nodeMember := List.mem_of_find?_eq_some found
   intro next member relevant
   obtain ⟨old, oldMember, same⟩ := List.mem_map.mp member
@@ -201,25 +201,25 @@ theorem State.PendingDebtBound.decrement {queue : State} {eligible settled remai
     subst old
     subst next
     have count := bounded node nodeMember relevant
-    simp only [nodeKey, List.mem_cons_self, ite_true] at count
-    simp only [nodeKey, ite_eq_right absent, Nat.add_zero]
+    simp only [nodeRef, List.mem_cons_self, ite_true] at count
+    simp only [nodeRef, ite_eq_right absent, Nat.add_zero]
     omega
   · rename_i different
     subst next
-    have unequal : old.group.node.key ≠ key := by
-      simpa only [nodeKey, beq_iff_eq] using different
+    have unequal : old.group.node.ref ≠ ref := by
+      simpa only [nodeRef, beq_iff_eq] using different
     simpa [unequal] using bounded old oldMember relevant
 
 /-- Missing contributors have no live decrement obligation.
-Witness: every live group's key differs from a key with an unsuccessful lookup.
+Witness: every live group's ref differs from a ref with an unsuccessful lookup.
 -/
 theorem State.PendingDebtBound.skipMissing {queue : State}
-    {eligible settled remaining key}
-    (bounded : queue.PendingDebtBound eligible settled (key :: remaining))
-    (missing : queue.groupNode? key = none)
+    {eligible settled remaining ref}
+    (bounded : queue.PendingDebtBound eligible settled (ref :: remaining))
+    (missing : queue.groupNode? ref = none)
     : queue.PendingDebtBound eligible settled remaining := by
   intro node member relevant
-  have unequal : node.group.node.key ≠ key := by
+  have unequal : node.group.node.ref ≠ ref := by
     intro equal
     have none := List.find?_eq_none.mp missing node member
     simp [equal] at none
@@ -235,27 +235,27 @@ is justified by the bound at its own zero-counter boundary, despite surplus fail
 -/
 theorem successGroupFold_preservesBound (eligible : Nat → Prop)
     (settled : List Occurrence) (invariant : State → Prop)
-    (keys : ∀ queue, invariant queue → queue.GroupKeysUnique)
-    (roots : ∀ queue, invariant queue → ∀ key ∈ queue.rootGroups, eligible key)
+    (refs : ∀ queue, invariant queue → queue.GroupRefsUnique)
+    (roots : ∀ queue, invariant queue → ∀ ref ∈ queue.rootGroups, eligible ref)
     (decrement
       : ∀ queue node,
           invariant queue
-          → queue.groupNode? node.group.node.key = some node
+          → queue.groupNode? node.group.node.ref = some node
           → invariant (queue.putGroupNode { node with pending := node.pending - 1 }))
     (flush
       : ∀ queue node remaining,
           invariant queue
           → queue.PendingDebtBound eligible settled remaining
           → node ∈ queue.groupNodes
-          → node.group.node.key ∈ queue.rootGroups
+          → node.group.node.ref ∈ queue.rootGroups
           → node.pending = 0
           → (∀ occurrence ∈ node.tasks, occurrence ∈ settled)
           → invariant (queue.finishGroupSuccess node).1)
     (groups : List Execution.DeliveryNode)
-    (unique : (groups.map Execution.DeliveryNode.key).Nodup)
+    (unique : (groups.map Execution.DeliveryNode.ref).Nodup)
     (acc : State × List WorkQueueEvent × NewWork) (valid : invariant acc.1)
     (bounded
-      : acc.1.PendingDebtBound eligible settled (groups.map Execution.DeliveryNode.key))
+      : acc.1.PendingDebtBound eligible settled (groups.map Execution.DeliveryNode.ref))
     : invariant (groups.foldl successGroupStep acc).1
       ∧ (groups.foldl successGroupStep acc).1.PendingBound eligible settled := by
   suffices result : invariant (groups.foldl successGroupStep acc).1 ∧
@@ -267,19 +267,19 @@ theorem successGroupFold_preservesBound (eligible : Nat → Prop)
       obtain ⟨absent, tailUnique⟩ := List.nodup_cons.mp unique
       have step : invariant (successGroupStep acc group).1 ∧
           (successGroupStep acc group).1.PendingDebtBound eligible settled
-            (rest.map Execution.DeliveryNode.key) := by
+            (rest.map Execution.DeliveryNode.ref) := by
         obtain ⟨queue, events, released⟩ := acc
         dsimp only [successGroupStep]
         split
         · rename_i missing
           exact ⟨valid, bounded.skipMissing missing⟩
         · rename_i node found
-          have nodeKey := queue.groupNode?_key found
-          have nextValid := decrement queue node valid (nodeKey ▸ found)
-          have nextBound := bounded.decrement (keys queue valid) absent found
+          have nodeRef := queue.groupNode?_ref found
+          have nextValid := decrement queue node valid (nodeRef ▸ found)
+          have nextBound := bounded.decrement (refs queue valid) absent found
           split
           · rename_i ready
-            have active : group.key ∈ queue.rootGroups := by
+            have active : group.ref ∈ queue.rootGroups := by
               simpa [State.putGroupNode]
                 using (Bool.and_eq_true_iff.mp (Bool.and_eq_true_iff.mp ready).1).1
             have zero : node.pending - 1 = 0 := by
@@ -289,8 +289,8 @@ theorem successGroupFold_preservesBound (eligible : Nat → Prop)
               apply List.mem_map.mpr
               exact ⟨node, List.mem_of_find?_eq_some found, by simp⟩
             have all := nextBound.allSettled member
-              (nodeKey ▸ roots queue valid _ active) zero
-            exact ⟨flush _ _ _ nextValid nextBound member (nodeKey ▸ active) zero all,
+              (nodeRef ▸ roots queue valid _ active) zero
+            exact ⟨flush _ _ _ nextValid nextBound member (nodeRef ▸ active) zero all,
               nextBound.finishGroupSuccess _ all⟩
           · exact ⟨nextValid, nextBound⟩
       exact ih tailUnique (successGroupStep acc group) step.1 step.2
@@ -301,11 +301,11 @@ while latent failures pay exactly one reserved decrement before retaining the er
 -/
 theorem failureGroupFold_preservesBound (eligible : Nat → Prop)
     (settled : List Occurrence) (invariant : State → Prop)
-    (keys : ∀ queue, invariant queue → queue.GroupKeysUnique)
+    (refs : ∀ queue, invariant queue → queue.GroupRefsUnique)
     (decrement
       : ∀ queue (node : GroupNode) errors,
           invariant queue
-          → queue.groupNode? node.group.node.key = some node
+          → queue.groupNode? node.group.node.ref = some node
           → invariant
               (queue.putGroupNode
                 {
@@ -313,12 +313,12 @@ theorem failureGroupFold_preservesBound (eligible : Nat → Prop)
                     pending := node.pending - 1
                     failure := some (node.failure.getD 0 + errors)
                 }))
-    (remove : ∀ queue key, invariant queue → invariant (queue.removeGroup key))
+    (remove : ∀ queue ref, invariant queue → invariant (queue.removeGroup ref))
     (errors : Nat) (groups : List Execution.DeliveryNode)
-    (unique : (groups.map Execution.DeliveryNode.key).Nodup)
+    (unique : (groups.map Execution.DeliveryNode.ref).Nodup)
     (acc : State × List WorkQueueEvent) (valid : invariant acc.1)
     (bounded
-      : acc.1.PendingDebtBound eligible settled (groups.map Execution.DeliveryNode.key))
+      : acc.1.PendingDebtBound eligible settled (groups.map Execution.DeliveryNode.ref))
     : invariant (groups.foldl (failureGroupStep errors) acc).1
       ∧ (groups.foldl (failureGroupStep errors) acc).1.PendingBound eligible settled := by
   suffices result : invariant (groups.foldl (failureGroupStep errors) acc).1 ∧
@@ -330,24 +330,24 @@ theorem failureGroupFold_preservesBound (eligible : Nat → Prop)
       obtain ⟨absent, tailUnique⟩ := List.nodup_cons.mp unique
       have step : invariant (failureGroupStep errors acc group).1 ∧
           (failureGroupStep errors acc group).1.PendingDebtBound eligible settled
-            (rest.map Execution.DeliveryNode.key) := by
+            (rest.map Execution.DeliveryNode.ref) := by
         obtain ⟨queue, events⟩ := acc
         dsimp only [failureGroupStep]
-        cases found : queue.groupNode? group.key with
+        cases found : queue.groupNode? group.ref with
         | none => exact ⟨valid, bounded.skipMissing found⟩
         | some node =>
             dsimp only
             split
-            · have same := queue.groupNode?_key found
-              change invariant (queue.removeGroup node.group.node.key) ∧
-                (queue.removeGroup node.group.node.key).PendingDebtBound eligible settled _
+            · have same := queue.groupNode?_ref found
+              change invariant (queue.removeGroup node.group.node.ref) ∧
+                (queue.removeGroup node.group.node.ref).PendingDebtBound eligible settled _
               rw [same]
-              exact ⟨remove queue group.key valid,
-                (bounded.removeGroup group.key).skipMissing
-                  (queue.removeGroup_ownGroupAbsent group.key)⟩
-            · have same := queue.groupNode?_key found
+              exact ⟨remove queue group.ref valid,
+                (bounded.removeGroup group.ref).skipMissing
+                  (queue.removeGroup_ownGroupAbsent group.ref)⟩
+            · have same := queue.groupNode?_ref found
               exact ⟨decrement queue node errors valid (same ▸ found),
-                bounded.decrement (keys queue valid) absent found
+                bounded.decrement (refs queue valid) absent found
                   (some (node.failure.getD 0 + errors))⟩
       exact ih tailUnique (failureGroupStep errors acc group) step.1 step.2
 

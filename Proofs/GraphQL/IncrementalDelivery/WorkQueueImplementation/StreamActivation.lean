@@ -1,6 +1,6 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.StreamReleaseMatching
 
-/-! Stream activation comes only from explicitly released stream keys. -/
+/-! Stream activation comes only from explicitly released stream refs. -/
 
 namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.Execution (ExecutionGroupValue)
@@ -31,8 +31,8 @@ theorem State.addGroups_rootStreams (queue : State) (groups : List Group)
         match current.groupNode? parent with
         | none => current
         | some node =>
-            let children := if node.childGroups.contains group.node.key then node.childGroups
-              else node.childGroups ++ [group.node.key]
+            let children := if node.childGroups.contains group.node.ref then node.childGroups
+              else node.childGroups ++ [group.node.ref]
             current.putGroupNode { node with childGroups := children }
   have linked : ∀ current group, (link current group).rootStreams = current.rootStreams := by
     intro current group
@@ -59,7 +59,7 @@ Witness: contributor-counter updates and optional task-node creation preserve ro
 theorem State.addTask_rootStreams (queue : State) (task : Task)
     : (queue.addTask task).rootStreams = queue.rootStreams := by
   let step (current : State) (group : Execution.DeliveryNode) :=
-    match current.groupNode? group.key with
+    match current.groupNode? group.ref with
     | none => current
     | some node =>
         if node.tasks.contains task.occurrence then current
@@ -79,8 +79,8 @@ theorem State.addTask_rootStreams (queue : State) (task : Task)
   split <;> exact same
 
 /-- Integrating child work registers streams without starting them.
-Witness: group/task registration preserves active keys; addStreams only records descriptors
-or attaches child keys to a task. Root activation is a separate startNewWork operation.
+Witness: group/task registration preserves active refs; addStreams only records descriptors
+or attaches child refs to a task. Root activation is a separate startNewWork operation.
 -/
 theorem State.maybeIntegrateWork_rootStreams (queue : State) (work : Work)
     (parent : Option Occurrence := none)
@@ -96,7 +96,7 @@ theorem State.maybeIntegrateWork_rootStreams (queue : State) (work : Work)
   rw [streams, fold_projection State.rootStreams State.addTask State.addTask_rootStreams,
     State.addGroups_rootStreams]
 
-/-- Pruning empty group shells leaves active stream keys unchanged.
+/-- Pruning empty group shells leaves active stream refs unchanged.
 Witness: every branch of the bounded traversal changes only the group map. -/
 theorem State.pruneEmptyGroups_rootStreams (queue : State) (groups)
     : (queue.pruneEmptyGroups groups).1.rootStreams = queue.rootStreams := by
@@ -116,7 +116,7 @@ theorem State.pruneEmptyGroups_rootStreams (queue : State) (groups)
   exact loop _ _ _ _
 
 /-- Flushing a group collects stream releases but does not yet activate them.
-Witness: selected-task removal and empty-group pruning both preserve active stream keys.
+Witness: selected-task removal and empty-group pruning both preserve active stream refs.
 -/
 theorem State.finishGroupSuccess_rootStreams (queue : State) (group : GroupNode)
     : (queue.finishGroupSuccess group).1.rootStreams = queue.rootStreams := by
@@ -125,20 +125,20 @@ theorem State.finishGroupSuccess_rootStreams (queue : State) (group : GroupNode)
     intro acc occurrence
     unfold flushGroupTask
     split <;> rfl
-  have same := fold_projection (fun acc : State × List ExecutionGroupValue × Keys =>
+  have same := fold_projection (fun acc : State × List ExecutionGroupValue × NodeRefs =>
     acc.1.rootStreams) flushGroupTask preserved group.tasks (queue, [], [])
   unfold State.finishGroupSuccess
   rw [State.pruneEmptyGroups_rootStreams]
   exact same
 
 -----------------------------------------------------------------------------------------
--- Activation adds only the stream keys named in released work
+-- Activation adds only the stream refs named in released work
 -----------------------------------------------------------------------------------------
 
 /-- Starting groups cannot start a stream as a side effect.
 Witness: startTask changes only task nodes and startGroup folds that operation. -/
-theorem State.startGroup_rootStreams (queue : State) (key : Nat)
-    : (queue.startGroup key).rootStreams = queue.rootStreams := by
+theorem State.startGroup_rootStreams (queue : State) (ref : NodeRef)
+    : (queue.startGroup ref).rootStreams = queue.rootStreams := by
   have task : ∀ current occurrence,
       (State.startTask current occurrence).rootStreams = current.rootStreams := by
     intro current occurrence
@@ -153,21 +153,21 @@ theorem State.startGroup_rootStreams (queue : State) (key : Nat)
     · rfl
     · exact fold_projection State.rootStreams State.startTask task _ _
 
-/-- Activating released work adds no stream key outside its explicit newStreams list.
+/-- Activating released work adds no stream ref outside its explicit newStreams list.
 Witness: group activation preserves active streams; each stream step is inert or appends
-only its requested key. Descriptor existence and deduplication may suppress an addition.
+only its requested ref. Descriptor existence and deduplication may suppress an addition.
 -/
 theorem State.startNewWork_rootStreams (queue : State) (work : NewWork)
     : (queue.startNewWork work).rootStreams.Subset
-        (queue.rootStreams ++ work.newStreams.map Execution.DeliveryNode.key) := by
-  have loop (keys : Keys) (current : State)
-      : (keys.foldl State.startStream current).rootStreams.Subset
-          (current.rootStreams ++ keys) := by
-    induction keys generalizing current with
-    | nil => intro key member; exact List.mem_append_left [] member
-    | cons key rest ih =>
+        (queue.rootStreams ++ work.newStreams.map Execution.DeliveryNode.ref) := by
+  have loop (refs : NodeRefs) (current : State)
+      : (refs.foldl State.startStream current).rootStreams.Subset
+          (current.rootStreams ++ refs) := by
+    induction refs generalizing current with
+    | nil => intro ref member; exact List.mem_append_left [] member
+    | cons ref rest ih =>
         intro stream member
-        have next := ih (current.startStream key) member
+        have next := ih (current.startStream ref) member
         rcases List.mem_append.mp next with old | later
         · unfold State.startStream at old
           split at old
@@ -176,12 +176,12 @@ theorem State.startNewWork_rootStreams (queue : State) (work : NewWork)
             · exact List.mem_append_left _ prior
             · exact List.mem_append_right _ (List.mem_cons.mpr (.inl
                 (List.mem_singleton.mp added)))
-        · exact List.mem_append_right _ (List.mem_cons_of_mem key later)
+        · exact List.mem_append_right _ (List.mem_cons_of_mem ref later)
   unfold State.startNewWork
-  have included := loop (work.newStreams.map Execution.DeliveryNode.key)
-    ((work.newGroups.map Execution.DeliveryNode.key).foldl State.startGroup
+  have included := loop (work.newStreams.map Execution.DeliveryNode.ref)
+    ((work.newGroups.map Execution.DeliveryNode.ref).foldl State.startGroup
       { queue with
-        rootGroups := queue.rootGroups ++ work.newGroups.map Execution.DeliveryNode.key })
+        rootGroups := queue.rootGroups ++ work.newGroups.map Execution.DeliveryNode.ref })
   rw [fold_projection State.rootStreams State.startGroup State.startGroup_rootStreams] at included
   exact included
 

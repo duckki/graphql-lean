@@ -19,12 +19,12 @@ theorem ValidGraphEvents.streamFailure_itemInventory {work events}
     (valid : ValidGraphEvents work events) (generated : ExecutedWork work)
     {stream errors} (completed : GraphEvent.streamFailure stream errors ∈ events)
     : ∃ address ordinal producer,
-        TaskAt work (.item address ordinal) [stream.key] producer
+        TaskAt work (.item address ordinal) [stream.ref] producer
           (.item stream (.error errors))
         ∧ Reachable work (.item address ordinal)
         ∧ ∀ earlier,
             earlier < ordinal
-            → TaskHasOwners work (.item address earlier) [stream.key]
+            → TaskHasOwners work (.item address earlier) [stream.ref]
               ∧ .item address earlier
                 ∈ (events.flatMap GraphEvent.itemPublications).map Prod.fst := by
   obtain ⟨before, after, same, validBefore, ready⟩ := valid.event_ready_context completed
@@ -32,7 +32,7 @@ theorem ValidGraphEvents.streamFailure_itemInventory {work events}
   have task := TaskAt.item located atItem
   refine ⟨
     address,
-    (GraphEvent.itemsBefore before stream.key).length,
+    (GraphEvent.itemsBefore before stream.ref).length,
     producer,
     task,
     task_reachable_of_source_support validBefore
@@ -46,10 +46,10 @@ theorem ValidGraphEvents.streamFailure_itemInventory {work events}
     List.getElem?_eq_some_iff.mpr ⟨bound, rfl⟩
   refine ⟨⟨producer, _, TaskAt.item located entry⟩, ?_⟩
   have received : .item address earlier ∈
-      (GraphEvent.itemsBefore before stream.key).map StreamItem.occurrence := by
+      (GraphEvent.itemsBefore before stream.ref).map StreamItem.occurrence := by
     rw [validBefore.itemsBefore_order generated located]
     exact List.mem_map.mpr ⟨earlier, List.mem_range.mpr less, rfl⟩
-  have inventory := (GraphEvent.itemsBefore_occurrences_sublist before stream.key).subset received
+  have inventory := (GraphEvent.itemsBefore_occurrences_sublist before stream.ref).subset received
   rw [same, List.flatMap_append, List.map_append]
   exact List.mem_append_left _ inventory
 
@@ -135,12 +135,12 @@ theorem createWorkQueue_runNormalized_streamFailure_accounting {work : Execution
     : let queue := State.initialize (Work.fromExecution work)
       let atoms := (queue.runNormalized batches).2.flatten.flatMap publicationAtoms
       ∃ address ordinal producer,
-        TaskAt work (.item address ordinal) [stream.key] producer
+        TaskAt work (.item address ordinal) [stream.ref] producer
           (.item stream (.error errors))
         ∧ Reachable work (.item address ordinal)
         ∧ Open
-            ((queue.initialGroups ++ queue.initialStreams).map Execution.DeliveryNode.key)
-            (atoms.take index) stream.key
+            ((queue.initialGroups ++ queue.initialStreams).map Execution.DeliveryNode.ref)
+            (atoms.take index) stream.ref
         ∧ ¬Published matching atoms (.item address ordinal)
         ∧ ∀ earlier,
             earlier < ordinal
@@ -178,17 +178,17 @@ theorem createWorkQueue_runNormalized_streamFailureMatching {work : Execution.Wo
         ∧ (∀ index stream,
             atoms[index]? = some (.streamSuccess stream)
             → ∀ failures,
-                NodeAccounted work matching (atoms.take index) failures stream.key)
+                NodeAccounted work matching (atoms.take index) failures stream.ref)
         ∧ (∀ index stream errors,
             atoms[index]? = some (.streamFailure stream errors)
             → ∃ address ordinal producer,
-                TaskAt work (.item address ordinal) [stream.key] producer
+                TaskAt work (.item address ordinal) [stream.ref] producer
                   (.item stream (.error errors))
                 ∧ Reachable work (.item address ordinal)
                 ∧ Open
                     ((queue.initialGroups ++ queue.initialStreams).map
-                      Execution.DeliveryNode.key)
-                    (atoms.take index) stream.key
+                      Execution.DeliveryNode.ref)
+                    (atoms.take index) stream.ref
                 ∧ ¬Published matching atoms (.item address ordinal)
                 ∧ ∀ earlier,
                     earlier < ordinal

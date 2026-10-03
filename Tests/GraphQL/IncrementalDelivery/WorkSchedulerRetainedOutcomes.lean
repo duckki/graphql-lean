@@ -14,9 +14,9 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 -- Generated fixtures: an independent owner R and a child C waiting for P
 -----------------------------------------------------------------------------------------
 
-private def root : DeliveryNode := { key := 0, path := [], label := some (.string "R") }
-private def parent : DeliveryNode := { key := 1, path := [], label := some (.string "P") }
-private def child : DeliveryNode := { key := 2, path := [], label := some (.string "C") }
+private def root : DeliveryNode := { ref := 0, path := [], label := some (.string "R") }
+private def parent : DeliveryNode := { ref := 1, path := [], label := some (.string "P") }
+private def child : DeliveryNode := { ref := 2, path := [], label := some (.string "C") }
 private def firstTask : Occurrence := .executionGroup [1, 0]
 private def sharedTask : Occurrence := .executionGroup [1, 1, 0]
 private def parentTask : Occurrence := .executionGroup [1, 1, 1, 0]
@@ -115,15 +115,15 @@ theorem source_payloads
       ∧ finish.MatchesWork failureWork
       ∧ finish.MatchesWork successWork := by
   refine ⟨?_, ?_, ?_, ?_⟩
-  · refine ⟨[root.key, child.key], none, [], ?_⟩
+  · refine ⟨[root.ref, child.ref], none, [], ?_⟩
     exact ⟨[⟨root, []⟩, ⟨child, [parent]⟩], [], .error 2, .empty, [], rfl, rfl, rfl⟩
-  · refine ⟨[root.key, child.key], none, ?_, rfl, rfl⟩
+  · refine ⟨[root.ref, child.ref], none, ?_, rfl, rfl⟩
     exact ⟨[⟨root, []⟩, ⟨child, [parent]⟩], [], .ok (sharedData, 0),
       .combine .empty .empty, [], rfl, rfl, rfl⟩
-  · refine ⟨[parent.key], none, ?_, rfl, rfl⟩
+  · refine ⟨[parent.ref], none, ?_, rfl, rfl⟩
     exact ⟨[⟨parent, []⟩], [], .ok (parentData, 0), .combine .empty .empty,
       [], rfl, rfl, rfl⟩
-  · refine ⟨[parent.key], none, ?_, rfl, rfl⟩
+  · refine ⟨[parent.ref], none, ?_, rfl, rfl⟩
     exact ⟨[⟨parent, []⟩], [], .ok (parentData, 0), .combine .empty .empty,
       [], rfl, rfl, rfl⟩
 
@@ -148,9 +148,9 @@ theorem failure_retained
     : let before := ((queue failureWork).handleGraphEvents [first]).1
       let (after, events) := before.handleGraphEvents [sharedFailure]
       events = []
-      ∧ (after.groupNode? child.key).map GroupNode.failure = some (some 2)
+      ∧ (after.groupNode? child.ref).map GroupNode.failure = some (some 2)
       ∧ (after.pruneEmptyGroups [child]).2 = [child]
-      ∧ after.rootGroups = [parent.key]
+      ∧ after.rootGroups = [parent.ref]
       ∧ after.terminated = false := by
   cbv
 
@@ -224,7 +224,7 @@ theorem parent_failure_cancels
     : let before := ((queue cancellationWork).handleGraphEvents [first, sharedFailure]).1
       let (after, events) := before.handleGraphEvents [.taskFailure parentTask 1]
       events = [.groupFailure parent 1, .workQueueTermination]
-      ∧ after.groupNode? child.key = none
+      ∧ after.groupNode? child.ref = none
       ∧ after.taskNodes = []
       ∧ after.terminated = true := by
   cbv
@@ -240,7 +240,7 @@ theorem success_retained
     : let before := ((queue successWork).handleGraphEvents [first]).1
       let (after, events) := before.handleGraphEvents [sharedSuccess]
       events = []
-      ∧ (after.groupNode? child.key).map GroupNode.pending = some 0
+      ∧ (after.groupNode? child.ref).map GroupNode.pending = some 0
       ∧ (after.taskNode? sharedTask).bind TaskNode.value = some sharedValue
       ∧ (after.pruneEmptyGroups [child]).2 = [child] := by
   cbv
@@ -337,20 +337,20 @@ theorem already_published_is_pruned
       ] := by
   cbv
 
-private def grandchild : DeliveryNode := { key := 3, path := [] }
+private def grandchild : DeliveryNode := { ref := 3, path := [] }
 
 private def cascade : State :=
   {
-    rootGroups := [parent.key],
+    rootGroups := [parent.ref],
     groupNodes :=
       [
-        { group := ⟨parent, none⟩, childGroups := [child.key], tasks := [parentTask] },
+        { group := ⟨parent, none⟩, childGroups := [child.ref], tasks := [parentTask] },
         {
-          group := ⟨child, some parent.key⟩,
-          childGroups := [grandchild.key],
+          group := ⟨child, some parent.ref⟩,
+          childGroups := [grandchild.ref],
           tasks := [sharedTask]
         },
-        { group := ⟨grandchild, some child.key⟩, failure := some 2 }
+        { group := ⟨grandchild, some child.ref⟩, failure := some 2 }
       ],
     taskNodes :=
       [

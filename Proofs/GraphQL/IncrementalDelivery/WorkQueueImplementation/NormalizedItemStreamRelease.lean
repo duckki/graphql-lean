@@ -161,7 +161,7 @@ theorem NormalizedItemStreamReleasePublications.append {work first second left r
 /-- Every actual item-carrier stream notice has a producer already in its inclusive item prefix.
 Witness: started batches copy all supplied items in order; matching payloads locate the
 producer, and normalization/concatenation retain that same ordered inventory throughout.
-Generated-key uniqueness, output admission, and additional source assumptions are unnecessary.
+Generated-ref uniqueness, output admission, and additional source assumptions are unnecessary.
 -/
 theorem createWorkQueue_runNormalized_itemStreamReleasePublications
     {work : Execution.Work} {batches : List (List GraphEvent)}

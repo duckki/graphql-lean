@@ -1,7 +1,7 @@
 import Proofs.GraphQL.IncrementalDelivery.Semantics.MixedDeferContinuity
 
 /-! Arbitrary mixed execution retains deferred dependency continuity.
-The same ghost assignment witnesses bounded coherent keys and scoped reuse/ancestry.
+The same ghost assignment witnesses bounded coherent refs and scoped reuse/ancestry.
 Stream-item work restarts defer context and is checked independently.
 -/
 
@@ -9,7 +9,7 @@ namespace GraphQL.IncrementalDelivery.Semantics.GeneralScheduling
 
 open GraphQL.IncrementalDelivery.Execution
 open Ancestry
-open MixedKeys
+open MixedRefs
 
 attribute [local simp] id_pure_eq id_bind_eq id_map_eq run_bind run_map
 
@@ -230,7 +230,7 @@ mutual
                 · exact continuityOutput_empty parents lower state usages hv
                 · obtain ⟨hsc, middle, he, hmv, hmap, hfields⟩ := collectSubfields_ancestry schema variables runtimeType
                     (.object runtimeType ref) fields parents state deferMap path hv hm hk
-                  have hkc := collectSubfields_keys schema variables runtimeType (.object runtimeType ref) fields state
+                  have hkc := collectSubfields_refs schema variables runtimeType (.object runtimeType ref) fields state
                     (fun field hf => optionalUsageAt_before hv (hk field hf))
                   have hlow := mapLower_new lower state deferMap _ path hl hls (fun u hu => (hkc.2.2 u hu).1)
                   have hn := collectSubfields_nonempty schema variables runtimeType (.object runtimeType ref) fields state
@@ -304,12 +304,12 @@ mutual
             (Nat.le_refl _) hav (by intro f hf; obtain ⟨old, _, rfl⟩ := List.mem_map.mp hf; rfl)
           have hea := allocate_extends middle middleState []
           have heall := hea.trans het (Nat.le_succ middleState)
-          simp only [freshExecutionKey, run_bind, StateT.run_get, StateT.run_set, StateT.run_pure, id_pure_eq]
+          simp only [freshNodeRef, run_bind, StateT.run_get, StateT.run_set, StateT.run_pure, id_pure_eq]
           refine ⟨by dsimp only [middleState] at *; omega, final, he.trans heall hle, hfv, ?_⟩
           apply continuous_append (continuous_catchNull final lower _ usages _ _
             (hw.extend heall (by dsimp only [middleState] at *; omega)))
           apply continuous_stream final lower _ usages _ _ (Nat.le_trans hls hle)
-            (by dsimp only [middleState] at *; omega)
+            (Nat.lt_of_lt_of_le (Nat.lt_succ_self middleState) hlt)
           exact fun item hi => ⟨(hitems item hi).1, (hitems item hi).2.1⟩
   termination_by (fuel, 3, 0, 0)
   decreasing_by
@@ -372,11 +372,11 @@ mutual
     | cons value rest =>
         obtain ⟨hle, middle, he, hmv, hw⟩ := completeValue_continuity schema resolvers variables fuel itemType fields value
           (path ++ [.index index]) [] [] false parents lower state hls hv
-          (by simp [MapAt]) (by simp [MapLower, mapKeys]) (by intro f hf; simp [OptionalUsageAt, hk f hf])
+          (by simp [MapAt]) (by simp [MapLower, mapRefs]) (by intro f hf; simp [OptionalUsageAt, hk f hf])
           (fun _ _ => Or.inl rfl)
         simp only [completeStreamItems, run_bind]
         split
-        · exact ⟨hle, middle, he, hmv, by simp [ContinuousWork, MixedKeys.WorkAt, DeferContinuous, DeferScoped]⟩
+        · exact ⟨hle, middle, he, hmv, by simp [ContinuousWork, MixedRefs.WorkAt, DeferContinuous, DeferScoped]⟩
         · obtain ⟨hlt, final, het, hfv, htail⟩ := completeStreamItems_continuity schema resolvers variables fuel itemType fields rest
             path (index + 1) middle lower _ (Nat.le_trans hls hle) hmv hk
           simp only [run_bind, StateT.run_pure, id_pure_eq]
@@ -402,12 +402,12 @@ theorem executeRoot_continuity (schema : Schema) (resolvers : Resolvers ObjectRe
       state ≤ output.2
       ∧ ∃ parents,
           Valid parents output.2
-          ∧ MixedKeys.WorkAt parents state output.2 output.1.work
+          ∧ MixedRefs.WorkAt parents state output.2 output.1.work
           ∧ DeferContinuous parents output.1.work := by
   obtain ⟨hsc, middle, _, hmv, hm, hk⟩ := collectFields_ancestry schema variables parentType source selections none
     (fun _ => []) state [] [] (by simp [Valid]) (by simp [MapAt]) (by simp [OptionalUsageAt])
-  have hkc := collectFields_keys schema variables parentType source selections none state (by simp [UsageBefore])
-  have hl := mapLower_new state state [] _ [] (by simp [MapLower, mapKeys]) (Nat.le_refl _)
+  have hkc := collectFields_refs schema variables parentType source selections none state (by simp [UsageBefore])
+  have hl := mapLower_new state state [] _ [] (by simp [MapLower, mapRefs]) (Nat.le_refl _)
     (fun u hu => (hkc.2.2 u hu).1)
   obtain ⟨hle, parents, _, hv, hw⟩ := executePlan_continuity schema resolvers variables fuel parentType source
     _ [] [] [] middle state _ hsc hmv hm hl hk

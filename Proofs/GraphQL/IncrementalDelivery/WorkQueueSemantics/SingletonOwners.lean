@@ -16,38 +16,38 @@ Witness: preserve the historical cut and invert its snapshot cancellation rule;
 producer cases contradict the task's unique root descriptor.
 -/
 theorem TaskCancelled.singleton_root_failed
-    {work matching events failures occurrence key payload}
+    {work matching events failures occurrence ref payload}
     (cancelled : TaskCancelled work matching events failures occurrence)
-    (known : TaskAt work occurrence [key] none payload)
-    : NodeFailed work matching events failures key := by
+    (known : TaskAt work occurrence [ref] none payload)
+    : NodeFailed work matching events failures ref := by
   obtain ⟨cut, member, reached, cancelled⟩ := cancelled
   refine ⟨cut, member, reached, ?_⟩
   cases cancelled with
   | owners projected _ nonempty failedOwners =>
       obtain ⟨producer, result, task⟩ := projected
       have same := (TaskAt.unique task known).1
-      exact failedOwners key (by simp [same])
+      exact failedOwners ref (by simp [same])
   | producerFailed projected _ failure | producerCancelled projected _ cancelled =>
       obtain ⟨owners, result, task⟩ := projected
       have impossible := (TaskAt.unique task known).2.1
       cases impossible
 
-/-- A published singleton-owned task has announced its sole owner's key. Witness: the
+/-- A published singleton-owned task has announced its sole owner's ref. Witness: the
 value event chooses an open contributing owner; uniqueness of the task's owner list
-identifies that key, and prefix announcements remain present in the full history.
+identifies that ref, and prefix announcements remain present in the full history.
 -/
 theorem Explains.singleton_published_announced
-    {work groups streams events matching failures occurrence key producer payload}
+    {work groups streams events matching failures occurrence ref producer payload}
     (explained : Explains work groups streams events matching failures)
-    (known : TaskAt work occurrence [key] producer payload)
+    (known : TaskAt work occurrence [ref] producer payload)
     (published : Published matching events occurrence)
-    : key ∈ announcedKeys ((groups ++ streams).map DeliveryNode.key) events := by
+    : ref ∈ announcedRefs ((groups ++ streams).map DeliveryNode.ref) events := by
   obtain ⟨index, event, selected, value, same⟩ := published
   have bound := (List.getElem?_eq_some_iff.mp selected).1
   have length : (events.take index).length = index := by
     simp [List.length_take, Nat.min_eq_left (Nat.le_of_lt bound)]
   have allowed := explained.2.2 index event selected
-  have before : key ∈ announcedKeys ((groups ++ streams).map DeliveryNode.key)
+  have before : ref ∈ announcedRefs ((groups ++ streams).map DeliveryNode.ref)
       (events.take index) := by
     cases event <;> simp only [IsValue] at value
     all_goals try contradiction
@@ -55,16 +55,16 @@ theorem Explains.singleton_published_announced
       simp only [EventAllowed, length, same] at allowed
       obtain ⟨owners, producer, ⟨path, data, errors, deliveryGroups⟩, _, task, _, chosen⟩ := allowed
       have ownersSame := (TaskAt.unique task known).1
-      have keySame : owner.key = key := by
+      have refSame : owner.ref = ref := by
         simpa only [ownersSame, List.mem_singleton] using chosen.1.2.1
-      exact keySame ▸ chosen.1.2.2.1
+      exact refSame ▸ chosen.1.2.2.1
     case streamValues owner values newGroups newStreams =>
       simp only [EventAllowed, length, same] at allowed
       obtain ⟨owners, producer, ⟨item, errors⟩, _, task, _, chosen, _⟩ := allowed
       have ownersSame := (TaskAt.unique task known).1
-      have keySame : owner.key = key := by
+      have refSame : owner.ref = ref := by
         simpa only [ownersSame, List.mem_singleton] using chosen.1.2.1
-      exact keySame ▸ chosen.1.2.2.1
+      exact refSame ▸ chosen.1.2.2.1
   rcases List.mem_append.mp before with initial | pending
   · exact List.mem_append_left _ initial
   · apply List.mem_append_right
@@ -79,12 +79,12 @@ theorem Explains.singleton_published_announced
 Witness: cancellation would fail the owner, so accounting must be a licensed publication.
 -/
 theorem Explains.singleton_accounted_announced
-    {work groups streams events matching failures occurrence key payload}
+    {work groups streams events matching failures occurrence ref payload}
     (explained : Explains work groups streams events matching failures)
-    (known : TaskAt work occurrence [key] none payload)
-    (healthy : ¬NodeFailed work matching events failures key)
+    (known : TaskAt work occurrence [ref] none payload)
+    (healthy : ¬NodeFailed work matching events failures ref)
     (accounted : TaskAccounted work matching events failures occurrence)
-    : key ∈ announcedKeys ((groups ++ streams).map DeliveryNode.key) events := by
+    : ref ∈ announcedRefs ((groups ++ streams).map DeliveryNode.ref) events := by
   rcases accounted with cancelled | published
   · exact False.elim (healthy (cancelled.singleton_root_failed known))
   · exact explained.singleton_published_announced known published
@@ -95,21 +95,21 @@ announcement theorem excludes the unannounced-accounted alternative. This reduct
 not valid for general shared-owner work.
 -/
 theorem Explains.singleton_dependency_iff_completed
-    {work groups streams events matching failures occurrence key payload}
+    {work groups streams events matching failures occurrence ref payload}
     (explained : Explains work groups streams events matching failures)
-    (known : TaskAt work occurrence [key] none payload)
-    (healthy : ¬NodeFailed work matching events failures key)
-    : DependencySatisfied work ((groups ++ streams).map DeliveryNode.key) matching events
-        failures key
-      ↔ key ∈ completedKeys events := by
+    (known : TaskAt work occurrence [ref] none payload)
+    (healthy : ¬NodeFailed work matching events failures ref)
+    : DependencySatisfied work ((groups ++ streams).map DeliveryNode.ref) matching events
+        failures ref
+      ↔ ref ∈ completedRefs events := by
   constructor
   · rintro ⟨_, absent | completed | ⟨unannounced, accounted⟩⟩
     · obtain ⟨node, kind, dependencies, birth, descriptor, same⟩ :=
-        known.owner_known (by simp : key ∈ [key])
+        known.owner_known (by simp : ref ∈ [ref])
       exact False.elim (absent ⟨birth, node, kind, dependencies, descriptor, same⟩)
     · exact completed
     · exact False.elim (unannounced (explained.singleton_accounted_announced known healthy
-        (accounted occurrence [key] ⟨none, payload, known⟩ (by simp))))
+        (accounted occurrence [ref] ⟨none, payload, known⟩ (by simp))))
   · exact fun completed => ⟨healthy, Or.inr (Or.inl completed)⟩
 
 end GraphQL.IncrementalDelivery.WorkQueueSemantics

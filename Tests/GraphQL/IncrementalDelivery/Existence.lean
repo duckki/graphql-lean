@@ -34,7 +34,7 @@ example (schema : Schema) (resolvers : Resolvers ObjectRef) (variables : Variabl
     (operation.rootType schema) source operation.selectionSet
 
 /-- An outer defer can be only an ancestor placeholder, with no actual contributing
-task. Witness: the minimum actual node ignores absent dependency keys.
+task. Witness: the minimum actual node ignores absent dependency refs.
 -/
 def skippedAncestor : List Selection := [defer [defer [field "a"]]]
 

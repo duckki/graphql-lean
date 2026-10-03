@@ -17,7 +17,7 @@ earlier exact buffer through preparation; the current input installs its own val
 unchanged structural owners. Every retained branch includes a genuinely live contributor.
 -/
 theorem ExecutedWork.taskSuccess_noticeAncestor_prepared_or_published
-    {work before occurrence result output child dependencies key address owners producer
+    {work before occurrence result output child dependencies ref address owners producer
       payload published incoming}
     (generated : ExecutedWork work)
     (valid : ValidGraphEvents work (before ++ [.taskSuccess occurrence result]))
@@ -33,10 +33,10 @@ theorem ExecutedWork.taskSuccess_noticeAncestor_prepared_or_published
         ∈ (((State.initialize (Work.fromExecution work)).replayGraphEvents
               before).taskSuccess
             occurrence result).2)
-    (noticed : child.key ∈ rawGroupNoticeKeys output)
-    (known : GroupRecordAt work child dependencies) (ancestor : key ∈ dependencies)
+    (noticed : child.ref ∈ rawGroupNoticeRefs output)
+    (known : GroupRecordAt work child dependencies) (ancestor : ref ∈ dependencies)
     (task : TaskAt work (.executionGroup address) owners producer payload)
-    (contributes : key ∈ owners)
+    (contributes : ref ∈ owners)
     : let queue := (State.initialize (Work.fromExecution work)).replayGraphEvents before
       let prepared :=
         ((queue.putTaskNode
@@ -53,9 +53,9 @@ theorem ExecutedWork.taskSuccess_noticeAncestor_prepared_or_published
               prepared.taskNode? (.executionGroup address) = some node
               ∧ node.value = some value
               ∧ TaskHasOwners work (.executionGroup address)
-                  (node.task.groups.map Execution.DeliveryNode.key)
-              ∧ key ∈ node.task.groups.map Execution.DeliveryNode.key
-              ∧ key ∈ prepared.groupNodes.map (fun owner => owner.group.node.key) := by
+                  (node.task.groups.map Execution.DeliveryNode.ref)
+              ∧ ref ∈ node.task.groups.map Execution.DeliveryNode.ref
+              ∧ ref ∈ prepared.groupNodes.map (fun owner => owner.group.node.ref) := by
   intro queue prepared found
   obtain ⟨sourceResult, current | ⟨succeeded, priorOutput | buffered⟩⟩ :=
     generated.noticeAncestor_contributor_published_buffered_or_current valid started covered
@@ -75,15 +75,15 @@ theorem ExecutedWork.taskSuccess_noticeAncestor_prepared_or_published
     obtain ⟨_, nodePayload, nodeProducer, _, descriptor⟩ :=
       (accounted.matching incoming.task (accounted.started incoming member.1)).1
     have taskOwners : TaskHasOwners work (.executionGroup address)
-        (incoming.task.groups.map Execution.DeliveryNode.key) :=
+        (incoming.task.groups.map Execution.DeliveryNode.ref) :=
       ⟨nodeProducer, nodePayload, member.2 ▸ descriptor⟩
     obtain ⟨node, installed, sameTask, stored⟩ := State.taskSuccess_prepared_value found
       result
     exact ⟨result.value, .inr ⟨node, installed, stored, sameTask.symm ▸ taskOwners,
       sameTask.symm ▸ nodeContributes,
-      State.maybeIntegrateWork_includesKeys (queue.putTaskNode
+      State.maybeIntegrateWork_includesRefs (queue.putTaskNode
         { incoming with value := some result.value }) result.work
-          (some (.executionGroup address)) key present⟩⟩
+          (some (.executionGroup address)) ref present⟩⟩
   · exact ⟨sourceResult.value, .inl priorOutput⟩
   · obtain ⟨node, lookup, stored, taskOwners, nodeContributes, present⟩ := buffered
     have fresh := (valid.atPrefix (before := before)
@@ -100,9 +100,9 @@ theorem ExecutedWork.taskSuccess_noticeAncestor_prepared_or_published
     exact ⟨sourceResult.value, .inr ⟨node,
       State.maybeIntegrateWork_lookup_other retained result.work (some occurrence)
         (fun same => different (Option.some.inj same)), stored, taskOwners, nodeContributes,
-      State.maybeIntegrateWork_includesKeys (queue.putTaskNode
+      State.maybeIntegrateWork_includesRefs (queue.putTaskNode
         { incoming with value := some result.value }) result.work (some occurrence)
-          key present⟩⟩
+          ref present⟩⟩
 
 -----------------------------------------------------------------------------------------
 -- Both owner-fold and drain carriers consume their ancestors on the same handler ledger
@@ -114,13 +114,13 @@ prefix conservation theorem. Endpoint noncancellation propagates to the earlier 
 -/
 theorem ExecutedWork.taskSuccess_noticeAncestor_bufferBefore
     {work before occurrence result incoming published}
-    {index group groups streams child dependencies key buffered node value}
+    {index group groups streams child dependencies ref buffered node value}
     (generated : ExecutedWork work)
     (matching : ∀ event ∈ before, event.MatchesWork work)
     (matched : (GraphEvent.taskSuccess occurrence result).MatchesWork work)
-    (known : GroupRecordAt work child dependencies) (ancestor : key ∈ dependencies)
-    (task : TaskHasOwners work buffered (node.task.groups.map Execution.DeliveryNode.key))
-    (contributes : key ∈ node.task.groups.map Execution.DeliveryNode.key)
+    (known : GroupRecordAt work child dependencies) (ancestor : ref ∈ dependencies)
+    (task : TaskHasOwners work buffered (node.task.groups.map Execution.DeliveryNode.ref))
+    (contributes : ref ∈ node.task.groups.map Execution.DeliveryNode.ref)
     (stored : node.value = some value)
     : let queue := (State.initialize (Work.fromExecution work)).replayGraphEvents before
       let prepared :=
@@ -131,11 +131,11 @@ theorem ExecutedWork.taskSuccess_noticeAncestor_bufferBefore
       → queue.taskNode? occurrence = some incoming
       → queue.taskHasHealthyOwner incoming.task = true
       → prepared.taskNode? buffered = some node
-      → key ∈ prepared.groupNodes.map (fun owner => owner.group.node.key)
+      → ref ∈ prepared.groupNodes.map (fun owner => owner.group.node.ref)
       → (queue.taskSuccess occurrence result).2[index]?
         = some (.groupSuccess group groups streams)
       → child ∈ groups
-      → key ∉ (queue.taskSuccess occurrence result).1.cancelledGroups
+      → ref ∉ (queue.taskSuccess occurrence result).1.cancelledGroups
       → (buffered, value)
         ∈ published.take
             (((queue.taskSuccess occurrence result).2.take index).flatMap
@@ -155,7 +155,7 @@ theorem ExecutedWork.taskSuccess_noticeAncestor_bufferBefore
     rw [List.take_append_of_le_length (Nat.le_of_lt inFold)]
     obtain ⟨parents, canonical, records, links, live, tasks, roots, _⟩ :=
       generated.replayGraphEvents_preparedRetirement before matching matched incoming
-    have preparedUncancelled : key ∉ prepared.cancelledGroups := by
+    have preparedUncancelled : ref ∉ prepared.cancelledGroups := by
       intro member
       apply uncancelled
       apply State.drainReadyGroups_go_cancelledGroups_subset
@@ -182,7 +182,7 @@ replay ledger then supplies the exact owner-fold/drain prefix; no second matchin
 -/
 theorem ExecutedWork.taskSuccess_noticeAncestor_contributor_before
     {work before occurrence result published index group groups streams child dependencies
-      key address owners producer payload}
+      ref address owners producer payload}
     (generated : ExecutedWork work)
     (valid : ValidGraphEvents work (before ++ [.taskSuccess occurrence result]))
     (started
@@ -198,9 +198,9 @@ theorem ExecutedWork.taskSuccess_noticeAncestor_contributor_before
           occurrence result).2[index]?
         = some (.groupSuccess group groups streams))
     (noticed : child ∈ groups) (known : GroupRecordAt work child dependencies)
-    (ancestor : key ∈ dependencies)
+    (ancestor : ref ∈ dependencies)
     (task : TaskAt work (.executionGroup address) owners producer payload)
-    (contributes : key ∈ owners)
+    (contributes : ref ∈ owners)
     : ∃ value,
         (Occurrence.executionGroup address, value)
         ∈ published.take
@@ -216,7 +216,7 @@ theorem ExecutedWork.taskSuccess_noticeAncestor_contributor_before
   let queue := initial.replayGraphEvents before
   change (queue.taskSuccess occurrence result).2[index]?
     = some (.groupSuccess group groups streams) at selected
-  have keyNoticed : child.key ∈ rawGroupNoticeKeys (.groupSuccess group groups streams) :=
+  have refNoticed : child.ref ∈ rawGroupNoticeRefs (.groupSuccess group groups streams) :=
     List.mem_map_of_mem noticed
   have emitted := List.mem_of_getElem? selected
   cases found : queue.taskNode? occurrence with
@@ -229,10 +229,10 @@ theorem ExecutedWork.taskSuccess_noticeAncestor_contributor_before
       | true =>
           obtain ⟨value, prior | ⟨node, lookup, stored, taskOwners, nodeContributes, present⟩⟩ :=
             generated.taskSuccess_noticeAncestor_prepared_or_published valid started covered
-              emitted keyNoticed known ancestor task contributes found
+              emitted refNoticed known ancestor task contributes found
           · exact ⟨value, List.take_subset_take_left _ (Nat.le_add_right ..) prior⟩
           · have notCancelled := (generated.noticeAncestor_healthy_uncancelled valid
-              (State.acceptsBatch_prefix started) emitted keyNoticed known ancestor).2
+              (State.acceptsBatch_prefix started) emitted refNoticed known ancestor).2
             have endpoint : initial.replayGraphEvents
                 (before ++ [.taskSuccess occurrence result])
                 = (queue.taskSuccess occurrence result).1 := by

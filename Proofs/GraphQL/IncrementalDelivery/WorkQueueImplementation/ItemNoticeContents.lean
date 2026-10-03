@@ -86,11 +86,11 @@ theorem State.streamItems_noticeGroups (queue : State) (stream : Execution.Deliv
     (selected
       : (queue.streamItems stream items).2[index]?
         = some (.streamValues emitted values groups streams))
-    : queue.rootStreams.contains stream.key = true
+    : queue.rootStreams.contains stream.ref = true
       ∧ index = 0
       ∧ groups = (items.foldl streamItemStep (queue, [], [], [])).2.1 := by
   rw [queue.streamItems_eq stream items] at selected
-  cases active : queue.rootStreams.contains stream.key with
+  cases active : queue.rootStreams.contains stream.ref with
   | false =>
       simp only [active, Bool.not_false, ↓reduceIte, List.getElem?_nil,
         reduceCtorEq] at selected
@@ -124,7 +124,7 @@ theorem ExecutedWork.streamItems_leadingNoticeContents
           ∧ let boundary := (current.preparedStreamItems earlier).integrateStreamItem item
             (∃ dependencies producer, NodeAt work child .group dependencies producer)
             ∧ ∃ node,
-                boundary.groupNode? child.key = some node
+                boundary.groupNode? child.ref = some node
                 ∧ node.group.node = child
                 ∧ (node.tasks ≠ [] ∨ node.failure.isSome = true)
                 ∧ ∀ publication ∈
@@ -146,10 +146,10 @@ theorem ExecutedWork.streamItems_leadingNoticeContents
       (before ++ GraphEvent.streamItems stream items :: after) from ⟨after, by simp⟩)
   have partialMatching : (GraphEvent.streamItems stream earlier).MatchesWork work :=
     fun entry member => matching entry (included member)
-  obtain ⟨keys, records, support⟩ := generated.streamItems_prepared_noticeMetadata
+  obtain ⟨refs, records, support⟩ := generated.streamItems_prepared_noticeMetadata
     (fun _ member => prior.eachMatches member) partialMatching
   obtain ⟨located, node, found, same, contents⟩ :=
-    State.integrateStreamItem_noticeContents generated keys records support matching
+    State.integrateStreamItem_noticeContents generated refs records support matching
       itemMember introduced
   refine ⟨earlier, item, later, splitItems, located, node, found, same, contents, ?_⟩
   intro publication member

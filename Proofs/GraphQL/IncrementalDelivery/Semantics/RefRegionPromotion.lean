@@ -1,10 +1,10 @@
-import Proofs.GraphQL.IncrementalDelivery.Semantics.KeyRegions
+import Proofs.GraphQL.IncrementalDelivery.Semantics.RefRegions
 
 /-! Revealing one streamed item promotes its region into the registered region.
 Discarding cancelled work can only narrow that region or remove hidden regions.
 -/
 
-namespace GraphQL.IncrementalDelivery.Semantics.KeyRegions
+namespace GraphQL.IncrementalDelivery.Semantics.RefRegions
 
 theorem promote_region {root region : List Nat} {before after : List (List Nat)}
     (h : (root :: (before ++ region :: after)).Pairwise Disjoint)
@@ -31,4 +31,4 @@ theorem separated_narrow {root nextRoot : List Nat}
     ⟨fun region hm => (hs.1 region (hh.subset hm)).mono hr (List.Subset.refl _),
       hs.2.sublist hh⟩
 
-end GraphQL.IncrementalDelivery.Semantics.KeyRegions
+end GraphQL.IncrementalDelivery.Semantics.RefRegions

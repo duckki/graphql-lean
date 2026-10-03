@@ -19,18 +19,18 @@ def ObjectStreamBoundariesSafe (work : Execution.Work) (inputs : List (List Grap
   ∀ index event stream dependencies source closing,
     w.events[index]? = some event
     → NodeAt work stream .stream dependencies (some (.executionGroup source))
-    → streamAction event = some (stream.key, closing)
+    → streamAction event = some (stream.ref, closing)
     → (∀ node errors, event ≠ .streamFailure node errors)
     → ∃ before input after,
         inputs.flatten = before ++ input :: after
-        ∧ input.streamAction = some (stream.key, closing)
+        ∧ input.streamAction = some (stream.ref, closing)
         ∧ ((∀ address ordinal,
               Occurrence.item address ordinal ∈ before.flatMap GraphEvent.successes
               → ¬TaskCancelled work w.matching (w.events.take index) w.failures
                   (.item address ordinal))
             → ¬TaskCancelled work w.matching (w.events.take index) w.failures
                 (.executionGroup source)
-              ∧ ¬NodeFailed work w.matching (w.events.take index) w.failures stream.key)
+              ∧ ¬NodeFailed work w.matching (w.events.take index) w.failures stream.ref)
 
 /-- One actual witness has batching, announced failures, item-lineage safety, and the
 object-stream boundary bridge. Witness: retain the original construction's cut partitions,

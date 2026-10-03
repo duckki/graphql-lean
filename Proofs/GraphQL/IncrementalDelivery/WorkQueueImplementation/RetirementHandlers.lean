@@ -19,7 +19,7 @@ theorem State.HealthyRetiredAncestors.taskFailure {queue : State} {work failed p
     (links : queue.ChildLinksCanonical parents) (groups : queue.GroupNodesMatchWork work)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (registered : queue.StartedTasksRegistered)
     (matching : queue.RegisteredTasksMatch work) (occurrence : Occurrence) (errors : Nat)
     (recorded : occurrence ∈ failed)
@@ -35,10 +35,10 @@ theorem State.HealthyRetiredAncestors.taskFailure {queue : State} {work failed p
           (by simpa [State.taskNode?] using found)
         exact (occurrence_beq_iff_eq _ _).mp selected
       let step (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode) :=
-        match acc.1.groupNode? group.key with
+        match acc.1.groupNode? group.ref with
         | none => acc
         | some node =>
-            if acc.1.rootGroups.contains group.key then
+            if acc.1.rootGroups.contains group.ref then
               let (next, failure) := acc.1.finishGroupFailure node errors
               (next, acc.2 ++ [failure])
             else (acc.1.putGroupNode
@@ -54,7 +54,7 @@ theorem State.HealthyRetiredAncestors.taskFailure {queue : State} {work failed p
         | nil => exact valid
         | cons group rest ih =>
             apply ih (fun _ member => included (List.mem_cons_of_mem _ member))
-            have invalid : GroupInvalidated work failed group.key :=
+            have invalid : GroupInvalidated work failed group.ref :=
               .task ⟨producer, payload, known⟩
                 (List.mem_map_of_mem (included List.mem_cons_self)) (same.symm ▸ recorded)
             unfold step
@@ -62,10 +62,10 @@ theorem State.HealthyRetiredAncestors.taskFailure {queue : State} {work failed p
             · exact valid
             · rename_i node selected
               split
-              · have keyEq := State.groupNode?_key selected
+              · have refEq := State.groupNode?_ref selected
                 exact ⟨valid.1.removeGroup _, valid.2.1.removeGroup _,
                   valid.2.2.removeGroup valid.1 valid.2.1 canonical _
-                    (keyEq.symm ▸ invalid.toRecordInvalidated)⟩
+                    (refEq.symm ▸ invalid.toRecordInvalidated)⟩
               · have member := List.mem_of_find?_eq_some selected
                 exact ⟨valid.1.putGroupNode _ (valid.1 node member),
                   valid.2.1.putGroupNode _ (valid.2.1 node member),
@@ -95,7 +95,7 @@ theorem State.RootAncestorsRetired.taskFailure {queue : State} {work}
 This bundle abbreviates independently proved bookkeeping facts; it adds no queue state.
 -/
 private structure RetirementMetadata (queue : State) (work : Execution.Work)
-    (parents : Nat → Keys) (failed : List Occurrence)
+    (parents : Nat → NodeRefs) (failed : List Occurrence)
     : Prop where
   groups : queue.GroupNodesMatchWork work
   links : queue.ChildLinksCanonical parents
@@ -155,7 +155,7 @@ private theorem RetirementMetadata.contributors
   | cons group rest ih => exact ih (prior.contributor group)
 
 /-- Task success preserves both retired-ancestor certificates through its complete handler.
-Witness: integration introduces no healthy retired key, the contributor fold protects roots,
+Witness: integration introduces no healthy retired ref, the contributor fold protects roots,
 and supported caches justify the final recursive drain. No root-health or child-owner
 availability premise is needed for this retirement step.
 -/
@@ -167,7 +167,7 @@ theorem State.taskSuccess_retirement {queue : State} {work failed parents}
     (links : queue.ChildLinksCanonical parents)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (registered : queue.LiveGroupsRegistered) (tasks : queue.TaskGroupsRegistered)
     (supported : queue.CachedFailuresSupported work failed)
     (cancelled : queue.CancelledRecordsSupported work failed)
@@ -238,7 +238,7 @@ private theorem RetirementMetadata.item {queue : State} {work parents failed str
     (prior : RetirementMetadata queue work parents failed)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (matching : (GraphEvent.streamItems stream items).MatchesWork work)
     {item : StreamItem} (member : item ∈ items)
     : RetirementMetadata (queue.integrateStreamItem item) work parents failed := by
@@ -285,12 +285,12 @@ No stream-availability or active-root health assumption is used.
 theorem State.streamItems_retirement {queue : State} {work failed parents}
     (roots : queue.RootAncestorsRetired work)
     (retirement : queue.HealthyRetiredAncestors work failed)
-    (unique : queue.GroupKeysUnique) (generated : ExecutedWork work)
+    (unique : queue.GroupRefsUnique) (generated : ExecutedWork work)
     (matching : queue.GroupNodesMatchWork work)
     (links : queue.ChildLinksCanonical parents)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (registered : queue.LiveGroupsRegistered) (tasks : queue.TaskGroupsRegistered)
     (supported : queue.CachedFailuresSupported work failed)
     (cancelled : queue.CancelledRecordsSupported work failed)
@@ -304,7 +304,7 @@ theorem State.streamItems_retirement {queue : State} {work failed parents}
     let (pruned, nonempty) := integrated.pruneEmptyGroups newWork.newGroups
     (pruned.startNewWork { newWork with newGroups := nonempty },
       groups ++ nonempty, streams ++ newWork.newStreams, values ++ [item.value])
-  let invariant (current : State) := current.GroupKeysUnique
+  let invariant (current : State) := current.GroupRefsUnique
     ∧ current.RootAncestorsRetired work ∧ current.HealthyRetiredAncestors work failed
     ∧ RetirementMetadata current work parents failed
   have loop (more : List StreamItem) (included : more.Subset items)
@@ -315,7 +315,7 @@ theorem State.streamItems_retirement {queue : State} {work failed parents}
     | nil => exact prior
     | cons item rest ih =>
         have member := included (List.mem_cons_self : item ∈ item :: rest)
-        have nextKeys := ((prior.1.maybeIntegrateWork item.work).pruneEmptyGroups
+        have nextRefs := ((prior.1.maybeIntegrateWork item.work).pruneEmptyGroups
           (acc.1.maybeIntegrateWork item.work).2.newGroups).startNewWork
           { (acc.1.maybeIntegrateWork item.work).2 with newGroups :=
             ((acc.1.maybeIntegrateWork item.work).1.pruneEmptyGroups
@@ -341,8 +341,8 @@ theorem State.streamItems_retirement {queue : State} {work failed parents}
         have oldRoots : pruned.1.RootAncestorsRetired work :=
           prior.2.1.mono
             (by
-              intro key active
-              change key ∈ (integrated.1.pruneEmptyGroups integrated.2.newGroups).1.rootGroups
+              intro ref active
+              change ref ∈ (integrated.1.pruneEmptyGroups integrated.2.newGroups).1.rootGroups
                 at active
               rw [State.pruneEmptyGroups_rootGroups, State.maybeIntegrateWork_rootGroups]
                 at active
@@ -350,7 +350,7 @@ theorem State.streamItems_retirement {queue : State} {work failed parents}
             (fun _ retired =>
               (retired.maybeIntegrateWork item.work).pruneEmptyGroups integrated.2.newGroups)
         exact ih (fun _ later => included (List.mem_cons_of_mem _ later)) (step acc item)
-          ⟨nextKeys, oldRoots.startNewWork released certificates.1,
+          ⟨nextRefs, oldRoots.startNewWork released certificates.1,
             (certificates.2 prior.2.2.1).startNewWork released,
             prior.2.2.2.item canonical eventMatches member⟩
   unfold State.streamItems

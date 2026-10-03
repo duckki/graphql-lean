@@ -52,7 +52,7 @@ theorem collected_append {first middle : Assignment} {start mid finish : Nat}
   · simp only [FieldCollection.append, getNewDeferMap_append]
     apply groupsSatisfy_merge _ _ _ _ hnf
     intro group hg field hfield
-    exact (hf group hg field hfield).extend hn hmf (getNewDeferMap_keeps_keys _ _ _)
+    exact (hf group hg field hfield).extend hn hmf (getNewDeferMap_keeps_refs _ _ _)
 
 mutual
   /-- One selection preserves exact ancestry chains. Witness: structural recursion;
@@ -85,8 +85,8 @@ mutual
                   using collectFields_chains schema variables parentType source children
                     usage parents state deferMap path hv hm hu
             | some label =>
-                let ancestors := (usage.map (fun parent => parent.key :: parent.ancestors)).getD []
-                let fresh : DeferUsage := { key := state, label, ancestors }
+                let ancestors := (usage.map (fun parent => parent.ref :: parent.ancestors)).getD []
+                let fresh : DeferUsage := { ref := state, label, ancestors }
                 let next := allocate parents state ancestors
                 let nextMap := getNewDeferMap [fresh] path deferMap
                 have hn := mapAt_allocate parents state path deferMap usage label hm hu
@@ -96,7 +96,7 @@ mutual
                   next (state + 1) nextMap path hnv hn.1 (by intro u hu; cases hu; exact hn.2)
                 obtain ⟨hle, final, he, hfinal, hmap, hfields⟩ := hc
                 simp only [collectSelection, ha, Bool.not_true, Bool.false_eq_true, ↓reduceIte,
-                  ht, hd, freshExecutionKey, run_bind, StateT.run_pure, id_pure_eq,
+                  ht, hd, freshNodeRef, run_bind, StateT.run_pure, id_pure_eq,
                   StateT.run_get, StateT.run_set]
                 refine ⟨Nat.le_trans (Nat.le_succ state) hle, final,
                   (allocate_extends parents state ancestors).trans he (Nat.le_succ state),
@@ -125,7 +125,7 @@ mutual
           source selection usage parents state deferMap path hv hm hu
         have ht := collectFields_chains schema variables parentType source rest usage next
           ((collectSelection schema variables parentType source usage selection).run state).2
-          _ path hnv hnm (hu.extend he hle (getNewDeferMap_keeps_keys _ _ _))
+          _ path hnv hnm (hu.extend he hle (getNewDeferMap_keeps_refs _ _ _))
         simp only [collectFields, run_bind, StateT.run_pure, id_pure_eq]
         exact collected_append hle he hnv hnm hnf ht
   termination_by sizeOf selections
@@ -147,7 +147,7 @@ theorem collectSubfields_chains (schema : Schema) (variables : VariableValues)
       obtain ⟨hle, next, he, hnv, hnm, hnf⟩ := collectFields_chains schema variables parentType
         source field.selectionSet field.deferUsage parents state deferMap path hv hm (hu field (by simp))
       have ht := ih next _ _ hnv hnm (fun f hf =>
-        (hu f (List.mem_cons_of_mem field hf)).extend he hle (getNewDeferMap_keeps_keys _ _ _))
+        (hu f (List.mem_cons_of_mem field hf)).extend he hle (getNewDeferMap_keeps_refs _ _ _))
       simp only [collectSubfields, run_bind, StateT.run_pure, id_pure_eq]
       exact collected_append hle he hnv hnm hnf ht
 

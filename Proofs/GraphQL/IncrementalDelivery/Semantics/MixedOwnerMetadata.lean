@@ -103,12 +103,12 @@ theorem workAt_nonNull (paths : Assignment) (bound : Nat)
   split <;> simp [Completion.error, WorkAt, h]
 
 theorem assigned_fresh (paths : Assignment) (state : Nat) (node : DeliveryNode)
-    (hk : node.key = state)
-    : let next := fun key => if key = state then node.path else paths key
+    (hk : node.ref = state)
+    : let next := fun ref => if ref = state then node.path else paths ref
       Extends state paths next ∧ Assigned next (state + 1) node := by
   refine ⟨?_, ?_⟩
-  · intro key hh
-    simp [show key ≠ state by omega]
+  · intro ref hh
+    simp [show ref ≠ state by omega]
   · simp [Assigned, hk]
 
 end GraphQL.IncrementalDelivery.Semantics.MixedOwnerPaths

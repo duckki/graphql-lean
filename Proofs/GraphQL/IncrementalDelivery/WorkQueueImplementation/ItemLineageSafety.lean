@@ -16,18 +16,18 @@ through item values. Other work, including deferred children and failures, is un
 inductive ItemLineage (work : Execution.Work) : Occurrence → Prop where
   | step {address ordinal stream result producer}
     (known
-      : TaskAt work (.item address ordinal) [stream.key] producer (.item stream result))
+      : TaskAt work (.item address ordinal) [stream.ref] producer (.item stream result))
     (located : NodeAt work stream .stream [] producer)
     (parents : ∀ source, producer = some source → ItemLineage work source)
     : ItemLineage work (.item address ordinal)
 
-/-- A normalized stream action references its own stream key.
+/-- A normalized stream action references its own stream ref.
 Witness: inspect the three stream constructors; other events have no stream action.
 -/
-theorem streamAction_reference {event key closing}
-    (action : streamAction event = some (key, closing))
-    : key ∈ streamReferenceKeys event := by
-  cases event <;> simp_all [streamAction, streamReferenceKeys]
+theorem streamAction_reference {event ref closing}
+    (action : streamAction event = some (ref, closing))
+    : ref ∈ streamReferenceRefs event := by
+  cases event <;> simp_all [streamAction, streamReferenceRefs]
 
 -----------------------------------------------------------------------------------------
 -- Induction follows actual successful producers and keeps all mixed failure cuts
@@ -65,7 +65,7 @@ theorem ItemLineage.published_safe_mixed
       : ∀ index event,
           events[index]? = some event
           → ∀ stream dependencies producer,
-              stream.key ∈ streamReferenceKeys event
+              stream.ref ∈ streamReferenceRefs event
               → NodeAt work stream .stream dependencies producer
               → ∀ source,
                   producer = some source → Published matching (events.take index) source)

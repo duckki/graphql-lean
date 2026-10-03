@@ -2,7 +2,7 @@ import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.GroupCarrierUn
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.ItemCarrierUniqueness
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.GroupNoticeSeparation
 
-/-! Every group-notice list in actual matching source replay has unique keys. -/
+/-! Every group-notice list in actual matching source replay has unique refs. -/
 
 namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
@@ -19,9 +19,9 @@ theorem State.taskSuccess_groupNoticesUnique {queue : State} {parents}
     (links : queue.ChildLinksCanonical parents) (children : queue.ChildGroupsUnique)
     (occurrence : Occurrence) (result : TaskResult)
     (canonical
-      : ∀ group ∈ result.work.groups, group.parent = (parents group.node.key).head?)
+      : ∀ group ∈ result.work.groups, group.parent = (parents group.node.ref).head?)
     : ∀ event ∈ (queue.taskSuccess occurrence result).2,
-        (rawGroupNoticeKeys event).Nodup := by
+        (rawGroupNoticeRefs event).Nodup := by
   cases found : queue.taskNode? occurrence with
   | none => simp [State.taskSuccess, found]
   | some incoming =>
@@ -50,15 +50,15 @@ Witness: the item fold separates its fresh registered frontiers; each later succ
 carrier has the unique frontier certified by the structural drain theorem.
 -/
 theorem State.streamItems_groupNoticesUnique {queue : State} {work parents stream items}
-    (keys : queue.GroupKeysUnique) (live : queue.LiveGroupsRegistered)
+    (refs : queue.GroupRefsUnique) (live : queue.LiveGroupsRegistered)
     (tasks : queue.TaskGroupsRegistered) (links : queue.ChildLinksCanonical parents)
     (children : queue.ChildGroupsUnique)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (matched : (GraphEvent.streamItems stream items).MatchesWork work)
-    : ∀ event ∈ (queue.streamItems stream items).2, (rawGroupNoticeKeys event).Nodup := by
-  have leading := queue.streamItemFold_groupNoticesUnique keys live tasks links children
+    : ∀ event ∈ (queue.streamItems stream items).2, (rawGroupNoticeRefs event).Nodup := by
+  have leading := queue.streamItemFold_groupNoticesUnique refs live tasks links children
     canonical matched
   have preparedLinks : (queue.preparedStreamItems items).ChildLinksCanonical parents :=
     State.preparedStreamItems_preserves (fun current => current.ChildLinksCanonical parents)
@@ -85,38 +85,38 @@ Witness: the two producing handlers use real pruning and fold certificates; task
 and stream controls have no group notices. Canonical parents are structural metadata only.
 -/
 theorem State.handleGraphEvent_groupNoticesUnique {queue : State} {work parents}
-    (keys : queue.GroupKeysUnique) (live : queue.LiveGroupsRegistered)
+    (refs : queue.GroupRefsUnique) (live : queue.LiveGroupsRegistered)
     (tasks : queue.TaskGroupsRegistered) (links : queue.ChildLinksCanonical parents)
     (children : queue.ChildGroupsUnique)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (event : GraphEvent) (matched : event.MatchesWork work)
-    : ∀ output ∈ (queue.handleGraphEvent event).2, (rawGroupNoticeKeys output).Nodup := by
+    : ∀ output ∈ (queue.handleGraphEvent event).2, (rawGroupNoticeRefs output).Nodup := by
   cases event with
   | taskSuccess occurrence result =>
       exact queue.taskSuccess_groupNoticesUnique links children occurrence result
         (fun _ member => matched.taskChildGroups_parentCanonical canonical member)
   | streamItems stream items =>
-      exact queue.streamItems_groupNoticesUnique keys live tasks links children canonical matched
+      exact queue.streamItems_groupNoticesUnique refs live tasks links children canonical matched
   | taskFailure occurrence errors =>
       intro output emitted
-      have empty : rawGroupNoticeKeys output = [] := by
+      have empty : rawGroupNoticeRefs output = [] := by
         apply List.eq_nil_iff_forall_not_mem.mpr
-        intro key noticed
+        intro ref noticed
         have impossible
-            : key ∈ (queue.taskFailure occurrence errors).2.flatMap rawGroupNoticeKeys :=
+            : ref ∈ (queue.taskFailure occurrence errors).2.flatMap rawGroupNoticeRefs :=
           List.mem_flatMap.mpr ⟨output, emitted, noticed⟩
-        rw [queue.taskFailure_groupNoticeKeys] at impossible
+        rw [queue.taskFailure_groupNoticeRefs] at impossible
         cases impossible
       rw [empty]
       exact List.nodup_nil
   | streamSuccess stream =>
       simp only [State.handleGraphEvent, State.streamSuccess]
-      split <;> simp [rawGroupNoticeKeys]
+      split <;> simp [rawGroupNoticeRefs]
   | streamFailure stream errors =>
       simp only [State.handleGraphEvent, State.streamFailure]
-      split <;> simp [rawGroupNoticeKeys]
+      split <;> simp [rawGroupNoticeRefs]
 
 -----------------------------------------------------------------------------------------
 -- Matching source replay preserves every required implementation fact independently
@@ -127,14 +127,14 @@ Witness: per-handler uniqueness and the independently proved metadata and regist
 preservation theorems. No already-admitted output history appears in the induction.
 -/
 theorem State.rawEventReplay_groupNoticesUnique {queue : State} {work parents}
-    (keys : queue.GroupKeysUnique) (live : queue.LiveGroupsRegistered)
+    (refs : queue.GroupRefsUnique) (live : queue.LiveGroupsRegistered)
     (tasks : queue.TaskGroupsRegistered) (links : queue.ChildLinksCanonical parents)
     (children : queue.ChildGroupsUnique)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (events : List GraphEvent) (matching : ∀ event ∈ events, event.MatchesWork work)
-    : ∀ output ∈ (queue.rawEventReplay events).2, (rawGroupNoticeKeys output).Nodup := by
+    : ∀ output ∈ (queue.rawEventReplay events).2, (rawGroupNoticeRefs output).Nodup := by
   induction events generalizing queue with
   | nil => simp [State.rawEventReplay]
   | cons event rest ih =>
@@ -143,9 +143,9 @@ theorem State.rawEventReplay_groupNoticesUnique {queue : State} {work parents}
       intro output emitted
       rw [State.rawEventReplay_cons] at emitted
       rcases List.mem_append.mp emitted with first | later
-      · exact queue.handleGraphEvent_groupNoticesUnique keys live tasks links children
+      · exact queue.handleGraphEvent_groupNoticesUnique refs live tasks links children
           canonical event matched output first
-      · exact ih (keys.handleGraphEvent event) registration.1 registration.2.1
+      · exact ih (refs.handleGraphEvent event) registration.1 registration.2.1
           (links.handleGraphEvent event matched canonical) (children.handleGraphEvent event)
           (fun _ member => matching _ (List.mem_cons_of_mem _ member)) output later
 
@@ -157,25 +157,25 @@ theorem ExecutedWork.rawEventReplay_groupNoticesUnique {work : Execution.Work}
     (generated : ExecutedWork work) (events : List GraphEvent)
     (matching : ∀ event ∈ events, event.MatchesWork work)
     : ∀ output ∈ ((State.initialize (Work.fromExecution work)).rawEventReplay events).2,
-        (rawGroupNoticeKeys output).Nodup := by
+        (rawGroupNoticeRefs output).Nodup := by
   obtain ⟨parents, canonical⟩ := generated.groupRecordsCanonical
   have registered := createWorkQueue_registration work
-  exact State.rawEventReplay_groupNoticesUnique (createWorkQueue_groupKeysUnique _)
+  exact State.rawEventReplay_groupNoticesUnique (createWorkQueue_groupRefsUnique _)
     registered.1 registered.2 (createWorkQueue_childLinksCanonical _ parents
       (fun _ member => workFromSpec_groups_parentCanonical Located.root canonical member))
     (createWorkQueue_childGroupsUnique _) canonical events matching
 
-/-- Initial and all raw carried group keys are globally duplicate-free.
+/-- Initial and all raw carried group refs are globally duplicate-free.
 Witness: unique initialization and per-carrier lists combine with independently proved
-cross-carrier separation and initial-key exclusion. Repeated shared-owner registrations
+cross-carrier separation and initial-ref exclusion. Repeated shared-owner registrations
 and multi-item carriers need no extra uniqueness premise from the host source.
 -/
-theorem ExecutedWork.rawEventReplay_groupKeys_nodup {work : Execution.Work}
+theorem ExecutedWork.rawEventReplay_groupRefs_nodup {work : Execution.Work}
     (generated : ExecutedWork work) (events : List GraphEvent)
     (matching : ∀ event ∈ events, event.MatchesWork work)
     : ((State.initialize (Work.fromExecution work)).rootGroups
         ++ ((State.initialize (Work.fromExecution work)).rawEventReplay events).2.flatMap
-            rawGroupNoticeKeys).Nodup := by
+            rawGroupNoticeRefs).Nodup := by
   obtain ⟨separated, initialFresh⟩ := generated.rawEventReplay_groupNoticeSeparation events matching
   have lists := generated.rawEventReplay_groupNoticesUnique events matching
   apply List.nodup_append.mpr
@@ -185,10 +185,10 @@ theorem ExecutedWork.rawEventReplay_groupKeys_nodup {work : Execution.Work}
   · apply List.pairwise_flatMap.mpr
     refine ⟨lists, ?_⟩
     apply separated.imp
-    intro first second different key member other included same
+    intro first second different ref member other included same
     subst other
-    exact different key member included
-  · intro key initial other noticed same
-    exact initialFresh key initial (same.symm ▸ noticed)
+    exact different ref member included
+  · intro ref initial other noticed same
+    exact initialFresh ref initial (same.symm ▸ noticed)
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

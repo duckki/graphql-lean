@@ -49,7 +49,7 @@ import Proofs.GraphQL.IncrementalDelivery.Correctness.QuerySingletonDeferExisten
 import Proofs.GraphQL.IncrementalDelivery.Correctness.QueryDeferExistence
 import Proofs.GraphQL.IncrementalDelivery.Correctness.NodeRoles
 import Proofs.GraphQL.IncrementalDelivery.Correctness.QueryStreamExistence
-import Proofs.GraphQL.IncrementalDelivery.Correctness.LeastKeyProgress
+import Proofs.GraphQL.IncrementalDelivery.Correctness.LeastRefProgress
 import Proofs.GraphQL.IncrementalDelivery.Correctness.LeafCoverage
 import Proofs.GraphQL.IncrementalDelivery.Correctness.NoticeMetadata
 import Proofs.GraphQL.IncrementalDelivery.Correctness.PatchPositions

@@ -7,13 +7,13 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
 /-- A ready stream action has already received its structural producer's success.
 Witness: invert source readiness and identify the generated stream's unique producer
-using its action key. The item payload is not used to select a producer occurrence.
+using its action ref. The item payload is not used to select a producer occurrence.
 -/
 theorem GraphEvent.Ready.streamProducer_succeeded
     {work stream dependencies producer closing}
     {before : List GraphEvent} {event : GraphEvent}
     (ready : event.Ready work before) (generated : ExecutedWork work)
-    (action : event.streamAction = some (stream.key, closing))
+    (action : event.streamAction = some (stream.ref, closing))
     (known : NodeAt work stream .stream dependencies producer)
     : ∀ source,
         producer = some source → source ∈ before.flatMap GraphEvent.successes := by
@@ -21,14 +21,14 @@ theorem GraphEvent.Ready.streamProducer_succeeded
   | taskSuccess | taskFailure => cases action
   | streamItems node items =>
       obtain ⟨_, _, _, _, located, _, _, supported, _⟩ := ready
-      have keyEq := (Prod.mk.inj (Option.some.inj action)).1
-      have same := generated.streamProducer_unique (.stream located) known keyEq
+      have refEq := (Prod.mk.inj (Option.some.inj action)).1
+      have same := generated.streamProducer_unique (.stream located) known refEq
       intro source produced
       exact supported source (same.trans produced)
   | streamSuccess node | streamFailure node errors =>
       obtain ⟨_, _, _, _, located, supported, _⟩ := ready
-      have keyEq := (Prod.mk.inj (Option.some.inj action)).1
-      have same := generated.streamProducer_unique (.stream located) known keyEq
+      have refEq := (Prod.mk.inj (Option.some.inj action)).1
+      have same := generated.streamProducer_unique (.stream located) known refEq
       intro source produced
       exact supported source (same.trans produced)
 
@@ -100,14 +100,14 @@ theorem streamFailuresSafe_of_successfulItems {work inputs w streams}
           TaskAt work occurrence owners producer payload ∧ payload.failure.isSome = true :=
     fun index occurrence member =>
       (announced.1.2.2.1 (index, occurrence) (included member)).2.2
-  obtain ⟨owners, key, ⟨parent, payload, descriptor⟩, owner, direct⟩ :=
+  obtain ⟨owners, ref, ⟨parent, payload, descriptor⟩, owner, direct⟩ :=
     createWorkQueue_mixedFailureCuts_directHealthyOwner generated valid started cuts
       (exactCuts.symm.trans split)
-  have ownerEq : key = stream.key :=
+  have ownerEq : ref = stream.ref :=
     List.mem_singleton.mp ((known.unique descriptor).1.symm ▸ owner)
-  subst key
+  subst ref
   have contributors : ∀ occurrence owners,
-      TaskHasOwners work occurrence owners → stream.key ∈ owners
+      TaskHasOwners work occurrence owners → stream.ref ∈ owners
       → occurrence ∉ failedBefore before (w.events.take cut).length := by
     intro occurrence owners descriptor contributes member
     obtain ⟨entry, retained, same⟩ := List.mem_map.mp member
@@ -153,12 +153,12 @@ theorem streamFailuresSafe_of_successfulItems {work inputs w streams}
             (by rwa [← inputsStarted_eq_batchesStarted])
           rw [sourceSplit] at acceptedAll
           have acceptedBefore := State.acceptsBatch_prefix acceptedAll
-          have active : stream.key ∈ (queue.replayGraphEvents received).rootStreams := by
+          have active : stream.ref ∈ (queue.replayGraphEvents received).rootStreams := by
             cases input <;> simp only [GraphEvent.streamAction] at action
             all_goals try contradiction
             all_goals
-              have keyEq := (Prod.mk.inj (Option.some.inj action)).1
-              simpa [State.acceptsGraphEvent, keyEq] using accepted
+              have refEq := (Prod.mk.inj (Option.some.inj action)).1
+              simpa [State.acceptsGraphEvent, refEq] using accepted
           have health := generated.replayGraphEvents_activeObjectStreamHealthy_of_itemSafety
             (valid.prefix prior) acceptedBefore located active failedPayloads
             (fun occurrence owners producer path result descriptor member => ?_)

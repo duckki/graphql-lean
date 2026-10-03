@@ -12,22 +12,22 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 /-- Proof-only induction package for complete links and their registration prerequisites.
 `queue` is the actual executable state; `parents` is the fixed source-work assignment.
 -/
-private structure ParentLinkFrame (queue : State) (parents : Nat → Keys) : Prop where
-  unique : queue.GroupKeysUnique
+private structure ParentLinkFrame (queue : State) (parents : Nat → NodeRefs) : Prop where
+  unique : queue.GroupRefsUnique
   live : queue.LiveGroupsRegistered
   tasks : queue.TaskGroupsRegistered
   closed : queue.ParentRegistryClosed parents
   complete : queue.ParentLinksComplete parents
 
 /-- One matched source event preserves the whole concrete registration package.
-Witness: independent key/registry preservation plus complete-link handler preservation.
+Witness: independent ref/registry preservation plus complete-link handler preservation.
 -/
 private theorem ParentLinkFrame.handleGraphEvent {queue : State} {work parents}
     (frame : ParentLinkFrame queue parents) (event : GraphEvent)
     (matching : event.MatchesWork work)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     : ParentLinkFrame (queue.handleGraphEvent event).1 parents := by
   have registered := queue.handleGraphEvent_registration frame.live frame.tasks event matching
   exact ⟨frame.unique.handleGraphEvent event, registered.1, registered.2.1,
@@ -43,7 +43,7 @@ private theorem ParentLinkFrame.replayGraphEvents {queue : State} {work parents}
     (matching : ∀ event ∈ events, event.MatchesWork work)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     : ParentLinkFrame (queue.replayGraphEvents events) parents := by
   induction events generalizing queue with
   | nil => exact frame
@@ -60,7 +60,7 @@ private theorem ParentLinkFrame.handleGraphEvents {queue : State} {work parents}
     (matching : ∀ event ∈ events, event.MatchesWork work)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     : ParentLinkFrame (queue.handleGraphEvents events).1 parents := by
   unfold State.handleGraphEvents
   split
@@ -80,13 +80,13 @@ private theorem ParentLinkFrame.handleGraphEvents {queue : State} {work parents}
 Witness: the concrete registration frame induction, without source start or output admission.
 -/
 theorem State.ParentLinksComplete.replayGraphEvents {queue : State} {work parents}
-    (complete : queue.ParentLinksComplete parents) (unique : queue.GroupKeysUnique)
+    (complete : queue.ParentLinksComplete parents) (unique : queue.GroupRefsUnique)
     (live : queue.LiveGroupsRegistered) (tasks : queue.TaskGroupsRegistered)
     (closed : queue.ParentRegistryClosed parents) (events : List GraphEvent)
     (matching : ∀ event ∈ events, event.MatchesWork work)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     : (queue.replayGraphEvents events).ParentLinksComplete parents :=
   (ParentLinkFrame.replayGraphEvents ⟨unique, live, tasks, closed, complete⟩
     events matching canonical).complete
@@ -96,13 +96,13 @@ Witness: replay the concrete registration package through each batch; publisher 
 changes neither group records nor permanent registration. Empty or ignored batches are allowed.
 -/
 theorem State.ParentLinksComplete.runNormalized {queue : State} {work parents}
-    (complete : queue.ParentLinksComplete parents) (unique : queue.GroupKeysUnique)
+    (complete : queue.ParentLinksComplete parents) (unique : queue.GroupRefsUnique)
     (live : queue.LiveGroupsRegistered) (tasks : queue.TaskGroupsRegistered)
     (closed : queue.ParentRegistryClosed parents) (batches : List (List GraphEvent))
     (matching : ∀ batch ∈ batches, ∀ event ∈ batch, event.MatchesWork work)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     : (queue.runNormalized batches).1.ParentLinksComplete parents := by
   have loop (more : List (List GraphEvent)) (included : more.Subset batches)
       (current : State) (frame : ParentLinkFrame current parents)
@@ -125,7 +125,7 @@ theorem createWorkQueue_runNormalized_parentLinksComplete {work : Execution.Work
     {parents}
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     {batches : List (List GraphEvent)} (valid : ValidGraphEvents work batches.flatten)
     : ((State.initialize (Work.fromExecution work)).runNormalized
         batches).1.ParentLinksComplete
@@ -133,7 +133,7 @@ theorem createWorkQueue_runNormalized_parentLinksComplete {work : Execution.Work
   have registered := createWorkQueue_registration work
   exact (createWorkQueue_parentLinksComplete (Work.fromExecution work) parents
     (fun _ member => workFromSpec_groups_parentCanonical Located.root canonical member)
-    ).runNormalized (createWorkQueue_groupKeysUnique _) registered.1 registered.2
+    ).runNormalized (createWorkQueue_groupRefsUnique _) registered.1 registered.2
     (createWorkQueue_parentRegistryClosed canonical) batches
     (fun _ batch _ event => valid.eachMatches (List.mem_flatten.mpr ⟨_, batch, event⟩)) canonical
 

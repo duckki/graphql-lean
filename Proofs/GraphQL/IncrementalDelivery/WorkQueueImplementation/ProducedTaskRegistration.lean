@@ -51,7 +51,7 @@ theorem TaskAt.executionGroup_registered_of_itemSuccess
     : ∃ task ∈
         ((State.initialize (Work.fromExecution work)).replayGraphEvents events).tasks,
         task.occurrence = .executionGroup address
-        ∧ task.groups.map Execution.DeliveryNode.key = owners := by
+        ∧ task.groups.map Execution.DeliveryNode.ref = owners := by
   obtain ⟨before, stream, items, item, after, same, selected, identity⟩ :=
     valid.itemSuccess_input success
   have earlier : (before ++ [GraphEvent.streamItems stream items]).IsPrefix events :=
@@ -72,14 +72,14 @@ Witness: full-source/accepted-failure equivalence transports final owner health 
 and the existing healthy-owner theorem forces the executable storing branch at that input.
 -/
 theorem ExecutedWork.success_with_finalHealthyOwner_processed
-    {work events occurrence result owners producer payload key before after}
+    {work events occurrence result owners producer payload ref before after}
     (generated : ExecutedWork work) (valid : ValidGraphEvents work events)
     (started : (State.initialize (Work.fromExecution work)).acceptsBatch events = true)
-    (known : TaskAt work occurrence owners producer payload) (contributes : key ∈ owners)
+    (known : TaskAt work occurrence owners producer payload) (contributes : ref ∈ owners)
     (healthy
       : ¬GroupRecordInvalidated work
           ((State.initialize (Work.fromExecution work)).objectFailureContributions events)
-          key)
+          ref)
     (split : events = before ++ .taskSuccess occurrence result :: after)
     : ∃ node,
         ((State.initialize (Work.fromExecution work)).replayGraphEvents before).taskNode?
@@ -100,7 +100,7 @@ theorem ExecutedWork.success_with_finalHealthyOwner_processed
   intro failed
   apply healthy
   apply GroupInvalidated.toRecordInvalidated
-  apply (generated.failureInventories_groupInvalidated_iff events valid started key).mp
+  apply (generated.failureInventories_groupInvalidated_iff events valid started ref).mp
   apply failed.mono
   intro occurrence member
   rw [split, GraphEvent.failureSettlements_append_list]

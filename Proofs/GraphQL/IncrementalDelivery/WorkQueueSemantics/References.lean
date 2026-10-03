@@ -1,28 +1,28 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.ReferenceHistory
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.BatchLifecycle
 
-/-! Every admitted work batch references only announced, not-previously-closed keys. -/
+/-! Every admitted work batch references only announced, not-previously-closed refs. -/
 
 namespace GraphQL.IncrementalDelivery.WorkQueueSemantics
 open GraphQL.IncrementalDelivery.Execution
 
-/-- Keys referenced by a payload or a completion, independently of its announcements. -/
-def eventUsed : WorkQueueEvent → Keys
+/-- NodeRefs referenced by a payload or a completion, independently of its announcements. -/
+def eventUsed : WorkQueueEvent → NodeRefs
   | .groupValues node _
   | .groupSuccess node _ _
   | .groupFailure node _
   | .streamValues node _ _ _
   | .streamSuccess node
-  | .streamFailure node _ => [node.key]
+  | .streamFailure node _ => [node.ref]
   | .workQueueTermination => []
 
-/-- All referenced key occurrences in the supplied outputs. -/
-def usedKeys (events : List WorkQueueEvent) : Keys := events.flatMap eventUsed
+/-- All referenced ref occurrences in the supplied outputs. -/
+def usedRefs (events : List WorkQueueEvent) : NodeRefs := events.flatMap eventUsed
 
 /-- A completion is a reference, by inspecting its containing event. -/
-theorem completedKeys_used {events : List WorkQueueEvent} {key : Nat}
-    (h : key ∈ completedKeys events)
-    : key ∈ usedKeys events := by
+theorem completedRefs_used {events : List WorkQueueEvent} {ref : NodeRef}
+    (h : ref ∈ completedRefs events)
+    : ref ∈ usedRefs events := by
   obtain ⟨event, member, completed⟩ := List.mem_flatMap.mp h
   apply List.mem_flatMap.mpr
   refine ⟨event, member, ?_⟩
@@ -31,11 +31,11 @@ theorem completedKeys_used {events : List WorkQueueEvent} {key : Nat}
 /-- Every permitted atomic reference is open before the event, by owner/closure rules. -/
 theorem EventAllowed.reference {work initial matching before failed event}
     (h : EventAllowed work initial matching before failed event)
-    : ∀ key ∈ eventUsed event, Open initial before key := by
-  intro key member
+    : ∀ ref ∈ eventUsed event, Open initial before ref := by
+  intro ref member
   cases event <;> simp only [eventUsed, List.mem_singleton] at member
   case workQueueTermination => contradiction
-  all_goals subst key
+  all_goals subst ref
   case groupValues node values =>
     obtain ⟨_, _, _, _, _, _, owner⟩ := h
     exact owner.1.2.2
@@ -50,11 +50,11 @@ induction over the observed history.
 theorem Explains.references {work groups streams events matching failures}
     (h : Explains work groups streams events matching failures)
     : ReferenceHistory eventPending eventCompleted eventUsed
-        ((groups ++ streams).map DeliveryNode.key) [] events := by
-  let initial := (groups ++ streams).map DeliveryNode.key
+        ((groups ++ streams).map DeliveryNode.ref) [] events := by
+  let initial := (groups ++ streams).map DeliveryNode.ref
   have go (before rest : List WorkQueueEvent) (equal : events = before ++ rest) :
       ReferenceHistory eventPending eventCompleted eventUsed
-        (announcedKeys initial before) (completedKeys before) rest := by
+        (announcedRefs initial before) (completedRefs before) rest := by
     induction rest generalizing before with
     | nil => trivial
     | cons event rest ih =>
@@ -62,68 +62,68 @@ theorem Explains.references {work groups streams events matching failures}
         · have selected : events[before.length]? = some event := by simp [equal]
           have allowed := h.2.2 before.length event selected
           rw [equal] at allowed
-          intro key member
-          have opened := allowed.reference key member
+          intro ref member
+          have opened := allowed.reference ref member
           simp only [List.take_left] at opened
           exact ⟨List.mem_append_left _ opened.1, opened.2⟩
         · have tail := ih (before ++ [event]) (by simpa [List.append_assoc] using equal)
-          simpa [announcedKeys, pendingKeys, completedKeys, List.append_assoc] using tail
-  simpa [initial, announcedKeys, pendingKeys, completedKeys] using go [] events rfl
+          simpa [announcedRefs, pendingRefs, completedRefs, List.append_assoc] using tail
+  simpa [initial, announcedRefs, pendingRefs, completedRefs] using go [] events rfl
 
 /-- Compatible value coalescing preserves reference membership, by event case analysis. -/
 theorem combineValues_used {left right combined : WorkQueueEvent}
     (h : combineValues left right = some combined)
-    : ∀ key, key ∈ usedKeys [combined] ↔ key ∈ usedKeys [left, right] := by
+    : ∀ ref, ref ∈ usedRefs [combined] ↔ ref ∈ usedRefs [left, right] := by
   cases left <;> cases right <;> simp [combineValues] at h
   all_goals
-    obtain ⟨keys, rfl⟩ := h
-    intro key
-    simp [usedKeys, eventUsed, keys]
+    obtain ⟨refs, rfl⟩ := h
+    intro ref
+    simp [usedRefs, eventUsed, refs]
 
 /-- Value grouping preserves reference membership, by its separate/combine induction. -/
 theorem ValueGrouping.used {events grouped : List WorkQueueEvent}
     (h : ValueGrouping events grouped)
-    : ∀ key, key ∈ usedKeys grouped ↔ key ∈ usedKeys events := by
+    : ∀ ref, ref ∈ usedRefs grouped ↔ ref ∈ usedRefs events := by
   induction h with
   | nil => exact fun _ => Iff.rfl
   | separate head _ ih =>
-      intro key
-      simpa only [usedKeys, List.flatMap_cons, List.mem_append]
-        using or_congr (Iff.rfl : key ∈ eventUsed head ↔ key ∈ eventUsed head) (ih key)
+      intro ref
+      simpa only [usedRefs, List.flatMap_cons, List.mem_append]
+        using or_congr (Iff.rfl : ref ∈ eventUsed head ↔ ref ∈ eventUsed head) (ih ref)
   | combine head _ compatible ih =>
-      intro key
-      have merged := combineValues_used compatible key
-      simp only [usedKeys, List.flatMap_cons, List.flatMap_nil, List.append_nil,
+      intro ref
+      have merged := combineValues_used compatible ref
+      simp only [usedRefs, List.flatMap_cons, List.flatMap_nil, List.append_nil,
         List.mem_append] at merged ih ⊢
       exact (or_congr merged Iff.rfl).trans
-        (or_assoc.trans (or_congr Iff.rfl (ih key)))
+        (or_assoc.trans (or_congr Iff.rfl (ih ref)))
 
 /-- Work batching preserves open references, by splitting atomic histories and
 transporting membership through each batch's occurrence permutations.
 -/
 theorem WorkBatching.references {events batches} (h : WorkBatching events batches)
-    {seen closed : Keys}
+    {seen closed : NodeRefs}
     (refs : ReferenceHistory eventPending eventCompleted eventUsed seen closed events)
-    : ReferenceHistory pendingKeys completedKeys usedKeys seen closed batches := by
+    : ReferenceHistory pendingRefs completedRefs usedRefs seen closed batches := by
   induction h generalizing seen closed with
   | nil => trivial
   | cons _ values _ ih =>
       obtain ⟨head, tail⟩ := refs.split
-      have keys := values.keyPermutation
+      have refs := values.refPermutation
       refine ⟨?_, (ih tail).congr ?_ ?_⟩
-      · intro key member
-        obtain ⟨known, fresh⟩ := head key ((values.used key).mp member)
+      · intro ref member
+        obtain ⟨known, fresh⟩ := head ref ((values.used ref).mp member)
         refine ⟨?_, fresh⟩
         rcases List.mem_append.mp known with old | new
         · exact List.mem_append_left _ old
-        · exact List.mem_append_right _ (keys.pending.mem_iff.mpr new)
-      · intro key; simp only [List.mem_append, keys.pending.mem_iff]; rfl
-      · intro key; simp only [List.mem_append, keys.completed.mem_iff]; rfl
+        · exact List.mem_append_right _ (refs.pending.mem_iff.mpr new)
+      · intro ref; simp only [List.mem_append, refs.pending.mem_iff]; rfl
+      · intro ref; simp only [List.mem_append, refs.completed.mem_iff]; rfl
 
 /-- Derived reference legality at batch boundaries, not an admission premise. -/
 def History.OpenReferences (history : History) : Prop :=
-  ReferenceHistory pendingKeys completedKeys usedKeys
-    ((history.initialGroups ++ history.initialStreams).map DeliveryNode.key) []
+  ReferenceHistory pendingRefs completedRefs usedRefs
+    ((history.initialGroups ++ history.initialStreams).map DeliveryNode.ref) []
     history.batches
 
 /-- Admitted prefixes have legal references, by event admission and work batching. -/
@@ -132,7 +132,7 @@ theorem AdmissiblePrefix.openReferences {work history} (h : AdmissiblePrefix wor
   obtain ⟨events, matching, failures, explained, batching⟩ := h
   exact batching.references explained.references
 
-/-- Terminal histories retain legal references; termination adds no referenced key. -/
+/-- Terminal histories retain legal references; termination adds no referenced ref. -/
 theorem AdmissibleRun.openReferences {work history} (h : AdmissibleRun work history)
     : history.OpenReferences := by
   obtain ⟨events, matching, failures, explained, _, batching⟩ := h

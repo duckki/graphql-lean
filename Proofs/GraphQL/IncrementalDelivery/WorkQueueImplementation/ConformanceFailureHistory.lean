@@ -219,12 +219,12 @@ theorem announcedFailures_with_cuts_exists {work : Execution.Work}
   rw [← same]
   rcases List.mem_append.mp ((mergeFailureCuts_partition objects streams).mem_iff.mp member)
       with fromStream | fromObject
-  · obtain ⟨key, owners, opened⟩ := (supported entry fromStream).2.2
-    exact ⟨[key], owners, key, List.mem_cons_self, opened.1⟩
+  · obtain ⟨ref, owners, opened⟩ := (supported entry fromStream).2.2
+    exact ⟨[ref], owners, ref, List.mem_cons_self, opened.1⟩
   · obtain ⟨before, after, split⟩ := List.mem_iff_append.mp fromObject
-    obtain ⟨owners, key, structural, contributes, announced⟩ :=
+    obtain ⟨owners, ref, structural, contributes, announced⟩ :=
       createWorkQueue_eligibleObjectFailureCuts_announcedOwner valid started split
-    exact ⟨owners, structural, key, contributes, announced⟩
+    exact ⟨owners, structural, ref, contributes, announced⟩
 
 /-- One complete announced inventory exists on the same history as the batching leaf.
 Witness: forget only the cut-partition certificate from the stronger construction.

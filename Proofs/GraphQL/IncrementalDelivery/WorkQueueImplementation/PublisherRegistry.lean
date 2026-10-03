@@ -12,27 +12,27 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 -----------------------------------------------------------------------------------------
 
 /-- The publisher's active-node registry names exactly the announced, uncompleted
-keys in the normalized output history. This is a proof invariant, not a field of
+refs in the normalized output history. This is a proof invariant, not a field of
 the executable publisher.
 -/
 def IncrementalPublisher.RegistryMatchesOpen
-    (publisher : IncrementalPublisher) (initial : Keys)
+    (publisher : IncrementalPublisher) (initial : NodeRefs)
     (events : List Execution.WorkQueueEvent)
     : Prop :=
-  ∀ key, key ∈ publisher.active.map Execution.DeliveryNode.key ↔ Open initial events key
+  ∀ ref, ref ∈ publisher.active.map Execution.DeliveryNode.ref ↔ Open initial events ref
 
 /-- The publisher begins with precisely the initial open notices. -/
 theorem IncrementalPublisher.registry_initial (nodes : List Execution.DeliveryNode)
     : ({ active := nodes } : IncrementalPublisher).RegistryMatchesOpen
-        (nodes.map Execution.DeliveryNode.key) [] := by
-  intro key
-  simp [Open, announcedKeys, pendingKeys, completedKeys]
+        (nodes.map Execution.DeliveryNode.ref) [] := by
+  intro ref
+  simp [Open, announcedRefs, pendingRefs, completedRefs]
 
-/-- Filtering a closed key from the active list removes exactly that key. -/
-private theorem activeKeys_filter_closed
-    (nodes : List Execution.DeliveryNode) (closed key : Nat)
-    : key ∈ (nodes.filter (fun node => node.key != closed)).map Execution.DeliveryNode.key
-      ↔ key ∈ nodes.map Execution.DeliveryNode.key ∧ key ≠ closed := by
+/-- Filtering a closed ref from the active list removes exactly that ref. -/
+private theorem activeRefs_filter_closed
+    (nodes : List Execution.DeliveryNode) (closed ref : NodeRef)
+    : ref ∈ (nodes.filter (fun node => node.ref != closed)).map Execution.DeliveryNode.ref
+      ↔ ref ∈ nodes.map Execution.DeliveryNode.ref ∧ ref ≠ closed := by
   simp only [List.mem_map, List.mem_filter]
   constructor
   · rintro ⟨node, ⟨member, different⟩, rfl⟩
@@ -40,23 +40,23 @@ private theorem activeKeys_filter_closed
   · rintro ⟨⟨node, member, rfl⟩, different⟩
     exact ⟨node, ⟨member, by simpa using different⟩, rfl⟩
 
-/-- Any normalized closure with no new notices removes precisely the closed key
+/-- Any normalized closure with no new notices removes precisely the closed ref
 from abstract openness.
 -/
 private theorem open_append_closure
-    (initial : Keys) (events : List Execution.WorkQueueEvent)
-    (event : Execution.WorkQueueEvent) (closed key : Nat)
+    (initial : NodeRefs) (events : List Execution.WorkQueueEvent)
+    (event : Execution.WorkQueueEvent) (closed ref : NodeRef)
     (noPending : eventPending event = [])
     (completed : eventCompleted event = [closed])
-    : Open initial (events ++ [event]) key ↔ Open initial events key ∧ key ≠ closed := by
-  simp [Open, announcedKeys, pendingKeys, completedKeys,
+    : Open initial (events ++ [event]) ref ↔ Open initial events ref ∧ ref ≠ closed := by
+  simp [Open, announcedRefs, pendingRefs, completedRefs,
     List.flatMap_append, noPending, completed, and_assoc]
 
 /-- A closure-only output preserves active/open agreement. The witness is the
-publisher's key filter and the abstract completion-key append.
+publisher's ref filter and the abstract completion-ref append.
 -/
 theorem IncrementalPublisher.registry_after_closure
-    (publisher : IncrementalPublisher) (initial : Keys)
+    (publisher : IncrementalPublisher) (initial : NodeRefs)
     (events : List Execution.WorkQueueEvent) (event : Execution.WorkQueueEvent)
     (closed : Nat)
     (registry : publisher.RegistryMatchesOpen initial events)
@@ -65,16 +65,16 @@ theorem IncrementalPublisher.registry_after_closure
     : ({
         publisher with
           active :=
-            (publisher.active.filter (fun node => node.key != closed))
+            (publisher.active.filter (fun node => node.ref != closed))
       }).RegistryMatchesOpen
         initial (events ++ [event]) := by
-  intro key
-  rw [activeKeys_filter_closed, registry]
-  exact (open_append_closure initial events event closed key noPending completed).symm
+  intro ref
+  rw [activeRefs_filter_closed, registry]
+  exact (open_append_closure initial events event closed ref noPending completed).symm
 
 /-- GraphQL.js group-failure processing removes exactly its completed notice. -/
 theorem IncrementalPublisher.registry_groupFailure
-    (publisher : IncrementalPublisher) (initial : Keys)
+    (publisher : IncrementalPublisher) (initial : NodeRefs)
     (events : List Execution.WorkQueueEvent)
     (group : Execution.DeliveryNode) (errors : Nat)
     (registry : publisher.RegistryMatchesOpen initial events)
@@ -83,13 +83,13 @@ theorem IncrementalPublisher.registry_groupFailure
         initial
         (events ++ (publisher.handleWorkQueueEvent (.groupFailure group errors)).2) := by
   change ({ publisher with active :=
-      publisher.active.filter (fun node => node.key != group.key) }).RegistryMatchesOpen
+      publisher.active.filter (fun node => node.ref != group.ref) }).RegistryMatchesOpen
     initial (events ++ [Execution.WorkQueueEvent.groupFailure group errors])
-  exact publisher.registry_after_closure initial events _ group.key registry rfl rfl
+  exact publisher.registry_after_closure initial events _ group.ref registry rfl rfl
 
 /-- GraphQL.js stream-success processing removes exactly its completed notice. -/
 theorem IncrementalPublisher.registry_streamSuccess
-    (publisher : IncrementalPublisher) (initial : Keys)
+    (publisher : IncrementalPublisher) (initial : NodeRefs)
     (events : List Execution.WorkQueueEvent)
     (stream : Execution.DeliveryNode)
     (registry : publisher.RegistryMatchesOpen initial events)
@@ -97,13 +97,13 @@ theorem IncrementalPublisher.registry_streamSuccess
         initial
         (events ++ (publisher.handleWorkQueueEvent (.streamSuccess stream)).2) := by
   change ({ publisher with active :=
-      publisher.active.filter (fun node => node.key != stream.key) }).RegistryMatchesOpen
+      publisher.active.filter (fun node => node.ref != stream.ref) }).RegistryMatchesOpen
     initial (events ++ [Execution.WorkQueueEvent.streamSuccess stream])
-  exact publisher.registry_after_closure initial events _ stream.key registry rfl rfl
+  exact publisher.registry_after_closure initial events _ stream.ref registry rfl rfl
 
 /-- GraphQL.js stream-failure processing removes exactly its completed notice. -/
 theorem IncrementalPublisher.registry_streamFailure
-    (publisher : IncrementalPublisher) (initial : Keys)
+    (publisher : IncrementalPublisher) (initial : NodeRefs)
     (events : List Execution.WorkQueueEvent)
     (stream : Execution.DeliveryNode) (errors : Nat)
     (registry : publisher.RegistryMatchesOpen initial events)
@@ -113,29 +113,29 @@ theorem IncrementalPublisher.registry_streamFailure
         (events
           ++ (publisher.handleWorkQueueEvent (.streamFailure stream errors)).2) := by
   change ({ publisher with active :=
-      publisher.active.filter (fun node => node.key != stream.key) }).RegistryMatchesOpen
+      publisher.active.filter (fun node => node.ref != stream.ref) }).RegistryMatchesOpen
     initial (events ++ [Execution.WorkQueueEvent.streamFailure stream errors])
-  exact publisher.registry_after_closure initial events _ stream.key registry rfl rfl
+  exact publisher.registry_after_closure initial events _ stream.ref registry rfl rfl
 
 /-- A completion that also announces new nodes preserves the active/open
-equation when those new keys were not previously completed and are not the
-key being closed.
+equation when those new refs were not previously completed and are not the
+ref being closed.
 -/
 private theorem open_append_announce_close
-    (initial : Keys) (events : List Execution.WorkQueueEvent)
-    (event : Execution.WorkQueueEvent) (newKeys : Keys) (closed key : Nat)
-    (pending : eventPending event = newKeys)
+    (initial : NodeRefs) (events : List Execution.WorkQueueEvent)
+    (event : Execution.WorkQueueEvent) (newRefs : NodeRefs) (closed ref : NodeRef)
+    (pending : eventPending event = newRefs)
     (completed : eventCompleted event = [closed])
-    (fresh : ∀ newKey ∈ newKeys, newKey ∉ completedKeys events ∧ newKey ≠ closed)
-    : Open initial (events ++ [event]) key
-      ↔ (Open initial events key ∧ key ≠ closed) ∨ key ∈ newKeys := by
-  have pendingEq : pendingKeys (events ++ [event])
-      = pendingKeys events ++ newKeys := by
-    simp [pendingKeys, List.flatMap_append, pending]
-  have completedEq : completedKeys (events ++ [event])
-      = completedKeys events ++ [closed] := by
-    simp [completedKeys, List.flatMap_append, completed]
-  simp only [Open, announcedKeys, pendingEq, completedEq,
+    (fresh : ∀ newRef ∈ newRefs, newRef ∉ completedRefs events ∧ newRef ≠ closed)
+    : Open initial (events ++ [event]) ref
+      ↔ (Open initial events ref ∧ ref ≠ closed) ∨ ref ∈ newRefs := by
+  have pendingEq : pendingRefs (events ++ [event])
+      = pendingRefs events ++ newRefs := by
+    simp [pendingRefs, List.flatMap_append, pending]
+  have completedEq : completedRefs (events ++ [event])
+      = completedRefs events ++ [closed] := by
+    simp [completedRefs, List.flatMap_append, completed]
+  simp only [Open, announcedRefs, pendingEq, completedEq,
     List.mem_append, List.mem_singleton, not_or]
   constructor
   · rintro ⟨announced, notOld, notClosed⟩
@@ -148,58 +148,58 @@ private theorem open_append_announce_close
     · rcases announced with initialMember | oldMember
       · exact ⟨Or.inl initialMember, notOld, notClosed⟩
       · exact ⟨Or.inr (Or.inl oldMember), notOld, notClosed⟩
-    · obtain ⟨notOld, notClosed⟩ := fresh key newMember
+    · obtain ⟨notOld, notClosed⟩ := fresh ref newMember
       exact ⟨Or.inr (Or.inr newMember), notOld, notClosed⟩
 
-/-- Group success keeps exactly the old open keys other than its own, together
+/-- Group success keeps exactly the old open refs other than its own, together
 with fresh child notices. This is the publisher-side registry transition.
 -/
 theorem IncrementalPublisher.registry_groupSuccess
-    (publisher : IncrementalPublisher) (initial : Keys)
+    (publisher : IncrementalPublisher) (initial : NodeRefs)
     (events : List Execution.WorkQueueEvent)
     (group : Execution.DeliveryNode)
     (groups streams : List Execution.DeliveryNode)
     (registry : publisher.RegistryMatchesOpen initial events)
     (fresh
-      : ∀ key ∈ (groups ++ streams).map Execution.DeliveryNode.key,
-          key ∉ completedKeys events ∧ key ≠ group.key)
+      : ∀ ref ∈ (groups ++ streams).map Execution.DeliveryNode.ref,
+          ref ∉ completedRefs events ∧ ref ≠ group.ref)
     : ((publisher.handleWorkQueueEvent
           (.groupSuccess group groups streams)).1).RegistryMatchesOpen
         initial
         (events
           ++ (publisher.handleWorkQueueEvent
                 (.groupSuccess group groups streams)).2) := by
-  intro key
-  change key ∈
-      ((publisher.active.filter (fun node => node.key != group.key))
-          ++ groups ++ streams).map Execution.DeliveryNode.key
+  intro ref
+  change ref ∈
+      ((publisher.active.filter (fun node => node.ref != group.ref))
+          ++ groups ++ streams).map Execution.DeliveryNode.ref
     ↔ Open initial
-        (events ++ [Execution.WorkQueueEvent.groupSuccess group groups streams]) key
-  simp only [List.map_append, List.mem_append, activeKeys_filter_closed]
+        (events ++ [Execution.WorkQueueEvent.groupSuccess group groups streams]) ref
+  simp only [List.map_append, List.mem_append, activeRefs_filter_closed]
   rw [registry]
   have bridge := open_append_announce_close initial events
     (.groupSuccess group groups streams)
-    ((groups ++ streams).map Execution.DeliveryNode.key) group.key key
+    ((groups ++ streams).map Execution.DeliveryNode.ref) group.ref ref
     rfl rfl fresh
   simpa only [List.map_append, List.mem_append, or_assoc] using bridge.symm
 
-/-- An announcement-only event adds precisely its fresh child keys to abstract
-openness; earlier completed keys cannot be reintroduced.
+/-- An announcement-only event adds precisely its fresh child refs to abstract
+openness; earlier completed refs cannot be reintroduced.
 -/
 private theorem open_append_announcement
-    (initial : Keys) (events : List Execution.WorkQueueEvent)
-    (event : Execution.WorkQueueEvent) (newKeys : Keys) (key : Nat)
-    (pending : eventPending event = newKeys)
+    (initial : NodeRefs) (events : List Execution.WorkQueueEvent)
+    (event : Execution.WorkQueueEvent) (newRefs : NodeRefs) (ref : NodeRef)
+    (pending : eventPending event = newRefs)
     (noCompletion : eventCompleted event = [])
-    (fresh : ∀ newKey ∈ newKeys, newKey ∉ completedKeys events)
-    : Open initial (events ++ [event]) key ↔ Open initial events key ∨ key ∈ newKeys := by
-  have pendingEq : pendingKeys (events ++ [event])
-      = pendingKeys events ++ newKeys := by
-    simp [pendingKeys, List.flatMap_append, pending]
-  have completedEq : completedKeys (events ++ [event])
-      = completedKeys events := by
-    simp [completedKeys, List.flatMap_append, noCompletion]
-  simp only [Open, announcedKeys, pendingEq, completedEq,
+    (fresh : ∀ newRef ∈ newRefs, newRef ∉ completedRefs events)
+    : Open initial (events ++ [event]) ref ↔ Open initial events ref ∨ ref ∈ newRefs := by
+  have pendingEq : pendingRefs (events ++ [event])
+      = pendingRefs events ++ newRefs := by
+    simp [pendingRefs, List.flatMap_append, pending]
+  have completedEq : completedRefs (events ++ [event])
+      = completedRefs events := by
+    simp [completedRefs, List.flatMap_append, noCompletion]
+  simp only [Open, announcedRefs, pendingEq, completedEq,
     List.mem_append]
   constructor
   · rintro ⟨announced, notCompleted⟩
@@ -212,66 +212,66 @@ private theorem open_append_announcement
     · rcases announced with initialMember | oldMember
       · exact ⟨Or.inl initialMember, notCompleted⟩
       · exact ⟨Or.inr (Or.inl oldMember), notCompleted⟩
-    · exact ⟨Or.inr (Or.inr newMember), fresh key newMember⟩
+    · exact ⟨Or.inr (Or.inr newMember), fresh ref newMember⟩
 
 /-- A stream-value batch adds exactly the freshly announced group and stream
 nodes to the publisher registry. -/
 theorem IncrementalPublisher.registry_streamValues
-    (publisher : IncrementalPublisher) (initial : Keys)
+    (publisher : IncrementalPublisher) (initial : NodeRefs)
     (events : List Execution.WorkQueueEvent)
     (stream : Execution.DeliveryNode)
     (values : List StreamItemValue)
     (groups streams : List Execution.DeliveryNode)
     (registry : publisher.RegistryMatchesOpen initial events)
     (fresh
-      : ∀ key ∈ (groups ++ streams).map Execution.DeliveryNode.key,
-          key ∉ completedKeys events)
+      : ∀ ref ∈ (groups ++ streams).map Execution.DeliveryNode.ref,
+          ref ∉ completedRefs events)
     : ((publisher.handleWorkQueueEvent
           (.streamValues stream values groups streams)).1).RegistryMatchesOpen
         initial
         (events
           ++ (publisher.handleWorkQueueEvent
                 (.streamValues stream values groups streams)).2) := by
-  intro key
-  change key ∈ (publisher.active ++ groups ++ streams).map
-      Execution.DeliveryNode.key
+  intro ref
+  change ref ∈ (publisher.active ++ groups ++ streams).map
+      Execution.DeliveryNode.ref
     ↔ Open initial
         (events ++ [Execution.WorkQueueEvent.streamValues stream
           values
-          groups streams]) key
+          groups streams]) ref
   simp only [List.map_append, List.mem_append]
   rw [registry]
   have bridge := open_append_announcement initial events
     (.streamValues stream
       values
       groups streams)
-    ((groups ++ streams).map Execution.DeliveryNode.key) key rfl rfl fresh
+    ((groups ++ streams).map Execution.DeliveryNode.ref) ref rfl rfl fresh
   simpa only [List.map_append, List.mem_append, or_assoc] using bridge.symm
 
 /-- Outputs without notices or completions do not change abstract openness. -/
 private theorem IncrementalPublisher.registry_append_silent
-    (publisher : IncrementalPublisher) (initial : Keys)
+    (publisher : IncrementalPublisher) (initial : NodeRefs)
     (events added : List Execution.WorkQueueEvent)
     (registry : publisher.RegistryMatchesOpen initial events)
-    (noPending : pendingKeys added = [])
-    (noCompletion : completedKeys added = [])
+    (noPending : pendingRefs added = [])
+    (noCompletion : completedRefs added = [])
     : publisher.RegistryMatchesOpen initial (events ++ added) := by
-  intro key
-  have pendingEq : pendingKeys (events ++ added) = pendingKeys events := by
-    simp only [pendingKeys, List.flatMap_append]
+  intro ref
+  have pendingEq : pendingRefs (events ++ added) = pendingRefs events := by
+    simp only [pendingRefs, List.flatMap_append]
     rw [show added.flatMap eventPending = [] from noPending]
     simp
-  have completedEq : completedKeys (events ++ added) = completedKeys events := by
-    simp only [completedKeys, List.flatMap_append]
+  have completedEq : completedRefs (events ++ added) = completedRefs events := by
+    simp only [completedRefs, List.flatMap_append]
     rw [show added.flatMap eventCompleted = [] from noCompletion]
     simp
-  have openEq : Open initial (events ++ added) key = Open initial events key := by
-    simp only [Open, announcedKeys, pendingEq, completedEq]
-  simpa only [openEq] using registry key
+  have openEq : Open initial (events ++ added) ref = Open initial events ref := by
+    simp only [Open, announcedRefs, pendingEq, completedEq]
+  simpa only [openEq] using registry ref
 
 /-- Shared-value publications leave the active/open registry unchanged. -/
 theorem IncrementalPublisher.registry_groupValues
-    (publisher : IncrementalPublisher) (initial : Keys)
+    (publisher : IncrementalPublisher) (initial : NodeRefs)
     (events : List Execution.WorkQueueEvent)
     (group : Execution.DeliveryNode) (values : List ExecutionGroupValue)
     (registry : publisher.RegistryMatchesOpen initial events)
@@ -284,12 +284,12 @@ theorem IncrementalPublisher.registry_groupValues
         (publisher.getBestIdAndSubPath group value)
         [value]))
   apply publisher.registry_append_silent initial events _ registry
-  · simp [pendingKeys, List.flatMap_map, eventPending]
-  · simp [completedKeys, List.flatMap_map, eventCompleted]
+  · simp [pendingRefs, List.flatMap_map, eventPending]
+  · simp [completedRefs, List.flatMap_map, eventCompleted]
 
 /-- The terminal marker changes neither active nodes nor abstract openness. -/
 theorem IncrementalPublisher.registry_termination
-    (publisher : IncrementalPublisher) (initial : Keys)
+    (publisher : IncrementalPublisher) (initial : NodeRefs)
     (events : List Execution.WorkQueueEvent)
     (registry : publisher.RegistryMatchesOpen initial events)
     : ((publisher.handleWorkQueueEvent .workQueueTermination).1).RegistryMatchesOpen
@@ -307,18 +307,18 @@ def _root_.GraphQL.IncrementalDelivery.Execution.WorkQueueEvent.FreshNotices
     (events : List Execution.WorkQueueEvent)
     : WorkQueueEvent → Prop
   | .groupSuccess group groups streams =>
-      ∀ key ∈ (groups ++ streams).map Execution.DeliveryNode.key,
-        key ∉ completedKeys events ∧ key ≠ group.key
+      ∀ ref ∈ (groups ++ streams).map Execution.DeliveryNode.ref,
+        ref ∉ completedRefs events ∧ ref ≠ group.ref
   | .streamValues _ _ groups streams =>
-      ∀ key ∈ (groups ++ streams).map Execution.DeliveryNode.key,
-        key ∉ completedKeys events
+      ∀ ref ∈ (groups ++ streams).map Execution.DeliveryNode.ref,
+        ref ∉ completedRefs events
   | _ => True
 
 /-- Every raw publisher transition preserves active/open agreement when its
 new notices are fresh. Witnesses are the six event-specific registry lemmas.
 -/
 theorem IncrementalPublisher.RegistryMatchesOpen.handleWorkQueueEvent
-    (publisher : IncrementalPublisher) (initial : Keys)
+    (publisher : IncrementalPublisher) (initial : NodeRefs)
     (events : List Execution.WorkQueueEvent)
     (raw : WorkQueueEvent)
     (registry : publisher.RegistryMatchesOpen initial events)
@@ -345,7 +345,7 @@ theorem IncrementalPublisher.RegistryMatchesOpen.handleWorkQueueEvent
 
 /-- Freshness across a raw batch is checked at each successive publisher state
 and normalized output prefix, since earlier events in the same batch may close
-or announce keys.
+or announce refs.
 -/
 def _root_.GraphQL.IncrementalDelivery.Execution.WorkQueueEvent.FreshBatch
     (publisher : IncrementalPublisher) (events : List Execution.WorkQueueEvent)
@@ -361,7 +361,7 @@ def _root_.GraphQL.IncrementalDelivery.Execution.WorkQueueEvent.FreshBatch
 raw event, including multiple announcements and closures in one batch.
 -/
 theorem IncrementalPublisher.RegistryMatchesOpen.normalizeBatch
-    (publisher : IncrementalPublisher) (initial : Keys)
+    (publisher : IncrementalPublisher) (initial : NodeRefs)
     (events : List Execution.WorkQueueEvent)
     (raw : List WorkQueueEvent)
     (registry : publisher.RegistryMatchesOpen initial events)

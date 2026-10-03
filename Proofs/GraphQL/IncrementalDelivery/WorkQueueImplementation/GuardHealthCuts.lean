@@ -48,10 +48,10 @@ theorem ExecutedWork.eligibleObjectFailureCuts_uninvalidatedOwner {work : Execut
         sourceObjectFailureCuts 0
           (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher batches).2.2)
         = before ++ (cut, occurrence) :: after)
-    : ∃ owners key,
+    : ∃ owners ref,
         TaskHasOwners work occurrence owners
-        ∧ key ∈ owners
-        ∧ ¬GroupRecordInvalidated work (before.map Prod.snd) key :=
+        ∧ ref ∈ owners
+        ∧ ¬GroupRecordInvalidated work (before.map Prod.snd) ref :=
   createWorkQueue_eligibleObjectFailureCuts_uninvalidatedOwner generated valid started
     (generated.prefix_missingParentHealth valid started) split
 

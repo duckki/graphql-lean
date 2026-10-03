@@ -61,11 +61,11 @@ structure Mapped (state : IDState) (initial : IncrementalStreamUpdateResult)
   pending
     : ∃ entries,
         update.pending = initial.pending ++ entries
-        ∧ Encodes next (pendingKeys events) (entries.map IncrementalPendingNotice.id)
+        ∧ Encodes next (pendingRefs events) (entries.map IncrementalPendingNotice.id)
   completed
     : ∃ entries,
         update.completed = initial.completed ++ entries
-        ∧ Encodes next (completedKeys events) (entries.map IncrementalCompletionNotice.id)
+        ∧ Encodes next (completedRefs events) (entries.map IncrementalCompletionNotice.id)
 
 /-- One mapped event preserves IDs and encodes notices, by event case analysis. -/
 theorem eventLoop_spec (event : WorkQueueEvent) (initial : IncrementalStreamUpdateResult)
@@ -97,14 +97,14 @@ theorem eventLoop_spec (event : WorkQueueEvent) (initial : IncrementalStreamUpda
                 : (getPendingEntry (m := StateM IDState) groups streams ensureID).run
                     middle with
           | mk pending next =>
-              obtain ⟨tailPreserves, keys⟩ := getPendingEntry_of_eq hp
+              obtain ⟨tailPreserves, refs⟩ := getPendingEntry_of_eq hp
               refine ⟨{ initial with
                   pending := initial.pending ++ pending
                   completed := initial.completed ++ [completed] }, next, ?_, ?_⟩
               · simp [eventLoop, StateT.run, StateT.bind, StateT.pure, bind, pure] at hc hp ⊢
                 simp only [hc, hp]
               · exact ⟨preserves.trans tailPreserves,
-                  ⟨pending, rfl, by simpa [pendingKeys, eventPending] using keys⟩,
+                  ⟨pending, rfl, by simpa [pendingRefs, eventPending] using refs⟩,
                   ⟨[completed], rfl, .singleton (tailPreserves _ _ known)⟩⟩
   | groupFailure group errors | streamFailure group errors =>
       cases hc
@@ -130,7 +130,7 @@ theorem eventLoop_spec (event : WorkQueueEvent) (initial : IncrementalStreamUpda
                     middle with
           | mk pending next =>
               simp only [hi] at preserves
-              obtain ⟨tailPreserves, keys⟩ := getPendingEntry_of_eq hp
+              obtain ⟨tailPreserves, refs⟩ := getPendingEntry_of_eq hp
               refine ⟨
                 {
                   initial with
@@ -147,7 +147,7 @@ theorem eventLoop_spec (event : WorkQueueEvent) (initial : IncrementalStreamUpda
               · simp [eventLoop, StateT.run, StateT.bind, StateT.pure, bind, pure, hi] at hp ⊢
                 rw [hp]
               · exact ⟨preserves.trans tailPreserves,
-                  ⟨pending, rfl, by simpa [pendingKeys, eventPending] using keys⟩,
+                  ⟨pending, rfl, by simpa [pendingRefs, eventPending] using refs⟩,
                   ⟨[], by simp, .nil⟩⟩
   | streamSuccess stream =>
       cases hc
@@ -181,10 +181,10 @@ theorem Mapped.append {state middle final : IDState}
   obtain ⟨tp, ⟨more, em, km⟩, ⟨rest, er, kr⟩⟩ := t
   refine ⟨hp.trans tp, ⟨pending ++ more, ?_, ?_⟩, ⟨completed ++ rest, ?_, ?_⟩⟩
   · simp [em, ep, List.append_assoc]
-  · simpa only [pendingKeys, List.flatMap_append, List.map_append]
+  · simpa only [pendingRefs, List.flatMap_append, List.map_append]
       using (kp.mono tp).append km
   · simp [er, ec, List.append_assoc]
-  · simpa only [completedKeys, List.flatMap_append, List.map_append]
+  · simpa only [completedRefs, List.flatMap_append, List.map_append]
       using (kc.mono tp).append kr
 
 /-- The entire mapper loop preserves IDs and notice encodings, by list induction. -/
@@ -204,12 +204,12 @@ theorem loop_spec (events : List WorkQueueEvent) (initial : IncrementalStreamUpd
       simp [StateT.run, StateT.bind, bind] at he ht ⊢
       simp only [he, ht]
 
-/-- A work batch maps its ordered key occurrences to stable IDs, by the loop witness. -/
+/-- A work batch maps its ordered ref occurrences to stable IDs, by the loop witness. -/
 theorem mapWorkEventBatch_spec (events : List WorkQueueEvent) (state : IDState)
     : let (update, next) := (mapWorkEventBatch events).run state
       Preserves state next
-      ∧ Encodes next (pendingKeys events) (update.pending.map IncrementalPendingNotice.id)
-      ∧ Encodes next (completedKeys events)
+      ∧ Encodes next (pendingRefs events) (update.pending.map IncrementalPendingNotice.id)
+      ∧ Encodes next (completedRefs events)
           (update.completed.map IncrementalCompletionNotice.id) := by
   obtain ⟨update, next, he, hp, ⟨pending, ep, kp⟩, ⟨completed, ec, kc⟩⟩ :=
     loop_spec events { hasNext := true } state
@@ -221,8 +221,8 @@ theorem mapWorkEventBatch_of_eq {events : List WorkQueueEvent} {state next : IDS
     {update : IncrementalStreamUpdateResult}
     (h : (mapWorkEventBatch events).run state = (update, next))
     : Preserves state next
-      ∧ Encodes next (pendingKeys events) (update.pending.map IncrementalPendingNotice.id)
-      ∧ Encodes next (completedKeys events)
+      ∧ Encodes next (pendingRefs events) (update.pending.map IncrementalPendingNotice.id)
+      ∧ Encodes next (completedRefs events)
           (update.completed.map IncrementalCompletionNotice.id) := by
   have fact := mapWorkEventBatch_spec events state
   rw [h] at fact

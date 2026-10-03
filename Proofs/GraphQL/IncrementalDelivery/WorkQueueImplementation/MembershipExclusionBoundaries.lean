@@ -175,7 +175,7 @@ theorem createWorkQueue_streamItems_drainMemberships
     (valid : ValidGraphEvents work (before ++ .streamItems stream items :: after))
     : let current := (State.initialize (Work.fromExecution work)).replayGraphEvents before
       let prepared := current.preparedStreamItems items
-      current.rootStreams.contains stream.key = true
+      current.rootStreams.contains stream.ref = true
       → ∀ steps,
           steps ≤ prepared.groupNodes.length
           → ∀ publication ∈

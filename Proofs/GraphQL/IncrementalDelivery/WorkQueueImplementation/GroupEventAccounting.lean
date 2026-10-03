@@ -17,7 +17,7 @@ def GroupSuccessesAccounted (work : Execution.Work) (w : Witness) : Prop :=
   ∀ (index : Nat) (group : Execution.DeliveryNode)
     (groups streams : List Execution.DeliveryNode),
     w.events[index]? = some (Execution.WorkQueueEvent.groupSuccess group groups streams)
-    → NodeAccounted work w.matching (w.events.take index) w.failures group.key
+    → NodeAccounted work w.matching (w.events.take index) w.failures group.ref
 
 /-- A generated successful group carrier satisfies admission exactly when its notices do.
 Witness: derive strict-prefix task accounting from the retained ledger, then reuse the
@@ -32,9 +32,9 @@ theorem groupSuccessAllowed_iff_announcements
     (healthy : GroupSuccessesHealthy work w)
     (ledger : BufferedClosureLedger work inputs w)
     (selected : w.events[index]? = some (.groupSuccess group groups streams))
-    : EventAllowed work (initialKeys work) w.matching (w.events.take index) w.failures
+    : EventAllowed work (initialRefs work) w.matching (w.events.take index) w.failures
         (.groupSuccess group groups streams)
-      ↔ Announcements work (initialKeys work) w.matching
+      ↔ Announcements work (initialRefs work) w.matching
           (w.events.take index ++ [.groupSuccess group [] []])
           (w.failures.filter (fun entry => entry.1 ≤ index)) groups streams := by
   rw [groupSuccessAllowed_iff_accounting_and_announcements generated valid history healthy
@@ -53,7 +53,7 @@ theorem groupSuccess_withoutNotices_allowed
     (healthy : GroupSuccessesHealthy work w)
     (ledger : BufferedClosureLedger work inputs w)
     (selected : w.events[index]? = some (.groupSuccess group [] []))
-    : EventAllowed work (initialKeys work) w.matching (w.events.take index) w.failures
+    : EventAllowed work (initialRefs work) w.matching (w.events.take index) w.failures
         (.groupSuccess group [] []) := by
   apply (groupSuccessAllowed_iff_announcements generated valid started history healthy ledger
     selected).mpr

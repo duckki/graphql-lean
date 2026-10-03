@@ -10,30 +10,30 @@ namespace GraphQL.IncrementalDelivery.Correctness.MapperIdentity
 open GraphQL.IncrementalDelivery.Execution
 open WorkQueueSemantics
 
-def PatchReferences (state : IDState) (keys : List Nat) (patches : List IncrementalResult)
+def PatchReferences (state : IDState) (refs : List Nat) (patches : List IncrementalResult)
     : Prop :=
-  ∀ patch ∈ patches, ∃ key ∈ keys, Known state key patch.id
+  ∀ patch ∈ patches, ∃ ref ∈ refs, Known state ref patch.id
 
 /-- Preserved lookups transport patch provenance to the later allocation state. -/
-theorem PatchReferences.mono {state next : IDState} {keys : List Nat}
-    {patches : List IncrementalResult} (h : PatchReferences state keys patches)
+theorem PatchReferences.mono {state next : IDState} {refs : List Nat}
+    {patches : List IncrementalResult} (h : PatchReferences state refs patches)
     (preserved : Preserves state next)
-    : PatchReferences next keys patches := by
+    : PatchReferences next refs patches := by
   intro patch member
-  obtain ⟨key, source, known⟩ := h patch member
-  exact ⟨key, source, preserved _ _ known⟩
+  obtain ⟨ref, source, known⟩ := h patch member
+  exact ⟨ref, source, preserved _ _ known⟩
 
-/-- Concatenating patch lists preserves provenance in the union of source keys. -/
-theorem PatchReferences.append {state : IDState} {keys more : List Nat}
-    {patches rest : List IncrementalResult} (h : PatchReferences state keys patches)
+/-- Concatenating patch lists preserves provenance in the union of source refs. -/
+theorem PatchReferences.append {state : IDState} {refs more : List Nat}
+    {patches rest : List IncrementalResult} (h : PatchReferences state refs patches)
     (t : PatchReferences state more rest)
-    : PatchReferences state (keys ++ more) (patches ++ rest) := by
+    : PatchReferences state (refs ++ more) (patches ++ rest) := by
   intro patch member
   rcases List.mem_append.mp member with member | member
-  · obtain ⟨key, source, known⟩ := h patch member
-    exact ⟨key, List.mem_append_left _ source, known⟩
-  · obtain ⟨key, source, known⟩ := t patch member
-    exact ⟨key, List.mem_append_right _ source, known⟩
+  · obtain ⟨ref, source, known⟩ := h patch member
+    exact ⟨ref, List.mem_append_left _ source, known⟩
+  · obtain ⟨ref, source, known⟩ := t patch member
+    exact ⟨ref, List.mem_append_right _ source, known⟩
 
 structure MappedPatches (state : IDState) (initial : IncrementalStreamUpdateResult)
     (events : List WorkQueueEvent) (update : IncrementalStreamUpdateResult)
@@ -43,7 +43,7 @@ structure MappedPatches (state : IDState) (initial : IncrementalStreamUpdateResu
   patches
     : ∃ entries,
         update.incremental = initial.incremental ++ entries
-        ∧ PatchReferences next (usedKeys events) entries
+        ∧ PatchReferences next (usedRefs events) entries
 
 /-- Every mapped patch names its source owner, by event case analysis. -/
 theorem eventLoop_patches (event : WorkQueueEvent)
@@ -54,7 +54,7 @@ theorem eventLoop_patches (event : WorkQueueEvent)
   cases event with
   | groupValues group values =>
       let action := fun value => getIncrementalEntry (m := StateM IDState) group value ensureID
-      have fact := mapM_encodes action (fun _ => group.key) IncrementalResult.id
+      have fact := mapM_encodes action (fun _ => group.ref) IncrementalResult.id
         (fun _ _ => ensureID_spec _ _) values state
       cases h : (values.mapM action).run state with
       | mk entries next =>
@@ -68,10 +68,10 @@ theorem eventLoop_patches (event : WorkQueueEvent)
           · simp [eventLoop, action, StateT.run, StateT.bind, StateT.pure, bind, pure] at h ⊢
             rw [h]
           · intro patch member
-            obtain ⟨key, source, known⟩ :=
+            obtain ⟨ref, source, known⟩ :=
               fact.2.fromID patch.id (List.mem_map.mpr ⟨patch, member, rfl⟩)
             obtain ⟨value, _, eq⟩ := List.mem_map.mp source
-            exact ⟨key, by simp [usedKeys, eventUsed, eq], known⟩
+            exact ⟨ref, by simp [usedRefs, eventUsed, eq], known⟩
   | groupSuccess group groups streams =>
       cases hc : (getCompletedEntry (m := StateM IDState) group 0 ensureID).run state with
       | mk completed middle =>
@@ -130,7 +130,7 @@ theorem eventLoop_patches (event : WorkQueueEvent)
                 rw [hp]
               · intro entry member
                 cases List.mem_singleton.mp member
-                exact ⟨stream.key, by simp [usedKeys, eventUsed], preserved _ _ fact.2⟩
+                exact ⟨stream.ref, by simp [usedRefs, eventUsed], preserved _ _ fact.2⟩
   | streamSuccess stream =>
       cases hc
             : (getCompletedEntry (m := StateM IDState) stream 0 ensureID).run state with
@@ -164,7 +164,7 @@ theorem MappedPatches.append {state middle final : IDState}
     entries ++ more,
     by simp [hm, he, List.append_assoc],
     by
-      simpa only [usedKeys, List.flatMap_append]
+      simpa only [usedRefs, List.flatMap_append]
         using (refs.mono tailPreserved).append tailRefs
   ⟩
 
@@ -187,7 +187,7 @@ theorem loop_patches (events : List WorkQueueEvent)
 /-- Public batch mapping preserves patch provenance, by the loop equation. -/
 theorem mapWorkEventBatch_references (events : List WorkQueueEvent) (state : IDState)
     : let (update, next) := (mapWorkEventBatch events).run state
-      PatchReferences next (usedKeys events) update.incremental := by
+      PatchReferences next (usedRefs events) update.incremental := by
   obtain ⟨update, next, he, _, entries, hp, refs⟩ := loop_patches events { hasNext := true } state
   rw [mapWorkEventBatch_loop, he]
   simpa [hp] using refs

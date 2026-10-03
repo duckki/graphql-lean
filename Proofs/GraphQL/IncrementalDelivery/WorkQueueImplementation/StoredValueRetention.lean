@@ -42,9 +42,9 @@ theorem State.startNewWork_lookup_existing {queue : State} {occurrence node}
     induction items generalizing current with
     | nil => exact prior
     | cons item rest ih => exact ih _ (preserves current item prior)
-  have startGroup (current : State) (key : Nat)
+  have startGroup (current : State) (ref : NodeRef)
       (prior : current.taskNode? occurrence = some node)
-      : (current.startGroup key).taskNode? occurrence = some node := by
+      : (current.startGroup ref).taskNode? occurrence = some node := by
     unfold State.startGroup
     split
     · exact prior
@@ -52,9 +52,9 @@ theorem State.startNewWork_lookup_existing {queue : State} {occurrence node}
       · exact prior
       · exact foldLookup State.startTask (fun _ task lookup =>
           State.startTask_lookup_existing lookup task) _ _ prior
-  have startStream (current : State) (key : Nat)
+  have startStream (current : State) (ref : NodeRef)
       (prior : current.taskNode? occurrence = some node)
-      : (current.startStream key).taskNode? occurrence = some node := by
+      : (current.startStream ref).taskNode? occurrence = some node := by
     unfold State.startStream
     split <;> exact prior
   unfold State.startNewWork
@@ -91,11 +91,11 @@ theorem State.removeGroup_lookup_survivingOwner {queue : State} {occurrence node
     (found : queue.taskNode? occurrence = some node) (removed : Nat)
     {contributor : Execution.DeliveryNode} (contributes : contributor ∈ node.task.groups)
     {owner : GroupNode} (live : owner ∈ (queue.removeGroup removed).groupNodes)
-    (same : owner.group.node.key = contributor.key)
+    (same : owner.group.node.ref = contributor.ref)
     : (queue.removeGroup removed).taskNode? occurrence = some node := by
   have keep : node.task.groups.any (fun group =>
       (queue.removeGroup removed).groupNodes.any
-        (fun owner => owner.group.node.key == group.key)) = true := by
+        (fun owner => owner.group.node.ref == group.ref)) = true := by
     exact List.any_eq_true.mpr ⟨contributor, contributes,
       List.any_eq_true.mpr ⟨owner, live, beq_iff_eq.mpr same⟩⟩
   change (queue.taskNodes.filter _).find? _ = some node
@@ -110,13 +110,13 @@ theorem State.removeGroup_lookup_healthyOwner {queue : State} {work parents fail
     (matching : queue.GroupNodesMatchWork work)
     (canonical
       : ∀ group dependencies,
-          GroupRecordAt work group dependencies → dependencies = parents group.key)
+          GroupRecordAt work group dependencies → dependencies = parents group.ref)
     {occurrence node} (found : queue.taskNode? occurrence = some node)
     (removed : Nat) (invalid : GroupRecordInvalidated work failed removed)
     {contributor : Execution.DeliveryNode} (contributes : contributor ∈ node.task.groups)
     {owner : GroupNode} (live : owner ∈ queue.groupNodes)
-    (same : owner.group.node.key = contributor.key)
-    (healthy : ¬GroupRecordInvalidated work failed contributor.key)
+    (same : owner.group.node.ref = contributor.ref)
+    (healthy : ¬GroupRecordInvalidated work failed contributor.ref)
     : (queue.removeGroup removed).taskNode? occurrence = some node := by
   exact State.removeGroup_lookup_survivingOwner found removed contributes
     (queue.removeGroup_recordHealthyRetained links matching canonical removed invalid

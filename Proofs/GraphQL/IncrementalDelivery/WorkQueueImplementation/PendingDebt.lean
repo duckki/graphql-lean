@@ -6,18 +6,18 @@ namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.Execution (ExecutionGroupValue WorkQueueEvent)
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
-/-- The remaining contributor keys still owe one physical decrement. The logical
+/-- The remaining contributor refs still owe one physical decrement. The logical
 settlement list already includes the current success, even if another group has flushed
 its value and removed its memberships. This debt is proof evidence, not queue state.
 -/
 def State.PendingDebt (queue : State) (eligible : Nat → Prop)
-    (settled : List Occurrence) (remaining : Keys)
+    (settled : List Occurrence) (remaining : NodeRefs)
     : Prop :=
   ∀ node ∈ queue.groupNodes,
-    eligible node.group.node.key
+    eligible node.group.node.ref
     → node.pending
       = unsettledCount node.tasks settled
-        + if node.group.node.key ∈ remaining then 1 else 0
+        + if node.group.node.ref ∈ remaining then 1 else 0
 
 /-- A counter may include decrement debt but never undercounts unsettled memberships.
 The eligibility predicate restricts which live groups require this safety bound.
@@ -25,7 +25,7 @@ The eligibility predicate restricts which live groups require this safety bound.
 def State.PendingBound (queue : State) (eligible : Nat → Prop) (settled : List Occurrence)
     : Prop :=
   ∀ node ∈ queue.groupNodes,
-    eligible node.group.node.key → unsettledCount node.tasks settled ≤ node.pending
+    eligible node.group.node.ref → unsettledCount node.tasks settled ≤ node.pending
 
 /-- Debt is nonnegative, so its exact ledger supplies the safety bound. -/
 theorem State.PendingDebt.toBound {queue : State} {eligible settled remaining}
@@ -54,7 +54,7 @@ bound forces an empty unsettled-token count.
 theorem State.PendingBound.allSettled {queue : State} {eligible settled}
     (tracks : queue.PendingBound eligible settled)
     {node : GroupNode} (member : node ∈ queue.groupNodes)
-    (relevant : eligible node.group.node.key) (zero : node.pending = 0)
+    (relevant : eligible node.group.node.ref) (zero : node.pending = 0)
     : ∀ occurrence ∈ node.tasks, occurrence ∈ settled := by
   have count := tracks node member relevant
   have empty : unsettledCount node.tasks settled = 0 := by omega
@@ -65,20 +65,20 @@ theorem State.PendingBound.allSettled {queue : State} {eligible settled}
 Witness: duplicate-free task membership and exact ownership identify each added token.
 -/
 theorem State.PendingDebt.beginSettlement {queue : State} {eligible : Nat → Prop}
-    {settled : List Occurrence} {occurrence : Occurrence} {keys : Keys}
+    {settled : List Occurrence} {occurrence : Occurrence} {refs : NodeRefs}
     (tracks
       : ∀ node ∈ queue.groupNodes,
-          eligible node.group.node.key → node.PendingTracks settled)
+          eligible node.group.node.ref → node.PendingTracks settled)
     (unique : queue.TaskMembershipsUnique)
     (owned
       : ∀ node ∈ queue.groupNodes,
-          eligible node.group.node.key
-          → (occurrence ∈ node.tasks ↔ node.group.node.key ∈ keys))
+          eligible node.group.node.ref
+          → (occurrence ∈ node.tasks ↔ node.group.node.ref ∈ refs))
     (fresh : occurrence ∉ settled)
-    : queue.PendingDebt eligible (occurrence :: settled) keys := by
+    : queue.PendingDebt eligible (occurrence :: settled) refs := by
   intro node member relevant
   rw [tracks node member relevant]
-  by_cases contributes : node.group.node.key ∈ keys
+  by_cases contributes : node.group.node.ref ∈ refs
   · rw [ite_eq_left contributes]
     exact unsettledCount_settle node.tasks settled occurrence (unique node member)
       ((owned node member relevant).mpr contributes) fresh
@@ -96,7 +96,7 @@ theorem State.PendingDebt.removeTask {queue : State} {eligible settled remaining
   intro node member relevant
   obtain ⟨old, oldMember, rfl⟩ := List.mem_map.mp member
   change old.pending = unsettledCount (old.tasks.filter (· != occurrence)) settled
-    + if old.group.node.key ∈ remaining then 1 else 0
+    + if old.group.node.ref ∈ remaining then 1 else 0
   rw [unsettledCount_remove_settled _ _ _ already]
   exact tracks old oldMember relevant
 
@@ -134,7 +134,7 @@ theorem State.PendingDebt.finishGroupSuccess {queue : State} {eligible settled r
     (tracks : queue.PendingDebt eligible settled remaining)
     (group : GroupNode) (all : ∀ occurrence ∈ group.tasks, occurrence ∈ settled)
     : (queue.finishGroupSuccess group).1.PendingDebt eligible settled remaining := by
-  let step (acc : State × List ExecutionGroupValue × Keys) (occurrence : Occurrence) :=
+  let step (acc : State × List ExecutionGroupValue × NodeRefs) (occurrence : Occurrence) :=
     let (current, values, streams) := acc
     match current.taskNode? occurrence with
     | none => (current, values, streams)
@@ -145,7 +145,7 @@ theorem State.PendingDebt.finishGroupSuccess {queue : State} {eligible settled r
         (current.removeTask occurrence, values, streams ++ taskNode.childStreams)
   have foldTracks (tasks : List Occurrence)
       (included : ∀ occurrence ∈ tasks, occurrence ∈ settled) :
-      ∀ acc : State × List ExecutionGroupValue × Keys,
+      ∀ acc : State × List ExecutionGroupValue × NodeRefs,
         acc.1.PendingDebt eligible settled remaining →
         (tasks.foldl step acc).1.PendingDebt eligible settled remaining := by
     induction tasks with
@@ -164,8 +164,8 @@ theorem State.PendingDebt.finishGroupSuccess {queue : State} {eligible settled r
   let current : State :=
     { flushed with
         groupNodes := flushed.groupNodes.filter
-          (fun node => node.group.node.key != group.group.node.key)
-        rootGroups := flushed.rootGroups.filter (· != group.group.node.key) }
+          (fun node => node.group.node.ref != group.group.node.ref)
+        rootGroups := flushed.rootGroups.filter (· != group.group.node.ref) }
   have currentTracks : current.PendingDebt eligible settled remaining := by
     intro node member relevant
     exact flushedTracks node (List.mem_filter.mp member).1 relevant
@@ -177,21 +177,21 @@ settled, even while other groups still owe decrements. Witness: both summands ar
 theorem State.PendingDebt.allSettled {queue : State} {eligible settled remaining}
     (tracks : queue.PendingDebt eligible settled remaining)
     {node : GroupNode} (member : node ∈ queue.groupNodes)
-    (relevant : eligible node.group.node.key) (zero : node.pending = 0)
+    (relevant : eligible node.group.node.ref) (zero : node.pending = 0)
     : ∀ occurrence ∈ node.tasks, occurrence ∈ settled := by
   exact tracks.toBound.allSettled member relevant zero
 
-/-- Updating the current contributor pays its one debt and leaves every other key's
-debt intact. Witness: unique group keys and the duplicate-free contributor suffix.
+/-- Updating the current contributor pays its one debt and leaves every other ref's
+debt intact. Witness: unique group refs and the duplicate-free contributor suffix.
 -/
-theorem State.PendingDebt.decrement {queue : State} {eligible settled remaining key}
-    (tracks : queue.PendingDebt eligible settled (key :: remaining))
-    (unique : queue.GroupKeysUnique) (absent : key ∉ remaining)
-    {node : GroupNode} (found : queue.groupNode? key = some node)
+theorem State.PendingDebt.decrement {queue : State} {eligible settled remaining ref}
+    (tracks : queue.PendingDebt eligible settled (ref :: remaining))
+    (unique : queue.GroupRefsUnique) (absent : ref ∉ remaining)
+    {node : GroupNode} (found : queue.groupNode? ref = some node)
     (failure : Option Nat := node.failure)
     : (queue.putGroupNode { node with pending := node.pending - 1, failure }).PendingDebt
         eligible settled remaining := by
-  have nodeKey := queue.groupNode?_key found
+  have nodeRef := queue.groupNode?_ref found
   have nodeMember := List.mem_of_find?_eq_some found
   intro next member relevant
   obtain ⟨old, oldMember, same⟩ := List.mem_map.mp member
@@ -201,23 +201,23 @@ theorem State.PendingDebt.decrement {queue : State} {eligible settled remaining 
     subst old
     subst next
     have count := tracks node nodeMember relevant
-    simp only [nodeKey, List.mem_cons_self, ite_true] at count
-    simp [nodeKey, absent, count]
+    simp only [nodeRef, List.mem_cons_self, ite_true] at count
+    simp [nodeRef, absent, count]
   · rename_i different
     subst next
-    have unequal : old.group.node.key ≠ key := by
-      simpa only [nodeKey, beq_iff_eq] using different
+    have unequal : old.group.node.ref ≠ ref := by
+      simpa only [nodeRef, beq_iff_eq] using different
     simpa [unequal] using tracks old oldMember relevant
 
 /-- A missing contributor cannot occur in any live node's counter debt.
-Witness: a successful lookup would otherwise exist at that key.
+Witness: a successful lookup would otherwise exist at that ref.
 -/
-theorem State.PendingDebt.skipMissing {queue : State} {eligible settled remaining key}
-    (tracks : queue.PendingDebt eligible settled (key :: remaining))
-    (missing : queue.groupNode? key = none)
+theorem State.PendingDebt.skipMissing {queue : State} {eligible settled remaining ref}
+    (tracks : queue.PendingDebt eligible settled (ref :: remaining))
+    (missing : queue.groupNode? ref = none)
     : queue.PendingDebt eligible settled remaining := by
   intro node member relevant
-  have unequal : node.group.node.key ≠ key := by
+  have unequal : node.group.node.ref ≠ ref := by
     intro equal
     have none := List.find?_eq_none.mp missing node member
     simp [equal] at none
@@ -228,12 +228,12 @@ def successGroupStep (acc : State × List WorkQueueEvent × NewWork)
     (group : Execution.DeliveryNode)
     : State × List WorkQueueEvent × NewWork :=
   let (current, events, released) := acc
-  match current.groupNode? group.key with
+  match current.groupNode? group.ref with
   | none => (current, events, released)
   | some node =>
       let node := { node with pending := node.pending - 1 }
       let current := current.putGroupNode node
-      if current.rootGroups.contains group.key
+      if current.rootGroups.contains group.ref
           && node.pending == 0
           && node.failure.isNone then
         let (next, finished, newWork) := current.finishGroupSuccess node
@@ -254,27 +254,27 @@ queue invariant preserved by decrement and by a flush of logically settled tasks
 -/
 theorem successGroupFold_preserves (eligible : Nat → Prop) (settled : List Occurrence)
     (invariant : State → Prop)
-    (keys : ∀ queue, invariant queue → queue.GroupKeysUnique)
-    (roots : ∀ queue, invariant queue → ∀ key ∈ queue.rootGroups, eligible key)
+    (refs : ∀ queue, invariant queue → queue.GroupRefsUnique)
+    (roots : ∀ queue, invariant queue → ∀ ref ∈ queue.rootGroups, eligible ref)
     (decrement
       : ∀ queue node,
           invariant queue
-          → queue.groupNode? node.group.node.key = some node
+          → queue.groupNode? node.group.node.ref = some node
           → invariant (queue.putGroupNode { node with pending := node.pending - 1 }))
     (flush
       : ∀ queue node remaining,
           invariant queue
           → queue.PendingDebt eligible settled remaining
           → node ∈ queue.groupNodes
-          → node.group.node.key ∈ queue.rootGroups
+          → node.group.node.ref ∈ queue.rootGroups
           → node.pending = 0
           → (∀ occurrence ∈ node.tasks, occurrence ∈ settled)
           → invariant (queue.finishGroupSuccess node).1)
     (groups : List Execution.DeliveryNode)
-    (unique : (groups.map Execution.DeliveryNode.key).Nodup)
+    (unique : (groups.map Execution.DeliveryNode.ref).Nodup)
     (acc : State × List WorkQueueEvent × NewWork)
     (valid : invariant acc.1)
-    (tracks : acc.1.PendingDebt eligible settled (groups.map Execution.DeliveryNode.key))
+    (tracks : acc.1.PendingDebt eligible settled (groups.map Execution.DeliveryNode.ref))
     : invariant (groups.foldl successGroupStep acc).1
       ∧ (groups.foldl successGroupStep acc).1.PendingDebt eligible settled [] := by
   induction groups generalizing acc with
@@ -287,12 +287,12 @@ theorem successGroupFold_preserves (eligible : Nat → Prop) (settled : List Occ
         split
         · exact valid
         · rename_i node found
-          have nodeKey := queue.groupNode?_key found
-          have nextValid := decrement queue node valid (nodeKey ▸ found)
-          have nextTracks := tracks.decrement (keys queue valid) absent found
+          have nodeRef := queue.groupNode?_ref found
+          have nextValid := decrement queue node valid (nodeRef ▸ found)
+          have nextTracks := tracks.decrement (refs queue valid) absent found
           split
           · rename_i ready
-            have active : group.key ∈ queue.rootGroups := by
+            have active : group.ref ∈ queue.rootGroups := by
               simpa [State.putGroupNode]
                 using (Bool.and_eq_true_iff.mp (Bool.and_eq_true_iff.mp ready).1).1
             have zero : node.pending - 1 = 0 := by
@@ -301,8 +301,8 @@ theorem successGroupFold_preserves (eligible : Nat → Prop) (settled : List Occ
                 (queue.putGroupNode { node with pending := node.pending - 1 }).groupNodes := by
               apply List.mem_map.mpr
               exact ⟨node, List.mem_of_find?_eq_some found, by simp⟩
-            exact flush _ _ _ nextValid nextTracks member (nodeKey ▸ active) zero
-              (nextTracks.allSettled member (nodeKey ▸ roots queue valid _ active) zero)
+            exact flush _ _ _ nextValid nextTracks member (nodeRef ▸ active) zero
+              (nextTracks.allSettled member (nodeRef ▸ roots queue valid _ active) zero)
           · exact nextValid
       · obtain ⟨queue, events, released⟩ := acc
         dsimp only [successGroupStep]
@@ -310,11 +310,11 @@ theorem successGroupFold_preserves (eligible : Nat → Prop) (settled : List Occ
         · rename_i missing
           exact tracks.skipMissing missing
         · rename_i node found
-          have nodeKey := queue.groupNode?_key found
-          have nextTracks := tracks.decrement (keys queue valid) absent found
+          have nodeRef := queue.groupNode?_ref found
+          have nextTracks := tracks.decrement (refs queue valid) absent found
           split
           · rename_i ready
-            have active : group.key ∈ queue.rootGroups := by
+            have active : group.ref ∈ queue.rootGroups := by
               simpa [State.putGroupNode]
                 using (Bool.and_eq_true_iff.mp (Bool.and_eq_true_iff.mp ready).1).1
             have zero : node.pending - 1 = 0 := by
@@ -324,7 +324,7 @@ theorem successGroupFold_preserves (eligible : Nat → Prop) (settled : List Occ
               apply List.mem_map.mpr
               exact ⟨node, List.mem_of_find?_eq_some found, by simp⟩
             exact nextTracks.finishGroupSuccess _
-              (nextTracks.allSettled member (nodeKey ▸ roots queue valid _ active) zero)
+              (nextTracks.allSettled member (nodeRef ▸ roots queue valid _ active) zero)
           · exact nextTracks
 
 /-- Decompose task success into cancellation or its single-pass fold and release drain.

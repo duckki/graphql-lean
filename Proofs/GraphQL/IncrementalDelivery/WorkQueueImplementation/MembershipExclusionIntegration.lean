@@ -62,8 +62,8 @@ theorem State.TaskMembershipAbsent.addGroups {queue : State} {occurrence}
         match current.groupNode? parent with
         | none => current
         | some node =>
-            let children := if node.childGroups.contains group.node.key then node.childGroups
-              else node.childGroups ++ [group.node.key]
+            let children := if node.childGroups.contains group.node.ref then node.childGroups
+              else node.childGroups ++ [group.node.ref]
             current.putGroupNode { node with childGroups := children }
   have registration (more : List Group) (current : State)
       (prior : current.TaskMembershipAbsent occurrence)
@@ -96,7 +96,7 @@ theorem State.TaskMembershipAbsent.addTask {queue : State} {occurrence}
     (different : occurrence ≠ task.occurrence)
     : (queue.addTask task).TaskMembershipAbsent occurrence := by
   let step (current : State) (group : Execution.DeliveryNode) :=
-    match current.groupNode? group.key with
+    match current.groupNode? group.ref with
     | none => current
     | some node =>
         if node.tasks.contains task.occurrence then current
@@ -121,7 +121,7 @@ theorem State.TaskMembershipAbsent.addTask {queue : State} {occurrence}
   let registered : State := { queue with tasks := queue.tasks ++ [task] }
   let current := task.groups.foldl step registered
   have final := loop task.groups registered absent
-  change (if task.groups.any (fun group => current.rootGroups.contains group.key)
+  change (if task.groups.any (fun group => current.rootGroups.contains group.ref)
       && (current.taskNode? task.occurrence).isNone then
     { current with taskNodes := current.taskNodes ++ [({ task } : TaskNode)] }
     else current).TaskMembershipAbsent occurrence

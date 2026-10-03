@@ -1,13 +1,13 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.CollectedAncestorChains
 
 /-! Pure mixed defer/stream execution generates exact immediate-parent ancestry chains.
-The induction follows the existing mixed-key witness, strengthening its final assignment
+The induction follows the existing mixed-ref witness, strengthening its final assignment
 without changing public execution or the earlier metadata propositions. -/
 
 namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue.AncestorChains
 open GraphQL.IncrementalDelivery.Execution
 open Semantics
-open Semantics.Ancestry Semantics.MixedKeys
+open Semantics.Ancestry Semantics.MixedRefs
 
 attribute [local simp] id_pure_eq id_bind_eq id_map_eq run_bind run_map
 
@@ -58,7 +58,7 @@ mutual
     all_goals repeat first | apply Prod.Lex.left; omega | apply Prod.Lex.right
 
   /-- Deferred partitions preserve chains. Witness: sequential field execution and
-  fragment lookup from the coherent defer map, composing fresh-key extensions. -/
+  fragment lookup from the coherent defer map, composing fresh-ref extensions. -/
   theorem collectExecutionGroups_chains (schema : Schema)
       (resolvers : Resolvers ObjectRef) (variables : VariableValues) (fuel : Nat)
       (parentType : Name) (source : ResolverValue ObjectRef)
@@ -74,7 +74,7 @@ mutual
       (hp
         : ∀ partition ∈ partitions,
             partition.1 ≠ []
-            ∧ partition.1.Subset (mapKeys deferMap)
+            ∧ partition.1.Subset (mapRefs deferMap)
             ∧ GroupsUnder partition.1 partition.2)
       : Output parents lower state
           ((collectExecutionGroups schema resolvers variables fuel parentType source
@@ -237,7 +237,7 @@ mutual
                 · exact output_empty parents lower state hv
                 · obtain ⟨hsc, middle, he, hmv, hmap, hfields⟩ := collectSubfields_chains schema variables runtimeType
                     (.object runtimeType ref) fields parents state deferMap path hv hm hk
-                  have hkc := collectSubfields_keys schema variables runtimeType (.object runtimeType ref) fields state
+                  have hkc := collectSubfields_refs schema variables runtimeType (.object runtimeType ref) fields state
                     (fun field hf => optionalUsageAt_before hv (hk field hf))
                   have hlow := mapLower_new lower state deferMap _ path hl hls (fun u hu => (hkc.2.2 u hu).1)
                   have hn := collectSubfields_nonempty schema variables runtimeType (.object runtimeType ref) fields state
@@ -313,12 +313,13 @@ mutual
             (Nat.le_refl _) hav (by intro f hf; obtain ⟨old, _, rfl⟩ := List.mem_map.mp hf; rfl)
           have hea := allocate_extends middle middleState []
           have heall := hea.trans het (Nat.le_succ middleState)
-          simp only [freshExecutionKey, run_bind, StateT.run_get, StateT.run_set, StateT.run_pure, id_pure_eq]
+          simp only [freshNodeRef, run_bind, StateT.run_get, StateT.run_set, StateT.run_pure, id_pure_eq]
           refine ⟨by dsimp only [middleState] at *; omega, final, he.trans heall hle, hfv, ?_⟩
           apply workAt_combine (workAt_catchNull final lower _ _ _
             (hw.extend heall (by dsimp only [middleState] at *; omega)))
-          rw [MixedKeys.WorkAt]
-          exact ⟨Nat.le_trans hls hle, by dsimp only [middleState] at *; omega, hitems⟩
+          rw [MixedRefs.WorkAt]
+          exact ⟨Nat.le_trans hls hle,
+            Nat.lt_of_lt_of_le (Nat.lt_succ_self middleState) hlt, hitems⟩
   termination_by (fuel, 3, 0, 0)
   decreasing_by
     all_goals subst_vars; simp_wf
@@ -376,7 +377,7 @@ mutual
         ∧ ∃ next,
             Extends state parents next
             ∧ Valid next output.2
-            ∧ ∀ item ∈ output.1, MixedKeys.WorkAt next lower output.2 item.2 := by
+            ∧ ∀ item ∈ output.1, MixedRefs.WorkAt next lower output.2 item.2 := by
     cases values with
     | nil =>
         simp only [completeStreamItems, StateT.run_pure, id_pure_eq]
@@ -384,11 +385,11 @@ mutual
     | cons value rest =>
         obtain ⟨hle, middle, he, hmv, hw⟩ := completeValue_chains schema resolvers variables fuel itemType fields value
           (path ++ [.index index]) [] [] false parents lower state hls hv
-          (by simp [MapAt]) (by simp [MapLower, mapKeys]) (by intro f hf; simp [OptionalUsageAt, hk f hf])
+          (by simp [MapAt]) (by simp [MapLower, mapRefs]) (by intro f hf; simp [OptionalUsageAt, hk f hf])
           (fun _ _ => Or.inl rfl)
         simp only [completeStreamItems, run_bind]
         split
-        · exact ⟨hle, middle, he, hmv, by simp [MixedKeys.WorkAt]⟩
+        · exact ⟨hle, middle, he, hmv, by simp [MixedRefs.WorkAt]⟩
         · obtain ⟨hlt, final, het, hfv, htail⟩ := completeStreamItems_chains schema resolvers variables fuel itemType fields rest
             path (index + 1) middle lower _ (Nat.le_trans hls hle) hmv hk
           simp only [run_bind, StateT.run_pure, id_pure_eq]
@@ -416,11 +417,11 @@ theorem executeRoot_chains (schema : Schema) (resolvers : Resolvers ObjectRef)
       state ≤ output.2
       ∧ ∃ parents,
           Valid parents output.2
-          ∧ MixedKeys.WorkAt parents state output.2 output.1.work := by
+          ∧ MixedRefs.WorkAt parents state output.2 output.1.work := by
   obtain ⟨hsc, middle, _, hmv, hm, hk⟩ := collectFields_chains schema variables parentType source selections none
     (fun _ => []) state [] [] (by simp [Valid, Chains, Semantics.Ancestry.Valid]) (by simp [MapAt]) (by simp [OptionalUsageAt])
-  have hkc := collectFields_keys schema variables parentType source selections none state (by simp [UsageBefore])
-  have hl := mapLower_new state state [] _ [] (by simp [MapLower, mapKeys]) (Nat.le_refl _)
+  have hkc := collectFields_refs schema variables parentType source selections none state (by simp [UsageBefore])
+  have hl := mapLower_new state state [] _ [] (by simp [MapLower, mapRefs]) (Nat.le_refl _)
     (fun u hu => (hkc.2.2 u hu).1)
   obtain ⟨hle, parents, _, hv, hw⟩ := executePlan_chains schema resolvers variables fuel parentType source
     _ [] [] [] middle state _ hsc hmv hm hl hk

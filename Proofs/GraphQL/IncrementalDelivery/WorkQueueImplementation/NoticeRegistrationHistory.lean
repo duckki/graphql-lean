@@ -6,22 +6,22 @@ import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.RawNoticeHisto
 namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
-/-- Arbitrary source replay retains unique live group keys.
-Witness: the per-handler key invariant follows the actual queue fold, including ignored inputs.
+/-- Arbitrary source replay retains unique live group refs.
+Witness: the per-handler ref invariant follows the actual queue fold, including ignored inputs.
 -/
-theorem State.GroupKeysUnique.replayGraphEvents {queue : State}
-    (keys : queue.GroupKeysUnique) (events : List GraphEvent)
-    : (queue.replayGraphEvents events).GroupKeysUnique := by
+theorem State.GroupRefsUnique.replayGraphEvents {queue : State}
+    (refs : queue.GroupRefsUnique) (events : List GraphEvent)
+    : (queue.replayGraphEvents events).GroupRefsUnique := by
   induction events generalizing queue with
-  | nil => exact keys
-  | cons event rest ih => exact ih (keys.handleGraphEvent event)
+  | nil => exact refs
+  | cons event rest ih => exact ih (refs.handleGraphEvent event)
 
 /-- Every group notice in matching raw replay remains in its final permanent registry.
 Witness: each actual handler registers its notices; later matching handlers retain those
 registrations. The result does not require output freshness or an abstract explanation.
 -/
 theorem State.rawEventReplay_groupNoticesRegistered {queue : State} {work}
-    (keys : queue.GroupKeysUnique) (live : queue.LiveGroupsRegistered)
+    (refs : queue.GroupRefsUnique) (live : queue.LiveGroupsRegistered)
     (tasks : queue.TaskGroupsRegistered) (events : List GraphEvent)
     (matching : ∀ event ∈ events, event.MatchesWork work)
     : ∀ output ∈ (queue.rawEventReplay events).2,
@@ -39,9 +39,9 @@ theorem State.rawEventReplay_groupNoticesRegistered {queue : State} {work}
       intro output member
       rw [State.rawEventReplay_cons] at member
       rcases List.mem_append.mp member with first | following
-      · exact (queue.handleGraphEvent_groupNoticesRegistered keys live tasks event matched
+      · exact (queue.handleGraphEvent_groupNoticesRegistered refs live tasks event matched
           output first).mono continuation.2.2
-      · exact ih (keys.handleGraphEvent event) registered.1 registered.2.1 later output following
+      · exact ih (refs.handleGraphEvent event) registered.1 registered.2.1 later output following
 
 /-- Initial and earlier-source group announcements remain registered at the next handler.
 Witness: initialization gives live registered roots, and matching replay preserves both
@@ -50,18 +50,18 @@ their registrations and the registrations attached to each actual carried notice
 theorem createWorkQueue_rawEventReplay_announcedRegistered {work : Execution.Work}
     (events : List GraphEvent) (matching : ∀ event ∈ events, event.MatchesWork work)
     : let initial := State.initialize (Work.fromExecution work)
-      ∀ key ∈
+      ∀ ref ∈
         initial.rootGroups
-        ++ (initial.rawEventReplay events).2.flatMap rawGroupNoticeKeys,
-        key ∈ (initial.replayGraphEvents events).registeredGroups := by
-  intro initial key announced
+        ++ (initial.rawEventReplay events).2.flatMap rawGroupNoticeRefs,
+        ref ∈ (initial.replayGraphEvents events).registeredGroups := by
+  intro initial ref announced
   have registered := createWorkQueue_registration work
   rcases List.mem_append.mp announced with root | pending
-  · obtain ⟨node, member, same⟩ := List.mem_map.mp (createWorkQueue_rootGroupsPresent _ key root)
+  · obtain ⟨node, member, same⟩ := List.mem_map.mp (createWorkQueue_rootGroupsPresent _ ref root)
     exact (initial.replayGraphEvents_registration registered.1 registered.2 events
       matching).2.2 (same ▸ registered.1 node member)
   · obtain ⟨event, emitted, notice⟩ := List.mem_flatMap.mp pending
-    exact (initial.rawEventReplay_groupNoticesRegistered (createWorkQueue_groupKeysUnique _)
-      registered.1 registered.2 events matching event emitted).key notice
+    exact (initial.rawEventReplay_groupNoticesRegistered (createWorkQueue_groupRefsUnique _)
+      registered.1 registered.2 events matching event emitted).ref notice
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

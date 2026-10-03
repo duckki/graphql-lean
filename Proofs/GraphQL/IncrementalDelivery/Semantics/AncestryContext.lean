@@ -2,7 +2,7 @@ import Proofs.GraphQL.IncrementalDelivery.Semantics.CollectedAncestry
 
 /-! Deferred execution contexts are preserved during nested field collection.
 Support is stated first on raw usage ancestors, then transported through the coherent
-key assignment to all future work owned by the current execution group.
+ref assignment to all future work owned by the current execution group.
 -/
 
 namespace GraphQL.IncrementalDelivery.Semantics.Ancestry
@@ -12,7 +12,7 @@ open GraphQL.IncrementalDelivery.Execution
 attribute [local simp] id_pure_eq id_bind_eq id_map_eq run_bind run_map
 
 def UsageUnder (owners : List Nat) (usage : DeferUsage) : Prop :=
-  ∃ owner ∈ owners, owner = usage.key ∨ owner ∈ usage.ancestors
+  ∃ owner ∈ owners, owner = usage.ref ∨ owner ∈ usage.ancestors
 
 def OptionalUnder (owners : List Nat) (usage : Option DeferUsage) : Prop :=
   owners = [] ∨ ∃ actual, usage = some actual ∧ UsageUnder owners actual
@@ -24,13 +24,13 @@ def GroupsUnder (owners : List Nat) (groups : CollectedFieldsMap) : Prop :=
   GroupsSatisfy (fun field => OptionalUnder owners field.deferUsage) groups
 
 theorem optionalUnder_fresh (owners : List Nat) (parent : Option DeferUsage)
-    (key : Nat) (label : Option DirectiveLabel) (h : OptionalUnder owners parent)
+    (ref : NodeRef) (label : Option DirectiveLabel) (h : OptionalUnder owners parent)
     : OptionalUnder owners
         (some
           {
-            key,
+            ref,
             label,
-            ancestors := (parent.map (fun usage => usage.key :: usage.ancestors)).getD []
+            ancestors := (parent.map (fun usage => usage.ref :: usage.ancestors)).getD []
           }) := by
   rcases h with h | ⟨usage, rfl, owner, ho, hu⟩
   · exact Or.inl h
@@ -60,7 +60,7 @@ mutual
                   using collectFields_under schema variables parentType source children
                     usage owners state h
             | some label =>
-                simpa [collectSelection, ha, ht, hd, freshExecutionKey]
+                simpa [collectSelection, ha, ht, hd, freshNodeRef]
                   using collectFields_under schema variables parentType source children _
                     owners (state + 1) (optionalUnder_fresh owners usage state label h)
   termination_by sizeOf selection
@@ -105,13 +105,13 @@ def PartitionsAt (parents : Assignment) (deferMap : DeferMap) (owners : List Nat
     : Prop :=
   ∀ partition ∈ partitions,
     partition.1 ≠ []
-    ∧ partition.1.Subset (mapKeys deferMap)
+    ∧ partition.1.Subset (mapRefs deferMap)
     ∧ GroupsUnder partition.1 partition.2
-    ∧ (owners = [] ∨ ∀ key ∈ partition.1, Descends parents owners key)
+    ∧ (owners = [] ∨ ∀ ref ∈ partition.1, Descends parents owners ref)
 
-theorem mapAt_key_bound {parents : Assignment} {bound : Nat} {deferMap : DeferMap}
-    (hm : MapAt parents bound deferMap) {key : Nat} (hk : key ∈ mapKeys deferMap)
-    : key < bound := by
+theorem mapAt_ref_bound {parents : Assignment} {bound : Nat} {deferMap : DeferMap}
+    (hm : MapAt parents bound deferMap) {ref : NodeRef} (hk : ref ∈ mapRefs deferMap)
+    : ref < bound := by
   obtain ⟨fragment, hf, he⟩ := List.mem_map.mp hk
   simpa only [he] using (hm fragment hf).1.1
 
@@ -127,26 +127,26 @@ theorem PartitionsAt.extend {parents next : Assignment} {start finish : Nat}
   refine ⟨hh.1, hh.2.1, hh.2.2.1, ?_⟩
   rcases hh.2.2.2 with h | h
   · exact Or.inl h
-  · refine Or.inr (fun key hk => ?_)
-    simpa only [Descends, he key (mapAt_key_bound hm (hh.2.1 hk))] using h key hk
+  · refine Or.inr (fun ref hk => ?_)
+    simpa only [Descends, he ref (mapAt_ref_bound hm (hh.2.1 hk))] using h ref hk
 
-theorem filterMap_fragment_keys (deferMap : DeferMap) (keys : List Nat)
-    (hk : keys.Subset (mapKeys deferMap))
-    : mapKeys (keys.filterMap (lookupDeferredFragment? deferMap)) = keys := by
-  induction keys with
+theorem filterMap_fragment_refs (deferMap : DeferMap) (refs : List Nat)
+    (hk : refs.Subset (mapRefs deferMap))
+    : mapRefs (refs.filterMap (lookupDeferredFragment? deferMap)) = refs := by
+  induction refs with
   | nil => rfl
-  | cons key rest ih =>
-      obtain ⟨fragment, hf⟩ := lookup_exists (hk (by simp : key ∈ key :: rest))
-      have hrest : rest.Subset (mapKeys deferMap) := by
+  | cons ref rest ih =>
+      obtain ⟨fragment, hf⟩ := lookup_exists (hk (by simp : ref ∈ ref :: rest))
+      have hrest : rest.Subset (mapRefs deferMap) := by
         intro next hn
-        exact hk (List.mem_cons_of_mem key hn)
-      simpa [hf, mapKeys, lookup_key hf] using congrArg (List.cons key) (ih hrest)
+        exact hk (List.mem_cons_of_mem ref hn)
+      simpa [hf, mapRefs, lookup_ref hf] using congrArg (List.cons ref) (ih hrest)
 
 theorem filterMap_fragmentAt {parents : Assignment} {bound : Nat} {deferMap : DeferMap}
-    (hm : MapAt parents bound deferMap) (keys : List Nat) (fragment : DeferredFragment)
-    (hf : fragment ∈ keys.filterMap (lookupDeferredFragment? deferMap))
+    (hm : MapAt parents bound deferMap) (refs : List Nat) (fragment : DeferredFragment)
+    (hf : fragment ∈ refs.filterMap (lookupDeferredFragment? deferMap))
     : FragmentAt parents bound fragment := by
-  obtain ⟨key, _, hf⟩ := List.mem_filterMap.mp hf
+  obtain ⟨ref, _, hf⟩ := List.mem_filterMap.mp hf
   exact (hm fragment (List.mem_of_find?_eq_some hf)).1
 
 theorem WorkUnder.extend {parents next : Assignment} {start finish : Nat}
@@ -161,7 +161,7 @@ theorem WorkUnder.extend {parents next : Assignment} {start finish : Nat}
       refine ⟨?_, h.2.extend hw.2.2.2 he hle⟩
       intro group hg
       obtain ⟨owner, ho, hh⟩ := h.1 group hg
-      exact ⟨owner, ho, by simpa only [he group.node.key (hw.2.1 group hg).1] using hh⟩
+      exact ⟨owner, ho, by simpa only [he group.node.ref (hw.2.1 group hg).1] using hh⟩
   | stream node items => exact False.elim h
 termination_by sizeOf work
 
@@ -178,10 +178,11 @@ theorem WorkAt.extend {parents next : Assignment} {start finish : Nat} {work : W
   | stream node items => exact False.elim h
 termination_by sizeOf work
 
-theorem descends_trans {parents : Assignment} {bound key : Nat} {inner outer : List Nat}
-    (hv : Valid parents bound) (hk : key < bound) (h : Descends parents inner key)
+theorem descends_trans {parents : Assignment} {bound : Nat} {ref : NodeRef}
+    {inner outer : List Nat}
+    (hv : Valid parents bound) (hk : ref < bound) (h : Descends parents inner ref)
     (hs : ∀ owner ∈ inner, Descends parents outer owner)
-    : Descends parents outer key := by
+    : Descends parents outer ref := by
   obtain ⟨middle, hm, he⟩ := h
   obtain ⟨owner, ho, ha⟩ := hs middle hm
   refine ⟨owner, ho, ?_⟩
@@ -189,7 +190,7 @@ theorem descends_trans {parents : Assignment} {bound key : Nat} {inner outer : L
   · exact ha
   rcases ha with rfl | ha
   · exact Or.inr he
-  · exact Or.inr ((hv key hk middle he).2 ha)
+  · exact Or.inr ((hv ref hk middle he).2 ha)
 
 theorem WorkUnder.mono {parents : Assignment} {bound : Nat} {inner outer : List Nat}
     {work : Work} (h : WorkUnder parents inner work) (hw : WorkAt parents bound work)
@@ -280,32 +281,32 @@ theorem workAt_nonNull (parents : Assignment) (bound : Nat) (owners : List Nat)
   · exact h
 
 theorem deferred_workAt (parents : Assignment) (bound : Nat) (deferMap : DeferMap)
-    (keys owners : List Nat) (path : ResponsePath)
+    (refs owners : List Nat) (path : ResponsePath)
     (result : Result (List (Name × ResponseValue))) (children : Work)
     (hv : Valid parents bound) (hm : MapAt parents bound deferMap)
-    (hne : keys ≠ []) (hk : keys.Subset (mapKeys deferMap))
-    (hs : owners = [] ∨ ∀ key ∈ keys, Descends parents owners key)
-    (hc : WorkAt parents bound children ∧ Scoped parents keys children)
+    (hne : refs ≠ []) (hk : refs.Subset (mapRefs deferMap))
+    (hs : owners = [] ∨ ∀ ref ∈ refs, Descends parents owners ref)
+    (hc : WorkAt parents bound children ∧ Scoped parents refs children)
     : WorkAt parents bound
-        (.executionGroup (keys.filterMap (lookupDeferredFragment? deferMap)) path result
+        (.executionGroup (refs.filterMap (lookupDeferredFragment? deferMap)) path result
           children)
       ∧ Scoped parents owners
-          (.executionGroup (keys.filterMap (lookupDeferredFragment? deferMap)) path result
+          (.executionGroup (refs.filterMap (lookupDeferredFragment? deferMap)) path result
             children) := by
-  have hkeys := filterMap_fragment_keys deferMap keys hk
+  have hrefs := filterMap_fragment_refs deferMap refs hk
   have hchildren := hc.2.resolve_left hne
   constructor
-  · refine ⟨?_, filterMap_fragmentAt hm keys, ?_, hc.1⟩
+  · refine ⟨?_, filterMap_fragmentAt hm refs, ?_, hc.1⟩
     · intro he
-      simp only [he, mapKeys, List.map_nil] at hkeys
-      exact hne hkeys.symm
-    · simpa only [hkeys] using hchildren
+      simp only [he, mapRefs, List.map_nil] at hrefs
+      exact hne hrefs.symm
+    · simpa only [hrefs] using hchildren
   · rcases hs with hs | hs
     · exact Or.inl hs
     · refine Or.inr ⟨?_, hchildren.mono hc.1 hv hs⟩
       intro group hg
-      obtain ⟨key, hk, he⟩ := List.mem_filterMap.mp hg
-      simpa only [lookup_key he] using hs key hk
+      obtain ⟨ref, hk, he⟩ := List.mem_filterMap.mp hg
+      simpa only [lookup_ref he] using hs ref hk
 
 theorem groupsKnown_extend {parents next : Assignment} {start finish : Nat}
     {deferMap : DeferMap} {groups : CollectedFieldsMap}

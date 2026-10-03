@@ -16,10 +16,10 @@ Witness: invert cancellation; the all-owners-failed case contradicts the healthy
 The conclusion retains either actual producer failure or causal producer cancellation.
 -/
 theorem TaskCancelled.healthy_producer_unavailable
-    {work matching events failed occurrence owners producer payload key}
+    {work matching events failed occurrence owners producer payload ref}
     (cancelled : TaskCancelled work matching events failed occurrence)
-    (known : TaskAt work occurrence owners producer payload) (member : key ∈ owners)
-    (healthy : ¬NodeFailed work matching events failed key)
+    (known : TaskAt work occurrence owners producer payload) (member : ref ∈ owners)
+    (healthy : ¬NodeFailed work matching events failed ref)
     : ∃ producerOccurrence,
         producer = some producerOccurrence
         ∧ (producerOccurrence ∈ failedBefore failed events.length
@@ -29,7 +29,7 @@ theorem TaskCancelled.healthy_producer_unavailable
   | owners projected _ _ failures =>
       obtain ⟨birth, result, task⟩ := projected
       exact False.elim (healthy ⟨cut, cutMember, reached,
-        failures key ((TaskAt.unique task known).1.symm ▸ member)⟩)
+        failures ref ((TaskAt.unique task known).1.symm ▸ member)⟩)
   | producerFailed projected _ failure =>
       obtain ⟨otherOwners, result, task⟩ := projected
       exact ⟨_, (TaskAt.unique known task).2.1,
@@ -45,20 +45,20 @@ Witness: its structural execution-group boundary; repeated descriptors remain vi
 theorem NodeAt.group_task {work node dependencies producer}
     (known : NodeAt work node .group dependencies producer)
     : ∃ occurrence owners payload,
-        TaskAt work occurrence owners producer payload ∧ node.key ∈ owners := by
+        TaskAt work occurrence owners producer payload ∧ node.ref ∈ owners := by
   cases StructuralEquivalence.nodeAt_of_current known with
   | group located member =>
       exact ⟨_, _, _, .executionGroup located.toCurrent,
-        List.mem_map_of_mem (f := fun group : DeferredFragment => group.node.key) member⟩
+        List.mem_map_of_mem (f := fun group : DeferredFragment => group.node.ref) member⟩
 
 /-- Every contributing owner of a deferred task has a group descriptor at its producer.
 Witness: select the corresponding fragment from that task's owner map.
 -/
-theorem TaskAt.executionGroup_owner {work address owners producer payload key}
+theorem TaskAt.executionGroup_owner {work address owners producer payload ref}
     (known : TaskAt work (.executionGroup address) owners producer payload)
-    (member : key ∈ owners)
+    (member : ref ∈ owners)
     : ∃ node dependencies,
-        NodeAt work node .group dependencies producer ∧ node.key = key := by
+        NodeAt work node .group dependencies producer ∧ node.ref = ref := by
   cases StructuralEquivalence.taskAt_of_current known with
   | executionGroup located =>
       obtain ⟨group, included, same⟩ := List.mem_map.mp member
@@ -71,33 +71,33 @@ theorem TaskAt.executionGroup_owner {work address owners producer payload key}
 /-- A healthy accounted group has at least one published contributor.
 Witness: if every contributor were cancelled, every descriptor's producer would be
 unavailable, triggering group failure. Kind separation prevents an empty stream descriptor
-with the same raw key from invalidating that argument; no uniqueness of producers is used.
+with the same raw ref from invalidating that argument; no uniqueness of producers is used.
 -/
 theorem NodeAccounted.group_published
     {work groups streams matching events failed node dependencies producer}
     (explained : Explains work groups streams events matching failed)
-    (accounted : NodeAccounted work matching events failed node.key)
+    (accounted : NodeAccounted work matching events failed node.ref)
     (known : NodeAt work node .group dependencies producer)
     (groupsOnly
       : ∀ other kind dependencies birth,
           NodeAt work other kind dependencies birth
-          → other.key = node.key
+          → other.ref = node.ref
           → kind = .group)
-    (healthy : ¬NodeFailed work matching events failed node.key)
+    (healthy : ¬NodeFailed work matching events failed node.ref)
     : ∃ occurrence owners birth payload,
         TaskAt work occurrence owners birth payload
-        ∧ node.key ∈ owners
+        ∧ node.ref ∈ owners
         ∧ Published matching events occurrence := by
   classical
   apply Classical.byContradiction
   intro absent
   have unavailable {other dependencies birth}
-      (descriptor : NodeAt work other .group dependencies birth) (same : other.key = node.key)
+      (descriptor : NodeAt work other .group dependencies birth) (same : other.ref = node.ref)
       : ∃ producerOccurrence, birth = some producerOccurrence
           ∧ (producerOccurrence ∈ failedBefore failed events.length
             ∨ TaskCancelled work matching events failed producerOccurrence) := by
     obtain ⟨occurrence, owners, payload, task, member⟩ := descriptor.group_task
-    have contributes : node.key ∈ owners := same ▸ member
+    have contributes : node.ref ∈ owners := same ▸ member
     rcases accounted occurrence owners ⟨birth, payload, task⟩ contributes with cancelled | published
     · exact cancelled.healthy_producer_unavailable task contributes healthy
     · exact False.elim (absent ⟨occurrence, owners, birth, payload, task, contributes, published⟩)

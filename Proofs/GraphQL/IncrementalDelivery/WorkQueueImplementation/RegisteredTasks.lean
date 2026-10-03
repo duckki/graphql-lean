@@ -12,14 +12,14 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 -- Structural provenance of registered queue tasks
 -----------------------------------------------------------------------------------------
 
-/-- Structural task provenance includes both its occurrence/owner keys and
+/-- Structural task provenance includes both its occurrence/owner refs and
 the exact contributor descriptors retained by the executable queue.
 -/
 def TaskMatches (work : Execution.Work) (task : Task) : Prop :=
   (∃ address payload producer,
     task.occurrence = .executionGroup address
     ∧ TaskAt work task.occurrence
-        (task.groups.map Execution.DeliveryNode.key) producer payload)
+        (task.groups.map Execution.DeliveryNode.ref) producer payload)
   ∧ taskGroups? work task.occurrence = some task.groups
 
 /-- Every registered task comes from one located execution group in the original
@@ -43,16 +43,16 @@ theorem TaskMatches.contributorsLocated {work task} (matching : TaskMatches work
     simpa [taskGroups?, located] using exactGroups
   rw [← mapped] at member
   obtain ⟨fragment, inGroups, same⟩ := List.mem_map.mp member
-  exact ⟨fragment.ancestors.map Execution.DeliveryNode.key, producer,
+  exact ⟨fragment.ancestors.map Execution.DeliveryNode.ref, producer,
     address, groups, path, outcome, children, enclosing, fragment,
     located, inGroups, same.symm, rfl⟩
 
-/-- A matched task's owner key denotes a genuine contributor with fixed dependencies.
+/-- A matched task's owner ref denotes a genuine contributor with fixed dependencies.
 Witness: select its retained descriptor and project its source group occurrence.
 -/
-theorem TaskMatches.contributorKnown {work task key} (matching : TaskMatches work task)
-    (member : key ∈ task.groups.map Execution.DeliveryNode.key)
-    : ∃ dependencies, NodeHasDependencies work key .group dependencies := by
+theorem TaskMatches.contributorKnown {work task ref} (matching : TaskMatches work task)
+    (member : ref ∈ task.groups.map Execution.DeliveryNode.ref)
+    : ∃ dependencies, NodeHasDependencies work ref .group dependencies := by
   obtain ⟨group, member, same⟩ := List.mem_map.mp member
   obtain ⟨dependencies, producer, known⟩ := matching.contributorsLocated member
   exact ⟨dependencies, group, producer, known, same⟩
@@ -84,10 +84,10 @@ theorem State.RegisteredTasksMatch.addGroups {queue : State} {work : Execution.W
         | none => current
         | some node =>
             let children :=
-              if node.childGroups.contains group.node.key then
+              if node.childGroups.contains group.node.ref then
                 node.childGroups
               else
-                node.childGroups ++ [group.node.key]
+                node.childGroups ++ [group.node.ref]
             current.putGroupNode { node with childGroups := children }
   have linkMatch (current : State) (group : Group)
       (currentMatch : current.RegisteredTasksMatch work)
@@ -117,8 +117,8 @@ theorem State.RegisteredTasksMatch.addGroups {queue : State} {work : Execution.W
         simpa only [List.foldl_cons]
           using ih (queue := queue.addGroup group) (matching.addGroup group)
   let fresh := groups.filter (fun group =>
-    !queue.registeredGroups.contains group.node.key
-      && (queue.groupNode? group.node.key).isNone)
+    !queue.registeredGroups.contains group.node.ref
+      && (queue.groupNode? group.node.ref).isNone)
   change (fresh.foldl linkStep (fresh.foldl State.addGroup queue)).RegisteredTasksMatch work
   exact foldLink fresh _ (registered fresh)
 
@@ -131,7 +131,7 @@ theorem State.RegisteredTasksMatch.addTask {queue : State} {work : Execution.Wor
     : (queue.addTask task).RegisteredTasksMatch work := by
   let registered : State := { queue with tasks := queue.tasks ++ [task] }
   let step (current : State) (group : Execution.DeliveryNode) : State :=
-    match current.groupNode? group.key with
+    match current.groupNode? group.ref with
     | none => current
     | some node =>
         if node.tasks.contains task.occurrence then
@@ -167,7 +167,7 @@ theorem State.RegisteredTasksMatch.addTask {queue : State} {work : Execution.Wor
   let current := task.groups.foldl step registered
   have currentMatch : current.RegisteredTasksMatch work :=
     foldMatch task.groups registered registeredMatch
-  change (if task.groups.any (fun group => current.rootGroups.contains group.key)
+  change (if task.groups.any (fun group => current.rootGroups.contains group.ref)
       && (current.taskNode? task.occurrence).isNone then
       { current with taskNodes := current.taskNodes ++ [{ task }] }
     else current).RegisteredTasksMatch work
@@ -181,8 +181,8 @@ theorem State.RegisteredTasksMatch.addStreams {queue : State} {work : Execution.
   let fresh :=
     streams.foldl
       (fun selected stream =>
-        if (queue.stream? stream.node.key).isSome
-            || selected.any (fun known => known.node.key == stream.node.key) then
+        if (queue.stream? stream.node.ref).isSome
+            || selected.any (fun known => known.node.ref == stream.node.ref) then
           selected
         else
           selected ++ [stream])
@@ -264,8 +264,8 @@ theorem State.RegisteredTasksMatch.startTask
 /-- Starting a group's registered tasks leaves provenance unchanged. -/
 theorem State.RegisteredTasksMatch.startGroup
     {queue : State} {work : Execution.Work}
-    (matching : queue.RegisteredTasksMatch work) (key : Nat)
-    : (queue.startGroup key).RegisteredTasksMatch work := by
+    (matching : queue.RegisteredTasksMatch work) (ref : NodeRef)
+    : (queue.startGroup ref).RegisteredTasksMatch work := by
   unfold State.startGroup
   split
   · exact matching
@@ -285,8 +285,8 @@ theorem State.RegisteredTasksMatch.startGroup
 /-- Starting a stream only changes the active-root list. -/
 theorem State.RegisteredTasksMatch.startStream
     {queue : State} {work : Execution.Work}
-    (matching : queue.RegisteredTasksMatch work) (key : Nat)
-    : (queue.startStream key).RegisteredTasksMatch work := by
+    (matching : queue.RegisteredTasksMatch work) (ref : NodeRef)
+    : (queue.startStream ref).RegisteredTasksMatch work := by
   unfold State.startStream
   split <;> exact matching
 
@@ -295,26 +295,26 @@ theorem State.RegisteredTasksMatch.startNewWork
     {queue : State} {work : Execution.Work}
     (matching : queue.RegisteredTasksMatch work) (newWork : NewWork)
     : (queue.startNewWork newWork).RegisteredTasksMatch work := by
-  let groups := newWork.newGroups.map Execution.DeliveryNode.key
-  let streams := newWork.newStreams.map Execution.DeliveryNode.key
+  let groups := newWork.newGroups.map Execution.DeliveryNode.ref
+  let streams := newWork.newStreams.map Execution.DeliveryNode.ref
   let current : State := { queue with rootGroups := queue.rootGroups ++ groups }
   have currentMatch : current.RegisteredTasksMatch work := matching
-  have groupFold (keys : Keys) :
+  have groupFold (refs : NodeRefs) :
       ∀ state, state.RegisteredTasksMatch work
-        → (keys.foldl State.startGroup state).RegisteredTasksMatch work := by
-    induction keys with
+        → (refs.foldl State.startGroup state).RegisteredTasksMatch work := by
+    induction refs with
     | nil => intro state stateMatch; exact stateMatch
-    | cons key rest ih =>
+    | cons ref rest ih =>
         intro state stateMatch
-        exact ih (state.startGroup key) (stateMatch.startGroup key)
-  have streamFold (keys : Keys) :
+        exact ih (state.startGroup ref) (stateMatch.startGroup ref)
+  have streamFold (refs : NodeRefs) :
       ∀ state, state.RegisteredTasksMatch work
-        → (keys.foldl State.startStream state).RegisteredTasksMatch work := by
-    induction keys with
+        → (refs.foldl State.startStream state).RegisteredTasksMatch work := by
+    induction refs with
     | nil => intro state stateMatch; exact stateMatch
-    | cons key rest ih =>
+    | cons ref rest ih =>
         intro state stateMatch
-        exact ih (state.startStream key) (stateMatch.startStream key)
+        exact ih (state.startStream ref) (stateMatch.startStream ref)
   change (streams.foldl State.startStream
     (groups.foldl State.startGroup current)).RegisteredTasksMatch work
   exact streamFold streams _ (groupFold groups current currentMatch)
@@ -363,19 +363,19 @@ theorem State.RegisteredTasksMatch.contributorsNodup
     (matching : queue.RegisteredTasksMatch work)
     (generated : ExecutedWork work)
     {task : Task} (member : task ∈ queue.tasks)
-    : (task.groups.map Execution.DeliveryNode.key).Nodup := by
+    : (task.groups.map Execution.DeliveryNode.ref).Nodup := by
   obtain ⟨⟨address, payload, producer, occurrenceEq, known⟩, _⟩ :=
     matching task member
   exact generated.taskOwners_nodup known
 
 /-- In particular, initialization cannot register a task with a repeated
-contributor key, even when that task is shared by overlapping defers.
+contributor ref, even when that task is shared by overlapping defers.
 -/
 theorem createWorkQueue_fromSpec_registeredContributorsNodup
     {work : Execution.Work} (generated : ExecutedWork work)
     {task : Task}
     (member : task ∈ (State.initialize (Work.fromExecution work)).tasks)
-    : (task.groups.map Execution.DeliveryNode.key).Nodup :=
+    : (task.groups.map Execution.DeliveryNode.ref).Nodup :=
   (createWorkQueue_fromSpec_registeredTasksMatch work).contributorsNodup generated member
 
 /-- Settling a task removes live memberships, but keeps task definitions. -/
@@ -388,8 +388,8 @@ theorem State.RegisteredTasksMatch.removeTask
 /-- Group cancellation retains the registered-task list. -/
 theorem State.RegisteredTasksMatch.removeGroup
     {queue : State} {work : Execution.Work}
-    (matching : queue.RegisteredTasksMatch work) (key : Nat)
-    : (queue.removeGroup key).RegisteredTasksMatch work :=
+    (matching : queue.RegisteredTasksMatch work) (ref : NodeRef)
+    : (queue.removeGroup ref).RegisteredTasksMatch work :=
   matching
 
 /-- Group flushing removes task nodes and group shells but does not alter the
@@ -399,7 +399,7 @@ theorem State.RegisteredTasksMatch.finishGroupSuccess
     {queue : State} {work : Execution.Work}
     (matching : queue.RegisteredTasksMatch work) (group : GroupNode)
     : (queue.finishGroupSuccess group).1.RegisteredTasksMatch work := by
-  let step (acc : State × List ExecutionGroupValue × Keys)
+  let step (acc : State × List ExecutionGroupValue × NodeRefs)
       (occurrence : Occurrence) :=
     let (current, values, streams) := acc
     match current.taskNode? occurrence with
@@ -410,7 +410,7 @@ theorem State.RegisteredTasksMatch.finishGroupSuccess
           | none => values
           | some value => values ++ [value]
         (current.removeTask occurrence, values, streams ++ taskNode.childStreams)
-  have stepMatch (acc : State × List ExecutionGroupValue × Keys)
+  have stepMatch (acc : State × List ExecutionGroupValue × NodeRefs)
       (occurrence : Occurrence) (currentMatch : acc.1.RegisteredTasksMatch work)
       : (step acc occurrence).1.RegisteredTasksMatch work := by
     obtain ⟨current, values, streams⟩ := acc
@@ -419,7 +419,7 @@ theorem State.RegisteredTasksMatch.finishGroupSuccess
     · exact currentMatch
     · exact currentMatch.removeTask occurrence
   have foldMatch (tasks : List Occurrence) :
-      ∀ acc : State × List ExecutionGroupValue × Keys,
+      ∀ acc : State × List ExecutionGroupValue × NodeRefs,
         acc.1.RegisteredTasksMatch work
           → (tasks.foldl step acc).1.RegisteredTasksMatch work := by
     induction tasks with
@@ -433,11 +433,11 @@ theorem State.RegisteredTasksMatch.finishGroupSuccess
   let current : State :=
     { flushed with
         groupNodes := flushed.groupNodes.filter
-          (fun node => node.group.node.key != group.group.node.key)
-        rootGroups := flushed.rootGroups.filter (· != group.group.node.key) }
+          (fun node => node.group.node.ref != group.group.node.ref)
+        rootGroups := flushed.rootGroups.filter (· != group.group.node.ref) }
   have currentMatch : current.RegisteredTasksMatch work := flushedMatch
   let children := group.childGroups.filterMap
-    (fun key => (current.groupNode? key).map (fun node => node.group.node))
+    (fun ref => (current.groupNode? ref).map (fun node => node.group.node))
   change (current.pruneEmptyGroups children).1.RegisteredTasksMatch work
   exact currentMatch.pruneEmptyGroups children
 
@@ -446,7 +446,7 @@ theorem State.RegisteredTasksMatch.finishGroupFailure
     {queue : State} {work : Execution.Work}
     (matching : queue.RegisteredTasksMatch work) (group : GroupNode) (errors : Nat)
     : (queue.finishGroupFailure group errors).1.RegisteredTasksMatch work :=
-  matching.removeGroup group.group.node.key
+  matching.removeGroup group.group.node.ref
 
 /-- Draining retained outcomes adds no task definitions. Witness: provenance is
 preserved by both closure paths and by activation of already registered work.
@@ -472,7 +472,7 @@ theorem State.RegisteredTasksMatch.taskSuccess
     (childTasks : ∀ task ∈ result.work.tasks, TaskMatches work task)
     : (queue.taskSuccess occurrence result).1.RegisteredTasksMatch work := by
   let settleStep (current : State) (group : Execution.DeliveryNode) : State :=
-    match current.groupNode? group.key with
+    match current.groupNode? group.ref with
     | none => current
     | some node => current.putGroupNode { node with pending := node.pending - 1 }
   have settleMatch (current : State) (group : Execution.DeliveryNode)
@@ -485,12 +485,12 @@ theorem State.RegisteredTasksMatch.taskSuccess
   let releaseStep (acc : State × List WorkQueueEvent × NewWork)
       (group : Execution.DeliveryNode) : State × List WorkQueueEvent × NewWork :=
     let (current, events, released) := acc
-    match current.groupNode? group.key with
+    match current.groupNode? group.ref with
     | none => (current, events, released)
     | some node =>
         let node := { node with pending := node.pending - 1 }
         let current := current.putGroupNode node
-        if current.rootGroups.contains group.key && node.pending == 0
+        if current.rootGroups.contains group.ref && node.pending == 0
             && node.failure.isNone then
           let (next, finished, newWork) := current.finishGroupSuccess node
           (
@@ -553,10 +553,10 @@ theorem State.RegisteredTasksMatch.taskFailure
   let step (acc : State × List WorkQueueEvent)
       (group : Execution.DeliveryNode) : State × List WorkQueueEvent :=
     let (current, events) := acc
-    match current.groupNode? group.key with
+    match current.groupNode? group.ref with
     | none => (current, events)
     | some node =>
-        if current.rootGroups.contains group.key then
+        if current.rootGroups.contains group.ref then
           let (next, failure) := current.finishGroupFailure node errors
           (next, events ++ [failure])
         else
@@ -569,10 +569,10 @@ theorem State.RegisteredTasksMatch.taskFailure
       (currentMatch : acc.1.RegisteredTasksMatch work)
       : (step acc group).1.RegisteredTasksMatch work := by
     obtain ⟨current, events⟩ := acc
-    change (match current.groupNode? group.key with
+    change (match current.groupNode? group.ref with
       | none => (current, events)
       | some node =>
-          if current.rootGroups.contains group.key then
+          if current.rootGroups.contains group.ref then
             let (next, failure) := current.finishGroupFailure node errors
             (next, events ++ [failure])
           else
@@ -581,10 +581,10 @@ theorem State.RegisteredTasksMatch.taskFailure
                   pending := node.pending - 1
                   failure := some (node.failure.getD 0 + errors)
               }, events)).1.RegisteredTasksMatch work
-    cases found : current.groupNode? group.key with
+    cases found : current.groupNode? group.ref with
     | none => exact currentMatch
     | some node =>
-        by_cases started : current.rootGroups.contains group.key = true
+        by_cases started : current.rootGroups.contains group.ref = true
         · simp only [started, ite_true]
           exact currentMatch.finishGroupFailure node errors
         · simp only [started]

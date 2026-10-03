@@ -84,7 +84,7 @@ theorem ExecutedWork.rawEventReplay_groupValues_itemProducer_prefix
       : ((State.initialize (Work.fromExecution work)).rawEventReplay received).2[index]?
         = some (.groupValues group values))
     (known : NodeAt work node .group dependencies (some (.item source ordinal)))
-    (sameKey : node.key = group.key)
+    (sameRef : node.ref = group.ref)
     : Occurrence.item source ordinal
       ∈ ((received.flatMap GraphEvent.itemPublications).map Prod.fst).take
           (((((State.initialize (Work.fromExecution work)).rawEventReplay received).2.take
@@ -104,7 +104,7 @@ theorem ExecutedWork.rawEventReplay_groupValues_itemProducer_prefix
     generated.replayGraphEvents_successfulCarrier_retiredHealthy (valid.prefix prior)
       (State.acceptsBatch_prefix accepted) (List.mem_of_getElem? carrier)
   have success := generated.registered_group_itemProducer_succeeded (valid.prefix prior)
-    known (sameKey.symm ▸ retired.1)
+    known (sameRef.symm ▸ retired.1)
   have observed := (valid.prefix prior).itemSuccess_publication success
   have exactItems := initial.rawEventReplay_itemValues (before ++ [event]) accepted
   have size : (((initial.rawEventReplay received).2.take index).flatMap

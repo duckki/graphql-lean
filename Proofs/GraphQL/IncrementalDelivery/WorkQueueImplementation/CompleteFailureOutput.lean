@@ -11,31 +11,31 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 -- Immediate failed closures retain facts about active groups at handler entry
 -----------------------------------------------------------------------------------------
 
-/-- A task-failure closure inherits any key property of the handler's active live groups.
+/-- A task-failure closure inherits any ref property of the handler's active live groups.
 Witness: the owner fold only filters nodes/roots or changes counters/caches on existing
-keys. Every emitted failure is selected from the current active live map.
+refs. Every emitted failure is selected from the current active live map.
 -/
 theorem State.taskFailure_groupFailure_activeProperty {queue : State}
     (property : Nat → Prop)
     (known
       : ∀ node ∈ queue.groupNodes,
-          node.group.node.key ∈ queue.rootGroups → property node.group.node.key)
+          node.group.node.ref ∈ queue.rootGroups → property node.group.node.ref)
     (occurrence : Occurrence) (errors : Nat) {group count}
     (emitted
       : Execution.WorkQueueEvent.groupFailure group count
         ∈ (queue.taskFailure occurrence errors).2)
-    : property group.key := by
+    : property group.ref := by
   let invariant := fun current : State =>
     ∀ node ∈ current.groupNodes,
-      node.group.node.key ∈ current.rootGroups → property node.group.node.key
+      node.group.node.ref ∈ current.rootGroups → property node.group.node.ref
   have loop (groups : List Execution.DeliveryNode) (acc : State × List WorkQueueEvent)
       (valid : invariant acc.1)
       (output : ∀ group count, Execution.WorkQueueEvent.groupFailure group count ∈ acc.2
-        → property group.key)
+        → property group.ref)
       : ∀ group count,
           Execution.WorkQueueEvent.groupFailure group count
             ∈ (groups.foldl (failureGroupStep errors) acc).2
-          → property group.key := by
+          → property group.ref := by
     induction groups generalizing acc with
     | nil => exact output
     | cons owner rest ih =>
@@ -68,7 +68,7 @@ theorem State.taskFailure_groupFailure_activeProperty {queue : State}
               · have same := Execution.WorkQueueEvent.groupFailure.inj (List.mem_singleton.mp new)
                 rw [same.1]
                 exact valid node (List.mem_of_find?_eq_some found)
-                  (by simpa [current.groupNode?_key found] using active)
+                  (by simpa [current.groupNode?_ref found] using active)
             · exact output
   cases found : queue.taskNode? occurrence with
   | none => simp [State.taskFailure, found] at emitted
@@ -95,10 +95,10 @@ theorem State.GroupErrorAccounting.taskFailure_output {queue : State} {work fail
     (emitted
       : Execution.WorkQueueEvent.groupFailure group count
         ∈ (queue.taskFailure occurrence errors).2)
-    : NodeErrors work (occurrence :: failed) group.key count := by
+    : NodeErrors work (occurrence :: failed) group.ref count := by
   have prior :=
     State.taskFailure_groupFailure_activeProperty
-      (fun key => NodeErrors work failed key 0)
+      (fun ref => NodeErrors work failed ref 0)
       (fun node member active => by
         simpa only [clear node member active, Option.getD_none]
           using counts.live node member)
@@ -109,7 +109,7 @@ theorem State.GroupErrorAccounting.taskFailure_output {queue : State} {work fail
   obtain ⟨⟨_, _, _, _, descriptor⟩, _⟩ := matching task.task member
   rw [(State.taskNode?_some found).2] at descriptor
   obtain ⟨owners, producer, path, known⟩ := source
-  have owner : group.key ∈ owners := (descriptor.unique known).1 ▸ contributes
+  have owner : group.ref ∈ owners := (descriptor.unique known).1 ▸ contributes
   simpa [owner, Payload.failure] using nodeErrors_cons prior known
 
 -----------------------------------------------------------------------------------------
@@ -128,7 +128,7 @@ theorem State.GroupErrorAccounting.handleGraphEvent_output {queue : State} {work
     (emitted
       : Execution.WorkQueueEvent.groupFailure group errors
         ∈ (queue.handleGraphEvent event).2)
-    : NodeErrors work (queue.objectFailureContribution event ++ failed) group.key
+    : NodeErrors work (queue.objectFailureContribution event ++ failed) group.ref
         errors := by
   cases event with
   | taskSuccess occurrence result =>
@@ -170,7 +170,7 @@ theorem ExecutedWork.runNormalized_groupFailure_nodeErrors {work : Execution.Wor
             ((State.initialize (Work.fromExecution work)).runNormalized batches).1 event
           ++ (State.initialize (Work.fromExecution work)).objectFailureContributions
               batches.flatten)
-        group.key errors := by
+        group.ref errors := by
   have counts := generated.runNormalized_groupErrorAccounting batches valid started
   have ledger := generated.runNormalized_pendingLedger batches valid started
   have clear := createWorkQueue_runNormalized_noActiveCachedFailure (Work.fromExecution work) batches

@@ -9,13 +9,13 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 -- Local link accounting, independent of source validity or generated work
 -----------------------------------------------------------------------------------------
 
-/-- Each stored task has distinct child-stream keys, all in the descriptor registry.
+/-- Each stored task has distinct child-stream refs, all in the descriptor registry.
 This is a derived implementation invariant, not a host-source or scheduler premise.
 -/
 def State.ChildStreamInventory (queue : State) : Prop :=
   ∀ node ∈ queue.taskNodes,
     node.childStreams.Nodup
-    ∧ node.childStreams.Subset (queue.streams.map (fun stream => stream.node.key))
+    ∧ node.childStreams.Subset (queue.streams.map (fun stream => stream.node.ref))
 
 /-- Extending the registry and retaining or emptying links preserves their inventory.
 Witness: every surviving list uses its original uniqueness and registration evidence.
@@ -31,7 +31,7 @@ theorem State.ChildStreamInventory.of_frame {before after : State}
   intro node member
   rcases retained node member with empty | ⟨old, included, same⟩
   · rw [empty]
-    exact ⟨by simp, by intro key impossible; cases impossible⟩
+    exact ⟨by simp, by intro ref impossible; cases impossible⟩
   · rw [same]
     exact ⟨(inventory old included).1,
       (inventory old included).2.trans (List.map_subset _ registered)⟩
@@ -43,7 +43,7 @@ theorem State.ChildStreamInventory.putTaskNode {queue : State}
     (inventory : queue.ChildStreamInventory) (updated : TaskNode)
     (unique : updated.childStreams.Nodup)
     (registered
-      : updated.childStreams.Subset (queue.streams.map (fun stream => stream.node.key)))
+      : updated.childStreams.Subset (queue.streams.map (fun stream => stream.node.ref)))
     : (queue.putTaskNode updated).ChildStreamInventory := by
   intro node member
   obtain ⟨old, included, same⟩ := List.mem_map.mp member
@@ -75,8 +75,8 @@ theorem State.ChildStreamInventory.addTask {queue : State}
     · exact .inr ⟨node, old, rfl⟩
     · exact .inl (new ▸ rfl)
 
-/-- Stream attachment extends one task's links with fresh, registered, distinct keys.
-Witness: the actual selection fold excludes every old registered key, including old links;
+/-- Stream attachment extends one task's links with fresh, registered, distinct refs.
+Witness: the actual selection fold excludes every old registered ref, including old links;
 the registry is extended before the updated task node is installed.
 -/
 theorem State.ChildStreamInventory.addStreams {queue : State}
@@ -84,8 +84,8 @@ theorem State.ChildStreamInventory.addStreams {queue : State}
     (parent : Option Occurrence)
     : (queue.addStreams streams parent).1.ChildStreamInventory := by
   let fresh : List Stream := streams.foldl (fun selected stream =>
-    if (queue.stream? stream.node.key).isSome
-        || selected.any (fun known => known.node.key == stream.node.key) then selected
+    if (queue.stream? stream.node.ref).isSome
+        || selected.any (fun known => known.node.ref == stream.node.ref) then selected
     else selected ++ [stream]) []
   let current : State := { queue with streams := queue.streams ++ fresh }
   have prior : current.ChildStreamInventory := inventory.of_frame
@@ -102,11 +102,11 @@ theorem State.ChildStreamInventory.addStreams {queue : State}
         have old := inventory node stored
         apply prior.putTaskNode
         · refine List.nodup_append.mpr ⟨old.1, selected.1, ?_⟩
-          intro key linked other member same
+          intro ref linked other member same
           obtain ⟨stream, included, equal⟩ := List.mem_map.mp member
           exact selected.2 stream included ((same.trans equal.symm) ▸ old.2 linked)
-        · intro key member
-          change key ∈ (queue.streams ++ fresh).map (fun stream => stream.node.key)
+        · intro ref member
+          change ref ∈ (queue.streams ++ fresh).map (fun stream => stream.node.ref)
           rw [List.map_append]
           rcases List.mem_append.mp member with existing | added
           · exact List.mem_append_left _ (old.2 existing)
@@ -164,8 +164,8 @@ theorem State.ChildStreamInventory.startTask {queue : State}
 Witness: failed/missing groups do nothing; healthy starts use task-start preservation.
 -/
 theorem State.ChildStreamInventory.startGroup {queue : State}
-    (inventory : queue.ChildStreamInventory) (key : Nat)
-    : (queue.startGroup key).ChildStreamInventory := by
+    (inventory : queue.ChildStreamInventory) (ref : NodeRef)
+    : (queue.startGroup ref).ChildStreamInventory := by
   unfold State.startGroup
   split
   · exact inventory
@@ -181,11 +181,11 @@ theorem State.ChildStreamInventory.startNewWork {queue : State}
     (inventory : queue.ChildStreamInventory) (work : NewWork)
     : (queue.startNewWork work).ChildStreamInventory := by
   have groups := fold_preserves State.ChildStreamInventory State.startGroup
-    (fun _ key prior => prior.startGroup key) (work.newGroups.map Execution.DeliveryNode.key)
-    { queue with rootGroups := queue.rootGroups ++ work.newGroups.map Execution.DeliveryNode.key }
+    (fun _ ref prior => prior.startGroup ref) (work.newGroups.map Execution.DeliveryNode.ref)
+    { queue with rootGroups := queue.rootGroups ++ work.newGroups.map Execution.DeliveryNode.ref }
     inventory
   apply fold_preserves State.ChildStreamInventory State.startStream _ _ _ groups
-  intro current key prior
+  intro current ref prior
   unfold State.startStream
   split <;> exact prior
 

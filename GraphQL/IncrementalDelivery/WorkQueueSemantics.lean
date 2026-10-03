@@ -21,16 +21,16 @@ namespace WorkQueueSemantics
 -- What work exists?
 -----------------------------------------------------------------------------------------
 
-/-- A structural route through Work; unrelated to a response path or delivery-node key. -/
-abbrev Address := List Nat
-
-/-- Ordered delivery-node keys; distinct from task occurrences and allocated wire IDs. -/
-abbrev Keys := List Nat
+/-- Ordered delivery-node refs; distinct from task occurrences and allocated wire IDs. -/
+abbrev NodeRefs := List NodeRef
 
 inductive NodeKind where
   | group
   | stream
 deriving Repr, BEq, DecidableEq
+
+/-- A structural route through Work; unrelated to a response path or delivery-node ref. -/
+abbrev Address := List Nat
 
 /-- Addresses are structural positions in Work, not allocated runtime task IDs. -/
 inductive Occurrence where
@@ -52,7 +52,7 @@ def Payload.failure : Payload → Option Nat
 structure WorkLocation where
   current : Work
   producer : Option Occurrence
-  owners : Keys
+  owners : NodeRefs
 
 /-- Descend one structural edge, retaining the absolute address of any producer. -/
 def WorkLocation.child? (location : WorkLocation) (address : Address) (index : Nat)
@@ -65,13 +65,13 @@ def WorkLocation.child? (location : WorkLocation) (address : Address) (index : N
         ⟨
           children,
           some (.executionGroup address),
-          groups.map (fun group => group.node.key)
+          groups.map (fun group => group.node.ref)
         ⟩
   | .stream _ items, index =>
       items[index]?.map (fun entry => ⟨entry.2, some (.item address index), []⟩)
   | _, _ => none
 
-/-- Follow an address in work; invalid edges have no location. No keys are deduplicated.
+/-- Follow an address in work; invalid edges have no location. No refs are deduplicated.
 -/
 def locateWork (work : Work) (address : Address) : Option WorkLocation :=
   go [] ⟨work, none, []⟩ address
@@ -83,15 +83,15 @@ where
         let child ← location.child? route index
         go (route ++ [index]) child rest
 
-/-- The address identifies this subwork, generating task, and enclosing defer keys. -/
+/-- The address identifies this subwork, generating task, and enclosing defer refs. -/
 def Located (root : Work) (address : Address) (current : Work)
-    (producer : Option Occurrence) (owners : Keys)
+    (producer : Option Occurrence) (owners : NodeRefs)
     : Prop :=
   locateWork root address = some ⟨current, producer, owners⟩
 
 /-- The structural occurrence identifies a task with these owners, producer, and payload.
 -/
-def TaskAt (work : Work) (occurrence : Occurrence) (owners : Keys)
+def TaskAt (work : Work) (occurrence : Occurrence) (owners : NodeRefs)
     (producer : Option Occurrence) (payload : Payload)
     : Prop :=
   match occurrence with
@@ -99,20 +99,20 @@ def TaskAt (work : Work) (occurrence : Occurrence) (owners : Keys)
       ∃ groups path result children enclosing,
         Located work address (.executionGroup groups path result children) producer
           enclosing
-        ∧ owners = groups.map (fun group => group.node.key)
+        ∧ owners = groups.map (fun group => group.node.ref)
         ∧ payload = .object path result
   | .item address index =>
       ∃ node items enclosing result children,
         Located work address (.stream node items) producer enclosing
         ∧ items[index]? = some (result, children)
-        ∧ owners = [node.key]
+        ∧ owners = [node.ref]
         ∧ payload = .item node result
 
 /-- Some location contains this node descriptor. Dependencies are defer ancestors for a
 group and enclosing defer owners for a stream; they are never structural producers.
-Repeated keys retain every descriptor.
+Repeated refs retain every descriptor.
 -/
-def NodeAt (work : Work) (node : DeliveryNode) (kind : NodeKind) (dependencies : Keys)
+def NodeAt (work : Work) (node : DeliveryNode) (kind : NodeKind) (dependencies : NodeRefs)
     (producer : Option Occurrence)
     : Prop :=
   match kind with
@@ -122,12 +122,12 @@ def NodeAt (work : Work) (node : DeliveryNode) (kind : NodeKind) (dependencies :
           enclosing
         ∧ group ∈ groups
         ∧ node = group.node
-        ∧ dependencies = group.ancestors.map DeliveryNode.key
+        ∧ dependencies = group.ancestors.map DeliveryNode.ref
   | .stream =>
       ∃ address items, Located work address (.stream node items) producer dependencies
 
-/-- The task has exactly this list of contributing owner keys. -/
-def TaskHasOwners (work : Work) (occurrence : Occurrence) (owners : Keys) : Prop :=
+/-- The task has exactly this list of contributing owner refs. -/
+def TaskHasOwners (work : Work) (occurrence : Occurrence) (owners : NodeRefs) : Prop :=
   ∃ producer payload, TaskAt work occurrence owners producer payload
 
 /-- The task has this generating occurrence, or is a root task when producer is none. -/
@@ -140,14 +140,15 @@ def TaskSucceeds (work : Work) (occurrence : Occurrence) : Prop :=
   ∃ owners producer payload,
     TaskAt work occurrence owners producer payload ∧ payload.failure = none
 
-/-- Some descriptor with this key and kind has these release dependencies. -/
-def NodeHasDependencies (work : Work) (key : Nat) (kind : NodeKind) (dependencies : Keys)
+/-- Some descriptor with this ref and kind has these release dependencies. -/
+def NodeHasDependencies (work : Work) (ref : NodeRef) (kind : NodeKind)
+    (dependencies : NodeRefs)
     : Prop :=
-  ∃ node producer, NodeAt work node kind dependencies producer ∧ node.key = key
+  ∃ node producer, NodeAt work node kind dependencies producer ∧ node.ref = ref
 
-/-- Some descriptor with this key has this producer; repeated descriptors are retained. -/
-def NodeHasProducer (work : Work) (key : Nat) (producer : Option Occurrence) : Prop :=
-  ∃ node kind dependencies, NodeAt work node kind dependencies producer ∧ node.key = key
+/-- Some descriptor with this ref has this producer; repeated descriptors are retained. -/
+def NodeHasProducer (work : Work) (ref : NodeRef) (producer : Option Occurrence) : Prop :=
+  ∃ node kind dependencies, NodeAt work node kind dependencies producer ∧ node.ref = ref
 
 /-- (Reachable work occurrence) derives a successful producer chain for the occurrence. -/
 inductive Reachable (work : Work) : Occurrence → Prop where
@@ -190,33 +191,33 @@ mutual
   -/
   inductive NodeFailed (work : Work) (failed : List Occurrence)
       (published : Occurrence → Prop)
-      : Nat → Prop where
-    | task {occurrence owners key} (known : TaskHasOwners work occurrence owners)
-      (owner : key ∈ owners) (finished : occurrence ∈ failed)
-      : NodeFailed work failed published key
-    | groupDependency {key dependencies dependency}
-      (known : NodeHasDependencies work key .group dependencies)
+      : NodeRef → Prop where
+    | task {occurrence owners ref} (known : TaskHasOwners work occurrence owners)
+      (owner : ref ∈ owners) (finished : occurrence ∈ failed)
+      : NodeFailed work failed published ref
+    | groupDependency {ref dependencies dependency}
+      (known : NodeHasDependencies work ref .group dependencies)
       (member : dependency ∈ dependencies)
       (failure : NodeFailed work failed published dependency)
-      : NodeFailed work failed published key
-    | streamDependencies {key dependencies}
-      (known : NodeHasDependencies work key .stream dependencies)
+      : NodeFailed work failed published ref
+    | streamDependencies {ref dependencies}
+      (known : NodeHasDependencies work ref .stream dependencies)
       (nonempty : dependencies ≠ [])
       (failures
         : ∀ dependency ∈ dependencies, NodeFailed work failed published dependency)
-      : NodeFailed work failed published key
+      : NodeFailed work failed published ref
     /-- Every descriptor's producer is unavailable; any root descriptor blocks this rule.
     -/
-    | producers {key} (known : ∃ producer, NodeHasProducer work key producer)
-      (noRoot : ¬NodeHasProducer work key none)
+    | producers {ref} (known : ∃ producer, NodeHasProducer work ref producer)
+      (noRoot : ¬NodeHasProducer work ref none)
       (unpublished
-        : ∀ producer, NodeHasProducer work key (some producer) → ¬published producer)
+        : ∀ producer, NodeHasProducer work ref (some producer) → ¬published producer)
       (cancelled
         : ∀ producer,
-            NodeHasProducer work key (some producer)
+            NodeHasProducer work ref (some producer)
             → producer ∉ failed
             → TaskCancelled work failed published producer)
-      : NodeFailed work failed published key
+      : NodeFailed work failed published ref
 
   /-- A task is cancelled only if it was unpublished at this failure cut. The least
   relation excludes self-justifying causal cycles.
@@ -227,7 +228,7 @@ mutual
     | owners {occurrence owners} (known : TaskHasOwners work occurrence owners)
       (unpublished : ¬published occurrence)
       (nonempty : owners ≠ [])
-      (failures : ∀ key ∈ owners, NodeFailed work failed published key)
+      (failures : ∀ ref ∈ owners, NodeFailed work failed published ref)
       : TaskCancelled work failed published occurrence
     | producerFailed {occurrence producer}
       (known : TaskHasProducer work occurrence (some producer))
@@ -258,20 +259,26 @@ Indices precede grouping or batching; only value-publication indices are used.
 -/
 abbrev PublicationMatching := Nat → Occurrence
 
-def eventPending : WorkQueueEvent → Keys
+def eventPending : WorkQueueEvent → NodeRefs
   | .groupSuccess _ groups streams | .streamValues _ _ groups streams =>
-      (groups ++ streams).map DeliveryNode.key
+      (groups ++ streams).map DeliveryNode.ref
   | _ => []
 
-def eventCompleted : WorkQueueEvent → Keys
+def eventCompleted : WorkQueueEvent → NodeRefs
   | .groupSuccess node ..
   | .groupFailure node _
   | .streamSuccess node
-  | .streamFailure node _ => [node.key]
+  | .streamFailure node _ => [node.ref]
   | _ => []
 
-def pendingKeys (events : List WorkQueueEvent) : Keys := events.flatMap eventPending
-def completedKeys (events : List WorkQueueEvent) : Keys := events.flatMap eventCompleted
+/-- References introduced by pending notices in the supplied work-event history.
+This is not the set of nodes still open at the end of that history.
+-/
+def pendingRefs (events : List WorkQueueEvent) : NodeRefs := events.flatMap eventPending
+
+/-- References closed by completion notices in the supplied work-event history. -/
+def completedRefs (events : List WorkQueueEvent) : NodeRefs :=
+  events.flatMap eventCompleted
 
 /-- (IsValue event) classifies the supplied work event as a value publication rather than
 control.
@@ -294,13 +301,13 @@ producer whose value was already published. Earlier failure consequences persist
 the output history grows.
 -/
 def NodeFailed (work : Work) (matching : PublicationMatching)
-    (events : List WorkQueueEvent) (failures : FailureCuts) (key : Nat)
+    (events : List WorkQueueEvent) (failures : FailureCuts) (ref : NodeRef)
     : Prop :=
   ∃ cut,
     cut ∈ failures.map Prod.fst
     ∧ cut ≤ events.length
     ∧ Causality.NodeFailed work (failedBefore failures cut)
-        (Published matching (events.take cut)) key
+        (Published matching (events.take cut)) ref
 
 /-- A task was cancelled at some reached failure cut while still unpublished. A
 later publication cannot be used to erase this historical cancellation.
@@ -314,13 +321,14 @@ def TaskCancelled (work : Work) (matching : PublicationMatching)
     ∧ Causality.TaskCancelled work (failedBefore failures cut)
         (Published matching (events.take cut)) occurrence
 
-def announcedKeys (initial : Keys) (events : List WorkQueueEvent) : Keys :=
-  initial ++ pendingKeys events
+/-- Initially announced references followed by announcements in the work-event history. -/
+def announcedRefs (initial : NodeRefs) (events : List WorkQueueEvent) : NodeRefs :=
+  initial ++ pendingRefs events
 
-/-- The node key has been announced initially or in the output prefix, but not yet closed.
+/-- The node ref has been announced initially or in the output prefix, but not yet closed.
 -/
-def Open (initial : Keys) (events : List WorkQueueEvent) (key : Nat) : Prop :=
-  key ∈ announcedKeys initial events ∧ key ∉ completedKeys events
+def Open (initial : NodeRefs) (events : List WorkQueueEvent) (ref : NodeRef) : Prop :=
+  ref ∈ announcedRefs initial events ∧ ref ∉ completedRefs events
 
 /-- Ordered accepted settlements of reachable failures, licensed against earlier failures.
 Some contributing owner must have been announced by the settlement cut, but it may already
@@ -333,7 +341,7 @@ own boundary. Earlier completions are not retroactively charged for later settle
 Every cut is bounded by the observed output length. In an explained history, failed
 occurrences remain unique: an earlier copy cancels the unpublished task through its owners.
 -/
-def FailureWitness (work : Work) (initial : Keys) (matching : PublicationMatching)
+def FailureWitness (work : Work) (initial : NodeRefs) (matching : PublicationMatching)
     (events : List WorkQueueEvent) (failures : FailureCuts)
     : Prop :=
   ∀ before cut occurrence after,
@@ -344,7 +352,7 @@ def FailureWitness (work : Work) (initial : Keys) (matching : PublicationMatchin
           TaskAt work occurrence owners producer payload
           ∧ payload.failure.isSome = true
           ∧ Reachable work occurrence
-          ∧ ∃ key ∈ owners, key ∈ announcedKeys initial (events.take cut))
+          ∧ ∃ ref ∈ owners, ref ∈ announcedRefs initial (events.take cut))
       ∧ ¬TaskCancelled work matching (events.take cut) before occurrence
 
 -----------------------------------------------------------------------------------------
@@ -362,67 +370,69 @@ def TaskAccounted (work : Work) (matching : PublicationMatching)
   TaskCancelled work matching events failures occurrence
   ∨ Published matching events occurrence
 
-/-- Every task contributing to the node key has been published or cancelled. -/
+/-- Every task contributing to the node ref has been published or cancelled. -/
 def NodeAccounted (work : Work) (matching : PublicationMatching)
-    (events : List WorkQueueEvent) (failures : FailureCuts) (key : Nat)
+    (events : List WorkQueueEvent) (failures : FailureCuts) (ref : NodeRef)
     : Prop :=
   ∀ occurrence owners,
     TaskHasOwners work occurrence owners
-    → key ∈ owners
+    → ref ∈ owners
     → TaskAccounted work matching events failures occurrence
 
-/-- The node key has not failed and is absent, completed, or unannounced with all
+/-- The node ref has not failed and is absent, completed, or unannounced with all
 contributing tasks accounted for.
 -/
-def DependencySatisfied (work : Work) (initial : Keys) (matching : PublicationMatching)
-    (events : List WorkQueueEvent) (failures : FailureCuts) (key : Nat)
+def DependencySatisfied (work : Work) (initial : NodeRefs)
+    (matching : PublicationMatching) (events : List WorkQueueEvent)
+    (failures : FailureCuts) (ref : NodeRef)
     : Prop :=
-  ¬NodeFailed work matching events failures key
-  ∧ ((¬∃ producer, NodeHasProducer work key producer)
-      ∨ key ∈ completedKeys events
-      ∨ key ∉ announcedKeys initial events
-        ∧ NodeAccounted work matching events failures key)
+  ¬NodeFailed work matching events failures ref
+  ∧ ((¬∃ producer, NodeHasProducer work ref producer)
+      ∨ ref ∈ completedRefs events
+      ∨ ref ∉ announcedRefs initial events
+        ∧ NodeAccounted work matching events failures ref)
 
-/-- Some task contributing to this key has a recorded failure through `cut`, an
+/-- Some task contributing to this ref has a recorded failure through `cut`, an
 unbatched output-prefix length. Failure licensing remains in `FailureWitness`.
 -/
-def HasRecordedFailure (work : Work) (failures : FailureCuts) (cut key : Nat) : Prop :=
+def HasRecordedFailure (work : Work) (failures : FailureCuts) (cut : Nat) (ref : NodeRef)
+    : Prop :=
   ∃ occurrence owners,
     occurrence ∈ failedBefore failures cut
     ∧ TaskHasOwners work occurrence owners
-    ∧ key ∈ owners
+    ∧ ref ∈ owners
 
 /-- A fresh node can be announced after its producer publishes and its dependencies
 are satisfied. Groups may also be announced to report a recorded contributing failure;
 this does not make them healthy publication supporters or permit child release. A failed
 but open group can still supply the effective ID for a shared value supported elsewhere.
 -/
-def CanAnnounce (work : Work) (initial : Keys) (matching : PublicationMatching)
+def CanAnnounce (work : Work) (initial : NodeRefs) (matching : PublicationMatching)
     (events : List WorkQueueEvent) (failures : FailureCuts) (node : DeliveryNode)
-    (kind : NodeKind) (dependencies : Keys) (producer : Option Occurrence)
+    (kind : NodeKind) (dependencies : NodeRefs) (producer : Option Occurrence)
     : Prop :=
-  node.key ∉ announcedKeys initial events
-  ∧ ((¬NodeFailed work matching events failures node.key
-        ∧ (kind = .stream ∨ ¬NodeAccounted work matching events failures node.key))
-      ∨ (kind = .group ∧ HasRecordedFailure work failures events.length node.key))
+  node.ref ∉ announcedRefs initial events
+  ∧ ((¬NodeFailed work matching events failures node.ref
+        ∧ (kind = .stream ∨ ¬NodeAccounted work matching events failures node.ref))
+      ∨ (kind = .group ∧ HasRecordedFailure work failures events.length node.ref))
   ∧ (∀ source, producer = some source → Published matching events source)
   ∧ match kind with
     | .group =>
-        ∀ key ∈ dependencies,
-          DependencySatisfied work initial matching events failures key
+        ∀ ref ∈ dependencies,
+          DependencySatisfied work initial matching events failures ref
     | .stream =>
         dependencies = []
-        ∨ ∃ key ∈ dependencies,
-            DependencySatisfied work initial matching events failures key
+        ∨ ∃ ref ∈ dependencies,
+            DependencySatisfied work initial matching events failures ref
 
 /-- Fresh, distinct group and stream notices whose nodes are eligible after the observed
 prefix.
 -/
-def Announcements (work : Work) (initial : Keys) (matching : PublicationMatching)
+def Announcements (work : Work) (initial : NodeRefs) (matching : PublicationMatching)
     (events : List WorkQueueEvent) (failures : FailureCuts)
     (groups streams : List DeliveryNode)
     : Prop :=
-  ((groups ++ streams).map DeliveryNode.key).Nodup
+  ((groups ++ streams).map DeliveryNode.ref).Nodup
   ∧ (∀ group ∈ groups,
       ∃ dependencies producer,
         NodeAt work group .group dependencies producer
@@ -442,20 +452,20 @@ def Initializes (work : Work) (groups streams : List DeliveryNode) : Prop :=
 /-- The candidate is a known contributing owner with an announced, still-open notice.
 This is wire-ID eligibility only; it does not require or establish healthy support.
 -/
-def OpenOwner (work : Work) (initial : Keys) (events : List WorkQueueEvent)
-    (owners : Keys) (node : DeliveryNode)
+def OpenOwner (work : Work) (initial : NodeRefs) (events : List WorkQueueEvent)
+    (owners : NodeRefs) (node : DeliveryNode)
     : Prop :=
   (∃ kind dependencies producer, NodeAt work node kind dependencies producer)
-  ∧ node.key ∈ owners
-  ∧ Open initial events node.key
+  ∧ node.ref ∈ owners
+  ∧ Open initial events node.ref
 
 /-- A known open contributor can support publication when it has not failed. -/
-def HealthyOpenOwner (work : Work) (initial : Keys) (matching : PublicationMatching)
-    (events : List WorkQueueEvent) (failures : FailureCuts) (owners : Keys)
+def HealthyOpenOwner (work : Work) (initial : NodeRefs) (matching : PublicationMatching)
+    (events : List WorkQueueEvent) (failures : FailureCuts) (owners : NodeRefs)
     (node : DeliveryNode)
     : Prop :=
   OpenOwner work initial events owners node
-  ∧ ¬NodeFailed work matching events failures node.key
+  ∧ ¬NodeFailed work matching events failures node.ref
 
 /-- A healthy open contributor supports publication; the effective wire owner is any
 open contributor with a longest response path, allowing ties. The selected owner may have
@@ -463,8 +473,8 @@ a recorded failure of another shared task while its own completion is still pend
 Publisher normalization may select it instead of the healthy supporter. `CanPublish`
 separately excludes cancelled tasks and checks publication dependencies.
 -/
-def PublicationOwner (work : Work) (initial : Keys) (matching : PublicationMatching)
-    (events : List WorkQueueEvent) (failures : FailureCuts) (owners : Keys)
+def PublicationOwner (work : Work) (initial : NodeRefs) (matching : PublicationMatching)
+    (events : List WorkQueueEvent) (failures : FailureCuts) (owners : NodeRefs)
     (node : DeliveryNode)
     : Prop :=
   OpenOwner work initial events owners node
@@ -486,15 +496,16 @@ def CanPublish (work : Work) (matching : PublicationMatching)
     | .item address (index + 1) => Published matching events (.item address index)
     | _ => True
 
-/-- The claimed error count sums supplied accepted failures contributing to the node key.
+/-- The claimed error count sums supplied accepted failures contributing to the node ref.
 Completion rules supply settlements through the event boundary, not notification order.
 -/
-def NodeErrors (work : Work) (failed : List Occurrence) (key errors : Nat) : Prop :=
+def NodeErrors (work : Work) (failed : List Occurrence) (ref : NodeRef) (errors : Nat)
+    : Prop :=
   ∃ contribution : Occurrence → Nat,
     (∀ occurrence ∈ failed,
       ∃ owners producer payload,
         TaskAt work occurrence owners producer payload
-        ∧ contribution occurrence = if key ∈ owners then payload.failure.getD 0 else 0)
+        ∧ contribution occurrence = if ref ∈ owners then payload.failure.getD 0 else 0)
     ∧ errors = (failed.map contribution).sum
 
 /-- The next atomic event has valid provenance, dependencies, ownership, and notices
@@ -504,7 +515,7 @@ sees the carrier's publication or closure, but not failures recorded after that 
 Object contributor metadata is ignored here: `TaskAt` and `PublicationOwner` use the
 original Work.
 -/
-def EventAllowed (work : Work) (initial : Keys) (matching : PublicationMatching)
+def EventAllowed (work : Work) (initial : NodeRefs) (matching : PublicationMatching)
     (before : List WorkQueueEvent) (failures : FailureCuts) (event : WorkQueueEvent)
     : Prop :=
   let failures := failures.filter (fun entry => entry.1 ≤ before.length)
@@ -527,26 +538,26 @@ def EventAllowed (work : Work) (initial : Keys) (matching : PublicationMatching)
             (before ++ [.streamValues node values [] []]) failures groups streams
   | .groupSuccess node groups streams =>
       (∃ dependencies producer, NodeAt work node .group dependencies producer)
-      ∧ Open initial before node.key
-      ∧ ¬NodeFailed work matching before failures node.key
-      ∧ NodeAccounted work matching before failures node.key
+      ∧ Open initial before node.ref
+      ∧ ¬NodeFailed work matching before failures node.ref
+      ∧ NodeAccounted work matching before failures node.ref
       ∧ Announcements work initial matching
           (before ++ [.groupSuccess node [] []]) failures groups streams
   | .streamSuccess node =>
       (∃ dependencies producer, NodeAt work node .stream dependencies producer)
-      ∧ Open initial before node.key
-      ∧ ¬NodeFailed work matching before failures node.key
-      ∧ NodeAccounted work matching before failures node.key
+      ∧ Open initial before node.ref
+      ∧ ¬NodeFailed work matching before failures node.ref
+      ∧ NodeAccounted work matching before failures node.ref
   | .groupFailure node errors =>
       (∃ dependencies producer, NodeAt work node .group dependencies producer)
-      ∧ Open initial before node.key
-      ∧ NodeFailed work matching before failures node.key
-      ∧ NodeErrors work (failedBefore failures before.length) node.key errors
+      ∧ Open initial before node.ref
+      ∧ NodeFailed work matching before failures node.ref
+      ∧ NodeErrors work (failedBefore failures before.length) node.ref errors
   | .streamFailure node errors =>
       (∃ dependencies producer, NodeAt work node .stream dependencies producer)
-      ∧ Open initial before node.key
-      ∧ NodeFailed work matching before failures node.key
-      ∧ NodeErrors work (failedBefore failures before.length) node.key errors
+      ∧ Open initial before node.ref
+      ∧ NodeFailed work matching before failures node.ref
+      ∧ NodeErrors work (failedBefore failures before.length) node.ref errors
   | .workQueueTermination => False
 
 -----------------------------------------------------------------------------------------
@@ -561,17 +572,17 @@ def Explains (work : Work) (groups streams : List DeliveryNode)
     (failures : FailureCuts)
     : Prop :=
   Initializes work groups streams
-  ∧ FailureWitness work ((groups ++ streams).map DeliveryNode.key) matching events
+  ∧ FailureWitness work ((groups ++ streams).map DeliveryNode.ref) matching events
       failures
   ∧ ∀ index event,
       events[index]? = some event
-      → EventAllowed work ((groups ++ streams).map DeliveryNode.key) matching
+      → EventAllowed work ((groups ++ streams).map DeliveryNode.ref) matching
           (events.take index) failures event
 
 /-- All tasks are accounted for, and every node is closed or unannounced and failed or
 accounted for.
 -/
-def Terminal (work : Work) (initial : Keys) (matching : PublicationMatching)
+def Terminal (work : Work) (initial : NodeRefs) (matching : PublicationMatching)
     (events : List WorkQueueEvent) (failures : FailureCuts)
     : Prop :=
   (∀ occurrence owners producer payload,
@@ -579,20 +590,20 @@ def Terminal (work : Work) (initial : Keys) (matching : PublicationMatching)
     → TaskAccounted work matching events failures occurrence)
   ∧ ∀ node kind dependencies producer,
       NodeAt work node kind dependencies producer
-      → node.key ∈ completedKeys events
-        ∨ node.key ∉ announcedKeys initial events
-          ∧ (NodeFailed work matching events failures node.key
-              ∨ NodeAccounted work matching events failures node.key)
+      → node.ref ∈ completedRefs events
+        ∨ node.ref ∉ announcedRefs initial events
+          ∧ (NodeFailed work matching events failures node.ref
+              ∨ NodeAccounted work matching events failures node.ref)
 
 /-- Adjacent compatible value events may be represented by a single spec event with
 multiple values. This is independent of work-event and response-event batching.
 -/
 def combineValues : WorkQueueEvent → WorkQueueEvent → Option WorkQueueEvent
   | .groupValues group left, .groupValues other right =>
-      if group.key == other.key then some (.groupValues group (left ++ right)) else none
+      if group.ref == other.ref then some (.groupValues group (left ++ right)) else none
   | .streamValues stream left groups streams,
     .streamValues other right moreGroups moreStreams =>
-      if stream.key == other.key then
+      if stream.ref == other.ref then
         some
           (.streamValues stream (left ++ right) (groups ++ moreGroups)
             (streams ++ moreStreams))
@@ -644,7 +655,7 @@ def AdmissibleRun (work : Work) (history : History) : Prop :=
   ∃ events matching failures,
     Explains work history.initialGroups history.initialStreams events matching failures
     ∧ Terminal work
-        ((history.initialGroups ++ history.initialStreams).map DeliveryNode.key) matching
+        ((history.initialGroups ++ history.initialStreams).map DeliveryNode.ref) matching
         events failures
     ∧ WorkBatching (events ++ [.workQueueTermination]) history.batches
 

@@ -12,7 +12,7 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 Each component is independently meaningful; no observable admission predicate is included.
 -/
 private structure HealthFrame (queue : State) (work : Execution.Work)
-    (parents : Nat → Keys) (failed : List Occurrence)
+    (parents : Nat → NodeRefs) (failed : List Occurrence)
     : Prop where
   groups : queue.GroupNodesMatchWork work
   links : queue.ChildLinksCanonical parents
@@ -29,23 +29,23 @@ private theorem HealthFrame.maybeIntegrateWork {queue work parents failed}
       : ∀ group ∈ newWork.groups,
           ∃ dependencies, GroupRecordAt work group.node dependencies)
     (parentLinks
-      : ∀ group ∈ newWork.groups, group.parent = (parents group.node.key).head?)
+      : ∀ group ∈ newWork.groups, group.parent = (parents group.node.ref).head?)
     (producer : Option Occurrence := none)
     : HealthFrame (queue.maybeIntegrateWork newWork producer).1 work parents failed := by
   refine ⟨prior.groups.maybeIntegrateWork newWork known producer,
     prior.links.maybeIntegrateWork newWork parentLinks producer,
     prior.counts.maybeIntegrateWork newWork producer,
     prior.retired.maybeIntegrateWork newWork producer, ?_⟩
-  intro key active
+  intro ref active
   rw [State.maybeIntegrateWork_rootGroups] at active
-  exact prior.roots key active
+  exact prior.roots ref active
 
 /-- Activation retains the frame when released groups have healthy ancestry.
 Witness: group fields and error caches are unchanged, and the new root list is explicit.
 -/
 private theorem HealthFrame.startNewWork {queue work parents failed}
     (prior : HealthFrame queue work parents failed) (released : NewWork)
-    (healthy : ∀ group ∈ released.newGroups, GroupAncestorsHealthy work failed group.key)
+    (healthy : ∀ group ∈ released.newGroups, GroupAncestorsHealthy work failed group.ref)
     : HealthFrame (queue.startNewWork released) work parents failed :=
   ⟨
     prior.groups.startNewWork released,
@@ -63,7 +63,7 @@ private theorem HealthFrame.drainReadyGroups_go {queue work parents failed}
     (prior : HealthFrame queue work parents failed) (generated : ExecutedWork work)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (failedKnown
       : ∀ occurrence ∈ failed,
           ∃ owners producer payload,
@@ -83,8 +83,8 @@ private theorem HealthFrame.drainReadyGroups_go {queue work parents failed}
         split
         · exact ⟨frame, .nil work failed⟩
         · rename_i node selected
-          obtain ⟨key, active, choice⟩ := List.exists_of_findSome?_eq_some selected
-          cases found : current.groupNode? key with
+          obtain ⟨ref, active, choice⟩ := List.exists_of_findSome?_eq_some selected
+          cases found : current.groupNode? ref with
           | none => simp [found] at choice
           | some candidate =>
               simp only [found] at choice
@@ -93,7 +93,7 @@ private theorem HealthFrame.drainReadyGroups_go {queue work parents failed}
               split at choice
               · cases Option.some.inj choice
                 have live := List.mem_of_find?_eq_some found
-                have roots := frame.roots _ (current.groupNode?_key found ▸ active)
+                have roots := frame.roots _ (current.groupNode?_ref found ▸ active)
                 cases cached : node.failure with
                 | none =>
                     have closed := frame.retired.finishGroupSuccess generated frame.groups
@@ -102,7 +102,7 @@ private theorem HealthFrame.drainReadyGroups_go {queue work parents failed}
                         work parents failed :=
                       ⟨frame.groups.finishGroupSuccess _, frame.links.finishGroupSuccess _,
                         frame.counts.finishGroupSuccess _, closed.1,
-                        fun key member => frame.roots key
+                        fun ref member => frame.roots ref
                           (current.finishGroupSuccess_rootsSubset _ member)⟩
                     obtain ⟨final, output⟩ := ih _ (next.startNewWork _ closed.2)
                     obtain ⟨dependencies, known⟩ := frame.groups node live
@@ -114,7 +114,7 @@ private theorem HealthFrame.drainReadyGroups_go {queue work parents failed}
                         work parents failed :=
                       ⟨frame.groups.removeGroup _, frame.links.removeGroup _,
                         frame.counts.removeGroup _, frame.retired.removeGroup _,
-                        fun key member => frame.roots key
+                        fun ref member => frame.roots ref
                           (current.removeGroup_rootsSubset _ member)⟩
                     obtain ⟨final, output⟩ := ih _ next
                     exact ⟨
@@ -133,7 +133,7 @@ private theorem HealthFrame.drainReadyGroups {queue work parents failed}
     (prior : HealthFrame queue work parents failed) (generated : ExecutedWork work)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (failedKnown
       : ∀ occurrence ∈ failed,
           ∃ owners producer payload,
@@ -151,14 +151,14 @@ private theorem HealthFrame.drainReadyGroups_noticeHealth {queue work parents fa
     (prior : HealthFrame queue work parents failed) (generated : ExecutedWork work)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (failedKnown
       : ∀ occurrence ∈ failed,
           ∃ owners producer payload,
             TaskAt work occurrence owners producer payload
             ∧ payload.failure.isSome = true)
     : GroupNoticeAncestorsHealthy work failed queue.drainReadyGroups.2 := by
-  intro key member
+  intro ref member
   obtain ⟨event, included, noticed⟩ := List.mem_flatMap.mp member
   obtain ⟨index, selected⟩ := List.mem_iff_getElem?.mp included
   cases event with
@@ -169,7 +169,7 @@ private theorem HealthFrame.drainReadyGroups_noticeHealth {queue work parents fa
       have released := frame.retired.finishGroupSuccess generated frame.groups frame.links
         canonical frame.counts failedKnown (List.mem_of_find?_eq_some found) uncached
         (frame.roots _ active)
-      apply State.finishGroupSuccess_noticeAncestorHealth released.2 key
+      apply State.finishGroupSuccess_noticeAncestorHealth released.2 ref
       rw [output, List.flatMap_append]
       exact List.mem_append_right _ (List.mem_append_left _ noticed)
   | streamValues stream values groups streams =>
@@ -191,18 +191,18 @@ private theorem HealthFrame.contributor {acc : State × List WorkQueueEvent × N
     (generated : ExecutedWork work)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (failedKnown
       : ∀ occurrence ∈ failed,
           ∃ owners producer payload,
             TaskAt work occurrence owners producer payload
             ∧ payload.failure.isSome = true)
-    (released : ∀ group ∈ acc.2.2.newGroups, GroupAncestorsHealthy work failed group.key)
+    (released : ∀ group ∈ acc.2.2.newGroups, GroupAncestorsHealthy work failed group.ref)
     (output : SuccessfulGroupsHealthy work failed acc.2.1)
     (group : Execution.DeliveryNode)
     : HealthFrame (successGroupStep acc group).1 work parents failed
       ∧ (∀ child ∈ (successGroupStep acc group).2.2.newGroups,
-          GroupAncestorsHealthy work failed child.key)
+          GroupAncestorsHealthy work failed child.ref)
       ∧ SuccessfulGroupsHealthy work failed (successGroupStep acc group).2.1 := by
   obtain ⟨current, events, newWork⟩ := acc
   dsimp only [successGroupStep]
@@ -220,8 +220,8 @@ private theorem HealthFrame.contributor {acc : State × List WorkQueueEvent × N
     split
     · rename_i finishes
       have flags := Bool.and_eq_true_iff.mp finishes
-      have active : node.group.node.key ∈ next.rootGroups := by
-        simpa only [State.groupNode?_key found, List.contains_iff_mem]
+      have active : node.group.node.ref ∈ next.rootGroups := by
+        simpa only [State.groupNode?_ref found, List.contains_iff_mem]
           using (Bool.and_eq_true_iff.mp flags.1).1
       have uncached : updated.failure = none := Option.isNone_iff_eq_none.mp flags.2
       have updatedMember : updated ∈ next.groupNodes :=
@@ -235,8 +235,8 @@ private theorem HealthFrame.contributor {acc : State × List WorkQueueEvent × N
           nextFrame.links.finishGroupSuccess _,
           nextFrame.counts.finishGroupSuccess _,
           closed.1,
-          fun key included =>
-            nextFrame.roots key (next.finishGroupSuccess_rootsSubset _ included)
+          fun ref included =>
+            nextFrame.roots ref (next.finishGroupSuccess_rootsSubset _ included)
         ⟩,
         ?_,
         ?_
@@ -255,7 +255,7 @@ private theorem HealthFrame.successGroupFold {queue work parents failed}
     (prior : HealthFrame queue work parents failed) (generated : ExecutedWork work)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (failedKnown
       : ∀ occurrence ∈ failed,
           ∃ owners producer payload,
@@ -264,15 +264,15 @@ private theorem HealthFrame.successGroupFold {queue work parents failed}
     (groups : List Execution.DeliveryNode)
     : let final := groups.foldl successGroupStep (queue, [], {})
       HealthFrame final.1 work parents failed
-      ∧ (∀ child ∈ final.2.2.newGroups, GroupAncestorsHealthy work failed child.key)
+      ∧ (∀ child ∈ final.2.2.newGroups, GroupAncestorsHealthy work failed child.ref)
       ∧ SuccessfulGroupsHealthy work failed final.2.1 := by
   have loop (more : List Execution.DeliveryNode) (acc : State × List WorkQueueEvent × NewWork)
       (frame : HealthFrame acc.1 work parents failed)
-      (released : ∀ group ∈ acc.2.2.newGroups, GroupAncestorsHealthy work failed group.key)
+      (released : ∀ group ∈ acc.2.2.newGroups, GroupAncestorsHealthy work failed group.ref)
       (output : SuccessfulGroupsHealthy work failed acc.2.1)
       : HealthFrame (more.foldl successGroupStep acc).1 work parents failed
         ∧ (∀ child ∈ (more.foldl successGroupStep acc).2.2.newGroups,
-            GroupAncestorsHealthy work failed child.key)
+            GroupAncestorsHealthy work failed child.ref)
         ∧ SuccessfulGroupsHealthy work failed (more.foldl successGroupStep acc).2.1 := by
     induction more generalizing acc with
     | nil => exact ⟨frame, released, output⟩
@@ -293,7 +293,7 @@ theorem State.taskSuccess_releaseHealth {queue : State} {work parents failed}
     (links : queue.ChildLinksCanonical parents)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (counts : queue.GroupErrorAccounting work failed)
     (failedKnown
       : ∀ occurrence ∈ failed,
@@ -334,7 +334,7 @@ theorem State.taskSuccess_retiredHealth {queue : State} {work parents failed}
     (links : queue.ChildLinksCanonical parents)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (counts : queue.GroupErrorAccounting work failed)
     (failedKnown
       : ∀ occurrence ∈ failed,
@@ -360,7 +360,7 @@ theorem State.taskSuccess_noticeAncestorHealth {queue : State} {work parents fai
     (links : queue.ChildLinksCanonical parents)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (counts : queue.GroupErrorAccounting work failed)
     (failedKnown
       : ∀ occurrence ∈ failed,
@@ -401,7 +401,7 @@ private theorem HealthFrame.integrateStreamItem_with_notices {queue work parents
     (prior : HealthFrame queue work parents failed) (generated : ExecutedWork work)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (failedKnown
       : ∀ occurrence ∈ failed,
           ∃ owners producer payload,
@@ -413,13 +413,13 @@ private theorem HealthFrame.integrateStreamItem_with_notices {queue work parents
       ∧ ∀ child ∈
           ((queue.maybeIntegrateWork item.work).1.pruneEmptyGroups
             (queue.maybeIntegrateWork item.work).2.newGroups).2,
-          GroupAncestorsHealthy work failed child.key := by
+          GroupAncestorsHealthy work failed child.ref := by
   let integrated := queue.maybeIntegrateWork item.work
   have known : ∀ group ∈ item.work.groups,
       ∃ dependencies, GroupRecordAt work group.node dependencies :=
     fun _ candidate => matching.streamItem_childGroups_recordAt member candidate
   have parentLinks : ∀ group ∈ item.work.groups,
-      group.parent = (parents group.node.key).head? :=
+      group.parent = (parents group.node.ref).head? :=
     fun _ candidate => matching.streamItem_childGroups_parentCanonical canonical member candidate
   have frame : HealthFrame integrated.1 work parents failed :=
     prior.maybeIntegrateWork item.work known parentLinks
@@ -432,9 +432,9 @@ private theorem HealthFrame.integrateStreamItem_with_notices {queue work parents
       work parents failed :=
     ⟨frame.groups.pruneEmptyGroups _, frame.links.pruneEmptyGroups _,
       frame.counts.pruneEmptyGroups _, pruned.1, by
-        intro key active
+        intro ref active
         rw [State.pruneEmptyGroups_rootGroups] at active
-        exact frame.roots key active⟩
+        exact frame.roots ref active⟩
   exact ⟨afterPruning.startNewWork _ pruned.2, pruned.2⟩
 
 /-- A matching item batch preserves state health and certifies the final drain's carriers.
@@ -448,7 +448,7 @@ theorem State.streamItems_releaseHealth {queue : State} {work parents failed}
     (links : queue.ChildLinksCanonical parents)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (counts : queue.GroupErrorAccounting work failed)
     (failedKnown
       : ∀ occurrence ∈ failed,
@@ -498,7 +498,7 @@ theorem State.streamItems_noticeAncestorHealth {queue : State} {work parents fai
     (links : queue.ChildLinksCanonical parents)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (counts : queue.GroupErrorAccounting work failed)
     (failedKnown
       : ∀ occurrence ∈ failed,
@@ -518,10 +518,10 @@ theorem State.streamItems_noticeAncestorHealth {queue : State} {work parents fai
       (acc : State × List Execution.DeliveryNode
         × List Execution.DeliveryNode × List StreamItemValue)
       (frame : HealthFrame acc.1 work parents failed)
-      (healthy : ∀ child ∈ acc.2.1, GroupAncestorsHealthy work failed child.key)
+      (healthy : ∀ child ∈ acc.2.1, GroupAncestorsHealthy work failed child.ref)
       : HealthFrame (more.foldl step acc).1 work parents failed
         ∧ ∀ child ∈ (more.foldl step acc).2.1,
-            GroupAncestorsHealthy work failed child.key := by
+            GroupAncestorsHealthy work failed child.ref := by
     induction more generalizing acc with
     | nil => exact ⟨frame, healthy⟩
     | cons item rest ih =>
@@ -536,11 +536,11 @@ theorem State.streamItems_noticeAncestorHealth {queue : State} {work parents fai
   · obtain ⟨frame, healthy⟩ := loop items (fun _ member => member) (queue, [], [], [])
       ⟨matching, links, counts, retired, roots⟩ (by simp)
     have drain := frame.drainReadyGroups_noticeHealth generated canonical failedKnown
-    intro key member
+    intro ref member
     rcases List.mem_append.mp member with leading | later
     · obtain ⟨child, noticed, same⟩ := List.mem_map.mp leading
       exact same ▸ healthy child noticed
-    · exact drain key later
+    · exact drain ref later
 
 /-- Item batches retain the original state-health interface.
 Witness: project the strengthened item theorem, including its final-drain carrier health.
@@ -552,7 +552,7 @@ theorem State.streamItems_retiredHealth {queue : State} {work parents failed}
     (links : queue.ChildLinksCanonical parents)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (counts : queue.GroupErrorAccounting work failed)
     (failedKnown
       : ∀ occurrence ∈ failed,

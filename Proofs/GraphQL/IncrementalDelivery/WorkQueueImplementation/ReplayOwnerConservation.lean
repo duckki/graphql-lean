@@ -31,24 +31,24 @@ theorem State.ReplayClosuresCovered.conservesOwners {queue : State} {events publ
 
 /-- A buffered contributor cannot retire silently while leaving its value unpublished.
 Witness: replay conservation on its actual object-count prefix; the retained branch would
-keep the contributor's key present. No completion notice for that key is required.
+keep the contributor's ref present. No completion notice for that ref is required.
 -/
 theorem State.ReplayClosuresCovered.buffered_retired_published
-    {queue : State} {events published occurrence node value key}
+    {queue : State} {events published occurrence node value ref}
     (covered : queue.ReplayClosuresCovered events published)
     (found : queue.taskNode? occurrence = some node) (stored : node.value = some value)
-    (contributes : key ∈ node.task.groups.map Execution.DeliveryNode.key)
-    (present : key ∈ queue.groupNodes.map (fun owner => owner.group.node.key))
+    (contributes : ref ∈ node.task.groups.map Execution.DeliveryNode.ref)
+    (present : ref ∈ queue.groupNodes.map (fun owner => owner.group.node.ref))
     (retired
-      : key
+      : ref
         ∉ (queue.replayGraphEvents events).groupNodes.map
-            (fun owner => owner.group.node.key))
-    (uncancelled : key ∉ (queue.replayGraphEvents events).cancelledGroups)
+            (fun owner => owner.group.node.ref))
+    (uncancelled : ref ∉ (queue.replayGraphEvents events).cancelledGroups)
     : (occurrence, value)
       ∈ published.take
           ((queue.rawEventReplay events).2.flatMap
             WorkQueueEvent.objectValues).length := by
-  rcases covered.conservesOwners occurrence node value found stored key contributes
+  rcases covered.conservesOwners occurrence node value found stored ref contributes
       present uncancelled with emitted | retained
   · exact emitted
   · exact False.elim (retired retained.2)
@@ -85,15 +85,15 @@ Witness: its prepared value is installed with the same task identity; owner cons
 follows that node through the remaining source inputs on the supplied ledger prefix.
 -/
 theorem State.ReplayClosuresCovered.success_published_or_buffered {queue : State}
-    {occurrence result rest published node key}
+    {occurrence result rest published node ref}
     (covered
       : queue.ReplayClosuresCovered (.taskSuccess occurrence result :: rest) published)
     (found : queue.taskNode? occurrence = some node)
     (healthy : queue.taskHasHealthyOwner node.task = true)
-    (contributes : key ∈ node.task.groups.map Execution.DeliveryNode.key)
-    (present : key ∈ queue.groupNodes.map (fun owner => owner.group.node.key))
+    (contributes : ref ∈ node.task.groups.map Execution.DeliveryNode.ref)
+    (present : ref ∈ queue.groupNodes.map (fun owner => owner.group.node.ref))
     (uncancelled
-      : key
+      : ref
         ∉ (queue.replayGraphEvents
             (.taskSuccess occurrence result :: rest)).cancelledGroups)
     : (occurrence, result.value)
@@ -105,18 +105,18 @@ theorem State.ReplayClosuresCovered.success_published_or_buffered {queue : State
               occurrence
             = some buffered
           ∧ buffered.value = some result.value
-          ∧ key ∈ buffered.task.groups.map Execution.DeliveryNode.key
-          ∧ key
+          ∧ ref ∈ buffered.task.groups.map Execution.DeliveryNode.ref
+          ∧ ref
             ∈ (queue.replayGraphEvents
                 (.taskSuccess occurrence result :: rest)).groupNodes.map
-                (fun owner => owner.group.node.key) := by
+                (fun owner => owner.group.node.ref) := by
   obtain ⟨buffered, installed, sameTask, stored⟩ := State.taskSuccess_prepared_value found result
-  have preparedPresent := State.maybeIntegrateWork_includesKeys
+  have preparedPresent := State.maybeIntegrateWork_includesRefs
     (queue.putTaskNode { node with value := some result.value })
-    result.work (some occurrence) key present
+    result.work (some occurrence) ref present
   have bufferedContributes := sameTask.symm ▸ contributes
   rcases covered.success_conservesOwners found healthy occurrence buffered result.value
-      installed stored key bufferedContributes preparedPresent uncancelled with emitted | retained
+      installed stored ref bufferedContributes preparedPresent uncancelled with emitted | retained
   · exact Or.inl emitted
   · exact Or.inr ⟨buffered, retained.1, stored, bufferedContributes, retained.2⟩
 
@@ -125,20 +125,20 @@ Witness: exact prepared storage and preserved owner registration supply replay's
 conservation theorem. Healthy disappearance excludes retention, even without a notice.
 -/
 theorem State.ReplayClosuresCovered.success_retired_published {queue : State}
-    {occurrence result rest published node key}
+    {occurrence result rest published node ref}
     (covered
       : queue.ReplayClosuresCovered (.taskSuccess occurrence result :: rest) published)
     (found : queue.taskNode? occurrence = some node)
     (healthy : queue.taskHasHealthyOwner node.task = true)
-    (contributes : key ∈ node.task.groups.map Execution.DeliveryNode.key)
-    (present : key ∈ queue.groupNodes.map (fun owner => owner.group.node.key))
+    (contributes : ref ∈ node.task.groups.map Execution.DeliveryNode.ref)
+    (present : ref ∈ queue.groupNodes.map (fun owner => owner.group.node.ref))
     (retired
-      : key
+      : ref
         ∉ (queue.replayGraphEvents
             (.taskSuccess occurrence result :: rest)).groupNodes.map
-            (fun owner => owner.group.node.key))
+            (fun owner => owner.group.node.ref))
     (uncancelled
-      : key
+      : ref
         ∉ (queue.replayGraphEvents
             (.taskSuccess occurrence result :: rest)).cancelledGroups)
     : (occurrence, result.value)

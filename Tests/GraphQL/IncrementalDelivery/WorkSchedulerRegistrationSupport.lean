@@ -28,10 +28,10 @@ Witness: the ancestor is registered, but the sole task's contributor list is jus
 -/
 theorem not_directly_owned : ¬queue.RegistrationsHaveTasks := by
   intro all
-  have registered : ancestor.key ∈ queue.registeredGroups := by
+  have registered : ancestor.ref ∈ queue.registeredGroups := by
     cbv
     exact List.mem_cons_self
-  obtain ⟨task, member, contributes⟩ := all ancestor.key registered
+  obtain ⟨task, member, contributes⟩ := all ancestor.ref registered
   have tasks : queue.tasks = [⟨.executionGroup [], [child]⟩] := by cbv
   rw [tasks] at member
   have same := List.mem_singleton.mp member
@@ -42,7 +42,7 @@ theorem not_directly_owned : ¬queue.RegistrationsHaveTasks := by
 Witness: the root task's fixed payload and empty child work.
 -/
 theorem valid_input : ValidGraphEvents work [event] := by
-  have task : TaskAt work (.executionGroup []) [child.key] none (.object [] (.ok ([], 0))) :=
+  have task : TaskAt work (.executionGroup []) [child.ref] none (.object [] (.ok ([], 0))) :=
     ⟨_, _, _, _, [], rfl, rfl, rfl⟩
   exact .append .nil ⟨_, _, task, rfl, rfl⟩
     (by simp [GraphEvent.Fresh, GraphEvent.identities, event])

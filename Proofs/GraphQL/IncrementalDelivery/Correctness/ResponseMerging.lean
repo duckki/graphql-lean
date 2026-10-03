@@ -6,7 +6,7 @@ namespace GraphQL.IncrementalDelivery.Correctness
 
 open GraphQL.IncrementalDelivery.Execution
 
-/-- Fresh object fields are appended unchanged; witness: induction preserves key
+/-- Fresh object fields are appended unchanged; witness: induction preserves ref
 disjointness.
 -/
 theorem putFields_eq_append_of_nodup (existing incoming : List (Name × ResponseValue))

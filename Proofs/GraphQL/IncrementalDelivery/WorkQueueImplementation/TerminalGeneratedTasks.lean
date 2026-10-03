@@ -12,7 +12,7 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
 /-- Root tasks and tasks with published producers are accounted at termination.
 Witness: object tasks are registered; items belong to root or published-producer streams,
-whose completed keys exclude an outstanding item on the same explained history.
+whose completed refs exclude an outstanding item on the same explained history.
 -/
 theorem terminal_availableTask_accounted
     {work inputs w occurrence owners producer payload} (generated : ExecutedWork work)
@@ -50,7 +50,7 @@ theorem terminal_availableTask_accounted
       obtain ⟨stream, entries, enclosing, result, children, located, selected,
         sameOwners, samePayload⟩ := descriptor
       have streamKnown : NodeAt work stream .stream enclosing producer := .stream located
-      have completed : stream.key ∈ completedKeys w.events := by
+      have completed : stream.ref ∈ completedRefs w.events := by
         cases producer with
         | none =>
             exact terminal_rootStream_completed valid started history ended streamKnown
@@ -64,7 +64,7 @@ theorem terminal_availableTask_accounted
                   admitted ledger ended streamKnown (available _ rfl)
       apply Classical.byContradiction
       intro outstanding
-      obtain ⟨key, contributes, _, notClosed⟩ := explained.outstanding_owner known
+      obtain ⟨ref, contributes, _, notClosed⟩ := explained.outstanding_owner known
         (generated.taskOwners_nonempty known) outstanding
       rw [sameOwners] at contributes
       exact notClosed ((List.mem_singleton.mp contributes).symm ▸ completed)

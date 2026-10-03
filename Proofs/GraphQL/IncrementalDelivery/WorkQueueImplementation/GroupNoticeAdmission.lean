@@ -14,7 +14,7 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 /-- Actual retained group contents are eligible once freshness and dependencies are ready.
 Witness: accepted cuts recover a source-ready contributor even for an error-only cache.
 Rank descent selects a ready descriptor, using the canonical item-publication bridge and
-healthy completed-key accounting at the frozen carrier boundary. Retained memberships
+healthy completed-ref accounting at the frozen carrier boundary. Retained memberships
 remain unpublished there, giving the semantic contents alternative without assuming it.
 Freshness and dependency readiness are the remaining implementation obligations; the
 certificates here are independently derived on the same witness, not new source laws.
@@ -48,24 +48,24 @@ theorem groupNotice_canAnnounce_of_fresh_dependencies
       : RetainedNoticeContents work w.matching (w.events.take index)
           (failedBefore w.failures index) inputs.flatten child)
     (selected : w.events[index]? = some event)
-    (noticed : child.key ∈ groupNoticeKeys event)
+    (noticed : child.ref ∈ groupNoticeRefs event)
     (known : NodeAt work child .group dependencies birth)
-    (fresh : child.key ∉ announcedKeys (initialKeys work) (w.events.take index))
+    (fresh : child.ref ∉ announcedRefs (initialRefs work) (w.events.take index))
     (ready
-      : ∀ key ∈ dependencies,
-          DependencySatisfied work (initialKeys work) w.matching
+      : ∀ ref ∈ dependencies,
+          DependencySatisfied work (initialRefs work) w.matching
             (w.events.take index ++ [withoutChildNotices event])
-            (w.failures.filter (fun entry => entry.1 ≤ index)) key)
+            (w.failures.filter (fun entry => entry.1 ≤ index)) ref)
     : ∃ producer,
         NodeAt work child .group dependencies producer
-        ∧ CanAnnounce work (initialKeys work) w.matching
+        ∧ CanAnnounce work (initialRefs work) w.matching
             (w.events.take index ++ [withoutChildNotices event])
             (w.failures.filter (fun entry => entry.1 ≤ index))
             child .group dependencies producer := by
   obtain ⟨address, owners, producer, payload, task, owner, sourceReady⟩ :=
     retainedNotice_sourceReadyContributor generated valid started cuts partition contents
   obtain ⟨node, parents, descriptor, same⟩ := task.executionGroup_owner owner
-  have nodeEq := generated.nodeKeyCoherent _ _ _ _ _ _ _ _ descriptor known same
+  have nodeEq := generated.nodeRefCoherent _ _ _ _ _ _ _ _ descriptor known same
   obtain ⟨assignment, canonical⟩ := generated.groupDependenciesCanonical
   have parentsEq : parents = dependencies := by
     rw [canonical _ _ _ descriptor, canonical _ _ _ known, same]
@@ -95,7 +95,7 @@ theorem groupNotice_canAnnounce_of_fresh_dependencies
   have retained := groupNotice_contents_atCarrier streamReady contents selected noticed
   refine ⟨chosen, atChosen, retained.canAnnounce generated valid carrierSupport
     failedPayloads itemSafety atChosen ?_ produced ready⟩
-  simpa only [announcedKeys, pendingKeys, List.flatMap_append, List.flatMap_cons,
+  simpa only [announcedRefs, pendingRefs, List.flatMap_append, List.flatMap_cons,
     List.flatMap_nil, (withoutChildNotices_projections event).2.1, List.nil_append,
     List.append_nil]
     using fresh

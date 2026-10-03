@@ -30,7 +30,7 @@ theorem State.PublicationInventory.finishGroupSuccess_storedContributors {queue 
         ∧ (∀ occurrence node value,
             queue.taskNode? occurrence = some node
             → node.value = some value
-            → group.group.node.key ∈ node.task.groups.map Execution.DeliveryNode.key
+            → group.group.node.ref ∈ node.task.groups.map Execution.DeliveryNode.ref
             → (occurrence, value) ∈ added) := by
   obtain ⟨added, before, output, values, next, covered, _⟩ :=
     inventory.finishGroupSuccess_coverage group
@@ -60,7 +60,7 @@ theorem State.PublicationInventory.drainReadyGroups_go_success_coverage {queue :
         = some (.groupSuccess group groups streams))
     : ∃ (steps : Nat) (node : GroupNode) (added : List ObjectPublication),
         steps < fuel
-        ∧ (State.drainReadyGroups.go steps queue).1.groupNode? node.group.node.key
+        ∧ (State.drainReadyGroups.go steps queue).1.groupNode? node.group.node.ref
           = some node
         ∧ node.group.node = group
         ∧ added.map Prod.snd
@@ -72,7 +72,7 @@ theorem State.PublicationInventory.drainReadyGroups_go_success_coverage {queue :
         ∧ (∀ occurrence task value,
             queue.taskNode? occurrence = some task
             → task.value = some value
-            → group.key ∈ task.task.groups.map Execution.DeliveryNode.key
+            → group.ref ∈ task.task.groups.map Execution.DeliveryNode.ref
             → (occurrence, value) ∈ added) := by
   obtain ⟨steps, node, before, bound, found, _, _, _, same, output, exactPrefix⟩ :=
     State.drainReadyGroups_go_success_boundary fuel queue selected
@@ -88,14 +88,14 @@ theorem State.PublicationInventory.drainReadyGroups_go_success_coverage {queue :
       samePrefix]
   · simpa only [List.append_assoc] using final
   · intro occurrence task value lookup stored contributes
-    obtain ⟨contributor, member, sameKey⟩ := List.mem_map.mp contributes
+    obtain ⟨contributor, member, sameRef⟩ := List.mem_map.mp contributes
     have live : ∃ contributor ∈ task.task.groups, ∃ owner,
-        (State.drainReadyGroups.go steps queue).1.groupNode? contributor.key = some owner :=
-      ⟨contributor, member, node, by simpa only [sameKey, same] using found⟩
+        (State.drainReadyGroups.go steps queue).1.groupNode? contributor.ref = some owner :=
+      ⟨contributor, member, node, by simpa only [sameRef, same] using found⟩
     rcases conserved occurrence task value lookup stored live with earlier | retained
     · exact List.mem_append_left _ earlier
     · apply List.mem_append_right
       exact covered occurrence task value retained stored
-        (same ▸ List.mem_map.mpr ⟨_, member, sameKey⟩)
+        (same ▸ List.mem_map.mpr ⟨_, member, sameRef⟩)
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

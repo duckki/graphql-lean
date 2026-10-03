@@ -6,22 +6,22 @@ namespace GraphQL.IncrementalDelivery.Tests.WorkSchedulerDrainNormalForm
 open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.ReferenceWorkQueue
 
-private def parent : DeliveryNode := { key := 2, path := [] }
-private def child : DeliveryNode := { key := 3, path := [] }
+private def parent : DeliveryNode := { ref := 2, path := [] }
+private def child : DeliveryNode := { ref := 3, path := [] }
 
 private def readyChain : State :=
   {
-    rootGroups := [99, parent.key]
+    rootGroups := [99, parent.ref]
     groupNodes :=
       [
-        { group := { node := parent }, childGroups := [child.key] },
-        { group := { node := child, parent := some parent.key }, failure := some 3 }
+        { group := { node := parent }, childGroups := [child.ref] },
+        { group := { node := child, parent := some parent.ref }, failure := some 3 }
       ]
   }
 
 /-- Two live nodes suffice to drain a success followed by its newly active failed child.
 Witness: executable evaluation with a stale leading root entry, which spends no budget.
-The stale key remains but has no live lookup; no root-presence invariant is claimed here.
+The stale ref remains but has no live lookup; no root-presence invariant is claimed here.
 -/
 theorem ready_chain_drain_output
     : readyChain.drainReadyGroups.2
@@ -34,9 +34,9 @@ Witness: apply the generic budget theorem, rather than assume that released chil
 unsettled or that root entries all have live nodes.
 -/
 theorem ready_chain_normal_form
-    : ∀ key ∈ readyChain.drainReadyGroups.1.rootGroups,
+    : ∀ ref ∈ readyChain.drainReadyGroups.1.rootGroups,
         ∀ node,
-          readyChain.drainReadyGroups.1.groupNode? key = some node
+          readyChain.drainReadyGroups.1.groupNode? ref = some node
           → node.failure = none ∧ node.pending ≠ 0 :=
   readyChain.drainReadyGroups_normalForm
 

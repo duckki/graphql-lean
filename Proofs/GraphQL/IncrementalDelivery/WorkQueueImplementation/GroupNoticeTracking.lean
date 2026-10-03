@@ -2,7 +2,7 @@ import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.GroupClosureAc
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.CancellationMonotonicity
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.StreamPreparation
 
-/-! Announced group keys remain active, complete, or carry a concrete cancellation marker. -/
+/-! Announced group refs remain active, complete, or carry a concrete cancellation marker. -/
 
 namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.Execution (StreamItemValue WorkQueueEvent)
@@ -12,16 +12,17 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 -- Track notices without assuming they are fresh or admitted by the abstract scheduler
 -----------------------------------------------------------------------------------------
 
-/-- Every key in `initial` or the segment's notices has a concrete endpoint explanation.
+/-- Every ref in `initial` or the segment's notices has a concrete endpoint explanation.
 The alternatives are an active root, a recorded cancellation, or a completion in this
 segment. This proof certificate allows temporary released roots and duplicate notices;
 it neither assumes nor proves their semantic eligibility.
 -/
-def GroupNoticeTracking (initial : Keys) (result : State × List WorkQueueEvent) : Prop :=
-  ∀ key ∈ initial ++ result.2.flatMap rawGroupNoticeKeys,
-    key ∈ result.1.rootGroups
-    ∨ key ∈ result.1.cancelledGroups
-    ∨ key ∈ result.2.flatMap rawGroupClosureKeys
+def GroupNoticeTracking (initial : NodeRefs) (result : State × List WorkQueueEvent)
+    : Prop :=
+  ∀ ref ∈ initial ++ result.2.flatMap rawGroupNoticeRefs,
+    ref ∈ result.1.rootGroups
+    ∨ ref ∈ result.1.cancelledGroups
+    ∨ ref ∈ result.2.flatMap rawGroupClosureRefs
 
 /-- An unchanged root set accounts for an output-free segment.
 Witness: each initial root remains active; no new notice needs an explanation.
@@ -29,7 +30,7 @@ Witness: each initial root remains active; no new notice needs an explanation.
 theorem GroupNoticeTracking.silent {initial queue}
     (included : initial.Subset queue.rootGroups)
     : GroupNoticeTracking initial (queue, []) := by
-  intro key member
+  intro ref member
   exact .inl (included (by simpa using member))
 
 /-- Tracking for a larger initial notice set implies tracking for a smaller one.
@@ -38,7 +39,7 @@ Witness: new notices are unchanged, and old membership transports through the su
 theorem GroupNoticeTracking.mono {initial more result}
     (tracked : GroupNoticeTracking more result) (included : initial.Subset more)
     : GroupNoticeTracking initial result := by
-  intro key member
+  intro ref member
   apply tracked
   exact (List.mem_append.mp member).elim
     (fun old => List.mem_append_left _ (included old)) (List.mem_append_right _)
@@ -47,13 +48,13 @@ theorem GroupNoticeTracking.mono {initial more result}
 Witness: eliminate the two concrete endpoint alternatives. Applying this at a notice's
 exact internal boundary still requires the corresponding state and retirement evidence.
 -/
-theorem GroupNoticeTracking.completed_of_inactive_uncancelled {initial result key}
+theorem GroupNoticeTracking.completed_of_inactive_uncancelled {initial result ref}
     (tracked : GroupNoticeTracking initial result)
-    (announced : key ∈ initial ++ result.2.flatMap rawGroupNoticeKeys)
-    (inactive : key ∉ result.1.rootGroups)
-    (uncancelled : key ∉ result.1.cancelledGroups)
-    : key ∈ result.2.flatMap rawGroupClosureKeys :=
-  ((tracked key announced).resolve_left inactive).resolve_left uncancelled
+    (announced : ref ∈ initial ++ result.2.flatMap rawGroupNoticeRefs)
+    (inactive : ref ∉ result.1.rootGroups)
+    (uncancelled : ref ∉ result.1.cancelledGroups)
+    : ref ∈ result.2.flatMap rawGroupClosureRefs :=
+  ((tracked ref announced).resolve_left inactive).resolve_left uncancelled
 
 /-- Consecutive segments retain earlier notices and their endpoint explanations.
 Witness: active roots feed the next segment, cancellation markers persist, and earlier
@@ -64,38 +65,38 @@ theorem GroupNoticeTracking.append {initial first second}
     (right : GroupNoticeTracking first.1.rootGroups second)
     (cancelled : first.1.cancelledGroups.Subset second.1.cancelledGroups)
     : GroupNoticeTracking initial (second.1, first.2 ++ second.2) := by
-  intro key member
-  have later (member : key ∈ first.1.rootGroups ++ second.2.flatMap rawGroupNoticeKeys) :=
-    (right key member).imp_right
-      (Or.imp_right (List.mem_append_right (first.2.flatMap rawGroupClosureKeys)))
+  intro ref member
+  have later (member : ref ∈ first.1.rootGroups ++ second.2.flatMap rawGroupNoticeRefs) :=
+    (right ref member).imp_right
+      (Or.imp_right (List.mem_append_right (first.2.flatMap rawGroupClosureRefs)))
   simp only [List.flatMap_append] at member ⊢
   rcases List.mem_append.mp member with old | noticed
-  · rcases left key (List.mem_append_left _ old) with active | removed | closed
+  · rcases left ref (List.mem_append_left _ old) with active | removed | closed
     · exact later (List.mem_append_left _ active)
     · exact .inr (.inl (cancelled removed))
     · exact .inr (.inr (List.mem_append_left _ closed))
   · rcases List.mem_append.mp noticed with earlier | next
-    · rcases left key (List.mem_append_right _ earlier) with active | removed | closed
+    · rcases left ref (List.mem_append_right _ earlier) with active | removed | closed
       · exact later (List.mem_append_left _ active)
       · exact .inr (.inl (cancelled removed))
       · exact .inr (.inr (List.mem_append_left _ closed))
     · exact later (List.mem_append_right _ next)
 
 -----------------------------------------------------------------------------------------
--- Successful release and failure cleanup explain every removed active key
+-- Successful release and failure cleanup explain every removed active ref
 -----------------------------------------------------------------------------------------
 
-/-- Successful release retains every active key except its explicitly completed group.
-Witness: flushing preserves roots, pruning leaves that list unchanged, and the one-key
-filter removes exactly the key named by the success control.
+/-- Successful release retains every active ref except its explicitly completed group.
+Witness: flushing preserves roots, pruning leaves that list unchanged, and the one-ref
+filter removes exactly the ref named by the success control.
 -/
 theorem State.finishGroupSuccess_tracks_roots (queue : State) (node : GroupNode)
-    : ∀ key ∈ queue.rootGroups,
-        key ∈ (queue.finishGroupSuccess node).1.rootGroups
-        ∨ key ∈ (queue.finishGroupSuccess node).2.1.flatMap rawGroupClosureKeys := by
-  intro key member
-  by_cases same : key = node.group.node.key
-  · exact .inr (by rw [queue.finishGroupSuccess_groupClosureKeys node]; simp [same])
+    : ∀ ref ∈ queue.rootGroups,
+        ref ∈ (queue.finishGroupSuccess node).1.rootGroups
+        ∨ ref ∈ (queue.finishGroupSuccess node).2.1.flatMap rawGroupClosureRefs := by
+  intro ref member
+  by_cases same : ref = node.group.node.ref
+  · exact .inr (by rw [queue.finishGroupSuccess_groupClosureRefs node]; simp [same])
   · exact .inl (by rw [queue.finishGroupSuccess_rootGroups node]; simp [member, same])
 
 /-- Activating a successful release accounts for both old roots and its new notices.
@@ -109,28 +110,28 @@ theorem State.finishGroupSuccess_groupNoticeTracking (queue : State) (node : Gro
             (queue.finishGroupSuccess node).2.2,
           (queue.finishGroupSuccess node).2.1
         ) := by
-  intro key member
+  intro ref member
   rw [((queue.finishGroupSuccess node).1.startNewWork_groupCore _).2.2]
   rcases List.mem_append.mp member with old | noticed
-  · rcases queue.finishGroupSuccess_tracks_roots node key old with active | closed
+  · rcases queue.finishGroupSuccess_tracks_roots node ref old with active | closed
     · exact .inl (List.mem_append_left _ active)
     · exact .inr (.inr closed)
   · exact .inl (List.mem_append_right _
       (by rwa [queue.finishGroupSuccess_groupNotices]))
 
-/-- Failure removal retains an active key or records it as cancelled.
-Witness: the same removal-key list filters roots and is appended to cancellation history.
+/-- Failure removal retains an active ref or records it as cancelled.
+Witness: the same removal-ref list filters roots and is appended to cancellation history.
 This holds for arbitrary queue states, including stale links and shared tasks.
 -/
 theorem State.removeGroup_tracks_roots (queue : State) (root : Nat)
-    : ∀ key ∈ queue.rootGroups,
-        key ∈ (queue.removeGroup root).rootGroups
-        ∨ key ∈ (queue.removeGroup root).cancelledGroups := by
-  intro key member
+    : ∀ ref ∈ queue.rootGroups,
+        ref ∈ (queue.removeGroup root).rootGroups
+        ∨ ref ∈ (queue.removeGroup root).cancelledGroups := by
+  intro ref member
   unfold State.removeGroup
   dsimp only
   by_cases removed :
-    key ∈ removeGroup.collect (queue.groupNodes.length + 1) queue [root] []
+    ref ∈ removeGroup.collect (queue.groupNodes.length + 1) queue [root] []
   · exact .inr (List.mem_append_right _ removed)
   · exact .inl (List.mem_filter.mpr ⟨member, by simpa using removed⟩)
 
@@ -144,10 +145,10 @@ theorem State.finishGroupFailure_groupNoticeTracking (queue : State) (node : Gro
           (queue.finishGroupFailure node errors).1,
           [(queue.finishGroupFailure node errors).2]
         ) := by
-  intro key member
-  have old : key ∈ queue.rootGroups := by
-    simpa [State.finishGroupFailure, rawGroupNoticeKeys] using member
-  exact (queue.removeGroup_tracks_roots node.group.node.key key old).imp_right Or.inl
+  intro ref member
+  have old : ref ∈ queue.rootGroups := by
+    simpa [State.finishGroupFailure, rawGroupNoticeRefs] using member
+  exact (queue.removeGroup_tracks_roots node.group.node.ref ref old).imp_right Or.inl
 
 /-- Every bounded ready-group drain retains the status of all earlier and new notices.
 Witness: compose actual success/failure branches and monotone cancellation history at
@@ -181,19 +182,19 @@ activated between contributors, and later steps retain earlier completion events
 -/
 theorem State.successGroupFold_tracks_roots (queue : State)
     (groups : List Execution.DeliveryNode)
-    : ∀ key ∈ queue.rootGroups,
-        key ∈ (groups.foldl successGroupStep (queue, [], {})).1.rootGroups
-        ∨ key
+    : ∀ ref ∈ queue.rootGroups,
+        ref ∈ (groups.foldl successGroupStep (queue, [], {})).1.rootGroups
+        ∨ ref
           ∈ (groups.foldl successGroupStep (queue, [], {})).2.1.flatMap
-              rawGroupClosureKeys := by
+              rawGroupClosureRefs := by
   have loop (remaining : List Execution.DeliveryNode)
       (acc : State × List WorkQueueEvent × NewWork)
-      (prior : ∀ key ∈ queue.rootGroups,
-        key ∈ acc.1.rootGroups ∨ key ∈ acc.2.1.flatMap rawGroupClosureKeys)
-      : ∀ key ∈ queue.rootGroups,
-          key ∈ (remaining.foldl successGroupStep acc).1.rootGroups
-            ∨ key ∈ (remaining.foldl successGroupStep acc).2.1.flatMap
-                rawGroupClosureKeys := by
+      (prior : ∀ ref ∈ queue.rootGroups,
+        ref ∈ acc.1.rootGroups ∨ ref ∈ acc.2.1.flatMap rawGroupClosureRefs)
+      : ∀ ref ∈ queue.rootGroups,
+          ref ∈ (remaining.foldl successGroupStep acc).1.rootGroups
+            ∨ ref ∈ (remaining.foldl successGroupStep acc).2.1.flatMap
+                rawGroupClosureRefs := by
     induction remaining generalizing acc with
     | nil => exact prior
     | cons group rest ih =>
@@ -205,12 +206,12 @@ theorem State.successGroupFold_tracks_roots (queue : State)
         · exact prior
         · rename_i node found
           split
-          · intro key member
-            rcases prior key member with active | closed
+          · intro ref member
+            rcases prior ref member with active | closed
             · rcases (current.putGroupNode
                 { node with pending := node.pending - 1 }).finishGroupSuccess_tracks_roots
                   { node with pending := node.pending - 1 }
-                  key active with kept | finished
+                  ref active with kept | finished
               · exact .inl kept
               · exact .inr (by rw [List.flatMap_append]; exact List.mem_append_right _ finished)
             · exact .inr (by rw [List.flatMap_append]; exact List.mem_append_left _ closed)
@@ -240,10 +241,10 @@ theorem State.taskSuccess_groupNoticeTracking (queue : State) (occurrence : Occu
           State.maybeIntegrateWork_rootGroups _ _ _
         have first : GroupNoticeTracking queue.rootGroups
             (folded.1.startNewWork folded.2.2, folded.2.1) := by
-          intro key member
+          intro ref member
           rw [(folded.1.startNewWork_groupCore _).2.2]
           rcases List.mem_append.mp member with old | noticed
-          · rcases prepared.successGroupFold_tracks_roots node.task.groups key
+          · rcases prepared.successGroupFold_tracks_roots node.task.groups ref
                 (roots.symm ▸ old) with active | closed
             · exact .inl (List.mem_append_left _ active)
             · exact .inr (.inr closed)
@@ -253,7 +254,7 @@ theorem State.taskSuccess_groupNoticeTracking (queue : State) (occurrence : Occu
           (State.drainReadyGroups_go_cancelledGroups_subset _ _)
 
 /-- Each failed-owner step retains earlier notice status while closing or caching this owner.
-Witness: active removal records cancelled keys; a missing or unannounced owner changes
+Witness: active removal records cancelled refs; a missing or unannounced owner changes
 neither roots nor output. Earlier cancellation markers remain present in every branch.
 -/
 theorem GroupNoticeTracking.failedOwner {initial acc}
@@ -307,14 +308,14 @@ item's activation appends its own retained frontier in order.
 theorem State.streamItemFold_rootGroups (queue : State) (items : List StreamItem)
     : let prepared := items.foldl streamItemStep (queue, [], [], [])
       prepared.1.rootGroups
-      = queue.rootGroups ++ prepared.2.1.map Execution.DeliveryNode.key := by
+      = queue.rootGroups ++ prepared.2.1.map Execution.DeliveryNode.ref := by
   have loop (remaining : List StreamItem)
       (acc : State × List Execution.DeliveryNode × List Execution.DeliveryNode
         × List StreamItemValue)
-      (prior : acc.1.rootGroups = queue.rootGroups ++ acc.2.1.map Execution.DeliveryNode.key)
+      (prior : acc.1.rootGroups = queue.rootGroups ++ acc.2.1.map Execution.DeliveryNode.ref)
       : (remaining.foldl streamItemStep acc).1.rootGroups
         = queue.rootGroups ++ (remaining.foldl streamItemStep acc).2.1.map
-            Execution.DeliveryNode.key := by
+            Execution.DeliveryNode.ref := by
     induction remaining generalizing acc with
     | nil => exact prior
     | cons item rest ih =>
@@ -338,10 +339,10 @@ theorem State.streamItems_groupNoticeTracking (queue : State)
   · let prepared := items.foldl streamItemStep (queue, [], [], [])
     have first : GroupNoticeTracking queue.rootGroups
         (prepared.1, [.streamValues stream prepared.2.2.2 prepared.2.1 prepared.2.2.1]) := by
-      intro key member
+      intro ref member
       exact .inl (by
         rw [queue.streamItemFold_rootGroups items]
-        simpa only [List.flatMap_singleton, rawGroupNoticeKeys] using member)
+        simpa only [List.flatMap_singleton, rawGroupNoticeRefs] using member)
     exact first.append (State.drainReadyGroups_go_groupNoticeTracking _ _)
       (State.drainReadyGroups_go_cancelledGroups_subset _ _)
 
@@ -357,10 +358,10 @@ theorem State.handleGraphEvent_groupNoticeTracking (queue : State) (event : Grap
   | streamItems stream items => exact queue.streamItems_groupNoticeTracking _ _
   | streamSuccess stream =>
       simp only [State.handleGraphEvent, State.streamSuccess]
-      split <;> intro key member <;> exact .inl (by simpa [rawGroupNoticeKeys] using member)
+      split <;> intro ref member <;> exact .inl (by simpa [rawGroupNoticeRefs] using member)
   | streamFailure stream errors =>
       simp only [State.handleGraphEvent, State.streamFailure]
-      split <;> intro key member <;> exact .inl (by simpa [rawGroupNoticeKeys] using member)
+      split <;> intro ref member <;> exact .inl (by simpa [rawGroupNoticeRefs] using member)
 
 /-- Raw source replay retains every announced group until closure or recorded cancellation.
 Witness: compose actual handler tracking with monotone cancellation markers. This is

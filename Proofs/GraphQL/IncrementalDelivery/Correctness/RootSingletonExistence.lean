@@ -15,13 +15,13 @@ open WorkQueueSemantics
 -----------------------------------------------------------------------------------------
 
 /-- All work nodes are producer-free defer groups, and every task has exactly one owner.
-Several tasks may share a key; its coherent ancestor dependencies may be nonempty.
+Several tasks may share a ref; its coherent ancestor dependencies may be nonempty.
 -/
 def RootSingletonGroups (work : Work) : Prop :=
   (∀ node kind dependencies producer,
     NodeAt work node kind dependencies producer → kind = .group ∧ producer = none)
   ∧ ∀ occurrence owners producer payload,
-      TaskAt work occurrence owners producer payload → ∃ key, owners = [key]
+      TaskAt work occurrence owners producer payload → ∃ ref, owners = [ref]
 
 /-- Root singleton groups are singleton defer work with an additional shape restriction.
 Witness: forget the producer-free requirement, retaining group kind and singleton owners.
@@ -32,13 +32,13 @@ theorem RootSingletonGroups.toSingletonDefer {work} (shape : RootSingletonGroups
 
 /-- Coherent root singleton defer work has a complete run even when ancestor dependencies
 prevent initial coverage of all IDs. Witness: specialize the general singleton-defer
-theorem to producer-free work. Outcomes and repeated tasks per key are
+theorem to producer-free work. Outcomes and repeated tasks per ref are
 unrestricted; shared owner lists and nested producers are excluded by the shape premise.
 -/
 theorem RootSingletonGroups.completeRun_exists
     {parents bound paths pathBound work}
     (shape : RootSingletonGroups work)
-    (valid : Valid parents bound) (coherent : MixedKeys.WorkAt parents 0 bound work)
+    (valid : Valid parents bound) (coherent : MixedRefs.WorkAt parents 0 bound work)
     (continuous : DeferContinuous parents work) (ordered : StreamOwnersOrdered work)
     (pathCoherent : MixedOwnerPaths.WorkAt paths pathBound work)
     (nonempty : work.size ≠ 0)

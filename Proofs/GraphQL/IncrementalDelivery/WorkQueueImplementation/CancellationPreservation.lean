@@ -17,7 +17,7 @@ private theorem fold_preserves {α β : Type} (property : β → Prop) (step : �
   | cons item rest ih => exact ih _ (preserved current item prior)
 
 -----------------------------------------------------------------------------------------
--- Only group registration can add cancellation keys during work integration
+-- Only group registration can add cancellation refs during work integration
 -----------------------------------------------------------------------------------------
 
 /-- Task registration leaves cancellation history unchanged.
@@ -25,7 +25,7 @@ Witness: membership installation and optional activation update only group/task 
 theorem State.addTask_cancelledGroups (queue : State) (task : Task)
     : (queue.addTask task).cancelledGroups = queue.cancelledGroups := by
   let step (current : State) (group : Execution.DeliveryNode) :=
-    match current.groupNode? group.key with
+    match current.groupNode? group.ref with
     | none => current
     | some node =>
         if node.tasks.contains task.occurrence then current
@@ -43,7 +43,7 @@ theorem State.addTask_cancelledGroups (queue : State) (task : Task)
   have same : current.cancelledGroups = queue.cancelledGroups :=
     fold_preserves (fun current : State => current.cancelledGroups = queue.cancelledGroups)
       step preserved task.groups registered rfl
-  change (if task.groups.any (fun group => current.rootGroups.contains group.key)
+  change (if task.groups.any (fun group => current.rootGroups.contains group.ref)
       && (current.taskNode? task.occurrence).isNone then
       { current with taskNodes := current.taskNodes ++ [{ task }] }
     else current).cancelledGroups = queue.cancelledGroups
@@ -61,7 +61,7 @@ theorem State.addStreams_cancelledGroups (queue : State) (streams : List Stream)
   · dsimp only
     split <;> rfl
 
-/-- Work integration changes cancellation keys exactly as its group-registration stage.
+/-- Work integration changes cancellation refs exactly as its group-registration stage.
 Witness: task folds and stream registration preserve that stage's resulting history. -/
 theorem State.maybeIntegrateWork_cancelledGroups (queue : State) (work : Work)
     (parentTask : Option Occurrence := none)
@@ -86,11 +86,11 @@ theorem State.CancelledGroupsSupported.weaken {queue work before after}
     (supported : State.CancelledGroupsSupported queue work before)
     (included : before.Subset after)
     : queue.CancelledGroupsSupported work after := by
-  intro key member
-  exact (supported key member).mono included
+  intro ref member
+  exact (supported ref member).mono included
 
 /-- Integrating a matched work chunk preserves causal cancellation provenance.
-Witness: group registration propagates invalidation; later stages do not alter its keys.
+Witness: group registration propagates invalidation; later stages do not alter its refs.
 -/
 theorem State.CancelledGroupsSupported.maybeIntegrateWork {queue work failed}
     (supported : State.CancelledGroupsSupported queue work failed) (newWork : Work)
@@ -102,16 +102,16 @@ theorem State.CancelledGroupsSupported.maybeIntegrateWork {queue work failed}
             ∧ group.parent = dependencies.head?)
     : (queue.maybeIntegrateWork newWork parentTask).1.CancelledGroupsSupported work
         failed := by
-  intro key member
+  intro ref member
   rw [State.maybeIntegrateWork_cancelledGroups queue newWork parentTask] at member
-  exact supported.addGroups newWork.groups matching key member
+  exact supported.addGroups newWork.groups matching ref member
 
 -----------------------------------------------------------------------------------------
 -- Successful retirement and activation do not record cancellations
 -----------------------------------------------------------------------------------------
 
 /-- Empty-shell pruning preserves cancellation history exactly.
-Witness: its recursive traversal filters live nodes but never records failure keys. -/
+Witness: its recursive traversal filters live nodes but never records failure refs. -/
 theorem State.pruneEmptyGroups_cancelledGroups (queue : State)
     (groups : List Execution.DeliveryNode)
     : (queue.pruneEmptyGroups groups).1.cancelledGroups = queue.cancelledGroups := by
@@ -141,8 +141,8 @@ private theorem State.startTask_cancelledGroups (queue : State) (occurrence : Oc
 
 /-- Group activation only starts its existing tasks and records no cancellation.
 Witness: task-start preservation across the group's membership fold. -/
-private theorem State.startGroup_cancelledGroups (queue : State) (key : Nat)
-    : (queue.startGroup key).cancelledGroups = queue.cancelledGroups := by
+private theorem State.startGroup_cancelledGroups (queue : State) (ref : NodeRef)
+    : (queue.startGroup ref).cancelledGroups = queue.cancelledGroups := by
   unfold State.startGroup
   split
   · rfl
@@ -153,17 +153,17 @@ private theorem State.startGroup_cancelledGroups (queue : State) (key : Nat)
         State.startTask (fun current task prior =>
           (current.startTask_cancelledGroups task).trans prior) _ queue rfl
 
-/-- Announcing and starting released work leaves cancellation keys unchanged.
+/-- Announcing and starting released work leaves cancellation refs unchanged.
 Witness: both activation folds only change roots and task-start bookkeeping. -/
 theorem State.startNewWork_cancelledGroups (queue : State) (work : NewWork)
     : (queue.startNewWork work).cancelledGroups = queue.cancelledGroups := by
   let current : State :=
-    { queue with rootGroups := queue.rootGroups ++ work.newGroups.map Execution.DeliveryNode.key }
+    { queue with rootGroups := queue.rootGroups ++ work.newGroups.map Execution.DeliveryNode.ref }
   have grouped := fold_preserves
     (fun current : State => current.cancelledGroups = queue.cancelledGroups)
     State.startGroup (fun current group prior =>
       (current.startGroup_cancelledGroups group).trans prior)
-    (work.newGroups.map Execution.DeliveryNode.key) current rfl
+    (work.newGroups.map Execution.DeliveryNode.ref) current rfl
   apply fold_preserves
     (fun current : State => current.cancelledGroups = queue.cancelledGroups)
     State.startStream ?_ _ _ grouped
@@ -171,12 +171,12 @@ theorem State.startNewWork_cancelledGroups (queue : State) (work : NewWork)
   unfold State.startStream
   split <;> exact prior
 
-/-- Successful group closure preserves every earlier cancellation key and adds none.
+/-- Successful group closure preserves every earlier cancellation ref and adds none.
 Witness: flushing task memberships, removing the successful shell, and child pruning
 each leave cancellation history unchanged. -/
 theorem State.finishGroupSuccess_cancelledGroups (queue : State) (group : GroupNode)
     : (queue.finishGroupSuccess group).1.cancelledGroups = queue.cancelledGroups := by
-  let step (acc : State × List ExecutionGroupValue × Keys) (task : Occurrence) :=
+  let step (acc : State × List ExecutionGroupValue × NodeRefs) (task : Occurrence) :=
     let (current, values, streams) := acc
     match current.taskNode? task with
     | none => (current, values, streams)
@@ -185,7 +185,7 @@ theorem State.finishGroupSuccess_cancelledGroups (queue : State) (group : GroupN
           | none => values
           | some value => values ++ [value]
         (current.removeTask task, values, streams ++ taskNode.childStreams)
-  have preserved (acc : State × List ExecutionGroupValue × Keys) (task : Occurrence)
+  have preserved (acc : State × List ExecutionGroupValue × NodeRefs) (task : Occurrence)
       (prior : acc.1.cancelledGroups = queue.cancelledGroups)
       : (step acc task).1.cancelledGroups = queue.cancelledGroups := by
     unfold step
@@ -193,16 +193,16 @@ theorem State.finishGroupSuccess_cancelledGroups (queue : State) (group : GroupN
     split <;> exact prior
   let flushed := (group.tasks.foldl step (queue, [], [])).1
   have same : flushed.cancelledGroups = queue.cancelledGroups :=
-    fold_preserves (fun acc : State × List ExecutionGroupValue × Keys =>
+    fold_preserves (fun acc : State × List ExecutionGroupValue × NodeRefs =>
       acc.1.cancelledGroups = queue.cancelledGroups)
       step preserved group.tasks (queue, [], []) rfl
   let current : State :=
     { flushed with
       groupNodes := flushed.groupNodes.filter
-        (fun node => node.group.node.key != group.group.node.key)
-      rootGroups := flushed.rootGroups.filter (· != group.group.node.key) }
+        (fun node => node.group.node.ref != group.group.node.ref)
+      rootGroups := flushed.rootGroups.filter (· != group.group.node.ref) }
   let children := group.childGroups.filterMap
-    (fun key => (current.groupNode? key).map (fun node => node.group.node))
+    (fun ref => (current.groupNode? ref).map (fun node => node.group.node))
   change (current.pruneEmptyGroups children).1.cancelledGroups = queue.cancelledGroups
   exact (current.pruneEmptyGroups_cancelledGroups children).trans same
 
@@ -225,7 +225,7 @@ Witness: the cancellation history is empty; no host-source or output premise is 
 theorem createWorkQueue_cancelledGroupsSupported (initialWork : Work)
     (work : Execution.Work) (failed : List Occurrence)
     : (State.initialize initialWork).CancelledGroupsSupported work failed := by
-  intro key member
+  intro ref member
   rw [createWorkQueue_cancelledGroups_empty] at member
   cases member
 

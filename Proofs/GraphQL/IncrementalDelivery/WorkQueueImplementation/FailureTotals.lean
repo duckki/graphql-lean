@@ -13,15 +13,15 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 Witness: extend the contribution function at one fresh occurrence per list entry;
 uniqueness ensures that earlier assignments and the remaining sum stay unchanged.
 -/
-theorem failureContributions_nodeErrors {work : Execution.Work} {key : Nat}
+theorem failureContributions_nodeErrors {work : Execution.Work} {ref : NodeRef}
     (parts : List (Occurrence × Nat)) (unique : (parts.map Prod.fst).Nodup)
     (known
       : ∀ occurrence errors,
           (occurrence, errors) ∈ parts
           → ∃ owners producer path,
               TaskAt work occurrence owners producer (.object path (.error errors))
-              ∧ key ∈ owners)
-    : NodeErrors work (parts.map Prod.fst) key (parts.map Prod.snd).sum := by
+              ∧ ref ∈ owners)
+    : NodeErrors work (parts.map Prod.fst) ref (parts.map Prod.snd).sum := by
   classical
   induction parts with
   | nil => exact ⟨fun _ => 0, by simp, rfl⟩
@@ -54,17 +54,17 @@ theorem failureContributions_nodeErrors {work : Execution.Work} {key : Nat}
 Witness: retain the source certificate's task identities and construct their contribution
 function. This list is per completion, not yet one shared ordered failure-cut witness.
 -/
-theorem GroupFailureTotal.nodeErrors {work inputs key errors}
-    (total : GroupFailureTotal work inputs key errors)
+theorem GroupFailureTotal.nodeErrors {work inputs ref errors}
+    (total : GroupFailureTotal work inputs ref errors)
     : ∃ failed : List Occurrence,
         failed ≠ []
         ∧ failed.Nodup
-        ∧ NodeErrors work failed key errors
+        ∧ NodeErrors work failed ref errors
         ∧ ∀ occurrence ∈ failed,
             ∃ count owners producer path,
               GraphEvent.taskFailure occurrence count ∈ inputs
               ∧ TaskAt work occurrence owners producer (.object path (.error count))
-              ∧ key ∈ owners := by
+              ∧ ref ∈ owners := by
   obtain ⟨parts, nonempty, unique, sum, sources⟩ := total
   refine ⟨parts.map Prod.fst, ?_, unique, ?_, ?_⟩
   · intro empty
@@ -88,8 +88,8 @@ Witness: keep counted occurrences, assign zero to other known tasks, and partiti
 larger list into the original contributors (up to permutation) and noncontributors.
 The coverage premise is explicit; this theorem does not assert it for actual queue cuts.
 -/
-theorem nodeErrors_of_complete_contributors {work selected failed key errors}
-    (counts : NodeErrors work selected key errors) (selectedUnique : selected.Nodup)
+theorem nodeErrors_of_complete_contributors {work selected failed ref errors}
+    (counts : NodeErrors work selected ref errors) (selectedUnique : selected.Nodup)
     (failedUnique : failed.Nodup) (included : selected.Subset failed)
     (known
       : ∀ occurrence ∈ failed,
@@ -97,8 +97,8 @@ theorem nodeErrors_of_complete_contributors {work selected failed key errors}
     (complete
       : ∀ occurrence ∈ failed,
           ∀ owners,
-            TaskHasOwners work occurrence owners → key ∈ owners → occurrence ∈ selected)
-    : NodeErrors work failed key errors := by
+            TaskHasOwners work occurrence owners → ref ∈ owners → occurrence ∈ selected)
+    : NodeErrors work failed ref errors := by
   classical
   obtain ⟨contribution, assigned, total⟩ := counts
   let kept := fun occurrence => decide (occurrence ∈ selected)
@@ -125,7 +125,7 @@ theorem nodeErrors_of_complete_contributors {work selected failed key errors}
     · obtain ⟨owners, producer, payload, descriptor, count⟩ := assigned occurrence present
       exact ⟨owners, producer, payload, descriptor, by simpa [extended, present] using count⟩
     · obtain ⟨owners, producer, payload, descriptor⟩ := known occurrence member
-      have nonowner : key ∉ owners := fun owner =>
+      have nonowner : ref ∉ owners := fun owner =>
         present (complete occurrence member owners ⟨producer, payload, descriptor⟩ owner)
       exact ⟨owners, producer, payload, descriptor, by simp [extended, present, nonowner]⟩
   · have partition := ((List.filter_append_perm kept failed).map extended).sum_nat
@@ -150,12 +150,12 @@ theorem createWorkQueue_runNormalized_groupFailure_nodeErrorsWitness
     : ∃ failed : List Occurrence,
         failed ≠ []
         ∧ failed.Nodup
-        ∧ NodeErrors work failed group.key errors
+        ∧ NodeErrors work failed group.ref errors
         ∧ ∀ occurrence ∈ failed,
             ∃ count owners producer path,
               GraphEvent.taskFailure occurrence count ∈ batches.flatten
               ∧ TaskAt work occurrence owners producer (.object path (.error count))
-              ∧ group.key ∈ owners :=
+              ∧ group.ref ∈ owners :=
   (createWorkQueue_runNormalized_atomicGroupFailure_source generated valid
     emitted).nodeErrors
 

@@ -8,8 +8,8 @@ open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.Semantics
 open WorkQueueSemantics
 
-/-- A located region's enclosing keys come from its nearest deferred producer; a root or
-stream-item producer has no enclosing defer keys. Witness: structural navigation, which
+/-- A located region's enclosing refs come from its nearest deferred producer; a root or
+stream-item producer has no enclosing defer refs. Witness: structural navigation, which
 preserves the context through combine and resets it at task-producing edges.
 -/
 theorem located_producer_context {work address current producer owners}
@@ -29,7 +29,7 @@ theorem located_producer_context {work address current producer owners}
   | executionGroup located _ => exact ⟨_, _, _, .executionGroup located.toCurrent⟩
   | item => rfl
 
-/-- Structural lookup retains a generated work's coherent key-to-path assignment;
+/-- Structural lookup retains a generated work's coherent ref-to-path assignment;
 witness: address navigation, including each streamed item's child work.
 -/
 theorem workAt_located {paths bound work address current producer owners}
@@ -50,7 +50,7 @@ theorem workAt_located {paths bound work address current producer owners}
       rw [MixedOwnerPaths.WorkAt] at ih
       exact ih.2 _ (List.mem_of_getElem? entry)
 
-/-- Every node descriptor agrees with its generated key's absolute path assignment;
+/-- Every node descriptor agrees with its generated ref's absolute path assignment;
 witness: the located defer map or stream node.
 -/
 theorem workAt_node {paths bound work node kind dependencies producer}
@@ -69,7 +69,7 @@ theorem workAt_node {paths bound work node kind dependencies producer}
       rw [MixedOwnerPaths.WorkAt] at localWork
       exact localWork.1
 
-/-- Equal generated keys have equal attachment paths, even across repeated descriptors;
+/-- Equal generated refs have equal attachment paths, even across repeated descriptors;
 witness: both descriptors agree with one ghost assignment.
 -/
 theorem workAt_same_path
@@ -78,7 +78,7 @@ theorem workAt_same_path
     (coherent : MixedOwnerPaths.WorkAt paths bound work)
     (leftAt : NodeAt work left leftKind leftParents leftBirth)
     (rightAt : NodeAt work right rightKind rightParents rightBirth)
-    (same : left.key = right.key)
+    (same : left.ref = right.ref)
     : left.path = right.path := by
   have hl := (workAt_node coherent leftAt).2
   have hr := (workAt_node coherent rightAt).2
@@ -90,14 +90,14 @@ def payloadPath : Payload → ResponsePath
   | .item node _ => node.path
 
 /-- Every contributing owner's path is a prefix of the task's attachment path. Witness:
-the task's defer map, or the identical stream-node key, and coherent metadata.
+the task's defer map, or the identical stream-node ref, and coherent metadata.
 -/
 theorem workAt_owner_prefix {paths bound work occurrence owners producer payload}
     (coherent : MixedOwnerPaths.WorkAt paths bound work)
     (task : TaskAt work occurrence owners producer payload)
     {owner kind dependencies birth}
     (known : NodeAt work owner kind dependencies birth)
-    (contributes : owner.key ∈ owners)
+    (contributes : owner.ref ∈ owners)
     : Below owner.path (payloadPath payload) := by
   have ownerAssigned := workAt_node coherent known
   cases StructuralEquivalence.taskAt_of_current task with

@@ -39,8 +39,8 @@ theorem State.ChildStreamInventory.removeTask {queue : State}
 Witness: the final task-node filter and unchanged stream registry.
 -/
 theorem State.ChildStreamInventory.removeGroup {queue : State}
-    (inventory : queue.ChildStreamInventory) (key : Nat)
-    : (queue.removeGroup key).ChildStreamInventory :=
+    (inventory : queue.ChildStreamInventory) (ref : NodeRef)
+    : (queue.removeGroup ref).ChildStreamInventory :=
   fun node member => inventory node (List.mem_filter.mp member).1
 
 /-- Successful flushing removes task nodes without changing surviving links.
@@ -70,7 +70,7 @@ theorem State.ChildStreamInventory.drainReadyGroups {queue : State}
 -- Settlements and batched replay preserve the same inventory
 -----------------------------------------------------------------------------------------
 
-/-- Task success attaches fresh stream keys before releasing settled contributors.
+/-- Task success attaches fresh stream refs before releasing settled contributors.
 Witness: value replacement preserves links; integration, flushing, and draining preserve
 their uniqueness and permanent registration.
 -/

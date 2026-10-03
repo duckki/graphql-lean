@@ -9,9 +9,9 @@ open GraphQL.IncrementalDelivery.Semantics
 open WorkQueueSemantics
 
 /-- Empty-path nodes keep ownership independent of the two task addresses. -/
-def node (key : Nat) : DeliveryNode := { key, path := [] }
+def node (ref : NodeRef) : DeliveryNode := { ref, path := [] }
 
-/-- Two deferred tasks share key zero; the second also owns key one. The first produces
+/-- Two deferred tasks share ref zero; the second also owns ref one. The first produces
 an empty stream whose notice still needs a success carrier after its producer publishes.
 -/
 def work (first second : Result (List (Name × ResponseValue))) : Work :=
@@ -24,7 +24,7 @@ Witness: the two valid deferred addresses; entering either child cannot find ano
 -/
 theorem deferred_task {first second address owners producer payload}
     (known : TaskAt (work first second) (.executionGroup address) owners producer payload)
-    : producer = none ∧ owners ≠ [] ∧ ∀ key ∈ owners, key ∈ [0, 1] := by
+    : producer = none ∧ owners ≠ [] ∧ ∀ ref ∈ owners, ref ∈ [0, 1] := by
   obtain ⟨groups, path, result, children, enclosing, located, rfl, rfl⟩ := known
   cases address with
   | nil => simp [Located, locateWork, locateWork.go, work] at located
@@ -54,7 +54,7 @@ theorem deferred_task {first second address owners producer payload}
               simp [Located, locateWork, locateWork.go, WorkLocation.child?, work] at located
 
 /-- Both group notices are initially eligible for every combination of task outcomes.
-Witness: the second, still-unaccounted task contributes to both keys; failure evidence is
+Witness: the second, still-unaccounted task contributes to both refs; failure evidence is
 empty initially, so an eventual error does not preemptively cancel it.
 -/
 theorem initialized (first second : Result (List (Name × ResponseValue)))
@@ -68,14 +68,14 @@ theorem initialized (first second : Result (List (Name × ResponseValue)))
     rcases member with rfl | rfl
     · exact .group (group := { node := node 0 }) (.right .root) (by simp)
     · exact .group (group := { node := node 1 }) (.right .root) (by simp)
-  have contributes : owner.key ∈ [0, 1] := by
+  have contributes : owner.ref ∈ [0, 1] := by
     simp only [List.mem_cons, List.not_mem_nil, or_false] at member
     rcases member with rfl | rfl <;> simp [node]
   refine ⟨
     [],
     none,
     known,
-    by simp [announcedKeys, pendingKeys],
+    by simp [announcedRefs, pendingRefs],
     Or.inl ⟨fun failure => failure.nonempty rfl, Or.inr ?_⟩,
     by simp,
     by simp
@@ -87,7 +87,7 @@ theorem initialized (first second : Result (List (Name × ResponseValue)))
   · simp [Published] at published
 
 /-- Both deferred tasks finish their phase, including shared-owner cancellation on error,
-while healthy keys zero and one remain available as success carriers. The child stream
+while healthy refs zero and one remain available as success carriers. The child stream
 is not forced into an invalid early notice. Witness: the general finite deferred phase.
 -/
 theorem phase_exists (first second : Result (List (Name × ResponseValue)))
@@ -95,9 +95,9 @@ theorem phase_exists (first second : Result (List (Name × ResponseValue)))
         Explains (work first second) [node 0, node 1] [] events matching failures
         ∧ (∀ event ∈ events, DeferredPhaseEvent event)
         ∧ DeferredTasksAccounted (work first second) matching events failures
-        ∧ ∀ key ∈ [0, 1],
-            ¬NodeFailed (work first second) matching events failures key
-            → Open [0, 1] events key := by
+        ∧ ∀ ref ∈ [0, 1],
+            ¬NodeFailed (work first second) matching events failures ref
+            → Open [0, 1] events ref := by
   apply finish_root_deferred_tasks (paths := fun _ => []) (bound := 3)
   · simp [work, MixedOwnerPaths.WorkAt, OwnerPaths.MapAt, OwnerPaths.mapNodes,
       OwnerPaths.fragmentNodes, OwnerPaths.Assigned, Below, node]

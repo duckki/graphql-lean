@@ -31,11 +31,11 @@ theorem State.CachedErrorsSatisfy.drainReadyGroups_output {queue : State} {prope
     (cached : queue.CachedErrorsSatisfy property) {group errors}
     (emitted
       : Execution.WorkQueueEvent.groupFailure group errors ∈ queue.drainReadyGroups.2)
-    : property group.key errors := by
+    : property group.ref errors := by
   have loop (fuel : Nat) (current : State) (known : current.CachedErrorsSatisfy property)
       (member : Execution.WorkQueueEvent.groupFailure group errors
         ∈ (State.drainReadyGroups.go fuel current).2)
-      : property group.key errors := by
+      : property group.ref errors := by
     induction fuel generalizing current with
     | zero => cases member
     | succ fuel ih =>
@@ -45,8 +45,8 @@ theorem State.CachedErrorsSatisfy.drainReadyGroups_output {queue : State} {prope
         · cases member
         · rename_i node selected
           have live : node ∈ current.groupNodes := by
-            obtain ⟨key, _, choice⟩ := List.exists_of_findSome?_eq_some selected
-            cases found : current.groupNode? key with
+            obtain ⟨ref, _, choice⟩ := List.exists_of_findSome?_eq_some selected
+            cases found : current.groupNode? ref with
             | none => simp [found] at choice
             | some candidate =>
                 simp only [found] at choice
@@ -68,7 +68,7 @@ theorem State.CachedErrorsSatisfy.drainReadyGroups_output {queue : State} {prope
               · have same := Execution.WorkQueueEvent.groupFailure.inj (List.mem_singleton.mp first)
                 rcases same with ⟨rfl, rfl⟩
                 exact known node live errors failed
-              · exact ih _ (known.removeGroup node.group.node.key) later
+              · exact ih _ (known.removeGroup node.group.node.ref) later
   exact loop _ queue cached emitted
 
 -----------------------------------------------------------------------------------------
@@ -85,7 +85,7 @@ theorem State.CachedErrorsSatisfy.taskSuccess_output {queue : State} {property}
     (emitted
       : Execution.WorkQueueEvent.groupFailure group errors
         ∈ (queue.taskSuccess occurrence result).2)
-    : property group.key errors := by
+    : property group.ref errors := by
   have loop (groups : List Execution.DeliveryNode)
       (acc : State × List WorkQueueEvent × NewWork)
       (known : acc.1.CachedErrorsSatisfy property)
@@ -133,7 +133,7 @@ theorem State.CachedErrorsSatisfy.streamItems_output {queue : State} {property}
     (emitted
       : Execution.WorkQueueEvent.groupFailure group errors
         ∈ (queue.streamItems stream items).2)
-    : property group.key errors := by
+    : property group.ref errors := by
   let step (acc : State × List Execution.DeliveryNode × List Execution.DeliveryNode
       × List StreamItemValue) (item : StreamItem) :=
     let (current, groups, streams, values) := acc
@@ -158,14 +158,14 @@ theorem State.CachedErrorsSatisfy.streamItems_output {queue : State} {property}
 -- Concrete exact-cache provenance, with no source or admission assumptions
 -----------------------------------------------------------------------------------------
 
-/-- The queue itself witnesses the exact key and count in each of its caches.
+/-- The queue itself witnesses the exact ref and count in each of its caches.
 Witness: the same live node supplies membership and both projection equalities.
 -/
 theorem State.cachedErrors_fromSelf (queue : State)
     : queue.CachedErrorsSatisfy
-        (fun key errors =>
+        (fun ref errors =>
           ∃ node ∈ queue.groupNodes,
-            node.group.node.key = key ∧ node.failure = some errors) :=
+            node.group.node.ref = ref ∧ node.failure = some errors) :=
   fun node member _ same => ⟨node, member, rfl, same⟩
 
 /-- A failed closure released during task success copies an earlier cache exactly.
@@ -177,7 +177,7 @@ theorem State.taskSuccess_groupFailure_cached (queue : State) (occurrence : Occu
       : Execution.WorkQueueEvent.groupFailure group errors
         ∈ (queue.taskSuccess occurrence result).2)
     : ∃ node ∈ queue.groupNodes,
-        node.group.node.key = group.key ∧ node.failure = some errors :=
+        node.group.node.ref = group.ref ∧ node.failure = some errors :=
   queue.cachedErrors_fromSelf.taskSuccess_output occurrence result emitted
 
 /-- A failed closure released during item arrival copies an earlier cache exactly.
@@ -189,7 +189,7 @@ theorem State.streamItems_groupFailure_cached (queue : State)
       : Execution.WorkQueueEvent.groupFailure group errors
         ∈ (queue.streamItems stream items).2)
     : ∃ node ∈ queue.groupNodes,
-        node.group.node.key = group.key ∧ node.failure = some errors :=
+        node.group.node.ref = group.ref ∧ node.failure = some errors :=
   queue.cachedErrors_fromSelf.streamItems_output stream items emitted
 
 -----------------------------------------------------------------------------------------
@@ -206,13 +206,13 @@ theorem State.taskFailure_groupFailure_current (queue : State) (occurrence : Occ
         ∈ (queue.taskFailure occurrence errors).2)
     : ∃ task,
         queue.taskNode? occurrence = some task
-        ∧ group.key ∈ task.task.groups.map Execution.DeliveryNode.key
+        ∧ group.ref ∈ task.task.groups.map Execution.DeliveryNode.ref
         ∧ count = errors := by
   have loop (groups : List Execution.DeliveryNode) (acc : State × List WorkQueueEvent)
       : Execution.WorkQueueEvent.groupFailure group count
           ∈ (groups.foldl (failureGroupStep errors) acc).2
         → Execution.WorkQueueEvent.groupFailure group count ∈ acc.2
-          ∨ group.key ∈ groups.map Execution.DeliveryNode.key ∧ count = errors := by
+          ∨ group.ref ∈ groups.map Execution.DeliveryNode.ref ∧ count = errors := by
     induction groups generalizing acc with
     | nil => exact Or.inl
     | cons owner rest ih =>
@@ -227,7 +227,7 @@ theorem State.taskFailure_groupFailure_current (queue : State) (occurrence : Occ
             · rcases List.mem_append.mp first with earlier | latest
               · exact Or.inl earlier
               · have same := Execution.WorkQueueEvent.groupFailure.inj (List.mem_singleton.mp latest)
-                exact Or.inr ⟨by simp [same.1, current.groupNode?_key found], same.2⟩
+                exact Or.inr ⟨by simp [same.1, current.groupNode?_ref found], same.2⟩
             · exact Or.inl first
         · exact Or.inr ⟨List.mem_cons_of_mem _ later.1, later.2⟩
   cases found : queue.taskNode? occurrence with
@@ -251,9 +251,9 @@ theorem State.handleGraphEvent_groupFailure_origin (queue : State) (event : Grap
     : (∃ occurrence task,
         event = .taskFailure occurrence errors
         ∧ queue.taskNode? occurrence = some task
-        ∧ group.key ∈ task.task.groups.map Execution.DeliveryNode.key)
+        ∧ group.ref ∈ task.task.groups.map Execution.DeliveryNode.ref)
       ∨ ∃ node ∈ queue.groupNodes,
-          node.group.node.key = group.key ∧ node.failure = some errors := by
+          node.group.node.ref = group.ref ∧ node.failure = some errors := by
   cases event with
   | taskSuccess occurrence result =>
       exact Or.inr (queue.taskSuccess_groupFailure_cached occurrence result emitted)

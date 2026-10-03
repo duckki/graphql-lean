@@ -193,7 +193,7 @@ theorem ExecutedWork.streamItems_leadingNotice_unpublished
           ∧ let boundary := (current.preparedStreamItems earlier).integrateStreamItem item
             (∃ dependencies producer, NodeAt work child .group dependencies producer)
             ∧ ∃ node,
-                boundary.groupNode? child.key = some node
+                boundary.groupNode? child.ref = some node
                 ∧ node.group.node = child
                 ∧ (node.tasks ≠ [] ∨ node.failure.isSome = true)
                 ∧ (∀ publication ∈

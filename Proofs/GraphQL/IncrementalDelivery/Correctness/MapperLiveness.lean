@@ -25,7 +25,7 @@ def finalIDs : List (List WorkQueueEvent) → IDState → IDState
 /-- Finite input replay preserves IDs and encodes completions, by batch induction. -/
 theorem mappedTrace_spec (batches : List (List WorkQueueEvent)) (state : IDState)
     : Preserves state (finalIDs batches state)
-      ∧ Encodes (finalIDs batches state) (completedKeys batches.flatten)
+      ∧ Encodes (finalIDs batches state) (completedRefs batches.flatten)
           (DeliveryTrace.completedIDs (mappedTrace batches state)) := by
   induction batches generalizing state with
   | nil => exact ⟨.refl _, .nil⟩
@@ -36,21 +36,21 @@ theorem mappedTrace_spec (batches : List (List WorkQueueEvent)) (state : IDState
           obtain ⟨tp, tc⟩ := ih next
           refine ⟨?_, ?_⟩
           · simpa [finalIDs, h] using hp.trans tp
-          · simpa only [finalIDs, mappedTrace, h, List.flatten_cons, completedKeys,
+          · simpa only [finalIDs, mappedTrace, h, List.flatten_cons, completedRefs,
               List.flatMap_append, DeliveryTrace.completedIDs, List.flatMap_cons]
               using (hc.mono tp).append tc
 
-/-- A completed key yields its previously known ID, by stable lookup uniqueness. -/
+/-- A completed ref yields its previously known ID, by stable lookup uniqueness. -/
 theorem mappedTrace_completion {batches : List (List WorkQueueEvent)} {state : IDState}
-    {key : Nat} {id : String} (known : Known state key id)
-    (closed : key ∈ completedKeys batches.flatten)
+    {ref : NodeRef} {id : String} (known : Known state ref id)
+    (closed : ref ∈ completedRefs batches.flatten)
     : id ∈ DeliveryTrace.completedIDs (mappedTrace batches state) := by
   obtain ⟨preserves, encodes⟩ := mappedTrace_spec batches state
-  obtain ⟨other, ho, hk⟩ := encodes.fromKey key closed
+  obtain ⟨other, ho, hk⟩ := encodes.fromRef ref closed
   have same := (preserves _ _ known).unique hk
   simpa [same] using ho
 
-/-- Causal key liveness yields causal ID liveness, by replay induction. -/
+/-- Causal ref liveness yields causal ID liveness, by replay induction. -/
 theorem mappedTrace_live {batches : List (List WorkQueueEvent)} (state : IDState)
     (live : liveBatches batches)
     : DeliveryTrace.announcementsEventuallyComplete (mappedTrace batches state) := by
@@ -66,8 +66,8 @@ theorem mappedTrace_live {batches : List (List WorkQueueEvent)} (state : IDState
           simp only [mappedTrace, h]
           refine ⟨?_, ih next live.2⟩
           intro id hi
-          obtain ⟨key, hk, known⟩ := pending.fromID id hi
-          obtain ⟨other, ho, hc⟩ := whole.fromKey key (live.1 key hk)
+          obtain ⟨ref, hk, known⟩ := pending.fromID id hi
+          obtain ⟨other, ho, hc⟩ := whole.fromRef ref (live.1 ref hk)
           have same := (preserves _ _ known).unique hc
           simpa [same] using ho
 

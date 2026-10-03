@@ -12,10 +12,10 @@ attribute [local simp] id_pure_eq id_bind_eq id_map_eq run_bind run_map
 variable {ObjectRef : Type}
 
 theorem runMatches_after_contextCollection (usage : Option DeferUsage)
-    (action : StateM Nat FieldCollection)
+    (action : StateM NodeRef FieldCollection)
     (groups : List (Name × List GraphQL.Execution.ExecutableField))
-    (next : FieldCollection → StateM Nat (Completion α)) (basic : Result α) (state : Nat)
-    (h : CollectionInContext usage state (action.run state))
+    (next : FieldCollection → StateM NodeRef (Completion α)) (basic : Result α)
+    (state : Nat) (h : CollectionInContext usage state (action.run state))
     (he : eraseGroups (action.run state).1.collectedFieldsMap = groups)
     (hn
       : ∀ collection,
@@ -41,12 +41,12 @@ theorem executePlan_inContext (usage : Option DeferUsage)
     (hr
       : RunMatches
           (executeCollectedFields schema resolvers variables fuel parentType source
-            collection.collectedFieldsMap path (contextKeys usage) deferMap) basic state)
+            collection.collectedFieldsMap path (contextRefs usage) deferMap) basic state)
     : RunMatches
         (executeExecutionPlan schema resolvers variables fuel parentType source
           collection.newDeferUsages
-          (buildExecutionPlan collection.collectedFieldsMap (contextKeys usage)) path
-          (contextKeys usage) deferMap) basic state := by
+          (buildExecutionPlan collection.collectedFieldsMap (contextRefs usage)) path
+          (contextRefs usage) deferMap) basic state := by
   simp only [executeExecutionPlan, hn, getNewDeferMap, List.foldl_nil,
     buildExecutionPlan_inContext usage hvalid collection.collectedFieldsMap hp]
   apply runMatches_bind _ _ _ _ _ hr
@@ -75,7 +75,7 @@ mutual
       (hplain : GroupsInContext usage groups) (path : ResponsePath) (state : Nat)
       : RunMatches
           (executeCollectedFields schema resolvers variables fuel parentType source groups
-            path (contextKeys usage) deferMap)
+            path (contextRefs usage) deferMap)
           (GraphQL.Execution.executeCollectedFields schema resolvers variables fuel
             parentType source (eraseGroups groups))
           state := by
@@ -118,7 +118,7 @@ mutual
       (hplain : FieldsInContext usage fields) (path : ResponsePath) (state : Nat)
       : RunMatches
           (executeResponseField schema resolvers variables fuel parentType source name
-            fields path (contextKeys usage) deferMap)
+            fields path (contextRefs usage) deferMap)
           (GraphQL.Execution.executeField schema resolvers variables fuel parentType
             source name (fields.map eraseField))
           state := by
@@ -179,7 +179,7 @@ mutual
       (path : ResponsePath) (allowStream : Bool) (state : Nat)
       : RunMatches
           (completeValue schema resolvers variables fuel fieldType fields value path
-            (contextKeys usage) deferMap allowStream)
+            (contextRefs usage) deferMap allowStream)
           (GraphQL.Execution.completeValue schema resolvers variables fuel fieldType
             (fields.map eraseField) value)
           state := by
@@ -275,7 +275,7 @@ mutual
       (path : ResponsePath) (index state : Nat)
       : RunMatches
           (completeListValue schema resolvers variables fuel itemType fields values
-            path index (contextKeys usage) deferMap)
+            path index (contextRefs usage) deferMap)
           (GraphQL.Execution.completeValueList schema resolvers variables fuel itemType
             (fields.map eraseField) values)
           state := by

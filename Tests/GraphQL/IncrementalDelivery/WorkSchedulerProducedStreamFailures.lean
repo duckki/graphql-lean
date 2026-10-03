@@ -24,8 +24,8 @@ private def work : Execution.Work :=
       selections).run
     0).1.work
 
-private def group : DeliveryNode := { key := 0, path := [] }
-private def stream : DeliveryNode := { key := 1, path := [.field "strict"] }
+private def group : DeliveryNode := { ref := 0, path := [] }
+private def stream : DeliveryNode := { ref := 1, path := [.field "strict"] }
 private def producer : Occurrence := .executionGroup [1, 0]
 
 private def children : Execution.Work :=
@@ -51,10 +51,10 @@ Witness: exact task/stream locations, prior producer success, and executable sta
 -/
 theorem source_valid
     : ValidGraphEvents work inputs.flatten ∧ inputsStarted work inputs = true := by
-  have parent : TaskAt work producer [group.key] none (.object [] (.ok (value.data, 0))) :=
+  have parent : TaskAt work producer [group.ref] none (.object [] (.ok (value.data, 0))) :=
     .executionGroup (groups := [⟨group, []⟩]) (children := children) (owners := []) (by cbv)
   have located : Located work [1, 0, 0, 0, 1]
-      (.stream stream [(.error 1, .empty)]) (some producer) [group.key] := by cbv
+      (.stream stream [(.error 1, .empty)]) (some producer) [group.ref] := by cbv
   have prior : ValidGraphEvents work [first] :=
     .append .nil ⟨_, _, parent, by cbv, by cbv⟩
       (by simp [first, GraphEvent.Fresh, GraphEvent.identities])
@@ -66,7 +66,7 @@ theorem source_valid
 
 /-- The generated child stream is attached before its producer can be flushed.
 Witness: the general fresh-producer registration theorem, instantiated at the actual
-initial queue; the prepared node retains both its value and the child's stream key.
+initial queue; the prepared node retains both its value and the child's stream ref.
 -/
 theorem child_stream_attached
     : let queue := State.initialize (Work.fromExecution work)
@@ -78,8 +78,8 @@ theorem child_stream_attached
           = some next
         ∧ next.task = node.task
         ∧ next.value = some value
-        ∧ stream.key ∈ next.childStreams := by
-  have parent : TaskAt work producer [group.key] none (.object [] (.ok (value.data, 0))) :=
+        ∧ stream.ref ∈ next.childStreams := by
+  have parent : TaskAt work producer [group.ref] none (.object [] (.ok (value.data, 0))) :=
     .executionGroup (groups := [⟨group, []⟩]) (children := children) (owners := []) (by cbv)
   apply ExecutedWork.taskSuccess_prepared_childStream generated
     (before := []) .nil (stream := ⟨stream⟩) (node := { task := ⟨producer, [group]⟩ })
@@ -108,7 +108,7 @@ theorem failure_licensed
             .streamFailure stream 1
           ]
         ∧ ConformancePlan.BatchShape work inputs w
-        ∧ FailureWitness work (ConformancePlan.initialKeys work)
+        ∧ FailureWitness work (ConformancePlan.initialRefs work)
             w.matching w.events w.failures := by
   obtain ⟨w, history, shape, licensed⟩ :=
     ConformancePlan.mixed_failureWitness_exists generated source_valid.1 source_valid.2
@@ -124,7 +124,7 @@ theorem failure_admitted
     : ∃ w : ConformancePlan.Witness,
         w.events = (ConformancePlan.initialQueue work).nonterminalAtoms inputs
         ∧ ConformancePlan.BatchShape work inputs w
-        ∧ FailureWitness work (ConformancePlan.initialKeys work)
+        ∧ FailureWitness work (ConformancePlan.initialRefs work)
             w.matching w.events w.failures
         ∧ ConformancePlan.FailureAdmission work w := by
   obtain ⟨w, history, shape, announced, uncancelled, admitted⟩ :=
@@ -139,9 +139,9 @@ theorem retired_group_healthy_after_stream_failure
     : ∃ w : ConformancePlan.Witness,
         w.events = (ConformancePlan.initialQueue work).nonterminalAtoms inputs
         ∧ ConformancePlan.BatchShape work inputs w
-        ∧ FailureWitness work (ConformancePlan.initialKeys work)
+        ∧ FailureWitness work (ConformancePlan.initialRefs work)
             w.matching w.events w.failures
-        ∧ ¬NodeFailed work w.matching w.events w.failures group.key := by
+        ∧ ¬NodeFailed work w.matching w.events w.failures group.ref := by
   obtain ⟨w, history, shape, announced, uncancelled, _, _, _, healthy⟩ :=
     ConformancePlan.mixed_groupHealthCertificates generated source_valid.1 source_valid.2
   refine ⟨w, history, shape, ConformancePlan.failureWitness announced uncancelled, ?_⟩
@@ -156,9 +156,9 @@ health; only the concrete singleton notice's freshness is checked by evaluation.
 theorem notice_carrier_admitted
     : ∃ w : ConformancePlan.Witness,
         w.events = (ConformancePlan.initialQueue work).nonterminalAtoms inputs
-        ∧ FailureWitness work (ConformancePlan.initialKeys work)
+        ∧ FailureWitness work (ConformancePlan.initialRefs work)
             w.matching w.events w.failures
-        ∧ EventAllowed work (ConformancePlan.initialKeys work) w.matching
+        ∧ EventAllowed work (ConformancePlan.initialRefs work) w.matching
             (w.events.take 1) w.failures (.groupSuccess group [] [stream]) := by
   obtain ⟨w, history, _, announced, uncancelled, _, _, _, healthy, _, ledger, _,
     support, producers, _⟩ :=
@@ -224,10 +224,10 @@ private def work : Execution.Work :=
       (.object "Query" 0) selections).run
     0).1.work
 
-private def outer : DeliveryNode := { key := 0, path := [.field "users"] }
+private def outer : DeliveryNode := { ref := 0, path := [.field "users"] }
 
 private def child : DeliveryNode :=
-  { key := 1, path := [.field "users", .index 0, .field "strict"] }
+  { ref := 1, path := [.field "users", .index 0, .field "strict"] }
 
 private def producer : Occurrence := .item [0, 0, 1] 0
 private def value : ResponseValue := .object [("strict", .list [.scalar "x"])]
@@ -282,13 +282,13 @@ theorem source_valid
 
 /-- The item-produced stream completes even though its outer stream has failed first.
 Witness: general complete notice coverage and actual terminal stream tracking, using the
-canonical mixed history; no child notice or completed-key premise is supplied.
+canonical mixed history; no child notice or completed-ref premise is supplied.
 -/
 theorem child_completed_after_outer_failure
     : ∃ w : ConformancePlan.Witness,
         w.events = (ConformancePlan.initialQueue work).nonterminalAtoms inputs
         ∧ ConformancePlan.BatchShape work inputs w
-        ∧ child.key ∈ completedKeys w.events := by
+        ∧ child.ref ∈ completedRefs w.events := by
   obtain ⟨w, history, shape, _⟩ :=
     ConformancePlan.mixed_failureWitness_exists generated source_valid.1 source_valid.2
   refine ⟨w, history, shape, ?_⟩
@@ -311,7 +311,7 @@ theorem failures_licensed
             .streamFailure child 1
           ]
         ∧ ConformancePlan.BatchShape work inputs w
-        ∧ FailureWitness work (ConformancePlan.initialKeys work)
+        ∧ FailureWitness work (ConformancePlan.initialRefs work)
             w.matching w.events w.failures := by
   obtain ⟨w, history, shape, licensed⟩ :=
     ConformancePlan.mixed_failureWitness_exists generated source_valid.1 source_valid.2
@@ -327,7 +327,7 @@ theorem failures_admitted
     : ∃ w : ConformancePlan.Witness,
         w.events = (ConformancePlan.initialQueue work).nonterminalAtoms inputs
         ∧ ConformancePlan.BatchShape work inputs w
-        ∧ FailureWitness work (ConformancePlan.initialKeys work)
+        ∧ FailureWitness work (ConformancePlan.initialRefs work)
             w.matching w.events w.failures
         ∧ ConformancePlan.FailureAdmission work w := by
   obtain ⟨w, history, shape, announced, uncancelled, admitted⟩ :=
@@ -341,9 +341,9 @@ same witness that licenses both later failures; no empty failure inventory is su
 theorem notice_carrier_admitted
     : ∃ w : ConformancePlan.Witness,
         w.events = (ConformancePlan.initialQueue work).nonterminalAtoms inputs
-        ∧ FailureWitness work (ConformancePlan.initialKeys work)
+        ∧ FailureWitness work (ConformancePlan.initialRefs work)
             w.matching w.events w.failures
-        ∧ EventAllowed work (ConformancePlan.initialKeys work) w.matching
+        ∧ EventAllowed work (ConformancePlan.initialRefs work) w.matching
             (w.events.take 0) w.failures
             (.streamValues outer [⟨value, 0⟩] [] [child]) := by
   obtain ⟨w, history, _, announced, uncancelled, _, _, ready, _, _, _, _,

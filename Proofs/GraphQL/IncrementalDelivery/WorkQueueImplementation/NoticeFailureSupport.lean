@@ -13,21 +13,21 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 -- Positive complete error totals identify an accepted contributing failure
 -----------------------------------------------------------------------------------------
 
-/-- A positive exact total contains a failed-inventory task contributing to this key.
+/-- A positive exact total contains a failed-inventory task contributing to this ref.
 Witness: extract a positive summand; a nonowner would have contributed zero. This does
 not require a licensed output history or replace the inventory by raw source failures.
 -/
-theorem nodeErrors_contributor_of_positive {work failed key errors}
-    (counts : NodeErrors work failed key errors) (positive : 0 < errors)
+theorem nodeErrors_contributor_of_positive {work failed ref errors}
+    (counts : NodeErrors work failed ref errors) (positive : 0 < errors)
     : ∃ occurrence ∈ failed,
-        ∃ owners, TaskHasOwners work occurrence owners ∧ key ∈ owners := by
+        ∃ owners, TaskHasOwners work occurrence owners ∧ ref ∈ owners := by
   obtain ⟨contribution, known, total⟩ := counts
   rw [total] at positive
   obtain ⟨count, member, pos⟩ := List.sum_pos_iff_exists_pos_nat.mp positive
   obtain ⟨occurrence, recorded, same⟩ := List.mem_map.mp member
   obtain ⟨owners, producer, payload, task, counted⟩ := known occurrence recorded
   refine ⟨occurrence, recorded, owners, ⟨producer, payload, task⟩, ?_⟩
-  by_cases present : key ∈ owners
+  by_cases present : ref ∈ owners
   · exact present
   · simp [present, same] at counted
     omega
@@ -35,8 +35,8 @@ theorem nodeErrors_contributor_of_positive {work failed key errors}
 /-- A generated nonempty source-contributor total is strictly positive.
 Witness: a listed failing task has a positive fixed error count, hence so does its sum.
 -/
-theorem GroupFailureTotal.positive {work inputs key errors}
-    (total : GroupFailureTotal work inputs key errors) (generated : ExecutedWork work)
+theorem GroupFailureTotal.positive {work inputs ref errors}
+    (total : GroupFailureTotal work inputs ref errors) (generated : ExecutedWork work)
     : 0 < errors := by
   obtain ⟨parts, nonempty, _, total, sources⟩ := total
   obtain ⟨entry, member⟩ := List.exists_mem_of_ne_nil parts nonempty
@@ -121,7 +121,7 @@ theorem State.CachedFailuresSupported.drainReadyGroups_go {queue : State} {work 
   · intro current node prior _ _ _ _
     exact (prior.finishGroupSuccess node).startNewWork _
   · intro current node errors prior _ _ _
-    exact prior.removeGroup node.group.node.key
+    exact prior.removeGroup node.group.node.ref
 
 /-- Integrating one stream item retains the prior accepted contributor inventory.
 Witness: integration, pruning, and activation introduce no failure cache.
@@ -210,7 +210,7 @@ theorem State.CachedFailuresSupported.recorded {queue : State} {work failed fail
     (supported : queue.CachedFailuresSupported work failed)
     (visible : failed.Subset (failedBefore failures cut)) {node : GroupNode}
     (member : node ∈ queue.groupNodes) (cached : node.failure.isSome = true)
-    : HasRecordedFailure work failures cut node.group.node.key := by
+    : HasRecordedFailure work failures cut node.group.node.ref := by
   obtain ⟨occurrence, accepted, owners, known, owner⟩ := supported node member cached
   exact ⟨occurrence, owners, visible accepted, known, owner⟩
 

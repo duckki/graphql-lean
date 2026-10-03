@@ -12,7 +12,7 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
 /-- Successful group controls satisfy full admission, including both child-notice kinds.
 Witness: strict-prefix accounting and healthy open closure combine with actual retained
-group contents, full notice eligibility, and combined group/stream key uniqueness.
+group contents, full notice eligibility, and combined group/stream ref uniqueness.
 -/
 theorem groupSuccessAllowed_of_certificates
     {work inputs w index group groups streams streamCuts} (generated : ExecutedWork work)
@@ -41,11 +41,11 @@ theorem groupSuccessAllowed_of_certificates
                 (queue.eligibleFailureBlocks
                   (queue.sourceRunBlocks publisher inputs).2.2)))
     (selected : w.events[index]? = some (.groupSuccess group groups streams))
-    : EventAllowed work (initialKeys work) w.matching (w.events.take index) w.failures
+    : EventAllowed work (initialRefs work) w.matching (w.events.take index) w.failures
         (.groupSuccess group groups streams) := by
   apply (groupSuccessAllowed_iff_announcements generated valid started history healthy ledger
     selected).mpr
-  refine ⟨groupCarrierNoticeKeys_nodup generated valid started history selected, ?_, ?_⟩
+  refine ⟨groupCarrierNoticeRefs_nodup generated valid started history selected, ?_, ?_⟩
   · intro child noticed
     have contents := groupGroupNotice_unpublished generated valid started history ledger
       objects ready partition selected noticed

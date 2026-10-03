@@ -24,20 +24,20 @@ theorem ExecutedWork.initialGroup_notice_exists {work group dependencies}
   obtain ⟨address, groups, path, result, children, enclosing, fragment,
     located, member, rfl, rfl⟩ := known
   have taskKnown : TaskAt work (.executionGroup address)
-      (groups.map (fun group => group.node.key)) none (.object path result) :=
+      (groups.map (fun group => group.node.ref)) none (.object path result) :=
     .executionGroup located
   obtain ⟨task, registered, _, owners⟩ :=
     TaskAt.executionGroup_initial_registered taskKnown
-  have contributes : fragment.node.key ∈ task.groups.map Execution.DeliveryNode.key := by
+  have contributes : fragment.node.ref ∈ task.groups.map Execution.DeliveryNode.ref := by
     rw [owners]
     exact List.mem_map_of_mem member
   obtain ⟨node, live, same, _⟩ := createWorkQueue_healthyRegisteredTaskAccounting work
-    task registered (by simp) fragment.node.key contributes
+    task registered (by simp) fragment.node.ref contributes
     (fun failure => failure.nonempty rfl)
-  have found := (createWorkQueue_groupKeysUnique (Work.fromExecution work)).groupNode?_of_mem live
+  have found := (createWorkQueue_groupRefsUnique (Work.fromExecution work)).groupNode?_of_mem live
   rw [same] at found
   obtain ⟨root, active, _⟩ :=
-    generated.initial_live_group_root_coverage fragment.node.key ⟨node, found⟩
+    generated.initial_live_group_root_coverage fragment.node.ref ⟨node, found⟩
   rw [createWorkQueue_rootGroups] at active
   intro empty
   simp [empty] at active
@@ -75,7 +75,7 @@ theorem ExecutedWork.initialNotices_nonempty {work} (generated : ExecutedWork wo
 -----------------------------------------------------------------------------------------
 
 /-- The concrete reference constructor initializes every nonempty executed work tree.
-Witness: distinct notice keys, producer-free eligible groups, eligible streams, and
+Witness: distinct notice refs, producer-free eligible groups, eligible streams, and
 nonempty frontier are all derived independently from actual lowering and pruning.
 -/
 theorem ExecutedWork.initializes {work} (generated : ExecutedWork work)

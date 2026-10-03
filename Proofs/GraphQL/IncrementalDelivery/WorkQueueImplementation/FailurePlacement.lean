@@ -17,7 +17,7 @@ def FailureReportAt (work : Execution.Work) (events : List Execution.WorkQueueEv
   ∃ node errors,
     (events[index]? = some (.groupFailure node errors)
       ∨ events[index]? = some (.streamFailure node errors))
-    ∧ ∃ owners, TaskHasOwners work occurrence owners ∧ node.key ∈ owners
+    ∧ ∃ owners, TaskHasOwners work occurrence owners ∧ node.ref ∈ owners
 
 /-- A report position is within the actual event list.
 Witness: either failure constructor is present at that index.
@@ -238,14 +238,14 @@ theorem reportedFailureCuts_covers_report {work events failures occurrence index
 Witness: restrict the original contribution function; omitted summands are zero, and
 the retained list is a permutation of a membership filter of the original list.
 -/
-theorem nodeErrors_restrict {work failed selected key errors}
-    (counts : NodeErrors work failed key errors) (failedUnique : failed.Nodup)
+theorem nodeErrors_restrict {work failed selected ref errors}
+    (counts : NodeErrors work failed ref errors) (failedUnique : failed.Nodup)
     (selectedUnique : selected.Nodup) (included : selected.Subset failed)
     (complete
       : ∀ occurrence ∈ failed,
           ∀ owners,
-            TaskHasOwners work occurrence owners → key ∈ owners → occurrence ∈ selected)
-    : NodeErrors work selected key errors := by
+            TaskHasOwners work occurrence owners → ref ∈ owners → occurrence ∈ selected)
+    : NodeErrors work selected ref errors := by
   classical
   obtain ⟨contribution, known, total⟩ := counts
   let kept := fun occurrence => decide (occurrence ∈ selected)
@@ -262,7 +262,7 @@ theorem nodeErrors_restrict {work failed selected key errors}
       (List.mem_filter.mp retained).1
     have omitted : occurrence ∉ selected := by
       simpa [kept] using (List.mem_filter.mp retained).2
-    have nonowner : key ∉ owners := fun owner => omitted
+    have nonowner : ref ∉ owners := fun owner => omitted
       (complete occurrence (List.mem_filter.mp retained).1 owners ⟨producer, payload, task⟩ owner)
     simpa [nonowner] using amount
   refine ⟨contribution, fun occurrence member => known occurrence (included member), ?_⟩
@@ -277,12 +277,12 @@ contributor to this closure, so only zero summands can disappear.
 -/
 theorem reportedFailureCuts_nodeErrors {work events failures index node errors}
     (unique : (failures.map Prod.snd).Nodup)
-    (counts : NodeErrors work (failedBefore failures index) node.key errors)
+    (counts : NodeErrors work (failedBefore failures index) node.ref errors)
     (atEvent
       : events[index]? = some (.groupFailure node errors)
         ∨ events[index]? = some (.streamFailure node errors))
     : NodeErrors work (failedBefore (reportedFailureCuts work events failures) index)
-        node.key errors := by
+        node.ref errors := by
   apply nodeErrors_restrict counts
     ((List.filter_sublist.map Prod.snd).nodup unique)
     ((List.filter_sublist.map Prod.snd).nodup (reportedFailureCuts_unique unique))
@@ -329,16 +329,16 @@ theorem createWorkQueue_reportedFailureCuts_open {work : Execution.Work}
       ∀ entry ∈ reportedFailureCuts work events failures,
         ∃ owners,
           TaskHasOwners work entry.2 owners
-          ∧ ∃ key ∈ owners,
+          ∧ ∃ ref ∈ owners,
               Open
                 ((queue.initialGroups ++ queue.initialStreams).map
-                  Execution.DeliveryNode.key)
-                (events.take entry.1) key := by
+                  Execution.DeliveryNode.ref)
+                (events.take entry.1) ref := by
   intro queue events entry member
   obtain ⟨original, _, same, selected⟩ := reportedFailureCuts_origin member
   obtain ⟨node, errors, atEvent, owners, task, owner⟩ :=
     (firstReportedFailureCut_spec selected).2.2.1
-  refine ⟨owners, same ▸ task, node.key, owner, ?_⟩
+  refine ⟨owners, same ▸ task, node.ref, owner, ?_⟩
   rcases atEvent with group | stream
   · exact createWorkQueue_runNormalized_groupFailureOpenAt generated valid group
   · exact createWorkQueue_runNormalized_streamOpenAt generated valid stream List.mem_cons_self
@@ -358,11 +358,11 @@ theorem createWorkQueue_reportedFailureInventory_exists {work : Execution.Work}
         ∧ ∀ entry ∈ failures,
             ∃ owners,
               TaskHasOwners work entry.2 owners
-              ∧ ∃ key ∈ owners,
+              ∧ ∃ ref ∈ owners,
                   Open
                     ((queue.initialGroups ++ queue.initialStreams).map
-                      Execution.DeliveryNode.key)
-                    (events.take entry.1) key := by
+                      Execution.DeliveryNode.ref)
+                    (events.take entry.1) ref := by
   obtain ⟨failures, inventory⟩ :=
     createWorkQueue_completeFailureInventory_exists generated valid started
   exact ⟨_, inventory.reported, createWorkQueue_reportedFailureCuts_open generated valid failures⟩

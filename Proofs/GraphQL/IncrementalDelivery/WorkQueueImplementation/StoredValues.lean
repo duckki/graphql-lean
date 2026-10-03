@@ -88,7 +88,7 @@ theorem State.StoredValuesSatisfy.addTask {queue : State} {property}
   · subst node
     cases same
 
-/-- Stream integration only appends stream keys to an existing task's child list.
+/-- Stream integration only appends stream refs to an existing task's child list.
 Witness: the updated producer retains its occurrence and stored value exactly. -/
 theorem State.StoredValuesSatisfy.addStreams {queue : State} {property}
     (stored : queue.StoredValuesSatisfy property) (streams : List Stream)
@@ -143,8 +143,8 @@ theorem State.StoredValuesSatisfy.startTask {queue : State} {property}
 /-- Starting a group cannot create a resolved value.
 Witness: lift empty-node task start through the group's membership fold. -/
 theorem State.StoredValuesSatisfy.startGroup {queue : State} {property}
-    (stored : queue.StoredValuesSatisfy property) (key : Nat)
-    : (queue.startGroup key).StoredValuesSatisfy property := by
+    (stored : queue.StoredValuesSatisfy property) (ref : NodeRef)
+    : (queue.startGroup ref).StoredValuesSatisfy property := by
   unfold State.startGroup
   split
   · exact stored
@@ -153,11 +153,11 @@ theorem State.StoredValuesSatisfy.startGroup {queue : State} {property}
     · exact fold_preserves (fun state => state.StoredValuesSatisfy property) State.startTask
         (fun _ occurrence prior => prior.startTask occurrence) _ _ stored
 
-/-- Stream start changes only the active stream keys.
+/-- Stream start changes only the active stream refs.
 Witness: neither executable branch modifies task nodes. -/
 theorem State.StoredValuesSatisfy.startStream {queue : State} {property}
-    (stored : queue.StoredValuesSatisfy property) (key : Nat)
-    : (queue.startStream key).StoredValuesSatisfy property := by
+    (stored : queue.StoredValuesSatisfy property) (ref : NodeRef)
+    : (queue.startStream ref).StoredValuesSatisfy property := by
   unfold State.startStream
   split <;> exact stored
 
@@ -167,18 +167,18 @@ theorem State.StoredValuesSatisfy.startNewWork {queue : State} {property}
     (stored : queue.StoredValuesSatisfy property) (work : NewWork)
     : (queue.startNewWork work).StoredValuesSatisfy property := by
   let current :=
-    { queue with rootGroups := queue.rootGroups ++ work.newGroups.map Execution.DeliveryNode.key }
+    { queue with rootGroups := queue.rootGroups ++ work.newGroups.map Execution.DeliveryNode.ref }
   have groups := fold_preserves (fun state => state.StoredValuesSatisfy property)
-    State.startGroup (fun _ key prior => prior.startGroup key)
-    (work.newGroups.map Execution.DeliveryNode.key) current stored
+    State.startGroup (fun _ ref prior => prior.startGroup ref)
+    (work.newGroups.map Execution.DeliveryNode.ref) current stored
   exact fold_preserves (fun state => state.StoredValuesSatisfy property) State.startStream
-    (fun _ key prior => prior.startStream key) _ _ groups
+    (fun _ ref prior => prior.startStream ref) _ _ groups
 
 /-- Failure removal only filters existing task nodes.
 Witness: every surviving value is retained from the original node map. -/
 theorem State.StoredValuesSatisfy.removeGroup {queue : State} {property}
-    (stored : queue.StoredValuesSatisfy property) (key : Nat)
-    : (queue.removeGroup key).StoredValuesSatisfy property :=
+    (stored : queue.StoredValuesSatisfy property) (ref : NodeRef)
+    : (queue.removeGroup ref).StoredValuesSatisfy property :=
   fun node member => stored node (List.mem_filter.mp member).1
 
 /-- Successful group flushing only removes stored nodes.
@@ -540,10 +540,10 @@ theorem State.taskFailure_publishedValues (queue : State) (occurrence : Occurren
     (errors : Nat) (property : Occurrence → ExecutionGroupValue → Prop)
     : PublishedValuesSatisfy property (queue.taskFailure occurrence errors).2 := by
   let step (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode) :=
-    match acc.1.groupNode? group.key with
+    match acc.1.groupNode? group.ref with
     | none => acc
     | some node =>
-        if acc.1.rootGroups.contains group.key then
+        if acc.1.rootGroups.contains group.ref then
           let (next, failure) := acc.1.finishGroupFailure node errors
           (next, acc.2 ++ [failure])
         else (acc.1.putGroupNode

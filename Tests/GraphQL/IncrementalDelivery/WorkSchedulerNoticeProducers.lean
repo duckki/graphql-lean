@@ -54,13 +54,13 @@ private theorem generated : ExecutedWork work := by
   cbv
 
 private theorem child_known
-    : TaskAt work childTask [first.key] (some parentTask)
+    : TaskAt work childTask [first.ref] (some parentTask)
         (.object [.field "user"] (.ok ([("name", .scalar "name1")], 0))) :=
   .executionGroup (groups := [⟨first, []⟩]) (children := .combine .empty .empty)
-    (owners := [first.key, second.key]) (by cbv)
+    (owners := [first.ref, second.ref]) (by cbv)
 
 private theorem valid : ValidGraphEvents work received := by
-  have known : TaskAt work parentTask [first.key, second.key] none
+  have known : TaskAt work parentTask [first.ref, second.ref] none
       (.object [] (.ok ([("user", .object [])], 0))) :=
     .executionGroup (groups := [⟨first, []⟩, ⟨second, []⟩])
       (children := children) (owners := []) (by cbv)
@@ -90,10 +90,10 @@ theorem buffered_reuse_selects_rootDescriptor
   have descriptor : NodeAt work first .group [] (some parentTask) :=
     .group (address := [1, 0, 0, 0, 1, 0]) (groups := [⟨first, []⟩])
       (path := [.field "user"]) (result := .ok ([("name", .scalar "name1")], 0))
-      (children := .combine .empty .empty) (owners := [first.key, second.key])
+      (children := .combine .empty .empty) (owners := [first.ref, second.ref])
       (by cbv) List.mem_cons_self
   obtain ⟨birth, known, ready⟩ := generated.groupNotice_readyDescriptor
-    (initial := [first.key, second.key]) (matching := fun _ => parentTask)
+    (initial := [first.ref, second.ref]) (matching := fun _ => parentTask)
     (events := []) (failures := []) valid
     (by intro cut occurrence member; cases member)
     (by simp [TaskCancelled])

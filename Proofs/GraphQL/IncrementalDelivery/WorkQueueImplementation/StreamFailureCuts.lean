@@ -23,7 +23,7 @@ def StreamFailureOrigin (work : Execution.Work) (events : List Execution.WorkQue
     : Prop :=
   ∃ stream errors producer,
     events[entry.1]? = some (.streamFailure stream errors)
-    ∧ TaskAt work entry.2 [stream.key] producer (.item stream (.error errors))
+    ∧ TaskAt work entry.2 [stream.ref] producer (.item stream (.error errors))
 
 /-- Candidate stream cuts cover exactly the emitted stream failures, in output order.
 These proof labels do not yet assert absence of cancellation or include object failures.
@@ -96,8 +96,8 @@ theorem StreamFailureCuts.covers {work events failures index stream errors}
   subst cut
   exact ⟨occurrence, included⟩
 
-/-- Ordered stream closure keys make the candidate failure occurrences distinct.
-Witness: equal occurrences would have equal sole-owner keys, contradicting closure order
+/-- Ordered stream closure refs make the candidate failure occurrences distinct.
+Witness: equal occurrences would have equal sole-owner refs, contradicting closure order
 at their strictly increasing output indices. This does not assume failure-cut licensing.
 -/
 theorem StreamFailureCuts.unique {work events failures}
@@ -110,13 +110,13 @@ theorem StreamFailureCuts.unique {work events failures}
   obtain ⟨left, leftErrors, leftProducer, atLeft, firstTask⟩ := cuts.2 first firstMember
   obtain ⟨right, rightErrors, rightProducer, atRight, secondTask⟩ := cuts.2 second secondMember
   rw [same] at firstTask
-  have sameKey := (List.cons.inj (firstTask.unique secondTask).1).1
+  have sameRef := (List.cons.inj (firstTask.unique secondTask).1).1
   obtain ⟨leftBound, leftEq⟩ := List.getElem?_eq_some_iff.mp atLeft
   obtain ⟨rightBound, rightEq⟩ := List.getElem?_eq_some_iff.mp atRight
   have relation := (List.pairwise_filterMap.mp ordered).rel_getElem_of_lt
     leftBound rightBound earlier
   rw [leftEq, rightEq] at relation
-  exact relation (left.key, true) rfl (right.key, true) rfl rfl sameKey
+  exact relation (left.ref, true) rfl (right.ref, true) rfl rfl sameRef
 
 -----------------------------------------------------------------------------------------
 -- Assemble local failure evidence under the unchanged joint publication matching
@@ -173,21 +173,21 @@ theorem createWorkQueue_runNormalized_streamFailureCuts {work : Execution.Work}
         ∧ ∀ entry ∈ failures,
             Reachable work entry.2
             ∧ ¬Published matching atoms entry.2
-            ∧ ∃ key,
-                TaskHasOwners work entry.2 [key]
+            ∧ ∃ ref,
+                TaskHasOwners work entry.2 [ref]
                 ∧ Open
                     ((queue.initialGroups ++ queue.initialStreams).map
-                      Execution.DeliveryNode.key)
-                    (atoms.take entry.1) key := by
+                      Execution.DeliveryNode.ref)
+                    (atoms.take entry.1) ref := by
   dsimp only
   let queue := State.initialize (Work.fromExecution work)
   let atoms := (queue.runNormalized batches).2.flatten.flatMap publicationAtoms
   let property := fun index occurrence =>
     StreamFailureOrigin work atoms (index, occurrence)
     ∧ Reachable work occurrence ∧ ¬Published matching atoms occurrence
-    ∧ ∃ key, TaskHasOwners work occurrence [key]
-        ∧ Open ((queue.initialGroups ++ queue.initialStreams).map Execution.DeliveryNode.key)
-            (atoms.take index) key
+    ∧ ∃ ref, TaskHasOwners work occurrence [ref]
+        ∧ Open ((queue.initialGroups ++ queue.initialStreams).map Execution.DeliveryNode.ref)
+            (atoms.take index) ref
   obtain ⟨failures, positions, evidence⟩ :=
     choose_indexed_witnesses (streamFailurePositions atoms) property (by
       intro index member
@@ -196,7 +196,7 @@ theorem createWorkQueue_runNormalized_streamFailureCuts {work : Execution.Work}
         createWorkQueue_runNormalized_streamFailure_accounting generated valid matching
           exactValues covered atFailure
       exact ⟨.item address ordinal, ⟨stream, errors, producer, atFailure, task⟩,
-        reachable, unpublished, stream.key, ⟨producer, _, task⟩, opened⟩)
+        reachable, unpublished, stream.ref, ⟨producer, _, task⟩, opened⟩)
   have cuts : StreamFailureCuts work atoms failures :=
     ⟨positions, fun entry member => (evidence entry member).1⟩
   exact ⟨failures, cuts,
@@ -217,8 +217,8 @@ theorem StreamFailureCuts.failureWitness_iff {work events failures initial match
     (supported
       : ∀ entry ∈ failures,
           Reachable work entry.2
-          ∧ ∃ key,
-              TaskHasOwners work entry.2 [key] ∧ Open initial (events.take entry.1) key)
+          ∧ ∃ ref,
+              TaskHasOwners work entry.2 [ref] ∧ Open initial (events.take entry.1) ref)
     : FailureWitness work initial matching events failures
       ↔ ∀ before cut occurrence after,
           failures = before ++ (cut, occurrence) :: after
@@ -229,11 +229,11 @@ theorem StreamFailureCuts.failureWitness_iff {work events failures initial match
   · intro uncancelled before cut occurrence after split
     have member : (cut, occurrence) ∈ failures := by simp [split]
     obtain ⟨stream, errors, producer, atEvent, task⟩ := cuts.2 _ member
-    obtain ⟨reachable, key, ⟨otherProducer, payload, known⟩, opened⟩ := supported _ member
-    have sameKey := (List.cons.inj (task.unique known).1).1
+    obtain ⟨reachable, ref, ⟨otherProducer, payload, known⟩, opened⟩ := supported _ member
+    have sameRef := (List.cons.inj (task.unique known).1).1
     refine ⟨Nat.le_of_lt (cuts.bound member), ?_,
-      ⟨[stream.key], producer, _, task, rfl, reachable, stream.key, List.mem_cons_self,
-        sameKey.symm ▸ opened.1⟩,
+      ⟨[stream.ref], producer, _, task, rfl, reachable, stream.ref, List.mem_cons_self,
+        sameRef.symm ▸ opened.1⟩,
       uncancelled before cut occurrence after split⟩
     intro earlier included
     have ordered := cuts.ordered

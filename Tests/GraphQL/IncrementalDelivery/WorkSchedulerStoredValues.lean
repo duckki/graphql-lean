@@ -35,9 +35,9 @@ theorem generated_parent_output
 -- A stored child value is published only after its ancestor releases it
 -----------------------------------------------------------------------------------------
 
-private def parent : DeliveryNode := { key := 0, path := [] }
-private def child : DeliveryNode := { key := 1, path := [] }
-private def stream : DeliveryNode := { key := 2, path := [.field "items"] }
+private def parent : DeliveryNode := { ref := 0, path := [] }
+private def child : DeliveryNode := { ref := 1, path := [] }
+private def stream : DeliveryNode := { ref := 2, path := [.field "items"] }
 private def occurrence : Occurrence := .executionGroup [1]
 
 private def value : ExecutionGroupValue :=
@@ -48,13 +48,13 @@ This isolates the generic drain theorem; it is not a generated/admitted source-h
 -/
 private def before : State :=
   {
-    rootGroups := [parent.key]
-    rootStreams := [stream.key]
-    registeredGroups := [parent.key, child.key]
+    rootGroups := [parent.ref]
+    rootStreams := [stream.ref]
+    registeredGroups := [parent.ref, child.ref]
     groupNodes :=
       [
-        { group := ⟨parent, none⟩, childGroups := [child.key] },
-        { group := ⟨child, some parent.key⟩, tasks := [occurrence] }
+        { group := ⟨parent, none⟩, childGroups := [child.ref] },
+        { group := ⟨child, some parent.ref⟩, tasks := [occurrence] }
       ]
     taskNodes := [{ task := ⟨occurrence, [child]⟩, value := some value }]
     tasks := [⟨occurrence, [child]⟩]
@@ -153,7 +153,7 @@ theorem generated_parent_normalized_inventory
   have inputs : batches.flatten = [event] := by
     rcases choices with rfl | rfl <;> rfl
   have known : TaskAt WorkSchedulerProducerSupport.work
-      WorkSchedulerProducerSupport.parentTask [WorkSchedulerProducerSupport.parent.key] none
+      WorkSchedulerProducerSupport.parentTask [WorkSchedulerProducerSupport.parent.ref] none
       (.object [] (.ok ([("user", .object [])], 0))) := by
     refine ⟨[⟨WorkSchedulerProducerSupport.parent, []⟩], [], _,
       WorkSchedulerProducerSupport.children, [], ?_, rfl, rfl⟩

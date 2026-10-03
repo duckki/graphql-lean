@@ -13,7 +13,7 @@ Witness: ensureID correctness and exact reconstruction from the owner's subPath.
 -/
 theorem getIncrementalEntry_positionAtoms {paths : Nat → ResponsePath}
     (node : DeliveryNode) (value : ExecutionGroupValue) (ids : IDState)
-    (path : paths node.key = node.path)
+    (path : paths node.ref = node.path)
     (absolute : node.path ++ value.path.drop node.path.length = value.path)
     : EntryPositionAtoms paths
         ((getIncrementalEntry (m := StateM IDState) node value ensureID).run ids).2

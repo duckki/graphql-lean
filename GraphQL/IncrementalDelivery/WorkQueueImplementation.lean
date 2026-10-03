@@ -17,10 +17,10 @@ source contract.
 
 The execution tree repeats contributor descriptors rather than recording new declarations.
 Lowering retains each contributor's full ancestor chain, including taskless defer groups,
-as parent-first registration candidates. A persistent group-key registry at integration
+as parent-first registration candidates. A persistent group-ref registry at integration
 recovers first-time registration; removing a live group never permits a later contributor
 reference to register it again.
-Failure removal additionally retains cancellation keys: newly revealed descendants cannot
+Failure removal additionally retains cancellation refs: newly revealed descendants cannot
 treat an absent failed parent as a successfully retired shell.
 
 Differences are localized: finite pure outcomes validate host inputs; errors are counts;
@@ -41,10 +41,10 @@ open GraphQL.IncrementalDelivery.Execution (
 -- `Work` definitions: GraphQL.js WorkQueue.ts
 -----------------------------------------------------------------------------------------
 
-/-- GraphQL.js `Group`, projected to a delivery node and its immediate parent key. -/
+/-- GraphQL.js `Group`, projected to a delivery node and its immediate parent ref. -/
 structure Group where
   node : Execution.DeliveryNode
-  parent : Option Nat := none
+  parent : Option NodeRef := none
 deriving Repr
 
 /-- GraphQL.js `Stream`; its queue is represented by later `STREAM_ITEMS` events. -/
@@ -60,7 +60,7 @@ deriving Repr
 
 /-- GraphQL.js-shaped `Work`, with group, task, and stream collections. Lowering supplies
 candidate registrations for contributors and their ancestors, including taskless groups;
-integration excludes already registered keys. Task groups remain contributor references,
+integration excludes already registered refs. Task groups remain contributor references,
 including references to groups no longer live.
 -/
 structure Work where
@@ -82,7 +82,7 @@ success events supply separately converted child work. `Execution.Work` has no s
 new-group declarations, so each contributor supplies its full ancestor chain as
 parent-first registration candidates. Taskless ancestors retain
 release and cancellation links without becoming task contributors. `State.addGroups`
-excludes previously registered keys; `State.pruneEmptyGroups` silently promotes children
+excludes previously registered refs; `State.pruneEmptyGroups` silently promotes children
 through taskless groups when released.
 -/
 def Work.fromExecution (work : Execution.Work) (address : Address := []) : Work :=
@@ -105,7 +105,7 @@ where
   groupChain : List Execution.DeliveryNode → List Group
     | [] => []
     | node :: ancestors =>
-        groupChain ancestors ++ [⟨node, ancestors.head?.map Execution.DeliveryNode.key⟩]
+        groupChain ancestors ++ [⟨node, ancestors.head?.map Execution.DeliveryNode.ref⟩]
 
 -----------------------------------------------------------------------------------------
 -- WorkQueue `State` definitions
@@ -114,7 +114,7 @@ where
 /-- GraphQL.js `GroupNode`, with task/child accounting and retained notification state. -/
 structure GroupNode where
   group : Group
-  childGroups : Keys := []
+  childGroups : NodeRefs := []
   tasks : List Occurrence := []
   pending : Nat := 0
   /-- Contributing error total awaiting announcement, unless an ancestor cancels the group. -/
@@ -125,7 +125,7 @@ deriving Repr
 structure TaskNode where
   task : Task
   value : Option ExecutionGroupValue := none
-  childStreams : Keys := []
+  childStreams : NodeRefs := []
 deriving Repr
 
 /-- The newly integrated roots returned by `maybeIntegrateWork`. -/
@@ -139,17 +139,17 @@ bookkeeping. `createWorkQueueForSchedule` constructs its `Execution.WorkQueue` i
 for a supplied graph-event source; clients need not know this state type.
 -/
 structure State where
-  rootGroups : Keys := []
-  rootStreams : Keys := []
-  /-- Keys registered at any earlier integration, retained after pruning or removal.
+  rootGroups : NodeRefs := []
+  rootStreams : NodeRefs := []
+  /-- Node references registered earlier, retained after pruning or removal.
   This Lean adapter replaces GraphQL.js's separation of new groups from references.
   -/
-  registeredGroups : Keys := []
-  /-- Keys retired by failure, including removed descendants and refused late children.
-  Successful closure/pruning does not add keys here. This history prevents an absent
+  registeredGroups : NodeRefs := []
+  /-- Node references retired by failure, including removed and refused late descendants.
+  Successful closure/pruning does not add refs here. This history prevents an absent
   failed parent from making a newly revealed descendant appear healthy.
   -/
-  cancelledGroups : Keys := []
+  cancelledGroups : NodeRefs := []
   groupNodes : List GroupNode := []
   taskNodes : List TaskNode := []
   tasks : List Task := []
@@ -159,22 +159,22 @@ structure State where
   terminated : Bool := false
 deriving Repr
 
-/-- Find a group record, including retained failure notifications, by delivery key. -/
-def State.groupNode? (state : State) (key : Nat) : Option GroupNode :=
-  state.groupNodes.find? (fun node => node.group.node.key == key)
+/-- Find a group record, including retained failure notifications, by delivery ref. -/
+def State.groupNode? (state : State) (ref : NodeRef) : Option GroupNode :=
+  state.groupNodes.find? (fun node => node.group.node.ref == ref)
 
 /-- A present group is healthy only when neither it nor an ancestor has failed.
 An absent ancestor ends the walk only when it was not retired by failure. Cancellation
-keys retain that distinction even when descendants arrive later. Cyclic raw parent links
+refs retain that distinction even when descendants arrive later. Cyclic raw parent links
 fail closed at the finite node bound. Announcement is not required for a healthy owner.
 -/
-def State.groupIsHealthy (state : State) (key : Nat) : Bool :=
-  match state.groupNode? key with
+def State.groupIsHealthy (state : State) (ref : NodeRef) : Bool :=
+  match state.groupNode? ref with
   | none => false
   | some node =>
       node.failure.isNone && ancestorsHealthy state.groupNodes.length node.group.parent
 where
-  ancestorsHealthy : Nat → Option Nat → Bool
+  ancestorsHealthy : Nat → Option NodeRef → Bool
     | _, none => true
     | 0, some _ => false
     | fuel + 1, some parent =>
@@ -186,7 +186,7 @@ where
 Records retained only for later notification do not keep a task active.
 -/
 def State.taskHasHealthyOwner (state : State) (task : Task) : Bool :=
-  task.groups.any (fun group => state.groupIsHealthy group.key)
+  task.groups.any (fun group => state.groupIsHealthy group.ref)
 
 /-- Find a registered task definition by its structural occurrence. -/
 def State.task? (state : State) (occurrence : Occurrence) : Option Task :=
@@ -196,9 +196,9 @@ def State.task? (state : State) (occurrence : Occurrence) : Option Task :=
 def State.taskNode? (state : State) (occurrence : Occurrence) : Option TaskNode :=
   state.taskNodes.find? (fun node => node.task.occurrence == occurrence)
 
-/-- Find an integrated stream descriptor by its stable delivery key. -/
-def State.stream? (state : State) (key : Nat) : Option Stream :=
-  state.streams.find? (fun stream => stream.node.key == key)
+/-- Find an integrated stream descriptor by its stable delivery ref. -/
+def State.stream? (state : State) (ref : NodeRef) : Option Stream :=
+  state.streams.find? (fun stream => stream.node.ref == ref)
 
 /-- Replace one live group node. -/
 def State.putGroupNode (state : State) (updated : GroupNode) : State :=
@@ -207,7 +207,7 @@ def State.putGroupNode (state : State) (updated : GroupNode) : State :=
       groupNodes :=
         (state.groupNodes.map
           (fun node =>
-            if node.group.node.key == updated.group.node.key then updated else node))
+            if node.group.node.ref == updated.group.node.ref then updated else node))
   }
 
 /-- Replace one started task node. -/
@@ -225,26 +225,26 @@ def distinctDeliveryNodes (nodes : List Execution.DeliveryNode)
     : List Execution.DeliveryNode :=
   nodes.foldl
     (fun selected node =>
-      if selected.any (fun known => known.key == node.key) then
+      if selected.any (fun known => known.ref == node.ref) then
         selected
       else
         selected ++ [node])
     []
 
-/-- Register a delivery key only once, before installing parent links or tasks.
-Absence from the live node map does not make a previously registered key new again.
-An already-cancelled parent retires a fresh child immediately, retaining the child's key
+/-- Register a delivery ref only once, before installing parent links or tasks.
+Absence from the live node map does not make a previously registered ref new again.
+An already-cancelled parent retires a fresh child immediately, retaining the child's ref
 for later descendants without creating a live notification record.
 -/
 def State.addGroup (state : State) (group : Group) : State :=
-  if state.registeredGroups.contains group.node.key
-      || (state.groupNode? group.node.key).isSome then
+  if state.registeredGroups.contains group.node.ref
+      || (state.groupNode? group.node.ref).isSome then
     state
   else
     let registered :=
-      { state with registeredGroups := state.registeredGroups ++ [group.node.key] }
+      { state with registeredGroups := state.registeredGroups ++ [group.node.ref] }
     if group.parent.any (fun parent => state.cancelledGroups.contains parent) then
-      { registered with cancelledGroups := state.cancelledGroups ++ [group.node.key] }
+      { registered with cancelledGroups := state.cancelledGroups ++ [group.node.ref] }
     else
       { registered with groupNodes := state.groupNodes ++ [{ group }] }
 
@@ -258,8 +258,8 @@ def State.addGroups (state : State) (groups : List Group)
   let fresh :=
     groups.filter
       (fun group =>
-        !state.registeredGroups.contains group.node.key
-        && (state.groupNode? group.node.key).isNone)
+        !state.registeredGroups.contains group.node.ref
+        && (state.groupNode? group.node.ref).isNone)
   let withGroups := fresh.foldl State.addGroup state
   let current :=
     fresh.foldl
@@ -271,10 +271,10 @@ def State.addGroups (state : State) (groups : List Group)
             | none => current
             | some node =>
                 let children :=
-                  if node.childGroups.contains group.node.key then
+                  if node.childGroups.contains group.node.ref then
                     node.childGroups
                   else
-                    node.childGroups ++ [group.node.key]
+                    node.childGroups ++ [group.node.ref]
                 current.putGroupNode { node with childGroups := children })
       withGroups
   (
@@ -294,7 +294,7 @@ def State.addTask (state : State) (task : Task) : State :=
   let current :=
     task.groups.foldl
       (fun current group =>
-        match current.groupNode? group.key with
+        match current.groupNode? group.ref with
         | none => current
         | some node =>
             if node.tasks.contains task.occurrence then
@@ -306,7 +306,7 @@ def State.addTask (state : State) (task : Task) : State :=
                     tasks := node.tasks ++ [task.occurrence], pending := node.pending + 1
                 })
       registered
-  if task.groups.any (fun group => current.rootGroups.contains group.key)
+  if task.groups.any (fun group => current.rootGroups.contains group.ref)
       && (current.taskNode? task.occurrence).isNone then
     { current with taskNodes := current.taskNodes ++ [{ task }] }
   else
@@ -319,8 +319,8 @@ def State.addStreams (state : State) (streams : List Stream)
   let fresh :=
     streams.foldl
       (fun selected stream =>
-        if (state.stream? stream.node.key).isSome
-            || selected.any (fun known => known.node.key == stream.node.key) then
+        if (state.stream? stream.node.ref).isSome
+            || selected.any (fun known => known.node.ref == stream.node.ref) then
           selected
         else
           selected ++ [stream])
@@ -332,9 +332,9 @@ def State.addStreams (state : State) (streams : List Stream)
       match current.taskNode? occurrence with
       | none => (current, [])
       | some node =>
-          let keys := fresh.map (fun stream => stream.node.key)
+          let refs := fresh.map (fun stream => stream.node.ref)
           (
-            current.putTaskNode { node with childStreams := node.childStreams ++ keys },
+            current.putTaskNode { node with childStreams := node.childStreams ++ refs },
             []
           )
 
@@ -360,20 +360,20 @@ where
     | 0, current, _, kept => (current, kept)
     | _ + 1, current, [], kept => (current, kept)
     | fuel + 1, current, group :: rest, kept =>
-        match current.groupNode? group.key with
+        match current.groupNode? group.ref with
         | none => go fuel current rest kept
         | some node =>
             if node.tasks.isEmpty && node.failure.isNone then
               let children :=
                 node.childGroups.filterMap
-                  (fun key =>
-                    (current.groupNode? key).map (fun child => child.group.node))
+                  (fun ref =>
+                    (current.groupNode? ref).map (fun child => child.group.node))
               let current :=
                 {
                   current with
                     groupNodes :=
                       (current.groupNodes.filter
-                        (fun entry => entry.group.node.key != group.key))
+                        (fun entry => entry.group.node.ref != group.ref))
                 }
               go fuel current (children ++ rest) kept
             else
@@ -389,23 +389,23 @@ def State.startTask (state : State) (occurrence : Occurrence) : State :=
     | some task => { state with taskNodes := state.taskNodes ++ [{ task }] }
 
 /-- Start a healthy group's tasks; a retained failure needs no further host work. -/
-def State.startGroup (state : State) (key : Nat) : State :=
-  match state.groupNode? key with
+def State.startGroup (state : State) (ref : NodeRef) : State :=
+  match state.groupNode? ref with
   | none => state
   | some node =>
       if node.failure.isSome then state else node.tasks.foldl State.startTask state
 
 /-- Register a newly released stream as started; its iterator remains host-owned. -/
-def State.startStream (state : State) (key : Nat) : State :=
-  if (state.stream? key).isNone || state.rootStreams.contains key then
+def State.startStream (state : State) (ref : NodeRef) : State :=
+  if (state.stream? ref).isNone || state.rootStreams.contains ref then
     state
   else
-    { state with rootStreams := state.rootStreams ++ [key] }
+    { state with rootStreams := state.rootStreams ++ [ref] }
 
 /-- Announce and activate newly released group and stream roots. -/
 def State.startNewWork (state : State) (newWork : NewWork) : State :=
-  let groups := newWork.newGroups.map Execution.DeliveryNode.key
-  let streams := newWork.newStreams.map Execution.DeliveryNode.key
+  let groups := newWork.newGroups.map Execution.DeliveryNode.ref
+  let streams := newWork.newStreams.map Execution.DeliveryNode.ref
   let current := { state with rootGroups := state.rootGroups ++ groups }
   let startedGroups := groups.foldl State.startGroup current
   streams.foldl State.startStream startedGroups
@@ -448,10 +448,10 @@ inductive GraphEvent where
 deriving Repr
 
 /-- Task, item, and stream-finalization identities in one graph event. -/
-def GraphEvent.identities : GraphEvent → List Occurrence × Keys
+def GraphEvent.identities : GraphEvent → List Occurrence × NodeRefs
   | .taskSuccess task _ | .taskFailure task _ => ([task], [])
   | .streamItems _ items => (items.map StreamItem.occurrence, [])
-  | .streamSuccess stream | .streamFailure stream _ => ([], [stream.key])
+  | .streamSuccess stream | .streamFailure stream _ => ([], [stream.ref])
 
 /-- Successful task and item occurrences made available by one graph event. -/
 def GraphEvent.successes : GraphEvent → List Occurrence
@@ -475,13 +475,13 @@ def State.removeTask (state : State) (occurrence : Occurrence) : State :=
   }
 
 /-- Remove a failed group and its descendants, retaining shared tasks with other owners.
-Remember removed keys so future child registration and health checks retain cancellation.
-The finite key-list loop stands in for GraphQL.js's recursive `removeGroup`.
-Missing child keys do not spend the live-node budget: earlier removals may leave stale
+Remember removed refs so future child registration and health checks retain cancellation.
+The finite ref-list loop stands in for GraphQL.js's recursive `removeGroup`.
+Missing child refs do not spend the live-node budget: earlier removals may leave stale
 links in a surviving parent. Termination also decreases the pending list on those steps.
 -/
-def State.removeGroup (state : State) (key : Nat) : State :=
-  let rec collect : Nat → State → Keys → Keys → Keys
+def State.removeGroup (state : State) (ref : NodeRef) : State :=
+  let rec collect : Nat → State → NodeRefs → NodeRefs → NodeRefs
     | 0, _, _, removed => removed
     | _ + 1, _, [], removed => removed
     | fuel + 1, current, head :: rest, removed =>
@@ -489,13 +489,13 @@ def State.removeGroup (state : State) (key : Nat) : State :=
         | none => collect (fuel + 1) current rest removed
         | some node => collect fuel current (node.childGroups ++ rest) (head :: removed)
     termination_by fuel _ pending _ => (fuel, pending.length)
-  let removed := collect (state.groupNodes.length + 1) state [key] []
+  let removed := collect (state.groupNodes.length + 1) state [ref] []
   let retained :=
-    state.groupNodes.filter (fun node => !removed.contains node.group.node.key)
+    state.groupNodes.filter (fun node => !removed.contains node.group.node.ref)
   let liveTask (node : TaskNode) : Bool :=
     node.task.groups.any
       (fun group =>
-        retained.any (fun owner => owner.group.node.key == group.key))
+        retained.any (fun owner => owner.group.node.ref == group.ref))
   {
     state with
       cancelledGroups := state.cancelledGroups ++ removed
@@ -526,14 +526,14 @@ def State.finishGroupSuccess (state : State) (group : GroupNode)
       flushed with
         groupNodes :=
           flushed.groupNodes.filter
-            (fun node => node.group.node.key != group.group.node.key)
-        rootGroups := flushed.rootGroups.filter (· != group.group.node.key)
+            (fun node => node.group.node.ref != group.group.node.ref)
+        rootGroups := flushed.rootGroups.filter (· != group.group.node.ref)
     }
   let children :=
     group.childGroups.filterMap
-      (fun key => (current.groupNode? key).map (fun node => node.group.node))
+      (fun ref => (current.groupNode? ref).map (fun node => node.group.node))
   let (pruned, groups) := current.pruneEmptyGroups children
-  let newStreams := streams.filterMap (fun key => (pruned.stream? key).map Stream.node)
+  let newStreams := streams.filterMap (fun ref => (pruned.stream? ref).map Stream.node)
   let newWork : NewWork := ⟨groups, newStreams⟩
   let valueEvents :=
     if values.isEmpty then
@@ -545,7 +545,7 @@ def State.finishGroupSuccess (state : State) (group : GroupNode)
 /-- Close an announced failed group and cancel its remaining dependent work. -/
 def State.finishGroupFailure (state : State) (group : GroupNode) (errors : Nat)
     : State × WorkQueueEvent :=
-  (state.removeGroup group.group.node.key, .groupFailure group.group.node errors)
+  (state.removeGroup group.group.node.ref, .groupFailure group.group.node errors)
 
 /-- Drain active groups that already have a failure or all their task settlements.
 Call after emitting their notice carrier. Successful closure can release further settled
@@ -560,8 +560,8 @@ where
     | fuel + 1, current =>
         let ready :=
           current.rootGroups.findSome?
-            fun key => do
-              let node ← current.groupNode? key
+            fun ref => do
+              let node ← current.groupNode? ref
               if node.failure.isSome || node.pending == 0 then some node else none
         match ready with
         | none => (current, [])
@@ -597,12 +597,12 @@ def State.taskSuccess (state : State) (occurrence : Occurrence) (result : TaskRe
         let (current, events, released) :=
           taskNode.task.groups.foldl
             (fun (current, events, released) group =>
-              match current.groupNode? group.key with
+              match current.groupNode? group.ref with
               | none => (current, events, released)
               | some node =>
                   let node := { node with pending := node.pending - 1 }
                   let current := current.putGroupNode node
-                  if current.rootGroups.contains group.key
+                  if current.rootGroups.contains group.ref
                       && node.pending == 0
                       && node.failure.isNone then
                     let (next, finished, newWork) := current.finishGroupSuccess node
@@ -637,10 +637,10 @@ def State.taskFailure (state : State) (occurrence : Occurrence) (errors : Nat)
         let current := state.removeTask occurrence
         taskNode.task.groups.foldl
           (fun (current, events) group =>
-            match current.groupNode? group.key with
+            match current.groupNode? group.ref with
             | none => (current, events)
             | some node =>
-                if current.rootGroups.contains group.key then
+                if current.rootGroups.contains group.ref then
                   let (next, failure) := current.finishGroupFailure node errors
                   (next, events ++ [failure])
                 else
@@ -657,7 +657,7 @@ def State.taskFailure (state : State) (occurrence : Occurrence) (errors : Nat)
 def State.streamItems (state : State) (stream : Execution.DeliveryNode)
     (items : List StreamItem)
     : State × List WorkQueueEvent :=
-  if !state.rootStreams.contains stream.key then
+  if !state.rootStreams.contains stream.ref then
     (state, [])
   else
     let (current, groups, streams, values) :=
@@ -678,9 +678,9 @@ def State.streamItems (state : State) (stream : Execution.DeliveryNode)
 /-- Close a started stream after its source reports exhaustion. -/
 def State.streamSuccess (state : State) (stream : Execution.DeliveryNode)
     : State × List WorkQueueEvent :=
-  if state.rootStreams.contains stream.key then
+  if state.rootStreams.contains stream.ref then
     (
-      { state with rootStreams := state.rootStreams.filter (· != stream.key) },
+      { state with rootStreams := state.rootStreams.filter (· != stream.ref) },
       [.streamSuccess stream]
     )
   else
@@ -689,9 +689,9 @@ def State.streamSuccess (state : State) (stream : Execution.DeliveryNode)
 /-- Close a started stream after its source reports a bubbling failure. -/
 def State.streamFailure (state : State) (stream : Execution.DeliveryNode) (errors : Nat)
     : State × List WorkQueueEvent :=
-  if state.rootStreams.contains stream.key then
+  if state.rootStreams.contains stream.ref then
     (
-      { state with rootStreams := state.rootStreams.filter (· != stream.key) },
+      { state with rootStreams := state.rootStreams.filter (· != stream.ref) },
       [.streamFailure stream errors]
     )
   else
@@ -709,7 +709,7 @@ def State.handleGraphEvent (state : State) : GraphEvent → State × List WorkQu
 def State.acceptsGraphEvent (state : State) : GraphEvent → Bool
   | .taskSuccess task _ | .taskFailure task _ => (state.taskNode? task).isSome
   | .streamItems stream _ | .streamSuccess stream | .streamFailure stream _ =>
-      state.rootStreams.contains stream.key
+      state.rootStreams.contains stream.ref
 
 /-- Check start eligibility sequentially inside one available graph-event batch. -/
 def State.acceptsBatch : State → List GraphEvent → Bool
@@ -756,7 +756,7 @@ def IncrementalPublisher.getBestIdAndSubPath (publisher : IncrementalPublisher)
     : Execution.DeliveryNode :=
   value.deliveryGroups.foldl
     (fun best candidate =>
-      if publisher.active.any (fun node => node.key == candidate.key)
+      if publisher.active.any (fun node => node.ref == candidate.ref)
           && best.path.length < candidate.path.length then
         candidate
       else
@@ -778,7 +778,7 @@ def IncrementalPublisher.handleWorkQueueEvent (publisher : IncrementalPublisher)
         {
           publisher with
             active :=
-              (publisher.active.filter (fun node => node.key != group.key))
+              (publisher.active.filter (fun node => node.ref != group.ref))
               ++ groups
               ++ streams
         },
@@ -788,7 +788,7 @@ def IncrementalPublisher.handleWorkQueueEvent (publisher : IncrementalPublisher)
       (
         {
           publisher with
-            active := publisher.active.filter (fun node => node.key != group.key)
+            active := publisher.active.filter (fun node => node.ref != group.ref)
         },
         [.groupFailure group errors]
       )
@@ -801,7 +801,7 @@ def IncrementalPublisher.handleWorkQueueEvent (publisher : IncrementalPublisher)
       (
         {
           publisher with
-            active := publisher.active.filter (fun node => node.key != stream.key)
+            active := publisher.active.filter (fun node => node.ref != stream.ref)
         },
         [.streamSuccess stream]
       )
@@ -809,7 +809,7 @@ def IncrementalPublisher.handleWorkQueueEvent (publisher : IncrementalPublisher)
       (
         {
           publisher with
-            active := publisher.active.filter (fun node => node.key != stream.key)
+            active := publisher.active.filter (fun node => node.ref != stream.ref)
         },
         [.streamFailure stream errors]
       )
@@ -959,11 +959,11 @@ def streamItemWork? (work : Execution.Work) : Occurrence → Option Work
   | .executionGroup _ => none
 
 /-- Items already reported for one stream in the preceding graph-event prefix. -/
-def GraphEvent.itemsBefore (before : List GraphEvent) (key : Nat) : List StreamItem :=
+def GraphEvent.itemsBefore (before : List GraphEvent) (ref : NodeRef) : List StreamItem :=
   before.flatMap
     fun event =>
       match event with
-      | .streamItems stream items => if stream.key == key then items else []
+      | .streamItems stream items => if stream.ref == ref then items else []
       | _ => []
 
 /-- A graph event uses fresh task/item identities and closes each stream at most once. -/
@@ -1012,27 +1012,27 @@ def GraphEvent.Ready (work : Execution.Work) (before : List GraphEvent)
       ∃ address results producer dependencies,
         Located work address (.stream stream results) producer dependencies
         ∧ items ≠ []
-        ∧ stream.key ∉ before.flatMap (fun event => event.identities.2)
+        ∧ stream.ref ∉ before.flatMap (fun event => event.identities.2)
         ∧ (∀ source,
             producer = some source → source ∈ before.flatMap GraphEvent.successes)
         ∧ items.map StreamItem.occurrence
           = (List.range items.length).map
               (fun offset =>
                 .item address
-                  ((GraphEvent.itemsBefore before stream.key).length + offset))
+                  ((GraphEvent.itemsBefore before stream.ref).length + offset))
   | .streamSuccess stream =>
       ∃ address results producer dependencies,
         Located work address (.stream stream results) producer dependencies
         ∧ (∀ source,
             producer = some source → source ∈ before.flatMap GraphEvent.successes)
-        ∧ (GraphEvent.itemsBefore before stream.key).length = results.length
+        ∧ (GraphEvent.itemsBefore before stream.ref).length = results.length
   | .streamFailure stream errors =>
       ∃ address results producer dependencies,
         Located work address (.stream stream results) producer dependencies
         ∧ (∀ source,
             producer = some source → source ∈ before.flatMap GraphEvent.successes)
         ∧ ∃ children,
-            results[(GraphEvent.itemsBefore before stream.key).length]?
+            results[(GraphEvent.itemsBefore before stream.ref).length]?
             = some (.error errors, children)
 
 /-- Legal finite graph-event prefixes, independent of queue bookkeeping. -/

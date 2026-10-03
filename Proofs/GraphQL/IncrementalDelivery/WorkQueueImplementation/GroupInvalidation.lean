@@ -10,27 +10,27 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 -----------------------------------------------------------------------------------------
 
 /-- A group is invalidated by a failed contributing task or an invalidated defer
-ancestor. `failed` lists settled task failures; `key` is the affected group key.
+ancestor. `failed` lists settled task failures; `ref` is the affected group ref.
 This proof-side relation has no producer-cancellation or stream-dependency rule.
 It is not a replacement for the publication-aware scheduler contract.
 -/
 inductive GroupInvalidated (work : Execution.Work) (failed : List Occurrence) : Nat → Prop
-  | task {occurrence owners key}
+  | task {occurrence owners ref}
     (known : TaskHasOwners work occurrence owners)
-    (owner : key ∈ owners) (member : occurrence ∈ failed)
-    : GroupInvalidated work failed key
-  | groupDependency {key dependencies ancestor}
-    (known : NodeHasDependencies work key .group dependencies)
+    (owner : ref ∈ owners) (member : occurrence ∈ failed)
+    : GroupInvalidated work failed ref
+  | groupDependency {ref dependencies ancestor}
+    (known : NodeHasDependencies work ref .group dependencies)
     (member : ancestor ∈ dependencies)
     (failure : GroupInvalidated work failed ancestor)
-    : GroupInvalidated work failed key
+    : GroupInvalidated work failed ref
 
 /-- Cleanup invalidation persists when more task failures are recorded.
 Witness: induction on the contributing-task/defer-ancestor derivation.
 -/
-theorem GroupInvalidated.mono {work before after key}
-    (failure : GroupInvalidated work before key) (included : before.Subset after)
-    : GroupInvalidated work after key := by
+theorem GroupInvalidated.mono {work before after ref}
+    (failure : GroupInvalidated work before ref) (included : before.Subset after)
+    : GroupInvalidated work after ref := by
   induction failure with
   | task known owner member => exact .task known owner (included member)
   | groupDependency known member _ ih => exact .groupDependency known member ih
@@ -40,21 +40,21 @@ Witness: replace uses of the new failure token by the corresponding prior owner 
 then propagate the unchanged causes through defer ancestry. This concerns causal health,
 not error totals: an ignored failure still must not be counted as a new contribution.
 -/
-theorem groupInvalidated_cons_iff_of_ownersInvalidated {work failed occurrence owners key}
+theorem groupInvalidated_cons_iff_of_ownersInvalidated {work failed occurrence owners ref}
     (known : TaskHasOwners work occurrence owners)
     (invalid : ∀ owner ∈ owners, GroupInvalidated work failed owner)
-    : GroupInvalidated work (occurrence :: failed) key
-      ↔ GroupInvalidated work failed key := by
+    : GroupInvalidated work (occurrence :: failed) ref
+      ↔ GroupInvalidated work failed ref := by
   constructor
   · intro failure
     induction failure with
-    | @task other otherOwners key task owner member =>
+    | @task other otherOwners ref task owner member =>
         rcases List.mem_cons.mp member with same | earlier
         · subst other
           obtain ⟨producer, payload, task⟩ := task
           obtain ⟨knownProducer, knownPayload, descriptor⟩ := known
           obtain ⟨rfl, _, _⟩ := task.unique descriptor
-          exact invalid key owner
+          exact invalid ref owner
         · exact .task task owner earlier
     | groupDependency descriptor member _ ih =>
         exact .groupDependency descriptor member ih
@@ -64,8 +64,8 @@ theorem groupInvalidated_cons_iff_of_ownersInvalidated {work failed occurrence o
 /-- Every cleanup invalidation originates in a recorded task failure.
 Witness: follow defer ancestry to its contributing-task leaf.
 -/
-theorem GroupInvalidated.nonempty {work failed key}
-    (failure : GroupInvalidated work failed key)
+theorem GroupInvalidated.nonempty {work failed ref}
+    (failure : GroupInvalidated work failed ref)
     : failed ≠ [] := by
   induction failure with
   | task _ _ member => intro empty; simp [empty] at member
@@ -74,9 +74,9 @@ theorem GroupInvalidated.nonempty {work failed key}
 /-- Queue-local invalidation is a causal failure at any publication snapshot.
 Witness: the two cleanup rules embed directly in the causal kernel.
 -/
-theorem GroupInvalidated.toCausality {work failed key}
-    (failure : GroupInvalidated work failed key) (published : Occurrence → Prop)
-    : Causality.NodeFailed work failed published key := by
+theorem GroupInvalidated.toCausality {work failed ref}
+    (failure : GroupInvalidated work failed ref) (published : Occurrence → Prop)
+    : Causality.NodeFailed work failed published ref := by
   induction failure with
   | task known owner member => exact .task known owner member
   | groupDependency known member _ ih => exact .groupDependency known member ih
@@ -86,11 +86,11 @@ history. Witness: embed at the current snapshot and recover a recorded failure c
 The converse is not asserted: the scheduler also accounts for producer cancellation.
 -/
 theorem GroupInvalidated.toNodeFailed
-    {work failed key groups streams events matching cuts}
-    (failure : GroupInvalidated work failed key)
+    {work failed ref groups streams events matching cuts}
+    (failure : GroupInvalidated work failed ref)
     (explained : Explains work groups streams events matching cuts)
     (included : failed.Subset (failedBefore cuts events.length))
-    : NodeFailed work matching events cuts key :=
+    : NodeFailed work matching events cuts ref :=
   explained.snapshot_nodeFailed
     ((failure.mono included).toCausality (Published matching events))
 
@@ -100,19 +100,19 @@ defer ancestors. Witness: generated descriptors agree on the dependency list.
 theorem ExecutedWork.groupInvalidated_causes {work : Execution.Work}
     (generated : ExecutedWork work) {node dependencies producer failed}
     (known : NodeAt work node .group dependencies producer)
-    (failure : GroupInvalidated work failed node.key)
+    (failure : GroupInvalidated work failed node.ref)
     : (∃ occurrence owners,
-        TaskHasOwners work occurrence owners ∧ node.key ∈ owners ∧ occurrence ∈ failed)
+        TaskHasOwners work occurrence owners ∧ node.ref ∈ owners ∧ occurrence ∈ failed)
       ∨ ∃ dependency ∈ dependencies, GroupInvalidated work failed dependency := by
   cases failure with
   | task task owner member => exact .inl ⟨_, _, task, owner, member⟩
-  | @groupDependency key otherDependencies ancestor descriptor member prior =>
-      obtain ⟨other, birth, otherKnown, keyEq⟩ := descriptor
+  | @groupDependency ref otherDependencies ancestor descriptor member prior =>
+      obtain ⟨other, birth, otherKnown, refEq⟩ := descriptor
       obtain ⟨parents, canonical⟩ := generated.groupDependenciesCanonical
       have dependenciesEq := canonical node dependencies producer known
       have otherEq := canonical other otherDependencies birth otherKnown
       have same : otherDependencies = dependencies := by
-        rw [keyEq] at otherEq
+        rw [refEq] at otherEq
         exact otherEq.trans dependenciesEq.symm
       exact .inr ⟨ancestor, same ▸ member, prior⟩
 
@@ -120,35 +120,35 @@ theorem ExecutedWork.groupInvalidated_causes {work : Execution.Work}
 -- Invalidation has one failed contributing task as its origin
 -----------------------------------------------------------------------------------------
 
-/-- Recursive invalidation traces back to one failed contributor of this key or one
+/-- Recursive invalidation traces back to one failed contributor of this ref or one
 of its full defer ancestors. Witness: follow the derivation and flatten ancestor chains
 using generated ancestry transitivity. No event ordering or queue invariant is assumed.
 -/
-private theorem GroupInvalidated.origin {work failed key}
-    (failure : GroupInvalidated work failed key) (generated : ExecutedWork work)
+private theorem GroupInvalidated.origin {work failed ref}
+    (failure : GroupInvalidated work failed ref) (generated : ExecutedWork work)
     : ∃ occurrence owners owner,
         TaskHasOwners work occurrence owners
         ∧ occurrence ∈ failed
         ∧ owner ∈ owners
-        ∧ (owner = key
+        ∧ (owner = ref
             ∨ ∃ node dependencies producer,
                 NodeAt work node .group dependencies producer
-                ∧ node.key = key
+                ∧ node.ref = ref
                 ∧ owner ∈ dependencies) := by
   induction failure with
-  | @task occurrence owners key known owner member =>
-      exact ⟨occurrence, owners, key, known, member, owner, .inl rfl⟩
-  | @groupDependency key dependencies ancestor known member _ ih =>
-      obtain ⟨node, producer, nodeKnown, nodeKey⟩ := known
+  | @task occurrence owners ref known owner member =>
+      exact ⟨occurrence, owners, ref, known, member, owner, .inl rfl⟩
+  | @groupDependency ref dependencies ancestor known member _ ih =>
+      obtain ⟨node, producer, nodeKnown, nodeRef⟩ := known
       obtain ⟨occurrence, owners, owner, task, failed, contributes, direct | earlier⟩ := ih
       · exact ⟨occurrence, owners, owner, task, failed, contributes,
-          .inr ⟨node, dependencies, producer, nodeKnown, nodeKey, direct ▸ member⟩⟩
+          .inr ⟨node, dependencies, producer, nodeKnown, nodeRef, direct ▸ member⟩⟩
       · obtain ⟨ancestorNode, ancestorDependencies, ancestorProducer,
-          ancestorKnown, ancestorKey, inAncestors⟩ := earlier
+          ancestorKnown, ancestorRef, inAncestors⟩ := earlier
         have included := generated.groupAncestors_trans nodeKnown ancestorKnown
-          (ancestorKey.symm ▸ member)
+          (ancestorRef.symm ▸ member)
         exact ⟨occurrence, owners, owner, task, failed, contributes,
-          .inr ⟨node, dependencies, producer, nodeKnown, nodeKey, included inAncestors⟩⟩
+          .inr ⟨node, dependencies, producer, nodeKnown, nodeRef, included inAncestors⟩⟩
 
 /-- A generated group is invalidated exactly when a recorded failed task contributes
 to that group or one of its full defer ancestors. Witness: flatten recursive causes in
@@ -158,23 +158,23 @@ theorem ExecutedWork.groupInvalidated_iff
     {work : Execution.Work} (generated : ExecutedWork work)
     {node dependencies producer failed}
     (known : NodeAt work node .group dependencies producer)
-    : GroupInvalidated work failed node.key
+    : GroupInvalidated work failed node.ref
       ↔ ∃ occurrence owners owner,
           TaskHasOwners work occurrence owners
           ∧ occurrence ∈ failed
           ∧ owner ∈ owners
-          ∧ owner ∈ node.key :: dependencies := by
+          ∧ owner ∈ node.ref :: dependencies := by
   constructor
   · intro failure
     obtain ⟨occurrence, owners, owner, task, failed, contributes, direct | ancestor⟩ :=
       failure.origin generated
     · exact ⟨occurrence, owners, owner, task, failed, contributes, by simp [direct]⟩
-    · obtain ⟨other, otherDependencies, otherProducer, otherKnown, sameKey, member⟩ :=
+    · obtain ⟨other, otherDependencies, otherProducer, otherKnown, sameRef, member⟩ :=
         ancestor
       obtain ⟨parents, canonical⟩ := generated.groupDependenciesCanonical
       have same : otherDependencies = dependencies := by
         rw [canonical other otherDependencies otherProducer otherKnown,
-          canonical node dependencies producer known, sameKey]
+          canonical node dependencies producer known, sameRef]
       exact ⟨occurrence, owners, owner, task, failed, contributes,
         List.mem_cons.mpr (.inr (same ▸ member))⟩
   · rintro ⟨occurrence, owners, owner, task, recorded, contributes, member⟩
@@ -191,10 +191,10 @@ theorem ExecutedWork.groupInvalidated_cons_iff
     {work : Execution.Work} (generated : ExecutedWork work)
     {node dependencies producer failed occurrence owners}
     (known : NodeAt work node .group dependencies producer)
-    (healthy : ¬GroupInvalidated work failed node.key)
+    (healthy : ¬GroupInvalidated work failed node.ref)
     (task : TaskHasOwners work occurrence owners)
-    : GroupInvalidated work (occurrence :: failed) node.key
-      ↔ ∃ owner ∈ owners, owner ∈ node.key :: dependencies := by
+    : GroupInvalidated work (occurrence :: failed) node.ref
+      ↔ ∃ owner ∈ owners, owner ∈ node.ref :: dependencies := by
   constructor
   · intro failure
     obtain ⟨other, otherOwners, owner, otherTask, member, contributes, ancestor⟩ :=
@@ -215,20 +215,20 @@ theorem ExecutedWork.groupInvalidated_cons_iff
 -- Initially satisfied defer dependencies cannot be invalidated by later task failures
 -----------------------------------------------------------------------------------------
 
-/-- Every cleanup-invalidated key has a contributing task, even when its actual
+/-- Every cleanup-invalidated ref has a contributing task, even when its actual
 failure came from an ancestor. Witness: a direct task or the execution-group descriptor
 in the ancestor rule. This is specific to cleanup, not general causal cancellation.
 -/
-theorem GroupInvalidated.hasContributor {work failed key}
-    (failure : GroupInvalidated work failed key)
-    : ∃ occurrence owners, TaskHasOwners work occurrence owners ∧ key ∈ owners := by
+theorem GroupInvalidated.hasContributor {work failed ref}
+    (failure : GroupInvalidated work failed ref)
+    : ∃ occurrence owners, TaskHasOwners work occurrence owners ∧ ref ∈ owners := by
   cases failure with
   | task known owner _ => exact ⟨_, _, known, owner⟩
   | groupDependency known _ _ =>
       obtain ⟨node, producer, descriptor, same⟩ := known
       obtain ⟨address, groups, path, result, children, enclosing, group,
         located, member, nodeEq, _⟩ := descriptor
-      refine ⟨.executionGroup address, groups.map (fun group => group.node.key),
+      refine ⟨.executionGroup address, groups.map (fun group => group.node.ref),
         ⟨producer, .object path result, .executionGroup located⟩, ?_⟩
       rw [← same, nodeEq]
       exact List.mem_map_of_mem member
@@ -238,17 +238,17 @@ been published or cancelled yet. Hence no later cleanup failure list can invalid
 Witness: empty-history accounting, followed by the contributor-existence lemma.
 -/
 theorem dependencySatisfied_initial_uninvalidated
-    {work initial matching key}
-    (satisfied : DependencySatisfied work initial matching [] [] key)
+    {work initial matching ref}
+    (satisfied : DependencySatisfied work initial matching [] [] ref)
     (failed : List Occurrence)
-    : ¬GroupInvalidated work failed key := by
+    : ¬GroupInvalidated work failed ref := by
   intro failure
   obtain ⟨occurrence, owners, task, owner⟩ := failure.hasContributor
   obtain ⟨producer, payload, known⟩ := task
   rcases satisfied.2 with absent | completed | ⟨_, accounted⟩
   · obtain ⟨node, kind, dependencies, birth, descriptor, same⟩ := known.owner_known owner
     exact absent ⟨birth, node, kind, dependencies, descriptor, same⟩
-  · simp [completedKeys] at completed
+  · simp [completedRefs] at completed
   · have impossible := accounted occurrence owners ⟨producer, payload, known⟩ owner
     simp [TaskAccounted, TaskCancelled, Published] at impossible
 
@@ -261,9 +261,9 @@ theorem Initializes.groupDependencies_uninvalidated
     {node} (member : node ∈ groups)
     : ∃ dependencies producer,
         NodeAt work node .group dependencies producer
-        ∧ ∀ failed key, key ∈ dependencies → ¬GroupInvalidated work failed key := by
+        ∧ ∀ failed ref, ref ∈ dependencies → ¬GroupInvalidated work failed ref := by
   obtain ⟨dependencies, producer, known, eligible⟩ := initialized.1.2.1 node member
-  exact ⟨dependencies, producer, known, fun failed key ancestor =>
-    dependencySatisfied_initial_uninvalidated (eligible.2.2.2 key ancestor) failed⟩
+  exact ⟨dependencies, producer, known, fun failed ref ancestor =>
+    dependencySatisfied_initial_uninvalidated (eligible.2.2.2 ref ancestor) failed⟩
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

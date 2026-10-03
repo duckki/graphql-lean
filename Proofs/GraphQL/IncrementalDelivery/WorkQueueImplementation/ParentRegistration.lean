@@ -16,7 +16,7 @@ The parent need not contribute to any task or remain live after integration.
 def Work.ParentsCovered (work : Work) : Prop :=
   ∀ group ∈ work.groups,
     ∀ parent,
-      group.parent = some parent → ∃ candidate ∈ work.groups, candidate.node.key = parent
+      group.parent = some parent → ∃ candidate ∈ work.groups, candidate.node.ref = parent
 
 /-- A lowered ancestor chain contains every parent named by any of its entries.
 Witness: induction on the nearest-first chain; the immediate parent is the final entry
@@ -27,7 +27,7 @@ theorem workFromSpec_groupChain_parentsCovered (nodes : List Execution.DeliveryN
         ∀ parent,
           group.parent = some parent
           → ∃ candidate ∈ Work.fromExecution.groupChain nodes,
-              candidate.node.key = parent := by
+              candidate.node.ref = parent := by
   induction nodes with
   | nil => simp [Work.fromExecution.groupChain]
   | cons node ancestors ih =>
@@ -40,9 +40,9 @@ theorem workFromSpec_groupChain_parentsCovered (nodes : List Execution.DeliveryN
         cases ancestors with
         | nil => cases parentEq
         | cons ancestor rest =>
-            have key : ancestor.key = parent := Option.some.inj parentEq
-            exact ⟨⟨ancestor, rest.head?.map Execution.DeliveryNode.key⟩,
-              List.mem_append_left _ (workFromSpec_groupChain_self ancestor rest), key⟩
+            have ref : ancestor.ref = parent := Option.some.inj parentEq
+            exact ⟨⟨ancestor, rest.head?.map Execution.DeliveryNode.ref⟩,
+              List.mem_append_left _ (workFromSpec_groupChain_self ancestor rest), ref⟩
 
 /-- Every lowered chunk covers its candidates' primary parents, including taskless ones.
 Witness: each contributor supplies its complete chain; combination retains both lists.
@@ -112,12 +112,12 @@ theorem GraphEvent.MatchesWork.streamItem_parentsCovered
 -- The permanent registry is closed under the generated primary-parent assignment
 -----------------------------------------------------------------------------------------
 
-/-- Every registered key's assigned primary parent is permanently registered as well.
+/-- Every registered ref's assigned primary parent is permanently registered as well.
 This structural property concerns the registry, not live nodes, failure health, or notices.
 -/
-def State.ParentRegistryClosed (queue : State) (parents : Nat → Keys) : Prop :=
-  ∀ key ∈ queue.registeredGroups,
-    ∀ parent, (parents key).head? = some parent → parent ∈ queue.registeredGroups
+def State.ParentRegistryClosed (queue : State) (parents : Nat → NodeRefs) : Prop :=
+  ∀ ref ∈ queue.registeredGroups,
+    ∀ parent, (parents ref).head? = some parent → parent ∈ queue.registeredGroups
 
 /-- Equal registries transport primary-parent closure across arbitrary metadata changes.
 Witness: rewrite membership on both sides with the supplied registry equality.
@@ -129,28 +129,28 @@ theorem State.ParentRegistryClosed.of_sameRegistry {before after : State} {paren
   simpa only [State.ParentRegistryClosed, same] using prior
 
 /-- Registering a complete candidate batch preserves primary-parent registry closure.
-Witness: an old key uses prior closure; a new key's canonical parent occurs in the same
+Witness: an old ref uses prior closure; a new ref's canonical parent occurs in the same
 batch and is registered even when its live shell is absent or registration is reused.
 -/
 theorem State.ParentRegistryClosed.addGroups {queue : State} {parents}
     (prior : queue.ParentRegistryClosed parents) (live : queue.LiveGroupsRegistered)
     (groups : List Group)
-    (canonical : ∀ group ∈ groups, group.parent = (parents group.node.key).head?)
+    (canonical : ∀ group ∈ groups, group.parent = (parents group.node.ref).head?)
     (covered
       : ∀ group ∈ groups,
           ∀ parent,
             group.parent = some parent
-            → ∃ candidate ∈ groups, candidate.node.key = parent)
+            → ∃ candidate ∈ groups, candidate.node.ref = parent)
     : (queue.addGroups groups).1.ParentRegistryClosed parents := by
   obtain ⟨_, retained, all⟩ := queue.addGroups_registration live groups
-  intro key member parent parentEq
+  intro ref member parent parentEq
   rcases List.mem_append.mp (queue.addGroups_registeredGroups_subset groups member) with
     old | added
-  · exact retained (prior key old parent parentEq)
+  · exact retained (prior ref old parent parentEq)
   · obtain ⟨group, included, same⟩ := List.mem_map.mp added
-    obtain ⟨candidate, candidateMember, keyEq⟩ := covered group included parent
+    obtain ⟨candidate, candidateMember, refEq⟩ := covered group included parent
       (by rw [canonical group included, same]; exact parentEq)
-    exact keyEq ▸ all candidate candidateMember
+    exact refEq ▸ all candidate candidateMember
 
 /-- Work integration preserves registry closure when its candidate parents are covered.
 Witness: group registration supplies closure; task and stream installation leave the
@@ -159,7 +159,7 @@ resulting registry unchanged. The producer link is unrestricted.
 theorem State.ParentRegistryClosed.maybeIntegrateWork {queue : State} {parents}
     (prior : queue.ParentRegistryClosed parents) (live : queue.LiveGroupsRegistered)
     (work : Work)
-    (canonical : ∀ group ∈ work.groups, group.parent = (parents group.node.key).head?)
+    (canonical : ∀ group ∈ work.groups, group.parent = (parents group.node.ref).head?)
     (covered : work.ParentsCovered) (parentTask : Option Occurrence := none)
     : (queue.maybeIntegrateWork work parentTask).1.ParentRegistryClosed parents := by
   let grouped := (queue.addGroups work.groups).1
@@ -189,7 +189,7 @@ theorem State.ParentRegistryClosed.parent_registered {queue : State} {parents}
     {node : GroupNode} (member : node ∈ queue.groupNodes) {parent}
     (parentEq : node.group.parent = some parent)
     : parent ∈ queue.registeredGroups := by
-  exact closed node.group.node.key (live node member) parent
+  exact closed node.group.node.ref (live node member) parent
     ((canonical node member).symm.trans parentEq)
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

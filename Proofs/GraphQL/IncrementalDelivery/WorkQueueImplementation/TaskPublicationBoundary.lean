@@ -20,16 +20,16 @@ theorem State.successGroupFold_values_active (queue : State)
     (emitted
       : Execution.WorkQueueEvent.groupValues group values
         ∈ (groups.foldl successGroupStep (queue, [], {})).2.1)
-    : group.key ∈ queue.rootGroups := by
+    : group.ref ∈ queue.rootGroups := by
   have loop (remaining : List Execution.DeliveryNode)
       (acc : State × List WorkQueueEvent × NewWork)
       (roots : acc.1.rootGroups.Subset queue.rootGroups)
       (prior : ∀ owner payload,
-        Execution.WorkQueueEvent.groupValues owner payload ∈ acc.2.1 → owner.key ∈ queue.rootGroups)
+        Execution.WorkQueueEvent.groupValues owner payload ∈ acc.2.1 → owner.ref ∈ queue.rootGroups)
       : ∀ owner payload,
         Execution.WorkQueueEvent.groupValues owner payload
             ∈ (remaining.foldl successGroupStep acc).2.1
-          → owner.key ∈ queue.rootGroups := by
+          → owner.ref ∈ queue.rootGroups := by
     induction remaining generalizing acc with
     | nil => exact prior
     | cons next rest ih =>
@@ -40,9 +40,9 @@ theorem State.successGroupFold_values_active (queue : State)
         · rename_i node found
           split
           · rename_i ready
-            have active : node.group.node.key ∈ acc.1.rootGroups := by
+            have active : node.group.node.ref ∈ acc.1.rootGroups := by
               simp only [Bool.and_eq_true, List.contains_iff_mem] at ready
-              exact acc.1.groupNode?_key found ▸ ready.1.1
+              exact acc.1.groupNode?_ref found ▸ ready.1.1
             let updated := { node with pending := node.pending - 1 }
             have remainingRoots
                 : ((acc.1.putGroupNode updated).finishGroupSuccess updated).1.rootGroups.Subset
@@ -76,7 +76,7 @@ theorem State.taskSuccess_inactiveValue_drain (queue : State)
     (selected
       : (queue.taskSuccess occurrence result).2[position]?
         = some (.groupValues group values))
-    (inactive : group.key ∉ queue.rootGroups)
+    (inactive : group.ref ∉ queue.rootGroups)
     : ∃ incoming,
         queue.taskNode? occurrence = some incoming
         ∧ queue.taskHasHealthyOwner incoming.task = true

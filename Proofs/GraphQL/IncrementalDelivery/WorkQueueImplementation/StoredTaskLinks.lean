@@ -18,7 +18,7 @@ def State.StoredTaskLinks (queue : State) : Prop :=
   ∀ node ∈ queue.taskNodes,
     node.value.isSome = true
     → queue.TaskLinkedOn node.task.occurrence
-        (node.task.groups.map Execution.DeliveryNode.key)
+        (node.task.groups.map Execution.DeliveryNode.ref)
 
 /-- Full live-task links imply the buffered-only obligation.
 Witness: ignore the stored-value restriction while reusing each task's memberships.
@@ -27,7 +27,7 @@ theorem State.StoredTaskLinks.of_all {queue : State}
     (linked
       : ∀ node ∈ queue.taskNodes,
           queue.TaskLinkedOn node.task.occurrence
-            (node.task.groups.map Execution.DeliveryNode.key))
+            (node.task.groups.map Execution.DeliveryNode.ref))
     : queue.StoredTaskLinks :=
   fun node member _ => linked node member
 
@@ -45,10 +45,10 @@ theorem State.StoredTaskLinks.removeTask {queue : State} (linked : queue.StoredT
 Witness: both live maps are filtered, and surviving groups keep their task lists.
 -/
 theorem State.StoredTaskLinks.removeGroup {queue : State} (linked : queue.StoredTaskLinks)
-    (key : Nat)
-    : (queue.removeGroup key).StoredTaskLinks := by
+    (ref : NodeRef)
+    : (queue.removeGroup ref).StoredTaskLinks := by
   intro node member stored
-  exact (linked node (List.mem_filter.mp member).1 stored).removeGroup key
+  exact (linked node (List.mem_filter.mp member).1 stored).removeGroup ref
 
 /-- Empty-group pruning changes no buffered node and only removes contributor records.
 Witness: the exact task-map equation and existing per-task membership preservation.
@@ -73,7 +73,7 @@ theorem State.StoredTaskLinks.startTask {queue : State} (linked : queue.StoredTa
     : (queue.startTask occurrence).StoredTaskLinks := by
   have old (node : TaskNode) (member : node ∈ queue.taskNodes) (stored : node.value.isSome = true)
       : (queue.startTask occurrence).TaskLinkedOn node.task.occurrence
-          (node.task.groups.map Execution.DeliveryNode.key) :=
+          (node.task.groups.map Execution.DeliveryNode.ref) :=
     (linked node member stored).startTask occurrence
   intro node member stored
   unfold State.startTask at member
@@ -90,8 +90,8 @@ theorem State.StoredTaskLinks.startTask {queue : State} (linked : queue.StoredTa
 Witness: induction over the group's actual membership list, including duplicate entries.
 -/
 theorem State.StoredTaskLinks.startGroup {queue : State} (linked : queue.StoredTaskLinks)
-    (key : Nat)
-    : (queue.startGroup key).StoredTaskLinks := by
+    (ref : NodeRef)
+    : (queue.startGroup ref).StoredTaskLinks := by
   unfold State.startGroup
   split
   · exact linked
@@ -107,8 +107,8 @@ theorem State.StoredTaskLinks.startGroup {queue : State} (linked : queue.StoredT
 /-- Starting a stream leaves both membership maps unchanged. Witness: branch reduction.
 -/
 theorem State.StoredTaskLinks.startStream {queue : State} (linked : queue.StoredTaskLinks)
-    (key : Nat)
-    : (queue.startStream key).StoredTaskLinks := by
+    (ref : NodeRef)
+    : (queue.startStream ref).StoredTaskLinks := by
   unfold State.startStream
   split <;> exact linked
 
@@ -120,15 +120,15 @@ theorem State.StoredTaskLinks.startNewWork {queue : State}
     (linked : queue.StoredTaskLinks) (released : NewWork)
     : (queue.startNewWork released).StoredTaskLinks := by
   have loop (step : State → Nat → State)
-      (preserves : ∀ current key, current.StoredTaskLinks → (step current key).StoredTaskLinks)
-      (keys : Keys) (current : State) (prior : current.StoredTaskLinks)
-      : (keys.foldl step current).StoredTaskLinks := by
-    induction keys generalizing current with
+      (preserves : ∀ current ref, current.StoredTaskLinks → (step current ref).StoredTaskLinks)
+      (refs : NodeRefs) (current : State) (prior : current.StoredTaskLinks)
+      : (refs.foldl step current).StoredTaskLinks := by
+    induction refs generalizing current with
     | nil => exact prior
-    | cons key rest ih => exact ih _ (preserves _ _ prior)
+    | cons ref rest ih => exact ih _ (preserves _ _ prior)
   unfold State.startNewWork
-  apply loop State.startStream (fun _ key prior => prior.startStream key)
-  exact loop State.startGroup (fun _ key prior => prior.startGroup key) _ _ linked
+  apply loop State.startStream (fun _ ref prior => prior.startStream ref)
+  exact loop State.startGroup (fun _ ref prior => prior.startGroup ref) _ _ linked
 
 -----------------------------------------------------------------------------------------
 -- Successful flushing and failed cleanup preserve the same buffered-link invariant
@@ -141,7 +141,7 @@ are then filtered. This proof needs neither settled-task counts nor output admis
 theorem State.StoredTaskLinks.finishGroupSuccess {queue : State}
     (linked : queue.StoredTaskLinks) (group : GroupNode)
     : (queue.finishGroupSuccess group).1.StoredTaskLinks := by
-  have loop (tasks : List Occurrence) (acc : State × List ExecutionGroupValue × Keys)
+  have loop (tasks : List Occurrence) (acc : State × List ExecutionGroupValue × NodeRefs)
       (prior : acc.1.StoredTaskLinks)
       : (tasks.foldl flushGroupTask acc).1.StoredTaskLinks := by
     induction tasks generalizing acc with
@@ -157,8 +157,8 @@ theorem State.StoredTaskLinks.finishGroupSuccess {queue : State}
   let current :=
     { flushed with
       groupNodes := flushed.groupNodes.filter
-        (fun node => node.group.node.key != group.group.node.key)
-      rootGroups := flushed.rootGroups.filter (· != group.group.node.key) }
+        (fun node => node.group.node.ref != group.group.node.ref)
+      rootGroups := flushed.rootGroups.filter (· != group.group.node.ref) }
   have currentLinks : current.StoredTaskLinks := by
     intro node member stored owner live contributes
     exact flushedLinks node member stored owner (List.mem_filter.mp live).1 contributes
@@ -181,7 +181,7 @@ theorem State.StoredTaskLinks.drainReadyGroups_go {queue : State}
       · rename_i group selected
         cases cached : group.failure with
         | none => exact ih ((linked.finishGroupSuccess group).startNewWork _)
-        | some errors => exact ih (linked.removeGroup group.group.node.key)
+        | some errors => exact ih (linked.removeGroup group.group.node.ref)
 
 /-- The full implementation drain preserves buffered memberships.
 Witness: specialize the bounded-prefix induction to its live-node budget.

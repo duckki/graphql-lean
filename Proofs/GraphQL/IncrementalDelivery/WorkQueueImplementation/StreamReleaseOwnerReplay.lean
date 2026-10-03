@@ -234,7 +234,7 @@ def NormalizedStreamReleaseDependencies (work : Execution.Work)
     Execution.WorkQueueEvent.groupSuccess group groups streams ∈ events
     → ∀ stream ∈ streams,
         ∀ dependencies producer,
-          NodeAt work stream .stream dependencies producer → group.key ∈ dependencies
+          NodeAt work stream .stream dependencies producer → group.ref ∈ dependencies
 
 /-- Publisher normalization preserves every successful carrier's dependency witness.
 Witness: the normalized carrier has an identical raw predecessor; value-owner remapping
@@ -323,14 +323,14 @@ theorem createWorkQueue_runNormalized_streamRetiredDependency {work : Execution.
         ∈ ((State.initialize (Work.fromExecution work)).runNormalized batches).2.flatten)
     (released : stream ∈ streams)
     (known : NodeAt work stream .stream dependencies producer)
-    : group.key ∈ dependencies
+    : group.ref ∈ dependencies
       ∧ ((State.initialize (Work.fromExecution work)).runNormalized
           batches).1.RetiredGroup
-          group.key := by
+          group.ref := by
   refine ⟨createWorkQueue_runNormalized_streamReleaseDependencies generated batches sources
     group groups streams carrier stream released dependencies producer known, ?_⟩
   exact (State.runNormalized_groupClosures (createWorkQueue_registration work).1
-    (createWorkQueue_registration work).2 batches sources).2 group.key
+    (createWorkQueue_registration work).2 batches sources).2 group.ref
       (List.mem_flatMap.mpr ⟨_, carrier, List.mem_cons_self⟩)
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

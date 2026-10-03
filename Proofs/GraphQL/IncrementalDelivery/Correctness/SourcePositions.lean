@@ -81,7 +81,7 @@ theorem root_positions_of_seeded {completed : Completion (List (Name × Response
           using List.nodup_cons.mpr ⟨fun member => owns.2 [] member rfl, owns.1⟩
 
 /-- Every actual mixed root execution has disjoint source positions with coherent
-cursor seeds. Witness: the checked execution induction, at any initial key supply.
+cursor seeds. Witness: the checked execution induction, at any initial ref supply.
 -/
 theorem executeRoot_source_positions (schema : Schema) (resolvers : Resolvers ObjectRef)
     (variables : VariableValues) (fuel : Nat) (parentType : Name)

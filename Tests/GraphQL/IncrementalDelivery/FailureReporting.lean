@@ -8,8 +8,8 @@ namespace GraphQL.IncrementalDelivery.Tests.FailureReporting
 open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
-def a : DeliveryNode := { key := 0, path := [] }
-def b : DeliveryNode := { key := 1, path := [] }
+def a : DeliveryNode := { ref := 0, path := [] }
+def b : DeliveryNode := { ref := 1, path := [] }
 
 def good : Work :=
   .executionGroup [{ node := a }] [] (.ok ([("a", .scalar "a")], 0))
@@ -86,10 +86,10 @@ theorem badTask : TaskAt wk badID [1] none (.object [] (.error 1)) :=
 example (events : List WorkQueueEvent)
     : ¬FailureWitness wk [0] WorkQueueSemantics.matching events [(0, badID)] := by
   intro witness
-  obtain ⟨key, member, announced⟩ := witness.announced_owner (cut := 0) (by simp) badTask
-  have same : key = 1 := by simpa using member
-  subst key
-  simp [announcedKeys, pendingKeys] at announced
+  obtain ⟨ref, member, announced⟩ := witness.announced_owner (cut := 0) (by simp) badTask
+  have same : ref = 1 := by simpa using member
+  subst ref
+  simp [announcedRefs, pendingRefs] at announced
 
 def silentHistory : History :=
   {
@@ -132,11 +132,11 @@ example
   intro explained
   have known : TaskAt WorkQueueSemantics.failingWork (.executionGroup []) [0] none
       (.object [] (.error 2)) := .executionGroup .root
-  obtain ⟨key, member, opened⟩ := explained.first_failure_open_owner known
-  have same : key = 0 := by simpa using member
-  subst key
+  obtain ⟨ref, member, opened⟩ := explained.first_failure_open_owner known
+  have same : ref = 0 := by simpa using member
+  subst ref
   exact opened.2
-    (by simp [completedKeys, eventCompleted,
+    (by simp [completedRefs, eventCompleted,
       WorkQueueSemantics.failure, WorkQueueSemantics.node])
 
 def sharedFailure : Work :=
@@ -168,7 +168,7 @@ example
           .root ⟨_, _, known⟩,
           1,
           by simp,
-          by simp [announcedKeys, pendingKeys]
+          by simp [announcedRefs, pendingRefs]
         ⟩,
         WorkQueueSemantics.noCancellation _ _
       ⟩

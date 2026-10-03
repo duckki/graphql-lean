@@ -33,10 +33,10 @@ theorem TaskAccounted.append {work matching events failed occurrence}
 /-- Accounting for a node survives output extension with unchanged failure evidence.
 Witness: apply task-accounting preservation to every contributing occurrence.
 -/
-theorem NodeAccounted.append {work matching events failed key}
-    (accounted : NodeAccounted work matching events failed key)
+theorem NodeAccounted.append {work matching events failed ref}
+    (accounted : NodeAccounted work matching events failed ref)
     (tail : List WorkQueueEvent)
-    : NodeAccounted work matching (events ++ tail) failed key :=
+    : NodeAccounted work matching (events ++ tail) failed ref :=
   fun occurrence owners known member =>
     (accounted occurrence owners known member).append tail
 
@@ -93,7 +93,7 @@ matching and failure cuts. Witness: preserve earlier indices and check the final
 theorem Explains.append_event {work groups streams events matching failures event}
     (explained : Explains work groups streams events matching failures)
     (allowed
-      : EventAllowed work ((groups ++ streams).map DeliveryNode.key) matching
+      : EventAllowed work ((groups ++ streams).map DeliveryNode.ref) matching
           events failures event)
     : Explains work groups streams (events ++ [event]) matching failures := by
   refine ⟨explained.1, explained.2.1.append [event], ?_⟩
@@ -123,15 +123,15 @@ theorem NodeErrors.exists {work failed}
     (known
       : ∀ occurrence ∈ failed,
           ∃ owners producer payload,
-            TaskAt work occurrence owners producer payload) (key : Nat)
-    : ∃ errors, NodeErrors work failed key errors := by
+            TaskAt work occurrence owners producer payload) (ref : NodeRef)
+    : ∃ errors, NodeErrors work failed ref errors := by
   classical
   let contribution := fun occurrence =>
     if member : occurrence ∈ failed then
       let owners := Classical.choose (known occurrence member)
       let payload := Classical.choose
         (Classical.choose_spec (Classical.choose_spec (known occurrence member)))
-      if key ∈ owners then payload.failure.getD 0 else 0
+      if ref ∈ owners then payload.failure.getD 0 else 0
     else 0
   refine ⟨(failed.map contribution).sum, contribution, ?_, rfl⟩
   intro occurrence member

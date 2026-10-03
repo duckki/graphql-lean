@@ -10,21 +10,21 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 -- Permanent registration prevents late owner reintroduction
 -----------------------------------------------------------------------------------------
 
-/-- Integrating groups preserves links whose contributor keys are already registered.
-Witness: only fresh unregistered keys enter the group-registration fold; the existing
+/-- Integrating groups preserves links whose contributor refs are already registered.
+Witness: only fresh unregistered refs enter the group-registration fold; the existing
 link-preservation theorem therefore applies even to retired contributors with no live node.
 -/
 theorem State.TaskLinkedOn.addRegisteredGroups
-    {queue : State} {occurrence : Occurrence} {keys : Keys}
-    (linked : queue.TaskLinkedOn occurrence keys) (unique : queue.GroupKeysUnique)
-    (registered : keys.Subset queue.registeredGroups) (groups : List Group)
-    : (queue.addGroups groups).1.TaskLinkedOn occurrence keys := by
+    {queue : State} {occurrence : Occurrence} {refs : NodeRefs}
+    (linked : queue.TaskLinkedOn occurrence refs) (unique : queue.GroupRefsUnique)
+    (registered : refs.Subset queue.registeredGroups) (groups : List Group)
+    : (queue.addGroups groups).1.TaskLinkedOn occurrence refs := by
   let fresh := groups.filter (fun group =>
-    !queue.registeredGroups.contains group.node.key
-      && (queue.groupNode? group.node.key).isNone)
+    !queue.registeredGroups.contains group.node.ref
+      && (queue.groupNode? group.node.ref).isNone)
   have retained := linked.addGroups unique fresh (by
     intro group member contributor
-    have absent : group.node.key ∉ queue.registeredGroups := by
+    have absent : group.node.ref ∉ queue.registeredGroups := by
       have chosen := (List.mem_filter.mp member).2
       simpa using (Bool.and_eq_true_iff.mp chosen).1
     exact (absent (registered contributor)).elim)
@@ -38,7 +38,7 @@ its other unsettled tasks. `settled` records the task outcomes already processed
 def State.UnsettledTaskLinks (queue : State) (settled : List Occurrence) : Prop :=
   ∀ task ∈ queue.tasks,
     task.occurrence ∉ settled
-    → queue.TaskLinkedOn task.occurrence (task.groups.map Execution.DeliveryNode.key)
+    → queue.TaskLinkedOn task.occurrence (task.groups.map Execution.DeliveryNode.ref)
 
 /-- Enlarging the processed-outcome list weakens membership obligations.
 Witness: every still-unsettled task was unsettled before the enlargement.
@@ -50,10 +50,10 @@ theorem State.UnsettledTaskLinks.weaken {queue : State} {before after : List Occ
   exact linked task member (fun settled => fresh (included settled))
 
 /-- Protected group introduction preserves all unsettled permanent-task links.
-Witness: the permanent task-group registry supplies protected keys for every old task.
+Witness: the permanent task-group registry supplies protected refs for every old task.
 -/
 theorem State.UnsettledTaskLinks.addGroups {queue : State} {settled : List Occurrence}
-    (linked : queue.UnsettledTaskLinks settled) (unique : queue.GroupKeysUnique)
+    (linked : queue.UnsettledTaskLinks settled) (unique : queue.GroupRefsUnique)
     (registered : queue.TaskGroupsRegistered) (groups : List Group)
     : (queue.addGroups groups).1.UnsettledTaskLinks settled := by
   intro task member fresh
@@ -65,7 +65,7 @@ theorem State.UnsettledTaskLinks.addGroups {queue : State} {settled : List Occur
 Witness: the add-task membership theorem and append-only permanent task registration.
 -/
 theorem State.UnsettledTaskLinks.addTask {queue : State} {settled : List Occurrence}
-    (linked : queue.UnsettledTaskLinks settled) (unique : queue.GroupKeysUnique)
+    (linked : queue.UnsettledTaskLinks settled) (unique : queue.GroupRefsUnique)
     (task : Task)
     : (queue.addTask task).UnsettledTaskLinks settled := by
   intro other member fresh
@@ -88,26 +88,26 @@ theorem State.UnsettledTaskLinks.addStreams {queue : State} {settled : List Occu
   exact (linked task member fresh).addStreams streams producer
 
 /-- Work integration preserves all unsettled links without requiring retired owners live.
-Witness: protect old registered keys during group creation, then establish each new task's
+Witness: protect old registered refs during group creation, then establish each new task's
 links. This is a bookkeeping theorem, with no work-health or output-admission premise.
 -/
 theorem State.UnsettledTaskLinks.maybeIntegrateWork {queue : State}
     {settled : List Occurrence} (linked : queue.UnsettledTaskLinks settled)
-    (unique : queue.GroupKeysUnique) (registered : queue.TaskGroupsRegistered)
+    (unique : queue.GroupRefsUnique) (registered : queue.TaskGroupsRegistered)
     (work : Work) (producer : Option Occurrence := none)
     : (queue.maybeIntegrateWork work producer).1.UnsettledTaskLinks settled := by
   have groupLinks := linked.addGroups unique registered work.groups
-  have groupKeys := unique.addGroups work.groups
+  have groupRefs := unique.addGroups work.groups
   have loop (tasks : List Task) (current : State)
       (currentLinks : current.UnsettledTaskLinks settled)
-      (currentKeys : current.GroupKeysUnique)
+      (currentRefs : current.GroupRefsUnique)
       : (tasks.foldl State.addTask current).UnsettledTaskLinks settled := by
     induction tasks generalizing current with
     | nil => exact currentLinks
     | cons task rest ih =>
-        exact ih (current.addTask task) (currentLinks.addTask currentKeys task)
-          (currentKeys.addTask task)
-  exact (loop work.tasks _ groupLinks groupKeys).addStreams work.streams producer
+        exact ih (current.addTask task) (currentLinks.addTask currentRefs task)
+          (currentRefs.addTask task)
+  exact (loop work.tasks _ groupLinks groupRefs).addStreams work.streams producer
 
 /-- Mutable started-task values do not affect permanent-task membership obligations.
 Witness: the permanent task list and group-node map are definitionally unchanged.
@@ -118,17 +118,17 @@ theorem State.UnsettledTaskLinks.putTaskNode {queue : State} {settled : List Occ
   linked
 
 /-- Counter and cache updates preserve links when the selected node keeps its task list.
-Witness: unique-key replacement preserves each individual registered task's links.
+Witness: unique-ref replacement preserves each individual registered task's links.
 -/
 theorem State.UnsettledTaskLinks.putGroupNodeSameTasks {queue : State}
     {settled : List Occurrence} (linked : queue.UnsettledTaskLinks settled)
-    (unique : queue.GroupKeysUnique) (node : GroupNode) (member : node ∈ queue.groupNodes)
-    (updated : GroupNode) (sameKey : updated.group.node.key = node.group.node.key)
+    (unique : queue.GroupRefsUnique) (node : GroupNode) (member : node ∈ queue.groupNodes)
+    (updated : GroupNode) (sameRef : updated.group.node.ref = node.group.node.ref)
     (sameTasks : updated.tasks = node.tasks)
     : (queue.putGroupNode updated).UnsettledTaskLinks settled := by
   intro task present fresh
   exact (linked task present fresh).putGroupNodeSameTasks unique node member updated
-    sameKey sameTasks
+    sameRef sameTasks
 
 -----------------------------------------------------------------------------------------
 -- Cleanup and activation preserve links of tasks not yet settled
@@ -149,10 +149,10 @@ theorem State.UnsettledTaskLinks.removeSettledTask {queue : State}
 Witness: the per-task removal theorem; the permanent task registry is unchanged.
 -/
 theorem State.UnsettledTaskLinks.removeGroup {queue : State} {settled : List Occurrence}
-    (linked : queue.UnsettledTaskLinks settled) (key : Nat)
-    : (queue.removeGroup key).UnsettledTaskLinks settled := by
+    (linked : queue.UnsettledTaskLinks settled) (ref : NodeRef)
+    : (queue.removeGroup ref).UnsettledTaskLinks settled := by
   intro task member fresh
-  exact (linked task member fresh).removeGroup key
+  exact (linked task member fresh).removeGroup ref
 
 /-- Pruning removes only group nodes and never forgets a permanent task.
 Witness: unchanged task registry and per-task pruning preservation.
@@ -216,7 +216,7 @@ theorem State.UnsettledTaskLinks.drainReadyGroups_ofBound {queue : State}
       exact ⟨(prior.1.finishGroupSuccess node all).startNewWork _,
         (prior.2.finishGroupSuccess node all).startNewWork _⟩)
     (fun _ node _ prior _ _ _ =>
-      ⟨prior.1.removeGroup node.group.node.key, prior.2.removeGroup node.group.node.key⟩)
+      ⟨prior.1.removeGroup node.group.node.ref, prior.2.removeGroup node.group.node.ref⟩)
     ⟨linked, bounded⟩
   exact final.1
 
@@ -240,7 +240,7 @@ theorem State.UnsettledTaskLinks.ownedExactlyBy
     (matching : queue.RegisteredTasksMatch work)
     {task : Task} (member : task ∈ queue.tasks) (fresh : task.occurrence ∉ settled)
     : queue.OwnedExactlyBy task.occurrence
-        (task.groups.map Execution.DeliveryNode.key) := by
+        (task.groups.map Execution.DeliveryNode.ref) := by
   intro node nodeMember
   constructor
   · intro present

@@ -10,9 +10,9 @@ namespace GraphQL.IncrementalDelivery.Tests.WorkSchedulerRetainedAccounting
 open GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
-private def root : Execution.DeliveryNode := { key := 0, path := [] }
-private def parent : Execution.DeliveryNode := { key := 1, path := [] }
-private def child : Execution.DeliveryNode := { key := 2, path := [] }
+private def root : Execution.DeliveryNode := { ref := 0, path := [] }
+private def parent : Execution.DeliveryNode := { ref := 1, path := [] }
+private def child : Execution.DeliveryNode := { ref := 2, path := [] }
 private def shared : Occurrence := .executionGroup [0]
 private def remaining : Occurrence := .executionGroup [1]
 private def parentTask : Occurrence := .executionGroup [2]
@@ -25,18 +25,18 @@ has another unsettled task. This is an internal bookkeeping fixture, not a query
 -/
 private def beforeFailure : State :=
   {
-    rootGroups := [root.key, parent.key]
-    registeredGroups := [root.key, parent.key, child.key]
+    rootGroups := [root.ref, parent.ref]
+    registeredGroups := [root.ref, parent.ref, child.ref]
     groupNodes :=
       [
         { group := ⟨root, none⟩, tasks := [shared], pending := 1 },
         {
           group := ⟨parent, none⟩,
-          childGroups := [child.key],
+          childGroups := [child.ref],
           tasks := [parentTask],
           pending := 1
         },
-        { group := ⟨child, some parent.key⟩, tasks := [shared, remaining], pending := 2 }
+        { group := ⟨child, some parent.ref⟩, tasks := [shared, remaining], pending := 2 }
       ]
     taskNodes := [sharedNode, parentNode]
     tasks := [sharedNode.task, parentNode.task, ⟨remaining, [child]⟩]
@@ -49,12 +49,12 @@ theorem shared_failure_pending
     : (beforeFailure.taskFailure shared 2).1.PendingTracks [shared] := by
   have tracks : beforeFailure.PendingTracks [] := by
     simp [State.PendingTracks, GroupNode.PendingTracks, unsettledCount, beforeFailure]
-  have keys : beforeFailure.GroupKeysUnique := by
-    unfold State.GroupKeysUnique
+  have refs : beforeFailure.GroupRefsUnique := by
+    unfold State.GroupRefsUnique
     decide
   have memberships : beforeFailure.TaskMembershipsUnique := by
     simp [State.TaskMembershipsUnique, beforeFailure, shared, remaining]
-  apply tracks.taskFailure keys memberships shared 2 sharedNode rfl (by decide) (by simp)
+  apply tracks.taskFailure refs memberships shared 2 sharedNode rfl (by decide) (by simp)
   · decide
   · simp [State.OwnedExactlyBy, beforeFailure, sharedNode, shared,
       remaining, parentTask, root, parent, child]
@@ -64,10 +64,10 @@ remaining task survives. Witness: direct reduction of the same public handler.
 -/
 theorem shared_failure_retains_remaining
     : let after := (beforeFailure.taskFailure shared 2).1
-      after.groupNode? root.key = none
-      ∧ (after.groupNode? child.key).map GroupNode.pending = some 1
-      ∧ (after.groupNode? child.key).map GroupNode.tasks = some [remaining]
-      ∧ (after.groupNode? child.key).map GroupNode.failure = some (some 2) := by
+      after.groupNode? root.ref = none
+      ∧ (after.groupNode? child.ref).map GroupNode.pending = some 1
+      ∧ (after.groupNode? child.ref).map GroupNode.tasks = some [remaining]
+      ∧ (after.groupNode? child.ref).map GroupNode.failure = some (some 2) := by
   cbv
 
 /-- Failure preserves registration, sound membership, active links, and the other
@@ -78,7 +78,7 @@ theorem shared_failure_links
       after.StartedTasksRegistered
       ∧ after.GroupMembershipSound
       ∧ after.ActiveTaskLinks
-      ∧ after.TaskLinkedOn remaining [child.key] := by
+      ∧ after.TaskLinkedOn remaining [child.ref] := by
   have registered : beforeFailure.StartedTasksRegistered := by
     simp [State.StartedTasksRegistered, beforeFailure]
   have sound : beforeFailure.GroupMembershipSound := by
@@ -87,7 +87,7 @@ theorem shared_failure_links
   have active : beforeFailure.ActiveTaskLinks := by
     simp [State.ActiveTaskLinks, State.RootTaskLinkedOn, beforeFailure,
       sharedNode, parentNode, shared, remaining, parentTask, root, parent, child]
-  have latent : beforeFailure.TaskLinkedOn remaining [child.key] := by
+  have latent : beforeFailure.TaskLinkedOn remaining [child.ref] := by
     simp [State.TaskLinkedOn, beforeFailure, root, parent, child]
   exact ⟨
     registered.taskFailure shared 2,
@@ -110,12 +110,12 @@ The removed root remains in the permanent registry, allowing a no-reactivation c
 -/
 private def beforeDrain : State :=
   {
-    rootGroups := [parent.key]
-    registeredGroups := [root.key, parent.key, child.key]
+    rootGroups := [parent.ref]
+    registeredGroups := [root.ref, parent.ref, child.ref]
     groupNodes :=
       [
-        { group := ⟨parent, none⟩, childGroups := [child.key] },
-        { group := ⟨child, some parent.key⟩, failure := some 2 }
+        { group := ⟨parent, none⟩, childGroups := [child.ref] },
+        { group := ⟨child, some parent.ref⟩, failure := some 2 }
       ]
   }
 
@@ -127,14 +127,14 @@ theorem drain_invariants
     : beforeDrain.drainReadyGroups.1.PendingTracks []
       ∧ beforeDrain.drainReadyGroups.1.TaskMembershipsUnique
       ∧ beforeDrain.drainReadyGroups.1.RegisteredTasksMatch .empty
-      ∧ beforeDrain.drainReadyGroups.1.RetiredGroup root.key := by
+      ∧ beforeDrain.drainReadyGroups.1.RetiredGroup root.ref := by
   have tracks : beforeDrain.PendingTracks [] := by
     simp [State.PendingTracks, GroupNode.PendingTracks, unsettledCount, beforeDrain]
   have memberships : beforeDrain.TaskMembershipsUnique := by
     simp [State.TaskMembershipsUnique, beforeDrain]
   have matching : beforeDrain.RegisteredTasksMatch .empty := by
     simp [State.RegisteredTasksMatch, beforeDrain]
-  have retired : beforeDrain.RetiredGroup root.key := by
+  have retired : beforeDrain.RetiredGroup root.ref := by
     unfold State.RetiredGroup
     decide
   exact ⟨tracks.drainReadyGroups, memberships.drainReadyGroups,

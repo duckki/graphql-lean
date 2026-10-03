@@ -49,22 +49,22 @@ theorem State.replayGraphEvents_registration {queue : State} {work : Execution.W
 
 /-- A successful carrier's previously registered group is live at the handler input.
 Witness: otherwise permanent retirement would forbid that handler from emitting its
-closing key. Newly registered groups are intentionally excluded by the registry premise.
+closing ref. Newly registered groups are intentionally excluded by the registry premise.
 -/
 theorem State.handleGraphEvent_success_live_registered {queue : State} {work event}
     (live : queue.LiveGroupsRegistered) (tasks : queue.TaskGroupsRegistered)
     (matching : event.MatchesWork work) {group groups streams}
-    (registered : group.key ∈ queue.registeredGroups)
+    (registered : group.ref ∈ queue.registeredGroups)
     (carrier
       : Execution.WorkQueueEvent.groupSuccess group groups streams
         ∈ (queue.handleGraphEvent event).2)
-    : ∃ owner, queue.groupNode? group.key = some owner := by
-  cases found : queue.groupNode? group.key with
+    : ∃ owner, queue.groupNode? group.ref = some owner := by
+  cases found : queue.groupNode? group.ref with
   | some owner => exact ⟨owner, rfl⟩
   | none =>
       have retired := State.RetiredGroup.of_lookup_none registered found
       have accounted := queue.handleGraphEvent_closureAccounting live tasks event matching
-      exact False.elim (accounted.excludes group.key retired
+      exact False.elim (accounted.excludes group.ref retired
         (List.mem_flatMap.mpr ⟨.groupSuccess group groups streams, carrier,
           List.mem_cons_self⟩))
 
@@ -90,7 +90,7 @@ theorem State.ReplayClosuresCovered.buffered_carrier {queue : State}
         = some (.groupSuccess group groups streams))
     {occurrence node value} (found : queue.taskNode? occurrence = some node)
     (stored : node.value = some value)
-    (contributes : group.key ∈ node.task.groups.map Execution.DeliveryNode.key)
+    (contributes : group.ref ∈ node.task.groups.map Execution.DeliveryNode.ref)
     : (occurrence, value)
       ∈ published.take
           (((queue.rawEventReplay before).2.flatMap WorkQueueEvent.objectValues).length
@@ -101,13 +101,13 @@ theorem State.ReplayClosuresCovered.buffered_carrier {queue : State}
     fun input member => matching input (List.mem_append_left _ member)
   have boundary := queue.replayGraphEvents_registration live registered before earlierMatching
   have known := State.taskNode?_some found
-  have recorded := registered node.task (started node known.1) group.key contributes
+  have recorded := registered node.task (started node known.1) group.ref contributes
   obtain ⟨owner, ownerLive⟩ := State.handleGraphEvent_success_live_registered
     boundary.1 boundary.2.1 (matching event (List.mem_append_right _ List.mem_cons_self))
     (boundary.2.2 recorded) (List.mem_of_getElem? carrier)
   obtain ⟨contributor, contributorMem, same⟩ := List.mem_map.mp contributes
   have survives : ∃ contributor ∈ node.task.groups, ∃ owner,
-      (queue.replayGraphEvents before).groupNode? contributor.key = some owner :=
+      (queue.replayGraphEvents before).groupNode? contributor.ref = some owner :=
     ⟨contributor, contributorMem, owner, same ▸ ownerLive⟩
   have conserved := (covered.prefix before [event]).conserves live registered started
     earlierMatching

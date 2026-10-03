@@ -34,7 +34,7 @@ theorem GraphEvent.MatchesWork.streamItem_childStream_producer
           exact workFromSpec_streams_nodeAt (Located.item located entry) supplied
 
 /-- Each registered descriptor denotes an actual stream node, with existential source context.
-The descriptor itself is retained exactly; permissive raw work need not have unique keys.
+The descriptor itself is retained exactly; permissive raw work need not have unique refs.
 -/
 def StreamLocated (work : Execution.Work) (stream : Execution.DeliveryNode) : Prop :=
   ∃ dependencies producer, NodeAt work stream .stream dependencies producer
@@ -73,26 +73,26 @@ theorem createWorkQueue_initialStreams_nodeAt (work : Execution.Work)
   intro stream member
   exact workFromSpec_streams_nodeAt Located.root member
 
-/-- A generated stream whose key was initially announced cannot have a task/item producer.
-Witness: initial notice metadata supplies a producer-free descriptor with that key, and
+/-- A generated stream whose ref was initially announced cannot have a task/item producer.
+Witness: initial notice metadata supplies a producer-free descriptor with that ref, and
 generated allocation uniqueness equates its producer with the independently known node.
 -/
 theorem ExecutedWork.initialStream_producerNone {work : Execution.Work}
     (generated : ExecutedWork work) {stream dependencies producer}
     (known : NodeAt work stream .stream dependencies producer)
     (initial
-      : stream.key
+      : stream.ref
         ∈ (State.initialize (Work.fromExecution work)).initialStreams.map
-            Execution.DeliveryNode.key)
+            Execution.DeliveryNode.ref)
     : producer = none := by
-  obtain ⟨announced, member, sameKey⟩ := List.mem_map.mp initial
+  obtain ⟨announced, member, sameRef⟩ := List.mem_map.mp initial
   exact generated.streamProducer_unique known
-    ((createWorkQueue_initialStreams_nodeAt work).2 announced member) sameKey.symm
+    ((createWorkQueue_initialStreams_nodeAt work).2 announced member) sameRef.symm
 
 /-- Every registered stream throughout replay has its exact descriptor in the original work.
 Witness: root lowering establishes the registry; matched task/item child lowering and each
 handler's descriptor-preservation proof maintain it through actual normalized batches.
-Only source matching is used, with no generated-key uniqueness or start requirement.
+Only source matching is used, with no generated-ref uniqueness or start requirement.
 -/
 theorem createWorkQueue_runNormalized_streamsLocated {work : Execution.Work}
     {batches : List (List GraphEvent)} (valid : ValidGraphEvents work batches.flatten)
@@ -122,7 +122,7 @@ theorem createWorkQueue_runNormalized_streamsLocated {work : Execution.Work}
 
 /-- Any later group flush releases only genuine stream descriptors from its actual registry.
 Witness: matching replay locates all registry entries; the flush retrieves unchanged entries
-by key. This local metadata witness does not yet identify all notice carriers in the output.
+by ref. This local metadata witness does not yet identify all notice carriers in the output.
 -/
 theorem createWorkQueue_runNormalized_releasedStreamsLocated {work : Execution.Work}
     {batches : List (List GraphEvent)} (valid : ValidGraphEvents work batches.flatten)

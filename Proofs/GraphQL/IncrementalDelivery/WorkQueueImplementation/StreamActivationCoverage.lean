@@ -10,32 +10,32 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 -- Registry membership suffices for the executable start operation
 -----------------------------------------------------------------------------------------
 
-/-- A registered descriptor has a successful key lookup, even in a nonunique raw registry.
-Witness: a failed list search would reject the supplied descriptor's own matching key.
+/-- A registered descriptor has a successful ref lookup, even in a nonunique raw registry.
+Witness: a failed list search would reject the supplied descriptor's own matching ref.
 -/
 theorem State.stream?_exists_of_registered {queue : State} {node : Execution.DeliveryNode}
     (registered : node ∈ queue.streams.map Stream.node)
-    : ∃ stream, queue.stream? node.key = some stream := by
+    : ∃ stream, queue.stream? node.ref = some stream := by
   obtain ⟨stream, member, same⟩ := List.mem_map.mp registered
-  cases found : queue.stream? node.key with
+  cases found : queue.stream? node.ref with
   | some chosen => exact ⟨chosen, rfl⟩
   | none =>
       have rejected := List.find?_eq_none.mp found stream member
       simp [same] at rejected
 
 /-- Starting one stream retains the descriptor registry.
-Witness: the only possible update appends an active-root key.
+Witness: the only possible update appends an active-root ref.
 -/
-theorem State.startStream_streams (queue : State) (key : Nat)
-    : (queue.startStream key).streams = queue.streams := by
+theorem State.startStream_streams (queue : State) (ref : NodeRef)
+    : (queue.startStream ref).streams = queue.streams := by
   unfold State.startStream
   split <;> rfl
 
 /-- Starting a group retains the stream registry.
 Witness: starting its tasks changes only task-node bookkeeping.
 -/
-theorem State.startGroup_streams (queue : State) (key : Nat)
-    : (queue.startGroup key).streams = queue.streams := by
+theorem State.startGroup_streams (queue : State) (ref : NodeRef)
+    : (queue.startGroup ref).streams = queue.streams := by
   have task : ∀ current occurrence,
       (State.startTask current occurrence).streams = current.streams := by
     intro current occurrence
@@ -51,10 +51,10 @@ theorem State.startGroup_streams (queue : State) (key : Nat)
     · exact fold_projection State.streams State.startTask task _ _
 
 /-- Starting a stream cannot remove an already active stream.
-Witness: the concrete operation either keeps roots or appends one key.
+Witness: the concrete operation either keeps roots or appends one ref.
 -/
-theorem State.startStream_rootStreams_mono (queue : State) (key : Nat)
-    : queue.rootStreams.Subset (queue.startStream key).rootStreams := by
+theorem State.startStream_rootStreams_mono (queue : State) (ref : NodeRef)
+    : queue.rootStreams.Subset (queue.startStream ref).rootStreams := by
   unfold State.startStream
   split
   · exact List.Subset.refl _
@@ -62,11 +62,11 @@ theorem State.startStream_rootStreams_mono (queue : State) (key : Nat)
 
 /-- A registered stream is active after its start operation, including duplicate starts.
 Witness: successful lookup excludes the missing-descriptor guard; an old root is retained
-or the requested key is appended.
+or the requested ref is appended.
 -/
-theorem State.startStream_active {queue : State} {key : Nat}
-    (registered : ∃ stream, queue.stream? key = some stream)
-    : key ∈ (queue.startStream key).rootStreams := by
+theorem State.startStream_active {queue : State} {ref : NodeRef}
+    (registered : ∃ stream, queue.stream? ref = some stream)
+    : ref ∈ (queue.startStream ref).rootStreams := by
   obtain ⟨stream, found⟩ := registered
   simp only [State.startStream, found, Option.isNone_some, Bool.false_or]
   split
@@ -79,24 +79,24 @@ theorem State.startStream_active {queue : State} {key : Nat}
 -----------------------------------------------------------------------------------------
 
 /-- Activation keeps all old active streams and starts every registered released descriptor.
-Witness: group starts leave both stream fields unchanged; the stream fold retains old keys
-and starts each supplied registered key. No source or work-generation premise is needed.
+Witness: group starts leave both stream fields unchanged; the stream fold retains old refs
+and starts each supplied registered ref. No source or work-generation premise is needed.
 -/
 theorem State.startNewWork_streamRoots_cover (queue : State) (released : NewWork)
     (registered : released.newStreams.Subset (queue.streams.map Stream.node))
-    : (queue.rootStreams ++ released.newStreams.map Execution.DeliveryNode.key).Subset
+    : (queue.rootStreams ++ released.newStreams.map Execution.DeliveryNode.ref).Subset
         (queue.startNewWork released).rootStreams := by
-  have loop (keys : Keys) (current : State)
-      (known : ∀ key ∈ keys, ∃ stream, current.stream? key = some stream)
-      : (current.rootStreams ++ keys).Subset
-          (keys.foldl State.startStream current).rootStreams := by
-    induction keys generalizing current with
+  have loop (refs : NodeRefs) (current : State)
+      (known : ∀ ref ∈ refs, ∃ stream, current.stream? ref = some stream)
+      : (current.rootStreams ++ refs).Subset
+          (refs.foldl State.startStream current).rootStreams := by
+    induction refs generalizing current with
     | nil =>
-        intro key member
+        intro ref member
         exact (List.mem_append.mp member).elim id (fun impossible => nomatch impossible)
-    | cons key rest ih =>
+    | cons ref rest ih =>
         have later :=
-          ih (current.startStream key)
+          ih (current.startStream ref)
             (by
               intro next member
               simpa only [State.stream?, State.startStream_streams]
@@ -104,21 +104,21 @@ theorem State.startNewWork_streamRoots_cover (queue : State) (released : NewWork
         intro target member
         apply later
         rcases List.mem_append.mp member with old | pending
-        · exact List.mem_append_left _ (current.startStream_rootStreams_mono key old)
+        · exact List.mem_append_left _ (current.startStream_rootStreams_mono ref old)
         · rcases List.mem_cons.mp pending with same | next
           · exact List.mem_append_left _ (same.symm ▸ State.startStream_active
-              (known key List.mem_cons_self))
+              (known ref List.mem_cons_self))
           · exact List.mem_append_right _ next
   unfold State.startNewWork
-  let groups := released.newGroups.map Execution.DeliveryNode.key
+  let groups := released.newGroups.map Execution.DeliveryNode.ref
   let current := groups.foldl State.startGroup
     { queue with rootGroups := queue.rootGroups ++ groups }
   have streams : current.streams = queue.streams :=
     fold_projection State.streams State.startGroup State.startGroup_streams _ _
   have roots : current.rootStreams = queue.rootStreams :=
     fold_projection State.rootStreams State.startGroup State.startGroup_rootStreams _ _
-  have included := loop (released.newStreams.map Execution.DeliveryNode.key) current (by
-    intro key member
+  have included := loop (released.newStreams.map Execution.DeliveryNode.ref) current (by
+    intro ref member
     obtain ⟨node, releasedNode, same⟩ := List.mem_map.mp member
     have present := registered releasedNode
     rw [← streams] at present
@@ -140,7 +140,7 @@ Witness: every returned stream is registered and its release list equals its not
 -/
 theorem State.finishGroupSuccess_streamRoots_cover (queue : State) (group : GroupNode)
     : (queue.rootStreams
-        ++ (queue.finishGroupSuccess group).2.1.flatMap rawStreamNoticeKeys).Subset
+        ++ (queue.finishGroupSuccess group).2.1.flatMap rawStreamNoticeRefs).Subset
         ((queue.finishGroupSuccess group).1.startNewWork
           (queue.finishGroupSuccess group).2.2).rootStreams := by
   have covered := (queue.finishGroupSuccess group).1.startNewWork_streamRoots_cover

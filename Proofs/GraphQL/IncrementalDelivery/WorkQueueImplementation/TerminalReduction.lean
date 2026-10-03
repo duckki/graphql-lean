@@ -33,7 +33,7 @@ theorem terminal_iff_nodeAccounting {work w} (generated : ExecutedWork work)
     (explained
       : Explains work (initialQueue work).initialGroups (initialQueue work).initialStreams
           w.events w.matching w.failures)
-    : Terminal work (initialKeys work) w.matching w.events w.failures
+    : Terminal work (initialRefs work) w.matching w.events w.failures
       ↔ NodeAccounting work w :=
   ⟨
     And.right,

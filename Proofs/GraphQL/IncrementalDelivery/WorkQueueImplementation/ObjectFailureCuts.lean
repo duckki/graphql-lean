@@ -265,7 +265,7 @@ theorem sourceObjectFailureCuts_contributions {work : Execution.Work}
                 ∈ failedBefore (sourceObjectFailureCuts offset blocks) (offset + index)
               ∧ ∃ owners producer path,
                   TaskAt work occurrence owners producer (.object path (.error count))
-                  ∧ group.key ∈ owners := by
+                  ∧ group.ref ∈ owners := by
   obtain ⟨before, block, after, localIndex, same, position, atLocal⟩ :=
     sourceOutputBlocks_at atEvent
   subst blocks
@@ -300,7 +300,7 @@ theorem sourceObjectFailureCuts_covers {work : Execution.Work}
         (cut, occurrence) ∈ sourceObjectFailureCuts offset blocks
         ∧ cut ≤ offset + index
         ∧ TaskAt work occurrence owners producer (.object path (.error count))
-        ∧ group.key ∈ owners := by
+        ∧ group.ref ∈ owners := by
   obtain ⟨parts, nonempty, _, _, contributions⟩ :=
     sourceObjectFailureCuts_contributions totals offset atEvent
   obtain ⟨⟨occurrence, count⟩, member⟩ := List.exists_mem_of_ne_nil parts nonempty
@@ -339,7 +339,7 @@ theorem createWorkQueue_sourceObjectFailureCuts_contributions {work : Execution.
             → occurrence ∈ failedBefore (sourceObjectFailureCuts 0 blocks) index
               ∧ ∃ owners producer path,
                   TaskAt work occurrence owners producer (.object path (.error count))
-                  ∧ group.key ∈ owners := by
+                  ∧ group.ref ∈ owners := by
   dsimp only
   simpa only [Nat.zero_add]
     using sourceObjectFailureCuts_contributions
@@ -368,7 +368,7 @@ theorem createWorkQueue_sourceObjectFailureCuts_nodeErrorsInventory
       ∃ failed : List Occurrence,
         failed ≠ []
         ∧ failed.Nodup
-        ∧ NodeErrors work failed group.key errors
+        ∧ NodeErrors work failed group.ref errors
         ∧ failed.Subset (failedBefore (sourceObjectFailureCuts 0 blocks) index) := by
   obtain ⟨parts, nonempty, unique, sum, sources⟩ :=
     createWorkQueue_sourceObjectFailureCuts_contributions generated valid atEvent
@@ -404,7 +404,7 @@ theorem createWorkQueue_sourceObjectFailureCuts_covers {work : Execution.Work}
         (cut, occurrence) ∈ sourceObjectFailureCuts 0 blocks
         ∧ cut ≤ index
         ∧ TaskAt work occurrence owners producer (.object path (.error count))
-        ∧ group.key ∈ owners := by
+        ∧ group.ref ∈ owners := by
   dsimp only
   simpa only [Nat.zero_add]
     using sourceObjectFailureCuts_covers
@@ -433,7 +433,7 @@ theorem createWorkQueue_sourceObjectFailureCuts_nodeFailed {work : Execution.Wor
       let blocks := (queue.sourceRunBlocks publisher batches).2.2
       NodeFailed work matching
         (((queue.runNormalized batches).2.flatten.flatMap publicationAtoms).take index)
-        (sourceObjectFailureCuts 0 blocks) group.key := by
+        (sourceObjectFailureCuts 0 blocks) group.ref := by
   obtain ⟨cut, occurrence, count, owners, producer, path, member, visible, known, owner⟩ :=
     createWorkQueue_sourceObjectFailureCuts_covers generated valid atEvent
   apply NodeFailed.task known owner

@@ -1,6 +1,6 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.GroupClosureAccounting
 
-/-! Concrete group notices cannot reintroduce keys closed earlier in the output. -/
+/-! Concrete group notices cannot reintroduce refs closed earlier in the output. -/
 
 namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.Execution (
@@ -11,60 +11,60 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 -- Output-local freshness, composed using permanent concrete retirement
 -----------------------------------------------------------------------------------------
 
-/-- Group notices avoid `retired` keys and every closure at or before their carrier.
+/-- Group notices avoid `retired` refs and every closure at or before their carrier.
 The predicate tracks outputs only; `retired` is supplied by concrete queue bookkeeping.
 -/
 def GroupNoticesFresh (retired : Nat → Prop) : List WorkQueueEvent → Prop
   | [] => True
   | event :: rest =>
-      (∀ key ∈ rawGroupNoticeKeys event, ¬retired key ∧ key ∉ rawGroupClosureKeys event)
-      ∧ GroupNoticesFresh (fun key => retired key ∨ key ∈ rawGroupClosureKeys event) rest
+      (∀ ref ∈ rawGroupNoticeRefs event, ¬retired ref ∧ ref ∉ rawGroupClosureRefs event)
+      ∧ GroupNoticesFresh (fun ref => retired ref ∨ ref ∈ rawGroupClosureRefs event) rest
 
-/-- Freshness against more excluded keys implies freshness against fewer keys.
+/-- Freshness against more excluded refs implies freshness against fewer refs.
 Witness: list induction transports the old exclusion and retains each new closure.
 -/
 theorem GroupNoticesFresh.mono {first second : Nat → Prop} {events}
-    (fresh : GroupNoticesFresh first events) (included : ∀ key, second key → first key)
+    (fresh : GroupNoticesFresh first events) (included : ∀ ref, second ref → first ref)
     : GroupNoticesFresh second events := by
   induction events generalizing first second with
   | nil => trivial
   | cons event rest ih =>
-      exact ⟨fun key member => ⟨fun old => (fresh.1 key member).1 (included key old),
-        (fresh.1 key member).2⟩,
-        ih fresh.2 (fun key => Or.imp (included key) id)⟩
+      exact ⟨fun ref member => ⟨fun old => (fresh.1 ref member).1 (included ref old),
+        (fresh.1 ref member).2⟩,
+        ih fresh.2 (fun ref => Or.imp (included ref) id)⟩
 
 /-- Two fresh segments compose when the second excludes the first segment's closures.
-Witness: list induction reassociates the accumulated closure-key disjunction.
+Witness: list induction reassociates the accumulated closure-ref disjunction.
 -/
 theorem GroupNoticesFresh.append {retired : Nat → Prop} {first second}
     (left : GroupNoticesFresh retired first)
     (right
       : GroupNoticesFresh
-          (fun key => retired key ∨ key ∈ first.flatMap rawGroupClosureKeys) second)
+          (fun ref => retired ref ∨ ref ∈ first.flatMap rawGroupClosureRefs) second)
     : GroupNoticesFresh retired (first ++ second) := by
   induction first generalizing retired with
   | nil => exact right.mono (fun _ old => .inl old)
   | cons event rest ih =>
       refine ⟨left.1, ih left.2 (right.mono ?_)⟩
-      intro key old
+      intro ref old
       simpa only [List.flatMap_cons, List.mem_append, or_assoc] using old
 
 /-- Concrete retirement makes a later fresh segment exclude every earlier closure.
-Witness: previous closures retire their keys, and the transition retains old retirements.
+Witness: previous closures retire their refs, and the transition retains old retirements.
 -/
 theorem GroupNoticesFresh.then {before first second}
     (left : GroupNoticesFresh before.RetiredGroup first.2)
     (accounted : GroupClosureAccounting before first)
     (right : GroupNoticesFresh first.1.RetiredGroup second)
     : GroupNoticesFresh before.RetiredGroup (first.2 ++ second) := by
-  exact left.append (right.mono (fun key old => old.elim
-    (accounted.preserves key) (accounted.closed key)))
+  exact left.append (right.mono (fun ref old => old.elim
+    (accounted.preserves ref) (accounted.closed ref)))
 
 /-- A segment without group notices is fresh for every prior exclusion set.
 Witness: each recursive notice check has an empty domain, irrespective of closures.
 -/
 theorem GroupNoticesFresh.of_noNotices {retired : Nat → Prop} {events}
-    (empty : ∀ event ∈ events, rawGroupNoticeKeys event = [])
+    (empty : ∀ event ∈ events, rawGroupNoticeRefs event = [])
     : GroupNoticesFresh retired events := by
   induction events generalizing retired with
   | nil => trivial
@@ -79,16 +79,16 @@ theorem GroupNoticesFresh.of_noNotices {retired : Nat → Prop} {events}
 -----------------------------------------------------------------------------------------
 
 /-- Pruning never returns a descriptor for a previously retired group.
-Witness: the traversal skips absent keys; retained descriptors have a successful lookup,
-and filtering empty shells preserves retirement. No tree or unique-key premise is needed.
+Witness: the traversal skips absent refs; retained descriptors have a successful lookup,
+and filtering empty shells preserves retirement. No tree or unique-ref premise is needed.
 -/
-theorem State.RetiredGroup.pruneEmptyGroups_not_announced {queue : State} {key}
-    (retired : queue.RetiredGroup key) (groups : List Execution.DeliveryNode)
-    : key ∉ (queue.pruneEmptyGroups groups).2.map Execution.DeliveryNode.key := by
+theorem State.RetiredGroup.pruneEmptyGroups_not_announced {queue : State} {ref}
+    (retired : queue.RetiredGroup ref) (groups : List Execution.DeliveryNode)
+    : ref ∉ (queue.pruneEmptyGroups groups).2.map Execution.DeliveryNode.ref := by
   have loop (fuel : Nat) (current : State) (remaining kept : List Execution.DeliveryNode)
-      (old : current.RetiredGroup key) (absent : key ∉ kept.map Execution.DeliveryNode.key)
-      : key ∉ (State.pruneEmptyGroups.go fuel current remaining kept).2.map
-          Execution.DeliveryNode.key := by
+      (old : current.RetiredGroup ref) (absent : ref ∉ kept.map Execution.DeliveryNode.ref)
+      : ref ∉ (State.pruneEmptyGroups.go fuel current remaining kept).2.map
+          Execution.DeliveryNode.ref := by
     induction fuel generalizing current remaining kept with
     | zero => exact absent
     | succ fuel ih =>
@@ -99,7 +99,7 @@ theorem State.RetiredGroup.pruneEmptyGroups_not_announced {queue : State} {key}
             split
             · exact ih _ _ _ old absent
             · rename_i node found
-              have different : key ≠ group.key := by
+              have different : ref ≠ group.ref := by
                 intro same
                 have impossible := same ▸ old.lookup_none
                 rw [found] at impossible
@@ -113,68 +113,68 @@ theorem State.RetiredGroup.pruneEmptyGroups_not_announced {queue : State} {key}
               · exact ih _ _ _ old (by simpa using And.intro absent different)
   exact loop _ queue groups [] retired (by simp)
 
-/-- Successful release announces no previously retired group and never its closing key.
-Witness: task flushing preserves keys, own-group filtering removes the closing key, and
+/-- Successful release announces no previously retired group and never its closing ref.
+Witness: task flushing preserves refs, own-group filtering removes the closing ref, and
 pruning cannot reintroduce either kind of retired node.
 -/
 theorem State.finishGroupSuccess_groupNoticesFresh (queue : State) (node : GroupNode)
-    (registered : node.group.node.key ∈ queue.registeredGroups)
+    (registered : node.group.node.ref ∈ queue.registeredGroups)
     : GroupNoticesFresh queue.RetiredGroup (queue.finishGroupSuccess node).2.1 := by
   let flushed := (node.tasks.foldl flushGroupTask (queue, [], [])).1
-  have keys : flushed.groupNodes.map (fun entry => entry.group.node.key)
-      = queue.groupNodes.map (fun entry => entry.group.node.key) := by
-    apply fold_projection (fun acc : State × List ExecutionGroupValue × Keys =>
-      acc.1.groupNodes.map (fun entry => entry.group.node.key)) flushGroupTask
+  have refs : flushed.groupNodes.map (fun entry => entry.group.node.ref)
+      = queue.groupNodes.map (fun entry => entry.group.node.ref) := by
+    apply fold_projection (fun acc : State × List ExecutionGroupValue × NodeRefs =>
+      acc.1.groupNodes.map (fun entry => entry.group.node.ref)) flushGroupTask
     intro acc occurrence
     unfold flushGroupTask
     split <;> simp [State.removeTask, List.map_map, Function.comp_def]
   have registrations : flushed.registeredGroups = queue.registeredGroups := by
-    apply fold_projection (fun acc : State × List ExecutionGroupValue × Keys =>
+    apply fold_projection (fun acc : State × List ExecutionGroupValue × NodeRefs =>
       acc.1.registeredGroups) flushGroupTask
     intro acc occurrence
     unfold flushGroupTask
     split <;> rfl
   let current : State := { flushed with
     groupNodes := flushed.groupNodes.filter
-      (fun entry => entry.group.node.key != node.group.node.key)
-    rootGroups := flushed.rootGroups.filter (· != node.group.node.key) }
-  have oldRetired key (old : queue.RetiredGroup key) : current.RetiredGroup key := by
+      (fun entry => entry.group.node.ref != node.group.node.ref)
+    rootGroups := flushed.rootGroups.filter (· != node.group.node.ref) }
+  have oldRetired ref (old : queue.RetiredGroup ref) : current.RetiredGroup ref := by
     refine ⟨registrations.symm ▸ old.1, ?_⟩
     intro member
     obtain ⟨entry, kept, same⟩ := List.mem_map.mp member
-    exact old.2 (keys ▸ List.mem_map.mpr ⟨entry, (List.mem_filter.mp kept).1, same⟩)
-  have ownRetired : current.RetiredGroup node.group.node.key := by
+    exact old.2 (refs ▸ List.mem_map.mpr ⟨entry, (List.mem_filter.mp kept).1, same⟩)
+  have ownRetired : current.RetiredGroup node.group.node.ref := by
     refine ⟨registrations.symm ▸ registered, ?_⟩
     rintro member
     obtain ⟨entry, kept, same⟩ := List.mem_map.mp member
     have different := (List.mem_filter.mp kept).2
     simp [same] at different
   let children := node.childGroups.filterMap
-    (fun key => (current.groupNode? key).map (fun child => child.group.node))
-  have newKeys key (member : key ∈ (current.pruneEmptyGroups children).2.map
-      Execution.DeliveryNode.key)
-      : ¬queue.RetiredGroup key ∧ key ≠ node.group.node.key := by
-    exact ⟨fun old => (oldRetired key old).pruneEmptyGroups_not_announced children member,
+    (fun ref => (current.groupNode? ref).map (fun child => child.group.node))
+  have newRefs ref (member : ref ∈ (current.pruneEmptyGroups children).2.map
+      Execution.DeliveryNode.ref)
+      : ¬queue.RetiredGroup ref ∧ ref ≠ node.group.node.ref := by
+    exact ⟨fun old => (oldRetired ref old).pruneEmptyGroups_not_announced children member,
       fun same => ownRetired.pruneEmptyGroups_not_announced children (same ▸ member)⟩
   change GroupNoticesFresh queue.RetiredGroup
     ((if _ then [] else [.groupValues _ _]) ++ [.groupSuccess _ _ _])
   split
-  · exact ⟨fun key member => by
-      simpa only [rawGroupClosureKeys, List.mem_singleton] using newKeys key member,
+  · exact ⟨fun ref member => by
+      simpa only [rawGroupClosureRefs, List.mem_singleton] using newRefs ref member,
       trivial⟩
-  · refine ⟨by simp [rawGroupNoticeKeys], ?_⟩
-    exact ⟨fun key member => ⟨fun old => (newKeys key member).1
-      (old.elim id (by simp [rawGroupClosureKeys])), by
-        simpa only [rawGroupClosureKeys, List.mem_singleton] using
-          (newKeys key member).2⟩, trivial⟩
+  · refine ⟨by simp [rawGroupNoticeRefs], ?_⟩
+    exact ⟨fun ref member => ⟨fun old => (newRefs ref member).1
+      (old.elim id (by simp [rawGroupClosureRefs])), by
+        simpa only [rawGroupClosureRefs, List.mem_singleton] using
+          (newRefs ref member).2⟩, trivial⟩
 
 -----------------------------------------------------------------------------------------
 -- Handler folds retain every earlier closure before emitting new notices
 -----------------------------------------------------------------------------------------
 
-/-- Recursive draining never announces an already closed group, including same-carrier keys.
+/-- Recursive draining never announces an already closed group, including same-carrier refs.
 Witness: each successful flush has fresh notices; its permanent closure certificate
-excludes that key from every later recursive release. Failed closures announce nothing.
+excludes that ref from every later recursive release. Failed closures announce nothing.
 -/
 theorem State.drainReadyGroups_groupNoticesFresh {queue : State}
     (live : queue.LiveGroupsRegistered) (tasks : queue.TaskGroupsRegistered)
@@ -191,8 +191,8 @@ theorem State.drainReadyGroups_groupNoticesFresh {queue : State}
         · trivial
         · rename_i node selected
           have member : node ∈ current.groupNodes := by
-            obtain ⟨key, _, choice⟩ := List.exists_of_findSome?_eq_some selected
-            cases found : current.groupNode? key with
+            obtain ⟨ref, _, choice⟩ := List.exists_of_findSome?_eq_some selected
+            cases found : current.groupNode? ref with
             | none => simp [found] at choice
             | some candidate =>
                 simp only [found] at choice
@@ -213,7 +213,7 @@ theorem State.drainReadyGroups_groupNoticesFresh {queue : State}
           | some errors =>
               have fresh : GroupNoticesFresh current.RetiredGroup
                   [(current.finishGroupFailure node errors).2] := by
-                exact ⟨by simp [State.finishGroupFailure, rawGroupNoticeKeys], trivial⟩
+                exact ⟨by simp [State.finishGroupFailure, rawGroupNoticeRefs], trivial⟩
               exact fresh.then
                 (State.finishGroupFailure_closureAccounting live node member errors)
                 (ih _ (fun other kept => live other (List.mem_filter.mp kept).1) tasks)
@@ -271,7 +271,7 @@ theorem State.taskSuccess_groupNoticesFresh {queue : State} {work : Execution.Wo
           matching.childTasksCovered (some occurrence)
         have start : GroupClosureAccounting queue
             ((stored.maybeIntegrateWork result.work (some occurrence)).1, []) :=
-          GroupClosureAccounting.silent (fun key retired =>
+          GroupClosureAccounting.silent (fun ref retired =>
             State.RetiredGroup.maybeIntegrateWork (queue := stored) retired _ _)
         obtain ⟨finalLive, finalTasks, closures, fresh⟩ := loop node.task.groups (_, [], {})
           registered.1 registered.2.1 start trivial
@@ -300,27 +300,27 @@ theorem State.streamItems_groupNoticesFresh {queue : State} {work : Execution.Wo
       (acc : State × List Execution.DeliveryNode
         × List Execution.DeliveryNode × List StreamItemValue)
       (live : acc.1.LiveGroupsRegistered) (tasks : acc.1.TaskGroupsRegistered)
-      (retains : ∀ key, queue.RetiredGroup key → acc.1.RetiredGroup key)
-      (fresh : ∀ key ∈ acc.2.1.map Execution.DeliveryNode.key, ¬queue.RetiredGroup key)
+      (retains : ∀ ref, queue.RetiredGroup ref → acc.1.RetiredGroup ref)
+      (fresh : ∀ ref ∈ acc.2.1.map Execution.DeliveryNode.ref, ¬queue.RetiredGroup ref)
       : let final := more.foldl step acc
         final.1.LiveGroupsRegistered ∧ final.1.TaskGroupsRegistered
-        ∧ (∀ key, queue.RetiredGroup key → final.1.RetiredGroup key)
-        ∧ ∀ key ∈ final.2.1.map Execution.DeliveryNode.key, ¬queue.RetiredGroup key := by
+        ∧ (∀ ref, queue.RetiredGroup ref → final.1.RetiredGroup ref)
+        ∧ ∀ ref ∈ final.2.1.map Execution.DeliveryNode.ref, ¬queue.RetiredGroup ref := by
     induction more generalizing acc with
     | nil => exact ⟨live, tasks, retains, fresh⟩
     | cons item rest ih =>
         have registered := State.integrateStreamItem_registration live tasks matching
           (included List.mem_cons_self)
         refine ih (fun _ member => included (List.mem_cons_of_mem _ member)) _
-          registered.1 registered.2.1 (fun key old =>
-            (((retains key old).maybeIntegrateWork item.work).pruneEmptyGroups _).startNewWork _)
+          registered.1 registered.2.1 (fun ref old =>
+            (((retains ref old).maybeIntegrateWork item.work).pruneEmptyGroups _).startNewWork _)
           ?_
-        intro key member old
-        change key ∈ (acc.2.1 ++ _).map Execution.DeliveryNode.key at member
+        intro ref member old
+        change ref ∈ (acc.2.1 ++ _).map Execution.DeliveryNode.ref at member
         rw [List.map_append] at member
         rcases List.mem_append.mp member with earlier | added
-        · exact fresh key earlier old
-        · exact ((retains key old).maybeIntegrateWork item.work).pruneEmptyGroups_not_announced
+        · exact fresh ref earlier old
+        · exact ((retains ref old).maybeIntegrateWork item.work).pruneEmptyGroups_not_announced
             _ added
   unfold State.streamItems
   split
@@ -330,11 +330,11 @@ theorem State.streamItems_groupNoticesFresh {queue : State} {work : Execution.Wo
       (queue, [], [], []) live tasks (fun _ retired => retired) (by simp)
     have carrier : GroupClosureAccounting queue
         (final.1, [.streamValues stream final.2.2.2 final.2.1 final.2.2.1]) :=
-      ⟨by simp [rawGroupClosureKeys], by simp [rawGroupClosureKeys], retains,
-        by simp [rawGroupClosureKeys]⟩
+      ⟨by simp [rawGroupClosureRefs], by simp [rawGroupClosureRefs], retains,
+        by simp [rawGroupClosureRefs]⟩
     have notices : GroupNoticesFresh queue.RetiredGroup
         [.streamValues stream final.2.2.2 final.2.1 final.2.2.1] :=
-      ⟨fun key member => ⟨fresh key member, by simp [rawGroupClosureKeys]⟩, trivial⟩
+      ⟨fun ref member => ⟨fresh ref member, by simp [rawGroupClosureRefs]⟩, trivial⟩
     exact notices.then carrier (State.drainReadyGroups_groupNoticesFresh finalLive finalTasks)
 
 /-- Task failures cannot reannounce a group because they emit only failure completions.
@@ -350,8 +350,8 @@ theorem State.taskFailure_groupNoticesFresh (queue : State) (occurrence : Occurr
       exact False.elim (queue.taskFailure_noGroupSuccess occurrence errors group groups streams
         member)
   | streamValues stream values groups streams =>
-      have impossible : stream.key ∈
-          (queue.taskFailure occurrence errors).2.flatMap rawStreamReferenceKeys :=
+      have impossible : stream.ref ∈
+          (queue.taskFailure occurrence errors).2.flatMap rawStreamReferenceRefs :=
         List.mem_flatMap.mpr ⟨_, member, List.mem_cons_self⟩
       rw [State.taskFailure_streamReferences] at impossible
       cases impossible
@@ -372,16 +372,16 @@ theorem State.handleGraphEvent_groupNoticesFresh {queue : State} {work : Executi
   | streamItems => exact State.streamItems_groupNoticesFresh live tasks matching
   | streamSuccess stream =>
       simp only [State.handleGraphEvent, State.streamSuccess]
-      split <;> simp [GroupNoticesFresh, rawGroupNoticeKeys]
+      split <;> simp [GroupNoticesFresh, rawGroupNoticeRefs]
   | streamFailure stream errors =>
       simp only [State.handleGraphEvent, State.streamFailure]
-      split <;> simp [GroupNoticesFresh, rawGroupNoticeKeys]
+      split <;> simp [GroupNoticesFresh, rawGroupNoticeRefs]
 
 -----------------------------------------------------------------------------------------
 -- Actual replay excludes reannouncement, independently of source timing or ownership
 -----------------------------------------------------------------------------------------
 
-/-- Raw replay never announces a group at or after a closure of the same key.
+/-- Raw replay never announces a group at or after a closure of the same ref.
 Witness: actual registration coverage and permanent closure accounting compose each
 handler's local freshness. Settlements need only match the supplied finite work.
 -/
@@ -401,7 +401,7 @@ theorem State.rawEventReplay_groupNoticesFresh {queue : State} {work : Execution
 
 /-- Initial concrete replay has no group reannouncement after completion.
 Witness: lowering supplies registry coverage, and valid source events supply matching.
-No generated-key, start-discipline, or already-admitted-output premise is required.
+No generated-ref, start-discipline, or already-admitted-output premise is required.
 -/
 theorem createWorkQueue_rawEventReplay_groupNoticesFresh {work events}
     (valid : ValidGraphEvents work events)
@@ -412,21 +412,21 @@ theorem createWorkQueue_rawEventReplay_groupNoticesFresh {work events}
     (fun _ member => valid.event_matches member)
 
 /-- Freshness yields no previous or same-event group closure at an indexed notice carrier.
-Witness: list induction retains exactly the keys closed by the strict output prefix.
+Witness: list induction retains exactly the refs closed by the strict output prefix.
 -/
 theorem GroupNoticesFresh.atEvent {retired : Nat → Prop} {events index event}
     (fresh : GroupNoticesFresh retired events) (selected : events[index]? = some event)
-    {key} (notice : key ∈ rawGroupNoticeKeys event)
-    : ¬retired key
-      ∧ key ∉ (events.take index).flatMap rawGroupClosureKeys
-      ∧ key ∉ rawGroupClosureKeys event := by
+    {ref} (notice : ref ∈ rawGroupNoticeRefs event)
+    : ¬retired ref
+      ∧ ref ∉ (events.take index).flatMap rawGroupClosureRefs
+      ∧ ref ∉ rawGroupClosureRefs event := by
   induction events generalizing retired index with
   | nil => simp at selected
   | cons head rest ih =>
       cases index with
       | zero =>
           cases Option.some.inj selected
-          exact ⟨(fresh.1 key notice).1, by simp, (fresh.1 key notice).2⟩
+          exact ⟨(fresh.1 ref notice).1, by simp, (fresh.1 ref notice).2⟩
       | succ index =>
           obtain ⟨old, earlier, current⟩ := ih fresh.2 selected
           exact ⟨

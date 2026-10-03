@@ -11,10 +11,10 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 -----------------------------------------------------------------------------------------
 
 /-- Proof notation for the actual task iteration in `finishGroupSuccess`.
-The accumulator holds the queue, emitted object values, and released stream keys. -/
-def flushGroupTask (acc : State × List ExecutionGroupValue × Keys)
+The accumulator holds the queue, emitted object values, and released stream refs. -/
+def flushGroupTask (acc : State × List ExecutionGroupValue × NodeRefs)
     (occurrence : Occurrence)
-    : State × List ExecutionGroupValue × Keys :=
+    : State × List ExecutionGroupValue × NodeRefs :=
   match acc.1.taskNode? occurrence with
   | none => acc
   | some node =>
@@ -82,7 +82,7 @@ Other removals preserve the first-match lookup, so no initially findable member 
 The selected nodes explain the exact value and child-stream accumulators.
 -/
 theorem flushGroupTask_completeWitness (queue : State) (tasks : List Occurrence)
-    (values : List ExecutionGroupValue) (streams : Keys)
+    (values : List ExecutionGroupValue) (streams : NodeRefs)
     : ∃ selected : List TaskNode,
         (selected.map (fun node => node.task.occurrence)).Nodup
         ∧ (∀ node ∈ selected, node ∈ queue.taskNodes ∧ node.task.occurrence ∈ tasks)
@@ -192,7 +192,7 @@ theorem flushGroupTask_completeWitness (queue : State) (tasks : List Occurrence)
 Witness: project the complete selection theorem, retaining the established proof interface.
 -/
 theorem flushGroupTask_witness (queue : State) (tasks : List Occurrence)
-    (values : List ExecutionGroupValue) (streams : Keys)
+    (values : List ExecutionGroupValue) (streams : NodeRefs)
     : ∃ selected : List TaskNode,
         (selected.map (fun node => node.task.occurrence)).Nodup
         ∧ (∀ node ∈ selected, node ∈ queue.taskNodes ∧ node.task.occurrence ∈ tasks)
@@ -215,7 +215,7 @@ Witness: each successful iteration removes only its own listed occurrence; faile
 leave the accumulator unchanged. This also covers duplicate raw task-map entries.
 -/
 theorem flushGroupTask_lookup_unselected (queue : State) (tasks : List Occurrence)
-    (values : List ExecutionGroupValue) (streams : Keys) {occurrence : Occurrence}
+    (values : List ExecutionGroupValue) (streams : NodeRefs) {occurrence : Occurrence}
     (unselected : occurrence ∉ tasks)
     : (tasks.foldl flushGroupTask (queue, values, streams)).1.taskNode? occurrence
       = queue.taskNode? occurrence := by
@@ -256,7 +256,7 @@ theorem State.pruneEmptyGroups_taskNodes (queue : State)
 
 /-- A flush's values and released streams share one complete, occurrence-unique selection.
 Witness: the executable fold's two accumulators and task-map-preserving pruning. Each
-released stream is looked up by a child key belonging to one of these selected nodes.
+released stream is looked up by a child ref belonging to one of these selected nodes.
 Every initially findable group membership is selected, including repeated memberships.
 Selected occurrences retain their order in the group's membership list.
 -/
@@ -277,7 +277,7 @@ theorem State.finishGroupSuccess_completeSelection (queue : State) (group : Grou
             ∀ retained ∈ (queue.finishGroupSuccess group).1.taskNodes,
               retained.task.occurrence ≠ node.task.occurrence)
         ∧ (∀ stream ∈ (queue.finishGroupSuccess group).2.2.newStreams,
-            ∃ node ∈ selected, stream.key ∈ node.childStreams)
+            ∃ node ∈ selected, stream.ref ∈ node.childStreams)
         ∧ (∀ occurrence ∈ group.tasks,
             ∀ node, queue.taskNode? occurrence = some node → node ∈ selected)
         ∧ (selected.map (fun node => node.task.occurrence)).Sublist group.tasks := by
@@ -287,8 +287,8 @@ theorem State.finishGroupSuccess_completeSelection (queue : State) (group : Grou
   let current : State :=
     { flushed.1 with
       groupNodes := flushed.1.groupNodes.filter
-        (fun node => node.group.node.key != group.group.node.key)
-      rootGroups := flushed.1.rootGroups.filter (· != group.group.node.key) }
+        (fun node => node.group.node.ref != group.group.node.ref)
+      rootGroups := flushed.1.rootGroups.filter (· != group.group.node.ref) }
   have taskNodes : (queue.finishGroupSuccess group).1.taskNodes = flushed.1.taskNodes :=
     State.pruneEmptyGroups_taskNodes current _
   refine ⟨selected, unique, known, ?_, ?_, ?_, ?_, covered, ordered⟩
@@ -304,19 +304,19 @@ theorem State.finishGroupSuccess_completeSelection (queue : State) (group : Grou
   · intro stream released
     have exactStreams : flushed.2.2 = selected.flatMap TaskNode.childStreams := streams
     change stream ∈ flushed.2.2.filterMap
-      (fun key => ((queue.finishGroupSuccess group).1.stream? key).map Stream.node) at released
+      (fun ref => ((queue.finishGroupSuccess group).1.stream? ref).map Stream.node) at released
     rw [exactStreams] at released
-    obtain ⟨key, child, lookup⟩ := List.mem_filterMap.mp released
+    obtain ⟨ref, child, lookup⟩ := List.mem_filterMap.mp released
     obtain ⟨node, member, linked⟩ := List.mem_flatMap.mp child
-    cases found : (queue.finishGroupSuccess group).1.stream? key with
+    cases found : (queue.finishGroupSuccess group).1.stream? ref with
     | none => simp [found] at lookup
     | some registered =>
         have same : registered.node = stream := by simpa [found] using lookup
-        have sameKey : stream.key = key := by
+        have sameRef : stream.ref = ref := by
           rw [← same]
           exact beq_iff_eq.mp
-            (List.find?_some (p := fun entry : Stream => entry.node.key == key) found)
-        exact ⟨node, member, sameKey ▸ linked⟩
+            (List.find?_some (p := fun entry : Stream => entry.node.ref == ref) found)
+        exact ⟨node, member, sameRef ▸ linked⟩
 
 /-- A flush's values and released streams share one occurrence-unique node selection.
 Witness: project the complete selection while preserving the established release interface.
@@ -338,7 +338,7 @@ theorem State.finishGroupSuccess_selection (queue : State) (group : GroupNode)
             ∀ retained ∈ (queue.finishGroupSuccess group).1.taskNodes,
               retained.task.occurrence ≠ node.task.occurrence)
         ∧ (∀ stream ∈ (queue.finishGroupSuccess group).2.2.newStreams,
-            ∃ node ∈ selected, stream.key ∈ node.childStreams) := by
+            ∃ node ∈ selected, stream.ref ∈ node.childStreams) := by
   obtain ⟨selected, unique, known, events, retained, absent, streams, _⟩ :=
     queue.finishGroupSuccess_completeSelection group
   exact ⟨selected, unique, known, events, retained, absent, streams⟩
@@ -403,8 +403,8 @@ theorem State.finishGroupSuccess_lookup_unselected (queue : State) (group : Grou
   let current : State :=
     { flushed.1 with
       groupNodes := flushed.1.groupNodes.filter
-        (fun node => node.group.node.key != group.group.node.key)
-      rootGroups := flushed.1.rootGroups.filter (· != group.group.node.key) }
+        (fun node => node.group.node.ref != group.group.node.ref)
+      rootGroups := flushed.1.rootGroups.filter (· != group.group.node.ref) }
   have taskNodes : (queue.finishGroupSuccess group).1.taskNodes = flushed.1.taskNodes :=
     State.pruneEmptyGroups_taskNodes current _
   change (queue.finishGroupSuccess group).1.taskNodes.find? _ = _

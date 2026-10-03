@@ -13,7 +13,7 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
 /-- All stream-value atoms satisfy admission, including both kinds of carried child notice.
 Witness: stream readiness supplies the value/owner clauses; actual notice contents and
-freshness supply full eligibility, and the combined carrier list has unique keys.
+freshness supply full eligibility, and the combined carrier list has unique refs.
 Every premise is an already constructed certificate on the same matching and failure cuts.
 -/
 theorem streamValueAllowed_of_certificates
@@ -44,10 +44,10 @@ theorem streamValueAllowed_of_certificates
                 (queue.eligibleFailureBlocks
                   (queue.sourceRunBlocks publisher inputs).2.2)))
     (selected : w.events[index]? = some (.streamValues owner values groups streams))
-    : EventAllowed work (initialKeys work) w.matching (w.events.take index) w.failures
+    : EventAllowed work (initialRefs work) w.matching (w.events.take index) w.failures
         (.streamValues owner values groups streams) := by
   apply (streamValueAllowed_iff_announcements ready selected).mpr
-  refine ⟨itemNoticeKeys_nodup generated valid started history selected, ?_, ?_⟩
+  refine ⟨itemNoticeRefs_nodup generated valid started history selected, ?_, ?_⟩
   · intro child noticed
     have contents := itemGroupNotice_contents generated valid started history ledger
       objects ready partition selected noticed

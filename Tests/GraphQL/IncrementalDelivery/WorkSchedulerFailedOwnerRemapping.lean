@@ -87,22 +87,22 @@ theorem generated : ExecutedWork work := by
 
 private theorem shared_known
     : TaskAt work sharedTask
-        [successRoot.key, shallow.key, deep.key] none
+        [successRoot.ref, shallow.ref, deep.ref] none
         (.object sharedValue.path (.ok (sharedValue.data, 0))) :=
   ⟨_, _, _, emptyChildren, [], by cbv, rfl, rfl⟩
 
 private theorem failed_known
-    : TaskAt work failedTask [failureRoot.key, deep.key] none
+    : TaskAt work failedTask [failureRoot.ref, deep.ref] none
         (.object [.field "user"] (.error 1)) :=
   ⟨_, _, _, .empty, [], by cbv, rfl, rfl⟩
 
 private theorem blocker_known
-    : TaskAt work blockerTask [successRoot.key] none
+    : TaskAt work blockerTask [successRoot.ref] none
         (.object [] (.ok ([("a", .scalar "a")], 0))) :=
   ⟨_, _, _, emptyChildren, [], by cbv, rfl, rfl⟩
 
 private theorem parent_known
-    : TaskAt work parentTask [parent.key] none (.object [] (.ok (parentValue.data, 0))) :=
+    : TaskAt work parentTask [parent.ref] none (.object [] (.ok (parentValue.data, 0))) :=
   ⟨_, _, _, emptyChildren, [], by cbv, rfl, rfl⟩
 
 /-- All three inputs have exact outcomes, fresh identities, and actual requested starts.
@@ -139,12 +139,12 @@ handler emits the shared value under D. These are concrete executable-state chec
 theorem raw_support_and_failed_candidate
     : (((State.initialize (Work.fromExecution work)).replayGraphEvents
           [failed, shared]).groupNode?
-          deep.key).map
+          deep.ref).map
           GroupNode.failure
         = some (some 1)
       ∧ (((State.initialize (Work.fromExecution work)).replayGraphEvents
             [failed, shared]).groupNode?
-          shallow.key).map
+          shallow.ref).map
           (fun node => (node.pending, node.failure))
         = some (0, none)
       ∧ ((State.initialize (Work.fromExecution work)).handleGraphEvents
@@ -169,7 +169,7 @@ private theorem task_cases {occurrence owners producer payload}
     parentTask] using member
 
 private theorem first_count {failures}
-    (counts : NodeErrors work failures failureRoot.key 1)
+    (counts : NodeErrors work failures failureRoot.ref 1)
     : failedTask ∈ failures := by
   apply Classical.byContradiction
   intro absent
@@ -199,9 +199,9 @@ the revised contract; the publication must use a different healthy supporter.
 theorem selected_owner_already_failed (matching : PublicationMatching)
     (failures : FailureCuts)
     (first
-      : EventAllowed work (ConformancePlan.initialKeys work) matching [] failures
+      : EventAllowed work (ConformancePlan.initialRefs work) matching [] failures
           (.groupFailure failureRoot 1))
-    : NodeFailed work matching (outputs.take 3) failures deep.key := by
+    : NodeFailed work matching (outputs.take 3) failures deep.ref := by
   have recorded : failedTask ∈ failedBefore failures 0 := by
     apply first_count
     simpa only [EventAllowed, List.length_nil, failedBefore_filter _ (Nat.le_refl _)]
@@ -215,15 +215,15 @@ theorem selected_owner_already_failed (matching : PublicationMatching)
 
 /-- The actual initial notices satisfy every unchanged initialization premise.
 Witness: S, P, and F are root-generated groups with an unaccounted contributor each;
-their metadata, fresh distinct keys, and empty dependency lists are explicit.
+their metadata, fresh distinct refs, and empty dependency lists are explicit.
 -/
 theorem initialized
     : Initializes work (State.initialize (Work.fromExecution work)).initialGroups
         (State.initialize (Work.fromExecution work)).initialStreams := by
   have eligible {occurrence owners payload node}
-      (known : TaskAt work occurrence owners none payload) (owner : node.key ∈ owners)
+      (known : TaskAt work occurrence owners none payload) (owner : node.ref ∈ owners)
       : CanAnnounce work [] (fun _ => .executionGroup []) [] [] node .group [] none := by
-    refine ⟨by simp [announcedKeys, pendingKeys],
+    refine ⟨by simp [announcedRefs, pendingRefs],
       Or.inl ⟨by simp [NodeFailed], Or.inr ?_⟩, by simp, by simp⟩
     intro accounted
     rcases accounted occurrence owners ⟨_, _, known⟩ owner with cancelled | published
@@ -251,7 +251,7 @@ theorem initialized
 -- An explicit shared witness retains the failure and separates support from the wire ID
 -----------------------------------------------------------------------------------------
 
-private def initial : Keys := [0, 2, 1]
+private def initial : NodeRefs := [0, 2, 1]
 
 private def matching : PublicationMatching :=
   fun index =>
@@ -304,7 +304,7 @@ private theorem parent_node : NodeAt work parent .group [] none :=
     rfl
   ⟩
 
-private theorem shallow_node : NodeAt work shallow .group [parent.key] none :=
+private theorem shallow_node : NodeAt work shallow .group [parent.ref] none :=
   ⟨
     [0, 0, 1, 0],
     _,
@@ -319,7 +319,7 @@ private theorem shallow_node : NodeAt work shallow .group [parent.key] none :=
     rfl
   ⟩
 
-private theorem deep_node : NodeAt work deep .group [parent.key] none :=
+private theorem deep_node : NodeAt work deep .group [parent.ref] none :=
   ⟨
     [0, 0, 1, 0],
     _,
@@ -335,7 +335,7 @@ private theorem deep_node : NodeAt work deep .group [parent.key] none :=
   ⟩
 
 /-- Every candidate descriptor is one of the five actual groups.
-Witness: the structural key inventory and generated full-descriptor coherence.
+Witness: the structural ref inventory and generated full-descriptor coherence.
 -/
 private theorem node_cases {node kind dependencies producer}
     (known : NodeAt work node kind dependencies producer)
@@ -349,56 +349,56 @@ private theorem node_cases {node kind dependencies producer}
     failureRoot, parent] at token
   rcases token with token | token | token | token | token | token | token
   all_goals first
-    | exact Or.inl (generated.nodeKeyCoherent _ _ _ _ _ _ _ _ known success_node token)
+    | exact Or.inl (generated.nodeRefCoherent _ _ _ _ _ _ _ _ known success_node token)
     | exact Or.inr (Or.inl
-        (generated.nodeKeyCoherent _ _ _ _ _ _ _ _ known shallow_node token))
+        (generated.nodeRefCoherent _ _ _ _ _ _ _ _ known shallow_node token))
     | exact Or.inr (Or.inr (Or.inl
-        (generated.nodeKeyCoherent _ _ _ _ _ _ _ _ known deep_node token)))
+        (generated.nodeRefCoherent _ _ _ _ _ _ _ _ known deep_node token)))
     | exact Or.inr (Or.inr (Or.inr (Or.inl
-        (generated.nodeKeyCoherent _ _ _ _ _ _ _ _ known failure_node token))))
+        (generated.nodeRefCoherent _ _ _ _ _ _ _ _ known failure_node token))))
     | exact Or.inr (Or.inr (Or.inr (Or.inr
-        (generated.nodeKeyCoherent _ _ _ _ _ _ _ _ known parent_node token))))
+        (generated.nodeRefCoherent _ _ _ _ _ _ _ _ known parent_node token))))
 
 /-- The single shared failure cannot invalidate a different root-supported group.
 Witness: generated root causality reduces failure to that contributor or a failed ancestor.
 -/
 private theorem healthy_of_dependencies {node dependencies} (events : List WorkQueueEvent)
     (known : NodeAt work node .group dependencies none)
-    (other : node.key ∉ [failureRoot.key, deep.key])
-    (ancestors : ∀ key ∈ dependencies, ¬NodeFailed work matching events failures key)
-    : ¬NodeFailed work matching events failures node.key := by
+    (other : node.ref ∉ [failureRoot.ref, deep.ref])
+    (ancestors : ∀ ref ∈ dependencies, ¬NodeFailed work matching events failures ref)
+    : ¬NodeFailed work matching events failures node.ref := by
   intro failed
   rcases generated.groupFailure_withRootProducer known failed with direct | ancestor
   · obtain ⟨occurrence, owners, ⟨producer, payload, task⟩, owner, recorded⟩ := direct
     have same : occurrence = failedTask := by simpa [failedBefore, failures] using recorded
     subst occurrence
     exact other ((task.unique failed_known).1 ▸ owner)
-  · obtain ⟨key, member, failed⟩ := ancestor
-    exact ancestors key member failed
+  · obtain ⟨ref, member, failed⟩ := ancestor
+    exact ancestors ref member failed
 
 private theorem parent_healthy (events : List WorkQueueEvent)
-    : ¬NodeFailed work matching events failures parent.key :=
+    : ¬NodeFailed work matching events failures parent.ref :=
   healthy_of_dependencies events parent_node (by decide) (by simp)
 
 private theorem shallow_healthy (events : List WorkQueueEvent)
-    : ¬NodeFailed work matching events failures shallow.key := by
+    : ¬NodeFailed work matching events failures shallow.ref := by
   apply healthy_of_dependencies events shallow_node (by decide)
-  intro key member
+  intro ref member
   obtain rfl := List.mem_singleton.mp member
   exact parent_healthy events
 
 /-- A healthy contributor protects a root task from every historical cancellation cut.
 Witness: owner cancellation contradicts that health; producer cases contradict rootness.
 -/
-private theorem root_uncancelled {occurrence owners payload key}
+private theorem root_uncancelled {occurrence owners payload ref}
     (events : List WorkQueueEvent) (known : TaskAt work occurrence owners none payload)
-    (member : key ∈ owners) (healthy : ¬NodeFailed work matching events failures key)
+    (member : ref ∈ owners) (healthy : ¬NodeFailed work matching events failures ref)
     : ¬TaskCancelled work matching events failures occurrence := by
   rintro ⟨cut, recorded, reached, cause⟩
   cases cause with
   | owners task _ _ failed =>
       obtain ⟨producer, result, task⟩ := task
-      exact healthy ⟨cut, recorded, reached, failed key ((known.unique task).1 ▸ member)⟩
+      exact healthy ⟨cut, recorded, reached, failed ref ((known.unique task).1 ▸ member)⟩
   | producerFailed task _ _ | producerCancelled task _ _ =>
       obtain ⟨owners, result, task⟩ := task
       cases (known.unique task).2.1
@@ -445,7 +445,7 @@ private theorem failure_licensed
     failed_known,
     rfl,
     .root ⟨_, _, failed_known⟩,
-    failureRoot.key,
+    failureRoot.ref,
     by simp,
     by decide
   ⟩
@@ -453,9 +453,9 @@ private theorem failure_licensed
 /-- Both F and C report the same accepted error at their respective completion boundaries.
 Witness: a singleton contribution inventory and exact task-owner membership.
 -/
-private theorem failed_errors (events : List WorkQueueEvent) (key : Nat)
-    (owner : key ∈ [failureRoot.key, deep.key])
-    : NodeErrors work (failedBefore failures events.length) key 1 := by
+private theorem failed_errors (events : List WorkQueueEvent) (ref : NodeRef)
+    (owner : ref ∈ [failureRoot.ref, deep.ref])
+    : NodeErrors work (failedBefore failures events.length) ref 1 := by
   refine ⟨fun _ => 1, ?_, by simp [failedBefore, failures]⟩
   intro occurrence member
   have same : occurrence = failedTask := by simpa [failedBefore, failures] using member
@@ -478,7 +478,7 @@ Witness: root readiness, fresh publication, and generated descriptor coherence.
 private theorem parent_value_allowed
     : EventAllowed work initial matching (outputs.take 1) failures
         (.groupValues parent [parentValue]) := by
-  refine ⟨[parent.key], none, parentValue, rfl, parent_known, ?_, ?_⟩
+  refine ⟨[parent.ref], none, parentValue, rfl, parent_known, ?_, ?_⟩
   · refine ⟨
       ?_,
       root_uncancelled _ parent_known (by simp) (parent_healthy _),
@@ -489,12 +489,12 @@ private theorem parent_value_allowed
     cases index with
     | zero => cases selected; cases value
     | succ index => simp [outputs] at selected
-  · have opened : OpenOwner work initial (outputs.take 1) [parent.key] parent :=
+  · have opened : OpenOwner work initial (outputs.take 1) [parent.ref] parent :=
       ⟨⟨.group, [], none, parent_node⟩, by simp, by unfold Open; decide⟩
     refine ⟨opened, ⟨parent, opened, parent_healthy _⟩, ?_⟩
     intro other available
     obtain ⟨kind, dependencies, producer, known⟩ := available.1
-    have same := generated.nodeKeyCoherent _ _ _ _ _ _ _ _ known parent_node
+    have same := generated.nodeRefCoherent _ _ _ _ _ _ _ _ known parent_node
       (List.mem_singleton.mp available.2.1)
     simp [same]
 
@@ -515,26 +515,26 @@ private theorem parent_closure_allowed
       simp [parent, successRoot] at owner
     · exact Or.inr parent_published
   · let before := outputs.take 2 ++ [WorkQueueEvent.groupSuccess parent [] []]
-    have dependency : DependencySatisfied work initial matching before failures parent.key :=
+    have dependency : DependencySatisfied work initial matching before failures parent.ref :=
       ⟨parent_healthy _, Or.inr (Or.inl (by decide))⟩
     refine ⟨by decide, ?_, by simp⟩
     intro node member
     simp only [List.mem_cons, List.not_mem_nil, or_false] at member
     rcases member with rfl | rfl
-    · refine ⟨[parent.key], none, shallow_node, by decide,
+    · refine ⟨[parent.ref], none, shallow_node, by decide,
         Or.inl ⟨shallow_healthy _, Or.inr ?_⟩, by simp, ?_⟩
       · intro accounted
         rcases accounted sharedTask _ ⟨_, _, shared_known⟩ (by simp) with cancelled | published
         · exact root_uncancelled before shared_known (by simp) (shallow_healthy _) cancelled
         · exact shared_unpublished (by decide : before.length ≤ 3) published
-      · intro key member
+      · intro ref member
         obtain rfl := List.mem_singleton.mp member
         exact dependency
-    · refine ⟨[parent.key], none, deep_node, by decide,
+    · refine ⟨[parent.ref], none, deep_node, by decide,
         Or.inr ⟨rfl, ?_⟩, by simp, ?_⟩
       · exact ⟨failedTask, _, by simp [failedBefore, failures],
           ⟨_, _, failed_known⟩, by simp⟩
-      · intro key member
+      · intro ref member
         obtain rfl := List.mem_singleton.mp member
         exact dependency
 
@@ -544,12 +544,12 @@ Witness: the shared root task is fresh and uncancelled; C is open and has maxima
 theorem shared_value_allowed
     : EventAllowed work initial matching (outputs.take 3) failures
         (.groupValues deep [sharedValue]) := by
-  refine ⟨[successRoot.key, shallow.key, deep.key], none, sharedValue,
+  refine ⟨[successRoot.ref, shallow.ref, deep.ref], none, sharedValue,
     rfl, shared_known, ?_, ?_⟩
   · exact ⟨shared_unpublished (by decide),
       root_uncancelled _ shared_known (by simp) (shallow_healthy _), by simp, trivial⟩
-  · refine ⟨⟨⟨.group, [parent.key], none, deep_node⟩, by simp, by unfold Open; decide⟩,
-      ⟨shallow, ⟨⟨.group, [parent.key], none, shallow_node⟩,
+  · refine ⟨⟨⟨.group, [parent.ref], none, deep_node⟩, by simp, by unfold Open; decide⟩,
+      ⟨shallow, ⟨⟨.group, [parent.ref], none, shallow_node⟩,
         by simp, by unfold Open; decide⟩, shallow_healthy _⟩, ?_⟩
     intro other available
     obtain ⟨kind, dependencies, producer, known⟩ := available.1
@@ -562,7 +562,7 @@ private theorem shallow_closure_allowed
     : EventAllowed work initial matching (outputs.take 4) failures
         (.groupSuccess shallow [] []) := by
   refine ⟨
-    ⟨[parent.key], none, shallow_node⟩,
+    ⟨[parent.ref], none, shallow_node⟩,
     by unfold Open; decide,
     shallow_healthy _,
     ?_,
@@ -582,7 +582,7 @@ private theorem deep_failure_allowed
     : EventAllowed work initial matching (outputs.take 5) failures
         (.groupFailure deep 1) := by
   refine ⟨
-    ⟨[parent.key], none, deep_node⟩,
+    ⟨[parent.ref], none, deep_node⟩,
     by unfold Open; decide,
     ?_,
     failed_errors _ _ (by simp)
@@ -634,7 +634,7 @@ Witness: the first completion forces C's failure while D supplies the successful
 healthy support in the same explicit explanation.
 -/
 theorem failed_owner_publication
-    : NodeFailed work matching (outputs.take 3) failures deep.key
+    : NodeFailed work matching (outputs.take 3) failures deep.ref
       ∧ EventAllowed work initial matching (outputs.take 3) failures
           (.groupValues deep [sharedValue]) :=
   ⟨selected_owner_already_failed matching failures failure_allowed, shared_value_allowed⟩
@@ -647,7 +647,7 @@ unchanged generated execution and source history.
 theorem generic_healthy_release
     : ∃ w : ConformancePlan.Witness,
         w.events = outputs
-        ∧ NodeFailed work w.matching (w.events.take 3) w.failures deep.key
+        ∧ NodeFailed work w.matching (w.events.take 3) w.failures deep.ref
         ∧ ∃ origin
               : GroupPublicationOrigin
                   {
@@ -658,14 +658,14 @@ theorem generic_healthy_release
                   ((State.initialize (Work.fromExecution work)).rawEventReplay
                     inputs.flatten).2
                   3 deep [sharedValue],
-            origin.group.key ≠ deep.key
+            origin.group.ref ≠ deep.ref
             ∧ (∃ producer,
                 TaskAt work (w.matching 3)
-                  (origin.value.deliveryGroups.map DeliveryNode.key) producer
+                  (origin.value.deliveryGroups.map DeliveryNode.ref) producer
                   (.object origin.value.path
                     (.ok (origin.value.data, origin.value.errors))))
             ∧ HealthyOpenOwner work initial w.matching (w.events.take 3) w.failures
-                (origin.value.deliveryGroups.map DeliveryNode.key) origin.group := by
+                (origin.value.deliveryGroups.map DeliveryNode.ref) origin.group := by
   obtain ⟨valid, started⟩ := source_valid_started
   obtain ⟨w, history, _, _, _, failuresAllowed, _, _, _, _, ledger, releases⟩ :=
     ConformancePlan.mixed_groupReleaseCertificates generated valid started
@@ -675,10 +675,10 @@ theorem generic_healthy_release
     rw [actual_output]
     simp [outputs, publicationAtoms]
   have firstAllowed := failuresAllowed.1 0 failureRoot 1 (by rw [same]; rfl)
-  have failed : NodeFailed work w.matching (w.events.take 3) w.failures deep.key := by
+  have failed : NodeFailed work w.matching (w.events.take 3) w.failures deep.ref := by
     rw [same]
     exact selected_owner_already_failed w.matching w.failures (by
-      simpa only [same, ConformancePlan.initialKeys, ConformancePlan.initialQueue,
+      simpa only [same, ConformancePlan.initialRefs, ConformancePlan.initialQueue,
         List.take_zero] using firstAllowed)
   obtain ⟨origin, known, available⟩ :=
     releases.matched_available valid started history ledger
@@ -695,7 +695,7 @@ contributors; no custom publication matching or assumed registry invariant is su
 theorem generic_failed_owner_rule
     : ∃ w : ConformancePlan.Witness,
         w.events = outputs
-        ∧ NodeFailed work w.matching (w.events.take 3) w.failures deep.key
+        ∧ NodeFailed work w.matching (w.events.take 3) w.failures deep.ref
         ∧ ∃ owners producer path data errors,
             TaskAt work (w.matching 3) owners producer (.object path (.ok (data, errors)))
             ∧ PublicationOwner work initial w.matching (w.events.take 3) w.failures owners
@@ -709,10 +709,10 @@ theorem generic_failed_owner_rule
     rw [actual_output]
     simp [outputs, publicationAtoms]
   have firstAllowed := failuresAllowed.1 0 failureRoot 1 (by rw [same]; rfl)
-  have failed : NodeFailed work w.matching (w.events.take 3) w.failures deep.key := by
+  have failed : NodeFailed work w.matching (w.events.take 3) w.failures deep.ref := by
     rw [same]
     exact selected_owner_already_failed w.matching w.failures (by
-      simpa only [same, ConformancePlan.initialKeys, ConformancePlan.initialQueue,
+      simpa only [same, ConformancePlan.initialRefs, ConformancePlan.initialQueue,
         List.take_zero] using firstAllowed)
   obtain ⟨owners, producer, value, known, _, owner⟩ :=
     releases.matched_owner generated valid started history ledger
@@ -739,8 +739,8 @@ fixture-specific cancellation argument is supplied to the publication proof.
 theorem generic_failed_owner_admission
     : ∃ w : ConformancePlan.Witness,
         w.events = outputs
-        ∧ NodeFailed work w.matching (w.events.take 3) w.failures deep.key
-        ∧ EventAllowed work (ConformancePlan.initialKeys work) w.matching
+        ∧ NodeFailed work w.matching (w.events.take 3) w.failures deep.ref
+        ∧ EventAllowed work (ConformancePlan.initialRefs work) w.matching
             (w.events.take 3) w.failures
             (.groupValues deep [sharedValue]) := by
   obtain ⟨valid, started⟩ := source_valid_started
@@ -752,10 +752,10 @@ theorem generic_failed_owner_admission
     rw [actual_output]
     simp [outputs, publicationAtoms]
   have firstAllowed := failuresAllowed.1 0 failureRoot 1 (by rw [same]; rfl)
-  have failed : NodeFailed work w.matching (w.events.take 3) w.failures deep.key := by
+  have failed : NodeFailed work w.matching (w.events.take 3) w.failures deep.ref := by
     rw [same]
     exact selected_owner_already_failed w.matching w.failures (by
-      simpa only [same, ConformancePlan.initialKeys, ConformancePlan.initialQueue,
+      simpa only [same, ConformancePlan.initialRefs, ConformancePlan.initialQueue,
         List.take_zero] using firstAllowed)
   exact ⟨w, same, failed, publications 3 deep [sharedValue] (by rw [same]; rfl)⟩
 

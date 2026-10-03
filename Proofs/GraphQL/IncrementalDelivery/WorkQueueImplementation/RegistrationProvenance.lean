@@ -12,9 +12,9 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 -- Parametric task support separates registration from direct contribution
 -----------------------------------------------------------------------------------------
 
-/-- Each candidate has an immediate task satisfying the specified key-support relation. -/
+/-- Each candidate has an immediate task satisfying the specified ref-support relation. -/
 def Work.GroupsSupportedBy (work : Work) (support : Task → Nat → Prop) : Prop :=
-  ∀ group ∈ work.groups, ∃ task ∈ work.tasks, support task group.node.key
+  ∀ group ∈ work.groups, ∃ task ∈ work.tasks, support task group.node.ref
 
 /-- Direct-contributor specialization for conditional task-bearing-group lemmas.
 Arbitrary lowered work need not satisfy this: taskless ancestor candidates have support,
@@ -22,18 +22,18 @@ but no direct contributing task.
 -/
 abbrev Work.GroupsHaveTasks (work : Work) : Prop :=
   work.GroupsSupportedBy
-    (fun task key => key ∈ task.groups.map Execution.DeliveryNode.key)
+    (fun task ref => ref ∈ task.groups.map Execution.DeliveryNode.ref)
 
 /-- Each permanent registration has a permanent task satisfying `support`.
 The supporting task need not be started, unsettled, successful, or currently live.
 -/
 def State.RegistrationsSupportedBy (queue : State) (support : Task → Nat → Prop) : Prop :=
-  ∀ key ∈ queue.registeredGroups, ∃ task ∈ queue.tasks, support task key
+  ∀ ref ∈ queue.registeredGroups, ∃ task ∈ queue.tasks, support task ref
 
 /-- Conditional direct-contributor specialization; not an invariant of arbitrary replay. -/
 abbrev State.RegistrationsHaveTasks (queue : State) : Prop :=
   queue.RegistrationsSupportedBy
-    (fun task key => key ∈ task.groups.map Execution.DeliveryNode.key)
+    (fun task ref => ref ∈ task.groups.map Execution.DeliveryNode.ref)
 
 /-- A preserved state predicate extends through a finite fold.
 Witness: induction over inputs, threading the actual accumulator. -/
@@ -45,17 +45,17 @@ private theorem fold_preserves {α β : Type} (step : β → α → β) (propert
   | nil => exact initial
   | cons item rest ih => exact ih (step state item) (preserved state item initial)
 
-/-- Group integration adds no key outside the old registry and supplied candidates.
+/-- Group integration adds no ref outside the old registry and supplied candidates.
 Witness: registration only appends a candidate; linking changes neither registry nor tasks.
 -/
 theorem State.addGroups_registeredGroups_subset (queue : State) (groups : List Group)
     : (queue.addGroups groups).1.registeredGroups.Subset
-        (queue.registeredGroups ++ groups.map (fun group => group.node.key)) := by
-  let allowed := queue.registeredGroups ++ groups.map (fun group => group.node.key)
+        (queue.registeredGroups ++ groups.map (fun group => group.node.ref)) := by
+  let allowed := queue.registeredGroups ++ groups.map (fun group => group.node.ref)
   let property (current : State) := current.registeredGroups.Subset allowed
   let fresh := groups.filter (fun group =>
-    !queue.registeredGroups.contains group.node.key
-      && (queue.groupNode? group.node.key).isNone)
+    !queue.registeredGroups.contains group.node.ref
+      && (queue.groupNode? group.node.ref).isNone)
   have registered (more : List Group) (included : more.Subset groups)
       (current : State) (prior : property current)
       : property (more.foldl State.addGroup current) := by
@@ -67,11 +67,11 @@ theorem State.addGroups_registeredGroups_subset (queue : State) (groups : List G
         split
         · exact prior
         · dsimp only
-          split <;> intro key member
+          split <;> intro ref member
           all_goals
           rcases List.mem_append.mp member with old | new
           · exact prior old
-          · have same : key = group.node.key := List.mem_singleton.mp new
+          · have same : ref = group.node.ref := List.mem_singleton.mp new
             exact List.mem_append_right _ (List.mem_map.mpr
               ⟨group, included List.mem_cons_self, same.symm⟩)
   let link (current : State) (group : Group) : State :=
@@ -81,8 +81,8 @@ theorem State.addGroups_registeredGroups_subset (queue : State) (groups : List G
         match current.groupNode? parent with
         | none => current
         | some node =>
-            let children := if node.childGroups.contains group.node.key then
-              node.childGroups else node.childGroups ++ [group.node.key]
+            let children := if node.childGroups.contains group.node.ref then
+              node.childGroups else node.childGroups ++ [group.node.ref]
             current.putGroupNode { node with childGroups := children }
   have linked (current : State) (group : Group) (prior : property current)
       : property (link current group) := by
@@ -100,7 +100,7 @@ theorem State.addTask_registeredGroups (queue : State) (task : Task)
     : (queue.addTask task).registeredGroups = queue.registeredGroups := by
   let registered : State := { queue with tasks := queue.tasks ++ [task] }
   let step (current : State) (group : Execution.DeliveryNode) : State :=
-    match current.groupNode? group.key with
+    match current.groupNode? group.ref with
     | none => current
     | some node =>
         if node.tasks.contains task.occurrence then current
@@ -117,14 +117,14 @@ theorem State.addTask_registeredGroups (queue : State) (task : Task)
   have unchanged : current.registeredGroups = queue.registeredGroups :=
     fold_preserves step (fun state => state.registeredGroups = queue.registeredGroups)
       preserved task.groups registered rfl
-  change (if task.groups.any (fun group => current.rootGroups.contains group.key)
+  change (if task.groups.any (fun group => current.rootGroups.contains group.ref)
       && (current.taskNode? task.occurrence).isNone then
       { current with taskNodes := current.taskNodes ++ [{ task }] }
     else current).registeredGroups = queue.registeredGroups
   split <;> exact unchanged
 
-/-- Integration registers only old keys or candidates supported by immediate tasks.
-Witness: group-key inclusion and the exact append-only task registry equation. -/
+/-- Integration registers only old refs or candidates supported by immediate tasks.
+Witness: group-ref inclusion and the exact append-only task registry equation. -/
 theorem State.RegistrationsSupportedBy.maybeIntegrateWork {queue : State}
     {support : Task → Nat → Prop} (covered : queue.RegistrationsSupportedBy support)
     (work : Work) (workCovered : work.GroupsSupportedBy support)
@@ -145,16 +145,16 @@ theorem State.RegistrationsSupportedBy.maybeIntegrateWork {queue : State}
     · exact taskedSame
     · dsimp
       split <;> exact taskedSame
-  intro key member
+  intro ref member
   rw [same] at member
   have included := queue.addGroups_registeredGroups_subset work.groups member
   rw [State.maybeIntegrateWork_tasks_append]
   rcases List.mem_append.mp included with old | new
-  · obtain ⟨task, taskMember, contributor⟩ := covered key old
+  · obtain ⟨task, taskMember, contributor⟩ := covered ref old
     exact ⟨task, List.mem_append_left _ taskMember, contributor⟩
-  · obtain ⟨group, groupMember, sameKey⟩ := List.mem_map.mp new
+  · obtain ⟨group, groupMember, sameRef⟩ := List.mem_map.mp new
     obtain ⟨task, taskMember, contributor⟩ := workCovered group groupMember
-    exact ⟨task, List.mem_append_right _ taskMember, sameKey ▸ contributor⟩
+    exact ⟨task, List.mem_append_right _ taskMember, sameRef ▸ contributor⟩
 
 -----------------------------------------------------------------------------------------
 -- Cleanup and activation preserve the permanent task witness
@@ -195,8 +195,8 @@ theorem State.RegistrationsSupportedBy.startNewWork {queue : State}
     split
     · exact prior
     · split <;> exact prior
-  have groupStep (current : State) (key : Nat) (prior : current.RegistrationsSupportedBy support)
-      : (current.startGroup key).RegistrationsSupportedBy support := by
+  have groupStep (current : State) (ref : NodeRef) (prior : current.RegistrationsSupportedBy support)
+      : (current.startGroup ref).RegistrationsSupportedBy support := by
     unfold State.startGroup
     split
     · exact prior
@@ -204,8 +204,8 @@ theorem State.RegistrationsSupportedBy.startNewWork {queue : State}
       · exact prior
       · exact fold_preserves State.startTask (fun state => state.RegistrationsSupportedBy support)
           taskStep _ current prior
-  have streamStep (current : State) (key : Nat) (prior : current.RegistrationsSupportedBy support)
-      : (current.startStream key).RegistrationsSupportedBy support := by
+  have streamStep (current : State) (ref : NodeRef) (prior : current.RegistrationsSupportedBy support)
+      : (current.startStream ref).RegistrationsSupportedBy support := by
     unfold State.startStream
     split <;> exact prior
   exact fold_preserves State.startStream
@@ -220,7 +220,7 @@ theorem createWorkQueue_fromSpec_registrationsSupported (work : Execution.Work)
     : (State.initialize (Work.fromExecution work)).RegistrationsSupportedBy
         (Task.SupportsGroup work) := by
   have empty : ({} : State).RegistrationsSupportedBy (Task.SupportsGroup work) := by
-    intro key member
+    intro ref member
     cases member
   exact ((empty.maybeIntegrateWork (Work.fromExecution work)
     (fun _ member => workFromSpec_groups_taskSupport (Located.root (root := work)) member)
@@ -232,7 +232,7 @@ theorem State.RegistrationsSupportedBy.finishGroupSuccess {queue : State}
     {support : Task → Nat → Prop} (covered : queue.RegistrationsSupportedBy support)
     (group : GroupNode)
     : (queue.finishGroupSuccess group).1.RegistrationsSupportedBy support := by
-  let step (acc : State × List ExecutionGroupValue × Keys) (task : Occurrence) :=
+  let step (acc : State × List ExecutionGroupValue × NodeRefs) (task : Occurrence) :=
     let (current, values, streams) := acc
     match current.taskNode? task with
     | none => (current, values, streams)
@@ -241,7 +241,7 @@ theorem State.RegistrationsSupportedBy.finishGroupSuccess {queue : State}
           | none => values
           | some value => values ++ [value]
         (current.removeTask task, values, streams ++ taskNode.childStreams)
-  have preserved (acc : State × List ExecutionGroupValue × Keys) (task : Occurrence)
+  have preserved (acc : State × List ExecutionGroupValue × NodeRefs) (task : Occurrence)
       (prior : acc.1.RegistrationsSupportedBy support)
       : (step acc task).1.RegistrationsSupportedBy support := by
     obtain ⟨current, values, streams⟩ := acc
@@ -254,8 +254,8 @@ theorem State.RegistrationsSupportedBy.finishGroupSuccess {queue : State}
   let current : State :=
     { flushedState with
       groupNodes := flushedState.groupNodes.filter
-        (fun node => node.group.node.key != group.group.node.key)
-      rootGroups := flushedState.rootGroups.filter (· != group.group.node.key) }
+        (fun node => node.group.node.ref != group.group.node.ref)
+      rootGroups := flushedState.rootGroups.filter (· != group.group.node.ref) }
   have currentCovered : current.RegistrationsSupportedBy support := flushed
   exact currentCovered.pruneEmptyGroups _
 
@@ -315,10 +315,10 @@ theorem State.RegistrationsSupportedBy.taskFailure {queue : State}
     : (queue.taskFailure task errors).1.RegistrationsSupportedBy support := by
   let step (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode) :=
     let (current, events) := acc
-    match current.groupNode? group.key with
+    match current.groupNode? group.ref with
     | none => (current, events)
     | some node =>
-        if current.rootGroups.contains group.key then
+        if current.rootGroups.contains group.ref then
           let (next, failure) := current.finishGroupFailure node errors
           (next, events ++ [failure])
         else
@@ -475,16 +475,16 @@ theorem createWorkQueue_runNormalized_registrationsSupported
 -- Reduce healthy registration availability to old contributor accounting
 -----------------------------------------------------------------------------------------
 
-/-- A key not referenced by any integrated task is available for first registration.
+/-- A ref not referenced by any integrated task is available for first registration.
 Witness: registration provenance excludes the permanent-registry obstruction. -/
 theorem State.RegistrationsHaveTasks.available_of_unreferenced
-    {queue : State} (covered : queue.RegistrationsHaveTasks) {key : Nat}
+    {queue : State} (covered : queue.RegistrationsHaveTasks) {ref : NodeRef}
     (unreferenced
-      : ∀ task ∈ queue.tasks, key ∉ task.groups.map Execution.DeliveryNode.key)
-    : queue.GroupAvailable key := by
+      : ∀ task ∈ queue.tasks, ref ∉ task.groups.map Execution.DeliveryNode.ref)
+    : queue.GroupAvailable ref := by
   right
   intro registered
-  obtain ⟨task, member, contributor⟩ := covered key registered
+  obtain ⟨task, member, contributor⟩ := covered ref registered
   exact unreferenced task member contributor
 
 /-- An unsettled registered contributor protects each healthy group from retirement.
@@ -493,12 +493,12 @@ theorem State.HealthyRegisteredTaskAccounting.groupAvailable
     {queue : State} {work : Execution.Work} {settled failed : List Occurrence}
     (accounted : queue.HealthyRegisteredTaskAccounting work settled failed)
     {task : Task} (member : task ∈ queue.tasks) (fresh : task.occurrence ∉ settled)
-    {key : Nat} (contributor : key ∈ task.groups.map Execution.DeliveryNode.key)
-    (healthy : ¬GroupInvalidated work failed key)
-    : queue.GroupAvailable key := by
-  obtain ⟨node, nodeMember, sameKey, _⟩ :=
-    accounted task member fresh key contributor healthy
-  exact Or.inl (List.mem_map.mpr ⟨node, nodeMember, sameKey⟩)
+    {ref : NodeRef} (contributor : ref ∈ task.groups.map Execution.DeliveryNode.ref)
+    (healthy : ¬GroupInvalidated work failed ref)
+    : queue.GroupAvailable ref := by
+  obtain ⟨node, nodeMember, sameRef, _⟩ :=
+    accounted task member fresh ref contributor healthy
+  exact Or.inl (List.mem_map.mpr ⟨node, nodeMember, sameRef⟩)
 
 /-- An unavailable healthy group must have old contributors, all already settled.
 Witness: provenance supplies one contributor; any unsettled contributor would keep the
@@ -507,14 +507,14 @@ theorem State.RegistrationsHaveTasks.unavailable_healthy_contributors_settled
     {queue : State} {work : Execution.Work} {settled failed : List Occurrence}
     (covered : queue.RegistrationsHaveTasks)
     (accounted : queue.HealthyRegisteredTaskAccounting work settled failed)
-    {key : Nat} (unavailable : ¬queue.GroupAvailable key)
-    (healthy : ¬GroupInvalidated work failed key)
-    : (∃ task ∈ queue.tasks, key ∈ task.groups.map Execution.DeliveryNode.key)
+    {ref : NodeRef} (unavailable : ¬queue.GroupAvailable ref)
+    (healthy : ¬GroupInvalidated work failed ref)
+    : (∃ task ∈ queue.tasks, ref ∈ task.groups.map Execution.DeliveryNode.ref)
       ∧ ∀ task ∈ queue.tasks,
-          key ∈ task.groups.map Execution.DeliveryNode.key
+          ref ∈ task.groups.map Execution.DeliveryNode.ref
           → task.occurrence ∈ settled := by
-  have retired := (queue.groupUnavailable_iff_retired key).mp unavailable
-  refine ⟨covered key retired.1, ?_⟩
+  have retired := (queue.groupUnavailable_iff_retired ref).mp unavailable
+  refine ⟨covered ref retired.1, ?_⟩
   intro task member contributor
   by_cases settledTask : task.occurrence ∈ settled
   · exact settledTask

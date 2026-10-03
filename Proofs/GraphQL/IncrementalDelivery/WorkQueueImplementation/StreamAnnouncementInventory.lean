@@ -12,22 +12,22 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 /-- `announced` is a distinct registered history, disjoint from every stored child list.
 This proof-only inventory tracks executable registration and consumption, not admission.
 -/
-structure State.StreamAnnouncementInventory (queue : State) (announced : Keys)
+structure State.StreamAnnouncementInventory (queue : State) (announced : NodeRefs)
     : Prop where
-  /-- An announced key occurs only once in the retained history. -/
+  /-- An announced ref occurs only once in the retained history. -/
   unique : announced.Nodup
   /-- Every earlier announcement remains in the permanent descriptor registry. -/
-  registered : announced.Subset (queue.streams.map (fun stream => stream.node.key))
+  registered : announced.Subset (queue.streams.map (fun stream => stream.node.ref))
   /-- Stored child lists remain distinct and registered. -/
   stored : queue.ChildStreamInventory
   /-- A stored child link has not been consumed by an earlier announcement. -/
-  unreleased : ∀ node ∈ queue.taskNodes, ∀ key ∈ node.childStreams, key ∉ announced
+  unreleased : ∀ node ∈ queue.taskNodes, ∀ ref ∈ node.childStreams, ref ∉ announced
 
 /-- A registry extension retaining old or empty child lists preserves announcement state.
 Witness: original link provenance transports both stored uniqueness and nonannouncement.
 -/
 theorem State.StreamAnnouncementInventory.of_frame {before after : State}
-    {announced : Keys} (inventory : before.StreamAnnouncementInventory announced)
+    {announced : NodeRefs} (inventory : before.StreamAnnouncementInventory announced)
     (registered : before.streams.Subset after.streams)
     (retained
       : ∀ node ∈ after.taskNodes,
@@ -36,15 +36,15 @@ theorem State.StreamAnnouncementInventory.of_frame {before after : State}
     : after.StreamAnnouncementInventory announced := by
   refine ⟨inventory.unique, inventory.registered.trans (List.map_subset _ registered),
     inventory.stored.of_frame registered retained, ?_⟩
-  intro node member key linked
+  intro node member ref linked
   rcases retained node member with empty | ⟨old, included, same⟩
   · simp [empty] at linked
-  · exact inventory.unreleased old included key (same ▸ linked)
+  · exact inventory.unreleased old included ref (same ▸ linked)
 
 /-- Group registration leaves announcement history and stored stream links unchanged.
 Witness: exact task-map and registry projections.
 -/
-theorem State.StreamAnnouncementInventory.addGroups {queue : State} {announced : Keys}
+theorem State.StreamAnnouncementInventory.addGroups {queue : State} {announced : NodeRefs}
     (inventory : queue.StreamAnnouncementInventory announced) (groups : List Group)
     : (queue.addGroups groups).1.StreamAnnouncementInventory announced := by
   apply inventory.of_frame
@@ -56,7 +56,7 @@ theorem State.StreamAnnouncementInventory.addGroups {queue : State} {announced :
 /-- Task registration keeps old child links or adds an empty child list.
 Witness: the executable old-or-new node characterization.
 -/
-theorem State.StreamAnnouncementInventory.addTask {queue : State} {announced : Keys}
+theorem State.StreamAnnouncementInventory.addTask {queue : State} {announced : NodeRefs}
     (inventory : queue.StreamAnnouncementInventory announced) (task : Task)
     : (queue.addTask task).StreamAnnouncementInventory announced := by
   apply inventory.of_frame
@@ -70,38 +70,38 @@ theorem State.StreamAnnouncementInventory.addTask {queue : State} {announced : K
 Witness: actual selection excludes the entire old registry; old announcements and old
 stored links are registered there. Task attachment returns no immediate announcements.
 -/
-theorem State.StreamAnnouncementInventory.addStreams {queue : State} {announced : Keys}
-    (inventory : queue.StreamAnnouncementInventory announced) (streams : List Stream)
-    (parent : Option Occurrence)
+theorem State.StreamAnnouncementInventory.addStreams {queue : State}
+    {announced : NodeRefs} (inventory : queue.StreamAnnouncementInventory announced)
+    (streams : List Stream) (parent : Option Occurrence)
     : (queue.addStreams streams parent).1.StreamAnnouncementInventory
         (announced
-          ++ (queue.addStreams streams parent).2.map Execution.DeliveryNode.key) := by
+          ++ (queue.addStreams streams parent).2.map Execution.DeliveryNode.ref) := by
   have fresh := queue.addStreams_notices_fresh streams parent
   have registry := queue.addStreams_registered streams parent
   have unique : (announced ++ (queue.addStreams streams parent).2.map
-      Execution.DeliveryNode.key).Nodup := by
+      Execution.DeliveryNode.ref).Nodup := by
     refine List.nodup_append.mpr ⟨inventory.unique, fresh.1, ?_⟩
-    intro key earlier next member same
+    intro ref earlier next member same
     obtain ⟨node, included, equal⟩ := List.mem_map.mp member
     exact fresh.2 node included ((same.trans equal.symm) ▸ inventory.registered earlier)
   refine ⟨unique, ?_, inventory.stored.addStreams streams parent, ?_⟩
-  · intro key member
+  · intro ref member
     rcases List.mem_append.mp member with old | new
     · exact (List.map_subset _ registry.1) (inventory.registered old)
     · obtain ⟨node, noticed, same⟩ := List.mem_map.mp new
       obtain ⟨stream, registered, equal⟩ := List.mem_map.mp (registry.2 noticed)
       exact List.mem_map.mpr ⟨stream, registered,
-        (congrArg Execution.DeliveryNode.key equal).trans same⟩
+        (congrArg Execution.DeliveryNode.ref equal).trans same⟩
   · let selected : List Stream := streams.foldl (fun chosen stream =>
-      if (queue.stream? stream.node.key).isSome
-          || chosen.any (fun old => old.node.key == stream.node.key) then chosen
+      if (queue.stream? stream.node.ref).isSome
+          || chosen.any (fun old => old.node.ref == stream.node.ref) then chosen
       else chosen ++ [stream]) []
     have selectedFresh := queue.addStreams_selection_fresh streams
     cases parent with
     | none =>
-        intro node member key linked noticed
+        intro node member ref linked noticed
         rcases List.mem_append.mp noticed with old | new
-        · exact inventory.unreleased node member key linked old
+        · exact inventory.unreleased node member ref linked old
         · obtain ⟨stream, included, same⟩ := List.mem_map.mp new
           exact (queue.addStreams_notices_fresh streams none).2 stream included
             (same ▸ (inventory.stored node member).2 linked)
@@ -110,18 +110,18 @@ theorem State.StreamAnnouncementInventory.addStreams {queue : State} {announced 
         split
         · simpa only [List.map_nil, List.append_nil] using inventory.unreleased
         · rename_i updated found
-          intro node member key linked noticed
-          have earlier : key ∈ announced := by simpa using noticed
+          intro node member ref linked noticed
+          have earlier : ref ∈ announced := by simpa using noticed
           obtain ⟨old, included, equal⟩ := List.mem_map.mp member
           split at equal
           · subst node
             rcases List.mem_append.mp linked with oldLink | newLink
-            · exact inventory.unreleased updated (State.taskNode?_some found).1 key
+            · exact inventory.unreleased updated (State.taskNode?_some found).1 ref
                 oldLink earlier
             · obtain ⟨stream, selected, same⟩ := List.mem_map.mp newLink
               exact selectedFresh.2 stream selected (same ▸ inventory.registered earlier)
           · subst node
-            exact inventory.unreleased old included key linked earlier
+            exact inventory.unreleased old included ref linked earlier
 
 private theorem fold_preserves {α β : Type} (property : α → Prop) (step : α → β → α)
     (preserved : ∀ current item, property current → property (step current item))
@@ -133,15 +133,15 @@ private theorem fold_preserves {α β : Type} (property : α → Prop) (step : �
 
 /-- Full child-work integration accounts for exactly its immediate stream announcements.
 Witness: groups and tasks retain existing links, then stream selection consumes only fresh
-root keys or attaches fresh unannounced children to their producer.
+root refs or attaches fresh unannounced children to their producer.
 -/
 theorem State.StreamAnnouncementInventory.maybeIntegrateWork {queue : State}
-    {announced : Keys} (inventory : queue.StreamAnnouncementInventory announced)
+    {announced : NodeRefs} (inventory : queue.StreamAnnouncementInventory announced)
     (work : Work) (parent : Option Occurrence := none)
     : (queue.maybeIntegrateWork work parent).1.StreamAnnouncementInventory
         (announced
           ++ (queue.maybeIntegrateWork work parent).2.newStreams.map
-              Execution.DeliveryNode.key) := by
+              Execution.DeliveryNode.ref) := by
   have tasked := fold_preserves (fun current => current.StreamAnnouncementInventory announced)
     State.addTask (fun _ task prior => prior.addTask task) work.tasks _
     (inventory.addGroups work.groups)
@@ -153,28 +153,28 @@ theorem State.StreamAnnouncementInventory.maybeIntegrateWork {queue : State}
 
 /-- Group release announces previously unannounced streams and removes their stored links.
 Witness: selected producer occurrences are removed from the residual task map. Generated
-producer uniqueness forbids another retained task from holding any released stream key.
+producer uniqueness forbids another retained task from holding any released stream ref.
 -/
 theorem State.StreamAnnouncementInventory.finishGroupSuccess {queue : State}
-    {work : Execution.Work} {announced : Keys}
+    {work : Execution.Work} {announced : NodeRefs}
     (inventory : queue.StreamAnnouncementInventory announced)
     (matching : queue.ChildStreamsMatchWork work) (generated : ExecutedWork work)
     (group : GroupNode)
     : (queue.finishGroupSuccess group).1.StreamAnnouncementInventory
         (announced
           ++ (queue.finishGroupSuccess group).2.2.newStreams.map
-              Execution.DeliveryNode.key) := by
+              Execution.DeliveryNode.ref) := by
   obtain ⟨selected, _, known, _, retained, absent, released⟩ :=
     queue.finishGroupSuccess_selection group
   refine ⟨?_, ?_, inventory.stored.finishGroupSuccess group, ?_⟩
   · refine List.nodup_append.mpr ⟨inventory.unique,
-      inventory.stored.finishGroupSuccess_streamKeys_nodup matching generated group, ?_⟩
-    intro key earlier other member same
+      inventory.stored.finishGroupSuccess_streamRefs_nodup matching generated group, ?_⟩
+    intro ref earlier other member same
     obtain ⟨stream, noticed, equal⟩ := List.mem_map.mp member
     obtain ⟨producer, chosen, linked⟩ := released stream noticed
-    exact inventory.unreleased producer (known producer chosen).1 stream.key linked
+    exact inventory.unreleased producer (known producer chosen).1 stream.ref linked
       ((same.trans equal.symm) ▸ earlier)
-  · intro key member
+  · intro ref member
     rw [State.finishGroupSuccess_streams]
     rcases List.mem_append.mp member with old | new
     · exact inventory.registered old
@@ -183,13 +183,13 @@ theorem State.StreamAnnouncementInventory.finishGroupSuccess {queue : State}
       rw [State.finishGroupSuccess_streams] at registered
       obtain ⟨descriptor, included, equal⟩ := List.mem_map.mp registered
       exact List.mem_map.mpr ⟨descriptor, included,
-        (congrArg Execution.DeliveryNode.key equal).trans same⟩
-  · intro node member key linked noticed
+        (congrArg Execution.DeliveryNode.ref equal).trans same⟩
+  · intro node member ref linked noticed
     rcases List.mem_append.mp noticed with old | new
-    · exact inventory.unreleased node (retained member) key linked old
+    · exact inventory.unreleased node (retained member) ref linked old
     · obtain ⟨stream, included, same⟩ := List.mem_map.mp new
       obtain ⟨producer, chosen, producerLink⟩ := released stream included
-      have equal := matching.shared_key_producer generated (retained member)
+      have equal := matching.shared_ref_producer generated (retained member)
         (known producer chosen).1 linked (same ▸ producerLink)
       exact absent producer chosen node member equal
 

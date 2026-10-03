@@ -30,7 +30,7 @@ theorem PublicationSupport.published_producer
   exact ⟨position, output, atOutput, isValue, matched⟩
 
 /-- Entirely published defer ancestry cannot be semantically failed.
-Witness: recurse on strictly smaller ancestor keys. Real failures contradict supported
+Witness: recurse on strictly smaller ancestor refs. Real failures contradict supported
 successful publication; dependency failure stays in the same full ancestry. Every group
 producer comes from a published contributor and is therefore ready. Generated role
 separation excludes stream rules, including for taskless ancestor-only records.
@@ -46,21 +46,21 @@ theorem ExecutedWork.groupRecordAncestors_healthy_of_published
               TaskAt work occurrence owners producer payload
               ∧ payload.failure.isSome = true)
     (published
-      : ∀ key ∈ dependencies,
+      : ∀ ref ∈ dependencies,
           ∀ occurrence owners,
             TaskHasOwners work occurrence owners
-            → key ∈ owners
+            → ref ∈ owners
             → Published matching events occurrence)
-    : ∀ key ∈ dependencies, ¬NodeFailed work matching events failures key := by
-  intro key
-  induction key using Nat.strongRecOn with
-  | ind key ih =>
+    : ∀ ref ∈ dependencies, ¬NodeFailed work matching events failures ref := by
+  intro ref
+  induction ref using Nat.strongRecOn with
+  | ind ref ih =>
       intro ancestor failure
       have snapshot := support.nodeFailed_snapshot failedPayloads failure
       cases snapshot with
       | task task owner failed =>
           exact support.failed_unpublished failedPayloads failed
-            (published key ancestor _ _ task owner)
+            (published ref ancestor _ _ task owner)
       | @groupDependency _ parents parent descriptor member failed =>
           obtain ⟨node, birth, located, same⟩ := descriptor
           have included := generated.groupRecordAncestors_trans known
@@ -79,7 +79,7 @@ theorem ExecutedWork.groupRecordAncestors_healthy_of_published
               exact generated.groupRecord_ancestor_ne_stream known ancestor located same.symm
           | group =>
               obtain ⟨occurrence, owners, payload, task, owner⟩ := located.group_task
-              have value := published key ancestor occurrence owners ⟨_, _, task⟩ (same ▸ owner)
+              have value := published ref ancestor occurrence owners ⟨_, _, task⟩ (same ▸ owner)
               cases producer with
               | none => exact noRoot ⟨node, .group, parents, located, same⟩
               | some source =>
@@ -107,11 +107,11 @@ theorem groupNoticeAncestor_healthy
     (announced : AnnouncedFailures work w)
     (selected : w.events[index]? = some (.groupSuccess group groups streams))
     (noticed : child ∈ groups) (known : GroupRecordAt work child dependencies)
-    : ∀ key ∈ dependencies,
-        ¬NodeFailed work w.matching (w.events.take index) w.failures key := by
+    : ∀ ref ∈ dependencies,
+        ¬NodeFailed work w.matching (w.events.take index) w.failures ref := by
   apply generated.groupRecordAncestors_healthy_of_published known (support.take index)
     (fun cut occurrence member => (announced.1.2.2.1 (cut, occurrence) member).2.2)
-  intro key ancestor occurrence owners task contributes
+  intro ref ancestor occurrence owners task contributes
   rcases groupNoticeAncestor_nodeAccounted generated valid started history ledger selected
       noticed known ancestor [] occurrence owners task contributes with cancelled | published
   · obtain ⟨cut, member, _⟩ := cancelled
@@ -133,11 +133,11 @@ theorem itemGroupNoticeAncestor_healthy
     (announced : AnnouncedFailures work w)
     (selected : w.events[index]? = some (.streamValues owner values groups streams))
     (noticed : child ∈ groups) (known : GroupRecordAt work child dependencies)
-    : ∀ key ∈ dependencies,
-        ¬NodeFailed work w.matching (w.events.take index) w.failures key := by
+    : ∀ ref ∈ dependencies,
+        ¬NodeFailed work w.matching (w.events.take index) w.failures ref := by
   apply generated.groupRecordAncestors_healthy_of_published known (support.take index)
     (fun cut occurrence member => (announced.1.2.2.1 (cut, occurrence) member).2.2)
-  intro key ancestor occurrence owners task contributes
+  intro ref ancestor occurrence owners task contributes
   rcases itemGroupNoticeAncestor_nodeAccounted generated valid started history ledger selected
       noticed known ancestor [] occurrence owners task contributes with cancelled | published
   · obtain ⟨cut, member, _⟩ := cancelled
@@ -148,11 +148,11 @@ theorem itemGroupNoticeAncestor_healthy
 Witness: every retained cut is at or before the unchanged strict prefix. Appending the
 notice-free carrier cannot expose a new failure cut, even when that carrier publishes.
 -/
-theorem healthy_noticeCarrier {work} {w : Witness} {index event key}
+theorem healthy_noticeCarrier {work} {w : Witness} {index event ref}
     (selected : w.events[index]? = some event)
-    (healthy : ¬NodeFailed work w.matching (w.events.take index) w.failures key)
+    (healthy : ¬NodeFailed work w.matching (w.events.take index) w.failures ref)
     : ¬NodeFailed work w.matching (w.events.take index ++ [withoutChildNotices event])
-        (w.failures.filter (fun entry => entry.1 ≤ index)) key := by
+        (w.failures.filter (fun entry => entry.1 ≤ index)) ref := by
   have length : (w.events.take index).length = index :=
     List.length_take_of_le (Nat.le_of_lt (List.getElem?_eq_some_iff.mp selected).1)
   have frozen := causality_append_eq (work := work) (matching := w.matching)
@@ -170,23 +170,23 @@ The status alternative is deliberately explicit: proving it from concrete queue 
 is the remaining dependency-readiness obligation, not a new host-source assumption.
 -/
 theorem dependencySatisfied_noticeCarrier_of_status
-    {work} {w : Witness} {index event key}
+    {work} {w : Witness} {index event ref}
     (selected : w.events[index]? = some event)
-    (healthy : ¬NodeFailed work w.matching (w.events.take index) w.failures key)
+    (healthy : ¬NodeFailed work w.matching (w.events.take index) w.failures ref)
     (accounted
       : NodeAccounted work w.matching (w.events.take index)
-          (w.failures.filter (fun entry => entry.1 ≤ index)) key)
+          (w.failures.filter (fun entry => entry.1 ≤ index)) ref)
     (status
-      : key ∈ completedKeys (w.events.take index ++ [withoutChildNotices event])
-        ∨ key ∉ announcedKeys (initialKeys work) (w.events.take index))
-    : DependencySatisfied work (initialKeys work) w.matching
+      : ref ∈ completedRefs (w.events.take index ++ [withoutChildNotices event])
+        ∨ ref ∉ announcedRefs (initialRefs work) (w.events.take index))
+    : DependencySatisfied work (initialRefs work) w.matching
         (w.events.take index ++ [withoutChildNotices event])
-        (w.failures.filter (fun entry => entry.1 ≤ index)) key := by
+        (w.failures.filter (fun entry => entry.1 ≤ index)) ref := by
   refine ⟨healthy_noticeCarrier selected healthy, .inr ?_⟩
   rcases status with closed | unannounced
   · exact .inl closed
   · refine .inr ⟨?_, accounted.append _⟩
-    simpa only [announcedKeys, pendingKeys, List.flatMap_append, List.flatMap_cons,
+    simpa only [announcedRefs, pendingRefs, List.flatMap_append, List.flatMap_cons,
       List.flatMap_nil, (withoutChildNotices_projections event).2.1,
       List.nil_append, List.append_nil] using unannounced
 

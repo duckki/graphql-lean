@@ -9,7 +9,7 @@ open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
-private def owner : DeliveryNode := { key := 0, path := [] }
+private def owner : DeliveryNode := { ref := 0, path := [] }
 
 private def childWork : Execution.Work :=
   .executionGroup [⟨owner, []⟩] [.field "obj"] (.ok ([("x", .scalar "X")], 0)) .empty
@@ -61,13 +61,13 @@ private def initial : State := State.initialize (Work.fromExecution work)
 private def waiting : State := initial.replayGraphEvents before
 
 private theorem child_known
-    : TaskAt work childTask [owner.key] (some parentTask)
+    : TaskAt work childTask [owner.ref] (some parentTask)
         (.object childResult.value.path (.ok (childResult.value.data, 0))) := by
-  refine ⟨[⟨owner, []⟩], [.field "obj"], _, .empty, [owner.key], ?_, rfl, rfl⟩
+  refine ⟨[⟨owner, []⟩], [.field "obj"], _, .empty, [owner.ref], ?_, rfl, rfl⟩
   cbv
 
 private theorem valid : ValidGraphEvents work before := by
-  have parentKnown : TaskAt work parentTask [owner.key] none
+  have parentKnown : TaskAt work parentTask [owner.ref] none
       (.object [] (.ok (parentResult.value.data, 0))) := by
     refine ⟨[⟨owner, []⟩], [], _, childWork, [], ?_, rfl, rfl⟩
     cbv

@@ -1,7 +1,7 @@
-import Proofs.GraphQL.IncrementalDelivery.Semantics.MixedWorkKeys
+import Proofs.GraphQL.IncrementalDelivery.Semantics.MixedWorkRefs
 
 /-! Deferred dependency continuity stops at stream-item boundaries.
-Every deferred child key reuses an enclosing task key or descends from one. Stream
+Every deferred child ref reuses an enclosing task ref or descends from one. Stream
 items restart defer context, so their internal continuity is checked separately.
 -/
 
@@ -15,7 +15,7 @@ def DeferUnder (parents : Assignment) (owners : List Nat) : Work → Prop
   | .combine left right =>
       DeferUnder parents owners left ∧ DeferUnder parents owners right
   | .executionGroup groups _ _ children =>
-      (∀ group ∈ groups, Descends parents owners group.node.key)
+      (∀ group ∈ groups, Descends parents owners group.node.ref)
       ∧ DeferUnder parents owners children
   | .stream .. => True
 
@@ -23,7 +23,7 @@ def DeferContinuous (parents : Assignment) : Work → Prop
   | .empty => True
   | .combine left right => DeferContinuous parents left ∧ DeferContinuous parents right
   | .executionGroup groups _ _ children =>
-      DeferUnder parents (mapKeys groups) children ∧ DeferContinuous parents children
+      DeferUnder parents (mapRefs groups) children ∧ DeferContinuous parents children
   | .stream _ items => ∀ item ∈ items, DeferContinuous parents item.2
 termination_by work => sizeOf work
 decreasing_by
@@ -35,69 +35,69 @@ decreasing_by
   dsimp only
   omega
 
-/-- Deferred task keys in this defer context, excluding stream nodes and their items. -/
-def deferRegionKeys : Work → List Nat
+/-- Deferred task refs in this defer context, excluding stream nodes and their items. -/
+def deferRegionRefs : Work → List Nat
   | .empty => []
-  | .combine left right => deferRegionKeys left ++ deferRegionKeys right
-  | .executionGroup groups _ _ children => mapKeys groups ++ deferRegionKeys children
+  | .combine left right => deferRegionRefs left ++ deferRegionRefs right
+  | .executionGroup groups _ _ children => mapRefs groups ++ deferRegionRefs children
   | .stream .. => []
 
-theorem DeferUnder.key_supported {parents : Assignment} {owners : List Nat} {work : Work}
-    (h : DeferUnder parents owners work) {key : Nat} (hk : key ∈ deferRegionKeys work)
-    : Descends parents owners key := by
+theorem DeferUnder.ref_supported {parents : Assignment} {owners : List Nat} {work : Work}
+    (h : DeferUnder parents owners work) {ref : NodeRef} (hk : ref ∈ deferRegionRefs work)
+    : Descends parents owners ref := by
   cases work with
   | empty => exact False.elim (List.not_mem_nil hk)
   | combine left right =>
       rcases List.mem_append.mp hk with hk | hk
-      · exact h.1.key_supported hk
-      · exact h.2.key_supported hk
+      · exact h.1.ref_supported hk
+      · exact h.2.ref_supported hk
   | executionGroup groups path result children =>
       rcases List.mem_append.mp hk with hk | hk
       · obtain ⟨group, hg, he⟩ := List.mem_map.mp hk
         simpa only [he] using h.1 group hg
-      · exact h.2.key_supported hk
+      · exact h.2.ref_supported hk
   | stream node items => exact False.elim (List.not_mem_nil hk)
 termination_by sizeOf work
 
-theorem DeferContinuous.child_key_supported {parents : Assignment}
+theorem DeferContinuous.child_ref_supported {parents : Assignment}
     {groups : List DeferredFragment} {path : ResponsePath}
     {result : Result (List (Name × ResponseValue))} {children : Work}
     (h : DeferContinuous parents (.executionGroup groups path result children))
-    {key : Nat} (hk : key ∈ deferRegionKeys children)
-    : ∃ owner ∈ mapKeys groups, owner = key ∨ owner ∈ parents key := by
+    {ref : NodeRef} (hk : ref ∈ deferRegionRefs children)
+    : ∃ owner ∈ mapRefs groups, owner = ref ∨ owner ∈ parents ref := by
   rw [DeferContinuous] at h
-  exact h.1.key_supported hk
+  exact h.1.ref_supported hk
 
 theorem DeferUnder.extend {parents next : Assignment} {lower start finish : Nat}
     {owners : List Nat} {work : Work} (h : DeferUnder parents owners work)
-    (hw : MixedKeys.WorkAt parents lower start work) (he : Extends start parents next)
+    (hw : MixedRefs.WorkAt parents lower start work) (he : Extends start parents next)
     (hle : start ≤ finish)
     : DeferUnder next owners work := by
   cases work with
   | empty => trivial
   | combine left right =>
-      rw [MixedKeys.WorkAt] at hw
+      rw [MixedRefs.WorkAt] at hw
       exact ⟨h.1.extend hw.1 he hle, h.2.extend hw.2 he hle⟩
   | executionGroup groups path result children =>
-      rw [MixedKeys.WorkAt] at hw
+      rw [MixedRefs.WorkAt] at hw
       refine ⟨?_, h.2.extend hw.2.2 he hle⟩
       intro group hg
-      simpa only [Descends, he group.node.key (hw.2.1 group hg).2.1] using h.1 group hg
+      simpa only [Descends, he group.node.ref (hw.2.1 group hg).2.1] using h.1 group hg
   | stream node items => trivial
 termination_by sizeOf work
 
 theorem DeferUnder.mono {parents : Assignment} {lower bound : Nat}
     {inner outer : List Nat} {work : Work} (h : DeferUnder parents inner work)
-    (hw : MixedKeys.WorkAt parents lower bound work) (hv : Valid parents bound)
+    (hw : MixedRefs.WorkAt parents lower bound work) (hv : Valid parents bound)
     (hs : ∀ owner ∈ inner, Descends parents outer owner)
     : DeferUnder parents outer work := by
   cases work with
   | empty => trivial
   | combine left right =>
-      rw [MixedKeys.WorkAt] at hw
+      rw [MixedRefs.WorkAt] at hw
       exact ⟨h.1.mono hw.1 hv hs, h.2.mono hw.2 hv hs⟩
   | executionGroup groups path result children =>
-      rw [MixedKeys.WorkAt] at hw
+      rw [MixedRefs.WorkAt] at hw
       exact ⟨fun group hg => descends_trans hv (hw.2.1 group hg).2.1 (h.1 group hg) hs,
         h.2.mono hw.2.2 hv hs⟩
   | stream node items => trivial
@@ -105,10 +105,10 @@ termination_by sizeOf work
 
 theorem DeferContinuous.extend {parents next : Assignment} {lower start finish : Nat}
     {work : Work} (h : DeferContinuous parents work)
-    (hw : MixedKeys.WorkAt parents lower start work) (he : Extends start parents next)
+    (hw : MixedRefs.WorkAt parents lower start work) (he : Extends start parents next)
     (hle : start ≤ finish)
     : DeferContinuous next work := by
-  cases work <;> simp only [DeferContinuous, MixedKeys.WorkAt] at h hw ⊢
+  cases work <;> simp only [DeferContinuous, MixedRefs.WorkAt] at h hw ⊢
   case combine left right => exact ⟨h.1.extend hw.1 he hle, h.2.extend hw.2 he hle⟩
   case executionGroup groups path result children => exact ⟨h.1.extend hw.2.2 he hle, h.2.extend hw.2.2 he hle⟩
   case stream node items => exact fun item hi => (h item hi).extend (hw.2.2 item hi) he hle
@@ -127,7 +127,7 @@ def DeferScoped (parents : Assignment) (owners : List Nat) (work : Work) : Prop 
 
 theorem DeferScoped.extend {parents next : Assignment} {lower start finish : Nat}
     {owners : List Nat} {work : Work} (h : DeferScoped parents owners work)
-    (hw : MixedKeys.WorkAt parents lower start work) (he : Extends start parents next)
+    (hw : MixedRefs.WorkAt parents lower start work) (he : Extends start parents next)
     (hle : start ≤ finish)
     : DeferScoped next owners work :=
   h.imp_right (fun hh => hh.extend hw he hle)
@@ -135,7 +135,7 @@ theorem DeferScoped.extend {parents next : Assignment} {lower start finish : Nat
 def ContinuousWork (parents : Assignment) (lower bound : Nat) (owners : List Nat)
     (work : Work)
     : Prop :=
-  MixedKeys.WorkAt parents lower bound work
+  MixedRefs.WorkAt parents lower bound work
   ∧ DeferContinuous parents work
   ∧ DeferScoped parents owners work
 
@@ -161,7 +161,7 @@ def ContinuityCompleted (parents : Assignment) (lower start : Nat) (owners : Lis
 
 theorem continuous_empty (parents : Assignment) (lower bound : Nat) (owners : List Nat)
     : ContinuousWork parents lower bound owners .empty :=
-  ⟨by simp [MixedKeys.WorkAt], by simp [DeferContinuous], Or.inr trivial⟩
+  ⟨by simp [MixedRefs.WorkAt], by simp [DeferContinuous], Or.inr trivial⟩
 
 theorem continuityOutput_empty (parents : Assignment) (lower state : Nat)
     (owners : List Nat) (hv : Valid parents state)
@@ -178,7 +178,7 @@ theorem continuous_append {parents : Assignment} {lower bound : Nat} {owners : L
     {left right : Work} (hl : ContinuousWork parents lower bound owners left)
     (hr : ContinuousWork parents lower bound owners right)
     : ContinuousWork parents lower bound owners (.combine left right) := by
-  refine ⟨MixedKeys.workAt_combine hl.1 hr.1, ?_, ?_⟩
+  refine ⟨MixedRefs.workAt_combine hl.1 hr.1, ?_, ?_⟩
   · rw [DeferContinuous]; exact ⟨hl.2.1, hr.2.1⟩
   · rcases hl.2.2 with he | hl
     · exact Or.inl he
@@ -222,38 +222,38 @@ theorem continuous_nonNull (parents : Assignment) (lower bound : Nat) (owners : 
   · exact h
 
 theorem continuous_deferred (parents : Assignment) (lower bound : Nat)
-    (deferMap : DeferMap) (keys owners : List Nat) (path : ResponsePath)
+    (deferMap : DeferMap) (refs owners : List Nat) (path : ResponsePath)
     (result : Result (List (Name × ResponseValue))) (children : Work)
     (hv : Valid parents bound) (hm : MapAt parents bound deferMap)
-    (hl : MixedKeys.MapLower lower deferMap) (hne : keys ≠ [])
-    (hk : keys.Subset (mapKeys deferMap))
-    (hs : owners = [] ∨ ∀ key ∈ keys, Descends parents owners key)
-    (hc : ContinuousWork parents lower bound keys children)
+    (hl : MixedRefs.MapLower lower deferMap) (hne : refs ≠ [])
+    (hk : refs.Subset (mapRefs deferMap))
+    (hs : owners = [] ∨ ∀ ref ∈ refs, Descends parents owners ref)
+    (hc : ContinuousWork parents lower bound refs children)
     : ContinuousWork parents lower bound owners
-        (.executionGroup (keys.filterMap (lookupDeferredFragment? deferMap)) path result
+        (.executionGroup (refs.filterMap (lookupDeferredFragment? deferMap)) path result
           children) := by
-  have hkeys := filterMap_fragment_keys deferMap keys hk
+  have hrefs := filterMap_fragment_refs deferMap refs hk
   have hchildren := hc.2.2.resolve_left hne
-  refine ⟨MixedKeys.deferred_workAt parents lower bound deferMap keys path result children hm hl hne hk hc.1, ?_, ?_⟩
-  · rw [DeferContinuous, hkeys]
+  refine ⟨MixedRefs.deferred_workAt parents lower bound deferMap refs path result children hm hl hne hk hc.1, ?_, ?_⟩
+  · rw [DeferContinuous, hrefs]
     exact ⟨hchildren, hc.2.1⟩
   · rcases hs with hs | hs
     · exact Or.inl hs
     · refine Or.inr ⟨?_, hchildren.mono hc.1 hv hs⟩
       intro group hg
-      obtain ⟨key, hk, he⟩ := List.mem_filterMap.mp hg
-      simpa only [lookup_key he] using hs key hk
+      obtain ⟨ref, hk, he⟩ := List.mem_filterMap.mp hg
+      simpa only [lookup_ref he] using hs ref hk
 
 theorem continuous_stream (parents : Assignment) (lower bound : Nat) (owners : List Nat)
     (node : DeliveryNode) (items : List (Result ResponseValue × Work))
-    (hl : lower ≤ node.key) (hb : node.key < bound)
+    (hl : lower ≤ node.ref) (hb : node.ref < bound)
     (hi
       : ∀ item ∈ items,
-          MixedKeys.WorkAt parents (node.key + 1) bound item.2
+          MixedRefs.WorkAt parents (node.ref + 1) bound item.2
           ∧ DeferContinuous parents item.2)
     : ContinuousWork parents lower bound owners (.stream node items) := by
   refine ⟨?_, ?_, Or.inr trivial⟩
-  · rw [MixedKeys.WorkAt]; exact ⟨hl, hb, fun item hm => (hi item hm).1⟩
+  · rw [MixedRefs.WorkAt]; exact ⟨hl, hb, fun item hm => (hi item hm).1⟩
   · rw [DeferContinuous]; exact fun item hm => (hi item hm).2
 
 end GraphQL.IncrementalDelivery.Semantics.GeneralScheduling

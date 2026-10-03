@@ -22,7 +22,7 @@ theorem State.RemovalForest.of_subset {before after : State} {parents}
     fun first second linked => forest.increasing (included first) (included second) linked⟩
 
 /-- Success retains the forest through membership mapping, parent removal, and pruning.
-Witness: the flush forest and the actual key filters; no acyclicity is assumed anew.
+Witness: the flush forest and the actual ref filters; no acyclicity is assumed anew.
 -/
 theorem State.RemovalForest.finishGroupSuccess {queue : State} {parents}
     (forest : queue.RemovalForest parents) (group : GroupNode)
@@ -30,10 +30,10 @@ theorem State.RemovalForest.finishGroupSuccess {queue : State} {parents}
   let flushed := (group.tasks.foldl flushGroupTask (queue, [], [])).1
   let current : State := { flushed with
     groupNodes := (flushed.groupNodes.filter
-      (fun node => node.group.node.key != group.group.node.key))
-    rootGroups := flushed.rootGroups.filter (· != group.group.node.key) }
+      (fun node => node.group.node.ref != group.group.node.ref))
+    rootGroups := flushed.rootGroups.filter (· != group.group.node.ref) }
   let candidates := group.childGroups.filterMap
-    (fun key => (current.groupNode? key).map (fun node => node.group.node))
+    (fun ref => (current.groupNode? ref).map (fun node => node.group.node))
   have currentForest : current.RemovalForest parents :=
     (forest.flushGroupTasks group.tasks [] []).1.of_subset
       (fun _ member => (List.mem_filter.mp member).1)
@@ -55,7 +55,7 @@ theorem State.RemovalForest.startNewWork {queue : State} {parents}
 
 /-- A failed subtree removal cannot disconnect a surviving root-covered target.
 Witness: traversal coverage removes all descendants together; a surviving target keeps
-its original path and root, and that root survives the exact root-key filter.
+its original path and root, and that root survives the exact root-ref filter.
 -/
 theorem State.removeGroup_root_coverage {queue : State} {parents target}
     (forest : queue.RemovalForest parents) (removed : Nat)
@@ -87,13 +87,13 @@ coverage. Success promotes surviving descendants; failure removes subtrees atomi
 No event-admission, settled-value, or host-progress premise is needed.
 -/
 theorem State.drainReadyGroups_root_coverage {queue : State} {parents}
-    (unique : queue.GroupKeysUnique) (forest : queue.RemovalForest parents)
+    (unique : queue.GroupRefsUnique) (forest : queue.RemovalForest parents)
     : ∀ target,
         (∃ root ∈ queue.rootGroups, queue.LiveDescendant root target)
         → (∃ node, queue.drainReadyGroups.1.groupNode? target = some node)
         → ∃ root ∈ queue.drainReadyGroups.1.rootGroups,
             queue.drainReadyGroups.1.LiveDescendant root target := by
-  let property (current : State) := current.GroupKeysUnique ∧ current.RemovalForest parents
+  let property (current : State) := current.GroupRefsUnique ∧ current.RemovalForest parents
     ∧ ∀ target,
       (∃ root ∈ queue.rootGroups, queue.LiveDescendant root target)
       → (∃ node, current.groupNode? target = some node)
@@ -116,12 +116,12 @@ theorem State.drainReadyGroups_root_coverage {queue : State} {parents}
           ⟨child, found⟩)
       (fun current node errors prior _ _ _ => by
         refine ⟨prior.1.finishGroupFailure node errors,
-          prior.2.1.removeGroup node.group.node.key, ?_⟩
+          prior.2.1.removeGroup node.group.node.ref, ?_⟩
         intro target covered survives
         obtain ⟨child, found⟩ := survives
-        have edges := current.filterKeys_groupEdgesFrom (fun key =>
+        have edges := current.filterRefs_groupEdgesFrom (fun ref =>
           !(State.removeGroup.collect (current.groupNodes.length + 1) current
-            [node.group.node.key] []).contains key)
+            [node.group.node.ref] []).contains ref)
         obtain ⟨old, oldFound, _⟩ := edges _ _ found
         exact State.removeGroup_root_coverage prior.2.1 _
           (prior.2.2 target covered ⟨old, oldFound⟩) ⟨child, found⟩)
@@ -129,11 +129,11 @@ theorem State.drainReadyGroups_root_coverage {queue : State} {parents}
   exact result.2.2
 
 /-- Empty post-drain roots rule out every previously covered surviving live group.
-Witness: the generic drain coverage theorem would otherwise produce an actual root key.
+Witness: the generic drain coverage theorem would otherwise produce an actual root ref.
 This is concrete endpoint coverage, not yet accounting for never-integrated spec work.
 -/
 theorem State.drainReadyGroups_no_stranded_group {queue : State} {parents target}
-    (unique : queue.GroupKeysUnique) (forest : queue.RemovalForest parents)
+    (unique : queue.GroupRefsUnique) (forest : queue.RemovalForest parents)
     (empty : queue.drainReadyGroups.1.rootGroups = [])
     (covered : ∃ root ∈ queue.rootGroups, queue.LiveDescendant root target)
     : queue.drainReadyGroups.1.groupNode? target = none := by

@@ -36,10 +36,10 @@ theorem ExecutedWork.taskSuccess_groupNoticeCompletion {work before occurrence r
           State.maybeIntegrateWork_rootGroups _ _ _
         have first : GroupNoticeCompletion queue.rootGroups
             (folded.1.startNewWork folded.2.2, folded.2.1) := by
-          intro key member
+          intro ref member
           rw [(folded.1.startNewWork_groupCore _).2.2]
           rcases List.mem_append.mp member with old | noticed
-          · rcases prepared.successGroupFold_tracks_roots incoming.task.groups key
+          · rcases prepared.successGroupFold_tracks_roots incoming.task.groups ref
                 (roots.symm ▸ old) with active | closed
             · exact .inl (List.mem_append_left _ active)
             · exact .inr closed
@@ -67,10 +67,10 @@ theorem ExecutedWork.streamItems_groupNoticeCompletion {work before stream items
   · let prepared := items.foldl streamItemStep (queue, [], [], [])
     have first : GroupNoticeCompletion queue.rootGroups
         (prepared.1, [.streamValues stream prepared.2.2.2 prepared.2.1 prepared.2.2.1]) := by
-      intro key member
+      intro ref member
       exact .inl (by
         rw [queue.streamItemFold_rootGroups items]
-        simpa only [List.flatMap_singleton, rawGroupNoticeKeys] using member)
+        simpa only [List.flatMap_singleton, rawGroupNoticeRefs] using member)
     obtain ⟨parents, canonical, frame⟩ := generated.streamItems_prepared_liveRootFrame
       matching matched (generated.replayGraphEvents_rootsPresent before matching)
     exact first.append (frame.drainReadyGroups_go_groupNoticeCompletion generated canonical _)
@@ -98,10 +98,10 @@ theorem ExecutedWork.handleGraphEvent_groupNoticeCompletion {work before event}
       exact generated.streamItems_groupNoticeCompletion matching matched
   | streamSuccess stream =>
       simp only [State.handleGraphEvent, State.streamSuccess]
-      split <;> intro key member <;> exact .inl (by simpa [rawGroupNoticeKeys] using member)
+      split <;> intro ref member <;> exact .inl (by simpa [rawGroupNoticeRefs] using member)
   | streamFailure stream errors =>
       simp only [State.handleGraphEvent, State.streamFailure]
-      split <;> intro key member <;> exact .inl (by simpa [rawGroupNoticeKeys] using member)
+      split <;> intro ref member <;> exact .inl (by simpa [rawGroupNoticeRefs] using member)
 
 /-- Every initial or carried group notice remains active until an actual emitted completion.
 Witness: concatenate the real source handlers and their protected-root tracking. This
@@ -144,7 +144,7 @@ theorem ExecutedWork.rawEventReplay_groupNoticeCompletion {work : Execution.Work
 Witness: exact replay tracking and empty final roots exclude the only noncompletion
 alternative. Latent, unannounced node accounting remains a separate obligation.
 -/
-theorem ExecutedWork.terminalGroupCompleted {work inputs key}
+theorem ExecutedWork.terminalGroupCompleted {work inputs ref}
     (generated : ExecutedWork work)
     (matching : ∀ event ∈ inputs.flatten, event.MatchesWork work)
     (started : inputsStarted work inputs = true)
@@ -152,17 +152,17 @@ theorem ExecutedWork.terminalGroupCompleted {work inputs key}
       : ((State.initialize (Work.fromExecution work)).runNormalized inputs).1.terminated
         = true)
     (announced
-      : key
+      : ref
         ∈ (State.initialize (Work.fromExecution work)).rootGroups
           ++ ((State.initialize (Work.fromExecution work)).rawEventReplay
                 inputs.flatten).2.flatMap
-              rawGroupNoticeKeys)
-    : key
+              rawGroupNoticeRefs)
+    : ref
       ∈ ((State.initialize (Work.fromExecution work)).rawEventReplay
           inputs.flatten).2.flatMap
-          rawGroupClosureKeys := by
+          rawGroupClosureRefs := by
   have tracked := generated.rawEventReplay_groupNoticeCompletion inputs.flatten matching
-    key announced
+    ref announced
   have empty := (createWorkQueue_replayGraphEvents_terminalRoots started ended).1
   rw [State.rawEventReplay_state] at tracked
   exact tracked.resolve_left (by rw [empty]; simp)

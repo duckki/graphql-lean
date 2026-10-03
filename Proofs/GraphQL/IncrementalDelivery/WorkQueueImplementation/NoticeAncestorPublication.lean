@@ -24,21 +24,21 @@ theorem State.ReleaseOwners.ownerCarrier_ancestorValue {queue : State}
     (links : queue.ChildLinksCanonical parents)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (live : queue.LiveGroupsRegistered) (tasks : queue.TaskGroupsRegistered)
     (roots : queue.RootAncestorsRetired work)
-    {index group groups streams child dependencies key occurrence node value}
+    {index group groups streams child dependencies ref occurrence node value}
     (selected
       : (owners.foldl successGroupStep (queue, [], {})).2.1[index]?
         = some (.groupSuccess group groups streams))
     (noticed : child ∈ groups) (known : GroupRecordAt work child dependencies)
-    (ancestor : key ∈ dependencies)
+    (ancestor : ref ∈ dependencies)
     (found : queue.taskNode? occurrence = some node) (stored : node.value = some value)
     (task
-      : TaskHasOwners work occurrence (node.task.groups.map Execution.DeliveryNode.key))
-    (contributes : key ∈ node.task.groups.map Execution.DeliveryNode.key)
-    (present : key ∈ queue.groupNodes.map (fun owner => owner.group.node.key))
-    (uncancelled : key ∉ queue.cancelledGroups)
+      : TaskHasOwners work occurrence (node.task.groups.map Execution.DeliveryNode.ref))
+    (contributes : ref ∈ node.task.groups.map Execution.DeliveryNode.ref)
+    (present : ref ∈ queue.groupNodes.map (fun owner => owner.group.node.ref))
+    (uncancelled : ref ∉ queue.cancelledGroups)
     : (occurrence, value)
       ∈ published.take
           (((owners.foldl successGroupStep (queue, [], {})).2.1.take index).flatMap
@@ -48,17 +48,17 @@ theorem State.ReleaseOwners.ownerCarrier_ancestorValue {queue : State}
   have atBoundary : boundary.2.1[index]? = some (.groupSuccess group groups streams) := by
     rw [← exactPrefix, List.getElem?_take_of_lt (Nat.lt_succ_self _)]
     exact selected
-  have inOutput : child.key ∈ boundary.2.1.flatMap rawGroupNoticeKeys :=
+  have inOutput : child.ref ∈ boundary.2.1.flatMap rawGroupNoticeRefs :=
     List.mem_flatMap.mpr ⟨_, List.mem_of_getElem? atBoundary,
-      List.mem_map_of_mem (f := Execution.DeliveryNode.key) noticed⟩
+      List.mem_map_of_mem (f := Execution.DeliveryNode.ref) noticed⟩
   rw [← successGroupFold_groupNotices queue (owners.take (steps + 1))] at inOutput
-  obtain ⟨released, member, sameKey⟩ := List.mem_map.mp inOutput
+  obtain ⟨released, member, sameRef⟩ := List.mem_map.mp inOutput
   have ancestry := (successGroupFold_ancestorsRetired generated records links canonical
     live tasks roots (owners.take (steps + 1))).2 released member
-  have retired := ancestry child dependencies known sameKey.symm key ancestor occurrence _
+  have retired := ancestry child dependencies known sameRef.symm ref ancestor occurrence _
     task contributes
   have retained := prefixes.ownerFold (steps + 1) (by omega)
-    occurrence node value found stored key contributes present
+    occurrence node value found stored ref contributes present
     (by simpa only [successGroupFold_cancelledGroups] using uncancelled)
   have emitted := retained.resolve_right (fun kept => retired.2 kept.2)
   have count : (boundary.2.1.flatMap WorkQueueEvent.objectValues).length

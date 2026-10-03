@@ -14,11 +14,11 @@ Witness: generated replay derives the live-root frame; source tracking composes 
 preparation and the single-pass owner output before the local drain theorem is applied.
 -/
 theorem ExecutedWork.taskDrainNoticeAncestor_completed
-    {work before occurrence result group groups streams child dependencies key}
+    {work before occurrence result group groups streams child dependencies ref}
     {incoming : TaskNode} {index : Nat}
     (generated : ExecutedWork work) (matching : ∀ event ∈ before, event.MatchesWork work)
     (matched : (GraphEvent.taskSuccess occurrence result).MatchesWork work)
-    (known : GroupRecordAt work child dependencies) (ancestor : key ∈ dependencies)
+    (known : GroupRecordAt work child dependencies) (ancestor : ref ∈ dependencies)
     : let initial := State.initialize (Work.fromExecution work)
       let queue := initial.replayGraphEvents before
       let prepared :=
@@ -33,9 +33,9 @@ theorem ExecutedWork.taskDrainNoticeAncestor_completed
         ++ active.drainReadyGroups.2.take (index + 1)
       active.drainReadyGroups.2[index]? = some (.groupSuccess group groups streams)
       → child ∈ groups
-      → key ∉ active.drainReadyGroups.1.cancelledGroups
-      → key ∈ initial.rootGroups ++ outputs.flatMap rawGroupNoticeKeys
-      → key ∈ outputs.flatMap rawGroupClosureKeys := by
+      → ref ∉ active.drainReadyGroups.1.cancelledGroups
+      → ref ∈ initial.rootGroups ++ outputs.flatMap rawGroupNoticeRefs
+      → ref ∈ outputs.flatMap rawGroupClosureRefs := by
   intro initial queue prepared folded active outputs selected noticed uncancelled announced
   obtain ⟨parents, canonical, frame⟩ :=
     generated.taskSuccess_drain_liveRootFrame matching matched incoming
@@ -59,10 +59,10 @@ Witness: item preparation supplies live roots and the leading notice frontier; s
 tracking includes that actual item event before the selected recursive-drain prefix.
 -/
 theorem ExecutedWork.streamDrainNoticeAncestor_completed
-    {work before stream items group groups streams child dependencies key} {index : Nat}
+    {work before stream items group groups streams child dependencies ref} {index : Nat}
     (generated : ExecutedWork work) (matching : ∀ event ∈ before, event.MatchesWork work)
     (matched : (GraphEvent.streamItems stream items).MatchesWork work)
-    (known : GroupRecordAt work child dependencies) (ancestor : key ∈ dependencies)
+    (known : GroupRecordAt work child dependencies) (ancestor : ref ∈ dependencies)
     : let initial := State.initialize (Work.fromExecution work)
       let queue := initial.replayGraphEvents before
       let prepared := items.foldl streamItemStep (queue, [], [], [])
@@ -72,9 +72,9 @@ theorem ExecutedWork.streamDrainNoticeAncestor_completed
         ++ prepared.1.drainReadyGroups.2.take (index + 1)
       prepared.1.drainReadyGroups.2[index]? = some (.groupSuccess group groups streams)
       → child ∈ groups
-      → key ∉ prepared.1.drainReadyGroups.1.cancelledGroups
-      → key ∈ initial.rootGroups ++ outputs.flatMap rawGroupNoticeKeys
-      → key ∈ outputs.flatMap rawGroupClosureKeys := by
+      → ref ∉ prepared.1.drainReadyGroups.1.cancelledGroups
+      → ref ∈ initial.rootGroups ++ outputs.flatMap rawGroupNoticeRefs
+      → ref ∈ outputs.flatMap rawGroupClosureRefs := by
   intro initial queue prepared outputs selected noticed uncancelled announced
   obtain ⟨parents, canonical, frame⟩ :=
     generated.streamItems_prepared_liveRootFrame matching matched

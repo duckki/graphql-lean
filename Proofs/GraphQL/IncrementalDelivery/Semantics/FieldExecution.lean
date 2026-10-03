@@ -14,7 +14,7 @@ def executeResponseField (schema : Schema) (resolvers : Resolvers ObjectRef)
     (source : ResolverValue ObjectRef) (responseName : Name)
     (fields : List FieldDetails) (path : ResponsePath := [])
     (deferUsageSet : List Nat := []) (deferMap : DeferMap := [])
-    : StateM Nat (Completion (List (Name × ResponseValue))) := do
+    : StateM NodeRef (Completion (List (Name × ResponseValue))) := do
   match fuel, fields with
   | 0, _ | _, [] => return .error 1
   | fuel + 1, field :: _ =>

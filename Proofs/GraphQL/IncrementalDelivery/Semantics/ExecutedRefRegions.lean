@@ -1,12 +1,12 @@
-import Proofs.GraphQL.IncrementalDelivery.Semantics.KeyRegions
-import Proofs.GraphQL.IncrementalDelivery.Semantics.CollectedKeyRegions
+import Proofs.GraphQL.IncrementalDelivery.Semantics.RefRegions
+import Proofs.GraphQL.IncrementalDelivery.Semantics.CollectedRefRegions
 
-/-! Actual mixed execution separates every stream item's key region. Inherited
+/-! Actual mixed execution separates every stream item's ref region. Inherited
 defer metadata may be shared within the current region, but hidden item regions
-allocate entirely fresh keys. Errors may discard work without changing this fact.
+allocate entirely fresh refs. Errors may discard work without changing this fact.
 -/
 
-namespace GraphQL.IncrementalDelivery.Semantics.KeyRegions
+namespace GraphQL.IncrementalDelivery.Semantics.RefRegions
 
 open GraphQL.IncrementalDelivery.Execution
 
@@ -19,7 +19,7 @@ theorem output_combine {inherited : List Nat} {start middle finish : Nat}
     (f : α → β → γ) (left : Completion α) (right : Completion β)
     (hl : Output inherited start middle left.work)
     (hr : Output inherited middle finish right.work)
-    (hi : ∀ key ∈ inherited, key < start)
+    (hi : ∀ ref ∈ inherited, ref < start)
     : Output inherited start finish (Completion.combine f left right).work := by
   cases hleft : left.result <;> cases hright : right.result <;>
     simp only [Completion.combine, hleft, hright, GraphQL.Execution.Result.combine, Completion.error]
@@ -55,13 +55,13 @@ mutual
       (source : ResolverValue ObjectRef) (collection : FieldCollection)
       (path : ResponsePath) (usages : List Nat) (deferMap : DeferMap) (state : Nat)
       (hm
-        : ∀ key ∈
+        : ∀ ref ∈
             (getNewDeferMap collection.newDeferUsages path deferMap).flatMap
-              KeyRoles.fragmentKeys,
-            key < state)
+              RefRoles.fragmentRefs,
+            ref < state)
       : Completed
           ((getNewDeferMap collection.newDeferUsages path deferMap).flatMap
-            KeyRoles.fragmentKeys)
+            RefRoles.fragmentRefs)
           state
           ((executeExecutionPlan schema resolvers variables fuel parentType source
               collection.newDeferUsages
@@ -77,7 +77,7 @@ mutual
     · have hr := collectExecutionGroups_regions schema resolvers variables fuel parentType source
         (buildExecutionPlan collection.collectedFieldsMap usages).newCollectedFieldsMaps path
         (getNewDeferMap collection.newDeferUsages path deferMap) _
-        (fun key hk => Nat.lt_of_lt_of_le (hm key hk) hl.monotone)
+        (fun ref hk => Nat.lt_of_lt_of_le (hm ref hk) hl.monotone)
       simp only [run_bind, StateT.run_pure, id_pure_eq]
       exact hl.append hr hm
   termination_by (fuel, 6, 0, 0)
@@ -90,25 +90,25 @@ mutual
       (parentType : Name) (source : ResolverValue ObjectRef)
       (partitions : List (List Nat × CollectedFieldsMap)) (path : ResponsePath)
       (deferMap : DeferMap) (state : Nat)
-      (hm : ∀ key ∈ deferMap.flatMap KeyRoles.fragmentKeys, key < state)
+      (hm : ∀ ref ∈ deferMap.flatMap RefRoles.fragmentRefs, ref < state)
       : let output :=
           (collectExecutionGroups schema resolvers variables fuel parentType
             source partitions path deferMap).run
             state
-        Output (deferMap.flatMap KeyRoles.fragmentKeys) state output.2 output.1 := by
+        Output (deferMap.flatMap RefRoles.fragmentRefs) state output.2 output.1 := by
     cases partitions with
     | nil =>
         simpa only [collectExecutionGroups, StateT.run_pure, id_pure_eq] using Output.empty
-          (inherited := deferMap.flatMap KeyRoles.fragmentKeys) (Nat.le_refl state)
+          (inherited := deferMap.flatMap RefRoles.fragmentRefs) (Nat.le_refl state)
     | cons partition rest =>
         rcases partition with ⟨usages, groups⟩
         have hl := executeCollectedFields_regions schema resolvers variables fuel parentType
           source groups path usages deferMap state hm
         have hr := collectExecutionGroups_regions schema resolvers variables fuel parentType
-          source rest path deferMap _ (fun key hk => Nat.lt_of_lt_of_le (hm key hk) hl.monotone)
+          source rest path deferMap _ (fun ref hk => Nat.lt_of_lt_of_le (hm ref hk) hl.monotone)
         have hd := hl.executionGroup (usages.filterMap (lookupDeferredFragment? deferMap)) path
           ((executeCollectedFields schema resolvers variables fuel parentType source groups path
-            usages deferMap).run state).1.result (mapKeys_filterMap_subset deferMap usages) hm
+            usages deferMap).run state).1.result (mapRefs_filterMap_subset deferMap usages) hm
         simp only [collectExecutionGroups, executeExecutionGroup, run_bind, StateT.run_pure, id_pure_eq]
         exact hd.append hr hm
   termination_by (fuel, 5, 0, sizeOf partitions)
@@ -121,8 +121,8 @@ mutual
       (resolvers : Resolvers ObjectRef) (variables : VariableValues) (fuel : Nat)
       (parentType : Name) (source : ResolverValue ObjectRef) (groups : CollectedFieldsMap)
       (path : ResponsePath) (usages : List Nat) (deferMap : DeferMap) (state : Nat)
-      (hm : ∀ key ∈ deferMap.flatMap KeyRoles.fragmentKeys, key < state)
-      : Completed (deferMap.flatMap KeyRoles.fragmentKeys) state
+      (hm : ∀ ref ∈ deferMap.flatMap RefRoles.fragmentRefs, ref < state)
+      : Completed (deferMap.flatMap RefRoles.fragmentRefs) state
           ((executeCollectedFields schema resolvers variables fuel parentType source
               groups path usages deferMap).run
             state) := by
@@ -130,7 +130,7 @@ mutual
     | nil =>
         simpa only [executeCollectedFields_nil, StateT.run_pure, id_pure_eq, Completed,
           Completion.pure]
-          using Output.empty (inherited := deferMap.flatMap KeyRoles.fragmentKeys)
+          using Output.empty (inherited := deferMap.flatMap RefRoles.fragmentRefs)
             (Nat.le_refl state)
     | cons group rest =>
         rcases group with ⟨name, fields⟩
@@ -138,7 +138,7 @@ mutual
           source name
           fields path usages deferMap state hm
         have hr := executeCollectedFields_regions schema resolvers variables fuel parentType
-          source rest path usages deferMap _ (fun key hk => Nat.lt_of_lt_of_le (hm key hk) hl.monotone)
+          source rest path usages deferMap _ (fun ref hk => Nat.lt_of_lt_of_le (hm ref hk) hl.monotone)
         simp only [executeCollectedFields_cons, run_bind, StateT.run_pure, id_pure_eq]
         exact output_combine List.append _ _ hl hr hm
   termination_by (fuel, 4, 0, sizeOf groups)
@@ -151,8 +151,8 @@ mutual
       (variables : VariableValues) (fuel : Nat) (parentType : Name)
       (source : ResolverValue ObjectRef) (name : Name) (fields : List FieldDetails)
       (path : ResponsePath) (usages : List Nat) (deferMap : DeferMap) (state : Nat)
-      (hm : ∀ key ∈ deferMap.flatMap KeyRoles.fragmentKeys, key < state)
-      : Completed (deferMap.flatMap KeyRoles.fragmentKeys) state
+      (hm : ∀ ref ∈ deferMap.flatMap RefRoles.fragmentRefs, ref < state)
+      : Completed (deferMap.flatMap RefRoles.fragmentRefs) state
           ((executeResponseField schema resolvers variables fuel parentType source name
               fields path usages deferMap).run
             state) := by
@@ -160,14 +160,14 @@ mutual
     | zero =>
         simpa only [executeResponseField, StateT.run_pure, id_pure_eq, Completed,
           Completion.error]
-          using Output.empty (inherited := deferMap.flatMap KeyRoles.fragmentKeys)
+          using Output.empty (inherited := deferMap.flatMap RefRoles.fragmentRefs)
             (Nat.le_refl state)
     | succ fuel =>
         cases fields with
         | nil =>
             simpa only [executeResponseField, StateT.run_pure, id_pure_eq, Completed,
               Completion.error]
-              using Output.empty (inherited := deferMap.flatMap KeyRoles.fragmentKeys)
+              using Output.empty (inherited := deferMap.flatMap RefRoles.fragmentRefs)
                 (Nat.le_refl state)
         | cons field rest =>
             simp only [executeResponseField]
@@ -190,8 +190,8 @@ mutual
       (variables : VariableValues) (fuel : Nat) (fieldType : TypeRef)
       (fields : List FieldDetails) (value : ResolverValue ObjectRef)
       (path : ResponsePath) (usages : List Nat) (deferMap : DeferMap) (allowStream : Bool)
-      (state : Nat) (hm : ∀ key ∈ deferMap.flatMap KeyRoles.fragmentKeys, key < state)
-      : Completed (deferMap.flatMap KeyRoles.fragmentKeys) state
+      (state : Nat) (hm : ∀ ref ∈ deferMap.flatMap RefRoles.fragmentRefs, ref < state)
+      : Completed (deferMap.flatMap RefRoles.fragmentRefs) state
           ((completeValue schema resolvers variables fuel fieldType fields value path
               usages deferMap allowStream).run
             state) := by
@@ -199,7 +199,7 @@ mutual
     | zero =>
         simpa only [completeValue, StateT.run_pure, id_pure_eq, Completed,
           Completion.error]
-          using Output.empty (inherited := deferMap.flatMap KeyRoles.fragmentKeys)
+          using Output.empty (inherited := deferMap.flatMap RefRoles.fragmentRefs)
             (Nat.le_refl state)
     | succ fuel =>
         cases fieldType with
@@ -213,14 +213,14 @@ mutual
             | null =>
                 simpa only [completeValue, StateT.run_pure, id_pure_eq, Completed,
                   Completion.pure]
-                  using Output.empty (inherited := deferMap.flatMap KeyRoles.fragmentKeys)
+                  using Output.empty (inherited := deferMap.flatMap RefRoles.fragmentRefs)
                     (Nat.le_refl state)
             | scalar scalar =>
                 simp only [completeValue]; split <;> exact Output.empty _ (Nat.le_refl state)
             | list items =>
                 simpa only [completeValue, StateT.run_pure, id_pure_eq, Completed,
                   Completion.error]
-                  using Output.empty (inherited := deferMap.flatMap KeyRoles.fragmentKeys)
+                  using Output.empty (inherited := deferMap.flatMap RefRoles.fragmentRefs)
                     (Nat.le_refl state)
             | object runtimeType ref =>
                 simp only [completeValue]
@@ -230,29 +230,29 @@ mutual
                     (.object runtimeType ref) fields state
                   have h := executePlan_regions schema resolvers variables fuel runtimeType
                     (.object runtimeType ref) _ path usages deferMap _
-                    (mapKeys_new_bound deferMap _ path _
-                      (fun key hk => Nat.lt_of_lt_of_le (hm key hk) hc.1)
+                    (mapRefs_new_bound deferMap _ path _
+                      (fun ref hk => Nat.lt_of_lt_of_le (hm ref hk) hc.1)
                       (fun usage hu => (hc.2 usage hu).2))
                   simp only [run_bind, StateT.run_pure, id_pure_eq]
                   apply output_catchNull
-                  exact h.rebase hc.1 (mapKeys_new_root deferMap _ path state
+                  exact h.rebase hc.1 (mapRefs_new_root deferMap _ path state
                     (fun usage hu => (hc.2 usage hu).1))
         | list inner =>
             cases value with
             | null =>
                 simpa only [completeValue, StateT.run_pure, id_pure_eq, Completed,
                   Completion.pure]
-                  using Output.empty (inherited := deferMap.flatMap KeyRoles.fragmentKeys)
+                  using Output.empty (inherited := deferMap.flatMap RefRoles.fragmentRefs)
                     (Nat.le_refl state)
             | scalar scalar =>
                 simpa only [completeValue, StateT.run_pure, id_pure_eq, Completed,
                   Completion.error]
-                  using Output.empty (inherited := deferMap.flatMap KeyRoles.fragmentKeys)
+                  using Output.empty (inherited := deferMap.flatMap RefRoles.fragmentRefs)
                     (Nat.le_refl state)
             | object runtimeType ref =>
                 simpa only [completeValue, StateT.run_pure, id_pure_eq, Completed,
                   Completion.error]
-                  using Output.empty (inherited := deferMap.flatMap KeyRoles.fragmentKeys)
+                  using Output.empty (inherited := deferMap.flatMap RefRoles.fragmentRefs)
                     (Nat.le_refl state)
             | list items =>
                 simpa only [completeValue] using completeListValueWithStream_regions
@@ -268,8 +268,8 @@ mutual
       (inner : TypeRef) (fields : List FieldDetails)
       (values : List (ResolverValue ObjectRef)) (path : ResponsePath) (usages : List Nat)
       (deferMap : DeferMap) (allowStream : Bool) (state : Nat)
-      (hm : ∀ key ∈ deferMap.flatMap KeyRoles.fragmentKeys, key < state)
-      : Completed (deferMap.flatMap KeyRoles.fragmentKeys) state
+      (hm : ∀ ref ∈ deferMap.flatMap RefRoles.fragmentRefs, ref < state)
+      : Completed (deferMap.flatMap RefRoles.fragmentRefs) state
           ((completeListValueWithStream schema resolvers variables fuel inner fields
               values path usages deferMap allowStream).run
             state) := by
@@ -294,9 +294,9 @@ mutual
           have hr := completeStreamItems_regions schema resolvers variables fuel inner
             (fields.map (fun field => {field with deferUsage := none}))
             (values.drop usage.initialCount) path usage.initialCount (middle + 1)
-          simp only [freshExecutionKey, run_bind, StateT.run_get, StateT.run_set, StateT.run_pure, id_pure_eq]
+          simp only [freshNodeRef, run_bind, StateT.run_get, StateT.run_set, StateT.run_pure, id_pure_eq]
           apply Output.append (output_catchNull _ _ hl) _ hm
-          exact Output.stream _ {key := middle, path := path, label := usage.label} hr
+          exact Output.stream _ {ref := middle, path := path, label := usage.label} hr
   termination_by (fuel, 3, 0, 0)
   decreasing_by
     all_goals subst_vars; simp_wf
@@ -306,8 +306,8 @@ mutual
       (variables : VariableValues) (fuel : Nat) (itemType : TypeRef)
       (fields : List FieldDetails) (values : List (ResolverValue ObjectRef))
       (path : ResponsePath) (index : Nat) (usages : List Nat) (deferMap : DeferMap)
-      (state : Nat) (hm : ∀ key ∈ deferMap.flatMap KeyRoles.fragmentKeys, key < state)
-      : Completed (deferMap.flatMap KeyRoles.fragmentKeys) state
+      (state : Nat) (hm : ∀ ref ∈ deferMap.flatMap RefRoles.fragmentRefs, ref < state)
+      : Completed (deferMap.flatMap RefRoles.fragmentRefs) state
           ((completeListValue schema resolvers variables fuel itemType fields values path
               index usages deferMap).run
             state) := by
@@ -315,13 +315,13 @@ mutual
     | nil =>
         simpa only [completeListValue, StateT.run_pure, id_pure_eq, Completed,
           Completion.pure]
-          using Output.empty (inherited := deferMap.flatMap KeyRoles.fragmentKeys)
+          using Output.empty (inherited := deferMap.flatMap RefRoles.fragmentRefs)
             (Nat.le_refl state)
     | cons value rest =>
         have hl := completeValue_regions schema resolvers variables fuel itemType fields value
           (path ++ [.index index]) usages deferMap false state hm
         have hr := completeListValue_regions schema resolvers variables fuel itemType fields rest
-          path (index + 1) usages deferMap _ (fun key hk => Nat.lt_of_lt_of_le (hm key hk) hl.monotone)
+          path (index + 1) usages deferMap _ (fun ref hk => Nat.lt_of_lt_of_le (hm ref hk) hl.monotone)
         simp only [completeListValue, run_bind, StateT.run_pure, id_pure_eq]
         exact output_combine List.cons _ _ hl hr hm
   termination_by (fuel, 2, sizeOf itemType, sizeOf values)
@@ -373,9 +373,9 @@ theorem executeRoot_regions (schema : Schema) (resolvers : Resolvers ObjectRef)
   have hc := OwnerPaths.collectFields_supply schema variables parentType source selections none state
   let collected := (collectFields schema variables parentType source selections none).run state
   have h := executePlan_regions schema resolvers variables fuel parentType source collected.1
-    [] [] [] collected.2 (mapKeys_new_bound [] _ [] _ (by simp)
+    [] [] [] collected.2 (mapRefs_new_bound [] _ [] _ (by simp)
       (fun usage hu => (hc.2 usage hu).2))
-  exact h.rebase hc.1 (mapKeys_new_root [] _ [] state (fun usage hu => (hc.2 usage hu).1))
+  exact h.rebase hc.1 (mapRefs_new_root [] _ [] state (fun usage hu => (hc.2 usage hu).1))
 
 theorem executeRoot_separated (schema : Schema) (resolvers : Resolvers ObjectRef)
     (variables : VariableValues) (fuel : Nat) (parentType : Name)
@@ -387,4 +387,4 @@ theorem executeRoot_separated (schema : Schema) (resolvers : Resolvers ObjectRef
   (executeRoot_regions schema resolvers variables fuel parentType source selections
     state).separated
 
-end GraphQL.IncrementalDelivery.Semantics.KeyRegions
+end GraphQL.IncrementalDelivery.Semantics.RefRegions

@@ -16,12 +16,12 @@ private def work : Execution.Work :=
 /-- The intermediate wrapper has a registration descriptor with its own parent.
 Witness: its nearest-first ancestor chain is a suffix of the child contributor's chain.
 -/
-theorem wrapper_record : GroupRecordAt work wrapper [parent.key] := by
+theorem wrapper_record : GroupRecordAt work wrapper [parent.ref] := by
   refine ⟨[], [⟨child, [wrapper, parent]⟩], [], .ok ([], 0), .empty, none, [],
     ⟨child, [wrapper, parent]⟩, [parent], rfl, List.mem_cons_self, ?_, rfl⟩
   exact List.suffix_cons _ _
 
-/-- An ancestor record does not assert a task-contributing spec node at that key.
+/-- An ancestor record does not assert a task-contributing spec node at that ref.
 Witness: the finite node-token inventory contains only the actual child contributor.
 -/
 theorem wrapper_not_nodeAt
@@ -34,7 +34,7 @@ theorem wrapper_not_nodeAt
 Witness: the full-chain parent theorem applied to the wrapper's record.
 -/
 theorem wrapper_parent_record
-    : ∃ node, node.key = parent.key ∧ GroupRecordAt work node [] :=
+    : ∃ node, node.ref = parent.ref ∧ GroupRecordAt work node [] :=
   wrapper_record.parent
 
 /-- The integration invariant permits taskless records before pruning.
@@ -57,7 +57,7 @@ Witness: reduce integration before the separate empty-group pruning phase.
 -/
 example
     : ((({} : State).maybeIntegrateWork (Work.fromExecution work)).1.groupNode?
-        wrapper.key).isSome
+        wrapper.ref).isSome
       = true := by cbv
 
 end GraphQL.IncrementalDelivery.Tests.WorkSchedulerGroupRecords

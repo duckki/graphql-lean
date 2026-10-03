@@ -25,44 +25,44 @@ theorem State.HealthyTaskLinks.putTaskNodeSameTask
   · subst taskNode
     exact links old oldMember fresh groupNode groupMember healthy contributor
 
-/-- Updating a group's pending count preserves healthy task links when its key
+/-- Updating a group's pending count preserves healthy task links when its ref
 and membership list remain unchanged. -/
 theorem State.HealthyTaskLinks.putGroupNodeSameTasks
     {queue : State} {work : Execution.Work} {settled failed : List Occurrence}
-    (unique : queue.GroupKeysUnique)
+    (unique : queue.GroupRefsUnique)
     (links : queue.HealthyTaskLinks work settled failed)
     (node : GroupNode) (member : node ∈ queue.groupNodes)
     (updated : GroupNode)
-    (sameKey : updated.group.node.key = node.group.node.key)
+    (sameRef : updated.group.node.ref = node.group.node.ref)
     (sameTasks : updated.tasks = node.tasks)
     : (queue.putGroupNode updated).HealthyTaskLinks work settled failed := by
   apply State.HealthyTaskLinks.ofFilteredLinks
   intro taskNode taskMember fresh
   have prior := (links.toTaskLinkedOn taskMember fresh).putGroupNodeSameTasks
-    unique node member updated sameKey sameTasks
+    unique node member updated sameRef sameTasks
   exact prior
 
 /-- Settling a task changes group pending counts but not its healthy links. -/
 theorem State.HealthyTaskLinks.settleTaskGroups
     {queue : State} {work : Execution.Work} {settled failed : List Occurrence}
-    (unique : queue.GroupKeysUnique)
+    (unique : queue.GroupRefsUnique)
     (links : queue.HealthyTaskLinks work settled failed)
     (groups : List Execution.DeliveryNode)
     : (groups.foldl
         (fun current group =>
-          match current.groupNode? group.key with
+          match current.groupNode? group.ref with
           | none => current
           | some node => current.putGroupNode { node with pending := node.pending - 1 })
         queue).HealthyTaskLinks
         work settled failed := by
   let step (current : State) (group : Execution.DeliveryNode) : State :=
-    match current.groupNode? group.key with
+    match current.groupNode? group.ref with
     | none => current
     | some node => current.putGroupNode { node with pending := node.pending - 1 }
   have stepFacts (current : State) (group : Execution.DeliveryNode)
-      (currentUnique : current.GroupKeysUnique)
+      (currentUnique : current.GroupRefsUnique)
       (currentLinks : current.HealthyTaskLinks work settled failed)
-      : (step current group).GroupKeysUnique
+      : (step current group).GroupRefsUnique
         ∧ (step current group).HealthyTaskLinks work settled failed := by
     unfold step
     split
@@ -73,7 +73,7 @@ theorem State.HealthyTaskLinks.settleTaskGroups
         currentLinks.putGroupNodeSameTasks currentUnique node member
           { node with pending := node.pending - 1 } rfl rfl⟩
   have foldFacts (more : List Execution.DeliveryNode) :
-      ∀ current, current.GroupKeysUnique
+      ∀ current, current.GroupRefsUnique
         → current.HealthyTaskLinks work settled failed
         → (more.foldl step current).HealthyTaskLinks work settled failed := by
     induction more with
@@ -95,8 +95,8 @@ theorem State.HealthyTaskLinks.addStreams
   let fresh :=
     streams.foldl
       (fun selected stream =>
-        if (queue.stream? stream.node.key).isSome
-            || selected.any (fun known => known.node.key == stream.node.key) then
+        if (queue.stream? stream.node.ref).isSome
+            || selected.any (fun known => known.node.ref == stream.node.ref) then
           selected
         else selected ++ [stream])
       []
@@ -113,32 +113,32 @@ theorem State.HealthyTaskLinks.addStreams
           List.mem_of_find?_eq_some found
         exact currentLinks.putTaskNodeSameTask node member
           { node with childStreams := node.childStreams ++
-              fresh.map (fun stream => stream.node.key) } rfl
+              fresh.map (fun stream => stream.node.ref) } rfl
 
 /-- Child Work integration preserves healthy links provided each new group
 relevant to an older fresh started task was already registered. -/
 theorem State.HealthyTaskLinks.maybeIntegrateWork
     {queue : State} {work : Execution.Work} {settled failed : List Occurrence}
-    (unique : queue.GroupKeysUnique)
+    (unique : queue.GroupRefsUnique)
     (links : queue.HealthyTaskLinks work settled failed)
     (newWork : Work) (parentTask : Option Occurrence)
     (relevantExisting
       : ∀ taskNode ∈ queue.taskNodes,
           taskNode.task.occurrence ∉ settled
           → ∀ group ∈ newWork.groups,
-              group.node.key ∈ taskNode.task.groups.map Execution.DeliveryNode.key
-              → ¬GroupInvalidated work failed group.node.key
-              → ∃ node ∈ queue.groupNodes, node.group.node.key = group.node.key)
+              group.node.ref ∈ taskNode.task.groups.map Execution.DeliveryNode.ref
+              → ¬GroupInvalidated work failed group.node.ref
+              → ∃ node ∈ queue.groupNodes, node.group.node.ref = group.node.ref)
     : (queue.maybeIntegrateWork newWork parentTask).1.HealthyTaskLinks
         work settled failed := by
   let withGroups := (queue.addGroups newWork.groups).1
   let withTasks := newWork.tasks.foldl State.addTask withGroups
   have groupLinks : withGroups.HealthyTaskLinks work settled failed :=
     links.addGroups unique newWork.groups relevantExisting
-  have groupUnique : withGroups.GroupKeysUnique :=
+  have groupUnique : withGroups.GroupRefsUnique :=
     unique.addGroups newWork.groups
   have taskFold (more : List Task) :
-      ∀ current, current.GroupKeysUnique
+      ∀ current, current.GroupRefsUnique
         → current.HealthyTaskLinks work settled failed
         → (more.foldl State.addTask current).HealthyTaskLinks
             work settled failed := by
@@ -163,8 +163,8 @@ private def State.HealthyReleaseTaskLinks (queue : State) (work : Execution.Work
     task.occurrence ∉ settled
     → task.occurrence ∈ queue.releaseRequests newWork
     → ∀ node ∈ queue.groupNodes,
-        ¬GroupInvalidated work failed node.group.node.key
-        → node.group.node.key ∈ task.groups.map Execution.DeliveryNode.key
+        ¬GroupInvalidated work failed node.group.node.ref
+        → node.group.node.ref ∈ task.groups.map Execution.DeliveryNode.ref
         → task.occurrence ∈ node.tasks
 
 /-- Registered-task accounting directly supplies the healthy links needed
@@ -172,12 +172,12 @@ when latent groups start their tasks. -/
 private theorem State.HealthyRegisteredTaskAccounting.releaseTaskLinks
     {queue : State} {work : Execution.Work} {settled failed : List Occurrence}
     (accounted : queue.HealthyRegisteredTaskAccounting work settled failed)
-    (unique : queue.GroupKeysUnique)
+    (unique : queue.GroupRefsUnique)
     (newWork : NewWork)
     : queue.HealthyReleaseTaskLinks work settled failed newWork := by
   intro task taskMember fresh _ node nodeMember healthy contributor
   obtain ⟨owner, ownerMember, same, linked⟩ :=
-    accounted task taskMember fresh node.group.node.key contributor healthy
+    accounted task taskMember fresh node.group.node.ref contributor healthy
   have equal : owner = node :=
     unique.sameNode ownerMember nodeMember same
   exact equal ▸ linked
@@ -191,12 +191,12 @@ private theorem State.HealthyRegisteredTaskAccounting.releaseGroupsPresent
     : ∀ task ∈ queue.tasks,
         task.occurrence ∈ queue.releaseRequests newWork
         → task.occurrence ∉ settled
-        → ∀ key ∈ task.groups.map Execution.DeliveryNode.key,
-            ¬GroupInvalidated work failed key
-            → ∃ node ∈ queue.groupNodes, node.group.node.key = key := by
-  intro task taskMember _ fresh key contributor healthy
+        → ∀ ref ∈ task.groups.map Execution.DeliveryNode.ref,
+            ¬GroupInvalidated work failed ref
+            → ∃ node ∈ queue.groupNodes, node.group.node.ref = ref := by
+  intro task taskMember _ fresh ref contributor healthy
   obtain ⟨node, nodeMember, same, _⟩ :=
-    accounted task taskMember fresh key contributor healthy
+    accounted task taskMember fresh ref contributor healthy
   exact ⟨node, nodeMember, same⟩
 
 /-- Root activation leaves old healthy links intact; the release condition

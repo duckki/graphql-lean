@@ -9,8 +9,8 @@ open GraphQL.IncrementalDelivery.Correctness
 open GraphQL.IncrementalDelivery.Semantics
 open WorkQueueSemantics
 
-/-- A defer key distinct from the four stream keys in the nested-stream fixture. -/
-def parent : DeliveryNode := { key := 4, path := [] }
+/-- A defer ref distinct from the four stream refs in the nested-stream fixture. -/
+def parent : DeliveryNode := { ref := 4, path := [] }
 
 /-- One deferred task produces three stream levels and an empty sibling stream.
 The raw fixture permits every combination of producer and item outcomes.
@@ -28,16 +28,16 @@ theorem mixed_run_exists (result : Result (List (Name × ResponseValue)))
     (outer middle inner : Result ResponseValue)
     : ∃ history, AdmissibleRun (mixed result outer middle inner) history := by
   apply deferredStreams_completeRun_exists (paths := fun _ => []) (bound := 5)
-    (roles := fun key => key != 4)
+    (roles := fun ref => ref != 4)
   · simp [StreamOnly, NestedStreamExistence.nested]
   · simp [MixedOwnerPaths.WorkAt, OwnerPaths.MapAt, OwnerPaths.mapNodes,
       OwnerPaths.fragmentNodes, OwnerPaths.Assigned, Below, parent,
       NestedStreamExistence.nested, NestedStreamExistence.node]
-  · simp [KeyRoles.WorkRoles, parent, NestedStreamExistence.nested,
+  · simp [RefRoles.WorkRoles, parent, NestedStreamExistence.nested,
       NestedStreamExistence.node]
 
-/-- Another owner of the same deferred field selection, distinct from every stream key. -/
-def coOwner : DeliveryNode := { key := 5, path := [] }
+/-- Another owner of the same deferred field selection, distinct from every stream ref. -/
+def coOwner : DeliveryNode := { ref := 5, path := [] }
 
 /-- Shared ownership repeats one descriptor to check that it never licenses repeat closure.
 The producer still has just one task occurrence, independently of owner count.
@@ -56,8 +56,8 @@ theorem shared_run_completes_owners (result : Result (List (Name × ResponseValu
     (outer middle inner : Result ResponseValue)
     : ∃ history,
         AdmissibleRun (shared result outer middle inner) history
-        ∧ (completedKeys history.batches.flatten).count 4 = 1
-        ∧ (completedKeys history.batches.flatten).count 5 = 1 := by
+        ∧ (completedRefs history.batches.flatten).count 4 = 1
+        ∧ (completedRefs history.batches.flatten).count 5 = 1 := by
   have onlyStreams : StreamOnly (NestedStreamExistence.nested outer middle inner) := by
     simp [StreamOnly, NestedStreamExistence.nested]
   have coherent : MixedOwnerPaths.WorkAt (fun _ => []) 6
@@ -65,16 +65,16 @@ theorem shared_run_completes_owners (result : Result (List (Name × ResponseValu
     simp [shared, MixedOwnerPaths.WorkAt, OwnerPaths.MapAt, OwnerPaths.mapNodes,
       OwnerPaths.fragmentNodes, OwnerPaths.Assigned, Below, parent, coOwner,
       NestedStreamExistence.nested, NestedStreamExistence.node]
-  have roles : KeyRoles.WorkRoles (fun key => decide (key < 4))
+  have roles : RefRoles.WorkRoles (fun ref => decide (ref < 4))
       (shared result outer middle inner) := by
-    simp [shared, KeyRoles.WorkRoles, parent, coOwner, NestedStreamExistence.nested,
+    simp [shared, RefRoles.WorkRoles, parent, coOwner, NestedStreamExistence.nested,
       NestedStreamExistence.node]
   obtain ⟨history, run, notified⟩ := sharedDeferredStreams_completeRun_with_owners
     (nodes := [parent, coOwner, parent]) (by simp) onlyStreams coherent roles
   refine ⟨history, run, ?_, ?_⟩
-  · exact run.keysCompleteExactlyOnce 4
+  · exact run.refsCompleteExactlyOnce 4
       (List.mem_append_left _ (notified parent (by simp)))
-  · exact run.keysCompleteExactlyOnce 5
+  · exact run.refsCompleteExactlyOnce 5
       (List.mem_append_left _ (notified coOwner (by simp)))
 
 /-- Shared work realizes a complete response stream even when a nested item fails.
@@ -95,7 +95,7 @@ example (response : Response) (result : Result (List (Name × ResponseValue)))
   exact (completeObservation_exists_iff _ _).mpr (Or.inr ⟨history, run⟩)
 
 /-- Publishing the deferred value alone does not release its child stream. Witness:
-the parent's announced but uncompleted key fails the dependency rule. A later group-success
+the parent's announced but uncompleted ref fails the dependency rule. A later group-success
 carrier, rather than the object publication, must introduce the stream notice.
 -/
 example (data : List (Name × ResponseValue)) (outer middle inner : Result ResponseValue)
@@ -104,7 +104,7 @@ example (data : List (Name × ResponseValue)) (outer middle inner : Result Respo
         (NestedStreamExistence.node 0) .stream [4] (some (.executionGroup [])) := by
   intro eligible
   have dependencies := eligible.2.2.2
-  simp [DependencySatisfied, announcedKeys, pendingKeys, completedKeys, eventPending,
+  simp [DependencySatisfied, announcedRefs, pendingRefs, completedRefs, eventPending,
     eventCompleted] at dependencies
   exact dependencies.2 none
     ⟨parent, .group, [], NodeAt.group (group := { node := parent }) .root (by simp), rfl⟩
@@ -133,7 +133,7 @@ example {paths bound work groups streams events matching failures batches}
     (deferred : DeferredTasksAccounted work matching events failures)
     (closed : StreamDependenciesCompleted work events)
     (notified
-      : StreamsNotified work ((groups ++ streams).map DeliveryNode.key)
+      : StreamsNotified work ((groups ++ streams).map DeliveryNode.ref)
           matching events failures)
     (batched : WorkBatching events batches)
     : ∃ tail : List WorkQueueEvent,

@@ -11,7 +11,7 @@ open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
 /-- An empty root stream and an independent nonempty root stream have distinct IDs. -/
-def node (key : Nat) : DeliveryNode := { key, path := [.field (toString key)] }
+def node (ref : NodeRef) : DeliveryNode := { ref, path := [.field (toString ref)] }
 
 /-- Only the second stream has a publication that could carry a later notice. -/
 def work : Work :=
@@ -52,7 +52,7 @@ and combine constructors, so no deferred location can supply a group descriptor.
 -/
 theorem no_group {other parents birth} : ¬NodeAt work other .group parents birth := by
   rintro ⟨address, groups, path, result, children, enclosing, group, located, _, _, _⟩
-  have task : TaskAt work (.executionGroup address) (groups.map (fun g => g.node.key)) birth
+  have task : TaskAt work (.executionGroup address) (groups.map (fun g => g.node.ref)) birth
       (.object path result) := ⟨groups, path, result, children, enclosing, located, rfl, rfl⟩
   have impossible := (task_shape task).1
   cases impossible
@@ -67,7 +67,7 @@ theorem initialized : Initializes work [] [node 0] := by
   subst other
   refine ⟨[], none, .stream (.left .root), ?_⟩
   exact ⟨
-    by simp [announcedKeys, pendingKeys],
+    by simp [announcedRefs, pendingRefs],
     Or.inl ⟨fun h => h.nonempty rfl, Or.inl rfl⟩,
     by simp,
     Or.inl rfl
@@ -92,15 +92,15 @@ Witness: snoc induction using the absence of any other notice carrier.
 -/
 theorem no_publications {events matching failures}
     (explained : Explains work [] [node 0] events matching failures)
-    : pendingKeys events = [] ∧ ∀ occurrence, ¬Published matching events occurrence := by
+    : pendingRefs events = [] ∧ ∀ occurrence, ¬Published matching events occurrence := by
   induction events using snoc_induction generalizing failures with
-  | nil => simp [pendingKeys, Published]
+  | nil => simp [pendingRefs, Published]
   | snoc before event ih =>
       have previous := explained.prefix (head := before) (tail := [event])
       obtain ⟨noNotices, noValues⟩ := ih previous
       have allowed := explained.2.2 before.length event (by simp)
       have inactive : ¬Open [0] before 1 := by
-        simp [Open, announcedKeys, noNotices]
+        simp [Open, announcedRefs, noNotices]
       have control : eventPending event = [] ∧ ¬IsValue event := by
         cases event with
         | groupValues owner values =>
@@ -123,7 +123,7 @@ theorem no_publications {events matching failures}
         | streamSuccess | streamFailure => simp [eventPending, IsValue]
         | workQueueTermination => exact False.elim allowed
       constructor
-      · simp [pendingKeys, List.flatMap_append, control.1,
+      · simp [pendingRefs, List.flatMap_append, control.1,
           show before.flatMap eventPending = [] from noNotices]
       · intro occurrence published
         rcases published_append_singleton_iff.mp published with old | next

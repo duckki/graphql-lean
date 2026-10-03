@@ -15,7 +15,7 @@ Witness: each integration appends its chunk; pruning, activation, and final drai
 preserve the permanent registry. The equation does not assert output admission.
 -/
 theorem State.streamItems_tasks (queue : State) (stream : Execution.DeliveryNode)
-    (items : List StreamItem) (active : queue.rootStreams.contains stream.key = true)
+    (items : List StreamItem) (active : queue.rootStreams.contains stream.ref = true)
     : (queue.streamItems stream items).1.tasks
       = queue.tasks ++ items.flatMap (fun item => item.work.tasks) := by
   let step (acc : State × List Execution.DeliveryNode
@@ -46,13 +46,13 @@ Witness: exact item matching and the full batch registry equation, including oth
 in the same handler and its final recursive drain.
 -/
 theorem State.streamItems_child_registered {queue : State}
-    {work stream items} (active : queue.rootStreams.contains stream.key = true)
+    {work stream items} (active : queue.rootStreams.contains stream.ref = true)
     (matching : (GraphEvent.streamItems stream items).MatchesWork work)
     {item : StreamItem} (selected : item ∈ items) {address owners payload}
     (known : TaskAt work (.executionGroup address) owners (some item.occurrence) payload)
     : ∃ task ∈ (queue.streamItems stream items).1.tasks,
         task.occurrence = .executionGroup address
-        ∧ task.groups.map Execution.DeliveryNode.key = owners := by
+        ∧ task.groups.map Execution.DeliveryNode.ref = owners := by
   obtain ⟨task, member, occurrence, groups⟩ := matching.streamItemChildren_complete selected known
   rw [queue.streamItems_tasks stream items active]
   exact ⟨task, List.mem_append_right _ (List.mem_flatMap.mpr ⟨item, selected, member⟩),
@@ -85,7 +85,7 @@ theorem State.handleGraphEvent_tasks_subset (queue : State) (event : GraphEvent)
       rw [State.handleGraphEvent, State.taskFailure_tasks]
       exact fun _ h => h
   | streamItems stream items =>
-      cases active : queue.rootStreams.contains stream.key with
+      cases active : queue.rootStreams.contains stream.ref with
       | false =>
           simp only [State.handleGraphEvent, State.streamItems, active, Bool.not_false,
             ↓reduceIte]
@@ -135,7 +135,7 @@ theorem TaskAt.executionGroup_replay_registered {work address owners payload}
     : ∃ task ∈
         ((State.initialize (Work.fromExecution work)).replayGraphEvents events).tasks,
         task.occurrence = .executionGroup address
-        ∧ task.groups.map Execution.DeliveryNode.key = owners := by
+        ∧ task.groups.map Execution.DeliveryNode.ref = owners := by
   obtain ⟨task, member, occurrence, groups⟩ := TaskAt.executionGroup_initial_registered known
   exact ⟨task, (State.replayGraphEvents_tasks_subset _ events) member, occurrence, groups⟩
 
@@ -160,7 +160,7 @@ theorem TaskAt.executionGroup_registered_after_object
     : ∃ task ∈
         ((State.initialize (Work.fromExecution work)).replayGraphEvents events).tasks,
         task.occurrence = .executionGroup address
-        ∧ task.groups.map Execution.DeliveryNode.key = owners := by
+        ∧ task.groups.map Execution.DeliveryNode.ref = owners := by
   obtain ⟨task, member, occurrence, groups⟩ :=
     State.taskSuccess_child_registered found eligible matching known
   have introduced : task ∈ ((State.initialize (Work.fromExecution work)).replayGraphEvents
@@ -186,12 +186,12 @@ theorem TaskAt.executionGroup_registered_after_item
     (active
       : ((State.initialize (Work.fromExecution work)).replayGraphEvents
           before).rootStreams.contains
-          stream.key
+          stream.ref
         = true)
     : ∃ task ∈
         ((State.initialize (Work.fromExecution work)).replayGraphEvents events).tasks,
         task.occurrence = .executionGroup address
-        ∧ task.groups.map Execution.DeliveryNode.key = owners := by
+        ∧ task.groups.map Execution.DeliveryNode.ref = owners := by
   obtain ⟨task, member, occurrence, groups⟩ :=
     State.streamItems_child_registered active matching selected known
   have introduced : task ∈ ((State.initialize (Work.fromExecution work)).replayGraphEvents

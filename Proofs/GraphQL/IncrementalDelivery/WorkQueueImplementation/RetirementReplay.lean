@@ -13,7 +13,7 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 `events` determines the exact settlement ledgers; no queue-state field or source law is added.
 -/
 structure State.OwnerAncestry (queue : State) (work : Execution.Work)
-    (parents : Nat → Keys) (events : List GraphEvent)
+    (parents : Nat → NodeRefs) (events : List GraphEvent)
     : Prop where
   accounting : queue.OwnerAccounting work parents events
   roots : queue.RootAncestorsRetired work
@@ -23,10 +23,10 @@ structure State.OwnerAncestry (queue : State) (work : Execution.Work)
 Witness: covered lowering, ancestor-free initial candidates, and no preexisting retirement.
 -/
 theorem ExecutedWork.initialOwnerAncestry {work : Execution.Work}
-    (generated : ExecutedWork work) (parents : Nat → Keys)
+    (generated : ExecutedWork work) (parents : Nat → NodeRefs)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     : (State.initialize (Work.fromExecution work)).OwnerAncestry work parents [] :=
   ⟨
     createWorkQueue_ownerAccounting work parents canonical,
@@ -43,7 +43,7 @@ theorem State.OwnerAncestry.handleGraphEvent {queue : State}
     (generated : ExecutedWork work)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (valid : ValidGraphEvents work before) (event : GraphEvent)
     (matching : event.MatchesWork work) (fresh : event.Fresh before)
     (accepted : queue.acceptsGraphEvent event = true)
@@ -88,7 +88,7 @@ theorem State.OwnerAncestry.handleGraphEvent {queue : State}
             (by simp [GraphEvent.failureSettlements_append, GraphEvent.groupFailures])
         ⟩
     | streamItems stream items =>
-        exact State.streamItems_retirement prior.roots retired prior.accounting.pending.keys
+        exact State.streamItems_retirement prior.roots retired prior.accounting.pending.refs
           generated prior.accounting.groups prior.accounting.links canonical
           prior.accounting.pending.liveGroups prior.accounting.pending.taskGroups supported
           cancelled matching
@@ -110,10 +110,10 @@ availability, while the current retirement certificate derives object-task avail
 Neither availability nor active-root health is an additional premise.
 -/
 theorem ExecutedWork.replayGraphEvents_ownerAncestry {work : Execution.Work}
-    (generated : ExecutedWork work) (parents : Nat → Keys)
+    (generated : ExecutedWork work) (parents : Nat → NodeRefs)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     {events : List GraphEvent} (valid : ValidGraphEvents work events)
     (acceptedAt
       : ∀ before event,
@@ -155,9 +155,9 @@ theorem ExecutedWork.runNormalized_ownerAncestry {work : Execution.Work}
     (generated : ExecutedWork work) (batches : List (List GraphEvent))
     (valid : ValidGraphEvents work batches.flatten)
     (started : inputsStarted work batches = true)
-    : ∃ parents : Nat → Keys,
+    : ∃ parents : Nat → NodeRefs,
         (∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
         ∧ ((State.initialize (Work.fromExecution work)).runNormalized
             batches).1.OwnerAncestry
             work parents batches.flatten := by

@@ -25,9 +25,10 @@ theorem locateWork_snoc (work : Work) (address : Address) (index : Nat)
 namespace StructuralEquivalence
 
 /-- (Located root address current producer owners) finds current at address in root;
-producer is its generating task (none at the root), and owners are enclosing defer keys.
+producer is its generating task (none at the root), and owners are enclosing defer refs.
 -/
-inductive Located (root : Work) : Address → Work → Option Occurrence → Keys → Prop where
+inductive Located (root : Work)
+    : Address → Work → Option Occurrence → NodeRefs → Prop where
   | root : Located root [] root none []
   | left {address left right producer owners}
     (located : Located root address (.combine left right) producer owners)
@@ -40,41 +41,41 @@ inductive Located (root : Work) : Address → Work → Option Occurrence → Key
       : Located root address (.executionGroup groups path result children) producer
           owners)
     : Located root (address ++ [0]) children (some (.executionGroup address))
-        (groups.map (fun group => group.node.key))
+        (groups.map (fun group => group.node.ref))
   | item {address node items producer owners index result children}
     (located : Located root address (.stream node items) producer owners)
     (entry : items[index]? = some (result, children))
     : Located root (address ++ [index]) children (some (.item address index)) []
 
 /-- (TaskAt work occurrence owners producer payload) identifies a task in work by its
-structural occurrence, contributing owner keys, optional producer occurrence, and fixed
+structural occurrence, contributing owner refs, optional producer occurrence, and fixed
 payload.
 -/
 inductive TaskAt (work : Work)
-    : Occurrence → Keys → Option Occurrence → Payload → Prop where
+    : Occurrence → NodeRefs → Option Occurrence → Payload → Prop where
   | executionGroup {address groups path result children producer owners}
     (located
       : Located work address (.executionGroup groups path result children) producer
           owners)
-    : TaskAt work (.executionGroup address) (groups.map (fun group => group.node.key))
+    : TaskAt work (.executionGroup address) (groups.map (fun group => group.node.ref))
         producer (.object path result)
   | item {address node items producer owners index result children}
     (located : Located work address (.stream node items) producer owners)
     (entry : items[index]? = some (result, children))
-    : TaskAt work (.item address index) [node.key] producer (.item node result)
+    : TaskAt work (.item address index) [node.ref] producer (.item node result)
 
 /-- (NodeAt work node kind dependencies birth) identifies node's metadata in work: kind is
-defer/stream, dependencies are ancestor or enclosing-owner keys, and birth is its optional
+defer/stream, dependencies are ancestor or enclosing-owner refs, and birth is its optional
 producer occurrence.
 -/
 inductive NodeAt (work : Work)
-    : DeliveryNode → NodeKind → Keys → Option Occurrence → Prop where
+    : DeliveryNode → NodeKind → NodeRefs → Option Occurrence → Prop where
   | group {address groups path result children producer owners group}
     (located
       : Located work address (.executionGroup groups path result children) producer
           owners)
     (member : group ∈ groups)
-    : NodeAt work group.node .group (group.ancestors.map DeliveryNode.key) producer
+    : NodeAt work group.node .group (group.ancestors.map DeliveryNode.ref) producer
   | stream {address node items producer owners}
     (located : Located work address (.stream node items) producer owners)
     : NodeAt work node .stream owners producer
@@ -190,7 +191,7 @@ theorem NodeAt.toCurrent {work node kind dependencies birth}
       exact ⟨_, _, _, _, _, _, _, located.toCurrent, member, rfl, rfl⟩
   | stream located => exact ⟨_, _, located.toCurrent⟩
 
-/-- Each lookup-based descriptor recovers a former witness, without deduplicating keys. -/
+/-- Each lookup-based descriptor recovers a former witness, without deduplicating refs. -/
 theorem nodeAt_of_current {work node kind dependencies birth}
     (h : WorkQueueSemantics.NodeAt work node kind dependencies birth)
     : NodeAt work node kind dependencies birth := by
@@ -203,7 +204,7 @@ theorem nodeAt_of_current {work node kind dependencies birth}
       obtain ⟨address, items, located⟩ := h
       exact .stream (located_of_current located)
 
-/-- Every node occurrence and its metadata is preserved, even when keys repeat. -/
+/-- Every node occurrence and its metadata is preserved, even when refs repeat. -/
 theorem nodeAt_iff {work node kind dependencies birth}
     : NodeAt work node kind dependencies birth
       ↔ WorkQueueSemantics.NodeAt work node kind dependencies birth :=
@@ -235,7 +236,7 @@ theorem Located.executionGroup {root address groups path result children produce
       : Located root address (.executionGroup groups path result children) producer
           owners)
     : Located root (address ++ [0]) children (some (.executionGroup address))
-        (groups.map (fun group => group.node.key)) :=
+        (groups.map (fun group => group.node.ref)) :=
   (StructuralEquivalence.Located.executionGroup
     (StructuralEquivalence.located_of_current h)).toCurrent
 
@@ -253,7 +254,7 @@ theorem TaskAt.executionGroup {work address groups path result children producer
     (located
       : Located work address (.executionGroup groups path result children) producer
           owners)
-    : TaskAt work (.executionGroup address) (groups.map (fun group => group.node.key))
+    : TaskAt work (.executionGroup address) (groups.map (fun group => group.node.ref))
         producer (.object path result) :=
   ⟨_, _, _, _, _, located, rfl, rfl⟩
 
@@ -261,7 +262,7 @@ theorem TaskAt.executionGroup {work address groups path result children producer
 theorem TaskAt.item {work address node items producer owners index result children}
     (located : Located work address (.stream node items) producer owners)
     (entry : items[index]? = some (result, children))
-    : TaskAt work (.item address index) [node.key] producer (.item node result) :=
+    : TaskAt work (.item address index) [node.ref] producer (.item node result) :=
   ⟨_, _, _, _, _, located, entry, rfl, rfl⟩
 
 /-- Every defer-group member supplies a node descriptor; witness: its containing location.
@@ -271,7 +272,7 @@ theorem NodeAt.group {work address groups path result children producer owners g
       : Located work address (.executionGroup groups path result children) producer
           owners)
     (member : group ∈ groups)
-    : NodeAt work group.node .group (group.ancestors.map DeliveryNode.key) producer :=
+    : NodeAt work group.node .group (group.ancestors.map DeliveryNode.ref) producer :=
   ⟨_, _, _, _, _, _, _, located, member, rfl, rfl⟩
 
 /-- A stream supplies its descriptor with enclosing owners; witness: its location. -/

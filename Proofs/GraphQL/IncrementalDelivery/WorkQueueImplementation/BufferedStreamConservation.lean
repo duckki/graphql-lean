@@ -24,12 +24,12 @@ def State.BufferedStreamsConserved (queue : State) (events : List WorkQueueEvent
     queue.taskNode? occurrence = some node
     → node.value = some value
     → stream ∈ node.childStreams
-    → ∀ owner ∈ node.task.groups.map Execution.DeliveryNode.key,
-        owner ∈ queue.groupNodes.map (fun group => group.group.node.key)
+    → ∀ owner ∈ node.task.groups.map Execution.DeliveryNode.ref,
+        owner ∈ queue.groupNodes.map (fun group => group.group.node.ref)
         → owner ∉ next.cancelledGroups
-        → stream ∈ events.flatMap rawStreamNoticeKeys
+        → stream ∈ events.flatMap rawStreamNoticeRefs
           ∨ (next.taskNode? occurrence = some node
-              ∧ owner ∈ next.groupNodes.map (fun group => group.group.node.key))
+              ∧ owner ∈ next.groupNodes.map (fun group => group.group.node.ref))
 
 /-- An unchanged queue retains the exact buffered producer and live contributor.
 Witness: the supplied lookup and owner membership; no notice is emitted.
@@ -76,11 +76,11 @@ theorem State.BufferedStreamsConserved.retired_notice {queue next : State} {even
     {occurrence node value stream owner}
     (found : queue.taskNode? occurrence = some node) (stored : node.value = some value)
     (linked : stream ∈ node.childStreams)
-    (contributes : owner ∈ node.task.groups.map Execution.DeliveryNode.key)
-    (live : owner ∈ queue.groupNodes.map (fun group => group.group.node.key))
-    (retired : owner ∉ next.groupNodes.map (fun group => group.group.node.key))
+    (contributes : owner ∈ node.task.groups.map Execution.DeliveryNode.ref)
+    (live : owner ∈ queue.groupNodes.map (fun group => group.group.node.ref))
+    (retired : owner ∉ next.groupNodes.map (fun group => group.group.node.ref))
     (uncancelled : owner ∉ next.cancelledGroups)
-    : stream ∈ events.flatMap rawStreamNoticeKeys := by
+    : stream ∈ events.flatMap rawStreamNoticeRefs := by
   exact (conserved occurrence node value stream found stored linked owner contributes live
     uncancelled).resolve_right (fun retained => retired retained.2)
 
@@ -94,11 +94,11 @@ theorem State.BufferedStreamsConserved.of_lookups {queue prepared next : State} 
           queue.taskNode? occurrence = some node
           → node.value = some value
           → prepared.taskNode? occurrence = some node)
-    (keys : queue.GroupKeysIncluded prepared)
+    (refs : queue.GroupRefsIncluded prepared)
     : queue.BufferedStreamsConserved events next := by
   intro occurrence node value stream found stored linked owner contributes live uncancelled
   exact conserved occurrence node value stream (retained occurrence node value found stored)
-    stored linked owner contributes (keys owner live) uncancelled
+    stored linked owner contributes (refs owner live) uncancelled
 
 -----------------------------------------------------------------------------------------
 -- Actual successful flushing supplies the release branch, not a guessed publication
@@ -117,7 +117,7 @@ theorem State.finishGroupSuccess_bufferedStreamsConserved {queue : State}
   classical
   by_cases selected : occurrence ∈ group.tasks
   · exact .inl ((queue.finishGroupSuccess_streamNotices group) ▸
-      inventory.finishGroupSuccess_childKey_covered group selected found linked)
+      inventory.finishGroupSuccess_childRef_covered group selected found linked)
   · have retained := (queue.finishGroupSuccess_lookup_unselected group selected).trans found
     exact .inr ⟨retained, State.finishGroupSuccess_bufferedOwner_present links group present
       (State.taskNode?_some retained).1 (by simp [stored]) contributes live⟩

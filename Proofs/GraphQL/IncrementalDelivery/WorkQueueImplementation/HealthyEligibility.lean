@@ -13,12 +13,12 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 -----------------------------------------------------------------------------------------
 
 /-- A live, uninvalidated generated record passes the executable healthy-owner check.
-Witness: supported caches and cancellation keys exclude false rejections, canonical
-parent descriptors propagate health to ancestors, and generated parent keys decrease.
+Witness: supported caches and cancellation refs exclude false rejections, canonical
+parent descriptors propagate health to ancestors, and generated parent refs decrease.
 The finite guard lemma supplies the node-count bound without assuming extra traversal fuel.
 -/
 theorem State.CachedFailuresSupported.groupIsHealthy_of_recordHealthy {queue : State}
-    {work failed key node} (supported : queue.CachedFailuresSupported work failed)
+    {work failed ref node} (supported : queue.CachedFailuresSupported work failed)
     (cancelled : queue.CancelledRecordsSupported work failed)
     (generated : ExecutedWork work)
     (descriptors
@@ -26,11 +26,11 @@ theorem State.CachedFailuresSupported.groupIsHealthy_of_recordHealthy {queue : S
           ∃ dependencies,
             GroupRecordAt work node.group.node dependencies
             ∧ node.group.parent = dependencies.head?)
-    (found : queue.groupNode? key = some node)
-    (healthy : ¬GroupRecordInvalidated work failed key)
-    : queue.groupIsHealthy key = true := by
+    (found : queue.groupNode? ref = some node)
+    (healthy : ¬GroupRecordInvalidated work failed ref)
+    : queue.groupIsHealthy ref = true := by
   apply State.groupIsHealthy_of_invariant found
-    (fun key => ¬GroupRecordInvalidated work failed key)
+    (fun ref => ¬GroupRecordInvalidated work failed ref)
     (fun node member good => supported.healthy_none member
       (fun invalid => good invalid.toRecordInvalidated)) ?_ ?_
     (fun _ healthy => cancelled.healthy_not_mem healthy) healthy
@@ -49,7 +49,7 @@ Witness: contributor equivalence turns original causal health into record health
 the finite walk. The descriptor premise excludes cancelled taskless wrappers.
 -/
 theorem State.CachedFailuresSupported.groupIsHealthy {queue : State}
-    {work failed key node} (supported : queue.CachedFailuresSupported work failed)
+    {work failed ref node} (supported : queue.CachedFailuresSupported work failed)
     (cancelled : queue.CancelledRecordsSupported work failed)
     (generated : ExecutedWork work)
     (descriptors
@@ -57,10 +57,10 @@ theorem State.CachedFailuresSupported.groupIsHealthy {queue : State}
           ∃ dependencies,
             GroupRecordAt work node.group.node dependencies
             ∧ node.group.parent = dependencies.head?)
-    (contributor : ∃ dependencies, NodeHasDependencies work key .group dependencies)
-    (found : queue.groupNode? key = some node)
-    (healthy : ¬GroupInvalidated work failed key)
-    : queue.groupIsHealthy key = true := by
+    (contributor : ∃ dependencies, NodeHasDependencies work ref .group dependencies)
+    (found : queue.groupNode? ref = some node)
+    (healthy : ¬GroupInvalidated work failed ref)
+    : queue.groupIsHealthy ref = true := by
   obtain ⟨dependencies, source, producer, known, same⟩ := contributor
   apply supported.groupIsHealthy_of_recordHealthy cancelled generated descriptors found
   intro failure
@@ -92,12 +92,12 @@ theorem State.GroupMembershipSound.rejectedTask_absentFromHealthy {queue : State
     {taskNode : TaskNode} (taskMember : taskNode ∈ queue.taskNodes)
     (rejected : queue.taskHasHealthyOwner taskNode.task = false) {node : GroupNode}
     (member : node ∈ queue.groupNodes)
-    (healthy : ¬GroupInvalidated work failed node.group.node.key)
+    (healthy : ¬GroupInvalidated work failed node.group.node.ref)
     : taskNode.task.occurrence ∉ node.tasks := by
   intro listed
   have contributes := sound.startedOwner registered matching taskMember member listed
-  have present : ∃ found, queue.groupNode? node.group.node.key = some found := by
-    cases found : queue.groupNode? node.group.node.key with
+  have present : ∃ found, queue.groupNode? node.group.node.ref = some found := by
+    cases found : queue.groupNode? node.group.node.ref with
     | some owner => exact ⟨owner, rfl⟩
     | none =>
         have absent := List.find?_eq_none.mp found node member
@@ -106,9 +106,9 @@ theorem State.GroupMembershipSound.rejectedTask_absentFromHealthy {queue : State
   have known := (matching taskNode.task (registered taskNode taskMember)).contributorKnown
     contributes
   have passes := supported.groupIsHealthy cancelled generated descriptors known found healthy
-  obtain ⟨group, groupMember, groupKey⟩ := List.mem_map.mp contributes
+  obtain ⟨group, groupMember, groupRef⟩ := List.mem_map.mp contributes
   have accepted : queue.taskHasHealthyOwner taskNode.task = true :=
-    State.taskHasHealthyOwner_iff.mpr ⟨group, groupMember, groupKey ▸ passes⟩
+    State.taskHasHealthyOwner_iff.mpr ⟨group, groupMember, groupRef ▸ passes⟩
   simp [rejected] at accepted
 
 /-- Rejecting a registered unsettled task implies that every contributor is invalidated.
@@ -130,25 +130,25 @@ theorem State.HealthyRegisteredTaskAccounting.rejectedTask_ownersInvalidated
             ∧ node.group.parent = dependencies.head?)
     {task : Task} (registered : task ∈ queue.tasks) (fresh : task.occurrence ∉ settled)
     (rejected : queue.taskHasHealthyOwner task = false)
-    : ∀ key ∈ task.groups.map Execution.DeliveryNode.key,
-        GroupInvalidated work failed key := by
+    : ∀ ref ∈ task.groups.map Execution.DeliveryNode.ref,
+        GroupInvalidated work failed ref := by
   classical
-  intro key contributes
+  intro ref contributes
   apply Classical.byContradiction
   intro healthy
-  obtain ⟨owner, member, ownerKey, _⟩ := accounted task registered fresh key contributes healthy
-  have present : ∃ node, queue.groupNode? key = some node := by
-    cases found : queue.groupNode? key with
+  obtain ⟨owner, member, ownerRef, _⟩ := accounted task registered fresh ref contributes healthy
+  have present : ∃ node, queue.groupNode? ref = some node := by
+    cases found : queue.groupNode? ref with
     | some node => exact ⟨node, rfl⟩
     | none =>
         have absent := List.find?_eq_none.mp found owner member
-        simp [ownerKey] at absent
+        simp [ownerRef] at absent
   obtain ⟨node, found⟩ := present
   have known := (matching task registered).contributorKnown contributes
   have passes := supported.groupIsHealthy cancelled generated descriptors known found healthy
-  obtain ⟨group, groupMember, groupKey⟩ := List.mem_map.mp contributes
+  obtain ⟨group, groupMember, groupRef⟩ := List.mem_map.mp contributes
   have accepted : queue.taskHasHealthyOwner task = true :=
-    State.taskHasHealthyOwner_iff.mpr ⟨group, groupMember, groupKey ▸ passes⟩
+    State.taskHasHealthyOwner_iff.mpr ⟨group, groupMember, groupRef ▸ passes⟩
   simp [rejected] at accepted
 
 /-- An unpublished rejected generated task is cancelled in the independent causal kernel.
@@ -169,16 +169,16 @@ theorem State.HealthyRegisteredTaskAccounting.rejectedTask_cancelled {queue : St
             ∧ node.group.parent = dependencies.head?)
     {task : Task} (registered : task ∈ queue.tasks) (fresh : task.occurrence ∉ settled)
     (known
-      : TaskHasOwners work task.occurrence (task.groups.map Execution.DeliveryNode.key))
+      : TaskHasOwners work task.occurrence (task.groups.map Execution.DeliveryNode.ref))
     (rejected : queue.taskHasHealthyOwner task = false)
     (unpublished : ¬published task.occurrence)
     : Causality.TaskCancelled work failed published task.occurrence := by
   obtain ⟨producer, payload, taskKnown⟩ := known
   refine .owners ⟨producer, payload, taskKnown⟩ unpublished
     (generated.taskOwners_nonempty taskKnown) ?_
-  intro key contributes
+  intro ref contributes
   exact (accounted.rejectedTask_ownersInvalidated matching supported cancelled generated descriptors
-    registered fresh rejected key contributes).toCausality published
+    registered fresh rejected ref contributes).toCausality published
 
 /-- Ignored task failures do not change which groups the source failure ledger invalidates.
 Witness: all contributing owners were already invalidated before the rejected settlement.
@@ -198,10 +198,10 @@ theorem State.HealthyRegisteredTaskAccounting.rejectedTask_invalidation_iff
             ∧ node.group.parent = dependencies.head?)
     {task : Task} (registered : task ∈ queue.tasks) (fresh : task.occurrence ∉ settled)
     (known
-      : TaskHasOwners work task.occurrence (task.groups.map Execution.DeliveryNode.key))
-    (rejected : queue.taskHasHealthyOwner task = false) (key : Nat)
-    : GroupInvalidated work (task.occurrence :: failed) key
-      ↔ GroupInvalidated work failed key :=
+      : TaskHasOwners work task.occurrence (task.groups.map Execution.DeliveryNode.ref))
+    (rejected : queue.taskHasHealthyOwner task = false) (ref : NodeRef)
+    : GroupInvalidated work (task.occurrence :: failed) ref
+      ↔ GroupInvalidated work failed ref :=
   groupInvalidated_cons_iff_of_ownersInvalidated known
     (accounted.rejectedTask_ownersInvalidated matching supported cancelled generated
       descriptors registered fresh rejected)

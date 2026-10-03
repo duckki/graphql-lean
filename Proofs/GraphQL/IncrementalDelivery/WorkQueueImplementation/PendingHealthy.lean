@@ -13,7 +13,7 @@ theorem State.PendingAccounting.healthyMembership_not_failed
     {queue : State} {work : Execution.Work} {settled failed : List Occurrence}
     (accounted : queue.PendingAccounting work settled)
     {node : GroupNode} (member : node ∈ queue.groupNodes)
-    (healthy : ¬GroupInvalidated work failed node.group.node.key)
+    (healthy : ¬GroupInvalidated work failed node.group.node.ref)
     {occurrence : Occurrence} (taskMember : occurrence ∈ node.tasks)
     : occurrence ∉ failed :=
   accounted.sound.healthyMembership_not_failed accounted.matching member healthy

@@ -18,15 +18,15 @@ theorem ExecutedWork.runNormalized_healthy_ancestor_path {work : Execution.Work}
     : let initial := State.initialize (Work.fromExecution work)
       let queue := (initial.runNormalized batches).1
       ∀ child dependencies ancestor occurrence owners,
-        queue.groupNode? child.group.node.key = some child
+        queue.groupNode? child.group.node.ref = some child
         → GroupRecordAt work child.group.node dependencies
         → ¬GroupRecordInvalidated work
-            (initial.objectFailureContributions batches.flatten) child.group.node.key
+            (initial.objectFailureContributions batches.flatten) child.group.node.ref
         → ancestor ∈ dependencies
         → TaskHasOwners work occurrence owners
         → ancestor ∈ owners
         → (∃ node, queue.groupNode? ancestor = some node)
-        → queue.LiveDescendant ancestor child.group.node.key := by
+        → queue.LiveDescendant ancestor child.group.node.ref := by
   intro initial queue child dependencies ancestor occurrence owners
     found known healthy ancestorMember task contributes live
   obtain ⟨parents, canonical⟩ := generated.groupRecordsCanonical

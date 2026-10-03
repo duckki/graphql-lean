@@ -31,7 +31,7 @@ decreasing_by
     Prod.mk.sizeOf_spec _ _
   omega
 
-/-- Every location in stream-only work is stream-only and has no enclosing defer keys.
+/-- Every location in stream-only work is stream-only and has no enclosing defer refs.
 Witness: structural navigation; stream-item edges reset enclosing owners to empty.
 -/
 theorem StreamOnly.located {work address current producer owners}
@@ -60,7 +60,7 @@ theorem StreamOnly.task {work occurrence owners producer payload}
     (onlyStreams : StreamOnly work)
     (known : TaskAt work occurrence owners producer payload)
     : ∃ node result,
-        owners = [node.key]
+        owners = [node.ref]
         ∧ payload = .item node result
         ∧ NodeAt work node .stream [] producer := by
   cases StructuralEquivalence.taskAt_of_current known with
@@ -71,7 +71,7 @@ theorem StreamOnly.task {work occurrence owners producer payload}
       have empty := (onlyStreams.located located.toCurrent).2
       exact ⟨_, _, rfl, rfl, empty ▸ NodeAt.stream located.toCurrent⟩
 
-/-- A descriptor in stream-only work is a stream with no deferred dependency keys.
+/-- A descriptor in stream-only work is a stream with no deferred dependency refs.
 Witness: its located boundary cannot be deferred and has an empty owner context.
 -/
 theorem StreamOnly.node {work node kind dependencies producer}
@@ -126,7 +126,7 @@ theorem StreamOnly.completeRun_exists {paths bound work}
     have same := List.mem_singleton.mp member
     subst stream
     refine ⟨[], none, descriptor, ?_⟩
-    exact ⟨by simp [announcedKeys, pendingKeys],
+    exact ⟨by simp [announcedRefs, pendingRefs],
       Or.inl ⟨fun failure => failure.nonempty rfl, Or.inl rfl⟩, by simp, Or.inl rfl⟩
   obtain ⟨groups, streams, initialized, covers⟩ := initialized.covering_exists
   have initial : Explains work groups streams [] (fun _ => .executionGroup []) [] :=
@@ -137,10 +137,10 @@ theorem StreamOnly.completeRun_exists {paths bound work}
     obtain ⟨_, _, _, _, _, _, _, shape⟩ := known
     cases shape.symm.trans impossible
   have closed : StreamDependenciesCompleted work [] := by
-    intro node dependencies producer known key member
+    intro node dependencies producer known ref member
     rw [(onlyStreams.node known).2] at member
     cases member
-  have notified : StreamsNotified work ((groups ++ streams).map DeliveryNode.key)
+  have notified : StreamsNotified work ((groups ++ streams).map DeliveryNode.ref)
       (fun _ => .executionGroup []) [] [] := by
     intro node dependencies producer known ready healthy
     have empty := (onlyStreams.node known).2

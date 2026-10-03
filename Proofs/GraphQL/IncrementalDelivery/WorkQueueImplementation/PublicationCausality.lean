@@ -35,11 +35,11 @@ theorem PublicationSupport.append_event {work matching events failures event}
     (support : PublicationSupport work matching events failures)
     (next
       : IsValue event
-        → ∃ owners producer payload key,
+        → ∃ owners producer payload ref,
             TaskAt work (matching events.length) owners producer payload
             ∧ payload.failure = none
-            ∧ key ∈ owners
-            ∧ ¬NodeFailed work matching events failures key
+            ∧ ref ∈ owners
+            ∧ ¬NodeFailed work matching events failures ref
             ∧ ∀ parent, producer = some parent → Published matching events parent)
     : PublicationSupport work matching (events ++ [event]) failures := by
   intro index emitted selected value
@@ -63,7 +63,7 @@ producer, then apply the no-revival readiness theorem at its new index. This avo
 requiring a certificate for the entire future run while constructing event admission.
 -/
 theorem PublicationSupport.canPublish_next
-    {work matching events failures event owners producer payload key}
+    {work matching events failures event owners producer payload ref}
     (support : PublicationSupport work matching events failures)
     (failedPayloads
       : ∀ cut occurrence,
@@ -73,8 +73,8 @@ theorem PublicationSupport.canPublish_next
               ∧ payload.failure.isSome = true)
     (value : IsValue event)
     (known : TaskAt work (matching events.length) owners producer payload)
-    (success : payload.failure = none) (owner : key ∈ owners)
-    (healthy : ¬NodeFailed work matching events failures key)
+    (success : payload.failure = none) (owner : ref ∈ owners)
+    (healthy : ¬NodeFailed work matching events failures ref)
     (ready : ∀ source, producer = some source → Published matching events source)
     (fresh : ¬Published matching events (matching events.length))
     (ordered
@@ -84,7 +84,7 @@ theorem PublicationSupport.canPublish_next
           → Published matching events (.item address first))
     : CanPublish work matching events failures (matching events.length) producer := by
   have extended := support.append_event (event := event)
-    (fun _ => ⟨owners, producer, payload, key, known, success, owner, healthy, ready⟩)
+    (fun _ => ⟨owners, producer, payload, ref, known, success, owner, healthy, ready⟩)
   have selected : (events ++ [event])[events.length]? = some event := by simp
   have observed : (events ++ [event]).take events.length = events := by simp
   simpa only [observed]
@@ -124,7 +124,7 @@ producer's supported publication. The task itself need not have a successful out
 have settled, so this rule also applies to pending contents of a new group notice.
 -/
 theorem PublicationSupport.pendingTask_not_cancelled
-    {work matching events failures occurrence owners producer payload key}
+    {work matching events failures occurrence owners producer payload ref}
     (support : PublicationSupport work matching events failures)
     (failedPayloads
       : ∀ cut occurrence,
@@ -132,8 +132,8 @@ theorem PublicationSupport.pendingTask_not_cancelled
           → ∃ owners producer payload,
               TaskAt work occurrence owners producer payload
               ∧ payload.failure.isSome = true)
-    (known : TaskAt work occurrence owners producer payload) (owner : key ∈ owners)
-    (healthy : ¬NodeFailed work matching events failures key)
+    (known : TaskAt work occurrence owners producer payload) (owner : ref ∈ owners)
+    (healthy : ¬NodeFailed work matching events failures ref)
     (ready : ∀ source, producer = some source → Published matching events source)
     : ¬TaskCancelled work matching events failures occurrence := by
   intro cancelled
@@ -141,7 +141,7 @@ theorem PublicationSupport.pendingTask_not_cancelled
   cases cause with
   | owners other _ _ invalid =>
       obtain ⟨parent, result, descriptor⟩ := other
-      exact healthy ⟨cut, member, reached, invalid key ((known.unique descriptor).1 ▸ owner)⟩
+      exact healthy ⟨cut, member, reached, invalid ref ((known.unique descriptor).1 ▸ owner)⟩
   | producerFailed other _ failed =>
       obtain ⟨otherOwners, result, descriptor⟩ := other
       have published := ready _ (known.unique descriptor).2.1
@@ -155,7 +155,7 @@ theorem PublicationSupport.pendingTask_not_cancelled
 Witness: advance its original cut using failed-payload provenance and the derived
 no-revival theorem. EventAllowed and FailureWitness are not premises.
 -/
-theorem PublicationSupport.nodeFailed_snapshot {work matching events failures key}
+theorem PublicationSupport.nodeFailed_snapshot {work matching events failures ref}
     (support : PublicationSupport work matching events failures)
     (failedPayloads
       : ∀ cut occurrence,
@@ -163,9 +163,9 @@ theorem PublicationSupport.nodeFailed_snapshot {work matching events failures ke
           → ∃ owners producer payload,
               TaskAt work occurrence owners producer payload
               ∧ payload.failure.isSome = true)
-    (failure : NodeFailed work matching events failures key)
+    (failure : NodeFailed work matching events failures ref)
     : Causality.NodeFailed work (failedBefore failures events.length)
-        (Published matching events) key := by
+        (Published matching events) ref := by
   obtain ⟨cut, member, reached, cause⟩ := failure
   exact cause.advance (failedBefore_subset failures reached)
     (fun _ failed => support.failed_unpublished failedPayloads failed)
@@ -253,7 +253,7 @@ private theorem greatest_visible_cut (failures : FailureCuts) (bound : Nat)
 Witness: move back to the greatest reached cut; fewer publications cannot obstruct
 causal failure. No ordering, bound on future cuts, or FailureWitness premise is needed.
 -/
-theorem PublicationSupport.snapshot_nodeFailed {work matching events failures key}
+theorem PublicationSupport.snapshot_nodeFailed {work matching events failures ref}
     (support : PublicationSupport work matching events failures)
     (failedPayloads
       : ∀ cut occurrence,
@@ -263,8 +263,8 @@ theorem PublicationSupport.snapshot_nodeFailed {work matching events failures ke
               ∧ payload.failure.isSome = true)
     (failure
       : Causality.NodeFailed work (failedBefore failures events.length)
-          (Published matching events) key)
-    : NodeFailed work matching events failures key := by
+          (Published matching events) ref)
+    : NodeFailed work matching events failures ref := by
   obtain ⟨cut, member, reached, same⟩ :=
     greatest_visible_cut failures events.length failure.nonempty
   refine ⟨cut, member, reached, ?_⟩
@@ -308,7 +308,7 @@ theorem PublicationSupport.snapshot_taskCancelled
 /-- Historical and current node failure agree on supported publications.
 Witness: the two cut-preserving transports, independent of full history admission.
 -/
-theorem PublicationSupport.nodeFailed_iff_snapshot {work matching events failures key}
+theorem PublicationSupport.nodeFailed_iff_snapshot {work matching events failures ref}
     (support : PublicationSupport work matching events failures)
     (failedPayloads
       : ∀ cut occurrence,
@@ -316,9 +316,9 @@ theorem PublicationSupport.nodeFailed_iff_snapshot {work matching events failure
           → ∃ owners producer payload,
               TaskAt work occurrence owners producer payload
               ∧ payload.failure.isSome = true)
-    : NodeFailed work matching events failures key
+    : NodeFailed work matching events failures ref
       ↔ Causality.NodeFailed work (failedBefore failures events.length)
-          (Published matching events) key :=
+          (Published matching events) ref :=
   ⟨support.nodeFailed_snapshot failedPayloads, support.snapshot_nodeFailed failedPayloads⟩
 
 /-- Historical and current cancellation agree on supported publications.

@@ -67,7 +67,7 @@ theorem StreamFailureCuts.nodeErrors_mixed
     (generated : ExecutedWork work)
     (ordered : (events.filterMap streamAction).Pairwise StreamAction.Before)
     (atEvent : events[index]? = some (.streamFailure stream errors))
-    : NodeErrors work (failedBefore failures index) stream.key errors := by
+    : NodeErrors work (failedBefore failures index) stream.ref errors := by
   have counts := cuts.nodeErrors_with_objects ordered generated atEvent
     (failedBefore objectCuts index) (by
       intro occurrence member
@@ -91,7 +91,7 @@ theorem StreamFailureCuts.eventAllowed_mixed
     (generated : ExecutedWork work)
     (ordered : (events.filterMap streamAction).Pairwise StreamAction.Before)
     (atEvent : events[index]? = some (.streamFailure stream errors))
-    (opened : Open initial (events.take index) stream.key)
+    (opened : Open initial (events.take index) stream.ref)
     : EventAllowed work initial matching (events.take index) failures
         (.streamFailure stream errors) := by
   obtain ⟨occurrence, member⟩ := cuts.covers atEvent
@@ -104,7 +104,7 @@ theorem StreamFailureCuts.eventAllowed_mixed
     partition.mem_iff.mpr (List.mem_append_left _ member)
   have length : (events.take index).length = index :=
     List.length_take_of_le (Nat.le_of_lt (List.getElem?_eq_some_iff.mp atEvent).1)
-  have failed : NodeFailed work matching (events.take index) failures stream.key :=
+  have failed : NodeFailed work matching (events.take index) failures stream.ref :=
     NodeFailed.task known List.mem_cons_self
       (length.symm ▸ mem_failedBefore included (Nat.le_refl index))
   simp only [EventAllowed]
@@ -133,9 +133,9 @@ theorem StreamFailureCuts.no_failure_at_action_mixed
     (ordered : (events.filterMap streamAction).Pairwise StreamAction.Before)
     (located : NodeAt work stream .stream dependencies producer)
     (atEvent : events[index]? = some event)
-    (action : streamAction event = some (stream.key, closing))
+    (action : streamAction event = some (stream.ref, closing))
     (notFailure : ∀ node errors, event ≠ .streamFailure node errors)
-    (known : TaskHasOwners work occurrence owners) (owner : stream.key ∈ owners)
+    (known : TaskHasOwners work occurrence owners) (owner : stream.ref ∈ owners)
     : occurrence ∉ failedBefore failures index := by
   intro failed
   have member := (failedBefore_partition partition index).mem_iff.mp failed
@@ -164,9 +164,9 @@ theorem StreamFailureCuts.rootStream_healthy_mixed
     (ordered : (events.filterMap streamAction).Pairwise StreamAction.Before)
     (root : NodeAt work stream .stream [] none)
     (atEvent : events[index]? = some event)
-    (action : streamAction event = some (stream.key, closing))
+    (action : streamAction event = some (stream.ref, closing))
     (notFailure : ∀ node errors, event ≠ .streamFailure node errors)
-    : ¬NodeFailed work matching (events.take index) failures stream.key := by
+    : ¬NodeFailed work matching (events.take index) failures stream.ref := by
   intro failed
   obtain ⟨occurrence, owners, known, owner, member⟩ :=
     (generated.rootStream_nodeFailed_iff root).mp failed
@@ -178,7 +178,7 @@ theorem StreamFailureCuts.rootStream_healthy_mixed
 
 /-- A root-stream failure is uncancelled by the preceding portion of a mixed cut list.
 Witness: prior cancellation would fail its sole root owner. Object cuts cannot own it;
-an earlier stream cut would close that key already. Same-position duplication is ruled
+an earlier stream cut would close that ref already. Same-position duplication is ruled
 out by exact stream-cut labels and occurrence uniqueness of the supplied mixed inventory.
 This is one licensing clause, not a proof that the object cuts themselves are licensed.
 -/
@@ -219,7 +219,7 @@ theorem StreamFailureCuts.rootStream_not_cancelled_mixed
   · obtain ⟨priorNode, count, birth, atPrior, priorTask⟩ := cuts.2 entry fromStream
     rw [same] at priorTask
     rw [← (priorTask.unique known).1] at owner
-    have sameKey := List.mem_singleton.mp owner
+    have sameRef := List.mem_singleton.mp owner
     have less : entry.1 < cut := by
       by_cases earlier : entry.1 < cut
       · exact earlier
@@ -232,7 +232,7 @@ theorem StreamFailureCuts.rootStream_not_cancelled_mixed
       rw [split, List.map_append, List.map_cons] at unique
       exact (List.nodup_append.mp unique).2.2 occurrence duplicate occurrence
         List.mem_cons_self rfl
-    exact streamFailure_keys_ne ordered atPrior atEvent less sameKey.symm
+    exact streamFailure_refs_ne ordered atPrior atEvent less sameRef.symm
   · obtain ⟨otherOwners, birth, path, count, object⟩ := objects entry fromObject
     rw [same] at object
     exact generated.objectFailure_not_streamOwner root object ((known.unique object).1 ▸ owner)

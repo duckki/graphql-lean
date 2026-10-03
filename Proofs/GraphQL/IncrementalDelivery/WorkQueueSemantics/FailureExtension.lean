@@ -13,10 +13,10 @@ open GraphQL.IncrementalDelivery.Execution
 /-- Additional failures preserve a node failure at a fixed publication snapshot.
 Witness: mutual causal induction, retaining every publication exclusion.
 -/
-theorem Causality.NodeFailed.mono {work failed more published key}
-    (failure : Causality.NodeFailed work failed published key)
+theorem Causality.NodeFailed.mono {work failed more published ref}
+    (failure : Causality.NodeFailed work failed published ref)
     (included : failed.Subset more)
-    : Causality.NodeFailed work more published key := by
+    : Causality.NodeFailed work more published ref := by
   induction failure
     using Causality.NodeFailed.rec
       (motive_2 :=
@@ -48,7 +48,7 @@ theorem Causality.TaskCancelled.mono {work failed more published occurrence}
     : Causality.TaskCancelled work more published occurrence := by
   induction cancelled
     using Causality.TaskCancelled.rec
-      (motive_1 := fun key _ => Causality.NodeFailed work more published key) with
+      (motive_1 := fun ref _ => Causality.NodeFailed work more published ref) with
   | task known owner member =>
       exact Causality.NodeFailed.task known owner (included member)
   | groupDependency known member _ ih =>
@@ -69,14 +69,14 @@ theorem Causality.TaskCancelled.mono {work failed more published occurrence}
 /-- Moving a causal snapshot forward preserves node failures when failed and cancelled
 tasks cannot publish in between. Witness: mutual induction through every causal rule.
 -/
-theorem Causality.NodeFailed.advance {work failed more published next key}
-    (failure : Causality.NodeFailed work failed published key)
+theorem Causality.NodeFailed.advance {work failed more published next ref}
+    (failure : Causality.NodeFailed work failed published ref)
     (included : failed.Subset more)
     (failedUnpublished : ∀ occurrence ∈ failed, ¬next occurrence)
     (cancelledUnpublished
       : ∀ occurrence,
           Causality.TaskCancelled work failed published occurrence → ¬next occurrence)
-    : Causality.NodeFailed work more next key := by
+    : Causality.NodeFailed work more next ref := by
   induction failure
     using Causality.NodeFailed.rec
       (motive_2 :=
@@ -120,7 +120,7 @@ theorem Causality.TaskCancelled.advance {work failed more published next occurre
     : Causality.TaskCancelled work more next occurrence := by
   induction cancelled
     using Causality.TaskCancelled.rec
-      (motive_1 := fun key _ => Causality.NodeFailed work more next key) with
+      (motive_1 := fun ref _ => Causality.NodeFailed work more next ref) with
   | task known owner member =>
       exact Causality.NodeFailed.task known owner (included member)
   | groupDependency known dependency _ ih =>
@@ -150,11 +150,11 @@ theorem Causality.TaskCancelled.advance {work failed more published next occurre
 /-- Historical node failures remain derivable at the current admitted snapshot.
 Witness: advance their original cut using the absence of failed/cancelled publications.
 -/
-theorem Explains.nodeFailed_snapshot {work groups streams events matching failures key}
+theorem Explains.nodeFailed_snapshot {work groups streams events matching failures ref}
     (explained : Explains work groups streams events matching failures)
-    (failure : NodeFailed work matching events failures key)
+    (failure : NodeFailed work matching events failures ref)
     : Causality.NodeFailed work (failedBefore failures events.length)
-        (Published matching events) key := by
+        (Published matching events) ref := by
   obtain ⟨cut, member, reached, cause⟩ := failure
   apply cause.advance
   · intro occurrence selected
@@ -216,12 +216,12 @@ theorem FailureWitness.last_cut {work initial matching events failures}
 Witness: move it back to the last recorded cut; fewer publications cannot obstruct
 its causal derivation, and every failed occurrence is still visible there.
 -/
-theorem Explains.snapshot_nodeFailed {work groups streams events matching failures key}
+theorem Explains.snapshot_nodeFailed {work groups streams events matching failures ref}
     (explained : Explains work groups streams events matching failures)
     (failure
       : Causality.NodeFailed work (failedBefore failures events.length)
-          (Published matching events) key)
-    : NodeFailed work matching events failures key := by
+          (Published matching events) ref)
+    : NodeFailed work matching events failures ref := by
   have nonempty : failures ≠ [] := by
     intro empty
     exact failure.nonempty (by simp [empty, failedBefore])
@@ -264,11 +264,11 @@ theorem Explains.snapshot_taskCancelled
 Witness: forward no-revival transport and backward transport to the last licensed cut.
 -/
 theorem Explains.nodeFailed_iff_snapshot
-    {work groups streams events matching failures key}
+    {work groups streams events matching failures ref}
     (explained : Explains work groups streams events matching failures)
-    : NodeFailed work matching events failures key
+    : NodeFailed work matching events failures ref
       ↔ Causality.NodeFailed work (failedBefore failures events.length)
-          (Published matching events) key :=
+          (Published matching events) ref :=
   ⟨explained.nodeFailed_snapshot, explained.snapshot_nodeFailed⟩
 
 /-- Historical and current-snapshot cancellation agree on an admitted history.
@@ -297,10 +297,10 @@ theorem failedBefore_mono {failures more : FailureCuts} (included : failures.Sub
 /-- Additional recorded cuts preserve an earlier node failure.
 Witness: retain its original cut and extend only that cut's failed occurrences.
 -/
-theorem NodeFailed.mono {work matching events failures more key}
-    (failure : NodeFailed work matching events failures key)
+theorem NodeFailed.mono {work matching events failures more ref}
+    (failure : NodeFailed work matching events failures ref)
     (included : failures.Subset more)
-    : NodeFailed work matching events more key := by
+    : NodeFailed work matching events more ref := by
   obtain ⟨cut, member, reached, cause⟩ := failure
   obtain ⟨entry, entryMember, rfl⟩ := List.mem_map.mp member
   exact ⟨entry.1, List.mem_map.mpr ⟨entry, included entryMember, rfl⟩, reached,
@@ -341,7 +341,7 @@ theorem TaskCancelled.of_recorded
   · intro published
     apply unpublished
     simpa only [List.take_append_drop] using published.append (events.drop cut)
-  · intro key owner
+  · intro ref owner
     exact Causality.NodeFailed.task ⟨producer, payload, known⟩ owner
       (mem_failedBefore member (Nat.le_refl _))
 
@@ -397,17 +397,17 @@ theorem FailureWitness.record
     (witness : FailureWitness work initial matching events failures)
     (known : TaskAt work occurrence owners producer payload)
     (fails : payload.failure.isSome = true) (reachable : Reachable work occurrence)
-    (opened : ∃ key ∈ owners, Open initial events key)
+    (opened : ∃ ref ∈ owners, Open initial events ref)
     (active : ¬TaskCancelled work matching events failures occurrence)
     : FailureWitness work initial matching events
         (failures ++ [(events.length, occurrence)]) := by
   intro before cut failed after same
   rcases split_snoc same with ⟨rfl, equal, rfl⟩ | ⟨rest, original, _⟩
   · cases equal
-    obtain ⟨key, owner, announced, _⟩ := opened
+    obtain ⟨ref, owner, announced, _⟩ := opened
     exact ⟨Nat.le_refl _, fun entry member => witness.cut_le member,
       ⟨owners, producer, payload, known, fails, reachable,
-        key, owner, by simpa using announced⟩,
+        ref, owner, by simpa using announced⟩,
       by simpa using active⟩
   · exact witness before cut failed rest original
 
@@ -441,7 +441,7 @@ theorem Explains.record_failure
     (explained : Explains work groups streams events matching failures)
     (known : TaskAt work occurrence owners producer payload)
     (fails : payload.failure.isSome = true) (reachable : Reachable work occurrence)
-    (opened : ∃ key ∈ owners, Open ((groups ++ streams).map DeliveryNode.key) events key)
+    (opened : ∃ ref ∈ owners, Open ((groups ++ streams).map DeliveryNode.ref) events ref)
     (active : ¬TaskCancelled work matching events failures occurrence)
     : Explains work groups streams events matching
         (failures ++ [(events.length, occurrence)]) := by
@@ -466,33 +466,33 @@ theorem Explains.failure_step
     (explained : Explains work groups streams events matching failures)
     (known : TaskAt work occurrence owners producer payload)
     (fails : payload.failure.isSome = true) (reachable : Reachable work occurrence)
-    (opened : ∃ key ∈ owners, Open ((groups ++ streams).map DeliveryNode.key) events key)
+    (opened : ∃ ref ∈ owners, Open ((groups ++ streams).map DeliveryNode.ref) events ref)
     (active : ¬TaskCancelled work matching events failures occurrence)
     : ∃ node errors event,
-        node.key ∈ owners
+        node.ref ∈ owners
         ∧ (event = .groupFailure node errors ∨ event = .streamFailure node errors)
         ∧ payload.failure.getD 0 ≤ errors
         ∧ Explains work groups streams (events ++ [event]) matching
             (failures ++ [(events.length, occurrence)]) := by
   have recorded := explained.record_failure known fails reachable opened active
-  obtain ⟨key, owner, openKey⟩ := opened
+  obtain ⟨ref, owner, openRef⟩ := opened
   obtain ⟨node, kind, dependencies, birth, nodeKnown, same⟩ :=
-    explained.noticeFacts.supported key openKey.1
+    explained.noticeFacts.supported ref openRef.1
   have member : occurrence ∈ failedBefore
       (failures ++ [(events.length, occurrence)]) events.length := by
     simp [failedBefore]
   have failed : NodeFailed work matching events
-      (failures ++ [(events.length, occurrence)]) node.key :=
+      (failures ++ [(events.length, occurrence)]) node.ref :=
     .task known (same ▸ owner) member
   have knownFailures := recorded.2.1.known
   rw [← recorded.2.1.failedBefore_eq (Nat.le_refl _)] at knownFailures
-  obtain ⟨errors, counts⟩ := NodeErrors.exists knownFailures node.key
+  obtain ⟨errors, counts⟩ := NodeErrors.exists knownFailures node.ref
   have includes := counts.contribution_le member known (same ▸ owner)
-  have nodeOpen : Open ((groups ++ streams).map DeliveryNode.key) events node.key :=
-    same ▸ openKey
+  have nodeOpen : Open ((groups ++ streams).map DeliveryNode.ref) events node.ref :=
+    same ▸ openRef
   have finish {event}
       (allowed
-        : EventAllowed work ((groups ++ streams).map DeliveryNode.key) matching
+        : EventAllowed work ((groups ++ streams).map DeliveryNode.ref) matching
             events (failures ++ [(events.length, occurrence)]) event)
       : Explains work groups streams (events ++ [event]) matching
           (failures ++ [(events.length, occurrence)]) :=

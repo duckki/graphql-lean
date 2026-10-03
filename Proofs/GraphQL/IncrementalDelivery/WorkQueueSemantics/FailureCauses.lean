@@ -7,8 +7,8 @@ namespace GraphQL.IncrementalDelivery.WorkQueueSemantics
 /-- A snapshot node failure needs an actual failed occurrence.
 Witness: mutual causal induction rules out self-supporting cycles.
 -/
-theorem Causality.NodeFailed.nonempty {work failed published key}
-    (failure : Causality.NodeFailed work failed published key)
+theorem Causality.NodeFailed.nonempty {work failed published ref}
+    (failure : Causality.NodeFailed work failed published ref)
     : failed ≠ [] := by
   induction failure
     using Causality.NodeFailed.rec (motive_2 := fun _ _ => failed ≠ []) with
@@ -16,8 +16,8 @@ theorem Causality.NodeFailed.nonempty {work failed published key}
       intro empty; simp [empty] at member
   | groupDependency _ _ _ ih => exact ih
   | streamDependencies _ nonempty _ ih =>
-      obtain ⟨key, member⟩ := List.exists_mem_of_ne_nil _ nonempty
-      exact ih key member
+      obtain ⟨ref, member⟩ := List.exists_mem_of_ne_nil _ nonempty
+      exact ih ref member
   | producers known noRoot _ _ ih =>
       obtain ⟨birth, known⟩ := known
       cases birth with
@@ -26,8 +26,8 @@ theorem Causality.NodeFailed.nonempty {work failed published key}
           intro empty
           exact ih producerOccurrence known (by simp [empty]) empty
   | owners _ _ nonempty _ ih =>
-      obtain ⟨key, member⟩ := List.exists_mem_of_ne_nil _ nonempty
-      exact ih key member
+      obtain ⟨ref, member⟩ := List.exists_mem_of_ne_nil _ nonempty
+      exact ih ref member
   | producerFailed _ _ member =>
       intro empty; simp [empty] at member
   | producerCancelled _ _ _ ih => exact ih
@@ -44,8 +44,8 @@ theorem Causality.TaskCancelled.nonempty {work failed published occurrence}
       intro empty; simp [empty] at member
   | groupDependency _ _ _ ih => exact ih
   | streamDependencies _ nonempty _ ih =>
-      obtain ⟨key, member⟩ := List.exists_mem_of_ne_nil _ nonempty
-      exact ih key member
+      obtain ⟨ref, member⟩ := List.exists_mem_of_ne_nil _ nonempty
+      exact ih ref member
   | producers known noRoot _ _ ih =>
       obtain ⟨birth, known⟩ := known
       cases birth with
@@ -54,8 +54,8 @@ theorem Causality.TaskCancelled.nonempty {work failed published occurrence}
           intro empty
           exact ih producerOccurrence known (by simp [empty]) empty
   | owners _ _ nonempty _ ih =>
-      obtain ⟨key, member⟩ := List.exists_mem_of_ne_nil _ nonempty
-      exact ih key member
+      obtain ⟨ref, member⟩ := List.exists_mem_of_ne_nil _ nonempty
+      exact ih ref member
   | producerFailed _ _ member =>
       intro empty; simp [empty] at member
   | producerCancelled _ _ _ ih => exact ih
@@ -63,8 +63,8 @@ theorem Causality.TaskCancelled.nonempty {work failed published occurrence}
 /-- Node failure requires a nonempty list of failure cuts.
 Witness: the cut retained by its public causal predicate.
 -/
-theorem NodeFailed.nonempty {work matching events failures key}
-    (failure : NodeFailed work matching events failures key)
+theorem NodeFailed.nonempty {work matching events failures ref}
+    (failure : NodeFailed work matching events failures ref)
     : failures ≠ [] := by
   obtain ⟨cut, member, _⟩ := failure
   intro empty

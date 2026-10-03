@@ -32,16 +32,16 @@ theorem mixed_rootTerminalCertificates {work inputs}
         ∧ (((initialQueue work).runNormalized inputs).1.terminated = true
             → ∀ node kind dependencies,
                 NodeAt work node kind dependencies none
-                → node.key ∈ completedKeys w.events
-                  ∨ node.key ∉ announcedKeys (initialKeys work) w.events
-                    ∧ (NodeFailed work w.matching w.events w.failures node.key
-                        ∨ NodeAccounted work w.matching w.events w.failures node.key))
+                → node.ref ∈ completedRefs w.events
+                  ∨ node.ref ∉ announcedRefs (initialRefs work) w.events
+                    ∧ (NodeFailed work w.matching w.events w.failures node.ref
+                        ∨ NodeAccounted work w.matching w.events w.failures node.ref))
         ∧ (((initialQueue work).runNormalized inputs).1.terminated = true
             → ∀ node dependencies address index,
                 NodeAt work node .stream dependencies (some (.item address index))
                 → Occurrence.item address index
                   ∈ inputs.flatten.flatMap GraphEvent.successes
-                → node.key ∈ completedKeys w.events) := by
+                → node.ref ∈ completedRefs w.events) := by
   obtain ⟨w, history, shape, announced, uncancelled, publications, controls, explained,
     registered, roots⟩ := mixed_registeredTerminalCertificates premises
   refine ⟨w, history, shape, announced, uncancelled, publications, controls, explained,
@@ -52,7 +52,7 @@ theorem mixed_rootTerminalCertificates {work inputs}
         history ended known)
     | group =>
         classical
-        by_cases noticed : node.key ∈ announcedKeys (initialKeys work) w.events
+        by_cases noticed : node.ref ∈ announcedRefs (initialRefs work) w.events
         · exact .inl (announced_terminalCompleted premises.generated premises.valid
             premises.started history ended noticed)
         · exact .inr ⟨noticed, roots ended node dependencies known⟩

@@ -22,6 +22,13 @@ statements live in IncrementalDelivery.Correctness.
 
 namespace GraphQL
 namespace IncrementalDelivery
+
+/-- Stable defer/stream object identity, represented by a fresh natural number.
+Distinct from resolver object references, structural occurrences, and wire IDs.
+This abbreviation documents the role without introducing a separate numeric type.
+-/
+abbrev NodeRef := Nat
+
 namespace Execution
 
 abbrev ResolverValue (ObjectRef : Type := PUnit) :=
@@ -119,8 +126,8 @@ list positions. Only inline fragments are modeled here.
 -/
 
 structure DeferUsage where
-  key : Nat
-  ancestors : List Nat := []
+  ref : NodeRef
+  ancestors : List NodeRef := []
   label : Option DirectiveLabel := none
 deriving Repr
 
@@ -181,10 +188,11 @@ def activeDefer? (variableValues : VariableValues)
         some (directiveLabel? label)
   | _ :: rest => activeDefer? variableValues rest
 
-def freshExecutionKey : StateM Nat Nat := do
-  let key ← get
-  set (key + 1)
-  return key
+/-- Allocate a stable node reference. The state holds the next unused node reference. -/
+def freshNodeRef : StateM NodeRef NodeRef := do
+  let ref ← get
+  set (ref + 1)
+  return ref
 
 /-! Spec 6.3.2 `CollectFields` and `CollectSubfields`: partial; list-backed ordered
 grouping of executable fields by response name.
@@ -197,7 +205,7 @@ mutual
   def collectSelection (schema : Schema) (variableValues : VariableValues)
       (parentType : Name) (source : ResolverValue ObjectRef)
       (deferUsage : Option DeferUsage)
-      : Selection -> StateM Nat FieldCollection
+      : Selection -> StateM NodeRef FieldCollection
     | .field responseName fieldName arguments directives selectionSet => do
         if !selectionDirectivesAllowBool variableValues directives then
           return {}
@@ -223,13 +231,13 @@ mutual
         | none =>
             collectFields schema variableValues parentType source selectionSet deferUsage
         | some label =>
-            let key ← freshExecutionKey
+            let ref ← freshNodeRef
             let usage : DeferUsage :=
               {
-                key := key
+                ref := ref
                 label := label
                 ancestors :=
-                  deferUsage.map (fun parent => parent.key :: parent.ancestors) |>.getD []
+                  deferUsage.map (fun parent => parent.ref :: parent.ancestors) |>.getD []
               }
             let collected ←
               collectFields schema variableValues parentType source selectionSet
@@ -242,7 +250,7 @@ mutual
   def collectFields (schema : Schema) (variableValues : VariableValues)
       (parentType : Name) (source : ResolverValue ObjectRef)
       (selections : List Selection) (deferUsage : Option DeferUsage := none)
-      : StateM Nat FieldCollection := do
+      : StateM NodeRef FieldCollection := do
     match selections with
     | [] => return {}
     | selection :: rest =>
@@ -257,7 +265,7 @@ child selections, which are collected under the runtime object type.
 -/
 def collectSubfields (schema : Schema) (variableValues : VariableValues)
     (objectType : Name) (source : ResolverValue ObjectRef)
-    : List FieldDetails -> StateM Nat FieldCollection
+    : List FieldDetails -> StateM NodeRef FieldCollection
   | [] => pure {}
   | field :: rest => do
       let head ←
@@ -274,37 +282,38 @@ def collectSubfields (schema : Schema) (variableValues : VariableValues)
 occurrences. Otherwise remove usages with an ancestor in the set, keeping the full field
 details for subcollection.
 -/
-def getFilteredDeferUsageSet (fields : List FieldDetails) : List Nat :=
+def getFilteredDeferUsageSet (fields : List FieldDetails) : List NodeRef :=
   if fields.any (fun field => field.deferUsage.isNone) then
     []
   else
     let usages := fields.filterMap FieldDetails.deferUsage
-    let keys := (usages.map DeferUsage.key).eraseDups
-    keys.filter
-      (fun key =>
+    let refs := (usages.map DeferUsage.ref).eraseDups
+    refs.filter
+      (fun ref =>
         !(usages.any
             (fun usage =>
-              usage.key == key && usage.ancestors.any keys.contains)))
+              usage.ref == ref && usage.ancestors.any refs.contains)))
 
-def deferUsageSetsEquivalent (left right : List Nat) : Bool :=
+def deferUsageSetsEquivalent (left right : List NodeRef) : Bool :=
   left.all right.contains && right.all left.contains
 
 structure ExecutionPlan where
   collectedFieldsMap : CollectedFieldsMap := []
-  newCollectedFieldsMaps : List (List Nat × CollectedFieldsMap) := []
+  newCollectedFieldsMaps : List (List NodeRef × CollectedFieldsMap) := []
 deriving Repr
 
-def addExecutionPartition (usages : List Nat) (group : Name × List FieldDetails)
-    : List (List Nat × CollectedFieldsMap) -> List (List Nat × CollectedFieldsMap)
+def addExecutionPartition (usages : List NodeRef) (group : Name × List FieldDetails)
+    : List (List NodeRef × CollectedFieldsMap) -> List (List NodeRef × CollectedFieldsMap)
   | [] => [(usages, [group])]
-  | (keys, fields) :: rest =>
-      if deferUsageSetsEquivalent keys usages then
-        (keys, fields ++ [group]) :: rest
+  | (refs, fields) :: rest =>
+      if deferUsageSetsEquivalent refs usages then
+        (refs, fields ++ [group]) :: rest
       else
-        (keys, fields) :: addExecutionPartition usages group rest
+        (refs, fields) :: addExecutionPartition usages group rest
 
 /-- Spec `BuildExecutionPlan`: partition only; do not execute or create work here. -/
-def buildExecutionPlan (fields : CollectedFieldsMap) (parentDeferUsages : List Nat := [])
+def buildExecutionPlan (fields : CollectedFieldsMap)
+    (parentDeferUsages : List NodeRef := [])
     : ExecutionPlan :=
   fields.foldl
     (fun plan group =>
@@ -337,11 +346,11 @@ deriving Repr, DecidableEq, BEq
 
 abbrev ResponsePath := List ResponsePathSegment
 
-/-- Delivery descriptor for defer/stream nodes. In execution-generated work, `key` is
-allocated by `freshExecutionKey` and represents JavaScript object identity, not a wire ID.
+/-- Delivery descriptor for defer/stream nodes. In execution-generated work, `ref` is
+allocated by `freshNodeRef` and represents JavaScript object identity, not a wire ID.
 -/
 structure DeliveryNode where
-  key : Nat
+  ref : NodeRef
   path : ResponsePath
   label : Option DirectiveLabel := none
 deriving Repr
@@ -412,8 +421,9 @@ end Completion
 
 abbrev DeferMap := List DeferredFragment
 
-def lookupDeferredFragment? (deferMap : DeferMap) (key : Nat) : Option DeferredFragment :=
-  deferMap.find? (fun group => group.node.key == key)
+def lookupDeferredFragment? (deferMap : DeferMap) (ref : NodeRef)
+    : Option DeferredFragment :=
+  deferMap.find? (fun group => group.node.ref == ref)
 
 /-- Spec `GetNewDeferMap`; flattened ancestor lists replace parent-fragment pointers. -/
 def getNewDeferMap (usages : List DeferUsage) (path : ResponsePath) (deferMap : DeferMap)
@@ -422,11 +432,11 @@ def getNewDeferMap (usages : List DeferUsage) (path : ResponsePath) (deferMap : 
     (fun current usage =>
       current
       ++ [{
-            node := { key := usage.key, path := path, label := usage.label }
+            node := { ref := usage.ref, path := path, label := usage.label }
             ancestors :=
               usage.ancestors.filterMap
-                (fun key =>
-                  (lookupDeferredFragment? current key).map DeferredFragment.node)
+                (fun ref =>
+                  (lookupDeferredFragment? current ref).map DeferredFragment.node)
           }])
     deferMap
 
@@ -474,8 +484,8 @@ mutual
       (variables : VariableValues) (fuel : Nat) (parentType : Name)
       (source : ResolverValue ObjectRef)
       (fields : CollectedFieldsMap) (path : ResponsePath := [])
-      (deferUsageSet : List Nat := []) (deferMap : DeferMap := [])
-      : StateM Nat (Completion (List (Name × ResponseValue))) := do
+      (deferUsageSet : List NodeRef := []) (deferMap : DeferMap := [])
+      : StateM NodeRef (Completion (List (Name × ResponseValue))) := do
     match fields with
     | [] => return .pure []
     | (responseName, group) :: rest =>
@@ -508,8 +518,8 @@ mutual
       (source : ResolverValue ObjectRef)
       (definition : FieldDefinition)
       (responseName : Name) (fields : List FieldDetails) (path : ResponsePath := [])
-      (deferUsageSet : List Nat := []) (deferMap : DeferMap := [])
-      : StateM Nat (Completion ResponseValue) := do
+      (deferUsageSet : List NodeRef := []) (deferMap : DeferMap := [])
+      : StateM NodeRef (Completion ResponseValue) := do
     match fuel, fields with
     | 0, _ | _, [] => return .error 1
     | fuel + 1, field :: _ =>
@@ -534,9 +544,9 @@ mutual
   def completeValue (schema : Schema) (resolvers : Resolvers ObjectRef)
       (variables : VariableValues) (fuel : Nat) (fieldType : TypeRef)
       (fields : List FieldDetails) (value : ResolverValue ObjectRef)
-      (path : ResponsePath := []) (deferUsageSet : List Nat := [])
+      (path : ResponsePath := []) (deferUsageSet : List NodeRef := [])
       (deferMap : DeferMap := []) (allowStream : Bool := true)
-      : StateM Nat (Completion ResponseValue) := do
+      : StateM NodeRef (Completion ResponseValue) := do
     match fuel, fieldType, value with
     | 0, _, _ => return .error 1
     | fuel, .nonNull inner, value =>
@@ -568,8 +578,9 @@ mutual
   def completeListValue (schema : Schema) (resolvers : Resolvers ObjectRef)
       (variables : VariableValues) (fuel : Nat) (itemType : TypeRef)
       (fields : List FieldDetails) (values : List (ResolverValue ObjectRef))
-      (path : ResponsePath) (index : Nat) (deferUsageSet : List Nat) (deferMap : DeferMap)
-      : StateM Nat (Completion (List ResponseValue)) := do
+      (path : ResponsePath) (index : Nat) (deferUsageSet : List NodeRef)
+      (deferMap : DeferMap)
+      : StateM NodeRef (Completion (List ResponseValue)) := do
     match values with
     | [] => return .pure []
     | value :: rest =>
@@ -589,9 +600,9 @@ mutual
   def completeListValueWithStream (schema : Schema) (resolvers : Resolvers ObjectRef)
       (variables : VariableValues) (fuel : Nat) (inner : TypeRef)
       (fields : List FieldDetails) (values : List (ResolverValue ObjectRef))
-      (path : ResponsePath) (deferUsageSet : List Nat) (deferMap : DeferMap)
+      (path : ResponsePath) (deferUsageSet : List NodeRef) (deferMap : DeferMap)
       (allowStream : Bool)
-      : StateM Nat (Completion ResponseValue) := do
+      : StateM NodeRef (Completion ResponseValue) := do
     let streamUsage :=
       if allowStream then
         getStreamUsage variables (fields.head?.map FieldDetails.directives |>.getD [])
@@ -613,7 +624,7 @@ mutual
             let remaining := values.drop usage.initialCount
             if values.length < usage.initialCount then
               return initial.catchNull ResponseValue.list
-            let key ← freshExecutionKey
+            let ref ← freshNodeRef
             -- Stream items own their delivery boundary. Enclosing field occurrences
             -- no longer defer their subfields, but nested directive syntax is retained.
             let streamFields :=
@@ -626,7 +637,7 @@ mutual
               completed with
                 work :=
                   .combine completed.work
-                    (.stream { key := key, path := path, label := usage.label } items)
+                    (.stream { ref := ref, path := path, label := usage.label } items)
             }
 
   /-- Model helper: finite outcomes for the remaining streamed items, each with its own
@@ -636,7 +647,7 @@ mutual
       (variables : VariableValues) (fuel : Nat) (itemType : TypeRef)
       (fields : List FieldDetails) (values : List (ResolverValue ObjectRef))
       (path : ResponsePath) (index : Nat)
-      : StateM Nat (List (Result ResponseValue × Work)) := do
+      : StateM NodeRef (List (Result ResponseValue × Work)) := do
     match values with
     | [] => return []
     | value :: rest =>
@@ -659,8 +670,8 @@ mutual
       (source : ResolverValue ObjectRef)
       (newDeferUsages : List DeferUsage) (executionPlan : ExecutionPlan)
       (path : ResponsePath := [])
-      (deferUsageSet : List Nat := []) (deferMap : DeferMap := [])
-      : StateM Nat (Completion (List (Name × ResponseValue))) := do
+      (deferUsageSet : List NodeRef := []) (deferMap : DeferMap := [])
+      : StateM NodeRef (Completion (List (Name × ResponseValue))) := do
     let newMap := getNewDeferMap newDeferUsages path deferMap
     let initial ←
       executeCollectedFields schema resolvers variables fuel parentType source
@@ -681,9 +692,9 @@ mutual
   def collectExecutionGroups (schema : Schema) (resolvers : Resolvers ObjectRef)
       (variables : VariableValues) (fuel : Nat) (parentType : Name)
       (source : ResolverValue ObjectRef)
-      (partitions : List (List Nat × CollectedFieldsMap)) (path : ResponsePath)
+      (partitions : List (List NodeRef × CollectedFieldsMap)) (path : ResponsePath)
       (deferMap : DeferMap)
-      : StateM Nat Work := do
+      : StateM NodeRef Work := do
     match partitions with
     | [] => return .empty
     | (usages, fields) :: rest =>
@@ -703,8 +714,8 @@ mutual
       (variables : VariableValues) (fuel : Nat) (parentType : Name)
       (source : ResolverValue ObjectRef)
       (fields : CollectedFieldsMap) (path : ResponsePath)
-      (deferUsageSet : List Nat) (deferMap : DeferMap)
-      : StateM Nat (Completion (List (Name × ResponseValue))) :=
+      (deferUsageSet : List NodeRef) (deferMap : DeferMap)
+      : StateM NodeRef (Completion (List (Name × ResponseValue))) :=
     executeCollectedFields schema resolvers variables fuel parentType source fields path
       deferUsageSet deferMap
 end
@@ -761,20 +772,20 @@ structure IncrementalStreamUpdateResult where
 deriving Repr
 
 /-- Wire identity state for response initialization and mapping. The abstract WorkQueue
-interface and concrete queue state carry node keys, not wire IDs; the publisher/mapper
+interface and concrete queue state carry node refs, not wire IDs; the publisher/mapper
 layer owns allocation and response entries.
 -/
 structure IDState where
-  ids : List (Nat × String) := []
+  ids : List (NodeRef × String) := []
   nextID : Nat := 0
 deriving Repr
 
 def ensureID (node : DeliveryNode) (state : IDState) : String × IDState :=
-  match state.ids.find? (fun entry => entry.1 == node.key) with
+  match state.ids.find? (fun entry => entry.1 == node.ref) with
   | some (_, id) => (id, state)
   | none =>
       let id := toString state.nextID
-      (id, { ids := state.ids ++ [(node.key, id)], nextID := state.nextID + 1 })
+      (id, { ids := state.ids ++ [(node.ref, id)], nextID := state.nextID + 1 })
 
 def getPendingEntry {m : Type → Type} [Monad m]
     (newGroups newStreams : List DeliveryNode) (idFor : DeliveryNode → m String)
@@ -813,7 +824,7 @@ def getIncrementalStreamUpdateResult (hasNext : Bool)
 /-- The draft's seven queue-output forms, named `WorkQueueEvent` in GraphQL.js.
 Raw queue events carry a provisional owner; spec-facing
 events carry the effective owner selected by the publisher. Their values are identical.
-Node keys are internal identities, not wire IDs.
+Node refs are internal identities, not wire IDs.
 Value lists support multi-task group flushes and multi-item stream updates. Atomic
 work-history admission checks singleton values; WorkBatching may coalesce them again.
 -/
@@ -972,7 +983,7 @@ packaging happen at that public boundary.
 def executeRootSelectionSetCore (schema : Schema) (resolvers : Resolvers ObjectRef)
     (variableValues : VariableValues) (fuel : Nat) (parentType : Name)
     (source : ResolverValue ObjectRef) (selectionSet : List Selection)
-    : StateM Nat (Completion (List (Name × ResponseValue))) := do
+    : StateM NodeRef (Completion (List (Name × ResponseValue))) := do
   let collected ← collectFields schema variableValues parentType source selectionSet
   let executionPlan := buildExecutionPlan collected.collectedFieldsMap
   executeExecutionPlan schema resolvers variableValues fuel parentType source

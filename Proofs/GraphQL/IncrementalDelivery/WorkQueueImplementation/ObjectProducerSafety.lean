@@ -19,7 +19,7 @@ theorem ExecutedWork.objectProducer_context
     {work address current enclosing source} (generated : ExecutedWork work)
     (located : Located work address current (some (.executionGroup source)) enclosing)
     : ∃ parents bound owners ancestor payload,
-        Semantics.MixedKeys.WorkAt parents 0 bound work
+        Semantics.MixedRefs.WorkAt parents 0 bound work
         ∧ TaskAt work (.executionGroup source) owners ancestor payload
         ∧ DeferUnder parents owners current := by
   obtain ⟨parents, bound, coherent, continuous, ordered⟩ := generated.producerMetadata
@@ -55,20 +55,20 @@ occur elsewhere in the work tree, including above this object producer.
 theorem ExecutedWork.group_objectProducer_support
     {work node dependencies source} (generated : ExecutedWork work)
     (known : NodeAt work node .group dependencies (some (.executionGroup source)))
-    : ∃ owners ancestor payload key,
+    : ∃ owners ancestor payload ref,
         TaskAt work (.executionGroup source) owners ancestor payload
-        ∧ key ∈ owners
-        ∧ (key = node.key ∨ key ∈ dependencies) := by
+        ∧ ref ∈ owners
+        ∧ (ref = node.ref ∨ ref ∈ dependencies) := by
   obtain ⟨address, groups, path, result, children, enclosing, fragment,
     located, member, sameNode, sameDependencies⟩ := known
   obtain ⟨parents, bound, owners, ancestor, payload, coherent, task, under⟩ :=
     generated.objectProducer_context located
-  obtain ⟨key, owner, support⟩ := under.1 fragment member
-  refine ⟨owners, ancestor, payload, key, task, owner, ?_⟩
+  obtain ⟨ref, owner, support⟩ := under.1 fragment member
+  refine ⟨owners, ancestor, payload, ref, task, owner, ?_⟩
   rcases support with same | dependency
-  · exact .inl (same.trans (congrArg Execution.DeliveryNode.key sameNode).symm)
+  · exact .inl (same.trans (congrArg Execution.DeliveryNode.ref sameNode).symm)
   · have localWork := coherent_located coherent located
-    rw [Semantics.MixedKeys.WorkAt] at localWork
+    rw [Semantics.MixedRefs.WorkAt] at localWork
     rw [sameDependencies, (localWork.2.1 fragment member).2.2]
     exact .inr dependency
 
@@ -77,21 +77,21 @@ Witness: its supporting producer owner is reused or is an explicit defer depende
 The producer's value may remain buffered; no publication-readiness premise is used.
 -/
 theorem ExecutedWork.objectProducer_failure
-    {work matching events failures address owners source payload key
+    {work matching events failures address owners source payload ref
       parentOwners ancestor result}
     (generated : ExecutedWork work)
     (known
       : TaskAt work (.executionGroup address) owners
           (some (.executionGroup source)) payload)
-    (owner : key ∈ owners)
+    (owner : ref ∈ owners)
     (parent : TaskAt work (.executionGroup source) parentOwners ancestor result)
     (failed
-      : ∀ parentKey ∈ parentOwners, NodeFailed work matching events failures parentKey)
-    : NodeFailed work matching events failures key := by
+      : ∀ parentRef ∈ parentOwners, NodeFailed work matching events failures parentRef)
+    : NodeFailed work matching events failures ref := by
   obtain ⟨node, dependencies, descriptor, same⟩ := TaskAt.executionGroup_owner known owner
-  obtain ⟨supportOwners, birth, value, parentKey, task, contributes, support⟩ :=
+  obtain ⟨supportOwners, birth, value, parentRef, task, contributes, support⟩ :=
     generated.group_objectProducer_support descriptor
-  have failure := failed parentKey ((task.unique parent).1 ▸ contributes)
+  have failure := failed parentRef ((task.unique parent).1 ▸ contributes)
   rcases support with reused | dependency
   · exact (reused.trans same) ▸ failure
   · exact same ▸ NodeFailed.groupDependency descriptor dependency failure
@@ -107,7 +107,7 @@ readiness supplies earlier successes and fixed outcomes rule out failed producer
 This is a proof reduction, not a new host law or a claim of mixed item safety.
 -/
 theorem ExecutedWork.object_cancelled_owner_failed_of_itemSafety
-    {work received matching events failures address owners producer payload key}
+    {work received matching events failures address owners producer payload ref}
     (generated : ExecutedWork work) (valid : ValidGraphEvents work received)
     (failedPayloads
       : ∀ cut occurrence,
@@ -120,19 +120,19 @@ theorem ExecutedWork.object_cancelled_owner_failed_of_itemSafety
           Occurrence.item source index ∈ received.flatMap GraphEvent.successes
           → ¬TaskCancelled work matching events failures (.item source index))
     (known : TaskAt work (.executionGroup address) owners producer payload)
-    (owner : key ∈ owners)
+    (owner : ref ∈ owners)
     (ready
       : ∀ source, producer = some source → source ∈ received.flatMap GraphEvent.successes)
     (cancelled : TaskCancelled work matching events failures (.executionGroup address))
-    : NodeFailed work matching events failures key := by
+    : NodeFailed work matching events failures ref := by
   induction rank : (Occurrence.executionGroup address).dependencyRank
-    using Nat.strongRecOn generalizing address owners producer payload key with
+    using Nat.strongRecOn generalizing address owners producer payload ref with
   | ind rank ih =>
       obtain ⟨cut, cutMember, reached, cause⟩ := cancelled
       cases cause with
       | owners projected _ _ failed =>
           obtain ⟨birth, result, task⟩ := projected
-          exact ⟨cut, cutMember, reached, failed key ((known.unique task).1 ▸ owner)⟩
+          exact ⟨cut, cutMember, reached, failed ref ((known.unique task).1 ▸ owner)⟩
       | producerFailed projected _ recorded =>
           obtain ⟨otherOwners, result, task⟩ := projected
           have same := (known.unique task).2.1
@@ -151,7 +151,7 @@ theorem ExecutedWork.object_cancelled_owner_failed_of_itemSafety
               subst producer
               obtain ⟨lower, parentOwners, ancestor, value, parent⟩ := task.producer_dependency
               apply generated.objectProducer_failure known owner parent
-              intro parentKey contributes
+              intro parentRef contributes
               apply ih _ (by omega) parent contributes _ cancelledParent rfl
               intro source parentEq
               subst ancestor

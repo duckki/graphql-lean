@@ -46,7 +46,7 @@ theorem FailureWitness.nodup {work initial matching events failures}
   apply nodup_of_fresh
   intro before cut occurrence after equal member
   have facts := witness before cut occurrence after equal
-  obtain ⟨owners, producer, payload, known, _, _, key, contributes, _⟩ := facts.2.2.1
+  obtain ⟨owners, producer, payload, known, _, _, ref, contributes, _⟩ := facts.2.2.1
   apply facts.2.2.2
   apply TaskCancelled.of_recorded known (fun empty => by simp [empty] at contributes)
   · intro published
@@ -90,17 +90,17 @@ theorem failureWitness_iff_nodup_and {work initial matching events failures}
 -----------------------------------------------------------------------------------------
 
 /-- The node clause of Terminal, separated only for this redundancy experiment.
-The other arguments are the same work, initial keys, and history explanation as Terminal.
+The other arguments are the same work, initial refs, and history explanation as Terminal.
 -/
-def NodesTerminal (work : Work) (initial : Keys) (matching : PublicationMatching)
+def NodesTerminal (work : Work) (initial : NodeRefs) (matching : PublicationMatching)
     (events : List WorkQueueEvent) (failed : FailureCuts)
     : Prop :=
   ∀ node kind dependencies birth,
     NodeAt work node kind dependencies birth
-    → node.key ∈ completedKeys events
-      ∨ node.key ∉ announcedKeys initial events
-        ∧ (NodeFailed work matching events failed node.key
-            ∨ NodeAccounted work matching events failed node.key)
+    → node.ref ∈ completedRefs events
+      ∨ node.ref ∉ announcedRefs initial events
+        ∧ (NodeFailed work matching events failed node.ref
+            ∨ NodeAccounted work matching events failed node.ref)
 
 /-- Explained terminal nodes account for every nonempty-owned task. Witness: an
 outstanding task has a healthy unclosed owner, contradicting that owner's terminal clause.
@@ -110,18 +110,18 @@ theorem terminal_iff_nodes {work groups streams events matching failures}
     (owned
       : ∀ occurrence owners producer payload,
           TaskAt work occurrence owners producer payload → owners ≠ [])
-    : Terminal work ((groups ++ streams).map DeliveryNode.key) matching events failures
-      ↔ NodesTerminal work ((groups ++ streams).map DeliveryNode.key) matching events
+    : Terminal work ((groups ++ streams).map DeliveryNode.ref) matching events failures
+      ↔ NodesTerminal work ((groups ++ streams).map DeliveryNode.ref) matching events
           failures := by
   refine ⟨fun terminal => terminal.2, fun nodes => ⟨?_, nodes⟩⟩
   intro occurrence owners producer payload known
   apply Classical.byContradiction
   intro outstanding
-  obtain ⟨key, member, healthy, openKey⟩ :=
+  obtain ⟨ref, member, healthy, openRef⟩ :=
     explained.outstanding_owner known (owned _ _ _ _ known) outstanding
   obtain ⟨node, kind, dependencies, birth, descriptor, same⟩ := known.owner_known member
   rcases nodes node kind dependencies birth descriptor with closed | ⟨_, failed | accounted⟩
-  · exact openKey (same ▸ closed)
+  · exact openRef (same ▸ closed)
   · exact healthy (same ▸ failed)
   · exact outstanding (accounted occurrence owners ⟨producer, payload, known⟩ (same.symm ▸ member))
 

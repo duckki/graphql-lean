@@ -5,31 +5,31 @@ import GraphQL.IncrementalDelivery.WorkQueueImplementation
 namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
-/-- Removal traversal never forgets a key already accumulated.
-Witness: induction on the live-node budget and stale-key frontier.
+/-- Removal traversal never forgets a ref already accumulated.
+Witness: induction on the live-node budget and stale-ref frontier.
 -/
 theorem State.removeGroup_collect_retains
-    (fuel : Nat) (queue : State) (pending removed : Keys)
+    (fuel : Nat) (queue : State) (pending removed : NodeRefs)
     : removed.Subset (State.removeGroup.collect fuel queue pending removed) := by
   induction fuel generalizing pending removed with
-  | zero => simp only [State.removeGroup.collect]; intro key member; exact member
+  | zero => simp only [State.removeGroup.collect]; intro ref member; exact member
   | succ fuel ih =>
       induction pending generalizing removed with
-      | nil => simp only [State.removeGroup.collect]; intro key member; exact member
+      | nil => simp only [State.removeGroup.collect]; intro ref member; exact member
       | cons head rest tailIH =>
-          intro key member
+          intro ref member
           unfold State.removeGroup.collect
           cases found : queue.groupNode? head with
           | none => exact tailIH removed member
           | some node =>
               exact ih (node.childGroups ++ rest) (head :: removed) (by simp [member])
 
-/-- Every newly collected removal key names a node present before traversal.
-Witness: the collector appends a key only after a successful live-node lookup. -/
+/-- Every newly collected removal ref names a node present before traversal.
+Witness: the collector appends a ref only after a successful live-node lookup. -/
 theorem State.removeGroup_collect_mem (fuel : Nat) (queue : State)
-    (pending removed : Keys) {key : Nat}
-    (member : key ∈ State.removeGroup.collect fuel queue pending removed)
-    : key ∈ removed ∨ ∃ node ∈ queue.groupNodes, node.group.node.key = key := by
+    (pending removed : NodeRefs) {ref : NodeRef}
+    (member : ref ∈ State.removeGroup.collect fuel queue pending removed)
+    : ref ∈ removed ∨ ∃ node ∈ queue.groupNodes, node.group.node.ref = ref := by
   induction fuel generalizing pending removed with
   | zero => exact Or.inl (by simpa only [State.removeGroup.collect] using member)
   | succ fuel ih =>
@@ -44,35 +44,35 @@ theorem State.removeGroup_collect_mem (fuel : Nat) (queue : State)
                 (by simpa only [found] using member)
               rcases next with old | live
               · rcases List.mem_cons.mp old with same | old
-                · subst key
+                · subst ref
                   exact Or.inr ⟨node, List.mem_of_find?_eq_some found,
                     beq_iff_eq.mp (List.find?_some
-                      (p := fun candidate : GroupNode => candidate.group.node.key == head)
+                      (p := fun candidate : GroupNode => candidate.group.node.ref == head)
                       found)⟩
                 · exact Or.inl old
               · exact Or.inr live
 
-/-- Removing a group clears its own live lookup, including an already missing key.
-Witness: a found root enters the removal accumulator immediately, and all equal keys
+/-- Removing a group clears its own live lookup, including an already missing ref.
+Witness: a found root enters the removal accumulator immediately, and all equal refs
 are filtered out. No forest or descendant-coverage premise is needed for the root.
 -/
-theorem State.removeGroup_ownGroupAbsent (queue : State) (key : Nat)
-    : (queue.removeGroup key).groupNode? key = none := by
+theorem State.removeGroup_ownGroupAbsent (queue : State) (ref : NodeRef)
+    : (queue.removeGroup ref).groupNode? ref = none := by
   apply List.find?_eq_none.mpr
   intro node member selected
-  let removed := State.removeGroup.collect (queue.groupNodes.length + 1) queue [key] []
+  let removed := State.removeGroup.collect (queue.groupNodes.length + 1) queue [ref] []
   change node ∈ queue.groupNodes.filter
-    (fun node => !removed.contains node.group.node.key) at member
+    (fun node => !removed.contains node.group.node.ref) at member
   obtain ⟨old, kept⟩ := List.mem_filter.mp member
-  cases found : queue.groupNode? key with
+  cases found : queue.groupNode? ref with
   | none => exact (List.find?_eq_none.mp found) node old selected
   | some root =>
-      have same : node.group.node.key = key := beq_iff_eq.mp selected
-      have absent : key ∉ removed := by simpa [same] using kept
+      have same : node.group.node.ref = ref := beq_iff_eq.mp selected
+      have absent : ref ∉ removed := by simpa [same] using kept
       apply absent
       unfold removed
       simp only [State.removeGroup.collect, found, List.append_nil]
       exact State.removeGroup_collect_retains queue.groupNodes.length queue
-        root.childGroups [key] (by simp)
+        root.childGroups [ref] (by simp)
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

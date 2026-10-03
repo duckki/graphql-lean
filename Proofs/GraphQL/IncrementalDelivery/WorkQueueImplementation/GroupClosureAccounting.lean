@@ -3,7 +3,7 @@ import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.RegistrationCo
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.RegistrationHistory
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.RemovalBasics
 
-/-! Group closures retire their keys and cannot repeat in subsequent actual output. -/
+/-! Group closures retire their refs and cannot repeat in subsequent actual output. -/
 
 namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.Execution (
@@ -14,26 +14,26 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 -- Closure segments carry concrete retirement, not assumed lifecycle validity
 -----------------------------------------------------------------------------------------
 
-/-- Group keys closed by raw success/failure events, excluding stream completions. -/
-def rawGroupClosureKeys : WorkQueueEvent → Keys
-  | .groupSuccess group _ _ | .groupFailure group _ => [group.key]
+/-- Group refs closed by raw success/failure events, excluding stream completions. -/
+def rawGroupClosureRefs : WorkQueueEvent → NodeRefs
+  | .groupSuccess group _ _ | .groupFailure group _ => [group.ref]
   | _ => []
 
-/-- A segment closes distinct keys, retires each one, and cannot close an old retired key.
+/-- A segment closes distinct refs, retires each one, and cannot close an old retired ref.
 The before/result states are the actual executable states; no history admission is assumed.
 -/
 structure GroupClosureAccounting (before : State) (result : State × List WorkQueueEvent)
     : Prop where
-  unique : (result.2.flatMap rawGroupClosureKeys).Nodup
-  closed : ∀ key ∈ result.2.flatMap rawGroupClosureKeys, result.1.RetiredGroup key
-  preserves : ∀ key, before.RetiredGroup key → result.1.RetiredGroup key
-  excludes : ∀ key, before.RetiredGroup key → key ∉ result.2.flatMap rawGroupClosureKeys
+  unique : (result.2.flatMap rawGroupClosureRefs).Nodup
+  closed : ∀ ref ∈ result.2.flatMap rawGroupClosureRefs, result.1.RetiredGroup ref
+  preserves : ∀ ref, before.RetiredGroup ref → result.1.RetiredGroup ref
+  excludes : ∀ ref, before.RetiredGroup ref → ref ∉ result.2.flatMap rawGroupClosureRefs
 
 /-- A silent transition only needs to retain earlier retirement certificates.
 Witness: its empty output has no new closure or duplicate.
 -/
 theorem GroupClosureAccounting.silent {before after : State}
-    (preserves : ∀ key, before.RetiredGroup key → after.RetiredGroup key)
+    (preserves : ∀ ref, before.RetiredGroup ref → after.RetiredGroup ref)
     : GroupClosureAccounting before (after, []) :=
   ⟨by simp, by simp, preserves, by simp⟩
 
@@ -44,34 +44,34 @@ theorem GroupClosureAccounting.append {before first second}
     (left : GroupClosureAccounting before first)
     (right : GroupClosureAccounting first.1 second)
     : GroupClosureAccounting before (second.1, first.2 ++ second.2) := by
-  refine ⟨?_, ?_, fun key retired => right.preserves key (left.preserves key retired), ?_⟩
+  refine ⟨?_, ?_, fun ref retired => right.preserves ref (left.preserves ref retired), ?_⟩
   · rw [List.flatMap_append]
     exact List.nodup_append.mpr ⟨left.unique, right.unique, by
-      intro key earlier other later same
+      intro ref earlier other later same
       subst other
-      exact right.excludes key (left.closed key earlier) later⟩
-  · intro key member
+      exact right.excludes ref (left.closed ref earlier) later⟩
+  · intro ref member
     rw [List.flatMap_append] at member
     rcases List.mem_append.mp member with earlier | later
-    · exact right.preserves key (left.closed key earlier)
-    · exact right.closed key later
-  · intro key retired member
+    · exact right.preserves ref (left.closed ref earlier)
+    · exact right.closed ref later
+  · intro ref retired member
     rw [List.flatMap_append] at member
     rcases List.mem_append.mp member with earlier | later
-    · exact left.excludes key retired earlier
-    · exact right.excludes key (left.preserves key retired) later
+    · exact left.excludes ref retired earlier
+    · exact right.excludes ref (left.preserves ref retired) later
 
 /-- A final silent state change preserves closure accounting if it preserves retirement.
-Witness: transport every newly or previously retired key through that state change.
+Witness: transport every newly or previously retired ref through that state change.
 -/
 theorem GroupClosureAccounting.post {before result after}
     (accounted : GroupClosureAccounting before result)
-    (preserves : ∀ key, result.1.RetiredGroup key → after.RetiredGroup key)
+    (preserves : ∀ ref, result.1.RetiredGroup ref → after.RetiredGroup ref)
     : GroupClosureAccounting before (after, result.2) :=
   ⟨
     accounted.unique,
-    fun key member => preserves key (accounted.closed key member),
-    fun key retired => preserves key (accounted.preserves key retired),
+    fun ref member => preserves ref (accounted.closed ref member),
+    fun ref retired => preserves ref (accounted.preserves ref retired),
     accounted.excludes
   ⟩
 
@@ -82,32 +82,32 @@ theorem GroupClosureAccounting.post {before result after}
 /-- A successful flush closes exactly its supplied group, irrespective of value count.
 Witness: the output is optional group values followed by one success control event.
 -/
-theorem State.finishGroupSuccess_groupClosureKeys (queue : State) (node : GroupNode)
-    : (queue.finishGroupSuccess node).2.1.flatMap rawGroupClosureKeys
-      = [node.group.node.key] := by
+theorem State.finishGroupSuccess_groupClosureRefs (queue : State) (node : GroupNode)
+    : (queue.finishGroupSuccess node).2.1.flatMap rawGroupClosureRefs
+      = [node.group.node.ref] := by
   obtain ⟨selected, _, _, output, _, _⟩ := queue.finishGroupSuccess_publications node
   rw [output]
-  split <;> simp [rawGroupClosureKeys]
+  split <;> simp [rawGroupClosureRefs]
 
-/-- Successful closure retires the supplied registered key, including through child pruning.
-Witness: task flushing preserves the registry; the own-key filter removes every live copy,
+/-- Successful closure retires the supplied registered ref, including through child pruning.
+Witness: task flushing preserves the registry; the own-ref filter removes every live copy,
 and pruning preserves the resulting retirement certificate.
 -/
 theorem State.finishGroupSuccess_retires (queue : State) (node : GroupNode)
-    (registered : node.group.node.key ∈ queue.registeredGroups)
-    : (queue.finishGroupSuccess node).1.RetiredGroup node.group.node.key := by
+    (registered : node.group.node.ref ∈ queue.registeredGroups)
+    : (queue.finishGroupSuccess node).1.RetiredGroup node.group.node.ref := by
   let flushed := (node.tasks.foldl flushGroupTask (queue, [], [])).1
   have same : flushed.registeredGroups = queue.registeredGroups := by
-    apply fold_projection (fun acc : State × List ExecutionGroupValue × Keys =>
+    apply fold_projection (fun acc : State × List ExecutionGroupValue × NodeRefs =>
       acc.1.registeredGroups) flushGroupTask
     intro acc occurrence
     unfold flushGroupTask
     split <;> rfl
   let current : State := { flushed with
     groupNodes := flushed.groupNodes.filter
-      (fun entry => entry.group.node.key != node.group.node.key)
-    rootGroups := flushed.rootGroups.filter (· != node.group.node.key) }
-  have retired : current.RetiredGroup node.group.node.key := by
+      (fun entry => entry.group.node.ref != node.group.node.ref)
+    rootGroups := flushed.rootGroups.filter (· != node.group.node.ref) }
+  have retired : current.RetiredGroup node.group.node.ref := by
     refine ⟨same ▸ registered, ?_⟩
     intro member
     obtain ⟨other, kept, equal⟩ := List.mem_map.mp member
@@ -116,15 +116,15 @@ theorem State.finishGroupSuccess_retires (queue : State) (node : GroupNode)
   exact retired.pruneEmptyGroups _
 
 /-- Failed closure retires its registered root without a descendant-coverage premise.
-Witness: the removal traversal always removes its own key and preserves registrations.
+Witness: the removal traversal always removes its own ref and preserves registrations.
 -/
 theorem State.finishGroupFailure_retires (queue : State) (node : GroupNode) (errors : Nat)
-    (registered : node.group.node.key ∈ queue.registeredGroups)
-    : (queue.finishGroupFailure node errors).1.RetiredGroup node.group.node.key :=
+    (registered : node.group.node.ref ∈ queue.registeredGroups)
+    : (queue.finishGroupFailure node errors).1.RetiredGroup node.group.node.ref :=
   State.RetiredGroup.of_lookup_none registered (queue.removeGroup_ownGroupAbsent _)
 
 /-- A live successful closure supplies one fresh retirement certificate.
-Witness: its sole closing key is live before the flush and permanently absent afterward.
+Witness: its sole closing ref is live before the flush and permanently absent afterward.
 -/
 theorem State.finishGroupSuccess_closureAccounting {queue : State}
     (live : queue.LiveGroupsRegistered) (node : GroupNode)
@@ -132,13 +132,13 @@ theorem State.finishGroupSuccess_closureAccounting {queue : State}
     : GroupClosureAccounting queue
         ((queue.finishGroupSuccess node).1, (queue.finishGroupSuccess node).2.1) := by
   refine ⟨?_, ?_, fun _ retired => retired.finishGroupSuccess node, ?_⟩
-  · rw [queue.finishGroupSuccess_groupClosureKeys]; simp
-  · intro key closed
-    rw [queue.finishGroupSuccess_groupClosureKeys] at closed
+  · rw [queue.finishGroupSuccess_groupClosureRefs]; simp
+  · intro ref closed
+    rw [queue.finishGroupSuccess_groupClosureRefs] at closed
     cases List.mem_singleton.mp closed
     exact queue.finishGroupSuccess_retires node (live node member)
-  · intro key retired closed
-    rw [queue.finishGroupSuccess_groupClosureKeys] at closed
+  · intro ref retired closed
+    rw [queue.finishGroupSuccess_groupClosureRefs] at closed
     exact retired.2 (List.mem_map.mpr ⟨node, member, (List.mem_singleton.mp closed).symm⟩)
 
 /-- A live failed closure supplies one fresh retirement certificate.
@@ -153,24 +153,24 @@ theorem State.finishGroupFailure_closureAccounting {queue : State}
           [(queue.finishGroupFailure node errors).2]
         ) := by
   refine ⟨
-    by simp [State.finishGroupFailure, rawGroupClosureKeys],
+    by simp [State.finishGroupFailure, rawGroupClosureRefs],
     ?_,
-    fun _ retired => retired.removeGroup node.group.node.key,
+    fun _ retired => retired.removeGroup node.group.node.ref,
     ?_
   ⟩
-  · intro key closed
-    have same : key = node.group.node.key := List.mem_singleton.mp closed
-    subst key
+  · intro ref closed
+    have same : ref = node.group.node.ref := List.mem_singleton.mp closed
+    subst ref
     exact queue.finishGroupFailure_retires node errors (live node member)
-  · intro key retired closed
-    have same : key = node.group.node.key := List.mem_singleton.mp closed
+  · intro ref retired closed
+    have same : ref = node.group.node.ref := List.mem_singleton.mp closed
     exact retired.2 (List.mem_map.mpr ⟨node, member, same.symm⟩)
 
 -----------------------------------------------------------------------------------------
 -- Recursive drains and contributor folds retain every earlier closure certificate
 -----------------------------------------------------------------------------------------
 
-/-- Ready-group draining closes each group at most once and permanently retires its key.
+/-- Ready-group draining closes each group at most once and permanently retires its ref.
 Witness: selected nodes are live and registered; every recursive step preserves old
 retirements, including activation after a successful carrier.
 -/
@@ -189,8 +189,8 @@ theorem State.drainReadyGroups_closureAccounting {queue : State}
         · exact GroupClosureAccounting.silent (fun _ retired => retired)
         · rename_i node selected
           have member : node ∈ current.groupNodes := by
-            obtain ⟨key, _, choice⟩ := List.exists_of_findSome?_eq_some selected
-            cases found : current.groupNode? key with
+            obtain ⟨ref, _, choice⟩ := List.exists_of_findSome?_eq_some selected
+            cases found : current.groupNode? ref with
             | none => simp [found] at choice
             | some candidate =>
                 simp only [found] at choice
@@ -213,7 +213,7 @@ theorem State.drainReadyGroups_closureAccounting {queue : State}
   exact loop _ queue live tasks
 
 /-- Removing task memberships retains registration of every live group.
-Witness: the mapped group keeps exactly its previous key and registration entry.
+Witness: the mapped group keeps exactly its previous ref and registration entry.
 -/
 private theorem live_removeTask {queue : State} (live : queue.LiveGroupsRegistered)
     (occurrence : Occurrence)
@@ -260,7 +260,7 @@ theorem State.taskFailure_closureAccounting {queue : State}
           (GroupClosureAccounting.silent (fun _ retired => retired.removeTask occurrence))
 
 /-- A successful task preserves closure uniqueness across integration, owners, and draining.
-Witness: child integration cannot revive retired keys; each live owner closes once, and
+Witness: child integration cannot revive retired refs; each live owner closes once, and
 the exact single-pass output carries its retirement evidence into the final drain.
 -/
 theorem State.taskSuccess_closureAccounting {queue : State} {work : Execution.Work}
@@ -309,7 +309,7 @@ theorem State.taskSuccess_closureAccounting {queue : State} {work : Execution.Wo
           matching.childTasksCovered (some occurrence)
         have start : GroupClosureAccounting queue
             ((stored.maybeIntegrateWork result.work (some occurrence)).1, []) :=
-          GroupClosureAccounting.silent (fun key retired =>
+          GroupClosureAccounting.silent (fun ref retired =>
             State.RetiredGroup.maybeIntegrateWork (queue := stored) retired _ _)
         obtain ⟨finalLive, finalTasks, closures⟩ := loop node.task.groups (_, [], {})
           registered.1 registered.2.1 start
@@ -338,18 +338,18 @@ theorem State.streamItems_closureAccounting {queue : State} {work : Execution.Wo
       (acc : State × List Execution.DeliveryNode
         × List Execution.DeliveryNode × List StreamItemValue)
       (live : acc.1.LiveGroupsRegistered) (tasks : acc.1.TaskGroupsRegistered)
-      (retains : ∀ key, queue.RetiredGroup key → acc.1.RetiredGroup key)
+      (retains : ∀ ref, queue.RetiredGroup ref → acc.1.RetiredGroup ref)
       : let final := more.foldl step acc
         final.1.LiveGroupsRegistered ∧ final.1.TaskGroupsRegistered
-        ∧ ∀ key, queue.RetiredGroup key → final.1.RetiredGroup key := by
+        ∧ ∀ ref, queue.RetiredGroup ref → final.1.RetiredGroup ref := by
     induction more generalizing acc with
     | nil => exact ⟨live, tasks, retains⟩
     | cons item rest ih =>
         have registered := State.integrateStreamItem_registration live tasks matching
           (included List.mem_cons_self)
         exact ih (fun _ member => included (List.mem_cons_of_mem _ member)) _
-          registered.1 registered.2.1 (fun key old =>
-            (((retains key old).maybeIntegrateWork item.work).pruneEmptyGroups _).startNewWork _)
+          registered.1 registered.2.1 (fun ref old =>
+            (((retains ref old).maybeIntegrateWork item.work).pruneEmptyGroups _).startNewWork _)
   unfold State.streamItems
   split
   · exact GroupClosureAccounting.silent (fun _ retired => retired)
@@ -358,8 +358,8 @@ theorem State.streamItems_closureAccounting {queue : State} {work : Execution.Wo
       (queue, [], [], []) live tasks (fun _ retired => retired)
     have carrier : GroupClosureAccounting queue
         (final.1, [.streamValues stream final.2.2.2 final.2.1 final.2.2.1]) :=
-      ⟨by simp [rawGroupClosureKeys], by simp [rawGroupClosureKeys], retains,
-        by simp [rawGroupClosureKeys]⟩
+      ⟨by simp [rawGroupClosureRefs], by simp [rawGroupClosureRefs], retains,
+        by simp [rawGroupClosureRefs]⟩
     exact carrier.append (State.drainReadyGroups_closureAccounting finalLive finalTasks)
 
 /-- Matching graph events emit nonrepeating, permanently retired group closures.
@@ -378,12 +378,12 @@ theorem State.handleGraphEvent_closureAccounting {queue : State} {work : Executi
       exact State.streamItems_closureAccounting live tasks matching
   | streamSuccess stream =>
       simp only [State.handleGraphEvent, State.streamSuccess]
-      split <;> exact ⟨by simp [rawGroupClosureKeys], by simp [rawGroupClosureKeys],
-        fun _ retired => retired, by simp [rawGroupClosureKeys]⟩
+      split <;> exact ⟨by simp [rawGroupClosureRefs], by simp [rawGroupClosureRefs],
+        fun _ retired => retired, by simp [rawGroupClosureRefs]⟩
   | streamFailure stream errors =>
       simp only [State.handleGraphEvent, State.streamFailure]
-      split <;> exact ⟨by simp [rawGroupClosureKeys], by simp [rawGroupClosureKeys],
-        fun _ retired => retired, by simp [rawGroupClosureKeys]⟩
+      split <;> exact ⟨by simp [rawGroupClosureRefs], by simp [rawGroupClosureRefs],
+        fun _ retired => retired, by simp [rawGroupClosureRefs]⟩
 
 -----------------------------------------------------------------------------------------
 -- Replay and publisher projections retain nonrepeating group closures
@@ -407,7 +407,7 @@ theorem State.rawEventReplay_closureAccounting {queue : State} {work : Execution
         (ih next.1 next.2.1 (fun later member => matching later (List.mem_cons_of_mem _ member)))
 
 /-- The batch wrapper preserves group closure accounting through termination.
-Witness: the optional terminal marker has no group key and changes no retirement field.
+Witness: the optional terminal marker has no group ref and changes no retirement field.
 -/
 theorem State.handleGraphEvents_closureAccounting {queue : State} {work : Execution.Work}
     (live : queue.LiveGroupsRegistered) (tasks : queue.TaskGroupsRegistered)
@@ -421,61 +421,61 @@ theorem State.handleGraphEvents_closureAccounting {queue : State} {work : Execut
     split
     · refine ⟨?_, ?_, prior.preserves, ?_⟩
       · simpa only [List.flatMap_append, List.flatMap_singleton,
-          rawGroupClosureKeys, List.append_nil] using prior.unique
+          rawGroupClosureRefs, List.append_nil] using prior.unique
       · simpa only [List.flatMap_append, List.flatMap_singleton,
-          rawGroupClosureKeys, List.append_nil, State.RetiredGroup] using prior.closed
+          rawGroupClosureRefs, List.append_nil, State.RetiredGroup] using prior.closed
       · simpa only [List.flatMap_append, List.flatMap_singleton,
-          rawGroupClosureKeys, List.append_nil] using prior.excludes
+          rawGroupClosureRefs, List.append_nil] using prior.excludes
     · exact prior
 
-/-- Group keys closed by normalized success/failure events, excluding streams. -/
-def groupClosureKeys : Execution.WorkQueueEvent → Keys
-  | .groupSuccess group _ _ | .groupFailure group _ => [group.key]
+/-- Group refs closed by normalized success/failure events, excluding streams. -/
+def groupClosureRefs : Execution.WorkQueueEvent → NodeRefs
+  | .groupSuccess group _ _ | .groupFailure group _ => [group.ref]
   | _ => []
 
-/-- Normalizing a raw event retains exactly its closing group keys.
+/-- Normalizing a raw event retains exactly its closing group refs.
 Witness: group controls are copied, while value remapping cannot introduce a closure.
 -/
-theorem IncrementalPublisher.handleWorkQueueEvent_groupClosureKeys
+theorem IncrementalPublisher.handleWorkQueueEvent_groupClosureRefs
     (publisher : IncrementalPublisher) (event : WorkQueueEvent)
-    : (publisher.handleWorkQueueEvent event).2.flatMap groupClosureKeys
-      = rawGroupClosureKeys event := by
-  cases event <;> simp [IncrementalPublisher.handleWorkQueueEvent, rawGroupClosureKeys,
-    groupClosureKeys, List.flatMap_map]
+    : (publisher.handleWorkQueueEvent event).2.flatMap groupClosureRefs
+      = rawGroupClosureRefs event := by
+  cases event <;> simp [IncrementalPublisher.handleWorkQueueEvent, rawGroupClosureRefs,
+    groupClosureRefs, List.flatMap_map]
 
 /-- Stateful normalization retains every group closure in its original order.
 Witness: the per-event projection and concatenation through the publisher's real fold.
 -/
-theorem IncrementalPublisher.normalizeBatch_groupClosureKeys
+theorem IncrementalPublisher.normalizeBatch_groupClosureRefs
     (publisher : IncrementalPublisher) (events : List WorkQueueEvent)
-    : (publisher.normalizeBatch events).2.flatMap groupClosureKeys
-      = events.flatMap rawGroupClosureKeys := by
+    : (publisher.normalizeBatch events).2.flatMap groupClosureRefs
+      = events.flatMap rawGroupClosureRefs := by
   induction events generalizing publisher with
   | nil => rfl
   | cons event rest ih =>
       rw [IncrementalPublisher.normalizeBatch_cons]
-      simp only [List.flatMap_append, IncrementalPublisher.handleWorkQueueEvent_groupClosureKeys,
+      simp only [List.flatMap_append, IncrementalPublisher.handleWorkQueueEvent_groupClosureRefs,
         ih, List.flatMap_cons]
 
-/-- Actual normalized replay closes each group at most once and retires every closed key.
-Witness: joint registry and closure-certificate replay; old output keys are retired before
+/-- Actual normalized replay closes each group at most once and retires every closed ref.
+Witness: joint registry and closure-certificate replay; old output refs are retired before
 each batch, so the next batch excludes them without any output-admission premise.
 -/
 theorem State.runNormalized_groupClosures {queue : State} {work : Execution.Work}
     (live : queue.LiveGroupsRegistered) (tasks : queue.TaskGroupsRegistered)
     (batches : List (List GraphEvent))
     (matching : ∀ event ∈ batches.flatten, event.MatchesWork work)
-    : ((queue.runNormalized batches).2.flatten.flatMap groupClosureKeys).Nodup
-      ∧ ∀ key ∈ (queue.runNormalized batches).2.flatten.flatMap groupClosureKeys,
-          (queue.runNormalized batches).1.RetiredGroup key := by
+    : ((queue.runNormalized batches).2.flatten.flatMap groupClosureRefs).Nodup
+      ∧ ∀ ref ∈ (queue.runNormalized batches).2.flatten.flatMap groupClosureRefs,
+          (queue.runNormalized batches).1.RetiredGroup ref := by
   have loop (more : List (List GraphEvent)) (acc : NormalizedAcc)
       (live : acc.1.LiveGroupsRegistered) (tasks : acc.1.TaskGroupsRegistered)
       (matching : ∀ event ∈ more.flatten, event.MatchesWork work)
-      (unique : (acc.2.2.flatten.flatMap groupClosureKeys).Nodup)
-      (retired : ∀ key ∈ acc.2.2.flatten.flatMap groupClosureKeys, acc.1.RetiredGroup key)
+      (unique : (acc.2.2.flatten.flatMap groupClosureRefs).Nodup)
+      (retired : ∀ ref ∈ acc.2.2.flatten.flatMap groupClosureRefs, acc.1.RetiredGroup ref)
       : let final := more.foldl normalizedStep acc
-        (final.2.2.flatten.flatMap groupClosureKeys).Nodup
-        ∧ ∀ key ∈ final.2.2.flatten.flatMap groupClosureKeys, final.1.RetiredGroup key := by
+        (final.2.2.flatten.flatMap groupClosureRefs).Nodup
+        ∧ ∀ ref ∈ final.2.2.flatten.flatMap groupClosureRefs, final.1.RetiredGroup ref := by
     induction more generalizing acc with
     | nil => exact ⟨unique, retired⟩
     | cons batch rest ih =>
@@ -489,17 +489,17 @@ theorem State.runNormalized_groupClosures {queue : State} {work : Execution.Work
           (by rw [normalizedStep_queue]; exact next.2.1)
           (fun event member => matching event (List.mem_append_right _ member))
         · rw [normalizedStep_flatten, List.flatMap_append,
-            IncrementalPublisher.normalizeBatch_groupClosureKeys]
+            IncrementalPublisher.normalizeBatch_groupClosureRefs]
           exact List.nodup_append.mpr ⟨unique, accounted.unique, by
-            intro key old other later equal
+            intro ref old other later equal
             subst other
-            exact accounted.excludes key (retired key old) later⟩
+            exact accounted.excludes ref (retired ref old) later⟩
         · rw [normalizedStep_queue, normalizedStep_flatten, List.flatMap_append,
-            IncrementalPublisher.normalizeBatch_groupClosureKeys]
-          intro key member
+            IncrementalPublisher.normalizeBatch_groupClosureRefs]
+          intro ref member
           exact (List.mem_append.mp member).elim
-            (fun old => accounted.preserves key (retired key old))
-            (fun added => accounted.closed key added)
+            (fun old => accounted.preserves ref (retired ref old))
+            (fun added => accounted.closed ref added)
   exact loop batches
     (queue, { active := queue.initialGroups ++ queue.initialStreams }, []) live tasks
     matching (by simp) (by simp)
@@ -513,28 +513,28 @@ theorem createWorkQueue_runNormalized_groupClosuresUnique {work : Execution.Work
     (matching : ∀ event ∈ batches.flatten, event.MatchesWork work)
     : (((State.initialize (Work.fromExecution work)).runNormalized
           batches).2.flatten.flatMap
-        groupClosureKeys).Nodup :=
+        groupClosureRefs).Nodup :=
   (State.runNormalized_groupClosures (createWorkQueue_registration work).1
     (createWorkQueue_registration work).2 batches matching).1
 
 -----------------------------------------------------------------------------------------
--- Atomic positions exclude every earlier group closure with the same key
+-- Atomic positions exclude every earlier group closure with the same ref
 -----------------------------------------------------------------------------------------
 
 /-- Atomic value expansion preserves the group-closure list exactly.
 Witness: all value atoms are nonclosing; group control events remain singletons.
 -/
-theorem publicationAtoms_groupClosureKeys (event : Execution.WorkQueueEvent)
-    : (publicationAtoms event).flatMap groupClosureKeys = groupClosureKeys event := by
+theorem publicationAtoms_groupClosureRefs (event : Execution.WorkQueueEvent)
+    : (publicationAtoms event).flatMap groupClosureRefs = groupClosureRefs event := by
   cases event with
   | streamValues stream values groups streams =>
       induction values using streamPublicationAtoms.induct with
       | case1 => rfl
       | case2 => rfl
       | case3 value next rest ih =>
-          simpa [publicationAtoms, streamPublicationAtoms, groupClosureKeys] using ih
+          simpa [publicationAtoms, streamPublicationAtoms, groupClosureRefs] using ih
   | groupValues | groupSuccess | groupFailure | streamSuccess | streamFailure
-    | workQueueTermination => simp [publicationAtoms, groupClosureKeys, List.flatMap_map]
+    | workQueueTermination => simp [publicationAtoms, groupClosureRefs, List.flatMap_map]
 
 /-- Atomic output has exactly the same nonrepeating group closures as normalized output.
 Witness: the exact atomization projection preserves the normalized uniqueness theorem.
@@ -545,17 +545,17 @@ theorem createWorkQueue_runNormalized_atomicGroupClosuresUnique {work : Executio
     : ((((State.initialize (Work.fromExecution work)).runNormalized
           batches).2.flatten.flatMap
           publicationAtoms).flatMap
-        groupClosureKeys).Nodup := by
-  simpa only [List.flatMap_assoc, publicationAtoms_groupClosureKeys]
+        groupClosureRefs).Nodup := by
+  simpa only [List.flatMap_assoc, publicationAtoms_groupClosureRefs]
     using createWorkQueue_runNormalized_groupClosuresUnique matching
 
-/-- A unique closure-key list excludes the current key from its strict output prefix.
+/-- A unique closure-ref list excludes the current ref from its strict output prefix.
 Witness: index induction through the event list and disjointness of each head and tail.
 -/
 theorem groupClosuresUnique_atEvent {events : List Execution.WorkQueueEvent}
-    {index event key} (unique : (events.flatMap groupClosureKeys).Nodup)
-    (atEvent : events[index]? = some event) (closes : key ∈ groupClosureKeys event)
-    : key ∉ (events.take index).flatMap groupClosureKeys := by
+    {index event ref} (unique : (events.flatMap groupClosureRefs).Nodup)
+    (atEvent : events[index]? = some event) (closes : ref ∈ groupClosureRefs event)
+    : ref ∉ (events.take index).flatMap groupClosureRefs := by
   induction events generalizing index with
   | nil => simp at atEvent
   | cons head tail ih =>
@@ -565,29 +565,29 @@ theorem groupClosuresUnique_atEvent {events : List Execution.WorkQueueEvent}
       | succ index =>
           intro earlier
           rcases List.mem_append.mp earlier with atHead | inTail
-          · exact parts.2.2 key atHead key
+          · exact parts.2.2 ref atHead ref
               (List.mem_flatMap.mpr ⟨event, List.mem_of_getElem? atEvent, closes⟩) rfl
           · exact ih parts.2.1 atEvent inTail
 
-/-- Every actual group closure excludes an earlier group closure with the same key.
+/-- Every actual group closure excludes an earlier group closure with the same ref.
 Witness: concrete permanent retirement survives matching replay, normalization, and
-atomic expansion. Same-key stream closures require generated role separation separately.
+atomic expansion. Same-ref stream closures require generated role separation separately.
 -/
 theorem createWorkQueue_runNormalized_groupUnclosedAt {work : Execution.Work}
     {batches : List (List GraphEvent)} (valid : ValidGraphEvents work batches.flatten)
-    {index event key}
+    {index event ref}
     (atEvent
       : (((State.initialize (Work.fromExecution work)).runNormalized
             batches).2.flatten.flatMap
           publicationAtoms)[index]?
         = some event)
-    (closes : key ∈ groupClosureKeys event)
-    : key
+    (closes : ref ∈ groupClosureRefs event)
+    : ref
       ∉ (((State.initialize (Work.fromExecution work)).runNormalized
             batches).2.flatten.flatMap
             publicationAtoms
           |>.take index).flatMap
-          groupClosureKeys :=
+          groupClosureRefs :=
   groupClosuresUnique_atEvent
     (createWorkQueue_runNormalized_atomicGroupClosuresUnique
       (fun _ member => valid.eachMatches member)) atEvent closes

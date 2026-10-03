@@ -1,6 +1,6 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.FailureLicensing
 import Proofs.GraphQL.IncrementalDelivery.Correctness.DeferDependencies
-import Proofs.GraphQL.IncrementalDelivery.Semantics.ExecutedStreamOwnerKeys
+import Proofs.GraphQL.IncrementalDelivery.Semantics.ExecutedStreamOwnerRefs
 
 /-! Owner health alone licenses failures in generated defer-only work. -/
 
@@ -20,7 +20,7 @@ the generating root. These are derived metadata, not extra event-source premises
 theorem ExecutedWork.producerMetadata {work : Execution.Work}
     (generated : ExecutedWork work)
     : ∃ parents bound,
-        MixedKeys.WorkAt parents 0 bound work
+        MixedRefs.WorkAt parents 0 bound work
         ∧ DeferContinuous parents work
         ∧ StreamOwnersOrdered work := by
   obtain ⟨ObjectRef, schema, resolvers, variables, fuel, parentType, source,
@@ -36,11 +36,11 @@ Witness: execution supplies the ancestry certificate for the existing causal ind
 No output admission, publication support, or failure-licensing premise is used.
 -/
 theorem ExecutedWork.defer_cancelled_owner_failed
-    {work matching events failures occurrence owners producer payload key}
+    {work matching events failures occurrence owners producer payload ref}
     (generated : ExecutedWork work) (shape : Correctness.DeferOnly work)
-    (known : TaskAt work occurrence owners producer payload) (owner : key ∈ owners)
+    (known : TaskAt work occurrence owners producer payload) (owner : ref ∈ owners)
     (cancelled : TaskCancelled work matching events failures occurrence)
-    : NodeFailed work matching events failures key := by
+    : NodeFailed work matching events failures ref := by
   obtain ⟨parents, bound, coherent, continuous, ordered⟩ := generated.producerMetadata
   exact shape.cancelled_owner_failed coherent continuous ordered known owner cancelled
 
@@ -49,15 +49,15 @@ Witness: every producer owner fails, and generated defer continuity makes the ch
 owner reuse or depend on one of them. The producer need not have published.
 -/
 theorem ExecutedWork.defer_cancelled_producer_fails_owner
-    {work matching events failures occurrence owners producer payload key}
+    {work matching events failures occurrence owners producer payload ref}
     (generated : ExecutedWork work) (shape : Correctness.DeferOnly work)
-    (known : TaskAt work occurrence owners (some producer) payload) (owner : key ∈ owners)
+    (known : TaskAt work occurrence owners (some producer) payload) (owner : ref ∈ owners)
     (cancelled : TaskCancelled work matching events failures producer)
-    : NodeFailed work matching events failures key := by
+    : NodeFailed work matching events failures ref := by
   obtain ⟨parents, bound, coherent, continuous, ordered⟩ := generated.producerMetadata
   obtain ⟨_, producerOwners, ancestor, result, task⟩ := known.producer_dependency
   exact shape.producer_failure coherent continuous ordered known owner task
-    (fun key member => shape.cancelled_owner_failed coherent continuous ordered
+    (fun ref member => shape.cancelled_owner_failed coherent continuous ordered
       task member cancelled)
 
 namespace ConformancePlan
@@ -74,8 +74,8 @@ theorem failureCutProducerSafety_of_deferOwnerHealth {work w}
     (generated : ExecutedWork work) (shape : Correctness.DeferOnly work)
     (owners : FailureCutOwnerHealth work w)
     : FailureCutProducerSafety work w := by
-  intro before cut occurrence after split producer ⟨ownerKeys, payload, known⟩ cancelled
-  obtain ⟨otherOwners, key, ⟨birth, result, other⟩, owner, healthy⟩ :=
+  intro before cut occurrence after split producer ⟨ownerRefs, payload, known⟩ cancelled
+  obtain ⟨otherOwners, ref, ⟨birth, result, other⟩, owner, healthy⟩ :=
     owners before cut occurrence after split
   exact healthy (generated.defer_cancelled_producer_fails_owner shape known
     ((known.unique other).1.symm ▸ owner) cancelled)
@@ -89,7 +89,7 @@ theorem uncancelledFailures_of_deferOwnerHealth {work w}
     (owners : FailureCutOwnerHealth work w)
     : UncancelledFailures work w := by
   intro before cut occurrence after split cancelled
-  obtain ⟨ownerKeys, key, ⟨producer, payload, known⟩, owner, healthy⟩ :=
+  obtain ⟨ownerRefs, ref, ⟨producer, payload, known⟩, owner, healthy⟩ :=
     owners before cut occurrence after split
   exact healthy (generated.defer_cancelled_owner_failed shape known owner cancelled)
 
@@ -101,7 +101,7 @@ mixed-stream conformance remains a separate obligation.
 theorem failureWitness_of_deferOwnerHealth {work w}
     (generated : ExecutedWork work) (shape : Correctness.DeferOnly work)
     (announced : AnnouncedFailures work w) (owners : FailureCutOwnerHealth work w)
-    : FailureWitness work (initialKeys work) w.matching w.events w.failures :=
+    : FailureWitness work (initialRefs work) w.matching w.events w.failures :=
   failureWitness announced
     (uncancelledFailures_of_deferOwnerHealth generated shape owners)
 

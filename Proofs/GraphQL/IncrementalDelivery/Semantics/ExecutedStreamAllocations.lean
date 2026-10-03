@@ -59,7 +59,7 @@ mutual
           ((executeCollectedFields schema resolvers variables fuel parentType source groups path usages deferMap).run state).2
         simp only [collectExecutionGroups, executeExecutionGroup, run_bind, StateT.run_pure, id_pure_eq]
         apply streams_combine
-        · simpa only [StreamsCompleted, StreamAllocated, streamAllocationKeys] using hl
+        · simpa only [StreamsCompleted, StreamAllocated, streamAllocationRefs] using hl
         · exact hr
   termination_by (fuel, 5, 0, sizeOf partitions)
   decreasing_by
@@ -233,9 +233,9 @@ mutual
           have hr := completeStreamItems_streamAllocations schema resolvers variables fuel inner
             (fields.map (fun field => {field with deferUsage := none}))
             (values.drop usage.initialCount) path usage.initialCount (middle + 1)
-          simp only [freshExecutionKey, run_bind, StateT.run_get, StateT.run_set, StateT.run_pure, id_pure_eq]
+          simp only [freshNodeRef, run_bind, StateT.run_get, StateT.run_set, StateT.run_pure, id_pure_eq]
           apply streams_combine (streams_catchNull _ _ hl)
-          simpa only [StreamAllocated, streamAllocationKeys, itemAllocationKeys] using hr.fresh
+          simpa only [StreamAllocated, streamAllocationRefs, itemAllocationRefs] using hr.fresh
   termination_by (fuel, 3, 0, 0)
   decreasing_by
     all_goals subst_vars; simp_wf
@@ -278,23 +278,23 @@ mutual
           (completeStreamItems schema resolvers variables fuel itemType fields
             values path index).run
             state
-        KeysAllocated state (itemAllocationKeys output.1) output.2 := by
+        RefsAllocated state (itemAllocationRefs output.1) output.2 := by
     cases values with
     | nil =>
-        simpa only [completeStreamItems, StateT.run_pure, id_pure_eq, itemAllocationKeys,
-          List.flatMap_nil] using KeysAllocated.empty (Nat.le_refl state)
+        simpa only [completeStreamItems, StateT.run_pure, id_pure_eq, itemAllocationRefs,
+          List.flatMap_nil] using RefsAllocated.empty (Nat.le_refl state)
     | cons value rest =>
         have hl := completeValue_streamAllocations schema resolvers variables fuel itemType
           fields value (path ++ [.index index]) [] [] false state
         simp only [completeStreamItems, run_bind]
         split
-        · simpa only [StateT.run_pure, id_pure_eq, itemAllocationKeys, List.flatMap_cons, List.flatMap_nil, streamAllocationKeys,
-            List.append_nil] using KeysAllocated.empty hl.monotone
+        · simpa only [StateT.run_pure, id_pure_eq, itemAllocationRefs, List.flatMap_cons, List.flatMap_nil, streamAllocationRefs,
+            List.append_nil] using RefsAllocated.empty hl.monotone
         · have hr := completeStreamItems_streamAllocations schema resolvers variables fuel
             itemType fields rest path (index + 1)
             ((completeValue schema resolvers variables fuel itemType fields value
               (path ++ [.index index]) [] [] false).run state).2
-          simp only [run_bind, StateT.run_pure, id_pure_eq, itemAllocationKeys, List.flatMap_cons]
+          simp only [run_bind, StateT.run_pure, id_pure_eq, itemAllocationRefs, List.flatMap_cons]
           exact hl.append hr
   termination_by (fuel, 2, sizeOf itemType, sizeOf values)
   decreasing_by
@@ -316,10 +316,10 @@ theorem executeRoot_streamAllocations (schema : Schema) (resolvers : Resolvers O
     collected.1 [] [] [] collected.2
   exact h.widen hc.1 (Nat.le_refl _)
 
-theorem executeRoot_streamKeys_unique (schema : Schema) (resolvers : Resolvers ObjectRef)
+theorem executeRoot_streamRefs_unique (schema : Schema) (resolvers : Resolvers ObjectRef)
     (variables : VariableValues) (fuel : Nat) (parentType : Name)
     (source : ResolverValue ObjectRef) (selections : List Selection) (state : Nat)
-    : (streamAllocationKeys
+    : (streamAllocationRefs
         ((executeRootSelectionSetCore schema resolvers variables fuel parentType source
             selections).run
           state).1.work).Nodup :=

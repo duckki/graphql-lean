@@ -2,7 +2,7 @@ import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.CancellationPr
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.ChildLinks
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.CachedFailures
 
-/-! Causal support for cancellation keys written by executable graph-event handlers. -/
+/-! Causal support for cancellation refs written by executable graph-event handlers. -/
 
 namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.Execution (StreamItemValue WorkQueueEvent)
@@ -13,7 +13,7 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 -----------------------------------------------------------------------------------------
 
 /-- Task cleanup preserves the cancellation registry and its causal witnesses.
-Witness: removing task nodes and memberships changes no retained cancellation key. -/
+Witness: removing task nodes and memberships changes no retained cancellation ref. -/
 theorem State.CancelledRecordsSupported.removeTask {queue work failed}
     (supported : State.CancelledRecordsSupported queue work failed) (task : Occurrence)
     : (queue.removeTask task).CancelledRecordsSupported work failed :=
@@ -24,23 +24,23 @@ Witness: the unchanged-history equation for starting released work. -/
 theorem State.CancelledRecordsSupported.startNewWork {queue work failed}
     (supported : State.CancelledRecordsSupported queue work failed) (newWork : NewWork)
     : (queue.startNewWork newWork).CancelledRecordsSupported work failed := by
-  intro key member
+  intro ref member
   rw [State.startNewWork_cancelledGroups] at member
-  exact supported key member
+  exact supported ref member
 
 /-- Successful closure cannot introduce an unsupported cancellation.
 Witness: successful flushing and pruning preserve the exact cancellation list. -/
 theorem State.CancelledRecordsSupported.finishGroupSuccess {queue work failed}
     (supported : State.CancelledRecordsSupported queue work failed) (node : GroupNode)
     : (queue.finishGroupSuccess node).1.CancelledRecordsSupported work failed := by
-  intro key member
+  intro ref member
   rw [State.finishGroupSuccess_cancelledGroups] at member
-  exact supported key member
+  exact supported ref member
 
 /-- Facts threaded through release draining, all internal to the executable queue.
 No output-history admission or response-correctness condition is included. -/
 private def State.CancellationContext (queue : State) (work : Execution.Work)
-    (parents : Nat → Keys) (failed : List Occurrence)
+    (parents : Nat → NodeRefs) (failed : List Occurrence)
     : Prop :=
   queue.CancelledRecordsSupported work failed
   ∧ queue.CachedFailuresSupported work failed
@@ -48,7 +48,7 @@ private def State.CancellationContext (queue : State) (work : Execution.Work)
   ∧ queue.ChildLinksCanonical parents
 
 /-- Success preserves the four facts needed by subsequent release-time failures.
-Witness: unchanged cancellation keys plus existing cache and metadata preservation. -/
+Witness: unchanged cancellation refs plus existing cache and metadata preservation. -/
 private theorem State.CancellationContext.finishGroupSuccess {queue work parents failed}
     (valid : State.CancellationContext queue work parents failed) (node : GroupNode)
     : (queue.finishGroupSuccess node).1.CancellationContext work parents failed :=
@@ -81,7 +81,7 @@ theorem State.CancelledRecordsSupported.drainReadyGroups {queue work parents fai
     (links : queue.ChildLinksCanonical parents)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     : queue.drainReadyGroups.1.CancelledRecordsSupported work failed := by
   have drained := State.drainReadyGroups_preserves
     (fun current => current.CancellationContext work parents failed)
@@ -89,11 +89,11 @@ theorem State.CancelledRecordsSupported.drainReadyGroups {queue work parents fai
     (fun current node errors prior member _ failure =>
       show (current.finishGroupFailure node errors).1.CancellationContext
           work parents failed from
-        ⟨prior.1.removeGroup prior.2.2.2 prior.2.2.1 canonical node.group.node.key
+        ⟨prior.1.removeGroup prior.2.2.2 prior.2.2.1 canonical node.group.node.ref
           (prior.2.1.invalidated member (by simp [failure])).toRecordInvalidated,
-         prior.2.1.removeGroup node.group.node.key,
-         prior.2.2.1.removeGroup node.group.node.key,
-         prior.2.2.2.removeGroup node.group.node.key⟩)
+         prior.2.1.removeGroup node.group.node.ref,
+         prior.2.2.1.removeGroup node.group.node.ref,
+         prior.2.2.2.removeGroup node.group.node.ref⟩)
     (show queue.CancellationContext work parents failed from
       ⟨supported, cached, matching, links⟩)
   exact drained.1
@@ -114,7 +114,7 @@ theorem State.CancelledRecordsSupported.taskFailure {queue work parents failed}
     (links : queue.ChildLinksCanonical parents)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (occurrence : Occurrence) (errors : Nat)
     (recorded
       : ∀ node,
@@ -124,10 +124,10 @@ theorem State.CancelledRecordsSupported.taskFailure {queue work parents failed}
     : (queue.taskFailure occurrence errors).1.CancelledRecordsSupported work failed := by
   let step (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode) :=
     let (current, outputs) := acc
-    match current.groupNode? group.key with
+    match current.groupNode? group.ref with
     | none => (current, outputs)
     | some node =>
-        if current.rootGroups.contains group.key then
+        if current.rootGroups.contains group.ref then
           let (next, failure) := current.finishGroupFailure node errors
           (next, outputs ++ [failure])
         else (current.putGroupNode
@@ -150,7 +150,7 @@ theorem State.CancelledRecordsSupported.taskFailure {queue work parents failed}
       obtain ⟨address, payload, producer, _, known⟩ :=
         (tasksMatch taskNode.task (registered taskNode member)).1
       have owners : TaskHasOwners work occurrence
-          (taskNode.task.groups.map Execution.DeliveryNode.key) :=
+          (taskNode.task.groups.map Execution.DeliveryNode.ref) :=
         ⟨producer, payload, same ▸ known⟩
       let invariant (current : State) := current.CancelledRecordsSupported work failed
         ∧ current.GroupNodesMatchWork work ∧ current.ChildLinksCanonical parents
@@ -169,8 +169,8 @@ theorem State.CancelledRecordsSupported.taskFailure {queue work parents failed}
             · rename_i node located
               have nodeMember := List.mem_of_find?_eq_some located
               split
-              · have invalid : GroupRecordInvalidated work failed node.group.node.key := by
-                  rw [current.groupNode?_key located]
+              · have invalid : GroupRecordInvalidated work failed node.group.node.ref := by
+                  rw [current.groupNode?_ref located]
                   exact .task owners
                     (List.mem_map.mpr ⟨group, included List.mem_cons_self, rfl⟩)
                     (recorded taskNode found healthy)
@@ -200,7 +200,7 @@ private theorem State.CancellationContext.maybeIntegrateWork {queue work parents
             ∧ group.parent = dependencies.head?)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     : (queue.maybeIntegrateWork newWork parentTask).1.CancellationContext
         work parents failed := by
   refine ⟨valid.1.maybeIntegrateWork newWork parentTask descriptors,
@@ -222,9 +222,9 @@ private theorem State.CancellationContext.pruneEmptyGroups {queue work parents f
     : (queue.pruneEmptyGroups groups).1.CancellationContext work parents failed := by
   refine ⟨?_, valid.2.1.pruneEmptyGroups groups, valid.2.2.1.pruneEmptyGroups groups,
     valid.2.2.2.pruneEmptyGroups groups⟩
-  intro key member
+  intro ref member
   rw [State.pruneEmptyGroups_cancelledGroups] at member
-  exact valid.1 key member
+  exact valid.1 ref member
 
 /-- Successful settlement preserves support even when it releases an older cached failure.
 Witness: child registration and the single-pass success loop preserve the local facts;
@@ -236,7 +236,7 @@ theorem State.CancelledRecordsSupported.taskSuccess {queue work parents failed}
     (links : queue.ChildLinksCanonical parents)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (occurrence : Occurrence) (result : TaskResult)
     (descriptors
       : ∀ group ∈ result.work.groups,
@@ -296,7 +296,7 @@ theorem State.CancelledRecordsSupported.streamItems {queue work parents failed}
     (links : queue.ChildLinksCanonical parents)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (stream : Execution.DeliveryNode) (items : List StreamItem)
     (descriptors
       : ∀ item ∈ items,
@@ -346,7 +346,7 @@ theorem State.CancelledRecordsSupported.handleGraphEvent {queue work parents fai
     (links : queue.ChildLinksCanonical parents)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (event : GraphEvent) (source : event.MatchesWork work)
     (recorded
       : ∀ occurrence errors,

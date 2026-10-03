@@ -21,7 +21,7 @@ then places that value strictly before the child's block, even with same-handler
 -/
 theorem ExecutedWork.taskSuccess_ancestorProducer_beforeValue
     {work before occurrence result published position group values address owners source
-      payload dependencies key parentOwners parentProducer parentPayload}
+      payload dependencies ref parentOwners parentProducer parentPayload}
     (generated : ExecutedWork work)
     (valid : ValidGraphEvents work (before ++ [.taskSuccess occurrence result]))
     (started
@@ -39,11 +39,11 @@ theorem ExecutedWork.taskSuccess_ancestorProducer_beforeValue
     (known
       : TaskAt work (.executionGroup address) owners
           (some (.executionGroup source)) payload)
-    (contributes : group.key ∈ owners)
-    (record : GroupRecordAt work group dependencies) (ancestor : key ∈ dependencies)
+    (contributes : group.ref ∈ owners)
+    (record : GroupRecordAt work group dependencies) (ancestor : ref ∈ dependencies)
     (parentKnown
       : TaskAt work (.executionGroup source) parentOwners parentProducer parentPayload)
-    (parentContributes : key ∈ parentOwners)
+    (parentContributes : ref ∈ parentOwners)
     : ∃ value,
         (Occurrence.executionGroup source, value)
         ∈ published.take
@@ -63,7 +63,7 @@ theorem ExecutedWork.taskSuccess_ancestorProducer_beforeValue
   have carrier : Execution.WorkQueueEvent.groupSuccess group groups streams
       ∈ (queue.handleGraphEvent (.taskSuccess occurrence result)).2 :=
     List.mem_of_getElem? next
-  by_cases active : group.key ∈ queue.rootGroups
+  by_cases active : group.ref ∈ queue.rootGroups
   · obtain ⟨value, emitted⟩ := generated.activeAncestorContributor_published_before_handler
       valid started covered carrier active record ancestor parentKnown parentContributes
     exact ⟨value, List.take_subset_take_left _ (Nat.le_add_right ..) emitted⟩
@@ -93,15 +93,15 @@ theorem ExecutedWork.taskSuccess_ancestorProducer_beforeValue
         ((State.taskNode?_some found).2 ▸ different)
       have preparedLookup := State.maybeIntegrateWork_lookup_other retained result.work
         (some occurrence) (fun same => different (Option.some.inj same))
-      have preparedPresent := State.maybeIntegrateWork_includesKeys
+      have preparedPresent := State.maybeIntegrateWork_includesRefs
         (queue.putTaskNode { incoming with value := some result.value }) result.work
-        (some occurrence) key present
+        (some occurrence) ref present
       obtain ⟨_, _, _, healthy, _⟩ :=
         generated.replayGraphEvents_successfulCarrier_retiredHealthy valid
           (State.acceptsBatch_prefix started) carrier
       have ancestorHealthy : ¬GroupRecordInvalidated work
           (initial.objectFailureContributions (before ++ [.taskSuccess occurrence result]))
-          key := fun invalid => healthy (.ancestor record ancestor invalid)
+          ref := fun invalid => healthy (.ancestor record ancestor invalid)
       have notCancelled :=
         (generated.replayGraphEvents_cancelledRecordsSupported _ valid).healthy_not_mem
           ancestorHealthy

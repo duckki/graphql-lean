@@ -197,7 +197,7 @@ theorem State.handleGraphEvent_streamValues_source (queue : State) (event : Grap
     : ∃ stream items, event = .streamItems stream items := by
   have action := (queue.handleGraphEvent_streamActions event).subset
     (List.mem_filterMap.mpr ⟨_, List.mem_of_getElem? selected, rfl⟩)
-  have source : event.streamAction = some (owner.key, false) := by
+  have source : event.streamAction = some (owner.ref, false) := by
     simpa only [Option.mem_toList] using action
   cases event with
   | streamItems stream items => exact ⟨stream, items, rfl⟩
@@ -247,7 +247,7 @@ theorem Witness.itemNotice_sourceBoundary
     : ∃ before stream items after,
         inputs.flatten = before ++ .streamItems stream items :: after
         ∧ let current := (initialQueue work).replayGraphEvents before
-          current.rootStreams.contains stream.key = true
+          current.rootStreams.contains stream.ref = true
           ∧ groups = (items.foldl streamItemStep (current, [], [], [])).2.1
           ∧ ((w.events.take index).flatMap normalizedObjectValues).length
             = (((initialQueue work).rawEventReplay before).2.flatMap

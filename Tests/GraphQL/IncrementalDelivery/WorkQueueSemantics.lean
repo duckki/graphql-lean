@@ -35,13 +35,13 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 #guard_msgs (drop info) in
 #check (Work.combine : Work → Work → Work)
 #guard_msgs (drop info) in
-#check (NodeHasDependencies : Work → Nat → NodeKind → Keys → Prop)
+#check (NodeHasDependencies : Work → Nat → NodeKind → NodeRefs → Prop)
 #guard_msgs (drop info) in
 #check Causality.NodeFailed.groupDependency
 #guard_msgs (drop info) in
 #check Causality.NodeFailed.streamDependencies
 
-def node : DeliveryNode := { key := 0, path := [] }
+def node : DeliveryNode := { ref := 0, path := [] }
 
 def single (result : Result (List (Name × ResponseValue))) : Work :=
   .executionGroup [{ node }] [] result .empty
@@ -102,8 +102,8 @@ theorem node_single {result other kind parents birth}
       rcases located_single located with h | h <;> simp_all [single]
 
 /-- Empty failure evidence cannot justify either failed nodes or cancelled work. -/
-theorem noFailure (work : Work) (key : Nat) {matching events}
-    : ¬NodeFailed work matching events [] key :=
+theorem noFailure (work : Work) (ref : NodeRef) {matching events}
+    : ¬NodeFailed work matching events [] ref :=
   fun h => h.nonempty rfl
 
 theorem noCancellation (work : Work) (occurrence : Occurrence) {matching events}
@@ -118,7 +118,7 @@ theorem initialized (result) : Initializes (single result) [node] [] := by
   subst group
   refine ⟨[], none, (NodeAt.group (group := { node }) .root (by simp)), ?_⟩
   refine ⟨
-    by simp [announcedKeys, pendingKeys],
+    by simp [announcedRefs, pendingRefs],
     Or.inl ⟨noFailure _ _, Or.inr ?_⟩,
     by simp,
     by simp
@@ -137,7 +137,7 @@ theorem publishes : EventAllowed work [0] matching [] [] value := by
   · exact ⟨by simp [Published], noCancellation _ _, by simp, trivial⟩
   · have opened : OpenOwner work [0] [] [0] node :=
       ⟨⟨.group, [], none, (NodeAt.group (group := { node }) .root (by simp))⟩,
-        by simp [node], by simp [Open, announcedKeys, pendingKeys, completedKeys, node]⟩
+        by simp [node], by simp [Open, announcedRefs, pendingRefs, completedRefs, node]⟩
     refine ⟨opened, ⟨node, opened, noFailure _ _⟩, ?_⟩
     intro other available
     obtain ⟨kind, parents, birth, known⟩ := available.1
@@ -160,7 +160,7 @@ theorem closes : EventAllowed work [0] matching [value] [] success := by
     accounted,
     ?_
   ⟩
-  · simp [Open, announcedKeys, pendingKeys, completedKeys, value, eventPending,
+  · simp [Open, announcedRefs, pendingRefs, completedRefs, value, eventPending,
       eventCompleted, node]
   · simp [Announcements]
 
@@ -192,7 +192,7 @@ theorem terminal : Terminal work [0] matching events [] := by
     exact Or.inr ⟨0, value, rfl, trivial, rfl⟩
   · intro other kind parents birth known
     obtain ⟨rfl, _, _, _⟩ := node_single known
-    exact Or.inl (by simp [events, completedKeys, eventCompleted, value, success, node])
+    exact Or.inl (by simp [events, completedRefs, eventCompleted, value, success, node])
 
 /-- The public run relation admits this completed output history and its chosen batch. -/
 theorem completedRun
@@ -261,7 +261,7 @@ theorem cancelled {matching events}
   apply Causality.TaskCancelled.owners
     ⟨none, .object [] (.error 2), TaskAt.executionGroup Located.root⟩
     (by simp [Published]) (by simp [node])
-  intro key member
+  intro ref member
   exact Causality.NodeFailed.task
     ⟨none, .object [] (.error 2), TaskAt.executionGroup Located.root⟩ member
     (by simp [failedBefore])
@@ -289,7 +289,7 @@ theorem failureWitness (events : List WorkQueueEvent)
           .root ⟨[0], .object [] (.error 2), .executionGroup .root⟩,
           0,
           by simp,
-          by simp [announcedKeys, pendingKeys]
+          by simp [announcedRefs, pendingRefs]
         ⟩,
         noCancellation _ _
       ⟩
@@ -302,7 +302,7 @@ theorem reportsFailure
     : EventAllowed failingWork [0] matching [] [(0, .executionGroup [])] failure := by
   refine ⟨
     ⟨[], none, NodeAt.group (group := { node }) .root (by simp)⟩,
-    by simp [Open, announcedKeys, pendingKeys, completedKeys, node],
+    by simp [Open, announcedRefs, pendingRefs, completedRefs, node],
     failed,
     ?_
   ⟩
@@ -337,7 +337,7 @@ theorem failedRun
       exact Or.inl cancelled
     · intro other kind parents birth known
       obtain ⟨rfl, _, _, _⟩ := node_single known
-      exact Or.inl (by simp [completedKeys, eventCompleted, failure])
+      exact Or.inl (by simp [completedRefs, eventCompleted, failure])
   · exact .cons (tail := []) (by simp) (.separate _ (.separate _ .nil)) .nil
 
 /-- A future failure cut cannot justify a failure in an earlier output prefix. -/
@@ -345,7 +345,7 @@ example : failedBefore [(1, .executionGroup [])] 0 = [] := rfl
 
 /-- A successful task cannot be used as failure evidence, even if its address is genuine.
 -/
-example (initial : Keys) (events : List WorkQueueEvent)
+example (initial : NodeRefs) (events : List WorkQueueEvent)
     : ¬FailureWitness work initial matching events [(0, .executionGroup [])] := by
   intro witness
   obtain ⟨owners, producer, payload, known, fails, _⟩ :=

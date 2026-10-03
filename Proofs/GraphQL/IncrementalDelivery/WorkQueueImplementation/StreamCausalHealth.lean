@@ -10,8 +10,8 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 -- A root stream can fail only through one of its own items
 -----------------------------------------------------------------------------------------
 
-/-- A generated stream key determines its enclosing defer dependencies.
-Witness: stream-key uniqueness fixes the structural address, and deterministic lookup
+/-- A generated stream ref determines its enclosing defer dependencies.
+Witness: stream-ref uniqueness fixes the structural address, and deterministic lookup
 then identifies the enclosing-owner field. No publication or failure premise is used.
 -/
 theorem ExecutedWork.streamDependencies_unique {work : Execution.Work}
@@ -19,11 +19,11 @@ theorem ExecutedWork.streamDependencies_unique {work : Execution.Work}
     {first second firstOwners secondOwners firstProducer secondProducer}
     (firstAt : NodeAt work first .stream firstOwners firstProducer)
     (secondAt : NodeAt work second .stream secondOwners secondProducer)
-    (sameKey : first.key = second.key)
+    (sameRef : first.ref = second.ref)
     : firstOwners = secondOwners := by
   obtain ⟨left, firstItems, firstLocated⟩ := firstAt
   obtain ⟨right, secondItems, secondLocated⟩ := secondAt
-  have sameAddress := generated.streamAddress_unique firstLocated secondLocated sameKey
+  have sameAddress := generated.streamAddress_unique firstLocated secondLocated sameRef
   subst right
   have same := Option.some.inj (firstLocated.symm.trans secondLocated)
   exact congrArg WorkLocation.owners same
@@ -36,10 +36,10 @@ direction uses the contributing task's own cut, so arbitrary cut order is permit
 theorem ExecutedWork.rootStream_nodeFailed_iff {work : Execution.Work}
     (generated : ExecutedWork work) {stream matching events failures}
     (root : NodeAt work stream .stream [] none)
-    : NodeFailed work matching events failures stream.key
+    : NodeFailed work matching events failures stream.ref
       ↔ ∃ occurrence owners,
           TaskHasOwners work occurrence owners
-          ∧ stream.key ∈ owners
+          ∧ stream.ref ∈ owners
           ∧ occurrence ∈ failedBefore failures events.length := by
   constructor
   · rintro ⟨cut, member, reached, cause⟩
@@ -48,7 +48,7 @@ theorem ExecutedWork.rootStream_nodeFailed_iff {work : Execution.Work}
         exact ⟨_, _, known, owner, failedBefore_subset failures reached finished⟩
     | groupDependency known _ _ =>
         obtain ⟨group, producer, located, same⟩ := known
-        exact False.elim (generated.groupStreamKeysDisjoint located root same)
+        exact False.elim (generated.groupStreamRefsDisjoint located root same)
     | streamDependencies known nonempty _ =>
         obtain ⟨node, producer, located, same⟩ := known
         exact False.elim (nonempty (generated.streamDependencies_unique located root same))
@@ -62,18 +62,18 @@ theorem ExecutedWork.rootStream_nodeFailed_iff {work : Execution.Work}
 -----------------------------------------------------------------------------------------
 
 /-- No contributing stream-failure cut is visible at a nonfailure stream action.
-Witness: an earlier same-key failure would close the stream before this action, and a
+Witness: an earlier same-ref failure would close the stream before this action, and a
 cut at this position would make the current event a failure. This checks cut timing,
 not just distinct failing occurrences or distinct response payloads.
 -/
 theorem StreamFailureCuts.no_failure_at_action
-    {work events failures index event key closing occurrence owners}
+    {work events failures index event ref closing occurrence owners}
     (cuts : StreamFailureCuts work events failures)
     (ordered : (events.filterMap streamAction).Pairwise StreamAction.Before)
     (atEvent : events[index]? = some event)
-    (action : streamAction event = some (key, closing))
+    (action : streamAction event = some (ref, closing))
     (notFailure : ∀ node errors, event ≠ .streamFailure node errors)
-    (known : TaskHasOwners work occurrence owners) (owner : key ∈ owners)
+    (known : TaskHasOwners work occurrence owners) (owner : ref ∈ owners)
     : occurrence ∉ failedBefore failures index := by
   intro failed
   obtain ⟨entry, kept, same⟩ := List.mem_map.mp failed
@@ -83,7 +83,7 @@ theorem StreamFailureCuts.no_failure_at_action
   rw [same] at task
   obtain ⟨otherProducer, payload, other⟩ := known
   rw [← (task.unique other).1] at owner
-  have sameKey := List.mem_singleton.mp owner
+  have sameRef := List.mem_singleton.mp owner
   by_cases equal : entry.1 = index
   · rw [equal, atEvent] at selected
     exact notFailure node errors (Option.some.inj selected)
@@ -93,7 +93,7 @@ theorem StreamFailureCuts.no_failure_at_action
     have relation := (List.pairwise_filterMap.mp ordered).rel_getElem_of_lt
       leftBound rightBound earlier
     rw [leftEq, rightEq] at relation
-    exact relation (node.key, true) rfl (key, closing) action rfl sameKey.symm
+    exact relation (node.ref, true) rfl (ref, closing) action rfl sameRef.symm
 
 /-- A root stream's values and successful closure remain healthy under all candidate cuts.
 Witness: the structural failure characterization reduces historical health to absence of
@@ -106,9 +106,9 @@ theorem StreamFailureCuts.rootStream_healthy
     (ordered : (events.filterMap streamAction).Pairwise StreamAction.Before)
     (root : NodeAt work stream .stream [] none)
     (atEvent : events[index]? = some event)
-    (action : streamAction event = some (stream.key, closing))
+    (action : streamAction event = some (stream.ref, closing))
     (notFailure : ∀ node errors, event ≠ .streamFailure node errors)
-    : ¬NodeFailed work matching (events.take index) failures stream.key := by
+    : ¬NodeFailed work matching (events.take index) failures stream.ref := by
   intro failed
   obtain ⟨occurrence, owners, known, owner, member⟩ :=
     (generated.rootStream_nodeFailed_iff root).mp failed
@@ -131,7 +131,7 @@ theorem StreamFailureCuts.rootStream_canPublish
     (ordered : (events.filterMap streamAction).Pairwise StreamAction.Before)
     (root : NodeAt work stream .stream [] none)
     (atEvent : events[index]? = some (.streamValues stream values groups streams))
-    (known : TaskAt work occurrence [stream.key] none (.item stream result))
+    (known : TaskAt work occurrence [stream.ref] none (.item stream result))
     (fresh : ¬Published matching (events.take index) occurrence)
     (itemsOrdered
       : ∀ address first second,
@@ -185,7 +185,7 @@ theorem createWorkQueue_runNormalized_rootStreamSuccess_eventAllowed
     : EventAllowed work
         (((State.initialize (Work.fromExecution work)).initialGroups
           ++ (State.initialize (Work.fromExecution work)).initialStreams).map
-          Execution.DeliveryNode.key) matching
+          Execution.DeliveryNode.ref) matching
         ((((State.initialize (Work.fromExecution work)).runNormalized
             batches).2.flatten.flatMap
             publicationAtoms).take
@@ -208,7 +208,7 @@ theorem createWorkQueue_runNormalized_rootStreamSuccess_eventAllowed
 
 /-- Candidate cuts for root streams form a licensed FailureWitness.
 Witness: singleton root ownership reduces prior cancellation to owner failure. Any
-such failure would come from an earlier same-key closing atom, excluded by closure
+such failure would come from an earlier same-ref closing atom, excluded by closure
 order. Reachability and open owners are independent source/notice facts.
 This covers root-stream cuts only; produced-stream and object-cut licensing remain open.
 -/
@@ -223,8 +223,8 @@ theorem StreamFailureCuts.rootStream_failureWitness
     (supported
       : ∀ entry ∈ failures,
           Reachable work entry.2
-          ∧ ∃ key,
-              TaskHasOwners work entry.2 [key] ∧ Open initial (events.take entry.1) key)
+          ∧ ∃ ref,
+              TaskHasOwners work entry.2 [ref] ∧ Open initial (events.take entry.1) ref)
     : FailureWitness work initial matching events failures := by
   apply cuts.failureWitness_iff supported |>.mpr
   intro before cut occurrence after split cancelled
@@ -243,11 +243,11 @@ theorem StreamFailureCuts.rootStream_failureWitness
   obtain ⟨node, count, birth, selected, priorTask⟩ := cuts.2 entry inCuts
   rw [same] at priorTask
   rw [← (priorTask.unique known).1] at owner
-  have sameKey := List.mem_singleton.mp owner
+  have sameRef := List.mem_singleton.mp owner
   have earlierCut : entry.1 < cut := by
     have increasing := cuts.ordered
     rw [split] at increasing
     exact increasing.rel_of_mem_append prior List.mem_cons_self
-  exact streamFailure_keys_ne ordered selected atEvent earlierCut sameKey.symm
+  exact streamFailure_refs_ne ordered selected atEvent earlierCut sameRef.symm
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

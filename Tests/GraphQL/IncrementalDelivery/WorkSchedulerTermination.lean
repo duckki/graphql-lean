@@ -52,10 +52,10 @@ Witness: the two structural task descriptors and the concrete split-batch start 
 theorem source_valid
     : ValidGraphEvents work [first, shared]
       ∧ inputsStarted work [[first], [shared]] = true := by
-  have firstKnown : TaskAt work firstTask [parent.key] none
+  have firstKnown : TaskAt work firstTask [parent.ref] none
       (.object [] (.ok (firstValue.data, 1))) :=
     ⟨_, [], _, noChildren, [], rfl, rfl, rfl⟩
-  have sharedKnown : TaskAt work sharedTask [parent.key, other.key] none
+  have sharedKnown : TaskAt work sharedTask [parent.ref, other.ref] none
       (.object [] (.ok (sharedValue.data, 0))) :=
     ⟨_, [], _, noChildren, [], rfl, rfl, rfl⟩
   have one : ValidGraphEvents work [first] :=

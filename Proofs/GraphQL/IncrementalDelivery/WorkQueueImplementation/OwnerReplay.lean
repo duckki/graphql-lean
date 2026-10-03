@@ -11,7 +11,7 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 defer ancestry. This proof bundle is not queue state or a premise of public conformance.
 -/
 structure State.OwnerAccounting (queue : State) (work : Execution.Work)
-    (parents : Nat → Keys) (events : List GraphEvent)
+    (parents : Nat → NodeRefs) (events : List GraphEvent)
     : Prop
     extends queue.HealthyCounterAccounting work parents events where
   owners
@@ -23,10 +23,10 @@ structure State.OwnerAccounting (queue : State) (work : Execution.Work)
 Witness: immediate contributor coverage and the independently checked count/cache/metadata
 initializers. Canonical ancestry is structural source evidence, not an execution policy.
 -/
-theorem createWorkQueue_ownerAccounting (work : Execution.Work) (parents : Nat → Keys)
+theorem createWorkQueue_ownerAccounting (work : Execution.Work) (parents : Nat → NodeRefs)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     : (State.initialize (Work.fromExecution work)).OwnerAccounting work parents [] := by
   exact ⟨createWorkQueue_healthyCounterAccounting work parents canonical,
     createWorkQueue_healthyRegisteredTaskAccounting
@@ -41,11 +41,11 @@ canonical metadata each follow the executable handler. Only integration availabi
 remains conditional; no output-history admission or active-root health is assumed.
 -/
 theorem State.OwnerAccounting.handleGraphEvent {queue : State} {work : Execution.Work}
-    {parents : Nat → Keys} {before : List GraphEvent}
+    {parents : Nat → NodeRefs} {before : List GraphEvent}
     (prior : queue.OwnerAccounting work parents before)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (generated : ExecutedWork work) (valid : ValidGraphEvents work before)
     (event : GraphEvent) (matching : event.MatchesWork work) (fresh : event.Fresh before)
     (accepted : queue.acceptsGraphEvent event = true)
@@ -86,11 +86,11 @@ integrations have available contributors. Witness: induction over source-event v
 using each actual earlier replay state rather than a selected schedule or wire admission.
 -/
 theorem State.OwnerAccounting.replayGraphEvents
-    {queue : State} {work : Execution.Work} {parents : Nat → Keys}
+    {queue : State} {work : Execution.Work} {parents : Nat → NodeRefs}
     (initial : queue.OwnerAccounting work parents [])
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (generated : ExecutedWork work) {events : List GraphEvent}
     (valid : ValidGraphEvents work events)
     (acceptedAt
@@ -129,9 +129,9 @@ theorem ExecutedWork.replayGraphEvents_ownerAccounting {work : Execution.Work}
           → ((State.initialize (Work.fromExecution work)).replayGraphEvents
               before).RegistrationsAvailable
               work (GraphEvent.failureSettlements before) event)
-    : ∃ parents : Nat → Keys,
+    : ∃ parents : Nat → NodeRefs,
         (∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
         ∧ ((State.initialize (Work.fromExecution work)).replayGraphEvents
             events).OwnerAccounting
             work parents events := by
@@ -150,7 +150,7 @@ theorem ExecutedWork.replayGraphEvents_ownerAccounting {work : Execution.Work}
 Witness: each field concerns task/group bookkeeping, not the batch-control flag.
 -/
 theorem State.OwnerAccounting.withTerminated {queue : State} {work : Execution.Work}
-    {parents : Nat → Keys} {events : List GraphEvent}
+    {parents : Nat → NodeRefs} {events : List GraphEvent}
     (prior : queue.OwnerAccounting work parents events) (terminated : Bool)
     : ({queue with terminated := terminated}).OwnerAccounting work parents events :=
   ⟨prior.toHealthyCounterAccounting.withTerminated terminated, prior.owners, prior.links⟩
@@ -169,9 +169,9 @@ theorem ExecutedWork.runNormalized_ownerAccounting {work : Execution.Work}
           → ((State.initialize (Work.fromExecution work)).replayGraphEvents
               before).RegistrationsAvailable
               work (GraphEvent.failureSettlements before) event)
-    : ∃ parents : Nat → Keys,
+    : ∃ parents : Nat → NodeRefs,
         (∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
         ∧ ((State.initialize (Work.fromExecution work)).runNormalized
             batches).1.OwnerAccounting
             work parents batches.flatten := by
@@ -188,14 +188,14 @@ Witness: any registered task with a healthy contributor is not a recorded failur
 absence from successful settlements also implies absence from the combined outcome list.
 -/
 theorem State.OwnerAccounting.healthyRegisteredTasks {queue : State}
-    {work : Execution.Work} {parents : Nat → Keys} {events : List GraphEvent}
+    {work : Execution.Work} {parents : Nat → NodeRefs} {events : List GraphEvent}
     (prior : queue.OwnerAccounting work parents events)
     : queue.HealthyRegisteredTaskAccounting work (GraphEvent.groupSettlements events)
         (GraphEvent.failureSettlements events) := by
-  intro task member fresh key contributor healthy
+  intro task member fresh ref contributor healthy
   have notFailed := (prior.pending.matching task member).not_failed_of_healthy
     contributor healthy
-  apply prior.owners task member _ key contributor healthy
+  apply prior.owners task member _ ref contributor healthy
   simp only [GraphEvent.mem_taskSettlements, fresh, notFailed, or_self, not_false_eq_true]
 
 /-- Only object-task integrations remain conditional in normalized owner replay.
@@ -213,9 +213,9 @@ theorem ExecutedWork.runNormalized_ownerAccounting_of_taskAvailability
           → ((State.initialize (Work.fromExecution work)).replayGraphEvents
               before).ChildGroupsAvailable
               work (GraphEvent.failureSettlements before) result.work)
-    : ∃ parents : Nat → Keys,
+    : ∃ parents : Nat → NodeRefs,
         (∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
         ∧ ((State.initialize (Work.fromExecution work)).runNormalized
             batches).1.OwnerAccounting
             work parents batches.flatten := by

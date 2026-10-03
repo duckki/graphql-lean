@@ -35,7 +35,7 @@ Witness: its only nonempty located boundary; no deferred task can occur there.
 theorem childFreeStream_task {node items occurrence owners producer payload}
     (childrenEmpty : ∀ item ∈ items, item.2 = Work.empty)
     (known : TaskAt (.stream node items) occurrence owners producer payload)
-    : owners = [node.key] ∧ producer = none := by
+    : owners = [node.ref] ∧ producer = none := by
   cases StructuralEquivalence.taskAt_of_current known with
   | executionGroup located =>
       rcases childFreeStream_located childrenEmpty located.toCurrent with
@@ -55,10 +55,10 @@ theorem childFreeStream_completeRun_exists (node : DeliveryNode)
     (items : List (Result ResponseValue × Work))
     (childrenEmpty : ∀ item ∈ items, item.2 = Work.empty)
     : ∃ history, AdmissibleRun (.stream node items) history := by
-  have coherent : MixedOwnerPaths.WorkAt (fun _ => node.path) (node.key + 1)
+  have coherent : MixedOwnerPaths.WorkAt (fun _ => node.path) (node.ref + 1)
       (.stream node items) := by
     rw [MixedOwnerPaths.WorkAt]
-    exact ⟨⟨by omega, rfl⟩, fun item member => by
+    exact ⟨⟨Nat.lt_succ_self node.ref, rfl⟩, fun item member => by
       rw [childrenEmpty item member, MixedOwnerPaths.WorkAt]
       trivial⟩
   have initialized : Initializes (.stream node items) [] [node] := by
@@ -67,7 +67,7 @@ theorem childFreeStream_completeRun_exists (node : DeliveryNode)
     have same := List.mem_singleton.mp member
     subst stream
     refine ⟨[], none, .stream .root, ?_⟩
-    exact ⟨by simp [announcedKeys, pendingKeys],
+    exact ⟨by simp [announcedRefs, pendingRefs],
       Or.inl ⟨fun failure => failure.nonempty rfl, Or.inl rfl⟩, by simp, Or.inl rfl⟩
   apply completeRun_exists_of_initial_owner_coverage coherent initialized
   intro occurrence owners producer payload known

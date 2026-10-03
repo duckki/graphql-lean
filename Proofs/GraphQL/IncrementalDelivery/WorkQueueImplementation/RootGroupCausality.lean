@@ -15,21 +15,21 @@ theorem ExecutedWork.rootProducedGroup_healthy {work : Execution.Work}
     (known : NodeAt work node .group dependencies none)
     (contributors
       : ∀ occurrence ∈ failed,
-          ∀ owners, TaskHasOwners work occurrence owners → node.key ∉ owners)
-    (ancestors : ∀ key ∈ dependencies, ¬Causality.NodeFailed work failed published key)
-    : ¬Causality.NodeFailed work failed published node.key := by
+          ∀ owners, TaskHasOwners work occurrence owners → node.ref ∉ owners)
+    (ancestors : ∀ ref ∈ dependencies, ¬Causality.NodeFailed work failed published ref)
+    : ¬Causality.NodeFailed work failed published node.ref := by
   intro failure
   cases failure with
   | task task owner member => exact contributors _ member _ task owner
   | groupDependency descriptor member cause =>
-      obtain ⟨other, producer, otherKnown, keyEq⟩ := descriptor
+      obtain ⟨other, producer, otherKnown, refEq⟩ := descriptor
       obtain ⟨parents, canonical⟩ := generated.groupDependenciesCanonical
       have same := canonical _ _ _ otherKnown
-      rw [keyEq, ← canonical _ _ _ known] at same
+      rw [refEq, ← canonical _ _ _ known] at same
       exact ancestors _ (same ▸ member) cause
   | streamDependencies descriptor _ _ =>
-      obtain ⟨stream, producer, streamKnown, keyEq⟩ := descriptor
-      exact generated.groupStreamKeysDisjoint known streamKnown keyEq.symm
+      obtain ⟨stream, producer, streamKnown, refEq⟩ := descriptor
+      exact generated.groupStreamRefsDisjoint known streamKnown refEq.symm
   | producers _ noRoot _ _ =>
       exact noRoot ⟨node, .group, dependencies, known, rfl⟩
 

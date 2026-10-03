@@ -16,7 +16,7 @@ theorem State.TaskMembershipsUnique.putGroupNode {queue : State}
     : (queue.putGroupNode updated).TaskMembershipsUnique := by
   intro node member
   change node ∈ queue.groupNodes.map
-    (fun old => if old.group.node.key == updated.group.node.key then updated else old)
+    (fun old => if old.group.node.ref == updated.group.node.ref then updated else old)
     at member
   obtain ⟨old, oldMember, same⟩ := List.mem_map.mp member
   split at same
@@ -53,10 +53,10 @@ theorem State.TaskMembershipsUnique.addGroups {queue : State}
         | none => current
         | some node =>
             let children :=
-              if node.childGroups.contains group.node.key then
+              if node.childGroups.contains group.node.ref then
                 node.childGroups
               else
-                node.childGroups ++ [group.node.key]
+                node.childGroups ++ [group.node.ref]
             current.putGroupNode { node with childGroups := children }
   have linkUnique (current : State) (group : Group)
       (currentUnique : current.TaskMembershipsUnique)
@@ -64,8 +64,8 @@ theorem State.TaskMembershipsUnique.addGroups {queue : State}
     unfold linkStep
     cases parent : group.parent with
     | none => simpa only [parent] using currentUnique
-    | some key =>
-        cases found : current.groupNode? key with
+    | some ref =>
+        cases found : current.groupNode? ref with
         | none => simpa only [parent, found] using currentUnique
         | some node =>
             simp only [found]
@@ -87,8 +87,8 @@ theorem State.TaskMembershipsUnique.addGroups {queue : State}
         simpa only [List.foldl_cons]
           using ih (queue := queue.addGroup group) (unique.addGroup group)
   let fresh := groups.filter (fun group =>
-    !queue.registeredGroups.contains group.node.key
-      && (queue.groupNode? group.node.key).isNone)
+    !queue.registeredGroups.contains group.node.ref
+      && (queue.groupNode? group.node.ref).isNone)
   change (fresh.foldl linkStep (fresh.foldl State.addGroup queue)).TaskMembershipsUnique
   exact foldUnique fresh _ (registeredUnique fresh)
 
@@ -98,7 +98,7 @@ theorem State.TaskMembershipsUnique.addTask {queue : State}
     : (queue.addTask task).TaskMembershipsUnique := by
   let registered : State := { queue with tasks := queue.tasks ++ [task] }
   let step (current : State) (group : Execution.DeliveryNode) : State :=
-    match current.groupNode? group.key with
+    match current.groupNode? group.ref with
     | none => current
     | some node =>
         if node.tasks.contains task.occurrence then
@@ -147,7 +147,7 @@ theorem State.TaskMembershipsUnique.addTask {queue : State}
   let current := task.groups.foldl step registered
   have currentUnique : current.TaskMembershipsUnique :=
     foldUnique task.groups registered unique
-  change (if task.groups.any (fun group => current.rootGroups.contains group.key)
+  change (if task.groups.any (fun group => current.rootGroups.contains group.ref)
       && (current.taskNode? task.occurrence).isNone then
       { current with taskNodes := current.taskNodes ++ [{ task }] }
     else current).TaskMembershipsUnique
@@ -161,8 +161,8 @@ theorem State.TaskMembershipsUnique.addStreams {queue : State}
   let fresh :=
     streams.foldl
       (fun selected stream =>
-        if (queue.stream? stream.node.key).isSome
-            || selected.any (fun known => known.node.key == stream.node.key) then
+        if (queue.stream? stream.node.ref).isSome
+            || selected.any (fun known => known.node.ref == stream.node.ref) then
           selected
         else
           selected ++ [stream])
@@ -224,8 +224,8 @@ theorem State.TaskMembershipsUnique.pruneEmptyGroups {queue : State}
 theorem State.TaskMembershipsUnique.startNewWork {queue : State}
     (unique : queue.TaskMembershipsUnique) (newWork : NewWork)
     : (queue.startNewWork newWork).TaskMembershipsUnique := by
-  let groups := newWork.newGroups.map Execution.DeliveryNode.key
-  let streams := newWork.newStreams.map Execution.DeliveryNode.key
+  let groups := newWork.newGroups.map Execution.DeliveryNode.ref
+  let streams := newWork.newStreams.map Execution.DeliveryNode.ref
   let current : State := { queue with rootGroups := queue.rootGroups ++ groups }
   have taskStart (state : State) (task : Occurrence)
       (currentUnique : state.TaskMembershipsUnique)
@@ -242,9 +242,9 @@ theorem State.TaskMembershipsUnique.startNewWork {queue : State}
     | cons task rest ih =>
         intro state currentUnique
         exact ih (state.startTask task) (taskStart state task currentUnique)
-  have groupStart (state : State) (key : Nat)
+  have groupStart (state : State) (ref : NodeRef)
       (currentUnique : state.TaskMembershipsUnique)
-      : (state.startGroup key).TaskMembershipsUnique := by
+      : (state.startGroup ref).TaskMembershipsUnique := by
     unfold State.startGroup
     split
     · exact currentUnique
@@ -252,22 +252,22 @@ theorem State.TaskMembershipsUnique.startNewWork {queue : State}
       split
       · exact currentUnique
       · exact taskFold node.tasks state currentUnique
-  have groupFold (keys : Keys) :
+  have groupFold (refs : NodeRefs) :
       ∀ state, state.TaskMembershipsUnique
-        → (keys.foldl State.startGroup state).TaskMembershipsUnique := by
-    induction keys with
+        → (refs.foldl State.startGroup state).TaskMembershipsUnique := by
+    induction refs with
     | nil => intro state currentUnique; exact currentUnique
-    | cons key rest ih =>
+    | cons ref rest ih =>
         intro state currentUnique
-        exact ih (state.startGroup key) (groupStart state key currentUnique)
-  have streamFold (keys : Keys) :
+        exact ih (state.startGroup ref) (groupStart state ref currentUnique)
+  have streamFold (refs : NodeRefs) :
       ∀ state, state.TaskMembershipsUnique
-        → (keys.foldl State.startStream state).TaskMembershipsUnique := by
-    induction keys with
+        → (refs.foldl State.startStream state).TaskMembershipsUnique := by
+    induction refs with
     | nil => intro state currentUnique; exact currentUnique
-    | cons key rest ih =>
+    | cons ref rest ih =>
         intro state currentUnique
-        apply ih (state.startStream key)
+        apply ih (state.startStream ref)
         unfold State.startStream
         split <;> exact currentUnique
   change (streams.foldl State.startStream

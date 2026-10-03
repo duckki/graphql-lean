@@ -17,7 +17,7 @@ Witness: the matched-handler notice certificate applies to the child's full defe
 Silent pruning counts as retirement; no completion notice for the ancestor is required.
 -/
 theorem ExecutedWork.noticeAncestor_retired
-    {work before event output child dependencies key occurrence owners}
+    {work before event output child dependencies ref occurrence owners}
     (generated : ExecutedWork work)
     (matching : ∀ past ∈ before, past.MatchesWork work)
     (incoming : event.MatchesWork work)
@@ -26,15 +26,15 @@ theorem ExecutedWork.noticeAncestor_retired
         ∈ (((State.initialize (Work.fromExecution work)).replayGraphEvents
               before).handleGraphEvent
             event).2)
-    (noticed : child.key ∈ rawGroupNoticeKeys output)
-    (known : GroupRecordAt work child dependencies) (ancestor : key ∈ dependencies)
-    (task : TaskHasOwners work occurrence owners) (contributes : key ∈ owners)
+    (noticed : child.ref ∈ rawGroupNoticeRefs output)
+    (known : GroupRecordAt work child dependencies) (ancestor : ref ∈ dependencies)
+    (task : TaskHasOwners work occurrence owners) (contributes : ref ∈ owners)
     : ((State.initialize (Work.fromExecution work)).replayGraphEvents
         (before ++ [event])).RetiredGroup
-        key :=
-  generated.replayGraphEvents_next_noticeAncestorsRetired matching incoming child.key
+        ref :=
+  generated.replayGraphEvents_next_noticeAncestorsRetired matching incoming child.ref
     (List.mem_flatMap.mpr ⟨output, emitted, noticed⟩) child dependencies known rfl
-    key ancestor occurrence owners task contributes
+    ref ancestor occurrence owners task contributes
 
 -----------------------------------------------------------------------------------------
 -- Recover all contributors, not merely memberships still present in the live queue
@@ -47,7 +47,7 @@ The source event is recovered without assuming storage, registration, or output 
 Publication before the particular internal carrier remains a separate obligation.
 -/
 theorem ExecutedWork.noticeAncestor_structuralContributor_succeeded
-    {work before event output child dependencies key address owners producer payload}
+    {work before event output child dependencies ref address owners producer payload}
     (generated : ExecutedWork work)
     (valid : ValidGraphEvents work (before ++ [event]))
     (started
@@ -58,10 +58,10 @@ theorem ExecutedWork.noticeAncestor_structuralContributor_succeeded
         ∈ (((State.initialize (Work.fromExecution work)).replayGraphEvents
               before).handleGraphEvent
             event).2)
-    (noticed : child.key ∈ rawGroupNoticeKeys output)
-    (known : GroupRecordAt work child dependencies) (ancestor : key ∈ dependencies)
+    (noticed : child.ref ∈ rawGroupNoticeRefs output)
+    (known : GroupRecordAt work child dependencies) (ancestor : ref ∈ dependencies)
     (task : TaskAt work (.executionGroup address) owners producer payload)
-    (contributes : key ∈ owners)
+    (contributes : ref ∈ owners)
     : ∃ result,
         GraphEvent.taskSuccess (.executionGroup address) result ∈ before ++ [event] := by
   have retired := generated.noticeAncestor_retired
@@ -88,7 +88,7 @@ the only other possibility is the current task-success input itself. No storage 
 or replacement publication matching is introduced.
 -/
 theorem ExecutedWork.noticeAncestor_contributor_published_buffered_or_current
-    {work before event output child dependencies key address owners producer payload
+    {work before event output child dependencies ref address owners producer payload
       published}
     (generated : ExecutedWork work)
     (valid : ValidGraphEvents work (before ++ [event]))
@@ -103,10 +103,10 @@ theorem ExecutedWork.noticeAncestor_contributor_published_buffered_or_current
         ∈ (((State.initialize (Work.fromExecution work)).replayGraphEvents
               before).handleGraphEvent
             event).2)
-    (noticed : child.key ∈ rawGroupNoticeKeys output)
-    (known : GroupRecordAt work child dependencies) (ancestor : key ∈ dependencies)
+    (noticed : child.ref ∈ rawGroupNoticeRefs output)
+    (known : GroupRecordAt work child dependencies) (ancestor : ref ∈ dependencies)
     (task : TaskAt work (.executionGroup address) owners producer payload)
-    (contributes : key ∈ owners)
+    (contributes : ref ∈ owners)
     : ∃ result,
         event = .taskSuccess (.executionGroup address) result
         ∨ (GraphEvent.taskSuccess (.executionGroup address) result ∈ before
@@ -122,12 +122,12 @@ theorem ExecutedWork.noticeAncestor_contributor_published_buffered_or_current
                       = some node
                     ∧ node.value = some result.value
                     ∧ TaskHasOwners work (.executionGroup address)
-                        (node.task.groups.map Execution.DeliveryNode.key)
-                    ∧ key ∈ node.task.groups.map Execution.DeliveryNode.key
-                    ∧ key
+                        (node.task.groups.map Execution.DeliveryNode.ref)
+                    ∧ ref ∈ node.task.groups.map Execution.DeliveryNode.ref
+                    ∧ ref
                       ∈ ((State.initialize (Work.fromExecution work)).replayGraphEvents
                           before).groupNodes.map
-                          (fun owner => owner.group.node.key))) := by
+                          (fun owner => owner.group.node.ref))) := by
   obtain ⟨result, succeeded⟩ := generated.noticeAncestor_structuralContributor_succeeded
     valid started emitted noticed known ancestor task contributes
   refine ⟨result, ?_⟩
@@ -136,7 +136,7 @@ theorem ExecutedWork.noticeAncestor_contributor_published_buffered_or_current
     have healthy := (generated.noticeAncestor_healthy_uncancelled valid
       (State.acceptsBatch_prefix started) emitted noticed known ancestor).1
     have priorHealthy : ¬GroupRecordInvalidated work
-        ((State.initialize (Work.fromExecution work)).objectFailureContributions before) key := by
+        ((State.initialize (Work.fromExecution work)).objectFailureContributions before) ref := by
       intro invalid
       apply healthy
       apply invalid.mono

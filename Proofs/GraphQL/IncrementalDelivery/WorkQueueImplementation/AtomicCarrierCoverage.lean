@@ -80,7 +80,7 @@ theorem groupSuccess_objectContributorsPublished
     (ledger : BufferedClosureLedger work inputs w)
     (selected : w.events[index]? = some (.groupSuccess group groups streams))
     (known : TaskAt work (.executionGroup address) owners producer payload)
-    (contributes : group.key ∈ owners)
+    (contributes : group.ref ∈ owners)
     : Published w.matching (w.events.take index) (.executionGroup address) := by
   obtain ⟨published, batched, _, interpret, _⟩ := ledger
   have accepted : (initialQueue work).batchesStarted inputs = true := by
@@ -101,7 +101,7 @@ theorem groupSuccess_objectContributorsPublished
 
 /-- Every structural task of a successfully closing group is accounted for before closure.
 Witness: all object contributors are published under the retained matching. A stream item
-cannot contribute to the group because generated group and stream keys are disjoint.
+cannot contribute to the group because generated group and stream refs are disjoint.
 No cancellation alternative is needed at a healthy successful carrier.
 -/
 theorem groupSuccess_nodeAccounted
@@ -111,7 +111,7 @@ theorem groupSuccess_nodeAccounted
     (history : w.events = (initialQueue work).nonterminalAtoms inputs)
     (ledger : BufferedClosureLedger work inputs w)
     (selected : w.events[index]? = some (.groupSuccess group groups streams))
-    : NodeAccounted work w.matching (w.events.take index) w.failures group.key := by
+    : NodeAccounted work w.matching (w.events.take index) w.failures group.ref := by
   intro occurrence owners ⟨producer, payload, known⟩ contributes
   cases occurrence with
   | executionGroup address =>
@@ -125,7 +125,7 @@ theorem groupSuccess_nodeAccounted
       obtain ⟨stream, entries, enclosing, result, children, located, entry, sameOwners,
         samePayload⟩ := known
       rw [sameOwners] at contributes
-      exact False.elim (generated.groupStreamKeysDisjoint groupKnown (.stream located)
+      exact False.elim (generated.groupStreamRefsDisjoint groupKnown (.stream located)
         (List.mem_singleton.mp contributes))
 
 end ConformancePlan

@@ -6,17 +6,17 @@ namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
 -----------------------------------------------------------------------------------------
--- Structural owner keys agree with the source's retained contributor descriptors
+-- Structural owner refs agree with the source's retained contributor descriptors
 -----------------------------------------------------------------------------------------
 
-/-- A structural task's owner keys are exactly its retained contributor descriptors' keys.
+/-- A structural task's owner refs are exactly its retained contributor descriptors' refs.
 Witness: both projections read the same located execution group; items have no task-group
-descriptor list. No response payload comparison or generated-key assumption is needed.
+descriptor list. No response payload comparison or generated-ref assumption is needed.
 -/
 theorem taskAt_owners_of_taskGroups {work occurrence owners producer payload groups}
     (known : TaskAt work occurrence owners producer payload)
     (exactGroups : taskGroups? work occurrence = some groups)
-    : owners = groups.map Execution.DeliveryNode.key := by
+    : owners = groups.map Execution.DeliveryNode.ref := by
   cases occurrence with
   | item address ordinal => simp [taskGroups?] at exactGroups
   | executionGroup address =>
@@ -52,7 +52,7 @@ theorem Witness.groupPublication_taskAt {work inputs w index owner payload}
           ((initialQueue work).rawEventReplay inputs.flatten).2 index owner payload)
     : ∃ producer,
         TaskAt work (w.matching index)
-          (origin.value.deliveryGroups.map Execution.DeliveryNode.key) producer
+          (origin.value.deliveryGroups.map Execution.DeliveryNode.ref) producer
           (.object origin.value.path (.ok (origin.value.data, origin.value.errors))) := by
   obtain ⟨_, _, exactLedger, _⟩ := ledger
   have raw := origin.rawValue_atRank
@@ -61,9 +61,9 @@ theorem Witness.groupPublication_taskAt {work inputs w index owner payload}
   rw [← historyEq] at raw
   obtain ⟨result, _, same, source⟩ := exactLedger.source_at selected raw
   obtain ⟨owners, producer, known, groups, _⟩ := source
-  have keys := taskAt_owners_of_taskGroups known groups
-  rw [same] at keys known
-  exact ⟨producer, keys ▸ known⟩
+  have refs := taskAt_owners_of_taskGroups known groups
+  rw [same] at refs known
+  exact ⟨producer, refs ▸ known⟩
 
 /-- Every actual object publication has an available owner of its exact matched task.
 Witness: combine raw contributor availability with indexed source-ledger agreement,
@@ -85,16 +85,16 @@ theorem GroupPublicationReleases.matched_available {work inputs w}
               ((initialQueue work).rawEventReplay inputs.flatten).2 index owner payload,
         (∃ producer,
           TaskAt work (w.matching index)
-            (origin.value.deliveryGroups.map Execution.DeliveryNode.key) producer
+            (origin.value.deliveryGroups.map Execution.DeliveryNode.ref) producer
             (.object origin.value.path (.ok (origin.value.data, origin.value.errors))))
-        ∧ HealthyOpenOwner work (initialKeys work) w.matching (w.events.take index)
-            w.failures (origin.value.deliveryGroups.map Execution.DeliveryNode.key)
+        ∧ HealthyOpenOwner work (initialRefs work) w.matching (w.events.take index)
+            w.failures (origin.value.deliveryGroups.map Execution.DeliveryNode.ref)
             origin.group := by
   obtain ⟨origin, available⟩ := releases.available valid selected
   exact ⟨origin, Witness.groupPublication_taskAt started history ledger selected origin,
     available⟩
 
-/-- The exact matched object task succeeds and has a healthy contributing key.
+/-- The exact matched object task succeeds and has a healthy contributing ref.
 Witness: indexed full-value agreement and available raw release support. The remaining
 `PublicationSupport` clause is earlier publication of the structural producer.
 -/
@@ -105,14 +105,14 @@ theorem GroupPublicationReleases.matching_healthy {work inputs w}
     (history : w.events = (initialQueue work).nonterminalAtoms inputs)
     (ledger : BufferedClosureLedger work inputs w) {index owner values}
     (selected : w.events[index]? = some (.groupValues owner values))
-    : ∃ owners producer payload key,
+    : ∃ owners producer payload ref,
         TaskAt work (w.matching index) owners producer payload
         ∧ payload.failure = none
-        ∧ key ∈ owners
-        ∧ ¬NodeFailed work w.matching (w.events.take index) w.failures key := by
+        ∧ ref ∈ owners
+        ∧ ¬NodeFailed work w.matching (w.events.take index) w.failures ref := by
   obtain ⟨origin, ⟨producer, known⟩, available⟩ :=
     releases.matched_available valid started history ledger selected
-  exact ⟨_, producer, _, origin.group.key, known, rfl, available.1.2.1, available.2⟩
+  exact ⟨_, producer, _, origin.group.ref, known, rfl, available.1.2.1, available.2⟩
 
 end ConformancePlan
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

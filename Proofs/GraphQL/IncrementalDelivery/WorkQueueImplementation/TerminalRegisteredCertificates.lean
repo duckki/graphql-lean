@@ -28,8 +28,8 @@ theorem mixed_registeredTerminalCertificates {work inputs}
         ∧ (((initialQueue work).runNormalized inputs).1.terminated = true
             → ∀ group dependencies,
                 NodeAt work group .group dependencies none
-                → NodeFailed work w.matching w.events w.failures group.key
-                  ∨ NodeAccounted work w.matching w.events w.failures group.key) := by
+                → NodeFailed work w.matching w.events w.failures group.ref
+                  ∨ NodeAccounted work w.matching w.events w.failures group.ref) := by
   obtain ⟨w, history, shape, announced, uncancelled, publications, controls, _, _, _, _, _,
     ledger, _, _, _, _, _, streams, _, exactCuts⟩ :=
     mixed_admissionCertificates premises.generated premises.valid premises.started

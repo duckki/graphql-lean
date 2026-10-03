@@ -42,11 +42,11 @@ field metadata: this immediate field is deliberately placed in a task here.
 #guard
   let supplied : ExecutionPlan :=
     { newCollectedFieldsMaps := [([], [("alias", [selectedField])])] }
-  let (completed, nextKey) :=
+  let (completed, nextRef) :=
     (executeExecutionPlan schema resolvers [] 5 "Query" (.object "Query" 0)
       [] supplied).run
       0
-  same completed.result (.ok ([], 0)) && completed.work.size == 1 && nextKey == 0
+  same completed.result (.ok ([], 0)) && completed.work.size == 1 && nextRef == 0
 
 /-! In normal callers, planning is explicit and the same field executes immediately. -/
 
@@ -98,17 +98,17 @@ end
 #guard
   let fields :=
     [{ selectedField with selectionSet := [field "name", defer [field "age"]] }]
-  let (completed, nextKey) :=
+  let (completed, nextRef) :=
     (completeValue schema resolvers [] 10 (.named "User") fields (.object "User" 1)
       [.field "alias"]).run
       0
   same completed.result (.ok (.object [("name", .scalar "name1")], 0))
   && completed.work.size == 1
-  && nextKey == 1
+  && nextRef == 1
   && same (noticePaths completed.work) [[.field "alias"]]
 
-def group : DeliveryNode := { key := 10, path := [.field "user"], label := some "later" }
-def stream : DeliveryNode := { key := 20, path := [.field "values"] }
+def group : DeliveryNode := { ref := 10, path := [.field "user"], label := some "later" }
+def stream : DeliveryNode := { ref := 20, path := [.field "values"] }
 
 #guard
   let entries : StateM IDState (List IncrementalPendingNotice) :=
@@ -192,7 +192,7 @@ def lastBatch : List WorkQueueEvent := [.streamSuccess stream, .workQueueTermina
 
 def mapped : ResponseEventStream :=
   mapIncrementalWorkEventsToResponseEvent (.ofList [firstBatch, lastBatch])
-    { ids := [(stream.key, "0")], nextID := 1 }
+    { ids := [(stream.ref, "0")], nextID := 1 }
 
 example : mapped.Accepts firstBatch := by
   intro initial h

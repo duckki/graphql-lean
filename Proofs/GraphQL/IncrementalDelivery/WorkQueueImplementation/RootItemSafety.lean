@@ -57,7 +57,7 @@ theorem StreamFailureCuts.rootItem_safe_mixed
           → IsValue event
           → PublicationAt work (matching index) event)
     (root : NodeAt work stream .stream [] none)
-    (known : TaskAt work (.item address ordinal) [stream.key] none (.item stream result))
+    (known : TaskAt work (.item address ordinal) [stream.ref] none (.item stream result))
     (published : Published matching events (.item address ordinal))
     : ¬TaskCancelled work matching events failures (.item address ordinal) := by
   obtain ⟨index, event, selected, value, matched⟩ := published
@@ -125,7 +125,7 @@ theorem StreamFailureCuts.rootSourceItem_safe_mixed
       : ∀ occurrence ∈ (received.flatMap GraphEvent.itemPublications).map Prod.fst,
           Published matching events occurrence)
     (root : NodeAt work stream .stream [] none)
-    (known : TaskAt work (.item source index) [stream.key] none (.item stream result))
+    (known : TaskAt work (.item source index) [stream.ref] none (.item stream result))
     (success : Occurrence.item source index ∈ received.flatMap GraphEvent.successes)
     : ¬TaskCancelled work matching events failures (.item source index) :=
   cuts.rootItem_safe_mixed partition objects generated ordered exactValues root known

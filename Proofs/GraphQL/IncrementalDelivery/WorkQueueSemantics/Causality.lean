@@ -18,10 +18,10 @@ theorem mem_failedBefore {failures cut occurrence index}
 Witness: extract the reached cut and apply the kernel's direct-failure constructor.
 -/
 theorem NodeFailed.task
-    {work matching events failures occurrence owners producer payload key}
-    (known : TaskAt work occurrence owners producer payload) (owner : key ∈ owners)
+    {work matching events failures occurrence owners producer payload ref}
+    (known : TaskAt work occurrence owners producer payload) (owner : ref ∈ owners)
     (finished : occurrence ∈ failedBefore failures events.length)
-    : NodeFailed work matching events failures key := by
+    : NodeFailed work matching events failures ref := by
   obtain ⟨⟨cut, task⟩, member, same⟩ := List.mem_map.mp finished
   obtain ⟨member, bounded⟩ := List.mem_filter.mp member
   dsimp only at same
@@ -39,11 +39,11 @@ theorem NodeFailed.task
 Witness: preserve the cut and extend the kernel derivation.
 -/
 theorem NodeFailed.groupDependency
-    {work matching events failures node dependencies producer key}
+    {work matching events failures node dependencies producer ref}
     (known : NodeAt work node .group dependencies producer)
-    (dependency : key ∈ dependencies)
-    (failure : NodeFailed work matching events failures key)
-    : NodeFailed work matching events failures node.key := by
+    (dependency : ref ∈ dependencies)
+    (failure : NodeFailed work matching events failures ref)
+    : NodeFailed work matching events failures node.ref := by
   obtain ⟨cut, member, bounded, cause⟩ := failure
   exact ⟨cut, member, bounded,
     Causality.NodeFailed.groupDependency ⟨node, producer, known, rfl⟩ dependency cause⟩
@@ -62,9 +62,9 @@ theorem Causality.TaskCancelled.unpublished {work failed published occurrence}
 /-- A failure cut retains its publication snapshot after outputs are appended.
 Witness: the cut was already bounded by the original prefix.
 -/
-theorem NodeFailed.append {work matching events failures key}
-    (failure : NodeFailed work matching events failures key) (tail : List WorkQueueEvent)
-    : NodeFailed work matching (events ++ tail) failures key := by
+theorem NodeFailed.append {work matching events failures ref}
+    (failure : NodeFailed work matching events failures ref) (tail : List WorkQueueEvent)
+    : NodeFailed work matching (events ++ tail) failures ref := by
   obtain ⟨cut, member, bounded, cause⟩ := failure
   refine ⟨cut, member, by simp only [List.length_append]; omega, ?_⟩
   simpa only [List.take_append_of_le_length bounded] using cause
@@ -103,7 +103,7 @@ theorem nodeFailed_filter {work matching events failures bound}
     (within : events.length ≤ bound)
     : NodeFailed work matching events (failures.filter (fun entry => entry.1 ≤ bound))
       = NodeFailed work matching events failures := by
-  funext key
+  funext ref
   apply propext
   constructor
   · rintro ⟨cut, member, reached, cause⟩
@@ -173,11 +173,11 @@ theorem canPublish_filter {work matching events failures occurrence producer bou
 /-- Node accounting ignores failure cuts beyond the observed boundary.
 Witness: cancellation cutoff invariance for each contributing task.
 -/
-theorem nodeAccounted_filter {work matching events failures key bound}
+theorem nodeAccounted_filter {work matching events failures ref bound}
     (within : events.length ≤ bound)
     : NodeAccounted work matching events
-        (failures.filter (fun entry => entry.1 ≤ bound)) key
-      = NodeAccounted work matching events failures key := by
+        (failures.filter (fun entry => entry.1 ≤ bound)) ref
+      = NodeAccounted work matching events failures ref := by
   simp only [NodeAccounted, TaskAccounted, taskCancelled_filter within]
 
 /-- Effective owner selection ignores failures beyond the observed boundary.

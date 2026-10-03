@@ -1,30 +1,30 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.PublicationMatching
 import Proofs.GraphQL.IncrementalDelivery.Semantics.ExecutedStreamAllocations
 
-/-! Source stream cursors advance at one fixed structural address per generated key. -/
+/-! Source stream cursors advance at one fixed structural address per generated ref. -/
 
 namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 open Semantics.GeneralScheduling
 
 -----------------------------------------------------------------------------------------
--- A generated stream key identifies its structural location
+-- A generated stream ref identifies its structural location
 -----------------------------------------------------------------------------------------
 
 /-- Existing stream allocations labelled by structural address, only for proof lookup.
 The address parameter is the current subtree's absolute route, not a response path. -/
-def streamKeyAddresses (work : Execution.Work) (address : Address := [])
+def streamRefAddresses (work : Execution.Work) (address : Address := [])
     : List (Nat × Address) :=
   match work with
   | .empty => []
   | .combine left right =>
-      streamKeyAddresses left (address ++ [0])
-      ++ streamKeyAddresses right (address ++ [1])
-  | .executionGroup _ _ _ children => streamKeyAddresses children (address ++ [0])
+      streamRefAddresses left (address ++ [0])
+      ++ streamRefAddresses right (address ++ [1])
+  | .executionGroup _ _ _ children => streamRefAddresses children (address ++ [0])
   | .stream node items =>
-      (node.key, address)
+      (node.ref, address)
       :: items.zipIdx.attach.flatMap
-          (fun entry => streamKeyAddresses entry.val.1.2 (address ++ [entry.val.2]))
+          (fun entry => streamRefAddresses entry.val.1.2 (address ++ [entry.val.2]))
 termination_by sizeOf work
 decreasing_by
   all_goals subst_vars; simp_wf
@@ -37,40 +37,40 @@ decreasing_by
 
 /-- Stream enumeration uses ordinary indexed entries after erasing termination evidence.
 Witness: discard the temporary membership proofs used in the structural recursion. -/
-theorem streamKeyAddresses_stream (node : Execution.DeliveryNode)
+theorem streamRefAddresses_stream (node : Execution.DeliveryNode)
     (items : List (Execution.Result Execution.ResponseValue × Execution.Work))
     (address : Address)
-    : streamKeyAddresses (.stream node items) address
-      = (node.key, address)
+    : streamRefAddresses (.stream node items) address
+      = (node.ref, address)
         :: items.zipIdx.flatMap
-            (fun entry => streamKeyAddresses entry.1.2 (address ++ [entry.2])) := by
-  rw [streamKeyAddresses, List.flatMap_subtype
-    (g := fun entry => streamKeyAddresses entry.1.2 (address ++ [entry.2])) (fun _ _ => rfl)]
+            (fun entry => streamRefAddresses entry.1.2 (address ++ [entry.2])) := by
+  rw [streamRefAddresses, List.flatMap_subtype
+    (g := fun entry => streamRefAddresses entry.1.2 (address ++ [entry.2])) (fun _ _ => rfl)]
   simp
 
 /-- Erasing address labels gives precisely the already-verified stream allocation list.
 Witness: structural recursion and erasure of item indices. -/
-theorem streamKeyAddresses_keys (work : Execution.Work) (address : Address)
-    : (streamKeyAddresses work address).map Prod.fst = streamAllocationKeys work := by
+theorem streamRefAddresses_refs (work : Execution.Work) (address : Address)
+    : (streamRefAddresses work address).map Prod.fst = streamAllocationRefs work := by
   cases work with
-  | empty => simp [streamKeyAddresses, streamAllocationKeys]
+  | empty => simp [streamRefAddresses, streamAllocationRefs]
   | combine left right =>
-      simp only [streamKeyAddresses, List.map_append, streamAllocationKeys]
-      rw [streamKeyAddresses_keys left, streamKeyAddresses_keys right]
+      simp only [streamRefAddresses, List.map_append, streamAllocationRefs]
+      rw [streamRefAddresses_refs left, streamRefAddresses_refs right]
   | executionGroup groups path result children =>
-      simpa only [streamKeyAddresses, streamAllocationKeys]
-        using streamKeyAddresses_keys children (address ++ [0])
+      simpa only [streamRefAddresses, streamAllocationRefs]
+        using streamRefAddresses_refs children (address ++ [0])
   | stream node items =>
-      simp only [streamKeyAddresses_stream, List.map_cons, List.map_flatMap]
+      simp only [streamRefAddresses_stream, List.map_cons, List.map_flatMap]
       have erased : ∀ entry ∈ items.zipIdx,
-          (streamKeyAddresses entry.1.2 (address ++ [entry.2])).map Prod.fst =
-            streamAllocationKeys entry.1.2 := by
+          (streamRefAddresses entry.1.2 (address ++ [entry.2])).map Prod.fst =
+            streamAllocationRefs entry.1.2 := by
         intro entry member
-        exact streamKeyAddresses_keys entry.1.2 _
+        exact streamRefAddresses_refs entry.1.2 _
       rw [List.flatMap_def, List.map_congr_left erased, ← List.flatMap_def]
-      rw [← List.flatMap_map Prod.fst (fun entry => streamAllocationKeys entry.2) items.zipIdx,
+      rw [← List.flatMap_map Prod.fst (fun entry => streamAllocationRefs entry.2) items.zipIdx,
         List.zipIdx_map_fst]
-      rw [streamAllocationKeys]
+      rw [streamAllocationRefs]
 termination_by sizeOf work
 decreasing_by
   all_goals subst_vars; simp_wf
@@ -84,48 +84,48 @@ decreasing_by
 /-- A located subtree's stream-address entries remain in the root enumeration.
 Witness: structural navigation retains entries across combines, groups, and stream items.
 -/
-theorem Located.streamKeyAddresses_subset {root address current producer owners}
+theorem Located.streamRefAddresses_subset {root address current producer owners}
     (located : Located root address current producer owners)
-    : (streamKeyAddresses current address).Subset (streamKeyAddresses root []) := by
+    : (streamRefAddresses current address).Subset (streamRefAddresses root []) := by
   have navigation := StructuralEquivalence.located_of_current located
   clear located
   induction navigation with
   | root => exact List.Subset.refl _
   | left _ ih =>
-      rw [streamKeyAddresses] at ih
+      rw [streamRefAddresses] at ih
       exact (List.subset_append_left _ _).trans ih
   | right _ ih =>
-      rw [streamKeyAddresses] at ih
+      rw [streamRefAddresses] at ih
       exact (List.subset_append_right _ _).trans ih
-  | executionGroup _ ih => simpa only [streamKeyAddresses] using ih
+  | executionGroup _ ih => simpa only [streamRefAddresses] using ih
   | @item address node items producer owners index result children prior entry ih =>
       intro pair member
       apply ih
-      rw [streamKeyAddresses_stream]
+      rw [streamRefAddresses_stream]
       exact List.mem_cons_of_mem _ (List.mem_flatMap.mpr ⟨((result, children), index),
         List.mk_mem_zipIdx_iff_getElem?.mpr entry, member⟩)
 
-/-- A located stream contributes its own key/address pair to the allocation enumeration.
+/-- A located stream contributes its own ref/address pair to the allocation enumeration.
 Witness: its head allocation and structural inclusion in the root. -/
-theorem Located.streamKeyAddress_member {work address node items producer owners}
+theorem Located.streamRefAddress_member {work address node items producer owners}
     (located : Located work address (.stream node items) producer owners)
-    : (node.key, address) ∈ streamKeyAddresses work [] := by
-  apply Located.streamKeyAddresses_subset located
-  rw [streamKeyAddresses_stream]
+    : (node.ref, address) ∈ streamRefAddresses work [] := by
+  apply Located.streamRefAddresses_subset located
+  rw [streamRefAddresses_stream]
   exact List.mem_cons_self
 
-/-- Execution-generated stream keys are unique, including streams hidden under items.
+/-- Execution-generated stream refs are unique, including streams hidden under items.
 Witness: the existing pure-execution stream-allocation theorem. -/
-theorem ExecutedWork.streamKeysUnique {work : Execution.Work}
+theorem ExecutedWork.streamRefsUnique {work : Execution.Work}
     (generated : ExecutedWork work)
-    : (streamAllocationKeys work).Nodup := by
+    : (streamAllocationRefs work).Nodup := by
   obtain ⟨ObjectRef, schema, resolvers, variables, fuel, parentType, source,
     selections, same⟩ := generated
-  exact same ▸ executeRoot_streamKeys_unique schema resolvers variables fuel parentType
+  exact same ▸ executeRoot_streamRefs_unique schema resolvers variables fuel parentType
     source selections 0
 
-/-- Two generated stream descriptors sharing a key have the same structural address.
-Witness: their labelled allocation entries and duplicate-free allocated keys. -/
+/-- Two generated stream descriptors sharing a ref have the same structural address.
+Witness: their labelled allocation entries and duplicate-free allocated refs. -/
 theorem ExecutedWork.streamAddress_unique {work : Execution.Work}
     (generated : ExecutedWork work)
     {left right first second firstItems secondItems firstProducer secondProducer
@@ -133,19 +133,19 @@ theorem ExecutedWork.streamAddress_unique {work : Execution.Work}
     (firstAt : Located work left (.stream first firstItems) firstProducer firstOwners)
     (secondAt
       : Located work right (.stream second secondItems) secondProducer secondOwners)
-    (sameKey : first.key = second.key)
+    (sameRef : first.ref = second.ref)
     : left = right := by
-  have unique : ((streamKeyAddresses work []).map Prod.fst).Nodup := by
-    rw [streamKeyAddresses_keys]
-    exact generated.streamKeysUnique
+  have unique : ((streamRefAddresses work []).map Prod.fst).Nodup := by
+    rw [streamRefAddresses_refs]
+    exact generated.streamRefsUnique
   obtain ⟨i, boundI, firstEntry⟩ := List.mem_iff_getElem.mp
-    (Located.streamKeyAddress_member firstAt)
+    (Located.streamRefAddress_member firstAt)
   obtain ⟨j, boundJ, secondEntry⟩ := List.mem_iff_getElem.mp
-    (Located.streamKeyAddress_member secondAt)
+    (Located.streamRefAddress_member secondAt)
   have equalIndex := unique.eq_of_getElem_eq
     (by simpa only [List.length_map] using boundI)
     (by simpa only [List.length_map] using boundJ)
-    (by simpa only [List.getElem_map, firstEntry, secondEntry] using sameKey)
+    (by simpa only [List.getElem_map, firstEntry, secondEntry] using sameRef)
   subst j
   have same := firstEntry.symm.trans secondEntry
   exact congrArg Prod.snd same
@@ -154,22 +154,22 @@ theorem ExecutedWork.streamAddress_unique {work : Execution.Work}
 -- Existing source readiness makes each stream's received prefix a contiguous range
 -----------------------------------------------------------------------------------------
 
-/-- Items for a selected key append across input prefixes without reordering.
+/-- Items for a selected ref append across input prefixes without reordering.
 Witness: the source's `flatMap` definition. -/
-theorem GraphEvent.itemsBefore_append (before after : List GraphEvent) (key : Nat)
-    : GraphEvent.itemsBefore (before ++ after) key
-      = GraphEvent.itemsBefore before key ++ GraphEvent.itemsBefore after key := by
+theorem GraphEvent.itemsBefore_append (before after : List GraphEvent) (ref : NodeRef)
+    : GraphEvent.itemsBefore (before ++ after) ref
+      = GraphEvent.itemsBefore before ref ++ GraphEvent.itemsBefore after ref := by
   simp only [GraphEvent.itemsBefore, List.flatMap_append]
 
 /-- Every received prefix for a generated stream has indices zero through count minus one.
-Witness: source readiness appends a contiguous range at the old count, and generated-key
+Witness: source readiness appends a contiguous range at the old count, and generated-ref
 uniqueness keeps all arrivals at the same structural stream address. -/
 theorem ValidGraphEvents.itemsBefore_order {work : Execution.Work}
     {events : List GraphEvent} (valid : ValidGraphEvents work events)
     (generated : ExecutedWork work) {address stream entries producer owners}
     (located : Located work address (.stream stream entries) producer owners)
-    : (GraphEvent.itemsBefore events stream.key).map StreamItem.occurrence
-      = (List.range (GraphEvent.itemsBefore events stream.key).length).map
+    : (GraphEvent.itemsBefore events stream.ref).map StreamItem.occurrence
+      = (List.range (GraphEvent.itemsBefore events stream.ref).length).map
           (Occurrence.item address) := by
   induction valid with
   | nil => rfl
@@ -177,7 +177,7 @@ theorem ValidGraphEvents.itemsBefore_order {work : Execution.Work}
       rw [GraphEvent.itemsBefore_append]
       cases event with
       | streamItems node items =>
-          by_cases same : node.key = stream.key
+          by_cases same : node.ref = stream.ref
           · obtain ⟨route, results, parent, dependencies, source, _, _, _, order⟩ := ready
             have routeSame := generated.streamAddress_unique source located same
             subst route
@@ -197,11 +197,12 @@ theorem ValidGraphEvents.itemsBefore_order {work : Execution.Work}
 /-- A single stream's received occurrences retain their order inside all item arrivals.
 Witness: each source event either contributes its complete item list or contributes none.
 -/
-theorem GraphEvent.itemsBefore_occurrences_sublist (events : List GraphEvent) (key : Nat)
-    : ((GraphEvent.itemsBefore events key).map StreamItem.occurrence).Sublist
+theorem GraphEvent.itemsBefore_occurrences_sublist (events : List GraphEvent)
+    (ref : NodeRef)
+    : ((GraphEvent.itemsBefore events ref).map StreamItem.occurrence).Sublist
         ((events.flatMap GraphEvent.itemPublications).map Prod.fst) := by
   have single (event : GraphEvent)
-      : ((GraphEvent.itemsBefore [event] key).map StreamItem.occurrence).Sublist
+      : ((GraphEvent.itemsBefore [event] ref).map StreamItem.occurrence).Sublist
         (event.itemPublications.map Prod.fst) := by
     cases event <;> simp only [GraphEvent.itemsBefore, List.flatMap_singleton,
       GraphEvent.itemPublications, List.map_nil, List.map_map, Function.comp_def]
@@ -215,9 +216,9 @@ theorem GraphEvent.itemsBefore_occurrences_sublist (events : List GraphEvent) (k
   induction events with
   | nil => exact .refl []
   | cons event rest ih =>
-      have splitItems : GraphEvent.itemsBefore (event :: rest) key =
-          GraphEvent.itemsBefore [event] key ++ GraphEvent.itemsBefore rest key := by
-        exact GraphEvent.itemsBefore_append [event] rest key
+      have splitItems : GraphEvent.itemsBefore (event :: rest) ref =
+          GraphEvent.itemsBefore [event] ref ++ GraphEvent.itemsBefore rest ref := by
+        exact GraphEvent.itemsBefore_append [event] rest ref
       rw [splitItems, List.map_append, List.flatMap_cons, List.map_append]
       exact (single event).append ih
 
@@ -255,12 +256,12 @@ theorem ValidGraphEvents.earlier_item_sublist {work : Execution.Work}
       obtain ⟨node, results, enclosing, result, children, located, _, _, payload⟩ := known
       have sameNode := (Payload.item.inj payload).1
       subst node
-      have received : item ∈ GraphEvent.itemsBefore events stream.key := by
+      have received : item ∈ GraphEvent.itemsBefore events stream.ref := by
         apply List.mem_flatMap.mpr
         exact ⟨.streamItems stream items, eventMember, by simpa using inItems⟩
       have order := valid.itemsBefore_order generated located
       have member : .item address second ∈
-          (GraphEvent.itemsBefore events stream.key).map StreamItem.occurrence :=
+          (GraphEvent.itemsBefore events stream.ref).map StreamItem.occurrence :=
         List.mem_map.mpr ⟨item, received, sameOccurrence⟩
       rw [order] at member
       obtain ⟨ordinal, inRange, sameItem⟩ := List.mem_map.mp member
@@ -269,9 +270,9 @@ theorem ValidGraphEvents.earlier_item_sublist {work : Execution.Work}
       have pair := (range_pair_sublist less (List.mem_range.mp inRange)).map
         (Occurrence.item address)
       have inStream : [Occurrence.item address first, .item address second].Sublist
-          ((GraphEvent.itemsBefore events stream.key).map StreamItem.occurrence) := by
+          ((GraphEvent.itemsBefore events stream.ref).map StreamItem.occurrence) := by
         rw [order]
         exact pair
-      exact inStream.trans (GraphEvent.itemsBefore_occurrences_sublist events stream.key)
+      exact inStream.trans (GraphEvent.itemsBefore_occurrences_sublist events stream.ref)
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

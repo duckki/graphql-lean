@@ -37,7 +37,7 @@ theorem nodeFailed_matching_eq {work matching next events failures}
       = Published next (events.take cut) :=
     published_matching_eq (fun index before => equal index (by
       simp only [List.length_take] at before; omega))
-  funext key
+  funext ref
   simp only [NodeFailed, snapshots]
 
 /-- Reached cancellation cuts inspect only matching entries in their output prefix.
@@ -174,7 +174,7 @@ theorem causality_append_eq {work matching events failures}
         = NodeFailed work matching events failures
       ∧ TaskCancelled work matching (events ++ tail) failures
         = TaskCancelled work matching events failures := by
-  constructor <;> funext key <;> apply propext
+  constructor <;> funext ref <;> apply propext
   · constructor
     · rintro ⟨cut, member, _, cause⟩
       obtain ⟨entry, included, same⟩ := List.mem_map.mp member
@@ -212,7 +212,7 @@ theorem causality_carrier_eq {work matching events failures left right}
       funext occurrence
       apply propext
       simp only [published_append_singleton_iff, sameValue]
-  constructor <;> funext key <;>
+  constructor <;> funext ref <;>
     simp only [NodeFailed, TaskCancelled, List.length_append, List.length_singleton,
       snapshots]
 
@@ -266,7 +266,7 @@ theorem Explains.publish_object
     (known : TaskAt work occurrence owners producer (.object path (.ok (data, errors))))
     (ready : CanPublish work matching events failures occurrence producer)
     (selected
-      : PublicationOwner work ((groups ++ streams).map DeliveryNode.key) matching events
+      : PublicationOwner work ((groups ++ streams).map DeliveryNode.ref) matching events
           failures owners owner)
     : Explains work groups streams
         (events ++ [.groupValues owner [{ path, data, errors }]])
@@ -292,7 +292,7 @@ theorem Explains.publish_item
     (known : TaskAt work occurrence owners producer (.item node (.ok (item, errors))))
     (ready : CanPublish work matching events failures occurrence producer)
     (selected
-      : PublicationOwner work ((groups ++ streams).map DeliveryNode.key) matching events
+      : PublicationOwner work ((groups ++ streams).map DeliveryNode.ref) matching events
           failures owners node)
     : Explains work groups streams
         (events ++ [.streamValues node [{ item, errors }] [] []])

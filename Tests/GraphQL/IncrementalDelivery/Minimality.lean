@@ -46,9 +46,9 @@ theorem forgedPublication_failureWitness
       TaskAt WorkQueueSemantics.failingWork (.executionGroup []) owners producer payload
       ∧ payload.failure.isSome = true
       ∧ Reachable WorkQueueSemantics.failingWork (.executionGroup [])
-      ∧ ∃ key ∈ owners, key ∈ announcedKeys [0] [WorkQueueSemantics.value] :=
+      ∧ ∃ ref ∈ owners, ref ∈ announcedRefs [0] [WorkQueueSemantics.value] :=
     ⟨[0], none, .object [] (.error 2), known, rfl, .root ⟨_, _, known⟩, 0, by simp,
-      by simp [announcedKeys, pendingKeys, eventPending, WorkQueueSemantics.value]⟩
+      by simp [announcedRefs, pendingRefs, eventPending, WorkQueueSemantics.value]⟩
   have uncancelled : ¬TaskCancelled WorkQueueSemantics.failingWork WorkQueueSemantics.matching
       [WorkQueueSemantics.value] [(1, .executionGroup [])] (.executionGroup []) := by
     rintro ⟨cut, member, _, cause⟩
@@ -143,11 +143,11 @@ example
     ?_
   ⟩
   intro witness
-  obtain ⟨key, member, announced⟩ := witness.announced_owner (cut := 0) (by simp)
+  obtain ⟨ref, member, announced⟩ := witness.announced_owner (cut := 0) (by simp)
     FailureReporting.badTask
-  have same : key = 1 := by simpa using member
-  subst key
-  simp [announcedKeys, pendingKeys] at announced
+  have same : ref = 1 := by simpa using member
+  subst ref
+  simp [announcedRefs, pendingRefs] at announced
 
 /-- Known failure and an open owner alone do not enforce the reported error count.
 Witness: the two-error task contributes at least two, so zero cannot satisfy NodeErrors.
@@ -160,7 +160,7 @@ example
   have known : TaskAt WorkQueueSemantics.failingWork (.executionGroup []) [0] none
       (.object [] (.error 2)) := .executionGroup .root
   refine ⟨NodeFailed.task known (by simp) (by simp [failedBefore]), ?_, ?_⟩
-  · simp [Open, announcedKeys, pendingKeys, completedKeys]
+  · simp [Open, announcedRefs, pendingRefs, completedRefs]
   · intro counted
     have bound := counted.contribution_le (by simp) known (by simp)
     simp [Payload.failure] at bound
@@ -231,20 +231,20 @@ example
     intro node member
     obtain rfl := List.mem_singleton.mp member
     refine ⟨[], none, .stream (.left .root), ?_⟩
-    exact ⟨by simp [announcedKeys, pendingKeys],
+    exact ⟨by simp [announcedRefs, pendingRefs],
       Or.inl ⟨WorkQueueSemantics.noFailure _ _, Or.inl rfl⟩, by simp, Or.inl rfl⟩
   have empty : Explains orphanWork [] [WorkQueueSemantics.node] [] WorkQueueSemantics.matching [] :=
     ⟨initial, by simp [FailureWitness], by simp⟩
   have allowed : EventAllowed orphanWork [0] WorkQueueSemantics.matching [] []
       (.streamSuccess WorkQueueSemantics.node) := by
     exact ⟨⟨[], none, .stream (.left .root)⟩,
-      by simp [Open, announcedKeys, pendingKeys, completedKeys, WorkQueueSemantics.node],
+      by simp [Open, announcedRefs, pendingRefs, completedRefs, WorkQueueSemantics.node],
       WorkQueueSemantics.noFailure _ _, orphan_accounted⟩
   refine ⟨[.streamSuccess WorkQueueSemantics.node], ?_, ?_, ?_⟩
   · simpa [WorkQueueSemantics.node, failedBefore] using empty.append_event allowed
   · intro node kind parents birth known
     obtain ⟨rfl, _⟩ := orphan_node known
-    exact Or.inl (by simp [completedKeys, eventCompleted])
+    exact Or.inl (by simp [completedRefs, eventCompleted])
   · intro terminal
     have known : TaskAt orphanWork (.executionGroup [1]) [] none (.object [] (.ok ([], 0))) :=
       .executionGroup (.right .root)

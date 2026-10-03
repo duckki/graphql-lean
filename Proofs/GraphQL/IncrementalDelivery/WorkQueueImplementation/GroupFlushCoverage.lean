@@ -64,7 +64,7 @@ internal queue facts to obtain at the actual flush boundary, not new host-source
 theorem State.PublicationInventory.finishGroupSuccess_contributors {queue : State}
     {property published} (inventory : queue.PublicationInventory property published)
     (links : queue.ActiveTaskLinks) (group : GroupNode)
-    (live : group ∈ queue.groupNodes) (active : group.group.node.key ∈ queue.rootGroups)
+    (live : group ∈ queue.groupNodes) (active : group.group.node.ref ∈ queue.rootGroups)
     : ∃ (added : List ObjectPublication) (before : List WorkQueueEvent),
         (queue.finishGroupSuccess group).2.1
           = before
@@ -77,7 +77,7 @@ theorem State.PublicationInventory.finishGroupSuccess_contributors {queue : Stat
         ∧ (∀ occurrence node value,
             queue.taskNode? occurrence = some node
             → node.value = some value
-            → group.group.node.key ∈ node.task.groups.map Execution.DeliveryNode.key
+            → group.group.node.ref ∈ node.task.groups.map Execution.DeliveryNode.ref
             → (occurrence, value) ∈ added) := by
   obtain ⟨added, before, output, values, next, covered, _⟩ :=
     inventory.finishGroupSuccess_coverage group

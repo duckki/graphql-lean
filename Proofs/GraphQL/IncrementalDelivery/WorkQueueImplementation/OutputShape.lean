@@ -122,10 +122,10 @@ theorem State.taskFailure_nonemptyValues (queue : State) (occurrence : Occurrenc
     (errors : Nat)
     : ∀ event ∈ (queue.taskFailure occurrence errors).2, event.NonemptyValues := by
   let step (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode) :=
-    match acc.1.groupNode? group.key with
+    match acc.1.groupNode? group.ref with
     | none => acc
     | some node =>
-        if acc.1.rootGroups.contains group.key then
+        if acc.1.rootGroups.contains group.ref then
           let (next, failure) := acc.1.finishGroupFailure node errors
           (next, acc.2 ++ [failure])
         else (acc.1.putGroupNode
@@ -163,7 +163,7 @@ nonempty values independently.
 theorem State.streamItems_nonemptyValues (queue : State) (stream : Execution.DeliveryNode)
     (items : List StreamItem) (nonempty : items ≠ [])
     : ∀ event ∈ (queue.streamItems stream items).2, event.NonemptyValues := by
-  by_cases active : queue.rootStreams.contains stream.key = true
+  by_cases active : queue.rootStreams.contains stream.ref = true
   · have exactItems := queue.streamItems_itemValues stream items active
     simp only [State.streamItems, active, Bool.not_true, Bool.false_eq_true, ite_false]
     intro event member
@@ -181,7 +181,7 @@ theorem State.streamItems_nonemptyValues (queue : State) (stream : Execution.Del
       | nil => exact nonempty rfl
       | cons item rest => simp at lengths
     · exact State.drainReadyGroups_nonemptyValues _ event later
-  · have inactive : queue.rootStreams.contains stream.key = false := Bool.eq_false_iff.mpr active
+  · have inactive : queue.rootStreams.contains stream.ref = false := Bool.eq_false_iff.mpr active
     simp only [State.streamItems, inactive, Bool.not_false, ite_true, List.not_mem_nil,
       false_implies, implies_true]
 

@@ -14,9 +14,9 @@ and canonical metadata justify failed drain closures. No active-root health is a
 -/
 theorem State.HealthyRegisteredTaskAccounting.successGroupFold_drain
     {queue : State} {work : Execution.Work} {settled failed : List Occurrence}
-    {parents : Nat → Keys}
+    {parents : Nat → NodeRefs}
     (accounted : queue.HealthyRegisteredTaskAccounting work settled failed)
-    (unique : queue.GroupKeysUnique)
+    (unique : queue.GroupRefsUnique)
     (supported : queue.CachedFailuresSupported work failed)
     (tasksMatch : queue.RegisteredTasksMatch work)
     (generated : ExecutedWork work)
@@ -24,18 +24,18 @@ theorem State.HealthyRegisteredTaskAccounting.successGroupFold_drain
     (matching : queue.GroupNodesMatchWork work)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (groups : List Execution.DeliveryNode)
-    (uniqueOwners : (groups.map Execution.DeliveryNode.key).Nodup)
+    (uniqueOwners : (groups.map Execution.DeliveryNode.ref).Nodup)
     (debt
       : queue.PendingDebtBound (fun _ => True) settled
-          (groups.map Execution.DeliveryNode.key))
+          (groups.map Execution.DeliveryNode.ref))
     : let released := groups.foldl successGroupStep (queue, [], {})
       (released.1.startNewWork
         released.2.2).drainReadyGroups.1.HealthyRegisteredTaskAccounting
         work settled failed := by
   let invariant (current : State) :=
-    current.GroupKeysUnique ∧ current.HealthyRegisteredTaskAccounting work settled failed
+    current.GroupRefsUnique ∧ current.HealthyRegisteredTaskAccounting work settled failed
       ∧ current.CachedFailuresSupported work failed ∧ current.ChildLinksCanonical parents
       ∧ current.GroupNodesMatchWork work ∧ current.RegisteredTasksMatch work
   have initial : invariant queue :=
@@ -79,7 +79,7 @@ Availability is an internal queue invariant still to be derived along generated 
 -/
 theorem State.HealthyRegisteredTaskAccounting.taskSuccess_ofPendingAccounting
     {queue : State} {work : Execution.Work} {settled failed : List Occurrence}
-    {parents : Nat → Keys}
+    {parents : Nat → NodeRefs}
     (accounted : queue.HealthyRegisteredTaskAccounting work settled failed)
     (pending : queue.PendingAccounting work settled)
     (supported : queue.CachedFailuresSupported work failed)
@@ -88,7 +88,7 @@ theorem State.HealthyRegisteredTaskAccounting.taskSuccess_ofPendingAccounting
     (groupMatching : queue.GroupNodesMatchWork work)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (generated : ExecutedWork work)
     (occurrence : Occurrence) (result : TaskResult)
     (matching : (GraphEvent.taskSuccess occurrence result).MatchesWork work)
@@ -103,7 +103,7 @@ theorem State.HealthyRegisteredTaskAccounting.taskSuccess_ofPendingAccounting
       (by intro task member; simp [member])).removeSettledTask occurrence (by simp)
   let stored := queue.putTaskNode { taskNode with value := some result.value }
   let integrated := (stored.maybeIntegrateWork result.work (some occurrence)).1
-  have storedKeys : stored.GroupKeysUnique := pending.keys
+  have storedRefs : stored.GroupRefsUnique := pending.refs
   have storedCovered : stored.TaskGroupsRegistered := pending.taskGroups
   have storedCounts : stored.PendingBound (fun _ => True) settled := pending.pending
   have storedMembers : stored.TaskMembershipsUnique := pending.memberships
@@ -113,7 +113,7 @@ theorem State.HealthyRegisteredTaskAccounting.taskSuccess_ofPendingAccounting
   have storedLinks : stored.ChildLinksCanonical parents := links
   have storedGroups : stored.GroupNodesMatchWork work := groupMatching
   have integratedLinks := (pending.links.putTaskNode _).maybeIntegrateWork
-    storedKeys storedCovered result.work (some occurrence)
+    storedRefs storedCovered result.work (some occurrence)
   have integratedCounts := storedCounts.maybeIntegrateWork result.work (some occurrence)
   have integratedMembers := storedMembers.maybeIntegrateWork result.work (some occurrence)
   have integratedSound := storedSound.maybeIntegrateWork result.work (some occurrence)
@@ -133,10 +133,10 @@ theorem State.HealthyRegisteredTaskAccounting.taskSuccess_ofPendingAccounting
     (same.symm ▸ fresh)
   rw [same] at owned
   have debt : integrated.PendingDebtBound (fun _ => True) (occurrence :: settled)
-      (taskNode.task.groups.map Execution.DeliveryNode.key) :=
+      (taskNode.task.groups.map Execution.DeliveryNode.ref) :=
     integratedCounts.beginSettlement
       integratedMembers (fun node member _ => owned node member) fresh
-  have integratedOwners := (accounted.putTaskNode _).maybeIntegrateWork storedKeys
+  have integratedOwners := (accounted.putTaskNode _).maybeIntegrateWork storedRefs
     result.work (some occurrence) matching.childTasksCovered available cancelled
     generated (by
       intro task member
@@ -152,7 +152,7 @@ theorem State.HealthyRegisteredTaskAccounting.taskSuccess_ofPendingAccounting
   have settledOwners := integratedOwners.weakenSettled (after := occurrence :: settled)
     (by intro task member; simp [member])
   apply settledOwners.successGroupFold_drain
-    (unique := storedKeys.maybeIntegrateWork result.work (some occurrence))
+    (unique := storedRefs.maybeIntegrateWork result.work (some occurrence))
     (supported := storedSupport.maybeIntegrateWork result.work (some occurrence))
     (tasksMatch := integratedMatch) (generated := generated)
     (links := storedLinks.maybeIntegrateWork result.work

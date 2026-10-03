@@ -62,7 +62,7 @@ def GroupSuccessesHealthy (work : Execution.Work) (w : Witness) : Prop :=
   ∀ (index : Nat) (group : Execution.DeliveryNode)
     (groups streams : List Execution.DeliveryNode),
     w.events[index]? = some (Execution.WorkQueueEvent.groupSuccess group groups streams)
-    → ¬NodeFailed work w.matching w.events w.failures group.key
+    → ¬NodeFailed work w.matching w.events w.failures group.ref
 
 /-- Actual successful group carriers are historically healthy on the canonical inventory.
 Witness: durable successful retirement supplies uncancelled record health in full replay.
@@ -126,7 +126,7 @@ theorem GroupSuccessesHealthy.atPrefix {work w}
       : w.events[index]?
         = some (Execution.WorkQueueEvent.groupSuccess group groups streams))
     (count : Nat)
-    : ¬NodeFailed work w.matching (w.events.take count) w.failures group.key := by
+    : ¬NodeFailed work w.matching (w.events.take count) w.failures group.ref := by
   intro failed
   apply healthy index group groups streams selected
   simpa only [List.take_append_drop] using failed.append (w.events.drop count)
@@ -142,10 +142,10 @@ theorem groupSuccessAllowed_iff_accounting_and_announcements
     (history : w.events = (initialQueue work).nonterminalAtoms inputs)
     (healthy : GroupSuccessesHealthy work w)
     (selected : w.events[index]? = some (.groupSuccess group groups streams))
-    : EventAllowed work (initialKeys work) w.matching (w.events.take index) w.failures
+    : EventAllowed work (initialRefs work) w.matching (w.events.take index) w.failures
         (.groupSuccess group groups streams)
-      ↔ NodeAccounted work w.matching (w.events.take index) w.failures group.key
-        ∧ Announcements work (initialKeys work) w.matching
+      ↔ NodeAccounted work w.matching (w.events.take index) w.failures group.ref
+        ∧ Announcements work (initialRefs work) w.matching
             (w.events.take index ++ [.groupSuccess group [] []])
             (w.failures.filter (fun entry => entry.1 ≤ index)) groups streams := by
   obtain ⟨atFull, beforeEq⟩ := Witness.canonical_event history selected
@@ -193,7 +193,7 @@ theorem mixed_groupHealthCertificates_with_closureLedger {work inputs}
     failureAdmission_of_announced generated valid history announced,
     streamSuccessAdmission_of_successfulItems generated valid started history announced
       accounted safe cuts exactCuts,
-    streamPublicationReady_of_certificates generated generated.nodeKeyCoherent valid started
+    streamPublicationReady_of_certificates generated generated.nodeRefCoherent valid started
       history announced ready safe cuts exactCuts,
     groupSuccessesHealthy_of_successfulItems generated valid started history announced safe
       cuts exactCuts, closures⟩

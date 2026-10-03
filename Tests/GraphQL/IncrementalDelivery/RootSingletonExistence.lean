@@ -10,9 +10,9 @@ open GraphQL.IncrementalDelivery.Semantics
 open Semantics.Ancestry Semantics.GeneralScheduling
 open WorkQueueSemantics
 
-/-- Root group and descendant-ID descriptors have separate keys but the same object path.
+/-- Root group and descendant-ID descriptors have separate refs but the same object path.
 -/
-def node (key : Nat) : DeliveryNode := { key, path := [] }
+def node (ref : NodeRef) : DeliveryNode := { ref, path := [] }
 
 /-- The second root task's defer ID depends on completion of the first task's group.
 Neither task is a structural producer of the other; the dependency is defer ancestry.
@@ -85,8 +85,8 @@ theorem root_singleton (first second : Result (List (Name × ResponseValue)))
           ⟨same, _⟩ | ⟨same, _⟩ | ⟨same, _⟩ | same
         all_goals cases same
 
-/-- Key one has the complete strict ancestry list containing key zero. -/
-def ancestors (key : Nat) : Keys := if key = 1 then [0] else []
+/-- Ref one has the complete strict ancestry list containing ref zero. -/
+def ancestors (ref : NodeRef) : NodeRefs := if ref = 1 then [0] else []
 
 /-- Every pair of fixed outcomes admits a terminal history despite delayed child-ID
 announcement. Witness: the root-singleton existence theorem with explicit coherent
@@ -96,20 +96,20 @@ theorem dependent_run_exists (first second : Result (List (Name × ResponseValue
     : ∃ history, AdmissibleRun (work first second) history := by
   apply (root_singleton first second).completeRun_exists (parents := ancestors)
     (bound := 2) (paths := fun _ => []) (pathBound := 2)
-  · intro key bounded parent member
-    by_cases same : key = 1
+  · intro ref bounded parent member
+    by_cases same : ref = 1
     · simp [ancestors, same] at member
       subst parent
       simp [same, ancestors, List.Subset]
     · simp [ancestors, same] at member
-  · simp [work, MixedKeys.WorkAt, FragmentAt, node, ancestors]
+  · simp [work, MixedRefs.WorkAt, FragmentAt, node, ancestors]
   · simp [work, DeferContinuous, DeferUnder]
   · simp [work, StreamOwnersOrdered, OwnersBefore]
   · simp [work, MixedOwnerPaths.WorkAt, OwnerPaths.MapAt, OwnerPaths.mapNodes,
       OwnerPaths.fragmentNodes, OwnerPaths.Assigned, Below, node]
   · simp [work, Work.size]
 
-/-- The dependent group is not initially eligible. Witness: key zero is present work
+/-- The dependent group is not initially eligible. Witness: ref zero is present work
 and is neither completed nor accounted for before its sole task publishes.
 -/
 example (first second : Result (List (Name × ResponseValue)))
@@ -120,7 +120,7 @@ example (first second : Result (List (Name × ResponseValue)))
   rcases dependency.2 with absent | completed | ⟨_, accounted⟩
   · exact absent ⟨none, node 0, .group, [],
       NodeAt.group (group := { node := node 0 }) (.left .root) (by simp), rfl⟩
-  · simp [completedKeys] at completed
+  · simp [completedRefs] at completed
   · rcases accounted (.executionGroup [0]) [0]
       ⟨none, .object [] first, TaskAt.executionGroup (.left .root)⟩ (by simp)
       with cancelled | published

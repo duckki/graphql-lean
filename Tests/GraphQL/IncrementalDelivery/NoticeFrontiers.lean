@@ -7,14 +7,14 @@ namespace GraphQL.IncrementalDelivery.Tests.NoticeFrontiers
 open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
-/-- Completing an initial frontier retains both independent shared-work owner keys.
-Witness: both original notices are eligible, so the covering frontier contains each key.
+/-- Completing an initial frontier retains both independent shared-work owner refs.
+Witness: both original notices are eligible, so the covering frontier contains each ref.
 -/
 example
     : ∃ groups streams,
         Initializes HistoryScheduling.shared groups streams
-        ∧ 0 ∈ (groups ++ streams).map DeliveryNode.key
-        ∧ 1 ∈ (groups ++ streams).map DeliveryNode.key := by
+        ∧ 0 ∈ (groups ++ streams).map DeliveryNode.ref
+        ∧ 1 ∈ (groups ++ streams).map DeliveryNode.ref := by
   obtain ⟨groups, streams, initialized, covers⟩ :=
     HistoryScheduling.initialized.covering_exists
   have left := HistoryScheduling.initialized.1.2.1 HistoryScheduling.left (by simp)
@@ -38,7 +38,7 @@ theorem child_eligible
         [.streamValues HistoryScheduling.left [{ item := .null }] [] []] []
         HistoryScheduling.right .stream [] (some (.item [] 0)) := by
   refine ⟨
-    by simp [announcedKeys, pendingKeys, eventPending, HistoryScheduling.right],
+    by simp [announcedRefs, pendingRefs, eventPending, HistoryScheduling.right],
     Or.inl ⟨fun failure => failure.nonempty rfl, Or.inl rfl⟩,
     ?_,
     Or.inl rfl
@@ -48,7 +48,7 @@ theorem child_eligible
   subst producer
   exact ⟨0, _, rfl, trivial, rfl⟩
 
-/-- The covering frontier includes that freshly eligible child key without a manually
+/-- The covering frontier includes that freshly eligible child ref without a manually
 supplied notice list. Witness: generic frontier construction over existing work nodes.
 -/
 example
@@ -56,7 +56,7 @@ example
         Announcements nested [0] (fun _ => .item [] 0)
           [.streamValues HistoryScheduling.left [{ item := .null }] [] []] [] groups
           streams
-        ∧ 1 ∈ (groups ++ streams).map DeliveryNode.key := by
+        ∧ 1 ∈ (groups ++ streams).map DeliveryNode.ref := by
   obtain ⟨groups, streams, announced, covers⟩ := announcements_covering_exists nested [0]
     (fun _ => .item [] 0) [.streamValues HistoryScheduling.left [{ item := .null }] [] []] []
   exact ⟨groups, streams, announced,

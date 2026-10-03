@@ -16,14 +16,14 @@ fresh contributing task already settled. Older causes contradict the prior healt
 -/
 theorem State.RetiredGroup.healthy_cons_fresh {queue : State}
     {work settled failed node dependencies}
-    (retired : queue.RetiredGroup node.key)
-    (ancestors : queue.AncestorsRetired work node.key)
+    (retired : queue.RetiredGroup node.ref)
+    (ancestors : queue.AncestorsRetired work node.ref)
     (generated : ExecutedWork work) (known : GroupRecordAt work node dependencies)
-    (healthy : ¬GroupRecordInvalidated work failed node.key)
+    (healthy : ¬GroupRecordInvalidated work failed node.ref)
     (accounted : queue.HealthyRegisteredTaskAccounting work settled failed)
     {task : Task} (registered : task ∈ queue.tasks)
     (matching : TaskMatches work task) (fresh : task.occurrence ∉ settled)
-    : ¬GroupRecordInvalidated work (task.occurrence :: failed) node.key := by
+    : ¬GroupRecordInvalidated work (task.occurrence :: failed) node.ref := by
   intro invalid
   obtain ⟨occurrence, owners, owner, descriptor, recorded, contributes, inChain⟩ :=
     (generated.groupRecordInvalidated_iff known).mp invalid
@@ -31,7 +31,7 @@ theorem State.RetiredGroup.healthy_cons_fresh {queue : State}
   · subst occurrence
     obtain ⟨producer, payload, structural⟩ := descriptor
     obtain ⟨⟨address, actualPayload, actualProducer, _, actual⟩, _⟩ := matching
-    have contributor : owner ∈ task.groups.map Execution.DeliveryNode.key :=
+    have contributor : owner ∈ task.groups.map Execution.DeliveryNode.ref :=
       (structural.unique actual).1 ▸ contributes
     have ownerRetired : queue.RetiredGroup owner := by
       rcases List.mem_cons.mp inChain with same | ancestor
@@ -72,17 +72,17 @@ private theorem ExecutedWork.retiredRecord_sourceHealth_stable
     (retired
       : ((State.initialize (Work.fromExecution work)).replayGraphEvents
           before).RetiredGroup
-          node.key)
+          node.ref)
     (ancestors
       : ((State.initialize (Work.fromExecution work)).replayGraphEvents
           before).AncestorsRetired
-          work node.key)
+          work node.ref)
     (healthy
-      : ¬GroupRecordInvalidated work (GraphEvent.failureSettlements before) node.key)
+      : ¬GroupRecordInvalidated work (GraphEvent.failureSettlements before) node.ref)
     : let queue := (State.initialize (Work.fromExecution work)).replayGraphEvents events
-      queue.RetiredGroup node.key
-      ∧ queue.AncestorsRetired work node.key
-      ∧ ¬GroupRecordInvalidated work (GraphEvent.failureSettlements events) node.key := by
+      queue.RetiredGroup node.ref
+      ∧ queue.AncestorsRetired work node.ref
+      ∧ ¬GroupRecordInvalidated work (GraphEvent.failureSettlements events) node.ref := by
   induction valid generalizing before with
   | nil =>
       obtain rfl := List.eq_nil_of_prefix_nil earlier
@@ -148,26 +148,26 @@ theorem ExecutedWork.retiredRecord_health_stable_of_eachAccepted
     (retired
       : ((State.initialize (Work.fromExecution work)).replayGraphEvents
           before).RetiredGroup
-          node.key)
+          node.ref)
     (healthy
       : ¬GroupRecordInvalidated work
           ((State.initialize (Work.fromExecution work)).objectFailureContributions before)
-          node.key)
+          node.ref)
     : ¬GroupRecordInvalidated work
         ((State.initialize (Work.fromExecution work)).objectFailureContributions events)
-        node.key := by
+        node.ref := by
   have priorValid := valid.prefix earlier
   have priorAccepted := fun past next (included : (past ++ [next]).IsPrefix before) =>
     acceptedAt past next (included.trans earlier)
   have ancestry := generated.replayGraphEvents_healthyRetiredAncestors before priorValid
-    node.key retired healthy
+    node.ref retired healthy
   have sameBefore := groupRecordInvalidated_congr
     (generated.failureInventories_groupInvalidated_iff_of_eachAccepted priorValid priorAccepted)
-    node.key
+    node.ref
   have durable := generated.retiredRecord_sourceHealth_stable valid acceptedAt known
     earlier retired ancestry (fun invalid => healthy (sameBefore.mp invalid))
   have sameAfter := groupRecordInvalidated_congr
-    (generated.failureInventories_groupInvalidated_iff_of_eachAccepted valid acceptedAt) node.key
+    (generated.failureInventories_groupInvalidated_iff_of_eachAccepted valid acceptedAt) node.ref
   exact fun invalid => durable.2.2 (sameAfter.mpr invalid)
 
 /-- The executable source start checker supplies all continuation acceptance premises.
@@ -182,14 +182,14 @@ theorem ExecutedWork.retiredRecord_health_stable
     (retired
       : ((State.initialize (Work.fromExecution work)).replayGraphEvents
           before).RetiredGroup
-          node.key)
+          node.ref)
     (healthy
       : ¬GroupRecordInvalidated work
           ((State.initialize (Work.fromExecution work)).objectFailureContributions before)
-          node.key)
+          node.ref)
     : ¬GroupRecordInvalidated work
         ((State.initialize (Work.fromExecution work)).objectFailureContributions events)
-        node.key := by
+        node.ref := by
   apply generated.retiredRecord_health_stable_of_eachAccepted valid _ known earlier retired healthy
   intro past event included
   obtain ⟨after, same⟩ := included
@@ -209,15 +209,15 @@ theorem ExecutedWork.runNormalized_retiredRecord_health_stable {work : Execution
     (retired
       : ((State.initialize (Work.fromExecution work)).replayGraphEvents
           before).RetiredGroup
-          node.key)
+          node.ref)
     (healthy
       : ¬GroupRecordInvalidated work
           ((State.initialize (Work.fromExecution work)).objectFailureContributions before)
-          node.key)
+          node.ref)
     : ¬GroupRecordInvalidated work
         ((State.initialize (Work.fromExecution work)).objectFailureContributions
           batches.flatten)
-        node.key :=
+        node.ref :=
   generated.retiredRecord_health_stable_of_eachAccepted valid
     (inputsStarted_eachAccepted work batches started) known earlier retired healthy
 

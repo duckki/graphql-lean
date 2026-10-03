@@ -24,9 +24,9 @@ theorem Witness.groupPublication_childStream_rawNotice
     (ledger : BufferedClosureLedger work inputs w)
     (selected : w.events[index]? = some (.groupValues owner payload))
     (child : NodeAt work stream .stream dependencies (some (w.matching index)))
-    : stream.key
+    : stream.ref
       ∈ ((initialQueue work).rawEventReplay inputs.flatten).2.flatMap
-          rawStreamNoticeKeys := by
+          rawStreamNoticeRefs := by
   obtain ⟨origin⟩ := Witness.groupPublication_origin started history selected
   obtain ⟨boundary⟩ := origin.handlerBoundary
   obtain ⟨task, registered, identity⟩ := Witness.groupPublication_registered_at_handler
@@ -83,7 +83,7 @@ theorem objectProducedStream_noticed {work inputs w address stream dependencies}
     (ledger : BufferedClosureLedger work inputs w)
     (known : NodeAt work stream .stream dependencies (some (.executionGroup address)))
     (published : Published w.matching w.events (.executionGroup address))
-    : stream.key ∈ w.events.flatMap streamNoticeKeys := by
+    : stream.ref ∈ w.events.flatMap streamNoticeRefs := by
   rw [Witness.streamNotices_eq_raw valid started history]
   obtain ⟨index, event, selected, value, same⟩ := published
   have exactValue := same ▸ admitted.publicationAt selected value
@@ -115,8 +115,8 @@ theorem terminal_objectProducedStream_completed
     (ended : ((initialQueue work).runNormalized inputs).1.terminated = true)
     (known : NodeAt work stream .stream dependencies (some (.executionGroup address)))
     (published : Published w.matching w.events (.executionGroup address))
-    : stream.key ∈ completedKeys w.events :=
-  streamNoticeKeys_terminalCompleted valid started history ended
+    : stream.ref ∈ completedRefs w.events :=
+  streamNoticeRefs_terminalCompleted valid started history ended
     (List.mem_append_right _
       (objectProducedStream_noticed generated valid started history admitted ledger known
         published))

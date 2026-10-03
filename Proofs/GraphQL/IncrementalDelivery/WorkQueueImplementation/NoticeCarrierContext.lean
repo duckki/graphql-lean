@@ -17,7 +17,7 @@ def withoutChildNotices : Execution.WorkQueueEvent → Execution.WorkQueueEvent
   | .streamValues stream values _ _ => .streamValues stream values [] []
   | event => event
 
-/-- Clearing child notices changes neither value status nor completion keys.
+/-- Clearing child notices changes neither value status nor completion refs.
 Witness: only group-success and stream-value constructors carry child notices.
 -/
 theorem withoutChildNotices_projections (event : Execution.WorkQueueEvent)
@@ -112,9 +112,9 @@ theorem groupSuccess_dependencySatisfied_noticeCarrier
     {work} {w : Witness} {index group groups streams}
     (healthy : GroupSuccessesHealthy work w)
     (selected : w.events[index]? = some (.groupSuccess group groups streams))
-    : DependencySatisfied work (initialKeys work) w.matching
+    : DependencySatisfied work (initialRefs work) w.matching
         (w.events.take index ++ [.groupSuccess group [] []])
-        (w.failures.filter (fun entry => entry.1 ≤ index)) group.key := by
+        (w.failures.filter (fun entry => entry.1 ≤ index)) group.ref := by
   have length : (w.events.take index).length = index :=
     List.length_take_of_le (Nat.le_of_lt (List.getElem?_eq_some_iff.mp selected).1)
   have frozen :=
@@ -128,33 +128,33 @@ theorem groupSuccess_dependencySatisfied_noticeCarrier
   refine ⟨?_, .inr (.inl ?_)⟩
   · simpa only [frozen.1, nodeFailed_filter (Nat.le_of_eq length)]
       using healthy.atPrefix selected index
-  · simp [completedKeys, eventCompleted]
+  · simp [completedRefs, eventCompleted]
 
 /-- Removing child notices keeps healthy completed-dependency accounting at the frozen cut.
-Witness: clearing notices preserves completion keys, publications, and every causal
+Witness: clearing notices preserves completion refs, publications, and every causal
 snapshot. The frozen closure theorem therefore applies without seeing a later failure.
 -/
-theorem healthy_completed_accounted_noticeCarrier {work} {w : Witness} {index event key}
+theorem healthy_completed_accounted_noticeCarrier {work} {w : Witness} {index event ref}
     (groups : GroupSuccessesAccounted work w) (streams : StreamSuccessAdmission work w)
     (failures : FailureAdmission work w) (selected : w.events[index]? = some event)
-    (closed : key ∈ completedKeys (w.events.take index ++ [withoutChildNotices event]))
+    (closed : ref ∈ completedRefs (w.events.take index ++ [withoutChildNotices event]))
     (healthy
       : ¬NodeFailed work w.matching
           (w.events.take index ++ [withoutChildNotices event])
-          (w.failures.filter (fun entry => entry.1 ≤ index)) key)
+          (w.failures.filter (fun entry => entry.1 ≤ index)) ref)
     : NodeAccounted work w.matching (w.events.take index ++ [withoutChildNotices event])
-        (w.failures.filter (fun entry => entry.1 ≤ index)) key := by
+        (w.failures.filter (fun entry => entry.1 ≤ index)) ref := by
   have projection := withoutChildNotices_projections event
   have causal := causality_carrier_eq (work := work) (matching := w.matching)
     (events := w.events.take index)
     (failures := w.failures.filter (fun entry => entry.1 ≤ index)) projection.1
-  have closedAt : key ∈ completedKeys (w.events.take (index + 1)) := by
-    simpa only [List.take_add_one, selected, Option.toList_some, completedKeys,
+  have closedAt : ref ∈ completedRefs (w.events.take (index + 1)) := by
+    simpa only [List.take_add_one, selected, Option.toList_some, completedRefs,
       List.flatMap_append, List.flatMap_cons, List.flatMap_nil, List.append_nil,
       projection.2.2]
       using closed
   have healthyAt : ¬NodeFailed work w.matching (w.events.take (index + 1))
-      (w.failures.filter (fun entry => entry.1 ≤ index)) key := by
+      (w.failures.filter (fun entry => entry.1 ≤ index)) ref := by
     simpa only [List.take_add_one, selected, Option.toList_some, causal.1] using healthy
   have accounted := healthy_completed_accounted_frozen groups streams failures
     (Nat.le_refl _) closedAt healthyAt
@@ -173,7 +173,7 @@ theorem groupNotice_contents_atCarrier {work inputs} {w : Witness} {index event 
       : RetainedNoticeContents work w.matching (w.events.take index)
           (failedBefore w.failures index) inputs child)
     (selected : w.events[index]? = some event)
-    (noticed : child.key ∈ groupNoticeKeys event)
+    (noticed : child.ref ∈ groupNoticeRefs event)
     : RetainedNoticeContents work w.matching
         (w.events.take index ++ [withoutChildNotices event])
         (failedBefore (w.failures.filter (fun entry => entry.1 ≤ index))

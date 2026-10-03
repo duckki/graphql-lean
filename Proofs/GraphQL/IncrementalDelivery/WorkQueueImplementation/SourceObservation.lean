@@ -78,20 +78,20 @@ theorem createWorkQueue_runNormalized_taskMembershipsUnique
   State.runNormalized_taskMembershipsUnique (State.initialize work) batches
     (createWorkQueue_taskMembershipsUnique work)
 
-/-- Every finite replay retains a unique live node for each group key, for
+/-- Every finite replay retains a unique live node for each group ref, for
 arbitrary host batches and without appealing to source admissibility.
 -/
-theorem State.runNormalized_groupKeysUnique (queue : State)
-    (batches : List (List GraphEvent)) (unique : queue.GroupKeysUnique)
-    : (queue.runNormalized batches).1.GroupKeysUnique := by
+theorem State.runNormalized_groupRefsUnique (queue : State)
+    (batches : List (List GraphEvent)) (unique : queue.GroupRefsUnique)
+    : (queue.runNormalized batches).1.GroupRefsUnique := by
   have stepUnique (acc : NormalizedAcc) (batch : List GraphEvent)
-      (currentUnique : acc.1.GroupKeysUnique)
-      : (normalizedStep acc batch).1.GroupKeysUnique := by
+      (currentUnique : acc.1.GroupRefsUnique)
+      : (normalizedStep acc batch).1.GroupRefsUnique := by
     obtain ⟨current, publisher, outputs⟩ := acc
     unfold normalizedStep
     cases outcome : current.handleGraphEvents batch with
     | mk next raw =>
-        have nextUnique : next.GroupKeysUnique := by
+        have nextUnique : next.GroupRefsUnique := by
           have handled := currentUnique.handleGraphEvents batch
           rw [outcome] at handled
           exact handled
@@ -99,8 +99,8 @@ theorem State.runNormalized_groupKeysUnique (queue : State)
         simp only [outcome]
         split <;> exact nextUnique
   have foldUnique (more : List (List GraphEvent)) :
-      ∀ acc : NormalizedAcc, acc.1.GroupKeysUnique →
-        (more.foldl normalizedStep acc).1.GroupKeysUnique := by
+      ∀ acc : NormalizedAcc, acc.1.GroupRefsUnique →
+        (more.foldl normalizedStep acc).1.GroupRefsUnique := by
     induction more with
     | nil => intro acc currentUnique; exact currentUnique
     | cons batch rest ih =>
@@ -108,15 +108,15 @@ theorem State.runNormalized_groupKeysUnique (queue : State)
         exact ih (normalizedStep acc batch) (stepUnique acc batch currentUnique)
   let publisher : IncrementalPublisher :=
     { active := queue.initialGroups ++ queue.initialStreams }
-  change (batches.foldl normalizedStep (queue, publisher, [])).1.GroupKeysUnique
+  change (batches.foldl normalizedStep (queue, publisher, [])).1.GroupRefsUnique
   exact foldUnique batches (queue, publisher, []) unique
 
-/-- Initialized queues keep unique group keys through every finite replay. -/
-theorem createWorkQueue_runNormalized_groupKeysUnique
+/-- Initialized queues keep unique group refs through every finite replay. -/
+theorem createWorkQueue_runNormalized_groupRefsUnique
     (work : Work) (batches : List (List GraphEvent))
-    : ((State.initialize work).runNormalized batches).1.GroupKeysUnique :=
-  State.runNormalized_groupKeysUnique (State.initialize work) batches
-    (createWorkQueue_groupKeysUnique work)
+    : ((State.initialize work).runNormalized batches).1.GroupRefsUnique :=
+  State.runNormalized_groupRefsUnique (State.initialize work) batches
+    (createWorkQueue_groupRefsUnique work)
 
 /-- Once terminated, the queue ignores every subsequent host event batch. -/
 theorem State.handleGraphEvents_after_termination (queue : State)

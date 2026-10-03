@@ -91,10 +91,10 @@ def CompleteFailureInventory (work : Execution.Work)
           TaskAt work entry.2 owners producer payload ∧ payload.failure.isSome = true)
   ∧ (∀ index group errors,
       events[index]? = some (.groupFailure group errors)
-      → NodeErrors work (failedBefore failures index) group.key errors)
+      → NodeErrors work (failedBefore failures index) group.ref errors)
   ∧ (∀ index stream errors,
       events[index]? = some (.streamFailure stream errors)
-      → NodeErrors work (failedBefore failures index) stream.key errors)
+      → NodeErrors work (failedBefore failures index) stream.ref errors)
 
 /-- Exact successful publications cannot publish any member of the failure inventory.
 Witness: the inventory supplies each fixed failed payload; descriptor uniqueness excludes
@@ -124,7 +124,7 @@ theorem CompleteFailureInventory.failureWitness_iff
       ↔ (∀ entry ∈ failures,
           ∃ owners,
             TaskHasOwners work entry.2 owners
-            ∧ ∃ key ∈ owners, key ∈ announcedKeys initial (events.take entry.1))
+            ∧ ∃ ref ∈ owners, ref ∈ announcedRefs initial (events.take entry.1))
         ∧ (∀ before cut occurrence after,
             failures = before ++ (cut, occurrence) :: after
             → ¬TaskCancelled work matching (events.take cut) before occurrence) := by
@@ -133,20 +133,20 @@ theorem CompleteFailureInventory.failureWitness_iff
     constructor
     · intro entry member
       obtain ⟨before, after, split⟩ := List.mem_iff_append.mp member
-      obtain ⟨owners, producer, payload, task, _, _, key, owner, announced⟩ :=
+      obtain ⟨owners, producer, payload, task, _, _, ref, owner, announced⟩ :=
         (witness before entry.1 entry.2 after split).2.2.1
-      exact ⟨owners, ⟨producer, payload, task⟩, key, owner, announced⟩
+      exact ⟨owners, ⟨producer, payload, task⟩, ref, owner, announced⟩
     · intro before cut occurrence after split
       exact (witness before cut occurrence after split).2.2.2
   · rintro ⟨announced, uncancelled⟩ before cut occurrence after split
     have member : (cut, occurrence) ∈ failures := by simp [split]
     obtain ⟨bound, reachable, owners, producer, payload, task, failed⟩ :=
       inventory.2.2.1 _ member
-    obtain ⟨otherOwners, ⟨parent, otherPayload, otherTask⟩, key, owner, announcedKey⟩ :=
+    obtain ⟨otherOwners, ⟨parent, otherPayload, otherTask⟩, ref, owner, announcedRef⟩ :=
       announced _ member
     rw [← (task.unique otherTask).1] at owner
     refine ⟨bound, ?_, ⟨owners, producer, payload, task, failed, reachable,
-      key, owner, announcedKey⟩, uncancelled before cut occurrence after split⟩
+      ref, owner, announcedRef⟩, uncancelled before cut occurrence after split⟩
     have ordered := inventory.1
     rw [split] at ordered
     intro earlier earlierMember
@@ -203,7 +203,7 @@ theorem createWorkQueue_completeFailureInventory {work : Execution.Work}
     rcases List.mem_append.mp (partition.mem_iff.mp member) with fromStream | fromObject
     · obtain ⟨stream, errors, producer, _, task⟩ := cuts.2 entry fromStream
       exact ⟨Nat.le_of_lt (cuts.bound fromStream), reachable entry fromStream,
-        [stream.key], producer, _, task, rfl⟩
+        [stream.ref], producer, _, task, rfl⟩
     · obtain ⟨bound, owners, producer, path, errors, task, reaches⟩ := origins entry fromObject
       exact ⟨bound, reaches, owners, producer, _, task, rfl⟩
   · intro index group errors atEvent

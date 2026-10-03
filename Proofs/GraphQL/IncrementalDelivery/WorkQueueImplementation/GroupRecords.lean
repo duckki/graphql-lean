@@ -14,13 +14,13 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 publication, or producer assertion for an ancestor-only record.
 -/
 def GroupRecordAt (work : Execution.Work) (node : Execution.DeliveryNode)
-    (dependencies : Keys)
+    (dependencies : NodeRefs)
     : Prop :=
   ∃ address groups path result children producer owners fragment ancestors,
     Located work address (.executionGroup groups path result children) producer owners
     ∧ fragment ∈ groups
     ∧ (node :: ancestors).IsSuffix (fragment.node :: fragment.ancestors)
-    ∧ dependencies = ancestors.map Execution.DeliveryNode.key
+    ∧ dependencies = ancestors.map Execution.DeliveryNode.ref
 
 /-- Every actual task-contributing group has its own registration descriptor.
 Witness: the entire contributor chain is a suffix of itself.
@@ -38,16 +38,16 @@ theorem groupRecordAt_of_nodeAt {work node dependencies producer}
 /-- A recorded nonempty ancestry list supplies its immediate parent's own descriptor.
 Witness: removing the child from the chain suffix retains the parent's exact suffix.
 -/
-theorem GroupRecordAt.parent {work node key dependencies}
-    (known : GroupRecordAt work node (key :: dependencies))
-    : ∃ parent, parent.key = key ∧ GroupRecordAt work parent dependencies := by
+theorem GroupRecordAt.parent {work node ref dependencies}
+    (known : GroupRecordAt work node (ref :: dependencies))
+    : ∃ parent, parent.ref = ref ∧ GroupRecordAt work parent dependencies := by
   obtain ⟨address, groups, path, result, children, producer, owners, fragment,
     ancestors, located, member, suffix, equal⟩ := known
   cases ancestors with
   | nil => cases equal
   | cons parent rest =>
-      obtain ⟨keyEq, dependenciesEq⟩ := List.cons.inj equal
-      exact ⟨parent, keyEq.symm, address, groups, path, result, children, producer,
+      obtain ⟨refEq, dependenciesEq⟩ := List.cons.inj equal
+      exact ⟨parent, refEq.symm, address, groups, path, result, children, producer,
         owners, fragment, rest, located, member,
         (List.suffix_cons _ _).trans suffix, dependenciesEq⟩
 
@@ -58,7 +58,7 @@ theorem workFromSpec_groupChain_member {nodes : List Execution.DeliveryNode}
     {group : Group} (member : group ∈ Work.fromExecution.groupChain nodes)
     : ∃ ancestors,
         (group.node :: ancestors).IsSuffix nodes
-        ∧ group.parent = ancestors.head?.map Execution.DeliveryNode.key := by
+        ∧ group.parent = ancestors.head?.map Execution.DeliveryNode.ref := by
   induction nodes with
   | nil => simp [Work.fromExecution.groupChain] at member
   | cons node ancestors ih =>
@@ -74,7 +74,7 @@ Witness: it is the final entry appended by chain lowering.
 -/
 theorem workFromSpec_groupChain_self (node : Execution.DeliveryNode)
     (ancestors : List Execution.DeliveryNode)
-    : (⟨node, ancestors.head?.map Execution.DeliveryNode.key⟩ : Group)
+    : (⟨node, ancestors.head?.map Execution.DeliveryNode.ref⟩ : Group)
       ∈ Work.fromExecution.groupChain (node :: ancestors) := by
   simp [Work.fromExecution.groupChain]
 
@@ -83,7 +83,7 @@ Witness: traverse only `combine` and select a suffix of an actual contributor ch
 -/
 theorem workFromSpec_groups_recordAt
     {root current : Execution.Work} {address : Address} {producer : Option Occurrence}
-    {owners : Keys} (located : Located root address current producer owners)
+    {owners : NodeRefs} (located : Located root address current producer owners)
     {group : Group} (member : group ∈ (Work.fromExecution current address).groups)
     : ∃ dependencies,
         GroupRecordAt root group.node dependencies
@@ -97,7 +97,7 @@ theorem workFromSpec_groups_recordAt
   | executionGroup fragments path result children =>
       obtain ⟨fragment, fragmentMember, chainMember⟩ := List.mem_flatMap.mp member
       obtain ⟨ancestors, suffix, parent⟩ := workFromSpec_groupChain_member chainMember
-      refine ⟨ancestors.map Execution.DeliveryNode.key,
+      refine ⟨ancestors.map Execution.DeliveryNode.ref,
         ⟨address, fragments, path, result, children, producer, owners, fragment,
           ancestors, located, fragmentMember, suffix, rfl⟩, ?_⟩
       simpa only [List.head?_map] using parent
@@ -105,16 +105,16 @@ theorem workFromSpec_groups_recordAt
 termination_by sizeOf current
 
 /-- Exact generated ancestry assignments also identify every taskless ancestor suffix.
-Witness: descend the coherent parent chain, retaining the strict allocation-key bound.
+Witness: descend the coherent parent chain, retaining the strict allocation-ref bound.
 -/
-theorem ancestor_suffix_canonical {parents : Nat → Keys} {bound : Nat}
+theorem ancestor_suffix_canonical {parents : Nat → NodeRefs} {bound : Nat}
     (valid : AncestorChains.Valid parents bound) {node child : Execution.DeliveryNode}
     {ancestors dependencies : List Execution.DeliveryNode}
-    (childBound : child.key < bound)
-    (canonical : ancestors.map Execution.DeliveryNode.key = parents child.key)
+    (childBound : child.ref < bound)
+    (canonical : ancestors.map Execution.DeliveryNode.ref = parents child.ref)
     (suffix : (node :: dependencies).IsSuffix (child :: ancestors))
-    : node.key < bound
-      ∧ dependencies.map Execution.DeliveryNode.key = parents node.key := by
+    : node.ref < bound
+      ∧ dependencies.map Execution.DeliveryNode.ref = parents node.ref := by
   induction ancestors generalizing child with
   | nil =>
       rcases List.suffix_cons_iff.mp suffix with same | impossible
@@ -130,11 +130,11 @@ theorem ancestor_suffix_canonical {parents : Nat → Keys} {bound : Nat}
         subst node
         subst dependencies
         exact ⟨childBound, canonical⟩
-      · have parentBound : parent.key < bound :=
-          Nat.lt_trans (valid.1 child.key childBound parent.key
+      · have parentBound : parent.ref < bound :=
+          Nat.lt_trans (valid.1 child.ref childBound parent.ref
             (by rw [← canonical]; simp)).1 childBound
-        have parentCanonical := valid.2 child.key childBound parent.key
-          (rest.map Execution.DeliveryNode.key) canonical.symm
+        have parentCanonical := valid.2 child.ref childBound parent.ref
+          (rest.map Execution.DeliveryNode.ref) canonical.symm
         exact ih parentBound parentCanonical tail
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

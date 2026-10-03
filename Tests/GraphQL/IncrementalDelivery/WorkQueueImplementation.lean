@@ -8,9 +8,9 @@ open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
-private def group : DeliveryNode := { key := 0, path := [] }
-private def childGroup : DeliveryNode := { key := 2, path := [] }
-private def stream : DeliveryNode := { key := 1, path := [] }
+private def group : DeliveryNode := { ref := 0, path := [] }
+private def childGroup : DeliveryNode := { ref := 2, path := [] }
+private def stream : DeliveryNode := { ref := 1, path := [] }
 private def initialResponse : Response := { data := .object [] }
 
 /-- Test-only fold of raw queue batches, retaining productive batches. -/
@@ -53,18 +53,18 @@ private def groupSuccess : GraphEvent :=
 
 /-- The root task descriptor used by the source-law fixture. -/
 private theorem groupTaskAt
-    : TaskAt groupWork (.executionGroup []) [group.key] none
+    : TaskAt groupWork (.executionGroup []) [group.ref] none
         (.object [] (.ok ([("x", .scalar "X")], 0))) := by
   refine ⟨[{ node := group }], [], .ok ([("x", .scalar "X")], 0), .empty, [], ?_, rfl, rfl⟩
   rfl
 
 /-- The fixture's host event agrees with the finite execution-generated Work. -/
 example : groupSuccess.MatchesWork groupWork := by
-  refine ⟨[group.key], none, groupTaskAt, rfl, ?_⟩
+  refine ⟨[group.ref], none, groupTaskAt, rfl, ?_⟩
   rfl
 
 example : groupSuccess.Ready groupWork [] := by
-  refine ⟨[group.key], none, .object [] (.ok ([("x", .scalar "X")], 0)),
+  refine ⟨[group.ref], none, .object [] (.ok ([("x", .scalar "X")], 0)),
     groupTaskAt, ?_⟩
   intro source h
   cases h
@@ -144,7 +144,7 @@ example : inputsStarted nestedWork [[childSuccess]] = false := by
 example : inputsStarted nestedWork [[parentSuccess], [childSuccess]] = true := by
   rfl
 
-private def deepGroup : DeliveryNode := { key := 3, path := [.field "obj"] }
+private def deepGroup : DeliveryNode := { ref := 3, path := [.field "obj"] }
 
 private def sharedWork : Execution.Work :=
   .executionGroup [{ node := group }, { node := deepGroup }]
@@ -175,16 +175,16 @@ private def rawAncestorOwnerSuccess : GraphEvent :=
     }
 
 private theorem rawAncestorOwnerTaskAt
-    : TaskAt rawAncestorOwnerWork (.executionGroup []) [group.key, childGroup.key] none
+    : TaskAt rawAncestorOwnerWork (.executionGroup []) [group.ref, childGroup.ref] none
         (.object [] (.ok ([("x", .scalar "X")], 0))) := by
   exact .executionGroup .root
 
 /-- The shared-owner regression uses a legal fixed-outcome host settlement. -/
 example : rawAncestorOwnerSuccess.MatchesWork rawAncestorOwnerWork := by
-  exact ⟨[group.key, childGroup.key], none, rawAncestorOwnerTaskAt, rfl, rfl⟩
+  exact ⟨[group.ref, childGroup.ref], none, rawAncestorOwnerTaskAt, rfl, rfl⟩
 
 example : rawAncestorOwnerSuccess.Ready rawAncestorOwnerWork [] := by
-  refine ⟨[group.key, childGroup.key], none,
+  refine ⟨[group.ref, childGroup.ref], none,
     .object [] (.ok ([("x", .scalar "X")], 0)), rawAncestorOwnerTaskAt, ?_⟩
   intro source impossible
   cases impossible
@@ -223,12 +223,12 @@ Witness: direct reduction, without claiming generated-work conformance.
 example
     : let final :=
         (run (Work.fromExecution rawAncestorOwnerWork) [[rawAncestorOwnerSuccess]]).1
-      (final.groupNode? childGroup.key).map (fun node => (node.pending, node.tasks))
+      (final.groupNode? childGroup.ref).map (fun node => (node.pending, node.tasks))
         = none
       ∧ final.terminated = true := by
   constructor <;> cbv
 
-private def grandchildGroup : DeliveryNode := { key := 6, path := [] }
+private def grandchildGroup : DeliveryNode := { ref := 6, path := [] }
 
 private def rawAncestorNestedWork : Execution.Work :=
   .executionGroup
@@ -371,11 +371,11 @@ private def generatedStreamFailureWork : Execution.Work :=
     0).1.work
 
 private def generatedFailureStream : DeliveryNode :=
-  { key := 0, path := [.field "usersStrict"] }
+  { ref := 0, path := [.field "usersStrict"] }
 
 private def generatedFailureChild : DeliveryNode :=
   {
-    key := 1
+    ref := 1
     path := [.field "usersStrict", .index 0]
     label := some (.string "child")
   }
@@ -414,7 +414,7 @@ example
     : let queue :=
         (run (Work.fromExecution generatedStreamFailureWork)
           generatedStreamFailureInputs).1
-      queue.rootGroups = [generatedFailureChild.key]
+      queue.rootGroups = [generatedFailureChild.ref]
       ∧ queue.rootStreams = []
       ∧ queue.terminated = false := by
   native_decide
@@ -438,8 +438,8 @@ example
           [.streamFailure _ _],
           [.groupValues child _, .groupSuccess closed _ _, .workQueueTermination]
         ] =>
-            child.key == generatedFailureChild.key
-            && closed.key == generatedFailureChild.key
+            child.ref == generatedFailureChild.ref
+            && closed.ref == generatedFailureChild.ref
         | _ => false)
       = true := by
   native_decide
@@ -467,7 +467,7 @@ example
             (.executionGroup [{ node := group }] [] (.ok ([], 0)) .empty) [0]) := by
   rfl
 
-private def otherGroup : DeliveryNode := { key := 4, path := [] }
+private def otherGroup : DeliveryNode := { ref := 4, path := [] }
 
 private def earlyFailureWork : Execution.Work :=
   .combine
@@ -506,7 +506,7 @@ example
       = [[], [{ id := "2", path := childGroup.path, label := childGroup.label }]] := by
   cbv
 
-private def secondRootGroup : DeliveryNode := { key := 5, path := [] }
+private def secondRootGroup : DeliveryNode := { ref := 5, path := [] }
 
 private def twoEarlyFailuresWork : Execution.Work :=
   .combine
@@ -596,10 +596,10 @@ example : ExecutedWork reintroductionWork := by
     .object "Query" 0, reintroductionSelections, rfl⟩
 
 private def reintroducedG : DeliveryNode :=
-  { key := 0, path := [], label := some (.string "G") }
+  { ref := 0, path := [], label := some (.string "G") }
 
 private def survivingH : DeliveryNode :=
-  { key := 1, path := [], label := some (.string "H") }
+  { ref := 1, path := [], label := some (.string "H") }
 
 private def reintroductionFailure : GraphEvent :=
   .taskFailure (.executionGroup [1, 0]) 1
@@ -631,13 +631,13 @@ private def survivingChildSuccess : GraphEvent :=
 private def reintroductionInputs : List (List GraphEvent) :=
   [[reintroductionFailure], [reintroductionSuccess], [survivingChildSuccess]]
 
-/-- The removed group's key remains invalidated by its original failed contributor.
+/-- The removed group's ref remains invalidated by its original failed contributor.
 Witness: the root failure's structural task address, independent of publications.
 -/
 private theorem reintroduction_invalidated
-    : GroupInvalidated reintroductionWork [.executionGroup [1, 0]] reintroducedG.key := by
+    : GroupInvalidated reintroductionWork [.executionGroup [1, 0]] reintroducedG.ref := by
   have known : TaskHasOwners reintroductionWork (.executionGroup [1, 0])
-      [reintroducedG.key] := by
+      [reintroducedG.ref] := by
     refine ⟨none, .object [] (.error 1), ?_⟩
     refine ⟨[{ node := reintroducedG }], [], .error 1, .empty, [], ?_, rfl, rfl⟩
     cbv
@@ -648,7 +648,7 @@ all producer cancellation is group cleanup. Witness: the checked one-way bridge.
 -/
 example (published : Occurrence → Prop)
     : Causality.NodeFailed reintroductionWork [.executionGroup [1, 0]]
-        published reintroducedG.key :=
+        published reintroducedG.ref :=
   reintroduction_invalidated.toCausality published
 
 /-- All three events are started when the host settles them in this order. -/
@@ -656,16 +656,16 @@ example : inputsStarted reintroductionWork reintroductionInputs = true := by
   native_decide
 
 /-- Surviving shared work cannot recreate a failed group, even as an inert shell.
-Witness: execute the original shared-child fixture with permanent registration keys.
+Witness: execute the original shared-child fixture with permanent registration refs.
 -/
 example
     : let finalState :=
         (run (Work.fromExecution reintroductionWork) reintroductionInputs).1
       finalState.terminated = true
       ∧ finalState.rootGroups = []
-      ∧ (finalState.groupNode? reintroducedG.key).isNone = true
+      ∧ (finalState.groupNode? reintroducedG.ref).isNone = true
       ∧ GroupInvalidated reintroductionWork [.executionGroup [1, 0]]
-          reintroducedG.key := by
+          reintroducedG.ref := by
   exact ⟨by cbv, by cbv, by cbv, reintroduction_invalidated⟩
 
 /-- The removed group has no task links after child integration.
@@ -675,7 +675,7 @@ example
     : let state :=
         (run (Work.fromExecution reintroductionWork)
           [[reintroductionFailure], [reintroductionSuccess]]).1
-      ((state.groupNode? reintroducedG.key).map
+      ((state.groupNode? reintroducedG.ref).map
         (fun node => node.tasks.contains (.executionGroup [1, 1, 0]))).getD
         false
       = false := by
@@ -688,7 +688,7 @@ example
     : let state :=
         (run (Work.fromExecution reintroductionWork)
           [[reintroductionFailure], [reintroductionSuccess]]).1
-      (state.groupNode? reintroducedG.key).map
+      (state.groupNode? reintroducedG.ref).map
         (fun node => (node.pending, node.tasks.length))
       = none := by
   cbv
@@ -710,9 +710,9 @@ example
     : let state :=
         (State.initialize settledSharedWork).taskSuccess (.executionGroup [])
           { value := sharedValue }
-      state.1.rootGroups = [deepGroup.key]
+      state.1.rootGroups = [deepGroup.ref]
       ∧ (state.1.tasks.map Task.occurrence).contains (.executionGroup []) = true
-      ∧ ((state.1.groupNode? deepGroup.key).map
+      ∧ ((state.1.groupNode? deepGroup.ref).map
           (fun node => node.tasks.contains (.executionGroup []))).getD
           false
         = false := by

@@ -19,17 +19,17 @@ coverage. Witness: its group descriptor otherwise supplies a supported notice.
 -/
 theorem supported_ready_owner_announced
     {ancestry bound work initial matching events failed address owners producer payload
-      key}
-    (coherent : MixedKeys.WorkAt ancestry 0 bound work)
+      ref}
+    (coherent : MixedRefs.WorkAt ancestry 0 bound work)
     (covered : SupportedNoticesCovered ancestry work initial matching events failed)
     (known : TaskAt work (.executionGroup address) owners producer payload)
-    (member : key ∈ owners)
+    (member : ref ∈ owners)
     (ready : CanPublish work matching events failed (.executionGroup address) producer)
-    (healthy : ¬NodeFailed work matching events failed key)
+    (healthy : ¬NodeFailed work matching events failed ref)
     (dependencies
-      : ∀ ancestor ∈ ancestry key,
+      : ∀ ancestor ∈ ancestry ref,
           DependencySatisfied work initial matching events failed ancestor)
-    : key ∈ announcedKeys initial events := by
+    : ref ∈ announcedRefs initial events := by
   classical
   apply Classical.byContradiction
   intro fresh
@@ -57,19 +57,19 @@ outstanding.
 theorem supported_coverage_publication
     {ancestry bound roles work groups streams initial before events oldMatching matching
       failed address owners producer payload}
-    (valid : Valid ancestry bound) (coherent : MixedKeys.WorkAt ancestry 0 bound work)
-    (roleCoherent : KeyRoles.WorkRoles roles work)
+    (valid : Valid ancestry bound) (coherent : MixedRefs.WorkAt ancestry 0 bound work)
+    (roleCoherent : RefRoles.WorkRoles roles work)
     (continuous : DeferContinuous ancestry work) (ordered : StreamOwnersOrdered work)
     (covered : SupportedNoticesCovered ancestry work initial oldMatching before failed)
     (explained : Explains work groups streams events matching failed)
     (failureTransport
-      : ∀ key,
-          NodeFailed work oldMatching before failed key
-          → NodeFailed work matching events failed key)
+      : ∀ ref,
+          NodeFailed work oldMatching before failed ref
+          → NodeFailed work matching events failed ref)
     (known : TaskAt work (.executionGroup address) owners producer payload)
     (ready : CanPublish work oldMatching before failed (.executionGroup address) producer)
     (unavailable
-      : ∀ key ∈ owners, ¬DependencySatisfied work initial oldMatching before failed key)
+      : ∀ ref ∈ owners, ¬DependencySatisfied work initial oldMatching before failed ref)
     (oldProducers
       : ∀ occurrence owners producer payload,
           TaskAt work occurrence owners producer payload
@@ -77,16 +77,16 @@ theorem supported_coverage_publication
           → ∀ producerOccurrence,
               producer = some producerOccurrence
               → Published oldMatching before producerOccurrence)
-    (notices : (announcedKeys initial before).Subset (announcedKeys initial events))
-    (completions : (completedKeys events).Subset (completedKeys before))
+    (notices : (announcedRefs initial before).Subset (announcedRefs initial events))
+    (completions : (completedRefs events).Subset (completedRefs before))
     (publications
       : ∀ task,
           Published matching events task
           → Published oldMatching before task ∨ task = .executionGroup address)
     (accounting
-      : ∀ key,
-          NodeAccounted work oldMatching before failed key
-          → NodeAccounted work matching events failed key)
+      : ∀ ref,
+          NodeAccounted work oldMatching before failed ref
+          → NodeAccounted work matching events failed ref)
     : SupportedNoticesCovered ancestry work initial matching events failed := by
   have producers : ∀ occurrence owners producer payload,
       TaskAt work occurrence owners producer payload → Published matching events occurrence →
@@ -110,7 +110,7 @@ theorem supported_coverage_publication
       (fun _ _ _ member => completions member) producers
   cases kind with
   | group =>
-      obtain ⟨producerOwners, ancestor, value, key, task, member, support⟩ :=
+      obtain ⟨producerOwners, ancestor, value, ref, task, member, support⟩ :=
         deferred_producer_dependency coherent continuous ordered descriptor
       have contributes := (TaskAt.unique task known).1 ▸ member
       rcases support with reused | dependency
@@ -120,20 +120,20 @@ theorem supported_coverage_publication
             apply dependenciesBefore ancestor
             simpa only [DeferOnly.node_dependencies coherent descriptor, ← reused] using member)
         exact False.elim (supported.1.1 (reused ▸ notices notified))
-      · exact False.elim (unavailable key contributes (dependenciesBefore key dependency))
+      · exact False.elim (unavailable ref contributes (dependenciesBefore ref dependency))
   | stream =>
       obtain ⟨streamAddress, items, located⟩ := descriptor
       obtain ⟨ancestor, path, result, task⟩ := located_producer_context located
       have same := (TaskAt.unique task known).1
-      rcases dependenciesBefore with empty | ⟨key, member, dependency, _⟩
+      rcases dependenciesBefore with empty | ⟨ref, member, dependency, _⟩
       · exact False.elim (coherent_task_owners_nonempty coherent known (same ▸ empty))
-      · exact False.elim (unavailable key (same ▸ member) dependency)
+      · exact False.elim (unavailable ref (same ▸ member) dependency)
 
 -----------------------------------------------------------------------------------------
 -- Failure and stream completion preserve the same witness without new publications
 -----------------------------------------------------------------------------------------
 
-/-- Nonpublishing changes preserve supported coverage if they close no healthy defer key.
+/-- Nonpublishing changes preserve supported coverage if they close no healthy defer ref.
 Witness: old causal publication evidence supplies every task and node producer; full
 dependency transport accounts for newly cancelled mixed work without assuming that
 every cancelled task's owners fail.
@@ -141,33 +141,33 @@ every cancelled task's owners fail.
 theorem supported_coverage_control
     {ancestry bound roles work groups streams before events oldMatching matching failures
       failed}
-    (valid : Valid ancestry bound) (coherent : MixedKeys.WorkAt ancestry 0 bound work)
-    (roleCoherent : KeyRoles.WorkRoles roles work)
+    (valid : Valid ancestry bound) (coherent : MixedRefs.WorkAt ancestry 0 bound work)
+    (roleCoherent : RefRoles.WorkRoles roles work)
     (explained : Explains work groups streams before oldMatching failures)
     (covered
-      : SupportedNoticesCovered ancestry work ((groups ++ streams).map DeliveryNode.key)
+      : SupportedNoticesCovered ancestry work ((groups ++ streams).map DeliveryNode.ref)
           oldMatching before failures)
     (extended : Explains work groups streams events matching failed)
     (included
-      : ∀ key,
-          NodeFailed work oldMatching before failures key
-          → NodeFailed work matching events failed key)
+      : ∀ ref,
+          NodeFailed work oldMatching before failures ref
+          → NodeFailed work matching events failed ref)
     (notices
-      : (announcedKeys ((groups ++ streams).map DeliveryNode.key) before).Subset
-          (announcedKeys ((groups ++ streams).map DeliveryNode.key) events))
+      : (announcedRefs ((groups ++ streams).map DeliveryNode.ref) before).Subset
+          (announcedRefs ((groups ++ streams).map DeliveryNode.ref) events))
     (completions
-      : ∀ key,
-          roles key = false
-          → ¬NodeFailed work matching events failed key
-          → key ∈ completedKeys events
-          → key ∈ completedKeys before)
+      : ∀ ref,
+          roles ref = false
+          → ¬NodeFailed work matching events failed ref
+          → ref ∈ completedRefs events
+          → ref ∈ completedRefs before)
     (publications
       : ∀ task, Published matching events task → Published oldMatching before task)
     (accounting
-      : ∀ key,
-          NodeAccounted work oldMatching before failures key
-          → NodeAccounted work matching events failed key)
-    : SupportedNoticesCovered ancestry work ((groups ++ streams).map DeliveryNode.key)
+      : ∀ ref,
+          NodeAccounted work oldMatching before failures ref
+          → NodeAccounted work matching events failed ref)
+    : SupportedNoticesCovered ancestry work ((groups ++ streams).map DeliveryNode.ref)
         matching events failed := by
   refine supported_coverage_noncarrier valid coherent roleCoherent covered extended included notices
     completions ?_ accounting ?_

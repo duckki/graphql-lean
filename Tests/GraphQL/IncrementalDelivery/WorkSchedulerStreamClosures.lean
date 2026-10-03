@@ -8,7 +8,7 @@ open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
-private def node : DeliveryNode := { key := 0, path := [.field "values"] }
+private def node : DeliveryNode := { ref := 0, path := [.field "values"] }
 private def emptyWork : Execution.Work := .stream node []
 private def failedWork : Execution.Work := .stream node [(.error 1, .empty)]
 
@@ -90,8 +90,8 @@ theorem completion_source_preserves_outcome
       [[.streamFailure node 1]] completed rfl
     simp at source
 
-/-- Neither kind of stream closure permits another item reference with the same key.
-Witness: the two-action relation requires unequal keys after the closing action. These
+/-- Neither kind of stream closure permits another item reference with the same ref.
+Witness: the two-action relation requires unequal refs after the closing action. These
 are rejected candidate histories, not output attributed to the executable queue.
 -/
 theorem post_closure_references_rejected
@@ -104,14 +104,14 @@ theorem post_closure_references_rejected
   simp [streamAction, StreamAction.Before]
 
 /-- A second closure is also forbidden, even if its success/failure kind changes.
-Witness: closing actions are references themselves and the earlier closure forbids the key.
+Witness: closing actions are references themselves and the earlier closure forbids the ref.
 -/
 theorem duplicate_closure_rejected
     : ¬List.Pairwise StreamAction.Before
         ([.streamSuccess node, .streamFailure node 1].filterMap streamAction) := by
   simp [streamAction, StreamAction.Before]
 
-/-- Stream-only closure order is not enough when a hypothetical group shares its key.
+/-- Stream-only closure order is not enough when a hypothetical group shares its ref.
 Witness: the stream action projection omits group closures, but Open counts them. The
 generated-work theorem rules out this collision through structural role separation;
 this candidate history is not attributed to generated execution.
@@ -120,15 +120,15 @@ theorem stream_order_alone_is_not_openness
     : List.Pairwise StreamAction.Before
         ([.groupSuccess node [] [], .streamValues node [⟨.null, 0⟩] [] []].filterMap
           streamAction)
-      ∧ ¬Open [node.key] [.groupSuccess node [] []] node.key := by
-  simp [List.filterMap_cons, streamAction, Open, announcedKeys, pendingKeys, completedKeys,
+      ∧ ¬Open [node.ref] [.groupSuccess node [] []] node.ref := by
+  simp [List.filterMap_cons, streamAction, Open, announcedRefs, pendingRefs, completedRefs,
     eventPending, eventCompleted]
 
 -----------------------------------------------------------------------------------------
 -- Generated non-null item failure retains the successful prefix and exact error task
 -----------------------------------------------------------------------------------------
 
-private def failureNode : DeliveryNode := { key := 0, path := [.field "strict"] }
+private def failureNode : DeliveryNode := { ref := 0, path := [.field "strict"] }
 
 private def failureEntries : List (Result ResponseValue × Execution.Work) :=
   [(.ok (.scalar "x", 0), .empty), (.error 1, .empty)]
@@ -168,7 +168,7 @@ theorem generated_failure_source_valid
     intro supplied member
     have same := List.mem_singleton.mp member
     subst supplied
-    exact ⟨[failureNode.key], none, TaskAt.item failure_located rfl, by cbv⟩
+    exact ⟨[failureNode.ref], none, TaskAt.item failure_located rfl, by cbv⟩
   have firstValid : ValidGraphEvents generatedFailureWork [firstArrival] :=
     .append .nil firstMatch
       (by simp [firstArrival, GraphEvent.Fresh, GraphEvent.identities])
@@ -206,11 +206,11 @@ theorem generated_failure_accounting
           → IsValue event
           → ¬Published matching (atoms.take index) (matching index))
         ∧ ∃ address ordinal producer,
-            TaskAt generatedFailureWork (.item address ordinal) [failureNode.key] producer
+            TaskAt generatedFailureWork (.item address ordinal) [failureNode.ref] producer
               (.item failureNode (.error 1))
             ∧ Reachable generatedFailureWork (.item address ordinal)
-            ∧ Open ((queue.initialGroups ++ queue.initialStreams).map DeliveryNode.key)
-                (atoms.take 1) failureNode.key
+            ∧ Open ((queue.initialGroups ++ queue.initialStreams).map DeliveryNode.ref)
+                (atoms.take 1) failureNode.ref
             ∧ ¬Published matching atoms (.item address ordinal)
             ∧ ∀ earlier,
                 earlier < ordinal
@@ -236,9 +236,9 @@ theorem generated_failure_cut_licensed
       ∃ failures : FailureCuts,
         StreamFailureCuts generatedFailureWork atoms failures
         ∧ FailureWitness generatedFailureWork
-            ((queue.initialGroups ++ queue.initialStreams).map DeliveryNode.key)
+            ((queue.initialGroups ++ queue.initialStreams).map DeliveryNode.ref)
             matching atoms failures
-        ∧ NodeErrors generatedFailureWork (failedBefore failures 1) failureNode.key
+        ∧ NodeErrors generatedFailureWork (failedBefore failures 1) failureNode.ref
             1 := by
   obtain ⟨matching, _, values, _, covered⟩ :=
     createWorkQueue_runNormalized_streamProducerMatching_withItemCoverage failure_generated
@@ -291,7 +291,7 @@ theorem generated_publication_survives_failure
         WorkBatching atoms outputs
         ∧ CanPublish generatedFailureWork matching (atoms.take 0) failures (matching 0)
             none
-        ∧ NodeFailed generatedFailureWork matching atoms failures failureNode.key
+        ∧ NodeFailed generatedFailureWork matching atoms failures failureNode.ref
         ∧ ¬TaskCancelled generatedFailureWork matching atoms failures (matching 0) := by
   intro outputs atoms failures
   have shape : atoms = [.streamValues failureNode [⟨.scalar "x", 0⟩] [] [],
@@ -302,7 +302,7 @@ theorem generated_publication_survives_failure
   have first : atoms[0]? = some (.streamValues failureNode [⟨.scalar "x", 0⟩] [] []) := by
     rw [shape]
     rfl
-  have failedKnown : TaskAt generatedFailureWork (.item [0, 0, 1] 1) [failureNode.key]
+  have failedKnown : TaskAt generatedFailureWork (.item [0, 0, 1] 1) [failureNode.ref]
       none (.item failureNode (.error 1)) := TaskAt.item failure_located rfl
   have failedPayloads cut occurrence (member : (cut, occurrence) ∈ failures)
       : ∃ owners producer payload,
@@ -311,7 +311,7 @@ theorem generated_publication_survives_failure
     have same : cut = 1 ∧ occurrence = .item [0, 0, 1] 1 := by
       simpa only [failures, List.mem_singleton, Prod.mk.injEq] using member
     rcases same with ⟨rfl, rfl⟩
-    exact ⟨[failureNode.key], none, _, failedKnown, rfl⟩
+    exact ⟨[failureNode.ref], none, _, failedKnown, rfl⟩
   obtain ⟨matching, batching, sources, readiness⟩ :=
     createWorkQueue_runNormalized_supportedPublicationReadinessMatching failure_generated
       generated_failure_source_valid.1 generated_failure_source_valid.2
@@ -340,7 +340,7 @@ theorem generated_publication_survives_failure
     obtain ⟨ownersEq, dependencies, located⟩ := itemTask_owner_nodeAt known
     have producerEq := failure_generated.streamProducer_unique located
       (NodeAt.stream failure_located) rfl
-    refine ⟨owners, producer, _, failureNode.key, known, rfl, ?_, ?_, ?_⟩
+    refine ⟨owners, producer, _, failureNode.ref, known, rfl, ?_, ?_, ?_⟩
     · simp [ownersEq]
     · rintro ⟨cut, member, reached, _⟩
       have same : cut = 1 := by simpa [failures] using member

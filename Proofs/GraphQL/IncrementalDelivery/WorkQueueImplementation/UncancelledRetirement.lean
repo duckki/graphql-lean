@@ -11,13 +11,13 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 -- Retirement structure can be separated from the accepted-failure inventory
 -----------------------------------------------------------------------------------------
 
-/-- Each permanently retired, uncancelled key carries its full retirement certificate.
+/-- Each permanently retired, uncancelled ref carries its full retirement certificate.
 The certificate concerns task-bearing ancestors; the target may be a taskless record.
 This proof-side invariant does not mention failures, output histories, or notice admission.
 -/
 def State.UncancelledRetiredAncestors (queue : State) (work : Execution.Work) : Prop :=
-  ∀ key,
-    queue.RetiredGroup key → key ∉ queue.cancelledGroups → queue.AncestorsRetired work key
+  ∀ ref,
+    queue.RetiredGroup ref → ref ∉ queue.cancelledGroups → queue.AncestorsRetired work ref
 
 /-- Uncancelled retirement supplies the earlier failure-indexed closure when cancellations
 are supported. Witness: a healthy record cannot have a supported cancellation marker.
@@ -26,8 +26,8 @@ theorem State.UncancelledRetiredAncestors.healthy {queue : State} {work failed}
     (prior : queue.UncancelledRetiredAncestors work)
     (supported : queue.CancelledRecordsSupported work failed)
     : queue.HealthyRetiredAncestors work failed := by
-  intro key retired healthy
-  exact prior key retired (supported.healthy_not_mem healthy)
+  intro ref retired healthy
+  exact prior ref retired (supported.healthy_not_mem healthy)
 
 /-- Before any failure, healthy-retirement closure supplies uncancelled closure as well.
 Witness: invalidation has a failed contributing task, impossible in the empty inventory.
@@ -35,8 +35,8 @@ Witness: invalidation has a failed contributing task, impossible in the empty in
 theorem State.HealthyRetiredAncestors.uncancelled_of_empty {queue : State} {work}
     (prior : queue.HealthyRetiredAncestors work [])
     : queue.UncancelledRetiredAncestors work := by
-  intro key retired _
-  exact prior key retired (fun invalid => invalid.nonempty rfl)
+  intro ref retired _
+  exact prior ref retired (fun invalid => invalid.nonempty rfl)
 
 /-- Generated initialization has structurally closed uncancelled retirement.
 Witness: the checked empty-inventory initialization certificate includes taskless pruning.
@@ -51,34 +51,34 @@ Witness: reflect the target retirement, exclude old cancellation, and carry all 
 -/
 theorem State.UncancelledRetiredAncestors.of_sameRetirements {before after : State} {work}
     (prior : before.UncancelledRetiredAncestors work)
-    (same : ∀ key, after.RetiredGroup key ↔ before.RetiredGroup key)
+    (same : ∀ ref, after.RetiredGroup ref ↔ before.RetiredGroup ref)
     (cancelled : before.cancelledGroups.Subset after.cancelledGroups)
     : after.UncancelledRetiredAncestors work := by
-  intro key retired uncancelled
-  exact (prior key ((same key).mp retired)
+  intro ref retired uncancelled
+  exact (prior ref ((same ref).mp retired)
     (fun member => uncancelled (cancelled member))).mono
     (fun ancestor retired => (same ancestor).mpr retired)
 
 /-- Metadata replacement retains structural retirement closure.
-Witness: the live-key list, registry, and cancellation markers are unchanged.
+Witness: the live-ref list, registry, and cancellation markers are unchanged.
 -/
 theorem State.UncancelledRetiredAncestors.putGroupNode {queue : State} {work}
     (prior : queue.UncancelledRetiredAncestors work) (node : GroupNode)
     : (queue.putGroupNode node).UncancelledRetiredAncestors work := by
   apply prior.of_sameRetirements
-  · intro key
-    simp only [State.RetiredGroup, State.putGroupNode_keys]
+  · intro ref
+    simp only [State.RetiredGroup, State.putGroupNode_refs]
     rfl
   · exact fun _ member => member
 
 /-- Task membership cleanup retains structural retirement closure.
-Witness: mapped group records retain every key and both permanent registries.
+Witness: mapped group records retain every ref and both permanent registries.
 -/
 theorem State.UncancelledRetiredAncestors.removeTask {queue : State} {work}
     (prior : queue.UncancelledRetiredAncestors work) (occurrence : Occurrence)
     : (queue.removeTask occurrence).UncancelledRetiredAncestors work := by
   apply prior.of_sameRetirements
-  · intro key
+  · intro ref
     simp only [State.RetiredGroup, State.removeTask, List.map_map, Function.comp_def]
   · exact fun _ member => member
 
@@ -89,7 +89,7 @@ theorem State.UncancelledRetiredAncestors.startNewWork {queue : State} {work}
     (prior : queue.UncancelledRetiredAncestors work) (released : NewWork)
     : (queue.startNewWork released).UncancelledRetiredAncestors work := by
   apply prior.of_sameRetirements
-  · intro key
+  · intro ref
     simp only [State.RetiredGroup, State.startNewWork_registeredGroups,
       (queue.startNewWork_groupCore released).1]
   · rw [State.startNewWork_cancelledGroups]
@@ -106,24 +106,24 @@ their ancestor certificates come from the original queue.
 theorem State.UncancelledRetiredAncestors.addGroups {queue : State} {work}
     (prior : queue.UncancelledRetiredAncestors work) (groups : List Group)
     : (queue.addGroups groups).1.UncancelledRetiredAncestors work := by
-  intro key retired uncancelled
-  have old := (queue.addGroups_retired_or_cancelled groups key retired).resolve_right
+  intro ref retired uncancelled
+  have old := (queue.addGroups_retired_or_cancelled groups ref retired).resolve_right
     uncancelled
-  have notCancelled : key ∉ queue.cancelledGroups :=
+  have notCancelled : ref ∉ queue.cancelledGroups :=
     fun member => uncancelled (queue.addGroups_cancelledGroups_subset groups member)
-  exact (prior key old notCancelled).mono (fun _ ancestor => ancestor.addGroups groups)
+  exact (prior ref old notCancelled).mono (fun _ ancestor => ancestor.addGroups groups)
 
 /-- Task installation preserves structural retirement closure.
-Witness: membership updates retain old live keys and the registry, and never revive a key.
+Witness: membership updates retain old live refs and the registry, and never revive a ref.
 -/
 theorem State.UncancelledRetiredAncestors.addTask {queue : State} {work}
     (prior : queue.UncancelledRetiredAncestors work) (task : Task)
     : (queue.addTask task).UncancelledRetiredAncestors work := by
   apply prior.of_sameRetirements
-  · intro key
+  · intro ref
     constructor
     · intro retired
-      refine ⟨?_, fun live => retired.2 (queue.addTask_includesKeys task key live)⟩
+      refine ⟨?_, fun live => retired.2 (queue.addTask_includesRefs task ref live)⟩
       have registered := retired.1
       rwa [queue.addTask_registeredGroups task] at registered
     · exact fun retired => retired.addTask task
@@ -162,15 +162,15 @@ theorem State.UncancelledRetiredAncestors.maybeIntegrateWork {queue : State} {wo
     newWork.streams parentTask
 
 /-- Failure removal preserves structural retirement closure, regardless of its target.
-Witness: every newly absent key is marked cancelled, so an uncancelled retirement was
+Witness: every newly absent ref is marked cancelled, so an uncancelled retirement was
 already retired before removal. Existing ancestor retirements remain permanent.
 -/
 theorem State.UncancelledRetiredAncestors.removeGroup {queue : State} {work}
     (prior : queue.UncancelledRetiredAncestors work) (root : Nat)
     : (queue.removeGroup root).UncancelledRetiredAncestors work := by
-  intro key retired uncancelled
-  have old := queue.removeGroup_missing_uncancelled root key retired.lookup_none uncancelled
-  exact (prior key (.of_lookup_none retired.1 old.1) old.2).mono
+  intro ref retired uncancelled
+  have old := queue.removeGroup_missing_uncancelled root ref retired.lookup_none uncancelled
+  exact (prior ref (.of_lookup_none retired.1 old.1) old.2).mono
     (fun _ ancestor => ancestor.removeGroup root)
 
 -----------------------------------------------------------------------------------------
@@ -178,19 +178,19 @@ theorem State.UncancelledRetiredAncestors.removeGroup {queue : State} {work}
 -----------------------------------------------------------------------------------------
 
 /-- Filtering one protected parent preserves uncancelled ancestor closure.
-Witness: the removed key has its supplied certificate; every other newly absent key was
+Witness: the removed ref has its supplied certificate; every other newly absent ref was
 already absent. Filtering retains all earlier ancestor retirements.
 -/
-theorem State.UncancelledRetiredAncestors.filter_parent {queue : State} {work key}
+theorem State.UncancelledRetiredAncestors.filter_parent {queue : State} {work ref}
     (prior : queue.UncancelledRetiredAncestors work)
-    (protectedParent : queue.AncestorsRetired work key)
+    (protectedParent : queue.AncestorsRetired work ref)
     : ({
         queue with
-          groupNodes := queue.groupNodes.filter (fun node => node.group.node.key != key)
+          groupNodes := queue.groupNodes.filter (fun node => node.group.node.ref != ref)
       }).UncancelledRetiredAncestors
         work := by
   let next : State := { queue with
-    groupNodes := queue.groupNodes.filter (fun node => node.group.node.key != key) }
+    groupNodes := queue.groupNodes.filter (fun node => node.group.node.ref != ref) }
   have preserves (ancestor) (retired : queue.RetiredGroup ancestor)
       : next.RetiredGroup ancestor := by
     refine ⟨retired.1, ?_⟩
@@ -198,15 +198,15 @@ theorem State.UncancelledRetiredAncestors.filter_parent {queue : State} {work ke
     obtain ⟨node, kept, same⟩ := List.mem_map.mp live
     exact retired.2 (List.mem_map.mpr ⟨node, (List.mem_filter.mp kept).1, same⟩)
   intro target retired uncancelled
-  by_cases same : target = key
+  by_cases same : target = ref
   · subst target
     exact protectedParent.mono preserves
   · have old : queue.RetiredGroup target := by
       refine ⟨retired.1, ?_⟩
       intro live
-      obtain ⟨node, member, nodeKey⟩ := List.mem_map.mp live
+      obtain ⟨node, member, nodeRef⟩ := List.mem_map.mp live
       exact retired.2 (List.mem_map.mpr ⟨node,
-        List.mem_filter.mpr ⟨member, by simp [nodeKey, same]⟩, nodeKey⟩)
+        List.mem_filter.mpr ⟨member, by simp [nodeRef, same]⟩, nodeRef⟩)
     exact (prior target old uncancelled).mono preserves
 
 /-- Taskless pruning preserves uncancelled retirement and protects promoted groups.
@@ -219,9 +219,9 @@ theorem State.UncancelledRetiredAncestors.pruneEmptyGroups {queue : State}
     (links : queue.ChildLinksCanonical parents)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (registered : queue.LiveGroupsRegistered) (groups : List Execution.DeliveryNode)
-    (protectedGroups : ∀ group ∈ groups, queue.AncestorsRetired work group.key)
+    (protectedGroups : ∀ group ∈ groups, queue.AncestorsRetired work group.ref)
     : (queue.pruneEmptyGroups groups).1.UncancelledRetiredAncestors work :=
   (queue.pruneEmptyGroups_retirement_preserves generated matching links canonical
     registered groups protectedGroups
@@ -244,7 +244,7 @@ theorem State.UncancelledRetiredAncestors.missingParent {queue : State} {work pa
     (parentFields : queue.GroupParentsCanonical parents)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (registered
       : ∀ node ∈ queue.groupNodes,
           ∀ parent, node.group.parent = some parent → parent ∈ queue.registeredGroups)
@@ -257,12 +257,12 @@ theorem State.UncancelledRetiredAncestors.missingParent {queue : State} {work pa
     rw [canonical _ _ known, ← parentFields node member, parentEq]
   cases dependencies with
   | nil => cases head
-  | cons key rest =>
-      have same : key = parent := Option.some.inj head
-      subst key
-      obtain ⟨record, recordKey, parentKnown⟩ := known.parent
+  | cons ref rest =>
+      have same : ref = parent := Option.some.inj head
+      subst ref
+      obtain ⟨record, recordRef, parentKnown⟩ := known.parent
       exact State.AncestorsRetired.child generated known parentKnown
-        (recordKey.symm ▸ head) (recordKey.symm ▸ prior parent retired uncancelled)
-        (recordKey.symm ▸ retired)
+        (recordRef.symm ▸ head) (recordRef.symm ▸ prior parent retired uncancelled)
+        (recordRef.symm ▸ retired)
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

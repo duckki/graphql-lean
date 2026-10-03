@@ -36,7 +36,7 @@ theorem ExecutedWork.successfulCarrier_registeredContributor_covered
       : task
         ∈ ((State.initialize (Work.fromExecution work)).replayGraphEvents
             (before ++ [event])).tasks)
-    (contributes : group.key ∈ task.groups.map Execution.DeliveryNode.key)
+    (contributes : group.ref ∈ task.groups.map Execution.DeliveryNode.ref)
     : ∃ value,
         (task.occurrence, value)
         ∈ published.take
@@ -68,7 +68,7 @@ theorem ExecutedWork.successfulCarrier_registeredContributor_covered
       : ∃ node,
           (initial.replayGraphEvents earlier).taskNode? task.occurrence = some node
           ∧ (initial.replayGraphEvents earlier).taskHasHealthyOwner node.task = true
-          ∧ group.key ∈ node.task.groups.map Execution.DeliveryNode.key := by
+          ∧ group.ref ∈ node.task.groups.map Execution.DeliveryNode.ref := by
     obtain ⟨node, found, healthy⟩ :=
       generated.successfulCarrier_contributorSuccess_accepted valid started
         (List.mem_of_getElem? carrier) prior known contributes
@@ -157,7 +157,7 @@ theorem ExecutedWork.successfulCarrier_rootContributor_covered
           event).2[index]?
         = some (.groupSuccess group groups streams))
     (known : TaskAt work (.executionGroup address) owners none payload)
-    (contributes : group.key ∈ owners)
+    (contributes : group.ref ∈ owners)
     : ∃ value,
         (Occurrence.executionGroup address, value)
         ∈ published.take

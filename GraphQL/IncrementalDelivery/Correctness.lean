@@ -507,7 +507,7 @@ def incrementalDirectiveFreeExecutionEquivalentToBasic (schema : Schema)
 -----------------------------------------------------------------------------------------
 
 /-- Every observed prefix has unique IDs. Witness: deliveryIDsUnique_holds in
-Correctness/QueryIdentity, via key uniqueness and injective stable allocation.
+Correctness/QueryIdentity, via ref uniqueness and injective stable allocation.
 -/
 def deliveryIDsUnique (schema : Schema) (operation : Operation) : Prop :=
   ∀ {ObjectRef : Type} (resolvers : Resolvers ObjectRef)

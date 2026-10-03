@@ -45,12 +45,12 @@ example
     simp [work, DeferredPhase.work, MixedOwnerPaths.WorkAt, OwnerPaths.MapAt,
       OwnerPaths.mapNodes, OwnerPaths.fragmentNodes, OwnerPaths.Assigned, Below,
       DeferredPhase.node]
-  have selected (owners : Keys) (member : 0 ∈ owners)
+  have selected (owners : NodeRefs) (member : 0 ∈ owners)
       : PublicationOwner work [0, 1] WorkQueueSemantics.matching [] [] owners (DeferredPhase.node 0) := by
     have opened : OpenOwner work [0, 1] [] owners (DeferredPhase.node 0) :=
       ⟨⟨.group, [], none,
         .group (group := {node := DeferredPhase.node 0}) (.left .root) (by simp)⟩,
-        member, by simp [Open, announcedKeys, pendingKeys, completedKeys, DeferredPhase.node]⟩
+        member, by simp [Open, announcedRefs, pendingRefs, completedRefs, DeferredPhase.node]⟩
     refine ⟨opened, ⟨DeferredPhase.node 0, opened, WorkQueueSemantics.noFailure _ _⟩, ?_⟩
     intro other available
     obtain ⟨kind, parents, birth, known⟩ := available.1
@@ -74,7 +74,7 @@ example
 -- Shared-owner closures commute, but their wire order remains visible
 -----------------------------------------------------------------------------------------
 
-/-- The shared publication admits both completion orders with identical closed-key sets.
+/-- The shared publication admits both completion orders with identical closed-ref sets.
 Witness: append the explicit publication, then commute the two enabled group closures.
 -/
 example
@@ -116,7 +116,7 @@ example
   exact ⟨both.1, both.2.1⟩
 
 /-- Reversing these independent initial notices is also allowed. Witness: the same
-descriptor eligibility proofs and the same distinct-key check in reversed order.
+descriptor eligibility proofs and the same distinct-ref check in reversed order.
 -/
 example
     : Initializes HistoryScheduling.shared

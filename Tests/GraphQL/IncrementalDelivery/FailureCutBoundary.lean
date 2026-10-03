@@ -8,8 +8,8 @@ namespace GraphQL.IncrementalDelivery.Tests.FailureCutBoundary
 open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
-private def stream : DeliveryNode := { key := 0, path := [] }
-private def child : DeliveryNode := { key := 1, path := [.index 0] }
+private def stream : DeliveryNode := { ref := 0, path := [] }
+private def child : DeliveryNode := { ref := 1, path := [.index 0] }
 private def childTask : Occurrence := .executionGroup [0]
 
 private def work : Work :=
@@ -25,7 +25,7 @@ private def carrier : WorkQueueEvent :=
   .streamValues stream [{ item := .object [] }] [child] []
 
 private theorem child_known
-    : TaskAt work childTask [child.key] (some (.item [] 0))
+    : TaskAt work childTask [child.ref] (some (.item [] 0))
         (.object child.path (.error 1)) :=
   ⟨[{ node := child }], child.path, .error 1, .empty, [], rfl, rfl, rfl⟩
 
@@ -47,15 +47,15 @@ private theorem child_node : NodeAt work child .group [] (some (.item [] 0)) :=
 /-- The stream item can initially publish and announce its child defer.
 Witness: the child producer is this carrier, and no failure has yet occurred.
 -/
-theorem carrier_allowed : EventAllowed work [stream.key] matching [] [] carrier := by
-  refine ⟨[stream.key], none, { item := .object [] }, rfl, .item .root rfl, ?_, ?_, ?_⟩
+theorem carrier_allowed : EventAllowed work [stream.ref] matching [] [] carrier := by
+  refine ⟨[stream.ref], none, { item := .object [] }, rfl, .item .root rfl, ?_, ?_, ?_⟩
   · simp [CanPublish, Published, TaskCancelled, matching]
-  · have opened : OpenOwner work [stream.key] [] [stream.key] stream :=
+  · have opened : OpenOwner work [stream.ref] [] [stream.ref] stream :=
       ⟨⟨.stream, [], none, .stream .root⟩, by simp,
-        by simp [Open, announcedKeys, completedKeys, pendingKeys]⟩
+        by simp [Open, announcedRefs, completedRefs, pendingRefs]⟩
     refine ⟨opened, ⟨stream, opened, by simp [NodeFailed]⟩, ?_⟩
     intro other available
-    have same : other.key = stream.key := List.mem_singleton.mp available.2.1
+    have same : other.ref = stream.ref := List.mem_singleton.mp available.2.1
     obtain ⟨kind, deps, producer, known⟩ := available.1
     cases kind with
     | group =>
@@ -79,7 +79,7 @@ theorem carrier_allowed : EventAllowed work [stream.key] matching [] [] carrier 
     refine ⟨[], some (.item [] 0), child_node, ?_⟩
     refine ⟨by decide, Or.inl ⟨by simp [NodeFailed], Or.inr ?_⟩, ?_, by simp⟩
     · intro accounted
-      rcases accounted childTask [child.key] ⟨_, _, child_known⟩ (by simp) with
+      rcases accounted childTask [child.ref] ⟨_, _, child_known⟩ (by simp) with
         cancelled | published
       · simp [TaskCancelled] at cancelled
       · obtain ⟨index, event, selected, _, same⟩ := published
@@ -111,7 +111,7 @@ theorem prefix_explained : Explains work [] [stream] [carrier] matching [] := by
 Witness: its fixed failing outcome, structural reachability, and newly open ID.
 -/
 theorem failure_licensed
-    : FailureWitness work [stream.key] matching [carrier] [(1, childTask)] := by
+    : FailureWitness work [stream.ref] matching [carrier] [(1, childTask)] := by
   intro before cut occurrence after equal
   have sizes := congrArg List.length equal
   simp only [List.length_append, List.length_cons, List.length_nil] at sizes
@@ -123,25 +123,25 @@ theorem failure_licensed
   cases same
   refine ⟨by decide, by simp, ?_, by simp [TaskCancelled]⟩
   refine ⟨
-    [child.key],
+    [child.ref],
     some (.item [] 0),
     .object child.path (.error 1),
     child_known,
     rfl,
     ?_,
-    child.key,
+    child.ref,
     by simp,
     ?_
   ⟩
   · exact .child ⟨_, _, child_known⟩
       ⟨_, _, _, .item .root rfl, rfl⟩ (.root ⟨_, _, .item .root rfl⟩)
-  · simp [announcedKeys, pendingKeys, eventPending, carrier, child, stream]
+  · simp [announcedRefs, pendingRefs, eventPending, carrier, child, stream]
 
 /-- Recording the child's later failure preserves the earlier child announcement.
 Witness: output zero freezes its failure evidence before cut one.
 -/
 theorem later_failure_preserves_carrier
-    : EventAllowed work [stream.key] matching [] [(1, childTask)] carrier := by
+    : EventAllowed work [stream.ref] matching [] [(1, childTask)] carrier := by
   exact carrier_allowed
 
 /-- The history remains explained after recording its newly announced child's failure.

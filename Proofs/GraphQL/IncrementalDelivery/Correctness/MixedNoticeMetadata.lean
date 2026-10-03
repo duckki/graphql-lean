@@ -14,46 +14,46 @@ open Semantics.Ancestry Semantics.GeneralScheduling
 open WorkQueueSemantics
 
 -----------------------------------------------------------------------------------------
--- Dependency keys have defer roles, including absent ancestor placeholders
+-- Dependency refs have defer roles, including absent ancestor placeholders
 -----------------------------------------------------------------------------------------
 
-/-- A descriptor whose key has defer role must be a group, even in mixed work.
-Witness: execution assigns a disjoint Boolean role to every actual stream key.
+/-- A descriptor whose ref has defer role must be a group, even in mixed work.
+Witness: execution assigns a disjoint Boolean role to every actual stream ref.
 -/
 theorem node_kind_of_defer_role {roles work node kind dependencies producer}
-    (coherent : KeyRoles.WorkRoles roles work)
+    (coherent : RefRoles.WorkRoles roles work)
     (known : NodeAt work node kind dependencies producer)
-    (role : roles node.key = false)
+    (role : roles node.ref = false)
     : kind = .group := by
-  have same := node_key_role coherent known
+  have same := node_ref_role coherent known
   cases kind with
   | group => rfl
   | stream =>
-      change roles node.key = true at same
+      change roles node.ref = true at same
       rw [role] at same
       cases same
 
 /-- Every ancestor listed by a group descriptor has defer role.
 Witness: the fragment's metadata includes ancestor placeholders, not only actual nodes.
 -/
-theorem group_dependency_role {roles work node dependencies producer key}
-    (coherent : KeyRoles.WorkRoles roles work)
+theorem group_dependency_role {roles work node dependencies producer ref}
+    (coherent : RefRoles.WorkRoles roles work)
     (known : NodeAt work node .group dependencies producer)
-    (member : key ∈ dependencies)
-    : roles key = false := by
+    (member : ref ∈ dependencies)
+    : roles ref = false := by
   cases StructuralEquivalence.nodeAt_of_current known with
   | group located included =>
       have localRoles := workRoles_located coherent located.toCurrent
-      rw [KeyRoles.WorkRoles] at localRoles
+      rw [RefRoles.WorkRoles] at localRoles
       obtain ⟨ancestor, selected, rfl⟩ := List.mem_map.mp member
       exact (localRoles.1 _ included).2 ancestor selected
 
 /-- A nonempty stream dependency list is exactly its deferred producer's owner list.
 Witness: structural lookup preserves the nearest defer context and resets it at items.
 -/
-theorem stream_dependency_task {work node dependencies producer key}
+theorem stream_dependency_task {work node dependencies producer ref}
     (known : NodeAt work node .stream dependencies producer)
-    (member : key ∈ dependencies)
+    (member : ref ∈ dependencies)
     : ∃ address birth path result,
         producer = some (.executionGroup address)
         ∧ TaskAt work (.executionGroup address) dependencies birth
@@ -69,14 +69,14 @@ theorem stream_dependency_task {work node dependencies producer key}
           exact ⟨producerAddress, birth, path, result, rfl, task⟩
       | item => simp_all
 
-/-- Each explicit stream dependency is a represented group key, not a stream key.
+/-- Each explicit stream dependency is a represented group ref, not a stream ref.
 Witness: the corresponding owner of its actual deferred producer.
 -/
-theorem stream_dependency_group {work node dependencies producer key}
+theorem stream_dependency_group {work node dependencies producer ref}
     (known : NodeAt work node .stream dependencies producer)
-    (member : key ∈ dependencies)
+    (member : ref ∈ dependencies)
     : ∃ group ancestors birth,
-        NodeAt work group .group ancestors birth ∧ group.key = key := by
+        NodeAt work group .group ancestors birth ∧ group.ref = ref := by
   obtain ⟨address, birth, path, result, _, task⟩ := stream_dependency_task known member
   obtain ⟨group, ancestors, descriptor, same⟩ := task.executionGroup_owner member
   exact ⟨group, ancestors, birth, descriptor, same⟩
@@ -123,23 +123,23 @@ Witness: continuity at its own producer, regardless of other mixed stream region
 -/
 theorem deferred_producer_dependency
     {parents bound work node dependencies producer}
-    (coherent : MixedKeys.WorkAt parents 0 bound work)
+    (coherent : MixedRefs.WorkAt parents 0 bound work)
     (continuous : DeferContinuous parents work) (ordered : StreamOwnersOrdered work)
     (known : NodeAt work node .group dependencies (some (.executionGroup producer)))
-    : ∃ owners ancestor payload key,
+    : ∃ owners ancestor payload ref,
         TaskAt work (.executionGroup producer) owners ancestor payload
-        ∧ key ∈ owners
-        ∧ (key = node.key ∨ key ∈ dependencies) := by
+        ∧ ref ∈ owners
+        ∧ (ref = node.ref ∨ ref ∈ dependencies) := by
   cases StructuralEquivalence.nodeAt_of_current known with
   | group located member =>
       obtain ⟨owners, ancestor, payload, task, under⟩ :=
         deferred_producer_context continuous ordered located.toCurrent
-      obtain ⟨key, contributes, support⟩ := under.1 _ member
-      refine ⟨owners, ancestor, payload, key, task, contributes, ?_⟩
+      obtain ⟨ref, contributes, support⟩ := under.1 _ member
+      refine ⟨owners, ancestor, payload, ref, task, contributes, ?_⟩
       rcases support with reused | dependency
       · exact Or.inl reused
       · have localWork := coherent_located coherent located.toCurrent
-        rw [MixedKeys.WorkAt] at localWork
+        rw [MixedRefs.WorkAt] at localWork
         exact Or.inr (by simpa only [(localWork.2.1 _ member).2.2] using dependency)
 
 end GraphQL.IncrementalDelivery.Correctness

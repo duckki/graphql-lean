@@ -16,7 +16,7 @@ does not itself exclude transient failed roots during recursive release.
 -/
 def State.ActivePendingTracks (queue : State) (settled : List Occurrence) : Prop :=
   ∀ node ∈ queue.groupNodes,
-    node.group.node.key ∈ queue.rootGroups → node.PendingTracks settled
+    node.group.node.ref ∈ queue.rootGroups → node.PendingTracks settled
 
 /-- Pending-count equations restricted to groups not invalidated by observed task failures.
 With a success-only settlement list, retained failed groups must be excluded because
@@ -25,7 +25,7 @@ def State.HealthyPendingTracks (queue : State) (work : Execution.Work)
     (settled failed : List Occurrence)
     : Prop :=
   ∀ node ∈ queue.groupNodes,
-    ¬GroupInvalidated work failed node.group.node.key → node.PendingTracks settled
+    ¬GroupInvalidated work failed node.group.node.ref → node.PendingTracks settled
 
 /-- Healthy counters may temporarily overcount by unprocessed contributor decrements.
 This proof-only bound is sufficient to protect unsettled memberships from pruning.
@@ -33,7 +33,7 @@ This proof-only bound is sufficient to protect unsettled memberships from prunin
 abbrev State.HealthyPendingBound (queue : State) (work : Execution.Work)
     (settled failed : List Occurrence)
     : Prop :=
-  queue.PendingBound (fun key => ¬GroupInvalidated work failed key) settled
+  queue.PendingBound (fun ref => ¬GroupInvalidated work failed ref) settled
 
 /-- Exact healthy accounting implies its lower-bound form. Witness: equality implies
 the required inequality at each healthy live node.
@@ -49,16 +49,16 @@ Latent failed group shells need not satisfy this property. -/
 def State.RootGroupsHealthy (queue : State) (work : Execution.Work)
     (failed : List Occurrence)
     : Prop :=
-  ∀ key ∈ queue.rootGroups, ¬GroupInvalidated work failed key
+  ∀ ref ∈ queue.rootGroups, ¬GroupInvalidated work failed ref
 
 /-- With no failed host occurrence, cleanup invalidation has no finite witness. -/
 theorem createWorkQueue_rootGroupsHealthy (work : Execution.Work)
     : (State.initialize (Work.fromExecution work)).RootGroupsHealthy work [] := by
-  intro key member failed
+  intro ref member failed
   exact (GroupInvalidated.nonempty failed) rfl
 
 /-- Pruning shells changes the group-node map, not the set of started root
-group keys. -/
+group refs. -/
 theorem State.pruneEmptyGroups_rootGroups
     (queue : State) (groups : List Execution.DeliveryNode)
     : (queue.pruneEmptyGroups groups).1.rootGroups = queue.rootGroups := by
@@ -80,12 +80,12 @@ theorem State.pruneEmptyGroups_rootGroups
               · exact ih _ _ _
   exact loop _ queue groups []
 
-/-- Initialization activates exactly the group keys it announces. Witness: integration
+/-- Initialization activates exactly the group refs it announces. Witness: integration
 and pruning leave the initially empty root set unchanged; activation appends notices.
 -/
 theorem createWorkQueue_rootGroups (work : Work)
     : (State.initialize work).rootGroups
-      = (State.initialize work).initialGroups.map Execution.DeliveryNode.key := by
+      = (State.initialize work).initialGroups.map Execution.DeliveryNode.ref := by
   let integrated := ({} : State).maybeIntegrateWork work
   let pruned := integrated.1.pruneEmptyGroups integrated.2.newGroups
   have empty : pruned.1.rootGroups = [] := by
@@ -102,23 +102,23 @@ theorem createWorkQueue_rootGroupsPresent (work : Work)
     : (State.initialize work).RootGroupsPresent := by
   let integrated := ({} : State).maybeIntegrateWork work
   let pruned := integrated.1.pruneEmptyGroups integrated.2.newGroups
-  have unique : integrated.1.GroupKeysUnique :=
-    State.GroupKeysUnique.maybeIntegrateWork (by simp [State.GroupKeysUnique]) work none
+  have unique : integrated.1.GroupRefsUnique :=
+    State.GroupRefsUnique.maybeIntegrateWork (by simp [State.GroupRefsUnique]) work none
   have present := integrated.1.pruneEmptyGroups_keptPresent
     integrated.2.newGroups unique
-  intro key member
+  intro ref member
   rw [createWorkQueue_rootGroups] at member
-  change key ∈ (pruned.1.startNewWork
+  change ref ∈ (pruned.1.startNewWork
     { integrated.2 with newGroups := pruned.2 }).groupNodes.map _
   rw [(pruned.1.startNewWork_groupCore _).1]
-  exact present key member
+  exact present ref member
 
 /-- Successful group closure only removes a root; it does not activate its
 children until the caller explicitly starts the released Work. -/
 theorem State.finishGroupSuccess_rootGroups (queue : State) (group : GroupNode)
     : (queue.finishGroupSuccess group).1.rootGroups
-      = queue.rootGroups.filter (· != group.group.node.key) := by
-  let step (acc : State × List ExecutionGroupValue × Keys)
+      = queue.rootGroups.filter (· != group.group.node.ref) := by
+  let step (acc : State × List ExecutionGroupValue × NodeRefs)
       (occurrence : Occurrence) :=
     let (current, values, streams) := acc
     match current.taskNode? occurrence with
@@ -129,14 +129,14 @@ theorem State.finishGroupSuccess_rootGroups (queue : State) (group : GroupNode)
           | none => values
           | some value => values ++ [value]
         (current.removeTask occurrence, values, streams ++ taskNode.childStreams)
-  have stepRoots (acc : State × List ExecutionGroupValue × Keys)
+  have stepRoots (acc : State × List ExecutionGroupValue × NodeRefs)
       (occurrence : Occurrence)
       : (step acc occurrence).1.rootGroups = acc.1.rootGroups := by
     obtain ⟨current, values, streams⟩ := acc
     dsimp only [step]
     split <;> rfl
   have foldRoots (tasks : List Occurrence) :
-      ∀ acc : State × List ExecutionGroupValue × Keys,
+      ∀ acc : State × List ExecutionGroupValue × NodeRefs,
         (tasks.foldl step acc).1.rootGroups = acc.1.rootGroups := by
     induction tasks with
     | nil => intro acc; rfl
@@ -149,21 +149,21 @@ theorem State.finishGroupSuccess_rootGroups (queue : State) (group : GroupNode)
   let current : State :=
     { flushed with
         groupNodes := flushed.groupNodes.filter
-          (fun node => node.group.node.key != group.group.node.key)
-        rootGroups := flushed.rootGroups.filter (· != group.group.node.key) }
+          (fun node => node.group.node.ref != group.group.node.ref)
+        rootGroups := flushed.rootGroups.filter (· != group.group.node.ref) }
   let children := group.childGroups.filterMap
-    (fun key => (current.groupNode? key).map (fun node => node.group.node))
+    (fun ref => (current.groupNode? ref).map (fun node => node.group.node))
   have prunedRoots := current.pruneEmptyGroups_rootGroups children
   change (current.pruneEmptyGroups children).1.rootGroups
-    = queue.rootGroups.filter (· != group.group.node.key)
+    = queue.rootGroups.filter (· != group.group.node.ref)
   rw [prunedRoots]
-  exact congrArg (List.filter (· != group.group.node.key)) flushedRoots
+  exact congrArg (List.filter (· != group.group.node.ref)) flushedRoots
 
 /-- Successful closure only removes the completed root from the active set.
 Witness: the exact root-filter equation; activation is performed by the caller. -/
 theorem State.finishGroupSuccess_rootsSubset (queue : State) (group : GroupNode)
     : (queue.finishGroupSuccess group).1.rootGroups.Subset queue.rootGroups := by
-  intro key member
+  intro ref member
   rw [queue.finishGroupSuccess_rootGroups group] at member
   exact (List.mem_filter.mp member).1
 
@@ -172,12 +172,12 @@ theorem State.RootGroupsHealthy.finishGroupSuccess
     {queue : State} {work : Execution.Work} {failed : List Occurrence}
     (healthy : queue.RootGroupsHealthy work failed) (group : GroupNode)
     : (queue.finishGroupSuccess group).1.RootGroupsHealthy work failed := by
-  intro key member
-  exact healthy key (queue.finishGroupSuccess_rootsSubset group member)
+  intro ref member
+  exact healthy ref (queue.finishGroupSuccess_rootsSubset group member)
 
 /-- Recursive group removal cannot create an active root. -/
-theorem State.removeGroup_rootsSubset (queue : State) (key : Nat)
-    : (queue.removeGroup key).rootGroups.Subset queue.rootGroups := by
+theorem State.removeGroup_rootsSubset (queue : State) (ref : NodeRef)
+    : (queue.removeGroup ref).rootGroups.Subset queue.rootGroups := by
   intro root member
   unfold State.removeGroup at member
   exact (List.mem_filter.mp member).1
@@ -207,10 +207,10 @@ theorem State.taskFailure_rootsSubset
   let step (acc : State × List WorkQueueEvent)
       (group : Execution.DeliveryNode) : State × List WorkQueueEvent :=
     let (current, events) := acc
-    match current.groupNode? group.key with
+    match current.groupNode? group.ref with
     | none => (current, events)
     | some node =>
-        if current.rootGroups.contains group.key then
+        if current.rootGroups.contains group.ref then
           let (next, failure) := current.finishGroupFailure node errors
           (next, events ++ [failure])
         else
@@ -228,7 +228,7 @@ theorem State.taskFailure_rootsSubset
     · rename_i node found
       split
       · simpa [State.finishGroupFailure] using current.removeGroup_rootsSubset
-          node.group.node.key
+          node.group.node.ref
       · exact List.Subset.refl _
   have fold (groups : List Execution.DeliveryNode) :
       ∀ acc : State × List WorkQueueEvent,
@@ -254,15 +254,15 @@ theorem State.RootGroupsHealthy.startNewWork
     {queue : State} {work : Execution.Work} {failed : List Occurrence}
     (healthy : queue.RootGroupsHealthy work failed) (newWork : NewWork)
     (releasedHealthy
-      : ∀ group ∈ newWork.newGroups, ¬GroupInvalidated work failed group.key)
+      : ∀ group ∈ newWork.newGroups, ¬GroupInvalidated work failed group.ref)
     : (queue.startNewWork newWork).RootGroupsHealthy work failed := by
-  intro key member
+  intro ref member
   have roots := (queue.startNewWork_groupCore newWork).2.2
   rw [roots] at member
   rcases List.mem_append.mp member with old | new
-  · exact healthy key old
-  · obtain ⟨group, groupMember, keyEq⟩ := List.mem_map.mp new
-    subst key
+  · exact healthy ref old
+  · obtain ⟨group, groupMember, refEq⟩ := List.mem_map.mp new
+    subst ref
     exact releasedHealthy group groupMember
 
 /-- At initialization every group counter equals its full task list, and no
@@ -283,24 +283,24 @@ have not failed. -/
 private theorem State.HealthyPendingTracks.toActive
     {queue : State} {work : Execution.Work} {settled failed : List Occurrence}
     (tracks : queue.HealthyPendingTracks work settled failed)
-    (rootsHealthy : ∀ key ∈ queue.rootGroups, ¬GroupInvalidated work failed key)
+    (rootsHealthy : ∀ ref ∈ queue.rootGroups, ¬GroupInvalidated work failed ref)
     : queue.ActivePendingTracks settled := by
   intro node member active
-  exact tracks node member (rootsHealthy node.group.node.key active)
+  exact tracks node member (rootsHealthy node.group.node.ref active)
 
 /-- Replacing one group node preserves the healthy ledger when the updated
-counter is balanced for any healthy key. -/
+counter is balanced for any healthy ref. -/
 theorem State.HealthyPendingTracks.putGroupNode
     {queue : State} {work : Execution.Work} {settled failed : List Occurrence}
     (tracks : queue.HealthyPendingTracks work settled failed)
     (updated : GroupNode)
     (balanced
-      : ¬GroupInvalidated work failed updated.group.node.key
+      : ¬GroupInvalidated work failed updated.group.node.ref
         → updated.PendingTracks settled)
     : (queue.putGroupNode updated).HealthyPendingTracks work settled failed := by
   intro node member healthy
   change node ∈ queue.groupNodes.map
-    (fun old => if old.group.node.key == updated.group.node.key then updated else old)
+    (fun old => if old.group.node.ref == updated.group.node.ref then updated else old)
     at member
   obtain ⟨old, oldMember, same⟩ := List.mem_map.mp member
   split at same
@@ -341,9 +341,9 @@ theorem State.HealthyPendingTracks.addGroups
         | none => current
         | some node =>
             let children :=
-              if node.childGroups.contains group.node.key then
+              if node.childGroups.contains group.node.ref then
                 node.childGroups
-              else node.childGroups ++ [group.node.key]
+              else node.childGroups ++ [group.node.ref]
             current.putGroupNode { node with childGroups := children }
   have registerFold (more : List Group) :
       ∀ current, current.HealthyPendingTracks work settled failed
@@ -374,8 +374,8 @@ theorem State.HealthyPendingTracks.addGroups
         intro current currentTracks
         exact ih (linkStep current group) (linkStepTracks current group currentTracks)
   let fresh := groups.filter (fun group =>
-    !queue.registeredGroups.contains group.node.key
-      && (queue.groupNode? group.node.key).isNone)
+    !queue.registeredGroups.contains group.node.ref
+      && (queue.groupNode? group.node.ref).isNone)
   change (fresh.foldl linkStep
     (fresh.foldl State.addGroup queue)).HealthyPendingTracks work settled failed
   exact linkFold fresh _
@@ -390,7 +390,7 @@ theorem State.HealthyPendingTracks.addTask
     : (queue.addTask task).HealthyPendingTracks work settled failed := by
   let registered : State := { queue with tasks := queue.tasks ++ [task] }
   let step (current : State) (group : Execution.DeliveryNode) : State :=
-    match current.groupNode? group.key with
+    match current.groupNode? group.ref with
     | none => current
     | some node =>
         if node.tasks.contains task.occurrence then current
@@ -420,7 +420,7 @@ theorem State.HealthyPendingTracks.addTask
   let current := task.groups.foldl step registered
   have currentTracks : current.HealthyPendingTracks work settled failed :=
     foldTracks task.groups registered tracks
-  change (if task.groups.any (fun group => current.rootGroups.contains group.key)
+  change (if task.groups.any (fun group => current.rootGroups.contains group.ref)
       && (current.taskNode? task.occurrence).isNone then
     { current with taskNodes := current.taskNodes ++ [{ task }] }
     else current).HealthyPendingTracks work settled failed
@@ -513,13 +513,13 @@ theorem State.HealthyPendingTracks.startNewWork
 
 theorem State.HealthyPendingTracks.removeGroup
     {queue : State} {work : Execution.Work} {settled failed : List Occurrence}
-    (tracks : queue.HealthyPendingTracks work settled failed) (key : Nat)
-    : (queue.removeGroup key).HealthyPendingTracks work settled failed := by
+    (tracks : queue.HealthyPendingTracks work settled failed) (ref : NodeRef)
+    : (queue.removeGroup ref).HealthyPendingTracks work settled failed := by
   intro node member healthy
   unfold State.removeGroup at member
   exact tracks node (List.mem_filter.mp member).1 healthy
 
-/-- Once more host failures have been observed, fewer group keys remain
+/-- Once more host failures have been observed, fewer group refs remain
 healthy, so a previously valid ledger remains valid. -/
 theorem State.HealthyPendingTracks.weakenFailures
     {queue : State} {work : Execution.Work} {settled before after : List Occurrence}
@@ -547,10 +547,10 @@ theorem State.HealthyPendingTracks.taskFailure
   let step (acc : State × List WorkQueueEvent)
       (group : Execution.DeliveryNode) :=
     let (current, events) := acc
-    match current.groupNode? group.key with
+    match current.groupNode? group.ref with
     | none => (current, events)
     | some node =>
-        if current.rootGroups.contains group.key then
+        if current.rootGroups.contains group.ref then
           let (next, failure) := current.finishGroupFailure node errors
           (next, events ++ [failure])
         else
@@ -560,7 +560,7 @@ theorem State.HealthyPendingTracks.taskFailure
                 failure := some (node.failure.getD 0 + errors) }, events)
   have stepTracks (acc : State × List WorkQueueEvent)
       (group : Execution.DeliveryNode)
-      (invalid : GroupInvalidated work (occurrence :: failed) group.key)
+      (invalid : GroupInvalidated work (occurrence :: failed) group.ref)
       (currentTracks : acc.1.HealthyPendingTracks work settled (occurrence :: failed))
       : (step acc group).1.HealthyPendingTracks
           work settled (occurrence :: failed) := by
@@ -570,13 +570,13 @@ theorem State.HealthyPendingTracks.taskFailure
     · exact currentTracks
     · rename_i node found
       split
-      · rw [State.finishGroupFailure, State.groupNode?_key found]
-        exact currentTracks.removeGroup group.key
+      · rw [State.finishGroupFailure, State.groupNode?_ref found]
+        exact currentTracks.removeGroup group.ref
       · apply currentTracks.putGroupNode
         intro healthy
-        exact (healthy ((current.groupNode?_key found).symm ▸ invalid)).elim
+        exact (healthy ((current.groupNode?_ref found).symm ▸ invalid)).elim
   have foldTracks (groups : List Execution.DeliveryNode) :
-      (∀ group ∈ groups, GroupInvalidated work (occurrence :: failed) group.key) →
+      (∀ group ∈ groups, GroupInvalidated work (occurrence :: failed) group.ref) →
       ∀ acc : State × List WorkQueueEvent,
         acc.1.HealthyPendingTracks work settled (occurrence :: failed)
           → (groups.foldl step acc).1.HealthyPendingTracks
@@ -598,10 +598,10 @@ theorem State.HealthyPendingTracks.taskFailure
     obtain ⟨_, payload, producer, _, known⟩ :=
       (matching taskNode.task (registered taskNode member)).1
     have owners : TaskHasOwners work occurrence
-        (taskNode.task.groups.map Execution.DeliveryNode.key) :=
+        (taskNode.task.groups.map Execution.DeliveryNode.ref) :=
       ⟨producer, payload, same ▸ known⟩
     have invalid (group : Execution.DeliveryNode) (inGroups : group ∈ taskNode.task.groups)
-        : GroupInvalidated work (occurrence :: failed) group.key :=
+        : GroupInvalidated work (occurrence :: failed) group.ref :=
       .task owners (List.mem_map.mpr ⟨group, inGroups, rfl⟩) List.mem_cons_self
     let current := queue.removeTask occurrence
     have currentTracks : current.HealthyPendingTracks
@@ -658,7 +658,7 @@ theorem State.HealthyPendingTracks.finishGroupSuccess
     (tracks : queue.HealthyPendingTracks work settled failed)
     (group : GroupNode) (all : ∀ occurrence ∈ group.tasks, occurrence ∈ settled)
     : (queue.finishGroupSuccess group).1.HealthyPendingTracks work settled failed := by
-  let step (acc : State × List ExecutionGroupValue × Keys)
+  let step (acc : State × List ExecutionGroupValue × NodeRefs)
       (occurrence : Occurrence) :=
     let (current, values, streams) := acc
     match current.taskNode? occurrence with
@@ -669,7 +669,7 @@ theorem State.HealthyPendingTracks.finishGroupSuccess
           | none => values
           | some value => values ++ [value]
         (current.removeTask occurrence, values, streams ++ taskNode.childStreams)
-  have stepTracks (acc : State × List ExecutionGroupValue × Keys)
+  have stepTracks (acc : State × List ExecutionGroupValue × NodeRefs)
       (occurrence : Occurrence)
       (currentTracks : acc.1.HealthyPendingTracks work settled failed)
       (already : occurrence ∈ settled)
@@ -681,7 +681,7 @@ theorem State.HealthyPendingTracks.finishGroupSuccess
     · exact currentTracks.removeTask occurrence already
   have foldTracks (tasks : List Occurrence)
       (all : ∀ occurrence ∈ tasks, occurrence ∈ settled) :
-      ∀ acc : State × List ExecutionGroupValue × Keys,
+      ∀ acc : State × List ExecutionGroupValue × NodeRefs,
         acc.1.HealthyPendingTracks work settled failed
           → (tasks.foldl step acc).1.HealthyPendingTracks
               work settled failed := by
@@ -701,13 +701,13 @@ theorem State.HealthyPendingTracks.finishGroupSuccess
   let current : State :=
     { flushed with
         groupNodes := flushed.groupNodes.filter
-          (fun node => node.group.node.key != group.group.node.key)
-        rootGroups := flushed.rootGroups.filter (· != group.group.node.key) }
+          (fun node => node.group.node.ref != group.group.node.ref)
+        rootGroups := flushed.rootGroups.filter (· != group.group.node.ref) }
   have currentTracks : current.HealthyPendingTracks work settled failed := by
     intro node member healthy
     exact flushedTracks node (List.mem_filter.mp member).1 healthy
   let children := group.childGroups.filterMap
-    (fun key => (current.groupNode? key).map (fun node => node.group.node))
+    (fun ref => (current.groupNode? ref).map (fun node => node.group.node))
   change (current.pruneEmptyGroups children).1.HealthyPendingTracks work settled failed
   exact currentTracks.pruneEmptyGroups children
 

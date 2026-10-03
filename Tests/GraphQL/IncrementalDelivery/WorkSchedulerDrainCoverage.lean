@@ -79,15 +79,15 @@ failure through their unannounced child owners.
 -/
 theorem source_valid
     : ValidGraphEvents work received ∧ inputsStarted work [received] = true := by
-  have failedKnown : TaskAt work failedTask [root.key, failed.key] none (.object [] (.error 1)) :=
+  have failedKnown : TaskAt work failedTask [root.ref, failed.ref] none (.object [] (.error 1)) :=
     ⟨_, [], .error 1, .empty, [], rfl, rfl, rfl⟩
-  have firstKnown : TaskAt work firstTask [root.key, firstOwner.key] none
+  have firstKnown : TaskAt work firstTask [root.ref, firstOwner.ref] none
       (.object [] (.ok (firstValue.data, 0))) :=
     ⟨_, [], .ok (firstValue.data, 0), .combine .empty .empty, [], rfl, rfl, rfl⟩
-  have sharedKnown : TaskAt work sharedTask [root.key, failed.key, lastOwner.key] none
+  have sharedKnown : TaskAt work sharedTask [root.ref, failed.ref, lastOwner.ref] none
       (.object [] (.ok (sharedValue.data, 0))) :=
     ⟨_, [], .ok (sharedValue.data, 0), .combine .empty .empty, [], rfl, rfl, rfl⟩
-  have parentKnown : TaskAt work parentTask [parent.key] none
+  have parentKnown : TaskAt work parentTask [parent.ref] none
       (.object [] (.ok (parentValue.data, 0))) :=
     ⟨_, [], .ok (parentValue.data, 0), .combine .empty .empty, [], rfl, rfl, rfl⟩
   have one : ValidGraphEvents work [failure] :=
@@ -118,7 +118,7 @@ theorem source_valid
 private def parentNode : GroupNode :=
   {
     group := ⟨parent, none⟩,
-    childGroups := [failed.key, firstOwner.key, lastOwner.key],
+    childGroups := [failed.ref, firstOwner.ref, lastOwner.ref],
     tasks := [parentTask]
   }
 
@@ -173,8 +173,8 @@ Witness: generic success/failure root-coverage preservation plus the empty final
 the conclusion is not obtained by evaluating the three final group lookups directly.
 -/
 theorem mixed_drain_no_stranded_roots
-    : ∀ key ∈ [failed.key, firstOwner.key, lastOwner.key],
-        ready.drainReadyGroups.1.groupNode? key = none := by
+    : ∀ ref ∈ [failed.ref, firstOwner.ref, lastOwner.ref],
+        ready.drainReadyGroups.1.groupNode? ref = none := by
   have noChildren : ∀ node ∈ ready.groupNodes, node.childGroups = [] := by
     have checked : ready.groupNodes.all (fun node => node.childGroups.isEmpty) = true := by cbv
     intro node member
@@ -190,17 +190,17 @@ theorem mixed_drain_no_stranded_roots
     · intro first second firstMember secondMember linked
       rw [noChildren first firstMember] at linked
       cases linked
-  intro key member
+  intro ref member
   apply State.drainReadyGroups_no_stranded_group
-    (by unfold State.GroupKeysUnique; cbv; decide)
+    (by unfold State.GroupRefsUnique; cbv; decide)
     forest
     (by cbv)
   simp only [List.mem_cons, List.not_mem_nil, or_false] at member
   rcases member with rfl | rfl | rfl
-  · exact ⟨failed.key, by cbv; exact List.mem_cons_self, .self (by cbv)⟩
-  · exact ⟨firstOwner.key, by cbv; exact List.mem_cons_of_mem _ List.mem_cons_self,
+  · exact ⟨failed.ref, by cbv; exact List.mem_cons_self, .self (by cbv)⟩
+  · exact ⟨firstOwner.ref, by cbv; exact List.mem_cons_of_mem _ List.mem_cons_self,
       .self (by cbv)⟩
-  · exact ⟨lastOwner.key,
+  · exact ⟨lastOwner.ref,
       by cbv; exact List.mem_cons_of_mem _ (List.mem_cons_of_mem _ List.mem_cons_self),
       .self (by cbv)⟩
 
@@ -247,9 +247,9 @@ private theorem ready_links : ready.StoredTaskLinks := by
       (accounted.started { task := ⟨parentTask, [parent]⟩ } known.1) (by
       simp [GraphEvent.taskSettlements, GraphEvent.groupSuccesses, GraphEvent.groupFailures,
         failure, first, shared, failedTask, firstTask, sharedTask, parentTask]))
-  have oldGroup : waiting.groupNode? parent.key = some { parentNode with pending := 1 } := by
+  have oldGroup : waiting.groupNode? parent.ref = some { parentNode with pending := 1 } := by
     cbv
-  have updated := installed.putGroupNodeSameTasks accounted.keys
+  have updated := installed.putGroupNodeSameTasks accounted.refs
     { parentNode with pending := 1 } (List.mem_of_find?_eq_some oldGroup) parentNode rfl rfl
   exact (updated.finishGroupSuccess parentNode).startNewWork _
 
@@ -354,7 +354,7 @@ theorem mixed_drain_membership_boundary
   rw [show State.drainReadyGroups.go ready.groupNodes.length ready = ready.drainReadyGroups
     from rfl, size] at firstCovered
   refine ⟨cleared 2 (by cbv) (firstTask, firstValue) firstCovered, ?_⟩
-  refine ⟨{ group := ⟨lastOwner, some parent.key⟩, tasks := [sharedTask] }, ?_, by simp⟩
+  refine ⟨{ group := ⟨lastOwner, some parent.ref⟩, tasks := [sharedTask] }, ?_, by simp⟩
   cbv
   exact .head _
 

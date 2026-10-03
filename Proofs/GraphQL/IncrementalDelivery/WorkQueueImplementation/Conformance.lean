@@ -14,7 +14,7 @@ namespace ConformancePlan
 
 /-- Terminal task accounting supplies every unannounced node's accounting alternative.
 Witness: all its contributing tasks are accounted; concrete tracking closes every announced
-key. Empty nodes satisfy the contributing-task condition vacuously, as the contract allows.
+ref. Empty nodes satisfy the contributing-task condition vacuously, as the contract allows.
 -/
 theorem terminal_nodes_of_tasks {work inputs w}
     (generated : ExecutedWork work) (valid : ValidGraphEvents work inputs.flatten)
@@ -25,7 +25,7 @@ theorem terminal_nodes_of_tasks {work inputs w}
     : NodeAccounting work w := by
   intro node kind dependencies producer known
   classical
-  by_cases announced : node.key ∈ announcedKeys (initialKeys work) w.events
+  by_cases announced : node.ref ∈ announcedRefs (initialRefs work) w.events
   · exact .inl (announced_terminalCompleted generated valid started history ended announced)
   · refine .inr ⟨announced, .inr ?_⟩
     intro occurrence owners descriptor contributes

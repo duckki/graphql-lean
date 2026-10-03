@@ -36,9 +36,9 @@ theorem streamAction_healthy_of_successfulItems
             streams)
     (known : NodeAt work stream .stream dependencies producer)
     (selected : w.events[index]? = some event)
-    (action : streamAction event = some (stream.key, closing))
+    (action : streamAction event = some (stream.ref, closing))
     (nonfailure : ∀ node errors, event ≠ .streamFailure node errors)
-    : ¬NodeFailed work w.matching (w.events.take index) w.failures stream.key := by
+    : ¬NodeFailed work w.matching (w.events.take index) w.failures stream.ref := by
   let queue := initialQueue work
   let publisher : IncrementalPublisher :=
     { active := queue.initialGroups ++ queue.initialStreams }
@@ -62,7 +62,7 @@ theorem streamAction_healthy_of_successfulItems
   have length : (w.events.take index).length = index :=
     List.length_take_of_le (Nat.le_of_lt (List.getElem?_eq_some_iff.mp selected).1)
   have contributors : ∀ occurrence owners,
-      TaskHasOwners work occurrence owners → stream.key ∈ owners
+      TaskHasOwners work occurrence owners → stream.ref ∈ owners
       → occurrence ∉ failedBefore w.failures (w.events.take index).length := by
     intro occurrence owners descriptor owner
     rw [length]
@@ -115,7 +115,7 @@ The shared witness fixes strict output prefixes, publication matching, and failu
 def StreamSuccessAdmission (work : Execution.Work) (w : Witness) : Prop :=
   ∀ index stream,
     w.events[index]? = some (.streamSuccess stream)
-    → EventAllowed work (initialKeys work) w.matching (w.events.take index) w.failures
+    → EventAllowed work (initialRefs work) w.matching (w.events.take index) w.failures
         (.streamSuccess stream)
 
 /-- Actual successful stream completions are admitted on the mixed failure witness.
@@ -200,7 +200,7 @@ theorem controlAdmission_iff_groupSuccess {work inputs w}
     : ControlAdmission work w
       ↔ ∀ index node groups children,
           w.events[index]? = some (.groupSuccess node groups children)
-          → EventAllowed work (initialKeys work) w.matching (w.events.take index)
+          → EventAllowed work (initialRefs work) w.matching (w.events.take index)
               w.failures (.groupSuccess node groups children) := by
   constructor
   · intro admitted index node groups children selected

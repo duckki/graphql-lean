@@ -17,19 +17,19 @@ success when healthy, or its finite contribution sum when failed; neither adds n
 theorem completion_exists
     {work initial matching events failed node kind dependencies birth}
     (known : NodeAt work node kind dependencies birth)
-    (opened : Open initial events node.key)
-    (accounted : NodeAccounted work matching events failed node.key)
+    (opened : Open initial events node.ref)
+    (accounted : NodeAccounted work matching events failed node.ref)
     (failuresKnown
       : ∀ occurrence ∈ failedBefore failed events.length,
           ∃ owners producer payload, TaskAt work occurrence owners producer payload)
     : ∃ event,
         EventAllowed work initial matching events failed event
         ∧ eventPending event = []
-        ∧ eventCompleted event = [node.key]
+        ∧ eventCompleted event = [node.ref]
         ∧ ¬IsValue event := by
   classical
-  by_cases failure : NodeFailed work matching events failed node.key
-  · obtain ⟨errors, counted⟩ := NodeErrors.exists failuresKnown node.key
+  by_cases failure : NodeFailed work matching events failed node.ref
+  · obtain ⟨errors, counted⟩ := NodeErrors.exists failuresKnown node.ref
     cases kind with
     | group =>
         refine ⟨.groupFailure node errors, ?_, rfl, rfl, id⟩
@@ -59,29 +59,29 @@ theorem completion_exists
           nodeAccounted_filter (Nat.le_refl _)]
         exact ⟨⟨dependencies, birth, known⟩, opened, failure, accounted⟩
 
-/-- A notice-free completion removes exactly its key from the open frontier. Witness:
+/-- A notice-free completion removes exactly its ref from the open frontier. Witness:
 append equations for announcement and completion projections.
 -/
-theorem open_append_completion {initial events event closed key}
+theorem open_append_completion {initial events event closed ref}
     (pending : eventPending event = []) (completed : eventCompleted event = [closed])
-    : Open initial (events ++ [event]) key ↔ Open initial events key ∧ key ≠ closed := by
-  simp only [Open, announcedKeys, pendingKeys, completedKeys, List.flatMap_append,
+    : Open initial (events ++ [event]) ref ↔ Open initial events ref ∧ ref ≠ closed := by
+  simp only [Open, announcedRefs, pendingRefs, completedRefs, List.flatMap_append,
     List.flatMap_cons, List.flatMap_nil, pending, completed, List.append_nil,
     List.mem_append, List.mem_singleton, not_or]
   exact and_assoc.symm
 
-/-- An open key outside a suffix's selected closure keys remains open. Witness:
-announcements persist, and any new completion would contradict the selected-key bound.
+/-- An open ref outside a suffix's selected closure refs remains open. Witness:
+announcements persist, and any new completion would contradict the selected-ref bound.
 -/
-theorem Open.append_unselected {initial events tail keys key}
-    (opened : Open initial events key) (selected : (completedKeys tail).Subset keys)
-    (outside : key ∉ keys)
-    : Open initial (events ++ tail) key := by
+theorem Open.append_unselected {initial events tail refs ref}
+    (opened : Open initial events ref) (selected : (completedRefs tail).Subset refs)
+    (outside : ref ∉ refs)
+    : Open initial (events ++ tail) ref := by
   refine ⟨?_, ?_⟩
-  · simpa only [announcedKeys, pendingKeys, List.flatMap_append, List.append_assoc]
-      using List.mem_append_left (pendingKeys tail) opened.1
+  · simpa only [announcedRefs, pendingRefs, List.flatMap_append, List.append_assoc]
+      using List.mem_append_left (pendingRefs tail) opened.1
   · intro closed
-    rw [completedKeys, List.flatMap_append] at closed
+    rw [completedRefs, List.flatMap_append] at closed
     rcases List.mem_append.mp closed with old | new
     · exact opened.2 old
     · exact outside (selected new)
@@ -90,26 +90,26 @@ theorem Open.append_unselected {initial events tail keys key}
 -- Closing a finite frontier
 -----------------------------------------------------------------------------------------
 
-/-- Selected announced keys can close once their own contributing tasks are accounted
-for; unrelated tasks may remain unfinished. Witness: close each still-open selected key
-once, emitting no notices or publications. The suffix closes no unselected key, so a
+/-- Selected announced refs can close once their own contributing tasks are accounted
+for; unrelated tasks may remain unfinished. Witness: close each still-open selected ref
+once, emitting no notices or publications. The suffix closes no unselected ref, so a
 future notice carrier can deliberately be left open by this existential construction.
 -/
-theorem Explains.close_accounted_keys {work groups streams events matching failures}
+theorem Explains.close_accounted_refs {work groups streams events matching failures}
     (explained : Explains work groups streams events matching failures)
-    (keys : Keys)
+    (refs : NodeRefs)
     (announced
-      : ∀ key ∈ keys,
-          key ∈ announcedKeys ((groups ++ streams).map DeliveryNode.key) events)
-    (accounted : ∀ key ∈ keys, NodeAccounted work matching events failures key)
+      : ∀ ref ∈ refs,
+          ref ∈ announcedRefs ((groups ++ streams).map DeliveryNode.ref) events)
+    (accounted : ∀ ref ∈ refs, NodeAccounted work matching events failures ref)
     : ∃ tail,
-        tail.length ≤ keys.length
+        tail.length ≤ refs.length
         ∧ (∀ event ∈ tail, eventPending event = [] ∧ ¬IsValue event)
         ∧ Explains work groups streams (events ++ tail) matching failures
-        ∧ (∀ key ∈ keys, key ∈ completedKeys (events ++ tail))
-        ∧ (completedKeys tail).Subset keys := by
+        ∧ (∀ ref ∈ refs, ref ∈ completedRefs (events ++ tail))
+        ∧ (completedRefs tail).Subset refs := by
   classical
-  induction keys generalizing events with
+  induction refs generalizing events with
   | nil =>
       exact ⟨
         [],
@@ -119,35 +119,35 @@ theorem Explains.close_accounted_keys {work groups streams events matching failu
         by simp,
         by intro other member; cases member
       ⟩
-  | cons key rest ih =>
-      by_cases closed : key ∈ completedKeys events
+  | cons ref rest ih =>
+      by_cases closed : ref ∈ completedRefs events
       · obtain ⟨tail, bounded, controls, finished, completes, selected⟩ := ih explained
           (fun other member => announced other (by simp [member]))
           (fun other member => accounted other (by simp [member]))
         refine ⟨tail, by simp only [List.length_cons]; omega, controls, finished, ?_, ?_⟩
         · intro other member
           rcases List.mem_cons.mp member with rfl | member
-          · simpa only [completedKeys, List.flatMap_append]
-              using List.mem_append_left (completedKeys tail) closed
+          · simpa only [completedRefs, List.flatMap_append]
+              using List.mem_append_left (completedRefs tail) closed
           · exact completes other member
         · intro other member
           exact List.mem_cons_of_mem _ (selected member)
-      · have opened : Open ((groups ++ streams).map DeliveryNode.key) events key :=
-          ⟨announced key (by simp), closed⟩
+      · have opened : Open ((groups ++ streams).map DeliveryNode.ref) events ref :=
+          ⟨announced ref (by simp), closed⟩
         obtain ⟨node, kind, dependencies, birth, known, same⟩ :=
-          explained.noticeFacts.supported key opened.1
+          explained.noticeFacts.supported ref opened.1
         obtain ⟨event, allowed, pending, completed, control⟩ := completion_exists known
-          (same ▸ opened) (same ▸ accounted key (by simp)) (by simpa only [explained.2.1.failedBefore_eq (Nat.le_refl _)]
+          (same ▸ opened) (same ▸ accounted ref (by simp)) (by simpa only [explained.2.1.failedBefore_eq (Nat.le_refl _)]
             using explained.2.1.known)
         have extended := explained.append_event
           allowed
         obtain ⟨tail, bounded, controls, finished, completes, selected⟩ := ih extended
           (fun other member => by
-            simpa only [announcedKeys, pendingKeys, List.flatMap_append, List.flatMap_cons,
+            simpa only [announcedRefs, pendingRefs, List.flatMap_append, List.flatMap_cons,
               List.flatMap_nil, pending, List.append_nil]
-              using announced other (List.mem_cons_of_mem key member))
+              using announced other (List.mem_cons_of_mem ref member))
           (fun other member =>
-            (accounted other (List.mem_cons_of_mem key member)).append [event])
+            (accounted other (List.mem_cons_of_mem ref member)).append [event])
         refine ⟨event :: tail, by simp only [List.length_cons]; omega, ?_, ?_, ?_, ?_⟩
         · intro output member
           rcases List.mem_cons.mp member with rfl | member
@@ -156,50 +156,50 @@ theorem Explains.close_accounted_keys {work groups streams events matching failu
         · simpa only [List.append_assoc, List.singleton_append] using finished
         · intro other member
           rcases List.mem_cons.mp member with rfl | member
-          · simp [completedKeys, completed, same]
+          · simp [completedRefs, completed, same]
           · simpa only [List.append_assoc, List.singleton_append] using completes other member
         · intro other member
-          simp only [completedKeys, List.flatMap_cons, completed, same,
+          simp only [completedRefs, List.flatMap_cons, completed, same,
             List.singleton_append, List.mem_cons] at member
           exact List.mem_cons.mpr (member.imp_right (fun inTail => selected inTail))
 
-/-- A finite list covering the open keys can be closed without new publications or
-notices, once all tasks are accounted for. Witness: close each still-open key once,
+/-- A finite list covering the open refs can be closed without new publications or
+notices, once all tasks are accounted for. Witness: close each still-open ref once,
 using its supported descriptor and preserving the original failure cuts and matching.
 -/
-theorem Explains.close_open_keys {work groups streams events matching failures}
+theorem Explains.close_open_refs {work groups streams events matching failures}
     (explained : Explains work groups streams events matching failures)
     (accounted
       : ∀ occurrence owners producer payload,
           TaskAt work occurrence owners producer payload
           → TaskAccounted work matching events failures occurrence)
-    (remaining : Keys)
+    (remaining : NodeRefs)
     (covers
-      : ∀ key,
-          Open ((groups ++ streams).map DeliveryNode.key) events key → key ∈ remaining)
+      : ∀ ref,
+          Open ((groups ++ streams).map DeliveryNode.ref) events ref → ref ∈ remaining)
     : ∃ tail,
         tail.length ≤ remaining.length
         ∧ (∀ event ∈ tail, eventPending event = [] ∧ ¬IsValue event)
         ∧ Explains work groups streams (events ++ tail) matching failures
-        ∧ ∀ key ∈
-            announcedKeys ((groups ++ streams).map DeliveryNode.key) (events ++ tail),
-            key ∈ completedKeys (events ++ tail) := by
+        ∧ ∀ ref ∈
+            announcedRefs ((groups ++ streams).map DeliveryNode.ref) (events ++ tail),
+            ref ∈ completedRefs (events ++ tail) := by
   classical
   induction remaining generalizing events with
   | nil =>
       refine ⟨[], by simp, by simp, by simpa using explained, ?_⟩
-      intro key announced
-      by_cases closed : key ∈ completedKeys (events ++ [])
+      intro ref announced
+      by_cases closed : ref ∈ completedRefs (events ++ [])
       · exact closed
-      · have opened : Open ((groups ++ streams).map DeliveryNode.key) events key := by
+      · have opened : Open ((groups ++ streams).map DeliveryNode.ref) events ref := by
           simpa only [Open, List.append_nil] using And.intro announced closed
-        exact False.elim (List.not_mem_nil (covers key opened))
-  | cons key rest ih =>
-      by_cases opened : Open ((groups ++ streams).map DeliveryNode.key) events key
+        exact False.elim (List.not_mem_nil (covers ref opened))
+  | cons ref rest ih =>
+      by_cases opened : Open ((groups ++ streams).map DeliveryNode.ref) events ref
       · obtain ⟨node, kind, dependencies, birth, known, same⟩ :=
-          explained.noticeFacts.supported key opened.1
+          explained.noticeFacts.supported ref opened.1
         have nodeAccounted : NodeAccounted work matching events failures
-            node.key := by
+            node.ref := by
           rintro occurrence owners ⟨producer, payload, task⟩ _
           exact accounted occurrence owners producer payload task
         obtain ⟨event, allowed, pending, completed, control⟩ :=
@@ -214,7 +214,7 @@ theorem Explains.close_open_keys {work groups streams events matching failures}
           fun occurrence owners producer payload task =>
             (accounted occurrence owners producer payload task).append [event]
         have nextCover : ∀ other,
-            Open ((groups ++ streams).map DeliveryNode.key) (events ++ [event]) other →
+            Open ((groups ++ streams).map DeliveryNode.ref) (events ++ [event]) other →
             other ∈ rest := by
           intro other active
           have facts := (open_append_completion pending completed).mp active
@@ -239,7 +239,7 @@ theorem Explains.close_open_keys {work groups streams events matching failures}
         exact ⟨tail, Nat.le_trans bounded (by simp), controls, finished, closed⟩
 
 /-- Once every task is published or cancelled, a terminal raw history exists. Witness:
-at most one notice-free completion per currently announced key, with unchanged failures
+at most one notice-free completion per currently announced ref, with unchanged failures
 and publication matching. No new payload or cancellation is invented.
 -/
 theorem Explains.finish_accounted {work groups streams events matching failures}
@@ -250,14 +250,14 @@ theorem Explains.finish_accounted {work groups streams events matching failures}
           → TaskAccounted work matching events failures occurrence)
     : ∃ tail,
         tail.length
-          ≤ (announcedKeys ((groups ++ streams).map DeliveryNode.key) events).length
+          ≤ (announcedRefs ((groups ++ streams).map DeliveryNode.ref) events).length
         ∧ (∀ event ∈ tail, eventPending event = [] ∧ ¬IsValue event)
         ∧ Explains work groups streams (events ++ tail) matching failures
-        ∧ Terminal work ((groups ++ streams).map DeliveryNode.key) matching
+        ∧ Terminal work ((groups ++ streams).map DeliveryNode.ref) matching
             (events ++ tail) failures := by
   obtain ⟨tail, bounded, controls, finished, closed⟩ :=
-    explained.close_open_keys accounted
-      (announcedKeys ((groups ++ streams).map DeliveryNode.key) events)
+    explained.close_open_refs accounted
+      (announcedRefs ((groups ++ streams).map DeliveryNode.ref) events)
       (fun _ opened => opened.1)
   refine ⟨tail, bounded, controls, finished, ?_⟩
   rw [Terminal]
@@ -268,9 +268,9 @@ theorem Explains.finish_accounted {work groups streams events matching failures}
       (accounted occurrence owners producer payload task).append tail
   refine ⟨finalAccounting, ?_⟩
   intro node kind dependencies birth _
-  by_cases announced : node.key ∈ announcedKeys ((groups ++ streams).map DeliveryNode.key)
+  by_cases announced : node.ref ∈ announcedRefs ((groups ++ streams).map DeliveryNode.ref)
       (events ++ tail)
-  · exact Or.inl (closed node.key announced)
+  · exact Or.inl (closed node.ref announced)
   · refine Or.inr ⟨announced, Or.inr ?_⟩
     rintro occurrence owners ⟨producer, payload, task⟩ _
     exact finalAccounting occurrence owners producer payload task
@@ -296,7 +296,7 @@ theorem WorkBatching.finish_accounted
           ⟩
         ∧ (∀ event ∈ tail, eventPending event = [] ∧ ¬IsValue event)
         ∧ tail.length
-          ≤ (announcedKeys ((groups ++ streams).map DeliveryNode.key) events).length := by
+          ≤ (announcedRefs ((groups ++ streams).map DeliveryNode.ref) events).length := by
   obtain ⟨tail, bounded, controls, finished, terminal⟩ := explained.finish_accounted accounted
   refine ⟨tail, ⟨events ++ tail, matching, failures, finished, terminal, ?_⟩,
     controls, bounded⟩

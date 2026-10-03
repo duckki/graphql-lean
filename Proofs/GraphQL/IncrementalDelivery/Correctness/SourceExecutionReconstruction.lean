@@ -381,7 +381,7 @@ mutual
                 hi
           · rename_i hnonempty
             refine runEnsures_bind (fun _ : Nat => True) _ _ _ (fun _ => trivial) ?_
-            intro key _
+            intro ref _
             refine runEnsures_bind (SeededItemsReconstructs path usage.initialCount
               (GraphQL.Execution.completeValueList schema resolvers variables fuel inner
                 (selected.map eraseField) (values.drop usage.initialCount))) _ _ _ ?_ ?_
@@ -396,7 +396,7 @@ mutual
                   simpa only [List.length_take, Nat.min_eq_left hb] using hl)
                 (basicPrefix_length schema resolvers variables fuel inner (selected.map eraseField) values
                   usage.initialCount (by omega))
-                {key := key, path := path, label := usage.label} rfl
+                {ref := ref, path := path, label := usage.label} rfl
               have hb := basicCompleteValueList_append schema resolvers variables fuel inner (selected.map eraseField)
                 (values.take usage.initialCount) (values.drop usage.initialCount)
               rw [List.take_append_drop] at hb

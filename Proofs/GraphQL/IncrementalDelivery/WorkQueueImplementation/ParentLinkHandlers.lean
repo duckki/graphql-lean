@@ -17,7 +17,7 @@ Witness: each successful lookup removes memberships without changing the child t
 -/
 theorem State.ParentLinksComplete.flushGroupTasks {queue : State} {parents}
     (complete : queue.ParentLinksComplete parents) (tasks : List Occurrence)
-    (values : List ExecutionGroupValue) (streams : Keys)
+    (values : List ExecutionGroupValue) (streams : NodeRefs)
     : (tasks.foldl flushGroupTask (queue, values, streams)).1.ParentLinksComplete
         parents := by
   induction tasks generalizing queue values streams with
@@ -39,8 +39,8 @@ theorem State.ParentLinksComplete.finishGroupSuccess {queue : State} {parents}
   let current : State :=
     { afterFlush with
       groupNodes := afterFlush.groupNodes.filter
-        (fun node => node.group.node.key != group.group.node.key)
-      rootGroups := afterFlush.rootGroups.filter (· != group.group.node.key) }
+        (fun node => node.group.node.ref != group.group.node.ref)
+      rootGroups := afterFlush.rootGroups.filter (· != group.group.node.ref) }
   have filtered : current.ParentLinksComplete parents :=
     flushed.of_subset (fun _ member => (List.mem_filter.mp member).1)
   exact filtered.pruneEmptyGroups _
@@ -51,7 +51,7 @@ Witness: failure closure delegates to the checked record-filtering removal opera
 theorem State.ParentLinksComplete.finishGroupFailure {queue : State} {parents}
     (complete : queue.ParentLinksComplete parents) (group : GroupNode) (errors : Nat)
     : (queue.finishGroupFailure group errors).1.ParentLinksComplete parents :=
-  complete.removeGroup group.group.node.key
+  complete.removeGroup group.group.node.ref
 
 /-- Every bounded mixed drain preserves complete live canonical parent links.
 Witness: both closure branches preserve completeness, as does child activation.
@@ -68,14 +68,14 @@ theorem State.ParentLinksComplete.drainReadyGroups {queue : State} {parents}
 -----------------------------------------------------------------------------------------
 
 /-- Failed task handling retains complete links through caching and immediate closure.
-Witness: thread unique keys through the contributor fold; counter updates preserve every
+Witness: thread unique refs through the contributor fold; counter updates preserve every
 child edge and failed closures filter records. Ignored settlements only remove memberships.
 -/
 theorem State.ParentLinksComplete.taskFailure {queue : State} {parents}
-    (complete : queue.ParentLinksComplete parents) (unique : queue.GroupKeysUnique)
+    (complete : queue.ParentLinksComplete parents) (unique : queue.GroupRefsUnique)
     (occurrence : Occurrence) (errors : Nat)
     : (queue.taskFailure occurrence errors).1.ParentLinksComplete parents := by
-  let property (current : State) := current.GroupKeysUnique ∧ current.ParentLinksComplete parents
+  let property (current : State) := current.GroupRefsUnique ∧ current.ParentLinksComplete parents
   have step (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode)
       (prior : property acc.1) : property (failureGroupStep errors acc group).1 := by
     obtain ⟨current, events⟩ := acc
@@ -103,18 +103,18 @@ theorem State.ParentLinksComplete.taskFailure {queue : State} {parents}
           ⟨unique.removeTask occurrence, complete.removeTask occurrence⟩).2
 
 /-- Successful task handling retains complete links after child integration and release.
-Witness: canonical child registration establishes its new edges; unique-key counter
+Witness: canonical child registration establishes its new edges; unique-ref counter
 updates, the original single-pass owner fold, and the final drain preserve them.
 -/
 theorem State.ParentLinksComplete.taskSuccess {queue : State} {parents}
-    (complete : queue.ParentLinksComplete parents) (unique : queue.GroupKeysUnique)
+    (complete : queue.ParentLinksComplete parents) (unique : queue.GroupRefsUnique)
     (registered : queue.LiveGroupsRegistered)
     (closed : queue.ParentRegistryClosed parents) (occurrence : Occurrence)
     (result : TaskResult)
     (canonical
-      : ∀ group ∈ result.work.groups, group.parent = (parents group.node.key).head?)
+      : ∀ group ∈ result.work.groups, group.parent = (parents group.node.ref).head?)
     : (queue.taskSuccess occurrence result).1.ParentLinksComplete parents := by
-  let property (current : State) := current.GroupKeysUnique ∧ current.ParentLinksComplete parents
+  let property (current : State) := current.GroupRefsUnique ∧ current.ParentLinksComplete parents
   have step (acc : State × List WorkQueueEvent × NewWork) (group : Execution.DeliveryNode)
       (prior : property acc.1) : property (successGroupStep acc group).1 := by
     obtain ⟨current, events, released⟩ := acc
@@ -142,7 +142,7 @@ theorem State.ParentLinksComplete.taskSuccess {queue : State} {parents}
       · exact complete.removeTask occurrence
       · let stored := queue.putTaskNode { node with value := some result.value }
         have storedComplete : stored.ParentLinksComplete parents := complete
-        have storedUnique : stored.GroupKeysUnique := unique
+        have storedUnique : stored.GroupRefsUnique := unique
         have integrated := storedComplete.maybeIntegrateWork storedUnique registered closed
           result.work canonical (some occurrence)
         have folded := (loop node.task.groups (_, [], {})
@@ -157,11 +157,11 @@ theorem State.ParentLinksComplete.taskSuccess {queue : State} {parents}
 Witness: register its child work, prune empty shells, then activate the surviving frontier.
 -/
 theorem State.ParentLinksComplete.integrateStreamItem {queue : State} {parents}
-    (complete : queue.ParentLinksComplete parents) (unique : queue.GroupKeysUnique)
+    (complete : queue.ParentLinksComplete parents) (unique : queue.GroupRefsUnique)
     (registered : queue.LiveGroupsRegistered)
     (closed : queue.ParentRegistryClosed parents) (item : StreamItem)
     (canonical
-      : ∀ group ∈ item.work.groups, group.parent = (parents group.node.key).head?)
+      : ∀ group ∈ item.work.groups, group.parent = (parents group.node.ref).head?)
     : (queue.integrateStreamItem item).ParentLinksComplete parents :=
   ((complete.maybeIntegrateWork unique registered closed item.work
       canonical).pruneEmptyGroups
@@ -169,18 +169,18 @@ theorem State.ParentLinksComplete.integrateStreamItem {queue : State} {parents}
     _
 
 /-- A matched stream-item batch retains complete links at every item boundary and afterward.
-Witness: thread permanent registration and key uniqueness alongside completeness, using
+Witness: thread permanent registration and ref uniqueness alongside completeness, using
 the independent registry-preservation theorems before the final mixed drain.
 -/
 theorem State.ParentLinksComplete.streamItems {queue : State} {work parents}
-    (complete : queue.ParentLinksComplete parents) (unique : queue.GroupKeysUnique)
+    (complete : queue.ParentLinksComplete parents) (unique : queue.GroupRefsUnique)
     (live : queue.LiveGroupsRegistered) (tasks : queue.TaskGroupsRegistered)
     (closed : queue.ParentRegistryClosed parents) (stream : Execution.DeliveryNode)
     (items : List StreamItem)
     (matching : (GraphEvent.streamItems stream items).MatchesWork work)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     : (queue.streamItems stream items).1.ParentLinksComplete parents := by
   let step (acc : State × List Execution.DeliveryNode
       × List Execution.DeliveryNode × List StreamItemValue) (item : StreamItem) :=
@@ -189,7 +189,7 @@ theorem State.ParentLinksComplete.streamItems {queue : State} {work parents}
     let (pruned, nonempty) := integrated.pruneEmptyGroups released.newGroups
     (pruned.startNewWork { released with newGroups := nonempty },
       groups ++ nonempty, streams ++ released.newStreams, values ++ [item.value])
-  let property (current : State) := current.GroupKeysUnique ∧ current.LiveGroupsRegistered
+  let property (current : State) := current.GroupRefsUnique ∧ current.LiveGroupsRegistered
     ∧ current.TaskGroupsRegistered ∧ current.ParentRegistryClosed parents
     ∧ current.ParentLinksComplete parents
   have loop (more : List StreamItem) (included : more.Subset items)
@@ -206,10 +206,10 @@ theorem State.ParentLinksComplete.streamItems {queue : State} {work parents}
           matching member canonical
         have covered := prior.2.2.2.2.integrateStreamItem prior.1 prior.2.1 prior.2.2.2.1 item
           (fun _ group => matching.streamItem_childGroups_parentCanonical canonical member group)
-        have keys : (acc.1.integrateStreamItem item).GroupKeysUnique :=
+        have refs : (acc.1.integrateStreamItem item).GroupRefsUnique :=
           ((prior.1.maybeIntegrateWork item.work).pruneEmptyGroups _).startNewWork _
         exact ih (fun _ inRest => included (List.mem_cons_of_mem _ inRest)) _
-          ⟨keys, registered.1, registered.2.1, registry, covered⟩
+          ⟨refs, registered.1, registered.2.1, registry, covered⟩
   unfold State.streamItems
   split
   · exact complete
@@ -221,13 +221,13 @@ Witness: the checked object/item handlers; stream termination only changes strea
 No event-admission, output-correctness, or retirement premise is needed for this invariant.
 -/
 theorem State.ParentLinksComplete.handleGraphEvent {queue : State} {work parents}
-    (complete : queue.ParentLinksComplete parents) (unique : queue.GroupKeysUnique)
+    (complete : queue.ParentLinksComplete parents) (unique : queue.GroupRefsUnique)
     (live : queue.LiveGroupsRegistered) (tasks : queue.TaskGroupsRegistered)
     (closed : queue.ParentRegistryClosed parents) (event : GraphEvent)
     (matching : event.MatchesWork work)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     : (queue.handleGraphEvent event).1.ParentLinksComplete parents := by
   cases event with
   | taskSuccess occurrence result =>

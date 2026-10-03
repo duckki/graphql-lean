@@ -9,23 +9,23 @@ open GraphQL.IncrementalDelivery.Execution
 /-- Derived notice uniqueness, support, and closure-reference facts for the observed
 prefix; these are not admission premises.
 -/
-structure NoticeFacts (work : Work) (initial : Keys) (events : List WorkQueueEvent)
+structure NoticeFacts (work : Work) (initial : NodeRefs) (events : List WorkQueueEvent)
     : Prop where
-  announcedUnique : (announcedKeys initial events).Nodup
-  completedUnique : (completedKeys events).Nodup
-  supported : ∀ key ∈ announcedKeys initial events, Supported work key
-  closed : ∀ key ∈ completedKeys events, key ∈ announcedKeys initial events
+  announcedUnique : (announcedRefs initial events).Nodup
+  completedUnique : (completedRefs events).Nodup
+  supported : ∀ ref ∈ announcedRefs initial events, Supported work ref
+  closed : ∀ ref ∈ completedRefs events, ref ∈ announcedRefs initial events
 
-/-- A permitted output preserves notice facts, by fresh append and open-key closure. -/
+/-- A permitted output preserves notice facts, by fresh append and open-ref closure. -/
 theorem NoticeFacts.extend {work initial before event}
     (h : NoticeFacts work initial before)
     (step : EventAccounting work initial before event)
     : NoticeFacts work initial (before ++ [event]) := by
-  have announced : announcedKeys initial (before ++ [event]) =
-      announcedKeys initial before ++ eventPending event := by
-    simp [announcedKeys, pendingKeys, List.append_assoc]
-  have completed : completedKeys (before ++ [event]) =
-      completedKeys before ++ eventCompleted event := by simp [completedKeys]
+  have announced : announcedRefs initial (before ++ [event]) =
+      announcedRefs initial before ++ eventPending event := by
+    simp [announcedRefs, pendingRefs, List.append_assoc]
+  have completed : completedRefs (before ++ [event]) =
+      completedRefs before ++ eventCompleted event := by simp [completedRefs]
   constructor
   · rw [announced]
     exact List.nodup_append.mpr ⟨h.announcedUnique, step.pendingUnique,
@@ -33,25 +33,25 @@ theorem NoticeFacts.extend {work initial before event}
   · rw [completed]
     exact List.nodup_append.mpr ⟨h.completedUnique, step.completedUnique,
       fun a ha b hb equal => (step.completion b hb).2 (equal ▸ ha)⟩
-  · intro key member
+  · intro ref member
     rw [announced] at member
-    exact (List.mem_append.mp member).elim (h.supported key) (step.supported key)
-  · intro key member
+    exact (List.mem_append.mp member).elim (h.supported ref) (step.supported ref)
+  · intro ref member
     rw [announced]
     apply List.mem_append_left
     rw [completed] at member
-    exact (List.mem_append.mp member).elim (h.closed key) (fun hk => (step.completion key hk).1)
+    exact (List.mem_append.mp member).elim (h.closed ref) (fun hk => (step.completion ref hk).1)
 
 /-- The initialized prefix has unique supported notices and no completions. -/
 theorem Initializes.noticeFacts {work groups streams}
     (h : Initializes work groups streams)
-    : NoticeFacts work ((groups ++ streams).map DeliveryNode.key) [] := by
+    : NoticeFacts work ((groups ++ streams).map DeliveryNode.ref) [] := by
   obtain ⟨unique, support⟩ := initializes_notices h
   exact ⟨
-    by simpa [announcedKeys, pendingKeys] using unique,
-    by simp [completedKeys],
-    by simpa [announcedKeys, pendingKeys] using support,
-    by simp [completedKeys]
+    by simpa [announcedRefs, pendingRefs] using unique,
+    by simp [completedRefs],
+    by simpa [announcedRefs, pendingRefs] using support,
+    by simp [completedRefs]
   ⟩
 
 /-- Notice facts extend along any explained output suffix, by list induction. -/
@@ -67,27 +67,27 @@ theorem NoticeHistory.facts {work initial before events}
 /-- Every explained history has unique notices and causal closure references. -/
 theorem Explains.noticeFacts {work groups streams events matching failures}
     (h : Explains work groups streams events matching failures)
-    : NoticeFacts work ((groups ++ streams).map DeliveryNode.key) events := by
+    : NoticeFacts work ((groups ++ streams).map DeliveryNode.ref) events := by
   simpa using h.notices.facts h.1.noticeFacts
 
-/-- Terminal work accounting closes all structurally supported announced keys. -/
+/-- Terminal work accounting closes all structurally supported announced refs. -/
 theorem Explains.allCompleted {work groups streams events matching failures}
     (h : Explains work groups streams events matching failures)
     (done
-      : Terminal work ((groups ++ streams).map DeliveryNode.key) matching events failures)
-    : ∀ key ∈ announcedKeys ((groups ++ streams).map DeliveryNode.key) events,
-        key ∈ completedKeys events := by
-  intro key member
-  obtain ⟨node, kind, dependencies, birth, known, rfl⟩ := h.noticeFacts.supported key member
+      : Terminal work ((groups ++ streams).map DeliveryNode.ref) matching events failures)
+    : ∀ ref ∈ announcedRefs ((groups ++ streams).map DeliveryNode.ref) events,
+        ref ∈ completedRefs events := by
+  intro ref member
+  obtain ⟨node, kind, dependencies, birth, known, rfl⟩ := h.noticeFacts.supported ref member
   exact (done.2 node kind dependencies birth known).resolve_right (fun hidden => hidden.1 member)
 
-/-- (liveEvents events) requires every newly announced key in the supplied atomic output
+/-- (liveEvents events) requires every newly announced ref in the supplied atomic output
 list to complete in that event or a later event.
 -/
 def liveEvents : List WorkQueueEvent → Prop
   | [] => True
   | event :: rest =>
-      (∀ key ∈ eventPending event, key ∈ completedKeys (event :: rest)) ∧ liveEvents rest
+      (∀ ref ∈ eventPending event, ref ∈ completedRefs (event :: rest)) ∧ liveEvents rest
 
 /-- Fresh notices cannot use an earlier completion; global closure therefore gives causal
 liveness.
@@ -96,22 +96,22 @@ theorem NoticeHistory.liveEvents {work initial before events}
     (h : NoticeHistory work initial before events)
     (facts : NoticeFacts work initial before)
     (closed
-      : ∀ key ∈ announcedKeys initial (before ++ events),
-          key ∈ completedKeys (before ++ events))
+      : ∀ ref ∈ announcedRefs initial (before ++ events),
+          ref ∈ completedRefs (before ++ events))
     : liveEvents events := by
   induction events generalizing before with
   | nil => trivial
   | cons event rest ih =>
       constructor
-      · intro key member
-        have known : key ∈ announcedKeys initial (before ++ event :: rest) := by
-          simp only [announcedKeys, pendingKeys, List.flatMap_append, List.flatMap_cons]
+      · intro ref member
+        have known : ref ∈ announcedRefs initial (before ++ event :: rest) := by
+          simp only [announcedRefs, pendingRefs, List.flatMap_append, List.flatMap_cons]
           exact List.mem_append_right _ (List.mem_append_right _
             (List.mem_append_left _ member))
-        have completes := closed key known
-        simp only [completedKeys, List.flatMap_append] at completes
+        have completes := closed ref known
+        simp only [completedRefs, List.flatMap_append] at completes
         rcases List.mem_append.mp completes with earlier | later
-        · exact False.elim (h.1.fresh key member (facts.closed key earlier))
+        · exact False.elim (h.1.fresh ref member (facts.closed ref earlier))
         · exact later
       · apply ih h.2 (facts.extend h.1)
         simpa [List.append_assoc] using closed
@@ -122,7 +122,7 @@ release.
 theorem Explains.liveEvents {work groups streams events matching failures}
     (h : Explains work groups streams events matching failures)
     (done
-      : Terminal work ((groups ++ streams).map DeliveryNode.key) matching events failures)
+      : Terminal work ((groups ++ streams).map DeliveryNode.ref) matching events failures)
     : liveEvents events := by
   apply h.notices.liveEvents h.1.noticeFacts
   simpa using h.allCompleted done

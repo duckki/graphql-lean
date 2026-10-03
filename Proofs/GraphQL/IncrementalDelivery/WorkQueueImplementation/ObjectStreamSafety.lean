@@ -13,7 +13,7 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
 /-- An object-produced stream's defer dependencies are its producer task's owner list.
 Witness: the existing located producer-context theorem; no generated-work or source
-assumption is needed. This is exact ownership, not merely an overlapping support key.
+assumption is needed. This is exact ownership, not merely an overlapping support ref.
 -/
 theorem NodeAt.stream_objectProducer_owners {work stream dependencies source}
     (known : NodeAt work stream .stream dependencies (some (.executionGroup source)))
@@ -33,11 +33,11 @@ that owner; original-cut stream causality then excludes producer and dependency 
 Earlier successful items remain the joint induction hypothesis, not a host-source law.
 -/
 theorem ExecutedWork.objectProducedStream_healthy_of_dependency
-    {work received matching events failures stream dependencies source key}
+    {work received matching events failures stream dependencies source ref}
     (generated : ExecutedWork work) (valid : ValidGraphEvents work received)
     (known : NodeAt work stream .stream dependencies (some (.executionGroup source)))
     (settled : Occurrence.executionGroup source ∈ received.flatMap GraphEvent.successes)
-    (member : key ∈ dependencies)
+    (member : ref ∈ dependencies)
     (failedPayloads
       : ∀ cut occurrence,
           (cut, occurrence) ∈ failures
@@ -48,14 +48,14 @@ theorem ExecutedWork.objectProducedStream_healthy_of_dependency
       : ∀ address index,
           Occurrence.item address index ∈ received.flatMap GraphEvent.successes
           → ¬TaskCancelled work matching events failures (.item address index))
-    (healthy : ¬NodeFailed work matching events failures key)
+    (healthy : ¬NodeFailed work matching events failures ref)
     (contributors
       : ∀ occurrence owners,
           TaskHasOwners work occurrence owners
-          → stream.key ∈ owners
+          → stream.ref ∈ owners
           → occurrence ∉ failedBefore failures events.length)
     : ¬TaskCancelled work matching events failures (.executionGroup source)
-      ∧ ¬NodeFailed work matching events failures stream.key := by
+      ∧ ¬NodeFailed work matching events failures stream.ref := by
   obtain ⟨ancestor, path, result, producer⟩ := NodeAt.stream_objectProducer_owners known
   have producerSafe : ¬TaskCancelled work matching events failures (.executionGroup source) := by
     intro cancelled
@@ -68,7 +68,7 @@ theorem ExecutedWork.objectProducedStream_healthy_of_dependency
   refine ⟨
     producerSafe,
     generated.streamHealthy_of_producerSafety failedPayloads known ?_ ?_
-      contributors (.inr ⟨key, member, healthy⟩)
+      contributors (.inr ⟨ref, member, healthy⟩)
   ⟩
   · intro parent same
     cases same
@@ -85,25 +85,25 @@ live or retired health, source/output inventory alignment, and earlier item safe
 explicit local obligations for the general release/replay induction.
 -/
 theorem ExecutedWork.replayGraphEvents_objectStreamHealthy_of_itemSafety
-    {work received matching events failures stream dependencies source key}
+    {work received matching events failures stream dependencies source ref}
     (generated : ExecutedWork work) (valid : ValidGraphEvents work received)
     (started : (State.initialize (Work.fromExecution work)).acceptsBatch received = true)
     (known : NodeAt work stream .stream dependencies (some (.executionGroup source)))
     (settled : Occurrence.executionGroup source ∈ received.flatMap GraphEvent.successes)
-    (member : key ∈ dependencies)
+    (member : ref ∈ dependencies)
     (registered
-      : key
+      : ref
         ∈ ((State.initialize (Work.fromExecution work)).replayGraphEvents
             received).registeredGroups)
     (healthyBoundary
       : ((State.initialize (Work.fromExecution work)).replayGraphEvents
             received).groupIsHealthy
-            key
+            ref
           = true
         ∨ ((State.initialize (Work.fromExecution work)).replayGraphEvents
             received).RetiredGroup
-            key
-          ∧ key
+            ref
+          ∧ ref
             ∉ ((State.initialize (Work.fromExecution work)).replayGraphEvents
                 received).cancelledGroups)
     (failedPayloads
@@ -126,14 +126,14 @@ theorem ExecutedWork.replayGraphEvents_objectStreamHealthy_of_itemSafety
     (contributors
       : ∀ occurrence owners,
           TaskHasOwners work occurrence owners
-          → stream.key ∈ owners
+          → stream.ref ∈ owners
           → occurrence ∉ failedBefore failures events.length)
     : ¬TaskCancelled work matching events failures (.executionGroup source)
-      ∧ ¬NodeFailed work matching events failures stream.key := by
+      ∧ ¬NodeFailed work matching events failures stream.ref := by
   obtain ⟨ancestor, path, result, producer⟩ := NodeAt.stream_objectProducer_owners known
   obtain ⟨group, groupDependencies, descriptor, same⟩ :=
     TaskAt.executionGroup_owner producer member
-  have healthy : ¬NodeFailed work matching events failures group.key := by
+  have healthy : ¬NodeFailed work matching events failures group.ref := by
     rcases healthyBoundary with live | ⟨retired, uncancelled⟩
     · exact generated.replayGraphEvents_groupHealthy_of_itemSafety valid started
         descriptor (same.symm ▸ registered) (same.symm ▸ live)

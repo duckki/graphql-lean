@@ -19,9 +19,9 @@ def State.UncancelledRetiredHealthy (queue : State) (work : Execution.Work)
     : Prop :=
   ∀ node dependencies,
     GroupRecordAt work node dependencies
-    → queue.RetiredGroup node.key
-    → node.key ∉ queue.cancelledGroups
-    → ¬GroupRecordInvalidated work failed node.key
+    → queue.RetiredGroup node.ref
+    → node.ref ∉ queue.cancelledGroups
+    → ¬GroupRecordInvalidated work failed node.ref
 
 /-- With no failures, every uncancelled retirement is healthy.
 Witness: invalidation always originates in a recorded failed task.
@@ -40,7 +40,7 @@ theorem State.UncancelledRetiredHealthy.missingParent {queue : State}
     (generated : ExecutedWork work) (fields : queue.GroupParentsCanonical parents)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (registered
       : ∀ node ∈ queue.groupNodes,
           ∀ parent, node.group.parent = some parent → parent ∈ queue.registeredGroups)
@@ -52,14 +52,14 @@ theorem State.UncancelledRetiredHealthy.missingParent {queue : State}
     rw [canonical _ _ known, ← fields node member, parentEq]
   cases dependencies with
   | nil => cases head
-  | cons key rest =>
-      have same : key = parent := Option.some.inj head
-      subst key
-      obtain ⟨record, recordKey, parentKnown⟩ := known.parent
-      have healthy := prior record rest parentKnown (recordKey.symm ▸ retired)
-        (recordKey.symm ▸ uncancelled)
+  | cons ref rest =>
+      have same : ref = parent := Option.some.inj head
+      subst ref
+      obtain ⟨record, recordRef, parentKnown⟩ := known.parent
+      have healthy := prior record rest parentKnown (recordRef.symm ▸ retired)
+        (recordRef.symm ▸ uncancelled)
       exact (GroupAncestorsHealthy.child generated known parentKnown
-        (recordKey.symm ▸ head) healthy) _ _ known rfl
+        (recordRef.symm ▸ head) healthy) _ _ known rfl
 
 -----------------------------------------------------------------------------------------
 -- Operations that create no uncancelled retirement preserve the health invariant
@@ -71,36 +71,36 @@ Witness: apply the earlier certificate to the unchanged structural record and in
 theorem State.UncancelledRetiredHealthy.of_retirementOrigins {before after : State}
     {work failed} (prior : before.UncancelledRetiredHealthy work failed)
     (origins
-      : ∀ key,
-          after.RetiredGroup key
-          → key ∉ after.cancelledGroups
-          → before.RetiredGroup key ∧ key ∉ before.cancelledGroups)
+      : ∀ ref,
+          after.RetiredGroup ref
+          → ref ∉ after.cancelledGroups
+          → before.RetiredGroup ref ∧ ref ∉ before.cancelledGroups)
     : after.UncancelledRetiredHealthy work failed := by
   intro node dependencies known retired uncancelled
-  have old := origins node.key retired uncancelled
+  have old := origins node.ref retired uncancelled
   exact prior node dependencies known old.1 old.2
 
-/-- Updating a live record changes neither retired keys nor cancellation history.
-Witness: replacement retains the exact live-key list and permanent registry.
+/-- Updating a live record changes neither retired refs nor cancellation history.
+Witness: replacement retains the exact live-ref list and permanent registry.
 -/
 theorem State.UncancelledRetiredHealthy.putGroupNode {queue : State} {work failed}
     (prior : queue.UncancelledRetiredHealthy work failed) (node : GroupNode)
     : (queue.putGroupNode node).UncancelledRetiredHealthy work failed := by
   apply prior.of_retirementOrigins
-  intro key retired uncancelled
+  intro ref retired uncancelled
   exact ⟨
-    ⟨retired.1, by simpa only [State.putGroupNode_keys] using retired.2⟩,
+    ⟨retired.1, by simpa only [State.putGroupNode_refs] using retired.2⟩,
     uncancelled
   ⟩
 
 /-- Task cleanup changes memberships but retains the exact retirement and cancellation sets.
-Witness: the group-node map keeps all keys and both permanent registries.
+Witness: the group-node map keeps all refs and both permanent registries.
 -/
 theorem State.UncancelledRetiredHealthy.removeTask {queue : State} {work failed}
     (prior : queue.UncancelledRetiredHealthy work failed) (occurrence : Occurrence)
     : (queue.removeTask occurrence).UncancelledRetiredHealthy work failed := by
   apply prior.of_retirementOrigins
-  intro key retired uncancelled
+  intro ref retired uncancelled
   refine ⟨⟨retired.1, ?_⟩, uncancelled⟩
   simpa only [State.removeTask, List.map_map, Function.comp_def] using retired.2
 
@@ -111,20 +111,20 @@ theorem State.UncancelledRetiredHealthy.startNewWork {queue : State} {work faile
     (prior : queue.UncancelledRetiredHealthy work failed) (released : NewWork)
     : (queue.startNewWork released).UncancelledRetiredHealthy work failed := by
   apply prior.of_retirementOrigins
-  intro key retired uncancelled
+  intro ref retired uncancelled
   simpa only [State.RetiredGroup, State.startNewWork_registeredGroups,
     (queue.startNewWork_groupCore released).1, State.startNewWork_cancelledGroups]
     using And.intro retired uncancelled
 
 /-- Failure removal creates only cancelled retirements, excluded from this invariant.
-Witness: an absent uncancelled key after cleanup was already absent and uncancelled.
+Witness: an absent uncancelled ref after cleanup was already absent and uncancelled.
 -/
 theorem State.UncancelledRetiredHealthy.removeGroup {queue : State} {work failed}
     (prior : queue.UncancelledRetiredHealthy work failed) (root : Nat)
     : (queue.removeGroup root).UncancelledRetiredHealthy work failed := by
   apply prior.of_retirementOrigins
-  intro key retired uncancelled
-  have old := queue.removeGroup_missing_uncancelled root key retired.lookup_none uncancelled
+  intro ref retired uncancelled
+  have old := queue.removeGroup_missing_uncancelled root ref retired.lookup_none uncancelled
   exact ⟨.of_lookup_none retired.1 old.1, old.2⟩
 
 /-- Candidate registration creates no new uncancelled retirement, even in child-first order.
@@ -134,19 +134,19 @@ theorem State.UncancelledRetiredHealthy.addGroups {queue : State} {work failed}
     (prior : queue.UncancelledRetiredHealthy work failed) (groups : List Group)
     : (queue.addGroups groups).1.UncancelledRetiredHealthy work failed := by
   apply prior.of_retirementOrigins
-  intro key retired uncancelled
-  exact ⟨(queue.addGroups_retired_or_cancelled groups key retired).resolve_right uncancelled,
+  intro ref retired uncancelled
+  exact ⟨(queue.addGroups_retired_or_cancelled groups ref retired).resolve_right uncancelled,
     fun member => uncancelled (queue.addGroups_cancelledGroups_subset groups member)⟩
 
 /-- Task registration preserves all uncancelled retired records' health.
-Witness: registration leaves permanent groups unchanged and retains each old live key.
+Witness: registration leaves permanent groups unchanged and retains each old live ref.
 -/
 theorem State.UncancelledRetiredHealthy.addTask {queue : State} {work failed}
     (prior : queue.UncancelledRetiredHealthy work failed) (task : Task)
     : (queue.addTask task).UncancelledRetiredHealthy work failed := by
   apply prior.of_retirementOrigins
-  intro key retired uncancelled
-  refine ⟨⟨?_, fun live => retired.2 (queue.addTask_includesKeys task key live)⟩, ?_⟩
+  intro ref retired uncancelled
+  refine ⟨⟨?_, fun live => retired.2 (queue.addTask_includesRefs task ref live)⟩, ?_⟩
   · have registered := retired.1
     rwa [State.addTask_registeredGroups] at registered
   · rwa [State.addTask_cancelledGroups] at uncancelled
@@ -186,27 +186,27 @@ theorem State.UncancelledRetiredHealthy.maybeIntegrateWork {queue : State} {work
 -- Health at successful removal and fresh-failure extension
 -----------------------------------------------------------------------------------------
 
-/-- Filtering a healthy key preserves healthy uncancelled retirement.
-Witness: a newly retired target is the healthy removed key; every other target was already
+/-- Filtering a healthy ref preserves healthy uncancelled retirement.
+Witness: a newly retired target is the healthy removed ref; every other target was already
 retired. Failure health is a static fact about `work` and `failed`, not the live lookup.
 -/
-theorem State.UncancelledRetiredHealthy.filter_parent {queue : State} {work failed key}
+theorem State.UncancelledRetiredHealthy.filter_parent {queue : State} {work failed ref}
     (prior : queue.UncancelledRetiredHealthy work failed)
-    (healthy : ¬GroupRecordInvalidated work failed key)
+    (healthy : ¬GroupRecordInvalidated work failed ref)
     : ({
         queue with
-          groupNodes := queue.groupNodes.filter (fun node => node.group.node.key != key)
+          groupNodes := queue.groupNodes.filter (fun node => node.group.node.ref != ref)
       }).UncancelledRetiredHealthy
         work failed := by
   intro node dependencies known retired uncancelled
-  by_cases same : node.key = key
+  by_cases same : node.ref = ref
   · exact same ▸ healthy
-  · have old : queue.RetiredGroup node.key := by
+  · have old : queue.RetiredGroup node.ref := by
       refine ⟨retired.1, ?_⟩
       intro live
-      obtain ⟨other, member, sameKey⟩ := List.mem_map.mp live
+      obtain ⟨other, member, sameRef⟩ := List.mem_map.mp live
       exact retired.2 (List.mem_map.mpr ⟨other,
-        List.mem_filter.mpr ⟨member, by simp [sameKey, same]⟩, sameKey⟩)
+        List.mem_filter.mpr ⟨member, by simp [sameRef, same]⟩, sameRef⟩)
     exact prior node dependencies known old uncancelled
 
 /-- A fresh registered failure cannot invalidate an uncancelled healthy retirement.
@@ -221,7 +221,7 @@ theorem State.UncancelledRetiredHealthy.cons_fresh {queue : State} {work settled
     (matching : TaskMatches work task) (fresh : task.occurrence ∉ settled)
     : queue.UncancelledRetiredHealthy work (task.occurrence :: failed) := by
   intro node dependencies known retired uncancelled
-  exact retired.healthy_cons_fresh (ancestors node.key retired uncancelled) generated known
+  exact retired.healthy_cons_fresh (ancestors node.ref retired uncancelled) generated known
     (prior node dependencies known retired uncancelled) accounted registered matching fresh
 
 -----------------------------------------------------------------------------------------
@@ -239,17 +239,17 @@ theorem State.UncancelledRetiredHealthy.maybeIntegrateWork_missingParent
     (fields : queue.GroupParentsCanonical parents)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (registry : queue.ParentRegistryClosed parents)
     (live : queue.LiveGroupsRegistered) (tasks : queue.TaskGroupsRegistered)
     (newWork : Work)
     (parentLinks
-      : ∀ group ∈ newWork.groups, group.parent = (parents group.node.key).head?)
+      : ∀ group ∈ newWork.groups, group.parent = (parents group.node.ref).head?)
     (parentsCovered : newWork.ParentsCovered)
     (covered
       : ∀ task ∈ newWork.tasks,
-        ∀ key ∈ task.groups.map Execution.DeliveryNode.key,
-          ∃ group ∈ newWork.groups, group.node.key = key)
+        ∀ ref ∈ task.groups.map Execution.DeliveryNode.ref,
+          ∃ group ∈ newWork.groups, group.node.ref = ref)
     (parentTask : Option Occurrence := none)
     : (queue.maybeIntegrateWork newWork parentTask).1.MissingParentAncestorsHealthy
         work failed := by
@@ -263,22 +263,22 @@ theorem State.UncancelledRetiredHealthy.maybeIntegrateWork_missingParent
 
 /-- Fresh integration candidates have healthy ancestry because their full parent list is
 empty. Witness: candidate extraction gives a parentless registered descriptor and generated
-canonical ancestry equates every occurrence of its key. Pruned descendants are separate.
+canonical ancestry equates every occurrence of its ref. Pruned descendants are separate.
 -/
 theorem State.maybeIntegrateWork_newGroups_ancestorsHealthy {work failed}
-    {parents : Nat → Keys} (queue : State) (generated : ExecutedWork work)
+    {parents : Nat → NodeRefs} (queue : State) (generated : ExecutedWork work)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (newWork : Work)
     (known
       : ∀ group ∈ newWork.groups,
           ∃ dependencies, GroupRecordAt work group.node dependencies)
     (parentLinks
-      : ∀ group ∈ newWork.groups, group.parent = (parents group.node.key).head?)
+      : ∀ group ∈ newWork.groups, group.parent = (parents group.node.ref).head?)
     (parentTask : Option Occurrence := none)
     : ∀ node ∈ (queue.maybeIntegrateWork newWork parentTask).2.newGroups,
-        GroupAncestorsHealthy work failed node.key := by
+        GroupAncestorsHealthy work failed node.ref := by
   intro node member
   obtain ⟨group, included, same, parentless, _, _⟩ :=
     queue.addGroups_newGroup_candidate newWork.groups member
@@ -286,7 +286,7 @@ theorem State.maybeIntegrateWork_newGroups_ancestorsHealthy {work failed}
   have empty : dependencies = [] := by
     apply List.head?_eq_none_iff.mp
     rw [canonical _ _ descriptor, ← parentLinks group included, parentless]
-  have healthy : GroupAncestorsHealthy work failed group.node.key :=
+  have healthy : GroupAncestorsHealthy work failed group.node.ref :=
     GroupAncestorsHealthy.of_record generated descriptor (by simp [empty])
   exact same ▸ healthy
 

@@ -223,35 +223,36 @@ at a time. This proof-only ledger records which groups have already seen it.
 -/
 private def State.PendingTracksByGroup (queue : State) (settled : Nat → List Occurrence)
     : Prop :=
-  ∀ node ∈ queue.groupNodes, node.PendingTracks (settled node.group.node.key)
+  ∀ node ∈ queue.groupNodes, node.PendingTracks (settled node.group.node.ref)
 
-/-- The live memberships of one task are exactly its contributing group keys.
+/-- The live memberships of one task are exactly its contributing group refs.
 This is a proof-side ownership assertion, not additional queue storage.
 -/
-def State.OwnedExactlyBy (queue : State) (occurrence : Occurrence) (keys : Keys) : Prop :=
-  ∀ node ∈ queue.groupNodes, occurrence ∈ node.tasks ↔ node.group.node.key ∈ keys
+def State.OwnedExactlyBy (queue : State) (occurrence : Occurrence) (refs : NodeRefs)
+    : Prop :=
+  ∀ node ∈ queue.groupNodes, occurrence ∈ node.tasks ↔ node.group.node.ref ∈ refs
 
 /-- Decrementing only a group's pending counter preserves its task ownership
-map when live delivery keys are unique.
+map when live delivery refs are unique.
 -/
 theorem State.OwnedExactlyBy.putPending {queue : State}
-    {occurrence : Occurrence} {keys : Keys}
-    (owned : queue.OwnedExactlyBy occurrence keys)
-    (unique : queue.GroupKeysUnique)
+    {occurrence : Occurrence} {refs : NodeRefs}
+    (owned : queue.OwnedExactlyBy occurrence refs)
+    (unique : queue.GroupRefsUnique)
     (node : GroupNode) (nodeMember : node ∈ queue.groupNodes)
     (pending : Nat)
-    : (queue.putGroupNode { node with pending }).OwnedExactlyBy occurrence keys := by
+    : (queue.putGroupNode { node with pending }).OwnedExactlyBy occurrence refs := by
   intro next nextMember
   change next ∈ queue.groupNodes.map
-    (fun old => if old.group.node.key == node.group.node.key then
+    (fun old => if old.group.node.ref == node.group.node.ref then
       { node with pending } else old) at nextMember
   obtain ⟨old, oldMember, same⟩ := List.mem_map.mp nextMember
   split at same
-  · rename_i sameKey
-    have oldKey : old.group.node.key = node.group.node.key :=
-      beq_iff_eq.mp sameKey
+  · rename_i sameRef
+    have oldRef : old.group.node.ref = node.group.node.ref :=
+      beq_iff_eq.mp sameRef
     have oldNode : old = node :=
-      unique.sameNode oldMember nodeMember oldKey
+      unique.sameNode oldMember nodeMember oldRef
     subst old
     subst next
     exact owned node nodeMember
@@ -268,42 +269,42 @@ theorem State.PendingTracks.toByGroup {queue : State}
 
 /-- Mark one group's settlement without changing any other group's ledger. -/
 def markGroupSettled (settled : Nat → List Occurrence)
-    (key : Nat) (occurrence : Occurrence)
+    (ref : NodeRef) (occurrence : Occurrence)
     : Nat → List Occurrence :=
   fun candidate =>
-    if candidate = key then occurrence :: settled candidate else settled candidate
+    if candidate = ref then occurrence :: settled candidate else settled candidate
 
 /-- Replay the per-group settlement marks in the same order as the queue's
 contributing-group fold.
 -/
 def markGroupsSettled (settled : Nat → List Occurrence)
-    (keys : Keys) (occurrence : Occurrence)
+    (refs : NodeRefs) (occurrence : Occurrence)
     : Nat → List Occurrence :=
-  keys.foldl (fun current key => markGroupSettled current key occurrence) settled
+  refs.foldl (fun current ref => markGroupSettled current ref occurrence) settled
 
-/-- Distinct contributing keys each receive one settlement mark, regardless
+/-- Distinct contributing refs each receive one settlement mark, regardless
 of their order; every other group's ledger coordinate is untouched.
 -/
 theorem markGroupsSettled_at (settled : Nat → List Occurrence)
-    (keys : Keys) (occurrence : Occurrence) (unique : keys.Nodup)
-    (key : Nat)
-    : markGroupsSettled settled keys occurrence key
-      = if key ∈ keys then occurrence :: settled key else settled key := by
-  induction keys generalizing settled with
+    (refs : NodeRefs) (occurrence : Occurrence) (unique : refs.Nodup)
+    (ref : NodeRef)
+    : markGroupsSettled settled refs occurrence ref
+      = if ref ∈ refs then occurrence :: settled ref else settled ref := by
+  induction refs generalizing settled with
   | nil => simp [markGroupsSettled]
   | cons head tail ih =>
       obtain ⟨headAbsent, tailUnique⟩ := List.nodup_cons.mp unique
       change markGroupsSettled (markGroupSettled settled head occurrence)
-        tail occurrence key = _
+        tail occurrence ref = _
       rw [ih (markGroupSettled settled head occurrence) tailUnique]
-      by_cases inTail : key ∈ tail
-      · have different : key ≠ head := by
+      by_cases inTail : ref ∈ tail
+      · have different : ref ≠ head := by
           intro equal
-          subst key
+          subst ref
           exact headAbsent inTail
         simp [inTail, markGroupSettled, different]
-      · by_cases atHead : key = head
-        · subst key
+      · by_cases atHead : ref = head
+        · subst ref
           simp [inTail, markGroupSettled]
         · simp [inTail, atHead, markGroupSettled]
 
@@ -312,23 +313,23 @@ per-group ledger collapses back to the global settled history. Live groups
 outside that contributor set must not contain the settled occurrence.
 -/
 theorem State.PendingTracksByGroup.toGlobalAfterSettlement {queue : State}
-    {settled : List Occurrence} {keys : Keys} {occurrence : Occurrence}
+    {settled : List Occurrence} {refs : NodeRefs} {occurrence : Occurrence}
     (tracks
-      : queue.PendingTracksByGroup (markGroupsSettled (fun _ => settled) keys occurrence))
-    (unique : keys.Nodup)
+      : queue.PendingTracksByGroup (markGroupsSettled (fun _ => settled) refs occurrence))
+    (unique : refs.Nodup)
     (covered
-      : ∀ node ∈ queue.groupNodes, occurrence ∈ node.tasks → node.group.node.key ∈ keys)
+      : ∀ node ∈ queue.groupNodes, occurrence ∈ node.tasks → node.group.node.ref ∈ refs)
     : queue.PendingTracks (occurrence :: settled) := by
   intro node nodeMember
   have nodeTracks := tracks node nodeMember
-  rw [markGroupsSettled_at (fun _ => settled) keys occurrence unique
-    node.group.node.key] at nodeTracks
-  by_cases inKeys : node.group.node.key ∈ keys
-  · simpa [inKeys] using nodeTracks
+  rw [markGroupsSettled_at (fun _ => settled) refs occurrence unique
+    node.group.node.ref] at nodeTracks
+  by_cases inRefs : node.group.node.ref ∈ refs
+  · simpa [inRefs] using nodeTracks
   · have absent : occurrence ∉ node.tasks := by
       intro member
-      exact inKeys (covered node nodeMember member)
-    simp only [inKeys, ↓reduceIte] at nodeTracks
+      exact inRefs (covered node nodeMember member)
+    simp only [inRefs, ↓reduceIte] at nodeTracks
     change node.pending = unsettledCount node.tasks (occurrence :: settled)
     rw [unsettledCount_settle_absent node.tasks settled occurrence absent]
     exact nodeTracks
@@ -338,12 +339,12 @@ theorem State.PendingTracksByGroup.putGroupNodeSettled {queue : State}
     {settled : Nat → List Occurrence}
     (tracks : queue.PendingTracksByGroup settled)
     (updated : GroupNode) (occurrence : Occurrence)
-    (balanced : updated.PendingTracks (occurrence :: settled updated.group.node.key))
+    (balanced : updated.PendingTracks (occurrence :: settled updated.group.node.ref))
     : (queue.putGroupNode updated).PendingTracksByGroup
-        (markGroupSettled settled updated.group.node.key occurrence) := by
+        (markGroupSettled settled updated.group.node.ref occurrence) := by
   intro node member
   change node ∈ queue.groupNodes.map
-    (fun old => if old.group.node.key == updated.group.node.key then updated else old)
+    (fun old => if old.group.node.ref == updated.group.node.ref then updated else old)
     at member
   obtain ⟨old, oldMember, same⟩ := List.mem_map.mp member
   split at same
@@ -351,27 +352,27 @@ theorem State.PendingTracksByGroup.putGroupNodeSettled {queue : State}
     simpa [markGroupSettled] using balanced
   · rename_i different
     subst node
-    have unequal : old.group.node.key ≠ updated.group.node.key := by
+    have unequal : old.group.node.ref ≠ updated.group.node.ref := by
       intro equal
-      have sameKey : (old.group.node.key == updated.group.node.key) = true :=
+      have sameRef : (old.group.node.ref == updated.group.node.ref) = true :=
         beq_iff_eq.mpr equal
-      simp [sameKey] at different
+      simp [sameRef] at different
     simpa [markGroupSettled, unequal] using tracks old oldMember
 
-/-- A missing group key can be marked settled without changing any live
+/-- A missing group ref can be marked settled without changing any live
 group's ledger coordinate.
 -/
-theorem State.PendingTracksByGroup.markAbsentKey {queue : State}
+theorem State.PendingTracksByGroup.markAbsentRef {queue : State}
     {settled : Nat → List Occurrence}
     (tracks : queue.PendingTracksByGroup settled)
-    (key : Nat) (occurrence : Occurrence)
-    (missing : queue.groupNode? key = none)
-    : queue.PendingTracksByGroup (markGroupSettled settled key occurrence) := by
+    (ref : NodeRef) (occurrence : Occurrence)
+    (missing : queue.groupNode? ref = none)
+    : queue.PendingTracksByGroup (markGroupSettled settled ref occurrence) := by
   intro node member
   have missingRaw : queue.groupNodes.find?
-      (fun candidate => candidate.group.node.key == key) = none := missing
+      (fun candidate => candidate.group.node.ref == ref) = none := missing
   have noMatch := (List.find?_eq_none.mp missingRaw) node member
-  have different : node.group.node.key ≠ key := by
+  have different : node.group.node.ref ≠ ref := by
     intro equal
     exact noMatch (beq_iff_eq.mpr equal)
   simpa [markGroupSettled, different] using tracks node member
@@ -386,158 +387,158 @@ theorem State.PendingTracksByGroup.settleGroup {queue : State}
     (node : GroupNode) (nodeMember : node ∈ queue.groupNodes)
     (occurrence : Occurrence) (unique : node.tasks.Nodup)
     (member : occurrence ∈ node.tasks)
-    (fresh : occurrence ∉ settled node.group.node.key)
+    (fresh : occurrence ∉ settled node.group.node.ref)
     : (queue.putGroupNode { node with pending := node.pending - 1 }).PendingTracksByGroup
-        (markGroupSettled settled node.group.node.key occurrence) := by
+        (markGroupSettled settled node.group.node.ref occurrence) := by
   apply tracks.putGroupNodeSettled
   exact GroupNode.PendingTracks.settle node
-    (settled node.group.node.key) occurrence
+    (settled node.group.node.ref) occurrence
     (tracks node nodeMember) unique member fresh
 
-/-- Decrement the pending counter for one contributing key, if that group is
+/-- Decrement the pending counter for one contributing ref, if that group is
 still live. This is definitionally the first fold in `State.taskSuccess`.
 -/
-def settleGroupKey (queue : State) (key : Nat) : State :=
-  match queue.groupNode? key with
+def settleGroupRef (queue : State) (ref : NodeRef) : State :=
+  match queue.groupNode? ref with
   | none => queue
   | some node => queue.putGroupNode { node with pending := node.pending - 1 }
 
 /-- The executable contributor fold preserves exact accounting, unique
-memberships and keys, and task ownership. The ledger tracks partial progress
+memberships and refs, and task ownership. The ledger tracks partial progress
 without treating a shared task as settled for co-owners prematurely.
 -/
-private theorem State.settleGroupKeys_tracks
+private theorem State.settleGroupRefs_tracks
     (queue : State) (settled : Nat → List Occurrence)
-    (occurrence : Occurrence) (owners keys : Keys)
+    (occurrence : Occurrence) (owners refs : NodeRefs)
     (tracks : queue.PendingTracksByGroup settled)
-    (keyUnique : queue.GroupKeysUnique)
+    (refUnique : queue.GroupRefsUnique)
     (taskUnique : queue.TaskMembershipsUnique)
     (owned : queue.OwnedExactlyBy occurrence owners)
-    (unique : keys.Nodup)
-    (included : ∀ key ∈ keys, key ∈ owners)
-    (fresh : ∀ key ∈ keys, occurrence ∉ settled key)
-    : let final := keys.foldl settleGroupKey queue
-      final.PendingTracksByGroup (markGroupsSettled settled keys occurrence)
-      ∧ final.GroupKeysUnique
+    (unique : refs.Nodup)
+    (included : ∀ ref ∈ refs, ref ∈ owners)
+    (fresh : ∀ ref ∈ refs, occurrence ∉ settled ref)
+    : let final := refs.foldl settleGroupRef queue
+      final.PendingTracksByGroup (markGroupsSettled settled refs occurrence)
+      ∧ final.GroupRefsUnique
       ∧ final.TaskMembershipsUnique
       ∧ final.OwnedExactlyBy occurrence owners := by
-  induction keys generalizing queue settled with
+  induction refs generalizing queue settled with
   | nil =>
-      exact ⟨tracks, keyUnique, taskUnique, owned⟩
+      exact ⟨tracks, refUnique, taskUnique, owned⟩
   | cons head tail ih =>
       obtain ⟨headAbsent, tailUnique⟩ := List.nodup_cons.mp unique
       have headIncluded : head ∈ owners := included head (by simp)
       have headFresh : occurrence ∉ settled head := fresh head (by simp)
-      have tailIncluded : ∀ key ∈ tail, key ∈ owners := by
-        intro key member
-        exact included key (by simp [member])
-      have tailFresh : ∀ key ∈ tail,
-          occurrence ∉ markGroupSettled settled head occurrence key := by
-        intro key member
-        have different : key ≠ head := by
+      have tailIncluded : ∀ ref ∈ tail, ref ∈ owners := by
+        intro ref member
+        exact included ref (by simp [member])
+      have tailFresh : ∀ ref ∈ tail,
+          occurrence ∉ markGroupSettled settled head occurrence ref := by
+        intro ref member
+        have different : ref ≠ head := by
           intro equal
-          subst key
+          subst ref
           exact headAbsent member
-        simpa [markGroupSettled, different] using fresh key (by simp [member])
-      let next := settleGroupKey queue head
+        simpa [markGroupSettled, different] using fresh ref (by simp [member])
+      let next := settleGroupRef queue head
       have nextFacts :
           next.PendingTracksByGroup (markGroupSettled settled head occurrence)
-          ∧ next.GroupKeysUnique
+          ∧ next.GroupRefsUnique
           ∧ next.TaskMembershipsUnique
           ∧ next.OwnedExactlyBy occurrence owners := by
         cases found : queue.groupNode? head with
         | none =>
             exact ⟨
               by
-                simpa [next, settleGroupKey, found]
-                  using tracks.markAbsentKey head occurrence found,
-              by simpa [next, settleGroupKey, found] using keyUnique,
-              by simpa [next, settleGroupKey, found] using taskUnique,
-              by simpa [next, settleGroupKey, found] using owned
+                simpa [next, settleGroupRef, found]
+                  using tracks.markAbsentRef head occurrence found,
+              by simpa [next, settleGroupRef, found] using refUnique,
+              by simpa [next, settleGroupRef, found] using taskUnique,
+              by simpa [next, settleGroupRef, found] using owned
             ⟩
         | some node =>
             have nodeMember : node ∈ queue.groupNodes :=
               List.mem_of_find?_eq_some found
-            have nodeKey : node.group.node.key = head :=
-              State.groupNode?_key found
+            have nodeRef : node.group.node.ref = head :=
+              State.groupNode?_ref found
             have taskMember : occurrence ∈ node.tasks :=
-              (owned node nodeMember).2 (by simpa [nodeKey] using headIncluded)
+              (owned node nodeMember).2 (by simpa [nodeRef] using headIncluded)
             have nodeUnique := taskUnique node nodeMember
-            have nodeFresh : occurrence ∉ settled node.group.node.key := by
-              simpa [nodeKey] using headFresh
+            have nodeFresh : occurrence ∉ settled node.group.node.ref := by
+              simpa [nodeRef] using headFresh
             have settledNode := tracks.settleGroup node nodeMember occurrence
               nodeUnique taskMember nodeFresh
-            have ownedNode := owned.putPending keyUnique node nodeMember
+            have ownedNode := owned.putPending refUnique node nodeMember
               (node.pending - 1)
             have uniqueNode := taskUnique.putGroupNode
               { node with pending := node.pending - 1 } nodeUnique
-            have keyNode := keyUnique.putGroupNode
+            have refNode := refUnique.putGroupNode
               { node with pending := node.pending - 1 }
             exact ⟨
-              by simpa [next, settleGroupKey, found, nodeKey] using settledNode,
-              by simpa [next, settleGroupKey, found] using keyNode,
-              by simpa [next, settleGroupKey, found] using uniqueNode,
-              by simpa [next, settleGroupKey, found] using ownedNode
+              by simpa [next, settleGroupRef, found, nodeRef] using settledNode,
+              by simpa [next, settleGroupRef, found] using refNode,
+              by simpa [next, settleGroupRef, found] using uniqueNode,
+              by simpa [next, settleGroupRef, found] using ownedNode
             ⟩
-      obtain ⟨nextTracks, nextKeyUnique, nextTaskUnique, nextOwned⟩ := nextFacts
+      obtain ⟨nextTracks, nextRefUnique, nextTaskUnique, nextOwned⟩ := nextFacts
       have tailFacts := ih next (markGroupSettled settled head occurrence)
-        nextTracks nextKeyUnique nextTaskUnique nextOwned
+        nextTracks nextRefUnique nextTaskUnique nextOwned
         tailUnique tailIncluded tailFresh
       simpa only [List.foldl_cons, markGroupsSettled, List.foldl_cons] using tailFacts
 
-/-- Once every distinct contributor key has been visited, the partial ledger
+/-- Once every distinct contributor ref has been visited, the partial ledger
 becomes the ordinary global settled-task ledger again.
 -/
-private theorem State.settleGroupKeys_global
+private theorem State.settleGroupRefs_global
     (queue : State) (settled : List Occurrence)
-    (occurrence : Occurrence) (keys : Keys)
+    (occurrence : Occurrence) (refs : NodeRefs)
     (tracks : queue.PendingTracks settled)
-    (keyUnique : queue.GroupKeysUnique)
+    (refUnique : queue.GroupRefsUnique)
     (taskUnique : queue.TaskMembershipsUnique)
-    (owned : queue.OwnedExactlyBy occurrence keys)
-    (unique : keys.Nodup) (fresh : occurrence ∉ settled)
-    : let final := keys.foldl settleGroupKey queue
+    (owned : queue.OwnedExactlyBy occurrence refs)
+    (unique : refs.Nodup) (fresh : occurrence ∉ settled)
+    : let final := refs.foldl settleGroupRef queue
       final.PendingTracks (occurrence :: settled)
-      ∧ final.GroupKeysUnique
+      ∧ final.GroupRefsUnique
       ∧ final.TaskMembershipsUnique
-      ∧ final.OwnedExactlyBy occurrence keys := by
-  have folded := queue.settleGroupKeys_tracks (fun _ => settled)
-    occurrence keys keys tracks.toByGroup keyUnique taskUnique owned
-    unique (by intro key member; exact member)
-    (by intro key member; exact fresh)
-  obtain ⟨partialTracks, finalKeys, finalTasks, finalOwned⟩ := folded
+      ∧ final.OwnedExactlyBy occurrence refs := by
+  have folded := queue.settleGroupRefs_tracks (fun _ => settled)
+    occurrence refs refs tracks.toByGroup refUnique taskUnique owned
+    unique (by intro ref member; exact member)
+    (by intro ref member; exact fresh)
+  obtain ⟨partialTracks, finalRefs, finalTasks, finalOwned⟩ := folded
   have global := partialTracks.toGlobalAfterSettlement unique
     (by
       intro node member taskMember
       exact (finalOwned node member).1 taskMember)
-  exact ⟨global, finalKeys, finalTasks, finalOwned⟩
+  exact ⟨global, finalRefs, finalTasks, finalOwned⟩
 
-/-- The implementation's delivery-node fold is the key-only settlement fold;
-node metadata other than the key is not inspected by this transition.
+/-- The implementation's delivery-node fold is the ref-only settlement fold;
+node metadata other than the ref is not inspected by this transition.
 -/
-theorem settleDeliveryGroups_eq_settleGroupKeys
+theorem settleDeliveryGroups_eq_settleGroupRefs
     (queue : State) (groups : List Execution.DeliveryNode)
     : groups.foldl
         (fun current group =>
-          match current.groupNode? group.key with
+          match current.groupNode? group.ref with
           | none => current
           | some node =>
               current.putGroupNode { node with pending := node.pending - 1 }) queue
-      = (groups.map Execution.DeliveryNode.key).foldl settleGroupKey queue := by
+      = (groups.map Execution.DeliveryNode.ref).foldl settleGroupRef queue := by
   induction groups generalizing queue with
   | nil => rfl
   | cons group rest ih =>
       simp only [List.foldl_cons, List.map_cons]
       change rest.foldl
           (fun current group =>
-            match current.groupNode? group.key with
+            match current.groupNode? group.ref with
             | none => current
             | some node => current.putGroupNode
                 { node with pending := node.pending - 1 })
-          (settleGroupKey queue group.key)
-        = (rest.map Execution.DeliveryNode.key).foldl settleGroupKey
-            (settleGroupKey queue group.key)
-      exact ih (settleGroupKey queue group.key)
+          (settleGroupRef queue group.ref)
+        = (rest.map Execution.DeliveryNode.ref).foldl settleGroupRef
+            (settleGroupRef queue group.ref)
+      exact ih (settleGroupRef queue group.ref)
 
 /-- The first fold of `State.taskSuccess` advances the global ledger exactly
 once for the task, despite decrementing several shared owners individually.
@@ -546,25 +547,25 @@ theorem State.settleTaskGroups_global
     (queue : State) (settled : List Occurrence)
     (occurrence : Occurrence) (groups : List Execution.DeliveryNode)
     (tracks : queue.PendingTracks settled)
-    (keyUnique : queue.GroupKeysUnique)
+    (refUnique : queue.GroupRefsUnique)
     (taskUnique : queue.TaskMembershipsUnique)
-    (owned : queue.OwnedExactlyBy occurrence (groups.map Execution.DeliveryNode.key))
-    (unique : (groups.map Execution.DeliveryNode.key).Nodup)
+    (owned : queue.OwnedExactlyBy occurrence (groups.map Execution.DeliveryNode.ref))
+    (unique : (groups.map Execution.DeliveryNode.ref).Nodup)
     (fresh : occurrence ∉ settled)
     : let final :=
         groups.foldl
           (fun current group =>
-            match current.groupNode? group.key with
+            match current.groupNode? group.ref with
             | none => current
             | some node =>
                 current.putGroupNode { node with pending := node.pending - 1 }) queue
       final.PendingTracks (occurrence :: settled)
-      ∧ final.GroupKeysUnique
+      ∧ final.GroupRefsUnique
       ∧ final.TaskMembershipsUnique
-      ∧ final.OwnedExactlyBy occurrence (groups.map Execution.DeliveryNode.key) := by
-  rw [settleDeliveryGroups_eq_settleGroupKeys]
-  exact queue.settleGroupKeys_global settled occurrence
-    (groups.map Execution.DeliveryNode.key)
-    tracks keyUnique taskUnique owned unique fresh
+      ∧ final.OwnedExactlyBy occurrence (groups.map Execution.DeliveryNode.ref) := by
+  rw [settleDeliveryGroups_eq_settleGroupRefs]
+  exact queue.settleGroupRefs_global settled occurrence
+    (groups.map Execution.DeliveryNode.ref)
+    tracks refUnique taskUnique owned unique fresh
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

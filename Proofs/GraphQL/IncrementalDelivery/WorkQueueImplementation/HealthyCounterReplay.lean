@@ -17,7 +17,7 @@ ledgers. All-group accounting is bounded, while only uninvalidated groups are ex
 Cancellation support and canonical child links are derived alongside those counters.
 -/
 structure State.HealthyCounterAccounting (queue : State) (work : Execution.Work)
-    (parents : Nat → Keys) (events : List GraphEvent)
+    (parents : Nat → NodeRefs) (events : List GraphEvent)
     : Prop where
   pending : queue.PendingAccounting work (GraphEvent.taskSettlements events)
   healthy
@@ -37,7 +37,7 @@ theorem State.HealthyCounterAccounting.descriptors {queue work parents events}
     (prior : State.HealthyCounterAccounting queue work parents events)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     : ∀ node ∈ queue.groupNodes,
         ∃ dependencies,
           GroupRecordAt work node.group.node dependencies
@@ -52,10 +52,10 @@ Witness: the existing initialization lemmas, with the same canonical parent assi
 that root execution supplies for all later child work.
 -/
 theorem createWorkQueue_healthyCounterAccounting (work : Execution.Work)
-    (parents : Nat → Keys)
+    (parents : Nat → NodeRefs)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     : (State.initialize (Work.fromExecution work)).HealthyCounterAccounting work parents
         [] :=
   ⟨
@@ -84,7 +84,7 @@ theorem State.HealthyCounterAccounting.handleGraphEvent {queue work parents befo
     (generated : ExecutedWork work)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (valid : ValidGraphEvents work before) (event : GraphEvent)
     (matching : event.MatchesWork work) (fresh : event.Fresh before)
     (accepted : queue.acceptsGraphEvent event = true)
@@ -169,7 +169,7 @@ theorem State.HealthyCounterAccounting.replayGraphEvents {queue work parents bef
     (generated : ExecutedWork work)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (events : List GraphEvent) (valid : ValidGraphEvents work (before ++ events))
     (accepted : queue.acceptsBatch events = true)
     : (queue.replayGraphEvents events).HealthyCounterAccounting work parents
@@ -213,7 +213,7 @@ theorem State.HealthyCounterAccounting.handleGraphEvents {queue work parents bef
     (generated : ExecutedWork work)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (events : List GraphEvent) (valid : ValidGraphEvents work (before ++ events))
     (running : queue.terminated = false) (accepted : queue.acceptsBatch events = true)
     : (queue.handleGraphEvents events).1.HealthyCounterAccounting work parents
@@ -234,7 +234,7 @@ theorem State.HealthyCounterAccounting.runNormalized {queue work parents before}
     (generated : ExecutedWork work)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (batches : List (List GraphEvent))
     (valid : ValidGraphEvents work (before ++ batches.flatten))
     (started : queue.batchesStarted batches = true)

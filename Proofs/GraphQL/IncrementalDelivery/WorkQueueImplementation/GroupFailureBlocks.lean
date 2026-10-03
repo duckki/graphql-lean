@@ -16,7 +16,7 @@ def SourceBlocksHaveFailureTotals (work : Execution.Work)
   | before, block :: rest =>
       (∀ group errors,
         Execution.WorkQueueEvent.groupFailure group errors ∈ block.2
-        → GroupFailureTotal work (before ++ block.1.toList) group.key errors)
+        → GroupFailureTotal work (before ++ block.1.toList) group.ref errors)
       ∧ SourceBlocksHaveFailureTotals work (before ++ block.1.toList) rest
 
 /-- Consecutive certified block lists retain the exact intervening source prefix.
@@ -41,7 +41,7 @@ theorem SourceBlocksHaveFailureTotals.atBlock {work initial before block after}
     {group errors}
     (emitted : Execution.WorkQueueEvent.groupFailure group errors ∈ block.2)
     : GroupFailureTotal work
-        (initial ++ before.filterMap Prod.fst ++ block.1.toList) group.key errors := by
+        (initial ++ before.filterMap Prod.fst ++ block.1.toList) group.ref errors := by
   induction before generalizing initial with
   | nil => simpa using totals.1 group errors emitted
   | cons head rest ih =>

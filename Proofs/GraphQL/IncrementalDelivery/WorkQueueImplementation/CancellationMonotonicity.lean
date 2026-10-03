@@ -30,7 +30,7 @@ theorem successGroupFold_cancelledGroups (groups : List Execution.DeliveryNode)
         · rw [State.finishGroupSuccess_cancelledGroups]; rfl
         · rfl
 
-/-- Successful settlement preserves every earlier cancellation key.
+/-- Successful settlement preserves every earlier cancellation ref.
 Witness: integration only appends refused-child markers, the owner fold preserves them,
 and activation plus mixed draining never remove them. Ignored inputs keep them unchanged.
 -/
@@ -46,14 +46,14 @@ theorem State.taskSuccess_cancelledGroups_subset (queue : State) (occurrence : O
       rw [queue.taskSuccess_eq occurrence result node found]
       split
       · exact List.Subset.refl _
-      · intro key member
+      · intro ref member
         apply State.drainReadyGroups_go_cancelledGroups_subset
         rw [State.startNewWork_cancelledGroups, successGroupFold_cancelledGroups]
         dsimp only
         rw [State.maybeIntegrateWork_cancelledGroups _ result.work (some occurrence)]
         exact State.addGroups_cancelledGroups_subset _ result.work.groups member
 
-/-- Failed settlement preserves all earlier cancellation keys.
+/-- Failed settlement preserves all earlier cancellation refs.
 Witness: task removal leaves them unchanged and each active failed-owner cleanup appends.
 -/
 theorem State.taskFailure_cancelledGroups_subset (queue : State) (occurrence : Occurrence)
@@ -71,7 +71,7 @@ theorem State.taskFailure_cancelledGroups_subset (queue : State) (occurrence : O
       · exact failureGroupFold_cancelledGroups_subset errors node.task.groups
           (queue.removeTask occurrence, [])
 
-/-- Item child integration and its final drain preserve all existing cancellation keys.
+/-- Item child integration and its final drain preserve all existing cancellation refs.
 Witness: each item's integration appends markers, while pruning/activation preserve them;
 compose the fold and the actual mixed drain. Inactive stream inputs do nothing.
 -/
@@ -129,8 +129,8 @@ theorem State.handleGraphEvent_cancelledGroups_subset (queue : State) (event : G
       unfold State.streamFailure
       split <;> exact fun _ member => member
 
-/-- Sequential source replay retains every cancellation key from each earlier prefix.
-Witness: transitivity of the actual handlers' key subsets. No source-admission premise.
+/-- Sequential source replay retains every cancellation ref from each earlier prefix.
+Witness: transitivity of the actual handlers' ref subsets. No source-admission premise.
 -/
 theorem State.replayGraphEvents_cancelledGroups_subset (queue : State)
     (events : List GraphEvent)

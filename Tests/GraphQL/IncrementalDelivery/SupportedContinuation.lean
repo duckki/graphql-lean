@@ -16,16 +16,16 @@ stream having no notice yet. No initial output or batch is regenerated.
 theorem continuation {batches} (batched : WorkBatching [value] batches)
     : (History.mk [node 0] [] batches).CanFinish work := by
   apply mixed_supported_continuation (ancestry := ancestry) (bound := 3)
-    (roles := fun key => key == 2) (paths := fun _ => []) (pathBound := 3)
+    (roles := fun ref => ref == 2) (paths := fun _ => []) (pathBound := 3)
     (explained := published)
-  · intro key bounded parent member
-    by_cases one : key = 1
+  · intro ref bounded parent member
+    by_cases one : ref = 1
     · simp [ancestry, one] at member
       subst parent
       simp [one, ancestry, List.Subset]
     · simp [ancestry, one] at member
-  · simp [work, MixedKeys.WorkAt, FragmentAt, node, ancestry]
-  · simp [work, KeyRoles.WorkRoles, node]
+  · simp [work, MixedRefs.WorkAt, FragmentAt, node, ancestry]
+  · simp [work, RefRoles.WorkRoles, node]
   · simp [work, DeferContinuous, DeferUnder, node]
   · simp [work, StreamOwnersOrdered, OwnersBefore, node]
   · simp [work, MixedOwnerPaths.WorkAt, OwnerPaths.MapAt, OwnerPaths.mapNodes,

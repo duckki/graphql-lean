@@ -41,7 +41,7 @@ theorem generated : ExecutedWork work :=
 /-- The first settlement is a valid fixed failure with no producer dependency.
 Witness: the shared task's generated descriptor and the source append rule. -/
 theorem prefix_valid : ValidGraphEvents work [sharedFailure] := by
-  have known : TaskAt work sharedTask [child.key, other.key] none
+  have known : TaskAt work sharedTask [child.ref, other.ref] none
       (.object [] (.error 1)) := by
     refine ⟨[{ node := child, ancestors := [parent] }, { node := other }],
       [], .error 1, .empty, [], ?_, rfl, rfl⟩
@@ -59,12 +59,12 @@ theorem inputs_started
 /-- The latent owner remains cached while only its announced co-owner emits failure.
 Witness: concrete replay retains C's error and its link from P, without announcing C. -/
 theorem latent_failure_retained
-    : (before.groupNode? child.key).map GroupNode.failure = some (some 1)
-      ∧ child.key ∉ before.rootGroups
-      ∧ (before.groupNode? parent.key).map GroupNode.childGroups = some [child.key]
+    : (before.groupNode? child.ref).map GroupNode.failure = some (some 1)
+      ∧ child.ref ∉ before.rootGroups
+      ∧ (before.groupNode? parent.ref).map GroupNode.childGroups = some [child.ref]
       ∧ (initial.runNormalized [[sharedFailure]]).2 = [[.groupFailure other 1]] := by
   refine ⟨by cbv, ?_, by cbv, by cbv⟩
-  have roots : before.rootGroups = [parent.key] := by cbv
+  have roots : before.rootGroups = [parent.ref] := by cbv
   rw [roots]
   decide
 
@@ -72,40 +72,40 @@ theorem latent_failure_retained
 Witness: C is already a live descendant of itself and survives with a cached error.
 This refutes the former proof-only helper without its announced-owner qualification. -/
 theorem unannounced_owner_not_removed
-    : initial.LiveDescendant child.key child.key
-      ∧ (initial.taskFailure sharedTask 1).1.groupNode? child.key ≠ none := by
+    : initial.LiveDescendant child.ref child.ref
+      ∧ (initial.taskFailure sharedTask 1).1.groupNode? child.ref ≠ none := by
   constructor
-  · exact .self (node := (initial.groupNode? child.key).getD { group := { node := child } })
+  · exact .self (node := (initial.groupNode? child.ref).getD { group := { node := child } })
       (by cbv)
   · cbv
     simp
 
-/-- The later accepted parent failure removes the cached child and its active key.
+/-- The later accepted parent failure removes the cached child and its active ref.
 Witness: generated replay supplies the forest; the general announced-owner traversal
 theorem consumes the concrete parent-to-child path. The conclusion is not evaluated. -/
 theorem parent_failure_removes_cached_child
-    : (before.taskFailure parentTask 1).1.groupNode? child.key = none
-      ∧ child.key ∉ (before.taskFailure parentTask 1).1.rootGroups := by
+    : (before.taskFailure parentTask 1).1.groupNode? child.ref = none
+      ∧ child.ref ∉ (before.taskFailure parentTask 1).1.rootGroups := by
   let taskNode : TaskNode := { task := { occurrence := parentTask, groups := [parent] } }
   have found : before.taskNode? parentTask = some taskNode := by cbv
-  have path : before.LiveDescendant parent.key child.key := by
+  have path : before.LiveDescendant parent.ref child.ref := by
     apply State.LiveDescendant.child
-      (node := (before.groupNode? parent.key).getD { group := { node := parent } })
-      (child := child.key)
+      (node := (before.groupNode? parent.ref).getD { group := { node := parent } })
+      (child := child.ref)
     · cbv
-    · have links : ((before.groupNode? parent.key).getD
-          { group := { node := parent } }).childGroups = [child.key] := by cbv
+    · have links : ((before.groupNode? parent.ref).getD
+          { group := { node := parent } }).childGroups = [child.ref] := by cbv
       rw [links]
       simp
-    · exact .self (node := (before.groupNode? child.key).getD { group := { node := child } })
+    · exact .self (node := (before.groupNode? child.ref).getD { group := { node := child } })
         (by cbv)
   exact generated.runNormalized_taskFailure_covers [[sharedFailure]] prefix_valid found
     (by cbv)
     (owner := parent)
     (by simp [taskNode])
     (by
-      have roots : before.rootGroups = [parent.key] := by cbv
-      change parent.key ∈ before.rootGroups
+      have roots : before.rootGroups = [parent.ref] := by cbv
+      change parent.ref ∈ before.rootGroups
       rw [roots]
       simp)
     path

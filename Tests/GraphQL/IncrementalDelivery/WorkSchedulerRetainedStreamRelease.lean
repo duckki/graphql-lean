@@ -31,10 +31,10 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 -- Shared producer settlement waits for its surviving latent owner
 -----------------------------------------------------------------------------------------
 
-private def root : DeliveryNode := { key := 0, path := [], label := some (.string "R") }
-private def parent : DeliveryNode := { key := 1, path := [], label := some (.string "P") }
-private def child : DeliveryNode := { key := 2, path := [], label := some (.string "C") }
-private def stream : DeliveryNode := { key := 3, path := [.field "values"] }
+private def root : DeliveryNode := { ref := 0, path := [], label := some (.string "R") }
+private def parent : DeliveryNode := { ref := 1, path := [], label := some (.string "P") }
+private def child : DeliveryNode := { ref := 2, path := [], label := some (.string "C") }
+private def stream : DeliveryNode := { ref := 3, path := [.field "values"] }
 private def failedTask : Occurrence := .executionGroup [1, 0]
 private def producerTask : Occurrence := .executionGroup [1, 1, 0]
 private def parentTask : Occurrence := .executionGroup [1, 1, 1, 0]
@@ -90,13 +90,13 @@ theorem generated : ExecutedWork work := by
 Witness: locate each generated task, check child lowering, then append legal source inputs.
 -/
 theorem inputs_valid : ValidGraphEvents work [first, produced, finish] := by
-  have failed : TaskAt work failedTask [root.key] none (.object [] (.error 1)) :=
+  have failed : TaskAt work failedTask [root.ref] none (.object [] (.error 1)) :=
     ⟨[⟨root, []⟩], [], .error 1, .empty, [], rfl, rfl, rfl⟩
-  have producer : TaskAt work producerTask [root.key, child.key] none
+  have producer : TaskAt work producerTask [root.ref, child.ref] none
       (.object [] (.ok (producerValue.data, 0))) :=
     ⟨[⟨root, []⟩, ⟨child, [parent]⟩], [], .ok (producerValue.data, 0), children, [],
       rfl, rfl, rfl⟩
-  have parentKnown : TaskAt work parentTask [parent.key] none
+  have parentKnown : TaskAt work parentTask [parent.ref] none
       (.object [] (.ok (parentValue.data, 0))) :=
     ⟨[⟨parent, []⟩], [], .ok (parentValue.data, 0), .combine .empty .empty, [],
       rfl, rfl, rfl⟩
@@ -118,7 +118,7 @@ theorem inputs_valid : ValidGraphEvents work [first, produced, finish] := by
 Witness: the exact child address, including both enclosing defer owners.
 -/
 private theorem streamKnown
-    : NodeAt work stream .stream [root.key, child.key] (some producerTask) := by
+    : NodeAt work stream .stream [root.ref, child.ref] (some producerTask) := by
   refine ⟨[1, 1, 0, 0, 0, 1], entries, ?_⟩
   cbv
 
@@ -127,20 +127,20 @@ Witness: the actual initialized inventory theorem on the same generated failed-o
 the producer waits under C, then is consumed inside P's recursive release drain.
 -/
 theorem stream_notice_inventory_unique
-    : (initial.initialStreams.map DeliveryNode.key
+    : (initial.initialStreams.map DeliveryNode.ref
         ++ (initial.runNormalized [[first], [produced], [finish]]).2.flatten.flatMap
-            streamNoticeKeys).Nodup :=
-  createWorkQueue_runNormalized_streamNoticeKeys_nodup generated inputs_valid
+            streamNoticeRefs).Nodup :=
+  createWorkQueue_runNormalized_streamNoticeRefs_nodup generated inputs_valid
 
 /-- The successful producer remains buffered after R fails, with its stream still inactive.
-Witness: real replay emits only R's failure and retains the producer's value and child key.
+Witness: real replay emits only R's failure and retains the producer's value and child ref.
 -/
 theorem retained_producer
     : (initial.runNormalized [[first], [produced]]).2 = [[.groupFailure root 1]]
       ∧ waiting.rootStreams = []
       ∧ (waiting.taskNode? producerTask).bind TaskNode.value = some producerValue
       ∧ (waiting.taskNode? producerTask).map TaskNode.childStreams
-        = some [stream.key] := by
+        = some [stream.ref] := by
   constructor
   · cbv
   constructor
@@ -148,14 +148,14 @@ theorem retained_producer
   constructor <;> cbv
 
 /-- The shared buffered producer retains every structural child stream after another owner fails.
-Witness: find the actual retained value, then derive its child key from the general replay
+Witness: find the actual retained value, then derive its child ref from the general replay
 completeness invariant rather than assume the child list or a successful release.
 -/
 theorem retained_child_stream_complete
     : ∃ node,
         (initial.replayGraphEvents [first, produced]).taskNode? producerTask = some node
         ∧ node.value = some producerValue
-        ∧ stream.key ∈ node.childStreams := by
+        ∧ stream.ref ∈ node.childStreams := by
   have complete := generated.replayGraphEvents_storedStreamsComplete
     (inputs_valid.prefix (before := [first, produced]) ⟨[finish], rfl⟩)
   have buffered : ((initial.replayGraphEvents [first, produced]).taskNode?
@@ -169,7 +169,7 @@ theorem retained_child_stream_complete
       exact complete node (State.taskNode?_some found).1
         (by rw [stored]; rfl)
         (by simp)
-        stream [root.key, child.key]
+        stream [root.ref, child.ref]
         ((State.taskNode?_some found).2.symm ▸ streamKnown)
 
 -----------------------------------------------------------------------------------------
@@ -181,9 +181,9 @@ Witness: complete stored links and general source-replay stream conservation; on
 concrete owner's presence, noncancellation, and retirement are evaluated for this fixture.
 -/
 theorem retained_child_stream_must_release
-    : stream.key
+    : stream.ref
       ∈ ((initial.replayGraphEvents [first, produced]).rawEventReplay [finish]).2.flatMap
-          rawStreamNoticeKeys := by
+          rawStreamNoticeRefs := by
   obtain ⟨node, found, stored, attached⟩ := retained_child_stream_complete
   have groups : node.task.groups = [root, child] := by
     have actual : ((initial.replayGraphEvents [first, produced]).taskNode? producerTask).map
@@ -192,7 +192,7 @@ theorem retained_child_stream_must_release
   apply (generated.replayGraphEvents_bufferedStreamsConserved
           (before := [first, produced]) (events := [finish]) inputs_valid
           (by cbv)).retired_notice
-    found stored attached (owner := child.key)
+    found stored attached (owner := child.ref)
   · simp only [groups, List.map_cons, List.map_nil, List.mem_cons, List.not_mem_nil,
       or_false, or_true]
   · cbv; exact .tail _ (.head _)
@@ -216,7 +216,7 @@ theorem released_output
             .groupValues child [producerValue],
             .groupSuccess child [] [stream]
           ]
-        ∧ (initial.runNormalized batches).1.rootStreams = [stream.key]
+        ∧ (initial.runNormalized batches).1.rootStreams = [stream.ref]
         ∧ (initial.runNormalized batches).1.terminated = false := by
   intro batches member
   have choices : batches = [[first], [produced], [finish]]
@@ -246,7 +246,7 @@ theorem released_inventory
       = some (.groupSuccess child [] [stream]) := by rw [output]; rfl
   obtain ⟨occurrence, producer, earlier⟩ :=
     supported 4 child [] [stream] carrier stream List.mem_cons_self
-      [root.key, child.key] (some producerTask) streamKnown
+      [root.ref, child.ref] (some producerTask) streamKnown
   have same := Option.some.inj producer
   subst occurrence
   refine ⟨published, ledger.unique, ?_, ?_⟩
@@ -304,7 +304,7 @@ theorem released_joint_ledger
       = some (.groupSuccess child [] [stream]) := by rw [output]; rfl
   obtain ⟨occurrence, producer, earlier⟩ :=
     supported 3 child [] [stream] carrier stream List.mem_cons_self
-      [root.key, child.key] (some producerTask) streamKnown
+      [root.ref, child.ref] (some producerTask) streamKnown
   have same := Option.some.inj producer
   subst occurrence
   refine ⟨published, final.unique, ?_, ?_, ?_⟩
@@ -359,18 +359,18 @@ theorem released_drain_prefix_on_common_witness
       = some { incoming with value := some parentValue } := by
     dsimp only [prepared, incoming]
     cbv
-  have present : parent.key ∈ prepared.groupNodes.map (fun node => node.group.node.key) := by
+  have present : parent.ref ∈ prepared.groupNodes.map (fun node => node.group.node.ref) := by
     dsimp only [prepared, incoming]
     cbv; exact .head _
-  have uncancelled : parent.key ∉ activated.cancelledGroups := by
+  have uncancelled : parent.ref ∉ activated.cancelledGroups := by
     dsimp only [activated, released, prepared, incoming]
     cbv; intro impossible; cases impossible; contradiction
   have emitted := boundary parentTask { incoming with value := some parentValue } parentValue
-    buffered rfl parent.key (by simp [incoming]) present uncancelled
+    buffered rfl parent.ref (by simp [incoming]) present uncancelled
   have parentPublished : (parentTask, parentValue) ∈ published.take 1 := by
     rcases emitted with emitted | retained
     · simpa only [List.take_take, Nat.min_eq_left (by decide : 1 ≤ 2)] using emitted
-    · have absent : parent.key ∉ activated.groupNodes.map (fun node => node.group.node.key) := by
+    · have absent : parent.ref ∉ activated.groupNodes.map (fun node => node.group.node.ref) := by
         dsimp only [activated, released, prepared, incoming]
         cbv; intro impossible; cases impossible; contradiction
       exact False.elim (absent retained.2)
@@ -424,7 +424,7 @@ theorem released_handler_coverage
       laws.1 laws.2.1 memberships
   have producerCovered := covered 3 child [] [stream] (by cbv) producerTask
     { task := ⟨producerTask, [root, child]⟩, value := some producerValue,
-      childStreams := [stream.key] } producerValue (by cbv) rfl (by simp)
+      childStreams := [stream.ref] } producerValue (by cbv) rfl (by simp)
   refine ⟨published, final.unique, ?_, prepared, streams⟩
   have count : (((waiting.handleGraphEvent finish).2.take 3).flatMap
       WorkQueueEvent.objectValues).length = 2 := by cbv
@@ -477,17 +477,17 @@ implementation's real acceptance check through the failure/retention/release pre
 theorem continued_inputs
     : ValidGraphEvents work continued.flatten ∧ inputsStarted work continued = true := by
   have located : Located work [1, 1, 0, 0, 0, 1] (.stream stream entries)
-      (some producerTask) [root.key, child.key] := by cbv
+      (some producerTask) [root.ref, child.ref] := by cbv
   refine ⟨.append inputs_valid ?_ ?_ ?_, by cbv⟩
   · intro supplied member
     have same := List.mem_singleton.mp member
     subst supplied
-    exact ⟨[stream.key], some producerTask,
-      ⟨stream, entries, [root.key, child.key], .ok (.scalar "x", 0), .empty,
+    exact ⟨[stream.ref], some producerTask,
+      ⟨stream, entries, [root.ref, child.ref], .ok (.scalar "x", 0), .empty,
         located, rfl, rfl, rfl⟩, by cbv⟩
   · simp [next, item, first, produced, finish, failedTask, producerTask, parentTask,
       GraphEvent.Fresh, GraphEvent.identities]
-  · refine ⟨[1, 1, 0, 0, 0, 1], entries, some producerTask, [root.key, child.key],
+  · refine ⟨[1, 1, 0, 0, 0, 1], entries, some producerTask, [root.ref, child.ref],
       located, by simp, ?_, ?_, by cbv⟩
     · simp [first, produced, finish, GraphEvent.identities]
     · intro source same
@@ -505,10 +505,10 @@ theorem continued_buffered_links : (initial.runNormalized continued).1.StoredTas
 Witness: the general activation/announcement theorem; this query has no initial streams.
 -/
 theorem released_stream_announced
-    : stream.key
+    : stream.ref
       ∈ (initial.runNormalized [[first], [produced], [finish]]).2.flatten.flatMap
-          streamNoticeKeys := by
-  have active : stream.key ∈
+          streamNoticeRefs := by
+  have active : stream.ref ∈
       (initial.runNormalized [[first], [produced], [finish]]).1.rootStreams := by
     rw [(released_output _ List.mem_cons_self).2.2.1]
     exact List.mem_cons_self
@@ -516,13 +516,13 @@ theorem released_stream_announced
     [[first], [produced], [finish]] active
   exact noticed
 
-/-- The first item references an already-announced stream under the contract's key projection.
+/-- The first item references an already-announced stream under the contract's ref projection.
 Witness: the general strict-prefix announcement theorem at the actual item output index.
 -/
 theorem first_item_announced
-    : stream.key
-      ∈ announcedKeys
-          ((initial.initialGroups ++ initial.initialStreams).map DeliveryNode.key)
+    : stream.ref
+      ∈ announcedRefs
+          ((initial.initialGroups ++ initial.initialStreams).map DeliveryNode.ref)
           (((initial.runNormalized continued).2.flatten.flatMap publicationAtoms).take
             5) := by
   exact createWorkQueue_runNormalized_streamAnnouncedAt continued_inputs.1
@@ -530,13 +530,13 @@ theorem first_item_announced
     (by cbv) List.mem_cons_self
 
 /-- The retained child's first stream reference is still open, not merely once announced.
-Witness: generated group/stream key separation and source closure ordering rule out an
+Witness: generated group/stream ref separation and source closure ordering rule out an
 earlier completion of this stream, even across the intervening group-failure/drain events.
 -/
 theorem first_item_open
-    : Open ((initial.initialGroups ++ initial.initialStreams).map DeliveryNode.key)
+    : Open ((initial.initialGroups ++ initial.initialStreams).map DeliveryNode.ref)
         (((initial.runNormalized continued).2.flatten.flatMap publicationAtoms).take 5)
-        stream.key := by
+        stream.ref := by
   exact createWorkQueue_runNormalized_streamOpenAt generated continued_inputs.1
     (index := 5) (event := .streamValues stream [⟨.scalar "x", 0⟩] [] [])
     (by cbv) List.mem_cons_self
@@ -561,7 +561,7 @@ theorem first_item_producer_published
   refine ⟨matching, batching, ?_, fun index event atEvent value =>
     (values index event atEvent value).2.1⟩
   exact references 5 (.streamValues stream [⟨.scalar "x", 0⟩] [] []) (by cbv)
-    stream [root.key, child.key] (some producerTask) List.mem_cons_self streamKnown _ rfl
+    stream [root.ref, child.ref] (some producerTask) List.mem_cons_self streamKnown _ rfl
 
 -----------------------------------------------------------------------------------------
 -- A healthy retired co-owner protects the released stream despite the earlier R failure
@@ -570,11 +570,11 @@ theorem first_item_producer_published
 private def cuts : FailureCuts := [(0, failedTask)]
 
 private theorem failed_known
-    : TaskAt work failedTask [root.key] none (.object [] (.error 1)) :=
+    : TaskAt work failedTask [root.ref] none (.object [] (.error 1)) :=
   ⟨[⟨root, []⟩], [], .error 1, .empty, [], rfl, rfl, rfl⟩
 
 private theorem producer_known
-    : TaskAt work producerTask [root.key, child.key] none
+    : TaskAt work producerTask [root.ref, child.ref] none
         (.object [] (.ok (producerValue.data, 0))) :=
   ⟨
     [⟨root, []⟩, ⟨child, [parent]⟩],
@@ -603,8 +603,8 @@ Witness: exact source replay after the recursive drain. The health theorem below
 uncancelled retirement instead of treating absence as a successful live lookup.
 -/
 theorem released_owner_retired
-    : (initial.replayGraphEvents [first, produced, finish]).groupNode? child.key = none
-      ∧ (initial.replayGraphEvents [first, produced, finish]).groupIsHealthy child.key
+    : (initial.replayGraphEvents [first, produced, finish]).groupNode? child.ref = none
+      ∧ (initial.replayGraphEvents [first, produced, finish]).groupIsHealthy child.ref
         = false := by cbv
 
 /-- The actual carrier supplies an uncancelled retired dependency for its shared stream.
@@ -612,9 +612,9 @@ Witness: general release-health replay derives both ownership and uncancellednes
 computation checks only the emitted carrier and the source start discipline.
 -/
 theorem released_owner_support
-    : child.key ∈ [root.key, child.key]
-      ∧ (initial.replayGraphEvents [first, produced, finish]).RetiredGroup child.key
-      ∧ child.key
+    : child.ref ∈ [root.ref, child.ref]
+      ∧ (initial.replayGraphEvents [first, produced, finish]).RetiredGroup child.ref
+      ∧ child.ref
         ∉ (initial.replayGraphEvents [first, produced, finish]).cancelledGroups := by
   have support := generated.runNormalized_streamHealthyDependency
     (batches := [[first], [produced], [finish]]) inputs_valid (by cbv)
@@ -636,7 +636,7 @@ history and matching are arbitrary here; producer publication is not assumed.
 theorem released_stream_healthy (matching : PublicationMatching)
     (events : List WorkQueueEvent)
     : ¬TaskCancelled work matching events cuts producerTask
-      ∧ ¬NodeFailed work matching events cuts stream.key := by
+      ∧ ¬NodeFailed work matching events cuts stream.ref := by
   apply generated.runNormalized_releasedObjectStreamHealthy_of_itemSafety
     (batches := [[first], [produced], [finish]])
     inputs_valid
@@ -672,7 +672,7 @@ Witness: the three exact root-produced settlements are fresh in the alternate or
 each producer premise is empty, so no source dependency is reordered.
 -/
 theorem delayed_failure_inputs : ValidGraphEvents work [produced, finish, first] := by
-  have parentKnown : TaskAt work parentTask [parent.key] none
+  have parentKnown : TaskAt work parentTask [parent.ref] none
       (.object [] (.ok (parentValue.data, 0))) :=
     ⟨[⟨parent, []⟩], [], .ok (parentValue.data, 0), .combine .empty .empty, [],
       rfl, rfl, rfl⟩
@@ -723,15 +723,15 @@ theorem buffered_before_failure_retained
       (List.mem_append_right [produced] member))
   let node : TaskNode :=
     { task := ⟨producerTask, [root, child]⟩,
-      value := some producerValue, childStreams := [stream.key] }
+      value := some producerValue, childStreams := [stream.ref] }
   have found : (initial.replayGraphEvents [produced]).taskNode? producerTask
       = some node := by cbv
   have survivor : ∃ owner,
       ((initial.replayGraphEvents [produced]).replayGraphEvents [first]).groupNode?
-        child.key = some owner := by
+        child.ref = some owner := by
     cases lookup
           : ((initial.replayGraphEvents [produced]).replayGraphEvents [first]).groupNode?
-              child.key with
+              child.ref with
     | none => cbv at lookup; cases lookup
     | some owner => exact ⟨owner, rfl⟩
   obtain ⟨owner, live⟩ := survivor
@@ -746,11 +746,11 @@ host batches. No fixture-specific uncancelledness or healthy-owner premise is su
 -/
 theorem delayed_failure_owner_support
     : ∀ batches ∈ [[[produced], [finish], [first]], [[produced, finish, first]]],
-        child.key ∈ [root.key, child.key]
-        ∧ (initial.runNormalized batches).1.RetiredGroup child.key
+        child.ref ∈ [root.ref, child.ref]
+        ∧ (initial.runNormalized batches).1.RetiredGroup child.ref
         ∧ ¬GroupRecordInvalidated work
-            (initial.objectFailureContributions batches.flatten) child.key
-        ∧ child.key ∉ (initial.runNormalized batches).1.cancelledGroups := by
+            (initial.objectFailureContributions batches.flatten) child.ref
+        ∧ child.ref ∉ (initial.runNormalized batches).1.cancelledGroups := by
   intro batches member
   have choices : batches = [[produced], [finish], [first]]
       ∨ batches = [[produced, finish, first]] := by simpa using member
@@ -818,7 +818,7 @@ the historical R failure remains in the cut inventory throughout the continuatio
 theorem released_stream_healthy_after_item
     (matching : PublicationMatching) (events : List WorkQueueEvent)
     : ¬TaskCancelled work matching events cuts producerTask
-      ∧ ¬NodeFailed work matching events cuts stream.key := by
+      ∧ ¬NodeFailed work matching events cuts stream.ref := by
   apply generated.replayGraphEvents_objectStreamHealthy_after_retirement
     continued_inputs.1 (by cbv) streamKnown
     (by
@@ -836,9 +836,9 @@ theorem released_stream_healthy_after_item
         GraphEvent.successes]
         using member
     rw [same]
-    have known : TaskAt work item.occurrence [stream.key] (some producerTask)
+    have known : TaskAt work item.occurrence [stream.ref] (some producerTask)
         (.item stream (.ok (.scalar "x", 0))) :=
-      ⟨stream, entries, [root.key, child.key], .ok (.scalar "x", 0), .empty,
+      ⟨stream, entries, [root.ref, child.ref], .ok (.scalar "x", 0), .empty,
         by cbv, rfl, rfl, rfl⟩
     have healthy := released_stream_healthy matching events
     have success : TaskSucceeds work producerTask := ⟨_, _, _, producer_known, rfl⟩
@@ -869,20 +869,20 @@ failure and recursive release prefix. No output-admission or cancellation premis
 -/
 theorem two_item_inputs : ValidGraphEvents work [first, produced, finish, twoItems] := by
   have located : Located work [1, 1, 0, 0, 0, 1] (.stream stream entries)
-      (some producerTask) [root.key, child.key] := by cbv
+      (some producerTask) [root.ref, child.ref] := by cbv
   apply ValidGraphEvents.append inputs_valid
   · intro supplied member
     have choices : supplied = item ∨ supplied = secondItem := by simpa [twoItems] using member
     rcases choices with rfl | rfl
-    · exact ⟨[stream.key], some producerTask,
-        ⟨stream, entries, [root.key, child.key], .ok (.scalar "x", 0), .empty,
+    · exact ⟨[stream.ref], some producerTask,
+        ⟨stream, entries, [root.ref, child.ref], .ok (.scalar "x", 0), .empty,
           located, rfl, rfl, rfl⟩, by cbv⟩
-    · exact ⟨[stream.key], some producerTask,
-        ⟨stream, entries, [root.key, child.key], .ok (.null, 0), .empty,
+    · exact ⟨[stream.ref], some producerTask,
+        ⟨stream, entries, [root.ref, child.ref], .ok (.null, 0), .empty,
           located, rfl, rfl, rfl⟩, by cbv⟩
   · simp [twoItems, item, secondItem, first, produced, finish, failedTask, producerTask,
       parentTask, GraphEvent.Fresh, GraphEvent.identities]
-  · refine ⟨[1, 1, 0, 0, 0, 1], entries, some producerTask, [root.key, child.key],
+  · refine ⟨[1, 1, 0, 0, 0, 1], entries, some producerTask, [root.ref, child.ref],
       located, by simp, ?_, ?_, by cbv⟩
     · simp [first, produced, finish, GraphEvent.identities]
     · intro source same
@@ -932,7 +932,7 @@ theorem two_items_canonical_safe
     rw [history]
     rcases choices with rfl | rfl <;> rcases position with rfl | rfl <;> cbv
   obtain ⟨before, input, after, split, _, healthy⟩ := boundaries index
-    (.streamValues stream [value] [] []) stream [root.key, child.key]
+    (.streamValues stream [value] [] []) stream [root.ref, child.ref]
     [1, 1, 0] false selected streamKnown rfl (by intros; intro impossible; cases impossible)
   have earlierLength : before.length ≤ 3 := by
     have sizes := congrArg List.length split
@@ -1017,10 +1017,10 @@ theorem two_items_admitted
         ∃ w : ConformancePlan.Witness,
           w.events = initial.nonterminalAtoms batches
           ∧ ConformancePlan.BatchShape work batches w
-          ∧ FailureWitness work (ConformancePlan.initialKeys work)
+          ∧ FailureWitness work (ConformancePlan.initialRefs work)
               w.matching w.events w.failures
           ∧ ∀ index ∈ [5, 6],
-              EventAllowed work (ConformancePlan.initialKeys work) w.matching
+              EventAllowed work (ConformancePlan.initialRefs work) w.matching
                 (w.events.take index) w.failures
                 (.streamValues stream
                   [{ item := if index = 5 then .scalar "x" else .null }] [] []) := by
@@ -1049,12 +1049,12 @@ theorem successful_groups_open_and_healthy
     : ∃ w : ConformancePlan.Witness,
         w.events = initial.nonterminalAtoms [[first, produced, finish, twoItems]]
         ∧ ConformancePlan.BatchShape work [[first, produced, finish, twoItems]] w
-        ∧ FailureWitness work (ConformancePlan.initialKeys work)
+        ∧ FailureWitness work (ConformancePlan.initialRefs work)
             w.matching w.events w.failures
-        ∧ Open (ConformancePlan.initialKeys work) (w.events.take 2) parent.key
-        ∧ Open (ConformancePlan.initialKeys work) (w.events.take 4) child.key
-        ∧ ¬NodeFailed work w.matching w.events w.failures parent.key
-        ∧ ¬NodeFailed work w.matching w.events w.failures child.key := by
+        ∧ Open (ConformancePlan.initialRefs work) (w.events.take 2) parent.ref
+        ∧ Open (ConformancePlan.initialRefs work) (w.events.take 4) child.ref
+        ∧ ¬NodeFailed work w.matching w.events w.failures parent.ref
+        ∧ ¬NodeFailed work w.matching w.events w.failures child.ref := by
   let batches := [[first, produced, finish, twoItems]]
   obtain ⟨w, history, shape, announced, uncancelled, _, _, _, healthy⟩ :=
     ConformancePlan.mixed_groupHealthCertificates (inputs := batches) generated two_item_inputs
@@ -1087,7 +1087,7 @@ theorem retained_success_processed
         [first, produced, finish] = earlier ++ .taskSuccess producerTask result :: later
         ∧ (initial.replayGraphEvents earlier).taskNode? producerTask = some node
         ∧ (initial.replayGraphEvents earlier).taskHasHealthyOwner node.task = true := by
-  have known : TaskAt work producerTask [root.key, child.key] none
+  have known : TaskAt work producerTask [root.ref, child.ref] none
       (.object [] (.ok (producerValue.data, 0))) :=
     ⟨[⟨root, []⟩, ⟨child, [parent]⟩], [], .ok (producerValue.data, 0), children, [],
       rfl, rfl, rfl⟩
@@ -1117,12 +1117,12 @@ theorem closure_ledger_shared_failure_witness
           = (ConformancePlan.initialQueue work).nonterminalAtoms
               [[first, produced, finish, twoItems]]
         ∧ ConformancePlan.BatchShape work [[first, produced, finish, twoItems]] w
-        ∧ FailureWitness work (ConformancePlan.initialKeys work) w.matching w.events
+        ∧ FailureWitness work (ConformancePlan.initialRefs work) w.matching w.events
             w.failures
         ∧ ConformancePlan.GroupSuccessesHealthy work w
         ∧ ConformancePlan.BufferedClosureLedger work [[first, produced, finish, twoItems]]
             w
-        ∧ NodeAccounted work w.matching (w.events.take 4) w.failures child.key
+        ∧ NodeAccounted work w.matching (w.events.take 4) w.failures child.ref
         ∧ Published w.matching (w.events.take 4) producerTask := by
   let batches := [[first, produced, finish, twoItems]]
   obtain ⟨w, history, shape, announced, uncancelled, _, _, _, healthy, accounted, ledger⟩ :=
@@ -1159,11 +1159,11 @@ theorem retained_stream_terminal_completions
           .streamItems stream [item, secondItem, last],
           .streamSuccess stream
         ]
-      ∀ key ∈
-        initial.initialStreams.map DeliveryNode.key
-        ++ (initial.rawEventReplay events).2.flatMap rawStreamNoticeKeys,
-        key ∈ (initial.rawEventReplay events).2.flatMap rawStreamClosureKeys := by
-  intro last events key announced
+      ∀ ref ∈
+        initial.initialStreams.map DeliveryNode.ref
+        ++ (initial.rawEventReplay events).2.flatMap rawStreamNoticeRefs,
+        ref ∈ (initial.rawEventReplay events).2.flatMap rawStreamClosureRefs := by
+  intro last events ref announced
   exact createWorkQueue_terminalStreamCompleted (inputs := [events])
     (by cbv) (by cbv) announced
 

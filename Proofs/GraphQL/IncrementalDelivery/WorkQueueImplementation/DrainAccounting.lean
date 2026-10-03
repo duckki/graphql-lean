@@ -38,7 +38,7 @@ theorem State.pruneEmptyGroups_nodeProperty (predicate : GroupNode → Prop)
   exact loop _ queue groups [] valid
 
 /-- Successful release preserves node properties stable under membership removal.
-Witness: the task-flush fold, closing-key filter, and descendant-pruning induction.
+Witness: the task-flush fold, closing-ref filter, and descendant-pruning induction.
 -/
 theorem State.finishGroupSuccess_nodeProperty (predicate : GroupNode → Prop)
     (remove
@@ -48,7 +48,7 @@ theorem State.finishGroupSuccess_nodeProperty (predicate : GroupNode → Prop)
     {queue : State} (valid : ∀ node ∈ queue.groupNodes, predicate node)
     (group : GroupNode)
     : ∀ node ∈ (queue.finishGroupSuccess group).1.groupNodes, predicate node := by
-  let step (acc : State × List ExecutionGroupValue × Keys) (occurrence : Occurrence) :=
+  let step (acc : State × List ExecutionGroupValue × NodeRefs) (occurrence : Occurrence) :=
     let (current, values, streams) := acc
     match current.taskNode? occurrence with
     | none => (current, values, streams)
@@ -58,7 +58,7 @@ theorem State.finishGroupSuccess_nodeProperty (predicate : GroupNode → Prop)
           | some value => values ++ [value]
         (current.removeTask occurrence, values, streams ++ taskNode.childStreams)
   have foldValid (tasks : List Occurrence) :
-      ∀ acc : State × List ExecutionGroupValue × Keys,
+      ∀ acc : State × List ExecutionGroupValue × NodeRefs,
         (∀ node ∈ acc.1.groupNodes, predicate node)
           → ∀ node ∈ (tasks.foldl step acc).1.groupNodes, predicate node := by
     induction tasks with
@@ -79,8 +79,8 @@ theorem State.finishGroupSuccess_nodeProperty (predicate : GroupNode → Prop)
   let current : State :=
     { flushed with
       groupNodes := flushed.groupNodes.filter
-        (fun node => node.group.node.key != group.group.node.key)
-      rootGroups := flushed.rootGroups.filter (· != group.group.node.key) }
+        (fun node => node.group.node.ref != group.group.node.ref)
+      rootGroups := flushed.rootGroups.filter (· != group.group.node.ref) }
   have currentValid : ∀ node ∈ current.groupNodes, predicate node :=
     fun node member => flushedValid node (List.mem_filter.mp member).1
   exact State.pruneEmptyGroups_nodeProperty predicate currentValid _
@@ -108,10 +108,10 @@ These are internal state premises, not new source or scheduler-contract assumpti
 -/
 theorem State.HealthyRegisteredTaskAccounting.drainReadyGroups
     {queue : State} {work : Execution.Work} {settled failed : List Occurrence}
-    {parents : Nat → Keys}
+    {parents : Nat → NodeRefs}
     (accounted : queue.HealthyRegisteredTaskAccounting work settled failed)
     (bounded : queue.PendingBound (fun _ => True) settled)
-    (unique : queue.GroupKeysUnique)
+    (unique : queue.GroupRefsUnique)
     (supported : queue.CachedFailuresSupported work failed)
     (tasksMatch : queue.RegisteredTasksMatch work)
     (generated : ExecutedWork work)
@@ -119,11 +119,11 @@ theorem State.HealthyRegisteredTaskAccounting.drainReadyGroups
     (matching : queue.GroupNodesMatchWork work)
     (canonical
       : ∀ group dependencies,
-          GroupRecordAt work group dependencies → dependencies = parents group.key)
+          GroupRecordAt work group dependencies → dependencies = parents group.ref)
     : queue.drainReadyGroups.1.HealthyRegisteredTaskAccounting work settled failed := by
   let properties (node : GroupNode) : Prop :=
     unsettledCount node.tasks settled ≤ node.pending ∧
-      (∀ child ∈ node.childGroups, (parents child).head? = some node.group.node.key) ∧
+      (∀ child ∈ node.childGroups, (parents child).head? = some node.group.node.ref) ∧
       ∃ dependencies, GroupRecordAt work node.group.node dependencies
   have removeProperties (node : GroupNode) (occurrence : Occurrence)
       (valid : properties node)
@@ -131,7 +131,7 @@ theorem State.HealthyRegisteredTaskAccounting.drainReadyGroups
     ⟨Nat.le_trans (unsettledCount_filter_le node.tasks settled _) valid.1, valid.2⟩
   let invariant (current : State) : Prop :=
     current.HealthyRegisteredTaskAccounting work settled failed ∧
-      current.GroupKeysUnique ∧ current.CachedFailuresSupported work failed ∧
+      current.GroupRefsUnique ∧ current.CachedFailuresSupported work failed ∧
       (∀ node ∈ current.groupNodes, properties node) ∧ current.RegisteredTasksMatch work
   have initial : invariant queue :=
     ⟨accounted, unique, supported, (fun node member =>

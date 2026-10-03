@@ -7,9 +7,9 @@ open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
 /-- The parent triggers publication, while the child has the shortest wire subPath. -/
-def parent : DeliveryNode := { key := 0, path := [], label := some "P" }
+def parent : DeliveryNode := { ref := 0, path := [], label := some "P" }
 
-def child : DeliveryNode := { key := 1, path := [.field "obj"], label := some "C" }
+def child : DeliveryNode := { ref := 1, path := [.field "obj"], label := some "C" }
 def contributors : List DeliveryNode := [parent, child]
 
 def value : ExecutionGroupValue :=
@@ -59,14 +59,14 @@ theorem available (node : DeliveryNode) (member : node ∈ contributors)
     rcases member with rfl | rfl
     · exact .group (group := { node := parent }) .root (by simp)
     · exact .group (group := { node := child }) .root (by simp)
-  have key : node.key ∈ [0, 1] := by
+  have ref : node.ref ∈ [0, 1] := by
     simp [contributors] at member
     rcases member with rfl | rfl <;> simp [parent, child]
   exact ⟨
     ⟨
       ⟨.group, [], none, known⟩,
-      key,
-      ⟨by simpa [announcedKeys, pendingKeys] using key, by simp [completedKeys]⟩
+      ref,
+      ⟨by simpa [announcedRefs, pendingRefs] using ref, by simp [completedRefs]⟩
     ⟩,
     WorkQueueSemantics.noFailure _ _
   ⟩
@@ -126,12 +126,12 @@ example
   rfl
 
 /-- An unannounced or already closed deeper owner is excluded; ties keep the provisional
-owner. The list of open keys, not the ever-allocated ID table, determines availability.
+owner. The list of open refs, not the ever-allocated ID table, determines availability.
 -/
 example : selectGroupOwner [0] parent contributors = parent := rfl
 
 example : selectGroupOwner [0, 1] child contributors = child := rfl
-example : selectGroupOwner [0, 2] parent [{ key := 2, path := [] }] = parent := rfl
+example : selectGroupOwner [0, 2] parent [{ ref := 2, path := [] }] = parent := rfl
 
 /-- One raw batch can need different effective owners for different values. -/
 example
@@ -206,14 +206,14 @@ example
   have active : HealthyOpenOwner generated [0, 1]
       (fun _ => .executionGroup [0, 0, 1, 0]) [] [] [0, 1] child :=
     ⟨⟨⟨.group, [], none, childKnown⟩, by simp [child],
-      by simp [Open, announcedKeys, pendingKeys, completedKeys, child]⟩,
+      by simp [Open, announcedRefs, pendingRefs, completedRefs, child]⟩,
       WorkQueueSemantics.noFailure _ _⟩
   refine ⟨
     ⟨
       ⟨
         ⟨.group, [], none, parentKnown⟩,
         by simp [parent],
-        by simp [Open, announcedKeys, pendingKeys, completedKeys, parent]
+        by simp [Open, announcedRefs, pendingRefs, completedRefs, parent]
       ⟩,
       WorkQueueSemantics.noFailure _ _
     ⟩,

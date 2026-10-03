@@ -13,7 +13,7 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
 /-- A fresh item input carries each of that item's structural child streams as a notice.
 Witness: inverse lowering supplies the stream; generated producer uniqueness excludes
-an old registration, and complete item batching retains its key in the leading carrier.
+an old registration, and complete item batching retains its ref in the leading carrier.
 -/
 theorem ExecutedWork.streamItems_child_notice
     {work before stream items child dependencies} (generated : ExecutedWork work)
@@ -23,15 +23,15 @@ theorem ExecutedWork.streamItems_child_notice
     (active
       : ((State.initialize (Work.fromExecution work)).replayGraphEvents
           before).rootStreams.contains
-          stream.key
+          stream.ref
         = true)
     {item : StreamItem} (selected : item ∈ items)
     (known : NodeAt work child .stream dependencies (some item.occurrence))
-    : child.key
+    : child.ref
       ∈ (((State.initialize (Work.fromExecution work)).replayGraphEvents
             before).streamItems
           stream items).2.flatMap
-          rawStreamNoticeKeys := by
+          rawStreamNoticeRefs := by
   apply State.streamItems_fresh_notice stream items active selected
     (matching.itemChildStreams_complete selected known)
   exact (createWorkQueue_replay_streamProducersSeen valid).freshProducer_streamAbsent
@@ -48,9 +48,9 @@ theorem ExecutedWork.itemProducedStream_rawNotice
     (started : (State.initialize (Work.fromExecution work)).acceptsBatch events = true)
     (known : NodeAt work node .stream dependencies (some (.item address index)))
     (success : Occurrence.item address index ∈ events.flatMap GraphEvent.successes)
-    : node.key
+    : node.ref
       ∈ ((State.initialize (Work.fromExecution work)).rawEventReplay events).2.flatMap
-          rawStreamNoticeKeys := by
+          rawStreamNoticeRefs := by
   obtain ⟨before, stream, items, item, after, same, selected, identity⟩ :=
     valid.itemSuccess_input success
   have earlier : (before ++ [GraphEvent.streamItems stream items]).IsPrefix events :=
@@ -71,16 +71,16 @@ namespace ConformancePlan
 -- The same notices survive normalization on the canonical witness
 -----------------------------------------------------------------------------------------
 
-/-- The canonical nonterminal witness has exactly the raw replay's stream-notice keys.
+/-- The canonical nonterminal witness has exactly the raw replay's stream-notice refs.
 Witness: actual started replay, nonempty item carriers, and notice-preserving normalization.
 -/
 theorem Witness.streamNotices_eq_raw {work inputs} {w : Witness}
     (valid : ValidGraphEvents work inputs.flatten)
     (started : inputsStarted work inputs = true)
     (history : w.events = (initialQueue work).nonterminalAtoms inputs)
-    : w.events.flatMap streamNoticeKeys
+    : w.events.flatMap streamNoticeRefs
       = ((initialQueue work).rawEventReplay inputs.flatten).2.flatMap
-          rawStreamNoticeKeys := by
+          rawStreamNoticeRefs := by
   rw [history, createWorkQueue_nonterminalAtoms_flattened inputs started,
     atomicStreamNotices _ _
       ((initialQueue work).rawEventReplay_nonemptyValues inputs.flatten valid.nonemptyItems)]
@@ -97,7 +97,7 @@ theorem itemProducedStream_noticed {work inputs} {w : Witness}
     (known : NodeAt work node .stream dependencies (some (.item address index)))
     (success
       : Occurrence.item address index ∈ inputs.flatten.flatMap GraphEvent.successes)
-    : node.key ∈ w.events.flatMap streamNoticeKeys := by
+    : node.ref ∈ w.events.flatMap streamNoticeRefs := by
   rw [Witness.streamNotices_eq_raw valid started history]
   have accepted : (initialQueue work).batchesStarted inputs = true := by
     rwa [← inputsStarted_eq_batchesStarted]
@@ -114,8 +114,8 @@ theorem terminal_rootStream_completed {work inputs} {w : Witness} {node dependen
     (history : w.events = (initialQueue work).nonterminalAtoms inputs)
     (ended : ((initialQueue work).runNormalized inputs).1.terminated = true)
     (known : NodeAt work node .stream dependencies none)
-    : node.key ∈ completedKeys w.events :=
-  streamNoticeKeys_terminalCompleted valid started history ended
+    : node.ref ∈ completedRefs w.events :=
+  streamNoticeRefs_terminalCompleted valid started history ended
     (List.mem_append_left _ (NodeAt.stream_initial_notice known))
 
 /-- Every child stream of a successful source item completes at actual termination.
@@ -131,8 +131,8 @@ theorem terminal_itemProducedStream_completed {work inputs} {w : Witness}
     (known : NodeAt work node .stream dependencies (some (.item address index)))
     (success
       : Occurrence.item address index ∈ inputs.flatten.flatMap GraphEvent.successes)
-    : node.key ∈ completedKeys w.events :=
-  streamNoticeKeys_terminalCompleted valid started history ended
+    : node.ref ∈ completedRefs w.events :=
+  streamNoticeRefs_terminalCompleted valid started history ended
     (List.mem_append_right _
       (itemProducedStream_noticed generated valid started history known success))
 

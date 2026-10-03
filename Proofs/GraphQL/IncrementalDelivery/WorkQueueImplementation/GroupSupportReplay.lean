@@ -2,7 +2,7 @@ import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.GroupSupportSe
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.NormalizedPublications
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.NormalizedStreamRelease
 
-/-! Actual contributor-key support through every matched source batch. -/
+/-! Actual contributor-ref support through every matched source batch. -/
 
 namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.Execution (WorkQueueEvent)
@@ -16,19 +16,19 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 Witness: registered tasks identify failed-task owners, while source matching identifies
 new task owners revealed by successful settlements and stream items.
 -/
-theorem State.GroupKeySupport.handleGraphEvent_support {queue : State}
+theorem State.GroupRefSupport.handleGraphEvent_support {queue : State}
     {work : Execution.Work}
     (valid
-      : queue.GroupKeySupport
-          (fun key => ∃ dependencies, NodeHasDependencies work key .group dependencies))
+      : queue.GroupRefSupport
+          (fun ref => ∃ dependencies, NodeHasDependencies work ref .group dependencies))
     (registered : queue.StartedTasksRegistered) (tasks : queue.RegisteredTasksMatch work)
     (event : GraphEvent) (matching : event.MatchesWork work)
-    : (queue.handleGraphEvent event).1.GroupKeySupport
-        (fun key => ∃ dependencies, NodeHasDependencies work key .group dependencies)
+    : (queue.handleGraphEvent event).1.GroupRefSupport
+        (fun ref => ∃ dependencies, NodeHasDependencies work ref .group dependencies)
       ∧ ∀ output ∈ (queue.handleGraphEvent event).2,
-          output.GroupClosureKeySupported
-            (fun key =>
-              ∃ dependencies, NodeHasDependencies work key .group dependencies) := by
+          output.GroupClosureRefSupported
+            (fun ref =>
+              ∃ dependencies, NodeHasDependencies work ref .group dependencies) := by
   cases event with
   | taskSuccess occurrence result =>
       apply valid.taskSuccess_support occurrence result
@@ -55,32 +55,32 @@ theorem State.GroupKeySupport.handleGraphEvent_support {queue : State}
   | streamSuccess stream =>
       simp only [State.handleGraphEvent, State.streamSuccess]
       split <;> exact ⟨⟨valid.contents, valid.roots⟩,
-        by simp [WorkQueueEvent.GroupClosureKeySupported]⟩
+        by simp [WorkQueueEvent.GroupClosureRefSupported]⟩
   | streamFailure stream errors =>
       simp only [State.handleGraphEvent, State.streamFailure]
       split <;> exact ⟨⟨valid.contents, valid.roots⟩,
-        by simp [WorkQueueEvent.GroupClosureKeySupported]⟩
+        by simp [WorkQueueEvent.GroupClosureRefSupported]⟩
 
 /-- Matching graph events preserve the state support invariant.
 Witness: project the joint state/output support theorem.
 -/
-theorem State.GroupKeySupport.handleGraphEvent {queue : State} {work : Execution.Work}
+theorem State.GroupRefSupport.handleGraphEvent {queue : State} {work : Execution.Work}
     (valid
-      : queue.GroupKeySupport
-          (fun key => ∃ dependencies, NodeHasDependencies work key .group dependencies))
+      : queue.GroupRefSupport
+          (fun ref => ∃ dependencies, NodeHasDependencies work ref .group dependencies))
     (registered : queue.StartedTasksRegistered) (tasks : queue.RegisteredTasksMatch work)
     (event : GraphEvent) (matching : event.MatchesWork work)
-    : (queue.handleGraphEvent event).1.GroupKeySupport
-        (fun key => ∃ dependencies, NodeHasDependencies work key .group dependencies) :=
+    : (queue.handleGraphEvent event).1.GroupRefSupport
+        (fun ref => ∃ dependencies, NodeHasDependencies work ref .group dependencies) :=
   (valid.handleGraphEvent_support registered tasks event matching).1
 
-/-- The induction packages actual task provenance alongside contributor-key support.
+/-- The induction packages actual task provenance alongside contributor-ref support.
 It is proof evidence for the concrete state, not additional implementation state.
 -/
 private structure ReplaySupport (work : Execution.Work) (queue : State) : Prop where
   groups
-    : queue.GroupKeySupport
-        (fun key => ∃ dependencies, NodeHasDependencies work key .group dependencies)
+    : queue.GroupRefSupport
+        (fun ref => ∃ dependencies, NodeHasDependencies work ref .group dependencies)
   registered : queue.StartedTasksRegistered
   tasks : queue.RegisteredTasksMatch work
 
@@ -92,9 +92,9 @@ private theorem ReplaySupport.handleGraphEvent {queue work}
     (matching : event.MatchesWork work)
     : ReplaySupport work (queue.handleGraphEvent event).1
       ∧ ∀ output ∈ (queue.handleGraphEvent event).2,
-          output.GroupClosureKeySupported
-            (fun key =>
-              ∃ dependencies, NodeHasDependencies work key .group dependencies) :=
+          output.GroupClosureRefSupported
+            (fun ref =>
+              ∃ dependencies, NodeHasDependencies work ref .group dependencies) :=
   let next :=
     known.groups.handleGraphEvent_support known.registered known.tasks event matching
   ⟨
@@ -114,9 +114,9 @@ private theorem ReplaySupport.rawEventReplay {queue work}
     (matching : ∀ event ∈ events, event.MatchesWork work)
     : ReplaySupport work (queue.rawEventReplay events).1
       ∧ ∀ output ∈ (queue.rawEventReplay events).2,
-          output.GroupClosureKeySupported
-            (fun key =>
-              ∃ dependencies, NodeHasDependencies work key .group dependencies) := by
+          output.GroupClosureRefSupported
+            (fun ref =>
+              ∃ dependencies, NodeHasDependencies work ref .group dependencies) := by
   induction events generalizing queue with
   | nil => exact ⟨known, by simp [State.rawEventReplay]⟩
   | cons event rest ih =>
@@ -127,7 +127,7 @@ private theorem ReplaySupport.rawEventReplay {queue work}
       exact ⟨final, fun output member =>
         (List.mem_append.mp member).elim (outputs output) (later output)⟩
 
-/-- Host batching and setting the terminal flag do not change group-key support.
+/-- Host batching and setting the terminal flag do not change group-ref support.
 Witness: eventwise replay supplies the actual post-batch queue; only termination changes.
 -/
 private theorem ReplaySupport.handleGraphEvents {queue work}
@@ -135,9 +135,9 @@ private theorem ReplaySupport.handleGraphEvents {queue work}
     (matching : ∀ event ∈ events, event.MatchesWork work)
     : ReplaySupport work (queue.handleGraphEvents events).1
       ∧ ∀ output ∈ (queue.handleGraphEvents events).2,
-          output.GroupClosureKeySupported
-            (fun key =>
-              ∃ dependencies, NodeHasDependencies work key .group dependencies) := by
+          output.GroupClosureRefSupported
+            (fun ref =>
+              ∃ dependencies, NodeHasDependencies work ref .group dependencies) := by
   rw [State.handleGraphEvents_eq_rawEventReplay]
   split
   · exact ⟨known, by simp⟩
@@ -154,30 +154,30 @@ private theorem ReplaySupport.handleGraphEvents {queue work}
     · exact ⟨next, outputs⟩
 
 -----------------------------------------------------------------------------------------
--- Publisher normalization preserves the exact closing key
+-- Publisher normalization preserves the exact closing ref
 -----------------------------------------------------------------------------------------
 
-/-- Normalized group closures name supported keys; other events impose no condition.
-The exact descriptor bridge is intentionally separate from contributor-key existence.
+/-- Normalized group closures name supported refs; other events impose no condition.
+The exact descriptor bridge is intentionally separate from contributor-ref existence.
 -/
-def GroupClosureKeySupported (supported : Nat → Prop) : Execution.WorkQueueEvent → Prop
-  | .groupSuccess group _ _ | .groupFailure group _ => supported group.key
+def GroupClosureRefSupported (supported : Nat → Prop) : Execution.WorkQueueEvent → Prop
+  | .groupSuccess group _ _ | .groupFailure group _ => supported group.ref
   | _ => True
 
-/-- Publication normalization does not change any closing group's key.
+/-- Publication normalization does not change any closing group's ref.
 Witness: publisher case analysis followed by induction over its actual event fold.
 -/
-theorem IncrementalPublisher.normalizeBatch_groupClosureKeySupport {supported events}
+theorem IncrementalPublisher.normalizeBatch_groupClosureRefSupport {supported events}
     (publisher : IncrementalPublisher)
-    (known : ∀ event ∈ events, event.GroupClosureKeySupported supported)
+    (known : ∀ event ∈ events, event.GroupClosureRefSupported supported)
     : ∀ output ∈ (publisher.normalizeBatch events).2,
-        GroupClosureKeySupported supported output := by
+        GroupClosureRefSupported supported output := by
   have one (current : IncrementalPublisher) (event : WorkQueueEvent)
-      (valid : event.GroupClosureKeySupported supported)
+      (valid : event.GroupClosureRefSupported supported)
       : ∀ output ∈ (current.handleWorkQueueEvent event).2,
-          GroupClosureKeySupported supported output := by
+          GroupClosureRefSupported supported output := by
     cases event <;> simp_all [IncrementalPublisher.handleWorkQueueEvent,
-      GroupClosureKeySupported, WorkQueueEvent.GroupClosureKeySupported]
+      GroupClosureRefSupported, WorkQueueEvent.GroupClosureRefSupported]
   induction events generalizing publisher with
   | nil => simp [IncrementalPublisher.normalizeBatch]
   | cons event rest ih =>
@@ -187,28 +187,28 @@ theorem IncrementalPublisher.normalizeBatch_groupClosureKeySupport {supported ev
         (one publisher event (known event List.mem_cons_self) output)
         (ih _ (fun next within => known next (List.mem_cons_of_mem _ within)) output)
 
-/-- Every populated or active group key after normalized replay has an actual contributor.
+/-- Every populated or active group ref after normalized replay has an actual contributor.
 Witness: joint replay induction from the pruning-based initialization theorem. Fixed source
 matching suffices; no output-admission, generated-work, or start-discipline law is assumed.
 -/
 theorem createWorkQueue_runNormalized_groupSupport {work : Execution.Work}
     {batches : List (List GraphEvent)} (valid : ValidGraphEvents work batches.flatten)
     : ((State.initialize (Work.fromExecution work)).runNormalized
-        batches).1.GroupKeySupport
-        (fun key => ∃ dependencies, NodeHasDependencies work key .group dependencies)
+        batches).1.GroupRefSupport
+        (fun ref => ∃ dependencies, NodeHasDependencies work ref .group dependencies)
       ∧ ∀ event ∈
           ((State.initialize (Work.fromExecution work)).runNormalized batches).2.flatten,
-          GroupClosureKeySupported
-            (fun key => ∃ dependencies, NodeHasDependencies work key .group dependencies)
+          GroupClosureRefSupported
+            (fun ref => ∃ dependencies, NodeHasDependencies work ref .group dependencies)
             event := by
   have loop (more : List (List GraphEvent)) (acc : NormalizedAcc)
       (known : ReplaySupport work acc.1)
-      (outputs : ∀ event ∈ acc.2.2.flatten, GroupClosureKeySupported
-        (fun key => ∃ dependencies, NodeHasDependencies work key .group dependencies) event)
+      (outputs : ∀ event ∈ acc.2.2.flatten, GroupClosureRefSupported
+        (fun ref => ∃ dependencies, NodeHasDependencies work ref .group dependencies) event)
       (matching : ∀ batch ∈ more, ∀ event ∈ batch, event.MatchesWork work)
       : ReplaySupport work (more.foldl normalizedStep acc).1
-        ∧ ∀ event ∈ (more.foldl normalizedStep acc).2.2.flatten, GroupClosureKeySupported
-          (fun key => ∃ dependencies, NodeHasDependencies work key .group dependencies)
+        ∧ ∀ event ∈ (more.foldl normalizedStep acc).2.2.flatten, GroupClosureRefSupported
+          (fun ref => ∃ dependencies, NodeHasDependencies work ref .group dependencies)
           event := by
     induction more generalizing acc with
     | nil => exact ⟨known, outputs⟩
@@ -218,7 +218,7 @@ theorem createWorkQueue_runNormalized_groupSupport {work : Execution.Work}
         apply ih
         · rw [normalizedStep_queue]
           exact next
-        · have emitted := acc.2.1.normalizeBatch_groupClosureKeySupport raw
+        · have emitted := acc.2.1.normalizeBatch_groupClosureRefSupport raw
           dsimp only [normalizedStep]
           split
           · exact outputs
@@ -228,7 +228,7 @@ theorem createWorkQueue_runNormalized_groupSupport {work : Execution.Work}
             exact member.elim (outputs event) (emitted event)
         · exact fun next member => matching next (List.mem_cons_of_mem _ member)
   obtain ⟨final, outputs⟩ := loop batches (_, _, [])
-    ⟨createWorkQueue_fromSpec_groupKeySupport work,
+    ⟨createWorkQueue_fromSpec_groupRefSupport work,
       createWorkQueue_startedTasksRegistered (Work.fromExecution work),
       createWorkQueue_fromSpec_registeredTasksMatch work⟩ (by simp)
     (fun batch member event within =>
@@ -238,22 +238,22 @@ theorem createWorkQueue_runNormalized_groupSupport {work : Execution.Work}
 /-- Normalized replay retains contributor support for contents and all active roots.
 Witness: project the joint state/output replay theorem.
 -/
-theorem createWorkQueue_runNormalized_groupKeySupport {work : Execution.Work}
+theorem createWorkQueue_runNormalized_groupRefSupport {work : Execution.Work}
     {batches : List (List GraphEvent)} (valid : ValidGraphEvents work batches.flatten)
     : ((State.initialize (Work.fromExecution work)).runNormalized
-        batches).1.GroupKeySupport
-        (fun key => ∃ dependencies, NodeHasDependencies work key .group dependencies) :=
+        batches).1.GroupRefSupport
+        (fun ref => ∃ dependencies, NodeHasDependencies work ref .group dependencies) :=
   (createWorkQueue_runNormalized_groupSupport valid).1
 
-/-- Every actual normalized group closure has a key belonging to a structural contributor.
+/-- Every actual normalized group closure has a ref belonging to a structural contributor.
 Witness: project output support from the same concrete replay invariant.
 -/
-theorem createWorkQueue_runNormalized_groupClosureKeys {work : Execution.Work}
+theorem createWorkQueue_runNormalized_groupClosureRefs {work : Execution.Work}
     {batches : List (List GraphEvent)} (valid : ValidGraphEvents work batches.flatten)
     : ∀ event ∈
         ((State.initialize (Work.fromExecution work)).runNormalized batches).2.flatten,
-        GroupClosureKeySupported
-          (fun key => ∃ dependencies, NodeHasDependencies work key .group dependencies)
+        GroupClosureRefSupported
+          (fun ref => ∃ dependencies, NodeHasDependencies work ref .group dependencies)
           event :=
   (createWorkQueue_runNormalized_groupSupport valid).2
 

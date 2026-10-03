@@ -1,11 +1,11 @@
-import Proofs.GraphQL.IncrementalDelivery.Semantics.KeyRoles
+import Proofs.GraphQL.IncrementalDelivery.Semantics.RefRoles
 
-/-! Actual mixed execution assigns disjoint roles to stream and defer metadata keys.
-Collection marks only fresh keys as defer keys; streaming marks its own fresh key.
-All inherited fragment and ancestor keys lie below the allocation frontier.
+/-! Actual mixed execution assigns disjoint roles to stream and defer metadata refs.
+Collection marks only fresh refs as defer refs; streaming marks its own fresh ref.
+All inherited fragment and ancestor refs lie below the allocation frontier.
 -/
 
-namespace GraphQL.IncrementalDelivery.Semantics.KeyRoles
+namespace GraphQL.IncrementalDelivery.Semantics.RefRoles
 
 open GraphQL.IncrementalDelivery.Execution
 open GeneralScheduling
@@ -241,11 +241,12 @@ mutual
             path usage.initialCount (markStream middle frontier) (frontier + 1)
           have heall := (markStream_extends middle frontier).trans het (Nat.le_succ frontier)
           have hrole : final frontier = true := (het frontier (Nat.lt_succ_self _)).trans (by simp [markStream])
-          simp only [freshExecutionKey, run_bind, StateT.run_get, StateT.run_set, StateT.run_pure, id_pure_eq]
+          simp only [freshNodeRef, run_bind, StateT.run_get, StateT.run_set, StateT.run_pure, id_pure_eq]
           refine ⟨by dsimp only [frontier] at *; omega, final, he.trans heall hle, ?_⟩
           apply workAt_combine (workAt_catchNull final _ _ _
             (hw.extend heall (by dsimp only [frontier] at *; omega)))
-          exact workAt_stream final _ _ _ ⟨by dsimp only [frontier] at *; omega, hrole⟩ hitems
+          exact workAt_stream final _ _ _
+            ⟨by dsimp only [frontier] at *; simp only [NodeRef] at *; omega, hrole⟩ hitems
   termination_by (fuel, 3, 0, 0)
   decreasing_by
     all_goals subst_vars; simp_wf
@@ -298,7 +299,7 @@ mutual
         exact ⟨Nat.le_refl _, roles, Extends.refl _ _, by simp⟩
     | cons value rest =>
         obtain ⟨hle, middle, he, hw⟩ := completeValue_roles schema resolvers variables fuel itemType fields value
-          (path ++ [.index index]) [] [] false roles state (by simp [MapAt, KeysAt])
+          (path ++ [.index index]) [] [] false roles state (by simp [MapAt, RefsAt])
         simp only [completeStreamItems, run_bind]
         split
         · refine ⟨hle, middle, he, ?_⟩
@@ -329,7 +330,7 @@ theorem executeRoot_rolesAt (schema : Schema) (resolvers : Resolvers ObjectRef)
           state
       state ≤ output.2 ∧ ∃ roles, WorkAt roles output.2 output.1.work := by
   have hc := OwnerPaths.collectFields_supply schema variables parentType source selections none state
-  have hm := mapAt_collection (roles := fun _ => false) (deferMap := []) (by simp [MapAt, KeysAt]) hc.1 _ hc.2 []
+  have hm := mapAt_collection (roles := fun _ => false) (deferMap := []) (by simp [MapAt, RefsAt]) hc.1 _ hc.2 []
   obtain ⟨hle, roles, _, hw⟩ := executePlan_roles schema resolvers variables fuel parentType source
     _ [] [] [] (markDefer (fun _ => false) state) _ hm
   exact ⟨Nat.le_trans hc.1 hle, roles, hw⟩
@@ -348,19 +349,19 @@ theorem executeRoot_roles (schema : Schema) (resolvers : Resolvers ObjectRef)
 theorem executeRoot_stream_defer_separate (schema : Schema)
     (resolvers : Resolvers ObjectRef) (variables : VariableValues) (fuel : Nat)
     (parentType : Name) (source : ResolverValue ObjectRef) (selections : List Selection)
-    (state key : Nat)
+    (state : Nat) (ref : NodeRef)
     (hs
-      : key
-        ∈ streamAllocationKeys
+      : ref
+        ∈ streamAllocationRefs
             ((executeRootSelectionSetCore schema resolvers variables fuel parentType
                 source selections).run
               state).1.work)
-    : key
-      ∉ deferMetadataKeys
+    : ref
+      ∉ deferMetadataRefs
           ((executeRootSelectionSetCore schema resolvers variables fuel parentType source
               selections).run
             state).1.work := by
   obtain ⟨_, _, hw⟩ := executeRoot_rolesAt schema resolvers variables fuel parentType source selections state
   exact hw.separate hs
 
-end GraphQL.IncrementalDelivery.Semantics.KeyRoles
+end GraphQL.IncrementalDelivery.Semantics.RefRoles

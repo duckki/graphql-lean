@@ -13,7 +13,7 @@ def UniqueCompletions : ExecutionObservation → Prop
   | .incremental _ updates => (DeliveryTrace.completedIDs updates).Nodup
 
 /-- Every work observation has unique announcements and completions. Witness: unique
-work keys, injective stable allocation, and occurrence-preserving response aggregation.
+work refs, injective stable allocation, and occurrence-preserving response aggregation.
 -/
 theorem WorkObservation.uniqueIDs {response work complete result}
     (observed : WorkObservation response work complete result)
@@ -21,21 +21,21 @@ theorem WorkObservation.uniqueIDs {response work complete result}
   cases observed with
   | single empty => exact ⟨True.intro, True.intro⟩
   | incremental groups streams batches nonempty batchNonempty admitted finished =>
-      have unique := admitted.elim WorkQueueSemantics.AdmissiblePrefix.uniqueKeys
-        WorkQueueSemantics.AdmissibleRun.uniqueKeys
+      have unique := admitted.elim WorkQueueSemantics.AdmissiblePrefix.uniqueRefs
+        WorkQueueSemantics.AdmissibleRun.uniqueRefs
       have grouped := replayResponse_groups response groups streams batches
       cases allocated
             : (getPendingEntry (m := StateM IDState) groups streams ensureID).run {} with
       | mk pending ids =>
           rw [allocated] at grouped
           obtain ⟨updates, flatten, replay⟩ := grouped
-          have initialKeys := (getPendingEntry_of_eq allocated).2
+          have initialRefs := (getPendingEntry_of_eq allocated).2
           have well : Allocated ids := by
             simpa only [allocated]
               using getPendingEntry_allocated groups streams {} .empty
           have finalWell := finalIDs_allocated batches.flatten ids well
           obtain ⟨preserved, completed⟩ := mappedTrace_spec batches.flatten ids
-          have announced := (initialKeys.mono preserved).append
+          have announced := (initialRefs.mono preserved).append
             (mappedTrace_pending batches.flatten ids)
           have uniquePending := announced.nodup finalWell unique.1
           have uniqueCompleted := completed.nodup finalWell unique.2
@@ -50,7 +50,7 @@ theorem WorkObservation.uniqueIDs {response work complete result}
           ⟩
 
 /-- In a complete finite work observation every ID completes causally. Witness:
-work-key liveness, stable lookup transport, and response-group aggregation.
+work-ref liveness, stable lookup transport, and response-group aggregation.
 -/
 theorem WorkObservation.idsEventuallyComplete {response work result}
     (observed : WorkObservation response work true result)
@@ -58,21 +58,21 @@ theorem WorkObservation.idsEventuallyComplete {response work result}
   cases observed with
   | single empty => trivial
   | incremental groups streams batches nonempty batchNonempty admitted finished =>
-      obtain ⟨initialLive, laterLive⟩ := (finished rfl).liveKeys
+      obtain ⟨initialLive, laterLive⟩ := (finished rfl).liveRefs
       have grouped := replayResponse_groups response groups streams batches
       cases allocated
             : (getPendingEntry (m := StateM IDState) groups streams ensureID).run {} with
       | mk pending ids =>
           rw [allocated] at grouped
           obtain ⟨updates, flatten, replay⟩ := grouped
-          have initialKeys := (getPendingEntry_of_eq allocated).2
+          have initialRefs := (getPendingEntry_of_eq allocated).2
           have live : (ExecutionObservation.incremental
               { toResponse := response, pending, hasNext := true }
               (mappedTrace batches.flatten ids)).idsEventuallyComplete := by
             constructor
             · intro id member
-              obtain ⟨key, known, encoded⟩ := initialKeys.fromID id member
-              exact mappedTrace_completion encoded (initialLive key known)
+              obtain ⟨ref, known, encoded⟩ := initialRefs.fromID id member
+              exact mappedTrace_completion encoded (initialLive ref known)
             · exact mappedTrace_live ids laterLive
           rw [replay]
           exact batching_idsEventuallyComplete _ _ updates flatten live

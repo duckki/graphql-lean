@@ -17,10 +17,10 @@ open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
-private def root : DeliveryNode := { key := 0, path := [], label := some (.string "R") }
-private def parent : DeliveryNode := { key := 1, path := [], label := some (.string "P") }
-private def child : DeliveryNode := { key := 2, path := [], label := some (.string "C") }
-private def other : DeliveryNode := { key := 3, path := [], label := some (.string "D") }
+private def root : DeliveryNode := { ref := 0, path := [], label := some (.string "R") }
+private def parent : DeliveryNode := { ref := 1, path := [], label := some (.string "P") }
+private def child : DeliveryNode := { ref := 2, path := [], label := some (.string "C") }
+private def other : DeliveryNode := { ref := 3, path := [], label := some (.string "D") }
 private def rootTask : Occurrence := .executionGroup [1, 0]
 private def parentTask : Occurrence := .executionGroup [1, 1, 1, 0]
 private def firstTask : Occurrence := .executionGroup [1, 1, 0]
@@ -78,19 +78,19 @@ theorem generated : ExecutedWork work := by
   cbv
 
 private theorem root_known
-    : TaskAt work rootTask [root.key] none (.object [] (.error 1)) :=
+    : TaskAt work rootTask [root.ref] none (.object [] (.error 1)) :=
   ⟨_, [], .error 1, .empty, [], rfl, rfl, rfl⟩
 
 private theorem first_known
-    : TaskAt work firstTask [root.key, child.key] none (.object [] (.error 2)) :=
+    : TaskAt work firstTask [root.ref, child.ref] none (.object [] (.error 2)) :=
   ⟨_, [], .error 2, .empty, [], rfl, rfl, rfl⟩
 
 private theorem shared_known
-    : TaskAt work sharedTask [child.key, other.key] none (.object [] (.error 1)) :=
+    : TaskAt work sharedTask [child.ref, other.ref] none (.object [] (.error 1)) :=
   ⟨_, [], .error 1, .empty, [], rfl, rfl, rfl⟩
 
 private theorem parent_known
-    : TaskAt work parentTask [parent.key] none (.object [] (.ok (data, 0))) :=
+    : TaskAt work parentTask [parent.ref] none (.object [] (.ok (data, 0))) :=
   ⟨_, [], .ok (data, 0), .combine .empty .empty, [], rfl, rfl, rfl⟩
 
 /-- All three failures and the parent success satisfy source and actual start checks.
@@ -150,13 +150,13 @@ private theorem node_metadata {node kind dependencies producer}
     : kind = .group
       ∧ producer = none
       ∧ ((node = root ∧ dependencies = [])
-          ∨ (node = child ∧ dependencies = [parent.key])
+          ∨ (node = child ∧ dependencies = [parent.ref])
           ∨ (node = parent ∧ dependencies = [])
           ∨ (node = other ∧ dependencies = [])) := by
-  have roles : Semantics.KeyRoles.WorkRoles (fun _ => false) work := by
-    simp [Semantics.KeyRoles.WorkRoles, work]
+  have roles : Semantics.RefRoles.WorkRoles (fun _ => false) work := by
+    simp [Semantics.RefRoles.WorkRoles, work]
   have groupKind : kind = .group := by
-    have role := Correctness.node_key_role roles known
+    have role := Correctness.node_ref_role roles known
     cases kind with
     | group => rfl
     | stream => change false = true at role; cases role
@@ -164,7 +164,7 @@ private theorem node_metadata {node kind dependencies producer}
   obtain ⟨address, groups, path, result, children, enclosing, group,
     located, member, rfl, rfl⟩ := known
   have task : TaskAt work (.executionGroup address)
-      (groups.map (fun group => group.node.key)) producer (.object path result) :=
+      (groups.map (fun group => group.node.ref)) producer (.object path result) :=
     ⟨groups, path, result, children, enclosing, located, rfl, rfl⟩
   rcases task_cases task with same | same | same | same
   all_goals
@@ -183,12 +183,12 @@ private theorem node_cases {node kind dependencies producer}
   rcases (node_metadata known).2.2 with ⟨rfl, _⟩ | ⟨rfl, _⟩ | ⟨rfl, _⟩ | ⟨rfl, _⟩
   all_goals simp
 
-/-- The generated fixture also satisfies the public key-coherence premise.
-Witness: repeated keys refer to the same one of four descriptors with distinct keys.
+/-- The generated fixture also satisfies the public ref-coherence premise.
+Witness: repeated refs refer to the same one of four descriptors with distinct refs.
 -/
-theorem coherent : NodeKeyCoherent work := by
+theorem coherent : NodeRefCoherent work := by
   intro left leftKind leftDependencies leftProducer right rightKind rightDependencies
-    rightProducer leftKnown rightKnown sameKey
+    rightProducer leftKnown rightKnown sameRef
   rcases node_cases leftKnown with rfl | rfl | rfl | rfl
     <;> rcases node_cases rightKnown with rfl | rfl | rfl | rfl
     <;> simp_all [root, child, parent, other]
@@ -200,9 +200,9 @@ theorem initialized
     : let queue := State.initialize (Work.fromExecution work)
       Initializes work queue.initialGroups queue.initialStreams := by
   have eligible {node occurrence owners payload}
-      (known : TaskAt work occurrence owners none payload) (owner : node.key ∈ owners)
+      (known : TaskAt work occurrence owners none payload) (owner : node.ref ∈ owners)
       : CanAnnounce work [] (fun _ => .executionGroup []) [] [] node .group [] none := by
-    refine ⟨by simp [announcedKeys, pendingKeys],
+    refine ⟨by simp [announcedRefs, pendingRefs],
       Or.inl ⟨by simp [NodeFailed], Or.inr ?_⟩, by simp, by simp⟩
     intro accounted
     rcases accounted occurrence owners ⟨_, _, known⟩ owner with cancelled | published
@@ -230,7 +230,7 @@ theorem initialized
 
 private def matching : PublicationMatching := fun _ => parentTask
 private def failures : FailureCuts := [(0, rootTask), (1, firstTask), (1, sharedTask)]
-private def initial : Keys := [root.key, parent.key, other.key]
+private def initial : NodeRefs := [root.ref, parent.ref, other.ref]
 private def atoms : List Execution.WorkQueueEvent := outputs.flatten.take 5
 
 /-- Actual guard-selected source blocks produce the accepted R, R/C, C/D cut order.
@@ -298,9 +298,9 @@ Witness: general initialization and failure preservation, not a recomputed owner
 theorem closed_owner_start_witness
     : let queue := State.initialize (Work.fromExecution work)
       let before := (queue.taskFailure rootTask 1).1
-      before.StartedTasksAnnounced (queue.initialGroups.map DeliveryNode.key)
+      before.StartedTasksAnnounced (queue.initialGroups.map DeliveryNode.ref)
       ∧ (before.taskNode? firstTask).isSome = true
-      ∧ root.key ∉ before.rootGroups := by
+      ∧ root.ref ∉ before.rootGroups := by
   refine ⟨(createWorkQueue_startedTasksAnnounced work).taskFailure rootTask 1, by cbv, ?_⟩
   cbv
   change ¬(0 : Nat) ∈ [1, 3]
@@ -315,8 +315,8 @@ theorem silent_cut_announced_owner
         TaskHasOwners work firstTask owners
         ∧ owner ∈ owners
         ∧ owner
-          ∈ announcedKeys
-              ((queue.initialGroups ++ queue.initialStreams).map DeliveryNode.key)
+          ∈ announcedRefs
+              ((queue.initialGroups ++ queue.initialStreams).map DeliveryNode.ref)
               (((queue.runNormalized inputs).2.flatten.flatMap publicationAtoms).take
                 1) := by
   apply createWorkQueue_eligibleObjectFailureCuts_announcedOwner source_valid.1 source_valid.2
@@ -331,7 +331,7 @@ lists; no assumption about abstract output admission or cancellation is supplied
 -/
 theorem shared_cut_direct_healthy_owner
     : ∃ owner,
-        owner = other.key
+        owner = other.ref
         ∧ ∀ prior priorOwners,
             prior ∈ [rootTask, firstTask]
             → TaskHasOwners work prior priorOwners
@@ -350,8 +350,8 @@ theorem shared_cut_direct_healthy_owner
     createWorkQueue_eligibleObjectFailureCuts_directHealthyOwner generated
       source_valid.1 source_valid.2 split
   have ownersEq := (known.unique shared_known).1
-  have member : owner ∈ [child.key, other.key] := ownersEq ▸ contributes
-  have notChild : owner ∉ [root.key, child.key] :=
+  have member : owner ∈ [child.ref, other.ref] := ownersEq ▸ contributes
+  have notChild : owner ∉ [root.ref, child.ref] :=
     safe firstTask _ (by simp) ⟨_, _, first_known⟩
   refine ⟨owner, ?_, safe⟩
   rcases List.mem_cons.mp member with same | same
@@ -365,25 +365,25 @@ private theorem root_node : NodeAt work root .group [] none :=
 Witness: actual prefix replay supplies all accounting; every stored parent lookup succeeds,
 so the general ancestor-guard bridge requires no assumed output explanation.
 -/
-theorem latent_child_guard_health : ¬GroupInvalidated work [rootTask] child.key := by
+theorem latent_child_guard_health : ¬GroupInvalidated work [rootTask] child.ref := by
   let queue := (State.initialize (Work.fromExecution work)).replayGraphEvents [killRoot]
   have valid : ValidGraphEvents work [killRoot] := source_valid.1.prefix
     ⟨[first, shared, finish], rfl⟩
   have parents : queue.groupNodes.map (fun node => node.group.parent)
-      = [none, some parent.key, none] := by
+      = [none, some parent.ref, none] := by
     simp only [queue]
     cbv
-  have parentLive : (queue.groupNode? parent.key).isSome = true := by
+  have parentLive : (queue.groupNode? parent.ref).isSome = true := by
     simp only [queue]
     cbv
   have missing : queue.MissingParentAncestorsHealthy work
       ((State.initialize (Work.fromExecution work)).objectFailureContributions [killRoot]) := by
     apply State.MissingParentAncestorsHealthy.of_presentParents
-    intro node member key same
-    have listed : some key ∈ queue.groupNodes.map (fun node => node.group.parent) :=
+    intro node member ref same
+    have listed : some ref ∈ queue.groupNodes.map (fun node => node.group.parent) :=
       List.mem_map.mpr ⟨node, member, same⟩
-    have keyEq : key = parent.key := by simpa [parents] using listed
-    simpa only [keyEq] using parentLive
+    have refEq : ref = parent.ref := by simpa [parents] using listed
+    simpa only [refEq] using parentLive
   exact createWorkQueue_replayGraphEvents_groupIsHealthy_uninvalidated generated valid
     (by cbv) missing (by cbv)
 
@@ -402,22 +402,22 @@ private theorem parent_node : NodeAt work parent .group [] none :=
     rfl
   ⟩
 
-private theorem child_node : NodeAt work child .group [parent.key] none :=
+private theorem child_node : NodeAt work child .group [parent.ref] none :=
   ⟨[1, 1, 0], _, [], .error 2, .empty, [], ⟨child, [parent]⟩, rfl, by simp, rfl, rfl⟩
 
 private theorem other_node : NodeAt work other .group [] none :=
   ⟨[1, 1, 1, 1, 0], _, [], .error 1, .empty, [], ⟨other, []⟩, rfl, by simp, rfl, rfl⟩
 
-/-- A healthy root key has no failed contributor or dependency.
+/-- A healthy root ref has no failed contributor or dependency.
 Witness: the fixture's descriptors exclude streams and generated producers.
 -/
 private theorem root_healthy {failed : List Occurrence} {published : Occurrence → Prop}
     {node : DeliveryNode} (known : NodeAt work node .group [] none)
-    (notChild : node.key ≠ child.key)
+    (notChild : node.ref ≠ child.ref)
     (noFailure
       : ∀ occurrence ∈ failed,
-          ∀ owners, TaskHasOwners work occurrence owners → node.key ∉ owners)
-    : ¬Causality.NodeFailed work failed published node.key := by
+          ∀ owners, TaskHasOwners work occurrence owners → node.ref ∉ owners)
+    : ¬Causality.NodeFailed work failed published node.ref := by
   intro cause
   cases cause with
   | task task owner member => exact noFailure _ member _ task owner
@@ -436,7 +436,7 @@ Witness: fixed task descriptors and P's root metadata.
 -/
 private theorem parent_snapshot {failed : List Occurrence} {published : Occurrence → Prop}
     (subset : failed.Subset [rootTask, firstTask, sharedTask])
-    : ¬Causality.NodeFailed work failed published parent.key := by
+    : ¬Causality.NodeFailed work failed published parent.ref := by
   apply root_healthy parent_node (by decide)
   intro occurrence member owners ⟨producer, payload, known⟩
   rcases List.mem_cons.mp (subset member) with rfl | member
@@ -454,7 +454,7 @@ private theorem parent_snapshot {failed : List Occurrence} {published : Occurren
 Witness: R's failure does not contribute to C, and C's only dependency P is healthy.
 -/
 private theorem child_snapshot {published : Occurrence → Prop}
-    : ¬Causality.NodeFailed work [rootTask] published child.key := by
+    : ¬Causality.NodeFailed work [rootTask] published child.ref := by
   intro cause
   cases cause with
   | task known owner member =>
@@ -474,14 +474,14 @@ private theorem child_snapshot {published : Occurrence → Prop}
   | streamDependencies metadata _ _ =>
       obtain ⟨descriptor, birth, located, _⟩ := metadata
       cases (node_metadata located).1
-  | producers _ noRoot _ _ => exact noRoot ⟨child, .group, [parent.key], child_node, rfl⟩
+  | producers _ noRoot _ _ => exact noRoot ⟨child, .group, [parent.ref], child_node, rfl⟩
 
 /-- Before C/D settles, D remains healthy despite the earlier accepted R/C failure.
 Witness: neither earlier failed task contributes to independent D.
 -/
 private theorem other_snapshot {failed : List Occurrence} {published : Occurrence → Prop}
     (subset : failed.Subset [rootTask, firstTask])
-    : ¬Causality.NodeFailed work failed published other.key := by
+    : ¬Causality.NodeFailed work failed published other.ref := by
   apply root_healthy other_node (by decide)
   intro occurrence member owners ⟨producer, payload, known⟩
   rcases List.mem_cons.mp (subset member) with rfl | member
@@ -496,16 +496,16 @@ private theorem other_snapshot {failed : List Occurrence} {published : Occurrenc
 Witness: that owner blocks owner cancellation, and the task has no producer.
 -/
 private theorem root_uncancelled {failed : List Occurrence}
-    {published : Occurrence → Prop} {occurrence owners payload key}
-    (known : TaskAt work occurrence owners none payload) (owner : key ∈ owners)
-    (healthy : ¬Causality.NodeFailed work failed published key)
+    {published : Occurrence → Prop} {occurrence owners payload ref}
+    (known : TaskAt work occurrence owners none payload) (owner : ref ∈ owners)
+    (healthy : ¬Causality.NodeFailed work failed published ref)
     : ¬Causality.TaskCancelled work failed published occurrence := by
   intro cancelled
   cases cancelled with
   | owners task _ _ failed =>
       obtain ⟨producer, otherPayload, task⟩ := task
       obtain ⟨rfl, _, _⟩ := known.unique task
-      exact healthy (failed key owner)
+      exact healthy (failed ref owner)
   | producerFailed task _ _ | producerCancelled task _ _ =>
       obtain ⟨owners, payload, task⟩ := task
       cases (known.unique task).2.1
@@ -529,7 +529,7 @@ theorem failure_licensed : FailureWitness work initial matching atoms failures :
           root_known,
           rfl,
           .root ⟨_, _, root_known⟩,
-          root.key,
+          root.ref,
           by simp,
           by decide
         ⟩,
@@ -549,7 +549,7 @@ theorem failure_licensed : FailureWitness work initial matching atoms failures :
           first_known,
           rfl,
           .root ⟨_, _, first_known⟩,
-          root.key,
+          root.ref,
           by simp,
           by decide
         ⟩,
@@ -558,7 +558,7 @@ theorem failure_licensed : FailureWitness work initial matching atoms failures :
       rintro ⟨boundary, member, _, cause⟩
       have zero : boundary = 0 := by simpa using member
       subst boundary
-      exact root_uncancelled first_known (key := child.key) (by simp) child_snapshot cause
+      exact root_uncancelled first_known (ref := child.ref) (by simp) child_snapshot cause
   | [one, two] =>
       simp only [failures, List.cons_append, List.nil_append, List.cons.injEq,
         Prod.mk.injEq] at equal
@@ -573,7 +573,7 @@ theorem failure_licensed : FailureWitness work initial matching atoms failures :
           shared_known,
           rfl,
           .root ⟨_, _, shared_known⟩,
-          other.key,
+          other.ref,
           by simp,
           by decide
         ⟩,
@@ -583,7 +583,7 @@ theorem failure_licensed : FailureWitness work initial matching atoms failures :
       have cases : boundary = 0 ∨ boundary = 1 := by simpa using member
       rcases cases with rfl | rfl
       all_goals
-        exact root_uncancelled shared_known (key := other.key) (by simp)
+        exact root_uncancelled shared_known (ref := other.ref) (by simp)
           (other_snapshot (by simp [failedBefore, List.Subset])) cause
   | _ :: _ :: _ :: _ =>
       have lengths := congrArg List.length equal
@@ -602,7 +602,7 @@ private theorem visible_subset (cut : Nat)
 Witness: no accepted failure contributes to P at any reached snapshot.
 -/
 private theorem parent_healthy (observed : List Execution.WorkQueueEvent)
-    : ¬NodeFailed work matching observed failures parent.key := by
+    : ¬NodeFailed work matching observed failures parent.ref := by
   rintro ⟨cut, _, _, cause⟩
   exact parent_snapshot (visible_subset cut) cause
 
@@ -612,12 +612,12 @@ private theorem parent_uncancelled (observed : List Execution.WorkQueueEvent)
   exact root_uncancelled parent_known (by simp)
     (parent_snapshot (visible_subset cut)) cause
 
-private def contribution (key : Nat) (task : Occurrence) : Nat :=
+private def contribution (ref : NodeRef) (task : Occurrence) : Nat :=
   if task = rootTask then
-    if key = root.key then 1 else 0
+    if ref = root.ref then 1 else 0
   else if task = firstTask then
-    if key = root.key ∨ key = child.key then 2 else 0
-  else if key = child.key ∨ key = other.key then
+    if ref = root.ref ∨ ref = child.ref then 2 else 0
+  else if ref = child.ref ∨ ref = other.ref then
     1
   else
     0
@@ -626,9 +626,9 @@ private def contribution (key : Nat) (task : Occurrence) : Nat :=
 Witness: the three structural task descriptors; no notification reorders this inventory.
 -/
 private theorem errors_counted (selected : List Occurrence)
-    (subset : selected.Subset [rootTask, firstTask, sharedTask]) (key : Nat)
-    : NodeErrors work selected key (selected.map (contribution key)).sum := by
-  refine ⟨contribution key, ?_, rfl⟩
+    (subset : selected.Subset [rootTask, firstTask, sharedTask]) (ref : NodeRef)
+    : NodeErrors work selected ref (selected.map (contribution ref)).sum := by
+  refine ⟨contribution ref, ?_, rfl⟩
   intro occurrence member
   have cases := subset member
   simp only [List.mem_cons, List.not_mem_nil, or_false] at cases
@@ -643,21 +643,21 @@ private theorem root_failure_allowed
     : EventAllowed work initial matching [] failures (.groupFailure root 1) := by
   refine ⟨⟨[], none, root_node⟩, by unfold Open; decide, ?_, ?_⟩
   · exact NodeFailed.task root_known (by simp) (by simp [failedBefore, failures])
-  · exact errors_counted [rootTask] (by simp [List.Subset]) root.key
+  · exact errors_counted [rootTask] (by simp [List.Subset]) root.ref
 
 private theorem other_failure_allowed
     : EventAllowed work initial matching [.groupFailure root 1] failures
         (.groupFailure other 1) := by
   refine ⟨⟨[], none, other_node⟩, by unfold Open; decide, ?_, ?_⟩
   · exact NodeFailed.task shared_known (by simp) (by simp [failedBefore, failures])
-  · exact errors_counted [rootTask, firstTask, sharedTask] (by simp [List.Subset]) other.key
+  · exact errors_counted [rootTask, firstTask, sharedTask] (by simp [List.Subset]) other.ref
 
 private theorem parent_value_allowed
     : EventAllowed work initial matching
         [.groupFailure root 1, .groupFailure other 1] failures
         (.groupValues parent
           [{ path := [], data := data, errors := 0, deliveryGroups := [parent] }]) := by
-  refine ⟨[parent.key], none, { path := [], data, deliveryGroups := [parent] },
+  refine ⟨[parent.ref], none, { path := [], data, deliveryGroups := [parent] },
     rfl, parent_known, ?_, ?_⟩
   · refine ⟨?_, ?_, by simp, trivial⟩
     · rintro ⟨index, event, selected, value, _⟩
@@ -666,7 +666,7 @@ private theorem parent_value_allowed
       | index + 2 => simp at selected
     · exact parent_uncancelled _
   · have opened : OpenOwner work initial [.groupFailure root 1, .groupFailure other 1]
-        [parent.key] parent :=
+        [parent.ref] parent :=
       ⟨⟨.group, [], none, parent_node⟩, by simp, by unfold Open; decide⟩
     refine ⟨opened, ⟨parent, opened, parent_healthy _⟩, ?_⟩
     intro node available
@@ -706,23 +706,23 @@ theorem notice_allowed
     intro node member
     have same := List.mem_singleton.mp member
     subst node
-    refine ⟨[parent.key], none, child_node, by decide, Or.inr ?_, by simp, ?_⟩
-    · exact ⟨rfl, firstTask, [root.key, child.key],
+    refine ⟨[parent.ref], none, child_node, by decide, Or.inr ?_, by simp, ?_⟩
+    · exact ⟨rfl, firstTask, [root.ref, child.ref],
         by simp [failedBefore, failures, beforeNotice, atoms, outputs],
         ⟨_, _, first_known⟩, by simp⟩
-    · intro key member
+    · intro ref member
       have same := List.mem_singleton.mp member
-      subst key
+      subst ref
       exact ⟨parent_healthy _, Or.inr (Or.inl (by decide))⟩
 
 private theorem child_failure_allowed
     : EventAllowed work initial matching
         (beforeNotice ++ [.groupSuccess parent [child] []]) failures
         (.groupFailure child 3) := by
-  refine ⟨⟨[parent.key], none, child_node⟩, by unfold Open; decide, ?_, ?_⟩
+  refine ⟨⟨[parent.ref], none, child_node⟩, by unfold Open; decide, ?_, ?_⟩
   · exact NodeFailed.task first_known (by simp)
       (by simp [failedBefore, failures, beforeNotice, atoms, outputs])
-  · exact errors_counted [rootTask, firstTask, sharedTask] (by simp [List.Subset]) child.key
+  · exact errors_counted [rootTask, firstTask, sharedTask] (by simp [List.Subset]) child.ref
 
 /-- All actual atoms share one publication matching and the accepted settlement order.
 Witness: R-only at cut zero, then R/C before C/D at cut one, followed by P and C notices.

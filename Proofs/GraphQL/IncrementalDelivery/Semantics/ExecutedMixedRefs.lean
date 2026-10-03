@@ -1,11 +1,11 @@
-import Proofs.GraphQL.IncrementalDelivery.Semantics.MixedWorkKeys
+import Proofs.GraphQL.IncrementalDelivery.Semantics.MixedWorkRefs
 
-/-! Arbitrary execution produces bounded, nonempty-key mixed delivery work.
+/-! Arbitrary execution produces bounded, nonempty-ref mixed delivery work.
 The proof follows fresh state allocation through all completion branches. Stream
 items reset defer context and therefore allocate strictly after their stream owner.
 -/
 
-namespace GraphQL.IncrementalDelivery.Semantics.MixedKeys
+namespace GraphQL.IncrementalDelivery.Semantics.MixedRefs
 
 open GraphQL.IncrementalDelivery.Execution
 open Ancestry
@@ -13,7 +13,7 @@ open Ancestry
 attribute [local simp] id_pure_eq id_bind_eq id_map_eq run_bind run_map
 
 mutual
-  theorem executePlan_keys (schema : Schema) (resolvers : Resolvers ObjectRef)
+  theorem executePlan_refs (schema : Schema) (resolvers : Resolvers ObjectRef)
       (variables : VariableValues) (fuel : Nat) (parentType : Name)
       (source : ResolverValue ObjectRef) (collection : FieldCollection)
       (path : ResponsePath) (usages : List Nat) (deferMap : DeferMap)
@@ -39,12 +39,12 @@ mutual
     have hpu := buildExecutionPlan_preserves_property _ collection.collectedFieldsMap usages hu
     have hpp := buildExecutionPlan_partitionsAt parents state _ usages collection.collectedFieldsMap hv hm hk hn
       hu
-    obtain ⟨hle, middle, he, hmv, hw⟩ := executeCollectedFields_keys schema resolvers variables fuel
+    obtain ⟨hle, middle, he, hmv, hw⟩ := executeCollectedFields_refs schema resolvers variables fuel
       parentType source _ path usages _ parents lower state hls hv hm hl hpk.1 hpu.1
     simp only [executeExecutionPlan, run_bind]
     split
     · exact ⟨hle, middle, he, hmv, hw⟩
-    · obtain ⟨hlt, final, het, hfv, hwt⟩ := collectExecutionGroups_keys schema resolvers variables fuel
+    · obtain ⟨hlt, final, het, hfv, hwt⟩ := collectExecutionGroups_refs schema resolvers variables fuel
         parentType source _ path _ middle lower _ (Nat.le_trans hls hle) hmv (hm.extend he hle) hl
         (fun p hp => groupsKnown_extend (hpk.2 p hp) he hle)
         (fun p hp => ⟨(hpp p hp).1, (hpp p hp).2.1, (hpp p hp).2.2.1⟩)
@@ -56,7 +56,7 @@ mutual
     all_goals simp_wf
     all_goals repeat first | apply Prod.Lex.left; omega | apply Prod.Lex.right
 
-  theorem collectExecutionGroups_keys (schema : Schema) (resolvers : Resolvers ObjectRef)
+  theorem collectExecutionGroups_refs (schema : Schema) (resolvers : Resolvers ObjectRef)
       (variables : VariableValues) (fuel : Nat) (parentType : Name)
       (source : ResolverValue ObjectRef)
       (partitions : List (List Nat × CollectedFieldsMap)) (path : ResponsePath)
@@ -71,7 +71,7 @@ mutual
       (hp
         : ∀ partition ∈ partitions,
             partition.1 ≠ []
-            ∧ partition.1.Subset (mapKeys deferMap)
+            ∧ partition.1.Subset (mapRefs deferMap)
             ∧ GroupsUnder partition.1 partition.2)
       : Output parents lower state
           ((collectExecutionGroups schema resolvers variables fuel parentType source
@@ -85,10 +85,10 @@ mutual
         simpa only [collectExecutionGroups, StateT.run_pure, id_pure_eq] using output_empty parents lower state hv
     | cons partition rest =>
         rcases partition with ⟨usages, groups⟩
-        obtain ⟨hle, middle, he, hmv, hw⟩ := executeCollectedFields_keys schema resolvers variables fuel
+        obtain ⟨hle, middle, he, hmv, hw⟩ := executeCollectedFields_refs schema resolvers variables fuel
           parentType source groups path usages deferMap parents lower state hls hv hm hl
           (hk (usages, groups) (by simp)) (hp (usages, groups) (by simp)).2.2
-        obtain ⟨hlt, final, het, hfv, hwt⟩ := collectExecutionGroups_keys schema resolvers variables fuel
+        obtain ⟨hlt, final, het, hfv, hwt⟩ := collectExecutionGroups_refs schema resolvers variables fuel
           parentType source rest path deferMap middle lower _ (Nat.le_trans hls hle) hmv (hm.extend he hle) hl
           (fun p hmem => groupsKnown_extend (hk p (List.mem_cons_of_mem _ hmem)) he hle)
           (fun p hmem => hp p (List.mem_cons_of_mem _ hmem))
@@ -105,7 +105,7 @@ mutual
     all_goals repeat first | apply Prod.Lex.left; omega | apply Prod.Lex.right
     all_goals try omega
 
-  theorem executeCollectedFields_keys (schema : Schema) (resolvers : Resolvers ObjectRef)
+  theorem executeCollectedFields_refs (schema : Schema) (resolvers : Resolvers ObjectRef)
       (variables : VariableValues) (fuel : Nat) (parentType : Name)
       (source : ResolverValue ObjectRef) (groups : CollectedFieldsMap)
       (path : ResponsePath) (usages : List Nat) (deferMap : DeferMap)
@@ -127,11 +127,11 @@ mutual
           using output_empty parents lower state hv
     | cons group rest =>
         rcases group with ⟨name, fields⟩
-        obtain ⟨hle, middle, he, hmv, hw⟩ := executeResponseField_keys schema resolvers
+        obtain ⟨hle, middle, he, hmv, hw⟩ := executeResponseField_refs schema resolvers
           variables fuel parentType source
           name fields path usages deferMap parents lower state hls hv hm hl (hk (name, fields) (by simp))
           (hu (name, fields) (by simp))
-        obtain ⟨hlt, final, het, hfv, hwt⟩ := executeCollectedFields_keys schema resolvers variables fuel
+        obtain ⟨hlt, final, het, hfv, hwt⟩ := executeCollectedFields_refs schema resolvers variables fuel
           parentType source rest path usages deferMap middle lower _ (Nat.le_trans hls hle) hmv (hm.extend he hle) hl
           (groupsKnown_extend (fun g hg => hk g (List.mem_cons_of_mem _ hg)) he hle)
           (fun g hg => hu g (List.mem_cons_of_mem _ hg))
@@ -144,7 +144,7 @@ mutual
     all_goals repeat first | apply Prod.Lex.left; omega | apply Prod.Lex.right
     all_goals try omega
 
-  theorem executeResponseField_keys (schema : Schema) (resolvers : Resolvers ObjectRef)
+  theorem executeResponseField_refs (schema : Schema) (resolvers : Resolvers ObjectRef)
       (variables : VariableValues) (fuel : Nat) (parentType : Name)
       (source : ResolverValue ObjectRef) (name : Name) (fields : List FieldDetails)
       (path : ResponsePath) (usages : List Nat) (deferMap : DeferMap)
@@ -176,7 +176,7 @@ mutual
               · exact output_empty parents lower state hv
               · split
                 · exact output_empty parents lower state hv
-                · obtain ⟨hle, next, he, hnv, hw⟩ := completeValue_keys schema resolvers variables fuel _ _ _
+                · obtain ⟨hle, next, he, hnv, hw⟩ := completeValue_refs schema resolvers variables fuel _ _ _
                     (path ++ [.field name]) usages deferMap true parents lower state hls hv hm hl hk hu
                   simp only [run_bind, StateT.run_pure, id_pure_eq]
                   exact ⟨hle, next, he, hnv, workAt_map next lower _ _ _ hw⟩
@@ -185,7 +185,7 @@ mutual
     all_goals subst_vars; simp_wf
     all_goals repeat first | apply Prod.Lex.left; omega | apply Prod.Lex.right
 
-  theorem completeValue_keys (schema : Schema) (resolvers : Resolvers ObjectRef)
+  theorem completeValue_refs (schema : Schema) (resolvers : Resolvers ObjectRef)
       (variables : VariableValues) (fuel : Nat) (fieldType : TypeRef)
       (fields : List FieldDetails) (value : ResolverValue ObjectRef)
       (path : ResponsePath) (usages : List Nat) (deferMap : DeferMap) (allowStream : Bool)
@@ -206,7 +206,7 @@ mutual
     | succ fuel =>
         cases fieldType with
         | nonNull inner =>
-            obtain ⟨hle, next, he, hnv, hw⟩ := completeValue_keys schema resolvers variables (fuel + 1) inner fields
+            obtain ⟨hle, next, he, hnv, hw⟩ := completeValue_refs schema resolvers variables (fuel + 1) inner fields
               value path usages deferMap allowStream parents lower state hls hv hm hl hk hu
             simp only [completeValue, run_bind, StateT.run_pure, id_pure_eq]
             exact ⟨hle, next, he, hnv, workAt_nonNull next lower _ _ hw⟩
@@ -228,11 +228,11 @@ mutual
                 · exact output_empty parents lower state hv
                 · obtain ⟨hsc, middle, he, hmv, hmap, hfields⟩ := collectSubfields_ancestry schema variables runtimeType
                     (.object runtimeType ref) fields parents state deferMap path hv hm hk
-                  have hkc := collectSubfields_keys schema variables runtimeType (.object runtimeType ref) fields state
+                  have hkc := collectSubfields_refs schema variables runtimeType (.object runtimeType ref) fields state
                     (fun field hf => optionalUsageAt_before hv (hk field hf))
                   have hlow := mapLower_new lower state deferMap _ path hl hls (fun u hu => (hkc.2.2 u hu).1)
                   have hn := collectSubfields_nonempty schema variables runtimeType (.object runtimeType ref) fields state
-                  obtain ⟨hle, next, he', hnv, hw⟩ := executePlan_keys schema resolvers variables fuel runtimeType
+                  obtain ⟨hle, next, he', hnv, hw⟩ := executePlan_refs schema resolvers variables fuel runtimeType
                     (.object runtimeType ref) _ path usages deferMap middle lower _ (Nat.le_trans hls hsc) hmv hmap hlow hfields hn
                     (collectSubfields_under schema variables runtimeType (.object runtimeType ref) fields usages state hu)
                   simp only [run_bind, StateT.run_pure, id_pure_eq]
@@ -253,7 +253,7 @@ mutual
                   using output_empty parents lower state hv
             | list items =>
                 simpa only [completeValue]
-                  using completeListValueWithStream_keys schema resolvers variables fuel
+                  using completeListValueWithStream_refs schema resolvers variables fuel
                     inner fields items path usages deferMap allowStream parents lower
                     state hls hv hm hl hk hu
   termination_by (fuel, 1, sizeOf fieldType, 0)
@@ -261,7 +261,7 @@ mutual
     all_goals subst_vars; simp_wf
     all_goals repeat first | apply Prod.Lex.left; omega | apply Prod.Lex.right
 
-  theorem completeListValueWithStream_keys (schema : Schema)
+  theorem completeListValueWithStream_refs (schema : Schema)
       (resolvers : Resolvers ObjectRef) (variables : VariableValues) (fuel : Nat)
       (inner : TypeRef) (fields : List FieldDetails)
       (values : List (ResolverValue ObjectRef)) (path : ResponsePath) (usages : List Nat)
@@ -278,13 +278,13 @@ mutual
     dsimp only
     split
     · exact output_empty parents lower state hv
-    · obtain ⟨hle, next, he, hnv, hw⟩ := completeListValue_keys schema resolvers variables
+    · obtain ⟨hle, next, he, hnv, hw⟩ := completeListValue_refs schema resolvers variables
         fuel inner fields values
         path 0 usages deferMap parents lower state hls hv hm hl hk hu
       simp only [run_bind, StateT.run_pure, id_pure_eq]
       exact ⟨hle, next, he, hnv, workAt_catchNull next lower _ _ _ hw⟩
     · rename_i usage _
-      obtain ⟨hle, middle, he, hmv, hw⟩ := completeListValue_keys schema resolvers
+      obtain ⟨hle, middle, he, hmv, hw⟩ := completeListValue_refs schema resolvers
         variables fuel inner fields
         (values.take usage.initialCount) path 0 usages deferMap parents lower state hls hv hm hl hk hu
       simp only [run_bind]
@@ -296,24 +296,25 @@ mutual
             (values.take usage.initialCount) path 0 usages deferMap).run state).2
           have hav : Valid (allocate middle middleState []) (middleState + 1) :=
             allocate_valid middle middleState none hmv (by simp)
-          obtain ⟨hlt, final, het, hfv, hitems⟩ := completeStreamItems_keys schema resolvers variables fuel inner
+          obtain ⟨hlt, final, het, hfv, hitems⟩ := completeStreamItems_refs schema resolvers variables fuel inner
             (fields.map (fun field => { field with deferUsage := none })) (values.drop usage.initialCount)
             path usage.initialCount (allocate middle middleState []) (middleState + 1) (middleState + 1)
             (Nat.le_refl _) hav (by intro f hf; obtain ⟨old, _, rfl⟩ := List.mem_map.mp hf; rfl)
           have hea := allocate_extends middle middleState []
           have heall := hea.trans het (Nat.le_succ middleState)
-          simp only [freshExecutionKey, run_bind, StateT.run_get, StateT.run_set, StateT.run_pure, id_pure_eq]
+          simp only [freshNodeRef, run_bind, StateT.run_get, StateT.run_set, StateT.run_pure, id_pure_eq]
           refine ⟨by dsimp only [middleState] at *; omega, final, he.trans heall hle, hfv, ?_⟩
           apply workAt_combine (workAt_catchNull final lower _ _ _
             (hw.extend heall (by dsimp only [middleState] at *; omega)))
           rw [WorkAt]
-          exact ⟨Nat.le_trans hls hle, by dsimp only [middleState] at *; omega, hitems⟩
+          exact ⟨Nat.le_trans hls hle,
+            Nat.lt_of_lt_of_le (Nat.lt_succ_self middleState) hlt, hitems⟩
   termination_by (fuel, 3, 0, 0)
   decreasing_by
     all_goals subst_vars; simp_wf
     all_goals repeat first | apply Prod.Lex.left; omega | apply Prod.Lex.right
 
-  theorem completeListValue_keys (schema : Schema) (resolvers : Resolvers ObjectRef)
+  theorem completeListValue_refs (schema : Schema) (resolvers : Resolvers ObjectRef)
       (variables : VariableValues) (fuel : Nat) (itemType : TypeRef)
       (fields : List FieldDetails) (values : List (ResolverValue ObjectRef))
       (path : ResponsePath) (index : Nat) (usages : List Nat) (deferMap : DeferMap)
@@ -332,9 +333,9 @@ mutual
           Completion.pure]
           using output_empty parents lower state hv
     | cons value rest =>
-        obtain ⟨hle, middle, he, hmv, hw⟩ := completeValue_keys schema resolvers variables fuel itemType fields value
+        obtain ⟨hle, middle, he, hmv, hw⟩ := completeValue_refs schema resolvers variables fuel itemType fields value
           (path ++ [.index index]) usages deferMap false parents lower state hls hv hm hl hk hu
-        obtain ⟨hlt, final, het, hfv, hwt⟩ := completeListValue_keys schema resolvers
+        obtain ⟨hlt, final, het, hfv, hwt⟩ := completeListValue_refs schema resolvers
           variables fuel itemType fields rest
           path (index + 1) usages deferMap middle lower _ (Nat.le_trans hls hle) hmv (hm.extend he hle) hl
           (fieldsKnown_extend hk he hle) hu
@@ -347,7 +348,7 @@ mutual
     all_goals repeat first | apply Prod.Lex.left; omega | apply Prod.Lex.right
     all_goals try omega
 
-  theorem completeStreamItems_keys (schema : Schema) (resolvers : Resolvers ObjectRef)
+  theorem completeStreamItems_refs (schema : Schema) (resolvers : Resolvers ObjectRef)
       (variables : VariableValues) (fuel : Nat) (itemType : TypeRef)
       (fields : List FieldDetails) (values : List (ResolverValue ObjectRef))
       (path : ResponsePath) (index : Nat) (parents : Assignment) (lower state : Nat)
@@ -367,14 +368,14 @@ mutual
         simp only [completeStreamItems, StateT.run_pure, id_pure_eq]
         exact ⟨Nat.le_refl _, parents, Extends.refl _ _, hv, by simp⟩
     | cons value rest =>
-        obtain ⟨hle, middle, he, hmv, hw⟩ := completeValue_keys schema resolvers variables fuel itemType fields value
+        obtain ⟨hle, middle, he, hmv, hw⟩ := completeValue_refs schema resolvers variables fuel itemType fields value
           (path ++ [.index index]) [] [] false parents lower state hls hv
-          (by simp [MapAt]) (by simp [MapLower, mapKeys]) (by intro f hf; simp [OptionalUsageAt, hk f hf])
+          (by simp [MapAt]) (by simp [MapLower, mapRefs]) (by intro f hf; simp [OptionalUsageAt, hk f hf])
           (fun _ _ => Or.inl rfl)
         simp only [completeStreamItems, run_bind]
         split
         · exact ⟨hle, middle, he, hmv, by simp [WorkAt]⟩
-        · obtain ⟨hlt, final, het, hfv, htail⟩ := completeStreamItems_keys schema resolvers variables fuel itemType fields rest
+        · obtain ⟨hlt, final, het, hfv, htail⟩ := completeStreamItems_refs schema resolvers variables fuel itemType fields rest
             path (index + 1) middle lower _ (Nat.le_trans hls hle) hmv hk
           simp only [run_bind, StateT.run_pure, id_pure_eq]
           refine ⟨Nat.le_trans hle hlt, final, he.trans het hle, hfv, ?_⟩
@@ -389,7 +390,7 @@ mutual
     all_goals try omega
 end
 
-theorem executeRoot_keys (schema : Schema) (resolvers : Resolvers ObjectRef)
+theorem executeRoot_refs (schema : Schema) (resolvers : Resolvers ObjectRef)
     (variables : VariableValues) (fuel : Nat) (parentType : Name)
     (source : ResolverValue ObjectRef) (selections : List Selection) (state : Nat)
     : let output :=
@@ -401,29 +402,30 @@ theorem executeRoot_keys (schema : Schema) (resolvers : Resolvers ObjectRef)
           Valid parents output.2 ∧ WorkAt parents state output.2 output.1.work := by
   obtain ⟨hsc, middle, _, hmv, hm, hk⟩ := collectFields_ancestry schema variables parentType source selections none
     (fun _ => []) state [] [] (by simp [Valid]) (by simp [MapAt]) (by simp [OptionalUsageAt])
-  have hkc := collectFields_keys schema variables parentType source selections none state (by simp [UsageBefore])
-  have hl := mapLower_new state state [] _ [] (by simp [MapLower, mapKeys]) (Nat.le_refl _)
+  have hkc := collectFields_refs schema variables parentType source selections none state (by simp [UsageBefore])
+  have hl := mapLower_new state state [] _ [] (by simp [MapLower, mapRefs]) (Nat.le_refl _)
     (fun u hu => (hkc.2.2 u hu).1)
-  obtain ⟨hle, parents, _, hv, hw⟩ := executePlan_keys schema resolvers variables fuel parentType source
+  obtain ⟨hle, parents, _, hv, hw⟩ := executePlan_refs schema resolvers variables fuel parentType source
     _ [] [] [] middle state _ hsc hmv hm hl hk
     (collectFields_nonempty schema variables parentType source selections none state)
     (fun _ _ _ _ => Or.inl rfl)
   exact ⟨Nat.le_trans hsc hle, parents, hv, hw⟩
 
-theorem executeRoot_taskKey_bounds (schema : Schema) (resolvers : Resolvers ObjectRef)
+theorem executeRoot_taskRef_bounds (schema : Schema) (resolvers : Resolvers ObjectRef)
     (variables : VariableValues) (fuel : Nat) (parentType : Name)
-    (source : ResolverValue ObjectRef) (selections : List Selection) (state key : Nat)
+    (source : ResolverValue ObjectRef) (selections : List Selection)
+    (state : Nat) (ref : NodeRef)
     (hk
-      : TaskKey key
+      : TaskRef ref
           ((executeRootSelectionSetCore schema resolvers variables fuel parentType source
               selections).run
             state).1.work)
-    : state ≤ key
-      ∧ key
+    : state ≤ ref
+      ∧ ref
         < ((executeRootSelectionSetCore schema resolvers variables fuel parentType source
               selections).run
             state).2 := by
-  obtain ⟨_, _, _, hw⟩ := executeRoot_keys schema resolvers variables fuel parentType source selections state
-  exact hw.key_bounds hk
+  obtain ⟨_, _, _, hw⟩ := executeRoot_refs schema resolvers variables fuel parentType source selections state
+  exact hw.ref_bounds hk
 
-end GraphQL.IncrementalDelivery.Semantics.MixedKeys
+end GraphQL.IncrementalDelivery.Semantics.MixedRefs

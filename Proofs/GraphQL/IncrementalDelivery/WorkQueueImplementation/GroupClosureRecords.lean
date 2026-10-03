@@ -66,8 +66,8 @@ theorem State.GroupNodesMatchWork.drainReadyGroups_groupClosureRecords {queue : 
         · simp
         · rename_i node selected
           have member : node ∈ current.groupNodes := by
-            obtain ⟨key, _, choice⟩ := List.exists_of_findSome?_eq_some selected
-            cases found : current.groupNode? key with
+            obtain ⟨ref, _, choice⟩ := List.exists_of_findSome?_eq_some selected
+            cases found : current.groupNode? ref with
             | none => simp [found] at choice
             | some candidate =>
                 simp only [found] at choice
@@ -152,10 +152,10 @@ theorem State.GroupNodesMatchWork.taskFailure_groupClosureRecords {queue : State
     : ∀ event ∈ (queue.taskFailure occurrence errors).2,
         event.GroupClosureRecordLocated work := by
   let step (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode) :=
-    match acc.1.groupNode? group.key with
+    match acc.1.groupNode? group.ref with
     | none => acc
     | some node =>
-        if acc.1.rootGroups.contains group.key then
+        if acc.1.rootGroups.contains group.ref then
           let (next, failure) := acc.1.finishGroupFailure node errors
           (next, acc.2 ++ [failure])
         else (acc.1.putGroupNode

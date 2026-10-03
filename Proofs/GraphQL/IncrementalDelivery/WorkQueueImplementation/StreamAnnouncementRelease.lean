@@ -22,17 +22,18 @@ private theorem fold_preserves {α β : Type} (property : α → Prop) (step : �
 /-- Updating a group cache preserves announcement inventory definitionally.
 Witness: no task link or stream-registry field changes.
 -/
-theorem State.StreamAnnouncementInventory.putGroupNode {queue : State} {announced : Keys}
-    (inventory : queue.StreamAnnouncementInventory announced) (group : GroupNode)
+theorem State.StreamAnnouncementInventory.putGroupNode {queue : State}
+    {announced : NodeRefs} (inventory : queue.StreamAnnouncementInventory announced)
+    (group : GroupNode)
     : (queue.putGroupNode group).StreamAnnouncementInventory announced :=
   ⟨inventory.unique, inventory.registered, inventory.stored, inventory.unreleased⟩
 
 /-- Installing a settled value preserves its original task links.
 Witness: the replacement and all surviving nodes retain their old child lists.
 -/
-theorem State.StreamAnnouncementInventory.storeValue {queue : State} {announced : Keys}
-    (inventory : queue.StreamAnnouncementInventory announced) {node : TaskNode}
-    (member : node ∈ queue.taskNodes) (value : ExecutionGroupValue)
+theorem State.StreamAnnouncementInventory.storeValue {queue : State}
+    {announced : NodeRefs} (inventory : queue.StreamAnnouncementInventory announced)
+    {node : TaskNode} (member : node ∈ queue.taskNodes) (value : ExecutionGroupValue)
     : (queue.putTaskNode { node with value := some value }).StreamAnnouncementInventory
         announced := by
   apply inventory.of_frame
@@ -46,8 +47,9 @@ theorem State.StreamAnnouncementInventory.storeValue {queue : State} {announced 
 /-- Deleting a task preserves all remaining unannounced links.
 Witness: task-map inclusion with unchanged registration.
 -/
-theorem State.StreamAnnouncementInventory.removeTask {queue : State} {announced : Keys}
-    (inventory : queue.StreamAnnouncementInventory announced) (occurrence : Occurrence)
+theorem State.StreamAnnouncementInventory.removeTask {queue : State}
+    {announced : NodeRefs} (inventory : queue.StreamAnnouncementInventory announced)
+    (occurrence : Occurrence)
     : (queue.removeTask occurrence).StreamAnnouncementInventory announced :=
   inventory.of_frame (List.Subset.refl _)
     (fun node member => .inr ⟨node, (State.removeTask_node member).1, rfl⟩)
@@ -55,9 +57,10 @@ theorem State.StreamAnnouncementInventory.removeTask {queue : State} {announced 
 /-- Failure cleanup cannot introduce a previously announced stored link.
 Witness: the surviving-node filter and unchanged descriptor registry.
 -/
-theorem State.StreamAnnouncementInventory.removeGroup {queue : State} {announced : Keys}
-    (inventory : queue.StreamAnnouncementInventory announced) (key : Nat)
-    : (queue.removeGroup key).StreamAnnouncementInventory announced :=
+theorem State.StreamAnnouncementInventory.removeGroup {queue : State}
+    {announced : NodeRefs} (inventory : queue.StreamAnnouncementInventory announced)
+    (ref : NodeRef)
+    : (queue.removeGroup ref).StreamAnnouncementInventory announced :=
   inventory.of_frame (List.Subset.refl _)
     (fun node member => .inr ⟨node, (List.mem_filter.mp member).1, rfl⟩)
 
@@ -65,7 +68,7 @@ theorem State.StreamAnnouncementInventory.removeGroup {queue : State} {announced
 Witness: both relevant exact field projections.
 -/
 theorem State.StreamAnnouncementInventory.pruneEmptyGroups {queue : State}
-    {announced : Keys} (inventory : queue.StreamAnnouncementInventory announced)
+    {announced : NodeRefs} (inventory : queue.StreamAnnouncementInventory announced)
     (groups : List Execution.DeliveryNode)
     : (queue.pruneEmptyGroups groups).1.StreamAnnouncementInventory announced := by
   apply inventory.of_frame
@@ -77,7 +80,7 @@ theorem State.StreamAnnouncementInventory.pruneEmptyGroups {queue : State}
 /-- Task starts retain existing links or create an empty child list.
 Witness: inspect the two lookup guards; streams remain unchanged.
 -/
-theorem State.StreamAnnouncementInventory.startTask {queue : State} {announced : Keys}
+theorem State.StreamAnnouncementInventory.startTask {queue : State} {announced : NodeRefs}
     (inventory : queue.StreamAnnouncementInventory announced) (occurrence : Occurrence)
     : (queue.startTask occurrence).StreamAnnouncementInventory announced := by
   unfold State.startTask
@@ -95,9 +98,10 @@ theorem State.StreamAnnouncementInventory.startTask {queue : State} {announced :
 /-- Starting a group preserves unannounced child links while starting its tasks.
 Witness: task-start preservation through the actual membership fold.
 -/
-theorem State.StreamAnnouncementInventory.startGroup {queue : State} {announced : Keys}
-    (inventory : queue.StreamAnnouncementInventory announced) (key : Nat)
-    : (queue.startGroup key).StreamAnnouncementInventory announced := by
+theorem State.StreamAnnouncementInventory.startGroup {queue : State}
+    {announced : NodeRefs} (inventory : queue.StreamAnnouncementInventory announced)
+    (ref : NodeRef)
+    : (queue.startGroup ref).StreamAnnouncementInventory announced := by
   unfold State.startGroup
   split
   · exact inventory
@@ -109,36 +113,37 @@ theorem State.StreamAnnouncementInventory.startGroup {queue : State} {announced 
 /-- New-work activation retains the complete announcement inventory.
 Witness: group starts preserve task links; stream starts change only active roots.
 -/
-theorem State.StreamAnnouncementInventory.startNewWork {queue : State} {announced : Keys}
-    (inventory : queue.StreamAnnouncementInventory announced) (work : NewWork)
+theorem State.StreamAnnouncementInventory.startNewWork {queue : State}
+    {announced : NodeRefs} (inventory : queue.StreamAnnouncementInventory announced)
+    (work : NewWork)
     : (queue.startNewWork work).StreamAnnouncementInventory announced := by
   have groups := fold_preserves (fun current => current.StreamAnnouncementInventory announced)
-    State.startGroup (fun _ key prior => prior.startGroup key)
-    (work.newGroups.map Execution.DeliveryNode.key)
-    { queue with rootGroups := queue.rootGroups ++ work.newGroups.map Execution.DeliveryNode.key }
+    State.startGroup (fun _ ref prior => prior.startGroup ref)
+    (work.newGroups.map Execution.DeliveryNode.ref)
+    { queue with rootGroups := queue.rootGroups ++ work.newGroups.map Execution.DeliveryNode.ref }
     ⟨inventory.unique, inventory.registered, inventory.stored, inventory.unreleased⟩
   apply fold_preserves (fun current => current.StreamAnnouncementInventory announced)
     State.startStream _ _ _ groups
-  intro current key prior
+  intro current ref prior
   unfold State.startStream
   split <;> exact ⟨prior.unique, prior.registered, prior.stored, prior.unreleased⟩
 
 -----------------------------------------------------------------------------------------
--- Every internal drain release consumes fresh keys before the next release
+-- Every internal drain release consumes fresh refs before the next release
 -----------------------------------------------------------------------------------------
 
-/-- A bounded drain extends the announcement inventory by exactly its emitted stream keys.
+/-- A bounded drain extends the announcement inventory by exactly its emitted stream refs.
 Witness: successful flushes consume links before recursion; failed flushes emit no stream
 notice and only remove links. Structural matching survives both paths and activation.
 -/
 theorem State.StreamAnnouncementInventory.drainReadyGroups_go {queue : State}
-    {work : Execution.Work} {announced : Keys}
+    {work : Execution.Work} {announced : NodeRefs}
     (inventory : queue.StreamAnnouncementInventory announced)
     (matching : queue.ChildStreamsMatchWork work) (generated : ExecutedWork work)
     (fuel : Nat)
     : (State.drainReadyGroups.go fuel queue).1.StreamAnnouncementInventory
         (announced
-          ++ (State.drainReadyGroups.go fuel queue).2.flatMap rawStreamNoticeKeys) := by
+          ++ (State.drainReadyGroups.go fuel queue).2.flatMap rawStreamNoticeRefs) := by
   induction fuel generalizing queue announced with
   | zero =>
       simpa only [State.drainReadyGroups.go, List.flatMap_nil, List.append_nil]
@@ -158,20 +163,20 @@ theorem State.StreamAnnouncementInventory.drainReadyGroups_go {queue : State}
             simpa only [List.flatMap_append, ← State.finishGroupSuccess_streamNotices,
               List.append_assoc] using result
         | some errors =>
-            have result := ih (inventory.removeGroup node.group.node.key)
-              (matching.removeGroup node.group.node.key)
+            have result := ih (inventory.removeGroup node.group.node.ref)
+              (matching.removeGroup node.group.node.ref)
             simpa only [State.finishGroupFailure, List.flatMap_append,
-              List.flatMap_singleton, rawStreamNoticeKeys, List.nil_append] using result
+              List.flatMap_singleton, rawStreamNoticeRefs, List.nil_append] using result
 
 /-- Actual ready draining emits fresh stream notices, even across multiple inner releases.
 Witness: specialize the bounded inventory induction to the implementation's live-node fuel.
 -/
 theorem State.StreamAnnouncementInventory.drainReadyGroups
-    {queue : State} {work : Execution.Work} {announced : Keys}
+    {queue : State} {work : Execution.Work} {announced : NodeRefs}
     (inventory : queue.StreamAnnouncementInventory announced)
     (matching : queue.ChildStreamsMatchWork work) (generated : ExecutedWork work)
     : queue.drainReadyGroups.1.StreamAnnouncementInventory
-        (announced ++ queue.drainReadyGroups.2.flatMap rawStreamNoticeKeys) :=
+        (announced ++ queue.drainReadyGroups.2.flatMap rawStreamNoticeRefs) :=
   inventory.drainReadyGroups_go matching generated _
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

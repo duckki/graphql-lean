@@ -56,10 +56,10 @@ private theorem generated : ExecutedWork work := by
   cbv
 
 private theorem valid : ValidGraphEvents work [first, finish] := by
-  have lastKnown : TaskAt work lastTask [lastOwner.key] none
+  have lastKnown : TaskAt work lastTask [lastOwner.ref] none
       (.object [] (.ok (lastValue.data, 0))) :=
     ⟨_, [], _, .combine .empty .empty, [], rfl, rfl, rfl⟩
-  have sharedKnown : TaskAt work sharedTask [firstOwner.key, lastOwner.key] none
+  have sharedKnown : TaskAt work sharedTask [firstOwner.ref, lastOwner.ref] none
       (.object [] (.ok (sharedValue.data, 0))) :=
     ⟨_, [], _, .combine .empty .empty, [], rfl, rfl, rfl⟩
   have one : ValidGraphEvents work [first] :=
@@ -77,37 +77,37 @@ private def leftChild : DeliveryNode := ⟨2, [], some (.string "C")⟩
 private def rightChild : DeliveryNode := ⟨3, [], some (.string "D")⟩
 
 private def left : GroupNode :=
-  { group := ⟨firstOwner, none⟩, childGroups := [leftChild.key], pending := 1 }
+  { group := ⟨firstOwner, none⟩, childGroups := [leftChild.ref], pending := 1 }
 
 private def right : GroupNode :=
-  { group := ⟨lastOwner, none⟩, childGroups := [rightChild.key], pending := 1 }
+  { group := ⟨lastOwner, none⟩, childGroups := [rightChild.ref], pending := 1 }
 
 private def leftLeaf : GroupNode :=
   {
-    group := ⟨leftChild, some firstOwner.key⟩,
+    group := ⟨leftChild, some firstOwner.ref⟩,
     tasks := [.executionGroup [2]],
     pending := 1
   }
 
 private def rightLeaf : GroupNode :=
   {
-    group := ⟨rightChild, some lastOwner.key⟩,
+    group := ⟨rightChild, some lastOwner.ref⟩,
     tasks := [.executionGroup [3]],
     pending := 1
   }
 
 private def queue : State :=
   {
-    rootGroups := [firstOwner.key, lastOwner.key],
+    rootGroups := [firstOwner.ref, lastOwner.ref],
     groupNodes := [left, right, leftLeaf, rightLeaf]
   }
 
-private def parents : Nat → Keys :=
-  fun key =>
-    if key = leftChild.key then
-      [firstOwner.key]
-    else if key = rightChild.key then
-      [lastOwner.key]
+private def parents : Nat → NodeRefs :=
+  fun ref =>
+    if ref = leftChild.ref then
+      [firstOwner.ref]
+    else if ref = rightChild.ref then
+      [lastOwner.ref]
     else
       []
 
@@ -130,14 +130,14 @@ theorem earlier_release_survives_later_closure
     : let middle := successGroupStep (queue, [], {}) firstOwner
       let folded := [firstOwner, lastOwner].foldl successGroupStep (queue, [], {})
       let final := folded.1.startNewWork folded.2.2
-      leftChild.key ∉ middle.1.rootGroups
+      leftChild.ref ∉ middle.1.rootGroups
       ∧ leftChild ∈ middle.2.2.newGroups
-      ∧ ∃ root ∈ final.rootGroups, final.LiveDescendant root leftChild.key := by
+      ∧ ∃ root ∈ final.rootGroups, final.LiveDescendant root leftChild.ref := by
   intro middle folded final
   refine ⟨by change 2 ∉ [1]; decide, by cbv; exact List.mem_cons_self, ?_⟩
   apply State.successGroupFold_activated_root_coverage (queue := queue)
-    (by unfold State.GroupKeysUnique; decide) forest [firstOwner, lastOwner]
-  · refine ⟨firstOwner.key, List.mem_cons_self, ?_⟩
+    (by unfold State.GroupRefsUnique; decide) forest [firstOwner, lastOwner]
+  · refine ⟨firstOwner.ref, List.mem_cons_self, ?_⟩
     exact .child (node := left) (by cbv) List.mem_cons_self (.self (node := leftLeaf) (by cbv))
   · exact ⟨leftLeaf, by cbv⟩
 

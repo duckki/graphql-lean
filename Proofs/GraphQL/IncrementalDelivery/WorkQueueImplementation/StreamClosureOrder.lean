@@ -1,11 +1,11 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.StreamActions
 
-/-! Valid source closures exclude later references to the same output stream key. -/
+/-! Valid source closures exclude later references to the same output stream ref. -/
 
 namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
-/-- If the earlier action closes its stream, the later action must use another key. -/
+/-- If the earlier action closes its stream, the later action must use another ref. -/
 def StreamAction.Before (earlier later : StreamAction) : Prop :=
   earlier.2 = true → earlier.1 ≠ later.1
 
@@ -13,7 +13,7 @@ def StreamAction.Before (earlier later : StreamAction) : Prop :=
 -- Input freshness and stream readiness prohibit references after source closure
 -----------------------------------------------------------------------------------------
 
-/-- A closing source action contributes its key to the source's finalization identities.
+/-- A closing source action contributes its ref to the source's finalization identities.
 Witness: only stream-success and stream-failure constructors carry a true closure flag.
 -/
 theorem GraphEvent.streamAction_closed {event : GraphEvent} {action : StreamAction}
@@ -21,7 +21,7 @@ theorem GraphEvent.streamAction_closed {event : GraphEvent} {action : StreamActi
     : action.1 ∈ event.identities.2 := by
   cases event <;> cases selected <;> simp_all [GraphEvent.identities]
 
-/-- A ready, fresh source action refers to a key not finalized by earlier source inputs.
+/-- A ready, fresh source action refers to a ref not finalized by earlier source inputs.
 Witness: item readiness excludes closed streams; closure freshness excludes a second close.
 -/
 theorem GraphEvent.streamAction_unclosed {work before event action}
@@ -31,14 +31,14 @@ theorem GraphEvent.streamAction_unclosed {work before event action}
   cases event with
   | taskSuccess | taskFailure => cases selected
   | streamItems stream items =>
-      have same : (stream.key, false) = action := Option.some.inj selected
+      have same : (stream.ref, false) = action := Option.some.inj selected
       subst action
       obtain ⟨address, results, producer, dependencies, _, _, unclosed, _⟩ := ready
       exact unclosed
   | streamSuccess stream | streamFailure stream _ =>
-      have same : (stream.key, true) = action := Option.some.inj selected
+      have same : (stream.ref, true) = action := Option.some.inj selected
       subst action
-      exact fresh.2.2.2 stream.key List.mem_cons_self
+      exact fresh.2.2.2 stream.ref List.mem_cons_self
 
 /-- Source stream actions never reference a previously finalized stream.
 Witness: append induction on the existing source semantics, using readiness for items
@@ -95,7 +95,7 @@ theorem publicationAtoms_streamAction_mem {event action}
       induction values using streamPublicationAtoms.induct with
       | case1 => cases member
       | case2 =>
-          have same : action = (stream.key, false) := List.mem_singleton.mp member
+          have same : action = (stream.ref, false) := List.mem_singleton.mp member
           subst action
           rfl
       | case3 value next rest ih =>
@@ -104,7 +104,7 @@ theorem publicationAtoms_streamAction_mem {event action}
           · exact ih later
   | groupSuccess | groupFailure | workQueueTermination => cases member
   | streamSuccess stream | streamFailure stream _ =>
-      have same : action = (stream.key, true) := List.mem_singleton.mp member
+      have same : action = (stream.ref, true) := List.mem_singleton.mp member
       subst action
       rfl
 
@@ -155,7 +155,7 @@ theorem streamActions_ordered_publicationAtoms {events : List Execution.WorkQueu
 
 /-- Actual atomic output never references a stream after that stream's closure.
 Witness: source-order preservation through the real queue, publisher, and item splitting.
-This concerns stream closures only; excluding a same-key group closure additionally uses
+This concerns stream closures only; excluding a same-ref group closure additionally uses
 generated role separation and group-event provenance before deriving the full Open clause.
 -/
 theorem createWorkQueue_runNormalized_atomicStreamActions_ordered {work : Execution.Work}
@@ -172,17 +172,17 @@ theorem createWorkQueue_runNormalized_atomicStreamActions_ordered {work : Execut
 -- Strict output prefixes contain no earlier closure of the currently referenced stream
 -----------------------------------------------------------------------------------------
 
-/-- At a stream reference, its key has no earlier successful or failed stream closure.
+/-- At a stream reference, its ref has no earlier successful or failed stream closure.
 Witness: lift action order back to event positions; any closing action in the strict
-prefix would require its key to differ from the current reference's key.
+prefix would require its ref to differ from the current reference's ref.
 -/
 theorem streamActions_ordered_atEvent {events : List Execution.WorkQueueEvent}
-    {index event key}
+    {index event ref}
     (ordered : (events.filterMap streamAction).Pairwise StreamAction.Before)
-    (atEvent : events[index]? = some event) (reference : key ∈ streamReferenceKeys event)
-    : (key, true) ∉ (events.take index).filterMap streamAction := by
-  have current : ∃ closing, streamAction event = some (key, closing) := by
-    cases event <;> simp_all [streamReferenceKeys, streamAction]
+    (atEvent : events[index]? = some event) (reference : ref ∈ streamReferenceRefs event)
+    : (ref, true) ∉ (events.take index).filterMap streamAction := by
+  have current : ∃ closing, streamAction event = some (ref, closing) := by
+    cases event <;> simp_all [streamReferenceRefs, streamAction]
   obtain ⟨closing, selected⟩ := current
   intro closed
   obtain ⟨prior, member, priorAction⟩ := List.mem_filterMap.mp closed
@@ -197,23 +197,23 @@ theorem streamActions_ordered_atEvent {events : List Execution.WorkQueueEvent}
   have relation := (List.pairwise_filterMap.mp ordered).rel_getElem_of_lt
     priorBound currentBound bound
   rw [priorEq, currentEq] at relation
-  exact relation (key, true) priorAction (key, closing) selected rfl rfl
+  exact relation (ref, true) priorAction (ref, closing) selected rfl rfl
 
-/-- Each actual atomic stream reference has no stream closure with that key in its prefix.
+/-- Each actual atomic stream reference has no stream closure with that ref in its prefix.
 Witness: valid source order survives handler filtering, normalization, and atomization.
 This supplies the stream-closure part of Open without assuming any publication matching,
 failure witness, generated metadata, or source start check.
 -/
 theorem createWorkQueue_runNormalized_streamUnclosedAt {work : Execution.Work}
     {batches : List (List GraphEvent)} (valid : ValidGraphEvents work batches.flatten)
-    {index event key}
+    {index event ref}
     (atEvent
       : (((State.initialize (Work.fromExecution work)).runNormalized
             batches).2.flatten.flatMap
           publicationAtoms)[index]?
         = some event)
-    (reference : key ∈ streamReferenceKeys event)
-    : (key, true)
+    (reference : ref ∈ streamReferenceRefs event)
+    : (ref, true)
       ∉ ((((State.initialize (Work.fromExecution work)).runNormalized
             batches).2.flatten.flatMap
             publicationAtoms).take

@@ -12,9 +12,9 @@ open GraphQL.IncrementalDelivery.Execution
 open WorkQueueSemantics
 
 /-- Distinct projected values identify distinct list members, by list induction. -/
-private theorem eq_of_map_nodup {values : List α} {key : α → β} {left right : α}
-    (h : (values.map key).Nodup) (hl : left ∈ values) (hr : right ∈ values)
-    (he : key left = key right)
+private theorem eq_of_map_nodup {values : List α} {ref : α → β} {left right : α}
+    (h : (values.map ref).Nodup) (hl : left ∈ values) (hr : right ∈ values)
+    (he : ref left = ref right)
     : left = right := by
   induction values with
   | nil => simp at hl
@@ -50,7 +50,7 @@ theorem ensureID_allocated (node : DeliveryNode)
     : StateInvariant Allocated (ensureID node) := by
   intro state well
   change Allocated (ensureID node state).2
-  cases h : state.ids.find? (fun entry => entry.1 == node.key) with
+  cases h : state.ids.find? (fun entry => entry.1 == node.ref) with
   | some entry => simpa [ensureID, h] using well
   | none =>
       simp only [ensureID, h]
@@ -66,7 +66,7 @@ theorem ensureID_allocated (node : DeliveryNode)
         · cases List.mem_singleton.mp new
           exact ⟨state.nextID, Nat.lt_succ_self _, rfl⟩
 
-/-- Equal known IDs identify equal keys, by injectivity of the stored ID list. -/
+/-- Equal known IDs identify equal refs, by injectivity of the stored ID list. -/
 theorem Known.injective {state : IDState} (well : Allocated state) {left right : Nat}
     {id : String} (hl : Known state left id) (hr : Known state right id)
     : left = right := by
@@ -74,13 +74,13 @@ theorem Known.injective {state : IDState} (well : Allocated state) {left right :
     (List.mem_of_find?_eq_some hr) rfl
   exact congrArg Prod.fst pairs
 
-/-- Distinct encoded keys yield distinct IDs, by allocation injectivity. -/
-theorem Encodes.nodup {state : IDState} {keys : List Nat} {ids : List String}
-    (h : Encodes state keys ids) (well : Allocated state) (unique : keys.Nodup)
+/-- Distinct encoded refs yield distinct IDs, by allocation injectivity. -/
+theorem Encodes.nodup {state : IDState} {refs : List Nat} {ids : List String}
+    (h : Encodes state refs ids) (well : Allocated state) (unique : refs.Nodup)
     : ids.Nodup := by
   induction h with
   | nil => simp
-  | @cons key id keys ids known tail ih =>
+  | @cons ref id refs ids known tail ih =>
       obtain ⟨fresh, unique⟩ := List.nodup_cons.mp unique
       refine List.nodup_cons.mpr ⟨?_, ih unique⟩
       intro hm
@@ -139,7 +139,7 @@ theorem finalIDs_allocated (batches : List (List WorkQueueEvent)) (state : IDSta
 
 /-- Finite replay encodes every pending occurrence in order, by batch induction. -/
 theorem mappedTrace_pending (batches : List (List WorkQueueEvent)) (state : IDState)
-    : Encodes (finalIDs batches state) (pendingKeys batches.flatten)
+    : Encodes (finalIDs batches state) (pendingRefs batches.flatten)
         (DeliveryTrace.pendingIDs (mappedTrace batches state)) := by
   induction batches generalizing state with
   | nil => exact .nil
@@ -148,7 +148,7 @@ theorem mappedTrace_pending (batches : List (List WorkQueueEvent)) (state : IDSt
       | mk update next =>
           have head := (mapWorkEventBatch_of_eq h).2.1
           have preserved := (mappedTrace_spec rest next).1
-          simpa only [finalIDs, mappedTrace, h, List.flatten_cons, pendingKeys,
+          simpa only [finalIDs, mappedTrace, h, List.flatten_cons, pendingRefs,
             List.flatMap_append, DeliveryTrace.pendingIDs, List.flatMap_cons]
             using (head.mono preserved).append (ih next)
 

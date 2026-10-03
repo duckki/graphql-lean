@@ -17,35 +17,35 @@ implementation's activation order or requiring them to be announced already.
 -/
 theorem State.finishGroupSuccess_retained_root_coverage {queue : State} {parents target}
     (forest : queue.RemovalForest parents) {group : GroupNode}
-    (found : queue.groupNode? group.group.node.key = some group) (retained : Keys)
+    (found : queue.groupNode? group.group.node.ref = some group) (retained : NodeRefs)
     (covered : ∃ root ∈ queue.rootGroups ++ retained, queue.LiveDescendant root target)
     (survives : ∃ node, (queue.finishGroupSuccess group).1.groupNode? target = some node)
     : let result := queue.finishGroupSuccess group
       ∃ root ∈
         result.1.rootGroups
         ++ retained
-        ++ result.2.2.newGroups.map Execution.DeliveryNode.key,
+        ++ result.2.2.newGroups.map Execution.DeliveryNode.ref,
         result.1.LiveDescendant root target := by
   intro result
   classical
   obtain ⟨root, member, path⟩ := covered
-  by_cases affected : queue.LiveDescendant group.group.node.key target
+  by_cases affected : queue.LiveDescendant group.group.node.ref target
   · obtain ⟨next, released, below⟩ :=
       State.finishGroupSuccess_surviving_descendant forest found affected survives
-    exact ⟨next.key, List.mem_append_right _ (List.mem_map_of_mem released), below⟩
-  · have outside : ¬queue.LiveDescendant group.group.node.key root :=
+    exact ⟨next.ref, List.mem_append_right _ (List.mem_map_of_mem released), below⟩
+  · have outside : ¬queue.LiveDescendant group.group.node.ref root :=
       fun reaches => affected (reaches.trans path)
-    have different : root ≠ group.group.node.key := fun same => affected (same ▸ path)
+    have different : root ≠ group.group.node.ref := fun same => affected (same ▸ path)
     obtain ⟨old, oldFound⟩ := path.found
-    have oldMember : root ∈ queue.groupNodes.map (fun node => node.group.node.key) :=
-      List.mem_map.mpr ⟨old, List.mem_of_find?_eq_some oldFound, State.groupNode?_key oldFound⟩
+    have oldMember : root ∈ queue.groupNodes.map (fun node => node.group.node.ref) :=
+      List.mem_map.mpr ⟨old, List.mem_of_find?_eq_some oldFound, State.groupNode?_ref oldFound⟩
     have retainedRoot := State.finishGroupSuccess_preserves_outside oldMember found outside
     have rootSurvives : ∃ node, result.1.groupNode? root = some node := by
       cases lookup : result.1.groupNode? root with
       | none =>
-          obtain ⟨node, live, key⟩ := List.mem_map.mp retainedRoot
+          obtain ⟨node, live, ref⟩ := List.mem_map.mp retainedRoot
           have missing := List.find?_eq_none.mp lookup node live
-          simp [key] at missing
+          simp [ref] at missing
       | some node => exact ⟨node, rfl⟩
     refine ⟨root, List.mem_append_left _ ?_,
       path.finishGroupSuccess forest found affected rootSurvives⟩
@@ -64,20 +64,20 @@ Witness: decrementing counts preserves paths; closure transfers affected paths t
 accumulated release list. No activation is inserted into the single-pass algorithm.
 -/
 private theorem successGroupFold_retained_coverage {queue : State} {parents target}
-    (unique : queue.GroupKeysUnique) (forest : queue.RemovalForest parents)
+    (unique : queue.GroupRefsUnique) (forest : queue.RemovalForest parents)
     (groups : List Execution.DeliveryNode)
     (covered : ∃ root ∈ queue.rootGroups, queue.LiveDescendant root target)
     : let folded := groups.foldl successGroupStep (queue, [], {})
-      folded.1.GroupKeysUnique
+      folded.1.GroupRefsUnique
       ∧ folded.1.RemovalForest parents
       ∧ ((∃ node, folded.1.groupNode? target = some node)
           → ∃ root ∈
-              folded.1.rootGroups ++ folded.2.2.newGroups.map Execution.DeliveryNode.key,
+              folded.1.rootGroups ++ folded.2.2.newGroups.map Execution.DeliveryNode.ref,
               folded.1.LiveDescendant root target) := by
   let property (acc : State × List WorkQueueEvent × NewWork) :=
-    acc.1.GroupKeysUnique ∧ acc.1.RemovalForest parents
+    acc.1.GroupRefsUnique ∧ acc.1.RemovalForest parents
     ∧ ((∃ node, acc.1.groupNode? target = some node)
-      → ∃ root ∈ acc.1.rootGroups ++ acc.2.2.newGroups.map Execution.DeliveryNode.key,
+      → ∃ root ∈ acc.1.rootGroups ++ acc.2.2.newGroups.map Execution.DeliveryNode.ref,
           acc.1.LiveDescendant root target)
   have step (acc : State × List WorkQueueEvent × NewWork) (group : Execution.DeliveryNode)
       (prior : property acc) : property (successGroupStep acc group) := by
@@ -88,31 +88,31 @@ private theorem successGroupFold_retained_coverage {queue : State} {parents targ
     · rename_i node found
       let changed : GroupNode := { node with pending := node.pending - 1 }
       let updated := current.putGroupNode changed
-      have updatedKeys : updated.GroupKeysUnique := prior.1.putGroupNode changed
+      have updatedRefs : updated.GroupRefsUnique := prior.1.putGroupNode changed
       have updatedForest : updated.RemovalForest parents :=
         prior.2.1.putCounters prior.1 found _ node.failure
       have updatedEdges : updated.GroupEdgesFrom current :=
         State.putPending_groupEdgesFrom prior.1 found _
       have updatedCoverage : ∀ child, updated.groupNode? target = some child
-          → ∃ root ∈ updated.rootGroups ++ released.newGroups.map Execution.DeliveryNode.key,
+          → ∃ root ∈ updated.rootGroups ++ released.newGroups.map Execution.DeliveryNode.ref,
               updated.LiveDescendant root target := by
         intro child lookup
         obtain ⟨old, oldFound, _⟩ := updatedEdges _ _ lookup
         obtain ⟨root, member, path⟩ := prior.2.2 ⟨old, oldFound⟩
         exact ⟨root, member, path.putCounters prior.1 found _ node.failure⟩
       split
-      · refine ⟨updatedKeys.finishGroupSuccess changed,
+      · refine ⟨updatedRefs.finishGroupSuccess changed,
           updatedForest.finishGroupSuccess changed, ?_⟩
         rintro ⟨child, lookup⟩
         obtain ⟨old, oldFound, _⟩ := (updated.finishGroupSuccess_descendants changed).1 _ _ lookup
-        have changedFound : updated.groupNode? changed.group.node.key = some changed :=
-          updatedKeys.groupNode?_of_mem (List.mem_map.mpr
+        have changedFound : updated.groupNode? changed.group.node.ref = some changed :=
+          updatedRefs.groupNode?_of_mem (List.mem_map.mpr
             ⟨node, List.mem_of_find?_eq_some found, by simp [changed]⟩)
         have next := State.finishGroupSuccess_retained_root_coverage updatedForest changedFound
-          (released.newGroups.map Execution.DeliveryNode.key) (updatedCoverage old oldFound)
+          (released.newGroups.map Execution.DeliveryNode.ref) (updatedCoverage old oldFound)
           ⟨child, lookup⟩
         simpa only [List.map_append, List.append_assoc] using next
-      · exact ⟨updatedKeys, updatedForest, fun ⟨child, found⟩ => updatedCoverage child found⟩
+      · exact ⟨updatedRefs, updatedForest, fun ⟨child, found⟩ => updatedCoverage child found⟩
   have loop (more : List Execution.DeliveryNode) (acc : State × List WorkQueueEvent × NewWork)
       (prior : property acc) : property (more.foldl successGroupStep acc) := by
     induction more generalizing acc with
@@ -126,7 +126,7 @@ Witness: accumulated release coverage is activated only after the original singl
 fold. Contributor order, duplicate contributors, and successive closures are unrestricted.
 -/
 theorem State.successGroupFold_activated_root_coverage {queue : State} {parents target}
-    (unique : queue.GroupKeysUnique) (forest : queue.RemovalForest parents)
+    (unique : queue.GroupRefsUnique) (forest : queue.RemovalForest parents)
     (groups : List Execution.DeliveryNode)
     (covered : ∃ root ∈ queue.rootGroups, queue.LiveDescendant root target)
     : let folded := groups.foldl successGroupStep (queue, [], {})
@@ -150,7 +150,7 @@ Witness: delayed-release coverage after the fold, followed by the mixed-drain co
 theorem. Backward lookup provenance recovers survival at the pre-drain boundary.
 -/
 theorem State.successGroupFold_drained_root_coverage {queue : State} {parents target}
-    (unique : queue.GroupKeysUnique) (forest : queue.RemovalForest parents)
+    (unique : queue.GroupRefsUnique) (forest : queue.RemovalForest parents)
     (groups : List Execution.DeliveryNode)
     (covered : ∃ root ∈ queue.rootGroups, queue.LiveDescendant root target)
     : let folded := groups.foldl successGroupStep (queue, [], {})
@@ -160,20 +160,20 @@ theorem State.successGroupFold_drained_root_coverage {queue : State} {parents ta
       → ∃ root ∈ final.rootGroups, final.LiveDescendant root target := by
   intro folded active final survives
   have frame := successGroupFold_retained_coverage unique forest groups covered
-  have keys := frame.1.startNewWork folded.2.2
+  have refs := frame.1.startNewWork folded.2.2
   have currentForest := frame.2.1.startNewWork folded.2.2
   obtain ⟨node, found⟩ := survives
-  obtain ⟨prior, priorFound, _⟩ := (active.drainReadyGroups_descendants keys).1 _ _ found
+  obtain ⟨prior, priorFound, _⟩ := (active.drainReadyGroups_descendants refs).1 _ _ found
   have coverage := State.successGroupFold_activated_root_coverage unique forest groups covered
     ⟨prior, priorFound⟩
-  exact State.drainReadyGroups_root_coverage keys currentForest target coverage ⟨node, found⟩
+  exact State.drainReadyGroups_root_coverage refs currentForest target coverage ⟨node, found⟩
 
 /-- Actual successful task handling preserves coverage established at child integration.
 Witness: unfold the accepted healthy branch and apply coverage through the unchanged
 single-pass contributor fold, delayed activation, and recursive drain.
 -/
 theorem State.taskSuccess_integrated_root_coverage {queue : State}
-    {parents target occurrence node} (unique : queue.GroupKeysUnique)
+    {parents target occurrence node} (unique : queue.GroupRefsUnique)
     (found : queue.taskNode? occurrence = some node)
     (healthy : queue.taskHasHealthyOwner node.task = true) (result : TaskResult)
     : let stored := queue.putTaskNode { node with value := some result.value }
@@ -184,9 +184,9 @@ theorem State.taskSuccess_integrated_root_coverage {queue : State}
       → ∃ root ∈ (queue.taskSuccess occurrence result).1.rootGroups,
           (queue.taskSuccess occurrence result).1.LiveDescendant root target := by
   intro stored integrated forest covered survives
-  have storedKeys : stored.GroupKeysUnique := unique
+  have storedRefs : stored.GroupRefsUnique := unique
   have resultCoverage := State.successGroupFold_drained_root_coverage
-    (storedKeys.maybeIntegrateWork result.work (some occurrence)) forest node.task.groups covered
+    (storedRefs.maybeIntegrateWork result.work (some occurrence)) forest node.task.groups covered
   rw [queue.taskSuccess_eq occurrence result node found] at survives ⊢
   simp only [healthy, Bool.not_true, Bool.false_eq_true, ite_false] at survives ⊢
   exact resultCoverage survives

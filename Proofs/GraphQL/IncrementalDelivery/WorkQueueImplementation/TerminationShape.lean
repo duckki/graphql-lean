@@ -26,8 +26,8 @@ theorem State.addGroups_terminated (queue : State) (groups : List Group)
         match current.groupNode? parent with
         | none => current
         | some node =>
-            let children := if node.childGroups.contains group.node.key then node.childGroups
-              else node.childGroups ++ [group.node.key]
+            let children := if node.childGroups.contains group.node.ref then node.childGroups
+              else node.childGroups ++ [group.node.ref]
             current.putGroupNode { node with childGroups := children }
   have linked : ∀ current group, (link current group).terminated = current.terminated := by
     intro current group
@@ -54,7 +54,7 @@ Witness: contributor updates and optional start bookkeeping preserve the flag.
 theorem State.addTask_terminated (queue : State) (task : Task)
     : (queue.addTask task).terminated = queue.terminated := by
   let step (current : State) (group : Execution.DeliveryNode) :=
-    match current.groupNode? group.key with
+    match current.groupNode? group.ref with
     | none => current
     | some node =>
         if node.tasks.contains task.occurrence then current
@@ -122,18 +122,18 @@ theorem State.startNewWork_terminated (queue : State) (released : NewWork)
     split
     · rfl
     · split <;> rfl
-  have group : ∀ current key,
-      (State.startGroup current key).terminated = current.terminated := by
-    intro current key
+  have group : ∀ current ref,
+      (State.startGroup current ref).terminated = current.terminated := by
+    intro current ref
     unfold State.startGroup
     split
     · rfl
     · split
       · rfl
       · exact fold_projection State.terminated State.startTask task _ _
-  have stream : ∀ current key,
-      (State.startStream current key).terminated = current.terminated := by
-    intro current key
+  have stream : ∀ current ref,
+      (State.startStream current ref).terminated = current.terminated := by
+    intro current ref
     unfold State.startStream
     split <;> rfl
   unfold State.startNewWork
@@ -164,7 +164,7 @@ theorem State.finishGroupSuccess_terminated (queue : State) (group : GroupNode)
     intro acc occurrence
     unfold flushGroupTask
     split <;> rfl
-  have same := fold_projection (fun acc : State × List ExecutionGroupValue × Keys =>
+  have same := fold_projection (fun acc : State × List ExecutionGroupValue × NodeRefs =>
     acc.1.terminated) flushGroupTask preserved group.tasks (queue, [], [])
   unfold State.finishGroupSuccess
   rw [State.pruneEmptyGroups_terminated]
@@ -219,10 +219,10 @@ theorem State.taskFailure_terminated (queue : State) (occurrence : Occurrence)
     (errors : Nat)
     : (queue.taskFailure occurrence errors).1.terminated = queue.terminated := by
   let step (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode) :=
-    match acc.1.groupNode? group.key with
+    match acc.1.groupNode? group.ref with
     | none => acc
     | some node =>
-        if acc.1.rootGroups.contains group.key then
+        if acc.1.rootGroups.contains group.ref then
           let (next, failure) := acc.1.finishGroupFailure node errors
           (next, acc.2 ++ [failure])
         else (acc.1.putGroupNode
@@ -331,7 +331,7 @@ theorem State.drainReadyGroups_noTermination (queue : State)
                 using And.intro (current.finishGroupSuccess_noTermination node) (ih _)
           | some errors =>
               simpa [State.finishGroupFailure]
-                using ih (current.removeGroup node.group.node.key)
+                using ih (current.removeGroup node.group.node.ref)
   exact loop _ queue
 
 /-- Successful task settlement cannot emit a terminal marker during owner release.
@@ -374,10 +374,10 @@ theorem State.taskFailure_noTermination (queue : State) (occurrence : Occurrence
     : Execution.WorkQueueEvent.workQueueTermination
       ∉ (queue.taskFailure occurrence errors).2 := by
   let step (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode) :=
-    match acc.1.groupNode? group.key with
+    match acc.1.groupNode? group.ref with
     | none => acc
     | some node =>
-        if acc.1.rootGroups.contains group.key then
+        if acc.1.rootGroups.contains group.ref then
           let (next, failure) := acc.1.finishGroupFailure node errors
           (next, acc.2 ++ [failure])
         else (acc.1.putGroupNode

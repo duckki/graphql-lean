@@ -13,7 +13,8 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 /-- Local proof bookkeeping for notice history `seen` and original work `work`.
 Every field is an existing queue invariant; this is not an additional source premise.
 -/
-private structure AnnouncementFacts (work : Execution.Work) (seen : Keys) (queue : State)
+private structure AnnouncementFacts (work : Execution.Work) (seen : NodeRefs)
+    (queue : State)
     : Prop where
   known : queue.StartedTasksAnnounced seen
   roots : queue.rootGroups.Subset seen
@@ -35,7 +36,7 @@ private theorem AnnouncementFacts.integrate {work seen queue}
   registered := facts.registered.maybeIntegrateWork newWork parentTask
   matching := facts.matching.maybeIntegrateWork newWork located parentTask
 
-/-- Empty-shell pruning changes neither root keys nor started task definitions.
+/-- Empty-shell pruning changes neither root refs nor started task definitions.
 Witness: existing pruning preservation for each registration and notice fact.
 -/
 private theorem AnnouncementFacts.prune {work seen queue}
@@ -47,17 +48,17 @@ private theorem AnnouncementFacts.prune {work seen queue}
   registered := facts.registered.pruneEmptyGroups groups
   matching := facts.matching.pruneEmptyGroups groups
 
-/-- Activating released work extends the historical keys by its actual group notices.
-Witness: sound task activation and the exact appended root-key equation.
+/-- Activating released work extends the historical refs by its actual group notices.
+Witness: sound task activation and the exact appended root-ref equation.
 -/
 private theorem AnnouncementFacts.start {work seen queue}
     (facts : AnnouncementFacts work seen queue) (released : NewWork)
-    : AnnouncementFacts work (seen ++ released.newGroups.map Execution.DeliveryNode.key)
+    : AnnouncementFacts work (seen ++ released.newGroups.map Execution.DeliveryNode.ref)
         (queue.startNewWork released) where
   known := facts.known.startNewWork facts.sound facts.registered facts.matching released
   roots := by
     rw [(queue.startNewWork_groupCore released).2.2]
-    intro key member
+    intro ref member
     exact (List.mem_append.mp member).elim
       (fun old => List.mem_append_left _ (facts.roots old))
       (fun fresh => List.mem_append_right _ fresh)
@@ -68,8 +69,8 @@ private theorem AnnouncementFacts.start {work seen queue}
 /-- Counter decrements preserve task memberships and every historical notice witness.
 Witness: only the selected group's pending count changes.
 -/
-private theorem AnnouncementFacts.decrement {work seen queue key node}
-    (facts : AnnouncementFacts work seen queue) (found : queue.groupNode? key = some node)
+private theorem AnnouncementFacts.decrement {work seen queue ref node}
+    (facts : AnnouncementFacts work seen queue) (found : queue.groupNode? ref = some node)
     : AnnouncementFacts work seen
         (queue.putGroupNode { node with pending := node.pending - 1 }) where
   known := facts.known
@@ -95,11 +96,11 @@ Witness: start witnesses compose with the independently proved root-notice accou
 -/
 private theorem AnnouncementFacts.drain {work seen queue}
     (facts : AnnouncementFacts work seen queue)
-    : AnnouncementFacts work (seen ++ queue.drainReadyGroups.2.flatMap rawGroupNoticeKeys)
+    : AnnouncementFacts work (seen ++ queue.drainReadyGroups.2.flatMap rawGroupNoticeRefs)
         queue.drainReadyGroups.1 where
   known := facts.known.drainReadyGroups facts.sound facts.registered facts.matching
   roots := by
-    intro key member
+    intro ref member
     exact (List.mem_append.mp (queue.drainReadyGroups_groupFailureNotices.1 member)).elim
       (fun old => List.mem_append_left _ (facts.roots old))
       (fun fresh => List.mem_append_right _ fresh)
@@ -118,7 +119,7 @@ private theorem AnnouncementFacts.taskSuccess {work seen queue}
     (facts : AnnouncementFacts work seen queue) (occurrence : Occurrence)
     (result : TaskResult) (located : ∀ task ∈ result.work.tasks, TaskMatches work task)
     : (queue.taskSuccess occurrence result).1.StartedTasksAnnounced
-        (seen ++ (queue.taskSuccess occurrence result).2.flatMap rawGroupNoticeKeys) := by
+        (seen ++ (queue.taskSuccess occurrence result).2.flatMap rawGroupNoticeRefs) := by
   cases found : queue.taskNode? occurrence with
   | none => simpa [State.taskSuccess, found] using facts.known
   | some node =>
@@ -140,11 +141,11 @@ private theorem AnnouncementFacts.taskSuccess {work seen queue}
         have loop (groups : List Execution.DeliveryNode)
             (acc : State × List WorkQueueEvent × NewWork)
             (prior : AnnouncementFacts work seen acc.1)
-            (notices : acc.2.2.newGroups.map Execution.DeliveryNode.key
-              = acc.2.1.flatMap rawGroupNoticeKeys)
+            (notices : acc.2.2.newGroups.map Execution.DeliveryNode.ref
+              = acc.2.1.flatMap rawGroupNoticeRefs)
             : AnnouncementFacts work seen (groups.foldl successGroupStep acc).1
-              ∧ (groups.foldl successGroupStep acc).2.2.newGroups.map Execution.DeliveryNode.key
-                = (groups.foldl successGroupStep acc).2.1.flatMap rawGroupNoticeKeys := by
+              ∧ (groups.foldl successGroupStep acc).2.2.newGroups.map Execution.DeliveryNode.ref
+                = (groups.foldl successGroupStep acc).2.1.flatMap rawGroupNoticeRefs := by
           induction groups generalizing acc with
           | nil => exact ⟨prior, notices⟩
           | cons group rest ih =>
@@ -180,7 +181,7 @@ private theorem AnnouncementFacts.streamItems {work seen queue}
     (items : List StreamItem)
     (located : ∀ item ∈ items, ∀ task ∈ item.work.tasks, TaskMatches work task)
     : (queue.streamItems stream items).1.StartedTasksAnnounced
-        (seen ++ (queue.streamItems stream items).2.flatMap rawGroupNoticeKeys) := by
+        (seen ++ (queue.streamItems stream items).2.flatMap rawGroupNoticeRefs) := by
   let step (acc : State × List Execution.DeliveryNode
       × List Execution.DeliveryNode × List StreamItemValue) (item : StreamItem) :=
     let integrated := acc.1.maybeIntegrateWork item.work
@@ -191,9 +192,9 @@ private theorem AnnouncementFacts.streamItems {work seen queue}
   have loop (more : List StreamItem) (subset : more.Subset items)
       (acc : State × List Execution.DeliveryNode
         × List Execution.DeliveryNode × List StreamItemValue)
-      (prior : AnnouncementFacts work (seen ++ acc.2.1.map Execution.DeliveryNode.key) acc.1)
+      (prior : AnnouncementFacts work (seen ++ acc.2.1.map Execution.DeliveryNode.ref) acc.1)
       : AnnouncementFacts work
-          (seen ++ (more.foldl step acc).2.1.map Execution.DeliveryNode.key)
+          (seen ++ (more.foldl step acc).2.1.map Execution.DeliveryNode.ref)
           (more.foldl step acc).1 := by
     induction more generalizing acc with
     | nil => exact prior
@@ -212,7 +213,7 @@ private theorem AnnouncementFacts.streamItems {work seen queue}
   · let folded := items.foldl step (queue, [], [], [])
     have foldedFacts := loop items (List.Subset.refl _) (queue, [], [], [])
       (by simpa using facts)
-    simpa only [List.flatMap_cons, rawGroupNoticeKeys, List.append_assoc]
+    simpa only [List.flatMap_cons, rawGroupNoticeRefs, List.append_assoc]
       using foldedFacts.drain.known
 
 -----------------------------------------------------------------------------------------
@@ -224,13 +225,13 @@ Witness: the success/item proofs above; failures and stream closure only retain 
 All registration premises are internal invariants, not strengthened event-source laws.
 -/
 theorem State.StartedTasksAnnounced.handleGraphEvent {queue : State}
-    {work : Execution.Work} {seen : Keys} (known : queue.StartedTasksAnnounced seen)
+    {work : Execution.Work} {seen : NodeRefs} (known : queue.StartedTasksAnnounced seen)
     (roots : queue.rootGroups.Subset seen) (sound : queue.GroupMembershipSound)
     (registered : queue.StartedTasksRegistered)
     (matching : queue.RegisteredTasksMatch work) (event : GraphEvent)
     (eventMatch : event.MatchesWork work)
     : (queue.handleGraphEvent event).1.StartedTasksAnnounced
-        (seen ++ (queue.handleGraphEvent event).2.flatMap rawGroupNoticeKeys) := by
+        (seen ++ (queue.handleGraphEvent event).2.flatMap rawGroupNoticeRefs) := by
   have facts : AnnouncementFacts work seen queue := ⟨known, roots, sound, registered, matching⟩
   cases event with
   | taskSuccess occurrence result =>
@@ -250,10 +251,10 @@ theorem State.StartedTasksAnnounced.handleGraphEvent {queue : State}
         eventMatch.streamItem_childTask_groupsExact member taskMember⟩
   | streamSuccess stream =>
       simp only [State.handleGraphEvent, State.streamSuccess]
-      split <;> simpa [rawGroupNoticeKeys, State.StartedTasksAnnounced] using known
+      split <;> simpa [rawGroupNoticeRefs, State.StartedTasksAnnounced] using known
   | streamFailure stream errors =>
       simp only [State.handleGraphEvent, State.streamFailure]
-      split <;> simpa [rawGroupNoticeKeys, State.StartedTasksAnnounced] using known
+      split <;> simpa [rawGroupNoticeRefs, State.StartedTasksAnnounced] using known
 
 /-- All local bookkeeping facts survive a matching handler with its exact notice list.
 Witness: historical task notices above plus independently checked root and registry laws.
@@ -262,13 +263,13 @@ private theorem AnnouncementFacts.handleGraphEvent {work seen queue}
     (facts : AnnouncementFacts work seen queue) (event : GraphEvent)
     (eventMatch : event.MatchesWork work)
     : AnnouncementFacts work
-        (seen ++ (queue.handleGraphEvent event).2.flatMap rawGroupNoticeKeys)
+        (seen ++ (queue.handleGraphEvent event).2.flatMap rawGroupNoticeRefs)
         (queue.handleGraphEvent event).1 where
   known :=
     facts.known.handleGraphEvent facts.roots facts.sound facts.registered facts.matching
       event eventMatch
   roots := by
-    intro key member
+    intro ref member
     exact (List.mem_append.mp ((queue.handleGraphEvent_groupFailureNotices event).1 member)).elim
       (fun old => List.mem_append_left _ (facts.roots old))
       (fun fresh => List.mem_append_right _ fresh)
@@ -283,7 +284,7 @@ private theorem AnnouncementFacts.rawEventReplay {work seen queue}
     (facts : AnnouncementFacts work seen queue) (events : List GraphEvent)
     (allMatch : ∀ event ∈ events, event.MatchesWork work)
     : AnnouncementFacts work
-        (seen ++ (queue.rawEventReplay events).2.flatMap rawGroupNoticeKeys)
+        (seen ++ (queue.rawEventReplay events).2.flatMap rawGroupNoticeRefs)
         (queue.rawEventReplay events).1 := by
   induction events generalizing queue seen with
   | nil => simpa [State.rawEventReplay] using facts
@@ -299,7 +300,7 @@ Witness: initial start ownership and the established queue initialization theore
 -/
 private theorem initialAnnouncementFacts (work : Execution.Work)
     : let queue := State.initialize (Work.fromExecution work)
-      AnnouncementFacts work (queue.initialGroups.map Execution.DeliveryNode.key)
+      AnnouncementFacts work (queue.initialGroups.map Execution.DeliveryNode.ref)
         queue where
   known := createWorkQueue_startedTasksAnnounced work
   roots := by rw [createWorkQueue_rootGroups]; exact List.Subset.refl _
@@ -315,14 +316,14 @@ theorem createWorkQueue_rawEventReplay_startedTasksAnnounced {work : Execution.W
     {events : List GraphEvent} (valid : ValidGraphEvents work events)
     : let queue := State.initialize (Work.fromExecution work)
       (queue.rawEventReplay events).1.StartedTasksAnnounced
-        (queue.initialGroups.map Execution.DeliveryNode.key
-          ++ (queue.rawEventReplay events).2.flatMap rawGroupNoticeKeys) :=
+        (queue.initialGroups.map Execution.DeliveryNode.ref
+          ++ (queue.rawEventReplay events).2.flatMap rawGroupNoticeRefs) :=
   ((initialAnnouncementFacts work).rawEventReplay events
     (fun _ => valid.eachMatches)).known
 
 /-- A live source-task lookup has a structurally contributing, previously announced owner.
 Witness: exact registered provenance identifies the spec owners; historical start evidence
-supplies one owner's key, even if that owner no longer has an active queue node.
+supplies one owner's ref, even if that owner no longer has an active queue node.
 -/
 theorem createWorkQueue_replayGraphEvents_announcedOwner {work : Execution.Work}
     {events : List GraphEvent} (valid : ValidGraphEvents work events)
@@ -336,10 +337,10 @@ theorem createWorkQueue_replayGraphEvents_announcedOwner {work : Execution.Work}
         ∧ owner ∈ owners
         ∧ owner
           ∈ (State.initialize (Work.fromExecution work)).initialGroups.map
-              Execution.DeliveryNode.key
+              Execution.DeliveryNode.ref
             ++ ((State.initialize (Work.fromExecution work)).rawEventReplay
                   events).2.flatMap
-                rawGroupNoticeKeys := by
+                rawGroupNoticeRefs := by
   let queue := State.initialize (Work.fromExecution work)
   have facts := (initialAnnouncementFacts work).rawEventReplay events
     (fun _ => valid.eachMatches)
@@ -349,7 +350,7 @@ theorem createWorkQueue_replayGraphEvents_announcedOwner {work : Execution.Work}
   obtain ⟨owner, contributes, announced⟩ := facts.known node member
   obtain ⟨⟨_, payload, producer, _, located⟩, _⟩ :=
     facts.matching node.task (facts.registered node member)
-  exact ⟨node.task.groups.map Execution.DeliveryNode.key, owner.key,
+  exact ⟨node.task.groups.map Execution.DeliveryNode.ref, owner.ref,
     ⟨producer, payload, occurrenceEq ▸ located⟩,
     List.mem_map.mpr ⟨owner, contributes, rfl⟩, announced⟩
 

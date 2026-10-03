@@ -8,7 +8,7 @@ open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.Correctness
 open MapperIdentity
 
-def owner : DeliveryNode := { key := 7, path := [.field "viewer"], label := some .null }
+def owner : DeliveryNode := { ref := 7, path := [.field "viewer"], label := some .null }
 
 def notice : IncrementalPendingNotice :=
   { id := "0", path := owner.path, label := owner.label }

@@ -24,7 +24,7 @@ theorem State.finishGroupSuccess_streamDependency {queue : State} {work : Execut
     (live : group ∈ queue.groupNodes) {stream dependencies producer}
     (known : NodeAt work stream .stream dependencies producer)
     (released : stream ∈ (queue.finishGroupSuccess group).2.2.newStreams)
-    : group.group.node.key ∈ dependencies := by
+    : group.group.node.ref ∈ dependencies := by
   obtain ⟨selected, _, selectedKnown, _, _, _, children⟩ :=
     queue.finishGroupSuccess_selection group
   obtain ⟨node, selectedNode, linked⟩ := children stream released
@@ -42,7 +42,7 @@ theorem State.finishGroupSuccess_streamDependency {queue : State} {work : Execut
   exact (structural.unique ownerList).1 ▸ contributes
 
 /-- Successful release retires a contributing stream dependency without cancelling it.
-Witness: derive the dependency from the actual flush selection, use registered-key
+Witness: derive the dependency from the actual flush selection, use registered-ref
 retirement, and retain the unchanged cancellation history. These are local queue facts;
 no observable-history admission or stream-safety premise is used.
 -/
@@ -51,13 +51,13 @@ theorem State.finishGroupSuccess_streamRetiredDependency {queue : State}
     (sound : queue.GroupMembershipSound) (matching : queue.RegisteredTasksMatch work)
     (links : queue.ChildStreamsMatchWork work) (registered : queue.LiveGroupsRegistered)
     {group : GroupNode} (live : group ∈ queue.groupNodes)
-    (uncancelled : group.group.node.key ∉ queue.cancelledGroups)
+    (uncancelled : group.group.node.ref ∉ queue.cancelledGroups)
     {stream dependencies producer}
     (known : NodeAt work stream .stream dependencies producer)
     (released : stream ∈ (queue.finishGroupSuccess group).2.2.newStreams)
-    : group.group.node.key ∈ dependencies
-      ∧ (queue.finishGroupSuccess group).1.RetiredGroup group.group.node.key
-      ∧ group.group.node.key ∉ (queue.finishGroupSuccess group).1.cancelledGroups := by
+    : group.group.node.ref ∈ dependencies
+      ∧ (queue.finishGroupSuccess group).1.RetiredGroup group.group.node.ref
+      ∧ group.group.node.ref ∉ (queue.finishGroupSuccess group).1.cancelledGroups := by
   refine ⟨queue.finishGroupSuccess_streamDependency generated sound matching links live known
     released, queue.finishGroupSuccess_retires group (registered group live), ?_⟩
   rwa [State.finishGroupSuccess_cancelledGroups]
@@ -75,7 +75,7 @@ def StreamReleaseDependencies (work : Execution.Work) (events : List WorkQueueEv
     Execution.WorkQueueEvent.groupSuccess group groups streams ∈ events
     → ∀ stream ∈ streams,
         ∀ dependencies producer,
-          NodeAt work stream .stream dependencies producer → group.key ∈ dependencies
+          NodeAt work stream .stream dependencies producer → group.ref ∈ dependencies
 
 /-- Empty output has no carrier requiring a dependency witness.
 Witness: the carrier membership premise is impossible. -/
@@ -137,8 +137,8 @@ theorem State.drainReadyGroups_streamDependencies {queue : State} {work : Execut
         · exact .nil work
         · rename_i node selected
           have live : node ∈ current.groupNodes := by
-            obtain ⟨key, _, choice⟩ := List.exists_of_findSome?_eq_some selected
-            cases found : current.groupNode? key with
+            obtain ⟨ref, _, choice⟩ := List.exists_of_findSome?_eq_some selected
+            cases found : current.groupNode? ref with
             | none => simp [found] at choice
             | some candidate =>
                 simp only [found] at choice

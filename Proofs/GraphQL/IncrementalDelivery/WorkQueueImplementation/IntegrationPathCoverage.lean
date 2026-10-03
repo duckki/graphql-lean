@@ -23,16 +23,16 @@ theorem State.LiveDescendant.target_present {queue : State} {root target}
 
 /-- Pruning unrelated subtrees retains a complete path to the protected target.
 Witness: a removed candidate cannot lie on that path. Its promoted children remain
-unrelated by prepending the candidate's edge; key filtering creates no new path.
+unrelated by prepending the candidate's edge; ref filtering creates no new path.
 This frame property needs neither a sufficient fuel proof nor an incoming-free frontier.
 -/
 theorem State.LiveDescendant.pruneEmptyGroups_outside {queue : State} {root target}
     (path : queue.LiveDescendant root target) (groups : List Execution.DeliveryNode)
-    (outside : ∀ group ∈ groups, ¬queue.LiveDescendant group.key target)
+    (outside : ∀ group ∈ groups, ¬queue.LiveDescendant group.ref target)
     : (queue.pruneEmptyGroups groups).1.LiveDescendant root target := by
   have loop (fuel : Nat) (current : State) (remaining kept : List Execution.DeliveryNode)
       (path : current.LiveDescendant root target)
-      (outside : ∀ group ∈ remaining, ¬current.LiveDescendant group.key target)
+      (outside : ∀ group ∈ remaining, ¬current.LiveDescendant group.ref target)
       : (State.pruneEmptyGroups.go fuel current remaining kept).1.LiveDescendant root target := by
     induction fuel generalizing current remaining kept with
     | zero => exact path
@@ -49,7 +49,7 @@ theorem State.LiveDescendant.pruneEmptyGroups_outside {queue : State} {root targ
               · apply ih _ _ _ (path.filter_outside (outside group List.mem_cons_self))
                 intro child member reaches
                 have earlier :=
-                  (current.filterKeys_groupEdgesFrom (fun key => key != group.key)).liveDescendant
+                  (current.filterRefs_groupEdgesFrom (fun ref => ref != group.ref)).liveDescendant
                     reaches
                 rcases List.mem_append.mp member with promoted | prior
                 · exact outside group List.mem_cons_self
@@ -68,7 +68,7 @@ Witness: integration preserves the path, and a fresh candidate cannot reach its 
 registered target. The unrelated-subtree frame then applies even to taskless promotion.
 -/
 theorem State.LiveDescendant.pruneIntegratedWork {queue : State} {root target}
-    (path : queue.LiveDescendant root target) (unique : queue.GroupKeysUnique)
+    (path : queue.LiveDescendant root target) (unique : queue.GroupRefsUnique)
     (registered : queue.LiveGroupsRegistered) (work : Work)
     (parentTask : Option Occurrence := none)
     : let integrated := queue.maybeIntegrateWork work parentTask
@@ -77,7 +77,7 @@ theorem State.LiveDescendant.pruneIntegratedWork {queue : State} {root target}
   intro integrated
   obtain ⟨node, found⟩ := path.target_present
   have old : target ∈ queue.registeredGroups :=
-    State.groupNode?_key found ▸ registered node (List.mem_of_find?_eq_some found)
+    State.groupNode?_ref found ▸ registered node (List.mem_of_find?_eq_some found)
   apply (path.maybeIntegrateWork unique work parentTask).pruneEmptyGroups_outside
   intro candidate member reaches
   obtain ⟨_, _, _, _, fresh, _⟩ := queue.addGroups_newGroup_candidate work.groups member
@@ -89,7 +89,7 @@ Witness: fresh integration/pruning preserves the path and starting the new roots
 not change the live group map. The item may carry arbitrary finite work.
 -/
 theorem State.LiveDescendant.integrateStreamItem {queue : State} {root target}
-    (path : queue.LiveDescendant root target) (unique : queue.GroupKeysUnique)
+    (path : queue.LiveDescendant root target) (unique : queue.GroupRefsUnique)
     (registered : queue.LiveGroupsRegistered) (item : StreamItem)
     : (queue.integrateStreamItem item).LiveDescendant root target := by
   let integrated := queue.maybeIntegrateWork item.work
@@ -103,7 +103,7 @@ Witness: the previous root and its entire child path survive fresh integration a
 activation retains old roots while appending the new notice frontier.
 -/
 theorem State.integrateStreamItem_old_root_coverage {queue : State} {target}
-    (unique : queue.GroupKeysUnique) (registered : queue.LiveGroupsRegistered)
+    (unique : queue.GroupRefsUnique) (registered : queue.LiveGroupsRegistered)
     (item : StreamItem)
     (covered : ∃ root ∈ queue.rootGroups, queue.LiveDescendant root target)
     : ∃ root ∈ (queue.integrateStreamItem item).rootGroups,

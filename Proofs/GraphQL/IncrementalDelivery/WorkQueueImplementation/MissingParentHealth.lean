@@ -11,23 +11,24 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 -- An active or promoted record may have a failure, but its ancestors must be healthy
 -----------------------------------------------------------------------------------------
 
-/-- All full registration ancestors of `key` are healthy under `failed` in `work`.
+/-- All full registration ancestors of `ref` are healthy under `failed` in `work`.
 The record itself may already have a cached failure; this is weaker than root health.
 -/
-def GroupAncestorsHealthy (work : Execution.Work) (failed : List Occurrence) (key : Nat)
+def GroupAncestorsHealthy (work : Execution.Work) (failed : List Occurrence)
+    (ref : NodeRef)
     : Prop :=
   ∀ node dependencies,
     GroupRecordAt work node dependencies
-    → node.key = key
+    → node.ref = ref
     → ∀ ancestor ∈ dependencies, ¬GroupRecordInvalidated work failed ancestor
 
-/-- One generated record's ancestry establishes the key-wide ancestor certificate.
-Witness: canonical generated dependencies identify every other record with the same key.
+/-- One generated record's ancestry establishes the ref-wide ancestor certificate.
+Witness: canonical generated dependencies identify every other record with the same ref.
 -/
 theorem GroupAncestorsHealthy.of_record {work failed node dependencies}
     (generated : ExecutedWork work) (known : GroupRecordAt work node dependencies)
     (healthy : ∀ ancestor ∈ dependencies, ¬GroupRecordInvalidated work failed ancestor)
-    : GroupAncestorsHealthy work failed node.key := by
+    : GroupAncestorsHealthy work failed node.ref := by
   intro other otherDependencies descriptor same
   obtain ⟨parents, canonical⟩ := generated.groupRecordsCanonical
   have equal : otherDependencies = dependencies := by
@@ -43,9 +44,9 @@ theorem GroupAncestorsHealthy.child
     (generated : ExecutedWork work)
     (childKnown : GroupRecordAt work child childDependencies)
     (parentKnown : GroupRecordAt work parent parentDependencies)
-    (head : childDependencies.head? = some parent.key)
-    (healthy : ¬GroupRecordInvalidated work failed parent.key)
-    : GroupAncestorsHealthy work failed child.key := by
+    (head : childDependencies.head? = some parent.ref)
+    (healthy : ¬GroupRecordInvalidated work failed parent.ref)
+    : GroupAncestorsHealthy work failed child.ref := by
   apply GroupAncestorsHealthy.of_record generated childKnown
   rw [generated.groupRecordAncestryChain childKnown parentKnown head]
   intro ancestor member invalid
@@ -62,13 +63,13 @@ theorem State.GroupErrorAccounting.recordHealthy_of_ancestors
     (counts : queue.GroupErrorAccounting work failed) (generated : ExecutedWork work)
     (member : node ∈ queue.groupNodes) (uncached : node.failure = none)
     {dependencies} (known : GroupRecordAt work node.group.node dependencies)
-    (ancestors : GroupAncestorsHealthy work failed node.group.node.key)
+    (ancestors : GroupAncestorsHealthy work failed node.group.node.ref)
     (failedKnown
       : ∀ occurrence ∈ failed,
           ∃ owners producer payload,
             TaskAt work occurrence owners producer payload
             ∧ payload.failure.isSome = true)
-    : ¬GroupRecordInvalidated work failed node.group.node.key := by
+    : ¬GroupRecordInvalidated work failed node.group.node.ref := by
   intro invalid
   rcases generated.groupRecordInvalidated_causes known invalid with
     ⟨occurrence, owners, ⟨producer, payload, task⟩, owner, recorded⟩
@@ -92,20 +93,20 @@ theorem State.MissingParentAncestorsHealthy.filter_parent {queue : State}
     (generated : ExecutedWork work) (fields : queue.GroupParentsCanonical parents)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     {removed : Execution.DeliveryNode} {parentDependencies}
     (parentKnown : GroupRecordAt work removed parentDependencies)
-    (healthy : ¬GroupRecordInvalidated work failed removed.key)
+    (healthy : ¬GroupRecordInvalidated work failed removed.ref)
     : ({
         queue with
           groupNodes :=
-            queue.groupNodes.filter (fun node => node.group.node.key != removed.key)
+            queue.groupNodes.filter (fun node => node.group.node.ref != removed.ref)
       }).MissingParentAncestorsHealthy
         work failed := by
   intro node included uncached dependencies known parent parentEq missing uncancelled
   have oldMember := (List.mem_filter.mp included).1
-  by_cases same : parent = removed.key
-  · have head : dependencies.head? = some removed.key := by
+  by_cases same : parent = removed.ref
+  · have head : dependencies.head? = some removed.ref := by
       rw [canonical _ _ known, ← fields node oldMember, parentEq, same]
     exact (GroupAncestorsHealthy.child generated known parentKnown head healthy)
       _ _ known rfl
@@ -113,17 +114,17 @@ theorem State.MissingParentAncestorsHealthy.filter_parent {queue : State}
       cases found : queue.groupNode? parent with
       | none => rfl
       | some old =>
-          have key := State.groupNode?_key found
+          have ref := State.groupNode?_ref found
           have retained : old ∈ queue.groupNodes.filter
-              (fun node => node.group.node.key != removed.key) :=
-            List.mem_filter.mpr ⟨List.mem_of_find?_eq_some found, by simp [key, same]⟩
+              (fun node => node.group.node.ref != removed.ref) :=
+            List.mem_filter.mpr ⟨List.mem_of_find?_eq_some found, by simp [ref, same]⟩
           exact False.elim
-            (List.find?_eq_none.mp missing old retained (beq_iff_eq.mpr key))
+            (List.find?_eq_none.mp missing old retained (beq_iff_eq.mpr ref))
     exact prior node oldMember uncached dependencies known parent parentEq
       wasMissing uncancelled
 
 /-- Task-membership removal does not change any absent-parent health boundary.
-Witness: live keys, group descriptors, caches, and cancellation markers are unchanged.
+Witness: live refs, group descriptors, caches, and cancellation markers are unchanged.
 -/
 theorem State.MissingParentAncestorsHealthy.removeTask {queue : State} {work failed}
     (prior : queue.MissingParentAncestorsHealthy work failed) (occurrence : Occurrence)
@@ -150,7 +151,7 @@ theorem State.pruneEmptyGroups_health_preserves {queue : State} {work failed par
     (links : queue.ChildLinksCanonical parents)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (counts : queue.GroupErrorAccounting work failed)
     (failedKnown
       : ∀ occurrence ∈ failed,
@@ -158,35 +159,35 @@ theorem State.pruneEmptyGroups_health_preserves {queue : State} {work failed par
             TaskAt work occurrence owners producer payload
             ∧ payload.failure.isSome = true)
     (groups : List Execution.DeliveryNode)
-    (healthy : ∀ group ∈ groups, GroupAncestorsHealthy work failed group.key)
+    (healthy : ∀ group ∈ groups, GroupAncestorsHealthy work failed group.ref)
     (property : State → Prop)
     (preserved
       : ∀ current node,
           current.GroupNodesMatchWork work
           → node ∈ current.groupNodes
-          → ¬GroupRecordInvalidated work failed node.group.node.key
+          → ¬GroupRecordInvalidated work failed node.group.node.ref
           → property current
           → property
               {
                 current with
                   groupNodes :=
                     current.groupNodes.filter
-                      (fun entry => entry.group.node.key != node.group.node.key)
+                      (fun entry => entry.group.node.ref != node.group.node.ref)
               })
     (initial : property queue)
     : property (queue.pruneEmptyGroups groups).1
       ∧ ∀ group ∈ (queue.pruneEmptyGroups groups).2,
-          GroupAncestorsHealthy work failed group.key := by
+          GroupAncestorsHealthy work failed group.ref := by
   have loop (fuel : Nat) (current : State) (remaining kept : List Execution.DeliveryNode)
       (invariant : property current)
       (matched : current.GroupNodesMatchWork work)
       (linked : current.ChildLinksCanonical parents)
       (accounted : current.GroupErrorAccounting work failed)
-      (pending : ∀ group ∈ remaining, GroupAncestorsHealthy work failed group.key)
-      (done : ∀ group ∈ kept, GroupAncestorsHealthy work failed group.key)
+      (pending : ∀ group ∈ remaining, GroupAncestorsHealthy work failed group.ref)
+      (done : ∀ group ∈ kept, GroupAncestorsHealthy work failed group.ref)
       : property (State.pruneEmptyGroups.go fuel current remaining kept).1
         ∧ ∀ group ∈ (State.pruneEmptyGroups.go fuel current remaining kept).2,
-            GroupAncestorsHealthy work failed group.key := by
+            GroupAncestorsHealthy work failed group.ref := by
     induction fuel generalizing current remaining kept with
     | zero => exact ⟨invariant, done⟩
     | succ fuel ih =>
@@ -201,13 +202,13 @@ theorem State.pruneEmptyGroups_health_preserves {queue : State} {work failed par
               split
               · rename_i empty
                 have member := List.mem_of_find?_eq_some found
-                have key := State.groupNode?_key found
+                have ref := State.groupNode?_ref found
                 obtain ⟨dependencies, record⟩ := matched node member
                 have parentHealthy := accounted.recordHealthy_of_ancestors generated member
                   (Option.isNone_iff_eq_none.mp (Bool.and_eq_true_iff.mp empty).2)
-                  record (key.symm ▸ pending group List.mem_cons_self) failedKnown
+                  record (ref.symm ▸ pending group List.mem_cons_self) failedKnown
                 have nextProperty := preserved current node matched member parentHealthy invariant
-                rw [key] at nextProperty
+                rw [ref] at nextProperty
                 apply ih _ _ _ nextProperty
                   (fun next kept => matched next (List.mem_filter.mp kept).1)
                   (fun next kept => linked next (List.mem_filter.mp kept).1)
@@ -215,17 +216,17 @@ theorem State.pruneEmptyGroups_health_preserves {queue : State} {work failed par
                     accounted.fresh⟩ _ done
                 intro child included
                 rcases List.mem_append.mp included with descendant | tail
-                · obtain ⟨childKey, childMember, selected⟩ := List.mem_filterMap.mp descendant
-                  cases childFound : current.groupNode? childKey with
+                · obtain ⟨childRef, childMember, selected⟩ := List.mem_filterMap.mp descendant
+                  cases childFound : current.groupNode? childRef with
                   | none => simp [childFound] at selected
                   | some childNode =>
                       have same : childNode.group.node = child := by
                         simpa [childFound] using selected
                       obtain ⟨childDependencies, childRecord⟩ :=
                         matched childNode (List.mem_of_find?_eq_some childFound)
-                      have head : childDependencies.head? = some node.group.node.key := by
-                        rw [canonical _ _ childRecord, State.groupNode?_key childFound]
-                        exact linked node member childKey childMember
+                      have head : childDependencies.head? = some node.group.node.ref := by
+                        rw [canonical _ _ childRecord, State.groupNode?_ref childFound]
+                        exact linked node member childRef childMember
                       exact same
                       ▸ GroupAncestorsHealthy.child generated childRecord record
                           head parentHealthy
@@ -250,7 +251,7 @@ theorem State.MissingParentAncestorsHealthy.pruneEmptyGroups {queue : State}
     (fields : queue.GroupParentsCanonical parents)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (counts : queue.GroupErrorAccounting work failed)
     (failedKnown
       : ∀ occurrence ∈ failed,
@@ -258,10 +259,10 @@ theorem State.MissingParentAncestorsHealthy.pruneEmptyGroups {queue : State}
             TaskAt work occurrence owners producer payload
             ∧ payload.failure.isSome = true)
     (groups : List Execution.DeliveryNode)
-    (healthy : ∀ group ∈ groups, GroupAncestorsHealthy work failed group.key)
+    (healthy : ∀ group ∈ groups, GroupAncestorsHealthy work failed group.ref)
     : (queue.pruneEmptyGroups groups).1.MissingParentAncestorsHealthy work failed
       ∧ ∀ group ∈ (queue.pruneEmptyGroups groups).2,
-          GroupAncestorsHealthy work failed group.key := by
+          GroupAncestorsHealthy work failed group.ref := by
   have result := State.pruneEmptyGroups_health_preserves generated matching links canonical
     counts failedKnown groups healthy
     (fun current => current.GroupParentsCanonical parents
@@ -289,7 +290,7 @@ theorem State.MissingParentAncestorsHealthy.finishGroupSuccess {queue : State}
     (fields : queue.GroupParentsCanonical parents)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (counts : queue.GroupErrorAccounting work failed)
     (failedKnown
       : ∀ occurrence ∈ failed,
@@ -298,14 +299,14 @@ theorem State.MissingParentAncestorsHealthy.finishGroupSuccess {queue : State}
             ∧ payload.failure.isSome = true)
     {group : GroupNode} (member : group ∈ queue.groupNodes)
     (uncached : group.failure = none)
-    (ancestors : GroupAncestorsHealthy work failed group.group.node.key)
+    (ancestors : GroupAncestorsHealthy work failed group.group.node.ref)
     : (queue.finishGroupSuccess group).1.MissingParentAncestorsHealthy work failed
       ∧ ∀ child ∈ (queue.finishGroupSuccess group).2.2.newGroups,
-          GroupAncestorsHealthy work failed child.key := by
+          GroupAncestorsHealthy work failed child.ref := by
   obtain ⟨dependencies, parentKnown⟩ := matching group member
   have parentHealthy := counts.recordHealthy_of_ancestors generated member uncached
     parentKnown ancestors failedKnown
-  let step (acc : State × List ExecutionGroupValue × Keys) (occurrence : Occurrence) :=
+  let step (acc : State × List ExecutionGroupValue × NodeRefs) (occurrence : Occurrence) :=
     let (current, values, streams) := acc
     match current.taskNode? occurrence with
     | none => (current, values, streams)
@@ -318,7 +319,7 @@ theorem State.MissingParentAncestorsHealthy.finishGroupSuccess {queue : State}
     ∧ current.ChildLinksCanonical parents ∧ current.GroupParentsCanonical parents
     ∧ current.GroupErrorAccounting work failed
     ∧ current.MissingParentAncestorsHealthy work failed
-  have loop (more : List Occurrence) (acc : State × List ExecutionGroupValue × Keys)
+  have loop (more : List Occurrence) (acc : State × List ExecutionGroupValue × NodeRefs)
       (invariant : property acc.1) : property (more.foldl step acc).1 := by
     induction more generalizing acc with
     | nil => exact invariant
@@ -336,8 +337,8 @@ theorem State.MissingParentAncestorsHealthy.finishGroupSuccess {queue : State}
     ⟨matching, links, fields, counts, prior⟩
   let current : State := { flushed with
     groupNodes := flushed.groupNodes.filter
-      (fun node => node.group.node.key != group.group.node.key)
-    rootGroups := flushed.rootGroups.filter (· != group.group.node.key) }
+      (fun node => node.group.node.ref != group.group.node.ref)
+    rootGroups := flushed.rootGroups.filter (· != group.group.node.ref) }
   have currentBoundary : current.MissingParentAncestorsHealthy work failed :=
     metadata.2.2.2.2.filter_parent generated metadata.2.2.1 canonical parentKnown parentHealthy
   have currentMatching : current.GroupNodesMatchWork work :=
@@ -350,19 +351,19 @@ theorem State.MissingParentAncestorsHealthy.finishGroupSuccess {queue : State}
     ⟨fun node kept => metadata.2.2.2.1.live node (List.mem_filter.mp kept).1,
       metadata.2.2.2.1.fresh⟩
   let children := group.childGroups.filterMap
-    (fun key => (current.groupNode? key).map (fun node => node.group.node))
-  have childAncestors : ∀ child ∈ children, GroupAncestorsHealthy work failed child.key := by
+    (fun ref => (current.groupNode? ref).map (fun node => node.group.node))
+  have childAncestors : ∀ child ∈ children, GroupAncestorsHealthy work failed child.ref := by
     intro child included
-    obtain ⟨key, linked, selected⟩ := List.mem_filterMap.mp included
-    cases found : current.groupNode? key with
+    obtain ⟨ref, linked, selected⟩ := List.mem_filterMap.mp included
+    cases found : current.groupNode? ref with
     | none => simp [found] at selected
     | some node =>
         have same : node.group.node = child := by simpa [found] using selected
         obtain ⟨childDependencies, childKnown⟩ :=
           currentMatching node (List.mem_of_find?_eq_some found)
-        have head : childDependencies.head? = some group.group.node.key := by
-          rw [canonical _ _ childKnown, State.groupNode?_key found]
-          exact links group member key linked
+        have head : childDependencies.head? = some group.group.node.ref := by
+          rw [canonical _ _ childKnown, State.groupNode?_ref found]
+          exact links group member ref linked
         exact same
         ▸ GroupAncestorsHealthy.child generated childKnown parentKnown head parentHealthy
   exact currentBoundary.pruneEmptyGroups generated currentMatching currentLinks
@@ -372,20 +373,20 @@ theorem State.MissingParentAncestorsHealthy.finishGroupSuccess {queue : State}
 -- Release-time draining retains ancestor health without assuming every root is healthy
 -----------------------------------------------------------------------------------------
 
-/-- All active group keys have healthy full ancestry under `failed`; their own caches
+/-- All active group refs have healthy full ancestry under `failed`; their own caches
 may contain failures waiting to be drained. This is an internal proof invariant.
 -/
 def State.RootAncestorsHealthy (queue : State) (work : Execution.Work)
     (failed : List Occurrence)
     : Prop :=
-  ∀ key ∈ queue.rootGroups, GroupAncestorsHealthy work failed key
+  ∀ ref ∈ queue.rootGroups, GroupAncestorsHealthy work failed ref
 
 /-- With no accepted failures, every root's ancestry is healthy.
 Witness: every invalidation derivation requires a failure token.
 -/
 theorem State.RootAncestorsHealthy.of_empty (queue : State) (work : Execution.Work)
     : queue.RootAncestorsHealthy work [] := by
-  intro key active node dependencies known same ancestor member invalid
+  intro ref active node dependencies known same ancestor member invalid
   exact invalid.nonempty rfl
 
 /-- A fresh failure preserves healthy root ancestry when its contributors have retired.
@@ -399,9 +400,9 @@ theorem State.RootAncestorsHealthy.append_fresh {queue : State} {work settled fa
     {task : Task} (registered : task ∈ queue.tasks)
     (matching : TaskMatches work task) (fresh : task.occurrence ∉ settled)
     : queue.RootAncestorsHealthy work (failed ++ [task.occurrence]) := by
-  intro key active node dependencies known same
-  exact (same.symm ▸ retired key active).healthy_append_fresh generated known
-    (healthy key active node dependencies known same) accounted registered matching fresh
+  intro ref active node dependencies known same
+  exact (same.symm ▸ retired ref active).healthy_append_fresh generated known
+    (healthy ref active node dependencies known same) accounted registered matching fresh
 
 /-- Activation changes no live record, cache, or cancellation marker.
 Witness: the exact group-core and cancellation equations preserve the missing boundary.
@@ -418,16 +419,16 @@ theorem State.MissingParentAncestorsHealthy.startNewWork {queue : State} {work f
     uncancelled
 
 /-- Activating children preserves healthy root ancestry when their release certifies it.
-Witness: the root-key list is the old roots followed by the newly released group keys.
+Witness: the root-ref list is the old roots followed by the newly released group refs.
 -/
 theorem State.RootAncestorsHealthy.startNewWork {queue : State} {work failed}
     (roots : queue.RootAncestorsHealthy work failed) (released : NewWork)
-    (children : ∀ child ∈ released.newGroups, GroupAncestorsHealthy work failed child.key)
+    (children : ∀ child ∈ released.newGroups, GroupAncestorsHealthy work failed child.ref)
     : (queue.startNewWork released).RootAncestorsHealthy work failed := by
-  intro key member
+  intro ref member
   rw [(queue.startNewWork_groupCore released).2.2] at member
   rcases List.mem_append.mp member with old | new
-  · exact roots key old
+  · exact roots ref old
   · obtain ⟨child, included, rfl⟩ := List.mem_map.mp new
     exact children child included
 
@@ -443,7 +444,7 @@ theorem State.MissingParentAncestorsHealthy.drainReadyGroups {queue : State}
     (fields : queue.GroupParentsCanonical parents)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (counts : queue.GroupErrorAccounting work failed)
     (failedKnown
       : ∀ occurrence ∈ failed,
@@ -466,7 +467,7 @@ theorem State.MissingParentAncestorsHealthy.drainReadyGroups {queue : State}
         invariant.2.1 invariant.2.2.1 canonical invariant.2.2.2.1 failedKnown
         member uncached (invariant.2.2.2.2.2 _ active)
       have retained : (current.finishGroupSuccess node).1.RootAncestorsHealthy work failed :=
-        fun key included => invariant.2.2.2.2.2 key
+        fun ref included => invariant.2.2.2.2.2 ref
           (current.finishGroupSuccess_rootsSubset node included)
       exact ⟨(invariant.1.finishGroupSuccess node).startNewWork _,
         (invariant.2.1.finishGroupSuccess node).startNewWork _,
@@ -477,7 +478,7 @@ theorem State.MissingParentAncestorsHealthy.drainReadyGroups {queue : State}
       exact ⟨invariant.1.removeGroup _, invariant.2.1.removeGroup _,
         invariant.2.2.1.removeGroup _, invariant.2.2.2.1.removeGroup _,
         invariant.2.2.2.2.1.removeGroup _,
-        fun key included => invariant.2.2.2.2.2 key
+        fun ref included => invariant.2.2.2.2.2 ref
           (current.removeGroup_rootsSubset _ included)⟩
   exact result.2.2.2.2
 

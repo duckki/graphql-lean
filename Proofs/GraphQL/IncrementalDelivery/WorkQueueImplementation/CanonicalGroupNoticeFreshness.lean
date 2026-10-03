@@ -11,7 +11,7 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 -- Group and stream roles exclude announcements of the wrong kind
 -----------------------------------------------------------------------------------------
 
-/-- An announced generated group key came from an initial or carried group notice.
+/-- An announced generated group ref came from an initial or carried group notice.
 Witness: generated node roles exclude every initial and carried stream descriptor.
 This uses source provenance rather than already-admitted notices or unique wire IDs.
 -/
@@ -20,17 +20,17 @@ theorem groupNode_announced_group {work inputs index child dependencies producer
     (valid : ValidGraphEvents work inputs.flatten)
     (history : w.events = (initialQueue work).nonterminalAtoms inputs)
     (known : NodeAt work child .group dependencies producer)
-    (announced : child.key ∈ announcedKeys (initialKeys work) (w.events.take index))
-    : child.key
+    (announced : child.ref ∈ announcedRefs (initialRefs work) (w.events.take index))
+    : child.ref
       ∈ (initialQueue work).rootGroups
-        ++ (w.events.take index).flatMap groupNoticeKeys := by
+        ++ (w.events.take index).flatMap groupNoticeRefs := by
   rcases List.mem_append.mp announced with initial | pending
-  · rw [initialKeys, List.map_append] at initial
+  · rw [initialRefs, List.map_append] at initial
     rcases List.mem_append.mp initial with group | stream
     · apply List.mem_append_left
       rwa [createWorkQueue_rootGroups]
     · obtain ⟨stream, member, same⟩ := List.mem_map.mp stream
-      exact False.elim (generated.groupStreamKeysDisjoint known
+      exact False.elim (generated.groupStreamRefsDisjoint known
         ((createWorkQueue_initialStreams_nodeAt work).2 stream member) same.symm)
   · obtain ⟨event, prior, notice⟩ := List.mem_flatMap.mp pending
     obtain ⟨position, selected⟩ := List.mem_iff_getElem?.mp (List.mem_of_mem_take prior)
@@ -45,7 +45,7 @@ theorem groupNode_announced_group {work inputs index child dependencies producer
       · exact groupNotice
       · obtain ⟨stream, member, same⟩ := List.mem_map.mp streamNotice
         obtain ⟨enclosing, birth, located⟩ := streamKnown stream member
-        exact False.elim (generated.groupStreamKeysDisjoint known located same.symm)
+        exact False.elim (generated.groupStreamRefsDisjoint known located same.symm)
     all_goals cases notice
 
 -----------------------------------------------------------------------------------------
@@ -63,14 +63,14 @@ theorem groupNotice_fresh {work inputs index event child dependencies producer}
     (started : inputsStarted work inputs = true)
     (history : w.events = (initialQueue work).nonterminalAtoms inputs)
     (selected : w.events[index]? = some event)
-    (noticed : child.key ∈ groupNoticeKeys event)
+    (noticed : child.ref ∈ groupNoticeRefs event)
     (known : NodeAt work child .group dependencies producer)
-    : child.key ∉ announcedKeys (initialKeys work) (w.events.take index) := by
+    : child.ref ∉ announcedRefs (initialRefs work) (w.events.take index) := by
   intro announced
   have repeated := groupNode_announced_group generated valid history known announced
   have matching : ∀ entry ∈ inputs.flatten, entry.MatchesWork work :=
     fun _ member => valid.eachMatches member
-  cases event <;> simp only [groupNoticeKeys] at noticed
+  cases event <;> simp only [groupNoticeRefs] at noticed
   case groupSuccess group groups streams =>
     obtain ⟨position, rawAt, notices, _⟩ :=
       Witness.groupNotice_rawControls valid started history selected
@@ -90,19 +90,19 @@ theorem groupNotice_fresh {work inputs index event child dependencies producer}
 -- Normalization and atomization preserve the entire ordered group-notice inventory
 -----------------------------------------------------------------------------------------
 
-/-- Initial and canonical carried group keys are globally duplicate-free.
+/-- Initial and canonical carried group refs are globally duplicate-free.
 Witness: legal source payloads make normalization and atomic expansion retain the exact
 raw group-notice inventory, whose uniqueness is derived from actual queue replay.
 -/
-theorem groupNoticeKeys_nodup {work inputs} {w : Witness}
+theorem groupNoticeRefs_nodup {work inputs} {w : Witness}
     (generated : ExecutedWork work) (valid : ValidGraphEvents work inputs.flatten)
     (started : inputsStarted work inputs = true)
     (history : w.events = (initialQueue work).nonterminalAtoms inputs)
-    : ((initialQueue work).rootGroups ++ w.events.flatMap groupNoticeKeys).Nodup := by
+    : ((initialQueue work).rootGroups ++ w.events.flatMap groupNoticeRefs).Nodup := by
   have exactHistory := history.trans (createWorkQueue_nonterminalAtoms_flattened inputs started)
   rw [exactHistory, atomicGroupNotices _ _
     ((initialQueue work).rawEventReplay_nonemptyValues inputs.flatten valid.nonemptyItems)]
-  exact generated.rawEventReplay_groupKeys_nodup inputs.flatten
+  exact generated.rawEventReplay_groupRefs_nodup inputs.flatten
     (fun _ member => valid.eachMatches member)
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue.ConformancePlan

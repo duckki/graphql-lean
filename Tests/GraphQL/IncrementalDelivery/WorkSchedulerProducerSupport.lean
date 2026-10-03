@@ -15,7 +15,7 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 /-- Settling the parent publishes its object and promotes the nested child as sole root.
 Witness: evaluation of the real single-pass task-success handler on generated work. -/
 theorem success_promotes_child
-    : (queue.taskSuccess parentTask result).1.rootGroups = [child.key] := by
+    : (queue.taskSuccess parentTask result).1.rootGroups = [child.ref] := by
   cbv
 
 /-- The child promoted by the full handler comes from the earlier parent's subtree.
@@ -27,17 +27,17 @@ theorem promoted_child_origin
         ((queue.putTaskNode
             { task := producer, value := some result.value }).maybeIntegrateWork
           result.work (some parentTask)).1
-      integrated.LiveDescendant parent.key child.key := by
-  have active : child.key ∈ (queue.taskSuccess parentTask result).1.rootGroups := by
+      integrated.LiveDescendant parent.ref child.ref := by
+  have active : child.ref ∈ (queue.taskSuccess parentTask result).1.rootGroups := by
     rw [success_promotes_child]
     exact List.mem_cons_self
-  have roots : queue.rootGroups = [parent.key] := by cbv
-  have origins := State.taskSuccess_rootOrigins (createWorkQueue_groupKeysUnique _)
-    parentTask result { task := producer } (by cbv) child.key active
-  rcases origins with old | ⟨key, member, path⟩
-  · have absent : child.key ∉ queue.rootGroups := by rw [roots]; decide
+  have roots : queue.rootGroups = [parent.ref] := by cbv
+  have origins := State.taskSuccess_rootOrigins (createWorkQueue_groupRefsUnique _)
+    parentTask result { task := producer } (by cbv) child.ref active
+  rcases origins with old | ⟨ref, member, path⟩
+  · have absent : child.ref ∉ queue.rootGroups := by rw [roots]; decide
     exact False.elim (absent old)
-  · change key ∈ queue.rootGroups at member
+  · change ref ∈ queue.rootGroups at member
     rw [roots] at member
     have same := List.mem_singleton.mp member
     exact same ▸ path
@@ -65,13 +65,13 @@ queue start checker; each input is in a separate batch. -/
 theorem publication_inputs_valid_started
     : ValidGraphEvents work publicationInputs.flatten
       ∧ inputsStarted work publicationInputs = true := by
-  have parentKnown : TaskAt work parentTask [parent.key] none
+  have parentKnown : TaskAt work parentTask [parent.ref] none
       (.object [] (.ok ([("user", .object [])], 0))) := by
     refine ⟨[⟨parent, []⟩], [], _, children, [], ?_, rfl, rfl⟩
     cbv
-  have childKnown : TaskAt work childTask [child.key] (some parentTask)
+  have childKnown : TaskAt work childTask [child.ref] (some parentTask)
       (.object child.path (.ok (childResult.value.data, 0))) := by
-    refine ⟨[⟨child, [parent]⟩], child.path, _, .combine .empty .empty, [parent.key],
+    refine ⟨[⟨child, [parent]⟩], child.path, _, .combine .empty .empty, [parent.ref],
       ?_, rfl, rfl⟩
     cbv
   have first : ValidGraphEvents work [.taskSuccess parentTask result] :=

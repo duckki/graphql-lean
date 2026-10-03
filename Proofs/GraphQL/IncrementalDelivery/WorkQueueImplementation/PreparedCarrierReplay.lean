@@ -33,7 +33,7 @@ theorem State.ReplayClosuresCovered.success_before_carrier {queue : State}
             before).handleGraphEvent
           event).2[index]?
         = some (.groupSuccess group groups streams))
-    (contributes : group.key ∈ node.task.groups.map Execution.DeliveryNode.key)
+    (contributes : group.ref ∈ node.task.groups.map Execution.DeliveryNode.ref)
     : (occurrence, result.value)
       ∈ published.take
           (((queue.taskSuccess occurrence result).2.flatMap
@@ -52,7 +52,7 @@ theorem State.ReplayClosuresCovered.success_before_carrier {queue : State}
   have boundary := State.replayGraphEvents_registration first.1 first.2.1 before
     (fun input member => laterMatching input (List.mem_append_left _ member))
   have known := State.taskNode?_some found
-  have recorded := registered node.task (started node known.1) group.key contributes
+  have recorded := registered node.task (started node known.1) group.ref contributes
   obtain ⟨owner, boundaryLive⟩ := State.handleGraphEvent_success_live_registered
     boundary.1 boundary.2.1
     (laterMatching event (List.mem_append_right _ List.mem_cons_self))
@@ -61,7 +61,7 @@ theorem State.ReplayClosuresCovered.success_before_carrier {queue : State}
     (first.2.2 recorded) before boundaryLive
   obtain ⟨buffered, installed, sameTask, stored⟩ := State.taskSuccess_prepared_value found result
   have survives : ∃ contributor ∈ buffered.task.groups, ∃ owner,
-      (queue.taskSuccess occurrence result).1.groupNode? contributor.key = some owner := by
+      (queue.taskSuccess occurrence result).1.groupNode? contributor.ref = some owner := by
     obtain ⟨contributor, member, same⟩ := List.mem_map.mp contributes
     exact ⟨contributor, sameTask.symm ▸ member, earlierOwner, same ▸ earlierLive⟩
   have conserved := covered.2.2.2.1 node found healthy
@@ -87,7 +87,7 @@ theorem State.ReplayClosuresCovered.success_at_carrier {queue : State}
     (carrier
       : (queue.taskSuccess occurrence result).2[index]?
         = some (.groupSuccess group groups streams))
-    (contributes : group.key ∈ node.task.groups.map Execution.DeliveryNode.key)
+    (contributes : group.ref ∈ node.task.groups.map Execution.DeliveryNode.ref)
     : (occurrence, result.value)
       ∈ published.take
           (((queue.taskSuccess occurrence result).2.take index).flatMap

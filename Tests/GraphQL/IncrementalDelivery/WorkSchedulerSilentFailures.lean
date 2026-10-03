@@ -14,8 +14,8 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 -- Generated shared work and the actual accepted settlement sequence
 -----------------------------------------------------------------------------------------
 
-private def node (key : Nat) (label : String) : DeliveryNode :=
-  { key, path := [], label := some (.string label) }
+private def node (ref : NodeRef) (label : String) : DeliveryNode :=
+  { ref, path := [], label := some (.string label) }
 
 private def root : DeliveryNode := node 0 "R"
 private def parent : DeliveryNode := node 1 "P"
@@ -65,7 +65,7 @@ theorem generated : ExecutedWork work := by
 Witness: the fixed generated partition at its structural address.
 -/
 private theorem first_known
-    : TaskAt work firstTask [root.key] none (.object [] (.error 1)) :=
+    : TaskAt work firstTask [root.ref] none (.object [] (.error 1)) :=
   TaskAt.executionGroup (groups := [⟨root, []⟩]) (children := .empty) (owners := [])
     (by cbv)
 
@@ -73,7 +73,7 @@ private theorem first_known
 Witness: the generated shared partition; C depends on P, not on R.
 -/
 private theorem shared_known
-    : TaskAt work sharedTask [root.key, child.key] none (.object [] (.error 2)) :=
+    : TaskAt work sharedTask [root.ref, child.ref] none (.object [] (.error 2)) :=
   TaskAt.executionGroup (groups := [⟨root, []⟩, ⟨child, [parent]⟩])
     (children := .empty) (owners := []) (by cbv)
 
@@ -81,7 +81,7 @@ private theorem shared_known
 Witness: its exact generated partition and fixed scalar data.
 -/
 private theorem parent_known
-    : TaskAt work parentTask [parent.key] none (.object [] (.ok (parentData, 0))) :=
+    : TaskAt work parentTask [parent.ref] none (.object [] (.ok (parentData, 0))) :=
   TaskAt.executionGroup (groups := [⟨parent, []⟩])
     (children := .combine .empty .empty) (owners := []) (by cbv)
 
@@ -142,7 +142,7 @@ theorem initialized : Initializes work queue.initialGroups queue.initialStreams 
       (by cbv) (by simp)
   have eligible (group : DeliveryNode) (known : NodeAt work group .group [] none)
       : CanAnnounce work [] (fun _ => .executionGroup []) [] [] group .group [] none :=
-    ⟨by simp [announcedKeys, pendingKeys], Or.inl ⟨fun failure => failure.nonempty rfl,
+    ⟨by simp [announcedRefs, pendingRefs], Or.inl ⟨fun failure => failure.nonempty rfl,
         Or.inr (group_not_initially_accounted known)⟩, by simp, by simp⟩
   have notices : queue.initialGroups = [root, parent] ∧ queue.initialStreams = [] := by cbv
   rw [notices.1, notices.2]

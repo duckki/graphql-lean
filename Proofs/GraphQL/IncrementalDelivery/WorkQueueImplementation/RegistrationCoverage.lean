@@ -11,15 +11,15 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 -- The registry includes live nodes, even when registration is skipped on lookup
 -----------------------------------------------------------------------------------------
 
-/-- Every live group node's key is recorded in the permanent registration registry. -/
+/-- Every live group node's ref is recorded in the permanent registration registry. -/
 def State.LiveGroupsRegistered (queue : State) : Prop :=
-  ∀ node ∈ queue.groupNodes, node.group.node.key ∈ queue.registeredGroups
+  ∀ node ∈ queue.groupNodes, node.group.node.ref ∈ queue.registeredGroups
 
 /-- Every permanent task contributor has a permanent group registration.
 The contributor need not still have a live node or an open notice. -/
 def State.TaskGroupsRegistered (queue : State) : Prop :=
   ∀ task ∈ queue.tasks,
-  ∀ key ∈ task.groups.map Execution.DeliveryNode.key, key ∈ queue.registeredGroups
+  ∀ ref ∈ task.groups.map Execution.DeliveryNode.ref, ref ∈ queue.registeredGroups
 
 /-- A preserved predicate extends through a finite state fold.
 Witness: induction over inputs, retaining the actual intermediate state. -/
@@ -31,11 +31,11 @@ private theorem fold_preserves {α β : Type} (step : β → α → β) (propert
   | nil => exact initial
   | cons item rest ih => exact ih _ (preserved state item initial)
 
-/-- Metadata replacement preserves registry coverage when the replacement key is known.
-Witness: each output node is either unchanged or has the supplied registered key. -/
+/-- Metadata replacement preserves registry coverage when the replacement ref is known.
+Witness: each output node is either unchanged or has the supplied registered ref. -/
 theorem State.LiveGroupsRegistered.putGroupNode {queue : State}
     (registered : queue.LiveGroupsRegistered) (updated : GroupNode)
-    (known : updated.group.node.key ∈ queue.registeredGroups)
+    (known : updated.group.node.ref ∈ queue.registeredGroups)
     : (queue.putGroupNode updated).LiveGroupsRegistered := by
   intro node member
   obtain ⟨old, oldMember, same⟩ := List.mem_map.mp member
@@ -43,25 +43,25 @@ theorem State.LiveGroupsRegistered.putGroupNode {queue : State}
   · subst node; exact known
   · subst node; exact registered old oldMember
 
-/-- Registration preserves old registry entries and records the supplied group key.
-Witness: a skipped live lookup is already registered; a new group appends its key. -/
+/-- Registration preserves old registry entries and records the supplied group ref.
+Witness: a skipped live lookup is already registered; a new group appends its ref. -/
 private theorem State.addGroup_registration {queue : State}
     (registered : queue.LiveGroupsRegistered) (group : Group)
     : (queue.addGroup group).LiveGroupsRegistered
       ∧ queue.registeredGroups.Subset (queue.addGroup group).registeredGroups
-      ∧ group.node.key ∈ (queue.addGroup group).registeredGroups := by
+      ∧ group.node.ref ∈ (queue.addGroup group).registeredGroups := by
   unfold State.addGroup
   split
   · rename_i old
     refine ⟨registered, fun _ member => member, ?_⟩
-    have options : group.node.key ∈ queue.registeredGroups
-        ∨ (queue.groupNode? group.node.key).isSome = true := by simpa using old
+    have options : group.node.ref ∈ queue.registeredGroups
+        ∨ (queue.groupNode? group.node.ref).isSome = true := by simpa using old
     rcases options with known | live
     · exact known
-    · cases found : queue.groupNode? group.node.key with
+    · cases found : queue.groupNode? group.node.ref with
       | none => simp [found] at live
       | some node =>
-          rw [← State.groupNode?_key found]
+          rw [← State.groupNode?_ref found]
           exact registered node (List.mem_of_find?_eq_some found)
   · dsimp only
     split
@@ -75,7 +75,7 @@ private theorem State.addGroup_registration {queue : State}
         subst node
         simp
 
-/-- Group integration preserves live-key coverage, retains every old registry entry,
+/-- Group integration preserves live-ref coverage, retains every old registry entry,
 and records all supplied candidates, including reused descriptors.
 Witness: the fresh registration fold and the registry-neutral parent-link fold. -/
 theorem State.addGroups_registration {queue : State}
@@ -83,16 +83,16 @@ theorem State.addGroups_registration {queue : State}
     : (queue.addGroups groups).1.LiveGroupsRegistered
       ∧ queue.registeredGroups.Subset (queue.addGroups groups).1.registeredGroups
       ∧ ∀ group ∈ groups,
-          group.node.key ∈ (queue.addGroups groups).1.registeredGroups := by
+          group.node.ref ∈ (queue.addGroups groups).1.registeredGroups := by
   let fresh := groups.filter (fun group =>
-    !queue.registeredGroups.contains group.node.key
-      && (queue.groupNode? group.node.key).isNone)
+    !queue.registeredGroups.contains group.node.ref
+      && (queue.groupNode? group.node.ref).isNone)
   have register (more : List Group) {current : State}
       (coverage : current.LiveGroupsRegistered)
       : (more.foldl State.addGroup current).LiveGroupsRegistered
         ∧ current.registeredGroups.Subset (more.foldl State.addGroup current).registeredGroups
         ∧ ∀ group ∈ more,
-            group.node.key ∈ (more.foldl State.addGroup current).registeredGroups := by
+            group.node.ref ∈ (more.foldl State.addGroup current).registeredGroups := by
     induction more generalizing current with
     | nil => exact ⟨coverage, fun _ member => member, by simp⟩
     | cons group rest ih =>
@@ -110,8 +110,8 @@ theorem State.addGroups_registration {queue : State}
         match current.groupNode? parent with
         | none => current
         | some node =>
-            let children := if node.childGroups.contains group.node.key then node.childGroups
-              else node.childGroups ++ [group.node.key]
+            let children := if node.childGroups.contains group.node.ref then node.childGroups
+              else node.childGroups ++ [group.node.ref]
             current.putGroupNode { node with childGroups := children }
   have linkPreserves (current : State) (group : Group)
       (coverage : current.LiveGroupsRegistered)
@@ -136,25 +136,25 @@ theorem State.addGroups_registration {queue : State}
   change (fresh.foldl link initial).LiveGroupsRegistered ∧ _
   refine ⟨linked.1, linked.2 ▸ included, ?_⟩
   intro group member
-  change group.node.key ∈ (fresh.foldl link initial).registeredGroups
+  change group.node.ref ∈ (fresh.foldl link initial).registeredGroups
   rw [linked.2]
-  by_cases prior : group.node.key ∈ queue.registeredGroups
+  by_cases prior : group.node.ref ∈ queue.registeredGroups
   · exact included prior
-  · have missing : queue.groupNode? group.node.key = none := by
-      cases found : queue.groupNode? group.node.key with
+  · have missing : queue.groupNode? group.node.ref = none := by
+      cases found : queue.groupNode? group.node.ref with
       | none => rfl
       | some node =>
-          exact False.elim (prior ((State.groupNode?_key found) ▸
+          exact False.elim (prior ((State.groupNode?_ref found) ▸
             registered node (List.mem_of_find?_eq_some found)))
     exact allFresh group (by simp [fresh, member, prior, missing])
 
-/-- Linking a task changes counters and memberships but not live keys or the registry.
-Witness: each updated node keeps the registered key returned by its lookup. -/
+/-- Linking a task changes counters and memberships but not live refs or the registry.
+Witness: each updated node keeps the registered ref returned by its lookup. -/
 private theorem State.LiveGroupsRegistered.addTask {queue : State}
     (registered : queue.LiveGroupsRegistered) (task : Task)
     : (queue.addTask task).LiveGroupsRegistered := by
   let step (current : State) (group : Execution.DeliveryNode) : State :=
-    match current.groupNode? group.key with
+    match current.groupNode? group.ref with
     | none => current
     | some node =>
         if node.tasks.contains task.occurrence then current
@@ -172,7 +172,7 @@ private theorem State.LiveGroupsRegistered.addTask {queue : State}
   let current := task.groups.foldl step { queue with tasks := queue.tasks ++ [task] }
   have covered : current.LiveGroupsRegistered :=
     fold_preserves step State.LiveGroupsRegistered preserved task.groups _ registered
-  change (if task.groups.any (fun group => current.rootGroups.contains group.key)
+  change (if task.groups.any (fun group => current.rootGroups.contains group.ref)
       && (current.taskNode? task.occurrence).isNone then
       { current with taskNodes := current.taskNodes ++ [{ task }] }
     else current).LiveGroupsRegistered
@@ -184,14 +184,14 @@ private theorem State.LiveGroupsRegistered.addTask {queue : State}
 
 /-- Work integration extends registry coverage to every new task contributor.
 Witness: register the covered groups first, then append tasks without changing registry
-entries or live keys. No generated-work, health, or success assumption is used. -/
+entries or live refs. No generated-work, health, or success assumption is used. -/
 theorem State.maybeIntegrateWork_registration {queue : State}
     (live : queue.LiveGroupsRegistered) (tasks : queue.TaskGroupsRegistered)
     (work : Work)
     (covered
       : ∀ task ∈ work.tasks,
-        ∀ key ∈ task.groups.map Execution.DeliveryNode.key,
-          ∃ group ∈ work.groups, group.node.key = key)
+        ∀ ref ∈ task.groups.map Execution.DeliveryNode.ref,
+          ∃ group ∈ work.groups, group.node.ref = ref)
     (parentTask : Option Occurrence := none)
     : (queue.maybeIntegrateWork work parentTask).1.LiveGroupsRegistered
       ∧ (queue.maybeIntegrateWork work parentTask).1.TaskGroupsRegistered
@@ -219,12 +219,12 @@ theorem State.maybeIntegrateWork_registration {queue : State}
     · dsimp
       split <;> exact afterTasks
   refine ⟨afterStreams.1, ?_, afterStreams.2 ▸ earlier⟩
-  intro task member key contributes
+  intro task member ref contributes
   rw [State.maybeIntegrateWork_tasks_append] at member
   rw [afterStreams.2]
   rcases List.mem_append.mp member with old | new
-  · exact earlier (tasks task old key contributes)
-  · obtain ⟨group, groupMember, same⟩ := covered task new key contributes
+  · exact earlier (tasks task old ref contributes)
+  · obtain ⟨group, groupMember, same⟩ := covered task new ref contributes
     exact same ▸ all group groupMember
 
 -----------------------------------------------------------------------------------------
@@ -242,8 +242,8 @@ theorem State.startNewWork_registeredGroups (queue : State) (work : NewWork)
     split
     · rfl
     · split <;> rfl
-  have group (current : State) (key : Nat)
-      : (current.startGroup key).registeredGroups = current.registeredGroups := by
+  have group (current : State) (ref : NodeRef)
+      : (current.startGroup ref).registeredGroups = current.registeredGroups := by
     unfold State.startGroup
     split
     · rfl
@@ -252,17 +252,17 @@ theorem State.startNewWork_registeredGroups (queue : State) (work : NewWork)
       · exact fold_preserves State.startTask
           (fun state => state.registeredGroups = current.registeredGroups)
           (fun state occurrence prior => (task state occurrence).trans prior) _ current rfl
-  have stream (current : State) (key : Nat)
-      : (current.startStream key).registeredGroups = current.registeredGroups := by
+  have stream (current : State) (ref : NodeRef)
+      : (current.startStream ref).registeredGroups = current.registeredGroups := by
     unfold State.startStream
     split <;> rfl
   unfold State.startNewWork
   apply fold_preserves State.startStream
     (fun state => state.registeredGroups = queue.registeredGroups)
-    (fun state key prior => (stream state key).trans prior)
+    (fun state ref prior => (stream state ref).trans prior)
   exact fold_preserves State.startGroup
     (fun state => state.registeredGroups = queue.registeredGroups)
-    (fun state key prior => (group state key).trans prior) _ _ rfl
+    (fun state ref prior => (group state ref).trans prior) _ _ rfl
 
 /-- Pruning preserves live/task registry coverage and the exact permanent registry.
 Witness: each recursive removal only filters live nodes; task definitions remain stored.
@@ -306,12 +306,12 @@ theorem State.startNewWork_registration {queue : State}
     rw [(queue.startNewWork_groupCore work).1] at member
     rw [State.startNewWork_registeredGroups]
     exact live node member
-  · intro task member key contributor
+  · intro task member ref contributor
     rw [(queue.startNewWork_groupCore work).2.1] at member
     rw [State.startNewWork_registeredGroups]
-    exact tasks task member key contributor
+    exact tasks task member ref contributor
 
-/-- Initial lowering records every contributor key, even for groups later pruned.
+/-- Initial lowering records every contributor ref, even for groups later pruned.
 Witness: immediate lowering covers task contributors, followed by pruning and activation.
 No generated-work metadata or initialization-admission premise is needed. -/
 theorem createWorkQueue_registration (work : Execution.Work)
@@ -337,10 +337,10 @@ theorem State.taskFailure_registration {queue : State}
         = queue.registeredGroups := by
   let step (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode) :=
     let (current, events) := acc
-    match current.groupNode? group.key with
+    match current.groupNode? group.ref with
     | none => (current, events)
     | some node =>
-        if current.rootGroups.contains group.key then
+        if current.rootGroups.contains group.ref then
           let (next, failure) := current.finishGroupFailure node errors
           (next, events ++ [failure])
         else (current.putGroupNode
@@ -349,8 +349,8 @@ theorem State.taskFailure_registration {queue : State}
             failure := some (node.failure.getD 0 + errors) }, events)
   let property (acc : State × List WorkQueueEvent) := acc.1.LiveGroupsRegistered
     ∧ acc.1.TaskGroupsRegistered ∧ acc.1.registeredGroups = queue.registeredGroups
-  have removed (current : State) (key : Nat) (prior : property (current, []))
-      : property (current.removeGroup key, []) := by
+  have removed (current : State) (ref : NodeRef) (prior : property (current, []))
+      : property (current.removeGroup ref, []) := by
     exact ⟨fun node member => prior.1 node (List.mem_filter.mp member).1, prior.2⟩
   have preserved (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode)
       (prior : property acc) : property (step acc group) := by
@@ -418,7 +418,7 @@ theorem State.integrateStreamItem_registration {queue : State} {work : Execution
 Witness: flushing removes live task nodes only, and pruning preserves registered tasks. -/
 theorem State.finishGroupSuccess_tasks (queue : State) (group : GroupNode)
     : (queue.finishGroupSuccess group).1.tasks = queue.tasks := by
-  let step (acc : State × List ExecutionGroupValue × Keys) (occurrence : Occurrence) :=
+  let step (acc : State × List ExecutionGroupValue × NodeRefs) (occurrence : Occurrence) :=
     match acc.1.taskNode? occurrence with
     | none => acc
     | some node =>
@@ -426,7 +426,7 @@ theorem State.finishGroupSuccess_tasks (queue : State) (group : GroupNode)
           | none => acc.2.1
           | some value => acc.2.1 ++ [value]
         (acc.1.removeTask occurrence, values, acc.2.2 ++ node.childStreams)
-  have loop (tasks : List Occurrence) (acc : State × List ExecutionGroupValue × Keys)
+  have loop (tasks : List Occurrence) (acc : State × List ExecutionGroupValue × NodeRefs)
       : (tasks.foldl step acc).1.tasks = acc.1.tasks := by
     induction tasks generalizing acc with
     | nil => rfl
@@ -438,23 +438,23 @@ theorem State.finishGroupSuccess_tasks (queue : State) (group : GroupNode)
   let current : State :=
     { flushed with
       groupNodes := flushed.groupNodes.filter
-        (fun node => node.group.node.key != group.group.node.key)
-      rootGroups := flushed.rootGroups.filter (· != group.group.node.key) }
+        (fun node => node.group.node.ref != group.group.node.ref)
+      rootGroups := flushed.rootGroups.filter (· != group.group.node.ref) }
   change (current.pruneEmptyGroups
-    (group.childGroups.filterMap (fun key =>
-      (current.groupNode? key).map (fun node => node.group.node)))).1.tasks = queue.tasks
+    (group.childGroups.filterMap (fun ref =>
+      (current.groupNode? ref).map (fun node => node.group.node)))).1.tasks = queue.tasks
   rw [State.pruneEmptyGroups_tasks]
   exact loop group.tasks (queue, [], [])
 
 /-- Successful flushing retains registry coverage and the exact permanent registry.
-Witness: task removal preserves node keys; closing and pruning only filter live nodes. -/
+Witness: task removal preserves node refs; closing and pruning only filter live nodes. -/
 theorem State.finishGroupSuccess_registration {queue : State}
     (live : queue.LiveGroupsRegistered) (tasks : queue.TaskGroupsRegistered)
     (group : GroupNode)
     : (queue.finishGroupSuccess group).1.LiveGroupsRegistered
       ∧ (queue.finishGroupSuccess group).1.TaskGroupsRegistered
       ∧ (queue.finishGroupSuccess group).1.registeredGroups = queue.registeredGroups := by
-  let step (acc : State × List ExecutionGroupValue × Keys) (task : Occurrence) :=
+  let step (acc : State × List ExecutionGroupValue × NodeRefs) (task : Occurrence) :=
     let (current, values, streams) := acc
     match current.taskNode? task with
     | none => (current, values, streams)
@@ -463,10 +463,10 @@ theorem State.finishGroupSuccess_registration {queue : State}
           | none => values
           | some value => values ++ [value]
         (current.removeTask task, values, streams ++ taskNode.childStreams)
-  let property (acc : State × List ExecutionGroupValue × Keys) :=
+  let property (acc : State × List ExecutionGroupValue × NodeRefs) :=
     acc.1.LiveGroupsRegistered ∧ acc.1.TaskGroupsRegistered
       ∧ acc.1.registeredGroups = queue.registeredGroups
-  have preserved (acc : State × List ExecutionGroupValue × Keys) (task : Occurrence)
+  have preserved (acc : State × List ExecutionGroupValue × NodeRefs) (task : Occurrence)
       (prior : property acc) : property (step acc task) := by
     obtain ⟨current, values, streams⟩ := acc
     dsimp only [step]
@@ -483,13 +483,13 @@ theorem State.finishGroupSuccess_registration {queue : State}
   let current : State :=
     { flushed with
       groupNodes := flushed.groupNodes.filter
-        (fun node => node.group.node.key != group.group.node.key)
-      rootGroups := flushed.rootGroups.filter (· != group.group.node.key) }
+        (fun node => node.group.node.ref != group.group.node.ref)
+      rootGroups := flushed.rootGroups.filter (· != group.group.node.ref) }
   have currentLive : current.LiveGroupsRegistered :=
     fun node member => flushedCovered.1 node (List.mem_filter.mp member).1
   have pruned := current.pruneEmptyGroups_registration currentLive flushedCovered.2.1
     (group.childGroups.filterMap
-      (fun key => (current.groupNode? key).map (fun node => node.group.node)))
+      (fun ref => (current.groupNode? ref).map (fun node => node.group.node)))
   exact ⟨pruned.1, pruned.2.1, pruned.2.2.trans flushedCovered.2.2⟩
 
 /-- Recursive release preserves registry coverage and every permanent registration.

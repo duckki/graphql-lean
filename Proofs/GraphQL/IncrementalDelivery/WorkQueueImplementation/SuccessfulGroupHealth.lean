@@ -21,7 +21,7 @@ def SuccessfulGroupsHealthy (work : Execution.Work) (failed : List Occurrence)
     Execution.WorkQueueEvent.groupSuccess group groups streams ∈ events
     → ∃ dependencies,
         GroupRecordAt work group dependencies
-        ∧ ¬GroupRecordInvalidated work failed group.key
+        ∧ ¬GroupRecordInvalidated work failed group.ref
 
 /-- Empty output has no successful carrier requiring a health witness.
 Witness: the membership premise is impossible. -/
@@ -70,7 +70,7 @@ theorem State.finishGroupSuccess_successfulGroupsHealthy {queue : State}
     {group : GroupNode} (live : group ∈ queue.groupNodes)
     (known : GroupRecordAt work group.group.node dependencies)
     (uncached : group.failure = none)
-    (ancestors : GroupAncestorsHealthy work failed group.group.node.key)
+    (ancestors : GroupAncestorsHealthy work failed group.group.node.ref)
     : SuccessfulGroupsHealthy work failed (queue.finishGroupSuccess group).2.1 := by
   have healthy := counts.recordHealthy_of_ancestors generated live uncached known ancestors
     failedKnown

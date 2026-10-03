@@ -13,34 +13,34 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
 /-- Each group announced by this raw event belongs to the supplied permanent registry. -/
 def _root_.GraphQL.IncrementalDelivery.Execution.WorkQueueEvent.GroupNoticesRegistered
-    (registered : Keys) : WorkQueueEvent → Prop
+    (registered : NodeRefs) : WorkQueueEvent → Prop
   | .groupSuccess _ groups _ | .streamValues _ _ groups _ =>
-      ∀ group ∈ groups, group.key ∈ registered
+      ∀ group ∈ groups, group.ref ∈ registered
   | _ => True
 
 /-- Notice registration survives extension of the permanent registry.
-Witness: only the carried group keys are inspected; the event itself is unchanged.
+Witness: only the carried group refs are inspected; the event itself is unchanged.
 -/
 theorem
     _root_.GraphQL.IncrementalDelivery.Execution.WorkQueueEvent.GroupNoticesRegistered.mono
-    {before after : Keys} {event : WorkQueueEvent}
+    {before after : NodeRefs} {event : WorkQueueEvent}
     (known : event.GroupNoticesRegistered before) (included : before.Subset after)
     : event.GroupNoticesRegistered after := by
   cases event <;> try trivial
   all_goals exact fun group member => included (known group member)
 
 /-- Every group released by a successful flush was already permanently registered.
-Witness: flushing retains live keys, closing only filters them, and promoted descendants
+Witness: flushing retains live refs, closing only filters them, and promoted descendants
 come from live lookups. The pruning traversal cannot invent an unregistered descriptor.
 -/
 theorem State.finishGroupSuccess_released_registered {queue : State}
     (live : queue.LiveGroupsRegistered) (group : GroupNode)
     : ∀ child ∈ (queue.finishGroupSuccess group).2.2.newGroups,
-        child.key ∈ queue.registeredGroups := by
-  have loop (tasks : List Occurrence) (acc : State × List ExecutionGroupValue × Keys)
-      (known : ∀ node ∈ acc.1.groupNodes, node.group.node.key ∈ queue.registeredGroups)
+        child.ref ∈ queue.registeredGroups := by
+  have loop (tasks : List Occurrence) (acc : State × List ExecutionGroupValue × NodeRefs)
+      (known : ∀ node ∈ acc.1.groupNodes, node.group.node.ref ∈ queue.registeredGroups)
       : ∀ node ∈ (tasks.foldl flushGroupTask acc).1.groupNodes,
-          node.group.node.key ∈ queue.registeredGroups := by
+          node.group.node.ref ∈ queue.registeredGroups := by
     induction tasks generalizing acc with
     | nil => exact known
     | cons occurrence rest ih =>
@@ -56,24 +56,24 @@ theorem State.finishGroupSuccess_released_registered {queue : State}
   have flushedKnown := loop group.tasks (queue, [], []) live
   let current : State := { flushed.1 with
     groupNodes := flushed.1.groupNodes.filter
-      (fun node => node.group.node.key != group.group.node.key)
-    rootGroups := flushed.1.rootGroups.filter (· != group.group.node.key) }
+      (fun node => node.group.node.ref != group.group.node.ref)
+    rootGroups := flushed.1.rootGroups.filter (· != group.group.node.ref) }
   let children := group.childGroups.filterMap
-    (fun key => (current.groupNode? key).map (fun node => node.group.node))
-  have records : ∀ node ∈ current.groupNodes, node.group.node.key ∈ queue.registeredGroups :=
+    (fun ref => (current.groupNode? ref).map (fun node => node.group.node))
+  have records : ∀ node ∈ current.groupNodes, node.group.node.ref ∈ queue.registeredGroups :=
     fun node member => flushedKnown node (List.mem_filter.mp member).1
-  change ∀ child ∈ (current.pruneEmptyGroups children).2, child.key ∈ queue.registeredGroups
+  change ∀ child ∈ (current.pruneEmptyGroups children).2, child.ref ∈ queue.registeredGroups
   apply current.pruneEmptyGroups_noticeProperty
-    (property := fun child => child.key ∈ queue.registeredGroups) records children
+    (property := fun child => child.ref ∈ queue.registeredGroups) records children
   intro child member
-  obtain ⟨key, _, selected⟩ := List.mem_filterMap.mp member
-  cases found : current.groupNode? key with
+  obtain ⟨ref, _, selected⟩ := List.mem_filterMap.mp member
+  cases found : current.groupNode? ref with
   | none => simp [found] at selected
   | some node =>
       have same : node.group.node = child := by simpa [found] using selected
       exact same ▸ records node (List.mem_of_find?_eq_some found)
 
-/-- A successful flush's emitted notices use only previously registered group keys.
+/-- A successful flush's emitted notices use only previously registered group refs.
 Witness: its optional value block has no notices; its closure copies the release list.
 -/
 theorem State.finishGroupSuccess_groupNoticesRegistered {queue : State}
@@ -118,7 +118,7 @@ theorem State.drainReadyGroups_go_groupNoticesRegistered {queue : State}
             exact (List.mem_append.mp member).elim
               (queue.finishGroupSuccess_groupNoticesRegistered live node event) (later event)
         | some errors =>
-            have later := ih (queue := queue.removeGroup node.group.node.key)
+            have later := ih (queue := queue.removeGroup node.group.node.ref)
               (fun record member => live record (List.mem_filter.mp member).1) tasks
             intro event member
             rcases List.mem_append.mp member with first | rest
@@ -131,7 +131,7 @@ theorem State.drainReadyGroups_go_groupNoticesRegistered {queue : State}
 -----------------------------------------------------------------------------------------
 
 /-- An owner fold retains registration coverage and emits only registered group notices.
-Witness: counter decrements preserve keys, each successful flush retains its registry,
+Witness: counter decrements preserve refs, each successful flush retains its registry,
 and the actual fold carries earlier notices without changing their registration evidence.
 -/
 theorem State.successGroupFold_groupNoticesRegistered {queue : State}

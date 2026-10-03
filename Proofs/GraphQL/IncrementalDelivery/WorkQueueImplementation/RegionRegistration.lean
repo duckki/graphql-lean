@@ -2,12 +2,12 @@ import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.StreamRegions
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.RegistrationProvenance
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.OwnerAccounting
 
-/-! Queue registration never reaches a still-hidden stream-item key region. -/
+/-! Queue registration never reaches a still-hidden stream-item ref region. -/
 
 namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.Execution (StreamItemValue WorkQueueEvent)
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
-open Semantics.KeyRegions
+open Semantics.RefRegions
 
 -----------------------------------------------------------------------------------------
 -- Exact permanent-task registry equations avoid repeating invariant traversals
@@ -26,7 +26,7 @@ theorem State.drainReadyGroups_tasks (queue : State)
   · rfl
 
 /-- A contributor step changes pending/live bookkeeping but not registered tasks.
-Witness: key-preserving updates and the successful-cleanup registry equation. -/
+Witness: ref-preserving updates and the successful-cleanup registry equation. -/
 theorem successGroupStep_tasks (acc : State × List WorkQueueEvent × NewWork)
     (group : Execution.DeliveryNode)
     : (successGroupStep acc group).1.tasks = acc.1.tasks := by
@@ -63,10 +63,10 @@ Witness: every owner-handler branch leaves the task registry unchanged. -/
 theorem State.taskFailure_tasks (queue : State) (occurrence : Occurrence) (errors : Nat)
     : (queue.taskFailure occurrence errors).1.tasks = queue.tasks := by
   let step (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode) :=
-    match acc.1.groupNode? group.key with
+    match acc.1.groupNode? group.ref with
     | none => acc
     | some node =>
-        if acc.1.rootGroups.contains group.key then
+        if acc.1.rootGroups.contains group.ref then
           let (next, failure) := acc.1.finishGroupFailure node errors
           (next, acc.2 ++ [failure])
         else (acc.1.putGroupNode
@@ -108,7 +108,7 @@ theorem createWorkQueue_tasks (work : Work)
   rfl
 
 -----------------------------------------------------------------------------------------
--- Task regions remain inside the exposed key inventory
+-- Task regions remain inside the exposed ref inventory
 -----------------------------------------------------------------------------------------
 
 /-- Every permanent task's complete defer region is covered by the observed item regions.
@@ -119,7 +119,7 @@ def State.RegisteredRegions (queue : State) (work : Execution.Work)
   ∀ task ∈ queue.tasks, TaskRegionCovered work seen task
 
 /-- A larger observed-item set preserves all task-region certificates.
-Witness: exposed-key monotonicity for each unchanged permanent task. -/
+Witness: exposed-ref monotonicity for each unchanged permanent task. -/
 theorem State.RegisteredRegions.mono {queue : State} {work before after}
     (covered : queue.RegisteredRegions work before) (included : before.Subset after)
     : queue.RegisteredRegions work after :=
@@ -134,7 +134,7 @@ theorem createWorkQueue_registeredRegions (work : Execution.Work)
   exact workFromSpec_tasks_regionCovered Located.root
     (fun _ contains => .inl contains) task member
 
-/-- A matched task success introduces no new stream-item key region.
+/-- A matched task success introduces no new stream-item ref region.
 Witness: its started parent task already covers the whole defer region, including the
 new child work. The permanent registry append equation handles old and new tasks. -/
 theorem State.RegisteredRegions.taskSuccess {queue : State} {work seen occurrence result}
@@ -163,9 +163,9 @@ theorem State.RegisteredRegions.taskSuccess {queue : State} {work seen occurrenc
                 ⟨.executionGroup groups path outcome children, producer, enclosing⟩ at located
               have lowering : result.work = Work.fromExecution children (address ++ [0]) := by
                 simpa [taskChildWork?, located] using childrenWork.symm
-              have childCovered : ∀ key ∈ rootKeys children, ExposedKey work seen key := by
-                intro key member
-                exact covered node.task registered address _ same located key
+              have childCovered : ∀ ref ∈ rootRefs children, ExposedRef work seen ref := by
+                intro ref member
+                exact covered node.task registered address _ same located ref
                   (List.mem_append_right _ member)
               intro task member
               rw [State.taskSuccess_tasks found eligible] at member
@@ -175,7 +175,7 @@ theorem State.RegisteredRegions.taskSuccess {queue : State} {work seen occurrenc
                 exact workFromSpec_tasks_regionCovered (Located.executionGroup located)
                   childCovered task new
 
-/-- Task failure cannot expose a new key region.
+/-- Task failure cannot expose a new ref region.
 Witness: the permanent registry is unchanged by failure cleanup. -/
 theorem State.RegisteredRegions.taskFailure {queue : State} {work seen}
     (covered : queue.RegisteredRegions work seen) (occurrence : Occurrence) (errors : Nat)
@@ -210,7 +210,7 @@ theorem State.RegisteredRegions.integrateStreamItem {queue : State}
   · exact (covered task old).mono (by intro occurrence recorded; exact .tail _ recorded)
   · rw [lowering] at new
     exact workFromSpec_tasks_regionCovered located
-      (fun key contains => .inr ⟨item.occurrence, List.mem_cons_self, _, region, contains⟩)
+      (fun ref contains => .inr ⟨item.occurrence, List.mem_cons_self, _, region, contains⟩)
       task new
 
 /-- A stream batch exposes only the regions of its supplied items.
@@ -273,7 +273,7 @@ theorem State.RegisteredRegions.handleGraphEvent {queue : State} {work seen}
       split <;> exact covered.mono (List.subset_append_left _ _)
 
 -----------------------------------------------------------------------------------------
--- Registered keys inherit their permanent tasks' exposed-region certificates
+-- Registered refs inherit their permanent tasks' exposed-region certificates
 -----------------------------------------------------------------------------------------
 
 /-- Proof-only region inventory over the queue's permanent task and group registries.
@@ -286,17 +286,17 @@ structure State.RegionInventory (queue : State) (work : Execution.Work)
   registrations : queue.RegistrationsSupportedBy (Task.SupportsGroup work)
   started : queue.StartedTasksRegistered
 
-/-- Every registered contributor or ancestor key belongs to an exposed task region.
-Witness: full-chain task support supplies the key inside its covered source region,
+/-- Every registered contributor or ancestor ref belongs to an exposed task region.
+Witness: full-chain task support supplies the ref inside its covered source region,
 without inferring direct ownership from registration.
 -/
 theorem State.RegionInventory.registered_exposed {queue : State} {work seen}
-    (inventory : queue.RegionInventory work seen) {key : Nat}
-    (registered : key ∈ queue.registeredGroups)
-    : ExposedKey work seen key := by
+    (inventory : queue.RegionInventory work seen) {ref : NodeRef}
+    (registered : ref ∈ queue.registeredGroups)
+    : ExposedRef work seen ref := by
   obtain ⟨task, member, address, groups, path, result, children, producer, owners,
-    fragment, same, located, included, inChain⟩ := inventory.registrations key registered
-  apply inventory.regions task member address _ same located key
+    fragment, same, located, included, inChain⟩ := inventory.registrations ref registered
+  apply inventory.regions task member address _ same located ref
   exact List.mem_append_left _ (List.mem_flatMap.mpr
     ⟨fragment, included, inChain⟩)
 
@@ -354,7 +354,7 @@ theorem State.RegionInventory.handleGraphEvent {queue : State} {work seen}
     inventory.started.handleGraphEvent event
   ⟩
 
-/-- Arbitrary matching source replay registers only already-exposed key regions.
+/-- Arbitrary matching source replay registers only already-exposed ref regions.
 Witness: induction through the actual event handlers, including both failures and
 successful releases. Neither pending ledgers nor registration availability is assumed. -/
 theorem createWorkQueue_replay_regionInventory {work : Execution.Work}

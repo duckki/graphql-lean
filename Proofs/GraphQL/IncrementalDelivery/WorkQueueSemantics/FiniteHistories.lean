@@ -13,13 +13,13 @@ open GraphQL.IncrementalDelivery.Execution
 -- A finite inventory of one-shot observations
 -----------------------------------------------------------------------------------------
 
-/-- A publication occurrence or completion key. Equal payloads have distinct occurrences;
+/-- A publication occurrence or completion ref. Equal payloads have distinct occurrences;
 repeated node descriptors intentionally share the same completion token.
 -/
 abbrev ObservationToken := Sum Occurrence Nat
 
 /-- All possible observation tokens below this absolute work address. This projection
-may repeat completion keys; a history can consume each token at most once.
+may repeat completion refs; a history can consume each token at most once.
 -/
 def observationTokens (address : Address) : Work → List ObservationToken
   | .empty => []
@@ -27,10 +27,10 @@ def observationTokens (address : Address) : Work → List ObservationToken
       observationTokens (address ++ [0]) left ++ observationTokens (address ++ [1]) right
   | .executionGroup groups _ _ children =>
       .inl (.executionGroup address)
-      :: (groups.map (fun group => .inr group.node.key)
+      :: (groups.map (fun group => .inr group.node.ref)
           ++ observationTokens (address ++ [0]) children)
   | .stream node items =>
-      .inr node.key
+      .inr node.ref
       :: (List.finRange items.length).flatMap
           (fun (index : Fin items.length) =>
             .inl (.item address index.val)
@@ -99,12 +99,12 @@ theorem TaskAt.observationToken {work occurrence owners producer payload}
       have bound := (List.getElem?_eq_some_iff.mp entry).1
       exact ⟨⟨index, bound⟩, List.mem_finRange _, by simp⟩
 
-/-- Every node descriptor contributes its completion key. Witness: the group membership
+/-- Every node descriptor contributes its completion ref. Witness: the group membership
 or stream boundary, transported from its located subtree to the root.
 -/
 theorem NodeAt.observationToken {work node kind dependencies birth}
     (known : NodeAt work node kind dependencies birth)
-    : .inr node.key ∈ observationTokens [] work := by
+    : .inr node.ref ∈ observationTokens [] work := by
   cases StructuralEquivalence.nodeAt_of_current known with
   | group located member =>
       apply located.toCurrent.observationTokens
@@ -115,14 +115,14 @@ theorem NodeAt.observationToken {work node kind dependencies birth}
       exact located.toCurrent.observationTokens (by simp [observationTokens])
 
 /-- An atomic value consumes its matched occurrence; a control event consumes its
-completion key. The termination case is unused by Explains and handled separately.
+completion ref. The termination case is unused by Explains and handled separately.
 -/
 def observationToken (occurrence : Occurrence) : WorkQueueEvent → ObservationToken
   | .groupValues .. | .streamValues .. => .inl occurrence
   | .groupSuccess node ..
   | .groupFailure node _
   | .streamSuccess node
-  | .streamFailure node _ => .inr node.key
+  | .streamFailure node _ => .inr node.ref
   | .workQueueTermination => .inr 0
 
 /-- Every permitted atomic event consumes a token present in its original work.
@@ -156,14 +156,14 @@ theorem EventAllowed.token_cases {work initial matching before failed event}
     (occurrence : Occurrence)
     : (IsValue event
         ∧ WorkQueueSemantics.observationToken occurrence event = .inl occurrence)
-      ∨ ∃ key,
-          WorkQueueSemantics.observationToken occurrence event = .inr key
-          ∧ eventCompleted event = [key] := by
+      ∨ ∃ ref,
+          WorkQueueSemantics.observationToken occurrence event = .inr ref
+          ∧ eventCompleted event = [ref] := by
   cases event <;> simp_all [EventAllowed, IsValue, WorkQueueSemantics.observationToken,
     eventCompleted]
 
 /-- Two admitted event positions cannot consume the same observation token. Witness:
-value freshness for publications, or an earlier closure contradicting an open-key rule.
+value freshness for publications, or an earlier closure contradicting an open-ref rule.
 -/
 theorem Explains.observationToken_unique {work groups streams events matching failures}
     (explained : Explains work groups streams events matching failures)
@@ -177,18 +177,18 @@ theorem Explains.observationToken_unique {work groups streams events matching fa
       (less : i < j) : False := by
     have first := explained.2.2 i a atI
     have second := explained.2.2 j b atJ
-    rcases first.token_cases (matching i) with ⟨valueI, tokenI⟩ | ⟨keyI, tokenI, closedI⟩
-    · rcases second.token_cases (matching j) with ⟨valueJ, tokenJ⟩ | ⟨keyJ, tokenJ, _⟩
+    rcases first.token_cases (matching i) with ⟨valueI, tokenI⟩ | ⟨refI, tokenI, closedI⟩
+    · rcases second.token_cases (matching j) with ⟨valueJ, tokenJ⟩ | ⟨refJ, tokenJ, _⟩
       · have matchingSame : matching i = matching j := by
           simpa only [tokenI, tokenJ, Sum.inl.injEq] using equal
         have eq := explained.publication_unique atI valueI atJ valueJ matchingSame
         omega
       · simp only [tokenI, tokenJ, reduceCtorEq] at equal
-    · rcases second.token_cases (matching j) with ⟨_, tokenJ⟩ | ⟨keyJ, tokenJ, closedJ⟩
+    · rcases second.token_cases (matching j) with ⟨_, tokenJ⟩ | ⟨refJ, tokenJ, closedJ⟩
       · simp only [tokenI, tokenJ, reduceCtorEq] at equal
-      · have keys : keyI = keyJ := by simpa only [tokenI, tokenJ, Sum.inr.injEq] using equal
-        subst keyJ
-        have active := second.accounting.completion keyI (by simp [closedJ])
+      · have refs : refI = refJ := by simpa only [tokenI, tokenJ, Sum.inr.injEq] using equal
+        subst refJ
+        have active := second.accounting.completion refI (by simp [closedJ])
         apply active.2
         exact List.mem_flatMap.mpr ⟨a,
           List.mem_of_getElem? ((List.getElem?_take_of_lt less).trans atI),
@@ -201,7 +201,7 @@ theorem Explains.observationToken_unique {work groups streams events matching fa
 
 /-- Every atomic history is bounded by the finite source-token inventory. Witness:
 inject its event positions into the inventory using the one-shot observation theorem.
-No success, termination, key-order, or generated-work premise is needed.
+No success, termination, ref-order, or generated-work premise is needed.
 -/
 theorem Explains.length_le_observationTokens
     {work groups streams events matching failures}

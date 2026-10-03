@@ -20,12 +20,12 @@ theorem State.OwnerAccounting.rejectedTask_ownersInvalidated {queue : State}
     (generated : ExecutedWork work)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (found : queue.taskNode? occurrence = some taskNode)
     (fresh : occurrence ∉ GraphEvent.taskSettlements before)
     (rejected : queue.taskHasHealthyOwner taskNode.task = false)
-    : ∀ key ∈ taskNode.task.groups.map Execution.DeliveryNode.key,
-        GroupInvalidated work (GraphEvent.failureSettlements before) key := by
+    : ∀ ref ∈ taskNode.task.groups.map Execution.DeliveryNode.ref,
+        GroupInvalidated work (GraphEvent.failureSettlements before) ref := by
   have same : taskNode.task.occurrence = occurrence := (occurrence_beq_iff_eq _ _).mp
     (List.find?_some (p := fun candidate : TaskNode =>
       candidate.task.occurrence == occurrence) found)
@@ -46,7 +46,7 @@ theorem State.OwnerAccounting.rejectedTask_cancelled {queue : State}
     (generated : ExecutedWork work)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (found : queue.taskNode? occurrence = some taskNode)
     (fresh : occurrence ∉ GraphEvent.taskSettlements before)
     (rejected : queue.taskHasHealthyOwner taskNode.task = false)
@@ -62,9 +62,9 @@ theorem State.OwnerAccounting.rejectedTask_cancelled {queue : State}
   rw [same] at known
   refine .owners ⟨producer, payload, known⟩ unpublished
     (generated.taskOwners_nonempty known) ?_
-  intro key contributes
+  intro ref contributes
   exact (prior.rejectedTask_ownersInvalidated generated canonical found fresh rejected
-    key contributes).toCausality published
+    ref contributes).toCausality published
 
 /-- Adding an ignored failure token does not invalidate any additional group.
 Witness: all of that task's contributors were already invalidated before the handler.
@@ -76,12 +76,12 @@ theorem State.OwnerAccounting.rejectedTask_invalidation_iff {queue : State}
     (generated : ExecutedWork work)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (found : queue.taskNode? occurrence = some taskNode)
     (fresh : occurrence ∉ GraphEvent.taskSettlements before)
-    (rejected : queue.taskHasHealthyOwner taskNode.task = false) (key : Nat)
-    : GroupInvalidated work (occurrence :: GraphEvent.failureSettlements before) key
-      ↔ GroupInvalidated work (GraphEvent.failureSettlements before) key := by
+    (rejected : queue.taskHasHealthyOwner taskNode.task = false) (ref : NodeRef)
+    : GroupInvalidated work (occurrence :: GraphEvent.failureSettlements before) ref
+      ↔ GroupInvalidated work (GraphEvent.failureSettlements before) ref := by
   have registered := prior.pending.started taskNode (List.mem_of_find?_eq_some found)
   obtain ⟨⟨_, payload, producer, _, known⟩, _⟩ :=
     prior.pending.matching taskNode.task registered
@@ -105,14 +105,14 @@ theorem State.OwnerAccounting.objectFailureContribution_invalidation {queue : St
     (generated : ExecutedWork work)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (event : GraphEvent) (fresh : event.Fresh before)
-    (accepted : queue.acceptsGraphEvent event = true) (key : Nat)
+    (accepted : queue.acceptsGraphEvent event = true) (ref : NodeRef)
     : GroupInvalidated work (event.groupFailures ++ GraphEvent.failureSettlements before)
-        key
+        ref
       ↔ GroupInvalidated work
           (queue.objectFailureContribution event ++ GraphEvent.failureSettlements before)
-          key := by
+          ref := by
   cases event with
   | taskSuccess | streamItems | streamSuccess | streamFailure => rfl
   | taskFailure occurrence errors =>
@@ -126,7 +126,7 @@ theorem State.OwnerAccounting.objectFailureContribution_invalidation {queue : St
               simp only [objectFailureContribution, found, eligible, Bool.false_eq_true,
                 ↓reduceIte, GraphEvent.groupFailures, List.singleton_append, List.nil_append]
               apply prior.rejectedTask_invalidation_iff generated canonical found _
-                eligible key
+                eligible ref
               exact fun member =>
                 fresh.2.2.1 occurrence (by simp [GraphEvent.identities])
                   (GraphEvent.taskSettlements_subsetIdentities before member)
@@ -135,21 +135,21 @@ theorem State.OwnerAccounting.objectFailureContribution_invalidation {queue : St
 Witness: induction on invalidation, replacing only prior-ledger contributing-task causes.
 -/
 private theorem groupInvalidated_append_congr {work before after}
-    (same : ∀ key, GroupInvalidated work before key ↔ GroupInvalidated work after key)
-    (newFailures : List Occurrence) (key : Nat)
-    : GroupInvalidated work (newFailures ++ before) key
-      ↔ GroupInvalidated work (newFailures ++ after) key := by
+    (same : ∀ ref, GroupInvalidated work before ref ↔ GroupInvalidated work after ref)
+    (newFailures : List Occurrence) (ref : NodeRef)
+    : GroupInvalidated work (newFailures ++ before) ref
+      ↔ GroupInvalidated work (newFailures ++ after) ref := by
   have forward {left right}
-      (prior : ∀ key, GroupInvalidated work left key → GroupInvalidated work right key)
-      {key} (failure : GroupInvalidated work (newFailures ++ left) key)
-      : GroupInvalidated work (newFailures ++ right) key := by
+      (prior : ∀ ref, GroupInvalidated work left ref → GroupInvalidated work right ref)
+      {ref} (failure : GroupInvalidated work (newFailures ++ left) ref)
+      : GroupInvalidated work (newFailures ++ right) ref := by
     induction failure with
     | task known owner member =>
         rcases List.mem_append.mp member with recent | earlier
         · exact .task known owner (List.mem_append_left _ recent)
         · exact (prior _ (.task known owner earlier)).mono (List.subset_append_right _ _)
     | groupDependency known member _ ih => exact .groupDependency known member ih
-  exact ⟨forward (fun key => (same key).mp), forward (fun key => (same key).mpr)⟩
+  exact ⟨forward (fun ref => (same ref).mp), forward (fun ref => (same ref).mpr)⟩
 
 /-- Dropping ignored object failures preserves all cleanup invalidation on generated replay.
 Witness: source-prefix induction, unconditional owner/ancestry replay, and the one-event
@@ -166,15 +166,15 @@ theorem ExecutedWork.replayGraphEvents_objectFailureContributions {work : Execut
               ((State.initialize (Work.fromExecution work)).replayGraphEvents before)
               event
             = true)
-    : ∀ key,
-        GroupInvalidated work (GraphEvent.failureSettlements events) key
+    : ∀ ref,
+        GroupInvalidated work (GraphEvent.failureSettlements events) ref
         ↔ GroupInvalidated work
             ((State.initialize (Work.fromExecution work)).objectFailureContributions
               events)
-            key := by
+            ref := by
   obtain ⟨parents, canonical⟩ := generated.groupRecordsCanonical
   induction valid with
-  | nil => intro key; rfl
+  | nil => intro ref; rfl
   | @append before event validBefore matching fresh ready ih =>
       have acceptedBefore := fun past next (earlier : (past ++ [next]).IsPrefix before) =>
         acceptedAt past next
@@ -183,12 +183,12 @@ theorem ExecutedWork.replayGraphEvents_objectFailureContributions {work : Execut
       have accounting :=
         (generated.replayGraphEvents_ownerAncestry parents canonical validBefore
           acceptedBefore).accounting
-      intro key
+      intro ref
       rw [GraphEvent.failureSettlements_append, State.objectFailureContributions_append]
       simp only [State.objectFailureContributions, List.nil_append]
       exact (accounting.objectFailureContribution_invalidation generated canonical event fresh
-        (acceptedAt before event (List.prefix_refl _)) key).trans
-          (groupInvalidated_append_congr earlier _ key)
+        (acceptedAt before event (List.prefix_refl _)) ref).trans
+          (groupInvalidated_append_congr earlier _ ref)
 
 /-- Started source batches also admit the smaller, guard-filtered health ledger.
 Witness: the existing start checker supplies acceptance at each flattened source prefix;
@@ -197,14 +197,14 @@ normalization and response batching never select which object failures contribut
 theorem ExecutedWork.inputsStarted_objectFailureContributions {work : Execution.Work}
     (generated : ExecutedWork work) {batches : List (List GraphEvent)}
     (valid : ValidGraphEvents work batches.flatten)
-    (started : inputsStarted work batches = true) (key : Nat)
-    : GroupInvalidated work (GraphEvent.failureSettlements batches.flatten) key
+    (started : inputsStarted work batches = true) (ref : NodeRef)
+    : GroupInvalidated work (GraphEvent.failureSettlements batches.flatten) ref
       ↔ GroupInvalidated work
           ((State.initialize (Work.fromExecution work)).objectFailureContributions
             batches.flatten)
-          key :=
+          ref :=
   generated.replayGraphEvents_objectFailureContributions valid
-    (inputsStarted_eachAccepted work batches started) key
+    (inputsStarted_eachAccepted work batches started) ref
 
 /-- A fresh rejected task at an actual normalized boundary is already causally cancelled.
 Witness: unconditional owner replay identifies invalidated contributors, and the ledger
@@ -242,10 +242,10 @@ theorem ExecutedWork.runNormalized_rejectedTask_cancelled {work : Execution.Work
   rw [same] at known
   refine .owners ⟨producer, payload, known⟩ unpublished
     (generated.taskOwners_nonempty known) ?_
-  intro key contributes
+  intro ref contributes
   have invalid := prior.rejectedTask_ownersInvalidated generated canonical found fresh
-    rejected key contributes
-  exact ((generated.inputsStarted_objectFailureContributions valid started key).mp
+    rejected ref contributes
+  exact ((generated.inputsStarted_objectFailureContributions valid started ref).mp
     invalid).toCausality published
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

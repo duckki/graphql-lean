@@ -25,8 +25,8 @@ theorem State.TaskMembershipsUnique.removeTask {queue : State}
 does not alter the retained task membership lists.
 -/
 theorem State.TaskMembershipsUnique.removeGroup {queue : State}
-    (unique : queue.TaskMembershipsUnique) (key : Nat)
-    : (queue.removeGroup key).TaskMembershipsUnique := by
+    (unique : queue.TaskMembershipsUnique) (ref : NodeRef)
+    : (queue.removeGroup ref).TaskMembershipsUnique := by
   intro node member
   exact unique node (List.mem_filter.mp member).1
 
@@ -34,7 +34,7 @@ theorem State.TaskMembershipsUnique.removeGroup {queue : State}
 theorem State.TaskMembershipsUnique.finishGroupFailure {queue : State}
     (unique : queue.TaskMembershipsUnique) (group : GroupNode) (errors : Nat)
     : (queue.finishGroupFailure group errors).1.TaskMembershipsUnique := by
-  exact unique.removeGroup group.group.node.key
+  exact unique.removeGroup group.group.node.ref
 
 /-- Successful group flushing only removes task memberships and group shells.
 The fold witness handles shared tasks removed from all their co-owners.
@@ -42,8 +42,8 @@ The fold witness handles shared tasks removed from all their co-owners.
 theorem State.TaskMembershipsUnique.finishGroupSuccess {queue : State}
     (unique : queue.TaskMembershipsUnique) (group : GroupNode)
     : (queue.finishGroupSuccess group).1.TaskMembershipsUnique := by
-  let step (acc : State × List ExecutionGroupValue × Keys)
-      (occurrence : Occurrence) : State × List ExecutionGroupValue × Keys :=
+  let step (acc : State × List ExecutionGroupValue × NodeRefs)
+      (occurrence : Occurrence) : State × List ExecutionGroupValue × NodeRefs :=
     let (current, values, streams) := acc
     match current.taskNode? occurrence with
     | none => (current, values, streams)
@@ -53,7 +53,7 @@ theorem State.TaskMembershipsUnique.finishGroupSuccess {queue : State}
           | none => values
           | some value => values ++ [value]
         (current.removeTask occurrence, values, streams ++ taskNode.childStreams)
-  have stepUnique (acc : State × List ExecutionGroupValue × Keys)
+  have stepUnique (acc : State × List ExecutionGroupValue × NodeRefs)
       (occurrence : Occurrence) (currentUnique : acc.1.TaskMembershipsUnique)
       : (step acc occurrence).1.TaskMembershipsUnique := by
     obtain ⟨current, values, streams⟩ := acc
@@ -62,7 +62,7 @@ theorem State.TaskMembershipsUnique.finishGroupSuccess {queue : State}
     · exact currentUnique
     · exact currentUnique.removeTask occurrence
   have foldUnique (tasks : List Occurrence) :
-      ∀ acc : State × List ExecutionGroupValue × Keys,
+      ∀ acc : State × List ExecutionGroupValue × NodeRefs,
         acc.1.TaskMembershipsUnique → (tasks.foldl step acc).1.TaskMembershipsUnique := by
     induction tasks with
     | nil => intro acc currentUnique; exact currentUnique
@@ -75,13 +75,13 @@ theorem State.TaskMembershipsUnique.finishGroupSuccess {queue : State}
   let current : State :=
     { flushed with
         groupNodes := flushed.groupNodes.filter
-          (fun node => node.group.node.key != group.group.node.key)
-        rootGroups := flushed.rootGroups.filter (· != group.group.node.key) }
+          (fun node => node.group.node.ref != group.group.node.ref)
+        rootGroups := flushed.rootGroups.filter (· != group.group.node.ref) }
   have currentUnique : current.TaskMembershipsUnique := by
     intro node member
     exact flushedUnique node (List.mem_filter.mp member).1
   let children := group.childGroups.filterMap
-    (fun key => (current.groupNode? key).map (fun node => node.group.node))
+    (fun ref => (current.groupNode? ref).map (fun node => node.group.node))
   change (current.pruneEmptyGroups children).1.TaskMembershipsUnique
   exact currentUnique.pruneEmptyGroups children
 
@@ -159,10 +159,10 @@ theorem State.TaskMembershipsUnique.taskFailure {queue : State}
   let step (acc : State × List WorkQueueEvent)
       (group : Execution.DeliveryNode) : State × List WorkQueueEvent :=
     let (current, events) := acc
-    match current.groupNode? group.key with
+    match current.groupNode? group.ref with
     | none => (current, events)
     | some node =>
-        if current.rootGroups.contains group.key then
+        if current.rootGroups.contains group.ref then
           let (next, failure) := current.finishGroupFailure node errors
           (next, events ++ [failure])
         else
@@ -175,10 +175,10 @@ theorem State.TaskMembershipsUnique.taskFailure {queue : State}
       (currentUnique : acc.1.TaskMembershipsUnique)
       : (step acc group).1.TaskMembershipsUnique := by
     obtain ⟨current, events⟩ := acc
-    change (match current.groupNode? group.key with
+    change (match current.groupNode? group.ref with
       | none => (current, events)
       | some node =>
-          if current.rootGroups.contains group.key then
+          if current.rootGroups.contains group.ref then
             let (next, failure) := current.finishGroupFailure node errors
             (next, events ++ [failure])
           else
@@ -186,10 +186,10 @@ theorem State.TaskMembershipsUnique.taskFailure {queue : State}
               { node with
                   pending := node.pending - 1
                   failure := some (node.failure.getD 0 + errors) }, events)).1.TaskMembershipsUnique
-    cases found : current.groupNode? group.key with
+    cases found : current.groupNode? group.ref with
     | none => exact currentUnique
     | some node =>
-        by_cases started : current.rootGroups.contains group.key = true
+        by_cases started : current.rootGroups.contains group.ref = true
         · simp only [started, ite_true]
           exact currentUnique.finishGroupFailure node errors
         · simp only [started]
@@ -222,7 +222,7 @@ theorem State.TaskMembershipsUnique.taskSuccess {queue : State}
     (result : TaskResult)
     : (queue.taskSuccess occurrence result).1.TaskMembershipsUnique := by
   let settleStep (current : State) (group : Execution.DeliveryNode) : State :=
-    match current.groupNode? group.key with
+    match current.groupNode? group.ref with
     | none => current
     | some node => current.putGroupNode { node with pending := node.pending - 1 }
   have settleUnique (current : State) (group : Execution.DeliveryNode)
@@ -237,12 +237,12 @@ theorem State.TaskMembershipsUnique.taskSuccess {queue : State}
   let releaseStep (acc : State × List WorkQueueEvent × NewWork)
       (group : Execution.DeliveryNode) : State × List WorkQueueEvent × NewWork :=
     let (current, events, released) := acc
-    match current.groupNode? group.key with
+    match current.groupNode? group.ref with
     | none => (current, events, released)
     | some node =>
         let node := { node with pending := node.pending - 1 }
         let current := current.putGroupNode node
-        if current.rootGroups.contains group.key && node.pending == 0
+        if current.rootGroups.contains group.ref && node.pending == 0
             && node.failure.isNone then
           let (next, finished, newWork) := current.finishGroupSuccess node
           (

@@ -67,7 +67,7 @@ theorem State.HealthyPendingTracks.ignoreTask {queue : State} {work settled fail
     (tracks : queue.HealthyPendingTracks work settled failed) (occurrence : Occurrence)
     (absent
       : ∀ node ∈ queue.groupNodes,
-          ¬GroupInvalidated work failed node.group.node.key → occurrence ∉ node.tasks)
+          ¬GroupInvalidated work failed node.group.node.ref → occurrence ∉ node.tasks)
     : (queue.removeTask occurrence).HealthyPendingTracks work (occurrence :: settled)
         failed := by
   intro node member healthy

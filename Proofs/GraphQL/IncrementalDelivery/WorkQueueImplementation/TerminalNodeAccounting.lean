@@ -17,12 +17,12 @@ construction target, not an assumed property of the event source or emitted outp
 def UnannouncedNodeAccounting (work : Execution.Work) (w : Witness) : Prop :=
   ∀ node kind dependencies producer,
     NodeAt work node kind dependencies producer
-    → node.key ∉ announcedKeys (initialKeys work) w.events
-    → NodeFailed work w.matching w.events w.failures node.key
-      ∨ NodeAccounted work w.matching w.events w.failures node.key
+    → node.ref ∉ announcedRefs (initialRefs work) w.events
+    → NodeFailed work w.matching w.events w.failures node.ref
+      ∨ NodeAccounted work w.matching w.events w.failures node.ref
 
 /-- Actual terminal node accounting reduces to the unannounced-node construction.
-Witness: canonical replay already completes every announced key; the remaining branch
+Witness: canonical replay already completes every announced ref; the remaining branch
 supplies precisely the failed/accounted alternative at the same matching and failure cuts.
 -/
 theorem nodeAccounting_of_unannounced {work inputs} {w : Witness}
@@ -34,7 +34,7 @@ theorem nodeAccounting_of_unannounced {work inputs} {w : Witness}
     : NodeAccounting work w := by
   intro node kind dependencies producer known
   classical
-  by_cases announced : node.key ∈ announcedKeys (initialKeys work) w.events
+  by_cases announced : node.ref ∈ announcedRefs (initialRefs work) w.events
   · exact .inl (announced_terminalCompleted generated valid started history ended announced)
   · exact .inr ⟨announced, latent node kind dependencies producer known announced⟩
 

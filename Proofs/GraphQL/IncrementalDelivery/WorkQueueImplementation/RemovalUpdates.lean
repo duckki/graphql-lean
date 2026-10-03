@@ -6,7 +6,7 @@ namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
 -----------------------------------------------------------------------------------------
--- Updates that leave every stored key and child list unchanged
+-- Updates that leave every stored ref and child list unchanged
 -----------------------------------------------------------------------------------------
 
 /-- Changes outside the group-node map preserve every live descendant path.
@@ -21,38 +21,38 @@ theorem State.LiveDescendant.of_groupNodes_eq {queue next : State} {root target}
   | child found linked below ih =>
       exact .child (by simpa only [State.groupNode?, same] using found) linked ih
 
-/-- Mapping group records without changing keys commutes with lookup.
+/-- Mapping group records without changing refs commutes with lookup.
 Witness: the lookup predicate is unchanged under the record map. -/
-theorem State.groupNode?_mapKeys (queue : State) (update : GroupNode → GroupNode)
-    (keys : ∀ node, (update node).group.node.key = node.group.node.key) (key : Nat)
-    : ({ queue with groupNodes := queue.groupNodes.map update }).groupNode? key
-      = (queue.groupNode? key).map update := by
-  simp only [State.groupNode?, List.find?_map, Function.comp_def, keys]
+theorem State.groupNode?_mapRefs (queue : State) (update : GroupNode → GroupNode)
+    (refs : ∀ node, (update node).group.node.ref = node.group.node.ref) (ref : NodeRef)
+    : ({ queue with groupNodes := queue.groupNodes.map update }).groupNode? ref
+      = (queue.groupNode? ref).map update := by
+  simp only [State.groupNode?, List.find?_map, Function.comp_def, refs]
 
-/-- Record updates preserving keys and child lists preserve every live path.
+/-- Record updates preserving refs and child lists preserve every live path.
 Witness: map each path lookup and reuse its unchanged child edge. -/
 theorem State.LiveDescendant.mapGroupNodes
     {queue : State} {root target} (path : queue.LiveDescendant root target)
     (update : GroupNode → GroupNode)
-    (keys : ∀ node, (update node).group.node.key = node.group.node.key)
+    (refs : ∀ node, (update node).group.node.ref = node.group.node.ref)
     (children : ∀ node ∈ queue.groupNodes, (update node).childGroups = node.childGroups)
     : ({ queue with groupNodes := queue.groupNodes.map update }).LiveDescendant
         root target := by
   induction path with
   | self found =>
-      exact .self (by rw [State.groupNode?_mapKeys queue update keys, found]; rfl)
+      exact .self (by rw [State.groupNode?_mapRefs queue update refs, found]; rfl)
   | child found linked below ih =>
       exact .child
-        (by rw [State.groupNode?_mapKeys queue update keys, found]; rfl)
+        (by rw [State.groupNode?_mapRefs queue update refs, found]; rfl)
         (by rw [children _ (List.mem_of_find?_eq_some found)]; exact linked)
         ih
 
 /-- Shape-preserving record maps retain the finite removal forest.
-Witness: each mapped edge comes from the same old pair of live group keys. -/
+Witness: each mapped edge comes from the same old pair of live group refs. -/
 theorem State.RemovalForest.mapGroupNodes
     {queue : State} {parents} (forest : queue.RemovalForest parents)
     (update : GroupNode → GroupNode)
-    (keys : ∀ node, (update node).group.node.key = node.group.node.key)
+    (refs : ∀ node, (update node).group.node.ref = node.group.node.ref)
     (children : ∀ node ∈ queue.groupNodes, (update node).childGroups = node.childGroups)
     : ({ queue with groupNodes := queue.groupNodes.map update }).RemovalForest
         parents := by
@@ -64,13 +64,13 @@ theorem State.RemovalForest.mapGroupNodes
   · intro node member child linked
     obtain ⟨old, oldMember, rfl⟩ := List.mem_map.mp member
     rw [children old oldMember] at linked
-    rw [keys]
+    rw [refs]
     exact forest.canonical old oldMember child linked
   · intro parent child parentMember childMember linked
     obtain ⟨oldParent, oldParentMember, rfl⟩ := List.mem_map.mp parentMember
     obtain ⟨oldChild, oldChildMember, rfl⟩ := List.mem_map.mp childMember
-    rw [keys, children oldParent oldParentMember] at linked
-    rw [keys, keys]
+    rw [refs, children oldParent oldParentMember] at linked
+    rw [refs, refs]
     exact forest.increasing oldParentMember oldChildMember linked
 
 /-- Removing task memberships does not change group paths.
@@ -85,7 +85,7 @@ theorem State.LiveDescendant.removeTask {queue : State} {root target}
   rfl
 
 /-- Removing task memberships retains the removal forest.
-Witness: keys and child lists are unchanged by the membership filter. -/
+Witness: refs and child lists are unchanged by the membership filter. -/
 theorem State.RemovalForest.removeTask {queue : State} {parents}
     (forest : queue.RemovalForest parents) (occurrence : Occurrence)
     : (queue.removeTask occurrence).RemovalForest parents := by
@@ -99,18 +99,18 @@ theorem State.RemovalForest.removeTask {queue : State} {parents}
 -----------------------------------------------------------------------------------------
 
 /-- Updating a looked-up record's counters preserves every replaced child list.
-Witness: unique live keys identify every matching entry with that lookup's record. -/
-theorem State.GroupKeysUnique.counterUpdate_shape
-    {queue : State} (unique : queue.GroupKeysUnique)
-    {key node} (found : queue.groupNode? key = some node)
+Witness: unique live refs identify every matching entry with that lookup's record. -/
+theorem State.GroupRefsUnique.counterUpdate_shape
+    {queue : State} (unique : queue.GroupRefsUnique)
+    {ref node} (found : queue.groupNode? ref = some node)
     (pending : Nat) (failure : Option Nat)
     : let update :=
         fun old : GroupNode =>
-          if old.group.node.key == node.group.node.key then
+          if old.group.node.ref == node.group.node.ref then
             { node with pending, failure }
           else
             old
-      (∀ old, (update old).group.node.key = old.group.node.key)
+      (∀ old, (update old).group.node.ref = old.group.node.ref)
       ∧ ∀ old ∈ queue.groupNodes, (update old).childGroups = old.childGroups := by
   constructor
   · intro old
@@ -130,44 +130,44 @@ theorem State.GroupKeysUnique.counterUpdate_shape
     · rfl
 
 /-- A counter/error update preserves existing live descendant paths.
-Witness: its record map has the unchanged shape certified by unique keys. -/
+Witness: its record map has the unchanged shape certified by unique refs. -/
 theorem State.LiveDescendant.putCounters
-    {queue : State} {root target key node}
-    (path : queue.LiveDescendant root target) (unique : queue.GroupKeysUnique)
-    (found : queue.groupNode? key = some node) (pending : Nat) (failure : Option Nat)
+    {queue : State} {root target ref node}
+    (path : queue.LiveDescendant root target) (unique : queue.GroupRefsUnique)
+    (found : queue.groupNode? ref = some node) (pending : Nat) (failure : Option Nat)
     : (queue.putGroupNode { node with pending, failure }).LiveDescendant root target := by
-  obtain ⟨keys, children⟩ := unique.counterUpdate_shape found pending failure
-  exact path.mapGroupNodes _ keys children
+  obtain ⟨refs, children⟩ := unique.counterUpdate_shape found pending failure
+  exact path.mapGroupNodes _ refs children
 
 /-- A counter/error update preserves the finite removal forest.
-Witness: its record map leaves all keys and child edges unchanged. -/
+Witness: its record map leaves all refs and child edges unchanged. -/
 theorem State.RemovalForest.putCounters
-    {queue : State} {parents key node} (forest : queue.RemovalForest parents)
-    (unique : queue.GroupKeysUnique) (found : queue.groupNode? key = some node)
+    {queue : State} {parents ref node} (forest : queue.RemovalForest parents)
+    (unique : queue.GroupRefsUnique) (found : queue.groupNode? ref = some node)
     (pending : Nat) (failure : Option Nat)
     : (queue.putGroupNode { node with pending, failure }).RemovalForest parents := by
-  obtain ⟨keys, children⟩ := unique.counterUpdate_shape found pending failure
-  exact forest.mapGroupNodes _ keys children
+  obtain ⟨refs, children⟩ := unique.counterUpdate_shape found pending failure
+  exact forest.mapGroupNodes _ refs children
 
 /-- Counter/error updates cannot recreate an absent group lookup.
-Witness: their key-preserving map takes an absent lookup to `none`. -/
+Witness: their ref-preserving map takes an absent lookup to `none`. -/
 theorem State.putCounters_groupNodeAbsent
-    {queue : State} {key : Nat} {node : GroupNode}
-    (absent : queue.groupNode? key = none)
+    {queue : State} {ref : NodeRef} {node : GroupNode}
+    (absent : queue.groupNode? ref = none)
     (pending : Nat) (failure : Option Nat)
-    : (queue.putGroupNode { node with pending, failure }).groupNode? key = none := by
+    : (queue.putGroupNode { node with pending, failure }).groupNode? ref = none := by
   let update := fun old : GroupNode =>
-    if old.group.node.key == node.group.node.key then
+    if old.group.node.ref == node.group.node.ref then
       { node with pending, failure } else old
-  have keys : ∀ old, (update old).group.node.key = old.group.node.key := by
+  have refs : ∀ old, (update old).group.node.ref = old.group.node.ref := by
     intro old
     dsimp only [update]
     split
     · rename_i same
       exact (beq_iff_eq.mp same).symm
     · rfl
-  change ({ queue with groupNodes := queue.groupNodes.map update }).groupNode? key = none
-  rw [State.groupNode?_mapKeys queue update keys, absent]
+  change ({ queue with groupNodes := queue.groupNodes.map update }).groupNode? ref = none
+  rw [State.groupNode?_mapRefs queue update refs, absent]
   rfl
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

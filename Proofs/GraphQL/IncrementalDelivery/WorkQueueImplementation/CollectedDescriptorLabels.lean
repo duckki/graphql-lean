@@ -1,6 +1,6 @@
 import Proofs.GraphQL.IncrementalDelivery.Semantics.CollectedSupply
 
-/-! Fresh collection keys determine their labels before work lowering. -/
+/-! Fresh collection refs determine their labels before work lowering. -/
 
 namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue.DescriptorMetadata
 open GraphQL.IncrementalDelivery.Execution
@@ -9,14 +9,14 @@ open GraphQL.IncrementalDelivery.Semantics.OwnerPaths
 
 attribute [local simp] id_pure_eq id_bind_eq id_map_eq run_bind run_map
 
-/-- Repeated keys in `usages` agree on the full optional label, including explicit null.
+/-- Repeated refs in `usages` agree on the full optional label, including explicit null.
 This is allocation evidence, not a uniqueness requirement on user-supplied labels.
 -/
 def LabelsCoherent (usages : List DeferUsage) : Prop :=
-  ∀ first ∈ usages, ∀ second ∈ usages, first.key = second.key → first.label = second.label
+  ∀ first ∈ usages, ∀ second ∈ usages, first.ref = second.ref → first.label = second.label
 
 /-- Collections from disjoint allocation intervals have compatible labels.
-Witness: equal keys cannot cross the boundary; each side supplies its own agreement.
+Witness: equal refs cannot cross the boundary; each side supplies its own agreement.
 -/
 theorem labelsCoherent_append {start middle finish : Nat} {left right : FieldCollection}
     (leftBounds : SupplyBounds start (left, middle))
@@ -30,16 +30,18 @@ theorem labelsCoherent_append {start middle finish : Nat} {left right : FieldCol
     · exact leftLabels first firstLeft second secondLeft same
     · have := (leftBounds.2 first firstLeft).2
       have := (rightBounds.2 second secondRight).1
+      simp only [NodeRef] at *
       omega
   · rcases List.mem_append.mp secondMember with secondLeft | secondRight
     · have := (leftBounds.2 second secondLeft).2
       have := (rightBounds.2 first firstRight).1
+      simp only [NodeRef] at *
       omega
     · exact rightLabels first firstRight second secondRight same
 
 mutual
-  /-- A selection's freshly allocated keys determine their labels.
-  Witness: selection induction; a new defer key precedes every key allocated below it.
+  /-- A selection's freshly allocated refs determine their labels.
+  Witness: selection induction; a new defer ref precedes every ref allocated below it.
   -/
   theorem collectSelection_labels (schema : Schema) (variables : VariableValues)
       (parentType : Name) (source : ResolverValue ObjectRef) (selection : Selection)
@@ -63,14 +65,14 @@ mutual
                     usage state
             | some label =>
                 let next : DeferUsage := {
-                  key := state, label := label,
-                  ancestors := (usage.map (fun value => value.key :: value.ancestors)).getD [] }
+                  ref := state, label := label,
+                  ancestors := (usage.map (fun value => value.ref :: value.ancestors)).getD [] }
                 have labels := collectFields_labels schema variables parentType source
                   children (some next) (state + 1)
                 have bounds := collectFields_supply schema variables parentType source
                   children (some next) (state + 1)
                 simp only [collectSelection, allowed, Bool.not_true, Bool.false_eq_true,
-                  ↓reduceIte, applies, deferred, freshExecutionKey, run_bind,
+                  ↓reduceIte, applies, deferred, freshNodeRef, run_bind,
                   StateT.run_pure, id_pure_eq, StateT.run_get, StateT.run_set]
                 change LabelsCoherent (next :: _)
                 intro first firstMember second secondMember same
@@ -78,17 +80,18 @@ mutual
                 · rcases List.mem_cons.mp secondMember with rfl | secondTail
                   · rfl
                   · have := (bounds.2 second secondTail).1
-                    change state = second.key at same
+                    change state = second.ref at same
                     omega
                 · rcases List.mem_cons.mp secondMember with rfl | secondTail
                   · have := (bounds.2 first firstTail).1
-                    change first.key = state at same
+                    change first.ref = state at same
+                    simp only [NodeRef] at *
                     omega
                   · exact labels first firstTail second secondTail same
   termination_by sizeOf selection
 
   /-- Field-list collection preserves label identity across successive allocations.
-  Witness: the two recursive collections allocate disjoint key intervals.
+  Witness: the two recursive collections allocate disjoint ref intervals.
   -/
   theorem collectFields_labels (schema : Schema) (variables : VariableValues)
       (parentType : Name) (source : ResolverValue ObjectRef) (selections : List Selection)
@@ -108,7 +111,7 @@ mutual
   termination_by sizeOf selections
 end
 
-/-- Merged subfield collections retain the label associated with every fresh key.
+/-- Merged subfield collections retain the label associated with every fresh ref.
 Witness: field induction and the same disjoint-allocation interval argument.
 -/
 theorem collectSubfields_labels (schema : Schema) (variables : VariableValues)

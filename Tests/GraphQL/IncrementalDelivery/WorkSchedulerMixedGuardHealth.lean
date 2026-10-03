@@ -13,7 +13,7 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
 private def parent : DeliveryNode := ⟨0, [], some (.string "P")⟩
 private def child : DeliveryNode := ⟨1, [], some (.string "C")⟩
-private def stream : DeliveryNode := { key := 2, path := [.field "strict"] }
+private def stream : DeliveryNode := { ref := 2, path := [.field "strict"] }
 private def childTask : Occurrence := .executionGroup [1, 0]
 private def failedItem : Occurrence := .item [0, 0, 1] 0
 
@@ -54,7 +54,7 @@ private theorem stream_located
     : Located work [0, 0, 1] (.stream stream [(.error 1, .empty)]) none [] := by cbv
 
 private theorem child_known
-    : TaskAt work childTask [child.key] none (.object [] (.error 1)) :=
+    : TaskAt work childTask [child.ref] none (.object [] (.error 1)) :=
   .executionGroup (groups := [⟨child, [parent]⟩]) (children := .empty)
     (owners := []) (by cbv)
 
@@ -107,10 +107,10 @@ missing-parent boundary. It retains the stream failure instead of dropping it
 from the stated conclusion; historical producer-cancellation safety is not assumed.
 -/
 theorem child_owner_safe_after_stream_failure
-    : ∃ owners key,
+    : ∃ owners ref,
         TaskHasOwners work childTask owners
-        ∧ key ∈ owners
-        ∧ ¬GroupRecordInvalidated work [failedItem] key := by
+        ∧ ref ∈ owners
+        ∧ ¬GroupRecordInvalidated work [failedItem] ref := by
   have split
       : let publisher : IncrementalPublisher :=
           { active := initial.initialGroups ++ initial.initialStreams }
@@ -147,8 +147,8 @@ Witness: role-aware restriction on P's genuine registration descriptor, not an i
 task owner. This exercises the ancestor-only case of the new accounting equivalence.
 -/
 theorem taskless_parent_cleanup_ignores_stream
-    : GroupRecordInvalidated work [failedItem, childTask] parent.key
-      ↔ GroupRecordInvalidated work [childTask] parent.key := by
+    : GroupRecordInvalidated work [failedItem, childTask] parent.ref
+      ↔ GroupRecordInvalidated work [childTask] parent.ref := by
   have record : GroupRecordAt work parent [] :=
     ⟨[1, 0], [⟨child, [parent]⟩], [], .error 1, .empty, none, [], ⟨child, [parent]⟩,
       [], by cbv, List.mem_cons_self, List.suffix_cons _ _, rfl⟩

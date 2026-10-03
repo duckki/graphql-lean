@@ -20,7 +20,7 @@ def State.CachedFailuresSupported (queue : State) (work : Execution.Work)
   ∀ node ∈ queue.groupNodes,
     node.failure.isSome = true
     → ∃ occurrence ∈ failed,
-        ∃ owners, TaskHasOwners work occurrence owners ∧ node.group.node.key ∈ owners
+        ∃ owners, TaskHasOwners work occurrence owners ∧ node.group.node.ref ∈ owners
 
 /-- Cache support is the error-independent instance of exact cached-error facts.
 Witness: a present option contains a count; conversely an exact count is present.
@@ -28,9 +28,9 @@ Witness: a present option contains a count; conversely an exact count is present
 theorem State.cachedFailuresSupported_iff {queue work failed}
     : State.CachedFailuresSupported queue work failed
       ↔ queue.CachedErrorsSatisfy
-          (fun key _ =>
+          (fun ref _ =>
             ∃ occurrence ∈ failed,
-              ∃ owners, TaskHasOwners work occurrence owners ∧ key ∈ owners) := by
+              ∃ owners, TaskHasOwners work occurrence owners ∧ ref ∈ owners) := by
   constructor
   · intro supported node member errors same
     exact supported node member (by simp [same])
@@ -45,7 +45,7 @@ Witness: its recorded contributing task is a direct invalidation cause.
 theorem State.CachedFailuresSupported.invalidated {queue work failed node}
     (supported : State.CachedFailuresSupported queue work failed)
     (member : node ∈ queue.groupNodes) (cached : node.failure.isSome = true)
-    : GroupInvalidated work failed node.group.node.key := by
+    : GroupInvalidated work failed node.group.node.ref := by
   obtain ⟨occurrence, recorded, owners, known, owner⟩ := supported node member cached
   exact .task known owner recorded
 
@@ -55,7 +55,7 @@ Witness: a nonempty cache would supply a direct invalidation cause.
 theorem State.CachedFailuresSupported.healthy_none {queue work failed node}
     (supported : State.CachedFailuresSupported queue work failed)
     (member : node ∈ queue.groupNodes)
-    (healthy : ¬GroupInvalidated work failed node.group.node.key)
+    (healthy : ¬GroupInvalidated work failed node.group.node.ref)
     : node.failure = none := by
   cases cached : node.failure with
   | none => rfl
@@ -93,7 +93,7 @@ theorem State.CachedFailuresSupported.putGroupNode {queue work failed}
       : updated.failure.isSome = true
         → ∃ occurrence ∈ failed,
             ∃ owners,
-              TaskHasOwners work occurrence owners ∧ updated.group.node.key ∈ owners)
+              TaskHasOwners work occurrence owners ∧ updated.group.node.ref ∈ owners)
     : (queue.putGroupNode updated).CachedFailuresSupported work failed := by
   rw [State.cachedFailuresSupported_iff] at supported ⊢
   apply supported.putGroupNode updated
@@ -113,7 +113,7 @@ theorem State.CachedFailuresSupported.addGroup {queue work failed}
   rw [State.cachedFailuresSupported_iff] at supported ⊢
   exact supported.addGroup group
 
-/-- Parent-link installation leaves every cache and delivery key unchanged.
+/-- Parent-link installation leaves every cache and delivery ref unchanged.
 Witness: the two actual folds register empty nodes and replace only child links.
 -/
 theorem State.CachedFailuresSupported.addGroups {queue work failed}
@@ -184,7 +184,7 @@ theorem createWorkQueue_cachedFailuresSupported (input : Work) (work : Execution
 -----------------------------------------------------------------------------------------
 
 /-- Task retirement changes only memberships, retaining every cache witness.
-Witness: the group map leaves each delivery key and cached error unchanged.
+Witness: the group map leaves each delivery ref and cached error unchanged.
 -/
 theorem State.CachedFailuresSupported.removeTask {queue work failed}
     (supported : State.CachedFailuresSupported queue work failed)
@@ -197,10 +197,10 @@ theorem State.CachedFailuresSupported.removeTask {queue work failed}
 Witness: every surviving node and witness belonged to the original queue.
 -/
 theorem State.CachedFailuresSupported.removeGroup {queue work failed}
-    (supported : State.CachedFailuresSupported queue work failed) (key : Nat)
-    : (queue.removeGroup key).CachedFailuresSupported work failed := by
+    (supported : State.CachedFailuresSupported queue work failed) (ref : NodeRef)
+    : (queue.removeGroup ref).CachedFailuresSupported work failed := by
   rw [State.cachedFailuresSupported_iff] at supported ⊢
-  exact supported.removeGroup key
+  exact supported.removeGroup ref
 
 /-- A successful flush retires tasks and prunes shells without creating failures.
 Witness: the task fold preserves caches, and subsequent node filters retain provenance.
@@ -255,10 +255,10 @@ theorem State.CachedFailuresSupported.taskFailure {queue work failed}
     : (queue.taskFailure occurrence errors).1.CachedFailuresSupported work failed := by
   let step (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode) :=
     let (current, outputs) := acc
-    match current.groupNode? group.key with
+    match current.groupNode? group.ref with
     | none => (current, outputs)
     | some node =>
-        if current.rootGroups.contains group.key then
+        if current.rootGroups.contains group.ref then
           let (next, failure) := current.finishGroupFailure node errors
           (next, outputs ++ [failure])
         else (current.putGroupNode
@@ -277,7 +277,7 @@ theorem State.CachedFailuresSupported.taskFailure {queue work failed}
     obtain ⟨address, payload, producer, _, known⟩ :=
       (matching taskNode.task (registered taskNode member)).1
     have owners : TaskHasOwners work occurrence
-        (taskNode.task.groups.map Execution.DeliveryNode.key) := ⟨producer, payload, same ▸ known⟩
+        (taskNode.task.groups.map Execution.DeliveryNode.ref) := ⟨producer, payload, same ▸ known⟩
     have fold (groups : List Execution.DeliveryNode)
         (included : groups.Subset taskNode.task.groups)
         (acc : State × List WorkQueueEvent) (valid : acc.1.CachedFailuresSupported work failed)
@@ -292,11 +292,11 @@ theorem State.CachedFailuresSupported.taskFailure {queue work failed}
           · exact valid
           · rename_i node located
             split
-            · exact valid.removeGroup node.group.node.key
+            · exact valid.removeGroup node.group.node.ref
             · apply valid.putGroupNode
               intro _
               refine ⟨occurrence, recorded, _, owners, ?_⟩
-              rw [current.groupNode?_key located]
+              rw [current.groupNode?_ref located]
               exact List.mem_map.mpr ⟨group, included List.mem_cons_self, rfl⟩
     exact fold taskNode.task.groups (List.Subset.refl _)
       (queue.removeTask occurrence, []) (supported.removeTask occurrence)
@@ -427,7 +427,7 @@ theorem createWorkQueue_runNormalized_cachedFailure_hasSource
     : ∃ occurrence errors owners,
         .taskFailure occurrence errors ∈ batches.flatten
         ∧ TaskHasOwners work occurrence owners
-        ∧ node.group.node.key ∈ owners := by
+        ∧ node.group.node.ref ∈ owners := by
   let failed := batches.flatten.filterMap (fun event => match event with
     | .taskFailure occurrence _ => some occurrence
     | _ => none)

@@ -34,9 +34,9 @@ theorem RetainedNoticeContents.recorded_or_unaccounted
       : ∀ source index,
           Occurrence.item source index ∈ received.flatMap GraphEvent.successes
           → ¬TaskCancelled work matching events failures (.item source index))
-    (healthy : ¬NodeFailed work matching events failures child.key)
-    : HasRecordedFailure work failures events.length child.key
-      ∨ ¬NodeAccounted work matching events failures child.key := by
+    (healthy : ¬NodeFailed work matching events failures child.ref)
+    : HasRecordedFailure work failures events.length child.ref
+      ∨ ¬NodeAccounted work matching events failures child.ref := by
   obtain ⟨_, queue, node, found, same, retained, sound, registered, cached,
     producers, unpublished⟩ := contents
   have member := List.mem_of_find?_eq_some found
@@ -49,7 +49,7 @@ theorem RetainedNoticeContents.recorded_or_unaccounted
     obtain ⟨occurrence, listed⟩ := List.exists_mem_of_ne_nil _ (retained.resolve_right present)
     obtain ⟨task, taskMember, sameTask, owner⟩ := sound node member occurrence listed
     obtain ⟨address, payload, producer, isObject, known⟩ := (registered task taskMember).1
-    have contributes : child.key ∈ task.groups.map Execution.DeliveryNode.key := same ▸ owner
+    have contributes : child.ref ∈ task.groups.map Execution.DeliveryNode.ref := same ▸ owner
     rcases accounted task.occurrence _ ⟨producer, payload, known⟩ contributes with
       cancelled | published
     · apply healthy
@@ -86,25 +86,25 @@ theorem RetainedNoticeContents.canAnnounce
           Occurrence.item source index ∈ received.flatMap GraphEvent.successes
           → ¬TaskCancelled work matching events failures (.item source index))
     (known : NodeAt work child .group dependencies producer)
-    (fresh : child.key ∉ announcedKeys initial events)
+    (fresh : child.ref ∉ announcedRefs initial events)
     (produced : ∀ source, producer = some source → Published matching events source)
     (ready
-      : ∀ key ∈ dependencies,
-          DependencySatisfied work initial matching events failures key)
+      : ∀ ref ∈ dependencies,
+          DependencySatisfied work initial matching events failures ref)
     : CanAnnounce work initial matching events failures child .group dependencies
         producer := by
   apply (groupNotice_canAnnounce_iff_contents generated support failedPayloads known
     produced ready).mpr
   refine ⟨fresh, ?_⟩
   classical
-  by_cases recorded : HasRecordedFailure work failures events.length child.key
+  by_cases recorded : HasRecordedFailure work failures events.length child.ref
   · exact .inr recorded
-  · have healthy : ¬NodeFailed work matching events failures child.key := by
+  · have healthy : ¬NodeFailed work matching events failures child.ref := by
       intro failed
       rcases support.groupFailure_causes generated failedPayloads known produced failed with
-        ⟨occurrence, owners, task, owner, member⟩ | ⟨key, member, ancestor⟩
+        ⟨occurrence, owners, task, owner, member⟩ | ⟨ref, member, ancestor⟩
       · exact recorded ⟨occurrence, owners, member, task, owner⟩
-      · exact (ready key member).1 ancestor
+      · exact (ready ref member).1 ancestor
     exact .inl ((contents.recorded_or_unaccounted generated valid failedPayloads itemsSafe
       healthy).resolve_left recorded)
 

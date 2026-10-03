@@ -102,8 +102,8 @@ theorem ExecutedWork.replayGraphEvents_retiredHealth {work : Execution.Work}
                   cases guarded : queue.taskHasHealthyOwner node.task with
                   | false =>
                       have roots : (queue.taskFailure occurrence errors).1.RootAncestorsHealthy
-                          work failed := fun key active =>
-                        prior.2.1 key (queue.taskFailure_rootsSubset occurrence errors active)
+                          work failed := fun ref active =>
+                        prior.2.1 ref (queue.taskFailure_rootsSubset occurrence errors active)
                       simpa only [State.objectFailureContribution, found, guarded,
                         Bool.false_eq_true, ↓reduceIte, List.nil_append,
                         State.handleGraphEvent, queue, failed]
@@ -123,9 +123,9 @@ theorem ExecutedWork.replayGraphEvents_retiredHealth {work : Execution.Work}
                         registered known unsettled
                       have roots
                           : queue.RootAncestorsHealthy work (node.task.occurrence :: failed) := by
-                        intro key active record dependencies descriptor sameKey ancestor member
+                        intro ref active record dependencies descriptor sameRef ancestor member
                           invalid
-                        exact protectedRoots key active record dependencies descriptor sameKey
+                        exact protectedRoots ref active record dependencies descriptor sameRef
                           ancestor member (invalid.mono (by
                             intro token included
                             rcases List.mem_cons.mp included with rfl | old
@@ -133,8 +133,8 @@ theorem ExecutedWork.replayGraphEvents_retiredHealth {work : Execution.Work}
                             · exact List.mem_append_left _ old))
                       have nextRoots
                           : (queue.taskFailure occurrence errors).1.RootAncestorsHealthy work
-                              (node.task.occurrence :: failed) := fun key active =>
-                        roots key (queue.taskFailure_rootsSubset occurrence errors active)
+                              (node.task.occurrence :: failed) := fun ref active =>
+                        roots ref (queue.taskFailure_rootsSubset occurrence errors active)
                       simpa only [State.objectFailureContribution, found, guarded,
                         ↓reduceIte, List.singleton_append, occurrenceEq,
                         State.handleGraphEvent, queue, failed]
@@ -191,15 +191,15 @@ theorem ExecutedWork.replayGraphEvents_groupIsHealthy_recordUninvalidated
     {work : Execution.Work} (generated : ExecutedWork work) (events : List GraphEvent)
     (valid : ValidGraphEvents work events)
     (started : (State.initialize (Work.fromExecution work)).acceptsBatch events = true)
-    {key : Nat}
+    {ref : NodeRef}
     (healthy
       : ((State.initialize (Work.fromExecution work)).replayGraphEvents
           events).groupIsHealthy
-          key
+          ref
         = true)
     : ¬GroupRecordInvalidated work
         ((State.initialize (Work.fromExecution work)).objectFailureContributions events)
-        key :=
+        ref :=
   createWorkQueue_replayGraphEvents_groupIsHealthy_recordUninvalidated generated valid
     started (generated.replayGraphEvents_retiredHealth events valid started).2.2 healthy
 

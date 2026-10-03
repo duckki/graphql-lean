@@ -20,12 +20,12 @@ theorem State.UncancelledRetiredAncestors.finishGroupSuccess {queue : State}
     (links : queue.ChildLinksCanonical parents)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (registered : queue.LiveGroupsRegistered) {group : GroupNode}
     (member : group ∈ queue.groupNodes)
-    (protectedParent : queue.AncestorsRetired work group.group.node.key)
+    (protectedParent : queue.AncestorsRetired work group.group.node.ref)
     : (queue.finishGroupSuccess group).1.UncancelledRetiredAncestors work := by
-  let step (acc : State × List ExecutionGroupValue × Keys) (occurrence : Occurrence) :=
+  let step (acc : State × List ExecutionGroupValue × NodeRefs) (occurrence : Occurrence) :=
     let (current, values, streams) := acc
     match current.taskNode? occurrence with
     | none => (current, values, streams)
@@ -37,9 +37,9 @@ theorem State.UncancelledRetiredAncestors.finishGroupSuccess {queue : State}
   let property (current : State) := current.GroupNodesMatchWork work
     ∧ current.ChildLinksCanonical parents ∧ current.LiveGroupsRegistered
     ∧ current.registeredGroups = queue.registeredGroups
-    ∧ current.AncestorsRetired work group.group.node.key
+    ∧ current.AncestorsRetired work group.group.node.ref
     ∧ current.UncancelledRetiredAncestors work
-  have loop (more : List Occurrence) (acc : State × List ExecutionGroupValue × Keys)
+  have loop (more : List Occurrence) (acc : State × List ExecutionGroupValue × NodeRefs)
       (invariant : property acc.1) : property (more.foldl step acc).1 := by
     induction more generalizing acc with
     | nil => exact invariant
@@ -61,8 +61,8 @@ theorem State.UncancelledRetiredAncestors.finishGroupSuccess {queue : State}
     ⟨matching, links, registered, rfl, protectedParent, prior⟩
   let current : State := { flushed with
     groupNodes := flushed.groupNodes.filter
-      (fun node => node.group.node.key != group.group.node.key)
-    rootGroups := flushed.rootGroups.filter (· != group.group.node.key) }
+      (fun node => node.group.node.ref != group.group.node.ref)
+    rootGroups := flushed.rootGroups.filter (· != group.group.node.ref) }
   have currentMatching : current.GroupNodesMatchWork work :=
     fun node included => flushedFacts.1 node (List.mem_filter.mp included).1
   have currentLinks : current.ChildLinksCanonical parents :=
@@ -71,36 +71,36 @@ theorem State.UncancelledRetiredAncestors.finishGroupSuccess {queue : State}
     fun node included => flushedFacts.2.2.1 node (List.mem_filter.mp included).1
   have closure : current.UncancelledRetiredAncestors work :=
     flushedFacts.2.2.2.2.2.filter_parent flushedFacts.2.2.2.2.1
-  have parentRetired : current.RetiredGroup group.group.node.key := by
+  have parentRetired : current.RetiredGroup group.group.node.ref := by
     apply State.RetiredGroup.of_lookup_none
-    · change group.group.node.key ∈ flushed.registeredGroups
+    · change group.group.node.ref ∈ flushed.registeredGroups
       rw [flushedFacts.2.2.2.1]
       exact registered group member
     · apply List.find?_eq_none.mpr
       intro node included
       simpa using (List.mem_filter.mp included).2
-  have parentProtected : current.AncestorsRetired work group.group.node.key := by
+  have parentProtected : current.AncestorsRetired work group.group.node.ref := by
     apply flushedFacts.2.2.2.2.1.mono
-    intro key retired
+    intro ref retired
     refine ⟨retired.1, ?_⟩
     intro live
     obtain ⟨node, included, same⟩ := List.mem_map.mp live
     exact retired.2 (List.mem_map.mpr ⟨node, (List.mem_filter.mp included).1, same⟩)
   obtain ⟨dependencies, parentKnown⟩ := matching group member
   let children := group.childGroups.filterMap
-    (fun key => (current.groupNode? key).map (fun node => node.group.node))
-  have childProtected : ∀ child ∈ children, current.AncestorsRetired work child.key := by
+    (fun ref => (current.groupNode? ref).map (fun node => node.group.node))
+  have childProtected : ∀ child ∈ children, current.AncestorsRetired work child.ref := by
     intro child included
-    obtain ⟨key, linked, selected⟩ := List.mem_filterMap.mp included
-    cases found : current.groupNode? key with
+    obtain ⟨ref, linked, selected⟩ := List.mem_filterMap.mp included
+    cases found : current.groupNode? ref with
     | none => simp [found] at selected
     | some node =>
         have same : node.group.node = child := by simpa [found] using selected
         obtain ⟨childDependencies, childKnown⟩ :=
           currentMatching node (List.mem_of_find?_eq_some found)
-        have head : childDependencies.head? = some group.group.node.key := by
-          rw [canonical _ _ childKnown, State.groupNode?_key found]
-          exact links group member key linked
+        have head : childDependencies.head? = some group.group.node.ref := by
+          rw [canonical _ _ childKnown, State.groupNode?_ref found]
+          exact links group member ref linked
         exact same ▸ State.AncestorsRetired.child generated childKnown parentKnown head
           parentProtected parentRetired
   exact closure.pruneEmptyGroups generated currentMatching currentLinks canonical
@@ -120,7 +120,7 @@ theorem State.drainReadyGroups_go_uncancelledRetirement {queue : State}
     (links : queue.ChildLinksCanonical parents)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (live : queue.LiveGroupsRegistered) (tasks : queue.TaskGroupsRegistered)
     (roots : queue.RootAncestorsRetired work) (fuel : Nat)
     : (State.drainReadyGroups.go fuel queue).1.RootAncestorsRetired work
@@ -167,7 +167,7 @@ theorem State.drainReadyGroups_uncancelledRetirement {queue : State}
     (links : queue.ChildLinksCanonical parents)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (live : queue.LiveGroupsRegistered) (tasks : queue.TaskGroupsRegistered)
     (roots : queue.RootAncestorsRetired work)
     : queue.drainReadyGroups.1.RootAncestorsRetired work
@@ -185,7 +185,7 @@ theorem successGroupFold_uncancelledRetirement {queue : State} {work parents}
     (links : queue.ChildLinksCanonical parents)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (live : queue.LiveGroupsRegistered) (tasks : queue.TaskGroupsRegistered)
     (roots : queue.RootAncestorsRetired work) (groups : List Execution.DeliveryNode)
     : let result := (groups.foldl successGroupStep (queue, [], {})).1
@@ -219,9 +219,9 @@ theorem successGroupFold_uncancelledRetirement {queue : State} {work parents}
           invariant.2.2.2.2.2.putGroupNode updated⟩
       split
       · rename_i finishes
-        have active : node.group.node.key ∈ next.rootGroups := by
+        have active : node.group.node.ref ∈ next.rootGroups := by
           have flags := Bool.and_eq_true_iff.mp finishes
-          simpa only [State.groupNode?_key found, List.contains_iff_mem]
+          simpa only [State.groupNode?_ref found, List.contains_iff_mem]
             using (Bool.and_eq_true_iff.mp flags.1).1
         have updatedMember : updated ∈ next.groupNodes :=
           List.mem_map.mpr ⟨node, member, by simp [updated]⟩

@@ -29,8 +29,8 @@ theorem State.drainReadyGroups_go_bufferedStreamsConserved {queue : State}
       · exact .refl queue
       · rename_i group selected
         have live : group ∈ queue.groupNodes := by
-          obtain ⟨key, _, choice⟩ := List.exists_of_findSome?_eq_some selected
-          cases found : queue.groupNode? key with
+          obtain ⟨ref, _, choice⟩ := List.exists_of_findSome?_eq_some selected
+          cases found : queue.groupNode? ref with
           | none => simp [found] at choice
           | some node =>
               simp only [found] at choice
@@ -58,7 +58,7 @@ theorem State.drainReadyGroups_go_bufferedStreamsConserved {queue : State}
               (State.drainReadyGroups_go_cancelledGroups_subset _ _)
         | some errors =>
             exact (State.BufferedStreamsConserved.of_emptyOwners
-              (queue.removeGroup_storedOwnersConserved group.group.node.key)
+              (queue.removeGroup_storedOwnersConserved group.group.node.ref)
               [.groupFailure group.group.node errors]).append
               (ih (links.removeGroup _) (inventory.removeGroup _))
               (State.drainReadyGroups_go_cancelledGroups_subset _ _)
@@ -78,16 +78,16 @@ theorem State.drainReadyGroups_bufferedStreamsConserved {queue : State}
 
 /-- The complete successful-owner fold releases or retains every earlier buffered stream.
 Witness: counter updates keep old nodes; each actual flush has complete child selection.
-Unique group keys preserve stored memberships throughout the fold's original order.
+Unique group refs preserve stored memberships throughout the fold's original order.
 -/
 theorem State.successGroupFold_bufferedStreamsConserved {queue : State}
-    (keys : queue.GroupKeysUnique) (links : queue.StoredTaskLinks)
+    (refs : queue.GroupRefsUnique) (links : queue.StoredTaskLinks)
     (inventory : queue.ChildStreamInventory) (groups : List Execution.DeliveryNode)
     : let result := groups.foldl successGroupStep (queue, [], {})
       queue.BufferedStreamsConserved result.2.1 result.1 := by
   have loop (remaining : List Execution.DeliveryNode)
       (current : State) (events : List WorkQueueEvent) (released : NewWork)
-      (keys : current.GroupKeysUnique) (links : current.StoredTaskLinks)
+      (refs : current.GroupRefsUnique) (links : current.StoredTaskLinks)
       (inventory : current.ChildStreamInventory)
       (prior : queue.BufferedStreamsConserved events current)
       : let result := remaining.foldl successGroupStep (current, events, released)
@@ -97,13 +97,13 @@ theorem State.successGroupFold_bufferedStreamsConserved {queue : State}
     | cons group rest ih =>
         simp only [List.foldl_cons, successGroupStep]
         split
-        · exact ih _ _ _ keys links inventory prior
+        · exact ih _ _ _ refs links inventory prior
         · rename_i node found
           let updated := { node with pending := node.pending - 1 }
           have live := List.mem_of_find?_eq_some found
-          have nextLinks := links.putGroupNodeSameTasks keys node live updated rfl rfl
+          have nextLinks := links.putGroupNodeSameTasks refs node live updated rfl rfl
           have nextInventory := inventory.putGroupNode updated
-          have nextKeys := keys.putGroupNode updated
+          have nextRefs := refs.putGroupNode updated
           have conserved := State.BufferedStreamsConserved.of_emptyOwners
             (current.putGroupNode_storedOwnersConserved updated) []
           have next := prior.append conserved (List.Subset.refl _)
@@ -111,13 +111,13 @@ theorem State.successGroupFold_bufferedStreamsConserved {queue : State}
           split
           · have updatedLive : updated ∈ (current.putGroupNode updated).groupNodes := by
               exact List.mem_map.mpr ⟨node, live, by simp [updated]⟩
-            exact ih _ _ _ (nextKeys.finishGroupSuccess _)
+            exact ih _ _ _ (nextRefs.finishGroupSuccess _)
               (nextLinks.finishGroupSuccess _) (nextInventory.finishGroupSuccess _)
               (next.append (State.finishGroupSuccess_bufferedStreamsConserved
                 nextLinks nextInventory updated updatedLive)
                 (by rw [State.finishGroupSuccess_cancelledGroups]; exact List.Subset.refl _))
-          · exact ih _ _ _ nextKeys nextLinks nextInventory next
-  exact loop groups queue [] {} keys links inventory (.refl queue)
+          · exact ih _ _ _ nextRefs nextLinks nextInventory next
+  exact loop groups queue [] {} refs links inventory (.refl queue)
 
 /-- The owner fold retains unique, registered links on every surviving task node.
 Witness: counter updates preserve links and successful flushes only remove whole nodes.

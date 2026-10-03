@@ -13,7 +13,7 @@ Witness: only its final item retains either child list; preceding singleton atom
 theorem streamPublicationAtoms_before_streamNotices (stream groups streams values)
     {index : Nat} (last : index + 1 = values.length)
     : ((streamPublicationAtoms stream groups streams values).take index).flatMap
-        streamNoticeKeys
+        streamNoticeRefs
       = [] := by
   induction values using streamPublicationAtoms.induct generalizing index with
   | case1 => simp at last
@@ -26,7 +26,7 @@ theorem streamPublicationAtoms_before_streamNotices (stream groups streams value
       | zero => rfl
       | succ index =>
           simp only [streamPublicationAtoms, List.take_succ_cons, List.flatMap_cons,
-            streamNoticeKeys, List.map_nil, List.nil_append]
+            streamNoticeRefs, List.map_nil, List.nil_append]
           exact ih (by simp only [List.length_cons] at last ⊢; omega)
 
 /-- A notice-bearing item atom has exactly its source event's strict stream-notice prefix.
@@ -42,8 +42,8 @@ theorem publicationAtoms_itemNotice_streamPrefix (events : List Execution.WorkQu
     (noticed : child ∈ groups ++ streams)
     : ∃ sourceIndex sourceValues,
         events[sourceIndex]? = some (.streamValues owner sourceValues groups streams)
-        ∧ ((events.flatMap publicationAtoms).take index).flatMap streamNoticeKeys
-          = (events.take sourceIndex).flatMap streamNoticeKeys := by
+        ∧ ((events.flatMap publicationAtoms).take index).flatMap streamNoticeRefs
+          = (events.take sourceIndex).flatMap streamNoticeRefs := by
   induction events generalizing index with
   | nil => simp at selected
   | cons event rest ih =>
@@ -77,8 +77,8 @@ theorem IncrementalPublisher.normalizeBatch_itemNotice_streamPrefix
         = some (.streamValues owner values groups streams))
     : ∃ sourceIndex sourceValues,
         events[sourceIndex]? = some (.streamValues owner sourceValues groups streams)
-        ∧ ((publisher.normalizeBatch events).2.take index).flatMap streamNoticeKeys
-          = (events.take sourceIndex).flatMap rawStreamNoticeKeys := by
+        ∧ ((publisher.normalizeBatch events).2.take index).flatMap streamNoticeRefs
+          = (events.take sourceIndex).flatMap rawStreamNoticeRefs := by
   induction events generalizing publisher index with
   | nil => simp [IncrementalPublisher.normalizeBatch] at selected
   | cons event rest ih =>
@@ -95,7 +95,7 @@ theorem IncrementalPublisher.normalizeBatch_itemNotice_streamPrefix
         obtain ⟨sourceIndex, sourceValues, atSource, notices⟩ := ih head.1
           ((List.getElem?_append_right later).symm.trans selected)
         refine ⟨sourceIndex + 1, sourceValues, atSource, ?_⟩
-        change ((head.2 ++ tail.2).take index).flatMap streamNoticeKeys = _
+        change ((head.2 ++ tail.2).take index).flatMap streamNoticeRefs = _
         rw [List.take_append, List.take_of_length_le later, List.flatMap_append, notices,
           publisher.handleWorkQueueEvent_streamNotices event]
         rfl

@@ -269,10 +269,10 @@ theorem all_tasks_cancelled_of_roots {work matching events failures}
 /-- Every contributing owner is a real delivery node. Witness: its deferred fragment or
 the stream item's exact stream descriptor, not an ancestor placeholder.
 -/
-theorem TaskAt.owner_at_producer {work occurrence owners producer payload key}
-    (known : TaskAt work occurrence owners producer payload) (member : key ∈ owners)
+theorem TaskAt.owner_at_producer {work occurrence owners producer payload ref}
+    (known : TaskAt work occurrence owners producer payload) (member : ref ∈ owners)
     : ∃ node kind dependencies,
-        NodeAt work node kind dependencies producer ∧ node.key = key := by
+        NodeAt work node kind dependencies producer ∧ node.ref = ref := by
   cases StructuralEquivalence.taskAt_of_current known with
   | executionGroup located =>
       obtain ⟨group, inGroups, equal⟩ := List.mem_map.mp member
@@ -284,10 +284,10 @@ theorem TaskAt.owner_at_producer {work occurrence owners producer payload key}
 /-- Forgetting the exact producer retains structural support for every task owner.
 Witness: the owner descriptor at the task's own producer boundary.
 -/
-theorem TaskAt.owner_known {work occurrence owners producer payload key}
-    (known : TaskAt work occurrence owners producer payload) (member : key ∈ owners)
+theorem TaskAt.owner_known {work occurrence owners producer payload ref}
+    (known : TaskAt work occurrence owners producer payload) (member : ref ∈ owners)
     : ∃ node kind dependencies birth,
-        NodeAt work node kind dependencies birth ∧ node.key = key := by
+        NodeAt work node kind dependencies birth ∧ node.ref = ref := by
   obtain ⟨node, kind, dependencies, descriptor, same⟩ := known.owner_at_producer member
   exact ⟨node, kind, dependencies, producer, descriptor, same⟩
 
@@ -320,21 +320,21 @@ theorem TaskAccounted.take_prefix {work matching events failures index occurrenc
   · obtain ⟨position, event, _, selected, value, same⟩ := published.before
     exact Or.inr ⟨position, event, selected, value, same⟩
 
-/-- A completed key is either failed or has all contributing tasks accounted for at the
+/-- A completed ref is either failed or has all contributing tasks accounted for at the
 current boundary. Witness: its actual success/failure event, transported along the prefix.
 -/
-theorem Explains.completed_accounted {work groups streams events matching failures key}
+theorem Explains.completed_accounted {work groups streams events matching failures ref}
     (explained : Explains work groups streams events matching failures)
-    (closed : key ∈ completedKeys events)
-    : NodeFailed work matching events failures key
-      ∨ NodeAccounted work matching events failures key := by
+    (closed : ref ∈ completedRefs events)
+    : NodeFailed work matching events failures ref
+      ∨ NodeAccounted work matching events failures ref := by
   obtain ⟨event, member, completes⟩ := List.mem_flatMap.mp closed
   obtain ⟨index, selected⟩ := List.mem_iff_getElem?.mp member
   have bound := Nat.le_of_lt (List.getElem?_eq_some_iff.mp selected).1
   have allowed := explained.2.2 index event selected
   cases event <;> simp only [eventCompleted, List.mem_singleton, List.not_mem_nil] at completes
   all_goals try contradiction
-  all_goals subst key
+  all_goals subst ref
   all_goals simp only [EventAllowed, NodeAccounted, TaskAccounted,
     nodeFailed_filter (Nat.le_refl _), taskCancelled_filter (Nat.le_refl _)] at allowed
   case groupSuccess node newGroups newStreams =>
@@ -361,10 +361,10 @@ theorem Explains.outstanding_owner
     (explained : Explains work groups streams events matching failures)
     (known : TaskAt work occurrence owners producer payload) (nonempty : owners ≠ [])
     (outstanding : ¬TaskAccounted work matching events failures occurrence)
-    : ∃ key ∈ owners,
-        ¬NodeFailed work matching events failures key ∧ key ∉ completedKeys events := by
+    : ∃ ref ∈ owners,
+        ¬NodeFailed work matching events failures ref ∧ ref ∉ completedRefs events := by
   classical
-  have healthy : ∃ key ∈ owners, ¬NodeFailed work matching events failures key := by
+  have healthy : ∃ ref ∈ owners, ¬NodeFailed work matching events failures ref := by
     apply Classical.byContradiction
     intro absent
     apply outstanding
@@ -372,13 +372,13 @@ theorem Explains.outstanding_owner
     apply explained.snapshot_taskCancelled
     refine Causality.TaskCancelled.owners ⟨_, _, known⟩
       (fun published => outstanding (Or.inr published)) nonempty ?_
-    intro key member
+    intro ref member
     apply explained.nodeFailed_snapshot
     apply Classical.byContradiction
     intro healthy
-    exact absent ⟨key, member, healthy⟩
-  obtain ⟨key, member, healthy⟩ := healthy
-  refine ⟨key, member, healthy, ?_⟩
+    exact absent ⟨ref, member, healthy⟩
+  obtain ⟨ref, member, healthy⟩ := healthy
+  refine ⟨ref, member, healthy, ?_⟩
   intro closed
   rcases explained.completed_accounted closed with failed | accounted
   · exact healthy failed

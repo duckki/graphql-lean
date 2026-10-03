@@ -23,10 +23,10 @@ theorem groupStreamNotice_canAnnounce {work inputs w index group groups streams 
     (healthy : GroupSuccessesHealthy work w) (producers : StreamNoticeProducers work w)
     (selected : w.events[index]? = some (.groupSuccess group groups streams))
     (noticed : child ∈ streams)
-    (fresh : child.key ∉ announcedKeys (initialKeys work) (w.events.take index))
+    (fresh : child.ref ∉ announcedRefs (initialRefs work) (w.events.take index))
     : ∃ dependencies producer,
         NodeAt work child .stream dependencies producer
-        ∧ CanAnnounce work (initialKeys work) w.matching
+        ∧ CanAnnounce work (initialRefs work) w.matching
             (w.events.take index ++ [.groupSuccess group [] []])
             (w.failures.filter (fun entry => decide (entry.1 ≤ index)))
             child .stream dependencies producer := by
@@ -40,7 +40,7 @@ theorem groupStreamNotice_canAnnounce {work inputs w index group groups streams 
     List.length_take_of_le (Nat.le_of_lt (List.getElem?_eq_some_iff.mp selected).1)
   have carrierHealth : ¬NodeFailed work w.matching
       (w.events.take index ++ [.groupSuccess group [] []])
-      (w.failures.filter (fun entry => decide (entry.1 ≤ index))) group.key := by
+      (w.failures.filter (fun entry => decide (entry.1 ≤ index))) group.ref := by
     have frozen :=
       causality_append_eq (work := work) (matching := w.matching)
         (events := w.events.take index)
@@ -53,8 +53,8 @@ theorem groupStreamNotice_canAnnounce {work inputs w index group groups streams 
       using healthy.atPrefix selected index
   refine ⟨dependencies, some producer, located,
     streamNotice_canAnnounce generated announced support selected Iff.rfl rfl located
-      (published.append _) fresh (.inr ⟨group.key, contributes, carrierHealth, ?_⟩)⟩
-  exact .inr (.inl (by simp [completedKeys, eventCompleted]))
+      (published.append _) fresh (.inr ⟨group.ref, contributes, carrierHealth, ?_⟩)⟩
+  exact .inr (.inl (by simp [completedRefs, eventCompleted]))
 
 -----------------------------------------------------------------------------------------
 -- Item carriers reset defer dependencies and may publish the producer themselves
@@ -75,10 +75,10 @@ theorem itemStreamNotice_canAnnounce
     (producers : StreamNoticeProducers work w)
     (selected : w.events[index]? = some (.streamValues stream values groups streams))
     (noticed : child ∈ streams)
-    (fresh : child.key ∉ announcedKeys (initialKeys work) (w.events.take index))
+    (fresh : child.ref ∉ announcedRefs (initialRefs work) (w.events.take index))
     : ∃ producer,
         NodeAt work child .stream [] producer
-        ∧ CanAnnounce work (initialKeys work) w.matching
+        ∧ CanAnnounce work (initialRefs work) w.matching
             (w.events.take index ++ [.streamValues stream values [] []])
             (w.failures.filter (fun entry => decide (entry.1 ≤ index)))
             child .stream [] producer := by

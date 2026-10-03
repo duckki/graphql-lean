@@ -8,11 +8,11 @@ namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue.ConformancePlan
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
 -----------------------------------------------------------------------------------------
--- Notice-key lookup recovers the real descriptor before checking its entire ancestry
+-- Notice-ref lookup recovers the real descriptor before checking its entire ancestry
 -----------------------------------------------------------------------------------------
 
 /-- Every actual carried group notice has ready dependencies on the canonical witness.
-Witness: provenance identifies the announced descriptor, and generated key coherence
+Witness: provenance identifies the announced descriptor, and generated ref coherence
 identifies it with the supplied node. Both carrier forms derive complete ancestor readiness
 from the same publication ledger and failure inventory, with no local status premise.
 -/
@@ -25,26 +25,26 @@ theorem groupNotice_dependenciesReady
     (support : PublicationSupport work w.matching w.events w.failures)
     (failures : AnnouncedFailures work w)
     (selected : w.events[index]? = some event)
-    (noticed : child.key ∈ groupNoticeKeys event)
+    (noticed : child.ref ∈ groupNoticeRefs event)
     (known : NodeAt work child .group dependencies producer)
-    : ∀ key ∈ dependencies,
-        DependencySatisfied work (initialKeys work) w.matching
+    : ∀ ref ∈ dependencies,
+        DependencySatisfied work (initialRefs work) w.matching
           (w.events.take index ++ [withoutChildNotices event])
-          (w.failures.filter (fun entry => entry.1 ≤ index)) key := by
+          (w.failures.filter (fun entry => entry.1 ≤ index)) ref := by
   have located := createWorkQueue_runNormalized_atomicGroupNoticesLocated generated valid event
     (List.mem_of_getElem? (Witness.canonical_event history selected).1)
-  cases event <;> simp only [groupNoticeKeys] at noticed
+  cases event <;> simp only [groupNoticeRefs] at noticed
   case groupSuccess group groups streams =>
-    obtain ⟨actual, member, sameKey⟩ := List.mem_map.mp noticed
+    obtain ⟨actual, member, sameRef⟩ := List.mem_map.mp noticed
     obtain ⟨_, _, actualKnown⟩ := located actual member
-    have same := generated.nodeKeyCoherent _ _ _ _ _ _ _ _ actualKnown known sameKey
+    have same := generated.nodeRefCoherent _ _ _ _ _ _ _ _ actualKnown known sameRef
     subst actual
     exact groupNoticeAncestor_dependencySatisfied generated valid started history ledger
       support failures selected member (groupRecordAt_of_nodeAt known)
   case streamValues owner values groups streams =>
-    obtain ⟨actual, member, sameKey⟩ := List.mem_map.mp noticed
+    obtain ⟨actual, member, sameRef⟩ := List.mem_map.mp noticed
     obtain ⟨_, _, actualKnown⟩ := located actual member
-    have same := generated.nodeKeyCoherent _ _ _ _ _ _ _ _ actualKnown known sameKey
+    have same := generated.nodeRefCoherent _ _ _ _ _ _ _ _ actualKnown known sameRef
     subst actual
     exact itemGroupNoticeAncestor_dependencySatisfied generated valid started history ledger
       support failures selected member (groupRecordAt_of_nodeAt known)
@@ -88,12 +88,12 @@ theorem groupNotice_canAnnounce_of_fresh
       : RetainedNoticeContents work w.matching (w.events.take index)
           (failedBefore w.failures index) inputs.flatten child)
     (selected : w.events[index]? = some event)
-    (noticed : child.key ∈ groupNoticeKeys event)
+    (noticed : child.ref ∈ groupNoticeRefs event)
     (known : NodeAt work child .group dependencies birth)
-    (fresh : child.key ∉ announcedKeys (initialKeys work) (w.events.take index))
+    (fresh : child.ref ∉ announcedRefs (initialRefs work) (w.events.take index))
     : ∃ producer,
         NodeAt work child .group dependencies producer
-        ∧ CanAnnounce work (initialKeys work) w.matching
+        ∧ CanAnnounce work (initialRefs work) w.matching
             (w.events.take index ++ [withoutChildNotices event])
             (w.failures.filter (fun entry => entry.1 ≤ index))
             child .group dependencies producer :=
@@ -137,11 +137,11 @@ theorem groupNotice_canAnnounce
       : RetainedNoticeContents work w.matching (w.events.take index)
           (failedBefore w.failures index) inputs.flatten child)
     (selected : w.events[index]? = some event)
-    (noticed : child.key ∈ groupNoticeKeys event)
+    (noticed : child.ref ∈ groupNoticeRefs event)
     (known : NodeAt work child .group dependencies birth)
     : ∃ producer,
         NodeAt work child .group dependencies producer
-        ∧ CanAnnounce work (initialKeys work) w.matching
+        ∧ CanAnnounce work (initialRefs work) w.matching
             (w.events.take index ++ [withoutChildNotices event])
             (w.failures.filter (fun entry => entry.1 ≤ index))
             child .group dependencies producer :=

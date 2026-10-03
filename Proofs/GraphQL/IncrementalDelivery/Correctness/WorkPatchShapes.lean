@@ -12,9 +12,9 @@ value lists are nonempty. These are derived facts, not extra admission constrain
 -/
 def EventPatchShape (paths : Nat → ResponsePath) : WorkQueueEvent → Prop
   | .groupValues node values =>
-      paths node.key = node.path
+      paths node.ref = node.path
       ∧ ∀ value ∈ values, node.path ++ value.path.drop node.path.length = value.path
-  | .streamValues node values _ _ => paths node.key = node.path ∧ values ≠ []
+  | .streamValues node values _ _ => paths node.ref = node.path ∧ values ≠ []
   | _ => True
 
 /-- Atomic data events have exact source attachments, by task provenance and owner
@@ -39,7 +39,7 @@ theorem eventAllowed_patchShape {paths bound work initial matching before failed
     exact ⟨(workAt_node coherent nodeAt).2, by simp⟩
 
 /-- Compatible value combination retains the exact attachment and nonempty-item facts.
-Witness: equal keys have equal assigned paths, and appending preserves nonemptiness.
+Witness: equal refs have equal assigned paths, and appending preserves nonemptiness.
 -/
 theorem combineValues_patchShape {paths left right combined}
     (hl : EventPatchShape paths left) (hr : EventPatchShape paths right)
@@ -47,8 +47,8 @@ theorem combineValues_patchShape {paths left right combined}
     : EventPatchShape paths combined := by
   cases left <;> cases right <;> simp [combineValues] at compatible
   case groupValues.groupValues node values other more =>
-    obtain ⟨keys, rfl⟩ := compatible
-    have same : node.path = other.path := hl.1.symm.trans (keys ▸ hr.1)
+    obtain ⟨refs, rfl⟩ := compatible
+    have same : node.path = other.path := hl.1.symm.trans (refs ▸ hr.1)
     refine ⟨hl.1, ?_⟩
     intro value member
     rcases List.mem_append.mp member with member | member

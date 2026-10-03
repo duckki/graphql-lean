@@ -64,7 +64,7 @@ theorem WorkObservation.merge_entries {paths bound response work result slices}
         initialHistory (by simp only [TypedResponse.value_paths, source_value_eq_positions])
         sourceUnique events.length (Nat.le_refl _)
       have nodePaths : ∀ node ∈ (events ++ [WorkQueueEvent.workQueueTermination]).flatMap
-          eventNodes, paths node.key = node.path := by
+          eventNodes, paths node.ref = node.path := by
         intro node member
         simp only [List.flatMap_append, List.flatMap_cons, List.flatMap_nil, eventNodes,
           List.append_nil] at member

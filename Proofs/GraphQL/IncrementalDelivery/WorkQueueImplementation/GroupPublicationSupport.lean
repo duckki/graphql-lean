@@ -89,9 +89,9 @@ theorem Witness.groupPublication_releaseReady {work inputs w index owner payload
           }
           ((initialQueue work).rawEventReplay inputs.flatten).2 index owner payload)
     : (∃ dependencies producer, NodeAt work origin.group .group dependencies producer)
-      ∧ Open (initialKeys work) (w.events.take index) origin.group.key
+      ∧ Open (initialRefs work) (w.events.take index) origin.group.ref
       ∧ ¬NodeFailed work w.matching (w.events.take index) w.failures
-          origin.group.key := by
+          origin.group.ref := by
   have historyEq := history.trans (createWorkQueue_nonterminalAtoms_flattened inputs started)
   have carrier : w.events[origin.carrierIndex]?
       = some (.groupSuccess origin.group origin.groups origin.streams) := by
@@ -108,7 +108,7 @@ theorem Witness.groupPublication_releaseReady {work inputs w index owner payload
   dsimp only at noticeState
   rw [← historyEq] at noticeState
   refine ⟨known, ?_, healthy.atPrefix carrier index⟩
-  simpa only [Open, announcedKeys, initialKeys, initialQueue, noticeState.1,
+  simpa only [Open, announcedRefs, initialRefs, initialQueue, noticeState.1,
     noticeState.2]
     using opened
 
@@ -129,8 +129,8 @@ def GroupPublicationReleases (work : Execution.Work) (inputs : List (List GraphE
               }
               ((initialQueue work).rawEventReplay inputs.flatten).2 index owner payload,
         (∃ dependencies producer, NodeAt work origin.group .group dependencies producer)
-        ∧ Open (initialKeys work) (w.events.take index) origin.group.key
-        ∧ ¬NodeFailed work w.matching (w.events.take index) w.failures origin.group.key
+        ∧ Open (initialRefs work) (w.events.take index) origin.group.ref
+        ∧ ¬NodeFailed work w.matching (w.events.take index) w.failures origin.group.ref
 
 /-- All actual object publications have healthy raw release groups on the shared witness.
 Witness: recover each raw pair, then reuse successful-carrier health and unchanged notice
@@ -148,7 +148,7 @@ theorem groupPublicationReleases_of_groupHealth {work inputs w}
     healthy origin⟩
 
 /-- Every retained raw release group is an available contributing owner for its full value.
-Witness: actual raw membership supplies the owner key; the release certificate supplies
+Witness: actual raw membership supplies the owner ref; the release certificate supplies
 provenance, openness, and health on the same history, matching, and failure cuts.
 Connecting that value to the selected matching occurrence remains a separate ledger step.
 -/
@@ -163,8 +163,8 @@ theorem GroupPublicationReleases.available {work inputs w}
                   (initialQueue work).initialGroups ++ (initialQueue work).initialStreams
               }
               ((initialQueue work).rawEventReplay inputs.flatten).2 index owner payload,
-        HealthyOpenOwner work (initialKeys work) w.matching (w.events.take index)
-          w.failures (origin.value.deliveryGroups.map Execution.DeliveryNode.key)
+        HealthyOpenOwner work (initialRefs work) w.matching (w.events.take index)
+          w.failures (origin.value.deliveryGroups.map Execution.DeliveryNode.ref)
           origin.group := by
   obtain ⟨origin, ⟨dependencies, producer, known⟩, opened, healthy⟩ :=
     releases index owner payload selected
@@ -195,7 +195,7 @@ theorem Witness.groupPublication_contributorsLocated {work}
   exact source.success_contributorsLocated contributor (same.symm ▸ member)
 
 /-- Actual raw-value ownership reduces to registry agreement on its contributing groups.
-Witness: the release group is an available contributor; structural key coherence recovers
+Witness: the release group is an available contributor; structural ref coherence recovers
 its full descriptor. The real max-selection fold then chooses a longest open contributor,
 retaining the healthy release group as separate support. This theorem does not assume
 that the selected wire owner itself is healthy.
@@ -211,12 +211,12 @@ theorem Witness.groupPublication_owner_of_registry {work}
           }
           ((initialQueue work).rawEventReplay inputs.flatten).2 index owner payload)
     (available
-      : HealthyOpenOwner work (initialKeys work) w.matching (w.events.take index)
-          w.failures (origin.value.deliveryGroups.map Execution.DeliveryNode.key)
+      : HealthyOpenOwner work (initialRefs work) w.matching (w.events.take index)
+          w.failures (origin.value.deliveryGroups.map Execution.DeliveryNode.ref)
           origin.group)
     (registry
       : ∀ candidate ∈ origin.value.deliveryGroups,
-          candidate.key
+          candidate.ref
             ∈ (({
                   active :=
                     (initialQueue work).initialGroups
@@ -224,10 +224,10 @@ theorem Witness.groupPublication_owner_of_registry {work}
                 }
                 : IncrementalPublisher).normalizeBatch
                 origin.before).1.active.map
-                Execution.DeliveryNode.key
-          ↔ Open (initialKeys work) (w.events.take index) candidate.key)
-    : PublicationOwner work (initialKeys work) w.matching (w.events.take index) w.failures
-        (origin.value.deliveryGroups.map Execution.DeliveryNode.key) owner := by
+                Execution.DeliveryNode.ref
+          ↔ Open (initialRefs work) (w.events.take index) candidate.ref)
+    : PublicationOwner work (initialRefs work) w.matching (w.events.take index) w.failures
+        (origin.value.deliveryGroups.map Execution.DeliveryNode.ref) owner := by
   let publisher : IncrementalPublisher :=
     { active := (initialQueue work).initialGroups ++ (initialQueue work).initialStreams }
   let current := (publisher.normalizeBatch origin.before).1
@@ -237,15 +237,15 @@ theorem Witness.groupPublication_owner_of_registry {work}
     obtain ⟨dependencies, producer, known⟩ :=
       Witness.groupPublication_contributorsLocated valid origin candidate member
     exact ⟨.group, dependencies, producer, known⟩
-  have contributes := openOwner_contributor_of_coherent work generated.nodeKeyCoherent
-    origin.value located (initialKeys work) (w.events.take index) origin.group available.1
+  have contributes := openOwner_contributor_of_coherent work generated.nodeRefCoherent
+    origin.value located (initialRefs work) (w.events.take index) origin.group available.1
   have active (candidate : Execution.DeliveryNode)
       (member : candidate ∈ origin.value.deliveryGroups)
-      : (current.active.any (fun node => node.key == candidate.key) = true)
-        ↔ Open (initialKeys work) (w.events.take index) candidate.key := by
+      : (current.active.any (fun node => node.ref == candidate.ref) = true)
+        ↔ Open (initialRefs work) (w.events.take index) candidate.ref := by
     rw [← registry candidate member]
     simp only [List.any_eq_true, beq_iff_eq, List.mem_map, current, publisher]
-  have ownerRule := current.getBestIdAndSubPath_owner work (initialKeys work) w.matching
+  have ownerRule := current.getBestIdAndSubPath_owner work (initialRefs work) w.matching
     (w.events.take index) w.failures origin.group origin.value
     ((active origin.group contributes).mpr available.1.2.2) contributes
     (by
@@ -253,7 +253,7 @@ theorem Witness.groupPublication_owner_of_registry {work}
       rw [active candidate member]
       exact ⟨fun opened => ⟨located candidate member,
         List.mem_map.mpr ⟨candidate, member, rfl⟩, opened⟩, fun known => known.2.2⟩)
-    ⟨origin.group, available⟩ generated.nodeKeyCoherent located
+    ⟨origin.group, available⟩ generated.nodeRefCoherent located
   simpa only [origin.ownerEq] using ownerRule
 
 /-- The same mixed witness now carries each object value's healthy raw release origin.

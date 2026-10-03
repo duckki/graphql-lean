@@ -80,7 +80,7 @@ theorem State.StreamsSatisfy.drainReadyGroups_notices {queue : State} {property}
               · have same := List.mem_singleton.mp first
                 subst event
                 trivial
-              · exact ih (current.removeGroup node.group.node.key) registry event later
+              · exact ih (current.removeGroup node.group.node.ref) registry event later
   exact loop _ queue known
 
 /-- Task-success output retains descriptor properties through every contributor flush.
@@ -209,8 +209,8 @@ theorem State.StreamsSatisfy.handleGraphEvent_notices {queue : State} {property}
           exact False.elim (queue.taskFailure_noGroupSuccess occurrence errors group groups streams
             member)
       | streamValues stream values groups streams =>
-          have impossible : stream.key ∈
-              (queue.taskFailure occurrence errors).2.flatMap rawStreamReferenceKeys :=
+          have impossible : stream.ref ∈
+              (queue.taskFailure occurrence errors).2.flatMap rawStreamReferenceRefs :=
             List.mem_flatMap.mpr ⟨_, member, List.mem_cons_self⟩
           rw [State.taskFailure_streamReferences] at impossible
           cases impossible
@@ -302,7 +302,7 @@ theorem IncrementalPublisher.normalizeBatch_streamNoticesSatisfy {property}
 /-- Every stream notice in actual normalized replay names a node of the original work.
 Witness: integrate exact source child descriptors, retain registry provenance at every
 handler boundary, and transport each emitted notice through publisher normalization.
-No generated-key uniqueness, start law, or abstract admission premise is assumed.
+No generated-ref uniqueness, start law, or abstract admission premise is assumed.
 -/
 theorem createWorkQueue_runNormalized_streamNoticesLocated {work : Execution.Work}
     {batches : List (List GraphEvent)} (valid : ValidGraphEvents work batches.flatten)

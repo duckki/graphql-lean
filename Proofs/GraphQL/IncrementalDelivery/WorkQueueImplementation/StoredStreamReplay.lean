@@ -50,8 +50,8 @@ theorem State.StoredStreamsComplete.startTask {queue : State} {work}
 Witness: healthy group activation folds unresolved task starts; other branches do nothing.
 -/
 theorem State.StoredStreamsComplete.startGroup {queue : State} {work}
-    (complete : queue.StoredStreamsComplete work) (key : Nat)
-    : (queue.startGroup key).StoredStreamsComplete work := by
+    (complete : queue.StoredStreamsComplete work) (ref : NodeRef)
+    : (queue.startGroup ref).StoredStreamsComplete work := by
   unfold State.startGroup
   split
   · exact complete
@@ -61,19 +61,19 @@ theorem State.StoredStreamsComplete.startGroup {queue : State} {work}
         (fun _ occurrence prior => prior.startTask occurrence) _ _ complete
 
 /-- Activating released groups and streams retains complete producer links.
-Witness: group starts preserve links; stream starts modify only active stream keys.
+Witness: group starts preserve links; stream starts modify only active stream refs.
 -/
 theorem State.StoredStreamsComplete.startNewWork {queue : State} {work}
     (complete : queue.StoredStreamsComplete work) (released : NewWork)
     : (queue.startNewWork released).StoredStreamsComplete work := by
-  let newKeys := released.newGroups.map Execution.DeliveryNode.key
+  let newRefs := released.newGroups.map Execution.DeliveryNode.ref
   have groups := fold_preserves (fun current => current.StoredStreamsComplete work)
-    State.startGroup (fun _ key prior => prior.startGroup key)
-    newKeys { queue with rootGroups := queue.rootGroups ++ newKeys }
+    State.startGroup (fun _ ref prior => prior.startGroup ref)
+    newRefs { queue with rootGroups := queue.rootGroups ++ newRefs }
     complete
   apply fold_preserves (fun current => current.StoredStreamsComplete work)
     State.startStream _ _ _ groups
-  intro current key prior
+  intro current ref prior
   unfold State.startStream
   split <;> exact prior
 
@@ -81,8 +81,8 @@ theorem State.StoredStreamsComplete.startNewWork {queue : State} {work}
 Witness: each surviving task node is an entry of the original filtered map.
 -/
 theorem State.StoredStreamsComplete.removeGroup {queue : State} {work}
-    (complete : queue.StoredStreamsComplete work) (key : Nat)
-    : (queue.removeGroup key).StoredStreamsComplete work :=
+    (complete : queue.StoredStreamsComplete work) (ref : NodeRef)
+    : (queue.removeGroup ref).StoredStreamsComplete work :=
   fun node member => complete node (List.mem_filter.mp member).1
 
 /-- A successful flush leaves all residual buffered links complete.
@@ -118,7 +118,7 @@ the original contributor loop then preserves all residual links. Ignored success
 theorem State.StoredStreamsComplete.taskSuccess {queue : State} {work occurrence result}
     (complete : queue.StoredStreamsComplete work)
     (matching : (GraphEvent.taskSuccess occurrence result).MatchesWork work)
-    (fresh : ∀ stream ∈ result.work.streams, queue.stream? stream.node.key = none)
+    (fresh : ∀ stream ∈ result.work.streams, queue.stream? stream.node.ref = none)
     : (queue.taskSuccess occurrence result).1.StoredStreamsComplete work := by
   cases found : queue.taskNode? occurrence with
   | none => simpa only [State.taskSuccess, found] using complete
@@ -245,10 +245,10 @@ theorem State.StoredStreamsComplete.finishGroupSuccess_streamComplete {queue : S
     {occurrence node stream dependencies} (member : occurrence ∈ group.tasks)
     (found : queue.taskNode? occurrence = some node) (stored : node.value.isSome = true)
     (known : NodeAt work stream .stream dependencies (some occurrence))
-    : stream.key
+    : stream.ref
       ∈ (queue.finishGroupSuccess group).2.2.newStreams.map
-          Execution.DeliveryNode.key := by
-  apply inventory.finishGroupSuccess_childKey_covered group member found
+          Execution.DeliveryNode.ref := by
+  apply inventory.finishGroupSuccess_childRef_covered group member found
   exact complete node (State.taskNode?_some found).1 stored (by simp) stream dependencies
     ((State.taskNode?_some found).2.symm ▸ known)
 

@@ -16,7 +16,7 @@ theorem State.PendingTracks.putGroupNode {queue : State}
     : (queue.putGroupNode updated).PendingTracks settled := by
   intro node member
   change node ∈ queue.groupNodes.map
-    (fun old => if old.group.node.key == updated.group.node.key then updated else old)
+    (fun old => if old.group.node.ref == updated.group.node.ref then updated else old)
     at member
   obtain ⟨old, oldMember, same⟩ := List.mem_map.mp member
   split at same
@@ -55,10 +55,10 @@ theorem State.PendingTracks.addGroups {queue : State}
         | none => current
         | some node =>
             let children :=
-              if node.childGroups.contains group.node.key then
+              if node.childGroups.contains group.node.ref then
                 node.childGroups
               else
-                node.childGroups ++ [group.node.key]
+                node.childGroups ++ [group.node.ref]
             current.putGroupNode { node with childGroups := children }
   have linkTracks (current : State) (group : Group)
       (balanced : current.PendingTracks settled)
@@ -66,8 +66,8 @@ theorem State.PendingTracks.addGroups {queue : State}
     unfold linkStep
     cases parent : group.parent with
     | none => simpa only [parent] using balanced
-    | some key =>
-        cases found : current.groupNode? key with
+    | some ref =>
+        cases found : current.groupNode? ref with
         | none => simpa only [parent, found] using balanced
         | some node =>
             simp only [found]
@@ -89,8 +89,8 @@ theorem State.PendingTracks.addGroups {queue : State}
         simpa only [List.foldl_cons]
           using ih (queue := queue.addGroup group) (tracks.addGroup group)
   let fresh := groups.filter (fun group =>
-    !queue.registeredGroups.contains group.node.key
-      && (queue.groupNode? group.node.key).isNone)
+    !queue.registeredGroups.contains group.node.ref
+      && (queue.groupNode? group.node.ref).isNone)
   change (fresh.foldl linkStep (fresh.foldl State.addGroup queue)).PendingTracks settled
   exact linkFold fresh _ (registered fresh)
 
@@ -103,7 +103,7 @@ theorem State.PendingTracks.addTask {queue : State}
     : (queue.addTask task).PendingTracks settled := by
   let registered : State := { queue with tasks := queue.tasks ++ [task] }
   let step (current : State) (group : Execution.DeliveryNode) : State :=
-    match current.groupNode? group.key with
+    match current.groupNode? group.ref with
     | none => current
     | some node =>
         if node.tasks.contains task.occurrence then
@@ -137,7 +137,7 @@ theorem State.PendingTracks.addTask {queue : State}
   let current := task.groups.foldl step registered
   have currentTracks : current.PendingTracks settled :=
     foldTracks task.groups registered tracks
-  change (if task.groups.any (fun group => current.rootGroups.contains group.key)
+  change (if task.groups.any (fun group => current.rootGroups.contains group.ref)
       && (current.taskNode? task.occurrence).isNone then
       { current with taskNodes := current.taskNodes ++ [{ task }] }
     else current).PendingTracks settled
@@ -151,8 +151,8 @@ theorem State.PendingTracks.addStreams {queue : State}
   let fresh :=
     streams.foldl
       (fun selected stream =>
-        if (queue.stream? stream.node.key).isSome
-            || selected.any (fun known => known.node.key == stream.node.key) then
+        if (queue.stream? stream.node.ref).isSome
+            || selected.any (fun known => known.node.ref == stream.node.ref) then
           selected
         else
           selected ++ [stream])
@@ -220,8 +220,8 @@ theorem State.PendingTracks.pruneEmptyGroups {queue : State}
 /-- Failure pruning retains unchanged ledgers on surviving group nodes. -/
 theorem State.PendingTracks.removeGroup {queue : State}
     {settled : List Occurrence} (tracks : queue.PendingTracks settled)
-    (key : Nat)
-    : (queue.removeGroup key).PendingTracks settled := by
+    (ref : NodeRef)
+    : (queue.removeGroup ref).PendingTracks settled := by
   intro node member
   exact tracks node (List.mem_filter.mp member).1
 
@@ -251,7 +251,7 @@ theorem State.PendingTracks.finishGroupSuccess {queue : State}
     {settled : List Occurrence} (tracks : queue.PendingTracks settled)
     (group : GroupNode) (all : ∀ occurrence ∈ group.tasks, occurrence ∈ settled)
     : (queue.finishGroupSuccess group).1.PendingTracks settled := by
-  let step (acc : State × List ExecutionGroupValue × Keys)
+  let step (acc : State × List ExecutionGroupValue × NodeRefs)
       (occurrence : Occurrence) :=
     let (current, values, streams) := acc
     match current.taskNode? occurrence with
@@ -262,7 +262,7 @@ theorem State.PendingTracks.finishGroupSuccess {queue : State}
           | none => values
           | some value => values ++ [value]
         (current.removeTask occurrence, values, streams ++ taskNode.childStreams)
-  have stepTracks (acc : State × List ExecutionGroupValue × Keys)
+  have stepTracks (acc : State × List ExecutionGroupValue × NodeRefs)
       (occurrence : Occurrence) (balanced : acc.1.PendingTracks settled)
       (already : occurrence ∈ settled)
       : (step acc occurrence).1.PendingTracks settled := by
@@ -273,7 +273,7 @@ theorem State.PendingTracks.finishGroupSuccess {queue : State}
     · exact balanced.removeTask occurrence already
   have foldTracks (tasks : List Occurrence)
       (all : ∀ occurrence ∈ tasks, occurrence ∈ settled) :
-      ∀ acc : State × List ExecutionGroupValue × Keys,
+      ∀ acc : State × List ExecutionGroupValue × NodeRefs,
         acc.1.PendingTracks settled →
           (tasks.foldl step acc).1.PendingTracks settled := by
     induction tasks with
@@ -291,13 +291,13 @@ theorem State.PendingTracks.finishGroupSuccess {queue : State}
   let current : State :=
     { flushed with
         groupNodes := flushed.groupNodes.filter
-          (fun node => node.group.node.key != group.group.node.key)
-        rootGroups := flushed.rootGroups.filter (· != group.group.node.key) }
+          (fun node => node.group.node.ref != group.group.node.ref)
+        rootGroups := flushed.rootGroups.filter (· != group.group.node.ref) }
   have currentTracks : current.PendingTracks settled := by
     intro node member
     exact flushedTracks node (List.mem_filter.mp member).1
   let children := group.childGroups.filterMap
-    (fun key => (current.groupNode? key).map (fun node => node.group.node))
+    (fun ref => (current.groupNode? ref).map (fun node => node.group.node))
   change (current.pruneEmptyGroups children).1.PendingTracks settled
   exact currentTracks.pruneEmptyGroups children
 
@@ -310,10 +310,10 @@ theorem State.PendingTracks.releaseTaskGroups {queue : State}
     : (groups.foldl
         (fun (acc : State × List WorkQueueEvent × NewWork) group =>
           let (current, events, released) := acc
-          match current.groupNode? group.key with
+          match current.groupNode? group.ref with
           | none => (current, events, released)
           | some node =>
-              if current.rootGroups.contains group.key && node.pending == 0 then
+              if current.rootGroups.contains group.ref && node.pending == 0 then
                 let (next, finished, newWork) := current.finishGroupSuccess node
                 (
                   next,
@@ -330,10 +330,10 @@ theorem State.PendingTracks.releaseTaskGroups {queue : State}
   let step (acc : State × List WorkQueueEvent × NewWork)
       (group : Execution.DeliveryNode) : State × List WorkQueueEvent × NewWork :=
     let (current, events, released) := acc
-    match current.groupNode? group.key with
+    match current.groupNode? group.ref with
     | none => (current, events, released)
     | some node =>
-        if current.rootGroups.contains group.key && node.pending == 0 then
+        if current.rootGroups.contains group.ref && node.pending == 0 then
           let (next, finished, newWork) := current.finishGroupSuccess node
           (next, events ++ finished,
             ⟨released.newGroups ++ newWork.newGroups,
@@ -378,7 +378,7 @@ theorem State.PendingTracks.finishGroupFailure {queue : State}
     {settled : List Occurrence} (tracks : queue.PendingTracks settled)
     (group : GroupNode) (errors : Nat)
     : (queue.finishGroupFailure group errors).1.PendingTracks settled :=
-  tracks.removeGroup group.group.node.key
+  tracks.removeGroup group.group.node.ref
 
 /-- A fresh failed task discharges each contributor's pending token exactly once.
 Witness: exact ownership starts one debt per distinct contributor; membership removal
@@ -388,27 +388,27 @@ These are internal bookkeeping premises, not additional host-source assumptions.
 -/
 theorem State.PendingTracks.taskFailure {queue : State}
     {settled : List Occurrence} (tracks : queue.PendingTracks settled)
-    (keyUnique : queue.GroupKeysUnique) (taskUnique : queue.TaskMembershipsUnique)
+    (refUnique : queue.GroupRefsUnique) (taskUnique : queue.TaskMembershipsUnique)
     (occurrence : Occurrence) (errors : Nat)
     (taskNode : TaskNode) (found : queue.taskNode? occurrence = some taskNode)
     (active : queue.taskHasHealthyOwner taskNode.task = true)
     (fresh : occurrence ∉ settled)
-    (uniqueContributors : (taskNode.task.groups.map Execution.DeliveryNode.key).Nodup)
+    (uniqueContributors : (taskNode.task.groups.map Execution.DeliveryNode.ref).Nodup)
     (owned
       : queue.OwnedExactlyBy occurrence
-          (taskNode.task.groups.map Execution.DeliveryNode.key))
+          (taskNode.task.groups.map Execution.DeliveryNode.ref))
     : (queue.taskFailure occurrence errors).1.PendingTracks (occurrence :: settled) := by
   have debt : queue.PendingDebt (fun _ => True) (occurrence :: settled)
-      (taskNode.task.groups.map Execution.DeliveryNode.key) :=
+      (taskNode.task.groups.map Execution.DeliveryNode.ref) :=
     State.PendingDebt.beginSettlement (fun node member _ => tracks node member)
       taskUnique (fun node member _ => owned node member) fresh
   have removed := debt.removeTask occurrence (by simp)
   have facts := failureGroupFold_preserves (fun _ => True) (occurrence :: settled)
-    State.GroupKeysUnique (fun _ valid => valid)
+    State.GroupRefsUnique (fun _ valid => valid)
     (fun _ _ _ valid _ => valid.putGroupNode _)
-    (fun _ key valid => valid.removeGroup key)
+    (fun _ ref valid => valid.removeGroup ref)
     errors taskNode.task.groups uniqueContributors (queue.removeTask occurrence, [])
-    (keyUnique.removeTask occurrence) removed
+    (refUnique.removeTask occurrence) removed
   rw [queue.taskFailure_eq occurrence errors taskNode found]
   simp only [active, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
   intro node member
@@ -435,17 +435,17 @@ theorem State.PendingTracks.startNewWork {queue : State}
     {settled : List Occurrence} (tracks : queue.PendingTracks settled)
     (newWork : NewWork)
     : (queue.startNewWork newWork).PendingTracks settled := by
-  let groups := newWork.newGroups.map Execution.DeliveryNode.key
-  let streams := newWork.newStreams.map Execution.DeliveryNode.key
+  let groups := newWork.newGroups.map Execution.DeliveryNode.ref
+  let streams := newWork.newStreams.map Execution.DeliveryNode.ref
   let current : State := { queue with rootGroups := queue.rootGroups ++ groups }
-  have groupFold (keys : Keys) :
+  have groupFold (refs : NodeRefs) :
       ∀ current, current.PendingTracks settled →
-        (keys.foldl State.startGroup current).PendingTracks settled := by
-    induction keys with
+        (refs.foldl State.startGroup current).PendingTracks settled := by
+    induction refs with
     | nil => intro current balanced; exact balanced
-    | cons key rest ih =>
+    | cons ref rest ih =>
         intro current balanced
-        apply ih (current.startGroup key)
+        apply ih (current.startGroup ref)
         unfold State.startGroup
         split
         · exact balanced
@@ -465,14 +465,14 @@ theorem State.PendingTracks.startNewWork {queue : State}
           split
           · exact balanced
           · exact taskFold node.tasks current balanced
-  have streamFold (keys : Keys) :
+  have streamFold (refs : NodeRefs) :
       ∀ current, current.PendingTracks settled →
-        (keys.foldl State.startStream current).PendingTracks settled := by
-    induction keys with
+        (refs.foldl State.startStream current).PendingTracks settled := by
+    induction refs with
     | nil => intro current balanced; exact balanced
-    | cons key rest ih =>
+    | cons ref rest ih =>
         intro current balanced
-        apply ih (current.startStream key)
+        apply ih (current.startStream ref)
         unfold State.startStream
         split <;> exact balanced
   change (streams.foldl State.startStream
@@ -494,45 +494,45 @@ theorem State.PendingTracks.drainReadyGroups {queue : State}
 
 /-- Task success preserves pending accounting once the host supplies fresh
 child tasks, a healthy owner survives, and memberships match the task's contributors.
-Witness: `successGroupFold_preserves` carries one decrement debt per remaining key.
+Witness: `successGroupFold_preserves` carries one decrement debt per remaining ref.
 -/
 theorem State.PendingTracks.taskSuccess {queue : State}
     {settled : List Occurrence}
     (tracks : queue.PendingTracks settled)
-    (keyUnique : queue.GroupKeysUnique)
+    (refUnique : queue.GroupRefsUnique)
     (taskUnique : queue.TaskMembershipsUnique)
     (occurrence : Occurrence) (result : TaskResult)
     (taskNode : TaskNode) (found : queue.taskNode? occurrence = some taskNode)
     (active : queue.taskHasHealthyOwner taskNode.task = true)
     (fresh : occurrence ∉ settled)
     (freshChildren : ∀ task ∈ result.work.tasks, task.occurrence ∉ settled)
-    (uniqueContributors : (taskNode.task.groups.map Execution.DeliveryNode.key).Nodup)
+    (uniqueContributors : (taskNode.task.groups.map Execution.DeliveryNode.ref).Nodup)
     (owned
       : ((queue.putTaskNode
             { taskNode with value := some result.value }).maybeIntegrateWork
           result.work (some occurrence)).1.OwnedExactlyBy
-          occurrence (taskNode.task.groups.map Execution.DeliveryNode.key))
+          occurrence (taskNode.task.groups.map Execution.DeliveryNode.ref))
     : (queue.taskSuccess occurrence result).1.PendingTracks (occurrence :: settled) := by
   let withValue := queue.putTaskNode { taskNode with value := some result.value }
   have withValueTracks : withValue.PendingTracks settled := tracks
-  have withValueKeys : withValue.GroupKeysUnique := keyUnique
+  have withValueRefs : withValue.GroupRefsUnique := refUnique
   have withValueTasks : withValue.TaskMembershipsUnique := taskUnique
   let integrated := (withValue.maybeIntegrateWork result.work (some occurrence)).1
   have integratedTracks : integrated.PendingTracks settled :=
     withValueTracks.maybeIntegrateWork result.work freshChildren (some occurrence)
-  have integratedKeys : integrated.GroupKeysUnique :=
-    withValueKeys.maybeIntegrateWork result.work (some occurrence)
+  have integratedRefs : integrated.GroupRefsUnique :=
+    withValueRefs.maybeIntegrateWork result.work (some occurrence)
   have integratedTasks : integrated.TaskMembershipsUnique :=
     withValueTasks.maybeIntegrateWork result.work (some occurrence)
   have debt : integrated.PendingDebt (fun _ => True) (occurrence :: settled)
-      (taskNode.task.groups.map Execution.DeliveryNode.key) :=
+      (taskNode.task.groups.map Execution.DeliveryNode.ref) :=
     State.PendingDebt.beginSettlement (fun node member _ => integratedTracks node member)
       integratedTasks (fun node member _ => owned node member) fresh
   have facts := successGroupFold_preserves (fun _ => True) (occurrence :: settled)
-    State.GroupKeysUnique (fun _ valid => valid) (by intros; trivial)
+    State.GroupRefsUnique (fun _ valid => valid) (by intros; trivial)
     (fun _ node valid _ => valid.putGroupNode _)
     (fun _ node _ valid _ _ _ _ _ => valid.finishGroupSuccess node)
-    taskNode.task.groups uniqueContributors (integrated, [], {}) integratedKeys debt
+    taskNode.task.groups uniqueContributors (integrated, [], {}) integratedRefs debt
   let released := taskNode.task.groups.foldl successGroupStep (integrated, [], {})
   have releasedTracks : released.1.PendingTracks (occurrence :: settled) := by
     intro node member

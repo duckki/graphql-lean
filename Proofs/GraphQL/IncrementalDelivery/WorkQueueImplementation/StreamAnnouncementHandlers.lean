@@ -18,12 +18,12 @@ private theorem fold_preserves {α β : Type} (property : α → Prop) (step : �
 -- Task-produced streams are announced only by consuming their stored links
 -----------------------------------------------------------------------------------------
 
-/-- Integrating task-produced work retains all new stream keys as unannounced links.
+/-- Integrating task-produced work retains all new stream refs as unannounced links.
 Witness: the generic integration inventory and the empty immediate task-stream frontier.
 -/
-theorem State.StreamAnnouncementInventory.integrateTask {queue : State} {announced : Keys}
-    (inventory : queue.StreamAnnouncementInventory announced) (work : Work)
-    (occurrence : Occurrence)
+theorem State.StreamAnnouncementInventory.integrateTask {queue : State}
+    {announced : NodeRefs} (inventory : queue.StreamAnnouncementInventory announced)
+    (work : Work) (occurrence : Occurrence)
     : (queue.maybeIntegrateWork work (some occurrence)).1.StreamAnnouncementInventory
         announced := by
   have silent : (queue.maybeIntegrateWork work (some occurrence)).2.newStreams = [] := by
@@ -34,19 +34,19 @@ theorem State.StreamAnnouncementInventory.integrateTask {queue : State} {announc
   simpa only [silent, List.map_nil, List.append_nil]
     using inventory.maybeIntegrateWork work (some occurrence)
 
-/-- One shared-owner step consumes only unannounced stream keys and preserves provenance.
+/-- One shared-owner step consumes only unannounced stream refs and preserves provenance.
 Witness: cache updates preserve links; a successful flush consumes its selected producers
 before the next contributor is processed.
 -/
 theorem successGroupStep_streamAnnouncementInventory {work : Execution.Work}
-    {announced : Keys} (generated : ExecutedWork work)
+    {announced : NodeRefs} (generated : ExecutedWork work)
     (acc : State × List WorkQueueEvent × NewWork) (group : Execution.DeliveryNode)
     (inventory
       : acc.1.StreamAnnouncementInventory
-          (announced ++ acc.2.1.flatMap rawStreamNoticeKeys))
+          (announced ++ acc.2.1.flatMap rawStreamNoticeRefs))
     (matching : acc.1.ChildStreamsMatchWork work)
     : (successGroupStep acc group).1.StreamAnnouncementInventory
-        (announced ++ (successGroupStep acc group).2.1.flatMap rawStreamNoticeKeys)
+        (announced ++ (successGroupStep acc group).2.1.flatMap rawStreamNoticeRefs)
       ∧ (successGroupStep acc group).1.ChildStreamsMatchWork work := by
   obtain ⟨current, events, released⟩ := acc
   dsimp only [successGroupStep]
@@ -67,14 +67,14 @@ Witness: fresh attachment followed by sequential consumption of stored links; ma
 work preserves structural producer identity across preparation and every release.
 -/
 theorem State.StreamAnnouncementInventory.taskSuccess {queue : State}
-    {work : Execution.Work} {announced : Keys}
+    {work : Execution.Work} {announced : NodeRefs}
     (inventory : queue.StreamAnnouncementInventory announced)
     (matching : queue.ChildStreamsMatchWork work) (generated : ExecutedWork work)
     {occurrence result}
     (source : (GraphEvent.taskSuccess occurrence result).MatchesWork work)
     : (queue.taskSuccess occurrence result).1.StreamAnnouncementInventory
         (announced
-          ++ (queue.taskSuccess occurrence result).2.flatMap rawStreamNoticeKeys) := by
+          ++ (queue.taskSuccess occurrence result).2.flatMap rawStreamNoticeRefs) := by
   cases found : queue.taskNode? occurrence with
   | none =>
       simpa only [State.taskSuccess, found, List.flatMap_nil, List.append_nil]
@@ -91,10 +91,10 @@ theorem State.StreamAnnouncementInventory.taskSuccess {queue : State}
       have loop (groups : List Execution.DeliveryNode)
           (acc : State × List WorkQueueEvent × NewWork)
           (prior : acc.1.StreamAnnouncementInventory
-            (announced ++ acc.2.1.flatMap rawStreamNoticeKeys))
+            (announced ++ acc.2.1.flatMap rawStreamNoticeRefs))
           (links : acc.1.ChildStreamsMatchWork work)
           : (groups.foldl successGroupStep acc).1.StreamAnnouncementInventory
-              (announced ++ (groups.foldl successGroupStep acc).2.1.flatMap rawStreamNoticeKeys)
+              (announced ++ (groups.foldl successGroupStep acc).2.1.flatMap rawStreamNoticeRefs)
             ∧ (groups.foldl successGroupStep acc).1.ChildStreamsMatchWork work := by
         induction groups generalizing acc with
         | nil => exact ⟨prior, links⟩
@@ -117,13 +117,13 @@ theorem State.StreamAnnouncementInventory.taskSuccess {queue : State}
 /-- Task failure preserves stream-announcement inventory without emitting stream notices.
 Witness: deletion and failed-group cleanup retain old links; cached failures change none.
 -/
-theorem State.StreamAnnouncementInventory.taskFailure {queue : State} {announced : Keys}
-    (inventory : queue.StreamAnnouncementInventory announced) (occurrence : Occurrence)
-    (errors : Nat)
+theorem State.StreamAnnouncementInventory.taskFailure {queue : State}
+    {announced : NodeRefs} (inventory : queue.StreamAnnouncementInventory announced)
+    (occurrence : Occurrence) (errors : Nat)
     : (queue.taskFailure occurrence errors).1.StreamAnnouncementInventory
         (announced
-          ++ (queue.taskFailure occurrence errors).2.flatMap rawStreamNoticeKeys) := by
-  rw [State.taskFailure_streamNoticeKeys, List.append_nil]
+          ++ (queue.taskFailure occurrence errors).2.flatMap rawStreamNoticeRefs) := by
+  rw [State.taskFailure_streamNoticeRefs, List.append_nil]
   unfold State.taskFailure
   split
   · exact inventory
@@ -146,11 +146,11 @@ theorem State.StreamAnnouncementInventory.taskFailure {queue : State} {announced
 -----------------------------------------------------------------------------------------
 
 /-- Every item fold preserves inventory for all stream notices accumulated so far.
-Witness: each root integration announces fresh keys before subsequent items register work;
+Witness: each root integration announces fresh refs before subsequent items register work;
 pruning and activation preserve both link freshness and structural provenance.
 -/
 theorem streamItemFold_streamAnnouncementInventory {work : Execution.Work}
-    {announced : Keys} (items : List StreamItem)
+    {announced : NodeRefs} (items : List StreamItem)
     (acc
       : State
         × List Execution.DeliveryNode
@@ -158,11 +158,11 @@ theorem streamItemFold_streamAnnouncementInventory {work : Execution.Work}
         × List StreamItemValue)
     (inventory
       : acc.1.StreamAnnouncementInventory
-          (announced ++ acc.2.2.1.map Execution.DeliveryNode.key))
+          (announced ++ acc.2.2.1.map Execution.DeliveryNode.ref))
     (matching : acc.1.ChildStreamsMatchWork work)
     : (items.foldl streamItemStep acc).1.StreamAnnouncementInventory
         (announced
-          ++ (items.foldl streamItemStep acc).2.2.1.map Execution.DeliveryNode.key)
+          ++ (items.foldl streamItemStep acc).2.2.1.map Execution.DeliveryNode.ref)
       ∧ (items.foldl streamItemStep acc).1.ChildStreamsMatchWork work := by
   induction items generalizing acc with
   | nil => exact ⟨inventory, matching⟩
@@ -180,31 +180,31 @@ Witness: the complete item fold consumes fresh roots; the following drain consum
 remaining stored links, so its notices cannot repeat the leading item's notices.
 -/
 theorem State.StreamAnnouncementInventory.streamItems
-    {queue : State} {work : Execution.Work} {announced : Keys}
+    {queue : State} {work : Execution.Work} {announced : NodeRefs}
     (inventory : queue.StreamAnnouncementInventory announced)
     (matching : queue.ChildStreamsMatchWork work) (generated : ExecutedWork work)
     (stream : Execution.DeliveryNode) (items : List StreamItem)
     : (queue.streamItems stream items).1.StreamAnnouncementInventory
         (announced
-          ++ (queue.streamItems stream items).2.flatMap rawStreamNoticeKeys) := by
+          ++ (queue.streamItems stream items).2.flatMap rawStreamNoticeRefs) := by
   rw [queue.streamItems_eq stream items]
   split
   · simpa only [List.flatMap_nil, List.append_nil] using inventory
   · have prepared := streamItemFold_streamAnnouncementInventory items (queue, [], [], [])
         (by simpa only [List.map_nil, List.append_nil] using inventory) matching
     have drained := prepared.1.drainReadyGroups prepared.2 generated
-    simpa only [List.flatMap_cons, rawStreamNoticeKeys, List.append_assoc] using drained
+    simpa only [List.flatMap_cons, rawStreamNoticeRefs, List.append_assoc] using drained
 
 /-- Every matching graph event extends the inventory by exactly its raw stream notices.
 Witness: task and item handlers preserve consumption; closure-only inputs change no links.
 -/
 theorem State.StreamAnnouncementInventory.handleGraphEvent
-    {queue : State} {work : Execution.Work} {announced : Keys}
+    {queue : State} {work : Execution.Work} {announced : NodeRefs}
     (inventory : queue.StreamAnnouncementInventory announced)
     (matching : queue.ChildStreamsMatchWork work) (generated : ExecutedWork work)
     {event : GraphEvent} (source : event.MatchesWork work)
     : (queue.handleGraphEvent event).1.StreamAnnouncementInventory
-        (announced ++ (queue.handleGraphEvent event).2.flatMap rawStreamNoticeKeys) := by
+        (announced ++ (queue.handleGraphEvent event).2.flatMap rawStreamNoticeRefs) := by
   cases event with
   | taskSuccess => exact inventory.taskSuccess matching generated source
   | taskFailure occurrence errors => exact inventory.taskFailure occurrence errors
@@ -212,12 +212,12 @@ theorem State.StreamAnnouncementInventory.handleGraphEvent
       exact inventory.streamItems matching generated stream items
   | streamSuccess stream =>
       simp only [State.handleGraphEvent, State.streamSuccess]
-      split <;> simp only [List.flatMap_nil, List.flatMap_singleton, rawStreamNoticeKeys,
+      split <;> simp only [List.flatMap_nil, List.flatMap_singleton, rawStreamNoticeRefs,
         List.append_nil] <;>
         exact ⟨inventory.unique, inventory.registered, inventory.stored, inventory.unreleased⟩
   | streamFailure stream errors =>
       simp only [State.handleGraphEvent, State.streamFailure]
-      split <;> simp only [List.flatMap_nil, List.flatMap_singleton, rawStreamNoticeKeys,
+      split <;> simp only [List.flatMap_nil, List.flatMap_singleton, rawStreamNoticeRefs,
         List.append_nil] <;>
         exact ⟨inventory.unique, inventory.registered, inventory.stored, inventory.unreleased⟩
 

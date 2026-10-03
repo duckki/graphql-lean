@@ -11,14 +11,14 @@ open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
-/-- Generated initial notice keys are distinct without assuming valid initialization.
-Witness: group pruning, stream registration, and disjoint execution key roles.
+/-- Generated initial notice refs are distinct without assuming valid initialization.
+Witness: group pruning, stream registration, and disjoint execution ref roles.
 -/
 example {work} (executed : ExecutedWork work)
     : (((State.initialize (Work.fromExecution work)).initialGroups
         ++ (State.initialize (Work.fromExecution work)).initialStreams).map
-        DeliveryNode.key).Nodup :=
-  executed.initialNoticeKeys_unique
+        DeliveryNode.ref).Nodup :=
+  executed.initialNoticeRefs_unique
 
 /-- Initial group descriptors need no producer publication.
 Witness: immediate contributor support survives pruning and descriptor coherence.
@@ -34,8 +34,8 @@ Witness: the constructor's retirement certificates and empty settlement history.
 example {work group dependencies} (executed : ExecutedWork work)
     (noticed : group ∈ (State.initialize (Work.fromExecution work)).initialGroups)
     (known : NodeAt work group .group dependencies none)
-    : ∀ key ∈ dependencies,
-        ∀ occurrence owners, TaskHasOwners work occurrence owners → key ∉ owners :=
+    : ∀ ref ∈ dependencies,
+        ∀ occurrence owners, TaskHasOwners work occurrence owners → ref ∉ owners :=
   executed.initialGroups_ancestors_taskless noticed known
 
 /-- Initialization follows from nonempty executed work, without a supplied notice law.
@@ -55,9 +55,9 @@ example (work : Execution.Work) (schedule : EventSource (List GraphEvent))
     : (ReferenceWorkQueue.createWorkQueueForSchedule work schedule).Conforms work :=
   createWorkQueueForScheduleConforms_holds work schedule executed nonempty valid
 
-private def parent : DeliveryNode := { key := 0, path := [] }
-private def child : DeliveryNode := { key := 1, path := [] }
-private def other : DeliveryNode := { key := 2, path := [] }
+private def parent : DeliveryNode := { ref := 0, path := [] }
+private def child : DeliveryNode := { ref := 1, path := [] }
+private def other : DeliveryNode := { ref := 2, path := [] }
 
 /-- Empty streams still supply a nonempty, eligible initial frontier.
 Witness: concrete registration keeps the stream, then its producer-free descriptor
@@ -69,7 +69,7 @@ example
       Initializes work queue.initialGroups queue.initialStreams := by
   intro work queue
   apply (initializes_iff_static_frontier work).mpr
-  change ([child].map DeliveryNode.key).Nodup ∧
+  change ([child].map DeliveryNode.ref).Nodup ∧
     (∀ group ∈ ([] : List DeliveryNode), _) ∧ [child] ≠ []
   exact ⟨by simp, by simp, by simp⟩
 
@@ -90,7 +90,7 @@ example
             (.object "Query" 0) [defer [defer [field "a"]]]).run
           0).1.work
       let queue := State.initialize (Work.fromExecution work)
-      queue.initialGroups.map DeliveryNode.key = [1] ∧ queue.initialStreams = [] := by
+      queue.initialGroups.map DeliveryNode.ref = [1] ∧ queue.initialStreams = [] := by
   cbv
 
 private def rawHiddenAncestor : Execution.Work :=
@@ -114,15 +114,15 @@ The generated-work proof must therefore use global ancestry, not only current ta
 -/
 example
     : ¬CanAnnounce rawHiddenAncestor [] (fun _ => .executionGroup []) [] []
-        child .group [parent.key] none := by
-  have known : NodeAt rawHiddenAncestor child .group [parent.key] none :=
+        child .group [parent.ref] none := by
+  have known : NodeAt rawHiddenAncestor child .group [parent.ref] none :=
     .group (.left .root) List.mem_cons_self
-  have hidden : TaskHasOwners rawHiddenAncestor (.executionGroup [1, 0]) [parent.key] :=
+  have hidden : TaskHasOwners rawHiddenAncestor (.executionGroup [1, 0]) [parent.ref] :=
     ⟨some (.executionGroup [1]), .object [] (.ok ([], 0)),
       .executionGroup (.executionGroup (.right .root))⟩
   intro eligible
   have absent := ((group_canAnnounce_initial_iff known).mp eligible).2
-    parent.key List.mem_cons_self (.executionGroup [1, 0]) [parent.key] hidden
+    parent.ref List.mem_cons_self (.executionGroup [1, 0]) [parent.ref] hidden
   exact absent List.mem_cons_self
 
 end GraphQL.IncrementalDelivery.Tests.WorkQueueInitialization

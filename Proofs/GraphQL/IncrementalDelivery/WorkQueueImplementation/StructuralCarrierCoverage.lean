@@ -28,12 +28,12 @@ theorem ExecutedWork.successfulCarrier_structuralContributor_registered
               before).handleGraphEvent
             event).2)
     (known : TaskAt work (.executionGroup address) owners producer payload)
-    (contributes : group.key ∈ owners)
+    (contributes : group.ref ∈ owners)
     : ∃ task ∈
         ((State.initialize (Work.fromExecution work)).replayGraphEvents
           (before ++ [event])).tasks,
         task.occurrence = .executionGroup address
-        ∧ task.groups.map Execution.DeliveryNode.key = owners := by
+        ∧ task.groups.map Execution.DeliveryNode.ref = owners := by
   obtain ⟨_, _, retired, healthy, _⟩ :=
     generated.replayGraphEvents_successfulCarrier_retiredHealthy valid
       (State.acceptsBatch_prefix started) carrier
@@ -62,7 +62,7 @@ theorem ExecutedWork.successfulCarrier_structuralContributor_covered
           event).2[index]?
         = some (.groupSuccess group groups streams))
     (known : TaskAt work (.executionGroup address) owners producer payload)
-    (contributes : group.key ∈ owners)
+    (contributes : group.ref ∈ owners)
     : ∃ value,
         (Occurrence.executionGroup address, value)
         ∈ published.take

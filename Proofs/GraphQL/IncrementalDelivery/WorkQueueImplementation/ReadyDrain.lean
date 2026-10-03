@@ -1,4 +1,4 @@
-import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.GroupKeys
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.GroupRefs
 
 /-! Induction over the executable release-time drain, without source assumptions. -/
 
@@ -13,7 +13,7 @@ theorem State.drainReadyGroups_go_preserves (invariant : State → Prop)
       : ∀ queue node,
           invariant queue
           → node ∈ queue.groupNodes
-          → node.group.node.key ∈ queue.rootGroups
+          → node.group.node.ref ∈ queue.rootGroups
           → node.failure = none
           → node.pending = 0
           → invariant
@@ -23,7 +23,7 @@ theorem State.drainReadyGroups_go_preserves (invariant : State → Prop)
       : ∀ queue node errors,
           invariant queue
           → node ∈ queue.groupNodes
-          → node.group.node.key ∈ queue.rootGroups
+          → node.group.node.ref ∈ queue.rootGroups
           → node.failure = some errors
           → invariant (queue.finishGroupFailure node errors).1)
     {queue : State} (valid : invariant queue) (fuel : Nat)
@@ -38,8 +38,8 @@ theorem State.drainReadyGroups_go_preserves (invariant : State → Prop)
         split
         · exact valid
         · rename_i node selected
-          obtain ⟨key, active, choice⟩ := List.exists_of_findSome?_eq_some selected
-          cases found : current.groupNode? key with
+          obtain ⟨ref, active, choice⟩ := List.exists_of_findSome?_eq_some selected
+          cases found : current.groupNode? ref with
           | none => simp [found] at choice
           | some candidate =>
               simp only [found] at choice
@@ -50,7 +50,7 @@ theorem State.drainReadyGroups_go_preserves (invariant : State → Prop)
                 have equal := Option.some.inj choice
                 subst candidate
                 have member := List.mem_of_find?_eq_some found
-                have root := current.groupNode?_key found ▸ active
+                have root := current.groupNode?_ref found ▸ active
                 cases failed : node.failure with
                 | none =>
                     have zero : node.pending = 0 := by simpa [failed] using ready
@@ -68,7 +68,7 @@ theorem State.drainReadyGroups_preserves (invariant : State → Prop)
       : ∀ queue node,
           invariant queue
           → node ∈ queue.groupNodes
-          → node.group.node.key ∈ queue.rootGroups
+          → node.group.node.ref ∈ queue.rootGroups
           → node.failure = none
           → node.pending = 0
           → invariant
@@ -78,7 +78,7 @@ theorem State.drainReadyGroups_preserves (invariant : State → Prop)
       : ∀ queue node errors,
           invariant queue
           → node ∈ queue.groupNodes
-          → node.group.node.key ∈ queue.rootGroups
+          → node.group.node.ref ∈ queue.rootGroups
           → node.failure = some errors
           → invariant (queue.finishGroupFailure node errors).1)
     {queue : State} (valid : invariant queue)

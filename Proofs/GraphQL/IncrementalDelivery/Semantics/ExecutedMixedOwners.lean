@@ -1,7 +1,7 @@
 import Proofs.GraphQL.IncrementalDelivery.Semantics.MixedOwnerMetadata
 import Proofs.GraphQL.IncrementalDelivery.Semantics.CollectedSupply
 
-/-! Actual mixed execution assigns each allocated key one absolute attachment path,
+/-! Actual mixed execution assigns each allocated ref one absolute attachment path,
 including all work in streamed items. No success or directive restriction is needed.
 -/
 
@@ -220,14 +220,14 @@ mutual
         · exact ⟨hle, middle, he, workAt_catchNull middle _ _ _ hw⟩
         · let mid := ((completeListValue schema resolvers variables fuel inner fields
             (values.take usage.initialCount) path 0 usages deferMap).run state).2
-          let node : DeliveryNode := {key := mid, path, label := usage.label}
+          let node : DeliveryNode := {ref := mid, path, label := usage.label}
           obtain ⟨hfresh, hnode⟩ := assigned_fresh middle mid node rfl
           obtain ⟨hlt, final, het, hitems⟩ := completeStreamItems_owners schema resolvers variables fuel
             inner (fields.map (fun field => {field with deferUsage := none}))
             (values.drop usage.initialCount) path usage.initialCount
-            (fun key => if key = mid then path else middle key) (mid + 1)
+            (fun ref => if ref = mid then path else middle ref) (mid + 1)
           dsimp only [mid] at hlt
-          simp only [freshExecutionKey, run_bind, StateT.run_get, StateT.run_set,
+          simp only [freshNodeRef, run_bind, StateT.run_get, StateT.run_set,
             StateT.run_pure, id_pure_eq]
           refine ⟨by omega, final, he.trans (hfresh.trans het (by omega)) hle, ?_⟩
           rw [WorkAt]

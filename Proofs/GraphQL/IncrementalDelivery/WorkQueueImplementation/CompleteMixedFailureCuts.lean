@@ -11,17 +11,17 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 -- Unrelated failed items contribute zero, without changing the object totals
 -----------------------------------------------------------------------------------------
 
-/-- Prepending known tasks that do not own the key preserves its exact error total.
+/-- Prepending known tasks that do not own the ref preserves its exact error total.
 Witness: add their zero contributions one at a time. No freshness or disjointness premise
 is needed, because descriptor uniqueness also fixes contributions at repeated occurrences.
 -/
-theorem nodeErrors_prepend_nonowners {work failed key errors}
-    (counts : NodeErrors work failed key errors) (more : List Occurrence)
+theorem nodeErrors_prepend_nonowners {work failed ref errors}
+    (counts : NodeErrors work failed ref errors) (more : List Occurrence)
     (known
       : ∀ occurrence ∈ more,
           ∃ owners producer payload,
-            TaskAt work occurrence owners producer payload ∧ key ∉ owners)
-    : NodeErrors work (more ++ failed) key errors := by
+            TaskAt work occurrence owners producer payload ∧ ref ∉ owners)
+    : NodeErrors work (more ++ failed) ref errors := by
   induction more with
   | nil => exact counts
   | cons occurrence rest ih =>
@@ -31,20 +31,20 @@ theorem nodeErrors_prepend_nonowners {work failed key errors}
         using nodeErrors_cons prior task
 
 /-- Adding visible stream failures preserves the exact total for a generated group.
-Witness: each failed item's sole stream owner is disjoint from the group's key.
+Witness: each failed item's sole stream owner is disjoint from the group's ref.
 This concerns summation only, not licensing the added failure cuts.
 -/
 theorem nodeErrors_with_streams {work events streams objects index group errors}
-    (counts : NodeErrors work objects group.key errors)
+    (counts : NodeErrors work objects group.ref errors)
     (cuts : StreamFailureCuts work events streams) (generated : ExecutedWork work)
     {dependencies producer} (groupKnown : NodeAt work group .group dependencies producer)
-    : NodeErrors work (failedBefore streams index ++ objects) group.key errors := by
+    : NodeErrors work (failedBefore streams index ++ objects) group.ref errors := by
   apply nodeErrors_prepend_nonowners counts
   intro occurrence member
   obtain ⟨entry, retained, same⟩ := List.mem_map.mp member
   obtain ⟨stream, count, parent, _, task⟩ := cuts.2 entry (List.mem_filter.mp retained).1
   rw [same] at task
-  exact ⟨[stream.key], parent, _, task,
+  exact ⟨[stream.ref], parent, _, task,
     generated.itemFailure_not_groupOwner groupKnown task⟩
 
 /-- Interleaving stream cuts preserves a group's complete visible object-failure total.
@@ -53,12 +53,12 @@ contributions, and permute the summands back to the actual mixed inventory.
 -/
 theorem nodeErrors_group_mixed
     {work events streamCuts objectCuts failures index group errors}
-    (counts : NodeErrors work (failedBefore objectCuts index) group.key errors)
+    (counts : NodeErrors work (failedBefore objectCuts index) group.ref errors)
     (cuts : StreamFailureCuts work events streamCuts)
     (partition : failures.Perm (streamCuts ++ objectCuts))
     (generated : ExecutedWork work) {dependencies producer}
     (groupKnown : NodeAt work group .group dependencies producer)
-    : NodeErrors work (failedBefore failures index) group.key errors := by
+    : NodeErrors work (failedBefore failures index) group.ref errors := by
   exact nodeErrors_of_perm (nodeErrors_with_streams counts cuts generated groupKnown)
     (failedBefore_partition partition index).symm
 
@@ -95,7 +95,7 @@ theorem createWorkQueue_mixedFailureCuts_groupNodeErrors {work : Execution.Work}
             batches).2.flatten.flatMap
           publicationAtoms)[index]?
         = some (.groupFailure group errors))
-    : NodeErrors work (failedBefore failures index) group.key errors := by
+    : NodeErrors work (failedBefore failures index) group.ref errors := by
   obtain ⟨dependencies, producer, groupKnown⟩ :=
     createWorkQueue_runNormalized_atomicGroupClosuresLocated generated valid _
       (List.mem_of_getElem? atEvent)
@@ -130,7 +130,7 @@ theorem createWorkQueue_mixedFailureCuts_streamNodeErrors {work : Execution.Work
             batches).2.flatten.flatMap
           publicationAtoms)[index]?
         = some (.streamFailure stream errors))
-    : NodeErrors work (failedBefore failures index) stream.key errors := by
+    : NodeErrors work (failedBefore failures index) stream.ref errors := by
   apply cuts.nodeErrors_mixed partition ?_ generated
     (createWorkQueue_runNormalized_atomicStreamActions_ordered valid) atEvent
   intro entry member

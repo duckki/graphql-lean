@@ -14,17 +14,17 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 Witness: a positive summand identifies a visible task with this owner; its retained cut
 causes node failure. No output admission or previously licensed inventory is assumed.
 -/
-theorem nodeErrors_nodeFailed_of_positive {work matching events failures key errors}
-    (counts : NodeErrors work (failedBefore failures events.length) key errors)
+theorem nodeErrors_nodeFailed_of_positive {work matching events failures ref errors}
+    (counts : NodeErrors work (failedBefore failures events.length) ref errors)
     (positive : 0 < errors)
-    : NodeFailed work matching events failures key := by
+    : NodeFailed work matching events failures ref := by
   obtain ⟨contribution, known, total⟩ := counts
   rw [total] at positive
   obtain ⟨count, member, pos⟩ := List.sum_pos_iff_exists_pos_nat.mp positive
   obtain ⟨occurrence, recorded, same⟩ := List.mem_map.mp member
   obtain ⟨owners, producer, payload, task, counted⟩ := known occurrence recorded
-  have owner : key ∈ owners := by
-    by_cases present : key ∈ owners
+  have owner : ref ∈ owners := by
+    by_cases present : ref ∈ owners
     · exact present
     · simp [present, same] at counted
       omega
@@ -83,11 +83,11 @@ The witness carries one event history, publication matching, and mixed failure i
 def FailureAdmission (work : Execution.Work) (w : Witness) : Prop :=
   (∀ index group errors,
     w.events[index]? = some (.groupFailure group errors)
-    → EventAllowed work (initialKeys work) w.matching (w.events.take index) w.failures
+    → EventAllowed work (initialRefs work) w.matching (w.events.take index) w.failures
         (.groupFailure group errors))
   ∧ (∀ index stream errors,
       w.events[index]? = some (.streamFailure stream errors)
-      → EventAllowed work (initialKeys work) w.matching (w.events.take index) w.failures
+      → EventAllowed work (initialRefs work) w.matching (w.events.take index) w.failures
           (.streamFailure stream errors))
 
 /-- Actual failed controls are admitted under the same complete announced inventory.
@@ -114,7 +114,7 @@ theorem failureAdmission_of_announced {work inputs w}
     have counts := announced.1.2.2.2.1 index group errors selected
     have positive := createWorkQueue_atomicGroupFailure_positive generated valid
       (List.mem_of_getElem? atFull)
-    have failed : NodeFailed work w.matching (w.events.take index) w.failures group.key :=
+    have failed : NodeFailed work w.matching (w.events.take index) w.failures group.ref :=
       nodeErrors_nodeFailed_of_positive (length.symm ▸ counts) positive
     simp only [EventAllowed]
     rw [nodeFailed_filter (Nat.le_refl _), failedBefore_filter _ (Nat.le_refl _), length]
@@ -135,7 +135,7 @@ theorem failureAdmission_of_announced {work inputs w}
       List.length_take_of_le (Nat.le_of_lt (List.getElem?_eq_some_iff.mp selected).1)
     have counts := announced.1.2.2.2.2 index stream errors selected
     have positive : 0 < errors := generated.taskFailure_positive task rfl
-    have failed : NodeFailed work w.matching (w.events.take index) w.failures stream.key :=
+    have failed : NodeFailed work w.matching (w.events.take index) w.failures stream.ref :=
       nodeErrors_nodeFailed_of_positive (length.symm ▸ counts) positive
     simp only [EventAllowed]
     rw [nodeFailed_filter (Nat.le_refl _), failedBefore_filter _ (Nat.le_refl _), length]

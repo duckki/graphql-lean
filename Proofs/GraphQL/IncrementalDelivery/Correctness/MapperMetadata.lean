@@ -7,13 +7,13 @@ namespace GraphQL.IncrementalDelivery.Correctness
 open GraphQL.IncrementalDelivery.Execution
 open MapperIdentity
 
-/-- Ordered notice encoding retains each node's key, path, and label in the final state.
+/-- Ordered notice encoding retains each node's ref, path, and label in the final state.
 -/
 inductive NodeNotices (ids : IDState)
     : List DeliveryNode → List IncrementalPendingNotice → Prop where
   | nil : NodeNotices ids [] []
   | cons {node notice nodes notices}
-    (known : Known ids node.key notice.id)
+    (known : Known ids node.ref notice.id)
     (path : notice.path = node.path) (label : notice.label = node.label)
     (tail : NodeNotices ids nodes notices)
     : NodeNotices ids (node :: nodes) (notice :: notices)
@@ -42,7 +42,7 @@ theorem getPendingEntry_metadata (nodes : List DeliveryNode) (ids : IDState)
     | nil => exact ⟨.refl _, .nil⟩
     | cons node rest ih =>
         have spec : Preserves ids ((action node).run ids).2
-            ∧ Known ((action node).run ids).2 node.key ((action node).run ids).1.id :=
+            ∧ Known ((action node).run ids).2 node.ref ((action node).run ids).1.id :=
           ensureID_spec node ids
         have path : ((action node).run ids).1.path = node.path := rfl
         have label : ((action node).run ids).1.label = node.label := rfl
@@ -75,23 +75,23 @@ theorem getPendingEntry_metadata_of_eq {groups streams ids next pending}
   rw [equation] at metadata
   exact metadata.2
 
-/-- Each visible notice names one allocated key and that key's absolute source path. -/
+/-- Each visible notice names one allocated ref and that ref's absolute source path. -/
 def NoticePaths (paths : Nat → ResponsePath) (ids : IDState)
     (notices : List IncrementalPendingNotice)
     : Prop :=
-  ∀ notice ∈ notices, ∃ key, Known ids key notice.id ∧ paths key = notice.path
+  ∀ notice ∈ notices, ∃ ref, Known ids ref notice.id ∧ paths ref = notice.path
 
 /-- Ordered metadata and a coherent node assignment imply visible notice paths. -/
 theorem NodeNotices.paths {paths ids nodes notices}
     (encoded : NodeNotices ids nodes notices)
-    (coherent : ∀ node ∈ nodes, paths node.key = node.path)
+    (coherent : ∀ node ∈ nodes, paths node.ref = node.path)
     : NoticePaths paths ids notices := by
   induction encoded with
   | nil => simp [NoticePaths]
   | @cons node notice nodes notices known path label tail ih =>
       intro entry member
       rcases List.mem_cons.mp member with rfl | member
-      · exact ⟨node.key, known, (coherent node (by simp)).trans path.symm⟩
+      · exact ⟨node.ref, known, (coherent node (by simp)).trans path.symm⟩
       · exact ih (fun node member => coherent node (by simp [member])) entry member
 
 /-- Allocation growth preserves already visible notice paths. -/
@@ -99,8 +99,8 @@ theorem NoticePaths.mono {paths before after notices}
     (valid : NoticePaths paths before notices) (preserves : Preserves before after)
     : NoticePaths paths after notices := by
   intro notice member
-  obtain ⟨key, known, path⟩ := valid notice member
-  exact ⟨key, preserves _ _ known, path⟩
+  obtain ⟨ref, known, path⟩ := valid notice member
+  exact ⟨ref, preserves _ _ known, path⟩
 
 /-- Concatenation preserves notice metadata by membership in either input list. -/
 theorem NoticePaths.append {paths ids left right}
@@ -112,18 +112,18 @@ theorem NoticePaths.append {paths ids left right}
   · exact second notice member
 
 /-- A looked-up wire notice has the target node's actual path. Witness: stable-ID
-injectivity identifies its encoded key, and coherent metadata identifies its path.
+injectivity identifies its encoded ref, and coherent metadata identifies its path.
 -/
 theorem NoticePaths.lookup {paths ids notices id notice} {node : DeliveryNode}
     (valid : NoticePaths paths ids notices) (allocated : Allocated ids)
-    (known : Known ids node.key id) (path : paths node.key = node.path)
+    (known : Known ids node.ref id) (path : paths node.ref = node.path)
     (found : notices.find? (fun notice => notice.id == id) = some notice)
     : notice.path = node.path := by
-  obtain ⟨key, noticeKnown, noticePath⟩ := valid notice (List.mem_of_find?_eq_some found)
+  obtain ⟨ref, noticeKnown, noticePath⟩ := valid notice (List.mem_of_find?_eq_some found)
   have sameID : notice.id = id := by simpa using List.find?_some found
   rw [sameID] at noticeKnown
-  have sameKey := Known.injective allocated noticeKnown known
-  rw [sameKey] at noticePath
+  have sameRef := Known.injective allocated noticeKnown known
+  rw [sameRef] at noticePath
   exact noticePath.symm.trans path
 
 end GraphQL.IncrementalDelivery.Correctness

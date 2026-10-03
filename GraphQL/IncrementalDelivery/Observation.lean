@@ -13,7 +13,7 @@ open GraphQL.IncrementalDelivery.Execution
 -----------------------------------------------------------------------------------------
 
 /-- Prepared pure root completion, shared by query-observation and implementation statements.
-This model-only helper applies variable defaults and starts work-key allocation at zero;
+This model-only helper applies variable defaults and starts work-ref allocation at zero;
 it neither checks root applicability nor constructs a queue or response stream.
 -/
 def queryCompletion (schema : Schema) (resolvers : Resolvers ObjectRef)

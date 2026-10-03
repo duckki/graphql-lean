@@ -8,11 +8,11 @@ open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
-private def stream : DeliveryNode := { key := 0, path := [.field "users"] }
+private def stream : DeliveryNode := { ref := 0, path := [.field "users"] }
 
 private def child (index : Nat) : DeliveryNode :=
   {
-    key := index + 1, path := [.field "users", .index index], label := some (.string "C")
+    ref := index + 1, path := [.field "users", .index index], label := some (.string "C")
   }
 
 private def children (index : Nat) : Execution.Work :=
@@ -81,7 +81,7 @@ private theorem itemMatches (index : Nat) (bound : index < 2)
   have entry : entries[index]? = some (.ok (.object [], 0), children index) := by
     have casesIndex : index = 0 ∨ index = 1 := by omega
     rcases casesIndex with rfl | rfl <;> rfl
-  refine ⟨[stream.key], none, ?_, ?_⟩
+  refine ⟨[stream.ref], none, ?_, ?_⟩
   · exact ⟨stream, entries, [], .ok (.object [], 0), children index,
       streamLocated, entry, rfl, rfl⟩
   · have located : locateWork work [0, 0, 1] = some ⟨.stream stream entries, none, []⟩ :=
@@ -91,7 +91,7 @@ private theorem itemMatches (index : Nat) (bound : index < 2)
 /-- The first child's failed task has the first stream item as producer.
 Witness: its exact located execution group, not a manually supplied failure count. -/
 private theorem failedKnown
-    : TaskAt work failedTask [(child 0).key] (some (item 0).occurrence)
+    : TaskAt work failedTask [(child 0).ref] (some (item 0).occurrence)
         (.object (child 0).path (.error 1)) := by
   refine ⟨[⟨child 0, []⟩], (child 0).path, .error 1, .empty, [], ?_, rfl, rfl⟩
   cbv
@@ -210,10 +210,10 @@ theorem surviving_state
         = ((State.initialize (Work.fromExecution work)).runNormalized joinedInputs).1
       ∧ ((State.initialize (Work.fromExecution work)).runNormalized
           splitInputs).1.rootGroups
-        = [(child 1).key]
+        = [(child 1).ref]
       ∧ ((State.initialize (Work.fromExecution work)).runNormalized
           splitInputs).1.groupNode?
-          (child 0).key
+          (child 0).ref
         = none := by
   constructor
   · cbv
@@ -223,7 +223,7 @@ theorem surviving_state
 Witness: direct registry membership; failure does not permit duplicate registration.
 -/
 theorem failed_owner_is_registered
-    : (child 0).key
+    : (child 0).ref
       ∈ ((State.initialize (Work.fromExecution work)).runNormalized
           splitInputs).1.registeredGroups := by
   cbv
@@ -245,7 +245,7 @@ private def successResult : TaskResult :=
 /-- The second child's success is fixed by generated work, not chosen by the scheduler.
 Witness: its exact task location and producing stream-item occurrence. -/
 private theorem successKnown
-    : TaskAt work successfulTask [(child 1).key] (some (item 1).occurrence)
+    : TaskAt work successfulTask [(child 1).ref] (some (item 1).occurrence)
         (.object (child 1).path (.ok ([("required", .scalar "ok")], 0))) := by
   refine ⟨[⟨child 1, []⟩], (child 1).path, _, .combine .empty .empty, [], ?_, rfl, rfl⟩
   cbv

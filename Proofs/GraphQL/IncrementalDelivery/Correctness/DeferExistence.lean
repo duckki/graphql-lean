@@ -20,14 +20,14 @@ Witness: structural descent; a stream boundary contradicts the original shape.
 -/
 private theorem DeferOnly.roles_at {work address current producer owners}
     (shape : DeferOnly work) (located : Located work address current producer owners)
-    : KeyRoles.WorkRoles (fun _ => false) current := by
+    : RefRoles.WorkRoles (fun _ => false) current := by
   cases current with
-  | empty => simp [KeyRoles.WorkRoles]
+  | empty => simp [RefRoles.WorkRoles]
   | combine left right =>
-      rw [KeyRoles.WorkRoles]
+      rw [RefRoles.WorkRoles]
       exact ⟨shape.roles_at (.left located), shape.roles_at (.right located)⟩
   | executionGroup groups path result children =>
-      rw [KeyRoles.WorkRoles]
+      rw [RefRoles.WorkRoles]
       exact ⟨by simp, shape.roles_at (.executionGroup located)⟩
   | stream node items =>
       have impossible := shape _ _ _ _ (NodeAt.stream located)
@@ -38,18 +38,18 @@ termination_by sizeOf current
 Witness: the constant defer assignment, including all ancestor placeholders.
 -/
 theorem DeferOnly.roles {work} (shape : DeferOnly work)
-    : KeyRoles.WorkRoles (fun _ => false) work :=
+    : RefRoles.WorkRoles (fun _ => false) work :=
   shape.roles_at Located.root
 
 /-- No healthy descriptor has an eligible fresh notice. Failed reporting opportunities
 are deliberately outside this proof-only progress construction.
 -/
-def HealthyNoticesCovered (work : Work) (initial : Keys) (matching : PublicationMatching)
-    (events : List WorkQueueEvent) (failed : FailureCuts)
+def HealthyNoticesCovered (work : Work) (initial : NodeRefs)
+    (matching : PublicationMatching) (events : List WorkQueueEvent) (failed : FailureCuts)
     : Prop :=
   ∀ node kind dependencies producer,
     NodeAt work node kind dependencies producer
-    → ¬NodeFailed work matching events failed node.key
+    → ¬NodeFailed work matching events failed node.ref
     → ¬CanAnnounce work initial matching events failed node kind dependencies producer
 
 /-- Supported coverage equals healthy notice coverage for defer-only work.
@@ -76,28 +76,28 @@ theorem DeferOnly.supportedNoticesCovered_iff
 Witness: specialize mixed supported extension without an explicit role assignment.
 -/
 theorem DeferOnly.extend_ready_covered
-    {ancestry keyBound paths bound work groups streams events matching failures occurrence
+    {ancestry refBound paths bound work groups streams events matching failures occurrence
       owners producer payload}
-    (shape : DeferOnly work) (valid : Valid ancestry keyBound)
-    (keys : MixedKeys.WorkAt ancestry 0 keyBound work)
+    (shape : DeferOnly work) (valid : Valid ancestry refBound)
+    (refs : MixedRefs.WorkAt ancestry 0 refBound work)
     (continuous : DeferContinuous ancestry work) (ordered : StreamOwnersOrdered work)
     (coherent : MixedOwnerPaths.WorkAt paths bound work)
     (explained : Explains work groups streams events matching failures)
     (covered
-      : HealthyNoticesCovered work ((groups ++ streams).map DeliveryNode.key) matching
+      : HealthyNoticesCovered work ((groups ++ streams).map DeliveryNode.ref) matching
           events failures)
     (known : TaskAt work occurrence owners producer payload)
     (ready : CanPublish work matching events failures occurrence producer)
     (announced
-      : ∃ key ∈ owners,
-          key ∈ announcedKeys ((groups ++ streams).map DeliveryNode.key) events
-          ∧ ¬NodeFailed work matching events failures key)
+      : ∃ ref ∈ owners,
+          ref ∈ announcedRefs ((groups ++ streams).map DeliveryNode.ref) events
+          ∧ ¬NodeFailed work matching events failures ref)
     : ∃ event next cuts,
         Explains work groups streams (events ++ [event]) next cuts
-        ∧ HealthyNoticesCovered work ((groups ++ streams).map DeliveryNode.key) next
+        ∧ HealthyNoticesCovered work ((groups ++ streams).map DeliveryNode.ref) next
             (events ++ [event]) cuts := by
   obtain ⟨event, next, cuts, extended, retained⟩ :=
-    extend_ready_supported valid keys shape.roles continuous ordered coherent explained
+    extend_ready_supported valid refs shape.roles continuous ordered coherent explained
       (shape.supportedNoticesCovered_iff.mpr covered) known ready announced
   exact ⟨event, next, cuts, extended, shape.supportedNoticesCovered_iff.mp retained⟩
 
@@ -108,7 +108,7 @@ premises are retained; no successful outcome or initial notice coverage is assum
 theorem DeferOnly.completeRun_exists
     {parents bound paths pathBound work}
     (shape : DeferOnly work)
-    (valid : Valid parents bound) (coherent : MixedKeys.WorkAt parents 0 bound work)
+    (valid : Valid parents bound) (coherent : MixedRefs.WorkAt parents 0 bound work)
     (continuous : DeferContinuous parents work) (ordered : StreamOwnersOrdered work)
     (pathCoherent : MixedOwnerPaths.WorkAt paths pathBound work)
     (nonempty : work.size ≠ 0)

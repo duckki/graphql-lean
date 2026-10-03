@@ -52,15 +52,15 @@ theorem State.handleGraphEvent_items_through_output (queue : State)
       simp only [State.handleGraphEvent, State.streamFailure]
       split <;> simp [WorkQueueEvent.itemValues]
 
-/-- A registered-notice certificate includes each projected carried group key.
-Witness: invert the two notice-bearing constructors and their descriptor-key maps.
+/-- A registered-notice certificate includes each projected carried group ref.
+Witness: invert the two notice-bearing constructors and their descriptor-ref maps.
 -/
 theorem
-    _root_.GraphQL.IncrementalDelivery.Execution.WorkQueueEvent.GroupNoticesRegistered.key
-    {registered : Keys}
-    {event : WorkQueueEvent} (known : event.GroupNoticesRegistered registered) {key}
-    (noticed : key ∈ rawGroupNoticeKeys event)
-    : key ∈ registered := by
+    _root_.GraphQL.IncrementalDelivery.Execution.WorkQueueEvent.GroupNoticesRegistered.ref
+    {registered : NodeRefs}
+    {event : WorkQueueEvent} (known : event.GroupNoticesRegistered registered) {ref}
+    (noticed : ref ∈ rawGroupNoticeRefs event)
+    : ref ∈ registered := by
   cases event <;> try cases noticed
   all_goals
     obtain ⟨group, member, rfl⟩ := List.mem_map.mp noticed
@@ -83,7 +83,7 @@ theorem ExecutedWork.rawEventReplay_groupNotice_itemProducer_prefix
       : ((State.initialize (Work.fromExecution work)).rawEventReplay received).2[index]?
         = some output)
     (known : NodeAt work node .group dependencies (some (.item source ordinal)))
-    (noticed : node.key ∈ rawGroupNoticeKeys output)
+    (noticed : node.ref ∈ rawGroupNoticeRefs output)
     : Occurrence.item source ordinal
       ∈ ((received.flatMap GraphEvent.itemPublications).map Prod.fst).take
           (((((State.initialize (Work.fromExecution work)).rawEventReplay received).2.take
@@ -102,14 +102,14 @@ theorem ExecutedWork.rawEventReplay_groupNotice_itemProducer_prefix
   have registrations := initial.replayGraphEvents_registration
     (createWorkQueue_registration work).1 (createWorkQueue_registration work).2 before
     (fun _ member => (valid.prefix beforePrefix).eachMatches member)
-  have keys (events : List GraphEvent) (queue : State) (unique : queue.GroupKeysUnique)
-      : (queue.replayGraphEvents events).GroupKeysUnique := by
+  have refs (events : List GraphEvent) (queue : State) (unique : queue.GroupRefsUnique)
+      : (queue.replayGraphEvents events).GroupRefsUnique := by
     induction events generalizing queue with
     | nil => exact unique
     | cons input rest ih => exact ih _ (unique.handleGraphEvent input)
   have registered := ((initial.replayGraphEvents before).handleGraphEvent_groupNoticesRegistered
-    (keys before initial (createWorkQueue_groupKeysUnique _)) registrations.1 registrations.2.1
-    event matching output (List.mem_of_getElem? atEvent)).key noticed
+    (refs before initial (createWorkQueue_groupRefsUnique _)) registrations.1 registrations.2.1
+    event matching output (List.mem_of_getElem? atEvent)).ref noticed
   have success := generated.registered_group_itemProducer_succeeded (valid.prefix prior)
     known (by simpa only [State.replayGraphEvents, List.foldl_append, List.foldl_cons,
       List.foldl_nil] using registered)

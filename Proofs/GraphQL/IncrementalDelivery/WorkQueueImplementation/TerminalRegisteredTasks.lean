@@ -13,9 +13,9 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
 /-- A healthy registered contributor has retired by actual terminal replay.
 Witness: replay coverage and empty terminal roots rule out a live lookup, while permanent
-task registration retains its group key. This includes groups that were never announced.
+task registration retains its group ref. This includes groups that were never announced.
 -/
-theorem ExecutedWork.terminal_healthyContributor_retired {work inputs task key}
+theorem ExecutedWork.terminal_healthyContributor_retired {work inputs task ref}
     (generated : ExecutedWork work) (valid : ValidGraphEvents work inputs.flatten)
     (started : inputsStarted work inputs = true)
     (ended
@@ -25,29 +25,29 @@ theorem ExecutedWork.terminal_healthyContributor_retired {work inputs task key}
       : task
         ∈ ((State.initialize (Work.fromExecution work)).replayGraphEvents
             inputs.flatten).tasks)
-    (contributes : key ∈ task.groups.map Execution.DeliveryNode.key)
+    (contributes : ref ∈ task.groups.map Execution.DeliveryNode.ref)
     (healthy
       : ¬GroupInvalidated work
           ((State.initialize (Work.fromExecution work)).objectFailureContributions
-            inputs.flatten) key)
+            inputs.flatten) ref)
     : ((State.initialize (Work.fromExecution work)).replayGraphEvents
         inputs.flatten).RetiredGroup
-        key := by
+        ref := by
   have initial := createWorkQueue_registration work
   have registered := State.replayGraphEvents_registration initial.1 initial.2 inputs.flatten
     (fun _ included => valid.eachMatches included)
   have roots := (createWorkQueue_replayGraphEvents_terminalRoots started ended).1
   have accepts := (State.initialize (Work.fromExecution work)).batchesStarted_acceptsBatch inputs
     (by rwa [← inputsStarted_eq_batchesStarted])
-  apply State.RetiredGroup.of_lookup_none (registered.2.1 task member key contributes)
+  apply State.RetiredGroup.of_lookup_none (registered.2.1 task member ref contributes)
   cases found
         : ((State.initialize (Work.fromExecution work)).replayGraphEvents
             inputs.flatten).groupNode?
-            key with
+            ref with
   | none => rfl
   | some node =>
       obtain ⟨root, active, _⟩ := generated.replayGraphEvents_healthyContributorsCovered
-        inputs.flatten valid accepts task member key contributes healthy ⟨node, found⟩
+        inputs.flatten valid accepts task member ref contributes healthy ⟨node, found⟩
       rw [roots] at active
       cases active
 
@@ -82,10 +82,10 @@ theorem terminal_registeredTask_accounted {work inputs task} {w : Witness}
   have matched := (createWorkQueue_replay_regionInventory valid).matching task member
   obtain ⟨address, payload, producer, identity, known⟩ := matched.1
   by_cases healthyOwner :
-    ∃ key ∈ task.groups.map Execution.DeliveryNode.key,
+    ∃ ref ∈ task.groups.map Execution.DeliveryNode.ref,
       ¬GroupInvalidated work
-        ((initialQueue work).objectFailureContributions inputs.flatten) key
-  · obtain ⟨key, contributes, healthy⟩ := healthyOwner
+        ((initialQueue work).objectFailureContributions inputs.flatten) ref
+  · obtain ⟨ref, contributes, healthy⟩ := healthyOwner
     have retired := generated.terminal_healthyContributor_retired valid started ended
       member contributes healthy
     have recordHealthy := matched.contributor_recordHealthy generated contributes healthy
@@ -96,12 +96,12 @@ theorem terminal_registeredTask_accounted {work inputs task} {w : Witness}
     apply explained.snapshot_taskCancelled
     refine Causality.TaskCancelled.owners ⟨producer, payload, known⟩ published
       (generated.taskOwners_nonempty known) ?_
-    intro key contributes
+    intro ref contributes
     have invalid : GroupInvalidated work
-        ((initialQueue work).objectFailureContributions inputs.flatten) key := by
+        ((initialQueue work).objectFailureContributions inputs.flatten) ref := by
       apply Classical.byContradiction
       intro healthy
-      exact healthyOwner ⟨key, contributes, healthy⟩
+      exact healthyOwner ⟨ref, contributes, healthy⟩
     exact (invalid.mono visible).toCausality (Published w.matching w.events)
 
 /-- A structural group with a registered contributor is failed or fully accounted at termination.
@@ -124,12 +124,12 @@ theorem terminal_registeredContributor_groupAccounted
     (ended : ((initialQueue work).runNormalized inputs).1.terminated = true)
     (known : NodeAt work group .group dependencies producer)
     (member : task ∈ ((initialQueue work).replayGraphEvents inputs.flatten).tasks)
-    (contributes : group.key ∈ task.groups.map Execution.DeliveryNode.key)
-    : NodeFailed work w.matching w.events w.failures group.key
-      ∨ NodeAccounted work w.matching w.events w.failures group.key := by
+    (contributes : group.ref ∈ task.groups.map Execution.DeliveryNode.ref)
+    : NodeFailed work w.matching w.events w.failures group.ref
+      ∨ NodeAccounted work w.matching w.events w.failures group.ref := by
   classical
   by_cases invalid : GroupInvalidated work
-      ((initialQueue work).objectFailureContributions inputs.flatten) group.key
+      ((initialQueue work).objectFailureContributions inputs.flatten) group.ref
   · exact .inl (invalid.toNodeFailed explained visible)
   · have retired := generated.terminal_healthyContributor_retired valid started ended
       member contributes invalid
@@ -177,8 +177,8 @@ theorem terminal_rootGroup_accounted {work inputs group dependencies} {w : Witne
           (failedBefore w.failures w.events.length))
     (ended : ((initialQueue work).runNormalized inputs).1.terminated = true)
     (known : NodeAt work group .group dependencies none)
-    : NodeFailed work w.matching w.events w.failures group.key
-      ∨ NodeAccounted work w.matching w.events w.failures group.key := by
+    : NodeFailed work w.matching w.events w.failures group.ref
+      ∨ NodeAccounted work w.matching w.events w.failures group.ref := by
   obtain ⟨occurrence, owners, payload, task, contributes⟩ := known.group_task
   cases occurrence with
   | executionGroup address =>
@@ -190,7 +190,7 @@ theorem terminal_rootGroup_accounted {work inputs group dependencies} {w : Witne
       obtain ⟨stream, entries, enclosing, result, children, located, entry, sameOwners,
         samePayload⟩ := task
       rw [sameOwners] at contributes
-      exact False.elim (generated.groupStreamKeysDisjoint known (.stream located)
+      exact False.elim (generated.groupStreamRefsDisjoint known (.stream located)
         (List.mem_singleton.mp contributes))
 
 end ConformancePlan

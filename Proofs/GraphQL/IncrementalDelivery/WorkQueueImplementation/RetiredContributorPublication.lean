@@ -13,18 +13,18 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
 /-- A source success retains every finally healthy contributing owner at its input boundary.
 Witness: source freshness and generated owner accounting force a live record before the
-success; exact structural task metadata identifies the same contributor key. Final health
+success; exact structural task metadata identifies the same contributor ref. Final health
 transports backward through the full source-failure inventory.
 -/
 theorem ExecutedWork.success_with_finalHealthyOwner_live
-    {work events occurrence result owners producer payload key before after}
+    {work events occurrence result owners producer payload ref before after}
     (generated : ExecutedWork work) (valid : ValidGraphEvents work events)
     (started : (State.initialize (Work.fromExecution work)).acceptsBatch events = true)
-    (known : TaskAt work occurrence owners producer payload) (contributes : key ∈ owners)
+    (known : TaskAt work occurrence owners producer payload) (contributes : ref ∈ owners)
     (healthy
       : ¬GroupRecordInvalidated work
           ((State.initialize (Work.fromExecution work)).objectFailureContributions events)
-          key)
+          ref)
     (split : events = before ++ .taskSuccess occurrence result :: after)
     : ∃ node,
         ((State.initialize (Work.fromExecution work)).replayGraphEvents before).taskNode?
@@ -34,11 +34,11 @@ theorem ExecutedWork.success_with_finalHealthyOwner_live
             before).taskHasHealthyOwner
             node.task
           = true
-        ∧ key ∈ node.task.groups.map Execution.DeliveryNode.key
-        ∧ key
+        ∧ ref ∈ node.task.groups.map Execution.DeliveryNode.ref
+        ∧ ref
           ∈ ((State.initialize (Work.fromExecution work)).replayGraphEvents
               before).groupNodes.map
-              (fun owner => owner.group.node.key) := by
+              (fun owner => owner.group.node.ref) := by
   let initial := State.initialize (Work.fromExecution work)
   have earlier : before.IsPrefix events := ⟨.taskSuccess occurrence result :: after, split.symm⟩
   have accepted : initial.acceptsBatch before = true := by
@@ -60,16 +60,16 @@ theorem ExecutedWork.success_with_finalHealthyOwner_live
     rw [occurrenceEq]
     exact fun member => fresh.2.2.1 occurrence List.mem_cons_self
       (GraphEvent.groupSettlements_subsetIdentities before member)
-  have sourceHealthy : ¬GroupInvalidated work (GraphEvent.failureSettlements before) key := by
+  have sourceHealthy : ¬GroupInvalidated work (GraphEvent.failureSettlements before) ref := by
     intro invalid
     apply healthy
     apply GroupInvalidated.toRecordInvalidated
-    apply (generated.failureInventories_groupInvalidated_iff events valid started key).mp
+    apply (generated.failureInventories_groupInvalidated_iff events valid started ref).mp
     apply invalid.mono
     rw [split, GraphEvent.failureSettlements_append_list]
     exact List.subset_append_right _ _
   obtain ⟨owner, live, same, _⟩ := ledger.healthyRegisteredTasks node.task registered unsettled
-    key nodeContributes sourceHealthy
+    ref nodeContributes sourceHealthy
   exact ⟨node, found, guard, nodeContributes, List.mem_map.mpr ⟨owner, live, same⟩⟩
 
 -----------------------------------------------------------------------------------------
@@ -82,17 +82,17 @@ branch. Shared-ledger owner conservation follows that exact value to the replay 
 generated task accounting supplies the retained node's structural ownership, if needed.
 -/
 theorem ExecutedWork.healthy_success_published_or_buffered
-    {work events published occurrence result owners producer payload key}
+    {work events published occurrence result owners producer payload ref}
     (generated : ExecutedWork work) (valid : ValidGraphEvents work events)
     (started : (State.initialize (Work.fromExecution work)).acceptsBatch events = true)
     (covered
       : (State.initialize (Work.fromExecution work)).ReplayClosuresCovered events
           published)
-    (known : TaskAt work occurrence owners producer payload) (contributes : key ∈ owners)
+    (known : TaskAt work occurrence owners producer payload) (contributes : ref ∈ owners)
     (healthy
       : ¬GroupRecordInvalidated work
           ((State.initialize (Work.fromExecution work)).objectFailureContributions events)
-          key)
+          ref)
     (succeeded : GraphEvent.taskSuccess occurrence result ∈ events)
     : (occurrence, result.value)
         ∈ published.take
@@ -106,12 +106,12 @@ theorem ExecutedWork.healthy_success_published_or_buffered
             = some node
           ∧ node.value = some result.value
           ∧ TaskHasOwners work occurrence
-              (node.task.groups.map Execution.DeliveryNode.key)
-          ∧ key ∈ node.task.groups.map Execution.DeliveryNode.key
-          ∧ key
+              (node.task.groups.map Execution.DeliveryNode.ref)
+          ∧ ref ∈ node.task.groups.map Execution.DeliveryNode.ref
+          ∧ ref
             ∈ ((State.initialize (Work.fromExecution work)).replayGraphEvents
                 events).groupNodes.map
-                (fun owner => owner.group.node.key) := by
+                (fun owner => owner.group.node.ref) := by
   let initial := State.initialize (Work.fromExecution work)
   obtain ⟨before, after, split⟩ := List.mem_iff_append.mp succeeded
   obtain ⟨node, found, guard, nodeContributes, present⟩ :=
@@ -153,22 +153,22 @@ Prepared/replay conservation follows that exact value to the retirement boundary
 existing ledger. No storage, publication, or completion-notice premise is added.
 -/
 theorem ExecutedWork.retired_structuralContributor_published
-    {work events published address owners producer payload key}
+    {work events published address owners producer payload ref}
     (generated : ExecutedWork work) (valid : ValidGraphEvents work events)
     (started : (State.initialize (Work.fromExecution work)).acceptsBatch events = true)
     (covered
       : (State.initialize (Work.fromExecution work)).ReplayClosuresCovered events
           published)
     (known : TaskAt work (.executionGroup address) owners producer payload)
-    (contributes : key ∈ owners)
+    (contributes : ref ∈ owners)
     (retired
       : ((State.initialize (Work.fromExecution work)).replayGraphEvents
           events).RetiredGroup
-          key)
+          ref)
     (healthy
       : ¬GroupRecordInvalidated work
           ((State.initialize (Work.fromExecution work)).objectFailureContributions events)
-          key)
+          ref)
     : ∃ value,
         (Occurrence.executionGroup address, value)
         ∈ published.take

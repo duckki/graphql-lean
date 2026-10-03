@@ -13,12 +13,12 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
 /-- A published item references its sole structural stream owner.
 Witness: item provenance excludes object events, and unique task descriptors identify the
-publication's stream key with the contributing owner. No generated-work premise is needed.
+publication's stream ref with the contributing owner. No generated-work premise is needed.
 -/
-theorem PublicationAt.itemOwner_action {work address ordinal event owners key}
+theorem PublicationAt.itemOwner_action {work address ordinal event owners ref}
     (source : PublicationAt work (.item address ordinal) event)
-    (known : TaskHasOwners work (.item address ordinal) owners) (owner : key ∈ owners)
-    : streamAction event = some (key, false) := by
+    (known : TaskHasOwners work (.item address ordinal) owners) (owner : ref ∈ owners)
+    : streamAction event = some (ref, false) := by
   have item := source.itemAnnotation
   cases event with
   | streamValues stream values groups streams =>
@@ -32,13 +32,13 @@ theorem PublicationAt.itemOwner_action {work address ordinal event owners key}
               obtain ⟨otherProducer, payload, other⟩ := known
               rw [← (task.unique other).1, (itemTask_owner_nodeAt task).1] at owner
               have same := List.mem_singleton.mp owner
-              subst key
+              subst ref
               rfl
   | groupValues | groupSuccess | groupFailure | streamSuccess | streamFailure
   | workQueueTermination => cases item
 
 /-- Every published contributing item precedes its stream's successful or failed closure.
-Witness: exact item provenance fixes its action key; closure ordering forbids a later
+Witness: exact item provenance fixes its action ref; closure ordering forbids a later
 publication, while value/control separation excludes publication at the closing position.
 The matching is supplied unchanged, not chosen independently for completion accounting.
 -/
@@ -52,9 +52,9 @@ theorem published_item_before_streamClosure {work : Execution.Work}
     (ordered : (events.filterMap streamAction).Pairwise StreamAction.Before)
     {index closing address ordinal owners} {stream : Execution.DeliveryNode}
     (atClosure : events[index]? = some closing)
-    (closed : streamAction closing = some (stream.key, true))
+    (closed : streamAction closing = some (stream.ref, true))
     (known : TaskHasOwners work (.item address ordinal) owners)
-    (owner : stream.key ∈ owners)
+    (owner : stream.ref ∈ owners)
     (published : Published matching events (.item address ordinal))
     : Published matching (events.take index) (.item address ordinal) := by
   obtain ⟨position, event, atEvent, value, same⟩ := published
@@ -77,7 +77,7 @@ theorem published_item_before_streamClosure {work : Execution.Work}
     have relation := (List.pairwise_filterMap.mp ordered).rel_getElem_of_lt
       leftBound rightBound before
     rw [leftEq, rightEq] at relation
-    exact relation (stream.key, true) closed (stream.key, false) action rfl rfl
+    exact relation (stream.ref, true) closed (stream.ref, false) action rfl rfl
   exact ⟨position, event, (List.getElem?_take_of_lt less).trans atEvent, value, same⟩
 
 /-- Successful closure retains the strict-prefix item-publication interface.
@@ -94,7 +94,7 @@ theorem published_item_before_streamSuccess {work : Execution.Work}
     {index stream address ordinal owners}
     (atSuccess : events[index]? = some (.streamSuccess stream))
     (known : TaskHasOwners work (.item address ordinal) owners)
-    (owner : stream.key ∈ owners)
+    (owner : stream.ref ∈ owners)
     (published : Published matching events (.item address ordinal))
     : Published matching (events.take index) (.item address ordinal) :=
   published_item_before_streamClosure exactValues ordered atSuccess rfl known owner
@@ -134,7 +134,7 @@ theorem createWorkQueue_runNormalized_streamSuccess_accounted {work : Execution.
           ((((State.initialize (Work.fromExecution work)).runNormalized
               batches).2.flatten.flatMap
               publicationAtoms).take
-            index) failures stream.key := by
+            index) failures stream.ref := by
   obtain ⟨⟨dependencies, producer, address, entries, located⟩, inventory⟩ :=
     createWorkQueue_runNormalized_streamSuccess_itemInventory generated valid
       (List.mem_of_getElem? atSuccess)
@@ -183,11 +183,11 @@ theorem createWorkQueue_runNormalized_streamCompletionMatching {work : Execution
             atoms[index]? = some (.streamSuccess stream)
             → Open
                 ((queue.initialGroups ++ queue.initialStreams).map
-                  Execution.DeliveryNode.key)
-                (atoms.take index) stream.key
+                  Execution.DeliveryNode.ref)
+                (atoms.take index) stream.ref
               ∧ ∀ failures,
                   NodeAccounted work matching (atoms.take index) failures
-                    stream.key) := by
+                    stream.ref) := by
   obtain ⟨matching, batching, values, notices, covered⟩ :=
     createWorkQueue_runNormalized_streamProducerMatching_withItemCoverage generated valid started
   refine ⟨matching, batching, values, notices, ?_⟩

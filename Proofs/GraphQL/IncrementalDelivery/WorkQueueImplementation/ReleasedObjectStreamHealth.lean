@@ -72,10 +72,10 @@ theorem ExecutedWork.runNormalized_releasedObjectStreamHealthy_of_itemSafety
     (contributors
       : ∀ occurrence owners,
           TaskHasOwners work occurrence owners
-          → stream.key ∈ owners
+          → stream.ref ∈ owners
           → occurrence ∉ failedBefore failures events.length)
     : ¬TaskCancelled work matching events failures (.executionGroup source)
-      ∧ ¬NodeFailed work matching events failures stream.key := by
+      ∧ ¬NodeFailed work matching events failures stream.ref := by
   obtain ⟨occurrence, same, settled⟩ := generated.runNormalized_releasedStreamProducer_succeeded
     valid carrier released known
   cases Option.some.inj same

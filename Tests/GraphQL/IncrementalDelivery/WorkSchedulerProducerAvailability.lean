@@ -10,11 +10,11 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
 /-- The root defer that produces an object containing a nested defer. -/
 def parent : DeliveryNode :=
-  { key := 0, path := [], label := some (.string "P") }
+  { ref := 0, path := [], label := some (.string "P") }
 
 /-- The nested defer at the produced object's response path. -/
 def child : DeliveryNode :=
-  { key := 1, path := [.field "user"], label := some (.string "C") }
+  { ref := 1, path := [.field "user"], label := some (.string "C") }
 
 /-- The address of the object-producing root task. -/
 def parentTask : Occurrence := .executionGroup [1, 0]
@@ -23,7 +23,7 @@ def parentTask : Occurrence := .executionGroup [1, 0]
 def producer : Task := ⟨parentTask, [parent]⟩
 
 /-- The child's immediate dependency is the producing parent defer. -/
-def childGroup : Group := ⟨child, some parent.key⟩
+def childGroup : Group := ⟨child, some parent.ref⟩
 
 /-- The finite deferred work returned by the parent task. -/
 def children : Execution.Work :=
@@ -63,7 +63,7 @@ theorem generated : ExecutedWork work := by
 Witness: locate the generated parent task and check exact lowering. -/
 theorem matching
     : (GraphEvent.taskSuccess producer.occurrence result).MatchesWork work := by
-  refine ⟨[parent.key], none, ?_, ?_, ?_⟩
+  refine ⟨[parent.ref], none, ?_, ?_, ?_⟩
   · refine ⟨[⟨parent, []⟩], [], _, children, [], ?_, rfl, rfl⟩
     cbv
   · cbv
@@ -79,9 +79,9 @@ theorem child_candidate : childGroup ∈ result.work.groups := by
 /-- This is genuine descendant support, not reuse of an already-live child group.
 Witness: initialization contains only P; C is supplied later by the producer. -/
 theorem child_not_yet_live
-    : child.key ∉ queue.groupNodes.map (fun node => node.group.node.key) := by
-  have keys : queue.groupNodes.map (fun node => node.group.node.key) = [parent.key] := by cbv
-  rw [keys]
+    : child.ref ∉ queue.groupNodes.map (fun node => node.group.node.ref) := by
+  have refs : queue.groupNodes.map (fun node => node.group.node.ref) = [parent.ref] := by cbv
+  rw [refs]
   decide
 
 /-- The generated child has a live defer ancestor with its producer still pending.
@@ -91,7 +91,7 @@ theorem child_supported_by_pending_ancestor
     : ∃ dependencies,
         NodeAt work child .group dependencies (some parentTask)
         ∧ ∃ node ∈ queue.groupNodes,
-            node.group.node.key ∈ dependencies
+            node.group.node.ref ∈ dependencies
             ∧ parentTask ∈ node.tasks
             ∧ node.pending ≠ 0 := by
   have tasks : queue.tasks = [producer] := by cbv
@@ -114,7 +114,7 @@ theorem child_supported_by_pending_ancestor
 
 /-- Completed-ancestor closure supplies registration availability for produced work.
 Witness: initial closure and the checked healthy ledgers discharge the general reuse
-lemma, including the descendant-support case rather than direct producer-key reuse. -/
+lemma, including the descendant-support case rather than direct producer-ref reuse. -/
 theorem child_registration_available
     : queue.ChildGroupsAvailable work [] result.work := by
   have tasks : queue.tasks = [producer] := by cbv
@@ -130,10 +130,10 @@ Witness: the parent has nonempty child work; the unconditional joint replay theo
 needs only matched/fresh/ready inputs and the real start check. The child remains pending.
 -/
 theorem produced_child_ownerAncestry
-    : ∃ parents : Nat → Keys,
+    : ∃ parents : Nat → NodeRefs,
         (queue.runNormalized [[.taskSuccess parentTask result]]).1.OwnerAncestry
           work parents [.taskSuccess parentTask result] := by
-  have known : TaskAt work parentTask [parent.key] none
+  have known : TaskAt work parentTask [parent.ref] none
       (.object [] (.ok ([("user", .object [])], 0))) := by
     refine ⟨[⟨parent, []⟩], [], _, children, [], ?_, rfl, rfl⟩
     cbv
@@ -150,7 +150,7 @@ not an already-complete or empty-work case.
 -/
 theorem produced_child_still_pending
     : ((queue.runNormalized [[.taskSuccess parentTask result]]).1.groupNode?
-        child.key).map
+        child.ref).map
         GroupNode.pending
       = some 1 := by
   cbv

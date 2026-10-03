@@ -9,8 +9,8 @@ open GraphQL.IncrementalDelivery.Correctness
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 open GraphQL.IncrementalDelivery.Semantics.MixedPaths
 
-def parent : DeliveryNode := { key := 0, path := [] }
-def child : DeliveryNode := { key := 1, path := [.field "items"] }
+def parent : DeliveryNode := { ref := 0, path := [] }
+def child : DeliveryNode := { ref := 1, path := [.field "items"] }
 
 def nested : Work :=
   .executionGroup [{ node := parent }] []

@@ -11,7 +11,7 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 -----------------------------------------------------------------------------------------
 
 /-- One failed-owner step preserves the structural frame and exact notice tracking.
-Witness: active cleanup closes its only removed announced key; latent caching changes no
+Witness: active cleanup closes its only removed announced ref; latent caching changes no
 root or descriptor and leaves earlier tracking untouched.
 -/
 theorem RootClosureFrame.failureGroupStep_groupNoticeCompletion
@@ -19,7 +19,7 @@ theorem RootClosureFrame.failureGroupStep_groupNoticeCompletion
     (frame : RootClosureFrame acc.1 work parents) (generated : ExecutedWork work)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (tracked : GroupNoticeCompletion initial acc) (errors : Nat)
     (group : Execution.DeliveryNode)
     : RootClosureFrame (failureGroupStep errors acc group).1 work parents
@@ -32,12 +32,12 @@ theorem RootClosureFrame.failureGroupStep_groupNoticeCompletion
   · rename_i node found
     split
     · rename_i active
-      have activeKey : node.group.node.key ∈ queue.rootGroups := by
-        rw [State.groupNode?_key found]
+      have activeRef : node.group.node.ref ∈ queue.rootGroups := by
+        rw [State.groupNode?_ref found]
         exact List.contains_iff_mem.mp active
       exact ⟨frame.removeGroup _, tracked.append
         (frame.finishGroupFailure_groupNoticeCompletion generated canonical node errors
-          activeKey)⟩
+          activeRef)⟩
     · let updated : GroupNode := {
         node with
         pending := node.pending - 1
@@ -57,7 +57,7 @@ theorem RootClosureFrame.failureGroupFold_groupNoticeCompletion {queue work pare
     (frame : RootClosureFrame queue work parents) (generated : ExecutedWork work)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (errors : Nat) (groups : List Execution.DeliveryNode)
     : GroupNoticeCompletion queue.rootGroups
         (groups.foldl (failureGroupStep errors) (queue, [])) := by
@@ -76,13 +76,13 @@ theorem RootClosureFrame.failureGroupFold_groupNoticeCompletion {queue work pare
 
 /-- Task-failure handling completes every announced root it removes.
 Witness: ignored settlements keep roots; accepted settlements remove task memberships,
-then the exact owner pass closes its only removable announced keys.
+then the exact owner pass closes its only removable announced refs.
 -/
 theorem RootClosureFrame.taskFailure_groupNoticeCompletion {queue work parents}
     (frame : RootClosureFrame queue work parents) (generated : ExecutedWork work)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (occurrence : Occurrence) (errors : Nat)
     : GroupNoticeCompletion queue.rootGroups (queue.taskFailure occurrence errors) := by
   cases found : queue.taskNode? occurrence with
@@ -107,7 +107,7 @@ theorem State.ChildLinksCanonical.replayGraphEvents {queue : State} {work parent
     (links : queue.ChildLinksCanonical parents)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (events : List GraphEvent) (matching : ∀ event ∈ events, event.MatchesWork work)
     : (queue.replayGraphEvents events).ChildLinksCanonical parents := by
   induction events generalizing queue with
@@ -124,7 +124,7 @@ theorem ExecutedWork.replay_rootClosureFrame {work before}
     (generated : ExecutedWork work) (matching : ∀ event ∈ before, event.MatchesWork work)
     : ∃ parents,
         (∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
         ∧ RootClosureFrame
             ((State.initialize (Work.fromExecution work)).replayGraphEvents before) work
             parents := by

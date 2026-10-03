@@ -26,44 +26,44 @@ theorem State.HealthyRegisteredTaskAccounting.childGroup_integrated_root_coverag
     (records : queue.GroupNodesMatchWork work)
     (retirement : queue.HealthyRetiredAncestors work failed)
     (cancelled : queue.CancelledRecordsSupported work failed)
-    (links : queue.ParentLinksComplete parents) (unique : queue.GroupKeysUnique)
+    (links : queue.ParentLinksComplete parents) (unique : queue.GroupRefsUnique)
     (registered : queue.LiveGroupsRegistered) (tasks : queue.TaskGroupsRegistered)
     (closed : queue.ParentRegistryClosed parents)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     {producer : Task} (producerMember : producer ∈ queue.tasks)
     (fresh : producer.occurrence ∉ settled) {result : TaskResult}
     (matching : (GraphEvent.taskSuccess producer.occurrence result).MatchesWork work)
     {group : Group} (member : group ∈ result.work.groups)
     (contributing
       : ∃ task ∈ result.work.tasks,
-          group.node.key ∈ task.groups.map Execution.DeliveryNode.key)
-    (healthy : ¬GroupRecordInvalidated work failed group.node.key)
+          group.node.ref ∈ task.groups.map Execution.DeliveryNode.ref)
+    (healthy : ¬GroupRecordInvalidated work failed group.node.ref)
     (covered
       : ∀ node ∈ queue.groupNodes,
-          node.group.node.key ∈ producer.groups.map Execution.DeliveryNode.key
-          → ¬GroupInvalidated work failed node.group.node.key
-          → ∃ root ∈ queue.rootGroups, queue.LiveDescendant root node.group.node.key)
+          node.group.node.ref ∈ producer.groups.map Execution.DeliveryNode.ref
+          → ¬GroupInvalidated work failed node.group.node.ref
+          → ∃ root ∈ queue.rootGroups, queue.LiveDescendant root node.group.node.ref)
     : let integrated :=
         (queue.maybeIntegrateWork result.work (some producer.occurrence)).1
-      (∃ node, integrated.groupNode? group.node.key = some node)
+      (∃ node, integrated.groupNode? group.node.ref = some node)
       → ∃ root ∈ integrated.rootGroups,
-          integrated.LiveDescendant root group.node.key := by
+          integrated.LiveDescendant root group.node.ref := by
   intro integrated survives
   obtain ⟨dependencies, childKnown, owner, ownerMember, ownerHealthy, ownerContributes,
     _, _, support⟩ := accounted.childGroup_live_support tracks taskMatching generated
       producerMember fresh matching member contributing
       (fun invalid => healthy invalid.toRecordInvalidated)
   obtain ⟨root, active, path⟩ := covered owner ownerMember ownerContributes ownerHealthy
-  have oldPath : integrated.LiveDescendant root owner.group.node.key :=
+  have oldPath : integrated.LiveDescendant root owner.group.node.ref :=
     path.maybeIntegrateWork unique result.work (some producer.occurrence)
   have rootActive : root ∈ integrated.rootGroups := by
     rwa [State.maybeIntegrateWork_rootGroups]
   rcases support with same | ancestor
   · exact ⟨root, rootActive, same ▸ oldPath⟩
   · have groupCanonical : ∀ candidate ∈ result.work.groups,
-        candidate.parent = (parents candidate.node.key).head? :=
+        candidate.parent = (parents candidate.node.ref).head? :=
       fun _ included => matching.taskChildGroups_parentCanonical canonical included
     have newRecords : ∀ candidate ∈ result.work.groups,
         ∃ ancestors, GroupRecordAt work candidate.node ancestors :=
@@ -87,15 +87,15 @@ theorem State.HealthyRegisteredTaskAccounting.childGroup_integrated_root_coverag
     obtain ⟨childDependencies, childRecord⟩ := newMatching child
       (List.mem_of_find?_eq_some childFound)
     have descriptor := generated.record_eq_node childRecord childKnown
-      (State.groupNode?_key childFound)
+      (State.groupNode?_ref childFound)
     obtain ⟨⟨_, payload, taskProducer, _, knownTask⟩, _⟩ := taskMatching producer producerMember
-    have descendant : integrated.LiveDescendant owner.group.node.key group.node.key := by
+    have descendant : integrated.LiveDescendant owner.group.node.ref group.node.ref := by
       rw [← descriptor]
       exact newLinks.healthy_ancestor_path generated newMatching newRetirement newRegistered.1
         newRegistry canonical (descriptor.symm ▸ childFound)
         (descriptor.symm ▸ groupRecordAt_of_nodeAt childKnown) (descriptor.symm ▸ healthy)
         ancestor (show TaskHasOwners work producer.occurrence
-          (producer.groups.map Execution.DeliveryNode.key) from ⟨taskProducer, payload, knownTask⟩)
+          (producer.groups.map Execution.DeliveryNode.ref) from ⟨taskProducer, payload, knownTask⟩)
         ownerContributes oldPath.target_present
     exact ⟨root, rootActive, oldPath.trans descendant⟩
 

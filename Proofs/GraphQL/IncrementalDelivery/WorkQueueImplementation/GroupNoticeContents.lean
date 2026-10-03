@@ -33,11 +33,11 @@ theorem State.groupNotice_canAnnounce_of_contents
     (contents : node.tasks ≠ [] ∨ node.failure.isSome = true)
     (sound : queue.GroupMembershipSound) (registered : queue.RegisteredTasksMatch work)
     (cached : queue.CachedFailuresSupported work (failedBefore failures events.length))
-    (fresh : node.group.node.key ∉ announcedKeys initial events)
+    (fresh : node.group.node.ref ∉ announcedRefs initial events)
     (produced : ∀ source, producer = some source → Published matching events source)
     (ready
-      : ∀ key ∈ dependencies,
-          DependencySatisfied work initial matching events failures key)
+      : ∀ ref ∈ dependencies,
+          DependencySatisfied work initial matching events failures ref)
     (memberProducers
       : ∀ occurrence ∈ node.tasks,
           ∀ source,
@@ -50,19 +50,19 @@ theorem State.groupNotice_canAnnounce_of_contents
     produced ready).mpr
   refine ⟨fresh, ?_⟩
   classical
-  by_cases recorded : HasRecordedFailure work failures events.length node.group.node.key
+  by_cases recorded : HasRecordedFailure work failures events.length node.group.node.ref
   · exact .inr recorded
   have noCache : node.failure.isSome ≠ true := by
     intro hasCache
     obtain ⟨occurrence, failed, owners, task, owner⟩ := cached node member hasCache
     exact recorded ⟨occurrence, owners, failed, task, owner⟩
   have nonempty := contents.resolve_right noCache
-  have healthy : ¬NodeFailed work matching events failures node.group.node.key := by
+  have healthy : ¬NodeFailed work matching events failures node.group.node.ref := by
     intro failed
     rcases support.groupFailure_causes generated failedPayloads known produced failed with
-      ⟨occurrence, owners, task, owner, failed⟩ | ⟨key, ancestor, failed⟩
+      ⟨occurrence, owners, task, owner, failed⟩ | ⟨ref, ancestor, failed⟩
     · exact recorded ⟨occurrence, owners, failed, task, owner⟩
-    · exact (ready key ancestor).1 failed
+    · exact (ready ref ancestor).1 failed
   left
   intro accounted
   cases members : node.tasks with

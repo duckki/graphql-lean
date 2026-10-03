@@ -14,11 +14,11 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
 /-- An item task's owner is its stream, with the same structural producer as that stream.
 Witness: object occurrences cannot have item payloads; the item location supplies NodeAt.
-No generated-key assumption is needed for this structural projection.
+No generated-ref assumption is needed for this structural projection.
 -/
 theorem itemTask_owner_nodeAt {work occurrence owners producer stream result}
     (known : TaskAt work occurrence owners producer (.item stream result))
-    : owners = [stream.key]
+    : owners = [stream.ref]
       ∧ ∃ dependencies, NodeAt work stream .stream dependencies producer := by
   cases occurrence with
   | executionGroup address =>
@@ -90,7 +90,7 @@ theorem createWorkQueue_runNormalized_streamPublicationReadinessMatching
             atoms[index]? = some (.streamValues stream values groups streams)
             → ∃ value producer,
                 values = [value]
-                ∧ TaskAt work (matching index) [stream.key] producer
+                ∧ TaskAt work (matching index) [stream.ref] producer
                     (.item stream (.ok (value.item, value.errors)))
                 ∧ ∀ failures,
                     CanPublish work matching (atoms.take index) failures (matching index)

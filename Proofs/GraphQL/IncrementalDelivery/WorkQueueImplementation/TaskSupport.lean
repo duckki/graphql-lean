@@ -7,34 +7,34 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 -- A task supports registration of its contributors and their full ancestor chains
 -----------------------------------------------------------------------------------------
 
-/-- A task's structural occurrence supports `key` through a contributor or its ancestors.
-This does not assert that the key contributes to the task or that the task has started.
+/-- A task's structural occurrence supports `ref` through a contributor or its ancestors.
+This does not assert that the ref contributes to the task or that the task has started.
 -/
-def Task.SupportsGroup (work : Execution.Work) (task : Task) (key : Nat) : Prop :=
+def Task.SupportsGroup (work : Execution.Work) (task : Task) (ref : NodeRef) : Prop :=
   ∃ address groups path result children producer owners fragment,
     task.occurrence = .executionGroup address
     ∧ Located work address (.executionGroup groups path result children) producer owners
     ∧ fragment ∈ groups
-    ∧ key ∈ fragment.node.key :: fragment.ancestors.map Execution.DeliveryNode.key
+    ∧ ref ∈ fragment.node.ref :: fragment.ancestors.map Execution.DeliveryNode.ref
 
 /-- A supporting task supplies an actual contributor-or-ancestor registration descriptor.
-Witness: split its full chain at the supported key and retain the remaining suffix.
+Witness: split its full chain at the supported ref and retain the remaining suffix.
 -/
-theorem Task.SupportsGroup.recordAt {work : Execution.Work} {task : Task} {key : Nat}
-    (supported : task.SupportsGroup work key)
-    : ∃ node dependencies, GroupRecordAt work node dependencies ∧ node.key = key := by
+theorem Task.SupportsGroup.recordAt {work : Execution.Work} {task : Task} {ref : NodeRef}
+    (supported : task.SupportsGroup work ref)
+    : ∃ node dependencies, GroupRecordAt work node dependencies ∧ node.ref = ref := by
   obtain ⟨address, groups, path, result, children, producer, owners, fragment,
     _, located, member, contains⟩ := supported
-  have mapped : key ∈ (fragment.node :: fragment.ancestors).map Execution.DeliveryNode.key :=
+  have mapped : ref ∈ (fragment.node :: fragment.ancestors).map Execution.DeliveryNode.ref :=
     contains
-  obtain ⟨node, inChain, sameKey⟩ := List.mem_map.mp mapped
+  obtain ⟨node, inChain, sameRef⟩ := List.mem_map.mp mapped
   obtain ⟨before, after, split⟩ := List.mem_iff_append.mp inChain
-  refine ⟨node, after.map Execution.DeliveryNode.key,
+  refine ⟨node, after.map Execution.DeliveryNode.ref,
     ⟨address, groups, path, result, children, producer, owners, fragment,
-      after, located, member, ?_, rfl⟩, sameKey⟩
+      after, located, member, ?_, rfl⟩, sameRef⟩
   exact ⟨before, split.symm⟩
 
-/-- Every lowered group candidate has an immediate task supporting its full-chain key.
+/-- Every lowered group candidate has an immediate task supporting its full-chain ref.
 Witness: choose the contributing fragment used by lowering; combine preserves witnesses.
 -/
 theorem workFromSpec_groups_taskSupport
@@ -42,7 +42,7 @@ theorem workFromSpec_groups_taskSupport
     (located : Located root address current producer owners)
     {group : Group} (member : group ∈ (Work.fromExecution current address).groups)
     : ∃ task ∈ (Work.fromExecution current address).tasks,
-        task.SupportsGroup root group.node.key := by
+        task.SupportsGroup root group.node.ref := by
   cases current with
   | empty => cases member
   | combine left right =>
@@ -68,7 +68,7 @@ theorem GraphEvent.MatchesWork.childGroupsSupported
     {work : Execution.Work} {occurrence : Occurrence} {result : TaskResult}
     (matching : (GraphEvent.taskSuccess occurrence result).MatchesWork work)
     {group : Group} (member : group ∈ result.work.groups)
-    : ∃ task ∈ result.work.tasks, task.SupportsGroup work group.node.key := by
+    : ∃ task ∈ result.work.tasks, task.SupportsGroup work group.node.ref := by
   obtain ⟨_, producer, known, _, childrenWork⟩ := matching
   cases occurrence with
   | item => cases childrenWork
@@ -89,7 +89,7 @@ theorem GraphEvent.MatchesWork.streamItem_groupsSupported
     (matching : (GraphEvent.streamItems stream items).MatchesWork work)
     {item : StreamItem} (itemMember : item ∈ items)
     {group : Group} (member : group ∈ item.work.groups)
-    : ∃ task ∈ item.work.tasks, task.SupportsGroup work group.node.key := by
+    : ∃ task ∈ item.work.tasks, task.SupportsGroup work group.node.ref := by
   obtain ⟨_, producer, known, childrenWork⟩ := matching item itemMember
   cases occurrence : item.occurrence with
   | executionGroup => simp [streamItemWork?, occurrence] at childrenWork

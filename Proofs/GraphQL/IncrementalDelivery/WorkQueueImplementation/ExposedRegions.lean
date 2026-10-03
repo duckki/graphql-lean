@@ -1,25 +1,25 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.RegionRegistration
 
-/-! Exposed keys identify their stream-item boundary without assuming output admission. -/
+/-! Exposed refs identify their stream-item boundary without assuming output admission. -/
 
 namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
-open Semantics.KeyRegions
+open Semantics.RefRegions
 
 -----------------------------------------------------------------------------------------
 -- A stream-item boundary exposes its whole defer region, not just one contributor
 -----------------------------------------------------------------------------------------
 
-/-- One exposed key in a located root region exposes every key in that same region.
+/-- One exposed ref in a located root region exposes every ref in that same region.
 Witness: navigation stays within the root region until an item boundary; generated
 separation then forces that particular item's identity into the observed inventory.
 No successful object-producer publication is required.
 -/
-theorem Located.exposedRootKeys {work address current producer owners seen key}
+theorem Located.exposedRootRefs {work address current producer owners seen ref}
     (located : Located work address current producer owners)
-    (separated : WorkSeparated work) (member : key ∈ rootKeys current)
-    (exposed : ExposedKey work seen key)
-    : ∀ other ∈ rootKeys current, ExposedKey work seen other := by
+    (separated : WorkSeparated work) (member : ref ∈ rootRefs current)
+    (exposed : ExposedRef work seen ref)
+    : ∀ other ∈ rootRefs current, ExposedRef work seen other := by
   have navigation := StructuralEquivalence.located_of_current located
   clear located
   induction navigation with
@@ -39,21 +39,21 @@ theorem Located.exposedRootKeys {work address current producer owners seen key}
         apply Classical.byContradiction
         intro absent
         exact streamRegion_unexposed separated region absent member exposed
-      exact fun other included => .inr ⟨_, observed, rootKeys children, region, included⟩
+      exact fun other included => .inr ⟨_, observed, rootRefs children, region, included⟩
 
-/-- An exposed key directly below a stream-item producer identifies that observed item.
-Witness: invert navigation to the last producer edge and use disjoint key regions.
+/-- An exposed ref directly below a stream-item producer identifies that observed item.
+Witness: invert navigation to the last producer edge and use disjoint ref regions.
 Combines do not change the producer; an object edge cannot name an item producer.
 -/
 theorem Located.itemProducer_seen
-    {work address current owners source index seen key}
+    {work address current owners source index seen ref}
     (located : Located work address current (some (.item source index)) owners)
-    (separated : WorkSeparated work) (member : key ∈ rootKeys current)
-    (exposed : ExposedKey work seen key)
+    (separated : WorkSeparated work) (member : ref ∈ rootRefs current)
+    (exposed : ExposedRef work seen ref)
     : Occurrence.item source index ∈ seen := by
   have descend {address current producer owners}
       (navigation : StructuralEquivalence.Located work address current producer owners)
-      (same : producer = some (.item source index)) (member : key ∈ rootKeys current)
+      (same : producer = some (.item source index)) (member : ref ∈ rootRefs current)
       : Occurrence.item source index ∈ seen := by
     induction navigation with
     | root => cases same
@@ -73,19 +73,19 @@ theorem Located.itemProducer_seen
 -----------------------------------------------------------------------------------------
 
 /-- An object task's contributors and full ancestor metadata share its exposed region.
-Witness: the task's exact location supplies its contributor in the root-key inventory;
-region exposure then applies to every key there, including ancestor-only records.
+Witness: the task's exact location supplies its contributor in the root-ref inventory;
+region exposure then applies to every ref there, including ancestor-only records.
 -/
-theorem TaskAt.executionGroup_exposedRootKeys
-    {work address owners producer payload seen key}
+theorem TaskAt.executionGroup_exposedRootRefs
+    {work address owners producer payload seen ref}
     (known : TaskAt work (.executionGroup address) owners producer payload)
-    (separated : WorkSeparated work) (owner : key ∈ owners)
-    (exposed : ExposedKey work seen key)
+    (separated : WorkSeparated work) (owner : ref ∈ owners)
+    (exposed : ExposedRef work seen ref)
     : ∀ location,
         locateWork work address = some location
-        → ∀ other ∈ rootKeys location.current, ExposedKey work seen other := by
+        → ∀ other ∈ rootRefs location.current, ExposedRef work seen other := by
   obtain ⟨groups, locationPath, value, children, enclosing, located, sameOwners, _⟩ := known
-  have member : key ∈ rootKeys (.executionGroup groups locationPath value children) := by
+  have member : ref ∈ rootRefs (.executionGroup groups locationPath value children) := by
     rw [sameOwners] at owner
     obtain ⟨fragment, included, same⟩ := List.mem_map.mp owner
     exact List.mem_append_left _ (List.mem_flatMap.mpr
@@ -93,50 +93,50 @@ theorem TaskAt.executionGroup_exposedRootKeys
   intro location found
   have same := Option.some.inj (located.symm.trans found)
   subst location
-  exact Located.exposedRootKeys located separated member exposed
+  exact Located.exposedRootRefs located separated member exposed
 
 /-- Exposure of a group includes its entire defer ancestry in the same region.
-Witness: its descriptor's contributor and ancestor keys all occur in one located root
+Witness: its descriptor's contributor and ancestor refs all occur in one located root
 region, including taskless intermediate ancestors.
 -/
 theorem NodeAt.group_exposedChain {work node dependencies producer seen}
     (known : NodeAt work node .group dependencies producer)
-    (separated : WorkSeparated work) (exposed : ExposedKey work seen node.key)
-    : ∀ key ∈ node.key :: dependencies, ExposedKey work seen key := by
+    (separated : WorkSeparated work) (exposed : ExposedRef work seen node.ref)
+    : ∀ ref ∈ node.ref :: dependencies, ExposedRef work seen ref := by
   obtain ⟨address, groups, path, result, children, enclosing, fragment,
     located, member, sameNode, sameDependencies⟩ := known
-  have rootMember : node.key ∈ rootKeys (.executionGroup groups path result children) :=
+  have rootMember : node.ref ∈ rootRefs (.executionGroup groups path result children) :=
     List.mem_append_left _ (List.mem_flatMap.mpr
-      ⟨fragment, member, List.mem_cons.mpr (.inl (congrArg Execution.DeliveryNode.key sameNode))⟩)
-  intro key included
-  apply Located.exposedRootKeys located separated rootMember exposed key
+      ⟨fragment, member, List.mem_cons.mpr (.inl (congrArg Execution.DeliveryNode.ref sameNode))⟩)
+  intro ref included
+  apply Located.exposedRootRefs located separated rootMember exposed ref
   apply List.mem_append_left
   apply List.mem_flatMap.mpr
   refine ⟨fragment, member, ?_⟩
-  simpa only [sameNode, sameDependencies, Semantics.KeyRoles.fragmentKeys] using included
+  simpa only [sameNode, sameDependencies, Semantics.RefRoles.fragmentRefs] using included
 
 /-- Exposure of an item-produced group identifies the item that revealed its region.
-Witness: project the group's contributor key and invert its exact item-producer edge.
+Witness: project the group's contributor ref and invert its exact item-producer edge.
 -/
 theorem NodeAt.group_itemProducer_seen {work node dependencies source index seen}
     (known : NodeAt work node .group dependencies (some (.item source index)))
-    (separated : WorkSeparated work) (exposed : ExposedKey work seen node.key)
+    (separated : WorkSeparated work) (exposed : ExposedRef work seen node.ref)
     : Occurrence.item source index ∈ seen := by
   obtain ⟨address, groups, path, result, children, enclosing, fragment,
     located, member, sameNode, _⟩ := known
-  apply Located.itemProducer_seen located separated (key := node.key) _ exposed
+  apply Located.itemProducer_seen located separated (ref := node.ref) _ exposed
   exact List.mem_append_left _ (List.mem_flatMap.mpr
-    ⟨fragment, member, List.mem_cons.mpr (.inl (congrArg Execution.DeliveryNode.key sameNode))⟩)
+    ⟨fragment, member, List.mem_cons.mpr (.inl (congrArg Execution.DeliveryNode.ref sameNode))⟩)
 
 /-- A registered group with an item producer was introduced by an already-observed item.
-Witness: permanent registration exposes its key, and exact structural navigation locates
+Witness: permanent registration exposes its ref, and exact structural navigation locates
 the unique item boundary. This uses source identities, not a chosen response matching.
 -/
 theorem State.RegionInventory.group_itemProducer_seen {queue : State} {work seen}
     (inventory : queue.RegionInventory work seen) (generated : ExecutedWork work)
     {node dependencies source index}
     (known : NodeAt work node .group dependencies (some (.item source index)))
-    (registered : node.key ∈ queue.registeredGroups)
+    (registered : node.ref ∈ queue.registeredGroups)
     : Occurrence.item source index ∈ seen :=
   NodeAt.group_itemProducer_seen known generated.regionsSeparated
     (inventory.registered_exposed registered)
@@ -171,7 +171,7 @@ theorem ExecutedWork.registered_group_itemProducer_succeeded {work received}
     {node dependencies source index}
     (known : NodeAt work node .group dependencies (some (.item source index)))
     (registered
-      : node.key
+      : node.ref
         ∈ ((State.initialize (Work.fromExecution work)).replayGraphEvents
             received).registeredGroups)
     : Occurrence.item source index ∈ received.flatMap GraphEvent.successes :=

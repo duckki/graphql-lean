@@ -27,8 +27,8 @@ open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
-private def parent : DeliveryNode := { key := 0, path := [], label := some (.string "P") }
-private def child : DeliveryNode := { key := 1, path := [], label := some (.string "C") }
+private def parent : DeliveryNode := { ref := 0, path := [], label := some (.string "P") }
+private def child : DeliveryNode := { ref := 1, path := [], label := some (.string "C") }
 private def occurrence : Occurrence := .executionGroup [1, 0]
 
 private def work : Execution.Work :=
@@ -39,14 +39,14 @@ private def work : Execution.Work :=
       .empty)
 
 private def parentRecord : GroupNode :=
-  { group := ⟨parent, none⟩, childGroups := [child.key] }
+  { group := ⟨parent, none⟩, childGroups := [child.ref] }
 
 private def childRecord : GroupNode :=
-  { group := ⟨child, some parent.key⟩, tasks := [occurrence], pending := 1 }
+  { group := ⟨child, some parent.ref⟩, tasks := [occurrence], pending := 1 }
 
 private def queue : State :=
   {
-    registeredGroups := [parent.key, child.key],
+    registeredGroups := [parent.ref, child.ref],
     groupNodes := [parentRecord, childRecord],
     tasks := [⟨occurrence, [child]⟩]
   }
@@ -56,7 +56,7 @@ private theorem generated : ExecutedWork work := by
     [defer [defer [field "a"] (some "C")] (some "P")], ?_⟩
   cbv
 
-private theorem childKnown : NodeAt work child .group [parent.key] none :=
+private theorem childKnown : NodeAt work child .group [parent.ref] none :=
   .group (address := [1, 0]) (groups := [⟨child, [parent]⟩])
     (path := []) (result := .ok ([("a", .scalar "a")], 0))
     (children := .combine .empty .empty) (owners := []) (by cbv) List.mem_cons_self
@@ -73,13 +73,13 @@ the concrete checks establish that P is absent while C survives.
 -/
 theorem taskless_initial_group_covered
     : let initial := State.initialize (Work.fromExecution work)
-      initial.groupNode? parent.key = none
-      ∧ ∃ root ∈ initial.rootGroups, initial.LiveDescendant root child.key := by
+      initial.groupNode? parent.ref = none
+      ∧ ∃ root ∈ initial.rootGroups, initial.LiveDescendant root child.ref := by
   intro initial
-  refine ⟨by cbv, generated.initial_live_group_root_coverage child.key ?_⟩
+  refine ⟨by cbv, generated.initial_live_group_root_coverage child.ref ?_⟩
   exact ⟨childRecord, by cbv⟩
 
-private theorem childRecordKnown : GroupRecordAt work child [parent.key] := by
+private theorem childRecordKnown : GroupRecordAt work child [parent.ref] := by
   refine ⟨[1, 0], [⟨child, [parent]⟩], [], .ok ([("a", .scalar "a")], 0),
     .combine .empty .empty, none, [], ⟨child, [parent]⟩, [parent], rfl,
     List.mem_cons_self, ?_, rfl⟩
@@ -90,19 +90,19 @@ private theorem registry : queue.GroupNodesMatchWork work := by
   rcases (show node = parentRecord ∨ node = childRecord from by simpa [queue] using member)
     with rfl | rfl
   · exact ⟨[], parentKnown⟩
-  · exact ⟨[parent.key], childRecordKnown⟩
+  · exact ⟨[parent.ref], childRecordKnown⟩
 
 private theorem support
-    : queue.GroupKeySupport
-        (fun key =>
-          ∃ dependencies, NodeHasDependencies work key .group dependencies) := by
+    : queue.GroupRefSupport
+        (fun ref =>
+          ∃ dependencies, NodeHasDependencies work ref .group dependencies) := by
   constructor
   · intro node member absent
     rcases (show node = parentRecord ∨ node = childRecord from by simpa [queue] using member)
       with rfl | rfl
     · exact ⟨rfl, rfl⟩
-    · exact False.elim (absent ⟨[parent.key], child, none, childKnown, rfl⟩)
-  · intro key member
+    · exact False.elim (absent ⟨[parent.ref], child, none, childKnown, rfl⟩)
+  · intro ref member
     cases member
 
 /-- Child-first repeated registration still connects the live child to its parent.
@@ -113,21 +113,21 @@ theorem child_first_registration_links
     : let groups := [childRecord.group, parentRecord.group, childRecord.group]
       let registered := (({} : State).addGroups groups).1
       ∃ node,
-        registered.groupNode? parent.key = some node ∧ child.key ∈ node.childGroups := by
+        registered.groupNode? parent.ref = some node ∧ child.ref ∈ node.childGroups := by
   intro groups registered
-  let parents : Nat → Keys := fun key => if key = child.key then [parent.key] else []
+  let parents : Nat → NodeRefs := fun ref => if ref = child.ref then [parent.ref] else []
   have complete : ({} : State).ParentLinksComplete parents := by
     intro node member
     cases member
-  have canonical : ∀ group ∈ groups, group.parent = (parents group.node.key).head? := by
+  have canonical : ∀ group ∈ groups, group.parent = (parents group.node.ref).head? := by
     intro group member
     rcases (show group = childRecord.group ∨ group = parentRecord.group
         ∨ group = childRecord.group from by simpa [groups] using member)
       with rfl | rfl | rfl <;> decide
-  have linked := complete.addGroups (by simp [State.GroupKeysUnique])
-    (by intro node member; cases member) (by intro key member; cases member) groups canonical
-  have parentFound : registered.groupNode? parent.key = some parentRecord := by cbv
-  have childFound : registered.groupNode? child.key = some { group := childRecord.group } := by cbv
+  have linked := complete.addGroups (by simp [State.GroupRefsUnique])
+    (by intro node member; cases member) (by intro ref member; cases member) groups canonical
+  have parentFound : registered.groupNode? parent.ref = some parentRecord := by cbv
+  have childFound : registered.groupNode? child.ref = some { group := childRecord.group } := by cbv
   exact ⟨
     parentRecord,
     parentFound,
@@ -139,17 +139,17 @@ theorem child_first_registration_links
 Witness: canonical record links and generated ancestry recover P from the path P to C;
 the generic path theorem does not require P to have a contributing task.
 -/
-theorem taskless_path_retains_ancestor : parent.key ∈ [parent.key] := by
+theorem taskless_path_retains_ancestor : parent.ref ∈ [parent.ref] := by
   obtain ⟨parents, canonical⟩ := generated.groupRecordsCanonical
   have links : queue.ChildLinksCanonical parents := by
-    intro node member key childMember
+    intro node member ref childMember
     rcases (show node = parentRecord ∨ node = childRecord from by simpa [queue] using member)
       with rfl | rfl
     · obtain rfl := List.mem_singleton.mp childMember
       rw [← canonical _ _ childRecordKnown]
       rfl
     · cases childMember
-  have path : queue.LiveDescendant parent.key child.key :=
+  have path : queue.LiveDescendant parent.ref child.ref :=
     .child (by rfl) List.mem_cons_self (.self (by rfl))
   rcases path.ancestor_or_self generated registry links canonical childRecordKnown rfl with
     same | ancestor
@@ -167,13 +167,13 @@ theorem taskless_parent_promoted
       ∧ (State.initialize (Work.fromExecution work)).initialGroups = [child] := by
   exact ⟨by cbv, by cbv, by cbv⟩
 
-/-- Initial taskless-shell promotion cannot duplicate the announced child's key.
+/-- Initial taskless-shell promotion cannot duplicate the announced child's ref.
 Witness: generated initialization applies the generic unique-frontier pruning theorem,
 not evaluation of the final singleton notice list.
 -/
 theorem taskless_initial_notices_unique
     : ((State.initialize (Work.fromExecution work)).initialGroups.map
-        DeliveryNode.key).Nodup :=
+        DeliveryNode.ref).Nodup :=
   generated.initialGroups_unique
 
 /-- The taskless ancestor cannot exhaust pruning fuel or hide its surviving child.
@@ -185,10 +185,10 @@ theorem taskless_pruning_complete (extra : Nat)
           queue [parent] []
         = queue.pruneEmptyGroups [parent]
       ∧ ∃ root ∈ (queue.pruneEmptyGroups [parent]).2,
-          (queue.pruneEmptyGroups [parent]).1.LiveDescendant root.key child.key := by
-  let parents : Nat → Keys := fun _ => [parent.key]
+          (queue.pruneEmptyGroups [parent]).1.LiveDescendant root.ref child.ref := by
+  let parents : Nat → NodeRefs := fun _ => [parent.ref]
   have links : queue.ChildLinksCanonical parents := by
-    intro node member key linked
+    intro node member ref linked
     rcases (show node = parentRecord ∨ node = childRecord from by simpa [queue] using member)
       with rfl | rfl
     · rfl
@@ -202,8 +202,8 @@ theorem taskless_pruning_complete (extra : Nat)
     obtain rfl := List.mem_singleton.mp member
     rcases (show node = parentRecord ∨ node = childRecord from by simpa [queue] using live)
       with rfl | rfl <;> decide
-  have unique : ([parent].map DeliveryNode.key).Nodup := by simp
-  have live : ∀ group ∈ [parent], ∃ node, queue.groupNode? group.key = some node := by
+  have unique : ([parent].map DeliveryNode.ref).Nodup := by simp
+  have live : ∀ group ∈ [parent], ∃ node, queue.groupNode? group.ref = some node := by
     intro group member
     obtain rfl := List.mem_singleton.mp member
     exact ⟨parentRecord, rfl⟩
@@ -229,11 +229,11 @@ theorem taskless_branched_release_unique
         { group := ⟨⟨3, [], none⟩, some 0⟩, tasks := [occurrence], pending := 1 }
       let current : State := { groupNodes := [closing, shell, left, right] }
       (((current.finishGroupSuccess closing).2.2.newGroups).map
-        DeliveryNode.key).Nodup := by
+        DeliveryNode.ref).Nodup := by
   intro closing shell left right current
-  let parents : Nat → Keys := fun key => if key = 2 then [1] else [0]
+  let parents : Nat → NodeRefs := fun ref => if ref = 2 then [1] else [0]
   apply current.finishGroupSuccess_newGroups_unique (parents := parents)
-  · intro node member key linked
+  · intro node member ref linked
     simp only [current, List.mem_cons, List.not_mem_nil, or_false] at member
     rcases member with rfl | rfl | rfl | rfl
     · simp only [closing, List.mem_cons, List.not_mem_nil, or_false] at linked
@@ -250,7 +250,7 @@ theorem taskless_branched_release_unique
 
 /-- Successful closure retains coverage through a taskless branch and a stale child link.
 Witness: the generic close-and-activate theorem covers both promoted leaves and a separate
-old root. The regression checks path coverage, not merely that notice keys are distinct.
+old root. The regression checks path coverage, not merely that notice refs are distinct.
 -/
 theorem branched_release_covers_survivors
     : let closing : GroupNode := { parentRecord with childGroups := [1, 99, 3] }
@@ -266,11 +266,11 @@ theorem branched_release_covers_survivors
         { rootGroups := [0, 9], groupNodes := [closing, shell, left, right, separate] }
       let result := current.finishGroupSuccess closing
       let next := result.1.startNewWork result.2.2
-      ∀ key ∈ [2, 3, 9], ∃ root ∈ next.rootGroups, next.LiveDescendant root key := by
-  intro closing shell left right separate current result next key member
-  let parents : Nat → Keys := fun key => if key = 2 then [1] else [0]
+      ∀ ref ∈ [2, 3, 9], ∃ root ∈ next.rootGroups, next.LiveDescendant root ref := by
+  intro closing shell left right separate current result next ref member
+  let parents : Nat → NodeRefs := fun ref => if ref = 2 then [1] else [0]
   have links : current.ChildLinksCanonical parents := by
-    intro node member key linked
+    intro node member ref linked
     simp only [current, List.mem_cons, List.not_mem_nil, or_false] at member
     rcases member with rfl | rfl | rfl | rfl | rfl
     · simp only [closing, List.mem_cons, List.not_mem_nil, or_false] at linked
@@ -309,7 +309,7 @@ theorem branched_release_covers_survivors
     · exact ⟨separate, by cbv⟩
 
 /-- Pruning a fresh taskless wrapper preserves an earlier root, even if that root is empty.
-Witness: registration isolates fresh child paths from old keys. The new wrapper really is
+Witness: registration isolates fresh child paths from old refs. The new wrapper really is
 removed, so this regression cannot be discharged by assuming that pruning does nothing.
 -/
 theorem taskless_item_preserves_old_root
@@ -321,20 +321,20 @@ theorem taskless_item_preserves_old_root
         }
       let item : StreamItem := ⟨.item [] 0, ⟨.object [], 0⟩, Work.fromExecution work⟩
       (before.integrateStreamItem item).RootGroupsPresent
-      ∧ (before.integrateStreamItem item).rootGroups = [9, child.key]
-      ∧ (before.integrateStreamItem item).groupNode? parent.key = none := by
+      ∧ (before.integrateStreamItem item).rootGroups = [9, child.ref]
+      ∧ (before.integrateStreamItem item).groupNode? parent.ref = none := by
   intro before item
   refine ⟨
     State.RootGroupsPresent.integrateStreamItem_registered ?_ ?_ ?_ item,
     by cbv,
     by cbv
   ⟩
-  · intro key member
+  · intro ref member
     exact member
   · intro node member
     obtain rfl := List.mem_singleton.mp member
     exact List.mem_cons_self
-  · simp [State.GroupKeysUnique, before]
+  · simp [State.GroupRefsUnique, before]
 
 /-- Fresh taskless promotion preserves an existing root-to-child path, not just its root.
 Witness: the generic item-integration coverage theorem; the old two-record branch is
@@ -356,7 +356,7 @@ theorem taskless_item_preserves_old_branch
         (before.integrateStreamItem item).LiveDescendant root 10 := by
   intro before item
   refine State.integrateStreamItem_old_root_coverage
-    (by simp [State.GroupKeysUnique, before]) ?_ item ?_
+    (by simp [State.GroupRefsUnique, before]) ?_ item ?_
   · intro node member
     simp only [before, List.mem_cons, List.not_mem_nil, or_false] at member
     rcases member with rfl | rfl <;> decide
@@ -369,11 +369,11 @@ does not supply contributor provenance for the returned child as an output assum
 theorem promoted_notice_contents
     : (∃ dependencies producer, NodeAt work child .group dependencies producer)
       ∧ ∃ node,
-          (queue.pruneEmptyGroups [parent]).1.groupNode? child.key = some node
+          (queue.pruneEmptyGroups [parent]).1.groupNode? child.ref = some node
           ∧ node.group.node = child
           ∧ (node.tasks ≠ [] ∨ node.failure.isSome = true) := by
   apply queue.pruneEmptyGroups_noticeContents generated
-    (by simp [State.GroupKeysUnique,
+    (by simp [State.GroupRefsUnique,
       queue, parentRecord, childRecord, parent, child])
     registry support [parent]
   · intro node member
@@ -387,16 +387,16 @@ Witness: instantiate the general inherited-readiness traversal with generated ca
 parent links. Only the removed parent needs silent accounting; the nonempty child does not.
 -/
 theorem promoted_notice_dependencies
-    : ∀ key ∈ [parent.key],
-        DependencySatisfied work [] (fun _ => occurrence) [] [] key := by
-  have absent : ¬∃ producer, NodeHasProducer work parent.key producer := by
+    : ∀ ref ∈ [parent.ref],
+        DependencySatisfied work [] (fun _ => occurrence) [] [] ref := by
+  have absent : ¬∃ producer, NodeHasProducer work parent.ref producer := by
     rintro ⟨producer, node, kind, dependencies, known, same⟩
     have token := known.observationToken
     rw [same] at token
     simp [observationTokens, work, parent, child] at token
   obtain ⟨parents, canonical⟩ := generated.groupRecordsCanonical
   have links : queue.ChildLinksCanonical parents := by
-    intro node member key childMember
+    intro node member ref childMember
     rcases (show node = parentRecord ∨ node = childRecord from by simpa [queue] using member)
       with rfl | rfl
     · obtain rfl := List.mem_singleton.mp childMember
@@ -410,7 +410,7 @@ theorem promoted_notice_dependencies
       with rfl | rfl
     · exact ⟨by simp [NodeFailed], .inl absent⟩
     · cases empty
-  · intro group member key ancestor
+  · intro group member ref ancestor
     obtain rfl := List.mem_singleton.mp member
     rw [← canonical _ _ parentKnown] at ancestor
     cases ancestor
@@ -423,13 +423,13 @@ concrete contents rule uses the child's real registered membership; neither canc
 safety nor an unaccounted task is supplied as a premise. Initial admission is not assumed.
 -/
 theorem promoted_notice_eligible
-    : CanAnnounce work [] (fun _ => occurrence) [] [] child .group [parent.key] none := by
-  have task : TaskAt work occurrence [child.key] none
+    : CanAnnounce work [] (fun _ => occurrence) [] [] child .group [parent.ref] none := by
+  have task : TaskAt work occurrence [child.ref] none
       (.object [] (.ok ([("a", .scalar "a")], 0))) :=
     .executionGroup (groups := [⟨child, [parent]⟩]) (children := .combine .empty .empty)
       (owners := []) (by cbv)
-  have ready : ∀ key ∈ [parent.key],
-      DependencySatisfied work [] (fun _ => occurrence) [] [] key := promoted_notice_dependencies
+  have ready : ∀ ref ∈ [parent.ref],
+      DependencySatisfied work [] (fun _ => occurrence) [] [] ref := promoted_notice_dependencies
   refine State.groupNotice_canAnnounce_of_contents
     (queue := queue)
     (node := childRecord)
@@ -440,7 +440,7 @@ theorem promoted_notice_eligible
     (by simp [queue])
     (.inl (by simp [childRecord]))
     ?_ ?_ ?_
-    (by simp [announcedKeys, pendingKeys])
+    (by simp [announcedRefs, pendingRefs])
     (by intro source impossible; cases impossible)
     ready ?_ ?_
   · intro node member other listed
@@ -515,7 +515,7 @@ private def work : Execution.Work :=
       selections).run
     0).1.work
 
-private def child : DeliveryNode := { key := 2, path := [], label := some (.string "C") }
+private def child : DeliveryNode := { ref := 2, path := [], label := some (.string "C") }
 
 private def first : GraphEvent :=
   .taskSuccess occurrence
@@ -525,7 +525,7 @@ private theorem generated : ExecutedWork work :=
   ⟨Nat, schema, resolvers, [], 50, "Query", .object "Query" 0, selections, rfl⟩
 
 private theorem valid : ValidGraphEvents work [first] := by
-  have known : TaskAt work occurrence [parent.key] none
+  have known : TaskAt work occurrence [parent.ref] none
       (.object [] (.ok ([("a", .scalar "a")], 0))) :=
     .executionGroup (groups := [⟨parent, []⟩]) (children := .combine .empty .empty)
       (owners := []) (by cbv)
@@ -537,7 +537,7 @@ private def broken : State :=
   let initial := State.initialize (Work.fromExecution work)
   {
     initial with
-      groupNodes := initial.groupNodes.filter (fun node => node.group.node.key != 1)
+      groupNodes := initial.groupNodes.filter (fun node => node.group.node.ref != 1)
   }
 
 private def liveParent : GroupNode :=
@@ -546,18 +546,18 @@ private def liveParent : GroupNode :=
 private def liveChild : GroupNode :=
   { group := ⟨child, some 1⟩, tasks := [.executionGroup [1, 1, 0]], pending := 1 }
 
-private theorem broken_parent : broken.groupNode? parent.key = some liveParent := by cbv
+private theorem broken_parent : broken.groupNode? parent.ref = some liveParent := by cbv
 
-private theorem broken_child : broken.groupNode? child.key = some liveChild := by cbv
+private theorem broken_child : broken.groupNode? child.ref = some liveChild := by cbv
 
 private theorem broken_wrapper : broken.groupNode? 1 = none := by cbv
 
-private theorem parent_task : TaskHasOwners work occurrence [parent.key] := by
+private theorem parent_task : TaskHasOwners work occurrence [parent.ref] := by
   refine ⟨none, .object [] (.ok ([("a", .scalar "a")], 0)), ?_⟩
   exact .executionGroup (groups := [⟨parent, []⟩]) (children := .combine .empty .empty)
     (owners := []) (by cbv)
 
-private theorem child_known : NodeAt work child .group [1, parent.key] none :=
+private theorem child_known : NodeAt work child .group [1, parent.ref] none :=
   .group (address := [1, 1, 0])
     (groups := [⟨child, [⟨1, [], some (.string "W")⟩, parent]⟩])
     (path := []) (result := .ok ([("b", .scalar "b")], 0))
@@ -567,11 +567,11 @@ private theorem child_known : NodeAt work child .group [1, parent.key] none :=
 Witness: the general replay theorem at the empty prefix, not a manually supplied path.
 -/
 theorem initial_supported_path
-    : (State.initialize (Work.fromExecution work)).LiveDescendant parent.key
-        child.key := by
-  have childFound : (State.initialize (Work.fromExecution work)).groupNode? child.key
+    : (State.initialize (Work.fromExecution work)).LiveDescendant parent.ref
+        child.ref := by
+  have childFound : (State.initialize (Work.fromExecution work)).groupNode? child.ref
       = some liveChild := by cbv
-  have parentFound : (State.initialize (Work.fromExecution work)).groupNode? parent.key
+  have parentFound : (State.initialize (Work.fromExecution work)).groupNode? parent.ref
       = some liveParent := by cbv
   exact generated.runNormalized_healthy_ancestor_path [] .nil rfl liveChild _ _ _ _
     childFound (groupRecordAt_of_nodeAt child_known) (fun invalid => invalid.nonempty rfl)
@@ -588,7 +588,7 @@ theorem premature_wrapper_retirement_rejected
       let broken : State :=
         {
           initial with
-            groupNodes := initial.groupNodes.filter (fun node => node.group.node.key != 1)
+            groupNodes := initial.groupNodes.filter (fun node => node.group.node.ref != 1)
         }
       ¬broken.HealthyRetiredAncestors work [] := by
   change ¬broken.HealthyRetiredAncestors work []
@@ -600,7 +600,7 @@ theorem premature_wrapper_retirement_rejected
     exact (createWorkQueue_registration work).1 node (List.mem_filter.mp member).1
   have parentLive : ∃ node, broken.groupNode? 1 = some node :=
     retirement.supported_parent_present (queue := broken) (work := work)
-      (child := liveChild) (parent := 1) (rest := [parent.key]) (ancestor := parent.key)
+      (child := liveChild) (parent := 1) (rest := [parent.ref]) (ancestor := parent.ref)
       registered registry canonical broken_child (groupRecordAt_of_nodeAt child_known)
       (fun invalid => invalid.nonempty rfl)
       (List.mem_cons_of_mem _ List.mem_cons_self) parent_task List.mem_cons_self
@@ -679,7 +679,7 @@ theorem promoted_child_contents_on_common_witness
         ConformancePlan.GroupPublicationAdmission work w
         ∧ ObjectLedgerMatching work [[first]] w.events w.matching published
         ∧ ∃ node,
-            noticeBoundary.groupNode? child.key = some node
+            noticeBoundary.groupNode? child.ref = some node
             ∧ node.group.node = child
             ∧ (node.tasks ≠ [] ∨ node.failure.isSome = true)
             ∧ ∀ publication ∈ published.take 1, publication.1 ∉ node.tasks := by
@@ -749,15 +749,15 @@ private def work : Execution.Work :=
       selections).run
     0).1.work
 
-private def stream : DeliveryNode := { key := 0, path := [.field "users"] }
+private def stream : DeliveryNode := { ref := 0, path := [.field "users"] }
 
 private def child : DeliveryNode :=
-  { key := 2, path := [.field "users", .index 0], label := some (.string "C") }
+  { ref := 2, path := [.field "users", .index 0], label := some (.string "C") }
 
-private def children (key index : Nat) (name : String) : Execution.Work :=
+private def children (ref : NodeRef) (index : Nat) (name : String) : Execution.Work :=
   let path := [.field "users", .index index]
-  let ancestor : DeliveryNode := { key := key - 1, path, label := some (.string "W") }
-  let node : DeliveryNode := { key, path, label := some (.string "C") }
+  let ancestor : DeliveryNode := { ref := ref - 1, path, label := some (.string "W") }
+  let node : DeliveryNode := { ref, path, label := some (.string "C") }
   .combine .empty
     (.combine
       (.executionGroup [⟨node, [ancestor]⟩] path (.ok ([("name", .scalar name)], 0))
@@ -776,7 +776,7 @@ private theorem generated : ExecutedWork work :=
   ⟨Nat, schema, resolvers, [], 50, "Query", .object "Query" 0, selections, rfl⟩
 
 private theorem valid : ValidGraphEvents work [first] := by
-  have known : TaskAt work item.occurrence [stream.key] none
+  have known : TaskAt work item.occurrence [stream.ref] none
       (.item stream (.ok (.object [], 0))) :=
     .item (items := [(.ok (.object [], 0), children 2 0 "name1"),
       (.ok (.object [], 0), children 4 1 "name2")]) (owners := []) (by cbv) rfl
@@ -798,7 +798,7 @@ theorem promoted_item_frontier_unique
     : let initial := State.initialize (Work.fromExecution work)
       let integrated := initial.maybeIntegrateWork item.work
       (((integrated.1.pruneEmptyGroups integrated.2.newGroups).2).map
-        DeliveryNode.key).Nodup := by
+        DeliveryNode.ref).Nodup := by
   obtain ⟨parents, canonical⟩ := generated.groupRecordsCanonical
   have links := createWorkQueue_childLinksCanonical (Work.fromExecution work) parents
     (fun _ member => workFromSpec_groups_parentCanonical Located.root canonical member)

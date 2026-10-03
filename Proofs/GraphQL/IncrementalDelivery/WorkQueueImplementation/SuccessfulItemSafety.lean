@@ -39,9 +39,9 @@ Witness: inspect the original failure cut; owner failure contradicts health, whi
 successful outcomes and supplied producer safety exclude both producer cases.
 -/
 theorem task_uncancelled_of_successfulProducerSafety
-    {work matching events failures occurrence owners producer payload key}
-    (known : TaskAt work occurrence owners producer payload) (owner : key ∈ owners)
-    (healthy : ¬NodeFailed work matching events failures key)
+    {work matching events failures occurrence owners producer payload ref}
+    (known : TaskAt work occurrence owners producer payload) (owner : ref ∈ owners)
+    (healthy : ¬NodeFailed work matching events failures ref)
     (failedPayloads
       : ∀ cut task,
           (cut, task) ∈ failures
@@ -57,7 +57,7 @@ theorem task_uncancelled_of_successfulProducerSafety
   | owners other _ _ failed =>
       obtain ⟨_, _, descriptor⟩ := other
       exact healthy ⟨cut, member, reached,
-        failed key ((known.unique descriptor).1 ▸ owner)⟩
+        failed ref ((known.unique descriptor).1 ▸ owner)⟩
   | producerFailed other _ recorded =>
       obtain ⟨_, _, descriptor⟩ := other
       exact taskSucceeds_not_failedBefore
@@ -118,7 +118,7 @@ theorem ExecutedWork.publishedItems_safe_mixed
         ∀ index event,
           atoms[index]? = some event
           → ∀ stream dependencies producer,
-              stream.key ∈ streamReferenceKeys event
+              stream.ref ∈ streamReferenceRefs event
               → NodeAt work stream .stream dependencies producer
               → ∀ source,
                   producer = some source → Published matching (atoms.take index) source)

@@ -59,7 +59,7 @@ theorem TaskAt.executionGroup_registrationWork
         taskRegistrationWork? work producer = some chunk
         ∧ task ∈ chunk.tasks
         ∧ task.occurrence = .executionGroup address
-        ∧ task.groups.map Execution.DeliveryNode.key = owners
+        ∧ task.groups.map Execution.DeliveryNode.ref = owners
         ∧ taskGroups? work task.occurrence = some task.groups := by
   obtain ⟨groups, path, result, children, enclosing, located, sameOwners, _⟩ := known
   obtain ⟨chunk, boundary, included⟩ := Located.taskRegistrationWork located
@@ -78,7 +78,7 @@ theorem TaskAt.executionGroup_initial_registered {work address owners payload}
     (known : TaskAt work (.executionGroup address) owners none payload)
     : ∃ task ∈ (State.initialize (Work.fromExecution work)).tasks,
         task.occurrence = .executionGroup address
-        ∧ task.groups.map Execution.DeliveryNode.key = owners := by
+        ∧ task.groups.map Execution.DeliveryNode.ref = owners := by
   obtain ⟨chunk, task, boundary, member, occurrence, groups, _⟩ :=
     TaskAt.executionGroup_registrationWork known
   have same : chunk = Work.fromExecution work := (Option.some.inj boundary).symm
@@ -99,7 +99,7 @@ theorem GraphEvent.MatchesWork.taskChildren_complete {work producer result}
     (known : TaskAt work (.executionGroup address) owners (some producer) payload)
     : ∃ task ∈ result.work.tasks,
         task.occurrence = .executionGroup address
-        ∧ task.groups.map Execution.DeliveryNode.key = owners := by
+        ∧ task.groups.map Execution.DeliveryNode.ref = owners := by
   obtain ⟨chunk, task, boundary, member, occurrence, groups, _⟩ :=
     TaskAt.executionGroup_registrationWork known
   obtain ⟨_, _, _, _, childWork⟩ := matching
@@ -119,7 +119,7 @@ theorem GraphEvent.MatchesWork.streamItemChildren_complete {work stream items}
     (known : TaskAt work (.executionGroup address) owners (some item.occurrence) payload)
     : ∃ task ∈ item.work.tasks,
         task.occurrence = .executionGroup address
-        ∧ task.groups.map Execution.DeliveryNode.key = owners := by
+        ∧ task.groups.map Execution.DeliveryNode.ref = owners := by
   obtain ⟨chunk, task, boundary, member, occurrence, groups, _⟩ :=
     TaskAt.executionGroup_registrationWork known
   obtain ⟨_, _, _, childWork⟩ := matching item selected
@@ -142,7 +142,7 @@ theorem State.taskSuccess_child_registered {queue : State}
     (known : TaskAt work (.executionGroup address) owners (some producer) payload)
     : ∃ task ∈ (queue.taskSuccess producer result).1.tasks,
         task.occurrence = .executionGroup address
-        ∧ task.groups.map Execution.DeliveryNode.key = owners := by
+        ∧ task.groups.map Execution.DeliveryNode.ref = owners := by
   obtain ⟨task, member, occurrence, groups⟩ := matching.taskChildren_complete known
   rw [State.taskSuccess_tasks found eligible]
   exact ⟨task, List.mem_append_right _ member, occurrence, groups⟩
@@ -157,7 +157,7 @@ theorem State.integrateStreamItem_child_registered (queue : State) {work stream 
     (known : TaskAt work (.executionGroup address) owners (some item.occurrence) payload)
     : ∃ task ∈ (queue.integrateStreamItem item).tasks,
         task.occurrence = .executionGroup address
-        ∧ task.groups.map Execution.DeliveryNode.key = owners := by
+        ∧ task.groups.map Execution.DeliveryNode.ref = owners := by
   obtain ⟨task, member, occurrence, groups⟩ := matching.streamItemChildren_complete selected known
   rw [State.integrateStreamItem_tasks]
   exact ⟨task, List.mem_append_right _ member, occurrence, groups⟩

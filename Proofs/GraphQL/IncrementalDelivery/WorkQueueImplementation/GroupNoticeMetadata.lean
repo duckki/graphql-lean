@@ -28,11 +28,11 @@ def _root_.GraphQL.IncrementalDelivery.Execution.WorkQueueEvent.GroupNoticesLoca
 This private proof package introduces no executable state or host-source premise.
 -/
 private structure NoticeFrame (work : Execution.Work) (queue : State) : Prop where
-  keys : queue.GroupKeysUnique
+  refs : queue.GroupRefsUnique
   records : queue.GroupNodesMatchWork work
   support
-    : queue.GroupKeySupport
-        (fun key => ∃ dependencies, NodeHasDependencies work key .group dependencies)
+    : queue.GroupRefSupport
+        (fun ref => ∃ dependencies, NodeHasDependencies work ref .group dependencies)
 
 /-- Successful flushing preserves the frame and certifies both its output and releases.
 Witness: exact post-pruning contents exclude shells; the implementation copies that
@@ -45,9 +45,9 @@ private theorem NoticeFrame.finishGroupSuccess {work queue}
       ∧ ∀ group ∈ (queue.finishGroupSuccess node).2.2.newGroups,
           ∃ dependencies producer, NodeAt work group .group dependencies producer := by
   have released := fun group member =>
-    (queue.finishGroupSuccess_noticeContents generated frame.keys frame.records
+    (queue.finishGroupSuccess_noticeContents generated frame.refs frame.records
       frame.support node (child := group) member).1
-  refine ⟨⟨frame.keys.finishGroupSuccess node, frame.records.finishGroupSuccess node,
+  refine ⟨⟨frame.refs.finishGroupSuccess node, frame.records.finishGroupSuccess node,
     (frame.support.finishGroupSuccess node).1⟩, ?_, released⟩
   obtain ⟨values, _, _, output, _, _⟩ := queue.finishGroupSuccess_publications node
   intro event member
@@ -60,8 +60,8 @@ private theorem NoticeFrame.finishGroupSuccess {work queue}
   · obtain rfl := List.mem_singleton.mp closure
     exact released
 
-/-- Starting already-pruned work preserves the frame if its group keys have contributors.
-Witness: activation changes neither group keys nor descriptors; root support is supplied
+/-- Starting already-pruned work preserves the frame if its group refs have contributors.
+Witness: activation changes neither group refs nor descriptors; root support is supplied
 by the just-proved notice provenance, not by an assumption of output admission.
 -/
 private theorem NoticeFrame.startNewWork {work queue}
@@ -70,7 +70,7 @@ private theorem NoticeFrame.startNewWork {work queue}
       : ∀ group ∈ newWork.newGroups,
           ∃ dependencies producer, NodeAt work group .group dependencies producer)
     : NoticeFrame work (queue.startNewWork newWork) := by
-  refine ⟨frame.keys.startNewWork newWork, frame.records.startNewWork newWork,
+  refine ⟨frame.refs.startNewWork newWork, frame.records.startNewWork newWork,
     frame.support.startNewWork newWork ?_⟩
   intro group member
   obtain ⟨dependencies, producer, located⟩ := known group member
@@ -85,23 +85,23 @@ Witness: the pruning result contains only actual contributors, which supplies th
 support needed for activation. No announcement-admission premise is used.
 -/
 theorem State.finishGroupSuccess_activated_noticeMetadata {queue : State} {work}
-    (generated : ExecutedWork work) (keys : queue.GroupKeysUnique)
+    (generated : ExecutedWork work) (refs : queue.GroupRefsUnique)
     (records : queue.GroupNodesMatchWork work)
     (support
-      : queue.GroupKeySupport
-          (fun key => ∃ dependencies, NodeHasDependencies work key .group dependencies))
+      : queue.GroupRefSupport
+          (fun ref => ∃ dependencies, NodeHasDependencies work ref .group dependencies))
     (node : GroupNode)
     : let finished := queue.finishGroupSuccess node
       let current := finished.1.startNewWork finished.2.2
-      current.GroupKeysUnique
+      current.GroupRefsUnique
       ∧ current.GroupNodesMatchWork work
-      ∧ current.GroupKeySupport
-          (fun key =>
-            ∃ dependencies, NodeHasDependencies work key .group dependencies) := by
+      ∧ current.GroupRefSupport
+          (fun ref =>
+            ∃ dependencies, NodeHasDependencies work ref .group dependencies) := by
   obtain ⟨frame, _, released⟩ :=
-    NoticeFrame.finishGroupSuccess ⟨keys, records, support⟩ generated node
+    NoticeFrame.finishGroupSuccess ⟨refs, records, support⟩ generated node
   have activated := frame.startNewWork _ released
-  exact ⟨activated.keys, activated.records, activated.support⟩
+  exact ⟨activated.refs, activated.records, activated.support⟩
 
 /-- The drain never announces an ancestor-only shell, including after recursive promotion.
 Witness: each successful closure passes through the pruning certificate; failed closures
@@ -131,7 +131,7 @@ private theorem NoticeFrame.drainReadyGroups {work queue}
                 (List.mem_append.mp member).elim (outputs event) (later event)⟩
           | some errors =>
               obtain ⟨final, later⟩ := ih _
-                ⟨known.keys.removeGroup _, known.records.removeGroup _,
+                ⟨known.refs.removeGroup _, known.records.removeGroup _,
                   known.support.removeGroup _⟩
               refine ⟨final, ?_⟩
               intro event member
@@ -145,13 +145,13 @@ private theorem NoticeFrame.drainReadyGroups {work queue}
 Witness: combine independently proved state metadata and project the local drain result.
 -/
 theorem State.drainReadyGroups_groupNoticesLocated {queue : State} {work}
-    (generated : ExecutedWork work) (keys : queue.GroupKeysUnique)
+    (generated : ExecutedWork work) (refs : queue.GroupRefsUnique)
     (records : queue.GroupNodesMatchWork work)
     (support
-      : queue.GroupKeySupport
-          (fun key => ∃ dependencies, NodeHasDependencies work key .group dependencies))
+      : queue.GroupRefSupport
+          (fun ref => ∃ dependencies, NodeHasDependencies work ref .group dependencies))
     : ∀ event ∈ queue.drainReadyGroups.2, event.GroupNoticesLocated work :=
-  (NoticeFrame.drainReadyGroups ⟨keys, records, support⟩ generated).2
+  (NoticeFrame.drainReadyGroups ⟨refs, records, support⟩ generated).2
 
 -----------------------------------------------------------------------------------------
 -- The task-success owner's single pass and the item-integration fold use the same gate
@@ -168,11 +168,11 @@ private theorem NoticeFrame.maybeIntegrateWork {work queue}
     (owners
       : ∀ task ∈ newWork.tasks,
         ∀ group ∈ task.groups,
-          ∃ dependencies, NodeHasDependencies work group.key .group dependencies)
+          ∃ dependencies, NodeHasDependencies work group.ref .group dependencies)
     (parentTask : Option Occurrence := none)
     : NoticeFrame work (queue.maybeIntegrateWork newWork parentTask).1 :=
   ⟨
-    frame.keys.maybeIntegrateWork newWork parentTask,
+    frame.refs.maybeIntegrateWork newWork parentTask,
     frame.records.maybeIntegrateWork newWork records parentTask,
     frame.support.maybeIntegrateWork newWork owners parentTask
   ⟩
@@ -208,7 +208,7 @@ private theorem NoticeFrame.successGroupFold {work queue}
         · rename_i node found
           let updated := { node with pending := node.pending - 1 }
           have decremented : NoticeFrame work (acc.1.putGroupNode updated) :=
-            ⟨known.keys.putGroupNode updated,
+            ⟨known.refs.putGroupNode updated,
               known.records.putGroupNode updated
                 (known.records node (List.mem_of_find?_eq_some found)),
               known.support.putGroupNode updated (by
@@ -230,46 +230,46 @@ Witness: project the existing local frame-preservation induction. This exposes s
 metadata only, not notice eligibility or any additional source assumption.
 -/
 theorem State.successGroupFold_noticeMetadata {queue : State} {work}
-    (generated : ExecutedWork work) (keys : queue.GroupKeysUnique)
+    (generated : ExecutedWork work) (refs : queue.GroupRefsUnique)
     (records : queue.GroupNodesMatchWork work)
     (support
-      : queue.GroupKeySupport
-          (fun key => ∃ dependencies, NodeHasDependencies work key .group dependencies))
+      : queue.GroupRefSupport
+          (fun ref => ∃ dependencies, NodeHasDependencies work ref .group dependencies))
     (groups : List Execution.DeliveryNode)
     : let current := (groups.foldl successGroupStep (queue, [], {})).1
-      current.GroupKeysUnique
+      current.GroupRefsUnique
       ∧ current.GroupNodesMatchWork work
-      ∧ current.GroupKeySupport
-          (fun key =>
-            ∃ dependencies, NodeHasDependencies work key .group dependencies) := by
-  have frame := (NoticeFrame.successGroupFold ⟨keys, records, support⟩ generated groups).1
-  exact ⟨frame.keys, frame.records, frame.support⟩
+      ∧ current.GroupRefSupport
+          (fun ref =>
+            ∃ dependencies, NodeHasDependencies work ref .group dependencies) := by
+  have frame := (NoticeFrame.successGroupFold ⟨refs, records, support⟩ generated groups).1
+  exact ⟨frame.refs, frame.records, frame.support⟩
 
 /-- Every owner-fold notice names an actual contributing work node.
 Witness: project notice provenance from the same metadata-preservation induction used
 for the queue state; no output-admission or freshness assumption is introduced.
 -/
 theorem State.successGroupFold_groupNoticesLocated {queue : State} {work}
-    (generated : ExecutedWork work) (keys : queue.GroupKeysUnique)
+    (generated : ExecutedWork work) (refs : queue.GroupRefsUnique)
     (records : queue.GroupNodesMatchWork work)
     (support
-      : queue.GroupKeySupport
-          (fun key => ∃ dependencies, NodeHasDependencies work key .group dependencies))
+      : queue.GroupRefSupport
+          (fun ref => ∃ dependencies, NodeHasDependencies work ref .group dependencies))
     (groups : List Execution.DeliveryNode)
     : ∀ event ∈ (groups.foldl successGroupStep (queue, [], {})).2.1,
         event.GroupNoticesLocated work :=
-  (NoticeFrame.successGroupFold ⟨keys, records, support⟩ generated groups).2.1
+  (NoticeFrame.successGroupFold ⟨refs, records, support⟩ generated groups).2.1
 
 /-- A matching successful task emits only real contributor notices.
 Witness: matched child work supplies the integration metadata, the actual single-pass
 owner fold certifies its releases, and the subsequent ready drain preserves that evidence.
 -/
 theorem State.taskSuccess_groupNoticesLocated {queue : State} {work occurrence result}
-    (generated : ExecutedWork work) (keys : queue.GroupKeysUnique)
+    (generated : ExecutedWork work) (refs : queue.GroupRefsUnique)
     (records : queue.GroupNodesMatchWork work)
     (support
-      : queue.GroupKeySupport
-          (fun key => ∃ dependencies, NodeHasDependencies work key .group dependencies))
+      : queue.GroupRefSupport
+          (fun ref => ∃ dependencies, NodeHasDependencies work ref .group dependencies))
     (matching : (GraphEvent.taskSuccess occurrence result).MatchesWork work)
     : ∀ event ∈ (queue.taskSuccess occurrence result).2,
         event.GroupNoticesLocated work := by
@@ -281,7 +281,7 @@ theorem State.taskSuccess_groupNoticesLocated {queue : State} {work occurrence r
     · simp
     · let stored := queue.putTaskNode { taskNode with value := some result.value }
       have old : NoticeFrame work stored :=
-        ⟨keys, records, ⟨support.contents, support.roots⟩⟩
+        ⟨refs, records, ⟨support.contents, support.roots⟩⟩
       have integrated := old.maybeIntegrateWork result.work
         (fun _ member => matching.taskChildGroups_recordAt member)
         (by
@@ -328,10 +328,10 @@ private theorem NoticeFrame.integrateStreamItem {work queue stream items item}
       queue.addGroups_newGroup_candidate item.work.groups noticed
     exact same ▸ records record candidate
   have located := fun group member =>
-    (current.1.pruneEmptyGroups_noticeContents generated integrated.keys integrated.records
+    (current.1.pruneEmptyGroups_noticeContents generated integrated.refs integrated.records
       integrated.support current.2.newGroups candidates (group := group) member).1
   have pruned : NoticeFrame work (current.1.pruneEmptyGroups current.2.newGroups).1 :=
-    ⟨integrated.keys.pruneEmptyGroups _, integrated.records.pruneEmptyGroups _,
+    ⟨integrated.refs.pruneEmptyGroups _, integrated.records.pruneEmptyGroups _,
       (integrated.support.pruneEmptyGroups _).1⟩
   exact ⟨pruned.startNewWork _ located, located⟩
 
@@ -341,11 +341,11 @@ gate retains a nonempty or failed record, and activation changes no group record
 -/
 theorem State.integrateStreamItem_noticeContents {queue : State}
     {work stream items item child}
-    (generated : ExecutedWork work) (keys : queue.GroupKeysUnique)
+    (generated : ExecutedWork work) (refs : queue.GroupRefsUnique)
     (records : queue.GroupNodesMatchWork work)
     (support
-      : queue.GroupKeySupport
-          (fun key => ∃ dependencies, NodeHasDependencies work key .group dependencies))
+      : queue.GroupRefSupport
+          (fun ref => ∃ dependencies, NodeHasDependencies work ref .group dependencies))
     (matching : (GraphEvent.streamItems stream items).MatchesWork work)
     (member : item ∈ items)
     (noticed
@@ -354,10 +354,10 @@ theorem State.integrateStreamItem_noticeContents {queue : State}
             (queue.maybeIntegrateWork item.work).2.newGroups).2)
     : (∃ dependencies producer, NodeAt work child .group dependencies producer)
       ∧ ∃ node,
-          (queue.integrateStreamItem item).groupNode? child.key = some node
+          (queue.integrateStreamItem item).groupNode? child.ref = some node
           ∧ node.group.node = child
           ∧ (node.tasks ≠ [] ∨ node.failure.isSome = true) := by
-  have frame : NoticeFrame work queue := ⟨keys, records, support⟩
+  have frame : NoticeFrame work queue := ⟨refs, records, support⟩
   have childRecords := fun group candidate =>
     matching.streamItem_childGroups_recordAt member (group := group) candidate
   have integrated := frame.maybeIntegrateWork item.work childRecords (by
@@ -376,7 +376,7 @@ theorem State.integrateStreamItem_noticeContents {queue : State}
     exact same ▸ childRecords record candidate
   obtain ⟨known, node, found, same, contents⟩ :=
     (queue.maybeIntegrateWork item.work).1.pruneEmptyGroups_noticeContents generated
-      integrated.keys integrated.records integrated.support _ candidates noticed
+      integrated.refs integrated.records integrated.support _ candidates noticed
   refine ⟨known, node, ?_, same, contents⟩
   simpa only [State.integrateStreamItem, State.groupNode?,
     (State.startNewWork_groupCore _ _).1]
@@ -387,11 +387,11 @@ Witness: induction on the real item fold retains each pruned descriptor and the 
 frame. The leading item event carries exactly those descriptors; draining handles the rest.
 -/
 theorem State.streamItems_groupNoticesLocated {queue : State} {work stream items}
-    (generated : ExecutedWork work) (keys : queue.GroupKeysUnique)
+    (generated : ExecutedWork work) (refs : queue.GroupRefsUnique)
     (records : queue.GroupNodesMatchWork work)
     (support
-      : queue.GroupKeySupport
-          (fun key => ∃ dependencies, NodeHasDependencies work key .group dependencies))
+      : queue.GroupRefSupport
+          (fun ref => ∃ dependencies, NodeHasDependencies work ref .group dependencies))
     (matching : (GraphEvent.streamItems stream items).MatchesWork work)
     : ∀ event ∈ (queue.streamItems stream items).2, event.GroupNoticesLocated work := by
   have loop (more : List StreamItem) (included : more.Subset items)
@@ -414,7 +414,7 @@ theorem State.streamItems_groupNoticesLocated {queue : State} {work stream items
   split
   · simp
   · obtain ⟨prepared, notices⟩ := loop items (List.Subset.refl _) (queue, [], [], [])
-      ⟨keys, records, support⟩ (by simp)
+      ⟨refs, records, support⟩ (by simp)
     intro event member
     rcases List.mem_cons.mp member with rfl | later
     · exact notices
@@ -428,18 +428,18 @@ theorem State.streamItems_groupNoticesLocated {queue : State} {work stream items
 Witness: the two value handlers use the pruning gate; all other handlers announce nothing.
 -/
 theorem State.handleGraphEvent_groupNoticesLocated {queue : State} {work}
-    (generated : ExecutedWork work) (keys : queue.GroupKeysUnique)
+    (generated : ExecutedWork work) (refs : queue.GroupRefsUnique)
     (records : queue.GroupNodesMatchWork work)
     (support
-      : queue.GroupKeySupport
-          (fun key => ∃ dependencies, NodeHasDependencies work key .group dependencies))
+      : queue.GroupRefSupport
+          (fun ref => ∃ dependencies, NodeHasDependencies work ref .group dependencies))
     (event : GraphEvent) (matching : event.MatchesWork work)
     : ∀ output ∈ (queue.handleGraphEvent event).2, output.GroupNoticesLocated work := by
   cases event with
   | taskSuccess occurrence result =>
-      exact State.taskSuccess_groupNoticesLocated generated keys records support matching
+      exact State.taskSuccess_groupNoticesLocated generated refs records support matching
   | streamItems stream items =>
-      exact State.streamItems_groupNoticesLocated generated keys records support matching
+      exact State.streamItems_groupNoticesLocated generated refs records support matching
   | taskFailure occurrence errors =>
       intro output member
       cases output with
@@ -447,8 +447,8 @@ theorem State.handleGraphEvent_groupNoticesLocated {queue : State} {work}
           exact False.elim (queue.taskFailure_noGroupSuccess occurrence errors group groups streams
             member)
       | streamValues stream values groups streams =>
-          have impossible : stream.key ∈
-              (queue.taskFailure occurrence errors).2.flatMap rawStreamReferenceKeys :=
+          have impossible : stream.ref ∈
+              (queue.taskFailure occurrence errors).2.flatMap rawStreamReferenceRefs :=
             List.mem_flatMap.mpr ⟨_, member, List.mem_cons_self⟩
           rw [State.taskFailure_streamReferences] at impossible
           cases impossible
@@ -481,14 +481,14 @@ private theorem NoticeReplayFrame.handleGraphEvent {work queue}
   ⟨
     ⟨
       ⟨
-        frame.notices.keys.handleGraphEvent event,
+        frame.notices.refs.handleGraphEvent event,
         frame.notices.records.handleGraphEvent event matching,
         frame.notices.support.handleGraphEvent frame.started frame.tasks event matching
       ⟩,
       frame.started.handleGraphEvent event,
       frame.tasks.handleGraphEvent event matching
     ⟩,
-    State.handleGraphEvent_groupNoticesLocated generated frame.notices.keys
+    State.handleGraphEvent_groupNoticesLocated generated frame.notices.refs
       frame.notices.records frame.notices.support event matching
   ⟩
 
@@ -526,7 +526,7 @@ private theorem NoticeReplayFrame.handleGraphEvents {work queue}
   · obtain ⟨next, outputs⟩ := frame.rawEventReplay generated events matching
     dsimp only
     split
-    · refine ⟨⟨⟨next.notices.keys, next.notices.records,
+    · refine ⟨⟨⟨next.notices.refs, next.notices.records,
         ⟨next.notices.support.contents, next.notices.support.roots⟩⟩,
         next.started, next.tasks⟩, ?_⟩
       intro output member
@@ -543,19 +543,19 @@ through actual handlers. The raw output is not assumed to satisfy scheduler admi
 theorem ExecutedWork.replay_noticeMetadata {work before}
     (generated : ExecutedWork work) (prior : ∀ event ∈ before, event.MatchesWork work)
     : let current := (State.initialize (Work.fromExecution work)).replayGraphEvents before
-      current.GroupKeysUnique
+      current.GroupRefsUnique
       ∧ current.GroupNodesMatchWork work
-      ∧ current.GroupKeySupport
-          (fun key =>
-            ∃ dependencies, NodeHasDependencies work key .group dependencies) := by
+      ∧ current.GroupRefSupport
+          (fun ref =>
+            ∃ dependencies, NodeHasDependencies work ref .group dependencies) := by
   have initial : NoticeReplayFrame work (State.initialize (Work.fromExecution work)) :=
-    ⟨⟨createWorkQueue_groupKeysUnique _, createWorkQueue_groupNodesMatchWork work,
-      createWorkQueue_fromSpec_groupKeySupport work⟩,
+    ⟨⟨createWorkQueue_groupRefsUnique _, createWorkQueue_groupNodesMatchWork work,
+      createWorkQueue_fromSpec_groupRefSupport work⟩,
       createWorkQueue_startedTasksRegistered _,
       createWorkQueue_fromSpec_registeredTasksMatch work⟩
   have replayed := (initial.rawEventReplay generated before prior).1.notices
   rw [State.rawEventReplay_state] at replayed
-  exact ⟨replayed.keys, replayed.records, replayed.support⟩
+  exact ⟨replayed.refs, replayed.records, replayed.support⟩
 
 /-- Matching replay supplies the full notice frame after task-success child preparation.
 Witness: initialization and actual handler replay retain metadata and contributor support;
@@ -570,16 +570,16 @@ theorem ExecutedWork.taskSuccess_prepared_noticeMetadata {work before occurrence
     : let current := (State.initialize (Work.fromExecution work)).replayGraphEvents before
       let stored := current.putTaskNode { incoming with value := some result.value }
       let prepared := (stored.maybeIntegrateWork result.work (some occurrence)).1
-      prepared.GroupKeysUnique
+      prepared.GroupRefsUnique
       ∧ prepared.GroupNodesMatchWork work
-      ∧ prepared.GroupKeySupport
-          (fun key =>
-            ∃ dependencies, NodeHasDependencies work key .group dependencies) := by
-  obtain ⟨keys, records, support⟩ := generated.replay_noticeMetadata prior
+      ∧ prepared.GroupRefSupport
+          (fun ref =>
+            ∃ dependencies, NodeHasDependencies work ref .group dependencies) := by
+  obtain ⟨refs, records, support⟩ := generated.replay_noticeMetadata prior
   let current := (State.initialize (Work.fromExecution work)).replayGraphEvents before
   let stored := current.putTaskNode { incoming with value := some result.value }
   have frame : NoticeFrame work stored :=
-    ⟨keys, records, ⟨support.contents, support.roots⟩⟩
+    ⟨refs, records, ⟨support.contents, support.roots⟩⟩
   have prepared := frame.maybeIntegrateWork result.work
     (fun _ member => matching.taskChildGroups_recordAt member)
     (by
@@ -590,7 +590,7 @@ theorem ExecutedWork.taskSuccess_prepared_noticeMetadata {work before occurrence
           matching.childTask_groupsExact member⟩
       exact known.contributorKnown (List.mem_map.mpr ⟨group, owner, rfl⟩))
     (some occurrence)
-  exact ⟨prepared.keys, prepared.records, prepared.support⟩
+  exact ⟨prepared.refs, prepared.records, prepared.support⟩
 
 /-- The actual successful owner fold supplies notice metadata to its subsequent drain.
 Witness: preserve the prepared frame through the single pass, then activate its proven
@@ -605,17 +605,17 @@ theorem ExecutedWork.taskSuccess_drain_noticeMetadata {work before occurrence re
       let prepared := (stored.maybeIntegrateWork result.work (some occurrence)).1
       let released := incoming.task.groups.foldl successGroupStep (prepared, [], {})
       let active := released.1.startNewWork released.2.2
-      active.GroupKeysUnique
+      active.GroupRefsUnique
       ∧ active.GroupNodesMatchWork work
-      ∧ active.GroupKeySupport
-          (fun key =>
-            ∃ dependencies, NodeHasDependencies work key .group dependencies) := by
-  obtain ⟨keys, records, support⟩ :=
+      ∧ active.GroupRefSupport
+          (fun ref =>
+            ∃ dependencies, NodeHasDependencies work ref .group dependencies) := by
+  obtain ⟨refs, records, support⟩ :=
     generated.taskSuccess_prepared_noticeMetadata prior matching incoming
   obtain ⟨frame, _, released⟩ :=
-    NoticeFrame.successGroupFold ⟨keys, records, support⟩ generated incoming.task.groups
+    NoticeFrame.successGroupFold ⟨refs, records, support⟩ generated incoming.task.groups
   have active := frame.startNewWork _ released
-  exact ⟨active.keys, active.records, active.support⟩
+  exact ⟨active.refs, active.records, active.support⟩
 
 /-- Item integration supplies notice metadata before the handler's recursive drain.
 Witness: each matching item's pruning frontier contains actual contributors, and its
@@ -626,16 +626,16 @@ theorem ExecutedWork.streamItems_prepared_noticeMetadata {work before stream ite
     (matching : (GraphEvent.streamItems stream items).MatchesWork work)
     : let current := (State.initialize (Work.fromExecution work)).replayGraphEvents before
       let prepared := current.preparedStreamItems items
-      prepared.GroupKeysUnique
+      prepared.GroupRefsUnique
       ∧ prepared.GroupNodesMatchWork work
-      ∧ prepared.GroupKeySupport
-          (fun key =>
-            ∃ dependencies, NodeHasDependencies work key .group dependencies) := by
-  obtain ⟨keys, records, support⟩ := generated.replay_noticeMetadata prior
+      ∧ prepared.GroupRefSupport
+          (fun ref =>
+            ∃ dependencies, NodeHasDependencies work ref .group dependencies) := by
+  obtain ⟨refs, records, support⟩ := generated.replay_noticeMetadata prior
   have frame := State.preparedStreamItems_preserves (NoticeFrame work)
-    ⟨keys, records, support⟩ items (fun _ item member frame =>
+    ⟨refs, records, support⟩ items (fun _ item member frame =>
       (frame.integrateStreamItem generated matching member).1)
-  exact ⟨frame.keys, frame.records, frame.support⟩
+  exact ⟨frame.refs, frame.records, frame.support⟩
 
 /-- Every normalized group-notice descriptor denotes a real node of the fixed work.
 The predicate deliberately says nothing yet about freshness or causal readiness.
@@ -670,7 +670,7 @@ theorem IncrementalPublisher.normalizeBatch_groupNoticesLocated {work events}
         (ih _ (fun next member => known next (List.mem_cons_of_mem _ member)) output)
 
 /-- Every group announced by actual normalized replay has a real contributing work node.
-Witness: initialize the independent key/record/support and task-registry invariants,
+Witness: initialize the independent ref/record/support and task-registry invariants,
 replay matched inputs, and preserve notice descriptors through publisher normalization.
 No output admission, causal health, start discipline, or notice freshness is assumed.
 -/
@@ -700,8 +700,8 @@ theorem createWorkQueue_runNormalized_groupNoticesLocated {work : Execution.Work
             (acc.2.1.normalizeBatch_groupNoticesLocated emitted event)
         · exact fun event member => matching event (List.mem_append_right _ member)
   apply loop inputs (_, _, [])
-  · exact ⟨⟨createWorkQueue_groupKeysUnique _, createWorkQueue_groupNodesMatchWork work,
-      createWorkQueue_fromSpec_groupKeySupport work⟩,
+  · exact ⟨⟨createWorkQueue_groupRefsUnique _, createWorkQueue_groupNodesMatchWork work,
+      createWorkQueue_fromSpec_groupRefSupport work⟩,
       createWorkQueue_startedTasksRegistered _,
       createWorkQueue_fromSpec_registeredTasksMatch work⟩
   · simp

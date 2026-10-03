@@ -55,24 +55,24 @@ neither stream roots nor stream notices. Concatenate exact notice lists through 
 -/
 theorem State.drainReadyGroups_go_streamRoots_cover (fuel : Nat) (queue : State)
     : (queue.rootStreams
-        ++ (State.drainReadyGroups.go fuel queue).2.flatMap rawStreamNoticeKeys).Subset
+        ++ (State.drainReadyGroups.go fuel queue).2.flatMap rawStreamNoticeRefs).Subset
         (State.drainReadyGroups.go fuel queue).1.rootStreams := by
   induction fuel generalizing queue with
   | zero =>
-      intro key member
+      intro ref member
       simpa only [State.drainReadyGroups.go, List.flatMap_nil, List.append_nil] using member
   | succ fuel ih =>
       unfold State.drainReadyGroups.go
       dsimp only
       split
-      · intro key member; simpa using member
+      · intro ref member; simpa using member
       · rename_i node selected
         cases cached : node.failure with
         | none =>
             have first := queue.finishGroupSuccess_streamRoots_cover node
             have later := ih ((queue.finishGroupSuccess node).1.startNewWork
               (queue.finishGroupSuccess node).2.2)
-            intro key member
+            intro ref member
             apply later
             simp only [List.flatMap_append] at member
             rcases List.mem_append.mp member with old | notice
@@ -81,14 +81,14 @@ theorem State.drainReadyGroups_go_streamRoots_cover (fuel : Nat) (queue : State)
               · exact List.mem_append_left _ (first (List.mem_append_right _ early))
               · exact List.mem_append_right _ late
         | some errors =>
-            have same : (queue.removeGroup node.group.node.key).rootStreams
+            have same : (queue.removeGroup node.group.node.ref).rootStreams
                 = queue.rootStreams := rfl
             simpa only [State.finishGroupFailure, List.flatMap_append,
-              List.flatMap_singleton, rawStreamNoticeKeys, List.nil_append, same]
-              using ih (queue.removeGroup node.group.node.key)
+              List.flatMap_singleton, rawStreamNoticeRefs, List.nil_append, same]
+              using ih (queue.removeGroup node.group.node.ref)
 
 /-- The actual owner fold retains its registry and roots while accumulating registered
-stream releases, with exactly the same keys as its emitted notices.
+stream releases, with exactly the same refs as its emitted notices.
 Witness: each successful flush preserves stream fields and resolves every release by
 lookup; counter-only and missing-owner steps leave this invariant unchanged.
 -/
@@ -97,21 +97,21 @@ theorem State.successGroupFold_streamRelease (queue : State)
     : let folded := groups.foldl successGroupStep (queue, [], {})
       folded.1.rootStreams = queue.rootStreams
       ∧ folded.1.streams = queue.streams
-      ∧ folded.2.2.newStreams.map Execution.DeliveryNode.key
-        = folded.2.1.flatMap rawStreamNoticeKeys
+      ∧ folded.2.2.newStreams.map Execution.DeliveryNode.ref
+        = folded.2.1.flatMap rawStreamNoticeRefs
       ∧ folded.2.2.newStreams.Subset (folded.1.streams.map Stream.node) := by
   have loop (remaining : List Execution.DeliveryNode)
       (acc : State × List WorkQueueEvent × NewWork)
       (roots : acc.1.rootStreams = queue.rootStreams)
       (streams : acc.1.streams = queue.streams)
-      (notices : acc.2.2.newStreams.map Execution.DeliveryNode.key
-        = acc.2.1.flatMap rawStreamNoticeKeys)
+      (notices : acc.2.2.newStreams.map Execution.DeliveryNode.ref
+        = acc.2.1.flatMap rawStreamNoticeRefs)
       (registered : acc.2.2.newStreams.Subset (acc.1.streams.map Stream.node))
       : let folded := remaining.foldl successGroupStep acc
         folded.1.rootStreams = queue.rootStreams
         ∧ folded.1.streams = queue.streams
-        ∧ folded.2.2.newStreams.map Execution.DeliveryNode.key
-            = folded.2.1.flatMap rawStreamNoticeKeys
+        ∧ folded.2.2.newStreams.map Execution.DeliveryNode.ref
+            = folded.2.1.flatMap rawStreamNoticeRefs
         ∧ folded.2.2.newStreams.Subset (folded.1.streams.map Stream.node) := by
     induction remaining generalizing acc with
     | nil => exact ⟨roots, streams, notices, registered⟩
@@ -145,17 +145,17 @@ drain both cover their exact notice inventories while retaining all old stream r
 theorem State.taskSuccess_streamRoots_cover (queue : State) (occurrence : Occurrence)
     (result : TaskResult)
     : (queue.rootStreams
-        ++ (queue.taskSuccess occurrence result).2.flatMap rawStreamNoticeKeys).Subset
+        ++ (queue.taskSuccess occurrence result).2.flatMap rawStreamNoticeRefs).Subset
         (queue.taskSuccess occurrence result).1.rootStreams := by
   cases found : queue.taskNode? occurrence with
   | none =>
       simp only [State.taskSuccess, found]
-      intro key member; simpa using member
+      intro ref member; simpa using member
   | some incoming =>
       rw [queue.taskSuccess_eq occurrence result incoming found]
       split
-      · intro key member
-        change key ∈ queue.rootStreams
+      · intro ref member
+        change ref ∈ queue.rootStreams
         simpa using member
       · let prepared := ((queue.putTaskNode
           { incoming with value := some result.value }).maybeIntegrateWork
@@ -169,7 +169,7 @@ theorem State.taskSuccess_streamRoots_cover (queue : State) (occurrence : Occurr
         have later := State.drainReadyGroups_go_streamRoots_cover
           (folded.1.startNewWork folded.2.2).groupNodes.length
           (folded.1.startNewWork folded.2.2)
-        intro key member
+        intro ref member
         apply later
         simp only [List.flatMap_append] at member
         rcases List.mem_append.mp member with old | noticed

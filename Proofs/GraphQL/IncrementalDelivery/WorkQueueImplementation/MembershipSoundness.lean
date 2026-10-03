@@ -20,7 +20,7 @@ def State.GroupMembershipSound (queue : State) : Prop :=
   ∀ occurrence ∈ node.tasks,
     ∃ task ∈ queue.tasks,
       task.occurrence = occurrence
-      ∧ node.group.node.key ∈ task.groups.map Execution.DeliveryNode.key
+      ∧ node.group.node.ref ∈ task.groups.map Execution.DeliveryNode.ref
 
 /-- Replacing group metadata preserves sound memberships when the replacement
 is sound relative to the unchanged registered-task list.
@@ -32,11 +32,11 @@ theorem State.GroupMembershipSound.putGroupNode
       : ∀ occurrence ∈ updated.tasks,
           ∃ task ∈ queue.tasks,
             task.occurrence = occurrence
-            ∧ updated.group.node.key ∈ task.groups.map Execution.DeliveryNode.key)
+            ∧ updated.group.node.ref ∈ task.groups.map Execution.DeliveryNode.ref)
     : (queue.putGroupNode updated).GroupMembershipSound := by
   intro node member occurrence occurrenceMember
   change node ∈ queue.groupNodes.map
-    (fun old => if old.group.node.key == updated.group.node.key then updated else old)
+    (fun old => if old.group.node.ref == updated.group.node.ref then updated else old)
     at member
   obtain ⟨old, oldMember, same⟩ := List.mem_map.mp member
   split at same
@@ -74,10 +74,10 @@ theorem State.GroupMembershipSound.addGroups
         | none => current
         | some node =>
             let children :=
-              if node.childGroups.contains group.node.key then
+              if node.childGroups.contains group.node.ref then
                 node.childGroups
               else
-                node.childGroups ++ [group.node.key]
+                node.childGroups ++ [group.node.ref]
             current.putGroupNode { node with childGroups := children }
   have linkSound (current : State) (group : Group)
       (currentSound : current.GroupMembershipSound)
@@ -107,8 +107,8 @@ theorem State.GroupMembershipSound.addGroups
         simpa only [List.foldl_cons]
           using ih (queue := queue.addGroup group) (sound.addGroup group)
   let fresh := groups.filter (fun group =>
-    !queue.registeredGroups.contains group.node.key
-      && (queue.groupNode? group.node.key).isNone)
+    !queue.registeredGroups.contains group.node.ref
+      && (queue.groupNode? group.node.ref).isNone)
   change (fresh.foldl linkStep (fresh.foldl State.addGroup queue)).GroupMembershipSound
   exact foldLink fresh _ (registered fresh)
 
@@ -120,7 +120,7 @@ theorem State.GroupMembershipSound.addTask
     : (queue.addTask task).GroupMembershipSound := by
   let registered : State := { queue with tasks := queue.tasks ++ [task] }
   let step (current : State) (group : Execution.DeliveryNode) : State :=
-    match current.groupNode? group.key with
+    match current.groupNode? group.ref with
     | none => current
     | some node =>
         if node.tasks.contains task.occurrence then
@@ -134,7 +134,7 @@ theorem State.GroupMembershipSound.addTask
       (taskMember : task ∈ current.tasks)
       : (step current group).GroupMembershipSound := by
     unfold step
-    cases found : current.groupNode? group.key with
+    cases found : current.groupNode? group.ref with
     | none => exact currentSound
     | some node =>
         simp only
@@ -150,7 +150,7 @@ theorem State.GroupMembershipSound.addTask
           · simp only [List.mem_singleton] at new
             subst occurrence
             refine ⟨task, taskMember, rfl, ?_⟩
-            rw [State.groupNode?_key found]
+            rw [State.groupNode?_ref found]
             exact List.mem_map.mpr ⟨group, groupMember, rfl⟩
   have foldSound (groups : List Execution.DeliveryNode)
       (subset : ∀ group ∈ groups, group ∈ task.groups) :
@@ -185,7 +185,7 @@ theorem State.GroupMembershipSound.addTask
   have currentSound : current.GroupMembershipSound :=
     (foldSound task.groups (fun _ member => member)
       registered registeredSound taskMember).1
-  change (if task.groups.any (fun group => current.rootGroups.contains group.key)
+  change (if task.groups.any (fun group => current.rootGroups.contains group.ref)
       && (current.taskNode? task.occurrence).isNone then
       { current with taskNodes := current.taskNodes ++ [{ task }] }
     else current).GroupMembershipSound
@@ -199,8 +199,8 @@ theorem State.GroupMembershipSound.addStreams
   let fresh :=
     streams.foldl
       (fun selected stream =>
-        if (queue.stream? stream.node.key).isSome
-            || selected.any (fun known => known.node.key == stream.node.key) then
+        if (queue.stream? stream.node.ref).isSome
+            || selected.any (fun known => known.node.ref == stream.node.ref) then
           selected
         else
           selected ++ [stream])
@@ -272,8 +272,8 @@ theorem State.GroupMembershipSound.startTask
   · split <;> exact sound
 
 theorem State.GroupMembershipSound.startGroup
-    {queue : State} (sound : queue.GroupMembershipSound) (key : Nat)
-    : (queue.startGroup key).GroupMembershipSound := by
+    {queue : State} (sound : queue.GroupMembershipSound) (ref : NodeRef)
+    : (queue.startGroup ref).GroupMembershipSound := by
   unfold State.startGroup
   split
   · exact sound
@@ -291,8 +291,8 @@ theorem State.GroupMembershipSound.startGroup
     · exact foldStart node.tasks queue sound
 
 theorem State.GroupMembershipSound.startStream
-    {queue : State} (sound : queue.GroupMembershipSound) (key : Nat)
-    : (queue.startStream key).GroupMembershipSound := by
+    {queue : State} (sound : queue.GroupMembershipSound) (ref : NodeRef)
+    : (queue.startStream ref).GroupMembershipSound := by
   unfold State.startStream
   split <;> exact sound
 
@@ -300,26 +300,26 @@ theorem State.GroupMembershipSound.startNewWork
     {queue : State} (sound : queue.GroupMembershipSound)
     (newWork : NewWork)
     : (queue.startNewWork newWork).GroupMembershipSound := by
-  let groups := newWork.newGroups.map Execution.DeliveryNode.key
-  let streams := newWork.newStreams.map Execution.DeliveryNode.key
+  let groups := newWork.newGroups.map Execution.DeliveryNode.ref
+  let streams := newWork.newStreams.map Execution.DeliveryNode.ref
   let current : State := { queue with rootGroups := queue.rootGroups ++ groups }
   have currentSound : current.GroupMembershipSound := sound
-  have groupFold (keys : Keys) :
+  have groupFold (refs : NodeRefs) :
       ∀ state, state.GroupMembershipSound
-        → (keys.foldl State.startGroup state).GroupMembershipSound := by
-    induction keys with
+        → (refs.foldl State.startGroup state).GroupMembershipSound := by
+    induction refs with
     | nil => intro state stateSound; exact stateSound
-    | cons key rest ih =>
+    | cons ref rest ih =>
         intro state stateSound
-        exact ih (state.startGroup key) (stateSound.startGroup key)
-  have streamFold (keys : Keys) :
+        exact ih (state.startGroup ref) (stateSound.startGroup ref)
+  have streamFold (refs : NodeRefs) :
       ∀ state, state.GroupMembershipSound
-        → (keys.foldl State.startStream state).GroupMembershipSound := by
-    induction keys with
+        → (refs.foldl State.startStream state).GroupMembershipSound := by
+    induction refs with
     | nil => intro state stateSound; exact stateSound
-    | cons key rest ih =>
+    | cons ref rest ih =>
         intro state stateSound
-        exact ih (state.startStream key) (stateSound.startStream key)
+        exact ih (state.startStream ref) (stateSound.startStream ref)
   change (streams.foldl State.startStream
     (groups.foldl State.startGroup current)).GroupMembershipSound
   exact streamFold streams _ (groupFold groups current currentSound)
@@ -360,8 +360,8 @@ theorem State.GroupMembershipSound.removeTask
 
 /-- Removing a failed group retains a subset of previously sound group nodes. -/
 theorem State.GroupMembershipSound.removeGroup
-    {queue : State} (sound : queue.GroupMembershipSound) (key : Nat)
-    : (queue.removeGroup key).GroupMembershipSound := by
+    {queue : State} (sound : queue.GroupMembershipSound) (ref : NodeRef)
+    : (queue.removeGroup ref).GroupMembershipSound := by
   intro node member taskOccurrence taskMember
   exact sound node (List.mem_filter.mp member).1 taskOccurrence taskMember
 
@@ -371,7 +371,7 @@ operations preserve soundness of every surviving membership.
 theorem State.GroupMembershipSound.finishGroupSuccess
     {queue : State} (sound : queue.GroupMembershipSound) (group : GroupNode)
     : (queue.finishGroupSuccess group).1.GroupMembershipSound := by
-  let step (acc : State × List ExecutionGroupValue × Keys)
+  let step (acc : State × List ExecutionGroupValue × NodeRefs)
       (occurrence : Occurrence) :=
     let (current, values, streams) := acc
     match current.taskNode? occurrence with
@@ -382,7 +382,7 @@ theorem State.GroupMembershipSound.finishGroupSuccess
           | none => values
           | some value => values ++ [value]
         (current.removeTask occurrence, values, streams ++ taskNode.childStreams)
-  have stepSound (acc : State × List ExecutionGroupValue × Keys)
+  have stepSound (acc : State × List ExecutionGroupValue × NodeRefs)
       (occurrence : Occurrence) (currentSound : acc.1.GroupMembershipSound)
       : (step acc occurrence).1.GroupMembershipSound := by
     obtain ⟨current, values, streams⟩ := acc
@@ -391,7 +391,7 @@ theorem State.GroupMembershipSound.finishGroupSuccess
     · exact currentSound
     · exact currentSound.removeTask occurrence
   have foldSound (tasks : List Occurrence) :
-      ∀ acc : State × List ExecutionGroupValue × Keys,
+      ∀ acc : State × List ExecutionGroupValue × NodeRefs,
         acc.1.GroupMembershipSound
           → (tasks.foldl step acc).1.GroupMembershipSound := by
     induction tasks with
@@ -405,14 +405,14 @@ theorem State.GroupMembershipSound.finishGroupSuccess
   let current : State :=
     { flushed with
         groupNodes := flushed.groupNodes.filter
-          (fun node => node.group.node.key != group.group.node.key)
-        rootGroups := flushed.rootGroups.filter (· != group.group.node.key) }
+          (fun node => node.group.node.ref != group.group.node.ref)
+        rootGroups := flushed.rootGroups.filter (· != group.group.node.ref) }
   have currentSound : current.GroupMembershipSound := by
     intro node member taskOccurrence taskMember
     exact flushedSound node (List.mem_filter.mp member).1
       taskOccurrence taskMember
   let children := group.childGroups.filterMap
-    (fun key => (current.groupNode? key).map (fun node => node.group.node))
+    (fun ref => (current.groupNode? ref).map (fun node => node.group.node))
   change (current.pruneEmptyGroups children).1.GroupMembershipSound
   exact currentSound.pruneEmptyGroups children
 
@@ -420,7 +420,7 @@ theorem State.GroupMembershipSound.finishGroupFailure
     {queue : State} (sound : queue.GroupMembershipSound)
     (group : GroupNode) (errors : Nat)
     : (queue.finishGroupFailure group errors).1.GroupMembershipSound :=
-  sound.removeGroup group.group.node.key
+  sound.removeGroup group.group.node.ref
 
 /-- Draining ready roots preserves sound task memberships.
 Witness: closure removes memberships, while activation introduces no new ones.
@@ -442,7 +442,7 @@ theorem State.GroupMembershipSound.taskSuccess
     (occurrence : Occurrence) (result : TaskResult)
     : (queue.taskSuccess occurrence result).1.GroupMembershipSound := by
   let settleStep (current : State) (group : Execution.DeliveryNode) : State :=
-    match current.groupNode? group.key with
+    match current.groupNode? group.ref with
     | none => current
     | some node => current.putGroupNode { node with pending := node.pending - 1 }
   have settleSound (current : State) (group : Execution.DeliveryNode)
@@ -457,12 +457,12 @@ theorem State.GroupMembershipSound.taskSuccess
   let releaseStep (acc : State × List WorkQueueEvent × NewWork)
       (group : Execution.DeliveryNode) : State × List WorkQueueEvent × NewWork :=
     let (current, events, released) := acc
-    match current.groupNode? group.key with
+    match current.groupNode? group.ref with
     | none => (current, events, released)
     | some node =>
         let node := { node with pending := node.pending - 1 }
         let current := current.putGroupNode node
-        if current.rootGroups.contains group.key && node.pending == 0
+        if current.rootGroups.contains group.ref && node.pending == 0
             && node.failure.isNone then
           let (next, finished, newWork) := current.finishGroupSuccess node
           (
@@ -524,10 +524,10 @@ theorem State.GroupMembershipSound.taskFailure
   let step (acc : State × List WorkQueueEvent)
       (group : Execution.DeliveryNode) : State × List WorkQueueEvent :=
     let (current, events) := acc
-    match current.groupNode? group.key with
+    match current.groupNode? group.ref with
     | none => (current, events)
     | some node =>
-        if current.rootGroups.contains group.key then
+        if current.rootGroups.contains group.ref then
           let (next, failure) := current.finishGroupFailure node errors
           (next, events ++ [failure])
         else
@@ -540,10 +540,10 @@ theorem State.GroupMembershipSound.taskFailure
       (currentSound : acc.1.GroupMembershipSound)
       : (step acc group).1.GroupMembershipSound := by
     obtain ⟨current, events⟩ := acc
-    change (match current.groupNode? group.key with
+    change (match current.groupNode? group.ref with
       | none => (current, events)
       | some node =>
-          if current.rootGroups.contains group.key then
+          if current.rootGroups.contains group.ref then
             let (next, failure) := current.finishGroupFailure node errors
             (next, events ++ [failure])
           else
@@ -551,10 +551,10 @@ theorem State.GroupMembershipSound.taskFailure
               { node with
                   pending := node.pending - 1
                   failure := some (node.failure.getD 0 + errors) }, events)).1.GroupMembershipSound
-    cases found : current.groupNode? group.key with
+    cases found : current.groupNode? group.ref with
     | none => exact currentSound
     | some node =>
-        by_cases started : current.rootGroups.contains group.key = true
+        by_cases started : current.rootGroups.contains group.ref = true
         · simp only [started, ite_true]
           exact currentSound.finishGroupFailure node errors
         · simp only [started]
@@ -726,7 +726,7 @@ private theorem createWorkQueue_runNormalized_groupMembershipSound
   State.runNormalized_groupMembershipSound
     (createWorkQueue_groupMembershipSound work) batches
 
-/-- If a live group lists a started task, its key is among that task's
+/-- If a live group lists a started task, its ref is among that task's
 contributors. Exact spec Work lookup equates the registered witness with the
 started node even if the registry contains multiple copies of an occurrence.
 -/
@@ -738,7 +738,7 @@ theorem State.GroupMembershipSound.startedOwner
     {taskNode : TaskNode} (taskMember : taskNode ∈ queue.taskNodes)
     {groupNode : GroupNode} (groupMember : groupNode ∈ queue.groupNodes)
     (listed : taskNode.task.occurrence ∈ groupNode.tasks)
-    : groupNode.group.node.key ∈ taskNode.task.groups.map Execution.DeliveryNode.key := by
+    : groupNode.group.node.ref ∈ taskNode.task.groups.map Execution.DeliveryNode.ref := by
   obtain ⟨witness, witnessMember, sameOccurrence, ownerMember⟩ :=
     sound groupNode groupMember taskNode.task.occurrence listed
   have witnessExact := (matching witness witnessMember).2
@@ -766,7 +766,7 @@ private theorem createWorkQueue_runNormalized_startedOwnerSound
         ∈ ((State.initialize (Work.fromExecution work)).runNormalized
             batches).1.groupNodes)
     (listed : taskNode.task.occurrence ∈ groupNode.tasks)
-    : groupNode.group.node.key ∈ taskNode.task.groups.map Execution.DeliveryNode.key := by
+    : groupNode.group.node.ref ∈ taskNode.task.groups.map Execution.DeliveryNode.ref := by
   let queue := State.initialize (Work.fromExecution work)
   let current := (queue.runNormalized batches).1
   have sound : current.GroupMembershipSound :=

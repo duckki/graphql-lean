@@ -53,15 +53,15 @@ health at that cut; producer failure contradicts its fixed success; producer can
 contradicts the supplied historical safety. No publication-support premise is needed.
 -/
 theorem task_uncancelled_of_producerSafety
-    {work matching events failures occurrence owners producer payload key}
+    {work matching events failures occurrence owners producer payload ref}
     (failedPayloads
       : ∀ cut task,
           (cut, task) ∈ failures
           → ∃ owners producer payload,
               TaskAt work task owners producer payload ∧ payload.failure.isSome = true)
     (reachable : Reachable work occurrence)
-    (known : TaskAt work occurrence owners producer payload) (owner : key ∈ owners)
-    (healthy : ¬NodeFailed work matching events failures key)
+    (known : TaskAt work occurrence owners producer payload) (owner : ref ∈ owners)
+    (healthy : ¬NodeFailed work matching events failures ref)
     (safe
       : ∀ source,
           producer = some source → ¬TaskCancelled work matching events failures source)
@@ -71,7 +71,7 @@ theorem task_uncancelled_of_producerSafety
   | owners other _ _ failed =>
       obtain ⟨_, _, descriptor⟩ := other
       exact healthy ⟨cut, member, reached,
-        failed key ((known.unique descriptor).1 ▸ owner)⟩
+        failed ref ((known.unique descriptor).1 ▸ owner)⟩
   | producerFailed other _ failed =>
       exact taskSucceeds_not_failedBefore
         (reachable_producer_succeeds reachable other) failedPayloads failed
@@ -91,9 +91,9 @@ theorem PublicationSupport.restrict_failures {work matching events failures earl
     (included : earlier.Subset failures)
     : PublicationSupport work matching events earlier := by
   intro index event selected value
-  obtain ⟨owners, producer, payload, key, known, success, owner, healthy, ready⟩ :=
+  obtain ⟨owners, producer, payload, ref, known, success, owner, healthy, ready⟩ :=
     support index event selected value
-  exact ⟨owners, producer, payload, key, known, success, owner,
+  exact ⟨owners, producer, payload, ref, known, success, owner,
     fun failure => healthy (failure.mono included), ready⟩
 
 /-- Any task with a healthy owner and an already-published producer is uncancelled
@@ -102,7 +102,7 @@ transport cancellation to the current snapshot, then exclude owner cancellation,
 failed producers, and cancelled producers separately. No event admission is assumed.
 -/
 theorem PublicationSupport.task_uncancelled
-    {work matching events failures occurrence owners producer payload key}
+    {work matching events failures occurrence owners producer payload ref}
     (support : PublicationSupport work matching events failures)
     (failedPayloads
       : ∀ cut occurrence,
@@ -110,8 +110,8 @@ theorem PublicationSupport.task_uncancelled
           → ∃ owners producer payload,
               TaskAt work occurrence owners producer payload
               ∧ payload.failure.isSome = true)
-    (known : TaskAt work occurrence owners producer payload) (owner : key ∈ owners)
-    (healthy : ¬NodeFailed work matching events failures key)
+    (known : TaskAt work occurrence owners producer payload) (owner : ref ∈ owners)
+    (healthy : ¬NodeFailed work matching events failures ref)
     (ready : ∀ source, producer = some source → Published matching events source)
     : ¬TaskCancelled work matching events failures occurrence := by
   intro cancelled
@@ -119,7 +119,7 @@ theorem PublicationSupport.task_uncancelled
   | owners other _ _ failed =>
       obtain ⟨_, _, descriptor⟩ := other
       have same := (known.unique descriptor).1
-      exact healthy (support.snapshot_nodeFailed failedPayloads (failed key (same ▸ owner)))
+      exact healthy (support.snapshot_nodeFailed failedPayloads (failed ref (same ▸ owner)))
   | producerFailed other _ failed =>
       obtain ⟨_, _, descriptor⟩ := other
       exact support.failed_unpublished failedPayloads failed
@@ -153,14 +153,14 @@ theorem publicationSupport_of_publicationAdmission {work w}
   | groupValues node values =>
       obtain ⟨owners, producer, ⟨path, data, errors, deliveryGroups⟩, _, known, ready, owner⟩ := allowed
       obtain ⟨supporter, available⟩ := owner.2.1
-      refine ⟨owners, producer, .object path (.ok (data, errors)), supporter.key,
+      refine ⟨owners, producer, .object path (.ok (data, errors)), supporter.ref,
         ?_, rfl, available.1.2.1, ?_, ready.2.2.1⟩
       · simpa only [length] using known
       · simpa only [filtered] using available.2
   | streamValues node values groups streams =>
       obtain ⟨owners, producer, ⟨item, errors⟩, _, known, ready, owner, _⟩ := allowed
       obtain ⟨supporter, available⟩ := owner.2.1
-      refine ⟨owners, producer, .item node (.ok (item, errors)), supporter.key,
+      refine ⟨owners, producer, .item node (.ok (item, errors)), supporter.ref,
         ?_, rfl, available.1.2.1, ?_, ready.2.2.1⟩
       · simpa only [length] using known
       · simpa only [filtered] using available.2
@@ -173,10 +173,10 @@ ordered predecessor cuts. The owner need not still be open or be the licensing o
 def FailureCutOwnerHealth (work : Execution.Work) (w : Witness) : Prop :=
   ∀ before cut occurrence after,
     w.failures = before ++ (cut, occurrence) :: after
-    → ∃ owners key,
+    → ∃ owners ref,
         TaskHasOwners work occurrence owners
-        ∧ key ∈ owners
-        ∧ ¬NodeFailed work w.matching (w.events.take cut) before key
+        ∧ ref ∈ owners
+        ∧ ¬NodeFailed work w.matching (w.events.take cut) before ref
 
 /-- A settling task's producer has not been cancelled by earlier cuts, even if its
 successful value is still buffered. Producer success follows separately from the complete
@@ -199,7 +199,7 @@ theorem uncancelledFailures_of_cutSafety {work w}
     (owners : FailureCutOwnerHealth work w) (producers : FailureCutProducerSafety work w)
     : UncancelledFailures work w := by
   intro before cut occurrence after split
-  obtain ⟨ownerKeys, key, ⟨producer, payload, known⟩, owner, healthy⟩ :=
+  obtain ⟨ownerRefs, ref, ⟨producer, payload, known⟩, owner, healthy⟩ :=
     owners before cut occurrence after split
   have member : (cut, occurrence) ∈ w.failures := by simp [split]
   have reachable := (inventory.2.2.1 _ member).2.1
@@ -211,7 +211,7 @@ theorem uncancelledFailures_of_cutSafety {work w}
     obtain ⟨_, _, descriptor⟩ := inventory.2.2.1 _ included
     exact descriptor
   · intro source same
-    exact producers before cut occurrence after split source ⟨ownerKeys, payload, same ▸ known⟩
+    exact producers before cut occurrence after split source ⟨ownerRefs, payload, same ▸ known⟩
 
 /-- Prior announcements and cut-local safety give a licensed failure inventory.
 Witness: compose the checked cancellation reduction with the announced-inventory
@@ -220,7 +220,7 @@ equivalence. Constructing these cut-local facts from arbitrary replay remains op
 theorem failureWitness_of_cutSafety {work w}
     (announced : AnnouncedFailures work w)
     (owners : FailureCutOwnerHealth work w) (producers : FailureCutProducerSafety work w)
-    : FailureWitness work (initialKeys work) w.matching w.events w.failures :=
+    : FailureWitness work (initialRefs work) w.matching w.events w.failures :=
   failureWitness announced (uncancelledFailures_of_cutSafety announced.1 owners producers)
 
 end ConformancePlan

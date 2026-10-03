@@ -16,7 +16,7 @@ theorem ExecutedWork.replayGraphEvents_ownerAccounting_of_eachAccepted
     {work : Execution.Work} (generated : ExecutedWork work) {parents}
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     {events : List GraphEvent} (valid : ValidGraphEvents work events)
     (acceptedAt
       : ∀ before event,
@@ -59,9 +59,9 @@ theorem ExecutedWork.replayGraphEvents_ownerAccounting_of_started
     {work : Execution.Work} (generated : ExecutedWork work) (events : List GraphEvent)
     (valid : ValidGraphEvents work events)
     (started : (State.initialize (Work.fromExecution work)).acceptsBatch events = true)
-    : ∃ parents : Nat → Keys,
+    : ∃ parents : Nat → NodeRefs,
         (∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
         ∧ ((State.initialize (Work.fromExecution work)).replayGraphEvents
             events).OwnerAccounting
             work parents events := by
@@ -81,9 +81,9 @@ theorem ExecutedWork.runNormalized_ownerAccounting_of_started {work : Execution.
     (generated : ExecutedWork work) (batches : List (List GraphEvent))
     (valid : ValidGraphEvents work batches.flatten)
     (started : inputsStarted work batches = true)
-    : ∃ parents : Nat → Keys,
+    : ∃ parents : Nat → NodeRefs,
         (∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
         ∧ ((State.initialize (Work.fromExecution work)).runNormalized
             batches).1.OwnerAccounting
             work parents batches.flatten := by

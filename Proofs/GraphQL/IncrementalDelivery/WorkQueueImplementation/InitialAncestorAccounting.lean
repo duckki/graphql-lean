@@ -17,13 +17,13 @@ Witness: healthy retirement forces registration and successful settlement of eve
 contributor, but the initial source history contains no settlements.
 -/
 theorem ExecutedWork.initial_retired_noObjectContributor
-    {work key address owners producer payload} (generated : ExecutedWork work)
-    (retired : (State.initialize (Work.fromExecution work)).RetiredGroup key)
+    {work ref address owners producer payload} (generated : ExecutedWork work)
+    (retired : (State.initialize (Work.fromExecution work)).RetiredGroup ref)
     (known : TaskAt work (.executionGroup address) owners producer payload)
-    : key ∉ owners := by
+    : ref ∉ owners := by
   intro contributes
   have healthy : ¬GroupRecordInvalidated work
-      ((State.initialize (Work.fromExecution work)).objectFailureContributions []) key :=
+      ((State.initialize (Work.fromExecution work)).objectFailureContributions []) ref :=
     fun invalid => invalid.nonempty rfl
   obtain ⟨task, registered, occurrence, groups⟩ :=
     generated.retired_structuralContributor_registered (events := []) .nil rfl
@@ -39,22 +39,22 @@ theorem ExecutedWork.initial_retired_noObjectContributor
 
 /-- No ancestor of an actual initial group owns any task in executed work.
 Witness: pruning retires each task-bearing ancestor before promoting the group. Empty
-replay excludes object contributors; execution's key roles exclude stream-item owners.
+replay excludes object contributors; execution's ref roles exclude stream-item owners.
 The task quantifier covers the entire work tree, including not-yet-lowered children.
 -/
 theorem ExecutedWork.initialGroups_ancestors_taskless
     {work group dependencies} (generated : ExecutedWork work)
     (noticed : group ∈ (State.initialize (Work.fromExecution work)).initialGroups)
     (known : NodeAt work group .group dependencies none)
-    : ∀ key ∈ dependencies,
-        ∀ occurrence owners, TaskHasOwners work occurrence owners → key ∉ owners := by
-  have active : group.key ∈ (State.initialize (Work.fromExecution work)).rootGroups := by
+    : ∀ ref ∈ dependencies,
+        ∀ occurrence owners, TaskHasOwners work occurrence owners → ref ∉ owners := by
+  have active : group.ref ∈ (State.initialize (Work.fromExecution work)).rootGroups := by
     rw [createWorkQueue_rootGroups]
     exact List.mem_map_of_mem noticed
-  intro key ancestor occurrence owners task contributes
+  intro ref ancestor occurrence owners task contributes
   have record := groupRecordAt_of_nodeAt known
-  have retired := generated.initialRootAncestorsRetired group.key active
-    group dependencies record rfl key ancestor occurrence owners task contributes
+  have retired := generated.initialRootAncestorsRetired group.ref active
+    group dependencies record rfl ref ancestor occurrence owners task contributes
   obtain ⟨producer, payload, descriptor⟩ := task
   cases occurrence with
   | executionGroup address =>

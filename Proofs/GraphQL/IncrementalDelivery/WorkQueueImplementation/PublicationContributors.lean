@@ -22,13 +22,13 @@ structure State.ContributorProvenance (queue : State) (work : Execution.Work) : 
     : queue.StoredValuesSatisfy
         (fun occurrence value => taskGroups? work occurrence = some value.deliveryGroups)
 
-/-- Raw object values name their releasing group among their contributing keys.
+/-- Raw object values name their releasing group among their contributing refs.
 This says nothing about the publisher's subsequently selected wire owner.
 -/
 def RawPublicationContributors (events : List WorkQueueEvent) : Prop :=
   ∀ group values,
     .groupValues group values ∈ events
-    → ∀ value ∈ values, group.key ∈ value.deliveryGroups.map Execution.DeliveryNode.key
+    → ∀ value ∈ values, group.ref ∈ value.deliveryGroups.map Execution.DeliveryNode.ref
 
 /-- Concatenated output blocks retain each publication's own contributing release group.
 Witness: select the block containing the raw event.
@@ -99,7 +99,7 @@ theorem State.ContributorProvenance.finishGroupFailure {queue : State}
   ⟨
     provenance.registered.finishGroupFailure group errors,
     provenance.memberships.finishGroupFailure group errors,
-    provenance.stored.removeGroup group.group.node.key
+    provenance.stored.removeGroup group.group.node.ref
   ⟩
 
 /-- Activating newly announced work preserves all contributor provenance.
@@ -163,8 +163,8 @@ theorem State.ContributorProvenance.drainReadyGroups_outputs {queue : State}
         · intro _ _ impossible; cases impossible
         · rename_i group found
           have present : group ∈ current.groupNodes := by
-            obtain ⟨key, _, choice⟩ := List.exists_of_findSome?_eq_some found
-            cases lookup : current.groupNode? key with
+            obtain ⟨ref, _, choice⟩ := List.exists_of_findSome?_eq_some found
+            cases lookup : current.groupNode? ref with
             | none => simp [lookup] at choice
             | some candidate =>
                 simp only [lookup] at choice

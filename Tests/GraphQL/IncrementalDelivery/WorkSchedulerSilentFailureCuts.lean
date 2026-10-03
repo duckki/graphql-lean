@@ -9,9 +9,9 @@ open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
-private def root : DeliveryNode := { key := 0, path := [], label := some (.string "R") }
-private def parent : DeliveryNode := { key := 1, path := [], label := some (.string "P") }
-private def child : DeliveryNode := { key := 2, path := [], label := some (.string "C") }
+private def root : DeliveryNode := { ref := 0, path := [], label := some (.string "R") }
+private def parent : DeliveryNode := { ref := 1, path := [], label := some (.string "P") }
+private def child : DeliveryNode := { ref := 2, path := [], label := some (.string "C") }
 private def firstTask : Occurrence := .executionGroup [1, 0]
 private def sharedTask : Occurrence := .executionGroup [1, 1, 0]
 private def parentTask : Occurrence := .executionGroup [1, 1, 1, 0]
@@ -48,10 +48,10 @@ private def events : List Execution.WorkQueueEvent :=
   ]
 
 private def candidateCuts : FailureCuts := [(0, firstTask), (1, sharedTask)]
-private def initial : Keys := [root.key, parent.key]
+private def initial : NodeRefs := [root.ref, parent.ref]
 
 /-- A root task and a shared root/latent-child task fail independently in generated work.
-Witness: the shared response key belongs to both R and the child C under healthy P.
+Witness: the shared response ref belongs to both R and the child C under healthy P.
 -/
 theorem generated : ExecutedWork work := by
   refine ⟨Nat, schema, resolvers, [], 30, "Query", .object "Query" 0,
@@ -61,15 +61,15 @@ theorem generated : ExecutedWork work := by
   cbv
 
 private theorem first_known
-    : TaskAt work firstTask [root.key] none (.object [] (.error 1)) :=
+    : TaskAt work firstTask [root.ref] none (.object [] (.error 1)) :=
   ⟨_, [], .error 1, .empty, [], rfl, rfl, rfl⟩
 
 private theorem shared_known
-    : TaskAt work sharedTask [root.key, child.key] none (.object [] (.error 1)) :=
+    : TaskAt work sharedTask [root.ref, child.ref] none (.object [] (.error 1)) :=
   ⟨_, [], .error 1, .empty, [], rfl, rfl, rfl⟩
 
 private theorem parent_known
-    : TaskAt work parentTask [parent.key] none (.object [] (.ok (data, 0))) :=
+    : TaskAt work parentTask [parent.ref] none (.object [] (.ok (data, 0))) :=
   ⟨_, [], .ok (data, 0), .combine .empty .empty, [], rfl, rfl, rfl⟩
 
 /-- The shared task remains started after R closes, because latent C still owns it.
@@ -149,27 +149,27 @@ Witness: the shared task's unique owner list and the exact Open predicate at ind
 Prior announcement nevertheless licenses this settlement under the revised contract.
 -/
 theorem source_cut_no_open_owner
-    : ¬∃ key ∈ [root.key, child.key], Open initial (events.take 1) key := by
-  rintro ⟨key, owner, opened⟩
+    : ¬∃ ref ∈ [root.ref, child.ref], Open initial (events.take 1) ref := by
+  rintro ⟨ref, owner, opened⟩
   rcases List.mem_cons.mp owner with same | last
-  · subst key
-    have closed : root.key ∈ completedKeys (events.take 1) := by decide
+  · subst ref
+    have closed : root.ref ∈ completedRefs (events.take 1) := by decide
     exact opened.2 closed
   · have same := List.mem_singleton.mp last
-    subst key
-    have unseen : child.key ∉ announcedKeys initial (events.take 1) := by decide
+    subst ref
+    have unseen : child.ref ∉ announcedRefs initial (events.take 1) := by decide
     exact unseen opened.1
 
 /-- The general implementation theorem supplies C's prior notice at its delayed closure.
 Witness: actual normalized output and the source-validity proof instantiate the generic
 announcement law at unbatched index three, within the parent's release/drain batch.
 -/
-theorem child_failure_announced : child.key ∈ announcedKeys initial (events.take 3) := by
+theorem child_failure_announced : child.ref ∈ announcedRefs initial (events.take 3) := by
   have atomsEq : (((State.initialize (Work.fromExecution work)).runNormalized inputs).2.flatten.flatMap
       publicationAtoms) = events := by cbv
   have initialEq :
       ((State.initialize (Work.fromExecution work)).initialGroups
-        ++ (State.initialize (Work.fromExecution work)).initialStreams).map DeliveryNode.key
+        ++ (State.initialize (Work.fromExecution work)).initialStreams).map DeliveryNode.ref
       = initial := by cbv
   have result := createWorkQueue_runNormalized_groupFailureAnnouncedAt source_valid.1
     (index := 3) (group := child) (errors := 1) (by rw [atomsEq]; rfl)
@@ -180,9 +180,9 @@ Witness: the same general atomic-output theorem, not a batching-specific admissi
 -/
 theorem child_failure_announced_single_batch
     : let queue := State.initialize (Work.fromExecution work)
-      child.key
-      ∈ announcedKeys
-          ((queue.initialGroups ++ queue.initialStreams).map DeliveryNode.key)
+      child.ref
+      ∈ announcedRefs
+          ((queue.initialGroups ++ queue.initialStreams).map DeliveryNode.ref)
           (((queue.runNormalized [inputs.flatten]).2.flatten.flatMap
               publicationAtoms).take
             3) := by
@@ -191,16 +191,16 @@ theorem child_failure_announced_single_batch
   exact createWorkQueue_runNormalized_groupFailureAnnouncedAt valid
     (index := 3) (group := child) (errors := 1) (by cbv)
 
-/-- The delayed child closure has a prior notice and no earlier completion of its key.
+/-- The delayed child closure has a prior notice and no earlier completion of its ref.
 Witness: the general retirement/role-separation theorem applied to this generated work,
 without assuming a failure witness or admission of the output history.
 -/
-theorem child_failure_open : Open initial (events.take 3) child.key := by
+theorem child_failure_open : Open initial (events.take 3) child.ref := by
   have atomsEq : (((State.initialize (Work.fromExecution work)).runNormalized inputs).2.flatten.flatMap
       publicationAtoms) = events := by cbv
   have initialEq :
       ((State.initialize (Work.fromExecution work)).initialGroups
-        ++ (State.initialize (Work.fromExecution work)).initialStreams).map DeliveryNode.key
+        ++ (State.initialize (Work.fromExecution work)).initialStreams).map DeliveryNode.ref
       = initial := by cbv
   have result := createWorkQueue_runNormalized_groupFailureOpenAt generated source_valid.1
     (index := 3) (group := child) (errors := 1) (by rw [atomsEq]; rfl)
@@ -211,10 +211,10 @@ Witness: the same general theorem, including closures earlier in the one output 
 -/
 theorem child_failure_open_single_batch
     : let queue := State.initialize (Work.fromExecution work)
-      Open ((queue.initialGroups ++ queue.initialStreams).map DeliveryNode.key)
+      Open ((queue.initialGroups ++ queue.initialStreams).map DeliveryNode.ref)
         (((queue.runNormalized [inputs.flatten]).2.flatten.flatMap publicationAtoms).take
           3)
-        child.key := by
+        child.ref := by
   have valid : ValidGraphEvents work [inputs.flatten].flatten := by
     simpa only [List.flatten_singleton] using source_valid.1
   exact createWorkQueue_runNormalized_groupFailureOpenAt generated valid
@@ -223,7 +223,7 @@ theorem child_failure_open_single_batch
 /-- The successful parent and failed root/child each close exactly once in this output.
 Witness: the generic closure-uniqueness theorem needs only matching source payloads.
 -/
-theorem group_closures_unique : (events.flatMap groupClosureKeys).Nodup := by
+theorem group_closures_unique : (events.flatMap groupClosureRefs).Nodup := by
   have atomsEq : (((State.initialize (Work.fromExecution work)).runNormalized inputs).2.flatten.flatMap
       publicationAtoms) = events := by cbv
   have result := createWorkQueue_runNormalized_atomicGroupClosuresUnique
@@ -242,11 +242,11 @@ Witness: R reports at zero; the shared failure's first later reporting owner is 
 theorem reported_cuts : reportedFailureCuts work events candidateCuts = delayedCuts := by
   have firstSelected : firstReportedFailureCut work events (0, firstTask) = some 0 := by
     apply firstReportedFailureCut_eq_some (by decide)
-      ⟨root, 1, .inl rfl, [root.key], ⟨_, _, first_known⟩, by simp⟩
+      ⟨root, 1, .inl rfl, [root.ref], ⟨_, _, first_known⟩, by simp⟩
     exact fun _ _ _ => Nat.zero_le _
   have sharedSelected : firstReportedFailureCut work events (1, sharedTask) = some 3 := by
     apply firstReportedFailureCut_eq_some (by decide)
-      ⟨child, 1, .inl rfl, [root.key, child.key], ⟨_, _, shared_known⟩, by simp⟩
+      ⟨child, 1, .inl rfl, [root.ref, child.ref], ⟨_, _, shared_known⟩, by simp⟩
     intro index after report
     by_cases bound : 3 ≤ index
     · exact bound
@@ -279,7 +279,7 @@ theorem unreported_failure_omitted
   have output : observed = [.groupFailure root 1] := by dsimp only [observed]; cbv
   have firstSelected : firstReportedFailureCut work observed (0, firstTask) = some 0 := by
     apply firstReportedFailureCut_eq_some (by decide)
-      ⟨root, 1, .inl (by rw [output]; rfl), [root.key], ⟨_, _, first_known⟩, by simp⟩
+      ⟨root, 1, .inl (by rw [output]; rfl), [root.ref], ⟨_, _, first_known⟩, by simp⟩
     exact fun _ _ _ => Nat.zero_le _
   have sharedSelected : firstReportedFailureCut work observed (1, sharedTask) = none := by
     apply firstReportedFailureCut_eq_none
@@ -307,17 +307,17 @@ private theorem parent_node : NodeAt work parent .group [] none :=
     rfl
   ⟩
 
-private theorem child_node : NodeAt work child .group [parent.key] none :=
+private theorem child_node : NodeAt work child .group [parent.ref] none :=
   ⟨[1, 1, 0], _, [], .error 1, .empty, [], ⟨child, [parent]⟩, rfl, by simp, rfl, rfl⟩
 
 /-- R's earlier failure does not causally fail healthy P or its latent child C.
-Witness: neither key owns the failed task, and C's only dependency is healthy P.
+Witness: neither ref owns the failed task, and C's only dependency is healthy P.
 -/
 private theorem child_healthy (published : Occurrence → Prop)
-    : ¬Causality.NodeFailed work [firstTask] published child.key := by
-  have contributors {node : DeliveryNode} (different : node.key ≠ root.key)
+    : ¬Causality.NodeFailed work [firstTask] published child.ref := by
+  have contributors {node : DeliveryNode} (different : node.ref ≠ root.ref)
       : ∀ occurrence ∈ [firstTask],
-          ∀ owners, TaskHasOwners work occurrence owners → node.key ∉ owners := by
+          ∀ owners, TaskHasOwners work occurrence owners → node.ref ∉ owners := by
     intro occurrence member owners ⟨producer, payload, known⟩
     have same := List.mem_singleton.mp member
     subst occurrence
@@ -326,9 +326,9 @@ private theorem child_healthy (published : Occurrence → Prop)
   have healthyParent := generated.rootProducedGroup_healthy (published := published) parent_node
     (contributors (by decide)) (by simp)
   apply generated.rootProducedGroup_healthy child_node (contributors (by decide))
-  intro key member
+  intro ref member
   have same := List.mem_singleton.mp member
-  subst key
+  subst ref
   exact healthyParent
 
 /-- The shared root task is not cancelled while C survives, even after R has closed.
@@ -345,7 +345,7 @@ private theorem shared_uncancelled (matching : PublicationMatching)
   | owners known _ _ failed =>
       obtain ⟨producer, payload, known⟩ := known
       obtain ⟨rfl, _, _⟩ := known.unique shared_known
-      exact child_healthy _ (failed child.key (by simp))
+      exact child_healthy _ (failed child.ref (by simp))
   | producerFailed known _ _ | producerCancelled known _ _ =>
       obtain ⟨owners, payload, known⟩ := known
       cases (known.unique shared_known).2.1
@@ -371,7 +371,7 @@ theorem delayed_cuts_licensed (matching : PublicationMatching)
           first_known,
           rfl,
           .root ⟨_, _, first_known⟩,
-          root.key,
+          root.ref,
           by simp,
           by decide
         ⟩,
@@ -393,7 +393,7 @@ theorem delayed_cuts_licensed (matching : PublicationMatching)
               shared_known,
               rfl,
               .root ⟨_, _, shared_known⟩,
-              child.key,
+              child.ref,
               by simp,
               child_failure_open.1
             ⟩,
@@ -413,8 +413,8 @@ theorem source_cuts_licensed (matching : PublicationMatching)
   · intro entry member
     simp only [candidateCuts, List.mem_cons, List.not_mem_nil, or_false] at member
     rcases member with rfl | rfl
-    · exact ⟨_, ⟨_, _, first_known⟩, root.key, by simp, by decide⟩
-    · exact ⟨_, ⟨_, _, shared_known⟩, root.key, by simp, by decide⟩
+    · exact ⟨_, ⟨_, _, first_known⟩, root.ref, by simp, by decide⟩
+    · exact ⟨_, ⟨_, _, shared_known⟩, root.ref, by simp, by decide⟩
   · intro before cut occurrence after split
     match before with
     | [] =>
@@ -436,7 +436,7 @@ needed by each closure; no enumeration of the possible event indices is needed.
 -/
 theorem delayed_exact_counts {index group errors}
     (atEvent : events[index]? = some (.groupFailure group errors))
-    : NodeErrors work (failedBefore delayedCuts index) group.key errors :=
+    : NodeErrors work (failedBefore delayedCuts index) group.ref errors :=
   delayed_inventory.2.2.2.1 index group errors atEvent
 
 end GraphQL.IncrementalDelivery.Tests.WorkSchedulerSilentFailureCuts

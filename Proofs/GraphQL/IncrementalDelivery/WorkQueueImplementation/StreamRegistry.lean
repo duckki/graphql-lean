@@ -23,8 +23,8 @@ theorem State.addGroups_streams (queue : State) (groups : List Group)
         match current.groupNode? parent with
         | none => current
         | some node =>
-            let children := if node.childGroups.contains group.node.key then node.childGroups
-              else node.childGroups ++ [group.node.key]
+            let children := if node.childGroups.contains group.node.ref then node.childGroups
+              else node.childGroups ++ [group.node.ref]
             current.putGroupNode { node with childGroups := children }
   have linked : ∀ current group, (link current group).streams = current.streams := by
     intro current group
@@ -51,7 +51,7 @@ Witness: membership increments and task-node creation change no stream descripto
 theorem State.addTask_streams (queue : State) (task : Task)
     : (queue.addTask task).streams = queue.streams := by
   let step (current : State) (group : Execution.DeliveryNode) :=
-    match current.groupNode? group.key with
+    match current.groupNode? group.ref with
     | none => current
     | some node =>
         if node.tasks.contains task.occurrence then current
@@ -99,14 +99,14 @@ theorem State.finishGroupSuccess_streams (queue : State) (group : GroupNode)
     intro acc occurrence
     unfold flushGroupTask
     split <;> rfl
-  have same := fold_projection (fun acc : State × List ExecutionGroupValue × Keys =>
+  have same := fold_projection (fun acc : State × List ExecutionGroupValue × NodeRefs =>
     acc.1.streams) flushGroupTask preserved group.tasks (queue, [], [])
   unfold State.finishGroupSuccess
   rw [State.pruneEmptyGroups_streams]
   exact same
 
 /-- Starting groups and streams retains every registered stream descriptor unchanged.
-Witness: group starts change task nodes; stream starts change only active root keys.
+Witness: group starts change task nodes; stream starts change only active root refs.
 -/
 theorem State.startNewWork_streams (queue : State) (work : NewWork)
     : (queue.startNewWork work).streams = queue.streams := by
@@ -117,16 +117,16 @@ theorem State.startNewWork_streams (queue : State) (work : NewWork)
     split
     · rfl
     · split <;> rfl
-  have group : ∀ current key, (State.startGroup current key).streams = current.streams := by
-    intro current key
+  have group : ∀ current ref, (State.startGroup current ref).streams = current.streams := by
+    intro current ref
     unfold State.startGroup
     split
     · rfl
     · split
       · rfl
       · exact fold_projection State.streams State.startTask task _ _
-  have stream : ∀ current key, (State.startStream current key).streams = current.streams := by
-    intro current key
+  have stream : ∀ current ref, (State.startStream current ref).streams = current.streams := by
+    intro current ref
     unfold State.startStream
     split <;> rfl
   unfold State.startNewWork
@@ -151,10 +151,10 @@ Witness: every contributor branch changes only group/task nodes and roots.
 theorem State.taskFailure_streams (queue : State) (occurrence : Occurrence) (errors : Nat)
     : (queue.taskFailure occurrence errors).1.streams = queue.streams := by
   let step (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode) :=
-    match acc.1.groupNode? group.key with
+    match acc.1.groupNode? group.ref with
     | none => acc
     | some node =>
-        if acc.1.rootGroups.contains group.key then
+        if acc.1.rootGroups.contains group.ref then
           let failure := acc.1.finishGroupFailure node errors
           (failure.1, acc.2 ++ [failure.2])
         else (acc.1.putGroupNode
@@ -195,7 +195,7 @@ theorem State.StreamsSatisfy.drainReadyGroups {queue : State} {property}
   exact known stream member
 
 /-- Stream integration stores and releases only supplied descriptors or existing entries.
-Witness: the fresh-candidate fold is a subset of its inputs; task attachment only adds keys.
+Witness: the fresh-candidate fold is a subset of its inputs; task attachment only adds refs.
 -/
 theorem State.StreamsSatisfy.addStreams {queue : State} {property}
     (prior : queue.StreamsSatisfy property) (streams : List Stream)
@@ -205,8 +205,8 @@ theorem State.StreamsSatisfy.addStreams {queue : State} {property}
   have fresh := freshStreams_subset queue streams
   have stored : ∀ stream ∈ queue.streams ++
       streams.foldl (fun selected stream =>
-        if (queue.stream? stream.node.key).isSome
-            || selected.any (fun known => known.node.key == stream.node.key) then selected
+        if (queue.stream? stream.node.ref).isSome
+            || selected.any (fun known => known.node.ref == stream.node.ref) then selected
         else selected ++ [stream]) [], property stream.node := by
     intro stream member
     rcases List.mem_append.mp member with old | added
@@ -262,29 +262,29 @@ theorem createWorkQueue_streamsSatisfy {property} (work : Work)
   rw [same] at member
   exact integrated.1 stream member
 
-/-- A stream lookup returns an unchanged registered descriptor with the requested key.
-Witness: the list lookup's membership and Boolean key-equality guarantees.
+/-- A stream lookup returns an unchanged registered descriptor with the requested ref.
+Witness: the list lookup's membership and Boolean ref-equality guarantees.
 -/
-theorem State.stream?_some {queue : State} {key : Nat} {stream : Stream}
-    (found : queue.stream? key = some stream)
-    : stream ∈ queue.streams ∧ stream.node.key = key := by
+theorem State.stream?_some {queue : State} {ref : NodeRef} {stream : Stream}
+    (found : queue.stream? ref = some stream)
+    : stream ∈ queue.streams ∧ stream.node.ref = ref := by
   exact ⟨
     List.mem_of_find?_eq_some found,
     by
-      simpa using List.find?_some (p := fun stream : Stream => stream.node.key == key) found
+      simpa using List.find?_some (p := fun stream : Stream => stream.node.ref == ref) found
   ⟩
 
 /-- Every stream released by a group flush has a descriptor from its entry registry.
-Witness: release resolves child keys by lookup; cleanup retains exactly that registry.
+Witness: release resolves child refs by lookup; cleanup retains exactly that registry.
 -/
 theorem State.StreamsSatisfy.finishGroupSuccess_notices {queue : State} {property}
     (prior : queue.StreamsSatisfy property) (group : GroupNode)
     : ∀ node ∈ (queue.finishGroupSuccess group).2.2.newStreams, property node := by
   intro node member
   change node ∈ List.filterMap
-    (fun key => ((queue.finishGroupSuccess group).1.stream? key).map Stream.node) _ at member
-  obtain ⟨key, _, found⟩ := List.mem_filterMap.mp member
-  cases lookup : (queue.finishGroupSuccess group).1.stream? key with
+    (fun ref => ((queue.finishGroupSuccess group).1.stream? ref).map Stream.node) _ at member
+  obtain ⟨ref, _, found⟩ := List.mem_filterMap.mp member
+  cases lookup : (queue.finishGroupSuccess group).1.stream? ref with
   | none => simp [lookup] at found
   | some stream =>
       have same : stream.node = node := by simpa [lookup] using found

@@ -51,7 +51,7 @@ theorem ExecutedWork.successfulCarrier_objectProducer_before
     (known
       : TaskAt work (.executionGroup address) owners
           (some (.executionGroup source)) payload)
-    (contributes : group.key ∈ owners)
+    (contributes : group.ref ∈ owners)
     : ∃ result, GraphEvent.taskSuccess (.executionGroup source) result ∈ before := by
   obtain ⟨task, registered, occurrenceEq, groupsEq⟩ :=
     generated.successfulCarrier_structuralContributor_registered valid started carrier
@@ -83,7 +83,7 @@ then conserves its exact value and live supporting owner up to that boundary.
 -/
 theorem ExecutedWork.successfulCarrier_ancestorProducer_published_or_buffered
     {work before event group groups streams address owners source payload dependencies
-      key parentOwners parentProducer parentPayload published}
+      ref parentOwners parentProducer parentPayload published}
     (generated : ExecutedWork work)
     (valid : ValidGraphEvents work (before ++ [event]))
     (started
@@ -100,11 +100,11 @@ theorem ExecutedWork.successfulCarrier_ancestorProducer_published_or_buffered
     (known
       : TaskAt work (.executionGroup address) owners
           (some (.executionGroup source)) payload)
-    (contributes : group.key ∈ owners)
-    (record : GroupRecordAt work group dependencies) (ancestor : key ∈ dependencies)
+    (contributes : group.ref ∈ owners)
+    (record : GroupRecordAt work group dependencies) (ancestor : ref ∈ dependencies)
     (parentKnown
       : TaskAt work (.executionGroup source) parentOwners parentProducer parentPayload)
-    (parentContributes : key ∈ parentOwners)
+    (parentContributes : ref ∈ parentOwners)
     : ∃ result,
         GraphEvent.taskSuccess (.executionGroup source) result ∈ before
         ∧ ((Occurrence.executionGroup source, result.value)
@@ -119,12 +119,12 @@ theorem ExecutedWork.successfulCarrier_ancestorProducer_published_or_buffered
                   = some node
                 ∧ node.value = some result.value
                 ∧ TaskHasOwners work (.executionGroup source)
-                    (node.task.groups.map Execution.DeliveryNode.key)
-                ∧ key ∈ node.task.groups.map Execution.DeliveryNode.key
-                ∧ key
+                    (node.task.groups.map Execution.DeliveryNode.ref)
+                ∧ ref ∈ node.task.groups.map Execution.DeliveryNode.ref
+                ∧ ref
                   ∈ ((State.initialize (Work.fromExecution work)).replayGraphEvents
                       before).groupNodes.map
-                      (fun owner => owner.group.node.key)) := by
+                      (fun owner => owner.group.node.ref)) := by
   obtain ⟨result, succeeded⟩ := generated.successfulCarrier_objectProducer_before
     valid started carrier known contributes
   have accepted := State.acceptsBatch_prefix started
@@ -132,7 +132,7 @@ theorem ExecutedWork.successfulCarrier_ancestorProducer_published_or_buffered
   obtain ⟨_, _, _, healthy, _⟩ :=
     generated.replayGraphEvents_successfulCarrier_retiredHealthy valid accepted carrier
   have ancestorHealthy : ¬GroupRecordInvalidated work
-      ((State.initialize (Work.fromExecution work)).objectFailureContributions before) key := by
+      ((State.initialize (Work.fromExecution work)).objectFailureContributions before) ref := by
     intro invalid
     apply healthy
     apply GroupRecordInvalidated.ancestor record ancestor

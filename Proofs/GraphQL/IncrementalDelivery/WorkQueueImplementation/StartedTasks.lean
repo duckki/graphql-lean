@@ -62,10 +62,10 @@ theorem State.StartedTasksRegistered.addGroups
         | none => current
         | some node =>
             let children :=
-              if node.childGroups.contains group.node.key then
+              if node.childGroups.contains group.node.ref then
                 node.childGroups
               else
-                node.childGroups ++ [group.node.key]
+                node.childGroups ++ [group.node.ref]
             current.putGroupNode { node with childGroups := children }
   have linkRegistered (current : State) (group : Group)
       (currentRegistered : current.StartedTasksRegistered)
@@ -96,8 +96,8 @@ theorem State.StartedTasksRegistered.addGroups
         simpa only [List.foldl_cons]
           using ih (queue := queue.addGroup group) (registered.addGroup group)
   let fresh := groups.filter (fun group =>
-    !queue.registeredGroups.contains group.node.key
-      && (queue.groupNode? group.node.key).isNone)
+    !queue.registeredGroups.contains group.node.ref
+      && (queue.groupNode? group.node.ref).isNone)
   change (fresh.foldl linkStep
     (fresh.foldl State.addGroup queue)).StartedTasksRegistered
   exact foldLink fresh _ (withGroups fresh)
@@ -110,7 +110,7 @@ theorem State.StartedTasksRegistered.addTask
     : (queue.addTask task).StartedTasksRegistered := by
   let withTask : State := { queue with tasks := queue.tasks ++ [task] }
   let step (current : State) (group : Execution.DeliveryNode) : State :=
-    match current.groupNode? group.key with
+    match current.groupNode? group.ref with
     | none => current
     | some node =>
         if node.tasks.contains task.occurrence then
@@ -149,7 +149,7 @@ theorem State.StartedTasksRegistered.addTask
   let current := task.groups.foldl step withTask
   obtain ⟨currentRegistered, currentMember⟩ :=
     foldRegistered task.groups withTask withTaskRegistered taskMember
-  change (if task.groups.any (fun group => current.rootGroups.contains group.key)
+  change (if task.groups.any (fun group => current.rootGroups.contains group.ref)
       && (current.taskNode? task.occurrence).isNone then
       { current with taskNodes := current.taskNodes ++ [{ task }] }
     else current).StartedTasksRegistered
@@ -170,8 +170,8 @@ theorem State.StartedTasksRegistered.addStreams
   let fresh :=
     streams.foldl
       (fun selected stream =>
-        if (queue.stream? stream.node.key).isSome
-            || selected.any (fun known => known.node.key == stream.node.key) then
+        if (queue.stream? stream.node.ref).isSome
+            || selected.any (fun known => known.node.ref == stream.node.ref) then
           selected
         else
           selected ++ [stream])
@@ -253,8 +253,8 @@ theorem State.StartedTasksRegistered.startTask
         exact List.mem_of_find?_eq_some found
 
 theorem State.StartedTasksRegistered.startGroup
-    {queue : State} (registered : queue.StartedTasksRegistered) (key : Nat)
-    : (queue.startGroup key).StartedTasksRegistered := by
+    {queue : State} (registered : queue.StartedTasksRegistered) (ref : NodeRef)
+    : (queue.startGroup ref).StartedTasksRegistered := by
   unfold State.startGroup
   split
   · exact registered
@@ -272,8 +272,8 @@ theorem State.StartedTasksRegistered.startGroup
     · exact foldStart node.tasks queue registered
 
 theorem State.StartedTasksRegistered.startStream
-    {queue : State} (registered : queue.StartedTasksRegistered) (key : Nat)
-    : (queue.startStream key).StartedTasksRegistered := by
+    {queue : State} (registered : queue.StartedTasksRegistered) (ref : NodeRef)
+    : (queue.startStream ref).StartedTasksRegistered := by
   unfold State.startStream
   split <;> exact registered
 
@@ -284,26 +284,26 @@ theorem State.StartedTasksRegistered.startNewWork
     {queue : State} (registered : queue.StartedTasksRegistered)
     (newWork : NewWork)
     : (queue.startNewWork newWork).StartedTasksRegistered := by
-  let groups := newWork.newGroups.map Execution.DeliveryNode.key
-  let streams := newWork.newStreams.map Execution.DeliveryNode.key
+  let groups := newWork.newGroups.map Execution.DeliveryNode.ref
+  let streams := newWork.newStreams.map Execution.DeliveryNode.ref
   let current : State := { queue with rootGroups := queue.rootGroups ++ groups }
   have currentRegistered : current.StartedTasksRegistered := registered
-  have groupFold (keys : Keys) :
+  have groupFold (refs : NodeRefs) :
       ∀ state, state.StartedTasksRegistered
-        → (keys.foldl State.startGroup state).StartedTasksRegistered := by
-    induction keys with
+        → (refs.foldl State.startGroup state).StartedTasksRegistered := by
+    induction refs with
     | nil => intro state stateRegistered; exact stateRegistered
-    | cons key rest ih =>
+    | cons ref rest ih =>
         intro state stateRegistered
-        exact ih (state.startGroup key) (stateRegistered.startGroup key)
-  have streamFold (keys : Keys) :
+        exact ih (state.startGroup ref) (stateRegistered.startGroup ref)
+  have streamFold (refs : NodeRefs) :
       ∀ state, state.StartedTasksRegistered
-        → (keys.foldl State.startStream state).StartedTasksRegistered := by
-    induction keys with
+        → (refs.foldl State.startStream state).StartedTasksRegistered := by
+    induction refs with
     | nil => intro state stateRegistered; exact stateRegistered
-    | cons key rest ih =>
+    | cons ref rest ih =>
         intro state stateRegistered
-        exact ih (state.startStream key) (stateRegistered.startStream key)
+        exact ih (state.startStream ref) (stateRegistered.startStream ref)
   change (streams.foldl State.startStream
     (groups.foldl State.startGroup current)).StartedTasksRegistered
   exact streamFold streams _ (groupFold groups current currentRegistered)
@@ -330,14 +330,14 @@ theorem createWorkQueue_startedTasksRegistered (initialWork : Work)
     { started with initialGroups := groups, initialStreams := roots.newStreams }
   exact startedRegistered
 
-/-- An initialized task node inherits distinct contributor keys from its
+/-- An initialized task node inherits distinct contributor refs from its
 registered definition and the generated Work tree.
 -/
 private theorem createWorkQueue_fromSpec_startedContributorsNodup
     {work : Execution.Work} (generated : ExecutedWork work)
     {node : TaskNode}
     (member : node ∈ (State.initialize (Work.fromExecution work)).taskNodes)
-    : (node.task.groups.map Execution.DeliveryNode.key).Nodup := by
+    : (node.task.groups.map Execution.DeliveryNode.ref).Nodup := by
   have taskMember : node.task ∈ (State.initialize (Work.fromExecution work)).tasks :=
     createWorkQueue_startedTasksRegistered (Work.fromExecution work) node member
   exact createWorkQueue_fromSpec_registeredContributorsNodup generated taskMember
@@ -353,8 +353,8 @@ theorem State.StartedTasksRegistered.removeTask
   exact registered node (List.mem_filter.mp member).1
 
 theorem State.StartedTasksRegistered.removeGroup
-    {queue : State} (registered : queue.StartedTasksRegistered) (key : Nat)
-    : (queue.removeGroup key).StartedTasksRegistered := by
+    {queue : State} (registered : queue.StartedTasksRegistered) (ref : NodeRef)
+    : (queue.removeGroup ref).StartedTasksRegistered := by
   intro node member
   exact registered node (List.mem_filter.mp member).1
 
@@ -365,7 +365,7 @@ theorem State.StartedTasksRegistered.finishGroupSuccess
     {queue : State} (registered : queue.StartedTasksRegistered)
     (group : GroupNode)
     : (queue.finishGroupSuccess group).1.StartedTasksRegistered := by
-  let step (acc : State × List ExecutionGroupValue × Keys)
+  let step (acc : State × List ExecutionGroupValue × NodeRefs)
       (occurrence : Occurrence) :=
     let (current, values, streams) := acc
     match current.taskNode? occurrence with
@@ -376,7 +376,7 @@ theorem State.StartedTasksRegistered.finishGroupSuccess
           | none => values
           | some value => values ++ [value]
         (current.removeTask occurrence, values, streams ++ taskNode.childStreams)
-  have stepRegistered (acc : State × List ExecutionGroupValue × Keys)
+  have stepRegistered (acc : State × List ExecutionGroupValue × NodeRefs)
       (occurrence : Occurrence)
       (currentRegistered : acc.1.StartedTasksRegistered)
       : (step acc occurrence).1.StartedTasksRegistered := by
@@ -386,7 +386,7 @@ theorem State.StartedTasksRegistered.finishGroupSuccess
     · exact currentRegistered
     · exact currentRegistered.removeTask occurrence
   have foldRegistered (tasks : List Occurrence) :
-      ∀ acc : State × List ExecutionGroupValue × Keys,
+      ∀ acc : State × List ExecutionGroupValue × NodeRefs,
         acc.1.StartedTasksRegistered
           → (tasks.foldl step acc).1.StartedTasksRegistered := by
     induction tasks with
@@ -401,11 +401,11 @@ theorem State.StartedTasksRegistered.finishGroupSuccess
   let current : State :=
     { flushed with
         groupNodes := flushed.groupNodes.filter
-          (fun node => node.group.node.key != group.group.node.key)
-        rootGroups := flushed.rootGroups.filter (· != group.group.node.key) }
+          (fun node => node.group.node.ref != group.group.node.ref)
+        rootGroups := flushed.rootGroups.filter (· != group.group.node.ref) }
   have currentRegistered : current.StartedTasksRegistered := flushedRegistered
   let children := group.childGroups.filterMap
-    (fun key => (current.groupNode? key).map (fun node => node.group.node))
+    (fun ref => (current.groupNode? ref).map (fun node => node.group.node))
   change (current.pruneEmptyGroups children).1.StartedTasksRegistered
   exact currentRegistered.pruneEmptyGroups children
 
@@ -413,7 +413,7 @@ theorem State.StartedTasksRegistered.finishGroupFailure
     {queue : State} (registered : queue.StartedTasksRegistered)
     (group : GroupNode) (errors : Nat)
     : (queue.finishGroupFailure group errors).1.StartedTasksRegistered :=
-  registered.removeGroup group.group.node.key
+  registered.removeGroup group.group.node.ref
 
 /-- Draining settled roots starts only previously registered tasks.
 Witness: both closure paths and activation preserve the registration invariant.
@@ -457,7 +457,7 @@ theorem State.StartedTasksRegistered.taskSuccess
     (occurrence : Occurrence) (result : TaskResult)
     : (queue.taskSuccess occurrence result).1.StartedTasksRegistered := by
   let settleStep (current : State) (group : Execution.DeliveryNode) : State :=
-    match current.groupNode? group.key with
+    match current.groupNode? group.ref with
     | none => current
     | some node => current.putGroupNode { node with pending := node.pending - 1 }
   have settleRegistered (current : State) (group : Execution.DeliveryNode)
@@ -470,12 +470,12 @@ theorem State.StartedTasksRegistered.taskSuccess
   let releaseStep (acc : State × List WorkQueueEvent × NewWork)
       (group : Execution.DeliveryNode) : State × List WorkQueueEvent × NewWork :=
     let (current, events, released) := acc
-    match current.groupNode? group.key with
+    match current.groupNode? group.ref with
     | none => (current, events, released)
     | some node =>
         let node := { node with pending := node.pending - 1 }
         let current := current.putGroupNode node
-        if current.rootGroups.contains group.key && node.pending == 0
+        if current.rootGroups.contains group.ref && node.pending == 0
             && node.failure.isNone then
           let (next, finished, newWork) := current.finishGroupSuccess node
           (
@@ -541,10 +541,10 @@ theorem State.StartedTasksRegistered.taskFailure
   let step (acc : State × List WorkQueueEvent)
       (group : Execution.DeliveryNode) : State × List WorkQueueEvent :=
     let (current, events) := acc
-    match current.groupNode? group.key with
+    match current.groupNode? group.ref with
     | none => (current, events)
     | some node =>
-        if current.rootGroups.contains group.key then
+        if current.rootGroups.contains group.ref then
           let (next, failure) := current.finishGroupFailure node errors
           (next, events ++ [failure])
         else
@@ -557,10 +557,10 @@ theorem State.StartedTasksRegistered.taskFailure
       (currentRegistered : acc.1.StartedTasksRegistered)
       : (step acc group).1.StartedTasksRegistered := by
     obtain ⟨current, events⟩ := acc
-    change (match current.groupNode? group.key with
+    change (match current.groupNode? group.ref with
       | none => (current, events)
       | some node =>
-          if current.rootGroups.contains group.key then
+          if current.rootGroups.contains group.ref then
             let (next, failure) := current.finishGroupFailure node errors
             (next, events ++ [failure])
           else
@@ -569,10 +569,10 @@ theorem State.StartedTasksRegistered.taskFailure
                   pending := node.pending - 1
                   failure := some (node.failure.getD 0 + errors)
               }, events)).1.StartedTasksRegistered
-    cases found : current.groupNode? group.key with
+    cases found : current.groupNode? group.ref with
     | none => exact currentRegistered
     | some node =>
-        by_cases started : current.rootGroups.contains group.key = true
+        by_cases started : current.rootGroups.contains group.ref = true
         · simp only [started, ite_true]
           exact currentRegistered.finishGroupFailure node errors
         · simp only [started]
@@ -739,7 +739,7 @@ theorem State.runNormalized_startedTasksRegistered
   exact foldRegistered batches (queue, publisher, []) registered
 
 /-- In every admitted replay, each live task node inherits distinct
-contributor keys from its registered task's generated-work provenance.
+contributor refs from its registered task's generated-work provenance.
 -/
 private theorem createWorkQueue_runNormalized_startedContributorsNodup
     {work : Execution.Work} (generated : ExecutedWork work)
@@ -750,7 +750,7 @@ private theorem createWorkQueue_runNormalized_startedContributorsNodup
       : node
         ∈ ((State.initialize (Work.fromExecution work)).runNormalized
             batches).1.taskNodes)
-    : (node.task.groups.map Execution.DeliveryNode.key).Nodup := by
+    : (node.task.groups.map Execution.DeliveryNode.ref).Nodup := by
   let queue := State.initialize (Work.fromExecution work)
   let current := (queue.runNormalized batches).1
   have started : current.StartedTasksRegistered :=
@@ -761,7 +761,7 @@ private theorem createWorkQueue_runNormalized_startedContributorsNodup
   exact matching.contributorsNodup generated (started node member)
 
 /-- A started task node retains exactly the spec Work's contributor descriptors,
-not merely an equal list of contributor keys.
+not merely an equal list of contributor refs.
 -/
 private theorem createWorkQueue_runNormalized_startedGroupsExact
     {work : Execution.Work} {batches : List (List GraphEvent)}

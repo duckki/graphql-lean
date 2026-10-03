@@ -15,15 +15,15 @@ uses the closure certificate, while silent completion already contains task acco
 The closure premise is a proof obligation, not an added scheduler or source law.
 -/
 theorem DependencySatisfied.accounted_of_objectContributor
-    {work initial matching events failures key address owners producer payload}
-    (ready : DependencySatisfied work initial matching events failures key)
+    {work initial matching events failures ref address owners producer payload}
+    (ready : DependencySatisfied work initial matching events failures ref)
     (known : TaskAt work (.executionGroup address) owners producer payload)
-    (contributes : key ∈ owners)
+    (contributes : ref ∈ owners)
     (closed
-      : key ∈ completedKeys events
-        → ¬NodeFailed work matching events failures key
-        → NodeAccounted work matching events failures key)
-    : NodeAccounted work matching events failures key := by
+      : ref ∈ completedRefs events
+        → ¬NodeFailed work matching events failures ref
+        → NodeAccounted work matching events failures ref)
+    : NodeAccounted work matching events failures ref := by
   rcases ready.2 with absent | completed | ⟨_, accounted⟩
   · obtain ⟨node, dependencies, descriptor, same⟩ := known.executionGroup_owner contributes
     exact False.elim (absent ⟨producer, node, .group, dependencies, descriptor, same⟩)
@@ -57,15 +57,15 @@ theorem ExecutedWork.groupNotice_readyDescriptor
           → Occurrence.item source index ∈ received.flatMap GraphEvent.successes
           → Published matching events (.item source index))
     (dependenciesReady
-      : ∀ key ∈ dependencies,
-          DependencySatisfied work initial matching events failures key)
+      : ∀ ref ∈ dependencies,
+          DependencySatisfied work initial matching events failures ref)
     (closed
-      : ∀ key ∈ dependencies,
-          key ∈ completedKeys events
-          → ¬NodeFailed work matching events failures key
-          → NodeAccounted work matching events failures key)
+      : ∀ ref ∈ dependencies,
+          ref ∈ completedRefs events
+          → ¬NodeFailed work matching events failures ref
+          → NodeAccounted work matching events failures ref)
     (known : TaskAt work (.executionGroup address) owners producer payload)
-    (contributes : child.key ∈ owners)
+    (contributes : child.ref ∈ owners)
     (descriptor : NodeAt work child .group dependencies producer)
     (sourceReady
       : ∀ source, producer = some source → source ∈ received.flatMap GraphEvent.successes)
@@ -92,13 +92,13 @@ theorem ExecutedWork.groupNotice_readyDescriptor
                 subst ancestor
                 exact valid.groupSettlement_producerBefore parent
                   (GraphEvent.successes_mem_settled succeeded)
-              obtain ⟨supportOwners, supportBirth, supportValue, key,
+              obtain ⟨supportOwners, supportBirth, supportValue, ref,
                 supportTask, member, support⟩ := generated.group_objectProducer_support descriptor
-              have owner : key ∈ parentOwners := (supportTask.unique parent).1 ▸ member
+              have owner : ref ∈ parentOwners := (supportTask.unique parent).1 ▸ member
               rcases support with reused | dependency
-              · have contributor : child.key ∈ parentOwners := reused ▸ owner
+              · have contributor : child.ref ∈ parentOwners := reused ▸ owner
                 obtain ⟨node, parents, atParent, same⟩ := parent.executionGroup_owner contributor
-                have nodeEq := generated.nodeKeyCoherent _ _ _ _ _ _ _ _
+                have nodeEq := generated.nodeRefCoherent _ _ _ _ _ _ _ _
                   atParent descriptor same
                 obtain ⟨assignment, canonical⟩ := generated.groupDependenciesCanonical
                 have parentsEq : parents = dependencies := by
@@ -106,9 +106,9 @@ theorem ExecutedWork.groupNotice_readyDescriptor
                 have nextDescriptor : NodeAt work child .group dependencies ancestor :=
                   nodeEq ▸ parentsEq ▸ atParent
                 exact ih _ (by omega) parent contributor nextDescriptor parentReady rfl
-              · have ready := dependenciesReady key dependency
+              · have ready := dependenciesReady ref dependency
                 have accounted := DependencySatisfied.accounted_of_objectContributor
-                  ready parent owner (closed key dependency)
+                  ready parent owner (closed ref dependency)
                 rcases accounted (.executionGroup source) parentOwners
                     ⟨ancestor, value, parent⟩ owner with cancelled | published
                 · exact False.elim (ready.1

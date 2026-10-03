@@ -81,7 +81,7 @@ positive error totals at each visited record, and identify full generated ancest
 the immediate parent's chain. No output admission or publication support is assumed.
 -/
 theorem State.GroupErrorAccounting.groupIsHealthy_recordUninvalidated
-    {queue : State} {work failed key}
+    {queue : State} {work failed ref}
     (counts : queue.GroupErrorAccounting work failed) (generated : ExecutedWork work)
     (descriptors
       : ∀ node ∈ queue.groupNodes,
@@ -94,12 +94,12 @@ theorem State.GroupErrorAccounting.groupIsHealthy_recordUninvalidated
             TaskAt work occurrence owners producer payload
             ∧ payload.failure.isSome = true)
     (missing : queue.MissingParentAncestorsHealthy work failed)
-    (healthy : queue.groupIsHealthy key = true)
-    : ¬GroupRecordInvalidated work failed key := by
+    (healthy : queue.groupIsHealthy ref = true)
+    : ¬GroupRecordInvalidated work failed ref := by
   have walk (fuel : Nat) (node : GroupNode) (member : node ∈ queue.groupNodes)
       (uncached : node.failure = none)
       (checked : State.groupIsHealthy.ancestorsHealthy queue fuel node.group.parent = true)
-      : ¬GroupRecordInvalidated work failed node.group.node.key := by
+      : ¬GroupRecordInvalidated work failed node.group.node.ref := by
     induction fuel generalizing node with
     | zero | succ fuel ih =>
         all_goals
@@ -134,9 +134,9 @@ theorem State.GroupErrorAccounting.groupIsHealthy_recordUninvalidated
                       have parentMember := List.mem_of_find?_eq_some found
                       obtain ⟨parentDependencies, parentKnown, _⟩ :=
                         descriptors parentNode parentMember
-                      have parentKey := State.groupNode?_key found
+                      have parentRef := State.groupNode?_ref found
                       have chain := generated.groupRecordAncestryChain known parentKnown
-                        (by rw [parentKey]; exact parentEq.symm.trans parentLookup)
+                        (by rw [parentRef]; exact parentEq.symm.trans parentLookup)
                       have safe := ih parentNode parentMember
                         (Option.isNone_iff_eq_none.mp checked.1) checked.2
                       rw [chain] at contributes
@@ -148,14 +148,14 @@ theorem State.GroupErrorAccounting.groupIsHealthy_recordUninvalidated
   simp only [State.groupIsHealthy, found, Bool.and_eq_true] at checked
   have safe := walk queue.groupNodes.length node (List.mem_of_find?_eq_some found)
     uncached checked.2
-  simpa only [State.groupNode?_key found] using safe
+  simpa only [State.groupNode?_ref found] using safe
 
 /-- The record-aware guard theorem also excludes contributor-only causal invalidation.
 Witness: contributor invalidation embeds in registration-record invalidation; taskless
 ancestors need no fabricated producer or task descriptor during the parent walk.
 -/
 theorem State.GroupErrorAccounting.groupIsHealthy_uninvalidated
-    {queue : State} {work failed key}
+    {queue : State} {work failed ref}
     (counts : queue.GroupErrorAccounting work failed) (generated : ExecutedWork work)
     (descriptors
       : ∀ node ∈ queue.groupNodes,
@@ -168,8 +168,8 @@ theorem State.GroupErrorAccounting.groupIsHealthy_uninvalidated
             TaskAt work occurrence owners producer payload
             ∧ payload.failure.isSome = true)
     (missing : queue.MissingParentAncestorsHealthy work failed)
-    (healthy : queue.groupIsHealthy key = true)
-    : ¬GroupInvalidated work failed key := by
+    (healthy : queue.groupIsHealthy ref = true)
+    : ¬GroupInvalidated work failed ref := by
   intro invalid
   exact counts.groupIsHealthy_recordUninvalidated generated descriptors failedKnown
     missing healthy invalid.toRecordInvalidated
@@ -188,15 +188,15 @@ theorem createWorkQueue_replayGraphEvents_groupIsHealthy_recordUninvalidated
           ((State.initialize (Work.fromExecution work)).replayGraphEvents events) work
           ((State.initialize (Work.fromExecution work)).objectFailureContributions
             events))
-    {key : Nat}
+    {ref : NodeRef}
     (healthy
       : ((State.initialize (Work.fromExecution work)).replayGraphEvents
           events).groupIsHealthy
-          key
+          ref
         = true)
     : ¬GroupRecordInvalidated work
         ((State.initialize (Work.fromExecution work)).objectFailureContributions events)
-        key := by
+        ref := by
   obtain ⟨parents, canonical⟩ := generated.groupRecordsCanonical
   have initial := createWorkQueue_healthyCounterAccounting work parents canonical
   have metadata := initial.replayGraphEvents (before := []) generated canonical events valid
@@ -227,15 +227,15 @@ theorem createWorkQueue_replayGraphEvents_groupIsHealthy_uninvalidated
           ((State.initialize (Work.fromExecution work)).replayGraphEvents events) work
           ((State.initialize (Work.fromExecution work)).objectFailureContributions
             events))
-    {key : Nat}
+    {ref : NodeRef}
     (healthy
       : ((State.initialize (Work.fromExecution work)).replayGraphEvents
           events).groupIsHealthy
-          key
+          ref
         = true)
     : ¬GroupInvalidated work
         ((State.initialize (Work.fromExecution work)).objectFailureContributions events)
-        key := by
+        ref := by
   intro invalid
   exact createWorkQueue_replayGraphEvents_groupIsHealthy_recordUninvalidated
     generated valid accepted missing healthy invalid.toRecordInvalidated
@@ -269,10 +269,10 @@ theorem createWorkQueue_eligibleObjectFailureCuts_uninvalidatedOwner
         sourceObjectFailureCuts 0
           (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher batches).2.2)
         = before ++ (cut, occurrence) :: after)
-    : ∃ owners key,
+    : ∃ owners ref,
         TaskHasOwners work occurrence owners
-        ∧ key ∈ owners
-        ∧ ¬GroupRecordInvalidated work (before.map Prod.snd) key := by
+        ∧ ref ∈ owners
+        ∧ ¬GroupRecordInvalidated work (before.map Prod.snd) ref := by
   let queue := State.initialize (Work.fromExecution work)
   obtain ⟨earlier, _, _, _, node, _, _, _, sourcePrefix, priorValid, _, _, ledger,
     found, healthy⟩ := createWorkQueue_eligibleObjectFailureCuts_split valid started split
@@ -290,7 +290,7 @@ theorem createWorkQueue_eligibleObjectFailureCuts_uninvalidatedOwner
   obtain ⟨⟨_, payload, producer, _, task⟩, _⟩ :=
     bookkeeping.matching node.task (bookkeeping.started node nodeMember)
   obtain ⟨owner, contributes, guard⟩ := State.taskHasHealthyOwner_iff.mp healthy
-  refine ⟨node.task.groups.map Execution.DeliveryNode.key, owner.key,
+  refine ⟨node.task.groups.map Execution.DeliveryNode.ref, owner.ref,
     ⟨producer, payload, occurrenceEq ▸ task⟩,
     List.mem_map.mpr ⟨owner, contributes, rfl⟩, ?_⟩
   have safe := createWorkQueue_replayGraphEvents_groupIsHealthy_recordUninvalidated

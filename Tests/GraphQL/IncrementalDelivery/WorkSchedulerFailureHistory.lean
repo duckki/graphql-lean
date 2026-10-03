@@ -39,9 +39,9 @@ theorem source_valid
     : ValidGraphEvents work [first, second]
       ∧ inputsStarted work [[first], [second]] = true
       ∧ inputsStarted work [[first, second]] = true := by
-  have firstKnown : TaskAt work leftTask [left.key] none (.object [] (.error 1)) :=
+  have firstKnown : TaskAt work leftTask [left.ref] none (.object [] (.error 1)) :=
     ⟨_, [], .error 1, .empty, [], rfl, rfl, rfl⟩
-  have secondKnown : TaskAt work rightTask [right.key] none (.object [] (.error 1)) :=
+  have secondKnown : TaskAt work rightTask [right.ref] none (.object [] (.error 1)) :=
     ⟨_, [], .error 1, .empty, [], rfl, rfl, rfl⟩
   have one : ValidGraphEvents work [first] :=
     .append .nil ⟨_, _, _, firstKnown⟩
@@ -126,7 +126,7 @@ theorem failure_controls_admitted
         → ∃ w : Witness,
             w.events = (initialQueue work).nonterminalAtoms inputs
             ∧ BatchShape work inputs w
-            ∧ FailureWitness work (initialKeys work) w.matching w.events w.failures
+            ∧ FailureWitness work (initialRefs work) w.matching w.events w.failures
             ∧ FailureAdmission work w := by
   intro inputs same started
   obtain ⟨w, history, shape, announced, uncancelled, admitted⟩ :=

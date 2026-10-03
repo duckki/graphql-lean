@@ -5,12 +5,12 @@ import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.StreamProducer
 namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
-/-- A key in a stream-notice projection has an actual descriptor satisfying the event's property.
-Witness: only group-success and stream-value carriers add such keys, by mapping their nodes.
+/-- A ref in a stream-notice projection has an actual descriptor satisfying the event's property.
+Witness: only group-success and stream-value carriers add such refs, by mapping their nodes.
 -/
-theorem StreamNoticesSatisfy.of_key {property event key}
-    (known : StreamNoticesSatisfy property event) (noticed : key ∈ streamNoticeKeys event)
-    : ∃ stream, stream.key = key ∧ property stream := by
+theorem StreamNoticesSatisfy.of_ref {property event ref}
+    (known : StreamNoticesSatisfy property event) (noticed : ref ∈ streamNoticeRefs event)
+    : ∃ stream, stream.ref = ref ∧ property stream := by
   cases event with
   | groupSuccess group groups streams =>
       obtain ⟨stream, member, same⟩ := List.mem_map.mp noticed
@@ -23,8 +23,8 @@ theorem StreamNoticesSatisfy.of_key {property event key}
 
 /-- A referenced generated stream's structural producer has already published before that event.
 Witness: references have strictly prior stream notices. Initial notices are producer-free;
-later notices carry a producer publication no later than their carrier. Generated-key
-uniqueness identifies that producer with any structural descriptor for the referenced key.
+later notices carry a producer publication no later than their carrier. Generated-ref
+uniqueness identifies that producer with any structural descriptor for the referenced ref.
 The supplied matching is unchanged; this proves producer support, not cancellation or Open.
 -/
 theorem createWorkQueue_runNormalized_streamReference_producerPublished
@@ -50,7 +50,7 @@ theorem createWorkQueue_runNormalized_streamReference_producerPublished
           publicationAtoms)[index]?
         = some event)
     {stream dependencies producer source}
-    (reference : stream.key ∈ streamReferenceKeys event)
+    (reference : stream.ref ∈ streamReferenceRefs event)
     (known : NodeAt work stream .stream dependencies producer)
     (hasProducer : producer = some source)
     : Published matching
@@ -64,16 +64,16 @@ theorem createWorkQueue_runNormalized_streamReference_producerPublished
   · have absent := generated.initialStream_producerNone known initial
     rw [hasProducer] at absent
     cases absent
-  · obtain ⟨carrier, member, key⟩ := List.mem_flatMap.mp earlier
+  · obtain ⟨carrier, member, ref⟩ := List.mem_flatMap.mp earlier
     obtain ⟨position, atPrefix⟩ := List.mem_iff_getElem?.mp member
     have bound : position < index := by
       have size := (List.getElem?_eq_some_iff.mp atPrefix).choose
       simp only [List.length_take] at size
       omega
     have atCarrier := (List.getElem?_take_of_lt bound).symm.trans atPrefix
-    obtain ⟨child, sameKey, owners, occurrence, located, published⟩ :=
-      (notices position carrier atCarrier).of_key key
-    have sameProducer := generated.streamProducer_unique known located sameKey.symm
+    obtain ⟨child, sameRef, owners, occurrence, located, published⟩ :=
+      (notices position carrier atCarrier).of_ref ref
+    have sameProducer := generated.streamProducer_unique known located sameRef.symm
     have same := Option.some.inj (hasProducer.symm.trans sameProducer)
     subst source
     exact published_take_mono published (by omega)
@@ -117,7 +117,7 @@ theorem createWorkQueue_runNormalized_streamProducerReadinessMatching
         ∧ (∀ index event,
             atoms[index]? = some event
             → ∀ stream dependencies producer,
-                stream.key ∈ streamReferenceKeys event
+                stream.ref ∈ streamReferenceRefs event
                 → NodeAt work stream .stream dependencies producer
                 → ∀ source,
                     producer = some source

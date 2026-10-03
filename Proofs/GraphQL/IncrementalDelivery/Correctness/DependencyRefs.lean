@@ -1,7 +1,7 @@
 import Proofs.GraphQL.IncrementalDelivery.Correctness.Initialization
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.TaskReadiness
 
-/-! Execution's existing key/ancestry certificates order task-producer dependencies.
+/-! Execution's existing ref/ancestry certificates order task-producer dependencies.
 No readiness, notice coverage, or response-correctness premise is added to admission.
 -/
 
@@ -41,40 +41,40 @@ theorem dependencyProperties_located {parents work address current producer owne
         ih.2 _ (List.mem_of_getElem? selected)⟩
 
 /-- Located producer contexts either retain deferred ancestry/owner support or enter a
-fresh stream-item key region. Witness: the producer-generating edge, then append descent.
+fresh stream-item ref region. Witness: the producer-generating edge, then append descent.
 -/
-theorem producer_key_context {parents bound work address current enclosing producer}
-    (coherent : MixedKeys.WorkAt parents 0 bound work)
+theorem producer_ref_context {parents bound work address current enclosing producer}
+    (coherent : MixedRefs.WorkAt parents 0 bound work)
     (continuous : DeferContinuous parents work) (ordered : StreamOwnersOrdered work)
     (located : Located work address current (some producer) enclosing)
     : ∃ owners ancestor payload,
         TaskAt work producer owners ancestor payload
         ∧ ((DeferUnder parents owners current ∧ OwnersBefore owners current)
-            ∨ ∃ key,
-                owners = [key] ∧ MixedKeys.WorkAt parents (key + 1) bound current) := by
+            ∨ ∃ ref,
+                owners = [ref] ∧ MixedRefs.WorkAt parents (ref + 1) bound current) := by
   have context {address current birth enclosing}
       (navigation : StructuralEquivalence.Located work address current birth enclosing)
       {producer} (generated : birth = some producer) :
       ∃ owners ancestor payload,
         TaskAt work producer owners ancestor payload
         ∧ ((DeferUnder parents owners current ∧ OwnersBefore owners current)
-          ∨ ∃ key, owners = [key] ∧ MixedKeys.WorkAt parents (key + 1) bound current) := by
+          ∨ ∃ ref, owners = [ref] ∧ MixedRefs.WorkAt parents (ref + 1) bound current) := by
     induction navigation with
     | root => contradiction
     | left _ ih =>
         obtain ⟨owners, ancestor, payload, known, supported⟩ := ih generated
         refine ⟨owners, ancestor, payload, known, ?_⟩
-        rcases supported with ⟨under, before⟩ | ⟨key, same, bounded⟩
+        rcases supported with ⟨under, before⟩ | ⟨ref, same, bounded⟩
         · exact Or.inl ⟨under.1, before.1⟩
-        · rw [MixedKeys.WorkAt] at bounded
-          exact Or.inr ⟨key, same, bounded.1⟩
+        · rw [MixedRefs.WorkAt] at bounded
+          exact Or.inr ⟨ref, same, bounded.1⟩
     | right _ ih =>
         obtain ⟨owners, ancestor, payload, known, supported⟩ := ih generated
         refine ⟨owners, ancestor, payload, known, ?_⟩
-        rcases supported with ⟨under, before⟩ | ⟨key, same, bounded⟩
+        rcases supported with ⟨under, before⟩ | ⟨ref, same, bounded⟩
         · exact Or.inl ⟨under.2, before.2⟩
-        · rw [MixedKeys.WorkAt] at bounded
-          exact Or.inr ⟨key, same, bounded.2⟩
+        · rw [MixedRefs.WorkAt] at bounded
+          exact Or.inr ⟨ref, same, bounded.2⟩
     | executionGroup navigation =>
         cases generated
         have properties := dependencyProperties_located continuous ordered navigation.toCurrent
@@ -84,7 +84,7 @@ theorem producer_key_context {parents bound work address current enclosing produ
     | item navigation selected =>
         cases generated
         have localWork := coherent_located coherent navigation.toCurrent
-        rw [MixedKeys.WorkAt] at localWork
+        rw [MixedRefs.WorkAt] at localWork
         exact ⟨_, _, _, .item navigation.toCurrent selected,
           Or.inr ⟨_, rfl, localWork.2.2 _ (List.mem_of_getElem? selected)⟩⟩
   exact context (StructuralEquivalence.located_of_current located) rfl
@@ -94,13 +94,13 @@ Witness: nonempty deferred maps or a stream item's singleton owner list.
 -/
 theorem coherent_task_owners_nonempty
     {parents lower bound work occurrence owners producer payload}
-    (coherent : MixedKeys.WorkAt parents lower bound work)
+    (coherent : MixedRefs.WorkAt parents lower bound work)
     (known : TaskAt work occurrence owners producer payload)
     : owners ≠ [] := by
   cases StructuralEquivalence.taskAt_of_current known with
   | executionGroup located =>
       have localWork := coherent_located coherent located.toCurrent
-      rw [MixedKeys.WorkAt] at localWork
+      rw [MixedRefs.WorkAt] at localWork
       exact fun empty => localWork.1 (List.map_eq_nil_iff.mp empty)
   | item => simp
 
@@ -117,7 +117,7 @@ theorem healthy_producer_owner
     (fresh : ¬Published matching events occurrence)
     (parentFresh : ¬Published matching events producer)
     (active : ¬TaskCancelled work matching events failed occurrence)
-    : ∃ key ∈ parentOwners, ¬NodeFailed work matching events failed key := by
+    : ∃ ref ∈ parentOwners, ¬NodeFailed work matching events failed ref := by
   classical
   apply Classical.byContradiction
   intro absent
@@ -125,105 +125,105 @@ theorem healthy_producer_owner
   apply explained.snapshot_taskCancelled
   apply Causality.TaskCancelled.producerCancelled ⟨_, _, known⟩ fresh
   apply Causality.TaskCancelled.owners ⟨_, _, parentKnown⟩ parentFresh nonempty
-  intro key member
+  intro ref member
   apply explained.nodeFailed_snapshot
   apply Classical.byContradiction
   intro healthy
-  exact absent ⟨key, member, healthy⟩
+  exact absent ⟨ref, member, healthy⟩
 
 -----------------------------------------------------------------------------------------
 -- A healthy child owner is supported by a no-larger healthy producer owner
 -----------------------------------------------------------------------------------------
 
-/-- Every healthy contributing key of an uncancelled generated child task has a healthy
-producer owner with a no-larger key. Witness: reused/dependent defer ancestry, ordered
-stream owners, or the fresh key interval below a stream item. This prevents a producer
-dependency from forcing progress through a strictly later owner key.
+/-- Every healthy contributing ref of an uncancelled generated child task has a healthy
+producer owner with a no-larger ref. Witness: reused/dependent defer ancestry, ordered
+stream owners, or the fresh ref interval below a stream item. This prevents a producer
+dependency from forcing progress through a strictly later owner ref.
 -/
-theorem producer_owner_key_le
+theorem producer_owner_ref_le
     {parents bound work groups streams matching events failed
-      occurrence owners producer payload key}
+      occurrence owners producer payload ref}
     (explained : Explains work groups streams events matching failed)
-    (valid : Valid parents bound) (coherent : MixedKeys.WorkAt parents 0 bound work)
+    (valid : Valid parents bound) (coherent : MixedRefs.WorkAt parents 0 bound work)
     (continuous : DeferContinuous parents work) (ordered : StreamOwnersOrdered work)
     (known : TaskAt work occurrence owners (some producer) payload)
-    (member : key ∈ owners) (healthy : ¬NodeFailed work matching events failed key)
+    (member : ref ∈ owners) (healthy : ¬NodeFailed work matching events failed ref)
     (fresh : ¬Published matching events occurrence)
     (parentFresh : ¬Published matching events producer)
     (active : ¬TaskCancelled work matching events failed occurrence)
-    : ∃ parentOwners ancestor result parentKey,
+    : ∃ parentOwners ancestor result parentRef,
         TaskAt work producer parentOwners ancestor result
-        ∧ parentKey ∈ parentOwners
-        ∧ ¬NodeFailed work matching events failed parentKey
-        ∧ parentKey ≤ key := by
+        ∧ parentRef ∈ parentOwners
+        ∧ ¬NodeFailed work matching events failed parentRef
+        ∧ parentRef ≤ ref := by
   cases StructuralEquivalence.taskAt_of_current known with
   | executionGroup located =>
       obtain ⟨group, inGroups, rfl⟩ := List.mem_map.mp member
       obtain ⟨parentOwners, ancestor, result, parentKnown, support⟩ :=
-        producer_key_context coherent continuous ordered located.toCurrent
-      rcases support with ⟨under, before⟩ | ⟨parentKey, same, freshKeys⟩
-      · obtain ⟨parentKey, inOwners, reused | dependency⟩ := under.1 group inGroups
-        · exact ⟨parentOwners, ancestor, result, parentKey, parentKnown, inOwners,
+        producer_ref_context coherent continuous ordered located.toCurrent
+      rcases support with ⟨under, before⟩ | ⟨parentRef, same, freshRefs⟩
+      · obtain ⟨parentRef, inOwners, reused | dependency⟩ := under.1 group inGroups
+        · exact ⟨parentOwners, ancestor, result, parentRef, parentKnown, inOwners,
             reused ▸ healthy, Nat.le_of_eq reused⟩
         · have localWork := coherent_located coherent located.toCurrent
-          rw [MixedKeys.WorkAt] at localWork
-          obtain ⟨_, keyBound, ancestors⟩ := localWork.2.1 group inGroups
-          have parentHealthy : ¬NodeFailed work matching events failed parentKey := by
+          rw [MixedRefs.WorkAt] at localWork
+          obtain ⟨_, refBound, ancestors⟩ := localWork.2.1 group inGroups
+          have parentHealthy : ¬NodeFailed work matching events failed parentRef := by
             intro failed
             apply healthy
             exact .groupDependency (.group located.toCurrent inGroups)
               (by simpa only [ancestors] using dependency) failed
-          exact ⟨parentOwners, ancestor, result, parentKey, parentKnown, inOwners,
-            parentHealthy, Nat.le_of_lt (valid group.node.key keyBound parentKey dependency).1⟩
+          exact ⟨parentOwners, ancestor, result, parentRef, parentKnown, inOwners,
+            parentHealthy, Nat.le_of_lt (valid group.node.ref refBound parentRef dependency).1⟩
       · subst parentOwners
         have parentHealthy := healthy_producer_owner explained known parentKnown
           (by simp) fresh parentFresh active
-        obtain ⟨healthyKey, inOwners, parentHealthy⟩ := parentHealthy
+        obtain ⟨healthyRef, inOwners, parentHealthy⟩ := parentHealthy
         have equal := List.mem_singleton.mp inOwners
-        subst healthyKey
-        rw [MixedKeys.WorkAt] at freshKeys
-        exact ⟨[parentKey], ancestor, result, parentKey, parentKnown, by simp,
-          parentHealthy, Nat.le_trans (Nat.le_succ _) (freshKeys.2.1 group inGroups).1⟩
+        subst healthyRef
+        rw [MixedRefs.WorkAt] at freshRefs
+        exact ⟨[parentRef], ancestor, result, parentRef, parentKnown, by simp,
+          parentHealthy, Nat.le_trans (Nat.le_succ _) (freshRefs.2.1 group inGroups).1⟩
   | item located selected =>
       have equal := List.mem_singleton.mp member
-      subst key
+      subst ref
       obtain ⟨parentOwners, ancestor, result, parentKnown, support⟩ :=
-        producer_key_context coherent continuous ordered located.toCurrent
-      obtain ⟨parentKey, inOwners, parentHealthy⟩ :=
+        producer_ref_context coherent continuous ordered located.toCurrent
+      obtain ⟨parentRef, inOwners, parentHealthy⟩ :=
         healthy_producer_owner explained known parentKnown
           (coherent_task_owners_nonempty coherent parentKnown) fresh parentFresh active
-      refine ⟨parentOwners, ancestor, result, parentKey, parentKnown, inOwners,
+      refine ⟨parentOwners, ancestor, result, parentRef, parentKnown, inOwners,
         parentHealthy, ?_⟩
-      rcases support with ⟨under, before⟩ | ⟨key, same, fresh⟩
-      · exact Nat.le_of_lt (before parentKey inOwners)
+      rcases support with ⟨under, before⟩ | ⟨ref, same, fresh⟩
+      · exact Nat.le_of_lt (before parentRef inOwners)
       · subst parentOwners
         have equal := List.mem_singleton.mp inOwners
-        subst parentKey
-        rw [MixedKeys.WorkAt] at fresh
+        subst parentRef
+        rw [MixedRefs.WorkAt] at fresh
         exact Nat.le_trans (Nat.le_succ _) fresh.1
 
 /-- Outstanding work with a healthy owner can find a ready task with a no-larger healthy
-owner. Witness: dependency-rank descent, retaining the key bound through producer support
+owner. Witness: dependency-rank descent, retaining the ref bound through producer support
 and the shared owner list of successive stream items. No publication order is selected.
 -/
-theorem readyTask_owner_key_le
+theorem readyTask_owner_ref_le
     {parents bound work groups streams matching events failed
-      occurrence owners producer payload key}
+      occurrence owners producer payload ref}
     (explained : Explains work groups streams events matching failed)
-    (valid : Valid parents bound) (coherent : MixedKeys.WorkAt parents 0 bound work)
+    (valid : Valid parents bound) (coherent : MixedRefs.WorkAt parents 0 bound work)
     (continuous : DeferContinuous parents work) (ordered : StreamOwnersOrdered work)
     (known : TaskAt work occurrence owners producer payload)
-    (member : key ∈ owners) (healthy : ¬NodeFailed work matching events failed key)
+    (member : ref ∈ owners) (healthy : ¬NodeFailed work matching events failed ref)
     (outstanding : ¬TaskAccounted work matching events failed occurrence)
-    : ∃ next nextOwners nextProducer result nextKey,
+    : ∃ next nextOwners nextProducer result nextRef,
         TaskAt work next nextOwners nextProducer result
         ∧ CanPublish work matching events failed next nextProducer
-        ∧ nextKey ∈ nextOwners
-        ∧ ¬NodeFailed work matching events failed nextKey
-        ∧ nextKey ≤ key := by
+        ∧ nextRef ∈ nextOwners
+        ∧ ¬NodeFailed work matching events failed nextRef
+        ∧ nextRef ≤ ref := by
   classical
   induction rank : occurrence.dependencyRank
-    using Nat.strongRecOn generalizing occurrence owners producer payload key with
+    using Nat.strongRecOn generalizing occurrence owners producer payload ref with
   | ind rank ih =>
       have active : ¬TaskCancelled work matching events failed occurrence := fun cancelled =>
         outstanding (Or.inl cancelled)
@@ -233,11 +233,11 @@ theorem readyTask_owner_key_le
         ∀ parent, producer = some parent → Published matching events parent
       · cases occurrence with
         | executionGroup address =>
-            exact ⟨_, _, _, _, key, known, ⟨fresh, active, generated, trivial⟩,
+            exact ⟨_, _, _, _, ref, known, ⟨fresh, active, generated, trivial⟩,
               member, healthy, Nat.le_refl _⟩
         | item address index =>
             cases index with
-            | zero => exact ⟨_, _, _, _, key, known, ⟨fresh, active, generated, trivial⟩,
+            | zero => exact ⟨_, _, _, _, ref, known, ⟨fresh, active, generated, trivial⟩,
                 member, healthy, Nat.le_refl _⟩
             | succ index =>
                 obtain ⟨previous, prior⟩ := known.predecessor
@@ -245,7 +245,7 @@ theorem readyTask_owner_key_le
                   TaskAccounted work matching events failed (.item address index)
                 · rcases accounted with cancelled | published
                   · exact False.elim (active (cancelled.same_prerequisites prior known fresh))
-                  · exact ⟨_, _, _, _, key, known, ⟨fresh, active, generated, published⟩,
+                  · exact ⟨_, _, _, _, ref, known, ⟨fresh, active, generated, published⟩,
                       member, healthy, Nat.le_refl _⟩
                 · exact ih (Occurrence.item address index).dependencyRank
                     (by simp only [Occurrence.dependencyRank] at rank ⊢; omega)
@@ -253,23 +253,23 @@ theorem readyTask_owner_key_le
       · obtain ⟨parent, produces, unpublished⟩ := Classical.not_forall.mp generated
           |>.imp fun _ h => not_imp.mp h
         subst producer
-        obtain ⟨parentOwners, ancestor, result, parentKey, parentKnown, inOwners,
-          parentHealthy, keyBound⟩ :=
-          producer_owner_key_le explained valid coherent continuous ordered
+        obtain ⟨parentOwners, ancestor, result, parentRef, parentKnown, inOwners,
+          parentHealthy, refBound⟩ :=
+          producer_owner_ref_le explained valid coherent continuous ordered
             known member healthy fresh unpublished active
         have lower := known.producer_dependency.1
         have unaccounted : ¬TaskAccounted work matching events failed parent := by
           rintro (cancelled | published)
           · exact active (.producerCancelled known fresh cancelled)
           · exact unpublished published
-        obtain ⟨next, nextOwners, nextProducer, result, nextKey,
+        obtain ⟨next, nextOwners, nextProducer, result, nextRef,
           task, ready, nextMember, nextHealthy, smaller⟩ :=
             ih parent.dependencyRank (by omega) parentKnown inOwners parentHealthy unaccounted rfl
-        exact ⟨next, nextOwners, nextProducer, result, nextKey,
-          task, ready, nextMember, nextHealthy, Nat.le_trans smaller keyBound⟩
+        exact ⟨next, nextOwners, nextProducer, result, nextRef,
+          task, ready, nextMember, nextHealthy, Nat.le_trans smaller refBound⟩
 
 -----------------------------------------------------------------------------------------
--- Every explicit node dependency has a smaller key
+-- Every explicit node dependency has a smaller ref
 -----------------------------------------------------------------------------------------
 
 /-- Empty enclosing-owner lists impose no stream-order constraint. Witness: append
@@ -313,13 +313,13 @@ theorem ownersBefore_located {work address current producer owners}
       exact properties.1
   | item => exact ownersBefore_nil _
 
-/-- Every stream's explicit enclosing-owner dependency has a smaller key. Witness:
+/-- Every stream's explicit enclosing-owner dependency has a smaller ref. Witness:
 the located owner's ordering certificate at its exact stream boundary.
 -/
 theorem coherent_stream_dependencies {work node dependencies birth}
     (ordered : StreamOwnersOrdered work)
     (known : NodeAt work node .stream dependencies birth)
-    : ∀ key ∈ dependencies, key < node.key := by
+    : ∀ ref ∈ dependencies, ref < node.ref := by
   obtain ⟨address, items, located⟩ := known
   exact ownersBefore_located ordered located
 

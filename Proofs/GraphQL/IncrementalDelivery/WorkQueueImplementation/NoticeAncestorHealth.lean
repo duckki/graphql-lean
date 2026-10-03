@@ -14,15 +14,15 @@ not a host-source law or a claim that all dependencies have already published.
 def GroupNoticeAncestorsHealthy (work : Execution.Work) (failed : List Occurrence)
     (events : List WorkQueueEvent)
     : Prop :=
-  ∀ key ∈ events.flatMap rawGroupNoticeKeys, GroupAncestorsHealthy work failed key
+  ∀ ref ∈ events.flatMap rawGroupNoticeRefs, GroupAncestorsHealthy work failed ref
 
 /-- An output segment with no group notices has no ancestor-health obligation.
-Witness: every notice-key membership would belong to one of the empty projections.
+Witness: every notice-ref membership would belong to one of the empty projections.
 -/
 theorem GroupNoticeAncestorsHealthy.of_noNotices {work failed events}
-    (absent : ∀ event ∈ events, rawGroupNoticeKeys event = [])
+    (absent : ∀ event ∈ events, rawGroupNoticeRefs event = [])
     : GroupNoticeAncestorsHealthy work failed events := by
-  intro key member
+  intro ref member
   obtain ⟨event, included, noticed⟩ := List.mem_flatMap.mp member
   rw [absent event included] at noticed
   cases noticed
@@ -34,34 +34,34 @@ theorem GroupNoticeAncestorsHealthy.append {work failed first later}
     (left : GroupNoticeAncestorsHealthy work failed first)
     (right : GroupNoticeAncestorsHealthy work failed later)
     : GroupNoticeAncestorsHealthy work failed (first ++ later) := by
-  intro key member
+  intro ref member
   rw [List.flatMap_append] at member
-  exact (List.mem_append.mp member).elim (left key) (right key)
+  exact (List.mem_append.mp member).elim (left ref) (right ref)
 
 /-- Successful release emits exactly the frontier whose ancestor health was established.
-Witness: the key projection of the actual pruned release list equals its notice output.
+Witness: the ref projection of the actual pruned release list equals its notice output.
 -/
 theorem State.finishGroupSuccess_noticeAncestorHealth {queue : State} {work failed node}
     (healthy
       : ∀ child ∈ (queue.finishGroupSuccess node).2.2.newGroups,
-          GroupAncestorsHealthy work failed child.key)
+          GroupAncestorsHealthy work failed child.ref)
     : GroupNoticeAncestorsHealthy work failed (queue.finishGroupSuccess node).2.1 := by
-  intro key member
+  intro ref member
   rw [← State.finishGroupSuccess_groupNotices] at member
   obtain ⟨child, included, same⟩ := List.mem_map.mp member
   exact same ▸ healthy child included
 
 /-- The whole owner-fold output shares the health of its exact pending release frontier.
-Witness: emitted notice keys and accumulated release keys coincide, without deduplication.
+Witness: emitted notice refs and accumulated release refs coincide, without deduplication.
 -/
 theorem State.successGroupFold_noticeAncestorHealth {queue : State} {work failed}
     {groups : List Execution.DeliveryNode}
     (healthy
       : ∀ child ∈ (groups.foldl successGroupStep (queue, [], {})).2.2.newGroups,
-          GroupAncestorsHealthy work failed child.key)
+          GroupAncestorsHealthy work failed child.ref)
     : GroupNoticeAncestorsHealthy work failed
         (groups.foldl successGroupStep (queue, [], {})).2.1 := by
-  intro key member
+  intro ref member
   rw [← successGroupFold_groupNotices] at member
   obtain ⟨child, included, same⟩ := List.mem_map.mp member
   exact same ▸ healthy child included

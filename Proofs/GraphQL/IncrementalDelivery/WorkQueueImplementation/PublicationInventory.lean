@@ -342,10 +342,10 @@ theorem State.taskFailure_objectValues (queue : State) (occurrence : Occurrence)
     : (queue.taskFailure occurrence errors).2.flatMap WorkQueueEvent.objectValues
       = [] := by
   let step (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode) :=
-    match acc.1.groupNode? group.key with
+    match acc.1.groupNode? group.ref with
     | none => acc
     | some node =>
-        if acc.1.rootGroups.contains group.key then
+        if acc.1.rootGroups.contains group.ref then
           let (next, failure) := acc.1.finishGroupFailure node errors
           (next, acc.2 ++ [failure])
         else

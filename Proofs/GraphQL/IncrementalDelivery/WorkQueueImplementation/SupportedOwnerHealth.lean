@@ -16,8 +16,8 @@ Witness: embed cleanup in the current causal snapshot, then recover a reached cu
 the support-based snapshot bridge. The original Explains-based interface is unchanged.
 -/
 theorem GroupInvalidated.toNodeFailed_of_support
-    {work failed key events matching cuts}
-    (failure : GroupInvalidated work failed key)
+    {work failed ref events matching cuts}
+    (failure : GroupInvalidated work failed ref)
     (support : PublicationSupport work matching events cuts)
     (failedPayloads
       : ∀ cut occurrence,
@@ -26,7 +26,7 @@ theorem GroupInvalidated.toNodeFailed_of_support
               TaskAt work occurrence owners producer payload
               ∧ payload.failure.isSome = true)
     (included : failed.Subset (failedBefore cuts events.length))
-    : NodeFailed work matching events cuts key :=
+    : NodeFailed work matching events cuts ref :=
   support.snapshot_nodeFailed failedPayloads
     ((failure.mono included).toCausality (Published matching events))
 
@@ -51,25 +51,25 @@ theorem PublicationSupport.groupFailure_causes
               ∧ payload.failure.isSome = true)
     (known : NodeAt work node .group dependencies producer)
     (ready : ∀ source, producer = some source → Published matching events source)
-    (failure : NodeFailed work matching events failures node.key)
+    (failure : NodeFailed work matching events failures node.ref)
     : (∃ occurrence owners,
         TaskHasOwners work occurrence owners
-        ∧ node.key ∈ owners
+        ∧ node.ref ∈ owners
         ∧ occurrence ∈ failedBefore failures events.length)
       ∨ ∃ dependency ∈ dependencies,
           NodeFailed work matching events failures dependency := by
   have snapshot := support.nodeFailed_snapshot failedPayloads failure
   cases snapshot with
   | task task owner member => exact .inl ⟨_, _, task, owner, member⟩
-  | @groupDependency key otherDependencies dependency descriptor member prior =>
-      obtain ⟨other, birth, otherKnown, keyEq⟩ := descriptor
+  | @groupDependency ref otherDependencies dependency descriptor member prior =>
+      obtain ⟨other, birth, otherKnown, refEq⟩ := descriptor
       obtain ⟨parents, canonical⟩ := generated.groupDependenciesCanonical
       have same : otherDependencies = dependencies := by
-        rw [canonical _ _ _ otherKnown, canonical _ _ _ known, keyEq]
+        rw [canonical _ _ _ otherKnown, canonical _ _ _ known, refEq]
       exact .inr ⟨_, same ▸ member, support.snapshot_nodeFailed failedPayloads prior⟩
   | streamDependencies descriptor _ _ =>
       obtain ⟨stream, birth, located, same⟩ := descriptor
-      exact False.elim (generated.groupStreamKeysDisjoint known located same.symm)
+      exact False.elim (generated.groupStreamRefsDisjoint known located same.symm)
   | producers _ noRoot unpublished _ =>
       cases producer with
       | none => exact False.elim (noRoot ⟨node, .group, dependencies, known, rfl⟩)
@@ -96,15 +96,15 @@ theorem PublicationSupport.groupHealthy
     (contributors
       : ∀ occurrence owners,
           TaskHasOwners work occurrence owners
-          → node.key ∈ owners
+          → node.ref ∈ owners
           → occurrence ∉ failedBefore failures events.length)
-    (ancestors : ∀ key ∈ dependencies, ¬NodeFailed work matching events failures key)
-    : ¬NodeFailed work matching events failures node.key := by
+    (ancestors : ∀ ref ∈ dependencies, ¬NodeFailed work matching events failures ref)
+    : ¬NodeFailed work matching events failures node.ref := by
   intro failure
   rcases support.groupFailure_causes generated failedPayloads known ready failure with
-    ⟨occurrence, owners, task, owner, failed⟩ | ⟨key, member, failed⟩
+    ⟨occurrence, owners, task, owner, failed⟩ | ⟨ref, member, failed⟩
   · exact contributors occurrence owners task owner failed
-  · exact ancestors key member failed
+  · exact ancestors ref member failed
 
 /-- A supported generated stream fails through an item or failure of every defer owner.
 Witness: unique stream metadata identifies dependencies, generated roles exclude group
@@ -123,10 +123,10 @@ theorem PublicationSupport.streamFailure_causes
               ∧ payload.failure.isSome = true)
     (known : NodeAt work node .stream dependencies producer)
     (ready : ∀ source, producer = some source → Published matching events source)
-    (failure : NodeFailed work matching events failures node.key)
+    (failure : NodeFailed work matching events failures node.ref)
     : (∃ occurrence owners,
         TaskHasOwners work occurrence owners
-        ∧ node.key ∈ owners
+        ∧ node.ref ∈ owners
         ∧ occurrence ∈ failedBefore failures events.length)
       ∨ dependencies ≠ []
         ∧ ∀ dependency ∈ dependencies,
@@ -136,13 +136,13 @@ theorem PublicationSupport.streamFailure_causes
   | task task owner member => exact .inl ⟨_, _, task, owner, member⟩
   | groupDependency descriptor _ _ =>
       obtain ⟨group, birth, located, same⟩ := descriptor
-      exact False.elim (generated.groupStreamKeysDisjoint located known same)
+      exact False.elim (generated.groupStreamRefsDisjoint located known same)
   | streamDependencies descriptor nonempty failed =>
       obtain ⟨stream, birth, located, same⟩ := descriptor
       have equal := generated.streamDependencies_unique located known same
       refine .inr ⟨equal ▸ nonempty, ?_⟩
-      intro key member
-      exact support.snapshot_nodeFailed failedPayloads (failed key (equal.symm ▸ member))
+      intro ref member
+      exact support.snapshot_nodeFailed failedPayloads (failed ref (equal.symm ▸ member))
   | producers _ noRoot unpublished _ =>
       cases producer with
       | none => exact False.elim (noRoot ⟨node, .stream, dependencies, known, rfl⟩)
@@ -169,18 +169,18 @@ theorem PublicationSupport.streamHealthy
     (contributors
       : ∀ occurrence owners,
           TaskHasOwners work occurrence owners
-          → node.key ∈ owners
+          → node.ref ∈ owners
           → occurrence ∉ failedBefore failures events.length)
     (owners
       : dependencies = []
-        ∨ ∃ key ∈ dependencies, ¬NodeFailed work matching events failures key)
-    : ¬NodeFailed work matching events failures node.key := by
+        ∨ ∃ ref ∈ dependencies, ¬NodeFailed work matching events failures ref)
+    : ¬NodeFailed work matching events failures node.ref := by
   intro failure
   rcases support.streamFailure_causes generated failedPayloads known ready failure with
     ⟨occurrence, owners, task, owner, failed⟩ | ⟨nonempty, failed⟩
   · exact contributors occurrence owners task owner failed
-  · rcases owners with empty | ⟨key, member, healthy⟩
+  · rcases owners with empty | ⟨ref, member, healthy⟩
     · exact nonempty empty
-    · exact healthy (failed key member)
+    · exact healthy (failed ref member)
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

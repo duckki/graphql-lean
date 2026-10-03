@@ -51,7 +51,7 @@ theorem ExecutedWork.replayGraphEvents_healthyContributorsCovered {work : Execut
           canonical valid acceptedAt
         have accepted := generated.replayGraphEvents_acceptedOwnerAccounting_of_eachAccepted
           valid acceptedAt
-        have complete := initialLinks.replayGraphEvents (createWorkQueue_groupKeysUnique _)
+        have complete := initialLinks.replayGraphEvents (createWorkQueue_groupRefsUnique _)
           initialRegistered.1 initialRegistered.2 (createWorkQueue_parentRegistryClosed canonical)
           before (fun _ member => valid.eachMatches member) canonical
         have cancelled := generated.replayGraphEvents_cancelledRecordsSupported before valid
@@ -70,17 +70,17 @@ theorem ExecutedWork.replayGraphEvents_healthyContributorsCovered {work : Execut
         | taskSuccess occurrence result =>
             apply prior.1.taskSuccess accepted.1 accepted.2 ledger.pending.matching generated
               ledger.groups (generated.replayGraphEvents_healthyRetiredAncestors before valid)
-              cancelled complete ledger.pending.keys ledger.pending.liveGroups
+              cancelled complete ledger.pending.refs ledger.pending.liveGroups
               ledger.pending.taskGroups ledger.pending.started prior.2.1 prior.2.2
               ledger.childLinks canonical ?_ matching
             exact fun member => fresh.2.2.1 occurrence List.mem_cons_self
               (GraphEvent.taskSettlements_subsetIdentities before member)
         | taskFailure occurrence errors =>
-            exact (prior.1.taskFailure ledger.pending.keys forest ledger.pending.taskGroups
+            exact (prior.1.taskFailure ledger.pending.refs forest ledger.pending.taskGroups
               occurrence errors).mono_failures (List.subset_append_right _ _)
         | streamItems stream items =>
             exact prior.1.streamItems (createWorkQueue_replay_regionInventory valid)
-              generated complete ledger.pending.keys ledger.pending.liveGroups
+              generated complete ledger.pending.refs ledger.pending.liveGroups
               ledger.pending.taskGroups prior.2.1 cancelled ledger.groups prior.2.2
               ledger.childLinks canonical matching fresh.1
               (fun item member => fresh.2.2.1 item.occurrence (List.mem_map_of_mem member))
@@ -110,8 +110,8 @@ theorem ExecutedWork.runNormalized_healthyContributorsCovered {work : Execution.
   obtain ⟨terminated, same⟩ := createWorkQueue_runNormalized_stateCore started
   dsimp only
   rw [same]
-  intro task member key contributes healthy live
-  obtain ⟨root, active, path⟩ := covered task member key contributes healthy live
+  intro task member ref contributes healthy live
+  obtain ⟨root, active, path⟩ := covered task member ref contributes healthy live
   exact ⟨
     root,
     active,
@@ -133,15 +133,15 @@ theorem ExecutedWork.runNormalized_no_stranded_contributor {work : Execution.Wor
       let queue := (initial.runNormalized batches).1
       queue.rootGroups = []
       → ∀ task ∈ queue.tasks,
-        ∀ key ∈ task.groups.map Execution.DeliveryNode.key,
-          ¬GroupInvalidated work (initial.objectFailureContributions batches.flatten) key
-          → queue.groupNode? key = none := by
-  intro initial queue empty task member key contributes healthy
-  cases found : queue.groupNode? key with
+        ∀ ref ∈ task.groups.map Execution.DeliveryNode.ref,
+          ¬GroupInvalidated work (initial.objectFailureContributions batches.flatten) ref
+          → queue.groupNode? ref = none := by
+  intro initial queue empty task member ref contributes healthy
+  cases found : queue.groupNode? ref with
   | none => rfl
   | some node =>
       obtain ⟨root, active, _⟩ := generated.runNormalized_healthyContributorsCovered
-        batches valid started task member key contributes healthy ⟨node, found⟩
+        batches valid started task member ref contributes healthy ⟨node, found⟩
       rw [empty] at active
       cases active
 

@@ -65,8 +65,8 @@ theorem ExecutedWork.replayGraphEvents_next_noticeAncestorsHealthy
           exact False.elim (queue.taskFailure_noGroupSuccess occurrence errors group groups
             streams member)
       | streamValues stream values groups streams =>
-          have impossible : stream.key ∈
-              (queue.taskFailure occurrence errors).2.flatMap rawStreamReferenceKeys :=
+          have impossible : stream.ref ∈
+              (queue.taskFailure occurrence errors).2.flatMap rawStreamReferenceRefs :=
             List.mem_flatMap.mpr ⟨_, member, List.mem_cons_self⟩
           rw [State.taskFailure_streamReferences] at impossible
           cases impossible
@@ -75,10 +75,10 @@ theorem ExecutedWork.replayGraphEvents_next_noticeAncestorsHealthy
           rfl
   | streamSuccess stream =>
       simp only [State.handleGraphEvent, State.streamSuccess]
-      split <;> simp [GroupNoticeAncestorsHealthy, rawGroupNoticeKeys]
+      split <;> simp [GroupNoticeAncestorsHealthy, rawGroupNoticeRefs]
   | streamFailure stream errors =>
       simp only [State.handleGraphEvent, State.streamFailure]
-      split <;> simp [GroupNoticeAncestorsHealthy, rawGroupNoticeKeys]
+      split <;> simp [GroupNoticeAncestorsHealthy, rawGroupNoticeRefs]
 
 -----------------------------------------------------------------------------------------
 -- Concrete ancestor cancellation is excluded at the same source boundary
@@ -86,11 +86,11 @@ theorem ExecutedWork.replayGraphEvents_next_noticeAncestorsHealthy
 
 /-- A noticed group's complete defer ancestry is uninvalidated and uncancelled.
 Witness: the actual handler's notice certificate applies to its known record; independent
-replay cancellation support excludes every ancestor key from the concrete cancelled set.
-This does not yet assert semantic producer readiness or task accounting for those keys.
+replay cancellation support excludes every ancestor ref from the concrete cancelled set.
+This does not yet assert semantic producer readiness or task accounting for those refs.
 -/
 theorem ExecutedWork.noticeAncestor_healthy_uncancelled
-    {work before event output child dependencies key} (generated : ExecutedWork work)
+    {work before event output child dependencies ref} (generated : ExecutedWork work)
     (valid : ValidGraphEvents work (before ++ [event]))
     (started : (State.initialize (Work.fromExecution work)).acceptsBatch before = true)
     (emitted
@@ -98,17 +98,17 @@ theorem ExecutedWork.noticeAncestor_healthy_uncancelled
         ∈ (((State.initialize (Work.fromExecution work)).replayGraphEvents
               before).handleGraphEvent
             event).2)
-    (noticed : child.key ∈ rawGroupNoticeKeys output)
-    (known : GroupRecordAt work child dependencies) (ancestor : key ∈ dependencies)
+    (noticed : child.ref ∈ rawGroupNoticeRefs output)
+    (known : GroupRecordAt work child dependencies) (ancestor : ref ∈ dependencies)
     : ¬GroupRecordInvalidated work
         ((State.initialize (Work.fromExecution work)).objectFailureContributions
-          (before ++ [event])) key
-      ∧ key
+          (before ++ [event])) ref
+      ∧ ref
         ∉ ((State.initialize (Work.fromExecution work)).replayGraphEvents
             (before ++ [event])).cancelledGroups := by
   have healthy := generated.replayGraphEvents_next_noticeAncestorsHealthy valid started
-    child.key (List.mem_flatMap.mpr ⟨output, emitted, noticed⟩)
-    child dependencies known rfl key ancestor
+    child.ref (List.mem_flatMap.mpr ⟨output, emitted, noticed⟩)
+    child dependencies known rfl ref ancestor
   exact ⟨healthy,
     (generated.replayGraphEvents_cancelledRecordsSupported _ valid).healthy_not_mem healthy⟩
 

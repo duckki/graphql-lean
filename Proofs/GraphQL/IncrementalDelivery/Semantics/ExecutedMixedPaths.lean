@@ -334,7 +334,7 @@ mutual
           · exact runEnsures_pure _ _ (ownsCompletion_catchNull (fun _ => rfl) hi
               (fun _ ⟨_, _, _, hb⟩ => below_child hb) (fun _ ⟨_, _, _, hb⟩ => below_child_ne hb))
           · refine runEnsures_bind (fun _ : Nat => True) _ _ _ (fun _ => trivial) ?_
-            intro key _
+            intro ref _
             refine runEnsures_bind (OwnsItems containers path usage.initialCount
               (UnderItems path usage.initialCount)) _ _ _ ?_ ?_
             · exact completeStreamItems_owns schema resolvers variables fuel inner _ _ containers path usage.initialCount

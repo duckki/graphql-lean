@@ -1,4 +1,4 @@
-import Proofs.GraphQL.IncrementalDelivery.Correctness.DependencyKeys
+import Proofs.GraphQL.IncrementalDelivery.Correctness.DependencyRefs
 
 /-! Causal owner support for defer-only work, including shared owners and nested producers.
 These structural consequences do not strengthen scheduler admission.
@@ -70,38 +70,38 @@ Witness: generated defer continuity and the coherent ancestry of the child descr
 -/
 theorem DeferOnly.producer_parent
     {parents bound work node kind dependencies producer}
-    (shape : DeferOnly work) (coherent : MixedKeys.WorkAt parents 0 bound work)
+    (shape : DeferOnly work) (coherent : MixedRefs.WorkAt parents 0 bound work)
     (continuous : DeferContinuous parents work) (ordered : StreamOwnersOrdered work)
     (known : NodeAt work node kind dependencies (some producer))
-    : ∃ owners ancestor payload key,
+    : ∃ owners ancestor payload ref,
         TaskAt work producer owners ancestor payload
-        ∧ key ∈ owners
-        ∧ (key = node.key ∨ key ∈ dependencies) := by
+        ∧ ref ∈ owners
+        ∧ (ref = node.ref ∨ ref ∈ dependencies) := by
   have same := shape _ _ _ _ known
   subst kind
   cases StructuralEquivalence.nodeAt_of_current known with
   | group located member =>
       obtain ⟨owners, ancestor, payload, task, under⟩ :=
         shape.producer_context continuous ordered located.toCurrent
-      obtain ⟨key, contributes, support⟩ := under.1 _ member
-      refine ⟨owners, ancestor, payload, key, task, contributes, ?_⟩
+      obtain ⟨ref, contributes, support⟩ := under.1 _ member
+      refine ⟨owners, ancestor, payload, ref, task, contributes, ?_⟩
       rcases support with reused | dependency
       · exact Or.inl reused
       · have localWork := coherent_located coherent located.toCurrent
-        rw [MixedKeys.WorkAt] at localWork
+        rw [MixedRefs.WorkAt] at localWork
         exact Or.inr (by simpa only [(localWork.2.1 _ member).2.2] using dependency)
 
-/-- Coherent group descriptors use exactly the full ancestry assigned to their key.
+/-- Coherent group descriptors use exactly the full ancestry assigned to their ref.
 Witness: locate the deferred fragment and project its execution metadata.
 -/
 theorem DeferOnly.node_dependencies {parents lower bound work node dependencies producer}
-    (coherent : MixedKeys.WorkAt parents lower bound work)
+    (coherent : MixedRefs.WorkAt parents lower bound work)
     (known : NodeAt work node .group dependencies producer)
-    : dependencies = parents node.key := by
+    : dependencies = parents node.ref := by
   cases StructuralEquivalence.nodeAt_of_current known with
   | group located member =>
       have localWork := coherent_located coherent located.toCurrent
-      rw [MixedKeys.WorkAt] at localWork
+      rw [MixedRefs.WorkAt] at localWork
       exact (localWork.2.1 _ member).2.2
 
 -----------------------------------------------------------------------------------------
@@ -112,20 +112,20 @@ theorem DeferOnly.node_dependencies {parents lower bound work node dependencies 
 Witness: the supporting producer owner is reused or an explicit failed group dependency.
 -/
 theorem DeferOnly.producer_failure
-    {parents bound work matching events failed occurrence owners key producer payload
+    {parents bound work matching events failed occurrence owners ref producer payload
       parentOwners ancestor result}
-    (shape : DeferOnly work) (coherent : MixedKeys.WorkAt parents 0 bound work)
+    (shape : DeferOnly work) (coherent : MixedRefs.WorkAt parents 0 bound work)
     (continuous : DeferContinuous parents work) (ordered : StreamOwnersOrdered work)
     (known : TaskAt work occurrence owners (some producer) payload)
-    (member : key ∈ owners) (parent : TaskAt work producer parentOwners ancestor result)
+    (member : ref ∈ owners) (parent : TaskAt work producer parentOwners ancestor result)
     (failures
-      : ∀ parentKey ∈ parentOwners, NodeFailed work matching events failed parentKey)
-    : NodeFailed work matching events failed key := by
+      : ∀ parentRef ∈ parentOwners, NodeFailed work matching events failed parentRef)
+    : NodeFailed work matching events failed ref := by
   obtain ⟨node, kind, dependencies, descriptor, same⟩ := known.owner_at_producer member
-  obtain ⟨supportOwners, birth, value, parentKey, task, contributes, support⟩ :=
+  obtain ⟨supportOwners, birth, value, parentRef, task, contributes, support⟩ :=
     shape.producer_parent coherent continuous ordered descriptor
   have equal := (TaskAt.unique task parent).1
-  have failure := failures parentKey (equal ▸ contributes)
+  have failure := failures parentRef (equal ▸ contributes)
   rcases support with reused | dependency
   · exact (reused.trans same) ▸ failure
   · have group := shape _ _ _ _ descriptor
@@ -137,28 +137,28 @@ Witness: dependency-rank induction, propagating all producer failures through an
 Repeated descriptors and arbitrarily nested producers remain permitted.
 -/
 theorem DeferOnly.cancelled_owner_failed
-    {parents bound work matching events failed occurrence owners key producer payload}
-    (shape : DeferOnly work) (coherent : MixedKeys.WorkAt parents 0 bound work)
+    {parents bound work matching events failed occurrence owners ref producer payload}
+    (shape : DeferOnly work) (coherent : MixedRefs.WorkAt parents 0 bound work)
     (continuous : DeferContinuous parents work) (ordered : StreamOwnersOrdered work)
-    (known : TaskAt work occurrence owners producer payload) (member : key ∈ owners)
+    (known : TaskAt work occurrence owners producer payload) (member : ref ∈ owners)
     (cancelled : TaskCancelled work matching events failed occurrence)
-    : NodeFailed work matching events failed key := by
+    : NodeFailed work matching events failed ref := by
   induction rank : occurrence.dependencyRank
-    using Nat.strongRecOn generalizing occurrence owners key producer payload with
+    using Nat.strongRecOn generalizing occurrence owners ref producer payload with
   | ind rank ih =>
       obtain ⟨cut, cutMember, reached, cause⟩ := cancelled
       cases cause with
       | owners projected _ _ failedOwners =>
           obtain ⟨birth, result, task⟩ := projected
           exact ⟨cut, cutMember, reached,
-            failedOwners key ((TaskAt.unique task known).1.symm ▸ member)⟩
+            failedOwners ref ((TaskAt.unique task known).1.symm ▸ member)⟩
       | producerFailed projected _ failure =>
           obtain ⟨otherOwners, result, task⟩ := projected
           have same := (TaskAt.unique known task).2.1
           subst producer
           obtain ⟨_, parentOwners, ancestor, value, parent⟩ := task.producer_dependency
           exact shape.producer_failure coherent continuous ordered known member parent
-            (fun parentKey contributes => .task parent contributes
+            (fun parentRef contributes => .task parent contributes
               (failedBefore_subset failed reached failure))
       | producerCancelled projected _ cancellation =>
           obtain ⟨otherOwners, result, task⟩ := projected
@@ -166,7 +166,7 @@ theorem DeferOnly.cancelled_owner_failed
           subst producer
           obtain ⟨lower, parentOwners, ancestor, value, parent⟩ := task.producer_dependency
           exact shape.producer_failure coherent continuous ordered known member parent
-            (fun parentKey contributes =>
+            (fun parentRef contributes =>
               ih _ (by omega) parent contributes
                 ⟨cut, cutMember, reached, cancellation⟩ rfl)
 
@@ -175,11 +175,11 @@ Witness: cancellation would fail that owner; publication is itself an accounting
 Unlike singleton ownership, this need not announce every healthy co-owner.
 -/
 theorem DeferOnly.accounted_iff_published
-    {parents bound work matching events failed occurrence owners key producer payload}
-    (shape : DeferOnly work) (coherent : MixedKeys.WorkAt parents 0 bound work)
+    {parents bound work matching events failed occurrence owners ref producer payload}
+    (shape : DeferOnly work) (coherent : MixedRefs.WorkAt parents 0 bound work)
     (continuous : DeferContinuous parents work) (ordered : StreamOwnersOrdered work)
-    (known : TaskAt work occurrence owners producer payload) (member : key ∈ owners)
-    (healthy : ¬NodeFailed work matching events failed key)
+    (known : TaskAt work occurrence owners producer payload) (member : ref ∈ owners)
+    (healthy : ¬NodeFailed work matching events failed ref)
     : TaskAccounted work matching events failed occurrence
       ↔ Published matching events occurrence := by
   constructor

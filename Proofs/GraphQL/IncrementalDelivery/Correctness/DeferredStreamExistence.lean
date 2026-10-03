@@ -15,7 +15,7 @@ open WorkQueueSemantics
 -----------------------------------------------------------------------------------------
 
 /-- Below a single deferred producer, locations are stream-only, have a producer, and
-retain either its shared defer keys or no enclosing keys. Witness: structural navigation;
+retain either its shared defer refs or no enclosing refs. Witness: structural navigation;
 stream-item edges reset the enclosing defer context.
 -/
 theorem deferredStreams_located
@@ -30,7 +30,7 @@ theorem deferredStreams_located
         ∧ owners = [])
       ∨ (StreamOnly current
           ∧ producer ≠ none
-          ∧ (owners = [] ∨ owners = fragments.map (fun group => group.node.key))) := by
+          ∧ (owners = [] ∨ owners = fragments.map (fun group => group.node.ref))) := by
   have navigation := StructuralEquivalence.located_of_current located
   clear located
   induction navigation with
@@ -66,7 +66,7 @@ theorem deferredStreams_deferred_task
       : TaskAt (.executionGroup fragments path result children) (.executionGroup address)
           owners producer payload)
     : address = []
-      ∧ owners = fragments.map (fun group => group.node.key)
+      ∧ owners = fragments.map (fun group => group.node.ref)
       ∧ producer = none
       ∧ payload = .object path result := by
   obtain ⟨groups, taskPath, outcome, childWork, enclosing, located, rfl, rfl⟩ := known
@@ -105,7 +105,7 @@ theorem deferredStreams_stream_dependencies
     (known
       : NodeAt (.executionGroup fragments path result children) stream .stream
           dependencies producer)
-    : dependencies = [] ∨ dependencies = fragments.map (fun group => group.node.key) := by
+    : dependencies = [] ∨ dependencies = fragments.map (fun group => group.node.ref) := by
   obtain ⟨address, items, located⟩ := known
   rcases deferredStreams_located onlyStreams located with
     ⟨_, impossible, _, _⟩ | ⟨_, _, owners⟩
@@ -117,9 +117,9 @@ theorem deferredStreams_stream_dependencies
 -----------------------------------------------------------------------------------------
 
 /-- A shared deferred producer with dependency-free owners and stream-only children admits a
-complete run for every producer/item outcome. Witness: announce the owner keys, publish
+complete run for every producer/item outcome. Witness: announce the owner refs, publish
 once, close all but one owner, then use that reserved success closure to announce streams.
-A producer failure instead cancels all descendants. Every owner key is initially announced;
+A producer failure instead cancels all descendants. Every owner ref is initially announced;
 repeated owner descriptors are allowed.
 -/
 theorem sharedDeferredStreams_completeRun_with_owners
@@ -130,18 +130,18 @@ theorem sharedDeferredStreams_completeRun_with_owners
       : MixedOwnerPaths.WorkAt paths bound
           (.executionGroup (nodes.map (fun node => { node })) path result children))
     (roleCoherent
-      : KeyRoles.WorkRoles roles
+      : RefRoles.WorkRoles roles
           (.executionGroup (nodes.map (fun node => { node })) path result children))
     : ∃ history,
         AdmissibleRun
           (.executionGroup (nodes.map (fun node => { node })) path result children)
           history
         ∧ ∀ node ∈ nodes,
-            node.key
-            ∈ (history.initialGroups ++ history.initialStreams).map DeliveryNode.key := by
+            node.ref
+            ∈ (history.initialGroups ++ history.initialStreams).map DeliveryNode.ref := by
   classical
   let work := Work.executionGroup (nodes.map (fun node => { node })) path result children
-  have task : TaskAt work (.executionGroup []) (nodes.map DeliveryNode.key) none
+  have task : TaskAt work (.executionGroup []) (nodes.map DeliveryNode.ref) none
       (.object path result) := by
     simpa only [List.map_map, Function.comp_def]
       using TaskAt.executionGroup
@@ -152,10 +152,10 @@ theorem sharedDeferredStreams_completeRun_with_owners
     .group (group := { node }) .root (List.mem_map.mpr ⟨node, member, rfl⟩)
   have eligible (node : DeliveryNode) (member : node ∈ nodes)
       : CanAnnounce work [] (fun _ => .executionGroup []) [] [] node .group [] none := by
-    refine ⟨by simp [announcedKeys, pendingKeys],
+    refine ⟨by simp [announcedRefs, pendingRefs],
       Or.inl ⟨fun failure => failure.nonempty rfl, Or.inr ?_⟩, by simp, by simp⟩
     intro accounted
-    rcases accounted (.executionGroup []) (nodes.map DeliveryNode.key)
+    rcases accounted (.executionGroup []) (nodes.map DeliveryNode.ref)
       ⟨none, .object path result, task⟩ (List.mem_map.mpr ⟨node, member, rfl⟩)
       with cancelled | published
     · exact cancelled.nonempty rfl
@@ -169,19 +169,19 @@ theorem sharedDeferredStreams_completeRun_with_owners
     exact ⟨[], none, root anchor member, eligible anchor member⟩
   obtain ⟨groups, streams, initialized, covers⟩ := seed.covering_exists
   have rootNotified (node : DeliveryNode) (member : node ∈ nodes)
-      : node.key ∈ (groups ++ streams).map DeliveryNode.key :=
+      : node.ref ∈ (groups ++ streams).map DeliveryNode.ref :=
     covers node .group [] none (root node member) (eligible node member)
   have initial : Explains work groups streams [] (fun _ => .executionGroup []) [] :=
     ⟨initialized, by simp [FailureWitness], by simp⟩
-  have opened : Open ((groups ++ streams).map DeliveryNode.key) [] anchor.key := by
-    exact ⟨by simpa [announcedKeys, pendingKeys] using rootNotified anchor member,
-      by simp [completedKeys]⟩
-  have anchorOwner : anchor.key ∈ nodes.map DeliveryNode.key :=
+  have opened : Open ((groups ++ streams).map DeliveryNode.ref) [] anchor.ref := by
+    exact ⟨by simpa [announcedRefs, pendingRefs] using rootNotified anchor member,
+      by simp [completedRefs]⟩
+  have anchorOwner : anchor.ref ∈ nodes.map DeliveryNode.ref :=
     List.mem_map.mpr ⟨anchor, member, rfl⟩
   cases result with
   | error errors =>
       have recorded := initial.record_failure task rfl (.root ⟨_, _, task⟩)
-        ⟨anchor.key, anchorOwner, opened⟩ (fun cancelled => cancelled.nonempty rfl)
+        ⟨anchor.ref, anchorOwner, opened⟩ (fun cancelled => cancelled.nonempty rfl)
       have accounted : ∀ occurrence owners producer payload,
           TaskAt work occurrence owners producer payload →
           TaskAccounted work (fun _ => .executionGroup []) []
@@ -215,50 +215,50 @@ theorem sharedDeferredStreams_completeRun_with_owners
         subst address
         exact Or.inr (published_matchNext (event := event) trivial
           (fun _ => .executionGroup []) [] (.executionGroup []))
-      have accounted (key : Nat) (inKeys : key ∈ nodes.map DeliveryNode.key)
-          : NodeAccounted work matching [event] [] key := by
-        obtain ⟨node, inNodes, rfl⟩ := List.mem_map.mp inKeys
+      have accounted (ref : NodeRef) (inRefs : ref ∈ nodes.map DeliveryNode.ref)
+          : NodeAccounted work matching [event] [] ref := by
+        obtain ⟨node, inNodes, rfl⟩ := List.mem_map.mp inRefs
         rintro occurrence owners ⟨producer, payload, known⟩ contributes
         cases StructuralEquivalence.taskAt_of_current known with
         | executionGroup located => exact deferred _ _ _ _ known
         | item located entry =>
-            exact False.elim (stream_group_keys_distinct roleCoherent
+            exact False.elim (stream_group_refs_distinct roleCoherent
               (NodeAt.stream located.toCurrent) (root node inNodes)
               (List.mem_singleton.mp contributes).symm)
-      let others := (nodes.map DeliveryNode.key).filter (fun key => key != anchor.key)
+      let others := (nodes.map DeliveryNode.ref).filter (fun ref => ref != anchor.ref)
       obtain ⟨closures, _, _, closedOthers, completedOthers, selected⟩ :=
-        published.close_accounted_keys others
+        published.close_accounted_refs others
           (by
-            intro key inOthers
+            intro ref inOthers
             obtain ⟨node, inNodes, rfl⟩ := List.mem_map.mp (List.mem_filter.mp inOthers).1
-            simpa [announcedKeys, pendingKeys, event, eventPending]
+            simpa [announcedRefs, pendingRefs, event, eventPending]
               using rootNotified node inNodes)
-          (fun key inOthers => accounted key (List.mem_filter.mp inOthers).1)
-      have anchorOpen : Open ((groups ++ streams).map DeliveryNode.key) [event] anchor.key := by
-        simpa [Open, announcedKeys, pendingKeys, completedKeys, event, eventPending,
+          (fun ref inOthers => accounted ref (List.mem_filter.mp inOthers).1)
+      have anchorOpen : Open ((groups ++ streams).map DeliveryNode.ref) [event] anchor.ref := by
+        simpa [Open, announcedRefs, pendingRefs, completedRefs, event, eventPending,
           eventCompleted]
           using opened
       have reserved := anchorOpen.append_unselected selected (by simp [others])
       have dependenciesClosed {newGroups newStreams : List DeliveryNode}
           : StreamDependenciesCompleted work
               ([event] ++ closures ++ [.groupSuccess anchor newGroups newStreams]) := by
-        intro stream dependencies producer known key inDependencies
+        intro stream dependencies producer known ref inDependencies
         rcases deferredStreams_stream_dependencies onlyStreams known with rfl | rfl
         · cases inDependencies
-        · have inKeys : key ∈ nodes.map DeliveryNode.key := by
+        · have inRefs : ref ∈ nodes.map DeliveryNode.ref := by
             simpa only [List.map_map, Function.comp_def] using inDependencies
-          by_cases same : key = anchor.key
-          · simp [completedKeys, eventCompleted, same]
-          · have other : key ∈ others := List.mem_filter.mpr
-              ⟨inKeys, by simpa using same⟩
-            have previous := completedOthers key other
-            simpa only [completedKeys, List.flatMap_append]
+          by_cases same : ref = anchor.ref
+          · simp [completedRefs, eventCompleted, same]
+          · have other : ref ∈ others := List.mem_filter.mpr
+              ⟨inRefs, by simpa using same⟩
+            have previous := completedOthers ref other
+            simpa only [completedRefs, List.flatMap_append]
               using List.mem_append_left
-                (completedKeys [.groupSuccess anchor newGroups newStreams]) previous
+                (completedRefs [.groupSuccess anchor newGroups newStreams]) previous
       obtain ⟨newGroups, newStreams, released, notified⟩ :=
         closedOthers.complete_group_streams_notified (root anchor member) reserved
           (fun failure => failure.nonempty rfl)
-          ((accounted anchor.key anchorOwner).append closures)
+          ((accounted anchor.ref anchorOwner).append closures)
           dependenciesClosed
       have preserved := (deferred.extend (List.Subset.refl []) closures).extend
         (List.Subset.refl []) [.groupSuccess anchor newGroups newStreams]
@@ -267,7 +267,7 @@ theorem sharedDeferredStreams_completeRun_with_owners
       exact ⟨_, run, rootNotified⟩
 
 /-- A shared deferred producer has a complete run with arbitrary stream-only descendants.
-Witness: forget the stronger construction's initial coverage of every owner key.
+Witness: forget the stronger construction's initial coverage of every owner ref.
 -/
 theorem sharedDeferredStreams_completeRun_exists
     {paths bound roles nodes path result children}
@@ -277,7 +277,7 @@ theorem sharedDeferredStreams_completeRun_exists
       : MixedOwnerPaths.WorkAt paths bound
           (.executionGroup (nodes.map (fun node => { node })) path result children))
     (roleCoherent
-      : KeyRoles.WorkRoles roles
+      : RefRoles.WorkRoles roles
           (.executionGroup (nodes.map (fun node => { node })) path result children))
     : ∃ history,
         AdmissibleRun
@@ -298,7 +298,7 @@ theorem deferredStreams_completeRun_exists
       : MixedOwnerPaths.WorkAt paths bound
           (.executionGroup [{ node }] path result children))
     (roleCoherent
-      : KeyRoles.WorkRoles roles (.executionGroup [{ node }] path result children))
+      : RefRoles.WorkRoles roles (.executionGroup [{ node }] path result children))
     : ∃ history,
         AdmissibleRun (.executionGroup [{ node }] path result children) history := by
   exact sharedDeferredStreams_completeRun_exists (nodes := [node]) (by simp)

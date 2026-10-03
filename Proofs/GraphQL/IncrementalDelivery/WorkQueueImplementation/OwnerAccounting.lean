@@ -6,7 +6,7 @@ namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.Execution (StreamItemValue)
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
-/-- Every item's healthy contributor keys are available at its actual integration state.
+/-- Every item's healthy contributor refs are available at its actual integration state.
 This sequential proof obligation does not constrain the public host-event semantics. -/
 def State.StreamRegistrationsAvailable (queue : State) (work : Execution.Work)
     (failed : List Occurrence)
@@ -39,41 +39,41 @@ theorem createWorkQueue_healthyRegisteredTaskAccounting (work : Execution.Work)
   let roots := { newWork with newGroups := groups }
   let started := pruned.startNewWork roots
   have covered : ∀ task ∈ initialWork.tasks,
-      ∀ key ∈ task.groups.map Execution.DeliveryNode.key,
-        ∃ group ∈ initialWork.groups, group.node.key = key :=
+      ∀ ref ∈ task.groups.map Execution.DeliveryNode.ref,
+        ∃ group ∈ initialWork.groups, group.node.ref = ref :=
     workFromSpec_immediateGroupsCoverTasks work []
   have integratedPresent : ∀ task ∈ integrated.tasks,
-      ∀ key ∈ task.groups.map Execution.DeliveryNode.key,
-        ∃ node ∈ integrated.groupNodes, node.group.node.key = key :=
+      ∀ ref ∈ task.groups.map Execution.DeliveryNode.ref,
+        ∃ node ∈ integrated.groupNodes, node.group.node.ref = ref :=
     initialIntegration_taskGroupsPresent initialWork covered
   have integratedLinks : integrated.InitialTaskLinks :=
     State.initialWorkTaskLinks initialWork
   have prunedLinks : pruned.InitialTaskLinks :=
     integratedLinks.pruneEmptyGroups newWork.newGroups
-  have emptyUnique : ({} : State).GroupKeysUnique := by
-    simp [State.GroupKeysUnique]
-  have integratedUnique : integrated.GroupKeysUnique :=
+  have emptyUnique : ({} : State).GroupRefsUnique := by
+    simp [State.GroupRefsUnique]
+  have integratedUnique : integrated.GroupRefsUnique :=
     emptyUnique.maybeIntegrateWork initialWork none
-  intro task taskMember _ key contributor _
+  intro task taskMember _ ref contributor _
   change task ∈ started.tasks at taskMember
   have taskDef : task ∈ integrated.tasks := by
     rw [(pruned.startNewWork_groupCore roots).2.1] at taskMember
     rw [State.pruneEmptyGroups_tasks] at taskMember
     exact taskMember
-  obtain ⟨node, nodeMember, nodeKey⟩ :=
-    integratedPresent task taskDef key contributor
-  have nodeContributor : node.group.node.key ∈
-      task.groups.map Execution.DeliveryNode.key := by
-    rw [nodeKey]
+  obtain ⟨node, nodeMember, nodeRef⟩ :=
+    integratedPresent task taskDef ref contributor
+  have nodeContributor : node.group.node.ref ∈
+      task.groups.map Execution.DeliveryNode.ref := by
+    rw [nodeRef]
     exact contributor
   have linked : task.occurrence ∈ node.tasks :=
     integratedLinks task taskDef node nodeMember nodeContributor
-  obtain ⟨retained, retainedMember, retainedKey, _⟩ :=
+  obtain ⟨retained, retainedMember, retainedRef, _⟩ :=
     integrated.pruneEmptyGroups_preservesNonempty newWork.newGroups
-      integratedUnique ⟨node, nodeMember, nodeKey, List.ne_nil_of_mem linked⟩
-  have retainedContributor : retained.group.node.key ∈
-      task.groups.map Execution.DeliveryNode.key := by
-    rw [retainedKey]
+      integratedUnique ⟨node, nodeMember, nodeRef, List.ne_nil_of_mem linked⟩
+  have retainedContributor : retained.group.node.ref ∈
+      task.groups.map Execution.DeliveryNode.ref := by
+    rw [retainedRef]
     exact contributor
   have retainedLink : task.occurrence ∈ retained.tasks :=
     prunedLinks task (by rw [State.pruneEmptyGroups_tasks]; exact taskDef)
@@ -81,7 +81,7 @@ theorem createWorkQueue_healthyRegisteredTaskAccounting (work : Execution.Work)
   have startedMember : retained ∈ started.groupNodes := by
     rw [(pruned.startNewWork_groupCore roots).1]
     exact retainedMember
-  exact ⟨retained, startedMember, retainedKey, retainedLink⟩
+  exact ⟨retained, startedMember, retainedRef, retainedLink⟩
 
 /-- Stream item integration retains healthy registered owners through the final drain.
 Witness: item-by-item availability, nonempty-membership pruning, and pending lower bounds
@@ -89,9 +89,9 @@ carry ownership and canonical failure metadata to the recursive-drain theorem.
 -/
 theorem State.HealthyRegisteredTaskAccounting.streamItems_ofPendingAccounting
     {queue : State} {work : Execution.Work} {settled failed : List Occurrence}
-    {parents : Nat → Keys}
+    {parents : Nat → NodeRefs}
     (accounted : queue.HealthyRegisteredTaskAccounting work settled failed)
-    (counts : queue.PendingBound (fun _ => True) settled) (unique : queue.GroupKeysUnique)
+    (counts : queue.PendingBound (fun _ => True) settled) (unique : queue.GroupRefsUnique)
     (supported : queue.CachedFailuresSupported work failed)
     (cancelled : queue.CancelledRecordsSupported work failed)
     (tasksMatch : queue.RegisteredTasksMatch work)
@@ -100,7 +100,7 @@ theorem State.HealthyRegisteredTaskAccounting.streamItems_ofPendingAccounting
     (groupMatching : queue.GroupNodesMatchWork work)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (stream : Execution.DeliveryNode) (items : List StreamItem)
     (matching : (GraphEvent.streamItems stream items).MatchesWork work)
     (available : queue.StreamRegistrationsAvailable work failed items)
@@ -115,7 +115,7 @@ theorem State.HealthyRegisteredTaskAccounting.streamItems_ofPendingAccounting
       groups ++ nonempty, streams ++ newWork.newStreams, values ++ [item.value])
   let invariant (current : State) :=
     current.HealthyRegisteredTaskAccounting work settled failed ∧
-      current.PendingBound (fun _ => True) settled ∧ current.GroupKeysUnique ∧
+      current.PendingBound (fun _ => True) settled ∧ current.GroupRefsUnique ∧
       current.CachedFailuresSupported work failed ∧ current.ChildLinksCanonical parents ∧
       current.GroupNodesMatchWork work ∧ current.CancelledRecordsSupported work failed
       ∧ current.RegisteredTasksMatch work
@@ -146,7 +146,7 @@ theorem State.HealthyRegisteredTaskAccounting.streamItems_ofPendingAccounting
     have owners := priorOwners.maybeIntegrateWork priorUnique item.work none
       (matching.streamItem_childTasksCovered member) ready priorCancelled generated childTasks
       descriptors
-    have integratedKeys := priorUnique.maybeIntegrateWork item.work none
+    have integratedRefs := priorUnique.maybeIntegrateWork item.work none
     have integratedCounts := priorCounts.maybeIntegrateWork item.work
     have caches := priorCache.maybeIntegrateWork item.work
     have edges := priorEdges.maybeIntegrateWork item.work
@@ -160,9 +160,9 @@ theorem State.HealthyRegisteredTaskAccounting.streamItems_ofPendingAccounting
       simpa only [pruned, integrated, State.CancelledRecordsSupported,
         State.pruneEmptyGroups_cancelledGroups]
         using cancellations
-    exact ⟨(owners.pruneNonemptyGroups integratedKeys _).startNewWork released,
+    exact ⟨(owners.pruneNonemptyGroups integratedRefs _).startNewWork released,
       (integratedCounts.pruneEmptyGroups _).startNewWork released,
-      (integratedKeys.pruneEmptyGroups _).startNewWork released,
+      (integratedRefs.pruneEmptyGroups _).startNewWork released,
       (caches.pruneEmptyGroups _).startNewWork released,
       (edges.pruneEmptyGroups _).startNewWork released,
       (groupsMatch.pruneEmptyGroups _).startNewWork released,
@@ -196,7 +196,7 @@ use canonical subtree cleanup. This conditional step needs no healthy-root premi
 -/
 theorem State.HealthyRegisteredTaskAccounting.handleGraphEvent_ofPendingAccounting
     {queue : State} {work : Execution.Work} {before : List GraphEvent}
-    {parents : Nat → Keys}
+    {parents : Nat → NodeRefs}
     (accounted
       : queue.HealthyRegisteredTaskAccounting work (GraphEvent.taskSettlements before)
           (GraphEvent.failureSettlements before))
@@ -209,7 +209,7 @@ theorem State.HealthyRegisteredTaskAccounting.handleGraphEvent_ofPendingAccounti
     (groupMatching : queue.GroupNodesMatchWork work)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (generated : ExecutedWork work) (_valid : ValidGraphEvents work before)
     (event : GraphEvent) (matching : event.MatchesWork work) (fresh : event.Fresh before)
     (accepted : queue.acceptsGraphEvent event = true)
@@ -237,7 +237,7 @@ theorem State.HealthyRegisteredTaskAccounting.handleGraphEvent_ofPendingAccounti
         (after := occurrence :: GraphEvent.taskSettlements before)
         (by intro task member; exact List.mem_cons_of_mem _ member)
   | streamItems stream items =>
-      exact accounted.streamItems_ofPendingAccounting pending.pending pending.keys supported
+      exact accounted.streamItems_ofPendingAccounting pending.pending pending.refs supported
         cancelled pending.matching generated links groupMatching canonical stream items matching
         available
   | streamSuccess stream =>

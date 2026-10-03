@@ -1,4 +1,4 @@
-import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.GroupKeys
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.GroupRefs
 
 /-! Initial pending counts produced by work integration. -/
 
@@ -17,7 +17,7 @@ theorem State.InitialCounts.putGroupNode {queue : State} (counts : queue.Initial
     : (queue.putGroupNode updated).InitialCounts := by
   intro node member
   change node ∈ queue.groupNodes.map
-    (fun old => if old.group.node.key == updated.group.node.key then updated else old)
+    (fun old => if old.group.node.ref == updated.group.node.ref then updated else old)
     at member
   obtain ⟨old, oldMember, same⟩ := List.mem_map.mp member
   split at same
@@ -56,18 +56,18 @@ theorem State.InitialCounts.addGroups {queue : State} (counts : queue.InitialCou
         | none => current
         | some node =>
             let children :=
-              if node.childGroups.contains group.node.key then
+              if node.childGroups.contains group.node.ref then
                 node.childGroups
               else
-                node.childGroups ++ [group.node.key]
+                node.childGroups ++ [group.node.ref]
             current.putGroupNode { node with childGroups := children }
   have linkCounts (current : State) (group : Group)
       (balanced : current.InitialCounts) : (linkStep current group).InitialCounts := by
     unfold linkStep
     cases parent : group.parent with
     | none => simpa only [parent] using balanced
-    | some key =>
-        cases found : current.groupNode? key with
+    | some ref =>
+        cases found : current.groupNode? ref with
         | none => simpa only [parent, found] using balanced
         | some node =>
             simp only [found]
@@ -87,8 +87,8 @@ theorem State.InitialCounts.addGroups {queue : State} (counts : queue.InitialCou
         simpa only [List.foldl_cons]
           using ih (queue := queue.addGroup group) (counts.addGroup group)
   let fresh := groups.filter (fun group =>
-    !queue.registeredGroups.contains group.node.key
-      && (queue.groupNode? group.node.key).isNone)
+    !queue.registeredGroups.contains group.node.ref
+      && (queue.groupNode? group.node.ref).isNone)
   change (fresh.foldl linkStep (fresh.foldl State.addGroup queue)).InitialCounts
   exact foldCounts fresh _ (registeredCounts fresh)
 
@@ -98,7 +98,7 @@ theorem State.InitialCounts.addTask {queue : State} (counts : queue.InitialCount
     : (queue.addTask task).InitialCounts := by
   let registered : State := { queue with tasks := queue.tasks ++ [task] }
   let step (current : State) (group : Execution.DeliveryNode) : State :=
-    match current.groupNode? group.key with
+    match current.groupNode? group.ref with
     | none => current
     | some node =>
         if node.tasks.contains task.occurrence then
@@ -132,7 +132,7 @@ theorem State.InitialCounts.addTask {queue : State} (counts : queue.InitialCount
   let current := task.groups.foldl step registered
   have currentCounts : current.InitialCounts :=
     foldCounts task.groups registered counts
-  change (if task.groups.any (fun group => current.rootGroups.contains group.key)
+  change (if task.groups.any (fun group => current.rootGroups.contains group.ref)
       && (current.taskNode? task.occurrence).isNone then
       { current with taskNodes := current.taskNodes ++ [{ task }] }
     else current).InitialCounts
@@ -145,8 +145,8 @@ theorem State.InitialCounts.addStreams {queue : State} (counts : queue.InitialCo
   let fresh :=
     streams.foldl
       (fun selected stream =>
-        if (queue.stream? stream.node.key).isSome
-            || selected.any (fun known => known.node.key == stream.node.key) then
+        if (queue.stream? stream.node.ref).isSome
+            || selected.any (fun known => known.node.ref == stream.node.ref) then
           selected
         else
           selected ++ [stream])
@@ -222,8 +222,8 @@ theorem State.InitialCounts.startTask {queue : State} (counts : queue.InitialCou
 
 /-- Starting a group preserves every pending count through its task fold. -/
 theorem State.InitialCounts.startGroup {queue : State} (counts : queue.InitialCounts)
-    (key : Nat)
-    : (queue.startGroup key).InitialCounts := by
+    (ref : NodeRef)
+    : (queue.startGroup ref).InitialCounts := by
   unfold State.startGroup
   split
   · exact counts
@@ -240,10 +240,10 @@ theorem State.InitialCounts.startGroup {queue : State} (counts : queue.InitialCo
     · exact counts
     · exact taskFold node.tasks queue counts
 
-/-- Starting a stream changes only its root-key registry. -/
+/-- Starting a stream changes only its root-ref registry. -/
 theorem State.InitialCounts.startStream {queue : State} (counts : queue.InitialCounts)
-    (key : Nat)
-    : (queue.startStream key).InitialCounts := by
+    (ref : NodeRef)
+    : (queue.startStream ref).InitialCounts := by
   unfold State.startStream
   split <;> exact counts
 
@@ -251,25 +251,25 @@ theorem State.InitialCounts.startStream {queue : State} (counts : queue.InitialC
 theorem State.InitialCounts.startNewWork {queue : State} (counts : queue.InitialCounts)
     (newWork : NewWork)
     : (queue.startNewWork newWork).InitialCounts := by
-  let groups := newWork.newGroups.map Execution.DeliveryNode.key
-  let streams := newWork.newStreams.map Execution.DeliveryNode.key
+  let groups := newWork.newGroups.map Execution.DeliveryNode.ref
+  let streams := newWork.newStreams.map Execution.DeliveryNode.ref
   let current : State := { queue with rootGroups := queue.rootGroups ++ groups }
-  have groupFold (keys : Keys) :
+  have groupFold (refs : NodeRefs) :
       ∀ current, current.InitialCounts →
-        (keys.foldl State.startGroup current).InitialCounts := by
-    induction keys with
+        (refs.foldl State.startGroup current).InitialCounts := by
+    induction refs with
     | nil => intro current balanced; exact balanced
-    | cons key rest ih =>
+    | cons ref rest ih =>
         intro current balanced
-        exact ih (current.startGroup key) (balanced.startGroup key)
-  have streamFold (keys : Keys) :
+        exact ih (current.startGroup ref) (balanced.startGroup ref)
+  have streamFold (refs : NodeRefs) :
       ∀ current, current.InitialCounts →
-        (keys.foldl State.startStream current).InitialCounts := by
-    induction keys with
+        (refs.foldl State.startStream current).InitialCounts := by
+    induction refs with
     | nil => intro current balanced; exact balanced
-    | cons key rest ih =>
+    | cons ref rest ih =>
         intro current balanced
-        exact ih (current.startStream key) (balanced.startStream key)
+        exact ih (current.startStream ref) (balanced.startStream ref)
   change (streams.foldl State.startStream
     (groups.foldl State.startGroup current)).InitialCounts
   exact streamFold streams _ (groupFold groups current counts)

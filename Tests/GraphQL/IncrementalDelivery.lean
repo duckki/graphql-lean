@@ -27,7 +27,7 @@ import Tests.GraphQL.IncrementalDelivery.Independence
 import Tests.GraphQL.IncrementalDelivery.OwnerNormalization
 import Tests.GraphQL.IncrementalDelivery.GroupValueConsolidation
 import Tests.GraphQL.IncrementalDelivery.SupportedContinuation
-import Tests.GraphQL.IncrementalDelivery.DependencyKeys
+import Tests.GraphQL.IncrementalDelivery.DependencyRefs
 import Tests.GraphQL.IncrementalDelivery.NestedStreamExistence
 import Tests.GraphQL.IncrementalDelivery.DeferredStreamExistence
 import Tests.GraphQL.IncrementalDelivery.DeferredPhase

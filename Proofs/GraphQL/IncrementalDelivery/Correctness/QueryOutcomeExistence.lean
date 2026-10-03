@@ -1,6 +1,6 @@
 import Proofs.GraphQL.IncrementalDelivery.Correctness.MixedExistence
 import Proofs.GraphQL.IncrementalDelivery.Correctness.QueryRealization
-import Proofs.GraphQL.IncrementalDelivery.Semantics.ExecutedKeyRoles
+import Proofs.GraphQL.IncrementalDelivery.Semantics.ExecutedRefRoles
 
 /-! Complete query outcomes for every finite execution-generated work tree.
 Execution supplies all metadata; no scheduler, history, or work-shape premise is assumed.
@@ -16,7 +16,7 @@ open Semantics.GeneralScheduling
 -----------------------------------------------------------------------------------------
 
 /-- Every nonempty prepared root work tree has an admitted complete run.
-Witness: execution's ancestry, continuity, key roles, stream order, and owner paths
+Witness: execution's ancestry, continuity, ref roles, stream order, and owner paths
 instantiate general mixed progress. No validation or successful-execution premise is used.
 -/
 theorem executeRoot_completeRun_exists (schema : Schema)
@@ -30,7 +30,7 @@ theorem executeRoot_completeRun_exists (schema : Schema)
   intro work nonempty
   obtain ⟨_, ancestry, valid, coherent, continuous⟩ :=
     executeRoot_continuity schema resolvers variables fuel parentType source selections 0
-  obtain ⟨roles, roleCoherent⟩ := KeyRoles.executeRoot_roles schema resolvers variables fuel
+  obtain ⟨roles, roleCoherent⟩ := RefRoles.executeRoot_roles schema resolvers variables fuel
     parentType source selections 0
   obtain ⟨paths, pathCoherent⟩ := MixedOwnerPaths.executeRoot_owners schema resolvers variables
     fuel parentType source selections 0

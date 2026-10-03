@@ -17,15 +17,15 @@ changes neither permanent registration nor the live group map.
 theorem State.RootAncestorsRetired.startNewWork {queue : State} {work}
     (prior : queue.RootAncestorsRetired work) (released : NewWork)
     (protectedGroups
-      : ∀ group ∈ released.newGroups, queue.AncestorsRetired work group.key)
+      : ∀ group ∈ released.newGroups, queue.AncestorsRetired work group.ref)
     : (queue.startNewWork released).RootAncestorsRetired work := by
-  intro key active
+  intro ref active
   rw [(queue.startNewWork_groupCore released).2.2] at active
   rcases List.mem_append.mp active with old | new
-  · exact (prior key old).mono (fun key retired => retired.startNewWork released)
+  · exact (prior ref old).mono (fun ref retired => retired.startNewWork released)
   · obtain ⟨node, member, same⟩ := List.mem_map.mp new
     exact same ▸ (protectedGroups node member).mono
-      (fun key retired => retired.startNewWork released)
+      (fun ref retired => retired.startNewWork released)
 
 -----------------------------------------------------------------------------------------
 -- Recursive draining needs cache provenance, not health of every active root
@@ -45,7 +45,7 @@ theorem State.drainReadyGroups_retirement {queue : State} {work parents failed}
     (links : queue.ChildLinksCanonical parents)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (registered : queue.LiveGroupsRegistered) (tasks : queue.TaskGroupsRegistered)
     (supported : queue.CachedFailuresSupported work failed)
     : queue.drainReadyGroups.1.RootAncestorsRetired work
@@ -67,7 +67,7 @@ theorem State.drainReadyGroups_retirement {queue : State} {work parents failed}
     have activated := State.startNewWork_registration coveredNext.1 coveredNext.2.1
       (current.finishGroupSuccess node).2.2
     have survivingRoots := oldRoots.mono (current.finishGroupSuccess_rootsSubset node)
-      (fun key retired => retired.finishGroupSuccess node)
+      (fun ref retired => retired.finishGroupSuccess node)
     exact ⟨
       survivingRoots.startNewWork _ closed.2.2.1,
       (closed.2.2.2 closure).startNewWork _,
@@ -81,8 +81,8 @@ theorem State.drainReadyGroups_retirement {queue : State} {work parents failed}
     obtain ⟨oldRoots, closure, matched, linked, recorded, covered, caches⟩ := valid
     have invalid := caches.invalidated member (by simp [cached])
     exact ⟨
-      oldRoots.mono (current.removeGroup_rootsSubset node.group.node.key)
-        (fun key retired => retired.removeGroup node.group.node.key),
+      oldRoots.mono (current.removeGroup_rootsSubset node.group.node.ref)
+        (fun ref retired => retired.removeGroup node.group.node.ref),
       closure.removeGroup linked matched canonical _ invalid.toRecordInvalidated,
       matched.removeGroup _,
       linked.removeGroup _,

@@ -11,13 +11,13 @@ open WorkQueueSemantics
 
 /-- Coherent singleton defer work has a complete run even when ancestor dependencies
 prevent initial coverage of all IDs. Witness: specialize general defer-only progress
-to singleton owner lists. Outcomes and repeated tasks per key are
+to singleton owner lists. Outcomes and repeated tasks per ref are
 unrestricted, including nested producers; streams and shared owner lists are excluded.
 -/
 theorem SingletonDefer.completeRun_exists
     {parents bound paths pathBound work}
     (shape : SingletonDefer work)
-    (valid : Valid parents bound) (coherent : MixedKeys.WorkAt parents 0 bound work)
+    (valid : Valid parents bound) (coherent : MixedRefs.WorkAt parents 0 bound work)
     (continuous : DeferContinuous parents work) (ordered : StreamOwnersOrdered work)
     (pathCoherent : MixedOwnerPaths.WorkAt paths pathBound work)
     (nonempty : work.size ≠ 0)

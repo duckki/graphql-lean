@@ -1,7 +1,7 @@
-import Proofs.GraphQL.IncrementalDelivery.Correctness.DependencyKeys
+import Proofs.GraphQL.IncrementalDelivery.Correctness.DependencyRefs
 import Proofs.GraphQL.IncrementalDelivery.Correctness.OwnerAvailability
 
-/-! Least healthy outstanding keys support finite notice-progress constructions.
+/-! Least healthy outstanding refs support finite notice-progress constructions.
 These statements derive readiness from execution metadata rather than adding a queue law.
 -/
 
@@ -12,97 +12,97 @@ open Semantics.Ancestry Semantics.GeneralScheduling
 open WorkQueueSemantics
 
 -----------------------------------------------------------------------------------------
--- Find a ready task at a least outstanding healthy owner key
+-- Find a ready task at a least outstanding healthy owner ref
 -----------------------------------------------------------------------------------------
 
-/-- Outstanding generated work has a ready task at a least healthy unaccounted owner key.
-Every smaller healthy key is already accounted for. Witness: a finite key minimum and
+/-- Outstanding generated work has a ready task at a least healthy unaccounted owner ref.
+Every smaller healthy ref is already accounted for. Witness: a finite ref minimum and
 the producer/item descent theorem, which preserves that minimum.
 -/
 theorem least_ready_owner
     {parents bound work groups streams events matching failures occurrence owners producer
       payload}
-    (valid : Valid parents bound) (coherent : MixedKeys.WorkAt parents 0 bound work)
+    (valid : Valid parents bound) (coherent : MixedRefs.WorkAt parents 0 bound work)
     (continuous : DeferContinuous parents work) (ordered : StreamOwnersOrdered work)
     (explained : Explains work groups streams events matching failures)
     (known : TaskAt work occurrence owners producer payload)
     (outstanding : ¬TaskAccounted work matching events failures occurrence)
-    : ∃ next nextOwners nextProducer result key,
+    : ∃ next nextOwners nextProducer result ref,
         TaskAt work next nextOwners nextProducer result
         ∧ CanPublish work matching events failures next nextProducer
-        ∧ key ∈ nextOwners
-        ∧ ¬NodeFailed work matching events failures key
+        ∧ ref ∈ nextOwners
+        ∧ ¬NodeFailed work matching events failures ref
         ∧ ∀ smaller,
-            smaller < key
+            smaller < ref
             → ¬NodeFailed work matching events failures smaller
             → NodeAccounted work matching events failures smaller := by
   classical
-  let qualifies (key : Nat) := ¬NodeFailed work matching events failures key
+  let qualifies (ref : NodeRef) := ¬NodeFailed work matching events failures ref
     ∧ ∃ task taskOwners birth result,
-      TaskAt work task taskOwners birth result ∧ key ∈ taskOwners
+      TaskAt work task taskOwners birth result ∧ ref ∈ taskOwners
       ∧ ¬TaskAccounted work matching events failures task
-  let keys := (List.range bound).filter (fun key => decide (qualifies key))
-  have inKeys {key} (qualifiesKey : qualifies key) : key ∈ keys := by
+  let refs := (List.range bound).filter (fun ref => decide (qualifies ref))
+  have inRefs {ref} (qualifiesRef : qualifies ref) : ref ∈ refs := by
     obtain ⟨healthy, task, taskOwners, birth, result, descriptor, member, unfinished⟩ :=
-      qualifiesKey
+      qualifiesRef
     obtain ⟨node, kind, dependencies, producer, located, same⟩ := descriptor.owner_known member
     have below := (coherent_node_bounds coherent located).2
     apply List.mem_filter.mpr
     exact ⟨List.mem_range.mpr (same ▸ below),
-      by simpa only [decide_eq_true_eq] using (show qualifies key from
+      by simpa only [decide_eq_true_eq] using (show qualifies ref from
         ⟨healthy, task, taskOwners, birth, result, descriptor, member, unfinished⟩)⟩
   obtain ⟨owner, member, healthy, _⟩ := explained.outstanding_owner known
     (coherent_task_owners_nonempty coherent known) outstanding
-  have original : owner ∈ keys := inKeys ⟨healthy, occurrence, owners, producer, payload,
+  have original : owner ∈ refs := inRefs ⟨healthy, occurrence, owners, producer, payload,
     known, member, outstanding⟩
-  obtain ⟨key, selected, least⟩ := nonempty_keys_minimum keys
+  obtain ⟨ref, selected, least⟩ := nonempty_refs_minimum refs
     (by intro empty; simp [empty] at original)
-  have qualifiesKey : qualifies key := by
+  have qualifiesRef : qualifies ref := by
     simpa only [decide_eq_true_eq] using (List.mem_filter.mp selected).2
-  obtain ⟨healthy, task, taskOwners, birth, result, descriptor, member, unfinished⟩ := qualifiesKey
-  obtain ⟨next, nextOwners, nextProducer, result, nextKey, readyTask, ready,
-    nextMember, nextHealthy, smaller⟩ := readyTask_owner_key_le explained valid coherent continuous
+  obtain ⟨healthy, task, taskOwners, birth, result, descriptor, member, unfinished⟩ := qualifiesRef
+  obtain ⟨next, nextOwners, nextProducer, result, nextRef, readyTask, ready,
+    nextMember, nextHealthy, smaller⟩ := readyTask_owner_ref_le explained valid coherent continuous
       ordered descriptor member healthy unfinished
   have nextOutstanding : ¬TaskAccounted work matching events
       failures next := by
     rintro (cancelled | published)
     · exact ready.2.1 cancelled
     · exact ready.1 published
-  have minimum := least nextKey (inKeys ⟨nextHealthy, next, nextOwners, nextProducer,
+  have minimum := least nextRef (inRefs ⟨nextHealthy, next, nextOwners, nextProducer,
     result, readyTask, nextMember, nextOutstanding⟩)
-  have same : nextKey = key := by omega
-  subst nextKey
-  refine ⟨next, nextOwners, nextProducer, result, key, readyTask, ready,
+  have same : nextRef = ref := Nat.le_antisymm smaller minimum
+  subst nextRef
+  refine ⟨next, nextOwners, nextProducer, result, ref, readyTask, ready,
     nextMember, nextHealthy, ?_⟩
   intro other before otherHealthy task taskOwners projected contributes
   obtain ⟨birth, payload, taskKnown⟩ := projected
   apply Classical.byContradiction
   intro unaccounted
-  have lower := least other (inKeys ⟨otherHealthy, task, taskOwners, birth, payload,
+  have lower := least other (inRefs ⟨otherHealthy, task, taskOwners, birth, payload,
     taskKnown, contributes, unaccounted⟩)
-  omega
+  exact Nat.not_lt_of_ge lower before
 
 -----------------------------------------------------------------------------------------
 -- Smaller dependencies can be discharged in a maximal history
 -----------------------------------------------------------------------------------------
 
-/-- In a maximal explained history, a healthy accounted key satisfies dependencies.
-Witness: an announced but uncompleted such key would permit a success completion.
-Absent or unannounced accounted keys already satisfy the public dependency rule.
+/-- In a maximal explained history, a healthy accounted ref satisfies dependencies.
+Witness: an announced but uncompleted such ref would permit a success completion.
+Absent or unannounced accounted refs already satisfy the public dependency rule.
 -/
-theorem maximal_dependency_satisfied {work groups streams events matching failures key}
+theorem maximal_dependency_satisfied {work groups streams events matching failures ref}
     (explained : Explains work groups streams events matching failures)
     (maximal
       : ∀ event next cuts, ¬Explains work groups streams (events ++ [event]) next cuts)
-    (healthy : ¬NodeFailed work matching events failures key)
-    (accounted : NodeAccounted work matching events failures key)
-    : DependencySatisfied work ((groups ++ streams).map DeliveryNode.key) matching events
-        failures key := by
+    (healthy : ¬NodeFailed work matching events failures ref)
+    (accounted : NodeAccounted work matching events failures ref)
+    : DependencySatisfied work ((groups ++ streams).map DeliveryNode.ref) matching events
+        failures ref := by
   classical
   refine ⟨healthy, ?_⟩
-  by_cases supported : ∃ birth, NodeHasProducer work key birth
-  · by_cases notified : key ∈ announcedKeys ((groups ++ streams).map DeliveryNode.key) events
-    · by_cases closed : key ∈ completedKeys events
+  by_cases supported : ∃ birth, NodeHasProducer work ref birth
+  · by_cases notified : ref ∈ announcedRefs ((groups ++ streams).map DeliveryNode.ref) events
+    · by_cases closed : ref ∈ completedRefs events
       · exact Or.inr (Or.inl closed)
       · obtain ⟨birth, node, kind, parents, descriptor, same⟩ := supported
         obtain ⟨event, permitted, _, _, _⟩ := completion_exists descriptor
@@ -117,7 +117,7 @@ theorem maximal_dependency_satisfied {work groups streams events matching failur
 -- Maximal incomplete histories still have eligible notices
 -----------------------------------------------------------------------------------------
 
-/-- A fresh healthy owner of a ready task is announceable once smaller healthy keys
+/-- A fresh healthy owner of a ready task is announceable once smaller healthy refs
 satisfy dependencies. Witness: strict ancestry/stream-dependency ordering and causal failure
 rules; the task itself witnesses that a group is not already fully accounted for.
 -/
@@ -125,19 +125,19 @@ theorem least_owner_announceable
     {parents bound work groups streams initial matching events failed occurrence owners
       producer payload node kind dependencies}
     (explained : Explains work groups streams events matching failed)
-    (valid : Valid parents bound) (coherent : MixedKeys.WorkAt parents 0 bound work)
+    (valid : Valid parents bound) (coherent : MixedRefs.WorkAt parents 0 bound work)
     (ordered : StreamOwnersOrdered work)
     (known : TaskAt work occurrence owners producer payload)
     (ready : CanPublish work matching events failed occurrence producer)
     (descriptor : NodeAt work node kind dependencies producer)
-    (member : node.key ∈ owners)
-    (healthy : ¬NodeFailed work matching events failed node.key)
-    (fresh : node.key ∉ announcedKeys initial events)
+    (member : node.ref ∈ owners)
+    (healthy : ¬NodeFailed work matching events failed node.ref)
+    (fresh : node.ref ∉ announcedRefs initial events)
     (smaller
-      : ∀ key,
-          key < node.key
-          → ¬NodeFailed work matching events failed key
-          → DependencySatisfied work initial matching events failed key)
+      : ∀ ref,
+          ref < node.ref
+          → ¬NodeFailed work matching events failed ref
+          → DependencySatisfied work initial matching events failed ref)
     : CanAnnounce work initial matching events failed node kind dependencies
         producer := by
   classical
@@ -153,38 +153,38 @@ theorem least_owner_announceable
         · exact ready.1 published
   · cases kind with
     | group =>
-        intro key member
-        exact smaller key (coherent_group_dependencies valid coherent descriptor key member)
+        intro ref member
+        exact smaller ref (coherent_group_dependencies valid coherent descriptor ref member)
           (fun failure => healthy (.groupDependency descriptor member failure))
     | stream =>
         by_cases empty : dependencies = []
         · exact Or.inl empty
         · have healthyParent
-              : ∃ key ∈ dependencies, ¬NodeFailed work matching events failed key := by
+              : ∃ ref ∈ dependencies, ¬NodeFailed work matching events failed ref := by
             apply Classical.byContradiction
             intro absent
             apply healthy
             apply explained.snapshot_nodeFailed
             apply Causality.NodeFailed.streamDependencies ⟨_, _, descriptor, rfl⟩ empty
-            intro key member
+            intro ref member
             apply explained.nodeFailed_snapshot
             apply Classical.byContradiction
-            intro healthyKey
-            exact absent ⟨key, member, healthyKey⟩
-          obtain ⟨key, member, healthyKey⟩ := healthyParent
-          exact Or.inr ⟨key, member,
-            smaller key (coherent_stream_dependencies ordered descriptor key member) healthyKey⟩
+            intro healthyRef
+            exact absent ⟨ref, member, healthyRef⟩
+          obtain ⟨ref, member, healthyRef⟩ := healthyParent
+          exact Or.inr ⟨ref, member,
+            smaller ref (coherent_stream_dependencies ordered descriptor ref member) healthyRef⟩
 
 /-- A maximal incomplete generated-work history still has a currently eligible notice.
 Witness: choose a least healthy outstanding owner, descend to a ready task without
-increasing its key, discharge smaller dependencies, and exclude already-announced owners
+increasing its ref, discharge smaller dependencies, and exclude already-announced owners
 using the constructed success/failure extension. MixedExistence supplies notice carriers
 by maximizing histories with a separate supported-coverage witness.
 -/
 theorem maximal_outstanding_eligible
     {parents bound paths pathBound work groups streams events matching failures
       occurrence owners producer payload}
-    (valid : Valid parents bound) (coherent : MixedKeys.WorkAt parents 0 bound work)
+    (valid : Valid parents bound) (coherent : MixedRefs.WorkAt parents 0 bound work)
     (continuous : DeferContinuous parents work) (ordered : StreamOwnersOrdered work)
     (pathCoherent : MixedOwnerPaths.WorkAt paths pathBound work)
     (explained : Explains work groups streams events matching failures)
@@ -194,15 +194,15 @@ theorem maximal_outstanding_eligible
     (outstanding : ¬TaskAccounted work matching events failures occurrence)
     : ∃ node kind dependencies birth,
         NodeAt work node kind dependencies birth
-        ∧ CanAnnounce work ((groups ++ streams).map DeliveryNode.key) matching events
+        ∧ CanAnnounce work ((groups ++ streams).map DeliveryNode.ref) matching events
             failures node kind dependencies birth := by
-  obtain ⟨next, nextOwners, nextProducer, result, key, task, ready,
+  obtain ⟨next, nextOwners, nextProducer, result, ref, task, ready,
     member, healthy, least⟩ := least_ready_owner valid coherent continuous ordered
       explained known outstanding
-  have unannounced : key ∉ announcedKeys ((groups ++ streams).map DeliveryNode.key) events := by
+  have unannounced : ref ∉ announcedRefs ((groups ++ streams).map DeliveryNode.ref) events := by
     intro notified
     obtain ⟨event, nextMatching, cuts, extended⟩ := extend_ready_announced pathCoherent
-      explained task ready ⟨key, member, notified, healthy⟩
+      explained task ready ⟨ref, member, notified, healthy⟩
     exact maximal event nextMatching cuts extended
   obtain ⟨node, kind, dependencies, descriptor, same⟩ := task.owner_at_producer member
   refine ⟨node, kind, dependencies, nextProducer, descriptor, ?_⟩
@@ -213,13 +213,13 @@ theorem maximal_outstanding_eligible
   exact least smaller (by simpa only [same] using before) smallerHealthy
 
 /-- A maximal generated-work history with no eligible unannounced notices is terminal.
-Witness: the least-key obstruction rules out outstanding tasks, then every open node
+Witness: the least-ref obstruction rules out outstanding tasks, then every open node
 would admit a completion. This is a conditional criterion, not a scheduler assumption.
 The general mixed-run construction uses the weaker supported-notice coverage witness.
 -/
 theorem maximal_no_eligible_terminal
     {parents bound paths pathBound work groups streams events matching failures}
-    (valid : Valid parents bound) (coherent : MixedKeys.WorkAt parents 0 bound work)
+    (valid : Valid parents bound) (coherent : MixedRefs.WorkAt parents 0 bound work)
     (continuous : DeferContinuous parents work) (ordered : StreamOwnersOrdered work)
     (pathCoherent : MixedOwnerPaths.WorkAt paths pathBound work)
     (explained : Explains work groups streams events matching failures)
@@ -228,9 +228,9 @@ theorem maximal_no_eligible_terminal
     (noticesCovered
       : ∀ node kind dependencies birth,
           NodeAt work node kind dependencies birth
-          → ¬CanAnnounce work ((groups ++ streams).map DeliveryNode.key) matching events
+          → ¬CanAnnounce work ((groups ++ streams).map DeliveryNode.ref) matching events
               failures node kind dependencies birth)
-    : Terminal work ((groups ++ streams).map DeliveryNode.key) matching events
+    : Terminal work ((groups ++ streams).map DeliveryNode.ref) matching events
         failures := by
   classical
   have accounted : ∀ occurrence owners producer payload,
@@ -246,10 +246,10 @@ theorem maximal_no_eligible_terminal
   refine ⟨accounted, ?_⟩
   intro node kind dependencies birth descriptor
   have nodeAccounted : NodeAccounted work matching events
-      failures node.key := by
+      failures node.ref := by
     rintro occurrence owners ⟨producer, payload, known⟩ _
     exact accounted occurrence owners producer payload known
-  by_cases closed : node.key ∈ completedKeys events
+  by_cases closed : node.ref ∈ completedRefs events
   · exact Or.inl closed
   · refine Or.inr ⟨?_, Or.inr nodeAccounted⟩
     intro announced

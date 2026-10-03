@@ -1,29 +1,29 @@
-import Proofs.GraphQL.IncrementalDelivery.Correctness.LeastKeyProgress
+import Proofs.GraphQL.IncrementalDelivery.Correctness.LeastRefProgress
 import Tests.GraphQL.IncrementalDelivery.CursorOrigins
 
-/-! Dependency-key progress across a deferred producer and its nested stream. -/
+/-! Dependency-ref progress across a deferred producer and its nested stream. -/
 
-namespace GraphQL.IncrementalDelivery.Tests.DependencyKeys
+namespace GraphQL.IncrementalDelivery.Tests.DependencyRefs
 open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.Correctness
 open GraphQL.IncrementalDelivery.Semantics
 open Semantics.Ancestry Semantics.GeneralScheduling
 open WorkQueueSemantics
 
-/-- This deferred-to-stream fixture has the generated key-order and continuity shape.
-Witness: root key zero precedes the nested stream key one; its only child work is empty.
+/-- This deferred-to-stream fixture has the generated ref-order and continuity shape.
+Witness: root ref zero precedes the nested stream ref one; its only child work is empty.
 -/
 theorem nested_metadata
     : Valid (fun _ => []) 2
-      ∧ MixedKeys.WorkAt (fun _ => []) 0 2 CursorOrigins.nested
+      ∧ MixedRefs.WorkAt (fun _ => []) 0 2 CursorOrigins.nested
       ∧ DeferContinuous (fun _ => []) CursorOrigins.nested
       ∧ StreamOwnersOrdered CursorOrigins.nested := by
-  simp [Valid, MixedKeys.WorkAt, DeferContinuous, DeferUnder, StreamOwnersOrdered,
+  simp [Valid, MixedRefs.WorkAt, DeferContinuous, DeferUnder, StreamOwnersOrdered,
     OwnersBefore, FragmentAt, CursorOrigins.nested, CursorOrigins.parent,
     CursorOrigins.child]
 
 /-- While a nested task and its producer are unpublished, an uncancelled child with a
-healthy owner has a healthy producer owner with no larger key. Witness: generated
+healthy owner has a healthy producer owner with no larger ref. Witness: generated
 metadata and an explained failure-cut history.
 -/
 example {groups streams matching events failures}
@@ -32,12 +32,12 @@ example {groups streams matching events failures}
     (fresh : ¬Published matching events (.item [0] 0))
     (parentFresh : ¬Published matching events (.executionGroup []))
     (active : ¬TaskCancelled CursorOrigins.nested matching events failures (.item [0] 0))
-    : ∃ owners ancestor result key,
+    : ∃ owners ancestor result ref,
         TaskAt CursorOrigins.nested (.executionGroup []) owners ancestor result
-        ∧ key ∈ owners
-        ∧ ¬NodeFailed CursorOrigins.nested matching events failures key
-        ∧ key ≤ 1 := by
-  apply producer_owner_key_le explained nested_metadata.1 nested_metadata.2.1
+        ∧ ref ∈ owners
+        ∧ ¬NodeFailed CursorOrigins.nested matching events failures ref
+        ∧ ref ≤ 1 := by
+  apply producer_owner_ref_le explained nested_metadata.1 nested_metadata.2.1
     nested_metadata.2.2.1
     nested_metadata.2.2.2 (TaskAt.item (.executionGroup .root) rfl)
     (by simp [CursorOrigins.child]) healthy fresh parentFresh active
@@ -60,7 +60,7 @@ private theorem nested_initialized
     by simp,
     by simp
   ⟩
-  · simp [announcedKeys, pendingKeys]
+  · simp [announcedRefs, pendingRefs]
   · intro accounted
     have impossible := accounted (.executionGroup []) [0]
       ⟨none, _, TaskAt.executionGroup Located.root⟩ (by simp [CursorOrigins.parent])
@@ -68,21 +68,21 @@ private theorem nested_initialized
     · exact cancelled.nonempty rfl
     · simp [Published] at published
 
-/-- An initially blocked stream item finds ready work without increasing its owner key.
+/-- An initially blocked stream item finds ready work without increasing its owner ref.
 Witness: descend to its unpublished deferred producer from the explained initial prefix.
 -/
 example
-    : ∃ occurrence owners producer payload key,
+    : ∃ occurrence owners producer payload ref,
         TaskAt CursorOrigins.nested occurrence owners producer payload
         ∧ CanPublish CursorOrigins.nested (fun _ => .executionGroup []) [] [] occurrence
             producer
-        ∧ key ∈ owners
-        ∧ ¬NodeFailed CursorOrigins.nested (fun _ => .executionGroup []) [] [] key
-        ∧ key ≤ 1 := by
+        ∧ ref ∈ owners
+        ∧ ¬NodeFailed CursorOrigins.nested (fun _ => .executionGroup []) [] [] ref
+        ∧ ref ≤ 1 := by
   have initial : Explains CursorOrigins.nested [CursorOrigins.parent] [] []
       (fun _ => .executionGroup []) [] :=
     ⟨nested_initialized, by simp [FailureWitness], by simp⟩
-  apply readyTask_owner_key_le initial nested_metadata.1 nested_metadata.2.1
+  apply readyTask_owner_ref_le initial nested_metadata.1 nested_metadata.2.1
     nested_metadata.2.2.1 nested_metadata.2.2.2
     (TaskAt.item (index := 0) (.executionGroup .root) rfl) (by simp [CursorOrigins.child])
     (fun failure => failure.nonempty rfl)
@@ -96,8 +96,8 @@ Witness: the strengthened structural owner projection retains producer identity.
 example
     : ∃ node kind parents,
         NodeAt CursorOrigins.nested node kind parents (some (.executionGroup []))
-        ∧ node.key = 1 :=
+        ∧ node.ref = 1 :=
   (TaskAt.item (index := 0) (.executionGroup .root) rfl).owner_at_producer
     (by simp [CursorOrigins.child])
 
-end GraphQL.IncrementalDelivery.Tests.DependencyKeys
+end GraphQL.IncrementalDelivery.Tests.DependencyRefs

@@ -34,7 +34,7 @@ theorem State.GroupErrorAccounting.uncached_noFailedContributor
     (counts : queue.GroupErrorAccounting work failed) (generated : ExecutedWork work)
     (member : node ∈ queue.groupNodes) (uncached : node.failure = none)
     (known : TaskAt work occurrence owners producer payload)
-    (failure : payload.failure.isSome = true) (owner : node.group.node.key ∈ owners)
+    (failure : payload.failure.isSome = true) (owner : node.group.node.ref ∈ owners)
     : occurrence ∉ failed := by
   intro recorded
   have total := counts.live node member
@@ -49,16 +49,16 @@ Witness: the guard supplies an uncached live record, whose exact zero count excl
 every generated positive failed contribution.
 -/
 theorem State.GroupErrorAccounting.groupIsHealthy_noFailedContributor
-    {queue : State} {work failed key occurrence owners producer payload}
+    {queue : State} {work failed ref occurrence owners producer payload}
     (counts : queue.GroupErrorAccounting work failed) (generated : ExecutedWork work)
-    (healthy : queue.groupIsHealthy key = true)
+    (healthy : queue.groupIsHealthy ref = true)
     (known : TaskAt work occurrence owners producer payload)
-    (failure : payload.failure.isSome = true) (owner : key ∈ owners)
+    (failure : payload.failure.isSome = true) (owner : ref ∈ owners)
     : occurrence ∉ failed := by
   obtain ⟨node, found, uncached⟩ := State.groupIsHealthy_present healthy
   apply counts.uncached_noFailedContributor generated (List.mem_of_find?_eq_some found)
     uncached known failure
-  simpa only [State.groupNode?_key found] using owner
+  simpa only [State.groupNode?_ref found] using owner
 
 -----------------------------------------------------------------------------------------
 -- Recover exact pre-handler counts at an ordered source-failure cut
@@ -122,7 +122,7 @@ theorem createWorkQueue_eligibleObjectFailureCuts_directHealthyOwner
   obtain ⟨⟨_, payload, producer, _, task⟩, _⟩ :=
     bookkeeping.matching node.task (bookkeeping.started node nodeMember)
   obtain ⟨owner, contributes, guard⟩ := State.taskHasHealthyOwner_iff.mp healthy
-  refine ⟨node.task.groups.map Execution.DeliveryNode.key, owner.key,
+  refine ⟨node.task.groups.map Execution.DeliveryNode.ref, owner.ref,
     ⟨producer, payload, occurrenceEq ▸ task⟩,
     List.mem_map.mpr ⟨owner, contributes, rfl⟩, ?_⟩
   intro prior priorOwners earlierFailure descriptor contributesPrior
@@ -133,7 +133,7 @@ theorem createWorkQueue_eligibleObjectFailureCuts_directHealthyOwner
     ((queue.objectFailureContributions_sublist _).subset recorded)
   obtain ⟨parent, value, known⟩ := descriptor
   have same := failedTask.unique known
-  have ownerMember : owner.key ∈ owners := same.1.symm ▸ contributesPrior
+  have ownerMember : owner.ref ∈ owners := same.1.symm ▸ contributesPrior
   exact counts.groupIsHealthy_noFailedContributor generated guard failedTask rfl
     ownerMember recorded
 

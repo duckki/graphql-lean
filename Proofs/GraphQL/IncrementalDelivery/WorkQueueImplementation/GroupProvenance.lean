@@ -16,7 +16,7 @@ theorem State.GroupNodesMatchWork.putGroupNode
     : (queue.putGroupNode updated).GroupNodesMatchWork work := by
   intro node member
   change node ∈ queue.groupNodes.map
-    (fun old => if old.group.node.key == updated.group.node.key then updated else old)
+    (fun old => if old.group.node.ref == updated.group.node.ref then updated else old)
     at member
   obtain ⟨old, oldMember, same⟩ := List.mem_map.mp member
   split at same
@@ -58,9 +58,9 @@ theorem State.GroupNodesMatchWork.addGroups
         | none => current
         | some node =>
             let children :=
-              if node.childGroups.contains group.node.key then
+              if node.childGroups.contains group.node.ref then
                 node.childGroups
-              else node.childGroups ++ [group.node.key]
+              else node.childGroups ++ [group.node.ref]
             current.putGroupNode { node with childGroups := children }
   have registerFold (more : List Group)
       (subset : ∀ group ∈ more, group ∈ groups) :
@@ -92,8 +92,8 @@ theorem State.GroupNodesMatchWork.addGroups
             exact currentMatch.putGroupNode _
               (currentMatch node (List.mem_of_find?_eq_some found))
   let fresh := groups.filter (fun group =>
-    !queue.registeredGroups.contains group.node.key
-      && (queue.groupNode? group.node.key).isNone)
+    !queue.registeredGroups.contains group.node.ref
+      && (queue.groupNode? group.node.ref).isNone)
   change (fresh.foldl linkStep
     (fresh.foldl State.addGroup queue)).GroupNodesMatchWork work
   exact linkFold fresh _
@@ -106,7 +106,7 @@ theorem State.GroupNodesMatchWork.addTask
     : (queue.addTask task).GroupNodesMatchWork work := by
   let registered : State := { queue with tasks := queue.tasks ++ [task] }
   let step (current : State) (group : Execution.DeliveryNode) : State :=
-    match current.groupNode? group.key with
+    match current.groupNode? group.ref with
     | none => current
     | some node =>
         if node.tasks.contains task.occurrence then current
@@ -134,7 +134,7 @@ theorem State.GroupNodesMatchWork.addTask
   let current := task.groups.foldl step registered
   have currentMatch : current.GroupNodesMatchWork work :=
     foldMatch task.groups registered matching
-  change (if task.groups.any (fun group => current.rootGroups.contains group.key)
+  change (if task.groups.any (fun group => current.rootGroups.contains group.ref)
       && (current.taskNode? task.occurrence).isNone then
     { current with taskNodes := current.taskNodes ++ [{ task }] }
     else current).GroupNodesMatchWork work
@@ -219,8 +219,8 @@ theorem State.GroupNodesMatchWork.startNewWork
 /-- Removing a subtree or a settled task cannot fabricate a group node. -/
 theorem State.GroupNodesMatchWork.removeGroup
     {queue : State} {work : Execution.Work}
-    (matching : queue.GroupNodesMatchWork work) (key : Nat)
-    : (queue.removeGroup key).GroupNodesMatchWork work := by
+    (matching : queue.GroupNodesMatchWork work) (ref : NodeRef)
+    : (queue.removeGroup ref).GroupNodesMatchWork work := by
   intro node member
   unfold State.removeGroup at member
   exact matching node (List.mem_filter.mp member).1
@@ -271,7 +271,7 @@ theorem State.GroupNodesMatchWork.finishGroupSuccess
     {queue : State} {work : Execution.Work}
     (matching : queue.GroupNodesMatchWork work) (group : GroupNode)
     : (queue.finishGroupSuccess group).1.GroupNodesMatchWork work := by
-  let step (acc : State × List ExecutionGroupValue × Keys)
+  let step (acc : State × List ExecutionGroupValue × NodeRefs)
       (occurrence : Occurrence) :=
     let (current, values, streams) := acc
     match current.taskNode? occurrence with
@@ -282,7 +282,7 @@ theorem State.GroupNodesMatchWork.finishGroupSuccess
           | none => values
           | some value => values ++ [value]
         (current.removeTask occurrence, values, streams ++ taskNode.childStreams)
-  have stepMatch (acc : State × List ExecutionGroupValue × Keys)
+  have stepMatch (acc : State × List ExecutionGroupValue × NodeRefs)
       (occurrence : Occurrence)
       (currentMatch : acc.1.GroupNodesMatchWork work)
       : (step acc occurrence).1.GroupNodesMatchWork work := by
@@ -292,7 +292,7 @@ theorem State.GroupNodesMatchWork.finishGroupSuccess
     · exact currentMatch
     · exact currentMatch.removeTask occurrence
   have foldMatch (tasks : List Occurrence) :
-      ∀ acc : State × List ExecutionGroupValue × Keys,
+      ∀ acc : State × List ExecutionGroupValue × NodeRefs,
         acc.1.GroupNodesMatchWork work
           → (tasks.foldl step acc).1.GroupNodesMatchWork work := by
     induction tasks with
@@ -306,13 +306,13 @@ theorem State.GroupNodesMatchWork.finishGroupSuccess
   let current : State :=
     { flushed with
         groupNodes := flushed.groupNodes.filter
-          (fun node => node.group.node.key != group.group.node.key)
-        rootGroups := flushed.rootGroups.filter (· != group.group.node.key) }
+          (fun node => node.group.node.ref != group.group.node.ref)
+        rootGroups := flushed.rootGroups.filter (· != group.group.node.ref) }
   have currentMatch : current.GroupNodesMatchWork work := by
     intro node member
     exact flushedMatch node (List.mem_filter.mp member).1
   let children := group.childGroups.filterMap
-    (fun key => (current.groupNode? key).map (fun node => node.group.node))
+    (fun ref => (current.groupNode? ref).map (fun node => node.group.node))
   change (current.pruneEmptyGroups children).1.GroupNodesMatchWork work
   exact currentMatch.pruneEmptyGroups children
 
@@ -323,7 +323,7 @@ theorem State.GroupNodesMatchWork.finishGroupFailure
     (group : GroupNode) (errors : Nat)
     : (queue.finishGroupFailure group errors).1.GroupNodesMatchWork work := by
   unfold State.finishGroupFailure
-  exact matching.removeGroup group.group.node.key
+  exact matching.removeGroup group.group.node.ref
 
 /-- Recursive release retains every surviving group's fixed-work provenance.
 Witness: the drain induction composes success, activation, and failure preservation.
@@ -346,10 +346,10 @@ theorem State.GroupNodesMatchWork.taskFailure
   let step (acc : State × List WorkQueueEvent)
       (group : Execution.DeliveryNode) :=
     let (current, events) := acc
-    match current.groupNode? group.key with
+    match current.groupNode? group.ref with
     | none => (current, events)
     | some node =>
-        if current.rootGroups.contains group.key then
+        if current.rootGroups.contains group.ref then
           let (next, failure) := current.finishGroupFailure node errors
           (next, events ++ [failure])
         else (current.putGroupNode
@@ -400,7 +400,7 @@ theorem State.GroupNodesMatchWork.taskSuccess
           ∃ dependencies, GroupRecordAt work group.node dependencies)
     : (queue.taskSuccess occurrence result).1.GroupNodesMatchWork work := by
   let settleStep (current : State) (group : Execution.DeliveryNode) : State :=
-    match current.groupNode? group.key with
+    match current.groupNode? group.ref with
     | none => current
     | some node => current.putGroupNode { node with pending := node.pending - 1 }
   have settleMatch (current : State) (group : Execution.DeliveryNode)
@@ -415,12 +415,12 @@ theorem State.GroupNodesMatchWork.taskSuccess
   let releaseStep (acc : State × List WorkQueueEvent × NewWork)
       (group : Execution.DeliveryNode) :=
     let (current, events, released) := acc
-    match current.groupNode? group.key with
+    match current.groupNode? group.ref with
     | none => (current, events, released)
     | some node =>
         let node := { node with pending := node.pending - 1 }
         let current := current.putGroupNode node
-        if current.rootGroups.contains group.key && node.pending == 0
+        if current.rootGroups.contains group.ref && node.pending == 0
             && node.failure.isNone then
           let (next, finished, newWork) := current.finishGroupSuccess node
           (next, events ++ finished,

@@ -49,18 +49,18 @@ Witness: locate the exact handler, restrict source validity and acceptance to th
 and transport both notice and completion lists through the same strict-prefix equality.
 -/
 theorem ExecutedWork.rawEventReplay_groupNoticeAncestor_completed
-    {work events index group groups streams child dependencies key}
+    {work events index group groups streams child dependencies ref}
     (generated : ExecutedWork work) (valid : ValidGraphEvents work events)
     (started : (State.initialize (Work.fromExecution work)).acceptsBatch events = true)
     (selected
       : ((State.initialize (Work.fromExecution work)).rawEventReplay events).2[index]?
         = some (.groupSuccess group groups streams))
     (noticed : child ∈ groups) (known : GroupRecordAt work child dependencies)
-    (ancestor : key ∈ dependencies)
+    (ancestor : ref ∈ dependencies)
     : let initial := State.initialize (Work.fromExecution work)
       let outputs := (initial.rawEventReplay events).2
-      key ∈ initial.rootGroups ++ (outputs.take index).flatMap rawGroupNoticeKeys
-      → key ∈ (outputs.take (index + 1)).flatMap rawGroupClosureKeys := by
+      ref ∈ initial.rootGroups ++ (outputs.take index).flatMap rawGroupNoticeRefs
+      → ref ∈ (outputs.take (index + 1)).flatMap rawGroupClosureRefs := by
   intro initial outputs announced
   change (initial.rawEventReplay events).2[index]?
     = some (.groupSuccess group groups streams) at selected
@@ -95,18 +95,18 @@ Witness: source inversion identifies the actual leading item handler. Its earlie
 completion theorem uses precisely the strict prefix retained by that same inversion.
 -/
 theorem ExecutedWork.rawEventReplay_itemNoticeAncestor_completed
-    {work events index stream values groups streams child dependencies key}
+    {work events index stream values groups streams child dependencies ref}
     (generated : ExecutedWork work) (valid : ValidGraphEvents work events)
     (started : (State.initialize (Work.fromExecution work)).acceptsBatch events = true)
     (selected
       : ((State.initialize (Work.fromExecution work)).rawEventReplay events).2[index]?
         = some (.streamValues stream values groups streams))
     (noticed : child ∈ groups) (known : GroupRecordAt work child dependencies)
-    (ancestor : key ∈ dependencies)
+    (ancestor : ref ∈ dependencies)
     : let initial := State.initialize (Work.fromExecution work)
       let outputs := (initial.rawEventReplay events).2
-      key ∈ initial.rootGroups ++ (outputs.take index).flatMap rawGroupNoticeKeys
-      → key ∈ (outputs.take index).flatMap rawGroupClosureKeys := by
+      ref ∈ initial.rootGroups ++ (outputs.take index).flatMap rawGroupNoticeRefs
+      → ref ∈ (outputs.take index).flatMap rawGroupClosureRefs := by
   intro initial outputs announced
   obtain ⟨before, event, after, position, same, carrier, exactPrefix⟩ :=
     initial.rawEventReplay_output_prefix_at events selected
@@ -115,9 +115,9 @@ theorem ExecutedWork.rawEventReplay_itemNoticeAncestor_completed
   have accepted : initial.acceptsBatch before = true := by
     apply State.acceptsBatch_prefix (after := event :: after)
     simpa only [same] using started
-  change key ∈ initial.rootGroups
-    ++ ((initial.rawEventReplay events).2.take index).flatMap rawGroupNoticeKeys at announced
-  change key ∈ ((initial.rawEventReplay events).2.take index).flatMap rawGroupClosureKeys
+  change ref ∈ initial.rootGroups
+    ++ ((initial.rawEventReplay events).2.take index).flatMap rawGroupNoticeRefs at announced
+  change ref ∈ ((initial.rawEventReplay events).2.take index).flatMap rawGroupClosureRefs
   rw [exactPrefix] at announced ⊢
   exact generated.handleGraphEvent_itemNoticeAncestor_completed (valid.prefix prior)
     accepted known ancestor carrier noticed announced

@@ -7,16 +7,16 @@ import Proofs.GraphQL.IncrementalDelivery.Semantics.OwnerMetadata
 namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
-/-- Proof-only coherence: equal keys in `work` identify equal full node descriptors.
-Derived from generated work by `ExecutedWork.nodeKeyCoherent` in `GeneratedDescriptors`;
+/-- Proof-only coherence: equal refs in `work` identify equal full node descriptors.
+Derived from generated work by `ExecutedWork.nodeRefCoherent` in `GeneratedDescriptors`;
 not a public scheduler or event-source premise.
 -/
-def NodeKeyCoherent (work : Execution.Work) : Prop :=
+def NodeRefCoherent (work : Execution.Work) : Prop :=
   ∀ first firstKind firstDependencies firstProducer
     second secondKind secondDependencies secondProducer,
     NodeAt work first firstKind firstDependencies firstProducer
     → NodeAt work second secondKind secondDependencies secondProducer
-    → first.key = second.key
+    → first.ref = second.ref
     → first = second
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue
@@ -25,16 +25,16 @@ namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue.DescriptorMetadata
 open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.Semantics.OwnerPaths (mapNodes fragmentNodes)
 
-/-- Proof-only complete descriptor associated with each allocated execution key. -/
+/-- Proof-only complete descriptor associated with each allocated execution ref. -/
 abbrev Assignment := Nat → DeliveryNode
 
 /-- `next` preserves every descriptor allocated before `bound`. -/
 def Extends (bound : Nat) (old next : Assignment) : Prop :=
-  ∀ key < bound, next key = old key
+  ∀ ref < bound, next ref = old ref
 
 /-- `node` is allocated below `bound` and agrees with its complete assigned descriptor. -/
 def Assigned (nodes : Assignment) (bound : Nat) (node : DeliveryNode) : Prop :=
-  node.key < bound ∧ nodes node.key = node
+  node.ref < bound ∧ nodes node.ref = node
 
 /-- Contributor and ancestor descriptors in `deferMap` share one allocation assignment. -/
 def MapAt (nodes : Assignment) (bound : Nat) (deferMap : DeferMap) : Prop :=
@@ -80,7 +80,7 @@ def ItemsOutput (nodes : Assignment) (start : Nat)
     : Prop :=
   start ≤ output.2 ∧ ∃ next, Extends start nodes next ∧ ItemsAt next output.2 output.1
 
-/-- An assignment preserves itself. Witness: reflexivity at each key. -/
+/-- An assignment preserves itself. Witness: reflexivity at each ref. -/
 theorem Extends.refl (bound : Nat) (nodes : Assignment) : Extends bound nodes nodes :=
   fun _ _ => rfl
 
@@ -91,17 +91,17 @@ theorem Extends.trans {first middle last : Assignment} {start finish : Nat}
     (before : Extends start first middle) (after : Extends finish middle last)
     (bound : start ≤ finish)
     : Extends start first last := by
-  intro key earlier
-  exact (after key (by omega)).trans (before key earlier)
+  intro ref earlier
+  exact (after ref (by omega)).trans (before ref earlier)
 
 /-- An old descriptor remains assigned after further allocation.
-Witness: its key is below the preserved prefix.
+Witness: its ref is below the preserved prefix.
 -/
 theorem Assigned.extend {nodes next : Assignment} {start finish : Nat}
     {node : DeliveryNode} (known : Assigned nodes start node)
     (extension : Extends start nodes next) (bound : start ≤ finish)
     : Assigned next finish node :=
-  ⟨Nat.lt_of_lt_of_le known.1 bound, (extension node.key known.1).trans known.2⟩
+  ⟨Nat.lt_of_lt_of_le known.1 bound, (extension node.ref known.1).trans known.2⟩
 
 /-- Extending allocation preserves every descriptor in an existing defer map.
 Witness: apply descriptor preservation pointwise, including ancestors.
@@ -145,52 +145,53 @@ decreasing_by
 Witness: each successful lookup returns a member of the original map.
 -/
 theorem mapAt_filterMap {nodes : Assignment} {bound : Nat} {deferMap : DeferMap}
-    (known : MapAt nodes bound deferMap) (keys : List Nat)
-    : MapAt nodes bound (keys.filterMap (lookupDeferredFragment? deferMap)) := by
+    (known : MapAt nodes bound deferMap) (refs : List Nat)
+    : MapAt nodes bound (refs.filterMap (lookupDeferredFragment? deferMap)) := by
   intro node member
   obtain ⟨fragment, fragmentMember, within⟩ := List.mem_flatMap.mp member
-  obtain ⟨key, _, found⟩ := List.mem_filterMap.mp fragmentMember
+  obtain ⟨ref, _, found⟩ := List.mem_filterMap.mp fragmentMember
   exact known node (List.mem_flatMap.mpr
     ⟨fragment, List.mem_of_find?_eq_some found, within⟩)
 
 /-- Installing fresh usages assigns exact new descriptors and preserves existing ones.
-Witness: fresh keys are disjoint from the old prefix; coherent labels identify each
+Witness: fresh refs are disjoint from the old prefix; coherent labels identify each
 lookup-selected usage, and ancestor descriptors are copied from the current defer map.
 -/
 theorem mapAt_new (nodes : Assignment) (start finish : Nat) (path : ResponsePath)
     (deferMap : DeferMap) (usages : List DeferUsage)
     (known : MapAt nodes start deferMap) (bound : start ≤ finish)
-    (fresh : ∀ usage ∈ usages, start ≤ usage.key ∧ usage.key < finish)
+    (fresh : ∀ usage ∈ usages, start ≤ usage.ref ∧ usage.ref < finish)
     (labels : LabelsCoherent usages)
     : ∃ next,
         Extends start nodes next
         ∧ MapAt next finish (getNewDeferMap usages path deferMap) := by
-  let next : Assignment := fun key =>
-    match usages.find? (fun usage => usage.key == key) with
-    | none => nodes key
-    | some usage => { key, path, label := usage.label }
+  let next : Assignment := fun ref =>
+    match usages.find? (fun usage => usage.ref == ref) with
+    | none => nodes ref
+    | some usage => { ref, path, label := usage.label }
   have extension : Extends start nodes next := by
-    intro key below
+    intro ref below
     unfold next
-    cases found : usages.find? (fun usage => usage.key == key) with
+    cases found : usages.find? (fun usage => usage.ref == ref) with
     | none => rfl
     | some usage =>
         have member := List.mem_of_find?_eq_some found
         have equal := beq_iff_eq.mp
-          (List.find?_some (p := fun usage : DeferUsage => usage.key == key) found)
+          (List.find?_some (p := fun usage : DeferUsage => usage.ref == ref) found)
         have := (fresh usage member).1
+        simp only [NodeRef] at *
         omega
   have newAssigned (usage : DeferUsage) (member : usage ∈ usages)
-      : Assigned next finish { key := usage.key, path, label := usage.label } := by
+      : Assigned next finish { ref := usage.ref, path, label := usage.label } := by
     refine ⟨(fresh usage member).2, ?_⟩
     unfold next
-    cases found : usages.find? (fun candidate => candidate.key == usage.key) with
+    cases found : usages.find? (fun candidate => candidate.ref == usage.ref) with
     | none =>
         have missing := List.find?_eq_none.mp found usage member
         simp at missing
     | some candidate =>
         have equal := beq_iff_eq.mp (List.find?_some
-          (p := fun candidate : DeferUsage => candidate.key == usage.key) found)
+          (p := fun candidate : DeferUsage => candidate.ref == usage.ref) found)
         have label := labels candidate (List.mem_of_find?_eq_some found) usage member equal
         simp only [label]
   refine ⟨next, extension, ?_⟩
@@ -209,7 +210,7 @@ theorem mapAt_new (nodes : Assignment) (start finish : Nat) (path : ResponsePath
         rcases member with old | rfl | ancestor
         · exact assigned node old
         · exact newAssigned usage (subset List.mem_cons_self)
-        · obtain ⟨key, _, found⟩ := List.mem_filterMap.mp ancestor
+        · obtain ⟨ref, _, found⟩ := List.mem_filterMap.mp ancestor
           obtain ⟨fragment, located, same⟩ := Option.map_eq_some_iff.mp found
           subst node
           exact assigned fragment.node (List.mem_flatMap.mpr
@@ -258,16 +259,16 @@ theorem workAt_nonNull (nodes : Assignment) (bound : Nat)
   unfold Completion.nonNull
   split <;> simp [Completion.error, WorkAt, known]
 
-/-- Allocating one stream key extends the assignment with its exact descriptor.
-Witness: replace only the next fresh key, outside the already allocated prefix.
+/-- Allocating one stream ref extends the assignment with its exact descriptor.
+Witness: replace only the next fresh ref, outside the already allocated prefix.
 -/
 theorem assigned_fresh (nodes : Assignment) (state : Nat) (node : DeliveryNode)
-    (key : node.key = state)
-    : let next := fun key => if key = state then node else nodes key
+    (ref : node.ref = state)
+    : let next := fun ref => if ref = state then node else nodes ref
       Extends state nodes next ∧ Assigned next (state + 1) node := by
   refine ⟨?_, ?_⟩
-  · intro key below
-    simp [show key ≠ state by omega]
-  · simp [Assigned, key]
+  · intro ref below
+    simp [show ref ≠ state by omega]
+  · simp [Assigned, ref]
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue.DescriptorMetadata

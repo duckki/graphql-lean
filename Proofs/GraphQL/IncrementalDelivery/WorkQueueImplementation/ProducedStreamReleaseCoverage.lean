@@ -18,28 +18,28 @@ every child stream, which fresh integration attaches. Replay conservation forces
 when the owner retires without cancellation. No publication matching is assumed here.
 -/
 theorem ExecutedWork.success_retired_childStream_notice
-    {work events occurrence result owners producer payload key before after stream
+    {work events occurrence result owners producer payload ref before after stream
       dependencies}
     (generated : ExecutedWork work) (valid : ValidGraphEvents work events)
     (started : (State.initialize (Work.fromExecution work)).acceptsBatch events = true)
-    (known : TaskAt work occurrence owners producer payload) (contributes : key ∈ owners)
+    (known : TaskAt work occurrence owners producer payload) (contributes : ref ∈ owners)
     (healthy
       : ¬GroupRecordInvalidated work
           ((State.initialize (Work.fromExecution work)).objectFailureContributions events)
-          key)
+          ref)
     (retired
       : ((State.initialize (Work.fromExecution work)).replayGraphEvents
           events).RetiredGroup
-          key)
+          ref)
     (uncancelled
-      : key
+      : ref
         ∉ ((State.initialize (Work.fromExecution work)).replayGraphEvents
             events).cancelledGroups)
     (sourceEq : events = before ++ .taskSuccess occurrence result :: after)
     (child : NodeAt work stream .stream dependencies (some occurrence))
-    : stream.key
+    : stream.ref
       ∈ ((State.initialize (Work.fromExecution work)).rawEventReplay events).2.flatMap
-          rawStreamNoticeKeys := by
+          rawStreamNoticeRefs := by
   obtain ⟨node, found, accepted, owns, live⟩ := generated.success_with_finalHealthyOwner_live
     valid started known contributes healthy sourceEq
   have earlier : before.IsPrefix events := ⟨.taskSuccess occurrence result :: after, sourceEq.symm⟩
@@ -51,9 +51,9 @@ theorem ExecutedWork.success_retired_childStream_notice
       (matching.taskChildStreams_complete child)
   have conserved := generated.success_conservesBufferedStreams (sourceEq ▸ valid)
     (sourceEq ▸ started) found accepted
-  have preparedLive := State.maybeIntegrateWork_includesKeys
+  have preparedLive := State.maybeIntegrateWork_includesRefs
     (((State.initialize (Work.fromExecution work)).replayGraphEvents before).putTaskNode
-      { node with value := some result.value }) result.work (some occurrence) key live
+      { node with value := some result.value }) result.work (some occurrence) ref live
   have finalState : (State.initialize (Work.fromExecution work)).replayGraphEvents events
       = ((State.initialize (Work.fromExecution work)).replayGraphEvents before).replayGraphEvents
         (.taskSuccess occurrence result :: after) := by

@@ -7,8 +7,8 @@ open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
-private def parent : DeliveryNode := { key := 0, path := [] }
-private def child : DeliveryNode := { key := 1, path := [] }
+private def parent : DeliveryNode := { ref := 0, path := [] }
+private def child : DeliveryNode := { ref := 1, path := [] }
 private def occurrence : Occurrence := .executionGroup []
 private def task : Task := ⟨occurrence, [parent, child]⟩
 
@@ -23,15 +23,15 @@ private def value : ExecutionGroupValue :=
 private def buffered : TaskNode := ⟨task, some value, []⟩
 
 private def parentNode : GroupNode :=
-  { group := ⟨parent, none⟩, childGroups := [child.key], tasks := [occurrence] }
+  { group := ⟨parent, none⟩, childGroups := [child.ref], tasks := [occurrence] }
 
 private def childNode : GroupNode :=
-  { group := ⟨child, some parent.key⟩, tasks := [occurrence] }
+  { group := ⟨child, some parent.ref⟩, tasks := [occurrence] }
 
 private def queue : State :=
   {
-    rootGroups := [parent.key],
-    registeredGroups := [parent.key, child.key],
+    rootGroups := [parent.ref],
+    registeredGroups := [parent.ref, child.ref],
     groupNodes := [parentNode, childNode],
     taskNodes := [buffered],
     tasks := [task]
@@ -60,9 +60,9 @@ This is a local queue-state regression, not an assertion of generated-work confo
 -/
 theorem silent_retirement_output
     : queue.drainReadyGroups.2 = [.groupValues parent [value], .groupSuccess parent [] []]
-      ∧ child.key ∉ queue.drainReadyGroups.1.cancelledGroups
-      ∧ child.key
-        ∉ queue.drainReadyGroups.1.groupNodes.map (fun node => node.group.node.key)
+      ∧ child.ref ∉ queue.drainReadyGroups.1.cancelledGroups
+      ∧ child.ref
+        ∉ queue.drainReadyGroups.1.groupNodes.map (fun node => node.group.node.ref)
       ∧ queue.drainReadyGroups.1.taskNode? occurrence = none := by
   constructor
   · cbv
@@ -84,7 +84,7 @@ theorem silent_retirement_publishes
         ∧ (occurrence, value) ∈ published := by
   obtain ⟨published, values, _, _, _, _, _, owners⟩ :=
     inventory.drainReadyGroups_go_bufferedCoverage links queue.groupNodes.length
-  have emitted := owners occurrence buffered value (by cbv) rfl child.key
+  have emitted := owners occurrence buffered value (by cbv) rfl child.ref
     (by simp [buffered, task]) (by simp [queue, parentNode, childNode])
     silent_retirement_output.2.1
   refine ⟨published, ?_, owners, ?_⟩
@@ -96,16 +96,16 @@ theorem silent_retirement_publishes
 
 /-- Failed retirement may discard buffered data, but records cancellation of the owner.
 Witness: direct reduction of the same state through failed-group removal; the generic
-conservation certificate deliberately exempts C only because its key is now cancelled.
+conservation certificate deliberately exempts C only because its ref is now cancelled.
 -/
 theorem failed_retirement_records_cancellation
-    : child.key ∈ (queue.removeGroup parent.key).cancelledGroups
-      ∧ (queue.removeGroup parent.key).taskNode? occurrence = none
-      ∧ queue.StoredOwnersConserved [] (queue.removeGroup parent.key) := by
+    : child.ref ∈ (queue.removeGroup parent.ref).cancelledGroups
+      ∧ (queue.removeGroup parent.ref).taskNode? occurrence = none
+      ∧ queue.StoredOwnersConserved [] (queue.removeGroup parent.ref) := by
   exact ⟨
     by cbv; exact .head _,
     by cbv,
-    queue.removeGroup_storedOwnersConserved parent.key
+    queue.removeGroup_storedOwnersConserved parent.ref
   ⟩
 
 -----------------------------------------------------------------------------------------
@@ -133,8 +133,8 @@ private def childBuffered : TaskNode := ⟨childTask, some childValue, []⟩
 
 private def waiting : State :=
   {
-    rootGroups := [parent.key],
-    registeredGroups := [parent.key, child.key],
+    rootGroups := [parent.ref],
+    registeredGroups := [parent.ref, child.ref],
     groupNodes := [parentNode, { childNode with tasks := [childTask.occurrence] }],
     taskNodes := [parentBuffered, childBuffered],
     tasks := [parentTask, childTask]
@@ -152,7 +152,7 @@ theorem same_drain_output
           .groupValues child [childValue],
           .groupSuccess child [] []
         ]
-      ∧ child.key ∉ waiting.rootGroups := by
+      ∧ child.ref ∉ waiting.rootGroups := by
   constructor
   · cbv
   · cbv; intro impossible; cases impossible; contradiction
@@ -173,26 +173,26 @@ theorem same_drain_parent_published_first
     intro node member stored owner live contributes
     rcases List.mem_cons.mp member with same | tail
     · subst node
-      have key : owner.group.node.key = parent.key := by
+      have ref : owner.group.node.ref = parent.ref := by
         simpa [parentBuffered, parentTask] using contributes
       rcases List.mem_cons.mp live with same | tail
       · subst owner; exact List.mem_cons_self
       · have same := List.mem_singleton.mp tail
         subst owner
-        cases key
+        cases ref
     · have same := List.mem_singleton.mp tail
       subst node
-      have key : owner.group.node.key = child.key := by
+      have ref : owner.group.node.ref = child.ref := by
         simpa [childBuffered, childTask] using contributes
       rcases List.mem_cons.mp live with same | tail
-      · subst owner; cases key
+      · subst owner; cases ref
       · have same := List.mem_singleton.mp tail
         subst owner; exact List.mem_cons_self
   obtain ⟨published, values, _, _, _, _, _, prefixes, _⟩ :=
     inventory.drainReadyGroups_go_prefixCoverage links waiting.groupNodes.length
   have conserved := prefixes 1 (by decide)
   have emitted := conserved parentTask.occurrence parentBuffered parentValue (by cbv) rfl
-    parent.key (by simp [parentBuffered, parentTask]) (by simp [waiting, parentNode])
+    parent.ref (by simp [parentBuffered, parentTask]) (by simp [waiting, parentNode])
     (by cbv; intro impossible; cases impossible)
   refine ⟨published, ?_, ?_⟩
   · change published.map Prod.snd = waiting.drainReadyGroups.2.flatMap
@@ -202,8 +202,8 @@ theorem same_drain_parent_published_first
       using values
   · rcases emitted with emitted | retained
     · exact emitted
-    · have gone : parent.key ∉ (State.drainReadyGroups.go 1 waiting).1.groupNodes.map
-          (fun owner => owner.group.node.key) := by
+    · have gone : parent.ref ∉ (State.drainReadyGroups.go 1 waiting).1.groupNodes.map
+          (fun owner => owner.group.node.ref) := by
         cbv; intro impossible; cases impossible; contradiction
       exact False.elim (gone retained.2)
 

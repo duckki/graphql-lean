@@ -20,12 +20,12 @@ theorem State.taskSuccess_pendingAccounting
     {queue : State} {work : Execution.Work} {settled : List Occurrence}
     (tracks : queue.PendingBound (fun _ => True) settled)
     (linked : queue.UnsettledTaskLinks settled)
-    (keys : queue.GroupKeysUnique) (memberships : queue.TaskMembershipsUnique)
+    (refs : queue.GroupRefsUnique) (memberships : queue.TaskMembershipsUnique)
     (covered : queue.TaskGroupsRegistered) (sound : queue.GroupMembershipSound)
     (matching : queue.RegisteredTasksMatch work) (started : queue.StartedTasksRegistered)
     (occurrence : Occurrence) (result : TaskResult) (taskNode : TaskNode)
     (found : queue.taskNode? occurrence = some taskNode) (fresh : occurrence ∉ settled)
-    (uniqueOwners : (taskNode.task.groups.map Execution.DeliveryNode.key).Nodup)
+    (uniqueOwners : (taskNode.task.groups.map Execution.DeliveryNode.ref).Nodup)
     (childrenMatch : ∀ task ∈ result.work.tasks, TaskMatches work task)
     : (queue.taskSuccess occurrence result).1.PendingBound (fun _ => True)
         (occurrence :: settled)
@@ -38,18 +38,18 @@ theorem State.taskSuccess_pendingAccounting
         occurrence (by simp)⟩
   let stored := queue.putTaskNode { taskNode with value := some result.value }
   let integrated := (stored.maybeIntegrateWork result.work (some occurrence)).1
-  have storedKeys : stored.GroupKeysUnique := keys
+  have storedRefs : stored.GroupRefsUnique := refs
   have storedMembers : stored.TaskMembershipsUnique := memberships
   have storedCounts : stored.PendingBound (fun _ => True) settled := tracks
   have storedCovered : stored.TaskGroupsRegistered := covered
   have storedSound : stored.GroupMembershipSound := sound
   have storedMatch : stored.RegisteredTasksMatch work := matching
   have integratedLinks : integrated.UnsettledTaskLinks settled :=
-    (linked.putTaskNode _).maybeIntegrateWork storedKeys storedCovered result.work
+    (linked.putTaskNode _).maybeIntegrateWork storedRefs storedCovered result.work
       (some occurrence)
   have integratedCounts : integrated.PendingBound (fun _ => True) settled :=
     storedCounts.maybeIntegrateWork result.work (some occurrence)
-  have integratedKeys := storedKeys.maybeIntegrateWork result.work (some occurrence)
+  have integratedRefs := storedRefs.maybeIntegrateWork result.work (some occurrence)
   have integratedMembers := storedMembers.maybeIntegrateWork result.work (some occurrence)
   have integratedSound := storedSound.maybeIntegrateWork result.work (some occurrence)
   have integratedMatch := storedMatch.maybeIntegrateWork result.work childrenMatch
@@ -64,13 +64,13 @@ theorem State.taskSuccess_pendingAccounting
     (same.symm ▸ fresh)
   rw [same] at owned
   have debt : integrated.PendingDebtBound (fun _ => True) (occurrence :: settled)
-      (taskNode.task.groups.map Execution.DeliveryNode.key) :=
+      (taskNode.task.groups.map Execution.DeliveryNode.ref) :=
     integratedCounts.beginSettlement integratedMembers
       (fun node member _ => owned node member) fresh
   let invariant (current : State) :=
-    current.GroupKeysUnique ∧ current.UnsettledTaskLinks (occurrence :: settled)
+    current.GroupRefsUnique ∧ current.UnsettledTaskLinks (occurrence :: settled)
   have initial : invariant integrated :=
-    ⟨integratedKeys, integratedLinks.weaken (by intro item member; simp [member])⟩
+    ⟨integratedRefs, integratedLinks.weaken (by intro item member; simp [member])⟩
   have loop := successGroupFold_preservesBound (fun _ => True) (occurrence :: settled)
     invariant (fun _ valid => valid.1) (by intros; trivial)
     (fun _ node prior selected =>
@@ -97,12 +97,12 @@ theorem State.taskFailure_pendingAccounting
     {queue : State} {work : Execution.Work} {settled : List Occurrence}
     (tracks : queue.PendingBound (fun _ => True) settled)
     (linked : queue.UnsettledTaskLinks settled)
-    (keys : queue.GroupKeysUnique) (memberships : queue.TaskMembershipsUnique)
+    (refs : queue.GroupRefsUnique) (memberships : queue.TaskMembershipsUnique)
     (sound : queue.GroupMembershipSound) (matching : queue.RegisteredTasksMatch work)
     (started : queue.StartedTasksRegistered)
     (occurrence : Occurrence) (errors : Nat) (taskNode : TaskNode)
     (found : queue.taskNode? occurrence = some taskNode) (fresh : occurrence ∉ settled)
-    (uniqueOwners : (taskNode.task.groups.map Execution.DeliveryNode.key).Nodup)
+    (uniqueOwners : (taskNode.task.groups.map Execution.DeliveryNode.ref).Nodup)
     : (queue.taskFailure occurrence errors).1.PendingBound (fun _ => True)
         (occurrence :: settled)
       ∧ (queue.taskFailure occurrence errors).1.UnsettledTaskLinks
@@ -119,20 +119,20 @@ theorem State.taskFailure_pendingAccounting
     (started taskNode (List.mem_of_find?_eq_some found)) (same.symm ▸ fresh)
   rw [same] at owned
   have debt : queue.PendingDebtBound (fun _ => True) (occurrence :: settled)
-      (taskNode.task.groups.map Execution.DeliveryNode.key) :=
+      (taskNode.task.groups.map Execution.DeliveryNode.ref) :=
     tracks.beginSettlement memberships (fun node member _ => owned node member) fresh
   have settledLinks := linked.weaken (after := occurrence :: settled)
     (by intro item member; simp [member])
   let invariant (current : State) :=
-    current.GroupKeysUnique ∧ current.UnsettledTaskLinks (occurrence :: settled)
+    current.GroupRefsUnique ∧ current.UnsettledTaskLinks (occurrence :: settled)
   have loop := failureGroupFold_preservesBound (fun _ => True) (occurrence :: settled)
     invariant (fun _ valid => valid.1)
     (fun _ node _ prior selected =>
       ⟨prior.1.putGroupNode _, prior.2.putGroupNodeSameTasks prior.1 node
         (List.mem_of_find?_eq_some selected) _ rfl rfl⟩)
-    (fun _ key prior => ⟨prior.1.removeGroup key, prior.2.removeGroup key⟩)
+    (fun _ ref prior => ⟨prior.1.removeGroup ref, prior.2.removeGroup ref⟩)
     errors taskNode.task.groups uniqueOwners (queue.removeTask occurrence, [])
-    ⟨keys.removeTask occurrence, settledLinks.removeSettledTask occurrence (by simp)⟩
+    ⟨refs.removeTask occurrence, settledLinks.removeSettledTask occurrence (by simp)⟩
     (debt.removeTask occurrence (by simp))
   exact ⟨loop.2, loop.1.2⟩
 
@@ -148,14 +148,14 @@ theorem State.streamItems_pendingAccounting
     {queue : State} {settled : List Occurrence}
     (tracks : queue.PendingBound (fun _ => True) settled)
     (linked : queue.UnsettledTaskLinks settled)
-    (keys : queue.GroupKeysUnique) (live : queue.LiveGroupsRegistered)
+    (refs : queue.GroupRefsUnique) (live : queue.LiveGroupsRegistered)
     (covered : queue.TaskGroupsRegistered) (stream : Execution.DeliveryNode)
     (items : List StreamItem)
     (allCovered
       : ∀ item ∈ items,
         ∀ task ∈ item.work.tasks,
-        ∀ key ∈ task.groups.map Execution.DeliveryNode.key,
-          ∃ group ∈ item.work.groups, group.node.key = key)
+        ∀ ref ∈ task.groups.map Execution.DeliveryNode.ref,
+          ∃ group ∈ item.work.groups, group.node.ref = ref)
     : (queue.streamItems stream items).1.PendingBound (fun _ => True) settled
       ∧ (queue.streamItems stream items).1.UnsettledTaskLinks settled := by
   let step (acc : State × List Execution.DeliveryNode
@@ -167,7 +167,7 @@ theorem State.streamItems_pendingAccounting
       groups ++ nonempty, streams ++ newWork.newStreams, values ++ [item.value])
   let invariant (current : State) :=
     current.PendingBound (fun _ => True) settled ∧ current.UnsettledTaskLinks settled ∧
-      current.GroupKeysUnique ∧ current.LiveGroupsRegistered ∧ current.TaskGroupsRegistered
+      current.GroupRefsUnique ∧ current.LiveGroupsRegistered ∧ current.TaskGroupsRegistered
   have preserve (acc) (item : StreamItem) (member : item ∈ items)
       (prior : invariant acc.1) : invariant (step acc item).1 := by
     obtain ⟨current, groups, streams, values⟩ := acc
@@ -176,7 +176,7 @@ theorem State.streamItems_pendingAccounting
     let released := { integrated.2 with newGroups := pruned.2 }
     have counts := prior.1.maybeIntegrateWork item.work
     have links := prior.2.1.maybeIntegrateWork prior.2.2.1 prior.2.2.2.2 item.work
-    have groupKeys := prior.2.2.1.maybeIntegrateWork item.work none
+    have groupRefs := prior.2.2.1.maybeIntegrateWork item.work none
     have registration := current.maybeIntegrateWork_registration
       prior.2.2.2.1 prior.2.2.2.2 item.work (allCovered item member)
     have prunedRegistration := State.pruneEmptyGroups_registration
@@ -185,7 +185,7 @@ theorem State.streamItems_pendingAccounting
       prunedRegistration.1 prunedRegistration.2.1 released
     exact ⟨(counts.pruneEmptyGroups _).startNewWork _,
       (links.pruneEmptyGroups _).startNewWork _,
-      (groupKeys.pruneEmptyGroups _).startNewWork _, startedRegistration⟩
+      (groupRefs.pruneEmptyGroups _).startNewWork _, startedRegistration⟩
   have loop (more : List StreamItem) (included : more.Subset items) (acc)
       (prior : invariant acc.1) : invariant (more.foldl step acc).1 := by
     induction more generalizing acc with
@@ -197,7 +197,7 @@ theorem State.streamItems_pendingAccounting
   split
   · exact ⟨tracks, linked⟩
   · have final := loop items (fun _ member => member) (queue, [], [], [])
-      ⟨tracks, linked, keys, live, covered⟩
+      ⟨tracks, linked, refs, live, covered⟩
     exact ⟨final.1.drainReadyGroups, final.2.1.drainReadyGroups_ofBound final.1⟩
 
 -----------------------------------------------------------------------------------------
@@ -215,7 +215,7 @@ structure State.PendingAccounting (queue : State) (work : Execution.Work)
     : Prop where
   pending : queue.PendingBound (fun _ => True) settled
   links : queue.UnsettledTaskLinks settled
-  keys : queue.GroupKeysUnique
+  refs : queue.GroupRefsUnique
   memberships : queue.TaskMembershipsUnique
   liveGroups : queue.LiveGroupsRegistered
   taskGroups : queue.TaskGroupsRegistered
@@ -231,7 +231,7 @@ theorem createWorkQueue_pendingAccounting (work : Execution.Work)
   ⟨
     createWorkQueue_pendingBound_empty _,
     createWorkQueue_unsettledTaskLinks _,
-    createWorkQueue_groupKeysUnique _,
+    createWorkQueue_groupRefsUnique _,
     createWorkQueue_taskMembershipsUnique _,
     (createWorkQueue_registration work).1,
     (createWorkQueue_registration work).2,
@@ -263,7 +263,7 @@ theorem State.PendingAccounting.handleGraphEvent {queue : State} {work : Executi
         cases found : queue.taskNode? occurrence with
         | none => simp [State.acceptsGraphEvent, found] at accepted
         | some node =>
-            apply queue.taskSuccess_pendingAccounting prior.pending prior.links prior.keys
+            apply queue.taskSuccess_pendingAccounting prior.pending prior.links prior.refs
               prior.memberships prior.taskGroups prior.sound prior.matching prior.started
               occurrence result node found
             · exact fun member => fresh.2.2.1 occurrence (by simp [GraphEvent.identities])
@@ -278,7 +278,7 @@ theorem State.PendingAccounting.handleGraphEvent {queue : State} {work : Executi
         cases found : queue.taskNode? occurrence with
         | none => simp [State.acceptsGraphEvent, found] at accepted
         | some node =>
-            apply queue.taskFailure_pendingAccounting prior.pending prior.links prior.keys
+            apply queue.taskFailure_pendingAccounting prior.pending prior.links prior.refs
               prior.memberships prior.sound prior.matching prior.started occurrence errors
               node found
             · exact fun member => fresh.2.2.1 occurrence (by simp [GraphEvent.identities])
@@ -286,7 +286,7 @@ theorem State.PendingAccounting.handleGraphEvent {queue : State} {work : Executi
             · exact prior.matching.contributorsNodup generated
                 (prior.started node (List.mem_of_find?_eq_some found))
     | streamItems stream items =>
-        apply queue.streamItems_pendingAccounting prior.pending prior.links prior.keys
+        apply queue.streamItems_pendingAccounting prior.pending prior.links prior.refs
           prior.liveGroups prior.taskGroups stream items
         exact fun _ member => matching.streamItem_childTasksCovered member
     | streamSuccess stream =>
@@ -295,7 +295,7 @@ theorem State.PendingAccounting.handleGraphEvent {queue : State} {work : Executi
     | streamFailure stream errors =>
         dsimp only [State.handleGraphEvent, GraphEvent.recordTaskOutcome, State.streamFailure]
         split <;> exact ⟨prior.pending, prior.links⟩
-  exact ⟨accounting.1, accounting.2, prior.keys.handleGraphEvent event,
+  exact ⟨accounting.1, accounting.2, prior.refs.handleGraphEvent event,
     prior.memberships.handleGraphEvent event, registry.1, registry.2.1,
     prior.sound.handleGraphEvent event, prior.matching.handleGraphEvent event matching,
     prior.started.handleGraphEvent event⟩

@@ -26,9 +26,9 @@ theorem publicationSupport_of_releaseCertificates {work inputs w}
   intro index event selected value
   cases event with
   | groupValues owner payload =>
-      obtain ⟨owners, producer, taskPayload, key, known, success, member, healthy⟩ :=
+      obtain ⟨owners, producer, taskPayload, ref, known, success, member, healthy⟩ :=
         releases.matching_healthy valid started history ledger selected
-      refine ⟨owners, producer, taskPayload, key, known, success, member, healthy, ?_⟩
+      refine ⟨owners, producer, taskPayload, ref, known, success, member, healthy, ?_⟩
       intro parent same
       exact releases.producerPublished generated valid started history ledger selected
         ⟨owners, taskPayload, same ▸ known⟩
@@ -36,7 +36,7 @@ theorem publicationSupport_of_releaseCertificates {work inputs w}
       obtain ⟨item, producer, _, known, ready, owner⟩ :=
         streams index stream values groups children selected
       obtain ⟨supporter, available⟩ := owner.2.1
-      exact ⟨[stream.key], producer, .item stream (.ok (item.item, item.errors)), supporter.key,
+      exact ⟨[stream.ref], producer, .item stream (.ok (item.item, item.errors)), supporter.ref,
         known, rfl, available.1.2.1, available.2, ready.2.2.1⟩
   | groupSuccess | groupFailure | streamSuccess | streamFailure | workQueueTermination =>
       cases value
@@ -48,7 +48,7 @@ No carried notices occur on object-value atoms; those remain on their following 
 def GroupPublicationAdmission (work : Execution.Work) (w : Witness) : Prop :=
   ∀ index owner values,
     w.events[index]? = some (.groupValues owner values)
-    → EventAllowed work (initialKeys work) w.matching (w.events.take index) w.failures
+    → EventAllowed work (initialRefs work) w.matching (w.events.take index) w.failures
         (.groupValues owner values)
 
 /-- Object admission follows from exact ownership, joint support, and fresh occurrences.
@@ -132,7 +132,7 @@ theorem mixed_groupPublicationCertificates_with_noticeSafety {work inputs}
   obtain ⟨w, history, shape, announced, uncancelled, values, accounted, ready, safe,
     ledger, notices, streams, cuts, exactCuts⟩ :=
     mixed_failureCertificates_with_closureLedger generated valid started
-  have streamReady := streamPublicationReady_of_certificates generated generated.nodeKeyCoherent
+  have streamReady := streamPublicationReady_of_certificates generated generated.nodeRefCoherent
     valid started history announced ready safe cuts exactCuts
   have healthy := groupSuccessesHealthy_of_successfulItems generated valid started history
     announced safe cuts exactCuts

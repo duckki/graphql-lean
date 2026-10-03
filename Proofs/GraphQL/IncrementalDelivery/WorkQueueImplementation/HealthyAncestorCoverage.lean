@@ -22,10 +22,10 @@ theorem State.HealthyRetiredAncestors.supported_parent_present {queue : State}
     (registry : queue.ParentRegistryClosed parents)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
-    (found : queue.groupNode? child.group.node.key = some child)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
+    (found : queue.groupNode? child.group.node.ref = some child)
     (known : GroupRecordAt work child.group.node (parent :: rest))
-    (healthy : ¬GroupRecordInvalidated work failed child.group.node.key)
+    (healthy : ¬GroupRecordInvalidated work failed child.group.node.ref)
     (member : ancestor ∈ parent :: rest) (task : TaskHasOwners work occurrence owners)
     (contributes : ancestor ∈ owners)
     (live : ∃ node, queue.groupNode? ancestor = some node)
@@ -34,7 +34,7 @@ theorem State.HealthyRetiredAncestors.supported_parent_present {queue : State}
   | some node => exact ⟨node, rfl⟩
   | none =>
       have parentRegistered : parent ∈ queue.registeredGroups :=
-        registry child.group.node.key (registered child (List.mem_of_find?_eq_some found))
+        registry child.group.node.ref (registered child (List.mem_of_find?_eq_some found))
           parent (by rw [← canonical _ _ known]; rfl)
       have retired : queue.RetiredGroup parent :=
         ⟨parentRegistered, (queue.groupNode?_eq_none_iff parent).mp parentFound⟩
@@ -42,28 +42,28 @@ theorem State.HealthyRetiredAncestors.supported_parent_present {queue : State}
       rcases List.mem_cons.mp member with same | above
       · rw [same, parentFound] at ancestorFound
         contradiction
-      · obtain ⟨parentNode, parentKey, parentKnown⟩ := known.parent
+      · obtain ⟨parentNode, parentRef, parentKnown⟩ := known.parent
         have parentHealthy : ¬GroupRecordInvalidated work failed parent :=
           fun invalid => healthy (.ancestor known List.mem_cons_self invalid)
         have ancestorRetired := retirement parent retired parentHealthy
-          parentNode rest parentKnown parentKey ancestor above occurrence owners task contributes
+          parentNode rest parentKnown parentRef ancestor above occurrence owners task contributes
         exact False.elim (ancestorRetired.2 (List.mem_map.mpr
           ⟨ancestorNode, List.mem_of_find?_eq_some ancestorFound,
-            State.groupNode?_key ancestorFound⟩))
+            State.groupNode?_ref ancestorFound⟩))
 
 -----------------------------------------------------------------------------------------
 -- Separate the remaining concrete link-completeness obligation from missing-parent health
 -----------------------------------------------------------------------------------------
 
-/-- Every live child's live canonical parent stores the child's key in its child list.
+/-- Every live child's live canonical parent stores the child's ref in its child list.
 `parents` is the generated primary-parent assignment. This proof-side bookkeeping target
 is not a new scheduler, host-source, or conformance premise.
 -/
-def State.ParentLinksComplete (queue : State) (parents : Nat → Keys) : Prop :=
+def State.ParentLinksComplete (queue : State) (parents : Nat → NodeRefs) : Prop :=
   ∀ child ∈ queue.groupNodes,
   ∀ parent ∈ queue.groupNodes,
-    (parents child.group.node.key).head? = some parent.group.node.key
-    → child.group.node.key ∈ parent.childGroups
+    (parents child.group.node.ref).head? = some parent.group.node.ref
+    → child.group.node.ref ∈ parent.childGroups
 
 /-- A live task-bearing ancestor has a concrete path to its healthy live descendant.
 Witness: follow exact generated parent suffixes. Retirement excludes each missing parent;
@@ -79,36 +79,36 @@ theorem State.ParentLinksComplete.healthy_ancestor_path {queue : State}
     (registry : queue.ParentRegistryClosed parents)
     (canonical
       : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.key)
-    (found : queue.groupNode? child.group.node.key = some child)
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
+    (found : queue.groupNode? child.group.node.ref = some child)
     (known : GroupRecordAt work child.group.node dependencies)
-    (healthy : ¬GroupRecordInvalidated work failed child.group.node.key)
+    (healthy : ¬GroupRecordInvalidated work failed child.group.node.ref)
     (member : ancestor ∈ dependencies) (task : TaskHasOwners work occurrence owners)
     (contributes : ancestor ∈ owners)
     (live : ∃ node, queue.groupNode? ancestor = some node)
-    : queue.LiveDescendant ancestor child.group.node.key := by
+    : queue.LiveDescendant ancestor child.group.node.ref := by
   induction dependencies generalizing child with
   | nil => cases member
   | cons parent rest ih =>
       obtain ⟨parentNode, parentFound⟩ := retirement.supported_parent_present registered
         registry canonical found known healthy member task contributes live
-      have parentKey := State.groupNode?_key parentFound
-      have head : (parent :: rest).head? = some parentNode.group.node.key := by
-        simp [parentKey]
+      have parentRef := State.groupNode?_ref parentFound
+      have head : (parent :: rest).head? = some parentNode.group.node.ref := by
+        simp [parentRef]
       have linked := links child (List.mem_of_find?_eq_some found) parentNode
         (List.mem_of_find?_eq_some parentFound) (by rw [← canonical _ _ known]; exact head)
-      have edge : queue.LiveDescendant parentNode.group.node.key child.group.node.key :=
-        .child (parentKey.symm ▸ parentFound) linked (.self found)
+      have edge : queue.LiveDescendant parentNode.group.node.ref child.group.node.ref :=
+        .child (parentRef.symm ▸ parentFound) linked (.self found)
       rcases List.mem_cons.mp member with same | above
-      · simpa only [parentKey, same] using edge
+      · simpa only [parentRef, same] using edge
       · obtain ⟨parentDependencies, parentKnown⟩ :=
           records parentNode (List.mem_of_find?_eq_some parentFound)
         have chain := generated.groupRecordAncestryChain known parentKnown head
         have tail : rest = parentDependencies := (List.cons.inj chain).2
-        have parentHealthy : ¬GroupRecordInvalidated work failed parentNode.group.node.key := by
+        have parentHealthy : ¬GroupRecordInvalidated work failed parentNode.group.node.ref := by
           intro invalid
-          exact healthy (.ancestor known List.mem_cons_self (parentKey ▸ invalid))
-        have earlier := ih (parentKey.symm ▸ parentFound) (tail.symm ▸ parentKnown)
+          exact healthy (.ancestor known List.mem_cons_self (parentRef ▸ invalid))
+        have earlier := ih (parentRef.symm ▸ parentFound) (tail.symm ▸ parentKnown)
           parentHealthy above
         exact earlier.trans edge
 

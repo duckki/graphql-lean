@@ -34,14 +34,14 @@ theorem State.taskSuccess_preparedBufferedStreams {queue : State} {work settled}
     (fun _ => taskLinks)
   have started := accounted.started.putTaskNode
     { node with value := some result.value } registered
-  have preparedLinks := installed.maybeIntegrateWork accounted.keys accounted.taskGroups
+  have preparedLinks := installed.maybeIntegrateWork accounted.refs accounted.taskGroups
     started result.work (some occurrence)
   have initialInventory := inventory node known.1
   have preparedInventory := (inventory.putTaskNode { node with value := some result.value }
     initialInventory.1 initialInventory.2).maybeIntegrateWork result.work (some occurrence)
-  have storedKeys : stored.GroupKeysUnique := accounted.keys
+  have storedRefs : stored.GroupRefsUnique := accounted.refs
   have fold := State.successGroupFold_bufferedStreamsConserved
-    (storedKeys.maybeIntegrateWork result.work (some occurrence)) preparedLinks
+    (storedRefs.maybeIntegrateWork result.work (some occurrence)) preparedLinks
     preparedInventory node.task.groups
   have activation := State.BufferedStreamsConserved.of_emptyOwners
     (released.1.startNewWork_storedOwnersConserved released.2.2) []
@@ -106,7 +106,7 @@ theorem State.taskSuccess_bufferedStreamsConserved {queue : State} {work settled
               ((State.taskNode?_some found).2 ▸ different lookup stored)
             exact State.maybeIntegrateWork_lookup_other retained result.work (some occurrence)
               (fun same => different lookup stored (Option.some.inj same))
-          · exact State.maybeIntegrateWork_includesKeys
+          · exact State.maybeIntegrateWork_includesRefs
               (queue.putTaskNode { node with value := some result.value })
               result.work (some occurrence)
 

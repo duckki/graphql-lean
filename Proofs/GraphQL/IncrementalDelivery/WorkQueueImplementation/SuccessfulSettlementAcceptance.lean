@@ -16,15 +16,15 @@ accounting, cache/cancellation support, and canonical ancestors. Rejection would
 every contributing owner, contradicting the selected healthy one.
 -/
 theorem ExecutedWork.replayGraphEvents_success_healthyOwner
-    {work before occurrence result owners producer payload key}
+    {work before occurrence result owners producer payload ref}
     (generated : ExecutedWork work)
     (valid : ValidGraphEvents work (before ++ [.taskSuccess occurrence result]))
     (started
       : (State.initialize (Work.fromExecution work)).acceptsBatch
           (before ++ [.taskSuccess occurrence result])
         = true)
-    (known : TaskAt work occurrence owners producer payload) (contributes : key ∈ owners)
-    (healthy : ¬GroupInvalidated work (GraphEvent.failureSettlements before) key)
+    (known : TaskAt work occurrence owners producer payload) (contributes : ref ∈ owners)
+    (healthy : ¬GroupInvalidated work (GraphEvent.failureSettlements before) ref)
     : ∃ node,
         ((State.initialize (Work.fromExecution work)).replayGraphEvents before).taskNode?
             occurrence
@@ -61,7 +61,7 @@ theorem ExecutedWork.replayGraphEvents_success_healthyOwner
           exact False.elim (healthy (ledger.owners.rejectedTask_ownersInvalidated
             ledger.pending.matching ledger.supported ledger.cancelled generated
             (ledger.toHealthyCounterAccounting.descriptors canonical) registered unsettled
-            guard key (ownersEq.symm ▸ contributes)))
+            guard ref (ownersEq.symm ▸ contributes)))
 
 -----------------------------------------------------------------------------------------
 -- Actual successful closure provides durable source-ledger health at each earlier input
@@ -84,12 +84,12 @@ theorem ExecutedWork.successfulCarrier_sourceOwnerHealthy
               before).handleGraphEvent
             event).2)
     : ¬GroupInvalidated work (GraphEvent.failureSettlements (before ++ [event]))
-        group.key := by
+        group.ref := by
   obtain ⟨_, _, _, healthy, _⟩ := generated.replayGraphEvents_successfulCarrier_retiredHealthy
     valid (State.acceptsBatch_prefix started) carrier
   intro invalid
   exact healthy ((generated.failureInventories_groupInvalidated_iff _ valid started
-    group.key).mp invalid).toRecordInvalidated
+    group.ref).mp invalid).toRecordInvalidated
 
 /-- Any successful input contributing to a later successful carrier was actually processed.
 Witness: source-prefix freshness/start laws and monotone failure health allow the complete
@@ -110,7 +110,7 @@ theorem ExecutedWork.successfulCarrier_contributorSuccess_accepted
             event).2)
     (prior : (earlier ++ [.taskSuccess occurrence result]).IsPrefix (before ++ [event]))
     (known : TaskAt work occurrence owners producer payload)
-    (contributes : group.key ∈ owners)
+    (contributes : group.ref ∈ owners)
     : ∃ node,
         ((State.initialize (Work.fromExecution work)).replayGraphEvents earlier).taskNode?
             occurrence
@@ -159,7 +159,7 @@ theorem ExecutedWork.successfulCarrier_registeredContributor_processed
       : task
         ∈ ((State.initialize (Work.fromExecution work)).replayGraphEvents
             (before ++ [event])).tasks)
-    (contributes : group.key ∈ task.groups.map Execution.DeliveryNode.key)
+    (contributes : group.ref ∈ task.groups.map Execution.DeliveryNode.ref)
     : ∃ earlier result later node,
         before ++ [event] = earlier ++ .taskSuccess task.occurrence result :: later
         ∧ ((State.initialize (Work.fromExecution work)).replayGraphEvents
@@ -199,7 +199,7 @@ theorem ExecutedWork.successfulCarrier_rootContributor_processed
               before).handleGraphEvent
             event).2)
     (known : TaskAt work (.executionGroup address) owners none payload)
-    (contributes : group.key ∈ owners)
+    (contributes : group.ref ∈ owners)
     : ∃ earlier result later node,
         before ++ [event]
           = earlier ++ .taskSuccess (.executionGroup address) result :: later
@@ -236,7 +236,7 @@ theorem ExecutedWork.successfulCarrier_registeredContributor_prepared
       : task
         ∈ ((State.initialize (Work.fromExecution work)).replayGraphEvents
             (before ++ [event])).tasks)
-    (contributes : group.key ∈ task.groups.map Execution.DeliveryNode.key)
+    (contributes : group.ref ∈ task.groups.map Execution.DeliveryNode.ref)
     : ∃ earlier result later node buffered,
         before ++ [event] = earlier ++ .taskSuccess task.occurrence result :: later
         ∧ (let queue :=
