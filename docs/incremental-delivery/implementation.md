@@ -189,6 +189,35 @@ These are input laws, not output-correctness assumptions. They require neither v
 response lifecycles nor disjointness, reconstruction, initial-notice correctness, or
 admission of the produced output history. They assert no fairness or eventual settlement.
 
+### Optional finite nonblocking
+
+`WorkQueue.Nonblocking` means every admitted output prefix has a finished continuation
+in the same source language. Source validity alone does not imply it: a source admitting
+only empty input remains valid while an initialized empty-stream boundary stays open.
+
+`schedule.NonblockingFor work` is the optional local queue-boundary premise: every admitted
+input prefix whose residual queue has not terminated admits another nonempty input batch.
+`ImplementationNonblocking`, witnessed by `implementationNonblocking_holds` in proofs
+`Nonblocking`, states that a valid source satisfying this premise yields a nonblocking
+queue for nonempty executed work. `createWorkQueueForSchedule_nonblocking` proves the
+transfer even without the execution-generation restriction. Its witnesses are a finite
+fresh-identity budget and exact replay composition. The proof extends the actual input
+prefix, including silent batches, rather than selecting a different realization of its
+output. The host source's
+`finished` predicate is irrelevant; concrete queue state determines output termination.
+
+This premise is stronger than requiring another batch only when a healthy unsettled
+task or a live stream exists. Connecting that weaker host-only premise requires a separate
+no-internal-deadlock argument. `NonblockingReadiness` establishes active-root health and
+exact pending counts; task-start coverage and outstanding-host-work coverage are not yet
+established here. Neither premise is added to `ValidFor` or the conformance contract.
+
+The **nonblocking** names distinguish the two levels: `NonblockingFor` is a local source
+assumption, while `WorkQueue.Nonblocking` is the finished-continuation conclusion. Use
+**readiness** for the internal fact that host work is outstanding. Progress is a broader
+informal category; host responsiveness is not an alias for queue nonblocking. These
+finite existential results assert neither elapsed-time guarantees nor host fairness.
+
 ## Work-queue conformance
 
 The public work-level proposition is:

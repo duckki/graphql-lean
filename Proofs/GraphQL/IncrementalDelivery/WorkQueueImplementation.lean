@@ -328,6 +328,8 @@ import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.RetiredFailure
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.CoveredFailureReports
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.TerminalFailureOrigins
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.TerminalObjectReporting
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.Nonblocking
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.NonblockingReadiness
 
 /-! Topic-organized refinement proofs for the executable reference scheduler.
 

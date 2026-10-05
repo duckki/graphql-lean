@@ -40,6 +40,7 @@ import Tests.GraphQL.IncrementalDelivery.Progress
 import Tests.GraphQL.IncrementalDelivery.NoticeFrontiers
 import Tests.GraphQL.IncrementalDelivery.NoticeCoverage
 import Tests.GraphQL.IncrementalDelivery.Nonblocking
+import Tests.GraphQL.IncrementalDelivery.ImplementationNonblocking
 import Tests.GraphQL.IncrementalDelivery.Minimality
 import Tests.GraphQL.IncrementalDelivery.Independence
 import Tests.GraphQL.IncrementalDelivery.OwnerNormalization

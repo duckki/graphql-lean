@@ -1046,20 +1046,8 @@ inductive ValidGraphEvents (work : Execution.Work) : List GraphEvent → Prop wh
     : ValidGraphEvents work (before ++ [event])
 
 -----------------------------------------------------------------------------------------
--- `createWorkQueueForSchedule` Conformance statement at the level of work and schedule
+-- Host schedule semantics
 -----------------------------------------------------------------------------------------
-
-/-- Work returned by pure root selection-set execution, before any queue observation.
-This includes completed resolver outcomes and is not merely an execution plan.
--/
-def ExecutedWork (work : Execution.Work) : Prop :=
-  ∃ (ObjectRef : Type) (schema : Schema) (resolvers : Execution.Resolvers ObjectRef)
-    (variables : Execution.VariableValues) (fuel : Nat) (parentType : Name)
-    (source : Execution.ResolverValue ObjectRef) (selections : List Selection),
-    ((Execution.executeRootSelectionSetCore schema resolvers variables fuel parentType
-        source selections).run
-      0).1.work
-    = work
 
 /-- Check the host's start/stop discipline without constraining output accounting. -/
 def inputsStarted (work : Execution.Work) (batches : List (List GraphEvent)) : Bool :=
@@ -1091,9 +1079,39 @@ def ValidFor (schedule : EventSource (List GraphEvent)) (work : Execution.Work) 
       schedule.admissible batches
       → ValidGraphEvents work batches.flatten ∧ inputsStarted work batches = true)
 
+/-- The host input language admits another nonempty batch at every unfinished queue
+prefix for `work`. This optional queue-boundary no-stall assumption is separate from
+`ValidFor`; source `finished` is irrelevant. It applies even without a demonstrated
+healthy unsettled task or live stream, so it is stronger than host-only responsiveness.
+Finite queue nonblocking follows using the fresh-event budget, not host timing/fairness.
+-/
+def NonblockingFor (schedule : EventSource (List GraphEvent)) (work : Execution.Work)
+    : Prop :=
+  ∀ inputs,
+    schedule.admissible inputs
+    → ((State.initialize (Work.fromExecution work)).runNormalized inputs).1.terminated
+      ≠ true
+    → ∃ batch, batch ≠ [] ∧ schedule.admissible (inputs ++ [batch])
+
 end EventSource
 
 namespace ReferenceWorkQueue
+
+-----------------------------------------------------------------------------------------
+-- `createWorkQueueForSchedule` Conformance statement at the level of work and schedule
+-----------------------------------------------------------------------------------------
+
+/-- Work returned by pure root selection-set execution, before any queue observation.
+This includes completed resolver outcomes and is not merely an execution plan.
+-/
+def ExecutedWork (work : Execution.Work) : Prop :=
+  ∃ (ObjectRef : Type) (schema : Schema) (resolvers : Execution.Resolvers ObjectRef)
+    (variables : Execution.VariableValues) (fuel : Nat) (parentType : Name)
+    (source : Execution.ResolverValue ObjectRef) (selections : List Selection),
+    ((Execution.executeRootSelectionSetCore schema resolvers variables fuel parentType
+        source selections).run
+      0).1.work
+    = work
 
 /-- The reference queue exposes a conforming observable interface for nonempty executed
 work and a valid graph-event source. Node coherence and valid initial notices are derived
@@ -1107,6 +1125,25 @@ def createWorkQueueForScheduleConforms : Prop :=
     → work.size ≠ 0
     → schedule.ValidFor work
     → (createWorkQueueForSchedule work schedule).Conforms work
+
+-----------------------------------------------------------------------------------------
+-- `createWorkQueueForSchedule` Nonblocking statement
+-----------------------------------------------------------------------------------------
+
+/-- Every admitted output prefix of the reference queue has a finished continuation
+in the same source language, for nonempty executed work and a valid nonstalling source.
+Witness: `implementationNonblocking_holds` in proofs `Nonblocking`, via the finite
+fresh-event budget and exact replay composition. `schedule.NonblockingFor work` is an
+explicit queue-boundary assumption; validity alone does not imply nonblocking. This
+statement asserts neither host fairness nor completion of every possible host run.
+-/
+def ImplementationNonblocking : Prop :=
+  ∀ work schedule,
+    ExecutedWork work
+    → work.size ≠ 0
+    → schedule.ValidFor work
+    → schedule.NonblockingFor work
+    → (createWorkQueueForSchedule work schedule).Nonblocking
 
 -----------------------------------------------------------------------------------------
 -- Implementation correctness statement at the query level
