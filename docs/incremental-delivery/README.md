@@ -333,9 +333,12 @@ from retroactively cancelling a published producer or invalidating an earlier no
 `NodeErrors` counts accepted failures through each completion's boundary.
 
 `AdmissiblePrefix` includes interrupted or stalled histories. `AdmissibleRun` additionally
-accounts for work and emits termination. Value coalescing and work batching preserve the
-atomic explanation. No lifecycle checker, disjointness conclusion, or reconstruction
-property is assumed by admission.
+requires each task to be published or causally cancelled with a positive-error completion
+whose path covers the task's response attachment, then emits termination. Reporting may
+follow cancellation and may cover several unannounced tasks. Value coalescing and work
+batching retain the atomic explanation. No lifecycle checker, response-position coverage
+conclusion, or reconstruction property is assumed by admission. Proof migration for the
+terminal reporting requirement is pending.
 
 See [semantics](semantics.md) for the structural predicates, notice rules, failure
 evidence, optional nonblocking condition, and checked research results. The executable
@@ -432,11 +435,51 @@ zero counted errors.
 | `mergedExecutionEquivalentToBasic` | Complete, error-free observations reconstruct a response equivalent to execution with incremental directives erased. |
 | `deliveredResponsePositionsEquivalentToBasic` | Complete, error-free observations deliver exactly the basic response positions, up to permutation. |
 | `basicLeavesDeliveredExactlyOnce` | Every basic response leaf occurs exactly once in complete, error-free delivery. |
+| `ResponsePositionsDeliveredOrFailed` | Coverage by delivered data or observable failure scopes with valid modeled incremental arguments and an error-free initial envelope; witnessed by `ResponsePositionsDeliveredOrFailed_holds`. |
 
 Directive erasure preserves aliases, selection order, arguments, type conditions,
 ordinary directives, and variable definitions/defaults. These are correctness
-statements proved from the independent contract, not scheduler assumptions.
+statements derived from the independent contract, not scheduler assumptions; the new
+error-aware coverage statement above remains unproved against terminal failure reporting.
 Liveness is conditional on a complete finite run, not a fairness theorem.
+
+The proposed error-aware coverage decoder uses only error-bearing completion IDs and
+their earlier or same-update pending paths. Initial errors must be zero because the
+count-only initial envelope cannot localize them. Later patch errors do not license
+missing branches: those patches already carry data, including nulls. A missing basic
+response position must lie under a failed scope, or be a null ancestor of that scope
+in ordinary execution. Failure scopes remain conservative: a root-scoped notice is
+necessarily broad, and a shared scope can contain data already delivered elsewhere.
+This proposal does not reconstruct detailed error paths, enumerate an unknown stream
+tail, or cover every syntactically possible field independently of runtime execution.
+
+Terminal reporting addresses the shared-owner omission illustrated by the fixture in
+`Tests/GraphQL/IncrementalDelivery/FailureScopes.lean`:
+
+```graphql
+{
+  user { ... @defer(label: "D") { required } }
+  ... @defer(label: "P") {
+    a
+    ... @defer(label: "H") { user { required } b }
+  }
+}
+```
+
+Here `required: String!` fails, while `a` and `b` succeed. Initial data is
+`{ "user": {} }` with zero errors. D at `["user"]` and P at `[]` are announced;
+H is not yet announced. The shared failure invalidates both D and H and cancels H's
+private `b` task. D's error completion and P's `a` payload/successful completion alone
+cannot justify termination: the cancelled `b` task has attachment `[]`, which D's
+`["user"]` failure does not cover. Ordinary execution contains `b`, so allowing that
+termination would leave a missing position unexplained by the wire scopes.
+
+The reference implementation announces H on P's closure and reports H's retained failure
+at the broader root scope. That completion covers the cancelled task. The terminal
+contract now requires such work-level reporting without assuming the client-visible
+coverage proposition itself. The fixture's admission/counterexample proofs await
+migration to a rejection of the omitted-report trace; reference replay and full
+conformance also need verification against the revised contract.
 
 The reference implementation's public `ImplementationCorrect` in
 `WorkQueueImplementation.lean` supplies these assumptions for actual queue/publisher
@@ -449,23 +492,22 @@ witnesses instead of duplicating these statements. See the [implementation bridg
 
 ## Proof status and verification
 
-All 12 public query-correctness witnesses are proved against the current contract:
-directive-free equivalence, finite outcome existence, safety, lifecycle, disjointness,
-coverage, and reconstruction. The build, tests, and lint checks pass, including
-`PublicStatements`, the auxiliary and specialized proofs, and the broader regressions.
-The public-witness axiom audit reports only `propext`, `Classical.choice`, and
-`Quot.sound`, with no `sorryAx` or added axioms.
+The public-definition build checks the terminal reporting revision. Proof/test migration
+is pending: the 12 existing witnesses below, finite progress, reference conformance,
+and the query bridge are not yet verified against it. The witness map identifies the
+modules to rebuild, not a current all-proofs-pass claim. No `sorryAx` or added axioms
+are used to fill the new obligations.
 
-The general mixed-work progress construction is checked. Historical causality agrees
-with the current publication snapshot on an explained history, by
+Existing witness modules include general mixed-work progress and agreement of historical
+causality with the publication snapshot on an explained history, by
 `Explains.nodeFailed_iff_snapshot` and `taskCancelled_iff_snapshot`; their forward
 direction uses the proved exclusion of publications for failed or cancelled tasks.
 
-`Tests.GraphQL.IncrementalDelivery.FailureCutBoundary` proves that a licensed
+`Tests.GraphQL.IncrementalDelivery.FailureCutBoundary` records that a licensed
 failure immediately after a child notice preserves the carrier's admission and the
-explained history. The generic `Explains.record_failure` preservation theorem is checked
+explained history. The generic `Explains.record_failure` witness covers preservation
 as well. Reference-implementation conformance, derived initialization, and the
-implementation-to-query bridge are proved; their details and proof structure are in the
+implementation-to-query bridge have existing witnesses awaiting this rebuild; see the
 [implementation guide](implementation.md#work-queue-conformance).
 
 | Public statement | Witness module (theorem name is the statement plus `_holds`) |
@@ -478,10 +520,21 @@ implementation-to-query bridge are proved; their details and proof structure are
 | `deliverySlicesDisjoint` | `Correctness/QueryDisjointness` |
 | `deliveredResponsePositionsEquivalentToBasic`, `basicLeavesDeliveredExactlyOnce` | `Correctness/QueryCoverage` |
 | `mergedExecutionEquivalentToBasic` | `Correctness/QueryReconstruction` |
+| `ResponsePositionsDeliveredOrFailed` | `Correctness/RecursiveValueCoverage` |
 
 Safety and disjointness cover all admitted prefixes, including failed/interrupted ones.
 Liveness and lifecycle cover complete finite runs, including failures. Reconstruction,
 basic-position coverage, and leaf-once retain the complete, zero-error boundary.
+`Correctness/FailureScopes` proves successful collection of failure scopes for ID-safe
+observations and coverage for zero-total-error runs. `result.collectFailureScopes` resolves
+error-bearing completion IDs to their announced paths; `reference.isNullAt path` recognizes
+existing null ancestors. The full
+`ResponsePositionsDeliveredOrFailed` instead requires an error-free initial
+response and `operation.incrementalArgumentsValid variables`. This narrow input check
+excludes enabled stream count errors after variable defaults; it is not full incremental
+validation. `ResponsePositionsDeliveredOrFailed_holds` connects terminal task reporting to
+observable scopes and ordinary execution's response positions. It permits later errors
+without relying on a global error-count escape hatch.
 These guarantees are universal over admitted owner, completion-order, and batching
 choices.
 Existence instead constructs some complete outcome for every modeled query; it does not

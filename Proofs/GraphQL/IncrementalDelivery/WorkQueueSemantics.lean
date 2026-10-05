@@ -18,6 +18,7 @@ import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.NoticeFrontiers
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.NoticeEligibility
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.NoticeCoverage
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.SingletonOwners
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.SettlementAvailability
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.StreamNotices
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.ReleasedStreamNotices
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.FailureEquivalence

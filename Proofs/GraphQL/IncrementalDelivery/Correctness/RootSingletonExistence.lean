@@ -33,17 +33,18 @@ theorem RootSingletonGroups.toSingletonDefer {work} (shape : RootSingletonGroups
 /-- Coherent root singleton defer work has a complete run even when ancestor dependencies
 prevent initial coverage of all IDs. Witness: specialize the general singleton-defer
 theorem to producer-free work. Outcomes and repeated tasks per ref are
-unrestricted; shared owner lists and nested producers are excluded by the shape premise.
+positive on failures; shared owners and nested producers are excluded by the shape premise.
 -/
-theorem RootSingletonGroups.completeRun_exists
-    {parents bound paths pathBound work}
-    (shape : RootSingletonGroups work)
-    (valid : Valid parents bound) (coherent : MixedRefs.WorkAt parents 0 bound work)
+theorem RootSingletonGroups.completeRun_exists {parents bound base paths pathBound work}
+    (shape : RootSingletonGroups work) (valid : Valid parents bound)
+    (coherent : MixedRefs.WorkAt parents 0 bound work)
     (continuous : DeferContinuous parents work) (ordered : StreamOwnersOrdered work)
     (pathCoherent : MixedOwnerPaths.WorkAt paths pathBound work)
-    (nonempty : work.size ≠ 0)
+    (under : ExecutionPaths.WorkUnder base work)
+    (certified : ScopeMetadata.WorkScoped work)
+    (positive : ExecutionErrors.WorkPositive work) (nonempty : work.size ≠ 0)
     : ∃ history, AdmissibleRun work history :=
   shape.toSingletonDefer.completeRun_exists valid coherent continuous ordered
-    pathCoherent nonempty
+    pathCoherent under certified positive nonempty
 
 end GraphQL.IncrementalDelivery.Correctness

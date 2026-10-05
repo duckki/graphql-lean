@@ -749,13 +749,22 @@ private theorem terminal : Terminal work initial matching atoms failures := by
         : task ∈ failedBefore failures atoms.length := by
       simpa [failedBefore, failures, atoms, outputs] using member
     rcases task_cases known with rfl | rfl | rfl | rfl
-    · exact Or.inl (TaskCancelled.of_recorded first_known (by decide)
-        (atomic_explanation.failed_unpublished (recorded _ (by simp))) (recorded _ (by simp)))
-    · exact Or.inl (TaskCancelled.of_recorded shared_known (by decide)
-        (atomic_explanation.failed_unpublished (recorded _ (by simp))) (recorded _ (by simp)))
+    · refine Or.inl ⟨TaskCancelled.of_recorded first_known (by decide)
+        (atomic_explanation.failed_unpublished (recorded _ (by simp)))
+        (recorded _ (by simp)), ?_⟩
+      rw [(known.unique first_known).2.2, Payload.path]
+      exact ⟨root, 1, by decide, ⟨[], rfl⟩, Or.inl (by simp [atoms, outputs])⟩
+    · refine Or.inl ⟨TaskCancelled.of_recorded shared_known (by decide)
+        (atomic_explanation.failed_unpublished (recorded _ (by simp)))
+        (recorded _ (by simp)), ?_⟩
+      rw [(known.unique shared_known).2.2, Payload.path]
+      exact ⟨other, 1, by decide, ⟨[], rfl⟩, Or.inl (by simp [atoms, outputs])⟩
     · exact Or.inr ⟨2, .groupValues parent [{ path := [], data := data, errors := 0, deliveryGroups := [parent] }], rfl, trivial, rfl⟩
-    · exact Or.inl (TaskCancelled.of_recorded root_known (by decide)
-        (atomic_explanation.failed_unpublished (recorded _ (by simp))) (recorded _ (by simp)))
+    · refine Or.inl ⟨TaskCancelled.of_recorded root_known (by decide)
+        (atomic_explanation.failed_unpublished (recorded _ (by simp)))
+        (recorded _ (by simp)), ?_⟩
+      rw [(known.unique root_known).2.2, Payload.path]
+      exact ⟨root, 1, by decide, ⟨[], rfl⟩, Or.inl (by simp [atoms, outputs])⟩
   · intro node kind dependencies producer known
     apply Or.inl
     rcases node_cases known with rfl | rfl | rfl | rfl <;> decide

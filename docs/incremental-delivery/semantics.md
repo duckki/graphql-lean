@@ -22,6 +22,11 @@ This is a proposed completion of the pinned draft's unspecified queue interface,
 not a claim that the GraphQL specification already states these invariants.
 For the execution/spec cross-reference, see [execution guide](README.md).
 
+**Review status:** public definitions include a terminal failure-reporting requirement.
+Proof and regression migration for this requirement is pending. The theorem references
+below identify existing proof modules, not a completed verification of the revised
+terminal contract.
+
 The [checked research results](#checked-research-results) establish that failure uniqueness
 follows from licensing and event provenance in explained histories. Terminal task
 accounting remains necessary for permissive raw work; nonblocking is a separate
@@ -232,8 +237,8 @@ different successful shared task supported by another healthy group. This is our
 queue-contract interpretation,
 not a new execution algorithm or a claim that the draft specifies internal health checks.
 Matching freshness still prevents publishing one shared occurrence again under another
-owner; `CanPublish` still excludes cancelled work. Correctness and implementation
-conformance are proved with this distinction; see
+owner; `CanPublish` still excludes cancelled work. The correctness and implementation
+conformance witness maps retain this distinction; see
 [shared publication owners](implementation.md#shared-publication-owners).
 
 `TaskAccounted` means one occurrence has been published or causally cancelled.
@@ -299,8 +304,9 @@ predicate under `Or` with a bound producer.
 The least rules cannot manufacture failure by cyclic justification. `failedBefore`
 exposes only failures available at a given cut. Error totals use those justified
 occurrences, not arbitrary error numbers. Public query-correctness witnesses, finite
-progress, auxiliary research results, and reference-queue conformance are checked against
-the current contract. This does not establish refinement of the actual GraphQL.js runtime.
+progress, auxiliary research results, and reference-queue conformance must be rebuilt
+against terminal failure reporting. Neither the contract nor that rebuild establishes
+refinement of the actual GraphQL.js runtime.
 
 The release requirement retains the boundary exposed by two independent defer groups:
 announcing only the successful group must not allow the other, never-announced failing
@@ -323,9 +329,35 @@ not host time.
 
 ### 5. Completion and aggregation remain separate
 
-`Terminal` accounts for every work occurrence by publication or justified
-cancellation. Every structural node is either closed or unannounced and
-failed/accounted for. Only then may a run append the termination event.
+`Terminal` requires each task to have either a publication or both causal cancellation
+and `FailureReportedFor events payload.path`. Every structural node is either closed
+or unannounced and failed/accounted for. Only then may a run append termination.
+
+`Payload.path` is the object task's response attachment or a streamed item's list path.
+An item's structural ordinal is not an absolute response index. `FailureReportedFor`
+requires a positive-error group/stream completion whose node path is a prefix of that
+attachment. `EventAllowed` independently establishes node provenance, prior announcement,
+an open completion ID, and the completion's counted failures. Thus a fabricated scope,
+a zero-error closure, or an error-bearing data patch cannot satisfy terminal reporting.
+
+Cancellation may occur before the notification. Prefix admission, failure cuts,
+publication readiness, and event eligibility are unchanged; the reporting obligation
+is discharged only by a terminal history. No specific notification order, carrier,
+batching policy, or fairness condition is prescribed. This does not require every defer
+or stream usage to be announced: a reported scope may cover several cancelled tasks,
+including tasks belonging to unannounced groups or descendants of cancelled producers.
+
+The requirement rejects a shared-owner omission: a failure reported at `["user"]`
+can invalidate an unannounced group at `[]`, but that report does not explain the group's
+cancelled sibling field `b`. Termination needs a covering completion, such as that group's
+root-scoped failure. The executable reference queue already emits that notice/completion
+in the regression fixture; no implementation algorithm is changed in this review slice.
+
+This is a conservative work-level reporting rule, not a minimality theorem. Requiring
+coverage of the task attachment avoids inspecting precomputed successful response values
+or assuming the desired client-visible conclusion. The ordinary-response comparison,
+null-bubbling exception, actual wire decoding, and batch preservation remain separate
+proof obligations.
 
 `ValueGrouping` and `WorkBatching` retain ordered coalescing and arbitrary
 nonempty batches. Stream coalescing may regroup group/stream notices within
@@ -338,15 +370,14 @@ reconstruction success, response disjointness, or equality to basic execution.
 
 ## Verification and limitations
 
-All 12 public query-correctness witnesses are checked against the current contract,
-including finite progress (`queryOutcomeExists`). History-prefix preservation,
-publication-matching changes, query realization, general mixed-work continuation,
-research and specialized proofs, and broader regressions are covered by the passing
-build, tests, and lint checks. Public-witness axiom audits report only `propext`,
-`Classical.choice`, and `Quot.sound`, with no proof holes or added axioms.
+The public-definition build checks the revised terminal contract. The 12 existing
+query-correctness witnesses, finite progress, history/realization proofs, reference
+conformance, and regressions have not been rebuilt against its reporting requirement.
+The failure-aware client-coverage proposition remains unproved. No proof holes or new
+axioms are introduced to bridge these obligations.
 
-Reference-queue conformance and the implementation-to-query bridge are also proved.
-Their detailed status is maintained in the
+The reference-queue conformance and implementation-to-query bridge need the additional
+terminal reporting witness. Their detailed status is maintained in the
 [implementation guide](implementation.md#work-queue-conformance).
 The [incremental-delivery proof map](README.md#proof-status-and-verification)
 lists the public witnesses. These finite results do not imply host fairness, completion
@@ -379,7 +410,8 @@ ordinary eligibility; a stream may wait until one defer dependency and its full 
 are satisfied. The public contract permits earlier announcement. This witness
 chooses a useful family of histories for existence; it does not restrict admission.
 
-The progress proof uses these checked facts:
+The existing progress proof uses these construction witnesses; finalization must also
+discharge terminal failure reporting:
 
 - `Initialization` and `NoticeFrontiers` provide valid covering initial notices.
 - `GroupAccounting` gives a published contributor to every healthy accounted defer
@@ -407,8 +439,8 @@ Admission assumes no response-correctness conclusion or supported-coverage premi
 
 The work, mapper, and query regressions cover alternative owner/closure choices,
 duplicate rejection, nested cancellation, counted failures, empty streams, shared
-producers, and actual mixed defer/stream/defer/stream observations. Whole-project build
-and lint pass with the current contract.
+producers, and actual mixed defer/stream/defer/stream observations. Their rebuild and
+whole-project verification against terminal failure reporting are pending.
 
 These results do **not** establish:
 
@@ -540,7 +572,8 @@ the completion-entry order inside a coalesced response. Any future partial-order
 must therefore specify its observational quotient explicitly; exact wire equality is
 too strong.
 
-The build, tests, and lint checks pass. The principal research theorems use only Lean's
+The research witness map also awaits the contract rebuild. Existing axiom audits for
+the principal research theorems use only Lean's
 standard axioms
 (`propext`, `Classical.choice`, and `Quot.sound` as needed), with no proof holes or added
 axioms.
@@ -559,5 +592,5 @@ axioms.
   changes are acceptable before generalizing local commutation to trace reduction.
 - **Implementation refinement:** connect an actual host/runtime implementation to the
   proved reference machine, and establish optional nonblocking for its source policy.
-  Reference-machine conformance is proved; see the
+  Reference-machine conformance has a witness awaiting terminal-reporting migration; see the
   [proof structure](implementation.md#proof-structure).

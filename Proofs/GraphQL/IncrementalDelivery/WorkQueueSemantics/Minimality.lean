@@ -86,7 +86,7 @@ theorem failureWitness_iff_nodup_and {work initial matching events failures}
   ⟨fun witness => ⟨witness.nodup unpublished, witness⟩, And.right⟩
 
 -----------------------------------------------------------------------------------------
--- Terminal node accounting suffices when every task has an owner
+-- Node accounting derives internal task accounting, but not observable reporting
 -----------------------------------------------------------------------------------------
 
 /-- The node clause of Terminal, separated only for this redundancy experiment.
@@ -102,19 +102,21 @@ def NodesTerminal (work : Work) (initial : NodeRefs) (matching : PublicationMatc
         ∧ (NodeFailed work matching events failed node.ref
             ∨ NodeAccounted work matching events failed node.ref)
 
-/-- Explained terminal nodes account for every nonempty-owned task. Witness: an
-outstanding task has a healthy unclosed owner, contradicting that owner's terminal clause.
+/-- Explained terminal nodes internally account for every nonempty-owned task.
+Witness: an outstanding task has a healthy unclosed owner, contradicting the node clause.
+This does not derive observable reporting for an unpublished task.
 -/
-theorem terminal_iff_nodes {work groups streams events matching failures}
+theorem NodesTerminal.tasks_accounted {work groups streams events matching failures}
+    (nodes
+      : NodesTerminal work ((groups ++ streams).map DeliveryNode.ref) matching events
+          failures)
     (explained : Explains work groups streams events matching failures)
     (owned
       : ∀ occurrence owners producer payload,
           TaskAt work occurrence owners producer payload → owners ≠ [])
-    : Terminal work ((groups ++ streams).map DeliveryNode.ref) matching events failures
-      ↔ NodesTerminal work ((groups ++ streams).map DeliveryNode.ref) matching events
-          failures := by
-  refine ⟨fun terminal => terminal.2, fun nodes => ⟨?_, nodes⟩⟩
-  intro occurrence owners producer payload known
+    {occurrence owners producer payload}
+    (known : TaskAt work occurrence owners producer payload)
+    : TaskAccounted work matching events failures occurrence := by
   apply Classical.byContradiction
   intro outstanding
   obtain ⟨ref, member, healthy, openRef⟩ :=
@@ -124,5 +126,34 @@ theorem terminal_iff_nodes {work groups streams events matching failures}
   · exact openRef (same ▸ closed)
   · exact healthy (same ▸ failed)
   · exact outstanding (accounted occurrence owners ⟨producer, payload, known⟩ (same.symm ▸ member))
+
+/-- On nonempty-owned work, full termination requires node accounting and observable
+reports for unpublished tasks. Witness: derive internal cancellation from node accounting
+and pair it with reporting; conversely project both requirements from Terminal.
+Unlike internal task accounting, the reporting conjunct is not redundant.
+-/
+theorem terminal_iff_nodes_and_reporting {work groups streams events matching failures}
+    (explained : Explains work groups streams events matching failures)
+    (owned
+      : ∀ occurrence owners producer payload,
+          TaskAt work occurrence owners producer payload → owners ≠ [])
+    : Terminal work ((groups ++ streams).map DeliveryNode.ref) matching events failures
+      ↔ NodesTerminal work ((groups ++ streams).map DeliveryNode.ref) matching events
+          failures
+        ∧ ∀ occurrence owners producer payload,
+            TaskAt work occurrence owners producer payload
+            → ¬Published matching events occurrence
+            → FailureReportedFor events payload.path := by
+  constructor
+  · intro terminal
+    exact ⟨terminal.2, fun _ _ _ _ known unpublished =>
+      terminal.failure_reported known unpublished⟩
+  · rintro ⟨nodes, reported⟩
+    refine ⟨?_, nodes⟩
+    intro occurrence owners producer payload known
+    by_cases published : Published matching events occurrence
+    · exact Or.inr published
+    · exact Or.inl ⟨(nodes.tasks_accounted explained owned known).resolve_right published,
+        reported _ _ _ _ known published⟩
 
 end GraphQL.IncrementalDelivery.WorkQueueSemantics

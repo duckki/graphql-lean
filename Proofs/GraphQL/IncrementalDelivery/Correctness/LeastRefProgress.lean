@@ -212,12 +212,13 @@ theorem maximal_outstanding_eligible
   apply maximal_dependency_satisfied explained maximal smallerHealthy
   exact least smaller (by simpa only [same] using before) smallerHealthy
 
-/-- A maximal generated-work history with no eligible unannounced notices is terminal.
+/-- A maximal coherent history with no eligible notices accounts for tasks and closes IDs.
 Witness: the least-ref obstruction rules out outstanding tasks, then every open node
-would admit a completion. This is a conditional criterion, not a scheduler assumption.
+would admit a completion. This does not establish observable cancellation reporting:
+accounting and closed IDs alone are insufficient for the terminal contract.
 The general mixed-run construction uses the weaker supported-notice coverage witness.
 -/
-theorem maximal_no_eligible_terminal
+theorem maximal_no_eligible_accounted_and_closed
     {parents bound paths pathBound work groups streams events matching failures}
     (valid : Valid parents bound) (coherent : MixedRefs.WorkAt parents 0 bound work)
     (continuous : DeferContinuous parents work) (ordered : StreamOwnersOrdered work)
@@ -230,8 +231,14 @@ theorem maximal_no_eligible_terminal
           NodeAt work node kind dependencies birth
           → ¬CanAnnounce work ((groups ++ streams).map DeliveryNode.ref) matching events
               failures node kind dependencies birth)
-    : Terminal work ((groups ++ streams).map DeliveryNode.ref) matching events
-        failures := by
+    : (∀ occurrence owners producer payload,
+        TaskAt work occurrence owners producer payload
+        → TaskAccounted work matching events failures occurrence)
+      ∧ ∀ node kind dependencies birth,
+          NodeAt work node kind dependencies birth
+          → node.ref ∈ completedRefs events
+            ∨ (node.ref ∉ announcedRefs ((groups ++ streams).map DeliveryNode.ref) events
+                ∧ NodeAccounted work matching events failures node.ref) := by
   classical
   have accounted : ∀ occurrence owners producer payload,
       TaskAt work occurrence owners producer payload →
@@ -251,7 +258,7 @@ theorem maximal_no_eligible_terminal
     exact accounted occurrence owners producer payload known
   by_cases closed : node.ref ∈ completedRefs events
   · exact Or.inl closed
-  · refine Or.inr ⟨?_, Or.inr nodeAccounted⟩
+  · refine Or.inr ⟨?_, nodeAccounted⟩
     intro announced
     obtain ⟨event, allowed, _, _, _⟩ := completion_exists descriptor
       ⟨announced, closed⟩ nodeAccounted

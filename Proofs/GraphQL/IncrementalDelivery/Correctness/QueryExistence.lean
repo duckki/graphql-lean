@@ -110,15 +110,16 @@ theorem queryObservation_exists (schema : Schema) (resolvers : Resolvers ObjectR
     simp [applies]
 
 -----------------------------------------------------------------------------------------
--- Complete raw-work observations are equivalent to task-accounted histories
+-- Complete observations correspond to internally accounted and reported histories
 -----------------------------------------------------------------------------------------
 
 /-- A complete observation exists exactly when work is empty or an explained history
-accounts for all tasks. Witness: terminal-history realization and constructive completion
-of every remaining open node, retaining the failure cuts and publication matching.
+accounts for all tasks and reports cancelled attachments. Witness: terminal-history
+realization and completion of every remaining open node, retaining the failure cuts
+and publication matching.
 Closing IDs is a conclusion, not a premise on this history.
 -/
-theorem completeObservation_exists_iff_accounted_history (response : Response)
+theorem completeObservation_exists_iff_reported_history (response : Response)
     (work : Work)
     : (∃ scheduler : (Execution.Work → Execution.WorkQueue),
         ∃ result : ExecutionObservation,
@@ -129,9 +130,11 @@ theorem completeObservation_exists_iff_accounted_history (response : Response)
             WorkQueueSemantics.Explains work groups streams events matching failures
             ∧ ∀ occurrence owners producer payload,
                 WorkQueueSemantics.TaskAt work occurrence owners producer payload
-                → WorkQueueSemantics.TaskAccounted work matching events failures
-                    occurrence := by
+                → (WorkQueueSemantics.TaskCancelled work matching events failures
+                      occurrence
+                    ∧ WorkQueueSemantics.FailureReportedFor events payload.path)
+                  ∨ WorkQueueSemantics.Published matching events occurrence := by
   rw [completeObservation_exists_iff,
-    WorkQueueSemantics.admissibleRun_exists_iff_accounted_history]
+    WorkQueueSemantics.admissibleRun_exists_iff_reported_history]
 
 end GraphQL.IncrementalDelivery.Correctness

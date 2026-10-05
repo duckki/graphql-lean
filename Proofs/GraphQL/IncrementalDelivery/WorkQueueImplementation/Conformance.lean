@@ -1,5 +1,6 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.TerminalGeneratedTasks
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.ConstructorInitialization
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.TerminalObjectReporting
 
 /-! The executable reference queue satisfies the public WorkQueue contract. -/
 
@@ -36,10 +37,11 @@ theorem terminal_nodes_of_tasks {work inputs w}
 -- One canonical witness discharges every construction leaf jointly
 -----------------------------------------------------------------------------------------
 
-/-- Every generated valid started replay has all seven compatible conformance certificates.
+/-- Every generated valid started replay has all eight compatible conformance certificates.
 Witness: retain the full admission construction's exact history, matching, ledger, and cuts.
 Producer-rank induction supplies terminal task accounting; actual tracking and contributor
-coverage supply terminal node accounting. No construction leaf remains an assumption.
+coverage supply terminal node accounting. Actual failure origins, stream closure, and
+producer inheritance supply cancellation reports. No construction leaf remains an assumption.
 -/
 theorem replayWitnessExists_holds : ReplayWitnessExists := by
   intro work inputs premises
@@ -53,7 +55,9 @@ theorem replayWitnessExists_holds : ReplayWitnessExists := by
     premises.started history publications ledger explained visible ended
   exact ⟨w, shape, announced, uncancelled, publications, controls, tasks,
     fun ended => terminal_nodes_of_tasks premises.generated premises.valid premises.started
-      history ended (tasks ended)⟩
+      history ended (tasks ended),
+    fun ended => terminal_cancellationReporting premises.generated premises.valid
+      premises.started history publications ledger explained ended⟩
 
 end ConformancePlan
 

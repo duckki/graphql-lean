@@ -11,6 +11,11 @@ open GraphQL.IncrementalDelivery.Execution
 example (schema : Schema) (operation : Operation) : queryOutcomeExists schema operation :=
   queryOutcomeExists_holds schema operation
 
+/-- Error-aware coverage retains its public type under the shorter statement name. -/
+example (schema : Schema) (operation : Operation)
+    : ResponsePositionsDeliveredOrFailed schema operation :=
+  ResponsePositionsDeliveredOrFailed_holds schema operation
+
 /-- Directive-free equivalence needs no premises beyond its public statement. -/
 example (schema : Schema) (operation : Operation)
     : incrementalDirectiveFreeExecutionEquivalentToBasic schema operation :=
@@ -117,5 +122,7 @@ example
     resolvers variables fuel source createWorkQueue result conforms observed zero
 
 end SuccessfulOutcomes
+
+#print axioms queryOutcomeExists_holds
 
 end GraphQL.IncrementalDelivery.Tests.PublicStatements

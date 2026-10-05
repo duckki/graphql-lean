@@ -81,14 +81,17 @@ example (first second : Result (List (Name × ResponseValue)))
 -- Complete runs through produced values and reused owner IDs
 -----------------------------------------------------------------------------------------
 
-/-- Nested task-producing defer work admits a terminal history for both arbitrary
-outcomes. Witness: the singleton-defer progress theorem and explicit ancestry metadata.
+/-- Nested defer work admits a terminal history for positive-failure outcomes.
+Witness: singleton-defer progress with explicit ancestry and scope metadata.
 No initial notice, preselected history, or successful outcome is assumed.
 -/
 theorem nested_run_exists (first second : Result (List (Name × ResponseValue)))
+    (firstPositive : BasicErrors.PositiveFailure first)
+    (secondPositive : BasicErrors.PositiveFailure second)
     : ∃ history, AdmissibleRun (work first second) history := by
   apply (Tree.singleton_defer (by simp [Tree, work])).completeRun_exists
-    (parents := ancestors) (bound := 2) (paths := fun _ => []) (pathBound := 2)
+    (parents := ancestors) (bound := 2) (base := []) (paths := fun _ => [])
+    (pathBound := 2)
   · intro ref bounded parent member
     by_cases same : ref = 1
     · simp [ancestors, same] at member
@@ -100,6 +103,10 @@ theorem nested_run_exists (first second : Result (List (Name × ResponseValue)))
   · simp [work, StreamOwnersOrdered, OwnersBefore]
   · simp [work, MixedOwnerPaths.WorkAt, OwnerPaths.MapAt, OwnerPaths.mapNodes,
       OwnerPaths.fragmentNodes, OwnerPaths.Assigned, Below, node]
+  · simp [work, ExecutionPaths.WorkUnder]
+  · simp [work, ScopeMetadata.WorkScoped, ScopeMetadata.MapScoped,
+      ScopeMetadata.FragmentScoped, node]
+  · simpa [work, ExecutionErrors.WorkPositive] using ⟨firstPositive, secondPositive⟩
   · simp [work, Work.size]
 
 /-- A produced child can reuse its producer's owner, repeating that node descriptor. -/
@@ -111,15 +118,22 @@ def reused (first second : Result (List (Name × ResponseValue))) : Work :=
 with empty ancestry; both tasks must be accounted for before their shared ID closes.
 -/
 example (first second : Result (List (Name × ResponseValue)))
+    (firstPositive : BasicErrors.PositiveFailure first)
+    (secondPositive : BasicErrors.PositiveFailure second)
     : ∃ history, AdmissibleRun (reused first second) history := by
   apply (Tree.singleton_defer (by simp [Tree, reused])).completeRun_exists
-    (parents := fun _ => []) (bound := 1) (paths := fun _ => []) (pathBound := 1)
+    (parents := fun _ => []) (bound := 1) (base := []) (paths := fun _ => [])
+    (pathBound := 1)
   · simp [Valid]
   · simp [reused, MixedRefs.WorkAt, FragmentAt, node]
   · simp [reused, DeferContinuous, DeferUnder, Descends, mapRefs, node]
   · simp [reused, StreamOwnersOrdered, OwnersBefore]
   · simp [reused, MixedOwnerPaths.WorkAt, OwnerPaths.MapAt, OwnerPaths.mapNodes,
       OwnerPaths.fragmentNodes, OwnerPaths.Assigned, Below, node]
+  · simp [reused, ExecutionPaths.WorkUnder]
+  · simp [reused, ScopeMetadata.WorkScoped, ScopeMetadata.MapScoped,
+      ScopeMetadata.FragmentScoped, node]
+  · simpa [reused, ExecutionErrors.WorkPositive] using ⟨firstPositive, secondPositive⟩
   · simp [reused, Work.size]
 
 /-- Constructed nested histories realize actual complete response streams, including
@@ -127,12 +141,15 @@ producer failures that cancel the child. Witness: raw progress followed by sourc
 realization; the mapper and response batching remain the actual implementation.
 -/
 example (response : Response) (first second : Result (List (Name × ResponseValue)))
+    (firstPositive : BasicErrors.PositiveFailure first)
+    (secondPositive : BasicErrors.PositiveFailure second)
     : ∃ scheduler : (Execution.Work → Execution.WorkQueue),
       ∃ observed : ExecutionObservation,
         ((work first second).size ≠ 0
           → (scheduler (work first second)).Conforms (work first second))
         ∧ (executionFromWork scheduler response (work first second)).Observes observed
             true :=
-  (completeObservation_exists_iff _ _).mpr (Or.inr (nested_run_exists first second))
+  (completeObservation_exists_iff _ _).mpr
+    (Or.inr (nested_run_exists first second firstPositive secondPositive))
 
 end GraphQL.IncrementalDelivery.Tests.SingletonDeferExistence

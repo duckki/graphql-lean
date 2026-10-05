@@ -333,8 +333,9 @@ theorem failedRun
     | succ index => simp at selected
   · constructor
     · intro occurrence owners producer payload known
-      obtain ⟨rfl, _, _, _⟩ := task_single known
-      exact Or.inl cancelled
+      obtain ⟨rfl, _, _, rfl⟩ := task_single known
+      exact Or.inl ⟨cancelled, node, 2, by decide, ⟨[], rfl⟩,
+        Or.inl (by simp [failure])⟩
     · intro other kind parents birth known
       obtain ⟨rfl, _, _, _⟩ := node_single known
       exact Or.inl (by simp [completedRefs, eventCompleted, failure])

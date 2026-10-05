@@ -44,6 +44,60 @@ instance (operation : Operation) : Decidable operation.incrementalDirectiveFree 
     (Decidable (SelectionSet.hasIncrementalDirectives operation.selectionSet = false))
 
 -----------------------------------------------------------------------------------------
+-- Narrow version of operation validity for `@stream`'s `initialCount` argument
+-----------------------------------------------------------------------------------------
+
+/-- Exclude the modeled @stream argument-error branch. Only an explicitly false condition
+disables the count check; otherwise the resolved count must be a nonnegative integer.
+Other directives have no incremental argument-error branch in this model.
+-/
+def DirectiveApplication.hasValidIncrementalArguments
+    (variables : Execution.VariableValues)
+    : DirectiveApplication → Bool
+  | .stream condition _ count =>
+      Execution.inputValueBoolean? variables condition == some false
+      || (Execution.streamInitialCount? variables count).isSome
+  | _ => true
+
+mutual
+  /-- Check every directive and nested selection, including skipped/unreachable syntax.
+  This conservative check does not validate directive placement, conditions, or labels.
+  -/
+  def Selection.hasValidIncrementalArguments (variables : Execution.VariableValues)
+      : Selection → Bool
+    | .field _ _ _ directives children | .inlineFragment _ directives children =>
+        directives.all (DirectiveApplication.hasValidIncrementalArguments variables)
+        && SelectionSet.hasValidIncrementalArguments variables children
+
+  /-- Check all selections using the same prepared variable bindings. -/
+  def SelectionSet.hasValidIncrementalArguments (variables : Execution.VariableValues)
+      : List Selection → Bool
+    | [] => true
+    | selection :: rest =>
+        selection.hasValidIncrementalArguments variables
+        && SelectionSet.hasValidIncrementalArguments variables rest
+end
+
+/-- A narrow correctness input premise, not full incremental validation: enabled stream
+counts cannot produce an argument error. Materialize operation defaults before checking;
+missing count variables use the modeled directive default, while explicit null is invalid.
+-/
+def Operation.incrementalArgumentsValid (operation : Operation)
+    (variables : Execution.VariableValues)
+    : Prop :=
+  SelectionSet.hasValidIncrementalArguments
+    (Execution.coerceVariableValues operation variables) operation.selectionSet
+  = true
+
+instance (operation : Operation) (variables : Execution.VariableValues)
+    : Decidable (operation.incrementalArgumentsValid variables) :=
+  inferInstanceAs
+    (Decidable
+      (SelectionSet.hasValidIncrementalArguments
+          (Execution.coerceVariableValues operation variables) operation.selectionSet
+        = true))
+
+-----------------------------------------------------------------------------------------
 -- Removing incremental directives
 -----------------------------------------------------------------------------------------
 
@@ -87,6 +141,24 @@ def Operation.eraseIncrementalDirectives (operation : Operation) : GraphQL.Opera
   }
 
 namespace Execution
+
+/-- Recognize an existing null position in a response, following aliases and list indices.
+Missing paths and paths descending through null return false. This distinguishes an
+error-bubbled ancestor from an unrelated missing field when comparing failure scopes.
+Defined on the underlying response value so receiver notation also works for the shared
+incremental response-value abbreviation.
+-/
+def _root_.GraphQL.Execution.ResponseValue.isNullAt : ResponseValue → ResponsePath → Bool
+  | .null, [] => true
+  | .object data, .field name :: rest =>
+      match data.find? (fun field => field.1 == name) with
+      | some field => field.2.isNullAt rest
+      | none => false
+  | .list data, .index index :: rest =>
+      match data[index]? with
+      | some item => item.isNullAt rest
+      | none => false
+  | _, _ => false
 
 -----------------------------------------------------------------------------------------
 -- Response positions
@@ -387,6 +459,69 @@ instance (result : ExecutionObservation) : Decidable result.completedWithoutErro
   inferInstanceAs (Decidable (result.lifecycleValid = true ∧ result.totalErrors = 0))
 
 -----------------------------------------------------------------------------------------
+-- Observable failure scopes and response-position coverage
+-----------------------------------------------------------------------------------------
+
+namespace DeliveryTrace
+
+/-- Resolve error-bearing completion IDs to their earlier or same-update pending paths.
+Successful or error-free completions add no failure scope. Missing announcements return
+none; future notices cannot justify an earlier completion. No internal work or failure
+witness is inspected.
+-/
+def collectFailureScopes (notices : List IncrementalPendingNotice)
+    : List IncrementalStreamUpdateResult → Option (List ResponsePath)
+  | [] => some []
+  | update :: rest => do
+      let available := notices ++ update.pending
+      let scopes ←
+        (update.completed.filter (fun completion => completion.errors > 0)).mapM
+          fun completion => do
+            let notice ← available.find? (fun notice => notice.id == completion.id)
+            return notice.path
+      let subsequent ← collectFailureScopes available rest
+      return scopes ++ subsequent
+
+end DeliveryTrace
+
+/-- Errors in the ordinary response or initial incremental envelope, before any updates.
+The count-only model cannot localize these errors to a smaller response region.
+-/
+def ExecutionObservation.initialErrors : ExecutionObservation → Nat
+  | .single response => response.errors
+  | .incremental initial _ => initial.errors
+
+/-- Observable failed-delivery scopes, collected from completion IDs with positive
+error counts and their pending paths. Ordinary responses have no incremental scopes.
+Errors attached to data patches are not failure scopes: those patches deliver data,
+including explicit nulls. Propagated cancellations may instead be covered by an earlier
+failed scope. This does not enumerate the precise failing or cancelled fields.
+-/
+def ExecutionObservation.collectFailureScopes
+    : ExecutionObservation → Option (List ResponsePath)
+  | .single _ => some []
+  | .incremental initial subsequent =>
+      DeliveryTrace.collectFailureScopes initial.pending subsequent
+
+/-- Every position in the reference response is delivered or covered by an observable
+failed-delivery scope. Descendants of a failed scope may be missing; a null reference
+ancestor may also be explained by a failure below it, reflecting ordinary null bubbling.
+Other ancestors and unrelated branches are not covered by that descendant failure.
+Coverage is conservative, not a claim that every position in a failed scope is missing,
+and uses no internal cancellation evidence or global total-error shortcut.
+-/
+def ExecutionObservation.AddressesResponsePositions (result : ExecutionObservation)
+    (containers : Bool) (reference : ResponseValue)
+    : Prop :=
+  ∃ slices scopes,
+    result.DeliversSlices containers slices
+    ∧ result.collectFailureScopes = some scopes
+    ∧ ∀ path ∈ ResponsePositions.value containers [] reference,
+        path ∈ slices.flatten
+        ∨ ∃ scope ∈ scopes,
+            scope.IsPrefix path ∨ reference.isNullAt path = true ∧ path.IsPrefix scope
+
+-----------------------------------------------------------------------------------------
 -- Response reconstruction
 -----------------------------------------------------------------------------------------
 
@@ -616,6 +751,35 @@ def deliveryLifecycleValid (schema : Schema) (operation : Operation) : Prop :=
       source
     → queryOutcome createWorkQueue schema resolvers variables operation fuel source result
     → result.lifecycleValid = true
+
+-----------------------------------------------------------------------------------------
+-- Correctness statements: error-aware complete execution
+-----------------------------------------------------------------------------------------
+
+/-- With valid modeled incremental arguments and an error-free initial response, every
+ordinary response position is delivered or covered by a failed completion's announced scope.
+The comparison uses directive-erased execution with the same inputs and fuel; it does
+not enumerate syntactically possible fields or an unknown stream tail. Null reference
+ancestors may be explained by a failed scope below them. Completion scopes are coarse
+because errors are counts, not error paths; a root-scoped failure remains root-scoped.
+Neither later errors nor internal failure witnesses alone excuse a missing position.
+Witness: `ResponsePositionsDeliveredOrFailed_holds` in `RecursiveValueCoverage`
+combines pure mixed-execution coverage with terminal failure-scope reporting. This is a
+conclusion of the independent queue contract, not an additional conformance premise.
+-/
+def ResponsePositionsDeliveredOrFailed (schema : Schema) (operation : Operation) : Prop :=
+  ∀ {ObjectRef : Type} (resolvers : Resolvers ObjectRef)
+    variables fuel (source : ResolverValue ObjectRef)
+    createWorkQueue result,
+    operation.incrementalArgumentsValid variables
+    → queryWorkQueueConforms createWorkQueue schema resolvers variables operation fuel
+        source
+    → queryOutcome createWorkQueue schema resolvers variables operation fuel source result
+    → result.initialErrors = 0
+    → ∀ containers,
+        result.AddressesResponsePositions containers
+          (GraphQL.Execution.executeQueryWithFuel schema resolvers variables
+            operation.eraseIncrementalDirectives fuel source).data
 
 -----------------------------------------------------------------------------------------
 -- Correctness statements: successful complete execution

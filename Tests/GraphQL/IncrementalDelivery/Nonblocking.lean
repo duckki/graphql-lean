@@ -149,7 +149,7 @@ theorem no_complete_run (batches : List (List WorkQueueEvent))
   have task : TaskAt work (.item [1] 0) [1] none (.item (node 1) (.ok (.null, 0))) :=
     .item (.right .root) rfl
   rcases terminal.1 _ _ _ _ task with cancelled | published
-  · exact cancelled.nonempty rfl
+  · exact cancelled.1.nonempty rfl
   · exact (no_publications explained).2 _ published
 
 /-- The maximal source conforms but is not nonblocking. Witness: its admitted empty

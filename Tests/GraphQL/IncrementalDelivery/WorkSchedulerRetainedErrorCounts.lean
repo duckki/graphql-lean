@@ -680,20 +680,26 @@ private theorem terminal : Terminal work initial matching events failures := by
   constructor
   · intro occurrence owners producer payload known
     rcases task_cases known with rfl | rfl | rfl
-    · apply Or.inl
-      refine ⟨0, by simp [failures], by simp, ?_⟩
-      apply Causality.TaskCancelled.owners ⟨_, _, first_known⟩
-        (by simp [Published]) (by simp)
-      intro ref member
-      exact Causality.NodeFailed.task ⟨_, _, first_known⟩ member
-        (by simp [failedBefore, failures])
-    · apply Or.inl
-      refine ⟨0, by simp [failures], by simp, ?_⟩
-      apply Causality.TaskCancelled.owners ⟨_, _, second_known⟩
-        (by simp [Published]) (by simp)
-      intro ref member
-      exact Causality.NodeFailed.task ⟨_, _, second_known⟩ member
-        (by simp [failedBefore, failures])
+    · refine Or.inl ⟨?_, ?_⟩
+      · refine ⟨0, by simp [failures], by simp, ?_⟩
+        apply Causality.TaskCancelled.owners ⟨_, _, first_known⟩
+          (by simp [Published]) (by simp)
+        intro ref member
+        exact Causality.NodeFailed.task ⟨_, _, first_known⟩ member
+          (by simp [failedBefore, failures])
+      · rw [(known.unique first_known).2.2, Payload.path]
+        exact ⟨firstRoot, 1, by decide, ⟨[], rfl⟩,
+          Or.inl (by simp [events, batches])⟩
+    · refine Or.inl ⟨?_, ?_⟩
+      · refine ⟨0, by simp [failures], by simp, ?_⟩
+        apply Causality.TaskCancelled.owners ⟨_, _, second_known⟩
+          (by simp [Published]) (by simp)
+        intro ref member
+        exact Causality.NodeFailed.task ⟨_, _, second_known⟩ member
+          (by simp [failedBefore, failures])
+      · rw [(known.unique second_known).2.2, Payload.path]
+        exact ⟨secondRoot, 2, by decide, ⟨[], rfl⟩,
+          Or.inl (by simp [events, batches])⟩
     · exact Or.inr ⟨2, .groupValues parent [{ path := [], data := data, errors := 0, deliveryGroups := [parent] }], rfl, trivial, rfl⟩
   · intro node kind dependencies producer known
     apply Or.inl

@@ -25,14 +25,20 @@ def nested (outer middle inner : Result ResponseValue) : Work :=
         (.stream (node 3) [])
     )]
 
-/-- All fixture outcomes admit a complete run, including raw zero-count errors.
+/-- Positive failing outcomes admit a complete run through all fixture nesting levels.
 Witness: the arbitrary-nesting existence theorem, without a supplied output history.
 -/
 theorem nested_run_exists (outer middle inner : Result ResponseValue)
+    (outerPositive : BasicErrors.PositiveFailure outer)
+    (middlePositive : BasicErrors.PositiveFailure middle)
+    (innerPositive : BasicErrors.PositiveFailure inner)
     : ∃ history, AdmissibleRun (nested outer middle inner) history := by
   apply StreamOnly.completeRun_exists (paths := fun _ => []) (bound := 4)
   · simp [StreamOnly, nested]
   · simp [MixedOwnerPaths.WorkAt, OwnerPaths.Assigned, nested, node]
+  · simp [ExecutionPaths.WorkUnder, ExecutionPaths.ItemsUnder, nested, node]
+  · simp [ExecutionErrors.WorkPositive, ExecutionErrors.ItemsPositive, nested,
+      outerPositive, middlePositive, innerPositive]
   · simp [nested, Work.size]
 
 /-- The child stream cannot be announced initially: its producer is still unpublished.
@@ -52,13 +58,48 @@ queue constructor. Witness: terminal-run realization after constructive stream p
 example (response : Response)
     : ∃ scheduler : (Execution.Work → Execution.WorkQueue),
       ∃ observed : ExecutionObservation,
-        ((nested (.ok (.null, 0)) (.error 0) (.ok (.null, 0))).size ≠ 0
-          → (scheduler (nested (.ok (.null, 0)) (.error 0) (.ok (.null, 0)))).Conforms
-              (nested (.ok (.null, 0)) (.error 0) (.ok (.null, 0))))
+        ((nested (.ok (.null, 0)) (.error 1) (.ok (.null, 0))).size ≠ 0
+          → (scheduler (nested (.ok (.null, 0)) (.error 1) (.ok (.null, 0)))).Conforms
+              (nested (.ok (.null, 0)) (.error 1) (.ok (.null, 0))))
         ∧ (executionFromWork scheduler response
-            (nested (.ok (.null, 0)) (.error 0) (.ok (.null, 0)))).Observes
-            observed true :=
-  (completeObservation_exists_iff _ _).mpr (Or.inr (nested_run_exists _ _ _))
+            (nested (.ok (.null, 0)) (.error 1) (.ok (.null, 0)))).Observes
+            observed true := by
+  apply (completeObservation_exists_iff _ _).mpr
+  exact Or.inr
+    (nested_run_exists _ _ _ (by simp [BasicErrors.PositiveFailure])
+      (by simp [BasicErrors.PositiveFailure]) (by simp [BasicErrors.PositiveFailure]))
+
+/-- An outer failure covers unannounced descendants at deeper response attachments.
+Witness: positive counts, coherent refs, and the structural attachment-prefix certificate;
+the existence proof constructs the report rather than assuming a terminal history.
+-/
+example
+    : ∃ history,
+        AdmissibleRun
+          (.stream { ref := 0, path := [.field "rows"] }
+            [(
+              .error 1,
+              .stream { ref := 1, path := [.field "rows", .index 0, .field "items"] }
+                [(.ok (.null, 0), .empty)]
+            )]) history := by
+  apply StreamOnly.completeRun_exists
+    (paths := fun ref => if ref = 0 then [.field "rows"]
+      else [.field "rows", .index 0, .field "items"]) (bound := 2)
+  · simp [StreamOnly]
+  · simp [MixedOwnerPaths.WorkAt, OwnerPaths.Assigned]
+  · simp [ExecutionPaths.WorkUnder, ExecutionPaths.ItemsUnder]
+  · simp [ExecutionErrors.WorkPositive, ExecutionErrors.ItemsPositive,
+      BasicErrors.PositiveFailure]
+  · decide
+
+/-- A raw child at an unrelated attachment does not satisfy generated-work locality.
+Witness: the parent's left scope is not a prefix of its child's right attachment.
+-/
+example
+    : ¬ExecutionPaths.WorkUnder []
+        (.stream { ref := 0, path := [.field "left"] }
+          [(.error 1, .stream { ref := 1, path := [.field "right"] } [])]) := by
+  simp [ExecutionPaths.WorkUnder, ExecutionPaths.ItemsUnder]
 
 /-- Notice coverage is not vacuous on control-only suffixes: reporting more failures
 preserves it without announcing cancelled descendants. Witness: health monotonicity.
@@ -69,5 +110,9 @@ example {work initial matching events failed more}
     : DependencyFreeStreamsNotified work initial matching
         (events ++ [.streamFailure stream errors]) more :=
   covered.append_control (by simp [IsValue]) included
+
+#print axioms StreamOnly.snapshot_cancelled_reported
+#print axioms StreamOnly.cancelled_reported
+#print axioms StreamOnly.completeRun_exists
 
 end GraphQL.IncrementalDelivery.Tests.NestedStreamExistence

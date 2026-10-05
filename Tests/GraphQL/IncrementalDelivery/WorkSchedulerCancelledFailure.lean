@@ -1058,16 +1058,20 @@ private theorem terminal : Terminal work initial matching events failures := by
   constructor
   · intro occurrence owners producer payload known
     rcases task_cases known with rfl | rfl | rfl
-    · apply Or.inl
-      refine ⟨0, by simp [failures], by simp, ?_⟩
-      apply Causality.TaskCancelled.owners ⟨_, _, first_known⟩
-        (by simp [Published]) (by simp)
-      intro ref member
-      exact .task ⟨_, _, first_known⟩ member (by simp [failedBefore, failures])
-    · apply Or.inl
-      apply second_cancelled (cut := 0) (by simp [failures]) (by simp)
-      rintro ⟨_, _, _, _, same⟩
-      simp [matching, parentTask, secondTask] at same
+    · refine Or.inl ⟨?_, ?_⟩
+      · refine ⟨0, by simp [failures], by simp, ?_⟩
+        apply Causality.TaskCancelled.owners ⟨_, _, first_known⟩
+          (by simp [Published]) (by simp)
+        intro ref member
+        exact .task ⟨_, _, first_known⟩ member (by simp [failedBefore, failures])
+      · rw [(known.unique first_known).2.2, Payload.path]
+        exact ⟨root, 1, by decide, ⟨[], rfl⟩, Or.inl (by simp [events])⟩
+    · refine Or.inl ⟨?_, ?_⟩
+      · apply second_cancelled (cut := 0) (by simp [failures]) (by simp)
+        rintro ⟨_, _, _, _, same⟩
+        simp [matching, parentTask, secondTask] at same
+      · rw [(known.unique second_known).2.2, Payload.path]
+        exact ⟨root, 1, by decide, ⟨[], rfl⟩, Or.inl (by simp [events])⟩
     · exact Or.inr ⟨1, .groupValues parent [{ path := [], data := data, errors := 0, deliveryGroups := [parent] }], rfl, trivial, rfl⟩
   · intro node kind dependencies producer known
     rcases node_cases known with rfl | rfl | rfl | rfl | rfl

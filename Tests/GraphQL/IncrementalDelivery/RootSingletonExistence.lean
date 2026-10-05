@@ -88,14 +88,16 @@ theorem root_singleton (first second : Result (List (Name × ResponseValue)))
 /-- Ref one has the complete strict ancestry list containing ref zero. -/
 def ancestors (ref : NodeRef) : NodeRefs := if ref = 1 then [0] else []
 
-/-- Every pair of fixed outcomes admits a terminal history despite delayed child-ID
+/-- Every pair of positive-failure outcomes admits a terminal history despite delayed ID
 announcement. Witness: the root-singleton existence theorem with explicit coherent
 ancestry metadata, not an assumed history or an initial notice for the dependent ID.
 -/
 theorem dependent_run_exists (first second : Result (List (Name × ResponseValue)))
+    (firstPositive : BasicErrors.PositiveFailure first)
+    (secondPositive : BasicErrors.PositiveFailure second)
     : ∃ history, AdmissibleRun (work first second) history := by
   apply (root_singleton first second).completeRun_exists (parents := ancestors)
-    (bound := 2) (paths := fun _ => []) (pathBound := 2)
+    (bound := 2) (base := []) (paths := fun _ => []) (pathBound := 2)
   · intro ref bounded parent member
     by_cases same : ref = 1
     · simp [ancestors, same] at member
@@ -107,6 +109,10 @@ theorem dependent_run_exists (first second : Result (List (Name × ResponseValue
   · simp [work, StreamOwnersOrdered, OwnersBefore]
   · simp [work, MixedOwnerPaths.WorkAt, OwnerPaths.MapAt, OwnerPaths.mapNodes,
       OwnerPaths.fragmentNodes, OwnerPaths.Assigned, Below, node]
+  · simp [work, ExecutionPaths.WorkUnder]
+  · simp [work, ScopeMetadata.WorkScoped, ScopeMetadata.MapScoped,
+      ScopeMetadata.FragmentScoped, node]
+  · simpa [work, ExecutionErrors.WorkPositive] using ⟨firstPositive, secondPositive⟩
   · simp [work, Work.size]
 
 /-- The dependent group is not initially eligible. Witness: ref zero is present work
@@ -127,16 +133,19 @@ example (first second : Result (List (Name × ResponseValue)))
     · exact cancelled.nonempty rfl
     · simp [Published] at published
 
-/-- Complete dependent-ID histories realize actual complete response streams for every
-outcome pair. Witness: construct the history first, then use the general source bridge.
+/-- Complete dependent-ID histories realize streams for positive-failure outcome pairs.
+Witness: construct the history first, then use the general source bridge.
 -/
 example (response : Response) (first second : Result (List (Name × ResponseValue)))
+    (firstPositive : BasicErrors.PositiveFailure first)
+    (secondPositive : BasicErrors.PositiveFailure second)
     : ∃ scheduler : (Execution.Work → Execution.WorkQueue),
       ∃ observed : ExecutionObservation,
         ((work first second).size ≠ 0
           → (scheduler (work first second)).Conforms (work first second))
         ∧ (executionFromWork scheduler response (work first second)).Observes observed
             true :=
-  (completeObservation_exists_iff _ _).mpr (Or.inr (dependent_run_exists first second))
+  (completeObservation_exists_iff _ _).mpr
+    (Or.inr (dependent_run_exists first second firstPositive secondPositive))
 
 end GraphQL.IncrementalDelivery.Tests.RootSingletonExistence

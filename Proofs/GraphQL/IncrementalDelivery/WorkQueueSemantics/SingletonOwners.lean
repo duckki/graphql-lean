@@ -1,4 +1,5 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.TaskReadiness
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.SettlementPrefixes
 
 /-! Singleton owners cannot be silently accounted for through another owner's notice.
 These consequences of work admission deliberately do not apply to shared owner lists.
@@ -70,6 +71,48 @@ theorem Explains.singleton_published_announced
   · apply List.mem_append_right
     obtain ⟨output, member, notices⟩ := List.mem_flatMap.mp pending
     exact List.mem_flatMap.mpr ⟨output, List.mem_of_mem_take member, notices⟩
+
+-----------------------------------------------------------------------------------------
+-- A singleton failure retains an open reporting owner
+-----------------------------------------------------------------------------------------
+
+/-- An accepted singleton-owned failure has its sole owner open at settlement.
+Witness: licensing announces that owner and excludes earlier cancellation. A prior
+completion would either fail that sole owner or account for this task; its fixed failing
+payload excludes publication. Shared tasks may settle after one co-owner closes, so this
+conclusion deliberately requires singleton ownership.
+-/
+theorem Explains.singleton_failure_open
+    {work groups streams events matching failures cut occurrence ref producer payload}
+    (explained : Explains work groups streams events matching failures)
+    (recorded : (cut, occurrence) ∈ failures)
+    (known : TaskAt work occurrence [ref] producer payload)
+    : Open ((groups ++ streams).map DeliveryNode.ref) (events.take cut) ref := by
+  obtain ⟨before, after, equal⟩ := List.mem_iff_append.mp recorded
+  rw [equal] at explained
+  have licensed := explained.2.1 before cut occurrence after rfl
+  obtain ⟨owner, contributes, announced⟩ := explained.2.1.announced_owner
+    (cut := cut) (by simp) known
+  have same : owner = ref := List.mem_singleton.mp contributes
+  subst owner
+  refine ⟨announced, ?_⟩
+  intro closed
+  have earlier := explained.before_settlement
+  have unpublished : ¬Published matching (events.take cut) occurrence := by
+    intro published
+    apply explained.failed_unpublished (occurrence := occurrence)
+      (mem_failedBefore (occurrence := occurrence) (by simp) (Nat.le_refl cut))
+    simpa only [List.take_append_drop] using published.append (events.drop cut)
+  apply licensed.2.2.2
+  rcases earlier.completed_accounted closed with failed | accounted
+  · apply earlier.snapshot_taskCancelled
+    refine .owners ⟨producer, payload, known⟩ unpublished (by simp) ?_
+    intro owner contributes
+    have same : owner = ref := List.mem_singleton.mp contributes
+    subst owner
+    exact earlier.nodeFailed_snapshot failed
+  · exact (accounted occurrence [ref] ⟨producer, payload, known⟩ (by simp)).resolve_right
+      unpublished
 
 -----------------------------------------------------------------------------------------
 -- Healthy singleton-root accounting requires an announced ID

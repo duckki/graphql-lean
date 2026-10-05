@@ -102,18 +102,19 @@ theorem DeferOnly.extend_ready_covered
   exact ⟨event, next, cuts, extended, shape.supportedNoticesCovered_iff.mp retained⟩
 
 /-- Coherent defer-only work has a complete run with shared owners and nested producers.
-Witness: general mixed progress with the constant defer-role assignment. All original
-premises are retained; no successful outcome or initial notice coverage is assumed.
+Witness: general mixed reporting progress with the constant defer-role assignment and
+structural scope certificates. No successful outcome or initial notice coverage is assumed.
 -/
-theorem DeferOnly.completeRun_exists
-    {parents bound paths pathBound work}
-    (shape : DeferOnly work)
-    (valid : Valid parents bound) (coherent : MixedRefs.WorkAt parents 0 bound work)
+theorem DeferOnly.completeRun_exists {parents bound base paths pathBound work}
+    (shape : DeferOnly work) (valid : Valid parents bound)
+    (coherent : MixedRefs.WorkAt parents 0 bound work)
     (continuous : DeferContinuous parents work) (ordered : StreamOwnersOrdered work)
     (pathCoherent : MixedOwnerPaths.WorkAt paths pathBound work)
-    (nonempty : work.size ≠ 0)
+    (under : ExecutionPaths.WorkUnder base work)
+    (certified : ScopeMetadata.WorkScoped work)
+    (positive : ExecutionErrors.WorkPositive work) (nonempty : work.size ≠ 0)
     : ∃ history, AdmissibleRun work history :=
   mixed_completeRun_exists valid coherent shape.roles continuous ordered pathCoherent
-    nonempty
+    under certified positive nonempty
 
 end GraphQL.IncrementalDelivery.Correctness

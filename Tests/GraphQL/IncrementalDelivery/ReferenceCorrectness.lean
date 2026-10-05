@@ -305,4 +305,26 @@ example (sources : Execution.Work → EventSource (List GraphEvent))
   exact ResponseStreamCursor.queryCorrectness schema resolvers variables operation fuel root
     (sources _) inputs complete applies nonempty valid admitted finished
 
+/-- Complete admitted reference observations inherit failure-aware position coverage.
+Witness: the shared implementation replay bridge supplies the public theorem's premises.
+Only initial errors are excluded; no total-error or per-position source premise is added.
+-/
+example (schema : Schema) (resolvers : Execution.Resolvers ObjectRef)
+    (variables : Execution.VariableValues) (operation : Operation) (fuel : Nat)
+    (root : Execution.ResolverValue ObjectRef) (schedule : EventSource (List GraphEvent))
+    (result : ExecutionObservation)
+    (validArguments : operation.incrementalArgumentsValid variables)
+    (observed
+      : queryScheduleMatches schema resolvers variables operation fuel root schedule
+          result true)
+    (initialErrorFree : result.initialErrors = 0)
+    : ∀ containers,
+        result.AddressesResponsePositions containers
+          (GraphQL.Execution.executeQueryWithFuel schema resolvers variables
+            operation.eraseIncrementalDirectives fuel root).data :=
+  queryScheduleMatches_addressesResponsePositions schema resolvers variables operation
+    fuel root schedule result validArguments observed initialErrorFree
+
+#print axioms queryScheduleMatches_addressesResponsePositions
+
 end GraphQL.IncrementalDelivery.Tests.ReferenceCorrectness

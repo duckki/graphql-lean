@@ -23,6 +23,38 @@ import Proofs.GraphQL.IncrementalDelivery.Correctness.HistoryAbsolutePositions
 import Proofs.GraphQL.IncrementalDelivery.Correctness.QueryDisjointness
 import Proofs.GraphQL.IncrementalDelivery.Correctness.QuerySourceCoverage
 import Proofs.GraphQL.IncrementalDelivery.Correctness.QueryCoverage
+import Proofs.GraphQL.IncrementalDelivery.Correctness.FailureAwareSourceCoverage
+import Proofs.GraphQL.IncrementalDelivery.Correctness.ReferenceFailureCoverage
+import Proofs.GraphQL.IncrementalDelivery.Correctness.PlainFailureCoverage
+import Proofs.GraphQL.IncrementalDelivery.Correctness.ArgumentValidity
+import Proofs.GraphQL.IncrementalDelivery.Correctness.InitialFailureAlgebra
+import Proofs.GraphQL.IncrementalDelivery.Correctness.InitialFailurePreservation
+import Proofs.GraphQL.IncrementalDelivery.Correctness.OrdinaryFailureAlgebra
+import Proofs.GraphQL.IncrementalDelivery.Correctness.OrdinaryFailureReflection
+import Proofs.GraphQL.IncrementalDelivery.Correctness.QueryFailureReflection
+import Proofs.GraphQL.IncrementalDelivery.Correctness.SourceCursorExtension
+import Proofs.GraphQL.IncrementalDelivery.Correctness.EntryFailureCoverage
+import Proofs.GraphQL.IncrementalDelivery.Correctness.ValueFailureCoverage
+import Proofs.GraphQL.IncrementalDelivery.Correctness.EntryCoverageAssembly
+import Proofs.GraphQL.IncrementalDelivery.Correctness.EntryCoverageRetention
+import Proofs.GraphQL.IncrementalDelivery.Correctness.StreamSuccessAlignment
+import Proofs.GraphQL.IncrementalDelivery.Correctness.CompletionCoverageAlgebra
+import Proofs.GraphQL.IncrementalDelivery.Correctness.FieldExecutionCoverage
+import Proofs.GraphQL.IncrementalDelivery.Correctness.QueryEntryCoverage
+import Proofs.GraphQL.IncrementalDelivery.Correctness.ValueWrapperCoverage
+import Proofs.GraphQL.IncrementalDelivery.Correctness.ListExecutionCoverage
+import Proofs.GraphQL.IncrementalDelivery.Correctness.StreamExecutionCoverage
+import Proofs.GraphQL.IncrementalDelivery.Correctness.RecursiveValueCoverage
+import Proofs.GraphQL.IncrementalDelivery.Correctness.BasicFieldErrors
+import Proofs.GraphQL.IncrementalDelivery.Correctness.BasicListErrors
+import Proofs.GraphQL.IncrementalDelivery.Correctness.StreamFailureCoverage
+import Proofs.GraphQL.IncrementalDelivery.Correctness.FailureCoverageAlgebra
+import Proofs.GraphQL.IncrementalDelivery.Correctness.DeferredFailureCoverage
+import Proofs.GraphQL.IncrementalDelivery.Correctness.ContextFailureCoverage
+import Proofs.GraphQL.IncrementalDelivery.Correctness.RootPartitionFailureCoverage
+import Proofs.GraphQL.IncrementalDelivery.Correctness.ReferenceNullPositions
+import Proofs.GraphQL.IncrementalDelivery.Correctness.TaskAttachmentPaths
+import Proofs.GraphQL.IncrementalDelivery.Correctness.OwnerScopeInheritance
 import Proofs.GraphQL.IncrementalDelivery.Correctness.QueryReconstruction
 import Proofs.GraphQL.IncrementalDelivery.Correctness.PublicationCoverage
 import Proofs.GraphQL.IncrementalDelivery.Correctness.WorkMetadata
@@ -40,6 +72,8 @@ import Proofs.GraphQL.IncrementalDelivery.Correctness.MixedNoticeMetadata
 import Proofs.GraphQL.IncrementalDelivery.Correctness.MixedNoticeCoverage
 import Proofs.GraphQL.IncrementalDelivery.Correctness.MixedNoticeExtension
 import Proofs.GraphQL.IncrementalDelivery.Correctness.MixedProgressEvents
+import Proofs.GraphQL.IncrementalDelivery.Correctness.GroupOriginComposition
+import Proofs.GraphQL.IncrementalDelivery.Correctness.GroupScopeOrigins
 import Proofs.GraphQL.IncrementalDelivery.Correctness.MixedExistence
 import Proofs.GraphQL.IncrementalDelivery.Correctness.QueryOutcomeExistence
 import Proofs.GraphQL.IncrementalDelivery.Correctness.DeferExistence
@@ -62,6 +96,10 @@ and exactly-once completion. Open references and final-marker control now also y
 public ID safety and full lifecycle validity. Source ownership, causal attachment, and
 typed reconstruction prove disjointness, basic-position coverage, exactly-once leaves,
 and successful merging to the ordinary response. Generated mixed-work progress also
-supplies complete-outcome existence. All public correctness statements have witnesses
-without adding response-correctness or progress premises to scheduler admission.
+supplies complete-outcome existence. All established query correctness statements have
+witnesses without adding response-correctness or progress premises to queue admission.
+FailureScopes proves wire-scope decoding and the zero-error coverage branch; the
+failure-aware public witness is proved in RecursiveValueCoverage. FailureAwareSourceCoverage
+addresses initial and successful prepared-source positions using the revised terminal
+reporting law. TaskAttachmentPaths derives report inheritance through producer edges.
 -/

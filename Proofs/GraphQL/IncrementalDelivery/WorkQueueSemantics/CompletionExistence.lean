@@ -1,6 +1,6 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.HistoryExtension
 
-/-! Accounted work can always finish its remaining notifications and terminate.
+/-! Internally accounted and failure-reported work can finish its notifications.
 These are constructed continuation witnesses, not assumptions on source admission.
 -/
 
@@ -238,7 +238,8 @@ theorem Explains.close_open_refs {work groups streams events matching failures}
             · exact member)
         exact ⟨tail, Nat.le_trans bounded (by simp), controls, finished, closed⟩
 
-/-- Once every task is published or cancelled, a terminal raw history exists. Witness:
+/-- Once tasks are internally accounted and unpublished attachments are reported,
+a terminal raw history exists. Witness:
 at most one notice-free completion per currently announced ref, with unchanged failures
 and publication matching. No new payload or cancellation is invented.
 -/
@@ -248,6 +249,11 @@ theorem Explains.finish_accounted {work groups streams events matching failures}
       : ∀ occurrence owners producer payload,
           TaskAt work occurrence owners producer payload
           → TaskAccounted work matching events failures occurrence)
+    (reported
+      : ∀ occurrence owners producer payload,
+          TaskAt work occurrence owners producer payload
+          → ¬Published matching events occurrence
+          → FailureReportedFor events payload.path)
     : ∃ tail,
         tail.length
           ≤ (announcedRefs ((groups ++ streams).map DeliveryNode.ref) events).length
@@ -266,7 +272,12 @@ theorem Explains.finish_accounted {work groups streams events matching failures}
       TaskAccounted work matching (events ++ tail) failures occurrence :=
     fun occurrence owners producer payload task =>
       (accounted occurrence owners producer payload task).append tail
-  refine ⟨finalAccounting, ?_⟩
+  refine ⟨?_, ?_⟩
+  · intro occurrence owners producer payload known
+    by_cases published : Published matching events occurrence
+    · exact Or.inr (published.append tail)
+    · exact Or.inl ⟨((accounted _ _ _ _ known).resolve_right published).append tail,
+        (reported _ _ _ _ known published).append tail⟩
   intro node kind dependencies birth _
   by_cases announced : node.ref ∈ announcedRefs ((groups ++ streams).map DeliveryNode.ref)
       (events ++ tail)
@@ -275,8 +286,8 @@ theorem Explains.finish_accounted {work groups streams events matching failures}
     rintro occurrence owners ⟨producer, payload, task⟩ _
     exact finalAccounting occurrence owners producer payload task
 
-/-- An accounted admitted prefix extends to a complete run, preserving its initialization
-and every existing work batch. Witness: append the constructed closures and a separate
+/-- An internally accounted, reported prefix extends to a complete run, preserving its
+initialization and every existing work batch. Witness: append closures and a separate
 termination batch, without changing previous value grouping or failure evidence.
 -/
 theorem WorkBatching.finish_accounted
@@ -287,6 +298,11 @@ theorem WorkBatching.finish_accounted
       : ∀ occurrence owners producer payload,
           TaskAt work occurrence owners producer payload
           → TaskAccounted work matching events failures occurrence)
+    (reported
+      : ∀ occurrence owners producer payload,
+          TaskAt work occurrence owners producer payload
+          → ¬Published matching events occurrence
+          → FailureReportedFor events payload.path)
     : ∃ tail : List WorkQueueEvent,
         AdmissibleRun work
           ⟨
@@ -297,30 +313,38 @@ theorem WorkBatching.finish_accounted
         ∧ (∀ event ∈ tail, eventPending event = [] ∧ ¬IsValue event)
         ∧ tail.length
           ≤ (announcedRefs ((groups ++ streams).map DeliveryNode.ref) events).length := by
-  obtain ⟨tail, bounded, controls, finished, terminal⟩ := explained.finish_accounted accounted
+  obtain ⟨tail, bounded, controls, finished, terminal⟩ :=
+    explained.finish_accounted accounted reported
   refine ⟨tail, ⟨events ++ tail, matching, failures, finished, terminal, ?_⟩,
     controls, bounded⟩
   exact (batched.append (WorkBatching.singletons tail)).append
     (WorkBatching.singletons [.workQueueTermination])
 
 /-- Terminal-run existence is exactly reachability of a history accounting for all
-tasks. Witness: extract terminal accounting, or construct every remaining completion
-and append termination. The right side assumes neither closed IDs nor a complete run.
+tasks and reporting cancelled attachments. Witness: extract terminal accounting, or
+construct every remaining completion and append termination. The right side assumes
+neither closed IDs nor a complete run.
 -/
-theorem admissibleRun_exists_iff_accounted_history (work : Work)
+theorem admissibleRun_exists_iff_reported_history (work : Work)
     : (∃ history, AdmissibleRun work history)
       ↔ ∃ groups streams events matching failures,
           Explains work groups streams events matching failures
           ∧ ∀ occurrence owners producer payload,
               TaskAt work occurrence owners producer payload
-              → TaskAccounted work matching events failures occurrence := by
+              → (TaskCancelled work matching events failures occurrence
+                  ∧ FailureReportedFor events payload.path)
+                ∨ Published matching events occurrence := by
   constructor
   · rintro ⟨history, events, matching, failures, explained, terminal, _⟩
     exact ⟨history.initialGroups, history.initialStreams, events, matching, failures,
       explained, terminal.1⟩
-  · rintro ⟨groups, streams, events, matching, failures, explained, accounted⟩
+  · rintro ⟨groups, streams, events, matching, failures, explained, reported⟩
     obtain ⟨tail, run, _, _⟩ := (WorkBatching.singletons events).finish_accounted
-      explained accounted
+      explained
+      (fun _ _ _ _ known => (reported _ _ _ _ known).elim
+        (fun cancelled => Or.inl cancelled.1) Or.inr)
+      (fun _ _ _ _ known unpublished =>
+        ((reported _ _ _ _ known).resolve_right unpublished).2)
     exact ⟨_, run⟩
 
 end GraphQL.IncrementalDelivery.WorkQueueSemantics

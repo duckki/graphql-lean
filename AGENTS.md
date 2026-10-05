@@ -78,6 +78,9 @@ work-event batching, and response batching are distinct.
 The proposed `WorkQueue.Conforms` contract fills the draft's unspecified CreateWorkQueue
 boundary with `Initialized`, `PrefixClosed`, `AccountsForWork`, and
 `TerminationMatchesWork`. These are model contributions, not normative spec pseudocode.
+`Terminal` requires every task to be published or causally cancelled with a positive-error
+completion whose node path covers `Payload.path`. Reporting is required at termination,
+not at the cancellation cut; covered unannounced nodes need not acquire their own notices.
 Admission uses output histories and existential occurrence/failure evidence, not required
 runtime graphs or ledgers. Never hide a contract gap by assuming wire lifecycle,
 disjointness, successful merging, or response equivalence.
@@ -115,11 +118,18 @@ terminated outcomes. This bridge does not depend on the optional ResponseStreamC
 CursorCorrectness supplies reusable end-to-end results without duplicating the public
 query-correctness propositions.
 
-All 12 public query-correctness statements, reference conformance, and the query bridge
-have proof witnesses. Safety and disjointness cover admitted prefixes, including errors.
+The 12 established public query-correctness statements, reference conformance, and the
+query bridge have existing proof witnesses awaiting the terminal-reporting rebuild.
+Do not claim current conformance or whole-project verification until that rebuild passes.
+Safety and disjointness statements cover admitted prefixes,
+including errors.
 ID liveness and lifecycle cover complete finite runs. Reconstruction, basic-position
 coverage, and leaf-once additionally require zero counted errors. Existential finite
 progress does not guarantee completion of every admitted prefix or every source.
+`ResponsePositionsDeliveredOrFailed` is the proved error-aware coverage statement,
+witnessed by `ResponsePositionsDeliveredOrFailed_holds`. It assumes an error-free initial
+envelope and uses only observable failed completion scopes, not hidden work cancellation or
+a global error-count escape hatch.
 
 Incremental validation, named fragments, effectful resolvers, infinite sources, host
 timing/fairness, and formal refinement of the actual GraphQL.js runtime remain outside
@@ -152,9 +162,10 @@ Repo organization is:
 
 Run `lake build`, `lake build Tests`, and `lake lint` for whole-project verification,
 or `make all` to include changed-file formatting checks. The default build and lint
-exclude tests; CI builds `Tests` explicitly. These checks pass for the current
-definitions, proofs, and regressions. Public-witness axiom audits contain only
-`propext`, `Classical.choice`, and `Quot.sound`, with no proof holes or added axioms.
+exclude tests; CI builds `Tests` explicitly. The current public-definition review adds
+terminal failure reporting; proof/test migration and whole-project verification are
+pending. Existing axiom audits contain only `propext`, `Classical.choice`, and `Quot.sound`,
+with no proof holes or added axioms. They do not verify the new terminal obligation.
 
 Verification commands are in `docs/development.md`. Topic guides record proof status,
 witnesses, and regression coverage without duplicating build or test commands.

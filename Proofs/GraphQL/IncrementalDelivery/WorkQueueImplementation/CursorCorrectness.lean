@@ -1,6 +1,7 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.CursorObservation
 import Proofs.GraphQL.IncrementalDelivery.Correctness.QueryReconstruction
 import Proofs.GraphQL.IncrementalDelivery.Correctness.QueryLifecycle
+import Proofs.GraphQL.IncrementalDelivery.Correctness.RecursiveValueCoverage
 
 /-! End-to-end cursor correctness by reuse of the independent public query theorems.
 The observation bridge supplies their premises; no new response law is imposed on inputs.
@@ -66,5 +67,34 @@ theorem ResponseStreamCursor.queryCorrectness
       _ _ conforms observed,
     Correctness.mergedExecutionEquivalentToBasic_holds schema operation resolvers variables
       fuel root _ _ conforms observed⟩
+
+-----------------------------------------------------------------------------------------
+-- Complete reference observations inherit client-facing coverage despite later errors
+-----------------------------------------------------------------------------------------
+
+/-- A complete admitted reference observation addresses every ordinary response position.
+Witness: `implementationCorrect_holds` supplies query-local queue conformance and actual
+observation; `ResponsePositionsDeliveredOrFailed_holds` then supplies delivered data
+or a decoded failure scope. Only initial errors are excluded; later errors are allowed.
+The statement uses the shared replay predicate and does not require the optional cursor.
+-/
+theorem queryScheduleMatches_addressesResponsePositions
+    (schema : Schema) (resolvers : Execution.Resolvers ObjectRef)
+    (variables : Execution.VariableValues) (operation : Operation) (fuel : Nat)
+    (root : Execution.ResolverValue ObjectRef) (schedule : EventSource (List GraphEvent))
+    (result : ExecutionObservation)
+    (validArguments : operation.incrementalArgumentsValid variables)
+    (observed
+      : queryScheduleMatches schema resolvers variables operation fuel root schedule
+          result true)
+    (initialErrorFree : result.initialErrors = 0)
+    : ∀ containers,
+        result.AddressesResponsePositions containers
+          (GraphQL.Execution.executeQueryWithFuel schema resolvers variables
+            operation.eraseIncrementalDirectives fuel root).data := by
+  obtain ⟨conforms, outcome⟩ := implementationCorrect_holds schema operation resolvers variables
+    fuel root schedule result true observed
+  exact Correctness.ResponsePositionsDeliveredOrFailed_holds schema operation resolvers
+    variables fuel root _ result validArguments conforms outcome initialErrorFree
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

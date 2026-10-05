@@ -12,6 +12,17 @@ open GraphQL.IncrementalDelivery.Correctness
 /-! The public surface has no enumerator or obsolete defer-only slice model. -/
 
 example : ExecutionObservation → ExecutionObservation := id
+
+/-- Null lookup uses receiver notation on both ordinary and incremental response values.
+Witness: direct reduction; missing paths and descendants of null are not existing nulls.
+-/
+example : (GraphQL.Execution.ResponseValue.null).isNullAt [] = true := rfl
+
+example : (ResponseValue.object [("x", .null)]).isNullAt [.field "x"] = true := by decide
+example : (ResponseValue.object []).isNullAt [.field "x"] = false := rfl
+example : (ResponseValue.null).isNullAt [.field "x"] = false := rfl
+example : (ResponseValue.list [.null]).isNullAt [.index 0] = true := rfl
+
 #guard_msgs (drop info) in
 #check_failure QueryResult
 #guard_msgs (drop info) in
@@ -20,6 +31,13 @@ example : ExecutionObservation → ExecutionObservation := id
 #check_failure ExecutionObservation.DeliversObjectSlices
 #guard_msgs (drop info) in
 #check_failure Operation.streamFree
+
+#guard_msgs (drop info) in
+#check_failure ResponsePositions.isNullAt
+#guard_msgs (drop info) in
+#check_failure ExecutionObservation.decodeFailureScopes
+#guard_msgs (drop info) in
+#check_failure basicResponsePositionsDeliveredOrFailed
 
 /-- Proposed queue premises are separately named and available without proof modules. -/
 example (result : WorkQueue) (work : Work) (h : result.Conforms work)

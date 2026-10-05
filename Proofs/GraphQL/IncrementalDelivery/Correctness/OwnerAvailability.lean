@@ -203,15 +203,16 @@ theorem maximal_outstanding_unannounced
   exact maximal event nextMatching cuts extended
 
 -----------------------------------------------------------------------------------------
--- Complete runs when the initial frontier covers all task owners
+-- Internal accounting when the initial frontier covers all task owners
 -----------------------------------------------------------------------------------------
 
-/-- If valid initial notices cover every task owner, a complete finite run exists.
+/-- If valid initial notices cover every task owner, an internally accounted history exists.
 Witness: a maximal finite continuation cannot strand an unaccounted task, because its
-healthy owner is already announced; constructive finalization then closes all open IDs.
+healthy owner is already announced. This does not establish terminal failure reporting:
+positive error counts and attachment-covering completion scopes need separate witnesses.
 This covers a useful class of work, not general nested fresh-notice execution.
 -/
-theorem completeRun_exists_of_initial_owner_coverage
+theorem accountedHistory_exists_of_initial_owner_coverage
     {paths bound work groups streams}
     (coherent : MixedOwnerPaths.WorkAt paths bound work)
     (initialized : Initializes work groups streams)
@@ -219,14 +220,17 @@ theorem completeRun_exists_of_initial_owner_coverage
       : ∀ occurrence owners producer payload,
           TaskAt work occurrence owners producer payload
           → owners ≠ [] ∧ ∀ ref ∈ owners, ref ∈ (groups ++ streams).map DeliveryNode.ref)
-    : ∃ history, AdmissibleRun work history := by
+    : ∃ events matching failures,
+        Explains work groups streams events matching failures
+        ∧ ∀ occurrence owners producer payload,
+            TaskAt work occurrence owners producer payload
+            → TaskAccounted work matching events failures occurrence := by
   classical
   have initial : Explains work groups streams [] (fun _ => .executionGroup []) [] :=
     ⟨initialized, by simp [FailureWitness], by simp⟩
   obtain ⟨events, matching, failures, explained, maximal⟩ := initial.maximal_extension
   simp only [List.nil_append] at explained maximal
-  apply (admissibleRun_exists_iff_accounted_history work).mpr
-  refine ⟨groups, streams, events, matching, failures, explained, ?_⟩
+  refine ⟨events, matching, failures, explained, ?_⟩
   intro occurrence owners producer payload known
   apply Classical.byContradiction
   intro outstanding

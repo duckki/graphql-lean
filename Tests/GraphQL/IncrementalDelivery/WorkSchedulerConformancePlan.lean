@@ -24,8 +24,8 @@ Witness: `createWorkQueueForScheduleConforms_holds`, without any internal constr
 -/
 example : createWorkQueueForScheduleConforms := createWorkQueueForScheduleConforms_holds
 
-/-- All seven construction leaves are proved together on one replay witness.
-Witness: `replayWitnessExists_holds`, not seven independent existential certificates.
+/-- All eight construction leaves are proved together on one replay witness.
+Witness: `replayWitnessExists_holds`, not eight independent existential certificates.
 -/
 example : ReplayWitnessExists := replayWitnessExists_holds
 
@@ -156,7 +156,7 @@ example {work inputs} (premises : ReplayPremises work inputs)
     terminal_objectProducedStream_completed premises.generated premises.valid premises.started
       history publications ledger ended known published⟩
 
-/-- The exact target needs only the node clause as an independent terminal construction.
+/-- Nodes and attachment reporting suffice for the terminal construction.
 Witness: all other leaves retain their original shared witness and public premises.
 -/
 example {work inputs w} (premises : ReplayPremises work inputs)
@@ -166,9 +166,12 @@ example {work inputs w} (premises : ReplayPremises work inputs)
     (nodes
       : ((initialQueue work).runNormalized inputs).1.terminated = true
         → NodeAccounting work w)
+    (reported
+      : ((initialQueue work).runNormalized inputs).1.terminated = true
+        → CancellationReporting work w)
     : Obligations work inputs w :=
   obligations_of_nodeAccounting premises batching announced uncancelled publications
-    controls nodes
+    controls nodes reported
 
 /-- The announced-group branch of the terminal node leaf needs no admitted-output premise.
 Witness: concrete protected-root accounting on the canonical history, with unchanged
@@ -184,7 +187,7 @@ example {work inputs node dependencies producer} {w : Witness}
   groupNode_terminalCompleted premises.generated premises.valid premises.started history
     ended known announced
 
-/-- The remaining terminal construction may focus solely on unannounced nodes.
+/-- The node construction may focus on unannounced nodes, retaining report coverage.
 Witness: the checked reduction fills both original terminal fields with the same canonical
 history, matching, and cuts, without changing the public target or source premises.
 -/
@@ -196,9 +199,12 @@ example {work inputs w} (premises : ReplayPremises work inputs)
     (latent
       : ((initialQueue work).runNormalized inputs).1.terminated = true
         → UnannouncedNodeAccounting work w)
+    (reported
+      : ((initialQueue work).runNormalized inputs).1.terminated = true
+        → CancellationReporting work w)
     : Obligations work inputs w :=
   obligations_of_unannouncedNodeAccounting premises history batching announced uncancelled
-    publications controls latent
+    publications controls latent reported
 
 /-- Retired-node accounting uses the already constructed witness, not another matching.
 Witness: the joint publication/failure construction supplies every premise of the new
@@ -242,7 +248,7 @@ example
   createWorkQueue_terminalRoots (Work.fromExecution work) [[.streamSuccess stream]]
     (by decide)
 
-/-- A genuine unobserved empty stream satisfies all seven local obligations without
+/-- A genuine unobserved empty stream satisfies all eight local obligations without
 requiring it to be finished. Witness: empty batching, inventory, and event history;
 terminal coverage is required only after the runtime flag becomes true.
 -/
@@ -255,6 +261,8 @@ theorem initial_obligations : Obligations work [] emptyWitness := by
   · intro index event impossible
     cases impossible
   · intro index event impossible
+    cases impossible
+  · intro impossible
     cases impossible
   · intro impossible
     cases impossible
@@ -294,7 +302,9 @@ example {work inputs w}
     (explains initialized obligations.announced obligations.uncancelled
       obligations.publications obligations.controls)
     obligations.batching
-    (fun done => terminal (obligations.tasks done) (obligations.nodes done))).mp
+    (fun done =>
+      terminal (obligations.tasks done) (obligations.nodes done)
+        (obligations.reported done))).mp
     run
 
 end GraphQL.IncrementalDelivery.Tests.WorkSchedulerConformancePlan

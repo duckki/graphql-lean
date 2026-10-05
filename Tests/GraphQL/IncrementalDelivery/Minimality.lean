@@ -249,7 +249,7 @@ example
     have known : TaskAt orphanWork (.executionGroup [1]) [] none (.object [] (.ok ([], 0))) :=
       .executionGroup (.right .root)
     rcases terminal.1 _ _ _ _ known with cancelled | published
-    · exact WorkQueueSemantics.noCancellation _ _ cancelled
+    · exact WorkQueueSemantics.noCancellation _ _ cancelled.1
     · rcases published with ⟨index, event, selected, value, _⟩
       cases index with
       | zero =>

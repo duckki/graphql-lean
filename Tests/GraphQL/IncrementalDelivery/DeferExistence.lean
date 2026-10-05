@@ -81,14 +81,16 @@ example (first second : Result (List (Name × ResponseValue)))
 -- Shared nested work and silently accounted ancestor owners
 -----------------------------------------------------------------------------------------
 
-/-- Shared nested producers admit a complete run for every pair of fixed outcomes.
+/-- Shared nested producers admit a complete run for positive-failure outcomes.
 Witness: general defer-only progress; neither successful outcomes nor initially covered
 child owners are required.
 -/
 theorem shared_run_exists (first second : Result (List (Name × ResponseValue)))
+    (firstPositive : BasicErrors.PositiveFailure first)
+    (secondPositive : BasicErrors.PositiveFailure second)
     : ∃ history, AdmissibleRun (work first second) history := by
-  apply (Tree.defer_only (by simp [Tree, work])).completeRun_exists
-    (parents := ancestors) (bound := 4) (paths := fun _ => []) (pathBound := 4)
+  apply (Tree.defer_only (by simp [Tree, work])).completeRun_exists (parents := ancestors)
+    (bound := 4) (base := []) (paths := fun _ => []) (pathBound := 4)
   · intro ref bounded parent member
     by_cases two : ref = 2
     · simp [ancestors, two] at member
@@ -104,6 +106,10 @@ theorem shared_run_exists (first second : Result (List (Name × ResponseValue)))
   · simp [work, StreamOwnersOrdered, OwnersBefore]
   · simp [work, MixedOwnerPaths.WorkAt, OwnerPaths.MapAt, OwnerPaths.mapNodes,
       OwnerPaths.fragmentNodes, OwnerPaths.Assigned, Below, node]
+  · simp [work, ExecutionPaths.WorkUnder]
+  · simp [work, ScopeMetadata.WorkScoped, ScopeMetadata.MapScoped,
+      ScopeMetadata.FragmentScoped, node]
+  · simpa [work, ExecutionErrors.WorkPositive] using ⟨firstPositive, secondPositive⟩
   · simp [work, Work.size]
 
 /-- Ref one shares a task with its own ancestor. Publication under zero can silently
@@ -121,9 +127,12 @@ def silentAncestors (ref : NodeRef) : NodeRefs :=
 Witness: defer-only existence with full ancestry, preserving the public dependency rule.
 -/
 example (first second : Result (List (Name × ResponseValue)))
+    (firstPositive : BasicErrors.PositiveFailure first)
+    (secondPositive : BasicErrors.PositiveFailure second)
     : ∃ history, AdmissibleRun (silent first second) history := by
   apply (Tree.defer_only (by simp [Tree, silent])).completeRun_exists
-    (parents := silentAncestors) (bound := 3) (paths := fun _ => []) (pathBound := 3)
+    (parents := silentAncestors) (bound := 3) (base := []) (paths := fun _ => [])
+    (pathBound := 3)
   · intro ref bounded parent member
     by_cases one : ref = 1
     · simp [silentAncestors, one] at member
@@ -138,18 +147,25 @@ example (first second : Result (List (Name × ResponseValue)))
   · simp [silent, StreamOwnersOrdered, OwnersBefore]
   · simp [silent, MixedOwnerPaths.WorkAt, OwnerPaths.MapAt, OwnerPaths.mapNodes,
       OwnerPaths.fragmentNodes, OwnerPaths.Assigned, Below, node]
+  · simp [silent, ExecutionPaths.WorkUnder]
+  · simp [silent, ScopeMetadata.WorkScoped, ScopeMetadata.MapScoped,
+      ScopeMetadata.FragmentScoped, node]
+  · simpa [silent, ExecutionErrors.WorkPositive] using ⟨firstPositive, secondPositive⟩
   · simp [silent, Work.size]
 
-/-- The nested shared fixture has a complete actual wire observation for every outcome.
+/-- The nested shared fixture has a wire observation for positive-failure outcomes.
 Witness: construct its admitted history, then apply conforming-source realization.
 -/
 example (response : Response) (first second : Result (List (Name × ResponseValue)))
+    (firstPositive : BasicErrors.PositiveFailure first)
+    (secondPositive : BasicErrors.PositiveFailure second)
     : ∃ scheduler : (Execution.Work → Execution.WorkQueue),
       ∃ observed : ExecutionObservation,
         ((work first second).size ≠ 0
           → (scheduler (work first second)).Conforms (work first second))
         ∧ (executionFromWork scheduler response (work first second)).Observes observed
             true :=
-  (completeObservation_exists_iff _ _).mpr (Or.inr (shared_run_exists first second))
+  (completeObservation_exists_iff _ _).mpr
+    (Or.inr (shared_run_exists first second firstPositive secondPositive))
 
 end GraphQL.IncrementalDelivery.Tests.DeferExistence

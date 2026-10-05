@@ -132,8 +132,56 @@ theorem healthy_producer_owner
   exact absent ⟨ref, member, healthy⟩
 
 -----------------------------------------------------------------------------------------
--- A healthy child owner is supported by a no-larger healthy producer owner
+-- Structural producer bounds and their healthy-support refinement
 -----------------------------------------------------------------------------------------
+
+/-- Every contributing child ref has a no-larger producer ref, regardless of task health.
+Witness: a reused or ancestral defer owner, an ordered enclosing stream owner, or the fresh
+ref interval below a stream item. This structural statement remains usable for cancelled
+tasks and unpublished producers; it supplies no publication, notice, or report premise.
+-/
+theorem producer_owner_ref_le_structural
+    {parents bound work occurrence owners producer payload ref}
+    (valid : Valid parents bound) (coherent : MixedRefs.WorkAt parents 0 bound work)
+    (continuous : DeferContinuous parents work) (ordered : StreamOwnersOrdered work)
+    (known : TaskAt work occurrence owners (some producer) payload)
+    (member : ref ∈ owners)
+    : ∃ parentOwners ancestor result parentRef,
+        TaskAt work producer parentOwners ancestor result
+        ∧ parentRef ∈ parentOwners
+        ∧ parentRef ≤ ref := by
+  cases StructuralEquivalence.taskAt_of_current known with
+  | executionGroup located =>
+      obtain ⟨group, inGroups, rfl⟩ := List.mem_map.mp member
+      obtain ⟨parentOwners, ancestor, result, parentKnown, support⟩ :=
+        producer_ref_context coherent continuous ordered located.toCurrent
+      rcases support with ⟨under, _⟩ | ⟨parentRef, same, freshRefs⟩
+      · obtain ⟨parentRef, inOwners, reused | dependency⟩ := under.1 group inGroups
+        · exact ⟨parentOwners, ancestor, result, parentRef, parentKnown, inOwners,
+            Nat.le_of_eq reused⟩
+        · have localWork := coherent_located coherent located.toCurrent
+          rw [MixedRefs.WorkAt] at localWork
+          exact ⟨parentOwners, ancestor, result, parentRef, parentKnown, inOwners,
+            Nat.le_of_lt (valid group.node.ref (localWork.2.1 group inGroups).2.1 parentRef
+              dependency).1⟩
+      · subst parentOwners
+        rw [MixedRefs.WorkAt] at freshRefs
+        exact ⟨[parentRef], ancestor, result, parentRef, parentKnown, by simp,
+          Nat.le_trans (Nat.le_succ _) (freshRefs.2.1 group inGroups).1⟩
+  | item located selected =>
+      have equal := List.mem_singleton.mp member
+      subst ref
+      obtain ⟨parentOwners, ancestor, result, parentKnown, support⟩ :=
+        producer_ref_context coherent continuous ordered located.toCurrent
+      rcases support with ⟨_, before⟩ | ⟨ref, same, fresh⟩
+      · obtain ⟨parentRef, inOwners⟩ := List.exists_mem_of_ne_nil _
+          (coherent_task_owners_nonempty coherent parentKnown)
+        exact ⟨parentOwners, ancestor, result, parentRef, parentKnown, inOwners,
+          Nat.le_of_lt (before parentRef inOwners)⟩
+      · subst parentOwners
+        rw [MixedRefs.WorkAt] at fresh
+        exact ⟨[ref], ancestor, result, ref, parentKnown, by simp,
+          Nat.le_trans (Nat.le_succ _) fresh.1⟩
 
 /-- Every healthy contributing ref of an uncancelled generated child task has a healthy
 producer owner with a no-larger ref. Witness: reused/dependent defer ancestry, ordered
@@ -322,5 +370,29 @@ theorem coherent_stream_dependencies {work node dependencies birth}
     : ∀ ref ∈ dependencies, ref < node.ref := by
   obtain ⟨address, items, located⟩ := known
   exact ownersBefore_located ordered located
+
+/-- A produced stream has a contributing producer ref strictly before its own ref.
+Witness: enclosing-owner ordering or the fresh stream-item ref interval, with structural
+nonemptiness selecting a producer owner. Empty streams are included: no item task or
+healthy producer is needed to obtain the ref bound.
+-/
+theorem stream_producer_owner_lt
+    {parents bound work node dependencies producer}
+    (coherent : MixedRefs.WorkAt parents 0 bound work)
+    (continuous : DeferContinuous parents work) (ordered : StreamOwnersOrdered work)
+    (known : NodeAt work node .stream dependencies (some producer))
+    : ∃ owners ancestor payload ref,
+        TaskAt work producer owners ancestor payload ∧ ref ∈ owners ∧ ref < node.ref := by
+  obtain ⟨address, items, located⟩ := known
+  obtain ⟨owners, ancestor, payload, parent, support⟩ :=
+    producer_ref_context coherent continuous ordered located
+  rcases support with ⟨_, before⟩ | ⟨ref, same, fresh⟩
+  · obtain ⟨ref, member⟩ := List.exists_mem_of_ne_nil _
+      (coherent_task_owners_nonempty coherent parent)
+    exact ⟨owners, ancestor, payload, ref, parent, member, before ref member⟩
+  · subst owners
+    rw [MixedRefs.WorkAt] at fresh
+    exact ⟨[ref], ancestor, payload, ref, parent, by simp,
+      Nat.lt_of_lt_of_le (Nat.lt_succ_self _) fresh.1⟩
 
 end GraphQL.IncrementalDelivery.Correctness

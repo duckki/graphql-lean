@@ -67,4 +67,8 @@ example
   intro applies
   cases applies
 
+#print axioms StreamOnly.workObservation_exists
+#print axioms executeRoot_completeObservation_of_streamOnly
+#print axioms queryOutcome_exists_of_streamOnly
+
 end GraphQL.IncrementalDelivery.Tests.QueryStreamExistence

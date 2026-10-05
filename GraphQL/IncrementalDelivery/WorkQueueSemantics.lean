@@ -48,6 +48,13 @@ def Payload.failure : Payload → Option Nat
   | .object _ (.error errors) | .item _ (.error errors) => some errors
   | _ => none
 
+/-- The response attachment of an object task or streamed item. Items use their stream's
+list path, not their structural ordinal or an inferred absolute append index.
+-/
+def Payload.path : Payload → ResponsePath
+  | .object path _ => path
+  | .item node _ => node.path
+
 /-- A view of existing work and its context, not a task graph or queue state. -/
 structure WorkLocation where
   current : Work
@@ -579,15 +586,32 @@ def Explains (work : Work) (groups streams : List DeliveryNode)
       → EventAllowed work ((groups ++ streams).map DeliveryNode.ref) matching
           (events.take index) failures event
 
-/-- All tasks are accounted for, and every node is closed or unannounced and failed or
-accounted for.
+/-- An error-bearing completion in the output history covers the supplied attachment
+path. In an explained history, its node is known and was announced before completion;
+response mapping exposes that same node path through the completion ID. Zero-error
+closures and errors carried by value publications do not report cancelled delivery.
+-/
+def FailureReportedFor (events : List WorkQueueEvent) (path : ResponsePath) : Prop :=
+  ∃ node errors,
+    0 < errors
+    ∧ node.path.IsPrefix path
+    ∧ (.groupFailure node errors ∈ events ∨ .streamFailure node errors ∈ events)
+
+/-- Every task is published or causally cancelled with an error-bearing completion
+covering its attachment path. Every node is closed or unannounced and failed/accounted
+for. Reporting is required only at termination: cancellation may precede notification.
+Unannounced nodes may remain omitted when a reported scope covers their unpublished work.
+This work-level reporting law does not assume wire decoding, response-position coverage,
+successful reconstruction, or equivalence to ordinary execution.
 -/
 def Terminal (work : Work) (initial : NodeRefs) (matching : PublicationMatching)
     (events : List WorkQueueEvent) (failures : FailureCuts)
     : Prop :=
   (∀ occurrence owners producer payload,
     TaskAt work occurrence owners producer payload
-    → TaskAccounted work matching events failures occurrence)
+    → (TaskCancelled work matching events failures occurrence
+        ∧ FailureReportedFor events payload.path)
+      ∨ Published matching events occurrence)
   ∧ ∀ node kind dependencies producer,
       NodeAt work node kind dependencies producer
       → node.ref ∈ completedRefs events
@@ -703,7 +727,8 @@ combine draft-derived constraints with gap-filling choices:
 - ancestry/owner-aware release and alternative initial/later notice frontiers;
 - healthy open publication support and a longest open wire owner, allowing owner ties;
 - accepted failures with a previously announced owner and no earlier cancellation;
-- failure/cancellation propagation and termination only after work is accounted for.
+- failure/cancellation propagation and termination only after every task is published or
+  cancelled with an error-bearing completion covering its response attachment.
 
 Longest-path owner selection reflects Section 7's object-result rule; the precise internal
 release, dependency, and cancellation conditions complete the undefined queue interface.

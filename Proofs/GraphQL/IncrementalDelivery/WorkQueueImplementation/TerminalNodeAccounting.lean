@@ -38,7 +38,7 @@ theorem nodeAccounting_of_unannounced {work inputs} {w : Witness}
   · exact .inl (announced_terminalCompleted generated valid started history ended announced)
   · exact .inr ⟨announced, latent node kind dependencies producer known announced⟩
 
-/-- The unchanged conformance certificate needs only the latent branch at termination.
+/-- Node accounting needs only the latent branch, alongside attachment reporting.
 Witness: derive announced-node completion from concrete replay, then derive task accounting
 from explained node accounting. Admission leaves remain explicit, still-open constructions.
 -/
@@ -51,11 +51,14 @@ theorem obligations_of_unannouncedNodeAccounting {work inputs w}
     (latent
       : ((initialQueue work).runNormalized inputs).1.terminated = true
         → UnannouncedNodeAccounting work w)
+    (reported
+      : ((initialQueue work).runNormalized inputs).1.terminated = true
+        → CancellationReporting work w)
     : Obligations work inputs w :=
   obligations_of_nodeAccounting premises batching announced uncancelled publications
     controls
     (fun ended =>
       nodeAccounting_of_unannounced premises.generated premises.valid
-        premises.started history ended (latent ended))
+        premises.started history ended (latent ended)) reported
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue.ConformancePlan

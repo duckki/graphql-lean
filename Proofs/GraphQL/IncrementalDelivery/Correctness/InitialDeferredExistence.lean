@@ -10,6 +10,7 @@ namespace GraphQL.IncrementalDelivery.Correctness
 open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.Semantics
 open WorkQueueSemantics
+open Semantics.Ancestry Semantics.GeneralScheduling
 
 -----------------------------------------------------------------------------------------
 -- Deferred-phase publications and control-only suffixes
@@ -65,12 +66,16 @@ arbitrary shared ownership and nested streams. Root streams must also be initial
 covered. Witness: finish the deferred phase, close the accounted groups while reserving
 one healthy success carrier, then apply stream continuation. If no group is healthy,
 dependent streams are failed and already covered root streams suffice. No terminal
-history, success premise, or extra scheduler law is assumed.
+history, success premise, or extra scheduler law is assumed. Generated ref coherence,
+producer-local path bounds, and positive failed payloads supply the actual reporting law.
 -/
 theorem completeRun_exists_of_initial_deferred_coverage
-    {paths bound roles work groups streams}
+    {ancestry refBound base paths bound roles work groups streams}
     (coherent : MixedOwnerPaths.WorkAt paths bound work)
+    (valid : Valid ancestry refBound) (refs : MixedRefs.WorkAt ancestry 0 refBound work)
     (roleCoherent : RefRoles.WorkRoles roles work)
+    (under : ExecutionPaths.WorkUnder base work)
+    (positive : ExecutionErrors.WorkPositive work)
     (initialized : Initializes work groups streams)
     (roots
       : ∀ address owners producer payload,
@@ -100,6 +105,13 @@ theorem completeRun_exists_of_initial_deferred_coverage
       obtain ⟨dependencies, producer, streamKnown, _⟩ :=
         initialized.1.2.2 stream member
       exact False.elim (stream_group_refs_distinct roleCoherent streamKnown known same)
+  have groupVisible {outputs : List WorkQueueEvent} : ∀ node dependencies producer,
+      NodeAt work node .group dependencies producer
+      → node.ref ∈ announcedRefs ((groups ++ streams).map DeliveryNode.ref) outputs := by
+    intro node dependencies producer descriptor
+    apply List.mem_append_left
+    simpa only [List.map_append]
+      using List.mem_append_left (streams.map DeliveryNode.ref) (groupInitial descriptor)
   have dependenciesCovered {node dependencies producer}
       (known : NodeAt work node .stream dependencies producer)
       : ∀ ref ∈ dependencies, ref ∈ groups.map DeliveryNode.ref := by
@@ -176,8 +188,9 @@ theorem completeRun_exists_of_initial_deferred_coverage
         dependenciesClosed
     have preserved := (deferred.extend (List.Subset.refl _) closures).extend
       (List.Subset.refl _) [.groupSuccess anchor newGroups newStreams]
-    obtain ⟨tail, run⟩ := released_streams_run_extension coherent released preserved
-      dependenciesClosed notified (WorkBatching.singletons _)
+    obtain ⟨tail, run⟩ := released_streams_run_extension coherent valid refs roleCoherent
+      under positive groupVisible released preserved dependenciesClosed notified
+      (WorkBatching.singletons _)
     exact ⟨_, run⟩
   · have allFailed (ref : NodeRef) (member : ref ∈ groups.map DeliveryNode.ref)
         : NodeFailed work matching events failures ref := by
@@ -205,20 +218,25 @@ theorem completeRun_exists_of_initial_deferred_coverage
     have preserved := deferred.extend (List.Subset.refl _) closures
     have retained := streamsNotified_append_controls notified
       (fun event member => (controls event member).2)
-    obtain ⟨tail, run⟩ := released_streams_run_extension coherent closed preserved
-      dependenciesClosed retained (WorkBatching.singletons _)
+    obtain ⟨tail, run⟩ := released_streams_run_extension coherent valid refs roleCoherent
+      under positive groupVisible closed preserved dependenciesClosed retained
+      (WorkBatching.singletons _)
     exact ⟨_, run⟩
 
 /-- Covering only the deferred owners in a valid initial frontier already suffices for
 root-deferred complete-run existence. Witness: enlarge the frontier to all eligible refs;
 root streams have no producer or enclosing dependencies, so the enlarged frontier covers
 them.
-The execution queue constructor remains opaque, and no completion ordering is prescribed.
+Actual reports use the generated ref/path and positive-error certificates. The execution
+queue constructor remains opaque, and no completion ordering is prescribed.
 -/
 theorem completeRun_exists_of_root_deferred_coverage
-    {paths bound roles work groups streams}
+    {ancestry refBound base paths bound roles work groups streams}
     (coherent : MixedOwnerPaths.WorkAt paths bound work)
+    (valid : Valid ancestry refBound) (refs : MixedRefs.WorkAt ancestry 0 refBound work)
     (roleCoherent : RefRoles.WorkRoles roles work)
+    (under : ExecutionPaths.WorkUnder base work)
+    (positive : ExecutionErrors.WorkPositive work)
     (initialized : Initializes work groups streams)
     (roots
       : ∀ address owners producer payload,
@@ -239,8 +257,8 @@ theorem completeRun_exists_of_root_deferred_coverage
     · obtain ⟨dependencies, producer, known, eligible⟩ :=
         initialized.1.2.2 node stream
       exact covers node .stream dependencies producer known eligible
-  apply completeRun_exists_of_initial_deferred_coverage coherent roleCoherent enlarged
-    roots
+  apply completeRun_exists_of_initial_deferred_coverage coherent valid refs roleCoherent
+    under positive enlarged roots
   · intro address owners producer payload known
     obtain ⟨nonempty, announced⟩ := covered address owners producer payload known
     exact ⟨nonempty, fun ref member => retained (announced ref member)⟩

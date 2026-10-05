@@ -1,6 +1,8 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics
 import Proofs.GraphQL.IncrementalDelivery.Correctness.QueryExistence
 import Proofs.GraphQL.IncrementalDelivery.Correctness.StreamExistence
+import Proofs.GraphQL.IncrementalDelivery.Correctness.LeastRefProgress
+import Proofs.GraphQL.IncrementalDelivery.Correctness.FailureReportOrigins
 import Tests.GraphQL.IncrementalDelivery.WorkQueueSemantics
 import Tests.GraphQL.IncrementalDelivery.HistoryScheduling
 
@@ -20,13 +22,14 @@ theorem single_initial (result : Result (List (Name × ResponseValue)))
         [] := by
   exact ⟨WorkQueueSemantics.initialized result, by simp [FailureWitness], by simp⟩
 
-/-- A complete run is constructed for every singleton deferred outcome, including raw
-zero-count failures. Witness: either one justified failure cut, or a fresh publication,
-then generic finite-frontier completion. No terminal-history premise is supplied.
+/-- A singleton deferred outcome with positive failures has a constructed complete run.
+Witness: a counted failure completion or a fresh publication, then generic finalization.
+Raw zero-count failures are excluded, and no terminal-history premise is supplied.
 -/
 theorem single_run_exists (result : Result (List (Name × ResponseValue)))
+    (positive : GraphQL.IncrementalDelivery.Semantics.BasicErrors.PositiveFailure result)
     : ∃ history, AdmissibleRun (WorkQueueSemantics.single result) history := by
-  apply (admissibleRun_exists_iff_accounted_history _).mpr
+  apply (admissibleRun_exists_iff_reported_history _).mpr
   have initial := single_initial result WorkQueueSemantics.matching
   have task : TaskAt (WorkQueueSemantics.single result) (.executionGroup []) [0] none
       (.object [] result) := .executionGroup .root
@@ -34,14 +37,35 @@ theorem single_run_exists (result : Result (List (Name × ResponseValue)))
     simp [Open, announcedRefs, pendingRefs, completedRefs]
   cases result with
   | error errors =>
-      have recorded := initial.record_failure task rfl (.root ⟨_, _, task⟩)
-        (by exact ⟨0, by simp, openRef⟩) (WorkQueueSemantics.noCancellation _ _)
-      refine ⟨[WorkQueueSemantics.node], [], [], WorkQueueSemantics.matching,
-        [(0, .executionGroup [])], recorded, ?_⟩
+      have nonzero := positive errors rfl
+      obtain ⟨reportedNode, count, event, _, control, countBound, reported⟩ :=
+        initial.failure_step task rfl (.root ⟨_, _, task⟩)
+          (by exact ⟨0, by simp, openRef⟩) (WorkQueueSemantics.noCancellation _ _)
+      have scope : FailureReportedFor [event] [] := by
+        have countBound : errors ≤ count := countBound
+        rcases control with rfl | rfl
+        · have allowed := reported.2.2 0 (.groupFailure reportedNode count) rfl
+          obtain ⟨dependencies, producer, descriptor⟩ := allowed.1
+          obtain ⟨rfl, _, _, _⟩ := WorkQueueSemantics.node_single descriptor
+          exact ⟨WorkQueueSemantics.node, count, by omega, ⟨[], rfl⟩, Or.inl (by simp)⟩
+        · have allowed := reported.2.2 0 (.streamFailure reportedNode count) rfl
+          obtain ⟨dependencies, producer, descriptor⟩ := allowed.1
+          have impossible := (WorkQueueSemantics.node_single descriptor).2.1
+          cases impossible
+      refine ⟨[WorkQueueSemantics.node], [], [event], WorkQueueSemantics.matching,
+        [(0, .executionGroup [])], reported, ?_⟩
       intro occurrence owners producer payload known
-      obtain ⟨rfl, rfl, _, _⟩ := WorkQueueSemantics.task_single known
-      exact Or.inl
-        (.of_recorded known (by simp) (by simp [Published]) (by simp [failedBefore]))
+      obtain ⟨rfl, rfl, _, rfl⟩ := WorkQueueSemantics.task_single known
+      refine Or.inl ⟨?_, scope⟩
+      exact .of_recorded known
+        (by simp)
+        (by
+          rintro ⟨index, observed, selected, value, _⟩
+          have member := List.mem_of_getElem? selected
+          simp only [List.mem_singleton] at member
+          subst observed
+          rcases control with rfl | rfl <;> exact value)
+        (by simp [failedBefore])
   | ok value =>
       obtain ⟨data, errors⟩ := value
       have ready : CanPublish (WorkQueueSemantics.single (.ok (data, errors)))
@@ -68,6 +92,7 @@ theorem single_run_exists (result : Result (List (Name × ResponseValue)))
 Witness: complete-run realization, covering both successful and failing outcomes.
 -/
 example (response : Response) (result : Result (List (Name × ResponseValue)))
+    (positive : GraphQL.IncrementalDelivery.Semantics.BasicErrors.PositiveFailure result)
     : ∃ scheduler : (Execution.Work → Execution.WorkQueue),
       ∃ observed : ExecutionObservation,
         ((WorkQueueSemantics.single result).size ≠ 0
@@ -77,7 +102,7 @@ example (response : Response) (result : Result (List (Name × ResponseValue)))
             (WorkQueueSemantics.single result)).Observes
             observed true :=
   (completeObservation_exists_iff response (WorkQueueSemantics.single result)).mpr
-    (Or.inr (single_run_exists result))
+    (Or.inr (single_run_exists result positive))
 
 /-- One shared publication can finish both owners in at most two additional events,
 preserving the already observed batch. Witness: finite-frontier completion, not an
@@ -114,6 +139,10 @@ example
   have completed := (WorkBatching.singletons
     [HistoryScheduling.value HistoryScheduling.left]).finish_accounted published
       (by simpa [failedBefore] using accounted)
+      (by
+        intro occurrence owners producer payload known unpublished
+        have cancelled := (accounted _ _ _ _ known).resolve_right unpublished
+        exact False.elim (cancelled.nonempty rfl))
   simpa [announcedRefs, pendingRefs, eventPending, HistoryScheduling.value]
     using completed
 
@@ -214,8 +243,8 @@ example
             ref ∈ completedRefs (WorkQueueSemantics.events ++ tail) := by
   apply WorkQueueSemantics.explained.close_open_refs
     (by
-      simpa [failedBefore, WorkQueueSemantics.node]
-        using WorkQueueSemantics.terminal.1) []
+      intro occurrence owners producer payload known
+      exact (WorkQueueSemantics.terminal.1 _ _ _ _ known).imp_left And.left) []
   intro ref opened
   exact False.elim
     (opened.2
@@ -304,34 +333,135 @@ example
   · exact cancelled.nonempty rfl
   · simp [Published] at published
 
-/-- Arbitrary finite stream outcomes, not just successful or distinct values, admit a
-complete run without supplied history evidence. Witness: generic owner-coverage progress.
+/-- Finite streams with positive failures admit a complete run without supplied history.
+Witness: generic root accounting followed by actual failure-reporting closures.
 -/
 example (node : DeliveryNode) (results : List (Result ResponseValue))
+    (positive
+      : ∀ result ∈ results,
+          GraphQL.IncrementalDelivery.Semantics.BasicErrors.PositiveFailure result)
     : ∃ history,
         AdmissibleRun (.stream node (results.map (fun result => (result, .empty))))
           history := by
   apply childFreeStream_completeRun_exists
-  intro item member
-  obtain ⟨result, _, rfl⟩ := List.mem_map.mp member
-  rfl
+  · intro item member
+    obtain ⟨result, _, rfl⟩ := List.mem_map.mp member
+    rfl
+  · induction results with
+    | nil => trivial
+    | cons result rest ih =>
+        exact ⟨
+          positive result (by simp),
+          trivial,
+          ih (fun result member => positive result (List.mem_cons_of_mem _ member))
+        ⟩
 
-/-- The stream existence theorem realizes complete wire observations through a conforming
-queue constructor, including zero-count raw failures. Witness: the general complete-run bridge.
+/-- Positive stream failures realize complete observations through a conforming factory.
+Witness: the reporting-aware stream existence theorem and complete-run realization.
 -/
 example (response : Response) (node : DeliveryNode)
     : ∃ scheduler : (Execution.Work → Execution.WorkQueue),
       ∃ observed : ExecutionObservation,
-        ((Work.stream node [(.ok (.null, 0), .empty), (.error 0, .empty)]).size ≠ 0
+        ((Work.stream node [(.ok (.null, 0), .empty), (.error 1, .empty)]).size ≠ 0
           → (scheduler
-              (.stream node [(.ok (.null, 0), .empty), (.error 0, .empty)])).Conforms
-              (.stream node [(.ok (.null, 0), .empty), (.error 0, .empty)]))
+              (.stream node [(.ok (.null, 0), .empty), (.error 1, .empty)])).Conforms
+              (.stream node [(.ok (.null, 0), .empty), (.error 1, .empty)]))
         ∧ (executionFromWork scheduler response
-            (.stream node [(.ok (.null, 0), .empty), (.error 0, .empty)])).Observes
+            (.stream node [(.ok (.null, 0), .empty), (.error 1, .empty)])).Observes
             observed true := by
   apply (completeObservation_exists_iff _ _).mpr
   apply Or.inr
   apply childFreeStream_completeRun_exists
-  simp
+  · simp
+  · simp [ExecutionErrors.ItemsPositive, ExecutionErrors.WorkPositive,
+      GraphQL.IncrementalDelivery.Semantics.BasicErrors.PositiveFailure]
+
+/-- Empty streams still admit a complete lifecycle. Witness: closing the announced
+boundary without publishing an item or recording a failure.
+-/
+example (node : DeliveryNode) : ∃ history, AdmissibleRun (.stream node []) history :=
+  childFreeStream_completeRun_exists node [] (by simp) trivial
+
+/-- Zero-count completion notices cannot report missing data. Witness: the observable
+reporting predicate requires a strictly positive error count.
+-/
+example (node : DeliveryNode) (path : ResponsePath)
+    : ¬FailureReportedFor [.streamFailure node 0] path := by
+  rintro ⟨reported, errors, positive, _, group | stream⟩
+  · simp at group
+  · simp only [List.mem_singleton, WorkQueueEvent.streamFailure.injEq] at stream
+    omega
+
+/-- The failure fixture is explained independently of its terminal-reporting witness.
+Witness: its actual counted completion and separately licensed settlement cut.
+-/
+private theorem singleton_failed_explained
+    : Explains WorkQueueSemantics.failingWork [WorkQueueSemantics.node] []
+        [WorkQueueSemantics.failure] WorkQueueSemantics.matching
+        [(0, .executionGroup [])] := by
+  refine ⟨WorkQueueSemantics.initialized _, WorkQueueSemantics.failureWitness _, ?_⟩
+  intro index event selected
+  cases index with
+  | zero =>
+      have same : event = WorkQueueSemantics.failure := by simpa using selected.symm
+      subst event
+      simpa [failedBefore, WorkQueueSemantics.node]
+        using WorkQueueSemantics.reportsFailure
+  | succ index => simp at selected
+
+/-- A failed singleton's sole owner is open at settlement, without an openness premise.
+Witness: the earlier-settlement prefix excludes prior cancellation and fixed failure
+excludes publication; either kind of prior completion would contradict licensing.
+-/
+example : Open [0] [] 0 := by
+  exact singleton_failed_explained.singleton_failure_open (cut := 0) (by simp)
+    (show TaskAt WorkQueueSemantics.failingWork (.executionGroup []) [0] none
+            (.object [] (.error 2)) from .executionGroup .root)
+
+/-- Accepted settlement is impossible after every contributing owner has completed.
+Witness: the licensing prefix retains a healthy unfinished owner, whether open or latent.
+This permits shared settlement after one owner closes without admitting fully dead work.
+-/
+example
+    {work groups streams events matching before cut occurrence after owners producer
+      payload}
+    (known : TaskAt work occurrence owners producer payload)
+    (closed : ∀ ref ∈ owners, ref ∈ completedRefs (events.take cut))
+    : ¬Explains work groups streams events matching
+        (before ++ (cut, occurrence) :: after) := by
+  intro explained
+  obtain ⟨ref, member, _, unfinished⟩ := explained.failure_outstanding_owner known
+  exact unfinished (closed ref member)
+
+/-- Closing the singleton ID produces a covering report without assuming Terminal.
+Witness: generated-style owner paths, the actual cut, and observable ID closure alone.
+-/
+example : FailureReportedFor [WorkQueueSemantics.failure] [] := by
+  apply Explains.singleton_recorded_task_reported (paths := fun _ => []) (bound := 1)
+    (work := WorkQueueSemantics.failingWork)
+    (by
+      simp [Semantics.MixedOwnerPaths.WorkAt, Semantics.OwnerPaths.MapAt,
+        Semantics.OwnerPaths.Assigned, Semantics.OwnerPaths.mapNodes,
+        Semantics.OwnerPaths.fragmentNodes, Semantics.Below, WorkQueueSemantics.failingWork,
+        WorkQueueSemantics.single, WorkQueueSemantics.node])
+    singleton_failed_explained (cut := 0) (occurrence := .executionGroup []) (ref := 0)
+    (producer := none) (payload := .object [] (.error 2))
+  · intro ref member
+    simpa [announcedRefs, pendingRefs, completedRefs, eventCompleted, eventPending,
+      WorkQueueSemantics.failure] using member
+  · simp
+  · exact .executionGroup .root
+  · decide
+
+#print axioms accountedHistory_exists_of_initial_owner_coverage
+#print axioms childFreeStream_closed_reports
+#print axioms childFreeStream_completeRun_exists
+#print axioms single_run_exists
+#print axioms maximal_no_eligible_accounted_and_closed
+#print axioms Explains.before_settlement
+#print axioms Explains.singleton_failure_open
+#print axioms Explains.singleton_recorded_task_reported
+#print axioms Explains.failure_outstanding_owner
+#print axioms Explains.failure_latent_owner
 
 end GraphQL.IncrementalDelivery.Tests.Progress

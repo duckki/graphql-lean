@@ -2,7 +2,7 @@ import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.ConformancePla
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.ExecutedWork
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.Minimality
 
-/-! Terminal node accounting is the only independent terminal obligation for generated work. -/
+/-! Node accounting derives internal task accounting, but not cancellation reporting. -/
 
 namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue.ConformancePlan
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
@@ -22,26 +22,25 @@ theorem taskAccounting_of_nodes {work w} (generated : ExecutedWork work)
           w.events w.matching w.failures)
     (nodes : NodeAccounting work w)
     : TaskAccounting work w :=
-  ((terminal_iff_nodes explained
-      (fun _ _ _ _ known => generated.taskOwners_nonempty known)).mpr
-    nodes).1
+  fun _ _ _ _ known =>
+    NodesTerminal.tasks_accounted nodes explained
+      (fun _ _ _ _ known => generated.taskOwners_nonempty known) known
 
-/-- Once event admission is explained, node accounting is equivalent to full termination.
-Witness: derive the task clause from nonempty ownership, or project out the node clause.
+/-- Once event admission is explained, node accounting and cancellation reporting are
+equivalent to full termination. Witness: derive internal tasks from nonempty ownership,
+retaining the independent report requirement on the same explanation.
 -/
-theorem terminal_iff_nodeAccounting {work w} (generated : ExecutedWork work)
+theorem terminal_iff_nodeAccounting_and_reporting {work w} (generated : ExecutedWork work)
     (explained
       : Explains work (initialQueue work).initialGroups (initialQueue work).initialStreams
           w.events w.matching w.failures)
     : Terminal work (initialRefs work) w.matching w.events w.failures
-      ↔ NodeAccounting work w :=
-  ⟨
-    And.right,
-    fun nodes => terminal (taskAccounting_of_nodes generated explained nodes) nodes
-  ⟩
+      ↔ NodeAccounting work w ∧ CancellationReporting work w :=
+  terminal_iff_nodes_and_reporting explained
+    (fun _ _ _ _ known => generated.taskOwners_nonempty known)
 
 -----------------------------------------------------------------------------------------
--- Six independent constructions fill the existing seven-field certificate
+-- Node accounting and reporting remain independent terminal constructions
 -----------------------------------------------------------------------------------------
 
 /-- The existing obligation package needs no independent terminal task construction.
@@ -57,9 +56,13 @@ theorem obligations_of_nodeAccounting {work inputs w}
     (nodes
       : ((initialQueue work).runNormalized inputs).1.terminated = true
         → NodeAccounting work w)
+    (reported
+      : ((initialQueue work).runNormalized inputs).1.terminated = true
+        → CancellationReporting work w)
     : Obligations work inputs w := by
   have explained := explains premises.initialized announced uncancelled publications controls
   exact ⟨batching, announced, uncancelled, publications, controls,
-    fun done => taskAccounting_of_nodes premises.generated explained (nodes done), nodes⟩
+    fun done => taskAccounting_of_nodes premises.generated explained (nodes done), nodes,
+    reported⟩
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue.ConformancePlan

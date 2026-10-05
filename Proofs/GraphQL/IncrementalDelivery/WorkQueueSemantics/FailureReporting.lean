@@ -1,7 +1,7 @@
-import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.EventLifecycle
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.TerminalReporting
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.FailureCauses
 
-/-! Open-owner failure cuts cannot disappear from a terminal work history. -/
+/-! Actual post-settlement closures report failures, including latent shared owners. -/
 
 namespace GraphQL.IncrementalDelivery.WorkQueueSemantics
 open GraphQL.IncrementalDelivery.Execution
@@ -48,6 +48,20 @@ theorem FailureWitness.announced_owner
     (h before cut occurrence after equal).2.2.1
   obtain ⟨rfl, _, _⟩ := known.unique task
   exact ⟨ref, owner, opened⟩
+
+/-- An accepted failure's fixed payload is failing in every descriptor of its occurrence.
+Witness: its licensing descriptor and functional structural-task uniqueness.
+-/
+theorem FailureWitness.recorded_payload_fails
+    {work initial matching events failures cut occurrence owners producer payload}
+    (witness : FailureWitness work initial matching events failures)
+    (recorded : (cut, occurrence) ∈ failures)
+    (known : TaskAt work occurrence owners producer payload)
+    : payload.failure.isSome = true := by
+  obtain ⟨before, after, equal⟩ := List.mem_iff_append.mp recorded
+  obtain ⟨more, birth, result, task, fails, _⟩ :=
+    (witness before cut occurrence after equal).2.2.1
+  exact (known.unique task).2.2.symm ▸ fails
 
 /-- The first settlement cut bounds every later cut; witness: split membership and use
 the witness's ordered-prefix condition.
@@ -129,8 +143,109 @@ theorem EventAllowed.failure_completion
     subst ref
     exact ⟨node, errors, rfl, Or.inr rfl, h.2.2.2.contribution_le member known owner⟩
 
-/-- A recorded failure with a still-open owner has a later completion reporting at least
-its error count. Witness: that owner must close, and cannot close successfully.
+/-- A selected contributor unclosed at settlement has a later failed completion if it is
+eventually announced and all announced refs close. Witness: locate its actual closure;
+an earlier or successful closure contradicts its unfinished status or recorded failure.
+The contributor may be latent at settlement; no terminal law is assumed.
+-/
+theorem Explains.contributor_failure_reported_of_eventual_notice
+    {work groups streams events matching failures}
+    (h : Explains work groups streams events matching failures)
+    (closedRefs
+      : ∀ ref ∈ announcedRefs ((groups ++ streams).map DeliveryNode.ref) events,
+          ref ∈ completedRefs events)
+    {cut occurrence owners producer payload ref} (member : (cut, occurrence) ∈ failures)
+    (known : TaskAt work occurrence owners producer payload)
+    (owner : ref ∈ owners) (unfinished : ref ∉ completedRefs (events.take cut))
+    (announced : ref ∈ announcedRefs ((groups ++ streams).map DeliveryNode.ref) events)
+    : ∃ index node errors,
+        cut ≤ index
+        ∧ node.ref = ref
+        ∧ (events[index]? = some (.groupFailure node errors)
+            ∨ events[index]? = some (.streamFailure node errors))
+        ∧ payload.failure.getD 0 ≤ errors := by
+  obtain ⟨event, selected, closes⟩ :=
+    List.mem_flatMap.mp (closedRefs ref announced)
+  obtain ⟨index, selected⟩ := List.mem_iff_getElem?.mp selected
+  have afterCut : cut ≤ index := by
+    apply Nat.le_of_not_lt
+    intro beforeCut
+    apply unfinished
+    apply List.mem_flatMap.mpr
+    exact ⟨event, List.mem_iff_getElem?.mpr ⟨index, by
+      simp [beforeCut, selected]⟩, closes⟩
+  obtain ⟨node, errors, same, reports, bound⟩ :=
+    (h.2.2 index event selected).failure_completion
+      (by
+        have bound := (List.getElem?_eq_some_iff.mp selected).1
+        simpa only [List.length_take, Nat.min_eq_left (Nat.le_of_lt bound)]
+          using mem_failedBefore member afterCut)
+      known owner closes
+  refine ⟨index, node, errors, afterCut, same, ?_, bound⟩
+  exact reports.elim (fun equal => Or.inl (equal ▸ selected))
+    (fun equal => Or.inr (equal ▸ selected))
+
+/-- A contributor unclosed at settlement reports its failure if it is eventually announced
+and every announced ref closes. Witness: select the eventual contributor and retain its
+post-settlement failed completion. This permits shared tasks with no open owner at the cut.
+-/
+theorem Explains.failure_reported_of_eventual_notice
+    {work groups streams events matching failures}
+    (h : Explains work groups streams events matching failures)
+    (closedRefs
+      : ∀ ref ∈ announcedRefs ((groups ++ streams).map DeliveryNode.ref) events,
+          ref ∈ completedRefs events)
+    {cut occurrence owners producer payload} (member : (cut, occurrence) ∈ failures)
+    (known : TaskAt work occurrence owners producer payload)
+    (eventualOwner
+      : ∃ ref ∈ owners,
+          ref ∉ completedRefs (events.take cut)
+          ∧ ref ∈ announcedRefs ((groups ++ streams).map DeliveryNode.ref) events)
+    : ∃ index node errors,
+        cut ≤ index
+        ∧ node.ref ∈ owners
+        ∧ (events[index]? = some (.groupFailure node errors)
+            ∨ events[index]? = some (.streamFailure node errors))
+        ∧ payload.failure.getD 0 ≤ errors := by
+  obtain ⟨ref, owner, unfinished, announced⟩ := eventualOwner
+  obtain ⟨index, node, errors, afterCut, same, reports, bound⟩ :=
+    h.contributor_failure_reported_of_eventual_notice closedRefs member known owner
+      unfinished announced
+  exact ⟨index, node, errors, afterCut, same ▸ owner, reports, bound⟩
+
+/-- A recorded failure with a still-open owner has a later error completion if every
+announced ref closes. Witness: its earlier notice remains visible, so the eventual-notice
+theorem applies. No terminal cancellation-reporting law is assumed in this construction.
+-/
+theorem Explains.failure_reported_of_closures
+    {work groups streams events matching failures}
+    (h : Explains work groups streams events matching failures)
+    (closedRefs
+      : ∀ ref ∈ announcedRefs ((groups ++ streams).map DeliveryNode.ref) events,
+          ref ∈ completedRefs events)
+    {cut occurrence owners producer payload} (member : (cut, occurrence) ∈ failures)
+    (known : TaskAt work occurrence owners producer payload)
+    (openOwner
+      : ∃ ref ∈ owners,
+          Open ((groups ++ streams).map DeliveryNode.ref) (events.take cut) ref)
+    : ∃ index node errors,
+        cut ≤ index
+        ∧ node.ref ∈ owners
+        ∧ (events[index]? = some (.groupFailure node errors)
+            ∨ events[index]? = some (.streamFailure node errors))
+        ∧ payload.failure.getD 0 ≤ errors := by
+  obtain ⟨ref, owner, opened⟩ := openOwner
+  apply h.failure_reported_of_eventual_notice closedRefs member known
+  refine ⟨ref, owner, opened.2, ?_⟩
+  rcases List.mem_append.mp opened.1 with initial | later
+  · exact List.mem_append_left _ initial
+  · obtain ⟨event, selected, contains⟩ := List.mem_flatMap.mp later
+    exact List.mem_append_right _
+      (List.mem_flatMap.mpr ⟨event, List.mem_of_mem_take selected, contains⟩)
+
+/-- A recorded failure with a still-open owner is reported in a complete history.
+Witness: terminal node accounting closes its announced ref, then the independent
+post-settlement reporting theorem applies.
 -/
 theorem Explains.failure_reported {work groups streams events matching failures}
     (h : Explains work groups streams events matching failures)
@@ -147,35 +262,8 @@ theorem Explains.failure_reported {work groups streams events matching failures}
         ∧ node.ref ∈ owners
         ∧ (events[index]? = some (.groupFailure node errors)
             ∨ events[index]? = some (.streamFailure node errors))
-        ∧ payload.failure.getD 0 ≤ errors := by
-  obtain ⟨ref, owner, opened⟩ := openOwner
-  have announced
-      : ref ∈ announcedRefs ((groups ++ streams).map DeliveryNode.ref) events := by
-    rcases List.mem_append.mp opened.1 with initial | later
-    · exact List.mem_append_left _ initial
-    · obtain ⟨event, selected, contains⟩ := List.mem_flatMap.mp later
-      exact List.mem_append_right _
-        (List.mem_flatMap.mpr ⟨event, List.mem_of_mem_take selected, contains⟩)
-  obtain ⟨event, selected, closes⟩ :=
-    List.mem_flatMap.mp (h.allCompleted done ref announced)
-  obtain ⟨index, selected⟩ := List.mem_iff_getElem?.mp selected
-  have afterCut : cut ≤ index := by
-    apply Nat.le_of_not_lt
-    intro beforeCut
-    apply opened.2
-    apply List.mem_flatMap.mpr
-    exact ⟨event, List.mem_iff_getElem?.mpr ⟨index, by
-      simp [beforeCut, selected]⟩, closes⟩
-  obtain ⟨node, errors, same, reports, bound⟩ :=
-    (h.2.2 index event selected).failure_completion
-      (by
-        have bound := (List.getElem?_eq_some_iff.mp selected).1
-        simpa only [List.length_take, Nat.min_eq_left (Nat.le_of_lt bound)]
-          using mem_failedBefore member afterCut)
-      known owner closes
-  refine ⟨index, node, errors, afterCut, same ▸ owner, ?_, bound⟩
-  exact reports.elim (fun equal => Or.inl (equal ▸ selected))
-    (fun equal => Or.inr (equal ▸ selected))
+        ∧ payload.failure.getD 0 ≤ errors :=
+  h.failure_reported_of_closures (h.allCompleted done) member known openOwner
 
 /-- A recorded failure with a still-open owner is bounded by all reported failure errors
 in a terminal history; witness: its later completion is one summand.
@@ -368,7 +456,7 @@ theorem AdmissibleRun.tasks_succeed_of_no_failure_errors {work history}
         omega
   subst failures
   rcases done.1 occurrence owners producer payload known with cancelled | published
-  · exact False.elim (cancelled.nonempty rfl)
+  · exact False.elim (cancelled.1.nonempty rfl)
   · exact explained.published_succeeds known published
 
 end GraphQL.IncrementalDelivery.WorkQueueSemantics

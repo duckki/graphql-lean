@@ -36,7 +36,14 @@ theorem executeRoot_completeRun_exists (schema : Schema)
     fuel parentType source selections 0
   exact mixed_completeRun_exists valid coherent roleCoherent continuous
     (executeRoot_streamOwnersOrdered schema resolvers variables fuel parentType source selections 0)
-    pathCoherent nonempty
+    pathCoherent
+    (ExecutionPaths.executeRootSelectionSetCore_under schema resolvers variables fuel
+      parentType source selections 0)
+    (ScopeMetadata.executeRootSelectionSetCore_scopes schema resolvers variables fuel
+      parentType source selections 0).1
+    (ExecutionErrors.executeRootSelectionSetCore_positive schema resolvers variables fuel
+      parentType source selections 0).2
+    nonempty
 
 /-- Every prepared execution has a complete ordinary or incremental observation.
 Witness: direct empty-work packaging, or the constructed terminal history followed by

@@ -39,7 +39,7 @@ theorem successful_history {work history}
   refine ⟨events, matching, explained, done, batching, ?_⟩
   intro occurrence owners producer payload known
   rcases done.1 occurrence owners producer payload known with cancelled | published
-  · exact False.elim (cancelled.nonempty rfl)
+  · exact False.elim (cancelled.1.nonempty rfl)
   · exact ⟨published, explained.published_succeeds known published⟩
 
 /-- A concrete supplied response replay with zero errors has no hidden failed tasks;

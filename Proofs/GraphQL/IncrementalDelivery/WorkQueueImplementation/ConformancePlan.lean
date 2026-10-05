@@ -111,6 +111,16 @@ def TaskAccounting (work : Execution.Work) (w : Witness) : Prop :=
     TaskAt work occurrence owners producer payload
     → TaskAccounted work w.matching w.events w.failures occurrence
 
+/-- Every unpublished structural task has a positive-error completion covering its
+attachment path. Required only when replay terminates, and independent of internal
+cancellation accounting. This is a construction target, not a host-source assumption.
+-/
+def CancellationReporting (work : Execution.Work) (w : Witness) : Prop :=
+  ∀ occurrence owners producer payload,
+    TaskAt work occurrence owners producer payload
+    → ¬Published w.matching w.events occurrence
+    → FailureReportedFor w.events payload.path
+
 /-- Every structural node is closed, or unannounced and failed/accounted for. Required
 only when concrete replay terminates, including latent nodes and empty streams.
 -/
@@ -122,7 +132,7 @@ def NodeAccounting (work : Execution.Work) (w : Witness) : Prop :=
         ∧ (NodeFailed work w.matching w.events w.failures node.ref
             ∨ NodeAccounted work w.matching w.events w.failures node.ref)
 
-/-- Seven obligations under one witness. This is an internal proof target, not
+/-- Eight obligations under one witness. This is an internal proof target, not
 a premise added to the public conformance statement or the host event-source contract.
 -/
 structure Obligations (work : Execution.Work) (inputs : List (List GraphEvent))
@@ -139,6 +149,9 @@ structure Obligations (work : Execution.Work) (inputs : List (List GraphEvent))
   nodes
     : ((initialQueue work).runNormalized inputs).1.terminated = true
       → NodeAccounting work w
+  reported
+    : ((initialQueue work).runNormalized inputs).1.terminated = true
+      → CancellationReporting work w
 
 /-- Construct compatible witnesses from actual replay and the existing premises.
 Witness: `replayWitnessExists_holds` in the implementation proof's `Conformance` module.
@@ -176,12 +189,18 @@ theorem explains {work w}
   · exact publications index event atIndex value
   · exact controls index event atIndex value
 
-/-- Task and node coverage are exactly the two terminal-accounting clauses.
-Witness: pair the coverage proofs without changing their matching or cuts.
+/-- Task accounting, node accounting, and cancellation reporting imply termination.
+Witness: select publication or pair cancellation with its report on the same history.
 -/
 theorem terminal {work w} (tasks : TaskAccounting work w) (nodes : NodeAccounting work w)
-    : Terminal work (initialRefs work) w.matching w.events w.failures :=
-  ⟨tasks, nodes⟩
+    (reported : CancellationReporting work w)
+    : Terminal work (initialRefs work) w.matching w.events w.failures := by
+  refine ⟨?_, nodes⟩
+  intro occurrence owners producer payload known
+  by_cases published : Published w.matching w.events occurrence
+  · exact Or.inr published
+  · exact Or.inl ⟨(tasks _ _ _ _ known).resolve_right published,
+      reported _ _ _ _ known published⟩
 
 private theorem batching_termination_mem {events batches}
     (batching : WorkBatching events batches)
@@ -241,7 +260,8 @@ theorem validHistory {work inputs w}
   | true =>
       right
       exact (run_iff_terminated explained obligations.batching
-        (fun ended => terminal (obligations.tasks ended) (obligations.nodes ended))).mpr done
+        (fun ended => terminal (obligations.tasks ended) (obligations.nodes ended)
+          (obligations.reported ended))).mpr done
 
 -----------------------------------------------------------------------------------------
 -- Checked adapter edges: account for outputs and reflect termination
@@ -286,7 +306,8 @@ theorem terminationMatchesWork {work source}
     have explained := explains initialized obligations.announced obligations.uncancelled
       obligations.publications obligations.controls
     have run := (run_iff_terminated explained obligations.batching
-      (fun ended => terminal (obligations.tasks ended) (obligations.nodes ended))).mpr done
+      (fun ended => terminal (obligations.tasks ended) (obligations.nodes ended)
+        (obligations.reported ended))).mpr done
     cases same
     exact run
   · rintro ⟨⟨inputs, accepted, same⟩, run⟩
@@ -295,7 +316,8 @@ theorem terminationMatchesWork {work source}
     have explained := explains initialized obligations.announced obligations.uncancelled
       obligations.publications obligations.controls
     apply (run_iff_terminated explained obligations.batching
-      (fun ended => terminal (obligations.tasks ended) (obligations.nodes ended))).mp
+      (fun ended => terminal (obligations.tasks ended) (obligations.nodes ended)
+        (obligations.reported ended))).mp
     cases same
     exact run
 

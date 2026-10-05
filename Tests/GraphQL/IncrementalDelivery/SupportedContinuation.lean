@@ -1,7 +1,7 @@
 import Tests.GraphQL.IncrementalDelivery.MixedNoticeCoverage
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.Nonblocking
 
-/-! Supported-prefix progress retains existing observations, even without full coverage. -/
+/-! Reporting-prefix progress retains observations without full stream coverage. -/
 
 namespace GraphQL.IncrementalDelivery.Tests.SupportedContinuation
 open GraphQL.IncrementalDelivery.Execution
@@ -10,12 +10,12 @@ open GraphQL.IncrementalDelivery.Semantics
 open WorkQueueSemantics Ancestry GeneralScheduling MixedNoticeCoverage
 
 /-- The shared-owner publication has a terminal continuation retaining its batches.
-Witness: generated-style metadata and supported coverage, despite the eligible child
+Witness: generated-style metadata and reporting coverage, despite the eligible child
 stream having no notice yet. No initial output or batch is regenerated.
 -/
 theorem continuation {batches} (batched : WorkBatching [value] batches)
     : (History.mk [node 0] [] batches).CanFinish work := by
-  apply mixed_supported_continuation (ancestry := ancestry) (bound := 3)
+  apply mixed_reporting_continuation (ancestry := ancestry) (bound := 3)
     (roles := fun ref => ref == 2) (paths := fun _ => []) (pathBound := 3)
     (explained := published)
   · intro ref bounded parent member
@@ -30,7 +30,10 @@ theorem continuation {batches} (batched : WorkBatching [value] batches)
   · simp [work, StreamOwnersOrdered, OwnersBefore, node]
   · simp [work, MixedOwnerPaths.WorkAt, OwnerPaths.MapAt, OwnerPaths.mapNodes,
       OwnerPaths.fragmentNodes, OwnerPaths.Assigned, Below, node]
-  · simpa [node] using published_supported
+  · exact reporting_metadata.1
+  · exact reporting_metadata.2.1
+  · exact reporting_metadata.2.2.1
+  · simpa [node] using published_reporting
   · exact batched
 
 /-- The supported prefix belongs to a conforming nonblocking source with the same

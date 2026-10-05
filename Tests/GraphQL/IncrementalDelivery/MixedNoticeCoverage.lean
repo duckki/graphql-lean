@@ -218,8 +218,41 @@ theorem published_supported
       (by simp) (accounted 1)
   · exact stream_not_supported supported
 
+/-- The successful shared-owner fixture has structural reporting certificates.
+Witness: its attachments and scopes are root paths; both groups have root descriptors.
+There is no failure outcome requiring a positive-count check.
+-/
+theorem reporting_metadata
+    : ExecutionPaths.WorkUnder [] work
+      ∧ ScopeMetadata.WorkScoped work
+      ∧ ExecutionErrors.WorkPositive work
+      ∧ GroupScopeOrigins work := by
+  refine ⟨?_, ?_, ?_, ?_⟩
+  · simp [work, ExecutionPaths.WorkUnder, ExecutionPaths.ItemsUnder, node]
+  · simp [work, ScopeMetadata.WorkScoped, ScopeMetadata.ItemsScoped, ScopeMetadata.MapScoped,
+      ScopeMetadata.FragmentScoped, node]
+  · simp [work, ExecutionErrors.WorkPositive, ExecutionErrors.ItemsPositive,
+      Semantics.BasicErrors.PositiveFailure]
+  · intro other parents birth known
+    rcases node_work known with ⟨rfl, _, _, rfl⟩ | ⟨rfl, _, _, rfl⟩
+      | ⟨_, impossible, _, _⟩
+    · exact ⟨node 0, parents, none, known, rfl, Or.inl rfl⟩
+    · exact ⟨node 1, parents, none, known, rfl, Or.inl rfl⟩
+    · cases impossible
+
+/-- The publication retains reporting coverage even without full stream coverage.
+Witness: supported coverage and absence of any failed group; eligible healthy groups
+are already covered by the supported invariant.
+-/
+theorem published_reporting
+    : ReportingNoticesCovered ancestry work [0] matching [value] [] := by
+  refine ⟨published_supported, ?_⟩
+  intro other parents birth known eligible
+  exact published_supported other .group parents birth known
+    ⟨eligible, fun failed => failed.nonempty rfl, by intro impossible; cases impossible⟩
+
 /-- The same fixture still has a complete run despite losing full notice coverage.
-Witness: supported mixed progress with its explicit ancestry, ref roles, and paths.
+Witness: reporting mixed progress with its explicit ancestry, refs, scopes, and paths.
 The stream may wait for a later carrier under the unchanged admission rules.
 -/
 example : ∃ history, AdmissibleRun work history := by
@@ -239,6 +272,9 @@ example : ∃ history, AdmissibleRun work history := by
   · simp [work, StreamOwnersOrdered, OwnersBefore, node]
   · simp [work, MixedOwnerPaths.WorkAt, OwnerPaths.MapAt, OwnerPaths.mapNodes,
       OwnerPaths.fragmentNodes, OwnerPaths.Assigned, Below, node]
+  · exact reporting_metadata.1
+  · exact reporting_metadata.2.1
+  · exact reporting_metadata.2.2.1
   · simp [work, Work.size]
 
 end GraphQL.IncrementalDelivery.Tests.MixedNoticeCoverage

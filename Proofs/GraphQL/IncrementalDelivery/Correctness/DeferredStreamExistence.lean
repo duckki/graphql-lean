@@ -1,4 +1,5 @@
 import Proofs.GraphQL.IncrementalDelivery.Correctness.NestedStreamExistence
+import Proofs.GraphQL.IncrementalDelivery.Correctness.HealthyGroupStreamProgress
 import Proofs.GraphQL.IncrementalDelivery.Correctness.NodeRoles
 
 /-! A deferred producer can release arbitrarily nested stream-only child work.
@@ -112,12 +113,86 @@ theorem deferredStreams_stream_dependencies
   · cases impossible
   · exact owners
 
+/-- Every group descriptor is one of the dependency-free root producer's owners.
+Witness: below the root every location is stream-only, and each root fragment has no
+parents. Stream descendants cannot introduce additional group descriptors.
+-/
+theorem sharedDeferredStreams_group
+    {nodes : List DeliveryNode} {path result children node dependencies producer}
+    (onlyStreams : StreamOnly children)
+    (known
+      : NodeAt (.executionGroup (nodes.map (fun node => { node })) path result children)
+          node .group dependencies producer)
+    : dependencies = [] ∧ producer = none ∧ node ∈ nodes := by
+  cases StructuralEquivalence.nodeAt_of_current known with
+  | group located member =>
+      rcases deferredStreams_located onlyStreams located.toCurrent with
+        ⟨rfl, same, rfl, rfl⟩ | ⟨impossible, _, _⟩
+      · cases same
+        obtain ⟨node, included, same⟩ := List.mem_map.mp member
+        cases same
+        exact ⟨rfl, rfl, included⟩
+      · simp only [StreamOnly] at impossible
+
+/-- A successful root deferred producer keeps all its groups healthy in every explained
+history, even when nested stream items fail. Witness: the sole group task has a fixed
+successful payload; other tasks have stream refs of a different role. Root groups have
+neither failing defer dependencies nor structural producers.
+-/
+theorem sharedDeferredStreams_success_groups_healthy
+    {nodes : List DeliveryNode}
+    {roles path data errors children groups streams events matching failures}
+    (onlyStreams : StreamOnly children)
+    (roleCoherent
+      : RefRoles.WorkRoles roles
+          (.executionGroup (nodes.map (fun node => { node })) path (.ok (data, errors))
+            children))
+    (explained
+      : Explains
+          (.executionGroup (nodes.map (fun node => { node })) path (.ok (data, errors))
+            children) groups streams events matching failures)
+    {node dependencies birth}
+    (known
+      : NodeAt
+          (.executionGroup (nodes.map (fun node => { node })) path (.ok (data, errors))
+            children) node .group dependencies birth)
+    : ¬NodeFailed
+        (.executionGroup (nodes.map (fun node => { node })) path (.ok (data, errors))
+          children) matching events failures node.ref := by
+  rintro ⟨cut, _, _, cause⟩
+  cases cause with
+  | task projected owner recorded =>
+      obtain ⟨producer, payload, task⟩ := projected
+      cases StructuralEquivalence.taskAt_of_current task with
+      | executionGroup located =>
+          have same := (deferredStreams_deferred_task onlyStreams task).2.2.2
+          obtain ⟨entry, member, equal⟩ := List.mem_map.mp recorded
+          have member := (List.mem_filter.mp member).1
+          have fails := explained.2.1.recorded_payload_fails
+            (by simpa only [← equal] using member) task
+          simp only [same, Payload.failure, Option.isSome_none, Bool.false_eq_true] at fails
+      | item located entry =>
+          exact stream_group_refs_distinct roleCoherent (NodeAt.stream located.toCurrent)
+            known (List.mem_singleton.mp owner).symm
+  | groupDependency projected member _ =>
+      obtain ⟨group, producer, descriptor, _⟩ := projected
+      rw [(sharedDeferredStreams_group onlyStreams descriptor).1] at member
+      cases member
+  | streamDependencies projected _ _ =>
+      obtain ⟨stream, producer, descriptor, same⟩ := projected
+      exact stream_group_refs_distinct roleCoherent descriptor known same
+  | producers _ noRoot _ _ =>
+      have root := (sharedDeferredStreams_group onlyStreams known).2.1
+      subst birth
+      exact noRoot ⟨node, .group, dependencies, known, rfl⟩
+
 -----------------------------------------------------------------------------------------
 -- Construct the deferred publication/closure or the justified failure
 -----------------------------------------------------------------------------------------
 
 /-- A shared deferred producer with dependency-free owners and stream-only children admits a
-complete run for every producer/item outcome. Witness: announce the owner refs, publish
+complete run for local attachments and positive producer/item failures. Witness: announce
+the owner refs, publish
 once, close all but one owner, then use that reserved success closure to announce streams.
 A producer failure instead cancels all descendants. Every owner ref is initially announced;
 repeated owner descriptors are allowed.
@@ -131,6 +206,12 @@ theorem sharedDeferredStreams_completeRun_with_owners
           (.executionGroup (nodes.map (fun node => { node })) path result children))
     (roleCoherent
       : RefRoles.WorkRoles roles
+          (.executionGroup (nodes.map (fun node => { node })) path result children))
+    (under
+      : ExecutionPaths.WorkUnder []
+          (.executionGroup (nodes.map (fun node => { node })) path result children))
+    (positive
+      : ExecutionErrors.WorkPositive
           (.executionGroup (nodes.map (fun node => { node })) path result children))
     : ∃ history,
         AdmissibleRun
@@ -196,7 +277,23 @@ theorem sharedDeferredStreams_completeRun_with_owners
           (by intro empty; exact nonempty (List.map_eq_nil_iff.mp empty))
           (by simp [Published])
           (by simp [failedBefore])
-      obtain ⟨tail, run, _, _⟩ := WorkBatching.nil.finish_accounted recorded accounted
+      obtain ⟨closures, _, _, finished, allClosed⟩ := recorded.close_open_refs accounted
+        (announcedRefs ((groups ++ streams).map DeliveryNode.ref) [])
+        (fun _ opened => opened.1)
+      have positiveCount : 0 < errors := positive.1 errors rfl
+      have openOwner : ∃ ref ∈ nodes.map DeliveryNode.ref,
+          Open ((groups ++ streams).map DeliveryNode.ref)
+            (([] ++ closures).take 0) ref :=
+        ⟨anchor.ref, anchorOwner, by simpa using opened⟩
+      have reported := Explains.recorded_task_reported coherent finished allClosed
+        (cut := 0) (by simp) task positiveCount openOwner
+      have localWork : ExecutionPaths.WorkUnder path work :=
+        ⟨⟨[], by simp⟩, under.2⟩
+      obtain ⟨tail, run, _, _⟩ := (WorkBatching.singletons ([] ++ closures)).finish_accounted
+        finished (fun occurrence owners producer payload known =>
+          (accounted occurrence owners producer payload known).append closures)
+        (fun occurrence owners producer payload known _ =>
+          reported.descendant (localWork.task_under known))
       exact ⟨_, run, rootNotified⟩
   | ok value =>
       obtain ⟨data, errors⟩ := value
@@ -262,12 +359,16 @@ theorem sharedDeferredStreams_completeRun_with_owners
           dependenciesClosed
       have preserved := (deferred.extend (List.Subset.refl []) closures).extend
         (List.Subset.refl []) [.groupSuccess anchor newGroups newStreams]
-      obtain ⟨tail, run⟩ := released_streams_run_extension coherent released preserved
-        dependenciesClosed notified (WorkBatching.singletons _)
+      obtain ⟨tail, run⟩ := released_streams_run_extension_of_healthy_groups coherent under
+        positive (fun outputs next cuts explanation node dependencies birth descriptor =>
+          sharedDeferredStreams_success_groups_healthy onlyStreams roleCoherent explanation
+            descriptor) released preserved dependenciesClosed notified
+        (WorkBatching.singletons _)
       exact ⟨_, run, rootNotified⟩
 
-/-- A shared deferred producer has a complete run with arbitrary stream-only descendants.
-Witness: forget the stronger construction's initial coverage of every owner ref.
+/-- A shared deferred producer has a complete run with local stream-only descendants and
+positive failures. Witness: forget the stronger construction's initial coverage of every
+owner ref, retaining the actual reports for unpublished attachments.
 -/
 theorem sharedDeferredStreams_completeRun_exists
     {paths bound roles nodes path result children}
@@ -279,17 +380,23 @@ theorem sharedDeferredStreams_completeRun_exists
     (roleCoherent
       : RefRoles.WorkRoles roles
           (.executionGroup (nodes.map (fun node => { node })) path result children))
+    (under
+      : ExecutionPaths.WorkUnder []
+          (.executionGroup (nodes.map (fun node => { node })) path result children))
+    (positive
+      : ExecutionErrors.WorkPositive
+          (.executionGroup (nodes.map (fun node => { node })) path result children))
     : ∃ history,
         AdmissibleRun
           (.executionGroup (nodes.map (fun node => { node })) path result children)
           history := by
   obtain ⟨history, run, _⟩ := sharedDeferredStreams_completeRun_with_owners nonempty
-    onlyStreams coherent roleCoherent
+    onlyStreams coherent roleCoherent under positive
   exact ⟨history, run⟩
 
 /-- The single-owner deferred-stream result is a special case of shared-owner existence.
-Witness: instantiate the nonempty owner list with one node; producer and item outcomes
-remain unrestricted, and no terminal history is supplied.
+Witness: instantiate the nonempty owner list with one node; local attachments and positive
+failures are retained, and no terminal history is supplied.
 -/
 theorem deferredStreams_completeRun_exists
     {paths bound roles node path result children}
@@ -299,9 +406,13 @@ theorem deferredStreams_completeRun_exists
           (.executionGroup [{ node }] path result children))
     (roleCoherent
       : RefRoles.WorkRoles roles (.executionGroup [{ node }] path result children))
+    (under
+      : ExecutionPaths.WorkUnder [] (.executionGroup [{ node }] path result children))
+    (positive
+      : ExecutionErrors.WorkPositive (.executionGroup [{ node }] path result children))
     : ∃ history,
         AdmissibleRun (.executionGroup [{ node }] path result children) history := by
   exact sharedDeferredStreams_completeRun_exists (nodes := [node]) (by simp)
-    onlyStreams coherent roleCoherent
+    onlyStreams coherent roleCoherent under positive
 
 end GraphQL.IncrementalDelivery.Correctness
