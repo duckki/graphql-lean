@@ -1,7 +1,14 @@
 import GraphQL.IncrementalDelivery.Observation
 
-/-! A finite, pure work-queue implementation following the GraphQL.js v17.0.1
-WorkQueue architecture.
+/-! A finite, pure work-queue implementation following
+[GraphQL.js](https://github.com/graphql/graphql-js) v17.0.1.
+
+The queue and publisher are modeled after its
+`src/execution/incremental/WorkQueue.ts` and
+`src/execution/incremental/IncrementalPublisher.ts` modules. See
+`docs/incremental-delivery/implementation.md` for pinned upstream links and modeled deviations.
+The draft specification and independent WorkQueue contract remain the correctness targets;
+this is not a formal refinement of the asynchronous runtime.
 
 The spec-facing `Execution.Work` is lowered to GraphQL.js-shaped `Work`: groups, tasks,
 and streams. The host supplies batches of `GraphEvent` values instead of promises and

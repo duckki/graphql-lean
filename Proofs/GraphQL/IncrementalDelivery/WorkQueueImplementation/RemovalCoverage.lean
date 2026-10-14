@@ -78,7 +78,7 @@ theorem State.RemovalForest.of_generated
 enqueued by an already visited parent. Live frontier refs lie above the starting ref.
 The strict budget bounds visits by the number of live queue records, not stale links.
 -/
-private structure RemovalFrontier (queue : State) (parents : Nat → NodeRefs)
+structure RemovalFrontier (queue : State) (parents : Nat → NodeRefs)
     (root fuel : Nat) (pending removed : NodeRefs)
     : Prop where
   rootPresent : ∃ node, queue.groupNode? root = some node
@@ -94,7 +94,7 @@ private structure RemovalFrontier (queue : State) (parents : Nat → NodeRefs)
 /-- A valid frontier cannot exhaust its budget while retaining its invariant.
 Witness: visited refs are distinct live refs, so their count is at most the map size.
 -/
-private theorem RemovalFrontier.fuel_pos
+theorem RemovalFrontier.fuel_pos
     {queue : State} {parents root fuel pending removed}
     (frontier : RemovalFrontier queue parents root fuel pending removed)
     : 0 < fuel := by
@@ -111,7 +111,7 @@ private theorem RemovalFrontier.fuel_pos
 /-- Skipping a missing ref preserves all live-visit accounting.
 Witness: restrict the frontier; neither visited refs nor the budget changes.
 -/
-private theorem RemovalFrontier.skip
+theorem RemovalFrontier.skip
     {queue : State} {parents root fuel head rest removed}
     (frontier : RemovalFrontier queue parents root fuel (head :: rest) removed)
     : RemovalFrontier queue parents root fuel rest removed := by
@@ -132,7 +132,7 @@ private theorem RemovalFrontier.skip
 Witness: each child has this unique parent, which is not yet visited; a live edge
 back to the traversal root is excluded by strict ref increase.
 -/
-private theorem RemovalFrontier.visit
+theorem RemovalFrontier.visit
     {queue : State} {parents root fuel head rest removed node}
     (forest : queue.RemovalForest parents)
     (frontier : RemovalFrontier queue parents root (fuel + 1) (head :: rest) removed)

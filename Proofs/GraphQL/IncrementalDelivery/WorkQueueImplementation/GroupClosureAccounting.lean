@@ -174,9 +174,10 @@ theorem State.finishGroupFailure_closureAccounting {queue : State}
 Witness: selected nodes are live and registered; every recursive step preserves old
 retirements, including activation after a successful carrier.
 -/
-theorem State.drainReadyGroups_closureAccounting {queue : State}
+theorem State.drainReadyGroups_go_closureAccounting {queue : State}
     (live : queue.LiveGroupsRegistered) (tasks : queue.TaskGroupsRegistered)
-    : GroupClosureAccounting queue queue.drainReadyGroups := by
+    (fuel : Nat)
+    : GroupClosureAccounting queue (State.drainReadyGroups.go fuel queue) := by
   have loop (fuel : Nat) (current : State)
       (live : current.LiveGroupsRegistered) (tasks : current.TaskGroupsRegistered)
       : GroupClosureAccounting current (State.drainReadyGroups.go fuel current) := by
@@ -210,7 +211,13 @@ theorem State.drainReadyGroups_closureAccounting {queue : State}
           | some errors =>
               exact (State.finishGroupFailure_closureAccounting live node member errors).append
                 (ih _ (fun other kept => live other (List.mem_filter.mp kept).1) tasks)
-  exact loop _ queue live tasks
+  exact loop fuel queue live tasks
+
+/-- The full drain inherits the same actual retirement evidence at its live-node budget. -/
+theorem State.drainReadyGroups_closureAccounting {queue : State}
+    (live : queue.LiveGroupsRegistered) (tasks : queue.TaskGroupsRegistered)
+    : GroupClosureAccounting queue queue.drainReadyGroups :=
+  State.drainReadyGroups_go_closureAccounting live tasks queue.groupNodes.length
 
 /-- Removing task memberships retains registration of every live group.
 Witness: the mapped group keeps exactly its previous ref and registration entry.

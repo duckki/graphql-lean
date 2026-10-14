@@ -198,7 +198,7 @@ private theorem foldl_output_prefix {σ α β : Type}
 /-- For a one-output-at-a-time fold, every observable prefix occurs at an input
 boundary. The witness is the shortest consumed input prefix of that output length.
 -/
-private theorem foldl_output_prefix_reachable {σ α β : Type}
+theorem foldl_output_prefix_reachable {σ α β : Type}
     (step : σ → α → σ) (output : σ → List β)
     (monotone : ∀ state input, (output state).IsPrefix (output (step state input)))
     (unit : ∀ state input, (output (step state input)).length ≤ (output state).length + 1)

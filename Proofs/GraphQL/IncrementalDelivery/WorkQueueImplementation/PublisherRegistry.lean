@@ -72,7 +72,7 @@ theorem IncrementalPublisher.registry_after_closure
   rw [activeRefs_filter_closed, registry]
   exact (open_append_closure initial events event closed ref noPending completed).symm
 
-/-- GraphQL.js group-failure processing removes exactly its completed notice. -/
+/-- Group-failure processing removes exactly its completed notice. -/
 theorem IncrementalPublisher.registry_groupFailure
     (publisher : IncrementalPublisher) (initial : NodeRefs)
     (events : List Execution.WorkQueueEvent)
@@ -87,7 +87,7 @@ theorem IncrementalPublisher.registry_groupFailure
     initial (events ++ [Execution.WorkQueueEvent.groupFailure group errors])
   exact publisher.registry_after_closure initial events _ group.ref registry rfl rfl
 
-/-- GraphQL.js stream-success processing removes exactly its completed notice. -/
+/-- Stream-success processing removes exactly its completed notice. -/
 theorem IncrementalPublisher.registry_streamSuccess
     (publisher : IncrementalPublisher) (initial : NodeRefs)
     (events : List Execution.WorkQueueEvent)
@@ -101,7 +101,7 @@ theorem IncrementalPublisher.registry_streamSuccess
     initial (events ++ [Execution.WorkQueueEvent.streamSuccess stream])
   exact publisher.registry_after_closure initial events _ stream.ref registry rfl rfl
 
-/-- GraphQL.js stream-failure processing removes exactly its completed notice. -/
+/-- Stream-failure processing removes exactly its completed notice. -/
 theorem IncrementalPublisher.registry_streamFailure
     (publisher : IncrementalPublisher) (initial : NodeRefs)
     (events : List Execution.WorkQueueEvent)

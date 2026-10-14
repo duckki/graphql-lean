@@ -8,7 +8,10 @@ statements, and proof status. For coverage without implementation details, see t
 Read this guide for the execution/spec cross-reference and public correctness statements.
 The [semantics guide](semantics.md) defines the independent work-queue contract and its
 research basis. The [implementation guide](implementation.md) describes the executable
-reference queue, its GraphQL.js correspondence, and its conformance proof.
+reference queue, its GraphQL.js correspondence, and its conformance proof. The
+[alternative implementation guide](alternative-implementation.md) describes the
+reference-backed queue delta, its proved conformance/resource results, and the separate
+native-refinement boundary. The [porting guide](porting-guide.md) covers concrete choices.
 
 The target draft spec is
 [graphql/graphql-spec PR #1110 at 045e193](https://github.com/graphql/graphql-spec/tree/045e19363c2b55f127960bd3b5e8072a15b29aec). The specification references are:
@@ -28,6 +31,7 @@ The target draft spec is
 | [Observation](../../GraphQL/IncrementalDelivery/Observation.lean) | Finite execution observations, query completion, and query-local queue conformance; shared by Correctness and WorkQueueImplementation. |
 | [Correctness](../../GraphQL/IncrementalDelivery/Correctness.lean) | Public correctness propositions; imports Observation. |
 | [WorkQueueImplementation](../../GraphQL/IncrementalDelivery/WorkQueueImplementation.lean) | Concrete queue/publisher state machine and its projection to the shared WorkQueue interface. |
+| [WorkQueueAlternativeImpl](../../GraphQL/IncrementalDelivery/WorkQueueAlternativeImpl.lean) | Reference-based queue with registration projections, inline failure disposal, and reader guards; conformance and abstract resource safety are proved. Native runtime refinement remains separate. |
 
 WorkQueueSemantics and Correctness are self-contained definition modules. Public
 definitions
@@ -507,7 +511,7 @@ direction uses the proved exclusion of publications for failed or cancelled task
 failure immediately after a child notice preserves the carrier's admission and the
 explained history. The generic `Explains.record_failure` witness covers preservation
 as well. Reference-implementation conformance, derived initialization, and the
-implementation-to-query bridge have existing witnesses awaiting this rebuild; see the
+implementation-to-query bridge are proved; their details and proof structure are in the
 [implementation guide](implementation.md#work-queue-conformance).
 
 | Public statement | Witness module (theorem name is the statement plus `_holds`) |

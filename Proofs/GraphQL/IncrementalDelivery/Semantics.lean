@@ -40,6 +40,8 @@ import Proofs.GraphQL.IncrementalDelivery.Semantics.PathOwnership
 import Proofs.GraphQL.IncrementalDelivery.Semantics.Planning
 import Proofs.GraphQL.IncrementalDelivery.Correctness
 import Proofs.GraphQL.IncrementalDelivery.Semantics.SeededPathOwnership
+import Proofs.GraphQL.IncrementalDelivery.Semantics.SharedAncestorCollection
+import Proofs.GraphQL.IncrementalDelivery.Semantics.SharedAncestorExecution
 import Proofs.GraphQL.IncrementalDelivery.Semantics.SingleStreamCompletion
 import Proofs.GraphQL.IncrementalDelivery.Semantics.StreamAllocations
 import Proofs.GraphQL.IncrementalDelivery.Semantics.StreamOwnerRefs

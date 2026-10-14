@@ -295,7 +295,7 @@ private def oneItemStreamWork : Execution.Work :=
 private def oneItemEvent : GraphEvent :=
   .streamItems stream [{ occurrence := .item [] 0, value := { item := .scalar "a" } }]
 
-/-- Stream items arrive in a GraphQL.js `STREAM_ITEMS` batch, not as task settlements. -/
+/-- Stream items arrive in a stream-item batch, not as task settlements. -/
 example
     : (run (Work.fromExecution oneItemStreamWork)
         [[oneItemEvent, .streamSuccess stream]]).2

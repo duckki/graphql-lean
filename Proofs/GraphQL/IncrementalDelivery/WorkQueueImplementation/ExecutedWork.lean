@@ -1241,7 +1241,7 @@ theorem ExecutedWork.groupAncestors_trans
   exact (valid node.ref refBound ancestor.ref member).2
 
 /-- Lowering any located child work preserves the generated defer-parent
-assignment in each registered GraphQL.js-shaped group descriptor. -/
+assignment in each registered queue group descriptor. -/
 theorem workFromSpec_groups_parentCanonical
     {root current : Execution.Work} {address : Address}
     {producer : Option Occurrence} {owners : NodeRefs}

@@ -46,11 +46,17 @@ Public modules separate these responsibilities:
 - `Correctness`: response properties, reconstruction, and public correctness statements.
 - `WorkQueueImplementation`: the executable reference queue/publisher and its conformance
   and query-observation propositions; it imports Observation, not Correctness.
+- `WorkQueueAlternativeImpl`: a reference-backed queue with registration projections,
+  inline last-owner disposal, and reader effects. Abstract conformance/resource proofs
+  are complete; concrete host refinement remains a separate boundary.
 
-Keep WorkQueueSemantics, Correctness, and WorkQueueImplementation as single public
-modules.
+Keep WorkQueueSemantics, Correctness, WorkQueueImplementation, and WorkQueueAlternativeImpl
+as single public modules.
 Implementation proofs alone are split into topic modules under
-`Proofs/GraphQL/IncrementalDelivery/WorkQueueImplementation/`.
+`Proofs/GraphQL/IncrementalDelivery/WorkQueueImplementation/` and
+`Proofs/GraphQL/IncrementalDelivery/WorkQueueAlternativeImpl/`.
+Concrete regression fixtures belong under `Tests/GraphQL/IncrementalDelivery/Fixtures/`,
+not in implementation-proof modules.
 
 Execution accepts `createWorkQueue : Work → WorkQueue`. The core computes initial data
 and finite work independently of observation order. Work stores precomputed pure outcomes,
@@ -181,6 +187,10 @@ witnesses, and regression coverage without duplicating build or test commands.
   research comparison, failure witnesses, and open refinement obligations.
 - `docs/incremental-delivery/implementation.md`: reference queue/publisher implementation,
   GraphQL.js correspondence, conformance proof structure, and verification boundaries.
+- `docs/incremental-delivery/alternative-implementation.md`: alternative queue algorithm,
+  comparison, current proof map, and native-refinement boundaries.
+- `docs/incremental-delivery/porting-guide.md`: concrete representations, ownership and
+  callback rules, and proved implementation-optimization directions.
 - `docs/development.md#lean-module-organization`: module organization rules for keeping
   top-level Lean files definition-only and theorem files topic-specific.
 - `docs/overview.md`: durable project introduction, architecture, and topic navigation.
@@ -208,8 +218,16 @@ spec mappings, and proof status in the relevant topic guide rather than duplicat
 them in those summaries. Fixture commands belong in `conformance/graphql-js/README.md`.
 Keep documentation a snapshot of the current design and proved results, not a development
 log. Git retains superseded designs, proof plans, and per-commit progress.
-For routine work on implementation proofs, change the relevant proofs/tests and keep
-all implementation documentation updates in `docs/incremental-delivery/implementation.md`.
+For routine implementation proof work, change the relevant proofs/tests and update only
+the corresponding implementation guide: `docs/incremental-delivery/implementation.md`
+for the reference, or `docs/incremental-delivery/alternative-implementation.md` for the
+alternative. Keep the reference guide reference-only. Update the porting guide when
+concrete implementation guidance changes, not for per-commit proof progress.
+Keep incremental Lean comments independent of the companion port: external API/file
+mappings belong in the porting guide. WorkQueueImplementation is the exception: preserve
+its GraphQL.js credit and correspondence because it explicitly models that upstream code.
+The porting guide may discuss the companion implementation, but must not pin its commit
+hashes or source digests because its history may be squashed.
 Do not update other documentation or `AGENTS.md` for normal proof progress; changes to
 public definitions or contracts may require corresponding updates there.
 

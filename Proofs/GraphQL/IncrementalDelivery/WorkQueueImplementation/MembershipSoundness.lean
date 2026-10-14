@@ -720,7 +720,7 @@ private theorem State.runNormalized_groupMembershipSound
 /-- Soundness of each live group membership holds after every finite replay
 from the reference queue's initial state.
 -/
-private theorem createWorkQueue_runNormalized_groupMembershipSound
+theorem createWorkQueue_runNormalized_groupMembershipSound
     (work : Work) (batches : List (List GraphEvent))
     : ((State.initialize work).runNormalized batches).1.GroupMembershipSound :=
   State.runNormalized_groupMembershipSound

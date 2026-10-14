@@ -10,14 +10,15 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 -- An empty shell cannot own a value still buffered in the queue
 -----------------------------------------------------------------------------------------
 
-/-- Pruning cannot remove a contributor of a buffered task with retained memberships.
-Witness: if the selected empty shell had this ref, buffered membership would put the
+/-- Pruning cannot remove a contributor of a task with retained memberships.
+Witness: if the selected empty shell had this ref, its membership would put the
 task in its empty task list. Every other pruning step preserves the owner record.
 This statement needs no source, health, announcement, or counter premise.
 -/
-theorem State.pruneEmptyGroups_bufferedOwner_present {queue : State}
-    (links : queue.StoredTaskLinks) {task : TaskNode} (member : task ∈ queue.taskNodes)
-    (stored : task.value.isSome = true) {ref : NodeRef}
+theorem State.pruneEmptyGroups_linkedOwner_present {queue : State} {task : TaskNode}
+    (links
+      : queue.TaskLinkedOn task.task.occurrence
+          (task.task.groups.map Execution.DeliveryNode.ref)) {ref : Nat}
     (contributes : ref ∈ task.task.groups.map Execution.DeliveryNode.ref)
     (present : ref ∈ queue.groupNodes.map (fun node => node.group.node.ref))
     (groups : List Execution.DeliveryNode)
@@ -25,7 +26,8 @@ theorem State.pruneEmptyGroups_bufferedOwner_present {queue : State}
       ∈ (queue.pruneEmptyGroups groups).1.groupNodes.map
           (fun node => node.group.node.ref) := by
   have loop (fuel : Nat) (current : State) (more kept : List Execution.DeliveryNode)
-      (links : current.StoredTaskLinks) (member : task ∈ current.taskNodes)
+      (links : current.TaskLinkedOn task.task.occurrence
+        (task.task.groups.map Execution.DeliveryNode.ref))
       (present : ref ∈ current.groupNodes.map (fun node => node.group.node.ref))
       : ref ∈ (State.pruneEmptyGroups.go fuel current more kept).1.groupNodes.map
           (fun node => node.group.node.ref) := by
@@ -37,7 +39,7 @@ theorem State.pruneEmptyGroups_bufferedOwner_present {queue : State}
         | cons group rest =>
             simp only [State.pruneEmptyGroups.go]
             split
-            · exact ih _ _ _ links member present
+            · exact ih _ _ _ links present
             · rename_i node found
               split
               · rename_i empty
@@ -47,24 +49,37 @@ theorem State.pruneEmptyGroups_bufferedOwner_present {queue : State}
                     beq_iff_eq.mp (List.find?_some
                       (p := fun candidate : GroupNode => candidate.group.node.ref == group.ref)
                       found)
-                  have listed := links task member stored node
+                  have listed := links node
                     (List.mem_of_find?_eq_some found) (selected.symm ▸ same ▸ contributes)
                   have noTasks : node.tasks = [] :=
                     List.isEmpty_iff.mp (Bool.and_eq_true_iff.mp empty).1
                   simp only [noTasks, List.not_mem_nil] at listed
-                have nextLinks : State.StoredTaskLinks
+                have nextLinks : State.TaskLinkedOn
                     { current with groupNodes :=
                       current.groupNodes.filter (fun entry => entry.group.node.ref != group.ref) }
-                    := by
-                  intro buffered old value owner live contributor
-                  exact links buffered old value owner (List.mem_filter.mp live).1 contributor
-                apply ih _ _ _ nextLinks member
+                    task.task.occurrence (task.task.groups.map Execution.DeliveryNode.ref) := by
+                  intro owner live contributor
+                  exact links owner (List.mem_filter.mp live).1 contributor
+                apply ih _ _ _ nextLinks
                 obtain ⟨owner, live, same⟩ := List.mem_map.mp present
                 exact List.mem_map.mpr ⟨owner, List.mem_filter.mpr
                   ⟨live, by simp [same, different]⟩,
                   same⟩
-              · exact ih _ _ _ links member present
-  exact loop _ queue groups [] links member present
+              · exact ih _ _ _ links present
+  exact loop _ queue groups [] links present
+
+/-- Buffered-owner specialization of the general membership-based pruning fact. -/
+theorem State.pruneEmptyGroups_bufferedOwner_present {queue : State}
+    (links : queue.StoredTaskLinks) {task : TaskNode} (member : task ∈ queue.taskNodes)
+    (stored : task.value.isSome = true) {ref : Nat}
+    (contributes : ref ∈ task.task.groups.map Execution.DeliveryNode.ref)
+    (present : ref ∈ queue.groupNodes.map (fun node => node.group.node.ref))
+    (groups : List Execution.DeliveryNode)
+    : ref
+      ∈ (queue.pruneEmptyGroups groups).1.groupNodes.map
+          (fun node => node.group.node.ref) :=
+  State.pruneEmptyGroups_linkedOwner_present (links task member stored) contributes
+    present groups
 
 -----------------------------------------------------------------------------------------
 -- A successful flush removes a buffered contributor only by selecting that task
@@ -91,24 +106,26 @@ theorem State.finishGroupSuccess_retained_unlisted (queue : State) (group : Grou
   exact absent node (complete _ listed _ found) task retained
     (State.taskNode?_some found).2.symm
 
-/-- A buffered task surviving a successful flush keeps every earlier live contributor.
+/-- A linked task surviving a successful flush keeps every earlier live contributor.
 Witness: task removal preserves group refs, the closing ref cannot own a surviving task,
-and empty-shell pruning cannot remove any of its other buffered memberships.
+and empty-shell pruning cannot remove any of its other memberships.
 The contributor may be latent or already carry an error; no health premise is needed.
 -/
-theorem State.finishGroupSuccess_bufferedOwner_present {queue : State}
-    (links : queue.StoredTaskLinks) (group : GroupNode) (live : group ∈ queue.groupNodes)
-    {task : TaskNode} (retained : task ∈ (queue.finishGroupSuccess group).1.taskNodes)
-    (stored : task.value.isSome = true) {ref : NodeRef}
+theorem State.finishGroupSuccess_linkedOwner_present {queue : State}
+    (group : GroupNode) (live : group ∈ queue.groupNodes) {task : TaskNode}
+    (links
+      : queue.TaskLinkedOn task.task.occurrence
+          (task.task.groups.map Execution.DeliveryNode.ref))
+    (retained : task ∈ (queue.finishGroupSuccess group).1.taskNodes) {ref : Nat}
     (contributes : ref ∈ task.task.groups.map Execution.DeliveryNode.ref)
     (present : ref ∈ queue.groupNodes.map (fun node => node.group.node.ref))
     : ref
       ∈ (queue.finishGroupSuccess group).1.groupNodes.map
           (fun node => node.group.node.ref) := by
-  obtain ⟨old, unlisted⟩ := queue.finishGroupSuccess_retained_unlisted group retained
+  obtain ⟨_, unlisted⟩ := queue.finishGroupSuccess_retained_unlisted group retained
   have different : ref ≠ group.group.node.ref := by
     intro same
-    exact unlisted (links task old stored group live (same ▸ contributes))
+    exact unlisted (links group live (same ▸ contributes))
   let flushed := (group.tasks.foldl flushGroupTask (queue, [], [])).1
   have flushedRefs : flushed.groupNodes.map (fun node => node.group.node.ref)
       = queue.groupNodes.map (fun node => node.group.node.ref) := by
@@ -124,39 +141,52 @@ theorem State.finishGroupSuccess_bufferedOwner_present {queue : State}
           · rfl
           · simp only [State.removeTask, List.map_map]; rfl
     exact loop group.tasks (queue, [], [])
-  have flushedLinks : flushed.StoredTaskLinks := by
-    have step (acc : State × List ExecutionGroupValue × NodeRefs) (occurrence : Occurrence)
-        (prior : acc.1.StoredTaskLinks)
-        : (flushGroupTask acc occurrence).1.StoredTaskLinks := by
-      unfold flushGroupTask
-      split
-      · exact prior
-      · exact prior.removeTask occurrence
+  have flushedLinks : flushed.TaskLinkedOn task.task.occurrence
+      (task.task.groups.map Execution.DeliveryNode.ref) := by
     have loop (tasks : List Occurrence) (acc : State × List ExecutionGroupValue × NodeRefs)
-        (prior : acc.1.StoredTaskLinks)
-        : (tasks.foldl flushGroupTask acc).1.StoredTaskLinks := by
+        (included : tasks.Subset group.tasks)
+        (prior : acc.1.TaskLinkedOn task.task.occurrence
+          (task.task.groups.map Execution.DeliveryNode.ref))
+        : (tasks.foldl flushGroupTask acc).1.TaskLinkedOn task.task.occurrence
+            (task.task.groups.map Execution.DeliveryNode.ref) := by
       induction tasks generalizing acc with
       | nil => exact prior
-      | cons occurrence rest ih => exact ih _ (step _ _ prior)
-    exact loop group.tasks (queue, [], []) links
+      | cons occurrence rest ih =>
+          simp only [List.foldl_cons, flushGroupTask]
+          split
+          · exact ih _ (fun _ member => included (List.mem_cons_of_mem _ member)) prior
+          · exact ih _ (fun _ member => included (List.mem_cons_of_mem _ member))
+              (prior.removeOtherTask occurrence (fun same =>
+                unlisted (same ▸ included List.mem_cons_self)))
+    exact loop group.tasks (queue, [], []) (List.Subset.refl _) links
   let current : State :=
     { flushed with
       groupNodes := flushed.groupNodes.filter
         (fun node => node.group.node.ref != group.group.node.ref)
       rootGroups := flushed.rootGroups.filter (· != group.group.node.ref) }
-  have currentLinks : current.StoredTaskLinks := by
-    intro node member value owner present contributes
-    exact flushedLinks node member value owner (List.mem_filter.mp present).1 contributes
-  have currentMember : task ∈ current.taskNodes := by
-    have same : (queue.finishGroupSuccess group).1.taskNodes = current.taskNodes :=
-      State.pruneEmptyGroups_taskNodes current _
-    rwa [same] at retained
+  have currentLinks : current.TaskLinkedOn task.task.occurrence
+      (task.task.groups.map Execution.DeliveryNode.ref) := by
+    intro owner present contributes
+    exact flushedLinks owner (List.mem_filter.mp present).1 contributes
   have currentOwner : ref ∈ current.groupNodes.map (fun node => node.group.node.ref) := by
     rw [← flushedRefs] at present
     obtain ⟨owner, member, same⟩ := List.mem_map.mp present
     exact List.mem_map.mpr ⟨owner, List.mem_filter.mpr
       ⟨member, by simp [same, different]⟩, same⟩
-  exact State.pruneEmptyGroups_bufferedOwner_present currentLinks currentMember stored
-    contributes currentOwner _
+  exact State.pruneEmptyGroups_linkedOwner_present currentLinks contributes currentOwner _
+
+/-- Buffered-owner specialization; existing value-conservation proofs retain their API. -/
+theorem State.finishGroupSuccess_bufferedOwner_present {queue : State}
+    (links : queue.StoredTaskLinks) (group : GroupNode) (live : group ∈ queue.groupNodes)
+    {task : TaskNode} (retained : task ∈ (queue.finishGroupSuccess group).1.taskNodes)
+    (stored : task.value.isSome = true) {ref : Nat}
+    (contributes : ref ∈ task.task.groups.map Execution.DeliveryNode.ref)
+    (present : ref ∈ queue.groupNodes.map (fun node => node.group.node.ref))
+    : ref
+      ∈ (queue.finishGroupSuccess group).1.groupNodes.map
+          (fun node => node.group.node.ref) :=
+  State.finishGroupSuccess_linkedOwner_present group live
+    (links task (queue.finishGroupSuccess_retained_unlisted group retained).1 stored)
+    retained contributes present
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue
