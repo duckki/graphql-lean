@@ -2,28 +2,16 @@
 
 This file records external GraphQL formalization references for the Lean development.
 
-## IBM GraphQL Cost Directives
-
-- Specification: <https://ibm.github.io/graphql-specs/cost-spec.html>
-- Status used here: working draft for `@cost`, `@listSize`, Static Query Analysis,
-  and Query Response Analysis.
-
-`GraphQL.Theories.TreeSummary.StaticCost` follows this specification's separate type
-and field costs, default weights, signed input adjustments, abstract-type maximum, and
-list-size precedence. The Lean model uses integral weights and requires a configured
-finite fallback where the IBM specification would leave a list unbounded. See
-[`static-cost.md`](theories/static-cost.md) for the exact scoped boundary.
-
 ## GraphCoQL
 
 - Repository: <https://github.com/imfd/GraphCoQL>
 - Paper: "A Mechanized Formalization of GraphQL", CPP 2020, Tomas Diaz, Federico Olmedo, and Eric Tanter.
 - Paper page: <https://popl20.sigplan.org/details/CPP-2020-papers/12/A-Mechanized-Formalization-of-GraphQL>
 - PDF: <https://users.dcc.uchile.cl/~folmedo/pubs/2020.CPP.pdf>
-- Language/toolchain: Coq 8.9.1, Equations 1.2+8.9, Mathematical Components 1.9.0, Ssreflect. GitHub now labels `.v` files as Rocq Prover.
+- Language/toolchain: Coq 8.9.1, Equations 1.2+8.9, Mathematical Components 1.9.0, Ssreflect.
 - Reviewed source revision: GitHub `master` tree SHA `681edcdcdf982151f4d1f74bb2a42f15b527317c`.
 
-GraphCoQL is the closest known mechanized reference for this project. It formalizes a substantial executable fragment of the June 2018 GraphQL specification over a graph data model, rather than modeling execution by arbitrary host-language resolvers. That choice makes query semantics concrete enough to prove validation, normalization, and semantic-preservation results.
+GraphCoQL is a mechanized reference used for this project. It formalizes a substantial executable fragment of the June 2018 GraphQL specification over a graph data model, rather than modeling execution by arbitrary host-language resolvers. That choice makes query semantics concrete enough to prove validation, normalization, and semantic-preservation results.
 
 ## Source Structure
 
@@ -104,19 +92,20 @@ Execution follows GraphQL's selection execution shape but targets a graph model:
 - repeated fields with the same response name are collected/merged by helper functions,
 - missing fields or invalid scalar completion currently collapse to null or skip behavior rather than a modeled error channel.
 
-GraphCoQL also defines a simplified semantics for normalized queries. The important theorem direction for future Lean work is not just "normalization produces normal form", but "normalization preserves query semantics".
+GraphCoQL also defines a simplified semantics for normalized queries. The semantic-preservation question is not just "normalization produces normal form", but "normalization preserves query semantics".
 
-## Normal Form Relevance
+## Normalization background
 
-GraphCoQL's normal form work is the most relevant bridge to this repo's
-operation-transformation goals.
+GraphCoQL's normal-form work illustrates how a precise model can support verified
+query transformations. This talk branch retains query inclusion rather than a
+normalization implementation.
 
 Ground-typed normal form specializes selections under abstract types into concrete object-type cases. Non-redundancy removes duplicate response names and duplicate inline fragments. Normalization performs two operations:
 
 - merging repeated fields with the same response name, using selection-set collection similar to GraphQL `CollectFields` and `MergeSelectionSets`,
 - grounding abstract object/interface/union contexts by wrapping or lifting selections under concrete object-type inline fragments.
 
-For this Lean project, GraphCoQL suggests a proof ladder:
+GraphCoQL suggests a general proof ladder for modeling query transformations:
 
 1. Define syntax and schema-independent structural measures.
 2. Define schema lookup and possible-type semantics for object/interface/union types.

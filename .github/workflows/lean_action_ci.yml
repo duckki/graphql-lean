@@ -23,4 +23,4 @@ jobs:
         run: ./scripts/fmt-changed.sh --check --base "origin/${{ github.base_ref }}"
       - name: Check formatting (all files)
         if: github.event_name != 'pull_request'
-        run: lake exe fmt --check --recursive *.lean GraphQL Proofs Tests Benchmarks Lint
+        run: lake exe fmt --check --recursive *.lean GraphQL Tests Lint

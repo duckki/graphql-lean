@@ -4,17 +4,18 @@ This guide documents the specification-facing
 [`GraphQL.Execution`](../GraphQL/Execution.lean) model and its shared input and
 response abstractions. The target is the
 [GraphQL September 2025 Edition](https://spec.graphql.org/September2025/).
-See the [conformance summary](spec-conformance.md) for coverage and exclusions,
-[algorithms](algorithms.md) for alternative executors, and
-[incremental delivery](incremental-delivery/README.md) for the separate draft model.
+See the [conformance summary](spec-conformance.md) for coverage and exclusions, and
+[query inclusion](theories/query-inclusion.md) for the selected-path comparison built
+on this model's field collection.
 
 ## Resolver and response boundary
 
 Execution is parameterized by abstract resolver functions. Runtime object values
-carry a GraphQL object type and an optional resolver-owned opaque reference;
+carry a GraphQL object type and a resolver-owned opaque reference;
 final responses contain neither object identity nor detailed error metadata.
-Semantic equivalence can therefore quantify over resolver environments, variable
-values, explicit fuel values, and source values.
+The resolver reference type and resolver functions are parameters of execution, so
+the model is independent of a particular database or host object representation.
+Resolvers must return equal results for equivalent coerced argument maps.
 
 Execution collects fields by response name, resolves a grouped field, completes
 its value, and accumulates counted errors. `Response` is a data/errors envelope;
@@ -56,16 +57,15 @@ practical:
   like `false` for both directives, so `@skip` keeps the selection and
   `@include` drops it. Spec validation (5.8.5) makes the undefined-variable
   case unreachable for valid documents; the explicit-`null` case is reachable
-  through a nullable variable with a non-null default. Note that graphql-js
-  deviates from the spec algorithm here: it coerces directive arguments at the
-  evaluation point and raises a located error for `null` conditions. The model
-  follows the spec text.
+  through a nullable variable with a non-null default. This describes the model's
+  behavior on permissive syntax; valid-input guarantees require the separate
+  validation and input assumptions.
 - `executeRootSelectionSet`, `executeCollectedFields`, `executeField`,
   `completeValue`, and `completeValueList` model the spec 6.3/6.4 execution
   ladder at an explicit recursion-fuel bound.
-- `executeField` performs the schema lookup once and passes the resulting
-  `FieldDefinition` to `resolveFieldValue`; resolver argument coercion reuses that
-  definition instead of repeating the lookup.
+- `executeField` looks up the `FieldDefinition`, uses its argument definitions to
+  prepare a coerced argument map, and passes that map to `resolveFieldValue`. The
+  same field definition supplies the output type used for completion.
 - `Result` carries the spec 6.4.4 null-bubbling control flow. `.error n` means
   an execution error has bubbled through a non-null response position;
   `.ok (value, n)` means completion produced data and accumulated `n` execution
@@ -76,35 +76,37 @@ practical:
   error. Schema lookup misses, empty collected field groups, invalid root source
   values, fuel exhaustion, and runtime/type-shape mismatches are counted errors
   in this partial executable model; validation and store well-typedness
-  assumptions rule out the invalid-operation cases used by semantic proofs.
+  assumptions are separate from this behavior on raw inputs.
 - `executeCollectedFields` combines the ordered response field lists with
   `List.append`, matching the spec's ordered collection behavior directly.
 - Scalar/enum result coercion and abstract `ResolveAbstractType` are abstracted:
   scalar results are represented as strings, and object runtime type is carried
   by `ResolverValue.object`.
 
-## Named-fragment execution
+## Validation stays separate
 
-[`GraphQL.NamedFragment`](../GraphQL/NamedFragment/) provides separate
-fragment-aware operation syntax, validation, direct execution, and static inlining
-into the core operation model. Direct collection threads the spec's
-`visitedFragments` context and filters repeated spreads. The execution bridge
-shows that the repeated fields retained by static inlining are absorbed during
-execution.
+Schema well-formedness and operation validity are propositions over permissive raw
+syntax. Core validation includes recursive input-object checks, variable/input-type
+compatibility with the nullable-variable default exception, non-empty root/composite
+selection sets, inline-fragment applicability, and response-name merge compatibility.
+The executor does not establish those premises for its caller.
 
-The all-variables-used check follows fragment spreads transitively and does not
-count uses in unreferenced fragments. Core validation also includes recursive
-input-object checks, variable/input-type compatibility with the nullable-variable
-default exception, non-empty root/composite selection sets, and response-name
-merge compatibility. These remain assumptions separate from permissive raw syntax.
+This branch retains the core fields and inline-fragment model. Named fragments,
+incremental delivery, and external graphql-js conformance tooling are outside the
+branch's scope.
 
-## Conformance fixtures
+## Connection to query inclusion
 
-The graphql-js oracle compares ordered response data and `errors.length` for
-the core and named-fragment executors. Messages, paths, locations, extensions,
-asynchronous scheduling, and resolver information metadata are projected away.
-The fixtures include omitted nullable Boolean variables with non-null defaults
-used by `@skip` and `@include`.
+`ResponsePath.operationSelectsPath` uses `collectFields` with a synthetic object
+source. Its recursive path predicate uses `collectSubfields` to merge the children
+of an entire response-name group. These functions inspect an object source's runtime
+type, so a unit resolver reference is sufficient for describing selection.
 
-Generation, build, and oracle commands live in the
-[fixture guide](../conformance/graphql-js/README.md).
+Selected paths record field identity, arguments up to syntactic reordering, concrete
+parent objects, and output types. They describe the selected-field footprint without
+running resolvers, completing values, or constructing a response. The reference
+inclusion checker uses the same collection functions, which is why execution is useful
+background for the proof exercise even though that exercise proves a syntactic relation.
+
+The retained regression tests exercise the query-inclusion checker. A successful
+checker test or selected-path theorem is not a proof of an external executor's behavior.

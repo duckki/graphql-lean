@@ -2,12 +2,11 @@
 
 The main model targets the
 [GraphQL September 2025 Edition](https://spec.graphql.org/September2025/).
-A separate incremental-delivery model targets
-[PR #1110, revision 045e193](https://github.com/graphql/graphql-spec/tree/045e19363c2b55f127960bd3b5e8072a15b29aec).
+This talk branch retains the core query model and selected-path inclusion theory.
 
 This page records coverage and exclusions, not full-spec conformance or proof
 completion. Representation details and specification mappings are documented in
-[execution](execution.md) and [incremental delivery](incremental-delivery/README.md).
+[execution](execution.md).
 
 ## Main model: covered
 
@@ -19,8 +18,6 @@ completion. Representation details and specification mappings are documented in
 - **Operation validation:** field and argument validity, required arguments,
   variable uses and input-type compatibility, selection shape and non-emptiness,
   fragment applicability, and same-response-name merge compatibility.
-- **Named fragments:** a separate fragment-aware layer with syntax, validation,
-  execution, and inlining.
 - **Input preparation:** operation-variable defaults, argument materialization,
   schema argument defaults, and nested input-object defaults.
 - **Execution:** resolver-parametric field collection and grouped execution,
@@ -37,6 +34,7 @@ recursion. Errors are represented by counts rather than detailed error objects.
 Not covered:
 
 - Mutation and subscription execution.
+- Named fragment definitions/spreads and incremental delivery.
 - Custom directives and directive definitions beyond the modeled built-ins.
 - Scalar/enum parsing and coercion details, including result coercion.
 - Introspection and meta-fields.
@@ -47,41 +45,13 @@ Not covered:
   information metadata.
 - Schema extensions and type-system extension syntax.
 
-## Incremental-delivery draft: covered
+## Query-inclusion boundary
 
-The separate draft model shares the main schema, input, resolver, and response
-abstractions. It covers:
+Selected-path inclusion and its exhaustive reference checker are project-specific
+analyses over the scoped syntax. Their correctness domain assumes a well-formed schema
+and valid operations. They do not add GraphQL features to the model or establish
+response inclusion, response-shape analysis, minimization, or federation support.
 
-- Inline-fragment `@defer`, field `@stream`, directive conditions and labels,
-  aliases, runtime type conditions, and overlapping deferred selections.
-- Deferred field grouping and shared work, initial list prefixes, subsequent
-  streamed items, and zero-item stream lifecycles at exhausted initial boundaries.
-- Initial and subsequent responses, pending IDs, patches, completion notices,
-  batching, counted errors, and modeled failure/cancellation.
-- Alternative finite work schedules, interrupted observations, and completed runs,
-  under an explicit model-supplied scheduler contract.
-
-The draft leaves scheduler behavior underspecified. The additional scheduler
-contract is a proposed model contribution, not a claim of literal specification
-coverage.
-
-## Incremental-delivery draft: assumptions and exclusions
-
-The main model's exclusions also apply. In addition:
-
-- Incremental-delivery-specific validation and named-fragment delivery are not implemented.
-- Directive placement/types, non-repeatability, literal unique labels, and
-  non-overlapping streamed field selections are assumed valid.
-- Stream execution includes a model extension for steps absent from the draft spec.
-- Effectful resolvers, infinite sources, real-time availability, fairness, host
-  future termination, and external transport cancellation are not modeled.
-- Optional coalescing of later updates into the initial response is not modeled.
-- Optional ignoring of active incremental directives is not modeled.
-
-## Conformance checks: coverage boundary
-
-graphql-js fixtures compare the main and named-fragment models' ordered response
-data and execution-error counts. They do not compare detailed errors, transport,
-or asynchronous behavior, and do not establish universal correctness of the
-incremental model. The [fixture guide](../conformance/graphql-js/README.md)
-documents the test workflow.
+The retained tests are concrete query-inclusion regressions. This branch does not
+include external conformance fixtures, and those tests do not establish full-spec
+conformance or universal checker correctness.

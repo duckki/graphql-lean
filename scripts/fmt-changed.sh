@@ -55,7 +55,9 @@ done
 
 filter_existing_files() {
   while IFS= read -r file; do
-    test -e "$file" && printf '%s\n' "$file"
+    if test -e "$file"; then
+      printf '%s\n' "$file"
+    fi
   done
 }
 

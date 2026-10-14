@@ -1,4 +1,4 @@
-import GraphQL.Theories.ExecutionReadiness
+import GraphQL.Execution
 
 /-!
 GraphQL response paths and selected-field footprints.
@@ -11,9 +11,28 @@ operations' footprints pathwise in `GraphQL.Theories.QueryInclusion`.
 -/
 
 namespace GraphQL
-namespace ResponsePath
 
 open Execution
+
+-----------------------------------------------------------------------------------------
+-- Boolean variable assignment completeness
+-----------------------------------------------------------------------------------------
+
+-- Complete assignments for the Boolean variables controlling field selection.
+abbrev BoolVar := Name
+abbrev BoolCase := List (BoolVar × Bool)
+
+def boolCaseVariableValues (boolCase : BoolCase) (base : VariableValues := [])
+    : VariableValues :=
+  boolCase.map (fun entry => (entry.1, .boolean entry.2)) ++ base
+
+def boolVarsComplete (variables : List BoolVar) (variableValues : VariableValues)
+    : Prop :=
+  ∀ varName,
+    varName ∈ variables
+    -> ∃ value, inputValueBoolean? variableValues (.variable varName) = some value
+
+namespace ResponsePath
 
 -----------------------------------------------------------------------------------------
 -- Response-path syntax

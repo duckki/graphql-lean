@@ -11,14 +11,14 @@ Build the public definitions and proofs (the default Lake targets):
 lake build
 ```
 
-Tests are separate from the default build. Run all ordinary and conformance tests:
+Tests are separate from the default build. Run the retained regression tests:
 
 ```sh
 lake build Tests
 ```
 
 These tests are checked during Lean compilation; there is no separate runtime test
-runner. CI builds both the default targets and `Tests`.
+runner. Build `Tests` explicitly when verifying the exercise branch.
 
 The Makefile provides the same separation:
 
@@ -69,13 +69,13 @@ This package uses leanfmt from
 Format all Lean sources:
 
 ```sh
-lake exe fmt --recursive *.lean GraphQL Proofs Tests Benchmarks Lint
+lake exe fmt --recursive *.lean GraphQL Proofs Tests Lint
 ```
 
 Check formatting without rewriting files:
 
 ```sh
-lake exe fmt --check --recursive *.lean GraphQL Proofs Tests Benchmarks Lint
+lake exe fmt --check --recursive *.lean GraphQL Proofs Tests Lint
 ```
 
 To format only Lean files changed from `origin/main`, use:
@@ -125,14 +125,22 @@ to change the names they use.
 ### Tests
 
 Organize ordinary tests by the definition or proof topic they exercise, mirroring
-those areas where practical. Keep generated and fixture-driven conformance tests
-separate, grouped by source and feature. Test roots should remain aggregators;
-introduce a new root only for a durable major test family.
+those areas where practical. Keep test roots as aggregators. This branch retains
+query-inclusion regressions under `Tests/GraphQL/`.
 
-## Conformance Fixtures
+### Exercise solutions
 
-Fixture generation and graphql-js oracle commands are documented in the
-[conformance fixture guide](../conformance/graphql-js/README.md). The
-[conformance summary](spec-conformance.md) records coverage; the
-[incremental-delivery guide](incremental-delivery/README.md#proof-status-and-verification)
-records its proof status and regression coverage.
+The `Proofs` library supplies the query-inclusion supporting lemmas. Final exercise
+witnesses belong in `Proofs/GraphQL/Theories/QueryInclusion/`. After adding a solution,
+first build its module explicitly, then import it from `Proofs.lean` to include it
+in regular builds and the tracked import-closure check.
+
+Keep the checker, specification, correctness propositions, and their assumptions
+unchanged during the exercise. A solution must contain no residual `sorry`/`admit`
+and introduce no axioms. Inspect its transitive dependencies with `#print axioms`.
+
+## Review
+
+Do not commit before user review. Prepare a reviewable slice, run relevant checks,
+summarize the diff, and wait for the user to request a commit. After committing, stop
+again for review before starting another slice unless explicitly authorized to continue.

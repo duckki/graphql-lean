@@ -1,1 +1,1 @@
-import Proofs.GraphQL
+import Proofs.GraphQL.Theories.QueryInclusion.Support

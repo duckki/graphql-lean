@@ -12,9 +12,6 @@ rev = "v0.4.5"
 name = "GraphQL"
 
 [[lean_lib]]
-name = "Proofs"
-
-[[lean_lib]]
 name = "Tests"
 
 [[lean_lib]]
@@ -28,10 +25,5 @@ root = "Lint"
 name = "import-closure"
 root = "Lint.ImportClosureMain"
 
-[[lean_exe]]
-name = "query-inclusion-bench"
-root = "Benchmarks.QueryInclusion"
-
-[[lean_exe]]
-name = "exact-cases-bench"
-root = "Benchmarks.ExactCases"
+[[lean_lib]]
+name = "Proofs"

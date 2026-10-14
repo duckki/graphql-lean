@@ -1,124 +1,64 @@
-# graphql-lean
+# GraphQL query inclusion in Lean
 
-`graphql-lean` is a GraphQL formalization in Lean, based on the [GraphQL September
-2025 Edition](https://spec.graphql.org/September2025/).
+This talk and exercise branch keeps the definitions and regression tests needed for
+query inclusion. It uses `GraphQL.QueryInclusion.includesBoolReference`, an exhaustive
+Boolean checker. A focused proof scaffold supports the hands-on exercise. Unrelated
+GraphQL theories, benchmarks, and conformance tooling remain outside this branch.
 
-Compared with prior theorem-prover formalizations such as
-[GraphCoQL](https://github.com/imfd/GraphCoQL), this development fills important gaps in
-the formal treatment of GraphQL. Notably, it models `@skip` / `@include` directives, null
-bubbling, execution errors up to error counts, and named fragments. It also includes
-verified algorithmic alternatives to the spec executor and a directive-aware normalization
-theory.
+## Reading order
 
-## Highlights
+Start with the [overview](docs/overview.md) for the model's structure and
+[execution](docs/execution.md) for field collection, resolver values, completion, and
+error handling. The [conformance summary](docs/spec-conformance.md) describes the scoped
+GraphQL fragment; [references](docs/references.md) gives related formalization background.
 
-- [GraphQL/](GraphQL/) contains the public formal model of the scoped GraphQL
-  2025 spec: schema syntax and well-formedness, operation syntax, validation,
-  execution, named fragments, execution algorithms, and public theory
-  definitions.
-- [ExecutionCancelingSiblings](GraphQL/Algorithms/ExecutionCancelingSiblings.lean)
-  verifies a spec-style executor that cancels sibling response positions after
-  null bubbling.
-- [ExecutionUngrouped](GraphQL/Algorithms/ExecutionUngrouped.lean) models a
-  lightweight syntax-order execution that avoids building the collected
-  field map, caches field results and retained composite sources by response
-  position, and has checked preservation witnesses. Its
-  [uncached specialization](GraphQL/Algorithms/ExecutionUngroupedUncached.lean)
-  is also verified for resolvers that are cheap to call repeatedly.
-- [ExecutionBreadth](GraphQL/Algorithms/ExecutionBreadth.lean) verifies a
-  breadth-first execution model with vectorized resolver calls, inspired by
-  [gmac/graphql-breadth-js](https://github.com/gmac/graphql-breadth-js),
-  against the spec-facing executor.
-- [NormalForm](GraphQL/Theories/NormalForm.lean) provides ground-type and complete
-  normalization.
-  Complete normalization supports modeled `@skip` / `@include` directives,
-  unlike the earlier paper/Coq normalizers, and its canonicity theorems prove
-  that semantic equivalence of operations can be reduced to comparison of normal
-  forms.
-- [QueryInclusion](GraphQL/Theories/QueryInclusion.lean) provides a verified,
-  condition-aware decision procedure for recursive response inclusion that preserves
-  resolver-call provenance.
-- [TreeSummary](GraphQL/Theories/TreeSummary.lean) provides fast syntactic and
-  exact-case folds over feasible condition trees. Generic framework theorems lift
-  local algebra obligations to execution soundness, while the exact backend also
-  supports opt-in structural least-bound proofs.
-- [StaticCost](GraphQL/Theories/TreeSummary/StaticCost.lean) performs
-  IBM GraphQL Cost Directives static analysis over condition trees, with an
-  external model for the custom directive metadata omitted from the core schema
-  syntax. It reports separate type and field costs, and its execution-level proof
-  bounds query-response cost when the completed response respects the model's
-  list-size estimates.
+1. [QueryInclusion](GraphQL/Theories/QueryInclusion.lean): condition-variable extraction,
+   selected-path specification, reference implementation, and correctness statements.
+2. [ResponsePath](GraphQL/Theories/ResponsePath.lean): Boolean assignments and the selected
+   paths compared by the specification.
 
-## GraphQL Layout
+These are the only modules under `GraphQL/Theories/`. Schema, operation, validation,
+schema well-formedness, and execution definitions support the checker. The model is a
+scoped fragment of GraphQL: fields, inline fragments, and `@skip` / `@include`, with
+already-coerced inputs and opaque resolver objects. Named fragments, incremental
+execution, mutations, subscriptions, and execution-semantic inclusion are outside this
+talk branch's scope.
 
-The public model is rooted at [GraphQL.lean](GraphQL.lean), which imports the
-definition surfaces below.
+## Proof exercise
 
-- [GraphQL/Schema.lean](GraphQL/Schema.lean): GraphQL type-system syntax, type
-  references, lookup, possible-object helpers, default-value validity, and
-  interface implementation compatibility helpers.
-- [GraphQL/SchemaWellFormedness.lean](GraphQL/SchemaWellFormedness.lean): schema
-  well-formedness predicates for the modeled fragment.
-- [GraphQL/Operation.lean](GraphQL/Operation.lean): core operation syntax,
-  variable definitions, selections, inline fragments, and modeled directive
-  applications.
-- [GraphQL/Validation.lean](GraphQL/Validation.lean): operation validation
-  predicates, including field validity, argument validity, variable-use checks,
-  selection-shape checks, fragment applicability, and merge compatibility.
-- [GraphQL/Execution.lean](GraphQL/Execution.lean): resolver-parametric
-  spec-compliant execution with operation-variable defaults, schema-derived resolver
-  argument maps, field collection, completion, null bubbling, and response envelopes
-  containing data plus execution-error counts.
-- [GraphQL/NamedFragment/](GraphQL/NamedFragment/): fragment-aware operation
-  syntax, validation, execution, translation, and inlining support.
-- [GraphQL/Algorithms/](GraphQL/Algorithms/): non-spec execution algorithms,
-  including sibling-canceling execution, source-caching and uncached ungrouped
-  execution, and breadth-first execution.
-- [GraphQL/Theories/](GraphQL/Theories/): public project theories, currently
-  including normal forms, annotated execution, selection-condition extraction, and
-  query inclusion, condition-tree extraction and interpretation, and compositional
-  tree summaries.
+Prove this statement without changing the specification, checker, or assumptions:
 
-Proof witnesses are under [Proofs/](Proofs/). Ordinary tests are under
-[Tests/GraphQL/](Tests/GraphQL/), and generated or fixture-driven conformance
-tests are under [Tests/Conformance/](Tests/Conformance/).
+```lean
+import Proofs.GraphQL.Theories.QueryInclusion.Support
 
-## Build
+namespace GraphQL.QueryInclusion
 
-Build definitions and proofs:
+theorem includesBoolReference_sound {schema : Schema} {left right : Operation}
+    : IncludesBoolReferenceSound schema left right := by
+  -- Supply the proof here.
+```
+
+`IncludesBoolReferenceSound` says that, for a well-formed schema and valid left and right
+operations, checker acceptance implies `includes schema left right`. Inclusion is
+oriented from right to left: every selected right-hand path must also be selected on the
+left, and shared variable definitions must agree syntactically.
+
+Put the completed theorem in `Proofs/GraphQL/Theories/QueryInclusion/Soundness.lean`,
+close the namespace, and check it with `lake env lean` after `lake build`. The prepared
+exercise baseline contains the target propositions and proved supporting lemmas, without
+final theorem witnesses or `sorry` placeholders. `IncludesBoolReferenceComplete` is an
+optional stretch exercise. The supporting lemmas are exposed by
+[`QueryInclusion.Support`](Proofs/GraphQL/Theories/QueryInclusion/Support.lean).
+
+## Checks
 
 ```sh
 lake build
+lake build Tests
+lake lint
+./scripts/fmt-changed.sh --allow-dirty --check
 ```
 
-Run all tests separately with `lake build Tests`, or use `make all` for build, tests,
-lint, and changed-file formatting checks. See [the developer guide](docs/development.md)
-for workflow details.
-
-## Documentation
-
-- [docs/overview.md](docs/overview.md): project introduction and architecture.
-- [docs/spec-conformance.md](docs/spec-conformance.md): implemented
-  spec-conformance scope and out-of-scope boundaries.
-- [docs/execution.md](docs/execution.md): main execution model, shared abstractions,
-  and specification correspondence.
-- [docs/incremental-delivery/README.md](docs/incremental-delivery/README.md): draft execution model,
-  specification mapping, scheduler contract, correctness statements, and proof status.
-- [docs/algorithms.md](docs/algorithms.md): algorithmic alternatives to the
-  spec-facing executor and their proof status.
-- [docs/theories/query-inclusion.md](docs/theories/query-inclusion.md): query-inclusion
-  semantics, correctness domain, checker design, and proof structure.
-- [docs/theories/normal-form.md](docs/theories/normal-form.md): normal-form definitions and
-  preservation theorems.
-- [docs/theories/normal-form-uniqueness.md](docs/theories/normal-form-uniqueness.md): canonicity
-  and semantic-equivalence results for normal forms.
-- [docs/theories/condition-tree.md](docs/theories/condition-tree.md): condition-tree extraction,
-  execution, reduction, and proof witnesses.
-- [docs/theories/tree-summary.md](docs/theories/tree-summary.md): contextual summary folds,
-  annotated-response soundness, and the MaxResponseSize example.
-- [docs/theories/tree-summary-factorization.md](docs/theories/tree-summary-factorization.md):
-  implementation
-  and soundness argument for factorizing the fast syntactic backend's branch cases.
-- [docs/theories/static-cost.md](docs/theories/static-cost.md): static cost and list-size
-  model, cost rule, and tree-summary entry points.
-- [docs/development.md](docs/development.md): developer guide.
+The tests check concrete behavior; they do not replace the exercise's universal proof.
+See [query inclusion](docs/theories/query-inclusion.md) for the contract and boundaries,
+and [development](docs/development.md) for tooling and module conventions.

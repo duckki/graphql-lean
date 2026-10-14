@@ -21,45 +21,38 @@ used by later proofs, rather than making invalid inputs impossible to represent.
 Resolvers are parameters, so semantic claims can apply across data sources rather
 than only to a particular database or fixture.
 
-Project algorithms and theories build on that model. Their correctness statements
-relate alternative executions, transformed queries, or analysis results back to
-the specification-facing execution semantics. Each theorem has its own assumptions;
-a public correctness statement is not itself a proof.
+This talk branch focuses on query inclusion: a syntactic relation between selected
+response paths, together with an exhaustive reference checker and supporting proofs.
+The executor remains as background for the field-collection semantics used by those
+paths. Each correctness statement has its own assumptions; defining a proposition
+is not itself a proof.
 
 ## Main areas
 
 - **Core GraphQL:** schema and operation syntax, validity, field collection, value
-  completion, null bubbling, and modeled execution errors.
+  completion, null bubbling, and counted execution errors.
   See [execution](execution.md) for the representation and specification mapping.
-  [Execution-readiness checking](theories/execution-readiness.md) covers argument
-  defaults and composite-output inhabitance after validation.
-- **Named fragments:** fragment-aware syntax, validation, execution, and translation
-  to the core operation model.
-- **Incremental delivery:** a separate draft model for `@defer` and `@stream`,
-  with explicit scheduling assumptions and observable-response correctness
-  statements. See [incremental delivery](incremental-delivery/README.md) for its target,
-  design, specification correspondence, and proof status.
-- **Alternative execution strategies:** algorithms whose behavior is compared with
-  the specification-facing executor. See [algorithms](algorithms.md).
-- **Query transformations and comparisons:** [normal forms](theories/normal-form.md)
-  and [query inclusion](theories/query-inclusion.md) support reasoning about
-  equivalence and inclusion. Query inclusion checks selected response paths;
-  separate semantic bridges relate it to error-free annotated executions.
-- **Static analyses:** [condition trees](theories/condition-tree.md) and
-  [tree summaries](theories/tree-summary.md) support analyses such as response-size
-  bounds and [static cost](theories/static-cost.md).
+- **Selected response paths:** `GraphQL.Theories.ResponsePath` describes the fields
+  selected under a Boolean assignment, including runtime object types, aliases,
+  resolver-call identity, arguments, and output types.
+- **Query inclusion:** `GraphQL.Theories.QueryInclusion` compares those footprints
+  under every relevant Boolean assignment. Its reference checker enumerates assignments
+  and possible runtime types. See [query inclusion](theories/query-inclusion.md) for
+  the contract, algorithm, assumptions, and proof exercise.
+- **Proof scaffold:** supporting lemmas connect Boolean enumeration, field collection,
+  and recursive checker results to the selected-path specification.
 
-The project-specific theories and algorithms are not additions to the GraphQL
-specification. They use the formal model as their semantic reference.
+Query inclusion is a project theory built on the GraphQL model, not an additional
+GraphQL specification rule. The selected-path relation does not by itself establish
+inclusion of executed responses or a production cache-reuse guarantee.
 
 ## Repository organization
 
 Code is separated by role, with proof and test paths mirroring the public definitions:
 
-- `GraphQL/`: public model, algorithm, and theory definitions.
+- `GraphQL/`: public model and query-inclusion definitions.
 - `Proofs/GraphQL/`: theorems and proof-facing helpers.
 - `Tests/GraphQL/`: ordinary definition and proof regressions.
-- `Tests/Conformance/`: generated or fixture-driven conformance checks.
 - `Lint/`: repository tooling.
 
 The root import files aggregate these areas. Public definitions do not depend on
@@ -73,6 +66,5 @@ the topic guides above for definitions, assumptions, and proof status. Detailed
 proof arguments belong with their topics rather than in this introduction.
 
 The [development guide](development.md) covers build, formatting, and lint commands.
-The [conformance fixture guide](../conformance/graphql-js/README.md) explains the
-graphql-js comparison workflow. [References](references.md) provides background
-on related formalizations.
+[References](references.md) provides background on related formalizations, particularly
+GraphCoQL and its separation of syntax, validation, and execution.
