@@ -52,30 +52,30 @@ private def healthyNested : List Selection :=
 private theorem retainedDefer_refines
     : CompletionRefines id (scheduled retainedDefer).1 (eager retainedDefer).1 := by
   cbv
-  repeat first | constructor | trivial
+  repeat first | constructor! | trivial
 
 private theorem retainedStream_refines
     : CompletionRefines id (scheduled retainedStream).1 (eager retainedStream).1 := by
   cbv
-  repeat first | constructor | trivial
+  repeat first | constructor! | trivial
 
 private theorem changedCountAndKey_refines
     : CompletionRefines (KeyRenaming.insertGap 18 1)
         (scheduled changedCountAndKey).1 (eager changedCountAndKey).1 := by
   cbv
-  repeat first | constructor | trivial
+  repeat first | constructor! | trivial
 
 private theorem healthyNested_refines
     : CompletionRefines id (scheduled healthyNested).1 (eager healthyNested).1 := by
   cbv
-  repeat first | constructor | trivial
+  repeat first | constructor! | trivial
 
 private def fatalDefer : List Selection := [Tests.defer requiredPair]
 
 private theorem fatalDefer_refines
     : CompletionRefines id (scheduled fatalDefer).1 (eager fatalDefer).1 := by
   cbv
-  repeat first | constructor | trivial
+  repeat first | constructor! | trivial
 
 example : (scheduled changedCountAndKey).2 = 19 := by cbv
 example : (eager changedCountAndKey).2 = 20 := by cbv
@@ -154,7 +154,7 @@ private def fatalOccurrence : Occurrence := .executionGroup [1, 0]
 
 private theorem scheduled_fatal_task
     : TaskAt (scheduled fatalDefer).1.work fatalOccurrence [17] none
-        (.object [] (.error 1)) := by cbv; repeat first | constructor | trivial
+        (.object [] (.error 1)) := by cbv; repeat first | constructor! | trivial
 
 private theorem scheduled_fatal_node
     : Causality.NodeFailed (scheduled fatalDefer).1.work [fatalOccurrence]

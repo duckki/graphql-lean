@@ -236,8 +236,8 @@ it is not merely a plan. Nonempty work is required because ordinary execution co
 no queue, while incremental initialization requires a nonempty notice frontier.
 The existing witness
 [`createWorkQueueForScheduleConforms_holds`](../../Proofs/GraphQL/IncrementalDelivery/WorkQueueImplementation/Conformance.lean)
-has the following four-clause proof structure. Rebuilding terminal accounting now also
-requires showing that every cancelled task has a covering positive-error completion:
+has the following four-clause proof structure. Terminal accounting includes showing that
+every cancelled task has a covering positive-error completion:
 
 | Clause | Proof route |
 | --- | --- |
@@ -826,8 +826,8 @@ Reference conformance, the implementation bridge, reusable query-correctness wit
 and conformance/reporting regressions build and pass. No algorithm changes, additional
 source premises, added axioms, or proof holes discharge the reporting obligation.
 The general client-facing failure-coverage witness and its stream/defer regressions also
-build and pass. Whole-project verification still requires migration of independent
-finite-progress proofs to the revised reporting law.
+build and pass. Independent finite-progress proofs and the full test suite also build
+with the terminal reporting law.
 
 Finite-progress witnesses distinguish internal task accounting from observable failure
 reporting. Initial owner coverage constructs an accounted history, but alone does not

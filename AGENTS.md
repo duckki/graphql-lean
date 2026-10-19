@@ -124,9 +124,8 @@ terminated outcomes. This bridge does not depend on the optional ResponseStreamC
 CursorCorrectness supplies reusable end-to-end results without duplicating the public
 query-correctness propositions.
 
-The 12 established public query-correctness statements, reference conformance, and the
-query bridge have existing proof witnesses awaiting the terminal-reporting rebuild.
-Do not claim current conformance or whole-project verification until that rebuild passes.
+The 12 established public query-correctness statements, reference conformance, the
+query bridge, and finite-progress witnesses are verified against terminal reporting.
 Safety and disjointness statements cover admitted prefixes,
 including errors.
 ID liveness and lifecycle cover complete finite runs. Reconstruction, basic-position
@@ -168,10 +167,9 @@ Repo organization is:
 
 Run `lake build`, `lake build Tests`, and `lake lint` for whole-project verification,
 or `make all` to include changed-file formatting checks. The default build and lint
-exclude tests; CI builds `Tests` explicitly. The current public-definition review adds
-terminal failure reporting; proof/test migration and whole-project verification are
-pending. Existing axiom audits contain only `propext`, `Classical.choice`, and `Quot.sound`,
-with no proof holes or added axioms. They do not verify the new terminal obligation.
+exclude tests; CI builds `Tests` explicitly. Definitions, proofs, and tests build with
+terminal failure reporting. Existing axiom audits contain only `propext`,
+`Classical.choice`, and `Quot.sound`, with no proof holes or added axioms.
 
 Verification commands are in `docs/development.md`. Topic guides record proof status,
 witnesses, and regression coverage without duplicating build or test commands.

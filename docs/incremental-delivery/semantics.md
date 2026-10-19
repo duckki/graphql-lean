@@ -22,9 +22,8 @@ This is a proposed completion of the pinned draft's unspecified queue interface,
 not a claim that the GraphQL specification already states these invariants.
 For the execution/spec cross-reference, see [execution guide](README.md).
 
-**Review status:** public definitions include a terminal failure-reporting requirement.
-Proof and regression migration for this requirement is pending. The theorem references
-below identify existing proof modules, not a completed verification of the revised
+Public definitions include a terminal failure-reporting requirement. The correctness,
+conformance, finite-progress proofs, and regressions below are verified against this
 terminal contract.
 
 The [checked research results](#checked-research-results) establish that failure uniqueness
@@ -304,9 +303,9 @@ predicate under `Or` with a bound producer.
 The least rules cannot manufacture failure by cyclic justification. `failedBefore`
 exposes only failures available at a given cut. Error totals use those justified
 occurrences, not arbitrary error numbers. Public query-correctness witnesses, finite
-progress, auxiliary research results, and reference-queue conformance must be rebuilt
-against terminal failure reporting. Neither the contract nor that rebuild establishes
-refinement of the actual GraphQL.js runtime.
+progress, auxiliary research results, and reference-queue conformance include terminal
+failure reporting. Neither the contract nor these proofs establish refinement of the
+actual GraphQL.js runtime.
 
 The release requirement retains the boundary exposed by two independent defer groups:
 announcing only the successful group must not allow the other, never-announced failing
@@ -439,8 +438,8 @@ Admission assumes no response-correctness conclusion or supported-coverage premi
 
 The work, mapper, and query regressions cover alternative owner/closure choices,
 duplicate rejection, nested cancellation, counted failures, empty streams, shared
-producers, and actual mixed defer/stream/defer/stream observations. Their rebuild and
-whole-project verification against terminal failure reporting are pending.
+producers, and actual mixed defer/stream/defer/stream observations. Definitions, proofs,
+and regressions build with terminal failure reporting.
 
 These results do **not** establish:
 
@@ -572,9 +571,8 @@ the completion-entry order inside a coalesced response. Any future partial-order
 must therefore specify its observational quotient explicitly; exact wire equality is
 too strong.
 
-The research witness map also awaits the contract rebuild. Existing axiom audits for
-the principal research theorems use only Lean's
-standard axioms
+The research witnesses are verified against the terminal reporting contract. Axiom audits
+for the principal research theorems use only Lean's standard axioms
 (`propext`, `Classical.choice`, and `Quot.sound` as needed), with no proof holes or added
 axioms.
 
@@ -592,5 +590,5 @@ axioms.
   changes are acceptable before generalizing local commutation to trace reduction.
 - **Implementation refinement:** connect an actual host/runtime implementation to the
   proved reference machine, and establish optional nonblocking for its source policy.
-  Reference-machine conformance has a witness awaiting terminal-reporting migration; see the
+  Reference-machine conformance includes terminal failure reporting; see the
   [proof structure](implementation.md#proof-structure).

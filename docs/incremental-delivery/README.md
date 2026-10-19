@@ -341,8 +341,8 @@ requires each task to be published or causally cancelled with a positive-error c
 whose path covers the task's response attachment, then emits termination. Reporting may
 follow cancellation and may cover several unannounced tasks. Value coalescing and work
 batching retain the atomic explanation. No lifecycle checker, response-position coverage
-conclusion, or reconstruction property is assumed by admission. Proof migration for the
-terminal reporting requirement is pending.
+conclusion, or reconstruction property is assumed by admission. The correctness,
+conformance, and finite-progress witnesses include the terminal reporting requirement.
 
 See [semantics](semantics.md) for the structural predicates, notice rules, failure
 evidence, optional nonblocking condition, and checked research results. The executable
@@ -481,9 +481,9 @@ termination would leave a missing position unexplained by the wire scopes.
 The reference implementation announces H on P's closure and reports H's retained failure
 at the broader root scope. That completion covers the cancelled task. The terminal
 contract now requires such work-level reporting without assuming the client-visible
-coverage proposition itself. The fixture's admission/counterexample proofs await
-migration to a rejection of the omitted-report trace; reference replay and full
-conformance also need verification against the revised contract.
+coverage proposition itself. The fixture proves that the omitted-report trace is an
+admitted prefix but cannot terminate under its publication matching, regardless of
+failure cuts. Reference replay and full conformance satisfy the reporting requirement.
 
 The reference implementation's public `ImplementationCorrect` in
 `WorkQueueImplementation.lean` supplies these assumptions for actual queue/publisher
@@ -496,11 +496,10 @@ witnesses instead of duplicating these statements. See the [implementation bridg
 
 ## Proof status and verification
 
-The public-definition build checks the terminal reporting revision. Proof/test migration
-is pending: the 12 existing witnesses below, finite progress, reference conformance,
-and the query bridge are not yet verified against it. The witness map identifies the
-modules to rebuild, not a current all-proofs-pass claim. No `sorryAx` or added axioms
-are used to fill the new obligations.
+Public definitions, proofs, and tests build with the terminal reporting requirement.
+The 12 witnesses below, finite progress, reference conformance, and the query bridge
+are verified against it. Axiom audits use only `propext`, `Classical.choice`, and
+`Quot.sound` as needed, with no proof holes or added axioms.
 
 Existing witness modules include general mixed-work progress and agreement of historical
 causality with the publication snapshot on an explained history, by

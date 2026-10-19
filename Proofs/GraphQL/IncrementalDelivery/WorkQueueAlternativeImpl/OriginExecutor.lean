@@ -218,6 +218,9 @@ mutual
   termination_by (fuel, 5, 0, sizeOf partitions)
 end
 
+-- Evaluate overlapping null/non-null branches without conditional branch equations.
+attribute [cbv_eval] completeValue.eq_def
+
 def executeRootSelectionSetCore (schema : Schema) (resolvers : Resolvers ObjectRef)
     (variables : VariableValues) (fuel : Nat) (parentType : Name)
     (source : ResolverValue ObjectRef) (selections : List Selection)

@@ -8,6 +8,10 @@ namespace GraphQL.IncrementalDelivery.Tests
 
 open GraphQL.IncrementalDelivery.Execution
 
+-- The branch equations have side conditions for overlapping null/non-null patterns.
+-- Use the unconditional equation so cbv can evaluate concrete completion fixtures.
+attribute [cbv_eval] completeValue.eq_def
+
 #guard_msgs (drop info) in
 #check_failure SharedGroupValue
 #guard_msgs (drop info) in

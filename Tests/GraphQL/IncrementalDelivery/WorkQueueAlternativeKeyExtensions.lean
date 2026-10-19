@@ -76,7 +76,7 @@ example
 
 private theorem actual_refinement : CompletionRefines keys scheduled.1 eager.1 := by
   cbv
-  repeat first | constructor | trivial
+  repeat first | constructor! | trivial
 
 -- This is actual retained Work from the first completed deferred partition, not an
 -- independent synthetic tree. The lookup is checked to be present below.
@@ -100,7 +100,7 @@ example : (locateWork eager.1.work [1, 0]).isSome = true := by cbv
 private theorem first_related
     : CompletionRefines firstKeys firstScheduled firstEager := by
   cbv
-  repeat first | constructor | trivial
+  repeat first | constructor! | trivial
 
 private theorem first_bound : ∀ key ∈ allRefs firstScheduled.work, key < 21 := by
   intro key member
