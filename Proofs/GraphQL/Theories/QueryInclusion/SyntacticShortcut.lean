@@ -578,9 +578,9 @@ theorem selectionSetFieldCover_sound
     (left right : List Selection)
     (hparentObject : schema.objectType parentType)
     (hleftReady : NormalForm.selectionSetSemanticsReady schema parentType left)
-    (hleftMerge : FieldMerge.fieldsInSetCanMerge schema parentType left)
+    (hleftMerge : NormalForm.runtimeMergeSource schema parentType left)
     (hrightReady : NormalForm.selectionSetSemanticsReady schema parentType right)
-    (hrightMerge : FieldMerge.fieldsInSetCanMerge schema parentType right)
+    (hrightMerge : NormalForm.runtimeMergeSource schema parentType right)
     (hdepth : selectionSetResponseDepth right ≤ fuel)
     (hcover
       : ∀ rightName rightFields,
@@ -730,11 +730,11 @@ theorem selectionSetFieldCover_sound
                     completionFieldsSemanticsReady_merged_semantics hrightCompletion
                       hincludes
                   have hleftChildMerge :=
-                    completionFieldsSemanticsReady_merged_canMerge hleftCompletion
-                      childRuntimeType
+                    completionFieldsSemanticsReady_merged_runtimeSource hschema hleftCompletion
+                      childRuntimeType hincludes
                   have hrightChildMerge :=
-                    completionFieldsSemanticsReady_merged_canMerge hrightCompletion
-                      childRuntimeType
+                    completionFieldsSemanticsReady_merged_runtimeSource hschema hrightCompletion
+                      childRuntimeType hincludes
                   have hlookupAll : ∀ rightField, rightField ∈ rightFields
                       -> schema.lookupField parentType rightField.fieldName
                         = some definition := by
@@ -791,9 +791,9 @@ private theorem selectionSetSyntacticFieldCover_sound
     (left right : List Selection)
     (hparentObject : schema.objectType parentType)
     (hleftReady : NormalForm.selectionSetSemanticsReady schema parentType left)
-    (hleftMerge : FieldMerge.fieldsInSetCanMerge schema parentType left)
+    (hleftMerge : NormalForm.runtimeMergeSource schema parentType left)
     (hrightReady : NormalForm.selectionSetSemanticsReady schema parentType right)
-    (hrightMerge : FieldMerge.fieldsInSetCanMerge schema parentType right)
+    (hrightMerge : NormalForm.runtimeMergeSource schema parentType right)
     (hdepth : selectionSetResponseDepth right ≤ fuel)
     (hcover
       : ∀ rightName rightFields,
@@ -834,9 +834,9 @@ theorem selectionSetBoundarySyntacticInclusionShortcutBool_sound
     (hparentInPossibleTypes : parentType ∈ possibleTypes)
     (hparentObject : schema.objectType parentType)
     (hleftReady : NormalForm.selectionSetSemanticsReady schema parentType left)
-    (hleftMerge : FieldMerge.fieldsInSetCanMerge schema parentType left)
+    (hleftMerge : NormalForm.runtimeMergeSource schema parentType left)
     (hrightReady : NormalForm.selectionSetSemanticsReady schema parentType right)
-    (hrightMerge : FieldMerge.fieldsInSetCanMerge schema parentType right)
+    (hrightMerge : NormalForm.runtimeMergeSource schema parentType right)
     (hcheck
       : selectionSetBoundarySyntacticInclusionShortcutBool schema fuel
           possibleTypes left right

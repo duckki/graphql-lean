@@ -25,7 +25,7 @@ mutual
           -> ExecutionUngroupedUncached.Eager.ScopedParentRuntimeApplies schema
               runtimeType parentType
           -> NormalForm.selectionSetSemanticsReady schema parentType universeSet
-          -> FieldMerge.fieldsInSetCanMerge schema parentType universeSet
+          -> NormalForm.runtimeMergeSource schema runtimeType universeSet
           -> Execution.selectionSetArgumentsNodup universeSet
           -> SelectionFieldsWithin schema variableValues parentType
               (.object runtimeType ref)
@@ -74,9 +74,10 @@ mutual
         hready
     have hcompatible :
         KeyedExecutableFieldsFieldValidationMergeCompatible flatEntries :=
-      collectFields_flat_fieldCompatible_of_canMerge_lookupValid_object schema
-        variableValues parentType parentType runtimeType ref universeSet hmerge
-        hparentRuntime hlookupValid
+      collectFields_flat_fieldCompatible_of_runtimeMergeSource schema variableValues
+        parentType runtimeType ref universeSet
+        (ExecutionUngroupedUncached.Eager.ScopedParentRuntimeApplies.runtimeObjectType
+          schema hschema hparentRuntime) hmerge
     have hcollectedArgumentsAndChildrenNodup :=
       ExecutionUngroupedUncached.Eager.collectFields_argumentsAndChildrenNodup
         schema variableValues parentType source universeSet hargumentsNodup
@@ -201,10 +202,10 @@ mutual
                         hobject hparentRuntime hready hmerge hgroup hfieldGroup
                         hfieldLookup hinclude
                     have hchildMerge :=
-                      collectedGroup_mergedFieldSelectionSet_canMerge schema
-                        variableValues parentType runtimeType ref universeSet
-                        responseName groupFields hmerge hparentRuntime hlookupValid
-                        hgroup
+                      collectedGroup_mergedFieldSelectionSet_runtimeSource schema hschema
+                        variableValues parentType runtimeType ref universeSet responseName
+                        groupFields field fieldDefinition childRuntime hobject hparentRuntime
+                        hmerge hgroup hfieldGroup hfieldLookup hinclude
                     have hchildWithin :
                         SelectionSetFieldsWithin schema variableValues childRuntime
                           (.object childRuntime childRef)
@@ -235,7 +236,7 @@ mutual
                             childRef
                             (GraphQL.Execution.mergedFieldSelectionSet groupFields)
                             selectionSet childFields hschema hchildObject hchildSelf
-                            hchildReady (hchildMerge childRuntime) hchildArgumentsNodup
+                            hchildReady hchildMerge hchildArgumentsNodup
                             hchildWithin hchildTree).1
                   have hcompletionExact :
                       ∀ resolved completionPrevious?,
@@ -304,10 +305,11 @@ mutual
                                 universeSet responseName groupFields field
                                 fieldDefinition childRuntime hobject hparentRuntime
                                 hready hmerge hgroup hfieldGroup hfieldLookup hinclude)
-                              ((collectedGroup_mergedFieldSelectionSet_canMerge
-                                schema variableValues parentType runtimeType ref
-                                universeSet responseName groupFields hmerge
-                                hparentRuntime hlookupValid hgroup) childRuntime)
+                              (collectedGroup_mergedFieldSelectionSet_runtimeSource
+                                schema hschema variableValues parentType runtimeType ref
+                                universeSet responseName groupFields field fieldDefinition
+                                childRuntime hobject hparentRuntime hmerge hgroup
+                                hfieldGroup hfieldLookup hinclude)
                               hchildArgumentsNodup
                               (by
                                 apply
@@ -611,7 +613,7 @@ mutual
           -> ExecutionUngroupedUncached.Eager.ScopedParentRuntimeApplies schema
               runtimeType parentType
           -> NormalForm.selectionSetSemanticsReady schema parentType universeSet
-          -> FieldMerge.fieldsInSetCanMerge schema parentType universeSet
+          -> NormalForm.runtimeMergeSource schema runtimeType universeSet
           -> Execution.selectionSetArgumentsNodup universeSet
           -> SelectionSetFieldsWithin schema variableValues parentType
               (.object runtimeType ref)

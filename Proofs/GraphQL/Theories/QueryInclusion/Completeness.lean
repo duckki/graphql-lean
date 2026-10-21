@@ -401,7 +401,7 @@ private theorem spineSelectionExecution_success
     (hinhabited
       : selectionSetCompositeFieldTypesInhabited schema variableValues runtimeType
           selectionSet)
-    (hmerge : FieldMerge.fieldsInSetCanMerge schema runtimeType selectionSet)
+    (hmerge : NormalForm.runtimeMergeSource schema runtimeType selectionSet)
     (plan : RuntimePlan)
     : ∃ fields,
         executeQueryAnnotatedCollectedFields schema
@@ -458,7 +458,7 @@ private theorem spineSelectionIncludes_group_match
     (hleftInhabited
       : selectionSetCompositeFieldTypesInhabited schema leftValues runtimeType
           leftSelectionSet)
-    (hleftMerge : FieldMerge.fieldsInSetCanMerge schema runtimeType leftSelectionSet)
+    (hleftMerge : NormalForm.runtimeMergeSource schema runtimeType leftSelectionSet)
     (hrightReady
       : NormalForm.selectionSetSemanticsReady schema runtimeType rightSelectionSet)
     (hrightCoercion
@@ -466,7 +466,7 @@ private theorem spineSelectionIncludes_group_match
     (hrightInhabited
       : selectionSetCompositeFieldTypesInhabited schema rightValues runtimeType
           rightSelectionSet)
-    (hrightMerge : FieldMerge.fieldsInSetCanMerge schema runtimeType rightSelectionSet)
+    (hrightMerge : NormalForm.runtimeMergeSource schema runtimeType rightSelectionSet)
     (hincludes
       : SpineSelectionIncludes schema leftValues rightValues
           runtimeType runtimeType leftSelectionSet rightSelectionSet)
@@ -556,7 +556,7 @@ private theorem spineSelectionIncludes_child
     (hleftInhabited
       : selectionSetCompositeFieldTypesInhabited schema leftValues runtimeType
           leftSelectionSet)
-    (hleftMerge : FieldMerge.fieldsInSetCanMerge schema runtimeType leftSelectionSet)
+    (hleftMerge : NormalForm.runtimeMergeSource schema runtimeType leftSelectionSet)
     (hrightReady
       : NormalForm.selectionSetSemanticsReady schema runtimeType rightSelectionSet)
     (hrightCoercion
@@ -564,7 +564,7 @@ private theorem spineSelectionIncludes_child
     (hrightInhabited
       : selectionSetCompositeFieldTypesInhabited schema rightValues runtimeType
           rightSelectionSet)
-    (hrightMerge : FieldMerge.fieldsInSetCanMerge schema runtimeType rightSelectionSet)
+    (hrightMerge : NormalForm.runtimeMergeSource schema runtimeType rightSelectionSet)
     (hincludes
       : SpineSelectionIncludes schema leftValues rightValues
           runtimeType runtimeType leftSelectionSet rightSelectionSet)
@@ -795,12 +795,12 @@ theorem spineSelectionIncludes_selectionSetIncludesBoolWithFuel
         -> selectionSetArgumentsCoercible schema leftValues runtimeType leftSelectionSet
         -> selectionSetCompositeFieldTypesInhabited schema leftValues runtimeType
             leftSelectionSet
-        -> FieldMerge.fieldsInSetCanMerge schema runtimeType leftSelectionSet
+        -> NormalForm.runtimeMergeSource schema runtimeType leftSelectionSet
         -> NormalForm.selectionSetSemanticsReady schema runtimeType rightSelectionSet
         -> selectionSetArgumentsCoercible schema rightValues runtimeType rightSelectionSet
         -> selectionSetCompositeFieldTypesInhabited schema rightValues runtimeType
             rightSelectionSet
-        -> FieldMerge.fieldsInSetCanMerge schema runtimeType rightSelectionSet
+        -> NormalForm.runtimeMergeSource schema runtimeType rightSelectionSet
         -> SpineSelectionIncludes schema leftValues rightValues
             runtimeType runtimeType leftSelectionSet rightSelectionSet
         -> selectionSetResponseDepth rightSelectionSet < fuel
@@ -917,10 +917,10 @@ theorem spineSelectionIncludes_selectionSetIncludesBoolWithFuel
           hleftCompletionReady hchildIncludesBool
         have hrightChildInhabited := completionFieldsReady_merged_inhabited
           hrightCompletionReady hchildIncludesBool
-        have hleftChildMerge := completionFieldsReady_merged_canMerge
-          hleftCompletionReady childRuntimeType
-        have hrightChildMerge := completionFieldsReady_merged_canMerge
-          hrightCompletionReady childRuntimeType
+        have hleftChildMerge := completionFieldsReady_merged_runtimeSource
+          hschema hleftCompletionReady childRuntimeType hchildIncludesBool
+        have hrightChildMerge := completionFieldsReady_merged_runtimeSource
+          hschema hrightCompletionReady childRuntimeType hchildIncludesBool
         have hchildIncludes := spineSelectionIncludes_child schema hschema
           leftValues rightValues runtimeType leftSelectionSet rightSelectionSet hobject
           hleftReady hleftCoercion hleftInhabited hleftMerge hrightReady hrightCoercion
@@ -1065,19 +1065,19 @@ theorem includesBool_complete_semantic {schema : Schema} {left right : Operation
       (left.rootType schema) left.selectionSet :=
     NormalForm.CompleteNormalization.operation_selectionSetSemanticsReady_of_valid
       hschema hleftValid
-  have hleftMerge : FieldMerge.fieldsInSetCanMerge schema (left.rootType schema)
+  have hleftMerge : NormalForm.runtimeMergeSource schema (left.rootType schema)
       left.selectionSet :=
-    Validation.operationDefinitionValid_fieldsInSetCanMerge hleftValid
+    operation_runtimeMergeSource_of_valid hschema hleftValid
   have hrightReady : NormalForm.selectionSetSemanticsReady schema
       (left.rootType schema) right.selectionSet := by
     rw [hroot]
     exact
       NormalForm.CompleteNormalization.operation_selectionSetSemanticsReady_of_valid
         hschema hrightValid
-  have hrightMerge : FieldMerge.fieldsInSetCanMerge schema (left.rootType schema)
+  have hrightMerge : NormalForm.runtimeMergeSource schema (left.rootType schema)
       right.selectionSet := by
     rw [hroot]
-    exact Validation.operationDefinitionValid_fieldsInSetCanMerge hrightValid
+    exact operation_runtimeMergeSource_of_valid hschema hrightValid
   have hrightInhabitedRoot : selectionSetCompositeFieldTypesInhabited schema
       (coerceVariableValues right probeValues) (left.rootType schema) right.selectionSet := by
     rw [hroot]

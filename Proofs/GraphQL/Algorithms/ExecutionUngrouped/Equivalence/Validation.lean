@@ -170,8 +170,10 @@ theorem fieldsInSetCanMerge_pair_subfields
           ∨ ¬ schema.objectType left.parentType
           ∨ ¬ schema.objectType right.parentType)
       -> ∀ objectType,
-          fieldsInSetCanMerge schema objectType
-            (left.selectionSet ++ right.selectionSet) := by
+          left.outputType.namedType = objectType
+          -> right.outputType.namedType = objectType
+          -> fieldsInSetCanMerge schema objectType
+              (left.selectionSet ++ right.selectionSet) := by
   intro hmerge hleft hright hresponse hparents
   exact fieldsForNameCanMerge_subfields
     (fieldsInSetCanMerge_pair hmerge hleft hright hresponse) hparents
@@ -210,14 +212,14 @@ theorem fieldsInSetCanMerge_self_subfields
     (scopedField : ScopedField)
     : fieldsInSetCanMerge schema parentType selectionSet
       -> scopedField ∈ collectFields schema parentType selectionSet
-      -> ∀ objectType,
-          fieldsInSetCanMerge schema objectType scopedField.selectionSet := by
-  intro hmerge hscoped objectType
-  exact fieldsInSetCanMerge_append_left schema objectType
+      -> fieldsInSetCanMerge schema scopedField.outputType.namedType
+          scopedField.selectionSet := by
+  intro hmerge hscoped
+  exact fieldsInSetCanMerge_append_left schema scopedField.outputType.namedType
     scopedField.selectionSet scopedField.selectionSet
     (fieldsInSetCanMerge_pair_subfields schema parentType selectionSet
       scopedField scopedField hmerge hscoped hscoped rfl (Or.inl rfl)
-      objectType)
+      scopedField.outputType.namedType rfl rfl)
 
 theorem fieldsInSetCanMerge_mergedFieldSelectionSet_of_pairwise
     (schema : Schema) (objectType : Name)

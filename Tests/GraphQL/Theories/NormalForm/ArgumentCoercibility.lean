@@ -164,7 +164,7 @@ private theorem wellFormed : SchemaWellFormedness.schemaWellFormed schema := by
         subst expected
         refine ⟨field, rfl, ?_, ?_⟩
         · constructor
-          · exact Or.inl ⟨leafString, leafString, rfl⟩
+          · exact ⟨outputString, outputString, Or.inl rfl⟩
           · simp [SchemaWellFormedness.argumentDefinitionsImplement,
               Schema.lookupArgumentDefinition, field, arg]
         · exact ⟨outputString, outputString, by intro _; rfl⟩
@@ -202,7 +202,9 @@ private theorem valid : Validation.operationDefinitionValid schema op := by
     subst left
     subst right
     refine FieldMerge.FieldsForNameCanMerge.intro _ _ ?_ ?_ ?_
-    · exact ⟨outputString, outputString, by intro _; rfl⟩
+    · refine .intro _ _ ⟨outputString, outputString, by intro _; rfl⟩ ?_
+      intro _ _ child hchild
+      simp [FieldMerge.collectSubfields, FieldMerge.collectFields, scopedField] at hchild
     · intro _
       constructor
       · rfl
@@ -215,11 +217,8 @@ private theorem valid : Validation.operationDefinitionValid schema op := by
           subst argument
           change "a" = "a" ∧ (1 : Int) = 1
           exact ⟨rfl, rfl⟩
-    · intro _ objectType
-      refine FieldMerge.FieldsInSetCanMerge.intro objectType [] ?_
-      dsimp
-      intro left hleft
-      simp [FieldMerge.collectFields] at hleft
+    · intro _ child hchild
+      simp [FieldMerge.collectSubfields, FieldMerge.collectFields, scopedField] at hchild
   · simp [Validation.operationVariablesUsed, op]
 
 private theorem comparisonCoercible

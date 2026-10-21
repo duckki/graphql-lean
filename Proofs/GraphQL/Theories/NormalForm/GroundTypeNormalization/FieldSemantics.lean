@@ -1,7 +1,7 @@
 import Proofs.GraphQL.Execution.ArgumentCoercion
 import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.AbstractReturnSemantics
 import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Normality
-import Proofs.GraphQL.Theories.NormalForm.Shared.SemanticReadiness
+import Proofs.GraphQL.Theories.NormalForm.Shared.SemanticReadiness.RuntimeSources
 
 /-!
 Field execution semantic cases for ground-type normalization.
@@ -59,7 +59,7 @@ theorem normalizeSelectionSet_executeSelectionSet_field_lookup_none_lookupValid_
                 :: rest) := by
   intro hvalid hlookup
   exact False.elim
-    (selectionSetLookupValid_field_head_lookup_none_false hvalid hlookup)
+    (runtimeLookupValid_field_head_lookup_none_false hvalid hlookup)
 
 theorem executeField_singleton_eq_group_of_completeValue
     (schema : Schema)
@@ -613,7 +613,7 @@ theorem normalizeSelectionSet_executeSelectionSet_field_head_case_of_recursive
           (Selection.field responseName fieldName arguments [] subselections :: rest)
       -> selectionSetSemanticsReady schema parentType
           (Selection.field responseName fieldName arguments [] subselections :: rest)
-      -> FieldMerge.fieldsInSetCanMerge schema parentType
+      -> runtimeMergeSource schema parentType
           (Selection.field responseName fieldName arguments [] subselections :: rest)
       -> schema.lookupField parentType fieldName = some fieldDefinition
       -> (let matching :=
@@ -644,7 +644,7 @@ theorem normalizeSelectionSet_executeSelectionSet_field_head_case_of_recursive
             -> selectionSetDirectiveFree mergedSubselections
             -> selectionSetLookupValid schema runtimeType mergedSubselections
             -> selectionSetSemanticsReady schema runtimeType mergedSubselections
-            -> FieldMerge.fieldsInSetCanMerge schema runtimeType mergedSubselections
+            -> runtimeMergeSource schema runtimeType mergedSubselections
             -> Execution.executeSelectionSet schema resolvers variableValues
                   childDepth runtimeType (.object runtimeType ref)
                   (normalizeSelectionSet schema runtimeType mergedSubselections)
@@ -674,9 +674,6 @@ theorem normalizeSelectionSet_executeSelectionSet_field_head_case_of_recursive
   let normalizedRest :=
     normalizeSelectionSet schema parentType
       (withoutFieldSelectionsWithResponseName schema responseName rest)
-  have hparentObject :
-      schema.objectType parentType :=
-    objectType_of_objectTypeNameBool_eq_true schema hobject
   have hmergedFree :
       selectionSetDirectiveFree mergedSubselections := by
     simpa [mergedSubselections, matching]
@@ -687,14 +684,6 @@ theorem normalizeSelectionSet_executeSelectionSet_field_head_case_of_recursive
         =
       returnType := by
     simp [Schema.fieldReturnType?, hlookup, returnType]
-  have hlookupValid :
-      selectionSetLookupValid schema parentType
-        (Selection.field responseName fieldName arguments [] subselections
-          :: rest) :=
-    selectionSetLookupValid_of_selectionSetSemanticsReady
-      (Selection.field responseName fieldName arguments [] subselections
-        :: rest)
-      hready
   apply normalizeSelectionSet_executeSelectionSet_field_head_case
     schema resolvers variableValues depth parentType source responseName
     fieldName arguments subselections rest
@@ -718,23 +707,19 @@ theorem normalizeSelectionSet_executeSelectionSet_field_head_case_of_recursive
     have hmergedReady :
         selectionSetSemanticsReady schema runtimeType mergedSubselections := by
       simpa [mergedSubselections, matching]
-        using selectionSetSemanticsReady_fieldHead_merged_of_child_object schema
-          parentType responseName fieldName runtimeType arguments
-          subselections rest fieldDefinition hparentObject hready
-          hlookupValid hmerge hlookup hincludeReturn
+        using runtimeMergeSource_fieldHead_semanticsReady schema
+          hmerge hready hlookup hincludeReturn
     have hmergedLookup :
         selectionSetLookupValid schema runtimeType mergedSubselections := by
       exact
         selectionSetLookupValid_of_selectionSetSemanticsReady
           mergedSubselections hmergedReady
     have hmergedCanMerge :
-        FieldMerge.fieldsInSetCanMerge schema runtimeType
+        runtimeMergeSource schema runtimeType
           mergedSubselections := by
       simpa [mergedSubselections, matching]
-        using fieldsInSetCanMerge_fieldHead_merged_of_canMerge_object_lookupValid
-          schema parentType responseName fieldName runtimeType arguments
-          subselections rest fieldDefinition hparentObject hlookupValid hmerge
-          hlookup
+        using runtimeMergeSource_fieldHead_merged schema hschema hmerge hlookup
+          hincludeReturn
     by_cases hreturnObject : objectTypeNameBool schema returnType = true
     · have hruntimeEq : runtimeType = returnType :=
         typeIncludesObjectBool_eq_of_objectTypeNameBool_true schema

@@ -86,7 +86,9 @@ theorem reduction_sound (schema : Schema) (parentType : Name)
   have hresult := reductionUnits_execute_equivalent schema resolvers variableValues
     hschema fuel parentType runtimeType ref units (reduce schema parentType selectionSet)
     selectionSet hobject hinclude hready hcompatible hargumentsAndChildrenNodup.1
-    hargumentsAndChildrenNodup.2 hgroupScoped hmerge happlicable
+    hargumentsAndChildrenNodup.2 hgroupScoped
+    (NormalForm.runtimeMergeSource_of_valid schema variableDefinitions hobject
+      hinclude hvalid hmerge) happlicable
     (by simp [units, ReductionUnit.outputSelectionSet, reduce])
     (by simp [units, ReductionUnit.inputSelectionSet, ReductionUnit.selectionSet])
   exact responseEquivalent_of_selectionSetResultEquivalent
@@ -113,9 +115,9 @@ theorem reduceOperation_sound (schema : Schema) (operation : Operation)
       obtain ⟨runtimeType, ref, rfl, hinclude⟩ :=
         NormalForm.GroundTypeNormalization.rootSourceAppliesBool_true_object
           schema operation source hroot
-      have hrootObject : schema.objectType (operation.rootType schema) :=
-        NormalForm.CompleteNormalization.operation_root_object_of_valid
-          hschema hoperation
+      have hrootObject : schema.objectType (operation.rootType schema) := by
+        rw [Validation.operationDefinitionValid_rootType_eq hoperation]
+        exact hschema.2.1
       have hruntime : runtimeType = operation.rootType schema :=
         object_typeIncludesObjectBool_eq_self schema hrootObject hinclude
       subst runtimeType
@@ -130,7 +132,8 @@ theorem reduceOperation_sound (schema : Schema) (operation : Operation)
       simp only [ite_true]
       rw [hcoerce, hrootType]
       simpa [reduced, reduceOperation, Execution.executeSelectionSet,
-        Execution.executeRootSelectionSet, coercedVariableValues] using hselection
+        Execution.executeRootSelectionSet, coercedVariableValues]
+        using hselection
 
 end ConditionTree
 end GraphQL

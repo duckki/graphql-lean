@@ -450,10 +450,10 @@ theorem includesBool_sound {schema : Schema} {left right : Operation}
               hschema hleftValid)
         (by
           rw [← hroot]
-          exact Validation.operationDefinitionValid_fieldsInSetCanMerge hleftValid)
+          exact operation_runtimeMergeSource_of_valid hschema hleftValid)
         (NormalForm.CompleteNormalization.operation_selectionSetSemanticsReady_of_valid
           hschema hrightValid)
-        (Validation.operationDefinitionValid_fieldsInSetCanMerge hrightValid)
+        (operation_runtimeMergeSource_of_valid hschema hrightValid)
         haccept hscope hrightSel
       refine ⟨?_, ?_⟩
       · rw [hroot]

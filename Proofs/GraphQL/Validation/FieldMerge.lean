@@ -1,4 +1,5 @@
 import GraphQL.Validation
+import Proofs.GraphQL.SchemaWellFormedness.TypeShape
 
 /-!
 Facts for same-response-name field merge validation.
@@ -7,104 +8,6 @@ Facts for same-response-name field merge validation.
 namespace GraphQL
 
 namespace FieldMerge
-
-theorem sameResponseShape_refl (schema : Schema)
-    : ∀ typeRef, typeRef.isOutputType schema -> sameResponseShape schema typeRef typeRef
-  | .named _typeName, houtput => by
-      exact ⟨houtput, houtput, by intro _hleaf; rfl⟩
-  | .list inner, houtput => by
-      exact sameResponseShape_refl schema inner
-        (by simpa [TypeRef.isOutputType] using houtput)
-  | .nonNull inner, houtput => by
-      have hinner : inner.isOutputType schema := by
-        cases inner with
-        | named _typeName =>
-            exact houtput
-        | list _inner =>
-            exact houtput
-        | nonNull _inner =>
-            simp [TypeRef.isOutputType] at houtput
-      exact sameResponseShape_refl schema inner hinner
-
-theorem sameResponseShape_symm (schema : Schema)
-    : ∀ left right,
-        sameResponseShape schema left right -> sameResponseShape schema right left
-  | .named _left, .named _right, hshape => by
-      exact ⟨hshape.2.1, hshape.1,
-        by
-          intro hleaf
-          exact (hshape.2.2
-            (Or.elim hleaf (fun hright => Or.inr hright)
-              (fun hleft => Or.inl hleft))).symm⟩
-  | .list left, .list right, hshape => by
-      exact sameResponseShape_symm schema left right hshape
-  | .nonNull left, .nonNull right, hshape => by
-      exact sameResponseShape_symm schema left right hshape
-  | .named _, .list _, hshape => by
-      simp [sameResponseShape] at hshape
-  | .named _, .nonNull _, hshape => by
-      simp [sameResponseShape] at hshape
-  | .list _, .named _, hshape => by
-      simp [sameResponseShape] at hshape
-  | .list _, .nonNull _, hshape => by
-      simp [sameResponseShape] at hshape
-  | .nonNull _, .named _, hshape => by
-      simp [sameResponseShape] at hshape
-  | .nonNull _, .list _, hshape => by
-      simp [sameResponseShape] at hshape
-
-theorem sameResponseShape_trans (schema : Schema)
-    : ∀ left middle right,
-        sameResponseShape schema left middle
-        -> sameResponseShape schema middle right
-        -> sameResponseShape schema left right
-  | .named left, .named middle, .named right, hleft, hright => by
-      exact ⟨hleft.1, hright.2.1,
-        by
-          intro hleaf
-          rcases hleaf with hleftLeaf | hrightLeaf
-          · have hleftMiddle : left = middle :=
-              hleft.2.2 (Or.inl hleftLeaf)
-            have hmiddleLeaf : schema.isLeafType middle := by
-              simpa [hleftMiddle] using hleftLeaf
-            have hmiddleRight : middle = right :=
-              hright.2.2 (Or.inl hmiddleLeaf)
-            exact hleftMiddle.trans hmiddleRight
-          · have hmiddleRight : middle = right :=
-              hright.2.2 (Or.inr hrightLeaf)
-            have hmiddleLeaf : schema.isLeafType middle := by
-              simpa [hmiddleRight] using hrightLeaf
-            have hleftMiddle : left = middle :=
-              hleft.2.2 (Or.inr hmiddleLeaf)
-            exact hleftMiddle.trans hmiddleRight⟩
-  | .list left, .list middle, .list right, hleft, hright => by
-      exact sameResponseShape_trans schema left middle right hleft hright
-  | .nonNull left, .nonNull middle, .nonNull right, hleft, hright => by
-      exact sameResponseShape_trans schema left middle right hleft hright
-  | .named _, .named _, .list _, _hleft, hright => by
-      simp [sameResponseShape] at hright
-  | .named _, .named _, .nonNull _, _hleft, hright => by
-      simp [sameResponseShape] at hright
-  | .named _, .list _, _, hleft, _hright => by
-      simp [sameResponseShape] at hleft
-  | .named _, .nonNull _, _, hleft, _hright => by
-      simp [sameResponseShape] at hleft
-  | .list _, .named _, _, hleft, _hright => by
-      simp [sameResponseShape] at hleft
-  | .list _, .list _, .named _, _hleft, hright => by
-      simp [sameResponseShape] at hright
-  | .list _, .list _, .nonNull _, _hleft, hright => by
-      simp [sameResponseShape] at hright
-  | .list _, .nonNull _, _, hleft, _hright => by
-      simp [sameResponseShape] at hleft
-  | .nonNull _, .named _, _, hleft, _hright => by
-      simp [sameResponseShape] at hleft
-  | .nonNull _, .list _, _, hleft, _hright => by
-      simp [sameResponseShape] at hleft
-  | .nonNull _, .nonNull _, .named _, _hleft, hright => by
-      simp [sameResponseShape] at hright
-  | .nonNull _, .nonNull _, .list _, _hleft, hright => by
-      simp [sameResponseShape] at hright
 
 theorem fieldsInSetCanMerge_pair
     {schema : Schema} {parentType : Name} {selectionSet : List Selection}
@@ -120,15 +23,15 @@ theorem fieldsInSetCanMerge_pair
   | intro _ _ hfields =>
       exact hfields left hleft right hright hresponse
 
-theorem fieldsForNameCanMerge_sameResponseShape
-    {schema : Schema} {left right : ScopedField}
+theorem fieldsForNameCanMerge_sameTypeShape {schema : Schema} {left right : ScopedField}
     : fieldsForNameCanMerge schema left right
-      -> sameResponseShape schema left.outputType right.outputType := by
+      -> SchemaWellFormedness.sameTypeShape schema left.outputType right.outputType := by
   intro hmerge
   unfold fieldsForNameCanMerge at hmerge
   cases hmerge with
   | intro _ _ hshape _hidentity _hsubfields =>
-      exact hshape
+      cases hshape with
+      | intro _ _ htypes _hsubfields => exact htypes
 
 theorem fieldsForNameCanMerge_identity {schema : Schema} {left right : ScopedField}
     : fieldsForNameCanMerge schema left right
@@ -152,19 +55,29 @@ theorem fieldsForNameCanMerge_same_parent_identity
   intro hmerge hparent
   exact fieldsForNameCanMerge_identity hmerge (Or.inl hparent)
 
-theorem fieldsForNameCanMerge_subfields {schema : Schema} {left right : ScopedField}
+theorem fieldsForNameCanMerge_collected_subfields {schema : Schema}
+    {left right : ScopedField}
     : fieldsForNameCanMerge schema left right
       -> (left.parentType = right.parentType
           ∨ ¬ schema.objectType left.parentType
           ∨ ¬ schema.objectType right.parentType)
-      -> ∀ objectType,
-          fieldsInSetCanMerge schema objectType
-            (left.selectionSet ++ right.selectionSet) := by
-  intro hmerge hparents objectType
+      -> ∀ subLeft,
+          subLeft ∈ collectSubfields schema left right
+          -> ∀ subRight,
+              subRight ∈ collectSubfields schema left right
+              -> subLeft.responseName = subRight.responseName
+              -> fieldsForNameCanMerge schema subLeft subRight := by
+  intro hmerge hparents
   unfold fieldsForNameCanMerge at hmerge
   cases hmerge with
   | intro _ _ _hshape _hidentity hsubfields =>
-      exact hsubfields hparents objectType
+      exact hsubfields hparents
+
+theorem fieldsForNameCanMerge_sameResponseShape {schema : Schema}
+    {left right : ScopedField} (hmerge : fieldsForNameCanMerge schema left right)
+    : sameResponseShape schema left right := by
+  cases hmerge with
+  | intro _ _ hshape _ _ => exact hshape
 
 theorem collectFields_append (schema : Schema) (parentType : Name)
     : ∀ left right,
@@ -192,6 +105,58 @@ theorem collectFields_append (schema : Schema) (parentType : Name)
               simp [collectFields,
                 collectFields_append schema parentType rest right,
                 List.append_assoc]
+
+theorem fieldsForNameCanMerge_subfields {schema : Schema} {left right : ScopedField}
+    (hmerge : fieldsForNameCanMerge schema left right)
+    (hparents
+      : left.parentType = right.parentType
+        ∨ ¬ schema.objectType left.parentType
+        ∨ ¬ schema.objectType right.parentType)
+    (parentType : Name)
+    (hleft : left.outputType.namedType = parentType)
+    (hright : right.outputType.namedType = parentType)
+    : fieldsInSetCanMerge schema parentType
+        (left.selectionSet ++ right.selectionSet) := by
+  refine FieldsInSetCanMerge.intro _ _ ?_
+  dsimp
+  intro subLeft hsubLeft subRight hsubRight hresponse
+  apply fieldsForNameCanMerge_collected_subfields hmerge hparents subLeft ?_ subRight ?_ hresponse
+  · simpa [collectSubfields, hleft, hright, collectFields_append] using hsubLeft
+  · simpa [collectSubfields, hleft, hright, collectFields_append] using hsubRight
+
+theorem collectSubfields_swap_mem {schema : Schema} {left right field : ScopedField}
+    : field ∈ collectSubfields schema right left
+      ↔ field ∈ collectSubfields schema left right := by
+  simp only [collectSubfields, List.mem_append, or_comm]
+
+theorem sameResponseShape_symm {schema : Schema} {left right : ScopedField}
+    (hshape : sameResponseShape schema left right)
+    : sameResponseShape schema right left := by
+  cases hshape with
+  | intro _ _ htypes hchildren =>
+      refine .intro _ _ (SchemaWellFormedness.sameTypeShape_symm schema _ _ htypes) ?_
+      intro hright hleft subLeft hsubLeft subRight hsubRight hresponse
+      exact hchildren hleft hright subLeft (collectSubfields_swap_mem.mp hsubLeft)
+        subRight (collectSubfields_swap_mem.mp hsubRight) hresponse
+
+theorem sameResponseShape_sameTypeShape {schema : Schema} {left right : ScopedField}
+    (hshape : sameResponseShape schema left right)
+    : SchemaWellFormedness.sameTypeShape schema left.outputType right.outputType := by
+  cases hshape with
+  | intro _ _ htypes _ => exact htypes
+
+theorem sameResponseShape_subfields {schema : Schema} {left right : ScopedField}
+    (hshape : sameResponseShape schema left right)
+    (hleft : schema.isCompositeType left.outputType.namedType)
+    (hright : schema.isCompositeType right.outputType.namedType)
+    {subLeft subRight : ScopedField}
+    (hsubLeft : subLeft ∈ collectSubfields schema left right)
+    (hsubRight : subRight ∈ collectSubfields schema left right)
+    (hresponse : subLeft.responseName = subRight.responseName)
+    : sameResponseShape schema subLeft subRight := by
+  cases hshape with
+  | intro _ _ _ hchildren =>
+      exact hchildren hleft hright subLeft hsubLeft subRight hsubRight hresponse
 
 mutual
   theorem inputValue_structuralEquivalent_symm
@@ -414,8 +379,7 @@ theorem fieldsForNameCanMerge_symm {schema : Schema} {left right : ScopedField}
   cases hmerge with
   | intro _ _ hshape hidentity hsubfields =>
       refine FieldsForNameCanMerge.intro right left ?_ ?_ ?_
-      · exact sameResponseShape_symm schema left.outputType right.outputType
-          hshape
+      · exact sameResponseShape_symm hshape
       · intro hparents
         have hsourceParents :
             left.parentType = right.parentType
@@ -428,7 +392,7 @@ theorem fieldsForNameCanMerge_symm {schema : Schema} {left right : ScopedField}
             · exact Or.inr (Or.inl hleftNotObject)
         rcases hidentity hsourceParents with ⟨hfieldName, harguments⟩
         exact ⟨hfieldName.symm, argumentsEquivalent_symm harguments⟩
-      · intro hparents objectType
+      · intro hparents subLeft hsubLeft subRight hsubRight hresponse
         have hsourceParents :
             left.parentType = right.parentType
               ∨ ¬ schema.objectType left.parentType
@@ -438,8 +402,126 @@ theorem fieldsForNameCanMerge_symm {schema : Schema} {left right : ScopedField}
           · rcases hnotObject with hrightNotObject | hleftNotObject
             · exact Or.inr (Or.inr hrightNotObject)
             · exact Or.inr (Or.inl hleftNotObject)
-        exact fieldsInSetCanMerge_append_comm
-          (hsubfields hsourceParents objectType)
+        exact hsubfields hsourceParents subLeft (collectSubfields_swap_mem.mp hsubLeft)
+          subRight (collectSubfields_swap_mem.mp hsubRight) hresponse
+
+/-- Merge checks survive transformations preserving field metadata and tracing every
+collected child back to its original declared scope. -/
+theorem fieldsInSetCanMerge_transport
+    {schema : Schema} (relation : ScopedField -> ScopedField -> Prop)
+    (hmetadata
+      : ∀ source target,
+          relation source target
+          -> target.parentType = source.parentType
+              ∧ target.responseName = source.responseName
+              ∧ target.fieldName = source.fieldName
+              ∧ target.arguments = source.arguments
+              ∧ target.outputType = source.outputType)
+    (hchildren
+      : ∀ sourceLeft sourceRight targetLeft targetRight,
+          relation sourceLeft targetLeft
+          -> relation sourceRight targetRight
+          -> ∀ child,
+              child ∈ collectSubfields schema targetLeft targetRight
+              -> ∃ sourceChild,
+                  sourceChild ∈ collectSubfields schema sourceLeft sourceRight
+                  ∧ relation sourceChild child)
+    {parentType : Name} {selectionSet : List Selection}
+    (hmerge : fieldsInSetCanMerge schema parentType selectionSet)
+    (targetParent : Name) (targetSet : List Selection)
+    (hfields
+      : ∀ field,
+          field ∈ collectFields schema targetParent targetSet
+          -> ∃ sourceField,
+              sourceField ∈ collectFields schema parentType selectionSet
+              ∧ relation sourceField field)
+    : fieldsInSetCanMerge schema targetParent targetSet := by
+  revert targetParent targetSet hfields
+  refine FieldsInSetCanMerge.rec
+    (motive_1 := fun parentType selectionSet _ =>
+      ∀ targetParent targetSet,
+        (∀ field, field ∈ collectFields schema targetParent targetSet ->
+          ∃ sourceField, sourceField ∈ collectFields schema parentType selectionSet
+            ∧ relation sourceField field) ->
+        fieldsInSetCanMerge schema targetParent targetSet)
+    (motive_2 := fun left right _ => ∀ targetLeft targetRight,
+      relation left targetLeft -> relation right targetRight ->
+      fieldsForNameCanMerge schema targetLeft targetRight)
+    (motive_3 := fun left right _ => ∀ targetLeft targetRight,
+      relation left targetLeft -> relation right targetRight ->
+      SameResponseShape schema targetLeft targetRight)
+    ?_ ?_ ?_ hmerge
+  · intro parentType selectionSet _ ihFields targetParent targetSet hfields
+    refine .intro _ _ ?_
+    dsimp
+    intro left hleft right hright hresponse
+    rcases hfields left hleft with ⟨sourceLeft, hsourceLeft, hleftRelation⟩
+    rcases hfields right hright with ⟨sourceRight, hsourceRight, hrightRelation⟩
+    have hl := hmetadata _ _ hleftRelation
+    have hr := hmetadata _ _ hrightRelation
+    exact ihFields sourceLeft hsourceLeft sourceRight hsourceRight
+      (hl.2.1.symm.trans (hresponse.trans hr.2.1))
+      left right hleftRelation hrightRelation
+  · intro left right _ hidentity _ ihShape ihChildren
+      targetLeft targetRight hleftRelation hrightRelation
+    have hl := hmetadata _ _ hleftRelation
+    have hr := hmetadata _ _ hrightRelation
+    refine .intro _ _ (ihShape _ _ hleftRelation hrightRelation) ?_ ?_
+    · intro hparents
+      have hsourceParents : left.parentType = right.parentType
+          ∨ ¬ schema.objectType left.parentType ∨ ¬ schema.objectType right.parentType := by
+        simpa only [hl.1, hr.1] using hparents
+      rcases hidentity hsourceParents with ⟨hnames, harguments⟩
+      exact ⟨
+        hl.2.2.1.trans (hnames.trans hr.2.2.1.symm),
+        by simpa only [hl.2.2.2.1, hr.2.2.2.1] using harguments
+      ⟩
+    · intro hparents childLeft hchildLeft childRight hchildRight hresponse
+      have hsourceParents : left.parentType = right.parentType
+          ∨ ¬ schema.objectType left.parentType ∨ ¬ schema.objectType right.parentType := by
+        simpa only [hl.1, hr.1] using hparents
+      rcases hchildren _ _ _ _ hleftRelation hrightRelation _ hchildLeft with
+        ⟨sourceLeft, hsourceLeft, hleft⟩
+      rcases hchildren _ _ _ _ hleftRelation hrightRelation _ hchildRight with
+        ⟨sourceRight, hsourceRight, hright⟩
+      exact ihChildren hsourceParents sourceLeft hsourceLeft sourceRight hsourceRight
+        ((hmetadata _ _ hleft).2.1.symm.trans
+          (hresponse.trans (hmetadata _ _ hright).2.1))
+        _ _ hleft hright
+  · intro left right htypes _ ihChildren targetLeft targetRight hleftRelation hrightRelation
+    have hl := hmetadata _ _ hleftRelation
+    have hr := hmetadata _ _ hrightRelation
+    refine .intro _ _ (by simpa only [hl.2.2.2.2, hr.2.2.2.2] using htypes) ?_
+    intro hleftComposite hrightComposite childLeft hchildLeft childRight hchildRight hresponse
+    rcases hchildren _ _ _ _ hleftRelation hrightRelation _ hchildLeft with
+      ⟨sourceLeft, hsourceLeft, hleft⟩
+    rcases hchildren _ _ _ _ hleftRelation hrightRelation _ hchildRight with
+      ⟨sourceRight, hsourceRight, hright⟩
+    exact ihChildren (by simpa only [hl.2.2.2.2] using hleftComposite)
+      (by simpa only [hr.2.2.2.2] using hrightComposite)
+      sourceLeft hsourceLeft sourceRight hsourceRight
+      ((hmetadata _ _ hleft).2.1.symm.trans
+        (hresponse.trans (hmetadata _ _ hright).2.1))
+      _ _ hleft hright
+
+theorem fieldsForNameCanMerge_self_of_children {schema : Schema} {field : ScopedField}
+    (htype : SchemaWellFormedness.sameTypeShape schema field.outputType field.outputType)
+    (harguments : Argument.argumentsEquivalent field.arguments field.arguments)
+    (hchildren
+      : fieldsInSetCanMerge schema field.outputType.namedType
+          (field.selectionSet ++ field.selectionSet))
+    : fieldsForNameCanMerge schema field field := by
+  have hpairs : ∀ left, left ∈ collectSubfields schema field field ->
+      ∀ right, right ∈ collectSubfields schema field field ->
+      left.responseName = right.responseName -> fieldsForNameCanMerge schema left right := by
+    intro left hleft right hright hresponse
+    exact fieldsInSetCanMerge_pair hchildren
+      (by simpa [collectSubfields, collectFields_append] using hleft)
+      (by simpa [collectSubfields, collectFields_append] using hright) hresponse
+  refine .intro field field (.intro field field htype ?_) (fun _ => ⟨rfl, harguments⟩)
+    (fun _ => hpairs)
+  intro _ _ left hleft right hright hresponse
+  exact fieldsForNameCanMerge_sameResponseShape (hpairs left hleft right hright hresponse)
 
 end FieldMerge
 

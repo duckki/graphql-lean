@@ -9,8 +9,15 @@ The public definitions live in `GraphQL/Theories/NormalForm.lean`. Proof witness
 under `Proofs/GraphQL/Theories/NormalForm/GroundTypeNormalization/` and
 `Proofs/GraphQL/Theories/NormalForm/CompleteNormalization/`.
 
-The public soundness and uniqueness propositions and their checked proof witnesses use
-coerced resolver arguments.
+The public soundness and uniqueness propositions use coerced resolver arguments.
+The semantics-preservation and validity witnesses retain declared-scope source evidence
+along runtime object paths. The proof-only `runtimeMergeSource` invariant keeps each
+source field's declared return scope; schema covariance transfers possible runtime types,
+not unrestricted static mergeability. `FieldProjection` traces each normalized field to
+a nonempty source group and recursively traces its collected children, preserving the
+spec's full response-shape checks when grounding return scopes. Recursive declared lookup
+remains available when Boolean filtering empties a composite child body. The soundness,
+validity, and uniqueness witnesses retain their public assumptions.
 
 ## The Two Normal Forms
 

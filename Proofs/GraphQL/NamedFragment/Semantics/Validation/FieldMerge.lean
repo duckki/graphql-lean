@@ -105,6 +105,16 @@ mutual
       try omega
 end
 
+theorem collectSubfields_inlineScopedField_eq_map (schema : Schema)
+    (left right : GraphQL.NamedFragment.Validation.FieldMerge.ScopedField)
+    : GraphQL.NamedFragment.Validation.FieldMerge.collectSubfields schema
+        (inlineScopedField left) (inlineScopedField right)
+      = (GraphQL.NamedFragment.Validation.FieldMerge.collectSubfields schema left
+          right).map
+          inlineScopedField := by
+  simp [GraphQL.NamedFragment.Validation.FieldMerge.collectSubfields, inlineScopedField,
+    collectFields_inlineSelectionSet_eq_map, List.map_append]
+
 theorem fieldsInSetCanMerge_inlineSelectionSet_inductive
     {schema : Schema} {fragments : List FragmentDefinition}
     {parentType : Name} {selectionSet : List Selection}
@@ -120,7 +130,10 @@ theorem fieldsInSetCanMerge_inlineSelectionSet_inductive
     (motive_2 := fun left right _ =>
       GraphQL.NamedFragment.Validation.FieldMerge.FieldsForNameCanMerge schema []
         (inlineScopedField left) (inlineScopedField right))
-    ?setCase ?fieldCase hmerge
+    (motive_3 := fun left right _ =>
+      GraphQL.NamedFragment.Validation.FieldMerge.SameResponseShape schema []
+        (inlineScopedField left) (inlineScopedField right))
+    ?setCase ?fieldCase ?shapeCase hmerge
   · intro parentType selectionSet hfields ihFields
     refine GraphQL.NamedFragment.Validation.FieldMerge.FieldsInSetCanMerge.intro
       parentType (Inline.inlineSelectionSet fragments selectionSet) ?_
@@ -136,68 +149,31 @@ theorem fieldsInSetCanMerge_inlineSelectionSet_inductive
     cases hsourceRightEq
     exact ihFields sourceLeft hsourceLeft sourceRight hsourceRight
       (by simpa [inlineScopedField] using hresponse)
-  · intro left right hshape hidentity hsubfields ihSubfields
+  · intro left right hshape hidentity hsubfields ihShape ihSubfields
     refine GraphQL.NamedFragment.Validation.FieldMerge.FieldsForNameCanMerge.intro
       (inlineScopedField left) (inlineScopedField right) ?_ ?_ ?_
-    · simpa [inlineScopedField, GraphQL.FieldMerge.sameResponseShape] using hshape
+    · exact ihShape
     · intro hparents
       simpa [inlineScopedField] using hidentity hparents
-    · intro hparents objectType
-      dsimp
-      intro subLeft hsubLeft subRight hsubRight hresponse
-      simp [inlineScopedField] at hparents
-      change subLeft ∈
-          GraphQL.NamedFragment.Validation.FieldMerge.collectFields schema []
-              objectType
-              (Inline.inlineSelectionSet left.availableFragments
-                left.selectionSet)
-            ++
-            GraphQL.NamedFragment.Validation.FieldMerge.collectFields schema []
-              objectType
-              (Inline.inlineSelectionSet right.availableFragments
-                right.selectionSet) at hsubLeft
-      change subRight ∈
-          GraphQL.NamedFragment.Validation.FieldMerge.collectFields schema []
-              objectType
-              (Inline.inlineSelectionSet left.availableFragments
-                left.selectionSet)
-            ++
-            GraphQL.NamedFragment.Validation.FieldMerge.collectFields schema []
-              objectType
-              (Inline.inlineSelectionSet right.availableFragments
-                right.selectionSet) at hsubRight
-      have hcollect :
-          GraphQL.NamedFragment.Validation.FieldMerge.collectFields schema []
-                objectType
-                (Inline.inlineSelectionSet left.availableFragments
-                  left.selectionSet)
-              ++
-              GraphQL.NamedFragment.Validation.FieldMerge.collectFields schema []
-                objectType
-                (Inline.inlineSelectionSet right.availableFragments
-                  right.selectionSet)
-            =
-          (GraphQL.NamedFragment.Validation.FieldMerge.collectFields schema
-                left.availableFragments objectType left.selectionSet
-              ++
-              GraphQL.NamedFragment.Validation.FieldMerge.collectFields schema
-                right.availableFragments objectType right.selectionSet).map
-              inlineScopedField := by
-        simp [List.map_append,
-          collectFields_inlineSelectionSet_eq_map schema left.availableFragments
-            objectType left.selectionSet,
-          collectFields_inlineSelectionSet_eq_map schema right.availableFragments
-            objectType right.selectionSet]
-      rw [hcollect] at hsubLeft hsubRight
+    · intro hparents subLeft hsubLeft subRight hsubRight hresponse
+      rw [collectSubfields_inlineScopedField_eq_map] at hsubLeft hsubRight
       rcases List.mem_map.mp hsubLeft with
         ⟨sourceLeft, hsourceLeft, hsourceLeftEq⟩
       rcases List.mem_map.mp hsubRight with
         ⟨sourceRight, hsourceRight, hsourceRightEq⟩
       cases hsourceLeftEq
       cases hsourceRightEq
-      exact ihSubfields hparents objectType sourceLeft hsourceLeft
+      exact ihSubfields (by simpa [inlineScopedField] using hparents) sourceLeft hsourceLeft
         sourceRight hsourceRight
         (by simpa [inlineScopedField] using hresponse)
+  · intro left right htypes hsubfields ihSubfields
+    refine .intro _ _ (by simpa [inlineScopedField] using htypes) ?_
+    intro hleft hright subLeft hsubLeft subRight hsubRight hresponse
+    rw [collectSubfields_inlineScopedField_eq_map] at hsubLeft hsubRight
+    rcases List.mem_map.mp hsubLeft with ⟨sourceLeft, hsourceLeft, rfl⟩
+    rcases List.mem_map.mp hsubRight with ⟨sourceRight, hsourceRight, rfl⟩
+    exact ihSubfields hleft hright sourceLeft hsourceLeft sourceRight hsourceRight
+      (by simpa [inlineScopedField] using hresponse)
 
 theorem fieldsInSetCanMerge_inlineSelectionSet
     {schema : Schema} {fragments : List FragmentDefinition}

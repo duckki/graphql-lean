@@ -1,4 +1,5 @@
 import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.Validity.Branches.Directives
+import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.Validity.Branches.Shape
 
 /-!
 Field-merge facts for complete-normalization Boolean branches.
@@ -43,9 +44,9 @@ theorem fieldsForNameCanMerge_of_sameParent_sameSelection_source
   intro hleftMem hrightMem hleftSame hrightSame hparent
     hsourceResponse hsourceParents hsourceMerge hsubfields
   rcases hleftSame with
-    ⟨hleftResponse, hleftField, hleftArguments, hleftSelection⟩
+    ⟨hleftResponse, hleftField, hleftArguments, _hleftSelection⟩
   rcases hrightSame with
-    ⟨hrightResponse, hrightField, hrightArguments, hrightSelection⟩
+    ⟨hrightResponse, hrightField, hrightArguments, _hrightSelection⟩
   rcases
     FieldMerge.fieldsForNameCanMerge_identity hsourceMerge
       hsourceParents with
@@ -70,120 +71,13 @@ theorem fieldsForNameCanMerge_of_sameParent_sameSelection_source
     exact
       SchemaWellFormedness.schemaWellFormed_lookupField_outputType
         hschema hleftLookup
-  refine FieldMerge.FieldsForNameCanMerge.intro left right ?_ ?_ ?_
+  apply fieldsForNameCanMerge_of_sameOutput_subfields houtputEq
   · rw [← houtputEq]
-    exact FieldMerge.sameResponseShape_refl schema left.outputType
+    exact SchemaWellFormedness.sameTypeShape_refl schema left.outputType
       hleftOutput
   · intro _hparents
     exact ⟨hfield, harguments⟩
-  · intro _hparents objectType
-    simpa [FieldMerge.fieldsInSetCanMerge, hleftSelection, hrightSelection]
-      using hsubfields objectType
-
-theorem fieldsInSetCanMerge_mergeSelectionSets_pair_of_scoped
-    (schema : Schema) (parentType responseName objectType : Name)
-    (selectionSet leftGroup rightGroup : List Selection)
-    : schema.objectType parentType
-      -> FieldMerge.fieldsInSetCanMerge schema parentType selectionSet
-      -> (∀ selection,
-            selection ∈ leftGroup ++ rightGroup
-            -> ∃ scopedField,
-                scopedField ∈ FieldMerge.collectFields schema parentType selectionSet
-                ∧ scopedField.responseName = responseName
-                ∧ scopedField.selectionSet = selection.subselections
-                ∧ (schema.objectType scopedField.parentType
-                    -> schema.typesOverlapBool parentType scopedField.parentType = true))
-      -> FieldMerge.fieldsInSetCanMerge schema objectType
-          (mergeSelectionSets leftGroup ++ mergeSelectionSets rightGroup) := by
-  intro hobject hmerge hscopedOf
-  have hgroupMerge :
-      FieldMerge.fieldsInSetCanMerge schema objectType
-        (mergeSelectionSets (leftGroup ++ rightGroup)) := by
-    apply fieldsInSetCanMerge_mergeSelectionSets_of_pairwise
-    intro leftSelection hleftSelection rightSelection hrightSelection
-    rcases hscopedOf leftSelection hleftSelection with
-      ⟨leftScoped, hleftScoped, hleftResponse, hleftSelectionSet,
-        hleftOverlap⟩
-    rcases hscopedOf rightSelection hrightSelection with
-      ⟨rightScoped, hrightScoped, hrightResponse, hrightSelectionSet,
-        hrightOverlap⟩
-    have hresponse :
-        leftScoped.responseName = rightScoped.responseName :=
-      hleftResponse.trans hrightResponse.symm
-    have hfieldMerge :
-        FieldMerge.fieldsForNameCanMerge schema leftScoped rightScoped :=
-      FieldMerge.fieldsInSetCanMerge_pair hmerge hleftScoped hrightScoped
-        hresponse
-    have hparents :
-        leftScoped.parentType = rightScoped.parentType
-          ∨ ¬ schema.objectType leftScoped.parentType
-          ∨ ¬ schema.objectType rightScoped.parentType := by
-      by_cases hleftObject : schema.objectType leftScoped.parentType
-      · by_cases hrightObject : schema.objectType rightScoped.parentType
-        · have hleftParent :
-              leftScoped.parentType = parentType :=
-            object_typesOverlapBool_eq schema hobject hleftObject
-              (hleftOverlap hleftObject)
-          have hrightParent :
-              rightScoped.parentType = parentType :=
-            object_typesOverlapBool_eq schema hobject hrightObject
-              (hrightOverlap hrightObject)
-          exact Or.inl (hleftParent.trans hrightParent.symm)
-        · exact Or.inr (Or.inr hrightObject)
-      · exact Or.inr (Or.inl hleftObject)
-    have hsubfields :=
-      FieldMerge.fieldsForNameCanMerge_subfields hfieldMerge hparents
-        objectType
-    rw [hleftSelectionSet, hrightSelectionSet] at hsubfields
-    exact hsubfields
-  have hmergeAppendAll :
-      ∀ leftGroup rightGroup,
-        mergeSelectionSets (leftGroup ++ rightGroup)
-          =
-        mergeSelectionSets leftGroup ++ mergeSelectionSets rightGroup := by
-    intro leftGroup
-    induction leftGroup with
-    | nil =>
-        intro rightGroup
-        simp [mergeSelectionSets]
-    | cons selection rest ih =>
-        intro rightGroup
-        simp [mergeSelectionSets, ih rightGroup, List.append_assoc]
-  have hmergeAppend :
-      mergeSelectionSets (leftGroup ++ rightGroup)
-        =
-      mergeSelectionSets leftGroup ++ mergeSelectionSets rightGroup :=
-    hmergeAppendAll leftGroup rightGroup
-  simpa [hmergeAppend] using hgroupMerge
-
-theorem fieldsInSetCanMerge_mergeSelectionSets_pair_of_scoped_source_object
-    (schema : Schema) (parentType responseName objectType : Name)
-    (selectionSet leftGroup rightGroup : List Selection)
-    : schema.objectType parentType
-      -> FieldMerge.fieldsInSetCanMerge schema parentType selectionSet
-      -> (∀ selection,
-            selection ∈ leftGroup ++ rightGroup
-            -> ∃ scopedField,
-                scopedField ∈ FieldMerge.collectFields schema parentType selectionSet
-                ∧ scopedField.responseName = responseName
-                ∧ scopedField.selectionSet = selection.subselections
-                ∧ schema.typeIncludesObjectBool scopedField.parentType parentType = true)
-      -> FieldMerge.fieldsInSetCanMerge schema objectType
-          (mergeSelectionSets leftGroup ++ mergeSelectionSets rightGroup) := by
-  intro hobject hmerge hscopedOf
-  apply fieldsInSetCanMerge_mergeSelectionSets_pair_of_scoped schema
-    parentType responseName objectType selectionSet leftGroup rightGroup
-    hobject hmerge
-  intro selection hselection
-  rcases hscopedOf selection hselection with
-    ⟨scopedField, hscopedMem, hresponse, hselectionSet,
-      hsource⟩
-  refine ⟨scopedField, hscopedMem, hresponse, hselectionSet, ?_⟩
-  intro hscopedObject
-  have hparentEq :
-      parentType = scopedField.parentType :=
-    object_typeIncludesObjectBool_eq_self schema hscopedObject hsource
-  simpa [hparentEq] using object_typesOverlapBool_self schema hobject
+  · exact hsubfields left.outputType.namedType
 
 theorem
     fieldSelectionsWithResponseNameInScope_field_mem_collectFields_scoped_lookupValid_source_object
@@ -352,180 +246,6 @@ theorem
                   hselectionSet, hscopedSource⟩
                 simp [FieldMerge.collectFields, hscoped]
 
-theorem fieldsInSetCanMerge_fieldHead_merged_pair_of_canMerge_object_lookupValid
-    (schema : Schema)
-    (parentType responseName leftFieldName rightFieldName objectType : Name)
-    (leftArguments rightArguments : List Argument)
-    (leftSubselections rightSubselections leftRest rightRest : List Selection)
-    (leftFieldDefinition rightFieldDefinition : FieldDefinition)
-    : schema.objectType parentType
-      -> selectionSetLookupValid schema parentType
-          (Selection.field responseName leftFieldName leftArguments [] leftSubselections
-            :: leftRest)
-      -> selectionSetLookupValid schema parentType
-          (Selection.field responseName rightFieldName rightArguments []
-              rightSubselections
-            :: rightRest)
-      -> FieldMerge.fieldsInSetCanMerge schema parentType
-          ((Selection.field responseName leftFieldName leftArguments [] leftSubselections
-              :: leftRest)
-            ++ (Selection.field responseName rightFieldName rightArguments []
-                  rightSubselections
-                :: rightRest))
-      -> schema.lookupField parentType leftFieldName = some leftFieldDefinition
-      -> schema.lookupField parentType rightFieldName = some rightFieldDefinition
-      -> FieldMerge.fieldsInSetCanMerge schema objectType
-          ((leftSubselections
-              ++ mergeSelectionSets
-                  (fieldSelectionsWithResponseNameInScope schema parentType responseName
-                    leftRest))
-            ++ (rightSubselections
-                ++ mergeSelectionSets
-                    (fieldSelectionsWithResponseNameInScope schema parentType
-                      responseName rightRest))) := by
-  intro hobject hleftLookupValid hrightLookupValid hmerge hleftLookup
-    hrightLookup
-  let leftHead : Selection :=
-    Selection.field responseName leftFieldName leftArguments []
-      leftSubselections
-  let rightHead : Selection :=
-    Selection.field responseName rightFieldName rightArguments []
-      rightSubselections
-  let leftGroup : List Selection :=
-    leftHead :: fieldSelectionsWithResponseNameInScope schema parentType responseName
-      leftRest
-  let rightGroup : List Selection :=
-    rightHead :: fieldSelectionsWithResponseNameInScope schema parentType responseName
-      rightRest
-  let sourceSet : List Selection :=
-    (leftHead :: leftRest) ++ (rightHead :: rightRest)
-  have hleftTailLookup :
-      selectionSetLookupValid schema parentType leftRest :=
-    selectionSetLookupValid_tail hleftLookupValid
-  have hrightTailLookup :
-      selectionSetLookupValid schema parentType rightRest :=
-    selectionSetLookupValid_tail hrightLookupValid
-  have hoverlapSelf :
-      schema.objectType parentType ->
-        schema.typesOverlapBool parentType parentType = true := by
-    intro hparentObject
-    exact object_typesOverlapBool_self schema hparentObject
-  have hscopedOf :
-      ∀ selection, selection ∈ leftGroup ++ rightGroup ->
-        ∃ scopedField,
-          scopedField ∈ FieldMerge.collectFields schema parentType sourceSet
-            ∧ scopedField.responseName = responseName
-            ∧ scopedField.selectionSet = selection.subselections
-            ∧ (schema.objectType scopedField.parentType ->
-              schema.typesOverlapBool parentType scopedField.parentType =
-                true) := by
-    intro selection hselection
-    rw [List.mem_append] at hselection
-    rcases hselection with hleftSelection | hrightSelection
-    · rcases List.mem_cons.mp hleftSelection with hhead | hmatched
-      · subst selection
-        let scopedField : FieldMerge.ScopedField := {
-          parentType := parentType,
-          responseName := responseName,
-          fieldName := leftFieldName,
-          arguments := leftArguments,
-          outputType := leftFieldDefinition.outputType,
-          selectionSet := leftSubselections
-        }
-        refine ⟨scopedField, ?_, rfl, ?_, ?_⟩
-        · rw [FieldMerge.collectFields_append]
-          apply List.mem_append_left
-          simp [leftHead, scopedField, FieldMerge.collectFields,
-            hleftLookup]
-        · simp [scopedField, leftHead, Selection.subselections]
-        · intro _hscopedObject
-          simp [scopedField]
-          exact object_typesOverlapBool_self schema hobject
-      · rcases
-          fieldSelectionsWithResponseNameInScope_mem_field schema parentType
-            responseName leftRest selection hmatched with
-        ⟨matchedFieldName, matchedArguments, matchedDirectives,
-          matchedSubselections, hselectionEq⟩
-        subst selection
-        rcases
-          fieldSelectionsWithResponseNameInScope_field_mem_collectFields_scoped_lookupValid
-            schema parentType parentType responseName leftRest
-            matchedFieldName matchedArguments matchedDirectives
-            matchedSubselections hoverlapSelf hleftTailLookup hmatched with
-        ⟨scopedField, hscopedRest, hresponse, _hfieldName,
-          _harguments, hselectionSet, hoverlap⟩
-        refine ⟨scopedField, ?_, hresponse, ?_, hoverlap⟩
-        · simp [sourceSet, leftHead, FieldMerge.collectFields,
-            FieldMerge.collectFields_append, hleftLookup, hscopedRest]
-        · simpa [Selection.subselections] using hselectionSet
-    · rcases List.mem_cons.mp hrightSelection with hhead | hmatched
-      · subst selection
-        let scopedField : FieldMerge.ScopedField := {
-          parentType := parentType,
-          responseName := responseName,
-          fieldName := rightFieldName,
-          arguments := rightArguments,
-          outputType := rightFieldDefinition.outputType,
-          selectionSet := rightSubselections
-        }
-        refine ⟨scopedField, ?_, rfl, ?_, ?_⟩
-        · have hrightHeadMem :
-              scopedField ∈ FieldMerge.collectFields schema parentType
-                (rightHead :: rightRest) := by
-            simp [rightHead, scopedField, FieldMerge.collectFields,
-              hrightLookup]
-          have htailMem :
-              scopedField ∈ FieldMerge.collectFields schema parentType
-                (leftRest ++ (rightHead :: rightRest)) := by
-            rw [FieldMerge.collectFields_append]
-            exact List.mem_append_right
-              (FieldMerge.collectFields schema parentType leftRest)
-              hrightHeadMem
-          simpa [sourceSet, leftHead, FieldMerge.collectFields,
-            hleftLookup] using Or.inr htailMem
-        · simp [scopedField, rightHead, Selection.subselections]
-        · intro _hscopedObject
-          simp [scopedField]
-          exact object_typesOverlapBool_self schema hobject
-      · rcases
-          fieldSelectionsWithResponseNameInScope_mem_field schema parentType
-            responseName rightRest selection hmatched with
-        ⟨matchedFieldName, matchedArguments, matchedDirectives,
-          matchedSubselections, hselectionEq⟩
-        subst selection
-        rcases
-          fieldSelectionsWithResponseNameInScope_field_mem_collectFields_scoped_lookupValid
-            schema parentType parentType responseName rightRest
-            matchedFieldName matchedArguments matchedDirectives
-            matchedSubselections hoverlapSelf hrightTailLookup hmatched with
-        ⟨scopedField, hscopedRest, hresponse, _hfieldName,
-          _harguments, hselectionSet, hoverlap⟩
-        refine ⟨scopedField, ?_, hresponse, ?_, hoverlap⟩
-        · have hrightMem :
-              scopedField ∈ FieldMerge.collectFields schema parentType
-                (rightHead :: rightRest) := by
-            simp [rightHead, FieldMerge.collectFields, hrightLookup,
-              hscopedRest]
-          have htailMem :
-              scopedField ∈ FieldMerge.collectFields schema parentType
-                (leftRest ++ (rightHead :: rightRest)) := by
-            rw [FieldMerge.collectFields_append]
-            exact List.mem_append_right
-              (FieldMerge.collectFields schema parentType leftRest)
-              hrightMem
-          simpa [sourceSet, leftHead, FieldMerge.collectFields,
-            hleftLookup] using Or.inr htailMem
-        · simpa [Selection.subselections] using hselectionSet
-  have hgroups :
-      FieldMerge.fieldsInSetCanMerge schema objectType
-        (mergeSelectionSets leftGroup ++ mergeSelectionSets rightGroup) :=
-    fieldsInSetCanMerge_mergeSelectionSets_pair_of_scoped schema parentType
-      responseName objectType sourceSet leftGroup rightGroup hobject hmerge
-      hscopedOf
-  simpa [leftGroup, rightGroup, leftHead, rightHead, mergeSelectionSets,
-    Selection.subselections, sourceSet]
-    using hgroups
-
 theorem fieldsInSetCanMerge_field_cons_pair_of_lookup_none
     (schema : Schema) (parentType responseName fieldName : Name)
     (arguments : List Argument)
@@ -591,15 +311,15 @@ theorem fieldsForNameCanMerge_sameField_of_subfields
             selectionSet := rightSelectionSet
           } := by
   intro hschema hlookup hsubfields
-  refine FieldMerge.FieldsForNameCanMerge.intro _ _ ?_ ?_ ?_
-  · exact FieldMerge.sameResponseShape_refl schema
+  refine fieldsForNameCanMerge_of_sameOutput_subfields ?_ ?_ ?_ ?_
+  · rfl
+  · exact SchemaWellFormedness.sameTypeShape_refl schema
       fieldDefinition.outputType
       (SchemaWellFormedness.schemaWellFormed_lookupField_outputType
         hschema hlookup)
   · intro _hparents
     exact ⟨rfl, GroundTypeNormalization.argumentsEquivalent_refl arguments⟩
-  · intro _hparents objectType
-    exact hsubfields objectType
+  · exact hsubfields fieldDefinition.outputType.namedType
 
 theorem fieldsInSetCanMerge_field_cons_pair_of_rest_responseNameFree
     (schema : Schema) (parentType responseName fieldName : Name)

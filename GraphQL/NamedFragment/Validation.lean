@@ -280,6 +280,11 @@ mutual
       try omega
 end
 
+def collectSubfields (schema : Schema) (left right : ScopedField) : List ScopedField :=
+  collectFields schema left.availableFragments left.outputType.namedType left.selectionSet
+  ++ collectFields schema right.availableFragments right.outputType.namedType
+      right.selectionSet
+
 mutual
   inductive FieldsInSetCanMerge (schema : Schema) (fragments : List FragmentDefinition)
       : Name -> List Selection -> Prop where
@@ -297,8 +302,7 @@ mutual
   inductive FieldsForNameCanMerge (schema : Schema) (fragments : List FragmentDefinition)
       : ScopedField -> ScopedField -> Prop where
     | intro (left right : ScopedField)
-      (hshape
-        : GraphQL.FieldMerge.sameResponseShape schema left.outputType right.outputType)
+      (hshape : SameResponseShape schema fragments left right)
       (hidentity
         : (left.parentType = right.parentType
             ∨ ¬ schema.objectType left.parentType
@@ -309,19 +313,37 @@ mutual
         : (left.parentType = right.parentType
             ∨ ¬ schema.objectType left.parentType
             ∨ ¬ schema.objectType right.parentType)
-          -> ∀ objectType,
-              let fields :=
-                collectFields schema left.availableFragments objectType left.selectionSet
-                ++ collectFields schema right.availableFragments objectType
-                    right.selectionSet
-              ∀ subLeft,
-                subLeft ∈ fields
-                -> ∀ subRight,
-                    subRight ∈ fields
-                    -> subLeft.responseName = subRight.responseName
-                    -> FieldsForNameCanMerge schema fragments subLeft subRight)
+          -> ∀ subLeft,
+              subLeft ∈ collectSubfields schema left right
+              -> ∀ subRight,
+                  subRight ∈ collectSubfields schema left right
+                  -> subLeft.responseName = subRight.responseName
+                  -> FieldsForNameCanMerge schema fragments subLeft subRight)
       : FieldsForNameCanMerge schema fragments left right
+
+  inductive SameResponseShape (schema : Schema) (fragments : List FragmentDefinition)
+      : ScopedField -> ScopedField -> Prop where
+    | intro (left right : ScopedField)
+      (htypes
+        : GraphQL.SchemaWellFormedness.sameTypeShape schema left.outputType
+            right.outputType)
+      (hsubfields
+        : schema.isCompositeType left.outputType.namedType
+          -> schema.isCompositeType right.outputType.namedType
+          -> ∀ subLeft,
+              subLeft ∈ collectSubfields schema left right
+              -> ∀ subRight,
+                  subRight ∈ collectSubfields schema left right
+                  -> subLeft.responseName = subRight.responseName
+                  -> SameResponseShape schema fragments subLeft subRight)
+      : SameResponseShape schema fragments left right
 end
+
+-- Spec 5.3.2 `SameResponseShape`, including fragment-spread subselections.
+def sameResponseShape (schema : Schema) (fragments : List FragmentDefinition)
+    (left right : ScopedField)
+    : Prop :=
+  SameResponseShape schema fragments left right
 
 def fieldsInSetCanMerge (schema : Schema)
     (fragments : List FragmentDefinition)

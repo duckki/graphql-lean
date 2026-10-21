@@ -495,9 +495,9 @@ theorem selectionSetRecursiveSyntacticInclusionShortcutBool_sound
     (hparentInPossibleTypes : parentType ∈ possibleTypes)
     (hparentObject : schema.objectType parentType)
     (hleftReady : NormalForm.selectionSetSemanticsReady schema parentType left)
-    (hleftMerge : FieldMerge.fieldsInSetCanMerge schema parentType left)
+    (hleftMerge : NormalForm.runtimeMergeSource schema parentType left)
     (hrightReady : NormalForm.selectionSetSemanticsReady schema parentType right)
-    (hrightMerge : FieldMerge.fieldsInSetCanMerge schema parentType right)
+    (hrightMerge : NormalForm.runtimeMergeSource schema parentType right)
     (hcheck
       : selectionSetRecursiveSyntacticInclusionShortcutBool schema responseFuel
           possibleTypes left right
@@ -558,9 +558,9 @@ theorem selectionSetSyntacticInclusionShortcutBool_sound
     (hparentInPossibleTypes : parentType ∈ possibleTypes)
     (hparentObject : schema.objectType parentType)
     (hleftReady : NormalForm.selectionSetSemanticsReady schema parentType left)
-    (hleftMerge : FieldMerge.fieldsInSetCanMerge schema parentType left)
+    (hleftMerge : NormalForm.runtimeMergeSource schema parentType left)
     (hrightReady : NormalForm.selectionSetSemanticsReady schema parentType right)
-    (hrightMerge : FieldMerge.fieldsInSetCanMerge schema parentType right)
+    (hrightMerge : NormalForm.runtimeMergeSource schema parentType right)
     (hcheck
       : selectionSetSyntacticInclusionShortcutBool schema responseFuel
           possibleTypes left right

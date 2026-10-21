@@ -1,4 +1,5 @@
 import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Validity.Variables
+import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Validity.SelectionSet
 
 /-! Operation-level validity preservation for ground-type normalization. -/
 
@@ -35,50 +36,8 @@ theorem normalizeOperation_operationVariablesUsed
       -> operationDirectiveFree operation
       -> operationFieldsValidInPossibleTypes schema operation
       -> operationTypeConditionFeasible schema operation
-      -> Validation.operationVariablesUsed (normalizeOperation schema operation) := by
-  intro hschema hvalid hfree himplementation hfeasible
-  have hrootEq :
-      (operation.rootType schema) = schema.queryType :=
-    Validation.operationDefinitionValid_rootType_eq hvalid
-  have hrootObject :
-      schema.objectType (operation.rootType schema) := by
-    simpa [hrootEq] using hschema.2.1
-  have hselectionValid :
-      Validation.selectionSetValid schema operation.variableDefinitions
-        (operation.rootType schema) operation.selectionSet :=
-    Validation.operationDefinitionValid_selectionSetValid hvalid
-  have hready :
-      selectionSetSemanticsReady schema (operation.rootType schema)
-        operation.selectionSet :=
-    selectionSetSemanticsReady_of_selectionSetValid_object schema
-      operation.variableDefinitions (operation.rootType schema) hschema hrootObject
-      operation.selectionSet hselectionValid
-  have hmerge :
-      FieldMerge.fieldsInSetCanMerge schema (operation.rootType schema)
-        operation.selectionSet :=
-    Validation.operationDefinitionValid_fieldsInSetCanMerge hvalid
-  have hrootStack :
-      objectSatisfiesTypeConditionStack schema (operation.rootType schema)
-        [(operation.rootType schema)] :=
-    objectSatisfiesTypeConditionStack_singleton_of_object_forValidity
-      schema hrootObject
-  have hsourceVariablesUsed :
-      Validation.operationVariablesUsed operation :=
-    Validation.operationDefinitionValid_operationVariablesUsed hvalid
-  intro variableDefinition hvariableDefinition
-  have hsourceVariable
-      : variableDefinition.name
-        ∈ Validation.selectionSetVariables operation.selectionSet :=
-    hsourceVariablesUsed variableDefinition
-      (by simpa [normalizeOperation] using hvariableDefinition)
-  change variableDefinition.name
-    ∈ Validation.selectionSetVariables
-        (normalizeSelectionSet schema (operation.rootType schema)
-          operation.selectionSet)
-  exact normalizeSelectionSet_variables_mem schema variableDefinition.name hschema
-    (operation.rootType schema) operation.selectionSet
-    [(operation.rootType schema)] hrootObject (by simp) hrootStack hready
-    hmerge hfree hfeasible hsourceVariable
+      -> Validation.operationVariablesUsed (normalizeOperation schema operation) :=
+  normalizeOperation_variablesUsed schema operation
 
 theorem normalizeOperation_valid_of_operationFieldsValid
     (schema : Schema) (operation : Operation)
@@ -111,9 +70,11 @@ theorem normalizeOperation_valid_of_operationFieldsValid
       operation.variableDefinitions (operation.rootType schema) hschema hrootObject
       operation.selectionSet hselectionValid
   have hmerge :
-      FieldMerge.fieldsInSetCanMerge schema (operation.rootType schema)
+      runtimeMergeSource schema (operation.rootType schema)
         operation.selectionSet :=
-    Validation.operationDefinitionValid_fieldsInSetCanMerge hvalid
+    runtimeMergeSource_of_valid schema operation.variableDefinitions hrootObject
+      (object_typeIncludesObjectBool_self schema hrootObject) hselectionValid
+      (Validation.operationDefinitionValid_fieldsInSetCanMerge hvalid)
   have hnormalizedSelectionSet :
       NormalizedSelectionSetValid schema operation.variableDefinitions
         (operation.rootType schema)
@@ -160,9 +121,11 @@ theorem normalizeOperation_valid (schema : Schema) (operation : Operation)
       operation.variableDefinitions (operation.rootType schema) hschema hrootObject
       operation.selectionSet hselectionValid
   have hmerge :
-      FieldMerge.fieldsInSetCanMerge schema (operation.rootType schema)
+      runtimeMergeSource schema (operation.rootType schema)
         operation.selectionSet :=
-    Validation.operationDefinitionValid_fieldsInSetCanMerge hvalid
+    runtimeMergeSource_of_valid schema operation.variableDefinitions hrootObject
+      (object_typeIncludesObjectBool_self schema hrootObject) hselectionValid
+      (Validation.operationDefinitionValid_fieldsInSetCanMerge hvalid)
   have hrootContains :
       selectionSetContainsTypeConditionFeasibleField schema
         [(operation.rootType schema)] operation.selectionSet :=

@@ -34,7 +34,7 @@ structure ReductionExecutionBoundary {ObjectRef : Type}
     : Algorithms.ExecutionUngroupedUncached.Eager.ScopedParentRuntimeApplies
         schema runtimeType parentType
   semanticsReady : NormalForm.selectionSetSemanticsReady schema parentType selectionSet
-  fieldsCanMerge : FieldMerge.fieldsInSetCanMerge schema extractionParentType selectionSet
+  fieldsCanMerge : NormalForm.runtimeMergeSource schema runtimeType selectionSet
   groupsFieldCompatible
     : Algorithms.ExecutionUngroupedUncached.Eager.CollectedGroupsFieldValidationMergeCompatible
         allSpecGroups
@@ -168,8 +168,7 @@ mutual
                 schema runtimeType
                 (FieldMerge.collectFields schema validationParentType rightSelectionSet)
                 (fields.map fun field => (responseName, field)))
-      (hrightMerge
-        : FieldMerge.fieldsInSetCanMerge schema validationParentType rightSelectionSet)
+      (hrightMerge : NormalForm.runtimeMergeSource schema runtimeType rightSelectionSet)
       (happlicable
         : ReductionUnit.AllRuntimeApplicable schema variableValues runtimeType units)
       (hleft : (ReductionUnit.outputSelectionSet schema units).Perm leftSelectionSet)
@@ -736,13 +735,25 @@ mutual
                     exact boundary.fieldChildSemanticsReady hrightGroup hfield
                       fieldDefinition (hlookupAll field hfield) childRuntime
                       (by rw [← hnamed]; exact hinclude)
-                  have hchildMerge : FieldMerge.fieldsInSetCanMerge schema childRuntime
+                  have hchildMerge : NormalForm.runtimeMergeSource schema childRuntime
                       rightSelectionSet := by
-                    apply Algorithms.ExecutionUngroupedUncached.Eager.fieldsInSetCanMerge_mergedFieldSelectionSet_of_runtimeScoped
-                      schema boundary.extractionParentType boundary.runtimeType
-                      boundary.selectionSet
-                      responseName rightFields boundary.fieldsCanMerge
-                      (boundary.groupRuntimeScoped hrightGroup) childRuntime
+                    rcases rightFields with _ | ⟨first, rest⟩
+                    · refine ⟨[], ?_, ?_, ?_⟩ <;>
+                        simp [rightSelectionSet, NormalForm.fieldSelectionsWithResponseNameInScope]
+                    · apply Algorithms.ExecutionUngroupedUncached.Eager.collectFields_group_mergedRuntimeSource
+                        schema hschema variableValues boundary.parentType boundary.runtimeType
+                        boundary.ref boundary.selectionSet responseName (first :: rest)
+                        first fieldDefinition childRuntime
+                        (Algorithms.ExecutionUngroupedUncached.Eager.ScopedParentRuntimeApplies.runtimeObjectType
+                          schema hschema boundary.parentRuntimeApplies)
+                        (object_typeIncludesObjectBool_eq_self schema boundary.parentObject
+                          boundary.parentRuntimeApplies).symm boundary.fieldsCanMerge
+                      · rw [← boundary.allSpecGroups_eq]
+                        exact hrightGroup
+                      · simp
+                      · exact hlookupAll first (by simp)
+                      · rw [← hnamed]
+                        exact hinclude
                   have hchildObject : schema.objectType childRuntime :=
                     SchemaWellFormedness.schemaWellFormed_possibleTypesAreObjects hschema
                       typeName childRuntime (List.contains_iff_mem.mp hinclude)

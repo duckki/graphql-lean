@@ -1,4 +1,5 @@
 import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Validity.Support.Basics
+import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.FieldProjection
 
 /-!
 Normalized source tracking facts for ground-type normalization validity.
@@ -139,14 +140,14 @@ structure NormalizedFieldSource
   fieldName : source.fieldName = normalized.fieldName
   arguments : source.arguments = normalized.arguments
   outputShape
-    : FieldMerge.sameResponseShape schema source.outputType normalized.outputType
+    : SchemaWellFormedness.sameTypeShape schema source.outputType normalized.outputType
   parentCondition
     : source.parentType = normalized.parentType ∨ ¬ schema.objectType source.parentType
 
 theorem normalizedFieldSource_of_scopedFieldSameSelection {schema : Schema}
     {objectField abstractField normalizedField : FieldMerge.ScopedField}
     : scopedFieldSameSelection objectField abstractField
-      -> FieldMerge.sameResponseShape schema objectField.outputType
+      -> SchemaWellFormedness.sameTypeShape schema objectField.outputType
           abstractField.outputType
       -> (abstractField.parentType = objectField.parentType
           ∨ ¬ schema.objectType abstractField.parentType)
@@ -159,9 +160,9 @@ theorem normalizedFieldSource_of_scopedFieldSameSelection {schema : Schema}
   · exact hresponse.symm.trans hsource.responseName
   · exact hfieldName.symm.trans hsource.fieldName
   · exact hargumentsEq.symm.trans hsource.arguments
-  · exact FieldMerge.sameResponseShape_trans schema abstractField.outputType
+  · exact SchemaWellFormedness.sameTypeShape_trans schema abstractField.outputType
       objectField.outputType normalizedField.outputType
-      (FieldMerge.sameResponseShape_symm schema objectField.outputType
+      (SchemaWellFormedness.sameTypeShape_symm schema objectField.outputType
         abstractField.outputType hshape)
       hsource.outputShape
   · rcases hparent with hparentEq | hnotObject
@@ -280,7 +281,7 @@ theorem collectFields_normalizeSelectionSet_mem_source
           simp [sourceField, FieldMerge.collectFields, hlookup],
           by
             refine ⟨rfl, rfl, rfl, ?_, Or.inl rfl⟩
-            exact FieldMerge.sameResponseShape_refl schema
+            exact SchemaWellFormedness.sameTypeShape_refl schema
               fieldDefinition.outputType
               (SchemaWellFormedness.schemaWellFormed_lookupField_outputType
                 hschema hlookup)⟩
@@ -421,26 +422,19 @@ theorem fieldsForNameCanMerge_of_normalizedFieldSources
       -> NormalizedFieldSource schema sourceRight right
       -> left.responseName = right.responseName
       -> FieldMerge.fieldsForNameCanMerge schema sourceLeft sourceRight
+      -> FieldMerge.sameResponseShape schema left right
       -> ((left.parentType = right.parentType
             ∨ ¬ schema.objectType left.parentType
             ∨ ¬ schema.objectType right.parentType)
-          -> ∀ objectType,
-              FieldMerge.fieldsInSetCanMerge schema objectType
-                (left.selectionSet ++ right.selectionSet))
+          -> ∀ childLeft,
+              childLeft ∈ FieldMerge.collectSubfields schema left right
+              -> ∀ childRight,
+                  childRight ∈ FieldMerge.collectSubfields schema left right
+                  -> childLeft.responseName = childRight.responseName
+                  -> FieldMerge.fieldsForNameCanMerge schema childLeft childRight)
       -> FieldMerge.fieldsForNameCanMerge schema left right := by
-  intro hleft hright _hresponse hsourceMerge hsubfields
-  refine FieldMerge.FieldsForNameCanMerge.intro left right ?_ ?_ hsubfields
-  · have hsourceShape :
-        FieldMerge.sameResponseShape schema sourceLeft.outputType
-          sourceRight.outputType :=
-      FieldMerge.fieldsForNameCanMerge_sameResponseShape hsourceMerge
-    exact FieldMerge.sameResponseShape_trans schema left.outputType
-      sourceLeft.outputType right.outputType
-      (FieldMerge.sameResponseShape_symm schema sourceLeft.outputType
-        left.outputType hleft.outputShape)
-      (FieldMerge.sameResponseShape_trans schema sourceLeft.outputType
-        sourceRight.outputType right.outputType hsourceShape
-        hright.outputShape)
+  intro hleft hright _hresponse hsourceMerge hshape hsubfields
+  refine FieldMerge.FieldsForNameCanMerge.intro left right hshape ?_ hsubfields
   · intro hparents
     have hsourceParents :
         sourceLeft.parentType = sourceRight.parentType
@@ -503,96 +497,26 @@ theorem collectFields_mem_parent_eq_of_allFields (schema : Schema)
       | inlineFragment typeCondition directives selectionSet =>
           simp [Selection.isField] at hheadField
 
-theorem normalizedDistinctBranchesPairwiseMerge_of_abstractMerge
-    (schema : Schema) (_variableDefinitions : List VariableDefinition)
-    (hschema : SchemaWellFormedness.schemaWellFormed schema)
-    (returnType : Name) (possibleTypeNames : List Name)
-    (selectionSet : List Selection)
-    : (∀ objectType, objectType ∈ possibleTypeNames -> schema.objectType objectType)
-      -> (∀ objectType,
-            objectType ∈ possibleTypeNames
-            -> objectType ∈ schema.getPossibleTypes returnType)
-      -> selectionSetLookupValid schema returnType selectionSet
-      -> (∀ objectType,
-            objectType ∈ possibleTypeNames
-            -> selectionSetSemanticsReady schema objectType selectionSet)
-      -> FieldMerge.fieldsInSetCanMerge schema returnType selectionSet
-      -> normalizedDistinctBranchesPairwiseMerge schema possibleTypeNames
-          selectionSet := by
-  intro hobjects hpossible hlookupReturn hreadyBranches hmergeReturn
-  intro leftType hleftType rightType hrightType hdistinct leftField
-    hleftField rightField hrightField hresponse
-  have hleftObject : schema.objectType leftType :=
-    hobjects leftType hleftType
-  have hrightObject : schema.objectType rightType :=
-    hobjects rightType hrightType
-  have hleftLookup :
-      selectionSetLookupValid schema leftType selectionSet :=
-    selectionSetLookupValid_of_selectionSetSemanticsReady selectionSet
-      (hreadyBranches leftType hleftType)
-  have hrightLookup :
-      selectionSetLookupValid schema rightType selectionSet :=
-    selectionSetLookupValid_of_selectionSetSemanticsReady selectionSet
-      (hreadyBranches rightType hrightType)
-  rcases collectFields_normalizeSelectionSet_mem_source schema hschema
-      leftType selectionSet leftField hleftObject
-      (hreadyBranches leftType hleftType) hleftField with
-    ⟨leftSource, hleftSourceMem, hleftSource⟩
-  rcases collectFields_normalizeSelectionSet_mem_source schema hschema
-      rightType selectionSet rightField hrightObject
-      (hreadyBranches rightType hrightType) hrightField with
-    ⟨rightSource, hrightSourceMem, hrightSource⟩
-  rcases
-    fieldMerge_collectFields_objectParent_possibleParent schema leftType
-      returnType selectionSet leftSource hschema hleftObject
-      (hpossible leftType hleftType) hleftLookup hlookupReturn
-      hleftSourceMem with
-    ⟨leftAbstract, hleftAbstractMem, hleftSame, hleftShape,
-      hleftParent⟩
-  rcases
-    fieldMerge_collectFields_objectParent_possibleParent schema rightType
-      returnType selectionSet rightSource hschema hrightObject
-      (hpossible rightType hrightType) hrightLookup hlookupReturn
-      hrightSourceMem with
-    ⟨rightAbstract, hrightAbstractMem, hrightSame, hrightShape,
-      hrightParent⟩
-  have hleftAbstractSource :
-      NormalizedFieldSource schema leftAbstract leftField :=
-    normalizedFieldSource_of_scopedFieldSameSelection hleftSame hleftShape
-      hleftParent hleftSource
-  have hrightAbstractSource :
-      NormalizedFieldSource schema rightAbstract rightField :=
-    normalizedFieldSource_of_scopedFieldSameSelection hrightSame hrightShape
-      hrightParent hrightSource
-  have habstractResponse :
-      leftAbstract.responseName = rightAbstract.responseName :=
-    hleftAbstractSource.responseName.trans
-      (hresponse.trans hrightAbstractSource.responseName.symm)
-  have habstractMerge :
-      FieldMerge.fieldsForNameCanMerge schema leftAbstract rightAbstract :=
-    FieldMerge.fieldsInSetCanMerge_pair hmergeReturn hleftAbstractMem
-      hrightAbstractMem habstractResponse
-  have hleftParentEq :
-      leftField.parentType = leftType :=
-    collectFields_mem_parent_eq_of_allFields schema leftType
-      (normalizeSelectionSet schema leftType selectionSet) leftField
-      (normalizeSelectionSet_allFields schema leftType selectionSet)
-      hleftField
-  have hrightParentEq :
-      rightField.parentType = rightType :=
-    collectFields_mem_parent_eq_of_allFields schema rightType
-      (normalizeSelectionSet schema rightType selectionSet) rightField
-      (normalizeSelectionSet_allFields schema rightType selectionSet)
-      hrightField
-  apply fieldsForNameCanMerge_of_normalizedFieldSources
-      hleftAbstractSource hrightAbstractSource hresponse habstractMerge
-  intro hparents objectType
-  rcases hparents with hparentEq | hnotObject
-  · exact False.elim (hdistinct
-      (hleftParentEq.symm.trans (hparentEq.trans hrightParentEq)))
-  · rcases hnotObject with hleftNotObject | hrightNotObject
-    · exact False.elim (hleftNotObject (by simpa [hleftParentEq] using hleftObject))
-    · exact False.elim (hrightNotObject (by simpa [hrightParentEq] using hrightObject))
+theorem normalizedDistinctBranchesPairwiseMerge_of_runtimeSources
+    (schema : Schema) (hschema : SchemaWellFormedness.schemaWellFormed schema)
+    {possibleTypes : List Name} {selectionSet : List Selection}
+    {sources : List FieldMerge.ScopedField}
+    (hobjects : ∀ runtime, runtime ∈ possibleTypes -> schema.objectType runtime)
+    (hfree : selectionSetDirectiveFree selectionSet)
+    (hready
+      : ∀ runtime,
+          runtime ∈ possibleTypes
+          -> selectionSetSemanticsReady schema runtime selectionSet)
+    (hsource
+      : ∀ runtime,
+          runtime ∈ possibleTypes
+          -> runtimeMergeSources schema runtime selectionSet sources)
+    : normalizedDistinctBranchesPairwiseMerge schema possibleTypes selectionSet := by
+  intro leftType hleftType rightType hrightType _ left hleft right hright hresponse
+  exact normalizeSelectionSet_fieldsForNameCanMerge schema hschema
+    (hobjects _ hleftType) (hobjects _ hrightType) hfree
+    (hready _ hleftType) (hready _ hrightType)
+    (hsource _ hleftType) (hsource _ hrightType) hleft hright hresponse
 
 end GroundTypeNormalization
 

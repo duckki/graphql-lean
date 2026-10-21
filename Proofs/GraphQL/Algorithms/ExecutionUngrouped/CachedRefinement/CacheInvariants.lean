@@ -17,26 +17,26 @@ namespace ExecutionUngrouped
 
 open GraphQL.Execution
 
-theorem sameResponseShape_isCompositeBool_eq (schema : Schema)
+theorem sameTypeShape_isCompositeBool_eq (schema : Schema)
     : ∀ left right,
-        GraphQL.FieldMerge.sameResponseShape schema left right
+        GraphQL.SchemaWellFormedness.sameTypeShape schema left right
         -> left.isCompositeBool schema = right.isCompositeBool schema
   | .nonNull left, .nonNull right, hshape => by
-      exact sameResponseShape_isCompositeBool_eq schema left right hshape
+      exact sameTypeShape_isCompositeBool_eq schema left right hshape
   | .nonNull _, .named _, hshape => by
-      simp [GraphQL.FieldMerge.sameResponseShape] at hshape
+      simp [GraphQL.SchemaWellFormedness.sameTypeShape] at hshape
   | .nonNull _, .list _, hshape => by
-      simp [GraphQL.FieldMerge.sameResponseShape] at hshape
+      simp [GraphQL.SchemaWellFormedness.sameTypeShape] at hshape
   | .named _, .nonNull _, hshape => by
-      simp [GraphQL.FieldMerge.sameResponseShape] at hshape
+      simp [GraphQL.SchemaWellFormedness.sameTypeShape] at hshape
   | .list _, .nonNull _, hshape => by
-      simp [GraphQL.FieldMerge.sameResponseShape] at hshape
+      simp [GraphQL.SchemaWellFormedness.sameTypeShape] at hshape
   | .list left, .list right, hshape => by
-      exact sameResponseShape_isCompositeBool_eq schema left right hshape
+      exact sameTypeShape_isCompositeBool_eq schema left right hshape
   | .list _, .named _, hshape => by
-      simp [GraphQL.FieldMerge.sameResponseShape] at hshape
+      simp [GraphQL.SchemaWellFormedness.sameTypeShape] at hshape
   | .named _, .list _, hshape => by
-      simp [GraphQL.FieldMerge.sameResponseShape] at hshape
+      simp [GraphQL.SchemaWellFormedness.sameTypeShape] at hshape
   | .named left, .named right, hshape => by
       by_cases hleft : schema.isLeafType left
       · have hnames : left = right := hshape.2.2 (Or.inl hleft)

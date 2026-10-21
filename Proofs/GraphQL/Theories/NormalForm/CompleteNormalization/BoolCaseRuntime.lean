@@ -1,4 +1,4 @@
-import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.StaticMergeReadiness
+import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.ExecutionPrelude
 
 /-!
 Runtime selection facts for generated boolCase-wrapper branches.

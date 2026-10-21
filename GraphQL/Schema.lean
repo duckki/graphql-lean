@@ -818,18 +818,25 @@ def constInputValueIsCorrectType (schema : Schema)
     : Prop :=
   ConstInputValueIsCorrectType schema value expectedType
 
--- Spec 3.6 / 3.7 field return covariance for object/interface implementation:
--- wrappers are structural, leaf named types are invariant, and composite named types
--- compare by possible runtime object subset.
+-- Spec 3.6 `IsSubType`: identity, object membership in a union, or a declared
+-- object/interface implementation of the supertype interface. Callers validate
+-- named-type existence and any input/output category requirements separately.
+def isSubType (schema : Schema) (possibleSubType superType : Name) : Prop :=
+  possibleSubType = superType
+  ∨ match schema.lookupType possibleSubType, schema.lookupType superType with
+    | some (.object _), some (.union unionType) =>
+        possibleSubType ∈ unionType.members
+    | some (.object objectType), some (.interface _) =>
+        superType ∈ objectType.interfaces
+    | some (.interface interfaceType), some (.interface _) =>
+        superType ∈ interfaceType.interfaces
+    | _, _ => False
+
+-- Non-spec domain wrapper restricting `IsSubType` to existing named output types.
 def namedOutputTypeSubtype (schema : Schema) (implementation expected : Name) : Prop :=
-  (schema.isLeafType implementation
-    ∧ schema.isLeafType expected
-    ∧ implementation = expected)
-  ∨ (schema.isCompositeType implementation
-      ∧ schema.isCompositeType expected
-      ∧ ∀ objectName,
-          schema.typeIncludesObject implementation objectName
-          -> schema.typeIncludesObject expected objectName)
+  schema.isOutputType implementation
+  ∧ schema.isOutputType expected
+  ∧ schema.isSubType implementation expected
 
 -- Spec 3.6 / 3.7 field return covariance with GraphQL wrapper rules: implementation
 -- non-null may refine nullable, expected non-null requires implementation non-null, and

@@ -128,7 +128,7 @@ theorem fieldsInSetCanMerge_field_cons_of_rest_responseNameFree
     (fieldDefinition : FieldDefinition)
     : SchemaWellFormedness.schemaWellFormed schema
       -> schema.lookupField parentType fieldName = some fieldDefinition
-      -> FieldMerge.sameResponseShape schema fieldDefinition.outputType
+      -> SchemaWellFormedness.sameTypeShape schema fieldDefinition.outputType
           fieldDefinition.outputType
       -> Argument.argumentsEquivalent arguments arguments
       -> (∀ objectType,
@@ -158,12 +158,8 @@ theorem fieldsInSetCanMerge_field_cons_of_rest_responseNameFree
   }
   have hheadMerge :
       FieldMerge.fieldsForNameCanMerge schema headScoped headScoped := by
-    refine FieldMerge.FieldsForNameCanMerge.intro headScoped headScoped
-      hshape ?_ ?_
-    · intro _hparents
-      exact ⟨rfl, harguments⟩
-    · intro _hparents objectType
-      simpa [FieldMerge.fieldsInSetCanMerge, headScoped] using hchildSelf objectType
+    exact FieldMerge.fieldsForNameCanMerge_self_of_children hshape harguments
+      (hchildSelf fieldDefinition.outputType.namedType)
   have hrestNoResponse :
       ∀ scopedField,
         scopedField ∈ FieldMerge.collectFields schema parentType rest ->
@@ -238,15 +234,13 @@ theorem fieldsInSetCanMerge_field_cons_of_rest_responseNameFree
                 outputType := mergeFieldDefinition.outputType,
                 selectionSet := selectionSet
               } := by
-          refine FieldMerge.FieldsForNameCanMerge.intro _ _ ?_ ?_ ?_
-          · exact FieldMerge.sameResponseShape_refl schema
+          apply FieldMerge.fieldsForNameCanMerge_self_of_children
+          · exact SchemaWellFormedness.sameTypeShape_refl schema
               mergeFieldDefinition.outputType
               (SchemaWellFormedness.schemaWellFormed_lookupField_outputType
                 hschema hmergeLookup)
-          · intro _hparents
-            exact ⟨rfl, harguments⟩
-          · intro _hparents objectType
-            exact hchildSelf objectType
+          · exact harguments
+          · exact hchildSelf mergeFieldDefinition.outputType.namedType
         unfold FieldMerge.fieldsInSetCanMerge
         refine FieldMerge.FieldsInSetCanMerge.intro mergeParent
           ((Selection.field responseName fieldName arguments [] selectionSet
@@ -527,7 +521,7 @@ theorem
       -> Validation.selectionSetValidInPossibleTypes schema
           variableDefinitions parentType
           (Selection.field responseName fieldName arguments [] subselections :: rest)
-      -> FieldMerge.fieldsInSetCanMerge schema parentType
+      -> runtimeMergeSource schema parentType
           (Selection.field responseName fieldName arguments [] subselections :: rest)
       -> schema.lookupField parentType fieldName = some fieldDefinition
       -> schema.typeIncludesObjectBool fieldDefinition.outputType.namedType runtimeType
@@ -556,7 +550,7 @@ theorem
       matchedDirectives matchedSubselections hmatched
   have hsame :
       matchedFieldName = fieldName :=
-    fieldSelectionsWithResponseNameInScope_matching_same_field_of_canMerge_object_lookupValid
+    runtimeMergeSource_matching_same_field
       schema parentType responseName fieldName arguments subselections rest
       hobject hlookupValid hmerge matchedFieldName matchedArguments
       matchedDirectives matchedSubselections hmatched
@@ -587,7 +581,7 @@ theorem
       -> Validation.selectionSetValidInPossibleTypes schema
           variableDefinitions parentType
           (Selection.field responseName fieldName arguments [] subselections :: rest)
-      -> FieldMerge.fieldsInSetCanMerge schema parentType
+      -> runtimeMergeSource schema parentType
           (Selection.field responseName fieldName arguments [] subselections :: rest)
       -> schema.lookupField parentType fieldName = some fieldDefinition
       -> ∀ matchedFieldName matchedArguments matchedDirectives matchedSubselections,
@@ -614,7 +608,7 @@ theorem
       matchedDirectives matchedSubselections hmatched
   have hsame :
       matchedFieldName = fieldName :=
-    fieldSelectionsWithResponseNameInScope_matching_same_field_of_canMerge_object_lookupValid
+    runtimeMergeSource_matching_same_field
       schema parentType responseName fieldName arguments subselections rest
       hobject hlookupValid hmerge matchedFieldName matchedArguments
       matchedDirectives matchedSubselections hmatched
@@ -644,7 +638,7 @@ theorem selectionSetLookupValid_fieldHead_merged_of_returnType
       -> Validation.selectionSetValidInPossibleTypes schema
           variableDefinitions parentType
           (Selection.field responseName fieldName arguments [] subselections :: rest)
-      -> FieldMerge.fieldsInSetCanMerge schema parentType
+      -> runtimeMergeSource schema parentType
           (Selection.field responseName fieldName arguments [] subselections :: rest)
       -> schema.lookupField parentType fieldName = some fieldDefinition
       -> selectionSetLookupValid schema fieldDefinition.outputType.namedType
@@ -675,7 +669,7 @@ theorem selectionSetLookupValid_fieldHead_merged_of_returnType
   · exact selectionSetLookupValid_of_fieldSelectionSetValid_namedType
       hheadSelectionSet
   · exact
-      fieldSelectionsWithResponseNameInScope_matching_field_shape_of_canMerge_object_lookupValid
+      runtimeMergeSource_matching_field_shape
         schema parentType responseName fieldName arguments subselections rest
         hobject hlookupValid hmerge
   · intro matchedArguments matchedDirectives matchedSubselections hmatched
@@ -697,7 +691,7 @@ theorem selectionSetValidInPossibleTypes_fieldHead_merged_of_child_object
       -> Validation.selectionSetValidInPossibleTypes schema
           variableDefinitions parentType
           (Selection.field responseName fieldName arguments [] subselections :: rest)
-      -> FieldMerge.fieldsInSetCanMerge schema parentType
+      -> runtimeMergeSource schema parentType
           (Selection.field responseName fieldName arguments [] subselections :: rest)
       -> schema.lookupField parentType fieldName = some fieldDefinition
       -> schema.typeIncludesObjectBool fieldDefinition.outputType.namedType runtimeType

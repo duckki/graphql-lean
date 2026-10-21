@@ -119,7 +119,13 @@ theorem executeQueryWithFuel_eq_uncached_of_valid
           (visitSubfields_output_eq_uncached_and_treeSound_object schema resolvers
             coercedVariableValues fuel (operation.rootType schema) runtimeType ref
             operation.selectionSet operation.selectionSet [] hschema hrootObject
-            hparentRuntime hready hmerge hargumentsNodup hwithin hinitial).1
+            hparentRuntime hready
+            (NormalForm.runtimeMergeSource_of_valid schema operation.variableDefinitions
+              (ExecutionUngroupedUncached.Eager.ScopedParentRuntimeApplies.runtimeObjectType
+                schema hschema hparentRuntime)
+              hparentRuntime
+              (Validation.operationDefinitionValid_selectionSetValid hvalid) hmerge)
+            hargumentsNodup hwithin hinitial).1
         have hrootExecution :=
           executeRootSelectionSet_eq_uncached_of_outputVisitResult schema resolvers
             coercedVariableValues fuel (operation.rootType schema)

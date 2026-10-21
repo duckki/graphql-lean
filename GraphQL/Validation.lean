@@ -1,3 +1,4 @@
+import GraphQL.SchemaWellFormedness
 import GraphQL.Operation
 
 /-! GraphQL operation validation
@@ -438,20 +439,6 @@ structure ScopedField where
   selectionSet : List Selection
 deriving Repr
 
--- Spec 5.3.2 `SameResponseShape`: mostly faithful for wrapping structure and leaf
--- named-type equality, using the modeled schema's leaf/output predicates.
-def sameResponseShape (schema : Schema) : TypeRef -> TypeRef -> Prop
-  | .nonNull left, .nonNull right => sameResponseShape schema left right
-  | .nonNull _, _ => False
-  | _, .nonNull _ => False
-  | .list left, .list right => sameResponseShape schema left right
-  | .list _, _ => False
-  | _, .list _ => False
-  | .named left, .named right =>
-      schema.isOutputType left
-      ∧ schema.isOutputType right
-      ∧ ((schema.isLeafType left ∨ schema.isLeafType right) -> left = right)
-
 -- Spec 5.3.2 `CollectFieldsAndFragmentNames` / 6.3.2 `CollectFields`: partial validation
 -- helper; it does not apply directives or runtime type-condition filtering.
 def collectFields (schema : Schema) : Name -> List Selection -> List ScopedField
@@ -477,10 +464,13 @@ def collectFields (schema : Schema) : Name -> List Selection -> List ScopedField
             collectFields schema typeCondition selectionSet
       current ++ collectFields schema parentType rest
 
--- Spec 5.3.2 `FieldsInSetCanMerge`: captures pairwise response-shape,
--- same-field/argument checks on overlapping parent types, and recursive merged
--- subselection checks. It is a proposition rather than a recursive executable
--- function, so it does not need a synthetic fuel counter.
+-- Subfields retain each selection's declared return-type context when merged.
+def collectSubfields (schema : Schema) (left right : ScopedField) : List ScopedField :=
+  collectFields schema left.outputType.namedType left.selectionSet
+  ++ collectFields schema right.outputType.namedType right.selectionSet
+
+-- Spec 5.3.2: recursive shape compatibility is unconditional, while field names,
+-- arguments, and recursive mergeability are checked for potentially coexecuted fields.
 mutual
   inductive FieldsInSetCanMerge (schema : Schema) : Name -> List Selection -> Prop where
     | intro (parentType : Name) (selectionSet : List Selection)
@@ -497,7 +487,7 @@ mutual
   inductive FieldsForNameCanMerge (schema : Schema)
       : ScopedField -> ScopedField -> Prop where
     | intro (left right : ScopedField)
-      (hshape : sameResponseShape schema left.outputType right.outputType)
+      (hshape : SameResponseShape schema left right)
       (hidentity
         : (left.parentType = right.parentType
             ∨ ¬ schema.objectType left.parentType
@@ -508,11 +498,34 @@ mutual
         : (left.parentType = right.parentType
             ∨ ¬ schema.objectType left.parentType
             ∨ ¬ schema.objectType right.parentType)
-          -> ∀ objectType,
-              FieldsInSetCanMerge schema objectType
-                (left.selectionSet ++ right.selectionSet))
+          -> ∀ subLeft,
+              subLeft ∈ collectSubfields schema left right
+              -> ∀ subRight,
+                  subRight ∈ collectSubfields schema left right
+                  -> subLeft.responseName = subRight.responseName
+                  -> FieldsForNameCanMerge schema subLeft subRight)
       : FieldsForNameCanMerge schema left right
+
+  inductive SameResponseShape (schema : Schema) : ScopedField -> ScopedField -> Prop where
+    | intro (left right : ScopedField)
+      (htypes
+        : SchemaWellFormedness.sameTypeShape schema left.outputType right.outputType)
+      (hsubfields
+        : schema.isCompositeType left.outputType.namedType
+          -> schema.isCompositeType right.outputType.namedType
+          -> ∀ subLeft,
+              subLeft ∈ collectSubfields schema left right
+              -> ∀ subRight,
+                  subRight ∈ collectSubfields schema left right
+                  -> subLeft.responseName = subRight.responseName
+                  -> SameResponseShape schema subLeft subRight)
+      : SameResponseShape schema left right
 end
+
+-- Spec 5.3.2 `SameResponseShape`: return-type compatibility and recursive shape
+-- compatibility of same-response-name children in their declared return scopes.
+def sameResponseShape (schema : Schema) (left right : ScopedField) : Prop :=
+  SameResponseShape schema left right
 
 def fieldsInSetCanMerge (schema : Schema)
     (parentType : Name) (selectionSet : List Selection)

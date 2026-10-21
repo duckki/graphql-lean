@@ -508,6 +508,37 @@ theorem collectFields_nil_mem_availableFragments_nil
     selectionSet hinlined] at hfield
   exact collectExpandedFields_mem_availableFragments_nil schema parentType hfield
 
+private theorem collectSubfields_toSpec_of_inlined
+    (schema : Schema) (left right : FieldMerge.ScopedField)
+    (hleftAvailable : left.availableFragments = [])
+    (hrightAvailable : right.availableFragments = [])
+    (hleftInlined : Semantics.selectionSetInlined left.selectionSet)
+    (hrightInlined : Semantics.selectionSetInlined right.selectionSet)
+    : (FieldMerge.collectSubfields schema left right).map scopedFieldToSpec
+      = GraphQL.FieldMerge.collectSubfields schema
+          (scopedFieldToSpec left) (scopedFieldToSpec right) := by
+  simp only [FieldMerge.collectSubfields, GraphQL.FieldMerge.collectSubfields,
+    scopedFieldToSpec, List.map_append, hleftAvailable, hrightAvailable]
+  rw [collectFields_toSpec_of_inlined schema _ _ hleftInlined,
+    collectFields_toSpec_of_inlined schema _ _ hrightInlined]
+
+private theorem collectSubfields_mem_inlined
+    {schema : Schema} {left right field : FieldMerge.ScopedField}
+    (hleftAvailable : left.availableFragments = [])
+    (hrightAvailable : right.availableFragments = [])
+    (hleftInlined : Semantics.selectionSetInlined left.selectionSet)
+    (hrightInlined : Semantics.selectionSetInlined right.selectionSet)
+    (hfield : field ∈ FieldMerge.collectSubfields schema left right)
+    : field.availableFragments = []
+      ∧ Semantics.selectionSetInlined field.selectionSet := by
+  simp only [FieldMerge.collectSubfields, List.mem_append,
+    hleftAvailable, hrightAvailable] at hfield
+  rcases hfield with hfield | hfield
+  · exact ⟨collectFields_nil_mem_availableFragments_nil schema _ hfield hleftInlined,
+      collectFields_mem_selectionSetInlined schema _ hfield hleftInlined⟩
+  · exact ⟨collectFields_nil_mem_availableFragments_nil schema _ hfield hrightInlined,
+      collectFields_mem_selectionSetInlined schema _ hfield hrightInlined⟩
+
 theorem fieldsInSetCanMerge_toSpecInductive_of_inlined
     {schema : Schema} {parentType : Name} {selectionSet : List Selection}
     (hinlined : Semantics.selectionSetInlined selectionSet)
@@ -527,115 +558,60 @@ theorem fieldsInSetCanMerge_toSpecInductive_of_inlined
       Semantics.selectionSetInlined right.selectionSet ->
         GraphQL.FieldMerge.FieldsForNameCanMerge schema
           (scopedFieldToSpec left) (scopedFieldToSpec right))
-    ?setCase ?fieldCase hmerge
+    (motive_3 := fun left right _ =>
+      left.availableFragments = [] ->
+      right.availableFragments = [] ->
+      Semantics.selectionSetInlined left.selectionSet ->
+      Semantics.selectionSetInlined right.selectionSet ->
+        GraphQL.FieldMerge.SameResponseShape schema
+          (scopedFieldToSpec left) (scopedFieldToSpec right))
+    ?setCase ?fieldCase ?shapeCase hmerge
   · intro parentType selectionSet hfields ihFields hinlined
-    refine GraphQL.FieldMerge.FieldsInSetCanMerge.intro parentType
-      (Translate.reduceSelectionSet selectionSet) ?_
+    refine .intro parentType (Translate.reduceSelectionSet selectionSet) ?_
     dsimp
     intro left hleft right hright hresponse
     have hcollect :=
       collectFields_toSpec_of_inlined schema parentType selectionSet hinlined
     rw [← hcollect] at hleft hright
-    rcases List.mem_map.mp hleft with
-      ⟨sourceLeft, hsourceLeft, hsourceLeftEq⟩
-    rcases List.mem_map.mp hright with
-      ⟨sourceRight, hsourceRight, hsourceRightEq⟩
-    cases hsourceLeftEq
-    cases hsourceRightEq
+    rcases List.mem_map.mp hleft with ⟨sourceLeft, hsourceLeft, rfl⟩
+    rcases List.mem_map.mp hright with ⟨sourceRight, hsourceRight, rfl⟩
     exact ihFields sourceLeft hsourceLeft sourceRight hsourceRight
       (by simpa [scopedFieldToSpec] using hresponse)
-      (collectFields_nil_mem_availableFragments_nil schema parentType
-        hsourceLeft hinlined)
-      (collectFields_nil_mem_availableFragments_nil schema parentType
-        hsourceRight hinlined)
-      (collectFields_mem_selectionSetInlined schema parentType
-        hsourceLeft hinlined)
-      (collectFields_mem_selectionSetInlined schema parentType
-        hsourceRight hinlined)
-  · intro left right hshape hidentity hsubfields ihSubfields hleftAvailable
-      hrightAvailable hleftInlined hrightInlined
-    refine GraphQL.FieldMerge.FieldsForNameCanMerge.intro
-      (scopedFieldToSpec left) (scopedFieldToSpec right) ?_ ?_ ?_
-    · simpa [scopedFieldToSpec, GraphQL.FieldMerge.sameResponseShape] using hshape
+      (collectFields_nil_mem_availableFragments_nil schema parentType hsourceLeft hinlined)
+      (collectFields_nil_mem_availableFragments_nil schema parentType hsourceRight hinlined)
+      (collectFields_mem_selectionSetInlined schema parentType hsourceLeft hinlined)
+      (collectFields_mem_selectionSetInlined schema parentType hsourceRight hinlined)
+  · intro left right hshape hidentity hsubfields ihShape ihSubfields
+      hleftAvailable hrightAvailable hleftInlined hrightInlined
+    refine .intro _ _
+      (ihShape hleftAvailable hrightAvailable hleftInlined hrightInlined) ?_ ?_
     · intro hparents
       simpa [scopedFieldToSpec] using hidentity hparents
-    · intro hparents objectType
-      refine GraphQL.FieldMerge.FieldsInSetCanMerge.intro objectType
-        ((scopedFieldToSpec left).selectionSet
-          ++ (scopedFieldToSpec right).selectionSet) ?_
-      dsimp
-      intro subLeft hsubLeft subRight hsubRight hresponse
-      rw [GraphQL.FieldMerge.collectFields_append] at hsubLeft hsubRight
-      have hleftCollect :=
-        collectFields_toSpec_of_inlined schema objectType
-          left.selectionSet hleftInlined
-      have hrightCollect :=
-        collectFields_toSpec_of_inlined schema objectType
-          right.selectionSet hrightInlined
-      rw [← hleftAvailable] at hleftCollect
-      rw [← hrightAvailable] at hrightCollect
-      have hcollect :
-          (FieldMerge.collectFields schema left.availableFragments objectType
-                left.selectionSet
-              ++ FieldMerge.collectFields schema right.availableFragments
-                objectType right.selectionSet).map scopedFieldToSpec
-            =
-          GraphQL.FieldMerge.collectFields schema objectType
-              (Translate.reduceSelectionSet left.selectionSet)
-            ++
-          GraphQL.FieldMerge.collectFields schema objectType
-              (Translate.reduceSelectionSet right.selectionSet) := by
-        simp [List.map_append, hleftCollect, hrightCollect]
-      change subLeft ∈
-          GraphQL.FieldMerge.collectFields schema objectType
-            (Translate.reduceSelectionSet left.selectionSet)
-          ++ GraphQL.FieldMerge.collectFields schema objectType
-            (Translate.reduceSelectionSet right.selectionSet) at hsubLeft
-      change subRight ∈
-          GraphQL.FieldMerge.collectFields schema objectType
-            (Translate.reduceSelectionSet left.selectionSet)
-          ++ GraphQL.FieldMerge.collectFields schema objectType
-            (Translate.reduceSelectionSet right.selectionSet) at hsubRight
-      rw [← hcollect] at hsubLeft hsubRight
-      rcases List.mem_map.mp hsubLeft with
-        ⟨sourceLeft, hsourceLeft, hsourceLeftEq⟩
-      rcases List.mem_map.mp hsubRight with
-        ⟨sourceRight, hsourceRight, hsourceRightEq⟩
-      cases hsourceLeftEq
-      cases hsourceRightEq
-      have hsourceLeftData :
-          sourceLeft.availableFragments = []
-            ∧ Semantics.selectionSetInlined sourceLeft.selectionSet := by
-        rw [hleftAvailable, hrightAvailable] at hsourceLeft
-        simp at hsourceLeft
-        rcases hsourceLeft with hsourceLeft | hsourceLeft
-        · exact ⟨collectFields_nil_mem_availableFragments_nil schema
-              objectType hsourceLeft hleftInlined,
-            collectFields_mem_selectionSetInlined schema objectType
-              hsourceLeft hleftInlined⟩
-        · exact ⟨collectFields_nil_mem_availableFragments_nil schema
-              objectType hsourceLeft hrightInlined,
-            collectFields_mem_selectionSetInlined schema objectType
-              hsourceLeft hrightInlined⟩
-      have hsourceRightData :
-          sourceRight.availableFragments = []
-            ∧ Semantics.selectionSetInlined sourceRight.selectionSet := by
-        rw [hleftAvailable, hrightAvailable] at hsourceRight
-        simp at hsourceRight
-        rcases hsourceRight with hsourceRight | hsourceRight
-        · exact ⟨collectFields_nil_mem_availableFragments_nil schema
-              objectType hsourceRight hleftInlined,
-            collectFields_mem_selectionSetInlined schema objectType
-              hsourceRight hleftInlined⟩
-        · exact ⟨collectFields_nil_mem_availableFragments_nil schema
-              objectType hsourceRight hrightInlined,
-            collectFields_mem_selectionSetInlined schema objectType
-              hsourceRight hrightInlined⟩
-      exact ihSubfields hparents objectType sourceLeft hsourceLeft
-        sourceRight hsourceRight
-        (by simpa [scopedFieldToSpec] using hresponse)
-        hsourceLeftData.1 hsourceRightData.1 hsourceLeftData.2
-        hsourceRightData.2
+    · intro hparents subLeft hsubLeft subRight hsubRight hresponse
+      rw [← collectSubfields_toSpec_of_inlined schema left right
+        hleftAvailable hrightAvailable hleftInlined hrightInlined] at hsubLeft hsubRight
+      rcases List.mem_map.mp hsubLeft with ⟨sourceLeft, hsourceLeft, rfl⟩
+      rcases List.mem_map.mp hsubRight with ⟨sourceRight, hsourceRight, rfl⟩
+      have hl := collectSubfields_mem_inlined hleftAvailable hrightAvailable
+        hleftInlined hrightInlined hsourceLeft
+      have hr := collectSubfields_mem_inlined hleftAvailable hrightAvailable
+        hleftInlined hrightInlined hsourceRight
+      exact ihSubfields hparents sourceLeft hsourceLeft sourceRight hsourceRight
+        (by simpa [scopedFieldToSpec] using hresponse) hl.1 hr.1 hl.2 hr.2
+  · intro left right htypes hsubfields ihSubfields
+      hleftAvailable hrightAvailable hleftInlined hrightInlined
+    refine .intro _ _ (by simpa [scopedFieldToSpec] using htypes) ?_
+    intro hleft hright subLeft hsubLeft subRight hsubRight hresponse
+    rw [← collectSubfields_toSpec_of_inlined schema left right
+      hleftAvailable hrightAvailable hleftInlined hrightInlined] at hsubLeft hsubRight
+    rcases List.mem_map.mp hsubLeft with ⟨sourceLeft, hsourceLeft, rfl⟩
+    rcases List.mem_map.mp hsubRight with ⟨sourceRight, hsourceRight, rfl⟩
+    have hl := collectSubfields_mem_inlined hleftAvailable hrightAvailable
+      hleftInlined hrightInlined hsourceLeft
+    have hr := collectSubfields_mem_inlined hleftAvailable hrightAvailable
+      hleftInlined hrightInlined hsourceRight
+    exact ihSubfields hleft hright sourceLeft hsourceLeft sourceRight hsourceRight
+      (by simpa [scopedFieldToSpec] using hresponse) hl.1 hr.1 hl.2 hr.2
 
 theorem fieldsInSetCanMerge_toSpec_of_inlined
     {schema : Schema} {parentType : Name} {selectionSet : List Selection}

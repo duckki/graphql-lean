@@ -178,7 +178,9 @@ theorem groundTypeNormalFormSemanticsPreservation
   have hpreserved :=
     normalizeSelectionSet_executeSelectionSet schema resolvers variableValues
       hschema depth (operation.rootType schema) source operation.selectionSet hobject
-      hsource hfree hready hmerge
+      hsource hfree hready
+      (runtimeMergeSource_of_valid schema operation.variableDefinitions hrootObject
+        (object_typeIncludesObjectBool_self schema hrootObject) hselectionValid hmerge)
   simpa [normalizeOperation, Operation.rootType, OperationType.rootType]
     using hpreserved.symm
 

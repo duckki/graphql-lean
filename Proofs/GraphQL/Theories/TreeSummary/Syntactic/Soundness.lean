@@ -506,7 +506,7 @@ private theorem annotatedResponseExecution_related_all
       exact hlookup
     rcases hvalid.childrenValid first definition childRuntimeType hfirst hlookupFirst
       hinclude with
-      ⟨hchildObject, hchildReady, hchildMerge⟩
+      ⟨hchildObject, hchildReady, hchildSource⟩
     have hchildArguments : selectionSetArgumentsNodup
         (Execution.mergedFieldSelectionSet fields) :=
       selectionSetArgumentsNodup_mergedFieldSelectionSet fields
@@ -514,7 +514,7 @@ private theorem annotatedResponseExecution_related_all
     have hchildValid : ExecutableGroupsValid schema childRuntimeType childGroups := by
       have hcollected := collectFields_executableGroupsValid schema variableValues
         childRuntimeType childRef (Execution.mergedFieldSelectionSet fields)
-        hschema hchildObject hchildReady hchildMerge hchildArguments
+        hschema hchildObject hchildReady hchildSource hchildArguments
       simpa [childGroups,
         NormalForm.collectSubfields_eq_collectFields_mergedFieldSelectionSet]
         using hcollected
@@ -814,9 +814,14 @@ theorem Soundness.executeQueryAnnotatedWithFuel_soundUsingVariables
           executionGroups := by
         have harguments := Execution.selectionSetArgumentsNodup_of_selectionSetValid
           (Validation.operationDefinitionValid_selectionSetValid hoperation)
+        have hsource := NormalForm.runtimeMergeSource_of_valid schema
+          operation.variableDefinitions hrootObject
+          (NormalForm.object_typeIncludesObjectBool_self schema hrootObject)
+          (Validation.operationDefinitionValid_selectionSetValid hoperation)
+          (Validation.operationDefinitionValid_fieldsInSetCanMerge hoperation)
         exact collectFields_executableGroupsValid schema coercedVariableValues
           (operation.rootType schema) ref operation.selectionSet hschema hrootObject hready
-          (Validation.operationDefinitionValid_fieldsInSetCanMerge hoperation) harguments
+          hsource harguments
       have hinherited :
           inheritedConditionsAllowGroups coercedVariableValues availableGroups := by
         intro group hgroup

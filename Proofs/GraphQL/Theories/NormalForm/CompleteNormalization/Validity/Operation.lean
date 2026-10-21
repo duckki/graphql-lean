@@ -1,4 +1,6 @@
 import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.Validity.Variables
+import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.Validity.Branches.Projection
+import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.FilterLookup
 
 /-! Operation-level validity preservation for complete normalization. -/
 
@@ -243,126 +245,27 @@ theorem completeNormalizedBoolCaseBranchesFieldsCanMerge_of_boolTypeFeasible
                     ++ normalizeSelectionSet schema (operation.rootType schema)
                         (filterSelectionSetBoolCase rightCase
                           operation.selectionSet)) := by
-  intro hschema hoperation hfields hboolFeasible leftCase hleftCase
+  intro hschema hoperation _hfields _hboolFeasible leftCase hleftCase
     rightCase hrightCase
-  have hrootObject : schema.objectType (operation.rootType schema) :=
-    operation_root_object_of_valid hschema hoperation
-  have hready :
-      selectionSetSemanticsReady schema (operation.rootType schema)
-        operation.selectionSet :=
-    operation_selectionSetSemanticsReady_of_valid hschema hoperation
-  have himplementation
-      : Validation.selectionSetValidInPossibleTypes schema operation.variableDefinitions
-          (operation.rootType schema) operation.selectionSet := by
-    simpa [operationFieldsValidInPossibleTypes] using hfields
-  have hleftReady :
-      selectionSetSemanticsReady schema (operation.rootType schema)
-        (filterSelectionSetBoolCase leftCase operation.selectionSet) :=
-    filterSelectionSetBoolCase_selectionSetSemanticsReady schema leftCase
-      (operation.rootType schema) operation.selectionSet hready
-  have hrightReady :
-      selectionSetSemanticsReady schema (operation.rootType schema)
-        (filterSelectionSetBoolCase rightCase operation.selectionSet) :=
-    filterSelectionSetBoolCase_selectionSetSemanticsReady schema rightCase
-      (operation.rootType schema) operation.selectionSet hready
-  have hsourceMerge :
-      FieldMerge.fieldsInSetCanMerge schema (operation.rootType schema)
-        operation.selectionSet :=
-    Validation.operationDefinitionValid_fieldsInSetCanMerge hoperation
-  have hleftMerge :
-      FieldMerge.fieldsInSetCanMerge schema (operation.rootType schema)
-        (filterSelectionSetBoolCase leftCase operation.selectionSet) :=
-    fieldsInSetCanMerge_filterSelectionSetBoolCase schema leftCase
-      hsourceMerge
-  have hrightMerge :
-      FieldMerge.fieldsInSetCanMerge schema (operation.rootType schema)
-        (filterSelectionSetBoolCase rightCase operation.selectionSet) :=
-    fieldsInSetCanMerge_filterSelectionSetBoolCase schema rightCase
-      hsourceMerge
-  have hpairMerge :
-      FieldMerge.fieldsInSetCanMerge schema (operation.rootType schema)
-        (filterSelectionSetBoolCase leftCase operation.selectionSet
-          ++ filterSelectionSetBoolCase rightCase
-            operation.selectionSet) :=
-    completeFilteredBoolCasesFieldsCanMerge schema operation hoperation
-      leftCase hleftCase rightCase hrightCase
-  have hleftBoolFeasible :
-      selectionSetBoolTypeConditionFeasibleInCase schema (operation.rootType schema)
-        [(operation.rootType schema)] leftCase operation.selectionSet :=
-    operationBoolTypeConditionFeasible_inCase hboolFeasible hleftCase
-  have hrightBoolFeasible :
-      selectionSetBoolTypeConditionFeasibleInCase schema (operation.rootType schema)
-        [(operation.rootType schema)] rightCase operation.selectionSet :=
-    operationBoolTypeConditionFeasible_inCase hboolFeasible hrightCase
-  have hleftSource :
-      selectionSetFilteredCurrentSourceValid schema operation.variableDefinitions
-        (operation.rootType schema)
-        (filterSelectionSetBoolCase leftCase operation.selectionSet) :=
-    selectionSetFilteredCurrentSourceValid_filterSelectionSetBoolCase
-      schema operation.variableDefinitions hschema leftCase (operation.rootType schema)
-      hrootObject operation.selectionSet himplementation
-  have hrightSource :
-      selectionSetFilteredCurrentSourceValid schema operation.variableDefinitions
-        (operation.rootType schema)
-        (filterSelectionSetBoolCase rightCase operation.selectionSet) :=
-    selectionSetFilteredCurrentSourceValid_filterSelectionSetBoolCase
-      schema operation.variableDefinitions hschema rightCase (operation.rootType schema)
-      hrootObject operation.selectionSet himplementation
-  have hleftReturnLookup :
-      selectionSetFilteredReturnLookupValid schema (operation.rootType schema)
-        (filterSelectionSetBoolCase leftCase operation.selectionSet) :=
-    selectionSetFilteredReturnLookupValid_filterSelectionSetBoolCase
-      schema operation.variableDefinitions hschema leftCase (operation.rootType schema)
-      hrootObject operation.selectionSet himplementation
-  have hrightReturnLookup :
-      selectionSetFilteredReturnLookupValid schema (operation.rootType schema)
-        (filterSelectionSetBoolCase rightCase operation.selectionSet) :=
-    selectionSetFilteredReturnLookupValid_filterSelectionSetBoolCase
-      schema operation.variableDefinitions hschema rightCase (operation.rootType schema)
-      hrootObject operation.selectionSet himplementation
-  have hleftFeasible :
-      selectionSetTypeConditionFeasible schema (operation.rootType schema)
-        [(operation.rootType schema)]
-        (filterSelectionSetBoolCase leftCase operation.selectionSet) :=
-    selectionSetTypeConditionFeasible_filterSelectionSetBoolCase schema
-      leftCase (operation.rootType schema) [(operation.rootType schema)] operation.selectionSet
-      hleftBoolFeasible
-  have hrightFeasible :
-      selectionSetTypeConditionFeasible schema (operation.rootType schema)
-        [(operation.rootType schema)]
-        (filterSelectionSetBoolCase rightCase operation.selectionSet) :=
-    selectionSetTypeConditionFeasible_filterSelectionSetBoolCase schema
-      rightCase (operation.rootType schema) [(operation.rootType schema)] operation.selectionSet
-      hrightBoolFeasible
-  have hleftNonempty :
-      selectionSetFilteredCompositeChildrenNonempty schema (operation.rootType schema)
-        [(operation.rootType schema)]
-        (filterSelectionSetBoolCase leftCase operation.selectionSet) :=
-    selectionSetFilteredCompositeChildrenNonempty_filterSelectionSetBoolCase
-      schema operation.variableDefinitions hschema leftCase (operation.rootType schema)
-      [(operation.rootType schema)] hrootObject operation.selectionSet himplementation
-      hleftBoolFeasible
-  have hrightNonempty :
-      selectionSetFilteredCompositeChildrenNonempty schema (operation.rootType schema)
-        [(operation.rootType schema)]
-        (filterSelectionSetBoolCase rightCase operation.selectionSet) :=
-    selectionSetFilteredCompositeChildrenNonempty_filterSelectionSetBoolCase
-      schema operation.variableDefinitions hschema rightCase (operation.rootType schema)
-      [(operation.rootType schema)] hrootObject operation.selectionSet himplementation
-      hrightBoolFeasible
-  exact
-    normalizeSelectionSets_fieldsInSetCanMerge_filteredCurrentSource_anyParent schema
-      operation.variableDefinitions hschema (operation.rootType schema)
-      (filterSelectionSetBoolCase leftCase operation.selectionSet)
-      (filterSelectionSetBoolCase rightCase operation.selectionSet)
-      hrootObject hleftReady hrightReady hleftSource hrightSource
-      hleftReturnLookup hrightReturnLookup hleftMerge hrightMerge hpairMerge
-      (filterSelectionSetBoolCase_directiveFree schema leftCase
-        operation.selectionSet)
-      (filterSelectionSetBoolCase_directiveFree schema rightCase
-        operation.selectionSet)
-      hleftFeasible hrightFeasible hleftNonempty hrightNonempty
-      (operation.rootType schema)
+  have hrootObject := operation_root_object_of_valid hschema hoperation
+  have hready := operation_selectionSetSemanticsReady_of_valid hschema hoperation
+  have hdeclared := selectionSetDeclaredLookupReady_of_valid schema
+    operation.variableDefinitions (operation.rootType schema) operation.selectionSet
+    (Validation.operationDefinitionValid_selectionSetValid hoperation)
+  exact normalizeSelectionSets_fieldsInSetCanMerge_of_declaredSources schema hschema
+    hrootObject
+    (filterSelectionSetBoolCase_directiveFree schema leftCase operation.selectionSet)
+    (filterSelectionSetBoolCase_directiveFree schema rightCase operation.selectionSet)
+    (filterSelectionSetBoolCase_selectionSetSemanticsReady schema leftCase
+      (operation.rootType schema) operation.selectionSet hready)
+    (filterSelectionSetBoolCase_selectionSetSemanticsReady schema rightCase
+      (operation.rootType schema) operation.selectionSet hready)
+    (selectionSetDeclaredLookupReady_filter schema leftCase
+      (operation.rootType schema) operation.selectionSet hdeclared)
+    (selectionSetDeclaredLookupReady_filter schema rightCase
+      (operation.rootType schema) operation.selectionSet hdeclared)
+    (completeFilteredBoolCasesFieldsCanMerge schema operation hoperation
+      leftCase hleftCase rightCase hrightCase)
 
 theorem completeNormalizeOperation_valid (schema : Schema) (operation : Operation)
     : NormalForm.completeNormalizeOperationValid schema operation := by

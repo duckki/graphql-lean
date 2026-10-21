@@ -140,15 +140,12 @@ private theorem concreteFieldWellFormed
       subst definition
       exact concreteArgWellFormed
 
-private theorem stringLeaf : exampleSchema.isLeafType "String" :=
-  ⟨.builtinScalar .string, rfl, trivial⟩
-
 private theorem concreteImplementsInterface
     : SchemaWellFormedness.fieldDefinitionImplements exampleSchema
         concreteField interfaceField := by
   constructor
   · change exampleSchema.namedOutputTypeSubtype "String" "String"
-    exact Or.inl ⟨stringLeaf, stringLeaf, rfl⟩
+    exact ⟨stringOutput, stringOutput, Or.inl rfl⟩
   · exact argsImplement
 
 private theorem concreteImplementsSelf
@@ -156,13 +153,13 @@ private theorem concreteImplementsSelf
         concreteField concreteField := by
   constructor
   · change exampleSchema.namedOutputTypeSubtype "String" "String"
-    exact Or.inl ⟨stringLeaf, stringLeaf, rfl⟩
+    exact ⟨stringOutput, stringOutput, Or.inl rfl⟩
   · simp [SchemaWellFormedness.argumentDefinitionsImplement,
       Schema.lookupArgumentDefinition, concreteField, concreteArg]
 
 private theorem stringSameShape
-    : FieldMerge.sameResponseShape exampleSchema (.named "String") (.named "String") := by
-  exact ⟨stringOutput, stringOutput, by intro _; rfl⟩
+    : SchemaWellFormedness.sameTypeShape exampleSchema (.named "String")
+        (.named "String") := by exact ⟨stringOutput, stringOutput, by intro _; rfl⟩
 
 private theorem interfaceTypeWellFormed
     : SchemaWellFormedness.interfaceTypeWellFormed exampleSchema interfaceType := by
@@ -361,19 +358,18 @@ private theorem operationValid (responseName : Name)
     subst left
     subst right
     refine FieldMerge.FieldsForNameCanMerge.intro _ _ ?_ ?_ ?_
-    · change FieldMerge.sameResponseShape exampleSchema (.named "String") (.named "String")
-      have houtput : (TypeRef.named "String").isOutputType exampleSchema :=
-        ⟨.builtinScalar .string, rfl, trivial⟩
-      exact ⟨houtput, houtput, by intro _; rfl⟩
+    · refine .intro _ _ ?_ ?_
+      · change SchemaWellFormedness.sameTypeShape exampleSchema (.named "String") (.named "String")
+        exact ⟨⟨.builtinScalar .string, rfl, trivial⟩,
+          ⟨.builtinScalar .string, rfl, trivial⟩, by intro _; rfl⟩
+      · intro _ _ child hchild
+        simp [FieldMerge.collectSubfields, FieldMerge.collectFields, scopedField] at hchild
     · intro _
       constructor
       · rfl
       · simp [Argument.argumentsEquivalent, scopedField]
-    · intro _ objectType
-      refine FieldMerge.FieldsInSetCanMerge.intro objectType [] ?_
-      dsimp
-      intro left hleft
-      simp [FieldMerge.collectFields] at hleft
+    · intro _ child hchild
+      simp [FieldMerge.collectSubfields, FieldMerge.collectFields, scopedField] at hchild
   · simp [Validation.operationVariablesUsed, exampleOperation]
 
 private theorem concreteCoercionFails (values : Execution.VariableValues)

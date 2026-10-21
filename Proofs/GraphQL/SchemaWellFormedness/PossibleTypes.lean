@@ -1,4 +1,5 @@
 import Proofs.GraphQL.SchemaWellFormedness.FieldLookup
+import Proofs.GraphQL.SchemaWellFormedness.InterfaceInheritance
 
 /-!
 Possible-type and object implementation facts derived from schema well-formedness.
@@ -49,15 +50,14 @@ theorem schemaWellFormed_possibleObject_lookupField_implements
   cases himplementation
   exact himplements
 
-theorem schemaWellFormed_possibleObject_lookupField_sameResponseShape
+theorem schemaWellFormed_possibleObject_lookupField_sameTypeShape
     {schema : Schema} {parentType objectTypeName fieldName : Name}
     {expected implementation : FieldDefinition}
     : schemaWellFormed schema
       -> objectTypeName ∈ schema.getPossibleTypes parentType
       -> schema.lookupField parentType fieldName = some expected
       -> schema.lookupField objectTypeName fieldName = some implementation
-      -> FieldMerge.sameResponseShape schema
-          implementation.outputType expected.outputType := by
+      -> sameTypeShape schema implementation.outputType expected.outputType := by
   intro hschema hpossible hexpected himplementation
   rcases schemaWellFormed_possibleObjectFieldDefinitionsImplement hschema
       parentType objectTypeName fieldName expected hpossible hexpected with
@@ -120,6 +120,70 @@ theorem object_typeIncludesObjectBool_eq_self
     hname] at hinclude
   exact hinclude
 
+private theorem objectType_mem_of_lookup {schema : Schema} {name : Name}
+    {objectType : ObjectType}
+    (hlookup : schema.lookupType name = some (.object objectType))
+    : objectType ∈ schema.objectTypes := by
+  have hmem : .object objectType ∈ schema.allTypes :=
+    List.mem_of_find?_eq_some hlookup
+  have hmem' : .object objectType ∈ schema.types := by
+    simpa [Schema.builtinScalarDefinitions] using List.mem_append.mp hmem
+  exact List.mem_filterMap.mpr ⟨.object objectType, hmem', rfl⟩
+
+theorem typeIncludesObjectBool_of_isSubType (schema : Schema)
+    {implementation expected objectName : Name}
+    (hsubtype : schema.isSubType implementation expected)
+    (hinclude : schema.typeIncludesObjectBool implementation objectName = true)
+    : schema.typeIncludesObjectBool expected objectName = true := by
+  rcases hsubtype with rfl | hsubtype
+  · exact hinclude
+  split at hsubtype
+  · rename_i objectType unionType hobject hunion
+    have heq := object_typeIncludesObjectBool_eq_self schema ⟨objectType, hobject⟩ hinclude
+    subst objectName
+    simpa [Schema.typeIncludesObjectBool, Schema.getPossibleTypes, hunion]
+      using List.contains_iff_mem.mpr hsubtype
+  · rename_i objectType interfaceType hobject hinterface
+    have hname : interfaceType.name = expected := by
+      simpa [TypeDefinition.name] using List.find?_some hinterface
+    have hobjectName : objectType.name = implementation := by
+      simpa [TypeDefinition.name] using List.find?_some hobject
+    have heq := object_typeIncludesObjectBool_eq_self schema ⟨objectType, hobject⟩ hinclude
+    subst objectName
+    apply List.contains_iff_mem.mpr
+    simp only [Schema.getPossibleTypes, hinterface, hname,
+      Schema.objectTypesImplementingInterface, List.mem_map, List.mem_filter]
+    refine ⟨objectType, ⟨objectType_mem_of_lookup hobject, ?_⟩, hobjectName⟩
+    apply List.any_eq_true.mpr
+    refine ⟨expected, hsubtype, ?_⟩
+    exact (interfaceTypeImplementsInterfaceBool_iff schema expected expected).mpr
+      (.refl _)
+  · rename_i implementationInterface expectedInterface himplementation hexpected
+    have himplementationName : implementationInterface.name = implementation := by
+      simpa [TypeDefinition.name] using List.find?_some himplementation
+    have hexpectedName : expectedInterface.name = expected := by
+      simpa [TypeDefinition.name] using List.find?_some hexpected
+    have hparent : schema.interfaceTypeImplementsInterface implementation expected :=
+      .trans implementation expected implementationInterface expected
+        (by simp [Schema.lookupInterface, himplementation]) hsubtype (.refl _)
+    have hmem := List.contains_iff_mem.mp hinclude
+    simp only [Schema.getPossibleTypes, himplementation, himplementationName,
+      Schema.objectTypesImplementingInterface, List.mem_map, List.mem_filter] at hmem
+    rcases hmem with ⟨objectType, ⟨hobject, himplements⟩, hname⟩
+    apply List.contains_iff_mem.mpr
+    simp only [Schema.getPossibleTypes, hexpected, hexpectedName,
+      Schema.objectTypesImplementingInterface, List.mem_map, List.mem_filter]
+    refine ⟨objectType, ⟨hobject, ?_⟩, hname⟩
+    rcases List.any_eq_true.mp himplements with ⟨declared, hdeclared, hreach⟩
+    apply List.any_eq_true.mpr
+    refine ⟨declared, hdeclared, ?_⟩
+    apply (interfaceTypeImplementsInterfaceBool_iff schema declared expected).mpr
+    exact interfaceTypeImplementsInterface_trans
+      ((interfaceTypeImplementsInterfaceBool_iff schema declared implementation).mp
+        hreach)
+      hparent
+  · contradiction
+
 theorem typeIncludesObjectBool_of_outputTypeSubtype_namedType (schema : Schema)
     : ∀ {implementation expected : TypeRef} {objectType : Name},
         schema.outputTypeSubtype implementation expected
@@ -131,17 +195,7 @@ theorem typeIncludesObjectBool_of_outputTypeSubtype_namedType (schema : Schema)
       intro expected objectType hsubtype hinclude
       cases expected with
       | named expectedName =>
-          simp [Schema.outputTypeSubtype, Schema.namedOutputTypeSubtype]
-            at hsubtype
-          rcases hsubtype with hleaf | hcomposite
-          · rcases hleaf with
-              ⟨_hleafImplementation, _hleafExpected, heq⟩
-            subst expectedName
-            exact hinclude
-          · rcases hcomposite with
-              ⟨_himplementationComposite, _hexpectedComposite, hcontains⟩
-            exact List.contains_iff_mem.mpr
-              (hcontains objectType (List.contains_iff_mem.mp hinclude))
+          exact typeIncludesObjectBool_of_isSubType schema hsubtype.2.2 hinclude
       | list expectedInner =>
           simp [Schema.outputTypeSubtype] at hsubtype
       | nonNull expectedInner =>

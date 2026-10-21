@@ -1,4 +1,4 @@
-import GraphQL.SchemaWellFormedness
+import GraphQL.Validation
 import GraphQL.Algorithms.Common
 import GraphQL.Theories.SelectionConditions
 import GraphQL.Theories.ResponseMeasure

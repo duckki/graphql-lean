@@ -18,6 +18,19 @@ open SelectionConditions
 open Algorithms.ExecutionUngroupedUncached
 open Algorithms.ExecutionUngroupedUncached.Eager
 
+theorem operation_runtimeMergeSource_of_valid {schema : Schema} {operation : Operation}
+    (hschema : SchemaWellFormedness.schemaWellFormed schema)
+    (hvalid : Validation.operationDefinitionValid schema operation)
+    : NormalForm.runtimeMergeSource schema (operation.rootType schema)
+        operation.selectionSet := by
+  have hobject : schema.objectType (operation.rootType schema) := by
+    rw [Validation.operationDefinitionValid_rootType_eq hvalid]
+    exact hschema.2.1
+  exact NormalForm.runtimeMergeSource_of_valid schema operation.variableDefinitions
+    hobject (NormalForm.object_typeIncludesObjectBool_self schema hobject)
+    (Validation.operationDefinitionValid_selectionSetValid hvalid)
+    (Validation.operationDefinitionValid_fieldsInSetCanMerge hvalid)
+
 private theorem named_composite_of_typeIncludesObjectBool
     (schema : Schema) (typeName objectName : Name)
     (hincludes : schema.typeIncludesObjectBool typeName objectName = true)
@@ -91,8 +104,9 @@ def executableFieldsReady (schema : Schema) (variableValues : VariableValues)
   ∧ (∀ field,
       field ∈ fields -> executableFieldReady schema variableValues parentType field)
   ∧ executableFieldsSameResolver fields
-  ∧ ∀ objectType,
-      FieldMerge.fieldsInSetCanMerge schema objectType (mergedFieldSelectionSet fields)
+  ∧ ∃ responseName,
+      NormalForm.runtimeMergeSource schema parentType
+        (executableFieldSelections responseName fields)
 
 def completionFieldsReady (schema : Schema) (variableValues : VariableValues)
     (parentType : Name) (fieldType : TypeRef)
@@ -328,7 +342,7 @@ theorem executableGroupsReady_collectFields
     (hinhabited
       : selectionSetCompositeFieldTypesInhabited schema variableValues parentType
           selectionSet)
-    (hmerge : FieldMerge.fieldsInSetCanMerge schema parentType selectionSet)
+    (hmerge : NormalForm.runtimeMergeSource schema parentType selectionSet)
     : executableGroupsReady schema variableValues parentType
         (collectFields schema variableValues parentType (.object parentType ref)
           selectionSet) := by
@@ -347,19 +361,8 @@ theorem executableGroupsReady_collectFields
       variableValues parentType parentType ref selectionSet hobject hself hready
   have hcompatible : CollectedGroupsFieldValidationMergeCompatible groups := by
     dsimp only [groups]
-    exact collectFields_fieldCompatible_of_canMerge_lookupValid_object schema
-      variableValues parentType parentType parentType ref selectionSet hmerge hself
-      (NormalForm.selectionSetLookupValid_of_selectionSetSemanticsReady selectionSet
-        hready)
-  have hscoped :
-      ExecutableEntriesRuntimeScopedBy schema parentType
-        (FieldMerge.collectFields schema parentType selectionSet)
-        (collectedExecutableEntries groups) := by
-    dsimp only [groups]
-    exact collectFields_entriesRuntimeScopedBy_of_selectionSetLookupValid schema
-      variableValues parentType parentType parentType ref selectionSet hself
-      (NormalForm.selectionSetLookupValid_of_selectionSetSemanticsReady selectionSet
-        hready)
+    exact collectFields_fieldCompatible_of_runtimeMergeSource schema variableValues
+      parentType parentType ref selectionSet hobject hmerge
   intro responseName fields hgroup
   refine ⟨?_, ?_, ?_, ?_⟩
   · exact hnonempty responseName fields hgroup
@@ -384,13 +387,10 @@ theorem executableGroupsReady_collectFields
         definition hdefinition
   · intro first later hfirst hlater
     exact hcompatible responseName fields hgroup first later hfirst hlater
-  · intro objectType
-    apply fieldsInSetCanMerge_mergedFieldSelectionSet_of_runtimeScoped schema
-      parentType parentType selectionSet responseName fields hmerge
-    intro entry hentry
-    rcases List.mem_map.mp hentry with ⟨field, hfield, rfl⟩
-    exact hscoped (responseName, field)
-      (collectedExecutableEntries_mem_of_group_mem hgroup hfield)
+  · refine ⟨responseName, ?_⟩
+    exact collectFields_executableFields_runtimeMergeSource schema variableValues
+      parentType parentType ref selectionSet responseName fields hobject hmerge
+      (fun _ hfield => collectedExecutableEntries_mem_of_group_mem hgroup hfield)
 
 theorem executableGroupsArgumentCoercionReady_collectFields
     (schema : Schema) (variableValues : VariableValues)
@@ -636,13 +636,42 @@ theorem completionFieldsReady_merged_inhabited
   unfold selectionSetCompositeFieldTypesInhabited at hfieldInhabited
   exact hfieldInhabited selection hselection
 
-theorem completionFieldsReady_merged_canMerge
+theorem executableFieldsMergeSource_merged
+    {schema : Schema} {parentType objectType : Name} {fields : List ExecutableField}
+    (hschema : SchemaWellFormedness.schemaWellFormed schema)
+    (hnonempty : fields ≠ [])
+    (hsame : executableFieldsSameResolver fields)
+    (hsource
+      : ∃ responseName,
+          NormalForm.runtimeMergeSource schema parentType
+            (executableFieldSelections responseName fields))
+    (field : ExecutableField) (definition : FieldDefinition)
+    (hfield : field ∈ fields)
+    (hlookup : schema.lookupField parentType field.fieldName = some definition)
+    (hincludes
+      : schema.typeIncludesObjectBool definition.outputType.namedType objectType = true)
+    : NormalForm.runtimeMergeSource schema objectType
+        (mergedFieldSelectionSet fields) := by
+  rcases hsource with ⟨responseName, hsource⟩
+  cases fields with
+  | nil => exact False.elim (hnonempty rfl)
+  | cons head rest =>
+      have hname := (hsame head field (by simp) hfield).1
+      exact runtimeMergeSource_mergedExecutableFields schema hschema hsource
+        (by simpa [hname] using hlookup) hincludes
+
+theorem completionFieldsReady_merged_runtimeSource
     {schema : Schema}
     {parentType : Name} {fieldType : TypeRef} {fields : List ExecutableField}
+    (hschema : SchemaWellFormedness.schemaWellFormed schema)
     (hready : completionFieldsReady schema variableValues parentType fieldType fields)
     (objectType : Name)
-    : FieldMerge.fieldsInSetCanMerge schema objectType (mergedFieldSelectionSet fields) :=
-  hready.1.2.2.2 objectType
+    (hincludes : schema.typeIncludesObjectBool fieldType.namedType objectType = true)
+    : NormalForm.runtimeMergeSource schema objectType
+        (mergedFieldSelectionSet fields) := by
+  rcases hready with ⟨hfields, field, definition, hfield, hlookup, htype⟩
+  exact executableFieldsMergeSource_merged hschema hfields.1 hfields.2.2.1 hfields.2.2.2
+    field definition hfield hlookup (by simpa [htype] using hincludes)
 
 set_option maxRecDepth 10000 in
 private theorem supportedAnnotatedExecution_all
@@ -861,9 +890,9 @@ private theorem supportedAnnotatedExecution_all
           (mergedFieldSelectionSet fields) :=
       completionFieldsReady_merged_argumentCoercion hready.1 hready.2 hincludes
     have hchildMerge :
-        FieldMerge.fieldsInSetCanMerge schema runtimeType
+        NormalForm.runtimeMergeSource schema runtimeType
           (mergedFieldSelectionSet fields) :=
-      completionFieldsReady_merged_canMerge hready.1 runtimeType
+      completionFieldsReady_merged_runtimeSource hschema hready.1 runtimeType hincludes
     have hchildInhabited :
         selectionSetCompositeFieldTypesInhabited schema variableValues runtimeType
           (mergedFieldSelectionSet fields) :=
@@ -995,7 +1024,7 @@ theorem executeQueryAnnotatedCollectedFields_supported
     (hinhabited
       : selectionSetCompositeFieldTypesInhabited schema variableValues runtimeType
           selectionSet)
-    (hmerge : FieldMerge.fieldsInSetCanMerge schema runtimeType selectionSet)
+    (hmerge : NormalForm.runtimeMergeSource schema runtimeType selectionSet)
     (fuel : Nat)
     (hfuel
       : responseDepthFuelBound schema (selectionSetResponseDepth selectionSet) ≤ fuel)
@@ -1206,9 +1235,12 @@ theorem executeQueryAnnotated_supported
       (operation.rootType schema) operation.selectionSet :=
     NormalForm.CompleteNormalization.operation_selectionSetSemanticsReady_of_valid
       hschema hoperation
-  have hmerge : FieldMerge.fieldsInSetCanMerge schema (operation.rootType schema)
+  have hmerge : NormalForm.runtimeMergeSource schema (operation.rootType schema)
       operation.selectionSet :=
-    Validation.operationDefinitionValid_fieldsInSetCanMerge hoperation
+    NormalForm.runtimeMergeSource_of_valid schema operation.variableDefinitions hobject
+      (NormalForm.object_typeIncludesObjectBool_self schema hobject)
+      (Validation.operationDefinitionValid_selectionSetValid hoperation)
+      (Validation.operationDefinitionValid_fieldsInSetCanMerge hoperation)
   rcases executeQueryAnnotatedCollectedFields_supported schema
       (supportedResolvers schema) variableValues hschema
       (supportedResolvers_supported schema) (operation.rootType schema)
@@ -1329,9 +1361,12 @@ theorem executeQueryAnnotated_planned_supported
       (operation.rootType schema) operation.selectionSet :=
     NormalForm.CompleteNormalization.operation_selectionSetSemanticsReady_of_valid
       hschema hoperation
-  have hmerge : FieldMerge.fieldsInSetCanMerge schema (operation.rootType schema)
+  have hmerge : NormalForm.runtimeMergeSource schema (operation.rootType schema)
       operation.selectionSet :=
-    Validation.operationDefinitionValid_fieldsInSetCanMerge hoperation
+    NormalForm.runtimeMergeSource_of_valid schema operation.variableDefinitions hobject
+      (NormalForm.object_typeIncludesObjectBool_self schema hobject)
+      (Validation.operationDefinitionValid_selectionSetValid hoperation)
+      (Validation.operationDefinitionValid_fieldsInSetCanMerge hoperation)
   rcases executeQueryAnnotatedCollectedFields_supported schema
       (plannedResolvers schema plan) variableValues hschema
       (plannedResolvers_supported schema plan hplan) (operation.rootType schema) 0
@@ -1490,9 +1525,12 @@ theorem executeQueryAnnotated_spine_supported
       (operation.rootType schema) operation.selectionSet :=
     NormalForm.CompleteNormalization.operation_selectionSetSemanticsReady_of_valid
       hschema hoperation
-  have hmerge : FieldMerge.fieldsInSetCanMerge schema (operation.rootType schema)
+  have hmerge : NormalForm.runtimeMergeSource schema (operation.rootType schema)
       operation.selectionSet :=
-    Validation.operationDefinitionValid_fieldsInSetCanMerge hoperation
+    NormalForm.runtimeMergeSource_of_valid schema operation.variableDefinitions hobject
+      (NormalForm.object_typeIncludesObjectBool_self schema hobject)
+      (Validation.operationDefinitionValid_selectionSetValid hoperation)
+      (Validation.operationDefinitionValid_fieldsInSetCanMerge hoperation)
   rcases executeQueryAnnotatedCollectedFields_supported schema
       (spineResolvers schema) variableValues hschema
       (spineResolvers_supported schema) (operation.rootType schema) plan

@@ -1,6 +1,7 @@
 import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.Validity.Branches
 import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.OperationNormality
 import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Validity.Variables
+import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.FilterLookup
 
 /-! Variable-use preservation through Boolean filtering. -/
 
@@ -612,6 +613,15 @@ theorem completeNormalizeOperation_operationVariablesUsed
         FieldMerge.fieldsInSetCanMerge schema (operation.rootType schema)
           (filterSelectionSetBoolCase boolCase operation.selectionSet) :=
       fieldsInSetCanMerge_filterSelectionSetBoolCase schema boolCase hmerge
+    have hfilteredRuntime : runtimeMergeSource schema (operation.rootType schema)
+        (filterSelectionSetBoolCase boolCase operation.selectionSet) :=
+      runtimeMergeSource_of_declaredLookupReady schema hrootObject
+        (object_typeIncludesObjectBool_self schema hrootObject)
+        (selectionSetDeclaredLookupReady_filter schema boolCase
+          (operation.rootType schema) operation.selectionSet
+          (selectionSetDeclaredLookupReady_of_valid schema operation.variableDefinitions
+            (operation.rootType schema) operation.selectionSet
+            (Validation.operationDefinitionValid_selectionSetValid hoperation))) hfilteredMerge
     have hfilteredFree :
         selectionSetDirectiveFree
           (filterSelectionSetBoolCase boolCase operation.selectionSet) :=
@@ -638,7 +648,7 @@ theorem completeNormalizeOperation_operationVariablesUsed
         variableDefinition.name hschema (operation.rootType schema)
         (filterSelectionSetBoolCase boolCase operation.selectionSet)
         [(operation.rootType schema)] hrootObject (by simp) hrootStack
-        hfilteredReady hfilteredMerge hfilteredFree hfilteredFeasible
+        hfilteredReady hfilteredRuntime hfilteredFree hfilteredFeasible
         hfilteredVariable
     have hnormalizedNonempty :
         normalizeSelectionSet schema (operation.rootType schema)

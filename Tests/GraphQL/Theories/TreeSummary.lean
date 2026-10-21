@@ -4,6 +4,7 @@ import Tests.GraphQL.Theories.ConditionTree
 import Tests.GraphQL.Theories.TreeSummary.AnnotationErasure
 import Tests.GraphQL.Theories.TreeSummary.StaticCost
 import Tests.GraphQL.Theories.TreeSummary.MaxResponseSize
+import Tests.GraphQL.Theories.TreeSummary.RuntimeMergeSource
 
 namespace GraphQL
 namespace Tests

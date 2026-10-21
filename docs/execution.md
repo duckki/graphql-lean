@@ -98,6 +98,17 @@ input-object checks, variable/input-type compatibility with the nullable-variabl
 default exception, non-empty root/composite selection sets, and response-name
 merge compatibility. These remain assumptions separate from permissive raw syntax.
 
+Field-merge validation follows the declared type contexts in spec 5.3.2.
+`FieldMerge.collectSubfields` collects each field's children under that field's
+unwrapped return type before combining them. `FieldMerge.sameResponseShape` checks
+recursive response shapes even across mutually exclusive object branches;
+field names, arguments, and recursive mergeability additionally apply when the
+parent types are equal or either parent is abstract. The type-reference helper
+`SchemaWellFormedness.sameTypeShape` checks only wrappers and leaf-type equality;
+it is not the spec's field-level `SameResponseShape`. The named-fragment model
+uses the same distinction and visits fragment spreads during the recursive
+field-level check.
+
 ## Conformance fixtures
 
 The graphql-js oracle compares ordered response data and `errors.length` for

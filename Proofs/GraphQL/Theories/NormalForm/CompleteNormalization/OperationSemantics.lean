@@ -1,5 +1,6 @@
 import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.RootFilterSemantics
 import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.SelectionSetSemantics
+import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.FilterLookup
 
 /-! Operation-level semantic preservation for complete normalization. -/
 
@@ -97,7 +98,14 @@ theorem completeNormalizationSelectionSetSemanticsPreserved
     GroundTypeNormalization.normalizeSelectionSet_executeSelectionSet
       schema resolvers variableValues hschema depth (operation.rootType schema) source
       (filterSelectionSetBoolCase runtimeCase operation.selectionSet)
-      hobject hsource hfilteredFree hfilteredReady hfilteredMerge
+      hobject hsource hfilteredFree hfilteredReady
+      (runtimeMergeSource_of_declaredLookupReady schema hrootObject
+        (object_typeIncludesObjectBool_self schema hrootObject)
+        (selectionSetDeclaredLookupReady_filter schema runtimeCase (operation.rootType schema)
+          operation.selectionSet
+          (selectionSetDeclaredLookupReady_of_valid schema operation.variableDefinitions
+            (operation.rootType schema) operation.selectionSet hselectionValid))
+        hfilteredMerge)
   have hfilter :
       Execution.executeSelectionSet schema resolvers variableValues depth
           (operation.rootType schema) source

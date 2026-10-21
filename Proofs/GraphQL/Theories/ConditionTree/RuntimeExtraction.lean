@@ -2,7 +2,6 @@ import Proofs.GraphQL.Theories.ConditionTree.Soundness
 import Proofs.GraphQL.Algorithms.ExecutionUngrouped.Equivalence.Collection.StateInvariant
 import Proofs.GraphQL.Algorithms.ExecutionUngrouped.Equivalence.Collection
 import Proofs.GraphQL.Execution.FieldGroups
-import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.Validity.Variables
 import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Uniqueness.ReorderingSoundness
 import Proofs.GraphQL.Execution.Fuel
 import Proofs.GraphQL.Execution.SemanticEquivalence

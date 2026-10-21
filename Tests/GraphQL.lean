@@ -1,7 +1,12 @@
 import Tests.GraphQL.Schema
+import Tests.GraphQL.Schema.OutputTypeSubtype
+import Tests.GraphQL.SchemaWellFormedness.InterfaceInheritance
+import Tests.GraphQL.SchemaWellFormedness.TypeShape
 import Tests.GraphQL.Validation
+import Tests.GraphQL.Validation.FieldMerge
 import Tests.GraphQL.Operation
 import Tests.GraphQL.NamedFragment
+import Tests.GraphQL.NamedFragment.Validation.FieldMerge
 import Tests.GraphQL.Theories.NormalForm
 import Tests.GraphQL.Theories.ExecutionReadiness
 import Tests.GraphQL.Theories.AnnotatedExecution

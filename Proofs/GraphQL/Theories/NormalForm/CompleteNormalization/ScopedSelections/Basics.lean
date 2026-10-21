@@ -1,5 +1,5 @@
 import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.StaticCollection
-import Proofs.GraphQL.Theories.NormalForm.Shared.SemanticReadiness
+import Proofs.GraphQL.Theories.NormalForm.Shared.SemanticReadiness.Readiness
 
 /-!
 Scoped selection-set machinery for complete-normalization proofs.
@@ -851,7 +851,7 @@ theorem completeScopedSelectionSetWithoutFieldSelectionsWithResponseName_lookupV
                           selectionSet := by
                       simpa [selectionLookupValid] using hheadValid
                     simpa [selectionLookupValid] using
-                      selectionSetLookupValid_withoutFieldSelectionsWithResponseName
+                      selectionSetLookupValid_withoutFieldSelectionsWithResponseName_core
                         schema responseName lookupParent selectionSet
                         hbodyValid
                 | some typeCondition =>
@@ -860,7 +860,7 @@ theorem completeScopedSelectionSetWithoutFieldSelectionsWithResponseName_lookupV
                           selectionSet := by
                       simpa [selectionLookupValid] using hheadValid
                     simpa [selectionLookupValid] using
-                      selectionSetLookupValid_withoutFieldSelectionsWithResponseName
+                      selectionSetLookupValid_withoutFieldSelectionsWithResponseName_core
                         schema responseName typeCondition selectionSet
                         hbodyValid
               · exact hrest candidate hcandidate

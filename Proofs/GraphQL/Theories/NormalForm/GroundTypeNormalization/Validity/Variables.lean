@@ -1,4 +1,5 @@
-import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Validity.SelectionSet
+import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Validity.Variables.Feasibility
+import Proofs.GraphQL.Theories.NormalForm.Shared.SemanticReadiness.RuntimeSources
 import Proofs.GraphQL.Validation.Variables
 
 /-! Variable-use preservation for ground-type normalization. -/
@@ -8,6 +9,8 @@ namespace GraphQL
 namespace NormalForm
 
 namespace GroundTypeNormalization
+
+open VariableUse
 
 theorem selectionSetVariables_append (left right : List Selection)
     : Validation.selectionSetVariables (left ++ right)
@@ -142,84 +145,39 @@ theorem typesOverlapBool_true_of_feasible_cons_stack_containing_object
     object_typeIncludesObjectBool_eq_self schema hobject
       (List.contains_iff_mem.mpr hparentType)
   subst objectType
-  exact typesOverlapBool_eq_true_of_typesOverlap schema
+  exact List.any_eq_true.mpr
     ⟨
       parentType,
-      object_typeIncludesObject_self schema hobject,
-      hobjectType typeCondition (by simp)
+      List.contains_iff_mem.mp (object_typeIncludesObjectBool_self schema hobject),
+      List.contains_iff_mem.mpr (hobjectType typeCondition (by simp))
     ⟩
 
 theorem fieldSelectionsWithResponseNameInScope_matching_argumentsEquivalent
     (schema : Schema) (parentType responseName fieldName : Name)
     (arguments : List Argument) (subselections rest : List Selection)
-    : schema.objectType parentType
-      -> selectionSetLookupValid schema parentType
-          (Selection.field responseName fieldName arguments [] subselections :: rest)
-      -> FieldMerge.fieldsInSetCanMerge schema parentType
-          (Selection.field responseName fieldName arguments [] subselections :: rest)
+    : runtimeMergeSource schema parentType
+        (Selection.field responseName fieldName arguments [] subselections :: rest)
       -> ∀ matchedFieldName matchedArguments matchedDirectives matchedSubselections,
           Selection.field responseName matchedFieldName matchedArguments
               matchedDirectives matchedSubselections
             ∈ fieldSelectionsWithResponseNameInScope schema parentType responseName rest
           -> Argument.argumentsEquivalent arguments matchedArguments := by
-  intro hobject hlookupValid hmerge matchedFieldName matchedArguments
+  intro hmerge matchedFieldName matchedArguments
     matchedDirectives matchedSubselections hmatched
-  have hheadLookup :
-      selectionLookupValid schema parentType
-        (Selection.field responseName fieldName arguments [] subselections) := by
-    unfold selectionSetLookupValid at hlookupValid
-    exact hlookupValid _ (by simp)
-  simp [selectionLookupValid] at hheadLookup
-  rcases hheadLookup with ⟨fieldDefinition, hlookup⟩
-  let headScoped : FieldMerge.ScopedField :=
-    {
-      parentType := parentType,
-      responseName := responseName,
-      fieldName := fieldName,
-      arguments := arguments,
-      outputType := fieldDefinition.outputType,
-      selectionSet := subselections
-    }
   have hheadMem :
-      headScoped ∈ FieldMerge.collectFields schema parentType
-        (Selection.field responseName fieldName arguments [] subselections
-          :: rest) := by
-    simp [headScoped, FieldMerge.collectFields, hlookup]
-  have htailLookup :
-      selectionSetLookupValid schema parentType rest :=
-    selectionSetLookupValid_tail hlookupValid
-  rcases
-    fieldSelectionsWithResponseNameInScope_field_mem_collectFields_scoped_lookupValid
-      schema parentType parentType responseName rest matchedFieldName
-      matchedArguments matchedDirectives matchedSubselections
-      (fun hobject => object_typesOverlapBool_self schema hobject)
-      htailLookup hmatched with
-    ⟨matchedScoped, hmatchedMemRest, hmatchedResponse,
-      _hmatchedField, hmatchedArguments, _hmatchedSelectionSet,
-      hmatchedOverlap⟩
+      Selection.field responseName fieldName arguments [] subselections
+        ∈ fieldSelectionsWithResponseNameInScope schema parentType responseName
+            (Selection.field responseName fieldName arguments [] subselections :: rest) := by
+    simp [fieldSelectionsWithResponseNameInScope]
   have hmatchedMem :
-      matchedScoped ∈ FieldMerge.collectFields schema parentType
-        (Selection.field responseName fieldName arguments [] subselections
-          :: rest) := by
-    simpa [FieldMerge.collectFields, hlookup] using Or.inr hmatchedMemRest
-  have hfieldMerge :
-      FieldMerge.fieldsForNameCanMerge schema headScoped matchedScoped :=
-    FieldMerge.fieldsInSetCanMerge_pair hmerge hheadMem hmatchedMem
-      (by simpa [headScoped] using hmatchedResponse.symm)
-  have hparents :
-      headScoped.parentType = matchedScoped.parentType
-        ∨ ¬ schema.objectType headScoped.parentType
-        ∨ ¬ schema.objectType matchedScoped.parentType := by
-    by_cases hmatchedObject : schema.objectType matchedScoped.parentType
-    · have hoverlap := hmatchedOverlap hmatchedObject
-      have hmatchedParent :
-          matchedScoped.parentType = parentType :=
-        object_typesOverlapBool_eq schema hobject hmatchedObject hoverlap
-      exact Or.inl (by simp [headScoped, hmatchedParent])
-    · exact Or.inr (Or.inr hmatchedObject)
-  have hidentity :=
-    FieldMerge.fieldsForNameCanMerge_identity hfieldMerge hparents
-  simpa [headScoped, hmatchedArguments] using hidentity.2
+      Selection.field responseName matchedFieldName matchedArguments
+          matchedDirectives matchedSubselections
+        ∈ fieldSelectionsWithResponseNameInScope schema parentType responseName
+            (Selection.field responseName fieldName arguments [] subselections :: rest) := by
+    simpa [fieldSelectionsWithResponseNameInScope]
+      using List.mem_cons_of_mem
+        (Selection.field responseName fieldName arguments [] subselections) hmatched
+  exact (runtimeMergeSource_identity hmerge hheadMem hmatchedMem).2
 
 theorem selectionSetVariables_partition_for_response
     (schema : Schema) (variableName : Name)
@@ -626,7 +584,7 @@ theorem normalizeSelectionSet_variables_mem
         -> parentType ∈ typeConditions
         -> objectSatisfiesTypeConditionStack schema parentType typeConditions
         -> selectionSetSemanticsReady schema parentType selectionSet
-        -> FieldMerge.fieldsInSetCanMerge schema parentType selectionSet
+        -> runtimeMergeSource schema parentType selectionSet
         -> selectionSetDirectiveFree selectionSet
         -> selectionSetTypeConditionFeasible schema parentType typeConditions selectionSet
         -> variableName ∈ Validation.selectionSetVariables selectionSet
@@ -680,19 +638,17 @@ theorem normalizeSelectionSet_variables_mem
           selectionSetSemanticsReady schema parentType rest :=
         selectionSetSemanticsReady_tail hready
       have htailMerge :
-          FieldMerge.fieldsInSetCanMerge schema parentType rest :=
-        fieldsInSetCanMerge_tail schema parentType
-          (Selection.field responseName fieldName arguments [] subselections)
-          rest hmerge
+          runtimeMergeSource schema parentType rest :=
+        runtimeMergeSource_tail hmerge
       have hfilteredReady :
           selectionSetSemanticsReady schema parentType
             (withoutFieldSelectionsWithResponseName schema responseName rest) :=
         selectionSetSemanticsReady_withoutFieldSelectionsWithResponseName schema
           responseName parentType rest htailReady
       have hfilteredMerge :
-          FieldMerge.fieldsInSetCanMerge schema parentType
+          runtimeMergeSource schema parentType
             (withoutFieldSelectionsWithResponseName schema responseName rest) :=
-        fieldsInSetCanMerge_withoutFieldSelectionsWithResponseName schema
+        runtimeMergeSource_without schema
           responseName parentType rest htailMerge
       have hfilteredFree :
           selectionSetDirectiveFree
@@ -708,14 +664,6 @@ theorem normalizeSelectionSet_variables_mem
             (withoutFieldSelectionsWithResponseName schema responseName rest) :=
         selectionSetTypeConditionFeasible_withoutFieldSelectionsWithResponseName
           schema responseName parentType typeConditions rest htailFeasible
-      have hlookupValid :
-          selectionSetLookupValid schema parentType
-            (Selection.field responseName fieldName arguments []
-              subselections :: rest) :=
-        selectionSetLookupValid_of_selectionSetSemanticsReady
-          (Selection.field responseName fieldName arguments []
-            subselections :: rest)
-          hready
       have hmatchingFree :
           selectionSetDirectiveFree matching := by
         subst matching
@@ -731,6 +679,25 @@ theorem normalizeSelectionSet_variables_mem
             (Selection.field responseName fieldName arguments []
               subselections) := by
         simpa [selectionSetTypeConditionFeasible] using hfeasible.1
+      have hheadMem :
+          Selection.field responseName fieldName arguments [] subselections
+            ∈ fieldSelectionsWithResponseNameInScope schema parentType responseName
+                (Selection.field responseName fieldName arguments [] subselections
+                  :: rest) := by
+        simp [fieldSelectionsWithResponseNameInScope]
+      have hmatchingIdentity :
+          ∀ matchedFieldName matchedArguments matchedDirectives matchedSubselections,
+            Selection.field responseName matchedFieldName matchedArguments
+                matchedDirectives matchedSubselections
+              ∈ fieldSelectionsWithResponseNameInScope schema parentType responseName rest
+            -> fieldName = matchedFieldName
+                ∧ Argument.argumentsEquivalent arguments matchedArguments := by
+        intro matchedFieldName matchedArguments matchedDirectives matchedSubselections
+          hmatched
+        apply runtimeMergeSource_identity hmerge hheadMem
+        simpa [fieldSelectionsWithResponseNameInScope]
+          using List.mem_cons_of_mem
+            (Selection.field responseName fieldName arguments [] subselections) hmatched
       have hmergedFeasible :
           ∀ objectType,
             objectType ∈ schema.getPossibleTypes returnType ->
@@ -753,10 +720,8 @@ theorem normalizeSelectionSet_variables_mem
             matchedSubselections hmatched
           have hsame :
               matchedFieldName = fieldName :=
-            fieldSelectionsWithResponseNameInScope_matching_same_field_of_canMerge_object_lookupValid
-              schema parentType responseName fieldName arguments subselections
-              rest hobject hlookupValid hmerge matchedFieldName
-              matchedArguments matchedDirectives matchedSubselections hmatched
+            (hmatchingIdentity matchedFieldName matchedArguments matchedDirectives
+              matchedSubselections hmatched).1.symm
           subst matchedFieldName
           exact
             fieldSelectionsWithResponseNameInScope_field_child_branch_forObject
@@ -775,9 +740,9 @@ theorem normalizeSelectionSet_variables_mem
               ∈ fieldSelectionsWithResponseNameInScope schema parentType
                   responseName rest
             -> Argument.argumentsEquivalent arguments matchedArguments :=
-        fieldSelectionsWithResponseNameInScope_matching_argumentsEquivalent
-          schema parentType responseName fieldName arguments subselections rest
-          hobject hlookupValid hmerge
+        fun matchedFieldName matchedArguments matchedDirectives matchedSubselections hmatched =>
+          (hmatchingIdentity matchedFieldName matchedArguments matchedDirectives
+            matchedSubselections hmatched).2
       have hsourceVariable :
           variableName ∈ Validation.argumentsVariables arguments
             ∨ variableName
@@ -831,17 +796,11 @@ theorem normalizeSelectionSet_variables_mem
         have hchildReady :
             selectionSetSemanticsReady schema objectType
               mergedSubselections :=
-          selectionSetSemanticsReady_fieldHead_merged_of_child_object
-            schema parentType responseName fieldName objectType arguments
-            subselections rest fieldDefinition hobject hready hlookupValid
-            hmerge hlookup (by simpa [returnType] using hinclude)
+          runtimeMergeSource_fieldHead_semanticsReady schema hmerge hready hlookup hinclude
         have hchildMerge :
-            FieldMerge.fieldsInSetCanMerge schema objectType
+            runtimeMergeSource schema objectType
               mergedSubselections :=
-          fieldsInSetCanMerge_fieldHead_merged_of_canMerge_object_lookupValid
-            schema parentType responseName fieldName objectType arguments
-            subselections rest fieldDefinition hobject hlookupValid hmerge
-            hlookup
+          runtimeMergeSource_fieldHead_merged schema hschema hmerge hlookup hinclude
         exact hpossible objectType [objectType] hobjectBranch (by simp)
           (objectSatisfiesTypeConditionStack_singleton_of_object_forValidity
             schema hobjectBranch)
@@ -896,11 +855,8 @@ theorem normalizeSelectionSet_variables_mem
                 subst matchedSelection
                 have hsame :
                     matchedFieldName = fieldName :=
-                  fieldSelectionsWithResponseNameInScope_matching_same_field_of_canMerge_object_lookupValid
-                    schema parentType responseName fieldName arguments [] rest
-                    hobject hlookupValid hmerge matchedFieldName
-                    matchedArguments matchedDirectives matchedSubselections
-                    hmatched
+                  (hmatchingIdentity matchedFieldName matchedArguments matchedDirectives
+                    matchedSubselections hmatched).1.symm
                 subst matchedFieldName
                 have hmatchedSubselectionsNonempty :
                     matchedSubselections ≠ [] := by
@@ -964,10 +920,10 @@ theorem normalizeSelectionSet_variables_mem
             (subselections ++ rest) :=
         selectionSetSemanticsReady_append hbodyReady htailReady
       have hbodyTailMerge :
-          FieldMerge.fieldsInSetCanMerge schema parentType
+          runtimeMergeSource schema parentType
             (subselections ++ rest) :=
-        fieldsInSetCanMerge_inlineFragment_none_flatten schema parentType
-          subselections rest hmerge
+        runtimeMergeSource_inlineFragment_flatten schema parentType none
+          subselections rest (by simp) hmerge
       have hbodyTailFree :
           selectionSetDirectiveFree (subselections ++ rest) :=
         selectionSetDirectiveFree_append hselectionFree.2 hrestFree
@@ -1021,27 +977,11 @@ theorem normalizeSelectionSet_variables_mem
           selectionSetSemanticsReady schema parentType
             (subselections ++ rest) :=
         selectionSetSemanticsReady_append hbodyReady htailReady
-      have hlookupBodyType :
-          selectionSetLookupValid schema typeCondition subselections := by
-        have hpair :
-            selectionSetLookupValid schema typeCondition subselections
-              ∧ (schema.typesOverlapBool parentType typeCondition = true ->
-                selectionSetSemanticsReady schema parentType subselections) := by
-          simpa [selectionSemanticsReady] using hheadReady
-        exact hpair.1
-      have hlookupBodyParent :
-          selectionSetLookupValid schema parentType subselections :=
-        selectionSetLookupValid_of_selectionSetSemanticsReady subselections
-          hbodyReady
-      have hlookupRest :
-          selectionSetLookupValid schema parentType rest :=
-        selectionSetLookupValid_of_selectionSetSemanticsReady rest htailReady
       have hbodyTailMerge :
-          FieldMerge.fieldsInSetCanMerge schema parentType
+          runtimeMergeSource schema parentType
             (subselections ++ rest) :=
-        fieldsInSetCanMerge_inlineFragment_some_overlap_flatten_object
-          schema parentType typeCondition subselections rest hschema hobject
-          hoverlap hlookupBodyParent hlookupBodyType hlookupRest hmerge
+        runtimeMergeSource_inlineFragment_flatten schema parentType (some typeCondition)
+          subselections rest (by intro condition heq; cases heq; exact hoverlap) hmerge
       have hbodyTailFree :
           selectionSetDirectiveFree (subselections ++ rest) :=
         selectionSetDirectiveFree_append hselectionFree.2 hrestFree
@@ -1085,10 +1025,8 @@ theorem normalizeSelectionSet_variables_mem
       subst directives
       have htailReady := selectionSetSemanticsReady_tail hready
       have htailMerge :
-          FieldMerge.fieldsInSetCanMerge schema parentType rest :=
-        fieldsInSetCanMerge_tail schema parentType
-          (Selection.inlineFragment (some typeCondition) [] subselections)
-          rest hmerge
+          runtimeMergeSource schema parentType rest :=
+        runtimeMergeSource_tail hmerge
       have htailFree := selectionSetDirectiveFree_tail hfree
       have htailFeasible :
           selectionSetTypeConditionFeasible schema parentType typeConditions
@@ -1132,6 +1070,33 @@ theorem normalizeSelectionSet_variables_mem
       simpa [normalizeSelectionSet, hfalse]
         using hrest typeConditions hobject hparent hstack htailReady
           htailMerge htailFree htailFeasible htailVariable
+
+theorem normalizeOperation_variablesUsed (schema : Schema) (operation : Operation)
+    : SchemaWellFormedness.schemaWellFormed schema
+      -> Validation.operationDefinitionValid schema operation
+      -> operationDirectiveFree operation
+      -> operationFieldsValidInPossibleTypes schema operation
+      -> operationTypeConditionFeasible schema operation
+      -> Validation.operationVariablesUsed (normalizeOperation schema operation) := by
+  intro hschema hvalid hfree _himplementation hfeasible
+  have hrootEq := Validation.operationDefinitionValid_rootType_eq hvalid
+  have hobject : schema.objectType (operation.rootType schema) := by
+    simpa [hrootEq] using hschema.2.1
+  have hselectionValid := Validation.operationDefinitionValid_selectionSetValid hvalid
+  have hready := selectionSetSemanticsReady_of_selectionSetValid_object schema
+    operation.variableDefinitions (operation.rootType schema) hschema hobject
+    operation.selectionSet hselectionValid
+  have hmerge := runtimeMergeSource_of_valid schema operation.variableDefinitions
+    hobject (object_typeIncludesObjectBool_self schema hobject) hselectionValid
+    (Validation.operationDefinitionValid_fieldsInSetCanMerge hvalid)
+  have hvariablesUsed := Validation.operationDefinitionValid_operationVariablesUsed hvalid
+  intro definition hdefinition
+  exact normalizeSelectionSet_variables_mem schema definition.name hschema
+    (operation.rootType schema) operation.selectionSet [operation.rootType schema]
+    hobject (by simp)
+    (objectSatisfiesTypeConditionStack_singleton_of_object_forValidity schema hobject)
+    hready hmerge hfree hfeasible
+    (hvariablesUsed definition (by simpa [normalizeOperation] using hdefinition))
 
 end GroundTypeNormalization
 

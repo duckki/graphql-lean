@@ -565,62 +565,24 @@ theorem collectFields_flat_fieldCompatible_of_canMerge_lookupValid_object
           · exact hlater))
   exact hpair first later (by simp) (by simp)
 
-theorem collectFields_flat_pair_selectionSets_canMerge_of_canMerge_lookupValid_object
-    {ObjectRef : Type}
-    (schema : Schema)
-    (variableValues : VariableValues)
-    (collectParent validParent runtimeType : Name)
-    (identity : ObjectRef)
-    (selectionSet : List Selection)
-    : FieldMerge.fieldsInSetCanMerge schema validParent selectionSet
-      -> ExecutionUngroupedUncached.Eager.ScopedParentRuntimeApplies schema
-          runtimeType validParent
-      -> NormalForm.selectionSetLookupValid schema validParent selectionSet
-      -> ∀ responseName first,
-          (responseName, first)
-            ∈ ExecutionUngroupedUncached.Eager.collectedExecutableEntries
-                (GraphQL.Execution.collectFields schema variableValues collectParent
-                  (.object runtimeType identity) selectionSet)
-          -> ∀ later,
-              (responseName, later)
-                ∈ ExecutionUngroupedUncached.Eager.collectedExecutableEntries
-                    (GraphQL.Execution.collectFields schema variableValues collectParent
-                      (.object runtimeType identity) selectionSet)
-              -> ∀ objectType,
-                  FieldMerge.fieldsInSetCanMerge schema objectType
-                    (first.selectionSet ++ later.selectionSet) := by
-  intro hmerge hparentRuntime hlookupValid responseName first hfirst later hlater
-    objectType
-  have hscoped :
-      ExecutionUngroupedUncached.Eager.ExecutableEntriesRuntimeScopedBy schema
-        runtimeType (FieldMerge.collectFields schema validParent selectionSet)
+theorem collectFields_flat_fieldCompatible_of_runtimeMergeSource
+    {ObjectRef : Type} (schema : Schema) (values : VariableValues)
+    (collectParent runtimeType : Name) (identity : ObjectRef)
+    (selections : List Selection)
+    (hobject : schema.objectType runtimeType)
+    (hsource : NormalForm.runtimeMergeSource schema runtimeType selections)
+    : KeyedExecutableFieldsFieldValidationMergeCompatible
         (ExecutionUngroupedUncached.Eager.collectedExecutableEntries
-          (GraphQL.Execution.collectFields schema variableValues collectParent
-            (.object runtimeType identity) selectionSet)) :=
-    ExecutionUngroupedUncached.Eager.collectFields_entriesRuntimeScopedBy_of_selectionSetLookupValid
-      schema variableValues collectParent validParent runtimeType identity
-      selectionSet hparentRuntime hlookupValid
-  rcases hscoped (responseName, first) hfirst with
-    ⟨firstScoped, hfirstScopedMem, hfirstResponse, hfirstMatch, hfirstRuntime⟩
-  rcases hscoped (responseName, later) hlater with
-    ⟨laterScoped, hlaterScopedMem, hlaterResponse, hlaterMatch, hlaterRuntime⟩
-  rcases hfirstMatch with
-    ⟨_firstField, _hfirstArguments, hfirstSelectionSet⟩
-  rcases hlaterMatch with
-    ⟨_laterField, _hlaterArguments, hlaterSelectionSet⟩
-  have hscopedResponse :
-      firstScoped.responseName = laterScoped.responseName := by
-    exact hfirstResponse.trans hlaterResponse.symm
-  have hparents :
-      firstScoped.parentType = laterScoped.parentType
-        ∨ ¬schema.objectType firstScoped.parentType
-        ∨ ¬schema.objectType laterScoped.parentType :=
-    ExecutionUngroupedUncached.Eager.ScopedFieldRuntimeApplies.mergeIdentityCondition
-      schema runtimeType firstScoped laterScoped hfirstRuntime hlaterRuntime
-  simpa [hfirstSelectionSet, hlaterSelectionSet]
-    using FieldMerge.fieldsInSetCanMerge_pair_subfields schema validParent selectionSet
-      firstScoped laterScoped hmerge hfirstScopedMem hlaterScopedMem
-      hscopedResponse hparents objectType
+          (GraphQL.Execution.collectFields schema values collectParent
+            (.object runtimeType identity) selections)) := by
+  intro responseName first later hfirst hlater
+  rcases ExecutionUngroupedUncached.Eager.collectFields_entry_runtimeField schema values
+    collectParent runtimeType identity hobject selections responseName first hfirst with
+    ⟨firstDirectives, hfirst⟩
+  rcases ExecutionUngroupedUncached.Eager.collectFields_entry_runtimeField schema values
+    collectParent runtimeType identity hobject selections responseName later hlater with
+    ⟨laterDirectives, hlater⟩
+  exact NormalForm.runtimeMergeSource_identity hsource hfirst hlater
 
 theorem collectFields_flat_lookupValid_of_selectionSetSemanticsReady_object
     {ObjectRef : Type}

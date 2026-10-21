@@ -264,9 +264,10 @@ def multiplierGroup : CollectedFieldGroup :=
 
 private theorem stringOutputTypeSubtypeSelf
     : multiplierSchema.outputTypeSubtype (.named "String") (.named "String") := by
-  simp [Schema.outputTypeSubtype, Schema.namedOutputTypeSubtype, Schema.isLeafType,
+  simp [Schema.outputTypeSubtype, Schema.namedOutputTypeSubtype, Schema.isSubType,
+    Schema.isOutputType,
     Schema.lookupType, Schema.allTypes, Schema.builtinScalarDefinitions,
-    BuiltinScalar.name, TypeDefinition.name, TypeDefinition.isLeafType,
+    BuiltinScalar.name, TypeDefinition.name, TypeDefinition.isOutputType,
     multiplierSchema]
 
 private theorem multiplierRuntimeDefinitionsCovariant
