@@ -1,6 +1,7 @@
 import Tests.GraphQL.Schema
 import Tests.GraphQL.Schema.OutputTypeSubtype
 import Tests.GraphQL.SchemaWellFormedness.InterfaceInheritance
+import Tests.GraphQL.SchemaWellFormedness.InterfaceValidation
 import Tests.GraphQL.SchemaWellFormedness.OutputCovariance
 import Tests.GraphQL.Validation
 import Tests.GraphQL.Validation.FieldMerge

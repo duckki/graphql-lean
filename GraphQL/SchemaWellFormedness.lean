@@ -7,9 +7,9 @@ Spec reference: GraphQL September 2025.
   this module names the resulting schema invariants `WellFormed`.
 - 3.6-3.10 Object, Interface, Union, Enum, and Input Object validation: modeled partially,
   covering uniqueness, non-empty member/field lists, default-value validity, and
-  object/interface field implementation compatibility.
--- Fidelity note: several normative rules are omitted, including reserved `__` names,
-  interface cycles, directive validation, extensions,
+  object/interface field implementation compatibility and interface inheritance.
+- Fidelity note: several normative rules are omitted, including reserved `__` names,
+  directive validation, extensions,
   OneOf, mutation/subscription roots, and introspection.
 -/
 
@@ -94,23 +94,36 @@ def fieldsImplementInterface (schema : Schema)
               = some implementationField
             ∧ fieldDefinitionImplements schema implementationField interfaceField
 
--- Spec 3.6 object type rules: checks non-empty fields, declared interface existence,
--- and interface field implementation compatibility.
+-- Spec 3.6 `IsValidImplementation`, step 1: every declared interface's own interfaces
+-- must also be declared. Closure under this step includes all transitive ancestors.
+def interfacesIncludeInherited (schema : Schema) (interfaces : List Name) : Prop :=
+  ∀ interfaceName,
+    interfaceName ∈ interfaces
+    -> ∀ interfaceType,
+        schema.lookupInterface interfaceName = some interfaceType
+        -> interfaceType.interfaces ⊆ interfaces
+
+-- Spec 3.6 object type rules: non-empty fields, declared interface existence, explicit
+-- inherited interfaces, and interface field implementation compatibility.
 def objectTypeWellFormed (schema : Schema) (objectType : ObjectType) : Prop :=
   fieldDefinitionsWellFormed schema objectType.fields
   ∧ namesAreUnique objectType.interfaces
-  ∧ ∀ interfaceName,
+  ∧ (∀ interfaceName,
       interfaceName ∈ objectType.interfaces
-      -> fieldsImplementInterface schema objectType.fields interfaceName
+      -> fieldsImplementInterface schema objectType.fields interfaceName)
+  ∧ interfacesIncludeInherited schema objectType.interfaces
 
--- Spec 3.7 interface type rules: checks non-empty fields, declared interface existence,
--- and interface field implementation compatibility, but not cycles.
+-- Spec 3.7 interface type rules: interface implementations obey the same declaration
+-- and field rules as objects. Explicit ancestors plus no self-implementation exclude
+-- inheritance cycles; raw-schema reachability remains independent of these checks.
 def interfaceTypeWellFormed (schema : Schema) (interfaceType : InterfaceType) : Prop :=
   fieldDefinitionsWellFormed schema interfaceType.fields
   ∧ namesAreUnique interfaceType.interfaces
-  ∧ ∀ implementedInterfaceName,
+  ∧ (∀ implementedInterfaceName,
       implementedInterfaceName ∈ interfaceType.interfaces
-      -> fieldsImplementInterface schema interfaceType.fields implementedInterfaceName
+      -> fieldsImplementInterface schema interfaceType.fields implementedInterfaceName)
+  ∧ interfaceType.name ∉ interfaceType.interfaces
+  ∧ interfacesIncludeInherited schema interfaceType.interfaces
 
 -- Spec 3.8 union type rules: checks non-empty unique object members; directives and
 -- extensions are out of scope.

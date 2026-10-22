@@ -100,6 +100,10 @@ for workflow details.
 - [docs/overview.md](docs/overview.md): project introduction and architecture.
 - [docs/spec-conformance.md](docs/spec-conformance.md): implemented
   spec-conformance scope and out-of-scope boundaries.
+- [docs/schema.md](docs/schema.md): schema representation, well-formedness,
+  interface inheritance, covariance, and input-object cycles.
+- [docs/operations.md](docs/operations.md): operation representation, validation,
+  field merging, and named fragments.
 - [docs/execution.md](docs/execution.md): main execution model, shared abstractions,
   and specification correspondence.
 - [docs/incremental-delivery/README.md](docs/incremental-delivery/README.md): draft execution model,

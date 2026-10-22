@@ -1,7 +1,8 @@
-import GraphQL.Schema
+import Proofs.GraphQL.SchemaWellFormedness.FieldLookup
 
 /-!
-Finite interface-inheritance reachability, including cyclic raw declarations.
+Finite interface-inheritance reachability, including cyclic raw declarations, and
+explicit-ancestor and acyclicity consequences of schema well-formedness.
 -/
 
 namespace GraphQL
@@ -161,5 +162,59 @@ theorem interfaceTypeImplementsInterface_trans {schema : Schema}
   | refl => exact hright
   | trans source middle interfaceType parent hlookup hparent htail ih =>
       exact .trans source target interfaceType parent hlookup hparent (ih hright)
+
+namespace SchemaWellFormedness
+
+theorem interfacesIncludeInherited_reachable {schema : Schema} {interfaces : List Name}
+    (hclosed : interfacesIncludeInherited schema interfaces) {source target : Name}
+    (hreach : schema.interfaceTypeImplementsInterface source target)
+    : source ∈ interfaces -> target ∈ interfaces := by
+  induction hreach with
+  | refl => exact id
+  | trans source target interfaceType parent hlookup hparent _hrest ih =>
+      intro hsource
+      exact ih (hclosed source hsource interfaceType hlookup hparent)
+
+theorem objectTypeWellFormed_reachableInterface_declared
+    {schema : Schema} {objectType : ObjectType} {source target : Name}
+    (hobject : objectTypeWellFormed schema objectType)
+    (hsource : source ∈ objectType.interfaces)
+    (hreach : schema.interfaceTypeImplementsInterface source target)
+    : target ∈ objectType.interfaces :=
+  interfacesIncludeInherited_reachable hobject.2.2.2 hreach hsource
+
+theorem interfaceTypeWellFormed_reachableInterface_declared
+    {schema : Schema} {interfaceType : InterfaceType} {source target : Name}
+    (hinterface : interfaceTypeWellFormed schema interfaceType)
+    (hsource : source ∈ interfaceType.interfaces)
+    (hreach : schema.interfaceTypeImplementsInterface source target)
+    : target ∈ interfaceType.interfaces :=
+  interfacesIncludeInherited_reachable hinterface.2.2.2.2 hreach hsource
+
+-- Reachability is reflexive on raw names. A cycle needs an initial declared edge,
+-- followed by any (possibly reflexive) return path to the implementing interface.
+theorem interfaceTypeWellFormed_noInheritanceCycle
+    {schema : Schema} {interfaceType : InterfaceType} {parent : Name}
+    (hinterface : interfaceTypeWellFormed schema interfaceType)
+    (hparent : parent ∈ interfaceType.interfaces)
+    : ¬ schema.interfaceTypeImplementsInterface parent interfaceType.name := by
+  intro hreturn
+  exact hinterface.2.2.2.1
+    (interfaceTypeWellFormed_reachableInterface_declared hinterface hparent hreturn)
+
+theorem schemaWellFormed_interface_noInheritanceCycle
+    {schema : Schema} {name parent : Name} {interfaceType : InterfaceType}
+    (hschema : schemaWellFormed schema)
+    (hlookup : schema.lookupInterface name = some interfaceType)
+    (hparent : parent ∈ interfaceType.interfaces)
+    : ¬ schema.interfaceTypeImplementsInterface parent name := by
+  have htype := lookupInterface_type hlookup
+  have hname : interfaceType.name = name := by
+    simpa [TypeDefinition.name] using List.find?_some htype
+  have hinterface : interfaceTypeWellFormed schema interfaceType :=
+    schemaWellFormed_lookupType_typeDefinitionWellFormed hschema htype
+  simpa [hname] using interfaceTypeWellFormed_noInheritanceCycle hinterface hparent
+
+end SchemaWellFormedness
 
 end GraphQL

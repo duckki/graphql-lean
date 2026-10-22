@@ -4,6 +4,8 @@ This guide documents the specification-facing
 [`GraphQL.Execution`](../GraphQL/Execution.lean) model and its shared input and
 response abstractions. The target is the
 [GraphQL September 2025 Edition](https://spec.graphql.org/September2025/).
+Schema and operation representation and validity are documented in
+[schemas](schema.md) and [operations](operations.md).
 See the [conformance summary](spec-conformance.md) for coverage and exclusions,
 [algorithms](algorithms.md) for alternative executors, and
 [incremental delivery](incremental-delivery/README.md) for the separate draft model.
@@ -33,9 +35,10 @@ an omitted supplied variable receives its operation default, including an explic
 Before a resolver is invoked, `coerceArgumentValues` removes variable syntax and
 materializes schema argument defaults and nested input-object field defaults.
 Omitted values and undefined variables activate defaults; explicit `null` does
-not. Schema well-formedness rejects input-object default-expansion cycles.
-Execution remains bounded for permissive raw schemas; this does not impose a
-bound on finite, user-supplied recursive inputs through nullable or list fields.
+not. Execution remains bounded for permissive raw schemas; this does not impose
+a bound on finite, user-supplied recursive inputs through nullable or list fields.
+Schema default and cycle requirements are described in
+[schemas](schema.md#input-object-cycles).
 
 Defaulting happens before directive evaluation. The `if` argument of `@skip`
 and `@include` has type `Boolean!`, but spec 5.8.5 permits a nullable Boolean
@@ -86,47 +89,13 @@ practical:
 
 ## Named-fragment execution
 
-[`GraphQL.NamedFragment`](../GraphQL/NamedFragment/) provides separate
-fragment-aware operation syntax, validation, direct execution, and static inlining
-into the core operation model. Direct collection threads the spec's
+[`GraphQL.NamedFragment`](../GraphQL/NamedFragment/) provides direct
+fragment-aware execution and static inlining into the core operation model.
+Syntax and validation are described in [operations](operations.md#named-fragments).
+Direct collection threads the spec's
 `visitedFragments` context and filters repeated spreads. The execution bridge
 shows that the repeated fields retained by static inlining are absorbed during
 execution.
-
-The all-variables-used check follows fragment spreads transitively and does not
-count uses in unreferenced fragments. Core validation also includes recursive
-input-object checks, variable/input-type compatibility with the nullable-variable
-default exception, non-empty root/composite selection sets, and response-name
-merge compatibility. These remain assumptions separate from permissive raw syntax.
-
-Field-merge validation follows the declared type contexts in spec 5.3.2.
-`FieldMerge.collectSubfields` collects each field's children under that field's
-unwrapped return type before combining them. `FieldMerge.sameResponseShape` checks
-recursive response shapes even across mutually exclusive object branches;
-field names, arguments, and recursive mergeability additionally apply when the
-parent types are equal or either parent is abstract. The type-reference helper
-`FieldMerge.sameTypeShape` checks only wrappers and leaf-type equality;
-it is not the spec's field-level `SameResponseShape`. The named-fragment model
-uses the same distinction and visits fragment spreads during the recursive
-field-level check.
-
-## Schema proof boundary
-
-`SchemaWellFormedness.schemaWellFormed` includes the proof-facing invariant
-`possibleObjectFieldDefinitionsImplement`: fields declared on a parent type must
-have compatible definitions on every possible object type, with return types
-related by `Schema.outputTypeSubtype`, following the spec's
-[interface implementation rules](https://spec.graphql.org/September2025/#sec-Objects).
-An object field returning `String!` can implement an interface field returning
-`String`; the same strengthening is permitted recursively within lists.
-`sameTypeShape` remains an exact wrapper/leaf check used by field-merge validation,
-not an additional schema implementation requirement.
-
-Schema well-formedness does not imply that grounding abstract returns produces a
-valid GraphQL operation. Normalization-validity and normalization-uniqueness
-theorems separately require `NormalForm.operationFieldsSameOutputShape`; normality
-and semantics preservation do not. See [normal forms](theories/normal-form.md#validity-preservation)
-for the sufficient condition and its regression counterexample.
 
 ## Conformance fixtures
 

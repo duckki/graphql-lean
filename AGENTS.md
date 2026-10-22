@@ -177,6 +177,8 @@ witnesses, and regression coverage without duplicating build or test commands.
 ## Where To Look
 
 - `docs/spec-conformance.md`: high-level coverage, assumptions, and exclusions only.
+- `docs/schema.md`: schema representation, well-formedness, inheritance, and covariance.
+- `docs/operations.md`: operation representation, validation, field merging, and named fragments.
 - `docs/execution.md`: main execution representation and specification correspondence.
 - `docs/incremental-delivery/README.md`: incremental execution details, per-definition
   spec
@@ -214,6 +216,8 @@ When changing spec scope, update `docs/spec-conformance.md`.
 Keep that page coverage-only and `docs/overview.md` high-level. Put execution details,
 spec mappings, and proof status in the relevant topic guide rather than duplicating
 them in those summaries. Fixture commands belong in `conformance/graphql-js/README.md`.
+Keep schema well-formedness in `docs/schema.md` and operation validation in
+`docs/operations.md`; keep `docs/execution.md` focused on runtime behavior.
 Keep documentation a snapshot of the current design and proved results, not a development
 log. Git retains superseded designs, proof plans, and per-commit progress.
 For routine implementation proof work, change the relevant proofs/tests and update only

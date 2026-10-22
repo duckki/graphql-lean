@@ -473,8 +473,8 @@ end
 -- must also be valid in every concrete object scope where normalization may ground them.
 -- This is not a GraphQL validation rule; it is an operation-specific proof assumption
 -- needed because the normalized operation explicitly contains those concrete branches.
--- Without it, normalization can change the field definition used for argument coercion
--- and therefore change the semantic argument map passed to a resolver.
+-- It supplies static field and argument validity in those scopes, not execution
+-- equivalence: semantics preservation does not require this assumption.
 -- Related spec issue: https://github.com/graphql/graphql-spec/issues/1121
 def operationFieldsValidInPossibleTypes (schema : Schema) (operation : Operation)
     : Prop :=

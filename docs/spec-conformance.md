@@ -5,17 +5,19 @@ The main model targets the
 A separate incremental-delivery model targets
 [PR #1110, revision 045e193](https://github.com/graphql/graphql-spec/tree/045e19363c2b55f127960bd3b5e8072a15b29aec).
 
-This page records coverage, exclusions, and conformance next steps, not full-spec
+This page records coverage and exclusions, not full-spec
 conformance or proof completion. Representation details and specification mappings
-are documented in [execution](execution.md) and
+are documented in [schemas](schema.md), [operations](operations.md),
+[execution](execution.md), and
 [incremental delivery](incremental-delivery/README.md).
 
 ## Main model: covered
 
 - **Schema and types:** objects, interfaces, unions, enums, scalars, input objects,
   lists, and non-null types; schema well-formedness for name uniqueness, members,
-  references, defaults, input-object cycles, root types, and interface field
-  implementation.
+  references, defaults, input-object cycles, root types, interface inheritance,
+  and field implementation. Inheritance validation includes explicit ancestor
+  declarations, self-implementation rejection, and cycle rejection.
 - **Query operations:** fields, aliases, arguments, variables and defaults, inline
   fragments, runtime type conditions, and `@skip` / `@include`.
 - **Operation validation:** field and argument validity, required arguments,
@@ -39,10 +41,6 @@ recursion. Errors are represented by counts rather than detailed error objects.
 Interface field implementations allow covariant return types, including
 nullable-to-non-null strengthening within lists. Normalization validity has
 separate operation-local assumptions; see [normal forms](theories/normal-form.md).
-
-Interface self-implementation, inheritance cycles, and explicit declarations of
-inherited interfaces are not currently validated. These gaps are tracked in the
-[next steps](#next-steps).
 
 Not covered:
 
@@ -97,14 +95,3 @@ data and execution-error counts. They do not compare detailed errors, transport,
 or asynchronous behavior, and do not establish universal correctness of the
 incremental model. The [fixture guide](../conformance/graphql-js/README.md)
 documents the test workflow.
-
-## Next steps
-
-1. **Complete interface-inheritance validation.** Reject self-implementation and
-   inheritance cycles, and require objects and interfaces to explicitly declare
-   every inherited interface, as required by the
-   [interface rules](https://spec.graphql.org/September2025/#sec-Interfaces).
-   Current field-implementation checks and transitive runtime-type reachability
-   do not enforce those declaration rules. Add regressions for valid inheritance,
-   missing explicit ancestor declarations, self-implementation, and longer cycles;
-   preserve total reachability helpers on permissive raw schemas.

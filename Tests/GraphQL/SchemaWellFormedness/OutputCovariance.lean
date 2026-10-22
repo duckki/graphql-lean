@@ -86,6 +86,7 @@ private theorem wellFormed (expected implementation : TypeRef)
     simp only [schema, List.mem_cons, List.not_mem_nil, or_false] at hdefinition
     rcases hdefinition with rfl | rfl | rfl <;>
       simp_all [typeDefinitionWellFormed, interfaceTypeWellFormed, objectTypeWellFormed,
+        interfacesIncludeInherited,
         fieldDefinitionsWellFormed, fieldDefinitionWellFormed, inputValueDefinitionsWellFormed,
         fieldsImplementInterface, fieldDefinitionImplements, argumentDefinitionsImplement,
         Schema.lookupInterface, Schema.lookupFieldDefinition, namesAreUnique, listNonempty]

@@ -168,10 +168,12 @@ private theorem interfaceTypeWellFormed
       have h : field = interfaceField := by simpa [interfaceType] using hmem
       subst field
       exact interfaceFieldWellFormed
-  constructor
+  refine ⟨?_, ?_, ?_, ?_⟩
   · simp [SchemaWellFormedness.namesAreUnique, interfaceType]
   · intro interfaceName hmem
     simp [interfaceType] at hmem
+  · simp [interfaceType]
+  · simp [SchemaWellFormedness.interfacesIncludeInherited, interfaceType]
 
 private theorem queryObjectWellFormed
     : SchemaWellFormedness.objectTypeWellFormed exampleSchema queryObject := by
@@ -184,7 +186,7 @@ private theorem queryObjectWellFormed
       have h : field = concreteField := by simpa [queryObject] using hmem
       subst field
       exact concreteFieldWellFormed
-  constructor
+  refine ⟨?_, ?_, ?_⟩
   · simp [SchemaWellFormedness.namesAreUnique, queryObject]
   · intro interfaceName hmem
     have h : interfaceName = "I" := by simpa [queryObject] using hmem
@@ -194,6 +196,12 @@ private theorem queryObjectWellFormed
     have h : field = interfaceField := by simpa [interfaceType] using hfield
     subst field
     exact ⟨concreteField, rfl, concreteImplementsInterface⟩
+  · intro interfaceName hmem implemented hlookup
+    have hname : interfaceName = "I" := by simpa [queryObject] using hmem
+    subst interfaceName
+    have htype : interfaceType = implemented := Option.some.inj hlookup
+    subst implemented
+    simp [interfaceType]
 
 private theorem lookupI (fieldName : Name)
     : exampleSchema.lookupField "I" fieldName

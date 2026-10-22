@@ -45,7 +45,7 @@ private theorem isSubType_lookupField
       simpa using List.find?_some hlookup
     have hwell := SchemaWellFormedness.schemaWellFormed_lookupType_typeDefinitionWellFormed
       hschema htarget
-    rcases hwell.2.2 _ hsubtype with ⟨interfaceType, hinterface, hfields⟩
+    rcases hwell.2.2.1 _ hsubtype with ⟨interfaceType, hinterface, hfields⟩
     have heq : schema.lookupInterface parentType = some interfaceDefinition := by
       simp [Schema.lookupInterface, hparent]
     rw [heq] at hinterface

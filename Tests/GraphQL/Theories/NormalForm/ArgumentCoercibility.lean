@@ -134,7 +134,8 @@ private theorem wellFormed : SchemaWellFormedness.schemaWellFormed schema := by
       have heq : definition = arg := by simpa [field] using hmem
       subst definition
       exact ⟨inputInt, trivial⟩
-    · exact ⟨by simp [SchemaWellFormedness.namesAreUnique, query], by simp [query]⟩
+    · exact ⟨by simp [SchemaWellFormedness.namesAreUnique, query], by simp [query],
+        by simp [SchemaWellFormedness.interfacesIncludeInherited, query]⟩
   constructor
   · exact ⟨rfl, rfl⟩
   constructor
