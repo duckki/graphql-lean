@@ -64,15 +64,13 @@ theorem State.taskSuccess_terminated (state : State) (occurrence : Occurrence)
   | none => simp only [State.taskSuccess, found]
   | some node =>
       rw [state.taskSuccess_eq occurrence result node found]
-      split
-      · rfl
-      · dsimp only
-        rw [State.drainReadyGroups_terminated, State.startNewWork_terminated,
-          ReferenceWorkQueue.fold_projection
-            (fun acc : ReferenceWorkQueue.State × List WorkQueueEvent × ReferenceWorkQueue.NewWork => acc.1.terminated)
-            ReferenceWorkQueue.successGroupStep step,
-          State.maybeIntegrateWork_terminated _ result.work (some occurrence)]
-        rfl
+      dsimp only
+      rw [State.drainReadyGroups_terminated, State.startNewWork_terminated,
+        ReferenceWorkQueue.fold_projection
+          (fun acc : ReferenceWorkQueue.State × List WorkQueueEvent × ReferenceWorkQueue.NewWork => acc.1.terminated)
+          ReferenceWorkQueue.successGroupStep step,
+        State.maybeIntegrateWork_terminated _ result.work (some occurrence)]
+      rfl
 
 /-- All five actual handlers preserve semantic termination, even on malformed raw input. -/
 theorem State.handleGraphEvent_terminated (state : State) (event : GraphEvent)

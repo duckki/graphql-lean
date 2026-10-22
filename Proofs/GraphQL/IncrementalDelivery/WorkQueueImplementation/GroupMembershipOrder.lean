@@ -270,6 +270,19 @@ theorem State.GroupMembershipOrder.finishGroupSuccess {queue : State}
     exact flushedOrder node (List.mem_filter.mp member).1
   exact currentOrder.pruneEmptyGroups _
 
+/-- Failure either removes owners or changes only their counters and retained errors.
+Witness: each failure-owner step preserves its surviving ordered membership list.
+-/
+theorem State.GroupMembershipOrder.taskFailure {queue : State}
+    (ordered : queue.GroupMembershipOrder) (occurrence : Occurrence) (errors : Nat)
+    : (queue.taskFailure occurrence errors).1.GroupMembershipOrder := by
+  cases found : queue.taskNode? occurrence with
+  | none => simpa [State.taskFailure, found] using ordered
+  | some task =>
+      rw [queue.taskFailure_eq occurrence errors task found]
+      exact failureGroupFold_preserves State.GroupMembershipOrder
+        (fun _ ref prior => prior.removeGroup ref) errors task.task.groups _ ordered
+
 /-- Releasing settled roots preserves registration-order memberships at every iteration.
 Witness: the generic drain induction uses successful cleanup, activation, and failure.
 -/
@@ -279,8 +292,8 @@ theorem State.GroupMembershipOrder.drainReadyGroups {queue : State}
   apply State.drainReadyGroups_preserves State.GroupMembershipOrder (valid := ordered)
   · intro current node prior _ _ _ _
     exact (prior.finishGroupSuccess node).startNewWork _
-  · intro current node errors prior _ _ _
-    exact prior.finishGroupFailure node errors
+  · intro current node occurrence errors prior _ _ _
+    exact prior.taskFailure occurrence errors
 
 -----------------------------------------------------------------------------------------
 -- Host-event handling preserves the order through all registration and release paths
@@ -334,42 +347,13 @@ theorem State.GroupMembershipOrder.taskSuccess {queue : State}
   split
   · exact ordered
   · rename_i node found
-    split
-    · exact ordered.removeTask occurrence
-    · have stored : (queue.putTaskNode
-          { node with value := some result.value }).GroupMembershipOrder := ordered
-      have integrated := stored.maybeIntegrateWork result.work (some occurrence)
-      have released := fold_preserves successGroupStep
-        (fun acc => acc.1.GroupMembershipOrder) successGroupStep_groupMembershipOrder
-        node.task.groups (_, [], {}) integrated
-      exact (released.startNewWork _).drainReadyGroups
-
-/-- Failure either removes owners or changes only their counters and retained errors.
-Witness: each failure-owner step preserves its surviving ordered membership list.
--/
-theorem State.GroupMembershipOrder.taskFailure {queue : State}
-    (ordered : queue.GroupMembershipOrder) (occurrence : Occurrence) (errors : Nat)
-    : (queue.taskFailure occurrence errors).1.GroupMembershipOrder := by
-  have step (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode)
-      (prior : acc.1.GroupMembershipOrder)
-      : (failureGroupStep errors acc group).1.GroupMembershipOrder := by
-    obtain ⟨current, events⟩ := acc
-    dsimp only [failureGroupStep]
-    split
-    · exact prior
-    · rename_i node found
-      split
-      · exact prior.finishGroupFailure node errors
-      · exact prior.putGroupNode _ (prior node (List.mem_of_find?_eq_some found))
-  unfold State.taskFailure
-  split
-  · exact ordered
-  · rename_i node found
-    split
-    · exact ordered.removeTask occurrence
-    · exact fold_preserves (failureGroupStep errors)
-        (fun acc => acc.1.GroupMembershipOrder) step node.task.groups
-        (queue.removeTask occurrence, []) (ordered.removeTask occurrence)
+    have stored : (queue.putTaskNode
+        { node with value := some result.value }).GroupMembershipOrder := ordered
+    have integrated := stored.maybeIntegrateWork result.work (some occurrence)
+    have released := fold_preserves successGroupStep
+      (fun acc => acc.1.GroupMembershipOrder) successGroupStep_groupMembershipOrder
+      node.task.groups (_, [], {}) integrated
+    exact (released.startNewWork _).drainReadyGroups
 
 /-- Each stream-item chunk appends its child tasks before ordered activation and draining.
 Witness: fold over the real item-integration step, retaining the extended registry order.

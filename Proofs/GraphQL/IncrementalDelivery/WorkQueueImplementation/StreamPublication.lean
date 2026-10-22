@@ -41,6 +41,37 @@ theorem State.finishGroupSuccess_itemValues (queue : State) (group : GroupNode)
   rw [events]
   split <;> simp [WorkQueueEvent.itemValues]
 
+/-- Task failure emits no item payloads; it can only close groups or cache their errors.
+Witness: the owner fold appends group-failure constructors only. -/
+theorem State.taskFailure_itemValues (queue : State) (occurrence : Occurrence)
+    (errors : Nat)
+    : (queue.taskFailure occurrence errors).2.flatMap WorkQueueEvent.itemValues = [] := by
+  let step (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode) :=
+    match acc.1.groupNode? group.ref with
+    | none => acc
+    | some node =>
+        if acc.1.rootGroups.contains group.ref then
+          let (next, failure) := acc.1.finishGroupFailure node errors
+          (next, acc.2 ++ [failure])
+        else acc
+  have loop (groups : List Execution.DeliveryNode) (acc : State × List WorkQueueEvent)
+      : (groups.foldl step acc).2.flatMap WorkQueueEvent.itemValues =
+          acc.2.flatMap WorkQueueEvent.itemValues := by
+    induction groups generalizing acc with
+    | nil => rfl
+    | cons group rest ih =>
+        rw [List.foldl_cons, ih]
+        unfold step
+        split
+        · rfl
+        · split
+          · simp [State.finishGroupFailure, List.flatMap_append, WorkQueueEvent.itemValues]
+          · rfl
+  unfold State.taskFailure
+  split
+  · rfl
+  · exact loop _ (_, [])
+
 /-- Recursive group draining emits no stream-item payloads.
 Witness: induction on the actual drain budget; successful and cached-failure group
 closures contribute only object values and control events.
@@ -58,13 +89,13 @@ theorem State.drainReadyGroups_itemValues (queue : State)
         split
         · rfl
         · rename_i node selected
-          cases cached : node.failure with
+          cases cached : current.rejectedTask? node with
           | none =>
               simp only [List.flatMap_append, State.finishGroupSuccess_itemValues, ih,
                 List.nil_append]
-          | some errors =>
-              simp only [State.finishGroupFailure, List.flatMap_append,
-                List.flatMap_singleton, WorkQueueEvent.itemValues, ih, List.nil_append]
+          | some rejected =>
+              obtain ⟨occurrence, errors⟩ := rejected
+              simp only [List.flatMap_append, State.taskFailure_itemValues, ih, List.nil_append]
   exact loop _ queue
 
 /-- Task success never emits stream-item payloads, even when it releases child streams.
@@ -90,45 +121,8 @@ theorem State.taskSuccess_itemValues (queue : State) (occurrence : Occurrence)
   | none => simp [State.taskSuccess, found]
   | some node =>
       rw [queue.taskSuccess_eq occurrence result node found]
-      split
-      · rfl
       simp only [List.flatMap_append, State.drainReadyGroups_itemValues, List.append_nil]
       exact loop _ (_, [], {})
-
-/-- Task failure emits no item payloads; it can only close groups or cache their errors.
-Witness: the owner fold appends group-failure constructors only. -/
-theorem State.taskFailure_itemValues (queue : State) (occurrence : Occurrence)
-    (errors : Nat)
-    : (queue.taskFailure occurrence errors).2.flatMap WorkQueueEvent.itemValues = [] := by
-  let step (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode) :=
-    match acc.1.groupNode? group.ref with
-    | none => acc
-    | some node =>
-        if acc.1.rootGroups.contains group.ref then
-          let (next, failure) := acc.1.finishGroupFailure node errors
-          (next, acc.2 ++ [failure])
-        else (acc.1.putGroupNode
-          { node with pending := node.pending - 1
-                      failure := some (node.failure.getD 0 + errors) }, acc.2)
-  have loop (groups : List Execution.DeliveryNode) (acc : State × List WorkQueueEvent)
-      : (groups.foldl step acc).2.flatMap WorkQueueEvent.itemValues =
-          acc.2.flatMap WorkQueueEvent.itemValues := by
-    induction groups generalizing acc with
-    | nil => rfl
-    | cons group rest ih =>
-        rw [List.foldl_cons, ih]
-        unfold step
-        split
-        · rfl
-        · split
-          · simp [State.finishGroupFailure, List.flatMap_append, WorkQueueEvent.itemValues]
-          · rfl
-  unfold State.taskFailure
-  split
-  · rfl
-  · split
-    · rfl
-    exact loop _ (_, [])
 
 /-- An accepted stream-item event emits exactly its supplied items in order.
 Witness: the item accumulator appends each unchanged input value exactly once; child-work

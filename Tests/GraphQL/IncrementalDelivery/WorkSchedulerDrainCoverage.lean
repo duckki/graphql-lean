@@ -43,15 +43,17 @@ private def parentValue : ExecutionGroupValue :=
 
 private def work : Execution.Work :=
   .combine .empty
-    (.combine (.executionGroup [⟨root, []⟩, ⟨failed, [parent]⟩] [] (.error 1) .empty)
+    (.combine
+      (.executionGroup [⟨root, []⟩, ⟨failed, [parent]⟩] []
+        ({ result := .error 1, cause := some 1 }) .empty)
       (.combine
         (.executionGroup [⟨root, []⟩, ⟨firstOwner, [parent]⟩] []
-          (.ok (firstValue.data, 0)) (.combine .empty .empty))
+          ({ result := .ok (firstValue.data, 0) }) (.combine .empty .empty))
         (.combine
           (.executionGroup [⟨root, []⟩, ⟨failed, [parent]⟩, ⟨lastOwner, [parent]⟩] []
-            (.ok (sharedValue.data, 0)) (.combine .empty .empty))
+            ({ result := .ok (sharedValue.data, 0) }) (.combine .empty .empty))
           (.combine
-            (.executionGroup [⟨parent, []⟩] [] (.ok (parentValue.data, 0))
+            (.executionGroup [⟨parent, []⟩] [] ({ result := .ok (parentValue.data, 0) })
               (.combine .empty .empty))
             .empty))))
 
@@ -80,16 +82,16 @@ failure through their unannounced child owners.
 theorem source_valid
     : ValidGraphEvents work received ∧ inputsStarted work [received] = true := by
   have failedKnown : TaskAt work failedTask [root.ref, failed.ref] none (.object [] (.error 1)) :=
-    ⟨_, [], .error 1, .empty, [], rfl, rfl, rfl⟩
+    ⟨_, [], { result := .error 1, cause := some 1 }, .empty, [], rfl, rfl, rfl⟩
   have firstKnown : TaskAt work firstTask [root.ref, firstOwner.ref] none
       (.object [] (.ok (firstValue.data, 0))) :=
-    ⟨_, [], .ok (firstValue.data, 0), .combine .empty .empty, [], rfl, rfl, rfl⟩
+    ⟨_, [], { result := .ok (firstValue.data, 0) }, .combine .empty .empty, [], rfl, rfl, rfl⟩
   have sharedKnown : TaskAt work sharedTask [root.ref, failed.ref, lastOwner.ref] none
       (.object [] (.ok (sharedValue.data, 0))) :=
-    ⟨_, [], .ok (sharedValue.data, 0), .combine .empty .empty, [], rfl, rfl, rfl⟩
+    ⟨_, [], { result := .ok (sharedValue.data, 0) }, .combine .empty .empty, [], rfl, rfl, rfl⟩
   have parentKnown : TaskAt work parentTask [parent.ref] none
       (.object [] (.ok (parentValue.data, 0))) :=
-    ⟨_, [], .ok (parentValue.data, 0), .combine .empty .empty, [], rfl, rfl, rfl⟩
+    ⟨_, [], { result := .ok (parentValue.data, 0) }, .combine .empty .empty, [], rfl, rfl, rfl⟩
   have one : ValidGraphEvents work [failure] :=
     .append .nil ⟨_, _, _, failedKnown⟩
       (by simp [failure, GraphEvent.Fresh, GraphEvent.identities])
@@ -211,14 +213,14 @@ private theorem ready_inventory
     : ready.PublicationInventory (fun _ _ => True) [(parentTask, parentValue)] := by
   refine ⟨by simp, by simp, ?_⟩
   intro node member value stored
-  have nodes : ready.taskNodes = [firstNode, sharedNode] := by cbv
+  let failedNode : TaskNode := { task := ⟨failedTask, [root, failed]⟩, rejection := some 1 }
+  have nodes : ready.taskNodes = [failedNode, firstNode, sharedNode] := by cbv
   rw [nodes] at member
-  rcases List.mem_cons.mp member with same | later
-  · subst node
-    exact ⟨trivial, by simp [firstNode, firstTask, parentTask]⟩
-  · have same := List.mem_singleton.mp later
-    subst node
-    exact ⟨trivial, by simp [sharedNode, sharedTask, parentTask]⟩
+  simp only [List.mem_cons, List.not_mem_nil, or_false] at member
+  rcases member with rfl | rfl | rfl
+  · cases stored
+  · exact ⟨trivial, by simp [firstNode, firstTask, parentTask]⟩
+  · exact ⟨trivial, by simp [sharedNode, sharedTask, parentTask]⟩
 
 /-- Actual generated replay supplies buffered links, including values with failed co-owners.
 Witness: the general normalized-replay theorem applied to the validated started source.

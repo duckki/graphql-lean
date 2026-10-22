@@ -105,10 +105,8 @@ theorem State.StreamAnnouncementInventory.startGroup {queue : State}
   unfold State.startGroup
   split
   · exact inventory
-  · split
-    · exact inventory
-    · exact fold_preserves (fun current => current.StreamAnnouncementInventory announced)
-        State.startTask (fun _ occurrence prior => prior.startTask occurrence) _ _ inventory
+  · exact fold_preserves (fun current => current.StreamAnnouncementInventory announced)
+      State.startTask (fun _ occurrence prior => prior.startTask occurrence) _ _ inventory
 
 /-- New-work activation retains the complete announcement inventory.
 Witness: group starts preserve task links; stream starts change only active roots.
@@ -132,6 +130,22 @@ theorem State.StreamAnnouncementInventory.startNewWork {queue : State}
 -- Every internal drain release consumes fresh refs before the next release
 -----------------------------------------------------------------------------------------
 
+/-- Retained rejections preserve child links and emit no stream notices. -/
+theorem State.StreamAnnouncementInventory.taskFailure {queue : State}
+    {announced : NodeRefs} (inventory : queue.StreamAnnouncementInventory announced)
+    (occurrence : Occurrence) (errors : Nat)
+    : (queue.taskFailure occurrence errors).1.StreamAnnouncementInventory
+        (announced
+          ++ (queue.taskFailure occurrence errors).2.flatMap rawStreamNoticeRefs) := by
+  rw [State.taskFailure_streamNoticeRefs, List.append_nil]
+  apply inventory.of_frame
+  · rw [State.taskFailure_streams]; exact List.Subset.refl _
+  · intro node member
+    rcases queue.taskFailure_startedOldOrRejected occurrence errors member with old
+      | ⟨prior, included, rfl⟩
+    · exact .inr ⟨node, old, rfl⟩
+    · exact .inr ⟨prior, included, rfl⟩
+
 /-- A bounded drain extends the announcement inventory by exactly its emitted stream refs.
 Witness: successful flushes consume links before recursion; failed flushes emit no stream
 notice and only remove links. Structural matching survives both paths and activation.
@@ -154,7 +168,7 @@ theorem State.StreamAnnouncementInventory.drainReadyGroups_go {queue : State}
       split
       · simpa only [List.flatMap_nil, List.append_nil] using inventory
       · rename_i node selected
-        cases cached : node.failure with
+        cases cached : queue.rejectedTask? node with
         | none =>
             dsimp only
             have next := (inventory.finishGroupSuccess matching generated node).startNewWork
@@ -162,11 +176,11 @@ theorem State.StreamAnnouncementInventory.drainReadyGroups_go {queue : State}
             have result := ih next ((matching.finishGroupSuccess node).startNewWork _)
             simpa only [List.flatMap_append, ← State.finishGroupSuccess_streamNotices,
               List.append_assoc] using result
-        | some errors =>
-            have result := ih (inventory.removeGroup node.group.node.ref)
-              (matching.removeGroup node.group.node.ref)
-            simpa only [State.finishGroupFailure, List.flatMap_append,
-              List.flatMap_singleton, rawStreamNoticeRefs, List.nil_append] using result
+        | some rejected =>
+            have result := ih (inventory.taskFailure rejected.1 rejected.2)
+              (matching.taskFailure rejected.1 rejected.2)
+            simpa only [List.flatMap_append, State.taskFailure_streamNoticeRefs,
+              List.append_nil, List.nil_append] using result
 
 /-- Actual ready draining emits fresh stream notices, even across multiple inner releases.
 Witness: specialize the bounded inventory induction to the implementation's live-node fuel.

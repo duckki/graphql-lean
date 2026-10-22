@@ -123,20 +123,20 @@ private theorem NoticeFrame.drainReadyGroups {work queue}
         split
         · exact ⟨known, by simp⟩
         · rename_i node selected
-          cases failed : node.failure with
+          cases failed : current.rejectedTask? node with
           | none =>
               obtain ⟨next, outputs, released⟩ := known.finishGroupSuccess generated node
               obtain ⟨final, later⟩ := ih _ (next.startNewWork _ released)
               exact ⟨final, fun event member =>
                 (List.mem_append.mp member).elim (outputs event) (later event)⟩
-          | some errors =>
+          | some rejected =>
               obtain ⟨final, later⟩ := ih _
-                ⟨known.refs.removeGroup _, known.records.removeGroup _,
-                  known.support.removeGroup _⟩
+                ⟨known.refs.taskFailure _ _, known.records.taskFailure _ _,
+                  (known.support.taskFailure_support_all _ _).1⟩
               refine ⟨final, ?_⟩
               intro event member
               rcases List.mem_append.mp member with first | rest
-              · obtain rfl := List.mem_singleton.mp first
+              · obtain ⟨group, rfl⟩ := current.taskFailure_event_failure _ _ event first
                 trivial
               · exact later event rest
   exact loop _ queue frame
@@ -277,29 +277,27 @@ theorem State.taskSuccess_groupNoticesLocated {queue : State} {work occurrence r
   split
   · simp
   · rename_i taskNode found
-    split
-    · simp
-    · let stored := queue.putTaskNode { taskNode with value := some result.value }
-      have old : NoticeFrame work stored :=
-        ⟨refs, records, ⟨support.contents, support.roots⟩⟩
-      have integrated := old.maybeIntegrateWork result.work
-        (fun _ member => matching.taskChildGroups_recordAt member)
-        (by
-          intro task member group owner
-          obtain ⟨address, payload, occurrenceEq, located⟩ := matching.childTask_producer member
-          have taskKnown : TaskMatches work task :=
-            ⟨⟨address, payload, some occurrence, occurrenceEq, located⟩,
-              matching.childTask_groupsExact member⟩
-          exact taskKnown.contributorKnown (List.mem_map.mpr ⟨group, owner, rfl⟩))
-        (some occurrence)
-      obtain ⟨folded, emitted, released⟩ :=
-        integrated.successGroupFold generated taskNode.task.groups
-      have drained := (folded.startNewWork _ released).drainReadyGroups generated
-      exact fun event member => (List.mem_append.mp member).elim (emitted event) (drained.2 event)
+    let stored := queue.putTaskNode { taskNode with value := some result.value }
+    have old : NoticeFrame work stored :=
+      ⟨refs, records, ⟨support.contents, support.roots⟩⟩
+    have integrated := old.maybeIntegrateWork result.work
+      (fun _ member => matching.taskChildGroups_recordAt member)
+      (by
+        intro task member group owner
+        obtain ⟨address, payload, occurrenceEq, located⟩ := matching.childTask_producer member
+        have taskKnown : TaskMatches work task :=
+          ⟨⟨address, payload, some occurrence, occurrenceEq, located⟩,
+            matching.childTask_groupsExact member⟩
+        exact taskKnown.contributorKnown (List.mem_map.mpr ⟨group, owner, rfl⟩))
+      (some occurrence)
+    obtain ⟨folded, emitted, released⟩ :=
+      integrated.successGroupFold generated taskNode.task.groups
+    have drained := (folded.startNewWork _ released).drainReadyGroups generated
+    exact fun event member => (List.mem_append.mp member).elim (emitted event) (drained.2 event)
 
 /-- Each integrated item's pruned notices denote real contributors, not ancestor shells.
 Witness: input provenance includes promoted ancestors; pruning preserves descriptors and
-uses task/error contents to recover actual structural nodes before activation.
+uses task contents to recover actual structural nodes before activation.
 -/
 private theorem NoticeFrame.integrateStreamItem {work queue stream items item}
     (frame : NoticeFrame work queue) (generated : ExecutedWork work)
@@ -337,7 +335,7 @@ private theorem NoticeFrame.integrateStreamItem {work queue stream items item}
 
 /-- An item's new notice retains concrete contents at its own integration boundary.
 Witness: matching child work supplies group records and contributors; the actual pruning
-gate retains a nonempty or failed record, and activation changes no group records.
+gate retains a nonempty record, and activation changes no group records.
 -/
 theorem State.integrateStreamItem_noticeContents {queue : State}
     {work stream items item child}
@@ -356,7 +354,7 @@ theorem State.integrateStreamItem_noticeContents {queue : State}
       ∧ ∃ node,
           (queue.integrateStreamItem item).groupNode? child.ref = some node
           ∧ node.group.node = child
-          ∧ (node.tasks ≠ [] ∨ node.failure.isSome = true) := by
+          ∧ node.tasks ≠ [] := by
   have frame : NoticeFrame work queue := ⟨refs, records, support⟩
   have childRecords := fun group candidate =>
     matching.streamItem_childGroups_recordAt member (group := group) candidate

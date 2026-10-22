@@ -25,8 +25,10 @@ theorem terminal_availableTask_accounted
       : Explains work (initialQueue work).initialGroups
           (initialQueue work).initialStreams w.events w.matching w.failures)
     (visible
-      : ((initialQueue work).objectFailureContributions inputs.flatten).Subset
-          (failedBefore w.failures w.events.length))
+      : ∀ ref,
+          GroupInvalidated work
+            ((initialQueue work).objectFailureContributions inputs.flatten) ref
+          → GroupInvalidated work (failedBefore w.failures w.events.length) ref)
     (ended : ((initialQueue work).runNormalized inputs).1.terminated = true)
     (known : TaskAt work occurrence owners producer payload)
     (available : ∀ parent, producer = some parent → Published w.matching w.events parent)
@@ -88,8 +90,10 @@ theorem terminal_generatedTasks_accounted {work inputs w} (generated : ExecutedW
       : Explains work (initialQueue work).initialGroups
           (initialQueue work).initialStreams w.events w.matching w.failures)
     (visible
-      : ((initialQueue work).objectFailureContributions inputs.flatten).Subset
-          (failedBefore w.failures w.events.length))
+      : ∀ ref,
+          GroupInvalidated work
+            ((initialQueue work).objectFailureContributions inputs.flatten) ref
+          → GroupInvalidated work (failedBefore w.failures w.events.length) ref)
     (ended : ((initialQueue work).runNormalized inputs).1.terminated = true)
     : TaskAccounting work w := by
   have all : ∀ rank occurrence owners producer payload,

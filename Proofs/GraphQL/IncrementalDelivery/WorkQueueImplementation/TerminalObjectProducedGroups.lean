@@ -12,7 +12,7 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
 /-- A published structural object has an accepted, source-matched storing boundary.
 Witness: publication provenance selects its object atom, then exact raw release accounting
-recovers the actual input, lookup, and healthy-owner guard for that same occurrence.
+recovers the actual input, lookup for that same occurrence.
 -/
 theorem published_object_processed {work inputs w address}
     (generated : ExecutedWork work) (valid : ValidGraphEvents work inputs.flatten)
@@ -26,9 +26,7 @@ theorem published_object_processed {work inputs w address}
         ∧ (GraphEvent.taskSuccess (.executionGroup address) result).MatchesWork work
         ∧ ((initialQueue work).replayGraphEvents before).taskNode?
             (.executionGroup address)
-          = some node
-        ∧ ((initialQueue work).replayGraphEvents before).taskHasHealthyOwner node.task
-          = true := by
+          = some node := by
   obtain ⟨index, event, selected, value, same⟩ := published
   have exactValue := same ▸ admitted.publicationAt selected value
   cases event <;> try cases value
@@ -62,11 +60,10 @@ theorem published_object_child_registered {work inputs w address owners producer
     : ∃ task ∈ ((initialQueue work).replayGraphEvents inputs.flatten).tasks,
         task.occurrence = .executionGroup address
         ∧ task.groups.map Execution.DeliveryNode.ref = owners := by
-  obtain ⟨before, result, after, node, sourceEq, matching, found, healthy⟩ :=
+  obtain ⟨before, result, after, node, sourceEq, matching, found⟩ :=
     published_object_processed generated valid started history admitted ledger published
   exact TaskAt.executionGroup_registered_after_object known matching
     ⟨after, by simp only [sourceEq, List.append_assoc, List.singleton_append]⟩ found
-    healthy
 
 -----------------------------------------------------------------------------------------
 -- Terminal registration accounting covers all object-produced groups and object tasks
@@ -87,8 +84,10 @@ theorem terminal_objectProducedTask_accounted
       : Explains work (initialQueue work).initialGroups
           (initialQueue work).initialStreams w.events w.matching w.failures)
     (visible
-      : ((initialQueue work).objectFailureContributions inputs.flatten).Subset
-          (failedBefore w.failures w.events.length))
+      : ∀ ref,
+          GroupInvalidated work
+            ((initialQueue work).objectFailureContributions inputs.flatten) ref
+          → GroupInvalidated work (failedBefore w.failures w.events.length) ref)
     (ended : ((initialQueue work).runNormalized inputs).1.terminated = true)
     (known
       : TaskAt work (.executionGroup address) owners
@@ -114,8 +113,10 @@ theorem terminal_objectProducedGroup_accounted {work inputs w group dependencies
       : Explains work (initialQueue work).initialGroups
           (initialQueue work).initialStreams w.events w.matching w.failures)
     (visible
-      : ((initialQueue work).objectFailureContributions inputs.flatten).Subset
-          (failedBefore w.failures w.events.length))
+      : ∀ ref,
+          GroupInvalidated work
+            ((initialQueue work).objectFailureContributions inputs.flatten) ref
+          → GroupInvalidated work (failedBefore w.failures w.events.length) ref)
     (ended : ((initialQueue work).runNormalized inputs).1.terminated = true)
     (known : NodeAt work group .group dependencies (some (.executionGroup producer)))
     (published : Published w.matching w.events (.executionGroup producer))

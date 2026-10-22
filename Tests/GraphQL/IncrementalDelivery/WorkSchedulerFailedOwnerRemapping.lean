@@ -43,17 +43,18 @@ private def work : Execution.Work :=
       (.combine .empty
         (.combine
           (.executionGroup [⟨successRoot, []⟩, ⟨shallow, [parent]⟩, ⟨deep, [parent]⟩]
-            [.field "user"] (.ok (sharedValue.data, 0)) emptyChildren)
+            [.field "user"] ({ result := .ok (sharedValue.data, 0) }) emptyChildren)
           (.combine
             (.executionGroup [⟨failureRoot, []⟩, ⟨deep, [parent]⟩]
-              [.field "user"] (.error 1) .empty)
+              [.field "user"] ({ result := .error 1, cause := some 1 }) .empty)
             .empty)))
       .empty)
     (.combine
-      (.executionGroup [⟨successRoot, []⟩] [] (.ok ([("a", .scalar "a")], 0))
-        emptyChildren)
+      (.executionGroup [⟨successRoot, []⟩] []
+        ({ result := .ok ([("a", .scalar "a")], 0) }) emptyChildren)
       (.combine
-        (.executionGroup [⟨parent, []⟩] [] (.ok (parentValue.data, 0)) emptyChildren)
+        (.executionGroup [⟨parent, []⟩] [] ({ result := .ok (parentValue.data, 0) })
+          emptyChildren)
         .empty))
 
 private def failed : GraphEvent := .taskFailure failedTask 1
@@ -137,15 +138,11 @@ Witness: the source prefix retains C's error and D's settled success, and the fi
 handler emits the shared value under D. These are concrete executable-state checks.
 -/
 theorem raw_support_and_failed_candidate
-    : (((State.initialize (Work.fromExecution work)).replayGraphEvents
-          [failed, shared]).groupNode?
-          deep.ref).map
-          GroupNode.failure
-        = some (some 1)
-      ∧ (((State.initialize (Work.fromExecution work)).replayGraphEvents
-            [failed, shared]).groupNode?
-          shallow.ref).map
-          (fun node => (node.pending, node.failure))
+    : let queue :=
+        (State.initialize (Work.fromExecution work)).replayGraphEvents [failed, shared]
+      (queue.taskNode? failedTask).map TaskNode.rejection = some (some 1)
+      ∧ (queue.groupNode? shallow.ref).map
+          (fun node => (node.pending, queue.rejectedTask? node))
         = some (0, none)
       ∧ ((State.initialize (Work.fromExecution work)).handleGraphEvents
           inputs.flatten).2[3]?
@@ -169,28 +166,20 @@ private theorem task_cases {occurrence owners producer payload}
     parentTask] using member
 
 private theorem first_count {failures}
-    (counts : NodeErrors work failures failureRoot.ref 1)
+    (counts : NodeFailureCause work failures failureRoot.ref 1)
     : failedTask ∈ failures := by
-  apply Classical.byContradiction
-  intro absent
-  obtain ⟨contribution, known, total⟩ := counts
-  have zero : ∀ occurrence ∈ failures, contribution occurrence = 0 := by
-    intro occurrence member
-    obtain ⟨owners, producer, payload, task, assigned⟩ := known occurrence member
-    rcases task_cases task with rfl | rfl | rfl | rfl
-    · obtain ⟨rfl, _, rfl⟩ := task.unique shared_known
-      simpa [failureRoot, successRoot, shallow, deep] using assigned
-    · exact False.elim (absent member)
-    · obtain ⟨rfl, _, rfl⟩ := task.unique blocker_known
-      simpa [failureRoot, successRoot] using assigned
-    · obtain ⟨rfl, _, rfl⟩ := task.unique parent_known
-      simpa [failureRoot, parent] using assigned
-  have sumZero : (failures.map contribution).sum = 0 := by
-    apply List.sum_eq_zero_iff_forall_eq_nat.mpr
-    intro count member
-    obtain ⟨occurrence, included, rfl⟩ := List.mem_map.mp member
-    exact zero occurrence included
-  omega
+  obtain ⟨occurrence, member, owners, producer, payload, task, _, failed, _⟩ := counts
+  rcases task_cases task with rfl | rfl | rfl | rfl
+  · have same := (task.unique shared_known).2.2
+    subst payload
+    simp [Payload.failure] at failed
+  · exact member
+  · have same := (task.unique blocker_known).2.2
+    subst payload
+    simp [Payload.failure] at failed
+  · have same := (task.unique parent_known).2.2
+    subst payload
+    simp [Payload.failure] at failed
 
 /-- The earlier reported shared failure reaches C before its remapped value.
 Witness: F's one error forces the shared F/C failure at cut zero. This remains true under
@@ -235,15 +224,15 @@ theorem initialized
   simp only [List.mem_cons, List.not_mem_nil, or_false] at member
   rcases member with rfl | rfl | rfl
   · exact ⟨[], none,
-      ⟨[1, 0], _, [], .ok ([("a", .scalar "a")], 0), emptyChildren, [],
+      ⟨[1, 0], _, [], { result := .ok ([("a", .scalar "a")], 0) }, emptyChildren, [],
         ⟨successRoot, []⟩, by cbv, List.mem_cons_self, rfl, rfl⟩,
       eligible blocker_known List.mem_cons_self⟩
   · exact ⟨[], none,
-      ⟨[1, 1, 0], _, [], .ok (parentValue.data, 0), emptyChildren, [],
+      ⟨[1, 1, 0], _, [], { result := .ok (parentValue.data, 0) }, emptyChildren, [],
         ⟨parent, []⟩, by cbv, List.mem_cons_self, rfl, rfl⟩,
       eligible parent_known List.mem_cons_self⟩
   · exact ⟨[], none,
-      ⟨[0, 0, 1, 1, 0], _, [.field "user"], .error 1, .empty, [],
+      ⟨[0, 0, 1, 1, 0], _, [.field "user"], { result := .error 1, cause := some 1 }, .empty, [],
         ⟨failureRoot, []⟩, by cbv, List.mem_cons_self, rfl, rfl⟩,
       eligible failed_known List.mem_cons_self⟩
 
@@ -264,7 +253,7 @@ private theorem success_node : NodeAt work successRoot .group [] none :=
     [1, 0],
     _,
     [],
-    .ok ([("a", .scalar "a")], 0),
+    { result := .ok ([("a", .scalar "a")], 0) },
     emptyChildren,
     [],
     ⟨successRoot, []⟩,
@@ -279,7 +268,7 @@ private theorem failure_node : NodeAt work failureRoot .group [] none :=
     [0, 0, 1, 1, 0],
     _,
     [.field "user"],
-    .error 1,
+    { result := .error 1, cause := some 1 },
     .empty,
     [],
     ⟨failureRoot, []⟩,
@@ -294,7 +283,7 @@ private theorem parent_node : NodeAt work parent .group [] none :=
     [1, 1, 0],
     _,
     [],
-    .ok (parentValue.data, 0),
+    { result := .ok (parentValue.data, 0) },
     emptyChildren,
     [],
     ⟨parent, []⟩,
@@ -309,7 +298,7 @@ private theorem shallow_node : NodeAt work shallow .group [parent.ref] none :=
     [0, 0, 1, 0],
     _,
     sharedValue.path,
-    .ok (sharedValue.data, 0),
+    { result := .ok (sharedValue.data, 0) },
     emptyChildren,
     [],
     ⟨shallow, [parent]⟩,
@@ -324,7 +313,7 @@ private theorem deep_node : NodeAt work deep .group [parent.ref] none :=
     [0, 0, 1, 0],
     _,
     sharedValue.path,
-    .ok (sharedValue.data, 0),
+    { result := .ok (sharedValue.data, 0) },
     emptyChildren,
     [],
     ⟨deep, [parent]⟩,
@@ -455,12 +444,18 @@ Witness: a singleton contribution inventory and exact task-owner membership.
 -/
 private theorem failed_errors (events : List WorkQueueEvent) (ref : NodeRef)
     (owner : ref ∈ [failureRoot.ref, deep.ref])
-    : NodeErrors work (failedBefore failures events.length) ref 1 := by
-  refine ⟨fun _ => 1, ?_, by simp [failedBefore, failures]⟩
-  intro occurrence member
-  have same : occurrence = failedTask := by simpa [failedBefore, failures] using member
-  subst occurrence
-  exact ⟨_, _, _, failed_known, by simp [Payload.failure, owner]⟩
+    : NodeFailureCause work (failedBefore failures events.length) ref 1 := by
+  exact ⟨
+    failedTask,
+    by simp [failedBefore, failures],
+    _,
+    _,
+    _,
+    failed_known,
+    owner,
+    rfl,
+    by decide
+  ⟩
 
 private theorem failure_allowed
     : EventAllowed work initial matching [] failures (.groupFailure failureRoot 1) := by

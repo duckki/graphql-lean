@@ -1,3 +1,5 @@
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.TaskLookupUpdates
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.TaskEligibility
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.GroupFlushCoverage
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.GroupRemoval
 
@@ -48,10 +50,8 @@ theorem State.startNewWork_lookup_existing {queue : State} {occurrence node}
     unfold State.startGroup
     split
     · exact prior
-    · split
-      · exact prior
-      · exact foldLookup State.startTask (fun _ task lookup =>
-          State.startTask_lookup_existing lookup task) _ _ prior
+    · exact foldLookup State.startTask (fun _ task lookup =>
+        State.startTask_lookup_existing lookup task) _ _ prior
   have startStream (current : State) (ref : NodeRef)
       (prior : current.taskNode? occurrence = some node)
       : (current.startStream ref).taskNode? occurrence = some node := by
@@ -100,6 +100,40 @@ theorem State.removeGroup_lookup_survivingOwner {queue : State} {occurrence node
       List.any_eq_true.mpr ⟨owner, live, beq_iff_eq.mpr same⟩⟩
   change (queue.taskNodes.filter _).find? _ = some node
   exact find_filter_of_kept found keep
+
+/-- Replaying a retained rejection preserves an exact task lookup with any surviving
+owner. Witness: its computation already has the selected rejection, so the initial task
+replacement changes no first match; subsequent owner steps only filter live records.
+-/
+theorem State.taskFailure_replay_lookup_survivingOwner {queue : State}
+    {group failed errors} (replayed : queue.rejectedTask? group = some (failed, errors))
+    {occurrence node} (found : queue.taskNode? occurrence = some node)
+    {contributor : Execution.DeliveryNode} (contributes : contributor ∈ node.task.groups)
+    {owner : GroupNode} (live : owner ∈ (queue.taskFailure failed errors).1.groupNodes)
+    (same : owner.group.node.ref = contributor.ref)
+    : (queue.taskFailure failed errors).1.taskNode? occurrence = some node := by
+  obtain ⟨_, task, selected, rejected⟩ := State.rejectedTask?_sound replayed
+  let invariant (current : State) := ∀ owner ∈ current.groupNodes,
+    owner.group.node.ref = contributor.ref → current.taskNode? occurrence = some node
+  have stored : (queue.putTaskNode { task with rejection := some errors }).taskNode? occurrence
+      = some node := by
+    have identical : { task with rejection := some errors } = task := by rw [← rejected]
+    by_cases equal : failed = occurrence
+    · subst failed
+      have taskEq := Option.some.inj (selected.symm.trans found)
+      rw [identical, taskEq]
+      exact State.putTaskNode_lookup_same found node (State.taskNode?_some found).2
+    · exact State.putTaskNode_lookup_other found _ (by
+        simpa only [(State.taskNode?_some selected).2] using equal)
+  have initial : invariant (queue.putTaskNode { task with rejection := some errors }) :=
+    fun _ _ _ => stored
+  rw [queue.taskFailure_eq failed errors task selected] at live ⊢
+  have final := failureGroupFold_preserves invariant
+    (fun current ref prior owner member same =>
+      State.removeGroup_lookup_survivingOwner
+        (prior owner (List.mem_filter.mp member).1 same) ref contributes member same)
+    errors task.task.groups (queue.putTaskNode { task with rejection := some errors }, []) initial
+  exact final owner live same
 
 /-- Failed cleanup preserves a stored task protected by a healthy live contributor.
 Witness: canonical removal provenance retains that record, so the live-owner filter

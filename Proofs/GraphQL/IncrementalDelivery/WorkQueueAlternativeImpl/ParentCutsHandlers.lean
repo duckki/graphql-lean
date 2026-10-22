@@ -125,16 +125,6 @@ private theorem ParentCutFrame.maybeIntegrateWork {queue work parents}
 -- Ready draining and task settlements
 -----------------------------------------------------------------------------------------
 
-private theorem ParentCutFrame.drainReadyGroups {queue work parents}
-    (frame : ParentCutFrame queue work parents) (generated : ExecutedWork work)
-    (canonical
-      : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.ref)
-    : ParentCutFrame queue.drainReadyGroups.1 work parents := by
-  apply State.drainReadyGroups_preserves (fun queue => ParentCutFrame queue work parents)
-    (fun queue group frame _ _ _ _ => (frame.finishGroupSuccess group).startNewWork _)
-    (fun queue group errors frame _ _ _ => frame.removeGroup generated canonical _) frame
-
 private theorem ParentCutFrame.taskFailure {queue work parents}
     (frame : ParentCutFrame queue work parents) (generated : ExecutedWork work)
     (canonical
@@ -146,24 +136,20 @@ private theorem ParentCutFrame.taskFailure {queue work parents}
   | none => simpa only [State.taskFailure, found] using frame
   | some node =>
       rw [queue.taskFailure_eq occurrence errors node found]
-      split
-      · exact frame.removeTask occurrence
-      · have loop (groups : List Execution.DeliveryNode) (acc : State × List WorkQueueEvent)
-            (frame : ParentCutFrame acc.1 work parents)
-            : ParentCutFrame (groups.foldl (failureGroupStep errors) acc).1 work parents := by
-          induction groups generalizing acc with
-          | nil => exact frame
-          | cons group rest ih =>
-              apply ih
-              dsimp only [failureGroupStep]
-              split
-              · exact frame
-              · rename_i groupNode lookup
-                split
-                · exact frame.removeGroup generated canonical _
-                · exact frame.putGroupNode lookup _ rfl rfl
-        exact loop node.task.groups (queue.removeTask occurrence, [])
-          (frame.removeTask occurrence)
+      exact failureGroupFold_preserves (fun current => ParentCutFrame current work parents)
+        (fun _ ref prior => prior.removeGroup generated canonical ref) _ _ _
+        ⟨frame.safe, frame.keys, frame.records, frame.links, frame.children, frame.live,
+          frame.tasks, frame.closed, frame.fields, frame.complete⟩
+
+private theorem ParentCutFrame.drainReadyGroups {queue work parents}
+    (frame : ParentCutFrame queue work parents) (generated : ExecutedWork work)
+    (canonical
+      : ∀ node dependencies,
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
+    : ParentCutFrame queue.drainReadyGroups.1 work parents := by
+  apply State.drainReadyGroups_preserves (fun queue => ParentCutFrame queue work parents)
+    (fun queue group frame _ _ _ _ => (frame.finishGroupSuccess group).startNewWork _)
+    (fun _ _ occurrence errors frame _ _ _ => frame.taskFailure generated canonical occurrence errors) frame
 
 private theorem ParentCutFrame.taskSuccess {queue work parents}
     (frame : ParentCutFrame queue work parents) (generated : ExecutedWork work)
@@ -177,36 +163,34 @@ private theorem ParentCutFrame.taskSuccess {queue work parents}
   | none => simpa only [State.taskSuccess, found] using frame
   | some node =>
       rw [queue.taskSuccess_eq occurrence result node found]
-      split
-      · exact frame.removeTask occurrence
-      · let stored := queue.putTaskNode { node with value := some result.value }
-        have storedFrame : ParentCutFrame stored work parents :=
-          ⟨frame.safe, frame.keys, frame.records, frame.links, frame.children, frame.live,
-            frame.tasks, frame.closed, frame.fields, frame.complete⟩
-        have integrated := storedFrame.maybeIntegrateWork result.work
-          (fun _ member => matching.taskChildGroups_recordAt member)
-          (fun _ member => matching.taskChildGroups_parentCanonical canonical member)
-          matching.childTasksCovered matching.childParentsCovered matching.childParentsBefore
-          (some occurrence)
-        have loop (groups : List Execution.DeliveryNode)
-            (acc : State × List WorkQueueEvent × NewWork)
-            (frame : ParentCutFrame acc.1 work parents)
-            : ParentCutFrame (groups.foldl successGroupStep acc).1 work parents := by
-          induction groups generalizing acc with
-          | nil => exact frame
-          | cons group rest ih =>
-              apply ih
-              dsimp only [successGroupStep]
+      let stored := queue.putTaskNode { node with value := some result.value }
+      have storedFrame : ParentCutFrame stored work parents :=
+        ⟨frame.safe, frame.keys, frame.records, frame.links, frame.children, frame.live,
+          frame.tasks, frame.closed, frame.fields, frame.complete⟩
+      have integrated := storedFrame.maybeIntegrateWork result.work
+        (fun _ member => matching.taskChildGroups_recordAt member)
+        (fun _ member => matching.taskChildGroups_parentCanonical canonical member)
+        matching.childTasksCovered matching.childParentsCovered matching.childParentsBefore
+        (some occurrence)
+      have loop (groups : List Execution.DeliveryNode)
+          (acc : State × List WorkQueueEvent × NewWork)
+          (frame : ParentCutFrame acc.1 work parents)
+          : ParentCutFrame (groups.foldl successGroupStep acc).1 work parents := by
+        induction groups generalizing acc with
+        | nil => exact frame
+        | cons group rest ih =>
+            apply ih
+            dsimp only [successGroupStep]
+            split
+            · exact frame
+            · rename_i groupNode lookup
+              have updated := frame.putGroupNode lookup
+                { groupNode with pending := groupNode.pending - 1 } rfl rfl
               split
-              · exact frame
-              · rename_i groupNode lookup
-                have updated := frame.putGroupNode lookup
-                  { groupNode with pending := groupNode.pending - 1 } rfl rfl
-                split
-                · exact updated.finishGroupSuccess _
-                · exact updated
-        exact ((loop node.task.groups (_, [], {}) integrated).startNewWork _)
-          |>.drainReadyGroups generated canonical
+              · exact updated.finishGroupSuccess _
+              · exact updated
+      exact ((loop node.task.groups (_, [], {}) integrated).startNewWork _)
+        |>.drainReadyGroups generated canonical
 
 -----------------------------------------------------------------------------------------
 -- Stream receipts and actual graph-event replay

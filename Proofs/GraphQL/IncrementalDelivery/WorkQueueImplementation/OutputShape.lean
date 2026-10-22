@@ -51,6 +51,43 @@ theorem State.finishGroupSuccess_nonemptyValues (queue : State) (group : GroupNo
     simp only [List.isEmpty_iff] at nonempty
     simpa [WorkQueueEvent.NonemptyValues] using nonempty
 
+/-- Task failure emits only control events, so the nonempty-value property is preserved.
+Witness: the owner fold either emits group failure or caches an unannounced group's errors.
+-/
+theorem State.taskFailure_nonemptyValues (queue : State) (occurrence : Occurrence)
+    (errors : Nat)
+    : ∀ event ∈ (queue.taskFailure occurrence errors).2, event.NonemptyValues := by
+  let step (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode) :=
+    match acc.1.groupNode? group.ref with
+    | none => acc
+    | some node =>
+        if acc.1.rootGroups.contains group.ref then
+          let (next, failure) := acc.1.finishGroupFailure node errors
+          (next, acc.2 ++ [failure])
+        else acc
+  have loop (groups : List Execution.DeliveryNode) (acc : State × List WorkQueueEvent)
+      (prior : ∀ event ∈ acc.2, event.NonemptyValues)
+      : ∀ event ∈ (groups.foldl step acc).2, event.NonemptyValues := by
+    induction groups generalizing acc with
+    | nil => exact prior
+    | cons group rest ih =>
+        apply ih
+        unfold step
+        split
+        · exact prior
+        · split
+          · intro event member
+            rcases List.mem_append.mp member with earlier | latest
+            · exact prior event earlier
+            · have same := List.mem_singleton.mp latest
+              subst event
+              trivial
+          · exact prior
+  unfold State.taskFailure
+  split
+  · simp
+  · exact loop _ (_, []) (by simp)
+
 /-- Every value event emitted during recursive draining is nonempty.
 Witness: each successful flush checks its selected values; cached failures contain only
 control events, and induction preserves the property through later drain steps.
@@ -67,18 +104,17 @@ theorem State.drainReadyGroups_nonemptyValues (queue : State)
         split
         · simp
         · rename_i node selected
-          cases cached : node.failure with
+          cases cached : current.rejectedTask? node with
           | none =>
               intro event member
               rcases List.mem_append.mp member with first | later
               · exact current.finishGroupSuccess_nonemptyValues node event first
               · exact ih _ event later
-          | some errors =>
+          | some rejected =>
+              obtain ⟨occurrence, errors⟩ := rejected
               intro event member
               rcases List.mem_append.mp member with first | later
-              · have same := List.mem_singleton.mp first
-                subst event
-                trivial
+              · exact current.taskFailure_nonemptyValues occurrence errors event first
               · exact ih _ event later
   exact loop _ queue
 
@@ -108,53 +144,10 @@ theorem State.taskSuccess_nonemptyValues (queue : State) (occurrence : Occurrenc
   | none => simp [State.taskSuccess, found]
   | some node =>
       rw [queue.taskSuccess_eq occurrence result node found]
-      split
-      · simp
       intro event member
       rcases List.mem_append.mp member with first | later
       · exact loop _ (_, [], {}) (by simp) event first
       · exact State.drainReadyGroups_nonemptyValues _ event later
-
-/-- Task failure emits only control events, so the nonempty-value property is preserved.
-Witness: the owner fold either emits group failure or caches an unannounced group's errors.
--/
-theorem State.taskFailure_nonemptyValues (queue : State) (occurrence : Occurrence)
-    (errors : Nat)
-    : ∀ event ∈ (queue.taskFailure occurrence errors).2, event.NonemptyValues := by
-  let step (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode) :=
-    match acc.1.groupNode? group.ref with
-    | none => acc
-    | some node =>
-        if acc.1.rootGroups.contains group.ref then
-          let (next, failure) := acc.1.finishGroupFailure node errors
-          (next, acc.2 ++ [failure])
-        else (acc.1.putGroupNode
-          { node with pending := node.pending - 1
-                      failure := some (node.failure.getD 0 + errors) }, acc.2)
-  have loop (groups : List Execution.DeliveryNode) (acc : State × List WorkQueueEvent)
-      (prior : ∀ event ∈ acc.2, event.NonemptyValues)
-      : ∀ event ∈ (groups.foldl step acc).2, event.NonemptyValues := by
-    induction groups generalizing acc with
-    | nil => exact prior
-    | cons group rest ih =>
-        apply ih
-        unfold step
-        split
-        · exact prior
-        · split
-          · intro event member
-            rcases List.mem_append.mp member with earlier | latest
-            · exact prior event earlier
-            · have same := List.mem_singleton.mp latest
-              subst event
-              trivial
-          · exact prior
-  unfold State.taskFailure
-  split
-  · simp
-  · split
-    · simp
-    exact loop _ (_, []) (by simp)
 
 /-- A nonempty item arrival cannot produce an empty stream-value event.
 Witness: exact item copying excludes an empty accumulator; the final group drain preserves

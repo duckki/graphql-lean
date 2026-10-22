@@ -1,6 +1,7 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.DeferFailureSafety
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.AncestorGuardHealth
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.GroupAccounting
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.InformativeFailureInventory
 
 /-! The defer-only queue health guard reflects the full historical scheduler relation. -/
 
@@ -141,7 +142,7 @@ theorem ExecutedWork.defer_nodeFailed_iff_invalidated
 -- Conditional causal bridge, discharged by the later generated health replay
 -----------------------------------------------------------------------------------------
 
-/-- Every accepted defer-only failure retains a historically healthy contributing owner
+/-- Every selected defer-only failure retains a historically healthy contributing owner
 once replay preserves missing-parent health. Witness: exact source-cut guard reflection
 and the causal equivalence above. All earlier cuts, including equal-index predecessors,
 are retained; neither output admission nor publication matching correctness is assumed.
@@ -150,9 +151,9 @@ are retained; neither output admission nor publication matching correctness is a
 theorem createWorkQueue_eligibleObjectFailureCuts_deferHealthyOwner
     {work : Execution.Work} (generated : ExecutedWork work)
     (shape : Correctness.DeferOnly work) {batches : List (List GraphEvent)}
-    (valid : ValidGraphEvents work batches.flatten)
-    (started : inputsStarted work batches = true)
-    (missing
+    (_valid : ValidGraphEvents work batches.flatten)
+    (_started : inputsStarted work batches = true)
+    (_missing
       : ∀ received : List GraphEvent,
           received.IsPrefix batches.flatten
           → State.MissingParentAncestorsHealthy
@@ -165,7 +166,7 @@ theorem createWorkQueue_eligibleObjectFailureCuts_deferHealthyOwner
       : let queue := State.initialize (Work.fromExecution work)
         let publisher : IncrementalPublisher :=
           { active := queue.initialGroups ++ queue.initialStreams }
-        sourceObjectFailureCuts 0
+        informativeObjectFailureCuts work
           (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher batches).2.2)
         = before ++ (cut, occurrence) :: after)
     (matching : PublicationMatching) (events : List Execution.WorkQueueEvent)
@@ -173,12 +174,19 @@ theorem createWorkQueue_eligibleObjectFailureCuts_deferHealthyOwner
         TaskHasOwners work occurrence owners
         ∧ ref ∈ owners
         ∧ ¬NodeFailed work matching events before ref := by
-  obtain ⟨owners, ref, known, owner, safe⟩ :=
-    createWorkQueue_eligibleObjectFailureCuts_uninvalidatedOwner
-      generated valid started missing split
+  have selected := selectObjectFailureCuts_informative work []
+    (sourceObjectFailureCuts 0
+      ((State.initialize (Work.fromExecution work)).eligibleFailureBlocks
+        ((State.initialize (Work.fromExecution work)).sourceRunBlocks
+          { active := (State.initialize (Work.fromExecution work)).initialGroups
+            ++ (State.initialize (Work.fromExecution work)).initialStreams } batches).2.2))
+  change InformativeFailureCuts work [] (informativeObjectFailureCuts work _) at selected
+  rw [split] at selected
+  obtain ⟨owners, ref, known, owner, safe⟩ := selected.atCut
+  simp only [List.nil_append] at safe
   refine ⟨owners, ref, known, owner, ?_⟩
   intro failure
-  apply safe ((generated.defer_nodeFailed_invalidated shape failure).toRecordInvalidated.mono ?_)
+  apply safe ((generated.defer_nodeFailed_invalidated shape failure).mono ?_)
   intro task member
   obtain ⟨entry, kept, same⟩ := List.mem_map.mp member
   exact List.mem_map.mpr ⟨entry, (List.mem_filter.mp kept).1, same⟩
@@ -205,7 +213,7 @@ theorem failureCutOwnerHealth_of_deferMissingParentHealth {work : Execution.Work
         let publisher : IncrementalPublisher :=
           { active := queue.initialGroups ++ queue.initialStreams }
         w.failures
-        = sourceObjectFailureCuts 0
+        = informativeObjectFailureCuts work
             (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher batches).2.2))
     : FailureCutOwnerHealth work w := by
   intro before cut occurrence after split

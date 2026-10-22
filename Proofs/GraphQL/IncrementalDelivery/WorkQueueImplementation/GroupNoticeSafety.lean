@@ -37,27 +37,23 @@ theorem RetainedNoticeContents.recorded_or_unaccounted
     (healthy : ¬NodeFailed work matching events failures child.ref)
     : HasRecordedFailure work failures events.length child.ref
       ∨ ¬NodeAccounted work matching events failures child.ref := by
-  obtain ⟨_, queue, node, found, same, retained, sound, registered, cached,
+  obtain ⟨_, queue, node, found, same, retained, sound, registered,
     producers, unpublished⟩ := contents
   have member := List.mem_of_find?_eq_some found
-  by_cases present : node.failure.isSome = true
-  · left
-    rw [← same]
-    exact cached.recorded (List.Subset.refl _) member present
-  · right
-    intro accounted
-    obtain ⟨occurrence, listed⟩ := List.exists_mem_of_ne_nil _ (retained.resolve_right present)
-    obtain ⟨task, taskMember, sameTask, owner⟩ := sound node member occurrence listed
-    obtain ⟨address, payload, producer, isObject, known⟩ := (registered task taskMember).1
-    have contributes : child.ref ∈ task.groups.map Execution.DeliveryNode.ref := same ▸ owner
-    rcases accounted task.occurrence _ ⟨producer, payload, known⟩ contributes with
-      cancelled | published
-    · apply healthy
-      apply generated.object_cancelled_owner_failed_of_itemSafety valid failedPayloads itemsSafe
-        (isObject ▸ known) contributes _ (isObject ▸ cancelled)
-      intro source parent
-      exact producers task taskMember source ⟨_, payload, parent ▸ known⟩
-    · exact unpublished occurrence listed (sameTask ▸ published)
+  right
+  intro accounted
+  obtain ⟨occurrence, listed⟩ := List.exists_mem_of_ne_nil _ retained
+  obtain ⟨task, taskMember, sameTask, owner⟩ := sound node member occurrence listed
+  obtain ⟨address, payload, producer, isObject, known⟩ := (registered task taskMember).1
+  have contributes : child.ref ∈ task.groups.map Execution.DeliveryNode.ref := same ▸ owner
+  rcases accounted task.occurrence _ ⟨producer, payload, known⟩ contributes with
+    cancelled | published
+  · apply healthy
+    apply generated.object_cancelled_owner_failed_of_itemSafety valid failedPayloads itemsSafe
+      (isObject ▸ known) contributes _ (isObject ▸ cancelled)
+    intro source parent
+    exact producers task taskMember source ⟨_, payload, parent ▸ known⟩
+  · exact unpublished occurrence listed (sameTask ▸ published)
 
 -----------------------------------------------------------------------------------------
 -- The remaining notice obligations are descriptor readiness and freshness

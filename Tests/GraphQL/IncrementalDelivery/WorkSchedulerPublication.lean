@@ -25,11 +25,11 @@ private def sharedValue : ExecutionGroupValue :=
 private def work : Execution.Work :=
   .combine .empty
     (.combine
-      (.executionGroup [⟨parent, []⟩] [] (.ok (firstValue.data, 1))
+      (.executionGroup [⟨parent, []⟩] [] ({ result := .ok (firstValue.data, 1) })
         (.combine .empty .empty))
       (.combine
-        (.executionGroup [⟨parent, []⟩, ⟨other, []⟩] [] (.ok (sharedValue.data, 0))
-          (.combine .empty .empty))
+        (.executionGroup [⟨parent, []⟩, ⟨other, []⟩] []
+          ({ result := .ok (sharedValue.data, 0) }) (.combine .empty .empty))
         .empty))
 
 private def firstResult : TaskResult := { value := firstValue }
@@ -52,7 +52,7 @@ Witness: its exact generated execution-group descriptor. -/
 private theorem firstKnown
     : TaskAt work firstTask [parent.ref] none
         (.object [] (.ok (firstValue.data, 1))) := by
-  refine ⟨[⟨parent, []⟩], [], _, .combine .empty .empty, [], ?_, rfl, rfl⟩
+  refine ⟨[⟨parent, []⟩], [], { result := .ok (firstValue.data, 1) }, .combine .empty .empty, [], ?_, rfl, rfl⟩
   cbv
 
 /-- The second task belongs to both pending defer groups and returns b unchanged.
@@ -60,7 +60,7 @@ Witness: its exact generated descriptor, not a single-owner approximation. -/
 private theorem sharedKnown
     : TaskAt work sharedTask [parent.ref, other.ref] none
         (.object [] (.ok (sharedValue.data, 0))) := by
-  refine ⟨[⟨parent, []⟩, ⟨other, []⟩], [], _, .combine .empty .empty, [], ?_, rfl, rfl⟩
+  refine ⟨[⟨parent, []⟩, ⟨other, []⟩], [], { result := .ok (sharedValue.data, 0) }, .combine .empty .empty, [], ?_, rfl, rfl⟩
   cbv
 
 /-- The first input carries the fixed nullable-error result and its empty child boundary.

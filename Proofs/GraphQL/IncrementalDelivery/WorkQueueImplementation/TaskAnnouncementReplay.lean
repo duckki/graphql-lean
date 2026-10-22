@@ -124,53 +124,51 @@ private theorem AnnouncementFacts.taskSuccess {work seen queue}
   | none => simpa [State.taskSuccess, found] using facts.known
   | some node =>
       rw [queue.taskSuccess_eq occurrence result node found]
-      split
-      · simpa using facts.known.removeTask occurrence
-      · let stored := queue.putTaskNode { node with value := some result.value }
-        have storedFacts : AnnouncementFacts work seen stored := {
-          known := facts.known.putTaskNode _
-            (facts.known node (List.mem_of_find?_eq_some found))
-          roots := facts.roots
-          sound := facts.sound
-          registered := facts.registered.putTaskNode _
-            (facts.registered node (List.mem_of_find?_eq_some found))
-          matching := facts.matching }
-        let integrated := (stored.maybeIntegrateWork result.work (some occurrence)).1
-        have integratedFacts : AnnouncementFacts work seen integrated :=
-          storedFacts.integrate result.work located (some occurrence)
-        have loop (groups : List Execution.DeliveryNode)
-            (acc : State × List WorkQueueEvent × NewWork)
-            (prior : AnnouncementFacts work seen acc.1)
-            (notices : acc.2.2.newGroups.map Execution.DeliveryNode.ref
-              = acc.2.1.flatMap rawGroupNoticeRefs)
-            : AnnouncementFacts work seen (groups.foldl successGroupStep acc).1
-              ∧ (groups.foldl successGroupStep acc).2.2.newGroups.map Execution.DeliveryNode.ref
-                = (groups.foldl successGroupStep acc).2.1.flatMap rawGroupNoticeRefs := by
-          induction groups generalizing acc with
-          | nil => exact ⟨prior, notices⟩
-          | cons group rest ih =>
-              apply ih
-              · dsimp only [successGroupStep]
+      let stored := queue.putTaskNode { node with value := some result.value }
+      have storedFacts : AnnouncementFacts work seen stored := {
+        known := facts.known.putTaskNode _
+          (facts.known node (List.mem_of_find?_eq_some found))
+        roots := facts.roots
+        sound := facts.sound
+        registered := facts.registered.putTaskNode _
+          (facts.registered node (List.mem_of_find?_eq_some found))
+        matching := facts.matching }
+      let integrated := (stored.maybeIntegrateWork result.work (some occurrence)).1
+      have integratedFacts : AnnouncementFacts work seen integrated :=
+        storedFacts.integrate result.work located (some occurrence)
+      have loop (groups : List Execution.DeliveryNode)
+          (acc : State × List WorkQueueEvent × NewWork)
+          (prior : AnnouncementFacts work seen acc.1)
+          (notices : acc.2.2.newGroups.map Execution.DeliveryNode.ref
+            = acc.2.1.flatMap rawGroupNoticeRefs)
+          : AnnouncementFacts work seen (groups.foldl successGroupStep acc).1
+            ∧ (groups.foldl successGroupStep acc).2.2.newGroups.map Execution.DeliveryNode.ref
+              = (groups.foldl successGroupStep acc).2.1.flatMap rawGroupNoticeRefs := by
+        induction groups generalizing acc with
+        | nil => exact ⟨prior, notices⟩
+        | cons group rest ih =>
+            apply ih
+            · dsimp only [successGroupStep]
+              split
+              · exact prior
+              · rename_i selected foundGroup
+                have decremented := prior.decrement foundGroup
                 split
-                · exact prior
-                · rename_i selected foundGroup
-                  have decremented := prior.decrement foundGroup
-                  split
-                  · exact decremented.flush _
-                  · exact decremented
-              · dsimp only [successGroupStep]
-                split
+                · exact decremented.flush _
+                · exact decremented
+            · dsimp only [successGroupStep]
+              split
+              · exact notices
+              · split
+                · simp only [List.map_append, List.flatMap_append, notices,
+                    State.finishGroupSuccess_groupNotices]
                 · exact notices
-                · split
-                  · simp only [List.map_append, List.flatMap_append, notices,
-                      State.finishGroupSuccess_groupNotices]
-                  · exact notices
-        let folded := node.task.groups.foldl successGroupStep (integrated, [], {})
-        obtain ⟨foldedFacts, notices⟩ := loop node.task.groups (integrated, [], {})
-          integratedFacts rfl
-        have finished := (foldedFacts.start folded.2.2).drain
-        rw [notices] at finished
-        simpa only [List.flatMap_append, List.append_assoc] using finished.known
+      let folded := node.task.groups.foldl successGroupStep (integrated, [], {})
+      obtain ⟨foldedFacts, notices⟩ := loop node.task.groups (integrated, [], {})
+        integratedFacts rfl
+      have finished := (foldedFacts.start folded.2.2).drain
+      rw [notices] at finished
+      simpa only [List.flatMap_append, List.append_assoc] using finished.known
 
 /-- Stream-item handling records each activated task's owner in the actual item carrier.
 Witness: itemwise integration and activation accumulate the carrier's exact group list;

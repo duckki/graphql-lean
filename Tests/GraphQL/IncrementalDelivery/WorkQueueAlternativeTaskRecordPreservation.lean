@@ -41,7 +41,11 @@ example : RecordTargetRepresented before.queue (.task RejectedTaskCleanup.produc
       rw [found] at live
       cases live
   | some group =>
-      apply RecordTargetRepresented.task found
+      apply RecordTargetRepresented.task found ?_
+        (by
+          unfold before
+          rw [SharedOwnerFailure.work_shape]
+          cbv)
       have allLinked : before.queue.groupNodes.all
           (fun group => group.group.node.ref != SharedOwnerFailure.groupH.ref
             || group.tasks.contains RejectedTaskCleanup.producer) = true := by

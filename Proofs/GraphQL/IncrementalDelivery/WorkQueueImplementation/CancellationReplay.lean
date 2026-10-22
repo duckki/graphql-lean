@@ -33,9 +33,9 @@ theorem State.CancelledRecordsSupported.handleGraphEvent_contribution
     List.subset_append_right _ _
   apply (supported.weaken included).handleGraphEvent (cached.weaken included) registered
     tasksMatch matching links canonical event source
-  intro occurrence errors same node found accepted
+  intro occurrence errors same node found
   subst event
-  simp [State.objectFailureContribution, found, accepted]
+  simp [State.objectFailureContribution, found]
 
 /-- Retained error caches are supported by precisely the same accepted-failure inventory.
 Witness: ignored task failures only remove memberships; accepted failures supply their
@@ -63,16 +63,9 @@ theorem State.CachedFailuresSupported.handleGraphEvent_contribution {queue work 
           simpa [State.handleGraphEvent, State.taskFailure, State.objectFailureContribution,
             found] using supported
       | some node =>
-          cases accepted : queue.taskHasHealthyOwner node.task with
-          | false =>
-              simpa [State.handleGraphEvent, State.taskFailure, State.objectFailureContribution,
-                found, accepted] using supported.removeTask occurrence
-          | true =>
-              have enlarged := supported.weaken
-                (List.subset_append_right [occurrence] failed)
-              simpa [State.handleGraphEvent, State.objectFailureContribution, found,
-                accepted]
-                using enlarged.taskFailure registered matching occurrence errors (by simp)
+          have enlarged := supported.weaken (List.subset_append_right [occurrence] failed)
+          simpa [State.handleGraphEvent, State.objectFailureContribution, found]
+            using enlarged.taskFailure registered matching occurrence errors (by simp)
 
 -----------------------------------------------------------------------------------------
 -- Sequential replay preserves support and all metadata used by the handler proof
@@ -211,17 +204,17 @@ theorem createWorkQueue_runNormalized_cachedFailuresSupported_contributions
   obtain ⟨terminal, same⟩ := (State.initialize (Work.fromExecution work)).runNormalized_stateCore
     batches (by rwa [inputsStarted_eq_batchesStarted] at started)
   rw [same]
-  simpa only [List.append_nil, State.CachedFailuresSupported] using supported
+  simpa only [List.append_nil, State.CachedFailuresSupported, State.CachedErrorsSatisfy]
+    using supported
 
-/-- A live causally healthy actual contributor passes the replay's executable guard.
-Witness: replay derives cancellation and cache provenance, canonical parents, and fixed
-descriptors; the finite-walk completeness theorem then needs no extra queue invariant.
-This is guard completeness, not yet the converse guard-soundness theorem. -/
-theorem ExecutedWork.runNormalized_groupIsHealthy_of_uninvalidated
-    {work : Execution.Work} (generated : ExecutedWork work)
+/-- A healthy live group has no retained rejected computation after actual replay.
+Witness: replay-derived rejection support and sound task membership, without a runtime
+health guard or an additional source premise.
+-/
+theorem ExecutedWork.runNormalized_unrejected_of_uninvalidated
+    {work : Execution.Work} (_generated : ExecutedWork work)
     (batches : List (List GraphEvent)) (valid : ValidGraphEvents work batches.flatten)
     (started : inputsStarted work batches = true) {ref : NodeRef} {node : GroupNode}
-    (contributor : ∃ dependencies, NodeHasDependencies work ref .group dependencies)
     (found
       : ((State.initialize (Work.fromExecution work)).runNormalized batches).1.groupNode?
           ref
@@ -230,24 +223,15 @@ theorem ExecutedWork.runNormalized_groupIsHealthy_of_uninvalidated
       : ¬GroupInvalidated work
           ((State.initialize (Work.fromExecution work)).objectFailureContributions
             batches.flatten) ref)
-    : ((State.initialize (Work.fromExecution work)).runNormalized
-        batches).1.groupIsHealthy
-        ref
-      = true := by
-  obtain ⟨parents, canonical⟩ := generated.groupRecordsCanonical
-  have parentMetadata :=
-    (createWorkQueue_groupParentsCanonical (Work.fromExecution work) parents
-      (fun _ member => workFromSpec_groups_parentCanonical
-        (Located.root (root := work)) canonical member)).runNormalized batches
-      (fun batch batchMember event member =>
-        valid.eachMatches (List.mem_flatten.mpr ⟨batch, batchMember, member⟩)) canonical
+    : ((State.initialize (Work.fromExecution work)).runNormalized batches).1.rejectedTask?
+        node
+      = none := by
   apply (createWorkQueue_runNormalized_cachedFailuresSupported_contributions batches valid
-    started).groupIsHealthy (generated.runNormalized_cancelledRecordsSupported batches valid
-      started) generated ?_ contributor found healthy
-  intro live member
-  obtain ⟨dependencies, known⟩ := valid.runNormalized_groupNodesMatchWork live member
-  refine ⟨dependencies, known, ?_⟩
-  rw [canonical live.group.node dependencies known]
-  exact parentMetadata live member
+    started).healthy_rejectedTask_none
+    (createWorkQueue_runNormalized_groupMembershipSound _ batches)
+    (State.runNormalized_startedTasksRegistered (createWorkQueue_startedTasksRegistered _) batches)
+    (createWorkQueue_runNormalized_registeredTasksMatch valid)
+    (List.mem_of_find?_eq_some found)
+  exact (State.groupNode?_ref found).symm ▸ healthy
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

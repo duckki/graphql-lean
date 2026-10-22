@@ -64,7 +64,7 @@ theorem RunRefines.workSemantics {initial next left right}
     {scheduled eager : Completion α × Nat}
     (known : RunRefines initial next left right scheduled eager)
     : WorkSemanticsRefines next scheduled.1.work eager.1.work :=
-  workSemanticsRefines_of_work known.completion.2 known.supplies.injective
+  workSemanticsRefines_of_work known.completion.2.1 known.supplies.injective
 
 -----------------------------------------------------------------------------------------
 -- Construct from actual roots, without an assumed recursive Work correspondence

@@ -39,7 +39,7 @@ decreasing_by
 /-- Stream enumeration retains only ordinary occurrence labels, not membership proofs.
 Witness: erase the temporary list membership evidence used for structural termination. -/
 theorem streamRegions_stream (node : Execution.DeliveryNode)
-    (items : List (Execution.Result Execution.ResponseValue × Execution.Work))
+    (items : List (Execution.TaskOutcome Execution.ResponseValue × Execution.Work))
     (address : Address)
     : streamRegions (.stream node items) address
       = items.zipIdx.flatMap

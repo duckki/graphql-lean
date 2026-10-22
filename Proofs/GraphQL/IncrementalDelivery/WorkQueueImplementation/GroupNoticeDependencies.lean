@@ -28,7 +28,6 @@ theorem State.pruneEmptyGroups_dependenciesReady
           (∀ ref ∈ parents node.group.node.ref,
             DependencySatisfied work initial matching events failures ref)
           → node.tasks = []
-          → node.failure = none
           → DependencySatisfied work initial matching events failures node.group.node.ref)
     (groups : List Execution.DeliveryNode)
     (candidates
@@ -44,7 +43,7 @@ theorem State.pruneEmptyGroups_dependenciesReady
     (property := fun ref => ∀ ancestor ∈ parents ref,
       DependencySatisfied work initial matching events failures ancestor)
     (groups := groups) (candidates := candidates) (inherited := by
-      intro node member ancestors noTasks noFailure child childMember childLink
+      intro node member ancestors noTasks child childMember childLink
       obtain ⟨nodeDependencies, nodeKnown⟩ := records node member
       obtain ⟨childDependencies, childKnown⟩ := records child childMember
       have head : childDependencies.head? = some node.group.node.ref := by
@@ -55,7 +54,7 @@ theorem State.pruneEmptyGroups_dependenciesReady
       rw [chain]
       intro ref included
       rcases List.mem_cons.mp included with same | earlier
-      · exact same ▸ emptyReady node member ancestors noTasks noFailure
+      · exact same ▸ emptyReady node member ancestors noTasks
       · exact ancestors ref earlier)
     child noticed
   rw [canonical _ _ (groupRecordAt_of_nodeAt known)]

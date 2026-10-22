@@ -1,12 +1,12 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.TaskSettlements
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.InputReplay
 
-/-! The object failures accepted by each actual pre-settlement owner guard. -/
+/-! The object failures accepted by each actual task-presence check. -/
 
 namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
-/-- The object-failure token accepted by the handler's pre-settlement owner guard.
+/-- The object-failure token accepted by the handler's task-presence check.
 `queue` is the actual state before `event`; stream failures have a separate item inventory.
 This proof-only projection records possible contributions, not licensed failure cuts.
 -/
@@ -14,7 +14,7 @@ def State.objectFailureContribution (queue : State) : GraphEvent → List Occurr
   | .taskFailure occurrence _ =>
       match queue.taskNode? occurrence with
       | none => []
-      | some node => if queue.taskHasHealthyOwner node.task then [occurrence] else []
+      | some _ => [occurrence]
   | _ => []
 
 /-- Contributing object failures in reverse settlement order along actual handler replay.
@@ -27,7 +27,7 @@ def State.objectFailureContributions (queue : State) : List GraphEvent → List 
       (queue.handleGraphEvent event).1.objectFailureContributions rest
       ++ queue.objectFailureContribution event
 
-/-- Splitting source replay preserves the guard state at every recorded contribution.
+/-- Splitting source replay preserves the task-presence state at every recorded contribution.
 Witness: list induction through the same executable handlers used by sequential replay.
 -/
 theorem State.objectFailureContributions_append (queue : State)
@@ -42,7 +42,7 @@ theorem State.objectFailureContributions_append (queue : State)
         List.append_assoc, List.foldl_cons]
 
 /-- Contributing object failures form an order-preserving subset of source failures.
-Witness: each pre-settlement guard either keeps its one failure token or omits it;
+Witness: each task-presence check either keeps its one failure token or omits it;
 induction composes those choices through the actual successive queue states.
 -/
 theorem State.objectFailureContributions_sublist (queue : State)
@@ -61,8 +61,6 @@ theorem State.objectFailureContributions_sublist (queue : State)
       all_goals try exact .refl _
       split
       · exact List.nil_sublist _
-      · split
-        · exact .refl _
-        · exact List.nil_sublist _
+      · exact .refl _
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

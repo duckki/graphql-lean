@@ -149,9 +149,7 @@ theorem State.startGroup_rootStreams (queue : State) (ref : NodeRef)
   unfold State.startGroup
   split
   · rfl
-  · split
-    · rfl
-    · exact fold_projection State.rootStreams State.startTask task _ _
+  · exact fold_projection State.rootStreams State.startTask task _ _
 
 /-- Activating released work adds no stream ref outside its explicit newStreams list.
 Witness: group activation preserves active streams; each stream step is inert or appends

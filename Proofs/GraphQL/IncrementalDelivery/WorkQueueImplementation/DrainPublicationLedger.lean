@@ -283,7 +283,7 @@ theorem State.PublicationInventory.drainReadyGroups_go_prefixCoverage {queue : S
             simp only [*]
             exact .refl queue
       · rename_i group selected
-        cases cached : group.failure with
+        cases cached : queue.rejectedTask? group with
         | none =>
             dsimp only
             have found : group ∈ queue.groupNodes := by
@@ -292,7 +292,7 @@ theorem State.PublicationInventory.drainReadyGroups_go_prefixCoverage {queue : S
               | none => simp [lookup] at choice
               | some node =>
                   simp only [lookup] at choice
-                  change (if node.failure.isSome || node.pending == 0 then some node else none)
+                  change (if (queue.rejectedTask? node).isSome || node.pending == 0 then some node else none)
                     = some group at choice
                   split at choice
                   · obtain rfl := Option.some.inj choice
@@ -369,70 +369,81 @@ theorem State.PublicationInventory.drainReadyGroups_go_prefixCoverage {queue : S
                   · exact ((firstCleared publication old).startNewWork
                       (queue.finishGroupSuccess group).2.2).drainReadyGroups_go steps
                   · exact laterCleared steps (by omega) publication new
-        | some errors =>
+        | some rejected =>
+            obtain ⟨occurrence, errors⟩ := rejected
             dsimp only
+            let next := (queue.taskFailure occurrence errors).1
+            let emitted := (queue.taskFailure occurrence errors).2
+            have noValues := queue.taskFailure_objectValues occurrence errors
             have cleaned := State.PublicationInventory.mk inventory.unique inventory.provenance
-              (inventory.stored.removeGroup group.group.node.ref)
+              (inventory.stored.taskFailure occurrence errors)
             obtain ⟨added, values, final, coverage, conserved, streams,
-              ordered, owners, cleared⟩ :=
-              ih cleaned (links.removeGroup group.group.node.ref)
+              ordered, owners, cleared⟩ := ih cleaned (links.taskFailure occurrence errors)
             refine ⟨added, ?_, final, ?_, ?_, ?_, ?_, ?_, ?_⟩
-            · simpa only [State.finishGroupFailure, List.flatMap_append,
-                List.flatMap_singleton, WorkQueueEvent.objectValues, List.nil_append] using values
+            · simpa only [List.flatMap_append, noValues, List.nil_append] using values
             · intro index owner groups streams atEvent
-              intro occurrence node value found stored contributes
-              cases index with
-              | zero => cases atEvent
-              | succ index =>
-                  have atLater : (State.drainReadyGroups.go fuel
-                      (queue.removeGroup group.group.node.ref)).2[index]?
-                      = some (.groupSuccess owner groups streams) := atEvent
-                  obtain ⟨survivor, survives⟩ :=
-                    State.drainReadyGroups_go_success_live fuel _ atLater
-                  obtain ⟨contributor, member, same⟩ := List.mem_map.mp contributes
-                  have retained := State.removeGroup_lookup_survivingOwner found
-                    group.group.node.ref member (List.mem_of_find?_eq_some survives)
-                    ((State.groupNode?_ref survives).trans same.symm)
-                  simpa only [State.finishGroupFailure, List.singleton_append,
-                    List.take_succ_cons, List.flatMap_cons, WorkQueueEvent.objectValues,
-                    List.nil_append] using coverage index owner groups streams atLater
-                      occurrence node value retained stored contributes
-            · intro occurrence node value found stored live
+              intro other node value found stored contributes
+              by_cases inside : index < emitted.length
+              · rw [List.getElem?_append_left inside] at atEvent
+                obtain ⟨failedOwner, impossible⟩ := queue.taskFailure_event_failure occurrence errors _
+                  (List.mem_of_getElem? atEvent)
+                cases impossible
+              · have outside : emitted.length ≤ index := by omega
+                rw [List.getElem?_append_right outside] at atEvent
+                obtain ⟨survivor, survives⟩ := State.drainReadyGroups_go_success_live fuel next atEvent
+                obtain ⟨contributor, member, same⟩ := List.mem_map.mp contributes
+                have retained := State.taskFailure_replay_lookup_survivingOwner cached found member
+                  (List.mem_of_find?_eq_some survives) ((State.groupNode?_ref survives).trans same.symm)
+                change (other, value) ∈ added.take
+                  (((emitted ++ (State.drainReadyGroups.go fuel next).2).take index).flatMap
+                    WorkQueueEvent.objectValues).length
+                rw [List.take_append, List.take_of_length_le outside, List.flatMap_append]
+                change (other, value) ∈ added.take
+                  (((queue.taskFailure occurrence errors).2.flatMap WorkQueueEvent.objectValues) ++
+                    ((State.drainReadyGroups.go fuel next).2.take
+                      (index - emitted.length)).flatMap WorkQueueEvent.objectValues).length
+                rw [noValues, List.nil_append]
+                exact coverage (index - emitted.length) owner groups streams atEvent
+                  other node value retained stored contributes
+            · intro other node value found stored live
               obtain ⟨contributor, member, owner, finalOwner⟩ := live
               obtain ⟨survivor, survives, _⟩ :=
-                State.drainReadyGroups_go_groupEdgesFrom fuel _ _ _ finalOwner
-              have retained := State.removeGroup_lookup_survivingOwner found
-                group.group.node.ref member (List.mem_of_find?_eq_some survives)
-                (State.groupNode?_ref survives)
-              exact conserved occurrence node value retained stored
-                ⟨contributor, member, owner, finalOwner⟩
+                State.drainReadyGroups_go_groupEdgesFrom fuel next _ _ finalOwner
+              have retained := State.taskFailure_replay_lookup_survivingOwner cached found member
+                (List.mem_of_find?_eq_some survives) (State.groupNode?_ref survives)
+              exact conserved other node value retained stored ⟨contributor, member, owner, finalOwner⟩
             · intro work generated settled childLinks
-              have control : StreamReleasePublications work []
-                  [(queue.finishGroupFailure group errors).2] := by
+              have control : StreamReleasePublications work [] emitted := by
                 intro index owner groups streams atEvent
-                cases index <;> simp [State.finishGroupFailure] at atEvent
+                obtain ⟨failedOwner, impossible⟩ := queue.taskFailure_event_failure occurrence errors _
+                  (List.mem_of_getElem? atEvent)
+                cases impossible
               exact control.append
-                (streams work generated (settled.removeGroup _) (childLinks.removeGroup _)) rfl
+                (streams work generated (settled.taskFailure occurrence errors)
+                  (childLinks.taskFailure occurrence errors))
+                noValues.symm
             · intro memberships
-              exact (ordered (memberships.removeGroup _)).control rfl
+              have laterOrder := ordered (memberships.taskFailure occurrence errors)
+              rw [State.taskFailure_tasks] at laterOrder
+              simpa only [List.nil_append]
+                using (BlocksFollowRegistrations.of_noObjectValues queue.tasks []
+                        noValues).append
+                  laterOrder (by simp only [List.length_nil, noValues, List.length_nil])
             · intro steps bounded
               cases steps with
               | zero => exact .refl queue
               | succ steps =>
                   simpa only [State.drainReadyGroups.go, selected, cached,
-                    State.finishGroupFailure, List.flatMap_append, List.flatMap_singleton,
-                    WorkQueueEvent.objectValues, List.nil_append]
-                    using (queue.removeGroup_storedOwnersConserved
-                            group.group.node.ref).append
+                    List.flatMap_append, noValues, List.nil_append]
+                    using (State.taskFailure_replay_storedOwnersConserved cached).append
                       (owners steps (by omega))
-                      (State.drainReadyGroups_go_cancelledGroups_subset steps _)
+                      (State.drainReadyGroups_go_cancelledGroups_subset steps next)
             · intro steps bounded publication member
               cases steps with
               | zero => simp at member
               | succ steps =>
-                  simp only [selected, cached, State.finishGroupFailure,
-                    List.flatMap_append, List.flatMap_singleton, WorkQueueEvent.objectValues,
-                    List.nil_append] at member ⊢
+                  simp only [selected, cached, List.flatMap_append, noValues, List.nil_append]
+                    at member ⊢
                   exact cleared steps (by omega) publication member
 
 /-- Full-drain coverage retains the earlier endpoint interface on the same prefix ledger.

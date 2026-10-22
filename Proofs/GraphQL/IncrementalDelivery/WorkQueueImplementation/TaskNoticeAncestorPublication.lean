@@ -63,7 +63,7 @@ theorem ExecutedWork.taskSuccess_noticeAncestor_prepared_or_published
   · obtain ⟨rfl, rfl⟩ := GraphEvent.taskSuccess.inj current
     have healthy := (generated.noticeAncestor_healthy_uncancelled valid
       (State.acceptsBatch_prefix started) emitted noticed known ancestor).1
-    obtain ⟨liveNode, lookup, _, nodeContributes, present⟩ :=
+    obtain ⟨liveNode, lookup, nodeContributes, present⟩ :=
       generated.success_with_finalHealthyOwner_live valid started task contributes healthy
         (result := result) (before := before) (after := []) (by simp)
     have same : liveNode = incoming := Option.some.inj (lookup.symm.trans found)
@@ -129,7 +129,6 @@ theorem ExecutedWork.taskSuccess_noticeAncestor_bufferBefore
           result.work (some occurrence)).1
       queue.PreparedReleaseOwners (.taskSuccess occurrence result) published
       → queue.taskNode? occurrence = some incoming
-      → queue.taskHasHealthyOwner incoming.task = true
       → prepared.taskNode? buffered = some node
       → ref ∈ prepared.groupNodes.map (fun owner => owner.group.node.ref)
       → (queue.taskSuccess occurrence result).2[index]?
@@ -140,14 +139,13 @@ theorem ExecutedWork.taskSuccess_noticeAncestor_bufferBefore
         ∈ published.take
             (((queue.taskSuccess occurrence result).2.take index).flatMap
               WorkQueueEvent.objectValues).length := by
-  intro queue prepared prefixes found healthy lookup present selected noticed uncancelled
+  intro queue prepared prefixes found lookup present selected noticed uncancelled
   let released := incoming.task.groups.foldl successGroupStep (prepared, [], {})
   let active := released.1.startNewWork released.2.2
   have equation : queue.taskSuccess occurrence result
       = (active.drainReadyGroups.1, released.2.1 ++ active.drainReadyGroups.2) := by
     rw [queue.taskSuccess_eq occurrence result incoming found]
-    simp only [healthy, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
-    rfl
+
   rw [equation] at selected uncancelled ⊢
   dsimp only at selected uncancelled ⊢
   by_cases inFold : index < released.2.1.length
@@ -161,14 +159,14 @@ theorem ExecutedWork.taskSuccess_noticeAncestor_bufferBefore
       apply State.drainReadyGroups_go_cancelledGroups_subset
       simpa only [active, State.startNewWork_cancelledGroups, released,
         successGroupFold_cancelledGroups] using member
-    exact (prefixes incoming found healthy).ownerCarrier_ancestorValue generated records
+    exact (prefixes incoming found).ownerCarrier_ancestorValue generated records
       links canonical live tasks roots selected noticed known ancestor lookup stored task
       contributes present preparedUncancelled
   · have inDrain : released.2.1.length ≤ index := by omega
     rw [List.getElem?_append_right inDrain] at selected
     rw [List.take_append, List.take_of_length_le inDrain]
     exact generated.taskSuccess_drainNoticeAncestorValue_before matching matched known
-      ancestor task contributes stored prefixes found healthy lookup present selected noticed
+      ancestor task contributes stored prefixes found lookup present selected noticed
       uncancelled
 
 -----------------------------------------------------------------------------------------
@@ -222,35 +220,30 @@ theorem ExecutedWork.taskSuccess_noticeAncestor_contributor_before
   cases found : queue.taskNode? occurrence with
   | none => simp [State.taskSuccess, found] at selected
   | some incoming =>
-      cases healthy : queue.taskHasHealthyOwner incoming.task with
-      | false =>
-          rw [queue.taskSuccess_eq occurrence result incoming found] at selected
-          simp [healthy] at selected
-      | true =>
-          obtain ⟨value, prior | ⟨node, lookup, stored, taskOwners, nodeContributes, present⟩⟩ :=
-            generated.taskSuccess_noticeAncestor_prepared_or_published valid started covered
-              emitted refNoticed known ancestor task contributes found
-          · exact ⟨value, List.take_subset_take_left _ (Nat.le_add_right ..) prior⟩
-          · have notCancelled := (generated.noticeAncestor_healthy_uncancelled valid
-              (State.acceptsBatch_prefix started) emitted refNoticed known ancestor).2
-            have endpoint : initial.replayGraphEvents
-                (before ++ [.taskSuccess occurrence result])
-                = (queue.taskSuccess occurrence result).1 := by
-              simp only [State.replayGraphEvents, List.foldl_append, List.foldl_cons,
-                List.foldl_nil, State.handleGraphEvent]
-              rfl
-            rw [endpoint] at notCancelled
-            have prefixes := covered.atPrefixDrainOwners before
-              (.taskSuccess occurrence result) []
-            have delivered := generated.taskSuccess_noticeAncestor_bufferBefore
-              (fun _ member => (valid.prefix (List.prefix_append before [_])).eachMatches member)
-              (valid.eachMatches (List.mem_append_right before List.mem_cons_self))
-              known ancestor taskOwners nodeContributes stored prefixes found healthy lookup
-              present selected noticed notCancelled
-            refine ⟨value, ?_⟩
-            rw [List.take_add]
-            apply List.mem_append_right
-            rw [List.take_take] at delivered
-            exact List.take_subset_take_left _ (Nat.min_le_left _ _) delivered
+      obtain ⟨value, prior | ⟨node, lookup, stored, taskOwners, nodeContributes, present⟩⟩ :=
+        generated.taskSuccess_noticeAncestor_prepared_or_published valid started covered
+          emitted refNoticed known ancestor task contributes found
+      · exact ⟨value, List.take_subset_take_left _ (Nat.le_add_right ..) prior⟩
+      · have notCancelled := (generated.noticeAncestor_healthy_uncancelled valid
+          (State.acceptsBatch_prefix started) emitted refNoticed known ancestor).2
+        have endpoint : initial.replayGraphEvents
+            (before ++ [.taskSuccess occurrence result])
+            = (queue.taskSuccess occurrence result).1 := by
+          simp only [State.replayGraphEvents, List.foldl_append, List.foldl_cons,
+            List.foldl_nil, State.handleGraphEvent]
+          rfl
+        rw [endpoint] at notCancelled
+        have prefixes := covered.atPrefixDrainOwners before
+          (.taskSuccess occurrence result) []
+        have delivered := generated.taskSuccess_noticeAncestor_bufferBefore
+          (fun _ member => (valid.prefix (List.prefix_append before [_])).eachMatches member)
+          (valid.eachMatches (List.mem_append_right before List.mem_cons_self))
+          known ancestor taskOwners nodeContributes stored prefixes found lookup
+          present selected noticed notCancelled
+        refine ⟨value, ?_⟩
+        rw [List.take_add]
+        apply List.mem_append_right
+        rw [List.take_take] at delivered
+        exact List.take_subset_take_left _ (Nat.min_le_left _ _) delivered
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

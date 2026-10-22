@@ -56,14 +56,14 @@ private theorem first_valid
 private theorem g_known
     : TaskAt SharedOwnerFailure.work (.executionGroup [1, 1, 0]) [0] none
         (.object [] (.error 1)) := by
-  refine ⟨[{ node := SharedOwnerFailure.groupG }], [], .error 1, .empty, [], ?_, rfl, rfl⟩
+  refine ⟨[{ node := SharedOwnerFailure.groupG }], [], { result := .error 1, cause := some 1 }, .empty, [], ?_, rfl, rfl⟩
   rw [SharedOwnerFailure.work_shape]
   rfl
 
 private theorem h_known
     : TaskAt SharedOwnerFailure.work (.executionGroup [1, 1, 1, 0]) [1] none
         (.object [] (.error 1)) := by
-  refine ⟨[{ node := SharedOwnerFailure.groupH }], [], .error 1, .empty, [], ?_, rfl, rfl⟩
+  refine ⟨[{ node := SharedOwnerFailure.groupH }], [], { result := .error 1, cause := some 1 }, .empty, [], ?_, rfl, rfl⟩
   rw [SharedOwnerFailure.work_shape]
   rfl
 
@@ -72,7 +72,7 @@ private theorem source_known
         (some (.executionGroup [1, 0]))
         (.object [.field "box"] (.ok ([("values", .list [])], 0))) := by
   refine ⟨[{ node := SharedOwnerFailure.groupG }], [.field "box"],
-    .ok ([("values", .list [])], 0), SharedOwnerFailure.streamWork, [0, 1], ?_, rfl, rfl⟩
+    { result := .ok ([("values", .list [])], 0) }, SharedOwnerFailure.streamWork, [0, 1], ?_, rfl, rfl⟩
   rw [SharedOwnerFailure.work_shape]
   rfl
 

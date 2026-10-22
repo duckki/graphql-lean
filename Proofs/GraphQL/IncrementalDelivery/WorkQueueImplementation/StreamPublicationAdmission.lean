@@ -49,7 +49,7 @@ theorem streamPublicationReady_of_certificates {work inputs w streams}
           { active := queue.initialGroups ++ queue.initialStreams }
         w.failures
         = mergeFailureCuts
-            (sourceObjectFailureCuts 0
+            (informativeObjectFailureCuts work
               (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher inputs).2.2))
             streams)
     : StreamPublicationReady work w := by

@@ -46,28 +46,20 @@ private def beforeFailure : State :=
 they are all removed. Witness: concrete ownership, uniqueness, and freshness premises.
 -/
 theorem shared_failure_pending
-    : (beforeFailure.taskFailure shared 2).1.PendingTracks [shared] := by
+    : (beforeFailure.taskFailure shared 2).1.PendingTracks [] := by
   have tracks : beforeFailure.PendingTracks [] := by
     simp [State.PendingTracks, GroupNode.PendingTracks, unsettledCount, beforeFailure]
-  have refs : beforeFailure.GroupRefsUnique := by
-    unfold State.GroupRefsUnique
-    decide
-  have memberships : beforeFailure.TaskMembershipsUnique := by
-    simp [State.TaskMembershipsUnique, beforeFailure, shared, remaining]
-  apply tracks.taskFailure refs memberships shared 2 sharedNode rfl (by decide) (by simp)
-  · decide
-  · simp [State.OwnedExactlyBy, beforeFailure, sharedNode, shared,
-      remaining, parentTask, root, parent, child]
+  exact tracks.taskFailure shared 2
 
-/-- The active owner closes, while the latent owner's count decreases once and its
-remaining task survives. Witness: direct reduction of the same public handler.
+/-- The active owner closes, while the latent owner's count and rejection remain available for replay and its
+both memberships survive. Witness: direct reduction of the same public handler.
 -/
 theorem shared_failure_retains_remaining
     : let after := (beforeFailure.taskFailure shared 2).1
       after.groupNode? root.ref = none
-      ∧ (after.groupNode? child.ref).map GroupNode.pending = some 1
-      ∧ (after.groupNode? child.ref).map GroupNode.tasks = some [remaining]
-      ∧ (after.groupNode? child.ref).map GroupNode.failure = some (some 2) := by
+      ∧ (after.groupNode? child.ref).map GroupNode.pending = some 2
+      ∧ (after.groupNode? child.ref).map GroupNode.tasks = some [shared, remaining]
+      ∧ (after.taskNode? shared).bind TaskNode.rejection = some 2 := by
   cbv
 
 /-- Failure preserves registration, sound membership, active links, and the other
@@ -100,10 +92,11 @@ theorem shared_failure_links
 Witness: the generic survivor theorem instantiated at the still-active parent task.
 -/
 theorem shared_failure_survivor
-    : parentNode ∈ beforeFailure.taskNodes ∧ parentNode.task.occurrence ≠ shared := by
-  apply beforeFailure.taskFailure_startedSurvivor shared 2
-  cbv
-  exact List.mem_singleton_self _
+    : ∃ old ∈ beforeFailure.taskNodes,
+        old.task = parentNode.task ∧ parentNode.task.occurrence ≠ shared := by
+  obtain ⟨old, member, same⟩ := beforeFailure.taskFailure_startedSurvivor shared 2
+    (taskNode := parentNode) (by cbv; exact List.mem_cons_of_mem _ (List.mem_singleton_self _))
+  exact ⟨old, member, same, by decide⟩
 
 /-- A successful ready parent releases a child whose failure has already settled.
 The removed root remains in the permanent registry, allowing a no-reactivation check.
@@ -115,9 +108,15 @@ private def beforeDrain : State :=
     groupNodes :=
       [
         { group := ⟨parent, none⟩, childGroups := [child.ref] },
-        { group := ⟨child, some parent.ref⟩, failure := some 2 }
+        { group := ⟨child, some parent.ref⟩, tasks := [shared], pending := 1 }
       ]
+    tasks := [sharedNode.task]
+    taskNodes := [{ sharedNode with rejection := some 2 }]
   }
+
+private def retainedWork : Execution.Work :=
+  .combine (.executionGroup [⟨root, []⟩, ⟨child, []⟩] [] { result := .error 2 } .empty)
+    .empty
 
 /-- Both recursive drain branches preserve pending counts, membership uniqueness,
 registered-task provenance, and retirement. Witness: the generic drain induction's
@@ -126,19 +125,23 @@ four independently instantiated preservation theorems.
 theorem drain_invariants
     : beforeDrain.drainReadyGroups.1.PendingTracks []
       ∧ beforeDrain.drainReadyGroups.1.TaskMembershipsUnique
-      ∧ beforeDrain.drainReadyGroups.1.RegisteredTasksMatch .empty
+      ∧ beforeDrain.drainReadyGroups.1.RegisteredTasksMatch retainedWork
       ∧ beforeDrain.drainReadyGroups.1.RetiredGroup root.ref := by
   have tracks : beforeDrain.PendingTracks [] := by
     simp [State.PendingTracks, GroupNode.PendingTracks, unsettledCount, beforeDrain]
   have memberships : beforeDrain.TaskMembershipsUnique := by
     simp [State.TaskMembershipsUnique, beforeDrain]
-  have matching : beforeDrain.RegisteredTasksMatch .empty := by
-    simp [State.RegisteredTasksMatch, beforeDrain]
   have retired : beforeDrain.RetiredGroup root.ref := by
     unfold State.RetiredGroup
     decide
-  exact ⟨tracks.drainReadyGroups, memberships.drainReadyGroups,
-    matching.drainReadyGroups, retired.drainReadyGroups⟩
+  have matching : beforeDrain.RegisteredTasksMatch retainedWork := by
+    intro task member
+    have same : task = sharedNode.task := by simpa only [beforeDrain, List.mem_singleton] using member
+    subst task
+    exact ⟨⟨[0], .object [] (.error 2), none, rfl,
+      .executionGroup (.left .root)⟩, rfl⟩
+  exact ⟨tracks.drainReadyGroups, memberships.drainReadyGroups, matching.drainReadyGroups,
+    retired.drainReadyGroups⟩
 
 /-- The drain actually crosses a successful parent closure and a retained child
 failure, not merely a no-op branch. Witness: exact public transition reduction.

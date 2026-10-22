@@ -122,9 +122,7 @@ theorem State.startNewWork_streams (queue : State) (work : NewWork)
     unfold State.startGroup
     split
     · rfl
-    · split
-      · rfl
-      · exact fold_projection State.streams State.startTask task _ _
+    · exact fold_projection State.streams State.startTask task _ _
   have stream : ∀ current ref, (State.startStream current ref).streams = current.streams := by
     intro current ref
     unfold State.startStream
@@ -132,6 +130,18 @@ theorem State.startNewWork_streams (queue : State) (work : NewWork)
   unfold State.startNewWork
   rw [fold_projection State.streams State.startStream stream,
     fold_projection State.streams State.startGroup group]
+
+/-- Failed tasks retain the stream registry even when removing descendant group nodes.
+Witness: every contributor branch changes only group/task nodes and roots.
+-/
+theorem State.taskFailure_streams (queue : State) (occurrence : Occurrence) (errors : Nat)
+    : (queue.taskFailure occurrence errors).1.streams = queue.streams := by
+  cases found : queue.taskNode? occurrence with
+  | none => simp [State.taskFailure, found]
+  | some task =>
+      rw [queue.taskFailure_eq occurrence errors task found]
+      exact failureGroupFold_preserves (fun current => current.streams = queue.streams)
+        (fun _ _ prior => prior) errors task.task.groups _ rfl
 
 /-- Recursive draining retains the stream registry, including already-completed streams.
 Witness: group cleanup and activation preserve the descriptor list in every drain step.
@@ -142,37 +152,8 @@ theorem State.drainReadyGroups_streams (queue : State)
     (valid := rfl)
   · intro current node prior _ _ _ _
     simpa only [State.startNewWork_streams, State.finishGroupSuccess_streams] using prior
-  · intro current node errors prior _ _ _
-    exact prior
-
-/-- Failed tasks retain the stream registry even when removing descendant group nodes.
-Witness: every contributor branch changes only group/task nodes and roots.
--/
-theorem State.taskFailure_streams (queue : State) (occurrence : Occurrence) (errors : Nat)
-    : (queue.taskFailure occurrence errors).1.streams = queue.streams := by
-  let step (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode) :=
-    match acc.1.groupNode? group.ref with
-    | none => acc
-    | some node =>
-        if acc.1.rootGroups.contains group.ref then
-          let failure := acc.1.finishGroupFailure node errors
-          (failure.1, acc.2 ++ [failure.2])
-        else (acc.1.putGroupNode
-          { node with pending := node.pending - 1
-                      failure := some (node.failure.getD 0 + errors) }, acc.2)
-  have preserved : ∀ acc group, (step acc group).1.streams = acc.1.streams := by
-    intro acc group
-    unfold step
-    split
-    · rfl
-    · split <;> rfl
-  unfold State.taskFailure
-  split
-  · rfl
-  · split
-    · rfl
-    exact fold_projection (fun acc : State × List WorkQueueEvent => acc.1.streams)
-      step preserved _ _
+  · intro current node occurrence errors prior _ _ _
+    rw [State.taskFailure_streams, prior]
 
 -----------------------------------------------------------------------------------------
 -- Registration and release preserve any property of supplied stream descriptors
@@ -322,8 +303,6 @@ theorem State.StreamsSatisfy.taskSuccess {queue : State} {property}
           property := prior
       have integrated := installed.maybeIntegrateWork result.work (some occurrence) supplied
       rw [queue.taskSuccess_eq occurrence result node found]
-      split
-      · exact prior
       intro stream member
       rw [State.drainReadyGroups_streams, State.startNewWork_streams,
         fold_projection (fun acc : State × List WorkQueueEvent × NewWork => acc.1.streams)

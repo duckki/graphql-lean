@@ -54,6 +54,19 @@ theorem State.ChildStreamInventory.finishGroupSuccess {queue : State}
   rw [State.finishGroupSuccess_streams]
   exact inventory node (retained member)
 
+/-- Rejection retention preserves the task's registered child-stream links. -/
+theorem State.ChildStreamInventory.taskFailure {queue : State}
+    (inventory : queue.ChildStreamInventory) (occurrence : Occurrence) (errors : Nat)
+    : (queue.taskFailure occurrence errors).1.ChildStreamInventory := by
+  cases found : queue.taskNode? occurrence with
+  | none => simpa only [State.taskFailure, found] using inventory
+  | some task =>
+      have links := inventory task (List.mem_of_find?_eq_some found)
+      rw [queue.taskFailure_eq occurrence errors task found]
+      exact failureGroupFold_preserves State.ChildStreamInventory
+        (fun _ ref prior => prior.removeGroup ref) _ _ _
+        (inventory.putTaskNode _ links.1 links.2)
+
 /-- Recursive draining preserves the child-link inventory.
 Witness: cleanup and activation preserve it at every bounded drain step.
 -/
@@ -63,8 +76,8 @@ theorem State.ChildStreamInventory.drainReadyGroups {queue : State}
   apply State.drainReadyGroups_preserves State.ChildStreamInventory (valid := inventory)
   · intro current node prior _ _ _ _
     exact (prior.finishGroupSuccess node).startNewWork _
-  · intro current node errors prior _ _ _
-    exact prior.removeGroup _
+  · intro _ _ occurrence errors prior _ _ _
+    exact prior.taskFailure occurrence errors
 
 -----------------------------------------------------------------------------------------
 -- Settlements and batched replay preserve the same inventory
@@ -98,31 +111,7 @@ theorem State.ChildStreamInventory.taskSuccess {queue : State}
       have processed := fold_preserves (fun acc => acc.1.ChildStreamInventory)
         successGroupStep step node.task.groups (_, [], {}) integrated
       rw [queue.taskSuccess_eq occurrence result node found]
-      split
-      · exact inventory.removeTask occurrence
-      · exact (processed.startNewWork _).drainReadyGroups
-
-/-- Failure retains certified links on surviving tasks.
-Witness: task deletion, group cleanup, and cache-only updates preserve the invariant.
--/
-theorem State.ChildStreamInventory.taskFailure {queue : State}
-    (inventory : queue.ChildStreamInventory) (occurrence : Occurrence) (errors : Nat)
-    : (queue.taskFailure occurrence errors).1.ChildStreamInventory := by
-  unfold State.taskFailure
-  split
-  · exact inventory
-  · split
-    · exact inventory.removeTask occurrence
-    apply fold_preserves (fun acc : State × List WorkQueueEvent => acc.1.ChildStreamInventory)
-    · intro acc group prior
-      obtain ⟨current, events⟩ := acc
-      dsimp only
-      split
-      · exact prior
-      · split
-        · exact prior.removeGroup _
-        · exact prior
-    · exact inventory.removeTask occurrence
+      exact (processed.startNewWork _).drainReadyGroups
 
 /-- Item integration and its trailing drain preserve distinct registered links.
 Witness: parentless integration, pruning, and activation preserve the invariant per item.

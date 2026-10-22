@@ -15,7 +15,8 @@ def node (ref : NodeRef) : DeliveryNode := { ref, path := [.field (toString ref)
 
 /-- Only the second stream has a publication that could carry a later notice. -/
 def work : Work :=
-  .combine (.stream (node 0) []) (.stream (node 1) [(.ok (.null, 0), .empty)])
+  .combine (.stream (node 0) [])
+    (.stream (node 1) [({ result := .ok (.null, 0) }, .empty)])
 
 /-- The only successful task belongs to the omitted stream. Witness: structural lookup.
 -/
@@ -30,7 +31,7 @@ theorem task_shape {occurrence owners producer payload}
       : (address = [] ∧ current = work ∧ birth = none)
         ∨ (address = [0] ∧ current = .stream (node 0) [] ∧ birth = none)
         ∨ (address = [1]
-          ∧ current = .stream (node 1) [(.ok (.null, 0), .empty)] ∧ birth = none)
+          ∧ current = .stream (node 1) [({ result := .ok (.null, 0) }, .empty)] ∧ birth = none)
         ∨ current = .empty := by
     replace located := StructuralEquivalence.located_of_current located
     induction located with
@@ -46,6 +47,8 @@ theorem task_shape {occurrence owners producer payload}
   | @item address stream items birth enclosing index result children located selected =>
       rcases locations located.toCurrent with h | h | h | h <;> simp_all [work]
       cases index <;> simp_all [node]
+      rcases selected with ⟨rfl, rfl⟩
+      rfl
 
 /-- No group-completion carrier exists in this work. Witness: lookup preserves stream
 and combine constructors, so no deferred location can supply a group descriptor.
@@ -53,7 +56,7 @@ and combine constructors, so no deferred location can supply a group descriptor.
 theorem no_group {other parents birth} : ¬NodeAt work other .group parents birth := by
   rintro ⟨address, groups, path, result, children, enclosing, group, located, _, _, _⟩
   have task : TaskAt work (.executionGroup address) (groups.map (fun g => g.node.ref)) birth
-      (.object path result) := ⟨groups, path, result, children, enclosing, located, rfl, rfl⟩
+      (.object path result.deliveryResult) := ⟨groups, path, result, children, enclosing, located, rfl, rfl⟩
   have impossible := (task_shape task).1
   cases impossible
 
@@ -147,7 +150,7 @@ theorem no_complete_run (batches : List (List WorkQueueEvent))
         simp [(task_shape known).2.2.2, Payload.failure] at fails
   subst failures
   have task : TaskAt work (.item [1] 0) [1] none (.item (node 1) (.ok (.null, 0))) :=
-    .item (.right .root) rfl
+    .item (result := { result := .ok (.null, 0) }) (.right .root) rfl
   rcases terminal.1 _ _ _ _ task with cancelled | published
   · exact cancelled.1.nonempty rfl
   · exact (no_publications explained).2 _ published

@@ -169,61 +169,11 @@ theorem State.StoredTaskLinks.taskSuccess {queue : State} {work settled}
   | some node =>
       have released := linked.taskSuccess_release accounted occurrence result node found fresh
       rw [queue.taskSuccess_eq occurrence result node found]
-      split
-      · exact linked.removeTask occurrence
-      · exact released.drainReadyGroups
+      exact released.drainReadyGroups
 
 -----------------------------------------------------------------------------------------
 -- Failed task processing and stream inputs do not install buffered object values
 -----------------------------------------------------------------------------------------
-
-/-- Failure processing preserves every surviving buffered membership.
-Witness: removal drops the failed occurrence; each owner either retires or keeps its
-memberships while accumulating a cached error. This also covers ignored late failures.
--/
-theorem State.StoredTaskLinks.taskFailure {queue : State} (linked : queue.StoredTaskLinks)
-    (unique : queue.GroupRefsUnique) (occurrence : Occurrence) (errors : Nat)
-    : (queue.taskFailure occurrence errors).1.StoredTaskLinks := by
-  let step (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode)
-      : State × List WorkQueueEvent :=
-    match acc.1.groupNode? group.ref with
-    | none => acc
-    | some node =>
-        if acc.1.rootGroups.contains group.ref then
-          (acc.1.removeGroup node.group.node.ref,
-            acc.2 ++ [.groupFailure node.group.node errors])
-        else
-          (acc.1.putGroupNode
-            { node with
-              pending := node.pending - 1
-              failure := some (node.failure.getD 0 + errors) }, acc.2)
-  have loop (groups : List Execution.DeliveryNode) (acc : State × List WorkQueueEvent)
-      (prior : acc.1.StoredTaskLinks) (refs : acc.1.GroupRefsUnique)
-      : (groups.foldl step acc).1.StoredTaskLinks := by
-    induction groups generalizing acc with
-    | nil => exact prior
-    | cons group rest ih =>
-        apply ih
-        · unfold step
-          split
-          · exact prior
-          · rename_i node found
-            split
-            · exact prior.removeGroup _
-            · exact prior.putGroupNodeSameTasks refs node (List.mem_of_find?_eq_some found)
-                _ rfl rfl
-        · unfold step
-          split
-          · exact refs
-          · split
-            · exact refs.removeGroup _
-            · exact refs.putGroupNode _
-  unfold State.taskFailure
-  split
-  · exact linked
-  · split
-    · exact linked.removeTask occurrence
-    · exact loop _ _ (linked.removeTask occurrence) (unique.removeTask occurrence)
 
 /-- Sequential stream-item integration preserves buffered object memberships.
 Witness: carry permanent registration and unique refs through each actual integration
@@ -299,7 +249,7 @@ theorem State.StoredTaskLinks.handleGraphEvent {queue : State} {work settled bef
         (fun member =>
           fresh.2.2.1 occurrence (by simp [GraphEvent.identities]) (included member))
   | taskFailure occurrence errors =>
-      exact linked.taskFailure accounted.refs occurrence errors
+      exact linked.taskFailure occurrence errors
   | streamItems stream items =>
       exact linked.streamItems accounted.refs accounted.liveGroups accounted.taskGroups
         accounted.started stream items

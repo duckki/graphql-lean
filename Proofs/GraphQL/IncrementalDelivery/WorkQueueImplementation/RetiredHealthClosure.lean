@@ -21,7 +21,7 @@ theorem State.UncancelledRetiredHealthy.pruneEmptyGroups {queue : State}
     (canonical
       : ∀ node dependencies,
           GroupRecordAt work node dependencies → dependencies = parents node.ref)
-    (counts : queue.GroupErrorAccounting work failed)
+    (counts : queue.RetainedFailures work failed)
     (failedKnown
       : ∀ occurrence ∈ failed,
           ∃ owners producer payload,
@@ -41,9 +41,9 @@ theorem State.UncancelledRetiredHealthy.pruneEmptyGroups {queue : State}
 -- Successful closure preserves earlier certificates and installs the closing parent's
 -----------------------------------------------------------------------------------------
 
-/-- Closing an uncached group with healthy ancestry preserves retired-record health and
-certifies every released child's ancestry. Witness: prove the parent's health from exact
-errors, flush memberships, install its retirement certificate, then prune taskless wrappers.
+/-- Closing a group with nonfailed memberships preserves retired-record health and
+certifies every released child's ancestry. Witness: retained failures and healthy ancestry
+prove the parent's health; safe flushing and taskless pruning preserve the certificate.
 -/
 theorem State.UncancelledRetiredHealthy.finishGroupSuccess {queue : State}
     {work failed parents} (prior : queue.UncancelledRetiredHealthy work failed)
@@ -52,20 +52,20 @@ theorem State.UncancelledRetiredHealthy.finishGroupSuccess {queue : State}
     (canonical
       : ∀ node dependencies,
           GroupRecordAt work node dependencies → dependencies = parents node.ref)
-    (counts : queue.GroupErrorAccounting work failed)
+    (counts : queue.RetainedFailures work failed)
     (failedKnown
       : ∀ occurrence ∈ failed,
           ∃ owners producer payload,
             TaskAt work occurrence owners producer payload
             ∧ payload.failure.isSome = true)
     {group : GroupNode} (member : group ∈ queue.groupNodes)
-    (uncached : group.failure = none)
+    (notFailed : ∀ occurrence ∈ group.tasks, occurrence ∉ failed)
     (ancestors : GroupAncestorsHealthy work failed group.group.node.ref)
     : (queue.finishGroupSuccess group).1.UncancelledRetiredHealthy work failed
       ∧ ∀ child ∈ (queue.finishGroupSuccess group).2.2.newGroups,
           GroupAncestorsHealthy work failed child.ref := by
   obtain ⟨dependencies, parentKnown⟩ := matching group member
-  have parentHealthy := counts.recordHealthy_of_ancestors generated member uncached
+  have parentHealthy := counts.recordHealthy_of_ancestors generated member notFailed
     parentKnown ancestors failedKnown
   let step (acc : State × List ExecutionGroupValue × NodeRefs) (occurrence : Occurrence) :=
     let (current, values, streams) := acc
@@ -77,22 +77,22 @@ theorem State.UncancelledRetiredHealthy.finishGroupSuccess {queue : State}
           | some value => values ++ [value]
         (current.removeTask occurrence, values, streams ++ taskNode.childStreams)
   let property (current : State) := current.GroupNodesMatchWork work
-    ∧ current.ChildLinksCanonical parents ∧ current.GroupErrorAccounting work failed
+    ∧ current.ChildLinksCanonical parents ∧ current.RetainedFailures work failed
     ∧ current.UncancelledRetiredHealthy work failed
-  have loop (more : List Occurrence) (acc : State × List ExecutionGroupValue × NodeRefs)
-      (invariant : property acc.1) : property (more.foldl step acc).1 := by
+  have loop (more : List Occurrence) (safe : ∀ occurrence ∈ more, occurrence ∉ failed)
+      (acc : State × List ExecutionGroupValue × NodeRefs) (invariant : property acc.1) : property (more.foldl step acc).1 := by
     induction more generalizing acc with
     | nil => exact invariant
     | cons occurrence rest ih =>
-        apply ih
+        apply ih (fun other member => safe other (List.mem_cons_of_mem _ member))
         obtain ⟨current, values, streams⟩ := acc
         dsimp only [step]
         split
         · exact invariant
         · exact ⟨invariant.1.removeTask occurrence, invariant.2.1.removeTask occurrence,
-            invariant.2.2.1.removeTask occurrence, invariant.2.2.2.removeTask occurrence⟩
+            invariant.2.2.1.removeTask occurrence (safe occurrence List.mem_cons_self), invariant.2.2.2.removeTask occurrence⟩
   let flushed := (group.tasks.foldl step (queue, [], [])).1
-  have metadata : property flushed := loop group.tasks (queue, [], [])
+  have metadata : property flushed := loop group.tasks notFailed (queue, [], [])
     ⟨matching, links, counts, prior⟩
   let current : State := { flushed with
     groupNodes := flushed.groupNodes.filter
@@ -104,9 +104,8 @@ theorem State.UncancelledRetiredHealthy.finishGroupSuccess {queue : State}
     fun node kept => metadata.1 node (List.mem_filter.mp kept).1
   have currentLinks : current.ChildLinksCanonical parents :=
     fun node kept => metadata.2.1 node (List.mem_filter.mp kept).1
-  have currentCounts : current.GroupErrorAccounting work failed :=
-    ⟨fun node kept => metadata.2.2.1.live node (List.mem_filter.mp kept).1,
-      metadata.2.2.1.fresh⟩
+  have currentCounts : current.RetainedFailures work failed :=
+    metadata.2.2.1.filterGroups _
   let children := group.childGroups.filterMap
     (fun ref => (current.groupNode? ref).map (fun node => node.group.node))
   have childAncestors : ∀ child ∈ children, GroupAncestorsHealthy work failed child.ref := by
@@ -132,8 +131,8 @@ theorem State.UncancelledRetiredHealthy.finishGroupSuccess {queue : State}
 
 /-- Draining jointly preserves healthy root ancestry and healthy uncancelled retirement.
 Witness: successful closure installs a healthy retirement and certifies child ancestry;
-failure removal marks new retirements cancelled. Cached-failed released children remain
-allowed, because root ancestry says nothing about a root's own cached outcome.
+rejection replay marks new retirements cancelled. Rejected released children remain
+allowed, because root ancestry says nothing about a root's own outcome.
 -/
 theorem State.UncancelledRetiredHealthy.drainReadyGroups {queue : State}
     {work failed parents} (prior : queue.UncancelledRetiredHealthy work failed)
@@ -142,37 +141,43 @@ theorem State.UncancelledRetiredHealthy.drainReadyGroups {queue : State}
     (canonical
       : ∀ node dependencies,
           GroupRecordAt work node dependencies → dependencies = parents node.ref)
-    (counts : queue.GroupErrorAccounting work failed)
+    (counts : queue.RetainedFailures work failed)
     (failedKnown
       : ∀ occurrence ∈ failed,
           ∃ owners producer payload,
             TaskAt work occurrence owners producer payload
             ∧ payload.failure.isSome = true)
     (roots : queue.RootAncestorsHealthy work failed)
+    (sound : queue.GroupMembershipSound) (tasks : queue.RegisteredTasksMatch work)
     : queue.drainReadyGroups.1.UncancelledRetiredHealthy work failed
       ∧ queue.drainReadyGroups.1.RootAncestorsHealthy work failed := by
   let property (current : State) := current.GroupNodesMatchWork work
-    ∧ current.ChildLinksCanonical parents ∧ current.GroupErrorAccounting work failed
+    ∧ current.ChildLinksCanonical parents ∧ current.RetainedFailures work failed
     ∧ current.UncancelledRetiredHealthy work failed ∧ current.RootAncestorsHealthy work failed
+    ∧ current.GroupMembershipSound ∧ current.RegisteredTasksMatch work
   have result : property queue.drainReadyGroups.1 := by
     apply State.drainReadyGroups_preserves property
-      (valid := ⟨matching, links, counts, prior, roots⟩)
-    · intro current node invariant member active uncached _
-      have closed := invariant.2.2.2.1.finishGroupSuccess generated invariant.1
-        invariant.2.1 canonical invariant.2.2.1 failedKnown member uncached
-        (invariant.2.2.2.2 _ active)
-      have retained : (current.finishGroupSuccess node).1.RootAncestorsHealthy work failed :=
-        fun ref included => invariant.2.2.2.2 ref
-          (current.finishGroupSuccess_rootsSubset node included)
-      exact ⟨(invariant.1.finishGroupSuccess node).startNewWork _,
-        (invariant.2.1.finishGroupSuccess node).startNewWork _,
-        (invariant.2.2.1.finishGroupSuccess node).startNewWork _,
-        closed.1.startNewWork _, retained.startNewWork _ closed.2⟩
-    · intro current node errors invariant _ _ _
-      exact ⟨invariant.1.removeGroup _, invariant.2.1.removeGroup _,
-        invariant.2.2.1.removeGroup _, invariant.2.2.2.1.removeGroup _,
-        fun ref included => invariant.2.2.2.2 ref
-          (current.removeGroup_rootsSubset _ included)⟩
-  exact result.2.2.2
+      (valid := ⟨matching, links, counts, prior, roots, sound, tasks⟩)
+    · intro current node invariant member active unrejected _
+      obtain ⟨matched, linked, retained, retired, rooted, members, registered⟩ := invariant
+      have notFailed := retained.unrejected_tasks_notFailed members registered member unrejected
+      have closed := retired.finishGroupSuccess generated matched linked canonical retained
+        failedKnown member notFailed (rooted _ active)
+      have surviving : (current.finishGroupSuccess node).1.RootAncestorsHealthy work failed :=
+        fun ref included => rooted ref (current.finishGroupSuccess_rootsSubset node included)
+      exact ⟨(matched.finishGroupSuccess node).startNewWork _,
+        (linked.finishGroupSuccess node).startNewWork _,
+        (retained.finishGroupSuccess node notFailed).startNewWork _,
+        closed.1.startNewWork _, surviving.startNewWork _ closed.2,
+        (members.finishGroupSuccess node).startNewWork _,
+        (registered.finishGroupSuccess node).startNewWork _⟩
+    · intro current node occurrence errors invariant _ _ _
+      obtain ⟨matched, linked, retained, retired, rooted, members, registered⟩ := invariant
+      exact ⟨matched.taskFailure occurrence errors, linked.taskFailure occurrence errors,
+        retained.taskFailure_preserves occurrence errors,
+        retired.taskFailure_preserves occurrence errors,
+        fun ref included => rooted ref (current.taskFailure_rootsSubset occurrence errors included),
+        members.taskFailure occurrence errors, registered.taskFailure occurrence errors⟩
+  exact ⟨result.2.2.2.1, result.2.2.2.2.1⟩
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

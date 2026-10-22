@@ -206,7 +206,7 @@ theorem completeStreamItems_itemContext (schema : Schema)
           values path index).run
           state
       output.2 = state
-      ∧ output.1.map Prod.fst
+      ∧ output.1.map (fun item => item.1.result)
         = basicStreamResults schema resolvers variables fuel itemType fields values
       ∧ ∀ item ∈ output.1, Work.size item.2 = 0 := by
   induction values generalizing index state with
@@ -227,7 +227,7 @@ theorem completeStreamItems_itemContext (schema : Schema)
             : GraphQL.Execution.completeValue schema resolvers variables fuel itemType
                 (fields.map eraseField) value with
       | error errors =>
-          simp [completeStreamItems, he, hr, hb, basicStreamResults, Work.size]
+          simp [completeStreamItems, he, hr, hb, basicStreamResults, Work.size, Completion.outcome]
       | ok result =>
           have ht := ih (index + 1) state
           generalize htout : (completeStreamItems schema resolvers variables fuel itemType fields
@@ -237,7 +237,7 @@ theorem completeStreamItems_itemContext (schema : Schema)
           dsimp only at hfinal hresults hsilent
           subst final
           simp only [completeStreamItems, run_bind, he, hr, hb, htout,
-            StateT.run_pure, id_pure_eq, List.map_cons, basicStreamResults]
+            StateT.run_pure, id_pure_eq, List.map_cons, basicStreamResults, Completion.outcome]
           exact ⟨True.intro, congrArg (List.cons (.ok result)) hresults,
             fun item hi => by
               rcases List.mem_cons.mp hi with rfl | hi
@@ -282,7 +282,7 @@ theorem completeStreamItems_success (schema : Schema)
       : ((completeStreamItems schema resolvers variables fuel itemType fields values
             path index).run
           state).1.map
-          Prod.fst
+          (fun item => item.1.result)
         = data.map (fun value => (.ok (value, 0) : Result ResponseValue)))
     : GraphQL.Execution.completeValueList schema resolvers variables fuel itemType
         (fields.map eraseField) values
@@ -374,7 +374,7 @@ theorem completeList_split_success (usage : Option DeferUsage)
             (fields.map (fun field => { field with deferUsage := none }))
             (values.drop count) path count).run
           (state + 1)).1.map
-          Prod.fst
+          (fun item => item.1.result)
         = tail.map (fun value => (.ok (value, 0) : Result ResponseValue)))
     : GraphQL.Execution.completeValueList schema resolvers variables fuel itemType
         (fields.map eraseField) values

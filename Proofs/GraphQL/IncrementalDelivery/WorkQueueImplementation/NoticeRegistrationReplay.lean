@@ -27,29 +27,27 @@ theorem State.taskSuccess_groupNoticesRegistered {queue : State} {work occurrenc
   | none => simp [State.taskSuccess, found]
   | some node =>
       rw [queue.taskSuccess_eq occurrence result node found]
-      split
-      · simp
-      · let stored := queue.putTaskNode { node with value := some result.value }
-        let integrated := (stored.maybeIntegrateWork result.work (some occurrence)).1
-        have registered := stored.maybeIntegrateWork_registration live tasks result.work
-          matching.childTasksCovered (some occurrence)
-        have folded := State.successGroupFold_groupNoticesRegistered registered.1 registered.2.1
-          node.task.groups
-        let finished := node.task.groups.foldl successGroupStep (integrated, [], {})
-        have active := State.startNewWork_registration folded.1 folded.2.1 finished.2.2
-        have drained := State.drainReadyGroups_registration active.1 active.2
-        have later := State.drainReadyGroups_go_groupNoticesRegistered active.1 active.2
-          (finished.1.startNewWork finished.2.2).groupNodes.length
-        have same : (finished.1.startNewWork finished.2.2).drainReadyGroups.1.registeredGroups
-            = integrated.registeredGroups := by
-          rw [drained.2.2, State.startNewWork_registeredGroups, folded.2.2.1]
-        change ∀ event ∈ finished.2.1 ++ (finished.1.startNewWork finished.2.2).drainReadyGroups.2,
-          event.GroupNoticesRegistered
-            (finished.1.startNewWork finished.2.2).drainReadyGroups.1.registeredGroups
-        rw [same]
-        rw [State.startNewWork_registeredGroups, folded.2.2.1] at later
-        intro event member
-        exact (List.mem_append.mp member).elim (folded.2.2.2 event) (later event)
+      let stored := queue.putTaskNode { node with value := some result.value }
+      let integrated := (stored.maybeIntegrateWork result.work (some occurrence)).1
+      have registered := stored.maybeIntegrateWork_registration live tasks result.work
+        matching.childTasksCovered (some occurrence)
+      have folded := State.successGroupFold_groupNoticesRegistered registered.1 registered.2.1
+        node.task.groups
+      let finished := node.task.groups.foldl successGroupStep (integrated, [], {})
+      have active := State.startNewWork_registration folded.1 folded.2.1 finished.2.2
+      have drained := State.drainReadyGroups_registration active.1 active.2
+      have later := State.drainReadyGroups_go_groupNoticesRegistered active.1 active.2
+        (finished.1.startNewWork finished.2.2).groupNodes.length
+      have same : (finished.1.startNewWork finished.2.2).drainReadyGroups.1.registeredGroups
+          = integrated.registeredGroups := by
+        rw [drained.2.2, State.startNewWork_registeredGroups, folded.2.2.1]
+      change ∀ event ∈ finished.2.1 ++ (finished.1.startNewWork finished.2.2).drainReadyGroups.2,
+        event.GroupNoticesRegistered
+          (finished.1.startNewWork finished.2.2).drainReadyGroups.1.registeredGroups
+      rw [same]
+      rw [State.startNewWork_registeredGroups, folded.2.2.1] at later
+      intro event member
+      exact (List.mem_append.mp member).elim (folded.2.2.2 event) (later event)
 
 /-- An item's pruned group notices remain registered after its own integration.
 Witness: a kept ref has a live record in the exact pruned state, whose registration

@@ -201,7 +201,7 @@ theorem State.drainReadyGroups_groupNoticesFresh {queue : State}
                 · cases Option.some.inj choice
                   exact List.mem_of_find?_eq_some found
                 · contradiction
-          cases failed : node.failure with
+          cases failed : current.rejectedTask? node with
           | none =>
               have registered := current.finishGroupSuccess_registration live tasks node
               have activated := State.startNewWork_registration registered.1 registered.2.1
@@ -210,13 +210,18 @@ theorem State.drainReadyGroups_groupNoticesFresh {queue : State}
                 ((State.finishGroupSuccess_closureAccounting live node member).post
                   (fun _ retired => retired.startNewWork _))
                 (ih _ activated.1 activated.2)
-          | some errors =>
+          | some rejected =>
               have fresh : GroupNoticesFresh current.RetiredGroup
-                  [(current.finishGroupFailure node errors).2] := by
-                exact ⟨by simp [State.finishGroupFailure, rawGroupNoticeRefs], trivial⟩
+                  (current.taskFailure rejected.1 rejected.2).2 := by
+                apply GroupNoticesFresh.of_noNotices
+                intro event emitted
+                obtain ⟨group, rfl⟩ := current.taskFailure_event_failure _ _ event emitted
+                rfl
+              have registered := current.taskFailure_registration live tasks
+                rejected.1 rejected.2
               exact fresh.then
-                (State.finishGroupFailure_closureAccounting live node member errors)
-                (ih _ (fun other kept => live other (List.mem_filter.mp kept).1) tasks)
+                (State.taskFailure_closureAccounting live rejected.1 rejected.2)
+                (ih _ registered.1 registered.2.1)
   exact loop _ queue live tasks
 
 /-- A successful task's single-pass owner fold cannot reannounce an earlier closed group.
@@ -264,22 +269,20 @@ theorem State.taskSuccess_groupNoticesFresh {queue : State} {work : Execution.Wo
   | none => simp [State.taskSuccess, found, GroupNoticesFresh]
   | some node =>
       rw [queue.taskSuccess_eq occurrence result node found]
-      split
-      · trivial
-      · let stored := queue.putTaskNode { node with value := some result.value }
-        have registered := stored.maybeIntegrateWork_registration live tasks result.work
-          matching.childTasksCovered (some occurrence)
-        have start : GroupClosureAccounting queue
-            ((stored.maybeIntegrateWork result.work (some occurrence)).1, []) :=
-          GroupClosureAccounting.silent (fun ref retired =>
-            State.RetiredGroup.maybeIntegrateWork (queue := stored) retired _ _)
-        obtain ⟨finalLive, finalTasks, closures, fresh⟩ := loop node.task.groups (_, [], {})
-          registered.1 registered.2.1 start trivial
-        let folded := node.task.groups.foldl successGroupStep
-          ((stored.maybeIntegrateWork result.work (some occurrence)).1, [], {})
-        have activated := State.startNewWork_registration finalLive finalTasks folded.2.2
-        exact fresh.then (closures.post (fun _ retired => retired.startNewWork _))
-          (State.drainReadyGroups_groupNoticesFresh activated.1 activated.2)
+      let stored := queue.putTaskNode { node with value := some result.value }
+      have registered := stored.maybeIntegrateWork_registration live tasks result.work
+        matching.childTasksCovered (some occurrence)
+      have start : GroupClosureAccounting queue
+          ((stored.maybeIntegrateWork result.work (some occurrence)).1, []) :=
+        GroupClosureAccounting.silent (fun ref retired =>
+          State.RetiredGroup.maybeIntegrateWork (queue := stored) retired _ _)
+      obtain ⟨finalLive, finalTasks, closures, fresh⟩ := loop node.task.groups (_, [], {})
+        registered.1 registered.2.1 start trivial
+      let folded := node.task.groups.foldl successGroupStep
+        ((stored.maybeIntegrateWork result.work (some occurrence)).1, [], {})
+      have activated := State.startNewWork_registration finalLive finalTasks folded.2.2
+      exact fresh.then (closures.post (fun _ retired => retired.startNewWork _))
+        (State.drainReadyGroups_groupNoticesFresh activated.1 activated.2)
 
 /-- Stream-item integration announces only groups not retired before the item batch.
 Witness: each pruning result avoids old retirement, integration preserves retirement,

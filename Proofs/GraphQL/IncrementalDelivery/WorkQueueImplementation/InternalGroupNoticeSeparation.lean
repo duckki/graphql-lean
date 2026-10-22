@@ -103,8 +103,7 @@ theorem LiveRootFrame.successGroupStep_noticeSeparation
       have active : updated.group.node.ref ∈ next.rootGroups := by
         have flags := Bool.and_eq_true_iff.mp finishes
         have same := State.groupNode?_ref found
-        simpa only [updated, same, List.contains_iff_mem]
-          using (Bool.and_eq_true_iff.mp flags.1).1
+        simpa only [updated, same, List.contains_iff_mem] using flags.1
       have updatedMember : updated ∈ next.groupNodes :=
         List.mem_map.mpr ⟨node, member, by simp [updated]⟩
       have lookup := nextFrame.refs.groupNode?_of_mem updatedMember
@@ -183,12 +182,12 @@ theorem LiveRootFrame.drainReadyGroups_go_groupNoticesSeparated
         | none => simp [found] at choice
         | some candidate =>
             simp only [found] at choice
-            change (if candidate.failure.isSome || candidate.pending == 0 then
+            change (if (queue.rejectedTask? candidate).isSome || candidate.pending == 0 then
               some candidate else none) = some node at choice
             split at choice
             · cases Option.some.inj choice
               have same := State.groupNode?_ref found
-              cases cached : node.failure with
+              cases cached : queue.rejectedTask? node with
               | none =>
                   have next := frame.finishGroupSuccess generated canonical
                     (same ▸ found) (same ▸ active)
@@ -200,11 +199,19 @@ theorem LiveRootFrame.drainReadyGroups_go_groupNoticesSeparated
                   intro child noticed
                   exact next.drainReadyGroups_go_noProtectedNotice generated canonical
                     ((protection child noticed).mono (fun _ retired => retired.startNewWork _)) fuel
-              | some errors =>
-                  apply (show GroupNoticesSeparated [.groupFailure node.group.node errors]
-                    from by simp [GroupNoticesSeparated]).append
-                      (ih (frame.removeGroup node.group.node.ref))
-                  simp [rawGroupNoticeRefs]
+              | some rejected =>
+                  have noNotices : ∀ event ∈ (queue.taskFailure rejected.1 rejected.2).2,
+                      rawGroupNoticeRefs event = [] := by
+                    intro event emitted
+                    obtain ⟨group, rfl⟩ := queue.taskFailure_event_failure _ _ event emitted
+                    rfl
+                  apply (GroupNoticesSeparated.of_noNotices
+                    (List.flatMap_eq_nil_iff.mpr noNotices)).append
+                    (ih (frame.taskFailure rejected.1 rejected.2))
+                  intro ref member
+                  obtain ⟨event, emitted, noticed⟩ := List.mem_flatMap.mp member
+                  rw [noNotices event emitted] at noticed
+                  cases noticed
             · contradiction
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

@@ -98,21 +98,31 @@ end Report
 -- Keep reports at their original initial/task/item scopes
 -----------------------------------------------------------------------------------------
 
+/-- A task retains both its full diagnostic inventory and its boundary cause. -/
+structure RecordedOutcome (α : Type) extends Report α where
+  cause : Option Nat := none
+deriving Repr
+
+/-- Erasure preserves the selected cause without changing collected diagnostics. -/
+def RecordedOutcome.erase (outcome : RecordedOutcome α) : TaskOutcome α :=
+  ⟨outcome.outcome, outcome.cause⟩
+
 inductive RecordedWork where
   | empty
   | combine (left right : RecordedWork)
   | executionGroup (groups : List DeferredFragment) (path : ResponsePath)
-    (report : Report (List (Name × ResponseValue))) (children : RecordedWork)
-  | stream (node : DeliveryNode) (items : List (Report ResponseValue × RecordedWork))
+    (report : RecordedOutcome (List (Name × ResponseValue))) (children : RecordedWork)
+  | stream (node : DeliveryNode)
+    (items : List (RecordedOutcome ResponseValue × RecordedWork))
 deriving Repr
 
 def RecordedWork.erase : RecordedWork → Work
   | .empty => .empty
   | .combine left right => .combine left.erase right.erase
   | .executionGroup groups path report children =>
-      .executionGroup groups path report.outcome children.erase
+      .executionGroup groups path report.erase children.erase
   | .stream node items =>
-      .stream node (items.map (fun item => (item.1.outcome, item.2.erase)))
+      .stream node (items.map (fun item => (item.1.erase, item.2.erase)))
 termination_by work => sizeOf work
 decreasing_by
   all_goals simp_wf
@@ -133,34 +143,57 @@ decreasing_by
 structure RecordedCompletion (α : Type) where
   report : Report α
   work : RecordedWork := .empty
+  /-- Selected boundary explanation; `report` still inventories every diagnostic. -/
+  cause : Option Nat := none
 deriving Repr
 
 namespace RecordedCompletion
 
+/-- Retain a completion at a future task boundary, including its selected cause. -/
+def outcome (completed : RecordedCompletion α) : RecordedOutcome α :=
+  ⟨completed.report, completed.cause⟩
+
 def erase (completed : RecordedCompletion α) : Completion α :=
-  ⟨completed.report.outcome, completed.work.erase⟩
+  ⟨completed.report.outcome, completed.work.erase, completed.cause⟩
 
 def origins (completed : RecordedCompletion α) : List Origin :=
   completed.report.origins ++ completed.work.origins
 
-def pure (value : α) : RecordedCompletion α := ⟨.pure value, .empty⟩
+def pure (value : α) : RecordedCompletion α := { report := .pure value }
 
-def fault (route : List Nat) (outcome : Result α) : RecordedCompletion α :=
-  ⟨.fault route outcome, .empty⟩
+def fault (route : List Nat) (outcome : Result α) (cause : Option Nat := none)
+    : RecordedCompletion α :=
+  {
+    report := .fault route outcome,
+    cause :=
+      match outcome with
+      | .error errors => some errors
+      | .ok _ => cause
+  }
 
 def combine (f : α → β → γ) (left : RecordedCompletion α) (right : RecordedCompletion β)
     : RecordedCompletion γ :=
   let report := Report.combine f left.report right.report
   match report.outcome with
-  | .error _ => ⟨report, .empty⟩
-  | .ok _ => ⟨report, .combine left.work right.work⟩
+  | .error _ =>
+      {
+        report,
+        cause :=
+          match left.report.outcome with
+          | .error _ => left.cause
+          | .ok _ => right.cause
+      }
+  | .ok _ => { report, work := .combine left.work right.work }
 
 def map (f : α → β) (completed : RecordedCompletion α) : RecordedCompletion β :=
   ⟨
     completed.report.map f,
     match completed.report.outcome with
     | .error _ => .empty
-    | .ok _ => completed.work
+    | .ok _ => completed.work,
+    match completed.report.outcome with
+    | .error _ => completed.cause
+    | .ok _ => none
   ⟩
 
 def catchNull (wrap : α → ResponseValue) (completed : RecordedCompletion α)
@@ -169,7 +202,10 @@ def catchNull (wrap : α → ResponseValue) (completed : RecordedCompletion α)
     completed.report.catchNull wrap,
     match completed.report.outcome with
     | .error _ => .empty
-    | .ok _ => completed.work
+    | .ok _ => completed.work,
+    match completed.report.outcome with
+    | .error _ => completed.cause
+    | .ok _ => none
   ⟩
 
 def nonNull (route : List Nat) (completed : RecordedCompletion ResponseValue)
@@ -179,14 +215,22 @@ def nonNull (route : List Nat) (completed : RecordedCompletion ResponseValue)
     report,
     match report.outcome with
     | .error _ => .empty
-    | .ok _ => completed.work
+    | .ok _ => completed.work,
+    completed.erase.nonNull.cause
   ⟩
 
 theorem erase_pure (value : α) : (pure value).erase = Completion.pure value := by
   simp [pure, erase, Report.pure, Completion.pure, RecordedWork.erase]
 
-theorem erase_fault (route : List Nat) (outcome : Result α)
-    : (fault route outcome).erase = { result := outcome } := by
+theorem erase_fault (route : List Nat) (outcome : Result α) (cause : Option Nat := none)
+    : (fault route outcome cause).erase
+      = {
+        result := outcome,
+        cause :=
+          match outcome with
+          | .error errors => some errors
+          | .ok _ => cause
+      } := by
   simp [fault, erase, Report.fault, RecordedWork.erase]
 
 theorem erase_combine (f : α → β → γ) (left : RecordedCompletion α)

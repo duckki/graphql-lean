@@ -66,8 +66,8 @@ theorem TaskProducersSucceeded.drainReadyGroups_go {queue : State} {work receive
   · intro current node prior _ _ _ _
     apply TaskProducersSucceeded.startNewWork
     rwa [State.finishGroupSuccess_tasks]
-  · intro current node errors prior _ _ _
-    exact prior
+  · intro current node occurrence errors prior _ _ _
+    simpa only [State.taskFailure_tasks] using prior
 
 /-- An item integration adds only tasks produced by that item from the actual source input.
 Witness: source matching supplies each incoming task's unique item producer; old task

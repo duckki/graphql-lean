@@ -29,10 +29,7 @@ theorem State.handleGraphEvent_taskChunk (queue : State) (event : GraphEvent)
       cases found : queue.taskNode? occurrence with
       | none => left; simp only [State.handleGraphEvent, State.taskSuccess, found]
       | some node =>
-          cases healthy : queue.taskHasHealthyOwner node.task with
-          | false => left; rw [State.handleGraphEvent,
-              State.taskSuccess_of_noHealthyOwner found healthy]; rfl
-          | true => exact .inr (State.taskSuccess_tasks found healthy)
+          exact .inr (State.taskSuccess_tasks found)
   | taskFailure occurrence errors =>
       exact .inl (queue.taskFailure_tasks occurrence errors)
   | streamItems stream items =>

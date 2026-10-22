@@ -38,26 +38,6 @@ private theorem removeGroup_rootSublist (queue : State) (key : Nat)
     : (queue.removeGroup key).rootGroups.Sublist queue.rootGroups :=
   List.filter_sublist
 
-private theorem drain_rootSublist (queue : State) (fuel : Nat)
-    : (State.drainReadyGroups.go fuel queue).1.rootGroups.Sublist
-        (queue.rootGroups
-          ++ (State.drainReadyGroups.go fuel queue).2.flatMap rawGroupNoticeRefs) := by
-  induction fuel generalizing queue with
-  | zero => simp [State.drainReadyGroups.go]
-  | succ fuel ih =>
-      unfold State.drainReadyGroups.go
-      dsimp only
-      split
-      · simp
-      · rename_i node selected
-        cases cached : node.failure with
-        | none => exact rootSublist_append (finishSuccess_rootSublist queue node) (ih _)
-        | some errors =>
-            apply rootSublist_append (first := ((queue.finishGroupFailure node errors).1,
-              [(queue.finishGroupFailure node errors).2])) _ (ih _)
-            simpa only [State.finishGroupFailure, List.flatMap_singleton, rawGroupNoticeRefs,
-              List.append_nil] using removeGroup_rootSublist queue node.group.node.ref
-
 private theorem taskFailure_rootSublist (queue : State) (occurrence : Occurrence)
     (errors : Nat)
     : (queue.taskFailure occurrence errors).1.rootGroups.Sublist queue.rootGroups := by
@@ -78,9 +58,27 @@ private theorem taskFailure_rootSublist (queue : State) (occurrence : Occurrence
   | none => simp [State.taskFailure, found]
   | some node =>
       rw [queue.taskFailure_eq occurrence errors node found]
+      exact loop _ _ (List.Sublist.refl _)
+
+private theorem drain_rootSublist (queue : State) (fuel : Nat)
+    : (State.drainReadyGroups.go fuel queue).1.rootGroups.Sublist
+        (queue.rootGroups
+          ++ (State.drainReadyGroups.go fuel queue).2.flatMap rawGroupNoticeRefs) := by
+  induction fuel generalizing queue with
+  | zero => simp [State.drainReadyGroups.go]
+  | succ fuel ih =>
+      unfold State.drainReadyGroups.go
+      dsimp only
       split
-      · exact List.Sublist.refl _
-      · exact loop _ _ (List.Sublist.refl _)
+      · simp
+      · rename_i node selected
+        cases cached : queue.rejectedTask? node with
+        | none => exact rootSublist_append (finishSuccess_rootSublist queue node) (ih _)
+        | some rejected =>
+            apply rootSublist_append
+              (first := queue.taskFailure rejected.1 rejected.2) _ (ih _)
+            simpa only [queue.taskFailure_groupNoticeRefs, List.append_nil]
+              using taskFailure_rootSublist queue rejected.1 rejected.2
 
 private theorem taskSuccess_rootSublist (queue : State) (occurrence : Occurrence)
     (result : TaskResult)
@@ -91,39 +89,36 @@ private theorem taskSuccess_rootSublist (queue : State) (occurrence : Occurrence
   | none => simp [State.taskSuccess, found]
   | some node =>
       rw [queue.taskSuccess_eq occurrence result node found]
-      split
-      · simpa only [State.removeTask, List.flatMap_nil, List.append_nil]
-          using List.Sublist.refl queue.rootGroups
-      · let stored := queue.putTaskNode { node with value := some result.value }
-        let prepared := (stored.maybeIntegrateWork result.work (some occurrence)).1
-        let folded := node.task.groups.foldl successGroupStep (prepared, [], {})
-        have loop (groups : List Execution.DeliveryNode)
-            (acc : State × List Execution.WorkQueueEvent × NewWork)
-            (roots : acc.1.rootGroups.Sublist prepared.rootGroups)
-            : (groups.foldl successGroupStep acc).1.rootGroups.Sublist prepared.rootGroups := by
-          induction groups generalizing acc with
-          | nil => exact roots
-          | cons group rest ih =>
-              apply ih
-              dsimp only [successGroupStep]
-              split
+      let stored := queue.putTaskNode { node with value := some result.value }
+      let prepared := (stored.maybeIntegrateWork result.work (some occurrence)).1
+      let folded := node.task.groups.foldl successGroupStep (prepared, [], {})
+      have loop (groups : List Execution.DeliveryNode)
+          (acc : State × List Execution.WorkQueueEvent × NewWork)
+          (roots : acc.1.rootGroups.Sublist prepared.rootGroups)
+          : (groups.foldl successGroupStep acc).1.rootGroups.Sublist prepared.rootGroups := by
+        induction groups generalizing acc with
+        | nil => exact roots
+        | cons group rest ih =>
+            apply ih
+            dsimp only [successGroupStep]
+            split
+            · exact roots
+            · split
+              · rw [State.finishGroupSuccess_rootGroups]
+                exact List.filter_sublist.trans roots
               · exact roots
-              · split
-                · rw [State.finishGroupSuccess_rootGroups]
-                  exact List.filter_sublist.trans roots
-                · exact roots
-        have roots := loop node.task.groups (prepared, [], {}) (List.Sublist.refl _)
-        have notices := successGroupFold_groupNotices prepared node.task.groups
-        have initial : prepared.rootGroups = queue.rootGroups :=
-          State.maybeIntegrateWork_rootGroups _ _ _
-        have first : (folded.1.startNewWork folded.2.2).rootGroups.Sublist
-            (queue.rootGroups ++ folded.2.1.flatMap rawGroupNoticeRefs) := by
-          rw [(folded.1.startNewWork_groupCore _).2.2, notices]
-          rw [initial] at roots
-          exact roots.append (List.Sublist.refl _)
-        exact rootSublist_append
-          (first := (folded.1.startNewWork folded.2.2, folded.2.1))
-          first (drain_rootSublist _ _)
+      have roots := loop node.task.groups (prepared, [], {}) (List.Sublist.refl _)
+      have notices := successGroupFold_groupNotices prepared node.task.groups
+      have initial : prepared.rootGroups = queue.rootGroups :=
+        State.maybeIntegrateWork_rootGroups _ _ _
+      have first : (folded.1.startNewWork folded.2.2).rootGroups.Sublist
+          (queue.rootGroups ++ folded.2.1.flatMap rawGroupNoticeRefs) := by
+        rw [(folded.1.startNewWork_groupCore _).2.2, notices]
+        rw [initial] at roots
+        exact roots.append (List.Sublist.refl _)
+      exact rootSublist_append
+        (first := (folded.1.startNewWork folded.2.2, folded.2.1))
+        first (drain_rootSublist _ _)
 
 private theorem streamItems_rootSublist (queue : State)
     (stream : Execution.DeliveryNode) (items : List StreamItem)

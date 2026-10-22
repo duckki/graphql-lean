@@ -150,20 +150,20 @@ example
   simp [announcedRefs, pendingRefs] at announced
 
 /-- Known failure and an open owner alone do not enforce the reported error count.
-Witness: the two-error task contributes at least two, so zero cannot satisfy NodeErrors.
+Witness: the two-error task contributes at least two, so zero cannot satisfy NodeFailureCause.
 -/
 example
     : NodeFailed WorkQueueSemantics.failingWork WorkQueueSemantics.matching []
         [(0, .executionGroup [])] 0
       ∧ Open [0] [] 0
-      ∧ ¬NodeErrors WorkQueueSemantics.failingWork [.executionGroup []] 0 0 := by
+      ∧ ¬NodeFailureCause WorkQueueSemantics.failingWork [.executionGroup []] 0 0 := by
   have known : TaskAt WorkQueueSemantics.failingWork (.executionGroup []) [0] none
       (.object [] (.error 2)) := .executionGroup .root
   refine ⟨NodeFailed.task known (by simp) (by simp [failedBefore]), ?_, ?_⟩
   · simp [Open, announcedRefs, pendingRefs, completedRefs]
   · intro counted
-    have bound := counted.contribution_le (by simp) known (by simp)
-    simp [Payload.failure] at bound
+    obtain ⟨_, _, _, _, _, _, _, _, positive⟩ := counted
+    omega
 
 -----------------------------------------------------------------------------------------
 -- Raw ownerless work keeps the terminal task clause meaningful
@@ -172,7 +172,7 @@ example
 /-- One empty stream supplies legal notices alongside a task with no owning node. -/
 def orphanWork : Work :=
   .combine (.stream WorkQueueSemantics.node [])
-    (.executionGroup [] [] (.ok ([], 0)) .empty)
+    (.executionGroup [] [] ({ result := .ok ([], 0) }) .empty)
 
 /-- Only the root append, its two children, and the empty deferred child are located.
 Witness: structural navigation; subtree shape suffices for this boundary example.
@@ -181,7 +181,7 @@ private theorem orphan_locations {address current producer owners}
     (known : Located orphanWork address current producer owners)
     : current = orphanWork
       ∨ current = .stream WorkQueueSemantics.node []
-      ∨ current = .executionGroup [] [] (.ok ([], 0)) .empty
+      ∨ current = .executionGroup [] [] ({ result := .ok ([], 0) }) .empty
       ∨ current = .empty := by
   replace known := StructuralEquivalence.located_of_current known
   induction known with

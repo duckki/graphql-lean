@@ -33,7 +33,7 @@ theorem State.finishGroupSuccess_activated_noticeContents {queue : State} {work}
       ∧ ∃ kept,
           current.groupNode? child.ref = some kept
           ∧ kept.group.node = child
-          ∧ (kept.tasks ≠ [] ∨ kept.failure.isSome = true) := by
+          ∧ kept.tasks ≠ [] := by
   have member := List.mem_of_getElem? selected
   obtain ⟨values, _, _, output, _, _⟩ := queue.finishGroupSuccess_publications node
   rw [output] at member
@@ -77,7 +77,7 @@ theorem State.drainReadyGroups_go_noticeContents {queue : State} {work}
           ∧ ∃ node,
               boundary.1.groupNode? child.ref = some node
               ∧ node.group.node = child
-              ∧ (node.tasks ≠ [] ∨ node.failure.isSome = true) := by
+              ∧ node.tasks ≠ [] := by
   induction fuel generalizing queue index with
   | zero => simp [State.drainReadyGroups.go] at selected
   | succ fuel ih =>
@@ -85,7 +85,7 @@ theorem State.drainReadyGroups_go_noticeContents {queue : State} {work}
             : queue.rootGroups.findSome?
                 (fun ref => do
                   let node ← queue.groupNode? ref
-                  if node.failure.isSome || node.pending == 0 then
+                  if (queue.rejectedTask? node).isSome || node.pending == 0 then
                     some node
                   else
                     none) with
@@ -93,7 +93,7 @@ theorem State.drainReadyGroups_go_noticeContents {queue : State} {work}
           simp only [State.drainReadyGroups.go, ready, List.getElem?_nil] at selected
           contradiction
       | some node =>
-          cases cached : node.failure with
+          cases cached : queue.rejectedTask? node with
           | none =>
               let next := (queue.finishGroupSuccess node).1.startNewWork
                 (queue.finishGroupSuccess node).2.2
@@ -128,27 +128,34 @@ theorem State.drainReadyGroups_go_noticeContents {queue : State} {work}
                     show index + 1 - emitted.length = index - emitted.length + 1 by omega,
                     exactPrefix, step]
                 · simpa only [step] using contents
-          | some errors =>
-              let next := (queue.finishGroupFailure node errors).1
+          | some rejection =>
+              obtain ⟨occurrence, errors⟩ := rejection
+              let next := (queue.taskFailure occurrence errors).1
+              let emitted := (queue.taskFailure occurrence errors).2
               have step (count : Nat) : State.drainReadyGroups.go (count + 1) queue =
                   ((State.drainReadyGroups.go count next).1,
-                    [.groupFailure node.group.node errors]
-                      ++ (State.drainReadyGroups.go count next).2) := by
+                    emitted ++ (State.drainReadyGroups.go count next).2) := by
                 simp only [State.drainReadyGroups.go, ready, cached]
                 rfl
               rw [step fuel] at selected
-              simp only [List.singleton_append] at selected
-              cases index with
-              | zero => cases selected
-              | succ index =>
-                  obtain ⟨steps, bound, exactPrefix, contents⟩ :=
-                    ih (queue := next) (refs.removeGroup _) (records.removeGroup _)
-                      (support.removeGroup _)
-                      selected
-                  refine ⟨steps + 1, by omega, ?_, ?_⟩
-                  · simp only [step, List.cons_append, List.nil_append,
-                      List.take_succ_cons, exactPrefix]
-                  · simpa only [step] using contents
+              by_cases inside : index < emitted.length
+              · have atFailure := selected
+                rw [List.getElem?_append_left inside] at atFailure
+                obtain ⟨group, impossible⟩ := queue.taskFailure_event_failure occurrence errors _
+                  (List.mem_of_getElem? atFailure)
+                cases impossible
+              · have outside : emitted.length ≤ index := by omega
+                rw [List.getElem?_append_right outside] at selected
+                obtain ⟨steps, bound, exactPrefix, contents⟩ :=
+                  ih (queue := next) (refs.taskFailure occurrence errors)
+                    (records.taskFailure occurrence errors)
+                    (support.taskFailure_support_all occurrence errors).1 selected
+                refine ⟨steps + 1, by omega, ?_, ?_⟩
+                · rw [step fuel, List.take_append,
+                    List.take_of_length_le (by omega : emitted.length ≤ index + 1),
+                    show index + 1 - emitted.length = index - emitted.length + 1 by omega,
+                    exactPrefix, step]
+                · simpa only [step] using contents
 
 -----------------------------------------------------------------------------------------
 -- Contents and publication exclusion use the same selected drain boundary
@@ -189,7 +196,7 @@ theorem State.drainReadyGroups_go_noticeContents_excluding {queue : State} {work
           ∧ ∃ node,
               boundary.1.groupNode? child.ref = some node
               ∧ node.group.node = child
-              ∧ (node.tasks ≠ [] ∨ node.failure.isSome = true)
+              ∧ node.tasks ≠ []
               ∧ ∀ publication ∈
                   published.take
                     (offset
@@ -230,7 +237,6 @@ theorem ExecutedWork.taskSuccess_drainNoticeContents
       let released := incoming.task.groups.foldl successGroupStep (prepared, [], {})
       let active := released.1.startNewWork released.2.2
       current.taskNode? occurrence = some incoming
-      → current.taskHasHealthyOwner incoming.task = true
       → active.drainReadyGroups.2[index]? = some (.groupSuccess group groups streams)
       → child ∈ groups
       → ∃ steps,
@@ -241,7 +247,7 @@ theorem ExecutedWork.taskSuccess_drainNoticeContents
             ∧ ∃ node,
                 boundary.1.groupNode? child.ref = some node
                 ∧ node.group.node = child
-                ∧ (node.tasks ≠ [] ∨ node.failure.isSome = true)
+                ∧ node.tasks ≠ []
                 ∧ ∀ publication ∈
                     published.take
                       ((((State.initialize (Work.fromExecution work)).rawEventReplay
@@ -250,14 +256,14 @@ theorem ExecutedWork.taskSuccess_drainNoticeContents
                         + ((released.2.1 ++ active.drainReadyGroups.2.take index).flatMap
                             WorkQueueEvent.objectValues).length),
                     publication.1 ∉ node.tasks := by
-  intro current stored prepared released active found healthy selected noticed
+  intro current stored prepared released active found selected noticed
   have prior := valid.prefix (List.prefix_append before (.taskSuccess occurrence result :: after))
   obtain ⟨matching, _, _⟩ := valid.atPrefix (show
     (before ++ [GraphEvent.taskSuccess occurrence result]).IsPrefix
       (before ++ GraphEvent.taskSuccess occurrence result :: after) from ⟨after, by simp⟩)
   obtain ⟨refs, records, support⟩ := generated.taskSuccess_drain_noticeMetadata
     (fun _ member => prior.eachMatches member) matching incoming
-  have excluded := createWorkQueue_taskSuccess_drainMemberships covered valid found healthy
+  have excluded := createWorkQueue_taskSuccess_drainMemberships covered valid found
   simp only [List.flatMap_append, List.length_append, ← Nat.add_assoc] at excluded ⊢
   exact State.drainReadyGroups_go_noticeContents_excluding generated refs records support
     active.groupNodes.length excluded selected noticed
@@ -287,7 +293,7 @@ theorem ExecutedWork.streamItems_drainNoticeContents
             ∧ ∃ node,
                 boundary.1.groupNode? child.ref = some node
                 ∧ node.group.node = child
-                ∧ (node.tasks ≠ [] ∨ node.failure.isSome = true)
+                ∧ node.tasks ≠ []
                 ∧ ∀ publication ∈
                     published.take
                       ((((State.initialize (Work.fromExecution work)).rawEventReplay

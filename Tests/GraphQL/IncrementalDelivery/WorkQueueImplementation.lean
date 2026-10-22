@@ -33,7 +33,7 @@ example (h : createWorkQueueForScheduleConforms)
   h
 
 private def orphanWork : Execution.Work :=
-  .combine (.stream stream []) (.executionGroup [] [] (.ok ([], 0)) .empty)
+  .combine (.stream stream []) (.executionGroup [] [] ({ result := .ok ([], 0) }) .empty)
 
 /-- The generated-work premise excludes the ownerless raw-work counterexample. -/
 example : ¬ExecutedWork orphanWork := by
@@ -43,7 +43,8 @@ example : ¬ExecutedWork orphanWork := by
   exact (generated.taskOwners_nonempty task) rfl
 
 private def groupWork : Execution.Work :=
-  .executionGroup [{ node := group }] [] (.ok ([("x", .scalar "X")], 0)) .empty
+  .executionGroup [{ node := group }] [] ({ result := .ok ([("x", .scalar "X")], 0) })
+    .empty
 
 private def groupValue : ExecutionGroupValue :=
   { deliveryGroups := [group], path := [], data := [("x", .scalar "X")] }
@@ -55,7 +56,7 @@ private def groupSuccess : GraphEvent :=
 private theorem groupTaskAt
     : TaskAt groupWork (.executionGroup []) [group.ref] none
         (.object [] (.ok ([("x", .scalar "X")], 0))) := by
-  refine ⟨[{ node := group }], [], .ok ([("x", .scalar "X")], 0), .empty, [], ?_, rfl, rfl⟩
+  refine ⟨[{ node := group }], [], { result := .ok ([("x", .scalar "X")], 0) }, .empty, [], ?_, rfl, rfl⟩
   rfl
 
 /-- The fixture's host event agrees with the finite execution-generated Work. -/
@@ -91,7 +92,7 @@ example
   rfl
 
 private def failingGroupWork : Execution.Work :=
-  .executionGroup [{ node := group }] [] (.error 2) .empty
+  .executionGroup [{ node := group }] [] ({ result := .error 2 }) .empty
 
 /-- `TASK_FAILURE` closes the announced group and reports its error count. -/
 example
@@ -101,9 +102,9 @@ example
   cbv
 
 private def nestedWork : Execution.Work :=
-  .executionGroup [{ node := group }] [] (.ok ([], 0))
+  .executionGroup [{ node := group }] [] ({ result := .ok ([], 0) })
     (.executionGroup [{ node := childGroup, ancestors := [group] }]
-      [] (.ok ([], 0)) .empty)
+      [] ({ result := .ok ([], 0) }) .empty)
 
 private def parentSuccess : GraphEvent :=
   .taskSuccess (.executionGroup [])
@@ -112,7 +113,7 @@ private def parentSuccess : GraphEvent :=
       work :=
         Work.fromExecution
           (.executionGroup [{ node := childGroup, ancestors := [group] }]
-            [] (.ok ([], 0)) .empty)
+            [] ({ result := .ok ([], 0) }) .empty)
           [0]
     }
 
@@ -148,7 +149,7 @@ private def deepGroup : DeliveryNode := { ref := 3, path := [.field "obj"] }
 
 private def sharedWork : Execution.Work :=
   .executionGroup [{ node := group }, { node := deepGroup }]
-    [] (.ok ([("x", .scalar "X")], 0)) .empty
+    [] ({ result := .ok ([("x", .scalar "X")], 0) }) .empty
 
 private def sharedValue : ExecutionGroupValue :=
   {
@@ -163,7 +164,7 @@ private def sharedSuccess : GraphEvent :=
 private def rawAncestorOwnerWork : Execution.Work :=
   .executionGroup
     [{ node := group }, { node := childGroup, ancestors := [group] }]
-    [] (.ok ([("x", .scalar "X")], 0)) .empty
+    [] ({ result := .ok ([("x", .scalar "X")], 0) }) .empty
 
 private def rawAncestorOwnerSuccess : GraphEvent :=
   .taskSuccess (.executionGroup [])
@@ -233,10 +234,10 @@ private def grandchildGroup : DeliveryNode := { ref := 6, path := [] }
 private def rawAncestorNestedWork : Execution.Work :=
   .executionGroup
     [{ node := group }, { node := childGroup, ancestors := [group] }]
-    [] (.ok ([("x", .scalar "X")], 0))
+    [] ({ result := .ok ([("x", .scalar "X")], 0) })
     (.executionGroup
       [{ node := grandchildGroup, ancestors := [childGroup, group] }]
-      [] (.ok ([], 0)) .empty)
+      [] ({ result := .ok ([], 0) }) .empty)
 
 private def rawAncestorNestedSuccess : GraphEvent :=
   .taskSuccess (.executionGroup [])
@@ -249,7 +250,7 @@ private def rawAncestorNestedSuccess : GraphEvent :=
         Work.fromExecution
           (.executionGroup
             [{ node := grandchildGroup, ancestors := [childGroup, group] }]
-            [] (.ok ([], 0)) .empty)
+            [] ({ result := .ok ([], 0) }) .empty)
           [0]
     }
 
@@ -290,7 +291,7 @@ example
   rfl
 
 private def oneItemStreamWork : Execution.Work :=
-  .stream stream [(.ok (.scalar "a", 0), .empty)]
+  .stream stream [({ result := .ok (.scalar "a", 0) }, .empty)]
 
 private def oneItemEvent : GraphEvent :=
   .streamItems stream [{ occurrence := .item [] 0, value := { item := .scalar "a" } }]
@@ -306,7 +307,8 @@ example
         ]] := by
   rfl
 
-private def failingStreamWork : Execution.Work := .stream stream [(.error 1, .empty)]
+private def failingStreamWork : Execution.Work :=
+  .stream stream [({ result := .error 1, cause := some 1 }, .empty)]
 
 /-- Stream failure is a graph event in its own right. -/
 example
@@ -316,7 +318,10 @@ example
 
 private def streamChildWork : Execution.Work :=
   .stream stream
-    [(.ok (.scalar "a", 0), .executionGroup [{ node := group }] [] (.ok ([], 0)) .empty)]
+    [(
+      { result := .ok (.scalar "a", 0) },
+      .executionGroup [{ node := group }] [] ({ result := .ok ([], 0) }) .empty
+    )]
 
 private def generatedStreamFailureSchema : Schema :=
   {
@@ -450,8 +455,8 @@ private def streamChildEvent : GraphEvent :=
       occurrence := .item [] 0
       value := { item := .scalar "a" }
       work :=
-        Work.fromExecution (.executionGroup [{ node := group }] [] (.ok ([], 0)) .empty)
-          [0]
+        Work.fromExecution
+          (.executionGroup [{ node := group }] [] ({ result := .ok ([], 0) }) .empty) [0]
     }]
 
 /-- An item result carries newly lowered child work; the queue then starts its group. -/
@@ -464,17 +469,18 @@ example
     : streamItemWork? streamChildWork (.item [] 0)
       = some
           (Work.fromExecution
-            (.executionGroup [{ node := group }] [] (.ok ([], 0)) .empty) [0]) := by
+            (.executionGroup [{ node := group }] [] ({ result := .ok ([], 0) })
+              .empty) [0]) := by
   rfl
 
 private def otherGroup : DeliveryNode := { ref := 4, path := [] }
 
 private def earlyFailureWork : Execution.Work :=
   .combine
-    (.executionGroup [{ node := group }] [] (.ok ([], 0)) .empty)
+    (.executionGroup [{ node := group }] [] ({ result := .ok ([], 0) }) .empty)
     (.executionGroup
       [{ node := otherGroup }, { node := childGroup, ancestors := [group] }]
-      [] (.error 1) .empty)
+      [] ({ result := .error 1, cause := some 1 }) .empty)
 
 private def earlyParentSuccess : GraphEvent :=
   .taskSuccess (.executionGroup [0])
@@ -510,16 +516,16 @@ private def secondRootGroup : DeliveryNode := { ref := 5, path := [] }
 
 private def twoEarlyFailuresWork : Execution.Work :=
   .combine
-    (.executionGroup [{ node := group }] [] (.ok ([], 0)) .empty)
+    (.executionGroup [{ node := group }] [] ({ result := .ok ([], 0) }) .empty)
     (.combine
       (.executionGroup
         [{ node := otherGroup }, { node := childGroup, ancestors := [group] }]
-        [] (.error 1) .empty)
+        [] ({ result := .error 1, cause := some 1 }) .empty)
       (.executionGroup
         [{ node := secondRootGroup }, { node := childGroup, ancestors := [group] }]
-        [] (.error 2) .empty))
+        [] ({ result := .error 2 }) .empty))
 
-/-- Several retained failures are accumulated and reported after normal child announcement. -/
+/-- Normal child announcement replays the first registered rejection without summing causes. -/
 example
     : (run (Work.fromExecution twoEarlyFailuresWork)
         [
@@ -534,7 +540,7 @@ example
         [
           .groupValues group [{ deliveryGroups := [group], path := [], data := [] }],
           .groupSuccess group [childGroup] [],
-          .groupFailure childGroup 3,
+          .groupFailure childGroup 1,
           .workQueueTermination
         ]
       ] := by
@@ -542,8 +548,8 @@ example
 
 private def repeatedGroupWork : Execution.Work :=
   .combine
-    (.executionGroup [{ node := group }] [] (.ok ([], 0)) .empty)
-    (.executionGroup [{ node := group }] [] (.ok ([], 0)) .empty)
+    (.executionGroup [{ node := group }] [] ({ result := .ok ([], 0) }) .empty)
+    (.executionGroup [{ node := group }] [] ({ result := .ok ([], 0) }) .empty)
 
 /-- Repeated group descriptors still yield one initial pending notice. -/
 example
@@ -639,7 +645,7 @@ private theorem reintroduction_invalidated
   have known : TaskHasOwners reintroductionWork (.executionGroup [1, 0])
       [reintroducedG.ref] := by
     refine ⟨none, .object [] (.error 1), ?_⟩
-    refine ⟨[{ node := reintroducedG }], [], .error 1, .empty, [], ?_, rfl, rfl⟩
+    refine ⟨[{ node := reintroducedG }], [], { result := .error 1, cause := some 1 }, .empty, [], ?_, rfl, rfl⟩
     cbv
   exact .task known (by simp) (by simp)
 

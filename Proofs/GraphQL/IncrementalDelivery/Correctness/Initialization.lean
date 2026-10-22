@@ -241,7 +241,7 @@ theorem group_not_initially_accounted {work node parents birth}
     located, member, rfl, rfl⟩ := known
   intro accounted
   have task := accounted (.executionGroup address) (groups.map (·.node.ref))
-    ⟨birth, .object path result, .executionGroup located⟩ (List.mem_map.mpr ⟨group, member, rfl⟩)
+    ⟨birth, .object path result.deliveryResult, .executionGroup located⟩ (List.mem_map.mpr ⟨group, member, rfl⟩)
   rcases task with cancelled | published
   · exact cancelled.nonempty rfl
   · simp [Published] at published

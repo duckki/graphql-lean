@@ -380,39 +380,20 @@ theorem State.PendingTracks.finishGroupFailure {queue : State}
     : (queue.finishGroupFailure group errors).1.PendingTracks settled :=
   tracks.removeGroup group.group.node.ref
 
-/-- A fresh failed task discharges each contributor's pending token exactly once.
-Witness: exact ownership starts one debt per distinct contributor; membership removal
-preserves that debt, and the failure fold either removes the owner or pays its decrement.
-This is the active branch; ignored settlements do not decrement retained group counters.
-These are internal bookkeeping premises, not additional host-source assumptions.
+/-- Rejection retention changes no counters on surviving owners.
+Witness: the task update leaves group nodes unchanged, and failure only removes groups.
+The settlement list here tracks successes rather than every processed task outcome.
 -/
 theorem State.PendingTracks.taskFailure {queue : State}
     {settled : List Occurrence} (tracks : queue.PendingTracks settled)
-    (refUnique : queue.GroupRefsUnique) (taskUnique : queue.TaskMembershipsUnique)
     (occurrence : Occurrence) (errors : Nat)
-    (taskNode : TaskNode) (found : queue.taskNode? occurrence = some taskNode)
-    (active : queue.taskHasHealthyOwner taskNode.task = true)
-    (fresh : occurrence ∉ settled)
-    (uniqueContributors : (taskNode.task.groups.map Execution.DeliveryNode.ref).Nodup)
-    (owned
-      : queue.OwnedExactlyBy occurrence
-          (taskNode.task.groups.map Execution.DeliveryNode.ref))
-    : (queue.taskFailure occurrence errors).1.PendingTracks (occurrence :: settled) := by
-  have debt : queue.PendingDebt (fun _ => True) (occurrence :: settled)
-      (taskNode.task.groups.map Execution.DeliveryNode.ref) :=
-    State.PendingDebt.beginSettlement (fun node member _ => tracks node member)
-      taskUnique (fun node member _ => owned node member) fresh
-  have removed := debt.removeTask occurrence (by simp)
-  have facts := failureGroupFold_preserves (fun _ => True) (occurrence :: settled)
-    State.GroupRefsUnique (fun _ valid => valid)
-    (fun _ _ _ valid _ => valid.putGroupNode _)
-    (fun _ ref valid => valid.removeGroup ref)
-    errors taskNode.task.groups uniqueContributors (queue.removeTask occurrence, [])
-    (refUnique.removeTask occurrence) removed
-  rw [queue.taskFailure_eq occurrence errors taskNode found]
-  simp only [active, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
-  intro node member
-  simpa [GroupNode.PendingTracks] using facts.2 node member trivial
+    : (queue.taskFailure occurrence errors).1.PendingTracks settled := by
+  cases found : queue.taskNode? occurrence with
+  | none => simpa [State.taskFailure, found] using tracks
+  | some node =>
+      rw [queue.taskFailure_eq occurrence errors node found]
+      exact failureGroupFold_preserves (fun state => state.PendingTracks settled)
+        (fun _ ref prior => prior.removeGroup ref) _ _ _ tracks
 
 /-- Closing a stream changes only its started-root registry. -/
 theorem State.PendingTracks.streamSuccess {queue : State}
@@ -462,9 +443,7 @@ theorem State.PendingTracks.startNewWork {queue : State}
                 split
                 · exact counts
                 · split <;> exact counts
-          split
-          · exact balanced
-          · exact taskFold node.tasks current balanced
+          exact taskFold node.tasks current balanced
   have streamFold (refs : NodeRefs) :
       ∀ current, current.PendingTracks settled →
         (refs.foldl State.startStream current).PendingTracks settled := by
@@ -490,7 +469,7 @@ theorem State.PendingTracks.drainReadyGroups {queue : State}
     (fun _ node prior member _ _ zero =>
       (prior.finishGroupSuccess node
         (GroupNode.PendingTracks.allSettled node settled (prior node member) zero)).startNewWork _)
-    (fun _ node errors prior _ _ _ => prior.finishGroupFailure node errors) tracks
+    (fun _ _ occurrence errors prior _ _ _ => prior.taskFailure occurrence errors) tracks
 
 /-- Task success preserves pending accounting once the host supplies fresh
 child tasks, a healthy owner survives, and memberships match the task's contributors.
@@ -503,7 +482,6 @@ theorem State.PendingTracks.taskSuccess {queue : State}
     (taskUnique : queue.TaskMembershipsUnique)
     (occurrence : Occurrence) (result : TaskResult)
     (taskNode : TaskNode) (found : queue.taskNode? occurrence = some taskNode)
-    (active : queue.taskHasHealthyOwner taskNode.task = true)
     (fresh : occurrence ∉ settled)
     (freshChildren : ∀ task ∈ result.work.tasks, task.occurrence ∉ settled)
     (uniqueContributors : (taskNode.task.groups.map Execution.DeliveryNode.ref).Nodup)
@@ -538,7 +516,6 @@ theorem State.PendingTracks.taskSuccess {queue : State}
     intro node member
     simpa [GroupNode.PendingTracks] using facts.2 node member trivial
   rw [queue.taskSuccess_eq occurrence result taskNode found]
-  simp only [active, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
   exact (releasedTracks.startNewWork released.2.2).drainReadyGroups
 
 /-- Publishing stream items integrates their child work without settling any

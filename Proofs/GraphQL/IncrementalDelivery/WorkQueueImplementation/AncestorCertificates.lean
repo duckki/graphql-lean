@@ -551,8 +551,7 @@ theorem successGroupFold_retirement {queue : State} {work parents failed}
         have active : node.group.node.ref ∈ next.rootGroups := by
           have flags := Bool.and_eq_true_iff.mp finishes
           have refEq := State.groupNode?_ref found
-          simpa only [refEq, List.contains_iff_mem]
-            using (Bool.and_eq_true_iff.mp flags.1).1
+          simpa only [refEq, List.contains_iff_mem] using flags.1
         have updatedMember : updated ∈ next.groupNodes := by
           apply List.mem_map.mpr
           exact ⟨node, oldMember, by simp [updated]⟩

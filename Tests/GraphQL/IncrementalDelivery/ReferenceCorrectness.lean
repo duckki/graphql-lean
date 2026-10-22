@@ -58,7 +58,7 @@ private def deepGroup : Execution.DeliveryNode := { ref := 1, path := [.field "o
 
 private def sharedWork : Execution.Work :=
   .executionGroup [{ node := group }, { node := deepGroup }] [.field "obj"]
-    (.ok ([("x", .scalar "X")], 0)) .empty
+    ({ result := .ok ([("x", .scalar "X")], 0) }) .empty
 
 private def sharedSuccess : GraphEvent :=
   .taskSuccess (.executionGroup [])

@@ -1,5 +1,5 @@
 import Proofs.GraphQL.IncrementalDelivery.Correctness.MixedProgressEvents
-import Proofs.GraphQL.IncrementalDelivery.Correctness.ReportingNoticeCoverage
+import Proofs.GraphQL.IncrementalDelivery.Correctness.ReportingFrontiers
 
 /-! Executable event choices preserve the reporting-aware constructive notice frontier.
 These witnesses choose covering carriers without restricting public admission.
@@ -24,9 +24,13 @@ theorem reporting_failure
       producer payload}
     (valid : Valid ancestry bound) (coherent : MixedRefs.WorkAt ancestry 0 bound work)
     (roleCoherent : RefRoles.WorkRoles roles work)
+    (positive : ExecutionErrors.WorkPositive work)
     (explained : Explains work groups streams events matching failures)
     (covered
       : ReportingNoticesCovered ancestry work ((groups ++ streams).map DeliveryNode.ref)
+          matching events failures)
+    (supported
+      : StreamNoticesSupported ancestry work ((groups ++ streams).map DeliveryNode.ref)
           matching events failures)
     (known : TaskAt work occurrence owners producer payload)
     (ready : CanPublish work matching events failures occurrence producer)
@@ -35,9 +39,12 @@ theorem reporting_failure
     : ∃ event cuts,
         Explains work groups streams (events ++ [event]) matching cuts
         ∧ ReportingNoticesCovered ancestry work ((groups ++ streams).map DeliveryNode.ref)
+            matching (events ++ [event]) cuts
+        ∧ StreamNoticesSupported ancestry work ((groups ++ streams).map DeliveryNode.ref)
             matching (events ++ [event]) cuts := by
   obtain ⟨node, count, event, contributes, control, _, extended⟩ :=
     explained.failure_step known fails (ready.reachable explained known) opened ready.2.1
+      (positive.task known fails)
   have included : failures ⊆ failures ++ [(events.length, occurrence)] :=
     List.subset_append_left _ _
   have failed : NodeFailed work matching (events ++ [event])
@@ -78,7 +85,13 @@ theorem reporting_failure
       intro ref accounted other otherOwners projected member
       exact ((accounted other otherOwners projected member).more_failures included).append
         [event])
-  refine ⟨event, _, extended, ?_⟩
+  have keptSupport : StreamNoticesSupported ancestry work ((groups ++ streams).map DeliveryNode.ref)
+      matching (events ++ [event]) (failures ++ [(events.length, occurrence)]) := by
+    apply supported.append (fun _ _ => rfl)
+    · intro index earlier
+      simp [List.filter_append, Nat.not_le.mpr earlier]
+    · rcases control with rfl | rfl <;> trivial
+  refine ⟨event, _, extended, ?_, keptSupport⟩
   apply group_notices_covered_settlement valid coherent roleCoherent covered
     healthyCovered extended explained known ready failureTransport notices completions
     publications
@@ -114,16 +127,21 @@ theorem reporting_complete_stream
     (covered
       : ReportingNoticesCovered ancestry work ((groups ++ streams).map DeliveryNode.ref)
           matching events failures)
+    (supported
+      : StreamNoticesSupported ancestry work ((groups ++ streams).map DeliveryNode.ref)
+          matching events failures)
     (known : NodeAt work node .stream dependencies producer)
     (opened : Open ((groups ++ streams).map DeliveryNode.ref) events node.ref)
     (healthy : ¬NodeFailed work matching events failures node.ref)
     (accounted : NodeAccounted work matching events failures node.ref)
     : Explains work groups streams (events ++ [.streamSuccess node]) matching failures
       ∧ ReportingNoticesCovered ancestry work ((groups ++ streams).map DeliveryNode.ref)
+          matching (events ++ [.streamSuccess node]) failures
+      ∧ StreamNoticesSupported ancestry work ((groups ++ streams).map DeliveryNode.ref)
           matching (events ++ [.streamSuccess node]) failures := by
   obtain ⟨extended, retained⟩ := supported_complete_stream valid coherent roleCoherent
     explained covered.1 known opened healthy accounted
-  refine ⟨extended, ?_⟩
+  refine ⟨extended, ?_, supported.append (fun _ _ => rfl) (fun _ _ => rfl) trivial⟩
   apply group_notices_covered_noncarrier valid coherent roleCoherent covered retained
     extended
     (fun _ failure => failure.append _)
@@ -173,9 +191,14 @@ theorem extend_ready_reporting
     (roleCoherent : RefRoles.WorkRoles roles work)
     (continuous : DeferContinuous ancestry work) (ordered : StreamOwnersOrdered work)
     (coherent : MixedOwnerPaths.WorkAt paths pathBound work)
+    (allocated : (streamAllocationRefs work).Nodup)
+    (positive : ExecutionErrors.WorkPositive work)
     (explained : Explains work groups streams events matching failures)
     (covered
       : ReportingNoticesCovered ancestry work ((groups ++ streams).map DeliveryNode.ref)
+          matching events failures)
+    (supported
+      : StreamNoticesSupported ancestry work ((groups ++ streams).map DeliveryNode.ref)
           matching events failures)
     (known : TaskAt work occurrence owners producer payload)
     (ready : CanPublish work matching events failures occurrence producer)
@@ -186,6 +209,8 @@ theorem extend_ready_reporting
     : ∃ event next cuts,
         Explains work groups streams (events ++ [event]) next cuts
         ∧ ReportingNoticesCovered ancestry work ((groups ++ streams).map DeliveryNode.ref)
+            next (events ++ [event]) cuts
+        ∧ StreamNoticesSupported ancestry work ((groups ++ streams).map DeliveryNode.ref)
             next (events ++ [event]) cuts := by
   obtain ⟨ref, member, notified, healthy⟩ := announced
   have opened : Open ((groups ++ streams).map DeliveryNode.ref) events ref := by
@@ -200,19 +225,19 @@ theorem extend_ready_reporting
   have failing (fails : payload.failure.isSome = true) :
       ∃ event next cuts, Explains work groups streams (events ++ [event]) next cuts
         ∧ ReportingNoticesCovered ancestry work ((groups ++ streams).map DeliveryNode.ref)
+            next (events ++ [event]) cuts
+        ∧ StreamNoticesSupported ancestry work ((groups ++ streams).map DeliveryNode.ref)
             next (events ++ [event]) cuts := by
-    obtain ⟨event, cuts, extended, retained⟩ := reporting_failure valid refs roleCoherent
-      explained covered known ready fails ⟨ref, member, opened⟩
-    exact ⟨event, matching, cuts, extended, retained⟩
+    obtain ⟨event, cuts, extended, retained, keptSupport⟩ := reporting_failure valid refs roleCoherent positive
+      explained covered supported known ready fails ⟨ref, member, opened⟩
+    exact ⟨event, matching, cuts, extended, retained, keptSupport⟩
   cases payload with
   | object path result =>
       cases result with
       | error errors => exact failing rfl
       | ok value =>
           obtain ⟨data, errors⟩ := value
-          have deferred : ∃ address, occurrence = .executionGroup address := by
-            cases StructuralEquivalence.taskAt_of_current known with
-            | executionGroup => exact ⟨_, rfl⟩
+          have deferred := known.object_occurrence
           obtain ⟨address, rfl⟩ := deferred
           obtain ⟨node, kind, dependencies, nodeProducer, descriptor, same⟩ :=
             known.owner_known member
@@ -264,7 +289,13 @@ theorem extend_ready_reporting
               intro ref accounted occurrence owners projected member
               exact (accounted occurrence owners projected member).matchNext_append
                 (.executionGroup address) event)
-          refine ⟨event, _, failures, extended, ?_⟩
+          have keptSupport := supported.append
+            (fun index before => matchNext_before matching (.executionGroup address) before)
+            (fun _ _ => rfl) (show CarriedStreamSupport ancestry work
+              ((groups ++ streams).map DeliveryNode.ref)
+              (matchNext matching events.length (.executionGroup address)) events
+              (failures.filter (fun entry => entry.1 ≤ events.length)) event from trivial)
+          refine ⟨event, _, failures, extended, ?_, keptSupport⟩
           apply group_notices_covered_publication valid refs roleCoherent continuous
             ordered covered retained extended failureTransport known ready unavailable
             producers notices completions publications
@@ -279,12 +310,19 @@ theorem extend_ready_reporting
       | ok value =>
           obtain ⟨item, errors⟩ := value
           have ownerRef : ref = node.ref := by
-            cases StructuralEquivalence.taskAt_of_current known with
-            | item located selected => exact List.mem_singleton.mp member
+            rw [known.item_owners] at member
+            exact List.mem_singleton.mp member
           have selected := stream_owner_of_open coherent known (ownerRef ▸ opened)
             (ownerRef ▸ healthy)
-          obtain ⟨newGroups, newStreams, extended, notices⟩ :=
-            explained.publish_item_noticesCovered known ready selected
-          exact ⟨_, _, _, extended, reportingNoticesCovered_of_noticesCovered notices⟩
+          obtain ⟨newGroups, newStreams, extended, notices, newSupport⟩ :=
+            Explains.publish_item_reporting roleCoherent allocated explained known ready selected
+          have keptSupport :=
+            supported.append
+              (fun index before => matchNext_before matching occurrence before)
+              (fun _ _ => rfl)
+              (by
+                simpa only [explained.2.1.filter_eq_self (Nat.le_refl _)]
+                  using newSupport)
+          exact ⟨_, _, _, extended, notices, keptSupport⟩
 
 end GraphQL.IncrementalDelivery.Correctness

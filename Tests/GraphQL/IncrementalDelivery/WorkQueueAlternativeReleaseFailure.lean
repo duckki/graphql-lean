@@ -41,13 +41,15 @@ private def work : Execution.Work :=
   .combine .empty
     (.combine
       (.executionGroup [⟨root, []⟩, ⟨child, [parent]⟩] []
-        (.ok (value.data, 0)) streamWork)
-      (.combine (.executionGroup [⟨root, []⟩] [] (.error 1) .empty)
+        ({ result := .ok (value.data, 0) }) streamWork)
+      (.combine
+        (.executionGroup [⟨root, []⟩] [] ({ result := .error 1, cause := some 1 }) .empty)
         (.combine
-          (.executionGroup [⟨parent, []⟩] [] (.ok (parentValue.data, 0))
+          (.executionGroup [⟨parent, []⟩] [] ({ result := .ok (parentValue.data, 0) })
             (.combine .empty .empty))
           (.combine
-            (.executionGroup [⟨child, [parent]⟩, ⟨supporter, []⟩] [] (.error 1) .empty)
+            (.executionGroup [⟨child, [parent]⟩, ⟨supporter, []⟩] []
+              ({ result := .error 1, cause := some 1 }) .empty)
             .empty))))
 
 private def success : GraphEvent :=
@@ -92,19 +94,28 @@ private theorem generated : ReferenceWorkQueue.ExecutedWork work := by
 private theorem producer_known
     : TaskAt work producer [root.ref, child.ref] none
         (.object [] (.ok (value.data, 0))) :=
-  ⟨_, [], .ok (value.data, 0), streamWork, [], rfl, rfl, rfl⟩
+  ⟨_, [], { result := .ok (value.data, 0) }, streamWork, [], rfl, rfl, rfl⟩
 
 private theorem root_known
     : TaskAt work rootFailure [root.ref] none (.object [] (.error 1)) :=
-  ⟨_, [], .error 1, .empty, [], rfl, rfl, rfl⟩
+  ⟨_, [], { result := .error 1, cause := some 1 }, .empty, [], rfl, rfl, rfl⟩
 
 private theorem child_known
     : TaskAt work childFailure [child.ref, supporter.ref] none (.object [] (.error 1)) :=
-  ⟨_, [], .error 1, .empty, [], rfl, rfl, rfl⟩
+  ⟨_, [], { result := .error 1, cause := some 1 }, .empty, [], rfl, rfl, rfl⟩
 
 private theorem finisher_known
     : TaskAt work finisher [parent.ref] none (.object [] (.ok (parentValue.data, 0))) :=
-  ⟨_, [], .ok (parentValue.data, 0), .combine .empty .empty, [], rfl, rfl, rfl⟩
+  ⟨
+    _,
+    [],
+    { result := .ok (parentValue.data, 0) },
+    .combine .empty .empty,
+    [],
+    rfl,
+    rfl,
+    rfl
+  ⟩
 
 private theorem valid : ReferenceWorkQueue.ValidGraphEvents work inputs.flatten := by
   have first : ReferenceWorkQueue.ValidGraphEvents work [success] :=
@@ -133,7 +144,7 @@ example : ReferenceWorkQueue.inputsStarted work inputs = true := by cbv
 example : before.queue.taskNode? producer = some buffered := by cbv
 
 example
-    : (before.queue.groupNode? child.ref).map ReferenceWorkQueue.GroupNode.failure
+    : (before.queue.taskNode? childFailure).map ReferenceWorkQueue.TaskNode.rejection
       = some (some 1) := by cbv
 
 example : before.queue.rootGroups = [parent.ref] := by cbv
@@ -210,7 +221,7 @@ private theorem childPath : view.LiveDescendant child.ref child.ref := by
       (ReferenceWorkQueue.State.putPending_groupEdgesFrom frame.keys found 0)) key node live
   obtain ⟨parents, forest, _⟩ := generatedSnapshot_removalForest
     (inputs := earlierInputs) (event := finish) generated valid (by cbv)
-  have activeForest := ((forest.putCounters frame.keys found 0 none).finishGroupSuccess closing).startNewWork
+  have activeForest := ((forest.putCounters frame.keys found 0).finishGroupSuccess closing).startNewWork
     released.2.2
   have activeFrame := (updatedFrame.finishGroupSuccess closing).startNewWork released.2.2
   have tracked := drain_pendingBuffer_ownerCut (before := before.queue) (event := finish)
@@ -384,7 +395,7 @@ private def children (index : Nat) : Execution.Work :=
   .combine .empty
     (.combine
       (.executionGroup [⟨child index, []⟩] (child index).path
-        (.ok ([("name", .scalar ("name" ++ toString (index + 1)))], 0))
+        ({ result := .ok ([("name", .scalar ("name" ++ toString (index + 1)))], 0) })
         (.combine .empty .empty)) .empty)
 
 private def occurrence : Occurrence := .item [0, 0, 1] 0
@@ -410,12 +421,15 @@ private theorem generated : ReferenceWorkQueue.ExecutedWork work :=
 private theorem located
     : Located work [0, 0, 1]
         (.stream stream
-          [(.ok (.object [], 0), children 0), (.ok (.object [], 0), children 1)])
+          [
+            ({ result := .ok (.object [], 0) }, children 0),
+            ({ result := .ok (.object [], 0) }, children 1)
+          ])
         none [] := by cbv
 
 private theorem known
     : TaskAt work occurrence [stream.ref] none (.item stream (.ok (.object [], 0))) :=
-  .item located rfl
+  .item (result := { result := .ok (.object [], 0) }) located rfl
 
 private theorem valid : ReferenceWorkQueue.ValidGraphEvents work [event] := by
   refine .append .nil ?_ ?_ ?_

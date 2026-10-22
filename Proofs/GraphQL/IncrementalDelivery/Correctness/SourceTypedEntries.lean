@@ -49,7 +49,9 @@ mutual
           (sourceTasks_entries (address ++ [0]) producer cursors left)
           (sourceTasks_entries (address ++ [1]) producer cursors right)
     | executionGroup groups path result children =>
-        exact .executionGroup (sourceTasks_entries _ _ _ children)
+        simpa only [sourceTasks, List.map_cons, SourceTask.entries,
+          TypedResponse.result_deliveryResult]
+          using WorkEntries.executionGroup (sourceTasks_entries _ _ _ children)
     | stream node items => exact .stream (sourceItemTasks_entries _ _ _ _ _ _)
   termination_by sizeOf work
 

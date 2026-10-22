@@ -108,7 +108,7 @@ mutual
           source rest path deferMap _ (fun ref hk => Nat.lt_of_lt_of_le (hm ref hk) hl.monotone)
         have hd := hl.executionGroup (usages.filterMap (lookupDeferredFragment? deferMap)) path
           ((executeCollectedFields schema resolvers variables fuel parentType source groups path
-            usages deferMap).run state).1.result (mapRefs_filterMap_subset deferMap usages) hm
+            usages deferMap).run state).1.outcome (mapRefs_filterMap_subset deferMap usages) hm
         simp only [collectExecutionGroups, executeExecutionGroup, run_bind, StateT.run_pure, id_pure_eq]
         exact hd.append hr hm
   termination_by (fuel, 5, 0, sizeOf partitions)

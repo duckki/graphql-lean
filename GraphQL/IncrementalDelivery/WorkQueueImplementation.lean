@@ -1,7 +1,7 @@
 import GraphQL.IncrementalDelivery.Observation
 
 /-! A finite, pure work-queue implementation following
-[GraphQL.js](https://github.com/graphql/graphql-js) v17.0.1.
+[GraphQL.js](https://github.com/graphql/graphql-js) at `4a9b312`.
 
 The queue and publisher are modeled after its
 `src/execution/incremental/WorkQueue.ts` and
@@ -31,11 +31,12 @@ Failure removal additionally retains cancellation refs: newly revealed descendan
 treat an absent failed parent as a successfully retired shell.
 
 Differences are localized: finite pure outcomes validate host inputs; errors are counts;
-unannounced groups retain failures and unpublished values until normal release or ancestor
-cancellation. Released, settled groups drain after their notice carrier in the same batch.
-Retained notification records do not keep fully invalidated tasks active: their later
-settlements are ignored, without adding errors or integrating child work.
-Neither the async runtime nor GraphQL.js's unannounced-failure bug is reproduced.
+tasks retain rejected computations and unpublished values while other owners survive.
+Unannounced groups keep task membership until normal release or ancestor cancellation.
+Released, settled groups drain after their notice carrier in the same batch.
+Removed tasks ignore later settlements. The ready drain replays retained task rejections
+in group task order, representing computation replay without host promises. Failed completions
+report a selected causal explanation; the async runtime is not reproduced.
 -/
 
 namespace GraphQL.IncrementalDelivery
@@ -118,20 +119,22 @@ where
 -- WorkQueue `State` definitions
 -----------------------------------------------------------------------------------------
 
-/-- GraphQL.js `GroupNode`, with task/child accounting and retained notification state. -/
+/-- GraphQL.js `GroupNode`, with task membership, children, and pending accounting. -/
 structure GroupNode where
   group : Group
   childGroups : NodeRefs := []
   tasks : List Occurrence := []
   pending : Nat := 0
-  /-- Contributing error total awaiting announcement, unless an ancestor cancels the group. -/
-  failure : Option Nat := none
 deriving Repr
 
-/-- GraphQL.js `TaskNode`, storing a resolved value until a group flushes it. -/
+/-- Queue task bookkeeping and retained computation outcome. `value` corresponds to
+GraphQL.js's task-node value; `rejection` represents the rejection retained by the task's
+`Computation`, so starting another owning group can replay it.
+-/
 structure TaskNode where
   task : Task
   value : Option ExecutionGroupValue := none
+  rejection : Option Nat := none
   childStreams : NodeRefs := []
 deriving Repr
 
@@ -166,42 +169,28 @@ structure State where
   terminated : Bool := false
 deriving Repr
 
-/-- Find a group record, including retained failure notifications, by delivery ref. -/
+/-- Find a live group record by delivery ref. -/
 def State.groupNode? (state : State) (ref : NodeRef) : Option GroupNode :=
   state.groupNodes.find? (fun node => node.group.node.ref == ref)
-
-/-- A present group is healthy only when neither it nor an ancestor has failed.
-An absent ancestor ends the walk only when it was not retired by failure. Cancellation
-refs retain that distinction even when descendants arrive later. Cyclic raw parent links
-fail closed at the finite node bound. Announcement is not required for a healthy owner.
--/
-def State.groupIsHealthy (state : State) (ref : NodeRef) : Bool :=
-  match state.groupNode? ref with
-  | none => false
-  | some node =>
-      node.failure.isNone && ancestorsHealthy state.groupNodes.length node.group.parent
-where
-  ancestorsHealthy : Nat → Option NodeRef → Bool
-    | _, none => true
-    | 0, some _ => false
-    | fuel + 1, some parent =>
-        match state.groupNode? parent with
-        | none => !state.cancelledGroups.contains parent
-        | some node => node.failure.isNone && ancestorsHealthy fuel node.group.parent
-
-/-- A shared task remains active while at least one contributing owner is healthy.
-Records retained only for later notification do not keep a task active.
--/
-def State.taskHasHealthyOwner (state : State) (task : Task) : Bool :=
-  task.groups.any (fun group => state.groupIsHealthy group.ref)
 
 /-- Find a registered task definition by its structural occurrence. -/
 def State.task? (state : State) (occurrence : Occurrence) : Option Task :=
   state.tasks.find? (fun task => task.occurrence == occurrence)
 
-/-- Find a started task's stored value and child streams. -/
+/-- Find a started task's retained outcome and child streams. -/
 def State.taskNode? (state : State) (occurrence : Occurrence) : Option TaskNode :=
   state.taskNodes.find? (fun node => node.task.occurrence == occurrence)
+
+/-- Find a retained task rejection in the group's task registration order, matching
+`startGroup` starting each computation. The pair is a transient failure event payload,
+not failure provenance stored on the group.
+-/
+def State.rejectedTask? (state : State) (group : GroupNode) : Option (Occurrence × Nat) :=
+  group.tasks.findSome?
+    fun occurrence => do
+      let task ← state.taskNode? occurrence
+      let errors ← task.rejection
+      return (occurrence, errors)
 
 /-- Find an integrated stream descriptor by its stable delivery ref. -/
 def State.stream? (state : State) (ref : NodeRef) : Option Stream :=
@@ -355,7 +344,7 @@ def State.maybeIntegrateWork (state : State) (work : Work)
   (withStreams, ⟨newGroups, newStreams⟩)
 
 /-- Remove accounted group shells and promote their descendants. Zero pending tasks
-alone does not imply emptiness: settled values or a retained failure still need release.
+alone does not imply emptiness: settled values or rejected computations still need release.
 -/
 def State.pruneEmptyGroups (state : State) (groups : List Execution.DeliveryNode)
     : State × List Execution.DeliveryNode :=
@@ -370,7 +359,7 @@ where
         match current.groupNode? group.ref with
         | none => go fuel current rest kept
         | some node =>
-            if node.tasks.isEmpty && node.failure.isNone then
+            if node.tasks.isEmpty then
               let children :=
                 node.childGroups.filterMap
                   (fun ref =>
@@ -395,12 +384,12 @@ def State.startTask (state : State) (occurrence : Occurrence) : State :=
     | none => state
     | some task => { state with taskNodes := state.taskNodes ++ [{ task }] }
 
-/-- Start a healthy group's tasks; a retained failure needs no further host work. -/
+/-- Start the group's tasks. Retained rejections are replayed by the ready drain. -/
 def State.startGroup (state : State) (ref : NodeRef) : State :=
   match state.groupNode? ref with
   | none => state
   | some node =>
-      if node.failure.isSome then state else node.tasks.foldl State.startTask state
+      node.tasks.foldl State.startTask state
 
 /-- Register a newly released stream as started; its iterator remains host-owned. -/
 def State.startStream (state : State) (ref : NodeRef) : State :=
@@ -554,10 +543,34 @@ def State.finishGroupFailure (state : State) (group : GroupNode) (errors : Nat)
     : State × WorkQueueEvent :=
   (state.removeGroup group.group.node.ref, .groupFailure group.group.node errors)
 
-/-- Drain active groups that already have a failure or all their task settlements.
+/-- A rejected computation remains attached to its task while other owners survive.
+Close only active owners, as GraphQL.js `taskFailure` does. Dormant owners keep task
+membership and replay the same rejection when started; failure does not decrement pending.
+-/
+def State.taskFailure (state : State) (occurrence : Occurrence) (errors : Nat)
+    : State × List WorkQueueEvent :=
+  match state.taskNode? occurrence with
+  | none => (state, [])
+  | some taskNode =>
+      let current := state.putTaskNode { taskNode with rejection := some errors }
+      taskNode.task.groups.foldl
+        (fun (current, events) group =>
+          match current.groupNode? group.ref with
+          | none => (current, events)
+          | some node =>
+              if current.rootGroups.contains group.ref then
+                let (next, failure) := current.finishGroupFailure node errors
+                (next, events ++ [failure])
+              else
+                (current, events))
+        (current, [])
+
+/-- Replay retained rejections for active groups, or finish groups with no pending tasks.
+Task membership order matches GraphQL.js `startGroup`; a replay closes all active owners
+of that task. Successful task results are not processed again.
 Call after emitting their notice carrier. Successful closure can release further settled
 groups; each iteration removes a live group and creates none, bounding the finite loop.
-This release-time drain refines GraphQL.js's handling of settled, unannounced groups.
+This release-time drain represents retained settlements without promise scheduling.
 -/
 def State.drainReadyGroups (state : State) : State × List WorkQueueEvent :=
   go state.groupNodes.length state
@@ -569,96 +582,58 @@ where
           current.rootGroups.findSome?
             fun ref => do
               let node ← current.groupNode? ref
-              if node.failure.isSome || node.pending == 0 then some node else none
+              if (current.rejectedTask? node).isSome || node.pending == 0 then
+                some node
+              else
+                none
         match ready with
         | none => (current, [])
         | some node =>
             let (next, events) :=
-              match node.failure with
-              | some errors =>
-                  let (next, event) := current.finishGroupFailure node errors
-                  (next, [event])
+              match current.rejectedTask? node with
+              | some (occurrence, errors) => current.taskFailure occurrence errors
               | none =>
                   let (next, events, released) := current.finishGroupSuccess node
                   (next.startNewWork released, events)
             let (finished, later) := go fuel next
             (finished, events ++ later)
 
-/-- GraphQL.js `taskSuccess`: check task-level healthy ownership, integrate child Work,
-then decrement each surviving contributing group in one pass. Only released, nonfailed
+/-- GraphQL.js `taskSuccess`: integrate child Work,
+then decrement each surviving contributing group in one pass. Only released
 groups with no pending tasks finish. Raw `GROUP_VALUES` names the triggering group.
-Then activate released work and drain outcomes settled before announcement. A late
-settlement with no healthy owner only removes the cancelled task's bookkeeping;
-its data, errors, and child work are ignored.
+Then activate released work and replay rejections retained by task computations.
+Settlements whose task node was removed are ignored.
 -/
 def State.taskSuccess (state : State) (occurrence : Occurrence) (result : TaskResult)
     : State × List WorkQueueEvent :=
   match state.taskNode? occurrence with
   | none => (state, [])
   | some taskNode =>
-      if !state.taskHasHealthyOwner taskNode.task then
-        (state.removeTask occurrence, [])
-      else
-        let withValue := state.putTaskNode { taskNode with value := some result.value }
-        let (integrated, _) := withValue.maybeIntegrateWork result.work (some occurrence)
-        let (current, events, released) :=
-          taskNode.task.groups.foldl
-            (fun (current, events, released) group =>
-              match current.groupNode? group.ref with
-              | none => (current, events, released)
-              | some node =>
-                  let node := { node with pending := node.pending - 1 }
-                  let current := current.putGroupNode node
-                  if current.rootGroups.contains group.ref
-                      && node.pending == 0
-                      && node.failure.isNone then
-                    let (next, finished, newWork) := current.finishGroupSuccess node
-                    (
-                      next,
-                      events ++ finished,
-                      ⟨
-                        released.newGroups ++ newWork.newGroups,
-                        released.newStreams ++ newWork.newStreams
-                      ⟩
-                    )
-                  else
-                    (current, events, released))
-            (integrated, [], {})
-        let (drained, later) := (current.startNewWork released).drainReadyGroups
-        (drained, events ++ later)
-
-/-- Process one failed task. Announced owners emit failure immediately; unannounced
-owners accumulate contributing errors until normal release or ancestor cancellation.
-Remove the failed task's membership without discarding surviving owners' error outcomes.
-Check healthy ownership once, before this settlement changes any owner. A fully invalidated
-task adds no errors; a task with a healthy owner can still contribute to retained totals.
--/
-def State.taskFailure (state : State) (occurrence : Occurrence) (errors : Nat)
-    : State × List WorkQueueEvent :=
-  match state.taskNode? occurrence with
-  | none => (state, [])
-  | some taskNode =>
-      if !state.taskHasHealthyOwner taskNode.task then
-        (state.removeTask occurrence, [])
-      else
-        let current := state.removeTask occurrence
+      let withValue := state.putTaskNode { taskNode with value := some result.value }
+      let (integrated, _) := withValue.maybeIntegrateWork result.work (some occurrence)
+      let (current, events, released) :=
         taskNode.task.groups.foldl
-          (fun (current, events) group =>
+          (fun (current, events, released) group =>
             match current.groupNode? group.ref with
-            | none => (current, events)
+            | none => (current, events, released)
             | some node =>
-                if current.rootGroups.contains group.ref then
-                  let (next, failure) := current.finishGroupFailure node errors
-                  (next, events ++ [failure])
+                let node := { node with pending := node.pending - 1 }
+                let current := current.putGroupNode node
+                if current.rootGroups.contains group.ref && node.pending == 0 then
+                  let (next, finished, newWork) := current.finishGroupSuccess node
+                  (
+                    next,
+                    events ++ finished,
+                    ⟨
+                      released.newGroups ++ newWork.newGroups,
+                      released.newStreams ++ newWork.newStreams
+                    ⟩
+                  )
                 else
-                  let node :=
-                    {
-                      node with
-                        pending := node.pending - 1
-                        failure := some (node.failure.getD 0 + errors)
-                    }
-                  (current.putGroupNode node, events))
-          (current, [])
+                  (current, events, released))
+          (integrated, [], {})
+      let (drained, later) := (current.startNewWork released).drainReadyGroups
+      (drained, events ++ later)
 
 /-- Integrate each item result's child Work and emit one raw `STREAM_VALUES` event. -/
 def State.streamItems (state : State) (stream : Execution.DeliveryNode)
@@ -1004,7 +979,8 @@ def GraphEvent.MatchesWork (work : Execution.Work) : GraphEvent → Prop
   | .streamFailure stream errors =>
       ∃ address items producer dependencies,
         Located work address (.stream stream items) producer dependencies
-        ∧ ∃ children, (.error errors, children) ∈ items
+        ∧ ∃ outcome children,
+            (outcome, children) ∈ items ∧ outcome.deliveryResult = .error errors
 
 /-- Producers settle before dependent work; stream-item batches advance in order and
 success follows all modeled items. Host fairness is deliberately not assumed.
@@ -1038,9 +1014,10 @@ def GraphEvent.Ready (work : Execution.Work) (before : List GraphEvent)
         Located work address (.stream stream results) producer dependencies
         ∧ (∀ source,
             producer = some source → source ∈ before.flatMap GraphEvent.successes)
-        ∧ ∃ children,
+        ∧ ∃ outcome children,
             results[(GraphEvent.itemsBefore before stream.ref).length]?
-            = some (.error errors, children)
+              = some (outcome, children)
+            ∧ outcome.deliveryResult = .error errors
 
 /-- Legal finite graph-event prefixes, independent of queue bookkeeping. -/
 inductive ValidGraphEvents (work : Execution.Work) : List GraphEvent → Prop where

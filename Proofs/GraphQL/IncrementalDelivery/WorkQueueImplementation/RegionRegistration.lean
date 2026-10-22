@@ -21,8 +21,13 @@ theorem State.drainReadyGroups_tasks (queue : State)
   apply State.drainReadyGroups_preserves (fun current => current.tasks = queue.tasks)
   · intro current node prior _ _ _ _
     rw [(State.startNewWork_groupCore _ _).2.1, State.finishGroupSuccess_tasks, prior]
-  · intro current node errors prior _ _ _
-    exact prior
+  · intro current node occurrence errors prior _ _ _
+    cases found : current.taskNode? occurrence with
+    | none => simpa [State.taskFailure, found] using prior
+    | some task =>
+        rw [current.taskFailure_eq occurrence errors task found]
+        exact failureGroupFold_preserves (fun next => next.tasks = queue.tasks)
+          (fun _ _ prior => prior) errors task.task.groups _ prior
   · rfl
 
 /-- A contributor step changes pending/live bookkeeping but not registered tasks.
@@ -39,11 +44,10 @@ theorem successGroupStep_tasks (acc : State × List WorkQueueEvent × NewWork)
     · rfl
 
 /-- An eligible successful task appends exactly the supplied child tasks.
-Witness: the accepting guard selects integration; release preserves the appended registry.
+Witness: task presence selects integration; release preserves the appended registry.
 -/
 theorem State.taskSuccess_tasks {queue : State} {occurrence result node}
     (found : queue.taskNode? occurrence = some node)
-    (eligible : queue.taskHasHealthyOwner node.task = true)
     : (queue.taskSuccess occurrence result).1.tasks
       = queue.tasks ++ result.work.tasks := by
   have loop (groups : List Execution.DeliveryNode) (acc : State × List WorkQueueEvent × NewWork)
@@ -53,7 +57,6 @@ theorem State.taskSuccess_tasks {queue : State} {occurrence result node}
     | cons group rest ih =>
         rw [List.foldl_cons, ih, successGroupStep_tasks]
   rw [queue.taskSuccess_eq occurrence result node found]
-  simp only [eligible, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
   rw [State.drainReadyGroups_tasks, (State.startNewWork_groupCore _ _).2.1, loop,
     State.maybeIntegrateWork_tasks_append]
   rfl
@@ -62,32 +65,12 @@ theorem State.taskSuccess_tasks {queue : State} {occurrence result node}
 Witness: every owner-handler branch leaves the task registry unchanged. -/
 theorem State.taskFailure_tasks (queue : State) (occurrence : Occurrence) (errors : Nat)
     : (queue.taskFailure occurrence errors).1.tasks = queue.tasks := by
-  let step (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode) :=
-    match acc.1.groupNode? group.ref with
-    | none => acc
-    | some node =>
-        if acc.1.rootGroups.contains group.ref then
-          let (next, failure) := acc.1.finishGroupFailure node errors
-          (next, acc.2 ++ [failure])
-        else (acc.1.putGroupNode
-          { node with pending := node.pending - 1
-                      failure := some (node.failure.getD 0 + errors) }, acc.2)
-  have loop (groups : List Execution.DeliveryNode) (acc : State × List WorkQueueEvent)
-      : (groups.foldl step acc).1.tasks = acc.1.tasks := by
-    induction groups generalizing acc with
-    | nil => rfl
-    | cons group rest ih =>
-        rw [List.foldl_cons, ih]
-        unfold step
-        split
-        · rfl
-        · split <;> rfl
-  unfold State.taskFailure
-  split
-  · rfl
-  · split
-    · rfl
-    · exact loop _ _
+  cases found : queue.taskNode? occurrence with
+  | none => simp [State.taskFailure, found]
+  | some task =>
+      rw [queue.taskFailure_eq occurrence errors task found]
+      exact failureGroupFold_preserves (fun next => next.tasks = queue.tasks)
+        (fun _ _ prior => prior) errors task.task.groups _ rfl
 
 /-- One stream-item integration appends exactly its immediate child tasks.
 Witness: pruning and activation preserve the integration append equation. -/
@@ -145,35 +128,30 @@ theorem State.RegisteredRegions.taskSuccess {queue : State} {work seen occurrenc
   cases found : queue.taskNode? occurrence with
   | none => simpa only [State.taskSuccess, found] using covered
   | some node =>
-      cases eligible : queue.taskHasHealthyOwner node.task with
-      | false =>
-          rw [State.taskSuccess_of_noHealthyOwner found eligible result]
-          exact covered
-      | true =>
-          have registered := started node (List.mem_of_find?_eq_some found)
-          have same : node.task.occurrence = occurrence := (occurrence_beq_iff_eq _ _).mp
-            (List.find?_some (p := fun candidate : TaskNode =>
-              candidate.task.occurrence == occurrence) found)
-          obtain ⟨owners, producer, known, _, childrenWork⟩ := matching
-          cases occurrence with
-          | item => cases childrenWork
-          | executionGroup address =>
-              obtain ⟨groups, path, outcome, children, enclosing, located, _, _⟩ := known
-              change locateWork work address = some
-                ⟨.executionGroup groups path outcome children, producer, enclosing⟩ at located
-              have lowering : result.work = Work.fromExecution children (address ++ [0]) := by
-                simpa [taskChildWork?, located] using childrenWork.symm
-              have childCovered : ∀ ref ∈ rootRefs children, ExposedRef work seen ref := by
-                intro ref member
-                exact covered node.task registered address _ same located ref
-                  (List.mem_append_right _ member)
-              intro task member
-              rw [State.taskSuccess_tasks found eligible] at member
-              rcases List.mem_append.mp member with old | new
-              · exact covered task old
-              · rw [lowering] at new
-                exact workFromSpec_tasks_regionCovered (Located.executionGroup located)
-                  childCovered task new
+      have registered := started node (List.mem_of_find?_eq_some found)
+      have same : node.task.occurrence = occurrence := (occurrence_beq_iff_eq _ _).mp
+        (List.find?_some (p := fun candidate : TaskNode =>
+          candidate.task.occurrence == occurrence) found)
+      obtain ⟨owners, producer, known, _, childrenWork⟩ := matching
+      cases occurrence with
+      | item => cases childrenWork
+      | executionGroup address =>
+          obtain ⟨groups, path, outcome, children, enclosing, located, _, _⟩ := known
+          change locateWork work address = some
+            ⟨.executionGroup groups path outcome children, producer, enclosing⟩ at located
+          have lowering : result.work = Work.fromExecution children (address ++ [0]) := by
+            simpa [taskChildWork?, located] using childrenWork.symm
+          have childCovered : ∀ ref ∈ rootRefs children, ExposedRef work seen ref := by
+            intro ref member
+            exact covered node.task registered address _ same located ref
+              (List.mem_append_right _ member)
+          intro task member
+          rw [State.taskSuccess_tasks found] at member
+          rcases List.mem_append.mp member with old | new
+          · exact covered task old
+          · rw [lowering] at new
+            exact workFromSpec_tasks_regionCovered (Located.executionGroup located)
+              childCovered task new
 
 /-- Task failure cannot expose a new ref region.
 Witness: the permanent registry is unchanged by failure cleanup. -/

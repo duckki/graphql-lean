@@ -102,6 +102,17 @@ theorem State.ContributorProvenance.finishGroupFailure {queue : State}
     provenance.stored.removeGroup group.group.node.ref
   ⟩
 
+/-- Rejection retention preserves task descriptors, sound memberships, and stored values. -/
+theorem State.ContributorProvenance.taskFailure {queue : State} {work : Execution.Work}
+    (provenance : queue.ContributorProvenance work) (occurrence : Occurrence)
+    (errors : Nat)
+    : (queue.taskFailure occurrence errors).1.ContributorProvenance work :=
+  ⟨
+    provenance.registered.taskFailure occurrence errors,
+    provenance.memberships.taskFailure occurrence errors,
+    provenance.stored.taskFailure occurrence errors
+  ⟩
+
 /-- Activating newly announced work preserves all contributor provenance.
 Witness: starting tasks never installs successful values or changes task ownership.
 -/
@@ -173,15 +184,17 @@ theorem State.ContributorProvenance.drainReadyGroups_outputs {queue : State}
                 · cases Option.some.inj choice
                   exact List.mem_of_find?_eq_some lookup
                 · contradiction
-          cases cached : group.failure with
+          cases cached : current.rejectedTask? group with
           | none =>
               exact (known.finishGroupSuccess_outputs group present).append
                 (ih _ ((known.finishGroupSuccess group).startNewWork _))
-          | some errors =>
+          | some rejected =>
+              obtain ⟨occurrence, errors⟩ := rejected
               apply RawPublicationContributors.append
               · intro _ _ impossible
-                simp [State.finishGroupFailure] at impossible
-              · exact ih _ (known.finishGroupFailure group errors)
+                obtain ⟨owner, same⟩ := current.taskFailure_event_failure occurrence errors _ impossible
+                cases same
+              · exact ih _ (known.taskFailure occurrence errors)
   exact loop _ queue provenance
 
 /-- A successful settlement preserves release-group contribution through every owner
@@ -237,9 +250,7 @@ theorem State.ContributorProvenance.taskSuccess_outputs {queue : State}
       obtain ⟨retained, outputs⟩ := loop node.task.groups (_, [], {}) integrated
         (by intro _ _ impossible; cases impossible)
       rw [queue.taskSuccess_eq occurrence result node found]
-      split
-      · intro _ _ impossible; cases impossible
-      · exact outputs.append (retained.startNewWork _).drainReadyGroups_outputs
+      exact outputs.append (retained.startNewWork _).drainReadyGroups_outputs
 
 /-- Stream arrivals can release earlier buffered objects without changing their owners.
 Witness: child integration and pruning preserve provenance; only the final drain emits

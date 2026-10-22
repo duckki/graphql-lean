@@ -30,10 +30,6 @@ theorem ExecutedWork.success_with_finalHealthyOwner_live
         ((State.initialize (Work.fromExecution work)).replayGraphEvents before).taskNode?
             occurrence
           = some node
-        ∧ ((State.initialize (Work.fromExecution work)).replayGraphEvents
-            before).taskHasHealthyOwner
-            node.task
-          = true
         ∧ ref ∈ node.task.groups.map Execution.DeliveryNode.ref
         ∧ ref
           ∈ ((State.initialize (Work.fromExecution work)).replayGraphEvents
@@ -46,7 +42,7 @@ theorem ExecutedWork.success_with_finalHealthyOwner_live
     simpa only [← split] using started
   obtain ⟨_, _, ledger⟩ := generated.replayGraphEvents_ownerAccounting_of_started before
     (valid.prefix earlier) accepted
-  obtain ⟨node, found, guard⟩ := generated.success_with_finalHealthyOwner_processed valid
+  obtain ⟨node, found⟩ := generated.success_with_finalHealthyOwner_processed valid
     started known contributes healthy split
   obtain ⟨member, occurrenceEq⟩ := State.taskNode?_some found
   have registered := ledger.pending.started node member
@@ -70,7 +66,7 @@ theorem ExecutedWork.success_with_finalHealthyOwner_live
     exact List.subset_append_right _ _
   obtain ⟨owner, live, same, _⟩ := ledger.healthyRegisteredTasks node.task registered unsettled
     ref nodeContributes sourceHealthy
-  exact ⟨node, found, guard, nodeContributes, List.mem_map.mpr ⟨owner, live, same⟩⟩
+  exact ⟨node, found, nodeContributes, List.mem_map.mpr ⟨owner, live, same⟩⟩
 
 -----------------------------------------------------------------------------------------
 -- The common ledger accounts for all data by a healthy retirement boundary
@@ -114,7 +110,7 @@ theorem ExecutedWork.healthy_success_published_or_buffered
                 (fun owner => owner.group.node.ref) := by
   let initial := State.initialize (Work.fromExecution work)
   obtain ⟨before, after, split⟩ := List.mem_iff_append.mp succeeded
-  obtain ⟨node, found, guard, nodeContributes, present⟩ :=
+  obtain ⟨node, found, nodeContributes, present⟩ :=
     generated.success_with_finalHealthyOwner_live valid started known contributes healthy split
   have suffix : (initial.replayGraphEvents before).ReplayClosuresCovered
       (.taskSuccess occurrence result :: after)
@@ -127,7 +123,7 @@ theorem ExecutedWork.healthy_success_published_or_buffered
     simp only [split, State.replayGraphEvents, List.foldl_append]
   have cancellation := generated.replayGraphEvents_cancelledRecordsSupported events valid
   have uncancelled := cancellation.healthy_not_mem healthy
-  rcases suffix.success_published_or_buffered found guard nodeContributes present
+  rcases suffix.success_published_or_buffered found nodeContributes present
       (finalState.symm ▸ uncancelled) with emitted | buffered
   · left
     change (occurrence, result.value) ∈ published.take

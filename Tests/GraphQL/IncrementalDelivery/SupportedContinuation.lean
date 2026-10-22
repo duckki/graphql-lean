@@ -33,7 +33,12 @@ theorem continuation {batches} (batched : WorkBatching [value] batches)
   · exact reporting_metadata.1
   · exact reporting_metadata.2.1
   · exact reporting_metadata.2.2.1
+  · simp [work, streamAllocationRefs]
   · simpa [node] using published_reporting
+  · intro index event selected
+    cases index with
+    | zero => cases selected; trivial
+    | succ index => simp at selected
   · exact batched
 
 /-- The supported prefix belongs to a conforming nonblocking source with the same

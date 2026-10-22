@@ -459,7 +459,7 @@ theorem Explains.record_failure
 
 /-- Any recordable failure can make observable progress by closing one open contributing
 owner. Witness: append its actual failure cut, choose a supported open descriptor, and
-emit its counted failure completion. The error count includes the new task's failure.
+emit that task's positive selected failure explanation.
 -/
 theorem Explains.failure_step
     {work groups streams events matching failures occurrence owners producer payload}
@@ -468,6 +468,7 @@ theorem Explains.failure_step
     (fails : payload.failure.isSome = true) (reachable : Reachable work occurrence)
     (opened : ∃ ref ∈ owners, Open ((groups ++ streams).map DeliveryNode.ref) events ref)
     (active : ¬TaskCancelled work matching events failures occurrence)
+    (positive : 0 < payload.failure.getD 0)
     : ∃ node errors event,
         node.ref ∈ owners
         ∧ (event = .groupFailure node errors ∨ event = .streamFailure node errors)
@@ -484,10 +485,11 @@ theorem Explains.failure_step
   have failed : NodeFailed work matching events
       (failures ++ [(events.length, occurrence)]) node.ref :=
     .task known (same ▸ owner) member
-  have knownFailures := recorded.2.1.known
-  rw [← recorded.2.1.failedBefore_eq (Nat.le_refl _)] at knownFailures
-  obtain ⟨errors, counts⟩ := NodeErrors.exists knownFailures node.ref
-  have includes := counts.contribution_le member known (same ▸ owner)
+  let errors := payload.failure.getD 0
+  have counts : NodeFailureCause work
+      (failedBefore (failures ++ [(events.length, occurrence)]) events.length) node.ref errors :=
+    .of_task known member (same ▸ owner) fails positive
+  have includes : payload.failure.getD 0 ≤ errors := Nat.le_refl _
   have nodeOpen : Open ((groups ++ streams).map DeliveryNode.ref) events node.ref :=
     same ▸ openRef
   have finish {event}

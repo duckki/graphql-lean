@@ -128,9 +128,7 @@ theorem State.startNewWork_terminated (queue : State) (released : NewWork)
     unfold State.startGroup
     split
     · rfl
-    · split
-      · rfl
-      · exact fold_projection State.terminated State.startTask task _ _
+    · exact fold_projection State.terminated State.startTask task _ _
   have stream : ∀ current ref,
       (State.startStream current ref).terminated = current.terminated := by
     intro current ref
@@ -170,6 +168,17 @@ theorem State.finishGroupSuccess_terminated (queue : State) (group : GroupNode)
   rw [State.pruneEmptyGroups_terminated]
   exact same
 
+/-- Task rejection replay preserves the termination flag through owner removal. -/
+theorem State.taskFailure_terminated (queue : State) (occurrence : Occurrence)
+    (errors : Nat)
+    : (queue.taskFailure occurrence errors).1.terminated = queue.terminated := by
+  cases found : queue.taskNode? occurrence with
+  | none => simp only [State.taskFailure, found]
+  | some node =>
+      rw [queue.taskFailure_eq occurrence errors node found]
+      exact failureGroupFold_preserves (fun current => current.terminated = queue.terminated)
+        (fun _ _ same => same) _ _ _ rfl
+
 /-- Recursive release preserves the flag, including cached-failure removal.
 Witness: the drain induction composes flag-preserving closure and activation steps.
 -/
@@ -179,8 +188,8 @@ theorem State.drainReadyGroups_terminated (queue : State)
   · intro current node same _ _ _ _
     rw [State.startNewWork_terminated, State.finishGroupSuccess_terminated]
     exact same
-  · intro current node errors same _ _ _
-    exact same
+  · intro current _ occurrence errors same _ _ _
+    exact (current.taskFailure_terminated occurrence errors).trans same
   · rfl
 
 /-- Task success cannot terminate mid-batch, even when it drains every active group.
@@ -204,43 +213,11 @@ theorem State.taskSuccess_terminated (queue : State) (occurrence : Occurrence)
   | none => simp [State.taskSuccess, found]
   | some node =>
       rw [queue.taskSuccess_eq occurrence result node found]
-      split
-      · rfl
-      · dsimp only
-        rw [State.drainReadyGroups_terminated, State.startNewWork_terminated,
-          fold_projection (fun acc : State × List WorkQueueEvent × NewWork =>
-            acc.1.terminated) successGroupStep preserved]
-        exact State.maybeIntegrateWork_terminated _ _ (some occurrence)
-
-/-- Failed task settlement retains the flag for accepted, cached, and ignored outcomes.
-Witness: owner processing either removes a subtree or updates its retained failure.
--/
-theorem State.taskFailure_terminated (queue : State) (occurrence : Occurrence)
-    (errors : Nat)
-    : (queue.taskFailure occurrence errors).1.terminated = queue.terminated := by
-  let step (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode) :=
-    match acc.1.groupNode? group.ref with
-    | none => acc
-    | some node =>
-        if acc.1.rootGroups.contains group.ref then
-          let (next, failure) := acc.1.finishGroupFailure node errors
-          (next, acc.2 ++ [failure])
-        else (acc.1.putGroupNode
-          { node with pending := node.pending - 1
-                      failure := some (node.failure.getD 0 + errors) }, acc.2)
-  have preserved : ∀ acc group, (step acc group).1.terminated = acc.1.terminated := by
-    intro acc group
-    unfold step
-    split
-    · rfl
-    · split <;> rfl
-  unfold State.taskFailure
-  split
-  · rfl
-  · split
-    · rfl
-    · exact fold_projection (fun acc : State × List WorkQueueEvent => acc.1.terminated)
-        step preserved _ _
+      dsimp only
+      rw [State.drainReadyGroups_terminated, State.startNewWork_terminated,
+        fold_projection (fun acc : State × List WorkQueueEvent × NewWork =>
+          acc.1.terminated) successGroupStep preserved]
+      exact State.maybeIntegrateWork_terminated _ _ (some occurrence)
 
 /-- Stream item integration and child release retain the termination flag.
 Witness: each item registers/prunes/activates work before the flag-preserving drain.
@@ -310,6 +287,15 @@ theorem State.finishGroupSuccess_noTermination (queue : State) (group : GroupNod
   rw [events]
   split <;> simp
 
+/-- Failure settlement emits only group failures, so it cannot emit termination. -/
+theorem State.taskFailure_noTermination (queue : State) (occurrence : Occurrence)
+    (errors : Nat)
+    : Execution.WorkQueueEvent.workQueueTermination
+      ∉ (queue.taskFailure occurrence errors).2 := by
+  intro emitted
+  obtain ⟨group, impossible⟩ := queue.taskFailure_event_failure occurrence errors _ emitted
+  cases impossible
+
 /-- Recursive release emits only group values and closures.
 Witness: induction on its budget, combining each closure with the remaining drain.
 -/
@@ -325,13 +311,14 @@ theorem State.drainReadyGroups_noTermination (queue : State)
         split
         · simp
         · rename_i node selected
-          cases cached : node.failure with
+          cases cached : current.rejectedTask? node with
           | none =>
               simpa only [List.mem_append, not_or]
                 using And.intro (current.finishGroupSuccess_noTermination node) (ih _)
-          | some errors =>
-              simpa [State.finishGroupFailure]
-                using ih (current.removeGroup node.group.node.ref)
+          | some rejected =>
+              simpa only [List.mem_append, not_or]
+                using And.intro (current.taskFailure_noTermination rejected.1 rejected.2)
+                  (ih _)
   exact loop _ queue
 
 /-- Successful task settlement cannot emit a terminal marker during owner release.
@@ -360,48 +347,9 @@ theorem State.taskSuccess_noTermination (queue : State) (occurrence : Occurrence
   | none => simp [State.taskSuccess, found]
   | some node =>
       rw [queue.taskSuccess_eq occurrence result node found]
-      split
-      · simp
-      · simpa only [List.mem_append, not_or]
-          using And.intro (loop _ (_, [], {}) (by simp))
-            (State.drainReadyGroups_noTermination _)
-
-/-- Failure settlement emits group failure notices only, not queue termination.
-Witness: induction through announced closures and latent error-cache updates.
--/
-theorem State.taskFailure_noTermination (queue : State) (occurrence : Occurrence)
-    (errors : Nat)
-    : Execution.WorkQueueEvent.workQueueTermination
-      ∉ (queue.taskFailure occurrence errors).2 := by
-  let step (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode) :=
-    match acc.1.groupNode? group.ref with
-    | none => acc
-    | some node =>
-        if acc.1.rootGroups.contains group.ref then
-          let (next, failure) := acc.1.finishGroupFailure node errors
-          (next, acc.2 ++ [failure])
-        else (acc.1.putGroupNode
-          { node with pending := node.pending - 1
-                      failure := some (node.failure.getD 0 + errors) }, acc.2)
-  have loop (groups : List Execution.DeliveryNode) (acc : State × List WorkQueueEvent)
-      (prior : Execution.WorkQueueEvent.workQueueTermination ∉ acc.2)
-      : Execution.WorkQueueEvent.workQueueTermination ∉ (groups.foldl step acc).2 := by
-    induction groups generalizing acc with
-    | nil => exact prior
-    | cons group rest ih =>
-        apply ih
-        unfold step
-        split
-        · exact prior
-        · split
-          · simpa [State.finishGroupFailure] using prior
-          · exact prior
-  unfold State.taskFailure
-  split
-  · simp
-  · split
-    · simp
-    · exact loop _ (_, []) (by simp)
+      simpa only [List.mem_append, not_or]
+        using And.intro (loop _ (_, [], {}) (by simp))
+          (State.drainReadyGroups_noTermination _)
 
 /-- No source-handler output contains queue termination, regardless of event validity.
 Witness: task proofs, a stream-value carrier followed by group draining, and stream

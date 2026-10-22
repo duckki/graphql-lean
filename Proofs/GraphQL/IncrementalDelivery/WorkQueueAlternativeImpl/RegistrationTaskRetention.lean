@@ -1,5 +1,6 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.RegistrationActivationSafety
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.RegistrationAccounting
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.RegistrationRejections
 
 /-! Registration-phase retention is independent of computation start and stored values. -/
 
@@ -98,7 +99,7 @@ theorem pruneEmptyGroups_linkedOwner_present {queue : Kernel} {occurrence keys k
                   have listed := links node (List.mem_of_find?_eq_some found)
                     (nodeKey.symm ▸ same ▸ contributes)
                   have noTasks : node.tasks = [] :=
-                    List.isEmpty_iff.mp (Bool.and_eq_true_iff.mp empty).1
+                    List.isEmpty_iff.mp empty
                   simp only [noTasks, List.not_mem_nil] at listed
                 have nextLinks : ReferenceWorkQueue.State.TaskLinkedOn
                     { current with groupNodes :=

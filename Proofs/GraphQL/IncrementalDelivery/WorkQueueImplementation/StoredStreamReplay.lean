@@ -55,9 +55,7 @@ theorem State.StoredStreamsComplete.startGroup {queue : State} {work}
   unfold State.startGroup
   split
   · exact complete
-  · split
-    · exact complete
-    · exact fold_preserves (fun current => current.StoredStreamsComplete work) State.startTask
+  · exact fold_preserves (fun current => current.StoredStreamsComplete work) State.startTask
         (fun _ occurrence prior => prior.startTask occurrence) _ _ complete
 
 /-- Activating released groups and streams retains complete producer links.
@@ -94,6 +92,20 @@ theorem State.StoredStreamsComplete.finishGroupSuccess {queue : State} {work}
   obtain ⟨_, _, _, _, retained, _⟩ := queue.finishGroupSuccess_publications group
   exact fun node member => complete node (retained member)
 
+/-- Task failure cannot silently strip links from a retained buffered producer.
+Witness: cache updates leave task nodes unchanged, and failure cleanup only removes nodes.
+-/
+theorem State.StoredStreamsComplete.taskFailure {queue : State} {work}
+    (complete : queue.StoredStreamsComplete work) (occurrence : Occurrence) (errors : Nat)
+    : (queue.taskFailure occurrence errors).1.StoredStreamsComplete work := by
+  cases found : queue.taskNode? occurrence with
+  | none => simpa only [State.taskFailure, found] using complete
+  | some node =>
+      rw [queue.taskFailure_eq occurrence errors node found]
+      apply failureGroupFold_preserves (fun current => current.StoredStreamsComplete work)
+        (fun current ref prior => prior.removeGroup ref)
+      exact complete.putTaskNode _ (complete node (List.mem_of_find?_eq_some found))
+
 /-- Recursive mixed draining preserves complete links for all surviving buffered tasks.
 Witness: both closure branches remove whole nodes; successful activation adds empty nodes.
 -/
@@ -104,8 +116,8 @@ theorem State.StoredStreamsComplete.drainReadyGroups {queue : State} {work}
     (valid := complete)
   · intro current node prior _ _ _ _
     exact (prior.finishGroupSuccess node).startNewWork _
-  · intro current node errors prior _ _ _
-    exact prior.removeGroup _
+  · intro current node occurrence errors prior _ _ _
+    exact prior.taskFailure occurrence errors
 
 -----------------------------------------------------------------------------------------
 -- The actual single-pass handlers preserve the complete boundary invariant
@@ -137,32 +149,7 @@ theorem State.StoredStreamsComplete.taskSuccess {queue : State} {work occurrence
       have processed := fold_preserves (fun acc => acc.1.StoredStreamsComplete work)
         successGroupStep step node.task.groups (_, [], {}) integrated
       rw [queue.taskSuccess_eq occurrence result node found]
-      split
-      · exact complete.removeTask occurrence
-      · exact (processed.startNewWork _).drainReadyGroups
-
-/-- Task failure cannot silently strip links from a retained buffered producer.
-Witness: cache updates leave task nodes unchanged, and failure cleanup only removes nodes.
--/
-theorem State.StoredStreamsComplete.taskFailure {queue : State} {work}
-    (complete : queue.StoredStreamsComplete work) (occurrence : Occurrence) (errors : Nat)
-    : (queue.taskFailure occurrence errors).1.StoredStreamsComplete work := by
-  unfold State.taskFailure
-  split
-  · exact complete
-  · split
-    · exact complete.removeTask occurrence
-    apply fold_preserves
-      (fun acc : State × List WorkQueueEvent => acc.1.StoredStreamsComplete work)
-    · intro acc group prior
-      obtain ⟨current, events⟩ := acc
-      dsimp only
-      split
-      · exact prior
-      · split
-        · exact prior.removeGroup _
-        · exact prior
-    · exact fun node member => complete node (List.mem_filter.mp member).1
+      exact (processed.startNewWork _).drainReadyGroups
 
 /-- Stream item integration preserves all existing buffered object links.
 Witness: each item registers root work without installing an object value, then the final

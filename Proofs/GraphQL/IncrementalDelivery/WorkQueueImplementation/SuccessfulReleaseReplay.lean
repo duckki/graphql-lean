@@ -38,10 +38,15 @@ theorem ExecutedWork.replayGraphEvents_next_successfulGroupsHealthy
       obtain ⟨after, same⟩ := earlier
       apply State.acceptsBatch_atPrefix _ past next after
       simpa only [← same, List.append_assoc, List.singleton_append] using started)
-  have counts := (createWorkQueue_groupErrorAccounting (Work.fromExecution work) work
+  have counts := (createWorkQueue_retainedFailures (Work.fromExecution work) work
     ).replayGraphEvents (before := []) (createWorkQueue_pendingAccounting work)
-      generated before priorValid started
+      generated (by intro _ member; cases member) before priorValid started
   simp only [List.append_nil] at counts
+  have successes := (createWorkQueue_pendingAccounting work).replayGraphEvents_successes
+    (before := []) generated before priorValid started
+  have included : failed.Subset (GraphEvent.failureSettlements before) :=
+    ((State.initialize (Work.fromExecution work)).objectFailureContributions_sublist before).subset
+  have fresh := (validGraphEvents_last valid).2.2
   have failedKnown : ∀ occurrence ∈ failed,
       ∃ owners producer payload,
         TaskAt work occurrence owners producer payload ∧ payload.failure.isSome = true := by
@@ -55,10 +60,11 @@ theorem ExecutedWork.replayGraphEvents_next_successfulGroupsHealthy
   cases event with
   | taskSuccess occurrence result =>
       exact (queue.taskSuccess_releaseHealth health.1 health.2.1 generated ledger.groups
-        ledger.childLinks canonical counts failedKnown source).2.2
+        ledger.childLinks canonical counts failedKnown source successes priorValid included fresh).2.2
   | streamItems stream items =>
       exact (queue.streamItems_releaseHealth health.1 health.2.1 generated ledger.groups
-        ledger.childLinks canonical counts failedKnown source).2.2
+        ledger.childLinks canonical counts failedKnown source successes.refs successes.sound
+          successes.matching).2.2
   | taskFailure occurrence errors =>
       exact .of_noGroupSuccess (queue.taskFailure_noGroupSuccess occurrence errors)
   | streamSuccess stream =>

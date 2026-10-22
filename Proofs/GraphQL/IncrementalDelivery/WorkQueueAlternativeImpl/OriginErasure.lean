@@ -14,12 +14,12 @@ open GraphQL.IncrementalDelivery.Semantics
 def eraseCompletionRun (output : RecordedCompletion α × Nat) : Completion α × Nat :=
   (output.1.erase, output.2)
 
-def eraseItems (items : List (Report ResponseValue × RecordedWork))
-    : List (Result ResponseValue × Work) :=
-  items.map (fun item => (item.1.outcome, item.2.erase))
+def eraseItems (items : List (RecordedOutcome ResponseValue × RecordedWork))
+    : List (TaskOutcome ResponseValue × Work) :=
+  items.map (fun item => (item.1.erase, item.2.erase))
 
-def eraseItemsRun (output : List (Report ResponseValue × RecordedWork) × Nat)
-    : List (Result ResponseValue × Work) × Nat :=
+def eraseItemsRun (output : List (RecordedOutcome ResponseValue × RecordedWork) × Nat)
+    : List (TaskOutcome ResponseValue × Work) × Nat :=
   (eraseItems output.1, output.2)
 
 def eraseWorkRun (output : RecordedWork × Nat) : Work × Nat :=
@@ -103,11 +103,15 @@ mutual
             · rename_i definition lookupEq
               simp_all only
               split
-              · simp_all [eraseCompletionRun]
+              · cases definition.outputType <;>
+                  simp_all [eraseCompletionRun, singleFieldResult, handleFieldError,
+                    TypeRef.isNonNull]
               · rename_i arguments argumentsEq
                 simp_all only
                 split
-                · simp_all [eraseCompletionRun]
+                · cases definition.outputType <;>
+                    simp_all [eraseCompletionRun, singleFieldResult, handleFieldError,
+                      TypeRef.isNonNull]
                 · rename_i resolved resolvedEq
                   simp_all only
                   have child := completeValue_erases schema resolvers variables fuel
@@ -307,7 +311,8 @@ mutual
         dsimp only [eraseCompletionRun]
         simp only [erase_result]
         split
-        · simp [eraseItemsRun, eraseItems, RecordedWork.erase, *]
+        · simp [eraseItemsRun, eraseItems, RecordedWork.erase, RecordedCompletion.outcome,
+            RecordedOutcome.erase, RecordedCompletion.erase, Completion.outcome, *]
         · rename_i result resultEq
           simp_all only
           have tail := completeStreamItems_erases schema resolvers variables fuel itemType
@@ -317,7 +322,7 @@ mutual
           simp only [run_bind, StateT.run_pure, id_pure_eq]
           rw [← tail]
           simp only [eraseItemsRun, eraseItems, List.map_cons, RecordedCompletion.erase,
-            resultEq]
+            RecordedCompletion.outcome, RecordedOutcome.erase, Completion.outcome, resultEq]
   termination_by (fuel, 2, sizeOf itemType, sizeOf values)
   decreasing_by
     all_goals subst_vars; simp_wf
@@ -391,7 +396,8 @@ mutual
           ((RecordedExecution.executeCollectedFields schema resolvers variables fuel parentType
             source fields path usages context (route ++ [0])).run state).2
         rw [← tail]
-        simp only [eraseWorkRun, RecordedWork.erase]
+        simp only [eraseWorkRun, RecordedWork.erase, RecordedCompletion.outcome,
+          RecordedOutcome.erase, Completion.outcome]
   termination_by (fuel, 5, 0, sizeOf partitions)
   decreasing_by
     all_goals subst_vars; simp_wf

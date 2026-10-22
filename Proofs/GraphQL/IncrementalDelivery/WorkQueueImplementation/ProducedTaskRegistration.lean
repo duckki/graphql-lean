@@ -73,37 +73,23 @@ and the existing healthy-owner theorem forces the executable storing branch at t
 -/
 theorem ExecutedWork.success_with_finalHealthyOwner_processed
     {work events occurrence result owners producer payload ref before after}
-    (generated : ExecutedWork work) (valid : ValidGraphEvents work events)
+    (_generated : ExecutedWork work) (_valid : ValidGraphEvents work events)
     (started : (State.initialize (Work.fromExecution work)).acceptsBatch events = true)
-    (known : TaskAt work occurrence owners producer payload) (contributes : ref ∈ owners)
-    (healthy
+    (_known : TaskAt work occurrence owners producer payload)
+    (_contributes : ref ∈ owners)
+    (_healthy
       : ¬GroupRecordInvalidated work
           ((State.initialize (Work.fromExecution work)).objectFailureContributions events)
           ref)
     (split : events = before ++ .taskSuccess occurrence result :: after)
     : ∃ node,
         ((State.initialize (Work.fromExecution work)).replayGraphEvents before).taskNode?
-            occurrence
-          = some node
-        ∧ ((State.initialize (Work.fromExecution work)).replayGraphEvents
-            before).taskHasHealthyOwner
-            node.task
-          = true := by
-  have prior : (before ++ [GraphEvent.taskSuccess occurrence result]).IsPrefix events :=
-    ⟨after, by simp [split, List.append_assoc]⟩
+          occurrence
+        = some node := by
   have accepted : (State.initialize (Work.fromExecution work)).acceptsBatch
       (before ++ [.taskSuccess occurrence result]) = true := by
     apply State.acceptsBatch_prefix (after := after)
     simpa only [List.append_assoc, List.singleton_append, ← split] using started
-  apply generated.replayGraphEvents_success_healthyOwner (valid.prefix prior) accepted
-    known contributes
-  intro failed
-  apply healthy
-  apply GroupInvalidated.toRecordInvalidated
-  apply (generated.failureInventories_groupInvalidated_iff events valid started ref).mp
-  apply failed.mono
-  intro occurrence member
-  rw [split, GraphEvent.failureSettlements_append_list]
-  exact List.mem_append_right _ member
+  exact ExecutedWork.replayGraphEvents_success_present accepted
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

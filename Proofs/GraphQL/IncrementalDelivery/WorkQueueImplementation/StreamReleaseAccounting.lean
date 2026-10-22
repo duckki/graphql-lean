@@ -201,7 +201,7 @@ theorem State.PublicationInventory.drainReadyGroups_streamRelease {queue : State
         split
         · exact ⟨[], rfl, by simpa using prior, StreamReleasePublications.nil work⟩
         · rename_i node selected
-          cases cached : node.failure with
+          cases cached : current.rejectedTask? node with
           | none =>
               dsimp only
               obtain ⟨first, firstValues, flushed, firstSupport⟩ :=
@@ -214,20 +214,23 @@ theorem State.PublicationInventory.drainReadyGroups_streamRelease {queue : State
               refine ⟨first ++ later, ?_, ?_, firstSupport.append laterSupport firstValues⟩
               · simp only [List.map_append, List.flatMap_append, firstValues, laterValues]
               · simpa only [List.append_assoc] using final
-          | some errors =>
+          | some rejected =>
+              obtain ⟨occurrence, errors⟩ := rejected
               dsimp only
               obtain ⟨added, values, final, supported⟩ := ih _ _
-                ⟨prior.unique, prior.provenance, prior.stored.removeGroup _⟩
-                (ready.removeGroup _) (childLinks.removeGroup _)
+                ⟨prior.unique, prior.provenance, prior.stored.taskFailure occurrence errors⟩
+                (ready.taskFailure occurrence errors) (childLinks.taskFailure occurrence errors)
               have control : StreamReleasePublications work []
-                  [(current.finishGroupFailure node errors).2] := by
+                  (current.taskFailure occurrence errors).2 := by
                 intro index group groups streams atEvent
-                cases index <;> simp [State.finishGroupFailure] at atEvent
+                obtain ⟨owner, same⟩ := current.taskFailure_event_failure occurrence errors _
+                  (List.mem_of_getElem? atEvent)
+                cases same
               refine ⟨added, ?_, final, ?_⟩
-              · simpa only [State.finishGroupFailure, List.flatMap_append,
-                  List.flatMap_singleton, WorkQueueEvent.objectValues, List.nil_append]
-                  using values
-              · exact control.append supported rfl
+              · simpa only [List.flatMap_append, State.taskFailure_objectValues,
+                  List.nil_append] using values
+              · exact control.append supported (by simp only [List.map_nil, State.taskFailure_objectValues])
+
   exact loop _ queue published inventory settled links
 
 /-- One contributor step preserves stream links and extends one common publication ledger.
@@ -330,12 +333,6 @@ theorem State.PublicationInventory.taskSuccess_streamRelease {queue : State}
           ⟨integratedSettled, integratedLinks, [], rfl, initialLedger,
             StreamReleasePublications.nil work⟩
       rw [queue.taskSuccess_eq occurrence result node found]
-      split
-      · refine ⟨[], rfl, ?_, ?_⟩
-        · simpa only [List.append_nil]
-            using State.PublicationInventory.mk inventory.unique inventory.provenance
-              (inventory.stored.removeTask occurrence)
-        · exact StreamReleasePublications.nil work
       let released := node.task.groups.foldl successGroupStep
         (((queue.putTaskNode { node with value := some result.value }).maybeIntegrateWork
           result.work (some occurrence)).1, [], {})

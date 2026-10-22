@@ -1,7 +1,7 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.RetiredHealthReplay
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.DeferGuardHealth
 
-/-! Actual accepted failure cuts inherit the generated replay's proved health boundary. -/
+/-! Selected failure cuts retain a contributor unaffected by their earlier selected cuts. -/
 
 namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
@@ -32,28 +32,52 @@ theorem ExecutedWork.prefix_missingParentHealth {work : Execution.Work}
   exact (generated.replayGraphEvents_retiredHealth received priorValid
     (State.acceptsBatch_prefix accepted)).2.2
 
-/-- Each accepted object cut has an owner unaffected by earlier record invalidation.
+/-- Each informative object cut has an owner unaffected by earlier record invalidation.
 Witness: the cut-to-source-prefix theorem now consumes the proved replay certificate.
 Equal-index predecessors and ignored source inputs retain their original order.
 -/
 theorem ExecutedWork.eligibleObjectFailureCuts_uninvalidatedOwner {work : Execution.Work}
     (generated : ExecutedWork work) {batches : List (List GraphEvent)}
     (valid : ValidGraphEvents work batches.flatten)
-    (started : inputsStarted work batches = true)
+    (_started : inputsStarted work batches = true)
     {before after : FailureCuts} {cut : Nat} {occurrence : Occurrence}
     (split
       : let queue := State.initialize (Work.fromExecution work)
         let publisher : IncrementalPublisher :=
           { active := queue.initialGroups ++ queue.initialStreams }
-        sourceObjectFailureCuts 0
+        informativeObjectFailureCuts work
           (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher batches).2.2)
         = before ++ (cut, occurrence) :: after)
     : ∃ owners ref,
         TaskHasOwners work occurrence owners
         ∧ ref ∈ owners
-        ∧ ¬GroupRecordInvalidated work (before.map Prod.snd) ref :=
-  createWorkQueue_eligibleObjectFailureCuts_uninvalidatedOwner generated valid started
-    (generated.prefix_missingParentHealth valid started) split
+        ∧ ¬GroupRecordInvalidated work (before.map Prod.snd) ref := by
+  have selected := selectObjectFailureCuts_informative work []
+    (sourceObjectFailureCuts 0
+      ((State.initialize (Work.fromExecution work)).eligibleFailureBlocks
+        ((State.initialize (Work.fromExecution work)).sourceRunBlocks
+          { active := (State.initialize (Work.fromExecution work)).initialGroups
+            ++ (State.initialize (Work.fromExecution work)).initialStreams } batches).2.2))
+  change InformativeFailureCuts work [] (informativeObjectFailureCuts work _) at selected
+  rw [split] at selected
+  obtain ⟨owners, ref, ⟨producer, payload, task⟩, owner, healthy⟩ := selected.atCut
+  simp only [List.nil_append] at healthy
+  have member : (cut, occurrence) ∈ informativeObjectFailureCuts work
+      ((State.initialize (Work.fromExecution work)).eligibleFailureBlocks
+        ((State.initialize (Work.fromExecution work)).sourceRunBlocks
+          { active := (State.initialize (Work.fromExecution work)).initialGroups
+            ++ (State.initialize (Work.fromExecution work)).initialStreams } batches).2.2) := by
+    rw [split]
+    exact List.mem_append_right _ List.mem_cons_self
+  obtain ⟨_, actualOwners, birth, path, errors, actual, _⟩ :=
+    createWorkQueue_informativeObjectFailureCuts_origin generated valid _ member
+  obtain ⟨address, rfl⟩ := actual.object_occurrence
+  obtain ⟨node, dependencies, descriptor, same⟩ := task.executionGroup_owner owner
+  refine ⟨owners, ref, ⟨producer, payload, task⟩, owner, ?_⟩
+  intro invalid
+  apply healthy
+  exact same ▸ (generated.groupRecordInvalidated_iff_groupInvalidated descriptor).mp
+    (same.symm ▸ invalid)
 
 namespace ConformancePlan
 
@@ -74,7 +98,7 @@ theorem failureCutOwnerHealth_of_defer {work : Execution.Work}
         let publisher : IncrementalPublisher :=
           { active := queue.initialGroups ++ queue.initialStreams }
         w.failures
-        = sourceObjectFailureCuts 0
+        = informativeObjectFailureCuts work
             (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher batches).2.2))
     : FailureCutOwnerHealth work w :=
   failureCutOwnerHealth_of_deferMissingParentHealth generated shape valid started
@@ -93,7 +117,7 @@ theorem uncancelledFailures_of_defer {work : Execution.Work}
         let publisher : IncrementalPublisher :=
           { active := queue.initialGroups ++ queue.initialStreams }
         w.failures
-        = sourceObjectFailureCuts 0
+        = informativeObjectFailureCuts work
             (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher batches).2.2))
     : UncancelledFailures work w :=
   uncancelledFailures_of_deferOwnerHealth generated shape

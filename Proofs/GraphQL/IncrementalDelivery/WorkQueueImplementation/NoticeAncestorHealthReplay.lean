@@ -36,10 +36,15 @@ theorem ExecutedWork.replayGraphEvents_next_noticeAncestorsHealthy
       obtain ⟨after, same⟩ := earlier
       apply State.acceptsBatch_atPrefix _ past next after
       simpa only [← same, List.append_assoc, List.singleton_append] using started)
-  have counts := (createWorkQueue_groupErrorAccounting (Work.fromExecution work) work
+  have counts := (createWorkQueue_retainedFailures (Work.fromExecution work) work
     ).replayGraphEvents (before := []) (createWorkQueue_pendingAccounting work)
-      generated before priorValid started
+      generated (by intro _ member; cases member) before priorValid started
   simp only [List.append_nil] at counts
+  have successes := (createWorkQueue_pendingAccounting work).replayGraphEvents_successes
+    (before := []) generated before priorValid started
+  have included : failed.Subset (GraphEvent.failureSettlements before) :=
+    ((State.initialize (Work.fromExecution work)).objectFailureContributions_sublist before).subset
+  have fresh := (validGraphEvents_last valid).2.2
   have failedKnown : ∀ occurrence ∈ failed,
       ∃ owners producer payload,
         TaskAt work occurrence owners producer payload ∧ payload.failure.isSome = true := by
@@ -53,10 +58,10 @@ theorem ExecutedWork.replayGraphEvents_next_noticeAncestorsHealthy
   cases event with
   | taskSuccess occurrence result =>
       exact queue.taskSuccess_noticeAncestorHealth health.1 health.2.1 generated ledger.groups
-        ledger.childLinks canonical counts failedKnown source
+        ledger.childLinks canonical counts failedKnown source successes priorValid included fresh
   | streamItems stream items =>
       exact queue.streamItems_noticeAncestorHealth health.1 health.2.1 generated ledger.groups
-        ledger.childLinks canonical counts failedKnown source
+        ledger.childLinks canonical counts failedKnown source successes.refs successes.sound successes.matching
   | taskFailure occurrence errors =>
       apply GroupNoticeAncestorsHealthy.of_noNotices
       intro output member

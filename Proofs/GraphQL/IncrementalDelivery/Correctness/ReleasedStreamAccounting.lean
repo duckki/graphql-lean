@@ -58,6 +58,7 @@ is a separate obligation, not a consequence of internal cancellation.
 theorem account_released_streams
     {paths bound work groups streams events matching failures}
     (coherent : MixedOwnerPaths.WorkAt paths bound work)
+    (positive : ExecutionErrors.WorkPositive work)
     (explained : Explains work groups streams events matching failures)
     (deferred : DeferredTasksAccounted work matching events failures)
     (closed : StreamDependenciesCompleted work events)
@@ -105,8 +106,9 @@ theorem account_released_streams
             stream.ref := by
           refine ⟨retained.2 stream enclosing _ streamKnown ready.2.2.1 ?_, uncompleted⟩
           exact healthy
-        cases outcome with
+        cases completed : outcome.deliveryResult with
         | ok value =>
+            rw [completed] at task
             obtain ⟨item, errors⟩ := value
             have selected := stream_owner_of_open coherent task opened healthy
             obtain ⟨newGroups, newStreams, extended, covered⟩ :=
@@ -119,9 +121,10 @@ theorem account_released_streams
               extended ⟨preserved, covered⟩
             cases impossible
         | error errors =>
+            rw [completed] at task
             obtain ⟨owner, count, event, _, control, _, extended⟩ := admitted.failure_step
               task rfl (ready.reachable admitted task) ⟨stream.ref, by simp, opened⟩
-              ready.2.1
+              ready.2.1 (positive.task task rfl)
             have noValue : ¬IsValue event := by
               rcases control with rfl | rfl <;> simp [IsValue]
             have included : cuts ⊆

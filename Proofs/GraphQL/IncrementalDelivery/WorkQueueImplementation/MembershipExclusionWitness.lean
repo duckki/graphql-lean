@@ -48,22 +48,16 @@ theorem State.PreparedMembershipsCleared.handler_membershipAbsent
       cases found : queue.taskNode? occurrence with
       | none => simp [State.handleGraphEvent, State.taskSuccess, found] at member
       | some node =>
-          cases healthy : queue.taskHasHealthyOwner node.task with
-          | false =>
-              simp [State.handleGraphEvent, State.taskSuccess, found, healthy] at member
-          | true =>
-              have ready := cleared node found healthy
-              let stored := queue.putTaskNode { node with value := some result.value }
-              let prepared := (stored.maybeIntegrateWork result.work (some occurrence)).1
-              let released := node.task.groups.foldl successGroupStep (prepared, [], {})
-              let active := released.1.startNewWork released.2.2
-              have final := ready.drain active.groupNodes.length (Nat.le_refl _) publication
-              rw [State.handleGraphEvent, queue.taskSuccess_eq occurrence result node found]
-              simp only [healthy, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
-              apply final
-              simpa only [State.handleGraphEvent, queue.taskSuccess_eq occurrence result node found,
-                healthy, Bool.not_true, Bool.false_eq_true, ↓reduceIte, State.drainReadyGroups,
-                active, released, prepared, stored] using member
+          have ready := cleared node found
+          let stored := queue.putTaskNode { node with value := some result.value }
+          let prepared := (stored.maybeIntegrateWork result.work (some occurrence)).1
+          let released := node.task.groups.foldl successGroupStep (prepared, [], {})
+          let active := released.1.startNewWork released.2.2
+          have final := ready.drain active.groupNodes.length (Nat.le_refl _) publication
+          rw [State.handleGraphEvent, queue.taskSuccess_eq occurrence result node found]
+          apply final
+          simpa only [State.handleGraphEvent, queue.taskSuccess_eq occurrence result node found,
+            State.drainReadyGroups, active, released, prepared, stored] using member
   | streamItems stream items =>
       cases active : queue.rootStreams.contains stream.ref with
       | false =>

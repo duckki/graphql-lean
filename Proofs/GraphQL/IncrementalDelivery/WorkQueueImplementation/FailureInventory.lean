@@ -75,7 +75,7 @@ theorem StreamFailureCuts.mixed_unique {work events}
 -- The full inventory accounts for every emitted error, without assuming admission
 -----------------------------------------------------------------------------------------
 
-/-- Candidate cuts are ordered, unique, reachable failures with complete output counts.
+/-- Candidate cuts are ordered, unique, reachable failures with selected positive output causes.
 This proof-only certificate does not assert prior notices or absence of prior cancellation.
 Those are the remaining causal licensing obligations, not additional source assumptions.
 -/
@@ -91,10 +91,10 @@ def CompleteFailureInventory (work : Execution.Work)
           TaskAt work entry.2 owners producer payload ∧ payload.failure.isSome = true)
   ∧ (∀ index group errors,
       events[index]? = some (.groupFailure group errors)
-      → NodeErrors work (failedBefore failures index) group.ref errors)
+      → NodeFailureCause work (failedBefore failures index) group.ref errors)
   ∧ (∀ index stream errors,
       events[index]? = some (.streamFailure stream errors)
-      → NodeErrors work (failedBefore failures index) stream.ref errors)
+      → NodeFailureCause work (failedBefore failures index) stream.ref errors)
 
 /-- Exact successful publications cannot publish any member of the failure inventory.
 Witness: the inventory supplies each fixed failed payload; descriptor uniqueness excludes

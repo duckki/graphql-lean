@@ -88,7 +88,7 @@ example : (run true false false 0 23).1.result = .ok (.list [.null, .null], 2) :
 private def itemCounts : Work → List Nat
   | .empty | .executionGroup _ _ _ _ => []
   | .combine left right => itemCounts left ++ itemCounts right
-  | .stream _ items => items.map (fun item => countedErrors item.1)
+  | .stream _ items => items.map (fun item => countedErrors item.1.result)
 
 -- Initial zero counted errors do not mean the retained stream payloads are error-free.
 example : (run true true false 0 23).1.result = .ok (.list [], 0) := by cbv

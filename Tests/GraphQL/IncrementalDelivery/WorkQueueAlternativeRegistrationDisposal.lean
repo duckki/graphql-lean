@@ -102,9 +102,16 @@ private def queue : ReferenceWorkQueue.State :=
     groupNodes :=
       [
         { group := { node := node 1 }, tasks := [parent], pending := 1 },
-        { group := { node := node 3 }, failure := some 1 }
+        { group := { node := node 3 }, tasks := [.executionGroup [99]], pending := 1 }
       ]
-    taskNodes := [{ task := { occurrence := parent, groups := [node 1] } }]
+    taskNodes :=
+      [
+        { task := { occurrence := parent, groups := [node 1] } },
+        {
+          task := { occurrence := .executionGroup [99], groups := [node 3] },
+          rejection := some 1
+        }
+      ]
   }
 
 private def success (work : ReferenceWorkQueue.Work) : GraphEvent :=
@@ -185,8 +192,9 @@ example
     : handlerEffects
         {
           queue with
-            groupNodes :=
-              queue.groupNodes.map (fun group => { group with failure := some 1 })
+            taskNodes :=
+              (queue.taskNodes.filter
+                (fun taskNode => taskNode.task.occurrence != parent))
         }
         (success { tasks := [task [0]] })
       = [] := by cbv

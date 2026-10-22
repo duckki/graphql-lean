@@ -72,7 +72,7 @@ mutual
   Witness: each payload has the same absolute item index and seeds the same child cursors.
   -/
   theorem sourceItemTasks_positions_relabel (containers : Bool)
-      (items : List (Result ResponseValue × Work)) (node : DeliveryNode)
+      (items : List (TaskOutcome ResponseValue × Work)) (node : DeliveryNode)
       (index ordinal : Nat) (address other : Address)
       (producer parent : Option Occurrence)
       : (sourceItemTasks address producer node index ordinal items).flatMap

@@ -39,7 +39,7 @@ theorem recordedObjectFailure_producerSucceeded
           { active := queue.initialGroups ++ queue.initialStreams }
         failures.Perm
           (streams
-            ++ sourceObjectFailureCuts 0
+            ++ informativeObjectFailureCuts work
                 (queue.eligibleFailureBlocks
                   (queue.sourceRunBlocks publisher inputs).2.2)))
     (known : TaskAt work (.executionGroup address) owners producer payload)
@@ -51,7 +51,7 @@ theorem recordedObjectFailure_producerSucceeded
   subst producer
   obtain ⟨path, result, samePayload⟩ : ∃ path result, payload = .object path result := by
     obtain ⟨_, path, result, _, _, _, _, same⟩ := known
-    exact ⟨path, result, same⟩
+    exact ⟨path, result.deliveryResult, same⟩
   have recorded := createWorkQueue_mixedFailureCuts_objectsRecorded started cuts partition
     (samePayload ▸ known) failed
   have received := ((initialQueue work).objectFailureContributions_sublist inputs.flatten).subset
@@ -60,25 +60,24 @@ theorem recordedObjectFailure_producerSucceeded
     (GraphEvent.failureSettlements_subsetIdentities inputs.flatten received)
 
 /-- Actual cut-supported notice contents always supply a source-ready group contributor.
-Witness: retained tasks carry registration prerequisites; error-only caches use the exact
-mixed-cut/source bridge above. Both alternatives use the canonical input and failure list,
-not an independently selected failure inventory or an added host assumption.
+Witness: retained tasks carry registration prerequisites on the canonical source input.
+No failure-cache assumption is required.
 -/
 theorem retainedNotice_sourceReadyContributor
     {work inputs events count child streams} {w : Witness}
-    (generated : ExecutedWork work) (valid : ValidGraphEvents work inputs.flatten)
-    (started : inputsStarted work inputs = true)
-    (cuts
+    (_generated : ExecutedWork work) (_valid : ValidGraphEvents work inputs.flatten)
+    (_started : inputsStarted work inputs = true)
+    (_cuts
       : StreamFailureCuts work
           (((initialQueue work).runNormalized inputs).2.flatten.flatMap publicationAtoms)
           streams)
-    (partition
+    (_partition
       : let queue := initialQueue work
         let publisher : IncrementalPublisher :=
           { active := queue.initialGroups ++ queue.initialStreams }
         w.failures.Perm
           (streams
-            ++ sourceObjectFailureCuts 0
+            ++ informativeObjectFailureCuts work
                 (queue.eligibleFailureBlocks
                   (queue.sourceRunBlocks publisher inputs).2.2)))
     (contents
@@ -90,8 +89,7 @@ theorem retainedNotice_sourceReadyContributor
         ∧ ∀ source,
             producer = some source
             → source ∈ inputs.flatten.flatMap GraphEvent.successes := by
-  exact contents.sourceReadyContributor generated (fun _ _ _ _ known failed =>
-    recordedObjectFailure_producerSucceeded valid started cuts partition known failed)
+  exact contents.sourceReadyContributor
 
 end ConformancePlan
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

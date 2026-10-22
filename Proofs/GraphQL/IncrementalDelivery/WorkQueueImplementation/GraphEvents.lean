@@ -171,7 +171,7 @@ theorem workFromSpec_tasks_taskAt
   | executionGroup groups path result children =>
       simp only [Work.fromExecution, List.mem_singleton] at member
       subst task
-      refine ⟨address, .object path result, rfl, ?_⟩
+      refine ⟨address, .object path result.deliveryResult, rfl, ?_⟩
       simpa only [List.map_map, Function.comp_def] using TaskAt.executionGroup located
   | stream node items => simp [Work.fromExecution] at member
 termination_by sizeOf current

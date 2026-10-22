@@ -61,7 +61,7 @@ termination_by sizeOf work
 
 theorem DeferContinuous.child_ref_supported {parents : Assignment}
     {groups : List DeferredFragment} {path : ResponsePath}
-    {result : Result (List (Name × ResponseValue))} {children : Work}
+    {result : TaskOutcome (List (Name × ResponseValue))} {children : Work}
     (h : DeferContinuous parents (.executionGroup groups path result children))
     {ref : NodeRef} (hk : ref ∈ deferRegionRefs children)
     : ∃ owner ∈ mapRefs groups, owner = ref ∨ owner ∈ parents ref := by
@@ -223,7 +223,7 @@ theorem continuous_nonNull (parents : Assignment) (lower bound : Nat) (owners : 
 
 theorem continuous_deferred (parents : Assignment) (lower bound : Nat)
     (deferMap : DeferMap) (refs owners : List Nat) (path : ResponsePath)
-    (result : Result (List (Name × ResponseValue))) (children : Work)
+    (result : TaskOutcome (List (Name × ResponseValue))) (children : Work)
     (hv : Valid parents bound) (hm : MapAt parents bound deferMap)
     (hl : MixedRefs.MapLower lower deferMap) (hne : refs ≠ [])
     (hk : refs.Subset (mapRefs deferMap))
@@ -245,7 +245,7 @@ theorem continuous_deferred (parents : Assignment) (lower bound : Nat)
       simpa only [lookup_ref he] using hs ref hk
 
 theorem continuous_stream (parents : Assignment) (lower bound : Nat) (owners : List Nat)
-    (node : DeliveryNode) (items : List (Result ResponseValue × Work))
+    (node : DeliveryNode) (items : List (TaskOutcome ResponseValue × Work))
     (hl : lower ≤ node.ref) (hb : node.ref < bound)
     (hi
       : ∀ item ∈ items,

@@ -54,7 +54,7 @@ theorem State.RetiredGroup.drainReadyGroups_go {queue : State} {ref}
     : (State.drainReadyGroups.go fuel queue).1.RetiredGroup ref := by
   apply State.drainReadyGroups_go_preserves (fun state => state.RetiredGroup ref)
     (fun _ node prior _ _ _ _ => (prior.finishGroupSuccess node).startNewWork _)
-    (fun _ node _ prior _ _ _ => prior.removeGroup node.group.node.ref) retired
+    (fun _ _ occurrence errors prior _ _ _ => prior.taskFailure occurrence errors) retired
 
 /-- Successful release's exact notice list inherits the pruned frontier's certificates.
 Witness: the actual output and release list have the same group-ref projection.

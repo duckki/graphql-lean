@@ -15,8 +15,8 @@ The public conformance/replay propositions use the reference's generated-work an
 premises. Their witnesses live in Proofs; concrete host refinement remains a separate
 obligation. See the porting guide for implementation choices and scope boundaries.
 
-Group/source registration, task unlinking, empty-shell pruning, successful release, health,
-readiness selection and publication reuse ReferenceWorkQueue. Only transitions that register
+Group/source registration, task unlinking, empty-shell pruning, successful release,
+rejection replay and publication reuse ReferenceWorkQueue. Only transitions that register
 new task projections or dispose failed ownership are specialized here.
 -/
 
@@ -86,12 +86,14 @@ def uniqueCleanupTargets (targets : List CleanupTarget) : List CleanupTarget :=
 
 /-- Pure cancelTask observation: abort identity, then held child-stream identities.
 The caller deduplicates these targets and expands their operations with CleanupTarget.effects;
-no callbacks run in Lean. An unstarted computation still contributes its abort identity.
+no callbacks run in Lean. An unstarted computation still contributes its abort identity;
+an already rejected computation needs no further abort.
 -/
 def State.cancelTask (state : State) (occurrence : Occurrence) : List CleanupTarget :=
-  [.task occurrence]
-  ++ (state.queue.taskNode? occurrence).toList.flatMap
-      (fun task => task.childStreams.map CleanupTarget.stream)
+  let task := state.queue.taskNode? occurrence
+  let abort :=
+    if task.any (fun node => node.rejection.isSome) then [] else [.task occurrence]
+  abort ++ task.toList.flatMap (fun node => node.childStreams.map CleanupTarget.stream)
 
 /-- Request producer cancellation before aborting its item queue.
 Temporary identity deduplication belongs to the enclosing cancellation pass.
@@ -158,8 +160,7 @@ def State.cancel (state : State) : State × List HostEffect :=
 -----------------------------------------------------------------------------------------
 
 /-- Classification from the task registration owner loop.
-A failed-but-live dormant owner still registers work;
-health is not the rejection criterion. Active work starts only after complete registration.
+Dormant live owners still register work; removed owners do not. Active work starts only after complete registration.
 -/
 inductive TaskRegistration where
   | active
@@ -363,11 +364,39 @@ def State.finishGroupFailure (state : State) (group : ReferenceWorkQueue.GroupNo
   (state, .groupFailure group.group.node errors, targets)
 
 -----------------------------------------------------------------------------------------
+-- Failed task settlement: `taskFailure`
+-----------------------------------------------------------------------------------------
+
+/-- Retain the computation's rejection and close active owners with inline disposal.
+Dormant owners keep the task for replay when started, matching the shared reference path.
+The already rejected task is not aborted again, and its child work is not adopted.
+-/
+def State.taskFailure (state : State) (occurrence : Occurrence) (errors : Nat)
+    (targets : List CleanupTarget := [])
+    : State × List WorkQueueEvent × List CleanupTarget :=
+  match state.queue.taskNode? occurrence with
+  | none => (state, [], targets)
+  | some task =>
+      let queue := state.queue.putTaskNode { task with rejection := some errors }
+      task.task.groups.foldl
+        (fun (current, events, targets) group =>
+          match current.queue.groupNode? group.ref with
+          | none => (current, events, targets)
+          | some node =>
+              if current.queue.rootGroups.contains group.ref then
+                let (next, failure, targets) :=
+                  current.finishGroupFailure node errors targets
+                (next, events ++ [failure], targets)
+              else
+                (current, events, targets))
+        ({ state with queue }, [], targets)
+
+-----------------------------------------------------------------------------------------
 -- Ready draining with shared successful release and fused failed removal
 -----------------------------------------------------------------------------------------
 
 /-- The reference readiness order and successful release rules, with cleanup carried through
-each actual failed removal. Newly released cached failures use the same path as direct
+each actual failed removal. Newly released task rejections use the same path as direct
 failures. The temporary target prefix can include earlier registration disposal.
 -/
 def State.drainReadyGroups (state : State) (targets : List CleanupTarget := [])
@@ -381,16 +410,16 @@ where
           current.queue.rootGroups.findSome?
             fun key => do
               let node ← current.queue.groupNode? key
-              if node.failure.isSome || node.pending == 0 then some node else none
+              if (current.queue.rejectedTask? node).isSome || node.pending == 0 then
+                some node
+              else
+                none
         match ready with
         | none => (current, [], targets)
         | some node =>
             let (next, events, targets) :=
-              match node.failure with
-              | some errors =>
-                  let (next, event, targets) :=
-                    current.finishGroupFailure node errors targets
-                  (next, [event], targets)
+              match current.queue.rejectedTask? node with
+              | some (occurrence, errors) => current.taskFailure occurrence errors targets
               | none =>
                   let (queue, events, released) := current.queue.finishGroupSuccess node
                   let (next, targets) :=
@@ -414,51 +443,42 @@ def State.taskSuccess (state : State) (occurrence : Occurrence)
   match state.queue.taskNode? occurrence with
   | none => (state, [], [])
   | some task =>
-      if !state.queue.taskHasHealthyOwner task.task then
-        ({ state with queue := state.queue.removeTask occurrence }, [], [])
-      else
-        let state :=
-          {
-            state with
-              queue := state.queue.putTaskNode { task with value := some result.value }
-          }
-        let (integrated, newWork) :=
-          state.maybeIntegrateWork result.work (some occurrence)
-        let initial
-            : ReferenceWorkQueue.State
-              × List WorkQueueEvent
-              × ReferenceWorkQueue.NewWork :=
-          (integrated.queue, [], {})
-        let (queue, events, released) :=
-          task.task.groups.foldl
-            (fun (current, events, released) group =>
-              match current.groupNode? group.ref with
-              | none => (current, events, released)
-              | some node =>
-                  let node := { node with pending := node.pending - 1 }
-                  let current := current.putGroupNode node
-                  if current.rootGroups.contains group.ref
-                      && node.pending == 0
-                      && node.failure.isNone then
-                    let (next, finished, roots) := current.finishGroupSuccess node
-                    (
-                      next,
-                      events ++ finished,
-                      ⟨
-                        released.newGroups ++ roots.newGroups,
-                        released.newStreams ++ roots.newStreams
-                      ⟩
-                    )
-                  else
-                    (current, events, released)) initial
-        let (started, targets) :=
-          ({ integrated with queue }).startNewWork released newWork
-        let (finished, later, targets) := started.drainReadyGroups targets
-        (
-          finished,
-          events ++ later,
-          [.adopt occurrence] ++ targets.flatMap CleanupTarget.effects
-        )
+      let state :=
+        {
+          state with
+            queue := state.queue.putTaskNode { task with value := some result.value }
+        }
+      let (integrated, newWork) := state.maybeIntegrateWork result.work (some occurrence)
+      let initial
+          : ReferenceWorkQueue.State × List WorkQueueEvent × ReferenceWorkQueue.NewWork :=
+        (integrated.queue, [], {})
+      let (queue, events, released) :=
+        task.task.groups.foldl
+          (fun (current, events, released) group =>
+            match current.groupNode? group.ref with
+            | none => (current, events, released)
+            | some node =>
+                let node := { node with pending := node.pending - 1 }
+                let current := current.putGroupNode node
+                if current.rootGroups.contains group.ref && node.pending == 0 then
+                  let (next, finished, roots) := current.finishGroupSuccess node
+                  (
+                    next,
+                    events ++ finished,
+                    ⟨
+                      released.newGroups ++ roots.newGroups,
+                      released.newStreams ++ roots.newStreams
+                    ⟩
+                  )
+                else
+                  (current, events, released)) initial
+      let (started, targets) := ({ integrated with queue }).startNewWork released newWork
+      let (finished, later, targets) := started.drainReadyGroups targets
+      (
+        finished,
+        events ++ later,
+        [.adopt occurrence] ++ targets.flatMap CleanupTarget.effects
+      )
 
 /-- Admit each item in FIFO order: register once, adopt, dispose rejected tasks and activate
 that item's released work before the next item. Temporary cleanup identities span this
@@ -508,62 +528,20 @@ def State.streamItems (state : State) (stream : Execution.DeliveryNode)
     )
 
 -----------------------------------------------------------------------------------------
--- Failed task settlement: `taskFailure`
------------------------------------------------------------------------------------------
-
-/-- Check healthy ownership before settling the input, then unlink that already-finished
-task. Each announced failed owner removes and disposes its subtree immediately; dormant
-owners retain the shared pending/error update. One temporary target set spans all owners.
-The settling task is never aborted again, and its work is not adopted.
--/
-def State.taskFailure (state : State) (occurrence : Occurrence) (errors : Nat)
-    : State × List WorkQueueEvent × List HostEffect :=
-  match state.queue.taskNode? occurrence with
-  | none => (state, [], [])
-  | some task =>
-      let healthy := state.queue.taskHasHealthyOwner task.task
-      let state := { state with queue := state.queue.removeTask occurrence }
-      if !healthy then
-        (state, [], [])
-      else
-        let (state, events, targets) :=
-          task.task.groups.foldl
-            (fun (current, events, targets) group =>
-              match current.queue.groupNode? group.ref with
-              | none => (current, events, targets)
-              | some node =>
-                  if current.queue.rootGroups.contains group.ref then
-                    let (next, failure, targets) :=
-                      current.finishGroupFailure node errors targets
-                    (next, events ++ [failure], targets)
-                  else
-                    let node :=
-                      {
-                        node with
-                          pending := node.pending - 1
-                          failure := some (node.failure.getD 0 + errors)
-                      }
-                    (
-                      { current with queue := current.queue.putGroupNode node },
-                      events,
-                      targets
-                    ))
-            (state, [], [])
-        (state, events, targets.flatMap CleanupTarget.effects)
-
------------------------------------------------------------------------------------------
 -- Graph dispatch and FIFO batch consumption: `handleGraphEvents`
 -----------------------------------------------------------------------------------------
 
-/-- Registration and failure-bearing handlers return their own inline effects. Source
-closure remains shared; source failure cancels its producer without aborting the stream
-Queue or cancelling already admitted descendants.
+/-- Registration handlers return inline effects; failed-task cleanup targets are expanded
+at dispatch. Source closure remains shared; source failure cancels its producer without
+aborting the stream Queue or cancelling already admitted descendants.
 -/
 def State.handleGraphEvent (state : State) (event : GraphEvent)
     : State × List WorkQueueEvent × List HostEffect :=
   match event with
   | .taskSuccess occurrence result => state.taskSuccess occurrence result
-  | .taskFailure occurrence errors => state.taskFailure occurrence errors
+  | .taskFailure occurrence errors =>
+      let (state, events, targets) := state.taskFailure occurrence errors
+      (state, events, targets.flatMap CleanupTarget.effects)
   | .streamItems stream items => state.streamItems stream items
   | _ =>
       let effects :=

@@ -26,16 +26,10 @@ theorem handleGraphEvent_tasks_eq_snapshot (queue : Kernel) (event : GraphEvent)
       | none => simp only [ReferenceWorkQueue.State.handleGraphEvent,
           ReferenceWorkQueue.State.taskSuccess, registrationSnapshot, found]
       | some node =>
-          cases healthy : queue.taskHasHealthyOwner node.task with
-          | false =>
-              simp only [ReferenceWorkQueue.State.handleGraphEvent,
-                ReferenceWorkQueue.State.taskSuccess, registrationSnapshot, found, healthy,
-                Bool.not_false, Bool.false_eq_true, ↓reduceIte, ReferenceWorkQueue.State.removeTask]
-          | true =>
-              rw [ReferenceWorkQueue.State.handleGraphEvent,
-                ReferenceWorkQueue.State.taskSuccess_tasks found healthy]
-              simp only [registrationSnapshot, found, healthy, ↓reduceIte,
-                State.maybeIntegrateWork_tasks, ReferenceWorkQueue.State.putTaskNode]
+          rw [ReferenceWorkQueue.State.handleGraphEvent,
+            ReferenceWorkQueue.State.taskSuccess_tasks found]
+          simp only [registrationSnapshot, found,
+            State.maybeIntegrateWork_tasks, ReferenceWorkQueue.State.putTaskNode]
   | streamItems stream items =>
       cases active : queue.rootStreams.contains stream.ref with
       | false =>

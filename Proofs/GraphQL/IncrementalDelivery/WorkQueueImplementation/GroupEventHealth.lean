@@ -28,7 +28,7 @@ theorem createWorkQueue_mixedFailureCuts_objectsRecorded {work : Execution.Work}
           { active := queue.initialGroups ++ queue.initialStreams }
         failures.Perm
           (streams
-            ++ sourceObjectFailureCuts 0
+            ++ informativeObjectFailureCuts work
                 (queue.eligibleFailureBlocks
                   (queue.sourceRunBlocks publisher inputs).2.2)))
     {count occurrence owners producer path result}
@@ -46,7 +46,12 @@ theorem createWorkQueue_mixedFailureCuts_objectsRecorded {work : Execution.Work}
     (by rwa [← inputsStarted_eq_batchesStarted])] at ledger
   rw [← ledger, List.mem_reverse]
   obtain ⟨entry, kept, same⟩ := List.mem_map.mp ((cuts.object_mem_iff partition known).mp recorded)
-  exact List.mem_map.mpr ⟨entry, (List.mem_filter.mp kept).1, same⟩
+  exact List.mem_map.mpr
+    ⟨
+      entry,
+      (informativeObjectFailureCuts_sublist work _).subset (List.mem_filter.mp kept).1,
+      same
+    ⟩
 
 namespace ConformancePlan
 
@@ -85,14 +90,14 @@ theorem groupSuccessesHealthy_of_successfulItems {work inputs w streams}
           { active := queue.initialGroups ++ queue.initialStreams }
         w.failures
         = mergeFailureCuts
-            (sourceObjectFailureCuts 0
+            (informativeObjectFailureCuts work
               (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher inputs).2.2))
             streams)
     : GroupSuccessesHealthy work w := by
   let queue := initialQueue work
   let publisher : IncrementalPublisher :=
     { active := queue.initialGroups ++ queue.initialStreams }
-  let objects := sourceObjectFailureCuts 0
+  let objects := informativeObjectFailureCuts work
     (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher inputs).2.2)
   have partition : w.failures.Perm (streams ++ objects) :=
     exactCuts ▸ mergeFailureCuts_partition objects streams

@@ -61,7 +61,7 @@ mutual
         obtain ⟨hlt, final, het, hwt⟩ := collectExecutionGroups_roles schema resolvers variables fuel parentType source
           rest path deferMap middle _ (hm.extend he hle)
         have hd := workAt_deferred final _ deferMap usages path
-          ((executeCollectedFields schema resolvers variables fuel parentType source groups path usages deferMap).run state).1.result
+          ((executeCollectedFields schema resolvers variables fuel parentType source groups path usages deferMap).run state).1.outcome
           _ ((hm.extend he hle).extend het hlt) (hw.extend het hlt)
         simp only [collectExecutionGroups, executeExecutionGroup, run_bind, StateT.run_pure, id_pure_eq]
         exact ⟨Nat.le_trans hle hlt, final, he.trans het hle,

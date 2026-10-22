@@ -24,6 +24,7 @@ theorem generatedReplay_bufferedOwnersPresent {work inputs}
 
 private theorem eagerRegistrationSnapshot_bufferedOwners
     {queue : ReferenceWorkQueue.State} {work settled}
+    (allOwners : queue.TaskOwnersPresent)
     (owners : queue.BufferedOwnersPresent) (links : queue.StoredTaskLinks)
     (accounted : queue.PendingAccounting work settled) (event : GraphEvent)
     (matching : event.MatchesWork work)
@@ -33,15 +34,10 @@ private theorem eagerRegistrationSnapshot_bufferedOwners
       cases found : queue.taskNode? occurrence with
       | none => simpa only [eagerRegistrationSnapshot, found] using owners
       | some node =>
-          cases healthy : queue.taskHasHealthyOwner node.task with
-          | false =>
-              simpa only [eagerRegistrationSnapshot, found, healthy, Bool.false_eq_true,
-                ↓reduceIte] using owners
-          | true =>
-              simp only [eagerRegistrationSnapshot, found, healthy, ↓reduceIte]
-              exact (owners.putTaskNode { node with value := some result.value }
-                (fun _ => ReferenceWorkQueue.taskHasHealthyOwner_present healthy)).integrate
-                result.work (some occurrence)
+          simp only [eagerRegistrationSnapshot, found]
+          exact (owners.putTaskNode { node with value := some result.value }
+            (fun _ => allOwners node (List.mem_of_find?_eq_some found))).integrate
+            result.work (some occurrence)
   | streamItems stream items =>
       cases active : queue.rootStreams.contains stream.ref with
       | false =>
@@ -82,6 +78,7 @@ theorem GeneratedSnapshotBufferedOwners_holds : GeneratedSnapshotBufferedOwners 
           intro node member; cases member
     · obtain ⟨settled, _, accounted⟩ := generated.runNormalized_pendingAccounting inputs earlier started
       exact eagerRegistrationSnapshot_bufferedOwners
+        (generated.runNormalized_taskOwnerFrame inputs earlier started).owners
         (generated.runNormalized_bufferedOwnersPresent inputs earlier started)
         (generated.runNormalized_storedTaskLinks inputs earlier started) accounted event matching
   have groups := congrArg (fun queue : ReferenceWorkQueue.State => queue.groupNodes.map

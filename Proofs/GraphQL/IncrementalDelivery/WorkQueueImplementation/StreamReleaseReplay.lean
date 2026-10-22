@@ -28,35 +28,9 @@ theorem State.taskFailure_noGroupSuccess (queue : State) (occurrence : Occurrenc
     (errors : Nat) (group : Execution.DeliveryNode) (groups streams)
     : Execution.WorkQueueEvent.groupSuccess group groups streams
       ∉ (queue.taskFailure occurrence errors).2 := by
-  let step (acc : State × List WorkQueueEvent) (owner : Execution.DeliveryNode) :=
-    match acc.1.groupNode? owner.ref with
-    | none => acc
-    | some node =>
-        if acc.1.rootGroups.contains owner.ref then
-          let (next, failure) := acc.1.finishGroupFailure node errors
-          (next, acc.2 ++ [failure])
-        else (acc.1.putGroupNode
-          { node with pending := node.pending - 1
-                      failure := some (node.failure.getD 0 + errors) }, acc.2)
-  have loop (owners : List Execution.DeliveryNode) (acc : State × List WorkQueueEvent)
-      (prior : Execution.WorkQueueEvent.groupSuccess group groups streams ∉ acc.2)
-      : Execution.WorkQueueEvent.groupSuccess group groups streams ∉ (owners.foldl step acc).2 := by
-    induction owners generalizing acc with
-    | nil => exact prior
-    | cons owner rest ih =>
-        apply ih
-        unfold step
-        split
-        · exact prior
-        · split
-          · simpa [State.finishGroupFailure] using prior
-          · exact prior
-  unfold State.taskFailure
-  split
-  · simp
-  · split
-    · simp
-    exact loop _ (_, []) (by simp)
+  intro emitted
+  obtain ⟨owner, same⟩ := queue.taskFailure_event_failure occurrence errors _ emitted
+  cases same
 
 /-- An item handler's final drain releases task-produced streams with prior producer values.
 Witness: parentless item integration preserves the joint state invariant, then draining

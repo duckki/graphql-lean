@@ -18,7 +18,7 @@ The raw fixture permits every combination of producer and item outcomes.
 def mixed (result : Result (List (Name × ResponseValue)))
     (outer middle inner : Result ResponseValue)
     : Work :=
-  .executionGroup [{ node := parent }] [] result
+  .executionGroup [{ node := parent }] [] { result }
     (NestedStreamExistence.nested outer middle inner)
 
 /-- Local mixed fixture outcomes with positive failures have a complete run.
@@ -54,7 +54,7 @@ The producer still has just one task occurrence, independently of owner count.
 def shared (result : Result (List (Name × ResponseValue)))
     (outer middle inner : Result ResponseValue)
     : Work :=
-  .executionGroup ([parent, coOwner, parent].map (fun node => { node })) [] result
+  .executionGroup ([parent, coOwner, parent].map (fun node => { node })) [] { result }
     (NestedStreamExistence.nested outer middle inner)
 
 /-- Every shared-producer outcome admits a run completing both original IDs exactly once.
@@ -186,9 +186,9 @@ example
     : ∃ history,
         AdmissibleRun
           (.executionGroup [{ node := { ref := 0, path := [] } }]
-            [.field "user"] (.error 1)
+            [.field "user"] ({ result := .error 1 })
             (.stream { ref := 1, path := [.field "user", .field "items"] }
-              [(.ok (.null, 0), .empty)])) history := by
+              [({ result := .ok (.null, 0) }, .empty)])) history := by
   apply deferredStreams_completeRun_exists
     (paths := fun ref => if ref = 0 then [] else [.field "user", .field "items"])
     (bound := 2) (roles := fun ref => ref != 0)

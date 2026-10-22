@@ -10,9 +10,9 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 -- Accepted failures remain visible even when their handlers emit no output
 -----------------------------------------------------------------------------------------
 
-/-- Every accepted object failure is retained at the canonical witness's final cutoff.
-Witness: exact source-label replay identifies the contribution ledger with the object-cut
-partition; the complete inventory bounds every retained cut by the nonterminal history.
+/-- Every concrete object invalidation is preserved at the canonical witness's final cutoff.
+Witness: exact source-label replay identifies the contribution ledger with the raw object cuts;
+selection preserves invalidation and the complete inventory bounds every retained cut by the nonterminal history.
 No event-admission or terminal-accounting premise is used.
 -/
 theorem objectFailureContributions_visible {work inputs} {w : Witness}
@@ -25,25 +25,37 @@ theorem objectFailureContributions_visible {work inputs} {w : Witness}
           { active := queue.initialGroups ++ queue.initialStreams }
         w.failures.Perm
           (streams
-            ++ sourceObjectFailureCuts 0
+            ++ informativeObjectFailureCuts work
                 (queue.eligibleFailureBlocks
                   (queue.sourceRunBlocks publisher inputs).2.2)))
-    : ((initialQueue work).objectFailureContributions inputs.flatten).Subset
-        (failedBefore w.failures w.events.length) := by
+    : ∀ ref,
+        GroupInvalidated work
+          ((initialQueue work).objectFailureContributions inputs.flatten) ref
+        → GroupInvalidated work (failedBefore w.failures w.events.length) ref := by
   let queue := initialQueue work
   let publisher : IncrementalPublisher :=
     { active := queue.initialGroups ++ queue.initialStreams }
+  let raw := sourceObjectFailureCuts 0
+    (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher inputs).2.2)
   have ledger := queue.eligibleObjectFailureCuts_ledger 0
     (queue.sourceRunBlocks publisher inputs).2.2
   rw [queue.sourceRunBlocks_inputs_of_started publisher
     (by rwa [← inputsStarted_eq_batchesStarted])] at ledger
+  intro ref invalid
+  have rawInvalid : GroupInvalidated work (raw.map Prod.snd) ref := by
+    apply invalid.mono
+    intro occurrence member
+    rw [← ledger, List.mem_reverse] at member
+    exact member
+  have selected : GroupInvalidated work
+      ((selectObjectFailureCuts work [] raw).map Prod.snd) ref := by
+    exact (selectObjectFailureCuts_groupInvalidated work [] raw ref).mp rawInvalid
+  apply selected.mono
   intro occurrence recorded
-  rw [← ledger, List.mem_reverse] at recorded
   obtain ⟨entry, retained, same⟩ := List.mem_map.mp recorded
   have member : entry ∈ w.failures :=
     partition.mem_iff.mpr (List.mem_append_right _ retained)
-  have visible := mem_failedBefore member (inventory.2.2.1 entry member).1
-  exact same ▸ visible
+  exact same ▸ mem_failedBefore member (inventory.2.2.1 entry member).1
 
 /-- Concrete invalidation of a structural group has a cause under the same matching/cuts.
 Witness: generated group metadata converts record invalidation to causal invalidation;
@@ -55,15 +67,17 @@ theorem groupRecordInvalidated_nodeFailed
     (inventory : CompleteFailureInventory work w.events w.failures)
     (support : PublicationSupport work w.matching w.events w.failures)
     (visible
-      : ((initialQueue work).objectFailureContributions inputs.flatten).Subset
-          (failedBefore w.failures w.events.length))
+      : ∀ ref,
+          GroupInvalidated work
+            ((initialQueue work).objectFailureContributions inputs.flatten) ref
+          → GroupInvalidated work (failedBefore w.failures w.events.length) ref)
     (known : NodeAt work group .group dependencies producer)
     (invalid
       : GroupRecordInvalidated work
           ((initialQueue work).objectFailureContributions inputs.flatten) group.ref)
     : NodeFailed work w.matching w.events w.failures group.ref := by
   have cause := (generated.groupRecordInvalidated_iff_groupInvalidated known).mp invalid
-  apply cause.toNodeFailed_of_support support ?_ visible
+  apply (visible _ cause).toNodeFailed_of_support support ?_ (List.Subset.refl _)
   intro cut occurrence member
   exact (inventory.2.2.1 (cut, occurrence) member).2.2
 
@@ -81,8 +95,10 @@ theorem retiredGroup_failed_or_accounted
     (inventory : CompleteFailureInventory work w.events w.failures)
     (support : PublicationSupport work w.matching w.events w.failures)
     (visible
-      : ((initialQueue work).objectFailureContributions inputs.flatten).Subset
-          (failedBefore w.failures w.events.length))
+      : ∀ ref,
+          GroupInvalidated work
+            ((initialQueue work).objectFailureContributions inputs.flatten) ref
+          → GroupInvalidated work (failedBefore w.failures w.events.length) ref)
     (known : NodeAt work group .group dependencies producer)
     (retired
       : ((initialQueue work).replayGraphEvents inputs.flatten).RetiredGroup group.ref)

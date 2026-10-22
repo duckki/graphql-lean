@@ -245,14 +245,14 @@ mutual
           value (path ++ [.index index]) [] [] false (route ++ [0]) state
         simp only [EagerRecordedExecution.completeStreamItems, run_bind]
         split
-        · simpa only [StateT.run_pure, id_pure_eq, itemOrigins, List.flatMap_cons,
+        · simpa only [StateT.run_pure, id_pure_eq, RecordedCompletion.outcome, itemOrigins, List.flatMap_cons,
             List.flatMap_nil, RecordedWork.origins, List.append_nil] using head.left.parent
         · have tail := completeStreamItems_origins schema resolvers variables fuel itemType
             fields rest path (index + 1) (route ++ [1])
             ((EagerRecordedExecution.completeValue schema resolvers variables fuel itemType fields
               value (path ++ [.index index]) [] [] false (route ++ [0])).run state).2
-          simpa only [run_bind, StateT.run_pure, id_pure_eq, itemOrigins, List.flatMap_cons,
-            RecordedCompletion.origins] using Scoped.join head tail
+          simpa only [run_bind, StateT.run_pure, id_pure_eq, RecordedCompletion.outcome, itemOrigins, List.flatMap_cons,
+            RecordedCompletion.origins, RecordedCompletion.outcome] using Scoped.join head tail
   termination_by (fuel, 2, sizeOf itemType, sizeOf values)
   decreasing_by
     all_goals subst_vars; simp_wf
@@ -309,7 +309,8 @@ mutual
           ((EagerRecordedExecution.executeCollectedFields schema resolvers variables fuel parentType
             source fields path usages context (route ++ [0])).run state).2
         simpa only [EagerRecordedExecution.collectExecutionGroups, run_bind,
-          StateT.run_pure, id_pure_eq, RecordedWork.origins, RecordedCompletion.origins]
+          StateT.run_pure, id_pure_eq, RecordedWork.origins, RecordedCompletion.origins,
+          RecordedCompletion.outcome]
           using Scoped.join head tail
   termination_by (fuel, 5, 0, sizeOf partitions)
   decreasing_by

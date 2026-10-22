@@ -233,6 +233,61 @@ theorem State.CancelledRecordsReported.finishGroupFailure
 -- Release-time failure draining threads state and actual report output together
 -----------------------------------------------------------------------------------------
 
+/-- Each rejected task owner removed by the handler has its actual positive report.
+Witness: retain the rejection, then compose the concrete failure notices in owner order.
+-/
+theorem State.CancelledRecordsReported.taskFailure_causes {queue : State}
+    {work : Execution.Work} {events : List Execution.WorkQueueEvent} {parents}
+    (reported : queue.CancelledRecordsReported work events)
+    (generated : ExecutedWork work) (records : queue.GroupNodesMatchWork work)
+    (links : queue.ChildLinksCanonical parents)
+    (canonical
+      : ∀ node dependencies,
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
+    (occurrence : Occurrence) (errors : Nat)
+    (positive
+      : ∀ task,
+          queue.taskNode? occurrence = some task → ∀ group ∈ task.task.groups, 0 < errors)
+    : (queue.taskFailure occurrence errors).1.CancelledRecordsReported work
+        (events ++ (queue.taskFailure occurrence errors).2) := by
+  cases found : queue.taskNode? occurrence with
+  | none => simpa only [State.taskFailure, found, List.append_nil] using reported
+  | some task =>
+      have loop (groups : List Execution.DeliveryNode)
+          (included : groups.Subset task.task.groups) (acc : State × List Execution.WorkQueueEvent)
+          (prior : acc.1.CancelledRecordsReported work (events ++ acc.2))
+          (matched : acc.1.GroupNodesMatchWork work)
+          (linked : acc.1.ChildLinksCanonical parents)
+          : (groups.foldl (failureGroupStep errors) acc).1.CancelledRecordsReported work
+              (events ++ (groups.foldl (failureGroupStep errors) acc).2) := by
+        induction groups generalizing acc with
+        | nil => exact prior
+        | cons group rest ih =>
+            apply ih (fun _ member => included (List.mem_cons_of_mem _ member))
+            obtain ⟨current, output⟩ := acc
+            all_goals dsimp only [failureGroupStep]
+            all_goals split
+            · exact prior
+            · split
+              · simpa only [List.append_assoc]
+                  using prior.finishGroupFailure generated matched linked canonical _
+                    errors (positive task found group (included List.mem_cons_self))
+              · exact prior
+            · exact matched
+            · split
+              · exact matched.removeGroup _
+              · exact matched
+            · exact linked
+            · split
+              · exact linked.removeGroup _
+              · exact linked
+      rw [queue.taskFailure_eq occurrence errors task found]
+      exact loop _ (List.Subset.refl _) (_, [])
+        (by
+          simpa only [State.CancelledRecordsReported, State.putTaskNode, List.append_nil]
+            using reported)
+        records links
+
 /-- Every drain closure preserves cancellation markers' actual positive report origins.
 Witness: the output-aware budget induction threads report evidence, canonical live links,
 record provenance, and positive caches. Retained cached failures supply their actual
@@ -261,12 +316,19 @@ theorem State.CancelledRecordsReported.drainReadyGroups_go
         (prior.2.1.finishGroupSuccess node).startNewWork _,
         (prior.2.2.1.finishGroupSuccess node).startNewWork _,
         (prior.2.2.2.finishGroupSuccess node).startNewWork _⟩)
-    (fun current history node errors prior member _ failure =>
-      ⟨prior.1.finishGroupFailure generated prior.2.1 prior.2.2.1 canonical node errors
-          (prior.2.2.2 node member errors failure),
-        prior.2.1.removeGroup node.group.node.ref,
-        prior.2.2.1.removeGroup node.group.node.ref,
-        prior.2.2.2.removeGroup node.group.node.ref⟩)
+    (fun current history node occurrence errors prior _ _ selected => by
+      obtain ⟨_, task, found, rejected⟩ := State.rejectedTask?_sound selected
+      have positive : ∀ other, current.taskNode? occurrence = some other →
+          ∀ group ∈ other.task.groups, 0 < errors := by
+        intro other lookup group member
+        have same := Option.some.inj (lookup.symm.trans found)
+        subst other
+        exact prior.2.2.2 task (List.mem_of_find?_eq_some found) errors rejected group member
+      exact ⟨prior.1.taskFailure_causes generated prior.2.1 prior.2.2.1 canonical
+          occurrence errors positive,
+        prior.2.1.taskFailure occurrence errors,
+        prior.2.2.1.taskFailure occurrence errors,
+        prior.2.2.2.taskFailure occurrence errors positive⟩)
     (show invariant queue events from ⟨reported, records, links, positive⟩) fuel
   exact output.1
 

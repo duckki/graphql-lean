@@ -7,8 +7,8 @@ import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.StreamFailureE
 namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
-/-- Each failed-group output counts all failure labels through its block.
-Actual replay instantiates this certificate with guard-selected labels; original source
+/-- Each failed-group output selects a contributing failure label through its block.
+Actual replay instantiates this certificate with presence-selected labels; original source
 inputs and output blocks are unchanged. Earlier silent contributions count, later ones do not.
 -/
 def SourceBlocksHaveCompleteTotals (work : Execution.Work)
@@ -17,7 +17,7 @@ def SourceBlocksHaveCompleteTotals (work : Execution.Work)
   | before, block :: rest =>
       (∀ group errors,
         Execution.WorkQueueEvent.groupFailure group errors ∈ block.2
-        → NodeErrors work (GraphEvent.failureSettlements (before ++ block.1.toList))
+        → NodeFailureCause work (GraphEvent.failureSettlements (before ++ block.1.toList))
             group.ref errors)
       ∧ SourceBlocksHaveCompleteTotals work (before ++ block.1.toList) rest
 
@@ -42,7 +42,7 @@ theorem SourceBlocksHaveCompleteTotals.atBlock {work initial before block after}
     (totals : SourceBlocksHaveCompleteTotals work initial (before ++ block :: after))
     {group errors}
     (emitted : Execution.WorkQueueEvent.groupFailure group errors ∈ block.2)
-    : NodeErrors work
+    : NodeFailureCause work
         (GraphEvent.failureSettlements
           (initial ++ before.filterMap Prod.fst ++ block.1.toList))
         group.ref errors := by
@@ -57,15 +57,17 @@ theorem SourceBlocksHaveCompleteTotals.atBlock {work initial before block after}
 -- Actual handler and batch annotations inherit complete error accounting
 -----------------------------------------------------------------------------------------
 
-/-- Annotated handler replay gives complete totals at each normalized output block.
+/-- Annotated handler replay gives selected causes at each normalized output block.
 Witness: the complete raw-output theorem and exact publisher failure copying, while
 cache/registration and active-cache invariants follow each actual accepted input.
 -/
-theorem State.GroupErrorAccounting.sourceOutputBlocks_completeTotals {queue : State}
+theorem State.CachedErrorsSatisfy.sourceOutputBlocks_completeTotals {queue : State}
     {work before selected}
-    (counts : queue.GroupErrorAccounting work (GraphEvent.failureSettlements selected))
+    (counts
+      : queue.CachedErrorsSatisfy
+          (NodeFailureCause work (GraphEvent.failureSettlements selected)))
     (ledger : queue.PendingAccounting work (GraphEvent.taskSettlements before))
-    (clear : queue.NoActiveCachedFailure) (generated : ExecutedWork work)
+    (generated : ExecutedWork work)
     (publisher : IncrementalPublisher) (events : List GraphEvent)
     (valid : ValidGraphEvents work (before ++ events))
     (accepted : queue.acceptsBatch events = true)
@@ -81,11 +83,10 @@ theorem State.GroupErrorAccounting.sourceOutputBlocks_completeTotals {queue : St
       have accepts : queue.acceptsGraphEvent event = true
           ∧ (queue.handleGraphEvent event).1.acceptsBatch rest = true := by
         simpa only [State.acceptsBatch, Bool.and_eq_true] using accepted
-      have nextCounts := counts.handleGraphEvent generated ledger.liveGroups ledger.taskGroups
-        ledger.started ledger.matching event localLaws.1 accepts.1
-      have selectedCounts : (queue.handleGraphEvent event).1.GroupErrorAccounting work
-          (GraphEvent.failureSettlements
-            (selected ++ (queue.eligibleFailureLabel event).toList)) := by
+      have nextCounts := counts.handleGraphEvent_causes generated ledger.started ledger.matching event localLaws.1
+      have selectedCounts : (queue.handleGraphEvent event).1.CachedErrorsSatisfy
+          (NodeFailureCause work (GraphEvent.failureSettlements
+            (selected ++ (queue.eligibleFailureLabel event).toList))) := by
         rw [GraphEvent.failureSettlements_append_list,
           queue.eligibleFailureLabel_contribution]
         exact nextCounts
@@ -95,30 +96,32 @@ theorem State.GroupErrorAccounting.sourceOutputBlocks_completeTotals {queue : St
       rw [← GraphEvent.taskSettlements_append] at nextLedger
       refine ⟨
         ?_,
-        ih selectedCounts nextLedger (clear.handleGraphEvent ledger.refs event) _
+        ih selectedCounts nextLedger _
           (by simpa [List.append_assoc] using valid) accepts.2
       ⟩
       intro group errors emitted
       dsimp only [Option.bind_some]
       rw [GraphEvent.failureSettlements_append_list,
         queue.eligibleFailureLabel_contribution]
-      exact counts.handleGraphEvent_output clear ledger.started ledger.matching event
-        localLaws.1 ((publisher.normalizeBatch_atomicGroupFailure_mem _).mp emitted)
+      exact counts.handleGraphEvent_failureCause generated ledger.started ledger.matching
+        event localLaws.1 ((publisher.normalizeBatch_atomicGroupFailure_mem _).mp emitted)
 
 /-- Real batch wrapping preserves complete normalized block totals.
 Witness: the terminal marker adds no group failure, and open batches retain every handler.
 -/
-theorem State.GroupErrorAccounting.sourceBatchBlocks_completeTotals
+theorem State.CachedErrorsSatisfy.sourceBatchBlocks_completeTotals
     {queue : State} {work before selected}
-    (counts : queue.GroupErrorAccounting work (GraphEvent.failureSettlements selected))
+    (counts
+      : queue.CachedErrorsSatisfy
+          (NodeFailureCause work (GraphEvent.failureSettlements selected)))
     (ledger : queue.PendingAccounting work (GraphEvent.taskSettlements before))
-    (clear : queue.NoActiveCachedFailure) (generated : ExecutedWork work)
+    (generated : ExecutedWork work)
     (publisher : IncrementalPublisher) (events : List GraphEvent)
     (valid : ValidGraphEvents work (before ++ events))
     (running : queue.terminated = false) (accepted : queue.acceptsBatch events = true)
     : SourceBlocksHaveCompleteTotals work selected
         (queue.eligibleFailureBlocks (queue.sourceBatchBlocks publisher events).2.2) := by
-  have handlers := counts.sourceOutputBlocks_completeTotals ledger clear generated publisher
+  have handlers := counts.sourceOutputBlocks_completeTotals ledger generated publisher
     events valid accepted
   simp only [State.sourceBatchBlocks, running, Bool.false_eq_true, ↓reduceIte]
   split
@@ -130,11 +133,13 @@ theorem State.GroupErrorAccounting.sourceBatchBlocks_completeTotals
 Witness: start checks align processed inputs with source prefixes; the independently proved
 state/block agreement transports all invariants without changing output or batching.
 -/
-theorem State.GroupErrorAccounting.sourceRunBlocks_completeTotals
+theorem State.CachedErrorsSatisfy.sourceRunBlocks_completeTotals
     {queue : State} {work before selected}
-    (counts : queue.GroupErrorAccounting work (GraphEvent.failureSettlements selected))
+    (counts
+      : queue.CachedErrorsSatisfy
+          (NodeFailureCause work (GraphEvent.failureSettlements selected)))
     (ledger : queue.PendingAccounting work (GraphEvent.taskSettlements before))
-    (clear : queue.NoActiveCachedFailure) (generated : ExecutedWork work)
+    (generated : ExecutedWork work)
     (publisher : IncrementalPublisher) (batches : List (List GraphEvent))
     (valid : ValidGraphEvents work (before ++ batches.flatten))
     (started : queue.batchesStarted batches = true)
@@ -146,30 +151,28 @@ theorem State.GroupErrorAccounting.sourceRunBlocks_completeTotals
       obtain ⟨running, accepted, restStarted⟩ := queue.batchesStarted_cons batch rest started
       have firstValid : ValidGraphEvents work (before ++ batch) :=
         valid.prefix ⟨rest.flatten, by simp [List.append_assoc]⟩
-      have handlers := counts.sourceBatchBlocks_completeTotals ledger clear generated publisher
+      have handlers := counts.sourceBatchBlocks_completeTotals ledger generated publisher
         batch firstValid running accepted
       cases rest with
       | nil => simpa [State.sourceRunBlocks] using handlers
       | cons next rest =>
-          have nextCounts := counts.handleGraphEvents ledger generated batch firstValid
-            running accepted
+          have nextCounts := counts.handleGraphEvents_causes generated ledger.started ledger.matching batch firstValid running
           have nextLedger := ledger.handleGraphEvents generated batch firstValid running accepted
-          have nextClear := clear.handleGraphEvents ledger.refs batch
           have stillOpen := ((queue.handleGraphEvents batch).1.batchesStarted_cons next rest
             restStarted).1
           have unchanged := queue.handleGraphEvents_nonterminalState batch running stillOpen
           have agreement := (queue.sourceBatchBlocks_agrees publisher batch).1
           let labels := (queue.eligibleFailureBlocks
             (queue.sourceBatchBlocks publisher batch).2.2).filterMap Prod.fst
-          have selectedCounts : (queue.handleGraphEvents batch).1.GroupErrorAccounting work
-              (GraphEvent.failureSettlements (selected ++ labels)) := by
+          have selectedCounts : (queue.handleGraphEvents batch).1.CachedErrorsSatisfy
+              (NodeFailureCause work (GraphEvent.failureSettlements (selected ++ labels))) := by
             rw [GraphEvent.failureSettlements_append_list]
             dsimp only [labels]
             rw [queue.eligibleFailureBlocks_contributions,
               queue.sourceBatchBlocks_inputs_of_open publisher batch running]
             exact nextCounts
-          rw [← agreement] at selectedCounts nextLedger nextClear restStarted
-          have later := ih selectedCounts nextLedger nextClear
+          rw [← agreement] at selectedCounts nextLedger restStarted
+          have later := ih selectedCounts nextLedger
             (queue.sourceBatchBlocks publisher batch).2.1
             (by simpa [List.append_assoc] using valid) restStarted
           rw [State.sourceRunBlocks, State.eligibleFailureBlocks_append]
@@ -178,7 +181,7 @@ theorem State.GroupErrorAccounting.sourceRunBlocks_completeTotals
             ← unchanged, ← agreement]
           exact later
 
-/-- Generated started replay derives complete totals for every actual normalized block.
+/-- Generated started replay derives selected causes for every actual normalized block.
 Witness: empty-inventory initialization, active-cache clearing, and multi-batch induction.
 Selected labels are derived from handler guards; no contributing subset is supplied.
 -/
@@ -191,10 +194,9 @@ theorem createWorkQueue_sourceRunBlocks_completeTotals {work : Execution.Work}
         { active := queue.initialGroups ++ queue.initialStreams }
       SourceBlocksHaveCompleteTotals work []
         (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher batches).2.2) :=
-  (createWorkQueue_groupErrorAccounting _ _).sourceRunBlocks_completeTotals
+  (createWorkQueue_cachedErrors _ _).sourceRunBlocks_completeTotals
     (before := [])
-    (createWorkQueue_pendingAccounting work)
-    (createWorkQueue_runNormalized_noActiveCachedFailure _ []) generated _ batches valid
+    (createWorkQueue_pendingAccounting work) generated _ batches valid
     (by rwa [inputsStarted_eq_batchesStarted] at started)
 
 -----------------------------------------------------------------------------------------
@@ -225,7 +227,7 @@ theorem sourceObjectFailureCuts_nodeErrors {work : Execution.Work}
     (totals : SourceBlocksHaveCompleteTotals work [] blocks) (offset : Nat) {index : Nat}
     {group : Execution.DeliveryNode} {errors : Nat}
     (atEvent : (blocks.flatMap Prod.snd)[index]? = some (.groupFailure group errors))
-    : NodeErrors work
+    : NodeFailureCause work
         (failedBefore (sourceObjectFailureCuts offset blocks) (offset + index)) group.ref
         errors := by
   obtain ⟨before, block, after, localIndex, same, position, atLocal⟩ :=
@@ -265,7 +267,7 @@ theorem createWorkQueue_sourceObjectFailureCuts_nodeErrors {work : Execution.Wor
       let cuts :=
         sourceObjectFailureCuts 0
           (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher batches).2.2)
-      NodeErrors work (failedBefore cuts index) group.ref errors := by
+      NodeFailureCause work (failedBefore cuts index) group.ref errors := by
   dsimp only
   simpa only [Nat.zero_add]
     using sourceObjectFailureCuts_nodeErrors

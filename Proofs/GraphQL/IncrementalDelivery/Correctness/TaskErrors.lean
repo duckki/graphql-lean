@@ -9,10 +9,10 @@ open GraphQL.IncrementalDelivery.Semantics
 open WorkQueueSemantics
 
 /-- Every selected stream entry inherits the list certificate, by membership induction. -/
-theorem ItemsPositive.member {items : List (Result ResponseValue × Work)}
+theorem ItemsPositive.member {items : List (TaskOutcome ResponseValue × Work)}
     (positive : ItemsPositive items) {result children}
     (member : (result, children) ∈ items)
-    : BasicErrors.PositiveFailure result ∧ WorkPositive children := by
+    : BasicErrors.PositiveFailure result.deliveryResult ∧ WorkPositive children := by
   induction items with
   | nil => cases member
   | cons entry rest ih =>
@@ -45,10 +45,10 @@ theorem WorkPositive.task {work occurrence owners producer payload}
   cases StructuralEquivalence.taskAt_of_current known with
   | @executionGroup address groups path result children producer enclosing located =>
       have resultPositive := (positive.located located.toCurrent).1
-      cases result <;> simp_all [Payload.failure, BasicErrors.PositiveFailure]
+      cases hr : result.deliveryResult <;> simp_all [Payload.failure, BasicErrors.PositiveFailure]
   | @item address node items producer enclosing index result children located entry =>
       have resultPositive :=
         ((positive.located located.toCurrent).member (List.mem_of_getElem? entry)).1
-      cases result <;> simp_all [Payload.failure, BasicErrors.PositiveFailure]
+      cases hr : result.deliveryResult <;> simp_all [Payload.failure, BasicErrors.PositiveFailure]
 
 end GraphQL.IncrementalDelivery.Correctness.ExecutionErrors

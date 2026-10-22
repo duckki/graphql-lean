@@ -32,10 +32,11 @@ private def state : State :=
           [
             { group := { node := node 1 }, tasks := [.executionGroup [9]], pending := 1 },
             { group := { node := node 2 } },
-            { group := { node := node 3 }, failure := some 1 }
+            { group := { node := node 3 }, tasks := [.executionGroup [99]], pending := 1 }
           ]
-        tasks := [task 9 [1]]
-        taskNodes := [{ task := task 9 [1] }]
+        tasks := [task 9 [1], task 99 [3]]
+        taskNodes :=
+          [{ task := task 9 [1] }, { task := task 99 [3], rejection := some 1 }]
         streams := [{ node := node 4 }]
       }
   }
@@ -162,15 +163,17 @@ private def parity (name : String) (work : Execution.Work)
     check "missing task result does not adopt" missingEffects.isEmpty
     let result : Execution.Result (List (GraphQL.Name × Execution.ResponseValue)) :=
       .ok ([("x", .scalar "X")], 0)
-    let simple : Execution.Work := .executionGroup [{ node := node 1 }] [] result .empty
+    let simple : Execution.Work :=
+      .executionGroup [{ node := node 1 }] [] { result } .empty
     let simpleDone : GraphEvent :=
       .taskSuccess (.executionGroup [])
         { value := { path := [], data := [("x", .scalar "X")] } }
     parity "startup/prefix" simple []
     parity "completion" simple [[simpleDone]]
     let child : Execution.Work :=
-      .executionGroup [{ node := node 5, ancestors := [node 1] }] [] result .empty
-    let nested : Execution.Work := .executionGroup [{ node := node 1 }] [] result child
+      .executionGroup [{ node := node 5, ancestors := [node 1] }] [] { result } .empty
+    let nested : Execution.Work :=
+      .executionGroup [{ node := node 1 }] [] { result } child
     let parentDone : GraphEvent :=
       .taskSuccess (.executionGroup [])
         {
@@ -183,7 +186,7 @@ private def parity (name : String) (work : Execution.Work)
     parity "nested release" nested [[parentDone]]
     parity "nested same batch" nested [[parentDone, childDone]]
     let shared : Execution.Work :=
-      .executionGroup [{ node := node 1 }, { node := node 2 }] [] result .empty
+      .executionGroup [{ node := node 1 }, { node := node 2 }] [] { result } .empty
     parity "shared owners" shared [[simpleDone]]
     let staged := Execution.Work.combine simple simple
     let first : GraphEvent :=
@@ -195,14 +198,16 @@ private def parity (name : String) (work : Execution.Work)
     parity "staged prefix" staged [[first]]
     parity "staged completion" staged [[first], [last]]
     parity "staged failure" staged [[first], [.taskFailure (.executionGroup [1]) 1]]
-    let source : Execution.Work := .stream (node 4) [(.ok (.scalar "item", 0), child)]
+    let source : Execution.Work :=
+      .stream (node 4) [({ result := .ok (.scalar "item", 0) }, child)]
     let admitted := item 0 (ReferenceWorkQueue.Work.fromExecution child [0])
     parity "item child release" source [[.streamItems (node 4) [admitted]]]
     parity "accepted child survives source failure" source
       [[.streamItems (node 4) [admitted]], [.streamFailure (node 4) 1], [childDone]]
     let held : Execution.Work := .stream (node 6) []
     let stagedSource :=
-      Execution.Work.combine (.executionGroup [{ node := node 1 }] [] result held) simple
+      Execution.Work.combine (.executionGroup [{ node := node 1 }] [] { result } held)
+        simple
     let heldDone : GraphEvent :=
       .taskSuccess (.executionGroup [0])
         {
@@ -213,7 +218,8 @@ private def parity (name : String) (work : Execution.Work)
     parity "held source failure disposal" stagedSource
       [[heldDone], [.taskFailure (.executionGroup [1]) 1]]
     let finite : Execution.Work :=
-      .stream (node 4) ((List.range 128).map (fun _ => (.ok (.scalar "item", 0), .empty)))
+      .stream (node 4)
+        ((List.range 128).map (fun _ => ({ result := .ok (.scalar "item", 0) }, .empty)))
     let batches : List (List GraphEvent) :=
       (List.range 128).map (fun index => [.streamItems (node 4) [item index {}]])
     parity "long stream prefix" finite (batches.take 64)

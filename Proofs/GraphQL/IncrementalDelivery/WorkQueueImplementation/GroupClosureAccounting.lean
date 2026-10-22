@@ -170,6 +170,39 @@ theorem State.finishGroupFailure_closureAccounting {queue : State}
 -- Recursive drains and contributor folds retain every earlier closure certificate
 -----------------------------------------------------------------------------------------
 
+/-- A failed-task owner fold retires every emitted closure without repetition.
+Witness: each active owner is looked up before closing; latent caches and ignored
+settlements produce no closure, and retirement survives every subsequent owner step.
+-/
+theorem State.taskFailure_closureAccounting {queue : State}
+    (live : queue.LiveGroupsRegistered) (occurrence : Occurrence) (errors : Nat)
+    : GroupClosureAccounting queue (queue.taskFailure occurrence errors) := by
+  have loop (groups : List Execution.DeliveryNode) (acc : State × List WorkQueueEvent)
+      (registered : acc.1.LiveGroupsRegistered)
+      (prior : GroupClosureAccounting queue acc)
+      : GroupClosureAccounting queue (groups.foldl (failureGroupStep errors) acc) := by
+    induction groups generalizing acc with
+    | nil => exact prior
+    | cons group rest ih =>
+        obtain ⟨current, events⟩ := acc
+        dsimp only [List.foldl_cons, failureGroupStep]
+        split
+        · exact ih _ registered prior
+        · rename_i node found
+          have member := List.mem_of_find?_eq_some found
+          split
+          · exact ih _ (fun other kept => registered other (List.mem_filter.mp kept).1)
+              (prior.append (State.finishGroupFailure_closureAccounting registered node
+                member errors))
+          · exact ih _ registered prior
+  cases found : queue.taskNode? occurrence with
+  | none =>
+      simpa only [State.taskFailure, found]
+        using GroupClosureAccounting.silent (before := queue) (fun _ retired => retired)
+  | some node =>
+      rw [queue.taskFailure_eq occurrence errors node found]
+      exact loop _ (_, []) live (GroupClosureAccounting.silent (fun _ retired => retired))
+
 /-- Ready-group draining closes each group at most once and permanently retires its ref.
 Witness: selected nodes are live and registered; every recursive step preserves old
 retirements, including activation after a successful carrier.
@@ -200,7 +233,7 @@ theorem State.drainReadyGroups_go_closureAccounting {queue : State}
                 · cases Option.some.inj choice
                   exact List.mem_of_find?_eq_some found
                 · contradiction
-          cases failed : node.failure with
+          cases failed : current.rejectedTask? node with
           | none =>
               have registered := current.finishGroupSuccess_registration live tasks node
               have activated := State.startNewWork_registration registered.1 registered.2.1
@@ -208,9 +241,11 @@ theorem State.drainReadyGroups_go_closureAccounting {queue : State}
               exact ((State.finishGroupSuccess_closureAccounting live node member).post
                 (fun _ retired => retired.startNewWork _)).append
                   (ih _ activated.1 activated.2)
-          | some errors =>
-              exact (State.finishGroupFailure_closureAccounting live node member errors).append
-                (ih _ (fun other kept => live other (List.mem_filter.mp kept).1) tasks)
+          | some rejected =>
+              obtain ⟨occurrence, errors⟩ := rejected
+              have registered := current.taskFailure_registration live tasks occurrence errors
+              exact (State.taskFailure_closureAccounting live occurrence errors).append
+                (ih _ registered.1 registered.2.1)
   exact loop fuel queue live tasks
 
 /-- The full drain inherits the same actual retirement evidence at its live-node budget. -/
@@ -228,43 +263,6 @@ private theorem live_removeTask {queue : State} (live : queue.LiveGroupsRegister
   intro node member
   obtain ⟨old, oldMember, rfl⟩ := List.mem_map.mp member
   exact live old oldMember
-
-/-- A failed-task owner fold retires every emitted closure without repetition.
-Witness: each active owner is looked up before closing; latent caches and ignored
-settlements produce no closure, and retirement survives every subsequent owner step.
--/
-theorem State.taskFailure_closureAccounting {queue : State}
-    (live : queue.LiveGroupsRegistered) (occurrence : Occurrence) (errors : Nat)
-    : GroupClosureAccounting queue (queue.taskFailure occurrence errors) := by
-  have loop (groups : List Execution.DeliveryNode) (acc : State × List WorkQueueEvent)
-      (registered : acc.1.LiveGroupsRegistered)
-      (prior : GroupClosureAccounting queue acc)
-      : GroupClosureAccounting queue (groups.foldl (failureGroupStep errors) acc) := by
-    induction groups generalizing acc with
-    | nil => exact prior
-    | cons group rest ih =>
-        obtain ⟨current, events⟩ := acc
-        dsimp only [List.foldl_cons, failureGroupStep]
-        split
-        · exact ih _ registered prior
-        · rename_i node found
-          have member := List.mem_of_find?_eq_some found
-          split
-          · exact ih _ (fun other kept => registered other (List.mem_filter.mp kept).1)
-              (prior.append (State.finishGroupFailure_closureAccounting registered node
-                member errors))
-          · exact ih _ (registered.putGroupNode _ (registered node member))
-              (prior.post (fun _ retired => retired.putGroupNode _))
-  cases found : queue.taskNode? occurrence with
-  | none =>
-      simpa only [State.taskFailure, found]
-        using GroupClosureAccounting.silent (before := queue) (fun _ retired => retired)
-  | some node =>
-      rw [queue.taskFailure_eq occurrence errors node found]
-      split
-      · exact GroupClosureAccounting.silent (fun _ retired => retired.removeTask occurrence)
-      · exact loop _ (_, []) (live_removeTask live occurrence)
-          (GroupClosureAccounting.silent (fun _ retired => retired.removeTask occurrence))
 
 /-- A successful task preserves closure uniqueness across integration, owners, and draining.
 Witness: child integration cannot revive retired refs; each live owner closes once, and
@@ -309,22 +307,20 @@ theorem State.taskSuccess_closureAccounting {queue : State} {work : Execution.Wo
         using GroupClosureAccounting.silent (before := queue) (fun _ retired => retired)
   | some node =>
       rw [queue.taskSuccess_eq occurrence result node found]
-      split
-      · exact GroupClosureAccounting.silent (fun _ retired => retired.removeTask occurrence)
-      · let stored := queue.putTaskNode { node with value := some result.value }
-        have registered := stored.maybeIntegrateWork_registration live tasks result.work
-          matching.childTasksCovered (some occurrence)
-        have start : GroupClosureAccounting queue
-            ((stored.maybeIntegrateWork result.work (some occurrence)).1, []) :=
-          GroupClosureAccounting.silent (fun ref retired =>
-            State.RetiredGroup.maybeIntegrateWork (queue := stored) retired _ _)
-        obtain ⟨finalLive, finalTasks, closures⟩ := loop node.task.groups (_, [], {})
-          registered.1 registered.2.1 start
-        let folded := node.task.groups.foldl successGroupStep
-          ((stored.maybeIntegrateWork result.work (some occurrence)).1, [], {})
-        have activated := State.startNewWork_registration finalLive finalTasks folded.2.2
-        exact (closures.post (fun _ retired => retired.startNewWork _)).append
-          (State.drainReadyGroups_closureAccounting activated.1 activated.2)
+      let stored := queue.putTaskNode { node with value := some result.value }
+      have registered := stored.maybeIntegrateWork_registration live tasks result.work
+        matching.childTasksCovered (some occurrence)
+      have start : GroupClosureAccounting queue
+          ((stored.maybeIntegrateWork result.work (some occurrence)).1, []) :=
+        GroupClosureAccounting.silent (fun ref retired =>
+          State.RetiredGroup.maybeIntegrateWork (queue := stored) retired _ _)
+      obtain ⟨finalLive, finalTasks, closures⟩ := loop node.task.groups (_, [], {})
+        registered.1 registered.2.1 start
+      let folded := node.task.groups.foldl successGroupStep
+        ((stored.maybeIntegrateWork result.work (some occurrence)).1, [], {})
+      have activated := State.startNewWork_registration finalLive finalTasks folded.2.2
+      exact (closures.post (fun _ retired => retired.startNewWork _)).append
+        (State.drainReadyGroups_closureAccounting activated.1 activated.2)
 
 /-- Stream-item integration preserves old retirements before its group-closure drain.
 Witness: matched child work retains registration; integration, pruning, and activation

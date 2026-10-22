@@ -53,8 +53,8 @@ private def items : List ReferenceWorkQueue.StreamItem :=
   ]
 
 private def sourceResults
-    : List (Execution.Result Execution.ResponseValue × Execution.Work) :=
-  [(.ok (.null, 0), .empty), (.ok (.null, 0), .empty)]
+    : List (Execution.TaskOutcome Execution.ResponseValue × Execution.Work) :=
+  [({ result := .ok (.null, 0) }, .empty), ({ result := .ok (.null, 0) }, .empty)]
 
 private def sourceWork : Execution.Work := .stream stream sourceResults
 
@@ -66,10 +66,10 @@ private theorem sourceMatching
   rcases selected with firstItem | secondItem
   · subst item
     refine ⟨[3], none, ?_, rfl⟩
-    exact ⟨stream, sourceResults, [], .ok (.null, 0), .empty, rfl, rfl, rfl, rfl⟩
+    exact ⟨stream, sourceResults, [], { result := .ok (.null, 0) }, .empty, rfl, rfl, rfl, rfl⟩
   · subst item
     refine ⟨[3], none, ?_, rfl⟩
-    exact ⟨stream, sourceResults, [], .ok (.null, 0), .empty, rfl, rfl, rfl, rfl⟩
+    exact ⟨stream, sourceResults, [], { result := .ok (.null, 0) }, .empty, rfl, rfl, rfl, rfl⟩
 
 private theorem fresh
     : ReferenceWorkQueue.GraphEvent.Fresh [] (.streamItems stream items) := by
@@ -169,7 +169,7 @@ example : ¬CleanupStep notified (.register 9) notified := by
   intro step
   cases step
 
--- The health counterexample, corrected disposal regression, and reduction target are checked.
+-- The unsafe-parent counterexample, corrected disposal regression, and reduction target are checked.
 example : ¬SafeParentCuts orphanedChild := orphanedChild_cuts_unsafe
 
 example : StopCoverage HeldSourceCleanup.failed.state HeldSourceCleanup.requested :=
@@ -178,7 +178,7 @@ example : StopCoverage HeldSourceCleanup.failed.state HeldSourceCleanup.requeste
 example (audit : AuditWitness) : audit.Valid → audit.LocalSafety := audit.localSafety
 
 #print axioms AuditWitness.localSafety
-#print axioms groupIsHealthy_eq_reference
+#print axioms taskPresenceChecked_holds
 #print axioms HeldSourceCleanup.disposal
 #print axioms HeldSourceCleanup.failure_effects
 #print axioms ReceiptReplay.initialized_prefix

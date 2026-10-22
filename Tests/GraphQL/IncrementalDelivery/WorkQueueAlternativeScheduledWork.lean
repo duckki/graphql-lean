@@ -90,7 +90,7 @@ example
               outcome
             ∧ before.map (KeyRenaming.insertGap 18 1) = owners
             ∧ PayloadRefines (KeyRenaming.insertGap 18 1) outcome payload :=
-  (recursiveWorkStructure_holds _ _ _ changedCountAndKey_refines.2).2.2.1
+  (recursiveWorkStructure_holds _ _ _ changedCountAndKey_refines.2.1).2.2.1
 
 -- A count relation does not authorize inventing a different actual payload. The
 -- soundness/coverage root intentionally pairs task witnesses from both trees.
@@ -99,13 +99,14 @@ example : PayloadRefines id (.object [] (.error 1)) (.object [] (.error 3)) := b
   simp [ResultRefines, SameData, countedErrors]
 
 example
-    : ¬TaskAt (.executionGroup [] [] (.error 2) .empty)
+    : ¬TaskAt (.executionGroup [] [] ({ result := .error 2 }) .empty)
         (.executionGroup []) [] none (.object [] (.error 3)) := by
-  simp [TaskAt, Located, locateWork, locateWork.go, Work.executionGroup.injEq]
+  simp [TaskAt, Located, locateWork, locateWork.go, Work.executionGroup.injEq, TaskOutcome.deliveryResult]
 
 -- No extra/missing item, path change, fatal/success change or increased count is allowed.
 example (node : DeliveryNode) (payload : Result ResponseValue)
-    : ¬WorkRefines id (.stream node [(payload, .empty)]) (.stream node []) := by
+    : ¬WorkRefines id (.stream node [({ result := payload }, .empty)])
+        (.stream node []) := by
   intro related
   cases related with
   | stream nested => cases nested
@@ -148,7 +149,7 @@ example (failed : List Occurrence) (published : Occurrence → Prop)
           ↔ Causality.TaskCancelled (scheduled changedCountAndKey).1.work failed published
               occurrence) :=
   recursiveWorkCausality_holds _ (KeyRenaming.insertGap_injective 18 1) _ _
-    changedCountAndKey_refines.2 failed published
+    changedCountAndKey_refines.2.1 failed published
 
 private def fatalOccurrence : Occurrence := .executionGroup [1, 0]
 
@@ -166,12 +167,12 @@ private theorem scheduled_fatal_node
 example
     : Causality.NodeFailed (eager fatalDefer).1.work [fatalOccurrence] (fun _ => False)
         17 :=
-  fatalDefer_refines.2.node_failed_forward (fun _ _ same => same) scheduled_fatal_node
+  fatalDefer_refines.2.1.node_failed_forward (fun _ _ same => same) scheduled_fatal_node
 
 example
     : Causality.TaskCancelled (eager fatalDefer).1.work [fatalOccurrence]
         (fun _ => False) fatalOccurrence := by
-  apply fatalDefer_refines.2.task_cancelled_forward (fun _ _ same => same)
+  apply fatalDefer_refines.2.1.task_cancelled_forward (fun _ _ same => same)
   exact .owners ⟨_, _, scheduled_fatal_task⟩ id (by simp)
     (by simpa using scheduled_fatal_node)
 

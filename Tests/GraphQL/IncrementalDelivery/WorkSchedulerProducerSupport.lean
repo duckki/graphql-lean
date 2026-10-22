@@ -67,11 +67,11 @@ theorem publication_inputs_valid_started
       ∧ inputsStarted work publicationInputs = true := by
   have parentKnown : TaskAt work parentTask [parent.ref] none
       (.object [] (.ok ([("user", .object [])], 0))) := by
-    refine ⟨[⟨parent, []⟩], [], _, children, [], ?_, rfl, rfl⟩
+    refine ⟨[⟨parent, []⟩], [], { result := .ok ([("user", .object [])], 0) }, children, [], ?_, rfl, rfl⟩
     cbv
   have childKnown : TaskAt work childTask [child.ref] (some parentTask)
       (.object child.path (.ok (childResult.value.data, 0))) := by
-    refine ⟨[⟨child, [parent]⟩], child.path, _, .combine .empty .empty, [parent.ref],
+    refine ⟨[⟨child, [parent]⟩], child.path, { result := .ok (childResult.value.data, 0) }, .combine .empty .empty, [parent.ref],
       ?_, rfl, rfl⟩
     cbv
   have first : ValidGraphEvents work [.taskSuccess parentTask result] :=

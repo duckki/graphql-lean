@@ -30,10 +30,11 @@ private theorem registeredTask_exact {queue : ReferenceWorkQueue.State} {work ta
 private theorem taskRepresented {queue : ReferenceWorkQueue.State} {task : Task}
     (links : queue.TaskLinkedOn task.occurrence (task.groups.map DeliveryNode.ref))
     (owned : ∃ owner ∈ task.groups, ∃ group, queue.groupNode? owner.ref = some group)
+    (prior : queue.TaskRejectionsSatisfy (fun rejected _ => rejected ≠ task.occurrence))
     : RecordTargetRepresented queue (.task task.occurrence) := by
   obtain ⟨owner, member, group, found⟩ := owned
   exact .task found (links group (List.mem_of_find?_eq_some found)
-    (List.mem_map.mpr ⟨owner, member, (ReferenceWorkQueue.State.groupNode?_ref found).symm⟩))
+    (List.mem_map.mpr ⟨owner, member, (ReferenceWorkQueue.State.groupNode?_ref found).symm⟩)) prior.unrejected_lookup
 
 private theorem ownerFromKey {queue : ReferenceWorkQueue.State} {key : Nat}
     (present : key ∈ queue.groupNodes.map (fun group => group.group.node.ref))
@@ -98,6 +99,11 @@ theorem generatedPreparedTask_progress {work inputs event task}
     cases event with
     | taskSuccess | taskFailure => exact List.mem_cons_of_mem _ member
     | streamItems | streamSuccess | streamFailure => exact member
+  have priorUnrejected : queue.TaskRejectionsSatisfy
+      (fun rejected _ => rejected ≠ task.occurrence) := by
+    rw [raw]
+    exact (ReferenceWorkQueue.createWorkQueue_replay_taskRejections work inputs.flatten).mono
+      (fun occurrence _ member same => notSettled (same ▸ member))
   have links := generatedSnapshot_unsettledLinks generated valid started task registered notSettled
   have catalogue := registeredTask_exact evidence.matching registered
   change snapshot.TaskLinkedOn task.occurrence (task.groups.map DeliveryNode.ref) at links
@@ -114,93 +120,82 @@ theorem generatedPreparedTask_progress {work inputs event task}
       | none =>
           simp only [snapshot, registrationSnapshot, found] at links owned
           simp only [State.handleGraphEvent, State.taskSuccess, found]
-          exact .inl (taskRepresented links owned)
+          exact .inl (taskRepresented links owned priorUnrejected)
       | some input =>
-          cases healthy : queue.taskHasHealthyOwner input.task with
-          | false =>
-              simp only [snapshot, registrationSnapshot, found, healthy, Bool.false_eq_true,
-                ↓reduceIte] at links owned
-              have different : task.occurrence ≠ incoming := fun same =>
-                pending (same ▸ List.mem_cons_self)
-              simp only [State.handleGraphEvent, State.taskSuccess, found, healthy,
-                Bool.not_false, ↓reduceIte]
-              apply Or.inl
-              apply taskRepresented (links.removeOtherTask incoming different)
-              obtain ⟨owner, member, group, lookup⟩ := owned
-              refine ⟨owner, member, ?_⟩
-              apply ownerFromKey
-              simp only [ReferenceWorkQueue.State.removeTask, List.map_map, Function.comp_def]
-              exact List.mem_map.mpr ⟨group, List.mem_of_find?_eq_some lookup,
-                ReferenceWorkQueue.State.groupNode?_ref lookup⟩
-          | true =>
-              let native : State := { queue }
-              let stored : State := { native with queue := queue.putTaskNode { input with value := some result.value } }
-              let integrated := stored.maybeIntegrateWork result.work (some incoming)
-              let released := input.task.groups.foldl ReferenceWorkQueue.successGroupStep (integrated.1.queue, [], {})
-              let active := taskSuccessReadyPhase native incoming result input
-              have prepared : snapshot = integrated.1.queue := by
-                simp only [snapshot, registrationSnapshot, found, healthy, ↓reduceIte]; rfl
-              have inputFresh : incoming ∉ settled := fun member => fresh.2.2.1 incoming
-                List.mem_cons_self (ReferenceWorkQueue.GraphEvent.taskSettlements_subsetIdentities _ member)
-              have debt := taskSuccess_registrationDebt accounted matching found healthy inputFresh
-              change snapshot.PendingDebtBound (fun _ => True) (incoming :: settled)
-                (input.task.groups.map DeliveryNode.ref) at debt
-              have keys : integrated.1.queue.GroupRefsUnique := prepared ▸ evidence.keys
-              rw [prepared] at debt links catalogue owned
-              have uniqueOwners := accounted.matching.contributorsNodup generated
-                (accounted.started input (List.mem_of_find?_eq_some found))
-              have folded := successGroupFold_unsettledOwners keys links pending
-                input.task.groups uniqueOwners debt
-              have groupCore : active.1.queue.groupNodes = released.1.groupNodes :=
-                State.startNewWork_groupNodes { integrated.1 with queue := released.1 } released.2.2 integrated.2
-              have readyLinks : active.1.queue.TaskLinkedOn task.occurrence (task.groups.map DeliveryNode.ref) := by
-                simpa only [ReferenceWorkQueue.State.TaskLinkedOn, groupCore]
-                  using folded.1
-              have readyBound : active.1.queue.PendingBound (fun _ => True) (incoming :: settled) := by
-                simpa only [ReferenceWorkQueue.State.PendingBound, groupCore,
-                  ReferenceWorkQueue.GraphEvent.recordTaskOutcome]
-                  using folded.2.2
-              have readyOwned : ∃ owner ∈ task.groups, ∃ group, active.1.queue.groupNode? owner.ref = some group := by
-                obtain ⟨owner, member, group, lookup⟩ := owned
-                refine ⟨owner, member, ?_⟩
-                apply ownerFromKey
-                rw [groupCore]
-                exact folded.2.1 owner.ref (List.mem_map_of_mem member)
-                  (List.mem_map.mpr ⟨group, List.mem_of_find?_eq_some lookup,
-                    ReferenceWorkQueue.State.groupNode?_ref lookup⟩)
-              have readyCatalogue : active.1.queue.task? task.occurrence = some task := by
-                change (({ integrated.1 with queue := released.1 }).startNewWork
-                  released.2.2 integrated.2).1.queue.tasks.find? _ = some task
-                rw [(State.startNewWork_catalogues { integrated.1 with queue := released.1 }
-                  released.2.2 integrated.2).1, successGroupFold_tasks]
-                exact catalogue
-              have sourceFound : ReferenceWorkQueue.State.taskNode?
-                  ((ReferenceWorkQueue.State.initialize (ReferenceWorkQueue.Work.fromExecution work)).replayGraphEvents inputs.flatten)
-                  incoming = some input := by rw [← raw]; exact found
-              have phase : active.1.queue = referenceTaskSuccessReady queue incoming result input := by
-                change (taskSuccessReadyPhase { queue } incoming result input).1.queue = _
-                rw [raw]
-                exact referencePrefix_taskSuccess_readyProjection generated inputs.flatten incoming result valid accepted input sourceFound
-              obtain ⟨parents, frame, forest⟩ := referencePrefix_taskSuccess_drainFrames
-                generated inputs.flatten incoming result valid accepted input sourceFound
-              rw [← raw, ← phase] at frame forest
-              have running : active.1.stopped = false := taskSuccessReadyPhase_stopped native incoming result input
-              have unique : active.2.2.Nodup := State.startNewWork_targets_nodup _ _ _ [] List.nodup_nil
-              have classified := FusedUnsettledDrainProgress_holds active.1 work parents (incoming :: settled)
-                task active.2.2 running frame forest readyCatalogue readyLinks readyBound pending readyOwned unique
-              simp only [State.handleGraphEvent]
-              rw [State.taskSuccess_eq native incoming result input found]
-              have nativeHealthy : native.queue.taskHasHealthyOwner input.task = true := healthy
-              simp only [nativeHealthy, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
-              rcases classified with retained | aborted
-              · exact .inl retained
-              · exact .inr (List.mem_append_right _ aborted)
+          let native : State := { queue }
+          let stored : State := { native with queue := queue.putTaskNode { input with value := some result.value } }
+          let integrated := stored.maybeIntegrateWork result.work (some incoming)
+          let released := input.task.groups.foldl ReferenceWorkQueue.successGroupStep (integrated.1.queue, [], {})
+          let active := taskSuccessReadyPhase native incoming result input
+          have prepared : snapshot = integrated.1.queue := by
+            simp only [snapshot, registrationSnapshot, found]; rfl
+          have inputFresh : incoming ∉ settled := fun member => fresh.2.2.1 incoming
+            List.mem_cons_self (ReferenceWorkQueue.GraphEvent.taskSettlements_subsetIdentities _ member)
+          have debt := taskSuccess_registrationDebt accounted matching found inputFresh
+          change snapshot.PendingDebtBound (fun _ => True) (incoming :: settled)
+            (input.task.groups.map DeliveryNode.ref) at debt
+          have keys : integrated.1.queue.GroupRefsUnique := prepared ▸ evidence.keys
+          rw [prepared] at debt links catalogue owned
+          have uniqueOwners := accounted.matching.contributorsNodup generated
+            (accounted.started input (List.mem_of_find?_eq_some found))
+          have folded := successGroupFold_unsettledOwners keys links pending
+            input.task.groups uniqueOwners debt
+          have groupCore : active.1.queue.groupNodes = released.1.groupNodes :=
+            State.startNewWork_groupNodes { integrated.1 with queue := released.1 } released.2.2 integrated.2
+          have readyLinks : active.1.queue.TaskLinkedOn task.occurrence (task.groups.map DeliveryNode.ref) := by
+            simpa only [ReferenceWorkQueue.State.TaskLinkedOn, groupCore] using folded.1
+          have readyBound : active.1.queue.PendingBound (fun _ => True) (incoming :: settled) := by
+            simpa only [ReferenceWorkQueue.State.PendingBound, groupCore,
+              ReferenceWorkQueue.GraphEvent.recordTaskOutcome]
+              using folded.2.2
+          have readyOwned : ∃ owner ∈ task.groups, ∃ group, active.1.queue.groupNode? owner.ref = some group := by
+            obtain ⟨owner, member, group, lookup⟩ := owned
+            refine ⟨owner, member, ?_⟩
+            apply ownerFromKey
+            rw [groupCore]
+            exact folded.2.1 owner.ref (List.mem_map_of_mem member)
+              (List.mem_map.mpr ⟨group, List.mem_of_find?_eq_some lookup,
+                ReferenceWorkQueue.State.groupNode?_ref lookup⟩)
+          have readyCatalogue : active.1.queue.task? task.occurrence = some task := by
+            change (({ integrated.1 with queue := released.1 }).startNewWork
+              released.2.2 integrated.2).1.queue.tasks.find? _ = some task
+            rw [(State.startNewWork_catalogues { integrated.1 with queue := released.1 }
+              released.2.2 integrated.2).1, successGroupFold_tasks]
+            exact catalogue
+          have sourceFound : ReferenceWorkQueue.State.taskNode?
+              ((ReferenceWorkQueue.State.initialize (ReferenceWorkQueue.Work.fromExecution work)).replayGraphEvents inputs.flatten)
+              incoming = some input := by rw [← raw]; exact found
+          have phase : active.1.queue = referenceTaskSuccessReady queue incoming result input := by
+            change (taskSuccessReadyPhase { queue } incoming result input).1.queue = _
+            rw [raw]
+            exact referencePrefix_taskSuccess_readyProjection generated inputs.flatten incoming result valid accepted input sourceFound
+          obtain ⟨parents, frame, forest⟩ := referencePrefix_taskSuccess_drainFrames
+            generated inputs.flatten incoming result valid accepted input sourceFound
+          rw [← raw, ← phase] at frame forest
+          have running : active.1.stopped = false := taskSuccessReadyPhase_stopped native incoming result input
+          have unique : active.2.2.Nodup := State.startNewWork_targets_nodup _ _ _ [] List.nodup_nil
+          have storedUnrejected : stored.queue.TaskRejectionsSatisfy
+              (fun rejected _ => rejected ≠ task.occurrence) :=
+            priorUnrejected.putTaskNode _ (priorUnrejected input (List.mem_of_find?_eq_some found))
+          have integratedUnrejected := State.maybeIntegrateWork_taskRejections storedUnrejected
+            result.work (some incoming)
+          have readyUnrejected : active.1.queue.TaskRejectionsSatisfy
+              (fun rejected _ => rejected ≠ task.occurrence) :=
+            State.startNewWork_taskRejections
+              (integratedUnrejected.successGroupFold input.task.groups) _ _ _
+          have classified := FusedUnsettledDrainProgress_holds active.1 work parents (incoming :: settled)
+            task active.2.2 running frame forest readyCatalogue readyLinks readyBound pending readyOwned unique readyUnrejected
+          simp only [State.handleGraphEvent]
+          rw [State.taskSuccess_eq native incoming result input found]
+          rcases classified with retained | aborted
+          · exact .inl retained
+          · exact .inr (List.mem_append_right _ aborted)
   | streamItems stream items =>
       cases active : queue.rootStreams.contains stream.ref with
       | false =>
           simp only [snapshot, registrationSnapshot, active, Bool.false_eq_true, ↓reduceIte] at links owned
           simp only [State.handleGraphEvent, State.streamItems, active, Bool.not_false, ↓reduceIte]
-          exact .inl (taskRepresented links owned)
+          exact .inl (taskRepresented links owned priorUnrejected)
       | true =>
           let acc := items.foldl streamRegistrationStep (({ queue } : State), [], [], [], [], [])
           have prepared : snapshot = acc.1.queue := registrationSnapshot_itemFold queue stream items active
@@ -218,8 +213,17 @@ theorem generatedPreparedTask_progress {work inputs event task}
           have running : acc.1.stopped = false := streamRegistrationFold_stopped items _
           have unique := (streamRegistrationFold_cleanupTargets items
             (({ queue } : State), [], [], [], [], []) List.nodup_nil rfl).1
+          have readyUnrejected : acc.1.queue.TaskRejectionsSatisfy
+              (fun rejected _ => rejected ≠ task.occurrence) := by
+            rw [queueEq]
+            exact ReferenceWorkQueue.State.preparedStreamItems_preserves
+              (fun current => current.TaskRejectionsSatisfy
+                (fun rejected _ => rejected ≠ task.occurrence))
+              priorUnrejected items
+              (fun _ item _ prior =>
+                ((prior.maybeIntegrateWork item.work).pruneEmptyGroups _).startNewWork _)
           have classified := FusedUnsettledDrainProgress_holds acc.1 work parents settled task
-            acc.2.2.2.2.1 running frame forest catalogue links bounded pending owned unique
+            acc.2.2.2.2.1 running frame forest catalogue links bounded pending owned unique readyUnrejected
           simp only [State.handleGraphEvent]
           rcases classified with retained | aborted
           · simp only [State.streamItems, active, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
@@ -239,16 +243,16 @@ theorem generatedPreparedTask_progress {work inputs event task}
         (fun event member => prior.eachMatches member)
       rw [← raw] at frame forest
       exact State.taskFailure_unsettledTask (state := { queue }) frame forest failed errors task
-        different catalogue links owned
+        different catalogue links owned priorUnrejected
   | streamSuccess stream =>
       simp only [snapshot, registrationSnapshot] at links owned
       simp only [State.handleGraphEvent, ReferenceWorkQueue.State.handleGraphEvent,
         ReferenceWorkQueue.State.streamSuccess]
-      split <;> exact .inl (taskRepresented links owned)
+      split <;> exact .inl (taskRepresented links owned priorUnrejected)
   | streamFailure stream errors =>
       simp only [snapshot, registrationSnapshot] at links owned
       simp only [State.handleGraphEvent, ReferenceWorkQueue.State.handleGraphEvent,
         ReferenceWorkQueue.State.streamFailure]
-      split <;> exact .inl (taskRepresented links owned)
+      split <;> exact .inl (taskRepresented links owned priorUnrejected)
 
 end GraphQL.IncrementalDelivery.AlternativeWorkQueue.NativeRefinement

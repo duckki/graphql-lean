@@ -18,7 +18,7 @@ private def queue : State :=
 cancellation. Witness: evaluate group registration and the subsequent link-installation
 pass. This is a raw registration-order test, not an execution-generated work claim. -/
 theorem child_first_state
-    : queue.groupNodes = [⟨child, [], [], 0, none⟩]
+    : queue.groupNodes = [⟨child, [], [], 0⟩]
       ∧ queue.cancelledGroups = [0, 1]
       ∧ queue.groupNode? parent.node.ref = none := by cbv
 
@@ -40,9 +40,12 @@ theorem new_retirement_marked
       change ¬((1 : Nat) ∈ [0] ∧ (1 : Nat) ∉ [])
       decide)
 
-/-- The missing-parent guard rejects that retained child without reading a parent cache.
-Witness: evaluate the bounded walk's recorded-cancellation branch. -/
-theorem child_guard_rejected : queue.groupIsHealthy child.node.ref = false := by cbv
+/-- The retained child names the cancelled parent in its registration metadata. -/
+theorem child_parent_cancelled
+    : (queue.groupNode? child.node.ref).map (fun node => node.group.parent)
+        = some (some 1)
+      ∧ 1 ∈ queue.cancelledGroups := by
+  cbv; exact List.mem_cons_of_mem _ List.mem_cons_self
 
 /-- This state satisfies the corrected boundary without asserting cancelled ancestry is
 healthy. Witness: every live record's parent is recorded as cancelled, so no accepting

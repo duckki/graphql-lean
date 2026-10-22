@@ -14,8 +14,9 @@ private def heldSource : DeliveryNode := { ref := 3, path := [] }
 
 def work : Execution.Work :=
   .combine
-    (.executionGroup [{ node := owner }] [] (.ok ([], 0)) (.stream heldSource []))
-    (.executionGroup [{ node := owner }] [] (.error 1) .empty)
+    (.executionGroup [{ node := owner }] [] ({ result := .ok ([], 0) })
+      (.stream heldSource []))
+    (.executionGroup [{ node := owner }] [] ({ result := .error 1 }) .empty)
 
 def success : GraphEvent :=
   .taskSuccess (.executionGroup [0])

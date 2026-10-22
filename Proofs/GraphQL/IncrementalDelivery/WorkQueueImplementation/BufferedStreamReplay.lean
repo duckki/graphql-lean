@@ -77,11 +77,6 @@ theorem ExecutedWork.success_conservesBufferedStreams
       : ((State.initialize (Work.fromExecution work)).replayGraphEvents before).taskNode?
           occurrence
         = some node)
-    (healthy
-      : ((State.initialize (Work.fromExecution work)).replayGraphEvents
-          before).taskHasHealthyOwner
-          node.task
-        = true)
     : let queue := (State.initialize (Work.fromExecution work)).replayGraphEvents before
       let prepared :=
         ((queue.putTaskNode { node with value := some result.value }).maybeIntegrateWork
@@ -100,7 +95,7 @@ theorem ExecutedWork.success_conservesBufferedStreams
       (before ++ .taskSuccess occurrence result :: after) := ⟨after, by simp⟩
   have fresh := (valid.atPrefix boundary).2.1
   have first := State.taskSuccess_preparedBufferedStreams (result := result)
-    accounted links children found healthy
+    accounted links children found
     (fun member => fresh.2.2.1 occurrence List.mem_cons_self
       (GraphEvent.taskSettlements_subsetIdentities before member))
   have later := generated.replayGraphEvents_bufferedStreamsConserved

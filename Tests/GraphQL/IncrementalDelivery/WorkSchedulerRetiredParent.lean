@@ -29,11 +29,15 @@ private def parentData : List (Name × ResponseValue) := [("a", .scalar "a")]
 
 private def work : Execution.Work :=
   .combine .empty
-    (.combine (.executionGroup [⟨parent, []⟩] [] (.ok (parentData, 0)) noChildren)
+    (.combine
+      (.executionGroup [⟨parent, []⟩] [] ({ result := .ok (parentData, 0) }) noChildren)
       (.combine
         (.executionGroup [⟨child, [parent]⟩] []
-          (.ok ([("b", .scalar "b")], 0)) noChildren)
-        (.combine (.executionGroup [⟨other, []⟩] [] (.error 1) .empty) .empty)))
+          ({ result := .ok ([("b", .scalar "b")], 0) }) noChildren)
+        (.combine
+          (.executionGroup [⟨other, []⟩] [] ({ result := .error 1, cause := some 1 })
+            .empty)
+          .empty)))
 
 private def success : GraphEvent :=
   .taskSuccess parentTask
@@ -63,7 +67,7 @@ Witness: direct lookup of its generated root-task address.
 -/
 private theorem other_known
     : TaskAt work otherTask [other.ref] none (.object [] (.error 1)) :=
-  ⟨_, [], .error 1, .empty, [], rfl, rfl, rfl⟩
+  ⟨_, [], { result := .error 1, cause := some 1 }, .empty, [], rfl, rfl, rfl⟩
 
 /-- Both source settlements obey fixed outcomes, freshness, readiness, and start discipline.
 Witness: the two root descriptors and evaluation of the unchanged start checker.
@@ -72,7 +76,7 @@ theorem source_valid
     : ValidGraphEvents work inputs.flatten ∧ inputsStarted work inputs = true := by
   have parentKnown
       : TaskAt work parentTask [parent.ref] none (.object [] (.ok (parentData, 0))) :=
-    ⟨_, [], .ok (parentData, 0), noChildren, [], rfl, rfl, rfl⟩
+    ⟨_, [], { result := .ok (parentData, 0) }, noChildren, [], rfl, rfl, rfl⟩
   have first : ValidGraphEvents work [success] :=
     .append .nil ⟨_, _, parentKnown, rfl, rfl⟩
       (by simp [success, GraphEvent.Fresh, GraphEvent.identities])
@@ -125,7 +129,7 @@ theorem successful_parent_health_stable (events : List GraphEvent)
   have known : GroupRecordAt work parent [] :=
     groupRecordAt_of_nodeAt
       (show NodeAt work parent .group [] none from
-        ⟨[1, 0], _, [], .ok (parentData, 0), noChildren, [], ⟨parent, []⟩,
+        ⟨[1, 0], _, [], { result := .ok (parentData, 0) }, noChildren, [], ⟨parent, []⟩,
           rfl, List.mem_cons_self, rfl, rfl⟩)
   have retired : (initial.replayGraphEvents [success]).RetiredGroup parent.ref := by
     constructor
@@ -218,7 +222,7 @@ theorem successful_missing_parent
         ∧ node.group.parent = some parent.ref
         ∧ retired.groupNode? parent.ref = none
         ∧ parent.ref ∉ retired.cancelledGroups
-        ∧ retired.groupIsHealthy child.ref = true
+        ∧ retired.rejectedTask? node = none
         ∧ initial.objectFailureContributions inputs.flatten = [otherTask] := by
   refine ⟨{
     group := ⟨child, some parent.ref⟩,
@@ -238,10 +242,10 @@ theorem successful_ancestry_healthy
     : ¬GroupInvalidated work [otherTask] parent.ref
       ∧ ¬GroupInvalidated work [otherTask] child.ref := by
   have root : NodeAt work parent .group [] none :=
-    ⟨[1, 0], _, [], .ok (parentData, 0), noChildren, [], ⟨parent, []⟩,
+    ⟨[1, 0], _, [], { result := .ok (parentData, 0) }, noChildren, [], ⟨parent, []⟩,
       rfl, by simp, rfl, rfl⟩
   have nested : NodeAt work child .group [parent.ref] none :=
-    ⟨[1, 1, 0], _, [], .ok ([("b", .scalar "b")], 0), noChildren, [],
+    ⟨[1, 1, 0], _, [], { result := .ok ([("b", .scalar "b")], 0) }, noChildren, [],
       ⟨child, [parent]⟩, rfl, by simp, rfl, rfl⟩
   have excludes {node dependencies producer}
       (known : NodeAt work node .group dependencies producer)
@@ -271,8 +275,10 @@ no fixture-specific missing-parent premise is needed by guard reflection.
 theorem guard_reflection_after_retirement
     : ¬GroupRecordInvalidated work [otherTask] child.ref := by
   have inventory : initial.objectFailureContributions inputs.flatten = [otherTask] := by cbv
-  have reflected := generated.replayGraphEvents_groupIsHealthy_recordUninvalidated
-    inputs.flatten source_valid.1 (by cbv) (ref := child.ref) (by cbv)
+  have reflected := generated.replayGraphEvents_activeUnrejected_recordUninvalidated
+    inputs.flatten source_valid.1 (by cbv)
+    (node := { group := ⟨child, some parent.ref⟩, tasks := [.executionGroup [1, 1, 0]], pending := 1 })
+    (by cbv) (by cbv; exact List.mem_cons_self) (by cbv)
   change ¬GroupRecordInvalidated work (initial.objectFailureContributions inputs.flatten)
     child.ref at reflected
   rwa [inventory] at reflected
@@ -303,24 +309,21 @@ theorem accepted_failure_owner_uninvalidated
         TaskHasOwners work otherTask owners
         ∧ ref ∈ owners
         ∧ ¬GroupRecordInvalidated work [] ref := by
-  have cut
-      : let publisher : IncrementalPublisher :=
-          { active := initial.initialGroups ++ initial.initialStreams }
-        sourceObjectFailureCuts 0
-          (initial.eligibleFailureBlocks (initial.sourceRunBlocks publisher inputs).2.2)
-        = [] ++ (2, otherTask) :: [] := by cbv
-  exact createWorkQueue_eligibleObjectFailureCuts_uninvalidatedOwner
-    generated source_valid.1 source_valid.2 prefix_missing_parent_health cut
+  exact ⟨
+    [other.ref],
+    other.ref,
+    ⟨none, _, other_known⟩,
+    by simp,
+    fun invalid => invalid.nonempty rfl
+  ⟩
 
 /-- An actually cancelled missing parent takes the opposite guard branch.
 Witness: changing only P's retained cancellation marker rejects the same live child.
 This last check isolates the guard; the modified state is not claimed to be generated.
 -/
-theorem cancelled_missing_parent_rejected
-    : ({ retired with cancelledGroups := parent.ref :: retired.cancelledGroups }
-        : State).groupIsHealthy
-        child.ref
-      = false := by
-  cbv
+theorem cancelled_missing_parent_marked
+    : parent.ref
+      ∈ ({ retired with cancelledGroups := parent.ref :: retired.cancelledGroups }
+          : State).cancelledGroups := by simp
 
 end GraphQL.IncrementalDelivery.Tests.WorkSchedulerRetiredParent

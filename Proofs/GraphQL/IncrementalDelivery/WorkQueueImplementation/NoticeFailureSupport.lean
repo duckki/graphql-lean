@@ -1,91 +1,49 @@
-import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.AcceptedFailureHealth
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.CancellationReplay
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.FailureContributions
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.CachedFailures
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.ItemNoticeContents
 
-/-! Retained notice caches are supported by accepted, not merely received, failures. -/
+/-! Retained task rejections have presence-selected source contributors. -/
 
 namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.Execution (WorkQueueEvent)
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
 -----------------------------------------------------------------------------------------
--- Positive complete error totals identify an accepted contributing failure
+-- Selected source causes retain generated positive error counts
 -----------------------------------------------------------------------------------------
 
-/-- A positive exact total contains a failed-inventory task contributing to this ref.
-Witness: extract a positive summand; a nonowner would have contributed zero. This does
-not require a licensed output history or replace the inventory by raw source failures.
--/
-theorem nodeErrors_contributor_of_positive {work failed ref errors}
-    (counts : NodeErrors work failed ref errors) (positive : 0 < errors)
-    : ∃ occurrence ∈ failed,
-        ∃ owners, TaskHasOwners work occurrence owners ∧ ref ∈ owners := by
-  obtain ⟨contribution, known, total⟩ := counts
-  rw [total] at positive
-  obtain ⟨count, member, pos⟩ := List.sum_pos_iff_exists_pos_nat.mp positive
-  obtain ⟨occurrence, recorded, same⟩ := List.mem_map.mp member
-  obtain ⟨owners, producer, payload, task, counted⟩ := known occurrence recorded
-  refine ⟨occurrence, recorded, owners, ⟨producer, payload, task⟩, ?_⟩
-  by_cases present : ref ∈ owners
-  · exact present
-  · simp [present, same] at counted
-    omega
-
-/-- A generated nonempty source-contributor total is strictly positive.
-Witness: a listed failing task has a positive fixed error count, hence so does its sum.
--/
-theorem GroupFailureTotal.positive {work inputs ref errors}
-    (total : GroupFailureTotal work inputs ref errors) (generated : ExecutedWork work)
+/-- A selected generated source rejection has a positive delivery count. -/
+theorem GroupFailureSourceCause.positive {work inputs ref errors}
+    (cause : GroupFailureSourceCause work inputs ref errors)
+    (generated : ExecutedWork work)
     : 0 < errors := by
-  obtain ⟨parts, nonempty, _, total, sources⟩ := total
-  obtain ⟨entry, member⟩ := List.exists_mem_of_ne_nil parts nonempty
-  obtain ⟨_, owners, producer, path, known, _⟩ := sources entry.1 entry.2 member
-  have positive : 0 < entry.2 := generated.taskFailure_positive known rfl
-  rw [← total]
-  exact List.sum_pos_iff_exists_pos_nat.mpr
-    ⟨entry.2, List.mem_map.mpr ⟨entry, member, rfl⟩, positive⟩
+  obtain ⟨occurrence, received, owners, producer, path, known, owner⟩ := cause
+  exact generated.taskFailure_positive known rfl
 
-/-- Positive live caches with complete accounting have accepted contributor support.
-Witness: the cache's exact positive total supplies a member of the same full inventory.
--/
-theorem State.GroupErrorAccounting.cachedFailuresSupported {queue : State} {work failed}
-    (counts : queue.GroupErrorAccounting work failed)
-    (positive : queue.CachedErrorsSatisfy (fun _ errors => 0 < errors))
-    : queue.CachedFailuresSupported work failed := by
-  intro node member present
-  cases cached : node.failure with
-  | none => simp [cached] at present
-  | some errors =>
-      have exactCount := counts.live node member
-      simp only [cached, Option.getD_some] at exactCount
-      exact nodeErrors_contributor_of_positive exactCount (positive node member errors cached)
-
-/-- Every generated replay cache has a contributor accepted by the executable guard.
-Witness: source provenance gives positivity; full accepted-inventory accounting identifies
-the contributor. Ignored settlements are absent from that inventory, even if received.
+/-- Every replayed rejection has a contributor in the presence-selected source inventory.
+Witness: rejected-task provenance advances with actual handlers and registered task
+descriptors. Removed tasks contribute no token even when their source input is received.
 -/
 theorem ExecutedWork.replayGraphEvents_cachedAcceptedFailures {work events}
-    (generated : ExecutedWork work) (valid : ValidGraphEvents work events)
-    (accepted : (State.initialize (Work.fromExecution work)).acceptsBatch events = true)
+    (_generated : ExecutedWork work) (valid : ValidGraphEvents work events)
+    (_accepted : (State.initialize (Work.fromExecution work)).acceptsBatch events = true)
     : ((State.initialize (Work.fromExecution work)).replayGraphEvents
         events).CachedFailuresSupported
         work
         ((State.initialize (Work.fromExecution work)).objectFailureContributions
           events) := by
-  have counts := (createWorkQueue_groupErrorAccounting (Work.fromExecution work) work).replayGraphEvents
-    (before := []) (createWorkQueue_pendingAccounting work) generated events valid accepted
-  simp only [List.append_nil] at counts
-  exact counts.cachedFailuresSupported
-    ((generated.replayGraphEvents_cachedFailureTotals valid).mono
-      (fun _ _ total => total.positive generated))
+  have supported := (createWorkQueue_cachedFailuresSupported (Work.fromExecution work) work []).replayGraphEvents_contributions
+    (createWorkQueue_startedTasksRegistered _) (createWorkQueue_fromSpec_registeredTasksMatch work)
+    events (fun _ member => valid.eachMatches member)
+  simpa only [List.append_nil] using supported
 
 -----------------------------------------------------------------------------------------
 -- Every internal successful-release boundary retains the same accepted inventory
 -----------------------------------------------------------------------------------------
 
 /-- Every prefix of the single-pass owner fold preserves accepted cache support.
-Witness: counter decrements retain their cache; a successful flush only removes caches.
+Witness: counter writes leave task rejections unchanged; successful flushing removes tasks.
 -/
 theorem State.CachedFailuresSupported.successGroupFold {queue : State} {work failed}
     (supported : queue.CachedFailuresSupported work failed)
@@ -104,14 +62,15 @@ theorem State.CachedFailuresSupported.successGroupFold {queue : State} {work fai
         · exact ih acc prior
         · rename_i node found
           let updated := { node with pending := node.pending - 1 }
-          have next := prior.putGroupNode updated (prior node (List.mem_of_find?_eq_some found))
+          have next := prior.putGroupNode updated
           split
           · exact ih _ (next.finishGroupSuccess updated)
           · exact ih _ next
   exact loop groups (queue, [], {}) supported
 
 /-- Each bounded drain prefix retains accepted cache support after either kind of closure.
-Witness: the actual finite-loop induction, including failure cleanup before a later notice.
+Witness: rejection replay reuses an existing supported task; every owner cleanup and
+successful closure preserves the remaining task-rejection facts.
 -/
 theorem State.CachedFailuresSupported.drainReadyGroups_go {queue : State} {work failed}
     (supported : queue.CachedFailuresSupported work failed) (fuel : Nat)
@@ -120,8 +79,13 @@ theorem State.CachedFailuresSupported.drainReadyGroups_go {queue : State} {work 
     (fun current => current.CachedFailuresSupported work failed) (valid := supported)
   · intro current node prior _ _ _ _
     exact (prior.finishGroupSuccess node).startNewWork _
-  · intro current node errors prior _ _ _
-    exact prior.removeGroup node.group.node.ref
+  · intro current node occurrence errors prior _ _ selected
+    obtain ⟨_, task, found, rejected⟩ := State.rejectedTask?_sound selected
+    apply State.CachedErrorsSatisfy.taskFailure prior occurrence errors
+    intro other lookup group member
+    have same : other = task := Option.some.inj (lookup.symm.trans found)
+    subst other
+    exact prior task (List.mem_of_find?_eq_some found) errors rejected group member
 
 /-- Integrating one stream item retains the prior accepted contributor inventory.
 Witness: integration, pruning, and activation introduce no failure cache.
@@ -148,13 +112,18 @@ theorem State.CachedFailuresSupported.preparedStreamItems {queue : State} {work 
 -----------------------------------------------------------------------------------------
 
 /-- Task-success preparation retains the accepted failures from prior source replay.
-Witness: derive prior cache support and preserve it while storing and integrating work.
+Witness: an actual input lookup identifies the unchanged rejected computation, while
+value storage and child integration retain its contributor witnesses.
 -/
 theorem ExecutedWork.taskSuccess_prepared_cachedAcceptedFailures
     {work before occurrence} {result : TaskResult} (generated : ExecutedWork work)
     (valid : ValidGraphEvents work before)
     (accepted : (State.initialize (Work.fromExecution work)).acceptsBatch before = true)
     (incoming : TaskNode)
+    (found
+      : ((State.initialize (Work.fromExecution work)).replayGraphEvents before).taskNode?
+          occurrence
+        = some incoming)
     : let initial := State.initialize (Work.fromExecution work)
       let current := initial.replayGraphEvents before
       let stored := current.putTaskNode { incoming with value := some result.value }
@@ -164,7 +133,10 @@ theorem ExecutedWork.taskSuccess_prepared_cachedAcceptedFailures
   intro initial current stored prepared
   have support := generated.replayGraphEvents_cachedAcceptedFailures valid accepted
   have storedSupport : stored.CachedFailuresSupported work
-      (initial.objectFailureContributions before) := support
+      (initial.objectFailureContributions before) :=
+    State.CachedErrorsSatisfy.putTaskNode support _
+      (fun errors rejected group member =>
+        support incoming (List.mem_of_find?_eq_some found) errors rejected group member)
   exact storedSupport.maybeIntegrateWork result.work (some occurrence)
 
 /-- The post-owner-fold drain starts with support from exactly the prior accepted failures.
@@ -175,6 +147,10 @@ theorem ExecutedWork.taskSuccess_drain_cachedAcceptedFailures
     (valid : ValidGraphEvents work before)
     (accepted : (State.initialize (Work.fromExecution work)).acceptsBatch before = true)
     (incoming : TaskNode)
+    (found
+      : ((State.initialize (Work.fromExecution work)).replayGraphEvents before).taskNode?
+          occurrence
+        = some incoming)
     : let initial := State.initialize (Work.fromExecution work)
       let current := initial.replayGraphEvents before
       let stored := current.putTaskNode { incoming with value := some result.value }
@@ -183,7 +159,7 @@ theorem ExecutedWork.taskSuccess_drain_cachedAcceptedFailures
       let active := released.1.startNewWork released.2.2
       active.CachedFailuresSupported work
         (initial.objectFailureContributions before) := by
-  exact ((generated.taskSuccess_prepared_cachedAcceptedFailures valid accepted incoming
+  exact ((generated.taskSuccess_prepared_cachedAcceptedFailures valid accepted incoming found
     (occurrence := occurrence) (result := result)).successGroupFold
       incoming.task.groups).startNewWork _
 
@@ -201,17 +177,5 @@ theorem ExecutedWork.streamItems_prepared_cachedAcceptedFailures {work before}
         work (initial.objectFailureContributions before) :=
   (generated.replayGraphEvents_cachedAcceptedFailures valid accepted).preparedStreamItems
     items
-
-/-- An accepted cache contributor visible at an output cut licenses the failure alternative.
-Witness: transport that contributor into the same cut inventory; no output admission,
-open-owner premise, or fresh source-failure choice is introduced here.
--/
-theorem State.CachedFailuresSupported.recorded {queue : State} {work failed failures cut}
-    (supported : queue.CachedFailuresSupported work failed)
-    (visible : failed.Subset (failedBefore failures cut)) {node : GroupNode}
-    (member : node ∈ queue.groupNodes) (cached : node.failure.isSome = true)
-    : HasRecordedFailure work failures cut node.group.node.ref := by
-  obtain ⟨occurrence, accepted, owners, known, owner⟩ := supported node member cached
-  exact ⟨occurrence, owners, visible accepted, known, owner⟩
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

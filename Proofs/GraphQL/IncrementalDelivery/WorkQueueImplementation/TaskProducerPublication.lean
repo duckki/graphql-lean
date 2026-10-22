@@ -67,7 +67,7 @@ theorem ExecutedWork.taskSuccess_ancestorProducer_beforeValue
   · obtain ⟨value, emitted⟩ := generated.activeAncestorContributor_published_before_handler
       valid started covered carrier active record ancestor parentKnown parentContributes
     exact ⟨value, List.take_subset_take_left _ (Nat.le_add_right ..) emitted⟩
-  · obtain ⟨incoming, found, guard, index, atDrain, prefixEq⟩ :=
+  · obtain ⟨incoming, found, index, atDrain, prefixEq⟩ :=
       queue.taskSuccess_inactiveValue_drain occurrence result selected active
     let prepared :=
       ((queue.putTaskNode { incoming with value := some result.value }).maybeIntegrateWork
@@ -110,13 +110,11 @@ theorem ExecutedWork.taskSuccess_ancestorProducer_beforeValue
         rw [State.replayGraphEvents_append]
         change (queue.taskSuccess occurrence result).1 = _
         rw [queue.taskSuccess_eq occurrence result incoming found]
-        simp only [guard, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
-        rfl
       rw [finalState] at notCancelled
       have prefixes := covered.atPrefixDrainOwners before (.taskSuccess occurrence result) []
       have delivered := generated.taskSuccess_drainAncestorValue_before
         (fun event member => (valid.prefix (List.prefix_append before [_])).eachMatches member)
-        sourceMatched record ancestor taskOwners nodeContributes stored prefixes found guard
+        sourceMatched record ancestor taskOwners nodeContributes stored prefixes found
         preparedLookup preparedPresent atDrain notCancelled
       refine ⟨parentResult.value, ?_⟩
       change (Occurrence.executionGroup source, parentResult.value)

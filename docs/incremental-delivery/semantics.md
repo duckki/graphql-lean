@@ -22,9 +22,9 @@ This is a proposed completion of the pinned draft's unspecified queue interface,
 not a claim that the GraphQL specification already states these invariants.
 For the execution/spec cross-reference, see [execution guide](README.md).
 
-Public definitions include a terminal failure-reporting requirement. The correctness,
-conformance, finite-progress proofs, and regressions below are verified against this
-terminal contract.
+The terminal-reporting contract separates collected diagnostics from selected causal
+explanations for failed completions. Correctness, conformance, finite-progress proofs,
+and regressions use this contract and the task-local delivery projection.
 
 The [checked research results](#checked-research-results) establish that failure uniqueness
 follows from licensing and event provenance in explained histories. Terminal task
@@ -270,7 +270,9 @@ The witness records accepted settlement order, not reporting order. Equal cuts p
 list order. Later cancellation does not remove an accepted failure from `failedBefore`.
 This distinction is represented by the licensing predicate, not by adding queue state,
 host timestamps, or a second index to each failure. Actual completion events retain their
-`Open` requirement and exact error totals through their own output boundary.
+`Open` requirement and select a positive explanation from accepted contributing failures
+available through their own output boundary. `NodeFailureCause` permits any such supported
+choice; it neither sums failures nor accepts an unrelated positive number.
 
 Cancellation and node failure are assessed at a reached failure cut using
 the failures known through that cut and the value publications in `events.take cut`.
@@ -301,11 +303,11 @@ to be cancelled; it is equivalent to the disjunction but avoids nesting a recurs
 predicate under `Or` with a bound producer.
 
 The least rules cannot manufacture failure by cyclic justification. `failedBefore`
-exposes only failures available at a given cut. Error totals use those justified
-occurrences, not arbitrary error numbers. Public query-correctness witnesses, finite
-progress, auxiliary research results, and reference-queue conformance include terminal
-failure reporting. Neither the contract nor these proofs establish refinement of the
-actual GraphQL.js runtime.
+exposes only failures available at a given cut. Failure explanations use those justified
+occurrences and their task-local delivery projections. Public query-correctness witnesses,
+finite progress, auxiliary research results, and reference-queue conformance include terminal
+failure reporting and selected-cause accounting. These results do not establish refinement
+of the actual GraphQL.js runtime.
 
 The release requirement retains the boundary exposed by two independent defer groups:
 announcing only the successful group must not allow the other, never-announced failing
@@ -313,12 +315,11 @@ group to cancel silently and terminate with zero reported errors. Such a failure
 has no previously announced owner and cannot enter the failure witness.
 
 A settled shared failure can remain accepted after the owner through which it started
-has closed, while another owner is still latent. `Explains.failure_reported` and
-`failure_le_total` require an owner still open at settlement; the zero-error correctness
-proof instead uses the first accepted failure. A successful owner closure would imply
-publication or cancellation of that task, and no earlier failure can explain a failed
-closure. `Explains.first_failure_open_owner` and `AdmissibleRun.first_failure_accounting`
-prove this argument without adding an admission premise.
+has closed, while another owner is still latent. The previous additive `failure_le_total`
+argument does not apply to selected explanations: a completion may report a different
+supported cause with a smaller count. Rebuilding zero-error reflection must use causal
+positivity and terminal covering reports, rather than an additive lower bound for every
+accepted failure. This adds no premise to admission.
 
 This list is proof evidence, not a ready queue, mutable ledger, or implementation
 requirement. Successful silent completions are abstracted away: publication
@@ -539,8 +540,9 @@ isolate requirements rather than silently strengthening admission:
 - Treating a recorded failure as sufficient, without any announcement requirement, permits
   causal cancellation of never-announced work without an output reporting its failure.
   The prior-announcement requirement excludes this case, as the checked regression shows.
-- Failure and open-owner evidence alone allow an incorrect claimed error count;
-  `NodeErrors` excludes reporting zero for a two-error contribution.
+- Failure and open-owner evidence alone allow an unsupported claimed error count;
+  `NodeFailureCause` requires a positive count from an accepted contributing payload.
+  The old additive-count regressions require migration to this selection rule.
 
 This is not an exhaustive independence audit of every clause. Removing `Nodup` evidence
 does not eliminate the ordered failure cuts themselves. An equivalent purely output-based

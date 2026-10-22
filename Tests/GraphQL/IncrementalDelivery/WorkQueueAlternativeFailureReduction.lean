@@ -70,18 +70,26 @@ private def shared : State :=
       {
         shared with
           queue :=
-            ({ shared.queue with rootGroups := [1] }).putGroupNode
+            ({
+              shared.queue with
+                rootGroups := [1],
+                taskNodes :=
+                  [
+                    { task := task 9 [1, 2], rejection := some 1 },
+                    { task := task 10 [1, 2], childStreams := [7] }
+                  ]
+            }).putGroupNode
               {
                 group := { node := node 2 }
                 tasks := [.executionGroup [9], .executionGroup [10]]
                 pending := 2
-                failure := some 1
               }
       }
     check "failed but live dormant co-owner still owns work"
       (failedCoOwner.removeGroup 1).2.isEmpty
     let (failed, notices, effects) := shared.taskFailure (.executionGroup [9]) 2
-    same "settling input is not aborted; shared source is disposed once" effects
+    same "settling input is not aborted; shared source is disposed once"
+      (effects.flatMap CleanupTarget.effects)
       [.abortTask (.executionGroup [10]), .cancelSource 7, .abortStreamQueue 7]
     same "both announced failed owners retain wire order" notices
       [.groupFailure (node 1) 2, .groupFailure (node 2) 2]
@@ -154,17 +162,20 @@ private def shared : State :=
                 { group := { node := node 1 }, tasks := [.executionGroup [10]] },
                 {
                   group := { node := node 2 },
-                  tasks := [.executionGroup [10]],
-                  failure := some 1
+                  tasks := [.executionGroup [10], .executionGroup [11]],
+                  pending := 1,
                 }
               ]
-            tasks := [task 10 [1, 2]]
+            tasks := [task 10 [1, 2], task 11 [2]]
             taskNodes :=
-              [{
-                task := task 10 [1, 2],
-                value := some { path := [], data := [] },
-                childStreams := [7]
-              }]
+              [
+                {
+                  task := task 10 [1, 2],
+                  value := some { path := [], data := [] },
+                  childStreams := [7]
+                },
+                { task := task 11 [2], rejection := some 1 }
+              ]
             streams := [{ node := node 7 }]
           }
       }
@@ -191,13 +202,13 @@ private def shared : State :=
                 },
                 {
                   group := { node := node 2, parent := some 1 },
-                  tasks := [.executionGroup [10]],
-                  pending := 1,
-                  failure := some 2
+                  tasks := [.executionGroup [10], .executionGroup [11]],
+                  pending := 2
                 }
               ]
-            tasks := [task 9 [1], task 10 [2]]
-            taskNodes := [{ task := task 9 [1] }]
+            tasks := [task 9 [1], task 10 [2], task 11 [2]]
+            taskNodes :=
+              [{ task := task 9 [1] }, { task := task 11 [2], rejection := some 2 }]
           }
       }
     let success : GraphEvent :=

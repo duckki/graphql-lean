@@ -58,7 +58,10 @@ private def childTask : Occurrence := .executionGroup [0, 0, 1, 0, 1, 0]
 
 private def children : Execution.Work :=
   .combine .empty
-    (.combine (.executionGroup [⟨child, []⟩] child.path (.error 1) .empty) .empty)
+    (.combine
+      (.executionGroup [⟨child, []⟩] child.path ({ result := .error 1, cause := some 1 })
+        .empty)
+      .empty)
 
 private def item : StreamItem :=
   ⟨firstItem, ⟨.object [], 0⟩, Work.fromExecution children [0, 0, 1, 0]⟩
@@ -80,28 +83,33 @@ theorem generated : ExecutedWork work :=
 
 private theorem stream_located
     : Located work [0, 0, 1]
-        (.stream stream [(.ok (.object [], 0), children), (.error 1, .empty)]) none
+        (.stream stream
+          [
+            ({ result := .ok (.object [], 0) }, children),
+            ({ result := .error 1, cause := some 1 }, .empty)
+          ]) none
         [] := by cbv
 
 private theorem first_known
     : TaskAt work firstItem [stream.ref] none (.item stream (.ok (.object [], 0))) :=
-  .item stream_located rfl
+  .item (result := { result := .ok (.object [], 0) }) stream_located rfl
 
 private theorem failed_known
     : TaskAt work failedItem [stream.ref] none (.item stream (.error 1)) :=
-  .item stream_located rfl
+  .item (result := { result := .error 1, cause := some 1 }) stream_located rfl
 
 private theorem child_known
     : TaskAt work childTask [child.ref] (some firstItem)
         (.object child.path (.error 1)) :=
-  .executionGroup (groups := [⟨child, []⟩]) (children := .empty) (owners := []) (by cbv)
+  .executionGroup (result := { result := .error 1, cause := some 1 })
+    (groups := [⟨child, []⟩]) (children := .empty) (owners := []) (by cbv)
 
 private theorem child_node : NodeAt work child .group [] (some firstItem) :=
   ⟨
     [0, 0, 1, 0, 1, 0],
     [⟨child, []⟩],
     child.path,
-    .error 1,
+    { result := .error 1, cause := some 1 },
     .empty,
     [],
     ⟨child, []⟩,
@@ -125,10 +133,10 @@ theorem source_valid
     · exact ⟨_, _, _, _, stream_located, by simp, by simp,
         (by intro source impossible; cases impossible), rfl⟩
   refine ⟨.append first ?_ ?_ ?_, by cbv⟩
-  · exact ⟨_, _, _, _, stream_located, .empty, by simp⟩
+  · exact ⟨_, _, _, _, stream_located, { result := .error 1, cause := some 1 }, .empty, by simp, rfl⟩
   · simp [GraphEvent.Fresh, GraphEvent.identities, item]
   · exact ⟨_, _, _, _, stream_located,
-      (by intro source impossible; cases impossible), .empty, rfl⟩
+      (by intro source impossible; cases impossible), { result := .error 1, cause := some 1 }, .empty, rfl, rfl⟩
 
 /-- The actual queue emits the first item and C's notice before closing the failed stream.
 Witness: direct normalized replay; C remains active, so there is no terminal marker.
@@ -213,7 +221,7 @@ theorem child_healthy : ¬NodeFailed work matching events cuts child.ref := by
     (by cbv)
     child_node
     (by cbv; exact List.mem_cons_self)
-    (by cbv)
+    (by intro invalid; exact invalid.nonempty rfl)
     failed_payloads _ items_safe
   intro occurrence owners producer path result known member
   have same : occurrence = failedItem := List.mem_singleton.mp member
@@ -260,10 +268,10 @@ theorem mixed_source_valid
     · exact ⟨_, _, _, child_known, by intro source same; cases same; simp [
         GraphEvent.successes, item]⟩
   refine ⟨.append childFailed ?_ ?_ ?_, by cbv⟩
-  · exact ⟨_, _, _, _, stream_located, .empty, by simp⟩
+  · exact ⟨_, _, _, _, stream_located, { result := .error 1, cause := some 1 }, .empty, by simp, rfl⟩
   · simp [GraphEvent.Fresh, GraphEvent.identities, item]
   · exact ⟨_, _, _, _, stream_located,
-      (by intro source impossible; cases impossible), .empty, rfl⟩
+      (by intro source impossible; cases impossible), { result := .error 1, cause := some 1 }, .empty, rfl, rfl⟩
 
 /-- Actual replay interleaves the child and stream failures, then terminates.
 Witness: direct execution of the same queue and publisher; no output-admission premise.

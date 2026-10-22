@@ -114,7 +114,8 @@ theorem fields_cuts_of_values (schema : Schema) (resolvers : Resolvers ObjectRef
                 (group.map (field keys)) path (usages.map keys) (context.map (fragment keys))
                 (route ++ [0])).run right).2).left
           rw [RecordedCompletion.map_id_of_empty (responseField_fatal_empty schema resolvers variables fuel
-            parentType source name group path usages context (route ++ [0]) left errors outcome)] at known
+            parentType source name group path usages context (route ++ [0]) left errors outcome)
+            outcome] at known
           simpa only [KeyRenaming.fields] using known
       | ok value =>
           have restBefore : FieldsBefore left rest :=

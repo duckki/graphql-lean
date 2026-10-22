@@ -166,7 +166,7 @@ theorem OwnedAttachedCompletion.executionGroup {available : List Entry}
           (fields true path) (fieldCursors path) scope completed)
     (groups : List DeferredFragment) (ha : (path, Atom.object) ∈ available)
     : OwnedAttachedWork available scope
-        (.executionGroup groups path completed.result completed.work) := by
+        (.executionGroup groups path completed.outcome completed.work) := by
   refine ⟨h.1.executionGroup groups, ?_⟩
   obtain ⟨s, hs, hc⟩ := h.2
   exact ⟨_, fun _ => .executionGroup hs, .executionGroup ha hc⟩
@@ -201,7 +201,7 @@ theorem attached_combineWork {available : List Entry} {ea : α → List Entry}
 child context and the next index for the remaining items. -/
 theorem attached_items_cons {available : List Entry} {path : ResponsePath} {index : Nat}
     {sa sb sc : ResponsePath → Prop} {completed : Completion ResponseValue}
-    {items : List (Result ResponseValue × Work)}
+    {items : List (TaskOutcome ResponseValue × Work)}
     (hl
       : OwnedAttachedCompletion available
           (TypedResponse.value (path ++ [.index index]))
@@ -210,7 +210,7 @@ theorem attached_items_cons {available : List Entry} {path : ResponsePath} {inde
     (hr : OwnedAttachedItems available path (index + 1) sb items)
     (hd : ∀p, sa p → sb p → False) (hls : ∀p, sa p → sc p) (hrs : ∀p, sb p → sc p)
     : OwnedAttachedItems available path index sc
-        ((completed.result, completed.work) :: items) := by
+        ((completed.outcome, completed.work) :: items) := by
   refine ⟨seeded_items_cons hl.1 hr.1 hd hls hrs, ?_⟩
   obtain ⟨sl, hsl, hal⟩ := hl.2
   obtain ⟨sr, hsr, har⟩ := hr.2
@@ -221,7 +221,10 @@ theorem attached_failedField (available : List Entry) (path : ResponsePath)
     (name : Name) (fieldType : TypeRef)
     : OwnedAttachedCompletion available (TypedResponse.fields path)
         (fields true path) (fieldCursors path) (Below (path ++ [.field name]))
-        {result := singleFieldResult name (handleFieldError fieldType)} :=
+        {
+          result := singleFieldResult name (handleFieldError fieldType),
+          cause := if fieldType.isNonNull then some 1 else none
+        } :=
   ⟨seeded_failedField _ _ _, [], .empty, .empty⟩
 
 /-- Distinct field groups combine attached completions, by disjoint field scopes. -/
@@ -286,7 +289,7 @@ theorem attached_combineWork_fields {available : List Entry} {path : ResponsePat
 their attachment witnesses at consecutive response indices. -/
 theorem attached_items_cons_underItems {available : List Entry} {path : ResponsePath}
     {index : Nat} {head : Completion ResponseValue}
-    {tail : List (Result ResponseValue × Work)}
+    {tail : List (TaskOutcome ResponseValue × Work)}
     (hh
       : OwnedAttachedCompletion available
           (TypedResponse.value (path ++ [.index index]))
@@ -295,7 +298,7 @@ theorem attached_items_cons_underItems {available : List Entry} {path : Response
     (ht
       : OwnedAttachedItems available path (index + 1) (UnderItems path (index + 1)) tail)
     : OwnedAttachedItems available path index (UnderItems path index)
-        ((head.result, head.work) :: tail) := by
+        ((head.outcome, head.work) :: tail) := by
   apply attached_items_cons hh ht
   · exact fun _ => underItems_disjoint
   · exact fun _ hp => ⟨index, Nat.le_refl _, hp⟩
@@ -307,7 +310,7 @@ the shared starting cursor, and monotonicity retains all ambient entries. -/
 theorem attached_streamPrefix {available : List Entry} {path : ResponsePath}
     {finish start : Nat} {initial : Completion (List ResponseValue)}
     {data : List ResponseValue} {errors : Nat} {node : DeliveryNode}
-    {items : List (Result ResponseValue × Work)}
+    {items : List (TaskOutcome ResponseValue × Work)}
     (hi
       : OwnedAttachedCompletion (available ++ [(path, Atom.list)])
           (TypedResponse.items path 0) (DeliveryPaths.items true path 0)

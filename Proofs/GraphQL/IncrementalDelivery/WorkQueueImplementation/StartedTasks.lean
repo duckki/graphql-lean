@@ -267,9 +267,7 @@ theorem State.StartedTasksRegistered.startGroup
       | cons task rest ih =>
           intro current currentRegistered
           exact ih (current.startTask task) (currentRegistered.startTask task)
-    split
-    · exact registered
-    · exact foldStart node.tasks queue registered
+    exact foldStart node.tasks queue registered
 
 theorem State.StartedTasksRegistered.startStream
     {queue : State} (registered : queue.StartedTasksRegistered) (ref : NodeRef)
@@ -415,6 +413,19 @@ theorem State.StartedTasksRegistered.finishGroupFailure
     : (queue.finishGroupFailure group errors).1.StartedTasksRegistered :=
   registered.removeGroup group.group.node.ref
 
+/-- Rejection retention preserves started nodes' registered task definitions. -/
+theorem State.StartedTasksRegistered.taskFailure
+    {queue : State} (registered : queue.StartedTasksRegistered)
+    (occurrence : Occurrence) (errors : Nat)
+    : (queue.taskFailure occurrence errors).1.StartedTasksRegistered := by
+  cases found : queue.taskNode? occurrence with
+  | none => simpa [State.taskFailure, found] using registered
+  | some node =>
+      rw [queue.taskFailure_eq occurrence errors node found]
+      exact failureGroupFold_preserves State.StartedTasksRegistered
+        (fun _ ref prior => prior.removeGroup ref) _ _ _
+        (registered.putTaskNode _ (registered node (List.mem_of_find?_eq_some found)))
+
 /-- Draining settled roots starts only previously registered tasks.
 Witness: both closure paths and activation preserve the registration invariant.
 -/
@@ -425,8 +436,8 @@ theorem State.StartedTasksRegistered.drainReadyGroups
     (valid := registered)
   · intro current node currentRegistered _ _ _ _
     exact (currentRegistered.finishGroupSuccess node).startNewWork _
-  · intro current node errors currentRegistered _ _ _
-    exact currentRegistered.finishGroupFailure node errors
+  · intro current _ occurrence errors currentRegistered _ _ _
+    exact currentRegistered.taskFailure occurrence errors
 
 /-- The single-pass success-owner fold preserves started-task registration before
 activation and draining. Witness: each decrement or successful flush preserves it.
@@ -475,8 +486,7 @@ theorem State.StartedTasksRegistered.taskSuccess
     | some node =>
         let node := { node with pending := node.pending - 1 }
         let current := current.putGroupNode node
-        if current.rootGroups.contains group.ref && node.pending == 0
-            && node.failure.isNone then
+        if current.rootGroups.contains group.ref && node.pending == 0 then
           let (next, finished, newWork) := current.finishGroupSuccess node
           (
             next,
@@ -518,7 +528,6 @@ theorem State.StartedTasksRegistered.taskSuccess
   split
   · exact registered
   · rename_i taskNode found
-    split <;> try exact registered.removeTask occurrence
     have taskMember : taskNode.task ∈ queue.tasks :=
       registered taskNode (List.mem_of_find?_eq_some found)
     let withValue := queue.putTaskNode { taskNode with value := some result.value }
@@ -532,69 +541,6 @@ theorem State.StartedTasksRegistered.taskSuccess
       releaseFold taskNode.task.groups (integrated, [], {}) integratedRegistered
     change (finished.1.startNewWork finished.2.2).drainReadyGroups.1.StartedTasksRegistered
     exact (finishedRegistered.startNewWork finished.2.2).drainReadyGroups
-
-/-- Task failure filters started nodes while preserving their registration. -/
-theorem State.StartedTasksRegistered.taskFailure
-    {queue : State} (registered : queue.StartedTasksRegistered)
-    (occurrence : Occurrence) (errors : Nat)
-    : (queue.taskFailure occurrence errors).1.StartedTasksRegistered := by
-  let step (acc : State × List WorkQueueEvent)
-      (group : Execution.DeliveryNode) : State × List WorkQueueEvent :=
-    let (current, events) := acc
-    match current.groupNode? group.ref with
-    | none => (current, events)
-    | some node =>
-        if current.rootGroups.contains group.ref then
-          let (next, failure) := current.finishGroupFailure node errors
-          (next, events ++ [failure])
-        else
-          (current.putGroupNode
-            { node with
-                pending := node.pending - 1
-                failure := some (node.failure.getD 0 + errors) }, events)
-  have stepRegistered (acc : State × List WorkQueueEvent)
-      (group : Execution.DeliveryNode)
-      (currentRegistered : acc.1.StartedTasksRegistered)
-      : (step acc group).1.StartedTasksRegistered := by
-    obtain ⟨current, events⟩ := acc
-    change (match current.groupNode? group.ref with
-      | none => (current, events)
-      | some node =>
-          if current.rootGroups.contains group.ref then
-            let (next, failure) := current.finishGroupFailure node errors
-            (next, events ++ [failure])
-          else
-            (current.putGroupNode
-              { node with
-                  pending := node.pending - 1
-                  failure := some (node.failure.getD 0 + errors)
-              }, events)).1.StartedTasksRegistered
-    cases found : current.groupNode? group.ref with
-    | none => exact currentRegistered
-    | some node =>
-        by_cases started : current.rootGroups.contains group.ref = true
-        · simp only [started, ite_true]
-          exact currentRegistered.finishGroupFailure node errors
-        · simp only [started]
-          exact currentRegistered.putGroupNode _
-  have foldRegistered (groups : List Execution.DeliveryNode) :
-      ∀ acc : State × List WorkQueueEvent,
-        acc.1.StartedTasksRegistered
-          → (groups.foldl step acc).1.StartedTasksRegistered := by
-    induction groups with
-    | nil => intro acc currentRegistered; exact currentRegistered
-    | cons group rest ih =>
-        intro acc currentRegistered
-        exact ih (step acc group) (stepRegistered acc group currentRegistered)
-  unfold State.taskFailure
-  split
-  · exact registered
-  · rename_i taskNode found
-    split <;> try exact registered.removeTask occurrence
-    let current := queue.removeTask occurrence
-    have currentRegistered : current.StartedTasksRegistered := registered.removeTask occurrence
-    change (taskNode.task.groups.foldl step (current, [])).1.StartedTasksRegistered
-    exact foldRegistered taskNode.task.groups (current, []) currentRegistered
 
 /-- Each stream item may integrate child work and start its task nodes; every
 such node remains linked to the integrated task definition.

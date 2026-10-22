@@ -96,35 +96,12 @@ theorem ExecutedWork.failureInventories_groupInvalidated_iff_of_eachAccepted
             ↔ GroupInvalidated work
               (queue.objectFailureContribution (.taskFailure occurrence errors)
                 ++ (State.initialize (Work.fromExecution work)).objectFailureContributions before) ref
-          have ledger : queue.OwnerAccounting work parents before :=
-            generated.replayGraphEvents_ownerAccounting_of_eachAccepted canonical valid
-              prefixAccepted
           cases found : queue.taskNode? occurrence with
           | none => simp [State.acceptsGraphEvent, found] at accepted
           | some node =>
-              cases guarded : queue.taskHasHealthyOwner node.task with
-              | true =>
-                  simpa only [GraphEvent.groupFailures, State.objectFailureContribution,
-                    found, guarded, ↓reduceIte, List.singleton_append]
-                    using groupInvalidated_cons_congr prior occurrence ref
-              | false =>
-                  obtain ⟨member, same⟩ := State.taskNode?_some found
-                  have registered := ledger.pending.started node member
-                  obtain ⟨_, payload, producer, _, known⟩ :=
-                    (ledger.pending.matching node.task registered).1
-                  have unsettled : node.task.occurrence ∉ GraphEvent.taskSettlements before := by
-                    rw [same]
-                    exact fun member => fresh.2.2.1 occurrence List.mem_cons_self
-                      (GraphEvent.taskSettlements_subsetIdentities before member)
-                  have redundant := ledger.owners.rejectedTask_invalidation_iff
-                    ledger.pending.matching ledger.supported ledger.cancelled generated
-                    (ledger.toHealthyCounterAccounting.descriptors canonical)
-                    registered unsettled ⟨producer, payload, known⟩ guarded ref
-                  rw [same] at redundant
-                  simpa only [GraphEvent.groupFailures, State.objectFailureContribution,
-                    found, guarded, Bool.false_eq_true, ↓reduceIte, List.singleton_append,
-                    List.nil_append]
-                    using redundant.trans (prior ref)
+              simpa only [GraphEvent.groupFailures, State.objectFailureContribution,
+                found, List.singleton_append]
+                using groupInvalidated_cons_congr prior occurrence ref
 
 /-- Valid source events accepted by the start checker have equivalent failure closures.
 Witness: executable prefix acceptance supplies the eventwise induction's only start law.

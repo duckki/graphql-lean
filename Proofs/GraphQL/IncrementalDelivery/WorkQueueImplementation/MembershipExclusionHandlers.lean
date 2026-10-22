@@ -106,13 +106,6 @@ theorem State.PublicationInventory.taskSuccess_memberships {queue : State}
           State.PublicationInventory.mk inventory.unique inventory.provenance integrated,
           by simpa only [List.append_nil] using integratedAbsent⟩
       rw [queue.taskSuccess_eq occurrence result node found]
-      split
-      · refine ⟨[], rfl, ?_, ?_⟩
-        · simpa only [List.append_nil] using State.PublicationInventory.mk inventory.unique
-            inventory.provenance (inventory.stored.removeTask occurrence)
-        · simpa only [List.append_nil]
-            using (fun publication member =>
-                    (absent publication member).removeTask occurrence)
       let released := node.task.groups.foldl successGroupStep
         (((queue.putTaskNode { node with value := some result.value }).maybeIntegrateWork
           result.work (some occurrence)).1, [], {})
@@ -136,37 +129,7 @@ Witness: global task removal, group cancellation, and error/counter-only record 
 theorem State.TaskMembershipAbsent.taskFailure {queue : State} {occurrence}
     (absent : queue.TaskMembershipAbsent occurrence) (failed : Occurrence) (errors : Nat)
     : (queue.taskFailure failed errors).1.TaskMembershipAbsent occurrence := by
-  let step (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode) :=
-    match acc.1.groupNode? group.ref with
-    | none => acc
-    | some node =>
-        if acc.1.rootGroups.contains group.ref then
-          let (next, failure) := acc.1.finishGroupFailure node errors
-          (next, acc.2 ++ [failure])
-        else
-          (acc.1.putGroupNode
-            { node with pending := node.pending - 1
-                        failure := some (node.failure.getD 0 + errors) }, acc.2)
-  have loop (groups : List Execution.DeliveryNode) (acc : State × List WorkQueueEvent)
-      (prior : acc.1.TaskMembershipAbsent occurrence)
-      : (groups.foldl step acc).1.TaskMembershipAbsent occurrence := by
-    induction groups generalizing acc with
-    | nil => exact prior
-    | cons group rest ih =>
-        apply ih
-        unfold step
-        split
-        · exact prior
-        · rename_i node found
-          split
-          · exact prior.removeGroup _
-          · exact prior.putGroupNode _ (prior node (List.mem_of_find?_eq_some found))
-  unfold State.taskFailure
-  split
-  · exact absent
-  · split
-    · exact absent.removeTask failed
-    · exact loop _ (_, []) (absent.removeTask failed)
+  exact absent.taskFailure_preserves failed errors
 
 /-- Item arrival preserves prior exclusions and removes newly drained object memberships.
 Witness: fresh item-child integration, pruning and activation, followed by the joint drain

@@ -25,21 +25,17 @@ theorem State.drainReadyGroups_go_groupEdgesFrom (fuel : Nat) (queue : State)
       split
       · exact .refl queue
       · rename_i group selected
-        cases cached : group.failure with
+        cases cached : queue.rejectedTask? group with
         | none =>
             dsimp only
             apply (ih _).trans
             intro ref node found
             rw [State.groupNode?, (State.startNewWork_groupCore _ _).1] at found
             exact (queue.finishGroupSuccess_descendants group).1 ref node found
-        | some errors =>
+        | some rejected =>
+            obtain ⟨occurrence, errors⟩ := rejected
             dsimp only
-            apply (ih _).trans
-            intro ref node found
-            exact queue.filterRefs_groupEdgesFrom
-              (fun ref => !(State.removeGroup.collect (queue.groupNodes.length + 1)
-                queue [group.group.node.ref] []).contains ref)
-              ref node found
+            exact (ih _).trans (queue.taskFailure_groupEdgesFrom occurrence errors)
 
 -----------------------------------------------------------------------------------------
 -- One occurrence-labelled ledger covers successful flushes and failed cleanup together
@@ -63,8 +59,12 @@ theorem State.drainReadyGroups_go_add (first rest : Nat) (queue : State)
       · rename_i stopped
         cases rest <;> simp only [State.drainReadyGroups.go, stopped, List.nil_append]
       · rename_i group selected
-        cases cached : group.failure <;> dsimp only <;>
-          simp only [ih, List.append_assoc]
+        cases cached : queue.rejectedTask? group with
+        | none => dsimp only; simp only [ih, List.append_assoc]
+        | some rejected =>
+            obtain ⟨occurrence, errors⟩ := rejected
+            dsimp only
+            simp only [ih, List.append_assoc]
 
 /-- Every stored value with a contributor still live after a drain prefix is published or
 retained exactly. Witness: successful flushes extend the same publication inventory;
@@ -104,7 +104,7 @@ theorem State.PublicationInventory.drainReadyGroups_go_conserves {queue : State}
       split
       · exact ⟨[], rfl, by simpa using inventory, fun _ _ _ found _ _ => Or.inr found⟩
       · rename_i group selected
-        cases cached : group.failure with
+        cases cached : queue.rejectedTask? group with
         | none =>
             dsimp only
             obtain ⟨first, before, output, firstValues, flushed, conserved⟩ :=
@@ -124,19 +124,20 @@ theorem State.PublicationInventory.drainReadyGroups_go_conserves {queue : State}
                   (State.startNewWork_lookup_existing retained _) stored live with now | still
                 · exact Or.inl (List.mem_append_right _ now)
                 · exact Or.inr still
-        | some errors =>
+        | some rejected =>
+            obtain ⟨failed, errors⟩ := rejected
             dsimp only
             have cleaned := State.PublicationInventory.mk inventory.unique inventory.provenance
-              (inventory.stored.removeGroup group.group.node.ref)
+              (inventory.stored.taskFailure failed errors)
             obtain ⟨added, values, final, conserved⟩ := ih cleaned
             refine ⟨added, ?_, final, ?_⟩
-            · simpa only [State.finishGroupFailure, List.flatMap_append,
-                List.flatMap_singleton, WorkQueueEvent.objectValues, List.nil_append] using values
+            · simpa only [List.flatMap_append, State.taskFailure_objectValues,
+                List.nil_append] using values
             · intro occurrence node value found stored live
               obtain ⟨contributor, contributes, owner, finalOwner⟩ := live
               obtain ⟨survivor, survives, _⟩ :=
                 State.drainReadyGroups_go_groupEdgesFrom fuel _ _ _ finalOwner
-              have kept := State.removeGroup_lookup_survivingOwner found group.group.node.ref
+              have kept := State.taskFailure_replay_lookup_survivingOwner cached found
                 contributes (List.mem_of_find?_eq_some survives) (State.groupNode?_ref survives)
               exact conserved occurrence node value kept stored
                 ⟨contributor, contributes, owner, finalOwner⟩

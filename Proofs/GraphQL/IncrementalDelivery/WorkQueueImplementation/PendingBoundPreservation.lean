@@ -214,6 +214,27 @@ theorem State.PendingBound.startNewWork {queue : State} {eligible settled}
   rw [(queue.startNewWork_groupCore work).1] at member
   exact bounded node member relevant
 
+/-- Rejection retention preserves counter lower bounds on every surviving owner. -/
+theorem State.PendingBound.taskFailure_preserves {queue : State} {eligible settled}
+    (bounded : queue.PendingBound eligible settled) (occurrence : Occurrence)
+    (errors : Nat)
+    : (queue.taskFailure occurrence errors).1.PendingBound eligible settled := by
+  cases found : queue.taskNode? occurrence with
+  | none => simpa [State.taskFailure, found] using bounded
+  | some node =>
+      rw [queue.taskFailure_eq occurrence errors node found]
+      exact failureGroupFold_preserves (fun state => state.PendingBound eligible settled)
+        (fun _ ref prior => prior.removeGroup ref) _ _ _ bounded
+
+/-- Recording a failed settlement can only decrease the unsettled-membership count. -/
+theorem State.PendingBound.taskFailure {queue : State} {eligible settled}
+    (bounded : queue.PendingBound eligible settled) (occurrence : Occurrence)
+    (errors : Nat)
+    : (queue.taskFailure occurrence errors).1.PendingBound eligible
+        (occurrence :: settled) :=
+  (bounded.taskFailure_preserves occurrence errors).weakenSettled
+    (by intro task member; simp [member])
+
 /-- A lower bound on all groups suffices for safe recursive draining.
 Witness: a selected zero counter certifies settled memberships; success flush, failure
 removal, and child activation preserve the bound for subsequent drain iterations.
@@ -225,41 +246,11 @@ theorem State.PendingBound.drainReadyGroups {queue : State} {settled}
     (fun state => state.PendingBound (fun _ => True) settled)
     (fun _ node prior member _ _ zero =>
       (prior.finishGroupSuccess node (prior.allSettled member trivial zero)).startNewWork _)
-    (fun _ node _ prior _ _ _ => prior.removeGroup node.group.node.ref) bounded
+    (fun _ _ occurrence errors prior _ _ _ => prior.taskFailure_preserves occurrence errors) bounded
 
 -----------------------------------------------------------------------------------------
 -- Both branches of each executable handler preserve counter safety
 -----------------------------------------------------------------------------------------
-
-/-- Task failure preserves the lower bound whether the task is active or cancelled.
-Witness: ignored tasks only remove memberships; active tasks reserve and discharge one
-decrement per distinct owner. The healthy-owner guard is not an assumption of this lemma.
--/
-theorem State.PendingBound.taskFailure {queue : State} {settled}
-    (bounded : queue.PendingBound (fun _ => True) settled)
-    (refUnique : queue.GroupRefsUnique) (taskUnique : queue.TaskMembershipsUnique)
-    (occurrence : Occurrence) (errors : Nat)
-    (taskNode : TaskNode) (found : queue.taskNode? occurrence = some taskNode)
-    (fresh : occurrence ∉ settled)
-    (uniqueContributors : (taskNode.task.groups.map Execution.DeliveryNode.ref).Nodup)
-    (owned
-      : queue.OwnedExactlyBy occurrence
-          (taskNode.task.groups.map Execution.DeliveryNode.ref))
-    : (queue.taskFailure occurrence errors).1.PendingBound (fun _ => True)
-        (occurrence :: settled) := by
-  cases active : queue.taskHasHealthyOwner taskNode.task with
-  | false => exact bounded.taskFailure_of_noHealthyOwner found active errors
-  | true =>
-      have debt := bounded.beginSettlement taskUnique (fun node member _ => owned node member)
-        fresh
-      have facts := failureGroupFold_preservesBound (fun _ => True) (occurrence :: settled)
-        State.GroupRefsUnique (fun _ valid => valid)
-        (fun _ _ _ valid _ => valid.putGroupNode _)
-        (fun _ ref valid => valid.removeGroup ref)
-        errors taskNode.task.groups uniqueContributors (queue.removeTask occurrence, [])
-        (refUnique.removeTask occurrence) (debt.removeTask occurrence (by simp))
-      rw [queue.taskFailure_eq occurrence errors taskNode found]
-      simpa only [active, Bool.not_true, Bool.false_eq_true, ↓reduceIte] using facts.2
 
 /-- Task success preserves the bound through child integration, owner release, and drain.
 Witness: guard case analysis followed by bounded-debt induction on the original
@@ -279,30 +270,26 @@ theorem State.PendingBound.taskSuccess {queue : State} {settled}
           occurrence (taskNode.task.groups.map Execution.DeliveryNode.ref))
     : (queue.taskSuccess occurrence result).1.PendingBound (fun _ => True)
         (occurrence :: settled) := by
-  cases active : queue.taskHasHealthyOwner taskNode.task with
-  | false => exact bounded.taskSuccess_of_noHealthyOwner found active result
-  | true =>
-      let withValue := queue.putTaskNode { taskNode with value := some result.value }
-      have valueBound : withValue.PendingBound (fun _ => True) settled := bounded
-      have valueRefs : withValue.GroupRefsUnique := refUnique
-      have valueTasks : withValue.TaskMembershipsUnique := taskUnique
-      let integrated := (withValue.maybeIntegrateWork result.work (some occurrence)).1
-      have integratedBound : integrated.PendingBound (fun _ => True) settled :=
-        valueBound.maybeIntegrateWork result.work (some occurrence)
-      have integratedRefs : integrated.GroupRefsUnique :=
-        valueRefs.maybeIntegrateWork result.work (some occurrence)
-      have integratedTasks : integrated.TaskMembershipsUnique :=
-        valueTasks.maybeIntegrateWork result.work (some occurrence)
-      have debt := integratedBound.beginSettlement integratedTasks
-        (fun node member _ => owned node member) fresh
-      have facts := successGroupFold_preservesBound (fun _ => True) (occurrence :: settled)
-        State.GroupRefsUnique (fun _ valid => valid) (by intros; trivial)
-        (fun _ _ valid _ => valid.putGroupNode _)
-        (fun _ node _ valid _ _ _ _ _ => valid.finishGroupSuccess node)
-        taskNode.task.groups uniqueContributors (integrated, [], {}) integratedRefs debt
-      rw [queue.taskSuccess_eq occurrence result taskNode found]
-      simp only [active, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
-      exact (facts.2.startNewWork _).drainReadyGroups
+  let withValue := queue.putTaskNode { taskNode with value := some result.value }
+  have valueBound : withValue.PendingBound (fun _ => True) settled := bounded
+  have valueRefs : withValue.GroupRefsUnique := refUnique
+  have valueTasks : withValue.TaskMembershipsUnique := taskUnique
+  let integrated := (withValue.maybeIntegrateWork result.work (some occurrence)).1
+  have integratedBound : integrated.PendingBound (fun _ => True) settled :=
+    valueBound.maybeIntegrateWork result.work (some occurrence)
+  have integratedRefs : integrated.GroupRefsUnique :=
+    valueRefs.maybeIntegrateWork result.work (some occurrence)
+  have integratedTasks : integrated.TaskMembershipsUnique :=
+    valueTasks.maybeIntegrateWork result.work (some occurrence)
+  have debt := integratedBound.beginSettlement integratedTasks
+    (fun node member _ => owned node member) fresh
+  have facts := successGroupFold_preservesBound (fun _ => True) (occurrence :: settled)
+    State.GroupRefsUnique (fun _ valid => valid) (by intros; trivial)
+    (fun _ _ valid _ => valid.putGroupNode _)
+    (fun _ node _ valid _ _ _ _ _ => valid.finishGroupSuccess node)
+    taskNode.task.groups uniqueContributors (integrated, [], {}) integratedRefs debt
+  rw [queue.taskSuccess_eq occurrence result taskNode found]
+  exact (facts.2.startNewWork _).drainReadyGroups
 
 /-- Stream item delivery preserves the lower bound through every child registration.
 Witness: item-fold induction followed by safe release draining; unlike exact accounting,

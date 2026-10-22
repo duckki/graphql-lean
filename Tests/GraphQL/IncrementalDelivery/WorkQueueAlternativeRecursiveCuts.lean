@@ -62,7 +62,7 @@ private def groupErrors : Work → List Nat
   | .empty | .stream _ _ => []
   | .combine left right => groupErrors left ++ groupErrors right
   | .executionGroup _ _ result children =>
-      ScheduledErrors.countedErrors result :: groupErrors children
+      ScheduledErrors.countedErrors result.result :: groupErrors children
 
 private theorem groupErrors_renaming (keys : Nat → Nat) (original : Work)
     : groupErrors (KeyRenaming.work keys original) = groupErrors original := by
@@ -95,7 +95,7 @@ private def streamedCaught : List Selection :=
 private def itemErrors : Work → List Nat
   | .empty | .executionGroup _ _ _ _ => []
   | .combine left right => itemErrors left ++ itemErrors right
-  | .stream _ items => items.map (fun item => ScheduledErrors.countedErrors item.1)
+  | .stream _ items => items.map (fun item => ScheduledErrors.countedErrors item.1.result)
 
 -- Both nullable object items complete; each recursively cuts its own field scope.
 example : itemErrors (eager streamedCaught).1.work = [2, 2] := by cbv

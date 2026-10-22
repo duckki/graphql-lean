@@ -1,16 +1,61 @@
 # Reference work-queue implementation
 
-The executable reference machine follows GraphQL.js `v17.0.1` at
+The executable reference machine was based on GraphQL.js `v17.0.1` at
 [`9617473`](https://github.com/graphql/graphql-js/tree/961747301cf70e59aead2d7a5121779a79a52877).
+Retained-outcome handling and failure reporting are now compared against the repaired
+implementation at
+[`4a9b312`](https://github.com/graphql/graphql-js/tree/4a9b3121e65cc9c758109b2b6fec8d29f9a5b99b).
 Its authoritative target is the incremental-delivery draft at
 [`045e193`](https://github.com/graphql/graphql-spec/tree/045e19363c2b55f127960bd3b5e8072a15b29aec),
 interpreted through the independent [work-queue contract](semantics.md).
 This is a Lean reference implementation with conformance proof modules, not a formal
 refinement of JavaScript source or its async runtime.
 
-The work-queue contract requires a positive-error completion covering each cancelled task's
-response attachment before termination. The reference conformance and query-bridge
-witnesses prove this requirement from the existing generated-work and source premises.
+The work-queue contract requires a positive-error completion covering each cancelled
+task's response attachment before termination. Failed completions select a supported
+causal explanation instead of summing all contributing failures. Reference conformance,
+the implementation/query bridge, all twelve established public query-correctness witnesses,
+and finite complete-query-outcome existence are proved with the same public premises.
+The completion, replay, recording, and regression modules use the selected-cause definitions.
+
+`TaskOutcome` retains collected diagnostics and a selected boundary cause separately.
+`BoundaryErrorCounts` follows caught nulls, non-null rethrow, field/list completion and
+nested work. `ExecutedWork.taskFailure_count` and `nodeFailureCause_count` show that
+execution-generated failed boundaries select one primitive error. Raw work can carry
+other positive counts; no global singleton-error law is imposed on queue admission.
+
+The executable queue stores rejection on `TaskNode`, preserving dormant memberships and
+pending counts for later replay in task registration order. It has no group-level failure
+or provenance cache and no runtime healthy-owner guard. `TaskEligibility`, unique group
+and computation keys, `TaskOwnerFrame`, and complete drain proofs establish the source,
+registration, ownership and retirement invariants. `ActiveRejectionReplay` shows that
+active groups have no replayable retained rejection at a handler boundary.
+
+`RetainedFailures` certifies surviving rejected computations and their contributing
+memberships. Counter proofs distinguish successful group settlements from all received
+outcomes. Semantic health excludes supported rejections on healthy contributors.
+Notice contents require nonempty memberships, registered task provenance, successful
+producer prerequisites and exclusion of earlier publication. Subtree cleanup and late
+registration preserve cancellation evidence through taskless ancestor records.
+
+Present-task source labels retain every received rejection, including causally redundant
+ones. `SelectedFailureCuts` chooses informative object cuts in proof evidence without
+changing executable handling. `SelectedFailureCauses` and `InformativeFailureInventory`
+preserve supported positive completion causes and group invalidation. Successful-item
+safety licenses that same ordered inventory; canonical publication, control admission
+and terminal reporting use its common history and matching.
+
+Finite progress uses `OpenFailureCauses` to justify failed open completions and
+`StreamNoticesSupported` to preserve stream dependency support at actual notice carriers.
+Execution-derived stream allocation uniqueness supplies descriptor agreement. The mixed
+continuation and complete-run proofs derive these certificates without changing the
+public query statements or source contract. Raw existence fixtures state the required
+positive-failure premises explicitly.
+
+Shared-owner regressions cover retained diagnostics, task-order cause selection, late
+rejections, cancelled-parent registration, buffered producer publication, both host
+batchings and rejection of invented aggregate counts. Failure scope coverage uses
+observable positive completion scopes and remains separate from internal cancellation.
 
 ## Code and reading order
 
@@ -52,6 +97,9 @@ contract checks singleton atomic publications and relates them to emitted batche
 ### Work representation
 
 `Execution.Work` is a finite structural tree containing pure resolver outcomes.
+Each task/item stores `TaskOutcome.result` with collected diagnostics and a separate
+`cause`. `TaskAt` and `GraphEvent.MatchesWork` use `TaskOutcome.deliveryResult`: successful
+payloads keep all diagnostics, while failed payloads report their selected explanation.
 Implementation `Work` has GraphQL.js-shaped `groups`, `tasks`, and `streams` collections:
 
 | Record | Contents |
@@ -78,7 +126,7 @@ cancel later descendants.
 | GraphEvent | Payload and meaning |
 | --- | --- |
 | `taskSuccess` | Task occurrence, object data, path, counted errors, contributor descriptors, and child Work. |
-| `taskFailure` | Task occurrence and its fixed bubbling-error count. |
+| `taskFailure` | Task occurrence and its selected delivery-failure count. |
 | `streamItems` | Stream descriptor and a nonempty ordered batch of item occurrences, values, counted errors, and child Work. |
 | `streamSuccess` | Exhaustion after all modeled items. |
 | `streamFailure` | Stream descriptor and the error count of its next failing item. |
@@ -93,8 +141,11 @@ not identify task occurrences; the proof separately constructs publication prove
 
 `State` holds active roots, live group/task nodes, registration and cancellation references,
 started task/stream descriptors, initial notices, and a termination flag. `GroupNode`
-stores child links, task memberships, pending count, and an optional accumulated failure.
-`TaskNode` stores its task, an optional settled value, and produced child streams.
+stores child links, task memberships, and pending count, matching GraphQL.js's group
+bookkeeping. `TaskNode` stores its task, an optional settled value, a retained rejection,
+and produced child streams. The rejection represents the cache on GraphQL.js's task
+`Computation`; there is no per-group failure cache or stored failure-origin occurrence.
+`rejectedTask?` inspects group tasks in registration order for release-time replay.
 Finite lists implement keyed maps and ordered sets.
 
 `State.initialize` integrates immediate work, prunes taskless group shells, starts the
@@ -103,28 +154,23 @@ events; it does not run a promise or iterator.
 
 | Transition | Behavior |
 | --- | --- |
-| `taskSuccess` | Check task-level healthy ownership, store the value, integrate children, then decrement each surviving contributor in one pass. Flush released nonfailed zero-pending groups, start released work, and drain ready outcomes. |
+| `taskSuccess` | Ignore removed tasks; otherwise store the value, integrate children, and decrement each surviving contributor. Flush released zero-pending groups, start released work, and replay retained rejections. |
 | `finishGroupSuccess` | Publish stored values once, remove shared memberships, close the group, and promote children/streams. |
-| `taskFailure` | Close announced contributors with errors and accumulate errors on unannounced survivors; remove the settled task's memberships. |
-| `drainReadyGroups` | Close released groups with a retained failure or no unsettled tasks, including further groups released by those closures. |
+| `taskFailure` | Retain the task's rejection and close its active owners. Dormant owners keep the task and its pending count for later replay. |
+| `drainReadyGroups` | Replay retained task rejections in group task order, closing all active owners of the rejected task; otherwise close zero-pending groups and start released work. |
 | `streamItems` | Integrate item children, activate roots, emit items and new notices, then drain ready groups after the carrier event. |
 | `streamSuccess` / `streamFailure` | Close the active stream without retroactively cancelling work released by earlier published items. |
 | `handleGraphEvents` | Process the batch in order and emit termination when both root collections are empty. A terminated state absorbs later calls. |
 
-`pruneEmptyGroups` tests empty task membership **and** absence of a retained failure,
-not merely a zero pending count: settled values may still await publication.
+`pruneEmptyGroups` tests empty task membership, not merely a zero pending count:
+settled values or rejected computations may still await release.
 `removeGroup` cancels dependent descendants while retaining tasks with surviving owners.
 Missing stale child links do not consume its live-node traversal budget.
 
-Both task handlers check `taskHasHealthyOwner` once before processing the settlement.
-`groupIsHealthy` requires a live record and no retained failure in its ancestor chain.
-An absent ancestor is acceptable only when its reference is not cancelled. Unannounced does
-not mean unhealthy. A finite traversal bound rejects cyclic raw parent links;
-execution-generated ancestry is acyclic.
-
-A settlement with no healthy owner removes task bookkeeping but contributes no errors,
-pending-count decrements, or child work. Retained notification records still preserve
-earlier accepted outcomes until normal release or ancestor cancellation.
+Both task handlers use task-node presence, as GraphQL.js does. Removing the final owner
+removes that node, so later callbacks have no effect. A surviving dormant owner retains
+its shared task even after another owner closes. Semantic failure/cancellation evidence
+belongs to the independent history contract; it is not an extra runtime health gate.
 
 ### Publisher and shared replay
 
@@ -298,7 +344,7 @@ for cancelled attachments; internal accounting alone is no longer its sufficient
 accounting, and every unpublished task has a positive-error completion covering its
 attachment path. Reports persist under history extension and cover descendant paths;
 in an explained history their nodes are known and announced. The existing safety,
-disjointness, reconstruction, and zero-error coverage witnesses rebuild with the revised
+disjointness, reconstruction, and zero-error coverage witnesses hold with the revised
 terminal law. Reference conformance, the query bridge, and independent existential
 complete-run constructions are rebuilt. The error-aware public coverage witness and
 unconditional complete-query-outcome witness pass with the same public premises.
@@ -609,12 +655,10 @@ any cancelled contributor. The remaining released-object case is a failed contri
 that has not yet been removed: its retained failure must eventually close or be covered by
 ancestor cleanup. This is not assumed as an extra source or conformance premise.
 
-`CachedFailurePersistence` and `CachedFailureReplay` prove that a retained failure stays
-cached or acquires a permanent cancellation marker through every host handler and finite
-continuation. Successful retirement cannot clear a cached group's own ref, and empty-shell
-pruning cannot discard a cache. `RetiredFailureReports.priorCachedContributor_task_reported`
-therefore supplies attachment coverage when an earlier failed contributor has no final
-live record. `OldRootCoverage.terminal_oldRootCovered_absent` derives that absence from
+`CachedFailurePersistence`, `CachedFailureReplay`, and `RetiredFailureReports` follow
+surviving task membership, computation replay, and actual covering cancellation reports.
+Their evidence requires no executable group-level provenance cache.
+`OldRootCoverage.terminal_oldRootCovered_absent` addresses final record absence from
 root exhaustion when a root path was established at an earlier source boundary; the path
 survives later handlers even after semantic health is lost.
 `CoveredFailureReports.terminal_acceptedHealthyContributor_reported` consequently derives
@@ -640,7 +684,7 @@ The proof uses concrete registration, retirement, buffered-value conservation, a
 failure inventories, exact publisher registries, and notice tracking. These are derived
 implementation invariants, not requirements imposed on the opaque host source.
 
-The table is a manually maintained rebuild map, not a generated checked-status registry.
+The table is a manually maintained theorem map.
 [WorkSchedulerConformancePlan](../../Tests/GraphQL/IncrementalDelivery/WorkSchedulerConformancePlan.lean)
 contains the public-target, joint-construction, empty-stream, and reverse-termination
 regressions, including the complete eight-leaf conformance construction.
@@ -685,9 +729,10 @@ every implementation source terminates.
 
 ## GraphQL.js correspondence
 
-The source comparison is pinned to
-[WorkQueue.ts](https://github.com/graphql/graphql-js/blob/961747301cf70e59aead2d7a5121779a79a52877/src/execution/incremental/WorkQueue.ts)
-and [IncrementalPublisher.ts](https://github.com/graphql/graphql-js/blob/961747301cf70e59aead2d7a5121779a79a52877/src/execution/incremental/IncrementalPublisher.ts).
+The current source comparison is pinned to
+[WorkQueue.ts](https://github.com/graphql/graphql-js/blob/4a9b3121e65cc9c758109b2b6fec8d29f9a5b99b/src/execution/incremental/WorkQueue.ts),
+[IncrementalPublisher.ts](https://github.com/graphql/graphql-js/blob/4a9b3121e65cc9c758109b2b6fec8d29f9a5b99b/src/execution/incremental/IncrementalPublisher.ts),
+and [Computation.ts](https://github.com/graphql/graphql-js/blob/4a9b3121e65cc9c758109b2b6fec8d29f9a5b99b/src/execution/incremental/Computation.ts).
 The draft remains authoritative.
 
 | GraphQL.js construct | Lean counterpart |
@@ -736,21 +781,40 @@ covers a deeper failed-but-open co-owner with a healthy supporter.
 
 ### Retained outcomes
 
-The reference machine deliberately differs from pinned GraphQL.js where its queue emits
-failure completion for an unannounced group. Lean retains that group's error until normal
-release or ancestor cancellation. Released settled groups drain after their notice
-carrier, so pending and completion can share one response update without an additional
-network round trip.
+GraphQL.js retains rejections in task computations and replays them when another owning
+group starts. The finite queue retains that rejection on `TaskNode`; the explicit ready
+drain represents replay after the notice carrier without reproducing promise scheduling.
+A failure closes active owners only. It neither decrements a dormant owner's pending
+count nor removes that owner's task membership.
 
-Settled unpublished successful values are retained too. Zero pending count alone is not
-permission to prune a group. Accepted failures accumulate on surviving latent owners;
-later settlements with no healthy owner contribute nothing. These refinements preserve
-notification accounting without reviving cancelled computation.
+`startGroup` visits tasks in registration order. For two shared tasks, the second can
+settle first while both belong to a latent group. When the group is released after both
+reject, GraphQL.js reports the first task's rejection, not the earliest settlement. The
+validated-query probe confirms this with early execution both enabled and disabled:
+
+```graphql
+{
+  ... @defer(label: "R1") { first: bad }
+  ... @defer(label: "R2") { second: bad }
+  ... @defer(label: "P") { slow ... @defer(label: "C") { first: bad second: bad } }
+}
+```
+
+With non-null `bad`, settle `second`, then `first`, then `slow`. C's completion reports
+`first`. The Lean fixture uses distinct raw counts to make the same replay order observable
+without introducing error identities into the model.
+
+Settled unpublished successful values are retained too. Starting their task again does not
+integrate child work or decrement pending a second time. Empty-shell pruning uses task
+membership, and removed task nodes absorb later callbacks.
 
 [WorkSchedulerRetainedOutcomes](../../Tests/GraphQL/IncrementalDelivery/WorkSchedulerRetainedOutcomes.lean),
 [WorkSchedulerRetainedAnnouncement](../../Tests/GraphQL/IncrementalDelivery/WorkSchedulerRetainedAnnouncement.lean),
 and [WorkSchedulerRetainedErrorCounts](../../Tests/GraphQL/IncrementalDelivery/WorkSchedulerRetainedErrorCounts.lean)
-check release, cancellation, error accumulation, and independently admitted output.
+check release, cancellation, selected-cause replay, and rejection of invented aggregates.
+[DeliveryFailureReporting](../../Tests/GraphQL/IncrementalDelivery/Fixtures/DeliveryFailureReporting.lean)
+checks task-order rejection replay and one explanation for a latent owner with two
+failures, while preserving collected diagnostics in deferred and stream work.
 
 ### Cancelled-parent registration
 
@@ -758,10 +822,11 @@ check release, cancellation, error accumulation, and independently admitted outp
 Without that information, late child registration can create an apparently healthy owner
 under a failed parent, allowing a fully invalidated shared task to contribute another
 error.
-The pinned GraphQL.js source-level audit reproduces late child registration and
-unannounced
-completion; its wire symptom differs because it also closes latent failed groups
-immediately. These are recorded audit findings, not a JavaScript refinement theorem.
+The repaired GraphQL.js implementation rejects new groups under removed parents. Its
+computation replay also retains failures, avoids duplicate successful processing, and
+prunes by task membership. These changes address the previously observed late-parent
+and unannounced-completion defects. Lean keeps its explicit registry and ready drain;
+agreement on the audited cases is not a JavaScript refinement theorem.
 
 [WorkSchedulerLateFailedParent](../../Tests/GraphQL/IncrementalDelivery/WorkSchedulerLateFailedParent.lean)
 checks generated work with failures, a later successful shared producer, and delayed child
@@ -796,21 +861,20 @@ fields, and a shared `user` object:
 ```
 
 The fixed settlement order is P's failure, the shared user producer's success, Y's
-failure, R's two-error failure, X's failure, then Q's remaining success. C is introduced
+failure, R's rejection, X's failure, then Q's remaining success. R collects two diagnostics
+but reports its selected unit cause. C is introduced
 after P has failed. X's contributors are C, D, and R; Y's are D and S.
 
 The reference machine marks C cancelled at registration. By X's settlement, C is
-cancelled, D has Y's retained failure, and R has closed with its own failure. X therefore
-has no healthy supporter and adds no error. D reports only Y's one error when Q releases
-it. The regression rejects a two-error D completion under every abstract matching and
-failure-cut explanation; R's distinct two-error contribution makes that rejection
-observable even in the count-only model.
+cancelled, Y's rejection is retained for D, and R has closed with its own failure. A
+settlement cannot close dormant D. D's completion follows rejection replay when Q releases
+it. Generated replay checks retained task rejection, cancellation provenance and normal
+announcement before completion. The complete canonical witness admits the actual replay
+and excludes the former aggregate completion count for every batching and matching.
 
-The pinned GraphQL.js audit uses both direct queue replay and a validated query. It
-registers C after P's failure and emits C's completion without a pending notice. It also
-closes D immediately on Y's failure without announcing D, so its wire output is not the
-two-error-D counterexample. This separates the current Lean cancellation requirement
-from the concrete JavaScript symptom.
+The repaired GraphQL.js audit covers direct queue replay and validated queries. Late C
+registration is rejected, and a latent failed group is completed only after announcement.
+Cancellation and scope coverage remain independent of the selected numeric explanation.
 
 ### Wire and finite-stream projections
 
@@ -826,8 +890,8 @@ Reference conformance, the implementation bridge, reusable query-correctness wit
 and conformance/reporting regressions build and pass. No algorithm changes, additional
 source premises, added axioms, or proof holes discharge the reporting obligation.
 The general client-facing failure-coverage witness and its stream/defer regressions also
-build and pass. Independent finite-progress proofs and the full test suite also build
-with the terminal reporting law.
+build and pass. Whole-project build, tests and lint cover the independent finite-progress
+proofs and their selected-cause regressions.
 
 Finite-progress witnesses distinguish internal task accounting from observable failure
 reporting. Initial owner coverage constructs an accounted history, but alone does not
@@ -909,8 +973,14 @@ finalization.
 
 `mixed_reporting_accounted_extension` constructs that accounting while retaining the
 stronger frontier. Its least-outstanding-owner argument supplies ready events, and maximality
-under covering carriers makes every healthy ref dependency-satisfied. Generated shared-owner
-work exercises this result using execution-derived metadata, without a terminal premise.
+under covering carriers makes every healthy ref dependency-satisfied.
+`ReportingFrontiers` selects all eligible group notices and only stream notices with a
+satisfied defer dependency and its full satisfied ancestry. `StreamNoticesSupported`
+retains this evidence at each actual carrier boundary, before subsequent settlements.
+The continuation derives positive direct causes for every failed open ID: announced
+groups exclude inherited failure, while supported streams retain a healthy dependency.
+Unique stream allocations identify dependency metadata; pure execution derives this
+structural fact, so the public query-existence statement needs no additional premise.
 `recorded_group_reported_of_covered_frontier` then derives a retained group's announcement
 from its published producer and satisfied dependencies; its actual post-settlement closure
 reports the whole group scope with a positive count. The broader private-attachment
@@ -921,7 +991,8 @@ group completions handle the already-announced contributors, including earlier c
 
 `mixed_reporting_closed_extension` additionally closes all announced IDs without losing
 the reporting frontier or healthy dependency satisfaction. Bounded failure-only closures
-preserve these properties; their counts may be zero, so closure is not treated as reporting.
+preserve these properties and use an actual positive contributing task cause for each
+failure completion. Internal accounting alone does not supply that cause.
 The generated shared-owner regression checks accounting and ID closure together.
 `SettlementClosures` separates the remaining timing cases: a contributor closed before a
 later accepted settlement must have closed with a failure event, and a healthy accounted
@@ -1043,11 +1114,11 @@ and accepted settlements supply the reports; failed ancestors and unavailable pr
 only transport them. `cancelled_reported_of_scope_origins` supplies task-level cancellation
 reports from those full scopes. `mixed_reporting_continuation` finalizes reporting-covered
 prefixes using those reports, retaining the original batches. Execution derives every
-structural certificate used by `executeRoot_completeRun_exists`; unconditional
-`queryOutcomeExists_holds` is rebuilt without an added public premise. The definition/proof
-build and tests pass. Raw-work regressions explicitly supply positive-failure certificates
-and actual terminal report scopes; generated queries derive the same certificates from
-execution. Whole-project build, tests, lint, and changed-file formatting checks pass.
+structural certificate used by `executeRoot_completeRun_exists`; the existing
+`queryOutcomeExists_holds` witness adds no public premise. Raw-work regressions explicitly
+supply positive-failure certificates and actual terminal report scopes; generated queries
+derive the same certificates from execution. These proof/test modules build with the
+selected-cause definitions.
 The broader-scope counterexample also has a complete-run witness. Axiom audits
 of the new scope/reporting proofs and public query-existence witness contain only standard
 Lean axioms. No public definition or admission premise changes are needed.
@@ -1083,6 +1154,59 @@ the reference and Execution initialization paths. The source assumptions and pub
 conformance/correctness propositions require no additional premises for this factoring.
 
 See the [development guide](../development.md) for the verification workflow.
+
+`SelectedFailureCuts` constructs a subsequence of source failure cuts in proof evidence.
+Each retained cut has a contributor uninvalidated by the preceding selected cuts.
+The defer-only licensing helpers use these selected cuts; raw accepted rejections can be
+redundant and do not supply an uncancelled-owner witness. First-report placement retains
+the selected positive cause of each completion rather than an additive owner-error total. Omitting
+a redundant cut preserves group and group-record invalidation, including through later
+failures. This selection changes no source handling or output; the runtime can retain a
+redundant rejection on a dormant shared task. The overlapping-owner regression in
+`SuccessCounterReplay` checks this case. Cancellation licensing and terminal reporting
+are separate conclusions in the conformance proof.
+Selection commutes with source-prefix concatenation and restriction to any output boundary.
+`SelectedFailureCauses` then preserves a group's selected positive completion cause when
+its ancestry is healthy at that boundary; execution's unit-cause theorem preserves the
+reported count even when a different earlier contributor supplies the explanation.
+`SelectedGroupFailureInventory` derives this cause preservation for every actual normalized
+group failure from the source and start laws. The overlapping-owner fixture completes its
+parent and checks the dormant child's later failure against the selected earlier cause.
+`InformativeFailureInventory` merges selected object cuts with actual stream-failure cuts
+and proves complete positive cause accounting, ordering, bounds, freshness, reachability,
+and prior contributor announcements. The mixed contributor-health proofs use this same
+selection. Canonical event admission and terminal reporting are rebuilt against this inventory.
+`InformativeObjectFailureSafety` and `InformativeStreamFailureSafety` license that same
+inventory from the shared successful-item safety certificate. Their combined failure
+witness preserves the original cut ordering and matching. The canonical successful-item
+construction now uses this selection, and mixed failure-witness existence again follows
+from execution-generated work and the original valid/started source laws. The overlapping
+failure fixture checks a licensed witness for its actual completed replay. Failed-completion
+admission uses each reported positive task cause, rather than an aggregate node-error sum. The reference
+conformance proof and query-observation bridge use that selected-cause inventory.
+Canonical group notices retain nonempty task memberships at their exact owner-fold or
+drain boundary. Task registration supplies producer readiness and the common publication
+ledger excludes earlier publication; notice eligibility needs no per-group failure cache.
+The source-handler/object-prefix bridge is independent of failure-cut selection.
+Canonical publication and control admission now share these contents, notice freshness,
+ancestor completion, and the selected failure witness. Rejection-drain notice separation
+uses the entire owner-completion block. Endpoint accounting transports group invalidation through the selection instead of
+requiring every redundant raw token in the witness. Actual source rejection and terminal
+exhaustion supply observable covering reports. The reference conformance proof combines
+these results with event admission. The optional native-refinement proofs establish their
+separate finite correspondence statements, without certifying an actual host runtime.
+
+Generated replay again proves healthy uncancelled retirements, active-root ancestry, and
+missing-parent boundaries. Successful owner settlement derives nonfailed memberships from
+the success-only pending ledger; rejection draining derives them from unrejected task
+lookups. These proofs use retained task rejections and contain no executable health guard.
+`TaskNodeKeys` proves that computation keys remain unique through raw queue transitions.
+`ActiveRejectionReplay` combines that map invariant with source-derived ownership and
+complete drains: no active owner retains a replayable rejection at a handler boundary.
+This discharges the active-counter readiness proof from the original source assumptions.
+Failed group completions also have healthy ancestry at their actual source-handler cut.
+This covers fresh failure owner passes and rejection drains after successful object or
+stream-item preparation, including a replay that closes several active owners.
 
 The proof is restricted to finite execution-generated work and valid host sources.
 It does not establish completion from every admitted prefix, host fairness, eventual

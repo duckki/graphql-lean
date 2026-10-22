@@ -1,8 +1,7 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.GroupNoticeEligibility
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.MembershipSoundness
-import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.CachedFailures
 
-/-! Reduce concrete notice contents to producer readiness, unpublished tasks, and caches. -/
+/-! Reduce concrete notice contents to producer readiness and unpublished tasks. -/
 
 namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
@@ -12,8 +11,8 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 -----------------------------------------------------------------------------------------
 
 /-- A kept group record supplies the semantic reason for announcing its descriptor.
-Witness: a cache supplies a recorded contributor failure. Otherwise a retained membership
-has exact registered-task provenance; its healthy owner and ready producer exclude
+Witness: a recorded contributor failure licenses a failed notice. Otherwise a retained
+membership has exact registered-task provenance; its healthy owner and ready producer exclude
 cancellation, and the supplied publication exclusion makes that task unaccounted for.
 The producer and publication-exclusion premises are local proof obligations to derive
 at actual release boundaries, not changes to the host source or conformance contract.
@@ -30,9 +29,8 @@ theorem State.groupNotice_canAnnounce_of_contents
               ∧ payload.failure.isSome = true)
     (known : NodeAt work node.group.node .group dependencies producer)
     (member : node ∈ queue.groupNodes)
-    (contents : node.tasks ≠ [] ∨ node.failure.isSome = true)
+    (contents : node.tasks ≠ [])
     (sound : queue.GroupMembershipSound) (registered : queue.RegisteredTasksMatch work)
-    (cached : queue.CachedFailuresSupported work (failedBefore failures events.length))
     (fresh : node.group.node.ref ∉ announcedRefs initial events)
     (produced : ∀ source, producer = some source → Published matching events source)
     (ready
@@ -52,11 +50,7 @@ theorem State.groupNotice_canAnnounce_of_contents
   classical
   by_cases recorded : HasRecordedFailure work failures events.length node.group.node.ref
   · exact .inr recorded
-  have noCache : node.failure.isSome ≠ true := by
-    intro hasCache
-    obtain ⟨occurrence, failed, owners, task, owner⟩ := cached node member hasCache
-    exact recorded ⟨occurrence, owners, failed, task, owner⟩
-  have nonempty := contents.resolve_right noCache
+  have nonempty := contents
   have healthy : ¬NodeFailed work matching events failures node.group.node.ref := by
     intro failed
     rcases support.groupFailure_causes generated failedPayloads known produced failed with

@@ -82,8 +82,8 @@ private def children : Execution.Work :=
   .combine
     (.combine .empty
       (.combine
-        (.executionGroup [⟨child, [parent]⟩] child.path (.ok (childValue.data, 0))
-          (.combine .empty .empty))
+        (.executionGroup [⟨child, [parent]⟩] child.path
+          ({ result := .ok (childValue.data, 0) }) (.combine .empty .empty))
         .empty))
     .empty
 
@@ -92,12 +92,12 @@ private def work : Execution.Work :=
     (.combine
       (.combine (.combine .empty .empty)
         (.combine
-          (.executionGroup [⟨parent, []⟩] parentValue.path (.ok (parentValue.data, 0))
-            children)
+          (.executionGroup [⟨parent, []⟩] parentValue.path
+            ({ result := .ok (parentValue.data, 0) }) children)
           .empty))
       .empty)
     (.combine
-      (.executionGroup [⟨parent, []⟩] [] (.ok (blockerValue.data, 0))
+      (.executionGroup [⟨parent, []⟩] [] ({ result := .ok (blockerValue.data, 0) })
         (.combine .empty .empty))
       .empty)
 
@@ -124,13 +124,13 @@ private theorem generated : ExecutedWork work := by
 private theorem parent_known
     : TaskAt work parentTask [parent.ref] none
         (.object parentValue.path (.ok (parentValue.data, 0))) := by
-  refine ⟨[⟨parent, []⟩], parentValue.path, _, children, [], ?_, rfl, rfl⟩
+  refine ⟨[⟨parent, []⟩], parentValue.path, { result := .ok (parentValue.data, 0) }, children, [], ?_, rfl, rfl⟩
   cbv
 
 private theorem child_known
     : TaskAt work childTask [child.ref] (some parentTask)
         (.object childValue.path (.ok (childValue.data, 0))) := by
-  refine ⟨[⟨child, [parent]⟩], childValue.path, _, .combine .empty .empty, [parent.ref],
+  refine ⟨[⟨child, [parent]⟩], childValue.path, { result := .ok (childValue.data, 0) }, .combine .empty .empty, [parent.ref],
     ?_, rfl, rfl⟩
   cbv
 
@@ -141,7 +141,7 @@ private theorem valid : ValidGraphEvents work (before ++ [finish]) := by
       ⟨_, _, _, parent_known, by intro source impossible; cases impossible⟩
   have blockerKnown : TaskAt work blockerTask [parent.ref] none
       (.object [] (.ok (blockerValue.data, 0))) := by
-    refine ⟨[⟨parent, []⟩], [], _, .combine .empty .empty, [], ?_, rfl, rfl⟩
+    refine ⟨[⟨parent, []⟩], [], { result := .ok ([("b", .scalar "b")], 0) }, .combine .empty .empty, [], ?_, rfl, rfl⟩
     cbv
   exact .append first ⟨_, _, blockerKnown, by cbv, by cbv⟩
     (by simp [before, finish, GraphEvent.Fresh, GraphEvent.identities,
@@ -271,7 +271,7 @@ theorem buffered_child_unaccounted
     have known : NodeAt work child .group [parent.ref] (some parentTask) :=
       .group (address := [0, 0, 1, 0, 0, 0, 1, 0])
         (groups := [⟨child, [parent]⟩]) (path := child.path)
-        (result := .ok (childValue.data, 0)) (children := .combine .empty .empty)
+        (result := { result := .ok (childValue.data, 0) }) (children := .combine .empty .empty)
         (owners := [parent.ref]) (by cbv) List.mem_cons_self
     let node : GroupNode :=
       { group := ⟨child, some parent.ref⟩, tasks := [childTask], pending := 1 }
@@ -281,8 +281,7 @@ theorem buffered_child_unaccounted
       node,
       by cbv,
       rfl,
-      .inl (by simp [node]),
-      ?_,
+      by simp [node],
       ?_,
       ?_,
       ?_,
@@ -294,11 +293,6 @@ theorem buffered_child_unaccounted
     · exact (State.replay_noticeTaskProvenance (createWorkQueue_groupMembershipSound _)
         (createWorkQueue_fromSpec_registeredTasksMatch work) before
         (fun _ member => prior.eachMatches member)).2
-    · have supported := generated.replayGraphEvents_cachedAcceptedFailures prior (by cbv)
-      change waiting.CachedFailuresSupported work (initial.objectFailureContributions before)
-        at supported
-      simpa only [show initial.objectFailureContributions before = [] from by cbv]
-        using supported
     · exact (createWorkQueue_replayGraphEvents_producerOrder prior).1
     · simp [Published]
   refine ⟨by simp [Published], ?_⟩

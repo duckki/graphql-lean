@@ -91,7 +91,7 @@ mutual
           (fun p hmem => (hp.extend hm he hle) p (List.mem_cons_of_mem _ hmem))
         have hpart := ((hp.extend hm he hle).extend (hm.extend he hle) het hlt) (usages, groups) (by simp)
         have hf := continuous_deferred final lower _ deferMap usages owners path
-          ((executeCollectedFields schema resolvers variables fuel parentType source groups path usages deferMap).run state).1.result
+          ((executeCollectedFields schema resolvers variables fuel parentType source groups path usages deferMap).run state).1.outcome
           _ hfv ((hm.extend he hle).extend het hlt) hl hpart.1 hpart.2.1 hpart.2.2.2 (hw.extend het hlt)
         simp only [collectExecutionGroups, executeExecutionGroup, run_bind, StateT.run_pure, id_pure_eq]
         exact ⟨

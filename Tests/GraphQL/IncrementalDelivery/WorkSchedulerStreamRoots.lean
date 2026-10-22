@@ -101,7 +101,7 @@ theorem live_group_healthy_after_continuation
     : ¬GroupInvalidated work [failedTask] (successGroup 1).ref := by
   have known : NodeAt work (successGroup 1) .group [] (some (item 1).occurrence) := by
     refine ⟨[0, 0, 1, 1, 1, 0], [⟨successGroup 1, []⟩], (successGroup 1).path,
-      .ok (data 1, 0), .combine .empty .empty, [], ⟨successGroup 1, []⟩,
+      { result := .ok (data 1, 0) }, .combine .empty .empty, [], ⟨successGroup 1, []⟩,
       ?_, List.mem_cons_self, rfl, rfl⟩
     cbv
   exact next_group_healthy known (by decide)
@@ -262,8 +262,9 @@ theorem ordered_publication_matching
 -----------------------------------------------------------------------------------------
 
 private def duplicateStreamWork : Execution.Work :=
-  .combine (.stream stream [(.ok (.null, 0), .empty)])
-    (.stream stream [(.ok (.null, 0), .empty), (.ok (.null, 0), .empty)])
+  .combine (.stream stream [({ result := .ok (.null, 0) }, .empty)])
+    (.stream stream
+      [({ result := .ok (.null, 0) }, .empty), ({ result := .ok (.null, 0) }, .empty)])
 
 private def leftItem : StreamItem :=
   { occurrence := .item [0] 0, value := { item := .null } }
@@ -282,16 +283,16 @@ theorem duplicate_stream_inputs_valid_started
     : ValidGraphEvents duplicateStreamWork duplicateStreamInputs
       ∧ inputsStarted duplicateStreamWork [duplicateStreamInputs] = true := by
   have leftLocated : Located duplicateStreamWork [0]
-      (.stream stream [(.ok (.null, 0), .empty)]) none [] := by cbv
+      (.stream stream [({ result := .ok (.null, 0) }, .empty)]) none [] := by cbv
   have rightLocated : Located duplicateStreamWork [1]
-      (.stream stream [(.ok (.null, 0), .empty), (.ok (.null, 0), .empty)]) none [] := by cbv
+      (.stream stream [({ result := .ok (.null, 0) }, .empty), ({ result := .ok (.null, 0) }, .empty)]) none [] := by cbv
   have firstValid : ValidGraphEvents duplicateStreamWork [.streamItems stream [leftItem]] := by
     refine .append .nil ?_ (by simp [GraphEvent.Fresh, GraphEvent.identities]) ?_
     · intro item member
       have same := List.mem_singleton.mp member
       subst item
       exact ⟨[stream.ref], none,
-        ⟨stream, _, [], .ok (.null, 0), .empty, leftLocated, rfl, rfl, rfl⟩, by cbv⟩
+        ⟨stream, _, [], { result := .ok (.null, 0) }, .empty, leftLocated, rfl, rfl, rfl⟩, by cbv⟩
     · exact ⟨[0], _, none, [], leftLocated, by simp, by simp,
         (by intro source impossible; cases impossible), by cbv⟩
   constructor
@@ -300,7 +301,7 @@ theorem duplicate_stream_inputs_valid_started
       have same := List.mem_singleton.mp member
       subst item
       exact ⟨[stream.ref], none,
-        ⟨stream, _, [], .ok (.null, 0), .empty, rightLocated, rfl, rfl, rfl⟩, by cbv⟩
+        ⟨stream, _, [], { result := .ok (.null, 0) }, .empty, rightLocated, rfl, rfl, rfl⟩, by cbv⟩
     · simp [GraphEvent.Fresh, GraphEvent.identities, leftItem, rightItem]
     · exact ⟨[1], _, none, [], rightLocated, by simp, by simp [GraphEvent.identities],
         (by intro source impossible; cases impossible), by cbv⟩

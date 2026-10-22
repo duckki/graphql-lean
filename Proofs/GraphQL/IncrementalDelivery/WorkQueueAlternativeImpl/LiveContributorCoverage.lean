@@ -62,67 +62,63 @@ theorem State.LiveContributorsCovered.taskSuccess
   cases found : queue.taskNode? occurrence with
   | none => simpa [State.taskSuccess, found] using covered
   | some producer =>
-      cases guard : queue.taskHasHealthyOwner producer.task with
-      | false =>
-          simpa [State.taskSuccess, found, guard] using covered.removeTask occurrence
-      | true =>
-          have producerMember := started producer (List.mem_of_find?_eq_some found)
-          have producerOccurrence := (State.taskNode?_some found).2
-          let stored := queue.putTaskNode { producer with value := some result.value }
-          let integrated := (stored.maybeIntegrateWork result.work (some occurrence)).1
-          have storedKeys : stored.GroupRefsUnique := unique
-          have storedCovered : stored.LiveContributorsCovered := by
-            intro task member key contributes live
-            obtain ⟨root, active, path⟩ := covered task member key contributes live
-            exact ⟨root, active, path.of_groupNodes_eq (queue := queue) rfl⟩
-          have storedAccounting : stored.HealthyRegisteredTaskAccounting work settled failed := accounted
-          have groupCanonical : ∀ group ∈ result.work.groups,
-              group.parent = (parents group.node.ref).head? :=
-            fun _ member => matching.taskChildGroups_parentCanonical canonical member
-          have descriptors : ∀ group ∈ result.work.groups,
-              ∃ dependencies, GroupRecordAt work group.node dependencies :=
-            fun _ member => matching.taskChildGroups_recordAt member
-          have storedRecords : stored.GroupNodesMatchWork work := records
-          have storedChildren : stored.ChildGroupsUnique := children
-          have storedEdges : stored.ChildLinksCanonical parents := edges
-          have forest : integrated.RemovalForest parents := State.RemovalForest.of_generated generated
-            (storedChildren.maybeIntegrateWork result.work (some occurrence))
-            (storedEdges.maybeIntegrateWork result.work groupCanonical (some occurrence))
-            (storedRecords.maybeIntegrateWork result.work descriptors (some occurrence)) canonical
-          intro task member key contributes survives
-          rw [State.taskSuccess_tasks found guard] at member
-          have integratedSurvival : ∃ node, integrated.groupNode? key = some node := by
-            obtain ⟨node, lookup⟩ := survives
-            obtain ⟨old, earlier, _⟩ := queue.taskSuccess_integration_groupEdgesFrom unique
-              found guard key node lookup
-            exact ⟨old, earlier⟩
-          apply State.taskSuccess_integrated_root_coverage unique found guard result
-            forest ?_ survives
-          rcases List.mem_append.mp member with old | new
-          · have priorLive : ∃ node, queue.groupNode? key = some node := by
-              cases earlier : queue.groupNode? key with
-              | some node => exact ⟨node, rfl⟩
-              | none =>
-                  have retired := (State.RetiredGroup.of_lookup_none
-                    (tasks task old key contributes) earlier).taskSuccess occurrence result
-                  obtain ⟨node, lookup⟩ := survives
-                  rw [retired.lookup_none] at lookup
-                  contradiction
-            obtain ⟨root, active, path⟩ := storedCovered task old key contributes priorLive
-            exact ⟨
-              root,
-              by rwa [State.maybeIntegrateWork_rootGroups],
-              path.maybeIntegrateWork storedKeys result.work (some occurrence)
-            ⟩
-          · obtain ⟨group, groupMember, sameKey⟩ := matching.childTasksCovered task new key contributes
-            have childCoverage := storedAccounting.live_childGroup_integrated_root_coverage
-              taskMatching generated records retirement health safe fields links storedKeys
-              registered tasks closed canonical producerMember (producerOccurrence.symm ▸ fresh)
-              (producerOccurrence.symm ▸ matching) groupMember
-              ⟨task, new, sameKey.symm ▸ contributes⟩
-              (fun key contributes live => storedCovered producer.task producerMember key contributes live)
-            rw [producerOccurrence, sameKey] at childCoverage
-            exact childCoverage integratedSurvival
+      have producerMember := started producer (List.mem_of_find?_eq_some found)
+      have producerOccurrence := (State.taskNode?_some found).2
+      let stored := queue.putTaskNode { producer with value := some result.value }
+      let integrated := (stored.maybeIntegrateWork result.work (some occurrence)).1
+      have storedKeys : stored.GroupRefsUnique := unique
+      have storedCovered : stored.LiveContributorsCovered := by
+        intro task member key contributes live
+        obtain ⟨root, active, path⟩ := covered task member key contributes live
+        exact ⟨root, active, path.of_groupNodes_eq (queue := queue) rfl⟩
+      have storedAccounting : stored.HealthyRegisteredTaskAccounting work settled failed := accounted
+      have groupCanonical : ∀ group ∈ result.work.groups,
+          group.parent = (parents group.node.ref).head? :=
+        fun _ member => matching.taskChildGroups_parentCanonical canonical member
+      have descriptors : ∀ group ∈ result.work.groups,
+          ∃ dependencies, GroupRecordAt work group.node dependencies :=
+        fun _ member => matching.taskChildGroups_recordAt member
+      have storedRecords : stored.GroupNodesMatchWork work := records
+      have storedChildren : stored.ChildGroupsUnique := children
+      have storedEdges : stored.ChildLinksCanonical parents := edges
+      have forest : integrated.RemovalForest parents := State.RemovalForest.of_generated generated
+        (storedChildren.maybeIntegrateWork result.work (some occurrence))
+        (storedEdges.maybeIntegrateWork result.work groupCanonical (some occurrence))
+        (storedRecords.maybeIntegrateWork result.work descriptors (some occurrence)) canonical
+      intro task member key contributes survives
+      rw [State.taskSuccess_tasks found] at member
+      have integratedSurvival : ∃ node, integrated.groupNode? key = some node := by
+        obtain ⟨node, lookup⟩ := survives
+        obtain ⟨old, earlier, _⟩ := queue.taskSuccess_integration_groupEdgesFrom unique
+          found key node lookup
+        exact ⟨old, earlier⟩
+      apply State.taskSuccess_integrated_root_coverage unique found result
+        forest ?_ survives
+      rcases List.mem_append.mp member with old | new
+      · have priorLive : ∃ node, queue.groupNode? key = some node := by
+          cases earlier : queue.groupNode? key with
+          | some node => exact ⟨node, rfl⟩
+          | none =>
+              have retired := (State.RetiredGroup.of_lookup_none
+                (tasks task old key contributes) earlier).taskSuccess occurrence result
+              obtain ⟨node, lookup⟩ := survives
+              rw [retired.lookup_none] at lookup
+              contradiction
+        obtain ⟨root, active, path⟩ := storedCovered task old key contributes priorLive
+        exact ⟨
+          root,
+          by rwa [State.maybeIntegrateWork_rootGroups],
+          path.maybeIntegrateWork storedKeys result.work (some occurrence)
+        ⟩
+      · obtain ⟨group, groupMember, sameKey⟩ := matching.childTasksCovered task new key contributes
+        have childCoverage := storedAccounting.live_childGroup_integrated_root_coverage
+          taskMatching generated records retirement health safe fields links storedKeys
+          registered tasks closed canonical producerMember (producerOccurrence.symm ▸ fresh)
+          (producerOccurrence.symm ▸ matching) groupMember
+          ⟨task, new, sameKey.symm ▸ contributes⟩
+          (fun key contributes live => storedCovered producer.task producerMember key contributes live)
+        rw [producerOccurrence, sameKey] at childCoverage
+        exact childCoverage integratedSurvival
 
 -----------------------------------------------------------------------------------------
 -- Destructive handlers preserve paths to survivors; fresh items add their own roots

@@ -249,9 +249,7 @@ theorem State.TaskMembershipsUnique.startNewWork {queue : State}
     split
     · exact currentUnique
     · rename_i node found
-      split
-      · exact currentUnique
-      · exact taskFold node.tasks state currentUnique
+      exact taskFold node.tasks state currentUnique
   have groupFold (refs : NodeRefs) :
       ∀ state, state.TaskMembershipsUnique
         → (refs.foldl State.startGroup state).TaskMembershipsUnique := by

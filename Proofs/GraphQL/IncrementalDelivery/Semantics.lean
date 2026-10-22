@@ -10,6 +10,7 @@ import Proofs.GraphQL.IncrementalDelivery.Semantics.CollectedSupply
 import Proofs.GraphQL.IncrementalDelivery.Semantics.Collection
 import Proofs.GraphQL.IncrementalDelivery.Semantics.CollectionProperties
 import Proofs.GraphQL.IncrementalDelivery.Semantics.Completion
+import Proofs.GraphQL.IncrementalDelivery.Semantics.CompletionReporting
 import Proofs.GraphQL.IncrementalDelivery.Semantics.ContextCollection
 import Proofs.GraphQL.IncrementalDelivery.Semantics.ContextCompletion
 import Proofs.GraphQL.IncrementalDelivery.Semantics.DeferRefs

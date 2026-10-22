@@ -54,8 +54,7 @@ theorem LiveRootFrame.successGroupStep_noProtectedNotice
       have active : updated.group.node.ref ∈ next.rootGroups := by
         have flags := Bool.and_eq_true_iff.mp finishes
         have refEq := State.groupNode?_ref found
-        simpa only [updated, refEq, List.contains_iff_mem]
-          using (Bool.and_eq_true_iff.mp flags.1).1
+        simpa only [updated, refEq, List.contains_iff_mem] using flags.1
       have updatedMember : updated ∈ next.groupNodes := by
         exact List.mem_map.mpr ⟨node, member, by simp [updated]⟩
       have lookup := nextFrame.refs.groupNode?_of_mem updatedMember
@@ -127,12 +126,12 @@ theorem LiveRootFrame.drainReadyGroups_go_noProtectedNotice
         | none => simp [found] at choice
         | some candidate =>
             simp only [found] at choice
-            change (if candidate.failure.isSome || candidate.pending == 0 then
+            change (if (queue.rejectedTask? candidate).isSome || candidate.pending == 0 then
               some candidate else none) = some node at choice
             split at choice
             · cases Option.some.inj choice
               have same := State.groupNode?_ref found
-              cases cached : node.failure with
+              cases cached : queue.rejectedTask? node with
               | none =>
                   rw [List.flatMap_append, List.mem_append, not_or]
                   exact ⟨frame.finishGroupSuccess_noProtectedNotice generated canonical
@@ -141,9 +140,15 @@ theorem LiveRootFrame.drainReadyGroups_go_noProtectedNotice
                       (same ▸ found) (same ▸ active))
                       (protectedRef.mono (fun _ retired =>
                         (retired.finishGroupSuccess node).startNewWork _))⟩
-              | some errors =>
-                  exact ih (frame.removeGroup node.group.node.ref)
-                    (protectedRef.mono (fun _ retired => retired.removeGroup node.group.node.ref))
+              | some rejected =>
+                  rw [List.flatMap_append, List.mem_append, not_or]
+                  refine ⟨?_, ih (frame.taskFailure rejected.1 rejected.2)
+                    (protectedRef.mono (fun _ retired =>
+                      retired.taskFailure rejected.1 rejected.2))⟩
+                  intro member
+                  obtain ⟨event, emitted, noticed⟩ := List.mem_flatMap.mp member
+                  obtain ⟨group, rfl⟩ := queue.taskFailure_event_failure _ _ event emitted
+                  cases noticed
             · contradiction
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

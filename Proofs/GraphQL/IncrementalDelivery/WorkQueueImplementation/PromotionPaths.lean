@@ -90,6 +90,21 @@ theorem State.filterRefs_groupEdgesFrom (queue : State) (keep : Nat → Bool)
   · exact ⟨node, found, rfl⟩
   · contradiction
 
+/-- Task rejection removes records without changing any surviving child edges. -/
+theorem State.taskFailure_groupEdgesFrom (queue : State) (occurrence : Occurrence)
+    (errors : Nat)
+    : (queue.taskFailure occurrence errors).1.GroupEdgesFrom queue := by
+  cases found : queue.taskNode? occurrence with
+  | none => simpa [State.taskFailure, found] using State.GroupEdgesFrom.refl queue
+  | some task =>
+      rw [queue.taskFailure_eq occurrence errors task found]
+      apply failureGroupFold_preserves (fun current => current.GroupEdgesFrom queue)
+        (fun current ref prior =>
+          (current.filterRefs_groupEdgesFrom (fun candidate =>
+            !(State.removeGroup.collect (current.groupNodes.length + 1) current
+              [ref] []).contains candidate)).trans prior)
+      exact State.GroupEdgesFrom.refl queue
+
 /-- Updating the looked-up group's pending counter preserves all live edges.
 Witness: unique refs identify every replaced entry with the original looked-up node. -/
 theorem State.putPending_groupEdgesFrom {queue : State} (unique : queue.GroupRefsUnique)
@@ -269,39 +284,59 @@ theorem State.drainReadyGroups_descendants (queue : State)
     ∧ ∀ ref ∈ current.rootGroups,
         ref ∈ queue.rootGroups
         ∨ ∃ root ∈ queue.rootGroups, queue.LiveDescendant root ref
-  have result := State.drainReadyGroups_preserves invariant
-    (fun current node prior member active _ _ => by
-      have found := prior.1.groupNode?_of_mem member
-      have completed := current.finishGroupSuccess_descendants node
-      have refs := (prior.1.finishGroupSuccess node).startNewWork
-        (current.finishGroupSuccess node).2.2
-      have edges : ((current.finishGroupSuccess node).1.startNewWork
-          (current.finishGroupSuccess node).2.2).GroupEdgesFrom current := by
-        intro ref child found
-        rw [State.groupNode?, (State.startNewWork_groupCore _ _).1] at found
-        exact completed.1 ref child found
-      refine ⟨refs, edges.trans prior.2.1, ?_⟩
-      intro ref rootMember
-      rw [(State.startNewWork_groupCore _ _).2.2] at rootMember
-      rcases List.mem_append.mp rootMember with old | released
-      · exact prior.2.2 ref (current.finishGroupSuccess_rootsSubset node old)
-      · obtain ⟨child, released, sameRef⟩ := List.mem_map.mp released
-        have path : queue.LiveDescendant node.group.node.ref ref :=
-          sameRef ▸ prior.2.1.liveDescendant
-            (State.finishGroupSuccess_released_descendant found released)
-        rcases prior.2.2 node.group.node.ref active with root | ⟨root, rootMember, earlier⟩
-        · exact Or.inr ⟨node.group.node.ref, root, path⟩
-        · exact Or.inr ⟨root, rootMember, earlier.trans path⟩)
-    (fun current node errors prior _ _ _ => by
-      have edges : (current.finishGroupFailure node errors).1.GroupEdgesFrom current :=
-        current.filterRefs_groupEdgesFrom (fun ref =>
-          !(State.removeGroup.collect (current.groupNodes.length + 1) current
-            [node.group.node.ref] []).contains ref)
-      exact ⟨prior.1.finishGroupFailure node errors, edges.trans prior.2.1,
-        fun ref member => prior.2.2 ref
-          (current.removeGroup_rootsSubset node.group.node.ref member)⟩)
-    (show invariant queue from
-      ⟨unique, State.GroupEdgesFrom.refl queue, fun _ member => Or.inl member⟩)
+  have result :=
+    State.drainReadyGroups_preserves invariant
+      (fun current node prior member active _ _ => by
+        have found := prior.1.groupNode?_of_mem member
+        have completed := current.finishGroupSuccess_descendants node
+        have refs := (prior.1.finishGroupSuccess node).startNewWork
+          (current.finishGroupSuccess node).2.2
+        have edges : ((current.finishGroupSuccess node).1.startNewWork
+            (current.finishGroupSuccess node).2.2).GroupEdgesFrom current := by
+          intro ref child found
+          rw [State.groupNode?, (State.startNewWork_groupCore _ _).1] at found
+          exact completed.1 ref child found
+        refine ⟨refs, edges.trans prior.2.1, ?_⟩
+        intro ref rootMember
+        rw [(State.startNewWork_groupCore _ _).2.2] at rootMember
+        rcases List.mem_append.mp rootMember with old | released
+        · exact prior.2.2 ref (current.finishGroupSuccess_rootsSubset node old)
+        · obtain ⟨child, released, sameRef⟩ := List.mem_map.mp released
+          have path : queue.LiveDescendant node.group.node.ref ref :=
+            sameRef ▸ prior.2.1.liveDescendant
+              (State.finishGroupSuccess_released_descendant found released)
+          rcases prior.2.2 node.group.node.ref active with root | ⟨root, rootMember, earlier⟩
+          · exact Or.inr ⟨node.group.node.ref, root, path⟩
+          · exact Or.inr ⟨root, rootMember, earlier.trans path⟩)
+      (fun current node occurrence errors prior _ _ _ => by
+        let invariant (next : State) := next.GroupRefsUnique
+          ∧ next.GroupEdgesFrom current ∧ next.rootGroups.Subset current.rootGroups
+        have retained : invariant (current.taskFailure occurrence errors).1 := by
+          cases found : current.taskNode? occurrence with
+          | none =>
+              simpa [State.taskFailure, found, invariant]
+                using (show invariant current from ⟨
+                        prior.1,
+                        State.GroupEdgesFrom.refl current,
+                        List.Subset.refl _
+                      ⟩)
+          | some task =>
+              rw [current.taskFailure_eq occurrence errors task found]
+              apply failureGroupFold_preserves invariant
+                (fun next ref valid =>
+                  ⟨valid.1.removeGroup ref,
+                    (next.filterRefs_groupEdgesFrom (fun candidate =>
+                      !(State.removeGroup.collect (next.groupNodes.length + 1) next
+                        [ref] []).contains candidate)).trans valid.2.1,
+                    fun _ member => valid.2.2 (next.removeGroup_rootsSubset ref member)⟩)
+              exact ⟨prior.1, State.GroupEdgesFrom.refl current, List.Subset.refl _⟩
+        exact ⟨retained.1, retained.2.1.trans prior.2.1,
+          fun ref member => prior.2.2 ref (retained.2.2 member)⟩)
+      (show invariant queue from ⟨
+        unique,
+        State.GroupEdgesFrom.refl queue,
+        fun _ member => Or.inl member
+      ⟩)
   exact result.2
 
 -----------------------------------------------------------------------------------------
@@ -340,7 +375,7 @@ private theorem successGroupFold_shape (queue : State) (unique : queue.GroupRefs
       · rename_i finishes
         have active : group.ref ∈ current.rootGroups := by
           have flags := Bool.and_eq_true_iff.mp finishes
-          simpa [State.putGroupNode] using (Bool.and_eq_true_iff.mp flags.1).1
+          simpa [State.putGroupNode] using flags.1
         have completed := updated.finishGroupSuccess_descendants
           { node with pending := node.pending - 1 }
         refine ⟨updatedRefs.finishGroupSuccess _,
@@ -397,7 +432,6 @@ This supplies pre-release survival without assuming the resulting events are adm
 theorem State.taskSuccess_integration_groupEdgesFrom {queue : State}
     (unique : queue.GroupRefsUnique) {occurrence result taskNode}
     (found : queue.taskNode? occurrence = some taskNode)
-    (healthy : queue.taskHasHealthyOwner taskNode.task = true)
     : let integrated :=
         ((queue.putTaskNode
             { taskNode with value := some result.value }).maybeIntegrateWork
@@ -417,7 +451,6 @@ theorem State.taskSuccess_integration_groupEdgesFrom {queue : State}
   have activeRefs := (successGroupFold_groupRefsUnique integrated integratedRefs
     taskNode.task.groups).startNewWork folded.2.2
   rw [queue.taskSuccess_eq occurrence result taskNode found]
-  simp only [healthy, Bool.not_true, Bool.false_eq_true, ite_false]
   exact (active.drainReadyGroups_descendants activeRefs).1.trans edges
 
 /-- A task-success handler adds only roots reachable from its earlier active roots in
@@ -445,33 +478,30 @@ theorem State.taskSuccess_rootOrigins {queue : State} (unique : queue.GroupRefsU
   dsimp only
   intro ref active
   rw [queue.taskSuccess_eq occurrence result taskNode found] at active
-  split at active
-  · exact Or.inl active
-  · rename_i accepted
-    let released := taskNode.task.groups.foldl successGroupStep (integrated, [], {})
-    let activated := released.1.startNewWork released.2.2
-    have edges : activated.GroupEdgesFrom integrated := by
-      intro ref node found
-      rw [State.groupNode?, (State.startNewWork_groupCore _ _).1] at found
-      exact facts.1 ref node found
-    have origins : ∀ ref ∈ activated.rootGroups,
-        ref ∈ queue.rootGroups
-        ∨ ∃ root ∈ queue.rootGroups, integrated.LiveDescendant root ref := by
-      intro ref active
-      rw [(released.1.startNewWork_groupCore released.2.2).2.2] at active
-      rcases List.mem_append.mp active with old | new
-      · exact .inl (roots ▸ facts.2.1 old)
-      · obtain ⟨node, member, sameRef⟩ := List.mem_map.mp new
-        obtain ⟨root, rootMember, path⟩ := facts.2.2 node member
-        exact .inr ⟨root, roots ▸ rootMember, sameRef ▸ path⟩
-    change ref ∈ activated.drainReadyGroups.1.rootGroups at active
-    have drained := activated.drainReadyGroups_descendants (shape.1.startNewWork released.2.2)
-    rcases drained.2 ref active with old | ⟨root, rootMember, path⟩
-    · exact origins ref old
-    · have path := edges.liveDescendant path
-      rcases origins root rootMember with old | ⟨ancestor, ancestorMember, earlier⟩
-      · exact Or.inr ⟨root, old, path⟩
-      · exact Or.inr ⟨ancestor, ancestorMember, earlier.trans path⟩
+  let released := taskNode.task.groups.foldl successGroupStep (integrated, [], {})
+  let activated := released.1.startNewWork released.2.2
+  have edges : activated.GroupEdgesFrom integrated := by
+    intro ref node found
+    rw [State.groupNode?, (State.startNewWork_groupCore _ _).1] at found
+    exact facts.1 ref node found
+  have origins : ∀ ref ∈ activated.rootGroups,
+      ref ∈ queue.rootGroups
+      ∨ ∃ root ∈ queue.rootGroups, integrated.LiveDescendant root ref := by
+    intro ref active
+    rw [(released.1.startNewWork_groupCore released.2.2).2.2] at active
+    rcases List.mem_append.mp active with old | new
+    · exact .inl (roots ▸ facts.2.1 old)
+    · obtain ⟨node, member, sameRef⟩ := List.mem_map.mp new
+      obtain ⟨root, rootMember, path⟩ := facts.2.2 node member
+      exact .inr ⟨root, roots ▸ rootMember, sameRef ▸ path⟩
+  change ref ∈ activated.drainReadyGroups.1.rootGroups at active
+  have drained := activated.drainReadyGroups_descendants (shape.1.startNewWork released.2.2)
+  rcases drained.2 ref active with old | ⟨root, rootMember, path⟩
+  · exact origins ref old
+  · have path := edges.liveDescendant path
+    rcases origins root rootMember with old | ⟨ancestor, ancestorMember, earlier⟩
+    · exact Or.inr ⟨root, old, path⟩
+    · exact Or.inr ⟨ancestor, ancestorMember, earlier.trans path⟩
 
 /-- Healthy old roots and healthy post-integration root subtrees suffice for task-success
 root health. Witness: the structural root-origin theorem, not assumed output admission.

@@ -38,40 +38,34 @@ theorem ExecutedWork.taskSuccess_noticeAncestor_completed
   cases found : queue.taskNode? occurrence with
   | none => simp [State.taskSuccess, found] at selected
   | some incoming =>
-      cases healthy : queue.taskHasHealthyOwner incoming.task with
-      | false =>
-          rw [queue.taskSuccess_eq occurrence result incoming found] at selected
-          simp [healthy] at selected
-      | true =>
-          let prepared := ((queue.putTaskNode
-            { incoming with value := some result.value }).maybeIntegrateWork
-              result.work (some occurrence)).1
-          let folded := incoming.task.groups.foldl successGroupStep (prepared, [], {})
-          let active := folded.1.startNewWork folded.2.2
-          have equation : queue.taskSuccess occurrence result
-              = (active.drainReadyGroups.1, folded.2.1 ++ active.drainReadyGroups.2) := by
-            rw [queue.taskSuccess_eq occurrence result incoming found]
-            simp only [healthy, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
-            rfl
-          dsimp only [outputs] at announced ⊢
-          rw [equation] at selected uncancelled announced ⊢
-          dsimp only at selected uncancelled announced ⊢
-          by_cases inFold : index < folded.2.1.length
-          · rw [List.getElem?_append_left inFold] at selected
-            rw [List.take_append_of_le_length (by omega : index + 1 ≤ folded.2.1.length)]
-              at announced ⊢
-            exact generated.ownerNoticeAncestor_completed matching matched known ancestor
-              selected noticed priorUncancelled announced
-          · have inDrain : folded.2.1.length ≤ index := by omega
-            rw [List.getElem?_append_right inDrain] at selected
-            rw [List.take_append, List.take_of_length_le (by omega
-              : folded.2.1.length ≤ index + 1), ← List.append_assoc] at announced ⊢
-            have offset
-                : index + 1 - folded.2.1.length = index - folded.2.1.length + 1 := by
-              omega
-            rw [offset] at announced ⊢
-            exact generated.taskDrainNoticeAncestor_completed matching matched known
-              ancestor selected noticed uncancelled announced
+      let prepared := ((queue.putTaskNode
+        { incoming with value := some result.value }).maybeIntegrateWork
+          result.work (some occurrence)).1
+      let folded := incoming.task.groups.foldl successGroupStep (prepared, [], {})
+      let active := folded.1.startNewWork folded.2.2
+      have equation : queue.taskSuccess occurrence result
+          = (active.drainReadyGroups.1, folded.2.1 ++ active.drainReadyGroups.2) := by
+        rw [queue.taskSuccess_eq occurrence result incoming found]
+
+      dsimp only [outputs] at announced ⊢
+      rw [equation] at selected uncancelled announced ⊢
+      dsimp only at selected uncancelled announced ⊢
+      by_cases inFold : index < folded.2.1.length
+      · rw [List.getElem?_append_left inFold] at selected
+        rw [List.take_append_of_le_length (by omega : index + 1 ≤ folded.2.1.length)]
+          at announced ⊢
+        exact generated.ownerNoticeAncestor_completed matching matched known ancestor
+          selected noticed priorUncancelled announced
+      · have inDrain : folded.2.1.length ≤ index := by omega
+        rw [List.getElem?_append_right inDrain] at selected
+        rw [List.take_append, List.take_of_length_le (by omega
+          : folded.2.1.length ≤ index + 1), ← List.append_assoc] at announced ⊢
+        have offset
+            : index + 1 - folded.2.1.length = index - folded.2.1.length + 1 := by
+          omega
+        rw [offset] at announced ⊢
+        exact generated.taskDrainNoticeAncestor_completed matching matched known
+          ancestor selected noticed uncancelled announced
 
 /-- An item handler's group-success notice completes its announced ancestors by that carrier.
 Witness: a group-success output cannot be the leading item carrier; its successor index

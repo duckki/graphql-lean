@@ -155,7 +155,7 @@ theorem mergedExecutionEquivalentToBasic_holds (schema : Schema) (operation : Op
       obtain ⟨merged, actual, entries⟩ := witnessed.merge_entries coherent
         (ExecutionErrors.executeRootSelectionSetCore_positive schema resolvers
           (coerceVariableValues operation variables) fuel (operation.rootType schema) source
-          operation.selectionSet 0).2 seeded unique attached zero
+          operation.selectionSet 0).2.1 seeded unique attached zero
       obtain ⟨data, basic, inventory⟩ := root_source_entries schema resolvers
         (coerceVariableValues operation variables) fuel (operation.rootType schema) source
         operation.selectionSet 0 witnessed zero

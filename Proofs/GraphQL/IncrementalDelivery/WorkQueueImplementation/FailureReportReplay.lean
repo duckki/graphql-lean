@@ -32,37 +32,7 @@ theorem State.CachedErrorsSatisfy.taskFailure_positive {queue : State}
     (occurrence : Occurrence) (errors : Nat) (positive : 0 < errors)
     : (queue.taskFailure occurrence errors).1.CachedErrorsSatisfy
         (fun _ count => 0 < count) := by
-  have step (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode)
-      (valid : acc.1.CachedErrorsSatisfy (fun _ count => 0 < count))
-      : (failureGroupStep errors acc group).1.CachedErrorsSatisfy
-          (fun _ count => 0 < count) := by
-    obtain ⟨current, outputs⟩ := acc
-    dsimp only [failureGroupStep]
-    split
-    · exact valid
-    · rename_i node found
-      split
-      · exact valid.removeGroup _
-      · apply valid.putGroupNode
-        intro count same
-        have equal : node.failure.getD 0 + errors = count := Option.some.inj same
-        rw [← equal]
-        omega
-  have fold (groups : List Execution.DeliveryNode) (acc : State × List WorkQueueEvent)
-      (valid : acc.1.CachedErrorsSatisfy (fun _ count => 0 < count))
-      : (groups.foldl (failureGroupStep errors) acc).1.CachedErrorsSatisfy
-          (fun _ count => 0 < count) := by
-    induction groups generalizing acc with
-    | nil => exact valid
-    | cons group rest ih => exact ih _ (step acc group valid)
-  unfold State.taskFailure
-  split
-  · exact cached
-  · rename_i node found
-    split
-    · exact cached.removeTask occurrence
-    · exact fold node.task.groups (queue.removeTask occurrence, [])
-        (cached.removeTask occurrence)
+  exact cached.taskFailure occurrence errors (by intros; exact positive)
 
 /-- Every matched event retains strictly positive error caches on generated work.
 Witness: failures add their positive generated count; all other handlers preserve caches.

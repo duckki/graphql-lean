@@ -375,6 +375,18 @@ theorem State.ChildGroupsUnique.finishGroupFailure
   unfold State.finishGroupFailure
   exact uniqueChildren.removeGroup group.group.node.ref
 
+/-- Rejection replay removes groups without changing surviving child lists. -/
+theorem State.ChildGroupsUnique.taskFailure
+    {queue : State} (uniqueChildren : queue.ChildGroupsUnique)
+    (occurrence : Occurrence) (errors : Nat)
+    : (queue.taskFailure occurrence errors).1.ChildGroupsUnique := by
+  cases found : queue.taskNode? occurrence with
+  | none => simpa only [State.taskFailure, found] using uniqueChildren
+  | some node =>
+      rw [queue.taskFailure_eq occurrence errors node found]
+      exact failureGroupFold_preserves State.ChildGroupsUnique
+        (fun _ ref prior => prior.removeGroup ref) _ _ _ uniqueChildren
+
 /-- Recursive draining preserves duplicate-free child lists, including stale links.
 Witness: every success/failure closure and subsequent activation preserves uniqueness.
 -/
@@ -384,42 +396,8 @@ theorem State.ChildGroupsUnique.drainReadyGroups {queue : State}
   apply State.drainReadyGroups_preserves State.ChildGroupsUnique (valid := uniqueChildren)
   · intro current node prior _ _ _ _
     exact (prior.finishGroupSuccess node).startNewWork _
-  · intro current node errors prior _ _ _
-    exact prior.finishGroupFailure node errors
-
-/-- Task failure preserves duplicate-free child lists across all contributor updates.
-Witness: ignored settlement only removes task links; the active fold removes groups or
-updates counters and caches without changing the retained child lists.
--/
-theorem State.ChildGroupsUnique.taskFailure
-    {queue : State}
-    (uniqueChildren : queue.ChildGroupsUnique)
-    (occurrence : Occurrence) (errors : Nat)
-    : (queue.taskFailure occurrence errors).1.ChildGroupsUnique := by
-  have loop (groups : List Execution.DeliveryNode) (acc : State × List WorkQueueEvent)
-      (prior : acc.1.ChildGroupsUnique)
-      : (groups.foldl (failureGroupStep errors) acc).1.ChildGroupsUnique := by
-    induction groups generalizing acc with
-    | nil => exact prior
-    | cons group rest ih =>
-        apply ih
-        obtain ⟨current, events⟩ := acc
-        dsimp only [failureGroupStep]
-        split
-        · exact prior
-        · rename_i node found
-          split
-          · exact prior.finishGroupFailure node errors
-          · exact prior.putGroupNode _
-              (prior node (List.mem_of_find?_eq_some found))
-  cases found : queue.taskNode? occurrence with
-  | none => simpa only [State.taskFailure, found] using uniqueChildren
-  | some node =>
-      rw [queue.taskFailure_eq occurrence errors node found]
-      split
-      · exact uniqueChildren.removeTask occurrence
-      exact loop node.task.groups (queue.removeTask occurrence, [])
-        (uniqueChildren.removeTask occurrence)
+  · intro current _ occurrence errors prior _ _ _
+    exact prior.taskFailure occurrence errors
 
 /-- Single-pass task success preserves duplicate-free child lists.
 Witness: ignored settlement cleans up only its task; active settlement composes child
@@ -452,8 +430,6 @@ theorem State.ChildGroupsUnique.taskSuccess
   | none => simpa only [State.taskSuccess, found] using uniqueChildren
   | some node =>
       rw [queue.taskSuccess_eq occurrence result node found]
-      split
-      · exact uniqueChildren.removeTask occurrence
       have installed : State.ChildGroupsUnique
           (queue.putTaskNode { node with value := some result.value }) := uniqueChildren
       have integrated := installed.maybeIntegrateWork result.work (some occurrence)

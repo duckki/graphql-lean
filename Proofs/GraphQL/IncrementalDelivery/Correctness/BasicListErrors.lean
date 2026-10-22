@@ -197,9 +197,9 @@ theorem completeStreamItems_itemContext_bubbles (schema : Schema)
     (itemType : TypeRef) (fields : List FieldDetails)
     (values : List (ResolverValue ObjectRef))
     (plain : Semantics.ItemFieldsInContext none fields) (path : ResponsePath)
-    (index state errors : Nat) (children : Work)
+    (index state errors : Nat) (cause : Option Nat) (children : Work)
     (failed
-      : (.error errors, children)
+      : ({ result := .error errors, cause }, children)
         ∈ ((completeStreamItems schema resolvers variables fuel itemType fields values
               path index).run
             state).1)
@@ -227,8 +227,8 @@ theorem completeStreamItems_itemContext_failure_iff (schema : Schema)
     (values : List (ResolverValue ObjectRef))
     (plain : Semantics.ItemFieldsInContext none fields) (path : ResponsePath)
     (index state : Nat)
-    : (∃ errors children,
-        (.error errors, children)
+    : (∃ errors cause children,
+        ({ result := .error errors, cause }, children)
         ∈ ((completeStreamItems schema resolvers variables fuel itemType fields values
               path index).run
             state).1)
@@ -237,9 +237,9 @@ theorem completeStreamItems_itemContext_failure_iff (schema : Schema)
             (fields.map Semantics.eraseField) values
           = .error errors := by
   constructor
-  · rintro ⟨errors, children, failed⟩
+  · rintro ⟨errors, cause, children, failed⟩
     exact completeStreamItems_itemContext_bubbles schema resolvers variables fuel itemType
-      fields values plain path index state errors children failed
+      fields values plain path index state errors cause children failed
   · intro bubbled
     obtain ⟨errors, retained⟩ := (basicStreamResults_failure_iff_bubbles schema resolvers
       variables fuel itemType fields values).mpr bubbled
@@ -247,7 +247,10 @@ theorem completeStreamItems_itemContext_failure_iff (schema : Schema)
       fields values plain path index state).2.1] at retained
     obtain ⟨⟨result, children⟩, member, same⟩ := List.mem_map.mp retained
     dsimp only at same
-    subst result
-    exact ⟨errors, children, member⟩
+    cases result with
+    | mk result cause =>
+        dsimp only at same
+        subst result
+        exact ⟨errors, cause, children, member⟩
 
 end GraphQL.IncrementalDelivery.Correctness.SourceReconstruction

@@ -49,8 +49,8 @@ Witness: the execution-group projection of the generated shared partition.
 -/
 private theorem task_known
     : TaskAt work failed [left.ref, right.ref] none (.object [] (.error 1)) :=
-  TaskAt.executionGroup (groups := [⟨left, []⟩, ⟨right, []⟩])
-    (children := .empty) (owners := []) (by cbv)
+  TaskAt.executionGroup (result := { result := .error 1, cause := some 1 })
+    (groups := [⟨left, []⟩, ⟨right, []⟩]) (children := .empty) (owners := []) (by cbv)
 
 /-- The one source failure is valid and its task has actually started.
 Witness: matching fixed failure, fresh root settlement, and direct start-check evaluation.
@@ -183,18 +183,11 @@ theorem shared_candidate_licensed (matching : PublicationMatching)
 Witness: the singleton failure inventory and exact shared owner list, not closure counting.
 -/
 theorem shared_error_counts
-    : ∀ group ∈ [left, right], NodeErrors work (failedBefore cuts 2) group.ref 1 := by
+    : ∀ group ∈ [left, right],
+        NodeFailureCause work (failedBefore cuts 2) group.ref 1 := by
   intro group member
   have owner : group.ref ∈ [left.ref, right.ref] := List.mem_map_of_mem member
-  refine ⟨fun _ => 1, ?_, rfl⟩
-  intro occurrence entry
-  have same : occurrence = failed := by simpa [failedBefore, cuts] using entry
-  subst occurrence
-  exact ⟨_, _, _, task_known, by simp [owner, Payload.failure]⟩
-
------------------------------------------------------------------------------------------
--- A later two-error group does not accumulate an earlier group or stream's errors
------------------------------------------------------------------------------------------
+  exact ⟨failed, by simp [failedBefore, cuts], _, _, _, task_known, owner, rfl, by decide⟩
 
 namespace MixedCounts
 
@@ -223,7 +216,7 @@ private def first : GraphEvent :=
 private def priorInputs : List (List GraphEvent) :=
   [[first], [.taskFailure leftTask 1, .streamFailure stream 1]]
 
-private def inputs : List (List GraphEvent) := priorInputs ++ [[.taskFailure rightTask 2]]
+private def inputs : List (List GraphEvent) := priorInputs ++ [[.taskFailure rightTask 1]]
 
 private def atoms : List Execution.WorkQueueEvent :=
   ((State.initialize (Work.fromExecution work)).runNormalized inputs).2.flatten.flatMap
@@ -242,23 +235,27 @@ Witness: project its exact generated execution-group address.
 -/
 private theorem left_known
     : TaskAt work leftTask [left.ref] none (.object [] (.error 1)) :=
-  TaskAt.executionGroup (groups := [⟨left, []⟩]) (children := .empty)
-    (owners := []) (by cbv)
+  TaskAt.executionGroup (result := { result := .error 1, cause := some 1 })
+    (groups := [⟨left, []⟩]) (children := .empty) (owners := []) (by cbv)
 
 /-- The last group retains two errors from its own fixed pure execution result.
 Witness: locate its nullable-error-plus-non-null-failure partition in the generated work.
 -/
 private theorem right_known
-    : TaskAt work rightTask [right.ref] none (.object [] (.error 2)) :=
-  TaskAt.executionGroup (groups := [⟨right, []⟩]) (children := .empty)
-    (owners := []) (by cbv)
+    : TaskAt work rightTask [right.ref] none (.object [] (.error 1)) :=
+  TaskAt.executionGroup (result := { result := .error 2, cause := some 1 })
+    (groups := [⟨right, []⟩]) (children := .empty) (owners := []) (by cbv)
 
 /-- The streamed list has one successful item followed by its one-error non-null failure.
 Witness: its exact generated stream location and finite outcome list.
 -/
 private theorem stream_located
     : Located work [0, 0, 1]
-        (.stream stream [(.ok (.scalar "x", 0), .empty), (.error 1, .empty)]) none
+        (.stream stream
+          [
+            ({ result := .ok (.scalar "x", 0) }, .empty),
+            ({ result := .error 1, cause := some 1 }, .empty)
+          ]) none
         [] := by cbv
 
 /-- The earlier mixed source prefix is valid and every supplied event was started.
@@ -271,7 +268,7 @@ theorem prior_source_valid
     intro item member
     have same := List.mem_singleton.mp member
     subst item
-    exact ⟨[stream.ref], none, TaskAt.item stream_located rfl, by cbv⟩
+    exact ⟨[stream.ref], none, TaskAt.item (result := { result := .ok (.scalar "x", 0) }) stream_located rfl, by cbv⟩
   have firstValid : ValidGraphEvents work [first] :=
     .append .nil firstMatch (by simp [first, GraphEvent.Fresh, GraphEvent.identities])
       ⟨_, _, _, _, stream_located, by simp, by simp,
@@ -281,10 +278,10 @@ theorem prior_source_valid
       (by simp [first, leftTask, GraphEvent.Fresh, GraphEvent.identities])
       ⟨_, _, _, left_known, by intro source impossible; cases impossible⟩
   refine ⟨.append two ?_ ?_ ?_, by cbv⟩
-  · exact ⟨_, _, _, _, stream_located, .empty, List.mem_cons_of_mem _ List.mem_cons_self⟩
+  · exact ⟨_, _, _, _, stream_located, { result := .error 1, cause := some 1 }, .empty, List.mem_cons_of_mem _ List.mem_cons_self, rfl⟩
   · simp [first, GraphEvent.Fresh, GraphEvent.identities]
   · exact ⟨_, _, _, _, stream_located,
-      (by intro source impossible; cases impossible), .empty, rfl⟩
+      (by intro source impossible; cases impossible), { result := .error 1, cause := some 1 }, .empty, rfl, rfl⟩
 
 /-- The final failure extends the same valid, actually started source trace.
 Witness: its distinct task identity, exact two-error outcome, and root readiness.
@@ -292,7 +289,7 @@ Witness: its distinct task identity, exact two-error outcome, and root readiness
 theorem full_source_valid
     : ValidGraphEvents work inputs.flatten ∧ inputsStarted work inputs = true := by
   refine ⟨?_, by cbv⟩
-  change ValidGraphEvents work (priorInputs.flatten ++ [.taskFailure rightTask 2])
+  change ValidGraphEvents work (priorInputs.flatten ++ [.taskFailure rightTask 1])
   refine .append prior_source_valid.1 ⟨_, _, _, right_known⟩ ?_ ?_
   · simp [priorInputs, first, GraphEvent.Fresh, GraphEvent.identities, leftTask, rightTask]
   · exact ⟨_, _, _, right_known, by intro source impossible; cases impossible⟩
@@ -306,7 +303,7 @@ theorem mixed_output
         .streamValues stream [⟨.scalar "x", 0⟩] [] [],
         .groupFailure left 1,
         .streamFailure stream 1,
-        .groupFailure right 2,
+        .groupFailure right 1,
         .workQueueTermination
       ] := by cbv
 
@@ -325,17 +322,19 @@ theorem mixed_object_candidate_cuts
 Witness: the three actual task descriptors give zero contribution for the earlier group
 and stream failures, and two for the last task.
 -/
-theorem mixed_group_error_count : NodeErrors work (failedBefore cuts 3) right.ref 2 := by
-  refine ⟨fun occurrence => if occurrence = rightTask then 2 else 0, ?_, ?_⟩
-  · intro occurrence member
-    change occurrence ∈ [leftTask, failedItem, rightTask] at member
-    simp only [List.mem_cons, List.not_mem_nil, or_false] at member
-    rcases member with rfl | rfl | rfl
-    · exact ⟨_, _, _, left_known, by simp [leftTask, rightTask, left, right]⟩
-    · exact ⟨_, _, _, TaskAt.item stream_located (by rfl),
-        by simp [failedItem, rightTask, stream, right]⟩
-    · exact ⟨_, _, _, right_known, by simp [Payload.failure]⟩
-  · simp [failedBefore, cuts, leftTask, failedItem, rightTask]
+theorem mixed_group_error_count
+    : NodeFailureCause work (failedBefore cuts 3) right.ref 1 := by
+  exact ⟨
+    rightTask,
+    by simp [failedBefore, cuts],
+    _,
+    _,
+    _,
+    right_known,
+    by simp,
+    rfl,
+    by decide
+  ⟩
 
 end MixedCounts
 

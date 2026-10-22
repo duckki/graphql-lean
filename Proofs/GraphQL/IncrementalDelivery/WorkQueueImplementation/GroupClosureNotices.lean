@@ -34,6 +34,23 @@ theorem State.finishGroupSuccess_closureNotices (queue : State) (node : GroupNod
   rw [queue.finishGroupSuccess_groupClosureRefs]
   simpa [List.Subset] using active
 
+/-- Task failure inherits closure announcements from its existing failed-closure proof.
+Witness: this handler emits no successful group carrier, so both reference projections agree.
+-/
+theorem State.taskFailure_closureNotices (queue : State) (occurrence : Occurrence)
+    (errors : Nat)
+    : ReferencesAnnounced rawGroupNoticeRefs rawGroupClosureRefs queue.rootGroups
+        (queue.taskFailure occurrence errors).2 := by
+  apply (queue.taskFailure_groupFailureNotices occurrence errors).2.restrict
+  intro event member
+  cases event with
+  | groupSuccess group groups streams =>
+      exact False.elim (queue.taskFailure_noGroupSuccess occurrence errors group groups streams
+        member)
+  | groupFailure => exact List.Subset.refl _
+  | groupValues | streamValues | streamSuccess | streamFailure | workQueueTermination =>
+      simp [rawGroupClosureRefs, List.Subset]
+
 /-- Each recursive drain closes groups only after their initial or emitted notices.
 Witness: the selected node is active; successful closure exposes precisely the roots
 accounted for by the existing notice ledger before the recursive drain continues.
@@ -57,41 +74,21 @@ theorem State.drainReadyGroups_closureNotices (queue : State)
           | none => simp [found] at choice
           | some candidate =>
               simp only [found] at choice
-              change (if candidate.failure.isSome || candidate.pending == 0 then
+              change (if (current.rejectedTask? candidate).isSome || candidate.pending == 0 then
                 some candidate else none) = some node at choice
               split at choice
               · cases Option.some.inj choice
                 have root := current.groupNode?_ref found ▸ active
-                cases cached : node.failure with
+                cases cached : current.rejectedTask? node with
                 | none =>
                     exact (current.finishGroupSuccess_closureNotices node root).append
                       ((ih _).mono (current.finishGroupSuccess_groupFailureNotices node).1)
-                | some errors =>
-                    have first : ReferencesAnnounced rawGroupNoticeRefs rawGroupClosureRefs
-                        current.rootGroups [(current.finishGroupFailure node errors).2] :=
-                      ⟨by simpa [State.finishGroupFailure, rawGroupClosureRefs,
-                        List.Subset] using root, trivial⟩
-                    exact first.append ((ih _).mono
-                      (current.finishGroupFailure_groupFailureNotices node errors root).1)
+                | some rejected =>
+                    exact (current.taskFailure_closureNotices rejected.1 rejected.2).append
+                      ((ih _).mono
+                        (current.taskFailure_groupFailureNotices rejected.1 rejected.2).1)
               · contradiction
   exact loop _ queue
-
-/-- Task failure inherits closure announcements from its existing failed-closure proof.
-Witness: this handler emits no successful group carrier, so both reference projections agree.
--/
-theorem State.taskFailure_closureNotices (queue : State) (occurrence : Occurrence)
-    (errors : Nat)
-    : ReferencesAnnounced rawGroupNoticeRefs rawGroupClosureRefs queue.rootGroups
-        (queue.taskFailure occurrence errors).2 := by
-  apply (queue.taskFailure_groupFailureNotices occurrence errors).2.restrict
-  intro event member
-  cases event with
-  | groupSuccess group groups streams =>
-      exact False.elim (queue.taskFailure_noGroupSuccess occurrence errors group groups streams
-        member)
-  | groupFailure => exact List.Subset.refl _
-  | groupValues | streamValues | streamSuccess | streamFailure | workQueueTermination =>
-      simp [rawGroupClosureRefs, List.Subset]
 
 /-- A task-success contributor fold closes only active groups before starting its children.
 Witness: the executable root guard licenses each singleton closure; accumulated child
@@ -131,7 +128,7 @@ theorem State.taskSuccess_closureNotices (queue : State) (occurrence : Occurrenc
                 have active : descriptor.group.node.ref ∈ acc.1.rootGroups := by
                   have ref := acc.1.groupNode?_ref selected
                   simp only [Bool.and_eq_true, List.contains_iff_mem] at ready
-                  exact ref ▸ ready.1.1
+                  exact ref ▸ ready.1
                 refine ih _ ((State.finishGroupSuccess_rootsSubset _ _).trans roots) ?_ ?_
                 · simp only [List.map_append, List.flatMap_append, notices,
                     State.finishGroupSuccess_groupNotices]
@@ -146,15 +143,13 @@ theorem State.taskSuccess_closureNotices (queue : State) (occurrence : Occurrenc
       obtain ⟨roots, notices, prior⟩ := loop node.task.groups (integrated.1, [], {})
         (by rw [initial]; exact List.Subset.refl _) rfl trivial
       rw [queue.taskSuccess_eq occurrence result node found]
-      split
-      · trivial
-      · let folded := node.task.groups.foldl successGroupStep (integrated.1, [], {})
-        apply prior.append ((State.drainReadyGroups_closureNotices _).mono ?_)
-        rw [(folded.1.startNewWork_groupCore _).2.2, notices]
-        intro ref member
-        exact (List.mem_append.mp member).elim
-          (fun old => List.mem_append_left _ (roots old))
-          (fun fresh => List.mem_append_right _ fresh)
+      let folded := node.task.groups.foldl successGroupStep (integrated.1, [], {})
+      apply prior.append ((State.drainReadyGroups_closureNotices _).mono ?_)
+      rw [(folded.1.startNewWork_groupCore _).2.2, notices]
+      intro ref member
+      exact (List.mem_append.mp member).elim
+        (fun old => List.mem_append_left _ (roots old))
+        (fun fresh => List.mem_append_right _ fresh)
 
 /-- An item carrier announces every newly active group before the following closure drain.
 Witness: child integration preserves old roots and accumulates new roots in the carrier;

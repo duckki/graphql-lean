@@ -49,13 +49,13 @@ example
       = [.groupFailure first 1, .groupFailure second 1] := by cbv
 
 example
-    : (shared.taskFailure failed 1).2.2
+    : (shared.handleGraphEvent (.taskFailure failed 1)).2.2
       = [.abortTask held, .cancelSource 7, .abortStreamQueue 7] := by cbv
 
 example : (shared.taskFailure failed 1).1.queue.taskNode? held = none := by cbv
 
-example : .abortTask failed ∉ (shared.taskFailure failed 1).2.2 := by
-  have effects : (shared.taskFailure failed 1).2.2
+example : .abortTask failed ∉ (shared.handleGraphEvent (.taskFailure failed 1)).2.2 := by
+  have effects : (shared.handleGraphEvent (.taskFailure failed 1)).2.2
       = [.abortTask held, .cancelSource 7, .abortStreamQueue 7] := by cbv
   rw [effects]
   intro member

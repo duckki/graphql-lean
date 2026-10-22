@@ -205,7 +205,7 @@ theorem workAt_nonNull (roles : Assignment) (bound : Nat)
 
 theorem workAt_deferred (roles : Assignment) (bound : Nat) (deferMap : DeferMap)
     (refs : List Nat) (path : ResponsePath)
-    (result : Result (List (Name × ResponseValue))) (children : Work)
+    (result : TaskOutcome (List (Name × ResponseValue))) (children : Work)
     (hm : MapAt roles bound deferMap) (hc : WorkAt roles bound children)
     : WorkAt roles bound
         (.executionGroup (refs.filterMap (lookupDeferredFragment? deferMap)) path result
@@ -219,7 +219,7 @@ theorem workAt_deferred (roles : Assignment) (bound : Nat) (deferMap : DeferMap)
   exact hm.fragment (List.mem_of_find?_eq_some hl) ref href
 
 theorem workAt_stream (roles : Assignment) (bound : Nat) (node : DeliveryNode)
-    (items : List (Result ResponseValue × Work))
+    (items : List (TaskOutcome ResponseValue × Work))
     (hn : node.ref < bound ∧ roles node.ref = true)
     (hi : ∀ item ∈ items, WorkAt roles bound item.2)
     : WorkAt roles bound (.stream node items) := by

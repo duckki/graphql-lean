@@ -58,9 +58,7 @@ theorem startGroup_startStream (queue : ReferenceWorkQueue.State) (group key : N
   | none => rfl
   | some node =>
       simp only
-      split
-      · rfl
-      · exact startTasks_startStream queue node.tasks key
+      exact startTasks_startStream queue node.tasks key
 
 private theorem startGroups_startStream (queue : ReferenceWorkQueue.State)
     (groups : List Nat) (key : Nat)

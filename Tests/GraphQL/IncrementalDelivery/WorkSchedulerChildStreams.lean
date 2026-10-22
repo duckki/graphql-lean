@@ -29,19 +29,20 @@ private def children : Execution.Work :=
     (.combine .empty
       (.stream stream
         [
-          (.ok (.scalar "x", 0), .empty),
-          (.ok (.null, 0), .empty),
-          (.ok (.scalar "z", 0), .empty)
+          ({ result := .ok (.scalar "x", 0) }, .empty),
+          ({ result := .ok (.null, 0) }, .empty),
+          ({ result := .ok (.scalar "z", 0) }, .empty)
         ]))
     .empty
 
 private def work : Execution.Work :=
   .combine .empty
     (.combine
-      (.executionGroup [⟨parent, []⟩] [] (.ok (producerValue.data, 0)) children)
+      (.executionGroup [⟨parent, []⟩] [] ({ result := .ok (producerValue.data, 0) })
+        children)
       (.combine
-        (.executionGroup [⟨parent, []⟩, ⟨other, []⟩] [] (.ok (sharedValue.data, 0))
-          (.combine .empty .empty))
+        (.executionGroup [⟨parent, []⟩, ⟨other, []⟩] []
+          ({ result := .ok (sharedValue.data, 0) }) (.combine .empty .empty))
         .empty))
 
 private def producerResult : TaskResult :=
@@ -67,7 +68,7 @@ Witness: its exact generated task descriptor and child stream subtree. -/
 private theorem producerKnown
     : TaskAt work producerTask [parent.ref] none
         (.object [] (.ok (producerValue.data, 0))) := by
-  refine ⟨[⟨parent, []⟩], [], _, children, [], ?_, rfl, rfl⟩
+  refine ⟨[⟨parent, []⟩], [], { result := .ok (producerValue.data, 0) }, children, [], ?_, rfl, rfl⟩
   cbv
 
 /-- The independent shared task supplies b to both pending groups.
@@ -75,7 +76,7 @@ Witness: its generated two-owner descriptor. -/
 private theorem sharedKnown
     : TaskAt work sharedTask [parent.ref, other.ref] none
         (.object [] (.ok (sharedValue.data, 0))) := by
-  refine ⟨[⟨parent, []⟩, ⟨other, []⟩], [], _, .combine .empty .empty, [], ?_, rfl, rfl⟩
+  refine ⟨[⟨parent, []⟩, ⟨other, []⟩], [], { result := .ok (sharedValue.data, 0) }, .combine .empty .empty, [], ?_, rfl, rfl⟩
   cbv
 
 /-- Both input settlements obey source semantics and are accepted in their actual states.
@@ -98,8 +99,8 @@ Witness: navigate the executor's exact child-work address and retain its enclosi
 private theorem streamKnown
     : NodeAt work stream .stream [parent.ref] (some producerTask) := by
   refine ⟨[1, 0, 0, 0, 1],
-    [(.ok (.scalar "x", 0), .empty), (.ok (.null, 0), .empty),
-      (.ok (.scalar "z", 0), .empty)], ?_⟩
+    [({ result := .ok (.scalar "x", 0) }, .empty), ({ result := .ok (.null, 0) }, .empty),
+      ({ result := .ok (.scalar "z", 0) }, .empty)], ?_⟩
   cbv
 
 /-- Settlement alone neither publishes the producer nor starts its child stream.
@@ -379,11 +380,11 @@ theorem stream_start_barrier
 -- One joint matching for the released producer and the subsequent streamed items
 -----------------------------------------------------------------------------------------
 
-private def streamEntries : List (Result ResponseValue × Execution.Work) :=
+private def streamEntries : List (TaskOutcome ResponseValue × Execution.Work) :=
   [
-    (.ok (.scalar "x", 0), .empty),
-    (.ok (.null, 0), .empty),
-    (.ok (.scalar "z", 0), .empty)
+    ({ result := .ok (.scalar "x", 0) }, .empty),
+    ({ result := .ok (.null, 0) }, .empty),
+    ({ result := .ok (.scalar "z", 0) }, .empty)
   ]
 
 private def item (index : Nat) : StreamItem :=
@@ -416,7 +417,7 @@ private theorem itemMatches (index : Nat) (bound : index < 3)
         TaskAt work (item index).occurrence owners producer
           (.item stream (.ok ((item index).value.item, (item index).value.errors)))
         ∧ streamItemWork? work (item index).occurrence = some (item index).work := by
-  have entry : streamEntries[index]? = some (.ok ((item index).value.item, 0), .empty) := by
+  have entry : streamEntries[index]? = some ({ result := .ok ((item index).value.item, 0) }, .empty) := by
     have casesIndex : index = 0 ∨ index = 1 ∨ index = 2 := by omega
     rcases casesIndex with rfl | rfl | rfl <;> rfl
   refine ⟨[stream.ref], some producerTask, ?_, ?_⟩
@@ -677,7 +678,7 @@ theorem completed_stream_registry_located
 private def nestedStream : DeliveryNode := { ref := 3, path := [.index 0] }
 
 private def itemProducedWork : Execution.Work :=
-  .stream stream [(.ok (.list [], 0), .stream nestedStream [])]
+  .stream stream [({ result := .ok (.list [], 0) }, .stream nestedStream [])]
 
 private def producingItem : StreamItem :=
   {
@@ -698,8 +699,8 @@ theorem item_stream_retains_producer
     have same := List.mem_singleton.mp member
     subst item
     refine ⟨[stream.ref], none, ?_, by cbv⟩
-    exact ⟨stream, [(.ok (.list [], 0), .stream nestedStream [])], [],
-      .ok (.list [], 0), .stream nestedStream [], Located.root, rfl, rfl, rfl⟩
+    exact ⟨stream, [({ result := .ok (.list [], 0) }, .stream nestedStream [])], [],
+      { result := .ok (.list [], 0) }, .stream nestedStream [], Located.root, rfl, rfl, rfl⟩
   apply matching.streamItem_childStream_producer List.mem_cons_self
     (child := ⟨nestedStream⟩)
   exact List.mem_cons_self
@@ -807,8 +808,8 @@ theorem normalized_equal_payloads_do_not_identify_producer
 
 private def duplicateStreamWork : Execution.Work :=
   .combine
-    (.executionGroup [⟨parent, []⟩] [] (.ok ([], 0)) (.stream stream []))
-    (.executionGroup [⟨other, []⟩] [] (.ok ([], 0)) (.stream stream []))
+    (.executionGroup [⟨parent, []⟩] [] ({ result := .ok ([], 0) }) (.stream stream []))
+    (.executionGroup [⟨other, []⟩] [] ({ result := .ok ([], 0) }) (.stream stream []))
 
 /-- Permissive raw work can reuse a stream ref below two distinct task producers.
 Witness: two exact stream locations; generated allocation uniqueness must not be silently

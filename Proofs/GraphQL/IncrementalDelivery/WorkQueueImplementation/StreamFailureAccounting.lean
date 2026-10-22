@@ -28,8 +28,9 @@ theorem ValidGraphEvents.streamFailure_itemInventory {work events}
               ∧ .item address earlier
                 ∈ (events.flatMap GraphEvent.itemPublications).map Prod.fst := by
   obtain ⟨before, after, same, validBefore, ready⟩ := valid.event_ready_context completed
-  obtain ⟨address, entries, producer, dependencies, located, supported, children, atItem⟩ := ready
+  obtain ⟨address, entries, producer, dependencies, located, supported, outcome, children, atItem, failed⟩ := ready
   have task := TaskAt.item located atItem
+  rw [failed] at task
   refine ⟨
     address,
     (GraphEvent.itemsBefore before stream.ref).length,

@@ -33,26 +33,6 @@ private theorem successFold_disposition (groups : List Execution.DeliveryNode)
         · exact ih _ (next.finishGroupSuccess updated) (nextKeys.finishGroupSuccess updated)
         · exact ih _ next nextKeys
 
-private theorem failureFold_disposition (errors : Nat)
-    (groups : List Execution.DeliveryNode) (acc : State × List WorkQueueEvent)
-    (disposition : acc.1.TaskLinkDisposition) (unique : acc.1.GroupRefsUnique)
-    : (groups.foldl (failureGroupStep errors) acc).1.TaskLinkDisposition := by
-  induction groups generalizing acc with
-  | nil => exact disposition
-  | cons group rest ih =>
-      simp only [List.foldl_cons, failureGroupStep]
-      split
-      · exact ih _ disposition unique
-      · rename_i node found
-        split
-        · exact ih _ (disposition.removeGroup node.group.node.ref)
-            (unique.removeGroup node.group.node.ref)
-        · let updated := { node with
-            pending := node.pending - 1
-            failure := some (node.failure.getD 0 + errors) }
-          exact ih _ (disposition.putGroupNodeSameTasks unique node
-            (List.mem_of_find?_eq_some found) updated rfl rfl) (unique.putGroupNode updated)
-
 theorem State.TaskLinkDisposition.taskSuccess {queue : State} {work : Execution.Work}
     {settled : List Occurrence} (disposition : queue.TaskLinkDisposition)
     (accounted : queue.PendingAccounting work settled) (occurrence : Occurrence)
@@ -62,32 +42,17 @@ theorem State.TaskLinkDisposition.taskSuccess {queue : State} {work : Execution.
   | none => simpa only [State.taskSuccess, found] using disposition
   | some node =>
       rw [queue.taskSuccess_eq occurrence result node found]
-      split
-      · exact disposition.removeTask occurrence
-      · let stored := queue.putTaskNode { node with value := some result.value }
-        have registered : stored.TaskGroupsRegistered := accounted.taskGroups
-        have matching : stored.RegisteredTasksMatch work := accounted.matching
-        have keys : stored.GroupRefsUnique := accounted.refs
-        have installed : stored.TaskLinkDisposition :=
-          disposition.putTaskNode { node with value := some result.value }
-        have prepared := installed.maybeIntegrateWork keys registered matching
-          result.work known (some occurrence)
-        have preparedKeys := keys.maybeIntegrateWork result.work (some occurrence)
-        have folded := successFold_disposition node.task.groups (_, [], {}) prepared preparedKeys
-        exact (folded.startNewWork _).drainReadyGroups
-
-theorem State.TaskLinkDisposition.taskFailure {queue : State}
-    (disposition : queue.TaskLinkDisposition) (unique : queue.GroupRefsUnique)
-    (occurrence : Occurrence) (errors : Nat)
-    : (queue.taskFailure occurrence errors).1.TaskLinkDisposition := by
-  cases found : queue.taskNode? occurrence with
-  | none => simpa only [State.taskFailure, found] using disposition
-  | some node =>
-      rw [queue.taskFailure_eq occurrence errors node found]
-      split
-      · exact disposition.removeTask occurrence
-      · exact failureFold_disposition errors node.task.groups (_, [])
-          (disposition.removeTask occurrence) (unique.removeTask occurrence)
+      let stored := queue.putTaskNode { node with value := some result.value }
+      have registered : stored.TaskGroupsRegistered := accounted.taskGroups
+      have matching : stored.RegisteredTasksMatch work := accounted.matching
+      have keys : stored.GroupRefsUnique := accounted.refs
+      have installed : stored.TaskLinkDisposition :=
+        disposition.putTaskNode { node with value := some result.value }
+      have prepared := installed.maybeIntegrateWork keys registered matching
+        result.work known (some occurrence)
+      have preparedKeys := keys.maybeIntegrateWork result.work (some occurrence)
+      have folded := successFold_disposition node.task.groups (_, [], {}) prepared preparedKeys
+      exact (folded.startNewWork _).drainReadyGroups
 
 -----------------------------------------------------------------------------------------
 -- Stream preparation reuses the same scope and release primitives
@@ -155,7 +120,7 @@ theorem State.TaskLinkDisposition.handleGraphEvent {queue : State} {work : Execu
       exact ⟨⟨address, payload, some occurrence, occurrenceEq, known⟩,
         matching.childTask_groupsExact member⟩
   | taskFailure occurrence errors =>
-      exact disposition.taskFailure accounted.refs occurrence errors
+      exact disposition.taskFailure occurrence errors
   | streamItems stream items => exact disposition.streamItems accounted matching
   | streamSuccess stream =>
       simp only [State.handleGraphEvent, State.streamSuccess]

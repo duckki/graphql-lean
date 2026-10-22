@@ -84,7 +84,8 @@ mutual
                 (by simpa only [entryPaths, rightEq] using ar) context task second ready
     | executionGroup groups path result children =>
         simp only [sourceTasks, List.map_cons, entryPaths,
-          SourceTask.entries, result_fields_paths] at attached
+          SourceTask.entries, TypedResponse.result_deliveryResult,
+          result_fields_paths] at attached
         cases attached with
         | executionGroup parent childrenAttached =>
             intro task member ready
@@ -93,7 +94,16 @@ mutual
             · apply sourceTasks_readyAttached closed delivered _ _ _ children
                 (fun _ member => members (List.mem_cons_of_mem _ member)) success.2
                 childrenAttached ?_ task child ready
-              exact published_context (members (by simp [sourceTasks])) closed delivered context
+              simpa only [SourceTask.entries, TypedResponse.result_deliveryResult]
+                using published_context
+                  (task :=
+                    ⟨
+                      .executionGroup address,
+                      producer,
+                      .object path result.deliveryResult,
+                      0
+                    ⟩)
+                  (members (by simp [sourceTasks])) closed delivered context
     | stream node items =>
         generalize equal : entryPaths ((sourceTasks address producer cursors
           (.stream node items)).map SourceTask.entries) = slices at attached
@@ -150,7 +160,8 @@ mutual
             cases attached with
             | cons childAttached tailAttached =>
                 simp only [sourceItemTasks, List.map_cons, List.map_append, entryPaths,
-                  SourceTask.entries, result_value_paths, List.cons.injEq] at slicesEq
+                  SourceTask.entries, TypedResponse.result_deliveryResult,
+                  result_value_paths, List.cons.injEq] at slicesEq
                 obtain ⟨childEq, tailEq⟩ := List.append_inj slicesEq.2 (by
                   simpa only [List.length_map] using
                     (sourceTasks_entries _ _ _ children).attached_length childAttached)
@@ -159,11 +170,21 @@ mutual
                 · exact context ready parent
                 · rcases List.mem_append.mp member with child | tail
                   · apply sourceTasks_readyAttached closed delivered _ _ _ children
-                      (fun _ member => members (List.mem_cons_of_mem _
-                        (List.mem_append_left _ member))) success.2.1
-                      (by simpa only [entryPaths, childEq] using childAttached) ?_ task child ready
-                    exact published_context (members (by simp [sourceItemTasks]))
-                      closed delivered context
+                      (fun _ member =>
+                        members (List.mem_cons_of_mem _ (List.mem_append_left _ member)))
+                      success.2.1
+                      (by simpa only [entryPaths, childEq] using childAttached) ?_ task
+                      child ready
+                    simpa only [SourceTask.entries, TypedResponse.result_deliveryResult]
+                      using published_context
+                        (task :=
+                          ⟨
+                            .item address ordinal,
+                            producer,
+                            .item node result.deliveryResult,
+                            index
+                          ⟩)
+                        (members (by simp [sourceItemTasks])) closed delivered context
                   · exact sourceItemTasks_readyAttached closed delivered address producer node
                       (index + 1) (ordinal + 1) rest
                       (fun _ member => members (List.mem_cons_of_mem _

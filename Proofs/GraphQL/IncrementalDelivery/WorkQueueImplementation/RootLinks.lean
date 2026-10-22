@@ -402,194 +402,69 @@ theorem State.RootGroupsPresent.removeGroup
       same
     ⟩
 
-/-- Failure settlement preserves active-root links of a different task.
-Witness: the failed membership is removed, while latent error updates retain all other
-memberships and active failures remove entire nodes.
--/
+/-- Failure retains existing task links on every surviving active owner. -/
+theorem State.RootTaskLinkedOn.taskFailure_preserves
+    {queue : State} {occurrence : Occurrence} {refs : NodeRefs}
+    (linked : queue.RootTaskLinkedOn occurrence refs)
+    (failed : Occurrence) (errors : Nat)
+    : (queue.taskFailure failed errors).1.RootTaskLinkedOn occurrence refs := by
+  cases found : queue.taskNode? failed with
+  | none => simpa [State.taskFailure, found] using linked
+  | some node =>
+      rw [queue.taskFailure_eq failed errors node found]
+      exact failureGroupFold_preserves (fun state => state.RootTaskLinkedOn occurrence refs)
+        (fun _ ref prior => prior.removeGroup ref) _ _ _ linked
+
+/-- In particular, failure preserves every different task's active-owner links. -/
 theorem State.RootTaskLinkedOn.taskFailure
     {queue : State} {occurrence : Occurrence} {refs : NodeRefs}
     (linked : queue.RootTaskLinkedOn occurrence refs)
-    (failed : Occurrence) (errors : Nat) (different : occurrence ≠ failed)
-    : (queue.taskFailure failed errors).1.RootTaskLinkedOn occurrence refs := by
-  let step (acc : State × List WorkQueueEvent)
-      (group : Execution.DeliveryNode) :=
-    let (current, events) := acc
-    match current.groupNode? group.ref with
-    | none => (current, events)
-    | some node =>
-        if current.rootGroups.contains group.ref then
-          let (next, failure) := current.finishGroupFailure node errors
-          (next, events ++ [failure])
-        else
-          (current.putGroupNode
-            { node with
-                pending := node.pending - 1
-                failure := some (node.failure.getD 0 + errors) }, events)
-  have stepLinked (acc : State × List WorkQueueEvent)
-      (group : Execution.DeliveryNode)
-      (currentLinked : acc.1.RootTaskLinkedOn occurrence refs)
-      : (step acc group).1.RootTaskLinkedOn occurrence refs := by
-    obtain ⟨current, events⟩ := acc
-    dsimp only [step]
-    split
-    · exact currentLinked
-    · rename_i node found
-      split
-      · rw [State.finishGroupFailure, State.groupNode?_ref found]
-        exact currentLinked.removeGroup group.ref
-      · intro target targetMember rootMember refMember
-        obtain ⟨old, oldMember, same⟩ := List.mem_map.mp targetMember
-        split at same
-        · subst target
-          exact currentLinked node (List.mem_of_find?_eq_some found) rootMember refMember
-        · subst target
-          exact currentLinked old oldMember rootMember refMember
-  have foldLinked (groups : List Execution.DeliveryNode) :
-      ∀ acc : State × List WorkQueueEvent,
-        acc.1.RootTaskLinkedOn occurrence refs
-          → (groups.foldl step acc).1.RootTaskLinkedOn occurrence refs := by
-    induction groups with
-    | nil => intro acc currentLinked; exact currentLinked
-    | cons group rest ih =>
-        intro acc currentLinked
-        exact ih (step acc group) (stepLinked acc group currentLinked)
-  unfold State.taskFailure
-  split
-  · exact linked
-  · rename_i taskNode found
-    let current := queue.removeTask failed
-    have currentLinked : current.RootTaskLinkedOn occurrence refs :=
-      (linked.activeRefs.removeOtherTask failed different).ofActiveRefs rfl
-    split <;> try exact currentLinked
-    change (taskNode.task.groups.foldl step (current, [])).1.RootTaskLinkedOn
-      occurrence refs
-    exact foldLinked taskNode.task.groups (current, []) currentLinked
+    (failed : Occurrence) (errors : Nat) (_different : occurrence ≠ failed)
+    : (queue.taskFailure failed errors).1.RootTaskLinkedOn occurrence refs :=
+  linked.taskFailure_preserves failed errors
 
 /-- Failure settlement cannot orphan the root groups that survive it. -/
 theorem State.RootGroupsPresent.taskFailure
     {queue : State} (present : queue.RootGroupsPresent)
     (failed : Occurrence) (errors : Nat)
     : (queue.taskFailure failed errors).1.RootGroupsPresent := by
-  let step (acc : State × List WorkQueueEvent)
-      (group : Execution.DeliveryNode) :=
-    let (current, events) := acc
-    match current.groupNode? group.ref with
-    | none => (current, events)
-    | some node =>
-        if current.rootGroups.contains group.ref then
-          let (next, failure) := current.finishGroupFailure node errors
-          (next, events ++ [failure])
-        else
-          (current.putGroupNode
-            { node with
-                pending := node.pending - 1
-                failure := some (node.failure.getD 0 + errors) }, events)
-  have stepPresent (acc : State × List WorkQueueEvent)
-      (group : Execution.DeliveryNode)
-      (currentPresent : acc.1.RootGroupsPresent)
-      : (step acc group).1.RootGroupsPresent := by
-    obtain ⟨current, events⟩ := acc
-    dsimp only [step]
-    split
-    · exact currentPresent
-    · rename_i node found
-      split
-      · rw [State.finishGroupFailure, State.groupNode?_ref found]
-        exact currentPresent.removeGroup group.ref
-      · intro ref rootMember
-        rw [State.putGroupNode_refs]
-        exact currentPresent ref rootMember
-  have foldPresent (groups : List Execution.DeliveryNode) :
-      ∀ acc : State × List WorkQueueEvent,
-        acc.1.RootGroupsPresent
-          → (groups.foldl step acc).1.RootGroupsPresent := by
-    induction groups with
-    | nil => intro acc currentPresent; exact currentPresent
-    | cons group rest ih =>
-        intro acc currentPresent
-        exact ih (step acc group) (stepPresent acc group currentPresent)
-  unfold State.taskFailure
-  split
-  · exact present
-  · rename_i taskNode found
-    let current := queue.removeTask failed
-    have currentPresent : current.RootGroupsPresent := by
-      simpa [current, State.RootGroupsPresent, State.removeTask, List.map_map]
-        using present
-    split <;> try exact currentPresent
-    change (taskNode.task.groups.foldl step (current, [])).1.RootGroupsPresent
-    exact foldPresent taskNode.task.groups (current, []) currentPresent
+  cases found : queue.taskNode? failed with
+  | none => simpa [State.taskFailure, found] using present
+  | some node =>
+      rw [queue.taskFailure_eq failed errors node found]
+      exact failureGroupFold_preserves State.RootGroupsPresent
+        (fun _ ref prior => prior.removeGroup ref) _ _ _ present
 
-/-- Surviving started nodes were already present and do not name the failed task.
-Witness: the initial task filter followed by deletion-only failure-owner processing.
+/-- A surviving task node retains an old task definition after rejection replacement.
+Witness: failure-owner cleanup only deletes nodes; the preceding update changes the
+selected computation's rejection without changing its task definition.
 -/
 theorem State.taskFailure_startedSurvivor (queue : State)
     (failed : Occurrence) (errors : Nat)
     {taskNode : TaskNode}
     (member : taskNode ∈ (queue.taskFailure failed errors).1.taskNodes)
-    : taskNode ∈ queue.taskNodes ∧ taskNode.task.occurrence ≠ failed := by
-  let step (acc : State × List WorkQueueEvent)
-      (group : Execution.DeliveryNode) :=
-    let (current, events) := acc
-    match current.groupNode? group.ref with
-    | none => (current, events)
-    | some node =>
-        if current.rootGroups.contains group.ref then
-          let (next, failure) := current.finishGroupFailure node errors
-          (next, events ++ [failure])
-        else
-          (current.putGroupNode
-            { node with
-                pending := node.pending - 1
-                failure := some (node.failure.getD 0 + errors) }, events)
-  have stepSubset (acc : State × List WorkQueueEvent)
-      (group : Execution.DeliveryNode)
-      {node : TaskNode} (nodeMember : node ∈ (step acc group).1.taskNodes)
-      : node ∈ acc.1.taskNodes := by
-    obtain ⟨current, events⟩ := acc
-    dsimp only [step] at nodeMember
-    split at nodeMember
-    · exact nodeMember
-    · rename_i groupNode found
-      split at nodeMember
-      · unfold State.finishGroupFailure at nodeMember
-        exact (List.mem_filter.mp nodeMember).1
-      · exact nodeMember
-  have foldSubset (groups : List Execution.DeliveryNode) :
-      ∀ acc : State × List WorkQueueEvent,
-        ∀ {node : TaskNode},
-          node ∈ (groups.foldl step acc).1.taskNodes
-            → node ∈ acc.1.taskNodes := by
-    induction groups with
-    | nil => intro acc node nodeMember; exact nodeMember
-    | cons group rest ih =>
-        intro acc node nodeMember
-        exact stepSubset acc group (ih (step acc group) nodeMember)
-  unfold State.taskFailure at member
-  split at member
-  · rename_i found
-    refine ⟨member, ?_⟩
-    intro same
-    exact (List.find?_eq_none.mp found) taskNode member
-      ((occurrence_beq_iff_eq _ _).mpr same)
-  · rename_i failedNode found
-    have original : taskNode ∈ (queue.removeTask failed).taskNodes := by
-      split at member
-      · exact member
-      · exact foldSubset failedNode.task.groups (queue.removeTask failed, []) member
-    obtain ⟨old, kept⟩ := List.mem_filter.mp original
-    refine ⟨old, ?_⟩
-    intro same
-    have equal := (occurrence_beq_iff_eq _ _).mpr same
-    simp [bne, equal] at kept
+    : ∃ old ∈ queue.taskNodes, old.task = taskNode.task := by
+  cases found : queue.taskNode? failed with
+  | none => exact ⟨taskNode, by simpa [State.taskFailure, found] using member, rfl⟩
+  | some node =>
+      rw [queue.taskFailure_eq failed errors node found] at member
+      have updated := failureGroupFold_taskNodes_subset errors node.task.groups
+        (queue.putTaskNode { node with rejection := some errors }, []) member
+      obtain ⟨old, oldMember, same⟩ := List.mem_map.mp updated
+      split at same
+      · subst taskNode
+        exact ⟨node, List.mem_of_find?_eq_some found, rfl⟩
+      · subst taskNode
+        exact ⟨old, oldMember, rfl⟩
 
-/-- Failure handling starts no new task nodes. Witness: the survivor theorem. -/
+/-- Failure handling introduces no new started task definition. -/
 theorem State.taskFailure_startedSubset (queue : State)
     (failed : Occurrence) (errors : Nat)
     {taskNode : TaskNode}
     (member : taskNode ∈ (queue.taskFailure failed errors).1.taskNodes)
-    : taskNode ∈ queue.taskNodes :=
-  (queue.taskFailure_startedSurvivor failed errors member).1
+    : taskNode.task ∈ queue.taskNodes.map TaskNode.task := by
+  obtain ⟨old, earlier, same⟩ := queue.taskFailure_startedSurvivor failed errors member
+  exact List.mem_map.mpr ⟨old, earlier, same⟩
 
 /-- Registering one task either retains an old started node or appends that
 task's fresh node; group membership updates do not rewrite task nodes.

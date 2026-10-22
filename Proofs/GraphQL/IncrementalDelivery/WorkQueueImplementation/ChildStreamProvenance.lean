@@ -268,10 +268,8 @@ theorem State.ChildStreamsMatchWork.startGroup {queue : State} {work : Execution
   unfold State.startGroup
   split
   · exact matching
-  · split
-    · exact matching
-    · exact fold_preserves (fun queue => queue.ChildStreamsMatchWork work) State.startTask
-        (fun _ occurrence prior => prior.startTask occurrence) _ _ matching
+  · exact fold_preserves (fun queue => queue.ChildStreamsMatchWork work) State.startTask
+      (fun _ occurrence prior => prior.startTask occurrence) _ _ matching
 
 /-- Starting a stream changes only the active stream-ref list.
 Witness: neither branch rewrites task nodes. -/
@@ -311,6 +309,20 @@ theorem State.ChildStreamsMatchWork.finishGroupSuccess {queue : State}
   obtain ⟨_, _, _, _, retained, _⟩ := queue.finishGroupSuccess_publications group
   exact fun node member => matching node (retained member)
 
+/-- Task failure cannot reassign a stream producer.
+Witness: initial task deletion followed by cleanup or task-map-preserving cache updates.
+-/
+theorem State.ChildStreamsMatchWork.taskFailure {queue : State} {work : Execution.Work}
+    (matching : queue.ChildStreamsMatchWork work) (occurrence : Occurrence) (errors : Nat)
+    : (queue.taskFailure occurrence errors).1.ChildStreamsMatchWork work := by
+  cases found : queue.taskNode? occurrence with
+  | none => simpa [State.taskFailure, found] using matching
+  | some task =>
+      rw [queue.taskFailure_eq occurrence errors task found]
+      apply failureGroupFold_preserves (fun current => current.ChildStreamsMatchWork work)
+        (fun _ ref prior => prior.removeGroup ref)
+      exact matching.putTaskNode _ (matching task (List.mem_of_find?_eq_some found))
+
 /-- Recursive draining preserves every surviving child stream's structural producer.
 Witness: successful and failed cleanup retain old task nodes; starts create no child links.
 -/
@@ -321,8 +333,8 @@ theorem State.ChildStreamsMatchWork.drainReadyGroups {queue : State}
     (fun current => current.ChildStreamsMatchWork work) (valid := matching)
   · intro current node prior _ _ _ _
     exact (prior.finishGroupSuccess node).startNewWork _
-  · intro current node errors prior _ _ _
-    exact prior.removeGroup _
+  · intro current node occurrence errors prior _ _ _
+    exact prior.taskFailure occurrence errors
 
 /-- Matched task success attaches streams to their exact structural producer.
 Witness: value replacement preserves old links; matched child lowering justifies new
@@ -354,32 +366,7 @@ theorem State.ChildStreamsMatchWork.taskSuccess {queue : State} {work : Executio
       have processed := fold_preserves (fun acc => acc.1.ChildStreamsMatchWork work)
         successGroupStep step node.task.groups (_, [], {}) integrated
       rw [queue.taskSuccess_eq occurrence result node found]
-      split
-      · exact fun node member => matching node (List.mem_filter.mp member).1
       exact (processed.startNewWork _).drainReadyGroups
-
-/-- Task failure cannot reassign a stream producer.
-Witness: initial task deletion followed by cleanup or task-map-preserving cache updates.
--/
-theorem State.ChildStreamsMatchWork.taskFailure {queue : State} {work : Execution.Work}
-    (matching : queue.ChildStreamsMatchWork work) (occurrence : Occurrence) (errors : Nat)
-    : (queue.taskFailure occurrence errors).1.ChildStreamsMatchWork work := by
-  unfold State.taskFailure
-  split
-  · exact matching
-  · split
-    · exact fun node member => matching node (List.mem_filter.mp member).1
-    apply fold_preserves
-      (fun acc : State × List WorkQueueEvent => acc.1.ChildStreamsMatchWork work)
-    · intro acc group prior
-      obtain ⟨current, events⟩ := acc
-      dsimp only
-      split
-      · exact prior
-      · split
-        · exact prior.removeGroup _
-        · exact prior
-    · exact fun node member => matching node (List.mem_filter.mp member).1
 
 /-- Stream-item child integration does not attach streams to task nodes.
 Witness: each item uses parentless integration; pruning, activation, and draining retain links.

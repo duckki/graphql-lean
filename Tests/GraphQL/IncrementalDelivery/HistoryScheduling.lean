@@ -11,7 +11,8 @@ def left : DeliveryNode := { ref := 0, path := [] }
 def right : DeliveryNode := { ref := 1, path := [] }
 
 def shared : Work :=
-  .executionGroup [{ node := left }, { node := right }] [] (.ok ([], 0)) .empty
+  .executionGroup [{ node := left }, { node := right }] [] ({ result := .ok ([], 0) })
+    .empty
 
 def matching (_ : Nat) : Occurrence := .executionGroup []
 
@@ -224,16 +225,20 @@ example
   ⟨nextClosure left (by simp), nextClosure right (by simp)⟩
 
 def stream : DeliveryNode := { ref := 2, path := [.field "items"] }
-def items : Work := .stream stream [(.ok (.null, 0), .empty), (.ok (.null, 0), .empty)]
+
+def items : Work :=
+  .stream stream
+    [({ result := .ok (.null, 0) }, .empty), ({ result := .ok (.null, 0) }, .empty)]
+
 def itemMatching (index : Nat) : Occurrence := .item [] index
 def itemValue : WorkQueueEvent := .streamValues stream [{ item := .null }] [] []
 
 /-- Equal values at different list positions are distinct licensed work occurrences. -/
 example : TaskAt items (.item [] 0) [2] none (.item stream (.ok (.null, 0))) :=
-  .item .root rfl
+  .item (result := { result := .ok (.null, 0) }) .root rfl
 
 example : TaskAt items (.item [] 1) [2] none (.item stream (.ok (.null, 0))) :=
-  .item .root rfl
+  .item (result := { result := .ok (.null, 0) }) .root rfl
 
 example : (Occurrence.item [] 0) ≠ .item [] 1 := by decide
 
@@ -262,8 +267,8 @@ example (work : Work) (history : History) : ¬AdmissibleNext work history [] :=
   fun next => next.2.2.1 rfl
 
 def nested : Work :=
-  .executionGroup [{ node := left }] [] (.error 2)
-    (.executionGroup [{ node := right }] [] (.ok ([], 0)) .empty)
+  .executionGroup [{ node := left }] [] ({ result := .error 2 })
+    (.executionGroup [{ node := right }] [] ({ result := .ok ([], 0) }) .empty)
 
 /-- A nested occurrence retains its producer directly through structural navigation. -/
 example
@@ -292,9 +297,9 @@ example
   simp [Published] at parent
 
 def cancelledDescendant : Work :=
-  .executionGroup [{ node := left }] [] (.error 2)
-    (.executionGroup [{ node := right }] [] (.ok ([], 0))
-      (.executionGroup [{ node := stream }] [] (.ok ([], 0)) .empty))
+  .executionGroup [{ node := left }] [] ({ result := .error 2 })
+    (.executionGroup [{ node := right }] [] ({ result := .ok ([], 0) })
+      (.executionGroup [{ node := stream }] [] ({ result := .ok ([], 0) }) .empty))
 
 /-- Cancellation propagates through a cancelled producer, not only a failing producer. -/
 example
@@ -342,9 +347,9 @@ def nestedNode : DeliveryNode := { ref := 7, path := [.field "nested"] }
 
 /-- Repeated refs have different metadata and producers in permissive raw work. -/
 def repeated : Work :=
-  .combine (.executionGroup [{ node := rootNode }] [] (.ok ([], 0)) .empty)
-    (.executionGroup [{ node := right }] [] (.ok ([], 0))
-      (.stream nestedNode [(.ok (.null, 0), .empty)]))
+  .combine (.executionGroup [{ node := rootNode }] [] ({ result := .ok ([], 0) }) .empty)
+    (.executionGroup [{ node := right }] [] ({ result := .ok ([], 0) })
+      (.stream nestedNode [({ result := .ok (.null, 0) }, .empty)]))
 
 /-- Invalid append edges, defer edges, and stream indices have no location. -/
 example
@@ -362,7 +367,7 @@ example : locateWork repeated [1, 0, 0] = some ⟨.empty, some (.item [1, 0] 0),
 example
     : TaskAt repeated (.item [1, 0] 0) [7] (some (.executionGroup [1]))
         (.item nestedNode (.ok (.null, 0))) :=
-  .item (.executionGroup (.right .root)) rfl
+  .item (result := { result := .ok (.null, 0) }) (.executionGroup (.right .root)) rfl
 
 /-- Both descriptors survive: lookup does not select one representative of a shared ref.
 -/

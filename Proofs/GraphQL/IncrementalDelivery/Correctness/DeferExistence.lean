@@ -72,6 +72,27 @@ theorem DeferOnly.supportedNoticesCovered_iff
 -- Existing defer-only interfaces reuse mixed progress
 -----------------------------------------------------------------------------------------
 
+private theorem constant_defer_noStreams (work : Work)
+    (roles : RefRoles.WorkRoles (fun _ => false) work)
+    : streamAllocationRefs work = [] := by
+  cases work with
+  | empty => simp [streamAllocationRefs]
+  | combine left right =>
+      rw [RefRoles.WorkRoles] at roles
+      rw [streamAllocationRefs, constant_defer_noStreams left roles.1,
+        constant_defer_noStreams right roles.2]
+      rfl
+  | executionGroup groups path result children =>
+      rw [RefRoles.WorkRoles] at roles
+      simpa only [streamAllocationRefs] using constant_defer_noStreams children roles.2
+  | stream node items => simp [RefRoles.WorkRoles] at roles
+termination_by sizeOf work
+
+/-- Defer-only work has no stream allocations, including hidden item regions. -/
+theorem DeferOnly.streamRefs_empty {work} (shape : DeferOnly work)
+    : streamAllocationRefs work = [] :=
+  constant_defer_noStreams work shape.roles
+
 /-- A ready announced defer task extends a healthy-notice-covering history.
 Witness: specialize mixed supported extension without an explicit role assignment.
 -/
@@ -82,6 +103,7 @@ theorem DeferOnly.extend_ready_covered
     (refs : MixedRefs.WorkAt ancestry 0 refBound work)
     (continuous : DeferContinuous ancestry work) (ordered : StreamOwnersOrdered work)
     (coherent : MixedOwnerPaths.WorkAt paths bound work)
+    (positive : ExecutionErrors.WorkPositive work)
     (explained : Explains work groups streams events matching failures)
     (covered
       : HealthyNoticesCovered work ((groups ++ streams).map DeliveryNode.ref) matching
@@ -97,7 +119,7 @@ theorem DeferOnly.extend_ready_covered
         ∧ HealthyNoticesCovered work ((groups ++ streams).map DeliveryNode.ref) next
             (events ++ [event]) cuts := by
   obtain ⟨event, next, cuts, extended, retained⟩ :=
-    extend_ready_supported valid refs shape.roles continuous ordered coherent explained
+    extend_ready_supported valid refs shape.roles continuous ordered coherent positive explained
       (shape.supportedNoticesCovered_iff.mpr covered) known ready announced
   exact ⟨event, next, cuts, extended, shape.supportedNoticesCovered_iff.mp retained⟩
 
@@ -115,6 +137,7 @@ theorem DeferOnly.completeRun_exists {parents bound base paths pathBound work}
     (positive : ExecutionErrors.WorkPositive work) (nonempty : work.size ≠ 0)
     : ∃ history, AdmissibleRun work history :=
   mixed_completeRun_exists valid coherent shape.roles continuous ordered pathCoherent
-    under certified positive nonempty
+    under certified positive (by rw [shape.streamRefs_empty]; exact List.nodup_nil)
+    nonempty
 
 end GraphQL.IncrementalDelivery.Correctness

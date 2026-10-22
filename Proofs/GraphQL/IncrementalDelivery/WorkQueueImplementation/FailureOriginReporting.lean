@@ -40,9 +40,6 @@ theorem terminal_acceptedFailure_reportsRecords
     (ended : ((initialQueue work).runNormalized inputs).1.terminated = true)
     (found
       : ((initialQueue work).replayGraphEvents before).taskNode? occurrence = some task)
-    (accepted
-      : ((initialQueue work).replayGraphEvents before).taskHasHealthyOwner task.task
-        = true)
     (earlier
       : ∀ node dependencies,
           GroupRecordAt work node dependencies
@@ -102,7 +99,7 @@ theorem terminal_acceptedFailure_reportsRecords
           · exact earlier group ancestors (groupRecordAt_of_nodeAt ownerKnown)
               prior.toRecordInvalidated
           · exact terminal_acceptedHealthyOwner_reported generated valid started history
-              splitInputs ended (groupRecordAt_of_nodeAt ownerKnown) found accepted
+              splitInputs ended (groupRecordAt_of_nodeAt ownerKnown) found
               actualContributes prior
         exact reported.inherit_chain generated (groupRecordAt_of_nodeAt ownerKnown) known
           (sameRef.symm ▸ inChain)

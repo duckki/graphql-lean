@@ -413,7 +413,7 @@ private theorem lateKnown
         (some (.executionGroup [1, 0]))
         (.object [.field "box"] (.ok ([("dummy", .scalar "ok")], 0))) := by
   refine ⟨[{ node := SharedOwnerFailure.groupH }], [.field "box"],
-    .ok ([("dummy", .scalar "ok")], 0), .combine .empty .empty, [0, 1], ?_, rfl, rfl⟩
+    { result := .ok ([("dummy", .scalar "ok")], 0) }, .combine .empty .empty, [0, 1], ?_, rfl, rfl⟩
   rw [SharedOwnerFailure.work_shape]
   rfl
 

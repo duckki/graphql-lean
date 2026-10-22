@@ -8,7 +8,7 @@ can receive premature items before its owner flushes. Erasing those items change
 namespace AlternativePrematureStreamChecks
 
 open GraphQL.IncrementalDelivery
-open Execution (DeliveryNode Result ResponseValue)
+open Execution (DeliveryNode Result ResponseValue TaskOutcome)
 open AlternativeWorkQueue.NativeRefinement.BufferedCallbacks
 open ReferenceWorkQueue (GraphEvent StreamItem)
 open WorkQueueSemantics
@@ -21,11 +21,11 @@ private def producer : Occurrence := .executionGroup [1, 0]
 private def blocker : Occurrence := .executionGroup [1, 1, 0]
 private def address : Address := [1, 0, 0, 0, 1]
 
-private def entries : List (Result ResponseValue × Execution.Work) :=
+private def entries : List (TaskOutcome ResponseValue × Execution.Work) :=
   [
-    (.ok (.scalar "x", 0), .empty),
-    (.ok (.null, 0), .empty),
-    (.ok (.scalar "z", 0), .empty)
+    ({ result := .ok (.scalar "x", 0) }, .empty),
+    ({ result := .ok (.null, 0) }, .empty),
+    ({ result := .ok (.scalar "z", 0) }, .empty)
   ]
 
 private def children : Execution.Work :=
@@ -35,13 +35,14 @@ private def work : Execution.Work :=
   .combine .empty
     (.combine
       (.executionGroup [{ node := group }, ⟨child, [parent]⟩] []
-        (.ok ([("values", .list [])], 0)) children)
+        ({ result := .ok ([("values", .list [])], 0) }) children)
       (.combine
-        (.executionGroup [{ node := group }] [] (.ok ([("b", .scalar "b")], 0))
-          (.combine .empty .empty))
+        (.executionGroup [{ node := group }] []
+          ({ result := .ok ([("b", .scalar "b")], 0) }) (.combine .empty .empty))
         (.combine
-          (.executionGroup [{ node := parent }] [] (.ok ([("c", .scalar "c")], 0))
-            (.combine .empty .empty)) .empty)))
+          (.executionGroup [{ node := parent }] []
+            ({ result := .ok ([("c", .scalar "c")], 0) }) (.combine .empty .empty))
+          .empty)))
 
 private theorem generated : ReferenceWorkQueue.ExecutedWork work := by
   refine ⟨Nat, Tests.schema, Tests.resolvers, [], 50, "Query", .object "Query" 0,
@@ -92,12 +93,32 @@ private theorem stream_known
 private theorem first_known
     : TaskAt work first.occurrence [stream.ref] (some producer)
         (.item stream (.ok (.scalar "x", 0))) :=
-  ⟨stream, entries, [0, 2], _, .empty, stream_known, rfl, rfl, rfl⟩
+  ⟨
+    stream,
+    entries,
+    [0, 2],
+    { result := .ok (.scalar "x", 0) },
+    .empty,
+    stream_known,
+    rfl,
+    rfl,
+    rfl
+  ⟩
 
 private theorem second_known
     : TaskAt work second.occurrence [stream.ref] (some producer)
         (.item stream (.ok (.null, 0))) :=
-  ⟨stream, entries, [0, 2], _, .empty, stream_known, rfl, rfl, rfl⟩
+  ⟨
+    stream,
+    entries,
+    [0, 2],
+    { result := .ok (.null, 0) },
+    .empty,
+    stream_known,
+    rfl,
+    rfl,
+    rfl
+  ⟩
 
 private theorem raw_valid : ReferenceWorkQueue.ValidGraphEvents work raw.flatten := by
   have one : ReferenceWorkQueue.ValidGraphEvents work [produced] :=

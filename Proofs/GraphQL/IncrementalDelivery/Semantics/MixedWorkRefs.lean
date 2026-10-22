@@ -123,7 +123,7 @@ theorem workAt_nonNull (parents : Assignment) (lower bound : Nat)
 
 theorem deferred_workAt (parents : Assignment) (lower bound : Nat) (deferMap : DeferMap)
     (refs : List Nat) (path : ResponsePath)
-    (result : Result (List (Name × ResponseValue))) (children : Work)
+    (result : TaskOutcome (List (Name × ResponseValue))) (children : Work)
     (hm : MapAt parents bound deferMap) (hl : MapLower lower deferMap) (hne : refs ≠ [])
     (hk : refs.Subset (mapRefs deferMap)) (hc : WorkAt parents lower bound children)
     : WorkAt parents lower bound
@@ -168,17 +168,17 @@ inductive TaskRef (ref : NodeRef) : Work → Prop where
   | combine_right {left right : Work}
     : TaskRef ref right → TaskRef ref (.combine left right)
   | deferred_here {groups : List DeferredFragment} {path : ResponsePath}
-    {result : Result (List (Name × ResponseValue))} {children : Work}
+    {result : TaskOutcome (List (Name × ResponseValue))} {children : Work}
     {group : DeferredFragment}
     : group ∈ groups → group.node.ref = ref
       → TaskRef ref (.executionGroup groups path result children)
   | deferred_child {groups : List DeferredFragment} {path : ResponsePath}
-    {result : Result (List (Name × ResponseValue))} {children : Work}
+    {result : TaskOutcome (List (Name × ResponseValue))} {children : Work}
     : TaskRef ref children → TaskRef ref (.executionGroup groups path result children)
-  | stream_here {node : DeliveryNode} {items : List (Result ResponseValue × Work)}
+  | stream_here {node : DeliveryNode} {items : List (TaskOutcome ResponseValue × Work)}
     : node.ref = ref → TaskRef ref (.stream node items)
-  | stream_child {node : DeliveryNode} {items : List (Result ResponseValue × Work)}
-    {item : Result ResponseValue × Work}
+  | stream_child {node : DeliveryNode} {items : List (TaskOutcome ResponseValue × Work)}
+    {item : TaskOutcome ResponseValue × Work}
     : item ∈ items → TaskRef ref item.2 → TaskRef ref (.stream node items)
 
 theorem WorkAt.ref_bounds {parents : Assignment} {lower bound : Nat} {ref : NodeRef}
@@ -204,9 +204,9 @@ theorem WorkAt.ref_bounds {parents : Assignment} {lower bound : Nat} {ref : Node
       exact ⟨Nat.le_trans h.1 (Nat.le_trans (Nat.le_succ _) hh.1), hh.2⟩
 
 theorem WorkAt.stream_child_fresh {parents : Assignment} {lower bound : Nat}
-    {node : DeliveryNode} {items : List (Result ResponseValue × Work)}
+    {node : DeliveryNode} {items : List (TaskOutcome ResponseValue × Work)}
     (h : WorkAt parents lower bound (.stream node items))
-    {item : Result ResponseValue × Work} (hi : item ∈ items) {ref : NodeRef}
+    {item : TaskOutcome ResponseValue × Work} (hi : item ∈ items) {ref : NodeRef}
     (hk : TaskRef ref item.2)
     : node.ref < ref := by
   rw [WorkAt] at h
@@ -214,7 +214,7 @@ theorem WorkAt.stream_child_fresh {parents : Assignment} {lower bound : Nat}
 
 theorem WorkAt.fragment_ancestors_ordered {parents : Assignment} {lower bound : Nat}
     {groups : List DeferredFragment} {path : ResponsePath}
-    {result : Result (List (Name × ResponseValue))} {children : Work}
+    {result : TaskOutcome (List (Name × ResponseValue))} {children : Work}
     (h : WorkAt parents lower bound (.executionGroup groups path result children))
     (hv : Valid parents bound) {group : DeferredFragment} (hg : group ∈ groups)
     {ancestor : DeliveryNode} (ha : ancestor ∈ group.ancestors)

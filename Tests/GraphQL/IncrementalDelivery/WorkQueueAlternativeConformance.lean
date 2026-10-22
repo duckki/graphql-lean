@@ -76,7 +76,7 @@ example (sources : Work → EventSource (List GraphEvent)) (schema : Schema)
 private def stream : Execution.DeliveryNode := { ref := 0, path := [] }
 
 private def pending : State :=
-  State.initialize (.stream stream [(.ok (.scalar "I", 0), .empty)])
+  State.initialize (.stream stream [({ result := .ok (.scalar "I", 0) }, .empty)])
 
 private def cancelled : State := pending.cancel.1
 

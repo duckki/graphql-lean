@@ -123,7 +123,7 @@ theorem mixed_groupPublicationCertificates_with_noticeSafety {work inputs}
             let publisher : IncrementalPublisher :=
               { active := queue.initialGroups ++ queue.initialStreams }
             let objects :=
-              sourceObjectFailureCuts 0
+              informativeObjectFailureCuts work
                 (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher inputs).2.2)
             ∃ streams,
               StreamFailureCuts work
@@ -179,7 +179,7 @@ theorem mixed_groupPublicationCertificates_with_cuts {work inputs}
             let publisher : IncrementalPublisher :=
               { active := queue.initialGroups ++ queue.initialStreams }
             let objects :=
-              sourceObjectFailureCuts 0
+              informativeObjectFailureCuts work
                 (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher inputs).2.2)
             ∃ streams,
               StreamFailureCuts work

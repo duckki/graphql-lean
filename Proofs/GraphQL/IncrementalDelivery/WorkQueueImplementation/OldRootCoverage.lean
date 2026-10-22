@@ -84,33 +84,27 @@ private theorem CoverageFrame.oldRootCoverage {queue : State} {work parents targ
       cases found : queue.taskNode? occurrence with
       | none => simpa [State.handleGraphEvent, State.taskSuccess, found] using covered
       | some node =>
-          cases healthy : queue.taskHasHealthyOwner node.task with
-          | false =>
-              obtain ⟨root, active, path⟩ := covered
-              simpa [State.handleGraphEvent, State.taskSuccess, found, healthy]
-                using Exists.intro root (And.intro active (path.removeTask occurrence))
-          | true =>
-              let stored := queue.putTaskNode { node with value := some result.value }
-              have refs : stored.GroupRefsUnique := frame.refs
-              have children : stored.ChildGroupsUnique := frame.children
-              have links : stored.ChildLinksCanonical parents := frame.links
-              have records : stored.GroupNodesMatchWork work := frame.records
-              obtain ⟨root, active, path⟩ := covered
-              apply State.taskSuccess_integrated_root_coverage frame.refs found healthy result
-              · exact State.RemovalForest.of_generated generated
-                  (children.maybeIntegrateWork result.work (some occurrence))
-                  (links.maybeIntegrateWork result.work
-                    (fun _ member => matching.taskChildGroups_parentCanonical canonical member)
-                    (some occurrence))
-                  (records.maybeIntegrateWork result.work
-                    (fun _ member => matching.taskChildGroups_recordAt member)
-                    (some occurrence)) canonical
-              · refine ⟨root, ?_, ?_⟩
-                · rwa [State.maybeIntegrateWork_rootGroups]
-                · exact (State.LiveDescendant.of_groupNodes_eq (queue := queue) (next := stored)
-                    rfl path).maybeIntegrateWork refs
-                    result.work (some occurrence)
-              · exact survives
+          let stored := queue.putTaskNode { node with value := some result.value }
+          have refs : stored.GroupRefsUnique := frame.refs
+          have children : stored.ChildGroupsUnique := frame.children
+          have links : stored.ChildLinksCanonical parents := frame.links
+          have records : stored.GroupNodesMatchWork work := frame.records
+          obtain ⟨root, active, path⟩ := covered
+          apply State.taskSuccess_integrated_root_coverage frame.refs found result
+          · exact State.RemovalForest.of_generated generated
+              (children.maybeIntegrateWork result.work (some occurrence))
+              (links.maybeIntegrateWork result.work
+                (fun _ member => matching.taskChildGroups_parentCanonical canonical member)
+                (some occurrence))
+              (records.maybeIntegrateWork result.work
+                (fun _ member => matching.taskChildGroups_recordAt member)
+                (some occurrence)) canonical
+          · refine ⟨root, ?_, ?_⟩
+            · rwa [State.maybeIntegrateWork_rootGroups]
+            · exact (State.LiveDescendant.of_groupNodes_eq (queue := queue) (next := stored)
+                rfl path).maybeIntegrateWork refs
+                result.work (some occurrence)
+          · exact survives
   | taskFailure occurrence errors =>
       exact State.taskFailure_root_coverage frame.refs forest occurrence errors covered survives
   | streamItems stream items =>

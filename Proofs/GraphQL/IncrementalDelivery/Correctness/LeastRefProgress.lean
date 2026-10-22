@@ -107,8 +107,7 @@ theorem maximal_dependency_satisfied {work groups streams events matching failur
       · obtain ⟨birth, node, kind, parents, descriptor, same⟩ := supported
         obtain ⟨event, permitted, _, _, _⟩ := completion_exists descriptor
           (same ▸ And.intro notified closed) (same ▸ accounted)
-          (by simpa only [explained.2.1.failedBefore_eq (Nat.le_refl _)]
-            using explained.2.1.known)
+          (fun failed => (healthy (same ▸ failed)).elim)
         exact False.elim (maximal event matching failures (explained.append_event permitted))
     · exact Or.inr (Or.inr ⟨notified, accounted⟩)
   · exact Or.inl supported
@@ -187,6 +186,7 @@ theorem maximal_outstanding_eligible
     (valid : Valid parents bound) (coherent : MixedRefs.WorkAt parents 0 bound work)
     (continuous : DeferContinuous parents work) (ordered : StreamOwnersOrdered work)
     (pathCoherent : MixedOwnerPaths.WorkAt paths pathBound work)
+    (positive : ExecutionErrors.WorkPositive work)
     (explained : Explains work groups streams events matching failures)
     (maximal
       : ∀ event next cuts, ¬Explains work groups streams (events ++ [event]) next cuts)
@@ -201,7 +201,7 @@ theorem maximal_outstanding_eligible
       explained known outstanding
   have unannounced : ref ∉ announcedRefs ((groups ++ streams).map DeliveryNode.ref) events := by
     intro notified
-    obtain ⟨event, nextMatching, cuts, extended⟩ := extend_ready_announced pathCoherent
+    obtain ⟨event, nextMatching, cuts, extended⟩ := extend_ready_announced pathCoherent positive
       explained task ready ⟨ref, member, notified, healthy⟩
     exact maximal event nextMatching cuts extended
   obtain ⟨node, kind, dependencies, descriptor, same⟩ := task.owner_at_producer member
@@ -223,7 +223,11 @@ theorem maximal_no_eligible_accounted_and_closed
     (valid : Valid parents bound) (coherent : MixedRefs.WorkAt parents 0 bound work)
     (continuous : DeferContinuous parents work) (ordered : StreamOwnersOrdered work)
     (pathCoherent : MixedOwnerPaths.WorkAt paths pathBound work)
+    (positive : ExecutionErrors.WorkPositive work)
     (explained : Explains work groups streams events matching failures)
+    (supported
+      : OpenFailureCauses work ((groups ++ streams).map DeliveryNode.ref)
+          matching events failures)
     (maximal
       : ∀ event next cuts, ¬Explains work groups streams (events ++ [event]) next cuts)
     (noticesCovered
@@ -247,7 +251,7 @@ theorem maximal_no_eligible_accounted_and_closed
     apply Classical.byContradiction
     intro outstanding
     obtain ⟨node, kind, dependencies, birth, descriptor, eligible⟩ :=
-      maximal_outstanding_eligible valid coherent continuous ordered pathCoherent explained
+      maximal_outstanding_eligible valid coherent continuous ordered pathCoherent positive explained
         maximal known outstanding
     exact noticesCovered node kind dependencies birth descriptor eligible
   refine ⟨accounted, ?_⟩
@@ -262,8 +266,7 @@ theorem maximal_no_eligible_accounted_and_closed
     intro announced
     obtain ⟨event, allowed, _, _, _⟩ := completion_exists descriptor
       ⟨announced, closed⟩ nodeAccounted
-      (by simpa only [explained.2.1.failedBefore_eq (Nat.le_refl _)]
-        using explained.2.1.known)
+      (supported node.ref ⟨announced, closed⟩)
     exact maximal event matching failures (explained.append_event allowed)
 
 end GraphQL.IncrementalDelivery.Correctness

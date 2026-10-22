@@ -63,14 +63,15 @@ private def selections : List Selection :=
 private def work : Execution.Work :=
   .combine .empty
     (.combine
-      (.executionGroup [⟨root, []⟩, ⟨silent, [parent]⟩] [] (.ok (value.data, 0))
-        (.combine .empty .empty))
+      (.executionGroup [⟨root, []⟩, ⟨silent, [parent]⟩] []
+        ({ result := .ok (value.data, 0) }) (.combine .empty .empty))
       (.combine
-        (.executionGroup [⟨root, []⟩, ⟨parent, []⟩] [] (.ok (lastValue.data, 0))
-          (.combine .empty .empty))
+        (.executionGroup [⟨root, []⟩, ⟨parent, []⟩] []
+          ({ result := .ok (lastValue.data, 0) }) (.combine .empty .empty))
         (.combine
-          (.executionGroup [⟨child, [silent, parent]⟩] [] (.ok ([("c", .scalar "c")], 0))
-            (.combine .empty .empty)) .empty)))
+          (.executionGroup [⟨child, [silent, parent]⟩] []
+            ({ result := .ok ([("c", .scalar "c")], 0) }) (.combine .empty .empty))
+          .empty)))
 
 private def initial : State := State.initialize (Work.fromExecution work)
 
@@ -85,14 +86,16 @@ private theorem generated : ExecutedWork work :=
 private theorem known
     : TaskAt work occurrence [root.ref, silent.ref] none
         (.object [] (.ok (value.data, 0))) :=
-  .executionGroup (groups := [⟨root, []⟩, ⟨silent, [parent]⟩])
-    (children := .combine .empty .empty) (owners := []) (by cbv)
+  .executionGroup (result := { result := .ok (value.data, 0) })
+    (groups := [⟨root, []⟩, ⟨silent, [parent]⟩]) (children := .combine .empty .empty)
+    (owners := []) (by cbv)
 
 private theorem lastKnown
     : TaskAt work lastOccurrence [root.ref, parent.ref] none
         (.object [] (.ok (lastValue.data, 0))) :=
-  .executionGroup (groups := [⟨root, []⟩, ⟨parent, []⟩])
-    (children := .combine .empty .empty) (owners := []) (by cbv)
+  .executionGroup (result := { result := .ok (lastValue.data, 0) })
+    (groups := [⟨root, []⟩, ⟨parent, []⟩]) (children := .combine .empty .empty)
+    (owners := []) (by cbv)
 
 private theorem matched : event.MatchesWork work := ⟨_, _, lastKnown, by cbv, by cbv⟩
 
@@ -167,7 +170,7 @@ theorem parent_completed_by_child_carrier
   have childKnown : NodeAt work child .group [silent.ref, parent.ref] none :=
     .group (work := work) (producer := none) (group := ⟨child, [silent, parent]⟩)
       (address := [1, 1, 1, 0]) (groups := [⟨child, [silent, parent]⟩])
-      (path := []) (result := .ok ([("c", .scalar "c")], 0))
+      (path := []) (result := { result := .ok ([("c", .scalar "c")], 0) })
       (children := .combine .empty .empty) (owners := []) (by cbv) List.mem_cons_self
   have closed := generated.ownerNoticeAncestor_completed firstMatches matched
     (groupRecordAt_of_nodeAt childKnown)
@@ -222,7 +225,7 @@ theorem silent_ancestor_published_before_notice
   obtain ⟨published, batches, matching, _⟩ := ledger
   have covered := batches.flatten (by rw [← inputsStarted_eq_batchesStarted]; cbv)
   have ownerPrefixes := covered.atPrefixDrainOwners [first] event []
-  have certificates := ownerPrefixes incoming (by cbv) (by cbv)
+  have certificates := ownerPrefixes incoming (by cbv)
   obtain ⟨parents, canonical, records, links, live, tasks, roots, _⟩ :=
     generated.replayGraphEvents_preparedRetirement [first]
       (by intro source member; obtain rfl := List.mem_singleton.mp member;
@@ -230,7 +233,7 @@ theorem silent_ancestor_published_before_notice
   have childKnown : NodeAt work child .group [silent.ref, parent.ref] none :=
     .group (work := work) (producer := none) (group := ⟨child, [silent, parent]⟩)
       (address := [1, 1, 1, 0]) (groups := [⟨child, [silent, parent]⟩])
-      (path := []) (result := .ok ([("c", .scalar "c")], 0))
+      (path := []) (result := { result := .ok ([("c", .scalar "c")], 0) })
       (children := .combine .empty .empty) (owners := []) (by cbv) List.mem_cons_self
   have emitted := certificates.ownerCarrier_ancestorValue generated records links canonical
     live tasks roots (index := 2) (group := parent) (groups := [child]) (streams := [])
@@ -269,7 +272,7 @@ theorem silent_ancestor_healthy
   have childKnown : NodeAt work child .group [silent.ref, parent.ref] none :=
     .group (work := work) (producer := none) (group := ⟨child, [silent, parent]⟩)
       (address := [1, 1, 1, 0]) (groups := [⟨child, [silent, parent]⟩])
-      (path := []) (result := .ok ([("c", .scalar "c")], 0))
+      (path := []) (result := { result := .ok ([("c", .scalar "c")], 0) })
       (children := .combine .empty .empty) (owners := []) (by cbv) List.mem_cons_self
   apply generated.noticeAncestor_healthy_uncancelled
     (before := [first])
@@ -294,7 +297,7 @@ theorem silent_ancestor_contributor_succeeded
   have childKnown : NodeAt work child .group [silent.ref, parent.ref] none :=
     .group (work := work) (producer := none) (group := ⟨child, [silent, parent]⟩)
       (address := [1, 1, 1, 0]) (groups := [⟨child, [silent, parent]⟩])
-      (path := []) (result := .ok ([("c", .scalar "c")], 0))
+      (path := []) (result := { result := .ok ([("c", .scalar "c")], 0) })
       (children := .combine .empty .empty) (owners := []) (by cbv) List.mem_cons_self
   exact generated.noticeAncestor_structuralContributor_succeeded
     (before := [first])
@@ -331,7 +334,7 @@ theorem all_ancestor_contributors_before_notice
   have childKnown : NodeAt work child .group [silent.ref, parent.ref] none :=
     .group (work := work) (producer := none) (group := ⟨child, [silent, parent]⟩)
       (address := [1, 1, 1, 0]) (groups := [⟨child, [silent, parent]⟩])
-      (path := []) (result := .ok ([("c", .scalar "c")], 0))
+      (path := []) (result := { result := .ok ([("c", .scalar "c")], 0) })
       (children := .combine .empty .empty) (owners := []) (by cbv) List.mem_cons_self
   have selected : ((initial.replayGraphEvents [first]).handleGraphEvent event).2[2]?
       = some (.groupSuccess parent [child] []) := by rw [silent_ancestor_carrier.1]; rfl
@@ -368,7 +371,7 @@ theorem notice_ancestors_accounted_on_common_witness
   have childKnown : NodeAt work child .group [silent.ref, parent.ref] none :=
     .group (work := work) (producer := none) (group := ⟨child, [silent, parent]⟩)
       (address := [1, 1, 1, 0]) (groups := [⟨child, [silent, parent]⟩])
-      (path := []) (result := .ok ([("c", .scalar "c")], 0))
+      (path := []) (result := { result := .ok ([("c", .scalar "c")], 0) })
       (children := .combine .empty .empty) (owners := []) (by cbv) List.mem_cons_self
   have selected : w.events[3]? = some (.groupSuccess parent [child] []) := by rw [history]; cbv
   refine ⟨w, admitted, selected, ?_⟩
@@ -395,7 +398,7 @@ theorem notice_ancestors_ready_at_carrier
   have childKnown : NodeAt work child .group [silent.ref, parent.ref] none :=
     .group (work := work) (producer := none) (group := ⟨child, [silent, parent]⟩)
       (address := [1, 1, 1, 0]) (groups := [⟨child, [silent, parent]⟩])
-      (path := []) (result := .ok ([("c", .scalar "c")], 0))
+      (path := []) (result := { result := .ok ([("c", .scalar "c")], 0) })
       (children := .combine .empty .empty) (owners := []) (by cbv) List.mem_cons_self
   have selected : w.events[3]? = some (.groupSuccess parent [child] []) := by rw [history]; cbv
   exact ⟨

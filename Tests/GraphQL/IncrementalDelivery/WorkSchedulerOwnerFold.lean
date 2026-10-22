@@ -30,10 +30,10 @@ private def work : Execution.Work :=
   .combine .empty
     (.combine
       (.executionGroup [⟨firstOwner, []⟩, ⟨lastOwner, []⟩] []
-        (.ok (sharedValue.data, 0)) (.combine .empty .empty))
+        ({ result := .ok (sharedValue.data, 0) }) (.combine .empty .empty))
       (.combine
         (.executionGroup [⟨lastOwner, []⟩] []
-          (.ok (lastValue.data, 0)) (.combine .empty .empty))
+          ({ result := .ok (lastValue.data, 0) }) (.combine .empty .empty))
         .empty))
 
 private def first : GraphEvent := .taskSuccess lastTask ⟨lastValue, {}⟩
@@ -186,7 +186,7 @@ theorem shared_owner_intermediate_exclusion
         createWorkQueue_taskSuccess_ownerCarrierMemberships
         (before := [first]) (after := []) (incoming := incoming)
         (index := 1) (group := firstOwner) (groups := []) (streams := [])
-        covered source (by cbv) (by cbv) (by cbv)
+        covered source (by cbv) (by cbv)
       have zero : steps = 0 := by
         cases steps with
         | zero => rfl

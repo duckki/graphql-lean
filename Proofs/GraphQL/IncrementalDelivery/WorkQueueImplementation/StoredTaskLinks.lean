@@ -1,3 +1,4 @@
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.CachedErrorAccumulation
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.DrainValueCoverage
 
 /-! Buffered values retain memberships through activation and mixed recursive draining. -/
@@ -95,14 +96,12 @@ theorem State.StoredTaskLinks.startGroup {queue : State} (linked : queue.StoredT
   unfold State.startGroup
   split
   · exact linked
-  · split
-    · exact linked
-    · have loop (tasks : List Occurrence) (current : State) (prior : current.StoredTaskLinks)
-          : (tasks.foldl State.startTask current).StoredTaskLinks := by
-        induction tasks generalizing current with
-        | nil => exact prior
-        | cons task rest ih => exact ih _ (prior.startTask task)
-      exact loop _ queue linked
+  · have loop (tasks : List Occurrence) (current : State) (prior : current.StoredTaskLinks)
+        : (tasks.foldl State.startTask current).StoredTaskLinks := by
+      induction tasks generalizing current with
+      | nil => exact prior
+      | cons task rest ih => exact ih _ (prior.startTask task)
+    exact loop _ queue linked
 
 /-- Starting a stream leaves both membership maps unchanged. Witness: branch reduction.
 -/
@@ -164,6 +163,16 @@ theorem State.StoredTaskLinks.finishGroupSuccess {queue : State}
     exact flushedLinks node member stored owner (List.mem_filter.mp live).1 contributes
   exact currentLinks.pruneEmptyGroups _
 
+/-- Rejection changes only computation errors and removes owner subtrees. -/
+theorem State.StoredTaskLinks.taskFailure {queue : State} (linked : queue.StoredTaskLinks)
+    (occurrence : Occurrence) (errors : Nat)
+    : (queue.taskFailure occurrence errors).1.StoredTaskLinks := by
+  intro node member value
+  rcases queue.taskFailure_startedOldOrRejected occurrence errors member with old | updated
+  · exact (linked node old value).taskFailure_preserves occurrence errors
+  · obtain ⟨old, oldMember, rfl⟩ := updated
+    exact (linked old oldMember value).taskFailure_preserves occurrence errors
+
 /-- Every bounded mixed drain prefix retains buffered links from its input state.
 Witness: induction over actual cached failures and successful flush/activation steps.
 Later coverage can therefore use the actual closure boundary without assuming its links.
@@ -179,9 +188,11 @@ theorem State.StoredTaskLinks.drainReadyGroups_go {queue : State}
       split
       · exact linked
       · rename_i group selected
-        cases cached : group.failure with
+        cases cached : queue.rejectedTask? group with
         | none => exact ih ((linked.finishGroupSuccess group).startNewWork _)
-        | some errors => exact ih (linked.removeGroup group.group.node.ref)
+        | some rejected =>
+            obtain ⟨occurrence, errors⟩ := rejected
+            exact ih (linked.taskFailure occurrence errors)
 
 /-- The full implementation drain preserves buffered memberships.
 Witness: specialize the bounded-prefix induction to its live-node budget.

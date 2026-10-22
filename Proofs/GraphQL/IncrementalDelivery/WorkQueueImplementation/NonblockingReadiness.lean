@@ -1,4 +1,4 @@
-import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.ActiveFailureCaches
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.ActiveRejectionReplay
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.RetiredHealthReplay
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.HealthyCounterReplay
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.RootPresenceReplay
@@ -29,9 +29,9 @@ theorem ExecutedWork.runNormalized_rootGroupsHealthy {work : Execution.Work}
     batches.flatten
   obtain ⟨_, ledger⟩ := generated.runNormalized_healthyCounterLedger batches valid started
   have clear := createWorkQueue_runNormalized_noActiveCachedFailure
-    (Work.fromExecution work) batches
+    generated batches valid started
   have ancestry := (generated.runNormalized_retiredHealth batches valid started).2.1
-  have counts := generated.runNormalized_groupErrorAccounting batches valid started
+  have counts := generated.runNormalized_retainedFailures batches valid started
   intro ref active invalid
   have accepted : GroupInvalidated work failed ref :=
     (generated.runNormalized_failureInventories_groupInvalidated_iff batches valid started

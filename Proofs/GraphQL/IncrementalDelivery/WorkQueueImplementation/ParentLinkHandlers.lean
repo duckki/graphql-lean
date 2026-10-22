@@ -53,6 +53,18 @@ theorem State.ParentLinksComplete.finishGroupFailure {queue : State} {parents}
     : (queue.finishGroupFailure group errors).1.ParentLinksComplete parents :=
   complete.removeGroup group.group.node.ref
 
+/-- Failed tasks retain complete parent links through task update and owner removal. -/
+theorem State.ParentLinksComplete.taskFailure {queue : State} {parents}
+    (complete : queue.ParentLinksComplete parents)
+    (occurrence : Occurrence) (errors : Nat)
+    : (queue.taskFailure occurrence errors).1.ParentLinksComplete parents := by
+  cases found : queue.taskNode? occurrence with
+  | none => simpa only [State.taskFailure, found] using complete
+  | some node =>
+      rw [queue.taskFailure_eq occurrence errors node found]
+      exact failureGroupFold_preserves (fun current => current.ParentLinksComplete parents)
+        (fun _ ref prior => prior.removeGroup ref) _ _ _ complete
+
 /-- Every bounded mixed drain preserves complete live canonical parent links.
 Witness: both closure branches preserve completeness, as does child activation.
 -/
@@ -61,46 +73,12 @@ theorem State.ParentLinksComplete.drainReadyGroups {queue : State} {parents}
     : queue.drainReadyGroups.1.ParentLinksComplete parents :=
   State.drainReadyGroups_preserves (fun state => state.ParentLinksComplete parents)
     (fun _ node prior _ _ _ _ => (prior.finishGroupSuccess node).startNewWork _)
-    (fun _ node errors prior _ _ _ => prior.finishGroupFailure node errors) complete
+    (fun _ _ occurrence errors prior _ _ _ => prior.taskFailure occurrence errors)
+    complete
 
 -----------------------------------------------------------------------------------------
 -- Object settlements integrate children, update counts, and close contributing groups
 -----------------------------------------------------------------------------------------
-
-/-- Failed task handling retains complete links through caching and immediate closure.
-Witness: thread unique refs through the contributor fold; counter updates preserve every
-child edge and failed closures filter records. Ignored settlements only remove memberships.
--/
-theorem State.ParentLinksComplete.taskFailure {queue : State} {parents}
-    (complete : queue.ParentLinksComplete parents) (unique : queue.GroupRefsUnique)
-    (occurrence : Occurrence) (errors : Nat)
-    : (queue.taskFailure occurrence errors).1.ParentLinksComplete parents := by
-  let property (current : State) := current.GroupRefsUnique ∧ current.ParentLinksComplete parents
-  have step (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode)
-      (prior : property acc.1) : property (failureGroupStep errors acc group).1 := by
-    obtain ⟨current, events⟩ := acc
-    dsimp only [failureGroupStep]
-    split
-    · exact prior
-    · rename_i node found
-      split
-      · exact ⟨prior.1.finishGroupFailure node errors, prior.2.finishGroupFailure node errors⟩
-      · exact ⟨prior.1.putGroupNode _,
-          prior.2.putGroupNode prior.1 found _ rfl (List.Subset.refl _)⟩
-  have loop (groups : List Execution.DeliveryNode) (acc : State × List WorkQueueEvent)
-      (prior : property acc.1)
-      : property (groups.foldl (failureGroupStep errors) acc).1 := by
-    induction groups generalizing acc with
-    | nil => exact prior
-    | cons group rest ih => exact ih _ (step acc group prior)
-  cases found : queue.taskNode? occurrence with
-  | none => simpa [State.taskFailure, found] using complete
-  | some node =>
-      rw [queue.taskFailure_eq occurrence errors node found]
-      split
-      · exact complete.removeTask occurrence
-      · exact (loop node.task.groups _
-          ⟨unique.removeTask occurrence, complete.removeTask occurrence⟩).2
 
 /-- Successful task handling retains complete links after child integration and release.
 Witness: canonical child registration establishes its new edges; unique-ref counter
@@ -138,16 +116,14 @@ theorem State.ParentLinksComplete.taskSuccess {queue : State} {parents}
   | none => simpa [State.taskSuccess, found] using complete
   | some node =>
       rw [queue.taskSuccess_eq occurrence result node found]
-      split
-      · exact complete.removeTask occurrence
-      · let stored := queue.putTaskNode { node with value := some result.value }
-        have storedComplete : stored.ParentLinksComplete parents := complete
-        have storedUnique : stored.GroupRefsUnique := unique
-        have integrated := storedComplete.maybeIntegrateWork storedUnique registered closed
-          result.work canonical (some occurrence)
-        have folded := (loop node.task.groups (_, [], {})
-          ⟨storedUnique.maybeIntegrateWork result.work (some occurrence), integrated⟩).2
-        exact (folded.startNewWork _).drainReadyGroups
+      let stored := queue.putTaskNode { node with value := some result.value }
+      have storedComplete : stored.ParentLinksComplete parents := complete
+      have storedUnique : stored.GroupRefsUnique := unique
+      have integrated := storedComplete.maybeIntegrateWork storedUnique registered closed
+        result.work canonical (some occurrence)
+      have folded := (loop node.task.groups (_, [], {})
+        ⟨storedUnique.maybeIntegrateWork result.work (some occurrence), integrated⟩).2
+      exact (folded.startNewWork _).drainReadyGroups
 
 -----------------------------------------------------------------------------------------
 -- Stream items use the same registration invariant at each actual integration boundary
@@ -233,7 +209,7 @@ theorem State.ParentLinksComplete.handleGraphEvent {queue : State} {work parents
   | taskSuccess occurrence result =>
       exact complete.taskSuccess unique live closed occurrence result
         (fun _ member => matching.taskChildGroups_parentCanonical canonical member)
-  | taskFailure occurrence errors => exact complete.taskFailure unique occurrence errors
+  | taskFailure occurrence errors => exact complete.taskFailure occurrence errors
   | streamItems stream items =>
       exact complete.streamItems unique live tasks closed stream items matching canonical
   | streamSuccess stream =>

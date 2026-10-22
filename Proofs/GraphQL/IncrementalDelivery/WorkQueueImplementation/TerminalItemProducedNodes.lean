@@ -26,8 +26,10 @@ theorem terminal_itemProducedTask_accounted
       : Explains work (initialQueue work).initialGroups
           (initialQueue work).initialStreams w.events w.matching w.failures)
     (visible
-      : ((initialQueue work).objectFailureContributions inputs.flatten).Subset
-          (failedBefore w.failures w.events.length))
+      : ∀ ref,
+          GroupInvalidated work
+            ((initialQueue work).objectFailureContributions inputs.flatten) ref
+          → GroupInvalidated work (failedBefore w.failures w.events.length) ref)
     (ended : ((initialQueue work).runNormalized inputs).1.terminated = true)
     (known
       : TaskAt work (.executionGroup address) owners (some (.item source index)) payload)
@@ -58,8 +60,10 @@ theorem terminal_itemProducedGroup_accounted
       : Explains work (initialQueue work).initialGroups
           (initialQueue work).initialStreams w.events w.matching w.failures)
     (visible
-      : ((initialQueue work).objectFailureContributions inputs.flatten).Subset
-          (failedBefore w.failures w.events.length))
+      : ∀ ref,
+          GroupInvalidated work
+            ((initialQueue work).objectFailureContributions inputs.flatten) ref
+          → GroupInvalidated work (failedBefore w.failures w.events.length) ref)
     (ended : ((initialQueue work).runNormalized inputs).1.terminated = true)
     (known : NodeAt work group .group dependencies (some (.item source index)))
     (published : Published w.matching w.events (.item source index))
@@ -120,8 +124,10 @@ theorem terminal_itemProducedNode_accounted
       : Explains work (initialQueue work).initialGroups
           (initialQueue work).initialStreams w.events w.matching w.failures)
     (visible
-      : ((initialQueue work).objectFailureContributions inputs.flatten).Subset
-          (failedBefore w.failures w.events.length))
+      : ∀ ref,
+          GroupInvalidated work
+            ((initialQueue work).objectFailureContributions inputs.flatten) ref
+          → GroupInvalidated work (failedBefore w.failures w.events.length) ref)
     (ended : ((initialQueue work).runNormalized inputs).1.terminated = true)
     (known : NodeAt work node kind dependencies (some (.item source index)))
     (published : Published w.matching w.events (.item source index))

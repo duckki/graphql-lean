@@ -191,6 +191,38 @@ theorem State.PublicationInventory.finishGroupSuccess {queue : State} {property 
   exact ⟨storedPublications selected,
     inventory.finishGroupSuccess_selected group selected unique known events retained absent⟩
 
+/-- Task failure emits only group-failure notices, never object values.
+Witness: the owner fold appends failure notices or silently updates cached errors. -/
+theorem State.taskFailure_objectValues (queue : State) (occurrence : Occurrence)
+    (errors : Nat)
+    : (queue.taskFailure occurrence errors).2.flatMap WorkQueueEvent.objectValues
+      = [] := by
+  let step (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode) :=
+    match acc.1.groupNode? group.ref with
+    | none => acc
+    | some node =>
+        if acc.1.rootGroups.contains group.ref then
+          let (next, failure) := acc.1.finishGroupFailure node errors
+          (next, acc.2 ++ [failure])
+        else acc
+  have loop (groups : List Execution.DeliveryNode) (acc : State × List WorkQueueEvent)
+      : (groups.foldl step acc).2.flatMap WorkQueueEvent.objectValues =
+          acc.2.flatMap WorkQueueEvent.objectValues := by
+    induction groups generalizing acc with
+    | nil => rfl
+    | cons group rest ih =>
+        rw [List.foldl_cons, ih]
+        unfold step
+        split
+        · rfl
+        · split
+          · simp [State.finishGroupFailure, List.flatMap_append, WorkQueueEvent.objectValues]
+          · rfl
+  unfold State.taskFailure
+  split
+  · rfl
+  · exact loop _ (_, [])
+
 /-- Recursive draining adds exactly its fresh object publications to the inventory.
 Witness: each successful flush removes its selected occurrences before later drains;
 cached-failure closures emit no object values and cannot restore any stored value.
@@ -222,7 +254,7 @@ theorem State.PublicationInventory.drainReadyGroups {queue : State} {property pu
         split
         · exact ⟨[], rfl, by simpa using prior⟩
         · rename_i node selected
-          cases cached : node.failure with
+          cases cached : current.rejectedTask? node with
           | none =>
               dsimp only
               obtain ⟨first, firstValues, flushed⟩ := prior.finishGroupSuccess node
@@ -232,14 +264,15 @@ theorem State.PublicationInventory.drainReadyGroups {queue : State} {property pu
               refine ⟨first ++ later, ?_, ?_⟩
               · simp only [List.map_append, List.flatMap_append, firstValues, laterValues]
               · simpa only [List.append_assoc] using final
-          | some errors =>
+          | some rejected =>
+              obtain ⟨occurrence, errors⟩ := rejected
               dsimp only
               obtain ⟨added, values, final⟩ := ih _ _
-                ⟨prior.unique, prior.provenance, prior.stored.removeGroup _⟩
+                ⟨prior.unique, prior.provenance, prior.stored.taskFailure occurrence errors⟩
               refine ⟨added, ?_, final⟩
-              simpa only [State.finishGroupFailure, List.flatMap_append,
-                List.flatMap_singleton, WorkQueueEvent.objectValues, List.nil_append]
-                using values
+              simpa only [List.flatMap_append, State.taskFailure_objectValues,
+                List.nil_append] using values
+
   exact loop _ queue published inventory
 
 -----------------------------------------------------------------------------------------
@@ -315,11 +348,6 @@ theorem State.PublicationInventory.taskSuccess {queue : State} {property publish
         ⟨[], rfl, by simpa only [List.append_nil] using
           State.PublicationInventory.mk inventory.unique inventory.provenance integrated⟩
       rw [queue.taskSuccess_eq occurrence result node found]
-      split
-      · refine ⟨[], rfl, ?_⟩
-        simpa only [List.append_nil]
-          using State.PublicationInventory.mk inventory.unique inventory.provenance
-            (inventory.stored.removeTask occurrence)
       let released := node.task.groups.foldl successGroupStep
         (((queue.putTaskNode { node with value := some result.value }).maybeIntegrateWork
           result.work (some occurrence)).1, [], {})
@@ -334,43 +362,6 @@ theorem State.PublicationInventory.taskSuccess {queue : State} {property publish
 -----------------------------------------------------------------------------------------
 -- Failure controls preserve the inventory; stream arrivals can drain stored object values
 -----------------------------------------------------------------------------------------
-
-/-- Task failure emits only group-failure notices, never object values.
-Witness: the owner fold appends failure notices or silently updates cached errors. -/
-theorem State.taskFailure_objectValues (queue : State) (occurrence : Occurrence)
-    (errors : Nat)
-    : (queue.taskFailure occurrence errors).2.flatMap WorkQueueEvent.objectValues
-      = [] := by
-  let step (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode) :=
-    match acc.1.groupNode? group.ref with
-    | none => acc
-    | some node =>
-        if acc.1.rootGroups.contains group.ref then
-          let (next, failure) := acc.1.finishGroupFailure node errors
-          (next, acc.2 ++ [failure])
-        else
-          (acc.1.putGroupNode
-            { node with pending := node.pending - 1
-                        failure := some (node.failure.getD 0 + errors) }, acc.2)
-  have loop (groups : List Execution.DeliveryNode) (acc : State × List WorkQueueEvent)
-      : (groups.foldl step acc).2.flatMap WorkQueueEvent.objectValues =
-          acc.2.flatMap WorkQueueEvent.objectValues := by
-    induction groups generalizing acc with
-    | nil => rfl
-    | cons group rest ih =>
-        rw [List.foldl_cons, ih]
-        unfold step
-        split
-        · rfl
-        · split
-          · simp [State.finishGroupFailure, List.flatMap_append, WorkQueueEvent.objectValues]
-          · rfl
-  unfold State.taskFailure
-  split
-  · rfl
-  · split
-    · rfl
-    exact loop _ (_, [])
 
 /-- Stream-item arrival can publish stored object values through its final ready-group drain.
 Witness: item integration preserves the inventory; draining then supplies exact, fresh

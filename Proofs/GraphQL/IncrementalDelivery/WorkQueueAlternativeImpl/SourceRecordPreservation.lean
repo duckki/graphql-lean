@@ -42,21 +42,17 @@ theorem generatedSnapshot_oldBuffer {work inputs event occurrence node}
       cases inputFound : before.taskNode? incoming with
       | none => simpa only [registrationSnapshot, inputFound] using found
       | some input =>
-          cases healthy : before.taskHasHealthyOwner input.task with
-          | false => simpa only [registrationSnapshot, inputFound, healthy,
-              Bool.false_eq_true, ↓reduceIte] using found
-          | true =>
-              simp only [registrationSnapshot, inputFound, healthy, ↓reduceIte]
-              exact State.maybeIntegrateWork_lookup_other
-                (ReferenceWorkQueue.State.putTaskNode_lookup_other found
-                  { input with value := some result.value }
-                  (by
-                    change input.task.occurrence ≠ occurrence
-                    rw [(ReferenceWorkQueue.State.taskNode?_some inputFound).2]
-                    exact Ne.symm different))
-                result.work
-                (some incoming)
-                (by intro same; exact different (Option.some.inj same).symm)
+          simp only [registrationSnapshot, inputFound]
+          exact State.maybeIntegrateWork_lookup_other
+            (ReferenceWorkQueue.State.putTaskNode_lookup_other found
+              { input with value := some result.value }
+              (by
+                change input.task.occurrence ≠ occurrence
+                rw [(ReferenceWorkQueue.State.taskNode?_some inputFound).2]
+                exact Ne.symm different))
+            result.work
+            (some incoming)
+            (by intro same; exact different (Option.some.inj same).symm)
   | streamItems stream items =>
       cases active : before.rootStreams.contains stream.ref with
       | false =>

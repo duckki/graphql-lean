@@ -33,10 +33,11 @@ theorem item_payload_success {node result}
 
 /-- Per-item zero-error results and successful child work give list success, by induction.
 -/
-theorem itemsSuccess_of_forall {items : List (Result ResponseValue × Work)}
+theorem itemsSuccess_of_forall {items : List (TaskOutcome ResponseValue × Work)}
     (all
       : ∀ entry ∈ items,
-          (∃ data, entry.1 = .ok (data, 0)) ∧ SourceReconstruction.WorkSuccess entry.2)
+          (∃ data, entry.1.result = .ok (data, 0))
+          ∧ SourceReconstruction.WorkSuccess entry.2)
     : SourceReconstruction.ItemsSuccess items := by
   induction items with
   | nil => trivial
@@ -64,8 +65,12 @@ theorem located_workSuccess {root address work producer owners}
         located_workSuccess (.right located) all⟩
   | executionGroup groups path result children =>
       have success := all _ _ _ _ (.executionGroup located)
-      exact ⟨object_payload_success success.1 success.2,
-        located_workSuccess (.executionGroup located) all⟩
+      exact ⟨
+        by
+          obtain ⟨data, same⟩ := object_payload_success success.1 success.2
+          exact ⟨data, Semantics.CompletionReporting.result_eq_ok_of_deliveryResult_eq_ok same⟩,
+        located_workSuccess (.executionGroup located) all
+      ⟩
   | stream node items =>
       apply itemsSuccess_of_forall
       intro entry member
@@ -75,8 +80,12 @@ theorem located_workSuccess {root address work producer owners}
           have smaller := List.sizeOf_lt_of_mem member
           rw [equal] at selected
           have success := all _ _ _ _ (.item located selected)
-          exact ⟨item_payload_success success.1 success.2,
-            located_workSuccess (.item located selected) all⟩
+          exact ⟨
+            by
+              obtain ⟨data, same⟩ := item_payload_success success.1 success.2
+              exact ⟨data, Semantics.CompletionReporting.result_eq_ok_of_deliveryResult_eq_ok same⟩,
+            located_workSuccess (.item located selected) all
+          ⟩
 termination_by sizeOf work
 decreasing_by all_goals simp_all; omega
 
@@ -105,7 +114,7 @@ theorem WorkObservation.completionSuccess
           completed.work true result)
     (positive : ExecutionErrors.Positive completed) (zero : result.totalErrors = 0)
     : SourceReconstruction.CompletionSuccess completed := by
-  refine ⟨?_, observed.workSuccess positive.2 zero⟩
+  refine ⟨?_, observed.workSuccess positive.2.1 zero⟩
   have errors := observed.initial_errors_le
   cases equal : completed.result with
   | error count =>

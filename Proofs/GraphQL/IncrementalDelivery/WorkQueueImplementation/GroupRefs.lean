@@ -305,7 +305,7 @@ theorem State.GroupRefsUnique.pruneEmptyGroups {queue : State}
               · exact ih _ _ _ currentUnique
   exact loop _ queue groups [] unique
 
-/-- Every retained notice still has nonempty task membership or a cached failure.
+/-- Every retained notice still has nonempty task membership.
 Witness: pruning never removes a previously retained nonempty record with the same ref;
 ref uniqueness identifies it with the lookup that would otherwise remove it. The result
 keeps the actual post-pruning record, not merely the notice's ref or a pending count.
@@ -315,19 +315,18 @@ theorem State.pruneEmptyGroups_keptContents
     (unique : queue.GroupRefsUnique)
     : ∀ ref ∈ (queue.pruneEmptyGroups groups).2.map Execution.DeliveryNode.ref,
         ∃ node ∈ (queue.pruneEmptyGroups groups).1.groupNodes,
-          node.group.node.ref = ref
-          ∧ (node.tasks.isEmpty && node.failure.isNone) ≠ true := by
+          node.group.node.ref = ref ∧ node.tasks.isEmpty ≠ true := by
   have loop (fuel : Nat) (current : State)
       (remaining kept : List Execution.DeliveryNode)
       (currentUnique : current.GroupRefsUnique)
       (keptPresent : ∀ ref ∈ kept.map Execution.DeliveryNode.ref,
         ∃ node ∈ current.groupNodes,
-          node.group.node.ref = ref ∧ (node.tasks.isEmpty && node.failure.isNone) ≠ true)
+          node.group.node.ref = ref ∧ node.tasks.isEmpty ≠ true)
       : ∀ ref ∈ (State.pruneEmptyGroups.go fuel current remaining kept).2.map
           Execution.DeliveryNode.ref,
           ∃ node ∈ (State.pruneEmptyGroups.go fuel current remaining kept).1.groupNodes,
             node.group.node.ref = ref
-            ∧ (node.tasks.isEmpty && node.failure.isNone) ≠ true := by
+            ∧ node.tasks.isEmpty ≠ true := by
     induction fuel generalizing current remaining kept with
     | zero => exact keptPresent
     | succ fuel ih =>
@@ -338,7 +337,7 @@ theorem State.pruneEmptyGroups_keptContents
             cases found : current.groupNode? group.ref with
             | none => exact ih _ _ _ currentUnique keptPresent
             | some node =>
-                by_cases zero : (node.tasks.isEmpty && node.failure.isNone) = true
+                by_cases zero : node.tasks.isEmpty = true
                 · simp only [zero, ite_true]
                   let next : State :=
                     {
@@ -365,7 +364,7 @@ theorem State.pruneEmptyGroups_keptContents
                   have nextPresent : ∀ ref ∈ kept.map Execution.DeliveryNode.ref,
                       ∃ entry ∈ next.groupNodes,
                         entry.group.node.ref = ref
-                          ∧ (entry.tasks.isEmpty && entry.failure.isNone) ≠ true := by
+                          ∧ entry.tasks.isEmpty ≠ true := by
                     intro ref member
                     obtain ⟨entry, entryMember, same, positive⟩ :=
                       keptPresent ref member
@@ -386,7 +385,7 @@ theorem State.pruneEmptyGroups_keptContents
                       ∀ ref ∈ (kept ++ [group]).map Execution.DeliveryNode.ref,
                         ∃ entry ∈ current.groupNodes,
                           entry.group.node.ref = ref
-                            ∧ (entry.tasks.isEmpty && entry.failure.isNone) ≠ true := by
+                            ∧ entry.tasks.isEmpty ≠ true := by
                     intro ref member
                     rw [List.map_append, List.mem_append] at member
                     rcases member with old | added
@@ -399,7 +398,7 @@ theorem State.pruneEmptyGroups_keptContents
   have empty : ∀ ref ∈ ([] : List Execution.DeliveryNode).map
       Execution.DeliveryNode.ref,
       ∃ node ∈ queue.groupNodes,
-        node.group.node.ref = ref ∧ (node.tasks.isEmpty && node.failure.isNone) ≠ true := by
+        node.group.node.ref = ref ∧ node.tasks.isEmpty ≠ true := by
     intro ref member
     cases member
   exact loop _ queue groups [] unique empty
@@ -450,9 +449,7 @@ theorem State.GroupRefsUnique.startNewWork {queue : State}
                 split
                 · exact balanced
                 · split <;> exact balanced
-          split
-          · exact currentUnique
-          · exact taskFold node.tasks current currentUnique
+          exact taskFold node.tasks current currentUnique
   have streamFold (refs : NodeRefs) :
       ∀ current, current.GroupRefsUnique →
         (refs.foldl State.startStream current).GroupRefsUnique := by
@@ -618,6 +615,54 @@ theorem State.GroupRefsUnique.finishGroupFailure {queue : State}
     : (queue.finishGroupFailure group errors).1.GroupRefsUnique :=
   unique.removeGroup group.group.node.ref
 
+/-- A failed task closes active owners or retains task rejections without duplicating refs.
+Witness: retaining a rejection leaves group refs unchanged; closing active owners only filters them.
+-/
+theorem State.GroupRefsUnique.taskFailure {queue : State}
+    (unique : queue.GroupRefsUnique) (occurrence : Occurrence) (errors : Nat)
+    : (queue.taskFailure occurrence errors).1.GroupRefsUnique := by
+  let step (acc : State × List WorkQueueEvent)
+      (group : Execution.DeliveryNode) : State × List WorkQueueEvent :=
+    let (current, events) := acc
+    match current.groupNode? group.ref with
+    | none => (current, events)
+    | some node =>
+        if current.rootGroups.contains group.ref then
+          let (next, failure) := current.finishGroupFailure node errors
+          (next, events ++ [failure])
+        else
+          (current, events)
+  have stepUnique (acc : State × List WorkQueueEvent)
+      (group : Execution.DeliveryNode)
+      (currentUnique : acc.1.GroupRefsUnique)
+      : (step acc group).1.GroupRefsUnique := by
+    obtain ⟨current, events⟩ := acc
+    dsimp only [step]
+    cases found : current.groupNode? group.ref with
+    | none => exact currentUnique
+    | some node =>
+        by_cases started : current.rootGroups.contains group.ref = true
+        · simp only [started, ite_true]
+          exact currentUnique.finishGroupFailure node errors
+        · simp only [started]
+          exact currentUnique
+  have foldUnique (groups : List Execution.DeliveryNode) :
+      ∀ acc : State × List WorkQueueEvent,
+        acc.1.GroupRefsUnique → (groups.foldl step acc).1.GroupRefsUnique := by
+    induction groups with
+    | nil => intro acc currentUnique; exact currentUnique
+    | cons group rest ih =>
+        intro acc currentUnique
+        exact ih (step acc group) (stepUnique acc group currentUnique)
+  unfold State.taskFailure
+  split
+  · exact unique
+  · rename_i taskNode found
+    let current := queue.putTaskNode { taskNode with rejection := some errors }
+    have currentUnique : current.GroupRefsUnique := unique
+    change (taskNode.task.groups.foldl step (current, [])).1.GroupRefsUnique
+    exact foldUnique taskNode.task.groups (current, []) currentUnique
+
 /-- Draining ready groups cannot duplicate a live ref.
 Witness: induction over the drain bound, using closure and activation preservation.
 -/
@@ -634,65 +679,13 @@ theorem State.GroupRefsUnique.drainReadyGroups {queue : State}
         split
         · exact unique
         · rename_i node found
-          cases failure : node.failure with
+          cases failure : current.rejectedTask? node with
           | none =>
               exact ih _ ((unique.finishGroupSuccess node).startNewWork _)
-          | some errors => exact ih _ (unique.finishGroupFailure node errors)
+          | some rejection =>
+              obtain ⟨occurrence, errors⟩ := rejection
+              exact ih _ (unique.taskFailure occurrence errors)
   exact loop _ queue unique
-
-/-- A failed task closes active owners or retains latent errors without duplicating refs.
-Witness: task removal and each owner update preserve ref uniqueness.
--/
-theorem State.GroupRefsUnique.taskFailure {queue : State}
-    (unique : queue.GroupRefsUnique) (occurrence : Occurrence) (errors : Nat)
-    : (queue.taskFailure occurrence errors).1.GroupRefsUnique := by
-  let step (acc : State × List WorkQueueEvent)
-      (group : Execution.DeliveryNode) : State × List WorkQueueEvent :=
-    let (current, events) := acc
-    match current.groupNode? group.ref with
-    | none => (current, events)
-    | some node =>
-        if current.rootGroups.contains group.ref then
-          let (next, failure) := current.finishGroupFailure node errors
-          (next, events ++ [failure])
-        else
-          (current.putGroupNode
-            {
-              node with
-                pending := node.pending - 1
-                failure := some (node.failure.getD 0 + errors)
-            }, events)
-  have stepUnique (acc : State × List WorkQueueEvent)
-      (group : Execution.DeliveryNode)
-      (currentUnique : acc.1.GroupRefsUnique)
-      : (step acc group).1.GroupRefsUnique := by
-    obtain ⟨current, events⟩ := acc
-    dsimp only [step]
-    cases found : current.groupNode? group.ref with
-    | none => exact currentUnique
-    | some node =>
-        by_cases started : current.rootGroups.contains group.ref = true
-        · simp only [started, ite_true]
-          exact currentUnique.finishGroupFailure node errors
-        · simp only [started]
-          exact currentUnique.putGroupNode _
-  have foldUnique (groups : List Execution.DeliveryNode) :
-      ∀ acc : State × List WorkQueueEvent,
-        acc.1.GroupRefsUnique → (groups.foldl step acc).1.GroupRefsUnique := by
-    induction groups with
-    | nil => intro acc currentUnique; exact currentUnique
-    | cons group rest ih =>
-        intro acc currentUnique
-        exact ih (step acc group) (stepUnique acc group currentUnique)
-  unfold State.taskFailure
-  split
-  · exact unique
-  · rename_i taskNode found
-    split <;> try exact unique.removeTask occurrence
-    let current := queue.removeTask occurrence
-    have currentUnique : current.GroupRefsUnique := unique.removeTask occurrence
-    change (taskNode.task.groups.foldl step (current, [])).1.GroupRefsUnique
-    exact foldUnique taskNode.task.groups (current, []) currentUnique
 
 /-- Successful stream-item integration preserves unique group refs. -/
 theorem State.GroupRefsUnique.streamItems {queue : State}
@@ -778,8 +771,7 @@ theorem State.GroupRefsUnique.taskSuccess {queue : State}
     | some node =>
         let node := { node with pending := node.pending - 1 }
         let current := current.putGroupNode node
-        if current.rootGroups.contains group.ref && node.pending == 0
-            && node.failure.isNone then
+        if current.rootGroups.contains group.ref && node.pending == 0 then
           let (next, finished, newWork) := current.finishGroupSuccess node
           (
             next,
@@ -817,7 +809,6 @@ theorem State.GroupRefsUnique.taskSuccess {queue : State}
   split
   · exact unique
   · rename_i taskNode found
-    split <;> try exact unique.removeTask occurrence
     let withValue := queue.putTaskNode { taskNode with value := some result.value }
     have withValueUnique : withValue.GroupRefsUnique := unique
     let integrated := (withValue.maybeIntegrateWork result.work (some occurrence)).1

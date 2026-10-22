@@ -50,9 +50,7 @@ theorem State.taskFailure_streamNoticeRefs (queue : State) (occurrence : Occurre
   | none => simp [State.taskFailure, found]
   | some incoming =>
       rw [queue.taskFailure_eq occurrence errors incoming found]
-      split
-      · rfl
-      · exact loop _ _
+      exact loop _ _
 
 /-- Every handler retains announced stream roots or emits their actual completion.
 Witness: task/item success covers all new stream notices, task failure preserves roots,

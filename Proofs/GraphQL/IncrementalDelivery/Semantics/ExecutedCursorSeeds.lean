@@ -353,9 +353,9 @@ mutual
           split
           · rename_i errors he
             apply runEnsures_pure
-            exact ⟨[[]], by simpa only [he, result, List.nil_append] using
+            exact ⟨[[]], by simpa only [Completion.outcome, he, result, List.nil_append] using
               (ItemCursorSeed.cons  (path := path) (index := index)
-                (completed := head.result) WorkCursorSeed.empty ItemCursorSeed.nil), owns_nil _⟩
+                (completed := head.outcome) WorkCursorSeed.empty ItemCursorSeed.nil), owns_nil _⟩
           · refine runEnsures_bind (SeedOwnsItems path (index + 1)
               (UnderItems path (index + 1))) _ _ _ ?_ ?_
             · exact completeStreamItems_seeded schema resolvers variables fuel itemType selected rest

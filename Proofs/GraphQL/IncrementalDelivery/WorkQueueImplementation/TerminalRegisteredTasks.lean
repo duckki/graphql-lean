@@ -71,8 +71,10 @@ theorem terminal_registeredTask_accounted {work inputs task} {w : Witness}
       : Explains work (initialQueue work).initialGroups
           (initialQueue work).initialStreams w.events w.matching w.failures)
     (visible
-      : ((initialQueue work).objectFailureContributions inputs.flatten).Subset
-          (failedBefore w.failures w.events.length))
+      : ∀ ref,
+          GroupInvalidated work
+            ((initialQueue work).objectFailureContributions inputs.flatten) ref
+          → GroupInvalidated work (failedBefore w.failures w.events.length) ref)
     (ended : ((initialQueue work).runNormalized inputs).1.terminated = true)
     (member : task ∈ ((initialQueue work).replayGraphEvents inputs.flatten).tasks)
     : TaskAccounted work w.matching w.events w.failures task.occurrence := by
@@ -102,7 +104,7 @@ theorem terminal_registeredTask_accounted {work inputs task} {w : Witness}
       apply Classical.byContradiction
       intro healthy
       exact healthyOwner ⟨ref, contributes, healthy⟩
-    exact (invalid.mono visible).toCausality (Published w.matching w.events)
+    exact (visible _ invalid).toCausality (Published w.matching w.events)
 
 /-- A structural group with a registered contributor is failed or fully accounted at termination.
 Witness: an invalidated group has a historical failure cause; otherwise terminal coverage
@@ -119,8 +121,10 @@ theorem terminal_registeredContributor_groupAccounted
       : Explains work (initialQueue work).initialGroups
           (initialQueue work).initialStreams w.events w.matching w.failures)
     (visible
-      : ((initialQueue work).objectFailureContributions inputs.flatten).Subset
-          (failedBefore w.failures w.events.length))
+      : ∀ ref,
+          GroupInvalidated work
+            ((initialQueue work).objectFailureContributions inputs.flatten) ref
+          → GroupInvalidated work (failedBefore w.failures w.events.length) ref)
     (ended : ((initialQueue work).runNormalized inputs).1.terminated = true)
     (known : NodeAt work group .group dependencies producer)
     (member : task ∈ ((initialQueue work).replayGraphEvents inputs.flatten).tasks)
@@ -130,7 +134,7 @@ theorem terminal_registeredContributor_groupAccounted
   classical
   by_cases invalid : GroupInvalidated work
       ((initialQueue work).objectFailureContributions inputs.flatten) group.ref
-  · exact .inl (invalid.toNodeFailed explained visible)
+  · exact .inl ((visible _ invalid).toNodeFailed explained (List.Subset.refl _))
   · have retired := generated.terminal_healthyContributor_retired valid started ended
       member contributes invalid
     exact .inr (retiredGroup_nodeAccounted generated valid started history ledger known retired
@@ -150,8 +154,10 @@ theorem terminal_rootTask_accounted {work inputs address owners payload} {w : Wi
       : Explains work (initialQueue work).initialGroups
           (initialQueue work).initialStreams w.events w.matching w.failures)
     (visible
-      : ((initialQueue work).objectFailureContributions inputs.flatten).Subset
-          (failedBefore w.failures w.events.length))
+      : ∀ ref,
+          GroupInvalidated work
+            ((initialQueue work).objectFailureContributions inputs.flatten) ref
+          → GroupInvalidated work (failedBefore w.failures w.events.length) ref)
     (ended : ((initialQueue work).runNormalized inputs).1.terminated = true)
     (known : TaskAt work (.executionGroup address) owners none payload)
     : TaskAccounted work w.matching w.events w.failures (.executionGroup address) := by
@@ -173,8 +179,10 @@ theorem terminal_rootGroup_accounted {work inputs group dependencies} {w : Witne
       : Explains work (initialQueue work).initialGroups
           (initialQueue work).initialStreams w.events w.matching w.failures)
     (visible
-      : ((initialQueue work).objectFailureContributions inputs.flatten).Subset
-          (failedBefore w.failures w.events.length))
+      : ∀ ref,
+          GroupInvalidated work
+            ((initialQueue work).objectFailureContributions inputs.flatten) ref
+          → GroupInvalidated work (failedBefore w.failures w.events.length) ref)
     (ended : ((initialQueue work).runNormalized inputs).1.terminated = true)
     (known : NodeAt work group .group dependencies none)
     : NodeFailed work w.matching w.events w.failures group.ref

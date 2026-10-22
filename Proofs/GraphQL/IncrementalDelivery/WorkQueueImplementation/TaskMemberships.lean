@@ -1,3 +1,4 @@
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.FailureDebt
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.PendingPreservation
 
 /-! Unique task membership across graph-event handling. -/
@@ -85,6 +86,17 @@ theorem State.TaskMembershipsUnique.finishGroupSuccess {queue : State}
   change (current.pruneEmptyGroups children).1.TaskMembershipsUnique
   exact currentUnique.pruneEmptyGroups children
 
+/-- Rejection retention and active-owner removal preserve unique memberships. -/
+theorem State.TaskMembershipsUnique.taskFailure {queue : State}
+    (unique : queue.TaskMembershipsUnique) (occurrence : Occurrence) (errors : Nat)
+    : (queue.taskFailure occurrence errors).1.TaskMembershipsUnique := by
+  cases found : queue.taskNode? occurrence with
+  | none => simpa [State.taskFailure, found] using unique
+  | some node =>
+      rw [queue.taskFailure_eq occurrence errors node found]
+      exact failureGroupFold_preserves State.TaskMembershipsUnique
+        (fun _ ref prior => prior.removeGroup ref) _ _ _ unique
+
 /-- Draining ready roots preserves duplicate-free task memberships through
 each success flush, failure removal, and child activation.
 -/
@@ -95,8 +107,8 @@ theorem State.TaskMembershipsUnique.drainReadyGroups {queue : State}
     (valid := unique)
   · intro current node currentUnique _ _ _ _
     exact (currentUnique.finishGroupSuccess node).startNewWork _
-  · intro current node errors currentUnique _ _ _
-    exact currentUnique.finishGroupFailure node errors
+  · intro current _ occurrence errors currentUnique _ _ _
+    exact currentUnique.taskFailure occurrence errors
 
 /-- Closing a stream changes only its started-root registry. -/
 theorem State.TaskMembershipsUnique.streamSuccess {queue : State}
@@ -150,69 +162,6 @@ theorem State.TaskMembershipsUnique.streamItems {queue : State}
   · exact unique
   · exact (foldUnique items (queue, [], [], []) unique).drainReadyGroups
 
-/-- Task failure removes the failed task's memberships, closes announced owners,
-and retains latent owners without introducing duplicate memberships.
--/
-theorem State.TaskMembershipsUnique.taskFailure {queue : State}
-    (unique : queue.TaskMembershipsUnique) (occurrence : Occurrence) (errors : Nat)
-    : (queue.taskFailure occurrence errors).1.TaskMembershipsUnique := by
-  let step (acc : State × List WorkQueueEvent)
-      (group : Execution.DeliveryNode) : State × List WorkQueueEvent :=
-    let (current, events) := acc
-    match current.groupNode? group.ref with
-    | none => (current, events)
-    | some node =>
-        if current.rootGroups.contains group.ref then
-          let (next, failure) := current.finishGroupFailure node errors
-          (next, events ++ [failure])
-        else
-          (current.putGroupNode
-            { node with
-                pending := node.pending - 1
-                failure := some (node.failure.getD 0 + errors) }, events)
-  have stepUnique (acc : State × List WorkQueueEvent)
-      (group : Execution.DeliveryNode)
-      (currentUnique : acc.1.TaskMembershipsUnique)
-      : (step acc group).1.TaskMembershipsUnique := by
-    obtain ⟨current, events⟩ := acc
-    change (match current.groupNode? group.ref with
-      | none => (current, events)
-      | some node =>
-          if current.rootGroups.contains group.ref then
-            let (next, failure) := current.finishGroupFailure node errors
-            (next, events ++ [failure])
-          else
-            (current.putGroupNode
-              { node with
-                  pending := node.pending - 1
-                  failure := some (node.failure.getD 0 + errors) }, events)).1.TaskMembershipsUnique
-    cases found : current.groupNode? group.ref with
-    | none => exact currentUnique
-    | some node =>
-        by_cases started : current.rootGroups.contains group.ref = true
-        · simp only [started, ite_true]
-          exact currentUnique.finishGroupFailure node errors
-        · simp only [started]
-          apply currentUnique.putGroupNode
-          exact currentUnique node (List.mem_of_find?_eq_some found)
-  have foldUnique (groups : List Execution.DeliveryNode) :
-      ∀ acc : State × List WorkQueueEvent,
-        acc.1.TaskMembershipsUnique → (groups.foldl step acc).1.TaskMembershipsUnique := by
-    induction groups with
-    | nil => intro acc currentUnique; exact currentUnique
-    | cons group rest ih =>
-        intro acc currentUnique
-        exact ih (step acc group) (stepUnique acc group currentUnique)
-  unfold State.taskFailure
-  split
-  · exact unique
-  · rename_i taskNode found
-    split <;> try exact unique.removeTask occurrence
-    let current := queue.removeTask occurrence
-    have currentUnique : current.TaskMembershipsUnique := unique.removeTask occurrence
-    change (taskNode.task.groups.foldl step (current, [])).1.TaskMembershipsUnique
-    exact foldUnique taskNode.task.groups (current, []) currentUnique
-
 /-- Successful task handling changes task values, integrates child work,
 decrements pending counters, flushes completed groups, and starts new roots.
 Each stage preserves duplicate-free group membership lists.
@@ -242,8 +191,7 @@ theorem State.TaskMembershipsUnique.taskSuccess {queue : State}
     | some node =>
         let node := { node with pending := node.pending - 1 }
         let current := current.putGroupNode node
-        if current.rootGroups.contains group.ref && node.pending == 0
-            && node.failure.isNone then
+        if current.rootGroups.contains group.ref && node.pending == 0 then
           let (next, finished, newWork) := current.finishGroupSuccess node
           (
             next,
@@ -281,7 +229,6 @@ theorem State.TaskMembershipsUnique.taskSuccess {queue : State}
   split
   · exact unique
   · rename_i taskNode found
-    split <;> try exact unique.removeTask occurrence
     let withValue := queue.putTaskNode { taskNode with value := some result.value }
     have withValueUnique : withValue.TaskMembershipsUnique := unique
     let integrated := (withValue.maybeIntegrateWork result.work (some occurrence)).1

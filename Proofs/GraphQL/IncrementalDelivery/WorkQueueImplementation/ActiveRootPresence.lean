@@ -108,6 +108,19 @@ theorem LiveRootFrame.finishGroupSuccess {queue work parents}
 -- Every executable drain prefix retains live roots, including transient failed roots
 -----------------------------------------------------------------------------------------
 
+/-- Retained rejection replay preserves the live-root frame through owner removal. -/
+theorem LiveRootFrame.taskFailure {queue work parents}
+    (frame : LiveRootFrame queue work parents) (occurrence : Occurrence) (errors : Nat)
+    : LiveRootFrame (queue.taskFailure occurrence errors).1 work parents := by
+  cases found : queue.taskNode? occurrence with
+  | none => simpa only [State.taskFailure, found] using frame
+  | some task =>
+      rw [queue.taskFailure_eq occurrence errors task found]
+      exact failureGroupFold_preserves (fun current => LiveRootFrame current work parents)
+        (fun _ ref prior => prior.removeGroup ref) _ _ _
+        ⟨frame.refs, frame.records, frame.links, frame.registered, frame.tasks,
+          frame.roots, ⟨frame.support.contents, frame.support.roots⟩, frame.present⟩
+
 /-- Every bounded recursive drain preserves the complete live-root frame.
 Witness: invert the real ready-root search. Successful closures activate certified live
 children; failure closures filter roots and records together. Neither case assumes health.
@@ -132,16 +145,16 @@ theorem LiveRootFrame.drainReadyGroups_go {queue work parents}
         | none => simp [found] at choice
         | some candidate =>
             simp only [found] at choice
-            change (if candidate.failure.isSome || candidate.pending == 0 then
+            change (if (queue.rejectedTask? candidate).isSome || candidate.pending == 0 then
               some candidate else none) = some node at choice
             split at choice
             · cases Option.some.inj choice
               have same := State.groupNode?_ref found
-              cases cached : node.failure with
+              cases cached : queue.rejectedTask? node with
               | none =>
                   exact ih (frame.finishGroupSuccess generated canonical
                     (same ▸ found) (same ▸ active))
-              | some errors => exact ih (frame.removeGroup node.group.node.ref)
+              | some rejected => exact ih (frame.taskFailure rejected.1 rejected.2)
             · contradiction
 
 /-- The executable drain's chosen finite bound preserves live active roots.

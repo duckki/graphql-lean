@@ -12,6 +12,76 @@ open WorkQueueSemantics
 -- An announcement witnesses an available producer descriptor
 -----------------------------------------------------------------------------------------
 
+/-- Every announced ref has a descriptor whose producer is root or already published.
+Witness: initial and carried announcement eligibility, transported to the full history.
+-/
+theorem Explains.announced_producer_available
+    {work groups streams events matching failures ref}
+    (explained : Explains work groups streams events matching failures)
+    (announced : ref ∈ announcedRefs ((groups ++ streams).map DeliveryNode.ref) events)
+    : ∃ owner kind parents birth,
+        NodeAt work owner kind parents birth
+        ∧ owner.ref = ref
+        ∧ ∀ source, birth = some source → Published matching events source := by
+  rcases List.mem_append.mp announced with initial | carried
+  · obtain ⟨notice, member, same⟩ := List.mem_map.mp initial
+    rcases List.mem_append.mp member with group | stream
+    · obtain ⟨parents, source, descriptor, eligible⟩ := explained.1.1.2.1 notice group
+      refine ⟨notice, .group, parents, source, descriptor, same, ?_⟩
+      intro occurrence birth
+      have impossible := eligible.2.2.1 occurrence birth
+      simp [Published] at impossible
+    · obtain ⟨parents, source, descriptor, eligible⟩ := explained.1.1.2.2 notice stream
+      refine ⟨notice, .stream, parents, source, descriptor, same, ?_⟩
+      intro occurrence birth
+      have impossible := eligible.2.2.1 occurrence birth
+      simp [Published] at impossible
+  · obtain ⟨event, member, notice⟩ := List.mem_flatMap.mp carried
+    obtain ⟨index, selected⟩ := List.mem_iff_getElem?.mp member
+    have fromCarrier {plain newGroups newStreams}
+        (sameValue : IsValue plain ↔ IsValue event)
+        (notices : Announcements work ((groups ++ streams).map DeliveryNode.ref) matching
+          (events.take index ++ [plain]) (failures.filter (fun entry => entry.1 ≤ index))
+          newGroups newStreams)
+        (present : ref ∈ (newGroups ++ newStreams).map DeliveryNode.ref)
+        : ∃ owner kind parents birth,
+            NodeAt work owner kind parents birth
+            ∧ owner.ref = ref
+            ∧ ∀ source, birth = some source → Published matching events source := by
+      obtain ⟨owner, member, same⟩ := List.mem_map.mp present
+      have retained {kind parents birth}
+          (descriptor : NodeAt work owner kind parents birth)
+          (eligible : CanAnnounce work ((groups ++ streams).map DeliveryNode.ref)
+            matching (events.take index ++ [plain])
+            (failures.filter (fun entry => entry.1 ≤ index)) owner kind parents birth)
+          : ∃ owner kind parents birth,
+              NodeAt work owner kind parents birth
+              ∧ owner.ref = ref
+              ∧ ∀ source, birth = some source → Published matching events source := by
+        refine ⟨owner, kind, parents, birth, descriptor, same, ?_⟩
+        intro occurrence generated
+        have published := eligible.2.2.1 occurrence generated
+        have actual : Published matching (events.take index ++ [event]) occurrence := by
+          simpa only [published_append_singleton_iff, sameValue] using published
+        have shorter : Published matching (events.take (index + 1)) occurrence := by
+          simpa only [List.take_add_one, selected, Option.toList_some] using actual
+        simpa only [List.take_append_drop] using shorter.append (events.drop (index + 1))
+      rcases List.mem_append.mp member with group | stream
+      · obtain ⟨parents, birth, descriptor, eligible⟩ := notices.2.1 owner group
+        exact retained descriptor eligible
+      · obtain ⟨parents, birth, descriptor, eligible⟩ := notices.2.2 owner stream
+        exact retained descriptor eligible
+    have allowed := explained.2.2 index event selected
+    simp only [EventAllowed,
+      List.length_take_of_le (Nat.le_of_lt (List.getElem?_eq_some_iff.mp selected).1)] at allowed
+    cases event <;> simp only [eventPending, List.not_mem_nil] at notice
+    all_goals try contradiction
+    case groupSuccess carrier newGroups newStreams =>
+      exact fromCarrier (plain := .groupSuccess carrier [] []) Iff.rfl allowed.2.2.2.2 notice
+    case streamValues carrier values newGroups newStreams =>
+      obtain ⟨owners, birth, value, _, _, _, _, notices⟩ := allowed
+      exact fromCarrier (plain := .streamValues carrier values [] []) Iff.rfl notices notice
+
 /-- An announced group has a root or published producer descriptor with the same ref.
 Witness: invert initial or carried notice eligibility. A carrier's notice-only changes
 preserve publications, which remain present in the final history. No particular descriptor

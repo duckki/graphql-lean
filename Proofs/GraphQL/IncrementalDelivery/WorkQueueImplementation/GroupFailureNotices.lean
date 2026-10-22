@@ -137,47 +137,6 @@ theorem State.finishGroupFailure_groupFailureNotices (queue : State) (node : Gro
   · exact ⟨by simpa [State.finishGroupFailure, rawGroupFailureRefs, List.Subset] using active,
       trivial⟩
 
-/-- Recursive draining closes failed groups only after their notices are available.
-Witness: each selected node is active; successful carriers add the roots used by later
-drain iterations. Retained failures released and closed within one batch are included.
--/
-theorem State.drainReadyGroups_groupFailureNotices (queue : State)
-    : GroupFailureNoticeAccounting queue.rootGroups queue.drainReadyGroups := by
-  have loop (fuel : Nat) (current : State)
-      : GroupFailureNoticeAccounting current.rootGroups
-          (State.drainReadyGroups.go fuel current) := by
-    induction fuel generalizing current with
-    | zero => exact ⟨by simp [State.drainReadyGroups.go, List.Subset], trivial⟩
-    | succ fuel ih =>
-        unfold State.drainReadyGroups.go
-        dsimp only
-        split
-        · exact ⟨by simp [List.Subset], trivial⟩
-        · rename_i node selected
-          obtain ⟨ref, active, choice⟩ := List.exists_of_findSome?_eq_some selected
-          cases found : current.groupNode? ref with
-          | none => simp [found] at choice
-          | some candidate =>
-              simp only [found] at choice
-              change (if candidate.failure.isSome || candidate.pending == 0 then
-                some candidate else none) = some node at choice
-              split at choice
-              · have same := Option.some.inj choice
-                subst candidate
-                have root := current.groupNode?_ref found ▸ active
-                cases cached : node.failure with
-                | none =>
-                    exact (current.finishGroupSuccess_groupFailureNotices node).append (ih _)
-                | some errors =>
-                    exact (current.finishGroupFailure_groupFailureNotices node errors root).append
-                      (ih _)
-              · contradiction
-  exact loop _ queue
-
------------------------------------------------------------------------------------------
--- Complete handlers preserve the same boundary, including silent settlements
------------------------------------------------------------------------------------------
-
 /-- Task failure closes only active owners and never activates a latent one.
 Witness: each owner step either emits an active failure or stores a silent cache;
 ignored settlements change memberships only. This needs no source or health premise.
@@ -210,9 +169,48 @@ theorem State.taskFailure_groupFailureNotices (queue : State) (occurrence : Occu
         List.Subset]
   | some node =>
       rw [queue.taskFailure_eq occurrence errors node found]
-      split
-      · exact ⟨by simp [State.removeTask, List.Subset], trivial⟩
-      · exact loop _ (_, []) ⟨by simp [State.removeTask, List.Subset], trivial⟩
+      exact loop _ (_, []) ⟨by simp [State.putTaskNode, List.Subset], trivial⟩
+
+/-- Recursive draining closes failed groups only after their notices are available.
+Witness: each selected node is active; successful carriers add the roots used by later
+drain iterations. Retained failures released and closed within one batch are included.
+-/
+theorem State.drainReadyGroups_groupFailureNotices (queue : State)
+    : GroupFailureNoticeAccounting queue.rootGroups queue.drainReadyGroups := by
+  have loop (fuel : Nat) (current : State)
+      : GroupFailureNoticeAccounting current.rootGroups
+          (State.drainReadyGroups.go fuel current) := by
+    induction fuel generalizing current with
+    | zero => exact ⟨by simp [State.drainReadyGroups.go, List.Subset], trivial⟩
+    | succ fuel ih =>
+        unfold State.drainReadyGroups.go
+        dsimp only
+        split
+        · exact ⟨by simp [List.Subset], trivial⟩
+        · rename_i node selected
+          obtain ⟨ref, active, choice⟩ := List.exists_of_findSome?_eq_some selected
+          cases found : current.groupNode? ref with
+          | none => simp [found] at choice
+          | some candidate =>
+              simp only [found] at choice
+              change (if (current.rejectedTask? candidate).isSome || candidate.pending == 0 then
+                some candidate else none) = some node at choice
+              split at choice
+              · have same := Option.some.inj choice
+                subst candidate
+                have root := current.groupNode?_ref found ▸ active
+                cases cached : current.rejectedTask? node with
+                | none =>
+                    exact (current.finishGroupSuccess_groupFailureNotices node).append (ih _)
+                | some rejected =>
+                    obtain ⟨occurrence, errors⟩ := rejected
+                    exact (current.taskFailure_groupFailureNotices occurrence errors).append (ih _)
+              · contradiction
+  exact loop _ queue
+
+-----------------------------------------------------------------------------------------
+-- Complete handlers preserve the same boundary, including silent settlements
+-----------------------------------------------------------------------------------------
 
 /-- Successful task processing announces every root before its final failure drain.
 Witness: contributor flushes accumulate the exact released notices without activating
@@ -272,18 +270,16 @@ theorem State.taskSuccess_groupFailureNotices (queue : State) (occurrence : Occu
       obtain ⟨roots, notices, noFailures⟩ := loop node.task.groups (integrated.1, [], {})
         (by rw [initial]; exact List.Subset.refl _) rfl rfl
       rw [queue.taskSuccess_eq occurrence result node found]
-      split
-      · exact ⟨by simp [State.removeTask, List.Subset], trivial⟩
-      · let folded := node.task.groups.foldl successGroupStep (integrated.1, [], {})
-        have first : GroupFailureNoticeAccounting queue.rootGroups
-            (folded.1.startNewWork folded.2.2, folded.2.1) := by
-          refine ⟨?_, ReferencesAnnounced.of_references (by rw [noFailures]; simp [List.Subset])⟩
-          rw [(folded.1.startNewWork_groupCore _).2.2, notices]
-          intro ref member
-          exact (List.mem_append.mp member).elim
-            (fun old => List.mem_append_left _ (roots old))
-            (fun fresh => List.mem_append_right _ fresh)
-        exact first.append (State.drainReadyGroups_groupFailureNotices _)
+      let folded := node.task.groups.foldl successGroupStep (integrated.1, [], {})
+      have first : GroupFailureNoticeAccounting queue.rootGroups
+          (folded.1.startNewWork folded.2.2, folded.2.1) := by
+        refine ⟨?_, ReferencesAnnounced.of_references (by rw [noFailures]; simp [List.Subset])⟩
+        rw [(folded.1.startNewWork_groupCore _).2.2, notices]
+        intro ref member
+        exact (List.mem_append.mp member).elim
+          (fun old => List.mem_append_left _ (roots old))
+          (fun fresh => List.mem_append_right _ fresh)
+      exact first.append (State.drainReadyGroups_groupFailureNotices _)
 
 /-- Item processing emits its group notices before draining newly released failures.
 Witness: each item adds only its accumulated group roots; the single stream carrier

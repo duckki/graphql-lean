@@ -838,7 +838,7 @@ theorem State.pruneEmptyGroups_preservesNonempty
                         (same.trans nodeRef.symm)
                     subst target
                     exact targetNonempty
-                      (List.isEmpty_iff.mp (Bool.and_eq_true_iff.mp prunable).1)
+                      (List.isEmpty_iff.mp prunable)
                   have retained : target ∈ current.groupNodes.filter
                       (fun entry => entry.group.node.ref != group.ref) := by
                     apply List.mem_filter.mpr
@@ -939,14 +939,16 @@ theorem State.HealthyTaskLinks.taskFailure
     : (queue.taskFailure occurrence errors).1.HealthyTaskLinks
         work settled (occurrence :: failed) := by
   intro taskNode taskMember fresh groupNode groupMember healthy contributor
-  obtain ⟨priorMember, different⟩ :=
+  obtain ⟨prior, priorMember, sameTask⟩ :=
     queue.taskFailure_startedSurvivor occurrence errors taskMember
   have priorHealthy : ¬GroupInvalidated work failed groupNode.group.node.ref := by
     intro failure
     exact healthy (GroupInvalidated.mono failure
       (by intro earlier member; simp [member]))
-  have priorLinks := (links.toTaskLinkedOn priorMember fresh).taskFailure
-    occurrence errors different
+  have priorFresh : prior.task.occurrence ∉ settled := sameTask.symm ▸ fresh
+  have priorLinks := (links.toTaskLinkedOn priorMember priorFresh).taskFailure_preserves
+    occurrence errors
+  rw [sameTask] at priorLinks
   apply priorLinks groupNode groupMember
   exact mem_healthyContributorRefs_iff.mpr ⟨contributor, priorHealthy⟩
 

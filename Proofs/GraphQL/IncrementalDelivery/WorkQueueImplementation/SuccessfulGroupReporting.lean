@@ -127,7 +127,7 @@ theorem State.CancelledRecordsReported.taskSuccess {queue : State} {work events 
       have updated : State.ReportingContext
           (current.putGroupNode { node with pending := node.pending - 1 }) work parents
           (events ++ outputs) :=
-        ⟨valid.1.putGroupNode _, valid.2.1.putGroupNode _ (valid.2.1 node member),
+        ⟨valid.1.putGroupNode _, valid.2.1.putGroupNode _,
           valid.2.2.1.putGroupNode _ (valid.2.2.1 node member),
           valid.2.2.2.putGroupNode _ (valid.2.2.2 node member)⟩
       split
@@ -143,23 +143,22 @@ theorem State.CancelledRecordsReported.taskSuccess {queue : State} {work events 
   split
   · simpa only [List.append_nil] using reported
   · rename_i taskNode found
-    split
-    · simpa only [List.append_nil] using reported.removeTask occurrence
-    · let withValue := queue.putTaskNode { taskNode with value := some result.value }
-      have before : withValue.ReportingContext work parents events :=
-        ⟨reported, cached, records, links⟩
-      have integrated := before.maybeIntegrateWork generated result.work (some occurrence)
-        descriptors canonical
-      have released := fold taskNode.task.groups
-        ((withValue.maybeIntegrateWork result.work (some occurrence)).1, [], {})
-        (by simpa only [invariant, List.append_nil] using integrated)
-      have started := released.startNewWork
-        (taskNode.task.groups.foldl successGroupStep
-          ((withValue.maybeIntegrateWork result.work (some occurrence)).1, [], {})).2.2
-      have drained := started.1.drainReadyGroups generated started.2.2.1 started.2.2.2
-        canonical started.2.1
-      rw [List.append_assoc] at drained
-      exact drained
+    let withValue := queue.putTaskNode { taskNode with value := some result.value }
+    have before : withValue.ReportingContext work parents events :=
+      ⟨reported, cached.putTaskNode _
+        (cached taskNode (List.mem_of_find?_eq_some found)), records, links⟩
+    have integrated := before.maybeIntegrateWork generated result.work (some occurrence)
+      descriptors canonical
+    have released := fold taskNode.task.groups
+      ((withValue.maybeIntegrateWork result.work (some occurrence)).1, [], {})
+      (by simpa only [invariant, List.append_nil] using integrated)
+    have started := released.startNewWork
+      (taskNode.task.groups.foldl successGroupStep
+        ((withValue.maybeIntegrateWork result.work (some occurrence)).1, [], {})).2.2
+    have drained := started.1.drainReadyGroups generated started.2.2.1 started.2.2.2
+      canonical started.2.1
+    rw [List.append_assoc] at drained
+    exact drained
 
 /-- Stream item integration preserves reports through child activation and final draining.
 Witness: child integration introduces no reports or caches; the actual item carrier is

@@ -11,13 +11,9 @@ open AlternativeWorkQueue.NativeRefinement
 -- Pin the exact original target, without an extra safe-cut or inventory hypothesis.
 example : GeneratedParentCuts := GeneratedParentCuts_holds
 
-example {work : Work} (generated : ReferenceWorkQueue.ExecutedWork work)
-    (inputs : List (List GraphEvent))
-    (valid : ReferenceWorkQueue.ValidGraphEvents work inputs.flatten)
-    (started : ReferenceWorkQueue.inputsStarted work inputs = true) (key : Nat)
-    : groupIsHealthy ((State.initialize work).runNormalized inputs).1.queue key
-      = ((State.initialize work).runNormalized inputs).1.queue.groupIsHealthy key :=
-  generatedReplay_groupIsHealthy_eq_reference generated inputs valid started key
+example (work : Work) (inputs : List (List GraphEvent))
+    : TaskPresenceChecked ((State.initialize work).runNormalized inputs).1.queue :=
+  generatedReplay_taskPresenceChecked work inputs
 
 example
     : SafeParentCuts
@@ -68,8 +64,7 @@ private def parent : ReferenceWorkQueue.Group :=
 private def childFirst : ReferenceWorkQueue.State :=
   (retiredParent.addGroups [child, parent]).1
 
-#guard groupIsHealthy childFirst 2
-#guard !childFirst.groupIsHealthy 2
+#guard (childFirst.groupNode? 2).isSome
 
 example : ¬SafeParentCuts childFirst := by
   intro cuts
@@ -93,12 +88,11 @@ example
 
 #guard parentFirst.groupNodes.isEmpty
 #guard parentFirst.cancelledGroups == [0, 1, 2]
-#guard !groupIsHealthy parentFirst 2
-#guard !parentFirst.groupIsHealthy 2
+#guard (parentFirst.groupNode? 2).isNone
 
 #print axioms GeneratedParentCuts_holds
 #print axioms generatedReplay_safeParentCuts
-#print axioms generatedReplay_groupIsHealthy_eq_reference
+#print axioms generatedReplay_taskPresenceChecked
 #print axioms ReferenceWorkQueue.ExecutedWork.runNormalized_liveParentsUncancelled
 
 end AlternativeParentCutChecks

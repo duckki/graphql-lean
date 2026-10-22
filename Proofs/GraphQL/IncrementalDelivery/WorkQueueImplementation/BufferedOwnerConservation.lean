@@ -135,6 +135,52 @@ theorem State.finishGroupSuccess_storedOwnersConserved {queue : State}
 -- Concrete cancellation history grows throughout the bounded mixed drain
 -----------------------------------------------------------------------------------------
 
+/-- Task rejection only appends cancellation markers while visiting active owners. -/
+theorem State.taskFailure_cancelledGroups_mono (queue : State) (occurrence : Occurrence)
+    (errors : Nat)
+    : queue.cancelledGroups.Subset
+        (queue.taskFailure occurrence errors).1.cancelledGroups := by
+  cases found : queue.taskNode? occurrence with
+  | none =>
+      simp only [State.taskFailure, found]
+      exact fun _ member => member
+  | some task =>
+      rw [queue.taskFailure_eq occurrence errors task found]
+      exact failureGroupFold_preserves
+        (fun current => queue.cancelledGroups.Subset current.cancelledGroups)
+        (fun _ _ prior => prior.trans (List.subset_append_left _ _)) errors task.task.groups _
+        (List.Subset.refl _)
+
+/-- Rejection replay conserves every buffered owner that is not cancelled by that replay.
+Witness: the selected task already has that rejection, so replacement preserves first
+lookups; composition of the actual owner removals retains the same occurrence and ref.
+-/
+theorem State.taskFailure_replay_storedOwnersConserved {queue : State}
+    {group occurrence errors}
+    (replayed : queue.rejectedTask? group = some (occurrence, errors))
+    : queue.StoredOwnersConserved [] (queue.taskFailure occurrence errors).1 := by
+  obtain ⟨_, task, found, rejected⟩ := State.rejectedTask?_sound replayed
+  let stored := queue.putTaskNode { task with rejection := some errors }
+  have initial : queue.StoredOwnersConserved [] stored := by
+    intro other node value lookup valueEq ref contributes present uncancelled
+    have unchanged : stored.taskNode? other = some node := by
+      have identical : { task with rejection := some errors } = task := by rw [← rejected]
+      by_cases equal : occurrence = other
+      · subst other
+        have taskEq := Option.some.inj (found.symm.trans lookup)
+        change (queue.putTaskNode _).taskNode? occurrence = some node
+        rw [identical, taskEq]
+        exact State.putTaskNode_lookup_same lookup node (State.taskNode?_some lookup).2
+      · exact State.putTaskNode_lookup_other lookup _ (by
+          simpa only [(State.taskNode?_some found).2] using equal)
+    exact Or.inr ⟨unchanged, present⟩
+  rw [queue.taskFailure_eq occurrence errors task found]
+  apply failureGroupFold_preserves (fun current => queue.StoredOwnersConserved [] current)
+    (fun current ref prior => by
+      simpa only [List.nil_append] using prior.append
+        (current.removeGroup_storedOwnersConserved ref) (List.subset_append_left _ _))
+  exact initial
+
 /-- A drain never forgets a cancelled group ref.
 Witness: failed cleanup appends removed refs; successful flushing and activation leave
 cancellation history unchanged. The induction follows the actual finite drain budget.
@@ -150,15 +196,15 @@ theorem State.drainReadyGroups_go_cancelledGroups_subset (fuel : Nat) (queue : S
       split
       · exact List.Subset.refl _
       · rename_i group selected
-        cases cached : group.failure with
+        cases cached : queue.rejectedTask? group with
         | none =>
             dsimp only
             intro ref member
             apply ih _
             rwa [State.startNewWork_cancelledGroups, State.finishGroupSuccess_cancelledGroups]
-        | some errors =>
+        | some rejected =>
+            obtain ⟨occurrence, errors⟩ := rejected
             dsimp only
-            intro ref member
-            exact ih _ (List.mem_append_left _ member)
+            exact (queue.taskFailure_cancelledGroups_mono occurrence errors).trans (ih _)
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

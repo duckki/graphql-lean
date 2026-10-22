@@ -212,7 +212,7 @@ theorem located_stream_component {node items address current producer owners}
       : StructuralEquivalence.Located (.stream node items) address current producer
           owners)
     : current = .stream node items
-      ∨ ∃ (index : Nat) (result : Result ResponseValue) (children : Work)
+      ∨ ∃ (index : Nat) (result : TaskOutcome ResponseValue) (children : Work)
           (address : Address) (producer : Option Occurrence) (owners : NodeRefs),
           items[index]? = some (result, children)
           ∧ StructuralEquivalence.Located children address current producer owners := by
@@ -245,7 +245,7 @@ Witness: recover an actual item entry and retain its deferred-fragment member.
 -/
 theorem group_in_stream {stream items node dependencies producer}
     (known : NodeAt (.stream stream items) node .group dependencies producer)
-    : ∃ (index : Nat) (result : Result ResponseValue) (children : Work)
+    : ∃ (index : Nat) (result : TaskOutcome ResponseValue) (children : Work)
         (producer : Option Occurrence),
         items[index]? = some (result, children)
         ∧ NodeAt children node .group dependencies producer := by
@@ -440,7 +440,7 @@ theorem GroupOriginsExcept.executionGroup {inherited groups path result children
             supported'⟩
         · refine Or.inr ⟨origin, parents, _, descriptor, same, Or.inr ?_⟩
           exact ⟨.executionGroup [], groups.map (fun group => group.node.ref), none,
-            .object path result, ref, rfl, TaskAt.executionGroup Located.root,
+            .object path result.deliveryResult, ref, rfl, TaskAt.executionGroup Located.root,
             member, earlier, below⟩
       · refine Or.inr ⟨origin, parents, _, descriptor, same, Or.inr ?_⟩
         refine ⟨GroupOriginComposition.relocate [0] source, owners,
@@ -456,10 +456,10 @@ Empty streams have no group-origin obligations.
 -/
 theorem GroupProducerOrigins.stream {stream items}
     (origins
-      : ∀ (index : Nat) (result : Result ResponseValue) children,
+      : ∀ (index : Nat) (result : TaskOutcome ResponseValue) children,
           items[index]? = some (result, children) → GroupProducerOrigins children)
     (rootSupport
-      : ∀ (index : Nat) (result : Result ResponseValue) children node dependencies,
+      : ∀ (index : Nat) (result : TaskOutcome ResponseValue) children node dependencies,
           items[index]? = some (result, children)
           → NodeAt children node .group dependencies none
           → stream.ref < node.ref ∧ stream.path.IsPrefix node.path)
@@ -477,7 +477,7 @@ theorem GroupProducerOrigins.stream {stream items}
     task, member, earlier, below⟩
   · subst birth
     have support := rootSupport _ _ _ _ _ entry originKnown
-    exact ⟨.item [] index, [stream.ref], none, .item stream result, stream.ref, rfl,
+    exact ⟨.item [] index, [stream.ref], none, .item stream result.deliveryResult, stream.ref, rfl,
       TaskAt.item Located.root entry, by simp, support.1, support.2⟩
   · refine ⟨GroupOriginComposition.relocate [index] source, owners,
       GroupOriginComposition.reparent [index] (some (.item [] index)) ancestor,

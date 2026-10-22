@@ -4,9 +4,9 @@ import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.GroupRefs
 
 namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
 
-/-- A predicate survives draining when it survives each selected closure and activation.
+/-- A predicate survives draining when it survives each selected task rejection or successful closure and activation.
 Witness: induction on the drain's live-node budget; lookup supplies a live active node,
-and a selected healthy node must have a zero pending counter.
+and a selected unrejected node must have a zero pending counter.
 -/
 theorem State.drainReadyGroups_go_preserves (invariant : State → Prop)
     (success
@@ -14,18 +14,18 @@ theorem State.drainReadyGroups_go_preserves (invariant : State → Prop)
           invariant queue
           → node ∈ queue.groupNodes
           → node.group.node.ref ∈ queue.rootGroups
-          → node.failure = none
+          → queue.rejectedTask? node = none
           → node.pending = 0
           → invariant
               ((queue.finishGroupSuccess node).1.startNewWork
                 (queue.finishGroupSuccess node).2.2))
     (failure
-      : ∀ queue node errors,
+      : ∀ queue node occurrence errors,
           invariant queue
           → node ∈ queue.groupNodes
           → node.group.node.ref ∈ queue.rootGroups
-          → node.failure = some errors
-          → invariant (queue.finishGroupFailure node errors).1)
+          → queue.rejectedTask? node = some (occurrence, errors)
+          → invariant (queue.taskFailure occurrence errors).1)
     {queue : State} (valid : invariant queue) (fuel : Nat)
     : invariant (State.drainReadyGroups.go fuel queue).1 := by
   have loop (fuel : Nat) (current : State) (valid : invariant current)
@@ -43,7 +43,7 @@ theorem State.drainReadyGroups_go_preserves (invariant : State → Prop)
           | none => simp [found] at choice
           | some candidate =>
               simp only [found] at choice
-              change (if candidate.failure.isSome || candidate.pending == 0 then
+              change (if (current.rejectedTask? candidate).isSome || candidate.pending == 0 then
                 some candidate else none) = some node at choice
               split at choice
               · rename_i ready
@@ -51,12 +51,13 @@ theorem State.drainReadyGroups_go_preserves (invariant : State → Prop)
                 subst candidate
                 have member := List.mem_of_find?_eq_some found
                 have root := current.groupNode?_ref found ▸ active
-                cases failed : node.failure with
+                cases failed : current.rejectedTask? node with
                 | none =>
                     have zero : node.pending = 0 := by simpa [failed] using ready
                     exact ih _ (success current node valid member root failed zero)
-                | some errors =>
-                    exact ih _ (failure current node errors valid member root failed)
+                | some rejection =>
+                    obtain ⟨occurrence, errors⟩ := rejection
+                    exact ih _ (failure current node occurrence errors valid member root failed)
               · contradiction
   exact loop fuel queue valid
 
@@ -69,18 +70,18 @@ theorem State.drainReadyGroups_preserves (invariant : State → Prop)
           invariant queue
           → node ∈ queue.groupNodes
           → node.group.node.ref ∈ queue.rootGroups
-          → node.failure = none
+          → queue.rejectedTask? node = none
           → node.pending = 0
           → invariant
               ((queue.finishGroupSuccess node).1.startNewWork
                 (queue.finishGroupSuccess node).2.2))
     (failure
-      : ∀ queue node errors,
+      : ∀ queue node occurrence errors,
           invariant queue
           → node ∈ queue.groupNodes
           → node.group.node.ref ∈ queue.rootGroups
-          → node.failure = some errors
-          → invariant (queue.finishGroupFailure node errors).1)
+          → queue.rejectedTask? node = some (occurrence, errors)
+          → invariant (queue.taskFailure occurrence errors).1)
     {queue : State} (valid : invariant queue)
     : invariant queue.drainReadyGroups.1 :=
   State.drainReadyGroups_go_preserves invariant success failure valid

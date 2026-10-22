@@ -89,7 +89,7 @@ theorem Explains.recorded_owner_reported_of_eventual_notice
           ref ∈ completedRefs events)
     (recorded : (cut, occurrence) ∈ failures)
     (known : TaskAt work occurrence owners producer payload)
-    (positive : 0 < payload.failure.getD 0)
+    (_positive : 0 < payload.failure.getD 0)
     (descriptor : NodeAt work node kind dependencies birth)
     (contributes : node.ref ∈ owners)
     (unfinished : node.ref ∉ completedRefs (events.take cut))

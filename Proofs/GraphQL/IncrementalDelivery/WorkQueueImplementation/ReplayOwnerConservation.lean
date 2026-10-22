@@ -66,14 +66,13 @@ theorem State.ReplayClosuresCovered.success_conservesOwners {queue : State}
     (covered
       : queue.ReplayClosuresCovered (.taskSuccess occurrence result :: rest) published)
     (found : queue.taskNode? occurrence = some node)
-    (healthy : queue.taskHasHealthyOwner node.task = true)
     : ((queue.putTaskNode { node with value := some result.value }).maybeIntegrateWork
         result.work (some occurrence)).1.StoredOwnersConserved
         (published.take
           ((queue.rawEventReplay (.taskSuccess occurrence result :: rest)).2.flatMap
             WorkQueueEvent.objectValues).length)
         (queue.replayGraphEvents (.taskSuccess occurrence result :: rest)) := by
-  have conserved := (covered.2.2.2.2.2.1 node found healthy).append
+  have conserved := (covered.2.2.2.2.2.1 node found).append
     covered.tail.conservesOwners
     (State.replayGraphEvents_cancelledGroups_subset _ rest)
   simpa only [State.rawEventReplay_cons, List.flatMap_append, List.length_append,
@@ -89,7 +88,6 @@ theorem State.ReplayClosuresCovered.success_published_or_buffered {queue : State
     (covered
       : queue.ReplayClosuresCovered (.taskSuccess occurrence result :: rest) published)
     (found : queue.taskNode? occurrence = some node)
-    (healthy : queue.taskHasHealthyOwner node.task = true)
     (contributes : ref ∈ node.task.groups.map Execution.DeliveryNode.ref)
     (present : ref ∈ queue.groupNodes.map (fun owner => owner.group.node.ref))
     (uncancelled
@@ -115,7 +113,7 @@ theorem State.ReplayClosuresCovered.success_published_or_buffered {queue : State
     (queue.putTaskNode { node with value := some result.value })
     result.work (some occurrence) ref present
   have bufferedContributes := sameTask.symm ▸ contributes
-  rcases covered.success_conservesOwners found healthy occurrence buffered result.value
+  rcases covered.success_conservesOwners found occurrence buffered result.value
       installed stored ref bufferedContributes preparedPresent uncancelled with emitted | retained
   · exact Or.inl emitted
   · exact Or.inr ⟨buffered, retained.1, stored, bufferedContributes, retained.2⟩
@@ -129,7 +127,6 @@ theorem State.ReplayClosuresCovered.success_retired_published {queue : State}
     (covered
       : queue.ReplayClosuresCovered (.taskSuccess occurrence result :: rest) published)
     (found : queue.taskNode? occurrence = some node)
-    (healthy : queue.taskHasHealthyOwner node.task = true)
     (contributes : ref ∈ node.task.groups.map Execution.DeliveryNode.ref)
     (present : ref ∈ queue.groupNodes.map (fun owner => owner.group.node.ref))
     (retired
@@ -146,7 +143,7 @@ theorem State.ReplayClosuresCovered.success_retired_published {queue : State}
           ((queue.rawEventReplay (.taskSuccess occurrence result :: rest)).2.flatMap
             WorkQueueEvent.objectValues).length := by
   exact Or.resolve_right
-    (covered.success_published_or_buffered found healthy contributes present uncancelled)
+    (covered.success_published_or_buffered found contributes present uncancelled)
     (fun ⟨_, _, _, _, live⟩ => retired live)
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

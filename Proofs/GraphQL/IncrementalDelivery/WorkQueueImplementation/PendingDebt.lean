@@ -188,8 +188,7 @@ theorem State.PendingDebt.decrement {queue : State} {eligible settled remaining 
     (tracks : queue.PendingDebt eligible settled (ref :: remaining))
     (unique : queue.GroupRefsUnique) (absent : ref ∉ remaining)
     {node : GroupNode} (found : queue.groupNode? ref = some node)
-    (failure : Option Nat := node.failure)
-    : (queue.putGroupNode { node with pending := node.pending - 1, failure }).PendingDebt
+    : (queue.putGroupNode { node with pending := node.pending - 1 }).PendingDebt
         eligible settled remaining := by
   have nodeRef := queue.groupNode?_ref found
   have nodeMember := List.mem_of_find?_eq_some found
@@ -233,9 +232,7 @@ def successGroupStep (acc : State × List WorkQueueEvent × NewWork)
   | some node =>
       let node := { node with pending := node.pending - 1 }
       let current := current.putGroupNode node
-      if current.rootGroups.contains group.ref
-          && node.pending == 0
-          && node.failure.isNone then
+      if current.rootGroups.contains group.ref && node.pending == 0 then
         let (next, finished, newWork) := current.finishGroupSuccess node
         (
           next,
@@ -293,10 +290,9 @@ theorem successGroupFold_preserves (eligible : Nat → Prop) (settled : List Occ
           split
           · rename_i ready
             have active : group.ref ∈ queue.rootGroups := by
-              simpa [State.putGroupNode]
-                using (Bool.and_eq_true_iff.mp (Bool.and_eq_true_iff.mp ready).1).1
+              simpa [State.putGroupNode] using (Bool.and_eq_true_iff.mp ready).1
             have zero : node.pending - 1 = 0 := by
-              simpa using (Bool.and_eq_true_iff.mp (Bool.and_eq_true_iff.mp ready).1).2
+              simpa using (Bool.and_eq_true_iff.mp ready).2
             have member : { node with pending := node.pending - 1 } ∈
                 (queue.putGroupNode { node with pending := node.pending - 1 }).groupNodes := by
               apply List.mem_map.mpr
@@ -315,10 +311,9 @@ theorem successGroupFold_preserves (eligible : Nat → Prop) (settled : List Occ
           split
           · rename_i ready
             have active : group.ref ∈ queue.rootGroups := by
-              simpa [State.putGroupNode]
-                using (Bool.and_eq_true_iff.mp (Bool.and_eq_true_iff.mp ready).1).1
+              simpa [State.putGroupNode] using (Bool.and_eq_true_iff.mp ready).1
             have zero : node.pending - 1 = 0 := by
-              simpa using (Bool.and_eq_true_iff.mp (Bool.and_eq_true_iff.mp ready).1).2
+              simpa using (Bool.and_eq_true_iff.mp ready).2
             have member : { node with pending := node.pending - 1 } ∈
                 (queue.putGroupNode { node with pending := node.pending - 1 }).groupNodes := by
               apply List.mem_map.mpr
@@ -327,23 +322,20 @@ theorem successGroupFold_preserves (eligible : Nat → Prop) (settled : List Occ
               (nextTracks.allSettled member (nodeRef ▸ roots queue valid _ active) zero)
           · exact nextTracks
 
-/-- Decompose task success into cancellation or its single-pass fold and release drain.
-Witness: definitional equality; the owner guard is evaluated before the settlement.
+/-- Decompose a retained task success into its single-pass fold and release drain.
+Witness: definitional equality after the task-presence lookup.
 -/
 theorem State.taskSuccess_eq {queue : State} (occurrence : Occurrence)
     (result : TaskResult) (taskNode : TaskNode)
     (found : queue.taskNode? occurrence = some taskNode)
     : queue.taskSuccess occurrence result
-      = if !queue.taskHasHealthyOwner taskNode.task then
-          (queue.removeTask occurrence, [])
-        else
-          let integrated :=
-            ((queue.putTaskNode
-                { taskNode with value := some result.value }).maybeIntegrateWork
-              result.work (some occurrence)).1
-          let released := taskNode.task.groups.foldl successGroupStep (integrated, [], {})
-          let drained := (released.1.startNewWork released.2.2).drainReadyGroups
-          (drained.1, released.2.1 ++ drained.2) := by
+      = let integrated :=
+          ((queue.putTaskNode
+              { taskNode with value := some result.value }).maybeIntegrateWork
+            result.work (some occurrence)).1
+        let released := taskNode.task.groups.foldl successGroupStep (integrated, [], {})
+        let drained := (released.1.startNewWork released.2.2).drainReadyGroups
+        (drained.1, released.2.1 ++ drained.2) := by
   simp only [State.taskSuccess, found]
   rfl
 

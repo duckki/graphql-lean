@@ -96,10 +96,9 @@ theorem ExecutedWork.replayGraphEvents_objectStreamHealthy_of_itemSafety
         ∈ ((State.initialize (Work.fromExecution work)).replayGraphEvents
             received).registeredGroups)
     (healthyBoundary
-      : ((State.initialize (Work.fromExecution work)).replayGraphEvents
-            received).groupIsHealthy
-            ref
-          = true
+      : (¬GroupRecordInvalidated work
+            ((State.initialize (Work.fromExecution work)).objectFailureContributions
+              received) ref)
         ∨ ((State.initialize (Work.fromExecution work)).replayGraphEvents
             received).RetiredGroup
             ref

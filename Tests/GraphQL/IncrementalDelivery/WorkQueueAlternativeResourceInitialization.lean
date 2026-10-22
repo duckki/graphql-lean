@@ -20,7 +20,7 @@ private theorem producerKnown
     : WorkQueueSemantics.TaskAt SharedOwnerFailure.work RejectedTaskCleanup.producer
         [0, 1] none (.object [] (.ok (SharedOwnerFailure.data, 0))) := by
   refine ⟨[{ node := SharedOwnerFailure.groupG }, { node := SharedOwnerFailure.groupH }], [],
-    .ok (SharedOwnerFailure.data, 0), SharedOwnerFailure.childWork, [], ?_, rfl, rfl⟩
+    { result := .ok (SharedOwnerFailure.data, 0) }, SharedOwnerFailure.childWork, [], ?_, rfl, rfl⟩
   rw [SharedOwnerFailure.work_shape]
   rfl
 

@@ -21,12 +21,13 @@ private def readyFailure : State :=
       {
         rootGroups := [0]
         rootStreams := [9]
-        groupNodes := [{ group := ⟨group, none⟩, tasks := [producer], failure := some 1 }]
+        groupNodes := [{ group := ⟨group, none⟩, tasks := [producer] }]
         tasks := [{ occurrence := producer, groups := [group] }]
         taskNodes :=
           [{
             task := { occurrence := producer, groups := [group] }
             value := some { deliveryGroups := [group], path := [], data := [] }
+            rejection := some 1
             childStreams := [7]
           }]
         streams := [⟨source⟩, ⟨carrier⟩]
@@ -36,7 +37,7 @@ private def readyFailure : State :=
 -- Receipt consumption ends before its ready-drain cleanup, including a zero-item receipt.
 example
     : (readyFailure.streamItems carrier []).2.2
-      = [.acknowledge 9, .abortTask producer, .cancelSource 7, .abortStreamQueue 7] := by
+      = [.acknowledge 9, .cancelSource 7, .abortStreamQueue 7] := by
   cbv
 
 example : (readyFailure.streamItems carrier []).1.queue.taskNode? producer = none := by

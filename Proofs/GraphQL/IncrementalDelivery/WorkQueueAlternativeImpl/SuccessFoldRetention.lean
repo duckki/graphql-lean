@@ -63,7 +63,7 @@ theorem successGroupFold_releaseEvidence {queue : Kernel} {work parents}
         · rename_i node found
           let updated := { node with pending := node.pending - 1 }
           have updatedFrame := frame.putPending found updated.pending
-          have updatedForest := forest.putCounters frame.keys found updated.pending node.failure
+          have updatedForest := forest.putCounters frame.keys found updated.pending
           have updatedEdges := (ReferenceWorkQueue.State.putPending_groupEdgesFrom frame.keys
             found updated.pending).trans edges
           have updatedClosures := closures.post (fun _ retired => retired.putGroupNode updated)

@@ -47,9 +47,7 @@ theorem State.startNewWork_groupCore (queue : State) (newWork : NewWork)
             obtain ⟨groups, tasks, roots⟩ := ih (current.startTask occurrence)
             obtain ⟨taskGroups, taskTasks, taskRoots⟩ := taskCore current occurrence
             exact ⟨groups.trans taskGroups, tasks.trans taskTasks, roots.trans taskRoots⟩
-      split
-      · exact ⟨rfl, rfl, rfl⟩
-      · exact foldCore node.tasks state
+      exact foldCore node.tasks state
   have streamCore (state : State) (ref : NodeRef) :
       (state.startStream ref).groupNodes = state.groupNodes
       ∧ (state.startStream ref).tasks = state.tasks
@@ -169,11 +167,9 @@ private theorem State.startGroup_oldOrRequested
   split at member
   · exact Or.inl member
   · rename_i groupNode found
-    split at member
-    · exact Or.inl member
-    · rcases foldTasks groupNode.tasks queue taskNode member with old | requested
-      · exact Or.inl old
-      · exact Or.inr ⟨groupNode, found, requested⟩
+    rcases foldTasks groupNode.tasks queue taskNode member with old | requested
+    · exact Or.inl old
+    · exact Or.inr ⟨groupNode, found, requested⟩
 
 /-- Task and group activation do not mutate the group-node map. -/
 private theorem State.startGroup_groupNodes (queue : State) (ref : NodeRef)
@@ -196,9 +192,7 @@ private theorem State.startGroup_groupNodes (queue : State) (ref : NodeRef)
   split
   · rfl
   · rename_i groupNode found
-    split
-    · rfl
-    · exact foldNodes groupNode.tasks queue
+    exact foldNodes groupNode.tasks queue
 
 /-- No started task can be introduced by group release unless an activated
 group requested its occurrence. -/
@@ -303,9 +297,7 @@ private theorem State.startNewWork_preservesTaskNodes
             intro current node old
             exact ih (current.startTask occurrence) node
               (startTaskPreserves current occurrence old)
-      split
-      · exact member
-      · exact foldTasks groupNode.tasks current node member
+      exact foldTasks groupNode.tasks current node member
   have groupFold (more : NodeRefs) :
       ∀ current : State, ∀ node : TaskNode,
         node ∈ current.taskNodes
@@ -939,8 +931,9 @@ theorem State.ActiveTaskLinks.taskFailure
     (failed : Occurrence) (errors : Nat)
     : (queue.taskFailure failed errors).1.ActiveTaskLinks := by
   intro taskNode member
-  obtain ⟨original, different⟩ := queue.taskFailure_startedSurvivor failed errors member
-  exact (links taskNode original).taskFailure failed errors different
+  obtain ⟨old, original, same⟩ := queue.taskFailure_startedSurvivor failed errors member
+  have retained := (links old original).taskFailure_preserves failed errors
+  simpa only [same] using retained
 
 /-- Finishing any zero-pending contributor preserves links of task nodes that
 remain started in surviving groups. -/

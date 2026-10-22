@@ -75,6 +75,7 @@ theorem root_groups_reporting_continuation
     (pathCoherent : MixedOwnerPaths.WorkAt paths pathBound work)
     (under : ExecutionPaths.WorkUnder base work)
     (positive : ExecutionErrors.WorkPositive work)
+    (allocated : (streamAllocationRefs work).Nodup)
     (roots
       : ∀ node dependencies producer,
           NodeAt work node .group dependencies producer → producer = none)
@@ -82,11 +83,14 @@ theorem root_groups_reporting_continuation
     (covered
       : ReportingNoticesCovered ancestry work ((groups ++ streams).map DeliveryNode.ref)
           matching events failures)
+    (support
+      : StreamNoticesSupported ancestry work ((groups ++ streams).map DeliveryNode.ref)
+          matching events failures)
     (batched : WorkBatching events batches)
     : (History.mk groups streams batches).CanFinish work := by
   obtain ⟨tail, next, cuts, extended, frontier, accounted, closed, satisfied⟩ :=
     mixed_reporting_closed_extension valid coherent roleCoherent continuous ordered
-      pathCoherent explained covered
+      pathCoherent allocated positive explained covered support
   have reports : ∀ occurrence owners producer payload,
       TaskAt work occurrence owners producer payload
       → ¬Published next (events ++ tail) occurrence
@@ -96,7 +100,8 @@ theorem root_groups_reporting_continuation
       pathCoherent under positive extended frontier.2 satisfied closed roots
       ((accounted _ _ _ _ known).resolve_right unpublished) known
   obtain ⟨closures, run, _, _⟩ :=
-    (batched.append (WorkBatching.singletons tail)).finish_accounted extended accounted
+    (batched.append (WorkBatching.singletons tail)).finish_accounted extended
+      (fun ref opened _ => False.elim (opened.2 (closed ref opened.1))) accounted
       reports
   refine ⟨tail.map (fun event => [event]) ++ closures.map (fun event => [event])
     ++ [[.workQueueTermination]], ?_⟩
@@ -116,6 +121,7 @@ theorem completeRun_exists_of_root_group_descriptors
     (pathCoherent : MixedOwnerPaths.WorkAt paths pathBound work)
     (under : ExecutionPaths.WorkUnder base work)
     (positive : ExecutionErrors.WorkPositive work)
+    (allocated : (streamAllocationRefs work).Nodup)
     (roots
       : ∀ node dependencies producer,
           NodeAt work node .group dependencies producer → producer = none)
@@ -127,9 +133,9 @@ theorem completeRun_exists_of_root_group_descriptors
   have initial : Explains work groups streams [] (fun _ => .executionGroup []) [] :=
     ⟨initialized, by simp [FailureWitness], by simp⟩
   obtain ⟨batches, run⟩ := root_groups_reporting_continuation valid coherent roleCoherent
-    continuous ordered pathCoherent under positive roots initial
+    continuous ordered pathCoherent under positive allocated roots initial
     (reportingNoticesCovered_of_noticesCovered (NoticesCovered.initial covers _))
-    WorkBatching.nil
+    (by intro index event selected; simp at selected) WorkBatching.nil
   exact ⟨⟨groups, streams, batches⟩, run⟩
 
 end GraphQL.IncrementalDelivery.Correctness

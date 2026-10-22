@@ -100,7 +100,7 @@ theorem collectExecutionGroups_run_of_fields (schema : Schema)
         KeyRenaming.partitions, List.map_nil, StateT.run_pure, id_pure_eq, workRun]
       refine ⟨keys, ⟨fun _ _ => rfl, supplies, Nat.le_refl _, Nat.le_refl _, ?_, ?_⟩⟩
       · simp [allRefs, rootRefs, hiddenRegions]
-      · exact ⟨ResultRefines.refl _, .empty⟩
+      · exact ⟨ResultRefines.refl _, .empty, rfl⟩
   | cons partition rest ih =>
       rcases partition with ⟨usages, fields⟩
       let partition := (usages, fields)
@@ -134,10 +134,10 @@ theorem collectExecutionGroups_run_of_fields (schema : Schema)
       refine ⟨next, ⟨prefixSame, tail.supplies,
         Nat.le_trans head.scheduledMonotone tail.scheduledMonotone,
         Nat.le_trans head.eagerMonotone tail.eagerMonotone, regions.bounded, ?_⟩⟩
-      refine ⟨ResultRefines.refl _, .combine ?_ tail.completion.2⟩
+      refine ⟨ResultRefines.refl _, .combine ?_ tail.completion.2.1, rfl⟩
       rw [← ownersMapped]
-      exact WorkRefines.executionGroup head.completion.1
-        (head.completion.2.rekey
+      exact WorkRefines.executionGroup ⟨head.completion.1, head.completion.2.2⟩
+        (head.completion.2.1.rekey
           (fun key member => tail.compatible key (head.bounded key member)))
 
 -----------------------------------------------------------------------------------------
@@ -186,8 +186,8 @@ theorem plan_run_of_fields (schema : Schema) (resolvers : Resolvers ObjectRef)
       · exact Nat.lt_of_lt_of_le (head.bounded key inHead) tail.scheduledMonotone
       · exact tail.bounded key inTail
     · refine ⟨?_, .combine
-        (head.completion.2.rekey (fun key member => tail.compatible key (head.bounded key member)))
-        tail.completion.2⟩
+        (head.completion.2.1.rekey (fun key member => tail.compatible key (head.bounded key member)))
+        tail.completion.2.1, by simpa only [cutOutcome, eagerOutcome] using head.completion.2.2⟩
       simpa only [cutOutcome, eagerOutcome] using head.completion.1
 
 -----------------------------------------------------------------------------------------

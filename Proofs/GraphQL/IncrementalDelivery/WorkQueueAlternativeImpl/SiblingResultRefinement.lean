@@ -120,7 +120,7 @@ theorem cutActions_cons (combine : α → β → β) (base : β)
       = (do
           let head ← action
           match head.result with
-          | .error errors => return .error errors
+          | .error errors => return { Completion.error errors with cause := head.cause }
           | .ok _ =>
               let tail ← cutActions combine base rest
               return Completion.combine combine head tail) := by
@@ -129,7 +129,7 @@ theorem cutActions_cons (combine : α → β → β) (base : β)
     ((do
       let head ← action
       match head.result with
-      | .error errors => return .error errors
+      | .error errors => return { Completion.error errors with cause := head.cause }
       | .ok _ =>
           let tail ← cutActions combine base rest
           return Completion.combine combine head tail) : StateM Nat (Completion β)).run

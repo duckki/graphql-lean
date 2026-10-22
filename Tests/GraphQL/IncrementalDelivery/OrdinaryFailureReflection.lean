@@ -58,7 +58,7 @@ example
       | .combine (.combine (.combine _ (.stream _ items)) _) _ =>
           items.length = 2
           ∧ ∀ entry ∈ items,
-              (∃ data errors, entry.1 = .ok (data, errors))
+              (∃ data errors, entry.1 = { result := .ok (data, errors) })
               ∧ ∃ occurrence owners producer payload,
                   TaskAt entry.2 occurrence owners producer payload
                   ∧ payload.failure.isSome = true

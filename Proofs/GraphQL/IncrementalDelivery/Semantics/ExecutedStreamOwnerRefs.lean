@@ -68,7 +68,7 @@ mutual
           rest path deferMap _ (hm.mono hle)
           (fun p hmem g hg f hf => usageBefore_mono _ (hk p (List.mem_cons_of_mem _ hmem) g hg f hf) hle)
         have hd := streamRefs_deferred state deferMap usages path
-          ((executeCollectedFields schema resolvers variables fuel parentType source groups path usages deferMap).run state).1.result
+          ((executeCollectedFields schema resolvers variables fuel parentType source groups path usages deferMap).run state).1.outcome
           _ hm ⟨hw, ho⟩
         simp only [collectExecutionGroups, executeExecutionGroup, run_bind, StateT.run_pure, id_pure_eq]
         exact ⟨Nat.le_trans hle hlt,

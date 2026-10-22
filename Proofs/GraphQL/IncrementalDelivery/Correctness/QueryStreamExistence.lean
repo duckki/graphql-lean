@@ -59,7 +59,7 @@ theorem executeRoot_completeObservation_of_streamOnly (schema : Schema)
     (ExecutionPaths.executeRootSelectionSetCore_under schema resolvers variables fuel
       parentType source selections 0)
     (ExecutionErrors.executeRootSelectionSetCore_positive schema resolvers variables fuel
-      parentType source selections 0).2
+      parentType source selections 0).2.1
     (selectionSetResultToResponse completed.result)
 
 /-- Every stream-only query has a complete outcome through a conforming queue constructor.

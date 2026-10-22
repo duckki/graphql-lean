@@ -6,11 +6,18 @@ defines a small alternative to the reference queue. It shares `Execution.Work`,
 publication owner selection, and response mapping. Its main algorithmic differences are
 scope-local registration projections and inline last-owner disposal.
 
-The finite Lean model and its proof reconstruction are complete. Generated replay,
-factory/response equivalence, conformance, query observation, resource-prefix coverage,
-and reader safety have proof witnesses. The source contract and public eager executors
-are unchanged. Refinement of a concrete host implementation remains a separate
-project; passing differential tests does not establish it.
+Both queues retain collected diagnostics separately from selected delivery causes and
+replay rejected task computations in group task order, following GraphQL.js. No
+per-group failure or provenance cache is maintained. Settlement uses task presence.
+The fused failure owner pass preserves every emitted closure; mixed draining preserves
+cleanup-target prefixes, target uniqueness and host-effect order.
+
+Generated replay, factory/response equivalence, conformance, query observation, resource
+coverage, recording and reader-safety witnesses are proved for these definitions. Present
+task successes adopt their producer; failure dispatch converts cleanup targets to host
+effects. Receipt acknowledgement, semantic termination and stopping the graph reader
+remain distinct. Concrete host refinement is a separate boundary; differential fixtures
+and these finite proofs do not establish it.
 
 Use this page for the algorithm and proof map. The [porting guide](porting-guide.md)
 covers concrete representations, execution optimizations, and native obligations.
@@ -18,7 +25,7 @@ The [reference implementation guide](implementation.md) documents only the basel
 
 ## Comparison with the reference
 
-Both implementations realize the same finite WorkQueue contract on generated work.
+Both implementations target the same finite WorkQueue contract on generated work.
 The alternative changes selected transitions and adds explicit host-effect observations;
 it does not redefine execution or response mapping.
 
@@ -32,8 +39,11 @@ it does not redefine execution or response mapping.
 | Host lifecycle | Work termination and finite publication histories | Additional receipt, cleanup, stopped-reader, and completion observations |
 | Queue contract | Generated work, source validity, and executable-start discipline | Same premises and observable contract |
 
-Shared behavior includes ancestor health checks, producer ancestry protection, per-item
-child activation, and longest-path live wire-owner selection. Proof-only context/planning,
+Shared behavior includes task-presence settlement checks, producer ancestry protection,
+per-item child activation, and longest-path live wire-owner selection. `NativeHealth`
+proves that absent-task settlements are ignored; its proof boundary uses retained task
+rejections rather than an executable ancestor-health guard. Registration activation
+commutation likewise follows group lookup and task-start order. Proof-only context/planning,
 lazy-computation, empty-scope, and sequential-error refinements do not change either public
 executor. Concrete implementation correspondence belongs in the porting guide.
 
@@ -113,10 +123,11 @@ One temporary first-encounter cleanup prefix spans an entire handler: rejected i
 multiple failed owners, and cached failures in the ready drain. Cancelled references retain
 reverse-preorder bookkeeping for the reference projection; it is not a native scheduling rank.
 
-`taskFailure` checks health before unlinking the already-settled input. Announced owners fail
-through actual removal; dormant owners retain their pending/error update. The input task
-is not aborted again. `drainReadyGroups` shares reference readiness and successful release,
-and uses the same inline removal for cached failures.
+`taskFailure` retains the task's rejected outcome and removes active owners. Dormant owners
+keep their memberships and pending counts for computation replay. The already rejected
+input is not aborted again. `drainReadyGroups` shares reference task-order replay and
+successful release, carrying cleanup targets across replayed failures before dispatch
+expands them to host effects.
 
 Successful publication transfers released child work. Ordinary successful unlinking must
 not cancel that work. A source failure cancels its producer without aborting the stream
@@ -192,10 +203,54 @@ Public files contain definitions and statements only.
 | Sequential execution, key mapping, origins, and error recording | `RecursiveExecutionConstruction`, `PairedOriginCoverage`, `RecursiveCutAccounting`, `RecursiveRecordingCorrespondence` | General finite object/list/defer/stream execution with one compatible witness |
 | Native audit composition | `NativeAudit.AuditWitness.localSafety` | Checked reduction requiring related actual observations and complete native inventories |
 
+The origin annotations retain all collected diagnostic origins in `Report`.
+`RecordedCompletion.cause` separately follows the completion algebra's selected boundary
+explanation, so exact erasure also preserves this metadata. Eager origin erasure and
+literal/growing sibling comparisons retain it at each future task boundary. The origin inventory and its
+length certificate remain additive. Work now retains both projections in `TaskOutcome`,
+and the source contract uses its
+[boundary reporting projection](README.md#collected-diagnostics-and-failure-explanations).
+Recorded tasks retain `cause` beside the additive origin inventory. The scheduled
+positivity certificate checks both collected diagnostics and the selected delivery
+explanation; origin-only structural comparisons project the retained diagnostic report.
+Exact recursive recorded-work erasure, including deferred tasks, stream items, and final
+allocation supply, is proved. Recursive recording correspondence supplies constructed
+finite histories for the same cut and eager executions. The recursive work-refinement
+foundation relates collected diagnostics and preserves selected cause metadata
+separately, and derives refinement of delivered task outcomes. Recursive execution
+constructors must establish both components. Selecting a completion explanation does not delete
+collected or scheduled error records.
+
 `registrationCore` and `registrationSnapshot` are phase-local proof views.
 The algorithm does not construct snapshots, scan publications for cleanup, or allocate
-proof histories. Optional failure-frontier lemmas describe topology; actual cleanup coverage
+proof histories. The registration snapshot follows task presence. Failure topology uses
+the actual owner-removal block and task rejection state; held-source disposal is observed
+after cleanup targets are converted to public handler effects. Registration cleanup skips an abort for a computation already storing a
+rejection. Occurrence-indexed rejection provenance is proof evidence derived from input
+replay and preserved through delayed registration, owner settlement, and activation.
+A separate rejection invariant preserves this evidence through each interleaved receipt
+item; membership-retention helpers keep their original registration frame.
+Actual replay supplies its settled-occurrence set, and source freshness excludes any
+previous rejection for an incoming task. Fresh returned tasks therefore receive the
+registration abort without adding a runtime health check or a new source requirement. Optional failure-frontier lemmas describe topology; actual cleanup coverage
 comes from the real transitions and cumulative effects.
+
+The raw last-owner task-progress helper is restricted to computations without a retained
+rejection. Removal traces preserve this evidence; an already rejected computation can
+disappear without a redundant abort. The shared failed-owner retention proof and bounded drain thread this condition through
+the entire actual rejection replay. Public abort effects are obtained from the resulting
+cleanup targets. Generated unsettled-task progress derives the condition from source provenance and
+freshness for all five actual handlers. Optional failure-cut topology follows the full
+reported owner block: emitted roots are initially active contributors, their subtrees
+are absent after the pass, and subsequent successful carriers cannot cross those paths.
+These are derived implementation facts, with no stronger host-source law.
+
+Task-resource representation includes the concrete unrejected-computation test as well
+as a live group membership. A retained rejected task still represents group accounting,
+but cannot witness a queue-owned computation lease. Initial identities and generated
+fresh source replay derive this test through registration, failure passes, and drains;
+the resource-prefix construction and represented stop-safety proofs are rebuilt on that
+same history. No acquisition completeness or runtime failure-origin metadata is added.
 
 Malformed raw states have deliberately weaker guarantees. Conflicting task descriptors,
 missing memberships, ownerless records, or cyclic forests need not have exact reference
@@ -218,5 +273,6 @@ lake build Tests.GraphQL.IncrementalDelivery.WorkQueueAlternativeFailureReductio
 lake build Tests.GraphQL.IncrementalDelivery.WorkQueueAlternativeResourcePrefixes
 ```
 
-Whole-project checks pass. Root-witness axiom audits use only `propext`,
-`Classical.choice`, and `Quot.sound`; no proof holes or added axioms are required.
+The whole-project build, tests and lint pass with the selected-cause definitions.
+Root-witness axiom audits use only `propext`, `Classical.choice`, and `Quot.sound`.
+No proof holes or added axioms discharge the correspondence or conformance obligations.

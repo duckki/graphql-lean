@@ -11,7 +11,7 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 -- Following a taskless ancestor's child links preserves notice metadata
 -----------------------------------------------------------------------------------------
 
-/-- Pruning inherits a ref property only along actually traversed empty, error-free shells.
+/-- Pruning inherits a ref property only along actually traversed empty shells.
 Witness: the finite traversal preserves the property of remaining and kept candidates.
 Removed records come from the original queue, and child lookup retains the linked ref.
 Unrelated live records need not satisfy the property; this isolates the local induction
@@ -23,7 +23,6 @@ theorem State.pruneEmptyGroups_inheritedNoticeProperty {queue : State}
       : ∀ node ∈ queue.groupNodes,
           property node.group.node.ref
           → node.tasks = []
-          → node.failure = none
           → ∀ child ∈ queue.groupNodes,
               child.group.node.ref ∈ node.childGroups → property child.group.node.ref)
     (groups : List Execution.DeliveryNode)
@@ -48,14 +47,11 @@ theorem State.pruneEmptyGroups_inheritedNoticeProperty {queue : State}
             · rename_i node found
               split
               · rename_i empty
-                have gate : node.tasks = [] ∧ node.failure = none := by
-                  simpa only [Bool.and_eq_true, List.isEmpty_iff,
-                    Option.isNone_iff_eq_none]
-                    using empty
+                have gate : node.tasks = [] := List.isEmpty_iff.mp empty
                 have atNode : property node.group.node.ref :=
                   (State.groupNode?_ref found).symm ▸ pending group List.mem_cons_self
                 have childProperty := inherited node (records (List.mem_of_find?_eq_some found))
-                  atNode gate.1 gate.2
+                  atNode gate
                 apply ih
                 · intro record member
                   exact records (List.mem_filter.mp member).1
@@ -145,7 +141,7 @@ theorem State.GroupNodesMatchWork.pruneEmptyGroups_notices {queue : State} {work
 -- The pruning gate excludes ancestor-only shells from actual notices
 -----------------------------------------------------------------------------------------
 
-/-- A retained notice denotes a real work node and still has tasks or a cached failure.
+/-- A retained notice denotes a real work node and still has tasks.
 Witness: descriptor preservation includes promoted children; contributor-ref support
 excludes taskless shells, and generated descriptor coherence identifies the exact node.
 The concrete post-pruning contents are retained for the remaining accounting bridge.
@@ -163,7 +159,7 @@ theorem State.pruneEmptyGroups_noticeContents {queue : State} {work}
       ∧ ∃ node,
           (queue.pruneEmptyGroups groups).1.groupNode? group.ref = some node
           ∧ node.group.node = group
-          ∧ (node.tasks ≠ [] ∨ node.failure.isSome = true) := by
+          ∧ node.tasks ≠ [] := by
   obtain ⟨recordDependencies, record⟩ :=
     registered.pruneEmptyGroups_notices groups candidates group noticed
   have known := generated.record_contributor record
@@ -176,18 +172,14 @@ theorem State.pruneEmptyGroups_noticeContents {queue : State} {work}
   · simpa only [sameRef] using (unique.pruneEmptyGroups groups).groupNode?_of_mem member
   · obtain ⟨_, _, located⟩ := known
     exact generated.record_eq_node nodeRecord located sameRef
-  · by_cases empty : node.tasks = []
-    · right
-      cases failure : node.failure with
-      | none => simp [empty, failure] at contents
-      | some count => rfl
-    · exact .inl empty
+  · intro empty
+    exact contents (by simp [empty])
 
 -----------------------------------------------------------------------------------------
 -- A successful flush passes its exact post-removal frontier through the same gate
 -----------------------------------------------------------------------------------------
 
-/-- A group-success carrier releases only real nodes with retained tasks or cached errors.
+/-- A group-success carrier releases only real nodes with retained tasks.
 Witness: the actual task-removal fold preserves ref uniqueness, registry provenance, and
 contributor support. Its child lookups supply candidate descriptors; the pruning theorem
 then covers both direct children and descendants promoted through empty ancestor shells.
@@ -204,7 +196,7 @@ theorem State.finishGroupSuccess_noticeContents {queue : State} {work}
       ∧ ∃ node,
           (queue.finishGroupSuccess group).1.groupNode? child.ref = some node
           ∧ node.group.node = child
-          ∧ (node.tasks ≠ [] ∨ node.failure.isSome = true) := by
+          ∧ node.tasks ≠ [] := by
   have loop (tasks : List Occurrence) (acc : State × List ExecutionGroupValue × NodeRefs)
       (refs : acc.1.GroupRefsUnique) (records : acc.1.GroupNodesMatchWork work)
       (contents : acc.1.GroupRefSupport

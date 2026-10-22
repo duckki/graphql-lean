@@ -19,10 +19,14 @@ private def data : List (Name × ResponseValue) := [("a", .scalar "a")]
 
 private def work : Execution.Work :=
   .combine .empty
-    (.combine (.executionGroup [⟨root, []⟩] [] (.error 1) .empty)
-      (.combine (.executionGroup [⟨root, []⟩, ⟨child, [parent]⟩] [] (.error 1) .empty)
+    (.combine
+      (.executionGroup [⟨root, []⟩] [] ({ result := .error 1, cause := some 1 }) .empty)
+      (.combine
+        (.executionGroup [⟨root, []⟩, ⟨child, [parent]⟩] []
+          ({ result := .error 1, cause := some 1 }) .empty)
         (.combine
-          (.executionGroup [⟨parent, []⟩] [] (.ok (data, 0)) (.combine .empty .empty))
+          (.executionGroup [⟨parent, []⟩] [] ({ result := .ok (data, 0) })
+            (.combine .empty .empty))
           .empty)))
 
 private def first : GraphEvent := .taskFailure firstTask 1
@@ -62,15 +66,15 @@ theorem generated : ExecutedWork work := by
 
 private theorem first_known
     : TaskAt work firstTask [root.ref] none (.object [] (.error 1)) :=
-  ⟨_, [], .error 1, .empty, [], rfl, rfl, rfl⟩
+  ⟨_, [], { result := .error 1, cause := some 1 }, .empty, [], rfl, rfl, rfl⟩
 
 private theorem shared_known
     : TaskAt work sharedTask [root.ref, child.ref] none (.object [] (.error 1)) :=
-  ⟨_, [], .error 1, .empty, [], rfl, rfl, rfl⟩
+  ⟨_, [], { result := .error 1, cause := some 1 }, .empty, [], rfl, rfl, rfl⟩
 
 private theorem parent_known
     : TaskAt work parentTask [parent.ref] none (.object [] (.ok (data, 0))) :=
-  ⟨_, [], .ok (data, 0), .combine .empty .empty, [], rfl, rfl, rfl⟩
+  ⟨_, [], { result := .ok (data, 0) }, .combine .empty .empty, [], rfl, rfl, rfl⟩
 
 /-- The shared task remains started after R closes, because latent C still owns it.
 Witness: source freshness and fixed outcomes, together with the executable start checks.
@@ -297,7 +301,7 @@ private theorem parent_node : NodeAt work parent .group [] none :=
     [1, 1, 1, 0],
     _,
     [],
-    .ok (data, 0),
+    { result := .ok (data, 0) },
     .combine .empty .empty,
     [],
     ⟨parent, []⟩,
@@ -308,7 +312,19 @@ private theorem parent_node : NodeAt work parent .group [] none :=
   ⟩
 
 private theorem child_node : NodeAt work child .group [parent.ref] none :=
-  ⟨[1, 1, 0], _, [], .error 1, .empty, [], ⟨child, [parent]⟩, rfl, by simp, rfl, rfl⟩
+  ⟨
+    [1, 1, 0],
+    _,
+    [],
+    { result := .error 1, cause := some 1 },
+    .empty,
+    [],
+    ⟨child, [parent]⟩,
+    rfl,
+    by simp,
+    rfl,
+    rfl
+  ⟩
 
 /-- R's earlier failure does not causally fail healthy P or its latent child C.
 Witness: neither ref owns the failed task, and C's only dependency is healthy P.
@@ -436,7 +452,7 @@ needed by each closure; no enumeration of the possible event indices is needed.
 -/
 theorem delayed_exact_counts {index group errors}
     (atEvent : events[index]? = some (.groupFailure group errors))
-    : NodeErrors work (failedBefore delayedCuts index) group.ref errors :=
+    : NodeFailureCause work (failedBefore delayedCuts index) group.ref errors :=
   delayed_inventory.2.2.2.1 index group errors atEvent
 
 end GraphQL.IncrementalDelivery.Tests.WorkSchedulerSilentFailureCuts

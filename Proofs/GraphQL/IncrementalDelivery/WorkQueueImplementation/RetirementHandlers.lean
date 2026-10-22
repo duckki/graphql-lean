@@ -34,49 +34,20 @@ theorem State.HealthyRetiredAncestors.taskFailure {queue : State} {work failed p
           (p := fun candidate : TaskNode => candidate.task.occurrence == occurrence)
           (by simpa [State.taskNode?] using found)
         exact (occurrence_beq_iff_eq _ _).mp selected
-      let step (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode) :=
-        match acc.1.groupNode? group.ref with
-        | none => acc
-        | some node =>
-            if acc.1.rootGroups.contains group.ref then
-              let (next, failure) := acc.1.finishGroupFailure node errors
-              (next, acc.2 ++ [failure])
-            else (acc.1.putGroupNode
-              { node with pending := node.pending - 1
-                          failure := some (node.failure.getD 0 + errors) }, acc.2)
-      let property (acc : State × List WorkQueueEvent) :=
-        acc.1.ChildLinksCanonical parents ∧ acc.1.GroupNodesMatchWork work
-        ∧ acc.1.HealthyRetiredAncestors work failed
-      have loop (more : List Execution.DeliveryNode) (included : more.Subset taskNode.task.groups)
-          (acc : State × List WorkQueueEvent) (valid : property acc)
-          : property (more.foldl step acc) := by
-        induction more generalizing acc with
-        | nil => exact valid
-        | cons group rest ih =>
-            apply ih (fun _ member => included (List.mem_cons_of_mem _ member))
-            have invalid : GroupInvalidated work failed group.ref :=
-              .task ⟨producer, payload, known⟩
-                (List.mem_map_of_mem (included List.mem_cons_self)) (same.symm ▸ recorded)
-            unfold step
-            split
-            · exact valid
-            · rename_i node selected
-              split
-              · have refEq := State.groupNode?_ref selected
-                exact ⟨valid.1.removeGroup _, valid.2.1.removeGroup _,
-                  valid.2.2.removeGroup valid.1 valid.2.1 canonical _
-                    (refEq.symm ▸ invalid.toRecordInvalidated)⟩
-              · have member := List.mem_of_find?_eq_some selected
-                exact ⟨valid.1.putGroupNode _ (valid.1 node member),
-                  valid.2.1.putGroupNode _ (valid.2.1 node member),
-                  valid.2.2.putGroupNode _⟩
-      let current := queue.removeTask occurrence
-      simp only [State.taskFailure, found]
-      split
-      · exact prior.removeTask occurrence
-      · exact (loop taskNode.task.groups (fun _ member => member)
-          (current, []) ⟨links.removeTask occurrence, groups.removeTask occurrence,
-            prior.removeTask occurrence⟩).2.2
+      let property (current : State) := current.ChildLinksCanonical parents
+        ∧ current.GroupNodesMatchWork work ∧ current.HealthyRetiredAncestors work failed
+      rw [queue.taskFailure_eq occurrence errors taskNode found]
+      refine (failureGroupFold_preserves_on property
+                (fun ref => GroupRecordInvalidated work failed ref) ?_ errors
+                taskNode.task.groups ?_
+                (queue.putTaskNode { taskNode with rejection := some errors }, []) ?_).2.2
+      · intro current ref valid invalid
+        exact ⟨valid.1.removeGroup _, valid.2.1.removeGroup _,
+          valid.2.2.removeGroup valid.1 valid.2.1 canonical ref invalid⟩
+      · intro group member
+        exact (GroupInvalidated.task ⟨producer, payload, known⟩
+          (List.mem_map_of_mem member) (same.symm ▸ recorded)).toRecordInvalidated
+      · exact ⟨links, groups, prior⟩
 
 /-- A task failure retains ancestor certificates for surviving roots.
 Witness: roots only shrink, and every previously retired ancestor remains retired.
@@ -134,7 +105,7 @@ private theorem RetirementMetadata.contributor
       ⟨prior.groups.putGroupNode _ (prior.groups node member),
         prior.links.putGroupNode _ (prior.links node member),
         prior.live.putGroupNode _ (prior.live node member), prior.tasks,
-        prior.caches.putGroupNode _ (prior.caches node member), prior.cancelled⟩
+        prior.caches.putGroupNode _, prior.cancelled⟩
     split
     · have registered := State.finishGroupSuccess_registration next.live next.tasks updated
       exact ⟨next.groups.finishGroupSuccess _, next.links.finishGroupSuccess _,
@@ -186,7 +157,8 @@ theorem State.taskSuccess_retirement {queue : State} {work failed parents}
       have storedTasks : stored.TaskGroupsRegistered := tasks
       have storedRoots : stored.RootAncestorsRetired work := roots
       have storedClosure : stored.HealthyRetiredAncestors work failed := retirement
-      have storedCaches : stored.CachedFailuresSupported work failed := supported
+      have storedCaches : stored.CachedFailuresSupported work failed :=
+        supported.putTaskNode _ (supported taskNode (List.mem_of_find?_eq_some found))
       have nextMatching : integrated.GroupNodesMatchWork work :=
         storedMatching.maybeIntegrateWork result.work
           (fun _ member => eventMatches.taskChildGroups_recordAt member) (some occurrence)
@@ -220,12 +192,9 @@ theorem State.taskSuccess_retirement {queue : State} {work failed parents}
         nextMeta.contributors (acc := (integrated, [], {})) taskNode.task.groups
       have startedMeta := finalMeta.startNewWork final.2.2
       rw [queue.taskSuccess_eq occurrence result taskNode found]
-      split
-      · exact ⟨roots.mono (fun _ member => member)
-          (fun _ retired => retired.removeTask occurrence), retirement.removeTask occurrence⟩
-      · exact State.drainReadyGroups_retirement (folded.1.startNewWork _ folded.2.1)
-          ((folded.2.2 nextClosure).startNewWork _) generated startedMeta.groups
-          startedMeta.links canonical startedMeta.live startedMeta.tasks startedMeta.caches
+      exact State.drainReadyGroups_retirement (folded.1.startNewWork _ folded.2.1)
+        ((folded.2.2 nextClosure).startNewWork _) generated startedMeta.groups
+        startedMeta.links canonical startedMeta.live startedMeta.tasks startedMeta.caches
 
 -----------------------------------------------------------------------------------------
 -- Sequential stream integration retains certificates before the final drain

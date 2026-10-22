@@ -24,7 +24,7 @@ theorem ExecutedWork.initialGroup_notice_exists {work group dependencies}
   obtain ⟨address, groups, path, result, children, enclosing, fragment,
     located, member, rfl, rfl⟩ := known
   have taskKnown : TaskAt work (.executionGroup address)
-      (groups.map (fun group => group.node.ref)) none (.object path result) :=
+      (groups.map (fun group => group.node.ref)) none (.object path result.deliveryResult) :=
     .executionGroup located
   obtain ⟨task, registered, _, owners⟩ :=
     TaskAt.executionGroup_initial_registered taskKnown

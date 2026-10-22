@@ -196,7 +196,7 @@ theorem GraphEvent.MatchesWork.streamItem_childGroup_ref_gt
       rw [occurrence] at known
       obtain ⟨node, entries, enclosing, result, children, located, entry, _, samePayload⟩ :=
         known
-      have sameNode : node = stream := by cases samePayload; rfl
+      have sameNode : node = stream := (Payload.item.inj samePayload).1.symm
       subst node
       change locateWork work address = some ⟨.stream stream entries, producer, enclosing⟩
         at located

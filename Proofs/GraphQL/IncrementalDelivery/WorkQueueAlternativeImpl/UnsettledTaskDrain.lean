@@ -27,9 +27,12 @@ private theorem readyFacts {queue : Kernel} {node : GroupNode}
       : queue.rootGroups.findSome?
           (fun key => do
             let group ← queue.groupNode? key
-            if group.failure.isSome || group.pending == 0 then some group else none)
+            if (queue.rejectedTask? group).isSome || group.pending == 0 then
+              some group
+            else
+              none)
         = some node)
-    : node ∈ queue.groupNodes ∧ (node.failure = none → node.pending = 0) := by
+    : node ∈ queue.groupNodes ∧ (queue.rejectedTask? node = none → node.pending = 0) := by
   obtain ⟨key, _, choice⟩ := List.exists_of_findSome?_eq_some selected
   cases found : queue.groupNode? key with
   | none => simp [found] at choice
@@ -78,7 +81,7 @@ theorem drain_unsettledTask_ownerCut {before current : Kernel}
       · exact Or.inl present
       · rename_i group selected
         obtain ⟨member, zero⟩ := readyFacts selected
-        cases cached : group.failure with
+        cases cached : current.rejectedTask? group with
         | none =>
             dsimp only
             let released := current.finishGroupSuccess group
@@ -108,40 +111,28 @@ theorem drain_unsettledTask_ownerCut {before current : Kernel}
               · rw [failureRoots, List.filterMap_append]
                 exact List.mem_append_right _ failed
               · simpa only [List.append_assoc] using path
-        | some errors =>
-            dsimp only [ReferenceWorkQueue.State.finishGroupFailure]
-            by_cases affected : current.LiveDescendant group.group.node.ref key
-            · refine Or.inr ⟨group.group.node.ref, ?_, ?_⟩
-              · simp [failureRoots]
-              · have retired : ∀ key ∈ publicationRoots preceding, current.groupNode? key = none := by
-                  intro key published
-                  obtain ⟨carrier, groups, streams, emitted, same⟩ := mem_publicationRoots.mp published
-                  exact (closures.closed key
-                    (List.mem_flatMap.mpr ⟨_, emitted, same ▸ List.mem_cons_self⟩)).lookup_none
-                simpa only [List.append_assoc] using failureBoundary_path group.group.node errors fuel
-                  forest edges retired affected
-            · let next := current.removeGroup group.group.node.ref
-              obtain ⟨owner, lookup⟩ := liveLookup present
-              have nextLookup : next.groupNode? key = some owner :=
-                (ReferenceWorkQueue.State.removeGroup_groupNodeRetained forest affected).trans lookup
-              have nextPresent : key ∈ next.groupNodes.map (fun group => group.group.node.ref) :=
-                List.mem_map.mpr ⟨owner, List.mem_of_find?_eq_some nextLookup,
-                  ReferenceWorkQueue.State.groupNode?_ref nextLookup⟩
-              have nextEdges : next.GroupEdgesFrom (registrationSnapshot before event) := by
-                apply ReferenceWorkQueue.State.GroupEdgesFrom.trans _ edges
-                exact current.filterRefs_groupEdgesFrom
-                  (fun key => !(ReferenceWorkQueue.State.removeGroup.collect
-                    (current.groupNodes.length + 1) current [group.group.node.ref] []).contains key)
+        | some rejection =>
+            obtain ⟨failed, errors⟩ := rejection
+            dsimp only
+            let next := (current.taskFailure failed errors).1
+            rcases taskFailure_ownerCut failed errors fuel forest frame.keys edges closures present with
+              nextPresent | cut
+            · have nextEdges := (current.taskFailure_groupEdgesFrom failed errors).trans edges
               have nextClosures := closures.append
-                (ReferenceWorkQueue.State.finishGroupFailure_closureAccounting frame.live group member errors)
-              rcases ih (frame.removeGroup _) (forest.removeGroup _) nextEdges nextClosures
-                  (links.removeGroup _) (bounded.removeGroup _) nextPresent with kept | cut
-              · exact Or.inl kept
-              · obtain ⟨root, failed, path⟩ := cut
-                refine Or.inr ⟨root, ?_, ?_⟩
-                · simp only [failureRoots, List.filterMap_append, List.filterMap_cons,
-                    List.filterMap_nil, List.mem_append]
-                  exact Or.inr failed
-                · simpa only [ReferenceWorkQueue.State.finishGroupFailure, List.append_assoc] using path
+                (ReferenceWorkQueue.State.taskFailure_closureAccounting frame.live failed errors)
+              rcases ih (frame.taskFailure failed errors) (forest.taskFailure failed errors)
+                  nextEdges nextClosures (links.taskFailure_preserves failed errors)
+                  (bounded.taskFailure_preserves failed errors) nextPresent with kept | cut
+              · exact .inl kept
+              · obtain ⟨root, reported, path⟩ := cut
+                refine .inr ⟨root, ?_, ?_⟩
+                · rw [failureRoots, List.filterMap_append]
+                  exact List.mem_append_right _ reported
+                · simpa only [List.append_assoc] using path
+            · obtain ⟨root, reported, path⟩ := cut
+              refine .inr ⟨root, ?_, ?_⟩
+              · rw [failureRoots, List.filterMap_append]
+                exact List.mem_append_left _ reported
+              · simpa only [List.append_assoc] using path
 
 end GraphQL.IncrementalDelivery.AlternativeWorkQueue.NativeRefinement

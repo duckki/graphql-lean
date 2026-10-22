@@ -77,19 +77,26 @@ theorem State.drainReadyGroups_retirement {queue : State} {work parents failed}
       activated.2,
       (caches.finishGroupSuccess node).startNewWork _
     ⟩) (by
-    intro current node errors valid member _ cached
+    intro current node occurrence errors valid _ _ selected
     obtain ⟨oldRoots, closure, matched, linked, recorded, covered, caches⟩ := valid
-    have invalid := caches.invalidated member (by simp [cached])
-    exact ⟨
-      oldRoots.mono (current.removeGroup_rootsSubset node.group.node.ref)
-        (fun ref retired => retired.removeGroup node.group.node.ref),
-      closure.removeGroup linked matched canonical _ invalid.toRecordInvalidated,
-      matched.removeGroup _,
-      linked.removeGroup _,
-      fun other member => recorded other (List.mem_filter.mp member).1,
-      covered,
-      caches.removeGroup _
-    ⟩) ⟨roots, retirement, matching, links, registered, tasks, supported⟩
+    obtain ⟨_, task, found, rejected⟩ := State.rejectedTask?_sound selected
+    have taskMember := List.mem_of_find?_eq_some found
+    rw [current.taskFailure_eq occurrence errors task found]
+    apply failureGroupFold_preserves_on invariant
+      (fun ref => GroupRecordInvalidated work failed ref)
+      (fun next ref prior invalid => by
+        obtain ⟨roots, closure, matching, links, registered, tasks, supported⟩ := prior
+        exact ⟨roots.mono (next.removeGroup_rootsSubset ref)
+            (fun _ retired => retired.removeGroup ref),
+          closure.removeGroup links matching canonical ref invalid,
+          matching.removeGroup ref, links.removeGroup ref,
+          fun other member => registered other (List.mem_filter.mp member).1,
+          tasks, supported.removeGroup ref⟩)
+    · intro group member
+      exact (caches.invalidated taskMember (by simp [rejected]) member).toRecordInvalidated
+    · exact ⟨oldRoots, closure, matched, linked, recorded, covered,
+        caches.putTaskNode _ (by simpa only [rejected] using caches task taskMember)⟩
+    ) ⟨roots, retirement, matching, links, registered, tasks, supported⟩
   exact ⟨final.1, final.2.1⟩
 
 -----------------------------------------------------------------------------------------

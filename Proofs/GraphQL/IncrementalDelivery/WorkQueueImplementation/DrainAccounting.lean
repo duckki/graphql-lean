@@ -150,17 +150,32 @@ theorem State.HealthyRegisteredTaskAccounting.drainReadyGroups
     rw [(State.startNewWork_groupCore _ _).1] at present
     exact State.finishGroupSuccess_nodeProperty properties removeProperties
       valid.2.2.2.1 node other present) (by
-    intro current node errors valid member _ cached
-    have currentLinks : current.ChildLinksCanonical parents :=
-      fun candidate present => (valid.2.2.2.1 candidate present).2.1
-    have currentMatch : current.GroupNodesMatchWork work :=
-      fun candidate present => (valid.2.2.2.1 candidate present).2.2
-    refine ⟨valid.1.finishCachedGroupFailure valid.2.2.1 valid.2.2.2.2 generated
-      currentLinks currentMatch
-      canonical member cached, valid.2.1.removeGroup _,
-      valid.2.2.1.removeGroup _, ?_, valid.2.2.2.2.removeGroup _⟩
-    intro other present
-    exact valid.2.2.2.1 other (List.mem_filter.mp present).1) initial
+    intro current node occurrence errors valid member _ selected
+    obtain ⟨_, task, found, rejected⟩ := State.rejectedTask?_sound selected
+    have live := List.mem_of_find?_eq_some found
+    have permitted : ∀ group ∈ task.task.groups,
+        GroupRecordInvalidated work failed group.ref := by
+      intro group contributes
+      exact (valid.2.2.1.invalidated live (by simp [rejected]) contributes).toRecordInvalidated
+    rw [current.taskFailure_eq occurrence errors task found]
+    apply failureGroupFold_preserves_on invariant
+      (GroupRecordInvalidated work failed) (fun state ref prior invalidated => by
+        have currentLinks : state.ChildLinksCanonical parents :=
+          fun candidate present => (prior.2.2.2.1 candidate present).2.1
+        have currentMatch : state.GroupNodesMatchWork work :=
+          fun candidate present => (prior.2.2.2.1 candidate present).2.2
+        refine ⟨prior.1.removeInvalidatedGroup prior.2.2.2.2 generated
+          currentLinks currentMatch canonical ref invalidated,
+          prior.2.1.removeGroup ref, prior.2.2.1.removeGroup ref,
+          (fun other present => prior.2.2.2.1 other (List.mem_filter.mp present).1),
+          prior.2.2.2.2.removeGroup ref⟩)
+      errors task.task.groups permitted
+    exact ⟨valid.1, valid.2.1,
+      State.CachedErrorsSatisfy.putTaskNode valid.2.2.1 _
+        (by
+          intro count same
+          cases Option.some.inj same
+          exact valid.2.2.1 task live errors rejected), valid.2.2.2⟩) initial
   exact final.1
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

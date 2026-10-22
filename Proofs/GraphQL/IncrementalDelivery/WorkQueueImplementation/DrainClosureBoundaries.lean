@@ -11,22 +11,25 @@ namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
 /-- The drain's selected record is live and active, with a cached failure or zero pending.
 Witness: invert the actual root-ref search and its successful group lookup.
 -/
-private theorem ready_group {queue : State} {group : GroupNode}
+theorem State.readyGroup_sound {queue : State} {group : GroupNode}
     (selected
       : queue.rootGroups.findSome?
           (fun ref => do
             let node ← queue.groupNode? ref
-            if node.failure.isSome || node.pending == 0 then some node else none)
+            if (queue.rejectedTask? node).isSome || node.pending == 0 then
+              some node
+            else
+              none)
         = some group)
     : queue.groupNode? group.group.node.ref = some group
       ∧ group.group.node.ref ∈ queue.rootGroups
-      ∧ (group.failure.isSome = true ∨ group.pending = 0) := by
+      ∧ ((queue.rejectedTask? group).isSome = true ∨ group.pending = 0) := by
   obtain ⟨ref, active, choice⟩ := List.exists_of_findSome?_eq_some selected
   cases found : queue.groupNode? ref with
   | none => simp [found] at choice
   | some node =>
       simp only [found] at choice
-      change (if node.failure.isSome || node.pending == 0 then some node else none) = some group
+      change (if (queue.rejectedTask? node).isSome || node.pending == 0 then some node else none) = some group
         at choice
       split at choice
       · rename_i ready
@@ -111,7 +114,7 @@ theorem State.drainReadyGroups_go_value_boundary (fuel : Nat) (queue : State)
         ∧ (State.drainReadyGroups.go steps queue).1.groupNode? node.group.node.ref
           = some node
         ∧ node.group.node.ref ∈ (State.drainReadyGroups.go steps queue).1.rootGroups
-        ∧ node.failure = none
+        ∧ (State.drainReadyGroups.go steps queue).1.rejectedTask? node = none
         ∧ node.pending = 0
         ∧ node.group.node = group
         ∧ (State.drainReadyGroups.go fuel queue).2.take index
@@ -123,7 +126,7 @@ theorem State.drainReadyGroups_go_value_boundary (fuel : Nat) (queue : State)
             : queue.rootGroups.findSome?
                 (fun ref => do
                   let node ← queue.groupNode? ref
-                  if node.failure.isSome || node.pending == 0 then
+                  if (queue.rejectedTask? node).isSome || node.pending == 0 then
                     some node
                   else
                     none) with
@@ -131,8 +134,8 @@ theorem State.drainReadyGroups_go_value_boundary (fuel : Nat) (queue : State)
           simp only [State.drainReadyGroups.go, ready, List.getElem?_nil] at selected
           contradiction
       | some node =>
-          obtain ⟨found, active, condition⟩ := ready_group ready
-          cases cached : node.failure with
+          obtain ⟨found, active, condition⟩ := State.readyGroup_sound ready
+          cases cached : queue.rejectedTask? node with
           | none =>
               let next := (queue.finishGroupSuccess node).1.startNewWork
                 (queue.finishGroupSuccess node).2.2
@@ -153,31 +156,37 @@ theorem State.drainReadyGroups_go_value_boundary (fuel : Nat) (queue : State)
                 rw [List.getElem?_append_right outside] at selected
                 obtain ⟨steps, later, bound, lookup, root, healthy, zero, same,
                   exactPrefix⟩ := ih next selected
-                refine ⟨steps + 1, later, by omega, ?_, ?_, healthy, zero, same, ?_⟩
+                refine ⟨steps + 1, later, by omega, ?_, ?_, ?_, zero, same, ?_⟩
                 · simpa only [step] using lookup
                 · simpa only [step] using root
+                · simpa only [step] using healthy
                 · rw [step fuel, List.take_append, List.take_of_length_le outside,
                     exactPrefix, step]
-          | some errors =>
-              let next := (queue.finishGroupFailure node errors).1
+          | some rejected =>
+              obtain ⟨occurrence, errors⟩ := rejected
+              let next := (queue.taskFailure occurrence errors).1
+              let emitted := (queue.taskFailure occurrence errors).2
               have step (count : Nat) : State.drainReadyGroups.go (count + 1) queue =
                   ((State.drainReadyGroups.go count next).1,
-                    [.groupFailure node.group.node errors]
-                      ++ (State.drainReadyGroups.go count next).2) := by
+                    emitted ++ (State.drainReadyGroups.go count next).2) := by
                 simp only [State.drainReadyGroups.go, ready, cached]
                 rfl
               rw [step fuel] at selected
-              simp only [List.singleton_append] at selected
-              cases index with
-              | zero => cases selected
-              | succ index =>
-                  obtain ⟨steps, later, bound, lookup, root, healthy, zero, same,
-                    exactPrefix⟩ := ih next selected
-                  refine ⟨steps + 1, later, by omega, ?_, ?_, healthy, zero, same, ?_⟩
-                  · simpa only [step] using lookup
-                  · simpa only [step] using root
-                  · simp only [step, List.cons_append, List.nil_append,
-                      List.take_succ_cons, exactPrefix]
+              by_cases inside : index < emitted.length
+              · rw [List.getElem?_append_left inside] at selected
+                obtain ⟨owner, impossible⟩ := queue.taskFailure_event_failure occurrence errors _
+                  (List.mem_of_getElem? selected)
+                cases impossible
+              · have outside : emitted.length ≤ index := by omega
+                rw [List.getElem?_append_right outside] at selected
+                obtain ⟨steps, later, bound, lookup, root, healthy, zero, same, exactPrefix⟩ :=
+                  ih next selected
+                refine ⟨steps + 1, later, by omega, ?_, ?_, ?_, zero, same, ?_⟩
+                · simpa only [step] using lookup
+                · simpa only [step] using root
+                · simpa only [step] using healthy
+                · rw [step fuel, List.take_append, List.take_of_length_le outside,
+                    exactPrefix, step]
 
 /-- Every indexed successful drain carrier has a concrete earlier drain boundary.
 Witness: recurse through actual closure blocks, retaining silent prefixes and exact output
@@ -194,7 +203,7 @@ theorem State.drainReadyGroups_go_success_boundary (fuel : Nat) (queue : State)
         ∧ (State.drainReadyGroups.go steps queue).1.groupNode? node.group.node.ref
           = some node
         ∧ node.group.node.ref ∈ (State.drainReadyGroups.go steps queue).1.rootGroups
-        ∧ node.failure = none
+        ∧ (State.drainReadyGroups.go steps queue).1.rejectedTask? node = none
         ∧ node.pending = 0
         ∧ node.group.node = group
         ∧ ((State.drainReadyGroups.go steps queue).1.finishGroupSuccess node).2.1
@@ -208,7 +217,7 @@ theorem State.drainReadyGroups_go_success_boundary (fuel : Nat) (queue : State)
             : queue.rootGroups.findSome?
                 (fun ref => do
                   let node ← queue.groupNode? ref
-                  if node.failure.isSome || node.pending == 0 then
+                  if (queue.rejectedTask? node).isSome || node.pending == 0 then
                     some node
                   else
                     none) with
@@ -216,8 +225,8 @@ theorem State.drainReadyGroups_go_success_boundary (fuel : Nat) (queue : State)
           simp only [State.drainReadyGroups.go, ready, List.getElem?_nil] at selected
           contradiction
       | some node =>
-          obtain ⟨found, active, condition⟩ := ready_group ready
-          cases cached : node.failure with
+          obtain ⟨found, active, condition⟩ := State.readyGroup_sound ready
+          cases cached : queue.rejectedTask? node with
           | none =>
               let next := (queue.finishGroupSuccess node).1.startNewWork
                 (queue.finishGroupSuccess node).2.2
@@ -262,7 +271,7 @@ theorem State.drainReadyGroups_go_success_boundary (fuel : Nat) (queue : State)
                   by omega,
                   ?_,
                   ?_,
-                  healthy,
+                  ?_,
                   zero,
                   same,
                   ?_,
@@ -270,42 +279,37 @@ theorem State.drainReadyGroups_go_success_boundary (fuel : Nat) (queue : State)
                 ⟩
                 · simpa only [step] using lookup
                 · simpa only [step] using root
+                · simpa only [step] using healthy
                 · simpa only [step] using output
                 · rw [step fuel, List.take_append, List.take_of_length_le outside,
                     exactPrefix, step]
                   simp only [List.append_assoc]
-          | some errors =>
-              let next := (queue.finishGroupFailure node errors).1
+          | some rejected =>
+              obtain ⟨occurrence, errors⟩ := rejected
+              let next := (queue.taskFailure occurrence errors).1
+              let emitted := (queue.taskFailure occurrence errors).2
               have step (count : Nat) : State.drainReadyGroups.go (count + 1) queue =
                   ((State.drainReadyGroups.go count next).1,
-                    [.groupFailure node.group.node errors]
-                      ++ (State.drainReadyGroups.go count next).2) := by
+                    emitted ++ (State.drainReadyGroups.go count next).2) := by
                 simp only [State.drainReadyGroups.go, ready, cached]
                 rfl
               rw [step fuel] at selected
-              simp only [List.singleton_append] at selected
-              cases index with
-              | zero => cases selected
-              | succ index =>
-                  obtain ⟨steps, later, before, bound, lookup, root, healthy, zero, same, output,
-                    exactPrefix⟩ := ih next selected
-                  refine ⟨
-                    steps + 1,
-                    later,
-                    before,
-                    by omega,
-                    ?_,
-                    ?_,
-                    healthy,
-                    zero,
-                    same,
-                    ?_,
-                    ?_
-                  ⟩
-                  · simpa only [step] using lookup
-                  · simpa only [step] using root
-                  · simpa only [step] using output
-                  · simp only [step, List.cons_append, List.nil_append,
-                      List.take_succ_cons, exactPrefix]
+              by_cases inside : index < emitted.length
+              · rw [List.getElem?_append_left inside] at selected
+                obtain ⟨owner, impossible⟩ := queue.taskFailure_event_failure occurrence errors _
+                  (List.mem_of_getElem? selected)
+                cases impossible
+              · have outside : emitted.length ≤ index := by omega
+                rw [List.getElem?_append_right outside] at selected
+                obtain ⟨steps, later, before, bound, lookup, root, healthy, zero, same, output,
+                  exactPrefix⟩ := ih next selected
+                refine ⟨steps + 1, later, before, by omega, ?_, ?_, ?_, zero, same, ?_, ?_⟩
+                · simpa only [step] using lookup
+                · simpa only [step] using root
+                · simpa only [step] using healthy
+                · simpa only [step] using output
+                · rw [step fuel, List.take_append, List.take_of_length_le outside,
+                    exactPrefix, step]
+                  simp only [List.append_assoc]
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

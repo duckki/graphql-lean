@@ -28,7 +28,7 @@ theorem State.drainReadyGroups_streamNotices_registered (queue : State)
         split
         · intro ref impossible; cases impossible
         · rename_i node selected
-          cases cached : node.failure with
+          cases cached : current.rejectedTask? node with
           | none =>
               dsimp only
               have later := ih ((current.finishGroupSuccess node).1.startNewWork
@@ -45,11 +45,11 @@ theorem State.drainReadyGroups_streamNotices_registered (queue : State)
                 exact List.mem_map.mpr ⟨descriptor, registered,
                   (congrArg Execution.DeliveryNode.ref equal).trans same⟩
               · exact later after
-          | some errors =>
-              intro ref member
-              apply ih (current.removeGroup node.group.node.ref)
-              simpa only [State.finishGroupFailure, List.flatMap_append,
-                List.flatMap_singleton, rawStreamNoticeRefs, List.nil_append] using member
+          | some rejected =>
+              have later := ih (current.taskFailure rejected.1 rejected.2).1
+              rw [State.taskFailure_streams] at later
+              simpa only [List.flatMap_append, State.taskFailure_streamNoticeRefs,
+                List.nil_append] using later
   exact loop _ queue
 
 /-- Task success retains old stream refs and registers all its emitted stream notices.
@@ -69,35 +69,33 @@ theorem State.taskSuccess_streamRegistry (queue : State) (occurrence : Occurrenc
       exact ⟨List.Subset.refl _, by intro ref impossible; cases impossible⟩
   | some incoming =>
       rw [queue.taskSuccess_eq occurrence result incoming found]
-      split
-      · exact ⟨List.Subset.refl _, by intro ref impossible; cases impossible⟩
-      · let stored := queue.putTaskNode { incoming with value := some result.value }
-        let prepared := (stored.maybeIntegrateWork result.work (some occurrence)).1
-        let folded := incoming.task.groups.foldl successGroupStep (prepared, [], {})
-        have release := prepared.successGroupFold_streamRelease incoming.task.groups
-        have registry : (folded.1.startNewWork folded.2.2).drainReadyGroups.1.streams
-            = prepared.streams := by
-          rw [State.drainReadyGroups_streams, State.startNewWork_streams, release.2.1]
-        change (queue.streams.map _).Subset
-            ((folded.1.startNewWork folded.2.2).drainReadyGroups.1.streams.map _)
-          ∧ ((folded.2.1 ++ (folded.1.startNewWork folded.2.2).drainReadyGroups.2).flatMap
-              rawStreamNoticeRefs).Subset _
-        rw [registry]
-        refine ⟨List.map_subset _ (stored.maybeIntegrateWork_streams_registered
-          result.work (some occurrence)).1, ?_⟩
-        intro ref member
-        rw [List.flatMap_append] at member
-        rcases List.mem_append.mp member with earlier | later
-        · rw [← release.2.2.1] at earlier
-          obtain ⟨node, included, same⟩ := List.mem_map.mp earlier
-          have known := release.2.2.2 included
-          rw [release.2.1] at known
-          obtain ⟨stream, registered, descriptor⟩ := List.mem_map.mp known
-          exact List.mem_map.mpr ⟨stream, registered,
-            (congrArg Execution.DeliveryNode.ref descriptor).trans same⟩
-        · have known := (folded.1.startNewWork folded.2.2).drainReadyGroups_streamNotices_registered
-            later
-          rwa [State.startNewWork_streams, release.2.1] at known
+      let stored := queue.putTaskNode { incoming with value := some result.value }
+      let prepared := (stored.maybeIntegrateWork result.work (some occurrence)).1
+      let folded := incoming.task.groups.foldl successGroupStep (prepared, [], {})
+      have release := prepared.successGroupFold_streamRelease incoming.task.groups
+      have registry : (folded.1.startNewWork folded.2.2).drainReadyGroups.1.streams
+          = prepared.streams := by
+        rw [State.drainReadyGroups_streams, State.startNewWork_streams, release.2.1]
+      change (queue.streams.map _).Subset
+          ((folded.1.startNewWork folded.2.2).drainReadyGroups.1.streams.map _)
+        ∧ ((folded.2.1 ++ (folded.1.startNewWork folded.2.2).drainReadyGroups.2).flatMap
+            rawStreamNoticeRefs).Subset _
+      rw [registry]
+      refine ⟨List.map_subset _ (stored.maybeIntegrateWork_streams_registered
+        result.work (some occurrence)).1, ?_⟩
+      intro ref member
+      rw [List.flatMap_append] at member
+      rcases List.mem_append.mp member with earlier | later
+      · rw [← release.2.2.1] at earlier
+        obtain ⟨node, included, same⟩ := List.mem_map.mp earlier
+        have known := release.2.2.2 included
+        rw [release.2.1] at known
+        obtain ⟨stream, registered, descriptor⟩ := List.mem_map.mp known
+        exact List.mem_map.mpr ⟨stream, registered,
+          (congrArg Execution.DeliveryNode.ref descriptor).trans same⟩
+      · have known := (folded.1.startNewWork folded.2.2).drainReadyGroups_streamNotices_registered
+          later
+        rwa [State.startNewWork_streams, release.2.1] at known
 
 /-- Item processing retains old stream refs and registers its leading and drained notices.
 Witness: the multi-item inventory supplies preparation's registry, and the group drain

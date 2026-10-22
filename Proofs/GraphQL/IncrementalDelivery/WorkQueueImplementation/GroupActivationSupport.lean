@@ -10,13 +10,11 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 -- Separate registered ancestor shells from groups supported by actual contributors
 -----------------------------------------------------------------------------------------
 
-/-- Groups outside `supported` have no task memberships or cached error, and every
+/-- Groups outside `supported` have no task memberships, and every
 active root is supported. Registration alone supplies neither fact about a group ref.
 -/
 structure State.GroupRefSupport (queue : State) (supported : Nat → Prop) : Prop where
-  contents
-    : ∀ node ∈ queue.groupNodes,
-        ¬supported node.group.node.ref → node.tasks = [] ∧ node.failure = none
+  contents : ∀ node ∈ queue.groupNodes, ¬supported node.group.node.ref → node.tasks = []
   roots : ∀ ref ∈ queue.rootGroups, supported ref
 
 /-- An empty queue has no unsupported contents or active roots.
@@ -31,8 +29,7 @@ Witness: split the node-map membership; root refs do not change.
 -/
 theorem State.GroupRefSupport.putGroupNode {queue : State} {supported}
     (valid : queue.GroupRefSupport supported) (updated : GroupNode)
-    (contents
-      : ¬supported updated.group.node.ref → updated.tasks = [] ∧ updated.failure = none)
+    (contents : ¬supported updated.group.node.ref → updated.tasks = [])
     : (queue.putGroupNode updated).GroupRefSupport supported := by
   refine ⟨?_, valid.roots⟩
   intro node member absent
@@ -58,7 +55,7 @@ theorem State.GroupRefSupport.addGroup {queue : State} {supported}
       · exact valid.contents node old absent
       · have same := List.mem_singleton.mp new
         subst node
-        exact ⟨rfl, rfl⟩
+        exact rfl
 
 /-- Installing ancestor links does not activate or populate their records.
 Witness: registration and child-link folds preserve the same support predicate.
@@ -178,7 +175,7 @@ theorem State.GroupRefSupport.maybeIntegrateWork {queue : State} {supported}
 
 /-- Every retained pruning candidate has actual supported contents, not just a record.
 Witness: fuel induction removes unsupported empty shells and follows their children;
-each kept candidate has a nonempty task list or cached failure at its own lookup.
+each kept candidate has a nonempty task list at its own lookup.
 -/
 theorem State.GroupRefSupport.pruneEmptyGroups {queue : State} {supported}
     (valid : queue.GroupRefSupport supported) (groups : List Execution.DeliveryNode)
@@ -210,9 +207,9 @@ theorem State.GroupRefSupport.pruneEmptyGroups {queue : State} {supported}
                   apply Classical.byContradiction
                   intro absent
                   have same := State.groupNode?_ref found
-                  obtain ⟨tasks, failure⟩ := known.contents node
+                  have tasks := known.contents node
                     (List.mem_of_find?_eq_some found) (same ▸ absent)
-                  simp [tasks, failure] at nonempty
+                  simp [tasks] at nonempty
                 apply ih _ _ _ known
                 intro candidate member
                 rcases List.mem_append.mp member with old | new

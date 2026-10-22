@@ -68,7 +68,7 @@ example (work initial matching before failures owner)
 
 def work : Execution.Work :=
   .executionGroup [{ node := parent }, { node := child }] value.path
-    (.ok (value.data, value.errors)) .empty
+    ({ result := .ok (value.data, value.errors) }) .empty
 
 /-- The reference source still rejects an incorrect contributor list before normalization.
 Witness: its exact taskGroups lookup disagrees, regardless of the response payload.

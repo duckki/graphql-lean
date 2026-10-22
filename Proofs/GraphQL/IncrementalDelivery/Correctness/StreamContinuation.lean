@@ -1,5 +1,6 @@
 import Proofs.GraphQL.IncrementalDelivery.Correctness.ReleasedStreamAccounting
 import Proofs.GraphQL.IncrementalDelivery.Correctness.AnnouncedGroupCancellationReporting
+import Proofs.GraphQL.IncrementalDelivery.Correctness.StreamNoticeSupport
 
 /-! Complete released-stream continuations additionally require observable reporting. -/
 
@@ -9,7 +10,7 @@ open GraphQL.IncrementalDelivery.Semantics
 open WorkQueueSemantics
 open Semantics.Ancestry Semantics.GeneralScheduling
 
-/-- A released-stream prefix with every defer group announced admits a complete continuation.
+/-- A released-stream prefix with every defer group initially announced admits a complete continuation.
 Witness: maximize accounting-preserving stream extensions, close announced refs, then derive
 actual reports from the announced group scopes and accepted settlements. Generated path
 locality carries these reports to unannounced descendants. Positive failed payloads are
@@ -23,10 +24,11 @@ theorem finish_released_streams
     (roleCoherent : RefRoles.WorkRoles roles work)
     (under : ExecutionPaths.WorkUnder base work)
     (positive : ExecutionErrors.WorkPositive work)
+    (allocated : (streamAllocationRefs work).Nodup)
     (groupsAnnounced
       : ∀ node dependencies birth,
           NodeAt work node .group dependencies birth
-          → node.ref ∈ announcedRefs ((groups ++ streams).map DeliveryNode.ref) events)
+          → node.ref ∈ groups.map DeliveryNode.ref)
     (explained : Explains work groups streams events matching failures)
     (deferred : DeferredTasksAccounted work matching events failures)
     (closed : StreamDependenciesCompleted work events)
@@ -38,8 +40,12 @@ theorem finish_released_streams
         ∧ Terminal work ((groups ++ streams).map DeliveryNode.ref) next (events ++ tail)
             cuts := by
   obtain ⟨tail, next, cuts, admitted, accounted⟩ :=
-    account_released_streams coherent explained deferred closed notified
-  obtain ⟨closures, _, _, finished, allClosed⟩ := admitted.close_open_refs accounted
+    account_released_streams coherent positive explained deferred closed notified
+  have support := Explains.streamNoticesSupported_of_initial_groups refs roleCoherent
+    admitted groupsAnnounced
+  have causes := Explains.openFailureCauses_of_supported_streams valid refs roleCoherent
+    allocated positive admitted support
+  obtain ⟨closures, _, _, finished, allClosed⟩ := admitted.close_open_refs causes accounted
     (announcedRefs ((groups ++ streams).map DeliveryNode.ref) (events ++ tail))
     (fun _ opened => opened.1)
   have visible : ∀ node dependencies birth,
@@ -47,9 +53,10 @@ theorem finish_released_streams
       → node.ref ∈ announcedRefs ((groups ++ streams).map DeliveryNode.ref)
           (events ++ tail ++ closures) := by
     intro node dependencies birth descriptor
-    have old := List.mem_append_left (pendingRefs (tail ++ closures))
-      (groupsAnnounced node dependencies birth descriptor)
-    simpa only [announcedRefs, pendingRefs, List.flatMap_append, List.append_assoc] using old
+    apply List.mem_append_left
+    simpa only [List.map_append]
+      using List.mem_append_left (streams.map DeliveryNode.ref)
+        (groupsAnnounced _ _ _ descriptor)
   have finalAccounted occurrence owners producer payload
       (known : TaskAt work occurrence owners producer payload)
       : TaskAccounted work next (events ++ tail ++ closures) cuts occurrence :=
@@ -61,7 +68,8 @@ theorem finish_released_streams
     Explains.cancelled_reported_of_announced_groups valid refs roleCoherent coherent under
       positive finished visible allClosed
       ((finalAccounted _ _ _ _ known).resolve_right unpublished) known
-  obtain ⟨last, _, _, finalized, terminal⟩ := finished.finish_accounted finalAccounted reports
+  obtain ⟨last, _, _, finalized, terminal⟩ := finished.finish_accounted
+    (fun ref opened _ => False.elim (opened.2 (allClosed ref opened.1))) finalAccounted reports
   exact ⟨
     tail ++ closures ++ last,
     next,
@@ -81,10 +89,11 @@ theorem released_streams_run_extension
     (roleCoherent : RefRoles.WorkRoles roles work)
     (under : ExecutionPaths.WorkUnder base work)
     (positive : ExecutionErrors.WorkPositive work)
+    (allocated : (streamAllocationRefs work).Nodup)
     (groupsAnnounced
       : ∀ node dependencies birth,
           NodeAt work node .group dependencies birth
-          → node.ref ∈ announcedRefs ((groups ++ streams).map DeliveryNode.ref) events)
+          → node.ref ∈ groups.map DeliveryNode.ref)
     (explained : Explains work groups streams events matching failures)
     (deferred : DeferredTasksAccounted work matching events failures)
     (closed : StreamDependenciesCompleted work events)
@@ -100,7 +109,7 @@ theorem released_streams_run_extension
             batches ++ tail.map (fun event => [event]) ++ [[.workQueueTermination]]
           ⟩ := by
   obtain ⟨tail, next, cuts, admitted, terminal⟩ :=
-    finish_released_streams coherent valid refs roleCoherent under positive groupsAnnounced
+    finish_released_streams coherent valid refs roleCoherent under positive allocated groupsAnnounced
       explained deferred closed notified
   exact ⟨tail, events ++ tail, next, cuts, admitted, terminal,
     (batched.append (WorkBatching.singletons tail)).append

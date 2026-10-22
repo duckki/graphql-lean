@@ -15,20 +15,20 @@ theorem State.drainReadyGroups_go_outputPreserves
           invariant queue history
           → node ∈ queue.groupNodes
           → node.group.node.ref ∈ queue.rootGroups
-          → node.failure = none
+          → queue.rejectedTask? node = none
           → node.pending = 0
           → invariant
               ((queue.finishGroupSuccess node).1.startNewWork
                 (queue.finishGroupSuccess node).2.2)
               (history ++ (queue.finishGroupSuccess node).2.1))
     (failure
-      : ∀ queue history node errors,
+      : ∀ queue history node occurrence errors,
           invariant queue history
           → node ∈ queue.groupNodes
           → node.group.node.ref ∈ queue.rootGroups
-          → node.failure = some errors
-          → invariant (queue.finishGroupFailure node errors).1
-              (history ++ [(queue.finishGroupFailure node errors).2]))
+          → queue.rejectedTask? node = some (occurrence, errors)
+          → invariant (queue.taskFailure occurrence errors).1
+              (history ++ (queue.taskFailure occurrence errors).2))
     {queue history} (valid : invariant queue history) (fuel : Nat)
     : invariant (State.drainReadyGroups.go fuel queue).1
         (history ++ (State.drainReadyGroups.go fuel queue).2) := by
@@ -45,7 +45,7 @@ theorem State.drainReadyGroups_go_outputPreserves
         | none => simp [found] at choice
         | some candidate =>
             simp only [found] at choice
-            change (if candidate.failure.isSome || candidate.pending == 0 then
+            change (if (queue.rejectedTask? candidate).isSome || candidate.pending == 0 then
               some candidate else none) = some node at choice
             split at choice
             · rename_i ready
@@ -53,14 +53,17 @@ theorem State.drainReadyGroups_go_outputPreserves
               subst candidate
               have member := List.mem_of_find?_eq_some found
               have root := queue.groupNode?_ref found ▸ active
-              cases failed : node.failure with
+              cases failed : queue.rejectedTask? node with
               | none =>
                   have zero : node.pending = 0 := by simpa [failed] using ready
                   simpa only [List.append_assoc]
                     using ih (success queue history node valid member root failed zero)
-              | some errors =>
+              | some rejection =>
+                  obtain ⟨occurrence, errors⟩ := rejection
                   simpa only [List.append_assoc]
-                    using ih (failure queue history node errors valid member root failed)
+                    using ih
+                      (failure queue history node occurrence errors valid member root
+                        failed)
             · contradiction
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

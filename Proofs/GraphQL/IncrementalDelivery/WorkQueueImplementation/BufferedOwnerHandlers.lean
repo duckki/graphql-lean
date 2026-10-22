@@ -120,7 +120,7 @@ theorem failureGroupFold_uncancelled_present (errors : Nat)
           simp only [found] at after ⊢
           cases active : current.rootGroups.contains group.ref with
           | false =>
-              simp only [Bool.false_eq_true, ↓reduceIte, State.putGroupNode_refs]
+              simp only [Bool.false_eq_true, ↓reduceIte]
               exact present
           | true =>
               simp only [active, ↓reduceIte] at after ⊢
@@ -137,20 +137,11 @@ theorem State.taskFailure_uncancelled_present (queue : State) (occurrence : Occu
     : ref
       ∈ (queue.taskFailure occurrence errors).1.groupNodes.map
           (fun owner => owner.group.node.ref) := by
-  unfold State.taskFailure at uncancelled ⊢
   cases found : queue.taskNode? occurrence with
-  | none => simpa only [found] using present
+  | none => simpa only [State.taskFailure, found] using present
   | some node =>
-      simp only [found] at uncancelled ⊢
-      cases healthy : queue.taskHasHealthyOwner node.task with
-      | false =>
-          simpa only [healthy, Bool.not_false, ↓reduceIte, State.removeTask, List.map_map,
-            Function.comp_def]
-            using present
-      | true =>
-          simp only [healthy, Bool.not_true, Bool.false_eq_true, ↓reduceIte] at uncancelled ⊢
-          apply failureGroupFold_uncancelled_present _ _ _ ?_ uncancelled
-          simpa only [State.removeTask, List.map_map, Function.comp_def] using present
+      rw [queue.taskFailure_eq occurrence errors node found] at uncancelled ⊢
+      exact failureGroupFold_uncancelled_present _ _ _ present uncancelled
 
 /-- Fresh failed input conserves every older successful buffered value and live owner.
 Witness: source provenance excludes the failed identity. Noncancellation retains the

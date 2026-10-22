@@ -38,7 +38,7 @@ theorem itemGroupNotice_unpublished
           ∧ ∃ node,
               boundary.groupNode? child.ref = some node
               ∧ node.group.node = child
-              ∧ (node.tasks ≠ [] ∨ node.failure.isSome = true)
+              ∧ node.tasks ≠ []
               ∧ ∀ occurrence ∈ node.tasks,
                   ¬Published w.matching (w.events.take index) occurrence := by
   obtain ⟨before, stream, items, after, sourceShape, active, notices, count⟩ :=
@@ -55,9 +55,9 @@ theorem itemGroupNotice_unpublished
   exact ⟨before, stream, items, after, earlier, item, later, sourceShape, splitItems,
     active, located, node, found, same, contents, unpublished⟩
 
-/-- An item-carried group notice retains unpublished tasks and cut-supported errors together.
-Witness: recover the actual handler and its cache support from one atomic boundary.
-Invert its leading item carrier, then preserve that support to the exact introducing
+/-- An item-carried group notice retains concrete unpublished tasks.
+Witness: recover the actual handler from one atomic boundary.
+Invert its leading item carrier, then preserve the task metadata to the exact introducing
 item while the common publication ledger excludes its retained task memberships.
 -/
 theorem itemGroupNotice_contents
@@ -69,21 +69,21 @@ theorem itemGroupNotice_contents
     (objects : GroupPublicationAdmission work w)
     (ready : StreamPublicationReady work w)
     {streamCuts : FailureCuts}
-    (partition
+    (_partition
       : let queue := initialQueue work
         let publisher : IncrementalPublisher :=
           { active := queue.initialGroups ++ queue.initialStreams }
         w.failures.Perm
           (streamCuts
-            ++ sourceObjectFailureCuts 0
+            ++ informativeObjectFailureCuts work
                 (queue.eligibleFailureBlocks
                   (queue.sourceRunBlocks publisher inputs).2.2)))
     (selected : w.events[index]? = some (.streamValues owner values groups streams))
     (noticed : child ∈ groups)
     : RetainedNoticeContents work w.matching (w.events.take index)
         (failedBefore w.failures index) inputs.flatten child := by
-  obtain ⟨before, event, after, publisher, localIndex, sourceShape, emitted, count, cached⟩ :=
-    Witness.handlerBoundary_cachedFailures generated valid started history partition selected
+  obtain ⟨before, event, after, publisher, localIndex, sourceShape, _, emitted, count⟩ :=
+    Witness.handlerBoundary started history selected
   obtain ⟨normalizedIndex, normalizedValues, normalizedAt, atomicCount, _⟩ :=
     publicationAtoms_noticeCarrier_prefix _ emitted (List.mem_append_left _ noticed)
   obtain ⟨rawIndex, rawValues, rawAt, rawCount, _⟩ :=
@@ -137,7 +137,6 @@ theorem itemGroupNotice_contents
     contents,
     boundarySound,
     boundaryRegistered,
-    (cached.preparedStreamItems earlier).integrateStreamItem item,
     (sourceReady.preparedStreamItems eventMatching input earlier
       included).integrateStreamItem
       eventMatching input (by simp [splitItems]),

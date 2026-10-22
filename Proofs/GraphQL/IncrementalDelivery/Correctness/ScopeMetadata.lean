@@ -47,13 +47,13 @@ mutual
     | .stream node items => base.IsPrefix node.path ∧ ItemsUnder base items
 
   /-- Item child work has coherent scopes, all below the stream's list attachment. -/
-  def ItemsScoped (base : ResponsePath) : List (Result ResponseValue × Work) → Prop
+  def ItemsScoped (base : ResponsePath) : List (TaskOutcome ResponseValue × Work) → Prop
     | [] => True
     | (_, children) :: rest =>
         (WorkScoped children ∧ ScopesUnder base children) ∧ ItemsScoped base rest
 
   /-- All item child scopes lie below base, independently of their internal coherence. -/
-  def ItemsUnder (base : ResponsePath) : List (Result ResponseValue × Work) → Prop
+  def ItemsUnder (base : ResponsePath) : List (TaskOutcome ResponseValue × Work) → Prop
     | [] => True
     | (_, children) :: rest => ScopesUnder base children ∧ ItemsUnder base rest
 end
@@ -255,7 +255,7 @@ theorem nonNull (base : ResponsePath) (completed : Completion ResponseValue)
     : Under base completed.nonNull := by
   unfold Completion.nonNull
   split
-  · exact error _ _
+  · simp [Under, Completion.error, WorkScoped, ScopesUnder]
   · exact h
 
 end GraphQL.IncrementalDelivery.Correctness.ScopeMetadata

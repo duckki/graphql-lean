@@ -53,35 +53,28 @@ theorem State.taskFailure_root_coverage {queue : State} {parents target}
         have earlier := earlier_lookup
           (fun absent => State.removeGroup_groupNodeAbsent absent node.group.node.ref) live
         exact State.removeGroup_root_coverage prior.2.1 _ (prior.2.2 earlier) live
-      · refine ⟨prior.1.putGroupNode _,
-          prior.2.1.putCounters prior.1 found _ _, ?_⟩
-        intro live
-        have earlier := earlier_lookup
-          (fun absent => State.putCounters_groupNodeAbsent absent
-            (node.pending - 1) (some (node.failure.getD 0 + errors))) live
-        obtain ⟨root, active, path⟩ := prior.2.2 earlier
-        exact ⟨root, active, path.putCounters prior.1 found _ _⟩
+      · exact prior
   have loop (groups : List Execution.DeliveryNode) (acc : State × List WorkQueueEvent)
       (prior : property acc.1)
       : property (groups.foldl (failureGroupStep errors) acc).1 := by
     induction groups generalizing acc with
     | nil => exact prior
     | cons group rest ih => exact ih _ (step acc group prior)
-  have removedCoverage : ∃ root ∈ (queue.removeTask occurrence).rootGroups,
-      (queue.removeTask occurrence).LiveDescendant root target := by
-    obtain ⟨root, active, path⟩ := covered
-    exact ⟨root, active, path.removeTask occurrence⟩
   cases found : queue.taskNode? occurrence with
   | none => simpa [State.taskFailure, found] using covered
   | some node =>
       rw [queue.taskFailure_eq occurrence errors node found] at survives ⊢
-      split
-      · exact removedCoverage
-      · rename_i guarded
-        simp only [guarded] at survives
-        exact (loop node.task.groups (queue.removeTask occurrence, [])
-          ⟨unique.removeTask occurrence, forest.removeTask occurrence,
-            fun _ => removedCoverage⟩).2.2 survives
+      exact (loop node.task.groups
+              (queue.putTaskNode { node with rejection := some errors }, [])
+              ⟨
+                unique,
+                ⟨forest.uniqueChildren, forest.canonical, forest.increasing⟩,
+                by
+                  intro _
+                  obtain ⟨root, active, path⟩ := covered
+                  exact ⟨root, active, State.LiveDescendant.of_groupNodes_eq (queue := queue) rfl path⟩
+              ⟩).2.2
+        survives
 
 -----------------------------------------------------------------------------------------
 -- Contributor coverage across failures and stream completion

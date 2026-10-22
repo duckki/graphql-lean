@@ -97,23 +97,21 @@ theorem State.ParentRegistryClosed.taskSuccess {queue : State} {work parents}
   | none => simpa [State.taskSuccess, found] using prior
   | some node =>
       rw [queue.taskSuccess_eq occurrence result node found]
-      split
-      · exact prior
-      · let stored := queue.putTaskNode { node with value := some result.value }
-        have storedPrior : stored.ParentRegistryClosed parents := prior
-        have registered := stored.maybeIntegrateWork_registration live tasks result.work
-          matching.childTasksCovered (some occurrence)
-        have integrated := storedPrior.maybeIntegrateWork live result.work
-          (fun _ member => matching.taskChildGroups_parentCanonical canonical member)
-          matching.childParentsCovered (some occurrence)
-        have folded := loop node.task.groups (_, [], {})
-          ⟨registered.1, registered.2.1, integrated⟩
-        let finished := node.task.groups.foldl successGroupStep
-          ((stored.maybeIntegrateWork result.work (some occurrence)).1, [], {})
-        have started := State.startNewWork_registration folded.1 folded.2.1 finished.2.2
-        exact (folded.2.2.of_sameRegistry
-          (State.startNewWork_registeredGroups _ finished.2.2)
-          ).drainReadyGroups started.1 started.2
+      let stored := queue.putTaskNode { node with value := some result.value }
+      have storedPrior : stored.ParentRegistryClosed parents := prior
+      have registered := stored.maybeIntegrateWork_registration live tasks result.work
+        matching.childTasksCovered (some occurrence)
+      have integrated := storedPrior.maybeIntegrateWork live result.work
+        (fun _ member => matching.taskChildGroups_parentCanonical canonical member)
+        matching.childParentsCovered (some occurrence)
+      have folded := loop node.task.groups (_, [], {})
+        ⟨registered.1, registered.2.1, integrated⟩
+      let finished := node.task.groups.foldl successGroupStep
+        ((stored.maybeIntegrateWork result.work (some occurrence)).1, [], {})
+      have started := State.startNewWork_registration folded.1 folded.2.1 finished.2.2
+      exact (folded.2.2.of_sameRegistry
+        (State.startNewWork_registeredGroups _ finished.2.2)
+        ).drainReadyGroups started.1 started.2
 
 /-- Each matched stream item preserves the parent-closed registry before the final drain.
 Witness: child registration covers all parents; taskless pruning and activation retain it.

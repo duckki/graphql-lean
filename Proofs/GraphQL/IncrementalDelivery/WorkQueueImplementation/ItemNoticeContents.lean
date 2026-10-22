@@ -126,7 +126,7 @@ theorem ExecutedWork.streamItems_leadingNoticeContents
             ∧ ∃ node,
                 boundary.groupNode? child.ref = some node
                 ∧ node.group.node = child
-                ∧ (node.tasks ≠ [] ∨ node.failure.isSome = true)
+                ∧ node.tasks ≠ []
                 ∧ ∀ publication ∈
                     published.take
                       (((State.initialize (Work.fromExecution work)).rawEventReplay

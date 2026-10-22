@@ -47,12 +47,10 @@ theorem State.TaskMembershipAbsent.taskSuccess {queue : State} {occurrence}
   | none => simpa only [State.taskSuccess, found] using absent
   | some node =>
       rw [queue.taskSuccess_eq settled result node found]
-      split
-      · exact absent.removeTask settled
-      · have stored := absent.putTaskNode { node with value := some result.value }
-        have integrated := stored.maybeIntegrateWork result.work fresh (some settled)
-        apply State.TaskMembershipAbsent.drainReadyGroups_go
-        exact (integrated.successGroupFold node.task.groups [] {}).startNewWork _
+      have stored := absent.putTaskNode { node with value := some result.value }
+      have integrated := stored.maybeIntegrateWork result.work fresh (some settled)
+      apply State.TaskMembershipAbsent.drainReadyGroups_go
+      exact (integrated.successGroupFold node.task.groups [] {}).startNewWork _
 
 /-- Item preparation preserves an exclusion when all offered child identities differ.
 Witness: each actual integration, empty-shell pruning, and activation preserves it.

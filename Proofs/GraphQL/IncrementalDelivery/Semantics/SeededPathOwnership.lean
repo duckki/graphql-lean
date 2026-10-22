@@ -22,7 +22,7 @@ def SeedOwnsWork (scope : ResponsePath → Prop) (work : Work) : Prop :=
   ∃ slices, (∀ cursors, WorkCursorSeed cursors work slices) ∧ Owns scope slices.flatten
 
 def SeedOwnsItems (path : ResponsePath) (index : Nat) (scope : ResponsePath → Prop)
-    (items : List (Result ResponseValue × Work))
+    (items : List (TaskOutcome ResponseValue × Work))
     : Prop :=
   ∃ slices, ItemCursorSeed path index items slices ∧ Owns scope slices.flatten
 
@@ -65,12 +65,14 @@ theorem seeded_combine {pa : α → List ResponsePath} {pb : β → List Respons
   cases he : left.result with
   | error errors =>
       cases hre : right.result <;>
-        simp [Completion.combine, he, hre, GraphQL.Execution.Result.combine, seeded_error]
+        simp only [Completion.combine, he, hre, GraphQL.Execution.Result.combine] <;>
+        exact ⟨[], .empty, owns_nil _⟩
   | ok leftData =>
       rcases leftData with ⟨a, ea⟩
       cases hre : right.result with
       | error errors =>
-          simp [Completion.combine, he, hre, GraphQL.Execution.Result.combine, seeded_error]
+          simp only [Completion.combine, he, hre, GraphQL.Execution.Result.combine]
+          exact ⟨[], .empty, owns_nil _⟩
       | ok rightData =>
           rcases rightData with ⟨b, eb⟩
           obtain ⟨sl, hsl, hol⟩ := hl
@@ -102,7 +104,9 @@ theorem seeded_map {pa : α → List ResponsePath} {pb : β → List ResponsePat
     (h : SeedOwnsCompletion pa ca scope completed)
     : SeedOwnsCompletion pb cb scope (completed.map f) := by
   cases he : completed.result with
-  | error errors => simp [Completion.map, he, seeded_error]
+  | error errors =>
+      simp only [Completion.map, he]
+      exact ⟨[], .empty, owns_nil _⟩
   | ok data =>
       rcases data with ⟨data, errors⟩
       obtain ⟨s, hs, ho⟩ := h
@@ -146,8 +150,9 @@ theorem seeded_nonNull {path : ResponsePath} {completed : Completion ResponseVal
         completed.nonNull := by
   cases he : completed.result with
   | error errors =>
-      simp [Completion.nonNull, he, nonNullCompletion,
-        GraphQL.Execution.nonNullCompletion, seeded_error]
+      simp only [Completion.nonNull, he, nonNullCompletion,
+        GraphQL.Execution.nonNullCompletion]
+      exact ⟨[], .empty, owns_nil _⟩
   | ok data =>
       rcases data with ⟨data, errors⟩
       cases data <;>
@@ -162,9 +167,13 @@ theorem SeedOwnsCompletion.executionGroup {path : ResponsePath}
     (h : SeedOwnsCompletion (fields true path) (fieldCursors path) scope completed)
     (groups : List DeferredFragment)
     : SeedOwnsWork scope
-        (.executionGroup groups path completed.result completed.work) := by
+        (.executionGroup groups path completed.outcome completed.work) := by
   obtain ⟨s, hw, ho⟩ := h
-  exact ⟨_, fun _ => .executionGroup hw, by simpa only [List.flatten_cons] using ho⟩
+  exact ⟨
+    _,
+    fun _ => .executionGroup hw,
+    by simpa only [Completion.outcome, List.flatten_cons] using ho
+  ⟩
 
 theorem seeded_work_combine {sa sb sc : ResponsePath → Prop} {left right : Work}
     (hl : SeedOwnsWork sa left) (hr : SeedOwnsWork sb right)
@@ -253,7 +262,10 @@ theorem seeded_combineWork_fields {path : ResponsePath} {leftNames rightNames : 
 theorem seeded_failedField (path : ResponsePath) (name : Name) (fieldType : TypeRef)
     : SeedOwnsCompletion (fields true path) (fieldCursors path)
         (Below (path ++ [.field name]))
-        {result := singleFieldResult name (handleFieldError fieldType)} := by
+        {
+          result := singleFieldResult name (handleFieldError fieldType),
+          cause := if fieldType.isNonNull then some 1 else none
+        } := by
   refine ⟨[], .empty, ?_⟩
   cases fieldType <;>
     simp only [singleFieldResult, handleFieldError, GraphQL.Execution.singleFieldResult,
@@ -262,20 +274,21 @@ theorem seeded_failedField (path : ResponsePath) (name : Name) (fieldType : Type
 
 theorem seeded_items_cons {path : ResponsePath} {index : Nat}
     {sa sb sc : ResponsePath → Prop} {completed : Completion ResponseValue}
-    {items : List (Result ResponseValue × Work)}
+    {items : List (TaskOutcome ResponseValue × Work)}
     (hl
       : SeedOwnsCompletion (value true (path ++ [.index index]))
           (listCursors (path ++ [.index index])) sa completed)
     (hr : SeedOwnsItems path (index + 1) sb items)
     (hd : ∀p, sa p → sb p → False) (hls : ∀p, sa p → sc p) (hrs : ∀p, sb p → sc p)
-    : SeedOwnsItems path index sc ((completed.result, completed.work) :: items) := by
+    : SeedOwnsItems path index sc ((completed.outcome, completed.work) :: items) := by
   obtain ⟨sl, hsl, hol⟩ := hl
   obtain ⟨sr, hsr, hor⟩ := hr
   exact ⟨
     _,
     .cons hsl hsr,
     by
-      simpa only [List.flatten_cons, List.flatten_append, List.append_assoc]
+      simpa only [Completion.outcome, List.flatten_cons, List.flatten_append,
+        List.append_assoc]
         using owns_append hol hor hd hls hrs
   ⟩
 
@@ -289,13 +302,13 @@ theorem cursorExtends_list_items (path : ResponsePath) (data : List ResponseValu
   exact h _ ((itemCursors_positions path 0 data).lookup hc) rfl
 
 theorem seeded_items_cons_underItems {path : ResponsePath} {index : Nat}
-    {head : Completion ResponseValue} {tail : List (Result ResponseValue × Work)}
+    {head : Completion ResponseValue} {tail : List (TaskOutcome ResponseValue × Work)}
     (hh
       : SeedOwnsCompletion (value true (path ++ [.index index]))
           (listCursors (path ++ [.index index])) (Below (path ++ [.index index])) head)
     (ht : SeedOwnsItems path (index + 1) (UnderItems path (index + 1)) tail)
     : SeedOwnsItems path index (UnderItems path index)
-        ((head.result, head.work) :: tail) := by
+        ((head.outcome, head.work) :: tail) := by
   apply seeded_items_cons hh ht
   · exact fun _ => underItems_disjoint
   · exact fun _ hp => ⟨index, Nat.le_refl _, hp⟩
@@ -304,7 +317,7 @@ theorem seeded_items_cons_underItems {path : ResponsePath} {index : Nat}
 
 theorem seeded_streamPrefix {path : ResponsePath} {finish start : Nat}
     {initial : Completion (List ResponseValue)} {data : List ResponseValue}
-    {errors : Nat} {node : DeliveryNode} {items : List (Result ResponseValue × Work)}
+    {errors : Nat} {node : DeliveryNode} {items : List (TaskOutcome ResponseValue × Work)}
     (hi
       : SeedOwnsCompletion (DeliveryPaths.items true path 0) (itemCursors path 0)
           (UnderItemRange path 0 finish) initial)

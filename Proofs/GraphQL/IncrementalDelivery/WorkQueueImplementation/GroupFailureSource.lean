@@ -2,23 +2,22 @@ import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.FailureContrib
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.GroupClosureProvenance
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.StreamFailureAccounting
 
-/-! Failed group closures retain exact accumulated source totals through actual batching. -/
+/-! Failed group closures retain selected source causes through actual batching. -/
 
 namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.Execution (WorkQueueEvent)
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
 -----------------------------------------------------------------------------------------
--- Raw source replay retains distinct-contributor error totals
+-- Raw source replay retains selected source causes
 -----------------------------------------------------------------------------------------
 
-/-- A failed group closure is backed by a sum of distinct matching source failures.
-The group descriptor indexes the total; its count need not match any single input.
+/-- A failed group closure reports one matching contributing source rejection.
 -/
 abbrev GroupFailureOrigin (work : Execution.Work) (inputs : List GraphEvent)
     (group : Execution.DeliveryNode) (errors : Nat)
     : Prop :=
-  GroupFailureTotal work inputs group.ref errors
+  GroupFailureSourceCause work inputs group.ref errors
 
 /-- A successful flush itself emits no failed group closure.
 Witness: its exact output is optional values followed by successful completion.
@@ -45,16 +44,16 @@ theorem State.taskFailure_groupFailure_source (queue : State) (occurrence : Occu
   queue.taskFailure_groupFailure_current occurrence errors emitted
 
 /-- Sequential handlers preserve exact cached and emitted totals over their source prefix.
-Witness: source freshness extends each cache without duplicate contributors; every emitted
+Witness: source history retains earlier rejection witnesses; every emitted
 failure uses either the current input or an earlier certified cache.
 -/
 theorem State.CachedErrorsSatisfy.rawEventReplay_totals {queue : State} {work before}
-    (totals : queue.CachedErrorsSatisfy (GroupFailureTotal work before))
+    (totals : queue.CachedErrorsSatisfy (GroupFailureSourceCause work before))
     (generated : ExecutedWork work) (registered : queue.StartedTasksRegistered)
     (tasks : queue.RegisteredTasksMatch work) (events : List GraphEvent)
     (valid : ValidGraphEvents work (before ++ events))
     : (queue.rawEventReplay events).1.CachedErrorsSatisfy
-        (GroupFailureTotal work (before ++ events))
+        (GroupFailureSourceCause work (before ++ events))
       ∧ ∀ group errors,
           Execution.WorkQueueEvent.groupFailure group errors
             ∈ (queue.rawEventReplay events).2
@@ -85,12 +84,12 @@ Witness: ignored inputs merely extend source membership, while an open batch run
 same handlers and may append only a queue-termination marker.
 -/
 theorem State.CachedErrorsSatisfy.handleGraphEvents_totals {queue : State} {work before}
-    (totals : queue.CachedErrorsSatisfy (GroupFailureTotal work before))
+    (totals : queue.CachedErrorsSatisfy (GroupFailureSourceCause work before))
     (generated : ExecutedWork work) (registered : queue.StartedTasksRegistered)
     (tasks : queue.RegisteredTasksMatch work) (events : List GraphEvent)
     (valid : ValidGraphEvents work (before ++ events))
     : (queue.handleGraphEvents events).1.CachedErrorsSatisfy
-        (GroupFailureTotal work (before ++ events))
+        (GroupFailureSourceCause work (before ++ events))
       ∧ ∀ group errors,
           Execution.WorkQueueEvent.groupFailure group errors
             ∈ (queue.handleGraphEvents events).2
@@ -140,7 +139,7 @@ theorem IncrementalPublisher.normalizeBatch_groupFailure_mem
       · exact member.imp Eq.symm id
       · exact member.imp Eq.symm id
 
-/-- Every normalized failed group closure reports an exact distinct-source sum.
+/-- Every normalized failed group closure reports an exact selected source cause.
 Witness: joint cache/registry replay through actual host batches, including delayed
 closures from successful handlers. Ignored batches and empty outputs are allowed;
 no accepted-start or output-admission premise is needed for this provenance direction.
@@ -153,7 +152,7 @@ theorem createWorkQueue_runNormalized_groupFailure_source {work : Execution.Work
         ∈ ((State.initialize (Work.fromExecution work)).runNormalized batches).2.flatten)
     : GroupFailureOrigin work batches.flatten group errors := by
   have loop (more : List (List GraphEvent)) (before : List GraphEvent) (acc : NormalizedAcc)
-      (totals : acc.1.CachedErrorsSatisfy (GroupFailureTotal work before))
+      (totals : acc.1.CachedErrorsSatisfy (GroupFailureSourceCause work before))
       (registered : acc.1.StartedTasksRegistered)
       (tasks : acc.1.RegisteredTasksMatch work)
       (valid : ValidGraphEvents work (before ++ more.flatten))
@@ -173,7 +172,7 @@ theorem createWorkQueue_runNormalized_groupFailure_source {work : Execution.Work
         obtain ⟨cached, emitted⟩ := totals.handleGraphEvents_totals generated registered
           tasks batch firstValid
         have nextTotals : (normalizedStep acc batch).1.CachedErrorsSatisfy
-            (GroupFailureTotal work (before ++ batch)) := by
+            (GroupFailureSourceCause work (before ++ batch)) := by
           rw [normalizedStep_queue]
           exact cached
         have nextRegistered : (normalizedStep acc batch).1.StartedTasksRegistered := by
@@ -223,7 +222,7 @@ theorem publicationAtoms_groupFailure_mem (event : Execution.WorkQueueEvent)
   | groupSuccess | groupFailure | streamSuccess | streamFailure | workQueueTermination =>
       simp [publicationAtoms, eq_comm]
 
-/-- Atomic group failures retain the exact distinct-source total of their wire event.
+/-- Atomic group failures retain the exact selected source cause of their wire event.
 Witness: atomic value expansion leaves group-failure controls and error counts intact.
 -/
 theorem createWorkQueue_runNormalized_atomicGroupFailure_source {work : Execution.Work}
@@ -256,9 +255,9 @@ theorem ValidGraphEvents.taskFailure_reachable {work events}
   exact task_reachable_of_source_support validBefore (validBefore.successes_reachable generated)
     known supported
 
-/-- Each actual atomic group-failure total has distinct reachable unpublished contributors.
-Witness: exact source totals, source readiness, and the successful-only publication
-matching. Counts are summed over the whole contributor list, not attributed to one input.
+/-- Each actual atomic group failure has one reachable unpublished contributing rejection.
+Witness: selected source causes, source readiness, and successful-only publication
+matching. The singleton inventory records that one cause without aggregating other failures.
 This does not yet place or license their failure cuts.
 -/
 theorem createWorkQueue_runNormalized_groupFailure_accounting {work : Execution.Work}
@@ -294,12 +293,12 @@ theorem createWorkQueue_runNormalized_groupFailure_accounting {work : Execution.
                   (((State.initialize (Work.fromExecution work)).runNormalized
                       batches).2.flatten.flatMap
                     publicationAtoms) occurrence := by
-  obtain ⟨parts, nonempty, unique, sum, sources⟩ :=
+  obtain ⟨occurrence, received, owners, producer, path, known, owner⟩ :=
     createWorkQueue_runNormalized_atomicGroupFailure_source generated valid
       (List.mem_of_getElem? atFailure)
-  refine ⟨parts, nonempty, unique, sum, ?_⟩
-  intro occurrence count member
-  obtain ⟨received, owners, producer, path, known, owner⟩ := sources occurrence count member
+  refine ⟨[(occurrence, errors)], by simp, by simp, by simp, ?_⟩
+  intro other count member
+  obtain ⟨rfl, rfl⟩ := Prod.mk.inj (List.mem_singleton.mp member)
   exact ⟨received, ⟨owners, producer, path, known, owner⟩,
     valid.taskFailure_reachable generated received,
     failedTask_unpublished_of_exactValues exactValues known rfl⟩

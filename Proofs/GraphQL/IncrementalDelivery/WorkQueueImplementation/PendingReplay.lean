@@ -155,4 +155,47 @@ theorem ExecutedWork.runNormalized_pendingBound {work : Execution.Work}
     generated.runNormalized_pendingAccounting batches valid started
   exact accounted.pending.weakenSettled included
 
+/-- Successful settlements alone supply the pending bound retained across rejection.
+Witness: replay the same handlers, retaining failed tasks in the unsettled coordinate.
+-/
+theorem State.PendingAccounting.replayGraphEvents_successes
+    {queue : State} {work : Execution.Work} {before : List GraphEvent}
+    (prior : queue.PendingAccounting work (GraphEvent.groupSettlements before))
+    (generated : ExecutedWork work)
+    (events : List GraphEvent) (valid : ValidGraphEvents work (before ++ events))
+    (accepted : queue.acceptsBatch events = true)
+    : (queue.replayGraphEvents events).PendingAccounting work
+        (GraphEvent.groupSettlements (before ++ events)) := by
+  induction events generalizing queue before with
+  | nil => simpa [State.replayGraphEvents] using prior
+  | cons event rest ih =>
+      have earlier : (before ++ [event]).IsPrefix (before ++ event :: rest) := by
+        exact ⟨rest, by simp⟩
+      obtain ⟨_, matching, fresh⟩ := validGraphEvents_last (valid.prefix earlier)
+      have accepts : queue.acceptsGraphEvent event = true
+          ∧ (queue.handleGraphEvent event).1.acceptsBatch rest = true := by
+        simpa only [State.acceptsBatch, Bool.and_eq_true] using accepted
+      have next := prior.handleGraphEvent_successes generated
+        (GraphEvent.groupSettlements_subsetIdentities before) event matching fresh accepts.1
+      rw [← GraphEvent.groupSettlements_append] at next
+      have retained := ih next
+        (by simpa [List.append_assoc] using valid) accepts.2
+      simpa [State.replayGraphEvents, List.append_assoc] using retained
+
+/-- Started normalized replay preserves the successful-settlement counter ledger. -/
+theorem ExecutedWork.runNormalized_successLedger {work : Execution.Work}
+    (generated : ExecutedWork work) (batches : List (List GraphEvent))
+    (valid : ValidGraphEvents work batches.flatten)
+    (started : inputsStarted work batches = true)
+    : ((State.initialize (Work.fromExecution work)).runNormalized
+        batches).1.PendingAccounting
+        work (GraphEvent.groupSettlements batches.flatten) := by
+  have accepted := (State.initialize (Work.fromExecution work)).batchesStarted_acceptsBatch
+    batches (by rwa [inputsStarted_eq_batchesStarted] at started)
+  have counted := (createWorkQueue_pendingAccounting work).replayGraphEvents_successes
+    (before := []) generated batches.flatten valid accepted
+  obtain ⟨terminal, same⟩ := createWorkQueue_runNormalized_stateCore started
+  rw [same]
+  simpa only [List.nil_append] using counted.withTerminated terminal
+
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

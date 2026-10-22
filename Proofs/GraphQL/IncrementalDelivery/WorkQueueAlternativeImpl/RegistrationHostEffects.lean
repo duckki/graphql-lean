@@ -279,12 +279,10 @@ theorem State.taskSuccess_cleanupStarts_nodup (state : State) (occurrence : Occu
   | none => simp only [State.taskSuccess, found, List.filterMap_nil, List.nodup_nil]
   | some node =>
       rw [state.taskSuccess_eq occurrence result node found]
-      split
-      · exact List.nodup_nil
-      · simp only [List.filterMap_append, List.filterMap_cons, HostEffect.cleanupStart?,
+      simp only [List.filterMap_append, List.filterMap_cons, HostEffect.cleanupStart?,
           List.filterMap_nil, List.nil_append, cleanupEffects_starts]
-        apply (State.drainReadyGroups_targets _ _ ?_).1
-        exact State.startNewWork_targets_nodup _ _ _ [] (by simp)
+      apply (State.drainReadyGroups_targets _ _ ?_).1
+      exact State.startNewWork_targets_nodup _ _ _ [] (by simp)
 
 /-- Task-success handoff projection observes the accepting producer, not any cleanup target. -/
 theorem State.taskSuccess_adoptedProducers (state : State) (occurrence : Occurrence)
@@ -292,17 +290,13 @@ theorem State.taskSuccess_adoptedProducers (state : State) (occurrence : Occurre
     : (state.taskSuccess occurrence result).2.2.filterMap HostEffect.adoptedProducer?
       = match state.queue.taskNode? occurrence with
         | none => []
-        | some node =>
-            if state.queue.taskHasHealthyOwner node.task then [occurrence] else [] := by
+        | some _ => [occurrence] := by
   cases found : state.queue.taskNode? occurrence with
   | none => simp only [State.taskSuccess, found, List.filterMap_nil]
   | some node =>
       rw [state.taskSuccess_eq occurrence result node found]
-      cases healthy : state.queue.taskHasHealthyOwner node.task <;>
-        simp only [healthy, Bool.not_false, Bool.not_true,
-          Bool.false_eq_true, ↓reduceIte, List.filterMap_append,
-          List.filterMap_cons, List.filterMap_nil, HostEffect.adoptedProducer?,
-          cleanupEffects_adoptedProducers, List.append_nil]
+      simp only [List.filterMap_append, List.filterMap_cons, List.filterMap_nil,
+        HostEffect.adoptedProducer?, cleanupEffects_adoptedProducers, List.append_nil]
 
 /-- Successful task handoff/disposal cannot acknowledge a stream receipt. -/
 theorem State.taskSuccess_acknowledgedStreams (state : State) (occurrence : Occurrence)
@@ -313,9 +307,7 @@ theorem State.taskSuccess_acknowledgedStreams (state : State) (occurrence : Occu
   | none => simp only [State.taskSuccess, found, List.filterMap_nil]
   | some node =>
       rw [state.taskSuccess_eq occurrence result node found]
-      split
-      · rfl
-      · simp only [List.filterMap_append, List.filterMap_cons, List.filterMap_nil,
+      simp only [List.filterMap_append, List.filterMap_cons, List.filterMap_nil,
           HostEffect.acknowledgedStream?, cleanupEffects_acknowledgedStreams, List.append_nil]
 
 -----------------------------------------------------------------------------------------
@@ -331,9 +323,7 @@ theorem State.taskSuccess_noFinish (state : State) (occurrence : Occurrence)
   | none => simp only [State.taskSuccess, found, List.countP_nil]
   | some node =>
       rw [state.taskSuccess_eq occurrence result node found]
-      split
-      · rfl
-      · simp only [List.countP_append, cleanupEffects_noFinish,
+      simp only [List.countP_append, cleanupEffects_noFinish,
           HostEffect.isResponseFinished, List.countP_cons, List.countP_nil,
           Bool.false_eq_true, ↓reduceIte, Nat.add_zero]
 
@@ -354,19 +344,15 @@ theorem State.streamItems_noFinish (state : State) (stream : Execution.DeliveryN
 theorem State.taskFailure_cleanupEffects (state : State) (occurrence : Occurrence)
     (errors : Nat)
     : ∃ targets : List CleanupTarget,
-        (state.taskFailure occurrence errors).2.2
-        = targets.flatMap CleanupTarget.effects := by
-  unfold State.taskFailure
-  split
-  · exact ⟨[], rfl⟩
-  · dsimp only
-    split
-    · exact ⟨[], rfl⟩
-    · exact ⟨_, rfl⟩
+        (state.handleGraphEvent (.taskFailure occurrence errors)).2.2
+        = targets.flatMap CleanupTarget.effects :=
+  ⟨_, rfl⟩
 
+/-- Failure dispatch converts cleanup targets without starting reader completion. -/
 theorem State.taskFailure_noFinish (state : State) (occurrence : Occurrence)
     (errors : Nat)
-    : (state.taskFailure occurrence errors).2.2.countP HostEffect.isResponseFinished
+    : (state.handleGraphEvent (.taskFailure occurrence errors)).2.2.countP
+        HostEffect.isResponseFinished
       = 0 := by
   obtain ⟨targets, same⟩ := state.taskFailure_cleanupEffects occurrence errors
   rw [same, cleanupEffects_noFinish]

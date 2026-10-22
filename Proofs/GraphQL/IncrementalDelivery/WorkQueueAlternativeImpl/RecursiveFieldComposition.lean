@@ -80,13 +80,19 @@ def FieldScopeRunConstruction (schema : Schema) (resolvers : Resolvers ObjectRef
 
 theorem pureResult_run {keys : Nat → Nat} {left right : Nat}
     (supplies : SupplyMap keys left right) (result : Result α)
+    (cause
+      : Option Nat :=
+        match result with
+        | .error errors => some errors
+        | .ok _ => none)
     : RunRefines keys keys left right
-        ((Pure.pure ({ result } : Completion α) : StateM Nat (Completion α)).run left)
-        ((Pure.pure ({ result } : Completion α) : StateM Nat (Completion α)).run
+        ((Pure.pure ({ result, cause } : Completion α) : StateM Nat (Completion α)).run
+          left)
+        ((Pure.pure ({ result, cause } : Completion α) : StateM Nat (Completion α)).run
           right) := by
   refine ⟨fun _ _ => rfl, supplies, Nat.le_refl _, Nat.le_refl _, ?_, ?_⟩
   · simp [StateT.run_pure, allRefs, rootRefs, hiddenRegions]
-  · exact ⟨ResultRefines.refl _, .empty⟩
+  · exact ⟨ResultRefines.refl _, .empty, rfl⟩
 
 theorem RunRefines.nonNull {initial next left right}
     {scheduled eager : Completion ResponseValue × Nat}
@@ -148,17 +154,17 @@ theorem responseField_run_of_values (schema : Schema) (resolvers : Resolvers Obj
             List.map_cons, field]
           split
           · simp_all only
-            exact ⟨keys, pureResult_run supplies _⟩
+            exact ⟨keys, pureResult_run supplies _ _⟩
           · rename_i definition _
             simp_all only
             split
             · simp_all only
-              exact ⟨keys, pureResult_run supplies _⟩
+              exact ⟨keys, pureResult_run supplies _ _⟩
             · rename_i arguments _
               simp_all only
               split
               · simp_all only
-                exact ⟨keys, pureResult_run supplies _⟩
+                exact ⟨keys, pureResult_run supplies _ _⟩
               · rename_i resolved _
                 simp_all only
                 obtain ⟨next, child⟩ := children definition.outputType (head :: tail) resolved

@@ -10,58 +10,29 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 -- The fresh source success must take the actual storing branch of its handler
 -----------------------------------------------------------------------------------------
 
-/-- A fresh success with a causally healthy contributor passes the executable task guard.
-Witness: source start acceptance supplies the task node; generated replay supplies owner
-accounting, cache/cancellation support, and canonical ancestors. Rejection would invalidate
-every contributing owner, contradicting the selected healthy one.
+/-- An admitted successful task input has a present task node.
+Witness: source start acceptance is exactly task presence. No contributor health guard
+is evaluated by the success handler.
 -/
-theorem ExecutedWork.replayGraphEvents_success_healthyOwner
-    {work before occurrence result owners producer payload ref}
-    (generated : ExecutedWork work)
-    (valid : ValidGraphEvents work (before ++ [.taskSuccess occurrence result]))
+theorem ExecutedWork.replayGraphEvents_success_present
+    {work before occurrence result}
     (started
       : (State.initialize (Work.fromExecution work)).acceptsBatch
           (before ++ [.taskSuccess occurrence result])
         = true)
-    (known : TaskAt work occurrence owners producer payload) (contributes : ref ∈ owners)
-    (healthy : ¬GroupInvalidated work (GraphEvent.failureSettlements before) ref)
     : ∃ node,
         ((State.initialize (Work.fromExecution work)).replayGraphEvents before).taskNode?
-            occurrence
-          = some node
-        ∧ ((State.initialize (Work.fromExecution work)).replayGraphEvents
-            before).taskHasHealthyOwner
-            node.task
-          = true := by
-  let queue := (State.initialize (Work.fromExecution work)).replayGraphEvents before
-  obtain ⟨priorValid, _, fresh⟩ := validGraphEvents_last valid
-  have priorStarted := State.acceptsBatch_prefix (before := before) started
-  obtain ⟨parents, canonical, ledger⟩ :=
-    generated.replayGraphEvents_ownerAccounting_of_started before priorValid priorStarted
-  have accepted := State.acceptsBatch_atPrefix (State.initialize (Work.fromExecution work)) before
-    (.taskSuccess occurrence result) [] started
-  change queue.acceptsGraphEvent (.taskSuccess occurrence result) = true at accepted
-  cases found : queue.taskNode? occurrence with
+          occurrence
+        = some node := by
+  have accepted := State.acceptsBatch_atPrefix (State.initialize (Work.fromExecution work))
+    before (.taskSuccess occurrence result) [] started
+  cases found
+        : ((State.initialize (Work.fromExecution work)).replayGraphEvents
+            before).taskNode?
+            occurrence with
   | none => simp only [State.acceptsGraphEvent, found, Option.isSome_none,
       Bool.false_eq_true] at accepted
-  | some node =>
-      refine ⟨node, rfl, ?_⟩
-      cases guard : queue.taskHasHealthyOwner node.task with
-      | true => rfl
-      | false =>
-          obtain ⟨member, same⟩ := State.taskNode?_some found
-          have registered := ledger.pending.started node member
-          obtain ⟨_, taskPayload, taskProducer, _, descriptor⟩ :=
-            (ledger.pending.matching node.task registered).1
-          have ownersEq := (TaskAt.unique (same ▸ descriptor) known).1
-          have unsettled : node.task.occurrence ∉ GraphEvent.taskSettlements before := by
-            rw [same]
-            exact fun member => fresh.2.2.1 occurrence List.mem_cons_self
-              (GraphEvent.taskSettlements_subsetIdentities before member)
-          exact False.elim (healthy (ledger.owners.rejectedTask_ownersInvalidated
-            ledger.pending.matching ledger.supported ledger.cancelled generated
-            (ledger.toHealthyCounterAccounting.descriptors canonical) registered unsettled
-            guard ref (ownersEq.symm ▸ contributes)))
+  | some node => exact ⟨node, rfl⟩
 
 -----------------------------------------------------------------------------------------
 -- Actual successful closure provides durable source-ledger health at each earlier input
@@ -99,41 +70,28 @@ yet assert that its installed value survives or publishes before the later carri
 theorem ExecutedWork.successfulCarrier_contributorSuccess_accepted
     {work before event group groups streams earlier occurrence result owners producer
       payload}
-    (generated : ExecutedWork work) (valid : ValidGraphEvents work (before ++ [event]))
+    (_generated : ExecutedWork work) (_valid : ValidGraphEvents work (before ++ [event]))
     (started
       : (State.initialize (Work.fromExecution work)).acceptsBatch (before ++ [event])
         = true)
-    (carrier
+    (_carrier
       : Execution.WorkQueueEvent.groupSuccess group groups streams
         ∈ (((State.initialize (Work.fromExecution work)).replayGraphEvents
               before).handleGraphEvent
             event).2)
     (prior : (earlier ++ [.taskSuccess occurrence result]).IsPrefix (before ++ [event]))
-    (known : TaskAt work occurrence owners producer payload)
-    (contributes : group.ref ∈ owners)
+    (_known : TaskAt work occurrence owners producer payload)
+    (_contributes : group.ref ∈ owners)
     : ∃ node,
         ((State.initialize (Work.fromExecution work)).replayGraphEvents earlier).taskNode?
-            occurrence
-          = some node
-        ∧ ((State.initialize (Work.fromExecution work)).replayGraphEvents
-            earlier).taskHasHealthyOwner
-            node.task
-          = true := by
-  have sourceHealthy := generated.successfulCarrier_sourceOwnerHealthy valid started carrier
+          occurrence
+        = some node := by
   have starts : (State.initialize (Work.fromExecution work)).acceptsBatch
       (earlier ++ [.taskSuccess occurrence result]) = true := by
     obtain ⟨later, same⟩ := prior
     apply State.acceptsBatch_prefix (after := later)
     rwa [same]
-  apply generated.replayGraphEvents_success_healthyOwner (valid.prefix prior) starts known
-    contributes
-  intro failed
-  have prefixEarlier : earlier.IsPrefix (before ++ [event]) :=
-    (List.prefix_append earlier [.taskSuccess occurrence result]).trans prior
-  obtain ⟨later, same⟩ := prefixEarlier
-  apply sourceHealthy (failed.mono ?_)
-  rw [← same, GraphEvent.failureSettlements_append_list]
-  exact List.subset_append_right _ _
+  exact ExecutedWork.replayGraphEvents_success_present starts
 
 -----------------------------------------------------------------------------------------
 -- Structural registration plus closure accounting recovers an actual storing boundary
@@ -165,11 +123,7 @@ theorem ExecutedWork.successfulCarrier_registeredContributor_processed
         ∧ ((State.initialize (Work.fromExecution work)).replayGraphEvents
             earlier).taskNode?
             task.occurrence
-          = some node
-        ∧ ((State.initialize (Work.fromExecution work)).replayGraphEvents
-            earlier).taskHasHealthyOwner
-            node.task
-          = true := by
+          = some node := by
   obtain ⟨result, supplied⟩ := generated.successfulCarrier_registeredContributor_succeeded
     valid started carrier registered contributes
   obtain ⟨earlier, later, split⟩ := List.mem_iff_append.mp supplied
@@ -179,9 +133,9 @@ theorem ExecutedWork.successfulCarrier_registeredContributor_processed
   have prior : (earlier ++ [GraphEvent.taskSuccess task.occurrence result]).IsPrefix
       (before ++ [event]) :=
     ⟨later, by simpa only [List.append_assoc, List.singleton_append] using split.symm⟩
-  obtain ⟨node, found, guard⟩ := generated.successfulCarrier_contributorSuccess_accepted
+  obtain ⟨node, found⟩ := generated.successfulCarrier_contributorSuccess_accepted
     valid started carrier prior known contributes
-  exact ⟨earlier, result, later, node, split, found, guard⟩
+  exact ⟨earlier, result, later, node, split, found⟩
 
 /-- Every root structural contributor to a successful carrier has actually been processed.
 Witness: inverse root lowering supplies registration unconditionally, then the general
@@ -206,11 +160,7 @@ theorem ExecutedWork.successfulCarrier_rootContributor_processed
         ∧ ((State.initialize (Work.fromExecution work)).replayGraphEvents
             earlier).taskNode?
             (.executionGroup address)
-          = some node
-        ∧ ((State.initialize (Work.fromExecution work)).replayGraphEvents
-            earlier).taskHasHealthyOwner
-            node.task
-          = true := by
+          = some node := by
   obtain ⟨task, registered, occurrence, groups⟩ :=
     TaskAt.executionGroup_replay_registered known (before ++ [event])
   simpa only [occurrence] using generated.successfulCarrier_registeredContributor_processed
@@ -242,7 +192,6 @@ theorem ExecutedWork.successfulCarrier_registeredContributor_prepared
         ∧ (let queue :=
               (State.initialize (Work.fromExecution work)).replayGraphEvents earlier;
             queue.taskNode? task.occurrence = some node
-            ∧ queue.taskHasHealthyOwner node.task = true
             ∧ ((queue.putTaskNode
                   { node with value := some result.value }).maybeIntegrateWork
                 result.work (some task.occurrence)).1.taskNode?
@@ -250,10 +199,10 @@ theorem ExecutedWork.successfulCarrier_registeredContributor_prepared
               = some buffered
             ∧ buffered.task = node.task
             ∧ buffered.value = some result.value) := by
-  obtain ⟨earlier, result, later, node, split, found, healthy⟩ :=
+  obtain ⟨earlier, result, later, node, split, found⟩ :=
     generated.successfulCarrier_registeredContributor_processed valid started carrier
       registered contributes
   obtain ⟨buffered, installed, taskSame, value⟩ := State.taskSuccess_prepared_value found result
-  exact ⟨earlier, result, later, node, buffered, split, found, healthy, installed, taskSame, value⟩
+  exact ⟨earlier, result, later, node, buffered, split, found, installed, taskSame, value⟩
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

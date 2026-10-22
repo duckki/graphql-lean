@@ -130,7 +130,7 @@ theorem retargetTail_context (previous : Nat → Nat) (cut target : Nat)
 -----------------------------------------------------------------------------------------
 
 private theorem child_group_keys (groups : List DeferredFragment) (path : ResponsePath)
-    (result : Result (List (Name × ResponseValue))) (children : Work)
+    (result : TaskOutcome (List (Name × ResponseValue))) (children : Work)
     : (allRefs children).Subset
         (allRefs (.executionGroup groups path result children)) := by
   intro key member
@@ -138,8 +138,8 @@ private theorem child_group_keys (groups : List DeferredFragment) (path : Respon
   exact Or.inr member
 
 private theorem item_stream_keys (node : DeliveryNode)
-    (items : List (Result ResponseValue × Work)) (item : Result ResponseValue × Work)
-    (member : item ∈ items)
+    (items : List (TaskOutcome ResponseValue × Work))
+    (item : TaskOutcome ResponseValue × Work) (member : item ∈ items)
     : (allRefs item.2).Subset (allRefs (.stream node items)) := by
   intro key used
   rcases List.mem_append.mp used with used | used
@@ -225,7 +225,7 @@ theorem CompletionRefines.rekey {before after : Nat → Nat} {left right : Compl
     (related : CompletionRefines before left right)
     (same : ∀ key ∈ allRefs left.work, after key = before key)
     : CompletionRefines after left right :=
-  ⟨related.1, related.2.rekey same⟩
+  ⟨related.1, related.2.1.rekey same, related.2.2⟩
 
 /-- Checked extension edge: construct the map from supply boundaries and preserve an
 already related prefix using its actual key-region bound. The recursive executor still

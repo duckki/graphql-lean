@@ -72,7 +72,7 @@ theorem objectStreamBoundaryCertificates {work : Execution.Work}
       publicationAtoms).take index = w.events.take index := by
     rw [terminalShape, ← history, List.take_append_of_le_length (Nat.le_of_lt bound)]
   have partition := inventory ▸ mergeFailureCuts_partition
-    (sourceObjectFailureCuts 0
+    (informativeObjectFailureCuts work
       ((initialQueue work).eligibleFailureBlocks
         ((initialQueue work).sourceRunBlocks
           { active := (initialQueue work).initialGroups ++ (initialQueue work).initialStreams }

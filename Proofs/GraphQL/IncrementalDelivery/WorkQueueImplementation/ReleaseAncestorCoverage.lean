@@ -1,3 +1,4 @@
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.HandlerPublicationLedger
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.DrainAncestorCoverage
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.ReleasePublicationLedger
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.UncancelledRetirementReplay
@@ -100,7 +101,6 @@ theorem ExecutedWork.taskSuccess_drainAncestorValue_before
       let activated := released.1.startNewWork released.2.2
       queue.PreparedReleaseOwners (.taskSuccess occurrence result) published
       → queue.taskNode? occurrence = some incoming
-      → queue.taskHasHealthyOwner incoming.task = true
       → prepared.taskNode? buffered = some node
       → ref ∈ prepared.groupNodes.map (fun owner => owner.group.node.ref)
       → activated.drainReadyGroups.2[index]? = some (.groupValues group values)
@@ -109,10 +109,10 @@ theorem ExecutedWork.taskSuccess_drainAncestorValue_before
         ∈ published.take
             ((released.2.1 ++ activated.drainReadyGroups.2.take index).flatMap
               WorkQueueEvent.objectValues).length := by
-  intro queue prepared released activated prefixes found healthy lookup present selected uncancelled
+  intro queue prepared released activated prefixes found lookup present selected uncancelled
   obtain ⟨parents, canonical, groups, links, live, tasks, roots, closed⟩ :=
     generated.replayGraphEvents_preparedRetirement events matching matched incoming
-  exact (prefixes incoming found healthy).drain.ancestorValue_before generated groups links
+  exact (prefixes incoming found).drain.ancestorValue_before generated groups links
     canonical live tasks roots closed record ancestor lookup stored known contributes present
     selected uncancelled
 

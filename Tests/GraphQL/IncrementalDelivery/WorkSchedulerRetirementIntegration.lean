@@ -23,7 +23,7 @@ private def children (index : Nat) : Execution.Work :=
   .combine .empty
     (.combine
       (.executionGroup [⟨child index, [parent index]⟩] [.field "users", .index index]
-        (.ok ([("name", .scalar ("name" ++ toString (index + 1)))], 0))
+        ({ result := .ok ([("name", .scalar ("name" ++ toString (index + 1)))], 0) })
         (.combine .empty .empty))
       .empty)
 
@@ -52,7 +52,10 @@ theorem generated : ExecutedWork work :=
 private theorem stream_located
     : Located work [0, 0, 1]
         (.stream stream
-          [(.ok (.object [], 0), children 0), (.ok (.object [], 0), children 1)])
+          [
+            ({ result := .ok (.object [], 0) }, children 0),
+            ({ result := .ok (.object [], 0) }, children 1)
+          ])
         none [] := by cbv
 
 /-- The first streamed item has exactly the supplied value and lowered child work.
@@ -61,7 +64,12 @@ Witness: its structural stream position and the pure child-lowering equation.
 theorem matching : (GraphEvent.streamItems stream [item]).MatchesWork work := by
   intro received member
   obtain rfl := List.mem_singleton.mp member
-  exact ⟨[stream.ref], none, .item stream_located rfl, by cbv⟩
+  exact ⟨
+    [stream.ref],
+    none,
+    .item (result := { result := .ok (.object [], 0) }) (index := 0) stream_located rfl,
+    by cbv
+  ⟩
 
 /-- This input is a real accepted source prefix, not just a well-shaped child chunk.
 Witness: stream readiness, the first item's fixed payload, and the actual start checker.

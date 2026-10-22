@@ -185,7 +185,7 @@ theorem childFreeStream_closed_reports
       exact payloadEq.symm ▸ fails
     have workPositive : ExecutionErrors.WorkPositive (.stream node items) := positive
     have positiveCount := workPositive.task failedTask fails
-    have countBound := allowed.2.2.2.contribution_le recordedBefore failedTask contributes
+    have countPositive := allowed.2.2.2.positive
     have attachment : payload.path = node.path := by
       cases StructuralEquivalence.taskAt_of_current known with
       | executionGroup located =>
@@ -205,13 +205,44 @@ theorem childFreeStream_closed_reports
       Or.inr (List.mem_of_getElem? selected)
     ⟩
 
+/-- Every open failed child-free stream has a positive recorded item cause.
+Its root descriptor has no producer or dependencies, so inherited failure is impossible.
+-/
+theorem childFreeStream_openFailureCauses
+    {node items groups streams events matching failures}
+    (childrenEmpty : ∀ item ∈ items, item.2 = Work.empty)
+    (positive : ExecutionErrors.ItemsPositive items)
+    (explained : Explains (.stream node items) groups streams events matching failures)
+    : OpenFailureCauses (.stream node items) ((groups ++ streams).map DeliveryNode.ref)
+        matching events failures := by
+  intro ref opened failed
+  obtain ⟨descriptor, kind, dependencies, birth, known, same⟩ :=
+    explained.noticeFacts.supported ref opened.1
+  have sameNode := (childFreeStream_node childrenEmpty known).1
+  have equal : ref = node.ref := same.symm.trans (congrArg DeliveryNode.ref sameNode)
+  rw [equal] at failed ⊢
+  obtain ⟨cut, _, bounded, snapshot⟩ := failed
+  obtain ⟨occurrence, owners, producer, payload, task, recorded, contributes⟩ :=
+    childFreeStream_failed_task childrenEmpty snapshot
+  have recordedNow := failedBefore_subset failures bounded recorded
+  obtain ⟨entry, member, sameOccurrence⟩ := List.mem_map.mp recordedNow
+  have inCuts := (List.mem_filter.mp member).1
+  have actual : (entry.1, occurrence) ∈ failures := by simpa only [← sameOccurrence] using inCuts
+  have fails := explained.2.1.recorded_payload_fails actual task
+  exact ⟨
+    payload.failure.getD 0,
+    .of_task task recordedNow contributes fails
+      ((show ExecutionErrors.WorkPositive (.stream node items) from positive).task task
+        fails)
+  ⟩
+
 /-- A finite child-free stream with positive failure counts admits a complete run.
 Witness: root owner coverage constructs internal accounting, then actual closures report
 unpublished attachments and satisfy the reporting-aware terminal characterization.
 Successful item error counts are unrestricted, and the empty stream is included.
 -/
 theorem childFreeStream_completeRun_exists (node : DeliveryNode)
-    (items : List (Result ResponseValue × Work))
+    (items : List (TaskOutcome ResponseValue × Work))
     (childrenEmpty : ∀ item ∈ items, item.2 = Work.empty)
     (positive : ExecutionErrors.ItemsPositive items)
     : ∃ history, AdmissibleRun (.stream node items) history := by
@@ -230,21 +261,23 @@ theorem childFreeStream_completeRun_exists (node : DeliveryNode)
     exact ⟨by simp [announcedRefs, pendingRefs],
       Or.inl ⟨fun failure => failure.nonempty rfl, Or.inl rfl⟩, by simp, Or.inl rfl⟩
   obtain ⟨events, matching, failures, explained, accounted⟩ :=
-    accountedHistory_exists_of_initial_owner_coverage coherent initialized (by
+    accountedHistory_exists_of_initial_owner_coverage coherent positive initialized (by
       intro occurrence owners producer payload known
       obtain ⟨rfl, _⟩ := childFreeStream_task childrenEmpty known
       simp)
   obtain ⟨tail, _, _, closedHistory, allClosed⟩ :=
-    explained.close_open_refs accounted
+    explained.close_open_refs (childFreeStream_openFailureCauses childrenEmpty positive explained) accounted
       (announcedRefs (([] ++ [node]).map DeliveryNode.ref) events) (fun _ opened => opened.1)
   apply (admissibleRun_exists_iff_reported_history (.stream node items)).mpr
-  refine ⟨[], [node], events ++ tail, matching, failures, closedHistory, ?_⟩
-  intro occurrence owners producer payload known
-  by_cases published : Published matching (events ++ tail) occurrence
-  · exact Or.inr published
-  · refine Or.inl ⟨((accounted _ _ _ _ known).append tail).resolve_right published, ?_⟩
-    apply childFreeStream_closed_reports childrenEmpty positive closedHistory ?_ known published
-    apply allClosed
-    simp [announcedRefs]
+  refine ⟨[], [node], events ++ tail, matching, failures, closedHistory, ?_, ?_⟩
+  · intro ref opened _
+    exact (opened.2 (allClosed ref opened.1)).elim
+  · intro occurrence owners producer payload known
+    by_cases published : Published matching (events ++ tail) occurrence
+    · exact Or.inr published
+    · refine Or.inl ⟨((accounted _ _ _ _ known).append tail).resolve_right published, ?_⟩
+      apply childFreeStream_closed_reports childrenEmpty positive closedHistory ?_ known published
+      apply allClosed
+      simp [announcedRefs]
 
 end GraphQL.IncrementalDelivery.Correctness

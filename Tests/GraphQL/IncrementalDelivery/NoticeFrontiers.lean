@@ -28,7 +28,10 @@ example
 /-- A stream item may create a fresh stream boundary in its child work. -/
 def nested : Work :=
   .stream HistoryScheduling.left
-    [(.ok (.null, 0), .stream HistoryScheduling.right [(.ok (.null, 0), .empty)])]
+    [(
+      { result := .ok (.null, 0) },
+      .stream HistoryScheduling.right [({ result := .ok (.null, 0) }, .empty)]
+    )]
 
 /-- Publishing the parent item makes its child stream eligible in the same carrier.
 Witness: the exact producer publication and reset enclosing-owner context.

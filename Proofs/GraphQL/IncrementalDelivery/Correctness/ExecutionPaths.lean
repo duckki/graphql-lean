@@ -27,7 +27,7 @@ mutual
     | .stream node items => base.IsPrefix node.path ∧ ItemsUnder node.path items
 
   /-- Every streamed item's child work stays below the enclosing list's `base` path. -/
-  def ItemsUnder (base : ResponsePath) : List (Result ResponseValue × Work) → Prop
+  def ItemsUnder (base : ResponsePath) : List (TaskOutcome ResponseValue × Work) → Prop
     | [] => True
     | (_, children) :: rest => WorkUnder base children ∧ ItemsUnder base rest
 end
@@ -98,7 +98,7 @@ theorem nonNull (base : ResponsePath) (completed : Completion ResponseValue)
     : Under base (Completion.nonNull completed) := by
   unfold Completion.nonNull
   split
-  · exact error _ _
+  · simp [Under, Completion.error, WorkUnder]
   · exact h
 
 -----------------------------------------------------------------------------------------

@@ -90,15 +90,16 @@ theorem fieldCursors_append (path : ResponsePath)
 
 /-- A successful item and suffix combine typed slices and seeds at consecutive offsets. -/
 theorem seededItems_cons (path : ResponsePath) (index : Nat)
-    {completed : Completion ResponseValue} {tail : List (Result ResponseValue × Work)}
-    {basicHead : Result ResponseValue} {basicTail : Result (List ResponseValue)}
+    {completed : Completion ResponseValue}
+    {tail : List (TaskOutcome ResponseValue × Work)} {basicHead : Result ResponseValue}
+    {basicTail : Result (List ResponseValue)}
     (hh
       : SeededReconstructs (value (path ++ [.index index]))
           (listCursors (path ++ [.index index])) basicHead completed)
     (ht : SeededItemsReconstructs path (index + 1) basicTail tail)
     : SeededItemsReconstructs path index
         (GraphQL.Execution.Result.combine List.cons basicHead basicTail)
-        ((completed.result, completed.work) :: tail) := by
+        ((completed.outcome, completed.work) :: tail) := by
   intro hs
   obtain ⟨head, sh, hb, hw, hp, hseed⟩ := hh.reconstruct ⟨hs.1, hs.2.1⟩
   obtain ⟨rest, st, hbt, hwt, hpt, hseet⟩ := ht hs.2.2
@@ -110,13 +111,16 @@ theorem seededItems_cons (path : ResponsePath) (index : Nat)
     ?_,
     ?_
   ⟩
-  · simpa only [List.flatten_cons, List.flatten_append, items, List.append_assoc] using hp.append hpt
+  · simpa only [Completion.outcome, List.flatten_cons, List.flatten_append, items, List.append_assoc] using hp.append hpt
   · intro hn
     have hn' : (((result (value (path ++ [.index index])) completed.result ++ sh.flatten) ++
         st.flatten).map Prod.fst).Nodup := by
-      simpa only [List.flatten_cons, List.flatten_append, List.append_assoc] using hn
+      simpa only [Completion.outcome, List.flatten_cons, List.flatten_append,
+        List.append_assoc]
+        using hn
     have hp := List.nodup_append.mp (by simpa only [List.map_append] using hn')
-    simpa only [entryPaths, List.map_cons, List.map_append, result_value_paths]
+    simpa only [Completion.outcome, entryPaths, List.map_cons, List.map_append,
+      result_value_paths]
       using ItemCursorSeed.cons (hseed (by simpa only [List.map_append] using hp.1))
         (hseet hp.2.1)
 
@@ -124,7 +128,7 @@ theorem seededItems_cons (path : ResponsePath) (index : Nat)
 align source offsets. -/
 theorem seeded_stream (path : ResponsePath) (count : Nat)
     {initial : Completion (List ResponseValue)}
-    {tail : List (Result ResponseValue × Work)}
+    {tail : List (TaskOutcome ResponseValue × Work)}
     {basicInitial basicTail : Result (List ResponseValue)}
     (hi : SeededReconstructs (items path 0) (itemCursors path 0) basicInitial initial)
     (ht : SeededItemsReconstructs path count basicTail tail) (data : List ResponseValue)

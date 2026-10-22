@@ -62,7 +62,7 @@ Witness: reduce its structural location in the generated work.
 -/
 private theorem parent_known
     : TaskAt work parentTask [0] none (.object [] (.error 1)) := by
-  refine ⟨[{ node := parent }], [], .error 1, .empty, [], ?_, rfl, rfl⟩
+  refine ⟨[{ node := parent }], [], { result := .error 1, cause := some 1 }, .empty, [], ?_, rfl, rfl⟩
   cbv
 
 /-- The first failure is shared by a latent child and an independent root group.
@@ -71,7 +71,7 @@ Witness: reduce its generated contributor descriptors and fixed error outcome.
 private theorem first_known
     : TaskAt work firstTask [1, 4] none (.object [] (.error 1)) := by
   refine ⟨[{ node := node 1 "C1", ancestors := [parent] },
-    { node := node 4 "R1" }], [], .error 1, .empty, [], ?_, rfl, rfl⟩
+    { node := node 4 "R1" }], [], { result := .error 1, cause := some 1 }, .empty, [], ?_, rfl, rfl⟩
   cbv
 
 /-- The second failure likewise reaches a latent child through another root owner.
@@ -80,7 +80,7 @@ Witness: reduce its generated contributor descriptors and fixed error outcome.
 private theorem second_known
     : TaskAt work secondTask [2, 5] none (.object [] (.error 1)) := by
   refine ⟨[{ node := node 2 "C2", ancestors := [parent] },
-    { node := node 5 "R2" }], [], .error 1, .empty, [], ?_, rfl, rfl⟩
+    { node := node 5 "R2" }], [], { result := .error 1, cause := some 1 }, .empty, [], ?_, rfl, rfl⟩
   cbv
 
 /-- A fresh root-produced failure satisfies the smaller host-event semantics.
@@ -115,17 +115,17 @@ contract. Witness: their generated descriptors have no defer dependencies or pro
 -/
 theorem initialized : Initializes work initial.initialGroups initial.initialStreams := by
   have parentKnown : NodeAt work parent .group [] none := by
-    refine ⟨[1, 0], [{ node := parent }], [], .error 1, .empty, [],
+    refine ⟨[1, 0], [{ node := parent }], [], { result := .error 1, cause := some 1 }, .empty, [],
       { node := parent }, ?_, by simp, rfl, rfl⟩
     cbv
   have firstKnown : NodeAt work (node 4 "R1") .group [] none := by
     refine ⟨[1, 1, 0], [{ node := node 1 "C1", ancestors := [parent] },
-      { node := node 4 "R1" }], [], .error 1, .empty, [],
+      { node := node 4 "R1" }], [], { result := .error 1, cause := some 1 }, .empty, [],
       { node := node 4 "R1" }, ?_, by simp, rfl, rfl⟩
     cbv
   have secondKnown : NodeAt work (node 5 "R2") .group [] none := by
     refine ⟨[1, 1, 1, 0], [{ node := node 2 "C2", ancestors := [parent] },
-      { node := node 5 "R2" }], [], .error 1, .empty, [],
+      { node := node 5 "R2" }], [], { result := .error 1, cause := some 1 }, .empty, [],
       { node := node 5 "R2" }, ?_, by simp, rfl, rfl⟩
     cbv
   have eligible (group : DeliveryNode) (known : NodeAt work group .group [] none)
@@ -168,8 +168,8 @@ theorem retained_links
 Witness: actual cache lookup, guarding against prematurely deleting an unannounced failure.
 -/
 theorem failures_retained
-    : (before.groupNode? 1).map GroupNode.failure = some (some 1)
-      ∧ (before.groupNode? 2).map GroupNode.failure = some (some 1) := by
+    : (before.taskNode? firstTask).map TaskNode.rejection = some (some 1)
+      ∧ (before.taskNode? secondTask).map TaskNode.rejection = some (some 1) := by
   constructor <;> cbv
 
 /-- The healthy child remains connected beside the two retained failed siblings.
@@ -218,10 +218,6 @@ theorem taskFailure_covers_surviving_child
       parent.ref child.ref := same.symm ▸ surviving_child_path
   have absent := generated.runNormalized_taskFailure_covers
     [[firstFailure], [secondFailure]] valid (errors := 1) replayFound
-    (by
-      unfold State.taskHasHealthyOwner
-      rw [groups]
-      cbv)
     (show parent ∈ task.task.groups by simp [groups])
     (by cbv; exact List.mem_cons_self) path
   rw [← same]
@@ -233,7 +229,7 @@ contributor of its own. Witness: the genuine generated defer-ancestor relation.
 theorem child_invalidated : GroupInvalidated work [parentTask] child.ref := by
   have childKnown : NodeAt work child .group [parent.ref] none := by
     refine ⟨[1, 1, 1, 1, 0], [{ node := child, ancestors := [parent] }], [],
-      .ok ([("a", .scalar "a")], 0), .combine .empty .empty, [],
+      { result := .ok ([("a", .scalar "a")], 0) }, .combine .empty .empty, [],
       { node := child, ancestors := [parent] }, ?_, by simp, rfl, rfl⟩
     cbv
   exact .groupDependency (ancestor := parent.ref) ⟨child, none, childKnown, rfl⟩ (by simp)
@@ -325,7 +321,6 @@ theorem sequential_removal_covers_last
       change ([0, 1, 2] : List Nat).Nodup
       decide)
     found
-    (by cbv)
     (show node 0 "outer" ∈ removalTask.task.groups by simp [removalTask])
     (by change 0 ∈ ([0] : List Nat); decide)
     path

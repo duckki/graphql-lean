@@ -85,7 +85,7 @@ private theorem task_known
     : WorkQueueSemantics.TaskAt completed.work (.executionGroup [1, 0]) [0] none
         (.object [] (.ok ([("values", .null)], 1))) := by
   refine ⟨[{ node := { ref := 0, path := [] }, ancestors := [] }], [],
-    .ok ([("values", .null)], 1), .combine .empty .empty, [], ?_, rfl, rfl⟩
+    { result := .ok ([("values", .null)], 1) }, .combine .empty .empty, [], ?_, rfl, rfl⟩
   cbv
 
 private theorem inputs_valid : ValidGraphEvents completed.work inputs.flatten := by

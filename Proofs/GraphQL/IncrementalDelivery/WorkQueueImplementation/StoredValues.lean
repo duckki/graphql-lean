@@ -148,10 +148,8 @@ theorem State.StoredValuesSatisfy.startGroup {queue : State} {property}
   unfold State.startGroup
   split
   · exact stored
-  · split
-    · exact stored
-    · exact fold_preserves (fun state => state.StoredValuesSatisfy property) State.startTask
-        (fun _ occurrence prior => prior.startTask occurrence) _ _ stored
+  · exact fold_preserves (fun state => state.StoredValuesSatisfy property) State.startTask
+      (fun _ occurrence prior => prior.startTask occurrence) _ _ stored
 
 /-- Stream start changes only the active stream refs.
 Witness: neither executable branch modifies task nodes. -/
@@ -189,6 +187,19 @@ theorem State.StoredValuesSatisfy.finishGroupSuccess {queue : State} {property}
   obtain ⟨_, _, _, _, retained, _⟩ := queue.finishGroupSuccess_publications group
   exact fun node member => stored node (retained member)
 
+/-- Failed task settlement cannot install a value.
+Witness: its owner fold updates failure caches or filters nodes through group removal. -/
+theorem State.StoredValuesSatisfy.taskFailure {queue : State} {property}
+    (stored : queue.StoredValuesSatisfy property) (occurrence : Occurrence) (errors : Nat)
+    : (queue.taskFailure occurrence errors).1.StoredValuesSatisfy property := by
+  cases found : queue.taskNode? occurrence with
+  | none => simpa [State.taskFailure, found] using stored
+  | some task =>
+      rw [queue.taskFailure_eq occurrence errors task found]
+      apply failureGroupFold_preserves (fun current => current.StoredValuesSatisfy property)
+        (fun _ ref prior => prior.removeGroup ref)
+      exact stored.putTaskNode _ (stored task (List.mem_of_find?_eq_some found))
+
 /-- Recursive draining preserves every stored occurrence/value property.
 Witness: successful flushes remove values, activation adds only empty nodes, and failed
 closures filter existing nodes. No source or queue-accounting premise is needed.
@@ -200,8 +211,8 @@ theorem State.StoredValuesSatisfy.drainReadyGroups {queue : State} {property}
     (valid := stored)
   · intro current node prior _ _ _ _
     exact (prior.finishGroupSuccess node).startNewWork _
-  · intro current node errors prior _ _ _
-    exact prior.removeGroup _
+  · intro current node occurrence errors prior _ _ _
+    exact prior.taskFailure occurrence errors
 
 -----------------------------------------------------------------------------------------
 -- Only a task-success input can install a resolved object value
@@ -236,31 +247,7 @@ theorem State.StoredValuesSatisfy.taskSuccess {queue : State} {property}
       have processed := fold_preserves (fun acc => acc.1.StoredValuesSatisfy property)
         successGroupStep step node.task.groups (_, [], {}) integrated
       rw [queue.taskSuccess_eq occurrence result node found]
-      split
-      · exact stored.removeTask occurrence
       exact (processed.startNewWork _).drainReadyGroups
-
-/-- Failed task settlement cannot install a value.
-Witness: its owner fold updates failure caches or filters nodes through group removal. -/
-theorem State.StoredValuesSatisfy.taskFailure {queue : State} {property}
-    (stored : queue.StoredValuesSatisfy property) (occurrence : Occurrence) (errors : Nat)
-    : (queue.taskFailure occurrence errors).1.StoredValuesSatisfy property := by
-  unfold State.taskFailure
-  split
-  · exact stored
-  · split
-    · exact stored.removeTask occurrence
-    apply fold_preserves
-      (fun acc : State × List WorkQueueEvent => acc.1.StoredValuesSatisfy property)
-    · intro acc group prior
-      obtain ⟨current, events⟩ := acc
-      dsimp only
-      split
-      · exact prior
-      · split
-        · exact prior.removeGroup _
-        · exact prior
-    · exact fun node member => stored node (List.mem_filter.mp member).1
 
 /-- Item arrival integrates and starts child work, but creates no resolved object value.
 Witness: the item fold and final drain compose value-preserving integration and release. -/
@@ -433,6 +420,40 @@ theorem State.StoredValuesSatisfy.finishGroupSuccess_outputs {queue : State} {pr
   obtain ⟨occurrence, _, certificate⟩ := stored.published emitted member
   exact ⟨occurrence, certificate⟩
 
+/-- Task failure emits no object publication, including when it retains a latent error.
+Witness: every fold step appends only a group-failure notice or leaves output unchanged.
+-/
+theorem State.taskFailure_publishedValues (queue : State) (occurrence : Occurrence)
+    (errors : Nat) (property : Occurrence → ExecutionGroupValue → Prop)
+    : PublishedValuesSatisfy property (queue.taskFailure occurrence errors).2 := by
+  let step (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode) :=
+    match acc.1.groupNode? group.ref with
+    | none => acc
+    | some node =>
+        if acc.1.rootGroups.contains group.ref then
+          let (next, failure) := acc.1.finishGroupFailure node errors
+          (next, acc.2 ++ [failure])
+        else acc
+  have loop (groups : List Execution.DeliveryNode) (acc : State × List WorkQueueEvent)
+      (prior : PublishedValuesSatisfy property acc.2)
+      : PublishedValuesSatisfy property (groups.foldl step acc).2 := by
+    induction groups generalizing acc with
+    | nil => exact prior
+    | cons group rest ih =>
+        apply ih
+        unfold step
+        split
+        · exact prior
+        · split
+          · apply prior.append
+            intro trigger values impossible
+            simp [State.finishGroupFailure] at impossible
+          · exact prior
+  unfold State.taskFailure
+  split
+  · intro trigger values impossible; cases impossible
+  · exact loop _ (_, []) (by intro trigger values impossible; cases impossible)
+
 /-- Object values emitted during recursive draining retain stored source provenance.
 Witness: induction on the actual drain budget, composing successful flush output with
 later drain output; cached-failure events contain no object values.
@@ -450,17 +471,16 @@ theorem State.StoredValuesSatisfy.drainReadyGroups_outputs {queue : State} {prop
         split
         · intro trigger values impossible; cases impossible
         · rename_i node selected
-          cases cached : node.failure with
+          cases cached : current.rejectedTask? node with
           | none =>
               dsimp only
               exact (prior.finishGroupSuccess_outputs node).append
                 (ih _ ((prior.finishGroupSuccess node).startNewWork _))
-          | some errors =>
+          | some rejected =>
+              obtain ⟨occurrence, errors⟩ := rejected
               dsimp only
-              apply PublishedValuesSatisfy.append
-              · intro trigger values impossible
-                simp [State.finishGroupFailure] at impossible
-              · exact ih _ (prior.removeGroup _)
+              exact (current.taskFailure_publishedValues occurrence errors property).append
+                (ih _ (prior.taskFailure occurrence errors))
   exact loop _ queue stored
 
 /-- The success handler's object publications preserve old and newly installed value facts.
@@ -499,9 +519,6 @@ theorem State.StoredValuesSatisfy.taskSuccess_outputs {queue : State} {property}
       have processed := fold_preserves invariant successGroupStep step node.task.groups
         (_, [], {}) ⟨integrated, by intro trigger values impossible; cases impossible⟩
       rw [queue.taskSuccess_eq occurrence result node found]
-      split
-      · intro trigger values impossible
-        cases impossible
       exact processed.2.append ((processed.1.startNewWork _).drainReadyGroups_outputs)
 
 /-- Actual success-handler publications have exact source payloads from the current prefix.
@@ -532,44 +549,6 @@ theorem createWorkQueue_replay_taskSuccess_publishedValues {work : Execution.Wor
 -----------------------------------------------------------------------------------------
 -- Every handler's object output retains a genuine task-success source
 -----------------------------------------------------------------------------------------
-
-/-- Task failure emits no object publication, including when it retains a latent error.
-Witness: every fold step appends only a group-failure notice or leaves output unchanged.
--/
-theorem State.taskFailure_publishedValues (queue : State) (occurrence : Occurrence)
-    (errors : Nat) (property : Occurrence → ExecutionGroupValue → Prop)
-    : PublishedValuesSatisfy property (queue.taskFailure occurrence errors).2 := by
-  let step (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode) :=
-    match acc.1.groupNode? group.ref with
-    | none => acc
-    | some node =>
-        if acc.1.rootGroups.contains group.ref then
-          let (next, failure) := acc.1.finishGroupFailure node errors
-          (next, acc.2 ++ [failure])
-        else (acc.1.putGroupNode
-          { node with pending := node.pending - 1
-                      failure := some (node.failure.getD 0 + errors) }, acc.2)
-  have loop (groups : List Execution.DeliveryNode) (acc : State × List WorkQueueEvent)
-      (prior : PublishedValuesSatisfy property acc.2)
-      : PublishedValuesSatisfy property (groups.foldl step acc).2 := by
-    induction groups generalizing acc with
-    | nil => exact prior
-    | cons group rest ih =>
-        apply ih
-        unfold step
-        split
-        · exact prior
-        · split
-          · apply prior.append
-            intro trigger values impossible
-            simp [State.finishGroupFailure] at impossible
-          · exact prior
-  unfold State.taskFailure
-  split
-  · intro trigger values impossible; cases impossible
-  · split
-    · intro trigger values impossible; cases impossible
-    exact loop _ (_, []) (by intro trigger values impossible; cases impossible)
 
 /-- A stream handler may drain stored object values, all with their earlier provenance.
 Witness: item integration installs no object value; the final recursive drain can flush

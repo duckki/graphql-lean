@@ -133,7 +133,6 @@ theorem taskSuccess_phaseSource {state : State} {work : Work} {parents : Nat →
       : (registrationSnapshot state.queue
           (.taskSuccess incoming result)).ChildStreamInventory)
     (foundInput : state.queue.taskNode? incoming = some input)
-    (healthy : state.queue.taskHasHealthyOwner input.task = true)
     (frame
       : (taskSuccessReadyPhase state incoming result input).1.queue.TaskOwnerFrame work)
     (forest
@@ -153,7 +152,7 @@ theorem taskSuccess_phaseSource {state : State} {work : Work} {parents : Nat →
   let released := input.task.groups.foldl ReferenceWorkQueue.successGroupStep (registered.1.queue, [], {})
   let active := taskSuccessReadyPhase state incoming result input
   have prepared : registrationSnapshot state.queue (.taskSuccess incoming result) = registered.1.queue := by
-    simp only [registrationSnapshot, foundInput, healthy, ↓reduceIte]
+    simp only [registrationSnapshot, foundInput]
     cases state with
     | mk queue stopped =>
         cases stopped with
@@ -170,7 +169,6 @@ theorem taskSuccess_phaseSource {state : State} {work : Work} {parents : Nat →
       ((stored.maybeIntegrateWork_stopped result.work (some incoming)).trans running)
   have unique : active.2.2.Nodup := State.startNewWork_targets_nodup _ _ _ [] List.nodup_nil
   rw [state.taskSuccess_eq incoming result input foundInput]
-  simp only [healthy, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
   change (active.1.drainReadyGroups active.2.2).1.queue.taskNode? occurrence = some node
     ∨ key ∈ (active.1.drainReadyGroups active.2.2).1.queue.rootStreams
     ∨ .cancelSource key ∈ ([.adopt incoming] ++
@@ -273,45 +271,38 @@ theorem referencePrefix_taskSuccess_sources {work : Work}
       simp only [State.taskSuccess, selected]
       exact .inl found
   | some input =>
-      cases healthy : queue.taskHasHealthyOwner input.task with
-      | false =>
-          simp only [registrationSnapshot, selected, healthy, Bool.false_eq_true, ↓reduceIte] at found
-          have different := buffered_ne_input valid found stored
-          simp only [State.taskSuccess, selected, healthy, Bool.not_false, ↓reduceIte]
-          exact .inl ((queue.removeTask_lookup_other different).trans found)
-      | true =>
-          have initial := referencePrefix_inventory work events
-          have links := initial input (ReferenceWorkQueue.State.taskNode?_some selected).1
-          have installed := initial.putTaskNode { input with value := some result.value } links.1 links.2
-          have eager : (eagerRegistrationSnapshot queue (.taskSuccess incoming result)).ChildStreamInventory := by
-            simp only [eagerRegistrationSnapshot, selected, healthy, ↓reduceIte]
-            exact installed.maybeIntegrateWork result.work (some incoming)
-          have projection := referencePrefix_snapshotProjection generated events
-            (.taskSuccess incoming result) valid
-          have inventory : (registrationSnapshot queue (.taskSuccess incoming result)).ChildStreamInventory := by
-            intro task member
-            have prior := eager task (projection.nodes member)
-            have registry := congrArg ReferenceWorkQueue.State.streams projection.core
-            change (registrationSnapshot queue (.taskSuccess incoming result)).streams
-              = (eagerRegistrationSnapshot queue (.taskSuccess incoming result)).streams at registry
-            rw [registry]
-            exact prior
-          let active := taskSuccessReadyPhase ({ queue } : State) incoming result input
-          have phase : active.1.queue = referenceTaskSuccessReady queue incoming result input :=
-            referencePrefix_taskSuccess_readyProjection generated events incoming result valid accepted input selected
-          obtain ⟨parents, frame, forest⟩ := referencePrefix_taskSuccess_drainFrames
-            generated events incoming result valid accepted input selected
-          have actualFrame : active.1.queue.TaskOwnerFrame work := by rw [phase]; exact frame
-          have actualForest : active.1.queue.RemovalForest parents := by rw [phase]; exact forest
-          have readyInventory : active.1.queue.ChildStreamInventory := by
-            rw [phase]
-            unfold referenceTaskSuccessReady
-            let prepared := ((queue.putTaskNode { input with value := some result.value }).maybeIntegrateWork
-              result.work (some incoming)).1
-            let released := input.task.groups.foldl ReferenceWorkQueue.successGroupStep (prepared, [], {})
-            exact (successFold_inventory input.task.groups (prepared, [], {})
-              (installed.maybeIntegrateWork result.work (some incoming))).startNewWork released.2.2
-          exact taskSuccess_phaseSource incoming result input rfl inventory selected
-            healthy actualFrame actualForest readyInventory found held
+      have initial := referencePrefix_inventory work events
+      have links := initial input (ReferenceWorkQueue.State.taskNode?_some selected).1
+      have installed := initial.putTaskNode { input with value := some result.value } links.1 links.2
+      have eager : (eagerRegistrationSnapshot queue (.taskSuccess incoming result)).ChildStreamInventory := by
+        simp only [eagerRegistrationSnapshot, selected]
+        exact installed.maybeIntegrateWork result.work (some incoming)
+      have projection := referencePrefix_snapshotProjection generated events
+        (.taskSuccess incoming result) valid
+      have inventory : (registrationSnapshot queue (.taskSuccess incoming result)).ChildStreamInventory := by
+        intro task member
+        have prior := eager task (projection.nodes member)
+        have registry := congrArg ReferenceWorkQueue.State.streams projection.core
+        change (registrationSnapshot queue (.taskSuccess incoming result)).streams
+          = (eagerRegistrationSnapshot queue (.taskSuccess incoming result)).streams at registry
+        rw [registry]
+        exact prior
+      let active := taskSuccessReadyPhase ({ queue } : State) incoming result input
+      have phase : active.1.queue = referenceTaskSuccessReady queue incoming result input :=
+        referencePrefix_taskSuccess_readyProjection generated events incoming result valid accepted input selected
+      obtain ⟨parents, frame, forest⟩ := referencePrefix_taskSuccess_drainFrames
+        generated events incoming result valid accepted input selected
+      have actualFrame : active.1.queue.TaskOwnerFrame work := by rw [phase]; exact frame
+      have actualForest : active.1.queue.RemovalForest parents := by rw [phase]; exact forest
+      have readyInventory : active.1.queue.ChildStreamInventory := by
+        rw [phase]
+        unfold referenceTaskSuccessReady
+        let prepared := ((queue.putTaskNode { input with value := some result.value }).maybeIntegrateWork
+          result.work (some incoming)).1
+        let released := input.task.groups.foldl ReferenceWorkQueue.successGroupStep (prepared, [], {})
+        exact (successFold_inventory input.task.groups (prepared, [], {})
+          (installed.maybeIntegrateWork result.work (some incoming))).startNewWork released.2.2
+      exact taskSuccess_phaseSource incoming result input rfl inventory selected
+        actualFrame actualForest readyInventory found held
 
 end GraphQL.IncrementalDelivery.AlternativeWorkQueue.NativeRefinement

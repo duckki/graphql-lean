@@ -39,8 +39,7 @@ theorem deferredPhase_published_deferred
       Nat.min_eq_left
         (Nat.le_of_lt (List.getElem?_eq_some_iff.mp selected).1), same]
       using known
-  cases StructuralEquivalence.taskAt_of_current task with
-  | executionGroup => exact ⟨_, rfl⟩
+  exact task.object_occurrence
 
 /-- A finite list of control events preserves stream coverage under unchanged failures.
 Witness: apply the single-control preservation theorem successively; controls publish no
@@ -76,6 +75,7 @@ theorem completeRun_exists_of_initial_deferred_coverage
     (roleCoherent : RefRoles.WorkRoles roles work)
     (under : ExecutionPaths.WorkUnder base work)
     (positive : ExecutionErrors.WorkPositive work)
+    (allocated : (streamAllocationRefs work).Nodup)
     (initialized : Initializes work groups streams)
     (roots
       : ∀ address owners producer payload,
@@ -105,13 +105,6 @@ theorem completeRun_exists_of_initial_deferred_coverage
       obtain ⟨dependencies, producer, streamKnown, _⟩ :=
         initialized.1.2.2 stream member
       exact False.elim (stream_group_refs_distinct roleCoherent streamKnown known same)
-  have groupVisible {outputs : List WorkQueueEvent} : ∀ node dependencies producer,
-      NodeAt work node .group dependencies producer
-      → node.ref ∈ announcedRefs ((groups ++ streams).map DeliveryNode.ref) outputs := by
-    intro node dependencies producer descriptor
-    apply List.mem_append_left
-    simpa only [List.map_append]
-      using List.mem_append_left (streams.map DeliveryNode.ref) (groupInitial descriptor)
   have dependenciesCovered {node dependencies producer}
       (known : NodeAt work node .stream dependencies producer)
       : ∀ ref ∈ dependencies, ref ∈ groups.map DeliveryNode.ref := by
@@ -129,7 +122,7 @@ theorem completeRun_exists_of_initial_deferred_coverage
             obtain ⟨fragment, inFragments, rfl⟩ := List.mem_map.mp member
             exact groupInitial (.group taskLocated inFragments)
   obtain ⟨events, matching, failures, explained, phase, deferred, remainsOpen⟩ :=
-    finish_root_deferred_tasks coherent initialized roots covered
+    finish_root_deferred_tasks coherent positive initialized roots covered
   have groupAccounted {node dependencies producer}
       (known : NodeAt work node .group dependencies producer)
       : NodeAccounted work matching events failures node.ref := by
@@ -163,7 +156,10 @@ theorem completeRun_exists_of_initial_deferred_coverage
         healthy
     let others := (groups.map DeliveryNode.ref).filter (fun ref => ref != anchor.ref)
     obtain ⟨closures, _, _, closedOthers, completedOthers, selected⟩ :=
-      explained.close_accounted_refs others
+      explained.close_accounted_refs
+        (Explains.openFailureCauses_of_supported_streams valid refs roleCoherent allocated
+          positive explained (Explains.streamNoticesSupported_of_initial_groups refs roleCoherent
+            explained (fun _ _ _ descriptor => groupInitial descriptor))) others
         (fun ref member => announced ref (List.mem_filter.mp member).1)
         (fun ref member => accounted ref (List.mem_filter.mp member).1)
     have reserved := anchorOpen.append_unselected selected (by simp [others])
@@ -189,7 +185,7 @@ theorem completeRun_exists_of_initial_deferred_coverage
     have preserved := (deferred.extend (List.Subset.refl _) closures).extend
       (List.Subset.refl _) [.groupSuccess anchor newGroups newStreams]
     obtain ⟨tail, run⟩ := released_streams_run_extension coherent valid refs roleCoherent
-      under positive groupVisible released preserved dependenciesClosed notified
+      under positive allocated (fun _ _ _ descriptor => groupInitial descriptor) released preserved dependenciesClosed notified
       (WorkBatching.singletons _)
     exact ⟨_, run⟩
   · have allFailed (ref : NodeRef) (member : ref ∈ groups.map DeliveryNode.ref)
@@ -212,14 +208,18 @@ theorem completeRun_exists_of_initial_deferred_coverage
               (fun ref member => explained.nodeFailed_snapshot
                 (allFailed ref (dependenciesCovered (NodeAt.stream located) ref member))))))
     obtain ⟨closures, _, controls, closed, completed, _⟩ :=
-      explained.close_accounted_refs (groups.map DeliveryNode.ref) announced accounted
+      explained.close_accounted_refs
+        (Explains.openFailureCauses_of_supported_streams valid refs roleCoherent allocated
+          positive explained (Explains.streamNoticesSupported_of_initial_groups refs roleCoherent
+            explained (fun _ _ _ descriptor => groupInitial descriptor)))
+        (groups.map DeliveryNode.ref) announced accounted
     have dependenciesClosed : StreamDependenciesCompleted work (events ++ closures) :=
       fun _ _ _ descriptor ref member => completed ref (dependenciesCovered descriptor ref member)
     have preserved := deferred.extend (List.Subset.refl _) closures
     have retained := streamsNotified_append_controls notified
       (fun event member => (controls event member).2)
     obtain ⟨tail, run⟩ := released_streams_run_extension coherent valid refs roleCoherent
-      under positive groupVisible closed preserved dependenciesClosed retained
+      under positive allocated (fun _ _ _ descriptor => groupInitial descriptor) closed preserved dependenciesClosed retained
       (WorkBatching.singletons _)
     exact ⟨_, run⟩
 
@@ -237,6 +237,7 @@ theorem completeRun_exists_of_root_deferred_coverage
     (roleCoherent : RefRoles.WorkRoles roles work)
     (under : ExecutionPaths.WorkUnder base work)
     (positive : ExecutionErrors.WorkPositive work)
+    (allocated : (streamAllocationRefs work).Nodup)
     (initialized : Initializes work groups streams)
     (roots
       : ∀ address owners producer payload,
@@ -258,7 +259,7 @@ theorem completeRun_exists_of_root_deferred_coverage
         initialized.1.2.2 node stream
       exact covers node .stream dependencies producer known eligible
   apply completeRun_exists_of_initial_deferred_coverage coherent valid refs roleCoherent
-    under positive enlarged roots
+    under positive allocated enlarged roots
   · intro address owners producer payload known
     obtain ⟨nonempty, announced⟩ := covered address owners producer payload known
     exact ⟨nonempty, fun ref member => retained (announced ref member)⟩

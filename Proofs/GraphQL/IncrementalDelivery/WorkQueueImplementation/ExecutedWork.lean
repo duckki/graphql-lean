@@ -177,7 +177,7 @@ distinct refs in its spec fragment list.
 -/
 private theorem immediateContributorRefsNodup_executionGroup
     {groups : List Execution.DeferredFragment} {path : Execution.ResponsePath}
-    {result : Execution.Result (List (Name × Execution.ResponseValue))}
+    {result : Execution.TaskOutcome (List (Name × Execution.ResponseValue))}
     {children : Execution.Work}
     (unique : (groups.map (fun group => group.node.ref)).Nodup)
     : immediateContributorRefsNodup (.executionGroup groups path result children) := by
@@ -374,7 +374,7 @@ private theorem completionContributorsNodup_nonNull
     : completionContributorsNodup completed.nonNull := by
   unfold Execution.Completion.nonNull
   split
-  · exact completionContributorsNodup_error _
+  · simp [Execution.Completion.error, completionContributorsNodup, contributorRefsNodup]
   · exact unique
 
 private theorem completionContributorsNodup_combine (f : α → β → γ)
@@ -384,8 +384,8 @@ private theorem completionContributorsNodup_combine (f : α → β → γ)
     : completionContributorsNodup (Execution.Completion.combine f left right) := by
   cases result : Execution.Result.combine f left.result right.result with
   | error errors =>
-      simp [Execution.Completion.combine, result,
-        completionContributorsNodup_error]
+      simp [Execution.Completion.combine, result, Execution.Completion.error,
+        completionContributorsNodup, contributorRefsNodup]
   | ok value =>
       simpa [Execution.Completion.combine, result, completionContributorsNodup]
         using contributorRefsNodup_combine leftUnique rightUnique
@@ -572,7 +572,7 @@ private theorem completeListValue_contributorRefsNodup_of_values
 failure stores empty Work. The recursive tail preserves the same invariant.
 -/
 private def streamItemsContributorsNodup
-    (items : List (Execution.Result Execution.ResponseValue × Execution.Work))
+    (items : List (Execution.TaskOutcome Execution.ResponseValue × Execution.Work))
     : Prop :=
   ∀ item ∈ items, contributorRefsNodup item.2
 
@@ -612,7 +612,7 @@ private theorem completeStreamItems_contributorRefsNodup_of_values
             · intro tail tailUnique
               exact Semantics.runEnsures_pure _ _
                 (by
-                  change ∀ item ∈ (Except.ok data, head.work) :: tail,
+                  change ∀ item ∈ (head.outcome, head.work) :: tail,
                     contributorRefsNodup item.2
                   intro item member
                   rcases List.mem_cons.mp member with same | inTail

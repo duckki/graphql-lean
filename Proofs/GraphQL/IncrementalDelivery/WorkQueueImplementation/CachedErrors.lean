@@ -1,6 +1,7 @@
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.TaskEligibility
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.StartedTasks
 
-/-! Exact cached-error facts through integration, release, and recursive draining. -/
+/-! Selected task-rejection facts through integration, release, and recursive draining. -/
 
 namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.Execution (
@@ -8,24 +9,26 @@ open GraphQL.IncrementalDelivery.Execution (
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
 -----------------------------------------------------------------------------------------
--- Queue bookkeeping preserves arbitrary ref-indexed cached-error facts
+-- Queue bookkeeping preserves arbitrary contributor-indexed rejection facts
 -----------------------------------------------------------------------------------------
 
-/-- Every present group cache satisfies `property ref errors`.
-Unlike mere failure support, the predicate retains the exact accumulated error count.
+/-- Every retained task rejection certifies its selected cause for each contributor.
+The predicate observes task computations and introduces no group-level failure cache.
 -/
 def State.CachedErrorsSatisfy (queue : State) (property : Nat → Nat → Prop) : Prop :=
-  ∀ node ∈ queue.groupNodes,
-    ∀ errors, node.failure = some errors → property node.group.node.ref errors
+  ∀ node ∈ queue.taskNodes,
+    ∀ errors,
+      node.rejection = some errors → ∀ group ∈ node.task.groups, property group.ref errors
 
-/-- Pointwise implication weakens the facts certified by every retained error cache.
+/-- Pointwise implication weakens the facts certified by every retained task rejection.
 Witness: apply the implication to each live node's exact count.
 -/
 theorem State.CachedErrorsSatisfy.mono {queue : State} {before after}
     (cached : queue.CachedErrorsSatisfy before)
     (weaken : ∀ ref errors, before ref errors → after ref errors)
     : queue.CachedErrorsSatisfy after :=
-  fun node member errors same => weaken _ _ (cached node member errors same)
+  fun node member errors same group included =>
+    weaken _ _ (cached node member errors same group included)
 
 /-- A pointwise invariant is preserved by folding individually preserving steps.
 Witness: list induction threads the actual state, without queue-admission assumptions.
@@ -39,15 +42,22 @@ private theorem fold_preserves {α β : Type} (property : β → Prop)
   | nil => exact valid
   | cons item rest ih => exact ih _ (preserved state item valid)
 
-/-- Replacing a group preserves cached-error facts when the replacement has a witness.
-Witness: every updated node is either the replacement or an unchanged old node.
--/
+/-- Group metadata updates leave retained task rejections unchanged. -/
 theorem State.CachedErrorsSatisfy.putGroupNode {queue : State}
     {property : Nat → Nat → Prop} (supported : State.CachedErrorsSatisfy queue property)
     (updated : GroupNode)
+    : (queue.putGroupNode updated).CachedErrorsSatisfy property :=
+  supported
+
+/-- Task metadata replacement preserves certified rejection causes. -/
+theorem State.CachedErrorsSatisfy.putTaskNode {queue : State}
+    {property : Nat → Nat → Prop} (supported : State.CachedErrorsSatisfy queue property)
+    (updated : TaskNode)
     (replacement
-      : ∀ errors, updated.failure = some errors → property updated.group.node.ref errors)
-    : (queue.putGroupNode updated).CachedErrorsSatisfy property := by
+      : ∀ errors,
+          updated.rejection = some errors
+          → ∀ group ∈ updated.task.groups, property group.ref errors)
+    : (queue.putTaskNode updated).CachedErrorsSatisfy property := by
   intro node member errors cached
   obtain ⟨old, oldMember, same⟩ := List.mem_map.mp member
   split at same
@@ -58,7 +68,7 @@ theorem State.CachedErrorsSatisfy.putGroupNode {queue : State}
 -- Integration and activation do not introduce failure caches
 -----------------------------------------------------------------------------------------
 
-/-- Fresh group registration starts with no error cache.
+/-- Fresh group registration starts with no task rejection.
 Witness: existing nodes retain their witnesses and the appended node has `none`.
 -/
 theorem State.CachedErrorsSatisfy.addGroup {queue : State} {property : Nat → Nat → Prop}
@@ -67,16 +77,9 @@ theorem State.CachedErrorsSatisfy.addGroup {queue : State} {property : Nat → N
   unfold State.addGroup
   split
   · exact supported
-  · split
-    · exact supported
-    · intro node member errors cached
-      rcases List.mem_append.mp member with old | new
-      · exact supported node old errors cached
-      · have same := List.mem_singleton.mp new
-        subst node
-        cases cached
+  · split <;> exact supported
 
-/-- Parent-link installation leaves every cache and delivery ref unchanged.
+/-- Parent-link installation leaves every rejection and contributor refs unchanged.
 Witness: the two actual folds register empty nodes and replace only child links.
 -/
 theorem State.CachedErrorsSatisfy.addGroups {queue : State} {property : Nat → Nat → Prop}
@@ -104,7 +107,7 @@ theorem State.CachedErrorsSatisfy.addGroups {queue : State} {property : Nat → 
     · split
       · exact valid
       · rename_i node found
-        exact valid.putGroupNode _ (valid node (List.mem_of_find?_eq_some found))
+        exact valid.putGroupNode _
   change (fresh.foldl link (fresh.foldl State.addGroup queue)).CachedErrorsSatisfy
     property
   exact fold_preserves _ link fresh linked _
@@ -112,8 +115,8 @@ theorem State.CachedErrorsSatisfy.addGroups {queue : State} {property : Nat → 
       State.addGroup fresh (fun _ group valid => valid.addGroup group)
       queue supported)
 
-/-- Adding a task changes membership and counters, never the group's cached errors.
-Witness: induction through contributing groups and the unchanged cache projection.
+/-- Adding a task changes membership and counters, never the task's retained rejection.
+Witness: induction through contributing groups and the unchanged rejection projection.
 -/
 theorem State.CachedErrorsSatisfy.addTask {queue : State} {property : Nat → Nat → Prop}
     (supported : State.CachedErrorsSatisfy queue property) (task : Task)
@@ -135,12 +138,19 @@ theorem State.CachedErrorsSatisfy.addTask {queue : State} {property : Nat → Na
     · rename_i node found
       split
       · exact valid
-      · exact valid.putGroupNode _ (valid node (List.mem_of_find?_eq_some found))
+      · exact valid.putGroupNode _
   have folded := fold_preserves _ step task.groups stable registered supported
   dsimp only [State.addTask]
-  split <;> exact folded
+  split
+  · intro node member errors cached
+    rcases List.mem_append.mp member with old | new
+    · exact folded node old errors cached
+    · have same := List.mem_singleton.mp new
+      subst node
+      cases cached
+  · exact folded
 
-/-- Stream registration leaves group caches untouched.
+/-- Stream registration leaves task rejections untouched.
 Witness: only stream and producer-task registries are updated.
 -/
 theorem State.CachedErrorsSatisfy.addStreams {queue : State} {property : Nat → Nat → Prop}
@@ -150,9 +160,12 @@ theorem State.CachedErrorsSatisfy.addStreams {queue : State} {property : Nat →
   dsimp only [State.addStreams]
   split
   · exact supported
-  · split <;> exact supported
+  · split
+    · exact supported
+    · rename_i node found
+      exact supported.putTaskNode _ (supported node (List.mem_of_find?_eq_some found))
 
-/-- Immediate work integration preserves cached-error facts.
+/-- Immediate work integration preserves rejection-cause facts.
 Witness: group, task, and stream integration preserve it individually.
 -/
 theorem State.CachedErrorsSatisfy.maybeIntegrateWork {queue : State}
@@ -185,12 +198,12 @@ theorem State.CachedErrorsSatisfy.pruneEmptyGroups {queue : State}
             split
             · exact ih _ _ _ valid
             · split
-              · exact ih _ _ _ (fun node member => valid node (List.mem_filter.mp member).1)
+              · exact ih _ _ _ valid
               · exact ih _ _ _ valid
   exact loop _ queue groups [] supported
 
-/-- Activation starts host work without changing group caches.
-Witness: task, group, and stream start folds preserve the group-node projection.
+/-- Activation starts host work without changing task rejections.
+Witness: task, group, and stream start folds preserve the task-rejection facts.
 -/
 theorem State.CachedErrorsSatisfy.startNewWork {queue : State}
     {property : Nat → Nat → Prop} (supported : State.CachedErrorsSatisfy queue property)
@@ -202,7 +215,14 @@ theorem State.CachedErrorsSatisfy.startNewWork {queue : State}
     unfold State.startTask
     split
     · exact valid
-    · split <;> exact valid
+    · split
+      · exact valid
+      · intro node member errors rejected
+        rcases List.mem_append.mp member with old | new
+        · exact valid node old errors rejected
+        · have same := List.mem_singleton.mp new
+          subst node
+          cases rejected
   have groupStable (current : State) (ref : NodeRef)
       (valid : current.CachedErrorsSatisfy property)
       : (current.startGroup ref).CachedErrorsSatisfy property := by
@@ -210,9 +230,7 @@ theorem State.CachedErrorsSatisfy.startNewWork {queue : State}
     split
     · exact valid
     · rename_i node found
-      split
-      · exact valid
-      · exact fold_preserves _ State.startTask node.tasks taskStable current valid
+      exact fold_preserves _ State.startTask node.tasks taskStable current valid
   have streamStable (current : State) (ref : NodeRef)
       (valid : current.CachedErrorsSatisfy property)
       : (current.startStream ref).CachedErrorsSatisfy property := by
@@ -232,10 +250,10 @@ theorem createWorkQueue_cachedErrors (input : Work) (property : Nat → Nat → 
   exact ((empty.maybeIntegrateWork input).pruneEmptyGroups _).startNewWork _
 
 -----------------------------------------------------------------------------------------
--- Publication, cleanup, and recursive release retain cached-error facts
+-- Publication, cleanup, and recursive release retain rejection-cause facts
 -----------------------------------------------------------------------------------------
 
-/-- Task retirement changes only memberships, retaining every cached-error witness.
+/-- Task retirement changes only memberships, retaining every rejection-cause witness.
 Witness: the group map leaves each delivery ref and cached error unchanged.
 -/
 theorem State.CachedErrorsSatisfy.removeTask {queue : State} {property : Nat → Nat → Prop}
@@ -243,10 +261,9 @@ theorem State.CachedErrorsSatisfy.removeTask {queue : State} {property : Nat →
     (occurrence : Occurrence)
     : (queue.removeTask occurrence).CachedErrorsSatisfy property := by
   intro node member errors cached
-  obtain ⟨old, oldMember, rfl⟩ := List.mem_map.mp member
-  exact supported old oldMember errors cached
+  exact supported node (List.mem_filter.mp member).1 errors cached
 
-/-- Group cancellation filters nodes without modifying retained caches.
+/-- Group cancellation filters nodes without modifying retained rejections.
 Witness: every surviving node and witness belonged to the original queue.
 -/
 theorem State.CachedErrorsSatisfy.removeGroup {queue : State}
@@ -289,11 +306,31 @@ theorem State.CachedErrorsSatisfy.finishGroupSuccess {queue : State}
         (fun node => node.group.node.ref != group.group.node.ref)
       rootGroups := flushed.rootGroups.filter (· != group.group.node.ref) }
   have filtered : current.CachedErrorsSatisfy property := by
-    intro node member
-    exact prior node (List.mem_filter.mp member).1
+    exact prior
   exact filtered.pruneEmptyGroups _
 
-/-- Recursive release preserves cached-error facts through both kinds of closure.
+/-- Retaining a certified incoming rejection preserves all retained cause facts. -/
+theorem State.CachedErrorsSatisfy.taskFailure {queue : State}
+    {property : Nat → Nat → Prop} (supported : queue.CachedErrorsSatisfy property)
+    (occurrence : Occurrence) (errors : Nat)
+    (cause
+      : ∀ node,
+          queue.taskNode? occurrence = some node
+          → ∀ group ∈ node.task.groups, property group.ref errors)
+    : (queue.taskFailure occurrence errors).1.CachedErrorsSatisfy property := by
+  cases found : queue.taskNode? occurrence with
+  | none => simpa [State.taskFailure, found] using supported
+  | some node =>
+      rw [queue.taskFailure_eq occurrence errors node found]
+      apply failureGroupFold_preserves (fun state => state.CachedErrorsSatisfy property)
+        (fun _ ref prior => prior.removeGroup ref)
+      exact supported.putTaskNode _
+        (by
+          intro count same
+          cases Option.some.inj same
+          exact cause node found)
+
+/-- Recursive release preserves rejection-cause facts through both kinds of closure.
 Witness: the actual bounded drain alternates supported success flushes and failure removal.
 -/
 theorem State.CachedErrorsSatisfy.drainReadyGroups {queue : State}
@@ -303,8 +340,13 @@ theorem State.CachedErrorsSatisfy.drainReadyGroups {queue : State}
     (fun current => current.CachedErrorsSatisfy property) (valid := supported)
   · intro current node valid _ _ _ _
     exact (valid.finishGroupSuccess node).startNewWork _
-  · intro current node errors valid _ _ _
-    exact valid.removeGroup node.group.node.ref
+  · intro current node occurrence errors valid _ _ selected
+    obtain ⟨_, task, found, rejected⟩ := State.rejectedTask?_sound selected
+    apply valid.taskFailure occurrence errors
+    intro other otherFound
+    have same := Option.some.inj (found.symm.trans otherFound)
+    subst other
+    exact valid task (List.mem_of_find?_eq_some found) errors rejected
 
 /-- Successful settlement never introduces a new retained failure.
 Witness: child integration, each contributor decrement/flush, activation, and full drain.
@@ -320,7 +362,7 @@ theorem State.CachedErrorsSatisfy.taskSuccess {queue : State}
     | some old =>
         let node := { old with pending := old.pending - 1 }
         let current := current.putGroupNode node
-        if current.rootGroups.contains group.ref && node.pending == 0 && node.failure.isNone then
+        if current.rootGroups.contains group.ref && node.pending == 0 then
           let (next, finished, more) := current.finishGroupSuccess node
           (next, outputs ++ finished,
             ⟨released.newGroups ++ more.newGroups, released.newStreams ++ more.newStreams⟩)
@@ -334,7 +376,6 @@ theorem State.CachedErrorsSatisfy.taskSuccess {queue : State}
     · exact valid
     · rename_i node found
       have updated := valid.putGroupNode { node with pending := node.pending - 1 }
-        (valid node (List.mem_of_find?_eq_some found))
       split
       · exact updated.finishGroupSuccess _
       · exact updated
@@ -342,9 +383,9 @@ theorem State.CachedErrorsSatisfy.taskSuccess {queue : State}
   split
   · exact supported
   · rename_i taskNode found
-    split <;> try exact supported.removeTask occurrence
     let withValue := queue.putTaskNode { taskNode with value := some result.value }
-    have before : withValue.CachedErrorsSatisfy property := supported
+    have before : withValue.CachedErrorsSatisfy property :=
+      supported.putTaskNode _ (supported taskNode (List.mem_of_find?_eq_some found))
     have integrated := before.maybeIntegrateWork result.work (some occurrence)
     have released := fold_preserves _ step taskNode.task.groups stable
       ((withValue.maybeIntegrateWork result.work (some occurrence)).1, [], {}) integrated

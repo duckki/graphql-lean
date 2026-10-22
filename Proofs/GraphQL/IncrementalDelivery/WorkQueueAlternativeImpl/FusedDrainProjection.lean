@@ -1,3 +1,4 @@
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.FusedFailureProjection
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.GeneratedFusedRemoval
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.FusedRemovalGuards
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.RegistrationRelease
@@ -15,7 +16,7 @@ def fusedReadyGroup (queue : ReferenceWorkQueue.State)
   queue.rootGroups.findSome?
     fun key => do
       let node ← queue.groupNode? key
-      if node.failure.isSome || node.pending == 0 then some node else none
+      if (queue.rejectedTask? node).isSome || node.pending == 0 then some node else none
 
 theorem fusedReadyGroup_member {queue : ReferenceWorkQueue.State}
     {group : ReferenceWorkQueue.GroupNode} (selected : fusedReadyGroup queue = some group)
@@ -25,7 +26,7 @@ theorem fusedReadyGroup_member {queue : ReferenceWorkQueue.State}
   | none => simp [found] at choice
   | some node =>
       rw [found] at choice
-      change (if node.failure.isSome || node.pending == 0 then some node else none) = some group
+      change (if (queue.rejectedTask? node).isSome || node.pending == 0 then some node else none) = some group
         at choice
       split at choice
       · have same := Option.some.inj choice
@@ -39,10 +40,8 @@ theorem State.drainReadyGroups_go_eq (fuel : Nat) (state : State)
         | none => (state, [], targets)
         | some node =>
             let next :=
-              match node.failure with
-              | some errors =>
-                  let reduced := state.finishGroupFailure node errors targets
-                  (reduced.1, [reduced.2.1], reduced.2.2)
+              match state.queue.rejectedTask? node with
+              | some (occurrence, errors) => state.taskFailure occurrence errors targets
               | none =>
                   let released := state.queue.finishGroupSuccess node
                   let started :=
@@ -59,10 +58,8 @@ private theorem reference_go_eq (fuel : Nat) (queue : ReferenceWorkQueue.State)
         | none => (queue, [])
         | some node =>
             let next :=
-              match node.failure with
-              | some errors =>
-                  let reduced := queue.finishGroupFailure node errors
-                  (reduced.1, [reduced.2])
+              match queue.rejectedTask? node with
+              | some (occurrence, errors) => queue.taskFailure occurrence errors
               | none =>
                   let released := queue.finishGroupSuccess node
                   (released.1.startNewWork released.2.2, released.2.1)
@@ -89,28 +86,32 @@ theorem State.drainReadyGroups_go_projection {state : State} {work : Work}
       | none => rfl
       | some node =>
           simp only
-          cases cached : node.failure with
-          | some errors =>
+          cases cached : state.queue.rejectedTask? node with
+          | some rejected =>
+              obtain ⟨occurrence, errors⟩ := rejected
               simp only
-              let removed := state.removeGroup node.group.node.ref targets
-              have same : removed.1.queue = state.queue.removeGroup node.group.node.ref :=
-                FusedRemovalProjection_holds state work parents node.group.node.ref targets
-                  frame.matching frame.sound forest frame.removalTaskFrame
-              have nextFrame : removed.1.queue.TaskOwnerFrame work := by
-                rw [same]
-                exact frame.removeGroup node.group.node.ref
-              have nextForest : removed.1.queue.RemovalForest parents := by
-                rw [same]
-                exact forest.removeGroup node.group.node.ref
-              have next := ih ((state.removeGroup_stopped node.group.node.ref targets).trans running)
-                nextFrame nextForest removed.2
-              rw [same] at next
-              change ((State.drainReadyGroups.go fuel removed.1 removed.2).1.queue,
-                [.groupFailure node.group.node errors] ++
-                  (State.drainReadyGroups.go fuel removed.1 removed.2).2.1) = _
+              let reduced := state.taskFailure occurrence errors targets
+              have same := state.taskFailure_projection frame forest occurrence errors targets
+              have queueEq : reduced.1.queue = (state.queue.taskFailure occurrence errors).1 :=
+                congrArg Prod.fst same
+              have outputEq : reduced.2.1 = (state.queue.taskFailure occurrence errors).2 :=
+                congrArg Prod.snd same
+              have nextFrame : reduced.1.queue.TaskOwnerFrame work := by
+                rw [queueEq]
+                exact frame.taskFailure occurrence errors
+              have nextForest : reduced.1.queue.RemovalForest parents := by
+                rw [queueEq]
+                exact forest.of_subset
+                  (state.queue.taskFailure_groupNodes_sublist occurrence errors).subset
+              have next := ih ((state.taskFailure_stopped occurrence errors targets).trans running)
+                nextFrame nextForest reduced.2.2
+              rw [queueEq] at next
+              change ((State.drainReadyGroups.go fuel reduced.1 reduced.2.2).1.queue,
+                reduced.2.1 ++ (State.drainReadyGroups.go fuel reduced.1 reduced.2.2).2.1) = _
+              rw [outputEq]
               exact congrArg
-                (fun pair => (pair.1, [.groupFailure node.group.node errors] ++ pair.2))
-                next
+                (fun pair =>
+                  (pair.1, (state.queue.taskFailure occurrence errors).2 ++ pair.2)) next
           | none =>
               simp only
               let released := state.queue.finishGroupSuccess node

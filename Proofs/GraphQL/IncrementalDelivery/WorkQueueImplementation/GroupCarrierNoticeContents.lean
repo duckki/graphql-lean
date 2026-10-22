@@ -9,14 +9,14 @@ namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.Execution (WorkQueueEvent)
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
-/-- A noticed descriptor retains unpublished tasks and supported cached errors together.
+/-- A noticed descriptor retains concrete unpublished tasks.
 The queue record and contents facts share one emitting boundary. `failed` is the
-visible accepted inventory; `received` supplies successful registration prerequisites.
+proof inventory; `received` supplies successful registration prerequisites.
 The prerequisites concern source success, not already-published producer values. This package
 is derived evidence, not a source assumption or scheduler-contract premise.
 -/
 def RetainedNoticeContents (work : Execution.Work) (matching : PublicationMatching)
-    (events : List Execution.WorkQueueEvent) (failed : List Occurrence)
+    (events : List Execution.WorkQueueEvent) (_failed : List Occurrence)
     (received : List GraphEvent) (child : Execution.DeliveryNode)
     : Prop :=
   (∃ dependencies producer, NodeAt work child .group dependencies producer)
@@ -24,17 +24,15 @@ def RetainedNoticeContents (work : Execution.Work) (matching : PublicationMatchi
     ∃ node : GroupNode,
       queue.groupNode? child.ref = some node
       ∧ node.group.node = child
-      ∧ (node.tasks ≠ [] ∨ node.failure.isSome = true)
+      ∧ node.tasks ≠ []
       ∧ queue.GroupMembershipSound
       ∧ queue.RegisteredTasksMatch work
-      ∧ queue.CachedFailuresSupported work failed
       ∧ TaskProducersSucceeded work queue.tasks received
       ∧ ∀ occurrence ∈ node.tasks, ¬Published matching events occurrence
 
-/-- Concrete retained contents supply a visible failure or a real unpublished contributor.
-Witness: a cache supplies its accepted contributor at the same cut. Without a cache,
-pruning retained a nonempty task list, whose sound membership and registered descriptor
-give the original work occurrence. Producer readiness still decides cancellation safety.
+/-- Concrete retained contents supply a real unpublished contributor.
+Witness: pruning retained a nonempty task list, whose sound membership and registered
+descriptor give the original work occurrence. Producer readiness still decides cancellation safety.
 -/
 theorem RetainedNoticeContents.recorded_or_unpublished
     {work matching events failures cut received child}
@@ -46,19 +44,15 @@ theorem RetainedNoticeContents.recorded_or_unpublished
           TaskHasOwners work occurrence owners
           ∧ child.ref ∈ owners
           ∧ ¬Published matching events occurrence := by
-  obtain ⟨_, queue, node, found, same, retained, sound, registered, cached,
+  obtain ⟨_, queue, node, found, same, retained, sound, registered,
     _, unpublished⟩ := contents
   have member := List.mem_of_find?_eq_some found
-  by_cases present : node.failure.isSome = true
-  · left
-    rw [← same]
-    exact cached.recorded (List.Subset.refl _) member present
-  · obtain ⟨occurrence, listed⟩ := List.exists_mem_of_ne_nil _ (retained.resolve_right present)
-    obtain ⟨task, taskMember, sameTask, owner⟩ := sound node member occurrence listed
-    obtain ⟨_, payload, producer, _, known⟩ := (registered task taskMember).1
-    rw [sameTask] at known
-    exact .inr ⟨occurrence, _, ⟨producer, payload, known⟩, same ▸ owner,
-      unpublished occurrence listed⟩
+  obtain ⟨occurrence, listed⟩ := List.exists_mem_of_ne_nil _ retained
+  obtain ⟨task, taskMember, sameTask, owner⟩ := sound node member occurrence listed
+  obtain ⟨_, payload, producer, _, known⟩ := (registered task taskMember).1
+  rw [sameTask] at known
+  exact .inr ⟨occurrence, _, ⟨producer, payload, known⟩, same ▸ owner,
+    unpublished occurrence listed⟩
 
 -----------------------------------------------------------------------------------------
 -- Task-success notices come from the owner fold or the subsequent recursive drain
@@ -80,10 +74,6 @@ theorem ExecutedWork.taskSuccess_groupNotice_unpublished
     (ledger : ObjectLedgerMatching work inputs w.events w.matching published)
     (objects : ConformancePlan.GroupPublicationAdmission work w)
     (ready : ConformancePlan.StreamPublicationReady work w)
-    (cached
-      : ((State.initialize (Work.fromExecution work)).replayGraphEvents
-          before).CachedFailuresSupported
-          work failed)
     : let current := (State.initialize (Work.fromExecution work)).replayGraphEvents before
       ((current.taskSuccess occurrence result).2)[index]?
         = some (.groupSuccess group groups streams)
@@ -104,62 +94,50 @@ theorem ExecutedWork.taskSuccess_groupNotice_unpublished
   | none =>
       simp only [State.taskSuccess, found, List.getElem?_nil, reduceCtorEq] at selected
   | some incoming =>
-      cases healthy : current.taskHasHealthyOwner incoming.task with
-      | false =>
-          rw [current.taskSuccess_eq occurrence result incoming found] at selected
-          simp only [healthy, Bool.not_false, ↓reduceIte, List.getElem?_nil,
-            reduceCtorEq] at selected
-      | true =>
-          let stored := current.putTaskNode { incoming with value := some result.value }
-          let prepared := (stored.maybeIntegrateWork result.work (some occurrence)).1
-          let released := incoming.task.groups.foldl successGroupStep (prepared, [], {})
-          let active := released.1.startNewWork released.2.2
-          have preparedReady := createWorkQueue_taskSuccess_prepared_producersSucceeded
-            valid incoming
-          have storedCached : stored.CachedFailuresSupported work failed := cached
-          have preparedCached := storedCached.maybeIntegrateWork result.work (some occurrence)
-          have output : (current.taskSuccess occurrence result).2
-              = released.2.1 ++ active.drainReadyGroups.2 := by
-            rw [current.taskSuccess_eq occurrence result incoming found]
-            simp only [healthy, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
-            rfl
-          rw [output] at selected count
-          by_cases inFold : index < released.2.1.length
-          · rw [List.getElem?_append_left inFold] at selected
-            obtain ⟨steps, _, _, located, node, lookup, same, contents, excluded⟩ :=
-              generated.taskSuccess_ownerNoticeContents covered valid found healthy selected noticed
-            obtain ⟨sound, registered⟩ :=
-              createWorkQueue_taskSuccess_prepared_noticeTaskProvenance
-                (fun _ member => prior.eachMatches member) matching incoming
-            obtain ⟨boundarySound, boundaryRegistered⟩ :=
-              State.successGroupFold_noticeTaskProvenance sound registered
-                (incoming.task.groups.take (steps + 1))
-            refine ⟨located, _, node, lookup, same, contents,
-              boundarySound, boundaryRegistered,
-              preparedCached.successGroupFold (incoming.task.groups.take (steps + 1)),
-              preparedReady.successGroupFold (incoming.task.groups.take (steps + 1)), ?_⟩
-            apply ConformancePlan.retainedGroupMembers_unpublished ledger objects ready
-              boundarySound boundaryRegistered (List.mem_of_find?_eq_some lookup)
-            rw [List.take_append_of_le_length (Nat.le_of_lt inFold)] at count
-            simpa only [count] using excluded
-          · have inDrain : released.2.1.length ≤ index := by omega
-            rw [List.getElem?_append_right inDrain] at selected
-            obtain ⟨steps, _, _, located, node, lookup, same, contents, excluded⟩ :=
-              generated.taskSuccess_drainNoticeContents covered valid found healthy selected noticed
-            obtain ⟨sound, registered⟩ := createWorkQueue_taskSuccess_drain_noticeTaskProvenance
-              (fun _ member => prior.eachMatches member) matching incoming
-            obtain ⟨boundarySound, boundaryRegistered⟩ :=
-              State.drainReadyGroups_go_noticeTaskProvenance sound registered (steps + 1)
-            refine ⟨located, _, node, lookup, same, contents,
-              boundarySound, boundaryRegistered,
-              ((preparedCached.successGroupFold incoming.task.groups).startNewWork
-                released.2.2).drainReadyGroups_go (steps + 1),
-              ((preparedReady.successGroupFold incoming.task.groups).startNewWork
-                released.2.2).drainReadyGroups_go (steps + 1), ?_⟩
-            apply ConformancePlan.retainedGroupMembers_unpublished ledger objects ready
-              boundarySound boundaryRegistered (List.mem_of_find?_eq_some lookup)
-            rw [List.take_append, List.take_of_length_le inDrain] at count
-            simpa only [count] using excluded
+      let stored := current.putTaskNode { incoming with value := some result.value }
+      let prepared := (stored.maybeIntegrateWork result.work (some occurrence)).1
+      let released := incoming.task.groups.foldl successGroupStep (prepared, [], {})
+      let active := released.1.startNewWork released.2.2
+      have preparedReady := createWorkQueue_taskSuccess_prepared_producersSucceeded
+        valid incoming
+      have output : (current.taskSuccess occurrence result).2
+          = released.2.1 ++ active.drainReadyGroups.2 := by
+        rw [current.taskSuccess_eq occurrence result incoming found]
+      rw [output] at selected count
+      by_cases inFold : index < released.2.1.length
+      · rw [List.getElem?_append_left inFold] at selected
+        obtain ⟨steps, _, _, located, node, lookup, same, contents, excluded⟩ :=
+          generated.taskSuccess_ownerNoticeContents covered valid found selected noticed
+        obtain ⟨sound, registered⟩ :=
+          createWorkQueue_taskSuccess_prepared_noticeTaskProvenance
+            (fun _ member => prior.eachMatches member) matching incoming
+        obtain ⟨boundarySound, boundaryRegistered⟩ :=
+          State.successGroupFold_noticeTaskProvenance sound registered
+            (incoming.task.groups.take (steps + 1))
+        refine ⟨located, _, node, lookup, same, contents,
+          boundarySound, boundaryRegistered,
+          preparedReady.successGroupFold (incoming.task.groups.take (steps + 1)), ?_⟩
+        apply ConformancePlan.retainedGroupMembers_unpublished ledger objects ready
+          boundarySound boundaryRegistered (List.mem_of_find?_eq_some lookup)
+        rw [List.take_append_of_le_length (Nat.le_of_lt inFold)] at count
+        simpa only [count] using excluded
+      · have inDrain : released.2.1.length ≤ index := by omega
+        rw [List.getElem?_append_right inDrain] at selected
+        obtain ⟨steps, _, _, located, node, lookup, same, contents, excluded⟩ :=
+          generated.taskSuccess_drainNoticeContents covered valid found selected noticed
+        obtain ⟨sound, registered⟩ :=
+          createWorkQueue_taskSuccess_drain_noticeTaskProvenance
+            (fun _ member => prior.eachMatches member) matching incoming
+        obtain ⟨boundarySound, boundaryRegistered⟩ :=
+          State.drainReadyGroups_go_noticeTaskProvenance sound registered (steps + 1)
+        refine ⟨located, _, node, lookup, same, contents,
+          boundarySound, boundaryRegistered,
+          ((preparedReady.successGroupFold incoming.task.groups).startNewWork
+            released.2.2).drainReadyGroups_go (steps + 1), ?_⟩
+        apply ConformancePlan.retainedGroupMembers_unpublished ledger objects ready
+          boundarySound boundaryRegistered (List.mem_of_find?_eq_some lookup)
+        rw [List.take_append, List.take_of_length_le inDrain] at count
+        simpa only [count] using excluded
 
 -----------------------------------------------------------------------------------------
 -- Item handlers carry successful group notices only in their post-item drain
@@ -180,10 +158,6 @@ theorem ExecutedWork.streamItems_groupNotice_unpublished
     (ledger : ObjectLedgerMatching work inputs w.events w.matching published)
     (objects : ConformancePlan.GroupPublicationAdmission work w)
     (ready : ConformancePlan.StreamPublicationReady work w)
-    (cached
-      : ((State.initialize (Work.fromExecution work)).replayGraphEvents
-          before).CachedFailuresSupported
-          work failed)
     : let current := (State.initialize (Work.fromExecution work)).replayGraphEvents before
       ((current.streamItems stream items).2)[index]?
         = some (.groupSuccess group groups streams)
@@ -225,7 +199,6 @@ theorem ExecutedWork.streamItems_groupNotice_unpublished
               (steps + 1)
           refine ⟨located, _, node, lookup, same, contents,
             boundarySound, boundaryRegistered,
-            (cached.preparedStreamItems items).drainReadyGroups_go (steps + 1),
             (sourceReady.preparedStreamItems matching (List.mem_append_right before
               List.mem_cons_self) items (List.Subset.refl _)).drainReadyGroups_go (steps + 1), ?_⟩
           apply ConformancePlan.retainedGroupMembers_unpublished ledger objects ready
@@ -249,10 +222,6 @@ theorem ExecutedWork.handleGraphEvent_groupNotice_unpublished
     (ledger : ObjectLedgerMatching work inputs w.events w.matching published)
     (objects : ConformancePlan.GroupPublicationAdmission work w)
     (ready : ConformancePlan.StreamPublicationReady work w)
-    (cached
-      : ((State.initialize (Work.fromExecution work)).replayGraphEvents
-          before).CachedFailuresSupported
-          work failed)
     : let current := (State.initialize (Work.fromExecution work)).replayGraphEvents before
       ((current.handleGraphEvent event).2)[index]?
         = some (.groupSuccess group groups streams)
@@ -269,10 +238,10 @@ theorem ExecutedWork.handleGraphEvent_groupNotice_unpublished
   cases event with
   | taskSuccess occurrence result =>
       exact generated.taskSuccess_groupNotice_unpublished covered valid ledger objects ready
-        cached selected noticed count
+        selected noticed count
   | streamItems stream items =>
       exact generated.streamItems_groupNotice_unpublished covered valid ledger objects ready
-        cached selected noticed count
+        selected noticed count
   | taskFailure occurrence errors =>
       exact False.elim
         (current.taskFailure_noGroupSuccess occurrence errors group groups streams member)
@@ -287,9 +256,8 @@ theorem ExecutedWork.handleGraphEvent_groupNotice_unpublished
 
 namespace ConformancePlan
 
-/-- Every canonical group notice retains unpublished tasks and supported errors together.
-Witness: the joint source boundary supplies the carrier's object rank and accepted cache
-support at the same cut. Preserve both through its actual owner/drain boundary; the common
+/-- Every canonical group notice retains unpublished tasks.
+Witness: the joint source boundary supplies the carrier's object rank. Preserve contents through its actual owner/drain boundary; the common
 publication ledger supplies nonpublication without assuming the child's notice admission.
 -/
 theorem groupGroupNotice_unpublished
@@ -301,13 +269,13 @@ theorem groupGroupNotice_unpublished
     (objects : GroupPublicationAdmission work w)
     (ready : StreamPublicationReady work w)
     {streamCuts : FailureCuts}
-    (partition
+    (_partition
       : let queue := initialQueue work
         let publisher : IncrementalPublisher :=
           { active := queue.initialGroups ++ queue.initialStreams }
         w.failures.Perm
           (streamCuts
-            ++ sourceObjectFailureCuts 0
+            ++ informativeObjectFailureCuts work
                 (queue.eligibleFailureBlocks
                   (queue.sourceRunBlocks publisher inputs).2.2)))
     (selected : w.events[index]? = some (.groupSuccess group groups streams))
@@ -316,15 +284,15 @@ theorem groupGroupNotice_unpublished
         (failedBefore w.failures index) inputs.flatten child := by
   obtain ⟨published, batches, matching, _⟩ := ledger
   have covered := batches.flatten (by rwa [← inputsStarted_eq_batchesStarted])
-  obtain ⟨before, event, after, publisher, localIndex, sourceShape, emitted, count, cached⟩ :=
-    Witness.handlerBoundary_cachedFailures generated valid started history partition selected
+  obtain ⟨before, event, after, publisher, localIndex, sourceShape, _, emitted, count⟩ :=
+    Witness.handlerBoundary started history selected
   obtain ⟨normalizedIndex, normalizedAt, atomicCount⟩ :=
     publicationAtoms_groupSuccess_prefix _ emitted
   obtain ⟨rawIndex, rawAt, rawCount⟩ := publisher.normalizeBatch_groupSuccess _ normalizedAt
   rw [sourceShape] at covered
   rw [sourceShape]
   apply generated.handleGraphEvent_groupNotice_unpublished covered (sourceShape ▸ valid)
-    matching objects ready cached rawAt noticed
+    matching objects ready rawAt noticed
   rw [atomicCount, rawCount] at count
   exact count
 

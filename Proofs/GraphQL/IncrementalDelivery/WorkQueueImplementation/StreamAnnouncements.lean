@@ -34,6 +34,27 @@ theorem State.finishGroupSuccess_streamNotices (queue : State) (group : GroupNod
   rw [events, List.flatMap_append]
   split <;> simp [rawStreamNoticeRefs]
 
+/-- Failed-task cleanup does not start a stream, including when it caches latent errors.
+Witness: every contributor branch leaves rootStreams unchanged. -/
+theorem State.taskFailure_rootStreams (queue : State) (occurrence : Occurrence)
+    (errors : Nat)
+    : (queue.taskFailure occurrence errors).1.rootStreams = queue.rootStreams := by
+  cases found : queue.taskNode? occurrence with
+  | none => simp [State.taskFailure, found]
+  | some task =>
+      rw [queue.taskFailure_eq occurrence errors task found]
+      exact failureGroupFold_preserves (fun current => current.rootStreams = queue.rootStreams)
+        (fun _ _ prior => prior) errors task.task.groups _ rfl
+
+/-- Rejection output announces no stream refs. -/
+theorem State.taskFailure_streamNotices (queue : State) (occurrence : Occurrence)
+    (errors : Nat)
+    : (queue.taskFailure occurrence errors).2.flatMap rawStreamNoticeRefs = [] := by
+  apply List.flatMap_eq_nil_iff.mpr
+  intro event member
+  obtain ⟨owner, rfl⟩ := queue.taskFailure_event_failure occurrence errors event member
+  rfl
+
 /-- Recursive draining activates only old streams or streams announced in its own output.
 Witness: each successful flush names every newly activated ref; failure closures preserve
 active streams, and induction concatenates the notice evidence from later drain steps.
@@ -53,7 +74,7 @@ theorem State.drainReadyGroups_streamRoots (queue : State)
         split
         · intro ref member; exact List.mem_append_left _ member
         · rename_i node selected
-          cases cached : node.failure with
+          cases cached : current.rejectedTask? node with
           | none =>
               dsimp only
               intro ref member
@@ -68,12 +89,12 @@ theorem State.drainReadyGroups_streamRoots (queue : State)
                 · exact .inl old
                 · exact .inr (.inl fresh)
               · exact .inr (.inr announced)
-          | some errors =>
-              have same : (current.removeGroup node.group.node.ref).rootStreams
-                  = current.rootStreams := rfl
-              simpa only [State.finishGroupFailure, List.flatMap_append,
-                List.flatMap_singleton, rawStreamNoticeRefs, List.nil_append, same]
-                using ih (current.removeGroup node.group.node.ref)
+          | some rejected =>
+              obtain ⟨occurrence, errors⟩ := rejected
+              simpa only [List.flatMap_append, State.taskFailure_streamNotices,
+                List.nil_append, State.taskFailure_rootStreams]
+                using ih (current.taskFailure occurrence errors).1
+
   exact loop _ queue
 
 /-- A task-success handler activates only old streams or streams announced in its output.
@@ -119,8 +140,6 @@ theorem State.taskSuccess_streamRoots (queue : State) (occurrence : Occurrence)
         State.maybeIntegrateWork_rootStreams _ _ _
       obtain ⟨same, notices⟩ := loop node.task.groups (integrated.1, [], {}) initial rfl
       rw [queue.taskSuccess_eq occurrence result node found]
-      split
-      · exact fun _ member => List.mem_append_left _ member
       have included := ((node.task.groups.foldl successGroupStep
         (integrated.1, [], {})).1).startNewWork_rootStreams
           (node.task.groups.foldl successGroupStep (integrated.1, [], {})).2.2
@@ -133,38 +152,6 @@ theorem State.taskSuccess_streamRoots (queue : State) (occurrence : Occurrence)
         · exact .inl old
         · exact .inr (.inl fresh)
       · exact .inr (.inr announced)
-
-/-- Failed-task cleanup does not start a stream, including when it caches latent errors.
-Witness: every contributor branch leaves rootStreams unchanged. -/
-theorem State.taskFailure_rootStreams (queue : State) (occurrence : Occurrence)
-    (errors : Nat)
-    : (queue.taskFailure occurrence errors).1.rootStreams = queue.rootStreams := by
-  let step (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode) :=
-    match acc.1.groupNode? group.ref with
-    | none => acc
-    | some node =>
-        if acc.1.rootGroups.contains group.ref then
-          let failure := acc.1.finishGroupFailure node errors
-          (failure.1, acc.2 ++ [failure.2])
-        else (acc.1.putGroupNode
-          { node with pending := node.pending - 1
-                      failure := some (node.failure.getD 0 + errors) }, acc.2)
-  have loop (groups : List Execution.DeliveryNode) (acc : State × List WorkQueueEvent)
-      : (groups.foldl step acc).1.rootStreams = acc.1.rootStreams := by
-    induction groups generalizing acc with
-    | nil => rfl
-    | cons group rest ih =>
-        rw [List.foldl_cons, ih]
-        unfold step
-        split
-        · rfl
-        · split <;> rfl
-  unfold State.taskFailure
-  split
-  · rfl
-  · split
-    · rfl
-    exact loop _ (_, [])
 
 /-- Stream-item integration activates only streams named in its emitted notice list.
 Witness: item activation uses its accumulated newStreams; the final drain justifies any

@@ -102,8 +102,7 @@ theorem State.HealthyCounterAccounting.handleGraphEvent {queue work parents befo
         cases found : queue.taskNode? occurrence with
         | none => simp [State.acceptsGraphEvent, found] at accepted
         | some node =>
-            apply prior.healthy.taskSuccess_allOutcomes prior.pending prior.supported
-              prior.cancelled generated (prior.descriptors canonical) occurrence result
+            apply prior.healthy.taskSuccess_allOutcomes prior.pending occurrence result
               node found
             · exact fun member => fresh.2.2.1 occurrence (by simp [GraphEvent.identities])
                 (GraphEvent.taskSettlements_subsetIdentities before member)
@@ -149,7 +148,7 @@ theorem State.HealthyCounterAccounting.handleGraphEvent {queue work parents befo
     (prior.supported.weaken included) prior.pending.started prior.pending.matching
     prior.groups prior.childLinks canonical event matching
     (by
-      intro occurrence errors same node found healthy
+      intro occurrence errors same node found
       subst event
       simp [GraphEvent.failureSettlements_append, GraphEvent.groupFailures])
   exact ⟨nextPending, nextHealthy, nextSupport,

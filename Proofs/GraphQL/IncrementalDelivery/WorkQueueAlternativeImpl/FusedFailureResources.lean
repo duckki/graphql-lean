@@ -53,10 +53,52 @@ private theorem failureFold_safety (errors : Nat)
       · exact later.2 occurrence node key kept held
       · exact .inr (later.1 requested)
 
-/-- Every other exact held-source record is retained or cancelled by this actual handler.
-This is raw finite-state safety; generated provenance is only needed to show that an older
-buffer is different from the fresh settling input.
+/-- Rejection retains an exact held-source record or returns its real cleanup target.
+The input record survives replacement when it belongs to another task or already stores
+the replayed rejection. Every subsequent owner removal supplies inline cleanup evidence.
 -/
+theorem
+    _root_.GraphQL.IncrementalDelivery.AlternativeWorkQueue.State.taskFailure_heldSource_targets
+    (state : State) (failed : Occurrence) (errors : Nat) (targets : List CleanupTarget)
+    {occurrence : Occurrence} {node : TaskNode} {key : Nat}
+    (unchanged : occurrence ≠ failed ∨ node.rejection = some errors)
+    (found : state.queue.taskNode? occurrence = some node)
+    (held : key ∈ node.childStreams)
+    : (state.taskFailure failed errors targets).1.queue.taskNode? occurrence = some node
+      ∨ .stream key ∈ (state.taskFailure failed errors targets).2.2 := by
+  cases selected : state.queue.taskNode? failed with
+  | none => simpa only [State.taskFailure, selected] using (Or.inl found)
+  | some task =>
+      have retained : (state.queue.putTaskNode { task with rejection := some errors }).taskNode?
+          occurrence = some node := by
+        by_cases same : occurrence = failed
+        · subst occurrence
+          have identical : task = node := Option.some.inj (selected.symm.trans found)
+          subst task
+          have rejected : node.rejection = some errors := unchanged.resolve_left (by simp)
+          have updated : { node with rejection := some errors } = node := by
+            cases node
+            simp_all
+          rw [updated]
+          exact ReferenceWorkQueue.State.putTaskNode_lookup_same found node
+            (ReferenceWorkQueue.State.taskNode?_some found).2
+        · exact ReferenceWorkQueue.State.putTaskNode_lookup_other found _
+            (fun equal => same (equal.symm.trans
+              (ReferenceWorkQueue.State.taskNode?_some selected).2))
+      simp only [State.taskFailure, selected]
+      exact (failureFold_safety errors task.task.groups
+              (
+                {
+                  state with
+                    queue :=
+                      state.queue.putTaskNode { task with rejection := some errors }
+                },
+                [],
+                targets
+              )).2
+        occurrence node key retained held
+
+/-- A different settling task cannot overwrite an older held-source record. -/
 theorem
     _root_.GraphQL.IncrementalDelivery.AlternativeWorkQueue.State.taskFailure_heldSource
     (state : State) (failed : Occurrence) (errors : Nat) {occurrence : Occurrence}
@@ -64,19 +106,8 @@ theorem
     (found : state.queue.taskNode? occurrence = some node)
     (held : key ∈ node.childStreams)
     : (state.taskFailure failed errors).1.queue.taskNode? occurrence = some node
-      ∨ .cancelSource key ∈ (state.taskFailure failed errors).2.2 := by
-  cases selected : state.queue.taskNode? failed with
-  | none => simpa only [State.taskFailure, selected] using (Or.inl found)
-  | some task =>
-      have retained := (state.queue.removeTask_lookup_other different).trans found
-      simp only [State.taskFailure, selected]
-      split
-      · exact .inl retained
-      · rcases (failureFold_safety errors task.task.groups
-            ({ state with queue := state.queue.removeTask failed }, [], [])).2
-            occurrence node key retained held with kept | requested
-        · exact .inl kept
-        · exact .inr (List.mem_flatMap.mpr ⟨.stream key, requested, List.mem_cons_self⟩)
+      ∨ .stream key ∈ (state.taskFailure failed errors).2.2 :=
+  state.taskFailure_heldSource_targets failed errors [] (.inl different) found held
 
 -----------------------------------------------------------------------------------------
 -- Observe only cleanup starts emitted by the same handler
@@ -118,7 +149,7 @@ def FusedTaskFailureResourceSafety : Prop :=
     let observed := resources.observeHandlerCleanup state (.taskFailure failed errors)
     ResourceReplay resources observed.2 observed.1
     ∧ (∀ action ∈ observed.2,
-        ∃ effect ∈ reduced.2.2,
+        ∃ effect ∈ reduced.2.2.flatMap CleanupTarget.effects,
           ∃ target, effect.cleanupStart? = some target ∧ action = .requestCleanup target)
     ∧ ∀ occurrence node key,
         occurrence ≠ failed
@@ -136,6 +167,7 @@ theorem FusedTaskFailureResourceSafety_holds : FusedTaskFailureResourceSafety :=
   rcases state.taskFailure_heldSource failed errors different found held with kept | requested
   · exact .inl kept
   · exact .inr (resources.requestQueueCleanup_owned _ _
-      (List.mem_filterMap.mpr ⟨.cancelSource key, requested, rfl⟩) owned)
+      (List.mem_filterMap.mpr ⟨.cancelSource key,
+        List.mem_flatMap.mpr ⟨.stream key, requested, List.mem_cons_self⟩, rfl⟩) owned)
 
 end GraphQL.IncrementalDelivery.AlternativeWorkQueue.NativeRefinement

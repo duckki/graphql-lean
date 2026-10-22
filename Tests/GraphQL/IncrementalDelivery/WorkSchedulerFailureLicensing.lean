@@ -10,7 +10,7 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 private def stream : Execution.DeliveryNode := { ref := 0, path := [] }
 
 private def work : Execution.Work :=
-  .stream stream [(.error 1, .empty), (.error 2, .empty)]
+  .stream stream [({ result := .error 1 }, .empty), ({ result := .error 2 }, .empty)]
 
 private def first : Occurrence := .item [] 0
 private def second : Occurrence := .item [] 1
@@ -20,11 +20,11 @@ private def pair : Witness := ⟨[], matching, [(0, first), (0, second)]⟩
 
 private theorem first_known
     : TaskAt work first [stream.ref] none (.item stream (.error 1)) :=
-  .item (by rfl) rfl
+  .item (result := { result := .error 1 }) (by rfl) rfl
 
 private theorem second_known
     : TaskAt work second [stream.ref] none (.item stream (.error 2)) :=
-  .item (by rfl) rfl
+  .item (result := { result := .error 2 }) (by rfl) rfl
 
 private theorem singleton_split {before after : FailureCuts} {cut occurrence}
     (split : single.failures = before ++ (cut, occurrence) :: after)

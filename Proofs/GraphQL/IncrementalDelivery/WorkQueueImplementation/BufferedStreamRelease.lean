@@ -34,13 +34,13 @@ theorem State.drainReadyGroups_go_bufferedStreamsConserved {queue : State}
           | none => simp [found] at choice
           | some node =>
               simp only [found] at choice
-              change (if node.failure.isSome || node.pending == 0 then some node else none)
+              change (if (queue.rejectedTask? node).isSome || node.pending == 0 then some node else none)
                 = some group at choice
               split at choice
               · cases Option.some.inj choice
                 exact List.mem_of_find?_eq_some found
               · contradiction
-        cases cached : group.failure with
+        cases cached : queue.rejectedTask? group with
         | none =>
             dsimp only
             have flushed := State.finishGroupSuccess_bufferedStreamsConserved
@@ -56,11 +56,11 @@ theorem State.drainReadyGroups_go_bufferedStreamsConserved {queue : State}
               (ih ((links.finishGroupSuccess group).startNewWork _)
                 ((inventory.finishGroupSuccess group).startNewWork _))
               (State.drainReadyGroups_go_cancelledGroups_subset _ _)
-        | some errors =>
+        | some rejected =>
             exact (State.BufferedStreamsConserved.of_emptyOwners
-              (queue.removeGroup_storedOwnersConserved group.group.node.ref)
-              [.groupFailure group.group.node errors]).append
-              (ih (links.removeGroup _) (inventory.removeGroup _))
+              (queue.taskFailure_replay_storedOwnersConserved cached)
+              (queue.taskFailure rejected.1 rejected.2).2).append
+              (ih (links.taskFailure _ _) (inventory.taskFailure _ _))
               (State.drainReadyGroups_go_cancelledGroups_subset _ _)
 
 /-- The implementation's full drain has buffered-stream conservation.

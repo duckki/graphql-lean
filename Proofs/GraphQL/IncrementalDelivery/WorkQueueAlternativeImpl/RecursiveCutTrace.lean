@@ -104,7 +104,7 @@ mutual
       : WorkCutTrace (.combine left right) (.combine eagerLeft eagerRight)
     | executionGroup
       {groups eagerGroups path eagerPath report eagerReport children eagerChildren}
-      (head : ReportCutTrace report eagerReport)
+      (head : ReportCutTrace report.toReport eagerReport.toReport)
       (nested : WorkCutTrace children eagerChildren)
       : WorkCutTrace (.executionGroup groups path report children)
           (.executionGroup eagerGroups eagerPath eagerReport eagerChildren)
@@ -112,11 +112,11 @@ mutual
       : WorkCutTrace (.stream node items) (.stream eagerNode eagerItems)
 
   inductive ItemsCutTrace
-      : List (Report ResponseValue × RecordedWork)
-        → List (Report ResponseValue × RecordedWork) → Prop where
+      : List (RecordedOutcome ResponseValue × RecordedWork)
+        → List (RecordedOutcome ResponseValue × RecordedWork) → Prop where
     | nil : ItemsCutTrace [] []
     | cons {report eagerReport children eagerChildren rest eagerRest}
-      (head : ReportCutTrace report eagerReport)
+      (head : ReportCutTrace report.toReport eagerReport.toReport)
       (nested : WorkCutTrace children eagerChildren) (tail : ItemsCutTrace rest eagerRest)
       : ItemsCutTrace ((report, children) :: rest)
           ((eagerReport, eagerChildren) :: eagerRest)

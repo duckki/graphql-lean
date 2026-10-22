@@ -27,7 +27,7 @@ namespace ConformancePlan
 
 /-- The exact defer-only replay satisfies batching, announcements, and prior-cancellation
 exclusion on one witness. Witness: the announced mixed inventory has no stream cuts;
-general guard reflection licenses its unchanged ordered object cuts. This does not yet
+informative-cut selection licenses its ordered object cuts. This does not yet
 prove publication/control admission or terminal work accounting.
 -/
 theorem defer_failureCertificates {work : Execution.Work}
@@ -38,7 +38,7 @@ theorem defer_failureCertificates {work : Execution.Work}
       let publisher : IncrementalPublisher :=
         { active := queue.initialGroups ++ queue.initialStreams }
       let failures :=
-        sourceObjectFailureCuts 0
+        informativeObjectFailureCuts work
           (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher inputs).2.2)
       let w : Witness := { events := queue.nonterminalAtoms inputs, matching, failures }
       BatchShape work inputs w
@@ -65,7 +65,7 @@ theorem failureWitness_of_defer {work : Execution.Work}
       let publisher : IncrementalPublisher :=
         { active := queue.initialGroups ++ queue.initialStreams }
       let failures :=
-        sourceObjectFailureCuts 0
+        informativeObjectFailureCuts work
           (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher inputs).2.2)
       FailureWitness work (initialRefs work) matching (queue.nonterminalAtoms inputs)
         failures := by

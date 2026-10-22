@@ -93,7 +93,7 @@ theorem stale_alternativeHandleGraphEvent (state : State)
       simp only [ReferenceWorkQueue.State.acceptsGraphEvent] at stale
       have absent : state.queue.taskNode? task = none :=
         Option.isNone_iff_eq_none.mp (Option.isSome_eq_false_iff.mp stale)
-      simp only [State.handleGraphEvent, State.taskFailure, absent, staleEffects]
+      simp only [State.handleGraphEvent, State.taskFailure, absent, staleEffects, List.flatMap_nil]
   | streamSuccess stream =>
       simp only [State.handleGraphEvent, staleEffects,
         stale_handleGraphEvent state.queue (.streamSuccess stream) stale]

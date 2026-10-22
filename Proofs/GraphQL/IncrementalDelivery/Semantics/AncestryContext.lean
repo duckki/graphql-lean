@@ -282,7 +282,7 @@ theorem workAt_nonNull (parents : Assignment) (bound : Nat) (owners : List Nat)
 
 theorem deferred_workAt (parents : Assignment) (bound : Nat) (deferMap : DeferMap)
     (refs owners : List Nat) (path : ResponsePath)
-    (result : Result (List (Name × ResponseValue))) (children : Work)
+    (result : TaskOutcome (List (Name × ResponseValue))) (children : Work)
     (hv : Valid parents bound) (hm : MapAt parents bound deferMap)
     (hne : refs ≠ []) (hk : refs.Subset (mapRefs deferMap))
     (hs : owners = [] ∨ ∀ ref ∈ refs, Descends parents owners ref)

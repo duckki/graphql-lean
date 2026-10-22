@@ -240,10 +240,8 @@ theorem State.ChildStreamsSettled.startGroup {queue : State}
   unfold State.startGroup
   split
   · exact settled
-  · split
-    · exact settled
-    · exact fold_preserves State.ChildStreamsSettled State.startTask
-        (fun _ occurrence prior => prior.startTask occurrence) _ _ settled
+  · exact fold_preserves State.ChildStreamsSettled State.startTask
+      (fun _ occurrence prior => prior.startTask occurrence) _ _ settled
 
 /-- Activating a stream does not modify any task node.
 Witness: both executable branches retain the same task map. -/
@@ -281,6 +279,19 @@ theorem State.ChildStreamsSettled.finishGroupSuccess {queue : State}
   obtain ⟨_, _, _, _, retained, _⟩ := queue.finishGroupSuccess_publications group
   exact fun node member => settled node (retained member)
 
+/-- Task failure cannot introduce producer stream links.
+Witness: failure removes its task, then filters task nodes or updates group error caches. -/
+theorem State.ChildStreamsSettled.taskFailure {queue : State}
+    (settled : queue.ChildStreamsSettled) (occurrence : Occurrence) (errors : Nat)
+    : (queue.taskFailure occurrence errors).1.ChildStreamsSettled := by
+  cases found : queue.taskNode? occurrence with
+  | none => simpa [State.taskFailure, found] using settled
+  | some task =>
+      rw [queue.taskFailure_eq occurrence errors task found]
+      apply failureGroupFold_preserves State.ChildStreamsSettled
+        (fun _ ref prior => prior.removeGroup ref)
+      exact settled.putTaskNode _ (settled task (List.mem_of_find?_eq_some found))
+
 /-- Recursive draining cannot leave an unresolved task with child-stream links.
 Witness: group cleanup filters task nodes, and activation creates only empty nodes.
 -/
@@ -290,8 +301,8 @@ theorem State.ChildStreamsSettled.drainReadyGroups {queue : State}
   apply State.drainReadyGroups_preserves State.ChildStreamsSettled (valid := settled)
   · intro current node prior _ _ _ _
     exact (prior.finishGroupSuccess node).startNewWork _
-  · intro current node errors prior _ _ _
-    exact prior.removeGroup _
+  · intro current node occurrence errors prior _ _ _
+    exact prior.taskFailure occurrence errors
 
 /-- Task success preserves settled stream ownership through integration and release.
 Witness: install the producer value, then follow the contributor fold and final drain.
@@ -316,31 +327,7 @@ theorem State.ChildStreamsSettled.taskSuccess {queue : State}
       have processed := fold_preserves (fun acc => acc.1.ChildStreamsSettled)
         successGroupStep step node.task.groups (_, [], {}) integrated
       rw [queue.taskSuccess_eq occurrence result node found]
-      split
-      · exact fun node member => settled node (List.mem_filter.mp member).1
       exact (processed.startNewWork _).drainReadyGroups
-
-/-- Task failure cannot introduce producer stream links.
-Witness: failure removes its task, then filters task nodes or updates group error caches. -/
-theorem State.ChildStreamsSettled.taskFailure {queue : State}
-    (settled : queue.ChildStreamsSettled) (occurrence : Occurrence) (errors : Nat)
-    : (queue.taskFailure occurrence errors).1.ChildStreamsSettled := by
-  unfold State.taskFailure
-  split
-  · exact settled
-  · split
-    · exact fun node member => settled node (List.mem_filter.mp member).1
-    apply fold_preserves
-      (fun acc : State × List WorkQueueEvent => acc.1.ChildStreamsSettled)
-    · intro acc group prior
-      obtain ⟨current, events⟩ := acc
-      dsimp only
-      split
-      · exact prior
-      · split
-        · exact prior.removeGroup _
-        · exact prior
-    · exact fun node member => settled node (List.mem_filter.mp member).1
 
 /-- Item arrival registers its child streams as roots, without attaching them to tasks.
 Witness: parentless integration, pruning, activation, and draining preserve settled links.

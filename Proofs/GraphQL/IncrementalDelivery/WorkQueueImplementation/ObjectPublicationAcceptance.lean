@@ -126,9 +126,7 @@ theorem Witness.groupPublication_processed {work inputs w index owner payload}
         inputs.flatten = before ++ .taskSuccess (w.matching index) result :: after
         ∧ (GraphEvent.taskSuccess (w.matching index) result).MatchesWork work
         ∧ ((initialQueue work).replayGraphEvents before).taskNode? (w.matching index)
-          = some node
-        ∧ ((initialQueue work).replayGraphEvents before).taskHasHealthyOwner node.task
-          = true := by
+          = some node := by
   obtain ⟨origin⟩ := Witness.groupPublication_origin started history selected
   obtain ⟨boundary⟩ := origin.handlerBoundary
   obtain ⟨task, registered, identity⟩ := Witness.groupPublication_registered_at_handler
@@ -153,7 +151,7 @@ theorem Witness.groupPublication_processed {work inputs w index owner payload}
   obtain ⟨_, actualPayload, actualProducer, _, actualKnown⟩ :=
     (accounting.matching task registered).1
   have ownersEq := (TaskAt.unique (identity ▸ actualKnown) known).1
-  obtain ⟨before, result, after, node, split, found, healthy⟩ :=
+  obtain ⟨before, result, after, node, split, found⟩ :=
     generated.successfulCarrier_registeredContributor_processed (valid.prefix prior)
       priorAccepted (List.mem_of_getElem? carrier) registered (ownersEq.symm ▸ contributes)
   rw [identity] at split found
@@ -164,7 +162,7 @@ theorem Witness.groupPublication_processed {work inputs w index owner payload}
         simp only [boundary.sourceEq, List.append_assoc, List.singleton_append]
       _ = _ := by rw [split]; simp only [List.append_assoc, List.cons_append]
   exact ⟨before, result, after ++ boundary.after, node, full,
-    valid.eachMatches (full ▸ List.mem_append_right _ List.mem_cons_self), found, healthy⟩
+    valid.eachMatches (full ▸ List.mem_append_right _ List.mem_cons_self), found⟩
 
 end ConformancePlan
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

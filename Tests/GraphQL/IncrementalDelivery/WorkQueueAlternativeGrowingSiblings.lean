@@ -41,9 +41,9 @@ private def streamed (name : GraphQL.Name) (key : Nat)
       .combine .empty
         (.stream { ref := key, path := [.field name] }
           [
-            (.ok (.scalar "x", 0), .empty),
-            (.ok (.null, 0), .empty),
-            (.ok (.scalar "z", 0), .empty)
+            ({ result := .ok (.scalar "x", 0) }, .empty),
+            ({ result := .ok (.null, 0) }, .empty),
+            ({ result := .ok (.scalar "z", 0) }, .empty)
           ])
   }
 
@@ -80,14 +80,14 @@ private theorem stream_growing (name : GraphQL.Name)
     simp [streamed, allRefs, rootRefs, hiddenRegions] at member
     subst key
     omega
-  · refine ⟨ResultRefines.refl _, ?_⟩
+  · refine ⟨ResultRefines.refl _, ?_, rfl⟩
     have descriptor : { ref := right, path := [.field name] : DeliveryNode }
         = node keys { ref := left, path := [.field name] } := by
       simp only [node, supplies.boundary]
     change WorkRefines keys (.combine .empty (.stream _ _)) (.combine .empty (.stream _ _))
     rw [descriptor]
-    exact .combine .empty (.stream (.cons (ResultRefines.refl _) .empty
-      (.cons (ResultRefines.refl _) .empty (.cons (ResultRefines.refl _) .empty .nil))))
+    exact .combine .empty (.stream (.cons ⟨ResultRefines.refl _, rfl⟩ .empty
+      (.cons ⟨ResultRefines.refl _, rfl⟩ .empty (.cons ⟨ResultRefines.refl _, rfl⟩ .empty .nil))))
 
 private theorem required_growing
     : GrowingActionRefines continues cutRequired eagerRequired := by
@@ -97,7 +97,7 @@ private theorem required_growing
     trivial⟩
   · simp [BasicErrors.PositiveFailure, Completion.error]
   · simp [Completion.error, allRefs, rootRefs, hiddenRegions]
-  · exact ⟨ResultRefines.refl _, .empty⟩
+  · exact ⟨ResultRefines.refl _, .empty, rfl⟩
 
 private def innerCut := [cutRequired, cutRequired, cutStream "skipped"]
 private def innerEager := [eagerRequired, eagerRequired, eagerStream "skipped"]
@@ -199,8 +199,8 @@ example
   obtain ⟨next, related⟩ := constructed
   have endKey : next 19 = 20 := by
     simpa only [cut_final, eager_final] using related.supplies.boundary
-  have before := related.completion.2.locate [0, 1]
-  have after := related.completion.2.locate [1, 1, 0, 1]
+  have before := related.completion.2.1.locate [0, 1]
+  have after := related.completion.2.1.locate [1, 1, 0, 1]
   cbv at before after
   exact ⟨next, stream_key before.1, stream_key after.1, endKey, related.completion⟩
 

@@ -46,11 +46,12 @@ def ValueFailuresExplained (path : ResponsePath) (ordinary : Result ResponseValu
 /-- Some retained stream entry fails itself or contains failed work below `path`.
 The list is the actual short-circuit stream outcome, not the full resolver input list.
 -/
-def ItemsHaveFailure (path : ResponsePath) (items : List (Result ResponseValue × Work))
+def ItemsHaveFailure (path : ResponsePath)
+    (items : List (TaskOutcome ResponseValue × Work))
     : Prop :=
   ∃ result children,
     (result, children) ∈ items
-    ∧ ((∃ errors, result = .error errors) ∨ FailedBelow path children)
+    ∧ ((∃ errors, result.result = .error errors) ∨ FailedBelow path children)
 
 /-- A containing response attachment also bounds the same failed task.
 Witness: transitivity of attachment prefixes; the payload and structural task stay fixed.
@@ -85,13 +86,14 @@ theorem FailedBelow.combine_right {path work} (failed : FailedBelow path work)
 Witness: the root execution-group task, with exactly its response attachment.
 -/
 theorem FailedBelow.executionGroup_error (groups : List DeferredFragment)
-    (path : ResponsePath) (errors : Nat) (children : Work)
-    : FailedBelow path (.executionGroup groups path (.error errors) children) := by
+    (path : ResponsePath) (errors : Nat) (children : Work) {cause : Option Nat}
+    : FailedBelow path
+        (.executionGroup groups path { result := .error errors, cause } children) := by
   exact ⟨
     _,
     _,
     _,
-    .object path (.error errors),
+    .object path (.error (cause.getD errors)),
     (StructuralEquivalence.TaskAt.executionGroup .root).toCurrent,
     rfl,
     ⟨[], by simp [Payload.path]⟩
@@ -102,7 +104,7 @@ Witness: structural child embedding; the child's attachment is unchanged.
 -/
 theorem FailedBelow.executionGroup_child {path children}
     (failed : FailedBelow path children) (groups : List DeferredFragment)
-    (attachment : ResponsePath) (result : Result (List (Name × ResponseValue)))
+    (attachment : ResponsePath) (result : TaskOutcome (List (Name × ResponseValue)))
     : FailedBelow path (.executionGroup groups attachment result children) := by
   obtain ⟨occurrence, owners, producer, payload, known, fails, below⟩ := failed
   obtain ⟨occurrence, owners, producer, embedded⟩ := TaskAt.in_located known
@@ -119,9 +121,10 @@ theorem ItemsHaveFailure.in_stream {path items} (failed : ItemsHaveFailure path 
   obtain ⟨result, children, member, fails⟩ := failed
   obtain ⟨index, entry⟩ := List.mem_iff_getElem?.mp member
   rcases fails with itemFailed | childFailed
-  · obtain ⟨errors, rfl⟩ := itemFailed
-    exact ⟨_, _, _, .item node (.error errors),
-      (StructuralEquivalence.TaskAt.item .root entry).toCurrent, rfl, attachment⟩
+  · obtain ⟨errors, failed⟩ := itemFailed
+    exact ⟨_, _, _, .item node result.deliveryResult,
+      (StructuralEquivalence.TaskAt.item .root entry).toCurrent,
+      by simp [Payload.failure, TaskOutcome.deliveryResult, failed], attachment⟩
   · obtain ⟨occurrence, owners, producer, payload, known, fails, below⟩ := childFailed
     obtain ⟨occurrence, owners, producer, embedded⟩ := TaskAt.in_located known
       (StructuralEquivalence.Located.item .root entry).toCurrent
@@ -131,7 +134,7 @@ theorem ItemsHaveFailure.in_stream {path items} (failed : ItemsHaveFailure path 
 Witness: list membership; no relation between the earlier value and its errors is needed.
 -/
 theorem ItemsHaveFailure.cons {path items} (failed : ItemsHaveFailure path items)
-    (head : Result ResponseValue × Work)
+    (head : TaskOutcome ResponseValue × Work)
     : ItemsHaveFailure path (head :: items) := by
   obtain ⟨result, children, member, fails⟩ := failed
   exact ⟨result, children, List.mem_cons_of_mem head member, fails⟩

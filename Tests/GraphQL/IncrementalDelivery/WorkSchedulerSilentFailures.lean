@@ -27,10 +27,13 @@ private def parentData : List (Name × ResponseValue) := [("a", .scalar "a")]
 
 private def work : Execution.Work :=
   .combine .empty
-    (.combine (.executionGroup [⟨root, []⟩] [] (.error 1) .empty)
-      (.combine (.executionGroup [⟨root, []⟩, ⟨child, [parent]⟩] [] (.error 2) .empty)
+    (.combine
+      (.executionGroup [⟨root, []⟩] [] ({ result := .error 1, cause := some 1 }) .empty)
+      (.combine
+        (.executionGroup [⟨root, []⟩, ⟨child, [parent]⟩] []
+          ({ result := .error 2, cause := some 1 }) .empty)
         (.combine
-          (.executionGroup [⟨parent, []⟩] [] (.ok (parentData, 0))
+          (.executionGroup [⟨parent, []⟩] [] ({ result := .ok (parentData, 0) })
             (.combine .empty .empty))
           .empty)))
 
@@ -42,7 +45,7 @@ private def selections : List Selection :=
   ]
 
 private def first : GraphEvent := .taskFailure firstTask 1
-private def shared : GraphEvent := .taskFailure sharedTask 2
+private def shared : GraphEvent := .taskFailure sharedTask 1
 
 private def finish : GraphEvent :=
   .taskSuccess parentTask
@@ -66,24 +69,26 @@ Witness: the fixed generated partition at its structural address.
 -/
 private theorem first_known
     : TaskAt work firstTask [root.ref] none (.object [] (.error 1)) :=
-  TaskAt.executionGroup (groups := [⟨root, []⟩]) (children := .empty) (owners := [])
-    (by cbv)
+  TaskAt.executionGroup (result := { result := .error 1, cause := some 1 })
+    (groups := [⟨root, []⟩]) (children := .empty) (owners := []) (by cbv)
 
 /-- The second failure is shared between R and the still-unannounced child C.
 Witness: the generated shared partition; C depends on P, not on R.
 -/
 private theorem shared_known
-    : TaskAt work sharedTask [root.ref, child.ref] none (.object [] (.error 2)) :=
-  TaskAt.executionGroup (groups := [⟨root, []⟩, ⟨child, [parent]⟩])
-    (children := .empty) (owners := []) (by cbv)
+    : TaskAt work sharedTask [root.ref, child.ref] none (.object [] (.error 1)) :=
+  TaskAt.executionGroup (result := { result := .error 2, cause := some 1 })
+    (groups := [⟨root, []⟩, ⟨child, [parent]⟩]) (children := .empty) (owners := [])
+    (by cbv)
 
 /-- P has an independent successful task with no structural producer.
 Witness: its exact generated partition and fixed scalar data.
 -/
 private theorem parent_known
     : TaskAt work parentTask [parent.ref] none (.object [] (.ok (parentData, 0))) :=
-  TaskAt.executionGroup (groups := [⟨parent, []⟩])
-    (children := .combine .empty .empty) (owners := []) (by cbv)
+  TaskAt.executionGroup (result := { result := .ok (parentData, 0) })
+    (groups := [⟨parent, []⟩]) (children := .combine .empty .empty) (owners := [])
+    (by cbv)
 
 /-- Both failures and the parent success obey fixed outcomes, freshness, and producer order.
 Witness: three source append rules over the generated root tasks.
@@ -119,7 +124,7 @@ theorem output
             .groupValues parent
               [{ path := [], data := parentData, deliveryGroups := [parent] }],
             .groupSuccess parent [child] [],
-            .groupFailure child 2,
+            .groupFailure child 1,
             .workQueueTermination
           ]
         ]
@@ -133,12 +138,12 @@ theorem initialized : Initializes work queue.initialGroups queue.initialStreams 
   have rootKnown : NodeAt work root .group [] none :=
     NodeAt.group (work := work) (groups := [⟨root, []⟩]) (address := [1, 0])
       (path := []) (producer := none) (group := ⟨root, []⟩)
-      (result := .error 1) (children := .empty) (owners := [])
+      (result := { result := .error 1, cause := some 1 }) (children := .empty) (owners := [])
       (by cbv) (by simp)
   have parentKnown : NodeAt work parent .group [] none :=
     NodeAt.group (work := work) (groups := [⟨parent, []⟩]) (address := [1, 1, 1, 0])
       (path := []) (producer := none) (group := ⟨parent, []⟩)
-      (result := .ok (parentData, 0)) (children := .combine .empty .empty) (owners := [])
+      (result := { result := .ok (parentData, 0) }) (children := .combine .empty .empty) (owners := [])
       (by cbv) (by simp)
   have eligible (group : DeliveryNode) (known : NodeAt work group .group [] none)
       : CanAnnounce work [] (fun _ => .executionGroup []) [] [] group .group [] none :=

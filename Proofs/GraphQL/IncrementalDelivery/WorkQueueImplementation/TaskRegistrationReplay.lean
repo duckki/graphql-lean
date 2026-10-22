@@ -74,13 +74,8 @@ theorem State.handleGraphEvent_tasks_subset (queue : State) (event : GraphEvent)
       | none =>
           simp only [State.handleGraphEvent, State.taskSuccess, found]; exact fun _ h => h
       | some node =>
-          cases healthy : queue.taskHasHealthyOwner node.task with
-          | false =>
-              rw [State.handleGraphEvent, State.taskSuccess_of_noHealthyOwner found healthy]
-              exact fun _ h => h
-          | true =>
-              rw [State.handleGraphEvent, State.taskSuccess_tasks found healthy]
-              exact List.subset_append_left _ _
+          rw [State.handleGraphEvent, State.taskSuccess_tasks found]
+          exact List.subset_append_left _ _
   | taskFailure occurrence errors =>
       rw [State.handleGraphEvent, State.taskFailure_tasks]
       exact fun _ h => h
@@ -140,8 +135,8 @@ theorem TaskAt.executionGroup_replay_registered {work address owners payload}
   exact ⟨task, (State.replayGraphEvents_tasks_subset _ events) member, occurrence, groups⟩
 
 /-- Every child of an integrated object producer remains registered in later replay.
-Witness: use the real pre-handler lookup and healthy-owner guard, then retain its exact
-source-matched chunk through the rest of the source prefix. Ignored successes are excluded.
+Witness: use the real pre-handler task lookup, then retain its exact
+source-matched chunk through the rest of the source prefix. Absent-task settlements are excluded.
 -/
 theorem TaskAt.executionGroup_registered_after_object
     {work address owners producer payload before result events node}
@@ -152,17 +147,12 @@ theorem TaskAt.executionGroup_registered_after_object
       : ((State.initialize (Work.fromExecution work)).replayGraphEvents before).taskNode?
           producer
         = some node)
-    (eligible
-      : ((State.initialize (Work.fromExecution work)).replayGraphEvents
-          before).taskHasHealthyOwner
-          node.task
-        = true)
     : ∃ task ∈
         ((State.initialize (Work.fromExecution work)).replayGraphEvents events).tasks,
         task.occurrence = .executionGroup address
         ∧ task.groups.map Execution.DeliveryNode.ref = owners := by
   obtain ⟨task, member, occurrence, groups⟩ :=
-    State.taskSuccess_child_registered found eligible matching known
+    State.taskSuccess_child_registered found matching known
   have introduced : task ∈ ((State.initialize (Work.fromExecution work)).replayGraphEvents
       (before ++ [.taskSuccess producer result])).tasks := by
     rwa [State.replayGraphEvents_append]

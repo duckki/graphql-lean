@@ -31,7 +31,7 @@ theorem streamAction_healthy_of_successfulItems
           { active := queue.initialGroups ++ queue.initialStreams }
         w.failures
         = mergeFailureCuts
-            (sourceObjectFailureCuts 0
+            (informativeObjectFailureCuts work
               (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher inputs).2.2))
             streams)
     (known : NodeAt work stream .stream dependencies producer)
@@ -42,7 +42,7 @@ theorem streamAction_healthy_of_successfulItems
   let queue := initialQueue work
   let publisher : IncrementalPublisher :=
     { active := queue.initialGroups ++ queue.initialStreams }
-  let objects := sourceObjectFailureCuts 0
+  let objects := informativeObjectFailureCuts work
     (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher inputs).2.2)
   have partition : w.failures.Perm (streams ++ objects) :=
     exactCuts ▸ mergeFailureCuts_partition objects streams
@@ -57,7 +57,7 @@ theorem streamAction_healthy_of_successfulItems
         TaskAt work entry.2 owners producer (.object path (.error errors)) := by
     intro entry member
     obtain ⟨_, owners, producer, path, errors, descriptor, _⟩ :=
-      createWorkQueue_eligibleObjectFailureCuts_origin generated valid entry member
+      createWorkQueue_informativeObjectFailureCuts_origin generated valid entry member
     exact ⟨owners, producer, path, errors, descriptor⟩
   have length : (w.events.take index).length = index :=
     List.length_take_of_le (Nat.le_of_lt (List.getElem?_eq_some_iff.mp selected).1)
@@ -139,7 +139,7 @@ theorem streamSuccessAdmission_of_successfulItems {work inputs w streams}
           { active := queue.initialGroups ++ queue.initialStreams }
         w.failures
         = mergeFailureCuts
-            (sourceObjectFailureCuts 0
+            (informativeObjectFailureCuts work
               (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher inputs).2.2))
             streams)
     : StreamSuccessAdmission work w := by

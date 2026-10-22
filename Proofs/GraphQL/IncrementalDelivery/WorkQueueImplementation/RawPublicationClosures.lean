@@ -79,6 +79,39 @@ theorem State.finishGroupSuccess_publicationPairs (queue : State) (group : Group
   · exact .control _ (by simp [WorkQueueEvent.IsGroupValue]) .nil
   · exact .publication _ _ _ _ .nil
 
+/-- Task failure contributes only control events and cannot leave an unmatched publication.
+Witness: the actual failure fold either retains output or appends a failed-group closure.
+-/
+theorem State.taskFailure_publicationPairs (queue : State) (occurrence : Occurrence)
+    (errors : Nat)
+    : GroupPublicationPairs (queue.taskFailure occurrence errors).2 := by
+  let step (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode) :=
+    match acc.1.groupNode? group.ref with
+    | none => acc
+    | some node =>
+        if acc.1.rootGroups.contains group.ref then
+          let (next, failure) := acc.1.finishGroupFailure node errors
+          (next, acc.2 ++ [failure])
+        else acc
+  have loop (groups : List Execution.DeliveryNode) (acc : State × List WorkQueueEvent)
+      (prior : GroupPublicationPairs acc.2)
+      : GroupPublicationPairs (groups.foldl step acc).2 := by
+    induction groups generalizing acc with
+    | nil => exact prior
+    | cons group rest ih =>
+        apply ih
+        unfold step
+        split
+        · exact prior
+        · split
+          · exact prior.append (.control _ (by simp [State.finishGroupFailure,
+              WorkQueueEvent.IsGroupValue]) .nil)
+          · exact prior
+  unfold State.taskFailure
+  split
+  · exact .nil
+  · exact loop _ (_, []) .nil
+
 /-- Recursive draining preserves paired publications through successes and cached failures.
 Witness: successful flushes supply pairs; failed closures are single control events.
 -/
@@ -94,11 +127,11 @@ theorem State.drainReadyGroups_publicationPairs (queue : State)
         split
         · exact .nil
         · rename_i node selected
-          cases cached : node.failure with
+          cases cached : current.rejectedTask? node with
           | none => exact (current.finishGroupSuccess_publicationPairs node).append (ih _)
-          | some errors =>
-              exact (GroupPublicationPairs.control _ (by simp [State.finishGroupFailure,
-                WorkQueueEvent.IsGroupValue]) .nil).append (ih _)
+          | some rejected =>
+              obtain ⟨occurrence, errors⟩ := rejected
+              exact (current.taskFailure_publicationPairs occurrence errors).append (ih _)
   exact loop _ queue
 
 /-- A successful settlement emits whole pairs through the single-pass fold and final drain.
@@ -124,46 +157,7 @@ theorem State.taskSuccess_publicationPairs (queue : State) (occurrence : Occurre
   | none => simpa [State.taskSuccess, found] using GroupPublicationPairs.nil
   | some node =>
       rw [queue.taskSuccess_eq occurrence result node found]
-      split
-      · exact .nil
-      · exact (loop _ (_, [], {}) .nil).append (State.drainReadyGroups_publicationPairs _)
-
-/-- Task failure contributes only control events and cannot leave an unmatched publication.
-Witness: the actual failure fold either retains output or appends a failed-group closure.
--/
-theorem State.taskFailure_publicationPairs (queue : State) (occurrence : Occurrence)
-    (errors : Nat)
-    : GroupPublicationPairs (queue.taskFailure occurrence errors).2 := by
-  let step (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode) :=
-    match acc.1.groupNode? group.ref with
-    | none => acc
-    | some node =>
-        if acc.1.rootGroups.contains group.ref then
-          let (next, failure) := acc.1.finishGroupFailure node errors
-          (next, acc.2 ++ [failure])
-        else (acc.1.putGroupNode
-          { node with pending := node.pending - 1
-                      failure := some (node.failure.getD 0 + errors) }, acc.2)
-  have loop (groups : List Execution.DeliveryNode) (acc : State × List WorkQueueEvent)
-      (prior : GroupPublicationPairs acc.2)
-      : GroupPublicationPairs (groups.foldl step acc).2 := by
-    induction groups generalizing acc with
-    | nil => exact prior
-    | cons group rest ih =>
-        apply ih
-        unfold step
-        split
-        · exact prior
-        · split
-          · exact prior.append (.control _ (by simp [State.finishGroupFailure,
-              WorkQueueEvent.IsGroupValue]) .nil)
-          · exact prior
-  unfold State.taskFailure
-  split
-  · exact .nil
-  · split
-    · exact .nil
-    · exact loop _ (_, []) .nil
+      exact (loop _ (_, [], {}) .nil).append (State.drainReadyGroups_publicationPairs _)
 
 /-- An item batch precedes a release drain whose object publications all have closures.
 Witness: its leading stream event is not an object publication; reuse the drain theorem.

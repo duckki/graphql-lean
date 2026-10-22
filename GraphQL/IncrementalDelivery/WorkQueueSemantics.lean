@@ -39,6 +39,9 @@ inductive Occurrence where
   | item (address : Address) (index : Nat)
 deriving Repr, BEq, DecidableEq
 
+/-- Observable task payload after its delivery-boundary projection. Work retains the
+separate collected diagnostics; admission and response error totals use this projection.
+-/
 inductive Payload where
   | object (path : ResponsePath) (result : Result (List (Name × ResponseValue)))
   | item (node : DeliveryNode) (result : Result ResponseValue)
@@ -103,17 +106,17 @@ def TaskAt (work : Work) (occurrence : Occurrence) (owners : NodeRefs)
     : Prop :=
   match occurrence with
   | .executionGroup address =>
-      ∃ groups path result children enclosing,
-        Located work address (.executionGroup groups path result children) producer
+      ∃ groups path outcome children enclosing,
+        Located work address (.executionGroup groups path outcome children) producer
           enclosing
         ∧ owners = groups.map (fun group => group.node.ref)
-        ∧ payload = .object path result
+        ∧ payload = .object path outcome.deliveryResult
   | .item address index =>
-      ∃ node items enclosing result children,
+      ∃ node items enclosing outcome children,
         Located work address (.stream node items) producer enclosing
-        ∧ items[index]? = some (result, children)
+        ∧ items[index]? = some (outcome, children)
         ∧ owners = [node.ref]
-        ∧ payload = .item node result
+        ∧ payload = .item node outcome.deliveryResult
 
 /-- Some location contains this node descriptor. Dependencies are defer ancestors for a
 group and enclosing defer owners for a stream; they are never structural producers.
@@ -343,8 +346,8 @@ have closed. This permits an already-started shared task to settle through a sti
 latent owner. The uncancelled premise remains mandatory; prior announcement alone does
 not keep fully invalidated work alive. Work with no announced owner cannot fail silently.
 
-Completion events separately require an open owner and count failures settled by their
-own boundary. Earlier completions are not retroactively charged for later settlements.
+Completion events separately require an open owner and select a failure settled by their
+own boundary. Later settlements cannot change an earlier completion's explanation.
 Every cut is bounded by the observed output length. In an explained history, failed
 occurrences remain unique: an earlier copy cancels the unpublished task through its owners.
 -/
@@ -503,17 +506,22 @@ def CanPublish (work : Work) (matching : PublicationMatching)
     | .item address (index + 1) => Published matching events (.item address index)
     | _ => True
 
-/-- The claimed error count sums supplied accepted failures contributing to the node ref.
-Completion rules supply settlements through the event boundary, not notification order.
+/-- A selected explanation comes from an accepted failing task contributing to this
+node. Task-local boundary projection supplies the payload's failure count; this relation
+selects among contributing tasks without adding their counts or identifying equal errors
+across nodes. The caller supplies failures available at the completion boundary.
+Any supported positive explanation is permitted; no particular settlement order or
+universal singleton-error rule is imposed on implementations.
 -/
-def NodeErrors (work : Work) (failed : List Occurrence) (ref : NodeRef) (errors : Nat)
+def NodeFailureCause (work : Work) (failed : List Occurrence) (ref : NodeRef)
+    (errors : Nat)
     : Prop :=
-  ∃ contribution : Occurrence → Nat,
-    (∀ occurrence ∈ failed,
-      ∃ owners producer payload,
-        TaskAt work occurrence owners producer payload
-        ∧ contribution occurrence = if ref ∈ owners then payload.failure.getD 0 else 0)
-    ∧ errors = (failed.map contribution).sum
+  ∃ occurrence ∈ failed,
+    ∃ owners producer payload,
+      TaskAt work occurrence owners producer payload
+      ∧ ref ∈ owners
+      ∧ payload.failure = some errors
+      ∧ 0 < errors
 
 /-- The next atomic event has valid provenance, dependencies, ownership, and notices
 relative to the observed prefix and known failures. New notices follow the carrier.
@@ -559,12 +567,12 @@ def EventAllowed (work : Work) (initial : NodeRefs) (matching : PublicationMatch
       (∃ dependencies producer, NodeAt work node .group dependencies producer)
       ∧ Open initial before node.ref
       ∧ NodeFailed work matching before failures node.ref
-      ∧ NodeErrors work (failedBefore failures before.length) node.ref errors
+      ∧ NodeFailureCause work (failedBefore failures before.length) node.ref errors
   | .streamFailure node errors =>
       (∃ dependencies producer, NodeAt work node .stream dependencies producer)
       ∧ Open initial before node.ref
       ∧ NodeFailed work matching before failures node.ref
-      ∧ NodeErrors work (failedBefore failures before.length) node.ref errors
+      ∧ NodeFailureCause work (failedBefore failures before.length) node.ref errors
   | .workQueueTermination => False
 
 -----------------------------------------------------------------------------------------

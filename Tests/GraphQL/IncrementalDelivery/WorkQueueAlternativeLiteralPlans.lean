@@ -187,9 +187,9 @@ example
         ∧ next 7 = 8
         ∧ CompletionRefines next cut.1 eager.1 := by
   obtain ⟨next, related⟩ := constructed
-  have early := related.completion.2.locate [0, 0, 1]
-  have later := related.completion.2.locate [1, 1, 0, 0, 0, 1]
-  have nested := related.completion.2.locate [1, 1, 1, 0, 0, 0, 1]
+  have early := related.completion.2.1.locate [0, 0, 1]
+  have later := related.completion.2.1.locate [1, 1, 0, 0, 0, 1]
+  have nested := related.completion.2.1.locate [1, 1, 1, 0, 0, 0, 1]
   cbv at early later nested
   refine ⟨
     next,
@@ -213,7 +213,8 @@ example
     : WorkQueueSemantics.locateWork cut.1.work [1, 0]
       = some
           ⟨
-            .executionGroup [{ node := { ref := 0, path := [] } }] [] (.error 2) .empty,
+            .executionGroup [{ node := { ref := 0, path := [] } }] []
+              { result := .error 2, cause := some 1 } .empty,
             none,
             []
           ⟩ := by cbv
@@ -222,7 +223,8 @@ example
     : WorkQueueSemantics.locateWork eager.1.work [1, 0]
       = some
           ⟨
-            .executionGroup [{ node := { ref := 0, path := [] } }] [] (.error 3) .empty,
+            .executionGroup [{ node := { ref := 0, path := [] } }] []
+              { result := .error 3, cause := some 1 } .empty,
             none,
             []
           ⟩ := by cbv
@@ -297,7 +299,10 @@ private theorem fatal_constructed
     omega
 
 -- Neither run constructs deferred groups after the initial fatal outcome.
-example : fatalCut.1 = .error 1 ∧ fatalEager.1 = .error 2 := by cbv
+example
+    : fatalCut.1 = .error 1
+      ∧ fatalEager.1 = {Completion.error 2 with cause := some 1} := by cbv
+
 example : fatalCut.2 = 4 ∧ fatalEager.2 = 5 := by cbv
 
 example : LiteralDeferredGroupRefinement := literalDeferredGroupRefinement_holds

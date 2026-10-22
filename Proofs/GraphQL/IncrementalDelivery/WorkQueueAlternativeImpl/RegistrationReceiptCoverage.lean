@@ -46,6 +46,14 @@ theorem streamRegistrationStep_frame {acc : StreamRegistrationAcc} {settled}
     : RegistrationFrame (streamRegistrationStep acc item).1.queue settled :=
   ((frame.integrate item.work covered).prune _).start _ _ _
 
+/-- Receipt preparation preserves occurrence-indexed rejection facts independently of links. -/
+theorem streamRegistrationStep_taskRejections {acc : StreamRegistrationAcc} {property}
+    (prior : acc.1.queue.TaskRejectionsSatisfy property)
+    (item : ReferenceWorkQueue.StreamItem)
+    : (streamRegistrationStep acc item).1.queue.TaskRejectionsSatisfy property :=
+  State.startNewWork_taskRejections
+    ((State.maybeIntegrateWork_taskRejections prior item.work).pruneEmptyGroups _) _ _ _
+
 /-- A previously linked, unsettled task retains each live contributing owner across an item. -/
 theorem streamRegistrationStep_ownerPresent {acc : StreamRegistrationAcc}
     {settled task key} (frame : RegistrationFrame acc.1.queue settled)
@@ -119,6 +127,8 @@ theorem streamRegistrationStep_ownerless_target {acc : StreamRegistrationAcc}
         ∀ key ∈ task.groups.map DeliveryNode.ref,
           ∃ group ∈ item.work.groups, group.node.ref = key)
     (returned : task ∈ item.work.tasks) (fresh : task.occurrence ∉ settled)
+    (rejections
+      : acc.1.queue.TaskRejectionsSatisfy (fun occurrence _ => occurrence ∈ settled))
     (running : acc.1.stopped = false)
     (missing
       : ∀ owner ∈ task.groups,
@@ -159,6 +169,8 @@ theorem streamRegistrationStep_ownerless_target {acc : StreamRegistrationAcc}
         newGroups := (registered.1.queue.pruneEmptyGroups registered.2.newGroups).2
     }
     registered.2 acc.2.2.2.2.1 guard task rejected
+    ((State.maybeIntegrateWork_taskRejections rejections item.work).pruneEmptyGroups _)
+    fresh
 
 /-- Final registration-snapshot owner absence constructs a cumulative actual cleanup target.
 Later preparation cannot erase a real unsettled membership; receipt-wide deduplication
@@ -173,7 +185,10 @@ theorem streamRegistrationFold_ownerless_target
         ∀ key ∈ task.groups.map DeliveryNode.ref,
           ∃ group ∈ item.work.groups, group.node.ref = key)
     (returned : task ∈ items.flatMap (fun item => item.work.tasks))
-    (fresh : task.occurrence ∉ settled) (running : acc.1.stopped = false)
+    (fresh : task.occurrence ∉ settled)
+    (rejections
+      : acc.1.queue.TaskRejectionsSatisfy (fun occurrence _ => occurrence ∈ settled))
+    (running : acc.1.stopped = false)
     (unique : acc.2.2.2.2.1.Nodup)
     (missing
       : ∀ owner ∈ task.groups,
@@ -207,8 +222,9 @@ theorem streamRegistrationFold_ownerless_target
                 (missing owner contributes)) final)
         exact (streamRegistrationFold_targets_prefix rest next nextUnique).subset
           (streamRegistrationStep_ownerless_target frame item itemCoverage immediate fresh
-            running absent)
-      · exact ih next nextFrame restCoverage later nextRunning nextUnique missing
+            rejections running absent)
+      · exact ih next nextFrame restCoverage later (streamRegistrationStep_taskRejections rejections item)
+          nextRunning nextUnique missing
 
 /-- A consumed receipt emits the abort of each immediate task absent at its actual
 pre-drain endpoint. The proof follows the interleaved trace, not a post-hoc owner scan.
@@ -223,6 +239,7 @@ theorem streamItems_ownerless_aborted {queue : Kernel} {settled stream items tas
     (active : queue.rootStreams.contains stream.ref = true)
     (returned : task ∈ items.flatMap (fun item => item.work.tasks))
     (fresh : task.occurrence ∉ settled)
+    (rejections : queue.TaskRejectionsSatisfy (fun occurrence _ => occurrence ∈ settled))
     (missing
       : ∀ owner ∈ task.groups,
           (items.foldl streamRegistrationStep
@@ -233,7 +250,7 @@ theorem streamItems_ownerless_aborted {queue : Kernel} {settled stream items tas
       ∈ (({ queue } : State).streamItems stream items).2.2 := by
   let initial : StreamRegistrationAcc := ({ queue }, [], [], [], [], [])
   let final := items.foldl streamRegistrationStep initial
-  have target := streamRegistrationFold_ownerless_target items initial frame covered returned fresh
+  have target := streamRegistrationFold_ownerless_target items initial frame covered returned fresh rejections
     rfl List.nodup_nil missing
   have tracked := (streamRegistrationFold_cleanupTargets items initial List.nodup_nil rfl).2
   have started : .task task.occurrence ∈ final.2.2.2.2.2.filterMap HostEffect.cleanupStart? :=

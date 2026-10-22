@@ -113,7 +113,6 @@ theorem ExecutedWork.taskSuccess_drainNoticeAncestorValue_before
       let active := released.1.startNewWork released.2.2
       queue.PreparedReleaseOwners (.taskSuccess occurrence result) published
       → queue.taskNode? occurrence = some incoming
-      → queue.taskHasHealthyOwner incoming.task = true
       → prepared.taskNode? buffered = some node
       → ref ∈ prepared.groupNodes.map (fun owner => owner.group.node.ref)
       → active.drainReadyGroups.2[index]? = some (.groupSuccess group groups streams)
@@ -123,7 +122,7 @@ theorem ExecutedWork.taskSuccess_drainNoticeAncestorValue_before
         ∈ published.take
             ((released.2.1 ++ active.drainReadyGroups.2.take index).flatMap
               WorkQueueEvent.objectValues).length := by
-  intro queue prepared released active prefixes found healthy lookup present selected
+  intro queue prepared released active prefixes found lookup present selected
     noticed uncancelled
   obtain ⟨parents, canonical, records, links, live, tasks, roots, closed⟩ :=
     generated.replayGraphEvents_preparedRetirement before matching matched incoming
@@ -141,7 +140,7 @@ theorem ExecutedWork.taskSuccess_drainNoticeAncestorValue_before
             WorkQueueEvent.objectValues).length))
         (State.drainReadyGroups.go steps active).1 := by
     simpa only [State.ReleaseDrainOwners, List.flatMap_append, List.length_append]
-      using (prefixes incoming found healthy).drain
+      using (prefixes incoming found).drain
   have emitted := State.drainReadyGroups_go_noticeAncestorValue_before generated refs
     activeRecords support (folded.2.1.startNewWork _) canonical registered.1 registered.2
     (folded.2.2.2.2.1.startNewWork _ protectedRoots.2)

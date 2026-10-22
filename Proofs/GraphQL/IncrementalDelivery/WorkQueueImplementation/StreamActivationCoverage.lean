@@ -46,9 +46,7 @@ theorem State.startGroup_streams (queue : State) (ref : NodeRef)
   unfold State.startGroup
   split
   · rfl
-  · split
-    · rfl
-    · exact fold_projection State.streams State.startTask task _ _
+  · exact fold_projection State.streams State.startTask task _ _
 
 /-- Starting a stream cannot remove an already active stream.
 Witness: the concrete operation either keeps roots or appends one ref.

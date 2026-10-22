@@ -102,7 +102,7 @@ theorem list_run_of_values (schema : Schema) (resolvers : Resolvers ObjectRef)
 -----------------------------------------------------------------------------------------
 
 structure ItemsRunRefines (initial next : Nat → Nat) (left right : Nat)
-    (scheduled eager : List (Result ResponseValue × Work) × Nat)
+    (scheduled eager : List (TaskOutcome ResponseValue × Work) × Nat)
     : Prop where
   compatible : ∀ key < left, next key = initial key
   supplies : SupplyMap next scheduled.2 eager.2
@@ -149,7 +149,8 @@ theorem streamItems_run_of_values (schema : Schema) (resolvers : Resolvers Objec
         refine ⟨middle, ⟨head.compatible, head.supplies, head.scheduledMonotone,
           head.eagerMonotone, ?_, .cons ?_ .empty .nil⟩⟩
         · simp [allRefs, rootRefs, hiddenRegions]
-        · simpa only [cutOutcome, eagerOutcome] using head.completion.1
+        · simpa only [TaskOutcomeRefines, Completion.outcome, cutOutcome, eagerOutcome]
+            using head.completion.outcome
       · obtain ⟨next, tail⟩ := ih (index + 1) middle _ _ head.supplies
           (fun details member => usageBefore_mono _ (ordered details member) head.scheduledMonotone)
         have fieldsMapped : fields.map (field middle) = fields.map (field keys) :=
@@ -169,9 +170,11 @@ theorem streamItems_run_of_values (schema : Schema) (resolvers : Resolvers Objec
           · exact Nat.lt_of_lt_of_le (head.bounded key inWork) tail.scheduledMonotone
           · exact tail.bounded item member key inWork
         · refine .cons ?_
-            (head.completion.2.rekey (fun key member => tail.compatible key (head.bounded key member)))
+            (head.completion.2.1.rekey
+              (fun key member => tail.compatible key (head.bounded key member)))
             tail.items
-          simpa only [cutOutcome, eagerOutcome] using head.completion.1
+          simpa only [TaskOutcomeRefines, Completion.outcome, cutOutcome, eagerOutcome]
+            using head.completion.outcome
 
 -----------------------------------------------------------------------------------------
 -- A stream boundary follows the actual initial scope, before separate item regions
@@ -180,7 +183,7 @@ theorem streamItems_run_of_values (schema : Schema) (resolvers : Resolvers Objec
 theorem RunRefines.withStream {initial middle next left right}
     {scheduled eager : Completion (List ResponseValue) × Nat}
     (known : RunRefines initial middle left right scheduled eager)
-    {cutItems eagerItems : List (Result ResponseValue × Work) × Nat}
+    {cutItems eagerItems : List (TaskOutcome ResponseValue × Work) × Nat}
     (items
       : ItemsRunRefines middle next (scheduled.2 + 1) (eager.2 + 1) cutItems eagerItems)
     (path : ResponsePath) (label : Option DirectiveLabel)
@@ -227,8 +230,8 @@ theorem RunRefines.withStream {initial middle next left right}
       · obtain ⟨region, inRegions, inRegion⟩ := List.mem_flatten.mp member
         obtain ⟨item, inItems, inRegions⟩ := List.mem_flatMap.mp inRegions
         exact items.bounded item inItems key (region_subset_allRefs item.2 inRegions inRegion)
-  · refine ⟨caught.completion.1, .combine ?_ ?_⟩
-    · exact caught.completion.2.rekey
+  · refine ⟨caught.completion.1, .combine ?_ ?_, caught.completion.2.2⟩
+    · exact caught.completion.2.1.rekey
         (fun key member => items.compatible key (by have := caught.bounded key member; omega))
     · have nodes : node next { ref := scheduled.2, path, label }
           = { ref := eager.2, path, label } := by simp [node, boundary]
@@ -269,7 +272,7 @@ theorem listWithStream_run_of_values (schema : Schema) (resolvers : Resolvers Ob
     mapped_field_directives]
   split
   · simp_all only
-    exact ⟨keys, pureResult_run supplies _⟩
+    exact ⟨keys, pureResult_run supplies _ _⟩
   · simp_all only
     obtain ⟨next, completed⟩ := list_run_of_values schema resolvers variables fuel children
       itemType fields values path 0 usages context keys left right supplies ordered usageBound contextBound

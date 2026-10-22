@@ -83,11 +83,15 @@ mutual
             · rename_i definition lookupEq
               simp_all only
               split
-              · simp_all [eraseCompletionRun]
+              · cases definition.outputType <;>
+                  simp_all [eraseCompletionRun, singleFieldResult, handleFieldError,
+                    TypeRef.isNonNull]
               · rename_i arguments argumentsEq
                 simp_all only
                 split
-                · simp_all [eraseCompletionRun]
+                · cases definition.outputType <;>
+                    simp_all [eraseCompletionRun, singleFieldResult, handleFieldError,
+                      TypeRef.isNonNull]
                 · rename_i resolved resolvedEq
                   simp_all only
                   have child := completeValue_erases schema resolvers variables fuel
@@ -280,7 +284,8 @@ mutual
         dsimp only [eraseCompletionRun]
         simp only [erase_result]
         split
-        · simp [eraseItemsRun, eraseItems, RecordedWork.erase, *]
+        · simp [eraseItemsRun, eraseItems, RecordedWork.erase, RecordedCompletion.outcome,
+            RecordedOutcome.erase, RecordedCompletion.erase, Completion.outcome, *]
         · rename_i result resultEq
           simp_all only
           have tail := completeStreamItems_erases schema resolvers variables fuel itemType
@@ -290,7 +295,7 @@ mutual
           simp only [run_bind, StateT.run_pure, id_pure_eq]
           rw [← tail]
           simp only [eraseItemsRun, eraseItems, List.map_cons, RecordedCompletion.erase,
-            resultEq]
+            RecordedCompletion.outcome, RecordedOutcome.erase, Completion.outcome, resultEq]
   termination_by (fuel, 2, sizeOf itemType, sizeOf values)
   decreasing_by
     all_goals subst_vars; simp_wf
@@ -364,7 +369,8 @@ mutual
           ((EagerRecordedExecution.executeCollectedFields schema resolvers variables fuel parentType
             source fields path usages context (route ++ [0])).run state).2
         rw [← tail]
-        simp only [eraseWorkRun, RecordedWork.erase]
+        simp only [eraseWorkRun, RecordedWork.erase, RecordedCompletion.outcome,
+          RecordedOutcome.erase, Completion.outcome]
   termination_by (fuel, 5, 0, sizeOf partitions)
   decreasing_by
     all_goals subst_vars; simp_wf

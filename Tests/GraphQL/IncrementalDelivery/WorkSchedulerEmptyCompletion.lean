@@ -100,7 +100,7 @@ Witness: exact task lowering, child location, prior success, and executable star
 theorem source_valid
     : ValidGraphEvents work inputs.flatten ∧ inputsStarted work inputs = true := by
   have parent : TaskAt work producer [group.ref] none (.object [] (.ok (value.data, 0))) :=
-    .executionGroup (groups := [⟨group, []⟩]) (children := children) (owners := []) (by cbv)
+    .executionGroup (result := { result := .ok (value.data, 0) }) (groups := [⟨group, []⟩]) (children := children) (owners := []) (by cbv)
   have located : Located work [1, 0, 0, 0, 1]
       (.stream stream []) (some producer) [group.ref] := by cbv
   have prior : ValidGraphEvents work [first] :=

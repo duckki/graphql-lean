@@ -1,4 +1,5 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.FusedDrainProjection
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.FusedFailureResources
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.FusedRemovalSafety
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.FusedCleanupTargets
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.ResourceRequests
@@ -66,25 +67,35 @@ theorem drain_heldSource {state : State} {work : Work} {parents : Nat → NodeRe
       | none => exact .inl found
       | some group =>
           simp only
-          cases cached : group.failure with
-          | some errors =>
+          cases cached : state.queue.rejectedTask? group with
+          | some rejection =>
+              obtain ⟨failed, errors⟩ := rejection
               simp only
-              let removed := state.removeGroup group.group.node.ref targets
-              have same : removed.1.queue = state.queue.removeGroup group.group.node.ref :=
-                FusedRemovalProjection_holds state work parents group.group.node.ref targets
-                  frame.matching frame.sound forest frame.removalTaskFrame
-              have nextFrame : removed.1.queue.TaskOwnerFrame work := by
-                rw [same]; exact frame.removeGroup _
-              have nextForest : removed.1.queue.RemovalForest parents := by
-                rw [same]; exact forest.removeGroup _
-              have nextInventory : removed.1.queue.ChildStreamInventory := by
-                rw [same]; exact inventory.removeGroup _
-              have safety := FusedRemovalSafety_holds state group.group.node.ref targets
-              have nextUnique := safety.2.1 unique
-              have nextRunning := (state.removeGroup_stopped group.group.node.ref targets).trans running
-              rcases safety.2.2 occurrence node key found held with kept | requested
-              · exact ih nextRunning nextFrame nextForest nextInventory removed.2 nextUnique kept
-              · exact .inr (.inr (targets_survive fuel removed.1 removed.2 nextUnique requested))
+              let reduced := state.taskFailure failed errors targets
+              have projection := state.taskFailure_projection frame forest failed errors targets
+              have same : reduced.1.queue = (state.queue.taskFailure failed errors).1 :=
+                congrArg Prod.fst projection
+              have nextFrame : reduced.1.queue.TaskOwnerFrame work := by
+                rw [same]; exact frame.taskFailure failed errors
+              have nextForest : reduced.1.queue.RemovalForest parents := by
+                rw [same]
+                exact forest.of_subset (state.queue.taskFailure_groupNodes_sublist failed errors).subset
+              have nextInventory : reduced.1.queue.ChildStreamInventory := by
+                rw [same]; exact inventory.taskFailure failed errors
+              have nextUnique := (state.taskFailure_targets failed errors targets unique).1
+              have nextRunning := (state.taskFailure_stopped failed errors targets).trans running
+              have unchanged : occurrence ≠ failed ∨ node.rejection = some errors := by
+                by_cases sameOccurrence : occurrence = failed
+                · subst occurrence
+                  obtain ⟨_, task, lookup, rejected⟩ := ReferenceWorkQueue.State.rejectedTask?_sound cached
+                  have identical : task = node := Option.some.inj (lookup.symm.trans found)
+                  exact .inr (identical ▸ rejected)
+                · exact .inl sameOccurrence
+              rcases state.taskFailure_heldSource_targets failed errors targets unchanged
+                  found held with kept | requested
+              · exact ih nextRunning nextFrame nextForest nextInventory reduced.2.2 nextUnique kept
+              · exact .inr (.inr
+                  (targets_survive fuel reduced.1 reduced.2.2 nextUnique requested))
           | none =>
               simp only
               let released := state.queue.finishGroupSuccess group

@@ -129,7 +129,7 @@ mutual
       else
         .ok none
     match streamUsage with
-    | .error errors => return .fault route (.ok (.null, errors))
+    | .error errors => return .fault route (.ok (.null, errors)) (some errors)
     | .ok none =>
         return (← completeListValue schema resolvers variables fuel inner fields values
                     path 0 usages context (route ++ [0])).catchNull
@@ -163,7 +163,7 @@ mutual
       (variables : VariableValues) (fuel : Nat) (itemType : TypeRef)
       (fields : List FieldDetails) (values : List (ResolverValue ObjectRef))
       (path : ResponsePath) (index : Nat) (route : List Nat)
-      : StateM Nat (List (Report ResponseValue × RecordedWork)) := do
+      : StateM Nat (List (RecordedOutcome ResponseValue × RecordedWork)) := do
     match values with
     | [] => return []
     | value :: rest =>
@@ -171,12 +171,12 @@ mutual
           completeValue schema resolvers variables fuel itemType fields value
             (path ++ [.index index]) [] [] false (route ++ [0])
         match head.report.outcome with
-        | .error _ => return [(head.report, .empty)]
+        | .error _ => return [(head.outcome, .empty)]
         | .ok _ =>
             let tail ←
               completeStreamItems schema resolvers variables fuel itemType
                 fields rest path (index + 1) (route ++ [1])
-            return (head.report, head.work) :: tail
+            return (head.outcome, head.work) :: tail
   termination_by (fuel, 2, sizeOf itemType, sizeOf values)
 
   def executeExecutionPlan (schema : Schema) (resolvers : Resolvers ObjectRef)
@@ -214,7 +214,8 @@ mutual
         let tail ←
           collectExecutionGroups schema resolvers variables fuel parentType source
             rest path context (route ++ [1])
-        return .combine (.executionGroup groups path completed.report completed.work) tail
+        return .combine (.executionGroup groups path completed.outcome completed.work)
+          tail
   termination_by (fuel, 5, 0, sizeOf partitions)
 end
 

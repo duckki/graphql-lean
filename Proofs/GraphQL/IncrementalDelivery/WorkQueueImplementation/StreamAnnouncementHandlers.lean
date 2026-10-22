@@ -105,41 +105,12 @@ theorem State.StreamAnnouncementInventory.taskSuccess {queue : State}
       have folded := loop node.task.groups (_, [], {})
         (by simpa only [List.flatMap_nil, List.append_nil] using integrated) provenance
       rw [queue.taskSuccess_eq occurrence result node found]
-      split
-      · simpa only [List.flatMap_nil, List.append_nil] using inventory.removeTask occurrence
-      · let withValue := queue.putTaskNode { node with value := some result.value }
-        let prepared := (withValue.maybeIntegrateWork result.work (some occurrence)).1
-        let released := node.task.groups.foldl successGroupStep (prepared, [], {})
-        have drained := (folded.1.startNewWork released.2.2).drainReadyGroups
-          (folded.2.startNewWork released.2.2) generated
-        simpa only [List.flatMap_append, List.append_assoc] using drained
-
-/-- Task failure preserves stream-announcement inventory without emitting stream notices.
-Witness: deletion and failed-group cleanup retain old links; cached failures change none.
--/
-theorem State.StreamAnnouncementInventory.taskFailure {queue : State}
-    {announced : NodeRefs} (inventory : queue.StreamAnnouncementInventory announced)
-    (occurrence : Occurrence) (errors : Nat)
-    : (queue.taskFailure occurrence errors).1.StreamAnnouncementInventory
-        (announced
-          ++ (queue.taskFailure occurrence errors).2.flatMap rawStreamNoticeRefs) := by
-  rw [State.taskFailure_streamNoticeRefs, List.append_nil]
-  unfold State.taskFailure
-  split
-  · exact inventory
-  · split
-    · exact inventory.removeTask occurrence
-    · apply fold_preserves
-        (fun acc : State × List WorkQueueEvent => acc.1.StreamAnnouncementInventory announced)
-      · intro acc group prior
-        obtain ⟨current, events⟩ := acc
-        dsimp only
-        split
-        · exact prior
-        · split
-          · exact prior.removeGroup _
-          · exact prior.putGroupNode _
-      · exact inventory.removeTask occurrence
+      let withValue := queue.putTaskNode { node with value := some result.value }
+      let prepared := (withValue.maybeIntegrateWork result.work (some occurrence)).1
+      let released := node.task.groups.foldl successGroupStep (prepared, [], {})
+      have drained := (folded.1.startNewWork released.2.2).drainReadyGroups
+        (folded.2.startNewWork released.2.2) generated
+      simpa only [List.flatMap_append, List.append_assoc] using drained
 
 -----------------------------------------------------------------------------------------
 -- Item-produced roots are announced immediately, then the shared drain runs

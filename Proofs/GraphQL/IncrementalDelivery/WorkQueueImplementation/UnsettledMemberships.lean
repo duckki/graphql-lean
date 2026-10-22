@@ -199,6 +199,17 @@ theorem State.UnsettledTaskLinks.finishGroupSuccess {queue : State}
   exact (linked task member fresh).finishOtherGroupSuccess group
     (fun present => fresh (all task.occurrence present))
 
+/-- Retaining a rejection preserves links of every unsettled registered task. -/
+theorem State.UnsettledTaskLinks.taskFailure {queue : State} {settled : List Occurrence}
+    (linked : queue.UnsettledTaskLinks settled) (occurrence : Occurrence) (errors : Nat)
+    : (queue.taskFailure occurrence errors).1.UnsettledTaskLinks settled := by
+  cases found : queue.taskNode? occurrence with
+  | none => simpa [State.taskFailure, found] using linked
+  | some node =>
+      rw [queue.taskFailure_eq occurrence errors node found]
+      exact failureGroupFold_preserves (fun state => state.UnsettledTaskLinks settled)
+        (fun _ ref prior => prior.removeGroup ref) _ _ _ linked
+
 /-- Pending lower bounds justify every success flush in a recursive drain.
 Witness: joint drain induction on the bound and unsettled links; failure removal
 and activation preserve the same invariant without any group-health assumption.
@@ -215,8 +226,8 @@ theorem State.UnsettledTaskLinks.drainReadyGroups_ofBound {queue : State}
       have all := prior.2.allSettled member trivial zero
       exact ⟨(prior.1.finishGroupSuccess node all).startNewWork _,
         (prior.2.finishGroupSuccess node all).startNewWork _⟩)
-    (fun _ node _ prior _ _ _ =>
-      ⟨prior.1.removeGroup node.group.node.ref, prior.2.removeGroup node.group.node.ref⟩)
+    (fun _ _ occurrence errors prior _ _ _ =>
+      ⟨prior.1.taskFailure occurrence errors, prior.2.taskFailure_preserves occurrence errors⟩)
     ⟨linked, bounded⟩
   exact final.1
 

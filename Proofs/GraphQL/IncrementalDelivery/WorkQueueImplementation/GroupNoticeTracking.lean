@@ -150,6 +150,48 @@ theorem State.finishGroupFailure_groupNoticeTracking (queue : State) (node : Gro
     simpa [State.finishGroupFailure, rawGroupNoticeRefs] using member
   exact (queue.removeGroup_tracks_roots node.group.node.ref ref old).imp_right Or.inl
 
+/-- Each failed-owner step retains earlier notice status while closing or caching this owner.
+Witness: active removal records cancelled refs; a missing or unannounced owner changes
+neither roots nor output. Earlier cancellation markers remain present in every branch.
+-/
+theorem GroupNoticeTracking.failedOwner {initial acc}
+    (tracked : GroupNoticeTracking initial acc) (errors : Nat)
+    (group : Execution.DeliveryNode)
+    : GroupNoticeTracking initial (failureGroupStep errors acc group) := by
+  obtain ⟨queue, events⟩ := acc
+  unfold failureGroupStep
+  dsimp only
+  split
+  · exact tracked
+  · rename_i node found
+    split
+    · exact tracked.append (queue.finishGroupFailure_groupNoticeTracking node errors)
+        (List.subset_append_left _ _)
+    · exact tracked
+
+/-- Failed task handling preserves every notice's active/completed/cancelled alternative.
+Witness: absent inputs preserve roots; present inputs retain the rejection on the task
+before folding the checked per-owner failure rule.
+-/
+theorem State.taskFailure_groupNoticeTracking (queue : State) (occurrence : Occurrence)
+    (errors : Nat)
+    : GroupNoticeTracking queue.rootGroups (queue.taskFailure occurrence errors) := by
+  cases found : queue.taskNode? occurrence with
+  | none =>
+      simp only [State.taskFailure, found]
+      exact .silent (List.Subset.refl _)
+  | some node =>
+      rw [queue.taskFailure_eq occurrence errors node found]
+      have loop (groups : List Execution.DeliveryNode)
+          (acc : State × List WorkQueueEvent)
+          (tracked : GroupNoticeTracking queue.rootGroups acc)
+          : GroupNoticeTracking queue.rootGroups
+              (groups.foldl (failureGroupStep errors) acc) := by
+        induction groups generalizing acc with
+        | nil => exact tracked
+        | cons group rest ih => exact ih _ (tracked.failedOwner errors group)
+      exact loop _ _ (.silent (List.Subset.refl _))
+
 /-- Every bounded ready-group drain retains the status of all earlier and new notices.
 Witness: compose actual success/failure branches and monotone cancellation history at
 each recursive step. Internal notice carriers are processed before later drain output.
@@ -164,12 +206,12 @@ theorem State.drainReadyGroups_go_groupNoticeTracking (fuel : Nat) (queue : Stat
       split
       · exact .silent (List.Subset.refl _)
       · rename_i node selected
-        cases cached : node.failure with
+        cases cached : queue.rejectedTask? node with
         | none =>
             exact (queue.finishGroupSuccess_groupNoticeTracking node).append (ih _)
               (State.drainReadyGroups_go_cancelledGroups_subset _ _)
-        | some errors =>
-            exact (queue.finishGroupFailure_groupNoticeTracking node errors).append (ih _)
+        | some rejected =>
+            exact (queue.taskFailure_groupNoticeTracking rejected.1 rejected.2).append (ih _)
               (State.drainReadyGroups_go_cancelledGroups_subset _ _)
 
 -----------------------------------------------------------------------------------------
@@ -231,71 +273,25 @@ theorem State.taskSuccess_groupNoticeTracking (queue : State) (occurrence : Occu
       exact .silent (List.Subset.refl _)
   | some node =>
       rw [queue.taskSuccess_eq occurrence result node found]
-      split
-      · exact .silent (List.Subset.refl _)
-      · let prepared := ((queue.putTaskNode
-          { node with value := some result.value }).maybeIntegrateWork
-            result.work (some occurrence)).1
-        let folded := node.task.groups.foldl successGroupStep (prepared, [], {})
-        have roots : prepared.rootGroups = queue.rootGroups :=
-          State.maybeIntegrateWork_rootGroups _ _ _
-        have first : GroupNoticeTracking queue.rootGroups
-            (folded.1.startNewWork folded.2.2, folded.2.1) := by
-          intro ref member
-          rw [(folded.1.startNewWork_groupCore _).2.2]
-          rcases List.mem_append.mp member with old | noticed
-          · rcases prepared.successGroupFold_tracks_roots node.task.groups ref
-                (roots.symm ▸ old) with active | closed
-            · exact .inl (List.mem_append_left _ active)
-            · exact .inr (.inr closed)
-          · exact .inl (List.mem_append_right _
-              ((successGroupFold_groupNotices prepared node.task.groups).symm ▸ noticed))
-        exact first.append (State.drainReadyGroups_go_groupNoticeTracking _ _)
-          (State.drainReadyGroups_go_cancelledGroups_subset _ _)
-
-/-- Each failed-owner step retains earlier notice status while closing or caching this owner.
-Witness: active removal records cancelled refs; a missing or unannounced owner changes
-neither roots nor output. Earlier cancellation markers remain present in every branch.
--/
-theorem GroupNoticeTracking.failedOwner {initial acc}
-    (tracked : GroupNoticeTracking initial acc) (errors : Nat)
-    (group : Execution.DeliveryNode)
-    : GroupNoticeTracking initial (failureGroupStep errors acc group) := by
-  obtain ⟨queue, events⟩ := acc
-  unfold failureGroupStep
-  dsimp only
-  split
-  · exact tracked
-  · rename_i node found
-    split
-    · exact tracked.append (queue.finishGroupFailure_groupNoticeTracking node errors)
-        (List.subset_append_left _ _)
-    · exact tracked
-
-/-- Failed task handling preserves every notice's active/completed/cancelled alternative.
-Witness: ignored inputs preserve roots; accepted inputs remove only task memberships
-before folding the checked per-owner failure rule.
--/
-theorem State.taskFailure_groupNoticeTracking (queue : State) (occurrence : Occurrence)
-    (errors : Nat)
-    : GroupNoticeTracking queue.rootGroups (queue.taskFailure occurrence errors) := by
-  cases found : queue.taskNode? occurrence with
-  | none =>
-      simp only [State.taskFailure, found]
-      exact .silent (List.Subset.refl _)
-  | some node =>
-      rw [queue.taskFailure_eq occurrence errors node found]
-      split
-      · exact .silent (List.Subset.refl _)
-      · have loop (groups : List Execution.DeliveryNode)
-            (acc : State × List WorkQueueEvent)
-            (tracked : GroupNoticeTracking queue.rootGroups acc)
-            : GroupNoticeTracking queue.rootGroups
-                (groups.foldl (failureGroupStep errors) acc) := by
-          induction groups generalizing acc with
-          | nil => exact tracked
-          | cons group rest ih => exact ih _ (tracked.failedOwner errors group)
-        exact loop _ _ (.silent (List.Subset.refl _))
+      let prepared := ((queue.putTaskNode
+        { node with value := some result.value }).maybeIntegrateWork
+          result.work (some occurrence)).1
+      let folded := node.task.groups.foldl successGroupStep (prepared, [], {})
+      have roots : prepared.rootGroups = queue.rootGroups :=
+        State.maybeIntegrateWork_rootGroups _ _ _
+      have first : GroupNoticeTracking queue.rootGroups
+          (folded.1.startNewWork folded.2.2, folded.2.1) := by
+        intro ref member
+        rw [(folded.1.startNewWork_groupCore _).2.2]
+        rcases List.mem_append.mp member with old | noticed
+        · rcases prepared.successGroupFold_tracks_roots node.task.groups ref
+              (roots.symm ▸ old) with active | closed
+          · exact .inl (List.mem_append_left _ active)
+          · exact .inr (.inr closed)
+        · exact .inl (List.mem_append_right _
+            ((successGroupFold_groupNotices prepared node.task.groups).symm ▸ noticed))
+      exact first.append (State.drainReadyGroups_go_groupNoticeTracking _ _)
+        (State.drainReadyGroups_go_cancelledGroups_subset _ _)
 
 -----------------------------------------------------------------------------------------
 -- Item carriers activate their notices before draining or processing the next source event

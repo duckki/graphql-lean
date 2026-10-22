@@ -360,6 +360,19 @@ theorem State.GroupParentsCanonical.finishGroupFailure
   unfold State.finishGroupFailure
   exact canonical.removeGroup group.group.node.ref
 
+/-- Retained task rejections leave surviving group-parent metadata unchanged. -/
+theorem State.GroupParentsCanonical.taskFailure
+    {queue : State} {parents : Nat → NodeRefs}
+    (canonical : queue.GroupParentsCanonical parents)
+    (occurrence : Occurrence) (errors : Nat)
+    : (queue.taskFailure occurrence errors).1.GroupParentsCanonical parents := by
+  cases found : queue.taskNode? occurrence with
+  | none => simpa [State.taskFailure, found] using canonical
+  | some node =>
+      rw [queue.taskFailure_eq occurrence errors node found]
+      exact failureGroupFold_preserves (fun state => state.GroupParentsCanonical parents)
+        (fun _ ref prior => prior.removeGroup ref) _ _ _ canonical
+
 /-- Recursive release preserves canonical group parents.
 Witness: closure removes records, while child activation preserves the group-node map.
 -/
@@ -368,41 +381,8 @@ theorem State.GroupParentsCanonical.drainReadyGroups {queue : State} {parents}
     : queue.drainReadyGroups.1.GroupParentsCanonical parents :=
   State.drainReadyGroups_preserves (fun state => state.GroupParentsCanonical parents)
     (fun _ node prior _ _ _ _ => (prior.finishGroupSuccess node).startNewWork _)
-    (fun _ node errors prior _ _ _ => prior.finishGroupFailure node errors) canonical
-
-/-- Failure updates and ignored settlements never reassign surviving group parents.
-Witness: the actual failure fold preserves descriptors when caching latent errors;
-the cancellation branch only removes task memberships.
--/
-theorem State.GroupParentsCanonical.taskFailure
-    {queue : State} {parents : Nat → NodeRefs}
-    (canonical : queue.GroupParentsCanonical parents)
-    (occurrence : Occurrence) (errors : Nat)
-    : (queue.taskFailure occurrence errors).1.GroupParentsCanonical parents := by
-  have step (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode)
-      (prior : acc.1.GroupParentsCanonical parents)
-      : (failureGroupStep errors acc group).1.GroupParentsCanonical parents := by
-    obtain ⟨current, events⟩ := acc
-    dsimp only [failureGroupStep]
-    split
-    · exact prior
-    · rename_i node found
-      split
-      · exact prior.finishGroupFailure node errors
-      · exact prior.putGroupNode _ (prior node (List.mem_of_find?_eq_some found))
-  have loop (groups : List Execution.DeliveryNode) (acc : State × List WorkQueueEvent)
-      (prior : acc.1.GroupParentsCanonical parents)
-      : (groups.foldl (failureGroupStep errors) acc).1.GroupParentsCanonical parents := by
-    induction groups generalizing acc with
-    | nil => exact prior
-    | cons group rest ih => exact ih _ (step acc group prior)
-  cases found : queue.taskNode? occurrence with
-  | none => simpa [State.taskFailure, found] using canonical
-  | some node =>
-      rw [queue.taskFailure_eq occurrence errors node found]
-      split
-      · exact canonical.removeTask occurrence
-      · exact loop node.task.groups _ (canonical.removeTask occurrence)
+    (fun _ _ occurrence errors prior _ _ _ => prior.taskFailure occurrence errors)
+    canonical
 
 /-- Successful task settlement preserves the source's primary-parent assignment.
 Witness: matched child integration, the actual single-pass contributor fold, and recursive
@@ -439,13 +419,11 @@ theorem State.GroupParentsCanonical.taskSuccess
   | none => simpa [State.taskSuccess, found] using canonical
   | some node =>
       rw [queue.taskSuccess_eq occurrence result node found]
-      split
-      · exact canonical.removeTask occurrence
-      · let stored := queue.putTaskNode { node with value := some result.value }
-        have storedCanonical : stored.GroupParentsCanonical parents := canonical
-        have integrated := storedCanonical.maybeIntegrateWork result.work childrenCanonical
-          (some occurrence)
-        exact ((loop node.task.groups (_, [], {}) integrated).startNewWork _).drainReadyGroups
+      let stored := queue.putTaskNode { node with value := some result.value }
+      have storedCanonical : stored.GroupParentsCanonical parents := canonical
+      have integrated := storedCanonical.maybeIntegrateWork result.work childrenCanonical
+        (some occurrence)
+      exact ((loop node.task.groups (_, [], {}) integrated).startNewWork _).drainReadyGroups
 
 /-- Stream item integration preserves canonical parents for every supplied
 item-work group, regardless of item batch width. -/

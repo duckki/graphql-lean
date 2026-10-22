@@ -11,7 +11,7 @@ open Semantics.MixedPaths
 private def node : DeliveryNode := { ref := 0, path := [.field "values"] }
 
 private def work : Work :=
-  .stream node [(.ok (.scalar "later", 3), .empty)]
+  .stream node [({ result := .ok (.scalar "later", 3) }, .empty)]
 
 private def fields : List (Name × ResponseValue) :=
   [("values", .list [.null])]

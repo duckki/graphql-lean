@@ -45,7 +45,7 @@ theorem State.UncancelledRetiredHealthy.missingParent {queue : State}
       : ∀ node ∈ queue.groupNodes,
           ∀ parent, node.group.parent = some parent → parent ∈ queue.registeredGroups)
     : queue.MissingParentAncestorsHealthy work failed := by
-  intro node member uncached dependencies known parent parentEq missing uncancelled
+  intro node member dependencies known parent parentEq missing uncancelled
   have retired : queue.RetiredGroup parent :=
     .of_lookup_none (registered node member parent parentEq) missing
   have head : dependencies.head? = some parent := by
@@ -126,6 +126,21 @@ theorem State.UncancelledRetiredHealthy.removeGroup {queue : State} {work failed
   intro ref retired uncancelled
   have old := queue.removeGroup_missing_uncancelled root ref retired.lookup_none uncancelled
   exact ⟨.of_lookup_none retired.1 old.1, old.2⟩
+
+/-- Replaying a rejected task creates only cancelled retirements.
+Witness: replacing a task leaves retirement unchanged and each owner pass removes a group.
+-/
+theorem State.UncancelledRetiredHealthy.taskFailure_preserves {queue : State}
+    {work failed} (prior : queue.UncancelledRetiredHealthy work failed)
+    (occurrence : Occurrence) (errors : Nat)
+    : (queue.taskFailure occurrence errors).1.UncancelledRetiredHealthy work failed := by
+  cases found : queue.taskNode? occurrence with
+  | none => simpa [State.taskFailure, found] using prior
+  | some task =>
+      rw [queue.taskFailure_eq occurrence errors task found]
+      exact failureGroupFold_preserves
+        (fun current => current.UncancelledRetiredHealthy work failed)
+        (fun _ ref valid => valid.removeGroup ref) errors task.task.groups _ prior
 
 /-- Candidate registration creates no new uncancelled retirement, even in child-first order.
 Witness: newly refused records carry cancellation markers; other retirements are inherited.

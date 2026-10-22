@@ -42,7 +42,7 @@ theorem WorkRefines.renameRight {keys : Nat → Nat} {left right : Work}
 theorem CompletionRefines.renameRight {keys : Nat → Nat} {left right : Completion α}
     (known : CompletionRefines keys left right) (rename : Nat → Nat)
     : CompletionRefines (rename ∘ keys) left (completion rename right) :=
-  ⟨known.1, known.2.renameRight rename⟩
+  ⟨known.1, known.2.1.renameRight rename, known.2.2⟩
 
 -----------------------------------------------------------------------------------------
 -- Original field lookup/coercion/resolution branches transport actual literal runs

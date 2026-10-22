@@ -303,104 +303,22 @@ theorem State.HealthyRegisteredTaskAccounting.taskFailure
           GroupInvalidated work (occurrence :: failed) group.ref)
     : (queue.taskFailure occurrence errors).1.HealthyRegisteredTaskAccounting
         work settled (occurrence :: failed) := by
-  let step (acc : State × List WorkQueueEvent)
-      (group : Execution.DeliveryNode) : State × List WorkQueueEvent :=
-    let (current, events) := acc
-    match current.groupNode? group.ref with
-    | none => (current, events)
-    | some node =>
-        if current.rootGroups.contains group.ref then
-          let (next, failure) := current.finishGroupFailure node errors
-          (next, events ++ [failure])
-        else (current.putGroupNode
-          { node with
-            pending := node.pending - 1
-            failure := some (node.failure.getD 0 + errors) }, events)
-  have stepFacts (acc : State × List WorkQueueEvent)
-      (group : Execution.DeliveryNode)
-      (groupFailed : GroupInvalidated work (occurrence :: failed) group.ref)
-      (currentAccounting : acc.1.HealthyRegisteredTaskAccounting
-        work settled (occurrence :: failed))
-      (currentLinks : acc.1.ChildLinksCanonical parents)
-      (currentMatching : acc.1.GroupNodesMatchWork work)
-      (currentTasks : acc.1.RegisteredTasksMatch work)
-      : (step acc group).1.HealthyRegisteredTaskAccounting
-          work settled (occurrence :: failed)
-        ∧ (step acc group).1.ChildLinksCanonical parents
-        ∧ (step acc group).1.GroupNodesMatchWork work
-        ∧ (step acc group).1.RegisteredTasksMatch work := by
-    obtain ⟨current, events⟩ := acc
-    dsimp only [step]
-    cases nodeFound : current.groupNode? group.ref with
-    | none => exact ⟨currentAccounting, currentLinks, currentMatching, currentTasks⟩
-    | some node =>
-        have nodeRef : node.group.node.ref = group.ref :=
-          current.groupNode?_ref nodeFound
-        have removeFacts :
-            (current.removeGroup group.ref).HealthyRegisteredTaskAccounting
-              work settled (occurrence :: failed)
-            ∧ (current.removeGroup group.ref).ChildLinksCanonical parents
-            ∧ (current.removeGroup group.ref).GroupNodesMatchWork work
-            ∧ (current.removeGroup group.ref).RegisteredTasksMatch work := by
-          exact ⟨currentAccounting.removeInvalidatedGroup currentTasks generated currentLinks
-              currentMatching workCanonical group.ref groupFailed.toRecordInvalidated,
-            currentLinks.removeGroup group.ref,
-            currentMatching.removeGroup group.ref, currentTasks.removeGroup group.ref⟩
-        cases active : current.rootGroups.contains group.ref with
-        | false =>
-            simp only [Bool.false_eq_true, ite_false]
-            exact ⟨currentAccounting.putInvalidatedGroup _ (nodeRef.symm ▸ groupFailed),
-              currentLinks.putGroupNode _
-                (currentLinks node (List.mem_of_find?_eq_some nodeFound)),
-              currentMatching.putGroupNode _
-                (currentMatching node (List.mem_of_find?_eq_some nodeFound)),
-              currentTasks.putGroupNode _⟩
-        | true =>
-            simpa [active, State.finishGroupFailure, nodeRef] using removeFacts
-  have foldFacts (more : List Execution.DeliveryNode)
-      (subset : ∀ group ∈ more, group ∈ taskNode.task.groups) :
-      ∀ acc : State × List WorkQueueEvent,
-        acc.1.HealthyRegisteredTaskAccounting
-          work settled (occurrence :: failed)
-        → acc.1.ChildLinksCanonical parents
-        → acc.1.GroupNodesMatchWork work
-        → acc.1.RegisteredTasksMatch work
-        → (more.foldl step acc).1.HealthyRegisteredTaskAccounting
-            work settled (occurrence :: failed)
-          ∧ (more.foldl step acc).1.ChildLinksCanonical parents
-          ∧ (more.foldl step acc).1.GroupNodesMatchWork work
-          ∧ (more.foldl step acc).1.RegisteredTasksMatch work := by
-    induction more with
-    | nil =>
-        intro acc currentAccounting currentLinks currentMatching currentTasks
-        exact ⟨currentAccounting, currentLinks, currentMatching, currentTasks⟩
-    | cons group rest ih =>
-        intro acc currentAccounting currentLinks currentMatching currentTasks
-        have groupFailed := failedOwners group (subset group (by simp))
-        obtain ⟨nextAccounting, nextLinks, nextMatching, nextTasks⟩ :=
-          stepFacts acc group groupFailed currentAccounting
-            currentLinks currentMatching currentTasks
-        have restSubset : ∀ candidate ∈ rest,
-            candidate ∈ taskNode.task.groups := by
-          intro candidate member
-          exact subset candidate (by simp [member])
-        exact ih restSubset (step acc group) nextAccounting nextLinks nextMatching
-          nextTasks
-  let current := queue.removeTask occurrence
-  have enlarged := accounted.weakenFailures (after := occurrence :: failed)
-    (by intro item member; simp [member])
-  have currentAccounting : current.HealthyRegisteredTaskAccounting
-      work settled (occurrence :: failed) :=
-    enlarged.removeFailedTask taskMatching occurrence (by simp)
-  have currentLinks : current.ChildLinksCanonical parents := links.removeTask occurrence
-  have currentMatching : current.GroupNodesMatchWork work := matching.removeTask occurrence
-  unfold State.taskFailure
-  simp only [found]
-  split
-  · exact currentAccounting
-  · exact (foldFacts taskNode.task.groups (fun _ member => member)
-      (current, []) currentAccounting currentLinks currentMatching
-      (taskMatching.removeTask occurrence)).1
+  let invariant (current : State) :=
+    current.HealthyRegisteredTaskAccounting work settled (occurrence :: failed)
+      ∧ current.ChildLinksCanonical parents
+      ∧ current.GroupNodesMatchWork work ∧ current.RegisteredTasksMatch work
+  rw [queue.taskFailure_eq occurrence errors taskNode found]
+  have final := failureGroupFold_preserves_on invariant
+    (GroupInvalidated work (occurrence :: failed))
+    (fun current ref prior invalidated =>
+      ⟨prior.1.removeInvalidatedGroup prior.2.2.2 generated prior.2.1 prior.2.2.1
+        workCanonical ref invalidated.toRecordInvalidated,
+        prior.2.1.removeGroup ref, prior.2.2.1.removeGroup ref, prior.2.2.2.removeGroup ref⟩)
+    errors taskNode.task.groups failedOwners
+    (queue.putTaskNode { taskNode with rejection := some errors }, [])
+    ⟨accounted.weakenFailures (by intro task member; simp [member]), links, matching,
+      taskMatching⟩
+  exact final.1
 
 /-- A failed registered task invalidates every one of its contributor
 groups. This discharges the local premise of the removal proof. -/
@@ -577,6 +495,19 @@ theorem State.ChildLinksCanonical.finishGroupFailure
   unfold State.finishGroupFailure
   exact links.removeGroup group.group.node.ref
 
+/-- Retained rejection and active-owner removal preserve canonical child links. -/
+theorem State.ChildLinksCanonical.taskFailure
+    {queue : State} {parents : Nat → NodeRefs}
+    (links : queue.ChildLinksCanonical parents)
+    (occurrence : Occurrence) (errors : Nat)
+    : (queue.taskFailure occurrence errors).1.ChildLinksCanonical parents := by
+  cases found : queue.taskNode? occurrence with
+  | none => simpa [State.taskFailure, found] using links
+  | some node =>
+      rw [queue.taskFailure_eq occurrence errors node found]
+      exact failureGroupFold_preserves (fun state => state.ChildLinksCanonical parents)
+        (fun _ ref prior => prior.removeGroup ref) _ _ _ links
+
 /-- Recursive drain steps preserve canonical child edges, including cached failures.
 Witness: the generic drain induction transports success, activation, and removal facts.
 -/
@@ -585,62 +516,7 @@ theorem State.ChildLinksCanonical.drainReadyGroups
     : queue.drainReadyGroups.1.ChildLinksCanonical parents := by
   exact State.drainReadyGroups_preserves (fun state => state.ChildLinksCanonical parents)
     (fun _ node prior _ _ _ _ => (prior.finishGroupSuccess node).startNewWork _)
-    (fun _ node errors prior _ _ _ => prior.finishGroupFailure node errors) links
-
-/-- Task failure preserves child edges through active removal and latent caching.
-Witness: the contributor fold changes counters and failures but no surviving child list.
--/
-theorem State.ChildLinksCanonical.taskFailure
-    {queue : State} {parents : Nat → NodeRefs}
-    (links : queue.ChildLinksCanonical parents)
-    (occurrence : Occurrence) (errors : Nat)
-    : (queue.taskFailure occurrence errors).1.ChildLinksCanonical parents := by
-  let step (acc : State × List WorkQueueEvent)
-      (group : Execution.DeliveryNode) :=
-    let (current, events) := acc
-    match current.groupNode? group.ref with
-    | none => (current, events)
-    | some node =>
-        if current.rootGroups.contains group.ref then
-          let (next, failure) := current.finishGroupFailure node errors
-          (next, events ++ [failure])
-        else (current.putGroupNode
-          { node with
-            pending := node.pending - 1
-            failure := some (node.failure.getD 0 + errors) }, events)
-  have stepLinks (acc : State × List WorkQueueEvent)
-      (group : Execution.DeliveryNode)
-      (currentLinks : acc.1.ChildLinksCanonical parents)
-      : (step acc group).1.ChildLinksCanonical parents := by
-    obtain ⟨current, events⟩ := acc
-    dsimp only [step]
-    split
-    · exact currentLinks
-    · rename_i node found
-      split
-      · exact currentLinks.finishGroupFailure _ errors
-      · exact currentLinks.putGroupNode _
-          (currentLinks node (List.mem_of_find?_eq_some found))
-  have foldLinks (groups : List Execution.DeliveryNode) :
-      ∀ acc : State × List WorkQueueEvent,
-        acc.1.ChildLinksCanonical parents
-          → (groups.foldl step acc).1.ChildLinksCanonical parents := by
-    induction groups with
-    | nil => intro acc currentLinks; exact currentLinks
-    | cons group rest ih =>
-        intro acc currentLinks
-        exact ih (step acc group) (stepLinks acc group currentLinks)
-  unfold State.taskFailure
-  split
-  · exact links
-  · rename_i taskNode found
-    let current := queue.removeTask occurrence
-    have currentLinks : current.ChildLinksCanonical parents := links.removeTask occurrence
-    split
-    · exact currentLinks
-    change (taskNode.task.groups.foldl step (current, [])).1.ChildLinksCanonical
-      parents
-    exact foldLinks taskNode.task.groups (current, []) currentLinks
+    (fun _ _ occurrence errors prior _ _ _ => prior.taskFailure occurrence errors) links
 
 /-- Successful task settlement maintains child-edge coherence through child
 integration, co-owner settlement, and sequential group release. -/
@@ -672,8 +548,7 @@ theorem State.ChildLinksCanonical.taskSuccess
     | some node =>
         let node := { node with pending := node.pending - 1 }
         let current := current.putGroupNode node
-        if current.rootGroups.contains group.ref && node.pending == 0
-            && node.failure.isNone then
+        if current.rootGroups.contains group.ref && node.pending == 0 then
           let (next, finished, newWork) := current.finishGroupSuccess node
           (next, events ++ finished,
             ⟨released.newGroups ++ newWork.newGroups,
@@ -707,8 +582,6 @@ theorem State.ChildLinksCanonical.taskSuccess
   split
   · exact links
   · rename_i taskNode found
-    split
-    · exact links.removeTask occurrence
     let withValue := queue.putTaskNode { taskNode with value := some result.value }
     have withValueLinks : withValue.ChildLinksCanonical parents := links
     let integrated := (withValue.maybeIntegrateWork result.work (some occurrence)).1

@@ -155,7 +155,7 @@ theorem generated_parent_normalized_inventory
   have known : TaskAt WorkSchedulerProducerSupport.work
       WorkSchedulerProducerSupport.parentTask [WorkSchedulerProducerSupport.parent.ref] none
       (.object [] (.ok ([("user", .object [])], 0))) := by
-    refine ⟨[⟨WorkSchedulerProducerSupport.parent, []⟩], [], _,
+    refine ⟨[⟨WorkSchedulerProducerSupport.parent, []⟩], [], { result := .ok ([("user", .object [])], 0) },
       WorkSchedulerProducerSupport.children, [], ?_, rfl, rfl⟩
     cbv
   have ready : event.Ready WorkSchedulerProducerSupport.work [] :=

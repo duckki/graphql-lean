@@ -13,24 +13,26 @@ private def parent : DeliveryNode := ⟨4, [.field "parent"], some "deferred"⟩
 private def childNode : DeliveryNode := ⟨8, [.field "parent", .field "items"], none⟩
 
 private def nested : Work :=
-  .executionGroup [⟨parent, []⟩] parent.path (.ok ([], 1))
-    (.stream childNode [(.ok (.null, 2), .empty), (.error 3, .empty)])
+  .executionGroup [⟨parent, []⟩] parent.path ({ result := .ok ([], 1) })
+    (.stream childNode
+      [({ result := .ok (.null, 2) }, .empty), ({ result := .error 3 }, .empty)])
 
 -- Group-child edge zero is not its allocation key; stream position one is unchanged.
 example
     : TaskAt (work (fun key => key + 10) nested) (.item [0] 1) [18]
         (some (.executionGroup []))
         (.item (node (fun key => key + 10) childNode) (.error 3)) := by
-  refine TaskAt.item (items := [(.ok (.null, 2), .empty), (.error 3, .empty)])
+  refine TaskAt.item
+    (items := [({ result := .ok (.null, 2) }, .empty), ({ result := .error 3 }, .empty)])
     (address := [0]) (index := 1) (node := node (fun key => key + 10) childNode)
-    (result := .error 3) (children := .empty) (owners := [14]) ?_ (by rfl)
+    (result := { result := .error 3 }) (children := .empty) (owners := [14]) ?_ (by rfl)
   cbv
 
 example
     : NodeAt (work (fun key => key + 10) nested) (node (fun key => key + 10) childNode)
         .stream [14] (some (.executionGroup [])) := by
   refine NodeAt.stream (address := [0])
-    (items := [(.ok (.null, 2), .empty), (.error 3, .empty)]) ?_
+    (items := [({ result := .ok (.null, 2) }, .empty), ({ result := .error 3 }, .empty)]) ?_
   cbv
 
 example : locateWork (work (fun key => key + 10) nested) [0, 2] = none := by cbv
@@ -52,12 +54,19 @@ private theorem shift_injective : Function.Injective (fun key : Nat => key + 10)
 
 private theorem original_item (index : Nat) (result : Result ResponseValue)
     (entry
-      : [(.ok (.null, 2), Work.empty), (.error 3, .empty)][index]?
-        = some (result, .empty))
+      : [
+          (({ result := .ok (.null, 2) } : TaskOutcome ResponseValue), Work.empty),
+          ({ result := .error 3 }, .empty)
+        ][index]?
+        = some ({ result }, .empty))
     : TaskAt nested (.item [0] index) [8] (some (.executionGroup []))
         (.item childNode result) := by
-  exact TaskAt.item (work := nested) (address := [0]) (node := childNode)
-    (producer := some (.executionGroup [])) (owners := [4]) (by cbv) entry
+  have projected : ({ result } : TaskOutcome ResponseValue).deliveryResult = result := by
+    cases result <;> rfl
+  simpa [childNode, projected]
+    using TaskAt.item (result := { result }) (work := nested) (address := [0])
+      (node := childNode) (producer := some (.executionGroup [])) (owners := [4]) (by cbv)
+      entry
 
 private theorem original_failure
     : Causality.NodeFailed nested [.item [0] 1] (fun _ => False) 8 :=

@@ -22,12 +22,9 @@ def registrationSnapshot (queue : Kernel) : GraphEvent → Kernel
       match queue.taskNode? occurrence with
       | none => queue
       | some task =>
-          if queue.taskHasHealthyOwner task.task then
-            let stored : State :=
-              { queue := queue.putTaskNode { task with value := some result.value } }
-            (stored.maybeIntegrateWork result.work (some occurrence)).1.queue
-          else
-            queue
+          let stored : State :=
+            { queue := queue.putTaskNode { task with value := some result.value } }
+          (stored.maybeIntegrateWork result.work (some occurrence)).1.queue
   | .streamItems stream items =>
       if queue.rootStreams.contains stream.ref then
         (items.foldl
@@ -47,12 +44,8 @@ def eagerRegistrationSnapshot (queue : Kernel) : GraphEvent → Kernel
       match queue.taskNode? occurrence with
       | none => queue
       | some node =>
-          if queue.taskHasHealthyOwner node.task then
-            ((queue.putTaskNode
-                { node with value := some result.value }).maybeIntegrateWork
-              result.work (some occurrence)).1
-          else
-            queue
+          ((queue.putTaskNode { node with value := some result.value }).maybeIntegrateWork
+            result.work (some occurrence)).1
   | .streamItems stream items =>
       if queue.rootStreams.contains stream.ref then
         queue.preparedStreamItems items
@@ -192,42 +185,35 @@ theorem referencePrefix_snapshotProjection {work : Work}
           apply SnapshotProjection.of_eq
           simp only [registrationSnapshot, eagerRegistrationSnapshot, found]
       | some node =>
-          cases healthy : queue.taskHasHealthyOwner node.task with
-          | false =>
-              apply SnapshotProjection.of_eq
-              simp only [registrationSnapshot, eagerRegistrationSnapshot, found, healthy,
-                Bool.false_eq_true, ↓reduceIte]
-          | true =>
-              let stored : State :=
-                { queue := queue.putTaskNode { node with value := some result.value } }
-              let integrated := stored.maybeIntegrateWork result.work (some occurrence)
-              have ready : ∀ key, some occurrence = some key
-                  → (stored.queue.taskNode? key).isSome = true := by
-                intro key same
-                cases same
-                change ((queue.putTaskNode { node with value := some result.value }).taskNode?
-                  occurrence).isSome = true
-                rw [ReferenceWorkQueue.State.putTaskNode_lookup_same found
-                  { node with value := some result.value }
-                  (ReferenceWorkQueue.State.taskNode?_some found).2]
-                rfl
-              have complete := stored.maybeIntegrateWork_complete result.work present
-                (some occurrence) ready
-              dsimp only at complete
-              refine ⟨?_, ?_, ?_, ?_, by intro _ _ impossible; cases impossible⟩
-              all_goals simp only [registrationSnapshot, eagerRegistrationSnapshot, found,
-                healthy, ↓reduceIte]
-              · exact stored.maybeIntegrateWork_registrationCore result.work (some occurrence)
-              · change integrated.1.queue.taskNodes.Subset
-                  (stored.queue.maybeIntegrateWork result.work (some occurrence)).1.taskNodes
-                rw [← complete.1]
-                exact activation_nodes_subset _ _
-              · intro key candidate lookup
-                rw [← complete.1]
-                exact activateRegisteredTasks_lookup lookup _
-              · intro key candidate lookup stored
-                rw [← complete.1] at lookup
-                exact activation_buffered_lookup _ lookup stored
+          let stored : State :=
+            { queue := queue.putTaskNode { node with value := some result.value } }
+          let integrated := stored.maybeIntegrateWork result.work (some occurrence)
+          have ready : ∀ key, some occurrence = some key
+              → (stored.queue.taskNode? key).isSome = true := by
+            intro key same
+            cases same
+            change ((queue.putTaskNode { node with value := some result.value }).taskNode?
+              occurrence).isSome = true
+            rw [ReferenceWorkQueue.State.putTaskNode_lookup_same found
+              { node with value := some result.value }
+              (ReferenceWorkQueue.State.taskNode?_some found).2]
+            rfl
+          have complete := stored.maybeIntegrateWork_complete result.work present
+            (some occurrence) ready
+          dsimp only at complete
+          refine ⟨?_, ?_, ?_, ?_, by intro _ _ impossible; cases impossible⟩
+          all_goals simp only [registrationSnapshot, eagerRegistrationSnapshot, found]
+          · exact stored.maybeIntegrateWork_registrationCore result.work (some occurrence)
+          · change integrated.1.queue.taskNodes.Subset
+              (stored.queue.maybeIntegrateWork result.work (some occurrence)).1.taskNodes
+            rw [← complete.1]
+            exact activation_nodes_subset _ _
+          · intro key candidate lookup
+            rw [← complete.1]
+            exact activateRegisteredTasks_lookup lookup _
+          · intro key candidate lookup stored
+            rw [← complete.1] at lookup
+            exact activation_buffered_lookup _ lookup stored
   | streamItems stream items =>
       have same : registrationSnapshot queue (.streamItems stream items)
           = eagerRegistrationSnapshot queue (.streamItems stream items) := by

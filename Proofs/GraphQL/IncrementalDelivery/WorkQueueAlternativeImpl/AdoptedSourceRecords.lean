@@ -45,31 +45,28 @@ theorem GeneratedAdoptedSourceProgress_holds : GeneratedAdoptedSourceProgress :=
       cases inputFound : before.queue.taskNode? incoming with
       | none => simp [graphEffects, inputFound] at adopted
       | some input =>
-          cases healthy : before.queue.taskHasHealthyOwner input.task with
-          | false => simp [graphEffects, inputFound, healthy] at adopted
-          | true =>
-              have same : producer = incoming := by
-                simpa only [graphEffects, inputFound, healthy, ↓reduceIte,
-                  List.mem_singleton, HostEffect.adopt.injEq]
-                  using adopted
-              subst producer
-              have rawFound := inputFound
-              rw [raw] at rawFound
-              obtain ⟨node, found, _, value, held⟩ := generated.taskSuccess_prepared_childStream
-                prior matching fresh rawFound (matching.taskChildStreams_complete known)
-              have prepared :
-                  (registrationSnapshot before.queue (.taskSuccess incoming result)).taskNode?
-                    incoming = some node := by
-                apply projection.buffered
-                · change (eagerRegistrationSnapshot before.queue
-                    (.taskSuccess incoming result)).taskNode? incoming = some node
-                  simp only [eagerRegistrationSnapshot, inputFound, healthy, ↓reduceIte]
-                  rw [raw]
-                  exact found
-                · rw [value]; rfl
-              exact GeneratedPreparedSourceProgress_holds work inputs _ generated valid
-                started trivial incoming node source.ref prepared (by rw [value]; rfl)
-                held
+          have same : producer = incoming := by
+            simpa only [graphEffects, inputFound, List.mem_singleton,
+              HostEffect.adopt.injEq]
+              using adopted
+          subst producer
+          have rawFound := inputFound
+          rw [raw] at rawFound
+          obtain ⟨node, found, _, value, held⟩ := generated.taskSuccess_prepared_childStream
+            prior matching fresh rawFound (matching.taskChildStreams_complete known)
+          have prepared :
+              (registrationSnapshot before.queue (.taskSuccess incoming result)).taskNode?
+                incoming = some node := by
+            apply projection.buffered
+            · change (eagerRegistrationSnapshot before.queue
+                (.taskSuccess incoming result)).taskNode? incoming = some node
+              simp only [eagerRegistrationSnapshot, inputFound]
+              rw [raw]
+              exact found
+            · rw [value]; rfl
+          exact GeneratedPreparedSourceProgress_holds work inputs _ generated valid
+            started trivial incoming node source.ref prepared (by rw [value]; rfl)
+            held
   | streamItems stream items =>
       cases active : before.queue.rootStreams.contains stream.ref with
       | false => simp only [graphEffects, active, Bool.false_eq_true, ↓reduceIte,

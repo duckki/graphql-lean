@@ -28,32 +28,30 @@ theorem ExecutedWork.taskSuccess_groupNoticesSeparated
   | none => simp [State.taskSuccess, found, GroupNoticesSeparated]
   | some incoming =>
       rw [queue.taskSuccess_eq occurrence result incoming found]
-      split
-      · simp [GroupNoticesSeparated]
-      · let stored := queue.putTaskNode { incoming with value := some result.value }
-        let prepared := (stored.maybeIntegrateWork result.work (some occurrence)).1
-        let folded := incoming.task.groups.foldl successGroupStep (prepared, [], {})
-        let active := folded.1.startNewWork folded.2.2
-        obtain ⟨parents, canonical, records, links, live, tasks, roots, _⟩ :=
-          generated.replayGraphEvents_preparedRetirement before matching matched incoming
-        obtain ⟨refs, _, support⟩ :=
-          generated.taskSuccess_prepared_noticeMetadata matching matched incoming
-        have storedPresent : stored.RootGroupsPresent :=
-          generated.replayGraphEvents_rootsPresent before matching
-        have frame : LiveRootFrame prepared work parents :=
-          ⟨refs, records, links, live, tasks, roots, support,
-            storedPresent.maybeIntegrateWork result.work (some occurrence)⟩
-        have separated := frame.successGroupFold_noticeSeparation generated canonical
-          incoming.task.groups
-        obtain ⟨activeParents, activeCanonical, activeFrame⟩ :=
-          generated.taskSuccess_drain_liveRootFrame matching matched incoming
-            (generated.replayGraphEvents_rootsPresent before matching)
-        change GroupNoticesSeparated (folded.2.1 ++ active.drainReadyGroups.2)
-        apply separated.2.2.append
-          (activeFrame.drainReadyGroups_go_groupNoticesSeparated generated activeCanonical _)
-        intro ref noticed
-        exact activeFrame.drainReadyGroups_go_noProtectedNotice generated activeCanonical
-          ((separated.2.1 ref noticed).mono (fun _ retired => retired.startNewWork _)) _
+      let stored := queue.putTaskNode { incoming with value := some result.value }
+      let prepared := (stored.maybeIntegrateWork result.work (some occurrence)).1
+      let folded := incoming.task.groups.foldl successGroupStep (prepared, [], {})
+      let active := folded.1.startNewWork folded.2.2
+      obtain ⟨parents, canonical, records, links, live, tasks, roots, _⟩ :=
+        generated.replayGraphEvents_preparedRetirement before matching matched incoming
+      obtain ⟨refs, _, support⟩ :=
+        generated.taskSuccess_prepared_noticeMetadata matching matched incoming
+      have storedPresent : stored.RootGroupsPresent :=
+        generated.replayGraphEvents_rootsPresent before matching
+      have frame : LiveRootFrame prepared work parents :=
+        ⟨refs, records, links, live, tasks, roots, support,
+          storedPresent.maybeIntegrateWork result.work (some occurrence)⟩
+      have separated := frame.successGroupFold_noticeSeparation generated canonical
+        incoming.task.groups
+      obtain ⟨activeParents, activeCanonical, activeFrame⟩ :=
+        generated.taskSuccess_drain_liveRootFrame matching matched incoming
+          (generated.replayGraphEvents_rootsPresent before matching)
+      change GroupNoticesSeparated (folded.2.1 ++ active.drainReadyGroups.2)
+      apply separated.2.2.append
+        (activeFrame.drainReadyGroups_go_groupNoticesSeparated generated activeCanonical _)
+      intro ref noticed
+      exact activeFrame.drainReadyGroups_go_noProtectedNotice generated activeCanonical
+        ((separated.2.1 ref noticed).mono (fun _ retired => retired.startNewWork _)) _
 
 /-- An item handler's leading group notices cannot recur in its subsequent drain.
 Witness: preparation protects every leading notice before its carrier is emitted; the

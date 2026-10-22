@@ -23,9 +23,12 @@ private def data : List (Name × ResponseValue) := [("a", .scalar "a")]
 
 private def work : Execution.Work :=
   .combine .empty
-    (.combine (.executionGroup [⟨root, []⟩, ⟨child, [parent]⟩] [] (.error 1) .empty)
+    (.combine
+      (.executionGroup [⟨root, []⟩, ⟨child, [parent]⟩] []
+        ({ result := .error 1, cause := some 1 }) .empty)
       (.combine
-        (.executionGroup [⟨parent, []⟩] [] (.ok (data, 0)) (.combine .empty .empty))
+        (.executionGroup [⟨parent, []⟩] [] ({ result := .ok (data, 0) })
+          (.combine .empty .empty))
         .empty))
 
 private def failed : GraphEvent := .taskFailure sharedTask 1
@@ -65,12 +68,12 @@ theorem generated : ExecutedWork work := by
 /-- Exact metadata for the only failed task. Witness: its structural work address. -/
 private theorem shared_known
     : TaskAt work sharedTask [root.ref, child.ref] none (.object [] (.error 1)) := by
-  exact ⟨[⟨root, []⟩, ⟨child, [parent]⟩], [], .error 1, .empty, [], rfl, rfl, rfl⟩
+  exact ⟨[⟨root, []⟩, ⟨child, [parent]⟩], [], { result := .error 1, cause := some 1 }, .empty, [], rfl, rfl, rfl⟩
 
 /-- Exact metadata for the independent parent. Witness: its structural work address. -/
 private theorem parent_known
     : TaskAt work parentTask [parent.ref] none (.object [] (.ok (data, 0))) := by
-  exact ⟨[⟨parent, []⟩], [], .ok (data, 0), .combine .empty .empty,
+  exact ⟨[⟨parent, []⟩], [], { result := .ok (data, 0) }, .combine .empty .empty,
     [], rfl, rfl, rfl⟩
 
 /-- Both settlements obey the unchanged fixed-outcome, freshness, and readiness laws.
@@ -140,7 +143,7 @@ private theorem node_cases {node kind dependencies producer}
   obtain ⟨address, groups, path, result, children, enclosing, group,
     located, member, rfl, rfl⟩ := known
   have task : TaskAt work (.executionGroup address)
-      (groups.map (fun group => group.node.ref)) producer (.object path result) :=
+      (groups.map (fun group => group.node.ref)) producer (.object path result.deliveryResult) :=
     ⟨groups, path, result, children, enclosing, located, rfl, rfl⟩
   rcases task_cases task with same | same
   · have addressEq : address = [1, 0] := Occurrence.executionGroup.inj same
@@ -164,14 +167,26 @@ private theorem node_cases {node kind dependencies producer}
     simp
 
 private theorem root_node : NodeAt work root .group [] none :=
-  ⟨[1, 0], _, [], .error 1, .empty, [], ⟨root, []⟩, rfl, by simp, rfl, rfl⟩
+  ⟨
+    [1, 0],
+    _,
+    [],
+    { result := .error 1, cause := some 1 },
+    .empty,
+    [],
+    ⟨root, []⟩,
+    rfl,
+    by simp,
+    rfl,
+    rfl
+  ⟩
 
 private theorem parent_node : NodeAt work parent .group [] none :=
   ⟨
     [1, 1, 0],
     _,
     [],
-    .ok (data, 0),
+    { result := .ok (data, 0) },
     .combine .empty .empty,
     [],
     ⟨parent, []⟩,
@@ -182,7 +197,19 @@ private theorem parent_node : NodeAt work parent .group [] none :=
   ⟩
 
 private theorem child_node : NodeAt work child .group [parent.ref] none :=
-  ⟨[1, 0], _, [], .error 1, .empty, [], ⟨child, [parent]⟩, rfl, by simp, rfl, rfl⟩
+  ⟨
+    [1, 0],
+    _,
+    [],
+    { result := .error 1, cause := some 1 },
+    .empty,
+    [],
+    ⟨child, [parent]⟩,
+    rfl,
+    by simp,
+    rfl,
+    rfl
+  ⟩
 
 /-- The retained R/C failure cannot fail independent P.
 Witness: P owns only its successful task, has no dependency, and has a root descriptor.
@@ -273,12 +300,8 @@ private theorem parent_uncancelled (observed : List Execution.WorkQueueEvent)
 Witness: the singleton recorded task and its fixed error payload.
 -/
 private theorem shared_errors {ref} (owner : ref ∈ [root.ref, child.ref])
-    : NodeErrors work [sharedTask] ref 1 := by
-  refine ⟨fun _ => 1, ?_, rfl⟩
-  intro occurrence member
-  have same := List.mem_singleton.mp member
-  subst occurrence
-  exact ⟨_, _, _, shared_known, by simp [owner, Payload.failure]⟩
+    : NodeFailureCause work [sharedTask] ref 1 := by
+  exact ⟨sharedTask, by simp, _, _, _, shared_known, owner, rfl, by decide⟩
 
 /-- Root-frontier notices use only the original healthy/outstanding-work branch.
 Witness: the contributing unpublished task with empty failure evidence.
@@ -445,8 +468,13 @@ theorem failed_parent_blocks_notice (otherWork : Execution.Work)
 
 private def cancellationWork : Execution.Work :=
   .combine .empty
-    (.combine (.executionGroup [⟨root, []⟩, ⟨child, [parent]⟩] [] (.error 1) .empty)
-      (.combine (.executionGroup [⟨parent, []⟩] [] (.error 1) .empty) .empty))
+    (.combine
+      (.executionGroup [⟨root, []⟩, ⟨child, [parent]⟩] []
+        ({ result := .error 1, cause := some 1 }) .empty)
+      (.combine
+        (.executionGroup [⟨parent, []⟩] [] ({ result := .error 1, cause := some 1 })
+          .empty)
+        .empty))
 
 /-- The failed-parent variant also comes from execution, not an inconsistent raw outcome.
 Witness: an independent failing non-null alias supplies P's error.
@@ -469,10 +497,10 @@ theorem cancelled_child_rejected
           child .group [parent.ref] none := by
   have shared : TaskAt cancellationWork sharedTask [root.ref, child.ref] none
       (.object [] (.error 1)) :=
-    ⟨[⟨root, []⟩, ⟨child, [parent]⟩], [], .error 1, .empty, [], rfl, rfl, rfl⟩
+    ⟨[⟨root, []⟩, ⟨child, [parent]⟩], [], { result := .error 1, cause := some 1 }, .empty, [], rfl, rfl, rfl⟩
   have independent : TaskAt cancellationWork parentTask [parent.ref] none
       (.object [] (.error 1)) :=
-    ⟨[⟨parent, []⟩], [], .error 1, .empty, [], rfl, rfl, rfl⟩
+    ⟨[⟨parent, []⟩], [], { result := .error 1, cause := some 1 }, .empty, [], rfl, rfl, rfl⟩
   constructor
   · exact ⟨sharedTask, [root.ref, child.ref], by simp [failedBefore],
       ⟨_, _, shared⟩, by simp⟩

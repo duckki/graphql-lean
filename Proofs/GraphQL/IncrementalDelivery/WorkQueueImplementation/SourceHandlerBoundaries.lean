@@ -215,4 +215,45 @@ theorem State.sourceRunBlocks_objectCuts (queue : State)
   rw [blocks, queue.eligibleFailureBlocks_append, sourceObjectFailureCuts_append]
   cases terminal <;> simp [State.eligibleFailureBlocks, sourceObjectFailureCuts]
 
+/-- A nonterminal atom of batched replay retains its actual source handler and cuts.
+Witness: the optional final annotation contributes only termination; every other indexed
+atom comes from the unchanged flattened handler annotations.
+-/
+theorem State.sourceRunBlocks_atomicHandler (queue : State)
+    (publisher : IncrementalPublisher) (batches : List (List GraphEvent))
+    (started : queue.batchesStarted batches = true) {index : Nat}
+    {event : Execution.WorkQueueEvent}
+    (selected
+      : ((queue.sourceRunBlocks publisher batches).2.2.flatMap Prod.snd)[index]?
+        = some event)
+    (nonterminal : event ≠ .workQueueTermination)
+    : ∃ before source after,
+      ∃ currentPublisher : IncrementalPublisher,
+      ∃ localIndex : Nat,
+        batches.flatten = before ++ source :: after
+        ∧ ((currentPublisher.normalizeBatch
+              ((queue.replayGraphEvents before).handleGraphEvent source).2).2.flatMap
+            publicationAtoms)[localIndex]?
+          = some event
+        ∧ (failedBefore
+            (sourceObjectFailureCuts 0
+              (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher batches).2.2))
+            index).reverse
+          = queue.objectFailureContributions (before ++ [source]) := by
+  obtain ⟨terminal, blocks⟩ := queue.sourceRunBlocks_handlerBlocks publisher batches started
+  have rawSelected : ((queue.sourceOutputBlocks publisher batches.flatten).2.2.flatMap
+      Prod.snd)[index]? = some event := by
+    rw [blocks, List.flatMap_append] at selected
+    by_cases inside : index < ((queue.sourceOutputBlocks publisher batches.flatten).2.2.flatMap
+        Prod.snd).length
+    · rwa [List.getElem?_append_left inside] at selected
+    · rw [List.getElem?_append_right (Nat.le_of_not_gt inside)] at selected
+      have member := List.mem_of_getElem? selected
+      cases terminal <;> simp_all
+  obtain ⟨before, source, after, currentPublisher, localIndex, inputs, atLocal, _, _, visible⟩ :=
+    queue.sourceOutputBlocks_atomicHandler publisher batches.flatten rawSelected
+  refine ⟨before, source, after, currentPublisher, localIndex, inputs, atLocal, ?_⟩
+  rw [queue.sourceRunBlocks_objectCuts publisher batches started]
+  exact visible
+
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

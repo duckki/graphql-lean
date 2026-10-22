@@ -286,9 +286,7 @@ theorem State.GroupMembershipSound.startGroup
       | cons task rest ih =>
           intro current currentSound
           exact ih (current.startTask task) (currentSound.startTask task)
-    split
-    · exact sound
-    · exact foldStart node.tasks queue sound
+    exact foldStart node.tasks queue sound
 
 theorem State.GroupMembershipSound.startStream
     {queue : State} (sound : queue.GroupMembershipSound) (ref : NodeRef)
@@ -422,6 +420,18 @@ theorem State.GroupMembershipSound.finishGroupFailure
     : (queue.finishGroupFailure group errors).1.GroupMembershipSound :=
   sound.removeGroup group.group.node.ref
 
+/-- Rejection retention leaves sound memberships on every surviving group. -/
+theorem State.GroupMembershipSound.taskFailure
+    {queue : State} (sound : queue.GroupMembershipSound)
+    (occurrence : Occurrence) (errors : Nat)
+    : (queue.taskFailure occurrence errors).1.GroupMembershipSound := by
+  cases found : queue.taskNode? occurrence with
+  | none => simpa [State.taskFailure, found] using sound
+  | some node =>
+      rw [queue.taskFailure_eq occurrence errors node found]
+      exact failureGroupFold_preserves State.GroupMembershipSound
+        (fun _ ref prior => prior.removeGroup ref) _ _ _ sound
+
 /-- Draining ready roots preserves sound task memberships.
 Witness: closure removes memberships, while activation introduces no new ones.
 -/
@@ -431,8 +441,8 @@ theorem State.GroupMembershipSound.drainReadyGroups
   apply State.drainReadyGroups_preserves State.GroupMembershipSound (valid := sound)
   · intro current node currentSound _ _ _ _
     exact (currentSound.finishGroupSuccess node).startNewWork _
-  · intro current node errors currentSound _ _ _
-    exact currentSound.finishGroupFailure node errors
+  · intro current _ occurrence errors currentSound _ _ _
+    exact currentSound.taskFailure occurrence errors
 
 /-- Successful settlement only changes pending counters before flushing
 completed groups; newly integrated child memberships are sound by registration.
@@ -462,8 +472,7 @@ theorem State.GroupMembershipSound.taskSuccess
     | some node =>
         let node := { node with pending := node.pending - 1 }
         let current := current.putGroupNode node
-        if current.rootGroups.contains group.ref && node.pending == 0
-            && node.failure.isNone then
+        if current.rootGroups.contains group.ref && node.pending == 0 then
           let (next, finished, newWork) := current.finishGroupSuccess node
           (
             next,
@@ -502,7 +511,6 @@ theorem State.GroupMembershipSound.taskSuccess
   split
   · exact sound
   · rename_i taskNode found
-    split <;> try exact sound.removeTask occurrence
     let withValue := queue.putTaskNode { taskNode with value := some result.value }
     have withValueSound : withValue.GroupMembershipSound := sound
     let integrated := (withValue.maybeIntegrateWork result.work (some occurrence)).1
@@ -513,71 +521,6 @@ theorem State.GroupMembershipSound.taskSuccess
       releaseFold taskNode.task.groups (integrated, [], {}) integratedSound
     change (finished.1.startNewWork finished.2.2).drainReadyGroups.1.GroupMembershipSound
     exact (finishedSound.startNewWork finished.2.2).drainReadyGroups
-
-/-- Task failure filters memberships and closes active owners; retained latent
-owners keep only sound memberships. Witness: the actual retained-failure fold.
--/
-theorem State.GroupMembershipSound.taskFailure
-    {queue : State} (sound : queue.GroupMembershipSound)
-    (occurrence : Occurrence) (errors : Nat)
-    : (queue.taskFailure occurrence errors).1.GroupMembershipSound := by
-  let step (acc : State × List WorkQueueEvent)
-      (group : Execution.DeliveryNode) : State × List WorkQueueEvent :=
-    let (current, events) := acc
-    match current.groupNode? group.ref with
-    | none => (current, events)
-    | some node =>
-        if current.rootGroups.contains group.ref then
-          let (next, failure) := current.finishGroupFailure node errors
-          (next, events ++ [failure])
-        else
-          (current.putGroupNode
-            { node with
-                pending := node.pending - 1
-                failure := some (node.failure.getD 0 + errors) }, events)
-  have stepSound (acc : State × List WorkQueueEvent)
-      (group : Execution.DeliveryNode)
-      (currentSound : acc.1.GroupMembershipSound)
-      : (step acc group).1.GroupMembershipSound := by
-    obtain ⟨current, events⟩ := acc
-    change (match current.groupNode? group.ref with
-      | none => (current, events)
-      | some node =>
-          if current.rootGroups.contains group.ref then
-            let (next, failure) := current.finishGroupFailure node errors
-            (next, events ++ [failure])
-          else
-            (current.putGroupNode
-              { node with
-                  pending := node.pending - 1
-                  failure := some (node.failure.getD 0 + errors) }, events)).1.GroupMembershipSound
-    cases found : current.groupNode? group.ref with
-    | none => exact currentSound
-    | some node =>
-        by_cases started : current.rootGroups.contains group.ref = true
-        · simp only [started, ite_true]
-          exact currentSound.finishGroupFailure node errors
-        · simp only [started]
-          apply currentSound.putGroupNode
-          exact currentSound node (List.mem_of_find?_eq_some found)
-  have foldSound (groups : List Execution.DeliveryNode) :
-      ∀ acc : State × List WorkQueueEvent,
-        acc.1.GroupMembershipSound
-          → (groups.foldl step acc).1.GroupMembershipSound := by
-    induction groups with
-    | nil => intro acc currentSound; exact currentSound
-    | cons group rest ih =>
-        intro acc currentSound
-        exact ih (step acc group) (stepSound acc group currentSound)
-  unfold State.taskFailure
-  split
-  · exact sound
-  · rename_i taskNode found
-    split <;> try exact sound.removeTask occurrence
-    let current := queue.removeTask occurrence
-    have currentSound : current.GroupMembershipSound := sound.removeTask occurrence
-    change (taskNode.task.groups.foldl step (current, [])).1.GroupMembershipSound
-    exact foldSound taskNode.task.groups (current, []) currentSound
 
 /-- Stream items register their child work before publishing values, so any
 new group task memberships have registered task witnesses.

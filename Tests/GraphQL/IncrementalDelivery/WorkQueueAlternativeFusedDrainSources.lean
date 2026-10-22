@@ -16,6 +16,8 @@ private def first : Execution.DeliveryNode := { ref := 0, path := [] }
 private def second : Execution.DeliveryNode := { ref := 1, path := [] }
 private def source : Execution.DeliveryNode := { ref := 7, path := [] }
 private def producer : WorkQueueSemantics.Occurrence := .executionGroup [0]
+private def rejected : WorkQueueSemantics.Occurrence := .executionGroup [1]
+private def otherRejected : WorkQueueSemantics.Occurrence := .executionGroup [2]
 
 private def mixed : State :=
   {
@@ -25,15 +27,24 @@ private def mixed : State :=
         groupNodes :=
           [
             { group := ⟨first, none⟩, tasks := [producer] },
-            { group := ⟨second, none⟩, tasks := [producer], failure := some 1 }
+            { group := ⟨second, none⟩, tasks := [producer, rejected], pending := 1 }
           ]
-        tasks := [{ occurrence := producer, groups := [first, second] }]
+        tasks :=
+          [
+            { occurrence := producer, groups := [first, second] },
+            { occurrence := rejected, groups := [second] }
+          ]
         taskNodes :=
-          [{
-            task := { occurrence := producer, groups := [first, second] }
-            value := some { deliveryGroups := [first, second], path := [], data := [] }
-            childStreams := [7]
-          }]
+          [
+            {
+              task := { occurrence := producer, groups := [first, second] }
+              value := some { deliveryGroups := [first, second], path := [], data := [] }
+              childStreams := [7]
+            },
+            {
+              task := { occurrence := rejected, groups := [second] }, rejection := some 1
+            }
+          ]
         streams := [⟨source⟩]
       }
   }
@@ -58,7 +69,20 @@ private def allFailed : State :=
         {
           mixed.queue with
             groupNodes :=
-              (mixed.queue.groupNodes.map (fun group => { group with failure := some 1 }))
+              [
+                {
+                  group := ⟨first, none⟩, tasks := [producer, otherRejected], pending := 1
+                },
+                { group := ⟨second, none⟩, tasks := [producer, rejected], pending := 1 }
+              ]
+            tasks :=
+              mixed.queue.tasks ++ [{ occurrence := otherRejected, groups := [first] }]
+            taskNodes :=
+              mixed.queue.taskNodes
+              ++ [{
+                    task := { occurrence := otherRejected, groups := [first] },
+                    rejection := some 1
+                  }]
         }
   }
 

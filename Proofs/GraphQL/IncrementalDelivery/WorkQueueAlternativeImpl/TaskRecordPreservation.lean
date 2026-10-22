@@ -25,14 +25,9 @@ theorem registrationSnapshot_oldTasks (queue : Kernel) (event : GraphEvent)
           simpa only [registrationSnapshot, found]
             using (show queue.tasks.Subset queue.tasks from fun _ member => member)
       | some node =>
-          cases healthy : queue.taskHasHealthyOwner node.task with
-          | false =>
-              simpa only [registrationSnapshot, found, healthy, Bool.false_eq_true,
-                ↓reduceIte] using (show queue.tasks.Subset queue.tasks from fun _ member => member)
-          | true =>
-              simp only [registrationSnapshot, found, healthy, ↓reduceIte,
-                State.maybeIntegrateWork_tasks, ReferenceWorkQueue.State.putTaskNode]
-              exact fun _ member => List.mem_append_left _ member
+          simp only [registrationSnapshot, found,
+            State.maybeIntegrateWork_tasks, ReferenceWorkQueue.State.putTaskNode]
+          exact fun _ member => List.mem_append_left _ member
   | streamItems stream items =>
       cases active : queue.rootStreams.contains stream.ref with
       | false =>
@@ -60,13 +55,9 @@ theorem registrationSnapshot_unsettledOwner {queue : Kernel} {work settled task 
       cases found : queue.taskNode? occurrence with
       | none => simpa only [registrationSnapshot, found] using present
       | some node =>
-          cases healthy : queue.taskHasHealthyOwner node.task with
-          | false => simpa only [registrationSnapshot, found, healthy, Bool.false_eq_true,
-              ↓reduceIte] using present
-          | true =>
-              simp only [registrationSnapshot, found, healthy, ↓reduceIte]
-              exact State.maybeIntegrateWork_includesRefs _ result.work
-                (some occurrence) present
+          simp only [registrationSnapshot, found]
+          exact State.maybeIntegrateWork_includesRefs _ result.work
+            (some occurrence) present
   | streamItems stream items =>
       cases active : queue.rootStreams.contains stream.ref with
       | false => simpa only [registrationSnapshot, active, Bool.false_eq_true,
@@ -113,7 +104,7 @@ theorem GeneratedRepresentedUnsettledTaskProgress_holds
   have accounted := generatedReplay_nextAccounting generated valid started
   obtain ⟨_, matching, _⟩ := ReferenceWorkQueue.validGraphEvents_last valid
   cases represented with
-  | @task key occurrence group found linked =>
+  | @task key occurrence group found linked _unrejected =>
       obtain ⟨task, member, same, contributes⟩ := accounted.sound group
         (List.mem_of_find?_eq_some found) occurrence linked
       have unsettled

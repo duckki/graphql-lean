@@ -38,9 +38,14 @@ private def failed : State :=
             groupNodes :=
               [{
                 group := ⟨group, none⟩,
-                tasks := [task.occurrence],
-                pending := 1,
-                failure := some 1
+                tasks := [task.occurrence, .executionGroup [1]],
+                pending := 1
+              }]
+            tasks := task :: [{ occurrence := .executionGroup [1], groups := [group] }]
+            taskNodes :=
+              [{
+                task := { occurrence := .executionGroup [1], groups := [group] }
+                rejection := some 1
               }]
         }
   }

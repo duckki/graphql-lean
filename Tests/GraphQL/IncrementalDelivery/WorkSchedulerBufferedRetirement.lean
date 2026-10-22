@@ -20,7 +20,7 @@ private def value : ExecutionGroupValue :=
     deliveryGroups := [parent, child]
   }
 
-private def buffered : TaskNode := ⟨task, some value, []⟩
+private def buffered : TaskNode := ⟨task, some value, none, []⟩
 
 private def parentNode : GroupNode :=
   { group := ⟨parent, none⟩, childGroups := [child.ref], tasks := [occurrence] }
@@ -128,8 +128,8 @@ private def childValue : ExecutionGroupValue :=
   }
 
 private def parentTask : Task := ⟨occurrence, [parent]⟩
-private def parentBuffered : TaskNode := ⟨parentTask, some parentValue, []⟩
-private def childBuffered : TaskNode := ⟨childTask, some childValue, []⟩
+private def parentBuffered : TaskNode := ⟨parentTask, some parentValue, none, []⟩
+private def childBuffered : TaskNode := ⟨childTask, some childValue, none, []⟩
 
 private def waiting : State :=
   {

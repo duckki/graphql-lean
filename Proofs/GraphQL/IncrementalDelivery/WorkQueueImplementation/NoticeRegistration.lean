@@ -91,6 +91,36 @@ theorem State.finishGroupSuccess_groupNoticesRegistered {queue : State}
   · obtain rfl := List.mem_singleton.mp last
     exact queue.finishGroupSuccess_released_registered live group
 
+/-- Task rejection emits only failed group closures, so it announces no new groups. -/
+theorem State.taskFailure_groupNoticesRegistered (queue : State) (registered : NodeRefs)
+    (occurrence : Occurrence) (errors : Nat)
+    : ∀ event ∈ (queue.taskFailure occurrence errors).2,
+        event.GroupNoticesRegistered registered := by
+  have loop (groups : List Execution.DeliveryNode) (acc : State × List WorkQueueEvent)
+      (known : ∀ event ∈ acc.2, event.GroupNoticesRegistered registered)
+      : ∀ event ∈ (groups.foldl (failureGroupStep errors) acc).2,
+          event.GroupNoticesRegistered registered := by
+    induction groups generalizing acc with
+    | nil => exact known
+    | cons group rest ih =>
+        apply ih
+        obtain ⟨current, events⟩ := acc
+        dsimp only [failureGroupStep]
+        split
+        · exact known
+        · split
+          · intro event member
+            rcases List.mem_append.mp member with old | closed
+            · exact known event old
+            · obtain rfl := List.mem_singleton.mp closed
+              trivial
+          · exact known
+  cases found : queue.taskNode? occurrence with
+  | none => simp [State.taskFailure, found]
+  | some node =>
+      rw [queue.taskFailure_eq occurrence errors node found]
+      exact loop node.task.groups (_, []) (by simp)
+
 /-- Every notice emitted by a bounded drain uses the drain-entry registry.
 Witness: success releases registered children and retains registration coverage; failure
 only removes live records. Child activation and every later iteration keep that registry.
@@ -107,7 +137,7 @@ theorem State.drainReadyGroups_go_groupNoticesRegistered {queue : State}
       split
       · simp
       · rename_i node selected
-        cases failed : node.failure with
+        cases failed : queue.rejectedTask? node with
         | none =>
             have closed := queue.finishGroupSuccess_registration live tasks node
             have active := State.startNewWork_registration closed.1 closed.2.1
@@ -117,14 +147,15 @@ theorem State.drainReadyGroups_go_groupNoticesRegistered {queue : State}
             intro event member
             exact (List.mem_append.mp member).elim
               (queue.finishGroupSuccess_groupNoticesRegistered live node event) (later event)
-        | some errors =>
-            have later := ih (queue := queue.removeGroup node.group.node.ref)
-              (fun record member => live record (List.mem_filter.mp member).1) tasks
+        | some rejection =>
+            obtain ⟨occurrence, errors⟩ := rejection
+            have retained := queue.taskFailure_registration live tasks occurrence errors
+            have later := ih retained.1 retained.2.1
+            rw [retained.2.2] at later
             intro event member
-            rcases List.mem_append.mp member with first | rest
-            · obtain rfl := List.mem_singleton.mp first
-              trivial
-            · exact later event rest
+            exact (List.mem_append.mp member).elim
+              (queue.taskFailure_groupNoticesRegistered queue.registeredGroups occurrence errors event)
+              (later event)
 
 -----------------------------------------------------------------------------------------
 -- The single-pass owner fold shares the same permanent registry

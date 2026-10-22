@@ -116,31 +116,36 @@ theorem Explains.append_event {work groups streams events matching failures even
 -- Finite error counts and output batches
 -----------------------------------------------------------------------------------------
 
-/-- Actual recorded task failures always have a finite node-error count. Witness: choose
-each task's fixed descriptor and sum its contribution; no positive-count premise is used.
+/-- A positive recorded contributor supplies its own boundary explanation.
+Witness: retain that task's descriptor and selected count without summing other failures.
 -/
-theorem NodeErrors.exists {work failed}
-    (known
-      : ∀ occurrence ∈ failed,
-          ∃ owners producer payload,
-            TaskAt work occurrence owners producer payload) (ref : NodeRef)
-    : ∃ errors, NodeErrors work failed ref errors := by
-  classical
-  let contribution := fun occurrence =>
-    if member : occurrence ∈ failed then
-      let owners := Classical.choose (known occurrence member)
-      let payload := Classical.choose
-        (Classical.choose_spec (Classical.choose_spec (known occurrence member)))
-      if ref ∈ owners then payload.failure.getD 0 else 0
-    else 0
-  refine ⟨(failed.map contribution).sum, contribution, ?_, rfl⟩
-  intro occurrence member
-  refine ⟨Classical.choose (known occurrence member),
-    Classical.choose (Classical.choose_spec (known occurrence member)),
-    Classical.choose (Classical.choose_spec (Classical.choose_spec (known occurrence member))),
-    Classical.choose_spec (Classical.choose_spec (Classical.choose_spec
-      (known occurrence member))), ?_⟩
-  simp only [contribution, dite_eq_left member]
+theorem NodeFailureCause.of_task {work failed occurrence owners producer payload ref}
+    (known : TaskAt work occurrence owners producer payload)
+    (recorded : occurrence ∈ failed) (contributes : ref ∈ owners)
+    (fails : payload.failure.isSome = true) (positive : 0 < payload.failure.getD 0)
+    : NodeFailureCause work failed ref (payload.failure.getD 0) := by
+  refine ⟨
+    occurrence,
+    recorded,
+    owners,
+    producer,
+    payload,
+    known,
+    contributes,
+    ?_,
+    positive
+  ⟩
+  cases failure : payload.failure with
+  | none => simp [failure] at fails
+  | some errors => simp
+
+/-- Additional settled failures preserve an already supported boundary explanation. -/
+theorem NodeFailureCause.mono {work before after ref errors}
+    (cause : NodeFailureCause work before ref errors) (included : before.Subset after)
+    : NodeFailureCause work after ref errors := by
+  obtain ⟨occurrence, recorded, owners, producer, payload, known, contributes, failure, positive⟩ := cause
+  exact ⟨occurrence, included recorded, owners, producer, payload, known, contributes,
+    failure, positive⟩
 
 /-- Every recorded failure supplies a structural task descriptor. Witness: its failure
 cut evidence, ignoring only reachability and the open owner.

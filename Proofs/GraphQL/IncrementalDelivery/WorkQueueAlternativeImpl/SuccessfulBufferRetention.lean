@@ -41,6 +41,15 @@ theorem SnapshotTaskEvidence.removeGroup {queue : Kernel} {work}
     frame.contributors, frame.started.removeGroup key, frame.matching.removeGroup key,
     frame.buffered.removeGroup key, frame.sound.removeGroup key⟩
 
+/-- Rejection replay preserves metadata for every surviving computation record. -/
+theorem SnapshotTaskEvidence.taskFailure {queue : Kernel} {work}
+    (frame : SnapshotTaskEvidence queue work) (occurrence : Occurrence) (errors : Nat)
+    : SnapshotTaskEvidence (queue.taskFailure occurrence errors).1 work := by
+  have registration := queue.taskFailure_registration frame.live frame.contributors occurrence errors
+  exact ⟨frame.keys.taskFailure occurrence errors, registration.1, registration.2.1,
+    frame.started.taskFailure occurrence errors, frame.matching.taskFailure occurrence errors,
+    frame.buffered.taskFailure occurrence errors, frame.sound.taskFailure occurrence errors⟩
+
 /-- Any bounded mixed drain retains the same sound registration frame on surviving records. -/
 theorem SnapshotTaskEvidence.drainReadyGroups {queue : Kernel} {work}
     (frame : SnapshotTaskEvidence queue work) (fuel : Nat)
@@ -49,7 +58,7 @@ theorem SnapshotTaskEvidence.drainReadyGroups {queue : Kernel} {work}
   ReferenceWorkQueue.State.drainReadyGroups_go_preserves
     (fun current => SnapshotTaskEvidence current work)
     (fun _ group prior _ _ _ _ => (prior.finishGroupSuccess group).startNewWork _)
-    (fun _ group _ prior _ _ _ => prior.removeGroup group.group.node.ref)
+    (fun _ _ occurrence errors prior _ _ _ => prior.taskFailure occurrence errors)
     frame fuel
 
 -----------------------------------------------------------------------------------------

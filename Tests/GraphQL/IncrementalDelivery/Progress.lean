@@ -13,14 +13,20 @@ open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 open GraphQL.IncrementalDelivery.Correctness
 
+private theorem noFailureCauses (work : Work) (initial : NodeRefs)
+    (matching : PublicationMatching) (events : List WorkQueueEvent)
+    : OpenFailureCauses work initial matching events [] := by
+  intro ref _ failed
+  exact (failed.nonempty rfl).elim
+
 /-- A singleton deferred task starts with an explained empty prefix for any outcome.
 Witness: valid notices and empty failure/event evidence, not a supplied complete run.
 -/
 theorem single_initial (result : Result (List (Name × ResponseValue)))
     (matching : PublicationMatching)
-    : Explains (WorkQueueSemantics.single result) [WorkQueueSemantics.node] [] [] matching
-        [] := by
-  exact ⟨WorkQueueSemantics.initialized result, by simp [FailureWitness], by simp⟩
+    : Explains (WorkQueueSemantics.single { result }) [WorkQueueSemantics.node] [] []
+        matching [] := by
+  exact ⟨WorkQueueSemantics.initialized { result }, by simp [FailureWitness], by simp⟩
 
 /-- A singleton deferred outcome with positive failures has a constructed complete run.
 Witness: a counted failure completion or a fresh publication, then generic finalization.
@@ -28,11 +34,14 @@ Raw zero-count failures are excluded, and no terminal-history premise is supplie
 -/
 theorem single_run_exists (result : Result (List (Name × ResponseValue)))
     (positive : GraphQL.IncrementalDelivery.Semantics.BasicErrors.PositiveFailure result)
-    : ∃ history, AdmissibleRun (WorkQueueSemantics.single result) history := by
+    : ∃ history, AdmissibleRun (WorkQueueSemantics.single { result }) history := by
   apply (admissibleRun_exists_iff_reported_history _).mpr
   have initial := single_initial result WorkQueueSemantics.matching
-  have task : TaskAt (WorkQueueSemantics.single result) (.executionGroup []) [0] none
-      (.object [] result) := .executionGroup .root
+  have task : TaskAt (WorkQueueSemantics.single { result }) (.executionGroup []) [0] none
+      (.object [] result) := by
+    simpa [WorkQueueSemantics.node]
+      using (TaskAt.executionGroup (result := { result }) (Located.root)
+              : TaskAt (WorkQueueSemantics.single { result }) (.executionGroup []) _ _ _)
   have openRef : Open [0] [] 0 := by
     simp [Open, announcedRefs, pendingRefs, completedRefs]
   cases result with
@@ -41,6 +50,7 @@ theorem single_run_exists (result : Result (List (Name × ResponseValue)))
       obtain ⟨reportedNode, count, event, _, control, countBound, reported⟩ :=
         initial.failure_step task rfl (.root ⟨_, _, task⟩)
           (by exact ⟨0, by simp, openRef⟩) (WorkQueueSemantics.noCancellation _ _)
+          (by simpa [Payload.failure] using nonzero)
       have scope : FailureReportedFor [event] [] := by
         have countBound : errors ≤ count := countBound
         rcases control with rfl | rfl
@@ -53,28 +63,33 @@ theorem single_run_exists (result : Result (List (Name × ResponseValue)))
           have impossible := (WorkQueueSemantics.node_single descriptor).2.1
           cases impossible
       refine ⟨[WorkQueueSemantics.node], [], [event], WorkQueueSemantics.matching,
-        [(0, .executionGroup [])], reported, ?_⟩
-      intro occurrence owners producer payload known
-      obtain ⟨rfl, rfl, _, rfl⟩ := WorkQueueSemantics.task_single known
-      refine Or.inl ⟨?_, scope⟩
-      exact .of_recorded known
-        (by simp)
-        (by
-          rintro ⟨index, observed, selected, value, _⟩
-          have member := List.mem_of_getElem? selected
-          simp only [List.mem_singleton] at member
-          subst observed
-          rcases control with rfl | rfl <;> exact value)
-        (by simp [failedBefore])
+        [(0, .executionGroup [])], reported, ?_, ?_⟩
+      · intro ref opened _
+        have owner : ref ∈ [0] := by
+          rcases control with rfl | rfl <;>
+            simpa [announcedRefs, pendingRefs, eventPending, WorkQueueSemantics.node] using opened.1
+        exact ⟨errors, .of_task task (by simp [failedBefore]) owner rfl nonzero⟩
+      · intro occurrence owners producer payload known
+        obtain ⟨rfl, rfl, _, rfl⟩ := WorkQueueSemantics.task_single known
+        refine Or.inl ⟨?_, scope⟩
+        exact .of_recorded known
+          (by simp)
+          (by
+            rintro ⟨index, observed, selected, value, _⟩
+            have member := List.mem_of_getElem? selected
+            simp only [List.mem_singleton] at member
+            subst observed
+            rcases control with rfl | rfl <;> exact value)
+          (by simp [failedBefore])
   | ok value =>
       obtain ⟨data, errors⟩ := value
-      have ready : CanPublish (WorkQueueSemantics.single (.ok (data, errors)))
+      have ready : CanPublish (WorkQueueSemantics.single ({ result := .ok (data, errors) }))
           WorkQueueSemantics.matching [] [] (.executionGroup []) none :=
         ⟨by simp [Published], WorkQueueSemantics.noCancellation _ _, by simp, trivial⟩
-      have owner : PublicationOwner (WorkQueueSemantics.single (.ok (data, errors))) [0]
+      have owner : PublicationOwner (WorkQueueSemantics.single ({ result := .ok (data, errors) })) [0]
           WorkQueueSemantics.matching [] [] [0]
           WorkQueueSemantics.node := by
-        have opened : OpenOwner (WorkQueueSemantics.single (.ok (data, errors))) [0] [] [0]
+        have opened : OpenOwner (WorkQueueSemantics.single ({ result := .ok (data, errors) })) [0] [] [0]
             WorkQueueSemantics.node :=
           ⟨⟨.group, [], none, .group (group := { node := WorkQueueSemantics.node })
             .root (by simp)⟩, by simp [WorkQueueSemantics.node], openRef⟩
@@ -83,7 +98,16 @@ theorem single_run_exists (result : Result (List (Name × ResponseValue)))
         obtain ⟨kind, parents, birth, known⟩ := available.1
         simp only [(WorkQueueSemantics.node_single known).1, Nat.le_refl]
       have published := initial.publish_object task ready owner
-      refine ⟨[WorkQueueSemantics.node], [], _, _, [], published, ?_⟩
+      refine ⟨
+        [WorkQueueSemantics.node],
+        [],
+        _,
+        _,
+        [],
+        published,
+        noFailureCauses _ _ _ _,
+        ?_
+      ⟩
       intro occurrence owners producer payload known
       obtain ⟨rfl, _, _, _⟩ := WorkQueueSemantics.task_single known
       exact Or.inr ⟨0, _, rfl, trivial, by simp [matchNext]⟩
@@ -95,13 +119,13 @@ example (response : Response) (result : Result (List (Name × ResponseValue)))
     (positive : GraphQL.IncrementalDelivery.Semantics.BasicErrors.PositiveFailure result)
     : ∃ scheduler : (Execution.Work → Execution.WorkQueue),
       ∃ observed : ExecutionObservation,
-        ((WorkQueueSemantics.single result).size ≠ 0
-          → (scheduler (WorkQueueSemantics.single result)).Conforms
-              (WorkQueueSemantics.single result))
+        ((WorkQueueSemantics.single { result }).size ≠ 0
+          → (scheduler (WorkQueueSemantics.single { result })).Conforms
+              (WorkQueueSemantics.single { result }))
         ∧ (executionFromWork scheduler response
-            (WorkQueueSemantics.single result)).Observes
+            (WorkQueueSemantics.single { result })).Observes
             observed true :=
-  (completeObservation_exists_iff response (WorkQueueSemantics.single result)).mpr
+  (completeObservation_exists_iff response (WorkQueueSemantics.single { result })).mpr
     (Or.inr (single_run_exists result positive))
 
 /-- One shared publication can finish both owners in at most two additional events,
@@ -137,7 +161,7 @@ example
     subst occurrence
     exact Or.inr ⟨0, _, rfl, trivial, rfl⟩
   have completed := (WorkBatching.singletons
-    [HistoryScheduling.value HistoryScheduling.left]).finish_accounted published
+    [HistoryScheduling.value HistoryScheduling.left]).finish_accounted published (noFailureCauses _ _ _ _)
       (by simpa [failedBefore] using accounted)
       (by
         intro occurrence owners producer payload known unpublished
@@ -167,7 +191,7 @@ example
         simpa [failedBefore, HistoryScheduling.left, HistoryScheduling.right]
           using HistoryScheduling.publishes HistoryScheduling.left (by simp))
   obtain ⟨tail, bounded, _, finished, closes, selected⟩ :=
-    published.close_accounted_refs [0, 0]
+    published.close_accounted_refs (noFailureCauses _ _ _ _) [0, 0]
       (by simp [announcedRefs, pendingRefs, HistoryScheduling.left, HistoryScheduling.right,
         eventPending, HistoryScheduling.value])
       (by
@@ -214,7 +238,7 @@ example
       by simp,
       by simp [Open, announcedRefs, pendingRefs, completedRefs,
         WorkQueueSemantics.node]
-    ⟩ (WorkQueueSemantics.noCancellation _ _)
+    ⟩ (WorkQueueSemantics.noCancellation _ _) (by decide)
 
 /-- A failure recorded after two outputs cannot retroactively affect the first output.
 Witness: direct boundary evaluation; equal-boundary cuts are visible only at that cut.
@@ -241,7 +265,7 @@ example
             (WorkQueueSemantics.events ++ tail) WorkQueueSemantics.matching []
         ∧ ∀ ref ∈ announcedRefs [0] (WorkQueueSemantics.events ++ tail),
             ref ∈ completedRefs (WorkQueueSemantics.events ++ tail) := by
-  apply WorkQueueSemantics.explained.close_open_refs
+  apply WorkQueueSemantics.explained.close_open_refs (noFailureCauses _ _ _ _)
     (by
       intro occurrence owners producer payload known
       exact (WorkQueueSemantics.terminal.1 _ _ _ _ known).imp_left And.left) []
@@ -259,7 +283,10 @@ Witness: the structural item ordinals, independent of payload equality.
 example
     : observationTokens []
         (.stream WorkQueueSemantics.node
-          [(.ok (.null, 0), .empty), (.ok (.null, 0), .empty)])
+          [
+            ({ result := .ok (.null, 0) }, .empty),
+            ({ result := .ok (.null, 0) }, .empty)
+          ])
       = [.inr 0, .inl (.item [] 0), .inl (.item [] 1)] := by
   simp [observationTokens, List.finRange_succ, WorkQueueSemantics.node]
 
@@ -275,7 +302,8 @@ whether the fixed outcome succeeds or fails. Witness: the uniform inventory boun
 example (result : Result (List (Name × ResponseValue)))
     {groups streams events matching cuts}
     (explained
-      : Explains (WorkQueueSemantics.single result) groups streams events matching cuts)
+      : Explains (WorkQueueSemantics.single { result }) groups streams events matching
+          cuts)
     : events.length ≤ 2 := by
   simpa [WorkQueueSemantics.single, observationTokens]
     using explained.length_le_observationTokens
@@ -341,7 +369,7 @@ example (node : DeliveryNode) (results : List (Result ResponseValue))
       : ∀ result ∈ results,
           GraphQL.IncrementalDelivery.Semantics.BasicErrors.PositiveFailure result)
     : ∃ history,
-        AdmissibleRun (.stream node (results.map (fun result => (result, .empty))))
+        AdmissibleRun (.stream node (results.map (fun result => ({ result }, .empty))))
           history := by
   apply childFreeStream_completeRun_exists
   · intro item member
@@ -351,7 +379,7 @@ example (node : DeliveryNode) (results : List (Result ResponseValue))
     | nil => trivial
     | cons result rest ih =>
         exact ⟨
-          positive result (by simp),
+          by simpa using positive result (by simp),
           trivial,
           ih (fun result member => positive result (List.mem_cons_of_mem _ member))
         ⟩
@@ -362,12 +390,29 @@ Witness: the reporting-aware stream existence theorem and complete-run realizati
 example (response : Response) (node : DeliveryNode)
     : ∃ scheduler : (Execution.Work → Execution.WorkQueue),
       ∃ observed : ExecutionObservation,
-        ((Work.stream node [(.ok (.null, 0), .empty), (.error 1, .empty)]).size ≠ 0
+        ((Work.stream node
+              [
+                ({ result := .ok (.null, 0) }, .empty),
+                ({ result := .error 1 }, .empty)
+              ]).size
+            ≠ 0
           → (scheduler
-              (.stream node [(.ok (.null, 0), .empty), (.error 1, .empty)])).Conforms
-              (.stream node [(.ok (.null, 0), .empty), (.error 1, .empty)]))
+              (.stream node
+                [
+                  ({ result := .ok (.null, 0) }, .empty),
+                  ({ result := .error 1 }, .empty)
+                ])).Conforms
+              (.stream node
+                [
+                  ({ result := .ok (.null, 0) }, .empty),
+                  ({ result := .error 1 }, .empty)
+                ]))
         ∧ (executionFromWork scheduler response
-            (.stream node [(.ok (.null, 0), .empty), (.error 1, .empty)])).Observes
+            (.stream node
+              [
+                ({ result := .ok (.null, 0) }, .empty),
+                ({ result := .error 1 }, .empty)
+              ])).Observes
             observed true := by
   apply (completeObservation_exists_iff _ _).mpr
   apply Or.inr

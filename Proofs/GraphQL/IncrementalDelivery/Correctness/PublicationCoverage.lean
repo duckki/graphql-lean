@@ -175,6 +175,6 @@ theorem queryOutcome_payload_errors_zero {createWorkQueue : Work → WorkQueue}
   simp only [applies, ↓reduceIte] at witnessed
   exact witnessed.payload_errors_zero
     (ExecutionErrors.executeRootSelectionSetCore_positive schema resolvers _ fuel
-      (operation.rootType schema) source operation.selectionSet 0).2 zero known
+      (operation.rootType schema) source operation.selectionSet 0).2.1 zero known
 
 end GraphQL.IncrementalDelivery.Correctness

@@ -39,7 +39,6 @@ theorem State.PublicationInventory.taskSuccess_bufferedCoverage {queue : State}
         ∧ queue.BufferedClosuresCovered added (queue.taskSuccess occurrence result).2
         ∧ (∀ node,
             queue.taskNode? occurrence = some node
-            → queue.taskHasHealthyOwner node.task = true
             → let stored := queue.putTaskNode { node with value := some result.value }
               let prepared := (stored.maybeIntegrateWork result.work (some occurrence)).1
               prepared.BufferedClosuresCovered added
@@ -48,7 +47,6 @@ theorem State.PublicationInventory.taskSuccess_bufferedCoverage {queue : State}
         ∧ queue.StoredValuesConserved added (queue.taskSuccess occurrence result).1
         ∧ (∀ node,
             queue.taskNode? occurrence = some node
-            → queue.taskHasHealthyOwner node.task = true
             → ((queue.putTaskNode
                   { node with value := some result.value }).maybeIntegrateWork
                 result.work (some occurrence)).1.StoredValuesConserved
@@ -58,21 +56,18 @@ theorem State.PublicationInventory.taskSuccess_bufferedCoverage {queue : State}
         ∧ queue.StoredOwnersConserved added (queue.taskSuccess occurrence result).1
         ∧ (∀ node,
             queue.taskNode? occurrence = some node
-            → queue.taskHasHealthyOwner node.task = true
             → ((queue.putTaskNode
                   { node with value := some result.value }).maybeIntegrateWork
                 result.work (some occurrence)).1.StoredOwnersConserved
                 added (queue.taskSuccess occurrence result).1)
         ∧ (∀ node,
             queue.taskNode? occurrence = some node
-            → queue.taskHasHealthyOwner node.task = true
             → ((queue.putTaskNode
                   { node with value := some result.value }).maybeIntegrateWork
                 result.work (some occurrence)).1.ReleaseOwners
                 node.task.groups added)
         ∧ (∀ node,
             queue.taskNode? occurrence = some node
-            → queue.taskHasHealthyOwner node.task = true
             → ((queue.putTaskNode
                   { node with value := some result.value }).maybeIntegrateWork
                 result.work (some occurrence)).1.ReleaseMembershipsCleared
@@ -114,127 +109,58 @@ theorem State.PublicationInventory.taskSuccess_bufferedCoverage {queue : State}
       · intro node impossible
         simp at impossible
   | some node =>
-      cases healthy : queue.taskHasHealthyOwner node.task with
-      | false =>
-          refine ⟨
-            [],
-            by simp [State.taskSuccess, found, healthy],
-            ?_,
-            ?_,
-            ?_,
-            ?_,
-            ?_,
-            ?_,
-            ?_,
-            ?_,
-            ?_,
-            ?_,
-            ?_
-          ⟩
-          · simpa only [State.taskSuccess, found, healthy, Bool.not_false, ↓reduceIte,
-              List.append_nil] using State.PublicationInventory.mk
-                current.unique current.provenance (current.stored.removeTask occurrence)
-          · simpa only [State.taskSuccess, found, healthy, Bool.not_false, ↓reduceIte]
-              using State.BufferedClosuresCovered.nil queue
-          · intro other lookup guard
-            have same := Option.some.inj lookup
-            subst other
-            simp [healthy] at guard
-          · simpa only [State.taskSuccess, found, healthy, Bool.not_false, ↓reduceIte]
-              using StreamReleasePublications.nil work
-          · intro task buffered value lookup stored _
-            have known := State.taskNode?_some lookup
-            have source := (inventory.stored buffered known.1 value stored).1
-            have different : task ≠ occurrence := by
-              intro same
-              exact fresh.2.2.1 occurrence List.mem_cons_self
-                (same ▸ known.2 ▸ source.identity)
-            exact Or.inr (by
-              simpa only [State.taskSuccess, found, healthy, Bool.not_false, ↓reduceIte]
-                using (queue.removeTask_lookup_other different).trans lookup)
-          · intro other lookup guard
-            have same := Option.some.inj lookup
-            subst other
-            simp [healthy] at guard
-          · simpa only [State.taskSuccess, found, healthy, Bool.not_false, ↓reduceIte]
-              using BlocksFollowRegistrations.nil (queue.removeTask occurrence).tasks []
-          · intro task buffered value lookup stored ref contributes present uncancelled
-            have known := State.taskNode?_some lookup
-            have source := (inventory.stored buffered known.1 value stored).1
-            have different : task ≠ occurrence := by
-              intro same
-              exact fresh.2.2.1 occurrence List.mem_cons_self
-                (same ▸ known.2 ▸ source.identity)
-            refine Or.inr ⟨?_, ?_⟩
-            · simpa only [State.taskSuccess, found, healthy, Bool.not_false, ↓reduceIte]
-                using (queue.removeTask_lookup_other different).trans lookup
-            · simpa only [State.taskSuccess, found, healthy, Bool.not_false, ↓reduceIte,
-                State.removeTask, List.map_map, Function.comp_def] using present
-          · intro other lookup guard
-            have same := Option.some.inj lookup
-            subst other
-            simp [healthy] at guard
-          · intro other lookup guard
-            have same := Option.some.inj lookup
-            subst other
-            simp [healthy] at guard
-          · intro other lookup guard
-            have same := Option.some.inj lookup
-            subst other
-            simp [healthy] at guard
-      | true =>
-          obtain ⟨added, values, final, preparedCoverage, conservation, streams, ordered,
-            owners, drainOwners, drainCleared⟩ :=
-            current.taskSuccess_preparedCoverage generated accounted links settled children
-              occurrence result matching node found healthy
-              (fun member => fresh.2.2.1 occurrence List.mem_cons_self (included member))
-              ⟨result, List.mem_append_right _ List.mem_cons_self, rfl⟩
-              (inventory.fresh_success fresh) memberships
-          have retained : ∀ task buffered value,
-              queue.taskNode? task = some buffered → buffered.value = some value
-              → ((queue.putTaskNode { node with value := some result.value }).maybeIntegrateWork
-                  result.work (some occurrence)).1.taskNode? task = some buffered := by
-            intro task buffered value lookup stored
-            have known := State.taskNode?_some lookup
-            have source := (inventory.stored buffered known.1 value stored).1
-            have different : occurrence ≠ task := by
-              intro same
-              exact fresh.2.2.1 occurrence List.mem_cons_self
-                (same.symm ▸ known.2 ▸ source.identity)
-            have retained := State.putTaskNode_lookup_other lookup
-              { node with value := some result.value }
-              ((State.taskNode?_some found).2 ▸ different)
-            exact State.maybeIntegrateWork_lookup_other retained result.work
-              (some occurrence) (fun same => different (Option.some.inj same))
-          refine ⟨added, values, final, preparedCoverage.of_lookups retained, ?_, streams,
-            State.StoredValuesConserved.of_lookups conservation retained,
-            ?_, ?_, ?_, ?_, ?_, ?_⟩
-          · intro other lookup _
-            have same := Option.some.inj lookup
-            subst other
-            exact preparedCoverage
-          · intro other lookup _
-            have same := Option.some.inj lookup
-            subst other
-            exact conservation
-          · rw [State.taskSuccess_tasks found healthy]
-            simpa only [State.maybeIntegrateWork_tasks_append, State.putTaskNode] using ordered
-          · exact owners.of_lookups retained
-              (State.maybeIntegrateWork_includesRefs
-                (queue.putTaskNode { node with value := some result.value })
-                result.work (some occurrence))
-          · intro other lookup _
-            have same := Option.some.inj lookup
-            subst other
-            exact owners
-          · intro other lookup _
-            have same := Option.some.inj lookup
-            subst other
-            exact drainOwners
-          · intro other lookup _
-            have same := Option.some.inj lookup
-            subst other
-            exact drainCleared
+      obtain ⟨added, values, final, preparedCoverage, conservation, streams, ordered,
+        owners, drainOwners, drainCleared⟩ :=
+        current.taskSuccess_preparedCoverage generated accounted links settled children
+          occurrence result matching node found
+          (fun member => fresh.2.2.1 occurrence List.mem_cons_self (included member))
+          ⟨result, List.mem_append_right _ List.mem_cons_self, rfl⟩
+          (inventory.fresh_success fresh) memberships
+      have retained : ∀ task buffered value,
+          queue.taskNode? task = some buffered → buffered.value = some value
+          → ((queue.putTaskNode { node with value := some result.value }).maybeIntegrateWork
+              result.work (some occurrence)).1.taskNode? task = some buffered := by
+        intro task buffered value lookup stored
+        have known := State.taskNode?_some lookup
+        have source := (inventory.stored buffered known.1 value stored).1
+        have different : occurrence ≠ task := by
+          intro same
+          exact fresh.2.2.1 occurrence List.mem_cons_self
+            (same.symm ▸ known.2 ▸ source.identity)
+        have retained := State.putTaskNode_lookup_other lookup
+          { node with value := some result.value }
+          ((State.taskNode?_some found).2 ▸ different)
+        exact State.maybeIntegrateWork_lookup_other retained result.work
+          (some occurrence) (fun same => different (Option.some.inj same))
+      refine ⟨added, values, final, preparedCoverage.of_lookups retained, ?_, streams,
+        State.StoredValuesConserved.of_lookups conservation retained,
+        ?_, ?_, ?_, ?_, ?_, ?_⟩
+      · intro other lookup
+        have same := Option.some.inj lookup
+        subst other
+        exact preparedCoverage
+      · intro other lookup
+        have same := Option.some.inj lookup
+        subst other
+        exact conservation
+      · rw [State.taskSuccess_tasks found]
+        simpa only [State.maybeIntegrateWork_tasks_append, State.putTaskNode] using ordered
+      · exact owners.of_lookups retained
+          (State.maybeIntegrateWork_includesRefs
+            (queue.putTaskNode { node with value := some result.value })
+            result.work (some occurrence))
+      · intro other lookup
+        have same := Option.some.inj lookup
+        subst other
+        exact owners
+      · intro other lookup
+        have same := Option.some.inj lookup
+        subst other
+        exact drainOwners
+      · intro other lookup
+        have same := Option.some.inj lookup
+        subst other
+        exact drainCleared
 
 -----------------------------------------------------------------------------------------
 -- Item integration retains every buffered lookup until the shared drain
@@ -439,7 +365,6 @@ def State.PreparedClosuresCovered (queue : State) (event : GraphEvent)
   | .taskSuccess occurrence result =>
       ∀ node,
         queue.taskNode? occurrence = some node
-        → queue.taskHasHealthyOwner node.task = true
         → let stored := queue.putTaskNode { node with value := some result.value }
           let prepared := (stored.maybeIntegrateWork result.work (some occurrence)).1
           prepared.BufferedClosuresCovered published
@@ -456,7 +381,6 @@ def State.PreparedValuesConserved (queue : State) (event : GraphEvent)
   | .taskSuccess occurrence result =>
       ∀ node,
         queue.taskNode? occurrence = some node
-        → queue.taskHasHealthyOwner node.task = true
         → ((queue.putTaskNode { node with value := some result.value }).maybeIntegrateWork
             result.work (some occurrence)).1.StoredValuesConserved
             published (queue.taskSuccess occurrence result).1
@@ -473,7 +397,6 @@ def State.PreparedOwnersConserved (queue : State) (event : GraphEvent)
   | .taskSuccess occurrence result =>
       ∀ node,
         queue.taskNode? occurrence = some node
-        → queue.taskHasHealthyOwner node.task = true
         → ((queue.putTaskNode { node with value := some result.value }).maybeIntegrateWork
             result.work (some occurrence)).1.StoredOwnersConserved
             published (queue.taskSuccess occurrence result).1
@@ -491,7 +414,6 @@ def State.PreparedReleaseOwners (queue : State) (event : GraphEvent)
   | .taskSuccess occurrence result =>
       ∀ node,
         queue.taskNode? occurrence = some node
-        → queue.taskHasHealthyOwner node.task = true
         → ((queue.putTaskNode { node with value := some result.value }).maybeIntegrateWork
             result.work (some occurrence)).1.ReleaseOwners
             node.task.groups published
@@ -509,7 +431,6 @@ def State.PreparedMembershipsCleared (queue : State) (event : GraphEvent)
   | .taskSuccess occurrence result =>
       ∀ node,
         queue.taskNode? occurrence = some node
-        → queue.taskHasHealthyOwner node.task = true
         → ((queue.putTaskNode { node with value := some result.value }).maybeIntegrateWork
             result.work (some occurrence)).1.ReleaseMembershipsCleared
             node.task.groups published

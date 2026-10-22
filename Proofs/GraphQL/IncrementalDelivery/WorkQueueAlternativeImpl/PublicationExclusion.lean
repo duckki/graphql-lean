@@ -77,7 +77,7 @@ theorem drainReadyGroups_go_publicationRoots_live (fuel : Nat) (queue : Kernel)
               · cases Option.some.inj choice
                 exact List.mem_of_find?_eq_some found
               · contradiction
-        cases cached : node.failure with
+        cases cached : queue.rejectedTask? node with
         | none =>
             dsimp only
             intro key published
@@ -88,23 +88,15 @@ theorem drainReadyGroups_go_publicationRoots_live (fuel : Nat) (queue : Kernel)
             · have present := ih _ later
               rw [(ReferenceWorkQueue.State.startNewWork_groupCore _ _).1] at present
               exact edges_keys (queue.finishGroupSuccess_descendants node).1 key present
-        | some errors =>
+        | some rejected =>
             dsimp only
             intro key published
-            have later : key ∈ publicationRoots
-                (ReferenceWorkQueue.State.drainReadyGroups.go fuel
-                  (queue.finishGroupFailure node errors).1).2 := by
-              simpa only [publicationRoots, List.filterMap_cons, List.filterMap_append,
-                List.filterMap_nil, List.nil_append,
-                ReferenceWorkQueue.State.finishGroupFailure]
-                using published
-            have edges : (queue.finishGroupFailure node errors).1.GroupEdgesFrom queue := by
-              intro key group found
-              exact queue.filterRefs_groupEdgesFrom
-                (fun key => !(ReferenceWorkQueue.State.removeGroup.collect
-                  (queue.groupNodes.length + 1) queue [node.group.node.ref] []).contains key)
-                key group found
-            exact edges_keys edges key (ih _ later)
+            rw [publicationRoots, List.filterMap_append] at published
+            rcases List.mem_append.mp published with first | later
+            · obtain ⟨group, groups, streams, carrier, _⟩ := mem_publicationRoots.mp first
+              exact False.elim (queue.taskFailure_noGroupSuccess _ _ group groups streams carrier)
+            · exact ((queue.taskFailure_groupNodes_sublist _ _).map
+                (fun node => node.group.node.ref)).subset (ih _ later)
 
 private theorem fold_publicationRoots_live (queue : Kernel)
     (groups : List Execution.DeliveryNode)
@@ -165,34 +157,26 @@ theorem eagerRegistrationSnapshot_publicationRoots_live (queue : Kernel)
             ReferenceWorkQueue.State.taskSuccess, found, publicationRoots, List.filterMap_nil]
           intro key member; cases member
       | some node =>
-          cases healthy : queue.taskHasHealthyOwner node.task with
-          | false =>
-              simp only [ReferenceWorkQueue.State.handleGraphEvent,
-                ReferenceWorkQueue.State.taskSuccess, found, healthy, Bool.not_false,
-                ↓reduceIte, publicationRoots, List.filterMap_nil]
-              intro key member; cases member
-          | true =>
-              let snapshot := eagerRegistrationSnapshot queue (.taskSuccess occurrence result)
-              have prepared := fold_publicationRoots_live snapshot node.task.groups
-              have snapshotEq : snapshot =
-                  ((queue.putTaskNode { node with value := some result.value }).maybeIntegrateWork
-                    result.work (some occurrence)).1 := by
-                simp only [snapshot, eagerRegistrationSnapshot, found, healthy, ↓reduceIte]
-              rw [snapshotEq] at prepared
-              change (publicationRoots (queue.handleGraphEvent _).2).Subset
-                (snapshot.groupNodes.map (fun node => node.group.node.ref))
-              rw [snapshotEq]
-              simp only [ReferenceWorkQueue.State.handleGraphEvent]
-              rw [queue.taskSuccess_eq occurrence result node found]
-              simp only [healthy, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
-              change (publicationRoots (_ ++ _)).Subset _
-              intro key published
-              rw [publicationRoots, List.filterMap_append] at published
-              rcases List.mem_append.mp published with first | later
-              · exact prepared.2 first
-              · apply prepared.1 key
-                have present := drainReadyGroups_go_publicationRoots_live _ _ later
-                rwa [(ReferenceWorkQueue.State.startNewWork_groupCore _ _).1] at present
+          let snapshot := eagerRegistrationSnapshot queue (.taskSuccess occurrence result)
+          have prepared := fold_publicationRoots_live snapshot node.task.groups
+          have snapshotEq : snapshot =
+              ((queue.putTaskNode { node with value := some result.value }).maybeIntegrateWork
+                result.work (some occurrence)).1 := by
+            simp only [snapshot, eagerRegistrationSnapshot, found]
+          rw [snapshotEq] at prepared
+          change (publicationRoots (queue.handleGraphEvent _).2).Subset
+            (snapshot.groupNodes.map (fun node => node.group.node.ref))
+          rw [snapshotEq]
+          simp only [ReferenceWorkQueue.State.handleGraphEvent]
+          rw [queue.taskSuccess_eq occurrence result node found]
+          change (publicationRoots (_ ++ _)).Subset _
+          intro key published
+          rw [publicationRoots, List.filterMap_append] at published
+          rcases List.mem_append.mp published with first | later
+          · exact prepared.2 first
+          · apply prepared.1 key
+            have present := drainReadyGroups_go_publicationRoots_live _ _ later
+            rwa [(ReferenceWorkQueue.State.startNewWork_groupCore _ _).1] at present
   | streamItems stream items =>
       cases active : queue.rootStreams.contains stream.ref with
       | false =>

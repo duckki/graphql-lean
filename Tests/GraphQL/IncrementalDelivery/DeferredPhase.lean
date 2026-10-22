@@ -16,8 +16,9 @@ an empty stream whose notice still needs a success carrier after its producer pu
 -/
 def work (first second : Result (List (Name × ResponseValue))) : Work :=
   .combine
-    (.executionGroup [{ node := node 0 }] [] first (.stream (node 2) []))
-    (.executionGroup [{ node := node 0 }, { node := node 1 }] [] second .empty)
+    (.executionGroup [{ node := node 0 }] [] { result := first } (.stream (node 2) []))
+    (.executionGroup [{ node := node 0 }, { node := node 1 }] [] { result := second }
+      .empty)
 
 /-- Every deferred task in this fixture is producer-free with initially covered owners.
 Witness: the two valid deferred addresses; entering either child cannot find another task.
@@ -60,7 +61,11 @@ empty initially, so an eventual error does not preemptively cancel it.
 theorem initialized (first second : Result (List (Name × ResponseValue)))
     : Initializes (work first second) [node 0, node 1] [] := by
   have task : TaskAt (work first second) (.executionGroup [1]) [0, 1] none
-      (.object [] second) := .executionGroup (.right .root)
+      (.object [] second) := by
+    simpa [node]
+      using (TaskAt.executionGroup (result := { result := second })
+                (Located.right Located.root)
+              : TaskAt (work first second) (.executionGroup [1]) _ _ _)
   refine ⟨⟨by decide, ?_, by simp⟩, by simp⟩
   intro owner member
   have known : NodeAt (work first second) owner .group [] none := by
@@ -91,6 +96,8 @@ while healthy refs zero and one remain available as success carriers. The child 
 is not forced into an invalid early notice. Witness: the general finite deferred phase.
 -/
 theorem phase_exists (first second : Result (List (Name × ResponseValue)))
+    (firstPositive : BasicErrors.PositiveFailure first)
+    (secondPositive : BasicErrors.PositiveFailure second)
     : ∃ events matching failures,
         Explains (work first second) [node 0, node 1] [] events matching failures
         ∧ (∀ event ∈ events, DeferredPhaseEvent event)
@@ -101,6 +108,7 @@ theorem phase_exists (first second : Result (List (Name × ResponseValue)))
   apply finish_root_deferred_tasks (paths := fun _ => []) (bound := 3)
   · simp [work, MixedOwnerPaths.WorkAt, OwnerPaths.MapAt, OwnerPaths.mapNodes,
       OwnerPaths.fragmentNodes, OwnerPaths.Assigned, Below, node]
+  · simpa [work, ExecutionErrors.WorkPositive, ExecutionErrors.ItemsPositive] using ⟨firstPositive, secondPositive⟩
   · exact initialized first second
   · exact fun _ _ _ _ known => (deferred_task known).1
   · intro address owners producer payload known

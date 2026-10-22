@@ -6,6 +6,20 @@ import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.TerminationSha
 
 namespace GraphQL.IncrementalDelivery.AlternativeWorkQueue
 open WorkQueueSemantics (NodeRefs Occurrence)
+open GraphQL.IncrementalDelivery.Execution (WorkQueueEvent)
+
+def fusedFailureGroupStep (errors : Nat)
+    (acc : State × List WorkQueueEvent × List CleanupTarget)
+    (group : Execution.DeliveryNode)
+    : State × List WorkQueueEvent × List CleanupTarget :=
+  match acc.1.queue.groupNode? group.ref with
+  | none => acc
+  | some node =>
+      if acc.1.queue.rootGroups.contains group.ref then
+        let reduced := acc.1.finishGroupFailure node errors acc.2.2
+        (reduced.1, acc.2.1 ++ [reduced.2.1], reduced.2.2)
+      else
+        acc
 
 private theorem removalTaskStep_stopped (acc : State × List CleanupTarget)
     (occurrence : Occurrence)
@@ -48,6 +62,32 @@ theorem State.removeGroup_stopped (state : State) (key : Nat)
     : (state.removeGroup key targets).1.stopped = state.stopped :=
   State.removeGroup_walk_stopped _ state [key] [] targets
 
+private theorem fusedFailureGroupStep_stopped (errors : Nat)
+    (acc : State × List WorkQueueEvent × List CleanupTarget)
+    (group : Execution.DeliveryNode)
+    : (fusedFailureGroupStep errors acc group).1.stopped = acc.1.stopped := by
+  unfold fusedFailureGroupStep
+  split
+  · rfl
+  · split
+    · exact acc.1.removeGroup_stopped _ _
+    · rfl
+
+theorem State.taskFailure_stopped (state : State) (occurrence : Occurrence) (errors : Nat)
+    (targets : List CleanupTarget := [])
+    : (state.taskFailure occurrence errors targets).1.stopped = state.stopped := by
+  have loop (groups : List Execution.DeliveryNode)
+      (acc : State × List WorkQueueEvent × List CleanupTarget)
+      : (groups.foldl (fusedFailureGroupStep errors) acc).1.stopped = acc.1.stopped := by
+    induction groups generalizing acc with
+    | nil => rfl
+    | cons group rest ih =>
+        exact (ih _).trans (fusedFailureGroupStep_stopped errors acc group)
+  unfold State.taskFailure
+  split
+  · rfl
+  · exact loop _ _
+
 theorem State.drainReadyGroups_go_stopped (fuel : Nat) (state : State)
     (targets : List CleanupTarget)
     : (State.drainReadyGroups.go fuel state targets).1.stopped = state.stopped := by
@@ -59,10 +99,10 @@ theorem State.drainReadyGroups_go_stopped (fuel : Nat) (state : State)
       split
       · rfl
       · rename_i group _
-        cases cached : group.failure with
-        | some errors =>
+        cases cached : state.queue.rejectedTask? group with
+        | some rejected =>
             dsimp only
-            exact (ih _ _).trans (State.removeGroup_stopped state group.group.node.ref targets)
+            exact (ih _ _).trans (state.taskFailure_stopped rejected.1 rejected.2 targets)
         | none =>
             dsimp only
             exact (ih _ _).trans (State.startNewWork_stopped _ _ {} targets)
@@ -136,6 +176,35 @@ theorem State.startNewWork_terminated (state : State) (roots : ReferenceWorkQueu
         (fun (queue : ReferenceWorkQueue.State) (task : ReferenceWorkQueue.Task) =>
           queue.startTask task.occurrence) step _ _
 
+private theorem fusedFailureGroupStep_terminated (errors : Nat)
+    (acc : State × List WorkQueueEvent × List CleanupTarget)
+    (group : Execution.DeliveryNode)
+    : (fusedFailureGroupStep errors acc group).1.queue.terminated
+      = acc.1.queue.terminated := by
+  unfold fusedFailureGroupStep
+  split
+  · rfl
+  · split
+    · exact acc.1.removeGroup_terminated _ _
+    · rfl
+
+theorem State.taskFailure_terminated (state : State) (occurrence : Occurrence)
+    (errors : Nat) (targets : List CleanupTarget := [])
+    : (state.taskFailure occurrence errors targets).1.queue.terminated
+      = state.queue.terminated := by
+  have loop (groups : List Execution.DeliveryNode)
+      (acc : State × List WorkQueueEvent × List CleanupTarget)
+      : (groups.foldl (fusedFailureGroupStep errors) acc).1.queue.terminated
+        = acc.1.queue.terminated := by
+    induction groups generalizing acc with
+    | nil => rfl
+    | cons group rest ih =>
+        exact (ih _).trans (fusedFailureGroupStep_terminated errors acc group)
+  unfold State.taskFailure
+  split
+  · rfl
+  · exact loop _ _
+
 theorem State.drainReadyGroups_go_terminated (fuel : Nat) (state : State)
     (targets : List CleanupTarget)
     : (State.drainReadyGroups.go fuel state targets).1.queue.terminated
@@ -148,10 +217,10 @@ theorem State.drainReadyGroups_go_terminated (fuel : Nat) (state : State)
       split
       · rfl
       · rename_i node _
-        cases cached : node.failure with
-        | some errors =>
+        cases cached : state.queue.rejectedTask? node with
+        | some rejected =>
             dsimp only
-            exact (ih _ _).trans (state.removeGroup_terminated node.group.node.ref targets)
+            exact (ih _ _).trans (state.taskFailure_terminated rejected.1 rejected.2 targets)
         | none =>
             dsimp only
             exact (ih _ _).trans ((State.startNewWork_terminated _ _ {} targets).trans

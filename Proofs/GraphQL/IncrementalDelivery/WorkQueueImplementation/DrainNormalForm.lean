@@ -1,4 +1,4 @@
-import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.CompleteFailureAccounting
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.FailureDrainProgress
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.ActiveLinks
 
 /-! The finite release-time drain exhausts every ready active group. -/
@@ -126,14 +126,19 @@ the live-node count. Missing/stale root entries cannot consume the budget.
 This is an executable normal-form fact, not host fairness or eventual source completion.
 -/
 theorem State.drainReadyGroups_normalForm (queue : State)
+    {work : Execution.Work}
+    (sound : queue.GroupMembershipSound) (registered : queue.StartedTasksRegistered)
+    (matching : queue.RegisteredTasksMatch work)
     : ∀ ref ∈ queue.drainReadyGroups.1.rootGroups,
         ∀ node,
           queue.drainReadyGroups.1.groupNode? ref = some node
-          → node.failure = none ∧ node.pending ≠ 0 := by
+          → queue.drainReadyGroups.1.rejectedTask? node = none ∧ node.pending ≠ 0 := by
   have loop (fuel : Nat) (current : State) (enough : current.groupNodes.length ≤ fuel)
+      (sound : current.GroupMembershipSound)
+      (registered : current.StartedTasksRegistered) (matching : current.RegisteredTasksMatch work)
       : ∀ ref ∈ (State.drainReadyGroups.go fuel current).1.rootGroups, ∀ node,
           (State.drainReadyGroups.go fuel current).1.groupNode? ref = some node
-          → node.failure = none ∧ node.pending ≠ 0 := by
+          → (State.drainReadyGroups.go fuel current).1.rejectedTask? node = none ∧ node.pending ≠ 0 := by
     induction fuel generalizing current with
     | zero =>
         intro ref active node found
@@ -154,26 +159,31 @@ theorem State.drainReadyGroups_normalForm (queue : State)
           | none => simp [found] at choice
           | some candidate =>
               simp only [found] at choice
-              change (if candidate.failure.isSome || candidate.pending == 0 then
+              change (if (current.rejectedTask? candidate).isSome || candidate.pending == 0 then
                 some candidate else none) = some node at choice
               split at choice
               · have equal := Option.some.inj choice
                 subst candidate
                 have member := List.mem_of_find?_eq_some found
-                cases failure : node.failure with
+                cases failure : current.rejectedTask? node with
                 | none =>
                     apply ih
-                    rw [(State.startNewWork_groupCore _ _).1]
-                    have decrease := State.finishGroupSuccess_length_lt member
-                    omega
-                | some errors =>
+                    · rw [(State.startNewWork_groupCore _ _).1]
+                      have decrease := State.finishGroupSuccess_length_lt member
+                      omega
+                    · exact (sound.finishGroupSuccess node).startNewWork _
+                    · exact (registered.finishGroupSuccess node).startNewWork _
+                    · exact (matching.finishGroupSuccess node).startNewWork _
+                | some rejected =>
+                    obtain ⟨occurrence, errors⟩ := rejected
                     apply ih
-                    have nodeRef := State.groupNode?_ref found
-                    have decrease := State.removeGroup_length_lt found
-                    change (current.removeGroup node.group.node.ref).groupNodes.length ≤ fuel
-                    rw [nodeRef]
-                    omega
+                    · have decrease := State.taskFailure_rejected_length_lt sound
+                        registered matching member (State.groupNode?_ref found ▸ active) failure
+                      simpa only using (show (current.taskFailure occurrence errors).1.groupNodes.length ≤ fuel by omega)
+                    · exact sound.taskFailure occurrence errors
+                    · exact registered.taskFailure occurrence errors
+                    · exact matching.taskFailure occurrence errors
               · contradiction
-  exact loop _ queue (Nat.le_refl _)
+  exact loop _ queue (Nat.le_refl _) sound registered matching
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

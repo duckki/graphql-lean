@@ -58,8 +58,8 @@ theorem State.drainReadyGroups_go_noticeTaskProvenance {queue : State} {work}
   · intro current node prior _ _ _ _
     exact ⟨(prior.1.finishGroupSuccess node).startNewWork _,
       (prior.2.finishGroupSuccess node).startNewWork _⟩
-  · intro current node errors prior _ _ _
-    exact ⟨prior.1.finishGroupFailure node errors, prior.2.finishGroupFailure node errors⟩
+  · intro current node occurrence errors prior _ _ _
+    exact ⟨prior.1.taskFailure occurrence errors, prior.2.taskFailure occurrence errors⟩
 
 -----------------------------------------------------------------------------------------
 -- The incoming task derives its prepared metadata from actual source replay

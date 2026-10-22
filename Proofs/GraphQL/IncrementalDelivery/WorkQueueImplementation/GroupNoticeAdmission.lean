@@ -41,7 +41,7 @@ theorem groupNotice_canAnnounce_of_fresh_dependencies
           { active := queue.initialGroups ++ queue.initialStreams }
         w.failures.Perm
           (streamCuts
-            ++ sourceObjectFailureCuts 0
+            ++ informativeObjectFailureCuts work
                 (queue.eligibleFailureBlocks
                   (queue.sourceRunBlocks publisher inputs).2.2)))
     (contents

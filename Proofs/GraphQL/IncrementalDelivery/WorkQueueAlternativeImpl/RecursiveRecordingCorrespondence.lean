@@ -20,7 +20,7 @@ mutual
       : WorkRecordings (.combine left right) (.combine eagerLeft eagerRight)
     | executionGroup
       {groups eagerGroups path eagerPath report eagerReport children eagerChildren}
-      (head : ReportRecording report eagerReport)
+      (head : ReportRecording report.toReport eagerReport.toReport)
       (nested : WorkRecordings children eagerChildren)
       : WorkRecordings (.executionGroup groups path report children)
           (.executionGroup eagerGroups eagerPath eagerReport eagerChildren)
@@ -28,11 +28,11 @@ mutual
       : WorkRecordings (.stream node items) (.stream eagerNode eagerItems)
 
   inductive ItemsRecordings
-      : List (Report ResponseValue × RecordedWork)
-        → List (Report ResponseValue × RecordedWork) → Prop where
+      : List (RecordedOutcome ResponseValue × RecordedWork)
+        → List (RecordedOutcome ResponseValue × RecordedWork) → Prop where
     | nil : ItemsRecordings [] []
     | cons {report eagerReport children eagerChildren rest eagerRest}
-      (head : ReportRecording report eagerReport)
+      (head : ReportRecording report.toReport eagerReport.toReport)
       (nested : WorkRecordings children eagerChildren)
       (tail : ItemsRecordings rest eagerRest)
       : ItemsRecordings ((report, children) :: rest)

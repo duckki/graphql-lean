@@ -1,4 +1,8 @@
 import Tests.GraphQL.IncrementalDelivery.Execution
+import Tests.GraphQL.IncrementalDelivery.Fixtures.SuccessCounterReplay
+import Tests.GraphQL.IncrementalDelivery.Fixtures.DeliveryFailureReporting
+import Tests.GraphQL.IncrementalDelivery.Fixtures.CompletionReporting
+import Tests.GraphQL.IncrementalDelivery.Fixtures.RecordedCompletionReporting
 import Tests.GraphQL.IncrementalDelivery.WorkQueueAlternativeFusedRemovalSafety
 import Tests.GraphQL.IncrementalDelivery.WorkQueueAlternativeFusedRemovalAccounting
 import Tests.GraphQL.IncrementalDelivery.WorkQueueAlternativeFusedRemovalProjection

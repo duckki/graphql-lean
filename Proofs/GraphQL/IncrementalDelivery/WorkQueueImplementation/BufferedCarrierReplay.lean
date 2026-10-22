@@ -28,25 +28,6 @@ theorem State.rawEventReplay_append (queue : State) (before after : List GraphEv
 -- Later successful carriers cannot recreate already registered contributing groups
 -----------------------------------------------------------------------------------------
 
-/-- Matching event replay preserves registration coverage and all earlier registrations.
-Witness: compose the existing per-handler registration theorem in source order.
--/
-theorem State.replayGraphEvents_registration {queue : State} {work : Execution.Work}
-    (live : queue.LiveGroupsRegistered) (tasks : queue.TaskGroupsRegistered)
-    (events : List GraphEvent) (matching : ∀ event ∈ events, event.MatchesWork work)
-    : (queue.replayGraphEvents events).LiveGroupsRegistered
-      ∧ (queue.replayGraphEvents events).TaskGroupsRegistered
-      ∧ queue.registeredGroups.Subset
-          (queue.replayGraphEvents events).registeredGroups := by
-  induction events generalizing queue with
-  | nil => exact ⟨live, tasks, List.Subset.refl _⟩
-  | cons event rest ih =>
-      have next := queue.handleGraphEvent_registration live tasks event
-        (matching event List.mem_cons_self)
-      have final := ih next.1 next.2.1
-        (fun later member => matching later (List.mem_cons_of_mem _ member))
-      exact ⟨final.1, final.2.1, next.2.2.trans final.2.2⟩
-
 /-- A successful carrier's previously registered group is live at the handler input.
 Witness: otherwise permanent retirement would forbid that handler from emitting its
 closing ref. Newly registered groups are intentionally excluded by the registry premise.

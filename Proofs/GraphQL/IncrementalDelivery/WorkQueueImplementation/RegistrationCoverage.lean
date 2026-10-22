@@ -1,3 +1,4 @@
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.InputReplay
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.RegistrationProvenance
 
 /-! Permanent registration covers live groups and every integrated task contributor. -/
@@ -247,11 +248,9 @@ theorem State.startNewWork_registeredGroups (queue : State) (work : NewWork)
     unfold State.startGroup
     split
     · rfl
-    · split
-      · rfl
-      · exact fold_preserves State.startTask
-          (fun state => state.registeredGroups = current.registeredGroups)
-          (fun state occurrence prior => (task state occurrence).trans prior) _ current rfl
+    · exact fold_preserves State.startTask
+        (fun state => state.registeredGroups = current.registeredGroups)
+        (fun state occurrence prior => (task state occurrence).trans prior) _ current rfl
   have stream (current : State) (ref : NodeRef)
       : (current.startStream ref).registeredGroups = current.registeredGroups := by
     unfold State.startStream
@@ -335,47 +334,17 @@ theorem State.taskFailure_registration {queue : State}
       ∧ (queue.taskFailure occurrence errors).1.TaskGroupsRegistered
       ∧ (queue.taskFailure occurrence errors).1.registeredGroups
         = queue.registeredGroups := by
-  let step (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode) :=
-    let (current, events) := acc
-    match current.groupNode? group.ref with
-    | none => (current, events)
-    | some node =>
-        if current.rootGroups.contains group.ref then
-          let (next, failure) := current.finishGroupFailure node errors
-          (next, events ++ [failure])
-        else (current.putGroupNode
-          { node with
-            pending := node.pending - 1
-            failure := some (node.failure.getD 0 + errors) }, events)
-  let property (acc : State × List WorkQueueEvent) := acc.1.LiveGroupsRegistered
-    ∧ acc.1.TaskGroupsRegistered ∧ acc.1.registeredGroups = queue.registeredGroups
-  have removed (current : State) (ref : NodeRef) (prior : property (current, []))
-      : property (current.removeGroup ref, []) := by
-    exact ⟨fun node member => prior.1 node (List.mem_filter.mp member).1, prior.2⟩
-  have preserved (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode)
-      (prior : property acc) : property (step acc group) := by
-    obtain ⟨current, events⟩ := acc
-    dsimp only [step]
-    split
-    · exact prior
-    · rename_i node found
-      split
-      · exact removed current _ prior
-      · exact ⟨prior.1.putGroupNode _
-          (prior.1 node (List.mem_of_find?_eq_some found)), prior.2⟩
-  unfold State.taskFailure
-  split
-  · exact ⟨live, tasks, rfl⟩
-  · split
-    · refine ⟨?_, tasks, rfl⟩
-      intro node member
-      obtain ⟨old, oldMember, rfl⟩ := List.mem_map.mp member
-      exact live old oldMember
-    apply fold_preserves step property preserved
-    refine ⟨?_, tasks, rfl⟩
-    intro node member
-    obtain ⟨old, oldMember, rfl⟩ := List.mem_map.mp member
-    exact live old oldMember
+  cases found : queue.taskNode? occurrence with
+  | none =>
+      simp only [State.taskFailure, found]
+      exact ⟨live, tasks, trivial⟩
+  | some node =>
+      rw [queue.taskFailure_eq occurrence errors node found]
+      exact failureGroupFold_preserves
+        (fun state => state.LiveGroupsRegistered ∧ state.TaskGroupsRegistered
+          ∧ state.registeredGroups = queue.registeredGroups)
+        (fun _ _ prior => ⟨fun other member => prior.1 other (List.mem_filter.mp member).1,
+          prior.2⟩) _ _ _ ⟨live, tasks, rfl⟩
 
 /-- Proof notation for one stream-item integration, before the handler's final drain.
 Witness: this is the literal integration, pruning, and activation step in `streamItems`.
@@ -514,8 +483,9 @@ theorem State.drainReadyGroups_registration {queue : State}
       refine ⟨started.1, started.2, ?_⟩
       rw [State.startNewWork_registeredGroups, closed.2.2, prior.2.2])
     (by
-      intro current node errors prior _ _ _
-      exact ⟨fun other member => prior.1 other (List.mem_filter.mp member).1, prior.2⟩)
+      intro current _ occurrence errors prior _ _ _
+      have failed := current.taskFailure_registration prior.1 prior.2.1 occurrence errors
+      exact ⟨failed.1, failed.2.1, failed.2.2.trans prior.2.2⟩)
     ⟨live, tasks, rfl⟩
 
 /-- Task success preserves coverage and can only enlarge the permanent registry.
@@ -539,11 +509,6 @@ theorem State.taskSuccess_registration {queue : State} {work : Execution.Work}
               member))
   | some node =>
       rw [queue.taskSuccess_eq occurrence result node found]
-      split
-      · refine ⟨?_, tasks, fun _ member => member⟩
-        intro group member
-        obtain ⟨old, oldMember, rfl⟩ := List.mem_map.mp member
-        exact live old oldMember
       let stored := queue.putTaskNode { node with value := some result.value }
       have storedLive : stored.LiveGroupsRegistered := live
       have storedTasks : stored.TaskGroupsRegistered := tasks
@@ -729,5 +694,24 @@ theorem createWorkQueue_runNormalized_registration
     (createWorkQueue_registration work).2 batches
     (fun _ batchMember _ eventMember =>
       valid.eachMatches (List.mem_flatten.mpr ⟨_, batchMember, eventMember⟩))
+
+/-- Matching event replay preserves registration coverage and all earlier registrations.
+Witness: compose the existing per-handler registration theorem in source order.
+-/
+theorem State.replayGraphEvents_registration {queue : State} {work : Execution.Work}
+    (live : queue.LiveGroupsRegistered) (tasks : queue.TaskGroupsRegistered)
+    (events : List GraphEvent) (matching : ∀ event ∈ events, event.MatchesWork work)
+    : (queue.replayGraphEvents events).LiveGroupsRegistered
+      ∧ (queue.replayGraphEvents events).TaskGroupsRegistered
+      ∧ queue.registeredGroups.Subset
+          (queue.replayGraphEvents events).registeredGroups := by
+  induction events generalizing queue with
+  | nil => exact ⟨live, tasks, List.Subset.refl _⟩
+  | cons event rest ih =>
+      have next := queue.handleGraphEvent_registration live tasks event
+        (matching event List.mem_cons_self)
+      have final := ih next.1 next.2.1
+        (fun later member => matching later (List.mem_cons_of_mem _ member))
+      exact ⟨final.1, final.2.1, next.2.2.trans final.2.2⟩
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

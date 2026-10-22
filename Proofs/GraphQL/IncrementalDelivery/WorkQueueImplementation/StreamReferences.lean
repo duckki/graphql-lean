@@ -113,6 +113,17 @@ theorem State.finishGroupSuccess_streamReferences (queue : State) (group : Group
   rw [events]
   split <;> simp [rawStreamReferenceRefs]
 
+/-- Task-failure output has no stream reference.
+Witness: the contributor loop emits group failures or silently caches group errors.
+-/
+theorem State.taskFailure_streamReferences (queue : State) (occurrence : Occurrence)
+    (errors : Nat)
+    : (queue.taskFailure occurrence errors).2.flatMap rawStreamReferenceRefs = [] := by
+  apply List.flatMap_eq_nil_iff.mpr
+  intro event member
+  obtain ⟨owner, rfl⟩ := queue.taskFailure_event_failure occurrence errors event member
+  rfl
+
 /-- Recursive group draining emits no stream reference, even when it announces new streams.
 Witness: induction over the executable drain; both success and failure emit only group events.
 -/
@@ -128,13 +139,13 @@ theorem State.drainReadyGroups_streamReferences (queue : State)
         split
         · rfl
         · rename_i node selected
-          cases cached : node.failure with
+          cases cached : current.rejectedTask? node with
           | none =>
               simp only [List.flatMap_append, State.finishGroupSuccess_streamReferences,
                 ih, List.nil_append]
-          | some errors =>
-              simp only [State.finishGroupFailure, List.flatMap_append,
-                List.flatMap_singleton, rawStreamReferenceRefs, ih, List.nil_append]
+          | some rejected =>
+              obtain ⟨occurrence, errors⟩ := rejected
+              simp only [List.flatMap_append, State.taskFailure_streamReferences, ih, List.nil_append]
   exact loop _ queue
 
 /-- Recursive draining cannot emit a stream-value carrier, even one with no items.
@@ -174,46 +185,8 @@ theorem State.taskSuccess_streamReferences (queue : State) (occurrence : Occurre
   | none => simp [State.taskSuccess, found]
   | some node =>
       rw [queue.taskSuccess_eq occurrence result node found]
-      split
-      · rfl
       simp only [List.flatMap_append, State.drainReadyGroups_streamReferences, List.append_nil]
       exact loop _ (_, [], {})
-
-/-- Task-failure output has no stream reference.
-Witness: the contributor loop emits group failures or silently caches group errors.
--/
-theorem State.taskFailure_streamReferences (queue : State) (occurrence : Occurrence)
-    (errors : Nat)
-    : (queue.taskFailure occurrence errors).2.flatMap rawStreamReferenceRefs = [] := by
-  let step (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode) :=
-    match acc.1.groupNode? group.ref with
-    | none => acc
-    | some node =>
-        if acc.1.rootGroups.contains group.ref then
-          let failure := acc.1.finishGroupFailure node errors
-          (failure.1, acc.2 ++ [failure.2])
-        else (acc.1.putGroupNode
-          { node with pending := node.pending - 1
-                      failure := some (node.failure.getD 0 + errors) }, acc.2)
-  have loop (groups : List Execution.DeliveryNode) (acc : State × List WorkQueueEvent)
-      : (groups.foldl step acc).2.flatMap rawStreamReferenceRefs
-        = acc.2.flatMap rawStreamReferenceRefs := by
-    induction groups generalizing acc with
-    | nil => rfl
-    | cons group rest ih =>
-        rw [List.foldl_cons, ih]
-        unfold step
-        split
-        · rfl
-        · split
-          · simp [State.finishGroupFailure, List.flatMap_append, rawStreamReferenceRefs]
-          · rfl
-  unfold State.taskFailure
-  split
-  · rfl
-  · split
-    · rfl
-    exact loop _ (_, [])
 
 /-- Every emitted stream reference uses a stream active at the handler's entry.
 Witness: task handlers have no references; stream handlers check rootStreams before output.

@@ -207,7 +207,7 @@ theorem createWorkQueue_eligibleObjectFailureCuts_announcedOwner {work : Executi
   let publisher : IncrementalPublisher :=
     { active := queue.initialGroups ++ queue.initialStreams }
   obtain ⟨earlier, outputs, errors, later, node, blocksEq, _, outputEq, _,
-    priorValid, _, _, _, found, _⟩ :=
+    priorValid, _, _, _, found⟩ :=
     createWorkQueue_eligibleObjectFailureCuts_split valid started split
   obtain ⟨owners, owner, structural, contributes, announced⟩ :=
     createWorkQueue_replayGraphEvents_announcedOwner priorValid found

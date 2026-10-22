@@ -147,12 +147,12 @@ mutual
                 rcases explained count first with already | retained
                 · obtain ⟨count, bubbles⟩ := already
                   exact (by
-                    simpa only [bubbles]
+                    simpa only [Completion.outcome, bubbles]
                       using (FailedBelow.executionGroup_error
                               (usages.filterMap (lookupDeferredFragment? deferMap)) path
                               count initial.work).combine_left
                         tail)
-                · exact (retained.executionGroup_child _ path initial.result).combine_left tail
+                · exact (retained.executionGroup_child _ path initial.outcome).combine_left tail
             | ok head =>
                 cases last
                       : GraphQL.Execution.executeCollectedFields schema resolvers
@@ -607,7 +607,7 @@ mutual
           | error count =>
               exact runEnsures_pure _ _
                 (fun _ _ =>
-                  ⟨.error count, .empty, by simp, Or.inl ⟨count, rfl⟩⟩)
+                  ⟨initial.outcome, .empty, by simp, Or.inl ⟨count, initialResult⟩⟩)
           | ok pair =>
               refine runEnsures_bind
                 (fun items =>
@@ -628,7 +628,7 @@ mutual
                     rcases explained.1 count first with already | retained
                     · obtain ⟨count, impossible⟩ := already
                       simp [initialResult] at impossible
-                    · exact ⟨.ok pair, initial.work, by simp,
+                    · exact ⟨initial.outcome, initial.work, by simp,
                         Or.inr (retained.at_ancestor ⟨[.index index], rfl⟩)⟩
                 | ok head =>
                     cases last

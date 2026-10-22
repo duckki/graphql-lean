@@ -16,10 +16,10 @@ private def leftInitial : List (Name × ResponseValue) :=
 private def rightInitial : List (Name × ResponseValue) := [("missing", .object [])]
 
 private def leftWork : Work :=
-  .stream streamNode [(.ok (.scalar "b", 2), .empty)]
+  .stream streamNode [({ result := .ok (.scalar "b", 2) }, .empty)]
 
 private def rightWork : Work :=
-  .executionGroup [] (missing ++ [.field "child"]) (.error 1) .empty
+  .executionGroup [] (missing ++ [.field "child"]) ({ result := .error 1 }) .empty
 
 private def leftReference : List (Name × ResponseValue) :=
   [("xs", .list [.scalar "a", .scalar "b"])]
@@ -92,8 +92,9 @@ example (containers : Bool)
     : EntriesCovered containers
         (TypedResponse.value [] (.list [.null, .list []]))
         (preparedValuePositions containers [] (.list [.object [], .list []])
-          (.executionGroup [] [.index 0, .field "child"] (.error 1) .empty))
-        (.executionGroup [] [.index 0, .field "child"] (.error 1) .empty) := by
+          (.executionGroup [] [.index 0, .field "child"] ({ result := .error 1 }) .empty))
+        (.executionGroup [] [.index 0, .field "child"] ({ result := .error 1 })
+          .empty) := by
   apply EntriesCovered.list
   · intro entry member visible
     change entry ∈ [([.index 0], .null), ([.index 1], .list)] at member
@@ -112,8 +113,10 @@ The streamed scalar has a counted error; the second initial object has no leaf p
 -/
 example (containers : Bool)
     : let first : Work :=
-        .stream { ref := 8, path := [.index 0] } [(.ok (.scalar "b", 2), .empty)]
-      let second : Work := .executionGroup [] [.index 1, .field "child"] (.error 1) .empty
+        .stream { ref := 8, path := [.index 0] }
+          [({ result := .ok (.scalar "b", 2) }, .empty)]
+      let second : Work :=
+        .executionGroup [] [.index 1, .field "child"] ({ result := .error 1 }) .empty
       EntriesCovered containers
         [([.index 0, .index 1], .scalar "b"), ([.index 1], .null)]
         (preparedItemPositions containers [] 0 [.list [.scalar "a"], .object []]

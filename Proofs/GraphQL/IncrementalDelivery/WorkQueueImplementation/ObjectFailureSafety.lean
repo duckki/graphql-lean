@@ -1,5 +1,4 @@
-import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.MixedFailureHealth
-import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.SuccessfulItemCertificates
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.InformativeObjectFailureSafety
 
 /-! Accepted object failures are safe at their original ordered mixed failure cuts. -/
 
@@ -41,83 +40,11 @@ theorem objectFailuresSafe_of_successfulItems {work inputs w streams}
           { active := queue.initialGroups ++ queue.initialStreams }
         w.failures
         = mergeFailureCuts
-            (sourceObjectFailureCuts 0
+            (informativeObjectFailureCuts work
               (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher inputs).2.2))
             streams)
     : ObjectFailuresSafe work w := by
-  let queue := initialQueue work
-  let publisher : IncrementalPublisher :=
-    { active := queue.initialGroups ++ queue.initialStreams }
-  let objects := sourceObjectFailureCuts 0
-    (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher inputs).2.2)
-  have objectsKnown : ∀ entry ∈ objects,
-      ∃ owners producer path errors,
-        TaskAt work entry.2 owners producer (.object path (.error errors)) := by
-    intro entry member
-    obtain ⟨_, owners, producer, path, errors, known, _⟩ :=
-      createWorkQueue_eligibleObjectFailureCuts_origin generated valid entry member
-    exact ⟨owners, producer, path, errors, known⟩
-  intro before cut address after split
-  have included : before.Subset w.failures := by
-    rw [split]
-    exact List.subset_append_left _ _
-  have failedPayloads : ∀ index occurrence,
-      (index, occurrence) ∈ before
-      → ∃ owners producer payload,
-          TaskAt work occurrence owners producer payload ∧ payload.failure.isSome = true :=
-    fun index occurrence member =>
-      (announced.1.2.2.1 (index, occurrence) (included member)).2.2
-  obtain ⟨prior, later, objectSplit, retained⟩ :=
-    mixedFailureCuts_objectPrefix objectsKnown cuts (exactCuts.symm.trans split)
-  obtain ⟨earlier, _, errors, _, node, _, _, _, sourcePrefix, priorValid, _, _, ledger,
-    found, healthy⟩ := createWorkQueue_eligibleObjectFailureCuts_split valid started objectSplit
-  have priorPrefix : (earlier.filterMap Prod.fst).IsPrefix inputs.flatten :=
-    (List.prefix_append _ _).trans sourcePrefix
-  have accepted := queue.batchesStarted_acceptsBatch inputs
-    (by rwa [← inputsStarted_eq_batchesStarted])
-  have priorAccepted : queue.acceptsBatch (earlier.filterMap Prod.fst) = true := by
-    obtain ⟨suffix, same⟩ := priorPrefix
-    rw [← same] at accepted
-    exact State.acceptsBatch_prefix accepted
-  have bookkeeping := (createWorkQueue_pendingAccounting work).replayGraphEvents
-    (before := []) generated (earlier.filterMap Prod.fst) priorValid priorAccepted
-  obtain ⟨nodeMember, occurrenceEq⟩ := State.taskNode?_some found
-  have registeredTask := bookkeeping.started node nodeMember
-  obtain ⟨⟨_, payload, producer, _, task⟩, _⟩ :=
-    bookkeeping.matching node.task registeredTask
-  have task : TaskAt work (.executionGroup address)
-      (node.task.groups.map Execution.DeliveryNode.ref) producer payload := occurrenceEq ▸ task
-  obtain ⟨owner, contributes, guard⟩ := State.taskHasHealthyOwner_iff.mp healthy
-  have owns : owner.ref ∈ node.task.groups.map Execution.DeliveryNode.ref :=
-    List.mem_map.mpr ⟨owner, contributes, rfl⟩
-  obtain ⟨group, dependencies, descriptor, refEq⟩ := task.executionGroup_owner owns
-  have ownerHealthy : ¬NodeFailed work w.matching (w.events.take cut) before owner.ref := by
-    rw [← refEq]
-    apply generated.replayGraphEvents_groupHealthy_of_itemSafety priorValid priorAccepted
-      descriptor
-      (refEq.symm ▸ bookkeeping.taskGroups node.task registeredTask owner.ref owns)
-      (refEq.symm ▸ guard) failedPayloads
-    · intro occurrence owners producer path result known member
-      obtain ⟨entry, selected, same⟩ := List.mem_map.mp member
-      have preceding := retained entry (List.mem_filter.mp selected).1
-        owners producer path result (same.symm ▸ known)
-      rw [← ledger, List.mem_reverse]
-      exact List.mem_map.mpr ⟨entry, preceding, same⟩
-    · exact safe.prefix priorPrefix cut included
-  intro cancelled
-  apply ownerHealthy
-  apply generated.object_cancelled_owner_failed_of_itemSafety valid failedPayloads
-    (safe.prefix (List.prefix_refl _) cut included) task owns _ cancelled
-  intro source same
-  subst producer
-  apply valid.groupSettlement_producerBefore task
-  apply List.mem_flatMap.mpr
-  refine ⟨
-    .taskFailure (.executionGroup address) errors,
-    ?_,
-    by simp [GraphEvent.identities]
-  ⟩
-  exact sourcePrefix.subset (List.mem_append_right _ List.mem_cons_self)
+  exact informativeObjectFailures_uncancelled generated valid started announced safe cuts exactCuts
 
 -----------------------------------------------------------------------------------------
 -- The derived safety uses the canonical witness, not a replacement inventory

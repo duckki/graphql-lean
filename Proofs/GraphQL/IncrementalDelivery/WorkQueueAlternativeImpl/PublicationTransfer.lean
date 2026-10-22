@@ -26,15 +26,10 @@ private theorem eagerRegistrationSnapshot_childStreams {queue : Kernel}
       cases found : queue.taskNode? occurrence with
       | none => simpa only [eagerRegistrationSnapshot, found] using inventory
       | some node =>
-          cases healthy : queue.taskHasHealthyOwner node.task with
-          | false =>
-              simpa only [eagerRegistrationSnapshot, found, healthy, Bool.false_eq_true,
-                ↓reduceIte] using inventory
-          | true =>
-              simp only [eagerRegistrationSnapshot, found, healthy, ↓reduceIte]
-              have known := inventory node (List.mem_of_find?_eq_some found)
-              exact (inventory.putTaskNode { node with value := some result.value }
-                known.1 known.2).maybeIntegrateWork result.work (some occurrence)
+          simp only [eagerRegistrationSnapshot, found]
+          have known := inventory node (List.mem_of_find?_eq_some found)
+          exact (inventory.putTaskNode { node with value := some result.value }
+            known.1 known.2).maybeIntegrateWork result.work (some occurrence)
   | streamItems stream items =>
       cases active : queue.rootStreams.contains stream.ref with
       | false =>
@@ -61,18 +56,13 @@ private theorem eagerRegistrationSnapshot_conserves {queue : Kernel} {work settl
       cases found : queue.taskNode? occurrence with
       | none => simpa only [eagerRegistrationSnapshot, found] using old
       | some node =>
-          cases healthy : queue.taskHasHealthyOwner node.task with
-          | false =>
-              simpa only [eagerRegistrationSnapshot, found, healthy, Bool.false_eq_true,
-                ↓reduceIte] using old
-          | true =>
-              have unsettled : occurrence ∉ settled := by
-                intro member
-                exact fresh.2.2.1 occurrence List.mem_cons_self (included member)
-              simpa only [eagerRegistrationSnapshot, found, healthy, ↓reduceIte,
-                ReferenceWorkQueue.State.handleGraphEvent]
-                using ReferenceWorkQueue.State.taskSuccess_preparedBufferedStreams
-                  accounted links inventory found healthy unsettled
+          have unsettled : occurrence ∉ settled := by
+            intro member
+            exact fresh.2.2.1 occurrence List.mem_cons_self (included member)
+          simpa only [eagerRegistrationSnapshot, found,
+            ReferenceWorkQueue.State.handleGraphEvent]
+            using ReferenceWorkQueue.State.taskSuccess_preparedBufferedStreams
+              accounted links inventory found unsettled
   | streamItems stream items =>
       cases active : queue.rootStreams.contains stream.ref with
       | false =>

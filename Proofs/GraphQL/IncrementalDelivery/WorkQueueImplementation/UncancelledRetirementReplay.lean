@@ -53,6 +53,17 @@ private theorem RetirementFrame.drainReadyGroups {queue : State} {work parents}
   exact ⟨prior.groups.drainReadyGroups, prior.links.drainReadyGroups,
     registered.1, registered.2.1, retired.1, retired.2⟩
 
+/-- Task rejection preserves the structural frame through retained computation replay. -/
+private theorem RetirementFrame.taskFailure {queue : State} {work parents}
+    (prior : RetirementFrame queue work parents) (occurrence : Occurrence) (errors : Nat)
+    : RetirementFrame (queue.taskFailure occurrence errors).1 work parents := by
+  have registered := queue.taskFailure_registration prior.live prior.tasks occurrence errors
+  exact ⟨prior.groups.taskFailure occurrence errors, prior.links.taskFailure occurrence errors,
+    registered.1, registered.2.1,
+    prior.roots.mono (queue.taskFailure_rootsSubset occurrence errors)
+      (fun _ retired => retired.taskFailure occurrence errors),
+    prior.retired.taskFailure occurrence errors⟩
+
 /-- Every drain notice retains its ancestor retirements through the remaining drain.
 Witness: each successful closure protects its pruned frontier before activation; later
 success or failure cleanup cannot recreate those ancestors. The child may later fail.
@@ -82,13 +93,13 @@ private theorem RetirementFrame.drainReadyGroups_go_noticeRetirement
           | none => simp [found] at choice
           | some candidate =>
               simp only [found] at choice
-              change (if candidate.failure.isSome || candidate.pending == 0 then
+              change (if (current.rejectedTask? candidate).isSome || candidate.pending == 0 then
                 some candidate else none) = some node at choice
               split at choice
               · cases Option.some.inj choice
                 have member := List.mem_of_find?_eq_some found
                 have roots := frame.roots _ (current.groupNode?_ref found ▸ active)
-                cases cached : node.failure with
+                cases cached : current.rejectedTask? node with
                 | none =>
                     have certificates := current.finishGroupSuccess_ancestorsRetired
                       generated frame.groups frame.links canonical frame.live member roots
@@ -107,19 +118,15 @@ private theorem RetirementFrame.drainReadyGroups_go_noticeRetirement
                     exact (noticed.mono (fun _ retired =>
                       (retired.startNewWork _).drainReadyGroups_go fuel)).append
                       (ih _ (next.startNewWork _ certificates.2.2))
-                | some errors =>
-                    have next : RetirementFrame (current.finishGroupFailure node errors).1
-                        work parents :=
-                      ⟨frame.groups.removeGroup _, frame.links.removeGroup _,
-                        fun child included => frame.live child (List.mem_filter.mp included).1,
-                        frame.tasks, frame.roots.mono (current.removeGroup_rootsSubset _)
-                          (fun _ retired => retired.removeGroup _),
-                        frame.retired.removeGroup _⟩
-                    exact (State.GroupNoticeAncestorsRetired.of_noNotices (by
-                      intro event emitted
-                      simp only [State.finishGroupFailure, List.mem_singleton] at emitted
-                      subst event
-                      rfl)).append (ih _ next)
+                | some rejected =>
+                    have next := frame.taskFailure rejected.1 rejected.2
+                    exact (State.GroupNoticeAncestorsRetired.of_noNotices
+                            (by
+                              intro event emitted
+                              obtain ⟨group, rfl⟩ :=
+                                current.taskFailure_event_failure _ _ event emitted
+                              rfl)).append
+                      (ih _ next)
               · contradiction
   exact loop fuel queue prior
 
@@ -197,7 +204,7 @@ private theorem RetirementFrame.maybeIntegrateWork {queue : State} {work parents
 
 /-- Successful task handling preserves structural retirement and emitted notice ancestry.
 Witness: matched child integration, protected successful closures, activation, and drain.
-The ignored-success branch performs only membership cleanup.
+Absent tasks produce no output; present tasks follow the same success path.
 -/
 private theorem RetirementFrame.taskSuccess_with_notices {queue : State} {work parents}
     (prior : RetirementFrame queue work parents) (generated : ExecutedWork work)
@@ -215,70 +222,29 @@ private theorem RetirementFrame.taskSuccess_with_notices {queue : State} {work p
         using And.intro prior (State.GroupNoticeAncestorsRetired.of_noNotices (by simp))
   | some taskNode =>
       rw [queue.taskSuccess_eq occurrence result taskNode found]
-      split
-      · refine ⟨⟨prior.groups.removeTask _, prior.links.removeTask _, ?_, prior.tasks,
-          prior.roots.mono (fun _ member => member)
-            (fun _ retired => retired.removeTask occurrence), prior.retired.removeTask _⟩,
-          .of_noNotices (by simp)⟩
-        intro node member
-        obtain ⟨old, oldMember, rfl⟩ := List.mem_map.mp member
-        exact prior.live old oldMember
-      · let stored := queue.putTaskNode { taskNode with value := some result.value }
-        have storedFrame : RetirementFrame stored work parents :=
-          ⟨prior.groups, prior.links, prior.live, prior.tasks, prior.roots, prior.retired⟩
-        have integrated := storedFrame.maybeIntegrateWork result.work
-          (fun _ member => matching.taskChildGroups_recordAt member)
-          (fun _ member => matching.taskChildGroups_parentCanonical canonical member)
-          matching.childTasksCovered (some occurrence)
-        have folded := successGroupFold_uncancelledRetirement integrated.retired generated
-          integrated.groups integrated.links canonical integrated.live integrated.tasks
-          integrated.roots taskNode.task.groups
-        have protectedRoots := successGroupFold_ancestorsRetired generated integrated.groups
-          integrated.links canonical integrated.live integrated.tasks integrated.roots
-          taskNode.task.groups
-        let final := taskNode.task.groups.foldl successGroupStep
-          ((stored.maybeIntegrateWork result.work (some occurrence)).1, [], {})
-        have finalFrame : RetirementFrame final.1 work parents :=
-          ⟨folded.1, folded.2.1, folded.2.2.1, folded.2.2.2.1,
-            folded.2.2.2.2.1, folded.2.2.2.2.2⟩
-        have activated := finalFrame.startNewWork final.2.2 protectedRoots.2
-        have noticed := State.successGroupFold_noticeAncestorRetirement protectedRoots.2
-        exact ⟨activated.drainReadyGroups generated canonical,
-          (noticed.mono (fun _ retired => (retired.startNewWork _).drainReadyGroups)).append
-            (activated.drainReadyGroups_noticeRetirement generated canonical)⟩
-
-/-- Task failure preserves uncancelled retirement without proving any failure healthy.
-Witness: cached failures leave live refs unchanged; removals mark every new retirement
-cancelled. This covers the ignored-failure cleanup branch as well.
--/
-theorem State.UncancelledRetiredAncestors.taskFailure {queue : State} {work}
-    (prior : queue.UncancelledRetiredAncestors work) (occurrence : Occurrence)
-    (errors : Nat)
-    : (queue.taskFailure occurrence errors).1.UncancelledRetiredAncestors work := by
-  have step (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode)
-      (invariant : acc.1.UncancelledRetiredAncestors work)
-      : (failureGroupStep errors acc group).1.UncancelledRetiredAncestors work := by
-    obtain ⟨current, events⟩ := acc
-    dsimp only [failureGroupStep]
-    split
-    · exact invariant
-    · split
-      · exact invariant.removeGroup _
-      · exact invariant.putGroupNode _
-  have loop (groups : List Execution.DeliveryNode) (acc : State × List WorkQueueEvent)
-      (invariant : acc.1.UncancelledRetiredAncestors work)
-      : (groups.foldl (failureGroupStep errors) acc).1.UncancelledRetiredAncestors
-          work := by
-    induction groups generalizing acc with
-    | nil => exact invariant
-    | cons group rest ih => exact ih _ (step acc group invariant)
-  cases found : queue.taskNode? occurrence with
-  | none => simpa [State.taskFailure, found] using prior
-  | some node =>
-      rw [queue.taskFailure_eq occurrence errors node found]
-      split
-      · exact prior.removeTask occurrence
-      · exact loop node.task.groups _ (prior.removeTask occurrence)
+      let stored := queue.putTaskNode { taskNode with value := some result.value }
+      have storedFrame : RetirementFrame stored work parents :=
+        ⟨prior.groups, prior.links, prior.live, prior.tasks, prior.roots, prior.retired⟩
+      have integrated := storedFrame.maybeIntegrateWork result.work
+        (fun _ member => matching.taskChildGroups_recordAt member)
+        (fun _ member => matching.taskChildGroups_parentCanonical canonical member)
+        matching.childTasksCovered (some occurrence)
+      have folded := successGroupFold_uncancelledRetirement integrated.retired generated
+        integrated.groups integrated.links canonical integrated.live integrated.tasks
+        integrated.roots taskNode.task.groups
+      have protectedRoots := successGroupFold_ancestorsRetired generated integrated.groups
+        integrated.links canonical integrated.live integrated.tasks integrated.roots
+        taskNode.task.groups
+      let final := taskNode.task.groups.foldl successGroupStep
+        ((stored.maybeIntegrateWork result.work (some occurrence)).1, [], {})
+      have finalFrame : RetirementFrame final.1 work parents :=
+        ⟨folded.1, folded.2.1, folded.2.2.1, folded.2.2.2.1,
+          folded.2.2.2.2.1, folded.2.2.2.2.2⟩
+      have activated := finalFrame.startNewWork final.2.2 protectedRoots.2
+      have noticed := State.successGroupFold_noticeAncestorRetirement protectedRoots.2
+      exact ⟨activated.drainReadyGroups generated canonical,
+        (noticed.mono (fun _ retired => (retired.startNewWork _).drainReadyGroups)).append
+          (activated.drainReadyGroups_noticeRetirement generated canonical)⟩
 
 -----------------------------------------------------------------------------------------
 -- Streaming may prune taskless wrappers before activating their protected descendants

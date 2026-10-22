@@ -16,8 +16,12 @@ private def rightTask : Occurrence := .executionGroup [1, 1, 0]
 
 private def work : Execution.Work :=
   .combine .empty
-    (.combine (.executionGroup [⟨left, []⟩] [] (.error 1) .empty)
-      (.combine (.executionGroup [⟨right, []⟩] [] (.error 1) .empty) .empty))
+    (.combine
+      (.executionGroup [⟨left, []⟩] [] ({ result := .error 1, cause := some 1 }) .empty)
+      (.combine
+        (.executionGroup [⟨right, []⟩] [] ({ result := .error 1, cause := some 1 })
+          .empty)
+        .empty))
 
 private def first : GraphEvent := .taskFailure leftTask 1
 private def second : GraphEvent := .taskFailure rightTask 1
@@ -40,9 +44,9 @@ theorem source_valid
       ∧ inputsStarted work [[first], [second]] = true
       ∧ inputsStarted work [[first, second]] = true := by
   have firstKnown : TaskAt work leftTask [left.ref] none (.object [] (.error 1)) :=
-    ⟨_, [], .error 1, .empty, [], rfl, rfl, rfl⟩
+    ⟨_, [], { result := .error 1, cause := some 1 }, .empty, [], rfl, rfl, rfl⟩
   have secondKnown : TaskAt work rightTask [right.ref] none (.object [] (.error 1)) :=
-    ⟨_, [], .error 1, .empty, [], rfl, rfl, rfl⟩
+    ⟨_, [], { result := .error 1, cause := some 1 }, .empty, [], rfl, rfl, rfl⟩
   have one : ValidGraphEvents work [first] :=
     .append .nil ⟨_, _, _, firstKnown⟩
       (by simp [first, GraphEvent.Fresh, GraphEvent.identities])

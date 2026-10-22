@@ -49,7 +49,7 @@ theorem successGroupFold_preservesSelected (eligible : Nat → Prop)
           split
           · rename_i ready
             have zero : node.pending - 1 = 0 := by
-              simpa using (Bool.and_eq_true_iff.mp (Bool.and_eq_true_iff.mp ready).1).2
+              simpa using (Bool.and_eq_true_iff.mp ready).2
             have member : { node with pending := node.pending - 1 } ∈
                 (queue.putGroupNode { node with pending := node.pending - 1 }).groupNodes := by
               exact List.mem_map.mpr ⟨node, List.mem_of_find?_eq_some found, by simp⟩
@@ -75,8 +75,9 @@ theorem State.HealthyPendingTracks.drainReadyGroups_ofBound {queue : State}
       have all := prior.2.allSettled member trivial zero
       exact ⟨(prior.1.finishGroupSuccess node all).startNewWork _,
         (prior.2.finishGroupSuccess node all).startNewWork _⟩)
-    (fun _ node _ prior _ _ _ =>
-      ⟨prior.1.removeGroup node.group.node.ref, prior.2.removeGroup node.group.node.ref⟩)
+    (fun _ _ occurrence errors prior _ _ _ =>
+      ⟨prior.1.taskFailure_preserves occurrence errors,
+        prior.2.taskFailure_preserves occurrence errors⟩)
     ⟨tracks, bounded⟩
   exact final.1
 
@@ -154,14 +155,6 @@ discharge both, without assuming that every active root is healthy.
 theorem State.HealthyPendingTracks.taskSuccess_allOutcomes {queue : State}
     {work settled failed} (tracks : queue.HealthyPendingTracks work settled failed)
     (accounted : queue.PendingAccounting work settled)
-    (supported : queue.CachedFailuresSupported work failed)
-    (cancelled : queue.CancelledRecordsSupported work failed)
-    (generated : ExecutedWork work)
-    (descriptors
-      : ∀ node ∈ queue.groupNodes,
-          ∃ dependencies,
-            GroupRecordAt work node.group.node dependencies
-            ∧ node.group.parent = dependencies.head?)
     (occurrence : Occurrence) (result : TaskResult) (taskNode : TaskNode)
     (found : queue.taskNode? occurrence = some taskNode) (fresh : occurrence ∉ settled)
     (freshChildren : ∀ task ∈ result.work.tasks, task.occurrence ∉ settled)
@@ -169,58 +162,52 @@ theorem State.HealthyPendingTracks.taskSuccess_allOutcomes {queue : State}
     (childrenMatch : ∀ task ∈ result.work.tasks, TaskMatches work task)
     : (queue.taskSuccess occurrence result).1.HealthyPendingTracks work
         (occurrence :: settled) failed := by
-  cases active : queue.taskHasHealthyOwner taskNode.task with
-  | false =>
-      exact tracks.taskSuccess_of_noHealthyOwner accounted.sound accounted.started
-        accounted.matching supported cancelled generated descriptors found active result
-  | true =>
-      let stored := queue.putTaskNode { taskNode with value := some result.value }
-      let integrated := (stored.maybeIntegrateWork result.work (some occurrence)).1
-      have storedTracks : stored.HealthyPendingTracks work settled failed := tracks
-      have storedBound : stored.PendingBound (fun _ => True) settled := accounted.pending
-      have storedRefs : stored.GroupRefsUnique := accounted.refs
-      have storedMembers : stored.TaskMembershipsUnique := accounted.memberships
-      have storedCovered : stored.TaskGroupsRegistered := accounted.taskGroups
-      have storedSound : stored.GroupMembershipSound := accounted.sound
-      have storedMatch : stored.RegisteredTasksMatch work := accounted.matching
-      have integratedTracks := storedTracks.maybeIntegrateWork result.work freshChildren
-        (some occurrence)
-      have integratedBound := storedBound.maybeIntegrateWork result.work (some occurrence)
-      have integratedRefs := storedRefs.maybeIntegrateWork result.work (some occurrence)
-      have integratedMembers := storedMembers.maybeIntegrateWork result.work (some occurrence)
-      have integratedLinks := (accounted.links.putTaskNode _).maybeIntegrateWork storedRefs
-        storedCovered result.work (some occurrence)
-      have integratedSound := storedSound.maybeIntegrateWork result.work (some occurrence)
-      have integratedMatch := storedMatch.maybeIntegrateWork result.work childrenMatch
-        (some occurrence)
-      have member : taskNode.task ∈ integrated.tasks := by
-        rw [State.maybeIntegrateWork_tasks_append]
-        exact List.mem_append_left _ (accounted.started taskNode
-          (List.mem_of_find?_eq_some found))
-      have same : taskNode.task.occurrence = occurrence :=
-        (occurrence_beq_iff_eq _ _).mp (List.find?_some
-          (p := fun candidate : TaskNode => candidate.task.occurrence == occurrence) found)
-      have owned := integratedLinks.ownedExactlyBy integratedSound integratedMatch member
-        (same.symm ▸ fresh)
-      rw [same] at owned
-      have debt : integrated.PendingDebt (fun ref => ¬GroupInvalidated work failed ref)
-          (occurrence :: settled) (taskNode.task.groups.map Execution.DeliveryNode.ref) :=
-        State.PendingDebt.beginSettlement integratedTracks integratedMembers
-          (fun node member _ => owned node member) fresh
-      have bound := integratedBound.beginSettlement integratedMembers
-        (fun node member _ => owned node member) fresh
-      have final := successGroupFold_preservesSelected
-        (fun ref => ¬GroupInvalidated work failed ref) (occurrence :: settled)
-        taskNode.task.groups uniqueOwners (integrated, [], {}) integratedRefs debt bound
-      let released := taskNode.task.groups.foldl successGroupStep (integrated, [], {})
-      have releasedTracks : released.1.HealthyPendingTracks work (occurrence :: settled)
-          failed := by
-        intro node member healthy
-        simpa [GroupNode.PendingTracks] using final.1 node member healthy
-      rw [queue.taskSuccess_eq occurrence result taskNode found]
-      simp only [active, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
-      exact (releasedTracks.startNewWork _).drainReadyGroups_ofBound
-        (final.2.startNewWork _)
+  let stored := queue.putTaskNode { taskNode with value := some result.value }
+  let integrated := (stored.maybeIntegrateWork result.work (some occurrence)).1
+  have storedTracks : stored.HealthyPendingTracks work settled failed := tracks
+  have storedBound : stored.PendingBound (fun _ => True) settled := accounted.pending
+  have storedRefs : stored.GroupRefsUnique := accounted.refs
+  have storedMembers : stored.TaskMembershipsUnique := accounted.memberships
+  have storedCovered : stored.TaskGroupsRegistered := accounted.taskGroups
+  have storedSound : stored.GroupMembershipSound := accounted.sound
+  have storedMatch : stored.RegisteredTasksMatch work := accounted.matching
+  have integratedTracks := storedTracks.maybeIntegrateWork result.work freshChildren
+    (some occurrence)
+  have integratedBound := storedBound.maybeIntegrateWork result.work (some occurrence)
+  have integratedRefs := storedRefs.maybeIntegrateWork result.work (some occurrence)
+  have integratedMembers := storedMembers.maybeIntegrateWork result.work (some occurrence)
+  have integratedLinks := (accounted.links.putTaskNode _).maybeIntegrateWork storedRefs
+    storedCovered result.work (some occurrence)
+  have integratedSound := storedSound.maybeIntegrateWork result.work (some occurrence)
+  have integratedMatch := storedMatch.maybeIntegrateWork result.work childrenMatch
+    (some occurrence)
+  have member : taskNode.task ∈ integrated.tasks := by
+    rw [State.maybeIntegrateWork_tasks_append]
+    exact List.mem_append_left _ (accounted.started taskNode
+      (List.mem_of_find?_eq_some found))
+  have same : taskNode.task.occurrence = occurrence :=
+    (occurrence_beq_iff_eq _ _).mp (List.find?_some
+      (p := fun candidate : TaskNode => candidate.task.occurrence == occurrence) found)
+  have owned := integratedLinks.ownedExactlyBy integratedSound integratedMatch member
+    (same.symm ▸ fresh)
+  rw [same] at owned
+  have debt : integrated.PendingDebt (fun ref => ¬GroupInvalidated work failed ref)
+      (occurrence :: settled) (taskNode.task.groups.map Execution.DeliveryNode.ref) :=
+    State.PendingDebt.beginSettlement integratedTracks integratedMembers
+      (fun node member _ => owned node member) fresh
+  have bound := integratedBound.beginSettlement integratedMembers
+    (fun node member _ => owned node member) fresh
+  have final := successGroupFold_preservesSelected
+    (fun ref => ¬GroupInvalidated work failed ref) (occurrence :: settled)
+    taskNode.task.groups uniqueOwners (integrated, [], {}) integratedRefs debt bound
+  let released := taskNode.task.groups.foldl successGroupStep (integrated, [], {})
+  have releasedTracks : released.1.HealthyPendingTracks work (occurrence :: settled)
+      failed := by
+    intro node member healthy
+    simpa [GroupNode.PendingTracks] using final.1 node member healthy
+  rw [queue.taskSuccess_eq occurrence result taskNode found]
+  exact (releasedTracks.startNewWork _).drainReadyGroups_ofBound
+    (final.2.startNewWork _)
 
 /-- Stream item integration preserves exact healthy counters and safely drains releases.
 Witness: fresh child tasks preserve exact counts during item-fold induction; the parallel

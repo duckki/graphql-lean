@@ -95,7 +95,7 @@ theorem State.RemovalForest.removeTask {queue : State} {parents}
   exact ⟨mapped.uniqueChildren, mapped.canonical, mapped.increasing⟩
 
 -----------------------------------------------------------------------------------------
--- A cached failure changes counters and errors, not group shape
+-- A cached failure changes counters, not group shape
 -----------------------------------------------------------------------------------------
 
 /-- Updating a looked-up record's counters preserves every replaced child list.
@@ -103,11 +103,11 @@ Witness: unique live refs identify every matching entry with that lookup's recor
 theorem State.GroupRefsUnique.counterUpdate_shape
     {queue : State} (unique : queue.GroupRefsUnique)
     {ref node} (found : queue.groupNode? ref = some node)
-    (pending : Nat) (failure : Option Nat)
+    (pending : Nat)
     : let update :=
         fun old : GroupNode =>
           if old.group.node.ref == node.group.node.ref then
-            { node with pending, failure }
+            { node with pending }
           else
             old
       (∀ old, (update old).group.node.ref = old.group.node.ref)
@@ -129,24 +129,24 @@ theorem State.GroupRefsUnique.counterUpdate_shape
       exact congrArg GroupNode.childGroups equal.symm
     · rfl
 
-/-- A counter/error update preserves existing live descendant paths.
+/-- A counter update preserves existing live descendant paths.
 Witness: its record map has the unchanged shape certified by unique refs. -/
 theorem State.LiveDescendant.putCounters
     {queue : State} {root target ref node}
     (path : queue.LiveDescendant root target) (unique : queue.GroupRefsUnique)
-    (found : queue.groupNode? ref = some node) (pending : Nat) (failure : Option Nat)
-    : (queue.putGroupNode { node with pending, failure }).LiveDescendant root target := by
-  obtain ⟨refs, children⟩ := unique.counterUpdate_shape found pending failure
+    (found : queue.groupNode? ref = some node) (pending : Nat)
+    : (queue.putGroupNode { node with pending }).LiveDescendant root target := by
+  obtain ⟨refs, children⟩ := unique.counterUpdate_shape found pending
   exact path.mapGroupNodes _ refs children
 
-/-- A counter/error update preserves the finite removal forest.
+/-- A counter update preserves the finite removal forest.
 Witness: its record map leaves all refs and child edges unchanged. -/
 theorem State.RemovalForest.putCounters
     {queue : State} {parents ref node} (forest : queue.RemovalForest parents)
     (unique : queue.GroupRefsUnique) (found : queue.groupNode? ref = some node)
-    (pending : Nat) (failure : Option Nat)
-    : (queue.putGroupNode { node with pending, failure }).RemovalForest parents := by
-  obtain ⟨refs, children⟩ := unique.counterUpdate_shape found pending failure
+    (pending : Nat)
+    : (queue.putGroupNode { node with pending }).RemovalForest parents := by
+  obtain ⟨refs, children⟩ := unique.counterUpdate_shape found pending
   exact forest.mapGroupNodes _ refs children
 
 /-- Counter/error updates cannot recreate an absent group lookup.
@@ -154,11 +154,11 @@ Witness: their ref-preserving map takes an absent lookup to `none`. -/
 theorem State.putCounters_groupNodeAbsent
     {queue : State} {ref : NodeRef} {node : GroupNode}
     (absent : queue.groupNode? ref = none)
-    (pending : Nat) (failure : Option Nat)
-    : (queue.putGroupNode { node with pending, failure }).groupNode? ref = none := by
+    (pending : Nat)
+    : (queue.putGroupNode { node with pending }).groupNode? ref = none := by
   let update := fun old : GroupNode =>
     if old.group.node.ref == node.group.node.ref then
-      { node with pending, failure } else old
+      { node with pending } else old
   have refs : ∀ old, (update old).group.node.ref = old.group.node.ref := by
     intro old
     dsimp only [update]

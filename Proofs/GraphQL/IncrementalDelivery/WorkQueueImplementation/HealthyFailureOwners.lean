@@ -77,9 +77,6 @@ theorem terminal_acceptedHealthyOwner_reported
     {group dependencies} (record : GroupRecordAt work group dependencies)
     (found
       : ((initialQueue work).replayGraphEvents before).taskNode? occurrence = some task)
-    (accepted
-      : ((initialQueue work).replayGraphEvents before).taskHasHealthyOwner task.task
-        = true)
     (contributes : group.ref ∈ task.task.groups.map Execution.DeliveryNode.ref)
     (healthy
       : ¬GroupInvalidated work
@@ -94,7 +91,7 @@ theorem terminal_acceptedHealthyOwner_reported
     apply State.acceptsBatch_prefix (after := .taskFailure occurrence errors :: after)
     rwa [← splitInputs]
   exact terminal_acceptedHealthyContributor_reported generated valid started history
-    splitInputs ended record found accepted contributes (healthy := healthy)
+    splitInputs ended record found contributes (healthy := healthy)
     (live :=
       generated.matchedFailure_healthyContributor_live beforeValid beforeStarted
         matched found contributes healthy)

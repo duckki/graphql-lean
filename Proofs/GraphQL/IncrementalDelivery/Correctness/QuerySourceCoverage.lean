@@ -96,7 +96,7 @@ theorem queryOutcome_source_coverage {createWorkQueue : Work → WorkQueue}
     exact witnessed.source_coverage coherent
       (ExecutionErrors.executeRootSelectionSetCore_positive schema resolvers
         (coerceVariableValues operation variables) fuel (operation.rootType schema) source
-        operation.selectionSet 0).2 seeded sourcePositions zero containers
+        operation.selectionSet 0).2.1 seeded sourcePositions zero containers
   · subst result
     simp [ExecutionObservation.totalErrors] at zero
 

@@ -47,7 +47,7 @@ theorem State.HealthyRegisteredTaskAccounting.successGroupFold_drain
       have member := List.mem_of_find?_eq_some found
       exact ⟨prior.1.putGroupNode _,
         prior.2.1.putGroupNodeSameTasks prior.1 node member _ rfl rfl,
-        prior.2.2.1.putGroupNode _ (prior.2.2.1 node member),
+        prior.2.2.1.putGroupNode _,
         prior.2.2.2.1.putGroupNode _ (prior.2.2.2.1 node member),
         prior.2.2.2.2.1.putGroupNode _ (prior.2.2.2.2.1 node member),
         prior.2.2.2.2.2.putGroupNode _⟩)
@@ -74,7 +74,7 @@ theorem State.HealthyRegisteredTaskAccounting.successGroupFold_drain
 membership through the actual handler, including its final recursive drain.
 Witness: all-group lower bounds establish safe decrement debt; integration availability
 covers new tasks, and source-matched metadata supports success/failure closures. Rejected
-settlements remove only the now-settled task's memberships and integrate no child work.
+settlements retain task membership on dormant owners and integrate no child work.
 Availability is an internal queue invariant still to be derived along generated replay.
 -/
 theorem State.HealthyRegisteredTaskAccounting.taskSuccess_ofPendingAccounting
@@ -98,9 +98,6 @@ theorem State.HealthyRegisteredTaskAccounting.taskSuccess_ofPendingAccounting
     : (queue.taskSuccess occurrence result).1.HealthyRegisteredTaskAccounting
         work (occurrence :: settled) failed := by
   rw [queue.taskSuccess_eq occurrence result taskNode found]
-  split
-  · exact (accounted.weakenSettled (after := occurrence :: settled)
-      (by intro task member; simp [member])).removeSettledTask occurrence (by simp)
   let stored := queue.putTaskNode { taskNode with value := some result.value }
   let integrated := (stored.maybeIntegrateWork result.work (some occurrence)).1
   have storedRefs : stored.GroupRefsUnique := pending.refs
@@ -109,7 +106,8 @@ theorem State.HealthyRegisteredTaskAccounting.taskSuccess_ofPendingAccounting
   have storedMembers : stored.TaskMembershipsUnique := pending.memberships
   have storedSound : stored.GroupMembershipSound := pending.sound
   have storedMatch : stored.RegisteredTasksMatch work := pending.matching
-  have storedSupport : stored.CachedFailuresSupported work failed := supported
+  have storedSupport : stored.CachedFailuresSupported work failed :=
+    supported.putTaskNode _ (supported taskNode (List.mem_of_find?_eq_some found))
   have storedLinks : stored.ChildLinksCanonical parents := links
   have storedGroups : stored.GroupNodesMatchWork work := groupMatching
   have integratedLinks := (pending.links.putTaskNode _).maybeIntegrateWork

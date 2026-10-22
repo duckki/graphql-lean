@@ -95,10 +95,9 @@ theorem State.taskSuccess_streamDependencies {queue : State} {work : Execution.W
       obtain ⟨nextSound, nextMatching, nextLinks, output⟩ := loop node.task.groups (_, [], {})
         integratedSound integratedMatching integratedLinks (.nil work)
       rw [queue.taskSuccess_eq occurrence result node found]
-      split
-      · exact .nil work
-      · exact output.append (State.drainReadyGroups_streamDependencies generated
-          (nextSound.startNewWork _) (nextMatching.startNewWork _) (nextLinks.startNewWork _))
+      exact output.append
+        (State.drainReadyGroups_streamDependencies generated (nextSound.startNewWork _)
+          (nextMatching.startNewWork _) (nextLinks.startNewWork _))
 
 -----------------------------------------------------------------------------------------
 -- Item integration may expose stored groups; only its final drain releases their streams

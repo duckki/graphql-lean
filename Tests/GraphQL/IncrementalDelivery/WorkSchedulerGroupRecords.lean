@@ -11,13 +11,13 @@ private def wrapper : DeliveryNode := ⟨1, [], none⟩
 private def child : DeliveryNode := ⟨2, [], none⟩
 
 private def work : Execution.Work :=
-  .executionGroup [⟨child, [wrapper, parent]⟩] [] (.ok ([], 0)) .empty
+  .executionGroup [⟨child, [wrapper, parent]⟩] [] ({ result := .ok ([], 0) }) .empty
 
 /-- The intermediate wrapper has a registration descriptor with its own parent.
 Witness: its nearest-first ancestor chain is a suffix of the child contributor's chain.
 -/
 theorem wrapper_record : GroupRecordAt work wrapper [parent.ref] := by
-  refine ⟨[], [⟨child, [wrapper, parent]⟩], [], .ok ([], 0), .empty, none, [],
+  refine ⟨[], [⟨child, [wrapper, parent]⟩], [], { result := .ok ([], 0) }, .empty, none, [],
     ⟨child, [wrapper, parent]⟩, [parent], rfl, List.mem_cons_self, ?_, rfl⟩
   exact List.suffix_cons _ _
 

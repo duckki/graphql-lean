@@ -18,8 +18,9 @@ def node (ref : NodeRef) : DeliveryNode := { ref, path := [] }
 Neither task is a structural producer of the other; the dependency is defer ancestry.
 -/
 def work (first second : Result (List (Name × ResponseValue))) : Work :=
-  .combine (.executionGroup [{ node := node 0 }] [] first .empty)
-    (.executionGroup [{ node := node 1, ancestors := [node 0] }] [] second .empty)
+  .combine (.executionGroup [{ node := node 0 }] [] { result := first } .empty)
+    (.executionGroup [{ node := node 1, ancestors := [node 0] }] [] { result := second }
+      .empty)
 
 /-- Structural locations stop at one of the two root tasks or its empty child.
 Witness: navigation induction; no task-producing edge can reveal further work.
@@ -27,9 +28,11 @@ Witness: navigation induction; no task-producing edge can reveal further work.
 theorem located_work {first second address current producer owners}
     (located : Located (work first second) address current producer owners)
     : (current = work first second ∧ producer = none)
-      ∨ (current = .executionGroup [{ node := node 0 }] [] first .empty ∧ producer = none)
+      ∨ (current = .executionGroup [{ node := node 0 }] [] { result := first } .empty
+          ∧ producer = none)
       ∨ (current
-            = .executionGroup [{ node := node 1, ancestors := [node 0] }] [] second .empty
+            = .executionGroup [{ node := node 1, ancestors := [node 0] }] []
+                { result := second } .empty
           ∧ producer = none)
       ∨ current = .empty := by
   have navigation := StructuralEquivalence.located_of_current located
@@ -128,7 +131,8 @@ example (first second : Result (List (Name × ResponseValue)))
       NodeAt.group (group := { node := node 0 }) (.left .root) (by simp), rfl⟩
   · simp [completedRefs] at completed
   · rcases accounted (.executionGroup [0]) [0]
-      ⟨none, .object [] first, TaskAt.executionGroup (.left .root)⟩ (by simp)
+      ⟨none, .object [] first, by simpa [node] using (TaskAt.executionGroup (result := { result := first })
+          (Located.left Located.root) : TaskAt (work first second) (.executionGroup [0]) _ _ _)⟩ (by simp)
       with cancelled | published
     · exact cancelled.nonempty rfl
     · simp [Published] at published

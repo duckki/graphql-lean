@@ -272,6 +272,9 @@ ExecuteField returns a value, and CompleteListValue does not install a stream ta
   supply and defer-map lookup, not scheduler choices.
 - `Completion.pure`, `error`, `combine`, `map`, `catchNull`, `nonNull`: typed
   data/work/error propagation replacing pseudocode return values and raised errors.
+- `Completion.outcome`: retain diagnostics and the selected cause in finite task work.
+- `TaskOutcome.deliveryResult` / `Completion.deliveryResult`: the payload-boundary
+  projection that selects a failure explanation while preserving delivered diagnostics.
 - `Work.size`, `Work.itemsSize`: finite executable-record accounting, also used to
   recognize when no execution-group task, stream descriptor, or remaining stream item
   exists.
@@ -283,7 +286,7 @@ ExecuteField returns a value, and CompleteListValue does not install a stream ta
 The remaining structures and aliases name typed spec concepts or representation machinery:
 DeferUsage, FieldDetails, CollectedFieldsMap, FieldCollection, ExecutionPlan,
 ResponsePathSegment/ResponsePath, DeliveryNode, DeferredFragment/DeferMap, Work,
-Completion, StreamUsage, DirectiveLabel, and response-entry/result types. `Response`
+TaskOutcome, Completion, StreamUsage, DirectiveLabel, and response-entry/result types. `Response`
 retains the ordinary data/errors map shared with `GraphQL.Execution.Response`.
 `ExecutionResult` names the generalized ordinary-or-incremental query return type, not
 Section 7's narrower ordinary execution-result map. Request-error results and subscription
@@ -292,6 +295,53 @@ by correctness statements; it is not the resumable execution return type.
 Shared resolver/value/coercion/error primitives are re-exported from GraphQL.Execution;
 their scope is the same as in that model. Representation helpers do not claim normative
 names.
+
+### Collected diagnostics and failure explanations
+
+`Completion.result` retains the shared ordinary execution algebra: sibling error counts
+add, including diagnostics collected before a non-null failure discards their data.
+`Completion.cause` separately retains one explanation for a bubbling failure. A caught
+failure keeps its cause with the resulting null so an enclosing non-null wrapper can
+rethrow it. Successful mapping or wrapping clears that metadata while preserving every
+diagnostic in `result`. When both siblings fail, combination selects the left sibling's
+cause in the pure structural traversal; this does not assert a host execution order.
+
+`Completion.deliveryResult` preserves a successful result and its diagnostic count, and
+projects a failed result to its selected explanation. Thus a task completing `{ x bad }`
+with a nullable error at `x` followed by a non-null error at `bad` collects two errors but
+has a one-error failure explanation. Catching the same failure inside a successfully
+delivered nullable child preserves both diagnostics with that child's null. Ordinary and
+initial-response projections continue using `result`.
+
+This distinction follows the
+[maintainer's explanation](https://github.com/graphql/graphql-js/pull/4861#issuecomment-6238778627)
+of completion errors as reasons an incremental result cannot be delivered. The reference
+follows GraphQL.js's escaping-error reporting; the separate
+[spec clarification](https://github.com/graphql/graphql-spec/pull/1110#issuecomment-6238613682)
+remains pending. GraphQL.js remains implementation evidence rather than an additional
+normative source.
+
+`collectExecutionGroups` and `completeStreamItems` retain `Completion.outcome` in Work.
+This `TaskOutcome` stores both `result` and `cause`; its `deliveryResult` is the payload
+used by `TaskAt` and the graph-event source contract. Collected diagnostics therefore
+remain available for execution-recording refinements even when delivery discards data.
+
+`EventAllowed` uses `NodeFailureCause`: the reported count must be positive and come
+from an accepted failing occurrence contributing to that node. It permits any supported
+explanation, without requiring a singleton error or adding contributing counts.
+Both executable queues retain a rejection on the task, representing GraphQL.js's cached
+`Computation` outcome. Groups retain task membership, not a separate failure cache.
+Starting a released group replays rejected tasks in registration order; it does not
+choose whichever failure happened to settle first. Licensing, ordered cuts, open-ID
+checks, and terminal scope reporting are unchanged.
+
+`Fixtures/DeliveryFailureReporting.lean` checks both queues' emitted responses for failed
+deferred objects, nullable children, non-null rethrows, stream items, and a latent shared
+owner with two accepted failures. A reversed-settlement case checks task-order rejection
+replay. The fixture also checks retained diagnostics and source-event projection. The
+earlier completion-algebra and recording witnesses require migration to
+the revised work representation. No revised queue-conformance or end-to-end
+failure-reflection result is claimed.
 
 ## Work-queue contract
 
@@ -334,7 +384,8 @@ one still open at settlement. Actual publications and completions still require 
 
 Failures can precede their notifications. Cut-indexed causality prevents later failure
 from retroactively cancelling a published producer or invalidating an earlier notice.
-`NodeErrors` counts accepted failures through each completion's boundary.
+`NodeFailureCause` selects a positive explanation from accepted contributing failures
+available through each completion's boundary.
 
 `AdmissiblePrefix` includes interrupted or stalled histories. `AdmissibleRun` additionally
 requires each task to be published or causally cancelled with a positive-error completion
@@ -342,7 +393,8 @@ whose path covers the task's response attachment, then emits termination. Report
 follow cancellation and may cover several unannounced tasks. Value coalescing and work
 batching retain the atomic explanation. No lifecycle checker, response-position coverage
 conclusion, or reconstruction property is assumed by admission. The correctness,
-conformance, and finite-progress witnesses include the terminal reporting requirement.
+conformance, and finite-progress witnesses include terminal reporting and selected-cause
+accounting.
 
 See [semantics](semantics.md) for the structural predicates, notice rules, failure
 evidence, optional nonblocking condition, and checked research results. The executable
@@ -496,9 +548,9 @@ witnesses instead of duplicating these statements. See the [implementation bridg
 
 ## Proof status and verification
 
-Public definitions, proofs, and tests build with the terminal reporting requirement.
-The 12 established query-correctness witnesses, error-aware response-position coverage,
-finite progress, reference conformance, and the query bridge are verified against it.
+Public definitions, proofs, and tests build with terminal reporting and selected-cause
+accounting. The 12 established query-correctness witnesses, error-aware response-position
+coverage, finite progress, reference conformance, and the query bridge use this contract.
 Axiom audits use only `propext`, `Classical.choice`, and `Quot.sound` as needed,
 with no proof holes or added axioms.
 
@@ -510,8 +562,8 @@ direction uses the proved exclusion of publications for failed or cancelled task
 `Tests.GraphQL.IncrementalDelivery.FailureCutBoundary` records that a licensed
 failure immediately after a child notice preserves the carrier's admission and the
 explained history. The generic `Explains.record_failure` witness covers preservation
-as well. Reference-implementation conformance, derived initialization, and the
-implementation-to-query bridge are proved; their details and proof structure are in the
+as well. Existing reference-conformance, derived-initialization, and
+implementation-to-query witnesses await the same migration; their proof structure is in the
 [implementation guide](implementation.md#work-queue-conformance).
 
 | Public statement | Witness module (theorem name is the statement plus `_holds`) |

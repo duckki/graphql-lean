@@ -26,30 +26,28 @@ theorem ExecutedWork.taskSuccess_groupNoticeCompletion {work before occurrence r
       exact .silent (List.Subset.refl _)
   | some incoming =>
       rw [queue.taskSuccess_eq occurrence result incoming found]
-      split
-      · exact .silent (List.Subset.refl _)
-      · let prepared := ((queue.putTaskNode
-          { incoming with value := some result.value }).maybeIntegrateWork
-            result.work (some occurrence)).1
-        let folded := incoming.task.groups.foldl successGroupStep (prepared, [], {})
-        have roots : prepared.rootGroups = queue.rootGroups :=
-          State.maybeIntegrateWork_rootGroups _ _ _
-        have first : GroupNoticeCompletion queue.rootGroups
-            (folded.1.startNewWork folded.2.2, folded.2.1) := by
-          intro ref member
-          rw [(folded.1.startNewWork_groupCore _).2.2]
-          rcases List.mem_append.mp member with old | noticed
-          · rcases prepared.successGroupFold_tracks_roots incoming.task.groups ref
-                (roots.symm ▸ old) with active | closed
-            · exact .inl (List.mem_append_left _ active)
-            · exact .inr closed
-          · exact .inl (List.mem_append_right _
-              ((successGroupFold_groupNotices prepared incoming.task.groups).symm ▸ noticed))
-        obtain ⟨parents, canonical, frame⟩ :=
-          generated.taskSuccess_drain_liveRootFrame matching matched incoming
-            (generated.replayGraphEvents_rootsPresent before matching)
-        exact first.append (frame.drainReadyGroups_go_groupNoticeCompletion
-          generated canonical _)
+      let prepared := ((queue.putTaskNode
+        { incoming with value := some result.value }).maybeIntegrateWork
+          result.work (some occurrence)).1
+      let folded := incoming.task.groups.foldl successGroupStep (prepared, [], {})
+      have roots : prepared.rootGroups = queue.rootGroups :=
+        State.maybeIntegrateWork_rootGroups _ _ _
+      have first : GroupNoticeCompletion queue.rootGroups
+          (folded.1.startNewWork folded.2.2, folded.2.1) := by
+        intro ref member
+        rw [(folded.1.startNewWork_groupCore _).2.2]
+        rcases List.mem_append.mp member with old | noticed
+        · rcases prepared.successGroupFold_tracks_roots incoming.task.groups ref
+              (roots.symm ▸ old) with active | closed
+          · exact .inl (List.mem_append_left _ active)
+          · exact .inr closed
+        · exact .inl (List.mem_append_right _
+            ((successGroupFold_groupNotices prepared incoming.task.groups).symm ▸ noticed))
+      obtain ⟨parents, canonical, frame⟩ :=
+        generated.taskSuccess_drain_liveRootFrame matching matched incoming
+          (generated.replayGraphEvents_rootsPresent before matching)
+      exact first.append (frame.drainReadyGroups_go_groupNoticeCompletion
+        generated canonical _)
 
 /-- An item handler's leading notices and its drain retain exact completion tracking.
 Witness: item preparation appends its notice frontier to roots, then the independently

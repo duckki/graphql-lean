@@ -120,11 +120,11 @@ theorem State.drainReadyGroups_go_groupNoticesUnique {queue : State} {parents}
         | none => simp [found] at choice
         | some candidate =>
             simp only [found] at choice
-            change (if candidate.failure.isSome || candidate.pending == 0 then
+            change (if (queue.rejectedTask? candidate).isSome || candidate.pending == 0 then
               some candidate else none) = some node at choice
             split at choice
             · cases Option.some.inj choice
-              cases cached : node.failure with
+              cases cached : queue.rejectedTask? node with
               | none =>
                   intro event emitted
                   rcases List.mem_append.mp emitted with first | later
@@ -132,11 +132,12 @@ theorem State.drainReadyGroups_go_groupNoticesUnique {queue : State} {parents}
                       (List.mem_of_find?_eq_some found) event first
                   · exact ih ((links.finishGroupSuccess node).startNewWork _)
                       ((children.finishGroupSuccess node).startNewWork _) event later
-              | some errors =>
+              | some rejected =>
                   intro event emitted
-                  rcases List.mem_cons.mp emitted with rfl | later
-                  · exact List.nodup_nil
-                  · exact ih (links.removeGroup _) (children.removeGroup _) event later
+                  rcases List.mem_append.mp emitted with first | later
+                  · obtain ⟨group, rfl⟩ := queue.taskFailure_event_failure _ _ event first
+                    exact List.nodup_nil
+                  · exact ih (links.taskFailure _ _) (children.taskFailure _ _) event later
             · contradiction
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

@@ -166,7 +166,7 @@ theorem deferMapBefore_new {start finish : Nat} {deferMap : DeferMap}
     simpa only [he] using hu usage hm
 
 theorem streamRefs_deferred (state : Nat) (deferMap : DeferMap) (refs : List Nat)
-    (path : ResponsePath) (result : Result (List (Name × ResponseValue)))
+    (path : ResponsePath) (result : TaskOutcome (List (Name × ResponseValue)))
     (children : Work) (hm : DeferMapBefore state deferMap)
     (hc : StreamRefsFrom state children ∧ StreamOwnersOrdered children)
     : StreamRefsFrom state

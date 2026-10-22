@@ -20,16 +20,17 @@ private def noChildren : Execution.Work := .combine .empty .empty
 
 private def work : Execution.Work :=
   .combine .empty
-    (.combine (.executionGroup [⟨parent, []⟩] [] (.ok (parentData, 0)) noChildren)
+    (.combine
+      (.executionGroup [⟨parent, []⟩] [] ({ result := .ok (parentData, 0) }) noChildren)
       (.combine
-        (.executionGroup [⟨child, [parent]⟩, ⟨other, []⟩] [] (.ok (sharedData, 0))
-          noChildren)
+        (.executionGroup [⟨child, [parent]⟩, ⟨other, []⟩] []
+          ({ result := .ok (sharedData, 0) }) noChildren)
         (.combine
           (.executionGroup [⟨descendant, [child, parent]⟩] []
-            (.ok ([("z", .scalar "c")], 0)) noChildren)
+            ({ result := .ok ([("z", .scalar "c")], 0) }) noChildren)
           (.combine
             (.executionGroup [⟨other, []⟩] []
-              (.ok ([("keep", .scalar "a")], 0)) noChildren)
+              ({ result := .ok ([("keep", .scalar "a")], 0) }) noChildren)
             .empty))))
 
 private def sharedResult : TaskResult :=
@@ -67,10 +68,10 @@ theorem source_valid
       ∧ inputsStarted work [[first], [finish]] = true := by
   have sharedKnown : TaskAt work sharedTask [child.ref, other.ref] none
       (.object [] (.ok (sharedData, 0))) :=
-    ⟨_, [], .ok (sharedData, 0), noChildren, [], rfl, rfl, rfl⟩
+    ⟨_, [], { result := .ok (sharedData, 0) }, noChildren, [], rfl, rfl, rfl⟩
   have parentKnown : TaskAt work parentTask [parent.ref] none
       (.object [] (.ok (parentData, 0))) :=
-    ⟨_, [], .ok (parentData, 0), noChildren, [], rfl, rfl, rfl⟩
+    ⟨_, [], { result := .ok (parentData, 0) }, noChildren, [], rfl, rfl, rfl⟩
   have one : ValidGraphEvents work [first] :=
     .append .nil ⟨_, _, sharedKnown, rfl, rfl⟩
       (by simp [first, GraphEvent.Fresh, GraphEvent.identities])

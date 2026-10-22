@@ -1,3 +1,4 @@
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.InformativeFailureInventory
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.ReleasedObjectStreamHealth
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.StreamSourceBoundaries
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.TerminationShape
@@ -141,7 +142,7 @@ theorem ExecutedWork.atomicObjectStreamHealthy_of_earlierItems
           { active := queue.initialGroups ++ queue.initialStreams }
         failures.Perm
           (streams
-            ++ sourceObjectFailureCuts 0
+            ++ informativeObjectFailureCuts work
                 (queue.eligibleFailureBlocks
                   (queue.sourceRunBlocks publisher batches).2.2)))
     (known : NodeAt work stream .stream dependencies (some (.executionGroup source)))
@@ -171,7 +172,7 @@ theorem ExecutedWork.atomicObjectStreamHealthy_of_earlierItems
   let queue := State.initialize (Work.fromExecution work)
   let publisher : IncrementalPublisher :=
     { active := queue.initialGroups ++ queue.initialStreams }
-  let objects := sourceObjectFailureCuts 0
+  let objects := informativeObjectFailureCuts work
     (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher batches).2.2)
   let atoms := (queue.runNormalized batches).2.flatten.flatMap publicationAtoms
   have objectKnown : ∀ entry ∈ objects,
@@ -179,7 +180,7 @@ theorem ExecutedWork.atomicObjectStreamHealthy_of_earlierItems
         TaskAt work entry.2 owners producer (.object path (.error errors)) := by
     intro entry member
     obtain ⟨_, owners, producer, path, errors, descriptor, _⟩ :=
-      createWorkQueue_eligibleObjectFailureCuts_origin generated valid entry member
+      createWorkQueue_informativeObjectFailureCuts_origin generated valid entry member
     exact ⟨owners, producer, path, errors, descriptor⟩
   have failedPayloads : ∀ cut occurrence,
       (cut, occurrence) ∈ failures
@@ -214,7 +215,8 @@ theorem ExecutedWork.atomicObjectStreamHealthy_of_earlierItems
     rw [length] at member
     have objectMember := (cuts.object_mem_iff partition descriptor).mp member
     rw [← ledger]
-    exact List.mem_reverse.mpr objectMember
+    exact List.mem_reverse.mpr
+      (informativeObjectFailureCuts_failedBefore_subset work _ index objectMember)
   · intro occurrence owners descriptor owner member
     rw [length] at member
     exact cuts.no_failure_at_action_mixed partition objectKnown generated

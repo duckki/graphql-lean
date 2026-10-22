@@ -236,17 +236,17 @@ failures; `objectsRecorded` relates only its object causes to actual accepted se
 theorem ExecutedWork.replayGraphEvents_groupHealthy_of_itemSafety
     {work received matching events failures node dependencies producer}
     (generated : ExecutedWork work) (valid : ValidGraphEvents work received)
-    (started : (State.initialize (Work.fromExecution work)).acceptsBatch received = true)
+    (_started : (State.initialize (Work.fromExecution work)).acceptsBatch received = true)
     (known : NodeAt work node .group dependencies producer)
     (registered
       : node.ref
         ∈ ((State.initialize (Work.fromExecution work)).replayGraphEvents
             received).registeredGroups)
-    (guardHealthy
-      : ((State.initialize (Work.fromExecution work)).replayGraphEvents
-          received).groupIsHealthy
-          node.ref
-        = true)
+    (recordHealthy
+      : ¬GroupRecordInvalidated work
+          ((State.initialize (Work.fromExecution work)).objectFailureContributions
+            received)
+          node.ref)
     (failedPayloads
       : ∀ cut occurrence,
           (cut, occurrence) ∈ failures
@@ -271,8 +271,7 @@ theorem ExecutedWork.replayGraphEvents_groupHealthy_of_itemSafety
     itemsSafe failure
   have recorded := invalid.toRecordInvalidated.restrict_objectFailures generated
     (groupRecordAt_of_nodeAt known) objectsRecorded
-  exact generated.replayGraphEvents_groupIsHealthy_recordUninvalidated received valid started
-    guardHealthy recorded
+  exact recordHealthy recorded
 
 /-- An uncancelled retired group remains historically healthy under the same item boundary.
 Witness: replay's retired-record health replaces the live guard; permanent registration

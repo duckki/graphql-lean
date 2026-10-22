@@ -146,12 +146,10 @@ private theorem State.startGroup_cancelledGroups (queue : State) (ref : NodeRef)
   unfold State.startGroup
   split
   · rfl
-  · split
-    · rfl
-    · exact fold_preserves
-        (fun current : State => current.cancelledGroups = queue.cancelledGroups)
-        State.startTask (fun current task prior =>
-          (current.startTask_cancelledGroups task).trans prior) _ queue rfl
+  · exact fold_preserves
+      (fun current : State => current.cancelledGroups = queue.cancelledGroups)
+      State.startTask (fun current task prior =>
+        (current.startTask_cancelledGroups task).trans prior) _ queue rfl
 
 /-- Announcing and starting released work leaves cancellation refs unchanged.
 Witness: both activation folds only change roots and task-start bookkeeping. -/

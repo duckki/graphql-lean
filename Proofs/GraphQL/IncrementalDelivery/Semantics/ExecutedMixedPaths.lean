@@ -15,13 +15,13 @@ open DeliveryPaths
 attribute [local simp] id_pure_eq id_bind_eq id_map_eq run_bind run_map
 
 theorem ownsItems_cons_underItems {containers : Bool} {path : ResponsePath} {index : Nat}
-    {head : Completion ResponseValue} {tail : List (Result ResponseValue × Work)}
+    {head : Completion ResponseValue} {tail : List (TaskOutcome ResponseValue × Work)}
     (hh
       : OwnsCompletion containers (value containers (path ++ [.index index]))
           (Below (path ++ [.index index])) head)
     (ht : OwnsItems containers path (index + 1) (UnderItems path (index + 1)) tail)
     : OwnsItems containers path index (UnderItems path index)
-        ((head.result, head.work) :: tail) := by
+        ((head.outcome, head.work) :: tail) := by
   apply ownsItems_cons hh ht
   · exact fun _ => underItems_disjoint
   · exact fun _ hp => ⟨index, Nat.le_refl _, hp⟩
@@ -32,7 +32,7 @@ theorem ownsItems_cons_underItems {containers : Bool} {path : ResponsePath} {ind
 theorem ownsCompletion_streamPrefix {containers : Bool} {path : ResponsePath}
     {finish start : Nat} {initial : Completion (List ResponseValue)}
     {data : List ResponseValue} {errors : Nat} {node : DeliveryNode}
-    {items : List (Result ResponseValue × Work)}
+    {items : List (TaskOutcome ResponseValue × Work)}
     (hi
       : OwnsCompletion containers (DeliveryPaths.items containers path 0)
           (UnderItemRange path 0 finish) initial)
@@ -411,9 +411,9 @@ mutual
           split
           · rename_i errors he
             apply runEnsures_pure
-            exact ⟨[[]], by simpa only [he, result, List.nil_append] using
+            exact ⟨[[]], by simpa only [Completion.outcome, he, result, List.nil_append] using
               (ItemSlices.cons (containers := containers) (path := path) (index := index)
-                (completed := head.result) WorkSlices.empty ItemSlices.nil), owns_nil _⟩
+                (completed := head.outcome) WorkSlices.empty ItemSlices.nil), owns_nil _⟩
           · refine runEnsures_bind (OwnsItems containers path (index + 1)
               (UnderItems path (index + 1))) _ _ _ ?_ ?_
             · exact completeStreamItems_owns schema resolvers variables fuel itemType selected rest

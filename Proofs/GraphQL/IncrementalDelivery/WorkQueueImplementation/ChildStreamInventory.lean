@@ -169,10 +169,8 @@ theorem State.ChildStreamInventory.startGroup {queue : State}
   unfold State.startGroup
   split
   · exact inventory
-  · split
-    · exact inventory
-    · exact fold_preserves State.ChildStreamInventory State.startTask
-        (fun _ occurrence prior => prior.startTask occurrence) _ _ inventory
+  · exact fold_preserves State.ChildStreamInventory State.startTask
+      (fun _ occurrence prior => prior.startTask occurrence) _ _ inventory
 
 /-- Activating new work preserves distinct registered child links.
 Witness: group starts preserve the invariant, and stream starts only update active roots.

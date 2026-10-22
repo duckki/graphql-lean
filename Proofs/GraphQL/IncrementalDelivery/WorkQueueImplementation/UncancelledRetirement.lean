@@ -177,6 +177,19 @@ theorem State.UncancelledRetiredAncestors.removeGroup {queue : State} {work}
 -- Successful pruning creates only protected retirements
 -----------------------------------------------------------------------------------------
 
+/-- Rejected task retention and owner removal preserve uncancelled retirements. -/
+theorem State.UncancelledRetiredAncestors.taskFailure {queue : State} {work}
+    (prior : queue.UncancelledRetiredAncestors work) (occurrence : Occurrence)
+    (errors : Nat)
+    : (queue.taskFailure occurrence errors).1.UncancelledRetiredAncestors work := by
+  cases found : queue.taskNode? occurrence with
+  | none => simpa only [State.taskFailure, found] using prior
+  | some node =>
+      rw [queue.taskFailure_eq occurrence errors node found]
+      exact failureGroupFold_preserves
+        (fun current => current.UncancelledRetiredAncestors work)
+        (fun _ ref invariant => invariant.removeGroup ref) _ _ _ prior
+
 /-- Filtering one protected parent preserves uncancelled ancestor closure.
 Witness: the removed ref has its supplied certificate; every other newly absent ref was
 already absent. Filtering retains all earlier ancestor retirements.

@@ -19,40 +19,11 @@ theorem State.TaskOwnerFrame.taskSuccess {queue : State} {work : Execution.Work}
   | none => simpa only [State.taskSuccess, found] using frame
   | some node =>
       rw [queue.taskSuccess_eq occurrence result node found]
-      split
-      · exact frame.removeTask occurrence
-      · have stored := frame.putExistingTaskNode node (List.mem_of_find?_eq_some found)
-          { node with value := some result.value } rfl
-        have prepared := stored.maybeIntegrateWork roots accounted.taskGroups
-          result.work known (some occurrence)
-        exact ((prepared.successFold node.task.groups [] {}).startNewWork _).drainReadyGroups
-
-theorem State.TaskOwnerFrame.taskFailure {queue : State} {work : Execution.Work}
-    (frame : queue.TaskOwnerFrame work) (occurrence : Occurrence) (errors : Nat)
-    : (queue.taskFailure occurrence errors).1.TaskOwnerFrame work := by
-  have loop (groups : List Execution.DeliveryNode) (acc : State × List WorkQueueEvent)
-      (prior : acc.1.TaskOwnerFrame work)
-      : (groups.foldl (failureGroupStep errors) acc).1.TaskOwnerFrame work := by
-    induction groups generalizing acc with
-    | nil => exact prior
-    | cons group rest ih =>
-        simp only [List.foldl_cons, failureGroupStep]
-        split
-        · exact ih _ prior
-        · rename_i node found
-          split
-          · exact ih _ (prior.removeGroup node.group.node.ref)
-          · exact ih _ (prior.putGroupNodeSameTasks node (List.mem_of_find?_eq_some found)
-              { node with
-                pending := node.pending - 1
-                failure := some (node.failure.getD 0 + errors) } rfl rfl)
-  cases found : queue.taskNode? occurrence with
-  | none => simpa only [State.taskFailure, found] using frame
-  | some node =>
-      rw [queue.taskFailure_eq occurrence errors node found]
-      split
-      · exact frame.removeTask occurrence
-      · exact loop node.task.groups (_, []) (frame.removeTask occurrence)
+      have stored := frame.putExistingTaskNode node (List.mem_of_find?_eq_some found)
+        { node with value := some result.value } rfl
+      have prepared := stored.maybeIntegrateWork roots accounted.taskGroups
+        result.work known (some occurrence)
+      exact ((prepared.successFold node.task.groups [] {}).startNewWork _).drainReadyGroups
 
 theorem State.TaskOwnerFrame.prepareItems {queue : State} {work : Execution.Work}
     {settled : List Occurrence} {stream : Execution.DeliveryNode}

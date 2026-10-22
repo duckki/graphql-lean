@@ -132,12 +132,14 @@ mutual
             refine ⟨head ++ tail, _, ?_, .combine (.executionGroup hsh) hst, ?_, ?_⟩
             · simpa [eraseGroups] using basicFields_append schema resolvers variables fuel parentType source
                 _ _ head tail hh htail
-            · simpa only [List.flatten_append, List.flatten_cons, TypedResponse.fields_append] using hhp.append htailp
+            · simpa only [Completion.outcome, List.flatten_append, List.flatten_cons, TypedResponse.fields_append] using hhp.append htailp
             · intro cursors hn
               have hn' : (((result (fields path) completed.result ++ sh.flatten) ++ st.flatten).map Prod.fst).Nodup := by
-                simpa only [List.flatten_append, List.flatten_cons] using hn
+                simpa only [Completion.outcome, List.flatten_append, List.flatten_cons]
+                  using hn
               have hparts := List.nodup_append.mp (by simpa only [List.map_append] using hn')
-              simpa only [entryPaths, List.map_append, List.map_cons, result_fields_paths]
+              simpa only [Completion.outcome, entryPaths, List.map_append, List.map_cons,
+                result_fields_paths]
                 using WorkCursorSeed.combine
                   (WorkCursorSeed.executionGroup
                     (hseedh (by simpa only [List.map_append] using hparts.1)))
@@ -475,7 +477,7 @@ mutual
           split
           · rename_i errors he
             apply runEnsures_pure
-            simp [SeededItemsReconstructs, ItemsSuccess, he]
+            simp [SeededItemsReconstructs, ItemsSuccess, Completion.outcome, he]
           · refine runEnsures_bind (SeededItemsReconstructs path (index + 1)
               (GraphQL.Execution.completeValueList schema resolvers variables fuel itemType (selected.map eraseField) rest)) _ _ _ ?_ ?_
             · exact completeStreamItems_seeded schema resolvers variables fuel itemType selected rest path (index + 1)

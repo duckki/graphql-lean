@@ -200,10 +200,8 @@ theorem State.RegistrationsSupportedBy.startNewWork {queue : State}
     unfold State.startGroup
     split
     · exact prior
-    · split
-      · exact prior
-      · exact fold_preserves State.startTask (fun state => state.RegistrationsSupportedBy support)
-          taskStep _ current prior
+    · exact fold_preserves State.startTask (fun state => state.RegistrationsSupportedBy support)
+        taskStep _ current prior
   have streamStep (current : State) (ref : NodeRef) (prior : current.RegistrationsSupportedBy support)
       : (current.startStream ref).RegistrationsSupportedBy support := by
     unfold State.startStream
@@ -259,6 +257,18 @@ theorem State.RegistrationsSupportedBy.finishGroupSuccess {queue : State}
   have currentCovered : current.RegistrationsSupportedBy support := flushed
   exact currentCovered.pruneEmptyGroups _
 
+/-- Retaining task rejections leaves permanent registration witnesses unchanged. -/
+theorem State.RegistrationsSupportedBy.taskFailure {queue : State}
+    {support : Task → Nat → Prop} (covered : queue.RegistrationsSupportedBy support)
+    (task : Occurrence) (errors : Nat)
+    : (queue.taskFailure task errors).1.RegistrationsSupportedBy support := by
+  cases found : queue.taskNode? task with
+  | none => simpa [State.taskFailure, found] using covered
+  | some node =>
+      rw [queue.taskFailure_eq task errors node found]
+      exact failureGroupFold_preserves (fun state => state.RegistrationsSupportedBy support)
+        (fun _ _ prior => prior) _ _ _ covered
+
 /-- Recursive draining retains the task witnesses for every permanent registration.
 Witness: both closure paths retain the registries, and activation also preserves them.
 -/
@@ -269,8 +279,8 @@ theorem State.RegistrationsSupportedBy.drainReadyGroups {queue : State}
     (fun state => state.RegistrationsSupportedBy support) (valid := covered)
   · intro current node prior _ _ _ _
     exact (prior.finishGroupSuccess node).startNewWork _
-  · intro current node errors prior _ _ _
-    exact prior
+  · intro current _ task errors prior _ _ _
+    exact prior.taskFailure task errors
 
 /-- One successful task preserves permanent registration provenance.
 Witness: covered child integration followed by the single-pass contributor fold. -/
@@ -283,7 +293,6 @@ theorem State.RegistrationsSupportedBy.taskSuccess {queue : State}
   | none => simpa [State.taskSuccess, found] using covered
   | some node =>
       rw [queue.taskSuccess_eq task result node found]
-      split <;> try exact covered
       have stored : (queue.putTaskNode { node with value := some result.value
           }).RegistrationsSupportedBy support := covered
       have integrated := stored.maybeIntegrateWork result.work children (some task)
@@ -306,41 +315,6 @@ theorem State.RegistrationsSupportedBy.taskSuccess {queue : State}
                 (fun acc => acc.1.RegistrationsSupportedBy support) preserved
                 node.task.groups (_, [], {}) integrated).startNewWork
               _).drainReadyGroups
-
-/-- Task failure never deletes permanent registration witnesses.
-Witness: owner removal and latent error retention leave the registries unchanged. -/
-theorem State.RegistrationsSupportedBy.taskFailure {queue : State}
-    {support : Task → Nat → Prop} (covered : queue.RegistrationsSupportedBy support)
-    (task : Occurrence) (errors : Nat)
-    : (queue.taskFailure task errors).1.RegistrationsSupportedBy support := by
-  let step (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode) :=
-    let (current, events) := acc
-    match current.groupNode? group.ref with
-    | none => (current, events)
-    | some node =>
-        if current.rootGroups.contains group.ref then
-          let (next, failure) := current.finishGroupFailure node errors
-          (next, events ++ [failure])
-        else
-          (current.putGroupNode
-            { node with
-                pending := node.pending - 1
-                failure := some (node.failure.getD 0 + errors) }, events)
-  have preserved (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode)
-      (prior : acc.1.RegistrationsSupportedBy support)
-      : (step acc group).1.RegistrationsSupportedBy support := by
-    obtain ⟨current, events⟩ := acc
-    unfold step
-    dsimp only
-    split
-    · exact prior
-    · split <;> exact prior
-  unfold State.taskFailure
-  split
-  · exact covered
-  · split <;> try exact covered
-    exact fold_preserves step (fun acc => acc.1.RegistrationsSupportedBy support)
-      preserved _ _ covered
 
 /-- Stream-item child work preserves provenance at each successive integration state.
 Witness: induction through integration, pruning, and activation for the actual item fold. -/

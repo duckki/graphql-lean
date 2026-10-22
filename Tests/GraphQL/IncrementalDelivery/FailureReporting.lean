@@ -12,10 +12,12 @@ def a : DeliveryNode := { ref := 0, path := [] }
 def b : DeliveryNode := { ref := 1, path := [] }
 
 def good : Work :=
-  .executionGroup [{ node := a }] [] (.ok ([("a", .scalar "a")], 0))
+  .executionGroup [{ node := a }] [] ({ result := .ok ([("a", .scalar "a")], 0) })
     (.combine .empty .empty)
 
-def bad : Work := .executionGroup [{ node := b }] [] (.error 1) .empty
+def bad : Work :=
+  .executionGroup [{ node := b }] [] ({ result := .error 1, cause := some 1 }) .empty
+
 def wk : Work := .combine .empty (.combine good (.combine bad .empty))
 def goodID : Occurrence := .executionGroup [1, 0]
 def badID : Occurrence := .executionGroup [1, 1, 0]
@@ -72,7 +74,7 @@ private theorem tasks {occurrence owners producer payload}
   | executionGroup address =>
       obtain ⟨groups, path, result, children, enclosing, located, rfl, rfl⟩ := h
       rcases locations located with h | h | h | h | h | h | h <;>
-        simp_all [wk, good, bad, a, b, goodID, badID]
+        simp_all [wk, good, bad, a, b, goodID, badID, TaskOutcome.deliveryResult]
   | item address index =>
       obtain ⟨node, items, enclosing, result, children, located, entry, rfl, rfl⟩ := h
       rcases locations located with h | h | h | h | h | h | h <;>
@@ -140,7 +142,8 @@ example
       WorkQueueSemantics.failure, WorkQueueSemantics.node])
 
 def sharedFailure : Work :=
-  .executionGroup [{ node := a }, { node := b }] [] (.error 1) .empty
+  .executionGroup [{ node := a }, { node := b }] []
+    ({ result := .error 1, cause := some 1 }) .empty
 
 /-- One open contributing owner suffices; shared work need not announce every owner,
 and its error notification may still be delayed.
@@ -189,7 +192,9 @@ example
         ∧ ∀ cut occurrence rest owners producer payload,
             failures = (cut, occurrence) :: rest
             → TaskAt WorkQueueSemantics.failingWork occurrence owners producer payload
-            → payload.failure.getD 0 ≤ 2 := by
+            → 0
+              < ([[WorkQueueSemantics.failure, .workQueueTermination]].flatten.map
+                  failureErrors).sum := by
   simpa [WorkQueueSemantics.node, WorkQueueSemantics.failure, failureErrors]
     using WorkQueueSemantics.failedRun.first_failure_accounting
 

@@ -56,7 +56,7 @@ theorem mixed_failureCertificates_with_closureLedger {work : Execution.Work}
             let publisher : IncrementalPublisher :=
               { active := queue.initialGroups ++ queue.initialStreams }
             let objects :=
-              sourceObjectFailureCuts 0
+              informativeObjectFailureCuts work
                 (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher inputs).2.2)
             ∃ streams,
               StreamFailureCuts work
@@ -101,7 +101,7 @@ theorem mixed_failureCertificates_with_cuts {work : Execution.Work}
             let publisher : IncrementalPublisher :=
               { active := queue.initialGroups ++ queue.initialStreams }
             let objects :=
-              sourceObjectFailureCuts 0
+              informativeObjectFailureCuts work
                 (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher inputs).2.2)
             ∃ streams,
               StreamFailureCuts work

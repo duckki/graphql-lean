@@ -113,27 +113,24 @@ theorem State.taskSuccess_eq (state : State) (occurrence : Occurrence)
     (result : ReferenceWorkQueue.TaskResult) (node : ReferenceWorkQueue.TaskNode)
     (found : state.queue.taskNode? occurrence = some node)
     : state.taskSuccess occurrence result
-      = if !state.queue.taskHasHealthyOwner node.task then
-          ({ state with queue := state.queue.removeTask occurrence }, [], [])
-        else
-          let stored : State :=
-            {
-              state with
-                queue := state.queue.putTaskNode { node with value := some result.value }
-            }
-          let registered := stored.maybeIntegrateWork result.work (some occurrence)
-          let released :=
-            node.task.groups.foldl ReferenceWorkQueue.successGroupStep
-              (registered.1.queue, [], {})
-          let started :=
-            ({ registered.1 with queue := released.1 }).startNewWork released.2.2
-              registered.2
-          let drained := started.1.drainReadyGroups started.2
-          (
-            drained.1,
-            released.2.1 ++ drained.2.1,
-            [.adopt occurrence] ++ drained.2.2.flatMap CleanupTarget.effects
-          ) := by
+      = let stored : State :=
+          {
+            state with
+              queue := state.queue.putTaskNode { node with value := some result.value }
+          }
+        let registered := stored.maybeIntegrateWork result.work (some occurrence)
+        let released :=
+          node.task.groups.foldl ReferenceWorkQueue.successGroupStep
+            (registered.1.queue, [], {})
+        let started :=
+          ({ registered.1 with queue := released.1 }).startNewWork released.2.2
+            registered.2
+        let drained := started.1.drainReadyGroups started.2
+        (
+          drained.1,
+          released.2.1 ++ drained.2.1,
+          [.adopt occurrence] ++ drained.2.2.flatMap CleanupTarget.effects
+        ) := by
   simp only [State.taskSuccess, found]
   rfl
 
@@ -266,32 +263,30 @@ theorem State.taskSuccess_projection {state : State} {work : Work}
       = state.queue.taskSuccess occurrence result := by
   rw [state.taskSuccess_eq occurrence result node found,
     ReferenceWorkQueue.State.taskSuccess_eq occurrence result node found]
-  split
-  · rfl
-  · let active := taskSuccessReadyPhase state occurrence result node
-    have phase := state.taskSuccess_readyProjection generated present accounting
-      occurrence result node found fresh known childFresh running
-    have activeQueue : active.1.queue = referenceTaskSuccessReady state.queue occurrence result node :=
-      congrArg Prod.fst phase
-    have activeRunning : active.1.stopped = false :=
-      (taskSuccessReadyPhase_stopped state occurrence result node).trans running
-    obtain ⟨parents, frame, forest⟩ := frames
-    have activeFrame : active.1.queue.TaskOwnerFrame work := by rw [activeQueue]; exact frame
-    have activeForest : active.1.queue.RemovalForest parents := by rw [activeQueue]; exact forest
-    have drain := active.1.drainReadyGroups_projection activeRunning activeFrame activeForest active.2.2
-    rw [activeQueue] at drain
-    have whole := congrArg (fun pair => (pair.1, active.2.1 ++ pair.2)) drain
-    let integrated := (ReferenceWorkQueue.State.maybeIntegrateWork
-      (state.queue.putTaskNode { node with value := some result.value })
-      result.work (some occurrence)).1
-    let referenceReleased := node.task.groups.foldl ReferenceWorkQueue.successGroupStep (integrated, [], {})
-    have wirePrefix : active.2.1 = referenceReleased.2.1 := congrArg Prod.snd phase
-    change ((active.1.drainReadyGroups active.2.2).1.queue,
-        active.2.1 ++ (active.1.drainReadyGroups active.2.2).2.1) =
-      ((referenceTaskSuccessReady state.queue occurrence result node).drainReadyGroups.1,
-        referenceReleased.2.1 ++
-          (referenceTaskSuccessReady state.queue occurrence result node).drainReadyGroups.2)
-    exact whole.trans (by rw [wirePrefix])
+  let active := taskSuccessReadyPhase state occurrence result node
+  have phase := state.taskSuccess_readyProjection generated present accounting
+    occurrence result node found fresh known childFresh running
+  have activeQueue : active.1.queue = referenceTaskSuccessReady state.queue occurrence result node :=
+    congrArg Prod.fst phase
+  have activeRunning : active.1.stopped = false :=
+    (taskSuccessReadyPhase_stopped state occurrence result node).trans running
+  obtain ⟨parents, frame, forest⟩ := frames
+  have activeFrame : active.1.queue.TaskOwnerFrame work := by rw [activeQueue]; exact frame
+  have activeForest : active.1.queue.RemovalForest parents := by rw [activeQueue]; exact forest
+  have drain := active.1.drainReadyGroups_projection activeRunning activeFrame activeForest active.2.2
+  rw [activeQueue] at drain
+  have whole := congrArg (fun pair => (pair.1, active.2.1 ++ pair.2)) drain
+  let integrated := (ReferenceWorkQueue.State.maybeIntegrateWork
+    (state.queue.putTaskNode { node with value := some result.value })
+    result.work (some occurrence)).1
+  let referenceReleased := node.task.groups.foldl ReferenceWorkQueue.successGroupStep (integrated, [], {})
+  have wirePrefix : active.2.1 = referenceReleased.2.1 := congrArg Prod.snd phase
+  change ((active.1.drainReadyGroups active.2.2).1.queue,
+      active.2.1 ++ (active.1.drainReadyGroups active.2.2).2.1) =
+    ((referenceTaskSuccessReady state.queue occurrence result node).drainReadyGroups.1,
+      referenceReleased.2.1 ++
+        (referenceTaskSuccessReady state.queue occurrence result node).drainReadyGroups.2)
+  exact whole.trans (by rw [wirePrefix])
 
 -----------------------------------------------------------------------------------------
 -- Close the local proof premises over actual accepted generated source prefixes

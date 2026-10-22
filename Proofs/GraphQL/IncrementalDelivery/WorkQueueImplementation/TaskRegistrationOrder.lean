@@ -76,19 +76,14 @@ theorem State.taskSuccess_objectProducersRegisteredBefore {queue : State}
   cases found : queue.taskNode? occurrence with
   | none => simpa only [State.taskSuccess, found] using ordered
   | some node =>
-      cases healthy : queue.taskHasHealthyOwner node.task with
-      | false =>
-          rw [State.taskSuccess_of_noHealthyOwner found healthy]
-          exact ordered
-      | true =>
-          rw [State.taskSuccess_tasks found healthy]
-          apply ordered.append
-          intro task member source known
-          obtain ⟨_, _, _, located⟩ := matching.childTask_producer member
-          obtain ⟨_, _, other⟩ := known
-          have same := Option.some.inj (located.unique other).2.1
-          have lookup := State.taskNode?_some found
-          exact ⟨node.task, started node lookup.1, lookup.2.trans same⟩
+      rw [State.taskSuccess_tasks found]
+      apply ordered.append
+      intro task member source known
+      obtain ⟨_, _, _, located⟩ := matching.childTask_producer member
+      obtain ⟨_, _, other⟩ := known
+      have same := Option.some.inj (located.unique other).2.1
+      have lookup := State.taskNode?_some found
+      exact ⟨node.task, started node lookup.1, lookup.2.trans same⟩
 
 /-- Stream-item integration appends only item-produced tasks, never object-produced tasks.
 Witness: exact item child lowering identifies the producer constructor, so the new

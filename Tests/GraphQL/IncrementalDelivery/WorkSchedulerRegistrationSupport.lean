@@ -9,7 +9,7 @@ private def ancestor : DeliveryNode := ⟨0, [], none⟩
 private def child : DeliveryNode := ⟨1, [], none⟩
 
 private def work : Execution.Work :=
-  .executionGroup [⟨child, [ancestor]⟩] [] (.ok ([], 0)) .empty
+  .executionGroup [⟨child, [ancestor]⟩] [] ({ result := .ok ([], 0) }) .empty
 
 private def queue : State := State.initialize (Work.fromExecution work)
 

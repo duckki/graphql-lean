@@ -45,13 +45,13 @@ def node (ref : NodeRef) : DeliveryNode := { ref, path := [] }
 
 /-- A shared producer reveals a shared child whose owners have different ancestors. -/
 def work (first second : Result (List (Name × ResponseValue))) : Work :=
-  .executionGroup [{ node := node 0 }, { node := node 1 }] [] first
+  .executionGroup [{ node := node 0 }, { node := node 1 }] [] { result := first }
     (.executionGroup
       [
         { node := node 2, ancestors := [node 0] },
         { node := node 3, ancestors := [node 1] }
       ]
-      [] second .empty)
+      [] { result := second } .empty)
 
 /-- Each produced owner inherits the ancestry of its own supporting producer owner. -/
 def ancestors (ref : NodeRef) : NodeRefs :=
@@ -73,7 +73,8 @@ example (first second : Result (List (Name × ResponseValue)))
   · simp [work, MixedRefs.WorkAt, FragmentAt, node, ancestors]
   · simp [work, DeferContinuous, DeferUnder, Descends, mapRefs, node, ancestors]
   · simp [work, StreamOwnersOrdered, OwnersBefore]
-  · exact TaskAt.executionGroup (.executionGroup .root)
+  · simpa using (TaskAt.executionGroup (result := { result := second }) (Located.executionGroup Located.root)
+      : TaskAt (work first second) (.executionGroup [0]) _ _ _)
   · exact member
   · exact cancelled
 
@@ -116,8 +117,10 @@ theorem shared_run_exists (first second : Result (List (Name × ResponseValue)))
 account for one; the child still requires the full transitive ancestry to be satisfied.
 -/
 def silent (first second : Result (List (Name × ResponseValue))) : Work :=
-  .executionGroup [{ node := node 0 }, { node := node 1, ancestors := [node 0] }] [] first
-    (.executionGroup [{ node := node 2, ancestors := [node 1, node 0] }] [] second .empty)
+  .executionGroup [{ node := node 0 }, { node := node 1, ancestors := [node 0] }] []
+    { result := first }
+    (.executionGroup [{ node := node 2, ancestors := [node 1, node 0] }] []
+      { result := second } .empty)
 
 /-- Full transitive ancestry includes the silently accounted owner's ancestor. -/
 def silentAncestors (ref : NodeRef) : NodeRefs :=

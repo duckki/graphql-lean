@@ -62,7 +62,7 @@ decreasing_by
 
 /-- Every item's child work has descriptors from the same assignment. -/
 def ItemsAt (nodes : Assignment) (bound : Nat)
-    (items : List (GraphQL.Execution.Result ResponseValue × Work))
+    (items : List (TaskOutcome ResponseValue × Work))
     : Prop :=
   ∀ item ∈ items, WorkAt nodes bound item.2
 
@@ -76,7 +76,7 @@ def Completed (nodes : Assignment) (start : Nat) (output : Completion α × Nat)
 
 /-- Stream-item completion extends the same assignment across all generated child work. -/
 def ItemsOutput (nodes : Assignment) (start : Nat)
-    (output : List (GraphQL.Execution.Result ResponseValue × Work) × Nat)
+    (output : List (TaskOutcome ResponseValue × Work) × Nat)
     : Prop :=
   start ≤ output.2 ∧ ∃ next, Extends start nodes next ∧ ItemsAt next output.2 output.1
 

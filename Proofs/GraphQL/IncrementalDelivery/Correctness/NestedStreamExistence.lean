@@ -1,5 +1,5 @@
 import Proofs.GraphQL.IncrementalDelivery.Correctness.ReleasedStreamAccounting
-import Proofs.GraphQL.IncrementalDelivery.Correctness.StreamFailureScopes
+import Proofs.GraphQL.IncrementalDelivery.Correctness.HealthyGroupStreamReporting
 
 /-! Complete stream-only runs have actual scopes for every cancelled descendant. -/
 
@@ -52,17 +52,21 @@ theorem StreamOnly.completeRun_exists {paths bound work}
     have empty := (onlyStreams.node known).2
     exact DependencyFreeStreamsNotified.initial covers node producer (empty ▸ known) ready healthy
   obtain ⟨tail, next, cuts, accountedHistory, accounted⟩ :=
-    account_released_streams coherent initial deferred closed notified
-  obtain ⟨closures, _, _, finished, allClosed⟩ := accountedHistory.close_open_refs accounted
+    account_released_streams coherent positive initial deferred closed notified
+  obtain ⟨closures, _, _, finished, allClosed⟩ := accountedHistory.close_open_refs
+    (Explains.openFailureCauses_of_healthy_groups positive accountedHistory
+      (fun node dependencies birth known => by cases (onlyStreams.node known).1)) accounted
     (announcedRefs ((groups ++ streams).map DeliveryNode.ref) ([] ++ tail))
     (fun _ opened => opened.1)
   apply (admissibleRun_exists_iff_reported_history work).mpr
-  refine ⟨groups, streams, ([] ++ tail) ++ closures, next, cuts, finished, ?_⟩
-  intro occurrence owners producer payload known
-  by_cases published : Published next (([] ++ tail) ++ closures) occurrence
-  · exact Or.inr published
-  · have cancelled := ((accounted _ _ _ _ known).append closures).resolve_right published
-    exact Or.inl ⟨cancelled,
-      onlyStreams.cancelled_reported coherent under positive finished allClosed cancelled known⟩
+  refine ⟨groups, streams, ([] ++ tail) ++ closures, next, cuts, finished, ?_, ?_⟩
+  · intro ref opened _
+    exact (opened.2 (allClosed ref opened.1)).elim
+  · intro occurrence owners producer payload known
+    by_cases published : Published next (([] ++ tail) ++ closures) occurrence
+    · exact Or.inr published
+    · have cancelled := ((accounted _ _ _ _ known).append closures).resolve_right published
+      exact Or.inl ⟨cancelled,
+        onlyStreams.cancelled_reported coherent under positive finished allClosed cancelled known⟩
 
 end GraphQL.IncrementalDelivery.Correctness

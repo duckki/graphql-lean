@@ -2,43 +2,37 @@ import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.CompleteFailur
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.MixedFailureCuts
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.GroupClosureProvenance
 
-/-! Complete group error totals under the common object/stream candidate inventory. -/
+/-! Selected positive group causes under the common object/stream candidate inventory. -/
 
 namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
 -----------------------------------------------------------------------------------------
--- Unrelated failed items contribute zero, without changing the object totals
+-- Selected group causes persist under additional stream cuts
 -----------------------------------------------------------------------------------------
 
-/-- Prepending known tasks that do not own the ref preserves its exact error total.
-Witness: add their zero contributions one at a time. No freshness or disjointness premise
-is needed, because descriptor uniqueness also fixes contributions at repeated occurrences.
+/-- Prepending known tasks that do not own the ref preserves its selected error cause.
+Witness: the same positive contributing task remains in the larger inventory.
+No freshness or disjointness premise is needed for this inclusion.
 -/
 theorem nodeErrors_prepend_nonowners {work failed ref errors}
-    (counts : NodeErrors work failed ref errors) (more : List Occurrence)
-    (known
+    (counts : NodeFailureCause work failed ref errors) (more : List Occurrence)
+    (_known
       : ∀ occurrence ∈ more,
           ∃ owners producer payload,
             TaskAt work occurrence owners producer payload ∧ ref ∉ owners)
-    : NodeErrors work (more ++ failed) ref errors := by
-  induction more with
-  | nil => exact counts
-  | cons occurrence rest ih =>
-      obtain ⟨owners, producer, payload, task, absent⟩ := known occurrence List.mem_cons_self
-      have prior := ih (fun other member => known other (List.mem_cons_of_mem _ member))
-      simpa only [List.cons_append, absent, ↓reduceIte, Nat.zero_add]
-        using nodeErrors_cons prior task
+    : NodeFailureCause work (more ++ failed) ref errors :=
+  counts.mono (List.subset_append_right more failed)
 
 /-- Adding visible stream failures preserves the exact total for a generated group.
 Witness: each failed item's sole stream owner is disjoint from the group's ref.
 This concerns summation only, not licensing the added failure cuts.
 -/
 theorem nodeErrors_with_streams {work events streams objects index group errors}
-    (counts : NodeErrors work objects group.ref errors)
+    (counts : NodeFailureCause work objects group.ref errors)
     (cuts : StreamFailureCuts work events streams) (generated : ExecutedWork work)
     {dependencies producer} (groupKnown : NodeAt work group .group dependencies producer)
-    : NodeErrors work (failedBefore streams index ++ objects) group.ref errors := by
+    : NodeFailureCause work (failedBefore streams index ++ objects) group.ref errors := by
   apply nodeErrors_prepend_nonowners counts
   intro occurrence member
   obtain ⟨entry, retained, same⟩ := List.mem_map.mp member
@@ -47,18 +41,18 @@ theorem nodeErrors_with_streams {work events streams objects index group errors}
   exact ⟨[stream.ref], parent, _, task,
     generated.itemFailure_not_groupOwner groupKnown task⟩
 
-/-- Interleaving stream cuts preserves a group's complete visible object-failure total.
+/-- Interleaving stream cuts preserves a group's selected visible object-failure cause.
 Witness: partition at the unchanged unbatched output index, add only zero stream
 contributions, and permute the summands back to the actual mixed inventory.
 -/
 theorem nodeErrors_group_mixed
     {work events streamCuts objectCuts failures index group errors}
-    (counts : NodeErrors work (failedBefore objectCuts index) group.ref errors)
+    (counts : NodeFailureCause work (failedBefore objectCuts index) group.ref errors)
     (cuts : StreamFailureCuts work events streamCuts)
     (partition : failures.Perm (streamCuts ++ objectCuts))
     (generated : ExecutedWork work) {dependencies producer}
     (groupKnown : NodeAt work group .group dependencies producer)
-    : NodeErrors work (failedBefore failures index) group.ref errors := by
+    : NodeFailureCause work (failedBefore failures index) group.ref errors := by
   exact nodeErrors_of_perm (nodeErrors_with_streams counts cuts generated groupKnown)
     (failedBefore_partition partition index).symm
 
@@ -95,7 +89,7 @@ theorem createWorkQueue_mixedFailureCuts_groupNodeErrors {work : Execution.Work}
             batches).2.flatten.flatMap
           publicationAtoms)[index]?
         = some (.groupFailure group errors))
-    : NodeErrors work (failedBefore failures index) group.ref errors := by
+    : NodeFailureCause work (failedBefore failures index) group.ref errors := by
   obtain ⟨dependencies, producer, groupKnown⟩ :=
     createWorkQueue_runNormalized_atomicGroupClosuresLocated generated valid _
       (List.mem_of_getElem? atEvent)
@@ -130,7 +124,7 @@ theorem createWorkQueue_mixedFailureCuts_streamNodeErrors {work : Execution.Work
             batches).2.flatten.flatMap
           publicationAtoms)[index]?
         = some (.streamFailure stream errors))
-    : NodeErrors work (failedBefore failures index) stream.ref errors := by
+    : NodeFailureCause work (failedBefore failures index) stream.ref errors := by
   apply cuts.nodeErrors_mixed partition ?_ generated
     (createWorkQueue_runNormalized_atomicStreamActions_ordered valid) atEvent
   intro entry member

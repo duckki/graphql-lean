@@ -62,19 +62,10 @@ theorem terminal_prefixInvalidatedRecord_reported {work inputs} {w : Witness}
               simpa only [State.objectFailureContributions, State.objectFailureContribution,
                 found, List.nil_append] using invalid
           | some task =>
-              cases accepted
-                    : ((initialQueue work).replayGraphEvents before).taskHasHealthyOwner
-                        task.task with
-              | false =>
-                  apply earlier node dependencies known
-                  simpa only [State.objectFailureContributions, State.objectFailureContribution,
-                    found, accepted, Bool.false_eq_true, ↓reduceIte, List.nil_append] using invalid
-              | true =>
-                  apply terminal_acceptedFailure_reportsRecords generated valid started history
-                    together ended found accepted earlier known
-                  simpa only [State.objectFailureContributions, State.objectFailureContribution,
-                    found, accepted, ↓reduceIte, List.nil_append,
-                    List.singleton_append] using invalid
+              apply terminal_acceptedFailure_reportsRecords generated valid started history
+                together ended found earlier known
+              simpa only [State.objectFailureContributions, State.objectFailureContribution,
+                found, List.nil_append, List.singleton_append] using invalid
 
 /-- Every record invalidated by the complete accepted inventory has a positive report.
 Witness: specialize prefix-origin reporting to the full concrete source history. The

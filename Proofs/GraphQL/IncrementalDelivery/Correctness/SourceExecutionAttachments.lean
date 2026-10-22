@@ -396,15 +396,15 @@ mutual
           split
           · rename_i errors he
             apply runEnsures_pure
-            have hs : ItemCursorSeed path index [(head.result, .empty)] [[]] := by
-              simpa only [he, result, List.nil_append]
+            have hs : ItemCursorSeed path index [(head.outcome, .empty)] [[]] := by
+              simpa only [Completion.outcome, he, result, List.nil_append]
                 using (ItemCursorSeed.cons (path := path) (index := index)
-                        (completed := head.result) WorkCursorSeed.empty
+                        (completed := head.outcome) WorkCursorSeed.empty
                         ItemCursorSeed.nil)
             refine ⟨⟨[[]], hs, owns_nil _⟩, [[]], hs, ?_⟩
-            simpa only [he, result, List.nil_append]
+            simpa only [Completion.outcome, he, result, List.nil_append]
               using (ItemsAttached.cons (available := available) (path := path)
-                      (index := index) (completed := head.result) WorkAttached.empty
+                      (index := index) (completed := head.outcome) WorkAttached.empty
                       ItemsAttached.nil)
           · refine runEnsures_bind (OwnedAttachedItems available path (index + 1)
               (UnderItems path (index + 1))) _ _ _ ?_ ?_

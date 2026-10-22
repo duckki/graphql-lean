@@ -124,7 +124,9 @@ example
       = [.groupFailure group0 1, .groupFailure group1 1] := by cbv
 
 -- The actual full-handler theorem, not separate single-root results, proves disposal.
-example : .cancelSource 7 ∈ (({ queue := shared } : State).taskFailure failed 1).2.2 := by
+example
+    : .cancelSource 7
+      ∈ (({ queue := shared } : State).handleGraphEvent (.taskFailure failed 1)).2.2 := by
   apply taskFailure_droppedBufferedSource (occurrence := producer) (node := node) _ failed
     1 (by decide) (by cbv) (by decide) (by cbv)
 

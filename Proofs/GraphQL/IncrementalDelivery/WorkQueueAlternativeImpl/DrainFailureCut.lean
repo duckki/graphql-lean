@@ -31,7 +31,10 @@ private theorem readyMember {queue : Kernel} {node : GroupNode}
       : queue.rootGroups.findSome?
           (fun key => do
             let group ← queue.groupNode? key
-            if group.failure.isSome || group.pending == 0 then some group else none)
+            if (queue.rejectedTask? group).isSome || group.pending == 0 then
+              some group
+            else
+              none)
         = some node)
     : node ∈ queue.groupNodes := by
   obtain ⟨key, _, choice⟩ := List.exists_of_findSome?_eq_some selected
@@ -94,7 +97,7 @@ theorem drain_pendingBuffer_ownerCut {before current : Kernel}
       · rename_i group selected
         simp only [selected] at unpublished
         have member := readyMember selected
-        cases cached : group.failure with
+        cases cached : current.rejectedTask? group with
         | none =>
             simp only [cached] at unpublished
             dsimp only at unpublished ⊢
@@ -137,56 +140,46 @@ theorem drain_pendingBuffer_ownerCut {before current : Kernel}
               · rw [failureRoots, List.filterMap_append]
                 exact List.mem_append_right _ failed
               · simpa only [List.append_assoc] using path
-        | some errors =>
+        | some rejection =>
+            obtain ⟨failed, errors⟩ := rejection
             simp only [cached] at unpublished
-            dsimp only [ReferenceWorkQueue.State.finishGroupFailure] at unpublished ⊢
-            by_cases affected : current.LiveDescendant group.group.node.ref owner.ref
-            · refine Or.inr ⟨group.group.node.ref, ?_, ?_⟩
-              · simp [failureRoots]
-              · have retired : ∀ key ∈ publicationRoots preceding, current.groupNode? key = none := by
-                  intro key published
-                  obtain ⟨carrier, groups, streams, emitted, same⟩ := mem_publicationRoots.mp published
-                  exact (closures.closed key
-                    (List.mem_flatMap.mpr ⟨_, emitted, same ▸ List.mem_cons_self⟩)).lookup_none
-                simpa only [List.append_assoc]
-                  using failureBoundary_path group.group.node errors fuel forest edges
-                    retired affected
-            · let next := current.removeGroup group.group.node.ref
-              obtain ⟨oldOwner, lookup⟩ := liveLookup present
-              have nextLookup : next.groupNode? owner.ref = some oldOwner :=
-                (ReferenceWorkQueue.State.removeGroup_groupNodeRetained forest affected).trans lookup
-              have nextFound := ReferenceWorkQueue.State.removeGroup_lookup_survivingOwner found
-                group.group.node.ref contributes (List.mem_of_find?_eq_some nextLookup)
-                (ReferenceWorkQueue.State.groupNode?_ref nextLookup)
-              have nextPresent : owner.ref ∈ next.groupNodes.map (fun group => group.group.node.ref) :=
-                List.mem_map.mpr ⟨oldOwner, List.mem_of_find?_eq_some nextLookup,
-                  ReferenceWorkQueue.State.groupNode?_ref nextLookup⟩
-              have nextEdges : next.GroupEdgesFrom (registrationSnapshot before event) := by
-                apply ReferenceWorkQueue.State.GroupEdgesFrom.trans _ edges
-                exact current.filterRefs_groupEdgesFrom
-                  (fun key => !(ReferenceWorkQueue.State.removeGroup.collect
-                    (current.groupNodes.length + 1) current [group.group.node.ref] []).contains key)
+            dsimp only at unpublished ⊢
+            let next := (current.taskFailure failed errors).1
+            rcases taskFailure_ownerCut failed errors fuel forest frame.keys edges closures present with
+              nextPresent | cut
+            · obtain ⟨oldOwner, lookup⟩ := liveLookup nextPresent
+              have unchanged : occurrence ≠ failed ∨ node.rejection = some errors := by
+                by_cases different : occurrence ≠ failed
+                · exact .inl different
+                · have same : occurrence = failed := Classical.not_not.mp different
+                  subst failed
+                  obtain ⟨_, source, selected, rejected⟩ :=
+                    ReferenceWorkQueue.State.rejectedTask?_sound cached
+                  have equal : source = node := Option.some.inj (selected.symm.trans found)
+                  exact .inr (equal ▸ rejected)
+              have nextFound := ReferenceWorkQueue.State.taskFailure_lookup_survivingOwner_unchanged
+                found failed errors unchanged contributes (List.mem_of_find?_eq_some lookup)
+                  (ReferenceWorkQueue.State.groupNode?_ref lookup)
+              have nextEdges := (current.taskFailure_groupEdgesFrom failed errors).trans edges
               have nextClosures := closures.append
-                (ReferenceWorkQueue.State.finishGroupFailure_closureAccounting frame.live group
-                  member errors)
-              have nextUnpublished
-                  : ∀ key ∈ node.task.groups.map DeliveryNode.ref,
-                      key ∉ publicationRoots
-                        ((preceding ++ [.groupFailure group.group.node errors])
-                          ++ (ReferenceWorkQueue.State.drainReadyGroups.go fuel next).2) := by
-                simpa only [ReferenceWorkQueue.State.finishGroupFailure,
-                  List.append_assoc]
-                  using unpublished
-              rcases ih (frame.removeGroup _) (forest.removeGroup _) nextEdges nextClosures
-                  nextFound nextUnpublished nextPresent with kept | cut
-              · exact Or.inl kept
-              · obtain ⟨root, failed, path⟩ := cut
-                refine Or.inr ⟨root, ?_, ?_⟩
-                · simp only [failureRoots, List.filterMap_append, List.filterMap_cons,
-                    List.filterMap_nil, List.mem_append]
-                  exact Or.inr failed
-                · simpa only [ReferenceWorkQueue.State.finishGroupFailure,
-                    List.append_assoc]
-                    using path
+                (ReferenceWorkQueue.State.taskFailure_closureAccounting frame.live failed errors)
+              have nextUnpublished : ∀ key ∈ node.task.groups.map DeliveryNode.ref,
+                  key ∉ publicationRoots
+                    ((preceding ++ (current.taskFailure failed errors).2)
+                      ++ (ReferenceWorkQueue.State.drainReadyGroups.go fuel next).2) := by
+                simpa only [List.append_assoc] using unpublished
+              rcases ih (frame.taskFailure failed errors) (forest.taskFailure failed errors)
+                  nextEdges nextClosures nextFound nextUnpublished nextPresent with kept | cut
+              · exact .inl kept
+              · obtain ⟨root, reported, path⟩ := cut
+                refine .inr ⟨root, ?_, ?_⟩
+                · rw [failureRoots, List.filterMap_append]
+                  exact List.mem_append_right _ reported
+                · simpa only [List.append_assoc] using path
+            · obtain ⟨root, reported, path⟩ := cut
+              refine .inr ⟨root, ?_, ?_⟩
+              · rw [failureRoots, List.filterMap_append]
+                exact List.mem_append_left _ reported
+              · simpa only [List.append_assoc] using path
 
 end GraphQL.IncrementalDelivery.AlternativeWorkQueue.NativeRefinement

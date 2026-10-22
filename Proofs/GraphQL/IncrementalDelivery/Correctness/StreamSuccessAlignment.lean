@@ -46,7 +46,7 @@ theorem completeStreamItems_aligns_ordinarySuccess (schema : Schema)
                   ((completeValue schema resolvers variables fuel itemType selected
                       resolved (path ++ [.index (index + offset)]) [] [] false).run
                     itemState).1
-                items[offset]? = some (completed.result, completed.work)
+                items[offset]? = some (completed.outcome, completed.work)
                 ∧ ∃ initial count, completed.result = .ok (initial, count) := by
   induction values generalizing index state reference errors with
   | nil =>
@@ -93,7 +93,7 @@ theorem completeStreamItems_aligns_ordinarySuccess (schema : Schema)
               change completed.result = .ok (initial, count) at initialSuccess
               have retained : ((completeStreamItems schema resolvers variables fuel itemType
                   selected (value :: rest) path index).run state).1
-                  = (completed.result, completed.work) ::
+                  = (completed.outcome, completed.work) ::
                     ((completeStreamItems schema resolvers variables fuel itemType selected
                       rest path (index + 1)).run next).1 := by
                 simp [completeStreamItems, action, next, completed, initialSuccess]
@@ -109,8 +109,8 @@ theorem completeStreamItems_aligns_ordinarySuccess (schema : Schema)
                   subst data
                   refine ⟨value, headErrors, state, rfl, ordinaryHead, ?_⟩
                   simp only [Nat.add_zero, List.getElem?_cons_zero]
-                  change some (completed.result, completed.work)
-                    = some (completed.result, completed.work)
+                  change some (completed.outcome, completed.work)
+                    = some (completed.outcome, completed.work)
                     ∧ ∃ initial count, completed.result = .ok (initial, count)
                   exact ⟨rfl, initial, count, initialSuccess⟩
               | succ offset =>
@@ -191,7 +191,7 @@ theorem completeStreamItems_entriesCovered_of_values (schema : Schema)
   dsimp only at covered initialSuccess retained
   rw [initialSuccess, DeliveryPaths.result, Semantics.MixedPaths.resultCursors] at covered
   have retainedSuccess := retained
-  rw [initialSuccess] at retainedSuccess
+  rw [Completion.outcome, initialSuccess] at retainedSuccess
   exact (EntriesCovered.streamItem covered cursor retainedSuccess) entry inValue visible
 
 -----------------------------------------------------------------------------------------
@@ -249,9 +249,9 @@ theorem completeStreamItems_nullEntry_covered (schema : Schema)
     (node.path ++ [.index (index + offset)], .null) at localCovered
   rw [initialSuccess, DeliveryPaths.result] at localCovered
   have retainedSuccess := retained
-  change _ = some (completed.result, completed.work) at retainedSuccess
-  rw [initialSuccess] at retainedSuccess
-  exact (localCovered.streamItem_child node _ offset completed.result retained).available_mono
+  change _ = some (completed.outcome, completed.work) at retainedSuccess
+  rw [Completion.outcome, initialSuccess] at retainedSuccess
+  exact (localCovered.streamItem_child node _ offset completed.outcome retained).available_mono
     (preparedValuePositions_in_stream cursor retainedSuccess)
 
 end GraphQL.IncrementalDelivery.Correctness

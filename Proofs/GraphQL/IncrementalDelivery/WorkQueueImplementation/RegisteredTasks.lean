@@ -1,3 +1,4 @@
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.FailureDebt
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.GraphEvents
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.SourceObservation
 
@@ -278,9 +279,7 @@ theorem State.RegisteredTasksMatch.startGroup
       | cons task rest ih =>
           intro current currentMatch
           exact ih (current.startTask task) (currentMatch.startTask task)
-    split
-    · exact matching
-    · exact foldStart node.tasks queue matching
+    exact foldStart node.tasks queue matching
 
 /-- Starting a stream only changes the active-root list. -/
 theorem State.RegisteredTasksMatch.startStream
@@ -448,6 +447,19 @@ theorem State.RegisteredTasksMatch.finishGroupFailure
     : (queue.finishGroupFailure group errors).1.RegisteredTasksMatch work :=
   matching.removeGroup group.group.node.ref
 
+/-- Retaining a task rejection and removing active owners adds no task definitions. -/
+theorem State.RegisteredTasksMatch.taskFailure
+    {queue : State} {work : Execution.Work}
+    (matching : queue.RegisteredTasksMatch work)
+    (occurrence : Occurrence) (errors : Nat)
+    : (queue.taskFailure occurrence errors).1.RegisteredTasksMatch work := by
+  cases found : queue.taskNode? occurrence with
+  | none => simpa [State.taskFailure, found] using matching
+  | some node =>
+      rw [queue.taskFailure_eq occurrence errors node found]
+      exact failureGroupFold_preserves (fun state => state.RegisteredTasksMatch work)
+        (fun _ ref prior => prior.removeGroup ref) _ _ _ matching
+
 /-- Draining retained outcomes adds no task definitions. Witness: provenance is
 preserved by both closure paths and by activation of already registered work.
 -/
@@ -459,8 +471,8 @@ theorem State.RegisteredTasksMatch.drainReadyGroups
     (valid := matching)
   · intro current node currentMatch _ _ _ _
     exact (currentMatch.finishGroupSuccess node).startNewWork _
-  · intro current node errors currentMatch _ _ _
-    exact currentMatch.finishGroupFailure node errors
+  · intro current _ occurrence errors currentMatch _ _ _
+    exact currentMatch.taskFailure occurrence errors
 
 /-- A successful task integrates only its supplied child task definitions;
 settlement, flushing, and activation preserve their provenance.
@@ -490,8 +502,7 @@ theorem State.RegisteredTasksMatch.taskSuccess
     | some node =>
         let node := { node with pending := node.pending - 1 }
         let current := current.putGroupNode node
-        if current.rootGroups.contains group.ref && node.pending == 0
-            && node.failure.isNone then
+        if current.rootGroups.contains group.ref && node.pending == 0 then
           let (next, finished, newWork) := current.finishGroupSuccess node
           (
             next,
@@ -530,7 +541,6 @@ theorem State.RegisteredTasksMatch.taskSuccess
   split
   · exact matching
   · rename_i taskNode found
-    split <;> try exact matching.removeTask occurrence
     let withValue := queue.putTaskNode { taskNode with value := some result.value }
     have withValueMatch : withValue.RegisteredTasksMatch work := matching
     let integrated := (withValue.maybeIntegrateWork result.work (some occurrence)).1
@@ -541,72 +551,6 @@ theorem State.RegisteredTasksMatch.taskSuccess
       releaseFold taskNode.task.groups (integrated, [], {}) integratedMatch
     change (finished.1.startNewWork finished.2.2).drainReadyGroups.1.RegisteredTasksMatch work
     exact (finishedMatch.startNewWork finished.2.2).drainReadyGroups
-
-/-- Task failure closes active owners or caches a latent failure, but registers
-no new task definitions.
--/
-theorem State.RegisteredTasksMatch.taskFailure
-    {queue : State} {work : Execution.Work}
-    (matching : queue.RegisteredTasksMatch work)
-    (occurrence : Occurrence) (errors : Nat)
-    : (queue.taskFailure occurrence errors).1.RegisteredTasksMatch work := by
-  let step (acc : State × List WorkQueueEvent)
-      (group : Execution.DeliveryNode) : State × List WorkQueueEvent :=
-    let (current, events) := acc
-    match current.groupNode? group.ref with
-    | none => (current, events)
-    | some node =>
-        if current.rootGroups.contains group.ref then
-          let (next, failure) := current.finishGroupFailure node errors
-          (next, events ++ [failure])
-        else
-          (current.putGroupNode
-            { node with
-                pending := node.pending - 1
-                failure := some (node.failure.getD 0 + errors) }, events)
-  have stepMatch (acc : State × List WorkQueueEvent)
-      (group : Execution.DeliveryNode)
-      (currentMatch : acc.1.RegisteredTasksMatch work)
-      : (step acc group).1.RegisteredTasksMatch work := by
-    obtain ⟨current, events⟩ := acc
-    change (match current.groupNode? group.ref with
-      | none => (current, events)
-      | some node =>
-          if current.rootGroups.contains group.ref then
-            let (next, failure) := current.finishGroupFailure node errors
-            (next, events ++ [failure])
-          else
-            (current.putGroupNode
-              { node with
-                  pending := node.pending - 1
-                  failure := some (node.failure.getD 0 + errors)
-              }, events)).1.RegisteredTasksMatch work
-    cases found : current.groupNode? group.ref with
-    | none => exact currentMatch
-    | some node =>
-        by_cases started : current.rootGroups.contains group.ref = true
-        · simp only [started, ite_true]
-          exact currentMatch.finishGroupFailure node errors
-        · simp only [started]
-          exact currentMatch.putGroupNode _
-  have foldMatch (groups : List Execution.DeliveryNode) :
-      ∀ acc : State × List WorkQueueEvent,
-        acc.1.RegisteredTasksMatch work
-          → (groups.foldl step acc).1.RegisteredTasksMatch work := by
-    induction groups with
-    | nil => intro acc currentMatch; exact currentMatch
-    | cons group rest ih =>
-        intro acc currentMatch
-        exact ih (step acc group) (stepMatch acc group currentMatch)
-  unfold State.taskFailure
-  split
-  · exact matching
-  · rename_i taskNode found
-    split <;> try exact matching.removeTask occurrence
-    let current := queue.removeTask occurrence
-    have currentMatch : current.RegisteredTasksMatch work := matching.removeTask occurrence
-    change (taskNode.task.groups.foldl step (current, [])).1.RegisteredTasksMatch work
-    exact foldMatch taskNode.task.groups (current, []) currentMatch
 
 /-- One stream batch integrates only the child task definitions supplied by its
 items; each item may reveal work independently of the others.

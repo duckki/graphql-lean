@@ -40,7 +40,7 @@ theorem generatedReplay_representedTarget_covered {work inputs}
           target)
     : target ∈ ((State.initialize work).runNormalized inputs).1.cleanupTargets := by
   cases represented with
-  | @task key occurrence group found linked =>
+  | @task key occurrence group found linked unrejected =>
       have evidence := generatedReplay_membershipEvidence generated valid started
       have member := List.mem_of_find?_eq_some found
       obtain ⟨task, registered, _, contributes⟩ := evidence group member occurrence linked
@@ -50,7 +50,9 @@ theorem generatedReplay_representedTarget_covered {work inputs}
       have covered := GeneratedRootedStopCoverage_holds work inputs generated valid started root
         group.group.node.ref group occurrence active path
         ((ReferenceWorkQueue.State.groupNode?_ref found).symm ▸ found) linked
-      exact covered (List.mem_append_left _ List.mem_cons_self)
+      apply covered
+      simp only [State.cancelTask, unrejected, Bool.false_eq_true, ↓reduceIte]
+      exact List.mem_append_left _ List.mem_cons_self
   | activeStream active =>
       apply (mem_uniqueCleanupTargets _ _).mpr
       exact List.mem_append_right _ (List.mem_map_of_mem active)

@@ -26,24 +26,22 @@ theorem State.taskSuccess_groupNoticesUnique {queue : State} {parents}
   | none => simp [State.taskSuccess, found]
   | some incoming =>
       rw [queue.taskSuccess_eq occurrence result incoming found]
-      split
-      · simp
-      · let stored := queue.putTaskNode { incoming with value := some result.value }
-        let prepared := (stored.maybeIntegrateWork result.work (some occurrence)).1
-        let folded := incoming.task.groups.foldl successGroupStep (prepared, [], {})
-        have storedLinks : stored.ChildLinksCanonical parents := links
-        have storedChildren : stored.ChildGroupsUnique := children
-        have preparedLinks := storedLinks.maybeIntegrateWork result.work canonical (some occurrence)
-        have preparedChildren := storedChildren.maybeIntegrateWork result.work (some occurrence)
-        obtain ⟨foldedLinks, foldedChildren, notices⟩ :=
-          prepared.successGroupFold_groupNoticesUnique preparedLinks preparedChildren
-            incoming.task.groups
-        intro event emitted
-        rcases List.mem_append.mp emitted with owner | drain
-        · exact notices event owner
-        · exact State.drainReadyGroups_go_groupNoticesUnique
-            (foldedLinks.startNewWork folded.2.2) (foldedChildren.startNewWork folded.2.2)
-            _ event drain
+      let stored := queue.putTaskNode { incoming with value := some result.value }
+      let prepared := (stored.maybeIntegrateWork result.work (some occurrence)).1
+      let folded := incoming.task.groups.foldl successGroupStep (prepared, [], {})
+      have storedLinks : stored.ChildLinksCanonical parents := links
+      have storedChildren : stored.ChildGroupsUnique := children
+      have preparedLinks := storedLinks.maybeIntegrateWork result.work canonical (some occurrence)
+      have preparedChildren := storedChildren.maybeIntegrateWork result.work (some occurrence)
+      obtain ⟨foldedLinks, foldedChildren, notices⟩ :=
+        prepared.successGroupFold_groupNoticesUnique preparedLinks preparedChildren
+          incoming.task.groups
+      intro event emitted
+      rcases List.mem_append.mp emitted with owner | drain
+      · exact notices event owner
+      · exact State.drainReadyGroups_go_groupNoticesUnique
+          (foldedLinks.startNewWork folded.2.2) (foldedChildren.startNewWork folded.2.2)
+          _ event drain
 
 /-- Matching item handling carries a unique leading group list and unique drain lists.
 Witness: the item fold separates its fresh registered frontiers; each later success

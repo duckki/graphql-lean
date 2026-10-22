@@ -43,15 +43,18 @@ def children (index : Nat) : Execution.Work :=
   .combine .empty
     (.combine
       (.executionGroup [⟨successGroup index, []⟩] (successGroup index).path
-        (.ok (data index, 0)) (.combine .empty .empty))
+        ({ result := .ok (data index, 0) }) (.combine .empty .empty))
       (.combine
-        (.executionGroup [⟨failureGroup index, []⟩] (failureGroup index).path (.error 1)
-          .empty)
+        (.executionGroup [⟨failureGroup index, []⟩] (failureGroup index).path
+          ({ result := .error 1, cause := some 1 }) .empty)
         .empty))
 
 /-- The two finite stream outcomes, with their own deferred regions. -/
-def entries : List (Result ResponseValue × Execution.Work) :=
-  [(.ok (.object [], 0), children 0), (.ok (.object [], 0), children 1)]
+def entries : List (TaskOutcome ResponseValue × Execution.Work) :=
+  [
+    ({ result := .ok (.object [], 0) }, children 0),
+    ({ result := .ok (.object [], 0) }, children 1)
+  ]
 
 /-- The exact finite work produced by the fixture query. -/
 def work : Execution.Work :=
@@ -120,11 +123,11 @@ theorem itemMatches (index : Nat) (bound : index < 2)
         TaskAt work (item index).occurrence owners producer
           (.item stream (.ok ((item index).value.item, (item index).value.errors)))
         ∧ streamItemWork? work (item index).occurrence = some (item index).work := by
-  have entry : entries[index]? = some (.ok (.object [], 0), children index) := by
+  have entry : entries[index]? = some ({ result := .ok (.object [], 0) }, children index) := by
     have casesIndex : index = 0 ∨ index = 1 := by omega
     rcases casesIndex with rfl | rfl <;> rfl
   refine ⟨[stream.ref], none, ?_, ?_⟩
-  · exact ⟨stream, entries, [], .ok (.object [], 0), children index,
+  · exact ⟨stream, entries, [], { result := .ok (.object [], 0) }, children index,
       streamLocated, entry, rfl, rfl⟩
   · have located : locateWork work [0, 0, 1] = some ⟨.stream stream entries, none, []⟩ :=
       streamLocated
@@ -134,7 +137,7 @@ theorem itemMatches (index : Nat) (bound : index < 2)
 theorem successKnown
     : TaskAt work successfulTask [(successGroup 0).ref] (some (item 0).occurrence)
         (.object (successGroup 0).path (.ok (data 0, 0))) := by
-  refine ⟨[⟨successGroup 0, []⟩], (successGroup 0).path, _, .combine .empty .empty,
+  refine ⟨[⟨successGroup 0, []⟩], (successGroup 0).path, { result := .ok (data 0, 0) }, .combine .empty .empty,
     [], ?_, rfl, rfl⟩
   cbv
 
@@ -142,7 +145,7 @@ theorem successKnown
 theorem failureKnown
     : TaskAt work failedTask [(failureGroup 0).ref] (some (item 0).occurrence)
         (.object (failureGroup 0).path (.error 1)) := by
-  refine ⟨[⟨failureGroup 0, []⟩], (failureGroup 0).path, _, .empty, [], ?_, rfl, rfl⟩
+  refine ⟨[⟨failureGroup 0, []⟩], (failureGroup 0).path, { result := .error 1, cause := some 1 }, .empty, [], ?_, rfl, rfl⟩
   cbv
 
 /-- Stream arrival, successful release, and failure form a valid source prefix.

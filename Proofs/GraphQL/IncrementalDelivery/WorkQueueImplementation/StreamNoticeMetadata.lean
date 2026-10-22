@@ -65,7 +65,7 @@ theorem State.StreamsSatisfy.drainReadyGroups_notices {queue : State} {property}
         split
         · simp
         · rename_i node selected
-          cases cached : node.failure with
+          cases cached : current.rejectedTask? node with
           | none =>
               intro event member
               rcases List.mem_append.mp member with first | later
@@ -74,13 +74,16 @@ theorem State.StreamsSatisfy.drainReadyGroups_notices {queue : State} {property}
                 intro stream stored
                 rw [State.startNewWork_streams, State.finishGroupSuccess_streams] at stored
                 exact registry stream stored
-          | some errors =>
+          | some rejected =>
+              obtain ⟨occurrence, errors⟩ := rejected
               intro event member
               rcases List.mem_append.mp member with first | later
-              · have same := List.mem_singleton.mp first
-                subst event
+              · obtain ⟨owner, rfl⟩ := current.taskFailure_event_failure occurrence errors event first
                 trivial
-              · exact ih (current.removeGroup node.group.node.ref) registry event later
+              · apply ih (current.taskFailure occurrence errors).1 ?_ event later
+                intro stream stored
+                rw [State.taskFailure_streams] at stored
+                exact registry stream stored
   exact loop _ queue known
 
 /-- Task-success output retains descriptor properties through every contributor flush.
@@ -125,9 +128,6 @@ theorem State.StreamsSatisfy.taskSuccess_notices {queue : State} {property}
           property := known
       have integrated := installed.maybeIntegrateWork result.work (some occurrence) supplied
       rw [queue.taskSuccess_eq occurrence result node found]
-      split
-      · intro event impossible
-        cases impossible
       obtain ⟨registry, notices⟩ := loop node.task.groups (_, [], {}) integrated.1
         (by intro event impossible; cases impossible)
       intro event member

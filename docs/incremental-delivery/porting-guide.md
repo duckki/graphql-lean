@@ -9,7 +9,8 @@ Lean lists, fuel, snapshots, or proof histories into production.
 Concrete correspondence here uses GraphQL.js PR #4859 as a baseline and the companion
 `graphql-incremental-delivery-js` implementation as a porting example. The Lean definitions
 and proofs stand independently of either repository's history.
-The finite model and abstract proofs are complete for the described scope.
+Public failure-reporting definitions separate collected diagnostics from selected causes;
+the abstract proofs and recording refinements await migration to these definitions.
 Formal JS refinement, concrete cost bounds, native acquisition completeness, exceptional
 cleanup, fairness, and infinite-source progress remain separate projects.
 
@@ -156,10 +157,11 @@ Keep one temporary identity-deduplication prefix across the dispatch's rejection
 sites. A native reentrant stop must preserve the current cleanup identities until unwind;
 a finally block must not lose remaining targets after an earlier cleanup throws.
 
-The failed input has already finished: check its health before unlinking it, then fail owners
-without aborting that input again. Successful unlinking is different: its released child work
-must survive later owner failure. Source failure cancels its producer without aborting its
-stream Queue or cancelling already admitted descendants.
+The failed input has already finished: retain its rejection for surviving dormant owners,
+close active owners, and avoid aborting that rejected computation again. Successful
+unlinking transfers released child work, which must survive later owner failure. Source
+failure cancels its producer without aborting its stream Queue or cancelling already
+admitted descendants.
 
 The public model performs no prepared-state cloning, publication-key cleanup filtering, or
 second failure-subtree traversal. `registrationSnapshot` and frontier views exist only in
@@ -339,10 +341,21 @@ therefore differ from eager Lean execution: two fatal siblings can contribute tw
 errors but only one native error when the other was never executed. Exact queue comparisons
 fed the same fixed Work, payloads, and batches still require identical counted errors.
 
-Preserve already recorded errors. If a nullable field fails and a later non-null field
-fails in the same deferred task or streamed object, reporting only the escaping fatal error
-loses a prior record. The companion implementation preserves both. Never clamp counts, manufacture
+Preserve already recorded errors separately from the delivery explanation. If a nullable
+field fails and a later non-null field discards the same deferred object or stream item,
+the failed completion reports the escaping cause. If the failure is caught inside data
+that is delivered, that data patch retains all collected diagnostics. Ordinary execution
+and the initial envelope also keep their collected counts. Work stores both projections
+in `TaskOutcome`; recording inventories remain additive. Never clamp counts, manufacture
 errors from skipped work, or count one originating error again during bubbling.
+
+Follow GraphQL.js's task-computation replay: retain the rejected outcome with the task,
+keep dormant owners' task memberships, and replay the rejection when an owner starts.
+Group task registration order determines which cached rejection is replayed first; failure
+settlement order does not. No per-group failure-origin occurrence is needed. Successful
+results must not integrate work or decrement pending again when another owner starts.
+The abstract contract checks causal provenance without imposing that bookkeeping on the
+runtime. Detailed error identity and asynchronous refinement remain separate obligations.
 
 The proof-only sequential policy covers general finite object/list/defer/stream recursion.
 One compatible extending key map relates retained Work, changed counts, allocation gaps,

@@ -325,6 +325,19 @@ theorem State.GroupNodesMatchWork.finishGroupFailure
   unfold State.finishGroupFailure
   exact matching.removeGroup group.group.node.ref
 
+/-- Task rejection and active-owner removal preserve surviving group descriptors. -/
+theorem State.GroupNodesMatchWork.taskFailure
+    {queue : State} {work : Execution.Work}
+    (matching : queue.GroupNodesMatchWork work)
+    (occurrence : Occurrence) (errors : Nat)
+    : (queue.taskFailure occurrence errors).1.GroupNodesMatchWork work := by
+  cases found : queue.taskNode? occurrence with
+  | none => simpa [State.taskFailure, found] using matching
+  | some node =>
+      rw [queue.taskFailure_eq occurrence errors node found]
+      exact failureGroupFold_preserves (fun state => state.GroupNodesMatchWork work)
+        (fun _ ref prior => prior.removeGroup ref) _ _ _ matching
+
 /-- Recursive release retains every surviving group's fixed-work provenance.
 Witness: the drain induction composes success, activation, and failure preservation.
 -/
@@ -333,61 +346,7 @@ theorem State.GroupNodesMatchWork.drainReadyGroups
     : queue.drainReadyGroups.1.GroupNodesMatchWork work := by
   exact State.drainReadyGroups_preserves (fun state => state.GroupNodesMatchWork work)
     (fun _ node prior _ _ _ _ => (prior.finishGroupSuccess node).startNewWork _)
-    (fun _ node errors prior _ _ _ => prior.finishGroupFailure node errors) matching
-
-/-- Task failure closes active groups and updates latent counters/caches without
-changing fixed-work provenance. Witness: removal, same-descriptor replacement, and fold.
--/
-theorem State.GroupNodesMatchWork.taskFailure
-    {queue : State} {work : Execution.Work}
-    (matching : queue.GroupNodesMatchWork work)
-    (occurrence : Occurrence) (errors : Nat)
-    : (queue.taskFailure occurrence errors).1.GroupNodesMatchWork work := by
-  let step (acc : State × List WorkQueueEvent)
-      (group : Execution.DeliveryNode) :=
-    let (current, events) := acc
-    match current.groupNode? group.ref with
-    | none => (current, events)
-    | some node =>
-        if current.rootGroups.contains group.ref then
-          let (next, failure) := current.finishGroupFailure node errors
-          (next, events ++ [failure])
-        else (current.putGroupNode
-          { node with
-            pending := node.pending - 1
-            failure := some (node.failure.getD 0 + errors) }, events)
-  have stepMatch (acc : State × List WorkQueueEvent)
-      (group : Execution.DeliveryNode)
-      (currentMatch : acc.1.GroupNodesMatchWork work)
-      : (step acc group).1.GroupNodesMatchWork work := by
-    obtain ⟨current, events⟩ := acc
-    dsimp only [step]
-    split
-    · exact currentMatch
-    · rename_i node found
-      split
-      · exact currentMatch.finishGroupFailure _ errors
-      · exact currentMatch.putGroupNode _
-          (currentMatch node (List.mem_of_find?_eq_some found))
-  have foldMatch (groups : List Execution.DeliveryNode) :
-      ∀ acc : State × List WorkQueueEvent,
-        acc.1.GroupNodesMatchWork work
-          → (groups.foldl step acc).1.GroupNodesMatchWork work := by
-    induction groups with
-    | nil => intro acc currentMatch; exact currentMatch
-    | cons group rest ih =>
-        intro acc currentMatch
-        exact ih (step acc group) (stepMatch acc group currentMatch)
-  unfold State.taskFailure
-  split
-  · exact matching
-  · rename_i taskNode found
-    let current := queue.removeTask occurrence
-    have currentMatch : current.GroupNodesMatchWork work := matching.removeTask occurrence
-    split
-    · exact currentMatch
-    change (taskNode.task.groups.foldl step (current, [])).1.GroupNodesMatchWork work
-    exact foldMatch taskNode.task.groups (current, []) currentMatch
+    (fun _ _ occurrence errors prior _ _ _ => prior.taskFailure occurrence errors) matching
 
 /-- Task success registers only its matched child groups; settlement and
 release remove or update existing nodes without changing provenance. -/
@@ -420,8 +379,7 @@ theorem State.GroupNodesMatchWork.taskSuccess
     | some node =>
         let node := { node with pending := node.pending - 1 }
         let current := current.putGroupNode node
-        if current.rootGroups.contains group.ref && node.pending == 0
-            && node.failure.isNone then
+        if current.rootGroups.contains group.ref && node.pending == 0 then
           let (next, finished, newWork) := current.finishGroupSuccess node
           (next, events ++ finished,
             ⟨released.newGroups ++ newWork.newGroups,
@@ -455,8 +413,6 @@ theorem State.GroupNodesMatchWork.taskSuccess
   split
   · exact matching
   · rename_i taskNode found
-    split
-    · exact matching.removeTask occurrence
     let withValue := queue.putTaskNode { taskNode with value := some result.value }
     have withValueMatch : withValue.GroupNodesMatchWork work := matching
     let integrated := (withValue.maybeIntegrateWork result.work (some occurrence)).1

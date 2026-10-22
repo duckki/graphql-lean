@@ -10,7 +10,7 @@ private def userPath : ResponsePath := [.field "user"]
 private def userInitial : List (Name × ResponseValue) := [("user", .object [])]
 
 private def userChildren : Work :=
-  .executionGroup [] (userPath ++ [.field "required"]) (.error 1) .empty
+  .executionGroup [] (userPath ++ [.field "required"]) ({ result := .error 1 }) .empty
 
 /-- A nullable ordinary user has a real failed task below the initial partial user. -/
 private theorem userCovered (containers : Bool)
@@ -29,9 +29,10 @@ Its counted errors and external cursor table do not affect this pure comparison.
 example (containers : Bool) (cursors : ResponsePositions.Cursors) (errors : Nat)
     : EntriesCovered containers [(userPath, .null)]
         ((sourceTasks [] none cursors
-            (.executionGroup [] [] (.ok (userInitial, errors)) userChildren)).flatMap
+            (.executionGroup [] [] ({ result := .ok (userInitial, errors) })
+              userChildren)).flatMap
           (SourceTask.positions containers))
-        (.executionGroup [] [] (.ok (userInitial, errors)) userChildren) :=
+        (.executionGroup [] [] ({ result := .ok (userInitial, errors) }) userChildren) :=
   (userCovered containers).executionGroup userInitial errors [] cursors
 
 private def node : DeliveryNode := { ref := 9, path := [.field "xs"] }
@@ -41,10 +42,14 @@ private def itemInitial : ResponseValue :=
   .object [("ok", .scalar "x"), ("child", .object [])]
 
 private def itemChildren : Work :=
-  .executionGroup [] (itemPath ++ [.field "child", .field "required"]) (.error 1) .empty
+  .executionGroup [] (itemPath ++ [.field "child", .field "required"])
+    ({ result := .error 1 }) .empty
 
-private def items : List (Result ResponseValue × Work) :=
-  [(.ok (.scalar "a", 2), .empty), (.ok (itemInitial, 3), itemChildren)]
+private def items : List (TaskOutcome ResponseValue × Work) :=
+  [
+    ({ result := .ok (.scalar "a", 2) }, .empty),
+    ({ result := .ok (itemInitial, 3) }, itemChildren)
+  ]
 
 private def itemReference : List TypedResponse.Entry :=
   [(itemPath ++ [.field "ok"], .scalar "x"), (itemPath ++ [.field "child"], .null)]
@@ -87,7 +92,7 @@ example
 
 /-- Separate retained partitions combine scalar data and null failure explanations. -/
 example (containers : Bool)
-    : let left := .executionGroup [] [] (.ok (userInitial, 0)) userChildren
+    : let left := .executionGroup [] [] ({ result := .ok (userInitial, 0) }) userChildren
       let right := .stream node items
       EntriesCovered containers ([(userPath, .null)] ++ itemReference)
         ((sourceTasks [] none [(node.path, 3)] (.combine left right)).flatMap

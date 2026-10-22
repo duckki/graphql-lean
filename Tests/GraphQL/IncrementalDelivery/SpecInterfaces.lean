@@ -90,7 +90,8 @@ mutual
         groups.map (·.node.path) ++ noticePaths children
     | .stream node items => node.path :: itemNoticePaths items
 
-  private def itemNoticePaths : List (Result ResponseValue × Work) → List ResponsePath
+  private def itemNoticePaths
+      : List (TaskOutcome ResponseValue × Work) → List ResponsePath
     | [] => []
     | (_, work) :: rest => noticePaths work ++ itemNoticePaths rest
 end

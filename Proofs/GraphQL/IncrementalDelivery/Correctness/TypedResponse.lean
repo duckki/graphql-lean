@@ -51,6 +51,13 @@ def result (entries : α → List Entry) : Result α → List Entry
   | .error _ => []
   | .ok (data, _) => entries data
 
+/-- Choosing a reported failure cause leaves the typed payload entries unchanged. -/
+@[simp]
+theorem result_deliveryResult (entries : α → List Entry) (outcome : TaskOutcome α)
+    : result entries outcome.deliveryResult = result entries outcome.result := by
+  cases outcome with
+  | mk completed cause => cases completed <;> rfl
+
 /-- Object-field concatenation concatenates entries, by list induction. -/
 @[simp]
 theorem fields_append (path : ResponsePath) (left right : List (Name × ResponseValue))

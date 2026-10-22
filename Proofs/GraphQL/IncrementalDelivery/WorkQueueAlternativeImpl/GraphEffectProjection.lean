@@ -15,8 +15,7 @@ def graphEffects (queue : ReferenceWorkQueue.State) : GraphEvent → List HostEf
   | .taskSuccess occurrence _ =>
       match queue.taskNode? occurrence with
       | none => []
-      | some task =>
-          if queue.taskHasHealthyOwner task.task then [.adopt occurrence] else []
+      | some _ => [.adopt occurrence]
   | .streamItems stream items =>
       (if queue.rootStreams.contains stream.ref then
           items.map (fun item => .adopt item.occurrence)
@@ -59,9 +58,7 @@ theorem graphEffects_adoptedProducers (state : State) (event : GraphEvent)
       simp only [graphEffects]
       cases found : state.queue.taskNode? occurrence with
       | none => rfl
-      | some node =>
-          dsimp only
-          split <;> rfl
+      | some _ => rfl
   | streamItems stream items =>
       rw [show (state.handleGraphEvent (.streamItems stream items)).2.2
         = (state.streamItems stream items).2.2 from rfl,
@@ -73,7 +70,7 @@ theorem graphEffects_adoptedProducers (state : State) (event : GraphEvent)
           List.filterMap_nil, List.append_nil]
   | taskFailure occurrence errors =>
       obtain ⟨targets, same⟩ := state.taskFailure_cleanupEffects occurrence errors
-      change [] = (state.taskFailure occurrence errors).2.2.filterMap HostEffect.adoptedProducer?
+      change [] = (state.handleGraphEvent (.taskFailure occurrence errors)).2.2.filterMap HostEffect.adoptedProducer?
       rw [same, cleanupEffects_adoptedProducers]
   | streamSuccess => rfl
   | streamFailure stream errors =>
@@ -91,7 +88,7 @@ theorem graphEffects_acknowledgedStreams (state : State) (event : GraphEvent)
       simp only [graphEffects]
       split
       · rfl
-      · split <;> rfl
+      · rfl
   | streamItems stream items =>
       rw [show (state.handleGraphEvent (.streamItems stream items)).2.2
         = (state.streamItems stream items).2.2 from rfl,
@@ -103,7 +100,7 @@ theorem graphEffects_acknowledgedStreams (state : State) (event : GraphEvent)
           List.filterMap_nil, List.nil_append]
   | taskFailure occurrence errors =>
       obtain ⟨targets, same⟩ := state.taskFailure_cleanupEffects occurrence errors
-      change [] = (state.taskFailure occurrence errors).2.2.filterMap HostEffect.acknowledgedStream?
+      change [] = (state.handleGraphEvent (.taskFailure occurrence errors)).2.2.filterMap HostEffect.acknowledgedStream?
       rw [same, cleanupEffects_acknowledgedStreams]
   | streamSuccess => rfl
   | streamFailure stream errors =>

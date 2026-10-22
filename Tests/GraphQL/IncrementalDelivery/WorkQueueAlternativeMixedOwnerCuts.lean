@@ -42,16 +42,18 @@ private def work : Execution.Work :=
   .combine .empty
     (.combine
       (.executionGroup [⟨root, []⟩, ⟨child, [parent]⟩, ⟨sibling, [parent]⟩] []
-        (.ok (value.data, 0)) streamWork)
-      (.combine (.executionGroup [⟨root, []⟩] [] (.error 1) .empty)
+        ({ result := .ok (value.data, 0) }) streamWork)
+      (.combine
+        (.executionGroup [⟨root, []⟩] [] ({ result := .error 1, cause := some 1 }) .empty)
         (.combine
-          (.executionGroup [⟨parent, []⟩] [] (.ok (parentValue.data, 0))
+          (.executionGroup [⟨parent, []⟩] [] ({ result := .ok (parentValue.data, 0) })
             (.combine .empty .empty))
           (.combine
-            (.executionGroup [⟨child, [parent]⟩, ⟨supporter, []⟩] [] (.error 1) .empty)
+            (.executionGroup [⟨child, [parent]⟩, ⟨supporter, []⟩] []
+              ({ result := .error 1, cause := some 1 }) .empty)
             (.combine
-              (.executionGroup [⟨sibling, [parent]⟩, ⟨otherSupporter, []⟩] [] (.error 1)
-                .empty)
+              (.executionGroup [⟨sibling, [parent]⟩, ⟨otherSupporter, []⟩] []
+                ({ result := .error 1, cause := some 1 }) .empty)
               .empty)))))
 
 private def success : GraphEvent :=
@@ -104,24 +106,33 @@ private theorem generated : ReferenceWorkQueue.ExecutedWork work := by
 private theorem producer_known
     : TaskAt work producer [root.ref, child.ref, sibling.ref] none
         (.object [] (.ok (value.data, 0))) :=
-  ⟨_, [], .ok (value.data, 0), streamWork, [], rfl, rfl, rfl⟩
+  ⟨_, [], { result := .ok (value.data, 0) }, streamWork, [], rfl, rfl, rfl⟩
 
 private theorem root_known
     : TaskAt work rootFailure [root.ref] none (.object [] (.error 1)) :=
-  ⟨_, [], .error 1, .empty, [], rfl, rfl, rfl⟩
+  ⟨_, [], { result := .error 1, cause := some 1 }, .empty, [], rfl, rfl, rfl⟩
 
 private theorem child_known
     : TaskAt work childFailure [child.ref, supporter.ref] none (.object [] (.error 1)) :=
-  ⟨_, [], .error 1, .empty, [], rfl, rfl, rfl⟩
+  ⟨_, [], { result := .error 1, cause := some 1 }, .empty, [], rfl, rfl, rfl⟩
 
 private theorem sibling_known
     : TaskAt work siblingFailure [sibling.ref, otherSupporter.ref] none
         (.object [] (.error 1)) :=
-  ⟨_, [], .error 1, .empty, [], rfl, rfl, rfl⟩
+  ⟨_, [], { result := .error 1, cause := some 1 }, .empty, [], rfl, rfl, rfl⟩
 
 private theorem finisher_known
     : TaskAt work finisher [parent.ref] none (.object [] (.ok (parentValue.data, 0))) :=
-  ⟨_, [], .ok (parentValue.data, 0), .combine .empty .empty, [], rfl, rfl, rfl⟩
+  ⟨
+    _,
+    [],
+    { result := .ok (parentValue.data, 0) },
+    .combine .empty .empty,
+    [],
+    rfl,
+    rfl,
+    rfl
+  ⟩
 
 private theorem valid
     : ReferenceWorkQueue.ValidGraphEvents work (earlierInputs.flatten ++ [finish]) := by
@@ -234,8 +245,10 @@ example
   GeneratedPreparedSourceProgress_holds work earlierInputs finish generated valid started
     trivial producer buffered 6 (by cbv) rfl (by decide)
 
--- Neither surviving contributor is healthy: owner existence must include latent failures.
-example : before.queue.taskHasHealthyOwner buffered.task = false := by cbv
+-- Both latent owners remain registered even after their contributors reject.
+example
+    : (before.queue.groupNode? child.ref).isSome = true
+      ∧ (before.queue.groupNode? sibling.ref).isSome = true := by cbv
 
 example : before.queue.BufferedOwnersPresent := by
   obtain ⟨prior, _, _⟩ := ReferenceWorkQueue.validGraphEvents_last valid

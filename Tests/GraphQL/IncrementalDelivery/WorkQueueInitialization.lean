@@ -95,9 +95,10 @@ example
 
 private def rawHiddenAncestor : Execution.Work :=
   .combine
-    (.executionGroup [{ node := child, ancestors := [parent] }] [] (.ok ([], 0)) .empty)
-    (.executionGroup [{ node := other }] [] (.ok ([], 0))
-      (.executionGroup [{ node := parent }] [] (.ok ([], 0)) .empty))
+    (.executionGroup [{ node := child, ancestors := [parent] }] []
+      ({ result := .ok ([], 0) }) .empty)
+    (.executionGroup [{ node := other }] [] ({ result := .ok ([], 0) })
+      (.executionGroup [{ node := parent }] [] ({ result := .ok ([], 0) }) .empty))
 
 /-- Local emptiness alone permits raw pruning to announce the child.
 Witness: reduce immediate lowering; the parent's task is hidden behind the other producer.

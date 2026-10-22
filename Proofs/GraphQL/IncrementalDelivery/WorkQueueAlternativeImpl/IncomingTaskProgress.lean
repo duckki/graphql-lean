@@ -76,14 +76,10 @@ theorem acceptedChildTask_after_registered {queue : Kernel} {event task}
       cases found : queue.taskNode? incoming with
       | none => simp only [acceptedChildTasks, found, List.not_mem_nil] at returned
       | some node =>
-          cases healthy : queue.taskHasHealthyOwner node.task with
-          | false => simp only [acceptedChildTasks, found, healthy, Bool.false_eq_true,
-              ↓reduceIte, List.not_mem_nil] at returned
-          | true =>
-              simp only [acceptedChildTasks, found, healthy, ↓reduceIte] at returned
-              rw [ReferenceWorkQueue.State.handleGraphEvent,
-                ReferenceWorkQueue.State.taskSuccess_tasks found healthy]
-              exact List.mem_append_right _ returned
+          simp only [acceptedChildTasks, found] at returned
+          rw [ReferenceWorkQueue.State.handleGraphEvent,
+            ReferenceWorkQueue.State.taskSuccess_tasks found]
+          exact List.mem_append_right _ returned
   | streamItems stream items =>
       cases active : queue.rootStreams.contains stream.ref with
       | false => simp only [acceptedChildTasks, active, Bool.false_eq_true,
@@ -214,9 +210,13 @@ theorem generatedAcceptedTask_progress {work inputs event task}
       | none => rfl
       | some group => exact False.elim (owned ⟨owner, member, group, found⟩)
     have accounted := generatedReplay_nextAccounting generated valid started
+    have rejections : before.queue.TaskRejectionsSatisfy
+        (fun occurrence _ => occurrence ∈ ReferenceWorkQueue.GraphEvent.taskSettlements inputs.flatten) := by
+      rw [(generatedReplay_beforeNext generated valid started).1]
+      exact ReferenceWorkQueue.createWorkQueue_replay_taskRejections work inputs.flatten
     have aborted := registration_rejectedTask_aborted
       ⟨accounted.refs, accounted.liveGroups, accounted.taskGroups, accounted.links⟩
-      matching notSettled returned ownerless
+      matching notSettled returned rejections ownerless
     have canonical := generatedReplay_beforeNextState generated valid started
     change before = { queue := before.queue } at canonical
     dsimp only

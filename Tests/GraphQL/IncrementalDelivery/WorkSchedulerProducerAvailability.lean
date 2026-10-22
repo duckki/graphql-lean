@@ -31,7 +31,7 @@ def children : Execution.Work :=
     (.combine .empty
       (.combine
         (.executionGroup [⟨child, [parent]⟩] [.field "user"]
-          (.ok ([("name", .scalar "name1")], 0)) (.combine .empty .empty))
+          ({ result := .ok ([("name", .scalar "name1")], 0) }) (.combine .empty .empty))
         .empty))
     .empty
 
@@ -39,7 +39,8 @@ def children : Execution.Work :=
 def work : Execution.Work :=
   .combine .empty
     (.combine
-      (.executionGroup [⟨parent, []⟩] [] (.ok ([("user", .object [])], 0)) children)
+      (.executionGroup [⟨parent, []⟩] [] ({ result := .ok ([("user", .object [])], 0) })
+        children)
       .empty)
 
 /-- The parent's matched value and nonempty lowered child work. -/
@@ -64,7 +65,7 @@ Witness: locate the generated parent task and check exact lowering. -/
 theorem matching
     : (GraphEvent.taskSuccess producer.occurrence result).MatchesWork work := by
   refine ⟨[parent.ref], none, ?_, ?_, ?_⟩
-  · refine ⟨[⟨parent, []⟩], [], _, children, [], ?_, rfl, rfl⟩
+  · refine ⟨[⟨parent, []⟩], [], { result := .ok (result.value.data, 0) }, children, [], ?_, rfl, rfl⟩
     cbv
   · cbv
   · cbv
@@ -135,7 +136,7 @@ theorem produced_child_ownerAncestry
           work parents [.taskSuccess parentTask result] := by
   have known : TaskAt work parentTask [parent.ref] none
       (.object [] (.ok ([("user", .object [])], 0))) := by
-    refine ⟨[⟨parent, []⟩], [], _, children, [], ?_, rfl, rfl⟩
+    refine ⟨[⟨parent, []⟩], [], { result := .ok (result.value.data, 0) }, children, [], ?_, rfl, rfl⟩
     cbv
   have valid : ValidGraphEvents work [.taskSuccess parentTask result] :=
     .append .nil matching (by simp [GraphEvent.Fresh, GraphEvent.identities])

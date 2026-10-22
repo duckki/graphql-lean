@@ -14,7 +14,7 @@ def node (ref : NodeRef) : DeliveryNode := { ref, path := [] }
 /-- One shared task accounts for both owners and reveals an empty stream. -/
 def work : Work :=
   .executionGroup [{ node := node 0 }, { node := node 1, ancestors := [node 0] }]
-    [] (.ok ([], 0)) (.stream (node 2) [])
+    [] ({ result := .ok ([], 0) }) (.stream (node 2) [])
 
 /-- Ref one retains its ancestor; the stream's dependencies come from structural owners.
 -/
@@ -275,6 +275,7 @@ example : ∃ history, AdmissibleRun work history := by
   · exact reporting_metadata.1
   · exact reporting_metadata.2.1
   · exact reporting_metadata.2.2.1
+  · simp [work, GeneralScheduling.streamAllocationRefs]
   · simp [work, Work.size]
 
 end GraphQL.IncrementalDelivery.Tests.MixedNoticeCoverage

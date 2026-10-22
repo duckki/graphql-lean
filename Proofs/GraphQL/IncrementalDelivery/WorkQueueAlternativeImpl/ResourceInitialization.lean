@@ -40,6 +40,9 @@ theorem generatedInitial_taskRepresented {work address owners payload}
     task registered (by simp) key (groups.symm ▸ contributes) (fun failure => failure.nonempty rfl)
   have found := (ReferenceWorkQueue.createWorkQueue_groupRefsUnique (ReferenceWorkQueue.Work.fromExecution work)).groupNode?_of_mem live
   exact .task found (same ▸ linked)
+    (ReferenceWorkQueue.createWorkQueue_taskRejections
+      (ReferenceWorkQueue.Work.fromExecution work)
+      (fun occurrence _ => occurrence ≠ .executionGroup address)).unrejected_lookup
 
 -----------------------------------------------------------------------------------------
 -- The initial invariant is constructed, not assumed from native stop coverage

@@ -61,6 +61,45 @@ theorem State.removeGroup_targets (state : State) (key : Nat)
       ∧ targets.IsPrefix (state.removeGroup key targets).2 :=
   State.removeGroup_walk_targets _ state [key] [] targets unique
 
+theorem fusedFailureGroupStep_targets (errors : Nat)
+    (acc : State × List Execution.WorkQueueEvent × List CleanupTarget)
+    (group : Execution.DeliveryNode) (unique : acc.2.2.Nodup)
+    : (fusedFailureGroupStep errors acc group).2.2.Nodup := by
+  unfold fusedFailureGroupStep
+  split
+  · exact unique
+  · split
+    · exact (acc.1.removeGroup_targets _ _ unique).1
+    · exact unique
+
+/-- Rejection replay retains one unique cleanup prefix across every owner removal. -/
+theorem State.taskFailure_targets (state : State) (occurrence : Occurrence) (errors : Nat)
+    (targets : List CleanupTarget) (unique : targets.Nodup)
+    : (state.taskFailure occurrence errors targets).2.2.Nodup
+      ∧ targets.IsPrefix (state.taskFailure occurrence errors targets).2.2 := by
+  have loop (groups : List Execution.DeliveryNode)
+      (acc : State × List Execution.WorkQueueEvent × List CleanupTarget)
+      (prior : acc.2.2.Nodup)
+      : (groups.foldl (fusedFailureGroupStep errors) acc).2.2.Nodup
+        ∧ acc.2.2.IsPrefix (groups.foldl (fusedFailureGroupStep errors) acc).2.2 := by
+    induction groups generalizing acc with
+    | nil => exact ⟨prior, List.prefix_refl _⟩
+    | cons group rest ih =>
+        have step := fusedFailureGroupStep_targets errors acc group prior
+        have prefixTargets : acc.2.2.IsPrefix (fusedFailureGroupStep errors acc group).2.2 := by
+          unfold fusedFailureGroupStep
+          split
+          · exact List.prefix_refl _
+          · split
+            · exact (acc.1.removeGroup_targets _ _ prior).2
+            · exact List.prefix_refl _
+        have final := ih _ step
+        exact ⟨final.1, prefixTargets.trans final.2⟩
+  unfold State.taskFailure
+  split
+  · exact ⟨unique, List.prefix_refl _⟩
+  · exact loop _ _ unique
+
 theorem State.drainReadyGroups_go_targets (fuel : Nat) (state : State)
     (targets : List CleanupTarget) (unique : targets.Nodup)
     : let final := State.drainReadyGroups.go fuel state targets
@@ -73,12 +112,12 @@ theorem State.drainReadyGroups_go_targets (fuel : Nat) (state : State)
       split
       · exact ⟨unique, List.prefix_refl _⟩
       · rename_i node _
-        cases cached : node.failure with
-        | some errors =>
+        cases cached : state.queue.rejectedTask? node with
+        | some rejected =>
             dsimp only
-            have step := state.removeGroup_targets node.group.node.ref targets unique
-            have next := ih (state.removeGroup node.group.node.ref targets).1
-              (state.removeGroup node.group.node.ref targets).2 step.1
+            have step := state.taskFailure_targets rejected.1 rejected.2 targets unique
+            have next := ih (state.taskFailure rejected.1 rejected.2 targets).1
+              (state.taskFailure rejected.1 rejected.2 targets).2.2 step.1
             exact ⟨next.1, step.2.trans next.2⟩
         | none =>
             dsimp only
@@ -99,38 +138,14 @@ theorem State.drainReadyGroups_targets (state : State) (targets : List CleanupTa
       ∧ targets.IsPrefix (state.drainReadyGroups targets).2.2 :=
   State.drainReadyGroups_go_targets _ state targets unique
 
-theorem fusedFailureGroupStep_targets (errors : Nat)
-    (acc : State × List Execution.WorkQueueEvent × List CleanupTarget)
-    (group : Execution.DeliveryNode) (unique : acc.2.2.Nodup)
-    : (fusedFailureGroupStep errors acc group).2.2.Nodup := by
-  unfold fusedFailureGroupStep
-  split
-  · exact unique
-  · split
-    · exact (acc.1.removeGroup_targets _ _ unique).1
-    · exact unique
-
 /-- A direct failed task requests each inline task/source cleanup identity at most once
 across all its owner cuts. This concerns the actual dispatch trace, not cleanup settlement.
 -/
 theorem State.taskFailure_cleanupStarts_nodup (state : State) (occurrence : Occurrence)
     (errors : Nat)
-    : ((state.taskFailure occurrence errors).2.2.filterMap
+    : (((state.taskFailure occurrence errors).2.2.flatMap CleanupTarget.effects).filterMap
         HostEffect.cleanupStart?).Nodup := by
-  have loop (groups : List Execution.DeliveryNode)
-      (acc : State × List Execution.WorkQueueEvent × List CleanupTarget) (unique : acc.2.2.Nodup)
-      : (groups.foldl (fusedFailureGroupStep errors) acc).2.2.Nodup := by
-    induction groups generalizing acc with
-    | nil => exact unique
-    | cons group rest ih =>
-        exact ih _ (fusedFailureGroupStep_targets errors acc group unique)
-  unfold State.taskFailure
-  split
-  · exact List.nodup_nil
-  · dsimp only
-    split
-    · exact List.nodup_nil
-    · rw [cleanupEffects_starts]
-      exact loop _ _ List.nodup_nil
+  rw [cleanupEffects_starts]
+  exact (state.taskFailure_targets occurrence errors [] List.nodup_nil).1
 
 end GraphQL.IncrementalDelivery.AlternativeWorkQueue

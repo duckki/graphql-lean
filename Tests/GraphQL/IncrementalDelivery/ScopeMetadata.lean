@@ -68,7 +68,7 @@ private def childResult : Result (List (Name × ResponseValue)) :=
   .ok ([("b", .scalar "b")], 0)
 
 private def childWork : Work :=
-  .executionGroup [⟨child, [parent]⟩] [.field "x", .field "w"] childResult
+  .executionGroup [⟨child, [parent]⟩] [.field "x", .field "w"] { result := childResult }
     (.combine .empty .empty)
 
 private def parentChildren : Work :=
@@ -77,14 +77,14 @@ private def parentChildren : Work :=
 private theorem parent_task
     : TaskAt completed.work (.executionGroup parentAddress) [0]
         none (.object [.field "x"] parentResult) := by
-  refine ⟨[⟨parent, []⟩], [.field "x"], parentResult, parentChildren, [], ?_, rfl, rfl⟩
+  refine ⟨[⟨parent, []⟩], [.field "x"], { result := parentResult }, parentChildren, [], ?_, rfl, rfl⟩
   cbv
 
 private theorem child_task
     : TaskAt completed.work (.executionGroup childAddress) [1]
         (some (.executionGroup parentAddress))
         (.object [.field "x", .field "w"] childResult) := by
-  refine ⟨[⟨child, [parent]⟩], [.field "x", .field "w"], childResult,
+  refine ⟨[⟨child, [parent]⟩], [.field "x", .field "w"], { result := childResult },
     .combine .empty .empty, [0], ?_, rfl, rfl⟩
   cbv
 
@@ -94,7 +94,7 @@ private theorem child_node
     childAddress,
     [⟨child, [parent]⟩],
     [.field "x", .field "w"],
-    childResult,
+    { result := childResult },
     .combine .empty .empty,
     [0],
     ⟨child, [parent]⟩,

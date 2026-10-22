@@ -173,7 +173,7 @@ theorem literal_items_metadataFree (schema : Schema) (resolvers : Resolvers Obje
     (variables : VariableValues) (fuel : Nat) (itemType : TypeRef)
     (values : List (ResolverValue ObjectRef)) (path : ResponsePath) (index : Nat)
     (literal : ∀ value ∈ values, LiteralValue value)
-    : ∃ items : List (Result ResponseValue × Work),
+    : ∃ items : List (TaskOutcome ResponseValue × Work),
         (∀ keys, items.map (fun item => (item.1, work keys item.2)) = items)
         ∧ ∀ fields start,
             (Execution.completeStreamItems schema resolvers variables fuel itemType fields
@@ -189,12 +189,12 @@ theorem literal_items_metadataFree (schema : Schema) (resolvers : Resolvers Obje
         (fun value member => literal value (List.mem_cons_of_mem _ member))
       cases outcome : head.result with
       | error errors =>
-          refine ⟨[(head.result, .empty)], fun _ => by simp [work], ?_⟩
+          refine ⟨[(head.outcome, .empty)], fun _ => by simp [work], ?_⟩
           intro fields start
           simp only [Execution.completeStreamItems, run_bind, headRun, outcome,
             StateT.run_pure, id_pure_eq]
       | ok value =>
-          refine ⟨(head.result, head.work) :: tail, ?_, ?_⟩
+          refine ⟨(head.outcome, head.work) :: tail, ?_, ?_⟩
           · intro keys
             have same := congrArg Completion.work (headFixed keys)
             simp only [completion] at same

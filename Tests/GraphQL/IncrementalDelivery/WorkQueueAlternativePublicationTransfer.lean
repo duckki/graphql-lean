@@ -33,9 +33,9 @@ private def children : Execution.Work :=
     (.combine .empty
       (.stream source
         [
-          (.ok (.scalar "x", 0), .empty),
-          (.ok (.null, 0), .empty),
-          (.ok (.scalar "z", 0), .empty)
+          ({ result := .ok (.scalar "x", 0) }, .empty),
+          ({ result := .ok (.null, 0) }, .empty),
+          ({ result := .ok (.scalar "z", 0) }, .empty)
         ]))
     .empty
 
@@ -44,11 +44,12 @@ private def work : Execution.Work :=
     (.combine
       (.combine (.combine .empty .empty)
         (.combine
-          (.executionGroup [⟨group, []⟩] value.path (.ok (value.data, 0)) children)
+          (.executionGroup [⟨group, []⟩] value.path ({ result := .ok (value.data, 0) })
+            children)
           .empty))
       .empty)
     (.combine
-      (.executionGroup [⟨group, []⟩] [] (.ok (lastValue.data, 0))
+      (.executionGroup [⟨group, []⟩] [] ({ result := .ok (lastValue.data, 0) })
         (.combine .empty .empty))
       .empty)
 
@@ -83,11 +84,20 @@ private theorem generated : ReferenceWorkQueue.ExecutedWork work := by
 
 private theorem producer_known
     : TaskAt work producer [group.ref] none (.object value.path (.ok (value.data, 0))) :=
-  ⟨_, value.path, .ok (value.data, 0), children, [], rfl, rfl, rfl⟩
+  ⟨_, value.path, { result := .ok (value.data, 0) }, children, [], rfl, rfl, rfl⟩
 
 private theorem finisher_known
     : TaskAt work finisher [group.ref] none (.object [] (.ok (lastValue.data, 0))) :=
-  ⟨_, [], .ok (lastValue.data, 0), .combine .empty .empty, [], rfl, rfl, rfl⟩
+  ⟨
+    _,
+    [],
+    { result := .ok (lastValue.data, 0) },
+    .combine .empty .empty,
+    [],
+    rfl,
+    rfl,
+    rfl
+  ⟩
 
 private theorem valid
     : ReferenceWorkQueue.ValidGraphEvents work (earlierInputs.flatten ++ [finish]) := by
@@ -183,7 +193,9 @@ private def children : Execution.Work :=
 
 private def work : Execution.Work :=
   .combine .empty
-    (.combine (.executionGroup [⟨group, []⟩] [] (.ok (value.data, 0)) children) .empty)
+    (.combine
+      (.executionGroup [⟨group, []⟩] [] ({ result := .ok (value.data, 0) }) children)
+      .empty)
 
 private def event : GraphEvent :=
   .taskSuccess occurrence
@@ -203,7 +215,7 @@ private theorem generated : ReferenceWorkQueue.ExecutedWork work := by
 
 private theorem known
     : TaskAt work occurrence [group.ref] none (.object [] (.ok (value.data, 0))) :=
-  ⟨_, [], .ok (value.data, 0), children, [], rfl, rfl, rfl⟩
+  ⟨_, [], { result := .ok (value.data, 0) }, children, [], rfl, rfl, rfl⟩
 
 private theorem valid : ReferenceWorkQueue.ValidGraphEvents work [event] :=
   .append .nil ⟨_, _, known, rfl, rfl⟩

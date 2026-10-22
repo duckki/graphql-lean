@@ -67,9 +67,8 @@ theorem ExecutedWork.successfulCarrier_registeredContributor_covered
         (before ++ [event]))
       : ∃ node,
           (initial.replayGraphEvents earlier).taskNode? task.occurrence = some node
-          ∧ (initial.replayGraphEvents earlier).taskHasHealthyOwner node.task = true
           ∧ group.ref ∈ node.task.groups.map Execution.DeliveryNode.ref := by
-    obtain ⟨node, found, healthy⟩ :=
+    obtain ⟨node, found⟩ :=
       generated.successfulCarrier_contributorSuccess_accepted valid started
         (List.mem_of_getElem? carrier) prior known contributes
     have earlierPrefix := (List.prefix_append earlier
@@ -79,13 +78,13 @@ theorem ExecutedWork.successfulCarrier_registeredContributor_covered
     obtain ⟨_, _, _, _, descriptor⟩ :=
       (ledger.matching node.task (ledger.started node lookup.1)).1
     have sameOwners := (TaskAt.unique (lookup.2 ▸ descriptor) known).1
-    exact ⟨node, found, healthy, sameOwners.symm ▸ contributes⟩
+    exact ⟨node, found, sameOwners.symm ▸ contributes⟩
   rcases List.mem_append.mp supplied with earlier | current
   · obtain ⟨prefixInputs, middle, sameBefore⟩ := List.mem_iff_append.mp earlier
     have prior : (prefixInputs ++ [GraphEvent.taskSuccess task.occurrence result]).IsPrefix
         (before ++ [event]) :=
       ⟨middle ++ [event], by simp [sameBefore, List.append_assoc]⟩
-    obtain ⟨node, found, healthy, contributes⟩ := accepted prefixInputs prior
+    obtain ⟨node, found, contributes⟩ := accepted prefixInputs prior
     have prefixBoundary := boundary prefixInputs
       ((List.prefix_append prefixInputs [GraphEvent.taskSuccess task.occurrence result]).trans
         prior)
@@ -114,7 +113,7 @@ theorem ExecutedWork.successfulCarrier_registeredContributor_covered
         = some (.groupSuccess group groups streams) at carrier
       rwa [states] at carrier
     have delivered := suffix.success_before_carrier prefixBoundary.liveGroups
-      prefixBoundary.taskGroups prefixBoundary.started matchingLater found healthy
+      prefixBoundary.taskGroups prefixBoundary.started matchingLater found
       atCarrier contributes
     refine ⟨result.value, ?_⟩
     change (task.occurrence, result.value) ∈ published.take
@@ -130,9 +129,9 @@ theorem ExecutedWork.successfulCarrier_registeredContributor_covered
       (by simpa only [Nat.add_assoc, State.handleGraphEvent] using delivered)
   · have same := List.mem_singleton.mp current
     subst event
-    obtain ⟨node, found, healthy, contributes⟩ := accepted before ⟨[], by simp⟩
+    obtain ⟨node, found, contributes⟩ := accepted before ⟨[], by simp⟩
     have suffix := covered.afterPrefix before [GraphEvent.taskSuccess task.occurrence result]
-    have delivered := suffix.success_at_carrier found healthy carrier contributes
+    have delivered := suffix.success_at_carrier found carrier contributes
     refine ⟨result.value, ?_⟩
     rw [List.take_add]
     exact List.mem_append_right _ delivered

@@ -1,4 +1,5 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.ConformanceBatchShape
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.InformativeFailureInventory
 
 /-! Transport the same accepted failure inventory onto the actual nonterminal history. -/
 
@@ -176,7 +177,7 @@ theorem announcedFailures_with_cuts_exists {work : Execution.Work}
       let publisher : IncrementalPublisher :=
         { active := queue.initialGroups ++ queue.initialStreams }
       let objects :=
-        sourceObjectFailureCuts 0
+        informativeObjectFailureCuts work
           (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher inputs).2.2)
       ∃ streams,
         StreamFailureCuts work
@@ -191,7 +192,7 @@ theorem announcedFailures_with_cuts_exists {work : Execution.Work}
   let publisher : IncrementalPublisher :=
     { active := queue.initialGroups ++ queue.initialStreams }
   let atoms := (queue.runNormalized inputs).2.flatten.flatMap publicationAtoms
-  let objects := sourceObjectFailureCuts 0
+  let objects := informativeObjectFailureCuts work
     (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher inputs).2.2)
   have running : queue.terminated = false := createWorkQueue_terminated _
   obtain ⟨producerMatching, _, values, _, covered⟩ :=
@@ -206,8 +207,9 @@ theorem announcedFailures_with_cuts_exists {work : Execution.Work}
     rcases List.mem_append.mp ((mergeFailureCuts_partition objects streams).mem_iff.mp member)
         with fromStream | fromObject
     · exact cuts.nonterminalBound running entry fromStream
-    · exact queue.eligibleObjectFailureCuts_nonterminalBound inputs running entry fromObject
-  have inventory := createWorkQueue_completeFailureInventory generated valid started cuts
+    · exact queue.eligibleObjectFailureCuts_nonterminalBound inputs running entry
+        ((informativeObjectFailureCuts_sublist work _).subset fromObject)
+  have inventory := createWorkQueue_completeInformativeFailureInventory generated valid started cuts
     (fun entry member => (supported entry member).1)
   change CompleteFailureInventory work atoms failures at inventory
   rw [show atoms = queue.nonterminalAtoms inputs ++
@@ -223,7 +225,7 @@ theorem announcedFailures_with_cuts_exists {work : Execution.Work}
     exact ⟨[ref], owners, ref, List.mem_cons_self, opened.1⟩
   · obtain ⟨before, after, split⟩ := List.mem_iff_append.mp fromObject
     obtain ⟨owners, ref, structural, contributes, announced⟩ :=
-      createWorkQueue_eligibleObjectFailureCuts_announcedOwner valid started split
+      createWorkQueue_informativeObjectFailureCuts_announcedOwner valid started split
     exact ⟨owners, structural, ref, contributes, announced⟩
 
 /-- One complete announced inventory exists on the same history as the batching leaf.

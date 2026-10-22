@@ -17,7 +17,7 @@ def value : ExecutionGroupValue :=
 
 def work : Work :=
   .executionGroup [{ node := parent }, { node := child }] value.path
-    (.ok (value.data, value.errors)) .empty
+    ({ result := .ok (value.data, value.errors) }) .empty
 
 /-- Structural lookup exposes precisely the shared root task and its empty child. -/
 theorem located_work {address current producer owners}
@@ -174,7 +174,8 @@ def generated : Work :=
 theorem generated_location
     : Located generated [0, 0, 1, 0]
         (.executionGroup [{ node := parent }, { node := child }] value.path
-          (.ok (value.data, value.errors)) (.combine .empty .empty)) none [] := by
+          ({ result := .ok (value.data, value.errors) }) (.combine .empty .empty))
+        none [] := by
   cbv
 
 /-- The audited owner/path/value combination is genuinely execution-generated, not only

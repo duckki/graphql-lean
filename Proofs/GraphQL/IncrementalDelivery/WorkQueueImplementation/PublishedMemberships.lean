@@ -187,6 +187,17 @@ theorem State.TaskMembershipAbsent.removeGroup {queue : State} {occurrence}
     : (queue.removeGroup ref).TaskMembershipAbsent occurrence :=
   fun node member => absent node (List.mem_filter.mp member).1
 
+/-- Rejection processing only removes group records and keeps surviving memberships. -/
+theorem State.TaskMembershipAbsent.taskFailure_preserves {queue : State} {occurrence}
+    (absent : queue.TaskMembershipAbsent occurrence) (failed : Occurrence) (errors : Nat)
+    : (queue.taskFailure failed errors).1.TaskMembershipAbsent occurrence := by
+  cases found : queue.taskNode? failed with
+  | none => simpa [State.taskFailure, found] using absent
+  | some task =>
+      rw [queue.taskFailure_eq failed errors task found]
+      exact failureGroupFold_preserves (fun next => next.TaskMembershipAbsent occurrence)
+        (fun _ ref valid => valid.removeGroup ref) errors task.task.groups _ absent
+
 /-- Every bounded drain prefix preserves any earlier publication's membership exclusion.
 Witness: successful flushing and activation preserve the absent membership; failed
 closure only removes records. The induction does not select a publication ledger.
@@ -202,9 +213,11 @@ theorem State.TaskMembershipAbsent.drainReadyGroups_go {queue : State} {occurren
       split
       · exact absent
       · rename_i node selected
-        cases cached : node.failure with
+        cases cached : queue.rejectedTask? node with
         | none => exact ih ((absent.finishGroupSuccess node).startNewWork _)
-        | some errors => exact ih (absent.removeGroup _)
+        | some rejected =>
+            obtain ⟨failed, errors⟩ := rejected
+            exact ih (absent.taskFailure_preserves failed errors)
 
 /-- The full recursive drain retains membership exclusion on its one publication ledger.
 Witness: success adds its actual selected values and removes their shared memberships;
@@ -246,7 +259,7 @@ theorem State.PublicationInventory.drainReadyGroups_memberships
         split
         · exact ⟨[], rfl, by simpa using prior, by simpa using excluded⟩
         · rename_i node selected
-          cases cached : node.failure with
+          cases cached : current.rejectedTask? node with
           | none =>
               obtain ⟨first, firstValues, flushed, removed⟩ :=
                 prior.finishGroupSuccess_memberships excluded node
@@ -259,13 +272,14 @@ theorem State.PublicationInventory.drainReadyGroups_memberships
               · simp only [List.map_append, List.flatMap_append, firstValues, laterValues]
               · simpa only [List.append_assoc] using final
               · simpa only [List.append_assoc] using excluded
-          | some errors =>
+          | some rejected =>
+              obtain ⟨occurrence, errors⟩ := rejected
               obtain ⟨added, values, final, absent⟩ := ih _ _
-                ⟨prior.unique, prior.provenance, prior.stored.removeGroup _⟩
-                (fun publication member => (excluded publication member).removeGroup _)
+                ⟨prior.unique, prior.provenance, prior.stored.taskFailure occurrence errors⟩
+                (fun publication member => (excluded publication member).taskFailure_preserves occurrence errors)
               refine ⟨added, ?_, final, absent⟩
-              simpa only [State.finishGroupFailure, List.flatMap_append,
-                List.flatMap_singleton, WorkQueueEvent.objectValues, List.nil_append] using values
+              simpa only [List.flatMap_append, State.taskFailure_objectValues,
+                List.nil_append] using values
   exact loop _ queue published inventory absent
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

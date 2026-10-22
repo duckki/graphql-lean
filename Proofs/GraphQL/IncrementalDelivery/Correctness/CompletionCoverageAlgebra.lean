@@ -212,10 +212,10 @@ theorem FieldsCompletionCovered.executionGroup {containers path ordinary complet
     (covered : FieldsCompletionCovered containers path ordinary completed)
     (groups : List DeferredFragment)
     : WorkFieldsCovered containers path ordinary
-        (.executionGroup groups path completed.result completed.work) := by
+        (.executionGroup groups path completed.outcome completed.work) := by
   intro reference errors success cursors
   obtain ⟨initial, count, initialSuccess, covered⟩ := covered reference errors success
-  rw [initialSuccess]
+  rw [Completion.outcome, initialSuccess]
   exact covered.executionGroup initial count groups cursors
 
 /-- Covered deferred partitions combine at the same actual ambient cursor environment.

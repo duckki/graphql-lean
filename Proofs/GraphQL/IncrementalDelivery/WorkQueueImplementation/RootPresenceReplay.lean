@@ -61,7 +61,7 @@ theorem ExecutedWork.taskSuccess_drain_liveRootFrame {work before occurrence res
       exact same ▸ (presence.2 node included).2.1)
 
 /-- Matching task success preserves live active roots, including ignored late settlements.
-Witness: absent tasks do nothing, rejected tasks only lose memberships, and accepted tasks
+Witness: absent tasks do nothing, and present tasks
 use the independently certified preparation/owner/activation frame before recursive draining.
 -/
 theorem ExecutedWork.taskSuccess_rootsPresent {work before occurrence result}
@@ -79,13 +79,9 @@ theorem ExecutedWork.taskSuccess_rootsPresent {work before occurrence result}
   | none => simpa only [State.taskSuccess, found] using present
   | some incoming =>
       rw [queue.taskSuccess_eq occurrence result incoming found]
-      split
-      · simpa only [State.RootGroupsPresent, State.removeTask, List.map_map,
-          Function.comp_def]
-          using present
-      · obtain ⟨parents, canonical, frame⟩ :=
-          generated.taskSuccess_drain_liveRootFrame matching matched incoming present
-        exact (frame.drainReadyGroups generated canonical).present
+      obtain ⟨parents, canonical, frame⟩ :=
+        generated.taskSuccess_drain_liveRootFrame matching matched incoming present
+      exact (frame.drainReadyGroups generated canonical).present
 
 /-- The leading item carrier and subsequent drain share a complete live-root frame.
 Witness: matching replay supplies metadata, and fresh-path pruning preserves old roots

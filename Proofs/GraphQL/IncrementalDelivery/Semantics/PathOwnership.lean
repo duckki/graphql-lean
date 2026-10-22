@@ -160,14 +160,14 @@ theorem ownsCompletion_combine {containers : Bool} {pa : α → List ResponsePat
   cases he : left.result with
   | error errors =>
       cases hre : right.result <;>
-        simp [Completion.combine, he, hre, GraphQL.Execution.Result.combine,
-          ownsCompletion_error]
+        simp only [Completion.combine, he, hre, GraphQL.Execution.Result.combine] <;>
+        exact owns_nil _
   | ok leftData =>
       rcases leftData with ⟨a, ea⟩
       cases hre : right.result with
       | error errors =>
-          simp [Completion.combine, he, hre, GraphQL.Execution.Result.combine,
-            ownsCompletion_error]
+          simp only [Completion.combine, he, hre, GraphQL.Execution.Result.combine]
+          exact owns_nil _
       | ok rightData =>
           rcases rightData with ⟨b, eb⟩
           have h := owns_append hl hr hd hls hrs
@@ -187,7 +187,9 @@ theorem ownsCompletion_map {containers : Bool} {pa : α → List ResponsePath}
     (h : OwnsCompletion containers pa scope completed)
     : OwnsCompletion containers pb scope (completed.map f) := by
   cases he : completed.result with
-  | error errors => simp [Completion.map, he, ownsCompletion_error]
+  | error errors =>
+      simp only [Completion.map, he]
+      exact owns_nil _
   | ok data =>
       rcases data with ⟨data, errors⟩
       simpa [OwnsCompletion, completion, Completion.map, he, result, hf] using h
@@ -228,8 +230,9 @@ theorem ownsCompletion_nonNull {containers : Bool} {path : ResponsePath}
         completed.nonNull := by
   cases he : completed.result with
   | error errors =>
-      simp [Completion.nonNull, he, nonNullCompletion,
-        GraphQL.Execution.nonNullCompletion, ownsCompletion_error]
+      simp only [Completion.nonNull, he, nonNullCompletion,
+        GraphQL.Execution.nonNullCompletion]
+      exact owns_nil _
   | ok data =>
       rcases data with ⟨data, errors⟩
       cases data <;>

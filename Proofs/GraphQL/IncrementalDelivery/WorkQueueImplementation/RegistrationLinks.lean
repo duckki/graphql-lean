@@ -1,3 +1,4 @@
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.FailureDebt
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.MembershipSoundness
 
 /-! Completeness and preservation of registration links. -/
@@ -538,9 +539,7 @@ theorem State.TaskLinkedOn.startGroup
       | cons task rest ih =>
           intro current currentLinked
           exact ih (current.startTask task) (currentLinked.startTask task)
-    split
-    · exact linked
-    · exact foldStart node.tasks queue linked
+    exact foldStart node.tasks queue linked
 
 theorem State.TaskLinkedOn.startStream
     {queue : State} {occurrence : Occurrence} {refs : NodeRefs}
@@ -639,84 +638,28 @@ theorem State.TaskLinkedOn.finishOtherGroupSuccess
   change (current.pruneEmptyGroups children).1.TaskLinkedOn occurrence refs
   exact currentLinked.pruneEmptyGroups children
 
-/-- Replacing a live group's counter and failure cache preserves another task's
-links. Witness: the replacement keeps the found node's ref and task list.
+/-- Rejection retention preserves task links on every surviving group.
+Witness: failure only updates a task computation and removes active owner groups.
 -/
-private theorem State.TaskLinkedOn.retainFailure
+theorem State.TaskLinkedOn.taskFailure_preserves
     {queue : State} {occurrence : Occurrence} {refs : NodeRefs}
     (linked : queue.TaskLinkedOn occurrence refs)
-    (node : GroupNode) (member : node ∈ queue.groupNodes) (errors : Nat)
-    : (queue.putGroupNode
-        {
-          node with
-            pending := node.pending - 1
-            failure := some (node.failure.getD 0 + errors)
-        }).TaskLinkedOn
-        occurrence refs := by
-  intro target targetMember relevant
-  obtain ⟨old, oldMember, same⟩ := List.mem_map.mp targetMember
-  split at same
-  · subst target
-    exact linked node member relevant
-  · subst target
-    exact linked old oldMember relevant
+    (failed : Occurrence) (errors : Nat)
+    : (queue.taskFailure failed errors).1.TaskLinkedOn occurrence refs := by
+  cases found : queue.taskNode? failed with
+  | none => simpa [State.taskFailure, found] using linked
+  | some node =>
+      rw [queue.taskFailure_eq failed errors node found]
+      exact failureGroupFold_preserves (fun state => state.TaskLinkedOn occurrence refs)
+        (fun _ ref prior => prior.removeGroup ref) _ _ _ linked
 
-/-- A failed task preserves a different task's links in all surviving owners.
-Witness: membership removal affects only the failed occurrence; the owner fold either
-removes nodes or changes only counters and cached errors.
--/
+/-- In particular, failure preserves a different task's links. -/
 theorem State.TaskLinkedOn.taskFailure
     {queue : State} {occurrence : Occurrence} {refs : NodeRefs}
     (linked : queue.TaskLinkedOn occurrence refs)
-    (failed : Occurrence) (errors : Nat) (different : occurrence ≠ failed)
-    : (queue.taskFailure failed errors).1.TaskLinkedOn occurrence refs := by
-  let step (acc : State × List WorkQueueEvent)
-      (group : Execution.DeliveryNode) :=
-    let (current, events) := acc
-    match current.groupNode? group.ref with
-    | none => (current, events)
-    | some node =>
-        if current.rootGroups.contains group.ref then
-          let (next, failure) := current.finishGroupFailure node errors
-          (next, events ++ [failure])
-        else
-          (current.putGroupNode
-            { node with
-                pending := node.pending - 1
-                failure := some (node.failure.getD 0 + errors) }, events)
-  have stepLinked (acc : State × List WorkQueueEvent)
-      (group : Execution.DeliveryNode)
-      (currentLinked : acc.1.TaskLinkedOn occurrence refs)
-      : (step acc group).1.TaskLinkedOn occurrence refs := by
-    obtain ⟨current, events⟩ := acc
-    dsimp only [step]
-    split
-    · exact currentLinked
-    · rename_i node found
-      split
-      · rw [State.finishGroupFailure, State.groupNode?_ref found]
-        exact currentLinked.removeGroup group.ref
-      · exact currentLinked.retainFailure node (List.mem_of_find?_eq_some found) errors
-  have foldLinked (groups : List Execution.DeliveryNode) :
-      ∀ acc : State × List WorkQueueEvent,
-        acc.1.TaskLinkedOn occurrence refs
-          → (groups.foldl step acc).1.TaskLinkedOn occurrence refs := by
-    induction groups with
-    | nil => intro acc currentLinked; exact currentLinked
-    | cons group rest ih =>
-        intro acc currentLinked
-        exact ih (step acc group) (stepLinked acc group currentLinked)
-  unfold State.taskFailure
-  split
-  · exact linked
-  · rename_i taskNode found
-    split <;> try exact linked.removeOtherTask failed different
-    let current := queue.removeTask failed
-    have currentLinked : current.TaskLinkedOn occurrence refs :=
-      linked.removeOtherTask failed different
-    change (taskNode.task.groups.foldl step (current, [])).1.TaskLinkedOn
-      occurrence refs
-    exact foldLinked taskNode.task.groups (current, []) currentLinked
+    (failed : Occurrence) (errors : Nat) (_different : occurrence ≠ failed)
+    : (queue.taskFailure failed errors).1.TaskLinkedOn occurrence refs :=
+  linked.taskFailure_preserves failed errors
 
 /-- Stream closure does not change group nodes or their task memberships. -/
 theorem State.TaskLinkedOn.streamSuccess

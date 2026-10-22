@@ -47,6 +47,49 @@ theorem State.finishGroupSuccess_groupClosureRecordLocated {work : Execution.Wor
     subst event
     exact known
 
+/-- Task failure closes only looked-up groups; cached latent errors add no event.
+Witness: retain registry provenance through initial task removal and every owner branch.
+-/
+theorem State.GroupNodesMatchWork.taskFailure_groupClosureRecords {queue : State}
+    {work : Execution.Work} (registered : queue.GroupNodesMatchWork work)
+    (occurrence : Occurrence) (errors : Nat)
+    : ∀ event ∈ (queue.taskFailure occurrence errors).2,
+        event.GroupClosureRecordLocated work := by
+  let step (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode) :=
+    match acc.1.groupNode? group.ref with
+    | none => acc
+    | some node =>
+        if acc.1.rootGroups.contains group.ref then
+          let (next, failure) := acc.1.finishGroupFailure node errors
+          (next, acc.2 ++ [failure])
+        else acc
+  have loop (groups : List Execution.DeliveryNode) (acc : State × List WorkQueueEvent)
+      (known : acc.1.GroupNodesMatchWork work)
+      (output : ∀ event ∈ acc.2, event.GroupClosureRecordLocated work)
+      : ∀ event ∈ (groups.foldl step acc).2, event.GroupClosureRecordLocated work := by
+    induction groups generalizing acc with
+    | nil => exact output
+    | cons group rest ih =>
+        rw [List.foldl_cons]
+        unfold step
+        split
+        · exact ih _ known output
+        · rename_i node found
+          have located := known node (List.mem_of_find?_eq_some found)
+          split
+          · apply ih _ (known.finishGroupFailure node errors)
+            intro event member
+            rcases List.mem_append.mp member with earlier | closed
+            · exact output event earlier
+            · have same := List.mem_singleton.mp closed
+              subst event
+              exact located
+          · exact ih _ known output
+  unfold State.taskFailure
+  split
+  · simp
+  · exact loop _ (_, []) registered (by intro event impossible; cases impossible)
+
 /-- Recursive draining closes only groups with descriptors from the live registry.
 Witness: each selected root has a successful node lookup; cleanup and activation preserve
 registry provenance before the next success or cached-failure closure.
@@ -77,19 +120,18 @@ theorem State.GroupNodesMatchWork.drainReadyGroups_groupClosureRecords {queue : 
                   exact List.mem_of_find?_eq_some found
                 · contradiction
           have located := registry node member
-          cases cached : node.failure with
+          cases cached : current.rejectedTask? node with
           | none =>
               intro event emitted
               rcases List.mem_append.mp emitted with first | later
               · exact current.finishGroupSuccess_groupClosureRecordLocated node located event first
               · exact ih _ ((registry.finishGroupSuccess node).startNewWork _) event later
-          | some errors =>
+          | some rejected =>
+              obtain ⟨occurrence, errors⟩ := rejected
               intro event emitted
               rcases List.mem_append.mp emitted with first | later
-              · have same := List.mem_singleton.mp first
-                subst event
-                exact located
-              · exact ih _ (registry.finishGroupFailure node errors) event later
+              · exact registry.taskFailure_groupClosureRecords occurrence errors event first
+              · exact ih _ (registry.taskFailure occurrence errors) event later
   exact loop _ queue registered
 
 /-- Task success closes only groups with registration descriptors from its integration state.
@@ -133,64 +175,12 @@ theorem State.GroupNodesMatchWork.taskSuccess_groupClosureRecords {queue : State
       have integrated := installed.maybeIntegrateWork result.work
         (fun group member => matching.taskChildGroups_recordAt member) (some occurrence)
       rw [queue.taskSuccess_eq occurrence result node found]
-      split
-      · intro event impossible
-        cases impossible
       obtain ⟨registry, output⟩ := loop node.task.groups (_, [], {}) integrated
         (by intro event impossible; cases impossible)
       intro event emitted
       rcases List.mem_append.mp emitted with first | later
       · exact output event first
       · exact (registry.startNewWork _).drainReadyGroups_groupClosureRecords event later
-
-/-- Task failure closes only looked-up groups; cached latent errors add no event.
-Witness: retain registry provenance through initial task removal and every owner branch.
--/
-theorem State.GroupNodesMatchWork.taskFailure_groupClosureRecords {queue : State}
-    {work : Execution.Work} (registered : queue.GroupNodesMatchWork work)
-    (occurrence : Occurrence) (errors : Nat)
-    : ∀ event ∈ (queue.taskFailure occurrence errors).2,
-        event.GroupClosureRecordLocated work := by
-  let step (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode) :=
-    match acc.1.groupNode? group.ref with
-    | none => acc
-    | some node =>
-        if acc.1.rootGroups.contains group.ref then
-          let (next, failure) := acc.1.finishGroupFailure node errors
-          (next, acc.2 ++ [failure])
-        else (acc.1.putGroupNode
-          { node with pending := node.pending - 1
-                      failure := some (node.failure.getD 0 + errors) }, acc.2)
-  have loop (groups : List Execution.DeliveryNode) (acc : State × List WorkQueueEvent)
-      (known : acc.1.GroupNodesMatchWork work)
-      (output : ∀ event ∈ acc.2, event.GroupClosureRecordLocated work)
-      : ∀ event ∈ (groups.foldl step acc).2, event.GroupClosureRecordLocated work := by
-    induction groups generalizing acc with
-    | nil => exact output
-    | cons group rest ih =>
-        rw [List.foldl_cons]
-        unfold step
-        split
-        · exact ih _ known output
-        · rename_i node found
-          have located := known node (List.mem_of_find?_eq_some found)
-          split
-          · apply ih _ (known.finishGroupFailure node errors)
-            intro event member
-            rcases List.mem_append.mp member with earlier | closed
-            · exact output event earlier
-            · have same := List.mem_singleton.mp closed
-              subst event
-              exact located
-          · exact ih _ (known.putGroupNode _ located) output
-  unfold State.taskFailure
-  split
-  · simp
-  · split
-    · intro event impossible
-      cases impossible
-    exact loop _ (_, []) (registered.removeTask occurrence)
-      (by intro event impossible; cases impossible)
 
 /-- An item handler's final drain closes only groups located in its integration state.
 Witness: each matched item's child work preserves registry provenance before the drain;

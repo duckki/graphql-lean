@@ -16,6 +16,14 @@ def resultCursors (cursors : α → Cursors) : Result α → Cursors
   | .error _ => []
   | .ok (data, _) => cursors data
 
+/-- Boundary failure reporting leaves the payload's list cursors unchanged. -/
+@[simp]
+theorem resultCursors_deliveryResult (cursors : α → Cursors) (outcome : TaskOutcome α)
+    : resultCursors cursors outcome.deliveryResult
+      = resultCursors cursors outcome.result := by
+  cases outcome with
+  | mk completed cause => cases completed <;> rfl
+
 def CursorExtends (before after : Cursors) : Prop :=
   ∀ path index, cursorAt before path = some index → cursorAt after path = some index
 
@@ -27,31 +35,34 @@ mutual
       (hl : WorkCursorSeed cursors left ls) (hr : WorkCursorSeed cursors right rs)
       : WorkCursorSeed cursors (.combine left right) (ls ++ rs)
     | executionGroup {cursors : Cursors} {groups : List DeferredFragment}
-      {path : ResponsePath} {completed : Result (List (Name × ResponseValue))}
+      {path : ResponsePath} {completed : TaskOutcome (List (Name × ResponseValue))}
       {children : Work} {slices : List (List ResponsePath)}
-      (hc : WorkCursorSeed (resultCursors (fieldCursors path) completed) children slices)
+      (hc
+        : WorkCursorSeed (resultCursors (fieldCursors path) completed.result) children
+            slices)
       : WorkCursorSeed cursors (.executionGroup groups path completed children)
-          (result (fields true path) completed :: slices)
+          (result (fields true path) completed.result :: slices)
     | stream {cursors : Cursors} {node : DeliveryNode}
-      {items : List (Result ResponseValue × Work)} {index : Nat}
+      {items : List (TaskOutcome ResponseValue × Work)} {index : Nat}
       {slices : List (List ResponsePath)}
       (hc : cursorAt cursors node.path = some index)
       (hi : ItemCursorSeed node.path index items slices)
       : WorkCursorSeed cursors (.stream node items) slices
 
   inductive ItemCursorSeed
-      : ResponsePath → Nat → List (Result ResponseValue × Work) → List (List ResponsePath)
-        → Prop where
+      : ResponsePath → Nat → List (TaskOutcome ResponseValue × Work)
+        → List (List ResponsePath) → Prop where
     | nil {path : ResponsePath} {index : Nat} : ItemCursorSeed path index [] []
-    | cons {path : ResponsePath} {index : Nat} {completed : Result ResponseValue}
-      {children : Work} {tail : List (Result ResponseValue × Work)}
+    | cons {path : ResponsePath} {index : Nat} {completed : TaskOutcome ResponseValue}
+      {children : Work} {tail : List (TaskOutcome ResponseValue × Work)}
       {cs ts : List (List ResponsePath)}
       (hc
-        : WorkCursorSeed (resultCursors (listCursors (path ++ [.index index])) completed)
+        : WorkCursorSeed
+            (resultCursors (listCursors (path ++ [.index index])) completed.result)
             children cs)
       (ht : ItemCursorSeed path (index + 1) tail ts)
       : ItemCursorSeed path index ((completed, children) :: tail)
-          (result (value true (path ++ [.index index])) completed :: (cs ++ ts))
+          (result (value true (path ++ [.index index])) completed.result :: (cs ++ ts))
 end
 
 mutual
@@ -65,8 +76,8 @@ mutual
     | stream _ hi => exact .stream hi.slices
 
   theorem ItemCursorSeed.slices {path : ResponsePath} {index : Nat}
-      {items : List (Result ResponseValue × Work)} {slices : List (List ResponsePath)}
-      (h : ItemCursorSeed path index items slices)
+      {items : List (TaskOutcome ResponseValue × Work)}
+      {slices : List (List ResponsePath)} (h : ItemCursorSeed path index items slices)
       : ItemSlices true path index items slices := by
     cases h with
     | nil => exact .nil
@@ -244,8 +255,8 @@ mutual
   termination_by sizeOf work
 
   theorem ItemCursorSeed.unique {path : ResponsePath} {index : Nat}
-      {items : List (Result ResponseValue × Work)} {left right : List (List ResponsePath)}
-      (hl : ItemCursorSeed path index items left)
+      {items : List (TaskOutcome ResponseValue × Work)}
+      {left right : List (List ResponsePath)} (hl : ItemCursorSeed path index items left)
       (hr : ItemCursorSeed path index items right)
       : left = right := by
     cases items with

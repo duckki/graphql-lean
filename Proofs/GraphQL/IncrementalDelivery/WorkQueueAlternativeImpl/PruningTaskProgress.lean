@@ -32,9 +32,12 @@ theorem failureFrontier_task {before : Kernel}
             (failurePruningView before event events).groupNode? owner.ref = some group
             → ∃ root ∈ failureRoots events,
                 (failurePruningView before event events).LiveDescendant root owner.ref)
+    (unrejected
+      : (failurePruningView before event events).TaskRejectionsSatisfy
+          (fun rejected _ => rejected ≠ occurrence))
     : .task occurrence ∈ targets := by
   have requested : .task occurrence ∈ targets := by
-    rcases trace.linkedOwnerOrAbort links catalogue owned with kept | aborted
+    rcases trace.linkedOwnerOrAbort links catalogue owned unrejected with kept | aborted
     · obtain ⟨owner, member, group, lookup⟩ := kept
       obtain ⟨old, earlier, _⟩ := trace.groupEdgesFrom owner.ref group lookup
       obtain ⟨root, emitted, path⟩ := cut owner member old earlier

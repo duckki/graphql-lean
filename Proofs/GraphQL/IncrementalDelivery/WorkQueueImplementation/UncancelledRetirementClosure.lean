@@ -149,13 +149,20 @@ theorem State.drainReadyGroups_go_uncancelledRetirement {queue : State}
         closedRoots.startNewWork _ certificates.2.2,
         (invariant.2.2.2.2.2.finishGroupSuccess generated invariant.1 invariant.2.1
           canonical invariant.2.2.1 member parentProtected).startNewWork _⟩
-    · intro current node errors invariant _ _ _
-      exact ⟨invariant.1.removeGroup _, invariant.2.1.removeGroup _,
-        fun child included => invariant.2.2.1 child (List.mem_filter.mp included).1,
-        invariant.2.2.2.1,
-        invariant.2.2.2.2.1.mono (current.removeGroup_rootsSubset _)
-          (fun _ retired => retired.removeGroup _),
-        invariant.2.2.2.2.2.removeGroup _⟩
+    · intro current _ occurrence errors invariant _ _ _
+      cases found : current.taskNode? occurrence with
+      | none => simpa only [State.taskFailure, found] using invariant
+      | some task =>
+          rw [current.taskFailure_eq occurrence errors task found]
+          apply failureGroupFold_preserves property
+          · intro state ref frame
+            exact ⟨frame.1.removeGroup ref, frame.2.1.removeGroup ref,
+              fun child included => frame.2.2.1 child (List.mem_filter.mp included).1,
+              frame.2.2.2.1,
+              frame.2.2.2.2.1.mono (state.removeGroup_rootsSubset ref)
+                (fun _ retired => retired.removeGroup ref),
+              frame.2.2.2.2.2.removeGroup ref⟩
+          · exact invariant
   exact result.2.2.2.2
 
 /-- The complete drain retains roots and structural retirement at its actual final budget.
@@ -221,8 +228,7 @@ theorem successGroupFold_uncancelledRetirement {queue : State} {work parents}
       · rename_i finishes
         have active : node.group.node.ref ∈ next.rootGroups := by
           have flags := Bool.and_eq_true_iff.mp finishes
-          simpa only [State.groupNode?_ref found, List.contains_iff_mem]
-            using (Bool.and_eq_true_iff.mp flags.1).1
+          simpa only [State.groupNode?_ref found, List.contains_iff_mem] using flags.1
         have updatedMember : updated ∈ next.groupNodes :=
           List.mem_map.mpr ⟨node, member, by simp [updated]⟩
         have registered := next.finishGroupSuccess_registration nextFacts.2.2.1

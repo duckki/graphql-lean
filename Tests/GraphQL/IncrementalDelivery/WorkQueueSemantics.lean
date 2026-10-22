@@ -43,10 +43,10 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
 def node : DeliveryNode := { ref := 0, path := [] }
 
-def single (result : Result (List (Name × ResponseValue))) : Work :=
+def single (result : TaskOutcome (List (Name × ResponseValue))) : Work :=
   .executionGroup [{ node }] [] result .empty
 
-def work : Work := single (.ok ([], 0))
+def work : Work := single { result := .ok ([], 0) }
 def matching (_ : Nat) : Occurrence := .executionGroup []
 def value : WorkQueueEvent := .groupValues node [{ path := [], data := [] }]
 def success : WorkQueueEvent := .groupSuccess node [] []
@@ -79,7 +79,7 @@ theorem task_single {result occurrence owners producer payload}
     : occurrence = .executionGroup []
       ∧ owners = [0]
       ∧ producer = none
-      ∧ payload = .object [] result := by
+      ∧ payload = .object [] result.deliveryResult := by
   cases occurrence with
   | executionGroup address =>
       obtain ⟨groups, path, value, children, enclosing, located, rfl, rfl⟩ := h
@@ -125,7 +125,7 @@ theorem initialized (result) : Initializes (single result) [node] [] := by
   ⟩
   intro accounted
   have impossible := accounted (.executionGroup []) [0]
-    ⟨none, .object [] result, .executionGroup .root⟩ (by simp [node])
+    ⟨none, .object [] result.deliveryResult, .executionGroup .root⟩ (by simp [node])
   rcases impossible with cancelled | published
   · exact noCancellation _ _ cancelled
   · simp [Published] at published
@@ -243,7 +243,7 @@ example : ¬WorkBatching [] [[]] := by
   cases h with
   | cons nonempty _ _ => exact nonempty (List.append_eq_nil_iff.mp original.symm).1
 
-def failingWork : Work := single (.error 2)
+def failingWork : Work := single { result := .error 2 }
 def failure : WorkQueueEvent := .groupFailure node 2
 
 /-- A real failing occurrence supplies the causal root, independently of its notification.
@@ -306,11 +306,17 @@ theorem reportsFailure
     failed,
     ?_
   ⟩
-  refine ⟨fun _ => 2, ?_, rfl⟩
-  intro occurrence member
-  have same : occurrence = .executionGroup [] := by simpa [failedBefore] using member
-  subst occurrence
-  exact ⟨[0], none, .object [] (.error 2), .executionGroup .root, rfl⟩
+  exact ⟨
+    .executionGroup [],
+    by simp [failedBefore],
+    [0],
+    none,
+    .object [] (.error 2),
+    .executionGroup .root,
+    by simp [node],
+    rfl,
+    by decide
+  ⟩
 
 /-- The complete failed history is admitted by structural cancellation and counted failure
 evidence.
@@ -352,7 +358,7 @@ example (initial : NodeRefs) (events : List WorkQueueEvent)
   obtain ⟨owners, producer, payload, known, fails, _⟩ :=
     (witness [] 0 (.executionGroup []) [] rfl).2.2.1
   have result := (task_single known).2.2.2
-  simp [result, Payload.failure] at fails
+  simp [result, Payload.failure, TaskOutcome.deliveryResult] at fails
 
 /-- A failure can already explain cancellation while its output notification is still
 delayed.

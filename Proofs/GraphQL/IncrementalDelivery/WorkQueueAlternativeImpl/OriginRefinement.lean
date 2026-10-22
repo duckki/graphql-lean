@@ -96,7 +96,7 @@ mutual
       : WorkOriginsRefine (.combine left right) (.combine eagerLeft eagerRight)
     | executionGroup
       {groups eagerGroups path eagerPath report eagerReport children eagerChildren}
-      (payload : ReportRefines report eagerReport)
+      (payload : ReportRefines report.toReport eagerReport.toReport)
       (nested : WorkOriginsRefine children eagerChildren)
       : WorkOriginsRefine (.executionGroup groups path report children)
           (.executionGroup eagerGroups eagerPath eagerReport eagerChildren)
@@ -105,11 +105,11 @@ mutual
       : WorkOriginsRefine (.stream node items) (.stream eagerNode eagerItems)
 
   inductive ItemOriginsRefine
-      : List (Report ResponseValue × RecordedWork)
-        → List (Report ResponseValue × RecordedWork) → Prop where
+      : List (RecordedOutcome ResponseValue × RecordedWork)
+        → List (RecordedOutcome ResponseValue × RecordedWork) → Prop where
     | nil : ItemOriginsRefine [] []
     | cons {report eagerReport children eagerChildren rest eagerRest}
-      (payload : ReportRefines report eagerReport)
+      (payload : ReportRefines report.toReport eagerReport.toReport)
       (nested : WorkOriginsRefine children eagerChildren)
       (tail : ItemOriginsRefine rest eagerRest)
       : ItemOriginsRefine ((report, children) :: rest)

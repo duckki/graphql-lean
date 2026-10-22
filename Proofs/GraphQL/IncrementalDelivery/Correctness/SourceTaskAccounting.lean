@@ -19,7 +19,7 @@ theorem sourceItemTasks_member {address producer node index ordinal items task}
             ⟨
               .item address (ordinal + offset),
               producer,
-              .item node result,
+              .item node result.deliveryResult,
               index + offset
             ⟩
           task = item

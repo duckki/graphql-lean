@@ -114,17 +114,26 @@ theorem State.drainReadyGroups_root_coverage {queue : State} {parents}
         exact State.finishGroupSuccess_root_coverage prior.2.1
           (prior.1.groupNode?_of_mem member) (prior.2.2 target covered ⟨old, oldFound⟩)
           ⟨child, found⟩)
-      (fun current node errors prior _ _ _ => by
-        refine ⟨prior.1.finishGroupFailure node errors,
-          prior.2.1.removeGroup node.group.node.ref, ?_⟩
-        intro target covered survives
-        obtain ⟨child, found⟩ := survives
-        have edges := current.filterRefs_groupEdgesFrom (fun ref =>
-          !(State.removeGroup.collect (current.groupNodes.length + 1) current
-            [node.group.node.ref] []).contains ref)
-        obtain ⟨old, oldFound, _⟩ := edges _ _ found
-        exact State.removeGroup_root_coverage prior.2.1 _
-          (prior.2.2 target covered ⟨old, oldFound⟩) ⟨child, found⟩)
+      (fun current _ occurrence errors prior _ _ _ => by
+        cases found : current.taskNode? occurrence with
+        | none => simpa only [State.taskFailure, found] using prior
+        | some task =>
+            rw [current.taskFailure_eq occurrence errors task found]
+            apply failureGroupFold_preserves property
+            · intro state ref frame
+              refine ⟨frame.1.removeGroup ref, frame.2.1.removeGroup ref, ?_⟩
+              intro target covered survives
+              obtain ⟨child, found⟩ := survives
+              have edges := state.filterRefs_groupEdgesFrom (fun key =>
+                !(State.removeGroup.collect (state.groupNodes.length + 1) state [ref] []).contains key)
+              obtain ⟨old, oldFound, _⟩ := edges _ _ found
+              exact State.removeGroup_root_coverage frame.2.1 ref
+                (frame.2.2 target covered ⟨old, oldFound⟩) ⟨child, found⟩
+            · refine ⟨prior.1, ⟨prior.2.1.uniqueChildren, prior.2.1.canonical,
+                prior.2.1.increasing⟩, ?_⟩
+              intro target covered survives
+              obtain ⟨root, member, path⟩ := prior.2.2 target covered survives
+              exact ⟨root, member, State.LiveDescendant.of_groupNodes_eq (queue := current) rfl path⟩)
       (show property queue from ⟨unique, forest, fun _ covered _ => covered⟩)
   exact result.2.2
 

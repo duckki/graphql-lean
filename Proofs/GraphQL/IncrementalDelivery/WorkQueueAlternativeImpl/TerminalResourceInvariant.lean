@@ -28,7 +28,7 @@ theorem recordTargetRequiresRoot {queue : Kernel}
     rw [List.isEmpty_iff.mp noGroups]
     simp
   cases represented with
-  | @task key occurrence group found linked =>
+  | @task key occurrence group found linked _unrejected =>
       obtain ⟨task, registered, _, contributes⟩ := sound group (List.mem_of_find?_eq_some found) occurrence linked
       obtain ⟨root, active, _⟩ := covered task registered group.group.node.ref contributes
         ⟨group, (ReferenceWorkQueue.State.groupNode?_ref found).symm ▸ found⟩
@@ -84,18 +84,18 @@ theorem generatedDispatch_recordRootEvidence {work inputs event}
   have next := accounted.handleGraphEvent generated
     (ReferenceWorkQueue.GraphEvent.taskSettlements_subsetIdentities _) event matching fresh
     (generatedReplay_nextAccepted generated valid started)
+  have accepted : (ReferenceWorkQueue.State.initialize (ReferenceWorkQueue.Work.fromExecution work)).acceptsBatch
+      (inputs.flatten ++ [event]) = true := by
+    have all := (ReferenceWorkQueue.State.initialize (ReferenceWorkQueue.Work.fromExecution work)).batchesStarted_acceptsBatch
+      (inputs ++ [[event]]) (by rwa [← ReferenceWorkQueue.inputsStarted_eq_batchesStarted])
+    simpa only [List.flatten_append, List.flatten_cons, List.flatten_nil, List.append_nil] using all
   refine ⟨next.sound, next.started, ?_, ?_⟩
-  · have accepted : (ReferenceWorkQueue.State.initialize (ReferenceWorkQueue.Work.fromExecution work)).acceptsBatch
-        (inputs.flatten ++ [event]) = true := by
-      have all := (ReferenceWorkQueue.State.initialize (ReferenceWorkQueue.Work.fromExecution work)).batchesStarted_acceptsBatch
-        (inputs ++ [[event]]) (by rwa [← ReferenceWorkQueue.inputsStarted_eq_batchesStarted])
-      simpa only [List.flatten_append, List.flatten_cons, List.flatten_nil, List.append_nil] using all
-    have covered := generated.replayGraphEvents_liveContributorsCovered _ valid accepted
+  · have covered := generated.replayGraphEvents_liveContributorsCovered _ valid accepted
     rw [ReferenceWorkQueue.State.replayGraphEvents_append] at covered
     rwa [raw]
-  · have owners := generatedReplay_bufferedOwnersPresent generated prior priorStarted
-    have links := (generatedReplay_taskInvariants generated inputs prior priorStarted).2.2
-    exact owners.handleGraphEvent links accounted event matching fresh
+  · have owners := generated.replayGraphEvents_bufferedOwnersPresent _ valid accepted
+    rw [ReferenceWorkQueue.State.replayGraphEvents_append] at owners
+    rwa [raw]
 
 -----------------------------------------------------------------------------------------
 -- Terminal record clearing cannot erase an outstanding owned lease

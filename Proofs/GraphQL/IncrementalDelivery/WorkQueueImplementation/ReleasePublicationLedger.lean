@@ -524,7 +524,6 @@ theorem State.PublicationInventory.taskSuccess_preparedCoverage {queue : State}
     (result : TaskResult)
     (matching : (GraphEvent.taskSuccess occurrence result).MatchesWork work)
     (node : TaskNode) (found : queue.taskNode? occurrence = some node)
-    (healthy : queue.taskHasHealthyOwner node.task = true)
     (fresh : occurrence ∉ settledTasks) (allowed : property occurrence result.value)
     (unpublished : occurrence ∉ published.map Prod.fst)
     (memberships : queue.GroupMembershipOrder)
@@ -580,7 +579,6 @@ theorem State.PublicationInventory.taskSuccess_preparedCoverage {queue : State}
       (queue := queue.putTaskNode { node with value := some result.value }) memberships
       result.work (some occurrence))
   rw [queue.taskSuccess_eq occurrence result node found]
-  simp only [healthy, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
   exact joint
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

@@ -1,4 +1,4 @@
-import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.PendingDebt
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.FailureDebt
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.ReadyDrain
 
 /-! Permanent group retirement across executable queue transitions. -/
@@ -201,10 +201,8 @@ private theorem State.RetiredGroup.startGroup {queue : State} {ref : NodeRef}
   unfold State.startGroup
   split
   · exact retired
-  · split
-    · exact retired
-    · exact fold_preserves State.startTask (fun state => state.RetiredGroup ref)
-        (fun _ task prior => prior.startTask task) _ queue retired
+  · exact fold_preserves State.startTask (fun state => state.RetiredGroup ref)
+      (fun _ task prior => prior.startTask task) _ queue retired
 
 /-- Starting a stream changes only the stream-root registry.
 Witness: direct inspection of the activation branch. -/
@@ -283,6 +281,19 @@ theorem State.RetiredGroup.finishGroupSuccess {queue : State} {ref : NodeRef}
     (fun ref => (current.groupNode? ref).map (fun node => node.group.node))
   exact currentRetired.pruneEmptyGroups children
 
+/-- Task failure preserves retirement while retaining rejected computations.
+Witness: the task update leaves groups unchanged, and the owner fold only removes groups.
+-/
+theorem State.RetiredGroup.taskFailure {queue : State} {ref : NodeRef}
+    (retired : queue.RetiredGroup ref) (task : Occurrence) (errors : Nat)
+    : (queue.taskFailure task errors).1.RetiredGroup ref := by
+  cases found : queue.taskNode? task with
+  | none => simpa [State.taskFailure, found] using retired
+  | some node =>
+      rw [queue.taskFailure_eq task errors node found]
+      exact failureGroupFold_preserves (fun state => state.RetiredGroup ref)
+        (fun _ group prior => prior.removeGroup group) _ _ _ retired
+
 /-- Release-time draining cannot recreate a retired ref.
 Witness: both closures only remove live groups, and activation preserves registration.
 -/
@@ -291,7 +302,7 @@ theorem State.RetiredGroup.drainReadyGroups {queue : State} {ref : NodeRef}
     : queue.drainReadyGroups.1.RetiredGroup ref := by
   apply State.drainReadyGroups_preserves (fun state => state.RetiredGroup ref)
     (fun _ node prior _ _ _ _ => (prior.finishGroupSuccess node).startNewWork _)
-    (fun _ node _ prior _ _ _ => prior.removeGroup node.group.node.ref) retired
+    (fun _ _ task errors prior _ _ _ => prior.taskFailure task errors) retired
 
 /-- One contributor's decrement and optional flush preserve retirement.
 Witness: ref-preserving metadata replacement followed by flush preservation. -/
@@ -318,7 +329,6 @@ theorem State.RetiredGroup.taskSuccess {queue : State} {ref : NodeRef}
   | none => simpa [State.taskSuccess, found] using retired
   | some node =>
       rw [queue.taskSuccess_eq task result node found]
-      split <;> try exact retired.removeTask task
       let withValue := queue.putTaskNode { node with value := some result.value }
       have withValueRetired : withValue.RetiredGroup ref := retired
       let integrated := (withValue.maybeIntegrateWork result.work (some task)).1
@@ -328,42 +338,6 @@ theorem State.RetiredGroup.taskSuccess {queue : State} {ref : NodeRef}
         (fun acc group prior => retired_successGroupStep acc group ref prior)
         node.task.groups (integrated, [], {}) integratedRetired
       exact (folded.startNewWork _).drainReadyGroups
-
-/-- Task failure preserves retirement while closing active or retaining latent owners.
-Witness: task removal, group cleanup, and ref-preserving error updates through the fold.
--/
-theorem State.RetiredGroup.taskFailure {queue : State} {ref : NodeRef}
-    (retired : queue.RetiredGroup ref) (task : Occurrence) (errors : Nat)
-    : (queue.taskFailure task errors).1.RetiredGroup ref := by
-  let step (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode) :=
-    let (current, events) := acc
-    match current.groupNode? group.ref with
-    | none => (current, events)
-    | some node =>
-        if current.rootGroups.contains group.ref then
-          let (next, failure) := current.finishGroupFailure node errors
-          (next, events ++ [failure])
-        else
-          (current.putGroupNode
-            { node with
-              pending := node.pending - 1
-              failure := some (node.failure.getD 0 + errors) }, events)
-  have preserved (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode)
-      (prior : acc.1.RetiredGroup ref) : (step acc group).1.RetiredGroup ref := by
-    obtain ⟨current, events⟩ := acc
-    unfold step
-    dsimp only
-    split
-    · exact prior
-    · split
-      · exact prior.removeGroup _
-      · exact prior.putGroupNode _
-  unfold State.taskFailure
-  split
-  · exact retired
-  · split <;> try exact retired.removeTask task
-    exact fold_preserves step (fun acc => acc.1.RetiredGroup ref)
-      preserved _ _ (retired.removeTask task)
 
 /-- Stream-item integration cannot revive a retired ref through nested work.
 Witness: integrate, prune, and activate each item in its actual batch order. -/

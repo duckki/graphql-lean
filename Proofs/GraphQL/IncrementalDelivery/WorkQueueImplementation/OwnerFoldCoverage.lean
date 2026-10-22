@@ -90,7 +90,7 @@ private theorem successGroupFold_retained_coverage {queue : State} {parents targ
       let updated := current.putGroupNode changed
       have updatedRefs : updated.GroupRefsUnique := prior.1.putGroupNode changed
       have updatedForest : updated.RemovalForest parents :=
-        prior.2.1.putCounters prior.1 found _ node.failure
+        prior.2.1.putCounters prior.1 found _
       have updatedEdges : updated.GroupEdgesFrom current :=
         State.putPending_groupEdgesFrom prior.1 found _
       have updatedCoverage : ∀ child, updated.groupNode? target = some child
@@ -99,7 +99,7 @@ private theorem successGroupFold_retained_coverage {queue : State} {parents targ
         intro child lookup
         obtain ⟨old, oldFound, _⟩ := updatedEdges _ _ lookup
         obtain ⟨root, member, path⟩ := prior.2.2 ⟨old, oldFound⟩
-        exact ⟨root, member, path.putCounters prior.1 found _ node.failure⟩
+        exact ⟨root, member, path.putCounters prior.1 found _⟩
       split
       · refine ⟨updatedRefs.finishGroupSuccess changed,
           updatedForest.finishGroupSuccess changed, ?_⟩
@@ -175,7 +175,7 @@ single-pass contributor fold, delayed activation, and recursive drain.
 theorem State.taskSuccess_integrated_root_coverage {queue : State}
     {parents target occurrence node} (unique : queue.GroupRefsUnique)
     (found : queue.taskNode? occurrence = some node)
-    (healthy : queue.taskHasHealthyOwner node.task = true) (result : TaskResult)
+    (result : TaskResult)
     : let stored := queue.putTaskNode { node with value := some result.value }
       let integrated := (stored.maybeIntegrateWork result.work (some occurrence)).1
       integrated.RemovalForest parents
@@ -188,7 +188,6 @@ theorem State.taskSuccess_integrated_root_coverage {queue : State}
   have resultCoverage := State.successGroupFold_drained_root_coverage
     (storedRefs.maybeIntegrateWork result.work (some occurrence)) forest node.task.groups covered
   rw [queue.taskSuccess_eq occurrence result node found] at survives ⊢
-  simp only [healthy, Bool.not_true, Bool.false_eq_true, ite_false] at survives ⊢
   exact resultCoverage survives
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

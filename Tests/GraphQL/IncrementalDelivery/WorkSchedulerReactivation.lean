@@ -51,7 +51,7 @@ private def sharedTask : Occurrence := .executionGroup [1, 1, 1, 0]
 
 private def leaf (group : DeferredFragment) (alias name value : String)
     : Execution.Work :=
-  .executionGroup [group] [.field alias] (.ok ([(name, .scalar value)], 0))
+  .executionGroup [group] [.field alias] ({ result := .ok ([(name, .scalar value)], 0) })
     (.combine .empty .empty)
 
 private def objectChildren (alias : String) : Execution.Work :=
@@ -71,13 +71,14 @@ checks it against the actual query executor rather than assuming this shape.
 private def work : Execution.Work :=
   .combine .empty
     (.combine
-      (.executionGroup [⟨parent, []⟩] [] (.ok ([("a", .scalar "a")], 0))
+      (.executionGroup [⟨parent, []⟩] [] ({ result := .ok ([("a", .scalar "a")], 0) })
         (.combine .empty .empty))
       (.combine
-        (.executionGroup [childFragment, ⟨failureOwner, []⟩] [] (.error 1) .empty)
+        (.executionGroup [childFragment, ⟨failureOwner, []⟩] []
+          ({ result := .error 1, cause := some 1 }) .empty)
         (.combine
-          (.executionGroup [childFragment, ⟨survivor, []⟩] [] (.ok (sharedData, 0))
-            sharedChildren)
+          (.executionGroup [childFragment, ⟨survivor, []⟩] []
+            ({ result := .ok (sharedData, 0) }) sharedChildren)
           .empty)))
 
 /-- This is execution-generated work for pure finite resolvers, not an arbitrary tree.
@@ -91,21 +92,21 @@ theorem generated : ExecutedWork work := by
 private theorem parent_known
     : TaskAt work parentTask [parent.ref] none
         (.object [] (.ok ([("a", .scalar "a")], 0))) := by
-  refine ⟨[⟨parent, []⟩], [], _, .combine .empty .empty, [], ?_, rfl, rfl⟩
+  refine ⟨[⟨parent, []⟩], [], { result := .ok ([("a", .scalar "a")], 0) }, .combine .empty .empty, [], ?_, rfl, rfl⟩
   cbv
 
 /-- C and S share the non-null failure. Witness: its fixed generated task location. -/
 private theorem failure_known
     : TaskAt work failedTask [child.ref, failureOwner.ref] none
         (.object [] (.error 1)) := by
-  refine ⟨[childFragment, ⟨failureOwner, []⟩], [], _, .empty, [], ?_, rfl, rfl⟩
+  refine ⟨[childFragment, ⟨failureOwner, []⟩], [], { result := .error 1, cause := some 1 }, .empty, [], ?_, rfl, rfl⟩
   cbv
 
 /-- C and R share both object fields. Witness: their generated task and child work. -/
 private theorem shared_known
     : TaskAt work sharedTask [child.ref, survivor.ref] none
         (.object [] (.ok (sharedData, 0))) := by
-  refine ⟨[childFragment, ⟨survivor, []⟩], [], _, sharedChildren, [], ?_, rfl, rfl⟩
+  refine ⟨[childFragment, ⟨survivor, []⟩], [], { result := .ok (sharedData, 0) }, sharedChildren, [], ?_, rfl, rfl⟩
   cbv
 
 -----------------------------------------------------------------------------------------
@@ -167,17 +168,17 @@ Witness: their actual work descriptors and empty-history announcement eligibilit
 -/
 theorem initialized : Initializes work initial.initialGroups initial.initialStreams := by
   have parentKnown : NodeAt work parent .group [] none := by
-    refine ⟨[1, 0], [⟨parent, []⟩], [], .ok ([("a", .scalar "a")], 0),
+    refine ⟨[1, 0], [⟨parent, []⟩], [], { result := .ok ([("a", .scalar "a")], 0) },
       .combine .empty .empty, [],
       ⟨parent, []⟩, ?_, by simp, rfl, rfl⟩
     cbv
   have failureKnown : NodeAt work failureOwner .group [] none := by
-    refine ⟨[1, 1, 0], [childFragment, ⟨failureOwner, []⟩], [], .error 1, .empty, [],
+    refine ⟨[1, 1, 0], [childFragment, ⟨failureOwner, []⟩], [], { result := .error 1, cause := some 1 }, .empty, [],
       ⟨failureOwner, []⟩, ?_, by simp, rfl, rfl⟩
     cbv
   have survivorKnown : NodeAt work survivor .group [] none := by
     refine ⟨[1, 1, 1, 0], [childFragment, ⟨survivor, []⟩], [],
-      .ok (sharedData, 0), sharedChildren, [],
+      { result := .ok (sharedData, 0) }, sharedChildren, [],
       ⟨survivor, []⟩, ?_, by simp, rfl, rfl⟩
     cbv
   have eligible (group : DeliveryNode) (known : NodeAt work group .group [] none)
@@ -203,9 +204,9 @@ theorem initialized : Initializes work initial.initialGroups initial.initialStre
 Witness: both prefix lookups retain the error, while completed release removes the node.
 -/
 theorem child_retained_until_release
-    : ((initial.runNormalized [[failure]]).1.groupNode? child.ref).map GroupNode.failure
+    : ((initial.runNormalized [[failure]]).1.taskNode? failedTask).map TaskNode.rejection
         = some (some 1)
-      ∧ (beforeRelease.groupNode? child.ref).map GroupNode.failure = some (some 1)
+      ∧ (beforeRelease.taskNode? failedTask).map TaskNode.rejection = some (some 1)
       ∧ finalState.groupNode? child.ref = none := by
   constructor
   · cbv

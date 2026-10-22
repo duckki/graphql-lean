@@ -242,13 +242,13 @@ theorem createWorkQueue_sourceObjectFailureCuts_origin {work : Execution.Work}
   simpa only [Nat.zero_add, (State.sourceRunBlocks_agrees _ _).2] using bound
 
 -----------------------------------------------------------------------------------------
--- Every emitted total draws only on source cuts visible at its actual output position
+-- Every emitted cause draws only on source cuts visible at its actual output position
 -----------------------------------------------------------------------------------------
 
-/-- Every contributor to an emitted group total has its candidate cut already visible.
-Witness: exact block-prefix totals and the cut visibility equation. A completion can sum
-several earlier failures, including failures from silent handlers; it cannot use later ones.
-This is inclusion, not completeness of the total against all owning visible failures.
+/-- An emitted group cause has its source candidate cut already visible.
+Witness: the selected block-prefix cause and the cut visibility equation. Delayed
+completions may select earlier silent failures but cannot select later inputs.
+The singleton inventory does not license every visible candidate.
 -/
 theorem sourceObjectFailureCuts_contributions {work : Execution.Work}
     {blocks : List SourceOutputBlock}
@@ -270,26 +270,28 @@ theorem sourceObjectFailureCuts_contributions {work : Execution.Work}
     sourceOutputBlocks_at atEvent
   subst blocks
   have exactTotal := totals.atBlock (List.mem_of_getElem? atLocal)
-  obtain ⟨parts, nonempty, unique, sum, sources⟩ := exactTotal
-  refine ⟨parts, nonempty, unique, sum, ?_⟩
-  intro occurrence count member
-  obtain ⟨source, known⟩ := sources occurrence count member
+  obtain ⟨occurrence, source, known⟩ := exactTotal
+  refine ⟨[(occurrence, errors)], by simp, by simp, by simp, ?_⟩
+  intro other count member
+  obtain ⟨sameOccurrence, sameCount⟩ := Prod.mk.inj (List.mem_singleton.mp member)
+  subst other
+  subst count
   refine ⟨?_, known⟩
   have visible := sourceObjectFailureCuts_visible offset before after block localIndex
     (List.getElem?_eq_some_iff.mp atLocal).1
   rw [position, ← Nat.add_assoc, visible, sourceObjectFailureCuts_occurrences]
   have projected : occurrence ∈
       (before.filterMap Prod.fst ++ block.1.toList).filterMap GraphEvent.objectFailure? :=
-    List.mem_filterMap.mpr ⟨.taskFailure occurrence count, by simpa using source, rfl⟩
+    List.mem_filterMap.mpr ⟨.taskFailure occurrence errors, by simpa using source, rfl⟩
   cases label : block.1 with
   | none => simpa [List.filterMap_append, label] using projected
   | some event =>
       cases event <;>
         simpa [List.filterMap_append, label, GraphEvent.objectFailure?] using projected
 
-/-- Each group failure sees at least one matching contributor's source-task candidate cut.
-Witness: choose from the nonempty exact contribution inventory, not from the current input.
-The chosen task's count need not equal the accumulated completion's total.
+/-- Each group failure sees its matching contributor’s source-task candidate cut.
+Witness: choose the selected cause inventory, which may precede the current input.
+The selected task has the completion's exact cause count.
 -/
 theorem sourceObjectFailureCuts_covers {work : Execution.Work}
     {blocks : List SourceOutputBlock}
@@ -347,12 +349,11 @@ theorem createWorkQueue_sourceObjectFailureCuts_contributions {work : Execution.
       (index := index) (group := group) (errors := errors)
       (by rw [(State.sourceRunBlocks_agrees _ _).2]; exact atEvent)
 
-/-- Each actual group total has an exact NodeErrors inventory inside its candidate cut.
-Witness: construct the contribution function from distinct pairs and retain their proved
-visibility. The complete-contributor transport lemma still needs the converse inclusion
-for owning failures; this theorem alone does not count every visible candidate.
+/-- Each actual failure has a positive selected cause among its visible object cuts.
+Witness: the selected source cause appears before this output boundary, and execution
+certifies its positive count. This does not license every candidate cut.
 -/
-theorem createWorkQueue_sourceObjectFailureCuts_nodeErrorsInventory
+theorem createWorkQueue_sourceObjectFailureCuts_nodeFailureCause
     {work : Execution.Work} (generated : ExecutedWork work)
     {batches : List (List GraphEvent)} (valid : ValidGraphEvents work batches.flatten)
     {index : Nat} {group : Execution.DeliveryNode} {errors : Nat}
@@ -365,23 +366,32 @@ theorem createWorkQueue_sourceObjectFailureCuts_nodeErrorsInventory
       let publisher : IncrementalPublisher :=
         { active := queue.initialGroups ++ queue.initialStreams }
       let blocks := (queue.sourceRunBlocks publisher batches).2.2
-      ∃ failed : List Occurrence,
-        failed ≠ []
-        ∧ failed.Nodup
-        ∧ NodeErrors work failed group.ref errors
-        ∧ failed.Subset (failedBefore (sourceObjectFailureCuts 0 blocks) index) := by
-  obtain ⟨parts, nonempty, unique, sum, sources⟩ :=
-    createWorkQueue_sourceObjectFailureCuts_contributions generated valid atEvent
-  refine ⟨parts.map Prod.fst, fun empty => nonempty (List.map_eq_nil_iff.mp empty),
-    unique, ?_, ?_⟩
-  · rw [← sum]
-    exact failureContributions_nodeErrors parts unique
-      (fun occurrence count member => (sources occurrence count member).2)
-  · intro occurrence member
-    obtain ⟨⟨task, count⟩, member, same⟩ := List.mem_map.mp member
-    dsimp only at same
-    subst task
-    exact (sources occurrence count member).1
+      NodeFailureCause work (failedBefore (sourceObjectFailureCuts 0 blocks) index)
+        group.ref errors := by
+  obtain ⟨before, block, after, localIndex, same, position, atLocal⟩ :=
+    sourceOutputBlocks_at (by
+      rw [(State.sourceRunBlocks_agrees _ _).2]
+      exact atEvent)
+  have totals := createWorkQueue_sourceRunBlocks_groupFailureTotals generated valid
+  dsimp only at totals ⊢
+  rw [same] at totals
+  obtain ⟨occurrence, source, owners, producer, path, known, owner⟩ :=
+    totals.atBlock (List.mem_of_getElem? atLocal)
+  refine ⟨occurrence, ?_, owners, producer, _, known, owner, rfl,
+    generated.taskFailure_positive known rfl⟩
+  rw [same, position]
+  have visible := sourceObjectFailureCuts_visible 0 before after block localIndex
+    (List.getElem?_eq_some_iff.mp atLocal).1
+  simp only [Nat.zero_add] at visible
+  rw [visible, sourceObjectFailureCuts_occurrences]
+  have projected : occurrence ∈
+      (before.filterMap Prod.fst ++ block.1.toList).filterMap GraphEvent.objectFailure? :=
+    List.mem_filterMap.mpr ⟨.taskFailure occurrence errors, by simpa using source, rfl⟩
+  cases label : block.1 with
+  | none => simpa [List.filterMap_append, label] using projected
+  | some event =>
+      cases event <;>
+        simpa [List.filterMap_append, label, GraphEvent.objectFailure?] using projected
 
 /-- Each actual group-failure atom is covered by an earlier contributing source cut.
 Witness: exact runner agreement and the nonempty prefix total retain the original index.

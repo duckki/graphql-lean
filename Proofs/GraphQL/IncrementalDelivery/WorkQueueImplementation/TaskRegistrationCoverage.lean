@@ -130,13 +130,12 @@ theorem GraphEvent.MatchesWork.streamItemChildren_complete {work stream items}
       have same : chunk = item.work := Option.some.inj (boundary.symm.trans childWork)
       exact ⟨task, same ▸ member, occurrence, groups⟩
 
-/-- A healthy accepted object success registers all structural children at that boundary.
+/-- A present object success registers all structural children at that boundary.
 Witness: exact source completeness and the executable task-registry append equation.
-The explicit guard is essential: a started but ignored success must not reveal its work.
+Task presence controls integration, including settlements whose owners were invalidated.
 -/
 theorem State.taskSuccess_child_registered {queue : State}
     {work producer result node} (found : queue.taskNode? producer = some node)
-    (eligible : queue.taskHasHealthyOwner node.task = true)
     (matching : (GraphEvent.taskSuccess producer result).MatchesWork work)
     {address owners payload}
     (known : TaskAt work (.executionGroup address) owners (some producer) payload)
@@ -144,7 +143,7 @@ theorem State.taskSuccess_child_registered {queue : State}
         task.occurrence = .executionGroup address
         ∧ task.groups.map Execution.DeliveryNode.ref = owners := by
   obtain ⟨task, member, occurrence, groups⟩ := matching.taskChildren_complete known
-  rw [State.taskSuccess_tasks found eligible]
+  rw [State.taskSuccess_tasks found]
   exact ⟨task, List.mem_append_right _ member, occurrence, groups⟩
 
 /-- Integrating an observed item registers its entire immediate structural task chunk.

@@ -204,49 +204,15 @@ root during the failure fold. -/
 theorem State.taskFailure_rootsSubset
     (queue : State) (occurrence : Occurrence) (errors : Nat)
     : (queue.taskFailure occurrence errors).1.rootGroups.Subset queue.rootGroups := by
-  let step (acc : State × List WorkQueueEvent)
-      (group : Execution.DeliveryNode) : State × List WorkQueueEvent :=
-    let (current, events) := acc
-    match current.groupNode? group.ref with
-    | none => (current, events)
-    | some node =>
-        if current.rootGroups.contains group.ref then
-          let (next, failure) := current.finishGroupFailure node errors
-          (next, events ++ [failure])
-        else
-          (current.putGroupNode
-            { node with
-                pending := node.pending - 1
-                failure := some (node.failure.getD 0 + errors) }, events)
-  have one (acc : State × List WorkQueueEvent)
-      (group : Execution.DeliveryNode)
-      : (step acc group).1.rootGroups.Subset acc.1.rootGroups := by
-    obtain ⟨current, events⟩ := acc
-    dsimp only [step]
-    split
-    · exact List.Subset.refl _
-    · rename_i node found
-      split
-      · simpa [State.finishGroupFailure] using current.removeGroup_rootsSubset
-          node.group.node.ref
-      · exact List.Subset.refl _
-  have fold (groups : List Execution.DeliveryNode) :
-      ∀ acc : State × List WorkQueueEvent,
-        (groups.foldl step acc).1.rootGroups.Subset acc.1.rootGroups := by
-    induction groups with
-    | nil => intro acc; exact List.Subset.refl _
-    | cons group rest ih =>
-        intro acc
-        exact (ih (step acc group)).trans (one acc group)
-  unfold State.taskFailure
-  split
-  · exact List.Subset.refl _
-  · rename_i taskNode found
-    split <;> try exact List.Subset.refl _
-    let current := queue.removeTask occurrence
-    change (taskNode.task.groups.foldl step (current, [])).1.rootGroups.Subset
-      queue.rootGroups
-    exact fold taskNode.task.groups (current, [])
+  cases found : queue.taskNode? occurrence with
+  | none =>
+      simp only [State.taskFailure, found]
+      exact List.Subset.refl _
+  | some node =>
+      rw [queue.taskFailure_eq occurrence errors node found]
+      apply failureGroupFold_preserves (fun state => state.rootGroups.Subset queue.rootGroups)
+        (fun state ref prior => (state.removeGroup_rootsSubset ref).trans prior)
+      exact List.Subset.refl _
 
 /-- Newly activated groups preserve root health when each released group is
 uninvalidated; streams do not affect this group-root predicate. -/
@@ -531,6 +497,20 @@ theorem State.HealthyPendingTracks.weakenFailures
   intro failedBefore
   exact healthy (GroupInvalidated.mono failedBefore included)
 
+/-- Rejection retention leaves exact counters on surviving healthy groups unchanged. -/
+theorem State.HealthyPendingTracks.taskFailure_preserves
+    {queue : State} {work settled failed}
+    (tracks : queue.HealthyPendingTracks work settled failed)
+    (occurrence : Occurrence) (errors : Nat)
+    : (queue.taskFailure occurrence errors).1.HealthyPendingTracks work settled
+        failed := by
+  cases found : queue.taskNode? occurrence with
+  | none => simpa [State.taskFailure, found] using tracks
+  | some node =>
+      rw [queue.taskFailure_eq occurrence errors node found]
+      exact failureGroupFold_preserves (fun state => state.HealthyPendingTracks work settled failed)
+        (fun _ ref prior => prior.removeGroup ref) _ _ _ tracks
+
 /-- A failed task changes memberships and counters only in newly invalidated owners.
 Witness: registration provenance and membership soundness identify those owners;
 the actual failure fold therefore preserves every still-healthy ledger.
@@ -538,100 +518,21 @@ the actual failure fold therefore preserves every still-healthy ledger.
 theorem State.HealthyPendingTracks.taskFailure
     {queue : State} {work : Execution.Work} {settled failed : List Occurrence}
     (tracks : queue.HealthyPendingTracks work settled failed)
-    (registered : queue.StartedTasksRegistered)
-    (matching : queue.RegisteredTasksMatch work)
-    (sound : queue.GroupMembershipSound)
+    (_registered : queue.StartedTasksRegistered)
+    (_matching : queue.RegisteredTasksMatch work)
+    (_sound : queue.GroupMembershipSound)
     (occurrence : Occurrence) (errors : Nat)
     : (queue.taskFailure occurrence errors).1.HealthyPendingTracks
         work settled (occurrence :: failed) := by
-  let step (acc : State × List WorkQueueEvent)
-      (group : Execution.DeliveryNode) :=
-    let (current, events) := acc
-    match current.groupNode? group.ref with
-    | none => (current, events)
-    | some node =>
-        if current.rootGroups.contains group.ref then
-          let (next, failure) := current.finishGroupFailure node errors
-          (next, events ++ [failure])
-        else
-          (current.putGroupNode
-            { node with
-                pending := node.pending - 1
-                failure := some (node.failure.getD 0 + errors) }, events)
-  have stepTracks (acc : State × List WorkQueueEvent)
-      (group : Execution.DeliveryNode)
-      (invalid : GroupInvalidated work (occurrence :: failed) group.ref)
-      (currentTracks : acc.1.HealthyPendingTracks work settled (occurrence :: failed))
-      : (step acc group).1.HealthyPendingTracks
-          work settled (occurrence :: failed) := by
-    obtain ⟨current, events⟩ := acc
-    dsimp only [step]
-    split
-    · exact currentTracks
-    · rename_i node found
-      split
-      · rw [State.finishGroupFailure, State.groupNode?_ref found]
-        exact currentTracks.removeGroup group.ref
-      · apply currentTracks.putGroupNode
-        intro healthy
-        exact (healthy ((current.groupNode?_ref found).symm ▸ invalid)).elim
-  have foldTracks (groups : List Execution.DeliveryNode) :
-      (∀ group ∈ groups, GroupInvalidated work (occurrence :: failed) group.ref) →
-      ∀ acc : State × List WorkQueueEvent,
-        acc.1.HealthyPendingTracks work settled (occurrence :: failed)
-          → (groups.foldl step acc).1.HealthyPendingTracks
-              work settled (occurrence :: failed) := by
-    induction groups with
-    | nil => intro _ acc currentTracks; exact currentTracks
-    | cons group rest ih =>
-        intro invalid acc currentTracks
-        exact ih (fun item member => invalid item (List.mem_cons_of_mem _ member))
-          (step acc group) (stepTracks acc group (invalid group List.mem_cons_self) currentTracks)
-  unfold State.taskFailure
-  split
-  · exact tracks.weakenFailures (by intro item member; simp [member])
-  · rename_i taskNode found
-    have member := List.mem_of_find?_eq_some found
-    have same : taskNode.task.occurrence = occurrence :=
-      (occurrence_beq_iff_eq _ _).mp
-        (List.find?_some (p := fun node : TaskNode => node.task.occurrence == occurrence) found)
-    obtain ⟨_, payload, producer, _, known⟩ :=
-      (matching taskNode.task (registered taskNode member)).1
-    have owners : TaskHasOwners work occurrence
-        (taskNode.task.groups.map Execution.DeliveryNode.ref) :=
-      ⟨producer, payload, same ▸ known⟩
-    have invalid (group : Execution.DeliveryNode) (inGroups : group ∈ taskNode.task.groups)
-        : GroupInvalidated work (occurrence :: failed) group.ref :=
-      .task owners (List.mem_map.mpr ⟨group, inGroups, rfl⟩) List.mem_cons_self
-    let current := queue.removeTask occurrence
-    have currentTracks : current.HealthyPendingTracks
-        work settled (occurrence :: failed) := by
-      intro node nodeMember healthy
-      obtain ⟨old, oldMember, equal⟩ := List.mem_map.mp nodeMember
-      subst node
-      have absent : occurrence ∉ old.tasks := by
-        intro listed
-        exact healthy (.task owners
-          (sound.startedOwner registered matching (groupNode := old)
-            member oldMember (same.symm ▸ listed))
-          List.mem_cons_self)
-      have unchanged : old.tasks.filter (· != occurrence) = old.tasks := by
-        apply List.filter_eq_self.mpr
-        intro task taskMember
-        have different : (task == occurrence) = false := by
-          cases equal : task == occurrence with
-          | false => rfl
-          | true =>
-              exact (absent ((occurrence_beq_iff_eq _ _).mp equal ▸ taskMember)).elim
-        simp [bne, different]
-      change old.pending = unsettledCount (old.tasks.filter (· != occurrence)) settled
-      rw [unchanged]
-      exact (tracks.weakenFailures (by intro item itemMember; simp [itemMember]))
-        old oldMember healthy
-    split <;> try exact currentTracks
-    change (taskNode.task.groups.foldl step (current, [])).1.HealthyPendingTracks
-      work settled (occurrence :: failed)
-    exact foldTracks taskNode.task.groups invalid (current, []) currentTracks
+  have prior := tracks.weakenFailures (after := occurrence :: failed)
+    (by intro item member; simp [member])
+  cases found : queue.taskNode? occurrence with
+  | none => simpa [State.taskFailure, found] using prior
+  | some node =>
+      rw [queue.taskFailure_eq occurrence errors node found]
+      exact failureGroupFold_preserves
+        (fun state => state.HealthyPendingTracks work settled (occurrence :: failed))
+        (fun _ ref valid => valid.removeGroup ref) _ _ _ prior
 
 /-- Flushing a task already present in the settlement prefix changes no
 healthy pending count, even for latent groups that share the task. -/

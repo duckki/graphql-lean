@@ -218,13 +218,28 @@ theorem State.TaskOwnerFrame.removeGroup {queue : State} {work : Execution.Work}
     frame.sound.removeGroup key
   ⟩
 
+/-- Rejection replay retains live owners through the task update and owner removals. -/
+theorem State.TaskOwnerFrame.taskFailure {queue : State} {work : Execution.Work}
+    (frame : queue.TaskOwnerFrame work) (occurrence : Occurrence) (errors : Nat)
+    : (queue.taskFailure occurrence errors).1.TaskOwnerFrame work := by
+  cases found : queue.taskNode? occurrence with
+  | none => simpa only [State.taskFailure, found] using frame
+  | some task =>
+      have member := List.mem_of_find?_eq_some found
+      rw [queue.taskFailure_eq occurrence errors task found]
+      apply failureGroupFold_preserves (fun current => current.TaskOwnerFrame work)
+        (fun _ ref prior => prior.removeGroup ref)
+      exact ⟨frame.owners.putTaskNode _ (frame.owners task member),
+        frame.disposition.putTaskNode _, frame.keys,
+        frame.registered.putTaskNode _ (frame.registered task member), frame.matching, frame.sound⟩
+
 theorem State.TaskOwnerFrame.drainReadyGroups {queue : State} {work : Execution.Work}
     (frame : queue.TaskOwnerFrame work)
     : queue.drainReadyGroups.1.TaskOwnerFrame work :=
   State.drainReadyGroups_preserves (fun current => current.TaskOwnerFrame work)
     (valid := frame)
     (fun _ group prior live _ _ _ => (prior.finishGroupSuccess group live).startNewWork _)
-    (fun _ group _ prior _ _ _ => prior.removeGroup group.group.node.ref)
+    (fun _ _ occurrence errors prior _ _ _ => prior.taskFailure occurrence errors)
 
 theorem State.TaskOwnerFrame.removeTask {queue : State} {work : Execution.Work}
     (frame : queue.TaskOwnerFrame work) (occurrence : Occurrence)

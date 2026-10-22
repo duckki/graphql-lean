@@ -11,13 +11,15 @@ namespace GraphQL.IncrementalDelivery.AlternativeWorkQueue.NativeRefinement
 -----------------------------------------------------------------------------------------
 
 /-- Three concrete locations that represent queue-owned task/source identities.
-A task is linked to a live group; a source is active or held by a stored task. These are
+An unrejected task is linked to a live group; a source is active or held by a stored task. These are
 record observations, not an acquisition mechanism or a complete native inventory by definition.
 -/
 inductive RecordTargetRepresented (queue : ReferenceWorkQueue.State)
     : CleanupTarget → Prop where
   | task {key occurrence group}
     (found : queue.groupNode? key = some group) (linked : occurrence ∈ group.tasks)
+    (unrejected
+      : (queue.taskNode? occurrence).any (fun node => node.rejection.isSome) = false)
     : RecordTargetRepresented queue (.task occurrence)
   | activeStream {key} (active : key ∈ queue.rootStreams)
     : RecordTargetRepresented queue (.stream key)

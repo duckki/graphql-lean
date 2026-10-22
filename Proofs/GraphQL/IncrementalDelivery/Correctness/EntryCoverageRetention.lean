@@ -17,13 +17,14 @@ payload cursors. This is independent of the enclosing response's cursor environm
 theorem sourcePositions_executionGroup_ok (containers : Bool)
     (cursors : ResponsePositions.Cursors) (groups : List DeferredFragment)
     (path : ResponsePath) (initial : List (Name × ResponseValue)) (errors : Nat)
-    (children : Work)
+    (children : Work) {cause : Option Nat}
     : (sourceTasks [] none cursors
-        (.executionGroup groups path (.ok (initial, errors)) children)).flatMap
+        (.executionGroup groups path { result := .ok (initial, errors), cause }
+          children)).flatMap
         (SourceTask.positions containers)
       = preparedFieldPositions containers path initial children := by
   simp only [sourceTasks, List.flatMap_cons, SourceTask.positions, SourceTask.cursors,
-    DeliveryPaths.result, Semantics.MixedPaths.resultCursors, preparedFieldPositions,
+    TaskOutcome.deliveryResult, DeliveryPaths.result, Semantics.MixedPaths.resultCursors, preparedFieldPositions,
     List.nil_append]
   rw [sourceTasks_positions_relabel containers children
     (ResponsePositions.fieldCursors path initial) [0] [] (some (.executionGroup [])) none]
@@ -33,7 +34,7 @@ Witness: payload-preserving structural embedding at the group's child edge.
 -/
 theorem EntryExplained.executionGroup_child {available children entry}
     (explained : EntryExplained available children entry) (groups : List DeferredFragment)
-    (path : ResponsePath) (result : Result (List (Name × ResponseValue)))
+    (path : ResponsePath) (result : TaskOutcome (List (Name × ResponseValue)))
     : EntryExplained available (.executionGroup groups path result children) entry := by
   rcases explained with delivered | failed
   · exact Or.inl delivered
@@ -47,19 +48,21 @@ Witness: the exact group inventory plus child-task embedding. Counted errors, nu
 reference values, and failed descendant tasks are all allowed; no delivery is assumed.
 -/
 theorem EntriesCovered.executionGroup {containers reference path children}
-    (initial : List (Name × ResponseValue)) (errors : Nat)
+    (initial : List (Name × ResponseValue)) (errors : Nat) {cause : Option Nat}
     (covered
       : EntriesCovered containers reference
           (preparedFieldPositions containers path initial children) children)
     (groups : List DeferredFragment) (cursors : ResponsePositions.Cursors)
     : EntriesCovered containers reference
         ((sourceTasks [] none cursors
-            (.executionGroup groups path (.ok (initial, errors)) children)).flatMap
+            (.executionGroup groups path { result := .ok (initial, errors), cause }
+              children)).flatMap
           (SourceTask.positions containers))
-        (.executionGroup groups path (.ok (initial, errors)) children) := by
+        (.executionGroup groups path { result := .ok (initial, errors), cause }
+          children) := by
   rw [sourcePositions_executionGroup_ok]
   intro entry member visible
-  exact (covered entry member visible).executionGroup_child groups path (.ok (initial, errors))
+  exact (covered entry member visible).executionGroup_child groups path { result := .ok (initial, errors), cause }
 
 -----------------------------------------------------------------------------------------
 -- Deferred work partitions combine at the same ambient cursor environment
@@ -99,9 +102,9 @@ and that payload's child cursors. Other items may succeed or fail and are not in
 -/
 theorem preparedValuePositions_in_sourceItems (containers : Bool)
     (address : Address) (producer : Option Occurrence) (node : DeliveryNode)
-    (index ordinal : Nat) (items : List (Result ResponseValue × Work)) (offset : Nat)
-    (initial : ResponseValue) (errors : Nat) (children : Work)
-    (found : items[offset]? = some (.ok (initial, errors), children))
+    (index ordinal : Nat) (items : List (TaskOutcome ResponseValue × Work)) (offset : Nat)
+    (initial : ResponseValue) (errors : Nat) (children : Work) {cause : Option Nat}
+    (found : items[offset]? = some ({ result := .ok (initial, errors), cause }, children))
     : (preparedValuePositions containers (node.path ++ [.index (index + offset)])
         initial children).Subset
         ((sourceItemTasks address producer node index ordinal items).flatMap
@@ -115,7 +118,7 @@ theorem preparedValuePositions_in_sourceItems (containers : Bool)
           subst head
           simp only [sourceItemTasks, List.flatMap_cons, List.flatMap_append,
             SourceTask.positions, SourceTask.cursors, Semantics.MixedPaths.resultCursors,
-            DeliveryPaths.result, preparedValuePositions, Nat.add_zero]
+            TaskOutcome.deliveryResult, DeliveryPaths.result, preparedValuePositions, Nat.add_zero]
           rw [sourceTasks_positions_relabel containers children
             (ResponsePositions.listCursors (node.path ++ [ResponsePathSegment.index index])
               initial)
@@ -141,9 +144,9 @@ Witness: the actual successful cursor lookup and its source-item membership cert
 No default-to-zero cursor or stream timing assumption is used.
 -/
 theorem preparedValuePositions_in_stream
-    {containers cursors node index items offset initial errors children}
+    {containers cursors node index items offset initial errors children cause}
     (cursor : ResponsePositions.cursorAt cursors node.path = some index)
-    (found : items[offset]? = some (.ok (initial, errors), children))
+    (found : items[offset]? = some ({ result := .ok (initial, errors), cause }, children))
     : (preparedValuePositions containers (node.path ++ [.index (index + offset)])
         initial children).Subset
         ((sourceTasks [] none cursors (.stream node items)).flatMap
@@ -157,9 +160,10 @@ Witness: structural embedding at the found item ordinal; the failure attachment 
 null ancestry are unchanged, independently of preceding items' outcomes.
 -/
 theorem EntryExplained.streamItem_child {available children entry}
-    (explained : EntryExplained available children entry)
-    (node : DeliveryNode) (items : List (Result ResponseValue × Work)) (offset : Nat)
-    (result : Result ResponseValue) (found : items[offset]? = some (result, children))
+    (explained : EntryExplained available children entry) (node : DeliveryNode)
+    (items : List (TaskOutcome ResponseValue × Work)) (offset : Nat)
+    (result : TaskOutcome ResponseValue)
+    (found : items[offset]? = some (result, children))
     : EntryExplained available (.stream node items) entry := by
   rcases explained with delivered | failed
   · exact Or.inl delivered
@@ -173,19 +177,19 @@ Witness: absolute-index source inclusion and child-failure embedding at the same
 item. The item may contain counted errors or partial data; no zero-error premise is used.
 -/
 theorem EntriesCovered.streamItem
-    {containers reference cursors node index items offset initial errors children}
+    {containers reference cursors node index items offset initial errors children cause}
     (covered
       : EntriesCovered containers reference
           (preparedValuePositions containers (node.path ++ [.index (index + offset)])
             initial children) children)
     (cursor : ResponsePositions.cursorAt cursors node.path = some index)
-    (found : items[offset]? = some (.ok (initial, errors), children))
+    (found : items[offset]? = some ({ result := .ok (initial, errors), cause }, children))
     : EntriesCovered containers reference
         ((sourceTasks [] none cursors (.stream node items)).flatMap
           (SourceTask.positions containers)) (.stream node items) := by
   intro entry member visible
   exact ((covered entry member visible).streamItem_child node items offset
-    (.ok (initial, errors)) found).available_mono
+    { result := .ok (initial, errors), cause } found).available_mono
       (preparedValuePositions_in_stream cursor found)
 
 end GraphQL.IncrementalDelivery.Correctness

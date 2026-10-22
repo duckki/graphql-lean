@@ -1,4 +1,4 @@
-import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.RetiredAncestorHealth
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.MissingParentCertificates
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.AncestorRelease
 
 /-! Missing-parent retirement across successful removal and taskless pruning. -/
@@ -312,32 +312,49 @@ theorem State.MissingParentAncestorsRetired.drainReadyGroups {queue : State}
     ∧ current.RootAncestorsRetired work ∧ current.GroupNodesMatchWork work
     ∧ current.ChildLinksCanonical parents ∧ current.GroupParentsCanonical parents
     ∧ current.LiveGroupsRegistered ∧ current.TaskGroupsRegistered
-  have preserved := State.drainReadyGroups_preserves property (by
-    intro current node invariant member active _ _
-    obtain ⟨boundary, protectedRoots, matched, linked, fields, live, covered⟩ := invariant
-    have protectedParent := protectedRoots _ active
-    have closed := State.finishGroupSuccess_ancestorsRetired generated matched linked
-      canonical live member protectedParent
-    have registration := State.finishGroupSuccess_registration live covered node
-    have released := State.startNewWork_registration registration.1 registration.2.1
-      (current.finishGroupSuccess node).2.2
-    exact ⟨
-      (boundary.finishGroupSuccess generated matched linked fields canonical
-        live member protectedParent).startNewWork _,
-      (protectedRoots.mono (current.finishGroupSuccess_rootsSubset node)
-        (fun _ retired => retired.finishGroupSuccess node)).startNewWork _ closed.2.2,
-      (matched.finishGroupSuccess node).startNewWork _,
-      (linked.finishGroupSuccess node).startNewWork _,
-      (fields.finishGroupSuccess node).startNewWork _,
-      released.1, released.2⟩) (by
-    intro current node errors invariant _ _ _
-    obtain ⟨boundary, protectedRoots, matched, linked, fields, live, covered⟩ := invariant
-    exact ⟨boundary.removeGroup _,
-      protectedRoots.mono (current.removeGroup_rootsSubset node.group.node.ref)
-        (fun _ retired => retired.removeGroup _),
-      matched.removeGroup _, linked.removeGroup _, fields.removeGroup _,
-      (fun candidate member => live candidate (List.mem_filter.mp member).1), covered⟩)
-    ⟨prior, roots, matching, links, parentFields, registered, tasks⟩
+  have preserved :=
+    State.drainReadyGroups_preserves property
+      (by
+        intro current node invariant member active _ _
+        obtain ⟨boundary, protectedRoots, matched, linked, fields, live, covered⟩ :=
+          invariant
+        have protectedParent := protectedRoots _ active
+        have closed := State.finishGroupSuccess_ancestorsRetired generated matched linked
+          canonical live member protectedParent
+        have registration := State.finishGroupSuccess_registration live covered node
+        have released := State.startNewWork_registration registration.1 registration.2.1
+          (current.finishGroupSuccess node).2.2
+        exact ⟨
+          (boundary.finishGroupSuccess generated matched linked fields canonical
+            live member protectedParent).startNewWork _,
+          (protectedRoots.mono (current.finishGroupSuccess_rootsSubset node)
+            (fun _ retired => retired.finishGroupSuccess node)).startNewWork _ closed.2.2,
+          (matched.finishGroupSuccess node).startNewWork _,
+          (linked.finishGroupSuccess node).startNewWork _,
+          (fields.finishGroupSuccess node).startNewWork _,
+          released.1, released.2⟩)
+      (by
+        intro current _ occurrence errors invariant _ _ _
+        cases found : current.taskNode? occurrence with
+        | none => simpa only [State.taskFailure, found] using invariant
+        | some task =>
+            rw [current.taskFailure_eq occurrence errors task found]
+            apply failureGroupFold_preserves property
+            · intro state ref frame
+              obtain ⟨boundary, protectedRoots, matched, linked, fields, live, covered⟩ :=
+                frame
+              exact ⟨
+                boundary.removeGroup ref,
+                protectedRoots.mono (state.removeGroup_rootsSubset ref)
+                  (fun _ retired => retired.removeGroup ref),
+                matched.removeGroup ref,
+                linked.removeGroup ref,
+                fields.removeGroup ref,
+                (fun candidate member => live candidate (List.mem_filter.mp member).1),
+                covered
+              ⟩
+            · exact invariant)
+      ⟨prior, roots, matching, links, parentFields, registered, tasks⟩
   exact preserved.1
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

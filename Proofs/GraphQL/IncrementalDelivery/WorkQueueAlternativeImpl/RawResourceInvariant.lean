@@ -113,36 +113,31 @@ private theorem rawPrefix_startedNext {work events event}
 -----------------------------------------------------------------------------------------
 
 /-- No actual adoption label is emitted when all graph roots are gone. Immutable task
-registration and live-contributor coverage exclude a healthy owner for any started task.
+registration and live-owner existence and contributor coverage exclude every started task.
 -/
 theorem graphEffects_emptyRoots_noAdopt {queue : Kernel}
     (registered : queue.StartedTasksRegistered) (covered : queue.LiveContributorsCovered)
+    (owners : queue.TaskOwnersPresent)
     (empty : (queue.rootGroups.isEmpty && queue.rootStreams.isEmpty) = true)
     (event : GraphEvent) (producer : WorkQueueSemantics.Occurrence)
     : .adopt producer ∉ graphEffects queue event := by
   obtain ⟨groupsEmpty, streamsEmpty⟩ := Bool.and_eq_true_iff.mp empty
-  have noHealthy : ∀ node, queue.taskNode? node.task.occurrence = some node
-      → queue.taskHasHealthyOwner node.task = false := by
-    intro node found
-    apply Bool.eq_false_iff.mpr
-    intro healthy
-    obtain ⟨key, contributes, live⟩ := ReferenceWorkQueue.taskHasHealthyOwner_present healthy
-    have lookup : ∃ group, queue.groupNode? key = some group := by
-      cases tested : queue.groupNode? key with
-      | some group => exact ⟨group, rfl⟩
-      | none => exact False.elim ((queue.groupNode?_eq_none_iff key).mp tested live)
-    obtain ⟨root, active, _⟩ := covered node.task
-      (registered node (List.mem_of_find?_eq_some found)) key contributes lookup
-    rw [List.isEmpty_iff.mp groupsEmpty] at active
-    cases active
+  have absent : ∀ occurrence, queue.taskNode? occurrence = none := by
+    intro occurrence
+    cases found : queue.taskNode? occurrence with
+    | none => rfl
+    | some node =>
+        obtain ⟨key, contributes, live⟩ := owners node (List.mem_of_find?_eq_some found)
+        have lookup : ∃ group, queue.groupNode? key = some group := by
+          cases tested : queue.groupNode? key with
+          | some group => exact ⟨group, rfl⟩
+          | none => exact False.elim ((queue.groupNode?_eq_none_iff key).mp tested live)
+        obtain ⟨root, active, _⟩ := covered node.task
+          (registered node (List.mem_of_find?_eq_some found)) key contributes lookup
+        rw [List.isEmpty_iff.mp groupsEmpty] at active
+        cases active
   cases event with
-  | taskSuccess occurrence result =>
-      cases found : queue.taskNode? occurrence with
-      | none => simp [graphEffects, found]
-      | some node =>
-          have same := (ReferenceWorkQueue.State.taskNode?_some found).2
-          have unhealthy := noHealthy node (same.symm ▸ found)
-          simp [graphEffects, found, unhealthy]
+  | taskSuccess occurrence result => simp [graphEffects, absent occurrence]
   | streamItems stream items => simp [graphEffects, List.isEmpty_iff.mp streamsEmpty]
   | taskFailure | streamSuccess => simp [graphEffects]
   | streamFailure stream errors => simp [graphEffects, List.isEmpty_iff.mp streamsEmpty]
@@ -211,7 +206,8 @@ theorem generatedRaw_resourceInvariant {work events event resources inventories}
     have owners := generated.replayGraphEvents_bufferedOwnersPresent events prior earlier
     have noOwned := represented.emptyRoots_no_owned ledger.sound ledger.started covered owners empty
     have after := resources.observeDispatch_noAdopt_noOwned inventories { queue } event noOwned
-      (graphEffects_emptyRoots_noAdopt ledger.started covered empty event)
+      (graphEffects_emptyRoots_noAdopt ledger.started covered
+        (generated.replayGraphEvents_taskOwnerFrame events prior earlier).owners empty event)
     exact ⟨fun occurrence owned => False.elim (after _ owned), fun key owned => False.elim (after _ owned)⟩
   · have exactState := rawPrefix_state work events generated
       (valid.prefix ⟨[event], rfl⟩) (ReferenceWorkQueue.State.acceptsBatch_prefix accepted) empty

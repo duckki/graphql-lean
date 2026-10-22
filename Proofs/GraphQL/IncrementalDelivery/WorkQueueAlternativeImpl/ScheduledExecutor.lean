@@ -49,7 +49,8 @@ mutual
         | some definition =>
             let failed : Completion (List (Name × ResponseValue)) :=
               {
-                result := singleFieldResult name (handleFieldError definition.outputType)
+                result := singleFieldResult name (handleFieldError definition.outputType),
+                cause := if definition.outputType.isNonNull then some 1 else none
               }
             match coerceArgumentValues schema variables definition.arguments
                     field.arguments with
@@ -106,7 +107,7 @@ mutual
           completeValue schema resolvers variables fuel itemType fields value
             (path ++ [.index index]) usages context false
         match head.result with
-        | .error errors => return .error errors
+        | .error errors => return { Completion.error errors with cause := head.cause }
         | .ok _ =>
             let tail ←
               completeListValue schema resolvers variables fuel itemType fields rest
@@ -125,7 +126,7 @@ mutual
       else
         .ok none
     match streamUsage with
-    | .error errors => return { result := .ok (.null, errors) }
+    | .error errors => return { result := .ok (.null, errors), cause := some errors }
     | .ok none =>
         return (← completeListValue schema resolvers variables fuel inner fields values
                     path 0 usages context).catchNull
@@ -159,7 +160,7 @@ mutual
       (variables : VariableValues) (fuel : Nat) (itemType : TypeRef)
       (fields : List FieldDetails) (values : List (ResolverValue ObjectRef))
       (path : ResponsePath) (index : Nat)
-      : StateM Nat (List (Result ResponseValue × Work)) := do
+      : StateM Nat (List (TaskOutcome ResponseValue × Work)) := do
     match values with
     | [] => return []
     | value :: rest =>
@@ -167,12 +168,12 @@ mutual
           completeValue schema resolvers variables fuel itemType fields value
             (path ++ [.index index]) [] [] false
         match head.result with
-        | .error _ => return [(head.result, .empty)]
+        | .error _ => return [(head.outcome, .empty)]
         | .ok _ =>
             let tail ←
               completeStreamItems schema resolvers variables fuel itemType fields rest
                 path (index + 1)
-            return (head.result, head.work) :: tail
+            return (head.outcome, head.work) :: tail
   termination_by (fuel, 2, sizeOf itemType, sizeOf values)
 
   def executeExecutionPlan (schema : Schema) (resolvers : Resolvers ObjectRef)
@@ -210,7 +211,8 @@ mutual
         let tail ←
           collectExecutionGroups schema resolvers variables fuel parentType source
             rest path context
-        return .combine (.executionGroup groups path completed.result completed.work) tail
+        return .combine (.executionGroup groups path completed.outcome completed.work)
+          tail
   termination_by (fuel, 5, 0, sizeOf partitions)
 end
 

@@ -139,19 +139,14 @@ private theorem eagerRegistrationSnapshot_groupEvidence {queue : Kernel} {work p
       cases found : queue.taskNode? occurrence with
       | none => simpa only [eagerRegistrationSnapshot, found] using frame
       | some node =>
-          cases healthy : queue.taskHasHealthyOwner node.task with
-          | false =>
-              simpa only [eagerRegistrationSnapshot, found, healthy, Bool.false_eq_true,
-                ↓reduceIte] using frame
-          | true =>
-              simp only [eagerRegistrationSnapshot, found, healthy, ↓reduceIte]
-              have installed : SnapshotGroupEvidence
-                  (queue.putTaskNode { node with value := some result.value }) work parents :=
-                ⟨frame.matching, frame.links, frame.unique⟩
-              exact installed.integrate result.work
-                (fun _ member => matching.taskChildGroups_recordAt member)
-                (fun _ member => matching.taskChildGroups_parentCanonical canonical member)
-                (some occurrence)
+          simp only [eagerRegistrationSnapshot, found]
+          have installed : SnapshotGroupEvidence
+              (queue.putTaskNode { node with value := some result.value }) work parents :=
+            ⟨frame.matching, frame.links, frame.unique⟩
+          exact installed.integrate result.work
+            (fun _ member => matching.taskChildGroups_recordAt member)
+            (fun _ member => matching.taskChildGroups_parentCanonical canonical member)
+            (some occurrence)
   | streamItems stream items =>
       cases active : queue.rootStreams.contains stream.ref with
       | false =>
@@ -184,31 +179,26 @@ theorem eagerRegistrationSnapshot_taskEvidence {queue : Kernel} {work settled be
       cases found : queue.taskNode? occurrence with
       | none => simpa only [eagerRegistrationSnapshot, found] using initial
       | some node =>
-          cases healthy : queue.taskHasHealthyOwner node.task with
-          | false =>
-              simpa only [eagerRegistrationSnapshot, found, healthy, Bool.false_eq_true,
-                ↓reduceIte] using initial
-          | true =>
-              simp only [eagerRegistrationSnapshot, found, healthy, ↓reduceIte]
-              have known := ReferenceWorkQueue.State.taskNode?_some found
-              have registered := accounted.started node known.1
-              have unsettled : node.task.occurrence ∉ settled := by
-                rw [known.2]
-                intro member
-                exact fresh.2.2.1 occurrence List.mem_cons_self (included member)
-              have installed : SnapshotTaskEvidence
-                  (queue.putTaskNode { node with value := some result.value }) work :=
-                ⟨initial.keys, initial.live, initial.contributors,
-                  initial.started.putTaskNode _ registered, initial.matching,
-                  buffered.putTaskNode _ (fun _ => accounted.links node.task registered unsettled),
-                  initial.sound⟩
-              exact installed.integrate result.work matching.childTasksCovered
-                (by
-                  intro task member
-                  obtain ⟨address, payload, same, known⟩ := matching.childTask_producer member
-                  exact ⟨⟨address, payload, some occurrence, same, known⟩,
-                    matching.childTask_groupsExact member⟩)
-                (some occurrence)
+          simp only [eagerRegistrationSnapshot, found]
+          have known := ReferenceWorkQueue.State.taskNode?_some found
+          have registered := accounted.started node known.1
+          have unsettled : node.task.occurrence ∉ settled := by
+            rw [known.2]
+            intro member
+            exact fresh.2.2.1 occurrence List.mem_cons_self (included member)
+          have installed : SnapshotTaskEvidence
+              (queue.putTaskNode { node with value := some result.value }) work :=
+            ⟨initial.keys, initial.live, initial.contributors,
+              initial.started.putTaskNode _ registered, initial.matching,
+              buffered.putTaskNode _ (fun _ => accounted.links node.task registered unsettled),
+              initial.sound⟩
+          exact installed.integrate result.work matching.childTasksCovered
+            (by
+              intro task member
+              obtain ⟨address, payload, same, known⟩ := matching.childTask_producer member
+              exact ⟨⟨address, payload, some occurrence, same, known⟩,
+                matching.childTask_groupsExact member⟩)
+            (some occurrence)
   | streamItems stream items =>
       cases active : queue.rootStreams.contains stream.ref with
       | false =>

@@ -172,6 +172,84 @@ theorem RootClosureFrame.finishGroupFailure_groupNoticeCompletion {queue work pa
 -- The actual recursive drain preserves this stronger lifecycle tracking
 -----------------------------------------------------------------------------------------
 
+/-- One failed-owner step preserves the structural frame and exact notice tracking.
+Witness: active cleanup closes its only removed announced ref; latent caching changes no
+root or descriptor and leaves earlier tracking untouched.
+-/
+theorem RootClosureFrame.failureGroupStep_groupNoticeCompletion
+    {acc : State × List WorkQueueEvent} {work parents initial}
+    (frame : RootClosureFrame acc.1 work parents) (generated : ExecutedWork work)
+    (canonical
+      : ∀ node dependencies,
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
+    (tracked : GroupNoticeCompletion initial acc) (errors : Nat)
+    (group : Execution.DeliveryNode)
+    : RootClosureFrame (failureGroupStep errors acc group).1 work parents
+      ∧ GroupNoticeCompletion initial (failureGroupStep errors acc group) := by
+  obtain ⟨queue, outputs⟩ := acc
+  unfold failureGroupStep
+  dsimp only
+  split
+  · exact ⟨frame, tracked⟩
+  · rename_i node found
+    split
+    · rename_i active
+      have activeRef : node.group.node.ref ∈ queue.rootGroups := by
+        rw [State.groupNode?_ref found]
+        exact List.contains_iff_mem.mp active
+      exact ⟨frame.removeGroup _, tracked.append
+        (frame.finishGroupFailure_groupNoticeCompletion generated canonical node errors
+          activeRef)⟩
+    · exact ⟨frame, tracked⟩
+
+/-- The full failed-owner pass cannot silently remove any previously announced group.
+Witness: iterate the exact single-pass handler with the preserved structural frame.
+No source ordering, distinct-owner, or successful-output premise is required locally.
+-/
+theorem RootClosureFrame.failureGroupFold_groupNoticeCompletion {queue work parents}
+    (frame : RootClosureFrame queue work parents) (generated : ExecutedWork work)
+    (canonical
+      : ∀ node dependencies,
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
+    (errors : Nat) (groups : List Execution.DeliveryNode)
+    : GroupNoticeCompletion queue.rootGroups
+        (groups.foldl (failureGroupStep errors) (queue, [])) := by
+  have loop (remaining : List Execution.DeliveryNode) (acc : State × List WorkQueueEvent)
+      (current : RootClosureFrame acc.1 work parents)
+      (tracked : GroupNoticeCompletion queue.rootGroups acc)
+      : GroupNoticeCompletion queue.rootGroups
+          (remaining.foldl (failureGroupStep errors) acc) := by
+    induction remaining generalizing acc with
+    | nil => exact tracked
+    | cons group rest ih =>
+        obtain ⟨next, tracked⟩ := current.failureGroupStep_groupNoticeCompletion
+          generated canonical tracked errors group
+        exact ih _ next tracked
+  exact loop groups (queue, []) frame (.silent (List.Subset.refl _))
+
+/-- Task-failure handling completes every announced root it removes.
+Witness: ignored settlements keep roots; accepted settlements remove task memberships,
+then the exact owner pass closes its only removable announced refs.
+-/
+theorem RootClosureFrame.taskFailure_groupNoticeCompletion {queue work parents}
+    (frame : RootClosureFrame queue work parents) (generated : ExecutedWork work)
+    (canonical
+      : ∀ node dependencies,
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
+    (occurrence : Occurrence) (errors : Nat)
+    : GroupNoticeCompletion queue.rootGroups (queue.taskFailure occurrence errors) := by
+  cases found : queue.taskNode? occurrence with
+  | none =>
+      simp only [State.taskFailure, found]
+      exact .silent (List.Subset.refl _)
+  | some incoming =>
+      rw [queue.taskFailure_eq occurrence errors incoming found]
+      let retained : RootClosureFrame
+          (queue.putTaskNode { incoming with rejection := some errors }) work parents :=
+        ⟨frame.records, frame.links, frame.roots, frame.support⟩
+      exact retained.failureGroupFold_groupNoticeCompletion
+        generated canonical errors incoming.task.groups
+
 /-- Recursive draining cannot silently lose any earlier or internally announced group.
 Witness: each real success activates its notices, each failure closes its only removed
 announced root, and the preserved live-root frame supports the next internal step.
@@ -196,20 +274,20 @@ theorem LiveRootFrame.drainReadyGroups_go_groupNoticeCompletion {queue work pare
         | none => simp [found] at choice
         | some candidate =>
             simp only [found] at choice
-            change (if candidate.failure.isSome || candidate.pending == 0 then
+            change (if (queue.rejectedTask? candidate).isSome || candidate.pending == 0 then
               some candidate else none) = some node at choice
             split at choice
             · cases Option.some.inj choice
               have same := State.groupNode?_ref found
-              cases cached : node.failure with
+              cases cached : queue.rejectedTask? node with
               | none =>
                   exact (queue.finishGroupSuccess_groupNoticeCompletion node).append
                     (ih (frame.finishGroupSuccess generated canonical
                       (same ▸ found) (same ▸ active)))
-              | some errors =>
-                  exact (frame.rootClosureFrame.finishGroupFailure_groupNoticeCompletion
-                    generated canonical node errors (same ▸ active)).append
-                      (ih (frame.removeGroup node.group.node.ref))
+              | some rejected =>
+                  exact (frame.rootClosureFrame.taskFailure_groupNoticeCompletion
+                    generated canonical rejected.1 rejected.2).append
+                      (ih (frame.taskFailure rejected.1 rejected.2))
             · contradiction
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

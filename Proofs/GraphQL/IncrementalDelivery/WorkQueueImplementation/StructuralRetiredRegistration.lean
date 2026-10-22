@@ -81,10 +81,10 @@ theorem ExecutedWork.retired_structuralContributor_registered
               rw [occurrence] at succeeded
               have matching := valid.eachMatches succeeded
               obtain ⟨before, after, split⟩ := List.mem_iff_append.mp succeeded
-              obtain ⟨parentNode, found, eligible⟩ :=
+              obtain ⟨parentNode, found⟩ :=
                 generated.success_with_finalHealthyOwner_processed valid started parentKnown
                   parentContributes parentHealthy split
               exact TaskAt.executionGroup_registered_after_object known matching
-                ⟨after, by simp [split, List.append_assoc]⟩ found eligible
+                ⟨after, by simp [split, List.append_assoc]⟩ found
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

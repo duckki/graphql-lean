@@ -12,12 +12,17 @@ open scoped List
 /-- A stream entry and its child tasks occur at the corresponding labelled offsets.
 Witness: list lookup induction retains both the absolute index and structural ordinal.
 -/
-theorem sourceItemTasks_entry {items : List (Result ResponseValue × Work)}
+theorem sourceItemTasks_entry {items : List (TaskOutcome ResponseValue × Work)}
     {offset result children} (entry : items[offset]? = some (result, children))
     (address : Address) (producer : Option Occurrence) (node : DeliveryNode)
     (index ordinal : Nat)
     : let task : SourceTask :=
-        ⟨.item address (ordinal + offset), producer, .item node result, index + offset⟩
+        ⟨
+          .item address (ordinal + offset),
+          producer,
+          .item node result.deliveryResult,
+          index + offset
+        ⟩
       task ∈ sourceItemTasks address producer node index ordinal items
       ∧ sourceTasks (address ++ [ordinal + offset]) (some task.occurrence)
           task.cursors children
@@ -90,7 +95,7 @@ theorem sourceTasks_task {work occurrence owners producer payload}
   | @executionGroup address groups path result children producer owners located =>
       obtain ⟨_, included⟩ := sourceTasks_located located.toCurrent cursors
       rw [sourceTasks] at included
-      exact ⟨⟨.executionGroup address, producer, .object path result, 0⟩,
+      exact ⟨⟨.executionGroup address, producer, .object path result.deliveryResult, 0⟩,
         included.subset (List.mem_cons_self), rfl, rfl, rfl⟩
   | @item address node items producer owners index result children located entry =>
       obtain ⟨localCursors, included⟩ := sourceTasks_located located.toCurrent cursors

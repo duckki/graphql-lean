@@ -26,7 +26,6 @@ theorem State.ReplayClosuresCovered.success_before_carrier {queue : State}
       : ∀ input ∈ .taskSuccess occurrence result :: before ++ [event],
           input.MatchesWork work)
     {node} (found : queue.taskNode? occurrence = some node)
-    (healthy : queue.taskHasHealthyOwner node.task = true)
     {index group groups streams}
     (carrier
       : (((queue.taskSuccess occurrence result).1.replayGraphEvents
@@ -64,7 +63,7 @@ theorem State.ReplayClosuresCovered.success_before_carrier {queue : State}
       (queue.taskSuccess occurrence result).1.groupNode? contributor.ref = some owner := by
     obtain ⟨contributor, member, same⟩ := List.mem_map.mp contributes
     exact ⟨contributor, sameTask.symm ▸ member, earlierOwner, same ▸ earlierLive⟩
-  have conserved := covered.2.2.2.1 node found healthy
+  have conserved := covered.2.2.2.1 node found
   rw [Nat.add_assoc, List.take_add]
   rcases conserved occurrence buffered result.value installed stored survives with now | retained
   · exact List.mem_append_left _ now
@@ -82,7 +81,6 @@ theorem State.ReplayClosuresCovered.success_at_carrier {queue : State}
     (covered
       : queue.ReplayClosuresCovered (.taskSuccess occurrence result :: rest) published)
     {node} (found : queue.taskNode? occurrence = some node)
-    (healthy : queue.taskHasHealthyOwner node.task = true)
     {index group groups streams}
     (carrier
       : (queue.taskSuccess occurrence result).2[index]?
@@ -93,7 +91,7 @@ theorem State.ReplayClosuresCovered.success_at_carrier {queue : State}
           (((queue.taskSuccess occurrence result).2.take index).flatMap
             WorkQueueEvent.objectValues).length := by
   obtain ⟨buffered, installed, sameTask, stored⟩ := State.taskSuccess_prepared_value found result
-  have coverage := covered.2.1 node found healthy
+  have coverage := covered.2.1 node found
   have delivered := coverage index group groups streams carrier occurrence buffered
     result.value installed stored (sameTask.symm ▸ contributes)
   have bounded : (((queue.taskSuccess occurrence result).2.take index).flatMap

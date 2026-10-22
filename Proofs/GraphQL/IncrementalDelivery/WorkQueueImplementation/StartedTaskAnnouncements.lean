@@ -146,8 +146,11 @@ Witness: the executable failure handler keeps only unchanged old task nodes.
 theorem State.StartedTasksAnnounced.taskFailure {queue : State} {announced : NodeRefs}
     (known : queue.StartedTasksAnnounced announced) (occurrence : Occurrence)
     (errors : Nat)
-    : (queue.taskFailure occurrence errors).1.StartedTasksAnnounced announced :=
-  fun node member => known node (queue.taskFailure_startedSubset occurrence errors member)
+    : (queue.taskFailure occurrence errors).1.StartedTasksAnnounced announced := by
+  intro node member
+  obtain ⟨old, oldMember, sameTask⟩ := queue.taskFailure_startedSurvivor occurrence errors member
+  have prior := known old oldMember
+  simpa only [sameTask] using prior
 
 /-- Group registration cannot change a started task's historical notice witness.
 Witness: the exact task-node map equation for group integration.
@@ -278,7 +281,7 @@ theorem State.StartedTasksAnnounced.drainReadyGroups {queue : State}
         split
         · simpa using currentKnown
         · rename_i node selected
-          cases cached : node.failure with
+          cases cached : current.rejectedTask? node with
           | none =>
               let first := current.finishGroupSuccess node
               have firstSound := (currentSound.finishGroupSuccess node).startNewWork first.2.2
@@ -293,13 +296,19 @@ theorem State.StartedTasksAnnounced.drainReadyGroups {queue : State}
               rw [current.finishGroupSuccess_groupNotices node] at firstKnown
               simpa only [List.flatMap_append, List.append_assoc]
                 using ih _ _ firstKnown firstSound firstRegistered firstMatching
-          | some errors =>
-              have firstKnown := currentKnown.removeGroup node.group.node.ref
-              simpa only [State.finishGroupFailure, List.flatMap_append,
-                List.flatMap_singleton, rawGroupNoticeRefs, List.nil_append]
-                using ih _ _ firstKnown (currentSound.finishGroupFailure node errors)
-                  (currentRegistered.finishGroupFailure node errors)
-                  (currentMatching.finishGroupFailure node errors)
+          | some rejected =>
+              obtain ⟨occurrence, errors⟩ := rejected
+              have firstKnown := currentKnown.taskFailure occurrence errors
+              have noNotices : (current.taskFailure occurrence errors).2.flatMap rawGroupNoticeRefs = [] := by
+                apply List.flatMap_eq_nil_iff.mpr
+                intro event member
+                obtain ⟨owner, rfl⟩ := current.taskFailure_event_failure occurrence errors event member
+                rfl
+              simpa only [List.flatMap_append, noNotices, List.nil_append]
+                using ih _ _ firstKnown (currentSound.taskFailure occurrence errors)
+                  (currentRegistered.taskFailure occurrence errors)
+                  (currentMatching.taskFailure occurrence errors)
+
   exact loop _ queue announced known sound registered matching
 
 -----------------------------------------------------------------------------------------

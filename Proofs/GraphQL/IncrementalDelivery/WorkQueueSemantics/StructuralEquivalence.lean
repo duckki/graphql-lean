@@ -58,11 +58,12 @@ inductive TaskAt (work : Work)
       : Located work address (.executionGroup groups path result children) producer
           owners)
     : TaskAt work (.executionGroup address) (groups.map (fun group => group.node.ref))
-        producer (.object path result)
+        producer (.object path result.deliveryResult)
   | item {address node items producer owners index result children}
     (located : Located work address (.stream node items) producer owners)
     (entry : items[index]? = some (result, children))
-    : TaskAt work (.item address index) [node.ref] producer (.item node result)
+    : TaskAt work (.item address index) [node.ref] producer
+        (.item node result.deliveryResult)
 
 /-- (NodeAt work node kind dependencies birth) identifies node's metadata in work: kind is
 defer/stream, dependencies are ancestor or enclosing-owner refs, and birth is its optional
@@ -255,14 +256,15 @@ theorem TaskAt.executionGroup {work address groups path result children producer
       : Located work address (.executionGroup groups path result children) producer
           owners)
     : TaskAt work (.executionGroup address) (groups.map (fun group => group.node.ref))
-        producer (.object path result) :=
+        producer (.object path result.deliveryResult) :=
   ⟨_, _, _, _, _, located, rfl, rfl⟩
 
 /-- A located stream entry gives its task descriptor; witness: the indexed entry. -/
 theorem TaskAt.item {work address node items producer owners index result children}
     (located : Located work address (.stream node items) producer owners)
     (entry : items[index]? = some (result, children))
-    : TaskAt work (.item address index) [node.ref] producer (.item node result) :=
+    : TaskAt work (.item address index) [node.ref] producer
+        (.item node result.deliveryResult) :=
   ⟨_, _, _, _, _, located, entry, rfl, rfl⟩
 
 /-- Every defer-group member supplies a node descriptor; witness: its containing location.
@@ -280,5 +282,28 @@ theorem NodeAt.stream {work address node items producer owners}
     (located : Located work address (.stream node items) producer owners)
     : NodeAt work node .stream owners producer :=
   ⟨_, _, located⟩
+
+/-- An object payload is produced by an execution-group occurrence. -/
+theorem TaskAt.object_occurrence {work occurrence owners producer path result}
+    (known : TaskAt work occurrence owners producer (.object path result))
+    : ∃ address, occurrence = .executionGroup address := by
+  cases occurrence with
+  | executionGroup address => exact ⟨address, rfl⟩
+  | item address index =>
+      obtain ⟨stream, items, enclosing, outcome, children, located, selected, ownerEq, payloadEq⟩ := known
+      cases payloadEq
+
+/-- A streamed payload has exactly its stream ref as its contributing owner. -/
+theorem TaskAt.item_owners {work occurrence owners producer node result}
+    (known : TaskAt work occurrence owners producer (.item node result))
+    : owners = [node.ref] := by
+  cases occurrence with
+  | executionGroup address =>
+      obtain ⟨groups, path, outcome, children, enclosing, located, ownerEq, payloadEq⟩ := known
+      cases payloadEq
+  | item address index =>
+      obtain ⟨stream, items, enclosing, outcome, children, located, selected, ownerEq, payloadEq⟩ := known
+      have same := (Payload.item.inj payloadEq).1
+      simpa only [same] using ownerEq
 
 end GraphQL.IncrementalDelivery.WorkQueueSemantics

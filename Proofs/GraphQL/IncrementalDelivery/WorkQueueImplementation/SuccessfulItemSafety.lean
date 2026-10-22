@@ -92,7 +92,7 @@ theorem ExecutedWork.publishedItems_safe_mixed
           { active := queue.initialGroups ++ queue.initialStreams }
         failures.Perm
           (streams
-            ++ sourceObjectFailureCuts 0
+            ++ informativeObjectFailureCuts work
                 (queue.eligibleFailureBlocks
                   (queue.sourceRunBlocks publisher batches).2.2)))
     (failedPayloads
@@ -143,7 +143,7 @@ theorem ExecutedWork.publishedItems_safe_mixed
     publicationAtoms
   change ∀ address ordinal, Published matching atoms (.item address ordinal)
     → ¬TaskCancelled work matching atoms failures (.item address ordinal)
-  have objectKnown : ∀ entry ∈ sourceObjectFailureCuts 0
+  have objectKnown : ∀ entry ∈ informativeObjectFailureCuts work
       ((State.initialize (Work.fromExecution work)).eligibleFailureBlocks
         ((State.initialize (Work.fromExecution work)).sourceRunBlocks
           { active := (State.initialize (Work.fromExecution work)).initialGroups ++
@@ -152,7 +152,7 @@ theorem ExecutedWork.publishedItems_safe_mixed
         TaskAt work entry.2 owners producer (.object path (.error errors)) := by
     intro entry member
     obtain ⟨_, owners, producer, path, errors, known, _⟩ :=
-      createWorkQueue_eligibleObjectFailureCuts_origin generated valid entry member
+      createWorkQueue_informativeObjectFailureCuts_origin generated valid entry member
     exact ⟨owners, producer, path, errors, known⟩
   have atPosition : ∀ index event address ordinal,
       atoms[index]? = some event → IsValue event → matching index = .item address ordinal

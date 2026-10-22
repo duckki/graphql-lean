@@ -34,12 +34,7 @@ theorem ExecutedWork.runNormalized_rejectedFailure_cancelled {work : Execution.W
       : ((State.initialize (Work.fromExecution work)).runNormalized batches).1.taskNode?
           occurrence
         = some taskNode)
-    (fresh : occurrence ∉ GraphEvent.taskSettlements batches.flatten)
-    (rejected
-      : State.taskHasHealthyOwner
-          ((State.initialize (Work.fromExecution work)).runNormalized batches).1
-          taskNode.task
-        = false)
+    (rejected : taskNode.rejection.isSome = true)
     : Causality.TaskCancelled work
         ((State.initialize (Work.fromExecution work)).objectFailureContributions
           batches.flatten)
@@ -48,7 +43,7 @@ theorem ExecutedWork.runNormalized_rejectedFailure_cancelled {work : Execution.W
               batches).2.flatten.flatMap
             publicationAtoms)) occurrence := by
   obtain ⟨owners, producer, path, known⟩ := source
-  exact generated.runNormalized_rejectedTask_cancelled valid started found fresh rejected
+  exact generated.runNormalized_rejectedTask_cancelled valid started found rejected
     (failedTask_unpublished_of_exactValues exactValues known rfl)
 
 /-- One actual output matching also cancels every fresh rejected failed task at this boundary.
@@ -73,17 +68,16 @@ theorem ExecutedWork.runNormalized_rejectedFailures_matching {work : Execution.W
         ∧ ∀ occurrence taskNode errors,
             (GraphEvent.taskFailure occurrence errors).MatchesWork work
             → (queue.runNormalized batches).1.taskNode? occurrence = some taskNode
-            → occurrence ∉ GraphEvent.taskSettlements batches.flatten
-            → (queue.runNormalized batches).1.taskHasHealthyOwner taskNode.task = false
+            → taskNode.rejection.isSome = true
             → Causality.TaskCancelled work
                 (queue.objectFailureContributions batches.flatten)
                 (Published matching atoms) occurrence := by
   obtain ⟨matching, batching, publications⟩ :=
     createWorkQueue_runNormalized_publicationMatching valid started
   refine ⟨matching, batching, publications, ?_⟩
-  intro occurrence taskNode errors source found fresh rejected
+  intro occurrence taskNode errors source found rejected
   exact generated.runNormalized_rejectedFailure_cancelled valid started matching
     (fun index event atEvent value => (publications index event atEvent value).1)
-    source found fresh rejected
+    source found rejected
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

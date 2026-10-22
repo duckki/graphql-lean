@@ -18,7 +18,7 @@ private def c : DeliveryNode := ⟨5, [.field "user"], some (.string "C")⟩
 private def d : DeliveryNode := ⟨6, [.field "user"], some (.string "D")⟩
 
 private def wrapped : Execution.Work :=
-  .executionGroup [⟨c, [e, p]⟩] [.field "user"] (.ok ([], 0)) .empty
+  .executionGroup [⟨c, [e, p]⟩] [.field "user"] ({ result := .ok ([], 0) }) .empty
 
 /-- The conversion maps empty execution work to empty queue collections. -/
 example : Work.fromExecution .empty = ({} : ReferenceWorkQueue.Work) := rfl
@@ -50,10 +50,10 @@ example
       queue.registeredGroups = [p.ref, e.ref, c.ref]
       ∧ queue.groupNodes.map (fun node => node.group.node.ref) = [c.ref]
       ∧ queue.cancelledGroups = []
-      ∧ queue.groupIsHealthy c.ref = true := by cbv
+      ∧ queue.taskNode? (.executionGroup []) ≠ none := by cbv; simp
 
 private def nested : Execution.Work :=
-  .executionGroup [⟨p, []⟩] [] (.ok ([], 0)) wrapped
+  .executionGroup [⟨p, []⟩] [] ({ result := .ok ([], 0) }) wrapped
 
 private def parentSuccess : GraphEvent :=
   .taskSuccess (.executionGroup [])
@@ -113,22 +113,25 @@ private def children : Execution.Work :=
   .combine
     (.combine .empty
       (.combine
-        (.executionGroup [⟨c, [e, p]⟩, ⟨d, [q]⟩, ⟨r, []⟩] [.field "user"] (.error 1)
-          .empty)
+        (.executionGroup [⟨c, [e, p]⟩, ⟨d, [q]⟩, ⟨r, []⟩] [.field "user"]
+          ({ result := .error 1 }) .empty)
         (.combine
-          (.executionGroup [⟨d, [q]⟩, ⟨s, []⟩] [.field "user"] (.error 1) .empty)
+          (.executionGroup [⟨d, [q]⟩, ⟨s, []⟩] [.field "user"] ({ result := .error 1 })
+            .empty)
           .empty)))
     .empty
 
 private def work : Execution.Work :=
   .combine .empty
-    (.combine (.executionGroup [⟨p, []⟩] [] (.error 1) .empty)
+    (.combine (.executionGroup [⟨p, []⟩] [] ({ result := .error 1 }) .empty)
       (.combine
         (.executionGroup [⟨p, []⟩, ⟨q, []⟩, ⟨r, []⟩, ⟨s, []⟩] []
-          (.ok (userData, 0)) children)
+          ({ result := .ok (userData, 0) }) children)
         (.combine
-          (.executionGroup [⟨q, []⟩] [] (.ok (keepData, 0)) (.combine .empty .empty))
-          (.combine (.executionGroup [⟨r, []⟩] [] (.error 2) .empty) .empty))))
+          (.executionGroup [⟨q, []⟩] [] ({ result := .ok (keepData, 0) })
+            (.combine .empty .empty))
+          (.combine (.executionGroup [⟨r, []⟩] [] ({ result := .error 2 }) .empty)
+            .empty))))
 
 private def expand : GraphEvent :=
   .taskSuccess uTask
@@ -158,7 +161,9 @@ example
       ∧ queue.cancelledGroups = [0, 4, 5, 3, 2]
       ∧ queue.groupNode? e.ref = none
       ∧ queue.groupNode? c.ref = none
-      ∧ queue.groupIsHealthy c.ref = false := by cbv
+      ∧ c.ref ∈ queue.cancelledGroups := by
+  cbv
+  exact List.mem_cons_of_mem _ (List.mem_cons_of_mem _ List.mem_cons_self)
 
 /-- The same host prefix still obeys the executable start discipline. -/
 example : inputsStarted work inputs = true := by cbv

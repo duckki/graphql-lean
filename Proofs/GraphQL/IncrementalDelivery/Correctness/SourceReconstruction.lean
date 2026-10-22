@@ -15,14 +15,14 @@ mutual
     | .empty => True
     | .combine left right => WorkSuccess left ∧ WorkSuccess right
     | .executionGroup _ _ result children =>
-        (∃ data, result = .ok (data, 0)) ∧ WorkSuccess children
+        (∃ data, result.result = .ok (data, 0)) ∧ WorkSuccess children
     | .stream _ items => ItemsSuccess items
 
   /-- Each retained item has a zero-error value and successful nested work. -/
-  def ItemsSuccess : List (Result ResponseValue × Work) → Prop
+  def ItemsSuccess : List (TaskOutcome ResponseValue × Work) → Prop
     | [] => True
     | (result, children) :: tail =>
-        (∃ data, result = .ok (data, 0)) ∧ WorkSuccess children ∧ ItemsSuccess tail
+        (∃ data, result.result = .ok (data, 0)) ∧ WorkSuccess children ∧ ItemsSuccess tail
 end
 
 /-- The immediate completion and every retained task succeed with zero errors. -/
@@ -37,26 +37,26 @@ mutual
       (hl : WorkEntries left ls) (hr : WorkEntries right rs)
       : WorkEntries (.combine left right) (ls ++ rs)
     | executionGroup {groups : List DeferredFragment} {path : ResponsePath}
-      {completed : Result (List (Name × ResponseValue))} {children : Work}
+      {completed : TaskOutcome (List (Name × ResponseValue))} {children : Work}
       {slices : List (List Entry)} (hc : WorkEntries children slices)
       : WorkEntries (.executionGroup groups path completed children)
-          (result (fields path) completed :: slices)
-    | stream {node : DeliveryNode} {items : List (Result ResponseValue × Work)}
+          (result (fields path) completed.result :: slices)
+    | stream {node : DeliveryNode} {items : List (TaskOutcome ResponseValue × Work)}
       {index : Nat} {slices : List (List Entry)}
       (hi : ItemEntries node.path index items slices)
       : WorkEntries (.stream node items) slices
 
   /-- Typed source slices for successive streamed items starting at the supplied index. -/
   inductive ItemEntries
-      : ResponsePath → Nat → List (Result ResponseValue × Work) → List (List Entry)
+      : ResponsePath → Nat → List (TaskOutcome ResponseValue × Work) → List (List Entry)
         → Prop where
     | nil {path : ResponsePath} {index : Nat} : ItemEntries path index [] []
-    | cons {path : ResponsePath} {index : Nat} {completed : Result ResponseValue}
-      {children : Work} {tail : List (Result ResponseValue × Work)}
+    | cons {path : ResponsePath} {index : Nat} {completed : TaskOutcome ResponseValue}
+      {children : Work} {tail : List (TaskOutcome ResponseValue × Work)}
       {cs ts : List (List Entry)} (hc : WorkEntries children cs)
       (ht : ItemEntries path (index + 1) tail ts)
       : ItemEntries path index ((completed, children) :: tail)
-          (result (value (path ++ [.index index])) completed :: (cs ++ ts))
+          (result (value (path ++ [.index index])) completed.result :: (cs ++ ts))
 end
 
 end GraphQL.IncrementalDelivery.Correctness.SourceReconstruction

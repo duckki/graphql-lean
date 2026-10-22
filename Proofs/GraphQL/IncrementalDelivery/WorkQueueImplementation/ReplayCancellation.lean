@@ -1,61 +1,73 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.RetirementReplay
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.FailureProjection
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.HealthyEligibility
 
-/-! Ignored settlements and the contributing object-failure ledger at actual replay states. -/
+/-! Accepted rejection accounting and snapshot cancellation for retained rejections.
+Source admission checks task presence; causal health is proof evidence, not a runtime guard.
+-/
 
 namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
------------------------------------------------------------------------------------------
--- Actual queue evidence justifies the cancellation guard
------------------------------------------------------------------------------------------
+/-- An accepted handler records exactly the source event's object-failure token. -/
+theorem State.objectFailureContribution_eq_groupFailures {queue : State}
+    {event : GraphEvent} (accepted : queue.acceptsGraphEvent event = true)
+    : queue.objectFailureContribution event = event.groupFailures := by
+  cases event <;> simp only [objectFailureContribution, GraphEvent.groupFailures]
+  split
+  · simp_all [acceptsGraphEvent]
+  · rfl
 
-/-- A rejected fresh started task has no uninvalidated contributor left.
-Witness: generated owner replay supplies every healthy owner, whose supported cache and
-canonical ancestry would make the executable guard accept. No output admission is used.
--/
-theorem State.OwnerAccounting.rejectedTask_ownersInvalidated {queue : State}
-    {work parents before occurrence taskNode}
-    (prior : queue.OwnerAccounting work parents before)
-    (generated : ExecutedWork work)
-    (canonical
-      : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.ref)
-    (found : queue.taskNode? occurrence = some taskNode)
-    (fresh : occurrence ∉ GraphEvent.taskSettlements before)
-    (rejected : queue.taskHasHealthyOwner taskNode.task = false)
-    : ∀ ref ∈ taskNode.task.groups.map Execution.DeliveryNode.ref,
-        GroupInvalidated work (GraphEvent.failureSettlements before) ref := by
-  have same : taskNode.task.occurrence = occurrence := (occurrence_beq_iff_eq _ _).mp
-    (List.find?_some (p := fun candidate : TaskNode =>
-      candidate.task.occurrence == occurrence) found)
-  exact prior.owners.rejectedTask_ownersInvalidated prior.pending.matching
-    prior.supported prior.cancelled generated
-    (prior.toHealthyCounterAccounting.descriptors canonical)
-    (prior.pending.started taskNode (List.mem_of_find?_eq_some found))
-    (same.symm ▸ fresh) rejected
+/-- Accepted sequential replay retains every source object rejection, including redundant
+ones. Selected failure cuts are a separate proof inventory. -/
+theorem State.replayGraphEvents_objectFailureContributions {queue : State}
+    {events : List GraphEvent}
+    (acceptedAt
+      : ∀ before event,
+          (before ++ [event]).IsPrefix events
+          → (queue.replayGraphEvents before).acceptsGraphEvent event = true)
+    : queue.objectFailureContributions events = GraphEvent.failureSettlements events := by
+  induction events generalizing queue with
+  | nil => rfl
+  | cons event rest ih =>
+      have accepted : queue.acceptsGraphEvent event = true := by
+        simpa [replayGraphEvents] using acceptedAt [] event (by simp)
+      rw [objectFailureContributions, State.objectFailureContribution_eq_groupFailures accepted]
+      have acceptedRest : ∀ before next, (before ++ [next]).IsPrefix rest
+          → ((queue.handleGraphEvent event).1.replayGraphEvents before).acceptsGraphEvent
+              next = true := by
+        intro before next earlier
+        have accepted := acceptedAt (event :: before) next (by
+          obtain ⟨tail, same⟩ := earlier
+          exact ⟨tail, by simpa using congrArg (List.cons event) same⟩)
+        simpa [replayGraphEvents, List.foldl_cons] using accepted
+      rw [ih acceptedRest]
+      cases event <;> simp [GraphEvent.failureSettlements, GraphEvent.groupFailures]
 
-/-- An unpublished rejected task is cancelled by prior source failures.
-Witness: registered task provenance and the generated nonempty-owner property combine
-with the derived invalidation of every contributor. The publication predicate is supplied
-explicitly; this is a snapshot result, not yet an ordered output-history failure witness.
+/-- The executable start checker supplies presence at every source-handler boundary. -/
+theorem inputsStarted_objectFailureContributions {work : Execution.Work}
+    {batches : List (List GraphEvent)} (started : inputsStarted work batches = true)
+    : (State.initialize (Work.fromExecution work)).objectFailureContributions
+        batches.flatten
+      = GraphEvent.failureSettlements batches.flatten :=
+  State.replayGraphEvents_objectFailureContributions
+    (inputsStarted_eachAccepted work batches started)
+
+/-- A retained rejected computation has no healthy contributor and cannot publish later.
+This snapshot conclusion uses its stored rejection; it imposes no source-settlement guard.
 -/
 theorem State.OwnerAccounting.rejectedTask_cancelled {queue : State}
     {work parents before occurrence taskNode published}
     (prior : queue.OwnerAccounting work parents before)
     (generated : ExecutedWork work)
-    (canonical
-      : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (found : queue.taskNode? occurrence = some taskNode)
-    (fresh : occurrence ∉ GraphEvent.taskSettlements before)
-    (rejected : queue.taskHasHealthyOwner taskNode.task = false)
+    (rejected : taskNode.rejection.isSome = true)
     (unpublished : ¬published occurrence)
     : Causality.TaskCancelled work (GraphEvent.failureSettlements before)
         published occurrence := by
-  have registered := prior.pending.started taskNode (List.mem_of_find?_eq_some found)
-  obtain ⟨⟨_, payload, producer, _, known⟩, _⟩ :=
-    prior.pending.matching taskNode.task registered
+  have member := List.mem_of_find?_eq_some found
+  have registered := prior.pending.started taskNode member
+  obtain ⟨⟨_, payload, producer, _, known⟩, _⟩ := prior.pending.matching taskNode.task registered
   have same : taskNode.task.occurrence = occurrence := (occurrence_beq_iff_eq _ _).mp
     (List.find?_some (p := fun candidate : TaskNode =>
       candidate.task.occurrence == occurrence) found)
@@ -63,154 +75,11 @@ theorem State.OwnerAccounting.rejectedTask_cancelled {queue : State}
   refine .owners ⟨producer, payload, known⟩ unpublished
     (generated.taskOwners_nonempty known) ?_
   intro ref contributes
-  exact (prior.rejectedTask_ownersInvalidated generated canonical found fresh rejected
+  exact (prior.supported.rejectedTask_ownersInvalidated member rejected
     ref contributes).toCausality published
 
-/-- Adding an ignored failure token does not invalidate any additional group.
-Witness: all of that task's contributors were already invalidated before the handler.
-The coarse source-health ledger may keep the token, but error totals must not count it.
--/
-theorem State.OwnerAccounting.rejectedTask_invalidation_iff {queue : State}
-    {work parents before occurrence taskNode}
-    (prior : queue.OwnerAccounting work parents before)
-    (generated : ExecutedWork work)
-    (canonical
-      : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.ref)
-    (found : queue.taskNode? occurrence = some taskNode)
-    (fresh : occurrence ∉ GraphEvent.taskSettlements before)
-    (rejected : queue.taskHasHealthyOwner taskNode.task = false) (ref : NodeRef)
-    : GroupInvalidated work (occurrence :: GraphEvent.failureSettlements before) ref
-      ↔ GroupInvalidated work (GraphEvent.failureSettlements before) ref := by
-  have registered := prior.pending.started taskNode (List.mem_of_find?_eq_some found)
-  obtain ⟨⟨_, payload, producer, _, known⟩, _⟩ :=
-    prior.pending.matching taskNode.task registered
-  have same : taskNode.task.occurrence = occurrence := (occurrence_beq_iff_eq _ _).mp
-    (List.find?_some (p := fun candidate : TaskNode =>
-      candidate.task.occurrence == occurrence) found)
-  rw [same] at known
-  exact groupInvalidated_cons_iff_of_ownersInvalidated ⟨producer, payload, known⟩
-    (prior.rejectedTask_ownersInvalidated generated canonical found fresh rejected)
-
------------------------------------------------------------------------------------------
--- Ignore rejected failures in the proof-side contribution inventory
------------------------------------------------------------------------------------------
-
-/-- One valid started event has the same health effect with or without ignored failures.
-Witness: only task failure adds a source token; its rejected branch is redundant by the
-owner/cancellation invariant, while the eligible branch records exactly that token.
--/
-theorem State.OwnerAccounting.objectFailureContribution_invalidation {queue : State}
-    {work parents before} (prior : queue.OwnerAccounting work parents before)
-    (generated : ExecutedWork work)
-    (canonical
-      : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.ref)
-    (event : GraphEvent) (fresh : event.Fresh before)
-    (accepted : queue.acceptsGraphEvent event = true) (ref : NodeRef)
-    : GroupInvalidated work (event.groupFailures ++ GraphEvent.failureSettlements before)
-        ref
-      ↔ GroupInvalidated work
-          (queue.objectFailureContribution event ++ GraphEvent.failureSettlements before)
-          ref := by
-  cases event with
-  | taskSuccess | streamItems | streamSuccess | streamFailure => rfl
-  | taskFailure occurrence errors =>
-      cases found : queue.taskNode? occurrence with
-      | none => simp [State.acceptsGraphEvent, found] at accepted
-      | some node =>
-          cases eligible : queue.taskHasHealthyOwner node.task with
-          | true =>
-              simp [objectFailureContribution, found, eligible, GraphEvent.groupFailures]
-          | false =>
-              simp only [objectFailureContribution, found, eligible, Bool.false_eq_true,
-                ↓reduceIte, GraphEvent.groupFailures, List.singleton_append, List.nil_append]
-              apply prior.rejectedTask_invalidation_iff generated canonical found _
-                eligible ref
-              exact fun member =>
-                fresh.2.2.1 occurrence (by simp [GraphEvent.identities])
-                  (GraphEvent.taskSettlements_subsetIdentities before member)
-
-/-- Pointwise-equivalent invalidation ledgers stay equivalent after identical new failures.
-Witness: induction on invalidation, replacing only prior-ledger contributing-task causes.
--/
-private theorem groupInvalidated_append_congr {work before after}
-    (same : ∀ ref, GroupInvalidated work before ref ↔ GroupInvalidated work after ref)
-    (newFailures : List Occurrence) (ref : NodeRef)
-    : GroupInvalidated work (newFailures ++ before) ref
-      ↔ GroupInvalidated work (newFailures ++ after) ref := by
-  have forward {left right}
-      (prior : ∀ ref, GroupInvalidated work left ref → GroupInvalidated work right ref)
-      {ref} (failure : GroupInvalidated work (newFailures ++ left) ref)
-      : GroupInvalidated work (newFailures ++ right) ref := by
-    induction failure with
-    | task known owner member =>
-        rcases List.mem_append.mp member with recent | earlier
-        · exact .task known owner (List.mem_append_left _ recent)
-        · exact (prior _ (.task known owner earlier)).mono (List.subset_append_right _ _)
-    | groupDependency known member _ ih => exact .groupDependency known member ih
-  exact ⟨forward (fun ref => (same ref).mp), forward (fun ref => (same ref).mpr)⟩
-
-/-- Dropping ignored object failures preserves all cleanup invalidation on generated replay.
-Witness: source-prefix induction, unconditional owner/ancestry replay, and the one-event
-redundancy theorem. No output admission, failure-cut licensing, or root-health premise is
-assumed; contributing failures still need a separate ordered causal witness.
--/
-theorem ExecutedWork.replayGraphEvents_objectFailureContributions {work : Execution.Work}
-    (generated : ExecutedWork work) {events : List GraphEvent}
-    (valid : ValidGraphEvents work events)
-    (acceptedAt
-      : ∀ before event,
-          (before ++ [event]).IsPrefix events
-          → State.acceptsGraphEvent
-              ((State.initialize (Work.fromExecution work)).replayGraphEvents before)
-              event
-            = true)
-    : ∀ ref,
-        GroupInvalidated work (GraphEvent.failureSettlements events) ref
-        ↔ GroupInvalidated work
-            ((State.initialize (Work.fromExecution work)).objectFailureContributions
-              events)
-            ref := by
-  obtain ⟨parents, canonical⟩ := generated.groupRecordsCanonical
-  induction valid with
-  | nil => intro ref; rfl
-  | @append before event validBefore matching fresh ready ih =>
-      have acceptedBefore := fun past next (earlier : (past ++ [next]).IsPrefix before) =>
-        acceptedAt past next
-        (earlier.trans (List.prefix_append before [event]))
-      have earlier := ih acceptedBefore
-      have accounting :=
-        (generated.replayGraphEvents_ownerAncestry parents canonical validBefore
-          acceptedBefore).accounting
-      intro ref
-      rw [GraphEvent.failureSettlements_append, State.objectFailureContributions_append]
-      simp only [State.objectFailureContributions, List.nil_append]
-      exact (accounting.objectFailureContribution_invalidation generated canonical event fresh
-        (acceptedAt before event (List.prefix_refl _)) ref).trans
-          (groupInvalidated_append_congr earlier _ ref)
-
-/-- Started source batches also admit the smaller, guard-filtered health ledger.
-Witness: the existing start checker supplies acceptance at each flattened source prefix;
-normalization and response batching never select which object failures contribute.
--/
-theorem ExecutedWork.inputsStarted_objectFailureContributions {work : Execution.Work}
-    (generated : ExecutedWork work) {batches : List (List GraphEvent)}
-    (valid : ValidGraphEvents work batches.flatten)
-    (started : inputsStarted work batches = true) (ref : NodeRef)
-    : GroupInvalidated work (GraphEvent.failureSettlements batches.flatten) ref
-      ↔ GroupInvalidated work
-          ((State.initialize (Work.fromExecution work)).objectFailureContributions
-            batches.flatten)
-          ref :=
-  generated.replayGraphEvents_objectFailureContributions valid
-    (inputsStarted_eachAccepted work batches started) ref
-
-/-- A fresh rejected task at an actual normalized boundary is already causally cancelled.
-Witness: unconditional owner replay identifies invalidated contributors, and the ledger
-equivalence traces their failure to earlier eligible settlements only. The explicit
-nonpublication premise belongs to the later publication bridge, not to source semantics.
--/
+/-- Generated replay cancels a retained rejected task relative to its accepted source
+inventory. Nonpublication is explicit; this does not assert ordered report placement. -/
 theorem ExecutedWork.runNormalized_rejectedTask_cancelled {work : Execution.Work}
     (generated : ExecutedWork work) {batches : List (List GraphEvent)}
     (valid : ValidGraphEvents work batches.flatten)
@@ -220,32 +89,14 @@ theorem ExecutedWork.runNormalized_rejectedTask_cancelled {work : Execution.Work
       : ((State.initialize (Work.fromExecution work)).runNormalized batches).1.taskNode?
           occurrence
         = some taskNode)
-    (fresh : occurrence ∉ GraphEvent.taskSettlements batches.flatten)
-    (rejected
-      : State.taskHasHealthyOwner
-          ((State.initialize (Work.fromExecution work)).runNormalized batches).1
-          taskNode.task
-        = false)
+    (rejected : taskNode.rejection.isSome = true)
     (unpublished : ¬published occurrence)
     : Causality.TaskCancelled work
         ((State.initialize (Work.fromExecution work)).objectFailureContributions
           batches.flatten)
         published occurrence := by
-  obtain ⟨parents, canonical, replayed⟩ := generated.runNormalized_ownerAncestry _ valid started
-  have prior := replayed.accounting
-  have registered := prior.pending.started taskNode (List.mem_of_find?_eq_some found)
-  obtain ⟨⟨_, payload, producer, _, known⟩, _⟩ :=
-    prior.pending.matching taskNode.task registered
-  have same : taskNode.task.occurrence = occurrence := (occurrence_beq_iff_eq _ _).mp
-    (List.find?_some (p := fun candidate : TaskNode =>
-      candidate.task.occurrence == occurrence) found)
-  rw [same] at known
-  refine .owners ⟨producer, payload, known⟩ unpublished
-    (generated.taskOwners_nonempty known) ?_
-  intro ref contributes
-  have invalid := prior.rejectedTask_ownersInvalidated generated canonical found fresh
-    rejected ref contributes
-  exact ((generated.inputsStarted_objectFailureContributions valid started ref).mp
-    invalid).toCausality published
+  obtain ⟨parents, _, replayed⟩ := generated.runNormalized_ownerAncestry _ valid started
+  rw [inputsStarted_objectFailureContributions started]
+  exact replayed.accounting.rejectedTask_cancelled generated found rejected unpublished
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

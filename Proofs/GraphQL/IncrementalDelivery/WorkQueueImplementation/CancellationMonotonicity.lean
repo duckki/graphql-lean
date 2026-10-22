@@ -44,14 +44,12 @@ theorem State.taskSuccess_cancelledGroups_subset (queue : State) (occurrence : O
       exact fun _ member => member
   | some node =>
       rw [queue.taskSuccess_eq occurrence result node found]
-      split
-      · exact List.Subset.refl _
-      · intro ref member
-        apply State.drainReadyGroups_go_cancelledGroups_subset
-        rw [State.startNewWork_cancelledGroups, successGroupFold_cancelledGroups]
-        dsimp only
-        rw [State.maybeIntegrateWork_cancelledGroups _ result.work (some occurrence)]
-        exact State.addGroups_cancelledGroups_subset _ result.work.groups member
+      intro ref member
+      apply State.drainReadyGroups_go_cancelledGroups_subset
+      rw [State.startNewWork_cancelledGroups, successGroupFold_cancelledGroups]
+      dsimp only
+      rw [State.maybeIntegrateWork_cancelledGroups _ result.work (some occurrence)]
+      exact State.addGroups_cancelledGroups_subset _ result.work.groups member
 
 /-- Failed settlement preserves all earlier cancellation refs.
 Witness: task removal leaves them unchanged and each active failed-owner cleanup appends.
@@ -60,16 +58,7 @@ theorem State.taskFailure_cancelledGroups_subset (queue : State) (occurrence : O
     (errors : Nat)
     : queue.cancelledGroups.Subset
         (queue.taskFailure occurrence errors).1.cancelledGroups := by
-  cases found : queue.taskNode? occurrence with
-  | none =>
-      simp only [State.taskFailure, found]
-      exact fun _ member => member
-  | some node =>
-      rw [queue.taskFailure_eq occurrence errors node found]
-      split
-      · exact List.Subset.refl _
-      · exact failureGroupFold_cancelledGroups_subset errors node.task.groups
-          (queue.removeTask occurrence, [])
+  exact queue.taskFailure_cancelledGroups_mono occurrence errors
 
 /-- Item child integration and its final drain preserve all existing cancellation refs.
 Witness: each item's integration appends markers, while pruning/activation preserve them;

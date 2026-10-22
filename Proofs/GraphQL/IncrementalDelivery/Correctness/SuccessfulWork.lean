@@ -8,8 +8,8 @@ open GraphQL.IncrementalDelivery.Execution
 open WorkQueueSemantics
 
 /-- A zero-error terminal history has an explanation with no failures. Every task is
-published, rather than cancelled. Witness: positive execution failures contradict the
-first-failure accounting bound; terminal accounting then forces publication.
+published, rather than cancelled. An accepted failure forces positive emitted errors;
+zero errors exclude all failure cuts, and terminal accounting then forces publication.
 -/
 theorem successful_history {work history}
     (positive : ExecutionErrors.WorkPositive work) (run : AdmissibleRun work history)
@@ -129,6 +129,6 @@ theorem queryOutcome_tasks_succeed {createWorkQueue : Work → WorkQueue}
   simp only [applies, ↓reduceIte] at witnessed
   exact witnessed.tasks_succeed
     (ExecutionErrors.executeRootSelectionSetCore_positive schema resolvers _ fuel
-      (operation.rootType schema) source operation.selectionSet 0).2 zero known
+      (operation.rootType schema) source operation.selectionSet 0).2.1 zero known
 
 end GraphQL.IncrementalDelivery.Correctness

@@ -27,13 +27,11 @@ theorem State.taskSuccess_stopped (state : State)
   | none => simp only [State.taskSuccess, found]
   | some node =>
       rw [state.taskSuccess_eq occurrence result node found]
-      split
-      · rfl
-      · dsimp only
-        rw [State.drainReadyGroups_stopped, State.startNewWork_stopped]
-        exact State.maybeIntegrateWork_stopped
-          { state with queue := state.queue.putTaskNode { node with value := some result.value } }
-          result.work (some occurrence)
+      dsimp only
+      rw [State.drainReadyGroups_stopped, State.startNewWork_stopped]
+      exact State.maybeIntegrateWork_stopped
+        { state with queue := state.queue.putTaskNode { node with value := some result.value } }
+        result.work (some occurrence)
 
 /-- A stream receipt's actual item fold preserves the reader guard, including ignored input. -/
 theorem State.streamItems_stopped (state : State) (stream : Execution.DeliveryNode)

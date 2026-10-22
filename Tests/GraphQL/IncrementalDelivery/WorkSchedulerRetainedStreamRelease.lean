@@ -39,11 +39,11 @@ private def failedTask : Occurrence := .executionGroup [1, 0]
 private def producerTask : Occurrence := .executionGroup [1, 1, 0]
 private def parentTask : Occurrence := .executionGroup [1, 1, 1, 0]
 
-private def entries : List (Result ResponseValue × Execution.Work) :=
+private def entries : List (TaskOutcome ResponseValue × Execution.Work) :=
   [
-    (.ok (.scalar "x", 0), .empty),
-    (.ok (.null, 0), .empty),
-    (.ok (.scalar "z", 0), .empty)
+    ({ result := .ok (.scalar "x", 0) }, .empty),
+    ({ result := .ok (.null, 0) }, .empty),
+    ({ result := .ok (.scalar "z", 0) }, .empty)
   ]
 
 private def children : Execution.Work :=
@@ -57,12 +57,13 @@ private def parentValue : ExecutionGroupValue :=
 
 private def work : Execution.Work :=
   .combine .empty
-    (.combine (.executionGroup [⟨root, []⟩] [] (.error 1) .empty)
+    (.combine
+      (.executionGroup [⟨root, []⟩] [] ({ result := .error 1, cause := some 1 }) .empty)
       (.combine
         (.executionGroup [⟨root, []⟩, ⟨child, [parent]⟩] []
-          (.ok (producerValue.data, 0)) children)
+          ({ result := .ok (producerValue.data, 0) }) children)
         (.combine
-          (.executionGroup [⟨parent, []⟩] [] (.ok (parentValue.data, 0))
+          (.executionGroup [⟨parent, []⟩] [] ({ result := .ok (parentValue.data, 0) })
             (.combine .empty .empty)) .empty)))
 
 private def first : GraphEvent := .taskFailure failedTask 1
@@ -91,14 +92,14 @@ Witness: locate each generated task, check child lowering, then append legal sou
 -/
 theorem inputs_valid : ValidGraphEvents work [first, produced, finish] := by
   have failed : TaskAt work failedTask [root.ref] none (.object [] (.error 1)) :=
-    ⟨[⟨root, []⟩], [], .error 1, .empty, [], rfl, rfl, rfl⟩
+    ⟨[⟨root, []⟩], [], { result := .error 1, cause := some 1 }, .empty, [], rfl, rfl, rfl⟩
   have producer : TaskAt work producerTask [root.ref, child.ref] none
       (.object [] (.ok (producerValue.data, 0))) :=
-    ⟨[⟨root, []⟩, ⟨child, [parent]⟩], [], .ok (producerValue.data, 0), children, [],
+    ⟨[⟨root, []⟩, ⟨child, [parent]⟩], [], { result := .ok (producerValue.data, 0) }, children, [],
       rfl, rfl, rfl⟩
   have parentKnown : TaskAt work parentTask [parent.ref] none
       (.object [] (.ok (parentValue.data, 0))) :=
-    ⟨[⟨parent, []⟩], [], .ok (parentValue.data, 0), .combine .empty .empty, [],
+    ⟨[⟨parent, []⟩], [], { result := .ok (parentValue.data, 0) }, .combine .empty .empty, [],
       rfl, rfl, rfl⟩
   have prior : ValidGraphEvents work [first] :=
     .append .nil ⟨_, _, _, failed⟩
@@ -293,7 +294,7 @@ theorem released_joint_ledger
         [produced]
   obtain ⟨published, values, final, covered, _, supported, _⟩ :=
     inventory.taskSuccess_preparedCoverage generated accounted links settled provenance
-      parentTask { value := parentValue } matching _ found (by cbv)
+      parentTask { value := parentValue } matching _ found
       (by simp [GraphEvent.taskSettlements, GraphEvent.groupSuccesses,
         GraphEvent.groupFailures, first, produced, failedTask, producerTask, parentTask])
       trivial (by simp) memberships
@@ -345,7 +346,7 @@ theorem released_drain_prefix_on_common_witness
     { incoming with value := some parentValue }).maybeIntegrateWork {} (some parentTask)).1
   let released := [parent].foldl successGroupStep (prepared, [], {})
   let activated := released.1.startNewWork released.2.2
-  have handlerPrefixes := prefixes incoming (by cbv) (by cbv)
+  have handlerPrefixes := prefixes incoming (by cbv)
   have boundary := handlerPrefixes.drain 0 (by decide)
   simp only [State.drainReadyGroups.go, List.append_nil] at boundary
   change prepared.StoredOwnersConserved
@@ -483,7 +484,7 @@ theorem continued_inputs
     have same := List.mem_singleton.mp member
     subst supplied
     exact ⟨[stream.ref], some producerTask,
-      ⟨stream, entries, [root.ref, child.ref], .ok (.scalar "x", 0), .empty,
+      ⟨stream, entries, [root.ref, child.ref], { result := .ok (.scalar "x", 0) }, .empty,
         located, rfl, rfl, rfl⟩, by cbv⟩
   · simp [next, item, first, produced, finish, failedTask, producerTask, parentTask,
       GraphEvent.Fresh, GraphEvent.identities]
@@ -571,7 +572,7 @@ private def cuts : FailureCuts := [(0, failedTask)]
 
 private theorem failed_known
     : TaskAt work failedTask [root.ref] none (.object [] (.error 1)) :=
-  ⟨[⟨root, []⟩], [], .error 1, .empty, [], rfl, rfl, rfl⟩
+  ⟨[⟨root, []⟩], [], { result := .error 1, cause := some 1 }, .empty, [], rfl, rfl, rfl⟩
 
 private theorem producer_known
     : TaskAt work producerTask [root.ref, child.ref] none
@@ -579,7 +580,7 @@ private theorem producer_known
   ⟨
     [⟨root, []⟩, ⟨child, [parent]⟩],
     [],
-    .ok (producerValue.data, 0),
+    { result := .ok (producerValue.data, 0) },
     children,
     [],
     rfl,
@@ -604,7 +605,8 @@ uncancelled retirement instead of treating absence as a successful live lookup.
 -/
 theorem released_owner_retired
     : (initial.replayGraphEvents [first, produced, finish]).groupNode? child.ref = none
-      ∧ (initial.replayGraphEvents [first, produced, finish]).groupIsHealthy child.ref
+      ∧ (initial.replayGraphEvents [first, produced, finish]).cancelledGroups.contains
+          child.ref
         = false := by cbv
 
 /-- The actual carrier supplies an uncancelled retired dependency for its shared stream.
@@ -674,7 +676,7 @@ each producer premise is empty, so no source dependency is reordered.
 theorem delayed_failure_inputs : ValidGraphEvents work [produced, finish, first] := by
   have parentKnown : TaskAt work parentTask [parent.ref] none
       (.object [] (.ok (parentValue.data, 0))) :=
-    ⟨[⟨parent, []⟩], [], .ok (parentValue.data, 0), .combine .empty .empty, [],
+    ⟨[⟨parent, []⟩], [], { result := .ok (parentValue.data, 0) }, .combine .empty .empty, [],
       rfl, rfl, rfl⟩
   have one : ValidGraphEvents work [produced] :=
     .append .nil (inputs_valid.eachMatches (by simp))
@@ -838,7 +840,7 @@ theorem released_stream_healthy_after_item
     rw [same]
     have known : TaskAt work item.occurrence [stream.ref] (some producerTask)
         (.item stream (.ok (.scalar "x", 0))) :=
-      ⟨stream, entries, [root.ref, child.ref], .ok (.scalar "x", 0), .empty,
+      ⟨stream, entries, [root.ref, child.ref], { result := .ok (.scalar "x", 0) }, .empty,
         by cbv, rfl, rfl, rfl⟩
     have healthy := released_stream_healthy matching events
     have success : TaskSucceeds work producerTask := ⟨_, _, _, producer_known, rfl⟩
@@ -875,10 +877,10 @@ theorem two_item_inputs : ValidGraphEvents work [first, produced, finish, twoIte
     have choices : supplied = item ∨ supplied = secondItem := by simpa [twoItems] using member
     rcases choices with rfl | rfl
     · exact ⟨[stream.ref], some producerTask,
-        ⟨stream, entries, [root.ref, child.ref], .ok (.scalar "x", 0), .empty,
+        ⟨stream, entries, [root.ref, child.ref], { result := .ok (.scalar "x", 0) }, .empty,
           located, rfl, rfl, rfl⟩, by cbv⟩
     · exact ⟨[stream.ref], some producerTask,
-        ⟨stream, entries, [root.ref, child.ref], .ok (.null, 0), .empty,
+        ⟨stream, entries, [root.ref, child.ref], { result := .ok (.null, 0) }, .empty,
           located, rfl, rfl, rfl⟩, by cbv⟩
   · simp [twoItems, item, secondItem, first, produced, finish, failedTask, producerTask,
       parentTask, GraphEvent.Fresh, GraphEvent.identities]
@@ -922,8 +924,8 @@ theorem two_items_canonical_safe
     have atFailure : w.events[0]? = some (.groupFailure root 1) := by
       rw [history]
       rcases choices with rfl | rfl <;> cbv
-    obtain ⟨count, _, total⟩ := announced.1.2.2.2.1 0 root 1 atFailure
-    simp [empty, failedBefore] at total
+    obtain ⟨occurrence, member, _⟩ := announced.1.2.2.2.1 0 root 1 atFailure
+    simp [empty, failedBefore] at member
   refine ⟨w, history, shape, announced, nonempty, ?_⟩
   intro index member
   have position : index = 5 ∨ index = 6 := by simpa using member
@@ -996,8 +998,8 @@ theorem two_items_general_certificates
     have atFailure : w.events[0]? = some (.groupFailure root 1) := by
       rw [history]
       rcases choices with rfl | rfl <;> cbv
-    obtain ⟨count, _, total⟩ := announced.1.2.2.2.1 0 root 1 atFailure
-    simp [empty, failedBefore] at total
+    obtain ⟨occurrence, member, _⟩ := announced.1.2.2.2.1 0 root 1 atFailure
+    simp [empty, failedBefore] at member
   · apply safe _ _
     simp [flat, first, produced, finish, twoItems, item, GraphEvent.successes]
   · apply safe _ _
@@ -1080,16 +1082,15 @@ theorem successful_groups_open_and_healthy
 
 /-- C's retained producer had a real storing boundary despite R's earlier failure.
 Witness: apply the general root-contributor processing theorem to C's actual later
-carrier; the source split and healthy task guard are derived, not supplied assumptions.
+carrier; the source split and computation lookup are derived, not supplied assumptions.
 -/
 theorem retained_success_processed
     : ∃ earlier result later node,
         [first, produced, finish] = earlier ++ .taskSuccess producerTask result :: later
-        ∧ (initial.replayGraphEvents earlier).taskNode? producerTask = some node
-        ∧ (initial.replayGraphEvents earlier).taskHasHealthyOwner node.task = true := by
+        ∧ (initial.replayGraphEvents earlier).taskNode? producerTask = some node := by
   have known : TaskAt work producerTask [root.ref, child.ref] none
       (.object [] (.ok (producerValue.data, 0))) :=
-    ⟨[⟨root, []⟩, ⟨child, [parent]⟩], [], .ok (producerValue.data, 0), children, [],
+    ⟨[⟨root, []⟩, ⟨child, [parent]⟩], [], { result := .ok (producerValue.data, 0) }, children, [],
       rfl, rfl, rfl⟩
   exact generated.successfulCarrier_rootContributor_processed
     (before := [first, produced])

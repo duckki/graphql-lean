@@ -52,8 +52,8 @@ theorem StreamFailureCuts.unique_at {work events failures first second}
 -----------------------------------------------------------------------------------------
 
 /-- Interleaved object cuts do not alter the errors reported by a stream failure.
-Witness: partition the visible inventory at this exact output position, assign zero
-to generated object-task contributions, and retain the original failure multiplicity.
+Witness: partition the visible inventory at this exact output position, retain the selected positive item cause
+under the larger failure inventory.
 Licensing either partition is a separate obligation.
 -/
 theorem StreamFailureCuts.nodeErrors_mixed
@@ -67,7 +67,7 @@ theorem StreamFailureCuts.nodeErrors_mixed
     (generated : ExecutedWork work)
     (ordered : (events.filterMap streamAction).Pairwise StreamAction.Before)
     (atEvent : events[index]? = some (.streamFailure stream errors))
-    : NodeErrors work (failedBefore failures index) stream.ref errors := by
+    : NodeFailureCause work (failedBefore failures index) stream.ref errors := by
   have counts := cuts.nodeErrors_with_objects ordered generated atEvent
     (failedBefore objectCuts index) (by
       intro occurrence member

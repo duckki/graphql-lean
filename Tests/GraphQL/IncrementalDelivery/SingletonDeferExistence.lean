@@ -53,8 +53,9 @@ def node (ref : NodeRef) : DeliveryNode := { ref, path := [] }
 Both fixed outcomes are arbitrary, including raw zero-count failures.
 -/
 def work (first second : Result (List (Name × ResponseValue))) : Work :=
-  .executionGroup [{ node := node 0 }] [] first
-    (.executionGroup [{ node := node 1, ancestors := [node 0] }] [] second .empty)
+  .executionGroup [{ node := node 0 }] [] { result := first }
+    (.executionGroup [{ node := node 1, ancestors := [node 0] }] [] { result := second }
+      .empty)
 
 /-- The nested task's owner inherits ref zero as its strict ancestor. -/
 def ancestors (ref : NodeRef) : NodeRefs := if ref = 1 then [0] else []
@@ -74,7 +75,8 @@ example (first second : Result (List (Name × ResponseValue)))
   · simp [work, MixedRefs.WorkAt, FragmentAt, node, ancestors]
   · simp [work, DeferContinuous, DeferUnder, Descends, mapRefs, node, ancestors]
   · simp [work, StreamOwnersOrdered, OwnersBefore]
-  · exact TaskAt.executionGroup (.executionGroup .root)
+  · simpa [node] using (TaskAt.executionGroup (result := { result := second }) (Located.executionGroup Located.root)
+      : TaskAt (work first second) (.executionGroup [0]) _ _ _)
   · exact cancelled
 
 -----------------------------------------------------------------------------------------
@@ -111,8 +113,8 @@ theorem nested_run_exists (first second : Result (List (Name × ResponseValue)))
 
 /-- A produced child can reuse its producer's owner, repeating that node descriptor. -/
 def reused (first second : Result (List (Name × ResponseValue))) : Work :=
-  .executionGroup [{ node := node 0 }] [] first
-    (.executionGroup [{ node := node 0 }] [] second .empty)
+  .executionGroup [{ node := node 0 }] [] { result := first }
+    (.executionGroup [{ node := node 0 }] [] { result := second } .empty)
 
 /-- Repeated owner descriptors do not block nested progress. Witness: the same theorem
 with empty ancestry; both tasks must be accounted for before their shared ID closes.

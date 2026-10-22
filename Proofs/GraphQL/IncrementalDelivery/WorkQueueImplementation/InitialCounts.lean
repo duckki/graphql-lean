@@ -236,9 +236,7 @@ theorem State.InitialCounts.startGroup {queue : State} (counts : queue.InitialCo
       | cons task rest ih =>
           intro current balanced
           exact ih (current.startTask task) (balanced.startTask task)
-    split
-    · exact counts
-    · exact taskFold node.tasks queue counts
+    exact taskFold node.tasks queue counts
 
 /-- Starting a stream changes only its root-ref registry. -/
 theorem State.InitialCounts.startStream {queue : State} (counts : queue.InitialCounts)

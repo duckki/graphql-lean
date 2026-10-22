@@ -35,9 +35,9 @@ Nested child tasks may contribute additional positions; they are not assumed emp
 -/
 theorem sourceItemTasks_success_positions (containers : Bool)
     (address : Address) (producer : Option Occurrence) (node : DeliveryNode)
-    (index ordinal : Nat) (items : List (Result ResponseValue × Work))
+    (index ordinal : Nat) (items : List (TaskOutcome ResponseValue × Work))
     (entries : List (ResponseValue × Nat))
-    (successful : items.map Prod.fst = entries.map Except.ok)
+    (successful : items.map (fun item => item.1.result) = entries.map Except.ok)
     : ResponsePositions.items containers node.path index (entries.map Prod.fst)
       ⊆ (sourceItemTasks address producer node index ordinal items).flatMap
           (SourceTask.positions containers) := by
@@ -50,11 +50,11 @@ theorem sourceItemTasks_success_positions (containers : Bool)
       | nil => simp at successful
       | cons entry entries =>
           simp only [List.map_cons, List.cons.injEq] at successful
-          obtain ⟨rfl, remaining⟩ := successful
+          obtain ⟨headResult, remaining⟩ := successful
           have tail := ih (index + 1) (ordinal + 1) entries remaining
           simp only [List.map_cons, ResponsePositions.items, sourceItemTasks,
             List.flatMap_cons, List.flatMap_append, SourceTask.positions,
-            DeliveryPaths.result]
+            TaskOutcome.deliveryResult, headResult, DeliveryPaths.result]
           intro position member
           rcases List.mem_append.mp member with head | later
           · exact List.mem_append_left _ head
@@ -101,7 +101,7 @@ theorem preparedResponseCovers_plain_stream (schema : Schema)
         : GraphQL.Execution.completeValueList schema resolvers variables fuel
             itemType (fields.map Semantics.eraseField) (values.drop count) with
   | error errors =>
-      obtain ⟨failureErrors, children, failed⟩ :=
+      obtain ⟨failureErrors, cause, children, failed⟩ :=
         (SourceReconstruction.completeStreamItems_itemContext_failure_iff schema resolvers
           variables fuel itemType fields (values.drop count) plain [] initial.length
           state).mpr ⟨errors, tailCompleted⟩
@@ -112,8 +112,8 @@ theorem preparedResponseCovers_plain_stream (schema : Schema)
       intro path member
       obtain rfl : path = [] := by simpa [ResponsePositions.value] using member
       refine Or.inr ⟨.item [1] ordinal, [node.ref], none,
-        .item node (.error failureErrors), ?_, rfl, Or.inl ?_⟩
-      · exact ⟨node, _, [], .error failureErrors, children, rfl, selected, rfl, rfl⟩
+        .item node (.error (cause.getD failureErrors)), ?_, rfl, Or.inl ?_⟩
+      · exact ⟨node, _, [], { result := .error failureErrors, cause }, children, rfl, selected, rfl, rfl⟩
       · simp [Payload.path, nodePath]
   | ok pair =>
       obtain ⟨entries, outcomes, sameData, _⟩ :=

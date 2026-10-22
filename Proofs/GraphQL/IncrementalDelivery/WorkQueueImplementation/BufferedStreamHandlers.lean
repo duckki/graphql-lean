@@ -18,7 +18,7 @@ theorem State.taskSuccess_preparedBufferedStreams {queue : State} {work settled}
     (accounted : queue.PendingAccounting work settled) (links : queue.StoredTaskLinks)
     (inventory : queue.ChildStreamInventory) {occurrence result node}
     (found : queue.taskNode? occurrence = some node)
-    (healthy : queue.taskHasHealthyOwner node.task = true) (fresh : occurrence ∉ settled)
+    (fresh : occurrence ∉ settled)
     : let prepared :=
         ((queue.putTaskNode { node with value := some result.value }).maybeIntegrateWork
           result.work (some occurrence)).1
@@ -56,9 +56,7 @@ theorem State.taskSuccess_preparedBufferedStreams {queue : State} {work settled}
     (State.drainReadyGroups_bufferedStreamsConserved activeLinks activeInventory)
     (State.drainReadyGroups_go_cancelledGroups_subset _ _)
   rw [queue.taskSuccess_eq occurrence result node found]
-  simpa only [healthy, Bool.not_true, Bool.false_eq_true, ↓reduceIte, stored, prepared,
-    released]
-    using final
+  simpa only [stored, prepared, released] using final
 
 -----------------------------------------------------------------------------------------
 -- Fresh source identity prevents overwriting an earlier buffered producer
@@ -87,28 +85,17 @@ theorem State.taskSuccess_bufferedStreamsConserved {queue : State} {work settled
   | none =>
       simpa only [State.taskSuccess, found] using State.BufferedStreamsConserved.refl queue
   | some node =>
-      cases healthy : queue.taskHasHealthyOwner node.task with
-      | false =>
-          rw [queue.taskSuccess_eq occurrence result node found]
-          simp only [healthy, Bool.not_false, ↓reduceIte]
-          intro task buffered value stream lookup stored linked owner contributes live uncancelled
-          exact .inr
-            ⟨
-              (queue.removeTask_lookup_other (different lookup stored).symm).trans lookup,
-              by simpa only [State.removeTask, List.map_map, Function.comp_def] using live
-            ⟩
-      | true =>
-          apply (State.taskSuccess_preparedBufferedStreams accounted links inventory found healthy
-            (fun member => fresh.2.2.1 occurrence List.mem_cons_self (included member))).of_lookups
-          · intro task buffered value lookup stored
-            have retained := State.putTaskNode_lookup_other lookup
-              { node with value := some result.value }
-              ((State.taskNode?_some found).2 ▸ different lookup stored)
-            exact State.maybeIntegrateWork_lookup_other retained result.work (some occurrence)
-              (fun same => different lookup stored (Option.some.inj same))
-          · exact State.maybeIntegrateWork_includesRefs
-              (queue.putTaskNode { node with value := some result.value })
-              result.work (some occurrence)
+      apply (State.taskSuccess_preparedBufferedStreams accounted links inventory found
+        (fun member => fresh.2.2.1 occurrence List.mem_cons_self (included member))).of_lookups
+      · intro task buffered value lookup stored
+        have retained := State.putTaskNode_lookup_other lookup
+          { node with value := some result.value }
+          ((State.taskNode?_some found).2 ▸ different lookup stored)
+        exact State.maybeIntegrateWork_lookup_other retained result.work (some occurrence)
+          (fun same => different lookup stored (Option.some.inj same))
+      · exact State.maybeIntegrateWork_includesRefs
+          (queue.putTaskNode { node with value := some result.value })
+          result.work (some occurrence)
 
 /-- Fresh failure cannot discard an older buffered child while its contributor survives.
 Witness: exact empty-publication owner conservation from source provenance and retained

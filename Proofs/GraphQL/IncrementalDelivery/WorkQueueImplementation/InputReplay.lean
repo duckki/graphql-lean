@@ -395,4 +395,18 @@ theorem createWorkQueue_runNormalized_stateCore
   rw [inputsStarted_eq_batchesStarted] at started
   exact State.runNormalized_stateCore _ batches started
 
+/-- An executable batch acceptance proof restricts to any earlier source prefix.
+Witness: split the received list and recurse through the same handler states.
+-/
+theorem State.acceptsBatch_prefix {queue : State} {before after : List GraphEvent}
+    (accepted : queue.acceptsBatch (before ++ after) = true)
+    : queue.acceptsBatch before = true := by
+  induction before generalizing queue with
+  | nil => rfl
+  | cons event rest ih =>
+      have both : queue.acceptsGraphEvent event = true
+          ∧ (queue.handleGraphEvent event).1.acceptsBatch (rest ++ after) = true := by
+        simpa only [List.cons_append, State.acceptsBatch, Bool.and_eq_true] using accepted
+      simpa only [State.acceptsBatch, Bool.and_eq_true] using And.intro both.1 (ih both.2)
+
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

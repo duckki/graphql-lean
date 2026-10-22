@@ -52,7 +52,7 @@ mutual
         ++ sourceTasks (address ++ [1]) producer cursors right
     | .executionGroup _ path result children =>
         let task : SourceTask :=
-          ⟨.executionGroup address, producer, .object path result, 0⟩
+          ⟨.executionGroup address, producer, .object path result.deliveryResult, 0⟩
         task :: sourceTasks (address ++ [0]) (some task.occurrence) task.cursors children
     | .stream node items =>
         sourceItemTasks address producer node
@@ -62,11 +62,11 @@ mutual
   -/
   def sourceItemTasks (address : Address) (producer : Option Occurrence)
       (node : DeliveryNode) (index ordinal : Nat)
-      : List (Result ResponseValue × Work) → List SourceTask
+      : List (TaskOutcome ResponseValue × Work) → List SourceTask
     | [] => []
     | (result, children) :: rest =>
         let task : SourceTask :=
-          ⟨.item address ordinal, producer, .item node result, index⟩
+          ⟨.item address ordinal, producer, .item node result.deliveryResult, index⟩
         task
         :: (sourceTasks (address ++ [ordinal]) (some task.occurrence)
               task.cursors children
@@ -89,7 +89,7 @@ mutual
           sourceTasks_positions right]
     | executionGroup children =>
         simp only [sourceTasks, List.map_cons, SourceTask.cursors, SourceTask.positions,
-          sourceTasks_positions children, ← funext (source_fields_eq_positions true _)]
+          DeliveryPaths.result_deliveryResult, resultCursors_deliveryResult, sourceTasks_positions children, ← funext (source_fields_eq_positions true _)]
     | stream cursor items =>
         simp only [sourceTasks, cursor, Option.getD_some]
         exact sourceItemTasks_positions items address producer _ 0
@@ -109,7 +109,8 @@ mutual
     | nil => rfl
     | cons children rest =>
         simp only [sourceItemTasks, List.map_cons, List.map_append, SourceTask.cursors,
-          SourceTask.positions, path_eq, sourceTasks_positions children,
+          SourceTask.positions, path_eq, DeliveryPaths.result_deliveryResult,
+          resultCursors_deliveryResult, sourceTasks_positions children,
           sourceItemTasks_positions rest address producer node (ordinal + 1) path_eq,
           ← funext (source_value_eq_positions true _)]
   termination_by sizeOf items

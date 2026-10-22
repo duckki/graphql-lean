@@ -25,14 +25,15 @@ private def children : Execution.Work :=
     (.combine .empty
       (.combine
         (.executionGroup [⟨child, [parent]⟩] [.field "user"]
-          (.ok ([("name", .scalar "name1")], 0)) (.combine .empty .empty))
+          ({ result := .ok ([("name", .scalar "name1")], 0) }) (.combine .empty .empty))
         .empty))
     .empty
 
 private def work : Execution.Work :=
   .combine .empty
     (.combine
-      (.executionGroup [⟨parent, []⟩] [] (.ok ([("user", .object [])], 0)) children)
+      (.executionGroup [⟨parent, []⟩] [] ({ result := .ok ([("user", .object [])], 0) })
+        children)
       .empty)
 
 private def result : TaskResult :=
@@ -64,14 +65,14 @@ private def received : List GraphEvent :=
 private theorem child_known
     : TaskAt work childTask [child.ref] (some parentTask)
         (.object child.path (.ok (childResult.value.data, 0))) := by
-  refine ⟨[⟨child, [parent]⟩], child.path, _, .combine .empty .empty, [parent.ref],
+  refine ⟨[⟨child, [parent]⟩], child.path, { result := .ok (childResult.value.data, 0) }, .combine .empty .empty, [parent.ref],
     ?_, rfl, rfl⟩
   cbv
 
 private theorem valid : ValidGraphEvents work received := by
   have parentKnown : TaskAt work parentTask [parent.ref] none
       (.object [] (.ok ([("user", .object [])], 0))) := by
-    refine ⟨[⟨parent, []⟩], [], _, children, [], ?_, rfl, rfl⟩
+    refine ⟨[⟨parent, []⟩], [], { result := .ok ([("user", .object [])], 0) }, children, [], ?_, rfl, rfl⟩
     cbv
   have first : ValidGraphEvents work [.taskSuccess parentTask result] :=
     .append .nil ⟨_, _, parentKnown, by cbv, by cbv⟩
@@ -118,11 +119,11 @@ theorem active_child_ancestor_published
     }
   have selected : w.events[2]? = some (.groupValues child [{ path := child.path, data := [("name", .scalar "name1")], errors := 0, deliveryGroups := [child] }]) := by rw [history]; cbv
   have childKnown : NodeAt work child .group [parent.ref] (some parentTask) :=
-    ⟨[1, 0, 0, 0, 1, 0], [⟨child, [parent]⟩], child.path, _, .combine .empty .empty,
+    ⟨[1, 0, 0, 0, 1, 0], [⟨child, [parent]⟩], child.path, { result := .ok (childResult.value.data, 0) }, .combine .empty .empty,
       [parent.ref], ⟨child, [parent]⟩, by cbv, List.mem_cons_self, rfl, rfl⟩
   have parentKnown : TaskAt work parentTask [parent.ref] none
       (.object [] (.ok ([("user", .object [])], 0))) :=
-    ⟨[⟨parent, []⟩], [], _, children, [], by cbv, rfl, rfl⟩
+    ⟨[⟨parent, []⟩], [], { result := .ok ([("user", .object [])], 0) }, children, [], by cbv, rfl, rfl⟩
   exact ⟨
     w,
     history,
@@ -316,7 +317,7 @@ theorem prior_and_current_publications_absent_before_drain
   have cleared := createWorkQueue_taskSuccess_drainMemberships
     (before := [.taskSuccess parentTask result]) (after := [])
     (incoming := { task := ⟨childTask, [child]⟩ }) covered source
-      (by cbv) (by cbv) 0 (Nat.zero_le _) publication
+      (by cbv) 0 (Nat.zero_le _) publication
   apply cleared
   change publication ∈ published.take 2
   exact member
