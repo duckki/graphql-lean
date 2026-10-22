@@ -349,14 +349,14 @@ including tasks belonging to unannounced groups or descendants of cancelled prod
 The requirement rejects a shared-owner omission: a failure reported at `["user"]`
 can invalidate an unannounced group at `[]`, but that report does not explain the group's
 cancelled sibling field `b`. Termination needs a covering completion, such as that group's
-root-scoped failure. The executable reference queue already emits that notice/completion
-in the regression fixture; no implementation algorithm is changed in this review slice.
+root-scoped failure. The executable reference queue emits that notice/completion
+in the regression fixture.
 
 This is a conservative work-level reporting rule, not a minimality theorem. Requiring
 coverage of the task attachment avoids inspecting precomputed successful response values
 or assuming the desired client-visible conclusion. The ordinary-response comparison,
-null-bubbling exception, actual wire decoding, and batch preservation remain separate
-proof obligations.
+null-bubbling exception, actual wire decoding, and batch preservation are established
+separately rather than assumed by the contract.
 
 `ValueGrouping` and `WorkBatching` retain ordered coalescing and arbitrary
 nonempty batches. Stream coalescing may regroup group/stream notices within
@@ -369,15 +369,16 @@ reconstruction success, response disjointness, or equality to basic execution.
 
 ## Verification and limitations
 
-The public-definition build checks the revised terminal contract. The 12 existing
+Definitions, proofs, and regressions build with terminal failure reporting. The
 query-correctness witnesses, finite progress, history/realization proofs, reference
-conformance, and regressions have not been rebuilt against its reporting requirement.
-The failure-aware client-coverage proposition remains unproved. No proof holes or new
-axioms are introduced to bridge these obligations.
+conformance, and implementation-to-query bridge account for that requirement.
+`ResponsePositionsDeliveredOrFailed_holds` proves error-aware client coverage with
+valid modeled incremental arguments and an error-free initial envelope; later counted
+errors are permitted. Axiom audits use only `propext`, `Classical.choice`, and
+`Quot.sound` as needed, with no proof holes or added axioms.
 
-The reference-queue conformance and implementation-to-query bridge need the additional
-terminal reporting witness. Their detailed status is maintained in the
-[implementation guide](implementation.md#work-queue-conformance).
+The [implementation guide](implementation.md#work-queue-conformance) details the
+reference-queue conformance and implementation-to-query proof structure.
 The [incremental-delivery proof map](README.md#proof-status-and-verification)
 lists the public witnesses. These finite results do not imply host fairness, completion
 of every admitted prefix, or refinement of the actual GraphQL.js implementation.
@@ -409,8 +410,8 @@ ordinary eligibility; a stream may wait until one defer dependency and its full 
 are satisfied. The public contract permits earlier announcement. This witness
 chooses a useful family of histories for existence; it does not restrict admission.
 
-The existing progress proof uses these construction witnesses; finalization must also
-discharge terminal failure reporting:
+The progress proof uses these construction witnesses and discharges terminal failure
+reporting during finalization:
 
 - `Initialization` and `NoticeFrontiers` provide valid covering initial notices.
 - `GroupAccounting` gives a published contributor to every healthy accounted defer

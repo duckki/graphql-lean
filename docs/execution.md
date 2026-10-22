@@ -11,8 +11,9 @@ See the [conformance summary](spec-conformance.md) for coverage and exclusions,
 ## Resolver and response boundary
 
 Execution is parameterized by abstract resolver functions. Runtime object values
-carry a GraphQL object type and an optional resolver-owned opaque reference;
-final responses contain neither object identity nor detailed error metadata.
+carry a GraphQL object type and a resolver-owned opaque reference. The reference
+type `ObjectRef` defaults to `PUnit`; final responses contain neither object
+identity nor detailed error metadata.
 Semantic equivalence can therefore quantify over resolver environments, variable
 values, explicit fuel values, and source values.
 
@@ -108,6 +109,23 @@ parent types are equal or either parent is abstract. The type-reference helper
 it is not the spec's field-level `SameResponseShape`. The named-fragment model
 uses the same distinction and visits fragment spreads during the recursive
 field-level check.
+
+## Schema proof boundary
+
+`SchemaWellFormedness.schemaWellFormed` includes the proof-facing invariant
+`possibleObjectFieldDefinitionsImplement`: fields declared on a parent type must
+have compatible definitions on every possible object type, with return types
+related by `sameTypeShape`. This requires identical list/non-null wrapper
+structure and equal leaf types; composite named returns may differ covariantly.
+
+This is stricter than the spec's
+[interface implementation rules](https://spec.graphql.org/September2025/#sec-Objects).
+For example, an object field returning `String!` can implement an interface field
+returning `String` according to `Schema.outputTypeSubtype` and
+`fieldDefinitionImplements`, but fails the additional `sameTypeShape` requirement.
+Theorems assuming `schemaWellFormed` therefore exclude that otherwise valid
+schema. This is a restriction of the proof domain, not a GraphQL validation rule
+or the spec's field-level `SameResponseShape` check.
 
 ## Conformance fixtures
 
