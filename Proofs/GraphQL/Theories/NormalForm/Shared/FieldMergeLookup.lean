@@ -1,5 +1,6 @@
 import Proofs.GraphQL.Theories.NormalForm.Shared.LookupValidity
 import Proofs.GraphQL.Theories.NormalForm.Shared.FieldMerge
+import Proofs.GraphQL.Theories.NormalForm.Shared.OutputShapes
 
 /-!
 Field-merge lookup bridge facts shared by NormalForm proof families.
@@ -245,6 +246,7 @@ theorem possibleObjectParent_eq_or_abstract_not_object
 theorem fieldMerge_collectFields_objectParent_possibleParent (schema : Schema)
     : ∀ objectParent abstractParent selectionSet objectField,
         SchemaWellFormedness.schemaWellFormed schema
+        -> selectionSetFieldsSameOutputShape schema selectionSet
         -> schema.objectType objectParent
         -> objectParent ∈ schema.getPossibleTypes abstractParent
         -> selectionSetLookupValid schema objectParent selectionSet
@@ -253,15 +255,15 @@ theorem fieldMerge_collectFields_objectParent_possibleParent (schema : Schema)
         -> ∃ abstractField,
             abstractField ∈ FieldMerge.collectFields schema abstractParent selectionSet
             ∧ scopedFieldSameSelection objectField abstractField
-            ∧ SchemaWellFormedness.sameTypeShape schema
+            ∧ FieldMerge.sameTypeShape schema
                 objectField.outputType abstractField.outputType
             ∧ (abstractField.parentType = objectField.parentType
                 ∨ ¬ schema.objectType abstractField.parentType)
-  | _objectParent, _abstractParent, [], _objectField, _hschema, _hobject,
+  | _objectParent, _abstractParent, [], _objectField, _hschema, _hshapes, _hobject,
       _hpossible, _hvalidObject, _hvalidAbstract, hfield => by
       simp [FieldMerge.collectFields] at hfield
   | objectParent, abstractParent, selection :: rest, objectField, hschema,
-      hobject, hpossible, hvalidObject, hvalidAbstract, hfield => by
+      hshapes, hobject, hpossible, hvalidObject, hvalidAbstract, hfield => by
       have htailObject :
           selectionSetLookupValid schema objectParent rest :=
         selectionSetLookupValid_tail hvalidObject
@@ -288,7 +290,7 @@ theorem fieldMerge_collectFields_objectParent_possibleParent (schema : Schema)
               simp [FieldMerge.collectFields, hlookup] at hfield
               rcases
                 fieldMerge_collectFields_objectParent_possibleParent schema
-                  objectParent abstractParent rest objectField hschema hobject
+                  objectParent abstractParent rest objectField hschema hshapes.2 hobject
                   hpossible htailObject htailAbstract hfield with
                 ⟨abstractField, habstractMem, hsame, hshape, hparent⟩
               exact ⟨abstractField,
@@ -314,9 +316,7 @@ theorem fieldMerge_collectFields_objectParent_possibleParent (schema : Schema)
                 · simp [abstractField, FieldMerge.collectFields,
                     habstractLookup]
                 · simp [scopedFieldSameSelection, abstractField]
-                · exact
-                    SchemaWellFormedness.schemaWellFormed_possibleObject_lookupField_sameTypeShape
-                      hschema hpossible habstractLookup hlookup
+                · exact hshapes.1.1 _ _ _ _ hpossible habstractLookup hlookup
                 · rcases
                     possibleObjectParent_eq_or_abstract_not_object schema
                       hpossible with
@@ -325,7 +325,7 @@ theorem fieldMerge_collectFields_objectParent_possibleParent (schema : Schema)
                   · exact Or.inr (by simpa [abstractField] using hnotObject)
               · rcases
                   fieldMerge_collectFields_objectParent_possibleParent schema
-                    objectParent abstractParent rest objectField hschema
+                    objectParent abstractParent rest objectField hschema hshapes.2
                     hobject hpossible htailObject htailAbstract htail with
                   ⟨abstractField, habstractMem, hsame, hshape, hparent⟩
                 exact ⟨abstractField,
@@ -358,7 +358,7 @@ theorem fieldMerge_collectFields_objectParent_possibleParent (schema : Schema)
               · rcases
                   fieldMerge_collectFields_objectParent_possibleParent schema
                     objectParent abstractParent selectionSet objectField
-                    hschema hobject hpossible hselectionObject
+                    hschema hshapes.1 hobject hpossible hselectionObject
                     hselectionAbstract hselection with
                   ⟨abstractField, habstractMem, hsame, hshape, hparent⟩
                 exact ⟨abstractField, by
@@ -366,7 +366,7 @@ theorem fieldMerge_collectFields_objectParent_possibleParent (schema : Schema)
                   hsame, hshape, hparent⟩
               · rcases
                   fieldMerge_collectFields_objectParent_possibleParent schema
-                    objectParent abstractParent rest objectField hschema
+                    objectParent abstractParent rest objectField hschema hshapes.2
                     hobject hpossible htailObject htailAbstract hrest with
                   ⟨abstractField, habstractMem, hsame, hshape, hparent⟩
                 exact ⟨abstractField,
@@ -384,7 +384,7 @@ theorem fieldMerge_collectFields_objectParent_possibleParent (schema : Schema)
                 · simp [FieldMerge.collectFields, hselection]
                 · exact scopedFieldSameSelection_refl objectField
                 · exact
-                    SchemaWellFormedness.sameTypeShape_refl schema
+                    FieldMerge.sameTypeShape_refl schema
                       objectField.outputType
                       (fieldMerge_collectFields_mem_outputType schema
                         typeCondition selectionSet objectField hschema
@@ -392,7 +392,7 @@ theorem fieldMerge_collectFields_objectParent_possibleParent (schema : Schema)
                 · exact Or.inl rfl
               · rcases
                   fieldMerge_collectFields_objectParent_possibleParent schema
-                    objectParent abstractParent rest objectField hschema
+                    objectParent abstractParent rest objectField hschema hshapes.2
                     hobject hpossible htailObject htailAbstract hrest with
                   ⟨abstractField, habstractMem, hsame, hshape, hparent⟩
                 exact ⟨abstractField,

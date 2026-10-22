@@ -534,6 +534,37 @@ def operationTypeConditionFeasible (schema : Schema) (operation : Operation) : P
   selectionSetTypeConditionFeasible schema (operation.rootType schema)
     [operation.rootType schema] operation.selectionSet
 
+-- Conservative normalization-only condition for one field name: grounding any
+-- declaration of that name preserves response wrappers and leaf types. This is
+-- stricter than schema validity's covariance requirement.
+def fieldSameOutputShape (schema : Schema) (fieldName : Name) : Prop :=
+  ∀ parentType objectTypeName expected implementation,
+    objectTypeName ∈ schema.getPossibleTypes parentType
+    -> schema.lookupField parentType fieldName = some expected
+    -> schema.lookupField objectTypeName fieldName = some implementation
+    -> FieldMerge.sameTypeShape schema implementation.outputType expected.outputType
+
+mutual
+  def selectionFieldsSameOutputShape (schema : Schema) : Selection -> Prop
+    | .field _responseName fieldName _arguments _directives children =>
+        fieldSameOutputShape schema fieldName
+        ∧ selectionSetFieldsSameOutputShape schema children
+    | .inlineFragment _typeCondition _directives children =>
+        selectionSetFieldsSameOutputShape schema children
+
+  def selectionSetFieldsSameOutputShape (schema : Schema) : List Selection -> Prop
+    | [] => True
+    | selection :: rest =>
+        selectionFieldsSameOutputShape schema selection
+        ∧ selectionSetFieldsSameOutputShape schema rest
+end
+
+-- Only field names occurring in this operation are restricted, but all schema
+-- declarations of those names are checked, including unreachable scopes.
+-- This sufficient condition is not a GraphQL operation-validation requirement.
+def operationFieldsSameOutputShape (schema : Schema) (operation : Operation) : Prop :=
+  selectionSetFieldsSameOutputShape schema operation.selectionSet
+
 -- Public validity-preservation statement for the ground-type normalizer. The theorem
 -- witness is `GraphQL.NormalForm.GroundTypeNormalization.normalizeOperation_valid`.
 def normalizeOperationValid (schema : Schema) (operation : Operation) : Prop :=
@@ -541,6 +572,7 @@ def normalizeOperationValid (schema : Schema) (operation : Operation) : Prop :=
   -> Validation.operationDefinitionValid schema operation
   -> operationDirectiveFree operation
   -> operationFieldsValidInPossibleTypes schema operation
+  -> operationFieldsSameOutputShape schema operation
   -> operationTypeConditionFeasible schema operation
   -> Validation.operationDefinitionValid schema (normalizeOperation schema operation)
 
@@ -714,6 +746,8 @@ def normalizeOperationUniqueUpToReordering (schema : Schema) (left right : Opera
   -> operationDirectiveFree right
   -> operationFieldsValidInPossibleTypes schema left
   -> operationFieldsValidInPossibleTypes schema right
+  -> operationFieldsSameOutputShape schema left
+  -> operationFieldsSameOutputShape schema right
   -> operationTypeConditionFeasible schema left
   -> operationTypeConditionFeasible schema right
   -> variableDefinitionsSyntacticallyEquivalent left.variableDefinitions
@@ -1131,6 +1165,7 @@ def completeNormalizeOperationValid (schema : Schema) (operation : Operation) : 
   SchemaWellFormedness.schemaWellFormed schema
   -> Validation.operationDefinitionValid schema operation
   -> operationFieldsValidInPossibleTypes schema operation
+  -> operationFieldsSameOutputShape schema operation
   -> operationBoolTypeConditionFeasible schema operation
   -> Validation.operationDefinitionValid schema
       (completeNormalizeOperation schema operation)
@@ -1325,6 +1360,8 @@ def completeNormalizeOperationUniqueUpToReordering
   -> Validation.operationDefinitionValid schema right
   -> operationFieldsValidInPossibleTypes schema left
   -> operationFieldsValidInPossibleTypes schema right
+  -> operationFieldsSameOutputShape schema left
+  -> operationFieldsSameOutputShape schema right
   -> operationBoolTypeConditionFeasible schema left
   -> operationBoolTypeConditionFeasible schema right
   -> variableDefinitionsSyntacticallyEquivalent left.variableDefinitions

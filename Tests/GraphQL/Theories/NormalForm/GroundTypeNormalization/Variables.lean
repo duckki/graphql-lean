@@ -62,7 +62,7 @@ attribute [local simp] schema nameDefinition arguments direct fragment selection
 private theorem nameField_merge
     : FieldMerge.fieldsForNameCanMerge schema nameField nameField := by
   refine .intro _ _ (.intro _ _ ?_ ?_) ?_ ?_
-  · exact SchemaWellFormedness.sameTypeShape_refl schema (.named "String")
+  · exact FieldMerge.sameTypeShape_refl schema (.named "String")
       ⟨.builtinScalar .string, rfl, trivial⟩
   · intro _ _ child hchild
     simp [FieldMerge.collectSubfields, FieldMerge.collectFields, nameField] at hchild
@@ -99,7 +99,7 @@ private theorem userField_merge (left right : List Selection)
     subst childRight
     exact nameField_merge
   refine .intro _ _ (.intro _ _ ?_ ?_) ?_ (fun _ => hpairs)
-  · exact SchemaWellFormedness.sameTypeShape_refl schema (.named "User")
+  · exact FieldMerge.sameTypeShape_refl schema (.named "User")
       ⟨.object { name := "User", fields := [nameDefinition] }, by simp, trivial⟩
   · intro _ _ childLeft hchildLeft childRight hchildRight hresponse
     exact FieldMerge.fieldsForNameCanMerge_sameResponseShape

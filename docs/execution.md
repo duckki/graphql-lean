@@ -105,7 +105,7 @@ unwrapped return type before combining them. `FieldMerge.sameResponseShape` chec
 recursive response shapes even across mutually exclusive object branches;
 field names, arguments, and recursive mergeability additionally apply when the
 parent types are equal or either parent is abstract. The type-reference helper
-`SchemaWellFormedness.sameTypeShape` checks only wrappers and leaf-type equality;
+`FieldMerge.sameTypeShape` checks only wrappers and leaf-type equality;
 it is not the spec's field-level `SameResponseShape`. The named-fragment model
 uses the same distinction and visits fragment spreads during the recursive
 field-level check.
@@ -115,17 +115,18 @@ field-level check.
 `SchemaWellFormedness.schemaWellFormed` includes the proof-facing invariant
 `possibleObjectFieldDefinitionsImplement`: fields declared on a parent type must
 have compatible definitions on every possible object type, with return types
-related by `sameTypeShape`. This requires identical list/non-null wrapper
-structure and equal leaf types; composite named returns may differ covariantly.
-
-This is stricter than the spec's
+related by `Schema.outputTypeSubtype`, following the spec's
 [interface implementation rules](https://spec.graphql.org/September2025/#sec-Objects).
-For example, an object field returning `String!` can implement an interface field
-returning `String` according to `Schema.outputTypeSubtype` and
-`fieldDefinitionImplements`, but fails the additional `sameTypeShape` requirement.
-Theorems assuming `schemaWellFormed` therefore exclude that otherwise valid
-schema. This is a restriction of the proof domain, not a GraphQL validation rule
-or the spec's field-level `SameResponseShape` check.
+An object field returning `String!` can implement an interface field returning
+`String`; the same strengthening is permitted recursively within lists.
+`sameTypeShape` remains an exact wrapper/leaf check used by field-merge validation,
+not an additional schema implementation requirement.
+
+Schema well-formedness does not imply that grounding abstract returns produces a
+valid GraphQL operation. Normalization-validity and normalization-uniqueness
+theorems separately require `NormalForm.operationFieldsSameOutputShape`; normality
+and semantics preservation do not. See [normal forms](theories/normal-form.md#validity-preservation)
+for the sufficient condition and its regression counterexample.
 
 ## Conformance fixtures
 

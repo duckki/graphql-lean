@@ -7,7 +7,7 @@ namespace GraphQL.NormalForm.CompleteNormalization
 theorem fieldsForNameCanMerge_of_sameOutput_subfields
     {schema : Schema} {left right : FieldMerge.ScopedField}
     (houtput : left.outputType = right.outputType)
-    (htypes : SchemaWellFormedness.sameTypeShape schema left.outputType right.outputType)
+    (htypes : FieldMerge.sameTypeShape schema left.outputType right.outputType)
     (hidentity
       : (left.parentType = right.parentType
           ∨ ¬ schema.objectType left.parentType

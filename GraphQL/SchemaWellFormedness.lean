@@ -273,19 +273,6 @@ def typeDefinitionWellFormed (schema : Schema) : TypeDefinition -> Prop
   | .enum enumType => enumTypeWellFormed enumType
   | .inputObject inputObjectType => inputObjectTypeWellFormed schema inputObjectType
 
--- Non-spec type-reference helper for the wrapper and leaf-type checks.
-def sameTypeShape (schema : Schema) : TypeRef -> TypeRef -> Prop
-  | .nonNull left, .nonNull right => sameTypeShape schema left right
-  | .nonNull _, _ => False
-  | _, .nonNull _ => False
-  | .list left, .list right => sameTypeShape schema left right
-  | .list _, _ => False
-  | _, .list _ => False
-  | .named left, .named right =>
-      schema.isOutputType left
-      ∧ schema.isOutputType right
-      ∧ ((schema.isLeafType left ∨ schema.isLeafType right) -> left = right)
-
 -- Proof-facing schema invariant: possible runtime object fields are compatible with
 -- fields selected through their static parent type. This is the field-level bridge
 -- needed when execution grounds abstract parents to concrete object sources.
@@ -296,7 +283,6 @@ def possibleObjectFieldDefinitionsImplement (schema : Schema) : Prop :=
     -> ∃ implementation,
         schema.lookupField objectTypeName fieldName = some implementation
         ∧ fieldDefinitionImplements schema implementation expected
-        ∧ sameTypeShape schema implementation.outputType expected.outputType
 
 -- Spec 3.3 schema rules: partial; checks unique type names and a query object root,
 -- omitting operation-type uniqueness/existence for mutation/subscription and directive

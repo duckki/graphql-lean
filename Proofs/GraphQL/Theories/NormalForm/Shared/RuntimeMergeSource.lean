@@ -1,5 +1,6 @@
 import Proofs.GraphQL.Theories.NormalForm.Shared.FieldMerge
 import Proofs.GraphQL.Theories.NormalForm.Shared.DeclaredLookup
+import Proofs.GraphQL.Theories.NormalForm.Shared.OutputShapes
 
 /-!
 Declared-scope evidence for merge compatibility along runtime object paths.
@@ -465,7 +466,6 @@ theorem runtimeMergeSource_fieldHead_merged (schema : Schema)
   exact ⟨_, runtimeMergeSources_fieldHead_merged schema hschema hsource hlookup hinclude⟩
 
 theorem runtimeMergeSources_fieldHead_parents (schema : Schema)
-    (hschema : SchemaWellFormedness.schemaWellFormed schema)
     {parentType responseName fieldName : Name}
     {arguments : List Argument} {children rest : List Selection}
     {definition : FieldDefinition} {sources : List FieldMerge.ScopedField}
@@ -473,11 +473,11 @@ theorem runtimeMergeSources_fieldHead_parents (schema : Schema)
       : runtimeMergeSources schema parentType
           (Selection.field responseName fieldName arguments [] children :: rest) sources)
     (hlookup : schema.lookupField parentType fieldName = some definition)
+    (hshapes : fieldSameOutputShape schema fieldName)
     : runtimeMergeParentSources schema parentType responseName sources ≠ []
       ∧ ∀ source,
           source ∈ runtimeMergeParentSources schema parentType responseName sources
-          -> SchemaWellFormedness.sameTypeShape schema source.outputType
-                definition.outputType
+          -> FieldMerge.sameTypeShape schema source.outputType definition.outputType
               ∧ source.responseName = responseName
               ∧ source.fieldName = fieldName
               ∧ Argument.argumentsEquivalent source.arguments arguments
@@ -508,10 +508,10 @@ theorem runtimeMergeSources_fieldHead_parents (schema : Schema)
     have harguments : Argument.argumentsEquivalent source.arguments arguments := by
       simpa [hheadMatch.2.2.1] using hidentity.2
     rcases hvalid source hsource with ⟨expected, hexpected, houtput, _⟩
-    have hshape := SchemaWellFormedness.schemaWellFormed_possibleObject_lookupField_sameTypeShape
-      hschema (List.contains_iff_mem.mp happlies) hexpected (by simpa [hname] using hlookup)
+    have hshape := hshapes _ _ _ _ (List.contains_iff_mem.mp happlies)
+      (by simpa [hname] using hexpected) hlookup
     refine ⟨?_, hresponse, hname, harguments, ?_⟩
-    · simpa [houtput] using SchemaWellFormedness.sameTypeShape_symm schema _ _ hshape
+    · simpa [houtput] using FieldMerge.sameTypeShape_symm schema _ _ hshape
     · by_cases hobject : schema.objectType source.parentType
       · exact Or.inl (object_typeIncludesObjectBool_eq_self schema hobject happlies).symm
       · exact Or.inr hobject

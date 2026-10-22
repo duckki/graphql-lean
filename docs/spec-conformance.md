@@ -36,14 +36,13 @@ semantics matter. Default materialization is covered; full input coercion and
 request-error handling are not. Execution is a finite, pure model with bounded
 recursion. Errors are represented by counts rather than detailed error objects.
 
-Schema well-formedness additionally restricts interface field implementations to
-preserve list/non-null wrapper structure. Spec-permitted nullable-to-non-null
-return strengthening is outside this well-formed schema fragment. See the
-[schema proof boundary](execution.md#schema-proof-boundary).
+Interface field implementations allow covariant return types, including
+nullable-to-non-null strengthening within lists. Normalization validity has
+separate operation-local assumptions; see [normal forms](theories/normal-form.md).
 
 Interface self-implementation, inheritance cycles, and explicit declarations of
-inherited interfaces are not currently validated. These gaps and the wrapper
-restriction are tracked in the [next steps](#next-steps).
+inherited interfaces are not currently validated. These gaps are tracked in the
+[next steps](#next-steps).
 
 Not covered:
 
@@ -101,16 +100,7 @@ documents the test workflow.
 
 ## Next steps
 
-1. **Separate schema covariance from normalization restrictions.** Remove the
-   blanket `sameTypeShape` requirement from spec-facing schema well-formedness,
-   retaining the spec's `Schema.outputTypeSubtype` rules. Add regressions for
-   nullable-to-non-null strengthening, including list elements. Before broadening
-   normalization claims, resolve the validity-preservation boundary: grounding an
-   interface field into implementations with different non-null wrappers can
-   introduce response-shape conflicts. Normalization may need an explicit
-   operation-local premise or an algorithm change. Keep the spec's
-   `SameResponseShape` check unchanged.
-2. **Complete interface-inheritance validation.** Reject self-implementation and
+1. **Complete interface-inheritance validation.** Reject self-implementation and
    inheritance cycles, and require objects and interfaces to explicitly declare
    every inherited interface, as required by the
    [interface rules](https://spec.graphql.org/September2025/#sec-Interfaces).

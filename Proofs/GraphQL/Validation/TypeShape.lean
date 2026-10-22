@@ -1,8 +1,8 @@
-import GraphQL.SchemaWellFormedness
+import GraphQL.Validation
 
-/-! Wrapper and leaf-type compatibility facts for schema output types. -/
+/-! Wrapper and leaf-type compatibility facts used by field-merge validation. -/
 
-namespace GraphQL.SchemaWellFormedness
+namespace GraphQL.FieldMerge
 
 theorem sameTypeShape_refl (schema : Schema)
     : ∀ typeRef, typeRef.isOutputType schema -> sameTypeShape schema typeRef typeRef
@@ -130,4 +130,4 @@ theorem sameTypeShape_composite_left (schema : Schema)
       simp_all [TypeDefinition.isOutputType, TypeDefinition.isLeafType,
         TypeDefinition.isCompositeType]
 
-end GraphQL.SchemaWellFormedness
+end GraphQL.FieldMerge

@@ -55,7 +55,7 @@ theorem sameResponseShape_fragmentSpread_matching
     : sameResponseShape schema fragments
         (branchField "LeftBranch" "User") (branchField "RightBranch" "User") := by
   refine .intro _ _ ?_ ?_
-  · exact GraphQL.SchemaWellFormedness.sameTypeShape_refl schema _
+  · exact GraphQL.FieldMerge.sameTypeShape_refl schema _
       (GraphQL.Tests.Validation.FieldMerge.sameTypeShape_differentCompositeReturns.1)
   · intro _ _ subLeft hleft subRight hright _
     rw [collectedChildren] at hleft hright

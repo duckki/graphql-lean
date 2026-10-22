@@ -21,18 +21,18 @@ theorem normalizeOperation_uniqueUpToReordering_of_normal_operations
         (normalizeOperation schema left) (normalizeOperation schema right)
       -> normalizeOperationUniqueUpToReordering schema left right := by
   intro hnormalUnique hschema hleftValid hrightValid hleftCoercion hrightCoercion
-    hleftFree hrightFree
+    hleftFree hrightFree hleftShapes hrightShapes
     hleftFields hrightFields hdefinitions hsem
   have hleftNormalizedValid :
       Validation.operationDefinitionValid schema
         (normalizeOperation schema left) :=
     normalizeOperation_valid schema left hschema hleftValid hleftCoercion
-      hleftFree hleftFields
+      hleftFree hleftShapes hleftFields
   have hrightNormalizedValid :
       Validation.operationDefinitionValid schema
         (normalizeOperation schema right) :=
     normalizeOperation_valid schema right hschema hrightValid hrightCoercion
-      hrightFree hrightFields
+      hrightFree hrightShapes hrightFields
   have hleftNormalizedFree :
       operationDirectiveFree (normalizeOperation schema left) :=
     normalizeOperation_directiveFree schema left hleftCoercion

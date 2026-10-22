@@ -45,26 +45,10 @@ theorem schemaWellFormed_possibleObject_lookupField_implements
   intro hschema hpossible hexpected himplementation
   rcases schemaWellFormed_possibleObjectFieldDefinitionsImplement hschema
       parentType objectTypeName fieldName expected hpossible hexpected with
-    ⟨actual, hactual, himplements, _hshape⟩
+    ⟨actual, hactual, himplements⟩
   rw [hactual] at himplementation
   cases himplementation
   exact himplements
-
-theorem schemaWellFormed_possibleObject_lookupField_sameTypeShape
-    {schema : Schema} {parentType objectTypeName fieldName : Name}
-    {expected implementation : FieldDefinition}
-    : schemaWellFormed schema
-      -> objectTypeName ∈ schema.getPossibleTypes parentType
-      -> schema.lookupField parentType fieldName = some expected
-      -> schema.lookupField objectTypeName fieldName = some implementation
-      -> sameTypeShape schema implementation.outputType expected.outputType := by
-  intro hschema hpossible hexpected himplementation
-  rcases schemaWellFormed_possibleObjectFieldDefinitionsImplement hschema
-      parentType objectTypeName fieldName expected hpossible hexpected with
-    ⟨actual, hactual, _himplements, hshape⟩
-  rw [hactual] at himplementation
-  cases himplementation
-  exact hshape
 
 theorem schemaWellFormed_possibleObject_lookupField_exists
     {schema : Schema} {parentType objectTypeName fieldName : Name}
@@ -77,7 +61,7 @@ theorem schemaWellFormed_possibleObject_lookupField_exists
   intro hschema hpossible hexpected
   rcases schemaWellFormed_possibleObjectFieldDefinitionsImplement hschema
       parentType objectTypeName fieldName expected hpossible hexpected with
-    ⟨implementation, himplementation, _himplements, _hshape⟩
+    ⟨implementation, himplementation, _himplements⟩
   exact ⟨implementation, himplementation⟩
 
 theorem schemaWellFormed_possibleObject_lookupField_outputTypeSubtype

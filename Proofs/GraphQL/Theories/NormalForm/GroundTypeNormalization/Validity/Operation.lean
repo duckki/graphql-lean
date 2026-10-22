@@ -44,6 +44,7 @@ theorem normalizeOperation_valid_of_operationFieldsValid
     : SchemaWellFormedness.schemaWellFormed schema
       -> Validation.operationDefinitionValid schema operation
       -> operationFieldsValidInPossibleTypes schema operation
+      -> operationFieldsSameOutputShape schema operation
       -> operationDirectiveFree operation
       -> selectionSetsTypeConditionFeasibleInEveryNormalizerScope schema
       -> normalizeSelectionSet schema (operation.rootType schema) operation.selectionSet
@@ -51,7 +52,7 @@ theorem normalizeOperation_valid_of_operationFieldsValid
       -> Validation.operationVariablesUsed (normalizeOperation schema operation)
       -> Validation.operationDefinitionValid schema
           (normalizeOperation schema operation) := by
-  intro hschema hvalid himplementation hfree hfeasibleAll hnormalizedNonempty
+  intro hschema hvalid himplementation hshapes hfree hfeasibleAll hnormalizedNonempty
     hvariablesUsed
   have hrootEq :
       (operation.rootType schema) = schema.queryType :=
@@ -82,7 +83,7 @@ theorem normalizeOperation_valid_of_operationFieldsValid
           operation.selectionSet) :=
     normalizeSelectionSet_normalizedValid schema
       operation.variableDefinitions hschema hfeasibleAll (operation.rootType schema)
-      operation.selectionSet hrootObject hready himplementation hmerge hfree
+      operation.selectionSet hshapes hrootObject hready himplementation hmerge hfree
   exact ⟨
     by simp [normalizeOperation],
     by
@@ -103,7 +104,7 @@ theorem normalizeOperation_valid_of_operationFieldsValid
 
 theorem normalizeOperation_valid (schema : Schema) (operation : Operation)
     : NormalForm.normalizeOperationValid schema operation := by
-  intro hschema hvalid hfree himplementation hfeasible
+  intro hschema hvalid hfree himplementation hshapes hfeasible
   have hrootEq :
       (operation.rootType schema) = schema.queryType :=
     Validation.operationDefinitionValid_rootType_eq hvalid
@@ -152,7 +153,7 @@ theorem normalizeOperation_valid (schema : Schema) (operation : Operation)
           operation.selectionSet) :=
     normalizeSelectionSet_normalizedValid_of_typeConditionFeasible schema
       operation.variableDefinitions hschema (operation.rootType schema)
-      operation.selectionSet [(operation.rootType schema)] hrootObject hrootStack
+      operation.selectionSet [(operation.rootType schema)] hshapes hrootObject hrootStack
       hready himplementation hmerge hfree hfeasible
   have hvariablesUsed :
       Validation.operationVariablesUsed (normalizeOperation schema operation) :=

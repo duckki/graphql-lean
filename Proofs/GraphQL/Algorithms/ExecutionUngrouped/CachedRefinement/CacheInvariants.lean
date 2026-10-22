@@ -19,24 +19,24 @@ open GraphQL.Execution
 
 theorem sameTypeShape_isCompositeBool_eq (schema : Schema)
     : ∀ left right,
-        GraphQL.SchemaWellFormedness.sameTypeShape schema left right
+        GraphQL.FieldMerge.sameTypeShape schema left right
         -> left.isCompositeBool schema = right.isCompositeBool schema
   | .nonNull left, .nonNull right, hshape => by
       exact sameTypeShape_isCompositeBool_eq schema left right hshape
   | .nonNull _, .named _, hshape => by
-      simp [GraphQL.SchemaWellFormedness.sameTypeShape] at hshape
+      simp [GraphQL.FieldMerge.sameTypeShape] at hshape
   | .nonNull _, .list _, hshape => by
-      simp [GraphQL.SchemaWellFormedness.sameTypeShape] at hshape
+      simp [GraphQL.FieldMerge.sameTypeShape] at hshape
   | .named _, .nonNull _, hshape => by
-      simp [GraphQL.SchemaWellFormedness.sameTypeShape] at hshape
+      simp [GraphQL.FieldMerge.sameTypeShape] at hshape
   | .list _, .nonNull _, hshape => by
-      simp [GraphQL.SchemaWellFormedness.sameTypeShape] at hshape
+      simp [GraphQL.FieldMerge.sameTypeShape] at hshape
   | .list left, .list right, hshape => by
       exact sameTypeShape_isCompositeBool_eq schema left right hshape
   | .list _, .named _, hshape => by
-      simp [GraphQL.SchemaWellFormedness.sameTypeShape] at hshape
+      simp [GraphQL.FieldMerge.sameTypeShape] at hshape
   | .named _, .list _, hshape => by
-      simp [GraphQL.SchemaWellFormedness.sameTypeShape] at hshape
+      simp [GraphQL.FieldMerge.sameTypeShape] at hshape
   | .named left, .named right, hshape => by
       by_cases hleft : schema.isLeafType left
       · have hnames : left = right := hshape.2.2 (Or.inl hleft)

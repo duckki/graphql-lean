@@ -162,12 +162,11 @@ private theorem wellFormed : SchemaWellFormedness.schemaWellFormed schema := by
         subst fieldName
         have heq : expected = field := Option.some.inj hlookup.symm
         subst expected
-        refine ⟨field, rfl, ?_, ?_⟩
+        refine ⟨field, rfl, ?_⟩
         · constructor
           · exact ⟨outputString, outputString, Or.inl rfl⟩
           · simp [SchemaWellFormedness.argumentDefinitionsImplement,
               Schema.lookupArgumentDefinition, field, arg]
-        · exact ⟨outputString, outputString, by intro _; rfl⟩
       next => cases hlookup
     next => cases hpossible
 

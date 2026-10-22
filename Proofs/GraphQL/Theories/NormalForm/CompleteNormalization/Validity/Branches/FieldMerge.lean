@@ -73,7 +73,7 @@ theorem fieldsForNameCanMerge_of_sameParent_sameSelection_source
         hschema hleftLookup
   apply fieldsForNameCanMerge_of_sameOutput_subfields houtputEq
   · rw [← houtputEq]
-    exact SchemaWellFormedness.sameTypeShape_refl schema left.outputType
+    exact FieldMerge.sameTypeShape_refl schema left.outputType
       hleftOutput
   · intro _hparents
     exact ⟨hfield, harguments⟩
@@ -313,7 +313,7 @@ theorem fieldsForNameCanMerge_sameField_of_subfields
   intro hschema hlookup hsubfields
   refine fieldsForNameCanMerge_of_sameOutput_subfields ?_ ?_ ?_ ?_
   · rfl
-  · exact SchemaWellFormedness.sameTypeShape_refl schema
+  · exact FieldMerge.sameTypeShape_refl schema
       fieldDefinition.outputType
       (SchemaWellFormedness.schemaWellFormed_lookupField_outputType
         hschema hlookup)

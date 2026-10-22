@@ -1,4 +1,3 @@
-import GraphQL.SchemaWellFormedness
 import GraphQL.Operation
 
 /-! GraphQL operation validation
@@ -428,6 +427,19 @@ end Validation
 
 namespace FieldMerge
 
+-- Non-spec type-reference helper for `SameResponseShape` wrapper and leaf-type checks.
+def sameTypeShape (schema : Schema) : TypeRef -> TypeRef -> Prop
+  | .nonNull left, .nonNull right => sameTypeShape schema left right
+  | .nonNull _, _ => False
+  | _, .nonNull _ => False
+  | .list left, .list right => sameTypeShape schema left right
+  | .list _, _ => False
+  | _, .list _ => False
+  | .named left, .named right =>
+      schema.isOutputType left
+      ∧ schema.isOutputType right
+      ∧ ((schema.isLeafType left ∨ schema.isLeafType right) -> left = right)
+
 -- Spec 5.3.2 `FieldsInSetCanMerge` field-pair context: non-spec helper carrying the
 -- parent type and field data needed by merge checks.
 structure ScopedField where
@@ -508,8 +520,7 @@ mutual
 
   inductive SameResponseShape (schema : Schema) : ScopedField -> ScopedField -> Prop where
     | intro (left right : ScopedField)
-      (htypes
-        : SchemaWellFormedness.sameTypeShape schema left.outputType right.outputType)
+      (htypes : FieldMerge.sameTypeShape schema left.outputType right.outputType)
       (hsubfields
         : schema.isCompositeType left.outputType.namedType
           -> schema.isCompositeType right.outputType.namedType

@@ -120,7 +120,7 @@ theorem sameResponseShape_wrappedLeaf
             outputType := .nonNull (.list (.nonNull (.named "String")))
         } := by
   refine .intro _ _ ?_ ?_
-  · exact SchemaWellFormedness.sameTypeShape_refl returnScopeSchema _
+  · exact FieldMerge.sameTypeShape_refl returnScopeSchema _
       (by exact ⟨.builtinScalar .string, rfl, trivial⟩)
   · intro _ _ subLeft hleft
     simp [collectSubfields, nameField, collectFields] at hleft
@@ -252,8 +252,7 @@ private def branchField (parent returnType : Name) : ScopedField :=
 
 /-- Composite type compatibility alone does not establish response-shape compatibility. -/
 theorem sameTypeShape_differentCompositeReturns
-    : SchemaWellFormedness.sameTypeShape disjointReturnSchema
-        (.named "User") (.named "Other") := by
+    : FieldMerge.sameTypeShape disjointReturnSchema (.named "User") (.named "Other") := by
   refine ⟨?_, ?_, ?_⟩
   · exact ⟨.object { name := "User", fields := [{ name := "name", outputType := .named "String" }] },
       by simp [disjointReturnSchema, returnScopeSchema, Schema.lookupType, Schema.allTypes,

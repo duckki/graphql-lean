@@ -37,7 +37,8 @@ private theorem collectFields_possibleNormalizations_source
 theorem normalizeSelectionSet_fieldProjection
     (schema : Schema) (hschema : SchemaWellFormedness.schemaWellFormed schema)
     : ∀ parentType selectionSet sources,
-        schema.objectType parentType
+        selectionSetFieldsSameOutputShape schema selectionSet
+        -> schema.objectType parentType
         -> selectionSetDirectiveFree selectionSet
         -> selectionSetSemanticsReady schema parentType selectionSet
         -> runtimeMergeSources schema parentType selectionSet sources
@@ -49,16 +50,16 @@ theorem normalizeSelectionSet_fieldProjection
   intro parentType selectionSet
   induction parentType, selectionSet using normalizeSelectionSet.induct schema with
   | case1 parentType =>
-      intro sources _ _ _ _ target htarget
+      intro sources _ _ _ _ _ target htarget
       simp [normalizeSelectionSet, FieldMerge.collectFields] at htarget
   | case2 parentType rest responseName fieldName arguments directives children hlookup _
     =>
-      intro sources _ _ hready _ target _
+      intro sources _ _ _ hready _ target _
       exact False.elim (runtimeLookupValid_field_head_lookup_none_false
         (selectionSetLookupValid_of_selectionSetSemanticsReady _ hready) hlookup)
   | case3 parentType rest responseName fieldName arguments directives children
       definition hlookup matching merged returnType htailIH hobjectIH hpossibleIH =>
-      intro sources hobject hfree hready hsource target htarget
+      intro sources hshapes hobject hfree hready hsource target htarget
       have hheadFree := selectionSetDirectiveFree_head hfree
       have hdirectives : directives = [] := hheadFree.1
       subst directives
@@ -81,7 +82,7 @@ theorem normalizeSelectionSet_fieldProjection
         at htarget
       rcases htarget with rfl | htarget
       · let parents := runtimeMergeParentSources schema parentType responseName sources
-        have hparents := runtimeMergeSources_fieldHead_parents schema hschema hsource hlookup
+        have hparents := runtimeMergeSources_fieldHead_parents schema hsource hlookup hshapes.1.1
         refine ⟨
           parents,
           ?_,
@@ -106,7 +107,8 @@ theorem normalizeSelectionSet_fieldProjection
               ⟨sources, hsource⟩ hready hlookup hinclude
             have hchildSource := runtimeMergeSources_fieldHead_merged schema hschema
               hsource hlookup hinclude
-            rcases hpossibleIH runtime _ hruntime hmergedFree hchildReady hchildSource
+            rcases hpossibleIH runtime _ (selectionSetFieldsSameOutputShape_merged schema hshapes)
+                hruntime hmergedFree hchildReady hchildSource
                 child hchild with ⟨group, hsubset, hprojection⟩
             exact .intro hsubset hprojection
           by_cases hreturn : objectTypeNameBool schema returnType = true
@@ -126,10 +128,11 @@ theorem normalizeSelectionSet_fieldProjection
               (SchemaWellFormedness.schemaWellFormed_possibleTypesAreObjects hschema
                 returnType runtime hruntime)
               (List.contains_iff_mem.mpr hruntime) hchild
-      · exact htailIH sources hobject hfilteredFree hfilteredReady hfilteredSource
+      · exact htailIH sources (selectionSetFieldsSameOutputShape_without schema _ _ hshapes.2)
+          hobject hfilteredFree hfilteredReady hfilteredSource
           target htarget
   | case4 parentType rest directives children happend =>
-      intro sources hobject hfree hready hsource target htarget
+      intro sources hshapes hobject hfree hready hsource target htarget
       have hheadFree := selectionSetDirectiveFree_head hfree
       have hdirectives : directives = [] := hheadFree.1
       subst directives
@@ -139,16 +142,18 @@ theorem normalizeSelectionSet_fieldProjection
         exact hready _ (by simp)
       have hbodyReady : selectionSetSemanticsReady schema parentType children := by
         simpa [selectionSemanticsReady] using hheadReady
-      apply happend sources hobject
+      apply happend sources (selectionSetFieldsSameOutputShape_append hshapes.1 hshapes.2)
+        hobject
         (selectionSetDirectiveFree_append hheadFree.2
           (selectionSetDirectiveFree_tail hfree))
         (selectionSetSemanticsReady_append hbodyReady
           (selectionSetSemanticsReady_tail hready))
         (runtimeMergeSources_inlineFragment_flatten schema parentType none children rest
-          (by simp) hsource) target
+          (by simp) hsource)
+        target
       simpa [normalizeSelectionSet] using htarget
   | case5 parentType rest condition directives children hoverlap _ happend =>
-      intro sources hobject hfree hready hsource target htarget
+      intro sources hshapes hobject hfree hready hsource target htarget
       have hheadFree := selectionSetDirectiveFree_head hfree
       have hdirectives : directives = [] := hheadFree.1
       subst directives
@@ -162,24 +167,28 @@ theorem normalizeSelectionSet_fieldProjection
             selectionSetSemanticsReady schema parentType children) := by
           simpa [selectionSemanticsReady] using hheadReady
         exact hpair.2 hoverlap
-      apply happend sources hobject
+      apply happend sources (selectionSetFieldsSameOutputShape_append hshapes.1 hshapes.2)
+        hobject
         (selectionSetDirectiveFree_append hheadFree.2
           (selectionSetDirectiveFree_tail hfree))
         (selectionSetSemanticsReady_append hbodyReady
           (selectionSetSemanticsReady_tail hready))
         (runtimeMergeSources_inlineFragment_flatten schema parentType (some condition)
-          children rest (by intro _ h; cases h; exact hoverlap) hsource) target
+          children rest (by intro _ h; cases h; exact hoverlap) hsource)
+        target
       simpa [normalizeSelectionSet, hoverlap] using htarget
   | case6 parentType rest condition directives children hoverlap hrest =>
-      intro sources hobject hfree hready hsource target htarget
-      apply hrest sources hobject (selectionSetDirectiveFree_tail hfree)
+      intro sources hshapes hobject hfree hready hsource target htarget
+      apply hrest sources hshapes.2 hobject (selectionSetDirectiveFree_tail hfree)
         (selectionSetSemanticsReady_tail hready) (runtimeMergeSources_tail hsource) target
       simpa [normalizeSelectionSet, hoverlap] using htarget
 
 theorem normalizeSelectionSet_fieldsForNameCanMerge (schema : Schema)
     (hschema : SchemaWellFormedness.schemaWellFormed schema) {leftType rightType : Name}
     {selectionSet : List Selection} {sources : List FieldMerge.ScopedField}
-    {left right : FieldMerge.ScopedField} (hleftObject : schema.objectType leftType)
+    {left right : FieldMerge.ScopedField}
+    (hshapes : selectionSetFieldsSameOutputShape schema selectionSet)
+    (hleftObject : schema.objectType leftType)
     (hrightObject : schema.objectType rightType)
     (hfree : selectionSetDirectiveFree selectionSet)
     (hleftReady : selectionSetSemanticsReady schema leftType selectionSet)
@@ -197,9 +206,9 @@ theorem normalizeSelectionSet_fieldsForNameCanMerge (schema : Schema)
     (hresponse : left.responseName = right.responseName)
     : FieldMerge.fieldsForNameCanMerge schema left right := by
   rcases normalizeSelectionSet_fieldProjection schema hschema leftType selectionSet sources
-    hleftObject hfree hleftReady hleftSource left hleft with ⟨leftGroup, hleftSubset, hleft⟩
+    hshapes hleftObject hfree hleftReady hleftSource left hleft with ⟨leftGroup, hleftSubset, hleft⟩
   rcases normalizeSelectionSet_fieldProjection schema hschema rightType selectionSet sources
-    hrightObject hfree hrightReady hrightSource right hright with ⟨rightGroup, hrightSubset, hright⟩
+    hshapes hrightObject hfree hrightReady hrightSource right hright with ⟨rightGroup, hrightSubset, hright⟩
   apply FieldProjection.canMerge schema left right hleft hright hresponse
   intro sourceLeft hsourceLeft sourceRight hsourceRight hsourceResponse
   have hsubset : leftGroup ++ rightGroup ⊆ sources := by
@@ -211,6 +220,7 @@ theorem normalizeSelectionSet_fieldsForNameCanMerge (schema : Schema)
 theorem normalizeSelectionSet_fieldsInSetCanMerge
     (schema : Schema) (hschema : SchemaWellFormedness.schemaWellFormed schema)
     {parentType : Name} {selectionSet : List Selection}
+    (hshapes : selectionSetFieldsSameOutputShape schema selectionSet)
     (hobject : schema.objectType parentType)
     (hfree : selectionSetDirectiveFree selectionSet)
     (hready : selectionSetSemanticsReady schema parentType selectionSet)
@@ -221,7 +231,7 @@ theorem normalizeSelectionSet_fieldsInSetCanMerge
   refine .intro parentType _ ?_
   dsimp
   intro left hleft right hright hresponse
-  exact normalizeSelectionSet_fieldsForNameCanMerge schema hschema hobject hobject hfree
+  exact normalizeSelectionSet_fieldsForNameCanMerge schema hschema hshapes hobject hobject hfree
     hready hready hsource hsource hleft hright hresponse
 
 end GraphQL.NormalForm.GroundTypeNormalization

@@ -84,17 +84,17 @@ theorem completeNormalizeOperation_uniqueUpToReordering
     {schema : Schema} {left right : Operation}
     : completeNormalizeOperationUniqueUpToReordering schema left right := by
   intro hschema hleftValid hrightValid hleftFields hrightFields
-    hleftBoolFeasible hrightBoolFeasible hdefinitions hvariables hsem
+    hleftShapes hrightShapes hleftBoolFeasible hrightBoolFeasible hdefinitions hvariables hsem
   have hleftNormalizedValid :
       Validation.operationDefinitionValid schema
         (completeNormalizeOperation schema left) :=
     completeNormalizeOperation_valid schema left hschema hleftValid
-      hleftFields hleftBoolFeasible
+      hleftFields hleftShapes hleftBoolFeasible
   have hrightNormalizedValid :
       Validation.operationDefinitionValid schema
         (completeNormalizeOperation schema right) :=
     completeNormalizeOperation_valid schema right hschema hrightValid
-      hrightFields hrightBoolFeasible
+      hrightFields hrightShapes hrightBoolFeasible
   have hleftNormalizedNormal :
       completeNormalOperation schema
         (completeNormalizeOperation schema left) :=

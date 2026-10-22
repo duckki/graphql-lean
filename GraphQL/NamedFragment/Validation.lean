@@ -324,9 +324,7 @@ mutual
   inductive SameResponseShape (schema : Schema) (fragments : List FragmentDefinition)
       : ScopedField -> ScopedField -> Prop where
     | intro (left right : ScopedField)
-      (htypes
-        : GraphQL.SchemaWellFormedness.sameTypeShape schema left.outputType
-            right.outputType)
+      (htypes : GraphQL.FieldMerge.sameTypeShape schema left.outputType right.outputType)
       (hsubfields
         : schema.isCompositeType left.outputType.namedType
           -> schema.isCompositeType right.outputType.namedType

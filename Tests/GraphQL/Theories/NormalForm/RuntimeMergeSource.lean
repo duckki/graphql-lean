@@ -24,13 +24,14 @@ theorem declaredReturnScope_normalizationSnapshot
 
 theorem declaredReturnScope_normalizedCanMerge
     (hschema : SchemaWellFormedness.schemaWellFormed returnScopeSchema)
+    (hshapes : operationFieldsSameOutputShape returnScopeSchema returnScopeQuery)
     : FieldMerge.fieldsInSetCanMerge returnScopeSchema "Query"
         (normalizeSelectionSet returnScopeSchema "Query"
           returnScopeQuery.selectionSet) := by
   have hobject : returnScopeSchema.objectType "Query" :=
     ⟨{ name := "Query", fields := [{ name := "user", outputType := .named "User" }] }, rfl⟩
   apply GroundTypeNormalization.normalizeSelectionSet_fieldsInSetCanMerge
-    returnScopeSchema hschema hobject
+    returnScopeSchema hschema hshapes hobject
   · simp [returnScopeQuery, directName, fragmentName, selectionSetDirectiveFree,
       selectionDirectiveFree]
   · exact selectionSetSemanticsReady_of_selectionSetValid_object returnScopeSchema [] "Query"

@@ -2,5 +2,6 @@ import Tests.GraphQL.Theories.NormalForm.GroundTypeNormalization
 import Tests.GraphQL.Theories.NormalForm.CompleteNormalization
 import Tests.GraphQL.Theories.NormalForm.ArgumentCoercibility
 import Tests.GraphQL.Theories.NormalForm.RuntimeMergeSource
+import Tests.GraphQL.Theories.NormalForm.OutputCovariance
 import Tests.GraphQL.Theories.NormalForm.GroundTypeNormalization.Variables
 import Tests.GraphQL.Theories.NormalForm.CompleteNormalization.FilterMerge

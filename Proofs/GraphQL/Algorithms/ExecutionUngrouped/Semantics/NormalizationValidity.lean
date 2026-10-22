@@ -17,6 +17,7 @@ theorem completeNormalizationPreservesUngroupedExecution_of_normalizeOperation
     : SchemaWellFormedness.schemaWellFormed schema
       -> Validation.operationDefinitionValid schema operation
       -> NormalForm.operationFieldsValidInPossibleTypes schema operation
+      -> NormalForm.operationFieldsSameOutputShape schema operation
       -> NormalForm.operationDirectiveFree operation
       -> NormalForm.selectionSetsTypeConditionFeasibleInEveryNormalizerScope schema
       -> Validation.operationVariablesUsed
@@ -26,7 +27,7 @@ theorem completeNormalizationPreservesUngroupedExecution_of_normalizeOperation
           = executeQueryWithFuel schema resolvers variableValues
               (NormalForm.completeNormalizeOperation schema
                 (NormalForm.normalizeOperation schema operation)) depth source := by
-  intro hschema hvalid hfields hfree hfeasibleAll hvariablesUsed
+  intro hschema hvalid hfields hshapes hfree hfeasibleAll hvariablesUsed
   have hrootObject : schema.objectType (operation.rootType schema) := by
     have hrootEq := Validation.operationDefinitionValid_rootType_eq hvalid
     rw [hrootEq]
@@ -48,7 +49,7 @@ theorem completeNormalizationPreservesUngroupedExecution_of_normalizeOperation
       Validation.operationDefinitionValid schema
         (NormalForm.normalizeOperation schema operation) :=
     NormalForm.GroundTypeNormalization.normalizeOperation_valid_of_operationFieldsValid schema
-      operation hschema hvalid hfields hfree hfeasibleAll hnormalizedNonempty
+      operation hschema hvalid hfields hshapes hfree hfeasibleAll hnormalizedNonempty
       hvariablesUsed
   have hnormalizedFree :
       NormalForm.operationDirectiveFree
@@ -74,6 +75,7 @@ theorem normalizeThenCompleteUngroupedExecution_semanticsPreserved
     : SchemaWellFormedness.schemaWellFormed schema
       -> Validation.operationDefinitionValid schema operation
       -> NormalForm.operationFieldsValidInPossibleTypes schema operation
+      -> NormalForm.operationFieldsSameOutputShape schema operation
       -> NormalForm.operationDirectiveFree operation
       -> NormalForm.selectionSetsTypeConditionFeasibleInEveryNormalizerScope schema
       -> Validation.operationVariablesUsed
@@ -83,7 +85,7 @@ theorem normalizeThenCompleteUngroupedExecution_semanticsPreserved
               (NormalForm.normalizeOperation schema operation)) depth source
           = Execution.executeQueryWithFuel schema resolvers variableValues operation
               depth source := by
-  intro hschema hvalid hfields hfree hfeasibleAll hvariablesUsed
+  intro hschema hvalid hfields hshapes hfree hfeasibleAll hvariablesUsed
   have hrootObject : schema.objectType (operation.rootType schema) := by
     have hrootEq := Validation.operationDefinitionValid_rootType_eq hvalid
     rw [hrootEq]
@@ -105,7 +107,7 @@ theorem normalizeThenCompleteUngroupedExecution_semanticsPreserved
       Validation.operationDefinitionValid schema
         (NormalForm.normalizeOperation schema operation) :=
     NormalForm.GroundTypeNormalization.normalizeOperation_valid_of_operationFieldsValid schema
-      operation hschema hvalid hfields hfree hfeasibleAll hnormalizedNonempty
+      operation hschema hvalid hfields hshapes hfree hfeasibleAll hnormalizedNonempty
       hvariablesUsed
   have hnormalizedFree :
       NormalForm.operationDirectiveFree

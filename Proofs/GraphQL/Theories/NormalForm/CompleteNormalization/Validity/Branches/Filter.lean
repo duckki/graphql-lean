@@ -4281,7 +4281,8 @@ theorem normalizeSelectionSet_normalizedValid_of_filteredCurrentSource
     (hschema : SchemaWellFormedness.schemaWellFormed schema)
     : ∀ parentType selectionSet,
       ∀ typeConditions,
-        schema.objectType parentType
+        selectionSetFieldsSameOutputShape schema selectionSet
+        -> schema.objectType parentType
         -> GroundTypeNormalization.objectSatisfiesTypeConditionStack schema
             parentType typeConditions
         -> parentType ∈ typeConditions
@@ -4300,14 +4301,14 @@ theorem normalizeSelectionSet_normalizedValid_of_filteredCurrentSource
   intro parentType selectionSet
   induction parentType, selectionSet using normalizeSelectionSet.induct schema with
   | case1 parentType =>
-      intro _typeConditions _hobject _hstack _hparent _hready _hsource
+      intro _typeConditions _hshapes _hobject _hstack _hparent _hready _hsource
         _hreturnLookup _hmerge _hfree _hfeasible _hnonempty
       simpa [normalizeSelectionSet]
         using GroundTypeNormalization.normalizedSelectionSetValid_nil schema
           variableDefinitions parentType
   | case2 parentType rest responseName fieldName arguments directives
       subselections hlookup hrest =>
-      intro typeConditions hobject hstack hparent hready hsource hreturnLookup
+      intro typeConditions hshapes hobject hstack hparent hready hsource hreturnLookup
         hmerge hfree hfeasible hnonempty
       have htailSource :
           selectionSetFilteredCurrentSourceValid schema variableDefinitions
@@ -4368,14 +4369,17 @@ theorem normalizeSelectionSet_normalizedValid_of_filteredCurrentSource
         selectionSetFilteredCompositeChildrenNonempty_withoutFieldSelectionsWithResponseName
           schema responseName parentType typeConditions rest htailNonempty
       simpa [normalizeSelectionSet, hlookup]
-        using hrest typeConditions hobject hstack hparent hfilteredReady hfilteredSource
-          hfilteredReturnLookup hfilteredMerge hfilteredFree hfilteredFeasible
-          hfilteredNonempty
+        using hrest typeConditions
+          (selectionSetFieldsSameOutputShape_without schema _ _ hshapes.2) hobject hstack
+          hparent hfilteredReady hfilteredSource hfilteredReturnLookup hfilteredMerge
+          hfilteredFree hfilteredFeasible hfilteredNonempty
   | case3 parentType rest responseName fieldName arguments directives
       subselections fieldDefinition hlookup matching mergedSubselections
       returnType hrest hmerged hpossible =>
-      intro typeConditions hobject hstack hparent hready hsource hreturnLookup
+      intro typeConditions hshapes hobject hstack hparent hready hsource hreturnLookup
         hmerge hfree hfeasible hnonempty
+      have hmergedShapes : selectionSetFieldsSameOutputShape schema mergedSubselections :=
+        selectionSetFieldsSameOutputShape_merged schema hshapes
       let normalizedSubselections :=
         if objectTypeNameBool schema returnType then
           normalizeSelectionSet schema returnType mergedSubselections
@@ -4453,7 +4457,8 @@ theorem normalizeSelectionSet_normalizedValid_of_filteredCurrentSource
             variableDefinitions parentType
             (normalizeSelectionSet schema parentType
               (withoutFieldSelectionsWithResponseName schema responseName rest)) :=
-        hrest typeConditions hobject hstack hparent hfilteredReady hfilteredSource
+        hrest typeConditions (selectionSetFieldsSameOutputShape_without schema _ _ hshapes.2)
+          hobject hstack hparent hfilteredReady hfilteredSource
           hfilteredReturnLookup hfilteredMerge hfilteredFree hfilteredFeasible
           hfilteredNonempty
       have hlookupValid :
@@ -4569,7 +4574,7 @@ theorem normalizeSelectionSet_normalizedValid_of_filteredCurrentSource
                 mergedSubselections :=
             runtimeMergeSource_fieldHead_semanticsReady schema hmerge hready hlookup (by simpa [returnType] using hinclude)
           simpa [hreturnObject]
-            using hmerged [returnType] hreturnObjectType
+            using hmerged [returnType] hmergedShapes hreturnObjectType
               (GroundTypeNormalization.objectSatisfiesTypeConditionStack_singleton_of_object_forValidity
                 schema hreturnObjectType)
               (by simp) hchildReady
@@ -4627,7 +4632,7 @@ theorem normalizeSelectionSet_normalizedValid_of_filteredCurrentSource
                 selectionSetSemanticsReady schema objectType
                   mergedSubselections :=
               runtimeMergeSource_fieldHead_semanticsReady schema hmerge hready hlookup (by simpa [returnType] using hinclude)
-            exact hpossible objectType [objectType] hobjectBranch
+            exact hpossible objectType [objectType] hmergedShapes hobjectBranch
               (GroundTypeNormalization.objectSatisfiesTypeConditionStack_singleton_of_object_forValidity
                 schema hobjectBranch)
               (by simp)
@@ -4643,6 +4648,7 @@ theorem normalizeSelectionSet_normalizedValid_of_filteredCurrentSource
               (sources := fieldProjectionChildren schema
                 (runtimeMergeParentSources schema parentType responseName sources))
               schema hschema
+            · exact hmergedShapes
             · intro objectType hobjectType
               exact SchemaWellFormedness.schemaWellFormed_possibleTypesAreObjects
                 hschema returnType objectType hobjectType
@@ -4719,7 +4725,7 @@ theorem normalizeSelectionSet_normalizedValid_of_filteredCurrentSource
                 runtimeMergeSource schema branchType
                   mergedSubselections :=
               runtimeMergeSource_fieldHead_merged schema hschema hmerge hlookup hinclude
-            exact hpossible branchType [branchType] hbranchObject
+            exact hpossible branchType [branchType] hmergedShapes hbranchObject
               (GroundTypeNormalization.objectSatisfiesTypeConditionStack_singleton_of_object_forValidity
                 schema hbranchObject)
               (by simp)
@@ -4945,7 +4951,7 @@ theorem normalizeSelectionSet_normalizedValid_of_filteredCurrentSource
           apply fieldsInSetCanMerge_field_cons_of_rest_responseNameFree
           · exact hschema
           · exact hlookup
-          · exact SchemaWellFormedness.sameTypeShape_refl schema
+          · exact FieldMerge.sameTypeShape_refl schema
               fieldDefinition.outputType
               (SchemaWellFormedness.schemaWellFormed_lookupField_outputType
                 hschema hlookup)
@@ -4978,7 +4984,7 @@ theorem normalizeSelectionSet_normalizedValid_of_filteredCurrentSource
             (withoutFieldSelectionsWithResponseName schema responseName rest)))
       exact hfinal
   | case4 parentType rest directives subselections happend =>
-      intro typeConditions hobject hstack hparent hready hsource hreturnLookup
+      intro typeConditions hshapes hobject hstack hparent hready hsource hreturnLookup
         hmerge hfree hfeasible hnonempty
       have hselectionFree :=
         selectionSetDirectiveFree_head hfree
@@ -5058,12 +5064,13 @@ theorem normalizeSelectionSet_normalizedValid_of_filteredCurrentSource
         selectionSetFilteredCompositeChildrenNonempty_append hbodyNonempty
           htailNonempty
       simpa [normalizeSelectionSet]
-        using happend typeConditions hobject hstack hparent hbodyTailReady
-          hbodyTailSource hbodyTailReturnLookup hbodyTailMerge
+        using happend typeConditions
+          (selectionSetFieldsSameOutputShape_append hshapes.1 hshapes.2) hobject hstack
+          hparent hbodyTailReady hbodyTailSource hbodyTailReturnLookup hbodyTailMerge
           hbodyTailFree hbodyTailFeasible hbodyTailNonempty
   | case5 parentType rest typeCondition directives subselections hoverlap
       _hrest happend =>
-      intro typeConditions hobject hstack hparent hready hsource hreturnLookup
+      intro typeConditions hshapes hobject hstack hparent hready hsource hreturnLookup
         hmerge hfree hfeasible hnonempty
       have hselectionFree :=
         selectionSetDirectiveFree_head hfree
@@ -5191,13 +5198,14 @@ theorem normalizeSelectionSet_normalizedValid_of_filteredCurrentSource
         selectionSetFilteredCompositeChildrenNonempty_append hbodyNonempty
           htailNonemptyInBodyStack
       simpa [normalizeSelectionSet, hoverlap]
-        using happend (typeCondition :: typeConditions) hobject hstackBody
-          (List.mem_cons_of_mem typeCondition hparent)
-          hbodyTailReady hbodyTailSource hbodyTailReturnLookup
-          hbodyTailMerge hbodyTailFree hbodyTailFeasible hbodyTailNonempty
+        using happend (typeCondition :: typeConditions)
+          (selectionSetFieldsSameOutputShape_append hshapes.1 hshapes.2) hobject
+          hstackBody (List.mem_cons_of_mem typeCondition hparent) hbodyTailReady
+          hbodyTailSource hbodyTailReturnLookup hbodyTailMerge hbodyTailFree
+          hbodyTailFeasible hbodyTailNonempty
   | case6 parentType rest typeCondition directives subselections hoverlap
       hrest =>
-      intro typeConditions hobject hstack hparent hready hsource hreturnLookup
+      intro typeConditions hshapes hobject hstack hparent hready hsource hreturnLookup
         hmerge hfree hfeasible hnonempty
       have htailReady :=
         selectionSetSemanticsReady_tail hready
@@ -5223,7 +5231,7 @@ theorem normalizeSelectionSet_normalizedValid_of_filteredCurrentSource
         · rfl
         · contradiction
       simpa [normalizeSelectionSet, hfalse]
-        using hrest typeConditions hobject hstack hparent htailReady htailSource
+        using hrest typeConditions hshapes.2 hobject hstack hparent htailReady htailSource
           htailReturnLookup htailMerge htailFree htailFeasible
           htailNonempty
 
@@ -5242,7 +5250,8 @@ theorem normalizeSelectionSet_filterSelectionSetBoolCase_normalizedValid
     (hschema : SchemaWellFormedness.schemaWellFormed schema)
     (parentType : Name) (selectionSet : List Selection)
     (boolCase : BoolCase)
-    : schema.objectType parentType
+    : selectionSetFieldsSameOutputShape schema selectionSet
+      -> schema.objectType parentType
       -> selectionSetSemanticsReady schema parentType selectionSet
       -> Validation.selectionSetValidInPossibleTypes schema variableDefinitions
           parentType selectionSet
@@ -5254,7 +5263,7 @@ theorem normalizeSelectionSet_filterSelectionSetBoolCase_normalizedValid
           variableDefinitions parentType
           (normalizeSelectionSet schema parentType
             (filterSelectionSetBoolCase boolCase selectionSet)) := by
-  intro hobject hready himplementation hmerge hdeclared hboolFeasible
+  intro hshapes hobject hready himplementation hmerge hdeclared hboolFeasible
   have hfilteredReady :
       selectionSetSemanticsReady schema parentType
         (filterSelectionSetBoolCase boolCase selectionSet) :=
@@ -5299,7 +5308,8 @@ theorem normalizeSelectionSet_filterSelectionSetBoolCase_normalizedValid
       hobject selectionSet himplementation hboolFeasible
   exact normalizeSelectionSet_normalizedValid_of_filteredCurrentSource schema
     variableDefinitions hschema parentType
-    (filterSelectionSetBoolCase boolCase selectionSet) [parentType] hobject
+    (filterSelectionSetBoolCase boolCase selectionSet) [parentType]
+    (selectionSetFieldsSameOutputShape_filter schema boolCase _ hshapes) hobject
     (GroundTypeNormalization.objectSatisfiesTypeConditionStack_singleton_of_object_forValidity
       schema hobject)
     (by simp) hfilteredReady hfilteredSource hfilteredReturnLookup hfilteredRuntime
@@ -5384,6 +5394,7 @@ theorem completeNormalizeBranches_selectionSetValid_of_normalizedBranches
 theorem completeNormalizeBranches_selectionSetValid
     (schema : Schema) (operation : Operation)
     (hschema : SchemaWellFormedness.schemaWellFormed schema)
+    (hshapes : operationFieldsSameOutputShape schema operation)
     (hoperation : Validation.operationDefinitionValid schema operation)
     (hrootObject : schema.objectType (operation.rootType schema))
     (hready
@@ -5422,7 +5433,7 @@ theorem completeNormalizeBranches_selectionSetValid
           exact normalizeSelectionSet_filterSelectionSetBoolCase_normalizedValid
             schema operation.variableDefinitions hschema
             (operation.rootType schema) operation.selectionSet boolCase
-            hrootObject hready
+            hshapes hrootObject hready
             himplementation hmerge
             (selectionSetDeclaredLookupReady_of_valid schema operation.variableDefinitions
               (operation.rootType schema) operation.selectionSet
@@ -5495,6 +5506,7 @@ theorem completeNormalizeBranches_validInPossibleTypes_of_normalizedBranches
 theorem completeNormalizeBranches_validInPossibleTypes
     (schema : Schema) (operation : Operation)
     (hschema : SchemaWellFormedness.schemaWellFormed schema)
+    (hshapes : operationFieldsSameOutputShape schema operation)
     (hrootObject : schema.objectType (operation.rootType schema))
     (hready
       : selectionSetSemanticsReady schema (operation.rootType schema)
@@ -5533,7 +5545,7 @@ theorem completeNormalizeBranches_validInPossibleTypes
           exact normalizeSelectionSet_filterSelectionSetBoolCase_normalizedValid
             schema operation.variableDefinitions hschema
             (operation.rootType schema) operation.selectionSet boolCase
-            hrootObject hready
+            hshapes hrootObject hready
             himplementation hmerge hdeclared
             (hboolFeasibleCases boolCase hcase))
 

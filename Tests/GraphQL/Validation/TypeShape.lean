@@ -1,8 +1,8 @@
-import Proofs.GraphQL.SchemaWellFormedness.TypeShape
+import Proofs.GraphQL.Validation.TypeShape
 
-namespace GraphQL.Tests.SchemaWellFormedness.TypeShape
+namespace GraphQL.Tests.Validation.TypeShape
 
-open GraphQL.SchemaWellFormedness
+open GraphQL.FieldMerge
 
 private def schema : Schema :=
   { queryType := "Query", types := [] }
@@ -35,4 +35,4 @@ theorem shapeTransitivity (left middle right : TypeRef)
     : sameTypeShape schema left right :=
   sameTypeShape_trans schema left middle right hleft hright
 
-end GraphQL.Tests.SchemaWellFormedness.TypeShape
+end GraphQL.Tests.Validation.TypeShape

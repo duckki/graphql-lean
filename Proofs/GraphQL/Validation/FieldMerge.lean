@@ -1,5 +1,5 @@
 import GraphQL.Validation
-import Proofs.GraphQL.SchemaWellFormedness.TypeShape
+import Proofs.GraphQL.Validation.TypeShape
 
 /-!
 Facts for same-response-name field merge validation.
@@ -25,7 +25,7 @@ theorem fieldsInSetCanMerge_pair
 
 theorem fieldsForNameCanMerge_sameTypeShape {schema : Schema} {left right : ScopedField}
     : fieldsForNameCanMerge schema left right
-      -> SchemaWellFormedness.sameTypeShape schema left.outputType right.outputType := by
+      -> FieldMerge.sameTypeShape schema left.outputType right.outputType := by
   intro hmerge
   unfold fieldsForNameCanMerge at hmerge
   cases hmerge with
@@ -134,14 +134,14 @@ theorem sameResponseShape_symm {schema : Schema} {left right : ScopedField}
     : sameResponseShape schema right left := by
   cases hshape with
   | intro _ _ htypes hchildren =>
-      refine .intro _ _ (SchemaWellFormedness.sameTypeShape_symm schema _ _ htypes) ?_
+      refine .intro _ _ (FieldMerge.sameTypeShape_symm schema _ _ htypes) ?_
       intro hright hleft subLeft hsubLeft subRight hsubRight hresponse
       exact hchildren hleft hright subLeft (collectSubfields_swap_mem.mp hsubLeft)
         subRight (collectSubfields_swap_mem.mp hsubRight) hresponse
 
 theorem sameResponseShape_sameTypeShape {schema : Schema} {left right : ScopedField}
     (hshape : sameResponseShape schema left right)
-    : SchemaWellFormedness.sameTypeShape schema left.outputType right.outputType := by
+    : FieldMerge.sameTypeShape schema left.outputType right.outputType := by
   cases hshape with
   | intro _ _ htypes _ => exact htypes
 
@@ -505,7 +505,7 @@ theorem fieldsInSetCanMerge_transport
       _ _ hleft hright
 
 theorem fieldsForNameCanMerge_self_of_children {schema : Schema} {field : ScopedField}
-    (htype : SchemaWellFormedness.sameTypeShape schema field.outputType field.outputType)
+    (htype : FieldMerge.sameTypeShape schema field.outputType field.outputType)
     (harguments : Argument.argumentsEquivalent field.arguments field.arguments)
     (hchildren
       : fieldsInSetCanMerge schema field.outputType.namedType

@@ -36,6 +36,8 @@ theorem fieldsInSetCanMerge_of_fieldProjectionSources_forValidity
 theorem normalizeSelectionSets_fieldsInSetCanMerge_of_declaredSources
     (schema : Schema) (hschema : SchemaWellFormedness.schemaWellFormed schema)
     {parentType : Name} {leftSet rightSet : List Selection}
+    (hleftShapes : selectionSetFieldsSameOutputShape schema leftSet)
+    (hrightShapes : selectionSetFieldsSameOutputShape schema rightSet)
     (hobject : schema.objectType parentType)
     (hleftFree : selectionSetDirectiveFree leftSet)
     (hrightFree : selectionSetDirectiveFree rightSet)
@@ -65,8 +67,8 @@ theorem normalizeSelectionSets_fieldsInSetCanMerge_of_declaredSources
   rw [FieldMerge.collectFields_append] at htarget
   rcases List.mem_append.mp htarget with htarget | htarget
   · exact GroundTypeNormalization.normalizeSelectionSet_fieldProjection schema hschema
-      parentType leftSet _ hobject hleftFree hleftReady hleftSource target htarget
+      parentType leftSet _ hleftShapes hobject hleftFree hleftReady hleftSource target htarget
   · exact GroundTypeNormalization.normalizeSelectionSet_fieldProjection schema hschema
-      parentType rightSet _ hobject hrightFree hrightReady hrightSource target htarget
+      parentType rightSet _ hrightShapes hobject hrightFree hrightReady hrightSource target htarget
 
 end GraphQL.NormalForm.CompleteNormalization

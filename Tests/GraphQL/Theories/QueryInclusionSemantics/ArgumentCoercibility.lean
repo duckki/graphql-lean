@@ -157,10 +157,6 @@ private theorem concreteImplementsSelf
   · simp [SchemaWellFormedness.argumentDefinitionsImplement,
       Schema.lookupArgumentDefinition, concreteField, concreteArg]
 
-private theorem stringSameShape
-    : SchemaWellFormedness.sameTypeShape exampleSchema (.named "String")
-        (.named "String") := by exact ⟨stringOutput, stringOutput, by intro _; rfl⟩
-
 private theorem interfaceTypeWellFormed
     : SchemaWellFormedness.interfaceTypeWellFormed exampleSchema interfaceType := by
   constructor
@@ -238,7 +234,7 @@ private theorem possibleObjectFieldsImplement
       have hexpected : expected = interfaceField := by
         simpa using hlookup.symm
       subst expected
-      exact ⟨concreteField, by rfl, concreteImplementsInterface, stringSameShape⟩
+      exact ⟨concreteField, by rfl, concreteImplementsInterface⟩
     · simp [hfield] at hlookup
   by_cases hQ : parentType = "Query"
   · subst parentType
@@ -251,7 +247,7 @@ private theorem possibleObjectFieldsImplement
       have hexpected : expected = concreteField := by
         simpa using hlookup.symm
       subst expected
-      exact ⟨concreteField, by rfl, concreteImplementsSelf, stringSameShape⟩
+      exact ⟨concreteField, by rfl, concreteImplementsSelf⟩
     · simp [hfield] at hlookup
   have hfalse : exampleSchema.getPossibleTypes parentType = [] := by
     rw [hparent]
@@ -359,7 +355,7 @@ private theorem operationValid (responseName : Name)
     subst right
     refine FieldMerge.FieldsForNameCanMerge.intro _ _ ?_ ?_ ?_
     · refine .intro _ _ ?_ ?_
-      · change SchemaWellFormedness.sameTypeShape exampleSchema (.named "String") (.named "String")
+      · change FieldMerge.sameTypeShape exampleSchema (.named "String") (.named "String")
         exact ⟨⟨.builtinScalar .string, rfl, trivial⟩,
           ⟨.builtinScalar .string, rfl, trivial⟩, by intro _; rfl⟩
       · intro _ _ child hchild

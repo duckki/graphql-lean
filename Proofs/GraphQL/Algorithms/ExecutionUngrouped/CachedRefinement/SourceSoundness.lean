@@ -338,8 +338,7 @@ theorem completeValue_fresh_result_previousCacheSound {ObjectRef : Type}
     (schema : Schema) (resolvers : Resolvers ObjectRef)
     (variableValues : VariableValues) (parentType : Name)
     : ∀ fuel fieldType selectionSet value parentSource fieldDefinition field,
-        GraphQL.SchemaWellFormedness.sameTypeShape schema fieldType
-          fieldDefinition.outputType
+        GraphQL.FieldMerge.sameTypeShape schema fieldType fieldDefinition.outputType
         -> coerceAndResolveFieldValue schema resolvers variableValues fieldDefinition
               parentType field.fieldName field.arguments parentSource
             = some value
@@ -359,10 +358,10 @@ theorem completeValue_fresh_result_previousCacheSound {ObjectRef : Type}
           let innerDefinition : FieldDefinition :=
             { fieldDefinition with outputType := laterInner }
           have hinnerShape :
-              GraphQL.SchemaWellFormedness.sameTypeShape schema inner
+              GraphQL.FieldMerge.sameTypeShape schema inner
                 innerDefinition.outputType := by
             simpa [innerDefinition, hfieldType,
-              GraphQL.SchemaWellFormedness.sameTypeShape] using hshape
+              GraphQL.FieldMerge.sameTypeShape] using hshape
           have hinner :=
             completeValue_fresh_result_previousCacheSound schema resolvers
               variableValues parentType (fuel + 1) inner selectionSet value parentSource
@@ -388,9 +387,9 @@ theorem completeValue_fresh_result_previousCacheSound {ObjectRef : Type}
                 selectionSet value none)
               hsoundForOuter
       | named name =>
-          simp [hfieldType, GraphQL.SchemaWellFormedness.sameTypeShape] at hshape
+          simp [hfieldType, GraphQL.FieldMerge.sameTypeShape] at hshape
       | list inner =>
-          simp [hfieldType, GraphQL.SchemaWellFormedness.sameTypeShape] at hshape
+          simp [hfieldType, GraphQL.FieldMerge.sameTypeShape] at hshape
   | fuel + 1, .named typeName, selectionSet, value, parentSource,
     fieldDefinition, field, hshape, hresolve => by
       cases value with
@@ -555,7 +554,7 @@ theorem executeField_none_result_previousCacheSound_of_sameTypeShape
     (firstDefinition laterDefinition : FieldDefinition)
     : schema.lookupField parentType first.fieldName = some firstDefinition
       -> schema.lookupField parentType later.fieldName = some laterDefinition
-      -> GraphQL.SchemaWellFormedness.sameTypeShape schema firstDefinition.outputType
+      -> GraphQL.FieldMerge.sameTypeShape schema firstDefinition.outputType
           laterDefinition.outputType
       -> coerceAndResolveFieldValue schema resolvers variableValues firstDefinition
             parentType first.fieldName first.arguments source
@@ -1081,7 +1080,7 @@ theorem executableFields_sameTypeShape_of_fieldCompatible
       -> (responseName, later) ∈ fields
       -> schema.lookupField parentType first.fieldName = some firstDefinition
       -> schema.lookupField parentType later.fieldName = some laterDefinition
-      -> GraphQL.SchemaWellFormedness.sameTypeShape schema firstDefinition.outputType
+      -> GraphQL.FieldMerge.sameTypeShape schema firstDefinition.outputType
           laterDefinition.outputType := by
   intro hcompatible hfirst hlater hlookupFirst hlookupLater
   have hfieldEq : first.fieldName = later.fieldName :=
@@ -1093,7 +1092,7 @@ theorem executableFields_sameTypeShape_of_fieldCompatible
   rw [hlookupFirst] at hlookupLaterAtFirst
   injection hlookupLaterAtFirst with hdefinitionEq
   subst laterDefinition
-  exact GraphQL.SchemaWellFormedness.sameTypeShape_refl schema firstDefinition.outputType
+  exact GraphQL.FieldMerge.sameTypeShape_refl schema firstDefinition.outputType
     (SchemaWellFormedness.schemaWellFormed_lookupField_outputType hschema
       hlookupFirst)
 

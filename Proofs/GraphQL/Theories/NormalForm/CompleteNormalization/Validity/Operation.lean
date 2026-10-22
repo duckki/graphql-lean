@@ -69,6 +69,7 @@ theorem completeNormalizeRootSelectionSet_selectionSetValid
               operation.selectionSet)
     (hoperation : Validation.operationDefinitionValid schema operation)
     (hfields : operationFieldsValidInPossibleTypes schema operation)
+    (hshapes : operationFieldsSameOutputShape schema operation)
     : Validation.selectionSetValid schema operation.variableDefinitions
         (operation.rootType schema)
         (completeNormalizeRootSelectionSet schema (operationBoolVars operation)
@@ -89,7 +90,7 @@ theorem completeNormalizeRootSelectionSet_selectionSetValid
     Validation.operationDefinitionValid_fieldsInSetCanMerge hoperation
   rw [completeNormalizeRootSelectionSet_eq_flatten schema
     (operationBoolVars operation) (operation.rootType schema) operation.selectionSet]
-  exact completeNormalizeBranches_selectionSetValid schema operation hschema
+  exact completeNormalizeBranches_selectionSetValid schema operation hschema hshapes
     hoperation hrootObject hready himplementation hmerge
     (allBoolCases (operationBoolVars operation))
     (by intro boolCase hcase; exact hcase)
@@ -101,6 +102,7 @@ theorem completeNormalizeRootSelectionSet_selectionSetValid_of_boolTypeFeasible
     (hboolFeasible : operationBoolTypeConditionFeasible schema operation)
     (hoperation : Validation.operationDefinitionValid schema operation)
     (hfields : operationFieldsValidInPossibleTypes schema operation)
+    (hshapes : operationFieldsSameOutputShape schema operation)
     : Validation.selectionSetValid schema operation.variableDefinitions
         (operation.rootType schema)
         (completeNormalizeRootSelectionSet schema (operationBoolVars operation)
@@ -121,7 +123,7 @@ theorem completeNormalizeRootSelectionSet_selectionSetValid_of_boolTypeFeasible
     Validation.operationDefinitionValid_fieldsInSetCanMerge hoperation
   rw [completeNormalizeRootSelectionSet_eq_flatten schema
     (operationBoolVars operation) (operation.rootType schema) operation.selectionSet]
-  exact completeNormalizeBranches_selectionSetValid schema operation hschema
+  exact completeNormalizeBranches_selectionSetValid schema operation hschema hshapes
     hoperation hrootObject hready himplementation hmerge
     (allBoolCases (operationBoolVars operation))
     (by intro boolCase hcase; exact hcase)
@@ -234,6 +236,7 @@ theorem completeNormalizedBoolCaseBranchesFieldsCanMerge_of_boolTypeFeasible
     : SchemaWellFormedness.schemaWellFormed schema
       -> Validation.operationDefinitionValid schema operation
       -> operationFieldsValidInPossibleTypes schema operation
+      -> operationFieldsSameOutputShape schema operation
       -> operationBoolTypeConditionFeasible schema operation
       -> ∀ leftCase,
           leftCase ∈ allBoolCases (operationBoolVars operation)
@@ -245,7 +248,7 @@ theorem completeNormalizedBoolCaseBranchesFieldsCanMerge_of_boolTypeFeasible
                     ++ normalizeSelectionSet schema (operation.rootType schema)
                         (filterSelectionSetBoolCase rightCase
                           operation.selectionSet)) := by
-  intro hschema hoperation _hfields _hboolFeasible leftCase hleftCase
+  intro hschema hoperation _hfields hshapes _hboolFeasible leftCase hleftCase
     rightCase hrightCase
   have hrootObject := operation_root_object_of_valid hschema hoperation
   have hready := operation_selectionSetSemanticsReady_of_valid hschema hoperation
@@ -253,6 +256,8 @@ theorem completeNormalizedBoolCaseBranchesFieldsCanMerge_of_boolTypeFeasible
     operation.variableDefinitions (operation.rootType schema) operation.selectionSet
     (Validation.operationDefinitionValid_selectionSetValid hoperation)
   exact normalizeSelectionSets_fieldsInSetCanMerge_of_declaredSources schema hschema
+    (selectionSetFieldsSameOutputShape_filter schema leftCase _ hshapes)
+    (selectionSetFieldsSameOutputShape_filter schema rightCase _ hshapes)
     hrootObject
     (filterSelectionSetBoolCase_directiveFree schema leftCase operation.selectionSet)
     (filterSelectionSetBoolCase_directiveFree schema rightCase operation.selectionSet)
@@ -269,7 +274,7 @@ theorem completeNormalizedBoolCaseBranchesFieldsCanMerge_of_boolTypeFeasible
 
 theorem completeNormalizeOperation_valid (schema : Schema) (operation : Operation)
     : NormalForm.completeNormalizeOperationValid schema operation := by
-  intro hschema hoperation hfields hboolFeasible
+  intro hschema hoperation hfields hshapes hboolFeasible
   have hnormalizedNonempty :
       completeNormalizeRootSelectionSet schema
         (operationBoolVars operation) (operation.rootType schema)
@@ -286,7 +291,7 @@ theorem completeNormalizeOperation_valid (schema : Schema) (operation : Operatio
               normalizeSelectionSet schema (operation.rootType schema)
                 (filterSelectionSetBoolCase rightCase operation.selectionSet)) :=
     completeNormalizedBoolCaseBranchesFieldsCanMerge_of_boolTypeFeasible
-      schema operation hschema hoperation hfields hboolFeasible
+      schema operation hschema hoperation hfields hshapes hboolFeasible
   have hnormalizedMerge :
       FieldMerge.fieldsInSetCanMerge schema (operation.rootType schema)
         (completeNormalizeRootSelectionSet schema
@@ -315,7 +320,7 @@ theorem completeNormalizeOperation_valid (schema : Schema) (operation : Operatio
     by
       simpa [completeNormalizeOperation, Operation.rootType, OperationType.rootType]
         using completeNormalizeRootSelectionSet_selectionSetValid_of_boolTypeFeasible
-          schema operation hschema hboolFeasible hoperation hfields,
+          schema operation hschema hboolFeasible hoperation hfields hshapes,
     by
       simpa [completeNormalizeOperation, Operation.rootType, OperationType.rootType]
         using hnormalizedMerge,

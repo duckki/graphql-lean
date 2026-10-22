@@ -19,8 +19,7 @@ mutual
       (types
         : ∀ source,
             source ∈ sources
-            -> SchemaWellFormedness.sameTypeShape schema source.outputType
-                target.outputType)
+            -> FieldMerge.sameTypeShape schema source.outputType target.outputType)
       (metadata
         : ∀ source,
             source ∈ sources
@@ -57,7 +56,7 @@ theorem FieldProjection.types {schema : Schema}
     {sources : List FieldMerge.ScopedField} {target : FieldMerge.ScopedField}
     (h : FieldProjection schema sources target) {source : FieldMerge.ScopedField}
     (hsource : source ∈ sources)
-    : SchemaWellFormedness.sameTypeShape schema source.outputType target.outputType := by
+    : FieldMerge.sameTypeShape schema source.outputType target.outputType := by
   cases h with
   | intro _ h _ _ => exact h source hsource
 
@@ -190,10 +189,10 @@ theorem FieldProjection.sameResponseShape (schema : Schema)
     sourceRight (List.mem_append_right _ hsourceRight)
     ((hleft.metadata hsourceLeft).1.trans (hresponse.trans (hright.metadata hsourceRight).1.symm))
   refine .intro left right ?_ ?_
-  · exact SchemaWellFormedness.sameTypeShape_trans schema left.outputType sourceLeft.outputType
+  · exact FieldMerge.sameTypeShape_trans schema left.outputType sourceLeft.outputType
       right.outputType
-      (SchemaWellFormedness.sameTypeShape_symm schema _ _ (hleft.types hsourceLeft))
-      (SchemaWellFormedness.sameTypeShape_trans schema sourceLeft.outputType sourceRight.outputType
+      (FieldMerge.sameTypeShape_symm schema _ _ (hleft.types hsourceLeft))
+      (FieldMerge.sameTypeShape_trans schema sourceLeft.outputType sourceRight.outputType
         right.outputType (FieldMerge.sameResponseShape_sameTypeShape hsourceShape)
         (hright.types hsourceRight))
   · intro hleftComposite hrightComposite childLeft hchildLeft childRight hchildRight hchildResponse
@@ -203,9 +202,9 @@ theorem FieldProjection.sameResponseShape (schema : Schema)
         (hsource : source ∈ leftSources ++ rightSources)
         : schema.isCompositeType source.outputType.namedType := by
       rcases List.mem_append.mp hsource with hsource | hsource
-      · exact SchemaWellFormedness.sameTypeShape_composite_left schema
+      · exact FieldMerge.sameTypeShape_composite_left schema
           (hleft.types hsource) hleftComposite
-      · exact SchemaWellFormedness.sameTypeShape_composite_left schema
+      · exact FieldMerge.sameTypeShape_composite_left schema
           (hright.types hsource) hrightComposite
     have hchildSources : ∀ sourceLeft,
         sourceLeft ∈ fieldProjectionChildren schema (leftSources ++ rightSources) ->

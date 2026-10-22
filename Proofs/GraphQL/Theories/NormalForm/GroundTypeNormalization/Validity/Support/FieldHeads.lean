@@ -128,7 +128,7 @@ theorem fieldsInSetCanMerge_field_cons_of_rest_responseNameFree
     (fieldDefinition : FieldDefinition)
     : SchemaWellFormedness.schemaWellFormed schema
       -> schema.lookupField parentType fieldName = some fieldDefinition
-      -> SchemaWellFormedness.sameTypeShape schema fieldDefinition.outputType
+      -> FieldMerge.sameTypeShape schema fieldDefinition.outputType
           fieldDefinition.outputType
       -> Argument.argumentsEquivalent arguments arguments
       -> (∀ objectType,
@@ -235,7 +235,7 @@ theorem fieldsInSetCanMerge_field_cons_of_rest_responseNameFree
                 selectionSet := selectionSet
               } := by
           apply FieldMerge.fieldsForNameCanMerge_self_of_children
-          · exact SchemaWellFormedness.sameTypeShape_refl schema
+          · exact FieldMerge.sameTypeShape_refl schema
               mergeFieldDefinition.outputType
               (SchemaWellFormedness.schemaWellFormed_lookupField_outputType
                 hschema hmergeLookup)

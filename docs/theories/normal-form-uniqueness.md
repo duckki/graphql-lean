@@ -28,8 +28,8 @@ Let:
   branch reordering, with field arguments compared by `Argument.argumentsEquivalent`
   after coercion at the resolver boundary.
 
-Subject to the validity and feasibility assumptions in the public statements, the
-result is schematically:
+Subject to the validity, output-shape agreement, and feasibility assumptions in
+the public statements, the result is schematically:
 
 ```text
 N(left) =c N(right)  ->  left ~= right
@@ -327,6 +327,8 @@ def normalizeOperationUniqueUpToReordering
   -> operationDirectiveFree right
   -> operationFieldsValidInPossibleTypes schema left
   -> operationFieldsValidInPossibleTypes schema right
+  -> operationFieldsSameOutputShape schema left
+  -> operationFieldsSameOutputShape schema right
   -> operationTypeConditionFeasible schema left
   -> operationTypeConditionFeasible schema right
   -> variableDefinitionsSyntacticallyEquivalent left.variableDefinitions right.variableDefinitions
@@ -343,6 +345,8 @@ and `GroundTypeNormalization.normalizeOperation_uniqueUpToReordering`.
 The stricter ground type-condition feasibility assumptions ensure all source
 field uses survive normalization, so the normalized operations'
 all-variables-used facts are derived rather than assumed.
+The operation-local `operationFieldsSameOutputShape` premise supplies the wrapper
+compatibility needed by normalized validity; schema covariance alone does not.
 
 ### Complete Normalization
 
@@ -453,6 +457,8 @@ def completeNormalizeOperationUniqueUpToReordering
   -> Validation.operationDefinitionValid schema right
   -> operationFieldsValidInPossibleTypes schema left
   -> operationFieldsValidInPossibleTypes schema right
+  -> operationFieldsSameOutputShape schema left
+  -> operationFieldsSameOutputShape schema right
   -> operationBoolTypeConditionFeasible schema left
   -> operationBoolTypeConditionFeasible schema right
   -> variableDefinitionsSyntacticallyEquivalent left.variableDefinitions right.variableDefinitions
@@ -466,8 +472,10 @@ def completeNormalizeOperationUniqueUpToReordering
 
 Its witness is
 `CompleteNormalization.completeNormalizeOperation_uniqueUpToReordering`.
-The possible-type and Boolean/type-condition feasibility assumptions ensure complete
-normalization preserves validity and does not create semantically empty branches.
+The possible-type, output-shape agreement, and Boolean/type-condition feasibility
+assumptions ensure complete normalization preserves validity and does not create
+semantically empty branches. The shape premise is the same conservative condition
+described in the [normal-form guide](normal-form.md#validity-preservation).
 The stricter, mode-free feasibility predicate ensures every Boolean condition
 and type-condition path is feasible, so all source field and variable uses
 survive in at least one complete branch. The normalized operations'
