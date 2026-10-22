@@ -15,6 +15,20 @@ example : GeneratedDispatchTerminalNoOwned := GeneratedDispatchTerminalNoOwned_h
 example : GeneratedResourceSingletonBatchInvariant :=
   GeneratedResourceSingletonBatchInvariant_holds
 
+-- These equalities include immediate output, queued notices and actual cleanup effects.
+example (state : State) (event : GraphEvent)
+    : state.handleGraphEvent event
+        (ReferenceWorkQueue.GraphEvent.availableFailures [event])
+      = state.handleGraphEvent event :=
+  State.handleGraphEvent_singletonSnapshot state event
+
+example (resources : ResourceState) (inventories : ProducerInventories)
+    (state : State) (event : GraphEvent)
+    : resources.observeDispatch inventories state event
+        (ReferenceWorkQueue.GraphEvent.availableFailures [event])
+      = resources.observeDispatch inventories state event :=
+  resources.observeDispatch_singletonSnapshot inventories state event
+
 -- Terminal clearing preserves a pending asynchronous request, without pretending it settled.
 example
     : let observed :=
@@ -50,6 +64,8 @@ example : ¬orphan.BufferedOwnersPresent := by
 
 #print axioms recordTargetRequiresRoot
 #print axioms generatedDispatch_recordRootEvidence
+#print axioms State.handleGraphEvent_singletonSnapshot
+#print axioms ResourceState.observeDispatch_singletonSnapshot
 #print axioms GeneratedDispatchTerminalNoOwned_holds
 #print axioms GeneratedResourceSingletonBatchInvariant_holds
 

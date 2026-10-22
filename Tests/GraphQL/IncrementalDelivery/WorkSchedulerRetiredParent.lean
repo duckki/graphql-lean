@@ -8,6 +8,7 @@ import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.UncancelledRet
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.OwnerReplay
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.OwnerReplayClosure
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.RetiredHealthStability
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.FailureRetentionReplay
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.RetiredRecordHealth
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.RetiredHealthReplay
 import Tests.GraphQL.IncrementalDelivery.Execution
@@ -29,15 +30,16 @@ private def parentData : List (Name × ResponseValue) := [("a", .scalar "a")]
 
 private def work : Execution.Work :=
   .combine .empty
-    (.combine
-      (.executionGroup [⟨parent, []⟩] [] ({ result := .ok (parentData, 0) }) noChildren)
+    (.declareGroups [⟨parent, []⟩, ⟨child, [parent]⟩, ⟨other, []⟩]
       (.combine
-        (.executionGroup [⟨child, [parent]⟩] []
-          ({ result := .ok ([("b", .scalar "b")], 0) }) noChildren)
+        (.executionGroup [⟨parent, []⟩] [] ({ result := .ok (parentData, 0) }) noChildren)
         (.combine
-          (.executionGroup [⟨other, []⟩] [] ({ result := .error 1, cause := some 1 })
-            .empty)
-          .empty)))
+          (.executionGroup [⟨child, [parent]⟩] []
+            ({ result := .ok ([("b", .scalar "b")], 0) }) noChildren)
+          (.combine
+            (.executionGroup [⟨other, []⟩] [] ({ result := .error 1, cause := some 1 })
+              .empty)
+            .empty))))
 
 private def success : GraphEvent :=
   .taskSuccess parentTask
@@ -122,7 +124,8 @@ the particular independent failure below. Witness: general retired-record stabil
 the prefix supplies permanent retirement and an empty accepted-failure inventory.
 -/
 theorem successful_parent_health_stable (events : List GraphEvent)
-    (valid : ValidGraphEvents work events) (started : initial.acceptsBatch events = true)
+    (valid : ValidGraphEvents work events)
+    (started : State.eventsStarted [] initial events = true)
     (earlier : [success].IsPrefix events)
     : ¬GroupRecordInvalidated work (initial.objectFailureContributions events)
         parent.ref := by
@@ -172,15 +175,30 @@ theorem retired_records_healthy : retired.UncancelledRetiredHealthy work [otherT
         · exact uncancelled last)
   exact ref ▸ retired_parent_health_after_failure
 
-/-- Later registration cannot invalidate the successfully retired parent certificate.
-Witness: general arbitrary-chunk integration preserves the proved nonempty-failure
-retirement invariant; refused records are cancelled and cannot enter its healthy branch.
--/
+/-- Matching parent-closed registration preserves the successfully retired parent.
+Witness: the actual replay retains failed-task provenance and registry coverage; the
+new chunk supplies source descriptors and covered parents. -/
 theorem late_integration_retired_health (newWork : ReferenceWorkQueue.Work)
     (producer : Option Occurrence)
+    (matching
+      : ∀ group ∈ newWork.groups,
+          ∃ dependencies,
+            GroupRecordAt work group.node dependencies
+            ∧ group.parent = dependencies.head?)
+    (closed
+      : ∀ group ∈ newWork.groups,
+          ∀ parent,
+            group.parent = some parent
+            → parent
+              ∈ retired.registeredGroups
+                ++ newWork.groups.map (fun group => group.node.ref))
     : (retired.maybeIntegrateWork newWork producer).1.UncancelledRetiredHealthy
-        work [otherTask] :=
-  retired_records_healthy.maybeIntegrateWork newWork producer
+        work [otherTask] := by
+  have retained : retired.RetainedFailures work [otherTask] :=
+    generated.runNormalized_retainedFailures inputs source_valid.1 source_valid.2
+  exact retired_records_healthy.maybeIntegrateWork newWork producer retained generated
+    (createWorkQueue_runNormalized_registration source_valid.1 generated.declarations).1
+    matching closed
 
 /-- Recording R's fresh failure cannot invalidate the already-retired parent boundary.
 Witness: the general retired-ancestor inventory theorem with the actual pending-task
@@ -277,7 +295,8 @@ theorem guard_reflection_after_retirement
   have inventory : initial.objectFailureContributions inputs.flatten = [otherTask] := by cbv
   have reflected := generated.replayGraphEvents_activeUnrejected_recordUninvalidated
     inputs.flatten source_valid.1 (by cbv)
-    (node := { group := ⟨child, some parent.ref⟩, tasks := [.executionGroup [1, 1, 0]], pending := 1 })
+    (node :=
+      { group := ⟨child, some parent.ref⟩, tasks := [.executionGroup [1, 1, 0]], pending := 1 })
     (by cbv) (by cbv; exact List.mem_cons_self) (by cbv)
   change ¬GroupRecordInvalidated work (initial.objectFailureContributions inputs.flatten)
     child.ref at reflected
@@ -295,10 +314,10 @@ theorem prefix_missing_parent_health
   intro received before
   have valid := source_valid.1.prefix before
   obtain ⟨after, same⟩ := before
-  have accepted : initial.acceptsBatch inputs.flatten = true := by cbv
+  have accepted : State.eventsStarted [] initial inputs.flatten = true := by cbv
   rw [← same] at accepted
   exact (generated.replayGraphEvents_retiredHealth received valid
-    (State.acceptsBatch_prefix accepted)).2.2
+    (State.eventsStarted_prefix accepted)).2.2
 
 /-- The general cut theorem supplies an uninvalidated owner after successful retirement.
 Witness: use actual source acceptance and the independently proved prefix boundary,

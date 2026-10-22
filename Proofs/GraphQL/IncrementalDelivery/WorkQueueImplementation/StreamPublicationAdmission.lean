@@ -50,7 +50,7 @@ theorem streamPublicationReady_of_certificates {work inputs w streams}
         w.failures
         = mergeFailureCuts
             (informativeObjectFailureCuts work
-              (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher inputs).2.2))
+              (queue.sourceRunBlocks publisher inputs).2.2)
             streams)
     : StreamPublicationReady work w := by
   intro index stream values groups children selected

@@ -48,6 +48,7 @@ theorem result_deliveryResult (paths : α → List ResponsePath) (outcome : Task
 def work (containers : Bool) : Work → List ResponsePath
   | .empty | .stream .. => []
   | .combine left right => work containers left ++ work containers right
+  | .declareGroups _ tasks => work containers tasks
   | .executionGroup _ path completed children =>
       result (fields containers path) completed.result ++ work containers children
 
@@ -60,6 +61,7 @@ def completion (containers : Bool) (paths : α → List ResponsePath)
 def workSlices (containers : Bool) : Work → List (List ResponsePath)
   | .empty | .stream .. => []
   | .combine left right => workSlices containers left ++ workSlices containers right
+  | .declareGroups _ tasks => workSlices containers tasks
   | .executionGroup _ path completed children =>
       result (fields containers path) completed.result :: workSlices containers children
 

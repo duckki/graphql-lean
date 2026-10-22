@@ -1,6 +1,31 @@
 import GraphQL.IncrementalDelivery.WorkQueueSemantics
+import Proofs.GraphQL.IncrementalDelivery.Semantics.WorkSize
 
-/-! Structural lookup agrees with the former occurrence judgments for arbitrary Work. -/
+/-! Structural lookup agrees with navigation that ignores group declaration annotations. -/
+
+namespace GraphQL.IncrementalDelivery.Execution
+
+/-- Removing the outer declaration annotations is idempotent. -/
+@[simp]
+theorem Work.withoutDeclarations_idempotent (work : Work)
+    : work.withoutDeclarations.withoutDeclarations = work.withoutDeclarations := by
+  cases work with
+  | declareGroups groups tasks => exact Work.withoutDeclarations_idempotent tasks
+  | _ => rfl
+termination_by work
+
+/-- Declaration transparency preserves the number of retained task boundaries. -/
+@[simp]
+theorem Work.size_withoutDeclarations (work : Work)
+    : work.withoutDeclarations.size = work.size := by
+  cases work with
+  | declareGroups groups tasks => exact Work.size_withoutDeclarations tasks
+  | _ => rfl
+termination_by work
+
+attribute [simp] Work.withoutDeclarations
+
+end GraphQL.IncrementalDelivery.Execution
 
 namespace GraphQL.IncrementalDelivery.WorkQueueSemantics
 open GraphQL.IncrementalDelivery.Execution
@@ -29,23 +54,24 @@ producer is its generating task (none at the root), and owners are enclosing def
 -/
 inductive Located (root : Work)
     : Address → Work → Option Occurrence → NodeRefs → Prop where
-  | root : Located root [] root none []
+  | root : Located root [] root.withoutDeclarations none []
   | left {address left right producer owners}
     (located : Located root address (.combine left right) producer owners)
-    : Located root (address ++ [0]) left producer owners
+    : Located root (address ++ [0]) left.withoutDeclarations producer owners
   | right {address left right producer owners}
     (located : Located root address (.combine left right) producer owners)
-    : Located root (address ++ [1]) right producer owners
+    : Located root (address ++ [1]) right.withoutDeclarations producer owners
   | executionGroup {address groups path result children producer owners}
     (located
       : Located root address (.executionGroup groups path result children) producer
           owners)
-    : Located root (address ++ [0]) children (some (.executionGroup address))
-        (groups.map (fun group => group.node.ref))
+    : Located root (address ++ [0]) children.withoutDeclarations
+        (some (.executionGroup address)) (groups.map (fun group => group.node.ref))
   | item {address node items producer owners index result children}
     (located : Located root address (.stream node items) producer owners)
     (entry : items[index]? = some (result, children))
-    : Located root (address ++ [index]) children (some (.item address index)) []
+    : Located root (address ++ [index]) children.withoutDeclarations
+        (some (.item address index)) []
 
 /-- (TaskAt work occurrence owners producer payload) identifies a task in work by its
 structural occurrence, contributing owner refs, optional producer occurrence, and fixed
@@ -88,6 +114,7 @@ theorem Located.child {root address current producer owners index next}
     : Located root (address ++ [index]) next.current next.producer next.owners := by
   cases current with
   | empty => simp [WorkLocation.child?] at step
+  | declareGroups groups tasks => simp [WorkLocation.child?] at step
   | combine left right =>
       cases index with
       | zero =>
@@ -148,7 +175,7 @@ theorem located_go {root route location rest next}
 theorem located_of_current {root address current producer owners}
     (h : WorkQueueSemantics.Located root address current producer owners)
     : Located root address current producer owners := by
-  simpa using located_go (location := ⟨root, none, []⟩) Located.root h
+  simpa using located_go (location := ⟨root.withoutDeclarations, none, []⟩) Located.root h
 
 /-- The two location predicates agree without assumptions on raw work. -/
 theorem located_iff {root address current producer owners}
@@ -214,19 +241,19 @@ theorem nodeAt_iff {work node kind dependencies birth}
 end StructuralEquivalence
 
 /-- Root lookup retains the initial context; witness: computation. -/
-theorem Located.root {root} : Located root [] root none [] := rfl
+theorem Located.root {root} : Located root [] root.withoutDeclarations none [] := rfl
 
 /-- Combine-left lookup preserves context; witness: final-edge computation. -/
 theorem Located.left {root address left right producer owners}
     (h : Located root address (.combine left right) producer owners)
-    : Located root (address ++ [0]) left producer owners :=
+    : Located root (address ++ [0]) left.withoutDeclarations producer owners :=
   (StructuralEquivalence.Located.left
     (StructuralEquivalence.located_of_current h)).toCurrent
 
 /-- Combine-right lookup preserves context; witness: final-edge computation. -/
 theorem Located.right {root address left right producer owners}
     (h : Located root address (.combine left right) producer owners)
-    : Located root (address ++ [1]) right producer owners :=
+    : Located root (address ++ [1]) right.withoutDeclarations producer owners :=
   (StructuralEquivalence.Located.right
     (StructuralEquivalence.located_of_current h)).toCurrent
 
@@ -236,8 +263,8 @@ theorem Located.executionGroup {root address groups path result children produce
     (h
       : Located root address (.executionGroup groups path result children) producer
           owners)
-    : Located root (address ++ [0]) children (some (.executionGroup address))
-        (groups.map (fun group => group.node.ref)) :=
+    : Located root (address ++ [0]) children.withoutDeclarations
+        (some (.executionGroup address)) (groups.map (fun group => group.node.ref)) :=
   (StructuralEquivalence.Located.executionGroup
     (StructuralEquivalence.located_of_current h)).toCurrent
 
@@ -245,7 +272,8 @@ theorem Located.executionGroup {root address groups path result children produce
 theorem Located.item {root address node items producer owners index result children}
     (h : Located root address (.stream node items) producer owners)
     (entry : items[index]? = some (result, children))
-    : Located root (address ++ [index]) children (some (.item address index)) [] :=
+    : Located root (address ++ [index]) children.withoutDeclarations
+        (some (.item address index)) [] :=
   (StructuralEquivalence.Located.item
     (StructuralEquivalence.located_of_current h) entry).toCurrent
 
@@ -266,6 +294,37 @@ theorem TaskAt.item {work address node items producer owners index result childr
     : TaskAt work (.item address index) [node.ref] producer
         (.item node result.deliveryResult) :=
   ⟨_, _, _, _, _, located, entry, rfl, rfl⟩
+
+/-- Outer declarations add no occurrence, ownership or payload distinction. -/
+@[simp]
+theorem taskAt_declareGroups {work occurrence owners producer payload}
+    (groups : List DeferredFragment)
+    : TaskAt (.declareGroups groups work) occurrence owners producer payload
+      ↔ TaskAt work occurrence owners producer payload := by
+  cases occurrence <;> rfl
+
+/-- A declaration annotation on one combine branch preserves every task descriptor. -/
+@[simp]
+theorem taskAt_combine_declareGroups_right {left right occurrence owners producer payload}
+    (groups : List DeferredFragment)
+    : TaskAt (.combine left (.declareGroups groups right)) occurrence owners producer
+        payload
+      ↔ TaskAt (.combine left right) occurrence owners producer payload := by
+  cases occurrence with
+  | executionGroup address =>
+      cases address with
+      | nil => simp [TaskAt, Located, locateWork, locateWork.go]
+      | cons index rest =>
+          cases index with
+          | zero => rfl
+          | succ index => cases index <;> rfl
+  | item address index =>
+      cases address with
+      | nil => simp [TaskAt, Located, locateWork, locateWork.go]
+      | cons edge rest =>
+          cases edge with
+          | zero => rfl
+          | succ edge => cases edge <;> rfl
 
 /-- Every defer-group member supplies a node descriptor; witness: its containing location.
 -/

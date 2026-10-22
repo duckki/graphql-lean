@@ -53,6 +53,6 @@ theorem ValidGraphEvents.successes_reachable {work events}
             have sameParent := generated.streamProducer_unique descriptor (.stream located) rfl
             exact task_reachable_of_source_support valid ih known
               (fun source hasProducer => supported source (sameParent.symm.trans hasProducer))
-        | taskFailure | streamSuccess | streamFailure => cases latest
+        | taskFailure | groupFailure | streamSuccess | streamFailure => cases latest
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

@@ -102,8 +102,8 @@ theorem LiveRootFrame.successGroupFold_noProtectedNotice {queue work parents ref
 
 /-- A recursive drain cannot announce a group whose ancestors were already protected.
 Witness: each actual selected successful flush excludes that ref and preserves its
-protection; failure cleanup emits no notices and cannot undo retirement. The result holds
-at every bounded drain prefix, including prefixes after cached-error closures.
+protection through child startup and the successful ready drain. The result holds at
+every bounded drain prefix with the same supplied rejection snapshot.
 -/
 theorem LiveRootFrame.drainReadyGroups_go_noProtectedNotice
     {queue work parents ref} (frame : LiveRootFrame queue work parents)
@@ -112,7 +112,10 @@ theorem LiveRootFrame.drainReadyGroups_go_noProtectedNotice
       : ∀ node dependencies,
           GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (protectedRef : queue.AncestorsRetired work ref) (fuel : Nat)
-    : ref ∉ (State.drainReadyGroups.go fuel queue).2.flatMap rawGroupNoticeRefs := by
+    (available : List (Occurrence × Nat) := [])
+    : ref
+      ∉ (State.drainReadyGroups.go available fuel queue).2.1.flatMap
+          rawGroupNoticeRefs := by
   induction fuel generalizing queue with
   | zero => simp [State.drainReadyGroups.go]
   | succ fuel ih =>
@@ -126,29 +129,17 @@ theorem LiveRootFrame.drainReadyGroups_go_noProtectedNotice
         | none => simp [found] at choice
         | some candidate =>
             simp only [found] at choice
-            change (if (queue.rejectedTask? candidate).isSome || candidate.pending == 0 then
-              some candidate else none) = some node at choice
+            change (if candidate.pending == 0 then some candidate else none) = some node at choice
             split at choice
             · cases Option.some.inj choice
               have same := State.groupNode?_ref found
-              cases cached : queue.rejectedTask? node with
-              | none =>
-                  rw [List.flatMap_append, List.mem_append, not_or]
-                  exact ⟨frame.finishGroupSuccess_noProtectedNotice generated canonical
-                    (same ▸ found) (same ▸ active) protectedRef,
-                    ih (frame.finishGroupSuccess generated canonical
-                      (same ▸ found) (same ▸ active))
-                      (protectedRef.mono (fun _ retired =>
-                        (retired.finishGroupSuccess node).startNewWork _))⟩
-              | some rejected =>
-                  rw [List.flatMap_append, List.mem_append, not_or]
-                  refine ⟨?_, ih (frame.taskFailure rejected.1 rejected.2)
-                    (protectedRef.mono (fun _ retired =>
-                      retired.taskFailure rejected.1 rejected.2))⟩
-                  intro member
-                  obtain ⟨event, emitted, noticed⟩ := List.mem_flatMap.mp member
-                  obtain ⟨group, rfl⟩ := queue.taskFailure_event_failure _ _ event emitted
-                  cases noticed
+              rw [List.flatMap_append, List.mem_append, not_or]
+              exact ⟨frame.finishGroupSuccess_noProtectedNotice generated canonical
+                (same ▸ found) (same ▸ active) protectedRef,
+                ih (frame.finishGroupSuccess generated canonical
+                  (same ▸ found) (same ▸ active) available)
+                  (protectedRef.mono (fun _ retired =>
+                    (retired.finishGroupSuccess node).startNewWork _ available))⟩
             · contradiction
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

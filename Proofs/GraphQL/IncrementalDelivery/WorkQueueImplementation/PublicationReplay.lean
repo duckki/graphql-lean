@@ -67,51 +67,67 @@ theorem State.PublicationInventory.fresh_success {queue : State}
 -- Replay the exact event fold used inside handleGraphEvents, before batch termination
 -----------------------------------------------------------------------------------------
 
-/-- Proof notation for `handleGraphEvents`' actual event-fold step, retaining raw output. -/
+/-- Proof notation for immediate event output before startup-failure forwarding. -/
 def rawEventStep (acc : State × List WorkQueueEvent) (event : GraphEvent)
+    (available : List (Occurrence × Nat) := [])
     : State × List WorkQueueEvent :=
-  let (next, produced) := acc.1.handleGraphEvent event
+  let (next, produced) := acc.1.dispatchGraphEvent event available
   (next, acc.2 ++ produced)
 
 /-- The actual event-processing fold, before the outer batch's termination check.
 This proof helper retains output that `replayGraphEvents` intentionally forgets. -/
 def State.rawEventReplay (queue : State) (events : List GraphEvent)
+    (available : List (Occurrence × Nat) := [])
     : State × List WorkQueueEvent :=
-  events.foldl rawEventStep (queue, [])
+  events.foldl (fun acc event => rawEventStep acc event available) (queue, [])
 
 /-- Earlier accumulated output is prepended without changing replay state or later output.
 Witness: fold induction and associativity of raw-event concatenation. -/
 theorem rawEventReplay_accumulator (queue : State) (events : List GraphEvent)
-    (output : List WorkQueueEvent)
-    : events.foldl rawEventStep (queue, output)
-      = ((queue.rawEventReplay events).1, output ++ (queue.rawEventReplay events).2) := by
+    (output : List WorkQueueEvent) (available : List (Occurrence × Nat) := [])
+    : events.foldl (fun acc event => rawEventStep acc event available) (queue, output)
+      = (
+        (queue.rawEventReplay events available).1,
+        output ++ (queue.rawEventReplay events available).2
+      ) := by
   induction events generalizing queue output with
   | nil => simp [State.rawEventReplay]
   | cons event rest ih =>
-      simp only [State.rawEventReplay, List.foldl_cons, rawEventStep, List.nil_append]
-      rw [ih _ (output ++ (queue.handleGraphEvent event).2),
-        ih _ (queue.handleGraphEvent event).2]
+      simp only [State.rawEventReplay, List.foldl_cons]
+      change rest.foldl (fun acc event => rawEventStep acc event available)
+          ((queue.dispatchGraphEvent event available).1,
+            output ++ (queue.dispatchGraphEvent event available).2)
+        = ((rest.foldl (fun acc event => rawEventStep acc event available)
+              ((queue.dispatchGraphEvent event available).1,
+                (queue.dispatchGraphEvent event available).2)).1,
+          output ++ (rest.foldl (fun acc event => rawEventStep acc event available)
+              ((queue.dispatchGraphEvent event available).1,
+                (queue.dispatchGraphEvent event available).2)).2)
+      rw [ih _ (output ++ (queue.dispatchGraphEvent event available).2),
+        ih _ (queue.dispatchGraphEvent event available).2]
       simp only [List.append_assoc]
 
 /-- Eventwise replay processes the head input, then its continuation in the updated state.
 Witness: the exact fold accumulator equation, preserving all raw output order. -/
 theorem State.rawEventReplay_cons (queue : State) (event : GraphEvent)
-    (rest : List GraphEvent)
-    : queue.rawEventReplay (event :: rest)
-      = let current := queue.handleGraphEvent event
-        let next := current.1.rawEventReplay rest
+    (rest : List GraphEvent) (available : List (Occurrence × Nat) := [])
+    : queue.rawEventReplay (event :: rest) available
+      = let current := queue.dispatchGraphEvent event available
+        let next := current.1.rawEventReplay rest available
         (next.1, current.2 ++ next.2) := by
   simp only [State.rawEventReplay, List.foldl_cons, rawEventStep, List.nil_append]
-  exact rawEventReplay_accumulator _ _ _
+  exact rawEventReplay_accumulator _ _ _ available
 
 /-- Retaining raw output does not alter eventwise queue state.
 Witness: induction through the same executable handlers in both folds. -/
 theorem State.rawEventReplay_state (queue : State) (events : List GraphEvent)
-    : (queue.rawEventReplay events).1 = queue.replayGraphEvents events := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.rawEventReplay events available).1
+      = queue.replayGraphEvents events available := by
   induction events generalizing queue with
   | nil => rfl
   | cons event rest ih =>
-      rw [State.rawEventReplay_cons]
+      rw [State.rawEventReplay_cons _ _ _ available]
       exact ih _
 
 /-- A legal input continuation extends an exact, occurrence-unique object publication ledger.
@@ -120,10 +136,11 @@ published occurrence, and prior empty-node reactivation cannot restore a stored 
 theorem State.PublicationInventory.rawEventReplay {queue : State} {work before published}
     (inventory : queue.PublicationInventory (ObjectValueFrom before) published)
     (events : List GraphEvent) (valid : ValidGraphEvents work (before ++ events))
+    (available : List (Occurrence × Nat) := [])
     : ∃ added : List ObjectPublication,
         added.map Prod.snd
-          = (queue.rawEventReplay events).2.flatMap WorkQueueEvent.objectValues
-        ∧ (queue.rawEventReplay events).1.PublicationInventory
+          = (queue.rawEventReplay events available).2.flatMap WorkQueueEvent.objectValues
+        ∧ (queue.rawEventReplay events available).1.PublicationInventory
             (ObjectValueFrom (before ++ events)) (published ++ added) := by
   induction events generalizing queue before published with
   | nil =>
@@ -135,7 +152,8 @@ theorem State.PublicationInventory.rawEventReplay {queue : State} {work before p
       have eventLaws := valid.atPrefix earlier
       have current := inventory.mono (fun _ _ source =>
         source.mono (List.subset_append_left before [event]))
-      obtain ⟨first, values, after⟩ := current.handleGraphEvent event (by
+      obtain ⟨first, values, after⟩ := current.dispatchGraphEvent event
+        (available := available) (by
         intro occurrence result same
         subst event
         exact ⟨⟨result, List.mem_append_right _ List.mem_cons_self, rfl⟩,
@@ -143,9 +161,9 @@ theorem State.PublicationInventory.rawEventReplay {queue : State} {work before p
       obtain ⟨later, laterValues, final⟩ := ih after (by
         simpa only [List.append_assoc, List.singleton_append] using valid)
       refine ⟨first ++ later, ?_, ?_⟩
-      · rw [State.rawEventReplay_cons, List.map_append]
+      · rw [State.rawEventReplay_cons _ _ _ available, List.map_append]
         simp only [List.flatMap_append, ← values, ← laterValues]
-      · rw [State.rawEventReplay_cons]
+      · rw [State.rawEventReplay_cons _ _ _ available]
         simpa only [List.append_assoc, List.singleton_append] using final
 
 /-- Actual queue creation followed by legal input replay publishes each object occurrence
@@ -153,36 +171,50 @@ at most once. Witness: start with no stored or published values, then apply the 
 continuation inventory. No output-admission or generated-work premise is assumed. -/
 theorem createWorkQueue_rawEventReplay_publications {work : Execution.Work}
     {events : List GraphEvent} (valid : ValidGraphEvents work events)
+    (available : List (Occurrence × Nat) := [])
     : ∃ published : List ObjectPublication,
         published.map Prod.snd
-          = ((State.initialize (Work.fromExecution work)).rawEventReplay events).2.flatMap
+          = ((State.initialize (Work.fromExecution work)).rawEventReplay events
+              available).2.flatMap
               WorkQueueEvent.objectValues
         ∧ ((State.initialize (Work.fromExecution work)).rawEventReplay
-            events).1.PublicationInventory
+            events available).1.PublicationInventory
             (ObjectValueFrom events) published := by
   have initial : (State.initialize (Work.fromExecution work)).PublicationInventory
       (ObjectValueFrom []) [] :=
     ⟨by simp, by simp, createWorkQueue_storedValues _ _⟩
-  simpa only [List.nil_append] using initial.rawEventReplay events valid
+  simpa only [List.nil_append] using initial.rawEventReplay events valid available
 
 -----------------------------------------------------------------------------------------
 -- The actual batch wrapper preserves the same publication witness
 -----------------------------------------------------------------------------------------
 
-/-- The public batch handler is exactly raw replay plus its start/termination branches.
-Witness: unfold the proof helper; its fold step is the implementation's original step. -/
+/-- The batch wrapper preserves FIFO output and waits for every pending notice. -/
 theorem State.handleGraphEvents_eq_rawEventReplay (queue : State)
     (events : List GraphEvent)
     : queue.handleGraphEvents events
       = if queue.terminated then
           (queue, [])
         else
-          let current := queue.rawEventReplay events
-          if current.1.rootGroups.isEmpty && current.1.rootStreams.isEmpty then
+          let current := queue.rawEventReplay events (GraphEvent.availableFailures events)
+          if current.1.rootGroups.isEmpty
+              && current.1.rootStreams.isEmpty
+              && current.1.groupFailureEvents.isEmpty then
             ({ current.1 with terminated := true }, current.2 ++ [.workQueueTermination])
           else
-            current := by
+            (current.1, current.2) :=
   rfl
+
+/-- Forwarded startup-failure notices contain no object values. -/
+theorem startupFailures_objectValues (failures : List GroupFailureEvent)
+    : (failures.map
+        (fun failure => WorkQueueEvent.groupFailure failure.group failure.errors)).flatMap
+        WorkQueueEvent.objectValues
+      = [] := by
+  induction failures with
+  | nil => rfl
+  | cons failure rest ih => simpa only [List.map_cons, List.flatMap_cons,
+      WorkQueueEvent.objectValues, List.nil_append] using ih
 
 /-- Batch handling publishes fresh object occurrences even with empty output or termination.
 Witness: eventwise freshness; the outer wrapper only suppresses work after termination
@@ -202,11 +234,13 @@ theorem State.PublicationInventory.handleGraphEvents {queue : State}
     simpa only [List.append_nil] using inventory.mono
       (fun _ _ source => source.mono (List.subset_append_left before events))
   · obtain ⟨added, values, final⟩ := inventory.rawEventReplay events valid
+      (GraphEvent.availableFailures events)
     dsimp only
     split
     · refine ⟨added, ?_, final.unique, final.provenance, final.stored⟩
       simpa only [List.flatMap_append, List.flatMap_singleton, WorkQueueEvent.objectValues,
-        List.append_nil] using values
-    · exact ⟨added, values, final⟩
+        startupFailures_objectValues, List.append_nil] using values
+    · refine ⟨added, ?_, final⟩
+      simpa only [List.flatMap_append, startupFailures_objectValues, List.append_nil] using values
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

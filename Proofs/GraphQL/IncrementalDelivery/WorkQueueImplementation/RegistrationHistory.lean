@@ -69,41 +69,27 @@ theorem State.RetiredGroup.addGroup {queue : State} {ref : NodeRef}
       intro same
       have known : group.node.ref ∈ queue.registeredGroups := same ▸ retired.1
       simp [known] at fresh
-    split
-    · exact ⟨List.mem_append_left _ retired.1, retired.2⟩
-    · refine ⟨List.mem_append_left _ retired.1, ?_⟩
+    have registered : ({ queue with
+        registeredGroups := queue.registeredGroups ++ [group.node.ref] } : State).RetiredGroup
+          ref := ⟨List.mem_append_left _ retired.1, retired.2⟩
+    have appended : ({ queue with
+        registeredGroups := queue.registeredGroups ++ [group.node.ref],
+        groupNodes := queue.groupNodes ++ [({ group } : GroupNode)] } : State).RetiredGroup
+          ref := by
+      refine ⟨List.mem_append_left _ retired.1, ?_⟩
       simpa [List.map_append, different] using retired.2
+    split
+    · exact appended
+    · split
+      · split <;> exact registered
+      · exact appended.putGroupNode _
 
-/-- Both passes of group integration preserve retirement.
-Witness: registration rejects retired refs and parent-link updates preserve live refs. -/
+/-- Recursive group registration preserves permanent retirement. -/
 theorem State.RetiredGroup.addGroups {queue : State} {ref : NodeRef}
     (retired : queue.RetiredGroup ref) (groups : List Group)
     : (queue.addGroups groups).1.RetiredGroup ref := by
-  let fresh := groups.filter (fun group =>
-    !queue.registeredGroups.contains group.node.ref
-      && (queue.groupNode? group.node.ref).isNone)
-  let linkStep (current : State) (group : Group) : State :=
-    match group.parent with
-    | none => current
-    | some parent =>
-        match current.groupNode? parent with
-        | none => current
-        | some node =>
-            let children := if node.childGroups.contains group.node.ref then
-              node.childGroups else node.childGroups ++ [group.node.ref]
-            current.putGroupNode { node with childGroups := children }
-  have linked (current : State) (group : Group) (prior : current.RetiredGroup ref)
-      : (linkStep current group).RetiredGroup ref := by
-    unfold linkStep
-    split
-    · exact prior
-    · split
-      · exact prior
-      · exact prior.putGroupNode _
-  change (fresh.foldl linkStep (fresh.foldl State.addGroup queue)).RetiredGroup ref
-  exact fold_preserves linkStep (fun current => current.RetiredGroup ref) linked fresh _
-    (fold_preserves State.addGroup (fun current => current.RetiredGroup ref)
-      (fun _ group prior => prior.addGroup group) fresh queue retired)
+  exact State.addGroups_preserves (fun current => current.RetiredGroup ref) groups
+    (fun _ group _ valid => valid.addGroup group) queue retired
 
 /-- Registering tasks updates only existing live group nodes.
 Witness: every contributor update is a ref-preserving replacement. -/
@@ -183,48 +169,23 @@ theorem State.RetiredGroup.pruneEmptyGroups {queue : State} {ref : NodeRef}
               · exact ih _ _ _ prior
   exact loop _ queue groups [] retired
 
-/-- Starting a task does not touch group registration or live nodes.
-Witness: both lookup branches only update task nodes. -/
-private theorem State.RetiredGroup.startTask {queue : State} {ref : NodeRef}
-    (retired : queue.RetiredGroup ref) (task : Occurrence)
-    : (queue.startTask task).RetiredGroup ref := by
-  unfold State.startTask
-  split
-  · exact retired
-  · split <;> exact retired
+/-- Exposing cached outcomes leaves permanent registration and live group refs unchanged. -/
+theorem State.RetiredGroup.cacheTaskFailures {queue : State} {ref : NodeRef}
+    (retired : queue.RetiredGroup ref) (available : List (Occurrence × Nat))
+    : (queue.cacheTaskFailures available).RetiredGroup ref := by
+  simpa only [State.RetiredGroup, State.cacheTaskFailures_registeredGroups,
+    State.cacheTaskFailures_groupNodes]
+    using retired
 
-/-- Starting a group only starts its listed tasks.
-Witness: task-start preservation through the group's task fold. -/
-private theorem State.RetiredGroup.startGroup {queue : State} {ref : NodeRef}
-    (retired : queue.RetiredGroup ref) (group : Nat)
-    : (queue.startGroup group).RetiredGroup ref := by
-  unfold State.startGroup
-  split
-  · exact retired
-  · exact fold_preserves State.startTask (fun state => state.RetiredGroup ref)
-      (fun _ task prior => prior.startTask task) _ queue retired
-
-/-- Starting a stream changes only the stream-root registry.
-Witness: direct inspection of the activation branch. -/
-private theorem State.RetiredGroup.startStream {queue : State} {ref : NodeRef}
-    (retired : queue.RetiredGroup ref) (stream : Nat)
-    : (queue.startStream stream).RetiredGroup ref := by
-  unfold State.startStream
-  split <;> exact retired
-
-/-- Work activation does not recreate any live group node.
-Witness: group and stream activation preserve retirement through both folds. -/
+/-- Activation can remove groups but cannot recreate a retired ref. -/
 theorem State.RetiredGroup.startNewWork {queue : State} {ref : NodeRef}
     (retired : queue.RetiredGroup ref) (work : NewWork)
-    : (queue.startNewWork work).RetiredGroup ref := by
-  let current : State :=
-    { queue with rootGroups := queue.rootGroups ++ work.newGroups.map Execution.DeliveryNode.ref }
-  have grouped := fold_preserves State.startGroup (fun state => state.RetiredGroup ref)
-    (fun _ group prior => prior.startGroup group)
-    (work.newGroups.map Execution.DeliveryNode.ref) current retired
-  exact fold_preserves State.startStream (fun state => state.RetiredGroup ref)
-    (fun _ stream prior => prior.startStream stream)
-    (work.newStreams.map Execution.DeliveryNode.ref) _ grouped
+    (available : List (Occurrence × Nat) := [])
+    : (queue.startNewWork work available).1.RetiredGroup ref := by
+  refine ⟨?_, ?_⟩
+  · simpa only [State.startNewWork_registeredGroups] using retired.1
+  · intro member
+    exact retired.2 (((queue.startNewWork_groupNodes_sublist work available).map _).subset member)
 
 -----------------------------------------------------------------------------------------
 -- Publication, cancellation, and graph-event handling
@@ -298,11 +259,10 @@ theorem State.RetiredGroup.taskFailure {queue : State} {ref : NodeRef}
 Witness: both closures only remove live groups, and activation preserves registration.
 -/
 theorem State.RetiredGroup.drainReadyGroups {queue : State} {ref : NodeRef}
-    (retired : queue.RetiredGroup ref)
-    : queue.drainReadyGroups.1.RetiredGroup ref := by
-  apply State.drainReadyGroups_preserves (fun state => state.RetiredGroup ref)
-    (fun _ node prior _ _ _ _ => (prior.finishGroupSuccess node).startNewWork _)
-    (fun _ _ task errors prior _ _ _ => prior.taskFailure task errors) retired
+    (retired : queue.RetiredGroup ref) (available : List (Occurrence × Nat) := [])
+    : (queue.drainReadyGroups available).1.RetiredGroup ref := by
+  exact State.drainReadyGroups_preserves (fun state => state.RetiredGroup ref)
+    (fun _ node prior _ _ _ => (prior.finishGroupSuccess node).startNewWork _ available) retired
 
 /-- One contributor's decrement and optional flush preserve retirement.
 Witness: ref-preserving metadata replacement followed by flush preservation. -/
@@ -324,11 +284,12 @@ private theorem retired_successGroupStep (acc : State × List WorkQueueEvent × 
 Witness: integration preservation and the actual single-pass contributor fold. -/
 theorem State.RetiredGroup.taskSuccess {queue : State} {ref : NodeRef}
     (retired : queue.RetiredGroup ref) (task : Occurrence) (result : TaskResult)
-    : (queue.taskSuccess task result).1.RetiredGroup ref := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.taskSuccess task result available).1.RetiredGroup ref := by
   cases found : queue.taskNode? task with
   | none => simpa [State.taskSuccess, found] using retired
   | some node =>
-      rw [queue.taskSuccess_eq task result node found]
+      rw [queue.taskSuccess_eq task result node found available]
       let withValue := queue.putTaskNode { node with value := some result.value }
       have withValueRetired : withValue.RetiredGroup ref := retired
       let integrated := (withValue.maybeIntegrateWork result.work (some task)).1
@@ -337,69 +298,88 @@ theorem State.RetiredGroup.taskSuccess {queue : State} {ref : NodeRef}
       have folded := fold_preserves successGroupStep (fun acc => acc.1.RetiredGroup ref)
         (fun acc group prior => retired_successGroupStep acc group ref prior)
         node.task.groups (integrated, [], {}) integratedRetired
-      exact (folded.startNewWork _).drainReadyGroups
+      exact (folded.startNewWork _ available).drainReadyGroups available
 
 /-- Stream-item integration cannot revive a retired ref through nested work.
 Witness: integrate, prune, and activate each item in its actual batch order. -/
 theorem State.RetiredGroup.streamItems {queue : State} {ref : NodeRef}
     (retired : queue.RetiredGroup ref) (stream : Execution.DeliveryNode)
-    (items : List StreamItem)
-    : (queue.streamItems stream items).1.RetiredGroup ref := by
+    (items : List StreamItem) (available : List (Occurrence × Nat) := [])
+    : (queue.streamItems stream items available).1.RetiredGroup ref := by
   let step (acc : State × List Execution.DeliveryNode
-      × List Execution.DeliveryNode × List StreamItemValue) (item : StreamItem) :=
-    let (current, groups, streams, values) := acc
+      × List Execution.DeliveryNode × List StreamItemValue × List GroupFailureEvent)
+      (item : StreamItem) :=
+    let (current, groups, streams, values, failures) := acc
     let (integrated, newWork) := current.maybeIntegrateWork item.work
     let (pruned, nonempty) := integrated.pruneEmptyGroups newWork.newGroups
-    (pruned.startNewWork { newWork with newGroups := nonempty },
-      groups ++ nonempty, streams ++ newWork.newStreams, values ++ [item.value])
+    let (started, queued) :=
+      pruned.startNewWork { newWork with newGroups := nonempty } available
+    (started, groups ++ nonempty, streams ++ newWork.newStreams,
+      values ++ [item.value], failures ++ queued)
   have preserved (acc : State × List Execution.DeliveryNode
-      × List Execution.DeliveryNode × List StreamItemValue) (item : StreamItem)
-      (prior : acc.1.RetiredGroup ref) : (step acc item).1.RetiredGroup ref := by
-    exact ((prior.maybeIntegrateWork item.work).pruneEmptyGroups _).startNewWork _
+      × List Execution.DeliveryNode × List StreamItemValue × List GroupFailureEvent)
+      (item : StreamItem) (prior : acc.1.RetiredGroup ref)
+      : (step acc item).1.RetiredGroup ref := by
+    exact ((prior.maybeIntegrateWork item.work).pruneEmptyGroups _).startNewWork _ available
   unfold State.streamItems
   split
   · exact retired
   · exact (fold_preserves step (fun acc => acc.1.RetiredGroup ref)
-      preserved items (queue, [], [], []) retired).drainReadyGroups
+      preserved items (queue, [], [], [], []) retired).drainReadyGroups available
 
 /-- Every graph-event handler preserves retired refs, without source-law premises.
 Witness: success/failure preservation; stream closures touch no group state. -/
 theorem State.RetiredGroup.handleGraphEvent {queue : State} {ref : NodeRef}
     (retired : queue.RetiredGroup ref) (event : GraphEvent)
-    : (queue.handleGraphEvent event).1.RetiredGroup ref := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.handleGraphEvent event available).1.RetiredGroup ref := by
+  have cached := retired.cacheTaskFailures available
   cases event with
-  | taskSuccess task result => exact retired.taskSuccess task result
-  | taskFailure task errors => exact retired.taskFailure task errors
-  | streamItems stream items => exact retired.streamItems stream items
+  | taskSuccess task result => exact cached.taskSuccess task result available
+  | taskFailure task errors => exact cached.taskFailure task errors
+  | streamItems stream items => exact cached.streamItems stream items available
   | streamSuccess stream =>
-      change (queue.streamSuccess stream).1.RetiredGroup ref
+      change ((queue.cacheTaskFailures available).streamSuccess stream).1.RetiredGroup ref
       unfold State.streamSuccess
-      split <;> exact retired
+      split <;> exact cached
   | streamFailure stream errors =>
-      change (queue.streamFailure stream errors).1.RetiredGroup ref
+      change ((queue.cacheTaskFailures available).streamFailure stream errors).1.RetiredGroup ref
       unfold State.streamFailure
-      split <;> exact retired
+      split <;> exact cached
 
------------------------------------------------------------------------------------------
--- Arbitrary future batches cannot revive retired group nodes
------------------------------------------------------------------------------------------
+  -----------------------------------------------------------------------------------------
+  -- Arbitrary future batches cannot revive retired group nodes
+  -----------------------------------------------------------------------------------------
+
+  | groupFailure failure =>
+      change ((queue.cacheTaskFailures available).groupFailure failure).1.RetiredGroup ref
+      unfold State.groupFailure
+      split
+      · exact cached
+      · split <;> exact cached
 
 /-- Processing any batch preserves retirement, including termination and ignored input.
 Witness: eventwise preservation; setting the terminal flag changes no group state. -/
 theorem State.RetiredGroup.handleGraphEvents {queue : State} {ref : NodeRef}
-    (retired : queue.RetiredGroup ref) (events : List GraphEvent)
-    : (queue.handleGraphEvents events).1.RetiredGroup ref := by
+    (retired : queue.RetiredGroup ref) (batch : List GraphEvent)
+    : (queue.handleGraphEvents batch).1.RetiredGroup ref := by
+  let available := GraphEvent.availableFailures batch
   let step (acc : State × List WorkQueueEvent) (event : GraphEvent) :=
-    let (current, outputs) := acc
-    let (next, produced) := current.handleGraphEvent event
-    (next, outputs ++ produced)
-  have folded := fold_preserves step (fun acc => acc.1.RetiredGroup ref)
-    (fun _ event prior => prior.handleGraphEvent event) events (queue, []) retired
+    let (next, produced) := acc.1.dispatchGraphEvent event available
+    (next, acc.2 ++ produced)
+  have foldUnique (events : List GraphEvent) :
+      ∀ acc : State × List WorkQueueEvent,
+        acc.1.RetiredGroup ref → (events.foldl step acc).1.RetiredGroup ref := by
+    induction events with
+    | nil => intro acc currentUnique; exact currentUnique
+    | cons event rest ih =>
+        intro acc currentUnique
+        exact ih (step acc event) (currentUnique.handleGraphEvent event available)
   unfold State.handleGraphEvents
   split
   · exact retired
   · dsimp only
-    split <;> exact folded
+    split <;> exact foldUnique batch (queue, []) retired
 
 /-- Every finite normalized replay retains all initially retired refs.
 Witness: batch induction through the actual queue/publisher fold. No validity, start,

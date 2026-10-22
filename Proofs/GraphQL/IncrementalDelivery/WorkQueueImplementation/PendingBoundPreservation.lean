@@ -36,60 +36,30 @@ Witness: existing groups retain their bound and the new group has no memberships
 theorem State.PendingBound.addGroup {queue : State} {eligible settled}
     (bounded : queue.PendingBound eligible settled) (group : Group)
     : (queue.addGroup group).PendingBound eligible settled := by
+  have appended : ({ queue with
+      groupNodes := queue.groupNodes ++ [({ group } : GroupNode)] } : State).PendingBound
+        eligible settled := by
+    intro node member relevant
+    rcases List.mem_append.mp member with earlier | new
+    · exact bounded node earlier relevant
+    · cases List.mem_singleton.mp new
+      simp [unsettledCount]
   unfold State.addGroup
   split
   · exact bounded
-  · dsimp only
-    split
-    · exact bounded
-    · intro node member relevant
-      rcases List.mem_append.mp member with earlier | new
-      · exact bounded node earlier relevant
-      · obtain rfl := List.mem_singleton.mp new
-        simp [unsettledCount]
+  · split
+    · exact appended
+    · split
+      · split <;> exact bounded
+      · rename_i node found
+        exact appended.putGroupNode _ (bounded node (List.mem_of_find?_eq_some found))
 
-/-- Group registration and parent-link installation preserve pending lower bounds.
-Witness: two fold inductions; parent links change neither counters nor task memberships.
--/
+/-- Parent-first installation preserves pending lower bounds. -/
 theorem State.PendingBound.addGroups {queue : State} {eligible settled}
     (bounded : queue.PendingBound eligible settled) (groups : List Group)
     : (queue.addGroups groups).1.PendingBound eligible settled := by
-  let linkStep (current : State) (group : Group) : State :=
-    match group.parent with
-    | none => current
-    | some parent =>
-        match current.groupNode? parent with
-        | none => current
-        | some node =>
-            let children := if node.childGroups.contains group.node.ref then
-              node.childGroups else node.childGroups ++ [group.node.ref]
-            current.putGroupNode { node with childGroups := children }
-  have linkBound (current : State) (group : Group)
-      (prior : current.PendingBound eligible settled)
-      : (linkStep current group).PendingBound eligible settled := by
-    unfold linkStep
-    split
-    · exact prior
-    · split
-      · exact prior
-      · rename_i node found
-        exact prior.putGroupNode _ (prior node (List.mem_of_find?_eq_some found))
-  have linkFold (more : List Group) (current : State)
-      (prior : current.PendingBound eligible settled)
-      : (more.foldl linkStep current).PendingBound eligible settled := by
-    induction more generalizing current with
-    | nil => exact prior
-    | cons group rest ih => exact ih _ (linkBound current group prior)
-  have registered (more : List Group) :
-      (more.foldl State.addGroup queue).PendingBound eligible settled := by
-    induction more generalizing queue with
-    | nil => exact bounded
-    | cons group rest ih => exact ih (bounded.addGroup group)
-  let fresh := groups.filter (fun group =>
-    !queue.registeredGroups.contains group.node.ref
-      && (queue.groupNode? group.node.ref).isNone)
-  change (fresh.foldl linkStep (fresh.foldl State.addGroup queue)).PendingBound eligible settled
-  exact linkFold fresh _ (registered fresh)
+  exact State.addGroups_preserves (fun current => current.PendingBound eligible settled) groups
+    (fun _ group _ valid => valid.addGroup group) queue bounded
 
 /-- Registering one membership adds at most one unsettled token.
 Witness: the filter of a singleton has length at most one. No freshness assumption is
@@ -204,14 +174,22 @@ theorem State.PendingBound.removeGroup {queue : State} {eligible settled}
     : (queue.removeGroup ref).PendingBound eligible settled :=
   ((State.pendingDebtBound_nil.mpr bounded).removeGroup ref).toBound
 
-/-- Work activation leaves the group-node map, hence every pending bound, unchanged.
-Witness: the independently proved activation group-core equation.
+/-- Work activation preserves counter bounds on every surviving group.
+Witness: startup retains a sublist of unchanged group records.
 -/
 theorem State.PendingBound.startNewWork {queue : State} {eligible settled}
     (bounded : queue.PendingBound eligible settled) (work : NewWork)
-    : (queue.startNewWork work).PendingBound eligible settled := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.startNewWork work available).1.PendingBound eligible settled := by
   intro node member relevant
-  rw [(queue.startNewWork_groupCore work).1] at member
+  exact bounded node ((queue.startNewWork_groupCore work available).1.subset member) relevant
+
+/-- Computation-cache exposure leaves every group counter and membership unchanged. -/
+theorem State.PendingBound.cacheTaskFailures {queue : State} {eligible settled}
+    (bounded : queue.PendingBound eligible settled) (available : List (Occurrence × Nat))
+    : (queue.cacheTaskFailures available).PendingBound eligible settled := by
+  intro node member relevant
+  rw [State.cacheTaskFailures_groupNodes] at member
   exact bounded node member relevant
 
 /-- Rejection retention preserves counter lower bounds on every surviving owner. -/
@@ -236,17 +214,19 @@ theorem State.PendingBound.taskFailure {queue : State} {eligible settled}
     (by intro task member; simp [member])
 
 /-- A lower bound on all groups suffices for safe recursive draining.
-Witness: a selected zero counter certifies settled memberships; success flush, failure
-removal, and child activation preserve the bound for subsequent drain iterations.
+Witness: a selected zero counter certifies settled memberships; successful flushing and
+child activation preserve the bound for subsequent drain iterations.
 -/
 theorem State.PendingBound.drainReadyGroups {queue : State} {settled}
     (bounded : queue.PendingBound (fun _ => True) settled)
-    : queue.drainReadyGroups.1.PendingBound (fun _ => True) settled := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.drainReadyGroups available).1.PendingBound (fun _ => True) settled := by
   apply State.drainReadyGroups_preserves
     (fun state => state.PendingBound (fun _ => True) settled)
-    (fun _ node prior member _ _ zero =>
-      (prior.finishGroupSuccess node (prior.allSettled member trivial zero)).startNewWork _)
-    (fun _ _ occurrence errors prior _ _ _ => prior.taskFailure_preserves occurrence errors) bounded
+    (fun _ node prior member _ zero =>
+      (prior.finishGroupSuccess node (prior.allSettled member trivial zero)).startNewWork
+        _ available)
+    bounded
 
 -----------------------------------------------------------------------------------------
 -- Both branches of each executable handler preserve counter safety
@@ -268,7 +248,8 @@ theorem State.PendingBound.taskSuccess {queue : State} {settled}
             { taskNode with value := some result.value }).maybeIntegrateWork
           result.work (some occurrence)).1.OwnedExactlyBy
           occurrence (taskNode.task.groups.map Execution.DeliveryNode.ref))
-    : (queue.taskSuccess occurrence result).1.PendingBound (fun _ => True)
+    (available : List (Occurrence × Nat) := [])
+    : (queue.taskSuccess occurrence result available).1.PendingBound (fun _ => True)
         (occurrence :: settled) := by
   let withValue := queue.putTaskNode { taskNode with value := some result.value }
   have valueBound : withValue.PendingBound (fun _ => True) settled := bounded
@@ -288,8 +269,8 @@ theorem State.PendingBound.taskSuccess {queue : State} {settled}
     (fun _ _ valid _ => valid.putGroupNode _)
     (fun _ node _ valid _ _ _ _ _ => valid.finishGroupSuccess node)
     taskNode.task.groups uniqueContributors (integrated, [], {}) integratedRefs debt
-  rw [queue.taskSuccess_eq occurrence result taskNode found]
-  exact (facts.2.startNewWork _).drainReadyGroups
+  rw [queue.taskSuccess_eq occurrence result taskNode found available]
+  exact (facts.2.startNewWork _ available).drainReadyGroups available
 
 /-- Stream item delivery preserves the lower bound through every child registration.
 Witness: item-fold induction followed by safe release draining; unlike exact accounting,
@@ -298,22 +279,27 @@ the bound requires no freshness premise on the newly integrated tasks.
 theorem State.PendingBound.streamItems {queue : State} {settled}
     (bounded : queue.PendingBound (fun _ => True) settled)
     (stream : Execution.DeliveryNode) (items : List StreamItem)
-    : (queue.streamItems stream items).1.PendingBound (fun _ => True) settled := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.streamItems stream items available).1.PendingBound (fun _ => True)
+        settled := by
   let step (acc : State × List Execution.DeliveryNode
-      × List Execution.DeliveryNode × List StreamItemValue) (item : StreamItem) :=
-    let (current, groups, streams, values) := acc
+      × List Execution.DeliveryNode × List StreamItemValue × List GroupFailureEvent)
+      (item : StreamItem) :=
+    let (current, groups, streams, values, failures) := acc
     let (integrated, newWork) := current.maybeIntegrateWork item.work
     let (pruned, nonempty) := integrated.pruneEmptyGroups newWork.newGroups
-    (pruned.startNewWork { newWork with newGroups := nonempty }, groups ++ nonempty,
-      streams ++ newWork.newStreams, values ++ [item.value])
+    let (started, queued) := pruned.startNewWork { newWork with newGroups := nonempty } available
+    (started, groups ++ nonempty, streams ++ newWork.newStreams,
+      values ++ [item.value], failures ++ queued)
   have stepBound (acc : State × List Execution.DeliveryNode
-      × List Execution.DeliveryNode × List StreamItemValue) (item : StreamItem)
+      × List Execution.DeliveryNode × List StreamItemValue × List GroupFailureEvent)
+      (item : StreamItem)
       (prior : acc.1.PendingBound (fun _ => True) settled)
       : (step acc item).1.PendingBound (fun _ => True) settled :=
-    ((prior.maybeIntegrateWork item.work).pruneEmptyGroups _).startNewWork _
+    ((prior.maybeIntegrateWork item.work).pruneEmptyGroups _).startNewWork _ available
   have foldBound (more : List StreamItem)
       (acc : State × List Execution.DeliveryNode
-        × List Execution.DeliveryNode × List StreamItemValue)
+        × List Execution.DeliveryNode × List StreamItemValue × List GroupFailureEvent)
       (prior : acc.1.PendingBound (fun _ => True) settled)
       : (more.foldl step acc).1.PendingBound (fun _ => True) settled := by
     induction more generalizing acc with
@@ -322,7 +308,7 @@ theorem State.PendingBound.streamItems {queue : State} {settled}
   dsimp only [State.streamItems]
   split
   · exact bounded
-  · exact (foldBound items (queue, [], [], []) bounded).drainReadyGroups
+  · exact (foldBound items (queue, [], [], [], []) bounded).drainReadyGroups available
 
 /-- Stream completion leaves group counters and memberships unchanged.
 Witness: both executable root-membership branches preserve the group-node list.

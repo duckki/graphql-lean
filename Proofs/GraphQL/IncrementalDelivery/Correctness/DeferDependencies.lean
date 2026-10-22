@@ -51,15 +51,15 @@ theorem DeferOnly.producer_context
     | root => contradiction
     | left _ ih =>
         obtain ⟨owners, ancestor, payload, task, under⟩ := ih generated
-        exact ⟨owners, ancestor, payload, task, under.1⟩
+        exact ⟨owners, ancestor, payload, task, under.1.withoutDeclarations⟩
     | right _ ih =>
         obtain ⟨owners, ancestor, payload, task, under⟩ := ih generated
-        exact ⟨owners, ancestor, payload, task, under.2⟩
+        exact ⟨owners, ancestor, payload, task, under.2.withoutDeclarations⟩
     | executionGroup navigation =>
         cases generated
         have properties := dependencyProperties_located continuous ordered navigation.toCurrent
         simp only [DeferContinuous] at properties
-        exact ⟨_, _, _, .executionGroup navigation.toCurrent, properties.1.1⟩
+        exact ⟨_, _, _, .executionGroup navigation.toCurrent, properties.1.1.withoutDeclarations⟩
     | item navigation _ =>
         have impossible := shape _ _ _ _ (NodeAt.stream navigation.toCurrent)
         cases impossible

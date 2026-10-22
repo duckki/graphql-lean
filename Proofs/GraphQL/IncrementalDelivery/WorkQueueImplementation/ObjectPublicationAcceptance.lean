@@ -8,60 +8,109 @@ namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.Execution (WorkQueueEvent)
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
------------------------------------------------------------------------------------------
--- The exact object label is already registered by its own releasing handler
------------------------------------------------------------------------------------------
-
-/-- An element's inner projection index lies within the whole flattened projection.
-Witness: list induction adds the lengths of preceding projections without comparing values.
+/-- A supplied success with a contributor that remains uncancelled was processed at its
+actual cached source cut. An initially eligible but retired callback has no memberships,
+which contradicts the source frame's uncancelled owner accounting for that contributor.
 -/
-private theorem projected_rank_lt {α β : Type} (project : α → List β)
-    {events : List α} {index event offset}
-    (selected : events[index]? = some event) (within : offset < (project event).length)
-    : ((events.take index).flatMap project).length + offset
-      < (events.flatMap project).length := by
-  induction events generalizing index with
-  | nil => cases selected
-  | cons head rest ih =>
-      cases index with
-      | zero =>
-          cases selected
-          simp only [List.take_zero, List.flatMap_nil, List.length_nil, Nat.zero_add,
-            List.flatMap_cons, List.length_append]
-          omega
-      | succ index =>
-          have tail := ih selected
-          simp only [List.take_succ_cons, List.flatMap_cons, List.length_append]
-          omega
-
-/-- Every value in a recovered release block lies before that handler's endpoint.
-Witness: the boundary's exact prior count and the selected block's indexed value.
--/
-theorem GroupPublicationHandlerBoundary.value_rank_lt
-    {queue received group values count offset value}
-    (boundary : GroupPublicationHandlerBoundary queue received group values count)
-    (selected : values[offset]? = some value)
-    : count + offset
-      < ((queue.rawEventReplay (boundary.before ++ [boundary.event])).2.flatMap
-          WorkQueueEvent.objectValues).length := by
-  have inside := projected_rank_lt WorkQueueEvent.objectValues boundary.atHandler
-    (offset := offset) (List.getElem?_eq_some_iff.mp selected).1
-  have countEq := boundary.count
-  rw [State.rawEventReplay_append]
-  simp only [State.rawEventReplay_cons, State.rawEventReplay_state]
-  change count + offset < (((queue.rawEventReplay boundary.before).2
-    ++ (((queue.replayGraphEvents boundary.before).handleGraphEvent boundary.event).2
-      ++ [])).flatMap WorkQueueEvent.objectValues).length
-  simp only [List.append_nil, List.flatMap_append, List.length_append]
-  omega
+theorem ExecutedWork.taskSuccess_sourceCut_of_uncancelledOwner
+    {work inputs occurrence result owners producer payload ref}
+    (generated : ExecutedWork work) (valid : ValidGraphEvents work inputs.flatten)
+    (started : inputsStarted work inputs = true)
+    (supplied : GraphEvent.taskSuccess occurrence result ∈ inputs.flatten)
+    (known : TaskAt work occurrence owners producer payload) (contributes : ref ∈ owners)
+    (uncancelled
+      : ref
+        ∉ ((State.initialize (Work.fromExecution work)).runNormalized
+            inputs).1.cancelledGroups)
+    : ∃ earlier batch later fifo tail node,
+        inputs = earlier ++ batch :: later
+        ∧ batch = fifo ++ .taskSuccess occurrence result :: tail
+        ∧ ((((State.initialize (Work.fromExecution work)).replayBatches
+              earlier).replayGraphEvents
+              fifo (GraphEvent.availableFailures batch)).cacheTaskFailures
+            (GraphEvent.availableFailures batch)).taskNode?
+            occurrence
+          = some node := by
+  obtain ⟨batch, listed, received⟩ := List.mem_flatten.mp supplied
+  obtain ⟨earlier, later, split⟩ := List.mem_iff_append.mp listed
+  obtain ⟨fifo, tail, batchEq⟩ := List.mem_iff_append.mp received
+  obtain ⟨parents, canonical⟩ := generated.groupRecordsCanonical
+  obtain ⟨sourceValid, accepted, frame, _⟩ := generated.uncancelledFrames_atBatchEvent canonical
+    valid started earlier batch later fifo (.taskSuccess occurrence result) tail split batchEq
+  obtain ⟨priorValid, matching, fresh⟩ := validGraphEvents_last sourceValid
+  let initial := State.initialize (Work.fromExecution work)
+  let boundary := initial.replayBatches earlier
+  let available := GraphEvent.availableFailures batch
+  let current := boundary.replayGraphEvents fifo available
+  have tracked : current.StartedTaskDisposition occurrence
+      ∧ ∃ task ∈ current.tasks, task.occurrence = occurrence := by
+    obtain ⟨seen, seenPrefix, eligible⟩ := accepted
+    have priorFrame := generated.uncancelledFrame_atBatchPrefix canonical earlier batch later seen
+      (split ▸ valid) (split ▸ started)
+      (seenPrefix.trans ⟨.taskSuccess occurrence result :: tail, batchEq.symm⟩)
+    change ((boundary.replayGraphEvents seen available).taskNode? occurrence).isSome = true at eligible
+    cases found : (boundary.replayGraphEvents seen available).taskNode? occurrence with
+    | none => simp [found] at eligible
+    | some node =>
+        obtain ⟨remaining, history⟩ := seenPrefix
+        have disposition := priorFrame.pending.startedTaskDisposition_atPrefix found
+          priorFrame.producers priorFrame.producerOrder remaining
+          (by simpa [history, List.append_assoc] using priorValid) available
+        change (boundary.replayGraphEvents fifo available).StartedTaskDisposition occurrence
+          ∧ ∃ task ∈ (boundary.replayGraphEvents fifo available).tasks, task.occurrence = occurrence
+        rw [← history, State.replayGraphEvents_append boundary seen remaining available]
+        exact ⟨
+          disposition,
+          node.task,
+          (boundary.replayGraphEvents seen available).replayGraphEvents_tasks_subset
+            remaining available
+            (priorFrame.pending.started node (List.mem_of_find?_eq_some found)),
+          (State.taskNode?_some found).2
+        ⟩
+  have starts : initial.batchesStarted (earlier ++ batch :: later) = true := by
+    rw [← split, ← inputsStarted_eq_batchesStarted]
+    exact started
+  rw [State.batchesStarted_append, Bool.and_eq_true] at starts
+  obtain ⟨running, _, _⟩ := boundary.batchesStarted_cons batch later starts.2
+  obtain ⟨terminal, core⟩ := boundary.handleGraphEvents_stateCore batch running
+  have batchIncludes : current.cancelledGroups.Subset
+      (boundary.handleGraphEvents batch).1.cancelledGroups := by
+    rw [core]
+    change current.cancelledGroups.Subset
+      (boundary.replayGraphEvents batch available).cancelledGroups
+    rw [batchEq, State.replayGraphEvents_append _ _ _ available]
+    exact current.replayGraphEvents_cancelledGroups_subset
+      (.taskSuccess occurrence result :: tail) available
+  have future := (boundary.handleGraphEvents batch).1.runNormalized_cancelledGroups_subset later
+  rw [State.runNormalized_replayBatches] at future
+  have finalEq : (initial.runNormalized inputs).1
+      = (boundary.handleGraphEvents batch).1.replayBatches later := by
+    simp only [initial, boundary, State.runNormalized_replayBatches, split, State.replayBatches,
+      List.foldl_append, List.foldl_cons]
+  have currentUncancelled : ref ∉ current.cancelledGroups := by
+    intro member
+    apply uncancelled
+    rw [finalEq]
+    exact future (batchIncludes member)
+  obtain ⟨liveNode, liveLookup⟩ := frame.taskNode_of_uncancelledOwner tracked known
+    (fun settled => fresh.2.2.1 occurrence List.mem_cons_self
+      (GraphEvent.groupSettlements_subsetIdentities _ settled)) contributes currentUncancelled
+  have cached : (current.cacheTaskFailures available).acceptsGraphEvent
+      (.taskSuccess occurrence result) = true := by
+    rw [State.cacheTaskFailures_acceptsGraphEvent]
+    change (current.taskNode? occurrence).isSome = true
+    rw [liveLookup]
+    rfl
+  cases found : (current.cacheTaskFailures available).taskNode? occurrence with
+  | none => simp only [State.acceptsGraphEvent, found, Option.isSome_none,
+      Bool.false_eq_true] at cached
+  | some node => exact ⟨earlier, batch, later, fifo, tail, node, split, batchEq, found⟩
 
 namespace ConformancePlan
 
-/-- A canonical object's exact matched task is registered by its raw release handler.
-Witness: its unchanged ledger entry lies within that handler's consumed prefix; the
-registration certificate covers precisely those labels, even when wire values coincide.
--/
+/-- The exact matched contributor is registered at the actual release handler's endpoint. -/
 theorem Witness.groupPublication_registered_at_handler {work inputs w index owner payload}
+    (generated : ExecutedWork work) (valid : ValidGraphEvents work inputs.flatten)
     (started : inputsStarted work inputs = true)
     (history : w.events = (initialQueue work).nonterminalAtoms inputs)
     (ledger : BufferedClosureLedger work inputs w)
@@ -72,97 +121,78 @@ theorem Witness.groupPublication_registered_at_handler {work inputs w index owne
             active :=
               (initialQueue work).initialGroups ++ (initialQueue work).initialStreams
           }
-          ((initialQueue work).rawEventReplay inputs.flatten).2 index owner payload)
+          ((initialQueue work).rawBatches inputs).2 index owner payload)
     (boundary
-      : GroupPublicationHandlerBoundary (initialQueue work) inputs.flatten origin.group
+      : GroupPublicationHandlerBoundary (initialQueue work) inputs origin.group
           origin.values (origin.before.flatMap WorkQueueEvent.objectValues).length)
     : ∃ task,
         task
-          ∈ ((initialQueue work).replayGraphEvents
-              (boundary.before ++ [boundary.event])).tasks
+          ∈ (boundary.current.handleGraphEvent boundary.event
+              (GraphEvent.availableFailures boundary.batch)).1.tasks
         ∧ task.occurrence = w.matching index := by
-  obtain ⟨published, batched, exactLedger, _⟩ := ledger
-  have accepted : (initialQueue work).batchesStarted inputs = true := by
-    rwa [← inputsStarted_eq_batchesStarted]
-  have earlierLedger : (initialQueue work).ReplayClosuresCovered
-      (boundary.before ++ [boundary.event]) published := by
-    apply State.ReplayClosuresCovered.prefix (after := boundary.after)
-    simpa only [boundary.sourceEq, List.append_assoc, List.singleton_append]
-      using batched.flatten accepted
-  have rank := origin.objectRank
-  have historyEq := history.trans (createWorkQueue_nonterminalAtoms_flattened inputs started)
-  rw [← historyEq] at rank
-  have entry := exactLedger.atObject index owner payload selected
-  rw [rank, List.getElem?_map] at entry
-  cases found
-        : published[(origin.before.flatMap WorkQueueEvent.objectValues).length
-                    + origin.offset]? with
-  | none => simp only [found, Option.map_none, reduceCtorEq] at entry
-  | some publication =>
-      have same : publication.1 = w.matching index := by
-        simpa only [found, Option.map_some, Option.some.injEq] using entry
-      have present := List.mem_of_getElem?
-        ((List.getElem?_take_of_lt (boundary.value_rank_lt origin.found)).trans found)
-      obtain ⟨task, member, identity⟩ := List.mem_map.mp
-        (earlierLedger.registered publication present)
-      exact ⟨task, member, identity.trans same⟩
+  obtain ⟨parents, canonical⟩ := generated.groupRecordsCanonical
+  obtain ⟨sourceValid, _, beforeSource, afterSource⟩ := generated.uncancelledFrames_atBatchEvent
+    canonical valid started boundary.earlier boundary.batch boundary.later boundary.fifo
+    boundary.event boundary.tail boundary.partition boundary.batchEq
+  obtain ⟨groups, streams, carrier⟩ := (boundary.current.handleGraphEvent_publicationPairs
+    boundary.event (GraphEvent.availableFailures boundary.batch)).next boundary.atHandler
+  obtain ⟨_, _, retired⟩ := State.handleGraphEvent_successfulRetirements beforeSource.parent
+    beforeSource.cancellations generated canonical boundary.event
+    (sourceValid.eachMatches (List.mem_append_right _ List.mem_cons_self))
+    (GraphEvent.availableFailures boundary.batch) origin.group groups streams
+    (List.mem_of_getElem? carrier)
+  obtain ⟨producer, known⟩ := Witness.groupPublication_taskAt started history ledger selected origin
+  have contributes := createWorkQueue_rawBatches_publicationContributors valid
+    origin.group origin.values origin.members.1 origin.value origin.members.2
+  cases identity : w.matching index with
+  | item address ordinal =>
+      rw [identity] at known
+      obtain ⟨_, _, _, _, _, _, _, _, impossible⟩ := known
+      cases impossible
+  | executionGroup address =>
+      rw [identity] at known
+      obtain ⟨task, registered, occurrence, _⟩ :=
+        afterSource.retired_structuralContributor_registered generated sourceValid known
+          contributes retired.retired retired.uncancelled
+      exact ⟨task, registered, occurrence⟩
 
------------------------------------------------------------------------------------------
--- Successful release excludes ignored source successes of its exact contributor
------------------------------------------------------------------------------------------
-
-/-- Every canonical object atom has a real accepted success handler for its matched task.
-Witness: recover the raw release group, register the exact ledger label at that handler,
-and use successful-carrier health to rule out the source handler's rejection branch.
-Publisher owner remapping and equal response values do not change the selected task.
--/
+/-- Every canonical object atom has a matching success at an actual cached storing cut. -/
 theorem Witness.groupPublication_processed {work inputs w index owner payload}
     (generated : ExecutedWork work) (valid : ValidGraphEvents work inputs.flatten)
     (started : inputsStarted work inputs = true)
     (history : w.events = (initialQueue work).nonterminalAtoms inputs)
     (ledger : BufferedClosureLedger work inputs w)
     (selected : w.events[index]? = some (.groupValues owner payload))
-    : ∃ before result after node,
-        inputs.flatten = before ++ .taskSuccess (w.matching index) result :: after
+    : ∃ earlier batch later fifo result tail node,
+        inputs = earlier ++ batch :: later
+        ∧ batch = fifo ++ .taskSuccess (w.matching index) result :: tail
         ∧ (GraphEvent.taskSuccess (w.matching index) result).MatchesWork work
-        ∧ ((initialQueue work).replayGraphEvents before).taskNode? (w.matching index)
+        ∧ ((((initialQueue work).replayBatches earlier).replayGraphEvents fifo
+              (GraphEvent.availableFailures batch)).cacheTaskFailures
+            (GraphEvent.availableFailures batch)).taskNode?
+            (w.matching index)
           = some node := by
   obtain ⟨origin⟩ := Witness.groupPublication_origin started history selected
-  obtain ⟨boundary⟩ := origin.handlerBoundary
-  obtain ⟨task, registered, identity⟩ := Witness.groupPublication_registered_at_handler
-    started history ledger selected origin boundary
-  have accepted : (initialQueue work).batchesStarted inputs = true := by
-    rwa [← inputsStarted_eq_batchesStarted]
-  have received := (initialQueue work).batchesStarted_acceptsBatch inputs accepted
-  have prior : (boundary.before ++ [boundary.event]).IsPrefix inputs.flatten :=
-    ⟨boundary.after, by simp [boundary.sourceEq, List.append_assoc]⟩
-  have priorAccepted : (initialQueue work).acceptsBatch
-      (boundary.before ++ [boundary.event]) = true := by
-    apply State.acceptsBatch_prefix (after := boundary.after)
-    simpa only [boundary.sourceEq, List.append_assoc, List.singleton_append] using received
-  obtain ⟨groups, streams, carrier⟩ :=
-    (((initialQueue work).replayGraphEvents boundary.before).handleGraphEvent_publicationPairs
-      boundary.event).next boundary.atHandler
+  have savedLedger := ledger
+  obtain ⟨_, _, exactLedger, _⟩ := savedLedger
+  have raw := origin.rawValue_atRank
+  dsimp only at raw
+  rw [(Witness.rawBatches_canonical history selected).2] at raw
+  obtain ⟨result, supplied, _, matching⟩ := exactLedger.source_at selected raw
   obtain ⟨producer, known⟩ := Witness.groupPublication_taskAt started history ledger selected origin
-  have contributes := createWorkQueue_rawEventReplay_publicationContributors valid
+  have contributes := createWorkQueue_rawBatches_publicationContributors valid
     origin.group origin.values origin.members.1 origin.value origin.members.2
-  have accounting := (createWorkQueue_pendingAccounting work).replayGraphEvents (before := [])
-    generated (boundary.before ++ [boundary.event]) (valid.prefix prior) priorAccepted
-  obtain ⟨_, actualPayload, actualProducer, _, actualKnown⟩ :=
-    (accounting.matching task registered).1
-  have ownersEq := (TaskAt.unique (identity ▸ actualKnown) known).1
-  obtain ⟨before, result, after, node, split, found⟩ :=
-    generated.successfulCarrier_registeredContributor_processed (valid.prefix prior)
-      priorAccepted (List.mem_of_getElem? carrier) registered (ownersEq.symm ▸ contributes)
-  rw [identity] at split found
-  have full : inputs.flatten = before ++ .taskSuccess (w.matching index) result
-      :: (after ++ boundary.after) := by
-    calc
-      inputs.flatten = (boundary.before ++ [boundary.event]) ++ boundary.after := by
-        simp only [boundary.sourceEq, List.append_assoc, List.singleton_append]
-      _ = _ := by rw [split]; simp only [List.append_assoc, List.cons_append]
-  exact ⟨before, result, after ++ boundary.after, node, full,
-    valid.eachMatches (full ▸ List.mem_append_right _ List.mem_cons_self), found⟩
+  obtain ⟨carrier, _⟩ := Witness.rawBatches_nonterminal history origin.carrier
+    (by intro impossible; cases impossible)
+  obtain ⟨atFull, _⟩ := Witness.canonical_event history carrier
+  obtain ⟨sourceIndex, atSource, _⟩ := publicationAtoms_groupSuccess_prefix _ atFull
+  obtain ⟨dependencies, descriptor, retirement⟩ :=
+    generated.runNormalized_successfulGroupRetirements
+    valid started (List.mem_of_getElem? atSource)
+  obtain ⟨earlier, batch, later, fifo, tail, node, split, batchEq, found⟩ :=
+    generated.taskSuccess_sourceCut_of_uncancelledOwner valid started supplied known contributes
+      retirement.uncancelled
+  exact ⟨earlier, batch, later, fifo, result, tail, node, split, batchEq, matching, found⟩
 
 end ConformancePlan
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

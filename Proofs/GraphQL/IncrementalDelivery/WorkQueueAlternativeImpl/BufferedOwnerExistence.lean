@@ -46,7 +46,7 @@ private theorem eagerRegistrationSnapshot_bufferedOwners
       | true =>
           rw [eagerRegistrationSnapshot_streamItems queue stream items active]
           exact (owners.prepareItems links accounted matching).1
-  | taskFailure | streamSuccess | streamFailure => exact owners
+  | taskFailure | groupFailure | streamSuccess | streamFailure => exact owners
 
 /-- Each stored registration-snapshot task has a live contributor, including new adoption.
 Neither owner existence nor contributor health is an additional input-source law.
@@ -74,7 +74,7 @@ theorem GeneratedSnapshotBufferedOwners_holds : GeneratedSnapshotBufferedOwners 
           simp only [eagerRegistrationSnapshot, State.clearRecords, List.contains_nil,
             Bool.false_eq_true, ↓reduceIte]
           intro node member; cases member
-      | taskSuccess | taskFailure | streamSuccess | streamFailure =>
+      | taskSuccess | taskFailure | groupFailure | streamSuccess | streamFailure =>
           intro node member; cases member
     · obtain ⟨settled, _, accounted⟩ := generated.runNormalized_pendingAccounting inputs earlier started
       exact eagerRegistrationSnapshot_bufferedOwners

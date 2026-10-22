@@ -31,15 +31,16 @@ theorem located_shared {address current producer owners}
           ∧ producer = some (.executionGroup [])
           ∧ owners = [0, 1]) := by
   cases address with
-  | nil => simp_all [Located, locateWork, locateWork.go, WorkLocation.mk.injEq]
+  | nil =>
+      simp_all [Located, locateWork, locateWork.go, WorkLocation.mk.injEq, Work.withoutDeclarations, shared]
   | cons index rest =>
       cases index with
       | zero =>
           cases rest <;>
-            simp_all [Located, locateWork, locateWork.go, WorkLocation.child?,
+            simp_all [Located, locateWork, locateWork.go, WorkLocation.child?, Work.withoutDeclarations,
               WorkLocation.mk.injEq, shared, left, right]
       | succ index =>
-          simp [Located, locateWork, locateWork.go, WorkLocation.child?, shared] at h
+          simp [Located, locateWork, locateWork.go, WorkLocation.child?, Work.withoutDeclarations, shared] at h
 
 /-- All descriptor occurrences agree on a root owner with an empty response path. -/
 theorem node_shared {node kind parents birth} (h : NodeAt shared node kind parents birth)
@@ -76,7 +77,8 @@ theorem initialized : Initializes shared [left, right] [] := by
   have owner : node.ref ∈ [0, 1] := by
     rcases (node_shared known).1 with rfl | rfl <;> simp [left, right]
   have impossible := accounted (.executionGroup []) [0, 1]
-    ⟨none, .object [] (.ok ([], 0)), .executionGroup .root⟩ owner
+    ⟨none, .object [] (.ok ([], 0)),
+      .executionGroup (Located.root (root := shared))⟩ owner
   rcases impossible with cancelled | published
   · exact WorkQueueSemantics.noCancellation _ _ cancelled
   · simp [Published] at published
@@ -103,41 +105,35 @@ theorem owner (node : DeliveryNode) (member : node ∈ [left, right])
 theorem publishes (node : DeliveryNode) (member : node ∈ [left, right])
     : EventAllowed shared [0, 1] matching [] [] (value node) := by
   refine ⟨[0, 1], none, { path := [], data := [] }, rfl,
-    .executionGroup .root, ?_, owner node member⟩
+    .executionGroup (Located.root (root := shared)), ?_, owner node member⟩
   exact ⟨by simp [Published], WorkQueueSemantics.noCancellation _ _, by simp, trivial⟩
 
 /-- Empty output is an admitted prefix, with neither a selected owner nor a selected
 future.
 -/
 theorem initialAdmitted : AdmissiblePrefix shared initial := by
-  refine ⟨[], matching, [], ⟨initialized, ?_, ?_⟩, .nil⟩
-  · simp [FailureWitness]
-  · simp
+  exact ⟨[], matching, [], initialized.emptyExplains matching, .nil⟩
 
 /-- The same history admits either next owner choice, by explicit coherent occurrence
 matching.
 -/
 theorem nextOwner (node : DeliveryNode) (member : node ∈ [left, right])
     : AdmissibleNext shared initial [value node] := by
-  refine ⟨Or.inl initialAdmitted, ?_, by simp, Or.inl ?_⟩
-  · intro terminal
-    have count := terminal.refsCompleteExactlyOnce 0 (by simp [initial, left])
-    simp [initial, completedRefs] at count
-  · refine ⟨
-      [value node],
-      matching,
-      [],
-      ⟨initialized, ?_, ?_⟩,
-      .cons (tail := []) (by simp) (.separate _ .nil) .nil
-    ⟩
-    · simp [FailureWitness]
-    · intro index event selected
-      cases index with
-      | zero =>
-          have same : event = value node := by simpa using selected.symm
-          subst event
-          simpa [failedBefore, initial, left, right] using publishes node member
-      | succ index => simp at selected
+  refine ⟨initialAdmitted, by simp, Or.inl ?_⟩
+  refine ⟨
+    [value node],
+    matching,
+    [],
+    Explains.of_causal_failures initialized (by simp [FailureWitness]) (by simp) ?_,
+    .cons (tail := []) (by simp) (.separate _ .nil) .nil
+  ⟩
+  · intro index event selected
+    cases index with
+    | zero =>
+        have same : event = value node := by simpa using selected.symm
+        subst event
+        simpa [failedBefore, initial, left, right] using publishes node member
+    | succ index => simp at selected
 
 /-- These are two different legal outputs from exactly the same observable prefix. -/
 example
@@ -189,34 +185,36 @@ def publishedHistory : History := { initial with batches := [[value left]] }
 /-- After publication, either completion is a legal next observable batch. -/
 theorem nextClosure (node : DeliveryNode) (member : node ∈ [left, right])
     : AdmissibleNext shared publishedHistory [.groupSuccess node [] []] := by
-  refine ⟨(nextOwner left (by simp)).2.2.2, ?_, by simp, Or.inl ?_⟩
-  · intro terminal
+  have unfinished : ¬AdmissibleRun shared publishedHistory := by
+    intro terminal
     have count := terminal.refsCompleteExactlyOnce 0 (by simp [publishedHistory, initial, left])
     simp [publishedHistory, completedRefs, value, eventCompleted] at count
-  · refine ⟨
-      [value left, .groupSuccess node [] []],
-      matching,
-      [],
-      ⟨initialized, ?_, ?_⟩,
-      .cons (batch := [value left]) (by simp) (.separate _ .nil)
-        (.cons (tail := []) (by simp) (.separate _ .nil) .nil)
-    ⟩
-    · simp [FailureWitness]
-    · intro index event selected
-      cases index with
-      | zero =>
-          have same : event = value left := by simpa using selected.symm
-          subst event
-          simpa [failedBefore, publishedHistory, initial, left, right]
-            using publishes left (by simp)
-      | succ index =>
-          cases index with
-          | zero =>
-              have same : event = .groupSuccess node [] [] := by simpa using selected.symm
-              subst event
-              simpa [failedBefore, publishedHistory, initial, left, right]
-                using closes node member
-          | succ index => simp at selected
+  have admitted : AdmissiblePrefix shared publishedHistory :=
+    (nextOwner left (by simp)).2.2.resolve_right unfinished
+  refine ⟨admitted, by simp, Or.inl ?_⟩
+  refine ⟨
+    [value left, .groupSuccess node [] []],
+    matching,
+    [],
+    Explains.of_causal_failures initialized (by simp [FailureWitness]) (by simp) ?_,
+    .cons (batch := [value left]) (by simp) (.separate _ .nil)
+      (.cons (tail := []) (by simp) (.separate _ .nil) .nil)
+  ⟩
+  · intro index event selected
+    cases index with
+    | zero =>
+        have same : event = value left := by simpa using selected.symm
+        subst event
+        simpa [failedBefore, publishedHistory, initial, left, right]
+          using publishes left (by simp)
+    | succ index =>
+        cases index with
+        | zero =>
+            have same : event = .groupSuccess node [] [] := by simpa using selected.symm
+            subst event
+            simpa [failedBefore, publishedHistory, initial, left, right]
+              using closes node member
+        | succ index => simp at selected
 
 /-- No serialization of the two owner-completion notifications is built into admission. -/
 example
@@ -235,10 +233,10 @@ def itemValue : WorkQueueEvent := .streamValues stream [{ item := .null }] [] []
 
 /-- Equal values at different list positions are distinct licensed work occurrences. -/
 example : TaskAt items (.item [] 0) [2] none (.item stream (.ok (.null, 0))) :=
-  .item (result := { result := .ok (.null, 0) }) .root rfl
+  .item (result := { result := .ok (.null, 0) }) (Located.root (root := items)) rfl
 
 example : TaskAt items (.item [] 1) [2] none (.item stream (.ok (.null, 0))) :=
-  .item (result := { result := .ok (.null, 0) }) .root rfl
+  .item (result := { result := .ok (.null, 0) }) (Located.root (root := items)) rfl
 
 example : (Occurrence.item [] 0) ≠ .item [] 1 := by decide
 
@@ -260,11 +258,11 @@ example : CanPublish items itemMatching [itemValue] [] (.item [] 1) none := by
 /-- An actually complete history cannot acquire a further output via AdmissibleNext. -/
 example {work history batch} (done : AdmissibleRun work history)
     : ¬AdmissibleNext work history batch :=
-  fun next => next.2.1 done
+  fun next => next.1.not_run done
 
 /-- A next observation must be nonempty, independently of work and witness choices. -/
 example (work : Work) (history : History) : ¬AdmissibleNext work history [] :=
-  fun next => next.2.2.1 rfl
+  fun next => next.2.1 rfl
 
 def nested : Work :=
   .executionGroup [{ node := left }] [] ({ result := .error 2 })
@@ -274,7 +272,8 @@ def nested : Work :=
 example
     : TaskAt nested (.executionGroup [0]) [1] (some (.executionGroup []))
         (.object [] (.ok ([], 0))) :=
-  .executionGroup (.executionGroup .root)
+  .executionGroup (result := { result := .ok ([], 0) })
+    (.executionGroup (Located.root (root := nested)))
 
 /-- The failed producer cancels its child without a graph edge or a stored cancelled bit.
 -/
@@ -283,7 +282,12 @@ example
         (.executionGroup [0]) := by
   refine ⟨0, by simp, by simp, ?_⟩
   exact Causality.TaskCancelled.producerFailed
-    ⟨[1], .object [] (.ok ([], 0)), .executionGroup (.executionGroup .root)⟩
+    ⟨
+      [1],
+      .object [] (.ok ([], 0)),
+      .executionGroup (result := { result := .ok ([], 0) })
+        (.executionGroup (Located.root (root := nested)))
+    ⟩
     (by simp [Published]) (by simp [failedBefore])
 
 /-- Publication cannot bypass an unobserved producer even when its outcome is already
@@ -310,11 +314,17 @@ example
     ⟨
       [2],
       .object [] (.ok ([], 0)),
-      .executionGroup (.executionGroup (.executionGroup .root))
+      .executionGroup (result := { result := .ok ([], 0) })
+        (.executionGroup (.executionGroup (Located.root (root := cancelledDescendant))))
     ⟩
     (by simp [Published])
   exact Causality.TaskCancelled.producerFailed
-    ⟨[1], .object [] (.ok ([], 0)), .executionGroup (.executionGroup .root)⟩
+    ⟨
+      [1],
+      .object [] (.ok ([], 0)),
+      .executionGroup (result := { result := .ok ([], 0) })
+        (.executionGroup (Located.root (root := cancelledDescendant)))
+    ⟩
     (by simp [Published]) (by simp [failedBefore])
 
 /-- A dependency can be satisfied without a success notification for an unannounced node.
@@ -367,7 +377,8 @@ example : locateWork repeated [1, 0, 0] = some ⟨.empty, some (.item [1, 0] 0),
 example
     : TaskAt repeated (.item [1, 0] 0) [7] (some (.executionGroup [1]))
         (.item nestedNode (.ok (.null, 0))) :=
-  .item (result := { result := .ok (.null, 0) }) (.executionGroup (.right .root)) rfl
+  .item (result := { result := .ok (.null, 0) })
+    (.executionGroup (.right (Located.root (root := repeated)))) rfl
 
 /-- Both descriptors survive: lookup does not select one representative of a shared ref.
 -/
@@ -375,8 +386,8 @@ example
     : NodeAt repeated rootNode .group [] none
       ∧ NodeAt repeated nestedNode .stream [1] (some (.executionGroup [1])) := by
   constructor
-  · exact .group (group := { node := rootNode }) (.left .root) (by simp)
-  · exact .stream (.executionGroup (.right .root))
+  · exact .group (group := { node := rootNode }) (.left (Located.root (root := repeated))) (by simp)
+  · exact .stream (.executionGroup (.right (Located.root (root := repeated))))
 
 /-- The causal projections retain both the root and nested producer for the same ref.
 -/
@@ -385,8 +396,8 @@ theorem producers
       ∧ NodeHasProducer repeated 7 (some (.executionGroup [1])) := by
   constructor
   · exact ⟨rootNode, .group, [],
-      .group (group := { node := rootNode }) (.left .root) (by simp), rfl⟩
-  · exact ⟨nestedNode, .stream, [1], .stream (.executionGroup (.right .root)), rfl⟩
+      .group (group := { node := rootNode }) (.left (Located.root (root := repeated))) (by simp), rfl⟩
+  · exact ⟨nestedNode, .stream, [1], .stream (.executionGroup (.right (Located.root (root := repeated)))), rfl⟩
 
 /-- A surviving root descriptor blocks the all-producers-unavailable rule's premise. -/
 example (noRoot : ¬NodeHasProducer repeated 7 none) : False := noRoot producers.1

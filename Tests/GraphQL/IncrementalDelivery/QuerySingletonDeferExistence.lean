@@ -27,6 +27,7 @@ def failing : Operation :=
 This Boolean is a test guard, not a scheduler or correctness premise.
 -/
 def hasProducedWork : Work → Bool
+  | .declareGroups _ tasks => hasProducedWork tasks
   | .empty => false
   | .combine left right => hasProducedWork left || hasProducedWork right
   | .executionGroup _ _ _ children => children.size > 0

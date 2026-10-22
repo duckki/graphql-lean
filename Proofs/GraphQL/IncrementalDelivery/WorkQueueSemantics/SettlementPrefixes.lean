@@ -67,16 +67,30 @@ theorem Explains.before_settlement
     refine ⟨by simp only [List.length_take]; omega, licensed.2.1, ?_, ?_⟩
     · simpa only [List.take_take, Nat.min_eq_left beforeCut] using licensed.2.2.1
     · simpa only [List.take_take, Nat.min_eq_left beforeCut] using licensed.2.2.2
-  · intro index event selected
+  · refine ⟨explained.reportingFailures.filter (fun entry => entry.1 ≤ cut), ?_, ?_, ?_⟩
+    · have full : FailureReportingWitness work ((groups ++ streams).map DeliveryNode.ref)
+          (events.take cut ++ events.drop cut) explained.reportingFailures := by
+        simpa only [List.take_append_drop] using explained.reportingFacts.1
+      simpa only [List.length_take, Nat.min_eq_left bounded] using full.prefix
+    · intro boundary task member
+      have beforeCut := facts.2.1 (boundary, task) member
+      obtain ⟨availableCut, present, earlier⟩ := explained.reportingFacts.2.1 boundary task
+        (List.mem_append_left _ member)
+      exact ⟨availableCut,
+        List.mem_filter.mpr ⟨present, by simpa using Nat.le_trans earlier beforeCut⟩,
+        earlier⟩
+    intro index event selected
     have within := (List.getElem?_eq_some_iff.mp selected).1
     have earlier : index < cut := by simp only [List.length_take] at within; omega
     have original : events[index]? = some event := by
       simpa only [List.getElem?_take_of_lt earlier] using selected
-    have allowed := explained.2.2 index event original
+    have allowed := explained.eventAllowed index event original
     have visible := explained.2.1.filter_before_settlement
       (index := (events.take index).length) (by simp only [List.length_take]; omega)
     simpa only [List.take_take, Nat.min_eq_left (Nat.le_of_lt earlier), EventAllowed,
-      visible]
+      visible,
+      failedBefore_filter _ (show (events.take index).length ≤ cut by
+        simp only [List.length_take]; omega)]
       using allowed
 
 end GraphQL.IncrementalDelivery.WorkQueueSemantics

@@ -48,6 +48,7 @@ def containsPattern : Nat → List Bool → Work → Bool
   | fuel + 1, pattern@(kind :: rest), work =>
       match work with
       | .empty => false
+      | .declareGroups _ tasks => containsPattern fuel pattern tasks
       | .combine left right =>
           containsPattern fuel pattern left || containsPattern fuel pattern right
       | .executionGroup _ _ _ children =>
@@ -65,6 +66,7 @@ def containsSharedProducer : Nat → Work → Bool
   | fuel + 1, work =>
       match work with
       | .empty => false
+      | .declareGroups _ tasks => containsSharedProducer fuel tasks
       | .combine left right =>
           containsSharedProducer fuel left || containsSharedProducer fuel right
       | .executionGroup groups _ _ children =>

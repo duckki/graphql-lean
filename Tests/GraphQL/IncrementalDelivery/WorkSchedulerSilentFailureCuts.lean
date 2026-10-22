@@ -19,15 +19,16 @@ private def data : List (Name × ResponseValue) := [("a", .scalar "a")]
 
 private def work : Execution.Work :=
   .combine .empty
-    (.combine
-      (.executionGroup [⟨root, []⟩] [] ({ result := .error 1, cause := some 1 }) .empty)
+    (.declareGroups [⟨root, []⟩, ⟨parent, []⟩, ⟨child, [parent]⟩]
       (.combine
-        (.executionGroup [⟨root, []⟩, ⟨child, [parent]⟩] []
-          ({ result := .error 1, cause := some 1 }) .empty)
+        (.executionGroup [⟨root, []⟩] [] ({ result := .error 1, cause := some 1 }) .empty)
         (.combine
-          (.executionGroup [⟨parent, []⟩] [] ({ result := .ok (data, 0) })
-            (.combine .empty .empty))
-          .empty)))
+          (.executionGroup [⟨root, []⟩, ⟨child, [parent]⟩] []
+            ({ result := .error 1, cause := some 1 }) .empty)
+          (.combine
+            (.executionGroup [⟨parent, []⟩] [] ({ result := .ok (data, 0) })
+              (.combine .empty .empty))
+            .empty))))
 
 private def first : GraphEvent := .taskFailure firstTask 1
 private def shared : GraphEvent := .taskFailure sharedTask 1
@@ -39,7 +40,9 @@ private def finish : GraphEvent :=
       work := Work.fromExecution (.combine .empty .empty) [1, 1, 1, 0, 0]
     }
 
-private def inputs : List (List GraphEvent) := [[first], [shared], [finish]]
+private def notice : GraphEvent := .groupFailure ⟨child, 1⟩
+
+private def inputs : List (List GraphEvent) := [[first], [shared], [finish, notice]]
 
 private def events : List Execution.WorkQueueEvent :=
   [
@@ -90,10 +93,22 @@ theorem source_valid
       (by simp [GraphEvent.Fresh, GraphEvent.identities, first, shared, firstTask, sharedTask])
       ⟨_, _, _, shared_known, by intro source impossible; cases impossible⟩
   refine ⟨?_, by cbv⟩
-  exact .append two ⟨_, _, parent_known, rfl, rfl⟩
+  have three : ValidGraphEvents work [first, shared, finish] := .append two ⟨_, _, parent_known, rfl, rfl⟩
     (by simp [GraphEvent.Fresh, GraphEvent.identities, first, shared, finish,
       firstTask, sharedTask, parentTask])
     ⟨_, _, _, parent_known, by intro source impossible; cases impossible⟩
+  exact .append three
+    ⟨
+      ⟨
+        [parent.ref],
+        none,
+        NodeAt.group (address := [1, 1, 0])
+          (group := ⟨child, [parent]⟩) (by rfl) (by simp)
+      ⟩,
+      by decide
+    ⟩
+    (by simp [notice, first, shared, finish, GraphEvent.Fresh, GraphEvent.identities])
+    trivial
 
 /-- The shared failure is silent until P releases C, whose completion reports its error.
 Witness: direct queue/publisher evaluation, retaining the empty middle output batch.
@@ -136,17 +151,29 @@ theorem eligible_source_cuts
 Witness: the general inventory construction with no stream cuts, followed by exact replay.
 -/
 theorem candidate_inventory : CompleteFailureInventory work events candidateCuts := by
-  have atomsEq : (((State.initialize (Work.fromExecution work)).runNormalized inputs).2.flatten.flatMap
-      publicationAtoms) = events := by cbv
-  have cuts : StreamFailureCuts work
-      (((State.initialize (Work.fromExecution work)).runNormalized inputs).2.flatten.flatMap
-        publicationAtoms) [] := by
-    rw [atomsEq]
-    exact ⟨rfl, by simp⟩
-  have certificate := createWorkQueue_completeFailureInventory generated source_valid.1
-    source_valid.2 cuts (by simp)
-  have merged : mergeFailureCuts candidateCuts [] = candidateCuts := by cbv
-  simpa only [eligible_source_cuts, merged, atomsEq] using certificate
+  refine ⟨by decide, by decide, ?_, ?_, ?_⟩
+  · intro entry member
+    simp only [candidateCuts, List.mem_cons, List.not_mem_nil, or_false] at member
+    rcases member with rfl | rfl
+    · exact ⟨by decide, .root ⟨_, _, first_known⟩, _, _, _, first_known, rfl⟩
+    · exact ⟨by decide, .root ⟨_, _, shared_known⟩, _, _, _, shared_known, rfl⟩
+  · intro index group errors selected
+    match index with
+    | 0 =>
+        have same : root = group ∧ 1 = errors := by simpa [events] using selected
+        rcases same with ⟨rfl, rfl⟩
+        exact (show NodeFailureCause work (failedBefore candidateCuts 0) root.ref 1 from
+          ⟨firstTask, by simp [failedBefore, candidateCuts], _, _, _, first_known, by simp, rfl, by decide⟩).toCauses
+    | 1 | 2 => cases selected
+    | 3 =>
+        have same : child = group ∧ 1 = errors := by simpa [events] using selected
+        rcases same with ⟨rfl, rfl⟩
+        exact (show NodeFailureCause work (failedBefore candidateCuts 3) child.ref 1 from
+          ⟨sharedTask, by simp [failedBefore, candidateCuts], _, _, _, shared_known, by simp, rfl, by decide⟩).toCauses
+    | index + 4 => cases index <;> simp [events] at selected
+  · intro index stream errors selected
+    have member := List.mem_of_getElem? selected
+    simp [events] at member
 
 /-- No owner is open at the silent settlement: R is closed and C is not yet announced.
 Witness: the shared task's unique owner list and the exact Open predicate at index one.
@@ -169,7 +196,8 @@ Witness: actual normalized output and the source-validity proof instantiate the 
 announcement law at unbatched index three, within the parent's release/drain batch.
 -/
 theorem child_failure_announced : child.ref ∈ announcedRefs initial (events.take 3) := by
-  have atomsEq : (((State.initialize (Work.fromExecution work)).runNormalized inputs).2.flatten.flatMap
+  have atomsEq :
+      (((State.initialize (Work.fromExecution work)).runNormalized inputs).2.flatten.flatMap
       publicationAtoms) = events := by cbv
   have initialEq :
       ((State.initialize (Work.fromExecution work)).initialGroups
@@ -200,7 +228,8 @@ Witness: the general retirement/role-separation theorem applied to this generate
 without assuming a failure witness or admission of the output history.
 -/
 theorem child_failure_open : Open initial (events.take 3) child.ref := by
-  have atomsEq : (((State.initialize (Work.fromExecution work)).runNormalized inputs).2.flatten.flatMap
+  have atomsEq :
+      (((State.initialize (Work.fromExecution work)).runNormalized inputs).2.flatten.flatMap
       publicationAtoms) = events := by cbv
   have initialEq :
       ((State.initialize (Work.fromExecution work)).initialGroups
@@ -228,7 +257,8 @@ theorem child_failure_open_single_batch
 Witness: the generic closure-uniqueness theorem needs only matching source payloads.
 -/
 theorem group_closures_unique : (events.flatMap groupClosureRefs).Nodup := by
-  have atomsEq : (((State.initialize (Work.fromExecution work)).runNormalized inputs).2.flatten.flatMap
+  have atomsEq :
+      (((State.initialize (Work.fromExecution work)).runNormalized inputs).2.flatten.flatMap
       publicationAtoms) = events := by cbv
   have result := createWorkQueue_runNormalized_atomicGroupClosuresUnique
     (fun _ member => source_valid.1.eachMatches member)
@@ -452,7 +482,7 @@ needed by each closure; no enumeration of the possible event indices is needed.
 -/
 theorem delayed_exact_counts {index group errors}
     (atEvent : events[index]? = some (.groupFailure group errors))
-    : NodeFailureCause work (failedBefore delayedCuts index) group.ref errors :=
+    : NodeFailureCauses work (failedBefore delayedCuts index) group.ref errors :=
   delayed_inventory.2.2.2.1 index group errors atEvent
 
 end GraphQL.IncrementalDelivery.Tests.WorkSchedulerSilentFailureCuts

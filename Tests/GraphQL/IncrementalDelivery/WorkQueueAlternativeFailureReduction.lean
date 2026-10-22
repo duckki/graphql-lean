@@ -179,13 +179,14 @@ private def shared : State :=
             streams := [{ node := node 7 }]
           }
       }
-    let (released, events, targets) := ready.drainReadyGroups
+    let (released, events, targets, queued) := ready.drainReadyGroups
     check "successful publication is transfer, not disposal" targets.isEmpty
     check "later co-owner failure cannot cancel a released source"
       (released.queue.rootStreams.contains 7)
     let reference := ready.queue.drainReadyGroups
     same "mixed success/failure drain keeps reference state" released.queue reference.1
-    same "mixed success/failure drain keeps reference wire events" events reference.2
+    same "ready drain keeps reference immediate wire events" events reference.2.1
+    same "ready drain keeps reference startup notices" queued reference.2.2
     let cached : State :=
       {
         queue :=
@@ -217,17 +218,25 @@ private def shared : State :=
     same "released cached failure disposes an unstarted task inline" reduced.effects
       [.adopt (.executionGroup [9]), .abortTask (.executionGroup [10])]
     same "cached failure uses the shared accounting result" reduced.state.queue
-      (cached.queue.handleGraphEvent success).1
+      (cached.queue.dispatchGraphEvent success).1
     same "cached failure keeps wire result" reduced.workQueueEvents
-      (cached.queue.handleGraphEvent success).2
+      (cached.queue.handleGraphEvent success).2.1
+    same "cached startup failure is queued separately"
+      reduced.state.queue.groupFailureEvents
+      (cached.queue.dispatchGraphEvent success).1.groupFailureEvents
     let receipt : State :=
       { cached with queue := { cached.queue with rootGroups := [2], rootStreams := [4] } }
-    let (_, receiptEvents, receiptEffects) :=
-      receipt.streamItems (node 4)
+    let receiptInput : GraphEvent :=
+      .streamItems (node 4)
         [{ occurrence := .item [] 0, value := { item := .scalar "item" } }]
-    same "receipt acknowledgement precedes ready-drain cleanup" receiptEffects
+    let receiptStep := receipt.handleGraphEvent receiptInput
+    same "active cached failure waits for its FIFO notification" receiptStep.2.2.1
+      [.adopt (.item [] 0), .acknowledge 4]
+    let receiptBatch :=
+      receipt.handleGraphEvents [receiptInput, .taskFailure (.executionGroup [11]) 2]
+    same "receipt acknowledgement precedes FIFO failure cleanup" receiptBatch.effects
       [.adopt (.item [] 0), .acknowledge 4, .abortTask (.executionGroup [10])]
-    same "receipt carrier precedes cached failure notice" receiptEvents
+    same "receipt carrier precedes FIFO failure notice" receiptBatch.workQueueEvents
       [
         .streamValues (node 4) [{ item := .scalar "item" }] [] [],
         .groupFailure (node 2) 2

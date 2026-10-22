@@ -1,5 +1,6 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.CachedFailureCleanup
-import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.HealthyRegistration
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.StartupHealth
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.PendingBoundPreservation
 
 /-! Healthy registered-task accounting through the full recursive release-time drain. -/
 
@@ -120,62 +121,41 @@ theorem State.HealthyRegisteredTaskAccounting.drainReadyGroups
     (canonical
       : ∀ group dependencies,
           GroupRecordAt work group dependencies → dependencies = parents group.ref)
-    : queue.drainReadyGroups.1.HealthyRegisteredTaskAccounting work settled failed := by
-  let properties (node : GroupNode) : Prop :=
-    unsettledCount node.tasks settled ≤ node.pending ∧
-      (∀ child ∈ node.childGroups, (parents child).head? = some node.group.node.ref) ∧
-      ∃ dependencies, GroupRecordAt work node.group.node dependencies
-  have removeProperties (node : GroupNode) (occurrence : Occurrence)
-      (valid : properties node)
-      : properties { node with tasks := node.tasks.filter (· != occurrence) } :=
-    ⟨Nat.le_trans (unsettledCount_filter_le node.tasks settled _) valid.1, valid.2⟩
-  let invariant (current : State) : Prop :=
+    (registered : queue.StartedTasksRegistered) (sound : queue.GroupMembershipSound)
+    (available : List (Occurrence × Nat) := [])
+    (recorded
+      : ∀ occurrence errors, (occurrence, errors) ∈ available → occurrence ∈ failed := by
+        intro occurrence errors member; cases member)
+    : (queue.drainReadyGroups available).1.HealthyRegisteredTaskAccounting work settled
+        failed := by
+  let invariant (current : State) :=
     current.HealthyRegisteredTaskAccounting work settled failed ∧
-      current.GroupRefsUnique ∧ current.CachedFailuresSupported work failed ∧
-      (∀ node ∈ current.groupNodes, properties node) ∧ current.RegisteredTasksMatch work
+      current.PendingBound (fun _ => True) settled ∧ current.GroupRefsUnique ∧
+      current.CachedFailuresSupported work failed ∧ current.RegisteredTasksMatch work ∧
+      current.ChildLinksCanonical parents ∧ current.GroupNodesMatchWork work ∧
+      current.StartedTasksRegistered ∧ current.GroupMembershipSound
   have initial : invariant queue :=
-    ⟨accounted, unique, supported, (fun node member =>
-      ⟨bounded node member trivial, links node member, matching node member⟩), tasksMatch⟩
-  have final := State.drainReadyGroups_preserves invariant (by
-    intro current node valid member _ _ zero
-    have bound : current.PendingBound (fun _ => True) settled :=
-      fun candidate present _ => (valid.2.2.2.1 candidate present).1
-    have released := valid.1.finishSettledGroupSuccess valid.2.1 node member
-      (bound.allSettled member trivial zero)
-    refine ⟨released.startNewWork _,
-      (valid.2.1.finishGroupSuccess node).startNewWork _,
-      (valid.2.2.1.finishGroupSuccess node).startNewWork _, ?_,
-      (valid.2.2.2.2.finishGroupSuccess node).startNewWork _⟩
-    intro other present
-    rw [(State.startNewWork_groupCore _ _).1] at present
-    exact State.finishGroupSuccess_nodeProperty properties removeProperties
-      valid.2.2.2.1 node other present) (by
-    intro current node occurrence errors valid member _ selected
-    obtain ⟨_, task, found, rejected⟩ := State.rejectedTask?_sound selected
-    have live := List.mem_of_find?_eq_some found
-    have permitted : ∀ group ∈ task.task.groups,
-        GroupRecordInvalidated work failed group.ref := by
-      intro group contributes
-      exact (valid.2.2.1.invalidated live (by simp [rejected]) contributes).toRecordInvalidated
-    rw [current.taskFailure_eq occurrence errors task found]
-    apply failureGroupFold_preserves_on invariant
-      (GroupRecordInvalidated work failed) (fun state ref prior invalidated => by
-        have currentLinks : state.ChildLinksCanonical parents :=
-          fun candidate present => (prior.2.2.2.1 candidate present).2.1
-        have currentMatch : state.GroupNodesMatchWork work :=
-          fun candidate present => (prior.2.2.2.1 candidate present).2.2
-        refine ⟨prior.1.removeInvalidatedGroup prior.2.2.2.2 generated
-          currentLinks currentMatch canonical ref invalidated,
-          prior.2.1.removeGroup ref, prior.2.2.1.removeGroup ref,
-          (fun other present => prior.2.2.2.1 other (List.mem_filter.mp present).1),
-          prior.2.2.2.2.removeGroup ref⟩)
-      errors task.task.groups permitted
-    exact ⟨valid.1, valid.2.1,
-      State.CachedErrorsSatisfy.putTaskNode valid.2.2.1 _
-        (by
-          intro count same
-          cases Option.some.inj same
-          exact valid.2.2.1 task live errors rejected), valid.2.2.2⟩) initial
+    ⟨accounted, bounded, unique, supported, tasksMatch, links, matching, registered, sound⟩
+  have final := State.drainReadyGroups_preserves invariant
+    (available := available) (valid := initial) (by
+    intro current node valid member active zero
+    have all := valid.2.1.allSettled member trivial zero
+    have released := valid.1.finishSettledGroupSuccess valid.2.2.1 node member all
+    have releasedBound := valid.2.1.finishGroupSuccess node all
+    have releasedUnique := valid.2.2.1.finishGroupSuccess node
+    have releasedSupport := valid.2.2.2.1.finishGroupSuccess node
+    have releasedTasks := valid.2.2.2.2.1.finishGroupSuccess node
+    have releasedLinks := valid.2.2.2.2.2.1.finishGroupSuccess node
+    have releasedMatch := valid.2.2.2.2.2.2.1.finishGroupSuccess node
+    have releasedRegistered := valid.2.2.2.2.2.2.2.1.finishGroupSuccess node
+    have releasedSound := valid.2.2.2.2.2.2.2.2.finishGroupSuccess node
+    exact ⟨released.startNewWork releasedSupport releasedRegistered releasedTasks releasedSound
+        generated releasedLinks releasedMatch canonical _ available recorded,
+      releasedBound.startNewWork _ available, releasedUnique.startNewWork _ available,
+      releasedSupport.startNewWork_available releasedRegistered releasedTasks _ available recorded,
+      releasedTasks.startNewWork _ available, releasedLinks.startNewWork _ available,
+      releasedMatch.startNewWork _ available,
+      releasedRegistered.startNewWork _ available, releasedSound.startNewWork _ available⟩)
   exact final.1
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

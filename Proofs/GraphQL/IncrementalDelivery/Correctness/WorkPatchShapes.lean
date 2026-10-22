@@ -22,7 +22,7 @@ prefixes; streamed publications contain the single successful item from their ru
 -/
 theorem eventAllowed_patchShape {paths bound work initial matching before failed event}
     (coherent : MixedOwnerPaths.WorkAt paths bound work)
-    (allowed : EventAllowed work initial matching before failed event)
+    (allowed : EventAllowed work initial matching before failed event reported)
     : EventPatchShape paths event := by
   cases event <;> try trivial
   case groupValues node values =>
@@ -107,7 +107,7 @@ theorem admitted_patchShapes {paths bound work history}
       : ∀ event ∈ events, EventPatchShape paths event := by
     intro event member
     obtain ⟨index, selected⟩ := List.mem_iff_getElem?.mp member
-    exact eventAllowed_patchShape coherent (explained.2.2 index event selected)
+    exact eventAllowed_patchShape coherent (explained.eventAllowed index event selected)
   rcases admitted with ⟨events, matching, failures, explained, grouped⟩
     | ⟨events, matching, failures, explained, _, grouped⟩
   · exact workBatching_patchShapes grouped (explainedShapes explained)

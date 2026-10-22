@@ -1,6 +1,6 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.RegistrationProjection
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.RegistrationActivation
-import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.TerminationShape
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.TerminationFrames
 
 /-! Exact startup correspondence, before the high-risk live-registration bridge. -/
 
@@ -88,7 +88,8 @@ theorem State.maybeIntegrateWork_eq_reference_of_no_roots (state : State)
   obtain ⟨same, inactive⟩ := loop work.tasks initial
     ((ReferenceWorkQueue.State.addGroups_rootGroups state.queue work.groups).trans empty) rfl
   change ((work.tasks.foldl step initial).1.queue.addStreams work.streams parent).1 =
-      ((work.tasks.foldl ReferenceWorkQueue.State.addTask registered).addStreams work.streams parent).1
+      ((work.tasks.foldl ReferenceWorkQueue.State.addTask registered).addStreams
+        work.streams parent).1
     ∧ ({ newGroups := (state.queue.addGroups work.groups).2,
           newStreams := ((work.tasks.foldl step initial).1.queue.addStreams work.streams parent).2 }
           : ReferenceWorkQueue.NewWork)
@@ -124,11 +125,27 @@ theorem State.initialize_queue (work : Work)
   let released : ReferenceWorkQueue.NewWork :=
     { integrated.2.newWork with newGroups := pruned.2 }
   have readyRunning : ready.stopped = false := running
-  have started := ready.startNewWork_queue_of_no_active released integrated.2 []
-    readyRunning inactive
+  have noFailures : initial.queue.TaskRejectionsSatisfy (fun _ _ => False) := by
+    intro node member
+    cases member
+  have integratedClean : integrated.1.queue.TaskRejectionsSatisfy (fun _ _ => False) := by
+    rw [same]
+    exact noFailures.maybeIntegrateWork lowered
+  have readyClean := integratedClean.pruneEmptyGroups integrated.2.newGroups
+  have clean : ∀ node ∈ ready.queue.taskNodes, node.rejection = none := by
+    intro node member
+    cases rejected : node.rejection with
+    | none => rfl
+    | some errors => exact (readyClean node member errors rejected).elim
+  have projected := ready.startNewWork_queue_and_notices_of_no_active released integrated.2 []
+    readyRunning inactive clean
+  have started : (ready.startNewWork released integrated.2 []).1.queue
+      = (ready.queue.startNewWork released).1 := congrArg Prod.fst projected
+  have queued : (ready.startNewWork released integrated.2 []).2.2
+      = (ready.queue.startNewWork released).2 := congrArg Prod.snd projected
   unfold State.initialize
   dsimp only
-  rw [started]
+  rw [started, queued]
   simp only [IntegratedWork.newWork] at sameGroups sameStreams
   dsimp only [initial, lowered] at same sameGroups sameStreams
   dsimp only [ready, released, pruned, integrated, initial, lowered, IntegratedWork.newWork]

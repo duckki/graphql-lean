@@ -215,7 +215,7 @@ theorem StreamNoticesSupported.announced_stream_dependency
   · obtain ⟨event, member, notice⟩ := List.mem_flatMap.mp carried
     obtain ⟨index, selected⟩ := List.mem_iff_getElem?.mp member
     have atBoundary := supported index event selected
-    have allowed := explained.2.2 index event selected
+    have allowed := explained.eventAllowed index event selected
     simp only [EventAllowed,
       List.length_take_of_le (Nat.le_of_lt (List.getElem?_eq_some_iff.mp selected).1)] at allowed
     have carrier {plain newGroups newStreams}
@@ -357,7 +357,7 @@ theorem Explains.streamNoticesSupported_of_initial_groups
       simpa only [DeferOnly.node_dependencies coherent noticed, equal, same] using selected
     exact ⟨fun failure => noProducer (nodeFailed_hasProducer failure), Or.inl noProducer⟩
   intro index event selected
-  have allowed := explained.2.2 index event selected
+  have allowed := explained.eventAllowed index event selected
   simp only [EventAllowed,
     List.length_take_of_le (Nat.le_of_lt (List.getElem?_eq_some_iff.mp selected).1)] at allowed
   cases event <;> simp only [CarriedStreamSupport]

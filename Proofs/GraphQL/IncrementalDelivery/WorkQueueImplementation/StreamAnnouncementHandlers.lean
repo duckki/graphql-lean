@@ -72,9 +72,11 @@ theorem State.StreamAnnouncementInventory.taskSuccess {queue : State}
     (matching : queue.ChildStreamsMatchWork work) (generated : ExecutedWork work)
     {occurrence result}
     (source : (GraphEvent.taskSuccess occurrence result).MatchesWork work)
-    : (queue.taskSuccess occurrence result).1.StreamAnnouncementInventory
+    (available : List (Occurrence × Nat) := [])
+    : (queue.taskSuccess occurrence result available).1.StreamAnnouncementInventory
         (announced
-          ++ (queue.taskSuccess occurrence result).2.flatMap rawStreamNoticeRefs) := by
+          ++ (queue.taskSuccess occurrence result available).2.1.flatMap
+              rawStreamNoticeRefs) := by
   cases found : queue.taskNode? occurrence with
   | none =>
       simpa only [State.taskSuccess, found, List.flatMap_nil, List.append_nil]
@@ -104,12 +106,12 @@ theorem State.StreamAnnouncementInventory.taskSuccess {queue : State}
             exact ih _ next.1 next.2
       have folded := loop node.task.groups (_, [], {})
         (by simpa only [List.flatMap_nil, List.append_nil] using integrated) provenance
-      rw [queue.taskSuccess_eq occurrence result node found]
+      rw [queue.taskSuccess_eq occurrence result node found available]
       let withValue := queue.putTaskNode { node with value := some result.value }
       let prepared := (withValue.maybeIntegrateWork result.work (some occurrence)).1
       let released := node.task.groups.foldl successGroupStep (prepared, [], {})
-      have drained := (folded.1.startNewWork released.2.2).drainReadyGroups
-        (folded.2.startNewWork released.2.2) generated
+      have drained := (folded.1.startNewWork released.2.2 available).drainReadyGroups
+        (folded.2.startNewWork released.2.2 available) generated available
       simpa only [List.flatMap_append, List.append_assoc] using drained
 
 -----------------------------------------------------------------------------------------
@@ -126,15 +128,22 @@ theorem streamItemFold_streamAnnouncementInventory {work : Execution.Work}
       : State
         × List Execution.DeliveryNode
         × List Execution.DeliveryNode
-        × List StreamItemValue)
+        × List StreamItemValue
+        × List GroupFailureEvent)
     (inventory
       : acc.1.StreamAnnouncementInventory
           (announced ++ acc.2.2.1.map Execution.DeliveryNode.ref))
     (matching : acc.1.ChildStreamsMatchWork work)
-    : (items.foldl streamItemStep acc).1.StreamAnnouncementInventory
+    (available : List (Occurrence × Nat) := [])
+    : (items.foldl (fun current item => streamItemStep current item available)
+        acc).1.StreamAnnouncementInventory
         (announced
-          ++ (items.foldl streamItemStep acc).2.2.1.map Execution.DeliveryNode.ref)
-      ∧ (items.foldl streamItemStep acc).1.ChildStreamsMatchWork work := by
+          ++ (items.foldl (fun current item => streamItemStep current item available)
+                acc).2.2.1.map
+              Execution.DeliveryNode.ref)
+      ∧ (items.foldl (fun current item => streamItemStep current item available)
+          acc).1.ChildStreamsMatchWork
+          work := by
   induction items generalizing acc with
   | nil => exact ⟨inventory, matching⟩
   | cons item rest ih =>
@@ -142,9 +151,9 @@ theorem streamItemFold_streamAnnouncementInventory {work : Execution.Work}
       · let integrated := acc.1.maybeIntegrateWork item.work
         let pruned := integrated.1.pruneEmptyGroups integrated.2.newGroups
         have next := ((inventory.maybeIntegrateWork item.work).pruneEmptyGroups
-          integrated.2.newGroups).startNewWork { integrated.2 with newGroups := pruned.2 }
+          integrated.2.newGroups).startNewWork { integrated.2 with newGroups := pruned.2 } available
         simpa only [streamItemStep, List.map_append, List.append_assoc] using next
-      · exact ((matching.integrateRoots item.work).pruneEmptyGroups _).startNewWork _
+      · exact ((matching.integrateRoots item.work).pruneEmptyGroups _).startNewWork _ available
 
 /-- Stream-item processing preserves globally fresh notices in its carrier and drain.
 Witness: the complete item fold consumes fresh roots; the following drain consumes only
@@ -155,15 +164,17 @@ theorem State.StreamAnnouncementInventory.streamItems
     (inventory : queue.StreamAnnouncementInventory announced)
     (matching : queue.ChildStreamsMatchWork work) (generated : ExecutedWork work)
     (stream : Execution.DeliveryNode) (items : List StreamItem)
-    : (queue.streamItems stream items).1.StreamAnnouncementInventory
+    (available : List (Occurrence × Nat) := [])
+    : (queue.streamItems stream items available).1.StreamAnnouncementInventory
         (announced
-          ++ (queue.streamItems stream items).2.flatMap rawStreamNoticeRefs) := by
-  rw [queue.streamItems_eq stream items]
+          ++ (queue.streamItems stream items available).2.1.flatMap
+              rawStreamNoticeRefs) := by
+  rw [queue.streamItems_eq stream items available]
   split
   · simpa only [List.flatMap_nil, List.append_nil] using inventory
-  · have prepared := streamItemFold_streamAnnouncementInventory items (queue, [], [], [])
-        (by simpa only [List.map_nil, List.append_nil] using inventory) matching
-    have drained := prepared.1.drainReadyGroups prepared.2 generated
+  · have prepared := streamItemFold_streamAnnouncementInventory items (queue, [], [], [], [])
+        (by simpa only [List.map_nil, List.append_nil] using inventory) matching available
+    have drained := prepared.1.drainReadyGroups prepared.2 generated available
     simpa only [List.flatMap_cons, rawStreamNoticeRefs, List.append_assoc] using drained
 
 /-- Every matching graph event extends the inventory by exactly its raw stream notices.
@@ -174,22 +185,34 @@ theorem State.StreamAnnouncementInventory.handleGraphEvent
     (inventory : queue.StreamAnnouncementInventory announced)
     (matching : queue.ChildStreamsMatchWork work) (generated : ExecutedWork work)
     {event : GraphEvent} (source : event.MatchesWork work)
-    : (queue.handleGraphEvent event).1.StreamAnnouncementInventory
-        (announced ++ (queue.handleGraphEvent event).2.flatMap rawStreamNoticeRefs) := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.handleGraphEvent event available).1.StreamAnnouncementInventory
+        (announced
+          ++ (queue.handleGraphEvent event available).2.1.flatMap
+              rawStreamNoticeRefs) := by
+  have cached := inventory.cacheTaskFailures available
+  have links := matching.cacheTaskFailures available
   cases event with
-  | taskSuccess => exact inventory.taskSuccess matching generated source
-  | taskFailure occurrence errors => exact inventory.taskFailure occurrence errors
+  | taskSuccess => exact cached.taskSuccess links generated source available
+  | taskFailure occurrence errors => exact cached.taskFailure occurrence errors
   | streamItems stream items =>
-      exact inventory.streamItems matching generated stream items
+      exact cached.streamItems links generated stream items available
+  | groupFailure failure =>
+      simp only [State.handleGraphEvent, State.groupFailure]
+      split
+      · simpa only [List.flatMap_nil, List.append_nil] using cached
+      · split <;> simp only [List.flatMap_nil, List.flatMap_singleton,
+          rawStreamNoticeRefs, List.append_nil] <;>
+          exact ⟨cached.unique, cached.registered, cached.stored, cached.unreleased⟩
   | streamSuccess stream =>
       simp only [State.handleGraphEvent, State.streamSuccess]
       split <;> simp only [List.flatMap_nil, List.flatMap_singleton, rawStreamNoticeRefs,
         List.append_nil] <;>
-        exact ⟨inventory.unique, inventory.registered, inventory.stored, inventory.unreleased⟩
+        exact ⟨cached.unique, cached.registered, cached.stored, cached.unreleased⟩
   | streamFailure stream errors =>
       simp only [State.handleGraphEvent, State.streamFailure]
       split <;> simp only [List.flatMap_nil, List.flatMap_singleton, rawStreamNoticeRefs,
         List.append_nil] <;>
-        exact ⟨inventory.unique, inventory.registered, inventory.stored, inventory.unreleased⟩
+        exact ⟨cached.unique, cached.registered, cached.stored, cached.unreleased⟩
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

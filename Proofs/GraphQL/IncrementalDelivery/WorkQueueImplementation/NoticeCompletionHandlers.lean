@@ -18,6 +18,10 @@ theorem ExecutedWork.taskDrainNoticeAncestor_completed
     {incoming : TaskNode} {index : Nat}
     (generated : ExecutedWork work) (matching : ∀ event ∈ before, event.MatchesWork work)
     (matched : (GraphEvent.taskSuccess occurrence result).MatchesWork work)
+    (found
+      : ((State.initialize (Work.fromExecution work)).replayGraphEvents before).taskNode?
+          occurrence
+        = some incoming)
     (known : GroupRecordAt work child dependencies) (ancestor : ref ∈ dependencies)
     : let initial := State.initialize (Work.fromExecution work)
       let queue := initial.replayGraphEvents before
@@ -26,19 +30,19 @@ theorem ExecutedWork.taskDrainNoticeAncestor_completed
             { incoming with value := some result.value }).maybeIntegrateWork
           result.work (some occurrence)).1
       let folded := incoming.task.groups.foldl successGroupStep (prepared, [], {})
-      let active := folded.1.startNewWork folded.2.2
+      let active := (folded.1.startNewWork folded.2.2).1
       let outputs :=
         (initial.rawEventReplay before).2
         ++ folded.2.1
-        ++ active.drainReadyGroups.2.take (index + 1)
-      active.drainReadyGroups.2[index]? = some (.groupSuccess group groups streams)
+        ++ active.drainReadyGroups.2.1.take (index + 1)
+      active.drainReadyGroups.2.1[index]? = some (.groupSuccess group groups streams)
       → child ∈ groups
       → ref ∉ active.drainReadyGroups.1.cancelledGroups
       → ref ∈ initial.rootGroups ++ outputs.flatMap rawGroupNoticeRefs
       → ref ∈ outputs.flatMap rawGroupClosureRefs := by
   intro initial queue prepared folded active outputs selected noticed uncancelled announced
   obtain ⟨parents, canonical, frame⟩ :=
-    generated.taskSuccess_drain_liveRootFrame matching matched incoming
+    generated.taskSuccess_drain_liveRootFrame matching matched incoming found
       (generated.replayGraphEvents_rootsPresent before matching)
   have sourceTracking : GroupNoticeTracking initial.rootGroups
       (queue, (initial.rawEventReplay before).2) := by
@@ -48,7 +52,7 @@ theorem ExecutedWork.taskDrainNoticeAncestor_completed
     exact source
   have tracked := sourceTracking.taskSuccessPreparation occurrence result incoming
   exact tracked.drainNoticeAncestor_completed frame generated canonical
-    active.groupNodes.length selected noticed known ancestor uncancelled announced
+    active.groupNodes.length [] selected noticed known ancestor uncancelled announced
 
 -----------------------------------------------------------------------------------------
 -- Stream items retain the leading item carrier before the recursive drain's own prefix
@@ -65,12 +69,12 @@ theorem ExecutedWork.streamDrainNoticeAncestor_completed
     (known : GroupRecordAt work child dependencies) (ancestor : ref ∈ dependencies)
     : let initial := State.initialize (Work.fromExecution work)
       let queue := initial.replayGraphEvents before
-      let prepared := items.foldl streamItemStep (queue, [], [], [])
+      let prepared := items.foldl streamItemStep (queue, [], [], [], [])
       let outputs :=
         (initial.rawEventReplay before).2
-        ++ [.streamValues stream prepared.2.2.2 prepared.2.1 prepared.2.2.1]
-        ++ prepared.1.drainReadyGroups.2.take (index + 1)
-      prepared.1.drainReadyGroups.2[index]? = some (.groupSuccess group groups streams)
+        ++ [.streamValues stream prepared.2.2.2.1 prepared.2.1 prepared.2.2.1]
+        ++ prepared.1.drainReadyGroups.2.1.take (index + 1)
+      prepared.1.drainReadyGroups.2.1[index]? = some (.groupSuccess group groups streams)
       → child ∈ groups
       → ref ∉ prepared.1.drainReadyGroups.1.cancelledGroups
       → ref ∈ initial.rootGroups ++ outputs.flatMap rawGroupNoticeRefs
@@ -87,6 +91,6 @@ theorem ExecutedWork.streamDrainNoticeAncestor_completed
     exact source
   have tracked := sourceTracking.streamItemsPreparation stream items
   exact tracked.drainNoticeAncestor_completed frame generated canonical
-    prepared.1.groupNodes.length selected noticed known ancestor uncancelled announced
+    prepared.1.groupNodes.length [] selected noticed known ancestor uncancelled announced
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

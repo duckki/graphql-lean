@@ -17,7 +17,7 @@ import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.FreshGroupNoti
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.CanonicalGroupCompletion
 import Tests.GraphQL.IncrementalDelivery.Execution
 
-/-! A cached failure precedes a successful drain carrier that announces another defer. -/
+/-! Cached failure removal precedes a successful drain; its queued notice waits for observed FIFO dispatch. -/
 
 namespace GraphQL.IncrementalDelivery.Tests.WorkSchedulerDrainNotices
 open GraphQL.IncrementalDelivery.Execution
@@ -55,24 +55,34 @@ private def selections : List Selection :=
 
 private def work : Execution.Work :=
   .combine .empty
-    (.combine
-      (.executionGroup [⟨root, []⟩, ⟨failed, [parent]⟩] []
-        ({ result := .error 1, cause := some 1 }) .empty)
+    (.declareGroups
+      [
+        ⟨root, []⟩,
+        ⟨parent, []⟩,
+        ⟨failed, [parent]⟩,
+        ⟨child, [parent]⟩,
+        ⟨grandchild, [child, parent]⟩
+      ]
       (.combine
-        (.executionGroup [⟨root, []⟩, ⟨child, [parent]⟩] []
-          ({ result := .ok (sharedValue.data, 0) }) (.combine .empty .empty))
+        (.executionGroup [⟨root, []⟩, ⟨failed, [parent]⟩] []
+          ({ result := .error 1, cause := some 1 }) .empty)
         (.combine
-          (.executionGroup [⟨parent, []⟩] [] ({ result := .ok (parentValue.data, 0) })
-            (.combine .empty .empty))
+          (.executionGroup [⟨root, []⟩, ⟨child, [parent]⟩] []
+            ({ result := .ok (sharedValue.data, 0) }) (.combine .empty .empty))
           (.combine
-            (.executionGroup [⟨grandchild, [child, parent]⟩] []
-              ({ result := .ok ([("c", .scalar "c")], 0) }) (.combine .empty .empty))
-            .empty))))
+            (.executionGroup [⟨parent, []⟩] [] ({ result := .ok (parentValue.data, 0) })
+              (.combine .empty .empty))
+            (.combine
+              (.executionGroup [⟨grandchild, [child, parent]⟩] []
+                ({ result := .ok ([("c", .scalar "c")], 0) }) (.combine .empty .empty))
+              .empty)))))
 
 private def failure : GraphEvent := .taskFailure failedTask 1
 private def buffered : GraphEvent := .taskSuccess sharedTask ⟨sharedValue, {}⟩
 private def finish : GraphEvent := .taskSuccess parentTask ⟨parentValue, {}⟩
 private def received : List GraphEvent := [failure, buffered, finish]
+private def notice : GraphEvent := .groupFailure ⟨failed, 1⟩
+private def dispatched : List GraphEvent := received ++ [notice]
 private def incoming : TaskNode := { task := ⟨parentTask, [parent]⟩ }
 private def initial : State := State.initialize (Work.fromExecution work)
 
@@ -82,18 +92,20 @@ private def prepared : State :=
   (stored.maybeIntegrateWork {} (some parentTask)).1
 
 private def released := incoming.task.groups.foldl successGroupStep (prepared, [], {})
-private def ready : State := released.1.startNewWork released.2.2
+private def ready : State := (released.1.startNewWork released.2.2).1
 
 private theorem generated : ExecutedWork work :=
   ⟨Nat, schema, resolvers, [], 50, "Query", .object "Query" 0, selections, by cbv⟩
 
 private theorem valid : ValidGraphEvents work received := by
   have failureKnown : TaskAt work failedTask [root.ref, failed.ref] none (.object [] (.error 1)) :=
-    .executionGroup (result := { result := .error 1, cause := some 1 }) (groups := [⟨root, []⟩, ⟨failed, [parent]⟩])
+    .executionGroup (result := { result := .error 1, cause := some 1 }) (groups := [⟨root,
+      []⟩, ⟨failed, [parent]⟩])
       (children := .empty) (owners := []) (by cbv)
   have sharedKnown : TaskAt work sharedTask [root.ref, child.ref] none
       (.object [] (.ok (sharedValue.data, 0))) :=
-    .executionGroup (result := { result := .ok (sharedValue.data, 0) }) (groups := [⟨root, []⟩, ⟨child, [parent]⟩])
+    .executionGroup (result := { result := .ok (sharedValue.data, 0) }) (groups := [⟨root,
+      []⟩, ⟨child, [parent]⟩])
       (children := .combine .empty .empty) (owners := []) (by cbv)
   have parentKnown : TaskAt work parentTask [parent.ref] none
       (.object [] (.ok (parentValue.data, 0))) :=
@@ -112,16 +124,60 @@ private theorem valid : ValidGraphEvents work received := by
       GraphEvent.Fresh, GraphEvent.identities])
     ⟨_, _, _, parentKnown, by intro source impossible; cases impossible⟩
 
-/-- The generated drain emits a cached failure before the child-success notice carrier.
-Witness: exact executable reduction; D is announced only by the second real iteration.
+/-- This fixture's two distinct payloads identify their exact supplying tasks. -/
+private theorem received_publications_exact (published : List ObjectPublication)
+    (values : published.map Prod.snd = [parentValue, sharedValue])
+    (sources
+      : ∀ publication ∈ published, ObjectValueFrom received publication.1 publication.2)
+    : published = [(parentTask, parentValue), (sharedTask, sharedValue)] := by
+  obtain ⟨first, rest, rfl, firstValue, restValues⟩ := List.map_eq_cons_iff.mp values
+  obtain ⟨second, rfl, secondValue⟩ := List.map_eq_singleton_iff.mp restValues
+  have firstSource := sources first List.mem_cons_self
+  have secondSource := sources second (List.mem_cons_of_mem _ List.mem_cons_self)
+  obtain ⟨firstResult, firstMember, firstSame⟩ := firstSource
+  obtain ⟨secondResult, secondMember, secondSame⟩ := secondSource
+  simp only [received, failure, buffered, finish, List.mem_cons, List.not_mem_nil,
+    or_false, GraphEvent.taskSuccess.injEq, reduceCtorEq, false_or] at firstMember secondMember
+  have firstTask : first.1 = parentTask := by
+    rcases firstMember with ⟨sameTask, rfl⟩ | ⟨sameTask, rfl⟩
+    · have impossible := firstSame.trans firstValue
+      simp [sharedValue, parentValue] at impossible
+    · exact sameTask
+  have secondTask : second.1 = sharedTask := by
+    rcases secondMember with ⟨sameTask, rfl⟩ | ⟨sameTask, rfl⟩
+    · exact sameTask
+    · have impossible := secondSame.trans secondValue
+      simp [sharedValue, parentValue] at impossible
+  have firstExact : first = (parentTask, parentValue) := Prod.ext firstTask firstValue
+  have secondExact : second = (sharedTask, sharedValue) := Prod.ext secondTask secondValue
+  rw [firstExact, secondExact]
+
+/-- The immediate replay has the same occurrence ledger in this concrete fixture.
+Witness: derive a separate empty-snapshot certificate and identify both ledgers using
+source provenance and the two distinct payloads. No host snapshot is erased.
+-/
+private theorem received_ledger_empty {events matching published}
+    (ledger : ObjectLedgerMatching work [received] events matching published)
+    : initial.ReplayClosuresCovered received published := by
+  obtain ⟨raw, values, inventory, covered, _⟩ :=
+    generated.rawEventReplay_bufferedCoverage received valid (by cbv)
+  have rawExact := received_publications_exact raw (values.trans (by cbv))
+    inventory.provenance
+  have publishedExact := received_publications_exact published
+    (ledger.rawValues.trans (by cbv)) (by
+      intro publication member
+      obtain ⟨result, source, same, _⟩ := ledger.source publication member
+      exact ⟨result, by simpa using source, same⟩)
+  rw [publishedExact]
+  rwa [rawExact] at covered
+
+/-- Startup removes the cached failure before draining the healthy child.
+The failure notice is queued separately and forwarded after the supplied host batch.
 -/
 theorem failure_before_notice_carrier
-    : ready.drainReadyGroups.2
-      = [
-        .groupFailure failed 1,
-        .groupValues child [sharedValue],
-        .groupSuccess child [grandchild] []
-      ] := by
+    : (released.1.startNewWork released.2.2).2 = [⟨failed, 1⟩]
+      ∧ ready.drainReadyGroups.2.1
+        = [.groupValues child [sharedValue], .groupSuccess child [grandchild] []] := by
   cbv
 
 private theorem grandchildKnown
@@ -150,7 +206,7 @@ private theorem child_announced_before_carrier
       ∈ initial.rootGroups
         ++ (((initial.rawEventReplay [failure, buffered]).2
               ++ released.2.1
-              ++ ready.drainReadyGroups.2.take 3).flatMap
+              ++ ready.drainReadyGroups.2.1.take 2).flatMap
               rawGroupNoticeRefs) := by
   apply List.mem_append_right
   rw [List.flatMap_append, List.flatMap_append]
@@ -160,11 +216,11 @@ private theorem child_announced_before_carrier
     child_announced, List.mem_cons_of_mem _ List.mem_cons_self⟩
 
 private theorem child_carrier
-    : ready.drainReadyGroups.2[2]? = some (.groupSuccess child [grandchild] []) := by
-  rw [failure_before_notice_carrier]
+    : ready.drainReadyGroups.2.1[1]? = some (.groupSuccess child [grandchild] []) := by
+  rw [failure_before_notice_carrier.2]
   rfl
 
-/-- C completes by D's carrier even after an earlier cached failure in the same drain.
+/-- C completes by D's carrier after startup removes an earlier cached failure.
 Witness: source-prefix tracking includes P's earlier C notice and the intervening cached
 failure. The general handler theorem derives completion by the exact D carrier.
 -/
@@ -172,35 +228,27 @@ theorem ancestor_completed_after_cached_failure
     : child.ref
       ∈ (((initial.rawEventReplay [failure, buffered]).2
           ++ released.2.1
-          ++ ready.drainReadyGroups.2.take 3).flatMap
+          ++ ready.drainReadyGroups.2.1.take 2).flatMap
           rawGroupClosureRefs) := by
   have prior : ∀ source ∈ [failure, buffered], source.MatchesWork work :=
     fun _ member => valid.eachMatches (List.mem_append_left [finish] member)
   have matched := valid.eachMatches
     (List.mem_append_right [failure, buffered] List.mem_cons_self)
-  exact generated.taskDrainNoticeAncestor_completed
-    (before := [failure, buffered]) (occurrence := parentTask) (result := ⟨parentValue, {}⟩)
-    (ref := child.ref) prior matched
-    (groupRecordAt_of_nodeAt grandchildKnown)
-    List.mem_cons_self
-    (incoming := incoming)
-    (index := 2)
-    (group := child)
-    (groups := [grandchild])
-    (streams := [])
-    child_carrier
-    List.mem_cons_self
-    child_uncancelled
+  exact generated.taskDrainNoticeAncestor_completed (before := [failure, buffered])
+    (occurrence := parentTask) (result := ⟨parentValue, {}⟩) (ref := child.ref) prior
+    matched (by cbv) (groupRecordAt_of_nodeAt grandchildKnown) List.mem_cons_self
+    (incoming := incoming) (index := 1) (group := child) (groups := [grandchild])
+    (streams := []) child_carrier List.mem_cons_self child_uncancelled
     child_announced_before_carrier
 
 /-- The complete raw replay closes C by D's exact carrier without a supplied health premise.
 Witness: the general raw-history theorem derives noncancellation and recovers the actual
-source handler and recursive-drain origin, including all earlier cached-failure output.
+source handler and recursive-drain origin, including the earlier root-failure output.
 -/
 theorem raw_notice_ancestor_completed
     : child.ref
-      ∈ ((initial.rawEventReplay received).2.take 6).flatMap rawGroupClosureRefs := by
-  have selected : (initial.rawEventReplay received).2[5]?
+      ∈ ((initial.rawEventReplay received).2.take 5).flatMap rawGroupClosureRefs := by
+  have selected : (initial.rawEventReplay received).2[4]?
       = some (.groupSuccess child [grandchild] []) := by cbv
   exact generated.rawEventReplay_groupNoticeAncestor_completed valid
     (by cbv)
@@ -244,7 +292,7 @@ fold and every bounded drain prefix. This is not a supplied failure-admission pr
 theorem cached_notice_has_accepted_contributor
     : ready.CachedFailuresSupported work [failedTask]
       ∧ (∀ fuel,
-          (State.drainReadyGroups.go fuel ready).1.CachedFailuresSupported work
+          (State.drainReadyGroups.go [] fuel ready).1.CachedFailuresSupported work
             [failedTask])
       ∧ ∃ owners, TaskHasOwners work failedTask owners ∧ failed.ref ∈ owners := by
   have prior : ValidGraphEvents work [failure, buffered] :=
@@ -257,12 +305,10 @@ theorem cached_notice_has_accepted_contributor
     (initial.objectFailureContributions [failure, buffered]) at supported
   rw [inventory] at supported
   refine ⟨supported, supported.drainReadyGroups_go, ?_⟩
-  let node : TaskNode := { task := ⟨failedTask, [root, failed]⟩, rejection := some 1 }
-  have member : node ∈ ready.taskNodes := by cbv; exact List.mem_cons_self
-  obtain ⟨occurrence, accepted, owners, known, owner⟩ :=
-    supported node member 1 rfl failed (by simp [node])
-  obtain rfl := List.mem_singleton.mp accepted
-  exact ⟨owners, known, owner⟩
+  have known : TaskAt work failedTask [root.ref, failed.ref] none (.object [] (.error 1)) :=
+    .executionGroup (result := { result := .error 1, cause := some 1 })
+      (groups := [⟨root, []⟩, ⟨failed, [parent]⟩]) (children := .empty) (owners := []) (by cbv)
+  exact ⟨[root.ref, failed.ref], ⟨none, _, known⟩, by simp⟩
 
 /-- The same mixed witness retains D's contents and excludes both earlier publications.
 Witness: the generated drain theorem recovers the actual carrier boundary after F's
@@ -274,57 +320,75 @@ theorem retained_notice_after_failure_on_common_witness
       ∃ published : List ObjectPublication,
         ConformancePlan.GroupPublicationAdmission work w
         ∧ ObjectLedgerMatching work [received] w.events w.matching published
-        ∧ ∃ steps,
+        ∧ ∃ steps closing,
             steps < ready.groupNodes.length
-            ∧ ready.drainReadyGroups.2.take 3
-              = (State.drainReadyGroups.go (steps + 1) ready).2
-            ∧ ∃ node,
-                (State.drainReadyGroups.go (steps + 1) ready).1.groupNode? grandchild.ref
-                  = some node
-                ∧ node.group.node = grandchild
-                ∧ node.tasks ≠ []
-                ∧ ∀ publication ∈ published.take 2, publication.1 ∉ node.tasks := by
+            ∧ let segment := State.drainReadyGroups.go [] steps ready
+              let closed := segment.1.finishGroupSuccess closing
+              segment.1.rootGroups.findSome?
+                  (fun ref => do
+                    let candidate ← segment.1.groupNode? ref
+                    if candidate.pending == 0 then some candidate else none)
+                = some closing
+              ∧ ready.drainReadyGroups.2.1.take 2 = segment.2.1 ++ closed.2.1
+              ∧ ∃ node,
+                  closed.1.groupNode? grandchild.ref = some node
+                  ∧ node.group.node = grandchild
+                  ∧ node.tasks ≠ []
+                  ∧ ∀ publication ∈ published.take 2, publication.1 ∉ node.tasks := by
   have started : inputsStarted work [received] = true := by cbv
   obtain ⟨w, _, _, _, _, _, _, _, _, _, ledger, _, _, _, admitted⟩ :=
     ConformancePlan.mixed_groupPublicationCertificates generated
       (inputs := [received]) valid started
   obtain ⟨published, batches, matching, _⟩ := ledger
-  have covered := batches.flatten (by rwa [← inputsStarted_eq_batchesStarted])
-  obtain ⟨steps, bounded, exactPrefix, _, node, found, same, contents, excluded⟩ :=
-    generated.taskSuccess_drainNoticeContents (before := [failure, buffered]) (after := [])
-      (incoming := incoming) (index := 2) (group := child) (groups := [grandchild]) (streams := [])
+  have covered := received_ledger_empty matching
+  obtain ⟨steps, closing, bounded, selected, exactPrefix, _, node, found, same, contents,
+      excluded⟩ := generated.taskSuccess_drainNoticeContents (before := [failure,
+        buffered]) (after := [])
+      (incoming := incoming) (index := 1) (group := child) (groups := [grandchild]) (streams := [])
       covered valid (by cbv) (by cbv) List.mem_cons_self
-  refine ⟨w, published, admitted, matching, steps, bounded, exactPrefix,
-    node, found, same, contents, ?_⟩
+  refine ⟨
+    w,
+    published,
+    admitted,
+    matching,
+    steps,
+    closing,
+    bounded,
+    selected,
+    exactPrefix,
+    node,
+    found,
+    same,
+    contents,
+    ?_
+  ⟩
   intro publication member
   apply excluded publication
-  have count : ((initial.rawEventReplay [failure, buffered]).2.flatMap
-      WorkQueueEvent.objectValues).length
-      + ((released.2.1 ++ ready.drainReadyGroups.2.take 2).flatMap
-        WorkQueueEvent.objectValues).length = 2 := by cbv
+  have count : (((initial.rawEventReplay [failure, buffered]).2 ++ released.2.1
+      ++ ready.drainReadyGroups.2.1.take 1).flatMap WorkQueueEvent.objectValues).length = 2 := by
+    cbv
   change publication ∈ published.take
-    (((initial.rawEventReplay [failure, buffered]).2.flatMap WorkQueueEvent.objectValues).length
-      + ((released.2.1 ++ ready.drainReadyGroups.2.take 2).flatMap
-        WorkQueueEvent.objectValues).length)
+    (((initial.rawEventReplay [failure, buffered]).2 ++ released.2.1
+      ++ ready.drainReadyGroups.2.1.take 1).flatMap WorkQueueEvent.objectValues).length
   rw [count]
   exact member
 
 /-- The atomic carrier after cached failure cleanup retains semantically unpublished tasks.
-Witness: apply the general canonical group-carrier theorem to the actual sixth output.
+Witness: apply the general canonical group-carrier theorem to the actual fifth output.
 The test supplies neither a drain step nor a ledger count, and keeps object admission
 on the same witness with the same failure cuts and publication matching.
 -/
 theorem atomic_notice_after_failure_unpublished
     : ∃ w : ConformancePlan.Witness,
         ConformancePlan.GroupPublicationAdmission work w
-        ∧ w.events[5]? = some (.groupSuccess child [grandchild] [])
-        ∧ RetainedNoticeContents work w.matching (w.events.take 5)
-            (failedBefore w.failures 5) received grandchild := by
+        ∧ w.events[4]? = some (.groupSuccess child [grandchild] [])
+        ∧ RetainedNoticeContents work w.matching (w.events.take 4)
+            (failedBefore w.failures 4) received grandchild := by
   obtain ⟨w, history, _, _, _, _, _, streamReady, _, _, ledger, _, _, _, admitted,
     streamCuts, _, exactCuts⟩ :=
     ConformancePlan.mixed_groupPublicationCertificates_with_cuts generated
       (inputs := [received]) valid (by cbv)
-  have selected : w.events[5]? = some (.groupSuccess child [grandchild] []) := by
+  have selected : w.events[4]? = some (.groupSuccess child [grandchild] []) := by
     rw [history]
     cbv
   exact ⟨
@@ -422,9 +486,8 @@ theorem error_only_notice_sourceReady
     cbv
   have partition : w.failures.Perm
       (streamCuts ++ informativeObjectFailureCuts work
-        (initial.eligibleFailureBlocks
-          (initial.sourceRunBlocks
-            { active := initial.initialGroups ++ initial.initialStreams } [received]).2.2)) := by
+        (initial.sourceRunBlocks
+          { active := initial.initialGroups ++ initial.initialStreams } [received]).2.2) := by
     rw [exactCuts]
     exact mergeFailureCuts_partition _ _
   have contents := ConformancePlan.groupGroupNotice_unpublished generated
@@ -440,7 +503,8 @@ theorem error_only_notice_sourceReady
 /-- P's carrier retains its actual handler and prior-cache support at the canonical cut.
 Witness: the joint boundary theorem uses the same witness as full object admission, not
 an independently selected history. Earlier failure and silent buffered settlement remain
-in the recovered source prefix; the theorem supplies the publication count; source replay supplies rejection provenance.
+in the recovered source prefix; the theorem supplies the publication count; source replay
+  supplies rejection provenance.
 -/
 theorem atomic_handler_cache_supported
     : ∃ w : ConformancePlan.Witness,
@@ -450,14 +514,14 @@ theorem atomic_handler_cache_supported
           ∃ localIndex,
             received = before ++ source :: after
             ∧ let current := initial.replayGraphEvents before
-              ((publisher.normalizeBatch (current.handleGraphEvent source).2).2.flatMap
+              ((publisher.normalizeBatch (current.handleGraphEvent source).2.1).2.flatMap
                   publicationAtoms)[localIndex]?
                 = some (.groupSuccess parent [failed, child] [])
               ∧ ((w.events.take 2).flatMap normalizedObjectValues).length
                 = ((initial.rawEventReplay before).2.flatMap
                     WorkQueueEvent.objectValues).length
                   + ((((publisher.normalizeBatch
-                          (current.handleGraphEvent source).2).2.flatMap
+                          (current.handleGraphEvent source).2.1).2.flatMap
                         publicationAtoms).take
                         localIndex).flatMap
                       normalizedObjectValues).length
@@ -469,28 +533,18 @@ theorem atomic_handler_cache_supported
   have selected : w.events[2]? = some (.groupSuccess parent [failed, child] []) := by
     rw [history]
     cbv
-  obtain ⟨before, source, after, publisher, localIndex, shape, _, atEvent, count⟩ :=
-    ConformancePlan.Witness.handlerBoundary (inputs := [received]) (by cbv) history selected
-  have validBefore : ValidGraphEvents work before :=
-    valid.prefix ⟨source :: after, by simpa using shape.symm⟩
-  have supported := (createWorkQueue_cachedFailuresSupported (Work.fromExecution work) work []).replayGraphEvents_contributions
-    (createWorkQueue_startedTasksRegistered _) (createWorkQueue_fromSpec_registeredTasksMatch _)
-    before (fun event member => validBefore.eachMatches member)
-  exact ⟨
-    w,
-    admitted,
-    before,
-    source,
-    after,
-    publisher,
-    localIndex,
-    shape,
-    atEvent,
-    count,
-    by simpa only [initial, List.append_nil] using supported
-  ⟩
+  have prior : ValidGraphEvents work [failure, buffered] := valid.prefix ⟨[finish], rfl⟩
+  have supported := (createWorkQueue_cachedFailuresSupported (Work.fromExecution work) work
+    []).replayGraphEvents_contributions (createWorkQueue_startedTasksRegistered _)
+      (createWorkQueue_fromSpec_registeredTasksMatch _) [failure, buffered]
+      (fun event member => prior.eachMatches member)
+  refine ⟨w, admitted, [failure, buffered], finish, [], { active := [parent] }, 1,
+    rfl, ?_, ?_, ?_⟩
+  · cbv
+  · rw [history]; cbv
+  · simpa only [initial, List.append_nil] using supported
 
-/-- An error-only child is eligible before its immediate cached-error completion.
+/-- An error-only child is eligible before its queued cached-error completion.
 Witness: P's real successful carrier satisfies F's parent dependency. The general bridge
 uses F's accepted failure cache and the same frozen mixed cuts, despite F having no live
 task memberships. Freshness comes from raw replay separation, and F's later error
@@ -520,7 +574,8 @@ theorem error_only_notice_canAnnounce
   have known : NodeAt work failed .group [parent.ref] none :=
     NodeAt.group (work := work) (producer := none) (group := ⟨failed, [parent]⟩)
       (address := [1, 0]) (groups := [⟨root, []⟩, ⟨failed, [parent]⟩])
-      (path := []) (result := { result := .error 1, cause := some 1 }) (children := .empty) (owners := [])
+      (path := []) (result := { result := .error 1, cause := some 1 })
+      (children := .empty) (owners := [])
       (by cbv) (by simp)
   refine ⟨w, admitted, selected, ?_⟩
   exact ConformancePlan.groupNotice_canAnnounce generated
@@ -542,30 +597,58 @@ theorem cached_failure_group_refs_unique
   generated.rawEventReplay_groupRefs_nodup received
     (fun _ member => valid.eachMatches member)
 
-/-- A cached error's newly announced group actually completes in the same handler.
-Witness: general exact notice tracking, not mere membership in cancelledGroups, forces
-the closure once the concrete end state no longer contains F as an active root.
+/-- Cached failure removal retains its notice until the internal event is dispatched.
+Witness: exact prefix state preserves the stored descriptor and count without emitting
+its closure merely because the callback batch ended.
+-/
+theorem cached_error_notice_pending
+    : (initial.rawBatches [received]).1.groupFailureEvents = [⟨failed, 1⟩]
+      ∧ failed.ref ∉ (initial.rawBatches [received]).2.flatMap rawGroupClosureRefs := by
+  constructor
+  · cbv
+  · cbv
+    intro member
+    cases member with
+    | tail _ member =>
+        cases member with
+        | tail _ member =>
+            cases member with
+            | tail _ member => cases member
+
+/-- The cached error's announced group completes when its queued event is dispatched.
+Witness: general FIFO notice tracking at the extended source boundary forces the closure
+once neither a live group nor an undelivered internal notice supports F.
 -/
 theorem cached_error_notice_completed
-    : failed.ref ∈ (initial.rawEventReplay received).2.flatMap rawGroupClosureRefs := by
-  have tracked := generated.rawEventReplay_groupNoticeCompletion received
-    (fun _ member => valid.eachMatches member) failed.ref (by
+    : failed.ref ∈ (initial.rawBatches [dispatched]).2.flatMap rawGroupClosureRefs := by
+  have matched : notice.MatchesWork work :=
+    ⟨⟨[parent.ref], none, NodeAt.group (address := [1, 0]) (group := ⟨failed, [parent]⟩)
+      (result := { result := .error 1, cause := some 1 }) (children := .empty)
+      (by cbv) (by simp [failed, parent])⟩, by decide⟩
+  have tracked := generated.rawBatches_groupNoticeCompletion [dispatched] (by
+    intro event member
+    simp only [List.flatten_cons, List.flatten_nil, List.append_nil, dispatched,
+      List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at member
+    rcases member with prior | rfl
+    · exact valid.eachMatches prior
+    · exact matched) failed.ref (by
       cbv
       change (2 : Nat) ∈ [0, 1, 2, 3, 4]
       decide)
   exact tracked.resolve_left
     (by
       cbv
-      change (2 : Nat) ∉ [4]
-      decide)
+      intro member
+      cases member with
+      | tail _ member => cases member)
 
-/-- Every announced group in this mixed success/failure prefix remains active or closes.
-Witness: general generated matching replay; transient failures do not weaken the endpoint
-to an unexplained cancellation marker, even when later group work remains outstanding.
+/-- Announced groups in the callback prefix stay live, queued for closure, or completed.
+Witness: the generated replay's FIFO certificate includes pending internal notices;
+a cached failure is retained until its explicit dispatch.
 -/
 theorem cached_failure_group_notices_tracked
-    : GroupNoticeCompletion initial.rootGroups (initial.rawEventReplay received) :=
-  generated.rawEventReplay_groupNoticeCompletion received
+    : FifoGroupNoticeCompletion initial.rootGroups (initial.rawBatches [received]) :=
+  generated.rawBatches_groupNoticeCompletion [received]
     (fun _ member => valid.eachMatches member)
 
 /-- F's cached failure does not invalidate P, whose completion announces F and C.
@@ -574,7 +657,7 @@ under its accepted failures. The failed child itself is deliberately not claimed
 -/
 theorem cached_error_notice_ancestors_healthy
     : GroupNoticeAncestorsHealthy work (initial.objectFailureContributions received)
-        ((initial.replayGraphEvents [failure, buffered]).handleGraphEvent finish).2 :=
+        ((initial.replayGraphEvents [failure, buffered]).handleGraphEvent finish).2.1 :=
   generated.replayGraphEvents_next_noticeAncestorsHealthy valid (by cbv)
 
 /-- Later removal of the noticed F child does not erase its parent-retirement certificate.
@@ -583,8 +666,10 @@ including F's owner-fold notice and D's later drain notice after F's failed clea
 -/
 theorem cached_error_notice_ancestors_retired
     : (initial.replayGraphEvents received).GroupNoticeAncestorsRetired work
-        ((initial.replayGraphEvents [failure, buffered]).handleGraphEvent finish).2 := by
+        ((initial.replayGraphEvents [failure, buffered]).handleGraphEvent
+          finish).2.1 := by
   apply generated.replayGraphEvents_next_noticeAncestorsRetired
+    (before := [failure, buffered]) (event := finish)
   · intro event member
     exact valid.eachMatches (List.mem_append_left [finish] member)
   · exact valid.eachMatches (List.mem_append_right [failure, buffered] List.mem_cons_self)
@@ -599,12 +684,12 @@ theorem drain_notice_ancestor_published_on_common_witness
         ConformancePlan.GroupPublicationAdmission work w
         ∧ ObjectLedgerMatching work [received] w.events w.matching published
         ∧ (sharedTask, sharedValue) ∈ published.take 2
-        ∧ w.events[5]? = some (.groupSuccess child [grandchild] []) := by
+        ∧ w.events[4]? = some (.groupSuccess child [grandchild] []) := by
   obtain ⟨w, history, _, _, _, _, _, _, _, _, ledger, _, _, _, admitted⟩ :=
     ConformancePlan.mixed_groupPublicationCertificates generated
       (inputs := [received]) valid (by cbv)
   obtain ⟨published, batches, matching, _⟩ := ledger
-  have covered := batches.flatten (by rw [← inputsStarted_eq_batchesStarted]; cbv)
+  have covered := received_ledger_empty matching
   have prefixes := covered.atPrefixDrainOwners [failure, buffered] finish []
   have childKnown : NodeAt work grandchild .group [child.ref, parent.ref] none :=
     .group (work := work) (producer := none) (group := ⟨grandchild, [child, parent]⟩)
@@ -613,7 +698,8 @@ theorem drain_notice_ancestor_published_on_common_witness
       (children := .combine .empty .empty) (owners := []) (by cbv) List.mem_cons_self
   have taskKnown : TaskAt work sharedTask [root.ref, child.ref] none
       (.object [] (.ok (sharedValue.data, 0))) :=
-    .executionGroup (result := { result := .ok (sharedValue.data, 0) }) (groups := [⟨root, []⟩, ⟨child, [parent]⟩])
+    .executionGroup (result := { result := .ok (sharedValue.data, 0) }) (groups := [⟨root,
+      []⟩, ⟨child, [parent]⟩])
       (children := .combine .empty .empty) (owners := []) (by cbv)
   let node : TaskNode := { task := ⟨sharedTask, [root, child]⟩, value := some sharedValue }
   have emitted :=
@@ -632,7 +718,7 @@ theorem drain_notice_ancestor_published_on_common_witness
       (by cbv)
       (by cbv)
       (by cbv; exact .tail _ (.tail _ (.head _)))
-      (index := 2)
+      (index := 1)
       (group := child)
       (groups := [grandchild])
       (streams := [])
@@ -647,15 +733,15 @@ theorem drain_notice_ancestor_published_on_common_witness
   · have earlier : ((initial.rawEventReplay [failure, buffered]).2.flatMap
         WorkQueueEvent.objectValues).length = 0 := by cbv
     have total : (((initial.replayGraphEvents [failure, buffered]).handleGraphEvent
-        finish).2.flatMap WorkQueueEvent.objectValues).length = 2 := by cbv
-    have count : ((released.2.1 ++ ready.drainReadyGroups.2.take 2).flatMap
+        finish).2.1.flatMap WorkQueueEvent.objectValues).length = 2 := by cbv
+    have count : ((released.2.1 ++ ready.drainReadyGroups.2.1.take 1).flatMap
         WorkQueueEvent.objectValues).length = 2 := by cbv
     change (sharedTask, sharedValue) ∈ ((published.drop
       ((initial.rawEventReplay [failure, buffered]).2.flatMap
         WorkQueueEvent.objectValues).length).take
-        (((initial.replayGraphEvents [failure, buffered]).handleGraphEvent finish).2.flatMap
+        (((initial.replayGraphEvents [failure, buffered]).handleGraphEvent finish).2.1.flatMap
           WorkQueueEvent.objectValues).length).take
-        ((released.2.1 ++ ready.drainReadyGroups.2.take 2).flatMap
+        ((released.2.1 ++ ready.drainReadyGroups.2.1.take 1).flatMap
           WorkQueueEvent.objectValues).length at emitted
     simpa only [earlier, total, count, List.drop_zero, List.take_take, Nat.min_self]
       using emitted
@@ -675,7 +761,7 @@ theorem structural_ancestor_before_drain_notice
     ConformancePlan.mixed_groupPublicationCertificates generated
       (inputs := [received]) valid (by cbv)
   obtain ⟨published, batches, matching, _⟩ := ledger
-  have covered := batches.flatten (by rw [← inputsStarted_eq_batchesStarted]; cbv)
+  have covered := received_ledger_empty matching
   have childKnown : NodeAt work grandchild .group [child.ref, parent.ref] none :=
     .group (work := work) (producer := none) (group := ⟨grandchild, [child, parent]⟩)
       (address := [1, 1, 1, 1, 0]) (groups := [⟨grandchild, [child, parent]⟩])
@@ -683,17 +769,18 @@ theorem structural_ancestor_before_drain_notice
       (children := .combine .empty .empty) (owners := []) (by cbv) List.mem_cons_self
   have taskKnown : TaskAt work sharedTask [root.ref, child.ref] none
       (.object [] (.ok (sharedValue.data, 0))) :=
-    .executionGroup (result := { result := .ok (sharedValue.data, 0) }) (groups := [⟨root, []⟩, ⟨child, [parent]⟩])
+    .executionGroup (result := { result := .ok (sharedValue.data, 0) }) (groups := [⟨root,
+      []⟩, ⟨child, [parent]⟩])
       (children := .combine .empty .empty) (owners := []) (by cbv)
   have output := generated.handleGraphEvent_groupNoticeAncestor_contributor_before
     (before := [failure, buffered]) (event := finish) valid (by cbv) covered
-    (position := 4) (group := child) (groups := [grandchild]) (streams := []) (by cbv)
+    (position := 3) (group := child) (groups := [grandchild]) (streams := []) (by cbv)
     List.mem_cons_self (groupRecordAt_of_nodeAt childKnown)
     (ref := child.ref) List.mem_cons_self taskKnown (by simp)
   have count : ((initial.rawEventReplay [failure, buffered]).2.flatMap
       WorkQueueEvent.objectValues).length
-      + ((((initial.replayGraphEvents [failure, buffered]).handleGraphEvent finish).2.take
-          4).flatMap WorkQueueEvent.objectValues).length = 2 := by cbv
+      + ((((initial.replayGraphEvents [failure, buffered]).handleGraphEvent finish).2.1.take
+          3).flatMap WorkQueueEvent.objectValues).length = 2 := by cbv
   dsimp only [initial] at count
   refine ⟨w, published, admitted, matching, ?_⟩
   simpa only [count, sharedTask] using output

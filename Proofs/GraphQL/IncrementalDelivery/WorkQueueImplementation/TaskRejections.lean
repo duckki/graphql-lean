@@ -88,44 +88,18 @@ theorem State.TaskRejectionsSatisfy.addGroup {queue : State}
   unfold State.addGroup
   split
   · exact supported
-  · split <;> exact supported
+  · split
+    · exact supported
+    · split
+      · split <;> exact supported
+      · exact supported
 
-/-- Parent-link installation leaves every rejection and contributor refs unchanged.
-Witness: the two actual folds register empty nodes and replace only child links.
--/
-theorem State.TaskRejectionsSatisfy.addGroups {queue : State}
-    {property : Occurrence → Nat → Prop}
+/-- Recursive group registration preserves task-local rejection facts. -/
+theorem State.TaskRejectionsSatisfy.addGroups {queue : State} {property}
     (supported : State.TaskRejectionsSatisfy queue property) (groups : List Group)
     : (queue.addGroups groups).1.TaskRejectionsSatisfy property := by
-  let fresh := groups.filter (fun group =>
-    !queue.registeredGroups.contains group.node.ref
-      && (queue.groupNode? group.node.ref).isNone)
-  let link (current : State) (group : Group) :=
-    match group.parent with
-    | none => current
-    | some parent =>
-        match current.groupNode? parent with
-        | none => current
-        | some node =>
-            let children := if node.childGroups.contains group.node.ref then
-              node.childGroups else node.childGroups ++ [group.node.ref]
-            current.putGroupNode { node with childGroups := children }
-  have linked (current : State) (group : Group)
-      (valid : current.TaskRejectionsSatisfy property)
-      : (link current group).TaskRejectionsSatisfy property := by
-    unfold link
-    split
-    · exact valid
-    · split
-      · exact valid
-      · rename_i node found
-        exact valid.putGroupNode _
-  change (fresh.foldl link (fresh.foldl State.addGroup queue)).TaskRejectionsSatisfy
-    property
-  exact fold_preserves _ link fresh linked _
-    (fold_preserves (fun current : State => current.TaskRejectionsSatisfy property)
-      State.addGroup fresh (fun _ group valid => valid.addGroup group)
-      queue supported)
+  exact State.addGroups_preserves (fun current => current.TaskRejectionsSatisfy property) groups
+    (fun _ group _ valid => valid.addGroup group) queue supported
 
 /-- Adding a task changes membership and counters, never the task's retained rejection.
 Witness: induction through contributing groups and the unchanged rejection projection.
@@ -218,46 +192,110 @@ theorem State.TaskRejectionsSatisfy.pruneEmptyGroups {queue : State}
               · exact ih _ _ _ valid
   exact loop _ queue groups [] supported
 
-/-- Starting a computation creates a node with no retained rejection. -/
+/-- Cache exposure records the licensed rejection at its own computation occurrence. -/
+theorem State.TaskRejectionsSatisfy.cacheTaskFailures {queue : State} {property}
+    (valid : queue.TaskRejectionsSatisfy property) (available : List (Occurrence × Nat))
+    (licensed
+      : ∀ occurrence errors,
+          (occurrence, errors) ∈ available → property occurrence errors)
+    : (queue.cacheTaskFailures available).TaskRejectionsSatisfy property := by
+  induction available generalizing queue with
+  | nil => exact valid
+  | cons entry rest ih =>
+      have tailLicensed : ∀ occurrence errors,
+          (occurrence, errors) ∈ rest → property occurrence errors :=
+        fun occurrence errors member => licensed _ _ (List.mem_cons_of_mem _ member)
+      simp only [State.cacheTaskFailures, List.foldl_cons]
+      split
+      · exact ih valid tailLicensed
+      · rename_i node found
+        have updated := valid.putTaskNode { node with rejection := some entry.2 } (by
+          intro errors rejected
+          cases Option.some.inj rejected
+          exact licensed _ _ (taskNode_occurrence found ▸ List.mem_cons_self))
+        exact ih updated tailLicensed
+
+/-- A fresh computation exposes only its supplied available rejection, if any. -/
 theorem State.TaskRejectionsSatisfy.startTask {queue : State} {property}
     (valid : queue.TaskRejectionsSatisfy property) (occurrence : Occurrence)
-    : (queue.startTask occurrence).TaskRejectionsSatisfy property := by
+    (available : List (Occurrence × Nat) := [])
+    (licensed
+      : ∀ occurrence errors,
+          (occurrence, errors) ∈ available → property occurrence errors := by
+        intro occurrence errors member; cases member)
+    : (queue.startTask occurrence available).TaskRejectionsSatisfy property := by
   unfold State.startTask
   split
   · exact valid
   · split
     · exact valid
-    · intro node member errors rejected
+    · rename_i task found
+      intro node member errors rejected
       rcases List.mem_append.mp member with old | new
       · exact valid node old errors rejected
-      · have same := List.mem_singleton.mp new
-        subst node
-        cases rejected
+      · cases List.mem_singleton.mp new
+        obtain ⟨⟨other, count⟩, inAvailable, selected⟩ :=
+          List.exists_of_findSome?_eq_some rejected
+        change (if other == occurrence then some count else none) = some errors at selected
+        split at selected
+        · rename_i equal
+          have same : other = occurrence := (occurrence_beq_iff_eq _ _).mp equal
+          have taskSame : task.occurrence = occurrence :=
+            (occurrence_beq_iff_eq _ _).mp (List.find?_some
+              (p := fun candidate : Task => candidate.occurrence == occurrence) found)
+          cases Option.some.inj selected
+          exact licensed _ _ (taskSame.symm ▸ same ▸ inAvailable)
+        · cases selected
 
-/-- Activation starts host work without changing task rejections.
-Witness: task, group, and stream start folds preserve the task-rejection facts.
--/
-theorem State.TaskRejectionsSatisfy.startNewWork {queue : State}
-    {property : Occurrence → Nat → Prop}
-    (supported : State.TaskRejectionsSatisfy queue property) (more : NewWork)
-    : (queue.startNewWork more).TaskRejectionsSatisfy property := by
-  have groupStable (current : State) (ref : NodeRef)
-      (valid : current.TaskRejectionsSatisfy property)
-      : (current.startGroup ref).TaskRejectionsSatisfy property := by
-    unfold State.startGroup
-    split
-    · exact valid
-    · rename_i node found
-      exact fold_preserves (fun current : State => current.TaskRejectionsSatisfy property) State.startTask node.tasks (fun _ occurrence prior => prior.startTask occurrence) current valid
-  have streamStable (current : State) (ref : NodeRef)
-      (valid : current.TaskRejectionsSatisfy property)
-      : (current.startStream ref).TaskRejectionsSatisfy property := by
-    unfold State.startStream
-    split <;> exact valid
-  exact fold_preserves _ State.startStream _ streamStable _
-    (fold_preserves _ State.startGroup _ groupStable _ supported)
+/-- Startup retains exact task-local rejection provenance while removing failed groups. -/
+theorem State.TaskRejectionsSatisfy.startGroup {queue : State} {property}
+    (valid : queue.TaskRejectionsSatisfy property) (ref : NodeRef)
+    (available : List (Occurrence × Nat) := [])
+    (licensed
+      : ∀ occurrence errors,
+          (occurrence, errors) ∈ available → property occurrence errors := by
+        intro occurrence errors member; cases member)
+    : (queue.startGroup ref available).1.TaskRejectionsSatisfy property := by
+  have cached := valid.cacheTaskFailures available licensed
+  unfold State.startGroup
+  dsimp only
+  split
+  · exact cached
+  · split
+    · exact fold_preserves (fun current : State => current.TaskRejectionsSatisfy property)
+        (fun current occurrence => current.startTask occurrence available) _
+        (fun _ task prior => prior.startTask task available licensed) _ cached
+    · exact fun node member => cached node (List.mem_filter.mp member).1
 
-/-- Queue creation contains no uncertified rejectiond failure.
+/-- Activation threads licensed availability through group startup and stream starts. -/
+theorem State.TaskRejectionsSatisfy.startNewWork {queue : State} {property}
+    (supported : queue.TaskRejectionsSatisfy property) (more : NewWork)
+    (available : List (Occurrence × Nat) := [])
+    (licensed
+      : ∀ occurrence errors,
+          (occurrence, errors) ∈ available → property occurrence errors := by
+        intro occurrence errors member; cases member)
+    : (queue.startNewWork more available).1.TaskRejectionsSatisfy property := by
+  have groups (refs : NodeRefs)
+      (acc : State × List GroupFailureEvent) (valid : acc.1.TaskRejectionsSatisfy property)
+      : (refs.foldl (fun (current, failures) ref =>
+          let (next, queued) := current.startGroup ref available
+          (next, failures ++ queued)) acc).1.TaskRejectionsSatisfy property := by
+    induction refs generalizing acc with
+    | nil => exact valid
+    | cons ref rest ih => exact ih _ (valid.startGroup ref available licensed)
+  have streams (refs : NodeRefs) (current : State) (valid : current.TaskRejectionsSatisfy property)
+      : (refs.foldl State.startStream current).TaskRejectionsSatisfy property := by
+    induction refs generalizing current with
+    | nil => exact valid
+    | cons ref rest ih =>
+        apply ih
+        unfold State.startStream
+        split <;> exact valid
+  unfold State.startNewWork
+  exact streams _ _ (groups _ _ supported)
+
+/-- Queue creation contains no uncertified task rejection.
 Witness: the empty state, immediate integration, pruning, and activation.
 -/
 theorem createWorkQueue_taskRejections (input : Work) (property : Occurrence → Nat → Prop)
@@ -348,19 +386,18 @@ theorem State.TaskRejectionsSatisfy.taskFailure {queue : State}
 /-- Recursive release preserves rejection-cause facts through both kinds of closure.
 Witness: the actual bounded drain alternates supported success flushes and failure removal.
 -/
-theorem State.TaskRejectionsSatisfy.drainReadyGroups {queue : State}
-    {property : Occurrence → Nat → Prop}
-    (supported : State.TaskRejectionsSatisfy queue property)
-    : queue.drainReadyGroups.1.TaskRejectionsSatisfy property := by
-  apply State.drainReadyGroups_preserves
-    (fun current => current.TaskRejectionsSatisfy property) (valid := supported)
-  · intro current node valid _ _ _ _
-    exact (valid.finishGroupSuccess node).startNewWork _
-  · intro current node occurrence errors valid _ _ selected
-    obtain ⟨_, task, found, rejected⟩ := State.rejectedTask?_sound selected
-    apply valid.taskFailure occurrence errors
-    exact (taskNode_occurrence found) ▸
-      valid task (List.mem_of_find?_eq_some found) errors rejected
+theorem State.TaskRejectionsSatisfy.drainReadyGroups {queue : State} {property}
+    (supported : queue.TaskRejectionsSatisfy property)
+    (available : List (Occurrence × Nat) := [])
+    (licensed
+      : ∀ occurrence errors,
+          (occurrence, errors) ∈ available → property occurrence errors := by
+        intro occurrence errors member; cases member)
+    : (queue.drainReadyGroups available).1.TaskRejectionsSatisfy property := by
+  apply State.drainReadyGroups_preserves (fun current => current.TaskRejectionsSatisfy property)
+    (available := available) (valid := supported)
+  exact fun _ node prior _ _ _ =>
+    (prior.finishGroupSuccess node).startNewWork _ available licensed
 
 /-- A prefix of successful owner settlement creates no rejection. -/
 theorem State.TaskRejectionsSatisfy.successGroupFold {queue : State} {property}
@@ -391,8 +428,13 @@ Witness: child integration, each contributor decrement/flush, activation, and fu
 theorem State.TaskRejectionsSatisfy.taskSuccess {queue : State}
     {property : Occurrence → Nat → Prop}
     (supported : State.TaskRejectionsSatisfy queue property) (occurrence : Occurrence)
-    (result : TaskResult)
-    : (queue.taskSuccess occurrence result).1.TaskRejectionsSatisfy property := by
+    (result : TaskResult) (available : List (Occurrence × Nat) := [])
+    (licensed
+      : ∀ occurrence errors,
+          (occurrence, errors) ∈ available → property occurrence errors := by
+        intro occurrence errors member; cases member)
+    : (queue.taskSuccess occurrence result available).1.TaskRejectionsSatisfy
+        property := by
   let step (acc : State × List WorkQueueEvent × NewWork) (group : Execution.DeliveryNode) :=
     let (current, outputs, released) := acc
     match current.groupNode? group.ref with
@@ -427,32 +469,132 @@ theorem State.TaskRejectionsSatisfy.taskSuccess {queue : State}
     have integrated := before.maybeIntegrateWork result.work (some occurrence)
     have released := fold_preserves _ step taskNode.task.groups stable
       ((withValue.maybeIntegrateWork result.work (some occurrence)).1, [], {}) integrated
-    exact (released.startNewWork _).drainReadyGroups
+    exact (released.startNewWork _ available licensed).drainReadyGroups available licensed
 
-/-- Stream-item integration and its final drain preserve rejectiond-failure support.
+/-- Stream-item integration and its final drain preserve exact task-rejection support.
 Witness: each item integrates fresh work, prunes, and activates without inventing rejections.
 -/
 theorem State.TaskRejectionsSatisfy.streamItems {queue : State}
     {property : Occurrence → Nat → Prop}
     (supported : State.TaskRejectionsSatisfy queue property)
     (stream : Execution.DeliveryNode) (items : List StreamItem)
-    : (queue.streamItems stream items).1.TaskRejectionsSatisfy property := by
+    (available : List (Occurrence × Nat) := [])
+    (licensed
+      : ∀ occurrence errors,
+          (occurrence, errors) ∈ available → property occurrence errors := by
+        intro occurrence errors member; cases member)
+    : (queue.streamItems stream items available).1.TaskRejectionsSatisfy property := by
   let step (acc : State × List Execution.DeliveryNode × List Execution.DeliveryNode
-      × List StreamItemValue) (item : StreamItem) :=
-    let (current, groups, streams, values) := acc
+      × List StreamItemValue × List GroupFailureEvent) (item : StreamItem) :=
+    let (current, groups, streams, values, failures) := acc
     let (integrated, more) := current.maybeIntegrateWork item.work
     let (pruned, nonempty) := integrated.pruneEmptyGroups more.newGroups
-    (pruned.startNewWork { more with newGroups := nonempty }, groups ++ nonempty,
-      streams ++ more.newStreams, values ++ [item.value])
+    let (started, queued) := pruned.startNewWork { more with newGroups := nonempty } available
+    (started, groups ++ nonempty, streams ++ more.newStreams,
+      values ++ [item.value], failures ++ queued)
   have stable (acc : State × List Execution.DeliveryNode × List Execution.DeliveryNode
-      × List StreamItemValue) (item : StreamItem)
+      × List StreamItemValue × List GroupFailureEvent) (item : StreamItem)
       (valid : acc.1.TaskRejectionsSatisfy property)
       : (step acc item).1.TaskRejectionsSatisfy property :=
-    ((valid.maybeIntegrateWork item.work).pruneEmptyGroups _).startNewWork _
+    ((valid.maybeIntegrateWork item.work).pruneEmptyGroups _).startNewWork _ available licensed
   dsimp only [State.streamItems]
   split
   · exact supported
-  · exact (fold_preserves _ step items stable (queue, [], [], []) supported).drainReadyGroups
+  · exact (fold_preserves _ step items stable
+      (queue, [], [], [], []) supported).drainReadyGroups available licensed
+
+/-- A host outcome preserves exact task rejection facts under a licensed snapshot. -/
+theorem State.TaskRejectionsSatisfy.handleGraphEvent {queue : State} {property}
+    (supported : queue.TaskRejectionsSatisfy property) (event : GraphEvent)
+    (incoming
+      : ∀ occurrence errors,
+          event = .taskFailure occurrence errors → property occurrence errors)
+    (available : List (Occurrence × Nat) := [])
+    (licensed
+      : ∀ occurrence errors,
+          (occurrence, errors) ∈ available → property occurrence errors := by
+        intro occurrence errors member; cases member)
+    : (queue.handleGraphEvent event available).1.TaskRejectionsSatisfy property := by
+  have cached := supported.cacheTaskFailures available licensed
+  cases event with
+  | taskSuccess occurrence result =>
+      exact cached.taskSuccess occurrence result available licensed
+  | groupFailure failure =>
+      change ((queue.cacheTaskFailures available).groupFailure failure).1.TaskRejectionsSatisfy property
+      unfold State.groupFailure
+      split
+      · exact cached
+      · split <;> exact cached
+  | taskFailure occurrence errors =>
+      exact cached.taskFailure occurrence errors (incoming _ _ rfl)
+  | streamItems stream items => exact cached.streamItems stream items available licensed
+  | streamSuccess stream =>
+      simp only [State.handleGraphEvent, State.streamSuccess]
+      split <;> exact cached
+  | streamFailure stream errors =>
+      simp only [State.handleGraphEvent, State.streamFailure]
+      split <;> exact cached
+
+/-- Actual batches expose only rejections supplied by their own task-failure inputs. -/
+theorem State.TaskRejectionsSatisfy.handleGraphEvents {queue : State} {property}
+    (supported : queue.TaskRejectionsSatisfy property) (events : List GraphEvent)
+    (incoming
+      : ∀ occurrence errors,
+          GraphEvent.taskFailure occurrence errors ∈ events → property occurrence errors)
+    : (queue.handleGraphEvents events).1.TaskRejectionsSatisfy property := by
+  let available := GraphEvent.availableFailures events
+  have licensed : ∀ occurrence errors,
+      (occurrence, errors) ∈ available → property occurrence errors := by
+    intro occurrence errors member
+    obtain ⟨event, inEvents, same⟩ := List.mem_filterMap.mp member
+    cases event <;> simp only [Option.some.injEq, reduceCtorEq, Prod.mk.injEq] at same
+    obtain ⟨rfl, rfl⟩ := same
+    exact incoming _ _ inEvents
+  have loop (more : List GraphEvent) (included : more.Subset events) (current : State)
+      (prior : current.TaskRejectionsSatisfy property)
+      : (current.replayGraphEvents more available).TaskRejectionsSatisfy property := by
+    induction more generalizing current with
+    | nil => exact prior
+    | cons event rest ih =>
+        apply ih (fun _ member => included (List.mem_cons_of_mem _ member))
+        exact prior.handleGraphEvent event
+          (fun occurrence errors same => incoming _ _ (same ▸ included List.mem_cons_self))
+          available licensed
+  cases running : queue.terminated with
+  | true => simpa only [State.handleGraphEvents, running, ↓reduceIte] using supported
+  | false =>
+      obtain ⟨terminal, same⟩ := queue.handleGraphEvents_stateCore events running
+      rw [same]
+      exact loop events (List.Subset.refl _) queue supported
+
+/-- Normalized replay preserves exact rejection provenance through actual host batches. -/
+theorem State.TaskRejectionsSatisfy.runNormalized {queue : State} {property}
+    (supported : queue.TaskRejectionsSatisfy property) (batches : List (List GraphEvent))
+    (incoming
+      : ∀ occurrence errors,
+          GraphEvent.taskFailure occurrence errors ∈ batches.flatten
+          → property occurrence errors)
+    : (queue.runNormalized batches).1.TaskRejectionsSatisfy property := by
+  rw [State.runNormalized_replayBatches]
+  induction batches generalizing queue with
+  | nil => exact supported
+  | cons batch rest ih =>
+      apply ih
+        (supported.handleGraphEvents batch
+          (by
+            intro occurrence errors member
+            exact incoming _ _ (List.mem_append_left rest.flatten member)))
+      intro occurrence errors member
+      exact incoming _ _ (List.mem_append_right batch member)
+
+/-- Every actual retained computation rejection has its exact supplied task-failure input. -/
+theorem createWorkQueue_runNormalized_taskRejections (input : Work)
+    (batches : List (List GraphEvent))
+    : ((State.initialize input).runNormalized batches).1.TaskRejectionsSatisfy
+        (fun occurrence errors =>
+          GraphEvent.taskFailure occurrence errors ∈ batches.flatten) :=
+  (createWorkQueue_taskRejections input _).runNormalized batches
+    (fun _ _ member => member)
 
 /-- Replaying inputs attributes every retained rejection to a supplied task failure. -/
 theorem State.TaskRejectionsSatisfy.replayGraphEvents {queue : State}
@@ -467,20 +609,29 @@ theorem State.TaskRejectionsSatisfy.replayGraphEvents {queue : State}
   | cons event rest ih =>
       have prior := supported.mono (fun _ _ member =>
         List.mem_append_left event.groupFailures member)
-      have next : (queue.handleGraphEvent event).1.TaskRejectionsSatisfy
+      have next : (queue.dispatchGraphEvent event).1.TaskRejectionsSatisfy
           (fun occurrence _ => occurrence ∈ settled ++ event.groupFailures) := by
         cases event with
         | taskSuccess occurrence result => exact prior.taskSuccess occurrence result
+        | groupFailure failure =>
+            simp only [State.dispatchGraphEvent, State.handleGraphEvent,
+              State.cacheTaskFailures, List.foldl_nil]
+            unfold State.groupFailure
+            split
+            · exact prior
+            · split <;> exact prior
         | taskFailure occurrence errors =>
             exact prior.taskFailure occurrence errors
               (List.mem_append_right _ List.mem_cons_self)
         | streamItems stream items => exact prior.streamItems stream items
         | streamSuccess stream =>
-            change (queue.streamSuccess stream).1.TaskRejectionsSatisfy _
+            simp only [State.dispatchGraphEvent, State.handleGraphEvent,
+              State.cacheTaskFailures, List.foldl_nil]
             unfold State.streamSuccess
             split <;> exact prior
         | streamFailure stream errors =>
-            change (queue.streamFailure stream errors).1.TaskRejectionsSatisfy _
+            simp only [State.dispatchGraphEvent, State.handleGraphEvent,
+              State.cacheTaskFailures, List.foldl_nil]
             unfold State.streamFailure
             split <;> exact prior
       simpa only [State.replayGraphEvents, List.foldl_cons, List.flatMap_cons,

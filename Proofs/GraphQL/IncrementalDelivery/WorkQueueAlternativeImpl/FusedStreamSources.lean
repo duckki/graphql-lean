@@ -2,6 +2,7 @@ import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.FusedDrainSou
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.RegistrationHostEffects
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.RegistrationSnapshotProjection
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.FusedFailureResources
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.UncancelledReplay
 
 /-! Connect prepared source records to the actual FIFO item handler and its emitted effects.
 Generated frames are derived at the real pre-drain boundary. The earlier item cleanup and
@@ -41,7 +42,7 @@ private theorem prepared_inventory {queue : ReferenceWorkQueue.State}
     (inventory : queue.ChildStreamInventory) (items : List ReferenceWorkQueue.StreamItem)
     : (queue.preparedStreamItems items).ChildStreamInventory :=
   ReferenceWorkQueue.State.preparedStreamItems_preserves
-    ReferenceWorkQueue.State.ChildStreamInventory inventory items
+    ReferenceWorkQueue.State.ChildStreamInventory inventory items []
     (fun _ item _ prior =>
       ((prior.maybeIntegrateWork item.work).pruneEmptyGroups _).startNewWork _)
 
@@ -57,8 +58,9 @@ theorem referencePrefix_streamItems_sources {work : Work}
     (generated : ReferenceWorkQueue.ExecutedWork work) (events : List GraphEvent)
     (valid : ReferenceWorkQueue.ValidGraphEvents work events)
     (accepted
-      : (ReferenceWorkQueue.State.initialize
-          (ReferenceWorkQueue.Work.fromExecution work)).acceptsBatch
+      : ReferenceWorkQueue.State.eventsStarted []
+          (ReferenceWorkQueue.State.initialize
+            (ReferenceWorkQueue.Work.fromExecution work))
           events
         = true)
     (stream : Execution.DeliveryNode) (items : List ReferenceWorkQueue.StreamItem)
@@ -74,7 +76,7 @@ theorem referencePrefix_streamItems_sources {work : Work}
         → let reduced := ({ queue } : State).streamItems stream items
           reduced.1.queue.taskNode? occurrence = some node
           ∨ key ∈ reduced.1.queue.rootStreams
-          ∨ .cancelSource key ∈ reduced.2.2 := by
+          ∨ .cancelSource key ∈ reduced.2.2.1 := by
   let queue := (ReferenceWorkQueue.State.initialize
     (ReferenceWorkQueue.Work.fromExecution work)).replayGraphEvents events
   change ∀ occurrence node key,
@@ -83,7 +85,7 @@ theorem referencePrefix_streamItems_sources {work : Work}
     → let reduced := ({ queue } : State).streamItems stream items
       reduced.1.queue.taskNode? occurrence = some node
       ∨ key ∈ reduced.1.queue.rootStreams
-      ∨ .cancelSource key ∈ reduced.2.2
+      ∨ .cancelSource key ∈ reduced.2.2.1
   intro occurrence node key found held
   cases active : queue.rootStreams.contains stream.ref with
   | false =>
@@ -91,10 +93,11 @@ theorem referencePrefix_streamItems_sources {work : Work}
         registrationSnapshot, Bool.false_eq_true] at found ⊢
       exact .inl found
   | true =>
-      let acc := items.foldl streamRegistrationStep (({ queue } : State), [], [], [], [], [])
+      let acc := items.foldl streamRegistrationStep (({ queue } : State), [], [], [], [], [], [])
       rw [registrationSnapshot_itemFold queue stream items active] at found
       have matching := fun event member => valid.eachMatches (event := event) member
-      have fold := referencePrefix_streamRegistrationFold generated events matching stream items matched
+      have fold := referencePrefix_streamRegistrationFold generated events matching valid accepted
+        stream items matched
       have queueEq : acc.1.queue = queue.preparedStreamItems items := congrArg Prod.fst fold
       obtain ⟨parents, frame, forest⟩ := referencePrefix_streamItems_drainFrames
         generated events valid accepted stream items matched
@@ -104,7 +107,7 @@ theorem referencePrefix_streamItems_sources {work : Work}
         rw [queueEq]; exact prepared_inventory (referencePrefix_inventory work events) items
       have running : acc.1.stopped = false := streamRegistrationFold_stopped items _
       have unique := (streamRegistrationFold_cleanupTargets items
-        (({ queue } : State), [], [], [], [], []) List.nodup_nil rfl).1
+        (({ queue } : State), [], [], [], [], [], []) List.nodup_nil rfl).1
       have classified := FusedDrainSourceProgress_holds acc.1 work parents acc.2.2.2.2.1
         running actualFrame actualForest inventory unique occurrence node key found held
       have cleanup := State.streamItems_cleanupStarts_eq ({ queue } : State) stream items active
@@ -113,7 +116,74 @@ theorem referencePrefix_streamItems_sources {work : Work}
       · exact .inl retained
       · exact .inr (.inl released)
       · apply Or.inr; apply Or.inr
-        have emitted : .cancelSource key ∈ (({ queue } : State).streamItems stream items).2.2 := by
+        have emitted : .cancelSource key
+            ∈ (({ queue } : State).streamItems stream items).2.2.1 := by
+          apply cleanupSource_effect
+          rw [cleanup]
+          exact requested
+        simpa only [State.streamItems, active, Bool.not_true, Bool.false_eq_true,
+          ↓reduceIte]
+          using emitted
+
+/-- Stream-source classification follows the actual supplied source-accounting state.
+Witness: stream snapshot projection identifies the exact prepared queue, whose owner,
+forest and source-inventory certificates justify the real fused drain and effect channel.
+-/
+theorem sourceFrame_streamItems_sources {queue : ReferenceWorkQueue.State}
+    {work : Work} {parents : Nat → WorkQueueSemantics.NodeRefs} {before : List GraphEvent}
+    (generated : ReferenceWorkQueue.ExecutedWork work)
+    (canonical
+      : ∀ node dependencies,
+          ReferenceWorkQueue.GroupRecordAt work node dependencies
+          → dependencies = parents node.ref)
+    (sourceFrame : ReferenceWorkQueue.UncancelledReplayFrame queue work parents before)
+    (keys : queue.TaskNodeKeysUnique) (initial : queue.ChildStreamInventory)
+    (stream : Execution.DeliveryNode) (items : List ReferenceWorkQueue.StreamItem)
+    (matched : (ReferenceWorkQueue.GraphEvent.streamItems stream items).MatchesWork work)
+    {occurrence node key}
+    (found
+      : (registrationSnapshot queue (.streamItems stream items)).taskNode? occurrence
+        = some node)
+    (held : key ∈ node.childStreams)
+    : (({ queue } : State).streamItems stream items).1.queue.taskNode? occurrence
+        = some node
+      ∨ key ∈ (({ queue } : State).streamItems stream items).1.queue.rootStreams
+      ∨ .cancelSource key ∈ (({ queue } : State).streamItems stream items).2.2.1 := by
+  cases active : queue.rootStreams.contains stream.ref with
+  | false =>
+      simp only [State.streamItems, active, Bool.not_false, ↓reduceIte,
+        registrationSnapshot, Bool.false_eq_true] at found ⊢
+      exact .inl found
+  | true =>
+      let acc := items.foldl streamRegistrationStep (({ queue } : State), [], [], [], [], [], [])
+      have projection := snapshotProjection_of_structuralFrames generated canonical
+        sourceFrame.roots.live sourceFrame.roots.retired sourceFrame.tasks
+        sourceFrame.parent.children keys (.streamItems stream items) matched
+      have queueEq := projection.items stream items rfl
+      simp only [eagerRegistrationSnapshot, active, ite_true] at queueEq
+      rw [registrationSnapshot_itemFold queue stream items active] at queueEq found
+      change acc.1.queue = queue.preparedStreamItems items at queueEq
+      have frames := streamItems_drainFrames generated canonical sourceFrame.roots.live
+        sourceFrame.roots.retired sourceFrame.tasks sourceFrame.parent.children
+        stream items matched []
+      have actualFrame : acc.1.queue.TaskOwnerFrame work := by rw [queueEq]; exact frames.1
+      have actualForest : acc.1.queue.RemovalForest parents := by rw [queueEq]; exact frames.2
+      have inventory : acc.1.queue.ChildStreamInventory := by
+        rw [queueEq]
+        exact prepared_inventory initial items
+      have running : acc.1.stopped = false := streamRegistrationFold_stopped items _
+      have unique := (streamRegistrationFold_cleanupTargets items
+        (({ queue } : State), [], [], [], [], [], []) List.nodup_nil rfl).1
+      have classified := FusedDrainSourceProgress_holds acc.1 work parents acc.2.2.2.2.1
+        running actualFrame actualForest inventory unique occurrence node key found held
+      have cleanup := State.streamItems_cleanupStarts_eq ({ queue } : State) stream items active
+      simp only [State.streamItems, active, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
+      rcases classified with retained | released | requested
+      · exact .inl retained
+      · exact .inr (.inl released)
+      · apply Or.inr; apply Or.inr
+        have emitted : .cancelSource key
+            ∈ (({ queue } : State).streamItems stream items).2.2.1 := by
           apply cleanupSource_effect
           rw [cleanup]
           exact requested
@@ -134,8 +204,8 @@ def GeneratedStreamReceiptResourceSafety : Prop :=
   ∀ (work : Work) (events : List GraphEvent),
     ReferenceWorkQueue.ExecutedWork work
     → ReferenceWorkQueue.ValidGraphEvents work events
-    → (ReferenceWorkQueue.State.initialize
-        (ReferenceWorkQueue.Work.fromExecution work)).acceptsBatch
+    → ReferenceWorkQueue.State.eventsStarted []
+        (ReferenceWorkQueue.State.initialize (ReferenceWorkQueue.Work.fromExecution work))
         events
       = true
     → ∀ (stream : Execution.DeliveryNode) (items : List ReferenceWorkQueue.StreamItem),
@@ -150,7 +220,7 @@ def GeneratedStreamReceiptResourceSafety : Prop :=
               resources.observeHandlerCleanup { queue } (.streamItems stream items)
             ResourceReplay resources observed.2 observed.1
             ∧ (∀ action ∈ observed.2,
-                ∃ effect ∈ reduced.2.2,
+                ∃ effect ∈ reduced.2.2.1,
                   ∃ target,
                     effect.cleanupStart? = some target ∧ action = .requestCleanup target)
             ∧ ∀ occurrence node key,

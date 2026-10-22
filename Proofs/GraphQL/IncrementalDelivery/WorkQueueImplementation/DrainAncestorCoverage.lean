@@ -16,20 +16,22 @@ Witness: split the actual drain at `steps`, then use suffix cancellation monoton
 -/
 theorem State.drainReadyGroups_go_prefix_cancelledSubset (queue : State)
     {steps fuel : Nat} (bounded : steps ≤ fuel)
-    : (State.drainReadyGroups.go steps queue).1.cancelledGroups.Subset
-        (State.drainReadyGroups.go fuel queue).1.cancelledGroups := by
-  have split := State.drainReadyGroups_go_add steps (fuel - steps) queue
+    (available : List (Occurrence × Nat) := [])
+    : (State.drainReadyGroups.go available steps queue).1.cancelledGroups.Subset
+        (State.drainReadyGroups.go available fuel queue).1.cancelledGroups := by
+  have split := State.drainReadyGroups_go_add steps (fuel - steps) queue available
   rw [Nat.add_sub_of_le bounded] at split
   rw [split]
-  exact State.drainReadyGroups_go_cancelledGroups_subset _ _
+  exact State.drainReadyGroups_go_cancelledGroups_subset _ _ available
 
 /-- An uncancelled ancestor's buffered contribution precedes the child's value block.
 Witness: the exact pre-flush drain boundary has retired every task-bearing ancestor.
 Prefix owner conservation on the supplied ledger then rules out retention there. The
 child may have become active during this same drain; prior activation is not assumed.
 -/
-theorem State.drainReadyGroups_go_ancestorValue_before {queue original : State}
+theorem State.drainReadyGroups_go_ancestorValue_atOffset {queue original : State}
     {work parents} {published : List ObjectPublication} {fuel : Nat}
+    (available : List (Occurrence × Nat)) (offset : Nat)
     (generated : ExecutedWork work) (matching : queue.GroupNodesMatchWork work)
     (links : queue.ChildLinksCanonical parents)
     (canonical
@@ -43,12 +45,13 @@ theorem State.drainReadyGroups_go_ancestorValue_before {queue original : State}
           steps ≤ fuel
           → original.StoredOwnersConserved
               (published.take
-                ((State.drainReadyGroups.go steps queue).2.flatMap
-                  WorkQueueEvent.objectValues).length)
-              (State.drainReadyGroups.go steps queue).1)
+                (offset
+                  + ((State.drainReadyGroups.go available steps queue).2.1.flatMap
+                      WorkQueueEvent.objectValues).length))
+              (State.drainReadyGroups.go available steps queue).1)
     {index group values dependencies ref occurrence node value}
     (selected
-      : (State.drainReadyGroups.go fuel queue).2[index]?
+      : (State.drainReadyGroups.go available fuel queue).2.1[index]?
         = some (.groupValues group values))
     (record : GroupRecordAt work group dependencies) (ancestor : ref ∈ dependencies)
     (found : original.taskNode? occurrence = some node) (stored : node.value = some value)
@@ -56,23 +59,68 @@ theorem State.drainReadyGroups_go_ancestorValue_before {queue original : State}
       : TaskHasOwners work occurrence (node.task.groups.map Execution.DeliveryNode.ref))
     (contributes : ref ∈ node.task.groups.map Execution.DeliveryNode.ref)
     (present : ref ∈ original.groupNodes.map (fun owner => owner.group.node.ref))
-    (uncancelled : ref ∉ (State.drainReadyGroups.go fuel queue).1.cancelledGroups)
+    (uncancelled
+      : ref ∉ (State.drainReadyGroups.go available fuel queue).1.cancelledGroups)
     : (occurrence, value)
       ∈ published.take
-          (((State.drainReadyGroups.go fuel queue).2.take index).flatMap
-            WorkQueueEvent.objectValues).length := by
-  obtain ⟨steps, current, bounded, _, active, _, _, same, exactPrefix⟩ :=
-    State.drainReadyGroups_go_value_boundary fuel queue selected
+          (offset
+            + (((State.drainReadyGroups.go available fuel queue).2.1.take index).flatMap
+                WorkQueueEvent.objectValues).length) := by
+  obtain ⟨steps, current, bounded, _, active, _, same, exactPrefix⟩ :=
+    State.drainReadyGroups_go_value_boundary fuel queue available selected
   have prefixRoots := (State.drainReadyGroups_go_uncancelledRetirement closed generated
-    matching links canonical live tasks roots steps).1
+    matching links canonical live tasks roots steps available).1
   have retired := prefixRoots current.group.node.ref active group dependencies record
     (congrArg Execution.DeliveryNode.ref same.symm) ref ancestor occurrence _ known contributes
-  have notCancelled : ref ∉ (State.drainReadyGroups.go steps queue).1.cancelledGroups :=
+  have notCancelled : ref ∉ (State.drainReadyGroups.go available steps queue).1.cancelledGroups :=
     fun member => uncancelled
-      (State.drainReadyGroups_go_prefix_cancelledSubset queue (Nat.le_of_lt bounded) member)
+      (State.drainReadyGroups_go_prefix_cancelledSubset queue (Nat.le_of_lt bounded)
+        available member)
   have emitted := (prefixes steps (Nat.le_of_lt bounded)
     occurrence node value found stored ref contributes present notCancelled).resolve_right
       (fun retained => retired.2 retained.2)
   simpa only [exactPrefix] using emitted
+
+/-- Zero-offset specialization for handlers without a preceding owner-fold object ledger. -/
+theorem State.drainReadyGroups_go_ancestorValue_before {queue original : State}
+    {work parents} {published : List ObjectPublication} {fuel : Nat}
+    (available : List (Occurrence × Nat) := [])
+    (generated : ExecutedWork work) (matching : queue.GroupNodesMatchWork work)
+    (links : queue.ChildLinksCanonical parents)
+    (canonical
+      : ∀ group dependencies,
+          GroupRecordAt work group dependencies → dependencies = parents group.ref)
+    (live : queue.LiveGroupsRegistered) (tasks : queue.TaskGroupsRegistered)
+    (roots : queue.RootAncestorsRetired work)
+    (closed : queue.UncancelledRetiredAncestors work)
+    (prefixes
+      : ∀ steps,
+          steps ≤ fuel
+          → original.StoredOwnersConserved
+              (published.take
+                ((State.drainReadyGroups.go available steps queue).2.1.flatMap
+                  WorkQueueEvent.objectValues).length)
+              (State.drainReadyGroups.go available steps queue).1)
+    {index group values dependencies ref occurrence node value}
+    (selected
+      : (State.drainReadyGroups.go available fuel queue).2.1[index]?
+        = some (.groupValues group values))
+    (record : GroupRecordAt work group dependencies) (ancestor : ref ∈ dependencies)
+    (found : original.taskNode? occurrence = some node) (stored : node.value = some value)
+    (known
+      : TaskHasOwners work occurrence (node.task.groups.map Execution.DeliveryNode.ref))
+    (contributes : ref ∈ node.task.groups.map Execution.DeliveryNode.ref)
+    (present : ref ∈ original.groupNodes.map (fun owner => owner.group.node.ref))
+    (uncancelled
+      : ref ∉ (State.drainReadyGroups.go available fuel queue).1.cancelledGroups)
+    : (occurrence, value)
+      ∈ published.take
+          (((State.drainReadyGroups.go available fuel queue).2.1.take index).flatMap
+            WorkQueueEvent.objectValues).length := by
+  simpa only [Nat.zero_add]
+    using State.drainReadyGroups_go_ancestorValue_atOffset available 0 generated matching
+      links canonical live tasks roots closed
+      (by simpa only [Nat.zero_add] using prefixes) selected record ancestor found stored
+      known contributes present uncancelled
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

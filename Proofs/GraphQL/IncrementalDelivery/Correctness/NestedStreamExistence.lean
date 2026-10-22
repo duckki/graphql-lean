@@ -1,5 +1,6 @@
 import Proofs.GraphQL.IncrementalDelivery.Correctness.ReleasedStreamAccounting
 import Proofs.GraphQL.IncrementalDelivery.Correctness.HealthyGroupStreamReporting
+import Proofs.GraphQL.IncrementalDelivery.Semantics.WorkSize
 
 /-! Complete stream-only runs have actual scopes for every cancelled descendant. -/
 
@@ -36,7 +37,7 @@ theorem StreamOnly.completeRun_exists {paths bound work}
       Or.inl ⟨fun failure => failure.nonempty rfl, Or.inl rfl⟩, by simp, Or.inl rfl⟩
   obtain ⟨groups, streams, initialized, covers⟩ := initialized.covering_exists
   have initial : Explains work groups streams [] (fun _ => .executionGroup []) [] :=
-    ⟨initialized, by simp [FailureWitness], by simp⟩
+    initialized.emptyExplains _
   have deferred : DeferredTasksAccounted work (fun _ => .executionGroup []) [] [] := by
     intro address owners producer payload known
     obtain ⟨node, result, _, impossible, _⟩ := onlyStreams.task known

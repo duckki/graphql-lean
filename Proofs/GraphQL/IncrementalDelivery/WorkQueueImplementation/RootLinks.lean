@@ -27,54 +27,16 @@ private theorem State.addGroup_rootGroups (queue : State) (group : Group)
   unfold State.addGroup
   split
   · rfl
-  · split <;> rfl
+  · split
+    · rfl
+    · split
+      · split <;> rfl
+      · rfl
 
-/-- Registering groups and their parent links leaves active roots unchanged.
-Witness: both registration folds update only the group-node map and ref registry.
--/
+/-- Recursive registration leaves active roots unchanged. -/
 theorem State.addGroups_rootGroups (queue : State) (groups : List Group)
     : (queue.addGroups groups).1.rootGroups = queue.rootGroups := by
-  let linkStep (current : State) (group : Group) : State :=
-    match group.parent with
-    | none => current
-    | some parent =>
-        match current.groupNode? parent with
-        | none => current
-        | some node =>
-            let children :=
-              if node.childGroups.contains group.node.ref then
-                node.childGroups
-              else
-                node.childGroups ++ [group.node.ref]
-            current.putGroupNode { node with childGroups := children }
-  have registrationFold (more : List Group) :
-      ∀ current, (more.foldl State.addGroup current).rootGroups
-        = current.rootGroups := by
-    induction more with
-    | nil => intro current; rfl
-    | cons group rest ih =>
-        intro current
-        simp only [List.foldl_cons, ih, State.addGroup_rootGroups]
-  have linkStepRoots (current : State) (group : Group) :
-      (linkStep current group).rootGroups = current.rootGroups := by
-    unfold linkStep
-    split
-    · rfl
-    · split <;> rfl
-  have linkFold (more : List Group) :
-      ∀ current, (more.foldl linkStep current).rootGroups
-        = current.rootGroups := by
-    induction more with
-    | nil => intro current; rfl
-    | cons group rest ih =>
-        intro current
-        simp only [List.foldl_cons, ih, linkStepRoots]
-  let fresh := groups.filter (fun group =>
-    !queue.registeredGroups.contains group.node.ref
-      && (queue.groupNode? group.node.ref).isNone)
-  change (fresh.foldl linkStep
-    (fresh.foldl State.addGroup queue)).rootGroups = queue.rootGroups
-  rw [linkFold, registrationFold]
+  exact State.addGroups_projection State.rootGroups State.addGroup_rootGroups queue groups
 
 /-- Registering a task can start its node but never activates a contributing group.
 Witness: membership updates and the optional task-node insertion both preserve roots.
@@ -157,61 +119,13 @@ theorem State.GroupRefsIncluded.trans {first second third : State}
 
 theorem State.addGroup_includesRefs (queue : State) (group : Group)
     : queue.GroupRefsIncluded (queue.addGroup group) := by
-  intro ref member
-  obtain ⟨node, nodeMember, same⟩ := List.mem_map.mp member
-  exact List.mem_map.mpr
-    ⟨node, queue.addGroup_preservesExisting group nodeMember, same⟩
+  exact queue.addGroup_refs_subset group
 
 theorem State.addGroups_includesRefs (queue : State) (groups : List Group)
     : queue.GroupRefsIncluded (queue.addGroups groups).1 := by
-  let linkStep (current : State) (group : Group) : State :=
-    match group.parent with
-    | none => current
-    | some parent =>
-        match current.groupNode? parent with
-        | none => current
-        | some node =>
-            let children :=
-              if node.childGroups.contains group.node.ref then
-                node.childGroups
-              else
-                node.childGroups ++ [group.node.ref]
-            current.putGroupNode { node with childGroups := children }
-  have registrationFold (more : List Group) :
-      ∀ current : State,
-        current.GroupRefsIncluded (more.foldl State.addGroup current) := by
-    induction more with
-    | nil => intro current ref member; exact member
-    | cons group rest ih =>
-        intro current
-        exact (current.addGroup_includesRefs group).trans
-          (ih (current.addGroup group))
-  have linkStepRefs (current : State) (group : Group) :
-      current.GroupRefsIncluded (linkStep current group) := by
-    unfold linkStep
-    split
-    · intro ref member; exact member
-    · split
-      · intro ref member; exact member
-      · rename_i node found
-        intro ref member
-        rw [State.putGroupNode_refs]
-        exact member
-  have linkFold (more : List Group) :
-      ∀ current : State, current.GroupRefsIncluded (more.foldl linkStep current) := by
-    induction more with
-    | nil => intro current ref member; exact member
-    | cons group rest ih =>
-        intro current
-        exact (linkStepRefs current group).trans
-          (ih (linkStep current group))
-  let fresh := groups.filter (fun group =>
-    !queue.registeredGroups.contains group.node.ref
-      && (queue.groupNode? group.node.ref).isNone)
-  change queue.GroupRefsIncluded
-    (fresh.foldl linkStep (fresh.foldl State.addGroup queue))
-  exact (registrationFold fresh queue).trans
-    (linkFold fresh (fresh.foldl State.addGroup queue))
+  exact State.addGroups_preserves (fun current => queue.GroupRefsIncluded current) groups
+    (fun current group _ earlier => earlier.trans (current.addGroup_includesRefs group))
+    queue (fun _ member => member)
 
 theorem State.addTask_includesRefs (queue : State) (task : Task)
     : queue.GroupRefsIncluded (queue.addTask task) := by

@@ -77,7 +77,8 @@ mutual
         · exact collectExecutionGroups_positive schema resolvers variables fuel parentType
             source _ path _
         · intro work hw
-          exact runEnsures_pure _ _ ⟨hc.1, ⟨hc.2.1, hw⟩, hc.2.2⟩
+          refine runEnsures_pure _ _ ⟨hc.1, ⟨hc.2.1, ?_⟩, hc.2.2⟩
+          exact hw
   termination_by (fuel, 6, 0, 0)
   decreasing_by
     all_goals

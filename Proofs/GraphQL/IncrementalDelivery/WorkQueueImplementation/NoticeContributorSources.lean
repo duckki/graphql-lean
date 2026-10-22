@@ -27,6 +27,7 @@ Ignored failures are not added, and output notice admission is never assumed.
 -/
 theorem recordedObjectFailure_producerSucceeded
     {work inputs streams failures count address owners producer payload}
+    (generated : ExecutedWork work)
     (valid : ValidGraphEvents work inputs.flatten)
     (started : inputsStarted work inputs = true)
     (cuts
@@ -40,8 +41,7 @@ theorem recordedObjectFailure_producerSucceeded
         failures.Perm
           (streams
             ++ informativeObjectFailureCuts work
-                (queue.eligibleFailureBlocks
-                  (queue.sourceRunBlocks publisher inputs).2.2)))
+                (queue.sourceRunBlocks publisher inputs).2.2))
     (known : TaskAt work (.executionGroup address) owners producer payload)
     (failed : Occurrence.executionGroup address ∈ failedBefore failures count)
     : ∀ source,
@@ -52,10 +52,15 @@ theorem recordedObjectFailure_producerSucceeded
   obtain ⟨path, result, samePayload⟩ : ∃ path result, payload = .object path result := by
     obtain ⟨_, path, result, _, _, _, _, same⟩ := known
     exact ⟨path, result.deliveryResult, same⟩
-  have recorded := createWorkQueue_mixedFailureCuts_objectsRecorded started cuts partition
+  have recorded := createWorkQueue_mixedFailureCuts_objectsRecorded generated valid started cuts partition
     (samePayload ▸ known) failed
-  have received := ((initialQueue work).objectFailureContributions_sublist inputs.flatten).subset
-    recorded
+  have received : Occurrence.executionGroup address ∈ GraphEvent.failureSettlements
+      inputs.flatten := by
+    rwa [
+      State.admittedObjectFailureContributionsForBatches_eq_of_started _ inputs
+        (by rwa [inputsStarted_eq_batchesStarted] at started)
+      ]
+      at recorded
   exact valid.groupSettlement_producerBefore known
     (GraphEvent.failureSettlements_subsetIdentities inputs.flatten received)
 
@@ -78,8 +83,7 @@ theorem retainedNotice_sourceReadyContributor
         w.failures.Perm
           (streams
             ++ informativeObjectFailureCuts work
-                (queue.eligibleFailureBlocks
-                  (queue.sourceRunBlocks publisher inputs).2.2)))
+                (queue.sourceRunBlocks publisher inputs).2.2))
     (contents
       : RetainedNoticeContents work w.matching events
           (failedBefore w.failures count) inputs.flatten child)

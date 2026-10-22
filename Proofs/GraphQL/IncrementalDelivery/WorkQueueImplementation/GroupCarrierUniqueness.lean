@@ -104,8 +104,8 @@ record and preserves the structural facts through activation, while failure only
 -/
 theorem State.drainReadyGroups_go_groupNoticesUnique {queue : State} {parents}
     (links : queue.ChildLinksCanonical parents) (children : queue.ChildGroupsUnique)
-    (fuel : Nat)
-    : ∀ event ∈ (State.drainReadyGroups.go fuel queue).2,
+    (fuel : Nat) (available : List (Occurrence × Nat) := [])
+    : ∀ event ∈ (State.drainReadyGroups.go available fuel queue).2.1,
         (rawGroupNoticeRefs event).Nodup := by
   induction fuel generalizing queue with
   | zero => simp [State.drainReadyGroups.go]
@@ -120,24 +120,15 @@ theorem State.drainReadyGroups_go_groupNoticesUnique {queue : State} {parents}
         | none => simp [found] at choice
         | some candidate =>
             simp only [found] at choice
-            change (if (queue.rejectedTask? candidate).isSome || candidate.pending == 0 then
-              some candidate else none) = some node at choice
+            change (if candidate.pending == 0 then some candidate else none) = some node at choice
             split at choice
             · cases Option.some.inj choice
-              cases cached : queue.rejectedTask? node with
-              | none =>
-                  intro event emitted
-                  rcases List.mem_append.mp emitted with first | later
-                  · exact queue.finishGroupSuccess_groupNoticesUnique links children
-                      (List.mem_of_find?_eq_some found) event first
-                  · exact ih ((links.finishGroupSuccess node).startNewWork _)
-                      ((children.finishGroupSuccess node).startNewWork _) event later
-              | some rejected =>
-                  intro event emitted
-                  rcases List.mem_append.mp emitted with first | later
-                  · obtain ⟨group, rfl⟩ := queue.taskFailure_event_failure _ _ event first
-                    exact List.nodup_nil
-                  · exact ih (links.taskFailure _ _) (children.taskFailure _ _) event later
+              intro event emitted
+              rcases List.mem_append.mp emitted with first | later
+              · exact queue.finishGroupSuccess_groupNoticesUnique links children
+                  (List.mem_of_find?_eq_some found) event first
+              · exact ih ((links.finishGroupSuccess node).startNewWork _ available)
+                  ((children.finishGroupSuccess node).startNewWork _ available) event later
             · contradiction
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

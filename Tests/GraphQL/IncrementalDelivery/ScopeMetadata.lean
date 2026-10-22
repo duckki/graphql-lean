@@ -72,7 +72,9 @@ private def childWork : Work :=
     (.combine .empty .empty)
 
 private def parentChildren : Work :=
-  .combine (.combine (.combine .empty .empty) (.combine childWork .empty)) .empty
+  .combine
+    (.combine (.combine .empty .empty) (.declareGroups [] (.combine childWork .empty)))
+    .empty
 
 private theorem parent_task
     : TaskAt completed.work (.executionGroup parentAddress) [0]

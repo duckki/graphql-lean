@@ -27,12 +27,14 @@ example
         [WorkQueueSemantics.value] [] 0 := by
   have initial : Explains WorkQueueSemantics.work [WorkQueueSemantics.node] [] []
       WorkQueueSemantics.matching [] :=
-    ⟨WorkQueueSemantics.initialized _, by simp [FailureWitness], by simp⟩
+    Explains.of_causal_failures (WorkQueueSemantics.initialized _)
+      (by simp [FailureWitness]) (by simp) (by simp)
   have published := initial.append_event
     (by simpa [WorkQueueSemantics.node, failedBefore] using WorkQueueSemantics.publishes)
   have reduction := published.singleton_dependency_iff_completed
     (show TaskAt WorkQueueSemantics.work (.executionGroup []) [0] none (.object [] (.ok ([], 0)))
-      from .executionGroup .root)
+      from .executionGroup (result := { result := .ok ([], 0) })
+        (Located.root (root := WorkQueueSemantics.work)))
     (fun failure => failure.nonempty rfl)
   simpa [WorkQueueSemantics.node, WorkQueueSemantics.value, completedRefs, eventCompleted,
     failedBefore]
@@ -49,10 +51,12 @@ example
         ∧ 1 ∉ announcedRefs [0] events
         ∧ 1 ∉ completedRefs events := by
   have task : TaskAt HistoryScheduling.shared (.executionGroup []) [0, 1] none
-      (.object [] (.ok ([], 0))) := .executionGroup .root
+      (.object [] (.ok ([], 0))) := .executionGroup (result := { result := .ok ([], 0) })
+        (Located.root (root := HistoryScheduling.shared))
   have initial : Explains HistoryScheduling.shared [HistoryScheduling.left] [] []
       HistoryScheduling.matching [] := by
-    refine ⟨⟨⟨by simp, ?_, by simp⟩, by simp⟩, by simp [FailureWitness], by simp⟩
+    refine Explains.of_causal_failures ⟨⟨by simp, ?_, by simp⟩, by simp⟩
+      (by simp [FailureWitness]) (by simp) (by simp)
     intro node member
     have same := List.mem_singleton.mp member
     subst node

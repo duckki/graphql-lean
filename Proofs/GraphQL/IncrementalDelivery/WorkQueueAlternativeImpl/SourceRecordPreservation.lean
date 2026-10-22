@@ -1,4 +1,5 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.SourceRecordProgress
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.AvailableSourceHandlerProgress
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.StreamCompletionReplay
 
 /-! Every previously represented source stays represented unless this actual input
@@ -15,13 +16,41 @@ private abbrev Kernel := ReferenceWorkQueue.State
 -- Generated input freshness retains exact old buffers during accepted registration
 -----------------------------------------------------------------------------------------
 
-/-- Success/item preparation cannot overwrite a previously stored generated task.
-This follows the actual per-item fold, not a replay with an independently chosen snapshot.
+private theorem streamFold_oldSource (items : List ReferenceWorkQueue.StreamItem)
+    (acc : StreamRegistrationAcc) (unique : acc.2.2.2.2.1.Nodup)
+    {occurrence node key} (held : key ∈ node.childStreams)
+    (safe : acc.1.queue.taskNode? occurrence = some node ∨ .stream key ∈ acc.2.2.2.2.1)
+    : (items.foldl streamRegistrationStep acc).1.queue.taskNode? occurrence = some node
+      ∨ .stream key ∈ (items.foldl streamRegistrationStep acc).2.2.2.2.1 := by
+  induction items generalizing acc with
+  | nil => exact safe
+  | cons item rest ih =>
+      let registered := acc.1.maybeIntegrateWork item.work
+      let pruned := registered.1.queue.pruneEmptyGroups registered.2.newGroups
+      let current := { registered.1 with queue := pruned.1 }
+      let released := { registered.2.newWork with newGroups := pruned.2 }
+      have nextUnique : (streamRegistrationStep acc item).2.2.2.2.1.Nodup :=
+        State.startNewWork_targets_nodup current released registered.2 _ unique
+      apply ih _ nextUnique
+      rcases safe with found | requested
+      · have integrated := State.maybeIntegrateWork_lookup_other found item.work
+        have prunedFound : current.queue.taskNode? occurrence = some node := by
+          simpa only [current, pruned, ReferenceWorkQueue.State.taskNode?,
+            ReferenceWorkQueue.State.pruneEmptyGroups_taskNodes]
+            using integrated
+        exact startup_heldSource current released registered.2 acc.2.2.2.2.1 prunedFound
+          held
+      · apply Or.inr
+        exact (State.startNewWork_targets_prefix current released registered.2 _ unique).subset
+          requested
+
+/-- Preparation retains an old buffer or requests its held source during actual startup.
+The item fold includes cached-failure removal and its inline cleanup.
 -/
-theorem generatedSnapshot_oldBuffer {work inputs event occurrence node}
+theorem generatedSnapshot_oldBuffer_or_cancelled {work inputs event occurrence node key}
     (generated : ReferenceWorkQueue.ExecutedWork work)
     (valid : ReferenceWorkQueue.ValidGraphEvents work (inputs.flatten ++ [event]))
-    (started : ReferenceWorkQueue.inputsStarted work inputs = true)
+    (started : ReferenceWorkQueue.inputsStarted work (inputs ++ [[event]]) = true)
     (release
       : match event with
         | .taskSuccess _ _ | .streamItems _ _ => True
@@ -29,16 +58,23 @@ theorem generatedSnapshot_oldBuffer {work inputs event occurrence node}
     (found
       : ((State.initialize work).runNormalized inputs).1.queue.taskNode? occurrence
         = some node)
-    (stored : node.value.isSome = true)
+    (stored : node.value.isSome = true) (held : key ∈ node.childStreams)
     : (registrationSnapshot ((State.initialize work).runNormalized inputs).1.queue
-        event).taskNode?
-        occurrence
-      = some node := by
+          event).taskNode?
+          occurrence
+        = some node
+      ∨ .cancelSource key
+        ∈ (({ state := ((State.initialize work).runNormalized inputs).1 }
+            : GraphBatchResult).handleGraphEvent
+            event).effects := by
+  obtain ⟨_, earlierStarted, _⟩ := generatedReplay_beforeNext generated valid started
   let before := ((State.initialize work).runNormalized inputs).1.queue
-  change (registrationSnapshot before event).taskNode? occurrence = some node
+  change (registrationSnapshot before event).taskNode? occurrence = some node ∨ _
   cases event with
   | taskSuccess incoming result =>
-      have different := generatedReplay_buffered_ne_taskInput generated valid started found stored List.mem_cons_self
+      apply Or.inl
+      have different := generatedReplay_buffered_ne_taskInput generated valid earlierStarted
+        found stored List.mem_cons_self
       cases inputFound : before.taskNode? incoming with
       | none => simpa only [registrationSnapshot, inputFound] using found
       | some input =>
@@ -56,24 +92,42 @@ theorem generatedSnapshot_oldBuffer {work inputs event occurrence node}
   | streamItems stream items =>
       cases active : before.rootStreams.contains stream.ref with
       | false =>
+          apply Or.inl
           simpa only [registrationSnapshot, active, Bool.false_eq_true, ↓reduceIte] using found
       | true =>
-          rw [(generatedSnapshot_projection generated valid started).items stream items rfl]
-          change (eagerRegistrationSnapshot before (.streamItems stream items)).taskNode? occurrence = some node
-          simp only [eagerRegistrationSnapshot, active, ↓reduceIte]
-          apply before.preparedStreamItems_preserves
-            (fun queue => queue.taskNode? occurrence = some node) found items
-          intro current item _ prior
-          have integrated := ReferenceWorkQueue.State.maybeIntegrateWork_lookup_other prior item.work
-          have pruned :
-              ((current.maybeIntegrateWork item.work).1.pruneEmptyGroups
-                (current.maybeIntegrateWork item.work).2.newGroups).1.taskNode? occurrence
-                = some node := by
-            simpa only [ReferenceWorkQueue.State.taskNode?,
-              ReferenceWorkQueue.State.pruneEmptyGroups_taskNodes]
-              using integrated
-          exact ReferenceWorkQueue.State.startNewWork_lookup_existing pruned _
-  | taskFailure | streamSuccess | streamFailure => cases release
+          let state := ((State.initialize work).runNormalized inputs).1
+          let acc := items.foldl streamRegistrationStep (state, [], [], [], [], [], [])
+          have running : state.stopped = false := by
+            dsimp only [state]
+            rw [generatedReplay_beforeNextState generated valid started]
+          have stateEq : state = { queue := before } := by
+            exact congrArg (fun stopped => ({ queue := before, stopped } : State)) running
+          have classified : acc.1.queue.taskNode? occurrence = some node ∨
+              .stream key ∈ acc.2.2.2.2.1 := by
+            exact streamFold_oldSource items (state, [], [], [], [], [], [])
+              List.nodup_nil held (.inl found)
+          rcases classified with kept | requested
+          · apply Or.inl
+            rw [registrationSnapshot_itemFold before stream items active]
+            simpa only [acc, stateEq] using kept
+          · apply Or.inr
+            have tracked := streamRegistrationFold_cleanupTargets items
+              (state, [], [], [], [], [], []) List.nodup_nil rfl
+            have extending := (State.drainReadyGroups_targets acc.1 acc.2.2.2.2.1 tracked.1).2
+            have emitted : .stream key ∈ (state.streamItems stream items).2.2.1.filterMap
+                HostEffect.cleanupStart? := by
+              rw [State.streamItems_cleanupStarts_eq state stream items active]
+              exact extending.subset requested
+            obtain ⟨effect, member, same⟩ := List.mem_filterMap.mp emitted
+            have cancellation : .cancelSource key ∈ (state.streamItems stream items).2.2.1 := by
+              cases effect <;> simp only [HostEffect.cleanupStart?, reduceCtorEq,
+                Option.some.injEq, CleanupTarget.stream.injEq] at same
+              subst key
+              exact member
+            simpa only [GraphBatchResult.handleGraphEvent, State.handleGraphEvent,
+              ReferenceWorkQueue.State.cacheTaskFailures, List.foldl_nil, List.nil_append]
+              using cancellation
+  | taskFailure | groupFailure | streamSuccess | streamFailure => cases release
 
 -----------------------------------------------------------------------------------------
 -- Full failure dispatch also retains the exact old record or requests its held sources
@@ -113,59 +167,6 @@ theorem generatedTaskFailure_sourceProgress
 -- Existing active and held records cover all five graph input kinds
 -----------------------------------------------------------------------------------------
 
-private theorem activeSource_progress (before : State) (event : GraphEvent) {key}
-    (projection
-      : ((before.handleGraphEvent event).1.queue, (before.handleGraphEvent event).2.1)
-        = before.queue.handleGraphEvent event)
-    (active : key ∈ before.queue.rootStreams)
-    : RecordTargetRepresented
-        (({ state := before } : GraphBatchResult).handleGraphEvent event).state.queue
-        (.stream key)
-      ∨ normalCompletionTarget? before.queue event = some (.stream key)
-      ∨ .cancelSource key
-        ∈ (({ state := before } : GraphBatchResult).handleGraphEvent event).effects := by
-  cases event with
-  | taskSuccess occurrence result =>
-      apply Or.inl
-      apply RecordTargetRepresented.activeStream
-      change key ∈ (before.handleGraphEvent (.taskSuccess occurrence result)).1.queue.rootStreams
-      rw [congrArg (fun pair => pair.1.rootStreams) projection]
-      exact before.queue.taskSuccess_streamRoots_cover occurrence result (List.mem_append_left _ active)
-  | taskFailure occurrence errors =>
-      apply Or.inl
-      apply RecordTargetRepresented.activeStream
-      change key ∈ (before.handleGraphEvent (.taskFailure occurrence errors)).1.queue.rootStreams
-      rw [congrArg (fun pair => pair.1.rootStreams) projection]
-      rwa [ReferenceWorkQueue.State.handleGraphEvent, ReferenceWorkQueue.State.taskFailure_rootStreams]
-  | streamItems stream items =>
-      apply Or.inl
-      apply RecordTargetRepresented.activeStream
-      change key ∈ (before.handleGraphEvent (.streamItems stream items)).1.queue.rootStreams
-      rw [congrArg (fun pair => pair.1.rootStreams) projection]
-      exact before.queue.streamItems_streamRoots_cover stream items (List.mem_append_left _ active)
-  | streamSuccess stream =>
-      by_cases same : key = stream.ref
-      · exact Or.inr (Or.inl (by simp [normalCompletionTarget?, ← same, active]))
-      · apply Or.inl
-        apply RecordTargetRepresented.activeStream
-        simp only [GraphBatchResult.handleGraphEvent, State.handleGraphEvent,
-          ReferenceWorkQueue.State.handleGraphEvent, ReferenceWorkQueue.State.streamSuccess]
-        split
-        · exact List.mem_filter.mpr ⟨active, by simpa using same⟩
-        · exact active
-  | streamFailure stream errors =>
-      by_cases same : key = stream.ref
-      · subst key
-        exact Or.inr (Or.inr (by
-          simp [GraphBatchResult.handleGraphEvent, State.handleGraphEvent, active]))
-      · apply Or.inl
-        apply RecordTargetRepresented.activeStream
-        simp only [GraphBatchResult.handleGraphEvent, State.handleGraphEvent,
-          ReferenceWorkQueue.State.handleGraphEvent, ReferenceWorkQueue.State.streamFailure]
-        split
-        · exact List.mem_filter.mpr ⟨active, by simpa using same⟩
-        · exact active
-
 /-- Every source with a pre-handler record is represented afterwards, normally completed,
 or cancelled by the same actual dispatch. No endpoint law is assumed.
 -/
@@ -188,36 +189,37 @@ theorem GeneratedRepresentedSourceProgress_holds
   intro work inputs event generated valid started key
   dsimp only
   intro represented
-  obtain ⟨_, earlierStarted, _⟩ := generatedReplay_beforeNext generated valid started
-  cases represented with
-  | activeStream active =>
-      exact activeSource_progress _ _
-        (generatedReplay_dispatchProjection generated valid started) active
-  | @bufferedStream occurrence node key found stored held =>
-      cases event with
-      | taskSuccess | streamItems =>
-          have snapshot := generatedSnapshot_oldBuffer generated valid earlierStarted trivial found stored
-          rcases GeneratedPreparedSourceProgress_holds work inputs _ generated valid started
-              trivial occurrence node key snapshot stored held with retained | cancelled
-          · exact Or.inl retained
-          · exact Or.inr (Or.inr cancelled)
-      | taskFailure failed errors =>
-          rcases generatedTaskFailure_sourceProgress generated valid earlierStarted found stored held
-            with retained | cancelled
-          · exact Or.inl retained
-          · exact Or.inr (Or.inr cancelled)
-      | streamSuccess stream =>
-          apply Or.inl
-          apply RecordTargetRepresented.bufferedStream (occurrence := occurrence) (node := node) _ stored held
-          simp only [GraphBatchResult.handleGraphEvent, State.handleGraphEvent,
-            ReferenceWorkQueue.State.handleGraphEvent, ReferenceWorkQueue.State.streamSuccess]
-          split <;> exact found
-      | streamFailure stream errors =>
-          apply Or.inl
-          apply RecordTargetRepresented.bufferedStream (occurrence := occurrence) (node := node) _ stored held
-          simp only [GraphBatchResult.handleGraphEvent, State.handleGraphEvent,
-            ReferenceWorkQueue.State.handleGraphEvent, ReferenceWorkQueue.State.streamFailure]
-          split <;> exact found
+  let before := ((State.initialize work).runNormalized inputs).1
+  obtain ⟨parents, canonical⟩ := generated.groupRecordsCanonical
+  have source := generatedReplay_sourceFrame generated canonical valid started
+  obtain ⟨raw, _, _⟩ := generatedReplay_beforeNext generated valid started
+  have keys : before.queue.TaskNodeKeysUnique := by
+    change ((State.initialize work).runNormalized inputs).1.queue.TaskNodeKeysUnique
+    rw [raw, ← ReferenceWorkQueue.State.runNormalized_replayBatches]
+    exact ReferenceWorkQueue.createWorkQueue_runNormalized_taskNodeKeysUnique
+      (ReferenceWorkQueue.Work.fromExecution work) inputs
+  have inventory : before.queue.ChildStreamInventory := by
+    change ((State.initialize work).runNormalized inputs).1.queue.ChildStreamInventory
+    rw [raw, ← ReferenceWorkQueue.State.runNormalized_replayBatches]
+    exact ReferenceWorkQueue.createWorkQueue_runNormalized_childStreamInventory
+      (ReferenceWorkQueue.Work.fromExecution work) inputs
+  have progress := sourceFrame_existingSource_progress_available generated canonical source keys
+    inventory valid [] rfl represented
+  have running := generatedReplay_beforeNextState generated valid started
+  change before = { queue := before.queue } at running
+  simp only [GraphBatchResult.handleGraphEvent, List.nil_append]
+  change RecordTargetRepresented (((before.handleGraphEvent event).1.queue).enqueueGroupFailures
+    (before.handleGraphEvent event).2.2.2) (.stream key)
+    ∨ normalCompletionTarget? before.queue event = some (.stream key)
+    ∨ .cancelSource key ∈ (before.handleGraphEvent event).2.2.1
+  rw [running]
+  rcases progress with retained | completed | cancelled
+  · apply Or.inl
+    cases retained with
+    | activeStream active => exact .activeStream active
+    | bufferedStream found stored held => exact .bufferedStream found stored held
+  · exact .inr (.inl completed)
+  · exact .inr (.inr cancelled)
 
 -----------------------------------------------------------------------------------------
 -- The same resource observer excludes both ways of leaving source ownership
@@ -239,29 +241,44 @@ theorem ResourceState.finishQueueTarget_not_owned (resources : ResourceState)
 /-- An actual source-exhaustion input cannot leave its completed source queue-owned.
 It has no adoption label: acknowledgement or completion is not reacquisition.
 -/
-theorem ResourceState.observeDispatch_completedSource_not_owned
+theorem ResourceState.observeDispatch_completedSource_not_owned_available
     (resources : ResourceState) (inventories : ProducerInventories) (before : State)
     (event : GraphEvent) (key : Nat)
     (completed : normalCompletionTarget? before.queue event = some (.stream key))
-    : (resources.observeDispatch inventories before event).1 (.stream key)
+    (available : List (Occurrence × Nat))
+    : (resources.observeDispatch inventories before event available).1 (.stream key)
       ≠ .owned .queue := by
   intro owned
   obtain ⟨earlier, _⟩ := ResourceState.requestQueueCleanup_still_owned _ _ (.stream key) owned
   cases event with
-  | taskSuccess | taskFailure | streamItems | streamFailure => cases completed
+  | taskSuccess | taskFailure | groupFailure | streamItems | streamFailure =>
+      cases completed
   | streamSuccess stream =>
       simp only [normalCompletionTarget?] at completed
       split at completed
       · rename_i active
         have same : stream.ref = key := by cases completed; rfl
-        change ((resources.observeNormalCompletion before.queue (.streamSuccess stream)).1.observeAdoptions
-          inventories (graphEffects before.queue (.streamSuccess stream))).1 (.stream key) = .owned .queue
+        change ((resources.observeNormalCompletion before.queue (.streamSuccess
+          stream)).1.observeAdoptions
+          inventories (graphEffects before.queue (.streamSuccess stream))).1 (.stream key) =
+            .owned .queue
           at earlier
-        simp only [graphEffects, ResourceState.observeAdoptions, ResourceState.observeNormalCompletion,
+        simp only [graphEffects, ResourceState.observeAdoptions,
+          ResourceState.observeNormalCompletion,
           normalCompletionTarget?] at earlier
         simp only [active, ↓reduceIte] at earlier
         exact resources.finishQueueTarget_not_owned (.stream stream.ref) (same.symm ▸ earlier)
       · cases completed
+
+/-- Empty-snapshot interface for normal source-completion ownership. -/
+theorem ResourceState.observeDispatch_completedSource_not_owned
+    (resources : ResourceState) (inventories : ProducerInventories) (before : State)
+    (event : GraphEvent) (key : Nat)
+    (completed : normalCompletionTarget? before.queue event = some (.stream key))
+    : (resources.observeDispatch inventories before event).1 (.stream key)
+      ≠ .owned .queue :=
+  resources.observeDispatch_completedSource_not_owned_available inventories before event
+    key completed []
 
 /-- Still-queue-owned sources with old record locations retain current locations after any
 generated graph input. This is preservation of existing leases, not acquisition completeness.
@@ -291,7 +308,8 @@ theorem GeneratedDispatchExistingSourceRepresentation_of_progress
   rcases progress work inputs event generated valid started key represented with
     retained | completed | cancelled
   · exact retained
-  · exact False.elim (resources.observeDispatch_completedSource_not_owned inventories _ _ _ completed owned)
+  · exact False.elim (resources.observeDispatch_completedSource_not_owned inventories _ _ _
+    completed owned)
   · obtain ⟨_, absent⟩ := ResourceState.requestQueueCleanup_still_owned _ _ (.stream key) owned
     exact False.elim (absent (List.mem_filterMap.mpr ⟨.cancelSource key, cancelled, rfl⟩))
 

@@ -1,3 +1,4 @@
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.EmptyFailureBatchLedger
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.BufferedProducerSource
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.GroupEventAccounting
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.TaskProducerPublication
@@ -81,25 +82,28 @@ private def blockerValue : ExecutionGroupValue :=
 private def children : Execution.Work :=
   .combine
     (.combine .empty
-      (.combine
-        (.executionGroup [⟨child, [parent]⟩] child.path
-          ({ result := .ok (childValue.data, 0) }) (.combine .empty .empty))
-        .empty))
+      (.declareGroups [⟨child, [parent]⟩]
+        (.combine
+          (.executionGroup [⟨child, [parent]⟩] child.path
+            ({ result := .ok (childValue.data, 0) }) (.combine .empty .empty))
+          .empty)))
     .empty
 
 private def work : Execution.Work :=
   .combine
     (.combine
       (.combine (.combine .empty .empty)
-        (.combine
-          (.executionGroup [⟨parent, []⟩] parentValue.path
-            ({ result := .ok (parentValue.data, 0) }) children)
-          .empty))
+        (.declareGroups []
+          (.combine
+            (.executionGroup [⟨parent, []⟩] parentValue.path
+              ({ result := .ok (parentValue.data, 0) }) children)
+            .empty)))
       .empty)
-    (.combine
-      (.executionGroup [⟨parent, []⟩] [] ({ result := .ok (blockerValue.data, 0) })
-        (.combine .empty .empty))
-      .empty)
+    (.declareGroups [⟨parent, []⟩]
+      (.combine
+        (.executionGroup [⟨parent, []⟩] [] ({ result := .ok (blockerValue.data, 0) })
+          (.combine .empty .empty))
+        .empty))
 
 private def parentResult : TaskResult :=
   { value := parentValue, work := Work.fromExecution children [0, 0, 1, 0, 0] }
@@ -124,13 +128,15 @@ private theorem generated : ExecutedWork work := by
 private theorem parent_known
     : TaskAt work parentTask [parent.ref] none
         (.object parentValue.path (.ok (parentValue.data, 0))) := by
-  refine ⟨[⟨parent, []⟩], parentValue.path, { result := .ok (parentValue.data, 0) }, children, [], ?_, rfl, rfl⟩
+  refine ⟨[⟨parent, []⟩], parentValue.path, { result := .ok (parentValue.data, 0) }, children,
+    [], ?_, rfl, rfl⟩
   cbv
 
 private theorem child_known
     : TaskAt work childTask [child.ref] (some parentTask)
         (.object childValue.path (.ok (childValue.data, 0))) := by
-  refine ⟨[⟨child, [parent]⟩], childValue.path, { result := .ok (childValue.data, 0) }, .combine .empty .empty, [parent.ref],
+  refine ⟨[⟨child, [parent]⟩], childValue.path, { result := .ok (childValue.data, 0) },
+    .combine .empty .empty, [parent.ref],
     ?_, rfl, rfl⟩
   cbv
 
@@ -141,7 +147,8 @@ private theorem valid : ValidGraphEvents work (before ++ [finish]) := by
       ⟨_, _, _, parent_known, by intro source impossible; cases impossible⟩
   have blockerKnown : TaskAt work blockerTask [parent.ref] none
       (.object [] (.ok (blockerValue.data, 0))) := by
-    refine ⟨[⟨parent, []⟩], [], { result := .ok ([("b", .scalar "b")], 0) }, .combine .empty .empty, [], ?_, rfl, rfl⟩
+    refine ⟨[⟨parent, []⟩], [], { result := .ok ([("b", .scalar "b")], 0) },
+      .combine .empty .empty, [], ?_, rfl, rfl⟩
     cbv
   exact .append first ⟨_, _, blockerKnown, by cbv, by cbv⟩
     (by simp [before, finish, GraphEvent.Fresh, GraphEvent.identities,
@@ -177,9 +184,9 @@ theorem produced_child_inherits_root_coverage
   refine ⟨by cbv, ?_⟩
   obtain ⟨parents, canonical⟩ := generated.groupRecordsCanonical
   have refs := createWorkQueue_groupRefsUnique (Work.fromExecution work)
-  have registered := createWorkQueue_registration work
+  have registered := createWorkQueue_registration work generated.declarations
   have linked := createWorkQueue_parentLinksComplete (Work.fromExecution work) parents
-    (fun _ member => workFromSpec_groups_parentCanonical Located.root canonical member)
+    (fun _ member => workFromSpec_groups_parentCanonical_root canonical member)
   have producerMember : (⟨parentTask, [parent]⟩ : Task) ∈ initial.tasks := by
     cbv
     exact List.mem_cons_self
@@ -187,7 +194,7 @@ theorem produced_child_inherits_root_coverage
     ⟨_, _, parent_known, by cbv, by cbv⟩
   have member : (⟨child, some parent.ref⟩ : Group) ∈ parentResult.work.groups := by
     cbv
-    exact List.mem_cons_of_mem _ List.mem_cons_self
+    exact List.mem_cons_self
   have contributing : ∃ task ∈ parentResult.work.tasks,
       child.ref ∈ task.groups.map DeliveryNode.ref := by
     refine ⟨⟨childTask, [child]⟩, ?_, ?_⟩
@@ -195,14 +202,16 @@ theorem produced_child_inherits_root_coverage
       exact List.mem_cons_self
     · exact List.mem_cons_self
   apply (createWorkQueue_healthyRegisteredTaskAccounting
-          work).childGroup_integrated_root_coverage
+          work generated).childGroup_integrated_root_coverage
     (createWorkQueue_healthyPendingTracks work)
     (createWorkQueue_fromSpec_registeredTasksMatch work) generated
     (createWorkQueue_groupNodesMatchWork work)
     (createWorkQueue_healthyRetiredAncestors generated)
     (createWorkQueue_cancelledRecordsSupported _ work []) linked refs registered.1
-    registered.2 (createWorkQueue_parentRegistryClosed canonical) canonical producerMember
-    (by simp) matching member contributing (fun invalid => invalid.nonempty rfl)
+    registered.2 (State.initialize_registrationFrame generated.declarations)
+    (createWorkQueue_parentRegistryClosed canonical generated.declarations) canonical
+    producerMember (by simp) matching member contributing
+    (fun invalid => invalid.nonempty rfl)
   · intro node present contributes _
     have same : node.group.node.ref = parent.ref := List.mem_singleton.mp contributes
     refine ⟨parent.ref, ?_, ?_⟩
@@ -221,7 +230,7 @@ theorem buffered_release_output
     : (initial.rawEventReplay before).2 = []
       ∧ child.ref ∉ waiting.rootGroups
       ∧ waiting.acceptsGraphEvent (.taskSuccess childTask childResult) = false
-      ∧ (waiting.handleGraphEvent finish).2
+      ∧ (waiting.handleGraphEvent finish).2.1
         = [
           .groupValues parent [parentValue, blockerValue],
           .groupSuccess parent [child] []
@@ -325,7 +334,7 @@ theorem buffered_parent_derived
   have replay : initial.ReplayClosuresCovered (before ++ [finish]) published := by
     simpa only [List.flatten_cons, List.flatten_nil, List.append_nil, initial,
       ConformancePlan.initialQueue]
-      using batched.flatten (by cbv)
+      using batched.singleton_emptyCache (by cbv) rfl
   have source : GraphEvent.taskSuccess parentTask parentResult ∈ before := List.mem_cons_self
   have healthy : ¬GroupRecordInvalidated work (initial.objectFailureContributions before)
       parent.ref := by
@@ -353,7 +362,7 @@ theorem child_carrier_producer_source
     (group := child) (groups := []) (streams := []) ?_ child_known List.mem_cons_self
   change Execution.WorkQueueEvent.groupSuccess child [] []
     ∈ ((initial.replayGraphEvents (before ++ [finish])).handleGraphEvent
-      (.taskSuccess childTask childResult)).2
+      (.taskSuccess childTask childResult)).2.1
   cbv
   exact .tail _ (.head _)
 
@@ -375,7 +384,7 @@ theorem child_value_has_prior_producer
   have replay : initial.ReplayClosuresCovered events published := by
     simpa only [List.flatten_cons, List.flatten_nil, List.append_nil, initial,
       ConformancePlan.initialQueue]
-      using batched.flatten (by cbv)
+      using batched.singleton_emptyCache (by cbv) rfl
   have nodeKnown : NodeAt work child .group [parent.ref] (some parentTask) :=
     ⟨[0, 0, 1, 0, 0, 0, 1, 0], [⟨child, [parent]⟩], child.path, _,
       .combine .empty .empty, [parent.ref], ⟨child, [parent]⟩,

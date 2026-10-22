@@ -30,6 +30,9 @@ def CursorExtends (before after : Cursors) : Prop :=
 mutual
   inductive WorkCursorSeed : Cursors → Work → List (List ResponsePath) → Prop where
     | empty {cursors : Cursors} : WorkCursorSeed cursors .empty []
+    | declareGroups {cursors : Cursors} {groups : List DeferredFragment} {tasks : Work}
+      {slices : List (List ResponsePath)} (known : WorkCursorSeed cursors tasks slices)
+      : WorkCursorSeed cursors (.declareGroups groups tasks) slices
     | combine {cursors : Cursors} {left right : Work}
       {ls rs : List (List ResponsePath)}
       (hl : WorkCursorSeed cursors left ls) (hr : WorkCursorSeed cursors right rs)
@@ -71,6 +74,7 @@ mutual
       : WorkSlices true work slices := by
     cases h with
     | empty => exact .empty
+    | declareGroups known => exact .declareGroups known.slices
     | combine hl hr => exact .combine hl.slices hr.slices
     | executionGroup hc => exact .executionGroup hc.slices
     | stream _ hi => exact .stream hi.slices
@@ -90,6 +94,9 @@ theorem WorkCursorSeed.extend {before after : Cursors} {work : Work}
     : WorkCursorSeed after work slices := by
   cases work with
   | empty => cases h; exact .empty
+  | declareGroups groups tasks =>
+      cases h with
+      | declareGroups known => exact .declareGroups (known.extend he)
   | combine left right =>
       cases h with
       | combine hl hr => exact .combine (hl.extend he) (hr.extend he)
@@ -100,6 +107,18 @@ theorem WorkCursorSeed.extend {before after : Cursors} {work : Work}
       cases h with
       | stream hc hi => exact .stream (he _ _ hc) hi
 termination_by sizeOf work
+
+/-- Transparent declarations preserve the seed and exact slice list. -/
+theorem WorkCursorSeed.withoutDeclarations {cursors work slices}
+    (known : WorkCursorSeed cursors work slices)
+    : WorkCursorSeed cursors work.withoutDeclarations slices := by
+  cases work with
+  | declareGroups groups tasks =>
+      cases known with
+      | declareGroups nested =>
+          simpa only [Work.withoutDeclarations] using nested.withoutDeclarations
+  | _ => simpa only [Work.withoutDeclarations] using known
+termination_by work
 
 theorem cursorAt_append {left right : Cursors} {path : ResponsePath} {index : Nat}
     (h : cursorAt left path = some index)
@@ -234,6 +253,11 @@ mutual
       : left = right := by
     cases work with
     | empty => cases hl; cases hr; rfl
+    | declareGroups groups tasks =>
+        cases hl with
+        | declareGroups hl =>
+            cases hr with
+            | declareGroups hr => exact hl.unique hr
     | combine left right =>
         cases hl with
         | combine hll hlr =>

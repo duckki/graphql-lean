@@ -27,7 +27,7 @@ theorem terminal_availableTask_accounted
     (visible
       : ∀ ref,
           GroupInvalidated work
-            ((initialQueue work).objectFailureContributions inputs.flatten) ref
+            ((initialQueue work).admittedObjectFailureContributionsForBatches inputs) ref
           → GroupInvalidated work (failedBefore w.failures w.events.length) ref)
     (ended : ((initialQueue work).runNormalized inputs).1.terminated = true)
     (known : TaskAt work occurrence owners producer payload)
@@ -92,7 +92,7 @@ theorem terminal_generatedTasks_accounted {work inputs w} (generated : ExecutedW
     (visible
       : ∀ ref,
           GroupInvalidated work
-            ((initialQueue work).objectFailureContributions inputs.flatten) ref
+            ((initialQueue work).admittedObjectFailureContributionsForBatches inputs) ref
           → GroupInvalidated work (failedBefore w.failures w.events.length) ref)
     (ended : ((initialQueue work).runNormalized inputs).1.terminated = true)
     : TaskAccounting work w := by

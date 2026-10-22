@@ -2,6 +2,7 @@ import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.CursorObservat
 import Proofs.GraphQL.IncrementalDelivery.Correctness.QueryReconstruction
 import Proofs.GraphQL.IncrementalDelivery.Correctness.QueryLifecycle
 import Proofs.GraphQL.IncrementalDelivery.Correctness.RecursiveValueCoverage
+import Proofs.GraphQL.IncrementalDelivery.Semantics.WorkSize
 
 /-! End-to-end cursor correctness by reuse of the independent public query theorems.
 The observation bridge supplies their premises; no new response law is imposed on inputs.
@@ -14,9 +15,10 @@ open GraphQL.IncrementalDelivery.Execution (ExecutionObservation)
 -- Safety for admitted prefixes, lifecycle and reconstruction for completed runs
 -----------------------------------------------------------------------------------------
 
+set_option maxHeartbeats 800000 in
 /-- Actual cursor runs inherit ID safety and disjoint slices; terminated runs have
 exactly-once ID completion and a valid lifecycle, and zero-error runs reconstruct basic
-execution. Witness: `implementationCorrect_holds` supplies the observation;
+execution. Witness: the checked cursor observation bridge supplies the premises;
 `deliveryIDUsageValid_holds`, `deliverySlicesDisjoint_holds`,
 `deliveryIDsCompleteExactlyOnce_holds`, `deliveryLifecycleValid_holds`, and
 `mergedExecutionEquivalentToBasic_holds` in `Correctness` provide the conclusions.
@@ -51,9 +53,9 @@ theorem ResponseStreamCursor.queryCorrectness
                             root))) := by
   dsimp only
   intro nonempty valid admitted finished
-  obtain ⟨conforms, observed⟩ := implementationCorrect_holds schema operation
-    resolvers variables fuel root schedule _ complete
-    ⟨applies, nonempty, valid, inputs, admitted, finished, rfl⟩
+  obtain ⟨conforms, observed⟩ := ResponseStreamCursor.queryObservation
+    (fun _ => schedule) schema resolvers variables operation fuel root inputs complete
+    applies nonempty valid admitted finished
   have observedPrefix := Execution.ExecutionResult.Observes.forgetComplete observed
   refine ⟨Correctness.deliveryIDUsageValid_holds schema operation resolvers variables fuel
       root _ _ conforms observedPrefix,

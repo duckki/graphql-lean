@@ -47,7 +47,7 @@ theorem completion_exists
         refine ⟨.groupFailure node errors, ?_, rfl, rfl, id⟩
         simpa only [EventAllowed, nodeFailed_filter (Nat.le_refl _),
           failedBefore_filter _ (Nat.le_refl _)]
-          using And.intro ⟨dependencies, birth, known⟩ ⟨opened, failure, counted⟩
+          using And.intro ⟨dependencies, birth, known⟩ ⟨opened, failure, counted.toCauses⟩
     | stream =>
         refine ⟨.streamFailure node errors, ?_, rfl, rfl, id⟩
         simpa only [EventAllowed, nodeFailed_filter (Nat.le_refl _),
@@ -182,7 +182,8 @@ theorem Explains.close_accounted_refs {work groups streams events matching failu
           (same ▸ opened) (same ▸ accounted ref (by simp)) (supported node.ref (same ▸ opened))
         have extended := explained.append_event
           allowed
-        obtain ⟨tail, bounded, controls, finished, completes, selected⟩ := ih extended (supported.append_completion explained.2.1 pending completed)
+        obtain ⟨tail, bounded, controls, finished, completes, selected⟩ :=
+          ih extended (supported.append_completion explained.2.1 pending completed)
           (fun other member => by
             simpa only [announcedRefs, pendingRefs, List.flatMap_append, List.flatMap_cons,
               List.flatMap_nil, pending, List.append_nil]
@@ -265,7 +266,8 @@ theorem Explains.close_open_refs {work groups streams events matching failures}
           · exact False.elim (facts.2 (equal.trans same.symm))
           · exact member
         obtain ⟨tail, bounded, controls, finished, closed⟩ :=
-          ih extended (supported.append_completion explained.2.1 pending completed) stillAccounted nextCover
+          ih extended (supported.append_completion explained.2.1 pending completed)
+            stillAccounted nextCover
         refine ⟨event :: tail, by simp only [List.length_cons]; omega, ?_, ?_, ?_⟩
         · intro next member
           rcases List.mem_cons.mp member with rfl | member
@@ -313,24 +315,14 @@ theorem Explains.finish_accounted {work groups streams events matching failures}
       (fun _ opened => opened.1)
   refine ⟨tail, bounded, controls, finished, ?_⟩
   rw [Terminal]
-  have finalAccounting : ∀ occurrence owners producer payload,
-      TaskAt work occurrence owners producer payload →
-      TaskAccounted work matching (events ++ tail) failures occurrence :=
-    fun occurrence owners producer payload task =>
-      (accounted occurrence owners producer payload task).append tail
   refine ⟨?_, ?_⟩
   · intro occurrence owners producer payload known
     by_cases published : Published matching events occurrence
     · exact Or.inr (published.append tail)
     · exact Or.inl ⟨((accounted _ _ _ _ known).resolve_right published).append tail,
         (reported _ _ _ _ known published).append tail⟩
-  intro node kind dependencies birth _
-  by_cases announced : node.ref ∈ announcedRefs ((groups ++ streams).map DeliveryNode.ref)
-      (events ++ tail)
-  · exact Or.inl (closed node.ref announced)
-  · refine Or.inr ⟨announced, Or.inr ?_⟩
-    rintro occurrence owners ⟨producer, payload, task⟩ _
-    exact finalAccounting occurrence owners producer payload task
+  intro node kind dependencies birth _ announced
+  exact closed node.ref announced
 
 /-- An internally accounted, reported prefix extends to a complete run, preserving its
 initialization and every existing work batch. Witness: append closures and a separate
@@ -392,9 +384,8 @@ theorem admissibleRun_exists_iff_reported_history (work : Work)
     intro ref opened _
     obtain ⟨node, kind, dependencies, birth, known, same⟩ :=
       explained.noticeFacts.supported ref opened.1
-    rcases terminal.2 node kind dependencies birth known with closed | fresh
-    · exact (opened.2 (same ▸ closed)).elim
-    · exact (fresh.1 (same ▸ opened.1)).elim
+    exact (opened.2 (same ▸ terminal.2 node kind dependencies birth known
+      (same ▸ opened.1))).elim
   · rintro ⟨groups, streams, events, matching, failures, explained, supported, reported⟩
     obtain ⟨tail, run, _, _⟩ := (WorkBatching.singletons events).finish_accounted
       explained supported

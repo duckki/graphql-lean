@@ -60,26 +60,47 @@ theorem sourceTasks_located {work address current producer owners}
   have navigation := StructuralEquivalence.located_of_current located
   clear located
   induction navigation with
-  | root => exact ⟨cursors, .refl _⟩
+  | root =>
+      refine ⟨cursors, ?_⟩
+      rw [sourceTasks_withoutDeclarations]
+      exact .refl _
   | left _ ih =>
       obtain ⟨localCursors, included⟩ := ih
       rw [sourceTasks] at included
-      exact ⟨localCursors, (List.sublist_append_left _ _).trans included⟩
+      exact ⟨
+        localCursors,
+        by
+          simpa only [sourceTasks_withoutDeclarations]
+            using (List.sublist_append_left _ _).trans included
+      ⟩
   | right _ ih =>
       obtain ⟨localCursors, included⟩ := ih
       rw [sourceTasks] at included
-      exact ⟨localCursors, (List.sublist_append_right _ _).trans included⟩
+      exact ⟨
+        localCursors,
+        by
+          simpa only [sourceTasks_withoutDeclarations]
+            using (List.sublist_append_right _ _).trans included
+      ⟩
   | executionGroup _ ih =>
       obtain ⟨_, included⟩ := ih
       rw [sourceTasks] at included
-      exact ⟨_, (List.sublist_cons_self _ _).trans included⟩
+      exact ⟨
+        _,
+        by
+          simpa only [sourceTasks_withoutDeclarations]
+            using (List.sublist_cons_self _ _).trans included
+      ⟩
   | @item address node items producer owners index result children located entry ih =>
       obtain ⟨localCursors, included⟩ := ih
       rw [sourceTasks] at included
       have child := (sourceItemTasks_entry entry address producer node
         ((ResponsePositions.cursorAt localCursors node.path).getD 0) 0).2
       simp only [Nat.zero_add] at child
-      exact ⟨_, child.trans included⟩
+      exact ⟨
+        _,
+        by simpa only [sourceTasks_withoutDeclarations] using child.trans included
+      ⟩
 
 /-- Every scheduler task has a source label with its exact occurrence, producer, and
 payload. Witness: the located source inventory and, for streams, indexed entry lookup.

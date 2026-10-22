@@ -1,76 +1,13 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.FailureOriginReporting
 
-/-! Every accepted object-failure invalidation has an observable terminal report origin. -/
+/-! Actual accepted object-failure invalidations have observable terminal report origins. -/
 
 namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue.ConformancePlan
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
-/-- Record invalidation at any actual source prefix has a positive report by termination.
-Witness: source-prefix induction selects the first relevant accepted failure. Earlier
-invalidations reuse their reports; a newly healthy contributor is forced to report by
-root exhaustion and cache persistence. Full defer ancestry transports each origin.
-This does not assume wire lifecycle, task coverage, or the strengthened terminal law.
--/
-theorem terminal_prefixInvalidatedRecord_reported {work inputs} {w : Witness}
-    (generated : ExecutedWork work) (valid : ValidGraphEvents work inputs.flatten)
-    (started : inputsStarted work inputs = true)
-    (history : w.events = (initialQueue work).nonterminalAtoms inputs)
-    (ended : ((initialQueue work).runNormalized inputs).1.terminated = true)
-    {before : List GraphEvent} (beforeValid : ValidGraphEvents work before)
-    {after : List GraphEvent} (splitInputs : inputs.flatten = before ++ after)
-    {node dependencies} (known : GroupRecordAt work node dependencies)
-    (invalid
-      : GroupRecordInvalidated work
-          ((initialQueue work).objectFailureContributions before) node.ref)
-    : GroupFailureReported w.events node dependencies := by
-  induction beforeValid generalizing after node dependencies with
-  | nil => exact False.elim (invalid.nonempty rfl)
-  | @append before event beforeValid matching fresh ready ih =>
-      have together : inputs.flatten = before ++ event :: after := by
-        simpa only [List.append_assoc, List.singleton_append] using splitInputs
-      have earlier
-          : ∀ other ancestors,
-              GroupRecordAt work other ancestors
-              → GroupRecordInvalidated work
-                  ((initialQueue work).objectFailureContributions before) other.ref
-              → GroupFailureReported w.events other ancestors := by
-        intro other ancestors record prior
-        exact ih together record prior
-      rw [State.objectFailureContributions_append] at invalid
-      cases event with
-      | taskSuccess occurrence result =>
-          apply earlier node dependencies known
-          simpa only [State.objectFailureContributions, State.objectFailureContribution,
-            List.nil_append] using invalid
-      | streamItems stream items =>
-          apply earlier node dependencies known
-          simpa only [State.objectFailureContributions, State.objectFailureContribution,
-            List.nil_append] using invalid
-      | streamSuccess stream =>
-          apply earlier node dependencies known
-          simpa only [State.objectFailureContributions, State.objectFailureContribution,
-            List.nil_append] using invalid
-      | streamFailure stream errors =>
-          apply earlier node dependencies known
-          simpa only [State.objectFailureContributions, State.objectFailureContribution,
-            List.nil_append] using invalid
-      | taskFailure occurrence errors =>
-          cases found
-                : ((initialQueue work).replayGraphEvents before).taskNode? occurrence with
-          | none =>
-              apply earlier node dependencies known
-              simpa only [State.objectFailureContributions, State.objectFailureContribution,
-                found, List.nil_append] using invalid
-          | some task =>
-              apply terminal_acceptedFailure_reportsRecords generated valid started history
-                together ended found earlier known
-              simpa only [State.objectFailureContributions, State.objectFailureContribution,
-                found, List.nil_append, List.singleton_append] using invalid
-
-/-- Every record invalidated by the complete accepted inventory has a positive report.
-Witness: specialize prefix-origin reporting to the full concrete source history. The
-inventory is the guard-selected implementation inventory, not every host failure input.
--/
+/-- Every record invalidated by actual accepted host batches has a positive terminal report.
+Unconditional contributor retirement accounts for each consumed failing owner. Its real
+cancellation report propagates through canonical full ancestry to the selected record. -/
 theorem terminal_invalidatedRecord_reported {work inputs} {w : Witness}
     (generated : ExecutedWork work) (valid : ValidGraphEvents work inputs.flatten)
     (started : inputsStarted work inputs = true)
@@ -79,9 +16,25 @@ theorem terminal_invalidatedRecord_reported {work inputs} {w : Witness}
     {node dependencies} (known : GroupRecordAt work node dependencies)
     (invalid
       : GroupRecordInvalidated work
-          ((initialQueue work).objectFailureContributions inputs.flatten) node.ref)
-    : GroupFailureReported w.events node dependencies :=
-  terminal_prefixInvalidatedRecord_reported generated valid started history ended valid
-    (after := []) (by simp) known invalid
+          ((initialQueue work).admittedObjectFailureContributionsForBatches inputs)
+          node.ref)
+    : GroupFailureReported w.events node dependencies := by
+  rw [State.admittedObjectFailureContributionsForBatches_eq_of_started _ inputs
+    (by rwa [inputsStarted_eq_batchesStarted] at started)] at invalid
+  obtain ⟨cause, owners, owner, taskKnown, failed, contributes, inChain⟩ :=
+    (generated.groupRecordInvalidated_iff known).mp invalid
+  obtain ⟨producer, payload, structural⟩ := taskKnown
+  cases cause with
+  | executionGroup address =>
+      obtain ⟨group, ancestors, ownerKnown, sameRef⟩ := structural.executionGroup_owner contributes
+      have report := terminal_failedContributor_reported generated valid started history ended
+        ⟨producer, payload, structural⟩ (sameRef.symm ▸ contributes) failed
+        (groupRecordAt_of_nodeAt ownerKnown)
+      exact report.inherit_chain generated (groupRecordAt_of_nodeAt ownerKnown) known
+        (sameRef.symm ▸ inChain)
+  | item address ordinal =>
+      obtain ⟨_, _, _, _, impossible⟩ := valid.failureSettlements_known _ failed
+      obtain ⟨_, _, _, _, _, _, _, _, payloadEq⟩ := impossible
+      cases payloadEq
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue.ConformancePlan

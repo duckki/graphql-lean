@@ -122,7 +122,7 @@ private def item (work : ReferenceWorkQueue.Work) : ReferenceWorkQueue.StreamIte
 
 -- Inspect the actual handler trace, including handoff and acknowledgement placement.
 private def handlerEffects (before : ReferenceWorkQueue.State) (event : GraphEvent) :=
-  (({ queue := before } : State).handleGraphEvent event).2.2
+  (({ queue := before } : State).handleGraphEvent event).2.2.1
 
 -- Removed owner, including duplicate references, contributes one abort.
 example
@@ -223,6 +223,7 @@ example
   | streamItems stream items => exact State.streamItems_cleanupStarts_nodup _ stream items
   | taskFailure occurrence errors =>
       exact State.taskFailure_cleanupStarts_nodup _ occurrence errors
+  | groupFailure => exact List.nodup_nil
   | streamSuccess => exact List.nodup_nil
   | streamFailure stream errors =>
       simp only [handlerEffects, State.handleGraphEvent]

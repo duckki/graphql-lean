@@ -1,3 +1,4 @@
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.StartupNonterminalCuts
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.ConformanceBatchShape
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.InformativeFailureInventory
 
@@ -20,11 +21,7 @@ theorem State.sourceBatchBlocks_terminalSuffix (queue : State)
     : ∃ before,
         (queue.sourceBatchBlocks publisher events).2.2
         = before ++ [(none, [.workQueueTermination])] := by
-  have flag := (queue.sourceOutputBlocks_terminalShape publisher events).1
-  simp only [State.sourceBatchBlocks, running, Bool.false_eq_true, ↓reduceIte] at ended ⊢
-  split
-  · exact ⟨_, rfl⟩
-  · simp_all
+  exact queue.sourceBatchBlocks_startup_terminalSuffix publisher events running ended
 
 /-- A completed replay ends with the same terminal block, with no later source labels.
 Witness: concatenate batches until the ending one, then use termination absorption.
@@ -36,24 +33,7 @@ theorem State.sourceRunBlocks_terminalSuffix (queue : State)
     : ∃ before,
         (queue.sourceRunBlocks publisher batches).2.2
         = before ++ [(none, [.workQueueTermination])] := by
-  induction batches generalizing queue publisher with
-  | nil => simp [State.sourceRunBlocks, running] at ended
-  | cons batch rest ih =>
-      let next := queue.sourceBatchBlocks publisher batch
-      cases done : next.1.terminated with
-      | true =>
-          obtain ⟨before, shape⟩ :=
-            queue.sourceBatchBlocks_terminalSuffix publisher batch running done
-          have later := next.1.sourceRunBlocks_after_termination next.2.1 rest done
-          refine ⟨before, ?_⟩
-          change next.2.2 ++ (next.1.sourceRunBlocks next.2.1 rest).2.2 = _
-          rw [later, List.append_nil]
-          exact shape
-      | false =>
-          obtain ⟨before, shape⟩ := ih next.1 next.2.1 done ended
-          refine ⟨next.2.2 ++ before, ?_⟩
-          change next.2.2 ++ (next.1.sourceRunBlocks next.2.1 rest).2.2 = _
-          rw [shape, List.append_assoc]
+  exact queue.sourceRunBlocks_startup_terminalSuffix publisher batches running ended
 
 /-- Removing only the terminal annotation yields blocks for the canonical history.
 Witness: terminal-suffix and exact-output equations, cancelling the identical suffix.
@@ -71,52 +51,18 @@ theorem State.sourceRunBlocks_nonterminalBlocks (queue : State)
                 else
                   [])
         ∧ before.flatMap Prod.snd = queue.nonterminalAtoms inputs := by
-  let publisher : IncrementalPublisher :=
-    { active := queue.initialGroups ++ queue.initialStreams }
-  obtain ⟨state, output⟩ := queue.sourceRunBlocks_agrees inputs
-  have shape := queue.runNormalized_terminalShape inputs running
-  cases ended : (queue.runNormalized inputs).1.terminated with
-  | false =>
-      refine ⟨(queue.sourceRunBlocks publisher inputs).2.2, by simp [publisher], ?_⟩
-      rw [output, shape]
-      simp [ended]
-  | true =>
-      obtain ⟨before, blocks⟩ := queue.sourceRunBlocks_terminalSuffix publisher inputs
-        running (by rw [state]; exact ended)
-      refine ⟨before, by simpa [ended] using blocks, ?_⟩
-      rw [blocks] at output
-      rw [shape, ended] at output
-      simpa using output
+  exact queue.sourceRunBlocks_startup_nonterminalBlocks inputs running
 
-/-- Actual accepted object cuts are bounded by the nonterminal history itself.
-Witness: the optional final block has no source label and contributes no failure cut;
-the unchanged earlier blocks give the sharper bound without moving or deleting cuts.
+/-- Source reporting cuts lie within the nonterminal history, including silent inputs.
+Witness: the optional final block has no source label and contributes no failure cut.
 -/
-theorem State.eligibleObjectFailureCuts_nonterminalBound (queue : State)
+theorem State.sourceObjectFailureCuts_nonterminalBound (queue : State)
     (inputs : List (List GraphEvent)) (running : queue.terminated = false)
     : let publisher : IncrementalPublisher :=
         { active := queue.initialGroups ++ queue.initialStreams }
-      ∀ entry ∈
-        sourceObjectFailureCuts 0
-          (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher inputs).2.2),
+      ∀ entry ∈ sourceObjectFailureCuts 0 (queue.sourceRunBlocks publisher inputs).2.2,
         entry.1 ≤ (queue.nonterminalAtoms inputs).length := by
-  obtain ⟨before, blocks, output⟩ := queue.sourceRunBlocks_nonterminalBlocks inputs running
-  dsimp only
-  rw [blocks, State.eligibleFailureBlocks_append, sourceObjectFailureCuts_append]
-  have suffix (current : State) (offset : Nat) (done : Bool)
-      : sourceObjectFailureCuts offset
-          (current.eligibleFailureBlocks
-            (if done then [(none, [.workQueueTermination])] else [])) = [] := by
-    cases done <;> rfl
-  rw [suffix, List.append_nil]
-  intro entry member
-  have bound := (sourceObjectFailureCuts_bounds 0 (queue.eligibleFailureBlocks before)
-    entry member).2
-  simpa only [State.eligibleFailureBlocks_outputs, output, Nat.zero_add] using bound
-
------------------------------------------------------------------------------------------
--- Keep identical cuts, error counts, and announcement prefixes
------------------------------------------------------------------------------------------
+  exact queue.sourceObjectFailureCuts_startup_nonterminalBound inputs running
 
 /-- A complete inventory restricts to a prefix when every cut already lies in it.
 Witness: reuse ordering, uniqueness, and source provenance; prefix indexing preserves
@@ -136,6 +82,24 @@ theorem CompleteFailureInventory.prefix {work before after failures}
     apply inventory.2.2.2.2 index stream errors
     rwa [List.getElem?_append_left (List.getElem?_eq_some_iff.mp atEvent).1]
 
+/-- A causal inventory restricts to a prefix when every cut already lies in it.
+Witness: reuse ordering, uniqueness, and source provenance; prefix indexing preserves
+the exact error equations without dropping or reordering a failure.
+-/
+theorem CausalFailureInventory.prefix {work before after failures}
+    (inventory : CausalFailureInventory work (before ++ after) failures)
+    (bounded : ∀ entry ∈ failures, entry.1 ≤ before.length)
+    : CausalFailureInventory work before failures := by
+  refine ⟨inventory.1, inventory.2.1, ?_, ?_, ?_⟩
+  · intro entry member
+    exact ⟨bounded entry member, (inventory.2.2.1 entry member).2⟩
+  · intro index group errors atEvent
+    apply inventory.2.2.2.1 index group errors
+    rwa [List.getElem?_append_left (List.getElem?_eq_some_iff.mp atEvent).1]
+  · intro index stream errors atEvent
+    apply inventory.2.2.2.2 index stream errors
+    rwa [List.getElem?_append_left (List.getElem?_eq_some_iff.mp atEvent).1]
+
 /-- Prefix observations at any retained cut are identical before and after removing
 the final marker. Witness: the exact suffix equation and a cut inside the prefix.
 -/
@@ -144,8 +108,7 @@ theorem State.nonterminalAtoms_take (queue : State) (inputs : List (List GraphEv
     (bounded : cut ≤ (queue.nonterminalAtoms inputs).length)
     : ((queue.runNormalized inputs).2.flatten.flatMap publicationAtoms).take cut
       = (queue.nonterminalAtoms inputs).take cut := by
-  rw [queue.runNormalized_terminalShape inputs running,
-    List.take_append_of_le_length bounded]
+  exact queue.nonterminalAtoms_startup_take inputs running bounded
 
 /-- Actual stream-failure cuts also lie within the nonterminal history.
 Witness: the strict full-history index bound loses at most one terminal atom.
@@ -157,17 +120,15 @@ theorem StreamFailureCuts.nonterminalBound {work : Execution.Work} {queue : Stat
           ((queue.runNormalized inputs).2.flatten.flatMap publicationAtoms) failures)
     (running : queue.terminated = false)
     : ∀ entry ∈ failures, entry.1 ≤ (queue.nonterminalAtoms inputs).length := by
-  intro entry member
-  have bound := cuts.bound member
-  rw [queue.runNormalized_terminalShape inputs running] at bound
-  cases done : (queue.runNormalized inputs).1.terminated <;> simp [done] at bound <;> omega
+  exact cuts.startup_nonterminalBound running
 
 namespace ConformancePlan
 
-/-- Retain the actual cut partitions while constructing one complete announced inventory.
-Witness: merge eligible object cuts and stream-failure cuts, prove their nonterminal
-bounds, and transport unchanged counts and prior notices. Exposing the partitions lets
-later safety proofs use these same cuts instead of choosing an incompatible inventory.
+/-- Actual replay supplies causal and reporting cuts on one nonterminal history.
+Witness: select causal object cuts while retaining all reporting availability, merge
+both with the same stream cuts, and remove only the optional final marker. Every causal
+occurrence remains available at its original cut; no report count is reconstructed from
+the selected causal subset.
 -/
 theorem announcedFailures_with_cuts_exists {work : Execution.Work}
     {inputs : List (List GraphEvent)}
@@ -176,9 +137,10 @@ theorem announcedFailures_with_cuts_exists {work : Execution.Work}
     : let queue := initialQueue work
       let publisher : IncrementalPublisher :=
         { active := queue.initialGroups ++ queue.initialStreams }
+      let raw :=
+        availableObjectFailureCuts work 0 (queue.sourceRunBlocks publisher inputs).2.2
       let objects :=
-        informativeObjectFailureCuts work
-          (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher inputs).2.2)
+        informativeObjectFailureCuts work (queue.sourceRunBlocks publisher inputs).2.2
       ∃ streams,
         StreamFailureCuts work
           ((queue.runNormalized inputs).2.flatten.flatMap publicationAtoms) streams
@@ -186,14 +148,16 @@ theorem announcedFailures_with_cuts_exists {work : Execution.Work}
             {
               events := queue.nonterminalAtoms inputs,
               matching,
-              failures := mergeFailureCuts objects streams
+              failures := mergeFailureCuts objects streams,
+              reported := mergeFailureCuts raw streams
             } := by
   let queue := initialQueue work
   let publisher : IncrementalPublisher :=
     { active := queue.initialGroups ++ queue.initialStreams }
+  let blocks := (queue.sourceRunBlocks publisher inputs).2.2
   let atoms := (queue.runNormalized inputs).2.flatten.flatMap publicationAtoms
-  let objects := informativeObjectFailureCuts work
-    (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher inputs).2.2)
+  let raw := availableObjectFailureCuts work 0 blocks
+  let objects := informativeObjectFailureCuts work blocks
   have running : queue.terminated = false := createWorkQueue_terminated _
   obtain ⟨producerMatching, _, values, _, covered⟩ :=
     createWorkQueue_runNormalized_streamProducerMatching_withItemCoverage generated valid started
@@ -201,63 +165,97 @@ theorem announcedFailures_with_cuts_exists {work : Execution.Work}
     generated valid producerMatching (fun index event atEvent value =>
       (values index event atEvent value).1) covered
   let failures := mergeFailureCuts objects streams
-  have bounded : ∀ entry ∈ failures,
-      entry.1 ≤ (queue.nonterminalAtoms inputs).length := by
+  let reported := mergeFailureCuts raw streams
+  have included : failures.Subset reported := by
     intro entry member
+    apply (mergeFailureCuts_partition raw streams).mem_iff.mpr
     rcases List.mem_append.mp ((mergeFailureCuts_partition objects streams).mem_iff.mp member)
         with fromStream | fromObject
+    · exact List.mem_append_left _ fromStream
+    · exact List.mem_append_right _
+        ((informativeObjectFailureCuts_sublist work blocks).subset fromObject)
+  have reportingBound : ∀ entry ∈ reported,
+      entry.1 ≤ (queue.nonterminalAtoms inputs).length := by
+    intro entry member
+    rcases List.mem_append.mp ((mergeFailureCuts_partition raw streams).mem_iff.mp member)
+        with fromStream | fromObject
     · exact cuts.nonterminalBound running entry fromStream
-    · exact queue.eligibleObjectFailureCuts_nonterminalBound inputs running entry
-        ((informativeObjectFailureCuts_sublist work _).subset fromObject)
-  have inventory := createWorkQueue_completeInformativeFailureInventory generated valid started cuts
+    · exact queue.availableObjectFailureCuts_nonterminalBound work inputs running entry fromObject
+  have causalBound : ∀ entry ∈ failures,
+      entry.1 ≤ (queue.nonterminalAtoms inputs).length :=
+    fun entry member => reportingBound entry (included member)
+  have inventory := createWorkQueue_completeInformativeFailureInventory generated valid cuts
     (fun entry member => (supported entry member).1)
-  change CompleteFailureInventory work atoms failures at inventory
-  rw [show atoms = queue.nonterminalAtoms inputs ++
-    (if (queue.runNormalized inputs).1.terminated then [.workQueueTermination] else [])
-      from queue.runNormalized_terminalShape inputs running] at inventory
-  refine ⟨streams, cuts, inventory.prefix bounded, ?_⟩
-  intro entry member
-  have same := queue.nonterminalAtoms_take inputs running (bounded entry member)
-  rw [← same]
-  rcases List.mem_append.mp ((mergeFailureCuts_partition objects streams).mem_iff.mp member)
-      with fromStream | fromObject
-  · obtain ⟨ref, owners, opened⟩ := (supported entry fromStream).2.2
-    exact ⟨[ref], owners, ref, List.mem_cons_self, opened.1⟩
-  · obtain ⟨before, after, split⟩ := List.mem_iff_append.mp fromObject
-    obtain ⟨owners, ref, structural, contributes, announced⟩ :=
-      createWorkQueue_informativeObjectFailureCuts_announcedOwner valid started split
-    exact ⟨owners, structural, ref, contributes, announced⟩
+  have reportingInventory := createWorkQueue_completeFailureInventory generated valid cuts
+    (fun entry member => (supported entry member).1)
+  have reportedOwners : ∀ entry ∈ reported,
+      ∃ owners, TaskHasOwners work entry.2 owners
+        ∧ ∃ ref ∈ owners, ref ∈ announcedRefs (initialRefs work) (atoms.take entry.1) := by
+    intro entry member
+    rcases List.mem_append.mp ((mergeFailureCuts_partition raw streams).mem_iff.mp member)
+        with fromStream | fromObject
+    · obtain ⟨ref, owners, opened⟩ := (supported entry fromStream).2.2
+      exact ⟨[ref], owners, ref, List.mem_cons_self, opened.1⟩
+    · obtain ⟨owners, ref, structural, contributes, announced⟩ :=
+        createWorkQueue_availableObjectFailureCuts_announcedOwner generated valid started fromObject
+      exact ⟨owners, structural, ref, contributes, announced⟩
+  have reporting := reportingInventory.failureReportingWitness reportedOwners
+  have shape : atoms = queue.nonterminalAtoms inputs ++
+      (if (queue.runNormalized inputs).1.terminated then [.workQueueTermination] else []) :=
+    queue.runNormalized_terminalShape inputs running
+  change CausalFailureInventory work atoms failures at inventory
+  change FailureReportingWitness work (initialRefs work) atoms reported at reporting
+  change CompleteFailureInventory work atoms reported at reportingInventory
+  rw [shape] at inventory reporting reportingInventory
+  have restricted := reporting.prefix
+  have unchanged : reported.filter (fun entry => decide
+      (entry.1 ≤ (queue.nonterminalAtoms inputs).length)) = reported := by
+    apply List.filter_eq_self.mpr
+    intro entry member
+    exact of_decide_eq_true (by simpa using reportingBound entry member)
+  rw [unchanged] at restricted
+  refine ⟨streams, cuts, inventory.prefix causalBound, ?_, restricted, ?_,
+    reportingInventory.prefix reportingBound⟩
+  · intro entry member
+    have same := queue.nonterminalAtoms_take inputs running (causalBound entry member)
+    rw [← same]
+    exact reportedOwners entry (included member)
+  · intro cut occurrence member
+    exact ⟨cut, included member, Nat.le_refl _⟩
 
-/-- One complete announced inventory exists on the same history as the batching leaf.
-Witness: forget only the cut-partition certificate from the stronger construction.
-Earlier-cancellation exclusion remains a separate obligation.
--/
+/-- The joint inventories exist on the same history as the batching certificate. -/
 theorem announcedFailures_exists {work : Execution.Work} {inputs : List (List GraphEvent)}
     (generated : ExecutedWork work) (valid : ValidGraphEvents work inputs.flatten)
     (started : inputsStarted work inputs = true) (matching : PublicationMatching)
-    : ∃ failures,
+    : ∃ failures reported,
         AnnouncedFailures work
           {
-            events := (initialQueue work).nonterminalAtoms inputs, matching, failures
+            events := (initialQueue work).nonterminalAtoms inputs,
+            matching,
+            failures,
+            reported
           } := by
   obtain ⟨streams, _, announced⟩ :=
     announcedFailures_with_cuts_exists generated valid started matching
-  exact ⟨_, announced⟩
+  exact ⟨_, _, announced⟩
 
-/-- Batching and announced error inventory share one actual history and one cut list.
-Witness: construct the announced inventory, then instantiate the cut-independent batching
-leaf. The chosen matching remains available to the outstanding causal/admission proofs.
--/
+/-- Exact batching and both announced failure inventories share one witness. -/
 theorem batchShape_and_announcedFailures {work : Execution.Work}
     {inputs : List (List GraphEvent)} (generated : ExecutedWork work)
     (valid : ValidGraphEvents work inputs.flatten)
     (started : inputsStarted work inputs = true) (matching : PublicationMatching)
-    : ∃ failures,
+    : ∃ failures reported,
         let witness : Witness :=
-          { events := (initialQueue work).nonterminalAtoms inputs, matching, failures }
+          {
+            events := (initialQueue work).nonterminalAtoms inputs,
+            matching,
+            failures,
+            reported
+          }
         BatchShape work inputs witness ∧ AnnouncedFailures work witness := by
-  obtain ⟨failures, announced⟩ := announcedFailures_exists generated valid started matching
-  exact ⟨failures, batchShape_holds valid matching failures, announced⟩
+  obtain ⟨failures, reported, announced⟩ :=
+    announcedFailures_exists generated valid started matching
+  exact ⟨failures, reported, batchShape_holds valid matching failures, announced⟩
 
 end ConformancePlan
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

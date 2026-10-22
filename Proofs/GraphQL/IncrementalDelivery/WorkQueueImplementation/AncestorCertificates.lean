@@ -1,3 +1,4 @@
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.WorkDeclarations
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.GeneratedAncestry
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.OwnerAccounting
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.ProducerSupport
@@ -298,8 +299,11 @@ theorem State.pruneEmptyGroups_retirement_preserves {queue : State} {work parent
                 · exact done next earlier
                 · have same := List.mem_singleton.mp latest
                   exact same ▸ pending group List.mem_cons_self
-  exact loop _ queue groups [] matching links registered protectedGroups
-    (by intro group member; cases member)
+  have result := loop (queue.groupNodes.length + groups.length + 1) queue groups [] matching links
+    registered protectedGroups (by intro group member; cases member)
+  refine ⟨?_, result.2⟩
+  intro group member
+  exact result.1 group (by simpa only [State.pruneEmptyGroups] using member)
 
 /-- Pruning preserves healthy-retirement closure while protecting promoted candidates.
 Witness: instantiate the shared traversal theorem; the only newly retired ref is the
@@ -678,7 +682,7 @@ theorem State.HealthyRetiredAncestors.childGroupsAvailable
     {queue : State} {work settled failed}
     (retirement : queue.HealthyRetiredAncestors work failed)
     (accounted : queue.HealthyRegisteredTaskAccounting work settled failed)
-    (tracks : queue.HealthyPendingTracks work settled failed)
+    (_tracks : queue.HealthyPendingTracks work settled failed)
     (taskMatching : queue.RegisteredTasksMatch work)
     (generated : ExecutedWork work)
     {producer : Task} (registered : producer ∈ queue.tasks)
@@ -686,20 +690,39 @@ theorem State.HealthyRetiredAncestors.childGroupsAvailable
     (matching : (GraphEvent.taskSuccess producer.occurrence result).MatchesWork work)
     : queue.ChildGroupsAvailable work failed result.work := by
   intro task member ref contributes healthy
-  obtain ⟨group, candidate, same⟩ := matching.childTasksCovered task member ref contributes
-  rw [← same] at healthy ⊢
-  exact retirement.childGroup_available accounted tracks taskMatching generated
-    registered fresh matching candidate ⟨task, member, same.symm ▸ contributes⟩ healthy
-
-/-- Starting work preserves healthy-retirement closure.
-Witness: activation leaves both registration history and the live group map unchanged. -/
-theorem State.HealthyRetiredAncestors.startNewWork {queue : State} {work failed}
-    (prior : queue.HealthyRetiredAncestors work failed) (newWork : NewWork)
-    : (queue.startNewWork newWork).HealthyRetiredAncestors work failed := by
-  apply prior.of_sameRetirements
-  intro ref
-  simp only [State.RetiredGroup, queue.startNewWork_registeredGroups,
-    (queue.startNewWork_groupCore newWork).1]
+  obtain ⟨node, dependencies, known, sameRef, owner, ownerMember, support⟩ :=
+    matching.childContributor_producer_support generated member contributes
+  have ownerHealthy : ¬GroupInvalidated work failed owner := by
+    intro invalid
+    apply healthy
+    rcases support with same | ancestor
+    · exact same ▸ invalid
+    · exact sameRef ▸ GroupInvalidated.groupDependency
+        ⟨node, _, known, rfl⟩ ancestor invalid
+  obtain ⟨_, _, _, exactGroups, _⟩ := matching
+  have sameGroups : producer.groups = result.value.deliveryGroups :=
+    Option.some.inj ((taskMatching producer registered).2.symm.trans exactGroups)
+  have ownerContributes : owner ∈ producer.groups.map Execution.DeliveryNode.ref := by
+    simpa [sameGroups] using ownerMember
+  obtain ⟨liveOwner, liveMember, liveRef, _⟩ :=
+    accounted producer registered fresh owner ownerContributes ownerHealthy
+  have ownerLive : owner ∈ queue.groupNodes.map (fun node => node.group.node.ref) :=
+    List.mem_map.mpr ⟨liveOwner, liveMember, liveRef⟩
+  obtain ⟨⟨address, payload, birth, _, producerKnown⟩, _⟩ := taskMatching producer registered
+  have protection : ∀ other ancestors, GroupRecordAt work other ancestors
+      → ¬GroupRecordInvalidated work failed other.ref → owner ∈ ancestors
+      → queue.RetiredGroup other.ref → False := by
+    intro other ancestors record unfailed ownerIn retired
+    have impossible := retirement other.ref retired unfailed
+      other ancestors record rfl owner ownerIn producer.occurrence _
+      ⟨birth, payload, producerKnown⟩ ownerContributes
+    exact impossible.2 ownerLive
+  have supported := State.groupRegistrationSupported_of_live_ancestor generated ownerLive
+    protection (groupRecordAt_of_nodeAt known)
+    (fun invalid => healthy (sameRef ▸
+      (generated.groupRecordInvalidated_iff_groupInvalidated known).mp invalid))
+    (support.elim (fun same => Or.inl (same.trans sameRef.symm)) Or.inr)
+  exact sameRef ▸ supported
 
 /-- Removing an invalidated subtree preserves healthy-retirement closure.
 Witness: every healthy live node is retained by cleanup, so every healthy retired ref
@@ -722,5 +745,136 @@ theorem State.HealthyRetiredAncestors.removeGroup {queue : State} {work failed p
       node member (same.symm ▸ healthy)
     exact retired.2 (List.mem_map.mpr ⟨node, retained, same⟩)
   exact (prior target old healthy).mono (fun ancestor retired => retired.removeGroup ref)
+
+/-- Cache exposure preserves exactly the retired registration refs. -/
+theorem State.HealthyRetiredAncestors.cacheTaskFailures {queue : State} {work failed}
+    (prior : queue.HealthyRetiredAncestors work failed)
+    (available : List (Occurrence × Nat))
+    : (queue.cacheTaskFailures available).HealthyRetiredAncestors work failed := by
+  apply prior.of_sameRetirements
+  intro ref
+  simp only [State.RetiredGroup, State.cacheTaskFailures_registeredGroups,
+    State.cacheTaskFailures_groupNodes]
+
+private structure RetirementStartup (queue : State) (work : Execution.Work)
+    (parents : Nat → NodeRefs) (failed : List Occurrence)
+    : Prop where
+  retired : queue.HealthyRetiredAncestors work failed
+  cached : queue.CachedFailuresSupported work failed
+  registered : queue.StartedTasksRegistered
+  tasks : queue.RegisteredTasksMatch work
+  sound : queue.GroupMembershipSound
+  links : queue.ChildLinksCanonical parents
+  groups : queue.GroupNodesMatchWork work
+
+private theorem RetirementStartup.startGroup {queue work parents failed}
+    (prior : RetirementStartup queue work parents failed)
+    (canonical
+      : ∀ node dependencies,
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
+    (ref : NodeRef) (available : List (Occurrence × Nat))
+    (recorded
+      : ∀ occurrence errors, (occurrence, errors) ∈ available → occurrence ∈ failed)
+    : RetirementStartup (queue.startGroup ref available).1 work parents failed := by
+  have cached := prior.cached.cacheTaskFailures prior.registered prior.tasks available recorded
+  have registered := prior.registered.cacheTaskFailures available
+  have tasks := prior.tasks.cacheTaskFailures available
+  have sound := prior.sound.cacheTaskFailures available
+  have links := prior.links.cacheTaskFailures available
+  have groups := prior.groups.cacheTaskFailures available
+  have retired := prior.retired.cacheTaskFailures available
+  have stateRetired : (queue.startGroup ref available).1.HealthyRetiredAncestors work failed := by
+    unfold State.startGroup
+    dsimp only
+    split
+    · exact retired
+    · rename_i node found
+      split
+      · have loop (more : List Occurrence) (current : State)
+            (valid : current.HealthyRetiredAncestors work failed)
+            : (more.foldl (fun next task => next.startTask task available)
+                current).HealthyRetiredAncestors work failed := by
+          induction more generalizing current with
+          | nil => exact valid
+          | cons task rest ih =>
+              apply ih
+              apply valid.of_sameRetirements
+              intro ref
+              dsimp only
+              unfold State.startTask
+              split
+              · rfl
+              · split <;> rfl
+        exact loop _ _ retired
+      · rename_i rejected
+        have nonempty : node.tasks.filterMap
+            (fun task => ((queue.cacheTaskFailures available).taskNode? task).bind (·.rejection))
+            ≠ [] := by
+          intro empty
+          simp only [empty, List.isEmpty_nil] at rejected
+          exact rejected trivial
+        have invalid := cached.startGroup_invalidated registered tasks sound found nonempty
+        exact retired.removeGroup links groups canonical node.group.node.ref
+          invalid.toRecordInvalidated
+  exact ⟨stateRetired,
+    prior.cached.startGroup_available prior.registered prior.tasks ref available recorded,
+    prior.registered.startGroup ref available, prior.tasks.startGroup ref available,
+    prior.sound.startGroup ref available,
+    (fun node member => prior.links node
+      ((queue.startGroup_groupNodes_sublist ref available).subset member)),
+    (fun node member => prior.groups node
+      ((queue.startGroup_groupNodes_sublist ref available).subset member))⟩
+
+/-- With no available or cached failure, startup preserves retirement exactly. -/
+theorem State.HealthyRetiredAncestors.startNewWork_of_no_cached_failures
+    {queue : State} {work failed} (prior : queue.HealthyRetiredAncestors work failed)
+    (newWork : NewWork) (clean : ∀ node ∈ queue.taskNodes, node.rejection = none)
+    : (queue.startNewWork newWork).1.HealthyRetiredAncestors work failed := by
+  apply prior.of_sameRetirements
+  intro ref
+  simp only [State.RetiredGroup, State.startNewWork_registeredGroups,
+    (queue.startNewWork_groupCore_of_no_cached_failures newWork clean).1]
+
+/-- Starting work preserves healthy retirement while immediately removing failed groups.
+New retirement caused by startup belongs only to invalidated records; healthy records
+retain their earlier ancestor certificates. Source-supported caches supply that distinction.
+-/
+theorem State.HealthyRetiredAncestors.startNewWork {queue : State} {work failed parents}
+    (prior : queue.HealthyRetiredAncestors work failed)
+    (cached : queue.CachedFailuresSupported work failed)
+    (registered : queue.StartedTasksRegistered) (tasks : queue.RegisteredTasksMatch work)
+    (sound : queue.GroupMembershipSound) (links : queue.ChildLinksCanonical parents)
+    (groups : queue.GroupNodesMatchWork work)
+    (canonical
+      : ∀ node dependencies,
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
+    (newWork : NewWork) (available : List (Occurrence × Nat) := [])
+    (recorded
+      : ∀ occurrence errors, (occurrence, errors) ∈ available → occurrence ∈ failed := by
+        intro occurrence errors member; cases member)
+    : (queue.startNewWork newWork available).1.HealthyRetiredAncestors work failed := by
+  have loop (refs : NodeRefs) (acc : State × List GroupFailureEvent)
+      (valid : RetirementStartup acc.1 work parents failed)
+      : RetirementStartup
+          (refs.foldl (fun (current, failures) ref =>
+            let (next, queued) := current.startGroup ref available
+            (next, failures ++ queued)) acc).1 work parents failed := by
+    induction refs generalizing acc with
+    | nil => exact valid
+    | cons ref rest ih => exact ih _ (valid.startGroup canonical ref available recorded)
+  have streams (refs : NodeRefs) (current : State)
+      (valid : current.HealthyRetiredAncestors work failed)
+      : (refs.foldl State.startStream current).HealthyRetiredAncestors work failed := by
+    induction refs generalizing current with
+    | nil => exact valid
+    | cons ref rest ih =>
+        apply ih
+        apply valid.of_sameRetirements
+        intro ref
+        unfold State.startStream
+        split <;> rfl
+  unfold State.startNewWork
+  exact streams _ _
+    (loop _ _ ⟨prior, cached, registered, tasks, sound, links, groups⟩).retired
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

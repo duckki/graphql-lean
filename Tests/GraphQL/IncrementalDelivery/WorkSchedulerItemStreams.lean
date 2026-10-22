@@ -22,7 +22,8 @@ private def childItems : List (TaskOutcome ResponseValue × Execution.Work) :=
   ]
 
 private def children (index : Nat) : Execution.Work :=
-  .combine (.combine (.combine .empty (.stream (child index) childItems)) .empty) .empty
+  .combine (.combine (.combine .empty (.stream (child index) childItems)) .empty)
+    (.declareGroups [] .empty)
 
 private def value : ResponseValue := .object [("values", .list [])]
 
@@ -30,7 +31,8 @@ private def entries : List (TaskOutcome ResponseValue × Execution.Work) :=
   [({ result := .ok (value, 0) }, children 0), ({ result := .ok (value, 0) }, children 1)]
 
 private def work : Execution.Work :=
-  .combine (.combine (.combine .empty (.stream outer entries)) .empty) .empty
+  .combine (.combine (.combine .empty (.stream outer entries)) .empty)
+    (.declareGroups [] .empty)
 
 private def item (index : Nat) : StreamItem :=
   {
@@ -84,7 +86,7 @@ private theorem itemMatches (index : Nat) (bound : index < 2)
     ?_
   ⟩
   have located : locateWork work [0, 0, 1] = some ⟨.stream outer entries, none, []⟩ := outerLocated
-  simp [streamItemWork?, item, located, entry]
+  simp [streamItemWork?, taskContext?, item, located, entry]
 
 /-- A child stream retains its corresponding outer item as producer.
 Witness: the exact generated child location at either outer item index.

@@ -26,17 +26,29 @@ private structure RetirementFrame (queue : State) (work : Execution.Work)
   roots : queue.RootAncestorsRetired work
   retired : queue.UncancelledRetiredAncestors work
 
+/-- Cache exposure changes no structural retirement data. -/
+private theorem RetirementFrame.cacheTaskFailures {queue : State} {work parents}
+    (prior : RetirementFrame queue work parents) (available : List (Occurrence × Nat))
+    : RetirementFrame (queue.cacheTaskFailures available) work parents := by
+  have covered := queue.cacheTaskFailures_registration prior.live prior.tasks available
+  refine ⟨prior.groups.cacheTaskFailures available, prior.links.cacheTaskFailures available,
+    covered.1, covered.2, ?_, prior.retired.cacheTaskFailures available⟩
+  intro ref active
+  rw [State.cacheTaskFailures_rootGroups] at active
+  exact (prior.roots ref active).mono (fun _ retired => retired.cacheTaskFailures available)
+
 /-- Activation retains the frame when new roots have their ancestor certificates.
 Witness: unchanged metadata and permanent retirements, plus the root-list extension law.
 -/
 private theorem RetirementFrame.startNewWork {queue : State} {work parents}
     (prior : RetirementFrame queue work parents) (released : NewWork)
     (protectedRoots : ∀ node ∈ released.newGroups, queue.AncestorsRetired work node.ref)
-    : RetirementFrame (queue.startNewWork released) work parents := by
-  have registered := State.startNewWork_registration prior.live prior.tasks released
-  exact ⟨prior.groups.startNewWork _, prior.links.startNewWork _,
-    registered.1, registered.2, prior.roots.startNewWork _ protectedRoots,
-    prior.retired.startNewWork _⟩
+    (available : List (Occurrence × Nat) := [])
+    : RetirementFrame (queue.startNewWork released available).1 work parents := by
+  have registered := State.startNewWork_registration prior.live prior.tasks released available
+  exact ⟨prior.groups.startNewWork _ available, prior.links.startNewWork _ available,
+    registered.1, registered.2, prior.roots.startNewWork _ protectedRoots available,
+    prior.retired.startNewWork _ available⟩
 
 /-- The ready-group drain retains the complete structural frame.
 Witness: joint root/retirement preservation and independent metadata/registry theorems.
@@ -46,11 +58,12 @@ private theorem RetirementFrame.drainReadyGroups {queue : State} {work parents}
     (canonical
       : ∀ node dependencies,
           GroupRecordAt work node dependencies → dependencies = parents node.ref)
-    : RetirementFrame queue.drainReadyGroups.1 work parents := by
+    (available : List (Occurrence × Nat) := [])
+    : RetirementFrame (queue.drainReadyGroups available).1 work parents := by
   have retired := queue.drainReadyGroups_uncancelledRetirement prior.retired generated
-    prior.groups prior.links canonical prior.live prior.tasks prior.roots
-  have registered := queue.drainReadyGroups_registration prior.live prior.tasks
-  exact ⟨prior.groups.drainReadyGroups, prior.links.drainReadyGroups,
+    prior.groups prior.links canonical prior.live prior.tasks prior.roots available
+  have registered := queue.drainReadyGroups_registration prior.live prior.tasks available
+  exact ⟨prior.groups.drainReadyGroups available, prior.links.drainReadyGroups available,
     registered.1, registered.2.1, retired.1, retired.2⟩
 
 /-- Task rejection preserves the structural frame through retained computation replay. -/
@@ -75,11 +88,12 @@ private theorem RetirementFrame.drainReadyGroups_go_noticeRetirement
       : ∀ node dependencies,
           GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (fuel : Nat)
-    : (State.drainReadyGroups.go fuel queue).1.GroupNoticeAncestorsRetired work
-        (State.drainReadyGroups.go fuel queue).2 := by
+    (available : List (Occurrence × Nat) := [])
+    : (State.drainReadyGroups.go available fuel queue).1.GroupNoticeAncestorsRetired work
+        (State.drainReadyGroups.go available fuel queue).2.1 := by
   have loop (fuel : Nat) (current : State) (frame : RetirementFrame current work parents)
-      : (State.drainReadyGroups.go fuel current).1.GroupNoticeAncestorsRetired work
-          (State.drainReadyGroups.go fuel current).2 := by
+      : (State.drainReadyGroups.go available fuel current).1.GroupNoticeAncestorsRetired work
+          (State.drainReadyGroups.go available fuel current).2.1 := by
     induction fuel generalizing current with
     | zero => exact .of_noNotices (by simp [State.drainReadyGroups.go])
     | succ fuel ih =>
@@ -93,40 +107,29 @@ private theorem RetirementFrame.drainReadyGroups_go_noticeRetirement
           | none => simp [found] at choice
           | some candidate =>
               simp only [found] at choice
-              change (if (current.rejectedTask? candidate).isSome || candidate.pending == 0 then
+              change (if candidate.pending == 0 then
                 some candidate else none) = some node at choice
               split at choice
               · cases Option.some.inj choice
                 have member := List.mem_of_find?_eq_some found
                 have roots := frame.roots _ (current.groupNode?_ref found ▸ active)
-                cases cached : current.rejectedTask? node with
-                | none =>
-                    have certificates := current.finishGroupSuccess_ancestorsRetired
-                      generated frame.groups frame.links canonical frame.live member roots
-                    have registered := current.finishGroupSuccess_registration
-                      frame.live frame.tasks node
-                    have next : RetirementFrame (current.finishGroupSuccess node).1
-                        work parents :=
-                      ⟨frame.groups.finishGroupSuccess _, frame.links.finishGroupSuccess _,
-                        registered.1, registered.2.1,
-                        frame.roots.mono (current.finishGroupSuccess_rootsSubset _)
-                          (fun _ retired => retired.finishGroupSuccess _),
-                        frame.retired.finishGroupSuccess generated frame.groups frame.links
-                          canonical frame.live member roots⟩
-                    have noticed := State.finishGroupSuccess_noticeAncestorRetirement
-                      certificates.2.2
-                    exact (noticed.mono (fun _ retired =>
-                      (retired.startNewWork _).drainReadyGroups_go fuel)).append
-                      (ih _ (next.startNewWork _ certificates.2.2))
-                | some rejected =>
-                    have next := frame.taskFailure rejected.1 rejected.2
-                    exact (State.GroupNoticeAncestorsRetired.of_noNotices
-                            (by
-                              intro event emitted
-                              obtain ⟨group, rfl⟩ :=
-                                current.taskFailure_event_failure _ _ event emitted
-                              rfl)).append
-                      (ih _ next)
+                have certificates := current.finishGroupSuccess_ancestorsRetired
+                  generated frame.groups frame.links canonical frame.live member roots
+                have registered := current.finishGroupSuccess_registration
+                  frame.live frame.tasks node
+                have next : RetirementFrame (current.finishGroupSuccess node).1
+                    work parents :=
+                  ⟨frame.groups.finishGroupSuccess _, frame.links.finishGroupSuccess _,
+                    registered.1, registered.2.1,
+                    frame.roots.mono (current.finishGroupSuccess_rootsSubset _)
+                      (fun _ retired => retired.finishGroupSuccess _),
+                    frame.retired.finishGroupSuccess generated frame.groups frame.links
+                      canonical frame.live member roots⟩
+                have noticed := State.finishGroupSuccess_noticeAncestorRetirement
+                  certificates.2.2
+                exact (noticed.mono (fun _ retired =>
+                  (retired.startNewWork _ available).drainReadyGroups_go fuel available)).append
+                  (ih _ (next.startNewWork _ certificates.2.2 available))
               · contradiction
   exact loop fuel queue prior
 
@@ -139,9 +142,11 @@ private theorem RetirementFrame.drainReadyGroups_noticeRetirement
     (canonical
       : ∀ node dependencies,
           GroupRecordAt work node dependencies → dependencies = parents node.ref)
-    : queue.drainReadyGroups.1.GroupNoticeAncestorsRetired work
-        queue.drainReadyGroups.2 :=
+    (available : List (Occurrence × Nat) := [])
+    : (queue.drainReadyGroups available).1.GroupNoticeAncestorsRetired work
+        (queue.drainReadyGroups available).2.1 :=
   prior.drainReadyGroups_go_noticeRetirement generated canonical queue.groupNodes.length
+    available
 
 /-- Every bounded drain prefix certifies the retired ancestry of its own carried notices.
 Witness: the local structural frame follows actual closures, retaining earlier notice
@@ -157,8 +162,9 @@ theorem State.drainReadyGroups_go_noticeAncestorsRetired
     (live : queue.LiveGroupsRegistered) (tasks : queue.TaskGroupsRegistered)
     (roots : queue.RootAncestorsRetired work)
     (retired : queue.UncancelledRetiredAncestors work) (fuel : Nat)
-    : (State.drainReadyGroups.go fuel queue).1.GroupNoticeAncestorsRetired work
-        (State.drainReadyGroups.go fuel queue).2 :=
+    (available : List (Occurrence × Nat) := [])
+    : (State.drainReadyGroups.go available fuel queue).1.GroupNoticeAncestorsRetired work
+        (State.drainReadyGroups.go available fuel queue).2.1 :=
   (show RetirementFrame queue work parents from ⟨
     records,
     links,
@@ -167,7 +173,7 @@ theorem State.drainReadyGroups_go_noticeAncestorsRetired
     roots,
     retired
   ⟩).drainReadyGroups_go_noticeRetirement
-    generated canonical fuel
+    generated canonical fuel available
 
 /-- Matched child integration retains old root certificates and structural retirement.
 Witness: canonical record installation and unchanged roots; no child availability premise.
@@ -182,8 +188,19 @@ private theorem RetirementFrame.maybeIntegrateWork {queue : State} {work parents
     (covered
       : ∀ task ∈ newWork.tasks,
         ∀ ref ∈ task.groups.map Execution.DeliveryNode.ref,
-          ∃ group ∈ newWork.groups, group.node.ref = ref)
+          ref ∈ queue.registeredGroups ∨ ∃ group ∈ newWork.groups, group.node.ref = ref)
     (parentTask : Option Occurrence := none)
+    (generated : ExecutedWork work)
+    (canonical
+      : ∀ node dependencies,
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
+    (closed
+      : ∀ group ∈ newWork.groups,
+          ∀ parent,
+            group.parent = some parent
+            → parent
+              ∈ queue.registeredGroups
+                ++ newWork.groups.map (fun group => group.node.ref))
     : RetirementFrame (queue.maybeIntegrateWork newWork parentTask).1 work parents := by
   have registered := queue.maybeIntegrateWork_registration prior.live prior.tasks
     newWork covered parentTask
@@ -195,7 +212,16 @@ private theorem RetirementFrame.maybeIntegrateWork {queue : State} {work parents
     prior.roots.mono
       (by rw [queue.maybeIntegrateWork_rootGroups]; exact fun _ member => member)
       (fun _ retired => retired.maybeIntegrateWork newWork parentTask),
-    prior.retired.maybeIntegrateWork newWork parentTask
+    prior.retired.maybeIntegrateWork newWork parentTask generated prior.live
+      (by
+        intro group member
+        obtain ⟨dependencies, record⟩ := known group member
+        exact ⟨
+          dependencies,
+          record,
+          by rw [canonical _ _ record]; exact parentFields group member
+        ⟩)
+      closed
   ⟩
 
 -----------------------------------------------------------------------------------------
@@ -207,28 +233,33 @@ Witness: matched child integration, protected successful closures, activation, a
 Absent tasks produce no output; present tasks follow the same success path.
 -/
 private theorem RetirementFrame.taskSuccess_with_notices {queue : State} {work parents}
-    (prior : RetirementFrame queue work parents) (generated : ExecutedWork work)
+    (prior : RetirementFrame queue work parents)
+    (registration : queue.RegistrationFrame work) (generated : ExecutedWork work)
     (canonical
       : ∀ node dependencies,
           GroupRecordAt work node dependencies → dependencies = parents node.ref)
     {occurrence result}
     (matching : (GraphEvent.taskSuccess occurrence result).MatchesWork work)
-    : RetirementFrame (queue.taskSuccess occurrence result).1 work parents
-      ∧ (queue.taskSuccess occurrence result).1.GroupNoticeAncestorsRetired work
-          (queue.taskSuccess occurrence result).2 := by
+    (available : List (Occurrence × Nat) := [])
+    : RetirementFrame (queue.taskSuccess occurrence result available).1 work parents
+      ∧ (queue.taskSuccess occurrence result available).1.GroupNoticeAncestorsRetired work
+          (queue.taskSuccess occurrence result available).2.1 := by
   cases found : queue.taskNode? occurrence with
   | none =>
       simpa only [State.taskSuccess, found]
         using And.intro prior (State.GroupNoticeAncestorsRetired.of_noNotices (by simp))
   | some taskNode =>
-      rw [queue.taskSuccess_eq occurrence result taskNode found]
+      rw [queue.taskSuccess_eq occurrence result taskNode found available]
       let stored := queue.putTaskNode { taskNode with value := some result.value }
       have storedFrame : RetirementFrame stored work parents :=
         ⟨prior.groups, prior.links, prior.live, prior.tasks, prior.roots, prior.retired⟩
+      have registeredTask := registration.started taskNode (List.mem_of_find?_eq_some found)
+      have identity := (State.taskNode?_some found).2
+      have certificate := (registration.children taskNode.task registeredTask).sourceChild identity matching
       have integrated := storedFrame.maybeIntegrateWork result.work
         (fun _ member => matching.taskChildGroups_recordAt member)
         (fun _ member => matching.taskChildGroups_parentCanonical canonical member)
-        matching.childTasksCovered (some occurrence)
+        certificate.contributors (some occurrence) generated canonical certificate.parentRefs
       have folded := successGroupFold_uncancelledRetirement integrated.retired generated
         integrated.groups integrated.links canonical integrated.live integrated.tasks
         integrated.roots taskNode.task.groups
@@ -240,11 +271,12 @@ private theorem RetirementFrame.taskSuccess_with_notices {queue : State} {work p
       have finalFrame : RetirementFrame final.1 work parents :=
         ⟨folded.1, folded.2.1, folded.2.2.1, folded.2.2.2.1,
           folded.2.2.2.2.1, folded.2.2.2.2.2⟩
-      have activated := finalFrame.startNewWork final.2.2 protectedRoots.2
+      have activated := finalFrame.startNewWork final.2.2 protectedRoots.2 available
       have noticed := State.successGroupFold_noticeAncestorRetirement protectedRoots.2
-      exact ⟨activated.drainReadyGroups generated canonical,
-        (noticed.mono (fun _ retired => (retired.startNewWork _).drainReadyGroups)).append
-          (activated.drainReadyGroups_noticeRetirement generated canonical)⟩
+      exact ⟨activated.drainReadyGroups generated canonical available,
+        (noticed.mono (fun _ retired =>
+          (retired.startNewWork _ available).drainReadyGroups available)).append
+          (activated.drainReadyGroups_noticeRetirement generated canonical available)⟩
 
 -----------------------------------------------------------------------------------------
 -- Streaming may prune taskless wrappers before activating their protected descendants
@@ -262,17 +294,22 @@ private theorem RetirementFrame.integrateStreamItem_with_notices
           GroupRecordAt work node dependencies → dependencies = parents node.ref)
     {stream items} (matching : (GraphEvent.streamItems stream items).MatchesWork work)
     {item : StreamItem} (member : item ∈ items)
-    : RetirementFrame (queue.integrateStreamItem item) work parents
+    (available : List (Occurrence × Nat) := [])
+    : RetirementFrame (queue.integrateStreamItem item available) work parents
       ∧ ∀ child ∈
           ((queue.maybeIntegrateWork item.work).1.pruneEmptyGroups
             (queue.maybeIntegrateWork item.work).2.newGroups).2,
-          (queue.integrateStreamItem item).AncestorsRetired work child.ref := by
+          (queue.integrateStreamItem item available).AncestorsRetired work child.ref := by
   let integrated := queue.maybeIntegrateWork item.work
   have integratedFrame : RetirementFrame integrated.1 work parents :=
     prior.maybeIntegrateWork item.work
       (fun _ candidate => matching.streamItem_childGroups_recordAt member candidate)
       (fun _ candidate => matching.streamItem_childGroups_parentCanonical canonical
-        member candidate) (matching.streamItem_childTasksCovered member)
+        member candidate) (by
+          intro task taskMember ref contributor
+          exact Or.inr (matching.streamItem_childTasksCovered generated.declarations member
+            task taskMember ref contributor)) none generated canonical
+      (generated.declarations.sourceStreamItem matching member queue.registeredGroups).parentRefs
   have protectedRoots : ∀ node ∈ integrated.2.newGroups,
       integrated.1.AncestorsRetired work node.ref := by
     intro node included
@@ -298,9 +335,12 @@ private theorem RetirementFrame.integrateStreamItem_with_notices
         (fun _ retired => retired.pruneEmptyGroups _),
       integratedFrame.retired.pruneEmptyGroups generated integratedFrame.groups
         integratedFrame.links canonical integratedFrame.live _ protectedRoots⟩
-  exact ⟨prunedFrame.startNewWork { integrated.2 with newGroups := pruned.2 } prunedRoots,
-    fun child member => (prunedRoots child member).mono
-      (fun _ retired => retired.startNewWork _)⟩
+  exact ⟨
+    prunedFrame.startNewWork { integrated.2 with newGroups := pruned.2 } prunedRoots
+      available,
+    fun child member =>
+      (prunedRoots child member).mono (fun _ retired => retired.startNewWork _ available)
+  ⟩
 
 /-- Sequential item integration retains structural retirement before any drain output.
 Witness: induction over the actual integration fold with each item's matching evidence.
@@ -311,29 +351,34 @@ private theorem RetirementFrame.streamItemFold_with_notices {queue : State} {wor
       : ∀ node dependencies,
           GroupRecordAt work node dependencies → dependencies = parents node.ref)
     {stream items} (matching : (GraphEvent.streamItems stream items).MatchesWork work)
-    : let prepared := items.foldl streamItemStep (queue, [], [], [])
+    (available : List (Occurrence × Nat) := [])
+    : let prepared :=
+        items.foldl (fun acc item => streamItemStep acc item available)
+          (queue, [], [], [], [])
       RetirementFrame prepared.1 work parents
       ∧ ∀ child ∈ prepared.2.1, prepared.1.AncestorsRetired work child.ref := by
   have loop (more : List StreamItem) (included : more.Subset items)
       (acc : State × List Execution.DeliveryNode
-        × List Execution.DeliveryNode × List StreamItemValue)
+        × List Execution.DeliveryNode × List StreamItemValue × List GroupFailureEvent)
       (invariant : RetirementFrame acc.1 work parents)
       (protectedRoots : ∀ child ∈ acc.2.1, acc.1.AncestorsRetired work child.ref)
-      : RetirementFrame (more.foldl streamItemStep acc).1 work parents
-        ∧ ∀ child ∈ (more.foldl streamItemStep acc).2.1,
-          (more.foldl streamItemStep acc).1.AncestorsRetired work child.ref := by
+      : RetirementFrame (more.foldl (fun acc item => streamItemStep acc item available) acc).1
+          work parents
+        ∧ ∀ child ∈ (more.foldl (fun acc item => streamItemStep acc item available) acc).2.1,
+          (more.foldl (fun acc item => streamItemStep acc item available) acc).1.AncestorsRetired
+            work child.ref := by
     induction more generalizing acc with
     | nil => exact ⟨invariant, protectedRoots⟩
     | cons item rest ih =>
         have integrated := invariant.integrateStreamItem_with_notices generated canonical
-          matching (included List.mem_cons_self)
+          matching (included List.mem_cons_self) available
         apply ih (fun _ member => included (List.mem_cons_of_mem _ member)) _ integrated.1
         intro child member
         rcases List.mem_append.mp member with old | new
         · exact (protectedRoots child old).mono (fun _ retired =>
-            ((retired.maybeIntegrateWork item.work).pruneEmptyGroups _).startNewWork _)
+            ((retired.maybeIntegrateWork item.work).pruneEmptyGroups _).startNewWork _ available)
         · exact integrated.2 child new
-  exact loop items (fun _ member => member) (queue, [], [], []) prior (by simp)
+  exact loop items (fun _ member => member) (queue, [], [], [], []) prior (by simp)
 
 /-- Item handling retains notice ancestry through preparation and its subsequent drain.
 Witness: combine the exact preparation frontier with the independent drain theorem,
@@ -345,25 +390,28 @@ private theorem RetirementFrame.streamItems_with_notices {queue : State} {work p
       : ∀ node dependencies,
           GroupRecordAt work node dependencies → dependencies = parents node.ref)
     {stream items} (matching : (GraphEvent.streamItems stream items).MatchesWork work)
-    : RetirementFrame (queue.streamItems stream items).1 work parents
-      ∧ (queue.streamItems stream items).1.GroupNoticeAncestorsRetired work
-          (queue.streamItems stream items).2 := by
-  rw [queue.streamItems_eq stream items]
+    (available : List (Occurrence × Nat) := [])
+    : RetirementFrame (queue.streamItems stream items available).1 work parents
+      ∧ (queue.streamItems stream items available).1.GroupNoticeAncestorsRetired work
+          (queue.streamItems stream items available).2.1 := by
+  rw [queue.streamItems_eq stream items available]
   split
   · exact ⟨prior, .of_noNotices (by simp)⟩
-  · have folded := prior.streamItemFold_with_notices generated canonical matching
-    refine ⟨folded.1.drainReadyGroups generated canonical, ?_⟩
-    let final := items.foldl streamItemStep (queue, [], [], [])
-    change final.1.drainReadyGroups.1.GroupNoticeAncestorsRetired work
-      ([.streamValues stream final.2.2.2 final.2.1 final.2.2.1]
-        ++ final.1.drainReadyGroups.2)
+  · have folded := prior.streamItemFold_with_notices generated canonical matching available
+    refine ⟨folded.1.drainReadyGroups generated canonical available, ?_⟩
+    let final := items.foldl (fun acc item => streamItemStep acc item available)
+      (queue, [], [], [], [])
+    change (final.1.drainReadyGroups available).1.GroupNoticeAncestorsRetired work
+      ([.streamValues stream final.2.2.2.1 final.2.1 final.2.2.1]
+        ++ (final.1.drainReadyGroups available).2.1)
     apply State.GroupNoticeAncestorsRetired.append
     · intro ref member
       simp only [List.flatMap_cons, List.flatMap_nil, List.append_nil, rawGroupNoticeRefs]
         at member
       obtain ⟨child, noticed, same⟩ := List.mem_map.mp member
-      exact same ▸ (folded.2 child noticed).mono (fun _ retired => retired.drainReadyGroups)
-    · exact folded.1.drainReadyGroups_noticeRetirement generated canonical
+      exact same ▸ (folded.2 child noticed).mono
+        (fun _ retired => retired.drainReadyGroups available)
+    · exact folded.1.drainReadyGroups_noticeRetirement generated canonical available
 
 -----------------------------------------------------------------------------------------
 -- Compose all actual input handlers and publisher-normalized host batches
@@ -374,36 +422,53 @@ Witness: success/item certificates and cancellation-marked failure removal; stre
 does not modify group structure. Source timing and acceptance are not assumptions.
 -/
 private theorem RetirementFrame.handleGraphEvent {queue : State} {work parents}
-    (prior : RetirementFrame queue work parents) (generated : ExecutedWork work)
+    (prior : RetirementFrame queue work parents)
+    (registration : queue.RegistrationFrame work) (generated : ExecutedWork work)
     (canonical
       : ∀ node dependencies,
           GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (event : GraphEvent) (matching : event.MatchesWork work)
-    : RetirementFrame (queue.handleGraphEvent event).1 work parents := by
+    (available : List (Occurrence × Nat) := [])
+    : RetirementFrame (queue.handleGraphEvent event available).1 work parents := by
+  let current := queue.cacheTaskFailures available
+  have cached := prior.cacheTaskFailures available
   cases event with
   | taskSuccess occurrence result =>
-      exact (prior.taskSuccess_with_notices generated canonical matching).1
-  | taskFailure occurrence errors =>
-      have registered := queue.taskFailure_registration prior.live prior.tasks occurrence errors
-      exact ⟨prior.groups.taskFailure occurrence errors, prior.links.taskFailure occurrence errors,
-        registered.1, registered.2.1,
-        prior.roots.mono (queue.taskFailure_rootsSubset occurrence errors)
-          (fun _ retired => retired.taskFailure occurrence errors),
-        prior.retired.taskFailure occurrence errors⟩
+      exact (cached.taskSuccess_with_notices (registration.cacheTaskFailures available) generated canonical matching available).1
+  | taskFailure occurrence errors => exact cached.taskFailure occurrence errors
   | streamItems stream items =>
-      exact (prior.streamItems_with_notices generated canonical matching).1
+      exact (cached.streamItems_with_notices generated canonical matching available).1
   | streamSuccess stream =>
-      change RetirementFrame (queue.streamSuccess stream).1 work parents
+      change RetirementFrame (current.streamSuccess stream).1 work parents
       unfold State.streamSuccess
-      split
-      all_goals
-        exact ⟨prior.groups, prior.links, prior.live, prior.tasks, prior.roots, prior.retired⟩
+      split <;> exact ⟨cached.groups, cached.links, cached.live, cached.tasks,
+        cached.roots, cached.retired⟩
   | streamFailure stream errors =>
-      change RetirementFrame (queue.streamFailure stream errors).1 work parents
+      change RetirementFrame (current.streamFailure stream errors).1 work parents
       unfold State.streamFailure
+      split <;> exact ⟨cached.groups, cached.links, cached.live, cached.tasks,
+        cached.roots, cached.retired⟩
+
+  | groupFailure notice =>
+      change RetirementFrame (current.groupFailure notice).1 work parents
+      unfold State.groupFailure
       split
-      all_goals
-        exact ⟨prior.groups, prior.links, prior.live, prior.tasks, prior.roots, prior.retired⟩
+      · exact cached
+      · split <;> exact ⟨cached.groups, cached.links, cached.live, cached.tasks,
+          cached.roots, cached.retired⟩
+
+/-- Startup enqueue effects preserve the structural retirement frame. -/
+private theorem RetirementFrame.dispatchGraphEvent {queue : State} {work parents}
+    (prior : RetirementFrame queue work parents)
+    (registration : queue.RegistrationFrame work) (generated : ExecutedWork work)
+    (canonical
+      : ∀ node dependencies,
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
+    (event : GraphEvent) (matching : event.MatchesWork work)
+    (available : List (Occurrence × Nat) := [])
+    : RetirementFrame (queue.dispatchGraphEvent event available).1 work parents := by
+  have next := prior.handleGraphEvent registration generated canonical event matching available
+  exact ⟨next.groups, next.links, next.live, next.tasks, next.roots, next.retired⟩
 
 /-- Every actual handler retains the retired ancestry of its carried group notices.
 Witness: the two notice-producing handlers supply certificates; the other handlers have
@@ -411,34 +476,28 @@ empty group-notice projections, independently of successful or failing payloads.
 -/
 private theorem RetirementFrame.handleGraphEvent_noticeRetirement
     {queue : State} {work parents}
-    (prior : RetirementFrame queue work parents) (generated : ExecutedWork work)
+    (prior : RetirementFrame queue work parents)
+    (registration : queue.RegistrationFrame work) (generated : ExecutedWork work)
     (canonical
       : ∀ node dependencies,
           GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (event : GraphEvent) (matching : event.MatchesWork work)
-    : (queue.handleGraphEvent event).1.GroupNoticeAncestorsRetired work
-        (queue.handleGraphEvent event).2 := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.handleGraphEvent event available).1.GroupNoticeAncestorsRetired work
+        (queue.handleGraphEvent event available).2.1 := by
+  let current := queue.cacheTaskFailures available
+  have cached := prior.cacheTaskFailures available
   cases event with
   | taskSuccess occurrence result =>
-      exact (prior.taskSuccess_with_notices generated canonical matching).2
+      exact (cached.taskSuccess_with_notices (registration.cacheTaskFailures available) generated canonical matching available).2
   | streamItems stream items =>
-      exact (prior.streamItems_with_notices generated canonical matching).2
+      exact (cached.streamItems_with_notices generated canonical matching available).2
   | taskFailure occurrence errors =>
-      apply State.GroupNoticeAncestorsRetired.of_noNotices
-      intro output member
-      cases output with
-      | groupSuccess group groups streams =>
-          exact False.elim (queue.taskFailure_noGroupSuccess occurrence errors group groups
-            streams member)
-      | streamValues stream values groups streams =>
-          have impossible : stream.ref ∈
-              (queue.taskFailure occurrence errors).2.flatMap rawStreamReferenceRefs :=
-            List.mem_flatMap.mpr ⟨_, member, List.mem_cons_self⟩
-          rw [State.taskFailure_streamReferences] at impossible
-          cases impossible
-      | groupValues | groupFailure | streamSuccess | streamFailure | workQueueTermination
-        =>
-          rfl
+      change (current.taskFailure occurrence errors).1.GroupNoticeAncestorsRetired work
+        (current.taskFailure occurrence errors).2
+      intro ref member
+      rw [State.taskFailure_groupNotices] at member
+      cases member
   | streamSuccess stream =>
       simp only [State.handleGraphEvent, State.streamSuccess]
       split <;> simp [State.GroupNoticeAncestorsRetired, rawGroupNoticeRefs]
@@ -446,82 +505,122 @@ private theorem RetirementFrame.handleGraphEvent_noticeRetirement
       simp only [State.handleGraphEvent, State.streamFailure]
       split <;> simp [State.GroupNoticeAncestorsRetired, rawGroupNoticeRefs]
 
+  | groupFailure notice =>
+      simp only [State.handleGraphEvent, State.groupFailure]
+      split
+      · simp [State.GroupNoticeAncestorsRetired]
+      · split <;> simp [State.GroupNoticeAncestorsRetired, rawGroupNoticeRefs]
+
+/-- Sequential source replay preserves the same structural frame without batch controls.
+Witness: fold over matched actual event handlers; termination flags are irrelevant here.
+-/
+private theorem RetirementFrame.replayGraphEvents {queue : State} {work parents}
+    (prior : RetirementFrame queue work parents)
+    (registration : queue.RegistrationFrame work) (generated : ExecutedWork work)
+    (canonical
+      : ∀ node dependencies,
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
+    (events : List GraphEvent) (matching : ∀ event ∈ events, event.MatchesWork work)
+    (available : List (Occurrence × Nat) := [])
+    : RetirementFrame (queue.replayGraphEvents events available) work parents := by
+  induction events generalizing queue with
+  | nil => exact prior
+  | cons event rest ih =>
+      exact ih (prior.dispatchGraphEvent registration generated canonical event
+        (matching event List.mem_cons_self) available)
+        (registration.dispatchGraphEvent event (matching event List.mem_cons_self) available).1
+        (fun next member => matching next (List.mem_cons_of_mem _ member))
+
 /-- A matched host batch retains the frame at each concrete handler state.
 Witness: event-fold induction, followed only by an optional termination-flag update.
 -/
 private theorem RetirementFrame.handleGraphEvents {queue : State} {work parents}
-    (prior : RetirementFrame queue work parents) (generated : ExecutedWork work)
+    (prior : RetirementFrame queue work parents)
+    (registration : queue.RegistrationFrame work) (generated : ExecutedWork work)
     (canonical
       : ∀ node dependencies,
           GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (events : List GraphEvent) (matching : ∀ event ∈ events, event.MatchesWork work)
     : RetirementFrame (queue.handleGraphEvents events).1 work parents := by
-  let step (acc : State × List WorkQueueEvent) (event : GraphEvent) :=
-    let (current, outputs) := acc
-    let (next, produced) := current.handleGraphEvent event
-    (next, outputs ++ produced)
-  have loop (more : List GraphEvent) (included : more.Subset events)
-      (acc : State × List WorkQueueEvent) (invariant : RetirementFrame acc.1 work parents)
-      : RetirementFrame (more.foldl step acc).1 work parents := by
-    induction more generalizing acc with
-    | nil => exact invariant
-    | cons event rest ih =>
-        exact ih (fun _ member => included (List.mem_cons_of_mem _ member)) _
-          (invariant.handleGraphEvent generated canonical event
-            (matching event (included List.mem_cons_self)))
-  unfold State.handleGraphEvents
-  split
-  · exact prior
-  · have final := loop events (fun _ member => member) (queue, []) prior
-    dsimp only
-    split <;> exact ⟨final.groups, final.links, final.live, final.tasks, final.roots, final.retired⟩
+  cases running : queue.terminated with
+  | true => simpa only [State.handleGraphEvents, running, ↓reduceIte] using prior
+  | false =>
+      obtain ⟨terminal, same⟩ := queue.handleGraphEvents_stateCore events running
+      have final := prior.replayGraphEvents registration generated canonical events matching
+        (GraphEvent.availableFailures events)
+      rw [same]
+      exact ⟨final.groups, final.links, final.live, final.tasks, final.roots, final.retired⟩
 
 /-- Publisher normalization preserves the queue's structural frame across matched batches.
 Witness: the publisher leaves queue fields unchanged after each actual host-batch handler.
 -/
 private theorem RetirementFrame.runNormalized {queue : State} {work parents}
-    (prior : RetirementFrame queue work parents) (generated : ExecutedWork work)
+    (prior : RetirementFrame queue work parents)
+    (registration : queue.RegistrationFrame work) (generated : ExecutedWork work)
     (canonical
       : ∀ node dependencies,
           GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (batches : List (List GraphEvent))
     (matching : ∀ batch ∈ batches, ∀ event ∈ batch, event.MatchesWork work)
     : RetirementFrame (queue.runNormalized batches).1 work parents := by
-  have step (acc : NormalizedAcc) (batch : List GraphEvent)
-      (matched : ∀ event ∈ batch, event.MatchesWork work)
-      (invariant : RetirementFrame acc.1 work parents)
-      : RetirementFrame (normalizedStep acc batch).1 work parents := by
-    have next := invariant.handleGraphEvents generated canonical batch matched
-    unfold normalizedStep
-    dsimp only
-    split <;> exact next
-  have loop (more : List (List GraphEvent)) (included : more.Subset batches)
-      (acc : NormalizedAcc) (invariant : RetirementFrame acc.1 work parents)
-      : RetirementFrame (more.foldl normalizedStep acc).1 work parents := by
-    induction more generalizing acc with
-    | nil => exact invariant
-    | cons batch rest ih =>
-        exact ih (fun _ member => included (List.mem_cons_of_mem _ member)) _
-          (step acc batch (matching batch (included List.mem_cons_self)) invariant)
-  exact loop batches (fun _ member => member)
-    (queue, { active := queue.initialGroups ++ queue.initialStreams }, []) prior
+  rw [State.runNormalized_replayBatches]
+  induction batches generalizing queue with
+  | nil => exact prior
+  | cons batch rest ih =>
+      have matched := matching batch List.mem_cons_self
+      exact ih (prior.handleGraphEvents registration generated canonical batch matched)
+        (registration.handleGraphEvents batch matched).1
+        (fun more member => matching more (List.mem_cons_of_mem _ member))
 
-/-- Sequential source replay preserves the same structural frame without batch controls.
-Witness: fold over matched actual event handlers; termination flags are irrelevant here.
+/-- Item preparation preserves the structural retirement frame at the actual drain
+entry, for an arbitrary prior queue satisfying those internal invariants.
 -/
-private theorem RetirementFrame.replayGraphEvents {queue : State} {work parents}
-    (prior : RetirementFrame queue work parents) (generated : ExecutedWork work)
+theorem State.preparedStreamItems_structuralRetirement {queue : State} {work parents}
+    (generated : ExecutedWork work) (groups : queue.GroupNodesMatchWork work)
+    (links : queue.ChildLinksCanonical parents)
     (canonical
       : ∀ node dependencies,
           GroupRecordAt work node dependencies → dependencies = parents node.ref)
-    (events : List GraphEvent) (matching : ∀ event ∈ events, event.MatchesWork work)
-    : RetirementFrame (queue.replayGraphEvents events) work parents := by
-  induction events generalizing queue with
-  | nil => exact prior
-  | cons event rest ih =>
-      exact ih (prior.handleGraphEvent generated canonical event
-        (matching event List.mem_cons_self))
-        (fun next member => matching next (List.mem_cons_of_mem _ member))
+    (live : queue.LiveGroupsRegistered) (tasks : queue.TaskGroupsRegistered)
+    (roots : queue.RootAncestorsRetired work)
+    (retired : queue.UncancelledRetiredAncestors work) {stream items}
+    (matching : (GraphEvent.streamItems stream items).MatchesWork work)
+    (available : List (Occurrence × Nat) := [])
+    : let prepared := queue.preparedStreamItems items available
+      prepared.GroupNodesMatchWork work
+      ∧ prepared.ChildLinksCanonical parents
+      ∧ prepared.LiveGroupsRegistered
+      ∧ prepared.TaskGroupsRegistered
+      ∧ prepared.RootAncestorsRetired work
+      ∧ prepared.UncancelledRetiredAncestors work := by
+  have prior : RetirementFrame queue work parents := ⟨groups, links, live, tasks, roots, retired⟩
+  have prepared := State.preparedStreamItems_preserves
+    (fun current => RetirementFrame current work parents) prior items available
+    (fun _ _ member frame =>
+      (frame.integrateStreamItem_with_notices generated canonical matching member available).1)
+  exact ⟨prepared.groups, prepared.links, prepared.live, prepared.tasks,
+    prepared.roots, prepared.retired⟩
+
+/-- A matched handler preserves the structural certificates needed by owner replay.
+The result is derived from its actual cache-aware transition, without a health premise.
+-/
+theorem State.handleGraphEvent_structuralRetirement {queue : State} {work parents}
+    (generated : ExecutedWork work) (groups : queue.GroupNodesMatchWork work)
+    (links : queue.ChildLinksCanonical parents)
+    (canonical
+      : ∀ node dependencies,
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
+    (live : queue.LiveGroupsRegistered) (tasks : queue.TaskGroupsRegistered)
+    (registration : queue.RegistrationFrame work)
+    (roots : queue.RootAncestorsRetired work)
+    (retired : queue.UncancelledRetiredAncestors work) (event : GraphEvent)
+    (matching : event.MatchesWork work) (available : List (Occurrence × Nat) := [])
+    : (queue.handleGraphEvent event available).1.LiveGroupsRegistered
+      ∧ (queue.handleGraphEvent event available).1.RootAncestorsRetired work
+      ∧ (queue.handleGraphEvent event available).1.UncancelledRetiredAncestors work := by
+  have prior : RetirementFrame queue work parents := ⟨groups, links, live, tasks, roots, retired⟩
+  have next := prior.handleGraphEvent registration generated canonical event matching available
+  exact ⟨next.live, next.roots, next.retired⟩
 
 -----------------------------------------------------------------------------------------
 -- Generated replay has structural retirement without health or output-admission premises
@@ -537,14 +636,15 @@ theorem ExecutedWork.runNormalized_structuralRetirement {work : Execution.Work}
     : let queue := ((State.initialize (Work.fromExecution work)).runNormalized batches).1
       queue.RootAncestorsRetired work ∧ queue.UncancelledRetiredAncestors work := by
   obtain ⟨parents, canonical⟩ := generated.groupRecordsCanonical
-  have registered := createWorkQueue_registration work
+  have registered := createWorkQueue_registration work generated.declarations
+  have declarationFrame := State.initialize_registrationFrame generated.declarations
   have initial : RetirementFrame (State.initialize (Work.fromExecution work)) work parents :=
     ⟨createWorkQueue_groupNodesMatchWork work,
       createWorkQueue_childLinksCanonical _ parents
-        (fun _ member => workFromSpec_groups_parentCanonical Located.root canonical member),
+        (fun _ member => workFromSpec_groups_parentCanonical_root canonical member),
       registered.1, registered.2, generated.initialRootAncestorsRetired,
       generated.initialUncancelledRetirement⟩
-  have final := initial.runNormalized generated canonical batches matching
+  have final := initial.runNormalized declarationFrame generated canonical batches matching
   exact ⟨final.roots, final.retired⟩
 
 /-- Sequential matched replay retains root and uncancelled ancestor certificates.
@@ -554,17 +654,20 @@ requiring accepted input, completed output, or a selected schedule.
 theorem ExecutedWork.replayGraphEvents_structuralRetirement {work : Execution.Work}
     (generated : ExecutedWork work) (events : List GraphEvent)
     (matching : ∀ event ∈ events, event.MatchesWork work)
-    : let queue := (State.initialize (Work.fromExecution work)).replayGraphEvents events
+    (available : List (Occurrence × Nat) := [])
+    : let queue :=
+        (State.initialize (Work.fromExecution work)).replayGraphEvents events available
       queue.RootAncestorsRetired work ∧ queue.UncancelledRetiredAncestors work := by
   obtain ⟨parents, canonical⟩ := generated.groupRecordsCanonical
-  have registered := createWorkQueue_registration work
+  have registered := createWorkQueue_registration work generated.declarations
+  have declarationFrame := State.initialize_registrationFrame generated.declarations
   have initial : RetirementFrame (State.initialize (Work.fromExecution work)) work parents :=
     ⟨createWorkQueue_groupNodesMatchWork work,
       createWorkQueue_childLinksCanonical _ parents
-        (fun _ member => workFromSpec_groups_parentCanonical Located.root canonical member),
+        (fun _ member => workFromSpec_groups_parentCanonical_root canonical member),
       registered.1, registered.2, generated.initialRootAncestorsRetired,
       generated.initialUncancelledRetirement⟩
-  have final := initial.replayGraphEvents generated canonical events matching
+  have final := initial.replayGraphEvents declarationFrame generated canonical events matching available
   exact ⟨final.roots, final.retired⟩
 
 /-- Actual carried notices have their task-bearing ancestors retired by that handler.
@@ -576,23 +679,32 @@ theorem ExecutedWork.replayGraphEvents_next_noticeAncestorsRetired
     {work before event} (generated : ExecutedWork work)
     (matching : ∀ past ∈ before, past.MatchesWork work)
     (incoming : event.MatchesWork work)
+    (available : List (Occurrence × Nat) := [])
     : ((State.initialize (Work.fromExecution work)).replayGraphEvents
-        (before ++ [event])).GroupNoticeAncestorsRetired
+        (before ++ [event]) available).GroupNoticeAncestorsRetired
         work
         (((State.initialize (Work.fromExecution work)).replayGraphEvents
-            before).handleGraphEvent
-          event).2 := by
+            before available).handleGraphEvent
+          event available).2.1 := by
   obtain ⟨parents, canonical⟩ := generated.groupRecordsCanonical
-  have registered := createWorkQueue_registration work
+  have registered := createWorkQueue_registration work generated.declarations
+  have declarationFrame := State.initialize_registrationFrame generated.declarations
   have initial : RetirementFrame (State.initialize (Work.fromExecution work)) work parents :=
     ⟨createWorkQueue_groupNodesMatchWork work,
       createWorkQueue_childLinksCanonical _ parents
-        (fun _ member => workFromSpec_groups_parentCanonical Located.root canonical member),
+        (fun _ member => workFromSpec_groups_parentCanonical_root canonical member),
       registered.1, registered.2, generated.initialRootAncestorsRetired,
       generated.initialUncancelledRetirement⟩
-  have prior := initial.replayGraphEvents generated canonical before matching
+  have prior := initial.replayGraphEvents declarationFrame generated canonical before matching available
+  have noticed := prior.handleGraphEvent_noticeRetirement
+    (declarationFrame.replayGraphEvents before matching available).1 generated canonical event incoming
+    available
+  have dispatched : (((State.initialize (Work.fromExecution work)).replayGraphEvents before
+      available).dispatchGraphEvent event available).1.GroupNoticeAncestorsRetired work
+        (((State.initialize (Work.fromExecution work)).replayGraphEvents before available).handleGraphEvent
+          event available).2.1 := noticed.mono (fun _ retired => retired)
   simpa only [State.replayGraphEvents, List.foldl_append, List.foldl_cons, List.foldl_nil]
-    using prior.handleGraphEvent_noticeRetirement generated canonical event incoming
+    using dispatched
 
 /-- A matched successful input's prepared state has all structural release certificates.
 Witness: the same generated replay frame, followed only by value installation and matched
@@ -603,7 +715,14 @@ theorem ExecutedWork.replayGraphEvents_preparedRetirement {work : Execution.Work
     (matching : ∀ event ∈ events, event.MatchesWork work) {occurrence result}
     (matched : (GraphEvent.taskSuccess occurrence result).MatchesWork work)
     (node : TaskNode)
-    : let queue := (State.initialize (Work.fromExecution work)).replayGraphEvents events
+    (available : List (Occurrence × Nat) := [])
+    (found
+      : ((State.initialize (Work.fromExecution work)).replayGraphEvents
+          events available).taskNode?
+          occurrence
+        = some node)
+    : let queue :=
+        (State.initialize (Work.fromExecution work)).replayGraphEvents events available
       let prepared :=
         ((queue.putTaskNode { node with value := some result.value }).maybeIntegrateWork
           result.work (some occurrence)).1
@@ -617,22 +736,27 @@ theorem ExecutedWork.replayGraphEvents_preparedRetirement {work : Execution.Work
         ∧ prepared.RootAncestorsRetired work
         ∧ prepared.UncancelledRetiredAncestors work := by
   obtain ⟨parents, canonical⟩ := generated.groupRecordsCanonical
-  have registered := createWorkQueue_registration work
+  have registered := createWorkQueue_registration work generated.declarations
+  have declarationFrame := State.initialize_registrationFrame generated.declarations
   have initial : RetirementFrame (State.initialize (Work.fromExecution work)) work parents :=
     ⟨createWorkQueue_groupNodesMatchWork work,
       createWorkQueue_childLinksCanonical _ parents
-        (fun _ member => workFromSpec_groups_parentCanonical Located.root canonical member),
+        (fun _ member => workFromSpec_groups_parentCanonical_root canonical member),
       registered.1, registered.2, generated.initialRootAncestorsRetired,
       generated.initialUncancelledRetirement⟩
-  have prior := initial.replayGraphEvents generated canonical events matching
+  have prior := initial.replayGraphEvents declarationFrame generated canonical events matching available
   have stored : RetirementFrame
-      (((State.initialize (Work.fromExecution work)).replayGraphEvents events).putTaskNode
+      (((State.initialize (Work.fromExecution work)).replayGraphEvents events available).putTaskNode
         { node with value := some result.value }) work parents :=
     ⟨prior.groups, prior.links, prior.live, prior.tasks, prior.roots, prior.retired⟩
+  have replayed := (declarationFrame.replayGraphEvents events matching available).1
+  have certificate := (replayed.children node.task
+    (replayed.started node (List.mem_of_find?_eq_some found))).sourceChild
+      (State.taskNode?_some found).2 matched
   have prepared := stored.maybeIntegrateWork result.work
     (fun _ member => matched.taskChildGroups_recordAt member)
     (fun _ member => matched.taskChildGroups_parentCanonical canonical member)
-    matched.childTasksCovered (some occurrence)
+    certificate.contributors (some occurrence) generated canonical certificate.parentRefs
   exact ⟨parents, canonical, prepared.groups, prepared.links, prepared.live, prepared.tasks,
     prepared.roots, prepared.retired⟩
 
@@ -644,8 +768,10 @@ theorem ExecutedWork.replayGraphEvents_streamPreparedRetirement {work : Executio
     (generated : ExecutedWork work) (events : List GraphEvent)
     (matching : ∀ event ∈ events, event.MatchesWork work) {stream items}
     (matched : (GraphEvent.streamItems stream items).MatchesWork work)
-    : let queue := (State.initialize (Work.fromExecution work)).replayGraphEvents events
-      let prepared := queue.preparedStreamItems items
+    (available : List (Occurrence × Nat) := [])
+    : let queue :=
+        (State.initialize (Work.fromExecution work)).replayGraphEvents events available
+      let prepared := queue.preparedStreamItems items available
       ∃ parents,
         (∀ group dependencies,
           GroupRecordAt work group dependencies → dependencies = parents group.ref)
@@ -656,18 +782,19 @@ theorem ExecutedWork.replayGraphEvents_streamPreparedRetirement {work : Executio
         ∧ prepared.RootAncestorsRetired work
         ∧ prepared.UncancelledRetiredAncestors work := by
   obtain ⟨parents, canonical⟩ := generated.groupRecordsCanonical
-  have registered := createWorkQueue_registration work
+  have registered := createWorkQueue_registration work generated.declarations
+  have declarationFrame := State.initialize_registrationFrame generated.declarations
   have initial : RetirementFrame (State.initialize (Work.fromExecution work)) work parents :=
     ⟨createWorkQueue_groupNodesMatchWork work,
       createWorkQueue_childLinksCanonical _ parents
-        (fun _ member => workFromSpec_groups_parentCanonical Located.root canonical member),
+        (fun _ member => workFromSpec_groups_parentCanonical_root canonical member),
       registered.1, registered.2, generated.initialRootAncestorsRetired,
       generated.initialUncancelledRetirement⟩
-  have prior := initial.replayGraphEvents generated canonical events matching
+  have prior := initial.replayGraphEvents declarationFrame generated canonical events matching available
   have prepared := State.preparedStreamItems_preserves
-    (fun current => RetirementFrame current work parents) prior items
+    (fun current => RetirementFrame current work parents) prior items available
     (fun _ _ member frame =>
-      (frame.integrateStreamItem_with_notices generated canonical matched member).1)
+      (frame.integrateStreamItem_with_notices generated canonical matched member available).1)
   exact ⟨parents, canonical, prepared.groups, prepared.links, prepared.live, prepared.tasks,
     prepared.roots, prepared.retired⟩
 
@@ -679,19 +806,24 @@ theorem ExecutedWork.streamItems_prepared_noticeAncestorsRetired
     {work before stream items} (generated : ExecutedWork work)
     (matching : ∀ event ∈ before, event.MatchesWork work)
     (matched : (GraphEvent.streamItems stream items).MatchesWork work)
-    : let queue := (State.initialize (Work.fromExecution work)).replayGraphEvents before
-      let prepared := items.foldl streamItemStep (queue, [], [], [])
+    (available : List (Occurrence × Nat) := [])
+    : let queue :=
+        (State.initialize (Work.fromExecution work)).replayGraphEvents before available
+      let prepared :=
+        items.foldl (fun acc item => streamItemStep acc item available)
+          (queue, [], [], [], [])
       ∀ child ∈ prepared.2.1, prepared.1.AncestorsRetired work child.ref := by
   obtain ⟨parents, canonical⟩ := generated.groupRecordsCanonical
-  have registered := createWorkQueue_registration work
+  have registered := createWorkQueue_registration work generated.declarations
+  have declarationFrame := State.initialize_registrationFrame generated.declarations
   have initial : RetirementFrame (State.initialize (Work.fromExecution work)) work parents :=
     ⟨createWorkQueue_groupNodesMatchWork work,
       createWorkQueue_childLinksCanonical _ parents
-        (fun _ member => workFromSpec_groups_parentCanonical Located.root canonical member),
+        (fun _ member => workFromSpec_groups_parentCanonical_root canonical member),
       registered.1, registered.2, generated.initialRootAncestorsRetired,
       generated.initialUncancelledRetirement⟩
-  have prior := initial.replayGraphEvents generated canonical before matching
-  exact (prior.streamItemFold_with_notices generated canonical matched).2
+  have prior := initial.replayGraphEvents declarationFrame generated canonical before matching available
+  exact (prior.streamItemFold_with_notices generated canonical matched available).2
 
 /-- Valid sequential replay has healthy-retirement closure for accepted object failures.
 Witness: structural uncancelled closure and independently proved cancellation provenance.
@@ -719,9 +851,7 @@ theorem ExecutedWork.runNormalized_healthyRetiredAncestors {work : Execution.Wor
     (started : inputsStarted work batches = true)
     : ((State.initialize (Work.fromExecution work)).runNormalized
         batches).1.HealthyRetiredAncestors
-        work
-        ((State.initialize (Work.fromExecution work)).objectFailureContributions
-          batches.flatten) :=
+        work (GraphEvent.failureSettlements batches.flatten) :=
   (generated.runNormalized_structuralRetirement batches
     (fun _ batch _ event =>
       valid.eachMatches (List.mem_flatten.mpr ⟨_, batch, event⟩))).2.healthy
@@ -743,7 +873,7 @@ theorem ExecutedWork.runNormalized_missingParentAncestorsRetired {work : Executi
     fun _ batch _ event => valid.eachMatches (List.mem_flatten.mpr ⟨_, batch, event⟩)
   have closure := (generated.runNormalized_structuralRetirement batches matching).2
   have parentFields := (createWorkQueue_groupParentsCanonical (Work.fromExecution work) parents
-    (fun _ member => workFromSpec_groups_parentCanonical Located.root canonical member)
+    (fun _ member => workFromSpec_groups_parentCanonical_root canonical member)
     ).runNormalized batches matching canonical
   exact closure.missingParent generated valid.runNormalized_groupNodesMatchWork parentFields
     canonical (generated.runNormalized_parentsRegistered valid)

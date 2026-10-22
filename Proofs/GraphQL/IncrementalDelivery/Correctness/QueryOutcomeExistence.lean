@@ -2,6 +2,7 @@ import Proofs.GraphQL.IncrementalDelivery.Correctness.MixedExistence
 import Proofs.GraphQL.IncrementalDelivery.Correctness.QueryRealization
 import Proofs.GraphQL.IncrementalDelivery.Semantics.ExecutedRefRoles
 import Proofs.GraphQL.IncrementalDelivery.Semantics.ExecutedStreamAllocations
+import Proofs.GraphQL.IncrementalDelivery.Semantics.WorkSize
 
 /-! Complete query outcomes for every finite execution-generated work tree.
 Execution supplies all metadata; no scheduler, history, or work-shape premise is assumed.

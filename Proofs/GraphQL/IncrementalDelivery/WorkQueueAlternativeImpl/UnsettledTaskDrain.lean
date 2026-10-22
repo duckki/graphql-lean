@@ -1,8 +1,9 @@
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.StartupFailurePath
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.UnsettledTaskRetention
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.FailurePathTransport
 
-/-! Every live owner of an unsettled task survives the actual mixed drain or lies below
-a failure emitted by that drain. This covers unstarted tasks, without a buffered-value
+/-! An unsettled task owner survives successful draining or lies below a queued startup
+failure. This covers unstarted tasks, without a buffered-value
 premise, a cleanup conclusion, or a stronger event-source contract.
 -/
 
@@ -27,12 +28,9 @@ private theorem readyFacts {queue : Kernel} {node : GroupNode}
       : queue.rootGroups.findSome?
           (fun key => do
             let group ← queue.groupNode? key
-            if (queue.rejectedTask? group).isSome || group.pending == 0 then
-              some group
-            else
-              none)
+            if group.pending == 0 then some group else none)
         = some node)
-    : node ∈ queue.groupNodes ∧ (queue.rejectedTask? node = none → node.pending = 0) := by
+    : node ∈ queue.groupNodes ∧ node.pending = 0 := by
   obtain ⟨key, _, choice⟩ := List.exists_of_findSome?_eq_some selected
   cases found : queue.groupNode? key with
   | none => simp [found] at choice
@@ -42,9 +40,7 @@ private theorem readyFacts {queue : Kernel} {node : GroupNode}
       split at choice
       · rename_i ready
         cases Option.some.inj choice
-        refine ⟨List.mem_of_find?_eq_some found, ?_⟩
-        intro healthy
-        simpa only [healthy, Option.isSome_none, Bool.false_or, beq_iff_eq] using ready
+        exact ⟨List.mem_of_find?_eq_some found, beq_iff_eq.mp ready⟩
       · contradiction
 
 -----------------------------------------------------------------------------------------
@@ -67,72 +63,53 @@ theorem drain_unsettledTask_ownerCut {before current : Kernel}
     (bounded : current.PendingBound (fun _ => True) settled)
     (fresh : occurrence ∉ settled) (fuel : Nat) (contributes : key ∈ keys)
     (present : key ∈ current.groupNodes.map (fun group => group.group.node.ref))
-    : let drained := ReferenceWorkQueue.State.drainReadyGroups.go fuel current
+    : let drained := ReferenceWorkQueue.State.drainReadyGroups.go [] fuel current
       key ∈ drained.1.groupNodes.map (fun group => group.group.node.ref)
-      ∨ ∃ root ∈ failureRoots drained.2,
-          (failurePruningView before event (preceding ++ drained.2)).LiveDescendant root
-            key := by
+      ∨ ∃ failure ∈ drained.2.2,
+          (failurePruningView before event (preceding ++ drained.2.1)).LiveDescendant
+            failure.group.ref key := by
   induction fuel generalizing current preceding with
-  | zero => exact Or.inl present
+  | zero => exact .inl present
   | succ fuel ih =>
       unfold ReferenceWorkQueue.State.drainReadyGroups.go
       dsimp only
       split
-      · exact Or.inl present
+      · exact .inl present
       · rename_i group selected
         obtain ⟨member, zero⟩ := readyFacts selected
-        cases cached : current.rejectedTask? group with
-        | none =>
-            dsimp only
-            let released := current.finishGroupSuccess group
-            let next := released.1.startNewWork released.2.2
-            have all := bounded.allSettled member trivial (zero cached)
-            have unlisted : occurrence ∉ group.tasks := fun listed => fresh (all occurrence listed)
-            have nextPresent : key ∈ next.groupNodes.map (fun group => group.group.node.ref) := by
-              rw [(ReferenceWorkQueue.State.startNewWork_groupCore _ _).1]
-              exact finishGroupSuccess_linkedOwner_present links group member unlisted contributes present
-            have nextLinks := (links.finishOtherGroupSuccess group unlisted).startNewWork released.2.2
-            have nextBound := (bounded.finishGroupSuccess group all).startNewWork released.2.2
-            have nextEdges : next.GroupEdgesFrom (registrationSnapshot before event) := by
-              apply ReferenceWorkQueue.State.GroupEdgesFrom.trans _ edges
-              intro key candidate lookup
-              rw [ReferenceWorkQueue.State.groupNode?,
-                (ReferenceWorkQueue.State.startNewWork_groupCore _ _).1] at lookup
-              exact (current.finishGroupSuccess_descendants group).1 key candidate lookup
-            have nextClosures := closures.append
-              ((ReferenceWorkQueue.State.finishGroupSuccess_closureAccounting frame.live group member).post
-                (fun _ retired => retired.startNewWork released.2.2))
-            rcases ih (frame.finishGroupSuccess group |>.startNewWork released.2.2)
-                (forest.finishGroupSuccess group |>.startNewWork released.2.2)
-                nextEdges nextClosures nextLinks nextBound nextPresent with kept | cut
-            · exact Or.inl kept
-            · obtain ⟨root, failed, path⟩ := cut
-              refine Or.inr ⟨root, ?_, ?_⟩
-              · rw [failureRoots, List.filterMap_append]
-                exact List.mem_append_right _ failed
-              · simpa only [List.append_assoc] using path
-        | some rejection =>
-            obtain ⟨failed, errors⟩ := rejection
-            dsimp only
-            let next := (current.taskFailure failed errors).1
-            rcases taskFailure_ownerCut failed errors fuel forest frame.keys edges closures present with
-              nextPresent | cut
-            · have nextEdges := (current.taskFailure_groupEdgesFrom failed errors).trans edges
-              have nextClosures := closures.append
-                (ReferenceWorkQueue.State.taskFailure_closureAccounting frame.live failed errors)
-              rcases ih (frame.taskFailure failed errors) (forest.taskFailure failed errors)
-                  nextEdges nextClosures (links.taskFailure_preserves failed errors)
-                  (bounded.taskFailure_preserves failed errors) nextPresent with kept | cut
-              · exact .inl kept
-              · obtain ⟨root, reported, path⟩ := cut
-                refine .inr ⟨root, ?_, ?_⟩
-                · rw [failureRoots, List.filterMap_append]
-                  exact List.mem_append_right _ reported
-                · simpa only [List.append_assoc] using path
-            · obtain ⟨root, reported, path⟩ := cut
-              refine .inr ⟨root, ?_, ?_⟩
-              · rw [failureRoots, List.filterMap_append]
-                exact List.mem_append_left _ reported
-              · simpa only [List.append_assoc] using path
+        let released := current.finishGroupSuccess group
+        let startup := released.1.startNewWork released.2.2
+        let next := startup.1
+        have all := bounded.allSettled member trivial zero
+        have unlisted : occurrence ∉ group.tasks := fun listed => fresh (all occurrence listed)
+        have afterPresent := finishGroupSuccess_linkedOwner_present links group member unlisted
+          contributes present
+        have afterForest := forest.finishGroupSuccess group
+        have afterEdges := ((current.finishGroupSuccess_descendants group).1).trans edges
+        have afterClosures := closures.append
+          (ReferenceWorkQueue.State.finishGroupSuccess_closureAccounting frame.live group member)
+        rcases ReferenceWorkQueue.State.startNewWork_ownerCut afterForest released.2.2
+            (liveLookup afterPresent) with kept | cut
+        · obtain ⟨owner, lookup⟩ := kept
+          have nextPresent : key ∈ next.groupNodes.map (fun group => group.group.node.ref) :=
+            List.mem_map.mpr ⟨owner, List.mem_of_find?_eq_some lookup,
+              ReferenceWorkQueue.State.groupNode?_ref lookup⟩
+          have nextLinks := (links.finishOtherGroupSuccess group unlisted).startNewWork released.2.2
+          have nextBound := (bounded.finishGroupSuccess group all).startNewWork released.2.2
+          have nextEdges := (ReferenceWorkQueue.State.startNewWork_groupEdgesFrom
+            released.1 released.2.2).trans afterEdges
+          have nextClosures := afterClosures.post
+            (fun _ retired => retired.startNewWork released.2.2)
+          rcases ih (frame.finishGroupSuccess group |>.startNewWork released.2.2)
+              (afterForest.startNewWork released.2.2) nextEdges nextClosures nextLinks nextBound
+              nextPresent with kept | cut
+          · exact .inl kept
+          · obtain ⟨failure, queued, path⟩ := cut
+            exact .inr ⟨failure, List.mem_append_right _ queued,
+              by simpa only [List.append_assoc] using path⟩
+        · obtain ⟨failure, queued, path⟩ := cut
+          refine .inr ⟨failure, List.mem_append_left _ queued, ?_⟩
+          simpa only [List.append_assoc] using startupFailureBoundary_path released.2.2
+            afterForest afterEdges afterClosures fuel queued path
 
 end GraphQL.IncrementalDelivery.AlternativeWorkQueue.NativeRefinement

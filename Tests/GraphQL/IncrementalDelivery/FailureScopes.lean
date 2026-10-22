@@ -71,15 +71,17 @@ private def work : Work :=
   .combine
     (.combine
       (.combine .empty
-        (.combine
-          (.executionGroup [⟨deep, []⟩, ⟨hidden, [parent]⟩] [.field "user"]
-            ({ result := .error 1, cause := some 1 }) .empty) .empty)) .empty)
-    (.combine
-      (.executionGroup [⟨parent, []⟩] [] ({ result := .ok (parentData, 0) })
-        (.combine .empty .empty))
+        (.declareGroups [⟨deep, []⟩]
+          (.combine
+            (.executionGroup [⟨deep, []⟩, ⟨hidden, [parent]⟩] [.field "user"]
+              ({ result := .error 1, cause := some 1 }) .empty) .empty))) .empty)
+    (.declareGroups [⟨parent, []⟩, ⟨hidden, [parent]⟩]
       (.combine
-        (.executionGroup [⟨hidden, [parent]⟩] [] ({ result := .ok (hiddenData, 0) })
-          (.combine .empty .empty)) .empty))
+        (.executionGroup [⟨parent, []⟩] [] ({ result := .ok (parentData, 0) })
+          (.combine .empty .empty))
+        (.combine
+          (.executionGroup [⟨hidden, [parent]⟩] [] ({ result := .ok (hiddenData, 0) })
+            (.combine .empty .empty)) .empty)))
 
 /-- The problematic shared and private tasks are produced by real query execution.
 Witness: reduction of defer collection and pure field completion.
@@ -261,8 +263,9 @@ private theorem failure_allowed
     : EventAllowed work initial matching [] failures (.groupFailure deep 1) := by
   refine ⟨⟨[], none, deep_node⟩, by unfold Open; decide, ?_, ?_⟩
   · exact NodeFailed.task shared_known (by simp) (by simp [failures, failedBefore])
-  · exact ⟨sharedTask, by simp [failures, failedBefore], _, _, _, shared_known,
-      by simp, rfl, by decide⟩
+  · exact NodeFailureCause.toCauses
+      ⟨sharedTask, by simp [failures, failedBefore], _, _, _, shared_known,
+        by simp, rfl, by decide⟩
 
 private theorem values_allowed
     : EventAllowed work initial matching [.groupFailure deep 1] failures values := by
@@ -304,7 +307,7 @@ private theorem closure_allowed
   · exact ⟨by simp, by simp, by simp⟩
 
 private theorem explained : Explains work [deep, parent] [] events matching failures := by
-  refine ⟨initialized, failure_licensed, ?_⟩
+  refine Explains.of_causal_failures initialized failure_licensed (by simp [failures]) ?_
   intro index event selected
   match index with
   | 0 => cases selected; exact failure_allowed
@@ -468,8 +471,9 @@ private theorem reporting_explained
   apply released.append_event
   refine ⟨⟨[parent.ref], none, hidden_node⟩, by unfold Open; decide, ?_, ?_⟩
   · exact NodeFailed.task shared_known (by simp) (by simp [failedBefore, failures])
-  · exact ⟨sharedTask, by simp [failures, failedBefore], _, _, _, shared_known,
-      by simp, rfl, by decide⟩
+  · exact NodeFailureCause.toCauses
+      ⟨sharedTask, by simp [failures, failedBefore], _, _, _, shared_known,
+        by simp, rfl, by decide⟩
 
 /-- Releasing the retained owner repairs the stronger constructive frontier.
 Witness: every represented group is announced in the repaired history, so none is fresh.
@@ -515,7 +519,7 @@ theorem generated_reporting_accounting
   rw [execution_generated] at coherent continuous roleCoherent pathCoherent ordered
   obtain ⟨groups, streams, starts, covers⟩ := initialized.covering_exists
   have first : Explains work groups streams [] matching [] :=
-    ⟨starts, by simp [FailureWitness], by simp⟩
+    Explains.of_causal_failures starts (by simp [FailureWitness]) (by simp) (by simp)
   obtain ⟨tail, next, cuts, admitted, frontier, accounted, closed, _⟩ :=
     Correctness.mixed_reporting_closed_extension valid coherent roleCoherent continuous
       ordered pathCoherent
@@ -559,7 +563,8 @@ theorem generated_reporting_completeRun : ∃ history, AdmissibleRun work histor
   have roles : Semantics.RefRoles.WorkRoles (fun _ => false) work := by
     simp [Semantics.RefRoles.WorkRoles, work]
   have positive : Correctness.ExecutionErrors.WorkPositive work := by
-    simp [Correctness.ExecutionErrors.WorkPositive, Semantics.BasicErrors.PositiveFailure, TaskOutcome.deliveryResult,
+    simp [Correctness.ExecutionErrors.WorkPositive, Semantics.BasicErrors.PositiveFailure,
+      TaskOutcome.deliveryResult,
       work]
   have under : Correctness.ExecutionPaths.WorkUnder [] work := by
     simp [Correctness.ExecutionPaths.WorkUnder, work]
@@ -585,7 +590,8 @@ theorem root_zero_failure_unexplained (outputs : List WorkQueueEvent)
   have roles : Semantics.RefRoles.WorkRoles (fun _ => false) work := by
     simp [Semantics.RefRoles.WorkRoles, work]
   have positive : Correctness.ExecutionErrors.WorkPositive work := by
-    simp [Correctness.ExecutionErrors.WorkPositive, Semantics.BasicErrors.PositiveFailure, TaskOutcome.deliveryResult,
+    simp [Correctness.ExecutionErrors.WorkPositive, Semantics.BasicErrors.PositiveFailure,
+      TaskOutcome.deliveryResult,
       work]
   rcases Correctness.Explains.zero_group_completion_dependency_or_unavailable_producer
     coherent roles positive explained deep_node selected with dependency | producer
@@ -683,7 +689,8 @@ theorem zero_group_failure_unexplained
   have roles : Semantics.RefRoles.WorkRoles (fun _ => false) work := by
     simp [Semantics.RefRoles.WorkRoles, work]
   have positive : Correctness.ExecutionErrors.WorkPositive work := by
-    simp [Correctness.ExecutionErrors.WorkPositive, Semantics.BasicErrors.PositiveFailure, TaskOutcome.deliveryResult,
+    simp [Correctness.ExecutionErrors.WorkPositive, Semantics.BasicErrors.PositiveFailure,
+      TaskOutcome.deliveryResult,
       work]
   have nonzero := Correctness.Explains.group_failure_positive valid coherent roles positive
     admitted selected
@@ -706,7 +713,8 @@ theorem announced_failed_hidden_reports_scope
   have roles : Semantics.RefRoles.WorkRoles (fun _ => false) work := by
     simp [Semantics.RefRoles.WorkRoles, work]
   have positive : Correctness.ExecutionErrors.WorkPositive work := by
-    simp [Correctness.ExecutionErrors.WorkPositive, Semantics.BasicErrors.PositiveFailure, TaskOutcome.deliveryResult,
+    simp [Correctness.ExecutionErrors.WorkPositive, Semantics.BasicErrors.PositiveFailure,
+      TaskOutcome.deliveryResult,
       work]
   apply Correctness.Explains.announced_failed_group_reports_scope valid coherent roles
     pathCoherent positive reporting_explained
@@ -738,7 +746,8 @@ theorem every_accepted_failure_reported
   have roles : Semantics.RefRoles.WorkRoles (fun _ => false) work := by
     simp [Semantics.RefRoles.WorkRoles, work]
   have positive : Correctness.ExecutionErrors.WorkPositive work := by
-    simp [Correctness.ExecutionErrors.WorkPositive, Semantics.BasicErrors.PositiveFailure, TaskOutcome.deliveryResult,
+    simp [Correctness.ExecutionErrors.WorkPositive, Semantics.BasicErrors.PositiveFailure,
+      TaskOutcome.deliveryResult,
       work]
   exact Correctness.Explains.accepted_failure_reported valid coherent roles pathCoherent
     positive admitted closed recorded known
@@ -769,7 +778,8 @@ theorem latent_failed_owner_reports_private_task
   have roles : Semantics.RefRoles.WorkRoles (fun _ => false) work := by
     simp [Semantics.RefRoles.WorkRoles, work]
   have positive : Correctness.ExecutionErrors.WorkPositive work := by
-    simp [Correctness.ExecutionErrors.WorkPositive, Semantics.BasicErrors.PositiveFailure, TaskOutcome.deliveryResult,
+    simp [Correctness.ExecutionErrors.WorkPositive, Semantics.BasicErrors.PositiveFailure,
+      TaskOutcome.deliveryResult,
       work]
   exact Correctness.Explains.failed_owner_reported_of_root_groups valid coherent roles
     pathCoherent positive admitted covered satisfied closed
@@ -818,7 +828,8 @@ theorem retained_frontier_reports_private_attachment
   change Semantics.MixedOwnerPaths.WorkAt paths _ completed.work at coherent
   rw [execution_generated] at coherent
   have positive : Correctness.ExecutionErrors.WorkPositive work := by
-    simp [Correctness.ExecutionErrors.WorkPositive, Semantics.BasicErrors.PositiveFailure, TaskOutcome.deliveryResult,
+    simp [Correctness.ExecutionErrors.WorkPositive, Semantics.BasicErrors.PositiveFailure,
+      TaskOutcome.deliveryResult,
       work]
   apply Correctness.Explains.recorded_group_reported_of_covered_frontier
     (cut := 0)
@@ -973,10 +984,12 @@ Witness: exact replay promotes H after P closes, then emits H's retained error c
 This supplies the broader report required by the revised terminal contract.
 -/
 theorem reference_reports_broad_failure
-    : ReferenceWorkQueue.inputsStarted work [[failed], [succeeded]] = true
+    : ReferenceWorkQueue.inputsStarted work
+          [[failed], [succeeded, .groupFailure { group := hidden, errors := 1 }]]
+        = true
       ∧ ((ReferenceWorkQueue.State.initialize
             (ReferenceWorkQueue.Work.fromExecution work)).runNormalized
-          [[failed], [succeeded]]).2
+          [[failed], [succeeded, .groupFailure { group := hidden, errors := 1 }]]).2
         = [
           [.groupFailure deep 1],
           [

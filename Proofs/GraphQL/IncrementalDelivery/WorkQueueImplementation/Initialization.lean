@@ -148,7 +148,7 @@ theorem initialGroups_recordAt (work : Execution.Work)
   have supplied : ∀ candidate ∈ input.groups,
       ∃ dependencies, GroupRecordAt work candidate.node dependencies := by
     intro candidate included
-    obtain ⟨dependencies, known, _⟩ := workFromSpec_groups_recordAt Located.root included
+    obtain ⟨dependencies, known, _⟩ := workFromSpec_groups_recordAt_root included
     exact ⟨dependencies, known⟩
   have empty : ({} : State).GroupNodesMatchWork work := by
     intro node impossible

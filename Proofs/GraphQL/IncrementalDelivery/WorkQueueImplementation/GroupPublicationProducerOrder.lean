@@ -30,24 +30,21 @@ theorem Witness.groupPublication_reusedProducerPublished
             active :=
               (initialQueue work).initialGroups ++ (initialQueue work).initialStreams
           }
-          ((initialQueue work).rawEventReplay inputs.flatten).2 index owner payload)
+          ((initialQueue work).rawBatches inputs).2 index owner payload)
     (produced : TaskHasProducer work (w.matching index) (some (.executionGroup source)))
     (parent : TaskAt work (.executionGroup source) parentOwners ancestor parentPayload)
     (contributes : origin.group.ref ∈ parentOwners)
     : Published w.matching (w.events.take index) (.executionGroup source) := by
   obtain ⟨published, batched, exactLedger, interpret, _⟩ := ledger
-  have accepted : (initialQueue work).batchesStarted inputs = true := by
-    rwa [← inputsStarted_eq_batchesStarted]
-  have atCarrier : ((initialQueue work).rawEventReplay inputs.flatten).2[origin.before.length + 1]?
+  have atCarrier : ((initialQueue work).rawBatches inputs).2[origin.before.length + 1]?
       = some (.groupSuccess origin.group origin.groups origin.streams) := by
     have output := congrArg (fun raw : List WorkQueueEvent =>
       raw[origin.before.length + 1]?) origin.rawEq
     simpa using output
-  obtain ⟨parentValue, covered⟩ := generated.rawEventReplay_groupContributor_covered valid
-    ((initialQueue work).batchesStarted_acceptsBatch inputs accepted)
-    (batched.flatten accepted) atCarrier parent contributes
+  obtain ⟨parentValue, covered⟩ := generated.rawBatches_groupContributor_covered valid
+    started batched atCarrier parent contributes
   have countAtCarrier :
-      (((((initialQueue work).rawEventReplay inputs.flatten).2.take
+      (((((initialQueue work).rawBatches inputs).2.take
           (origin.before.length + 1)).flatMap WorkQueueEvent.objectValues).length)
         = (origin.before.flatMap WorkQueueEvent.objectValues).length + origin.values.length := by
     have output := congrArg (fun raw : List WorkQueueEvent =>
@@ -56,9 +53,8 @@ theorem Witness.groupPublication_reusedProducerPublished
     simpa [List.take_append, List.take_of_length_le (Nat.le_add_right _ _),
       WorkQueueEvent.objectValues] using output
   rw [countAtCarrier, List.take_add] at covered
-  have historyEq := history.trans (createWorkQueue_nonterminalAtoms_flattened inputs started)
   have rank := origin.objectRank
-  rw [← historyEq] at rank
+  rw [(Witness.rawBatches_canonical history selected).2] at rank
   have atObject := exactLedger.atObject index owner payload selected
   rw [rank, List.getElem?_map] at atObject
   have within := (List.getElem?_eq_some_iff.mp origin.found).1
@@ -74,13 +70,13 @@ theorem Witness.groupPublication_reusedProducerPublished
       | some entry =>
           have same : entry.1 = w.matching index := by
             simpa only [found, Option.map_some, Option.some.injEq] using atObject
-          have atRaw : ((initialQueue work).rawEventReplay inputs.flatten).2[origin.before.length]?
+          have atRaw : ((initialQueue work).rawBatches inputs).2[origin.before.length]?
               = some (.groupValues origin.group origin.values) := by
             have output := congrArg (fun raw : List WorkQueueEvent =>
               raw[origin.before.length]?) origin.rawEq
             simpa using output
           have ordered := createWorkQueue_batch_blockProducerOrder batched started valid atRaw
-          have beforeEq : ((initialQueue work).rawEventReplay inputs.flatten).2.take
+          have beforeEq : ((initialQueue work).rawBatches inputs).2.take
               origin.before.length = origin.before := by
             have output := congrArg (List.take origin.before.length) origin.rawEq
             simpa using output

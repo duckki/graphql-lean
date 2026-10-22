@@ -1,5 +1,8 @@
 import Tests.GraphQL.IncrementalDelivery.Execution
 import Proofs.GraphQL.IncrementalDelivery.Semantics.CompletionReporting
+import Tests.GraphQL.IncrementalDelivery.Fixtures.WorkDeclarations
+
+open GraphQL.IncrementalDelivery.Tests (declaredTask)
 
 /-! Delivery-boundary projections and supported task-cause selection. The pure
 executor collects both sibling errors; these examples do not model early cancellation.
@@ -168,8 +171,8 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 private def node : DeliveryNode := { ref := 0, path := [] }
 
 private def work : Work :=
-  .combine (.executionGroup [⟨node, []⟩] [] { result := .error 3 } .empty)
-    (.executionGroup [⟨node, []⟩] [] { result := .error 5 } .empty)
+  .combine (declaredTask [⟨node, []⟩] [] { result := .error 3 } .empty)
+    (declaredTask [⟨node, []⟩] [] { result := .error 5 } .empty)
 
 private def failures : List Occurrence := [.executionGroup [0], .executionGroup [1]]
 
@@ -207,7 +210,7 @@ example (errors : Nat) (other : errors ≠ 3 ∧ errors ≠ 5)
   rintro ⟨occurrence, member, owners, producer, payload, known, _, failed, _⟩
   simp only [failures, List.mem_cons, List.not_mem_nil, or_false] at member
   rcases member with rfl | rfl <;>
-    simp [TaskAt, Located, locateWork, locateWork.go, WorkLocation.child?, work] at known <;>
+    simp [TaskAt, Located, locateWork, locateWork.go, WorkLocation.child?, Work.withoutDeclarations, work] at known <;>
     rcases known with ⟨groups, path, result, ⟨⟨hg, hp, hr⟩, _⟩, ho, hv⟩ <;>
     subst groups path result owners payload <;>
     simp_all [Payload.failure, TaskOutcome.deliveryResult]
@@ -219,7 +222,7 @@ example : ¬NodeFailureCause work failures 1 3 := by
   rintro ⟨occurrence, member, owners, producer, payload, known, owner, _⟩
   simp only [failures, List.mem_cons, List.not_mem_nil, or_false] at member
   rcases member with rfl | rfl <;>
-    simp [TaskAt, Located, locateWork, locateWork.go, WorkLocation.child?, work, node] at known <;>
+    simp [TaskAt, Located, locateWork, locateWork.go, WorkLocation.child?, Work.withoutDeclarations, work, node] at known <;>
     rcases known with ⟨groups, path, result, ⟨⟨hg, hp, hr⟩, _⟩, ho, hv⟩ <;>
     subst groups path result owners payload <;>
     simp_all

@@ -301,11 +301,6 @@ theorem initialQueue_admissiblePrefix (work : Execution.Work)
           (State.initialize (Work.fromExecution work)).initialStreams)
     : AdmissiblePrefix work
         ((State.initialize (Work.fromExecution work)).normalizedHistory []) := by
-  refine ⟨[], fun _ => .executionGroup [], [], ⟨initialized, ?_, ?_⟩,
-    WorkBatching.nil⟩
-  · intro before cut occurrence after impossible
-    cases before <;> cases impossible
-  · intro index event impossible
-    cases impossible
+  exact ⟨[], fun _ => .executionGroup [], [], initialized.emptyExplains _, WorkBatching.nil⟩
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

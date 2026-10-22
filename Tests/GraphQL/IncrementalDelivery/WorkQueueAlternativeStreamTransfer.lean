@@ -49,12 +49,13 @@ private abbrev released := before.handleGraphEvent event
 private theorem projection
     : (
         (before.state.handleGraphEvent event).1.queue,
-        (before.state.handleGraphEvent event).2.1
+        (before.state.handleGraphEvent event).2.1,
+        (before.state.handleGraphEvent event).2.2.2
       )
       = queue.handleGraphEvent event := by cbv
 
 private theorem noticed
-    : 7 ∈ (queue.handleGraphEvent event).2.flatMap rawStreamNoticeRefs := by
+    : 7 ∈ (queue.handleGraphEvent event).2.1.flatMap rawStreamNoticeRefs := by
   cbv
   exact List.mem_cons_self
 

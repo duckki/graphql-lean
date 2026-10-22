@@ -1,5 +1,6 @@
 import Proofs.GraphQL.IncrementalDelivery.Correctness.SingletonDeferDependencies
 import Proofs.GraphQL.IncrementalDelivery.Correctness.DeferExistence
+import Proofs.GraphQL.IncrementalDelivery.Semantics.WorkSize
 
 /-! Singleton-defer existence specializes the general shared-owner defer-only theorem. -/
 

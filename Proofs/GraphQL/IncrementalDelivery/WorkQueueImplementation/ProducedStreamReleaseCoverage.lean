@@ -21,7 +21,8 @@ theorem ExecutedWork.success_retired_childStream_notice
     {work events occurrence result owners producer payload ref before after stream
       dependencies}
     (generated : ExecutedWork work) (valid : ValidGraphEvents work events)
-    (started : (State.initialize (Work.fromExecution work)).acceptsBatch events = true)
+    (started
+      : State.eventsStarted [] (State.initialize (Work.fromExecution work)) events = true)
     (known : TaskAt work occurrence owners producer payload) (contributes : ref ∈ owners)
     (healthy
       : ¬GroupRecordInvalidated work

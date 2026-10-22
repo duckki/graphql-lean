@@ -50,7 +50,14 @@ mutual
         · exact collectExecutionGroups_scopes schema resolvers variables fuel parentType
             source _ path _ base next below
         · intro work hw
-          exact runEnsures_pure _ _ ⟨⟨hc.1, hw.1⟩, hc.2, hw.2⟩
+          apply runEnsures_pure
+          refine ⟨⟨hc.1, ?_⟩, hc.2, ?_⟩
+          · refine ⟨?_, hw.1⟩
+            simpa only [List.filterMap_map, Function.comp_def]
+              using next.1.filterMap (collection.newDeferUsages.map (·.ref))
+          · refine ⟨?_, hw.2⟩
+            simpa only [List.filterMap_map, Function.comp_def]
+              using next.2.2.filterMap (collection.newDeferUsages.map (·.ref))
   termination_by (fuel, 6, 0, 0)
   decreasing_by
     all_goals simp_wf
@@ -161,7 +168,6 @@ mutual
   decreasing_by
     all_goals subst_vars; simp_wf
     all_goals repeat first | apply Prod.Lex.left; omega | apply Prod.Lex.right
-    all_goals try omega
 
   /-- Value completion preserves coherent node scopes below its enclosing base.
   Witness: fuel/type descent, inherited-map object collection, and indexed list completion.
@@ -227,7 +233,6 @@ mutual
   decreasing_by
     all_goals subst_vars; simp_wf
     all_goals repeat first | apply Prod.Lex.left; omega | apply Prod.Lex.right
-    all_goals try omega
 
   /-- Stream hooks establish fresh child scopes below the list boundary, including empty
   tails. Witness: the stream's empty inherited defer map and certified item completions.

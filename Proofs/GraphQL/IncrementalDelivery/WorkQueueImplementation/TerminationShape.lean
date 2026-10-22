@@ -2,6 +2,7 @@ import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.SourceOutputBl
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.OutputShape
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.StreamActivation
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.ReadyDrain
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.TerminationFrames
 
 /-! Only the batch wrapper terminates the queue or emits its terminal marker. -/
 
@@ -9,144 +10,6 @@ namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.Execution (
   ExecutionGroupValue StreamItemValue WorkQueueEvent)
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
-
------------------------------------------------------------------------------------------
--- Registration and activation preserve the termination flag
------------------------------------------------------------------------------------------
-
-/-- Group registration and parent linking leave the termination flag unchanged.
-Witness: both registration folds modify only group bookkeeping.
--/
-theorem State.addGroups_terminated (queue : State) (groups : List Group)
-    : (queue.addGroups groups).1.terminated = queue.terminated := by
-  let link (current : State) (group : Group) :=
-    match group.parent with
-    | none => current
-    | some parent =>
-        match current.groupNode? parent with
-        | none => current
-        | some node =>
-            let children := if node.childGroups.contains group.node.ref then node.childGroups
-              else node.childGroups ++ [group.node.ref]
-            current.putGroupNode { node with childGroups := children }
-  have linked : ∀ current group, (link current group).terminated = current.terminated := by
-    intro current group
-    unfold link
-    split
-    · rfl
-    · split <;> rfl
-  have registered : ∀ current group,
-      (State.addGroup current group).terminated = current.terminated := by
-    intro current group
-    unfold State.addGroup
-    split
-    · rfl
-    · dsimp only
-      split <;> rfl
-  change ((groups.filter _).foldl link
-    ((groups.filter _).foldl State.addGroup queue)).terminated = _
-  rw [fold_projection State.terminated link linked,
-    fold_projection State.terminated State.addGroup registered]
-
-/-- Task registration never terminates the queue.
-Witness: contributor updates and optional start bookkeeping preserve the flag.
--/
-theorem State.addTask_terminated (queue : State) (task : Task)
-    : (queue.addTask task).terminated = queue.terminated := by
-  let step (current : State) (group : Execution.DeliveryNode) :=
-    match current.groupNode? group.ref with
-    | none => current
-    | some node =>
-        if node.tasks.contains task.occurrence then current
-        else current.putGroupNode { node with
-          tasks := node.tasks ++ [task.occurrence], pending := node.pending + 1 }
-  have preserved : ∀ current group, (step current group).terminated = current.terminated := by
-    intro current group
-    unfold step
-    split
-    · rfl
-    · split <;> rfl
-  let current := task.groups.foldl step { queue with tasks := queue.tasks ++ [task] }
-  have same : current.terminated = queue.terminated :=
-    fold_projection State.terminated step preserved _ _
-  change (if _ then { current with taskNodes := current.taskNodes ++ [({ task } : TaskNode)] }
-    else current).terminated = _
-  split <;> exact same
-
-/-- Child integration preserves the termination flag regardless of its work shape.
-Witness: group/task registration and stream attachment modify separate state fields.
--/
-theorem State.maybeIntegrateWork_terminated (queue : State) (work : Work)
-    (parent : Option Occurrence := none)
-    : (queue.maybeIntegrateWork work parent).1.terminated = queue.terminated := by
-  have streams (current : State) (entries : List Stream) (producer : Option Occurrence)
-      : (current.addStreams entries producer).1.terminated = current.terminated := by
-    unfold State.addStreams
-    split
-    · rfl
-    · dsimp only
-      split <;> rfl
-  unfold State.maybeIntegrateWork
-  rw [streams, fold_projection State.terminated State.addTask State.addTask_terminated,
-    State.addGroups_terminated]
-
-/-- Pruning empty shells does not decide queue termination.
-Witness: induction over the pruning budget; every branch retains the flag.
--/
-theorem State.pruneEmptyGroups_terminated (queue : State) (groups)
-    : (queue.pruneEmptyGroups groups).1.terminated = queue.terminated := by
-  have loop (fuel : Nat) (current : State) (more kept)
-      : (State.pruneEmptyGroups.go fuel current more kept).1.terminated
-        = current.terminated := by
-    induction fuel generalizing current more kept with
-    | zero => rfl
-    | succ fuel ih =>
-        cases more with
-        | nil => rfl
-        | cons group rest =>
-            simp only [State.pruneEmptyGroups.go]
-            split
-            · exact ih _ _ _
-            · split <;> exact ih _ _ _
-  exact loop _ _ _ _
-
-/-- Activating released groups and streams retains the termination flag.
-Witness: starting tasks or roots touches only the corresponding registries.
--/
-theorem State.startNewWork_terminated (queue : State) (released : NewWork)
-    : (queue.startNewWork released).terminated = queue.terminated := by
-  have task : ∀ current occurrence,
-      (State.startTask current occurrence).terminated = current.terminated := by
-    intro current occurrence
-    unfold State.startTask
-    split
-    · rfl
-    · split <;> rfl
-  have group : ∀ current ref,
-      (State.startGroup current ref).terminated = current.terminated := by
-    intro current ref
-    unfold State.startGroup
-    split
-    · rfl
-    · exact fold_projection State.terminated State.startTask task _ _
-  have stream : ∀ current ref,
-      (State.startStream current ref).terminated = current.terminated := by
-    intro current ref
-    unfold State.startStream
-    split <;> rfl
-  unfold State.startNewWork
-  rw [fold_projection State.terminated State.startStream stream,
-    fold_projection State.terminated State.startGroup group]
-
-/-- Initialization leaves termination to the first actual batch boundary, even when
-all roots are already empty. Witness: integration, pruning, and activation preserve false.
--/
-theorem createWorkQueue_terminated (work : Work)
-    : (State.initialize work).terminated = false := by
-  unfold State.initialize
-  dsimp only
-  rw [State.startNewWork_terminated, State.pruneEmptyGroups_terminated,
-    State.maybeIntegrateWork_terminated]
 
 -----------------------------------------------------------------------------------------
 -- Individual settlements and recursive release cannot terminate the queue
@@ -183,13 +46,13 @@ theorem State.taskFailure_terminated (queue : State) (occurrence : Occurrence)
 Witness: the drain induction composes flag-preserving closure and activation steps.
 -/
 theorem State.drainReadyGroups_terminated (queue : State)
-    : queue.drainReadyGroups.1.terminated = queue.terminated := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.drainReadyGroups available).1.terminated = queue.terminated := by
   apply State.drainReadyGroups_preserves (fun current => current.terminated = queue.terminated)
-  · intro current node same _ _ _ _
-    rw [State.startNewWork_terminated, State.finishGroupSuccess_terminated]
+    (available := available)
+  · intro current node same _ _ _
+    rw [State.startNewWork_terminated _ _ available, State.finishGroupSuccess_terminated]
     exact same
-  · intro current _ occurrence errors same _ _ _
-    exact (current.taskFailure_terminated occurrence errors).trans same
   · rfl
 
 /-- Task success cannot terminate mid-batch, even when it drains every active group.
@@ -197,8 +60,9 @@ Witness: the owner fold and final drain preserve the flag; ignored outcomes only
 task bookkeeping.
 -/
 theorem State.taskSuccess_terminated (queue : State) (occurrence : Occurrence)
-    (result : TaskResult)
-    : (queue.taskSuccess occurrence result).1.terminated = queue.terminated := by
+    (result : TaskResult) (available : List (Occurrence × Nat) := [])
+    : (queue.taskSuccess occurrence result available).1.terminated
+      = queue.terminated := by
   have preserved : ∀ acc group,
       (successGroupStep acc group).1.terminated = acc.1.terminated := by
     intro acc group
@@ -212,9 +76,10 @@ theorem State.taskSuccess_terminated (queue : State) (occurrence : Occurrence)
   cases found : queue.taskNode? occurrence with
   | none => simp [State.taskSuccess, found]
   | some node =>
-      rw [queue.taskSuccess_eq occurrence result node found]
+      rw [queue.taskSuccess_eq occurrence result node found available]
       dsimp only
-      rw [State.drainReadyGroups_terminated, State.startNewWork_terminated,
+      rw [State.drainReadyGroups_terminated _ available,
+        State.startNewWork_terminated _ _ available,
         fold_projection (fun acc : State × List WorkQueueEvent × NewWork =>
           acc.1.terminated) successGroupStep preserved]
       exact State.maybeIntegrateWork_terminated _ _ (some occurrence)
@@ -223,55 +88,64 @@ theorem State.taskSuccess_terminated (queue : State) (occurrence : Occurrence)
 Witness: each item registers/prunes/activates work before the flag-preserving drain.
 -/
 theorem State.streamItems_terminated (queue : State) (stream : Execution.DeliveryNode)
-    (items : List StreamItem)
-    : (queue.streamItems stream items).1.terminated = queue.terminated := by
-  let step (acc : State × List Execution.DeliveryNode × List Execution.DeliveryNode
-      × List StreamItemValue) (item : StreamItem) :=
-    let integrated := acc.1.maybeIntegrateWork item.work
-    let pruned := integrated.1.pruneEmptyGroups integrated.2.newGroups
-    (pruned.1.startNewWork { integrated.2 with newGroups := pruned.2 },
-      acc.2.1 ++ pruned.2, acc.2.2.1 ++ integrated.2.newStreams,
-      acc.2.2.2 ++ [item.value])
-  have preserved : ∀ acc item, (step acc item).1.terminated = acc.1.terminated := by
-    intro acc item
-    dsimp only [step]
-    rw [State.startNewWork_terminated, State.pruneEmptyGroups_terminated,
+    (items : List StreamItem) (available : List (Occurrence × Nat) := [])
+    : (queue.streamItems stream items available).1.terminated = queue.terminated := by
+  have preserved (acc : State × List Execution.DeliveryNode × List Execution.DeliveryNode
+      × List StreamItemValue × List GroupFailureEvent) (item : StreamItem)
+      : (streamItemStep acc item available).1.terminated = acc.1.terminated := by
+    simp only [streamItemStep]
+    rw [State.startNewWork_terminated _ _ available, State.pruneEmptyGroups_terminated,
       State.maybeIntegrateWork_terminated]
-  unfold State.streamItems
+  rw [queue.streamItems_eq stream items available]
   split
   · rfl
   · dsimp only
-    rw [State.drainReadyGroups_terminated]
+    rw [State.drainReadyGroups_terminated _ available]
     exact fold_projection (fun acc : State × List Execution.DeliveryNode
-      × List Execution.DeliveryNode × List StreamItemValue => acc.1.terminated)
-      step preserved _ _
+      × List Execution.DeliveryNode × List StreamItemValue × List GroupFailureEvent =>
+        acc.1.terminated) (fun acc item => streamItemStep acc item available) preserved _ _
 
 /-- Every individual source handler preserves the termination flag without host premises.
 Witness: the task/item proofs and direct stream-closure state updates.
 -/
 theorem State.handleGraphEvent_terminated (queue : State) (event : GraphEvent)
-    : (queue.handleGraphEvent event).1.terminated = queue.terminated := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.handleGraphEvent event available).1.terminated = queue.terminated := by
+  have cached := queue.cacheTaskFailures_terminated available
   cases event with
-  | taskSuccess occurrence result => exact queue.taskSuccess_terminated occurrence result
-  | taskFailure occurrence errors => exact queue.taskFailure_terminated occurrence errors
-  | streamItems stream items => exact queue.streamItems_terminated stream items
+  | taskSuccess occurrence result =>
+      exact ((queue.cacheTaskFailures available).taskSuccess_terminated occurrence result
+        available).trans cached
+  | taskFailure occurrence errors =>
+      exact ((queue.cacheTaskFailures available).taskFailure_terminated occurrence errors).trans
+        cached
+  | streamItems stream items =>
+      exact ((queue.cacheTaskFailures available).streamItems_terminated stream items
+        available).trans cached
   | streamSuccess stream =>
       simp only [State.handleGraphEvent, State.streamSuccess]
-      split <;> rfl
+      split <;> exact cached
   | streamFailure stream errors =>
       simp only [State.handleGraphEvent, State.streamFailure]
-      split <;> rfl
+      split <;> exact cached
+
+  | groupFailure failure =>
+      simp only [State.handleGraphEvent, State.groupFailure]
+      split
+      · exact cached
+      · split <;> exact cached
 
 /-- Eventwise replay cannot terminate between supplied batch boundaries.
 Witness: induction through the actual handler sequence, preserving the incoming flag.
 -/
 theorem State.rawEventReplay_terminated (queue : State) (events : List GraphEvent)
-    : (queue.rawEventReplay events).1.terminated = queue.terminated := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.rawEventReplay events available).1.terminated = queue.terminated := by
   induction events generalizing queue with
   | nil => rfl
   | cons event rest ih =>
-      rw [State.rawEventReplay_cons]
-      exact (ih _).trans (queue.handleGraphEvent_terminated event)
+      rw [State.rawEventReplay_cons queue event rest available]
+      exact (ih _).trans (queue.handleGraphEvent_terminated event available)
 
 -----------------------------------------------------------------------------------------
 -- Handlers and publisher normalization cannot invent a terminal marker
@@ -300,9 +174,12 @@ theorem State.taskFailure_noTermination (queue : State) (occurrence : Occurrence
 Witness: induction on its budget, combining each closure with the remaining drain.
 -/
 theorem State.drainReadyGroups_noTermination (queue : State)
-    : Execution.WorkQueueEvent.workQueueTermination ∉ queue.drainReadyGroups.2 := by
+    (available : List (Occurrence × Nat) := [])
+    : Execution.WorkQueueEvent.workQueueTermination
+      ∉ (queue.drainReadyGroups available).2.1 := by
   have loop (fuel : Nat) (current : State)
-      : Execution.WorkQueueEvent.workQueueTermination ∉ (State.drainReadyGroups.go fuel current).2 := by
+      : Execution.WorkQueueEvent.workQueueTermination
+          ∉ (State.drainReadyGroups.go available fuel current).2.1 := by
     induction fuel generalizing current with
     | zero => simp [State.drainReadyGroups.go]
     | succ fuel ih =>
@@ -311,26 +188,21 @@ theorem State.drainReadyGroups_noTermination (queue : State)
         split
         · simp
         · rename_i node selected
-          cases cached : current.rejectedTask? node with
-          | none =>
-              simpa only [List.mem_append, not_or]
-                using And.intro (current.finishGroupSuccess_noTermination node) (ih _)
-          | some rejected =>
-              simpa only [List.mem_append, not_or]
-                using And.intro (current.taskFailure_noTermination rejected.1 rejected.2)
-                  (ih _)
+          simpa only [List.mem_append, not_or]
+            using And.intro (current.finishGroupSuccess_noTermination node) (ih _)
   exact loop _ queue
 
 /-- Successful task settlement cannot emit a terminal marker during owner release.
 Witness: each flush and the final drain exclude termination; ignored tasks emit nothing.
 -/
 theorem State.taskSuccess_noTermination (queue : State) (occurrence : Occurrence)
-    (result : TaskResult)
+    (result : TaskResult) (available : List (Occurrence × Nat) := [])
     : Execution.WorkQueueEvent.workQueueTermination
-      ∉ (queue.taskSuccess occurrence result).2 := by
+      ∉ (queue.taskSuccess occurrence result available).2.1 := by
   have loop (groups : List Execution.DeliveryNode) (acc : State × List WorkQueueEvent × NewWork)
       (prior : Execution.WorkQueueEvent.workQueueTermination ∉ acc.2.1)
-      : Execution.WorkQueueEvent.workQueueTermination ∉ (groups.foldl successGroupStep acc).2.1 := by
+      : Execution.WorkQueueEvent.workQueueTermination
+          ∉ (groups.foldl successGroupStep acc).2.1 := by
     induction groups generalizing acc with
     | nil => exact prior
     | cons group rest ih =>
@@ -346,29 +218,31 @@ theorem State.taskSuccess_noTermination (queue : State) (occurrence : Occurrence
   cases found : queue.taskNode? occurrence with
   | none => simp [State.taskSuccess, found]
   | some node =>
-      rw [queue.taskSuccess_eq occurrence result node found]
+      rw [queue.taskSuccess_eq occurrence result node found available]
       simpa only [List.mem_append, not_or]
         using And.intro (loop _ (_, [], {}) (by simp))
-          (State.drainReadyGroups_noTermination _)
+          (State.drainReadyGroups_noTermination _ available)
 
 /-- No source-handler output contains queue termination, regardless of event validity.
 Witness: task proofs, a stream-value carrier followed by group draining, and stream
 closures.
 -/
 theorem State.handleGraphEvent_noTermination (queue : State) (event : GraphEvent)
+    (available : List (Occurrence × Nat) := [])
     : Execution.WorkQueueEvent.workQueueTermination
-      ∉ (queue.handleGraphEvent event).2 := by
+      ∉ (queue.handleGraphEvent event available).2.1 := by
   cases event with
   | taskSuccess occurrence result =>
-      exact queue.taskSuccess_noTermination occurrence result
+      exact (queue.cacheTaskFailures available).taskSuccess_noTermination occurrence result
+        available
   | taskFailure occurrence errors =>
-      exact queue.taskFailure_noTermination occurrence errors
+      exact (queue.cacheTaskFailures available).taskFailure_noTermination occurrence errors
   | streamItems stream items =>
       simp only [State.handleGraphEvent, State.streamItems]
       split
       · simp
       · simp only [List.mem_cons, reduceCtorEq, false_or]
-        exact State.drainReadyGroups_noTermination _
+        exact State.drainReadyGroups_noTermination _ available
   | streamSuccess stream =>
       simp only [State.handleGraphEvent, State.streamSuccess]
       split <;> simp
@@ -376,18 +250,25 @@ theorem State.handleGraphEvent_noTermination (queue : State) (event : GraphEvent
       simp only [State.handleGraphEvent, State.streamFailure]
       split <;> simp
 
+  | groupFailure failure =>
+      simp only [State.handleGraphEvent, State.groupFailure]
+      split
+      · simp
+      · split <;> simp
+
 /-- Eventwise replay has no terminal marker until the batch wrapper runs.
 Witness: concatenate the handler-level exclusions along the actual replay.
 -/
 theorem State.rawEventReplay_noTermination (queue : State) (events : List GraphEvent)
+    (available : List (Occurrence × Nat) := [])
     : Execution.WorkQueueEvent.workQueueTermination
-      ∉ (queue.rawEventReplay events).2 := by
+      ∉ (queue.rawEventReplay events available).2 := by
   induction events generalizing queue with
   | nil => simp [State.rawEventReplay]
   | cons event rest ih =>
-      rw [State.rawEventReplay_cons]
-      simpa only [List.mem_append, not_or]
-        using And.intro (queue.handleGraphEvent_noTermination event) (ih _)
+      rw [State.rawEventReplay_cons queue event rest available]
+      simpa only [State.dispatchGraphEvent, List.mem_append, not_or]
+        using And.intro (queue.handleGraphEvent_noTermination event available) (ih _)
 
 /-- Publisher normalization contains termination exactly when its input does.
 Witness: constructor inspection; owner remapping changes only value events.

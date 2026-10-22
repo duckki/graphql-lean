@@ -30,12 +30,14 @@ private def raw : List (List GraphEvent) :=
     [SharedOwnerFailure.failureH]
   ]
 
-private def effective : List (List GraphEvent) :=
+private def crossBoundaryEffective : List (List GraphEvent) :=
   [
     [SharedOwnerFailure.parentSuccess],
     [SharedOwnerFailure.failureG],
     [SharedOwnerFailure.failureH]
   ]
+
+private def effective : List (List GraphEvent) := raw
 
 private def failed : BufferedCallback := ⟨10, SharedOwnerFailure.failureG⟩
 private def buffered : BufferedCallback := ⟨11, SharedOwnerFailure.success⟩
@@ -56,14 +58,16 @@ private theorem first_valid
 private theorem g_known
     : TaskAt SharedOwnerFailure.work (.executionGroup [1, 1, 0]) [0] none
         (.object [] (.error 1)) := by
-  refine ⟨[{ node := SharedOwnerFailure.groupG }], [], { result := .error 1, cause := some 1 }, .empty, [], ?_, rfl, rfl⟩
+  refine ⟨[{ node := SharedOwnerFailure.groupG }], [],
+    { result := .error 1, cause := some 1 }, .empty, [], ?_, rfl, rfl⟩
   rw [SharedOwnerFailure.work_shape]
   rfl
 
 private theorem h_known
     : TaskAt SharedOwnerFailure.work (.executionGroup [1, 1, 1, 0]) [1] none
         (.object [] (.error 1)) := by
-  refine ⟨[{ node := SharedOwnerFailure.groupH }], [], { result := .error 1, cause := some 1 }, .empty, [], ?_, rfl, rfl⟩
+  refine ⟨[{ node := SharedOwnerFailure.groupH }], [],
+    { result := .error 1, cause := some 1 }, .empty, [], ?_, rfl, rfl⟩
   rw [SharedOwnerFailure.work_shape]
   rfl
 
@@ -72,7 +76,8 @@ private theorem source_known
         (some (.executionGroup [1, 0]))
         (.object [.field "box"] (.ok ([("values", .list [])], 0))) := by
   refine ⟨[{ node := SharedOwnerFailure.groupG }], [.field "box"],
-    { result := .ok ([("values", .list [])], 0) }, SharedOwnerFailure.streamWork, [0, 1], ?_, rfl, rfl⟩
+    { result := .ok ([("values", .list [])], 0) }, SharedOwnerFailure.streamWork,
+    [0, 1], ?_, rfl, rfl⟩
   rw [SharedOwnerFailure.work_shape]
   rfl
 
@@ -87,10 +92,12 @@ private theorem h_ready (earlier : List GraphEvent)
 private theorem buffered_enqueued
     : Enqueued SharedOwnerFailure.work before [SharedOwnerFailure.parentSuccess]
         [failed, buffered] := by
-  have first : Enqueued SharedOwnerFailure.work before [SharedOwnerFailure.parentSuccess] [failed] :=
+  have first : Enqueued SharedOwnerFailure.work before
+      [SharedOwnerFailure.parentSuccess] [failed] :=
     .append .nil failed (by cbv) (by cbv) (by simp) SharedOwnerFailure.failureG_matches
       (by simp [failed, ReferenceWorkQueue.GraphEvent.Fresh,
-        ReferenceWorkQueue.GraphEvent.identities, SharedOwnerFailure.parentSuccess, SharedOwnerFailure.failureG])
+        ReferenceWorkQueue.GraphEvent.identities, SharedOwnerFailure.parentSuccess,
+        SharedOwnerFailure.failureG])
       (g_ready _)
   have ready : SharedOwnerFailure.success.Ready SharedOwnerFailure.work
       ([SharedOwnerFailure.parentSuccess] ++ [failed].map BufferedCallback.event) := by
@@ -113,7 +120,8 @@ private theorem raw_valid
     SharedOwnerFailure.failureH_matches
     (by simp [failed, buffered, ReferenceWorkQueue.GraphEvent.Fresh,
       ReferenceWorkQueue.GraphEvent.identities, SharedOwnerFailure.parentSuccess,
-      SharedOwnerFailure.failureG, SharedOwnerFailure.success, SharedOwnerFailure.failureH, SharedOwnerFailure.heldProducer])
+      SharedOwnerFailure.failureG, SharedOwnerFailure.success, SharedOwnerFailure.failureH,
+      SharedOwnerFailure.heldProducer])
     (h_ready _)
   exact all
 
@@ -125,14 +133,16 @@ private theorem raw_buffers : BoundaryBuffers SharedOwnerFailure.work initial []
       ⟨[], rfl⟩
     exact .append .nil ⟨0, SharedOwnerFailure.parentSuccess⟩ (by cbv) (by cbv) (by simp)
       laws.1 laws.2.1 laws.2.2
-  · have sameBoundary : (initial.handleGraphEvents [SharedOwnerFailure.parentSuccess]).1 = before := by
+  · have sameBoundary : (initial.handleGraphEvents [SharedOwnerFailure.parentSuccess]).1
+        = before := by
       cbv
     simpa only [sameBoundary, List.nil_append] using buffered_enqueued
   · exact .append .nil ⟨12, SharedOwnerFailure.failureH⟩ (by cbv) (by cbv) (by simp)
       SharedOwnerFailure.failureH_matches
       (by simp [ReferenceWorkQueue.GraphEvent.Fresh,
         ReferenceWorkQueue.GraphEvent.identities, SharedOwnerFailure.parentSuccess,
-        SharedOwnerFailure.failureG, SharedOwnerFailure.success, SharedOwnerFailure.failureH, SharedOwnerFailure.heldProducer])
+        SharedOwnerFailure.failureG, SharedOwnerFailure.success, SharedOwnerFailure.failureH,
+      SharedOwnerFailure.heldProducer])
       (h_ready _)
 
 private theorem projected : projectHistory initial raw = effective := by cbv
@@ -182,7 +192,8 @@ private theorem cross_boundary_history
   have stale : CallbackHistory SharedOwnerFailure.work initial afterStale :=
     .reduce pending [buffered] [] rfl
   have lastLaws := raw_valid.atPrefix
-    (before := [SharedOwnerFailure.parentSuccess, SharedOwnerFailure.failureG, SharedOwnerFailure.success])
+    (before := [SharedOwnerFailure.parentSuccess, SharedOwnerFailure.failureG,
+      SharedOwnerFailure.success])
     (event := SharedOwnerFailure.failureH) ⟨[], rfl⟩
   have last : CallbackHistory SharedOwnerFailure.work initial withLast :=
     .enqueue stale lastCallback (by cbv) (by cbv) (by decide)
@@ -219,19 +230,21 @@ example : ¬BoundaryBuffers SharedOwnerFailure.work initial [] completed.rawBatc
   cross_boundary_not_boundary_buffers
 
 private theorem cross_boundary_projection
-    : projectHistory initial completed.rawBatches = effective := by cbv
+    : projectHistory initial completed.rawBatches = crossBoundaryEffective := by cbv
 
-example : (EventSource.ofList effective).ValidFor SharedOwnerFailure.work := by
+example
+    : (EventSource.ofList crossBoundaryEffective).ValidFor SharedOwnerFailure.work := by
   rw [← cross_boundary_projection]
   exact cross_boundary_history.projected_source_valid
     SharedOwnerFailure.executed SharedOwnerFailure.nonempty
 
 example
     : (createWorkQueueForSchedule SharedOwnerFailure.work
-        (EventSource.ofList effective)).Conforms
+        (EventSource.ofList crossBoundaryEffective)).Conforms
         SharedOwnerFailure.work := by
   rw [← cross_boundary_projection]
-  exact cross_boundary_history.projected_conforms SharedOwnerFailure.executed SharedOwnerFailure.nonempty
+  exact cross_boundary_history.projected_conforms SharedOwnerFailure.executed
+    SharedOwnerFailure.nonempty
 
 example
     : initial.runNormalized (projectHistory initial completed.rawBatches)
@@ -246,7 +259,7 @@ example : completed.pending = [] := rfl
 example : (completed.batches.flatten.map BufferedCallback.receipt).Nodup :=
   cross_boundary_history.receipts_partition.2.1
 
--- The result was legally enqueued before failure; sequential raw admission rejects it.
+-- Entry-time eligibility retains the callback when failure retires it within this batch.
 example
     : Enqueued SharedOwnerFailure.work before [SharedOwnerFailure.parentSuccess]
         [failed, buffered] :=
@@ -258,7 +271,7 @@ example : ReferenceWorkQueue.ExecutedWork SharedOwnerFailure.work :=
 example : ReferenceWorkQueue.ValidGraphEvents SharedOwnerFailure.work raw.flatten :=
   raw_valid
 
-example : ReferenceWorkQueue.inputsStarted SharedOwnerFailure.work raw = false := by cbv
+example : ReferenceWorkQueue.inputsStarted SharedOwnerFailure.work raw = true := by cbv
 example : projectHistory initial raw = effective := projected
 example : BoundaryBuffers SharedOwnerFailure.work initial [] raw := raw_buffers
 
@@ -271,7 +284,8 @@ example
 
 example : (EventSource.ofList effective).ValidFor SharedOwnerFailure.work := by
   rw [← projected]
-  exact projected_source_valid SharedOwnerFailure.executed SharedOwnerFailure.nonempty raw raw_buffers
+  exact projected_source_valid SharedOwnerFailure.executed SharedOwnerFailure.nonempty
+    raw raw_buffers
 
 example
     : (createWorkQueueForSchedule SharedOwnerFailure.work
@@ -302,23 +316,26 @@ example
 example : ReferenceWorkQueue.inputsStarted SharedOwnerFailure.work effective = true := by
   rw [← projected]
   exact projected_inputsStarted SharedOwnerFailure.executed SharedOwnerFailure.nonempty raw
+    (raw_buffers.projectionSource SharedOwnerFailure.executed)
 
 example : initial.runNormalized raw = initial.runNormalized effective := by
   rw [← projected]
   exact (projectHistory_runNormalized initial raw
-    (initialized_boundary SharedOwnerFailure.executed SharedOwnerFailure.nonempty)).symm
+    (initialized_boundary SharedOwnerFailure.executed SharedOwnerFailure.nonempty)
+    (raw_buffers.projectionSource SharedOwnerFailure.executed)).symm
 
 private theorem source_valid
     : (EventSource.ofList effective).ValidFor SharedOwnerFailure.work := by
   rw [← projected]
-  exact projected_source_valid SharedOwnerFailure.executed SharedOwnerFailure.nonempty raw raw_buffers
+  exact projected_source_valid SharedOwnerFailure.executed SharedOwnerFailure.nonempty
+    raw raw_buffers
 
 example
     : (createWorkQueueForSchedule SharedOwnerFailure.work
         (EventSource.ofList effective)).Conforms
         SharedOwnerFailure.work :=
   createWorkQueueForScheduleConforms_holds _ _ SharedOwnerFailure.executed
-    SharedOwnerFailure.nonempty source_valid
+    ((Execution.Work.isEmpty_eq_false _).mpr SharedOwnerFailure.nonempty) source_valid
 
 -- Acknowledgement is not publication or adoption; stale receipts are not deduplicated by source.
 private def source : Execution.DeliveryNode := ⟨77, [], none⟩

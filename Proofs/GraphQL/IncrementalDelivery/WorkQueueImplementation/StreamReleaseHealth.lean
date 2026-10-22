@@ -29,7 +29,9 @@ No health or uncancelledness premise is repeated at the later source boundary.
 theorem ExecutedWork.replayGraphEvents_retiredGroupHealthy_after_prefix
     {work received before matching events failures node dependencies producer}
     (generated : ExecutedWork work) (valid : ValidGraphEvents work received)
-    (started : (State.initialize (Work.fromExecution work)).acceptsBatch received = true)
+    (started
+      : State.eventsStarted [] (State.initialize (Work.fromExecution work)) received
+        = true)
     (known : NodeAt work node .group dependencies producer)
     (earlier : before.IsPrefix received)
     (retired
@@ -58,9 +60,10 @@ theorem ExecutedWork.replayGraphEvents_retiredGroupHealthy_after_prefix
           Occurrence.item source index ∈ received.flatMap GraphEvent.successes
           → ¬TaskCancelled work matching events failures (.item source index))
     : ¬NodeFailed work matching events failures node.ref := by
-  have priorStarted : (State.initialize (Work.fromExecution work)).acceptsBatch before = true := by
+  have priorStarted
+      : State.eventsStarted [] (State.initialize (Work.fromExecution work)) before = true := by
     obtain ⟨after, same⟩ := earlier
-    exact State.acceptsBatch_prefix (same ▸ started)
+    exact State.eventsStarted_prefix (same ▸ started)
   have record := groupRecordAt_of_nodeAt known
   have prior := (generated.replayGraphEvents_retiredHealth before (valid.prefix earlier)
     priorStarted).1 node dependencies record retired uncancelled
@@ -89,7 +92,9 @@ The earlier boundary may precede arbitrary further matched, started source event
 theorem ExecutedWork.replayGraphEvents_objectStreamHealthy_after_retirement
     {work received before matching events failures stream dependencies source ref}
     (generated : ExecutedWork work) (valid : ValidGraphEvents work received)
-    (started : (State.initialize (Work.fromExecution work)).acceptsBatch received = true)
+    (started
+      : State.eventsStarted [] (State.initialize (Work.fromExecution work)) received
+        = true)
     (known : NodeAt work stream .stream dependencies (some (.executionGroup source)))
     (settled : Occurrence.executionGroup source ∈ received.flatMap GraphEvent.successes)
     (member : ref ∈ dependencies) (earlier : before.IsPrefix received)

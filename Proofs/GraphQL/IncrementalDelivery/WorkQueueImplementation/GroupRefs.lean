@@ -1,4 +1,7 @@
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.RegistrationTraversal
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.WorkDeclarations
 import GraphQL.IncrementalDelivery.WorkQueueImplementation
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.StartupFrames
 import Proofs.GraphQL.IncrementalDelivery.Correctness.DependencyRefs
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.FailureReporting
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.FailureExtension
@@ -123,9 +126,9 @@ theorem State.GroupRefsUnique.addGroup {queue : State}
             ∧ queue.groupNode? group.node.ref = none).2
       have noMatch := (List.find?_eq_none.mp none) node nodeMember
       simp [same] at noMatch
-    split
-    · exact unique
-    · change ((queue.groupNodes ++ [({ group } : GroupNode)]).map
+    have appended : ({ queue with
+        groupNodes := queue.groupNodes ++ [({ group } : GroupNode)] } : State).GroupRefsUnique := by
+      change ((queue.groupNodes ++ [({ group } : GroupNode)]).map
         (fun node => node.group.node.ref)).Nodup
       simpa [List.map_append, fresh] using List.nodup_append.mpr
         ⟨unique, by simp, by
@@ -134,56 +137,18 @@ theorem State.GroupRefsUnique.addGroup {queue : State}
           simp only [List.mem_singleton] at latest
           subst ref
           exact fresh earlier⟩
+    split
+    · exact appended
+    · split
+      · split <;> exact unique
+      · exact appended.putGroupNode _
 
-/-- Parent links do not change group refs. -/
+/-- Recursive parent-first registration preserves distinct live refs. -/
 theorem State.GroupRefsUnique.addGroups {queue : State}
     (unique : queue.GroupRefsUnique) (groups : List Group)
     : (queue.addGroups groups).1.GroupRefsUnique := by
-  let linkStep (current : State) (group : Group) : State :=
-    match group.parent with
-    | none => current
-    | some parent =>
-        match current.groupNode? parent with
-        | none => current
-        | some node =>
-            let children :=
-              if node.childGroups.contains group.node.ref then
-                node.childGroups
-              else
-                node.childGroups ++ [group.node.ref]
-            current.putGroupNode { node with childGroups := children }
-  have linkUnique (current : State) (group : Group)
-      (currentUnique : current.GroupRefsUnique)
-      : (linkStep current group).GroupRefsUnique := by
-    unfold linkStep
-    cases parent : group.parent with
-    | none => simpa only [parent] using currentUnique
-    | some ref =>
-        cases found : current.groupNode? ref with
-        | none => simpa only [parent, found] using currentUnique
-        | some node =>
-            simp only [found]
-            exact currentUnique.putGroupNode _
-  have linkFold (more : List Group) :
-      ∀ current, current.GroupRefsUnique →
-        (more.foldl linkStep current).GroupRefsUnique := by
-    induction more with
-    | nil => intro current currentUnique; exact currentUnique
-    | cons group rest ih =>
-        intro current currentUnique
-        exact ih (linkStep current group) (linkUnique current group currentUnique)
-  have registerUnique (more : List Group) :
-      (more.foldl State.addGroup queue).GroupRefsUnique := by
-    induction more generalizing queue with
-    | nil => exact unique
-    | cons group rest ih =>
-        simpa only [List.foldl_cons]
-          using ih (queue := queue.addGroup group) (unique.addGroup group)
-  let fresh := groups.filter (fun group =>
-    !queue.registeredGroups.contains group.node.ref
-      && (queue.groupNode? group.node.ref).isNone)
-  change (fresh.foldl linkStep (fresh.foldl State.addGroup queue)).GroupRefsUnique
-  exact linkFold fresh _ (registerUnique fresh)
+  exact State.addGroups_preserves State.GroupRefsUnique groups
+    (fun _ group _ valid => valid.addGroup group) queue unique
 
 /-- Task registration changes group metadata, never its ref collection. -/
 theorem State.GroupRefsUnique.addTask {queue : State}
@@ -401,7 +366,9 @@ theorem State.pruneEmptyGroups_keptContents
         node.group.node.ref = ref ∧ node.tasks.isEmpty ≠ true := by
     intro ref member
     cases member
-  exact loop _ queue groups [] unique empty
+  intro ref member
+  apply loop _ queue groups [] unique empty ref
+  simpa only [State.pruneEmptyGroups, List.mem_map] using member
 
 /-- Every nonempty group retained by pruning still has a live group node.
 Witness: project ref presence from the stronger post-pruning contents certificate.
@@ -418,51 +385,19 @@ theorem State.pruneEmptyGroups_keptPresent
   obtain ⟨node, present, same, _⟩ := queue.pruneEmptyGroups_keptContents groups unique ref member
   exact List.mem_map.mpr ⟨node, present, same⟩
 
-/-- Activating root tasks and streams does not modify the group-node map. -/
+/-- Activating released work preserves ref uniqueness while allowing failed-group removal. -/
 theorem State.GroupRefsUnique.startNewWork {queue : State}
     (unique : queue.GroupRefsUnique) (newWork : NewWork)
-    : (queue.startNewWork newWork).GroupRefsUnique := by
-  let groups := newWork.newGroups.map Execution.DeliveryNode.ref
-  let streams := newWork.newStreams.map Execution.DeliveryNode.ref
-  let current : State := { queue with rootGroups := queue.rootGroups ++ groups }
-  have groupFold (refs : NodeRefs) :
-      ∀ current, current.GroupRefsUnique →
-        (refs.foldl State.startGroup current).GroupRefsUnique := by
-    induction refs with
-    | nil => intro current currentUnique; exact currentUnique
-    | cons ref rest ih =>
-        intro current currentUnique
-        apply ih (current.startGroup ref)
-        unfold State.startGroup
-        split
-        · exact currentUnique
-        · rename_i node found
-          have taskFold (tasks : List Occurrence) :
-              ∀ current, current.GroupRefsUnique →
-                (tasks.foldl State.startTask current).GroupRefsUnique := by
-            induction tasks with
-            | nil => intro current balanced; exact balanced
-            | cons task rest next =>
-                intro current balanced
-                apply next (current.startTask task)
-                unfold State.startTask
-                split
-                · exact balanced
-                · split <;> exact balanced
-          exact taskFold node.tasks current currentUnique
-  have streamFold (refs : NodeRefs) :
-      ∀ current, current.GroupRefsUnique →
-        (refs.foldl State.startStream current).GroupRefsUnique := by
-    induction refs with
-    | nil => intro current currentUnique; exact currentUnique
-    | cons ref rest ih =>
-        intro current currentUnique
-        apply ih (current.startStream ref)
-        unfold State.startStream
-        split <;> exact currentUnique
-  change (streams.foldl State.startStream
-    (groups.foldl State.startGroup current)).GroupRefsUnique
-  exact streamFold streams _ (groupFold groups current unique)
+    (available : List (Occurrence × Nat) := [])
+    : (queue.startNewWork newWork available).1.GroupRefsUnique := by
+  exact List.Nodup.sublist ((queue.startNewWork_groupNodes_sublist newWork available).map _)
+    unique
+
+/-- Exposing cached task outcomes leaves group refs unchanged. -/
+theorem State.GroupRefsUnique.cacheTaskFailures {queue : State}
+    (unique : queue.GroupRefsUnique) (available : List (Occurrence × Nat))
+    : (queue.cacheTaskFailures available).GroupRefsUnique := by
+  simpa only [State.GroupRefsUnique, State.cacheTaskFailures_groupNodes] using unique
 
 /-- Queue initialization has at most one live group node per delivery ref. -/
 theorem createWorkQueue_groupRefsUnique (work : Work)
@@ -472,7 +407,7 @@ theorem createWorkQueue_groupRefsUnique (work : Work)
   let pruned := (integrated.pruneEmptyGroups newWork.newGroups).1
   let groups := (integrated.pruneEmptyGroups newWork.newGroups).2
   let roots := { newWork with newGroups := groups }
-  let started := pruned.startNewWork roots
+  let started := (pruned.startNewWork roots).1
   have emptyUnique : ({} : State).GroupRefsUnique := by simp [State.GroupRefsUnique]
   have integratedUnique : integrated.GroupRefsUnique :=
     emptyUnique.maybeIntegrateWork work
@@ -629,7 +564,7 @@ theorem State.GroupRefsUnique.taskFailure {queue : State}
     | some node =>
         if current.rootGroups.contains group.ref then
           let (next, failure) := current.finishGroupFailure node errors
-          (next, events ++ [failure])
+          (next, events ++ [.groupFailure failure.group failure.errors])
         else
           (current, events)
   have stepUnique (acc : State × List WorkQueueEvent)
@@ -667,10 +602,10 @@ theorem State.GroupRefsUnique.taskFailure {queue : State}
 Witness: induction over the drain bound, using closure and activation preservation.
 -/
 theorem State.GroupRefsUnique.drainReadyGroups {queue : State}
-    (unique : queue.GroupRefsUnique)
-    : queue.drainReadyGroups.1.GroupRefsUnique := by
+    (unique : queue.GroupRefsUnique) (available : List (Occurrence × Nat) := [])
+    : (queue.drainReadyGroups available).1.GroupRefsUnique := by
   have loop (fuel : Nat) (current : State) (unique : current.GroupRefsUnique)
-      : (State.drainReadyGroups.go fuel current).1.GroupRefsUnique := by
+      : (State.drainReadyGroups.go available fuel current).1.GroupRefsUnique := by
     induction fuel generalizing current with
     | zero => exact unique
     | succ fuel ih =>
@@ -679,46 +614,44 @@ theorem State.GroupRefsUnique.drainReadyGroups {queue : State}
         split
         · exact unique
         · rename_i node found
-          cases failure : current.rejectedTask? node with
-          | none =>
-              exact ih _ ((unique.finishGroupSuccess node).startNewWork _)
-          | some rejection =>
-              obtain ⟨occurrence, errors⟩ := rejection
-              exact ih _ (unique.taskFailure occurrence errors)
+          exact ih _ ((unique.finishGroupSuccess node).startNewWork _ available)
   exact loop _ queue unique
 
 /-- Successful stream-item integration preserves unique group refs. -/
 theorem State.GroupRefsUnique.streamItems {queue : State}
     (unique : queue.GroupRefsUnique) (stream : Execution.DeliveryNode)
-    (items : List StreamItem)
-    : (queue.streamItems stream items).1.GroupRefsUnique := by
+    (items : List StreamItem) (available : List (Occurrence × Nat) := [])
+    : (queue.streamItems stream items available).1.GroupRefsUnique := by
   let step (acc : State × List Execution.DeliveryNode
-      × List Execution.DeliveryNode × List StreamItemValue)
+      × List Execution.DeliveryNode × List StreamItemValue × List GroupFailureEvent)
       (item : StreamItem) :=
-    let (current, groups, streams, values) := acc
+    let (current, groups, streams, values, failures) := acc
     let (integrated, newWork) := current.maybeIntegrateWork item.work
     let (pruned, nonempty) := integrated.pruneEmptyGroups newWork.newGroups
+    let (started, queued) :=
+      pruned.startNewWork { newWork with newGroups := nonempty } available
     (
-      pruned.startNewWork { newWork with newGroups := nonempty },
+      started,
       groups ++ nonempty,
       streams ++ newWork.newStreams,
-      values ++ [item.value]
+      values ++ [item.value],
+      failures ++ queued
     )
   have stepUnique (acc : State × List Execution.DeliveryNode
-      × List Execution.DeliveryNode × List StreamItemValue)
+      × List Execution.DeliveryNode × List StreamItemValue × List GroupFailureEvent)
       (item : StreamItem) (currentUnique : acc.1.GroupRefsUnique)
       : (step acc item).1.GroupRefsUnique := by
-    obtain ⟨current, groups, streams, values⟩ := acc
+    obtain ⟨current, groups, streams, values, failures⟩ := acc
     let integrated := current.maybeIntegrateWork item.work
     have integratedUnique : integrated.1.GroupRefsUnique :=
       currentUnique.maybeIntegrateWork item.work
     let pruned := integrated.1.pruneEmptyGroups integrated.2.newGroups
     have prunedUnique : pruned.1.GroupRefsUnique :=
       integratedUnique.pruneEmptyGroups integrated.2.newGroups
-    exact prunedUnique.startNewWork { integrated.2 with newGroups := pruned.2 }
+    exact prunedUnique.startNewWork { integrated.2 with newGroups := pruned.2 } available
   have foldUnique (more : List StreamItem) :
       ∀ acc : State × List Execution.DeliveryNode
-        × List Execution.DeliveryNode × List StreamItemValue,
+        × List Execution.DeliveryNode × List StreamItemValue × List GroupFailureEvent,
         acc.1.GroupRefsUnique → (more.foldl step acc).1.GroupRefsUnique := by
     induction more with
     | nil => intro acc currentUnique; exact currentUnique
@@ -728,7 +661,7 @@ theorem State.GroupRefsUnique.streamItems {queue : State}
   dsimp only [State.streamItems]
   split
   · exact unique
-  · exact (foldUnique items (queue, [], [], []) unique).drainReadyGroups
+  · exact (foldUnique items (queue, [], [], [], []) unique).drainReadyGroups available
 
 /-- Stream closure does not touch the group-node map. -/
 theorem State.GroupRefsUnique.streamSuccess {queue : State}
@@ -750,8 +683,8 @@ flush completed groups; each stage preserves unique live group refs.
 -/
 theorem State.GroupRefsUnique.taskSuccess {queue : State}
     (unique : queue.GroupRefsUnique) (occurrence : Occurrence)
-    (result : TaskResult)
-    : (queue.taskSuccess occurrence result).1.GroupRefsUnique := by
+    (result : TaskResult) (available : List (Occurrence × Nat) := [])
+    : (queue.taskSuccess occurrence result available).1.GroupRefsUnique := by
   let settleStep (current : State) (group : Execution.DeliveryNode) : State :=
     match current.groupNode? group.ref with
     | none => current
@@ -817,28 +750,44 @@ theorem State.GroupRefsUnique.taskSuccess {queue : State}
     let finished := taskNode.task.groups.foldl releaseStep (integrated, [], {})
     have finishedUnique : finished.1.GroupRefsUnique :=
       releaseFold taskNode.task.groups (integrated, [], {}) integratedUnique
-    change (finished.1.startNewWork finished.2.2).drainReadyGroups.1.GroupRefsUnique
-    exact (finishedUnique.startNewWork finished.2.2).drainReadyGroups
+    change ((finished.1.startNewWork finished.2.2 available).1.drainReadyGroups
+      available).1.GroupRefsUnique
+    exact (finishedUnique.startNewWork finished.2.2 available).drainReadyGroups available
 
 /-- Every individual host event preserves unique live group refs. -/
 theorem State.GroupRefsUnique.handleGraphEvent {queue : State}
     (unique : queue.GroupRefsUnique) (event : GraphEvent)
-    : (queue.handleGraphEvent event).1.GroupRefsUnique := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.handleGraphEvent event available).1.GroupRefsUnique := by
+  have cached := unique.cacheTaskFailures available
   cases event with
-  | taskSuccess occurrence result => exact unique.taskSuccess occurrence result
-  | taskFailure occurrence errors => exact unique.taskFailure occurrence errors
-  | streamItems stream items => exact unique.streamItems stream items
-  | streamSuccess stream => exact unique.streamSuccess stream
-  | streamFailure stream errors => exact unique.streamFailure stream errors
+  | taskSuccess occurrence result => exact cached.taskSuccess occurrence result available
+  | taskFailure occurrence errors => exact cached.taskFailure occurrence errors
+  | groupFailure failure =>
+      change ((queue.cacheTaskFailures available).groupFailure failure).1.GroupRefsUnique
+      unfold State.groupFailure
+      split
+      · exact cached
+      · split <;> exact cached
+  | streamItems stream items => exact cached.streamItems stream items available
+  | streamSuccess stream => exact cached.streamSuccess stream
+  | streamFailure stream errors => exact cached.streamFailure stream errors
 
-/-- Every available host batch preserves unique live group refs. -/
+/-- Enqueueing notices changes no live group identity. -/
+theorem State.GroupRefsUnique.dispatchGraphEvent {queue : State}
+    (unique : queue.GroupRefsUnique) (event : GraphEvent)
+    (available : List (Occurrence × Nat) := [])
+    : (queue.dispatchGraphEvent event available).1.GroupRefsUnique :=
+  unique.handleGraphEvent event available
+
+/-- Every observed FIFO batch preserves unique live group refs. -/
 theorem State.GroupRefsUnique.handleGraphEvents {queue : State}
     (unique : queue.GroupRefsUnique) (batch : List GraphEvent)
     : (queue.handleGraphEvents batch).1.GroupRefsUnique := by
+  let available := GraphEvent.availableFailures batch
   let step (acc : State × List WorkQueueEvent) (event : GraphEvent) :=
-    let (current, outputs) := acc
-    let (next, produced) := current.handleGraphEvent event
-    (next, outputs ++ produced)
+    let (next, produced) := acc.1.dispatchGraphEvent event available
+    (next, acc.2 ++ produced)
   have foldUnique (events : List GraphEvent) :
       ∀ acc : State × List WorkQueueEvent,
         acc.1.GroupRefsUnique → (events.foldl step acc).1.GroupRefsUnique := by
@@ -846,20 +795,11 @@ theorem State.GroupRefsUnique.handleGraphEvents {queue : State}
     | nil => intro acc currentUnique; exact currentUnique
     | cons event rest ih =>
         intro acc currentUnique
-        obtain ⟨current, outputs⟩ := acc
-        have nextUnique : (step (current, outputs) event).1.GroupRefsUnique :=
-          currentUnique.handleGraphEvent event
-        exact ih (step (current, outputs) event) nextUnique
+        exact ih (step acc event) (currentUnique.dispatchGraphEvent event available)
   unfold State.handleGraphEvents
   split
   · exact unique
-  · cases outcome : batch.foldl step (queue, []) with
-    | mk current outputs =>
-        have currentUnique : current.GroupRefsUnique := by
-          have folded := foldUnique batch (queue, []) unique
-          rw [outcome] at folded
-          exact folded
-        dsimp only
-        split <;> exact currentUnique
+  · dsimp only
+    split <;> exact foldUnique batch (queue, []) unique
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

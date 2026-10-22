@@ -12,6 +12,7 @@ open Ancestry
 
 def DeferUnder (parents : Assignment) (owners : List Nat) : Work → Prop
   | .empty => True
+  | .declareGroups _ tasks => DeferUnder parents owners tasks
   | .combine left right =>
       DeferUnder parents owners left ∧ DeferUnder parents owners right
   | .executionGroup groups _ _ children =>
@@ -21,6 +22,7 @@ def DeferUnder (parents : Assignment) (owners : List Nat) : Work → Prop
 
 def DeferContinuous (parents : Assignment) : Work → Prop
   | .empty => True
+  | .declareGroups _ tasks => DeferContinuous parents tasks
   | .combine left right => DeferContinuous parents left ∧ DeferContinuous parents right
   | .executionGroup groups _ _ children =>
       DeferUnder parents (mapRefs groups) children ∧ DeferContinuous parents children
@@ -38,6 +40,7 @@ decreasing_by
 /-- Deferred task refs in this defer context, excluding stream nodes and their items. -/
 def deferRegionRefs : Work → List Nat
   | .empty => []
+  | .declareGroups _ tasks => deferRegionRefs tasks
   | .combine left right => deferRegionRefs left ++ deferRegionRefs right
   | .executionGroup groups _ _ children => mapRefs groups ++ deferRegionRefs children
   | .stream .. => []
@@ -47,6 +50,9 @@ theorem DeferUnder.ref_supported {parents : Assignment} {owners : List Nat} {wor
     : Descends parents owners ref := by
   cases work with
   | empty => exact False.elim (List.not_mem_nil hk)
+  | declareGroups groups tasks =>
+      simp only [DeferUnder, deferRegionRefs] at h hk
+      exact DeferUnder.ref_supported (work := tasks) h hk
   | combine left right =>
       rcases List.mem_append.mp hk with hk | hk
       · exact h.1.ref_supported hk
@@ -75,6 +81,10 @@ theorem DeferUnder.extend {parents next : Assignment} {lower start finish : Nat}
     : DeferUnder next owners work := by
   cases work with
   | empty => trivial
+  | declareGroups groups tasks =>
+      simp only [DeferUnder] at h ⊢
+      rw [MixedRefs.WorkAt] at hw
+      exact DeferUnder.extend (work := tasks) h hw.2 he hle
   | combine left right =>
       rw [MixedRefs.WorkAt] at hw
       exact ⟨h.1.extend hw.1 he hle, h.2.extend hw.2 he hle⟩
@@ -93,6 +103,10 @@ theorem DeferUnder.mono {parents : Assignment} {lower bound : Nat}
     : DeferUnder parents outer work := by
   cases work with
   | empty => trivial
+  | declareGroups groups tasks =>
+      simp only [DeferUnder] at h ⊢
+      rw [MixedRefs.WorkAt] at hw
+      exact DeferUnder.mono (work := tasks) h hw.2 hv hs
   | combine left right =>
       rw [MixedRefs.WorkAt] at hw
       exact ⟨h.1.mono hw.1 hv hs, h.2.mono hw.2 hv hs⟩
@@ -109,9 +123,13 @@ theorem DeferContinuous.extend {parents next : Assignment} {lower start finish :
     (hle : start ≤ finish)
     : DeferContinuous next work := by
   cases work <;> simp only [DeferContinuous, MixedRefs.WorkAt] at h hw ⊢
+  case declareGroups groups tasks =>
+    exact DeferContinuous.extend (work := tasks) h hw.2 he hle
   case combine left right => exact ⟨h.1.extend hw.1 he hle, h.2.extend hw.2 he hle⟩
-  case executionGroup groups path result children => exact ⟨h.1.extend hw.2.2 he hle, h.2.extend hw.2.2 he hle⟩
-  case stream node items => exact fun item hi => (h item hi).extend (hw.2.2 item hi) he hle
+  case executionGroup groups path result children =>
+    exact ⟨h.1.extend hw.2.2 he hle, h.2.extend hw.2.2 he hle⟩
+  case stream node items =>
+    exact fun item hi => (h item hi).extend (hw.2.2 item hi) he hle
 termination_by sizeOf work
 decreasing_by
   all_goals subst_vars; simp_wf
@@ -255,5 +273,29 @@ theorem continuous_stream (parents : Assignment) (lower bound : Nat) (owners : L
   refine ⟨?_, ?_, Or.inr trivial⟩
   · rw [MixedRefs.WorkAt]; exact ⟨hl, hb, fun item hm => (hi item hm).1⟩
   · rw [DeferContinuous]; exact fun item hm => (hi item hm).2
+
+/-- Transparent declarations preserve the underlying DeferUnder certificate. -/
+theorem DeferUnder.withoutDeclarations {parents owners work}
+    (known : DeferUnder parents owners work)
+    : DeferUnder parents owners work.withoutDeclarations := by
+  cases work with
+  | declareGroups groups tasks =>
+      simpa only [Work.withoutDeclarations]
+        using DeferUnder.withoutDeclarations (work := tasks)
+          (by simpa only [DeferUnder] using known)
+  | _ => simpa only [Work.withoutDeclarations] using known
+termination_by work
+
+/-- Transparent declarations preserve the underlying DeferContinuous certificate. -/
+theorem DeferContinuous.withoutDeclarations {parents work}
+    (known : DeferContinuous parents work)
+    : DeferContinuous parents work.withoutDeclarations := by
+  cases work with
+  | declareGroups groups tasks =>
+      simpa only [Work.withoutDeclarations]
+        using DeferContinuous.withoutDeclarations (work := tasks)
+          (by simpa only [DeferContinuous] using known)
+  | _ => simpa only [Work.withoutDeclarations] using known
+termination_by work
 
 end GraphQL.IncrementalDelivery.Semantics.GeneralScheduling

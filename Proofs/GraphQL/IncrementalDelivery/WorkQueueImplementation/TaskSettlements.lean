@@ -63,6 +63,12 @@ theorem GraphEvent.failureSettlements_append_list (before after : List GraphEven
       = GraphEvent.failureSettlements after ++ GraphEvent.failureSettlements before := by
   simp [GraphEvent.failureSettlements, List.flatMap_append, List.reverse_append]
 
+/-- Prepending one input records its failure after the later suffix's failures. -/
+theorem GraphEvent.failureSettlements_cons (event : GraphEvent) (events : List GraphEvent)
+    : GraphEvent.failureSettlements (event :: events)
+      = GraphEvent.failureSettlements events ++ event.groupFailures := by
+  cases event <;> simp [GraphEvent.failureSettlements, GraphEvent.groupFailures]
+
 /-- Every source failure in the object-settlement inventory has its fixed failed payload.
 Witness: source-prefix induction; only taskFailure extends this existing queue ledger.
 -/
@@ -76,7 +82,8 @@ theorem ValidGraphEvents.failureSettlements_known {work events}
   | @append before event valid matching fresh ready ih =>
       rw [GraphEvent.failureSettlements_append]
       cases event with
-      | taskSuccess | streamItems | streamSuccess | streamFailure => exact ih
+      | taskSuccess | groupFailure | streamItems | streamSuccess | streamFailure =>
+          exact ih
       | taskFailure occurrence errors =>
           intro task member
           rcases List.mem_cons.mp member with same | earlier

@@ -10,6 +10,7 @@ import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.TaskReadiness
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.FiniteHistories
 import Proofs.GraphQL.IncrementalDelivery.Correctness.NodeRoles
 import Tests.GraphQL.IncrementalDelivery.Execution
+import Proofs.GraphQL.IncrementalDelivery.Semantics.WorkSize
 
 /-! Accepted shared failures retain settlement order across delayed completion notices. -/
 
@@ -30,18 +31,19 @@ private def data : List (Name × ResponseValue) := [("a", .scalar "a")]
 
 private def work : Execution.Work :=
   .combine .empty
-    (.combine
-      (.executionGroup [⟨root, []⟩] [] ({ result := .error 1, cause := some 1 }) .empty)
+    (.declareGroups [⟨root, []⟩, ⟨parent, []⟩, ⟨child, [parent]⟩, ⟨other, []⟩]
       (.combine
-        (.executionGroup [⟨root, []⟩, ⟨child, [parent]⟩] []
-          ({ result := .error 2, cause := some 1 }) .empty)
+        (.executionGroup [⟨root, []⟩] [] ({ result := .error 1, cause := some 1 }) .empty)
         (.combine
-          (.executionGroup [⟨parent, []⟩] [] ({ result := .ok (data, 0) })
-            (.combine .empty .empty))
+          (.executionGroup [⟨root, []⟩, ⟨child, [parent]⟩] []
+            ({ result := .error 2, cause := some 1 }) .empty)
           (.combine
-            (.executionGroup [⟨child, [parent]⟩, ⟨other, []⟩] []
-              ({ result := .error 1, cause := some 1 }) .empty)
-            .empty))))
+            (.executionGroup [⟨parent, []⟩] [] ({ result := .ok (data, 0) })
+              (.combine .empty .empty))
+            (.combine
+              (.executionGroup [⟨child, [parent]⟩, ⟨other, []⟩] []
+                ({ result := .error 1, cause := some 1 }) .empty)
+              .empty)))))
 
 private def killRoot : GraphEvent := .taskFailure rootTask 1
 private def first : GraphEvent := .taskFailure firstTask 1
@@ -54,7 +56,10 @@ private def finish : GraphEvent :=
       work := Work.fromExecution (.combine .empty .empty) [1, 1, 1, 0, 0]
     }
 
-private def inputs : List (List GraphEvent) := [[killRoot], [first], [shared], [finish]]
+private def notice : GraphEvent := .groupFailure ⟨child, 2⟩
+
+private def inputs : List (List GraphEvent) :=
+  [[killRoot], [first], [shared], [finish, notice]]
 
 private def outputs : List (List Execution.WorkQueueEvent) :=
   [
@@ -64,7 +69,7 @@ private def outputs : List (List Execution.WorkQueueEvent) :=
       .groupValues parent
         [{ path := [], data := data, errors := 0, deliveryGroups := [parent] }],
       .groupSuccess parent [child] [],
-      .groupFailure child 1,
+      .groupFailure child 2,
       .workQueueTermination
     ]
   ]
@@ -117,11 +122,25 @@ theorem source_valid
       (by simp [GraphEvent.Fresh, GraphEvent.identities, first, shared, killRoot,
         firstTask, sharedTask, rootTask])
       ⟨_, _, _, shared_known, by intro source impossible; cases impossible⟩
-  exact ⟨
+  have three : ValidGraphEvents work [killRoot, first, shared, finish] :=
     .append two ⟨_, _, parent_known, rfl, rfl⟩
       (by simp [GraphEvent.Fresh, GraphEvent.identities, first, shared, finish, killRoot,
         firstTask, sharedTask, parentTask, rootTask])
-      ⟨_, _, _, parent_known, by intro source impossible; cases impossible⟩,
+      ⟨_, _, _, parent_known, by intro source impossible; cases impossible⟩
+  exact ⟨
+    .append three
+      ⟨
+        ⟨
+          [parent.ref],
+          none,
+          NodeAt.group (address := [1, 1, 0])
+            (group := ⟨child, [parent]⟩) (by rfl) (by simp)
+        ⟩,
+        by decide
+      ⟩
+      (by
+        simp [notice, killRoot, first, shared, finish, GraphEvent.Fresh, GraphEvent.identities])
+      trivial,
     by cbv
   ⟩
 
@@ -220,14 +239,16 @@ theorem initialized
   simp only [List.mem_cons, List.not_mem_nil, or_false] at member
   rcases member with rfl | rfl | rfl
   · exact ⟨[], none,
-      ⟨[1, 0], _, [], { result := .error 1, cause := some 1 }, .empty, [], ⟨root, []⟩, rfl, by simp, rfl, rfl⟩,
+      ⟨[1, 0], _, [], { result := .error 1, cause := some 1 }, .empty, [], ⟨root, []⟩, rfl,
+        by simp, rfl, rfl⟩,
       eligible root_known (by simp)⟩
   · exact ⟨[], none,
       ⟨[1, 1, 1, 0], _, [], { result := .ok (data, 0) }, .combine .empty .empty, [],
         ⟨parent, []⟩, rfl, by simp, rfl, rfl⟩,
       eligible parent_known (by simp)⟩
   · exact ⟨[], none,
-      ⟨[1, 1, 1, 1, 0], _, [], { result := .error 1, cause := some 1 }, .empty, [], ⟨other, []⟩, rfl, by simp, rfl, rfl⟩,
+      ⟨[1, 1, 1, 1, 0], _, [], { result := .error 1, cause := some 1 }, .empty, [], ⟨other,
+        []⟩, rfl, by simp, rfl, rfl⟩,
       eligible shared_known (by simp)⟩
 
 -----------------------------------------------------------------------------------------
@@ -323,11 +344,9 @@ theorem silent_cut_announced_owner
               ((queue.initialGroups ++ queue.initialStreams).map DeliveryNode.ref)
               (((queue.runNormalized inputs).2.flatten.flatMap publicationAtoms).take
                 1) := by
-  apply createWorkQueue_eligibleObjectFailureCuts_announcedOwner source_valid.1 source_valid.2
-    (before := [(0, rootTask)]) (after := [(1, sharedTask)])
-  dsimp only
-  rw [eligible_source_cuts]
-  rfl
+  apply createWorkQueue_sourceObjectFailureCuts_announcedOwner source_valid.1 source_valid.2
+  cbv
+  exact .tail _ (.head _)
 
 /-- The later C/D settlement must use D to escape earlier direct failures, including
 R/C at the same cut. Witness: the general healthy-owner theorem and fixed contributor

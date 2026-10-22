@@ -15,8 +15,8 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 Witness: traverse only combine nodes; lowering stops at task and stream boundaries. -/
 theorem workFromSpec_streams_nodeAt {root current : Execution.Work}
     {address producer enclosing}
-    (located : Located root address current producer enclosing) {stream : Stream}
-    (member : stream ∈ (Work.fromExecution current address).streams)
+    (located : Located root address current.withoutDeclarations producer enclosing)
+    {stream : Stream} (member : stream ∈ (Work.fromExecution current address).streams)
     : NodeAt root stream.node .stream enclosing producer := by
   cases current with
   | empty => simp [Work.fromExecution] at member
@@ -25,6 +25,9 @@ theorem workFromSpec_streams_nodeAt {root current : Execution.Work}
       rcases member with left | right
       · exact workFromSpec_streams_nodeAt located.left left
       · exact workFromSpec_streams_nodeAt located.right right
+  | declareGroups groups tasks =>
+      change stream ∈ (Work.fromExecution tasks address).streams at member
+      exact workFromSpec_streams_nodeAt (current := tasks) located member
   | executionGroup => simp [Work.fromExecution] at member
   | stream node items =>
       simp only [Work.fromExecution, List.mem_singleton] at member
@@ -52,7 +55,7 @@ theorem GraphEvent.MatchesWork.childStream_producer {work occurrence result}
       change locateWork work address = some
         ⟨.executionGroup groups path outcome children, producer, enclosing⟩ at located
       have childLowering : result.work = Work.fromExecution children (address ++ [0]) := by
-        simpa [taskChildWork?, located] using childrenWork.symm
+        simpa [taskChildWork?_eq_lookup, located] using childrenWork.symm
       rw [childLowering] at member
       exact ⟨_, workFromSpec_streams_nodeAt (Located.executionGroup located) member⟩
 
@@ -121,6 +124,22 @@ theorem State.ChildStreamsMatchWork.putTaskNode {queue : State} {work : Executio
     exact known
   · subst task
     exact matching old oldMember
+
+/-- Cache exposure retains task identity and every existing child-stream link. -/
+theorem State.ChildStreamsMatchWork.cacheTaskFailures {queue : State}
+    {work : Execution.Work} (matching : queue.ChildStreamsMatchWork work)
+    (available : List (Occurrence × Nat))
+    : (queue.cacheTaskFailures available).ChildStreamsMatchWork work := by
+  unfold State.cacheTaskFailures
+  induction available generalizing queue with
+  | nil => exact matching
+  | cons entry rest ih =>
+      apply ih
+      dsimp only [List.foldl_cons]
+      split
+      · exact matching
+      · rename_i node found
+        exact matching.putTaskNode _ (matching node (List.mem_of_find?_eq_some found))
 
 /-- Group integration changes no stored task links.
 Witness: exact task-map preservation during group registration and parent linking. -/
@@ -217,7 +236,8 @@ theorem State.ChildStreamsMatchWork.maybeIntegrateWork {queue : State}
               ∃ dependencies,
                 NodeAt work stream.node .stream dependencies (some occurrence))
     : (queue.maybeIntegrateWork newWork parent).1.ChildStreamsMatchWork work := by
-  have tasks := fold_preserves (fun current => current.ChildStreamsMatchWork work) State.addTask
+  have tasks := fold_preserves (fun current : State => current.ChildStreamsMatchWork work)
+    State.addTask
     (fun _ task prior => prior.addTask task) newWork.tasks _ (matching.addGroups newWork.groups)
   exact tasks.addStreams newWork.streams parent known
 
@@ -247,7 +267,8 @@ Witness: old nodes are unchanged, and the appended default node has an empty lin
 -/
 theorem State.ChildStreamsMatchWork.startTask {queue : State} {work : Execution.Work}
     (matching : queue.ChildStreamsMatchWork work) (occurrence : Occurrence)
-    : (queue.startTask occurrence).ChildStreamsMatchWork work := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.startTask occurrence available).ChildStreamsMatchWork work := by
   unfold State.startTask
   split
   · exact matching
@@ -264,12 +285,18 @@ theorem State.ChildStreamsMatchWork.startTask {queue : State} {work : Execution.
 Witness: each task start introduces no new child links. -/
 theorem State.ChildStreamsMatchWork.startGroup {queue : State} {work : Execution.Work}
     (matching : queue.ChildStreamsMatchWork work) (ref : NodeRef)
-    : (queue.startGroup ref).ChildStreamsMatchWork work := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.startGroup ref available).1.ChildStreamsMatchWork work := by
+  have cached := matching.cacheTaskFailures available
   unfold State.startGroup
+  dsimp only
   split
-  · exact matching
-  · exact fold_preserves (fun queue => queue.ChildStreamsMatchWork work) State.startTask
-      (fun _ occurrence prior => prior.startTask occurrence) _ _ matching
+  · exact cached
+  · split
+    · exact fold_preserves (fun current : State => current.ChildStreamsMatchWork work)
+        (fun current task => current.startTask task available)
+        (fun _ occurrence prior => prior.startTask occurrence available) _ _ cached
+    · exact fun node member => cached node (List.mem_filter.mp member).1
 
 /-- Starting a stream changes only the active stream-ref list.
 Witness: neither branch rewrites task nodes. -/
@@ -283,14 +310,18 @@ theorem State.ChildStreamsMatchWork.startStream {queue : State} {work : Executio
 Witness: compose the actual group-start and stream-start folds. -/
 theorem State.ChildStreamsMatchWork.startNewWork {queue : State} {work : Execution.Work}
     (matching : queue.ChildStreamsMatchWork work) (newWork : NewWork)
-    : (queue.startNewWork newWork).ChildStreamsMatchWork work := by
-  let current :=
-    { queue with
-      rootGroups := queue.rootGroups ++ newWork.newGroups.map Execution.DeliveryNode.ref }
-  have groups := fold_preserves (fun queue => queue.ChildStreamsMatchWork work) State.startGroup
-    (fun _ ref prior => prior.startGroup ref)
-    (newWork.newGroups.map Execution.DeliveryNode.ref) current matching
-  exact fold_preserves (fun queue => queue.ChildStreamsMatchWork work) State.startStream
+    (available : List (Occurrence × Nat) := [])
+    : (queue.startNewWork newWork available).1.ChildStreamsMatchWork work := by
+  let step (acc : State × List GroupFailureEvent) (ref : NodeRef) :=
+    let (current, failures) := acc
+    let (next, queued) := current.startGroup ref available
+    (next, failures ++ queued)
+  have groups := fold_preserves (fun acc => acc.1.ChildStreamsMatchWork work) step
+    (fun acc ref prior => prior.startGroup ref available)
+    (newWork.newGroups.map Execution.DeliveryNode.ref)
+    ({ queue with rootGroups := queue.rootGroups ++
+      newWork.newGroups.map Execution.DeliveryNode.ref }, []) matching
+  exact fold_preserves (fun current : State => current.ChildStreamsMatchWork work) State.startStream
     (fun _ ref prior => prior.startStream ref) _ _ groups
 
 /-- Failed-group cleanup keeps only existing task nodes and their original links.
@@ -310,7 +341,7 @@ theorem State.ChildStreamsMatchWork.finishGroupSuccess {queue : State}
   exact fun node member => matching node (retained member)
 
 /-- Task failure cannot reassign a stream producer.
-Witness: initial task deletion followed by cleanup or task-map-preserving cache updates.
+Witness: rejection replacement preserves links, and owner cleanup filters existing nodes.
 -/
 theorem State.ChildStreamsMatchWork.taskFailure {queue : State} {work : Execution.Work}
     (matching : queue.ChildStreamsMatchWork work) (occurrence : Occurrence) (errors : Nat)
@@ -319,22 +350,22 @@ theorem State.ChildStreamsMatchWork.taskFailure {queue : State} {work : Executio
   | none => simpa [State.taskFailure, found] using matching
   | some task =>
       rw [queue.taskFailure_eq occurrence errors task found]
-      apply failureGroupFold_preserves (fun current => current.ChildStreamsMatchWork work)
+      apply failureGroupFold_preserves (fun current : State => current.ChildStreamsMatchWork work)
         (fun _ ref prior => prior.removeGroup ref)
       exact matching.putTaskNode _ (matching task (List.mem_of_find?_eq_some found))
 
 /-- Recursive draining preserves every surviving child stream's structural producer.
-Witness: successful and failed cleanup retain old task nodes; starts create no child links.
+Witness: successful cleanup and startup removal retain links on surviving task nodes.
 -/
 theorem State.ChildStreamsMatchWork.drainReadyGroups {queue : State}
     {work : Execution.Work} (matching : queue.ChildStreamsMatchWork work)
-    : queue.drainReadyGroups.1.ChildStreamsMatchWork work := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.drainReadyGroups available).1.ChildStreamsMatchWork work := by
   apply State.drainReadyGroups_preserves
-    (fun current => current.ChildStreamsMatchWork work) (valid := matching)
-  · intro current node prior _ _ _ _
-    exact (prior.finishGroupSuccess node).startNewWork _
-  · intro current node occurrence errors prior _ _ _
-    exact prior.taskFailure occurrence errors
+    (fun current : State => current.ChildStreamsMatchWork work) (available := available)
+    (valid := matching)
+  intro current node prior _ _ _
+  exact (prior.finishGroupSuccess node).startNewWork _ available
 
 /-- Matched task success attaches streams to their exact structural producer.
 Witness: value replacement preserves old links; matched child lowering justifies new
@@ -342,7 +373,8 @@ links before the contributor fold and final drain release work. -/
 theorem State.ChildStreamsMatchWork.taskSuccess {queue : State} {work : Execution.Work}
     (matching : queue.ChildStreamsMatchWork work) {occurrence result}
     (source : (GraphEvent.taskSuccess occurrence result).MatchesWork work)
-    : (queue.taskSuccess occurrence result).1.ChildStreamsMatchWork work := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.taskSuccess occurrence result available).1.ChildStreamsMatchWork work := by
   cases found : queue.taskNode? occurrence with
   | none => simpa only [State.taskSuccess, found] using matching
   | some node =>
@@ -365,30 +397,34 @@ theorem State.ChildStreamsMatchWork.taskSuccess {queue : State} {work : Executio
           · exact prior
       have processed := fold_preserves (fun acc => acc.1.ChildStreamsMatchWork work)
         successGroupStep step node.task.groups (_, [], {}) integrated
-      rw [queue.taskSuccess_eq occurrence result node found]
-      exact (processed.startNewWork _).drainReadyGroups
+      rw [queue.taskSuccess_eq occurrence result node found available]
+      exact (processed.startNewWork _ available).drainReadyGroups available
 
 /-- Stream-item child integration does not attach streams to task nodes.
 Witness: each item uses parentless integration; pruning, activation, and draining retain links.
 -/
 theorem State.ChildStreamsMatchWork.streamItems {queue : State} {work : Execution.Work}
     (matching : queue.ChildStreamsMatchWork work) (stream : Execution.DeliveryNode)
-    (items : List StreamItem)
-    : (queue.streamItems stream items).1.ChildStreamsMatchWork work := by
+    (items : List StreamItem) (available : List (Occurrence × Nat) := [])
+    : (queue.streamItems stream items available).1.ChildStreamsMatchWork work := by
   let step (acc : State × List Execution.DeliveryNode
-      × List Execution.DeliveryNode × List StreamItemValue) (item : StreamItem) :=
-    let (current, groups, streams, values) := acc
+      × List Execution.DeliveryNode × List StreamItemValue × List GroupFailureEvent)
+      (item : StreamItem) :=
+    let (current, groups, streams, values, failures) := acc
     let (integrated, newWork) := current.maybeIntegrateWork item.work
     let (pruned, nonempty) := integrated.pruneEmptyGroups newWork.newGroups
-    (pruned.startNewWork { newWork with newGroups := nonempty },
-      groups ++ nonempty, streams ++ newWork.newStreams, values ++ [item.value])
+    let (started, queued) :=
+      pruned.startNewWork { newWork with newGroups := nonempty } available
+    (started, groups ++ nonempty, streams ++ newWork.newStreams,
+      values ++ [item.value], failures ++ queued)
   have folded := fold_preserves (fun acc => acc.1.ChildStreamsMatchWork work) step
-    (fun acc item prior => ((prior.integrateRoots item.work).pruneEmptyGroups _).startNewWork _)
-    items (queue, [], [], []) matching
+    (fun acc item prior =>
+      ((prior.integrateRoots item.work).pruneEmptyGroups _).startNewWork _ available)
+    items (queue, [], [], [], []) matching
   unfold State.streamItems
   split
   · exact matching
-  · exact folded.drainReadyGroups
+  · exact folded.drainReadyGroups available
 
 /-- Every matching graph event preserves the structural meaning of stored child refs.
 Witness: task success is the sole attachment path; other handlers retain or remove links.
@@ -396,17 +432,25 @@ Witness: task success is the sole attachment path; other handlers retain or remo
 theorem State.ChildStreamsMatchWork.handleGraphEvent {queue : State}
     {work : Execution.Work} (matching : queue.ChildStreamsMatchWork work)
     {event : GraphEvent} (source : event.MatchesWork work)
-    : (queue.handleGraphEvent event).1.ChildStreamsMatchWork work := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.handleGraphEvent event available).1.ChildStreamsMatchWork work := by
+  have cached := matching.cacheTaskFailures available
   cases event with
-  | taskSuccess => exact matching.taskSuccess source
-  | taskFailure occurrence errors => exact matching.taskFailure occurrence errors
-  | streamItems stream items => exact matching.streamItems stream items
+  | taskSuccess => exact cached.taskSuccess source available
+  | taskFailure occurrence errors => exact cached.taskFailure occurrence errors
+  | streamItems stream items => exact cached.streamItems stream items available
   | streamSuccess stream =>
       simp only [State.handleGraphEvent, State.streamSuccess]
-      split <;> exact matching
+      split <;> exact cached
   | streamFailure stream errors =>
       simp only [State.handleGraphEvent, State.streamFailure]
-      split <;> exact matching
+      split <;> exact cached
+
+  | groupFailure notice =>
+      simp only [State.handleGraphEvent, State.groupFailure]
+      split
+      · exact cached
+      · split <;> exact cached
 
 -----------------------------------------------------------------------------------------
 -- Actual normalized replay supplies provenance without extra state premises
@@ -429,11 +473,14 @@ theorem State.ChildStreamsMatchWork.handleGraphEvents {queue : State}
   have loop (remaining : List GraphEvent) (acc : State × List WorkQueueEvent)
       (prior : acc.1.ChildStreamsMatchWork work)
       (known : ∀ event ∈ remaining, event.MatchesWork work)
-      : (remaining.foldl rawEventStep acc).1.ChildStreamsMatchWork work := by
+      : (remaining.foldl (fun acc event =>
+          rawEventStep acc event (GraphEvent.availableFailures events))
+          acc).1.ChildStreamsMatchWork work := by
     induction remaining generalizing acc with
     | nil => exact prior
     | cons event rest ih =>
-        exact ih _ (prior.handleGraphEvent (known event List.mem_cons_self))
+        exact ih _ (prior.handleGraphEvent (known event List.mem_cons_self)
+          (GraphEvent.availableFailures events))
           (fun next member => known next (List.mem_cons_of_mem _ member))
   have folded := loop events (queue, []) matching sources
   rw [State.handleGraphEvents_eq_rawEventReplay]
@@ -550,7 +597,8 @@ theorem createWorkQueue_runNormalized_streamProducerRelease {work : Execution.Wo
           ].Sublist
             (publisher.normalizeBatch (queue.finishGroupSuccess group).2.1).2 := by
   have links := createWorkQueue_runNormalized_childStreamsMatchWork valid
-  have settled := createWorkQueue_runNormalized_childStreamsSettled (Work.fromExecution work) batches
+  have settled :=
+    createWorkQueue_runNormalized_childStreamsSettled (Work.fromExecution work) batches
   obtain ⟨node, member, value, producer, stored, ordered⟩ :=
     links.finishGroupSuccess_producer_release settled generated publisher group known released
   obtain ⟨_, _, inventory⟩ := createWorkQueue_runNormalized_publications valid

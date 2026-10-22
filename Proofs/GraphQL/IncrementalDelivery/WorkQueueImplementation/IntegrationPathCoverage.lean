@@ -1,6 +1,8 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.IntegrationPaths
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.ForestPathPreservation
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.PrunedFrontierUniqueness
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.StartupRootCoverage
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.DrainNormalForm
 
 /-! Fresh work integration and taskless pruning cannot disconnect earlier live work. -/
 
@@ -84,35 +86,33 @@ theorem State.LiveDescendant.pruneIntegratedWork {queue : State} {root target}
   exact ((queue.maybeIntegrateWork_freshChildLinks registered work parentTask).descendant
     reaches fresh) old
 
-/-- Stream-item integration preserves all earlier live group paths through activation.
-Witness: fresh integration/pruning preserves the path and starting the new roots does
-not change the live group map. The item may carry arbitrary finite work.
+/-- An item cannot strand a previously covered target that survives startup.
+Witness: fresh integration and taskless pruning preserve the old path. The derived finite
+forest then preserves a covering root through actual cached-failure subtree removal.
 -/
-theorem State.LiveDescendant.integrateStreamItem {queue : State} {root target}
-    (path : queue.LiveDescendant root target) (unique : queue.GroupRefsUnique)
-    (registered : queue.LiveGroupsRegistered) (item : StreamItem)
-    : (queue.integrateStreamItem item).LiveDescendant root target := by
-  let integrated := queue.maybeIntegrateWork item.work
-  let pruned := integrated.1.pruneEmptyGroups integrated.2.newGroups
-  let released := { integrated.2 with newGroups := pruned.2 }
-  exact (path.pruneIntegratedWork unique registered item.work).of_groupNodes_eq
-    (pruned.1.startNewWork_groupCore released).1
-
-/-- An item carrying new work cannot strand a previously root-covered group.
-Witness: the previous root and its entire child path survive fresh integration and pruning;
-activation retains old roots while appending the new notice frontier.
--/
-theorem State.integrateStreamItem_old_root_coverage {queue : State} {target}
+theorem State.integrateStreamItem_old_root_coverage {queue : State} {parents target}
     (unique : queue.GroupRefsUnique) (registered : queue.LiveGroupsRegistered)
     (item : StreamItem)
+    (forest : (queue.maybeIntegrateWork item.work).1.RemovalForest parents)
     (covered : ∃ root ∈ queue.rootGroups, queue.LiveDescendant root target)
-    : ∃ root ∈ (queue.integrateStreamItem item).rootGroups,
-        (queue.integrateStreamItem item).LiveDescendant root target := by
-  obtain ⟨root, member, path⟩ := covered
-  refine ⟨root, ?_, path.integrateStreamItem unique registered item⟩
-  unfold State.integrateStreamItem
-  rw [(State.startNewWork_groupCore _ _).2.2, State.pruneEmptyGroups_rootGroups,
-    State.maybeIntegrateWork_rootGroups]
-  exact List.mem_append_left _ member
+    (available : List (Occurrence × Nat) := [])
+    (survives
+      : ∃ node, (queue.integrateStreamItem item available).groupNode? target = some node)
+    : ∃ root ∈ (queue.integrateStreamItem item available).rootGroups,
+        (queue.integrateStreamItem item available).LiveDescendant root target := by
+  let integrated := queue.maybeIntegrateWork item.work
+  let pruned := integrated.1.pruneEmptyGroups integrated.2.newGroups
+  let released : NewWork := { integrated.2 with newGroups := pruned.2 }
+  have prunedForest : pruned.1.RemovalForest parents :=
+    forest.of_subset
+      (integrated.1.pruneEmptyGroups_groupNodes_sublist integrated.2.newGroups).subset
+  have before : ∃ root ∈ pruned.1.rootGroups
+      ++ released.newGroups.map Execution.DeliveryNode.ref,
+      pruned.1.LiveDescendant root target := by
+    obtain ⟨root, active, path⟩ := covered
+    refine ⟨root, List.mem_append_left _ ?_,
+      path.pruneIntegratedWork unique registered item.work⟩
+    rwa [State.pruneEmptyGroups_rootGroups, State.maybeIntegrateWork_rootGroups]
+  exact State.startNewWork_root_coverage prunedForest released before available survives
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

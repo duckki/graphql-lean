@@ -20,13 +20,15 @@ theorem State.PublicationInventory.rawEventReplay_memberships
     (inventory : queue.PublicationInventory (ObjectValueFrom before) published)
     (absent : ∀ publication ∈ published, queue.TaskMembershipAbsent publication.1)
     (events : List GraphEvent) (valid : ValidGraphEvents work (before ++ events))
+    (available : List (Occurrence × Nat) := [])
     : ∃ added : List ObjectPublication,
         added.map Prod.snd
-          = (queue.rawEventReplay events).2.flatMap WorkQueueEvent.objectValues
-        ∧ (queue.rawEventReplay events).1.PublicationInventory
+          = (queue.rawEventReplay events available).2.flatMap WorkQueueEvent.objectValues
+        ∧ (queue.rawEventReplay events available).1.PublicationInventory
             (ObjectValueFrom (before ++ events)) (published ++ added)
         ∧ ∀ publication ∈ published ++ added,
-            (queue.rawEventReplay events).1.TaskMembershipAbsent publication.1 := by
+            (queue.rawEventReplay events available).1.TaskMembershipAbsent
+              publication.1 := by
   induction events generalizing queue before published with
   | nil =>
       refine ⟨[], rfl, ?_, ?_⟩
@@ -46,15 +48,18 @@ theorem State.PublicationInventory.rawEventReplay_memberships
           exact ⟨⟨result, List.mem_append_right _ List.mem_cons_self, rfl⟩,
             inventory.fresh_success eventLaws.2.1⟩)
         (fun _ member => eventLaws.1.childTask_not_published priorValid eventLaws.2.1
-          inventory member)
-      obtain ⟨later, laterValues, final, excluded⟩ := ih after removed (by
+          inventory member) available
+      obtain ⟨later, laterValues, final, excluded⟩ :=
+        ih (queue := (queue.dispatchGraphEvent event available).1)
+          (after.withGroupFailures _) removed (by
         simpa only [List.append_assoc, List.singleton_append] using valid)
       refine ⟨first ++ later, ?_, ?_, ?_⟩
-      · rw [State.rawEventReplay_cons, List.map_append]
-        simp only [List.flatMap_append, ← values, ← laterValues]
-      · rw [State.rawEventReplay_cons]
+      · rw [State.rawEventReplay_cons queue event rest available, List.map_append,
+          List.flatMap_append]
+        exact congr (congrArg List.append values) laterValues
+      · rw [State.rawEventReplay_cons queue event rest available]
         simpa only [List.append_assoc, List.singleton_append] using final
-      · rw [State.rawEventReplay_cons]
+      · rw [State.rawEventReplay_cons queue event rest available]
         simpa only [List.append_assoc] using excluded
 
 /-- Created-queue replay retains an exact publication inventory with no live memberships
@@ -64,22 +69,24 @@ requires neither output admission nor generated-work or host-start assumptions.
 -/
 theorem createWorkQueue_rawEventReplay_publicationMemberships {work : Execution.Work}
     {events : List GraphEvent} (valid : ValidGraphEvents work events)
+    (available : List (Occurrence × Nat) := [])
     : ∃ published : List ObjectPublication,
         published.map Prod.snd
-          = ((State.initialize (Work.fromExecution work)).rawEventReplay events).2.flatMap
+          = ((State.initialize (Work.fromExecution work)).rawEventReplay events
+              available).2.flatMap
               WorkQueueEvent.objectValues
         ∧ ((State.initialize (Work.fromExecution work)).rawEventReplay
-            events).1.PublicationInventory
+            events available).1.PublicationInventory
             (ObjectValueFrom events) published
         ∧ ∀ publication ∈ published,
             ((State.initialize (Work.fromExecution work)).rawEventReplay
-              events).1.TaskMembershipAbsent
+              events available).1.TaskMembershipAbsent
               publication.1 := by
   have initial : (State.initialize (Work.fromExecution work)).PublicationInventory
       (ObjectValueFrom []) [] :=
     ⟨by simp, by simp, createWorkQueue_storedValues _ _⟩
   simpa only [List.nil_append]
-    using initial.rawEventReplay_memberships (by simp) events valid
+    using initial.rawEventReplay_memberships (by simp) events valid available
 
 -----------------------------------------------------------------------------------------
 -- Public batch processing has the same exclusion, including termination-only output
@@ -108,7 +115,7 @@ theorem State.PublicationInventory.handleGraphEvents_memberships {queue : State}
         (fun _ _ source => source.mono (List.subset_append_left before events))
     · simpa only [List.append_nil] using absent
   · obtain ⟨added, values, final, removed⟩ :=
-      inventory.rawEventReplay_memberships absent events valid
+      inventory.rawEventReplay_memberships absent events valid (GraphEvent.availableFailures events)
     dsimp only
     split
     · refine ⟨added, ?_, ⟨final.unique, final.provenance, final.stored⟩, removed⟩

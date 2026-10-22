@@ -49,17 +49,15 @@ both facts, while failed cleanup only removes group records and task nodes.
 -/
 theorem State.drainReadyGroups_go_noticeTaskProvenance {queue : State} {work}
     (sound : queue.GroupMembershipSound) (registered : queue.RegisteredTasksMatch work)
-    (fuel : Nat)
-    : (State.drainReadyGroups.go fuel queue).1.GroupMembershipSound
-      ∧ (State.drainReadyGroups.go fuel queue).1.RegisteredTasksMatch work := by
-  apply State.drainReadyGroups_go_preserves
+    (fuel : Nat) (available : List (Occurrence × Nat) := [])
+    : (State.drainReadyGroups.go available fuel queue).1.GroupMembershipSound
+      ∧ (State.drainReadyGroups.go available fuel queue).1.RegisteredTasksMatch work := by
+  exact State.drainReadyGroups_go_preserves
     (fun current => current.GroupMembershipSound ∧ current.RegisteredTasksMatch work)
-    (valid := ⟨sound, registered⟩)
-  · intro current node prior _ _ _ _
-    exact ⟨(prior.1.finishGroupSuccess node).startNewWork _,
-      (prior.2.finishGroupSuccess node).startNewWork _⟩
-  · intro current node occurrence errors prior _ _ _
-    exact ⟨prior.1.taskFailure occurrence errors, prior.2.taskFailure occurrence errors⟩
+    (fun _ node prior _ _ _ =>
+      ⟨(prior.1.finishGroupSuccess node).startNewWork _ available,
+        (prior.2.finishGroupSuccess node).startNewWork _ available⟩)
+    ⟨sound, registered⟩ fuel
 
 -----------------------------------------------------------------------------------------
 -- The incoming task derives its prepared metadata from actual source replay
@@ -104,7 +102,7 @@ theorem createWorkQueue_taskSuccess_drain_noticeTaskProvenance
       let stored := current.putTaskNode { incoming with value := some result.value }
       let prepared := (stored.maybeIntegrateWork result.work (some occurrence)).1
       let released := incoming.task.groups.foldl successGroupStep (prepared, [], {})
-      let active := released.1.startNewWork released.2.2
+      let active := (released.1.startNewWork released.2.2).1
       active.GroupMembershipSound ∧ active.RegisteredTasksMatch work := by
   obtain ⟨sound, registered⟩ :=
     createWorkQueue_taskSuccess_prepared_noticeTaskProvenance prior matching incoming

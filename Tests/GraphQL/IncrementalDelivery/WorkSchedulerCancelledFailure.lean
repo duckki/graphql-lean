@@ -15,9 +15,10 @@ import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.FiniteHistories
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.Minimality
 import Proofs.GraphQL.IncrementalDelivery.Correctness.NodeRoles
 import Tests.GraphQL.IncrementalDelivery.Execution
+import Proofs.GraphQL.IncrementalDelivery.Semantics.WorkSize
 
 /-! A late rejected task is retained even after its contributors are causally invalidated.
-Dormant-owner release replays one registered rejection instead of adding diagnostics. -/
+Dormant-owner release aggregates distinct cached task causes, independently of diagnostics. -/
 
 namespace GraphQL.IncrementalDelivery.Tests.WorkSchedulerCancelledFailure
 open GraphQL.IncrementalDelivery.Execution
@@ -40,16 +41,24 @@ private def data : List (Name × ResponseValue) := [("a", .scalar "a")]
 
 private def work : Execution.Work :=
   .combine .empty
-    (.combine
-      (.executionGroup [⟨root, []⟩, ⟨child, [parent]⟩, ⟨other, [parent]⟩] []
-        ({ result := .error 1, cause := some 1 }) .empty)
+    (.declareGroups
+      [
+        ⟨root, []⟩,
+        ⟨parent, []⟩,
+        ⟨child, [parent]⟩,
+        ⟨other, [parent]⟩,
+        ⟨nested, [other, parent]⟩
+      ]
       (.combine
-        (.executionGroup [⟨root, []⟩, ⟨child, [parent]⟩, ⟨nested, [other, parent]⟩]
-          [] ({ result := .error 2, cause := some 1 }) .empty)
+        (.executionGroup [⟨root, []⟩, ⟨child, [parent]⟩, ⟨other, [parent]⟩] []
+          ({ result := .error 1, cause := some 1 }) .empty)
         (.combine
-          (.executionGroup [⟨parent, []⟩] [] ({ result := .ok (data, 0) })
-            (.combine .empty .empty))
-          .empty)))
+          (.executionGroup [⟨root, []⟩, ⟨child, [parent]⟩, ⟨nested, [other, parent]⟩]
+            [] ({ result := .error 2, cause := some 1 }) .empty)
+          (.combine
+            (.executionGroup [⟨parent, []⟩] [] ({ result := .ok (data, 0) })
+              (.combine .empty .empty))
+            .empty))))
 
 private def first : GraphEvent := .taskFailure firstTask 1
 private def second : GraphEvent := .taskFailure secondTask 1
@@ -61,7 +70,11 @@ private def finish : GraphEvent :=
       work := Work.fromExecution (.combine .empty .empty) [1, 1, 1, 0, 0]
     }
 
-private def inputs : List (List GraphEvent) := [[first], [second], [finish]]
+private def childNotice : GraphEvent := .groupFailure ⟨child, 2⟩
+private def otherNotice : GraphEvent := .groupFailure ⟨other, 1⟩
+
+private def inputs : List (List GraphEvent) :=
+  [[first], [second], [finish, childNotice, otherNotice]]
 
 /-- Execution generates two differently owned failing partitions sharing R and C.
 Witness: the second task's other owner E is a child of the first task's owner D.
@@ -110,10 +123,27 @@ theorem source_valid : ValidGraphEvents work inputs.flatten := by
       (by simp [GraphEvent.Fresh, GraphEvent.identities, first, second,
         firstTask, secondTask])
       ⟨_, _, _, second_known, by intro source impossible; cases impossible⟩
-  exact .append two ⟨_, _, parent_known, rfl, rfl⟩
+  have three : ValidGraphEvents work [first, second, finish] := .append two ⟨_, _, parent_known, rfl, rfl⟩
     (by simp [GraphEvent.Fresh, GraphEvent.identities, first, second, finish,
       firstTask, secondTask, parentTask])
     ⟨_, _, _, parent_known, by intro source impossible; cases impossible⟩
+
+  have four : ValidGraphEvents work [first, second, finish, childNotice] := .append three
+    ⟨⟨[parent.ref], none, NodeAt.group (address := [1, 0])
+      (group := ⟨child, [parent]⟩) (by rfl) (by simp)⟩, by decide⟩
+    (by simp [childNotice, first, second, finish, GraphEvent.Fresh, GraphEvent.identities]) trivial
+  exact .append four
+    ⟨
+      ⟨
+        [parent.ref],
+        none,
+        NodeAt.group (address := [1, 0]) (group := ⟨other, [parent]⟩) (by rfl) (by simp)
+      ⟩,
+      by decide
+    ⟩
+    (by
+      simp [otherNotice, childNotice, first, second, finish, child, other, GraphEvent.Fresh, GraphEvent.identities])
+    trivial
 
 private def initial : State := State.initialize (Work.fromExecution work)
 
@@ -123,7 +153,7 @@ private def correctedOutputs : List (List Execution.WorkQueueEvent) :=
     [
       .groupValues parent [{ path := [], data, deliveryGroups := [parent] }],
       .groupSuccess parent [child, other] [],
-      .groupFailure child 1,
+      .groupFailure child 2,
       .groupFailure other 1,
       .workQueueTermination
     ]
@@ -134,13 +164,14 @@ theorem output : (initial.runNormalized inputs).2 = correctedOutputs := by cbv
 
 /-- Sequential handlers preserve this result when all settlements share one host batch. -/
 theorem batched_output
-    : (initial.runNormalized [[first, second, finish]]).2
+    : (initial.runNormalized [[first, second, finish, childNotice, otherNotice]]).2
       = [correctedOutputs.flatten] := by cbv
 
-/-- Reversing the two rejections still selects C's first registered task at activation. -/
+/-- Reversing the two rejections preserves C's two distinct cached reporting causes. -/
 theorem reversed_output
-    : inputsStarted work [[second], [first], [finish]] = true
-      ∧ (initial.runNormalized [[second], [first], [finish]]).2 = correctedOutputs := by
+    : inputsStarted work [[second], [first], [finish, childNotice, otherNotice]] = true
+      ∧ (initial.runNormalized [[second], [first], [finish, childNotice, otherNotice]]).2
+        = correctedOutputs := by
   cbv
 
 /-- Presence accepts both rejections, including the causally redundant second one. -/
@@ -182,9 +213,8 @@ theorem complete_replay_healthyOwners
 theorem complete_replay_errorAccounting
     : (initial.runNormalized inputs).1.RetainedFailures work [secondTask, firstTask] := by
   have retained := generated.runNormalized_retainedFailures inputs source_valid inputs_started
-  change (initial.runNormalized inputs).1.RetainedFailures work
-    (initial.objectFailureContributions inputs.flatten) at retained
-  rwa [contributing_failures] at retained
+  have inventory : GraphEvent.failureSettlements inputs.flatten = [secondTask, firstTask] := by cbv
+  rwa [inventory] at retained
 
 /-- Removing D traverses its still-unannounced child E after both rejections. -/
 theorem retained_parent_removal_covers_child
@@ -192,7 +222,7 @@ theorem retained_parent_removal_covers_child
       (queue.removeGroup other.ref).groupNode? nested.ref = none
       ∧ nested.ref ∉ (queue.removeGroup other.ref).rootGroups := by
   apply generated.runNormalized_removeGroup_covers [[first], [second]]
-    (source_valid.prefix ⟨[finish], rfl⟩)
+    (source_valid.prefix ⟨[finish, childNotice, otherNotice], rfl⟩)
   apply State.LiveDescendant.child (child := nested.ref)
   · cbv
   · simp [nested]
@@ -236,16 +266,31 @@ private def aggregateOutputs : List (List Execution.WorkQueueEvent) :=
     ]
   ]
 
-/-- Every completion in generated work selects one unit cause. A fabricated aggregate
-is excluded for every matching and failure-cut placement, including alternative batching. -/
+/-- Only the two failed object tasks can contribute to C's report. -/
+private theorem child_reporting_bound {reported errors}
+    (cause : NodeFailureCauses work reported child.ref errors)
+    : errors ≤ 2 := by
+  apply generated.nodeFailureCauses_count_le [firstTask, secondTask] ?_ cause
+  intro occurrence owners producer payload known owner failed
+  have token := known.observationToken
+  simp [work, observationTokens] at token
+  rcases token with rfl | rfl | rfl
+  · simp [firstTask]
+  · simp [secondTask]
+  · have same := (known.unique parent_known).2.2
+    rw [same] at failed
+    cases failed
+
+/-- Collected diagnostics cannot inflate two distinct unit causes into a count of three.
+The bound holds for every matching, reporting inventory and batching. -/
 theorem aggregate_not_valid
     : ¬ValidHistory work ⟨[root, parent], [], aggregateOutputs⟩ := by
   have excludes {events matching failures} (explained : Explains work [root, parent] []
       events matching failures) : .groupFailure child 3 ∉ events := by
     intro member
     obtain ⟨index, selected⟩ := List.mem_iff_getElem?.mp member
-    have allowed := explained.2.2 index _ selected
-    have count := generated.nodeFailureCause_count allowed.2.2.2
+    obtain ⟨reported, _, _, allowed⟩ := explained.2.2
+    have count := child_reporting_bound (allowed index _ selected).2.2.2
     omega
   rintro (⟨events, matching, failures, explained, batching⟩ |
     ⟨events, matching, failures, explained, _, batching⟩)

@@ -211,12 +211,12 @@ theorem ReceiptReplay.full_streamItems {state : State}
           (Receipt.initialize id stream.ref (items.map (·.occurrence))) actions after)
     (active : state.queue.rootStreams.contains stream.ref = true)
     (full : after.consumed = items.length) (acknowledged : after.acknowledged = true)
-    : (state.streamItems stream items).2.2.filterMap HostEffect.adoptedProducer?
+    : (state.streamItems stream items).2.2.1.filterMap HostEffect.adoptedProducer?
         = actions.filterMap ReceiptAction.consumed?
-      ∧ (state.streamItems stream items).2.2.filterMap HostEffect.acknowledgedStream?
+      ∧ (state.streamItems stream items).2.2.1.filterMap HostEffect.acknowledgedStream?
         = [stream.ref]
       ∧ (∃ (earlier : List HostEffect) (targets : List CleanupTarget),
-          (state.streamItems stream items).2.2
+          (state.streamItems stream items).2.2.1
           = earlier ++ [.acknowledge stream.ref] ++ targets.flatMap CleanupTarget.effects)
       ∧ actions.countP ReceiptAction.isAcknowledgement = 1 := by
   have fifo := replay.initialized_prefix

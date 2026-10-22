@@ -21,16 +21,18 @@ private def parentTask : Occurrence := .executionGroup [1, 1, 1, 0]
 
 private def work : Execution.Work :=
   .combine .empty
-    (.combine
-      (.executionGroup [⟨root, []⟩, ⟨child, [parent]⟩] []
-        ({ result := .error 1, cause := some 1 }) .empty)
+    (.declareGroups
+      [⟨root, []⟩, ⟨parent, []⟩, ⟨child, [parent]⟩, ⟨nested, [child, parent]⟩]
       (.combine
-        (.executionGroup [⟨root, []⟩, ⟨nested, [child, parent]⟩] []
+        (.executionGroup [⟨root, []⟩, ⟨child, [parent]⟩] []
           ({ result := .error 1, cause := some 1 }) .empty)
         (.combine
-          (.executionGroup [⟨parent, []⟩] []
-            ({ result := .ok ([("a", .scalar "a")], 0) }) (.combine .empty .empty))
-          .empty)))
+          (.executionGroup [⟨root, []⟩, ⟨nested, [child, parent]⟩] []
+            ({ result := .error 1, cause := some 1 }) .empty)
+          (.combine
+            (.executionGroup [⟨parent, []⟩] []
+              ({ result := .ok ([("a", .scalar "a")], 0) }) (.combine .empty .empty))
+            .empty))))
 
 private def first : GraphEvent := .taskFailure firstTask 1
 private def second : GraphEvent := .taskFailure secondTask 1
@@ -76,7 +78,8 @@ theorem source_valid
 Witness: both generated contributors have no ancestor or producer dependencies. -/
 theorem initialized : Initializes work initial.initialGroups initial.initialStreams := by
   have rootKnown : NodeAt work root .group [] none := by
-    refine ⟨[1, 0], [⟨root, []⟩, ⟨child, [parent]⟩], [], { result := .error 1, cause := some 1 }, .empty, [],
+    refine ⟨[1, 0], [⟨root, []⟩, ⟨child, [parent]⟩], [],
+      { result := .error 1, cause := some 1 }, .empty, [],
       ⟨root, []⟩, ?_, by simp, rfl, rfl⟩
     cbv
   have parentKnown : NodeAt work parent .group [] none := by
@@ -122,8 +125,10 @@ theorem surviving_root_health
         List.cons_append, List.nil_append, List.mem_cons, List.not_mem_nil, or_false] at member
       rcases member with rfl | rfl <;> trivial)
   change (initial.runNormalized inputs).1.RootGroupsHealthy work
-    (initial.objectFailureContributions inputs.flatten) at healthy
-  rw [accepted_inventory.2.2.1] at healthy
+    (initial.admittedObjectFailureContributionsForBatches inputs) at healthy
+  have counted : initial.admittedObjectFailureContributionsForBatches inputs
+      = [secondTask, firstTask] := by cbv
+  rw [counted] at healthy
   exact healthy
 
 -----------------------------------------------------------------------------------------
@@ -171,8 +176,9 @@ theorem failed_child_release_health
     [first] valid (by cbv)
   have parentMember : parentNode ∈ (initial.replayGraphEvents [first]).groupNodes := by
     cbv; exact List.mem_cons_self
-  have beforeCounts := (createWorkQueue_retainedFailures (Work.fromExecution work) work).replayGraphEvents
-    (before := []) (createWorkQueue_pendingAccounting work) generated
+  have beforeCounts := (createWorkQueue_retainedFailures
+    (Work.fromExecution work) work).replayGraphEvents
+    (before := []) (available := []) (createWorkQueue_pendingAccounting work generated.declarations) generated
     (by intro occurrence member; cases member) [first] valid (by cbv)
   change (initial.replayGraphEvents [first]).RetainedFailures work [firstTask] at beforeCounts
   have storedCounts := beforeCounts.putTaskNode
@@ -236,7 +242,20 @@ theorem failed_child_release_health
       (ledger.pending.sound.putGroupNode { parentNode with pending := 0 }
         (fun occurrence listed =>
           ledger.pending.sound parentNode parentMember occurrence listed))
-      ledger.pending.matching).1,
+      ledger.pending.matching
+      (settled := [parentTask])
+      (by
+        intro node member _
+        have nodes : ready.groupNodes =
+            [{ parentNode with pending := 0 },
+              { group := ⟨child, some parent.ref⟩, tasks := [firstTask], pending := 1,
+                childGroups := [nested.ref] },
+              { group := ⟨nested, some child.ref⟩, tasks := [secondTask], pending := 1 }] := by cbv
+        rw [nodes] at member
+        simp only [List.mem_cons, List.not_mem_nil, or_false] at member
+        rcases member with rfl | rfl | rfl <;>
+          simp [unsettledCount, parentNode, parentTask, firstTask, secondTask])
+      (by simp [parentTask, firstTask])).1,
     by cbv
   ⟩
 

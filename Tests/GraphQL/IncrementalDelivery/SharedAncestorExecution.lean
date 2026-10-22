@@ -24,6 +24,7 @@ mutual
   private def entries (work : Work) (address : List Nat := []) : List Entry :=
     match work with
     | .empty => []
+    | .declareGroups _ tasks => entries tasks address
     | .combine left right =>
         entries left (address ++ [0]) ++ entries right (address ++ [1])
     | .executionGroup groups path result children =>

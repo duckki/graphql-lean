@@ -34,6 +34,7 @@ mutual
   -/
   def WorkScoped : Work → Prop
     | .empty => True
+    | .declareGroups groups tasks => MapScoped groups ∧ WorkScoped tasks
     | .combine left right => WorkScoped left ∧ WorkScoped right
     | .executionGroup groups _ _ children => MapScoped groups ∧ WorkScoped children
     | .stream node items => ItemsScoped node.path items
@@ -41,6 +42,7 @@ mutual
   /-- Both defer and stream notice scopes in work lie below the enclosing base scope. -/
   def ScopesUnder (base : ResponsePath) : Work → Prop
     | .empty => True
+    | .declareGroups groups tasks => MapUnder base groups ∧ ScopesUnder base tasks
     | .combine left right => ScopesUnder base left ∧ ScopesUnder base right
     | .executionGroup groups _ _ children =>
         MapUnder base groups ∧ ScopesUnder base children
@@ -180,6 +182,8 @@ mutual
       : ScopesUnder base work := by
     cases work with
     | empty => trivial
+    | declareGroups groups tasks =>
+        exact ⟨fun node member => below.trans (under.1 node member), under.2.mono below⟩
     | combine left right => exact ⟨under.1.mono below, under.2.mono below⟩
     | executionGroup groups path result children =>
         exact ⟨fun node member => below.trans (under.1 node member), under.2.mono below⟩

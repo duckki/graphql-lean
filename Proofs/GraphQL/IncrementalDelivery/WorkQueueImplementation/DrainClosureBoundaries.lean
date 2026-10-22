@@ -1,14 +1,16 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.DrainValueCoverage
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.BufferedOwnerConservation
 
 /-! Indexed successful drain outputs identify their exact executable closure boundary. -/
 
 namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
+open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
 -----------------------------------------------------------------------------------------
 -- Invert a selected ready group and the final carrier of its successful flush
 -----------------------------------------------------------------------------------------
 
-/-- The drain's selected record is live and active, with a cached failure or zero pending.
+/-- The drain's selected record is live and active, with zero pending.
 Witness: invert the actual root-ref search and its successful group lookup.
 -/
 theorem State.readyGroup_sound {queue : State} {group : GroupNode}
@@ -16,20 +18,20 @@ theorem State.readyGroup_sound {queue : State} {group : GroupNode}
       : queue.rootGroups.findSome?
           (fun ref => do
             let node ← queue.groupNode? ref
-            if (queue.rejectedTask? node).isSome || node.pending == 0 then
+            if node.pending == 0 then
               some node
             else
               none)
         = some group)
     : queue.groupNode? group.group.node.ref = some group
       ∧ group.group.node.ref ∈ queue.rootGroups
-      ∧ ((queue.rejectedTask? group).isSome = true ∨ group.pending = 0) := by
+      ∧ group.pending = 0 := by
   obtain ⟨ref, active, choice⟩ := List.exists_of_findSome?_eq_some selected
   cases found : queue.groupNode? ref with
   | none => simp [found] at choice
   | some node =>
       simp only [found] at choice
-      change (if (queue.rejectedTask? node).isSome || node.pending == 0 then some node else none) = some group
+      change (if node.pending == 0 then some node else none) = some group
         at choice
       split at choice
       · rename_i ready
@@ -58,7 +60,8 @@ theorem State.finishGroupSuccess_index_prefix (queue : State) (node : GroupNode)
   · simp only [empty, ↓reduceIte, List.nil_append] at selected ⊢
     cases index with
     | zero =>
-        obtain ⟨rfl, rfl, rfl⟩ := Execution.WorkQueueEvent.groupSuccess.inj (Option.some.inj selected)
+        obtain ⟨rfl, rfl, rfl⟩ :=
+          Execution.WorkQueueEvent.groupSuccess.inj (Option.some.inj selected)
         exact ⟨[], rfl, rfl, rfl⟩
     | succ index => simp at selected
   · simp only [empty] at selected ⊢
@@ -67,7 +70,8 @@ theorem State.finishGroupSuccess_index_prefix (queue : State) (node : GroupNode)
     | succ index =>
         cases index with
         | zero =>
-            obtain ⟨rfl, rfl, rfl⟩ := Execution.WorkQueueEvent.groupSuccess.inj (Option.some.inj selected)
+            obtain ⟨rfl, rfl, rfl⟩ :=
+              Execution.WorkQueueEvent.groupSuccess.inj (Option.some.inj selected)
             exact ⟨[.groupValues node.group.node (chosen.filterMap TaskNode.value)],
               rfl, rfl, rfl⟩
         | succ index => simp at selected
@@ -101,24 +105,25 @@ theorem State.finishGroupSuccess_value_index (queue : State) (node : GroupNode)
 -----------------------------------------------------------------------------------------
 
 /-- Every indexed drain value block starts at an exact internal drain boundary.
-Witness: follow the actual closure blocks to its live, active, uncached zero-pending
-group. The recovered prefix excludes the selected value block itself.
+Witness: follow successful closure blocks to their live, active zero-pending group.
+The recovered prefix excludes the selected value block itself.
 -/
 theorem State.drainReadyGroups_go_value_boundary (fuel : Nat) (queue : State)
-    {index group values}
+    {index group values} (available : List (Occurrence × Nat) := [])
     (selected
-      : (State.drainReadyGroups.go fuel queue).2[index]?
+      : (State.drainReadyGroups.go available fuel queue).2.1[index]?
         = some (.groupValues group values))
     : ∃ steps node,
         steps < fuel
-        ∧ (State.drainReadyGroups.go steps queue).1.groupNode? node.group.node.ref
+        ∧ (State.drainReadyGroups.go available steps queue).1.groupNode?
+            node.group.node.ref
           = some node
-        ∧ node.group.node.ref ∈ (State.drainReadyGroups.go steps queue).1.rootGroups
-        ∧ (State.drainReadyGroups.go steps queue).1.rejectedTask? node = none
+        ∧ node.group.node.ref
+          ∈ (State.drainReadyGroups.go available steps queue).1.rootGroups
         ∧ node.pending = 0
         ∧ node.group.node = group
-        ∧ (State.drainReadyGroups.go fuel queue).2.take index
-          = (State.drainReadyGroups.go steps queue).2 := by
+        ∧ (State.drainReadyGroups.go available fuel queue).2.1.take index
+          = (State.drainReadyGroups.go available steps queue).2.1 := by
   induction fuel generalizing queue index with
   | zero => simp [State.drainReadyGroups.go] at selected
   | succ fuel ih =>
@@ -126,90 +131,76 @@ theorem State.drainReadyGroups_go_value_boundary (fuel : Nat) (queue : State)
             : queue.rootGroups.findSome?
                 (fun ref => do
                   let node ← queue.groupNode? ref
-                  if (queue.rejectedTask? node).isSome || node.pending == 0 then
-                    some node
-                  else
-                    none) with
+                  if node.pending == 0 then some node else none) with
       | none =>
           simp only [State.drainReadyGroups.go, ready, List.getElem?_nil] at selected
           contradiction
       | some node =>
-          obtain ⟨found, active, condition⟩ := State.readyGroup_sound ready
-          cases cached : queue.rejectedTask? node with
-          | none =>
-              let next := (queue.finishGroupSuccess node).1.startNewWork
-                (queue.finishGroupSuccess node).2.2
-              let emitted := (queue.finishGroupSuccess node).2.1
-              have step (count : Nat) : State.drainReadyGroups.go (count + 1) queue =
-                  ((State.drainReadyGroups.go count next).1,
-                    emitted ++ (State.drainReadyGroups.go count next).2) := by
-                simp only [State.drainReadyGroups.go, ready, cached]
-                rfl
-              rw [step fuel] at selected
-              by_cases inside : index < emitted.length
-              · have atFlush := selected
-                rw [List.getElem?_append_left inside] at atFlush
-                obtain ⟨rfl, same⟩ := queue.finishGroupSuccess_value_index node atFlush
-                exact ⟨0, node, by omega, found, active, cached,
-                  by simpa [cached] using condition, same, by simp [State.drainReadyGroups.go]⟩
-              · have outside : emitted.length ≤ index := by omega
-                rw [List.getElem?_append_right outside] at selected
-                obtain ⟨steps, later, bound, lookup, root, healthy, zero, same,
-                  exactPrefix⟩ := ih next selected
-                refine ⟨steps + 1, later, by omega, ?_, ?_, ?_, zero, same, ?_⟩
-                · simpa only [step] using lookup
-                · simpa only [step] using root
-                · simpa only [step] using healthy
-                · rw [step fuel, List.take_append, List.take_of_length_le outside,
-                    exactPrefix, step]
-          | some rejected =>
-              obtain ⟨occurrence, errors⟩ := rejected
-              let next := (queue.taskFailure occurrence errors).1
-              let emitted := (queue.taskFailure occurrence errors).2
-              have step (count : Nat) : State.drainReadyGroups.go (count + 1) queue =
-                  ((State.drainReadyGroups.go count next).1,
-                    emitted ++ (State.drainReadyGroups.go count next).2) := by
-                simp only [State.drainReadyGroups.go, ready, cached]
-                rfl
-              rw [step fuel] at selected
-              by_cases inside : index < emitted.length
-              · rw [List.getElem?_append_left inside] at selected
-                obtain ⟨owner, impossible⟩ := queue.taskFailure_event_failure occurrence errors _
-                  (List.mem_of_getElem? selected)
-                cases impossible
-              · have outside : emitted.length ≤ index := by omega
-                rw [List.getElem?_append_right outside] at selected
-                obtain ⟨steps, later, bound, lookup, root, healthy, zero, same, exactPrefix⟩ :=
-                  ih next selected
-                refine ⟨steps + 1, later, by omega, ?_, ?_, ?_, zero, same, ?_⟩
-                · simpa only [step] using lookup
-                · simpa only [step] using root
-                · simpa only [step] using healthy
-                · rw [step fuel, List.take_append, List.take_of_length_le outside,
-                    exactPrefix, step]
+          obtain ⟨found, active, zero⟩ := State.readyGroup_sound ready
+          let next := ((queue.finishGroupSuccess node).1.startNewWork
+            (queue.finishGroupSuccess node).2.2 available).1
+          let emitted := (queue.finishGroupSuccess node).2.1
+          have state (count : Nat)
+              : (State.drainReadyGroups.go available (count + 1) queue).1
+                = (State.drainReadyGroups.go available count next).1 := by
+            simp only [State.drainReadyGroups.go, ready]
+            rfl
+          have events (count : Nat)
+              : (State.drainReadyGroups.go available (count + 1) queue).2.1
+                = emitted ++ (State.drainReadyGroups.go available count next).2.1 := by
+            simp only [State.drainReadyGroups.go, ready]
+            rfl
+          rw [events fuel] at selected
+          by_cases inside : index < emitted.length
+          · have atFlush := selected
+            rw [List.getElem?_append_left inside] at atFlush
+            obtain ⟨rfl, same⟩ := queue.finishGroupSuccess_value_index node atFlush
+            exact ⟨0, node, by omega, found, active, zero, same,
+              by simp [State.drainReadyGroups.go]⟩
+          · have outside : emitted.length ≤ index := by omega
+            rw [List.getElem?_append_right outside] at selected
+            obtain ⟨steps, later, bound, lookup, root, zero, same, exactPrefix⟩ :=
+              ih next selected
+            refine ⟨steps + 1, later, by omega, ?_, ?_, zero, same, ?_⟩
+            · simpa only [state] using lookup
+            · simpa only [state] using root
+            · rw [events fuel, List.take_append, List.take_of_length_le outside,
+                exactPrefix, events]
 
 /-- Every indexed successful drain carrier has a concrete earlier drain boundary.
-Witness: recurse through actual closure blocks, retaining silent prefixes and exact output
-offsets. The recovered group is live, active, uncached, and zero-pending; its value prefix
-ends exactly at the selected output position. Equal-looking raw carriers are not merged.
+Witness: recurse through actual successful closure blocks, retaining silent prefixes and
+exact output offsets. Startup failure notices have a separate return component.
 -/
-theorem State.drainReadyGroups_go_success_boundary (fuel : Nat) (queue : State)
-    {index group groups streams}
+theorem State.drainReadyGroups_go_success_boundary_selected (fuel : Nat)
+    (queue : State) {index group groups streams}
+    (available : List (Occurrence × Nat) := [])
     (selected
-      : (State.drainReadyGroups.go fuel queue).2[index]?
+      : (State.drainReadyGroups.go available fuel queue).2.1[index]?
         = some (.groupSuccess group groups streams))
     : ∃ steps node before,
         steps < fuel
-        ∧ (State.drainReadyGroups.go steps queue).1.groupNode? node.group.node.ref
+        ∧ (State.drainReadyGroups.go available steps queue).1.rootGroups.findSome?
+            (fun ref => do
+              let candidate ←
+                (State.drainReadyGroups.go available steps queue).1.groupNode? ref
+              if candidate.pending == 0 then some candidate else none)
           = some node
-        ∧ node.group.node.ref ∈ (State.drainReadyGroups.go steps queue).1.rootGroups
-        ∧ (State.drainReadyGroups.go steps queue).1.rejectedTask? node = none
+        ∧ (State.drainReadyGroups.go available steps queue).1.groupNode?
+            node.group.node.ref
+          = some node
+        ∧ node.group.node.ref
+          ∈ (State.drainReadyGroups.go available steps queue).1.rootGroups
         ∧ node.pending = 0
         ∧ node.group.node = group
-        ∧ ((State.drainReadyGroups.go steps queue).1.finishGroupSuccess node).2.1
+        ∧ ((State.drainReadyGroups.go available steps queue).1.finishGroupSuccess
+            node).2.1
           = before ++ [.groupSuccess group groups streams]
-        ∧ (State.drainReadyGroups.go fuel queue).2.take index
-          = (State.drainReadyGroups.go steps queue).2 ++ before := by
+        ∧ (State.drainReadyGroups.go available fuel queue).2.1.take index
+          = (State.drainReadyGroups.go available steps queue).2.1 ++ before
+        ∧ ( let closed :=
+              (State.drainReadyGroups.go available steps queue).1.finishGroupSuccess node
+            ((closed.1.startNewWork closed.2.2 available).1.cancelledGroups).Subset
+              (State.drainReadyGroups.go available fuel queue).1.cancelledGroups) := by
   induction fuel generalizing queue index with
   | zero => simp [State.drainReadyGroups.go] at selected
   | succ fuel ih =>
@@ -217,99 +208,119 @@ theorem State.drainReadyGroups_go_success_boundary (fuel : Nat) (queue : State)
             : queue.rootGroups.findSome?
                 (fun ref => do
                   let node ← queue.groupNode? ref
-                  if (queue.rejectedTask? node).isSome || node.pending == 0 then
-                    some node
-                  else
-                    none) with
+                  if node.pending == 0 then some node else none) with
       | none =>
           simp only [State.drainReadyGroups.go, ready, List.getElem?_nil] at selected
           contradiction
       | some node =>
-          obtain ⟨found, active, condition⟩ := State.readyGroup_sound ready
-          cases cached : queue.rejectedTask? node with
-          | none =>
-              let next := (queue.finishGroupSuccess node).1.startNewWork
-                (queue.finishGroupSuccess node).2.2
-              let emitted := (queue.finishGroupSuccess node).2.1
-              have step (count : Nat) : State.drainReadyGroups.go (count + 1) queue =
-                  ((State.drainReadyGroups.go count next).1,
-                    emitted ++ (State.drainReadyGroups.go count next).2) := by
-                simp only [State.drainReadyGroups.go, ready, cached]
-                rfl
-              rw [step fuel] at selected
-              by_cases inside : index < emitted.length
-              · have atFlush := selected
-                rw [List.getElem?_append_left inside] at atFlush
-                obtain ⟨before, same, output, exactPrefix⟩ :=
-                  queue.finishGroupSuccess_index_prefix node atFlush
-                refine ⟨
-                  0,
-                  node,
-                  before,
-                  by omega,
-                  found,
-                  active,
-                  cached,
-                  ?_,
-                  same,
-                  output,
-                  ?_
-                ⟩
-                · simpa [cached] using condition
-                · rw [step fuel]
-                  simpa only [List.take_append_of_le_length (Nat.le_of_lt inside),
-                    State.drainReadyGroups.go, List.nil_append] using exactPrefix
-              · have outside : emitted.length ≤ index := by omega
-                rw [List.getElem?_append_right outside] at selected
-                obtain ⟨steps, later, before, bound, lookup, root, healthy, zero, same, output,
-                  exactPrefix⟩ :=
-                  ih next selected
-                refine ⟨
-                  steps + 1,
-                  later,
-                  before,
-                  by omega,
-                  ?_,
-                  ?_,
-                  ?_,
-                  zero,
-                  same,
-                  ?_,
-                  ?_
-                ⟩
-                · simpa only [step] using lookup
-                · simpa only [step] using root
-                · simpa only [step] using healthy
-                · simpa only [step] using output
-                · rw [step fuel, List.take_append, List.take_of_length_le outside,
-                    exactPrefix, step]
-                  simp only [List.append_assoc]
-          | some rejected =>
-              obtain ⟨occurrence, errors⟩ := rejected
-              let next := (queue.taskFailure occurrence errors).1
-              let emitted := (queue.taskFailure occurrence errors).2
-              have step (count : Nat) : State.drainReadyGroups.go (count + 1) queue =
-                  ((State.drainReadyGroups.go count next).1,
-                    emitted ++ (State.drainReadyGroups.go count next).2) := by
-                simp only [State.drainReadyGroups.go, ready, cached]
-                rfl
-              rw [step fuel] at selected
-              by_cases inside : index < emitted.length
-              · rw [List.getElem?_append_left inside] at selected
-                obtain ⟨owner, impossible⟩ := queue.taskFailure_event_failure occurrence errors _
-                  (List.mem_of_getElem? selected)
-                cases impossible
-              · have outside : emitted.length ≤ index := by omega
-                rw [List.getElem?_append_right outside] at selected
-                obtain ⟨steps, later, before, bound, lookup, root, healthy, zero, same, output,
-                  exactPrefix⟩ := ih next selected
-                refine ⟨steps + 1, later, before, by omega, ?_, ?_, ?_, zero, same, ?_, ?_⟩
-                · simpa only [step] using lookup
-                · simpa only [step] using root
-                · simpa only [step] using healthy
-                · simpa only [step] using output
-                · rw [step fuel, List.take_append, List.take_of_length_le outside,
-                    exactPrefix, step]
-                  simp only [List.append_assoc]
+          obtain ⟨found, active, zero⟩ := State.readyGroup_sound ready
+          let next := ((queue.finishGroupSuccess node).1.startNewWork
+            (queue.finishGroupSuccess node).2.2 available).1
+          let emitted := (queue.finishGroupSuccess node).2.1
+          have state (count : Nat)
+              : (State.drainReadyGroups.go available (count + 1) queue).1
+                = (State.drainReadyGroups.go available count next).1 := by
+            simp only [State.drainReadyGroups.go, ready]
+            rfl
+          have events (count : Nat)
+              : (State.drainReadyGroups.go available (count + 1) queue).2.1
+                = emitted ++ (State.drainReadyGroups.go available count next).2.1 := by
+            simp only [State.drainReadyGroups.go, ready]
+            rfl
+          rw [events fuel] at selected
+          by_cases inside : index < emitted.length
+          · have atFlush := selected
+            rw [List.getElem?_append_left inside] at atFlush
+            obtain ⟨before, same, output, exactPrefix⟩ :=
+              queue.finishGroupSuccess_index_prefix node atFlush
+            refine ⟨
+              0,
+              node,
+              before,
+              by omega,
+              ready,
+              found,
+              active,
+              zero,
+              same,
+              output,
+              ?_,
+              ?_
+            ⟩
+            · rw [events fuel]
+              simpa only [List.take_append_of_le_length (Nat.le_of_lt inside),
+                State.drainReadyGroups.go, List.nil_append] using exactPrefix
+            · simpa only [State.drainReadyGroups.go, ready]
+                using State.drainReadyGroups_go_cancelledGroups_subset fuel next available
+          · have outside : emitted.length ≤ index := by omega
+            rw [List.getElem?_append_right outside] at selected
+            obtain ⟨steps, later, before, bound, chosen, lookup, root, zero, same, output,
+              exactPrefix, cancelled⟩ := ih next selected
+            refine ⟨steps + 1, later, before, by omega, ?_, ?_, ?_, zero, same, ?_, ?_, ?_⟩
+            · simpa only [state] using chosen
+            · simpa only [state] using lookup
+            · simpa only [state] using root
+            · simpa only [state] using output
+            · rw [events fuel, List.take_append, List.take_of_length_le outside,
+                exactPrefix, events]
+              simp only [List.append_assoc]
+            · simpa only [state] using cancelled
+
+/-- Retain startup cancellation while projecting the established carrier-boundary interface. -/
+theorem State.drainReadyGroups_go_success_boundary_withCancellation (fuel : Nat)
+    (queue : State) {index group groups streams}
+    (available : List (Occurrence × Nat) := [])
+    (selected
+      : (State.drainReadyGroups.go available fuel queue).2.1[index]?
+        = some (.groupSuccess group groups streams))
+    : ∃ steps node before,
+        steps < fuel
+        ∧ (State.drainReadyGroups.go available steps queue).1.groupNode?
+            node.group.node.ref
+          = some node
+        ∧ node.group.node.ref
+          ∈ (State.drainReadyGroups.go available steps queue).1.rootGroups
+        ∧ node.pending = 0
+        ∧ node.group.node = group
+        ∧ ((State.drainReadyGroups.go available steps queue).1.finishGroupSuccess
+            node).2.1
+          = before ++ [.groupSuccess group groups streams]
+        ∧ (State.drainReadyGroups.go available fuel queue).2.1.take index
+          = (State.drainReadyGroups.go available steps queue).2.1 ++ before
+        ∧ ( let closed :=
+              (State.drainReadyGroups.go available steps queue).1.finishGroupSuccess node
+            ((closed.1.startNewWork closed.2.2 available).1.cancelledGroups).Subset
+              (State.drainReadyGroups.go available fuel queue).1.cancelledGroups) := by
+  obtain ⟨steps, node, before, bounded, _, found, active, zero, same, output,
+    exactPrefix, cancelled⟩ :=
+    State.drainReadyGroups_go_success_boundary_selected fuel queue available selected
+  exact ⟨steps, node, before, bounded, found, active, zero, same, output,
+    exactPrefix, cancelled⟩
+
+/-- An indexed successful carrier identifies its exact pre-flush state and strict output.
+Witness: project the stronger boundary certificate that also retains startup cancellation.
+-/
+theorem State.drainReadyGroups_go_success_boundary (fuel : Nat) (queue : State)
+    {index group groups streams} (available : List (Occurrence × Nat) := [])
+    (selected
+      : (State.drainReadyGroups.go available fuel queue).2.1[index]?
+        = some (.groupSuccess group groups streams))
+    : ∃ steps node before,
+        steps < fuel
+        ∧ (State.drainReadyGroups.go available steps queue).1.groupNode?
+            node.group.node.ref
+          = some node
+        ∧ node.group.node.ref
+          ∈ (State.drainReadyGroups.go available steps queue).1.rootGroups
+        ∧ node.pending = 0
+        ∧ node.group.node = group
+        ∧ ((State.drainReadyGroups.go available steps queue).1.finishGroupSuccess
+            node).2.1
+          = before ++ [.groupSuccess group groups streams]
+        ∧ (State.drainReadyGroups.go available fuel queue).2.1.take index
+          = (State.drainReadyGroups.go available steps queue).2.1 ++ before := by
+  obtain ⟨steps, node, before, bound, found, active, zero, same, output, exactPrefix, _⟩ :=
+    State.drainReadyGroups_go_success_boundary_withCancellation fuel queue available selected
+  exact ⟨steps, node, before, bound, found, active, zero, same, output, exactPrefix⟩
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

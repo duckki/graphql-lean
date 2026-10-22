@@ -87,7 +87,9 @@ explicit local obligations for the general release/replay induction.
 theorem ExecutedWork.replayGraphEvents_objectStreamHealthy_of_itemSafety
     {work received matching events failures stream dependencies source ref}
     (generated : ExecutedWork work) (valid : ValidGraphEvents work received)
-    (started : (State.initialize (Work.fromExecution work)).acceptsBatch received = true)
+    (started
+      : State.eventsStarted [] (State.initialize (Work.fromExecution work)) received
+        = true)
     (known : NodeAt work stream .stream dependencies (some (.executionGroup source)))
     (settled : Occurrence.executionGroup source ∈ received.flatMap GraphEvent.successes)
     (member : ref ∈ dependencies)

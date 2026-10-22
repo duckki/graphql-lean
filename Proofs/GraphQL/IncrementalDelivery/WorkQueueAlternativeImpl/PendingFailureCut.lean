@@ -15,7 +15,7 @@ open GraphQL.IncrementalDelivery.ReferenceWorkQueue (TaskNode)
 /-- Generated failure-cut construction target, proved in GeneratedFailureCut. A prepared
 buffered task that remains pending in the proof-only filter but disappears from this
 dispatch has every still-live contributor
-below an actually emitted failure root in that same view. It assumes neither cleanup
+below an immediate or queued startup failure root in that same view. It assumes neither cleanup
 effects nor resource inventory, and is not a host/source law.
 -/
 def GeneratedPendingBufferFailureCut : Prop :=
@@ -29,7 +29,7 @@ def GeneratedPendingBufferFailureCut : Prop :=
     → ∀ (occurrence : Occurrence) (node : TaskNode),
         let before := ((State.initialize work).runNormalized inputs).1
         let snapshot := registrationSnapshot before.queue event
-        let events := (before.queue.handleGraphEvent event).2
+        let events := (before.queue.handleGraphEvent event).2.1
         let view := failurePruningView before.queue event events
         snapshot.taskNode? occurrence = some node
         → node.value.isSome = true
@@ -38,7 +38,11 @@ def GeneratedPendingBufferFailureCut : Prop :=
         → ∀ owner ∈ node.task.groups,
             ∀ group,
               view.groupNode? owner.ref = some group
-              → ∃ root ∈ failureRoots events, view.LiveDescendant root owner.ref
+              → ∃ root ∈
+                  failureRoots events
+                  ++ (before.queue.handleGraphEvent event).2.2.map
+                      (fun failure => failure.group.ref),
+                  view.LiveDescendant root owner.ref
 
 /-- Stronger exact-record cut: loss or replacement of the prepared node suffices.
 This exposes the handler's retention alternative without assuming complete disappearance;
@@ -55,7 +59,7 @@ def GeneratedPendingBufferLossCut : Prop :=
     → ∀ (occurrence : Occurrence) (node : TaskNode),
         let before := ((State.initialize work).runNormalized inputs).1
         let snapshot := registrationSnapshot before.queue event
-        let events := (before.queue.handleGraphEvent event).2
+        let events := (before.queue.handleGraphEvent event).2.1
         let view := failurePruningView before.queue event events
         snapshot.taskNode? occurrence = some node
         → node.value.isSome = true
@@ -64,7 +68,11 @@ def GeneratedPendingBufferLossCut : Prop :=
         → ∀ owner ∈ node.task.groups,
             ∀ group,
               view.groupNode? owner.ref = some group
-              → ∃ root ∈ failureRoots events, view.LiveDescendant root owner.ref
+              → ∃ root ∈
+                  failureRoots events
+                  ++ (before.queue.handleGraphEvent event).2.2.map
+                      (fun failure => failure.group.ref),
+                  view.LiveDescendant root owner.ref
 
 /-- The exact-record cut includes the previously proved disappearance target. -/
 theorem GeneratedPendingBufferFailureCut_of_lossCut (cuts : GeneratedPendingBufferLossCut)
@@ -100,7 +108,7 @@ theorem generatedSnapshot_pendingOwned {work inputs event occurrence}
             event)
           event
           ((((State.initialize work).runNormalized inputs).1.queue).handleGraphEvent
-            event).2
+            event).2.1
           occurrence
         = true)
     (owned
@@ -114,10 +122,11 @@ theorem generatedSnapshot_pendingOwned {work inputs event occurrence}
         ∃ group,
           (failurePruningView ((State.initialize work).runNormalized inputs).1.queue event
             ((((State.initialize work).runNormalized inputs).1.queue).handleGraphEvent
-              event).2).groupNode?
+              event).2.1).groupNode?
             owner.ref
           = some group := by
-  obtain ⟨task, catalogue, sameGroups⟩ := generatedSnapshot_taskCatalogue generated valid started found
+  obtain ⟨task, catalogue, sameGroups⟩ := generatedSnapshot_taskCatalogue generated valid
+    started found
   obtain ⟨owner, contributes, group, live⟩ := owned
   exact ⟨owner, contributes, failurePruningView_pendingOwner catalogue pending
     (sameGroups.symm ▸ contributes) live⟩

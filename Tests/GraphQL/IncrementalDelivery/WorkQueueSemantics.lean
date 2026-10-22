@@ -1,4 +1,4 @@
-import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.FailureCauses
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.FailureReporting
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.StructuralEquivalence
 
 /-! Structural occurrence and direct output-history regression witnesses. -/
@@ -61,15 +61,16 @@ theorem located_single {result address current producer owners}
           ∧ producer = some (.executionGroup [])
           ∧ owners = [0]) := by
   cases address with
-  | nil => simp_all [Located, locateWork, locateWork.go, WorkLocation.mk.injEq]
+  | nil => simp_all [Located, locateWork, locateWork.go, WorkLocation.mk.injEq,
+      single, Work.withoutDeclarations]
   | cons index rest =>
       cases index with
       | zero =>
           cases rest <;>
-            simp_all [Located, locateWork, locateWork.go, WorkLocation.child?,
+            simp_all [Located, locateWork, locateWork.go, WorkLocation.child?, Work.withoutDeclarations,
               WorkLocation.mk.injEq, single, node]
       | succ index =>
-          simp [Located, locateWork, locateWork.go, WorkLocation.child?, single] at h
+          simp [Located, locateWork, locateWork.go, WorkLocation.child?, Work.withoutDeclarations, single] at h
 
 /-- A payload must name the actual structural task; equality of payloads is not its
 identity.
@@ -125,7 +126,7 @@ theorem initialized (result) : Initializes (single result) [node] [] := by
   ⟩
   intro accounted
   have impossible := accounted (.executionGroup []) [0]
-    ⟨none, .object [] result.deliveryResult, .executionGroup .root⟩ (by simp [node])
+    ⟨none, .object [] result.deliveryResult, .executionGroup (Located.root (root := single result))⟩ (by simp [node])
   rcases impossible with cancelled | published
   · exact noCancellation _ _ cancelled
   · simp [Published] at published
@@ -133,7 +134,7 @@ theorem initialized (result) : Initializes (single result) [node] [] := by
 /-- The singleton publication uses the only actual task and a fresh open owner. -/
 theorem publishes : EventAllowed work [0] matching [] [] value := by
   refine ⟨[0], none, { path := [], data := [], errors := 0 }, rfl,
-    .executionGroup .root, ?_, ?_⟩
+    .executionGroup (Located.root (root := work)), ?_, ?_⟩
   · exact ⟨by simp [Published], noCancellation _ _, by simp, trivial⟩
   · have opened : OpenOwner work [0] [] [0] node :=
       ⟨⟨.group, [], none, (NodeAt.group (group := { node }) .root (by simp))⟩,
@@ -168,21 +169,20 @@ theorem closes : EventAllowed work [0] matching [value] [] success := by
 transitions.
 -/
 theorem explained : Explains work [node] [] events matching [] := by
-  refine ⟨initialized _, ?_, ?_⟩
-  · simp [FailureWitness]
-  · intro index event selected
-    cases index with
-    | zero =>
-        have same : event = value := by simpa [events] using selected.symm
-        subst event
-        simpa [failedBefore, events, node] using publishes
-    | succ index =>
-        cases index with
-        | zero =>
-            have same : event = success := by simpa [events] using selected.symm
-            subst event
-            simpa [failedBefore, events, node] using closes
-        | succ index => simp [events] at selected
+  apply Explains.of_causal_failures (initialized _) (by simp [FailureWitness]) (by simp)
+  intro index event selected
+  cases index with
+  | zero =>
+      have same : event = value := by simpa [events] using selected.symm
+      subst event
+      simpa [failedBefore, events, node, work] using publishes
+  | succ index =>
+      cases index with
+      | zero =>
+          have same : event = success := by simpa [events] using selected.symm
+          subst event
+          simpa [failedBefore, events, node, work] using closes
+      | succ index => simp [events] at selected
 
 /-- The terminal condition accounts for each occurrence and closes each announced node. -/
 theorem terminal : Terminal work [0] matching events [] := by
@@ -190,9 +190,9 @@ theorem terminal : Terminal work [0] matching events [] := by
   · intro occurrence owners producer payload known
     obtain ⟨rfl, _, _, _⟩ := task_single known
     exact Or.inr ⟨0, value, rfl, trivial, rfl⟩
-  · intro other kind parents birth known
+  · intro other kind parents birth known _
     obtain ⟨rfl, _, _, _⟩ := node_single known
-    exact Or.inl (by simp [events, completedRefs, eventCompleted, value, success, node])
+    simp [events, completedRefs, eventCompleted, value, success, node]
 
 /-- The public run relation admits this completed output history and its chosen batch. -/
 theorem completedRun
@@ -211,9 +211,9 @@ resume.
 theorem emptyHistory
     : AdmissiblePrefix work
         { initialGroups := [node], initialStreams := [], batches := [] } := by
-  refine ⟨[], matching, [], ⟨initialized _, ?_, ?_⟩, .nil⟩
-  · simp [FailureWitness]
-  · simp
+  refine ⟨[], matching, [], ?_, .nil⟩
+  exact Explains.of_causal_failures (initialized _) (by simp [FailureWitness])
+    (by simp) (by simp)
 
 /-- Empty work still imposes no law on an unused source queue constructor. -/
 example (scheduler : (Execution.Work → Execution.WorkQueue))
@@ -250,7 +250,8 @@ def failure : WorkQueueEvent := .groupFailure node 2
 -/
 theorem failed {matching events}
     : NodeFailed failingWork matching events [(0, .executionGroup [])] 0 :=
-  .task (.executionGroup .root) (by simp [node]) (by simp [failedBefore])
+  .task (.executionGroup (Located.root (root := failingWork))) (by simp [node])
+    (by simp [failedBefore])
 
 /-- That failure cancels the associated work, so it need not publish an invalid payload.
 -/
@@ -259,11 +260,19 @@ theorem cancelled {matching events}
         (.executionGroup []) := by
   refine ⟨0, by simp, Nat.zero_le _, ?_⟩
   apply Causality.TaskCancelled.owners
-    ⟨none, .object [] (.error 2), TaskAt.executionGroup Located.root⟩
+    ⟨
+      none,
+      .object [] (.error 2),
+      TaskAt.executionGroup (Located.root (root := failingWork))
+    ⟩
     (by simp [Published]) (by simp [node])
   intro ref member
   exact Causality.NodeFailed.task
-    ⟨none, .object [] (.error 2), TaskAt.executionGroup Located.root⟩ member
+    ⟨
+      none,
+      .object [] (.error 2),
+      TaskAt.executionGroup (Located.root (root := failingWork))
+    ⟩ member
     (by simp [failedBefore])
 
 /-- The failure explanation contains one reachable failing occurrence, not an invented
@@ -284,9 +293,14 @@ theorem failureWitness (events : List WorkQueueEvent)
           [0],
           none,
           .object [] (.error 2),
-          .executionGroup .root,
+          .executionGroup (Located.root (root := failingWork)),
           rfl,
-          .root ⟨[0], .object [] (.error 2), .executionGroup .root⟩,
+          .root
+            ⟨
+              [0],
+              .object [] (.error 2),
+              .executionGroup (Located.root (root := failingWork))
+            ⟩,
           0,
           by simp,
           by simp [announcedRefs, pendingRefs]
@@ -306,13 +320,14 @@ theorem reportsFailure
     failed,
     ?_
   ⟩
+  apply NodeFailureCause.toCauses
   exact ⟨
     .executionGroup [],
     by simp [failedBefore],
     [0],
     none,
     .object [] (.error 2),
-    .executionGroup .root,
+    .executionGroup (Located.root (root := failingWork)),
     by simp [node],
     rfl,
     by decide
@@ -329,22 +344,22 @@ theorem failedRun
           batches := [[failure, .workQueueTermination]]
         } := by
   refine ⟨[failure], matching, [(0, .executionGroup [])], ?_, ?_, ?_⟩
-  · refine ⟨initialized _, failureWitness _, ?_⟩
+  · apply Explains.of_causal_failures (initialized _) (failureWitness _) (by simp)
     intro index event selected
     cases index with
     | zero =>
         have same : event = failure := by simpa using selected.symm
         subst event
-        simpa [failedBefore, node] using reportsFailure
+        simpa [failedBefore, node, failingWork] using reportsFailure
     | succ index => simp at selected
   · constructor
     · intro occurrence owners producer payload known
       obtain ⟨rfl, _, _, rfl⟩ := task_single known
       exact Or.inl ⟨cancelled, node, 2, by decide, ⟨[], rfl⟩,
         Or.inl (by simp [failure])⟩
-    · intro other kind parents birth known
+    · intro other kind parents birth known _
       obtain ⟨rfl, _, _, _⟩ := node_single known
-      exact Or.inl (by simp [completedRefs, eventCompleted, failure])
+      simp [completedRefs, eventCompleted, failure]
   · exact .cons (tail := []) (by simp) (.separate _ (.separate _ .nil)) .nil
 
 /-- A future failure cut cannot justify a failure in an earlier output prefix. -/
@@ -370,7 +385,7 @@ example
   exact ⟨
     matching,
     [(0, .executionGroup [])],
-    ⟨initialized _, failureWitness [], by simp⟩,
+    Explains.of_causal_failures (initialized _) (failureWitness []) (by simp) (by simp),
     failed
   ⟩
 

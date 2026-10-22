@@ -23,7 +23,7 @@ theorem State.eligibleFailureLabel_objectFailure_iff {queue : State}
   | none => simp
   | some event =>
       cases event with
-      | taskSuccess | streamItems | streamSuccess | streamFailure =>
+      | taskSuccess | streamItems | groupFailure | streamSuccess | streamFailure =>
           simp [State.eligibleFailureLabel, State.objectFailureContribution]
       | taskFailure task errors =>
           cases found : queue.taskNode? task with

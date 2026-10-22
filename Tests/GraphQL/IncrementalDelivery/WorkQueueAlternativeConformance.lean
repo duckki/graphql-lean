@@ -1,6 +1,7 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.Conformance
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.SourceObservation
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.QueryCorrectness
+import Proofs.GraphQL.IncrementalDelivery.Semantics.WorkSize
 
 /-! Exact public targets, source observations, and actual-query bridge checks. -/
 
@@ -22,7 +23,8 @@ example (work : Work) (schedule : EventSource (List GraphEvent))
     (generated : ReferenceWorkQueue.ExecutedWork work) (nonempty : work.size ≠ 0)
     (valid : schedule.ValidFor work)
     : (createWorkQueueForSchedule work schedule).Conforms work :=
-  createWorkQueueForScheduleConforms_holds work schedule generated nonempty valid
+  createWorkQueueForScheduleConforms_holds work schedule generated
+    ((Execution.Work.isEmpty_eq_false work).mpr nonempty) valid
 
 example (work : Work) (schedule : EventSource (List GraphEvent))
     (empty : schedule.admissible [])

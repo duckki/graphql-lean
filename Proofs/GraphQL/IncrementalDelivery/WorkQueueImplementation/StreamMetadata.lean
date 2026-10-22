@@ -29,7 +29,7 @@ theorem GraphEvent.MatchesWork.streamItem_childStream_producer
           change locateWork work address = some
             ⟨.stream node entries, producer, enclosing⟩ at located
           have lowering : childWork = Work.fromExecution children (address ++ [index]) := by
-            simpa [streamItemWork?, located, entry] using childrenWork.symm
+            simpa [streamItemWork?_eq_lookup, located, entry] using childrenWork.symm
           rw [lowering] at supplied
           exact workFromSpec_streams_nodeAt (Located.item located entry) supplied
 
@@ -54,7 +54,7 @@ theorem GraphEvent.MatchesWork.childStreamsLocated {work : Execution.Work}
   | streamItems stream items =>
       intro item member child supplied
       exact ⟨[], some item.occurrence, matching.streamItem_childStream_producer member supplied⟩
-  | taskFailure | streamSuccess | streamFailure => trivial
+  | taskFailure | groupFailure | streamSuccess | streamFailure => trivial
 
 -----------------------------------------------------------------------------------------
 -- Initial notices and every registered stream have genuine structural descriptors

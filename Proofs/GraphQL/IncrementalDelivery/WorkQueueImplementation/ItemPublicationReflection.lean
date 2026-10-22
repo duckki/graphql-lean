@@ -1,5 +1,6 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.ProducedStreamNoticeCoverage
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.ClosureWitness
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.SnapshotItemPrefixes
 
 /-! The common matching cannot invent an item outside the actual successful source inventory. -/
 
@@ -178,16 +179,25 @@ Witness: accepted raw replay copies source items, and normalization/atomization 
 that projection. Removing termination cannot remove an item.
 -/
 theorem Witness.itemValues_eq_source {work inputs} {w : Witness}
+    (valid : ValidGraphEvents work inputs.flatten)
     (started : inputsStarted work inputs = true)
     (history : w.events = (initialQueue work).nonterminalAtoms inputs)
     : w.events.flatMap normalizedItemValues
       = (inputs.flatten.flatMap GraphEvent.itemPublications).map Prod.snd := by
   have accepted : (initialQueue work).batchesStarted inputs = true := by
     rwa [← inputsStarted_eq_batchesStarted]
-  rw [history, createWorkQueue_nonterminalAtoms_flattened inputs started,
-    publicationAtoms_list_itemValues, IncrementalPublisher.normalizeBatch_itemValues]
-  exact (initialQueue work).rawEventReplay_itemValues inputs.flatten
-    ((initialQueue work).batchesStarted_acceptsBatch inputs accepted)
+  let publisher : IncrementalPublisher :=
+    { active := (initialQueue work).initialGroups ++ (initialQueue work).initialStreams }
+  have controls : ((publisher.normalizeBatch ((initialQueue work).rawBatches inputs).2).2.flatMap
+      publicationAtoms).flatMap normalizedItemValues =
+      ((initialQueue work).rawBatches inputs).2.flatMap Execution.WorkQueueEvent.itemValues := by
+    rw [publicationAtoms_list_itemValues, IncrementalPublisher.normalizeBatch_itemValues]
+  rw [Witness.rawBatches_shape history] at controls
+  have same : w.events.flatMap normalizedItemValues =
+      ((initialQueue work).rawBatches inputs).2.flatMap Execution.WorkQueueEvent.itemValues := by
+    split at controls <;> simpa [List.flatMap_append, normalizedItemValues] using controls
+  exact same.trans
+    ((initialQueue work).rawBatches_itemValues inputs (before := []) valid accepted)
 
 /-- The common matching's published items all belong to the actual source item inventory.
 Witness: the closure ledger already publishes every source label; distinct source labels
@@ -205,7 +215,7 @@ theorem published_item_source {work inputs w address index}
       ∈ (inputs.flatten.flatMap GraphEvent.itemPublications).map Prod.fst := by
   let source := (inputs.flatten.flatMap GraphEvent.itemPublications).map Prod.fst
   have count : (w.events.flatMap normalizedItemValues).length = source.length := by
-    rw [Witness.itemValues_eq_source started history]
+    rw [Witness.itemValues_eq_source valid started history]
     simp only [source, List.length_map]
   have unique : source.Nodup := (GraphEvent.itemPublications_sublist _).nodup
     valid.identities_nodup.1

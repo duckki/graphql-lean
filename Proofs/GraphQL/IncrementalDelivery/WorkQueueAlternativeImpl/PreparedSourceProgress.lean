@@ -1,4 +1,4 @@
-import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.FusedTaskSources
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.AvailablePreparedSourceProgress
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.GeneratedDispatchBoundary
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.ResourceRecords
 
@@ -10,11 +10,6 @@ targets, output-filter disposal algorithm or failure-cut construction is assumed
 namespace GraphQL.IncrementalDelivery.AlternativeWorkQueue.NativeRefinement
 open WorkQueueSemantics (Occurrence)
 open ReferenceWorkQueue (TaskNode)
-
-/-- Registration-bearing inputs, named independently of their source-validity evidence. -/
-def RegistrationInput : GraphEvent → Prop
-  | .taskSuccess _ _ | .streamItems _ _ => True
-  | _ => False
 
 /-- Exact-source classification at the original normalized generated/start boundary.
 The retained record, active source and cancellation alternatives belong to the same
@@ -32,25 +27,35 @@ theorem generatedPrepared_sourceClassified {work inputs event}
             event)
           occurrence
         = some node)
-    (stored : node.value.isSome = true) (held : key ∈ node.childStreams)
+    (_stored : node.value.isSome = true) (held : key ∈ node.childStreams)
     : let before := ((State.initialize work).runNormalized inputs).1
       let reduced := ({ state := before } : GraphBatchResult).handleGraphEvent event
       reduced.state.queue.taskNode? occurrence = some node
       ∨ key ∈ reduced.state.queue.rootStreams
       ∨ .cancelSource key ∈ reduced.effects := by
-  obtain ⟨raw, _, accepted⟩ := generatedReplay_beforeNext generated valid started
+  obtain ⟨raw, priorStarted, _⟩ := generatedReplay_beforeNext generated valid started
   obtain ⟨prior, matched, _⟩ := ReferenceWorkQueue.validGraphEvents_last valid
+  obtain ⟨parents, canonical⟩ := generated.groupRecordsCanonical
+  have frame :=
+    (ReferenceWorkQueue.initial_uncancelledReplayFrame generated canonical).runNormalized
+      (before := []) generated canonical inputs prior
+      (by rwa [ReferenceWorkQueue.inputsStarted_eq_batchesStarted] at priorStarted)
+  have keys := ReferenceWorkQueue.createWorkQueue_runNormalized_taskNodeKeysUnique
+    (ReferenceWorkQueue.Work.fromExecution work) inputs
+  have inventory := ReferenceWorkQueue.createWorkQueue_runNormalized_childStreamInventory
+    (ReferenceWorkQueue.Work.fromExecution work) inputs
+  rw [ReferenceWorkQueue.State.runNormalized_replayBatches] at frame keys inventory
   rw [generatedReplay_beforeNextState generated valid started, raw]
   rw [raw] at found
   simp only [GraphBatchResult.handleGraphEvent, List.nil_append]
   cases event with
   | taskSuccess incoming result =>
-      exact referencePrefix_taskSuccess_sources generated inputs.flatten incoming result
-        valid accepted occurrence node key found stored held
+      exact sourceFrame_taskSuccess_sources generated canonical frame keys inventory incoming result
+        valid found held
   | streamItems stream items =>
-      exact referencePrefix_streamItems_sources generated inputs.flatten prior accepted
-        stream items matched occurrence node key found held
-  | taskFailure | streamSuccess | streamFailure => cases release
+      exact sourceFrame_streamItems_sources generated canonical frame keys inventory stream items
+        matched found held
+  | taskFailure | groupFailure | streamSuccess | streamFailure => cases release
 
 /-- Every stored prepared source is represented after success/item dispatch or cancelled
 by that same dispatch. All phase frames and effect boundaries are constructed from the
@@ -78,10 +83,34 @@ theorem GeneratedPreparedSourceProgress_holds : GeneratedPreparedSourceProgress 
   intro work inputs event generated valid started release occurrence node key
   dsimp only
   intro found stored held
-  rcases generatedPrepared_sourceClassified generated valid started release found stored held with
-    retained | active | requested
-  · exact .inl (.bufferedStream retained stored held)
-  · exact .inl (.activeStream active)
-  · exact .inr requested
+  let before := ((State.initialize work).runNormalized inputs).1
+  obtain ⟨parents, canonical⟩ := generated.groupRecordsCanonical
+  have source := generatedReplay_sourceFrame generated canonical valid started
+  obtain ⟨raw, _, _⟩ := generatedReplay_beforeNext generated valid started
+  have keys : before.queue.TaskNodeKeysUnique := by
+    change ((State.initialize work).runNormalized inputs).1.queue.TaskNodeKeysUnique
+    rw [raw, ← ReferenceWorkQueue.State.runNormalized_replayBatches]
+    exact ReferenceWorkQueue.createWorkQueue_runNormalized_taskNodeKeysUnique
+      (ReferenceWorkQueue.Work.fromExecution work) inputs
+  have inventory : before.queue.ChildStreamInventory := by
+    change ((State.initialize work).runNormalized inputs).1.queue.ChildStreamInventory
+    rw [raw, ← ReferenceWorkQueue.State.runNormalized_replayBatches]
+    exact ReferenceWorkQueue.createWorkQueue_runNormalized_childStreamInventory
+      (ReferenceWorkQueue.Work.fromExecution work) inputs
+  have progress := sourceFrame_preparedSource_progress_available generated canonical source keys
+    inventory valid release [] rfl (.bufferedStream found stored held)
+  have running := generatedReplay_beforeNextState generated valid started
+  change before = { queue := before.queue } at running
+  simp only [GraphBatchResult.handleGraphEvent, List.nil_append]
+  change RecordTargetRepresented (((before.handleGraphEvent event).1.queue).enqueueGroupFailures
+    (before.handleGraphEvent event).2.2.2) (.stream key)
+    ∨ .cancelSource key ∈ (before.handleGraphEvent event).2.2.1
+  rw [running]
+  rcases progress with retained | cancelled
+  · apply Or.inl
+    cases retained with
+    | activeStream active => exact .activeStream active
+    | bufferedStream found stored held => exact .bufferedStream found stored held
+  · exact .inr cancelled
 
 end GraphQL.IncrementalDelivery.AlternativeWorkQueue.NativeRefinement

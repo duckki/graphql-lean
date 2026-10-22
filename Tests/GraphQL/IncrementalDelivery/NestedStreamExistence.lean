@@ -1,5 +1,6 @@
 import Proofs.GraphQL.IncrementalDelivery.Correctness.NestedStreamExistence
 import Proofs.GraphQL.IncrementalDelivery.Correctness.QueryRealization
+import Proofs.GraphQL.IncrementalDelivery.Semantics.WorkSize
 
 /-! Complete nested-stream runs are constructed, not assumed as regression inputs. -/
 

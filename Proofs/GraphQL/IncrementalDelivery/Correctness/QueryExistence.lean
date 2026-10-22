@@ -1,6 +1,7 @@
 import Proofs.GraphQL.IncrementalDelivery.Correctness.QueryRealization
 import Proofs.GraphQL.IncrementalDelivery.Correctness.Initialization
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.CompletionExistence
+import Proofs.GraphQL.IncrementalDelivery.Semantics.WorkSize
 
 /-! Query-prefix existence without assuming scheduler conformance or an admitted history.
 This establishes initialization independently of the complete-run construction in

@@ -49,19 +49,19 @@ private def mixed : State :=
       }
   }
 
--- Success transfers the shared source; the later failed co-owner cannot cancel it.
+-- Success transfers the shared source while its failed co-owner awaits notification.
 example : (mixed.drainReadyGroups).1.queue.rootStreams = [7] := by cbv
 example : (mixed.drainReadyGroups).1.queue.taskNode? producer = none := by cbv
-example : (mixed.drainReadyGroups).2.2 = [] := by cbv
+example : (mixed.drainReadyGroups).2.2.1 = [] := by cbv
 
--- Failure first still retains the healthy co-owner, whose subsequent success transfers.
+-- Root order still permits the ready co-owner to transfer the shared source.
 private def failureFirst : State :=
   { mixed with queue := { mixed.queue with rootGroups := [1, 0] } }
 
 example : (failureFirst.drainReadyGroups).1.queue.rootStreams = [7] := by cbv
-example : (failureFirst.drainReadyGroups).2.2 = [] := by cbv
+example : (failureFirst.drainReadyGroups).2.2.1 = [] := by cbv
 
--- With both co-owners failed, the last actual removal disposes the held source once.
+-- Cached startup of both failed co-owners disposes the last-owned held source once.
 private def allFailed : State :=
   {
     mixed with
@@ -86,14 +86,54 @@ private def allFailed : State :=
         }
   }
 
-example : (allFailed.drainReadyGroups).1.queue.rootStreams = [] := by cbv
-example : (allFailed.drainReadyGroups).2.2 = [.task producer, .stream 7] := by cbv
+private def failedStartup := allFailed.startNewWork ⟨[first, second], []⟩
+
+example : failedStartup.1.queue.rootStreams = [] := by cbv
+example : failedStartup.2.1 = [.task producer, .stream 7] := by cbv
+example : failedStartup.2.2 = [⟨first, 1⟩, ⟨second, 1⟩] := by cbv
+
+example
+    : (failedStartup.1.drainReadyGroups failedStartup.2.1).2.2.1
+      = [.task producer, .stream 7] := by cbv
+
+-- A successful parent releases a failed child; startup disposes its held source inline.
+private def releasedFailure : State :=
+  {
+    queue :=
+      {
+        rootGroups := [0]
+        groupNodes :=
+          [
+            { group := ⟨first, none⟩, childGroups := [1] },
+            { group := ⟨second, some 0⟩, tasks := [producer, rejected], pending := 1 }
+          ]
+        tasks :=
+          [
+            { occurrence := producer, groups := [second] },
+            { occurrence := rejected, groups := [second] }
+          ]
+        taskNodes :=
+          [
+            {
+              task := { occurrence := producer, groups := [second] }, childStreams := [7]
+            },
+            {
+              task := { occurrence := rejected, groups := [second] }, rejection := some 1
+            }
+          ]
+        streams := [⟨source⟩]
+      }
+  }
+
+example : releasedFailure.drainReadyGroups.1.queue.taskNode? producer = none := by cbv
+example : releasedFailure.drainReadyGroups.2.2.1 = [.task producer, .stream 7] := by cbv
+example : releasedFailure.drainReadyGroups.2.2.2 = [⟨second, 1⟩] := by cbv
 
 private def lease : ResourceState :=
   fun target => if target = .stream 7 then .owned .queue else .unacquired
 
 example
-    : (lease.observeReadyDrain allFailed []).1 (.stream 7)
+    : (lease.observeReadyDrain failedStartup.1 failedStartup.2.1).1 (.stream 7)
       = .cleanupRequested .queue := by cbv
 
 example : (lease.observeReadyDrain mixed []).1 (.stream 7) = .owned .queue := by cbv

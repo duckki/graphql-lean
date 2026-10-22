@@ -15,7 +15,7 @@ theorem GraphEvent.Ready.streamProducer_succeeded_fromReady
     : ∀ source,
         producer = some source → source ∈ before.flatMap GraphEvent.successes := by
   cases event with
-  | taskSuccess | taskFailure => cases action
+  | taskSuccess | taskFailure | groupFailure => cases action
   | streamItems node items =>
       obtain ⟨_, _, _, _, located, _, _, supported, _⟩ := ready
       have refEq := (Prod.mk.inj (Option.some.inj action)).1
@@ -52,7 +52,7 @@ theorem informativeStreamFailures_uncancelled {work inputs w streams}
         w.failures
         = mergeFailureCuts
             (informativeObjectFailureCuts work
-              (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher inputs).2.2))
+              (queue.sourceRunBlocks publisher inputs).2.2)
             streams)
     : ∀ before cut address ordinal after,
         w.failures = before ++ (cut, .item address ordinal) :: after
@@ -62,7 +62,7 @@ theorem informativeStreamFailures_uncancelled {work inputs w streams}
   let publisher : IncrementalPublisher :=
     { active := queue.initialGroups ++ queue.initialStreams }
   let objects := informativeObjectFailureCuts work
-    (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher inputs).2.2)
+    (queue.sourceRunBlocks publisher inputs).2.2
   have partition : w.failures.Perm (streams ++ objects) :=
     exactCuts ▸ mergeFailureCuts_partition objects streams
   intro before cut address ordinal after split
@@ -100,8 +100,8 @@ theorem informativeStreamFailures_uncancelled {work inputs w streams}
     exact direct occurrence owners
       (List.mem_map.mpr ⟨entry, (List.mem_filter.mp retained).1, same⟩)
       descriptor contributes
-  obtain ⟨received, input, later, sourceSplit, action, accepted, ledger, _⟩ :=
-    createWorkQueue_atomicStream_sourcePrefix started selected rfl
+  obtain ⟨received, input, later, sourceSplit, action, actualCut, _ledger, _⟩ :=
+    createWorkQueue_atomicStream_sourcePrefix valid started selected rfl
   have sourcePrefix : (received ++ [input]).IsPrefix inputs.flatten :=
     ⟨later, by simp [sourceSplit, List.append_assoc]⟩
   have prior : received.IsPrefix inputs.flatten := ⟨input :: later, sourceSplit.symm⟩
@@ -135,18 +135,8 @@ theorem informativeStreamFailures_uncancelled {work inputs w streams}
             healthy failedPayloads succeeded
             (by intro parent same; cases same; exact parentSafe)
       | executionGroup source =>
-          have acceptedAll := queue.batchesStarted_acceptsBatch inputs
-            (by rwa [← inputsStarted_eq_batchesStarted])
-          rw [sourceSplit] at acceptedAll
-          have acceptedBefore := State.acceptsBatch_prefix acceptedAll
-          have active : stream.ref ∈ (queue.replayGraphEvents received).rootStreams := by
-            cases input <;> simp only [GraphEvent.streamAction] at action
-            all_goals try contradiction
-            all_goals
-              have refEq := (Prod.mk.inj (Option.some.inj action)).1
-              simpa [State.acceptsGraphEvent, refEq] using accepted
-          have health := generated.replayGraphEvents_activeObjectStreamHealthy_of_itemSafety
-            (valid.prefix prior) acceptedBefore located active failedPayloads
+          have health := generated.activeObjectStreamHealthy_atSourceCut valid started
+            located action actualCut failedPayloads
             (fun occurrence owners producer path result descriptor member => ?_)
             earlierSafe contributors
           · exact task_uncancelled_of_successfulProducerSafety known List.mem_cons_self health.2
@@ -154,9 +144,12 @@ theorem informativeStreamFailures_uncancelled {work inputs w streams}
           · have full := failedBefore_mono included (w.events.take cut).length member
             have atCut := failedBefore_subset w.failures (List.length_take_le _ _) full
             have objectMember := (cuts.object_mem_iff partition descriptor).mp atCut
-            rw [← ledger]
-            exact List.mem_reverse.mpr
-              (informativeObjectFailureCuts_failedBefore_subset work _ cut objectMember)
+            obtain ⟨entry, selected, same⟩ := List.mem_map.mp objectMember
+            have available := (informativeObjectFailureCuts_sublist work _).subset
+              (List.mem_filter.mp selected).1
+            obtain ⟨errors, received⟩ := createWorkQueue_availableObjectFailureCuts_source generated valid available
+            rw [same] at received
+            exact List.mem_reverse.mpr (List.mem_flatMap.mpr ⟨_, received, List.mem_cons_self⟩)
 
 /-- Successful-item safety licenses the entire informative failure inventory.
 Witness: the same announced cut list and matching are used by both occurrence cases;
@@ -178,7 +171,7 @@ theorem informativeFailureWitness {work inputs w streams}
         w.failures
         = mergeFailureCuts
             (informativeObjectFailureCuts work
-              (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher inputs).2.2))
+              (queue.sourceRunBlocks publisher inputs).2.2)
             streams)
     : FailureWitness work (initialRefs work) w.matching w.events w.failures := by
   apply failureWitness announced

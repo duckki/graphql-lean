@@ -30,8 +30,11 @@ mutual
     split
     · exact hl
     · simp only [run_bind, StateT.run_pure, id_pure_eq]
-      exact streams_combine hl (collectExecutionGroups_streamAllocations schema resolvers variables fuel
-        parentType source _ path _ _)
+      apply streams_combine hl
+      unfold StreamAllocated
+      rw [streamAllocationRefs]
+      exact collectExecutionGroups_streamAllocations schema resolvers variables fuel
+        parentType source _ path _ _
   termination_by (fuel, 6, 0, 0)
   decreasing_by
     all_goals simp_wf

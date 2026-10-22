@@ -203,7 +203,7 @@ example (outer middle inner : Result ResponseValue)
     intro stream member
     have same := List.mem_singleton.mp member
     subst stream
-    refine ⟨[], none, NodeAt.stream (.left .root), ?_⟩
+    refine ⟨[], none, NodeAt.stream (.left (Located.root (root := independentStreams outer middle inner))), ?_⟩
     exact ⟨by simp [announcedRefs, pendingRefs],
       Or.inl ⟨fun failure => failure.nonempty rfl, Or.inl rfl⟩, by simp, Or.inl rfl⟩
   · exact fun _ _ _ _ known => (noDeferred known).elim

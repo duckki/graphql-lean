@@ -120,7 +120,7 @@ def ResourceState.observeHandlerCleanup (resources : ResourceState) (state : Sta
     (event : GraphEvent)
     : ResourceState × List ResourceAction :=
   resources.requestQueueCleanup
-    ((state.handleGraphEvent event).2.2.filterMap HostEffect.cleanupStart?)
+    ((state.handleGraphEvent event).2.2.1.filterMap HostEffect.cleanupStart?)
 
 theorem ResourceState.observeHandlerCleanup_replay (resources : ResourceState)
     (state : State) (event : GraphEvent)
@@ -132,7 +132,7 @@ theorem ResourceState.observeHandlerCleanup_replay (resources : ResourceState)
 theorem ResourceState.observeHandlerCleanup_actions (resources : ResourceState)
     (state : State) (event : GraphEvent) {action : ResourceAction}
     (member : action ∈ (resources.observeHandlerCleanup state event).2)
-    : ∃ effect ∈ (state.handleGraphEvent event).2.2,
+    : ∃ effect ∈ (state.handleGraphEvent event).2.2.1,
         ∃ target,
           effect.cleanupStart? = some target ∧ action = .requestCleanup target := by
   obtain ⟨target, listed, same⟩ := resources.requestQueueCleanup_actions _ _ member

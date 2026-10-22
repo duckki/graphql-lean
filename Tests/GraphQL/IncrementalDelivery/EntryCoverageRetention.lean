@@ -19,9 +19,19 @@ private theorem userCovered (containers : Bool)
   intro entry member _
   obtain rfl := List.mem_singleton.mp member
   unfold userChildren
-  exact Or.inr ⟨_, _, _, .object (userPath ++ [.field "required"]) (.error 1),
-    (StructuralEquivalence.TaskAt.executionGroup .root).toCurrent,
-    rfl, Or.inr ⟨rfl, ⟨[.field "required"], rfl⟩⟩⟩
+  exact Or.inr
+    ⟨
+      _,
+      _,
+      _,
+      .object (userPath ++ [.field "required"]) (.error 1),
+      (by
+        apply StructuralEquivalence.TaskAt.toCurrent
+        apply StructuralEquivalence.TaskAt.executionGroup (result := { result := .error 1 })
+        exact .root),
+      rfl,
+      Or.inr ⟨rfl, ⟨[.field "required"], rfl⟩⟩
+    ⟩
 
 /-- A successful deferred payload can preserve a failed child and nullable ordinary root.
 Its counted errors and external cursor table do not affect this pure comparison.
@@ -68,7 +78,10 @@ private theorem itemCovered (containers : Bool)
   · unfold itemChildren
     exact Or.inr ⟨_, _, _,
       .object (itemPath ++ [.field "child", .field "required"]) (.error 1),
-      (StructuralEquivalence.TaskAt.executionGroup .root).toCurrent,
+      (by
+          apply StructuralEquivalence.TaskAt.toCurrent
+          apply StructuralEquivalence.TaskAt.executionGroup (result := { result := .error 1 })
+          exact .root),
       rfl, Or.inr ⟨rfl, ⟨[.field "required"], by simp [Payload.path, List.append_assoc]⟩⟩⟩
 
 /-- Retention uses absolute index four: initial count three plus item ordinal one.

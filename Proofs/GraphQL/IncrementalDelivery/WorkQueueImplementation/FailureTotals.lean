@@ -1,7 +1,7 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.GroupFailureSource
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.ExecutedTaskErrors
 
-/-! Exact source causes bridge to the scheduler's selected failure accounting. -/
+/-! Exact aggregate source causes bridge to the scheduler's reporting accounting. -/
 
 namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
@@ -40,11 +40,28 @@ theorem GroupFailureSourceCause.nodeFailureCause {work inputs ref errors}
     owner
   ⟩
 
-/-- Every actual failed group completion has a singleton positive source-cause witness.
-Output provenance and execution positivity supply this local witness; failure-cut
-visibility and licensing remain separate obligations.
+/-- Distinct exact source causes give a positive aggregate reporting witness.
+Source occurrence availability is supplied separately from causal failure-cut licensing.
 -/
-theorem createWorkQueue_runNormalized_groupFailure_nodeFailureCauseWitness
+theorem GroupFailureSources.nodeFailureCauses {work inputs ref errors}
+    (sources : GroupFailureSources work inputs ref errors) (generated : ExecutedWork work)
+    (available : List Occurrence)
+    (included
+      : ∀ occurrence count,
+          GraphEvent.taskFailure occurrence count ∈ inputs → occurrence ∈ available)
+    : NodeFailureCauses work available ref errors := by
+  obtain ⟨causes, nonempty, distinct, total, known⟩ := sources
+  refine ⟨causes, nonempty, distinct, ?_, total.symm⟩
+  intro occurrence count member
+  obtain ⟨received, owners, producer, path, failed, owner⟩ := known occurrence count member
+  exact ⟨included occurrence count received, owners, producer, _, failed, owner, rfl,
+    generated.taskFailure_positive failed rfl⟩
+
+/-- Every actual failed group report has positive distinct causes in the source inventory.
+Output provenance and execution positivity supply this local aggregate witness;
+reporting-cut visibility and causal licensing remain separate obligations.
+-/
+theorem createWorkQueue_runNormalized_groupFailure_nodeFailureCausesWitness
     {work : Execution.Work} (generated : ExecutedWork work)
     {batches : List (List GraphEvent)} (valid : ValidGraphEvents work batches.flatten)
     {group errors}
@@ -53,14 +70,12 @@ theorem createWorkQueue_runNormalized_groupFailure_nodeFailureCauseWitness
         ∈ ((State.initialize (Work.fromExecution work)).runNormalized
             batches).2.flatten.flatMap
             publicationAtoms)
-    : ∃ occurrence,
-        NodeFailureCause work [occurrence] group.ref errors
-        ∧ ∃ owners producer path,
-            GraphEvent.taskFailure occurrence errors ∈ batches.flatten
-            ∧ TaskAt work occurrence owners producer (.object path (.error errors))
-            ∧ group.ref ∈ owners :=
-  (createWorkQueue_runNormalized_atomicGroupFailure_source generated valid
-    emitted).nodeFailureCause
-    generated
+    : NodeFailureCauses work (GraphEvent.failureSettlements batches.flatten) group.ref
+        errors := by
+  have sources := createWorkQueue_runNormalized_atomicGroupFailure_source generated valid emitted
+  apply sources.nodeFailureCauses generated
+  intro occurrence count member
+  exact List.mem_reverse.mpr (List.mem_flatMap.mpr
+    ⟨.taskFailure occurrence count, member, List.mem_cons_self⟩)
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

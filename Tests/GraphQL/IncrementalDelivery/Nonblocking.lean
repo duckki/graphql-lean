@@ -37,10 +37,13 @@ theorem task_shape {occurrence owners producer payload}
     induction located with
     | root => exact Or.inl ⟨rfl, rfl, rfl⟩
     | left _ ih | right _ ih | executionGroup _ ih | item _ _ ih =>
-        rcases ih with h | h | h | h <;> simp_all [work, node]
+        rcases ih with h | h | h | h <;> simp_all [work, node, Work.withoutDeclarations]
         all_goals
           rename_i index result children located entry
           cases index <;> simp_all
+          all_goals
+            rcases entry with ⟨rfl, rfl⟩
+            rfl
   cases StructuralEquivalence.taskAt_of_current known with
   | executionGroup located =>
       rcases locations located.toCurrent with h | h | h | h <;> simp_all [work]
@@ -56,7 +59,8 @@ and combine constructors, so no deferred location can supply a group descriptor.
 theorem no_group {other parents birth} : ¬NodeAt work other .group parents birth := by
   rintro ⟨address, groups, path, result, children, enclosing, group, located, _, _, _⟩
   have task : TaskAt work (.executionGroup address) (groups.map (fun g => g.node.ref)) birth
-      (.object path result.deliveryResult) := ⟨groups, path, result, children, enclosing, located, rfl, rfl⟩
+      (.object path result.deliveryResult) :=
+    ⟨groups, path, result, children, enclosing, located, rfl, rfl⟩
   have impossible := (task_shape task).1
   cases impossible
 
@@ -68,7 +72,7 @@ theorem initialized : Initializes work [] [node 0] := by
   intro other member
   have same := List.mem_singleton.mp member
   subst other
-  refine ⟨[], none, .stream (.left .root), ?_⟩
+  refine ⟨[], none, .stream (.left (Located.root (root := work))), ?_⟩
   exact ⟨
     by simp [announcedRefs, pendingRefs],
     Or.inl ⟨fun h => h.nonempty rfl, Or.inl rfl⟩,
@@ -101,7 +105,7 @@ theorem no_publications {events matching failures}
   | snoc before event ih =>
       have previous := explained.prefix (head := before) (tail := [event])
       obtain ⟨noNotices, noValues⟩ := ih previous
-      have allowed := explained.2.2 before.length event (by simp)
+      have allowed := explained.eventAllowed before.length event (by simp)
       have inactive : ¬Open [0] before 1 := by
         simp [Open, announcedRefs, noNotices]
       have control : eventPending event = [] ∧ ¬IsValue event := by
@@ -150,7 +154,7 @@ theorem no_complete_run (batches : List (List WorkQueueEvent))
         simp [(task_shape known).2.2.2, Payload.failure] at fails
   subst failures
   have task : TaskAt work (.item [1] 0) [1] none (.item (node 1) (.ok (.null, 0))) :=
-    .item (result := { result := .ok (.null, 0) }) (.right .root) rfl
+    .item (result := { result := .ok (.null, 0) }) (.right (Located.root (root := work))) rfl
   rcases terminal.1 _ _ _ _ task with cancelled | published
   · exact cancelled.1.nonempty rfl
   · exact (no_publications explained).2 _ published

@@ -156,24 +156,19 @@ Witness: object cuts recover their unchanged ordered prefix by filtering the mer
 stream cuts use unique closure refs. Generated role separation excludes cross-kind
 contributions. This does not yet exclude ancestor failure or producer cancellation.
 -/
-theorem createWorkQueue_mixedFailureCuts_directHealthyOwner {work : Execution.Work}
-    (generated : ExecutedWork work) {batches : List (List GraphEvent)}
-    (valid : ValidGraphEvents work batches.flatten)
-    (_started : inputsStarted work batches = true) {streams : FailureCuts}
-    (cuts
-      : StreamFailureCuts work
-          (((State.initialize (Work.fromExecution work)).runNormalized
-              batches).2.flatten.flatMap
-            publicationAtoms) streams)
+theorem mixedFailureCuts_directHealthyOwner {work : Execution.Work}
+    {events : List Execution.WorkQueueEvent} {objects streams : FailureCuts}
+    (generated : ExecutedWork work)
+    (objectKnown
+      : ∀ entry ∈ objects,
+          ∃ owners producer path errors,
+            TaskAt work entry.2 owners producer (.object path (.error errors)))
+    (informative : InformativeFailureCuts work [] objects)
+    (objectUnique : (objects.map Prod.snd).Nodup)
+    (cuts : StreamFailureCuts work events streams)
+    (ordered : (events.filterMap streamAction).Pairwise StreamAction.Before)
     {before after : FailureCuts} {cut : Nat} {occurrence : Occurrence}
-    (split
-      : let queue := State.initialize (Work.fromExecution work)
-        let publisher : IncrementalPublisher :=
-          { active := queue.initialGroups ++ queue.initialStreams }
-        let objects :=
-          informativeObjectFailureCuts work
-            (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher batches).2.2)
-        mergeFailureCuts objects streams = before ++ (cut, occurrence) :: after)
+    (split : mergeFailureCuts objects streams = before ++ (cut, occurrence) :: after)
     : ∃ owners owner,
         TaskHasOwners work occurrence owners
         ∧ owner ∈ owners
@@ -181,18 +176,6 @@ theorem createWorkQueue_mixedFailureCuts_directHealthyOwner {work : Execution.Wo
             prior ∈ before.map Prod.snd
             → TaskHasOwners work prior priorOwners
             → owner ∉ priorOwners := by
-  let queue := State.initialize (Work.fromExecution work)
-  let publisher : IncrementalPublisher :=
-    { active := queue.initialGroups ++ queue.initialStreams }
-  let objects := informativeObjectFailureCuts work
-    (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher batches).2.2)
-  have objectKnown : ∀ entry ∈ objects,
-      ∃ owners producer path errors,
-        TaskAt work entry.2 owners producer (.object path (.error errors)) := by
-    intro entry member
-    obtain ⟨_, owners, producer, path, errors, known, _⟩ :=
-      createWorkQueue_informativeObjectFailureCuts_origin generated valid entry member
-    exact ⟨owners, producer, path, errors, known⟩
   have partition := mergeFailureCuts_partition objects streams
   have current : (cut, occurrence) ∈ mergeFailureCuts objects streams := by
     rw [split]
@@ -202,9 +185,8 @@ theorem createWorkQueue_mixedFailureCuts_directHealthyOwner {work : Execution.Wo
     List.mem_append.mp (partition.mem_iff.mp (by
       rw [split]
       exact List.mem_append_left _ member))
-  have ordered := createWorkQueue_runNormalized_atomicStreamActions_ordered valid
   have unique := cuts.mixed_unique ordered
-    (createWorkQueue_informativeObjectFailureCuts_unique valid) objectKnown partition
+    objectUnique objectKnown partition
   have noPrior : occurrence ∉ before.map Prod.snd := by
     rw [split, List.map_append, List.map_cons, List.nodup_append] at unique
     intro member
@@ -241,8 +223,10 @@ theorem createWorkQueue_mixedFailureCuts_directHealthyOwner {work : Execution.Wo
     rw [split] at filtered
     simp only [List.filter_append, List.filter_cons, objectCut_of_object task,
       ↓reduceIte] at filtered
+    have selected := informative
+    rw [← filtered] at selected
     obtain ⟨owners, owner, ⟨birth, payload, descriptor⟩, contributes, safe⟩ :=
-      informativeObjectFailureCuts_directHealthyOwner filtered.symm
+      informativeFailureCuts_directHealthyOwner selected
     have ownersEq := (descriptor.unique task).1
     obtain ⟨group, dependencies, groupKnown, refEq⟩ :=
       object_owner_group task (ownersEq ▸ contributes)
@@ -259,6 +243,48 @@ theorem createWorkQueue_mixedFailureCuts_directHealthyOwner {work : Execution.Wo
         (List.mem_map.mpr ⟨entry, List.mem_filter.mpr ⟨earlier, objectCut_of_object object⟩,
           occurrenceEq⟩) ⟨parent, value, priorTask⟩ owns
 
+/-- The ordinary source-block inventory specializes the common mixed selection. -/
+theorem createWorkQueue_mixedFailureCuts_directHealthyOwner {work : Execution.Work}
+    (generated : ExecutedWork work) {batches : List (List GraphEvent)}
+    (valid : ValidGraphEvents work batches.flatten)
+    (_started : inputsStarted work batches = true) {streams : FailureCuts}
+    (cuts
+      : StreamFailureCuts work
+          (((State.initialize (Work.fromExecution work)).runNormalized
+              batches).2.flatten.flatMap
+            publicationAtoms) streams)
+    {before after : FailureCuts} {cut : Nat} {occurrence : Occurrence}
+    (split
+      : let queue := State.initialize (Work.fromExecution work)
+        let publisher : IncrementalPublisher :=
+          { active := queue.initialGroups ++ queue.initialStreams }
+        let objects :=
+          informativeObjectFailureCuts work (queue.sourceRunBlocks publisher batches).2.2
+        mergeFailureCuts objects streams = before ++ (cut, occurrence) :: after)
+    : ∃ owners owner,
+        TaskHasOwners work occurrence owners
+        ∧ owner ∈ owners
+        ∧ ∀ prior priorOwners,
+            prior ∈ before.map Prod.snd
+            → TaskHasOwners work prior priorOwners
+            → owner ∉ priorOwners := by
+  let queue := State.initialize (Work.fromExecution work)
+  let publisher : IncrementalPublisher :=
+    { active := queue.initialGroups ++ queue.initialStreams }
+  let objects := informativeObjectFailureCuts work
+    (queue.sourceRunBlocks publisher batches).2.2
+  have objectKnown : ∀ entry ∈ objects,
+      ∃ owners producer path errors,
+        TaskAt work entry.2 owners producer (.object path (.error errors)) := by
+    intro entry member
+    obtain ⟨_, owners, producer, path, errors, known, _⟩ :=
+      createWorkQueue_informativeObjectFailureCuts_origin generated valid entry member
+    exact ⟨owners, producer, path, errors, known⟩
+  exact mixedFailureCuts_directHealthyOwner generated objectKnown
+    (selectObjectFailureCuts_informative work [] _)
+    (createWorkQueue_informativeObjectFailureCuts_unique valid) cuts
+    (createWorkQueue_runNormalized_atomicStreamActions_ordered valid) split
+
 -----------------------------------------------------------------------------------------
 -- Stream cuts cannot add defer-ancestor cleanup causes to an accepted object cut
 -----------------------------------------------------------------------------------------
@@ -269,18 +295,53 @@ excludes that inventory, and generated defer roles exclude item failures from ev
 registration-ancestor cause. This is stronger than direct-contributor safety, but does
 not yet exclude historical producer cancellation or license the stream cuts themselves.
 -/
+theorem mixedFailureCuts_uninvalidatedObjectOwner {work : Execution.Work}
+    {events : List Execution.WorkQueueEvent} {objects streams : FailureCuts}
+    (generated : ExecutedWork work)
+    (objectKnown
+      : ∀ entry ∈ objects,
+          ∃ owners producer path errors,
+            TaskAt work entry.2 owners producer (.object path (.error errors)))
+    (informative : InformativeFailureCuts work [] objects)
+    (cuts : StreamFailureCuts work events streams)
+    {before after : FailureCuts} {cut : Nat} {occurrence : Occurrence}
+    {ownerRefs producer path result}
+    (object : TaskAt work occurrence ownerRefs producer (.object path result))
+    (split : mergeFailureCuts objects streams = before ++ (cut, occurrence) :: after)
+    : ∃ owners ref,
+        TaskHasOwners work occurrence owners
+        ∧ ref ∈ owners
+        ∧ ¬GroupRecordInvalidated work (before.map Prod.snd) ref := by
+  have filtered := merge_filter_left objectCut objects streams
+    (fun entry member => by
+      obtain ⟨_, _, _, _, task⟩ := objectKnown entry member
+      exact objectCut_of_object task)
+    (fun entry member => by
+      obtain ⟨_, _, _, _, task⟩ := cuts.2 entry member
+      exact objectCut_of_item task)
+  rw [split] at filtered
+  simp only [List.filter_append, List.filter_cons, objectCut_of_object object,
+    ↓reduceIte] at filtered
+  obtain ⟨owners, ref, ⟨birth, payload, task⟩, owner, safe⟩ :=
+    informativeObjectCuts_uninvalidatedOwner generated object informative filtered.symm
+  obtain ⟨group, dependencies, descriptor, same⟩ :=
+    object_owner_group object ((task.unique object).1 ▸ owner)
+  refine ⟨owners, ref, ⟨birth, payload, task⟩, owner, ?_⟩
+  intro invalid
+  have record := groupRecordAt_of_nodeAt descriptor
+  apply safe
+  rw [← same] at invalid ⊢
+  apply invalid.restrict_objectFailures generated record
+  intro prior priorOwners priorProducer priorPath priorResult known member
+  obtain ⟨entry, earlier, equal⟩ := List.mem_map.mp member
+  refine List.mem_map.mpr ⟨entry, List.mem_filter.mpr ⟨earlier, ?_⟩, equal⟩
+  exact objectCut_of_object (equal.symm ▸ known)
+
+/-- Ordinary initialization specializes the common structural owner-selection proof. -/
 theorem createWorkQueue_mixedFailureCuts_uninvalidatedObjectOwner {work : Execution.Work}
     (generated : ExecutedWork work) {batches : List (List GraphEvent)}
     (valid : ValidGraphEvents work batches.flatten)
     (_started : inputsStarted work batches = true)
-    (_missing
-      : ∀ received : List GraphEvent,
-          received.IsPrefix batches.flatten
-          → State.MissingParentAncestorsHealthy
-              ((State.initialize (Work.fromExecution work)).replayGraphEvents received)
-              work
-              ((State.initialize (Work.fromExecution work)).objectFailureContributions
-                received))
     {streams : FailureCuts}
     (cuts
       : StreamFailureCuts work
@@ -295,8 +356,7 @@ theorem createWorkQueue_mixedFailureCuts_uninvalidatedObjectOwner {work : Execut
         let publisher : IncrementalPublisher :=
           { active := queue.initialGroups ++ queue.initialStreams }
         let objects :=
-          informativeObjectFailureCuts work
-            (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher batches).2.2)
+          informativeObjectFailureCuts work (queue.sourceRunBlocks publisher batches).2.2
         mergeFailureCuts objects streams = before ++ (cut, occurrence) :: after)
     : ∃ owners ref,
         TaskHasOwners work occurrence owners
@@ -306,38 +366,19 @@ theorem createWorkQueue_mixedFailureCuts_uninvalidatedObjectOwner {work : Execut
   let publisher : IncrementalPublisher :=
     { active := queue.initialGroups ++ queue.initialStreams }
   let objects := informativeObjectFailureCuts work
-    (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher batches).2.2)
-  have filtered := merge_filter_left objectCut objects streams
-    (fun entry member => by
-      obtain ⟨_, _, _, _, _, task, _⟩ :=
-        createWorkQueue_informativeObjectFailureCuts_origin generated valid entry member
-      exact objectCut_of_object task)
-    (fun entry member => by
-      obtain ⟨_, _, _, _, task⟩ := cuts.2 entry member
-      exact objectCut_of_item task)
-  rw [split] at filtered
-  simp only [List.filter_append, List.filter_cons, objectCut_of_object object,
-    ↓reduceIte] at filtered
-  obtain ⟨owners, ref, ⟨birth, payload, task⟩, owner, safe⟩ :=
-    informativeObjectFailureCuts_uninvalidatedOwner generated object filtered.symm
-  obtain ⟨group, dependencies, descriptor, same⟩ :=
-    object_owner_group object ((task.unique object).1 ▸ owner)
-  refine ⟨owners, ref, ⟨birth, payload, task⟩, owner, ?_⟩
-  intro invalid
-  have record := groupRecordAt_of_nodeAt descriptor
-  apply safe
-  rw [← same] at invalid ⊢
-  apply invalid.restrict_objectFailures generated record
-  intro prior priorOwners priorProducer priorPath priorResult known member
-  obtain ⟨entry, earlier, equal⟩ := List.mem_map.mp member
-  refine List.mem_map.mpr ⟨entry, List.mem_filter.mpr ⟨earlier, ?_⟩, equal⟩
-  exact objectCut_of_object (equal.symm ▸ known)
+    (queue.sourceRunBlocks publisher batches).2.2
+  apply mixedFailureCuts_uninvalidatedObjectOwner generated
+    (objects := objects) ?_ (selectObjectFailureCuts_informative work [] _) cuts object split
+  intro entry member
+  obtain ⟨_, owners, producer, path, errors, known, _⟩ :=
+    createWorkQueue_informativeObjectFailureCuts_origin generated valid entry member
+  exact ⟨owners, producer, path, errors, known⟩
 
 -----------------------------------------------------------------------------------------
--- Preserve counts, announcements, and direct safety under the same chosen inventory
+-- Preserve causal coverage, announcements, and direct safety in one inventory
 -----------------------------------------------------------------------------------------
 
-/-- Actual replay has one complete announced inventory with direct-safe owners at all cuts.
+/-- Actual replay has one causal inventory with announced, direct-safe owners at all cuts.
 Witness: merge the original object cuts and actual stream cuts once, then attach all
 three certificates to that same list. Announcement and health may use different owners;
 this still leaves ancestor failure and producer cancellation to the conformance proof.
@@ -351,7 +392,7 @@ theorem createWorkQueue_failureInventory_withDirectSafety {work : Execution.Work
       let initial :=
         (queue.initialGroups ++ queue.initialStreams).map Execution.DeliveryNode.ref
       ∃ failures : FailureCuts,
-        CompleteFailureInventory work atoms failures
+        CausalFailureInventory work atoms failures
         ∧ (∀ entry ∈ failures,
             ∃ owners,
               TaskHasOwners work entry.2 owners
@@ -370,14 +411,14 @@ theorem createWorkQueue_failureInventory_withDirectSafety {work : Execution.Work
   let publisher : IncrementalPublisher :=
     { active := queue.initialGroups ++ queue.initialStreams }
   let objects := informativeObjectFailureCuts work
-    (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher batches).2.2)
+    (queue.sourceRunBlocks publisher batches).2.2
   obtain ⟨matching, _, values, _, covered⟩ :=
     createWorkQueue_runNormalized_streamProducerMatching_withItemCoverage generated valid started
   obtain ⟨streams, cuts, _, supported⟩ := createWorkQueue_runNormalized_streamFailureCuts
     generated valid matching (fun index event atEvent value =>
       (values index event atEvent value).1) covered
   refine ⟨mergeFailureCuts objects streams,
-    createWorkQueue_completeInformativeFailureInventory generated valid started cuts
+    createWorkQueue_completeInformativeFailureInventory generated valid cuts
       (fun entry member => (supported entry member).1), ?_, ?_⟩
   · intro entry member
     rcases List.mem_append.mp ((mergeFailureCuts_partition objects streams).mem_iff.mp member)
@@ -386,7 +427,7 @@ theorem createWorkQueue_failureInventory_withDirectSafety {work : Execution.Work
       exact ⟨[ref], owners, ref, List.mem_cons_self, opened.1⟩
     · obtain ⟨before, after, split⟩ := List.mem_iff_append.mp fromObject
       obtain ⟨owners, ref, structural, contributes, announced⟩ :=
-        createWorkQueue_informativeObjectFailureCuts_announcedOwner valid started split
+        createWorkQueue_informativeObjectFailureCuts_announcedOwner generated valid started split
       exact ⟨owners, structural, ref, contributes, announced⟩
   · intro before cut occurrence after split
     exact createWorkQueue_mixedFailureCuts_directHealthyOwner generated valid started cuts split

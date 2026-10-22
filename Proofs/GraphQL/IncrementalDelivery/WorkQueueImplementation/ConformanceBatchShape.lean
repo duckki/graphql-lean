@@ -1,5 +1,6 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.TerminationShape
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.ConformancePlan
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.InitialStartupOutputBlocks
 
 /-! Exact nonterminal history and the checked conformance batching leaf. -/
 
@@ -15,13 +16,15 @@ Witness: exact raw replay agreement, handler exclusion, and publisher/atom refle
 -/
 theorem State.sourceOutputBlocks_terminalShape (queue : State)
     (publisher : IncrementalPublisher) (events : List GraphEvent)
-    : (queue.sourceOutputBlocks publisher events).1.terminated = queue.terminated
+    (available : List (Occurrence × Nat) := [])
+    : (queue.sourceOutputBlocks publisher events available).1.terminated
+        = queue.terminated
       ∧ Execution.WorkQueueEvent.workQueueTermination
-        ∉ (queue.sourceOutputBlocks publisher events).2.2.flatMap Prod.snd := by
-  obtain ⟨state, _, output⟩ := queue.sourceOutputBlocks_agrees publisher events
-  rw [state, output, State.rawEventReplay_terminated,
+        ∉ (queue.sourceOutputBlocks publisher events available).2.2.flatMap Prod.snd := by
+  obtain ⟨state, _, output⟩ := queue.sourceOutputBlocks_agrees publisher events available
+  rw [state, output, State.rawEventReplay_terminated queue events available,
     publicationAtoms_list_termination_mem, IncrementalPublisher.normalizeBatch_termination_mem]
-  exact ⟨rfl, queue.rawEventReplay_noTermination events⟩
+  exact ⟨rfl, queue.rawEventReplay_noTermination events available⟩
 
 /-- A terminated queue contributes no later source blocks and leaves both machines alone.
 Witness: each batch takes the absorbing branch before processing any host input.
@@ -36,9 +39,9 @@ theorem State.sourceRunBlocks_after_termination (queue : State)
       simpa only [State.sourceRunBlocks, State.sourceBatchBlocks, ended, ↓reduceIte,
         List.nil_append] using ih
 
-/-- One open batch appends its only possible terminal marker after all handler atoms.
-Witness: handlers retain false and emit no marker; the empty-root test determines both
-the flag and the optional final atom.
+/-- One open batch appends its terminal marker after its actual FIFO output.
+Witness: dispatch retains the flag; the empty-root and empty-pending test determines
+both the final flag and the optional final atom.
 -/
 theorem State.sourceBatchBlocks_terminalShape (queue : State)
     (publisher : IncrementalPublisher) (events : List GraphEvent)
@@ -51,12 +54,17 @@ theorem State.sourceBatchBlocks_terminalShape (queue : State)
                   [.workQueueTermination]
                 else
                   [] := by
-  obtain ⟨flag, absent⟩ := queue.sourceOutputBlocks_terminalShape publisher events
-  refine ⟨(queue.sourceOutputBlocks publisher events).2.2.flatMap Prod.snd, absent, ?_⟩
+  let available := GraphEvent.availableFailures events
+  let traced := queue.sourceOutputBlocks publisher events available
+  obtain ⟨flag, absent⟩ := queue.sourceOutputBlocks_terminalShape publisher events available
+  refine ⟨traced.2.2.flatMap Prod.snd, absent, ?_⟩
   simp only [State.sourceBatchBlocks, running, Bool.false_eq_true, ↓reduceIte]
   split
-  · simp
-  · simp [flag, running]
+  · simp [traced, available, List.flatMap_append]
+  · change traced.2.2.flatMap Prod.snd = traced.2.2.flatMap Prod.snd
+      ++ if traced.1.terminated then [.workQueueTermination] else []
+    rw [flag, running]
+    simp
 
 /-- Actual multi-batch atoms end in one terminal marker exactly when the flag is true.
 Witness: concatenate nonterminal handler blocks until the first ending batch, after which
@@ -143,9 +151,12 @@ theorem State.runNormalized_terminalShape (queue : State)
     { active := queue.initialGroups ++ queue.initialStreams }
   obtain ⟨before, absent, shape⟩ :=
     queue.sourceRunBlocks_terminalShape publisher inputs running
-  obtain ⟨state, output⟩ := queue.sourceRunBlocks_agrees inputs
-  change (queue.sourceRunBlocks publisher inputs).1 = _ at state
-  change (queue.sourceRunBlocks publisher inputs).2.2.flatMap Prod.snd = _ at output
+  obtain ⟨state, _, output⟩ :=
+    queue.sourceRunBlocks_withPublisher_agrees publisher inputs
+  change (queue.sourceRunBlocks publisher inputs).1
+    = (queue.runNormalized inputs).1 at state
+  change (queue.sourceRunBlocks publisher inputs).2.2.flatMap Prod.snd
+    = (queue.runNormalized inputs).2.flatten.flatMap publicationAtoms at output
   rw [state, output] at shape
   have retained : before.filter (fun | .workQueueTermination => false | _ => true) = before := by
     apply List.filter_eq_self.mpr
@@ -165,9 +176,28 @@ theorem State.runNormalized_termination_mem (queue : State)
     : Execution.WorkQueueEvent.workQueueTermination
         ∈ (queue.runNormalized inputs).2.flatten
       ↔ (queue.runNormalized inputs).1.terminated = true := by
-  rw [← publicationAtoms_list_termination_mem, queue.runNormalized_terminalShape inputs running]
+  rw [← publicationAtoms_list_termination_mem,
+    queue.runNormalized_terminalShape inputs running]
   simp only [List.mem_append, queue.nonterminalAtoms_noTermination inputs, false_or]
   cases (queue.runNormalized inputs).1.terminated <;> simp
+
+/-- The exact nonterminal history and optional final marker regroup into the real batches.
+This shape property is independent of work accounting and retains the pending FIFO in state.
+-/
+theorem State.runNormalized_batchShape (queue : State) (inputs : List (List GraphEvent))
+    (running : queue.terminated = false)
+    (shape : ∀ event ∈ inputs.flatten, event.NonemptyItems)
+    : WorkBatching
+        (queue.nonterminalAtoms inputs
+          ++ if (queue.runNormalized inputs).1.terminated then
+                [.workQueueTermination]
+              else
+                [])
+        (queue.runNormalized inputs).2 := by
+  have grouped := queue.runNormalized_atomicBatching inputs shape
+  dsimp only at grouped
+  rw [queue.runNormalized_terminalShape inputs running] at grouped
+  exact grouped
 
 namespace ConformancePlan
 

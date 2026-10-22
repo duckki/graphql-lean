@@ -79,6 +79,7 @@ theorem State.taskFailure_failureAncestorHealth {queue : State} {work failed}
               have same := List.mem_singleton.mp member
               cases same
               apply rooted
+              change node.group.node.ref ∈ current.rootGroups
               rw [current.groupNode?_ref found]
               exact List.contains_iff_mem.mp active
           · exact ih _ rooted output
@@ -91,47 +92,39 @@ theorem State.taskFailure_failureAncestorHealth {queue : State} {work failed}
 
 namespace ReleaseHealth
 
-/-- A bounded rejection drain emits failures only at groups with healthy ancestors.
-Witness: each success activates certified release ancestry; rejection visits active owners
-under the same fixed health frame, even when one replay closes several owners.
+/-- Immediate drain output contains no failed group completion.
+Startup failures occupy the separate queued channel, so this statement needs no health
+assumption beyond the existing frame parameter retained for the handler interface.
 -/
 theorem HealthFrame.drainReadyGroups_go_failureAncestorHealth {queue work parents failed}
-    (prior : HealthFrame queue work parents failed) (generated : ExecutedWork work)
-    (canonical
+    (_prior : HealthFrame queue work parents failed) (_generated : ExecutedWork work)
+    (_canonical
       : ∀ node dependencies,
           GroupRecordAt work node dependencies → dependencies = parents node.ref)
-    (failedKnown
+    (_failedKnown
       : ∀ occurrence ∈ failed,
           ∃ owners producer payload,
             TaskAt work occurrence owners producer payload
             ∧ payload.failure.isSome = true)
-    (fuel : Nat)
+    (fuel : Nat) (available : List (Occurrence × Nat) := [])
     : GroupFailureAncestorsHealthy work failed
-        (State.drainReadyGroups.go fuel queue).2 := by
+        (State.drainReadyGroups.go available fuel queue).2.1 := by
+  apply GroupFailureAncestorsHealthy.of_noFailures
+  intro group errors
+  clear _prior
   induction fuel generalizing queue with
-  | zero => exact .of_noFailures (by simp [State.drainReadyGroups.go])
+  | zero => simp [State.drainReadyGroups.go]
   | succ fuel ih =>
       unfold State.drainReadyGroups.go
       dsimp only
       split
-      · exact .of_noFailures (by simp)
-      · rename_i node selected
-        obtain ⟨found, active, _⟩ := State.readyGroup_sound selected
-        cases rejected : queue.rejectedTask? node with
-        | none =>
-            have member := List.mem_of_find?_eq_some found
-            have safe := prior.counts.unrejected_tasks_notFailed prior.sound prior.tasks
-              member rejected
-            have closed := prior.finishGroupSuccess generated canonical failedKnown member active safe
-            exact (GroupFailureAncestorsHealthy.of_noFailures
-              (queue.finishGroupSuccess_groupFailure_absent node)).append
-              (ih (closed.1.startNewWork _ closed.2.1))
-        | some rejection =>
-            obtain ⟨occurrence, errors⟩ := rejection
-            exact (queue.taskFailure_failureAncestorHealth prior.roots occurrence errors).append
-              (ih (prior.taskFailure occurrence errors))
+      · simp
+      · intro member
+        rcases List.mem_append.mp member with first | later
+        · exact queue.finishGroupSuccess_groupFailure_absent _ group errors first
+        · exact ih later
 
-/-- Full draining uses its actual live-record budget for failure ancestry health. -/
+/-- Full immediate draining specializes its actual live-record budget. -/
 theorem HealthFrame.drainReadyGroups_failureAncestorHealth {queue work parents failed}
     (prior : HealthFrame queue work parents failed) (generated : ExecutedWork work)
     (canonical
@@ -142,9 +135,10 @@ theorem HealthFrame.drainReadyGroups_failureAncestorHealth {queue work parents f
           ∃ owners producer payload,
             TaskAt work occurrence owners producer payload
             ∧ payload.failure.isSome = true)
-    : GroupFailureAncestorsHealthy work failed queue.drainReadyGroups.2 :=
+    (available : List (Occurrence × Nat) := [])
+    : GroupFailureAncestorsHealthy work failed (queue.drainReadyGroups available).2.1 :=
   prior.drainReadyGroups_go_failureAncestorHealth generated canonical failedKnown
-    queue.groupNodes.length
+    queue.groupNodes.length available
 
 end ReleaseHealth
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

@@ -1,7 +1,4 @@
-import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.ActiveRootPresence
-import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.FreshGroupPaths
-import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.GroupNoticeMetadata
-import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.UncancelledRetirementReplay
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.LiveRootReplay
 
 /-! Live active roots through every matching generated source-event prefix. -/
 
@@ -20,6 +17,10 @@ theorem ExecutedWork.taskSuccess_drain_liveRootFrame {work before occurrence res
     (generated : ExecutedWork work) (matching : ∀ event ∈ before, event.MatchesWork work)
     (matched : (GraphEvent.taskSuccess occurrence result).MatchesWork work)
     (incoming : TaskNode)
+    (found
+      : ((State.initialize (Work.fromExecution work)).replayGraphEvents before).taskNode?
+          occurrence
+        = some incoming)
     (present
       : ((State.initialize (Work.fromExecution work)).replayGraphEvents
           before).RootGroupsPresent)
@@ -29,14 +30,14 @@ theorem ExecutedWork.taskSuccess_drain_liveRootFrame {work before occurrence res
             { incoming with value := some result.value }).maybeIntegrateWork
           result.work (some occurrence)).1
       let released := incoming.task.groups.foldl successGroupStep (prepared, [], {})
-      let active := released.1.startNewWork released.2.2
+      let active := (released.1.startNewWork released.2.2).1
       ∃ parents,
         (∀ node dependencies,
           GroupRecordAt work node dependencies → dependencies = parents node.ref)
         ∧ LiveRootFrame active work parents := by
   intro queue prepared released active
   obtain ⟨parents, canonical, records, links, live, tasks, roots, retired⟩ :=
-    generated.replayGraphEvents_preparedRetirement before matching matched incoming
+    generated.replayGraphEvents_preparedRetirement before matching matched incoming (found := found)
   obtain ⟨refs, _, support⟩ :=
     generated.taskSuccess_prepared_noticeMetadata matching matched incoming
   have storedPresent :
@@ -80,7 +81,7 @@ theorem ExecutedWork.taskSuccess_rootsPresent {work before occurrence result}
   | some incoming =>
       rw [queue.taskSuccess_eq occurrence result incoming found]
       obtain ⟨parents, canonical, frame⟩ :=
-        generated.taskSuccess_drain_liveRootFrame matching matched incoming present
+        generated.taskSuccess_drain_liveRootFrame matching matched incoming found present
       exact (frame.drainReadyGroups generated canonical).present
 
 /-- The leading item carrier and subsequent drain share a complete live-root frame.
@@ -104,8 +105,9 @@ theorem ExecutedWork.streamItems_prepared_liveRootFrame {work before stream item
     generated.replayGraphEvents_streamPreparedRetirement before matching matched
   obtain ⟨refs, _, support⟩ := generated.streamItems_prepared_noticeMetadata matching matched
   obtain ⟨priorRefs, _, _⟩ := generated.replay_noticeMetadata matching
-  have registration := createWorkQueue_registration work
+  have registration := createWorkQueue_registration work generated.declarations
   have prior := State.replayGraphEvents_registration registration.1 registration.2 before matching
+    (State.initialize_registrationFrame generated.declarations)
   exact ⟨parents, canonical, ⟨refs, records, links, live, tasks, roots, support,
     present.preparedStreamItems priorRefs prior.1 prior.2.1 matched⟩⟩
 
@@ -152,11 +154,25 @@ theorem ExecutedWork.next_rootsPresent {work before event}
   | streamItems stream items =>
       exact generated.streamItems_rootsPresent matching matched present
   | streamSuccess stream =>
-      simp only [State.handleGraphEvent, State.streamSuccess]
+      change (State.streamSuccess
+        ((State.initialize (Work.fromExecution work)).replayGraphEvents before) stream).1
+          |>.RootGroupsPresent
+      unfold State.streamSuccess
       split <;> exact present
   | streamFailure stream errors =>
-      simp only [State.handleGraphEvent, State.streamFailure]
+      change (State.streamFailure
+        ((State.initialize (Work.fromExecution work)).replayGraphEvents before) stream errors).1
+          |>.RootGroupsPresent
+      unfold State.streamFailure
       split <;> exact present
+
+  | groupFailure failure =>
+      change (((State.initialize (Work.fromExecution work)).replayGraphEvents before).groupFailure
+        failure).1.RootGroupsPresent
+      unfold State.groupFailure
+      split
+      · exact present
+      · split <;> exact present
 
 /-- Every matching generated source prefix has a live record for each active group root.
 Witness: start with actual pruning-based initialization and append matching inputs using
@@ -170,7 +186,8 @@ theorem ExecutedWork.replayGraphEvents_rootsPresent {work}
   have loop (remaining : List GraphEvent) (before : List GraphEvent)
       (prior : ∀ event ∈ before, event.MatchesWork work)
       (later : ∀ event ∈ remaining, event.MatchesWork work)
-      (present : ((State.initialize (Work.fromExecution work)).replayGraphEvents before).RootGroupsPresent)
+      (present
+        : ((State.initialize (Work.fromExecution work)).replayGraphEvents before).RootGroupsPresent)
       : ((State.initialize (Work.fromExecution work)).replayGraphEvents
           (before ++ remaining)).RootGroupsPresent := by
     induction remaining generalizing before with

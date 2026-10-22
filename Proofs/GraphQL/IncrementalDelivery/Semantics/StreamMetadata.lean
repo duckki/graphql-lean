@@ -13,6 +13,7 @@ def streamRefAddresses (work : Execution.Work) (address : Address := [])
     : List (Nat × Address) :=
   match work with
   | .empty => []
+  | .declareGroups _ tasks => streamRefAddresses tasks address
   | .combine left right =>
       streamRefAddresses left (address ++ [0])
       ++ streamRefAddresses right (address ++ [1])
@@ -50,6 +51,9 @@ theorem streamRefAddresses_refs (work : Execution.Work) (address : Address)
     : (streamRefAddresses work address).map Prod.fst = streamAllocationRefs work := by
   cases work with
   | empty => simp [streamRefAddresses, streamAllocationRefs]
+  | declareGroups groups tasks =>
+      simpa only [streamRefAddresses, streamAllocationRefs]
+        using streamRefAddresses_refs tasks address
   | combine left right =>
       simp only [streamRefAddresses, List.map_append, streamAllocationRefs]
       rw [streamRefAddresses_refs left, streamRefAddresses_refs right]
@@ -77,6 +81,18 @@ decreasing_by
   dsimp only at *
   omega
 
+/-- Declaration annotations retain every stream-address entry. -/
+@[simp]
+theorem streamRefAddresses_withoutDeclarations (work : Work) (address : Address)
+    : streamRefAddresses work.withoutDeclarations address
+      = streamRefAddresses work address := by
+  cases work with
+  | declareGroups groups tasks =>
+      simpa only [Work.withoutDeclarations, streamRefAddresses]
+        using streamRefAddresses_withoutDeclarations tasks address
+  | _ => rfl
+termination_by work
+
 /-- A located subtree's stream-address entries remain in the root enumeration.
 Witness: structural navigation retains entries across combines, groups, and stream items.
 -/
@@ -86,16 +102,23 @@ theorem Located.streamRefAddresses_subset {root address current producer owners}
   have navigation := StructuralEquivalence.located_of_current located
   clear located
   induction navigation with
-  | root => exact List.Subset.refl _
+  | root =>
+      simp only [streamRefAddresses_withoutDeclarations]
+      intro entry member
+      exact member
   | left _ ih =>
+      rw [streamRefAddresses_withoutDeclarations]
       rw [streamRefAddresses] at ih
       exact (List.subset_append_left _ _).trans ih
   | right _ ih =>
+      rw [streamRefAddresses_withoutDeclarations]
       rw [streamRefAddresses] at ih
       exact (List.subset_append_right _ _).trans ih
-  | executionGroup _ ih => simpa only [streamRefAddresses] using ih
+  | executionGroup _ ih =>
+      simpa only [streamRefAddresses, streamRefAddresses_withoutDeclarations] using ih
   | @item address node items producer owners index result children prior entry ih =>
       intro pair member
+      simp only [streamRefAddresses_withoutDeclarations] at member
       apply ih
       rw [streamRefAddresses_stream]
       exact List.mem_cons_of_mem _ (List.mem_flatMap.mpr ⟨((result, children), index),

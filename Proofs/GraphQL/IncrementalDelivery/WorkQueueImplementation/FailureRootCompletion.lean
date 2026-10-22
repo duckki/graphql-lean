@@ -45,7 +45,7 @@ theorem ExecutedWork.replay_rootClosureFrame {work before}
   obtain ⟨parents, canonical⟩ := generated.groupRecordsCanonical
   obtain ⟨_, records, support⟩ := generated.replay_noticeMetadata matching
   have links := createWorkQueue_childLinksCanonical (Work.fromExecution work) parents
-    (fun _ member => workFromSpec_groups_parentCanonical Located.root canonical member)
+    (fun _ member => workFromSpec_groups_parentCanonical_root canonical member)
   exact ⟨parents, canonical, records, links.replayGraphEvents canonical before matching,
     (generated.replayGraphEvents_structuralRetirement before matching).1, support.roots⟩
 

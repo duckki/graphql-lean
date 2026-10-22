@@ -139,7 +139,8 @@ private def failureEntries : List (TaskOutcome ResponseValue × Execution.Work) 
   ]
 
 private def generatedFailureWork : Execution.Work :=
-  .combine (.combine (.combine .empty (.stream failureNode failureEntries)) .empty) .empty
+  .combine (.combine (.combine .empty (.stream failureNode failureEntries)) .empty)
+    (.declareGroups [] .empty)
 
 private def firstArrival : GraphEvent :=
   .streamItems failureNode [⟨.item [0, 0, 1] 0, ⟨.scalar "x", 0⟩, {}⟩]

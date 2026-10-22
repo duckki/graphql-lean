@@ -27,13 +27,15 @@ descriptors. Removed tasks contribute no token even when their source input is r
 -/
 theorem ExecutedWork.replayGraphEvents_cachedAcceptedFailures {work events}
     (_generated : ExecutedWork work) (valid : ValidGraphEvents work events)
-    (_accepted : (State.initialize (Work.fromExecution work)).acceptsBatch events = true)
+    (_accepted
+      : State.eventsStarted [] (State.initialize (Work.fromExecution work)) events = true)
     : ((State.initialize (Work.fromExecution work)).replayGraphEvents
         events).CachedFailuresSupported
         work
         ((State.initialize (Work.fromExecution work)).objectFailureContributions
           events) := by
-  have supported := (createWorkQueue_cachedFailuresSupported (Work.fromExecution work) work []).replayGraphEvents_contributions
+  have supported := (createWorkQueue_cachedFailuresSupported
+    (Work.fromExecution work) work []).replayGraphEvents_contributions
     (createWorkQueue_startedTasksRegistered _) (createWorkQueue_fromSpec_registeredTasksMatch work)
     events (fun _ member => valid.eachMatches member)
   simpa only [List.append_nil] using supported
@@ -68,24 +70,18 @@ theorem State.CachedFailuresSupported.successGroupFold {queue : State} {work fai
           · exact ih _ next
   exact loop groups (queue, [], {}) supported
 
-/-- Each bounded drain prefix retains accepted cache support after either kind of closure.
-Witness: rejection replay reuses an existing supported task; every owner cleanup and
-successful closure preserves the remaining task-rejection facts.
+/-- Each bounded successful drain retains accepted cache support through child startup.
+Witness: successful flushes and cached startup preserve retained task-rejection facts
+under the empty supplied snapshot.
 -/
 theorem State.CachedFailuresSupported.drainReadyGroups_go {queue : State} {work failed}
     (supported : queue.CachedFailuresSupported work failed) (fuel : Nat)
-    : (State.drainReadyGroups.go fuel queue).1.CachedFailuresSupported work failed := by
+    : (State.drainReadyGroups.go [] fuel queue).1.CachedFailuresSupported work
+        failed := by
   apply State.drainReadyGroups_go_preserves
     (fun current => current.CachedFailuresSupported work failed) (valid := supported)
-  · intro current node prior _ _ _ _
-    exact (prior.finishGroupSuccess node).startNewWork _
-  · intro current node occurrence errors prior _ _ selected
-    obtain ⟨_, task, found, rejected⟩ := State.rejectedTask?_sound selected
-    apply State.CachedErrorsSatisfy.taskFailure prior occurrence errors
-    intro other lookup group member
-    have same : other = task := Option.some.inj (lookup.symm.trans found)
-    subst other
-    exact prior task (List.mem_of_find?_eq_some found) errors rejected group member
+  intro current node prior _ _ _
+  exact (prior.finishGroupSuccess node).startNewWork _
 
 /-- Integrating one stream item retains the prior accepted contributor inventory.
 Witness: integration, pruning, and activation introduce no failure cache.
@@ -118,7 +114,8 @@ value storage and child integration retain its contributor witnesses.
 theorem ExecutedWork.taskSuccess_prepared_cachedAcceptedFailures
     {work before occurrence} {result : TaskResult} (generated : ExecutedWork work)
     (valid : ValidGraphEvents work before)
-    (accepted : (State.initialize (Work.fromExecution work)).acceptsBatch before = true)
+    (accepted
+      : State.eventsStarted [] (State.initialize (Work.fromExecution work)) before = true)
     (incoming : TaskNode)
     (found
       : ((State.initialize (Work.fromExecution work)).replayGraphEvents before).taskNode?
@@ -145,7 +142,8 @@ Witness: task preparation, complete single-pass release, and activation preserve
 theorem ExecutedWork.taskSuccess_drain_cachedAcceptedFailures
     {work before occurrence} {result : TaskResult} (generated : ExecutedWork work)
     (valid : ValidGraphEvents work before)
-    (accepted : (State.initialize (Work.fromExecution work)).acceptsBatch before = true)
+    (accepted
+      : State.eventsStarted [] (State.initialize (Work.fromExecution work)) before = true)
     (incoming : TaskNode)
     (found
       : ((State.initialize (Work.fromExecution work)).replayGraphEvents before).taskNode?
@@ -156,7 +154,7 @@ theorem ExecutedWork.taskSuccess_drain_cachedAcceptedFailures
       let stored := current.putTaskNode { incoming with value := some result.value }
       let prepared := (stored.maybeIntegrateWork result.work (some occurrence)).1
       let released := incoming.task.groups.foldl successGroupStep (prepared, [], {})
-      let active := released.1.startNewWork released.2.2
+      let active := (released.1.startNewWork released.2.2).1
       active.CachedFailuresSupported work
         (initial.objectFailureContributions before) := by
   exact ((generated.taskSuccess_prepared_cachedAcceptedFailures valid accepted incoming found
@@ -169,7 +167,8 @@ can then use `CachedFailuresSupported.drainReadyGroups_go` without a new source 
 -/
 theorem ExecutedWork.streamItems_prepared_cachedAcceptedFailures {work before}
     (generated : ExecutedWork work) (valid : ValidGraphEvents work before)
-    (accepted : (State.initialize (Work.fromExecution work)).acceptsBatch before = true)
+    (accepted
+      : State.eventsStarted [] (State.initialize (Work.fromExecution work)) before = true)
     (items : List StreamItem)
     : let initial := State.initialize (Work.fromExecution work)
       ((initial.replayGraphEvents before).preparedStreamItems

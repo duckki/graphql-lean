@@ -29,6 +29,24 @@ theorem sourcePositions_executionGroup_ok (containers : Bool)
   rw [sourceTasks_positions_relabel containers children
     (ResponsePositions.fieldCursors path initial) [0] [] (some (.executionGroup [])) none]
 
+/-- Declaration metadata retains the exact typed failure explanation. -/
+theorem EntryExplained.declareGroups {available work entry}
+    (explained : EntryExplained available work entry) (groups : List DeferredFragment)
+    : EntryExplained available (.declareGroups groups work) entry := by
+  rcases explained with delivered | failed
+  · exact Or.inl delivered
+  · obtain ⟨occurrence, owners, producer, payload, known, fails, related⟩ := failed
+    exact Or.inr ⟨occurrence, owners, producer, payload,
+      (taskAt_declareGroups groups).mpr known, fails, related⟩
+
+/-- Ordered declaration annotations introduce no typed coverage obligation. -/
+theorem EntriesCovered.declareGroups {containers reference available work}
+    (covered : EntriesCovered containers reference available work)
+    (groups : List DeferredFragment)
+    : EntriesCovered containers reference available (.declareGroups groups work) := by
+  intro entry member visible
+  exact (covered entry member visible).declareGroups groups
+
 /-- Retaining work beneath an execution group preserves its typed failure explanation.
 Witness: payload-preserving structural embedding at the group's child edge.
 -/
@@ -39,7 +57,8 @@ theorem EntryExplained.executionGroup_child {available children entry}
   rcases explained with delivered | failed
   · exact Or.inl delivered
   · obtain ⟨occurrence, owners, producer, payload, known, fails, related⟩ := failed
-    obtain ⟨occurrence, owners, producer, embedded⟩ := TaskAt.in_located known
+    obtain ⟨occurrence, owners, producer, embedded⟩ := TaskAt.in_located
+      (root := .executionGroup groups path result children) known
       (StructuralEquivalence.Located.executionGroup .root).toCurrent
     exact Or.inr ⟨occurrence, owners, producer, payload, embedded, fails, related⟩
 
@@ -168,7 +187,8 @@ theorem EntryExplained.streamItem_child {available children entry}
   rcases explained with delivered | failed
   · exact Or.inl delivered
   · obtain ⟨occurrence, owners, producer, payload, known, fails, related⟩ := failed
-    obtain ⟨occurrence, owners, producer, embedded⟩ := TaskAt.in_located known
+    obtain ⟨occurrence, owners, producer, embedded⟩ := TaskAt.in_located
+      (root := .stream node items) known
       (StructuralEquivalence.Located.item .root found).toCurrent
     exact Or.inr ⟨occurrence, owners, producer, payload, embedded, fails, related⟩
 

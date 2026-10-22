@@ -67,7 +67,7 @@ theorem ExecutedWork.groupReport_covers_task
     : FailureReportedFor events payload.path := by
   obtain ⟨reporter, errors, positive, member, ancestor⟩ := reported
   obtain ⟨index, selected⟩ := List.mem_iff_getElem?.mp member
-  obtain ⟨parents, parent, reporterKnown⟩ := (explained.2.2 index _ selected).1
+  obtain ⟨parents, parent, reporterKnown⟩ := (explained.eventAllowed index _ selected).1
   have scope : FailureReportedFor events reporter.path :=
     ⟨reporter, errors, positive, ⟨[], by simp⟩, Or.inl member⟩
   obtain ⟨paths, bound, coherent⟩ := generated.ownerPathAssignment

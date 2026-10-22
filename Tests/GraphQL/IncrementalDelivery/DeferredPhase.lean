@@ -34,25 +34,25 @@ theorem deferred_task {first second address owners producer payload}
       | zero =>
           cases rest with
           | nil =>
-              simp [Located, locateWork, locateWork.go, WorkLocation.child?, work] at located
+              simp [Located, locateWork, locateWork.go, WorkLocation.child?, Work.withoutDeclarations, work] at located
               rcases located with ⟨⟨rfl, rfl, rfl, rfl⟩, rfl, rfl⟩
               simp [node]
           | cons edge tail =>
               cases edge <;> cases tail <;>
-                simp [Located, locateWork, locateWork.go, WorkLocation.child?, work] at located
+                simp [Located, locateWork, locateWork.go, WorkLocation.child?, Work.withoutDeclarations, work] at located
       | succ side =>
           cases side with
           | zero =>
               cases rest with
               | nil =>
-                  simp [Located, locateWork, locateWork.go, WorkLocation.child?, work] at located
+                  simp [Located, locateWork, locateWork.go, WorkLocation.child?, Work.withoutDeclarations, work] at located
                   rcases located with ⟨⟨rfl, rfl, rfl, rfl⟩, rfl, rfl⟩
                   simp [node]
               | cons edge tail =>
                   cases edge <;> cases tail <;>
-                    simp [Located, locateWork, locateWork.go, WorkLocation.child?, work] at located
+                    simp [Located, locateWork, locateWork.go, WorkLocation.child?, Work.withoutDeclarations, work] at located
           | succ side =>
-              simp [Located, locateWork, locateWork.go, WorkLocation.child?, work] at located
+              simp [Located, locateWork, locateWork.go, WorkLocation.child?, Work.withoutDeclarations, work] at located
 
 /-- Both group notices are initially eligible for every combination of task outcomes.
 Witness: the second, still-unaccounted task contributes to both refs; failure evidence is
@@ -64,15 +64,15 @@ theorem initialized (first second : Result (List (Name × ResponseValue)))
       (.object [] second) := by
     simpa [node]
       using (TaskAt.executionGroup (result := { result := second })
-                (Located.right Located.root)
+                (Located.right (Located.root (root := work first second)))
               : TaskAt (work first second) (.executionGroup [1]) _ _ _)
   refine ⟨⟨by decide, ?_, by simp⟩, by simp⟩
   intro owner member
   have known : NodeAt (work first second) owner .group [] none := by
     simp only [List.mem_cons, List.not_mem_nil, or_false] at member
     rcases member with rfl | rfl
-    · exact .group (group := { node := node 0 }) (.right .root) (by simp)
-    · exact .group (group := { node := node 1 }) (.right .root) (by simp)
+    · exact .group (group := { node := node 0 }) (.right (Located.root (root := work first second))) (by simp)
+    · exact .group (group := { node := node 1 }) (.right (Located.root (root := work first second))) (by simp)
   have contributes : owner.ref ∈ [0, 1] := by
     simp only [List.mem_cons, List.not_mem_nil, or_false] at member
     rcases member with rfl | rfl <;> simp [node]

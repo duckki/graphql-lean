@@ -1,112 +1,58 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.RegistrationCoverage
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.GroupParents
 
-/-! Full-chain lowering and permanent registration of primary parents. -/
+/-! Declaration-context lowering and permanent registration of primary parents. -/
 
 namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
 -----------------------------------------------------------------------------------------
--- Every lowered parent appears in the same registration batch
+-- Every lowered parent has a prior or current registration
 -----------------------------------------------------------------------------------------
 
-/-- Each primary parent named by a candidate also has a candidate in this work chunk.
+/-- Each primary parent is already known or has a candidate in this work chunk.
 The parent need not contribute to any task or remain live after integration.
 -/
-def Work.ParentsCovered (work : Work) : Prop :=
+def Work.ParentsCovered (work : Work) (known : NodeRefs := []) : Prop :=
   ∀ group ∈ work.groups,
     ∀ parent,
-      group.parent = some parent → ∃ candidate ∈ work.groups, candidate.node.ref = parent
+      group.parent = some parent
+      → parent ∈ known ∨ ∃ candidate ∈ work.groups, candidate.node.ref = parent
 
-/-- A lowered ancestor chain contains every parent named by any of its entries.
-Witness: induction on the nearest-first chain; the immediate parent is the final entry
-of the recursively lowered tail. No generated-work assumption is required.
--/
-theorem workFromSpec_groupChain_parentsCovered (nodes : List Execution.DeliveryNode)
-    : ∀ group ∈ Work.fromExecution.groupChain nodes,
-        ∀ parent,
-          group.parent = some parent
-          → ∃ candidate ∈ Work.fromExecution.groupChain nodes,
-              candidate.node.ref = parent := by
-  induction nodes with
-  | nil => simp [Work.fromExecution.groupChain]
-  | cons node ancestors ih =>
-      intro group member parent parentEq
-      rcases List.mem_append.mp member with earlier | last
-      · obtain ⟨candidate, included, same⟩ := ih group earlier parent parentEq
-        exact ⟨candidate, List.mem_append_left _ included, same⟩
-      · have same := List.mem_singleton.mp last
-        subst group
-        cases ancestors with
-        | nil => cases parentEq
-        | cons ancestor rest =>
-            have ref : ancestor.ref = parent := Option.some.inj parentEq
-            exact ⟨⟨ancestor, rest.head?.map Execution.DeliveryNode.ref⟩,
-              List.mem_append_left _ (workFromSpec_groupChain_self ancestor rest), ref⟩
+/-- Prior registration contexts can grow without invalidating parent coverage. -/
+theorem Work.ParentsCovered.mono {work : Work} {known more : NodeRefs}
+    (covered : work.ParentsCovered known) (included : known.Subset more)
+    : work.ParentsCovered more := by
+  intro group member parent same
+  rcases covered group member parent same with prior | candidate
+  · exact .inl (included prior)
+  · exact .inr candidate
 
-/-- Every lowered chunk covers its candidates' primary parents, including taskless ones.
-Witness: each contributor supplies its complete chain; combination retains both lists.
--/
-theorem workFromSpec_parentsCovered (work : Execution.Work) (address : Address := [])
+/-- Execution declaration contexts cover every primary parent of a lowered candidate. -/
+theorem workFromSpec_parentsCovered (work : Execution.Work)
+    (certified : DeclarationCoverage.Certified [] work) (address : Address := [])
     : (Work.fromExecution work address).ParentsCovered := by
-  cases work with
-  | empty => intro group member; cases member
-  | stream => intro group member; cases member
-  | combine left right =>
-      intro group member parent parentEq
-      rcases List.mem_append.mp member with inLeft | inRight
-      · obtain ⟨candidate, included, same⟩ :=
-          workFromSpec_parentsCovered left (address ++ [0]) group inLeft parent parentEq
-        exact ⟨candidate, List.mem_append_left _ included, same⟩
-      · obtain ⟨candidate, included, same⟩ :=
-          workFromSpec_parentsCovered right (address ++ [1]) group inRight parent parentEq
-        exact ⟨candidate, List.mem_append_right _ included, same⟩
-  | executionGroup fragments path result children =>
-      intro group member parent parentEq
-      obtain ⟨fragment, fragmentMember, chainMember⟩ := List.mem_flatMap.mp member
-      obtain ⟨candidate, included, same⟩ := workFromSpec_groupChain_parentsCovered
-        (fragment.node :: fragment.ancestors) group chainMember parent parentEq
-      exact ⟨candidate, List.mem_flatMap.mpr ⟨fragment, fragmentMember, included⟩, same⟩
-termination_by sizeOf work
+  intro group member parent same
+  have covered := certified.parents address member same
+  exact Or.inr (List.mem_map.mp ((List.mem_append.mp covered).resolve_left (by simp)))
 
-/-- Matched object success carries a child chunk with complete parent registration.
-Witness: the event's exact child-work equation reduces to full-chain lowering.
--/
+/-- A producer's inherited context covers primary parents of its child declarations. -/
 theorem GraphEvent.MatchesWork.childParentsCovered
-    {work occurrence result}
+    {work occurrence result known task}
     (matching : (GraphEvent.taskSuccess occurrence result).MatchesWork work)
-    : result.work.ParentsCovered := by
-  obtain ⟨_, producer, known, _, childrenWork⟩ := matching
-  cases occurrence with
-  | item => cases childrenWork
-  | executionGroup address =>
-      obtain ⟨groups, path, outcome, children, enclosing, located, _, _⟩ := known
-      change locateWork work address = some
-        ⟨.executionGroup groups path outcome children, producer, enclosing⟩ at located
-      have lowering : result.work = Work.fromExecution children (address ++ [0]) := by
-        simpa [taskChildWork?, located] using childrenWork.symm
-      rw [lowering]
-      exact workFromSpec_parentsCovered _ _
+    (context : DeclarationCoverage.TaskChildrenCertified work known task)
+    (same : task.occurrence = occurrence)
+    : result.work.ParentsCovered known :=
+  (context.sourceChild same matching).parents
 
-/-- A matched stream item also carries a parent-covered child chunk.
-Witness: locate the supplied item and use its exact child-work lowering equation.
--/
+/-- Stream item declarations restart the context and cover all parents within the item. -/
 theorem GraphEvent.MatchesWork.streamItem_parentsCovered
     {work stream items}
     (matching : (GraphEvent.streamItems stream items).MatchesWork work)
+    (certified : DeclarationCoverage.Certified [] work)
     {item : StreamItem} (member : item ∈ items)
-    : item.work.ParentsCovered := by
-  obtain ⟨_, producer, known, childrenWork⟩ := matching item member
-  cases occurrence : item.occurrence with
-  | executionGroup => simp [streamItemWork?, occurrence] at childrenWork
-  | item address index =>
-      rw [occurrence] at known
-      obtain ⟨node, entries, enclosing, result, children, located, entry, _, _⟩ := known
-      change locateWork work address = some ⟨.stream node entries, producer, enclosing⟩ at located
-      have lowering : item.work = Work.fromExecution children (address ++ [index]) := by
-        simpa [streamItemWork?, occurrence, located, entry] using childrenWork.symm
-      rw [lowering]
-      exact workFromSpec_parentsCovered _ _
+    : item.work.ParentsCovered :=
+  (certified.sourceStreamItem matching member []).parents
 
 -----------------------------------------------------------------------------------------
 -- The permanent registry is closed under the generated primary-parent assignment
@@ -140,7 +86,8 @@ theorem State.ParentRegistryClosed.addGroups {queue : State} {parents}
       : ∀ group ∈ groups,
           ∀ parent,
             group.parent = some parent
-            → ∃ candidate ∈ groups, candidate.node.ref = parent)
+            → parent ∈ queue.registeredGroups
+              ∨ ∃ candidate ∈ groups, candidate.node.ref = parent)
     : (queue.addGroups groups).1.ParentRegistryClosed parents := by
   obtain ⟨_, retained, all⟩ := queue.addGroups_registration live groups
   intro ref member parent parentEq
@@ -148,9 +95,11 @@ theorem State.ParentRegistryClosed.addGroups {queue : State} {parents}
     old | added
   · exact retained (prior ref old parent parentEq)
   · obtain ⟨group, included, same⟩ := List.mem_map.mp added
-    obtain ⟨candidate, candidateMember, refEq⟩ := covered group included parent
-      (by rw [canonical group included, same]; exact parentEq)
-    exact refEq ▸ all candidate candidateMember
+    rcases covered group included parent
+        (by rw [canonical group included, same]; exact parentEq) with prior | candidate
+    · exact retained prior
+    · obtain ⟨candidate, candidateMember, refEq⟩ := candidate
+      exact refEq ▸ all candidate candidateMember
 
 /-- Work integration preserves registry closure when its candidate parents are covered.
 Witness: group registration supplies closure; task and stream installation leave the
@@ -160,7 +109,8 @@ theorem State.ParentRegistryClosed.maybeIntegrateWork {queue : State} {parents}
     (prior : queue.ParentRegistryClosed parents) (live : queue.LiveGroupsRegistered)
     (work : Work)
     (canonical : ∀ group ∈ work.groups, group.parent = (parents group.node.ref).head?)
-    (covered : work.ParentsCovered) (parentTask : Option Occurrence := none)
+    (covered : work.ParentsCovered queue.registeredGroups)
+    (parentTask : Option Occurrence := none)
     : (queue.maybeIntegrateWork work parentTask).1.ParentRegistryClosed parents := by
   let grouped := (queue.addGroups work.groups).1
   have taskFold (tasks : List Task) (current : State)

@@ -59,7 +59,8 @@ removes its membership from C, and silently prunes C's now-empty shell.
 This is a local queue-state regression, not an assertion of generated-work conformance.
 -/
 theorem silent_retirement_output
-    : queue.drainReadyGroups.2 = [.groupValues parent [value], .groupSuccess parent [] []]
+    : queue.drainReadyGroups.2.1
+        = [.groupValues parent [value], .groupSuccess parent [] []]
       ∧ child.ref ∉ queue.drainReadyGroups.1.cancelledGroups
       ∧ child.ref
         ∉ queue.drainReadyGroups.1.groupNodes.map (fun node => node.group.node.ref)
@@ -88,7 +89,7 @@ theorem silent_retirement_publishes
     (by simp [buffered, task]) (by simp [queue, parentNode, childNode])
     silent_retirement_output.2.1
   refine ⟨published, ?_, owners, ?_⟩
-  · change published.map Prod.snd = queue.drainReadyGroups.2.flatMap
+  · change published.map Prod.snd = queue.drainReadyGroups.2.1.flatMap
       WorkQueueEvent.objectValues at values
     simpa only [silent_retirement_output.1, List.flatMap_cons, List.flatMap_nil,
       WorkQueueEvent.objectValues, List.append_nil] using values
@@ -145,7 +146,7 @@ Witness: reduce both actual closure blocks. C is not an initial root of this dra
 This fixture checks the internal queue boundary, not generated-work conformance.
 -/
 theorem same_drain_output
-    : waiting.drainReadyGroups.2
+    : waiting.drainReadyGroups.2.1
         = [
           .groupValues parent [parentValue],
           .groupSuccess parent [child] [],
@@ -195,14 +196,14 @@ theorem same_drain_parent_published_first
     parent.ref (by simp [parentBuffered, parentTask]) (by simp [waiting, parentNode])
     (by cbv; intro impossible; cases impossible)
   refine ⟨published, ?_, ?_⟩
-  · change published.map Prod.snd = waiting.drainReadyGroups.2.flatMap
+  · change published.map Prod.snd = waiting.drainReadyGroups.2.1.flatMap
       WorkQueueEvent.objectValues at values
     simpa only [same_drain_output.1, List.flatMap_cons, List.flatMap_nil,
       WorkQueueEvent.objectValues, List.append_nil, List.nil_append, List.cons_append]
       using values
   · rcases emitted with emitted | retained
     · exact emitted
-    · have gone : parent.ref ∉ (State.drainReadyGroups.go 1 waiting).1.groupNodes.map
+    · have gone : parent.ref ∉ (State.drainReadyGroups.go [] 1 waiting).1.groupNodes.map
           (fun owner => owner.group.node.ref) := by
         cbv; intro impossible; cases impossible; contradiction
       exact False.elim (gone retained.2)

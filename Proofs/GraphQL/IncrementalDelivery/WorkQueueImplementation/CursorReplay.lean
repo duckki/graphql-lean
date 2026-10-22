@@ -1,3 +1,4 @@
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.InitialStartup
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.SourceObservation
 
 namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
@@ -66,7 +67,7 @@ theorem State.runWithPublisher_with_ids (queue : State) (publisher : Incremental
 /-- Shared replay preserves prior output when resumed. Witness: appending a fixed
 prefix to the output accumulator commutes with every normalized transition.
 -/
-private theorem normalizedFold_prefix (inputs : List (List GraphEvent))
+theorem normalizedFold_prefix (inputs : List (List GraphEvent))
     (queue : State) (publisher : IncrementalPublisher)
     (prior : List (List Execution.WorkQueueEvent))
     : inputs.foldl normalizedStep (queue, publisher, prior)
@@ -136,7 +137,8 @@ theorem ResponseStreamCursor.step_eq (cursor : ResponseStreamCursor)
         else
           let (update, publisher) := cursor.publisher.handleBatch events
           (some update, ⟨queue, publisher⟩) := by
-  unfold step run State.run State.runWithPublisher
+  unfold step run State.run
+  unfold State.runWithPublisher
   cases outcome : cursor.queue.handleGraphEvents batch with
   | mk queue events =>
       simp only [List.foldl_cons, List.foldl_nil, outcome]
@@ -160,7 +162,8 @@ theorem ResponseStreamCursor.run_singleton (cursor : ResponseStreamCursor)
     (batch : List GraphEvent)
     : cursor.run [batch] = ((cursor.step batch).1.toList, (cursor.step batch).2) := by
   rw [step_eq]
-  unfold run State.run State.runWithPublisher
+  unfold run State.run
+  unfold State.runWithPublisher
   cases outcome : cursor.queue.handleGraphEvents batch with
   | mk queue events =>
       simp only [List.foldl_cons, List.foldl_nil, outcome]
@@ -228,7 +231,8 @@ theorem ResponseStreamCursor.run_initialize (response : Execution.Response)
       have independent := (State.initialize (Work.fromExecution work)).runWithPublisher_with_ids
         { active := (State.initialize (Work.fromExecution work)).initialGroups ++
             (State.initialize (Work.fromExecution work)).initialStreams } ids inputs
-      simp only [run, State.run, independent, State.runNormalized]
+      simp only [run, State.run, independent,
+        State.runNormalized]
       exact ⟨rfl, rfl⟩
 
 /-- The finite response runner and initialized cursor return identical observations and

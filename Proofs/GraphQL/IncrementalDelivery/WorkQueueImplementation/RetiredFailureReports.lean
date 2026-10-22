@@ -19,6 +19,7 @@ theorem retainedContributor_task_reported {work inputs address owners producer p
     {w : Witness} (generated : ExecutedWork work)
     (valid : ValidGraphEvents work inputs.flatten)
     (started : inputsStarted work inputs = true)
+    (ended : ((initialQueue work).runNormalized inputs).1.terminated = true)
     (history : w.events = (initialQueue work).nonterminalAtoms inputs)
     (explained
       : Explains work (initialQueue work).initialGroups
@@ -29,7 +30,7 @@ theorem retainedContributor_task_reported {work inputs address owners producer p
     (retained : ((initialQueue work).runNormalized inputs).1.FailureRetained group.ref)
     (absent : ((initialQueue work).runNormalized inputs).1.groupNode? group.ref = none)
     : FailureReportedFor w.events payload.path := by
-  exact cancelledContributor_task_reported generated valid started history explained known
+  exact cancelledContributor_task_reported generated valid started ended history explained known
     record contributes (retained.cancelled_of_absent
       (createWorkQueue_runNormalized_groupRefsUnique _ inputs) absent)
 

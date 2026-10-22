@@ -24,16 +24,12 @@ theorem ExecutedWork.refRoles {work : Execution.Work} (generated : ExecutedWork 
 /-- A registration chain contains only defer refs, even when no task owns its head.
 Witness: its located contributor metadata and the recorded ancestor suffix.
 -/
-private theorem groupRecord_roles {work roles node dependencies}
+theorem groupRecord_roles {work roles node dependencies}
     (assigned : RefRoles.WorkRoles roles work)
     (record : GroupRecordAt work node dependencies)
     : roles node.ref = false ∧ ∀ ref ∈ dependencies, roles ref = false := by
-  obtain ⟨address, groups, path, result, children, producer, owners, fragment,
-    ancestors, located, member, suffix, rfl⟩ := record
-  have localWork := generatedWorkRoles_located assigned
-    (StructuralEquivalence.located_of_current located)
-  simp only [RefRoles.WorkRoles] at localWork
-  have groupRoles := localWork.1 fragment member
+  obtain ⟨fragment, member, ancestors, suffix, rfl⟩ := record
+  have groupRoles := GroupMetadata.fragmentRoles assigned member
   have atNode (entry : Execution.DeliveryNode) (included : entry ∈ node :: ancestors)
       : roles entry.ref = false := by
     rcases List.mem_cons.mp (suffix.subset included) with same | ancestor

@@ -156,6 +156,8 @@ theorem WorkUnder.extend {parents next : Assignment} {start finish : Nat}
     : WorkUnder next owners work := by
   cases work with
   | empty => trivial
+  | declareGroups groups tasks =>
+      exact WorkUnder.extend (work := tasks) h hw.2 he hle
   | combine left right => exact ⟨h.1.extend hw.1 he hle, h.2.extend hw.2 he hle⟩
   | executionGroup groups path result children =>
       refine ⟨?_, h.2.extend hw.2.2.2 he hle⟩
@@ -171,6 +173,8 @@ theorem WorkAt.extend {parents next : Assignment} {start finish : Nat} {work : W
     : WorkAt next finish work := by
   cases work with
   | empty => trivial
+  | declareGroups groups tasks =>
+      exact ⟨fun group member => (h.1 group member).extend he hle, h.2.extend he hle⟩
   | combine left right => exact ⟨h.1.extend he hle, h.2.extend he hle⟩
   | executionGroup groups path result children =>
       exact ⟨h.1, fun g hg => (h.2.1 g hg).extend he hle,
@@ -198,6 +202,8 @@ theorem WorkUnder.mono {parents : Assignment} {bound : Nat} {inner outer : List 
     : WorkUnder parents outer work := by
   cases work with
   | empty => trivial
+  | declareGroups groups tasks =>
+      exact WorkUnder.mono (work := tasks) h hw.2 hv hs
   | combine left right => exact ⟨h.1.mono hw.1 hv hs, h.2.mono hw.2 hv hs⟩
   | executionGroup groups path result children =>
       exact ⟨fun group hg => descends_trans hv (hw.2.1 group hg).1 (h.1 group hg) hs,

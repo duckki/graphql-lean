@@ -1,7 +1,7 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.CachedErrorAccumulation
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.DrainValueCoverage
 
-/-! Buffered values retain memberships through activation and mixed recursive draining. -/
+/-! Buffered values retain memberships through activation and recursive draining. -/
 
 namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.Execution (ExecutionGroupValue)
@@ -61,6 +61,27 @@ theorem State.StoredTaskLinks.pruneEmptyGroups {queue : State}
   rw [State.pruneEmptyGroups_taskNodes] at member
   exact (linked node member stored).pruneEmptyGroups groups
 
+/-- Exposing rejections retains each buffered task's identity and contributor memberships. -/
+theorem State.StoredTaskLinks.cacheTaskFailures {queue : State}
+    (linked : queue.StoredTaskLinks) (available : List (Occurrence × Nat))
+    : (queue.cacheTaskFailures available).StoredTaskLinks := by
+  unfold State.cacheTaskFailures
+  induction available generalizing queue with
+  | nil => exact linked
+  | cons entry rest ih =>
+      apply ih
+      dsimp only [List.foldl_cons]
+      split
+      · exact linked
+      · rename_i selected found
+        intro node member stored
+        obtain ⟨old, oldMember, same⟩ := List.mem_map.mp member
+        split at same
+        · subst node
+          exact linked selected (List.mem_of_find?_eq_some found) stored
+        · subst node
+          exact linked old oldMember stored
+
 -----------------------------------------------------------------------------------------
 -- Activation creates no new value-bearing task
 -----------------------------------------------------------------------------------------
@@ -70,12 +91,12 @@ Witness: an existing buffered node keeps its links; a newly appended empty node 
 satisfy the stored-value premise.
 -/
 theorem State.StoredTaskLinks.startTask {queue : State} (linked : queue.StoredTaskLinks)
-    (occurrence : Occurrence)
-    : (queue.startTask occurrence).StoredTaskLinks := by
+    (occurrence : Occurrence) (available : List (Occurrence × Nat) := [])
+    : (queue.startTask occurrence available).StoredTaskLinks := by
   have old (node : TaskNode) (member : node ∈ queue.taskNodes) (stored : node.value.isSome = true)
-      : (queue.startTask occurrence).TaskLinkedOn node.task.occurrence
+      : (queue.startTask occurrence available).TaskLinkedOn node.task.occurrence
           (node.task.groups.map Execution.DeliveryNode.ref) :=
-    (linked node member stored).startTask occurrence
+    (linked node member stored).startTask occurrence available
   intro node member stored
   unfold State.startTask at member
   split at member
@@ -91,17 +112,22 @@ theorem State.StoredTaskLinks.startTask {queue : State} (linked : queue.StoredTa
 Witness: induction over the group's actual membership list, including duplicate entries.
 -/
 theorem State.StoredTaskLinks.startGroup {queue : State} (linked : queue.StoredTaskLinks)
-    (ref : NodeRef)
-    : (queue.startGroup ref).StoredTaskLinks := by
+    (ref : NodeRef) (available : List (Occurrence × Nat) := [])
+    : (queue.startGroup ref available).1.StoredTaskLinks := by
+  have cached := linked.cacheTaskFailures available
   unfold State.startGroup
+  dsimp only
   split
-  · exact linked
-  · have loop (tasks : List Occurrence) (current : State) (prior : current.StoredTaskLinks)
-        : (tasks.foldl State.startTask current).StoredTaskLinks := by
-      induction tasks generalizing current with
-      | nil => exact prior
-      | cons task rest ih => exact ih _ (prior.startTask task)
-    exact loop _ queue linked
+  · exact cached
+  · split
+    · have loop (tasks : List Occurrence) (current : State) (prior : current.StoredTaskLinks)
+          : (tasks.foldl (fun current task => current.startTask task available)
+              current).StoredTaskLinks := by
+        induction tasks generalizing current with
+        | nil => exact prior
+        | cons task rest ih => exact ih _ (prior.startTask task available)
+      exact loop _ _ cached
+    · exact cached.removeGroup _
 
 /-- Starting a stream leaves both membership maps unchanged. Witness: branch reduction.
 -/
@@ -117,17 +143,23 @@ buffered-only invariant. No obligation is imposed on newly started empty nodes.
 -/
 theorem State.StoredTaskLinks.startNewWork {queue : State}
     (linked : queue.StoredTaskLinks) (released : NewWork)
-    : (queue.startNewWork released).StoredTaskLinks := by
-  have loop (step : State → Nat → State)
-      (preserves : ∀ current ref, current.StoredTaskLinks → (step current ref).StoredTaskLinks)
-      (refs : NodeRefs) (current : State) (prior : current.StoredTaskLinks)
-      : (refs.foldl step current).StoredTaskLinks := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.startNewWork released available).1.StoredTaskLinks := by
+  have groups (refs : NodeRefs) (acc : State × List GroupFailureEvent)
+      (prior : acc.1.StoredTaskLinks)
+      : (refs.foldl (fun (current, failures) ref =>
+          let (next, queued) := current.startGroup ref available
+          (next, failures ++ queued)) acc).1.StoredTaskLinks := by
+    induction refs generalizing acc with
+    | nil => exact prior
+    | cons ref rest ih => exact ih _ (prior.startGroup ref available)
+  have streams (refs : NodeRefs) (current : State) (prior : current.StoredTaskLinks)
+      : (refs.foldl State.startStream current).StoredTaskLinks := by
     induction refs generalizing current with
     | nil => exact prior
-    | cons ref rest ih => exact ih _ (preserves _ _ prior)
+    | cons ref rest ih => exact ih _ (prior.startStream ref)
   unfold State.startNewWork
-  apply loop State.startStream (fun _ ref prior => prior.startStream ref)
-  exact loop State.startGroup (fun _ ref prior => prior.startGroup ref) _ _ linked
+  exact streams _ _ (groups _ _ linked)
 
 -----------------------------------------------------------------------------------------
 -- Successful flushing and failed cleanup preserve the same buffered-link invariant
@@ -173,13 +205,14 @@ theorem State.StoredTaskLinks.taskFailure {queue : State} (linked : queue.Stored
   · obtain ⟨old, oldMember, rfl⟩ := updated
     exact (linked old oldMember value).taskFailure_preserves occurrence errors
 
-/-- Every bounded mixed drain prefix retains buffered links from its input state.
-Witness: induction over actual cached failures and successful flush/activation steps.
+/-- Every bounded drain prefix retains buffered links from its input state.
+Witness: induction over successful flushes and immediate startup-failure removal.
 Later coverage can therefore use the actual closure boundary without assuming its links.
 -/
 theorem State.StoredTaskLinks.drainReadyGroups_go {queue : State}
     (linked : queue.StoredTaskLinks) (fuel : Nat)
-    : (State.drainReadyGroups.go fuel queue).1.StoredTaskLinks := by
+    (available : List (Occurrence × Nat) := [])
+    : (State.drainReadyGroups.go available fuel queue).1.StoredTaskLinks := by
   induction fuel generalizing queue with
   | zero => exact linked
   | succ fuel ih =>
@@ -188,18 +221,14 @@ theorem State.StoredTaskLinks.drainReadyGroups_go {queue : State}
       split
       · exact linked
       · rename_i group selected
-        cases cached : queue.rejectedTask? group with
-        | none => exact ih ((linked.finishGroupSuccess group).startNewWork _)
-        | some rejected =>
-            obtain ⟨occurrence, errors⟩ := rejected
-            exact ih (linked.taskFailure occurrence errors)
+        exact ih ((linked.finishGroupSuccess group).startNewWork _ available)
 
 /-- The full implementation drain preserves buffered memberships.
 Witness: specialize the bounded-prefix induction to its live-node budget.
 -/
 theorem State.StoredTaskLinks.drainReadyGroups {queue : State}
-    (linked : queue.StoredTaskLinks)
-    : queue.drainReadyGroups.1.StoredTaskLinks :=
-  linked.drainReadyGroups_go queue.groupNodes.length
+    (linked : queue.StoredTaskLinks) (available : List (Occurrence × Nat) := [])
+    : (queue.drainReadyGroups available).1.StoredTaskLinks :=
+  linked.drainReadyGroups_go queue.groupNodes.length available
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

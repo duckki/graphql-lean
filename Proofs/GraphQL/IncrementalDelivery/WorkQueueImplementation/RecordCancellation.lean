@@ -74,20 +74,21 @@ theorem State.CancelledRecordsSupported.addGroup {queue work failed}
   split
   · exact supported
   · split
-    · rename_i blocked
-      intro ref member
-      rcases List.mem_append.mp member with old | new
-      · exact supported ref old
-      · obtain rfl := List.mem_singleton.mp new
-        obtain ⟨dependencies, known, canonical⟩ := matching
-        cases parentEq : group.parent with
-        | none => simp [parentEq] at blocked
-        | some parent =>
-            have cancelled : parent ∈ queue.cancelledGroups := by
-              simpa [parentEq] using blocked
+    · exact supported
+    · rename_i parent parentEq
+      split
+      · split
+        · rename_i blocked
+          intro ref member
+          rcases List.mem_append.mp member with old | new
+          · exact supported ref old
+          · obtain rfl := List.mem_singleton.mp new
+            obtain ⟨dependencies, known, canonical⟩ := matching
+            have cancelled : parent ∈ queue.cancelledGroups := by simpa using blocked
             exact .ancestor known (List.mem_of_head? (canonical.symm.trans parentEq))
               (supported _ cancelled)
-    · exact supported
+        · exact supported
+      · exact supported
 
 /-- Every candidate order preserves record-aware cancellation support during registration.
 Witness: induction threads the state through refused children; linking changes no refs.
@@ -100,23 +101,8 @@ theorem State.CancelledRecordsSupported.addGroups {queue work failed}
             GroupRecordAt work group.node dependencies
             ∧ group.parent = dependencies.head?)
     : (queue.addGroups groups).1.CancelledRecordsSupported work failed := by
-  let fresh := groups.filter (fun group =>
-    !queue.registeredGroups.contains group.node.ref
-      && (queue.groupNode? group.node.ref).isNone)
-  have fold (more : List Group) (current : State)
-      (prior : current.CancelledRecordsSupported work failed)
-      (subset : more.Subset groups)
-      : (more.foldl State.addGroup current).CancelledRecordsSupported work failed := by
-    induction more generalizing current with
-    | nil => exact prior
-    | cons group rest ih =>
-        exact ih _ (prior.addGroup group (matching group (subset List.mem_cons_self)))
-          (fun _ member => subset (List.mem_cons_of_mem _ member))
-  have registered := fold fresh queue supported
-    (fun _ member => (List.mem_filter.mp member).1)
-  intro ref member
-  rw [State.addGroups_cancelledGroups] at member
-  exact registered ref member
+  exact State.addGroups_preserves (fun current => current.CancelledRecordsSupported work failed)
+    groups (fun _ group member valid => valid.addGroup group (matching group member)) queue supported
 
 /-- Integration preserves record-aware cancellation support using lowering metadata only.
 Witness: supported registration followed by unchanged cancellation refs in later stages.

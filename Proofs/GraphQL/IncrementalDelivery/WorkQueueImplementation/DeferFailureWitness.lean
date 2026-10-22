@@ -27,7 +27,8 @@ namespace ConformancePlan
 
 /-- The exact defer-only replay satisfies batching, announcements, and prior-cancellation
 exclusion on one witness. Witness: the announced mixed inventory has no stream cuts;
-informative-cut selection licenses its ordered object cuts. This does not yet
+informative-cut selection licenses its ordered object cuts while raw reporting cuts
+retain aggregate error availability. This does not yet
 prove publication/control admission or terminal work accounting.
 -/
 theorem defer_failureCertificates {work : Execution.Work}
@@ -38,9 +39,11 @@ theorem defer_failureCertificates {work : Execution.Work}
       let publisher : IncrementalPublisher :=
         { active := queue.initialGroups ++ queue.initialStreams }
       let failures :=
-        informativeObjectFailureCuts work
-          (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher inputs).2.2)
-      let w : Witness := { events := queue.nonterminalAtoms inputs, matching, failures }
+        informativeObjectFailureCuts work (queue.sourceRunBlocks publisher inputs).2.2
+      let reported :=
+        availableObjectFailureCuts work 0 (queue.sourceRunBlocks publisher inputs).2.2
+      let w : Witness :=
+        { events := queue.nonterminalAtoms inputs, matching, failures, reported }
       BatchShape work inputs w
       ∧ AnnouncedFailures work w
       ∧ UncancelledFailures work w := by
@@ -49,12 +52,13 @@ theorem defer_failureCertificates {work : Execution.Work}
   have empty := cuts.eq_nil_of_defer shape
   subst streams
   simp only [mergeFailureCuts, List.merge_right] at announced
-  exact ⟨batchShape_holds valid matching _, announced,
+  exact ⟨batchShape_holds valid matching [], announced,
     uncancelledFailures_of_defer generated shape valid started rfl⟩
 
 /-- Every accepted defer-only failure is licensed at its actual unbatched output cut.
-Witness: compose the same-witness announcement and cancellation certificates. Ignored
-source failures stay omitted, and equal-cut predecessors remain visible in order.
+Witness: compose the same-witness announcement and cancellation certificates. The
+causal cuts may omit redundant source failures, while reporting retains their availability.
+Equal-cut predecessors remain visible in order.
 This theorem covers arbitrary matching because defer causality needs no publication law.
 -/
 theorem failureWitness_of_defer {work : Execution.Work}
@@ -65,8 +69,7 @@ theorem failureWitness_of_defer {work : Execution.Work}
       let publisher : IncrementalPublisher :=
         { active := queue.initialGroups ++ queue.initialStreams }
       let failures :=
-        informativeObjectFailureCuts work
-          (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher inputs).2.2)
+        informativeObjectFailureCuts work (queue.sourceRunBlocks publisher inputs).2.2
       FailureWitness work (initialRefs work) matching (queue.nonterminalAtoms inputs)
         failures := by
   have certificates := defer_failureCertificates generated shape valid started matching

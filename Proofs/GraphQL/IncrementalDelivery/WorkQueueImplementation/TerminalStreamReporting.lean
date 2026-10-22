@@ -19,6 +19,7 @@ Witness: source/output item-count equality and the closure ledger's complete pre
 No fresh matching or response-value equality is used to identify the item.
 -/
 theorem sourceItem_published {work inputs occurrence} {w : Witness}
+    (valid : ValidGraphEvents work inputs.flatten)
     (started : inputsStarted work inputs = true)
     (history : w.events = (initialQueue work).nonterminalAtoms inputs)
     (ledger : BufferedClosureLedger work inputs w)
@@ -28,7 +29,7 @@ theorem sourceItem_published {work inputs occurrence} {w : Witness}
   obtain ⟨_, _, _, _, prefixes⟩ := ledger
   have count : (w.events.flatMap normalizedItemValues).length
       = ((inputs.flatten.flatMap GraphEvent.itemPublications).map Prod.fst).length := by
-    rw [Witness.itemValues_eq_source started history]
+    rw [Witness.itemValues_eq_source valid started history]
     simp only [List.length_map]
   have member : occurrence
       ∈ ((inputs.flatten.flatMap GraphEvent.itemPublications).map Prod.fst).take
@@ -76,7 +77,7 @@ theorem completedStream_item_reported
     : FailureReportedFor w.events payload.path := by
   obtain ⟨event, member, completes⟩ := List.mem_flatMap.mp closed
   obtain ⟨index, selected⟩ := List.mem_iff_getElem?.mp member
-  have allowed := explained.2.2 index event selected
+  have allowed := explained.eventAllowed index event selected
   have full := Witness.event_mem_fullOutput history member
   cases event <;> simp only [eventCompleted] at completes
   case groupValues | streamValues | workQueueTermination => cases completes
@@ -87,7 +88,7 @@ theorem completedStream_item_reported
   case streamSuccess node =>
     have inventory := createWorkQueue_runNormalized_streamSuccess_itemInventory
       generated valid full
-    exact False.elim (unpublished (sourceItem_published started history ledger
+    exact False.elim (unpublished (sourceItem_published valid started history ledger
       (inventory.2 _ owners ⟨producer, payload, known⟩
         ((List.mem_singleton.mp completes) ▸ contributes))))
   case streamFailure node errors =>

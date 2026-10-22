@@ -254,7 +254,7 @@ private def children : Execution.Work :=
     (.combine
       (.combine (.combine .empty .empty)
         (.stream child [({ result := .error 1, cause := some 1 }, .empty)])) .empty)
-    .empty
+    (.declareGroups [] .empty)
 
 private def entries : List (TaskOutcome ResponseValue × Execution.Work) :=
   [

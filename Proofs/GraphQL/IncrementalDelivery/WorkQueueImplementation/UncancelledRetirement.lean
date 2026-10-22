@@ -82,36 +82,86 @@ theorem State.UncancelledRetiredAncestors.removeTask {queue : State} {work}
     simp only [State.RetiredGroup, State.removeTask, List.map_map, Function.comp_def]
   · exact fun _ member => member
 
-/-- Starting released work changes neither retirement nor cancellation data.
-Witness: activation's exact live-group and registry equations transport the invariant.
+-----------------------------------------------------------------------------------------
+-- Registration inherits uncancelled retirement from absent registered parents
+-----------------------------------------------------------------------------------------
+
+/-- A refused uncancelled child inherits its absent parent's ancestor certificate.
+Witness: refusal below a cancelled parent would mark the child cancelled, so an
+uncancelled refusal has an uncancelled, permanently retired parent.
 -/
-theorem State.UncancelledRetiredAncestors.startNewWork {queue : State} {work}
-    (prior : queue.UncancelledRetiredAncestors work) (released : NewWork)
-    : (queue.startNewWork released).UncancelledRetiredAncestors work := by
-  apply prior.of_sameRetirements
-  · intro ref
-    simp only [State.RetiredGroup, State.startNewWork_registeredGroups,
-      (queue.startNewWork_groupCore released).1]
-  · rw [State.startNewWork_cancelledGroups]
-    exact fun _ member => member
+theorem State.UncancelledRetiredAncestors.addGroup {queue : State} {work}
+    (prior : queue.UncancelledRetiredAncestors work) (generated : ExecutedWork work)
+    (group : Group)
+    (matching
+      : ∃ dependencies,
+          GroupRecordAt work group.node dependencies ∧ group.parent = dependencies.head?)
+    (parentRegistered
+      : ∀ parent, group.parent = some parent → parent ∈ queue.registeredGroups)
+    : (queue.addGroup group).UncancelledRetiredAncestors work := by
+  intro ref retired uncancelled
+  rcases queue.addGroup_retired_origin group ref retired with old |
+    ⟨same, fresh, parent, head, absent⟩
+  · exact (prior ref old (fun member =>
+      uncancelled (queue.addGroup_cancelledGroups_subset group member))).mono
+        (fun _ ancestor => ancestor.addGroup group)
+  subst ref
+  have missing : queue.groupNode? group.node.ref = none := by
+    apply (queue.groupNode?_eq_none_iff _).mpr
+    intro live
+    exact retired.2 (queue.addGroup_refs_subset group live)
+  have parentUncancelled : parent ∉ queue.cancelledGroups := by
+    intro marked
+    apply uncancelled
+    simp [State.addGroup, fresh, missing, head, absent, marked]
+  have parentRetired : queue.RetiredGroup parent :=
+    .of_lookup_none (parentRegistered parent head) absent
+  obtain ⟨dependencies, known, canonical⟩ := matching
+  have parentHead : dependencies.head? = some parent := canonical.symm.trans head
+  cases dependencies with
+  | nil => cases parentHead
+  | cons first rest =>
+      have equal : first = parent := Option.some.inj parentHead
+      subst first
+      obtain ⟨parentNode, parentRef, parentKnown⟩ := known.parent
+      exact (State.AncestorsRetired.child generated known parentKnown
+              (by simp [parentRef])
+              (parentRef.symm ▸ prior parent parentRetired parentUncancelled)
+              (parentRef.symm ▸ parentRetired)).mono
+        (fun _ retired => retired.addGroup group)
 
------------------------------------------------------------------------------------------
--- Registration and cancellation create no new uncancelled retirements
------------------------------------------------------------------------------------------
-
-/-- Group registration preserves structural retirement closure without failure support.
-Witness: a newly retired registration is marked cancelled; all other retirements and
-their ancestor certificates come from the original queue.
+/-- Parent-first registration preserves structural closure of uncancelled retirement.
+Witness: execution-derived parent closure supplies registered parents at installation;
+refused children inherit their certificates without introducing failure assumptions.
 -/
 theorem State.UncancelledRetiredAncestors.addGroups {queue : State} {work}
     (prior : queue.UncancelledRetiredAncestors work) (groups : List Group)
+    (generated : ExecutedWork work) (coverage : queue.LiveGroupsRegistered)
+    (matching
+      : ∀ group ∈ groups,
+          ∃ dependencies,
+            GroupRecordAt work group.node dependencies
+            ∧ group.parent = dependencies.head?)
+    (closed
+      : ∀ group ∈ groups,
+          ∀ parent,
+            group.parent = some parent
+            → parent ∈ queue.registeredGroups ++ groups.map (fun group => group.node.ref))
     : (queue.addGroups groups).1.UncancelledRetiredAncestors work := by
-  intro ref retired uncancelled
-  have old := (queue.addGroups_retired_or_cancelled groups ref retired).resolve_right
-    uncancelled
-  have notCancelled : ref ∉ queue.cancelledGroups :=
-    fun member => uncancelled (queue.addGroups_cancelledGroups_subset groups member)
-  exact (prior ref old notCancelled).mono (fun _ ancestor => ancestor.addGroups groups)
+  let property (current : State) := current.UncancelledRetiredAncestors work
+    ∧ queue.registeredGroups ⊆ current.registeredGroups
+  have ordered : ∀ group ∈ groups, ∀ parent, group.parent = some parent → parent < group.node.ref := by
+    intro group member parent parentEq
+    obtain ⟨dependencies, known, canonical⟩ := matching group member
+    exact generated.groupRecordAncestorSmaller known
+      (List.mem_of_head? (canonical.symm.trans parentEq))
+  exact (State.addGroups_preserves_parentRegistered property groups ordered
+    (fun current group member _ parents valid =>
+      ⟨valid.1.addGroup generated group (matching group member) (fun parent parentEq =>
+        (List.mem_append.mp (closed group member parent parentEq)).elim
+          (fun known => valid.2 known) (parents parent parentEq)),
+        valid.2.trans (current.addGroup_registeredGroups_subset_old group)⟩)
+    queue coverage ⟨prior, List.Subset.refl _⟩).1
 
 /-- Task installation preserves structural retirement closure.
 Witness: membership updates retain old live refs and the registry, and never revive a ref.
@@ -143,13 +193,26 @@ theorem State.UncancelledRetiredAncestors.addStreams {queue : State} {work}
   · dsimp
     split <;> exact prior
 
-/-- Arbitrary child-work registration preserves uncancelled retirement structure.
-Witness: compose group registration with task and stream installation. In particular,
-this needs no generated-work, health, pending-owner, or cancellation-support premise.
+/-- Certified child-work registration preserves uncancelled retirement structure.
+Witness: compose parent-first group registration with task and stream installation;
+the declaration context is derived from execution and permanent task records.
 -/
 theorem State.UncancelledRetiredAncestors.maybeIntegrateWork {queue : State} {work}
     (prior : queue.UncancelledRetiredAncestors work) (newWork : Work)
     (parentTask : Option Occurrence := none)
+    (generated : ExecutedWork work) (coverage : queue.LiveGroupsRegistered)
+    (matching
+      : ∀ group ∈ newWork.groups,
+          ∃ dependencies,
+            GroupRecordAt work group.node dependencies
+            ∧ group.parent = dependencies.head?)
+    (closed
+      : ∀ group ∈ newWork.groups,
+          ∀ parent,
+            group.parent = some parent
+            → parent
+              ∈ queue.registeredGroups
+                ++ newWork.groups.map (fun group => group.node.ref))
     : (queue.maybeIntegrateWork newWork parentTask).1.UncancelledRetiredAncestors
         work := by
   have loop (tasks : List Task) (current : State)
@@ -158,7 +221,8 @@ theorem State.UncancelledRetiredAncestors.maybeIntegrateWork {queue : State} {wo
     induction tasks generalizing current with
     | nil => exact invariant
     | cons task rest ih => exact ih _ (invariant.addTask task)
-  exact (loop newWork.tasks _ (prior.addGroups newWork.groups)).addStreams
+  exact (loop newWork.tasks _
+          (prior.addGroups newWork.groups generated coverage matching closed)).addStreams
     newWork.streams parentTask
 
 /-- Failure removal preserves structural retirement closure, regardless of its target.
@@ -172,6 +236,78 @@ theorem State.UncancelledRetiredAncestors.removeGroup {queue : State} {work}
   have old := queue.removeGroup_missing_uncancelled root ref retired.lookup_none uncancelled
   exact (prior ref (.of_lookup_none retired.1 old.1) old.2).mono
     (fun _ ancestor => ancestor.removeGroup root)
+
+/-- Cache exposure preserves the retirement and cancellation records. -/
+theorem State.UncancelledRetiredAncestors.cacheTaskFailures {queue : State} {work}
+    (prior : queue.UncancelledRetiredAncestors work) (available : List (Occurrence × Nat))
+    : (queue.cacheTaskFailures available).UncancelledRetiredAncestors work := by
+  apply prior.of_sameRetirements
+  · intro ref
+    simp only [State.RetiredGroup, State.cacheTaskFailures_registeredGroups,
+      State.cacheTaskFailures_groupNodes]
+  · rw [State.cacheTaskFailures_cancelledGroups]
+    exact fun _ member => member
+
+/-- Group startup creates no uncancelled retirement without an inherited certificate. -/
+theorem State.UncancelledRetiredAncestors.startGroup {queue : State} {work}
+    (prior : queue.UncancelledRetiredAncestors work) (ref : NodeRef)
+    (available : List (Occurrence × Nat) := [])
+    : (queue.startGroup ref available).1.UncancelledRetiredAncestors work := by
+  have cached := prior.cacheTaskFailures available
+  unfold State.startGroup
+  dsimp only
+  split
+  · exact cached
+  · split
+    · have loop (tasks : List Occurrence) (current : State)
+          (valid : current.UncancelledRetiredAncestors work)
+          : (tasks.foldl (fun next task => next.startTask task available)
+              current).UncancelledRetiredAncestors work := by
+        induction tasks generalizing current with
+        | nil => exact valid
+        | cons task rest ih =>
+            apply ih
+            apply valid.of_sameRetirements
+            · intro ref
+              dsimp only
+              unfold State.startTask
+              split
+              · rfl
+              · split <;> rfl
+            · dsimp only
+              unfold State.startTask
+              split
+              · exact fun _ member => member
+              · split <;> exact fun _ member => member
+      exact loop _ _ cached
+    · exact cached.removeGroup _
+
+/-- Startup preserves structural retirement while marking immediately removed groups.
+Previously retired ancestors remain retired throughout the group and stream folds.
+-/
+theorem State.UncancelledRetiredAncestors.startNewWork {queue : State} {work}
+    (prior : queue.UncancelledRetiredAncestors work) (released : NewWork)
+    (available : List (Occurrence × Nat) := [])
+    : (queue.startNewWork released available).1.UncancelledRetiredAncestors work := by
+  have loop (refs : NodeRefs) (acc : State × List GroupFailureEvent)
+      (valid : acc.1.UncancelledRetiredAncestors work)
+      : (refs.foldl (fun (current, failures) ref =>
+          let (next, queued) := current.startGroup ref available
+          (next, failures ++ queued)) acc).1.UncancelledRetiredAncestors work := by
+    induction refs generalizing acc with
+    | nil => exact valid
+    | cons ref rest ih => exact ih _ (valid.startGroup ref available)
+  have streams (refs : NodeRefs) (current : State)
+      (valid : current.UncancelledRetiredAncestors work)
+      : (refs.foldl State.startStream current).UncancelledRetiredAncestors work := by
+    induction refs generalizing current with
+    | nil => exact valid
+    | cons ref rest ih =>
+        apply ih
+        unfold State.startStream
+        split <;> exact valid
+  unfold State.startNewWork
+  exact streams _ _ (loop _ _ prior)
 
 -----------------------------------------------------------------------------------------
 -- Successful pruning creates only protected retirements

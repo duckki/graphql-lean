@@ -113,16 +113,28 @@ theorem State.ContributorProvenance.taskFailure {queue : State} {work : Executio
     provenance.stored.taskFailure occurrence errors
   ⟩
 
+/-- Cache exposure preserves all task, membership and stored contributor metadata. -/
+theorem State.ContributorProvenance.cacheTaskFailures {queue : State}
+    {work : Execution.Work} (provenance : queue.ContributorProvenance work)
+    (available : List (Occurrence × Nat))
+    : (queue.cacheTaskFailures available).ContributorProvenance work :=
+  ⟨
+    provenance.registered.cacheTaskFailures available,
+    provenance.memberships.cacheTaskFailures available,
+    provenance.stored.cacheTaskFailures available
+  ⟩
+
 /-- Activating newly announced work preserves all contributor provenance.
 Witness: starting tasks never installs successful values or changes task ownership.
 -/
 theorem State.ContributorProvenance.startNewWork {queue : State} {work : Execution.Work}
     (provenance : queue.ContributorProvenance work) (newWork : NewWork)
-    : (queue.startNewWork newWork).ContributorProvenance work :=
+    (available : List (Occurrence × Nat) := [])
+    : (queue.startNewWork newWork available).1.ContributorProvenance work :=
   ⟨
-    provenance.registered.startNewWork newWork,
-    provenance.memberships.startNewWork newWork,
-    provenance.stored.startNewWork newWork
+    provenance.registered.startNewWork newWork available,
+    provenance.memberships.startNewWork newWork available,
+    provenance.stored.startNewWork newWork available
   ⟩
 
 /-- Integrating located child tasks preserves registered and stored contributor agreement.
@@ -158,13 +170,14 @@ theorem State.ContributorProvenance.pruneEmptyGroups {queue : State}
 
 /-- Every drained object is released by a contributing live group.
 Witness: each successful branch selects a present node and preserves the three provenance
-facts through flushing and activation; failed branches emit no object value.
+facts through flushing and startup removal; queued startup notices carry no object value.
 -/
 theorem State.ContributorProvenance.drainReadyGroups_outputs {queue : State}
     {work : Execution.Work} (provenance : queue.ContributorProvenance work)
-    : RawPublicationContributors queue.drainReadyGroups.2 := by
+    (available : List (Occurrence × Nat) := [])
+    : RawPublicationContributors (queue.drainReadyGroups available).2.1 := by
   have loop (fuel : Nat) (current : State) (known : current.ContributorProvenance work)
-      : RawPublicationContributors (State.drainReadyGroups.go fuel current).2 := by
+      : RawPublicationContributors (State.drainReadyGroups.go available fuel current).2.1 := by
     induction fuel generalizing current with
     | zero => intro _ _ impossible; cases impossible
     | succ fuel ih =>
@@ -184,17 +197,8 @@ theorem State.ContributorProvenance.drainReadyGroups_outputs {queue : State}
                 · cases Option.some.inj choice
                   exact List.mem_of_find?_eq_some lookup
                 · contradiction
-          cases cached : current.rejectedTask? group with
-          | none =>
-              exact (known.finishGroupSuccess_outputs group present).append
-                (ih _ ((known.finishGroupSuccess group).startNewWork _))
-          | some rejected =>
-              obtain ⟨occurrence, errors⟩ := rejected
-              apply RawPublicationContributors.append
-              · intro _ _ impossible
-                obtain ⟨owner, same⟩ := current.taskFailure_event_failure occurrence errors _ impossible
-                cases same
-              · exact ih _ (known.taskFailure occurrence errors)
+          exact (known.finishGroupSuccess_outputs group present).append
+            (ih _ ((known.finishGroupSuccess group).startNewWork _ available))
   exact loop _ queue provenance
 
 /-- A successful settlement preserves release-group contribution through every owner
@@ -206,7 +210,8 @@ theorem State.ContributorProvenance.taskSuccess_outputs {queue : State}
     (occurrence : Occurrence) (result : TaskResult)
     (groups : taskGroups? work occurrence = some result.value.deliveryGroups)
     (children : ∀ task ∈ result.work.tasks, TaskMatches work task)
-    : RawPublicationContributors (queue.taskSuccess occurrence result).2 := by
+    (available : List (Occurrence × Nat) := [])
+    : RawPublicationContributors (queue.taskSuccess occurrence result available).2.1 := by
   have loop (owners : List Execution.DeliveryNode)
       (acc : State × List WorkQueueEvent × NewWork)
       (known : acc.1.ContributorProvenance work) (outputs : RawPublicationContributors acc.2.1)
@@ -215,6 +220,7 @@ theorem State.ContributorProvenance.taskSuccess_outputs {queue : State}
     induction owners generalizing acc with
     | nil => exact ⟨known, outputs⟩
     | cons owner rest ih =>
+        obtain ⟨current, events, released⟩ := acc
         apply ih
         · dsimp only [successGroupStep]
           split
@@ -249,8 +255,9 @@ theorem State.ContributorProvenance.taskSuccess_outputs {queue : State}
       have integrated := installed.maybeIntegrateWork result.work children (some occurrence)
       obtain ⟨retained, outputs⟩ := loop node.task.groups (_, [], {}) integrated
         (by intro _ _ impossible; cases impossible)
-      rw [queue.taskSuccess_eq occurrence result node found]
-      exact outputs.append (retained.startNewWork _).drainReadyGroups_outputs
+      rw [queue.taskSuccess_eq occurrence result node found available]
+      exact outputs.append
+        ((retained.startNewWork _ available).drainReadyGroups_outputs available)
 
 /-- Stream arrivals can release earlier buffered objects without changing their owners.
 Witness: child integration and pruning preserve provenance; only the final drain emits
@@ -260,17 +267,20 @@ theorem State.ContributorProvenance.streamItems_outputs {queue : State}
     {work : Execution.Work} (provenance : queue.ContributorProvenance work)
     (stream : Execution.DeliveryNode) (items : List StreamItem)
     (children : ∀ item ∈ items, ∀ task ∈ item.work.tasks, TaskMatches work task)
-    : RawPublicationContributors (queue.streamItems stream items).2 := by
+    (available : List (Occurrence × Nat) := [])
+    : RawPublicationContributors (queue.streamItems stream items available).2.1 := by
   let step (acc : State × List Execution.DeliveryNode
-      × List Execution.DeliveryNode × List StreamItemValue) (item : StreamItem) :=
-    let (current, groups, streams, values) := acc
+      × List Execution.DeliveryNode × List StreamItemValue × List GroupFailureEvent)
+      (item : StreamItem) :=
+    let (current, groups, streams, values, failures) := acc
     let (integrated, newWork) := current.maybeIntegrateWork item.work
     let (pruned, nonempty) := integrated.pruneEmptyGroups newWork.newGroups
-    (pruned.startNewWork { newWork with newGroups := nonempty },
-      groups ++ nonempty, streams ++ newWork.newStreams, values ++ [item.value])
+    let (started, queued) := pruned.startNewWork { newWork with newGroups := nonempty } available
+    (started, groups ++ nonempty, streams ++ newWork.newStreams,
+      values ++ [item.value], failures ++ queued)
   have loop (more : List StreamItem) (subset : ∀ item ∈ more, item ∈ items)
       (acc : State × List Execution.DeliveryNode
-        × List Execution.DeliveryNode × List StreamItemValue)
+        × List Execution.DeliveryNode × List StreamItemValue × List GroupFailureEvent)
       (known : acc.1.ContributorProvenance work)
       : (more.foldl step acc).1.ContributorProvenance work := by
     induction more generalizing acc with
@@ -280,13 +290,13 @@ theorem State.ContributorProvenance.streamItems_outputs {queue : State}
         exact ((known.maybeIntegrateWork item.work
                   (children item (subset item List.mem_cons_self))).pruneEmptyGroups
                 _).startNewWork
-          _
-  have retained := loop items (fun _ member => member) (queue, [], [], []) provenance
+          _ available
+  have retained := loop items (fun _ member => member) (queue, [], [], [], []) provenance
   unfold State.streamItems
   split
   · intro _ _ impossible; cases impossible
   · intro trigger values emitted value member
-    exact retained.drainReadyGroups_outputs trigger values
+    exact retained.drainReadyGroups_outputs available trigger values
       ((List.mem_cons.mp emitted).resolve_left (by intro impossible; cases impossible))
       value member
 
@@ -300,10 +310,11 @@ Witness: existing handler preservation and exact successful-source group matchin
 theorem State.ContributorProvenance.handleGraphEvent {queue : State}
     {work : Execution.Work} (provenance : queue.ContributorProvenance work)
     (event : GraphEvent) (matching : event.MatchesWork work)
-    : (queue.handleGraphEvent event).1.ContributorProvenance work := by
-  refine ⟨provenance.registered.handleGraphEvent event matching,
-    provenance.memberships.handleGraphEvent event,
-    provenance.stored.handleGraphEvent event ?_⟩
+    (available : List (Occurrence × Nat) := [])
+    : (queue.handleGraphEvent event available).1.ContributorProvenance work := by
+  refine ⟨provenance.registered.handleGraphEvent event matching available,
+    provenance.memberships.handleGraphEvent event available,
+    provenance.stored.handleGraphEvent event ?_ available⟩
   intro occurrence result same
   subst event
   obtain ⟨_, _, _, groups, _⟩ := matching
@@ -316,10 +327,12 @@ cannot emit object publications.
 theorem State.ContributorProvenance.handleGraphEvent_outputs {queue : State}
     {work : Execution.Work} (provenance : queue.ContributorProvenance work)
     (event : GraphEvent) (matching : event.MatchesWork work)
-    : RawPublicationContributors (queue.handleGraphEvent event).2 := by
+    (available : List (Occurrence × Nat) := [])
+    : RawPublicationContributors (queue.handleGraphEvent event available).2.1 := by
+  have cached := provenance.cacheTaskFailures available
   cases event with
   | taskSuccess occurrence result =>
-      apply provenance.taskSuccess_outputs occurrence result
+      apply cached.taskSuccess_outputs occurrence result (available := available)
       · obtain ⟨_, _, _, groups, _⟩ := matching
         exact groups
       · intro task member
@@ -328,11 +341,12 @@ theorem State.ContributorProvenance.handleGraphEvent_outputs {queue : State}
           matching.childTask_groupsExact member⟩
   | taskFailure occurrence errors =>
       intro group values emitted value member
-      obtain ⟨_, impossible⟩ := queue.taskFailure_publishedValues occurrence errors
+      obtain ⟨_, impossible⟩ := (queue.cacheTaskFailures available).taskFailure_publishedValues
+        occurrence errors
         (fun _ _ => False) group values emitted value member
       exact False.elim impossible
   | streamItems stream items =>
-      apply provenance.streamItems_outputs stream items
+      apply cached.streamItems_outputs stream items (available := available)
       intro item itemMember task taskMember
       obtain ⟨address, payload, same, known⟩ :=
         matching.streamItem_childTask_producer itemMember taskMember
@@ -347,20 +361,37 @@ theorem State.ContributorProvenance.handleGraphEvent_outputs {queue : State}
       simp only [State.handleGraphEvent, State.streamFailure] at emitted
       split at emitted <;> simp at emitted
 
+  | groupFailure notice =>
+      intro group values emitted
+      simp only [State.handleGraphEvent, State.groupFailure] at emitted
+      split at emitted
+      · simp at emitted
+      · split at emitted <;> simp at emitted
+
+/-- Enqueue effects preserve contributor provenance independently of notice lifetime. -/
+theorem State.ContributorProvenance.dispatchGraphEvent {queue : State}
+    {work : Execution.Work} (provenance : queue.ContributorProvenance work)
+    (event : GraphEvent) (matching : event.MatchesWork work)
+    (available : List (Occurrence × Nat) := [])
+    : (queue.dispatchGraphEvent event available).1.ContributorProvenance work := by
+  have next := provenance.handleGraphEvent event matching available
+  exact ⟨next.registered, next.memberships, next.stored⟩
+
 /-- Complete raw replay preserves contributor membership at every actual publication.
 Witness: source-list induction threads the three proven state facts through each handler.
 -/
 theorem State.ContributorProvenance.rawEventReplay_outputs {queue : State}
     {work : Execution.Work} (provenance : queue.ContributorProvenance work)
     (events : List GraphEvent) (matching : ∀ event ∈ events, event.MatchesWork work)
-    : RawPublicationContributors (queue.rawEventReplay events).2 := by
+    (available : List (Occurrence × Nat) := [])
+    : RawPublicationContributors (queue.rawEventReplay events available).2 := by
   induction events generalizing queue with
   | nil => intro _ _ impossible; cases impossible
   | cons event rest ih =>
-      rw [State.rawEventReplay_cons]
+      rw [State.rawEventReplay_cons _ _ _ available]
       have head := matching event List.mem_cons_self
-      exact (provenance.handleGraphEvent_outputs event head).append
-        (ih (provenance.handleGraphEvent event head)
+      exact (provenance.handleGraphEvent_outputs event head available).append
+        (ih (provenance.dispatchGraphEvent event head available)
           (fun candidate member => matching candidate (by simp [member])))
 
 /-- Every raw object publication from valid source replay uses a contributing group.

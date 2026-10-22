@@ -173,8 +173,8 @@ theorem createWorkQueue_runNormalized_streamProducerMatching_withClosureLedger
     rw [objectAnnotation_prefix known, objectOrder]
     exact member
   · refine ⟨?_, ?_, ?_⟩
-    · exact rawValues.trans ((State.initialize (Work.fromExecution work)).batchedObjectValues_flattened
-        batches (by rwa [← inputsStarted_eq_batchesStarted]))
+    · exact rawValues.trans
+        ((State.initialize (Work.fromExecution work)).batchedObjectValues_rawBatches batches)
     · intro publication member
       obtain ⟨result, supplied, valueEq⟩ := inventory.provenance publication member
       exact ⟨result, supplied, valueEq, valid.event_matches supplied⟩

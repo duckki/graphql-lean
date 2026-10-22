@@ -34,7 +34,7 @@ theorem State.replayGraphEvents_objectFailureContributions {queue : State}
         simpa [replayGraphEvents] using acceptedAt [] event (by simp)
       rw [objectFailureContributions, State.objectFailureContribution_eq_groupFailures accepted]
       have acceptedRest : ∀ before next, (before ++ [next]).IsPrefix rest
-          → ((queue.handleGraphEvent event).1.replayGraphEvents before).acceptsGraphEvent
+          → ((queue.dispatchGraphEvent event).1.replayGraphEvents before).acceptsGraphEvent
               next = true := by
         intro before next earlier
         have accepted := acceptedAt (event :: before) next (by
@@ -44,14 +44,15 @@ theorem State.replayGraphEvents_objectFailureContributions {queue : State}
       rw [ih acceptedRest]
       cases event <;> simp [GraphEvent.failureSettlements, GraphEvent.groupFailures]
 
-/-- The executable start checker supplies presence at every source-handler boundary. -/
+/-- The executable start checker preserves all failures in actual host-batch accounting. -/
 theorem inputsStarted_objectFailureContributions {work : Execution.Work}
     {batches : List (List GraphEvent)} (started : inputsStarted work batches = true)
-    : (State.initialize (Work.fromExecution work)).objectFailureContributions
-        batches.flatten
+    : (State.initialize
+        (Work.fromExecution work)).admittedObjectFailureContributionsForBatches
+        batches
       = GraphEvent.failureSettlements batches.flatten :=
-  State.replayGraphEvents_objectFailureContributions
-    (inputsStarted_eachAccepted work batches started)
+  State.admittedObjectFailureContributionsForBatches_eq_of_started _ batches
+    (by rwa [← inputsStarted_eq_batchesStarted])
 
 /-- A retained rejected computation has no healthy contributor and cannot publish later.
 This snapshot conclusion uses its stored rejection; it imposes no source-settlement guard.
@@ -92,10 +93,11 @@ theorem ExecutedWork.runNormalized_rejectedTask_cancelled {work : Execution.Work
     (rejected : taskNode.rejection.isSome = true)
     (unpublished : ¬published occurrence)
     : Causality.TaskCancelled work
-        ((State.initialize (Work.fromExecution work)).objectFailureContributions
-          batches.flatten)
+        ((State.initialize
+            (Work.fromExecution work)).admittedObjectFailureContributionsForBatches
+          batches)
         published occurrence := by
-  obtain ⟨parents, _, replayed⟩ := generated.runNormalized_ownerAncestry _ valid started
+  obtain ⟨parents, _, replayed⟩ := generated.runNormalized_ownerAncestry batches valid started
   rw [inputsStarted_objectFailureContributions started]
   exact replayed.accounting.rejectedTask_cancelled generated found rejected unpublished
 

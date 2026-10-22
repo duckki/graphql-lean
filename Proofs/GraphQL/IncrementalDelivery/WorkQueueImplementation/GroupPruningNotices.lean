@@ -1,3 +1,4 @@
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.WorkDeclarations
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.GroupSupportSettlement
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.GeneratedDescriptors
 
@@ -74,7 +75,10 @@ theorem State.pruneEmptyGroups_inheritedNoticeProperty {queue : State}
                 · exact retained candidate old
                 · obtain rfl := List.mem_singleton.mp new
                   exact pending _ List.mem_cons_self
-  exact loop _ queue groups [] (List.Subset.refl _) candidates (by simp)
+  have result := loop (queue.groupNodes.length + groups.length + 1) queue groups []
+    (List.Subset.refl _) candidates (by simp)
+  intro group member
+  exact result group (by simpa only [State.pruneEmptyGroups] using member)
 
 /-- Pruning preserves descriptor properties through both kept roots and promoted children.
 Witness: remaining and kept candidates satisfy `property`; newly promoted descriptors
@@ -122,7 +126,10 @@ theorem State.pruneEmptyGroups_noticeProperty {queue : State}
                 · exact retained node old
                 · obtain rfl := List.mem_singleton.mp new
                   exact pending _ List.mem_cons_self
-  exact loop _ queue groups [] registered candidates (by simp)
+  have result := loop (queue.groupNodes.length + groups.length + 1) queue groups []
+    registered candidates (by simp)
+  intro group member
+  exact result group (by simpa only [State.pruneEmptyGroups] using member)
 
 /-- Every pruned notice retains its exact contributor-or-ancestor registration descriptor.
 Witness: instantiate descriptor preservation with the fixed-work record relation.

@@ -2,6 +2,7 @@ import Proofs.GraphQL.IncrementalDelivery.Correctness.BoundedTaskReportAssembly
 import Proofs.GraphQL.IncrementalDelivery.Correctness.AcceptedFailureReporting
 import Proofs.GraphQL.IncrementalDelivery.Correctness.UnannouncedGroupFailureOrigins
 import Proofs.GraphQL.IncrementalDelivery.Correctness.ReportingClosures
+import Proofs.GraphQL.IncrementalDelivery.Semantics.WorkSize
 
 /-! Structural group origins close the unavailable-producer reporting induction. -/
 
@@ -364,7 +365,7 @@ theorem mixed_completeRun_exists_of_group_origins
     initialization_exists valid coherent continuous ordered nonempty
   obtain ⟨groups, streams, initialized, covers⟩ := initialized.covering_exists
   have initial : Explains work groups streams [] (fun _ => .executionGroup []) [] :=
-    ⟨initialized, by simp [FailureWitness], by simp⟩
+    initialized.emptyExplains _
   obtain ⟨batches, run⟩ := mixed_reporting_continuation_of_group_origins valid coherent
     roleCoherent continuous ordered pathCoherent under positive allocated origins initial
     (reportingNoticesCovered_of_noticesCovered (NoticesCovered.initial covers _))

@@ -23,6 +23,8 @@ def fragment (keys : Nat → Nat) (original : DeferredFragment) : DeferredFragme
 
 def work (keys : Nat → Nat) : Work → Work
   | .empty => .empty
+  | .declareGroups groups tasks =>
+      .declareGroups (groups.map (fragment keys)) (work keys tasks)
   | .combine left right => .combine (work keys left) (work keys right)
   | .executionGroup groups path result children =>
       .executionGroup (groups.map (fragment keys)) path result (work keys children)
@@ -79,6 +81,11 @@ theorem work_comp (outer inner : Nat → Nat) (original : Work)
   | empty => simp only [work]
   | combine left right =>
       simp only [work, work_comp outer inner left, work_comp outer inner right]
+  | declareGroups groups tasks =>
+      simp only [work, work_comp outer inner tasks, List.map_map]
+      congr 2
+      funext group
+      exact fragment_comp outer inner group
   | executionGroup groups path result children =>
       simp only [work, work_comp outer inner children, List.map_map]
       congr 2
@@ -104,26 +111,40 @@ decreasing_by
 -- Exact traversal commutation includes invalid edges and all nested item work
 -----------------------------------------------------------------------------------------
 
+/-- Key renaming commutes with transparent declaration lookup. -/
+@[simp]
+theorem work_withoutDeclarations (keys : Nat → Nat) (original : Work)
+    : (work keys original).withoutDeclarations
+      = work keys original.withoutDeclarations := by
+  cases original with
+  | declareGroups groups tasks =>
+      simpa only [work, Work.withoutDeclarations]
+        using work_withoutDeclarations keys tasks
+  | _ => simp only [work, Work.withoutDeclarations]
+termination_by original
+
 theorem child (keys : Nat → Nat) (original : WorkLocation) (address : Address)
     (index : Nat)
     : (location keys original).child? address index
       = (original.child? address index).map (location keys) := by
   rcases original with ⟨current, producer, owners⟩
   cases current with
-  | empty => simp only [location, work, WorkLocation.child?, Option.map_none]
+  | empty | declareGroups =>
+      simp only [location, work, WorkLocation.child?, Option.map_none]
   | combine left right =>
       cases index with
-      | zero => simp only [location, work, WorkLocation.child?, Option.map_some]
+      | zero =>
+          simp only [location, work, WorkLocation.child?, Option.map_some, work_withoutDeclarations]
       | succ index => cases index <;> simp only [location, work, WorkLocation.child?,
-          Option.map_some, Option.map_none]
+          Option.map_some, Option.map_none, work_withoutDeclarations]
   | executionGroup groups path result children =>
       cases index with
       | zero =>
-          simp only [location, work, WorkLocation.child?, Option.map_some, group_keys]
+          simp only [location, work, WorkLocation.child?, Option.map_some, group_keys, work_withoutDeclarations]
       | succ index => simp only [location, work, WorkLocation.child?, Option.map_none]
   | stream original items =>
-      simp only [location, work, WorkLocation.child?, List.getElem?_map, Option.map_map]
-      rfl
+      simp only [location, work, WorkLocation.child?, List.getElem?_map, Option.map_map,
+        Function.comp_def, work_withoutDeclarations, List.map_nil]
 
 theorem traverse (keys : Nat → Nat) (route : Address) (original : WorkLocation)
     (rest : Address)
@@ -141,7 +162,8 @@ theorem traverse (keys : Nat → Nat) (route : Address) (original : WorkLocation
 theorem locate (keys : Nat → Nat) (original : Work) (address : Address)
     : locateWork (work keys original) address
       = (locateWork original address).map (location keys) := by
-  exact traverse keys [] ⟨original, none, []⟩ address
+  simpa only [locateWork, location, List.map_nil, work_withoutDeclarations]
+    using traverse keys [] ⟨original.withoutDeclarations, none, []⟩ address
 
 theorem located {original address current producer owners}
     (found : Located original address current producer owners) (keys : Nat → Nat)
@@ -218,7 +240,7 @@ theorem task_original {original occurrence owners producer value}
       obtain ⟨before, oldOwners, oldFound, same, _⟩ :=
         located_original (original := original) (keys := keys) found
       cases before with
-      | empty | combine | stream => simp [work] at same
+      | empty | combine | stream | declareGroups => simp [work] at same
       | executionGroup originalGroups originalPath originalResult originalChildren =>
           simp only [work, Work.executionGroup.injEq] at same
           obtain ⟨rfl, rfl, rfl, rfl⟩ := same
@@ -228,7 +250,7 @@ theorem task_original {original occurrence owners producer value}
       obtain ⟨before, oldOwners, oldFound, same, _⟩ :=
         located_original (original := original) (keys := keys) found
       cases before with
-      | empty | combine | executionGroup => simp [work] at same
+      | empty | combine | executionGroup | declareGroups => simp [work] at same
       | stream originalNode originalItems =>
           simp only [work, Work.stream.injEq] at same
           obtain ⟨rfl, rfl⟩ := same
@@ -251,7 +273,7 @@ theorem node_original {original descriptor kind dependencies producer}
       obtain ⟨before, oldOwners, oldFound, same, _⟩ :=
         located_original (original := original) (keys := keys) found
       cases before with
-      | empty | combine | stream => simp [work] at same
+      | empty | combine | stream | declareGroups => simp [work] at same
       | executionGroup originalGroups originalPath originalResult originalChildren =>
           simp only [work, Work.executionGroup.injEq] at same
           obtain ⟨rfl, rfl, rfl, rfl⟩ := same
@@ -262,7 +284,7 @@ theorem node_original {original descriptor kind dependencies producer}
       obtain ⟨before, oldOwners, oldFound, same, parents⟩ :=
         located_original (original := original) (keys := keys) found
       cases before with
-      | empty | combine | executionGroup => simp [work] at same
+      | empty | combine | executionGroup | declareGroups => simp [work] at same
       | stream originalNode originalItems =>
           simp only [work, Work.stream.injEq] at same
           obtain ⟨rfl, rfl⟩ := same

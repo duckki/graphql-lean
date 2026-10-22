@@ -19,7 +19,8 @@ transports backward through the full source-failure inventory.
 theorem ExecutedWork.success_with_finalHealthyOwner_live
     {work events occurrence result owners producer payload ref before after}
     (generated : ExecutedWork work) (valid : ValidGraphEvents work events)
-    (started : (State.initialize (Work.fromExecution work)).acceptsBatch events = true)
+    (started
+      : State.eventsStarted [] (State.initialize (Work.fromExecution work)) events = true)
     (known : TaskAt work occurrence owners producer payload) (contributes : ref ∈ owners)
     (healthy
       : ¬GroupRecordInvalidated work
@@ -37,8 +38,8 @@ theorem ExecutedWork.success_with_finalHealthyOwner_live
               (fun owner => owner.group.node.ref) := by
   let initial := State.initialize (Work.fromExecution work)
   have earlier : before.IsPrefix events := ⟨.taskSuccess occurrence result :: after, split.symm⟩
-  have accepted : initial.acceptsBatch before = true := by
-    apply State.acceptsBatch_prefix (after := .taskSuccess occurrence result :: after)
+  have accepted : State.eventsStarted [] initial before = true := by
+    apply State.eventsStarted_prefix (after := .taskSuccess occurrence result :: after)
     simpa only [← split] using started
   obtain ⟨_, _, ledger⟩ := generated.replayGraphEvents_ownerAccounting_of_started before
     (valid.prefix earlier) accepted
@@ -80,7 +81,8 @@ generated task accounting supplies the retained node's structural ownership, if 
 theorem ExecutedWork.healthy_success_published_or_buffered
     {work events published occurrence result owners producer payload ref}
     (generated : ExecutedWork work) (valid : ValidGraphEvents work events)
-    (started : (State.initialize (Work.fromExecution work)).acceptsBatch events = true)
+    (started
+      : State.eventsStarted [] (State.initialize (Work.fromExecution work)) events = true)
     (covered
       : (State.initialize (Work.fromExecution work)).ReplayClosuresCovered events
           published)
@@ -135,7 +137,7 @@ theorem ExecutedWork.healthy_success_published_or_buffered
   · right
     rw [finalState] at buffered
     obtain ⟨node, found, stored, nodeContributes, present⟩ := buffered
-    have final := (createWorkQueue_pendingAccounting work).replayGraphEvents
+    have final := (createWorkQueue_pendingAccounting work generated.declarations).replayGraphEvents
       (before := []) generated events valid started
     have lookup := State.taskNode?_some found
     obtain ⟨_, nodePayload, nodeProducer, _, descriptor⟩ :=
@@ -151,7 +153,8 @@ existing ledger. No storage, publication, or completion-notice premise is added.
 theorem ExecutedWork.retired_structuralContributor_published
     {work events published address owners producer payload ref}
     (generated : ExecutedWork work) (valid : ValidGraphEvents work events)
-    (started : (State.initialize (Work.fromExecution work)).acceptsBatch events = true)
+    (started
+      : State.eventsStarted [] (State.initialize (Work.fromExecution work)) events = true)
     (covered
       : (State.initialize (Work.fromExecution work)).ReplayClosuresCovered events
           published)

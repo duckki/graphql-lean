@@ -1,6 +1,10 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.ConstructorInitialization
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.Conformance
 import Tests.GraphQL.IncrementalDelivery.Execution
+import Tests.GraphQL.IncrementalDelivery.Fixtures.WorkDeclarations
+import Proofs.GraphQL.IncrementalDelivery.Semantics.WorkSize
+
+open GraphQL.IncrementalDelivery.Tests (declaredTask)
 
 /-! Constructor facts do not assume the initialization condition they will establish.
 Raw pruning is also checked separately from the execution-generated domain.
@@ -53,7 +57,8 @@ example (work : Execution.Work) (schedule : EventSource (List GraphEvent))
     (executed : ExecutedWork work) (nonempty : work.size ≠ 0)
     (valid : schedule.ValidFor work)
     : (ReferenceWorkQueue.createWorkQueueForSchedule work schedule).Conforms work :=
-  createWorkQueueForScheduleConforms_holds work schedule executed nonempty valid
+  createWorkQueueForScheduleConforms_holds work schedule executed
+    ((Execution.Work.isEmpty_eq_false work).mpr nonempty) valid
 
 private def parent : DeliveryNode := { ref := 0, path := [] }
 private def child : DeliveryNode := { ref := 1, path := [] }
@@ -95,10 +100,10 @@ example
 
 private def rawHiddenAncestor : Execution.Work :=
   .combine
-    (.executionGroup [{ node := child, ancestors := [parent] }] []
+    (declaredTask [{ node := child, ancestors := [parent] }] []
       ({ result := .ok ([], 0) }) .empty)
-    (.executionGroup [{ node := other }] [] ({ result := .ok ([], 0) })
-      (.executionGroup [{ node := parent }] [] ({ result := .ok ([], 0) }) .empty))
+    (declaredTask [{ node := other }] [] ({ result := .ok ([], 0) })
+      (declaredTask [{ node := parent }] [] ({ result := .ok ([], 0) }) .empty))
 
 /-- Local emptiness alone permits raw pruning to announce the child.
 Witness: reduce immediate lowering; the parent's task is hidden behind the other producer.
@@ -117,10 +122,11 @@ example
     : ¬CanAnnounce rawHiddenAncestor [] (fun _ => .executionGroup []) [] []
         child .group [parent.ref] none := by
   have known : NodeAt rawHiddenAncestor child .group [parent.ref] none :=
-    .group (.left .root) List.mem_cons_self
+    .group (.left (Located.root (root := rawHiddenAncestor))) List.mem_cons_self
   have hidden : TaskHasOwners rawHiddenAncestor (.executionGroup [1, 0]) [parent.ref] :=
     ⟨some (.executionGroup [1]), .object [] (.ok ([], 0)),
-      .executionGroup (.executionGroup (.right .root))⟩
+      .executionGroup (result := { result := .ok ([], 0) })
+        (.executionGroup (.right (Located.root (root := rawHiddenAncestor))))⟩
   intro eligible
   have absent := ((group_canAnnounce_initial_iff known).mp eligible).2
     parent.ref List.mem_cons_self (.executionGroup [1, 0]) [parent.ref] hidden

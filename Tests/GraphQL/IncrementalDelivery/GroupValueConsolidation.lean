@@ -77,6 +77,7 @@ example
     : ¬GraphEvent.MatchesWork work
         (.taskSuccess (.executionGroup [])
           { value := { value with deliveryGroups := [] } }) := by
-  simp [GraphEvent.MatchesWork, taskGroups?, locateWork, locateWork.go, work]
+  simp [GraphEvent.MatchesWork, taskGroups?, taskContext?, locateWork, locateWork.go,
+    Work.withoutDeclarations, work]
 
 end GraphQL.IncrementalDelivery.Tests.GroupValueConsolidation

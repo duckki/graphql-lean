@@ -21,7 +21,8 @@ theorem ExecutedWork.runNormalized_healthy_ancestor_path {work : Execution.Work}
         queue.groupNode? child.group.node.ref = some child
         → GroupRecordAt work child.group.node dependencies
         → ¬GroupRecordInvalidated work
-            (initial.objectFailureContributions batches.flatten) child.group.node.ref
+            (initial.admittedObjectFailureContributionsForBatches batches)
+            child.group.node.ref
         → ancestor ∈ dependencies
         → TaskHasOwners work occurrence owners
         → ancestor ∈ owners
@@ -29,15 +30,19 @@ theorem ExecutedWork.runNormalized_healthy_ancestor_path {work : Execution.Work}
         → queue.LiveDescendant ancestor child.group.node.ref := by
   intro initial queue child dependencies ancestor occurrence owners
     found known healthy ancestorMember task contributes live
+  have failureHistory := State.admittedObjectFailureContributionsForBatches_eq_of_started
+    initial batches (by rwa [inputsStarted_eq_batchesStarted] at started)
+  rw [failureHistory] at healthy
   obtain ⟨parents, canonical⟩ := generated.groupRecordsCanonical
-  have registered := createWorkQueue_registration work
-  have closed := (createWorkQueue_parentRegistryClosed canonical).runNormalized
-    registered.1 registered.2 batches
+  have registered := createWorkQueue_registration work generated.declarations
+  have closed := (createWorkQueue_parentRegistryClosed canonical generated.declarations).runNormalized
+    registered.1 registered.2 (State.initialize_registrationFrame generated.declarations) batches
     (fun _ batch _ event => valid.eachMatches (List.mem_flatten.mpr ⟨_, batch, event⟩)) canonical
-  exact (createWorkQueue_runNormalized_parentLinksComplete canonical valid).healthy_ancestor_path
+  exact (createWorkQueue_runNormalized_parentLinksComplete generated.declarations
+          canonical valid).healthy_ancestor_path
     generated valid.runNormalized_groupNodesMatchWork
     (generated.runNormalized_healthyRetiredAncestors batches valid started)
-    (createWorkQueue_runNormalized_registration valid).1 closed canonical found known healthy
-    ancestorMember task contributes live
+    (createWorkQueue_runNormalized_registration valid generated.declarations).1 closed
+    canonical found known healthy ancestorMember task contributes live
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

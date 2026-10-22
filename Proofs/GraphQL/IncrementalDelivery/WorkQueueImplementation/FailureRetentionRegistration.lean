@@ -30,46 +30,45 @@ theorem State.RetainedFailures.addGroup {queue : State} {work failed}
         ∀ occurrence ∈ failed, ∀ owners, TaskHasOwners work occurrence owners → ref ∉ owners :=
       fun ref unregistered => prior.fresh ref
         (fun old => unregistered (List.mem_append_left _ old))
-    dsimp only
-    split
-    · exact ⟨prior.retained, freshRefs⟩
-    · refine ⟨?_, freshRefs⟩
+    have registered : ({ queue with
+        registeredGroups := queue.registeredGroups ++ [group.node.ref] } : State).RetainedFailures
+          work failed := ⟨prior.retained, freshRefs⟩
+    have appended : ({ queue with
+        registeredGroups := queue.registeredGroups ++ [group.node.ref],
+        groupNodes := queue.groupNodes ++ [({ group } : GroupNode)] } : State).RetainedFailures
+          work failed := by
+      refine ⟨?_, freshRefs⟩
       intro occurrence recorded owners known node member owner
       rcases List.mem_append.mp member with old | new
       · exact prior.retained occurrence recorded owners known node old owner
       · cases List.mem_singleton.mp new
         exact False.elim (prior.fresh group.node.ref absent occurrence recorded owners known owner)
+    split
+    · exact appended
+    · split
+      · split <;> exact registered
+      · rename_i parent found
+        refine ⟨?_, freshRefs⟩
+        intro occurrence recorded owners known node member owner
+        obtain ⟨old, oldMember, same⟩ := List.mem_map.mp member
+        by_cases selected : old.group.node.ref = parent.group.node.ref
+        · simp only [selected, BEq.rfl, ite_true] at same
+          subst node
+          exact prior.retained occurrence recorded owners known parent
+            (List.mem_of_find?_eq_some found) owner
+        · simp only [beq_eq_false_iff_ne.mpr selected, Bool.false_eq_true, ite_false] at same
+          subst node
+          exact appended.retained occurrence recorded owners known old oldMember owner
 
-/-- Group registration and parent linking preserve failed task retention. -/
+/-- Recursive group registration preserves failed task retention. -/
 theorem State.RetainedFailures.addGroups {queue : State} {work failed}
     (prior : queue.RetainedFailures work failed) (unique : queue.GroupRefsUnique)
     (groups : List Group)
     : (queue.addGroups groups).1.RetainedFailures work failed := by
-  let fresh := groups.filter (fun group =>
-    !queue.registeredGroups.contains group.node.ref && (queue.groupNode? group.node.ref).isNone)
-  let property (current : State) := current.GroupRefsUnique ∧ current.RetainedFailures work failed
-  have registered := fold_preserves property State.addGroup fresh
-    (fun _ group valid => ⟨valid.1.addGroup group, valid.2.addGroup group⟩) queue ⟨unique, prior⟩
-  let link (current : State) (group : Group) :=
-    match group.parent with
-    | none => current
-    | some parent => match current.groupNode? parent with
-      | none => current
-      | some node =>
-          let children := if node.childGroups.contains group.node.ref then node.childGroups
-            else node.childGroups ++ [group.node.ref]
-          current.putGroupNode { node with childGroups := children }
-  have linked (current : State) (group : Group) (valid : property current)
-      : property (link current group) := by
-    unfold link
-    split
-    · exact valid
-    · split
-      · exact valid
-      · rename_i node found
-        exact ⟨valid.1.putGroupNode _, valid.2.putGroupNodeSameTasks valid.1 node
-          (List.mem_of_find?_eq_some found) _ rfl rfl⟩
-  exact (fold_preserves property link fresh linked _ registered).2
+  exact (State.addGroups_preserves
+    (fun current => current.GroupRefsUnique ∧ current.RetainedFailures work failed) groups
+    (fun _ group _ valid => ⟨valid.1.addGroup group, valid.2.addGroup group⟩)
+    queue ⟨unique, prior⟩).2
 
 /-- Appending task nodes leaves every existing first-match lookup unchanged. -/
 private theorem State.RetainedFailures.appendTaskNodes {queue : State} {work failed}
@@ -138,7 +137,8 @@ theorem State.RetainedFailures.maybeIntegrateWork {queue : State} {work failed}
   let property (current : State) := current.GroupRefsUnique ∧ current.RetainedFailures work failed
   have tasks := fold_preserves property State.addTask more.tasks
     (fun _ task valid => ⟨valid.1.addTask task, valid.2.addTask valid.1 task⟩)
-    (queue.addGroups more.groups).1 ⟨unique.addGroups more.groups, prior.addGroups unique more.groups⟩
+    (queue.addGroups more.groups).1
+      ⟨unique.addGroups more.groups, prior.addGroups unique more.groups⟩
   exact tasks.2.addStreams more.streams producer
 
 /-- Pruning removes only group shells and leaves task computations unchanged. -/
@@ -162,10 +162,25 @@ theorem State.RetainedFailures.pruneEmptyGroups {queue : State} {work failed}
               · exact ih _ _ _ valid
   exact loop _ queue groups [] prior
 
+/-- Exposing more rejected outcomes never clears a retained rejection. -/
+theorem State.RetainedFailures.cacheTaskFailures {queue : State} {work failed}
+    (prior : queue.RetainedFailures work failed) (available : List (Occurrence × Nat))
+    : (queue.cacheTaskFailures available).RetainedFailures work failed := by
+  induction available generalizing queue with
+  | nil => exact prior
+  | cons entry rest ih =>
+      simp only [State.cacheTaskFailures, List.foldl_cons]
+      split
+      · exact ih prior
+      · rename_i node found
+        exact ih (prior.putTaskNode found { node with rejection := some entry.2 } rfl
+          (fun _ => rfl))
+
 /-- Starting a task preserves old first-match computations. -/
 theorem State.RetainedFailures.startTask {queue : State} {work failed}
     (prior : queue.RetainedFailures work failed) (occurrence : Occurrence)
-    : (queue.startTask occurrence).RetainedFailures work failed := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.startTask occurrence available).RetainedFailures work failed := by
   unfold State.startTask
   split
   · exact prior
@@ -176,12 +191,18 @@ theorem State.RetainedFailures.startTask {queue : State} {work failed}
 /-- Starting a group preserves every retained rejection, including dormant shared tasks. -/
 theorem State.RetainedFailures.startGroup {queue : State} {work failed}
     (prior : queue.RetainedFailures work failed) (ref : NodeRef)
-    : (queue.startGroup ref).RetainedFailures work failed := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.startGroup ref available).1.RetainedFailures work failed := by
+  have cached := prior.cacheTaskFailures available
   unfold State.startGroup
+  dsimp only
   split
-  · exact prior
-  · exact fold_preserves (fun current => current.RetainedFailures work failed)
-      State.startTask _ (fun _ occurrence valid => valid.startTask occurrence) _ prior
+  · exact cached
+  · split
+    · exact fold_preserves (fun current : State => current.RetainedFailures work failed)
+        (fun current occurrence => current.startTask occurrence available) _
+        (fun _ occurrence valid => valid.startTask occurrence available) _ cached
+    · exact cached.removeGroup _
 
 /-- Stream activation does not change group membership or retained task computations. -/
 theorem State.RetainedFailures.startStream {queue : State} {work failed}
@@ -193,12 +214,28 @@ theorem State.RetainedFailures.startStream {queue : State} {work failed}
 /-- Activation reuses retained task rejections without changing the failure inventory. -/
 theorem State.RetainedFailures.startNewWork {queue : State} {work failed}
     (prior : queue.RetainedFailures work failed) (more : NewWork)
-    : (queue.startNewWork more).RetainedFailures work failed := by
-  dsimp only [State.startNewWork]
-  apply fold_preserves (fun current => current.RetainedFailures work failed)
-    State.startStream _ (fun _ ref valid => valid.startStream ref)
-  apply fold_preserves (fun current => current.RetainedFailures work failed)
-    State.startGroup _ (fun _ ref valid => valid.startGroup ref)
-  exact prior
+    (available : List (Occurrence × Nat) := [])
+    : (queue.startNewWork more available).1.RetainedFailures work failed := by
+  have groups (refs : NodeRefs) (acc : State × List GroupFailureEvent)
+      (valid : acc.1.RetainedFailures work failed)
+      : (refs.foldl
+          (fun (current, failures) ref =>
+            let (next, queued) := current.startGroup ref available
+            (next, failures ++ queued)) acc).1.RetainedFailures work failed := by
+    induction refs generalizing acc with
+    | nil => exact valid
+    | cons ref rest ih => exact ih _ (valid.startGroup ref available)
+  unfold State.startNewWork
+  exact fold_preserves (fun current : State => current.RetainedFailures work failed)
+    State.startStream _ (fun _ ref valid => valid.startStream ref) _
+    (groups (more.newGroups.map Execution.DeliveryNode.ref)
+      (
+        {
+          queue with
+            rootGroups :=
+              queue.rootGroups ++ more.newGroups.map Execution.DeliveryNode.ref
+        },
+        []
+      ) prior)
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

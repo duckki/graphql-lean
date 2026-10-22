@@ -20,6 +20,15 @@ theorem ItemsPositive.member {items : List (TaskOutcome ResponseValue × Work)}
       · subst entry; exact ⟨positive.1, positive.2.1⟩
       · exact ih positive.2.2 member
 
+/-- Removing outer declarations preserves the failure certificate. -/
+theorem WorkPositive.withoutDeclarations {work : Work} (positive : WorkPositive work)
+    : WorkPositive work.withoutDeclarations := by
+  cases work with
+  | declareGroups groups tasks =>
+      exact WorkPositive.withoutDeclarations (work := tasks) positive
+  | _ => exact positive
+termination_by work
+
 /-- Lookup preserves the work certificate at every address, by navigation induction. -/
 theorem WorkPositive.located {work address current producer owners}
     (positive : WorkPositive work)
@@ -28,11 +37,12 @@ theorem WorkPositive.located {work address current producer owners}
   have navigation := StructuralEquivalence.located_of_current located
   clear located
   induction navigation with
-  | root => exact positive
-  | left _ ih => exact ih.1
-  | right _ ih => exact ih.2
-  | executionGroup _ ih => exact ih.2
-  | item _ entry ih => exact (ih.member (List.mem_of_getElem? entry)).2
+  | root => exact positive.withoutDeclarations
+  | left _ ih => exact ih.1.withoutDeclarations
+  | right _ ih => exact ih.2.withoutDeclarations
+  | executionGroup _ ih => exact ih.2.withoutDeclarations
+  | item _ entry ih =>
+      exact (ih.member (List.mem_of_getElem? entry)).2.withoutDeclarations
 
 /-- Every scheduler-visible failing task has a positive count; witness: its located
 result and the execution certificate, with no restriction on streams or raw syntax.

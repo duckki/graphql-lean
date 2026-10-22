@@ -18,7 +18,8 @@ theorem ExecutedWork.handleGraphEvent_ancestorProducer_beforeValue
     (generated : ExecutedWork work)
     (valid : ValidGraphEvents work (before ++ [event]))
     (started
-      : (State.initialize (Work.fromExecution work)).acceptsBatch (before ++ [event])
+      : State.eventsStarted [] (State.initialize (Work.fromExecution work))
+          (before ++ [event])
         = true)
     (covered
       : (State.initialize (Work.fromExecution work)).ReplayClosuresCovered
@@ -26,7 +27,7 @@ theorem ExecutedWork.handleGraphEvent_ancestorProducer_beforeValue
     (selected
       : (((State.initialize (Work.fromExecution work)).replayGraphEvents
             before).handleGraphEvent
-          event).2[position]?
+          event).2.1[position]?
         = some (.groupValues group values))
     (known
       : TaskAt work (.executionGroup address) owners
@@ -44,7 +45,7 @@ theorem ExecutedWork.handleGraphEvent_ancestorProducer_beforeValue
                 WorkQueueEvent.objectValues).length
               + (((((State.initialize (Work.fromExecution work)).replayGraphEvents
                       before).handleGraphEvent
-                    event).2.take
+                    event).2.1.take
                     position).flatMap
                   WorkQueueEvent.objectValues).length) := by
   let queue := (State.initialize (Work.fromExecution work)).replayGraphEvents before
@@ -68,5 +69,12 @@ theorem ExecutedWork.handleGraphEvent_ancestorProducer_beforeValue
       have member := List.mem_of_getElem? selected
       simp only [State.handleGraphEvent, State.streamFailure] at member
       split at member <;> simp at member
+
+  | groupFailure failure =>
+      have member := List.mem_of_getElem? selected
+      simp only [State.handleGraphEvent, State.groupFailure] at member
+      split at member
+      · cases member
+      · split at member <;> simp at member
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

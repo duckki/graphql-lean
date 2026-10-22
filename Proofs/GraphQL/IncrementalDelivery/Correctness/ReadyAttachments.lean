@@ -65,6 +65,12 @@ mutual
           ProducerReady published task.producer → task.attachment ∈ available := by
     cases work with
     | empty => simp [sourceTasks]
+    | declareGroups groups tasks =>
+        simp only [sourceTasks] at members attached ⊢
+        cases attached with
+        | declareGroups attached =>
+            exact sourceTasks_readyAttached closed delivered address producer cursors tasks
+              members success attached context
     | combine left right =>
         generalize equal : entryPaths ((sourceTasks address producer cursors
           (.combine left right)).map SourceTask.entries) = slices at attached

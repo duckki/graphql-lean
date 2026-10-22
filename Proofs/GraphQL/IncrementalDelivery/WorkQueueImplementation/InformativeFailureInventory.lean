@@ -1,7 +1,8 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.SelectedGroupFailureInventory
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.AcceptedFailureHealth
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.FailureAnnouncementCuts
 
-/-! Informative source object cuts retain complete counts and prior announcement evidence. -/
+/-! Informative source cuts preserve causal invalidation and prior announcement evidence. -/
 
 namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
@@ -10,20 +11,20 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 noncomputable def informativeObjectFailureCuts (work : Execution.Work)
     (blocks : List SourceOutputBlock)
     : FailureCuts :=
-  selectObjectFailureCuts work [] (sourceObjectFailureCuts 0 blocks)
+  selectObjectFailureCuts work [] (availableObjectFailureCuts work 0 blocks)
 
 /-- Informative object cuts retain their original candidate positions and source order. -/
 theorem informativeObjectFailureCuts_sublist (work : Execution.Work)
     (blocks : List SourceOutputBlock)
     : (informativeObjectFailureCuts work blocks).Sublist
-        (sourceObjectFailureCuts 0 blocks) :=
+        (availableObjectFailureCuts work 0 blocks) :=
   selectObjectFailureCuts_sublist work [] _
 
 /-- Every selected cause visible at a boundary was a visible original candidate there. -/
 theorem informativeObjectFailureCuts_failedBefore_subset (work : Execution.Work)
     (blocks : List SourceOutputBlock) (bound : Nat)
     : (failedBefore (informativeObjectFailureCuts work blocks) bound).Subset
-        (failedBefore (sourceObjectFailureCuts 0 blocks) bound) := by
+        (failedBefore (availableObjectFailureCuts work 0 blocks) bound) := by
   intro occurrence member
   obtain ⟨entry, selected, same⟩ := List.mem_map.mp member
   exact List.mem_map.mpr ⟨entry, List.mem_filter.mpr
@@ -35,7 +36,7 @@ theorem informativeObjectFailureCuts_ordered (work : Execution.Work)
     (blocks : List SourceOutputBlock)
     : (informativeObjectFailureCuts work blocks).Pairwise
         (fun left right => left.1 ≤ right.1) :=
-  (sourceObjectFailureCuts_ordered 0 blocks).sublist
+  (availableObjectFailureCuts_ordered work 0 blocks).sublist
     (informativeObjectFailureCuts_sublist work blocks)
 
 /-- Selected candidates retain fixed failed-task provenance, bounds, and reachability. -/
@@ -45,8 +46,7 @@ theorem createWorkQueue_informativeObjectFailureCuts_origin {work : Execution.Wo
     : let queue := State.initialize (Work.fromExecution work)
       let publisher : IncrementalPublisher :=
         { active := queue.initialGroups ++ queue.initialStreams }
-      let blocks :=
-        queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher batches).2.2
+      let blocks := (queue.sourceRunBlocks publisher batches).2.2
       ∀ entry ∈ informativeObjectFailureCuts work blocks,
         entry.1
           ≤ ((queue.runNormalized batches).2.flatten.flatMap publicationAtoms).length
@@ -55,34 +55,32 @@ theorem createWorkQueue_informativeObjectFailureCuts_origin {work : Execution.Wo
             ∧ Reachable work entry.2 := by
   dsimp only
   intro entry member
-  exact createWorkQueue_eligibleObjectFailureCuts_origin generated valid entry
+  exact createWorkQueue_availableObjectFailureCuts_origin generated valid entry
     ((informativeObjectFailureCuts_sublist work _).subset member)
 
 /-- Source freshness also excludes repeated selected failure occurrences. -/
 theorem createWorkQueue_informativeObjectFailureCuts_unique {work : Execution.Work}
-    {batches : List (List GraphEvent)} (valid : ValidGraphEvents work batches.flatten)
+    {batches : List (List GraphEvent)} (_valid : ValidGraphEvents work batches.flatten)
     : let queue := State.initialize (Work.fromExecution work)
       let publisher : IncrementalPublisher :=
         { active := queue.initialGroups ++ queue.initialStreams }
-      let blocks :=
-        queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher batches).2.2
+      let blocks := (queue.sourceRunBlocks publisher batches).2.2
       ((informativeObjectFailureCuts work blocks).map Prod.snd).Nodup := by
   dsimp only
-  exact (createWorkQueue_eligibleObjectFailureCuts_unique valid).sublist
+  exact (availableObjectFailureCuts_unique _ _ _).sublist
     ((informativeObjectFailureCuts_sublist work _).map Prod.snd)
 
 /-- A selected cut retains the same previously announced contributor as its source cut. -/
 theorem createWorkQueue_informativeObjectFailureCuts_announcedOwner
-    {work : Execution.Work} {batches : List (List GraphEvent)}
-    (valid : ValidGraphEvents work batches.flatten)
+    {work : Execution.Work} (generated : ExecutedWork work)
+    {batches : List (List GraphEvent)} (valid : ValidGraphEvents work batches.flatten)
     (started : inputsStarted work batches = true) {before after : FailureCuts} {cut : Nat}
     {occurrence : Occurrence}
     (split
       : let queue := State.initialize (Work.fromExecution work)
         let publisher : IncrementalPublisher :=
           { active := queue.initialGroups ++ queue.initialStreams }
-        informativeObjectFailureCuts work
-          (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher batches).2.2)
+        informativeObjectFailureCuts work ((queue.sourceRunBlocks publisher batches).2.2)
         = before ++ (cut, occurrence) :: after)
     : let queue := State.initialize (Work.fromExecution work)
       ∃ owners owner,
@@ -97,12 +95,12 @@ theorem createWorkQueue_informativeObjectFailureCuts_announcedOwner
   let queue := State.initialize (Work.fromExecution work)
   let publisher : IncrementalPublisher := { active := queue.initialGroups ++ queue.initialStreams }
   have member : (cut, occurrence) ∈ informativeObjectFailureCuts work
-      (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher batches).2.2) := by
+      ((queue.sourceRunBlocks publisher batches).2.2) := by
     rw [split]
     exact List.mem_append_right _ List.mem_cons_self
   have raw := (informativeObjectFailureCuts_sublist work _).subset member
-  obtain ⟨earlier, later, rawSplit⟩ := List.mem_iff_append.mp raw
-  exact createWorkQueue_eligibleObjectFailureCuts_announcedOwner valid started rawSplit
+  exact createWorkQueue_availableObjectFailureCuts_announcedOwner generated valid started
+    raw
 
 /-- Every selected object cut has a direct-safe contributor at its exact selected prefix. -/
 theorem informativeObjectFailureCuts_directHealthyOwner
@@ -116,8 +114,8 @@ theorem informativeObjectFailureCuts_directHealthyOwner
             prior ∈ before.map Prod.snd
             → TaskHasOwners work prior priorOwners
             → owner ∉ priorOwners := by
-  have selected := selectObjectFailureCuts_informative work [] (sourceObjectFailureCuts 0 blocks)
-  rw [show selectObjectFailureCuts work [] (sourceObjectFailureCuts 0 blocks)
+  have selected := selectObjectFailureCuts_informative work [] (availableObjectFailureCuts work 0 blocks)
+  rw [show selectObjectFailureCuts work [] (availableObjectFailureCuts work 0 blocks)
     = before ++ (cut, occurrence) :: after from split] at selected
   exact informativeFailureCuts_directHealthyOwner selected
 
@@ -139,6 +137,26 @@ theorem TaskAt.objectOwner_groupNode {work occurrence owners producer path resul
       cases impossible
 
 /-- A selected object cut has an owner unaffected by earlier record invalidation. -/
+theorem informativeObjectCuts_uninvalidatedOwner
+    {work objects before after cut occurrence owners producer path result}
+    (generated : ExecutedWork work)
+    (object : TaskAt work occurrence owners producer (.object path result))
+    (informative : InformativeFailureCuts work [] objects)
+    (split : objects = before ++ (cut, occurrence) :: after)
+    : ∃ contributors ref,
+        TaskHasOwners work occurrence contributors
+        ∧ ref ∈ contributors
+        ∧ ¬GroupRecordInvalidated work (before.map Prod.snd) ref := by
+  rw [split] at informative
+  obtain ⟨contributors, ref, ⟨birth, payload, task⟩, owner, healthy⟩ := informative.atCut
+  obtain ⟨node, dependencies, known, same⟩ :=
+    TaskAt.objectOwner_groupNode object ((task.unique object).1 ▸ owner)
+  refine ⟨contributors, ref, ⟨birth, payload, task⟩, owner, ?_⟩
+  intro invalid
+  exact healthy (same ▸ (generated.groupRecordInvalidated_iff_groupInvalidated known).mp
+    (same.symm ▸ invalid))
+
+/-- The ordinary source-block inventory specializes structural selection. -/
 theorem informativeObjectFailureCuts_uninvalidatedOwner
     {work blocks before after cut occurrence owners producer path result}
     (generated : ExecutedWork work)
@@ -148,26 +166,18 @@ theorem informativeObjectFailureCuts_uninvalidatedOwner
     : ∃ contributors ref,
         TaskHasOwners work occurrence contributors
         ∧ ref ∈ contributors
-        ∧ ¬GroupRecordInvalidated work (before.map Prod.snd) ref := by
-  have selected := selectObjectFailureCuts_informative work [] (sourceObjectFailureCuts 0 blocks)
-  rw [show selectObjectFailureCuts work [] (sourceObjectFailureCuts 0 blocks)
-    = before ++ (cut, occurrence) :: after from split] at selected
-  obtain ⟨contributors, ref, ⟨birth, payload, task⟩, owner, healthy⟩ := selected.atCut
-  obtain ⟨node, dependencies, known, same⟩ :=
-    TaskAt.objectOwner_groupNode object ((task.unique object).1 ▸ owner)
-  refine ⟨contributors, ref, ⟨birth, payload, task⟩, owner, ?_⟩
-  intro invalid
-  exact healthy (same ▸ (generated.groupRecordInvalidated_iff_groupInvalidated known).mp
-    (same.symm ▸ invalid))
+        ∧ ¬GroupRecordInvalidated work (before.map Prod.snd) ref :=
+  informativeObjectCuts_uninvalidatedOwner generated object
+    (selectObjectFailureCuts_informative work [] _) split
 
-/-- Informative object cuts and actual stream failures form one complete cause inventory.
-Witness: selection preserves all reported group causes, stream roles exclude new object
-causes, and subsequence provenance retains bounds, ordering, freshness, and reachability.
+/-- Informative object cuts and stream failures form a causal inventory.
+Witness: selection preserves group invalidation while stream roles retain their individual
+causes. Aggregate group totals belong to the separate reporting inventory.
 -/
 theorem createWorkQueue_completeInformativeFailureInventory {work : Execution.Work}
     (generated : ExecutedWork work) {batches : List (List GraphEvent)}
     (valid : ValidGraphEvents work batches.flatten)
-    (started : inputsStarted work batches = true) {streams : FailureCuts}
+    {streams : FailureCuts}
     (cuts
       : StreamFailureCuts work
           (((State.initialize (Work.fromExecution work)).runNormalized
@@ -178,9 +188,8 @@ theorem createWorkQueue_completeInformativeFailureInventory {work : Execution.Wo
       let publisher : IncrementalPublisher :=
         { active := queue.initialGroups ++ queue.initialStreams }
       let objects :=
-        informativeObjectFailureCuts work
-          (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher batches).2.2)
-      CompleteFailureInventory work
+        informativeObjectFailureCuts work ((queue.sourceRunBlocks publisher batches).2.2)
+      CausalFailureInventory work
         ((queue.runNormalized batches).2.flatten.flatMap publicationAtoms)
         (mergeFailureCuts objects streams) := by
   dsimp only
@@ -188,7 +197,7 @@ theorem createWorkQueue_completeInformativeFailureInventory {work : Execution.Wo
   let publisher : IncrementalPublisher :=
     { active := queue.initialGroups ++ queue.initialStreams }
   let objects := informativeObjectFailureCuts work
-    (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher batches).2.2)
+    ((queue.sourceRunBlocks publisher batches).2.2)
   have origins := createWorkQueue_informativeObjectFailureCuts_origin generated valid
   have objectKnown : ∀ entry ∈ objects,
       ∃ owners producer path errors,
@@ -214,12 +223,10 @@ theorem createWorkQueue_completeInformativeFailureInventory {work : Execution.Wo
     · obtain ⟨bound, owners, producer, path, errors, task, reaches⟩ := origins entry fromObject
       exact ⟨bound, reaches, owners, producer, _, task, rfl⟩
   · intro index group errors atEvent
-    obtain ⟨dependencies, producer, known⟩ :=
-      createWorkQueue_runNormalized_atomicGroupClosuresLocated generated valid _
-        (List.mem_of_getElem? atEvent)
-    exact nodeErrors_group_mixed
-      (createWorkQueue_selectedObjectFailureCuts_nodeFailureCause generated valid started atEvent)
-      cuts partition generated known
+    apply (createWorkQueue_selectedObjectFailureCuts_groupInvalidated generated valid atEvent).mono
+    intro occurrence member
+    exact (failedBefore_partition partition index).mem_iff.mpr
+      (List.mem_append_right _ member)
   · intro index stream errors atEvent
     apply cuts.nodeErrors_mixed partition objectKnown generated
       (createWorkQueue_runNormalized_atomicStreamActions_ordered valid) atEvent

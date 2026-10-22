@@ -17,16 +17,30 @@ atomic expansion preserve exactly the ordered notice inventory.
 -/
 theorem streamNoticeRefs_nodup {work inputs} {w : Witness}
     (generated : ExecutedWork work) (valid : ValidGraphEvents work inputs.flatten)
-    (started : inputsStarted work inputs = true)
+    (_started : inputsStarted work inputs = true)
     (history : w.events = (initialQueue work).nonterminalAtoms inputs)
     : ((initialQueue work).initialStreams.map Execution.DeliveryNode.ref
         ++ w.events.flatMap streamNoticeRefs).Nodup := by
-  have exactHistory := history.trans (createWorkQueue_nonterminalAtoms_flattened inputs started)
-  rw [exactHistory, atomicStreamNotices _ _
-    ((initialQueue work).rawEventReplay_nonemptyValues inputs.flatten valid.nonemptyItems)]
-  exact ((createWorkQueue_streamAnnouncementInventory (Work.fromExecution work)).rawEventReplay
-    (createWorkQueue_childStreamsMatchWork _ _) generated inputs.flatten
-    (fun _ member => valid.event_matches member)).unique
+  have expand (events : List Execution.WorkQueueEvent)
+      (nonempty : ∀ event ∈ events, NonemptyValues event)
+      : (events.flatMap publicationAtoms).flatMap streamNoticeRefs =
+        events.flatMap streamNoticeRefs := by
+    induction events with
+    | nil => rfl
+    | cons event rest ih =>
+        simp only [List.flatMap_cons, List.flatMap_append,
+          publicationAtoms_streamNotices event (nonempty event List.mem_cons_self),
+          ih (fun next member => nonempty next (List.mem_cons_of_mem _ member))]
+  have shape := Witness.rawBatches_shape history
+  dsimp only at shape
+  rw [← createWorkQueue_runNormalized_rawBatches (work := work) inputs] at shape
+  have controls := congrArg (List.flatMap streamNoticeRefs) shape
+  rw [expand _ (createWorkQueue_runNormalized_nonemptyValues valid).2] at controls
+  have same : w.events.flatMap streamNoticeRefs =
+      ((initialQueue work).runNormalized inputs).2.flatten.flatMap streamNoticeRefs := by
+    split at controls <;> simpa [List.flatMap_append, streamNoticeRefs] using controls.symm
+  rw [same]
+  exact createWorkQueue_runNormalized_streamNoticeRefs_nodup generated valid
 
 /-- Any canonical stream notice excludes all strictly earlier stream notices.
 Witness: the selected prefix is a sublist of the globally unique inventory; splitting it

@@ -52,7 +52,7 @@ theorem itemsSuccess_of_forall {items : List (TaskOutcome ResponseValue × Work)
 Witness: structural navigation supplies each deferred/item task and its child subtree.
 -/
 theorem located_workSuccess {root address work producer owners}
-    (located : Located root address work producer owners)
+    (located : Located root address work.withoutDeclarations producer owners)
     (all
       : ∀ occurrence owners producer payload,
           TaskAt root occurrence owners producer payload
@@ -60,16 +60,18 @@ theorem located_workSuccess {root address work producer owners}
     : SourceReconstruction.WorkSuccess work := by
   cases work with
   | empty => trivial
+  | declareGroups groups tasks =>
+      exact located_workSuccess (work := tasks) located all
   | combine left right =>
-      exact ⟨located_workSuccess (.left located) all,
-        located_workSuccess (.right located) all⟩
+      exact ⟨located_workSuccess (work := left) (.left located) all,
+        located_workSuccess (work := right) (.right located) all⟩
   | executionGroup groups path result children =>
       have success := all _ _ _ _ (.executionGroup located)
       exact ⟨
         by
           obtain ⟨data, same⟩ := object_payload_success success.1 success.2
           exact ⟨data, Semantics.CompletionReporting.result_eq_ok_of_deliveryResult_eq_ok same⟩,
-        located_workSuccess (.executionGroup located) all
+        located_workSuccess (work := children) (.executionGroup located) all
       ⟩
   | stream node items =>
       apply itemsSuccess_of_forall
@@ -84,7 +86,7 @@ theorem located_workSuccess {root address work producer owners}
             by
               obtain ⟨data, same⟩ := item_payload_success success.1 success.2
               exact ⟨data, Semantics.CompletionReporting.result_eq_ok_of_deliveryResult_eq_ok same⟩,
-            located_workSuccess (.item located selected) all
+            located_workSuccess (work := children) (.item located selected) all
           ⟩
 termination_by sizeOf work
 decreasing_by all_goals simp_all; omega
@@ -96,7 +98,7 @@ theorem WorkObservation.workSuccess {response work result}
     (observed : WorkObservation response work true result)
     (positive : ExecutionErrors.WorkPositive work) (zero : result.totalErrors = 0)
     : SourceReconstruction.WorkSuccess work :=
-  located_workSuccess .root
+  located_workSuccess (work := work) .root
     (fun _ _ _ _ known =>
       ⟨
         observed.tasks_succeed positive zero known,

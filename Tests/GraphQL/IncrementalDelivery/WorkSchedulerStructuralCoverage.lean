@@ -1,3 +1,4 @@
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.EmptyFailureBatchLedger
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.GroupEventAccounting
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.GroupMembershipOrder
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.RetiredContributorPublication
@@ -23,18 +24,20 @@ private def parentTask : Occurrence := .executionGroup [1, 0]
 private def children : Execution.Work :=
   .combine
     (.combine .empty
-      (.combine
-        (.executionGroup [⟨child, [parent]⟩] [.field "user"]
-          ({ result := .ok ([("name", .scalar "name1")], 0) }) (.combine .empty .empty))
-        .empty))
+      (.declareGroups [⟨child, [parent]⟩]
+        (.combine
+          (.executionGroup [⟨child, [parent]⟩] [.field "user"]
+            ({ result := .ok ([("name", .scalar "name1")], 0) }) (.combine .empty .empty))
+          .empty)))
     .empty
 
 private def work : Execution.Work :=
   .combine .empty
-    (.combine
-      (.executionGroup [⟨parent, []⟩] [] ({ result := .ok ([("user", .object [])], 0) })
-        children)
-      .empty)
+    (.declareGroups [⟨parent, []⟩]
+      (.combine
+        (.executionGroup [⟨parent, []⟩] [] ({ result := .ok ([("user", .object [])], 0) })
+          children)
+        .empty))
 
 private def result : TaskResult :=
   {
@@ -65,14 +68,16 @@ private def received : List GraphEvent :=
 private theorem child_known
     : TaskAt work childTask [child.ref] (some parentTask)
         (.object child.path (.ok (childResult.value.data, 0))) := by
-  refine ⟨[⟨child, [parent]⟩], child.path, { result := .ok (childResult.value.data, 0) }, .combine .empty .empty, [parent.ref],
+  refine ⟨[⟨child, [parent]⟩], child.path, { result := .ok (childResult.value.data, 0) },
+    .combine .empty .empty, [parent.ref],
     ?_, rfl, rfl⟩
   cbv
 
 private theorem valid : ValidGraphEvents work received := by
   have parentKnown : TaskAt work parentTask [parent.ref] none
       (.object [] (.ok ([("user", .object [])], 0))) := by
-    refine ⟨[⟨parent, []⟩], [], { result := .ok ([("user", .object [])], 0) }, children, [], ?_, rfl, rfl⟩
+    refine ⟨[⟨parent, []⟩], [], { result := .ok ([("user", .object [])], 0) }, children, [],
+      ?_, rfl, rfl⟩
     cbv
   have first : ValidGraphEvents work [.taskSuccess parentTask result] :=
     .append .nil ⟨_, _, parentKnown, by cbv, by cbv⟩
@@ -102,28 +107,32 @@ theorem active_child_ancestor_published
     ConformancePlan.mixed_groupReleaseCertificates generated source (by cbv)
   let origin : GroupPublicationOrigin
       { active := queue.initialGroups ++ queue.initialStreams }
-      (queue.rawEventReplay inputs.flatten).2 2 child
+      (queue.rawBatches inputs).2 2 child
       [childResult.value] :=
     {
       before := [.groupValues parent [result.value], .groupSuccess parent [child] []],
       group := child, values := [childResult.value], groups := [], streams := [],
-      after := [], offset := 0, value := childResult.value,
+      after := [.workQueueTermination], offset := 0, value := childResult.value,
       rawEq := by cbv, found := rfl, position := by cbv,
       ownerEq := by cbv, payloadEq := rfl
     }
-  let boundary : GroupPublicationHandlerBoundary queue inputs.flatten
+  let boundary : GroupPublicationHandlerBoundary queue inputs
       origin.group origin.values (origin.before.flatMap WorkQueueEvent.objectValues).length :=
     {
-      before := [.taskSuccess parentTask result], event := .taskSuccess childTask childResult,
-      after := [], position := 0, sourceEq := rfl, atHandler := by cbv, count := by cbv
+      earlier := [[.taskSuccess parentTask result]], batch := [.taskSuccess childTask childResult],
+      later := [], fifo := [], event := .taskSuccess childTask childResult, tail := [],
+      position := 0, partition := rfl, batchEq := rfl, atHandler := by cbv, count := by cbv
     }
-  have selected : w.events[2]? = some (.groupValues child [{ path := child.path, data := [("name", .scalar "name1")], errors := 0, deliveryGroups := [child] }]) := by rw [history]; cbv
+  have selected : w.events[2]? = some (.groupValues child [childResult.value]) := by
+    rw [history]; cbv
   have childKnown : NodeAt work child .group [parent.ref] (some parentTask) :=
-    ⟨[1, 0, 0, 0, 1, 0], [⟨child, [parent]⟩], child.path, { result := .ok (childResult.value.data, 0) }, .combine .empty .empty,
+    ⟨[1, 0, 0, 0, 1, 0], [⟨child, [parent]⟩], child.path,
+      { result := .ok (childResult.value.data, 0) }, .combine .empty .empty,
       [parent.ref], ⟨child, [parent]⟩, by cbv, List.mem_cons_self, rfl, rfl⟩
   have parentKnown : TaskAt work parentTask [parent.ref] none
       (.object [] (.ok ([("user", .object [])], 0))) :=
-    ⟨[⟨parent, []⟩], [], { result := .ok ([("user", .object [])], 0) }, children, [], by cbv, rfl, rfl⟩
+    ⟨[⟨parent, []⟩], [], { result := .ok ([("user", .object [])], 0) }, children, [], by cbv,
+      rfl, rfl⟩
   exact ⟨
     w,
     history,
@@ -164,7 +173,7 @@ theorem produced_contributor_covered
   refine ⟨published, covered, ?_⟩
   have carrier : (((State.initialize (Work.fromExecution work)).replayGraphEvents
       [.taskSuccess parentTask result]).handleGraphEvent
-        (.taskSuccess childTask childResult)).2[1]?
+        (.taskSuccess childTask childResult)).2.1[1]?
       = some (.groupSuccess child [] []) := by cbv
   obtain ⟨value, delivered⟩ := generated.successfulCarrier_structuralContributor_covered
     (before := [.taskSuccess parentTask result]) valid (by cbv) covered
@@ -173,7 +182,7 @@ theorem produced_contributor_covered
       [.taskSuccess parentTask result]).2.flatMap WorkQueueEvent.objectValues).length
         + (((((State.initialize (Work.fromExecution work)).replayGraphEvents
             [.taskSuccess parentTask result]).handleGraphEvent
-              (.taskSuccess childTask childResult)).2.take 1).flatMap
+              (.taskSuccess childTask childResult)).2.1.take 1).flatMap
                 WorkQueueEvent.objectValues).length = 2 := by cbv
   rw [count] at delivered
   exact ⟨value, delivered⟩
@@ -190,7 +199,7 @@ theorem produced_retirement_covered
     generated.rawEventReplay_bufferedCoverage received valid (by cbv)
   have carrier : Execution.WorkQueueEvent.groupSuccess child [] []
       ∈ ((queue.replayGraphEvents [.taskSuccess parentTask result]).handleGraphEvent
-          (.taskSuccess childTask childResult)).2 := by
+          (.taskSuccess childTask childResult)).2.1 := by
     cbv; exact .tail _ (.head _)
   obtain ⟨_, _, retired, healthy, _⟩ :=
     generated.replayGraphEvents_successfulCarrier_retiredHealthy
@@ -255,7 +264,12 @@ theorem published_memberships_stay_absent
   have started : inputsStarted work inputs = true := by cbv
   obtain ⟨w, history, _, _, _, _, _, _, _, _, ledger, _, _, _, admitted⟩ :=
     ConformancePlan.mixed_groupPublicationCertificates generated source started
-  obtain ⟨published, matching, absent⟩ := ledger.membershipsAbsent source started
+  obtain ⟨published, batches, matching, _⟩ := ledger
+  have covered := batches.flatten_emptyCache (by rwa [← inputsStarted_eq_batchesStarted])
+    (by intro batch member; simp only [inputs, List.mem_cons, List.not_mem_nil, or_false] at member
+        rcases member with rfl | rfl <;> rfl)
+  have absent (before : List GraphEvent) (earlier : before.IsPrefix inputs.flatten) :=
+    createWorkQueue_replay_membershipsAbsent covered source earlier
   have selected : w.events[0]? = some (.groupValues parent [result.value]) := by
     rw [history]; cbv
   have matched := matching.atObject 0 parent [result.value] selected
@@ -286,7 +300,7 @@ private def childDrainStart : State :=
   let stored := current.putTaskNode { node with value := some childResult.value }
   let prepared := (stored.maybeIntegrateWork childResult.work (some childTask)).1
   let released := node.task.groups.foldl successGroupStep (prepared, [], {})
-  released.1.startNewWork released.2.2
+  (released.1.startNewWork released.2.2).1
 
 /-- One internal boundary clears both an earlier source publication and this handler's value.
 Witness: the shared mixed ledger supplies the exact handler slice; the general drain-prefix
@@ -308,7 +322,9 @@ theorem prior_and_current_publications_absent_before_drain
   obtain ⟨w, _, _, _, _, _, _, _, _, _, ledger, _, _, _, admitted⟩ :=
     ConformancePlan.mixed_groupPublicationCertificates generated source started
   obtain ⟨published, batches, matching, _⟩ := ledger
-  have covered := batches.flatten (by rwa [← inputsStarted_eq_batchesStarted])
+  have covered := batches.flatten_emptyCache (by rwa [← inputsStarted_eq_batchesStarted])
+    (by intro batch member; simp only [inputs, List.mem_cons, List.not_mem_nil, or_false] at member
+        rcases member with rfl | rfl <;> rfl)
   have size : published.length = 2 := by
     have lengths := congrArg List.length matching.rawValues
     simpa only [List.length_map] using lengths.trans (by cbv)

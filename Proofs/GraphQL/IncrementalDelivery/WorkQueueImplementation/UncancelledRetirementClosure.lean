@@ -123,46 +123,34 @@ theorem State.drainReadyGroups_go_uncancelledRetirement {queue : State}
           GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (live : queue.LiveGroupsRegistered) (tasks : queue.TaskGroupsRegistered)
     (roots : queue.RootAncestorsRetired work) (fuel : Nat)
-    : (State.drainReadyGroups.go fuel queue).1.RootAncestorsRetired work
-      ∧ (State.drainReadyGroups.go fuel queue).1.UncancelledRetiredAncestors work := by
+    (available : List (Occurrence × Nat) := [])
+    : (State.drainReadyGroups.go available fuel queue).1.RootAncestorsRetired work
+      ∧ (State.drainReadyGroups.go available fuel queue).1.UncancelledRetiredAncestors
+          work := by
   let property (current : State) := current.GroupNodesMatchWork work
     ∧ current.ChildLinksCanonical parents ∧ current.LiveGroupsRegistered
     ∧ current.TaskGroupsRegistered ∧ current.RootAncestorsRetired work
     ∧ current.UncancelledRetiredAncestors work
-  have result : property (State.drainReadyGroups.go fuel queue).1 := by
+  have result : property (State.drainReadyGroups.go available fuel queue).1 := by
     apply State.drainReadyGroups_go_preserves property
-      (valid := ⟨matching, links, live, tasks, roots, prior⟩)
-    · intro current node invariant member active _ _
+      (available := available) (valid := ⟨matching, links, live, tasks, roots, prior⟩)
+    · intro current node invariant member active _
       have parentProtected := invariant.2.2.2.2.1 _ active
       have certificates := current.finishGroupSuccess_ancestorsRetired generated
         invariant.1 invariant.2.1 canonical invariant.2.2.1 member parentProtected
       have registered := current.finishGroupSuccess_registration
         invariant.2.2.1 invariant.2.2.2.1 node
       have activated := State.startNewWork_registration registered.1 registered.2.1
-        (current.finishGroupSuccess node).2.2
+        (current.finishGroupSuccess node).2.2 available
       have closedRoots := invariant.2.2.2.2.1.mono
         (current.finishGroupSuccess_rootsSubset node)
         (fun _ retired => retired.finishGroupSuccess node)
-      exact ⟨(invariant.1.finishGroupSuccess node).startNewWork _,
-        (invariant.2.1.finishGroupSuccess node).startNewWork _,
+      exact ⟨(invariant.1.finishGroupSuccess node).startNewWork _ available,
+        (invariant.2.1.finishGroupSuccess node).startNewWork _ available,
         activated.1, activated.2,
-        closedRoots.startNewWork _ certificates.2.2,
+        closedRoots.startNewWork _ certificates.2.2 available,
         (invariant.2.2.2.2.2.finishGroupSuccess generated invariant.1 invariant.2.1
-          canonical invariant.2.2.1 member parentProtected).startNewWork _⟩
-    · intro current _ occurrence errors invariant _ _ _
-      cases found : current.taskNode? occurrence with
-      | none => simpa only [State.taskFailure, found] using invariant
-      | some task =>
-          rw [current.taskFailure_eq occurrence errors task found]
-          apply failureGroupFold_preserves property
-          · intro state ref frame
-            exact ⟨frame.1.removeGroup ref, frame.2.1.removeGroup ref,
-              fun child included => frame.2.2.1 child (List.mem_filter.mp included).1,
-              frame.2.2.2.1,
-              frame.2.2.2.2.1.mono (state.removeGroup_rootsSubset ref)
-                (fun _ retired => retired.removeGroup ref),
-              frame.2.2.2.2.2.removeGroup ref⟩
-          · exact invariant
+          canonical invariant.2.2.1 member parentProtected).startNewWork _ available⟩
   exact result.2.2.2.2
 
 /-- The complete drain retains roots and structural retirement at its actual final budget.
@@ -177,10 +165,11 @@ theorem State.drainReadyGroups_uncancelledRetirement {queue : State}
           GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (live : queue.LiveGroupsRegistered) (tasks : queue.TaskGroupsRegistered)
     (roots : queue.RootAncestorsRetired work)
-    : queue.drainReadyGroups.1.RootAncestorsRetired work
-      ∧ queue.drainReadyGroups.1.UncancelledRetiredAncestors work :=
+    (available : List (Occurrence × Nat) := [])
+    : (queue.drainReadyGroups available).1.RootAncestorsRetired work
+      ∧ (queue.drainReadyGroups available).1.UncancelledRetiredAncestors work :=
   State.drainReadyGroups_go_uncancelledRetirement prior generated matching links canonical
-    live tasks roots queue.groupNodes.length
+    live tasks roots queue.groupNodes.length available
 
 /-- The single-pass contributor fold retains structural retirement closure.
 Witness: root certificates justify each successful removal; later decrements preserve

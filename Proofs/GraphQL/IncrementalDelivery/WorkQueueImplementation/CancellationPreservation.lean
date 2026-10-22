@@ -1,4 +1,5 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.CancellationRegistration
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.GroupPublication
 
 /-! Cancellation history across integration, activation, and successful retirement. -/
 
@@ -107,7 +108,7 @@ theorem State.CancelledGroupsSupported.maybeIntegrateWork {queue work failed}
   exact supported.addGroups newWork.groups matching ref member
 
 -----------------------------------------------------------------------------------------
--- Successful retirement and activation do not record cancellations
+-- Successful retirement preserves history; startup may append cancellation markers
 -----------------------------------------------------------------------------------------
 
 /-- Empty-shell pruning preserves cancellation history exactly.
@@ -130,44 +131,156 @@ theorem State.pruneEmptyGroups_cancelledGroups (queue : State)
             · split <;> exact ih _ _ _
   exact loop _ queue groups []
 
-/-- Task activation cannot add a group cancellation.
-Witness: its lookup branches only install task nodes. -/
-private theorem State.startTask_cancelledGroups (queue : State) (occurrence : Occurrence)
-    : (queue.startTask occurrence).cancelledGroups = queue.cancelledGroups := by
+/-- Exposing task caches leaves the cancellation history unchanged. -/
+theorem State.cacheTaskFailures_cancelledGroups (queue : State)
+    (available : List (Occurrence × Nat))
+    : (queue.cacheTaskFailures available).cancelledGroups = queue.cancelledGroups := by
+  have frame := congrArg State.cancelledGroups (queue.cacheTaskFailures_frame available)
+  exact frame
+
+/-- Startup retains all prior cancellation markers, even when cached failure adds more. -/
+theorem State.startGroup_cancelledGroups_prefix (queue : State) (ref : NodeRef)
+    (available : List (Occurrence × Nat))
+    : queue.cancelledGroups.IsPrefix
+        (queue.startGroup ref available).1.cancelledGroups := by
+  have tasks (more : List Occurrence) (current : State)
+      : (more.foldl (fun current task => current.startTask task available)
+          current).cancelledGroups = current.cancelledGroups := by
+    induction more generalizing current with
+    | nil => rfl
+    | cons task rest ih =>
+        simp only [List.foldl_cons, ih]
+        unfold State.startTask
+        split
+        · rfl
+        · split <;> rfl
+  unfold State.startGroup
+  dsimp only
+  split
+  · rw [State.cacheTaskFailures_cancelledGroups]
+    exact List.prefix_refl _
+  · split
+    · rw [tasks, State.cacheTaskFailures_cancelledGroups]
+      exact List.prefix_refl _
+    · simp only [State.finishGroupFailure, State.removeGroup,
+        State.cacheTaskFailures_cancelledGroups]
+      exact List.prefix_append _ _
+
+/-- Released-work activation preserves the order of every existing cancellation marker. -/
+theorem State.startNewWork_cancelledGroups_prefix (queue : State) (work : NewWork)
+    (available : List (Occurrence × Nat) := [])
+    : queue.cancelledGroups.IsPrefix
+        (queue.startNewWork work available).1.cancelledGroups := by
+  have streams (refs : NodeRefs) (current : State)
+      : (refs.foldl State.startStream current).cancelledGroups = current.cancelledGroups := by
+    induction refs generalizing current with
+    | nil => rfl
+    | cons ref rest ih =>
+        simp only [List.foldl_cons, ih]
+        unfold State.startStream
+        split <;> rfl
+  have groups (refs : NodeRefs) (current : State) (failures : List GroupFailureEvent)
+      : current.cancelledGroups.IsPrefix (refs.foldl
+          (fun (current, failures) ref =>
+            let (next, queued) := current.startGroup ref available
+            (next, failures ++ queued)) (current, failures)).1.cancelledGroups := by
+    induction refs generalizing current failures with
+    | nil => exact List.prefix_refl _
+    | cons ref rest ih =>
+        simp only [List.foldl_cons]
+        exact (current.startGroup_cancelledGroups_prefix ref available).trans (ih _ _)
+  unfold State.startNewWork
+  simp only [streams]
+  exact groups (work.newGroups.map Execution.DeliveryNode.ref)
+    {
+      queue with
+        rootGroups := queue.rootGroups ++ work.newGroups.map Execution.DeliveryNode.ref
+    } []
+
+/-- Startup never removes a previously recorded cancellation. -/
+theorem State.startNewWork_cancelledGroups_subset (queue : State) (work : NewWork)
+    (available : List (Occurrence × Nat) := [])
+    : queue.cancelledGroups.Subset
+        (queue.startNewWork work available).1.cancelledGroups :=
+  (queue.startNewWork_cancelledGroups_prefix work available).subset
+
+private theorem startTask_unrejected (queue : State) (task : Occurrence)
+    (unrejected : ∀ node ∈ queue.taskNodes, node.rejection = none)
+    : (queue.startTask task).cancelledGroups = queue.cancelledGroups
+      ∧ ∀ node ∈ (queue.startTask task).taskNodes, node.rejection = none := by
   unfold State.startTask
   split
-  · rfl
-  · split <;> rfl
+  · exact ⟨rfl, unrejected⟩
+  · split
+    · exact ⟨rfl, unrejected⟩
+    · refine ⟨rfl, ?_⟩
+      intro node member
+      rcases List.mem_append.mp member with old | added
+      · exact unrejected node old
+      · cases List.mem_singleton.mp added
+        rfl
 
-/-- Group activation only starts its existing tasks and records no cancellation.
-Witness: task-start preservation across the group's membership fold. -/
-private theorem State.startGroup_cancelledGroups (queue : State) (ref : NodeRef)
-    : (queue.startGroup ref).cancelledGroups = queue.cancelledGroups := by
-  unfold State.startGroup
-  split
-  · rfl
-  · exact fold_preserves
-      (fun current : State => current.cancelledGroups = queue.cancelledGroups)
-      State.startTask (fun current task prior =>
-        (current.startTask_cancelledGroups task).trans prior) _ queue rfl
-
-/-- Announcing and starting released work leaves cancellation refs unchanged.
-Witness: both activation folds only change roots and task-start bookkeeping. -/
-theorem State.startNewWork_cancelledGroups (queue : State) (work : NewWork)
-    : (queue.startNewWork work).cancelledGroups = queue.cancelledGroups := by
-  let current : State :=
-    { queue with rootGroups := queue.rootGroups ++ work.newGroups.map Execution.DeliveryNode.ref }
-  have grouped := fold_preserves
-    (fun current : State => current.cancelledGroups = queue.cancelledGroups)
-    State.startGroup (fun current group prior =>
-      (current.startGroup_cancelledGroups group).trans prior)
-    (work.newGroups.map Execution.DeliveryNode.ref) current rfl
-  apply fold_preserves
-    (fun current : State => current.cancelledGroups = queue.cancelledGroups)
-    State.startStream ?_ _ _ grouped
-  intro current stream prior
-  unfold State.startStream
-  split <;> exact prior
+/-- Without an available or retained rejection, activation records no cancellation. -/
+theorem State.startNewWork_cancelledGroups_of_no_cached_failures (queue : State)
+    (work : NewWork) (unrejected : ∀ node ∈ queue.taskNodes, node.rejection = none)
+    : (queue.startNewWork work).1.cancelledGroups = queue.cancelledGroups := by
+  have startGroup (current : State) (ref : NodeRef)
+      (clean : ∀ node ∈ current.taskNodes, node.rejection = none)
+      : (current.startGroup ref).1.cancelledGroups = current.cancelledGroups
+        ∧ ∀ node ∈ (current.startGroup ref).1.taskNodes, node.rejection = none := by
+    have tasks (more : List Occurrence) (current : State)
+        (clean : ∀ node ∈ current.taskNodes, node.rejection = none)
+        : (more.foldl (fun current task => current.startTask task) current).cancelledGroups
+            = current.cancelledGroups
+          ∧ ∀ node ∈ (more.foldl (fun current task => current.startTask task) current).taskNodes,
+              node.rejection = none := by
+      induction more generalizing current with
+      | nil => exact ⟨rfl, clean⟩
+      | cons task rest ih =>
+          have next := startTask_unrejected current task clean
+          have later := ih _ next.2
+          exact ⟨later.1.trans next.1, later.2⟩
+    cases found : current.groupNode? ref with
+    | none =>
+        simpa only [State.startGroup, State.cacheTaskFailures, List.foldl_nil, found]
+          using And.intro (Eq.refl current.cancelledGroups) clean
+    | some group =>
+        have errors : group.tasks.filterMap
+            (fun task => (current.taskNode? task).bind (·.rejection)) = [] := by
+          apply List.filterMap_eq_nil_iff.mpr
+          intro task member
+          cases known : current.taskNode? task with
+          | none => rfl
+          | some node =>
+              simp only [Option.bind_some]
+              exact clean node (List.mem_of_find?_eq_some known)
+        simpa only [State.startGroup, State.cacheTaskFailures, List.foldl_nil, found,
+          errors, List.isEmpty_nil, ite_true]
+          using tasks group.tasks current clean
+  have groups (refs : NodeRefs) (current : State) (failures : List GroupFailureEvent)
+      (clean : ∀ node ∈ current.taskNodes, node.rejection = none)
+      : (refs.foldl
+          (fun (current, failures) ref =>
+            let (next, queued) := current.startGroup ref
+            (next, failures ++ queued)) (current, failures)).1.cancelledGroups
+          = current.cancelledGroups := by
+    induction refs generalizing current failures with
+    | nil => rfl
+    | cons ref rest ih =>
+        simp only [List.foldl_cons]
+        have next := startGroup current ref clean
+        exact (ih _ _ next.2).trans next.1
+  have streams (refs : NodeRefs) (current : State)
+      : (refs.foldl State.startStream current).cancelledGroups = current.cancelledGroups := by
+    induction refs generalizing current with
+    | nil => rfl
+    | cons ref rest ih =>
+        simp only [List.foldl_cons, ih]
+        unfold State.startStream
+        split <;> rfl
+  unfold State.startNewWork
+  simp only [streams]
+  exact groups _ _ [] unrejected
 
 /-- Successful group closure preserves every earlier cancellation ref and adds none.
 Witness: flushing task memberships, removing the successful shell, and child pruning
@@ -208,15 +321,73 @@ theorem State.finishGroupSuccess_cancelledGroups (queue : State) (group : GroupN
 -- Queue initialization supplies the base case without source assumptions
 -----------------------------------------------------------------------------------------
 
+private theorem integration_unrejected (queue : State) (work : Work)
+    (unrejected : ∀ node ∈ queue.taskNodes, node.rejection = none)
+    : ∀ node ∈ (queue.maybeIntegrateWork work).1.taskNodes, node.rejection = none := by
+  have groupNodes (current : State) (group : Group)
+      : (current.addGroup group).taskNodes = current.taskNodes := by
+    unfold State.addGroup
+    split
+    · rfl
+    · split
+      · rfl
+      · split
+        · split <;> rfl
+        · rfl
+  have grouped : (queue.addGroups work.groups).1.taskNodes = queue.taskNodes :=
+    State.addGroups_projection State.taskNodes groupNodes queue work.groups
+  have projected {α : Type} (step : State → α → State)
+      (same : ∀ current item, (step current item).taskNodes = current.taskNodes)
+      (items : List α) (current : State)
+      : (items.foldl step current).taskNodes = current.taskNodes := by
+    induction items generalizing current with
+    | nil => rfl
+    | cons item rest ih => exact (ih _).trans (same current item)
+  have addTask (current : State) (task : Task)
+      (clean : ∀ node ∈ current.taskNodes, node.rejection = none)
+      : ∀ node ∈ (current.addTask task).taskNodes, node.rejection = none := by
+    let step (current : State) (group : Execution.DeliveryNode) :=
+      match current.groupNode? group.ref with
+      | none => current
+      | some node => if node.tasks.contains task.occurrence then current
+          else current.putGroupNode
+            { node with tasks := node.tasks ++ [task.occurrence], pending := node.pending + 1 }
+    have same (current : State) (group : Execution.DeliveryNode)
+        : (step current group).taskNodes = current.taskNodes := by
+      dsimp only [step]
+      split
+      · rfl
+      · split <;> rfl
+    have core := projected step same task.groups { current with tasks := current.tasks ++ [task] }
+    intro node member
+    unfold State.addTask at member
+    dsimp only at member
+    split at member
+    ·
+      rcases List.mem_append.mp member with old | added
+      · exact clean node (core ▸ old)
+      · cases List.mem_singleton.mp added
+        rfl
+    · exact clean node (core ▸ member)
+  have cleanGroups : ∀ node ∈ (queue.addGroups work.groups).1.taskNodes, node.rejection = none := by
+    simpa only [grouped] using unrejected
+  exact fold_preserves
+    (fun current : State => ∀ node ∈ current.taskNodes, node.rejection = none)
+    State.addTask addTask work.tasks (queue.addGroups work.groups).1 cleanGroups
+
 /-- No initial work chunk starts with a group marked cancelled.
 Witness: empty-history registration followed only by pruning and activation. -/
 theorem createWorkQueue_cancelledGroups_empty (work : Work)
     : (State.initialize work).cancelledGroups = [] := by
   let integrated := ({} : State).maybeIntegrateWork work
   let pruned := integrated.1.pruneEmptyGroups integrated.2.newGroups
-  change (pruned.1.startNewWork { integrated.2 with newGroups := pruned.2 }).cancelledGroups = []
-  rw [State.startNewWork_cancelledGroups, State.pruneEmptyGroups_cancelledGroups,
-    State.maybeIntegrateWork_cancelledGroups, State.addGroups_cancelledGroups_empty rfl]
+  have clean : ∀ node ∈ pruned.1.taskNodes, node.rejection = none := by
+    simpa only [pruned, integrated, State.pruneEmptyGroups_taskNodes]
+      using integration_unrejected ({} : State) work (by simp)
+  change (pruned.1.startNewWork { integrated.2 with newGroups := pruned.2 }).1.cancelledGroups = []
+  rw [State.startNewWork_cancelledGroups_of_no_cached_failures _ _ clean,
+    State.pruneEmptyGroups_cancelledGroups, State.maybeIntegrateWork_cancelledGroups,
+    State.addGroups_cancelledGroups_empty rfl]
 
 /-- Initial cancellation provenance is unconditional, even for raw work chunks.
 Witness: the cancellation history is empty; no host-source or output premise is used. -/

@@ -43,82 +43,62 @@ theorem GeneratedPendingBufferLossCut_holds : GeneratedPendingBufferLossCut := b
   intro found stored pending changed owner contributes group viewLive
   let before := ((State.initialize work).runNormalized inputs).1.queue
   let snapshot := registrationSnapshot before event
-  let events := (before.handleGraphEvent event).2
+  let eager := eagerRegistrationSnapshot before event
+  let events := (before.handleGraphEvent event).2.1
   obtain ⟨_, priorStarted, _⟩ := generatedReplay_beforeNext generated valid started
-  have frame := GeneratedSnapshotTaskEvidence_holds work inputs event generated valid priorStarted
+  have projection := generatedSnapshot_projection generated valid priorStarted
+  have frame := generatedEagerSnapshot_taskEvidence generated valid priorStarted
   obtain ⟨parents, forest, _⟩ := generatedSnapshot_removalForest generated valid priorStarted
-  have dispatch := generatedReplay_dispatchProjection generated valid started
-  change SnapshotTaskEvidence snapshot work at frame
+  change SnapshotTaskEvidence eager work at frame
   change snapshot.RemovalForest parents at forest
   change snapshot.taskNode? occurrence = some node at found
-  obtain ⟨task, catalogue, sameGroups⟩ := generatedSnapshot_taskCatalogue generated valid priorStarted found
+  have eagerFound : eager.taskNode? occurrence = some node := projection.lookup _ _ found
+  have groups := congrArg ReferenceWorkQueue.State.groupNodes projection.core
+  change snapshot.groupNodes = eager.groupNodes at groups
+  have registry := congrArg ReferenceWorkQueue.State.registeredGroups projection.core
+  change snapshot.registeredGroups = eager.registeredGroups at registry
+  have eagerForest : eager.RemovalForest parents :=
+    forest.of_subset (by rw [← groups]; exact List.Subset.refl _)
+  have eagerEdges : eager.GroupEdgesFrom snapshot := by
+    intro key candidate lookup
+    exact ⟨candidate, by simpa only [ReferenceWorkQueue.State.groupNode?, groups] using lookup, rfl⟩
+  have eagerClosures : ReferenceWorkQueue.GroupClosureAccounting snapshot (eager, []) :=
+    .silent
+      (fun _ retired => by
+        simpa only [ReferenceWorkQueue.State.RetiredGroup, groups, registry]
+          using retired)
+  obtain ⟨task, catalogue, sameGroups⟩ :=
+    generatedSnapshot_taskCatalogue generated valid priorStarted found
   have unpublished : ∀ key ∈ node.task.groups.map DeliveryNode.ref,
       key ∉ publicationRoots events := by
     intro key member
     obtain ⟨contributor, listed, same⟩ := List.mem_map.mp member
     exact same ▸ pruningPending_unpublished catalogue pending (sameGroups.symm ▸ listed)
-  have present : owner.ref ∈ snapshot.groupNodes.map (fun group => group.group.node.ref) :=
-    viewOwner_present viewLive
+  have present : owner.ref ∈ eager.groupNodes.map (fun group => group.group.node.ref) := by
+    rw [← groups]
+    exact viewOwner_present viewLive
   cases event with
   | taskSuccess incoming result =>
       cases inputFound : before.taskNode? incoming with
       | none =>
           have unchanged : snapshot = before := by simp [snapshot, registrationSnapshot, inputFound]
           have next : (before.handleGraphEvent (.taskSuccess incoming result)).1 = before := by
-            simp [ReferenceWorkQueue.State.handleGraphEvent, ReferenceWorkQueue.State.taskSuccess, inputFound]
+            simp [ReferenceWorkQueue.State.handleGraphEvent,
+              ReferenceWorkQueue.State.cacheTaskFailures,
+              ReferenceWorkQueue.State.taskSuccess, inputFound]
           rw [unchanged] at found
           exact False.elim (changed (by rw [next]; exact found))
-      | some incomingNode =>
-          let native : State := { queue := before }
-          let nativeStored : State :=
-            { native with queue := native.queue.putTaskNode { incomingNode with value := some result.value } }
-          let registered := nativeStored.maybeIntegrateWork result.work (some incoming)
-          let folded := incomingNode.task.groups.foldl ReferenceWorkQueue.successGroupStep
-            (snapshot, [], {})
-          let starting : State := { registered.1 with queue := folded.1 }
-          let initial := (starting.startNewWork folded.2.2 registered.2).1.queue
-          have prepared : snapshot = registered.1.queue := by
-            simp only [snapshot, registrationSnapshot, inputFound]
-            rfl
+      | some input =>
+          let folded := input.task.groups.foldl ReferenceWorkQueue.successGroupStep (eager, [], {})
+          let startup := folded.1.startNewWork folded.2.2
+          let drained := startup.1.drainReadyGroups
           have handler : before.handleGraphEvent (.taskSuccess incoming result)
-              = (initial.drainReadyGroups.1, folded.2.1 ++ initial.drainReadyGroups.2) := by
-            let active := starting.startNewWork folded.2.2 registered.2
-            have raw : before = (ReferenceWorkQueue.State.initialize
-                (ReferenceWorkQueue.Work.fromExecution work)).replayGraphEvents inputs.flatten :=
-              (generatedReplay_beforeNext generated valid started).1
-            have accepted := (generatedReplay_beforeNext generated valid started).2.2
-            have sourceFound : ReferenceWorkQueue.State.taskNode?
-                ((ReferenceWorkQueue.State.initialize
-                  (ReferenceWorkQueue.Work.fromExecution work)).replayGraphEvents inputs.flatten)
-                incoming = some incomingNode := by rw [← raw]; exact inputFound
-            have phase : active.1.queue = referenceTaskSuccessReady before incoming result incomingNode := by
-              have actual : active.1.queue = (taskSuccessReadyPhase native incoming result incomingNode).1.queue := by
-                simp only [taskSuccessReadyPhase]
-                rw [← prepared]
-              rw [actual]
-              change (taskSuccessReadyPhase { queue := before } incoming result incomingNode).1.queue = _
-              rw [raw]
-              exact referencePrefix_taskSuccess_readyProjection generated inputs.flatten
-                incoming result valid accepted incomingNode sourceFound
-            obtain ⟨readyParents, readyFrame, readyForest⟩ := referencePrefix_taskSuccess_drainFrames
-              generated inputs.flatten incoming result valid accepted incomingNode sourceFound
-            rw [← raw] at readyFrame readyForest
-            have actualFrame : active.1.queue.TaskOwnerFrame work := by rw [phase]; exact readyFrame
-            have actualForest : active.1.queue.RemovalForest readyParents := by rw [phase]; exact readyForest
-            have running : active.1.stopped = false :=
-              (State.startNewWork_stopped starting folded.2.2 registered.2 []).trans
-                (nativeStored.maybeIntegrateWork_stopped result.work (some incoming))
-            have drain := active.1.drainReadyGroups_projection running actualFrame actualForest active.2
-            rw [← dispatch]
-            rw [generatedReplay_beforeNextState generated valid started]
-            change ((native.taskSuccess incoming result).1.queue,
-              (native.taskSuccess incoming result).2.1) = _
-            rw [State.taskSuccess_eq native incoming result incomingNode inputFound]
-            dsimp only
-            rw [← prepared]
-            exact congrArg (fun pair => (pair.1, folded.2.1 ++ pair.2)) drain
-          have outputs : events = folded.2.1 ++ initial.drainReadyGroups.2 :=
-            congrArg Prod.snd handler
+              = (drained.1, folded.2.1 ++ drained.2.1, startup.2 ++ drained.2.2) := by
+            simp only [ReferenceWorkQueue.State.handleGraphEvent,
+              ReferenceWorkQueue.State.cacheTaskFailures, List.foldl_nil]
+            rw [ReferenceWorkQueue.State.taskSuccess_eq incoming result input inputFound]
+            simp only [folded, startup, drained, eager, eagerRegistrationSnapshot, inputFound]
+          have outputs : events = folded.2.1 ++ drained.2.1 := congrArg (fun r => r.2.1) handler
           have foldUnpublished : ∀ key ∈ node.task.groups.map DeliveryNode.ref,
               key ∉ publicationRoots folded.2.1 := by
             intro key listed published
@@ -126,89 +106,114 @@ theorem GeneratedPendingBufferLossCut_holds : GeneratedPendingBufferLossCut := b
             rw [outputs, publicationRoots, List.filterMap_append]
             exact List.mem_append_left _ published
           obtain ⟨foldFrame, foldForest, foldEdges, foldClosures⟩ :=
-            successGroupFold_releaseEvidence frame forest incomingNode.task.groups
+            successGroupFold_releaseEvidence frame eagerForest input.task.groups
           obtain ⟨foldFound, foldOwners⟩ := successGroupFold_pendingBuffer_retained frame
-            incomingNode.task.groups found stored foldUnpublished
-          have initialFound : initial.taskNode? occurrence = some node :=
-            State.startNewWork_lookup_existing (state := starting) foldFound _ _
-          have initialPresent : owner.ref ∈ initial.groupNodes.map (fun group => group.group.node.ref) := by
-            rw [State.startNewWork_groupNodes]
-            exact foldOwners _ (List.mem_map.mpr ⟨owner, contributes, rfl⟩) present
-          have initialEdges : initial.GroupEdgesFrom snapshot := by
-            intro key candidate lookup
-            rw [ReferenceWorkQueue.State.groupNode?,
-              State.startNewWork_groupNodes] at lookup
-            exact foldEdges key candidate lookup
-          have initialClosures := foldClosures.post
-            (fun _ retired => retiredGroup_startAlternative (state := starting) retired
-              folded.2.2 registered.2)
-          have drainUnpublished : ∀ key ∈ node.task.groups.map DeliveryNode.ref,
-              key ∉ publicationRoots (folded.2.1 ++ initial.drainReadyGroups.2) := by
-            rwa [← outputs]
-          have tracked := drain_pendingBuffer_ownerCut
-            (foldFrame.startAlternative (state := starting) _ _)
-            (removalForest_startAlternative (state := starting) foldForest _ _)
-            initialEdges initialClosures initial.groupNodes.length initialFound stored
-            drainUnpublished contributes initialPresent
-          rcases tracked with kept | cut
-          · change (before.handleGraphEvent (.taskSuccess incoming result)).1.taskNode? occurrence ≠ some node at changed
-            rw [handler] at changed
-            change initial.drainReadyGroups.1.taskNode? occurrence = some node ∧ _ at kept
-            exact False.elim (changed kept.1)
-          · obtain ⟨root, failed, path⟩ := cut
-            refine ⟨root, ?_, ?_⟩
-            · change root ∈ failureRoots events
-              rw [outputs, failureRoots, List.filterMap_append]
-              exact List.mem_append_right _ failed
-            · change (failurePruningView before (.taskSuccess incoming result)
-                (folded.2.1 ++ initial.drainReadyGroups.2)).LiveDescendant root owner.ref at path
-              rwa [← outputs] at path
+            input.task.groups eagerFound stored foldUnpublished
+          have foldPresent := foldOwners _ (List.mem_map.mpr ⟨owner, contributes, rfl⟩) present
+          have foldLookup : ∃ old, folded.1.groupNode? owner.ref = some old := by
+            obtain ⟨old, member, same⟩ := List.mem_map.mp foldPresent
+            exact ⟨old, same ▸ foldFrame.keys.groupNode?_of_mem member⟩
+          have actualEdges := foldEdges.trans eagerEdges
+          have actualClosures : ReferenceWorkQueue.GroupClosureAccounting snapshot
+              (folded.1, folded.2.1) := by
+            simpa only [List.nil_append] using eagerClosures.append foldClosures
+          rcases ReferenceWorkQueue.State.startNewWork_ownerCut foldForest folded.2.2
+              foldLookup with kept | cut
+          · obtain ⟨keptOwner, ownerLookup⟩ := kept
+            have initialFound : startup.1.taskNode? occurrence = some node :=
+              ReferenceWorkQueue.State.startNewWork_lookup_existing foldFound folded.2.2 []
+                (by intro errors impossible; cases impossible) contributes
+                (List.mem_of_find?_eq_some ownerLookup)
+                (ReferenceWorkQueue.State.groupNode?_ref ownerLookup)
+            have initialPresent : owner.ref ∈ startup.1.groupNodes.map
+                (fun group => group.group.node.ref) :=
+              List.mem_map.mpr ⟨keptOwner, List.mem_of_find?_eq_some ownerLookup,
+                ReferenceWorkQueue.State.groupNode?_ref ownerLookup⟩
+            have initialEdges := (ReferenceWorkQueue.State.startNewWork_groupEdgesFrom
+              folded.1 folded.2.2).trans actualEdges
+            have initialClosures := actualClosures.post
+              (fun _ retired => retired.startNewWork folded.2.2)
+            have drainUnpublished : ∀ key ∈ node.task.groups.map DeliveryNode.ref,
+                key ∉ publicationRoots (folded.2.1 ++ drained.2.1) := by rwa [← outputs]
+            rcases drain_pendingBuffer_ownerCut (foldFrame.startNewWork folded.2.2)
+                (foldForest.startNewWork folded.2.2) initialEdges initialClosures
+                startup.1.groupNodes.length initialFound stored drainUnpublished contributes
+                initialPresent with retained | cut
+            · exact False.elim (changed (by rw [handler]; exact retained.1))
+            · obtain ⟨failure, queued, path⟩ := cut
+              refine ⟨failure.group.ref, ?_, ?_⟩
+              · rw [handler]
+                apply List.mem_append_right
+                rw [List.map_append]
+                exact List.mem_append_right _ (List.mem_map_of_mem queued)
+              · change (failurePruningView before (.taskSuccess incoming result)
+                  events).LiveDescendant failure.group.ref owner.ref
+                rw [outputs]
+                exact path
+          · obtain ⟨failure, queued, path⟩ := cut
+            refine ⟨failure.group.ref, ?_, ?_⟩
+            · rw [handler]
+              apply List.mem_append_right
+              rw [List.map_append]
+              exact List.mem_append_left _ (List.mem_map_of_mem queued)
+            · have transported := startupFailureBoundary_path folded.2.2 foldForest
+                actualEdges actualClosures startup.1.groupNodes.length queued path
+              change (failurePruningView before (.taskSuccess incoming result)
+                events).LiveDescendant failure.group.ref owner.ref
+              rw [outputs]
+              exact transported
   | streamItems stream items =>
       cases active : before.rootStreams.contains stream.ref with
       | false =>
           have unchanged : snapshot = before := by
             simp only [snapshot, registrationSnapshot, active, Bool.false_eq_true, ↓reduceIte]
           have next : (before.handleGraphEvent (.streamItems stream items)).1 = before := by
-            simp only [ReferenceWorkQueue.State.handleGraphEvent, ReferenceWorkQueue.State.streamItems,
-              active, Bool.not_false, ↓reduceIte]
+            simp only [ReferenceWorkQueue.State.handleGraphEvent,
+              ReferenceWorkQueue.State.cacheTaskFailures, List.foldl_nil,
+              ReferenceWorkQueue.State.streamItems, active, Bool.not_false, ↓reduceIte]
           rw [unchanged] at found
           exact False.elim (changed (by rw [next]; exact found))
       | true =>
-          let prepared := items.foldl ReferenceWorkQueue.streamItemStep (before, [], [], [])
-          let notice := WorkQueueEvent.streamValues stream prepared.2.2.2 prepared.2.1 prepared.2.2.1
-          have projection := generatedSnapshot_projection generated valid priorStarted
-          have same : snapshot = prepared.1 :=
-            registrationSnapshot_streamItems before stream items projection active
+          let prepared := items.foldl ReferenceWorkQueue.streamItemStep (before, [], [], [], [])
+          let notice := WorkQueueEvent.streamValues stream prepared.2.2.2.1 prepared.2.1
+            prepared.2.2.1
+          have same : eager = prepared.1 := by
+            simp only [eager, eagerRegistrationSnapshot, active, ↓reduceIte]
+            rfl
           have handler : before.handleGraphEvent (.streamItems stream items)
-              = (snapshot.drainReadyGroups.1, notice :: snapshot.drainReadyGroups.2) := by
+              = (eager.drainReadyGroups.1, notice :: eager.drainReadyGroups.2.1,
+                  prepared.2.2.2.2 ++ eager.drainReadyGroups.2.2) := by
             simp only [ReferenceWorkQueue.State.handleGraphEvent,
-              before.streamItems_eq stream items, active, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
+              ReferenceWorkQueue.State.cacheTaskFailures, List.foldl_nil,
+              before.streamItems_eq stream items, active, Bool.not_true,
+              Bool.false_eq_true, ↓reduceIte]
             rw [← same]
-          have outputs : events = notice :: snapshot.drainReadyGroups.2 := congrArg Prod.snd handler
-          have closures : ReferenceWorkQueue.GroupClosureAccounting snapshot (snapshot, [notice]) := by
-            refine ⟨?_, ?_, fun _ retired => retired, ?_⟩
-            · simp [notice, ReferenceWorkQueue.rawGroupClosureRefs]
-            · simp [notice, ReferenceWorkQueue.rawGroupClosureRefs]
-            · simp [notice, ReferenceWorkQueue.rawGroupClosureRefs]
+          have outputs : events = notice :: eager.drainReadyGroups.2.1 :=
+            congrArg (fun r => r.2.1) handler
+          have closures : ReferenceWorkQueue.GroupClosureAccounting eager (eager, [notice]) := by
+            refine ⟨?_, ?_, fun _ retired => retired, ?_⟩ <;>
+              simp [notice, ReferenceWorkQueue.rawGroupClosureRefs]
+          have actualClosures : ReferenceWorkQueue.GroupClosureAccounting snapshot
+              (eager, [notice]) := by
+            simpa only [List.nil_append] using eagerClosures.append closures
           have drainUnpublished : ∀ key ∈ node.task.groups.map DeliveryNode.ref,
-              key ∉ publicationRoots ([notice] ++ snapshot.drainReadyGroups.2) := by
+              key ∉ publicationRoots ([notice] ++ eager.drainReadyGroups.2.1) := by
             simpa only [List.singleton_append, ← outputs] using unpublished
-          have tracked := drain_pendingBuffer_ownerCut frame forest (.refl snapshot) closures
-            snapshot.groupNodes.length found stored drainUnpublished contributes present
-          rcases tracked with kept | cut
-          · change (before.handleGraphEvent (.streamItems stream items)).1.taskNode? occurrence ≠ some node at changed
-            rw [handler] at changed
-            change snapshot.drainReadyGroups.1.taskNode? occurrence = some node ∧ _ at kept
-            exact False.elim (changed kept.1)
-          · obtain ⟨root, failed, path⟩ := cut
-            refine ⟨root, ?_, ?_⟩
-            · change root ∈ failureRoots events
-              simpa only [outputs, failureRoots, notice, List.filterMap_cons,
-                ReferenceWorkQueue.State.drainReadyGroups] using failed
+          rcases drain_pendingBuffer_ownerCut frame eagerForest eagerEdges actualClosures
+              eager.groupNodes.length eagerFound stored drainUnpublished contributes present with
+              kept | cut
+          · exact False.elim (changed (by rw [handler]; exact kept.1))
+          · obtain ⟨failure, queued, path⟩ := cut
+            refine ⟨failure.group.ref, ?_, ?_⟩
+            · rw [handler]
+              apply List.mem_append_right
+              rw [List.map_append]
+              exact List.mem_append_right _ (List.mem_map_of_mem queued)
             · change (failurePruningView before (.streamItems stream items)
-                ([notice] ++ snapshot.drainReadyGroups.2)).LiveDescendant root owner.ref at path
-              simpa only [List.singleton_append, ← outputs] using path
-  | taskFailure | streamSuccess | streamFailure => cases release
+                events).LiveDescendant failure.group.ref owner.ref
+              rw [outputs]
+              exact path
+  | taskFailure | groupFailure | streamSuccess | streamFailure => cases release
 
 /-- Disappearance is a special case of the exact prepared-record loss construction. -/
 theorem GeneratedPendingBufferFailureCut_holds : GeneratedPendingBufferFailureCut :=
@@ -220,7 +225,8 @@ This supplies the generated cut internally; it is not an additional source law.
 -/
 theorem GeneratedReleaseFailureDisposal_holds : GeneratedReleaseFailureDisposal := by
   intro work inputs event generated valid started release resources
-  have strong := GeneratedStoredReleaseDisposal_holds work inputs event generated valid started release resources
+  have strong := GeneratedStoredReleaseDisposal_holds work inputs event generated valid started
+    release resources
   refine ⟨strong.1, ?_⟩
   intro occurrence node key found stored _owned held dropped
   exact strong.2 occurrence node key found stored held dropped

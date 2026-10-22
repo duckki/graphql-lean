@@ -25,9 +25,10 @@ theorem State.HealthyRegisteredTaskAccounting.childGroup_integrated_root_coverag
     (taskMatching : queue.RegisteredTasksMatch work) (generated : ExecutedWork work)
     (records : queue.GroupNodesMatchWork work)
     (retirement : queue.HealthyRetiredAncestors work failed)
-    (cancelled : queue.CancelledRecordsSupported work failed)
+    (_cancelled : queue.CancelledRecordsSupported work failed)
     (links : queue.ParentLinksComplete parents) (unique : queue.GroupRefsUnique)
     (registered : queue.LiveGroupsRegistered) (tasks : queue.TaskGroupsRegistered)
+    (frame : queue.RegistrationFrame work)
     (closed : queue.ParentRegistryClosed parents)
     (canonical
       : ∀ node dependencies,
@@ -68,17 +69,18 @@ theorem State.HealthyRegisteredTaskAccounting.childGroup_integrated_root_coverag
     have newRecords : ∀ candidate ∈ result.work.groups,
         ∃ ancestors, GroupRecordAt work candidate.node ancestors :=
       fun _ included => matching.taskChildGroups_recordAt included
-    have newCancelled := cancelled.maybeIntegrateWork result.work (some producer.occurrence)
+    have supplied := (frame.children producer producerMember).sourceChild rfl matching
+    have newRetirement := retirement.maybeIntegrateWork result.work
+      (some producer.occurrence) generated registered
       (by
         intro candidate included
         obtain ⟨ancestors, known⟩ := newRecords candidate included
         exact ⟨ancestors, known, by rw [canonical _ _ known]; exact groupCanonical _ included⟩)
-    have newRetirement := retirement.maybeIntegrateWork result.work
-      (some producer.occurrence) newCancelled
+      supplied.parentRefs
     have newRegistry := closed.maybeIntegrateWork registered result.work groupCanonical
-      matching.childParentsCovered (some producer.occurrence)
+      supplied.parents (some producer.occurrence)
     have newRegistered := queue.maybeIntegrateWork_registration registered tasks result.work
-      matching.childTasksCovered (some producer.occurrence)
+      supplied.contributors (some producer.occurrence)
     have newLinks := links.maybeIntegrateWork unique registered closed result.work
       groupCanonical (some producer.occurrence)
     have newMatching := records.maybeIntegrateWork result.work newRecords
@@ -94,6 +96,88 @@ theorem State.HealthyRegisteredTaskAccounting.childGroup_integrated_root_coverag
       exact newLinks.healthy_ancestor_path generated newMatching newRetirement newRegistered.1
         newRegistry canonical (descriptor.symm ▸ childFound)
         (descriptor.symm ▸ groupRecordAt_of_nodeAt childKnown) (descriptor.symm ▸ healthy)
+        ancestor (show TaskHasOwners work producer.occurrence
+          (producer.groups.map Execution.DeliveryNode.ref) from ⟨taskProducer, payload, knownTask⟩)
+        ownerContributes oldPath.target_present
+    exact ⟨root, rootActive, oldPath.trans descendant⟩
+
+/-- Producer-supported coverage also applies to contributors using earlier declarations. -/
+theorem State.HealthyRegisteredTaskAccounting.childContributor_integrated_root_coverage
+    {queue : State} {work : Execution.Work} {parents settled failed}
+    (accounted : queue.HealthyRegisteredTaskAccounting work settled failed)
+    (tracks : queue.HealthyPendingTracks work settled failed)
+    (taskMatching : queue.RegisteredTasksMatch work) (generated : ExecutedWork work)
+    (records : queue.GroupNodesMatchWork work)
+    (retirement : queue.HealthyRetiredAncestors work failed)
+    (_cancelled : queue.CancelledRecordsSupported work failed)
+    (links : queue.ParentLinksComplete parents) (unique : queue.GroupRefsUnique)
+    (registered : queue.LiveGroupsRegistered) (tasks : queue.TaskGroupsRegistered)
+    (frame : queue.RegistrationFrame work)
+    (closed : queue.ParentRegistryClosed parents)
+    (canonical
+      : ∀ node dependencies,
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
+    {producer : Task} (producerMember : producer ∈ queue.tasks)
+    (fresh : producer.occurrence ∉ settled) {result : TaskResult}
+    (matching : (GraphEvent.taskSuccess producer.occurrence result).MatchesWork work)
+    {task : Task} (member : task ∈ result.work.tasks) {ref : NodeRef}
+    (contributes : ref ∈ task.groups.map Execution.DeliveryNode.ref)
+    (healthy : ¬GroupRecordInvalidated work failed ref)
+    (covered
+      : ∀ node ∈ queue.groupNodes,
+          node.group.node.ref ∈ producer.groups.map Execution.DeliveryNode.ref
+          → ¬GroupInvalidated work failed node.group.node.ref
+          → ∃ root ∈ queue.rootGroups, queue.LiveDescendant root node.group.node.ref)
+    : let integrated :=
+        (queue.maybeIntegrateWork result.work (some producer.occurrence)).1
+      (∃ node, integrated.groupNode? ref = some node)
+      → ∃ root ∈ integrated.rootGroups, integrated.LiveDescendant root ref := by
+  intro integrated survives
+  obtain ⟨descriptor, dependencies, childKnown, sameRef, owner, ownerMember, ownerHealthy,
+    ownerContributes, _, _, support⟩ := accounted.childContributor_live_support
+      tracks taskMatching generated producerMember fresh matching member contributes
+      (fun invalid => healthy invalid.toRecordInvalidated)
+  subst ref
+  obtain ⟨root, active, path⟩ := covered owner ownerMember ownerContributes ownerHealthy
+  have oldPath : integrated.LiveDescendant root owner.group.node.ref :=
+    path.maybeIntegrateWork unique result.work (some producer.occurrence)
+  have rootActive : root ∈ integrated.rootGroups := by
+    rwa [State.maybeIntegrateWork_rootGroups]
+  rcases support with same | ancestor
+  · exact ⟨root, rootActive, same ▸ oldPath⟩
+  · have groupCanonical : ∀ candidate ∈ result.work.groups,
+        candidate.parent = (parents candidate.node.ref).head? :=
+      fun _ included => matching.taskChildGroups_parentCanonical canonical included
+    have newRecords : ∀ candidate ∈ result.work.groups,
+        ∃ ancestors, GroupRecordAt work candidate.node ancestors :=
+      fun _ included => matching.taskChildGroups_recordAt included
+    have supplied := (frame.children producer producerMember).sourceChild rfl matching
+    have newRetirement := retirement.maybeIntegrateWork result.work
+      (some producer.occurrence) generated registered
+      (by
+        intro candidate included
+        obtain ⟨ancestors, known⟩ := newRecords candidate included
+        exact ⟨ancestors, known, by rw [canonical _ _ known]; exact groupCanonical _ included⟩)
+      supplied.parentRefs
+    have newRegistry := closed.maybeIntegrateWork registered result.work groupCanonical
+      supplied.parents (some producer.occurrence)
+    have newRegistered := queue.maybeIntegrateWork_registration registered tasks result.work
+      supplied.contributors (some producer.occurrence)
+    have newLinks := links.maybeIntegrateWork unique registered closed result.work
+      groupCanonical (some producer.occurrence)
+    have newMatching := records.maybeIntegrateWork result.work newRecords
+      (some producer.occurrence)
+    obtain ⟨child, childFound⟩ := survives
+    obtain ⟨childDependencies, childRecord⟩ := newMatching child
+      (List.mem_of_find?_eq_some childFound)
+    have sameNode := generated.record_eq_node childRecord childKnown
+      (State.groupNode?_ref childFound)
+    obtain ⟨⟨_, payload, taskProducer, _, knownTask⟩, _⟩ := taskMatching producer producerMember
+    have descendant : integrated.LiveDescendant owner.group.node.ref descriptor.ref := by
+      rw [← sameNode]
+      exact newLinks.healthy_ancestor_path generated newMatching newRetirement newRegistered.1
+        newRegistry canonical (sameNode.symm ▸ childFound)
+        (sameNode.symm ▸ groupRecordAt_of_nodeAt childKnown) (sameNode.symm ▸ healthy)
         ancestor (show TaskHasOwners work producer.occurrence
           (producer.groups.map Execution.DeliveryNode.ref) from ⟨taskProducer, payload, knownTask⟩)
         ownerContributes oldPath.target_present

@@ -1,81 +1,10 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.GroupClosureCoverage
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.DrainNormalForm
 
-/-! Actual mixed success/failure draining preserves coverage of surviving live groups. -/
+/-! Successful draining with cached-failure startup preserves surviving group coverage. -/
 
 namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
-
------------------------------------------------------------------------------------------
--- The existing finite forest survives pruning, closure, and activation
------------------------------------------------------------------------------------------
-
-/-- Restricting the live map preserves its finite removal forest.
-Witness: every remaining child list and live edge already appeared in the old map.
--/
-theorem State.RemovalForest.of_subset {before after : State} {parents}
-    (forest : before.RemovalForest parents)
-    (included : after.groupNodes.Subset before.groupNodes)
-    : after.RemovalForest parents := by
-  exact ⟨fun node member => forest.uniqueChildren node (included member),
-    fun node member => forest.canonical node (included member),
-    fun first second linked => forest.increasing (included first) (included second) linked⟩
-
-/-- Success retains the forest through membership mapping, parent removal, and pruning.
-Witness: the flush forest and the actual ref filters; no acyclicity is assumed anew.
--/
-theorem State.RemovalForest.finishGroupSuccess {queue : State} {parents}
-    (forest : queue.RemovalForest parents) (group : GroupNode)
-    : (queue.finishGroupSuccess group).1.RemovalForest parents := by
-  let flushed := (group.tasks.foldl flushGroupTask (queue, [], [])).1
-  let current : State := { flushed with
-    groupNodes := (flushed.groupNodes.filter
-      (fun node => node.group.node.ref != group.group.node.ref))
-    rootGroups := flushed.rootGroups.filter (· != group.group.node.ref) }
-  let candidates := group.childGroups.filterMap
-    (fun ref => (current.groupNode? ref).map (fun node => node.group.node))
-  have currentForest : current.RemovalForest parents :=
-    (forest.flushGroupTasks group.tasks [] []).1.of_subset
-      (fun _ member => (List.mem_filter.mp member).1)
-  exact currentForest.of_subset (current.pruneEmptyGroups_groupNodes_sublist candidates).subset
-
-/-- Activation preserves the same live forest.
-Witness: the group-node map is unchanged while root lists and started tasks are updated.
--/
-theorem State.RemovalForest.startNewWork {queue : State} {parents}
-    (forest : queue.RemovalForest parents) (released : NewWork)
-    : (queue.startNewWork released).RemovalForest parents := by
-  apply forest.of_subset
-  rw [(queue.startNewWork_groupCore released).1]
-  exact List.Subset.refl _
-
------------------------------------------------------------------------------------------
--- Failure removal retains root coverage for every surviving target
------------------------------------------------------------------------------------------
-
-/-- A failed subtree removal cannot disconnect a surviving root-covered target.
-Witness: traversal coverage removes all descendants together; a surviving target keeps
-its original path and root, and that root survives the exact root-ref filter.
--/
-theorem State.removeGroup_root_coverage {queue : State} {parents target}
-    (forest : queue.RemovalForest parents) (removed : Nat)
-    (covered : ∃ root ∈ queue.rootGroups, queue.LiveDescendant root target)
-    (survives : ∃ node, (queue.removeGroup removed).groupNode? target = some node)
-    : ∃ root ∈ (queue.removeGroup removed).rootGroups,
-        (queue.removeGroup removed).LiveDescendant root target := by
-  obtain ⟨root, member, path⟩ := covered
-  have outside : ¬queue.LiveDescendant removed target := by
-    intro affected
-    obtain ⟨node, found⟩ := survives
-    rw [(State.removeGroup_liveDescendant_absent forest affected).1] at found
-    contradiction
-  have rootOutside : ¬queue.LiveDescendant removed root :=
-    fun reaches => outside (reaches.trans path)
-  have notRemoved : root ∉ State.removeGroup.collect (queue.groupNodes.length + 1)
-      queue [removed] [] := fun included => rootOutside
-        (State.removeGroup_collect_mem_iff forest |>.mp included)
-  refine ⟨root, List.mem_filter.mpr ⟨member, ?_⟩, path.removeGroup forest outside⟩
-  simpa using notRemoved
 
 -----------------------------------------------------------------------------------------
 -- Compose the actual recursive mixed drain, retaining exact live paths
@@ -88,52 +17,33 @@ No event-admission, settled-value, or host-progress premise is needed.
 -/
 theorem State.drainReadyGroups_root_coverage {queue : State} {parents}
     (unique : queue.GroupRefsUnique) (forest : queue.RemovalForest parents)
+    (available : List (Occurrence × Nat) := [])
     : ∀ target,
         (∃ root ∈ queue.rootGroups, queue.LiveDescendant root target)
-        → (∃ node, queue.drainReadyGroups.1.groupNode? target = some node)
-        → ∃ root ∈ queue.drainReadyGroups.1.rootGroups,
-            queue.drainReadyGroups.1.LiveDescendant root target := by
+        → (∃ node, (queue.drainReadyGroups available).1.groupNode? target = some node)
+        → ∃ root ∈ (queue.drainReadyGroups available).1.rootGroups,
+            (queue.drainReadyGroups available).1.LiveDescendant root target := by
   let property (current : State) := current.GroupRefsUnique ∧ current.RemovalForest parents
     ∧ ∀ target,
       (∃ root ∈ queue.rootGroups, queue.LiveDescendant root target)
       → (∃ node, current.groupNode? target = some node)
       → ∃ root ∈ current.rootGroups, current.LiveDescendant root target
   have result :=
-    State.drainReadyGroups_preserves property
-      (fun current node prior member _ _ _ => by
+    State.drainReadyGroups_preserves property (available := available)
+      (fun current node prior member _ _ => by
         let released := current.finishGroupSuccess node
-        refine ⟨(prior.1.finishGroupSuccess node).startNewWork _,
-          (prior.2.1.finishGroupSuccess node).startNewWork _, ?_⟩
+        refine ⟨(prior.1.finishGroupSuccess node).startNewWork _ available,
+          (prior.2.1.finishGroupSuccess node).startNewWork _ available, ?_⟩
         intro target covered survives
-        have retained : ∃ child, released.1.groupNode? target = some child := by
-          simpa only [State.groupNode?, (State.startNewWork_groupCore _ _).1]
-            using survives
+        have retained : ∃ child, released.1.groupNode? target = some child :=
+          State.groupNode?_exists_before_subset
+            (released.1.startNewWork_groupNodes_sublist released.2.2 available).subset survives
         obtain ⟨child, found⟩ := retained
         obtain ⟨old, oldFound, _⟩ :=
           (current.finishGroupSuccess_descendants node).1 _ _ found
         exact State.finishGroupSuccess_root_coverage prior.2.1
           (prior.1.groupNode?_of_mem member) (prior.2.2 target covered ⟨old, oldFound⟩)
-          ⟨child, found⟩)
-      (fun current _ occurrence errors prior _ _ _ => by
-        cases found : current.taskNode? occurrence with
-        | none => simpa only [State.taskFailure, found] using prior
-        | some task =>
-            rw [current.taskFailure_eq occurrence errors task found]
-            apply failureGroupFold_preserves property
-            · intro state ref frame
-              refine ⟨frame.1.removeGroup ref, frame.2.1.removeGroup ref, ?_⟩
-              intro target covered survives
-              obtain ⟨child, found⟩ := survives
-              have edges := state.filterRefs_groupEdgesFrom (fun key =>
-                !(State.removeGroup.collect (state.groupNodes.length + 1) state [ref] []).contains key)
-              obtain ⟨old, oldFound, _⟩ := edges _ _ found
-              exact State.removeGroup_root_coverage frame.2.1 ref
-                (frame.2.2 target covered ⟨old, oldFound⟩) ⟨child, found⟩
-            · refine ⟨prior.1, ⟨prior.2.1.uniqueChildren, prior.2.1.canonical,
-                prior.2.1.increasing⟩, ?_⟩
-              intro target covered survives
-              obtain ⟨root, member, path⟩ := prior.2.2 target covered survives
-              exact ⟨root, member, State.LiveDescendant.of_groupNodes_eq (queue := current) rfl path⟩)
+          available survives)
       (show property queue from ⟨unique, forest, fun _ covered _ => covered⟩)
   exact result.2.2
 
@@ -143,13 +53,15 @@ This is concrete endpoint coverage, not yet accounting for never-integrated spec
 -/
 theorem State.drainReadyGroups_no_stranded_group {queue : State} {parents target}
     (unique : queue.GroupRefsUnique) (forest : queue.RemovalForest parents)
-    (empty : queue.drainReadyGroups.1.rootGroups = [])
+    (available : List (Occurrence × Nat) := [])
+    (empty : (queue.drainReadyGroups available).1.rootGroups = [])
     (covered : ∃ root ∈ queue.rootGroups, queue.LiveDescendant root target)
-    : queue.drainReadyGroups.1.groupNode? target = none := by
-  cases found : queue.drainReadyGroups.1.groupNode? target with
+    : (queue.drainReadyGroups available).1.groupNode? target = none := by
+  cases found : (queue.drainReadyGroups available).1.groupNode? target with
   | none => rfl
   | some node =>
-      obtain ⟨root, member, _⟩ := State.drainReadyGroups_root_coverage unique forest target
+      obtain ⟨root, member, _⟩ :=
+        State.drainReadyGroups_root_coverage unique forest available target
         covered ⟨node, found⟩
       rw [empty] at member
       cases member

@@ -151,7 +151,8 @@ theorem publicationSupport_of_publicationAdmission {work w}
     (events := w.events.take index) (failures := w.failures) (Nat.le_refl _)
   cases event with
   | groupValues node values =>
-      obtain ⟨owners, producer, ⟨path, data, errors, deliveryGroups⟩, _, known, ready, owner⟩ := allowed
+      obtain ⟨owners, producer, ⟨path, data, errors, deliveryGroups⟩, _, known, ready, owner⟩ :=
+        allowed
       obtain ⟨supporter, available⟩ := owner.2.1
       refine ⟨owners, producer, .object path (.ok (data, errors)), supporter.ref,
         ?_, rfl, available.1.2.1, ?_, ready.2.2.1⟩
@@ -195,7 +196,7 @@ direct cut inversion excludes cancellation without assuming producer publication
 publication support. Equal-index predecessors remain in their original order.
 -/
 theorem uncancelledFailures_of_cutSafety {work w}
-    (inventory : CompleteFailureInventory work w.events w.failures)
+    (inventory : CausalFailureInventory work w.events w.failures)
     (owners : FailureCutOwnerHealth work w) (producers : FailureCutProducerSafety work w)
     : UncancelledFailures work w := by
   intro before cut occurrence after split

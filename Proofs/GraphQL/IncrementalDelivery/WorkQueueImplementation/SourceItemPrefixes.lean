@@ -1,5 +1,6 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.SourceOutputBlocks
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.StreamPublication
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.InitialStartupReplay
 
 /-! Source-handler prefixes retain the exact item count needed by occurrence matching. -/
 
@@ -27,64 +28,138 @@ normalization and atomic expansion preserve its item projection.
 -/
 theorem State.sourceOutputBlocks_itemValues (queue : State)
     (publisher : IncrementalPublisher) (received : List GraphEvent)
-    (accepted : queue.acceptsBatch received = true)
-    : ∀ block ∈ (queue.sourceOutputBlocks publisher received).2.2,
+    {available : List (Occurrence × Nat)}
+    (accepted : State.eventsStarted available queue received = true)
+    : ∀ block ∈ (queue.sourceOutputBlocks publisher received available).2.2,
         block.2.flatMap normalizedItemValues
         = (block.1.toList.flatMap GraphEvent.itemPublications).map Prod.snd := by
   induction received generalizing queue publisher with
   | nil => intro block impossible; cases impossible
   | cons event rest ih =>
       have both : queue.acceptsGraphEvent event = true ∧
-          (queue.handleGraphEvent event).1.acceptsBatch rest = true := by
-        simpa only [State.acceptsBatch, Bool.and_eq_true] using accepted
+          State.eventsStarted available (queue.dispatchGraphEvent event available).1 rest
+            = true := by
+        simpa only [State.eventsStarted, Bool.and_eq_true] using accepted
       intro block member
       rcases List.mem_cons.mp member with same | later
       · subst block
         dsimp only
+        simp only [State.dispatchGraphEvent]
         rw [publicationAtoms_list_itemValues, publisher.normalizeBatch_itemValues,
-          queue.handleGraphEvent_itemValues event both.1]
+          queue.handleGraphEvent_itemValues event both.1 available]
         simp
       · exact ih _ _ both.2 block later
+
+/-- Buffered block exactness requires executable item callbacks only. Task callbacks may
+retire while their source labels and empty item projections remain in the block history.
+-/
+theorem State.sourceOutputBlocks_itemValues_of_eachItemAccepted (queue : State)
+    (publisher : IncrementalPublisher) (received : List GraphEvent)
+    (available : List (Occurrence × Nat))
+    (accepted
+      : ∀ fifo stream items,
+          (fifo ++ [GraphEvent.streamItems stream items]).IsPrefix received
+          → (queue.replayGraphEvents fifo available).acceptsGraphEvent
+              (.streamItems stream items)
+            = true)
+    : ∀ block ∈ (queue.sourceOutputBlocks publisher received available).2.2,
+        block.2.flatMap normalizedItemValues
+        = (block.1.toList.flatMap GraphEvent.itemPublications).map Prod.snd := by
+  induction received generalizing queue publisher with
+  | nil => intro block impossible; cases impossible
+  | cons event rest ih =>
+      have next : ∀ fifo stream items,
+          (fifo ++ [GraphEvent.streamItems stream items]).IsPrefix rest
+          → ((queue.dispatchGraphEvent event available).1.replayGraphEvents
+              fifo available).acceptsGraphEvent (.streamItems stream items) = true := by
+        intro fifo stream items earlier
+        apply accepted (event :: fifo) stream items
+        obtain ⟨tail, same⟩ := earlier
+        exact ⟨tail, by simp [← same]⟩
+      intro block member
+      rcases List.mem_cons.mp member with same | later
+      · subst block
+        dsimp only
+        simp only [State.dispatchGraphEvent]
+        rw [publicationAtoms_list_itemValues, publisher.normalizeBatch_itemValues,
+          queue.handleGraphEvent_itemValues_of_itemsStarted event (by
+            intro stream items same
+            subst event
+            exact accepted [] stream items ⟨rest, rfl⟩) available]
+        simp
+      · exact ih _ _ next block later
 
 /-- A started batch retains exact item projections for its handler and terminal blocks.
 Witness: accepted handlers use the preceding theorem; a terminal block carries no items.
 -/
-theorem State.sourceBatchBlocks_itemValues (queue : State)
+theorem State.sourceBatchBlocks_startup_itemValues (queue : State)
     (publisher : IncrementalPublisher) (received : List GraphEvent)
+    {work : Execution.Work} {before : List GraphEvent}
+    (valid : ValidGraphEvents work (before ++ received))
     (accepted : queue.acceptsBatch received = true)
     : ∀ block ∈ (queue.sourceBatchBlocks publisher received).2.2,
         block.2.flatMap normalizedItemValues
         = (block.1.toList.flatMap GraphEvent.itemPublications).map Prod.snd := by
+  have immediate := queue.sourceOutputBlocks_itemValues_of_eachItemAccepted publisher received
+    (GraphEvent.availableFailures received) (fun _ _ _ earlier =>
+      State.acceptsBatch_streamItems_live valid accepted earlier)
   intro block member
   simp only [State.sourceBatchBlocks] at member
   split at member
   · cases member
   · split at member
-    · rcases List.mem_append.mp member with handler | terminal
-      · exact queue.sourceOutputBlocks_itemValues publisher received accepted block handler
-      · have same := List.mem_singleton.mp terminal
-        subst block
+    · rcases List.mem_append.mp member with preceding | terminal
+      · exact immediate block preceding
+      · obtain rfl := List.mem_singleton.mp terminal
         rfl
-    · exact queue.sourceOutputBlocks_itemValues publisher received accepted block member
+    · exact immediate block member
+
+/-- The ordinary batch certificate uses the same queued-state runner. -/
+theorem State.sourceBatchBlocks_itemValues (queue : State)
+    (publisher : IncrementalPublisher) (received : List GraphEvent)
+    {work : Execution.Work} {before : List GraphEvent}
+    (valid : ValidGraphEvents work (before ++ received))
+    (accepted : queue.acceptsBatch received = true)
+    : ∀ block ∈ (queue.sourceBatchBlocks publisher received).2.2,
+        block.2.flatMap normalizedItemValues
+        = (block.1.toList.flatMap GraphEvent.itemPublications).map Prod.snd :=
+  queue.sourceBatchBlocks_startup_itemValues publisher received valid accepted
 
 /-- Every block of an accepted multi-batch run retains its source-label item projection.
 Witness: actual batch acceptance and queue-state agreement thread the local certificate.
 -/
-theorem State.sourceRunBlocks_itemValues (queue : State)
+theorem State.sourceRunBlocks_startup_itemValues (queue : State)
     (publisher : IncrementalPublisher) (batches : List (List GraphEvent))
+    {work : Execution.Work} {before : List GraphEvent}
+    (valid : ValidGraphEvents work (before ++ batches.flatten))
     (started : queue.batchesStarted batches = true)
     : ∀ block ∈ (queue.sourceRunBlocks publisher batches).2.2,
         block.2.flatMap normalizedItemValues
         = (block.1.toList.flatMap GraphEvent.itemPublications).map Prod.snd := by
-  induction batches generalizing queue publisher with
+  induction batches generalizing queue publisher before with
   | nil => intro block impossible; cases impossible
   | cons batch rest ih =>
       obtain ⟨_, accepted, laterStarted⟩ := queue.batchesStarted_cons batch rest started
+      have validBatch : ValidGraphEvents work (before ++ batch) :=
+        valid.prefix ⟨rest.flatten, by simp [List.append_assoc]⟩
+      have validRest : ValidGraphEvents work ((before ++ batch) ++ rest.flatten) := by
+        simpa [List.append_assoc] using valid
       intro block member
       rcases List.mem_append.mp member with first | later
-      · exact queue.sourceBatchBlocks_itemValues publisher batch accepted block first
-      · apply ih _ _ ?_ block later
+      · exact queue.sourceBatchBlocks_startup_itemValues publisher batch validBatch accepted block first
+      · apply ih _ _ validRest ?_ block later
         rwa [(queue.sourceBatchBlocks_agrees publisher batch).1]
+
+/-- The ordinary run certificate uses the same queued-state runner. -/
+theorem State.sourceRunBlocks_itemValues (queue : State)
+    (publisher : IncrementalPublisher) (batches : List (List GraphEvent))
+    {work : Execution.Work} {before : List GraphEvent}
+    (valid : ValidGraphEvents work (before ++ batches.flatten))
+    (started : queue.batchesStarted batches = true)
+    : ∀ block ∈ (queue.sourceRunBlocks publisher batches).2.2,
+        block.2.flatMap normalizedItemValues
+        = (block.1.toList.flatMap GraphEvent.itemPublications).map Prod.snd :=
+  queue.sourceRunBlocks_startup_itemValues publisher batches valid started
 
 -----------------------------------------------------------------------------------------
 -- Earlier handler items fit strictly before every atom of the current handler

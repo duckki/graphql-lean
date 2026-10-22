@@ -40,7 +40,7 @@ theorem ExecutedWork.rawEventReplay_announcedAncestorsRetired
       apply matching
       rw [same]
       exact List.mem_append_left _ included
-    have protectedRef := generated.replayGraphEvents_next_noticeAncestorsRetired prior matched
+    have protectedRef := generated.replayGraphEvents_next_noticeAncestorsRetired prior matched []
       ref (List.mem_flatMap.mpr ⟨output, List.mem_of_getElem? carrier, noticed⟩)
     have later := protectedRef.mono (fun _ retired => retired.replayGraphEvents after)
     simpa only [same, State.replayGraphEvents, List.foldl_append, List.foldl_cons,

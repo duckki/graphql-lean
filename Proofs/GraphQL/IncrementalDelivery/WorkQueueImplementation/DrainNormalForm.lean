@@ -120,25 +120,23 @@ theorem State.finishGroupSuccess_length_lt {queue : State} {group : GroupNode}
 -- The supplied live-node budget is sufficient for complete draining
 -----------------------------------------------------------------------------------------
 
-/-- After draining, every active group lookup is healthy and still waiting for settlements.
-Witness: induction on the actual drain budget; every selected closure strictly decreases
-the live-node count. Missing/stale root entries cannot consume the budget.
-This is an executable normal-form fact, not host fairness or eventual source completion.
+/-- After draining, every remaining active group still has a nonzero pending count.
+Witness: each selected successful closure strictly decreases the live-node count, and
+startup only removes further records. Cached rejections are handled by task notifications
+and startup cleanup; the successful drain does not itself consume those notifications.
 -/
-theorem State.drainReadyGroups_normalForm (queue : State)
-    {work : Execution.Work}
-    (sound : queue.GroupMembershipSound) (registered : queue.StartedTasksRegistered)
-    (matching : queue.RegisteredTasksMatch work)
-    : ∀ ref ∈ queue.drainReadyGroups.1.rootGroups,
+theorem State.drainReadyGroups_normalForm (queue : State) {work : Execution.Work}
+    (_sound : queue.GroupMembershipSound) (_registered : queue.StartedTasksRegistered)
+    (_matching : queue.RegisteredTasksMatch work)
+    (available : List (Occurrence × Nat) := [])
+    : ∀ ref ∈ (queue.drainReadyGroups available).1.rootGroups,
         ∀ node,
-          queue.drainReadyGroups.1.groupNode? ref = some node
-          → queue.drainReadyGroups.1.rejectedTask? node = none ∧ node.pending ≠ 0 := by
+          (queue.drainReadyGroups available).1.groupNode? ref = some node
+          → node.pending ≠ 0 := by
   have loop (fuel : Nat) (current : State) (enough : current.groupNodes.length ≤ fuel)
-      (sound : current.GroupMembershipSound)
-      (registered : current.StartedTasksRegistered) (matching : current.RegisteredTasksMatch work)
-      : ∀ ref ∈ (State.drainReadyGroups.go fuel current).1.rootGroups, ∀ node,
-          (State.drainReadyGroups.go fuel current).1.groupNode? ref = some node
-          → (State.drainReadyGroups.go fuel current).1.rejectedTask? node = none ∧ node.pending ≠ 0 := by
+      : ∀ ref ∈ (State.drainReadyGroups.go available fuel current).1.rootGroups, ∀ node,
+          (State.drainReadyGroups.go available fuel current).1.groupNode? ref = some node
+          → node.pending ≠ 0 := by
     induction fuel generalizing current with
     | zero =>
         intro ref active node found
@@ -151,39 +149,24 @@ theorem State.drainReadyGroups_normalForm (queue : State)
         · rename_i noneReady
           intro ref active node found
           have notReady := List.findSome?_eq_none_iff.mp noneReady ref active
-          simp [found] at notReady
-          exact notReady
+          simpa [found] using notReady
         · rename_i node selected
           obtain ⟨ref, active, choice⟩ := List.exists_of_findSome?_eq_some selected
           cases found : current.groupNode? ref with
           | none => simp [found] at choice
           | some candidate =>
               simp only [found] at choice
-              change (if (current.rejectedTask? candidate).isSome || candidate.pending == 0 then
-                some candidate else none) = some node at choice
+              change (if candidate.pending == 0 then some candidate else none) = some node at choice
               split at choice
-              · have equal := Option.some.inj choice
-                subst candidate
-                have member := List.mem_of_find?_eq_some found
-                cases failure : current.rejectedTask? node with
-                | none =>
-                    apply ih
-                    · rw [(State.startNewWork_groupCore _ _).1]
-                      have decrease := State.finishGroupSuccess_length_lt member
-                      omega
-                    · exact (sound.finishGroupSuccess node).startNewWork _
-                    · exact (registered.finishGroupSuccess node).startNewWork _
-                    · exact (matching.finishGroupSuccess node).startNewWork _
-                | some rejected =>
-                    obtain ⟨occurrence, errors⟩ := rejected
-                    apply ih
-                    · have decrease := State.taskFailure_rejected_length_lt sound
-                        registered matching member (State.groupNode?_ref found ▸ active) failure
-                      simpa only using (show (current.taskFailure occurrence errors).1.groupNodes.length ≤ fuel by omega)
-                    · exact sound.taskFailure occurrence errors
-                    · exact registered.taskFailure occurrence errors
-                    · exact matching.taskFailure occurrence errors
+              · cases Option.some.inj choice
+                apply ih
+                have decrease := State.finishGroupSuccess_length_lt
+                  (List.mem_of_find?_eq_some found)
+                have retained :=
+                  ((current.finishGroupSuccess node).1.startNewWork_groupNodes_sublist
+                    (current.finishGroupSuccess node).2.2 available).length_le
+                exact Nat.le_trans retained (by omega)
               · contradiction
-  exact loop _ queue (Nat.le_refl _) sound registered matching
+  exact loop _ queue (Nat.le_refl _)
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

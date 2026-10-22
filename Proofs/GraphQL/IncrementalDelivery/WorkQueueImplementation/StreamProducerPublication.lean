@@ -21,7 +21,7 @@ theorem ExecutedWork.streamItems_ancestorProducer_beforeValue
     (generated : ExecutedWork work)
     (valid : ValidGraphEvents work (before ++ [.streamItems stream items]))
     (started
-      : (State.initialize (Work.fromExecution work)).acceptsBatch
+      : State.eventsStarted [] (State.initialize (Work.fromExecution work))
           (before ++ [.streamItems stream items])
         = true)
     (covered
@@ -30,7 +30,7 @@ theorem ExecutedWork.streamItems_ancestorProducer_beforeValue
     (selected
       : (((State.initialize (Work.fromExecution work)).replayGraphEvents
             before).streamItems
-          stream items).2[position]?
+          stream items).2.1[position]?
         = some (.groupValues group values))
     (known
       : TaskAt work (.executionGroup address) owners
@@ -48,7 +48,7 @@ theorem ExecutedWork.streamItems_ancestorProducer_beforeValue
                 WorkQueueEvent.objectValues).length
               + (((((State.initialize (Work.fromExecution work)).replayGraphEvents
                       before).streamItems
-                    stream items).2.take
+                    stream items).2.1.take
                     position).flatMap
                   WorkQueueEvent.objectValues).length) := by
   let initial := State.initialize (Work.fromExecution work)
@@ -57,7 +57,7 @@ theorem ExecutedWork.streamItems_ancestorProducer_beforeValue
   obtain ⟨groups, streams, next⟩ := (queue.handleGraphEvent_publicationPairs
     (.streamItems stream items)).next selected
   have carrier : Execution.WorkQueueEvent.groupSuccess group groups streams
-      ∈ (queue.handleGraphEvent (.streamItems stream items)).2 :=
+      ∈ (queue.handleGraphEvent (.streamItems stream items)).2.1 :=
     List.mem_of_getElem? next
   obtain ⟨parentResult, succeeded, emitted | buffered⟩ :=
     generated.successfulCarrier_ancestorProducer_published_or_buffered valid started covered
@@ -65,7 +65,7 @@ theorem ExecutedWork.streamItems_ancestorProducer_beforeValue
   · exact ⟨parentResult.value, List.take_subset_take_left _ (Nat.le_add_right ..) emitted⟩
   · obtain ⟨node, lookup, stored, taskOwners, nodeContributes, present⟩ := buffered
     obtain ⟨active, index, atDrain, prefixEq, finalEq⟩ :=
-      queue.streamItems_value_boundary stream items selected
+      queue.streamItems_value_boundary stream items [] selected
     have sourceMatched := valid.eachMatches (List.mem_append_right before List.mem_cons_self)
     obtain ⟨parents, canonical, matching, links, live, tasks, roots, closed⟩ :=
       generated.replayGraphEvents_streamPreparedRetirement before
@@ -73,26 +73,28 @@ theorem ExecutedWork.streamItems_ancestorProducer_beforeValue
         sourceMatched
     obtain ⟨_, _, _, healthy, _⟩ :=
       generated.replayGraphEvents_successfulCarrier_retiredHealthy valid
-        (State.acceptsBatch_prefix started) carrier
+        (State.eventsStarted_prefix started) carrier
     have ancestorHealthy : ¬GroupRecordInvalidated work
         (initial.objectFailureContributions (before ++ [.streamItems stream items])) ref :=
       fun invalid => healthy (.ancestor record ancestor invalid)
     have notCancelled :=
       (generated.replayGraphEvents_cancelledRecordsSupported _ valid).healthy_not_mem
         ancestorHealthy
-    have finalState : initial.replayGraphEvents (before ++ [.streamItems stream items])
-        = (queue.preparedStreamItems items).drainReadyGroups.1 := by
+    have finalCancelled :
+        (initial.replayGraphEvents (before ++ [.streamItems stream items])).cancelledGroups
+          = (queue.preparedStreamItems items).drainReadyGroups.1.cancelledGroups := by
       rw [State.replayGraphEvents_append]
-      exact finalEq
-    rw [finalState] at notCancelled
+      change (queue.streamItems stream items).1.cancelledGroups = _
+      exact congrArg State.cancelledGroups finalEq
+    rw [finalCancelled] at notCancelled
     have prefixes := covered.atPrefixDrainOwners before (.streamItems stream items) []
-    have delivered := State.drainReadyGroups_go_ancestorValue_before generated matching links
+    have delivered := State.drainReadyGroups_go_ancestorValue_before [] generated matching links
       canonical live tasks roots closed (prefixes active) atDrain record ancestor lookup
       stored taskOwners nodeContributes present notCancelled
     refine ⟨parentResult.value, ?_⟩
     change (Occurrence.executionGroup source, parentResult.value)
       ∈ published.take (offset +
-        (((queue.streamItems stream items).2.take position).flatMap
+        (((queue.streamItems stream items).2.1.take position).flatMap
           WorkQueueEvent.objectValues).length)
     rw [prefixEq, List.take_add]
     apply List.mem_append_right

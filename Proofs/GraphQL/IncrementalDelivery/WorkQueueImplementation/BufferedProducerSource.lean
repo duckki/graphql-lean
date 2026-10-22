@@ -29,7 +29,7 @@ theorem ValidGraphEvents.objectSuccess_input {work events address}
       obtain ⟨owners, producer, known, _⟩ := matching item selected
       rw [identity] at known
       obtain ⟨_, _, _, _, _, _, _, _, impossible⟩ := known
-  | taskFailure | streamSuccess | streamFailure => cases included
+  | taskFailure | groupFailure | streamSuccess | streamFailure => cases included
 
 /-- Every object producer settles strictly before the handler releasing its child.
 Witness: successful-carrier accounting derives the child's source settlement. If it was
@@ -41,13 +41,14 @@ theorem ExecutedWork.successfulCarrier_objectProducer_before
     (generated : ExecutedWork work)
     (valid : ValidGraphEvents work (before ++ [event]))
     (started
-      : (State.initialize (Work.fromExecution work)).acceptsBatch (before ++ [event])
+      : State.eventsStarted [] (State.initialize (Work.fromExecution work))
+          (before ++ [event])
         = true)
     (carrier
       : Execution.WorkQueueEvent.groupSuccess group groups streams
         ∈ (((State.initialize (Work.fromExecution work)).replayGraphEvents
               before).handleGraphEvent
-            event).2)
+            event).2.1)
     (known
       : TaskAt work (.executionGroup address) owners
           (some (.executionGroup source)) payload)
@@ -87,7 +88,8 @@ theorem ExecutedWork.successfulCarrier_ancestorProducer_published_or_buffered
     (generated : ExecutedWork work)
     (valid : ValidGraphEvents work (before ++ [event]))
     (started
-      : (State.initialize (Work.fromExecution work)).acceptsBatch (before ++ [event])
+      : State.eventsStarted [] (State.initialize (Work.fromExecution work))
+          (before ++ [event])
         = true)
     (covered
       : (State.initialize (Work.fromExecution work)).ReplayClosuresCovered
@@ -96,7 +98,7 @@ theorem ExecutedWork.successfulCarrier_ancestorProducer_published_or_buffered
       : Execution.WorkQueueEvent.groupSuccess group groups streams
         ∈ (((State.initialize (Work.fromExecution work)).replayGraphEvents
               before).handleGraphEvent
-            event).2)
+            event).2.1)
     (known
       : TaskAt work (.executionGroup address) owners
           (some (.executionGroup source)) payload)
@@ -127,7 +129,7 @@ theorem ExecutedWork.successfulCarrier_ancestorProducer_published_or_buffered
                       (fun owner => owner.group.node.ref)) := by
   obtain ⟨result, succeeded⟩ := generated.successfulCarrier_objectProducer_before
     valid started carrier known contributes
-  have accepted := State.acceptsBatch_prefix started
+  have accepted := State.eventsStarted_prefix started
   have prior := valid.prefix (List.prefix_append before [event])
   obtain ⟨_, _, _, healthy, _⟩ :=
     generated.replayGraphEvents_successfulCarrier_retiredHealthy valid accepted carrier

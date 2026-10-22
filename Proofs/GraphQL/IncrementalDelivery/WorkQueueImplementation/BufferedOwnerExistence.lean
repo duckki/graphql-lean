@@ -115,7 +115,8 @@ private theorem State.BufferedOwnersPresent.prune {queue : State}
 
 private theorem State.BufferedOwnersPresent.startTask {queue : State}
     (owners : queue.BufferedOwnersPresent) (occurrence : Occurrence)
-    : (queue.startTask occurrence).BufferedOwnersPresent := by
+    (available : List (Occurrence × Nat))
+    : (queue.startTask occurrence available).BufferedOwnersPresent := by
   unfold State.startTask
   split
   · exact owners
@@ -127,27 +128,58 @@ private theorem State.BufferedOwnersPresent.startTask {queue : State}
       · obtain rfl := List.mem_singleton.mp new
         cases stored
 
+private theorem State.BufferedOwnersPresent.removeGroup (queue : State) (key : Nat)
+    : (queue.removeGroup key).BufferedOwnersPresent := by
+  intro node member _stored
+  have live := (List.mem_filter.mp member).2
+  obtain ⟨group, contributes, present⟩ := List.any_eq_true.mp live
+  obtain ⟨owner, retained, same⟩ := List.any_eq_true.mp present
+  exact ⟨group.ref, List.mem_map_of_mem contributes,
+    List.mem_map.mpr ⟨owner, retained, beq_iff_eq.mp same⟩⟩
+
+/-- Cached rejection exposure preserves every buffered task's live owner metadata. -/
+theorem State.BufferedOwnersPresent.cacheTaskFailures {queue : State}
+    (owners : queue.BufferedOwnersPresent) (available : List (Occurrence × Nat))
+    : (queue.cacheTaskFailures available).BufferedOwnersPresent := by
+  induction available generalizing queue with
+  | nil => exact owners
+  | cons entry rest ih =>
+      simp only [State.cacheTaskFailures, List.foldl_cons]
+      split
+      · exact ih owners
+      · rename_i node found
+        exact ih (owners.putTaskNode _ (owners node (List.mem_of_find?_eq_some found)))
+
 private theorem State.BufferedOwnersPresent.startGroup {queue : State}
     (owners : queue.BufferedOwnersPresent) (key : Nat)
-    : (queue.startGroup key).BufferedOwnersPresent := by
+    (available : List (Occurrence × Nat))
+    : (queue.startGroup key available).1.BufferedOwnersPresent := by
+  have tasks (more : List Occurrence) (current : State) (prior : current.BufferedOwnersPresent)
+      : (more.foldl (fun current task => current.startTask task available)
+          current).BufferedOwnersPresent := by
+    induction more generalizing current with
+    | nil => exact prior
+    | cons task rest ih => exact ih _ (prior.startTask task available)
   unfold State.startGroup
+  dsimp only
   split
-  · exact owners
-  · have loop (tasks : List Occurrence) (current : State) (prior : current.BufferedOwnersPresent)
-        : (tasks.foldl State.startTask current).BufferedOwnersPresent := by
-      induction tasks generalizing current with
-      | nil => exact prior
-      | cons task rest ih => exact ih _ (prior.startTask task)
-    exact loop _ _ owners
+  · exact owners.cacheTaskFailures available
+  · split
+    · exact tasks _ _ (owners.cacheTaskFailures available)
+    · exact State.BufferedOwnersPresent.removeGroup _ _
 
 private theorem State.BufferedOwnersPresent.start {queue : State}
     (owners : queue.BufferedOwnersPresent) (released : NewWork)
-    : (queue.startNewWork released).BufferedOwnersPresent := by
-  have groups (keys : NodeRefs) (current : State) (prior : current.BufferedOwnersPresent)
-      : (keys.foldl State.startGroup current).BufferedOwnersPresent := by
-    induction keys generalizing current with
+    (available : List (Occurrence × Nat))
+    : (queue.startNewWork released available).1.BufferedOwnersPresent := by
+  have groups (keys : NodeRefs) (acc : State × List GroupFailureEvent)
+      (prior : acc.1.BufferedOwnersPresent)
+      : (keys.foldl (fun (current, failures) ref =>
+          let (next, queued) := current.startGroup ref available
+          (next, failures ++ queued)) acc).1.BufferedOwnersPresent := by
+    induction keys generalizing acc with
     | nil => exact prior
-    | cons key rest ih => exact ih _ (prior.startGroup key)
+    | cons key rest ih => exact ih _ (prior.startGroup key available)
   have streams (keys : NodeRefs) (current : State) (prior : current.BufferedOwnersPresent)
       : (keys.foldl State.startStream current).BufferedOwnersPresent := by
     induction keys generalizing current with
@@ -158,39 +190,27 @@ private theorem State.BufferedOwnersPresent.start {queue : State}
         split <;> exact prior
   exact streams _ _ (groups _ _ owners)
 
-private theorem State.BufferedOwnersPresent.removeGroup (queue : State) (key : Nat)
-    : (queue.removeGroup key).BufferedOwnersPresent := by
-  intro node member _stored
-  have live := (List.mem_filter.mp member).2
-  obtain ⟨group, contributes, present⟩ := List.any_eq_true.mp live
-  obtain ⟨owner, retained, same⟩ := List.any_eq_true.mp present
-  exact ⟨group.ref, List.mem_map_of_mem contributes,
-    List.mem_map.mpr ⟨owner, retained, beq_iff_eq.mp same⟩⟩
-
 theorem State.BufferedOwnersPresent.prepareItems {queue : State}
     {work settled stream items} (owners : queue.BufferedOwnersPresent)
     (links : queue.StoredTaskLinks) (accounted : queue.PendingAccounting work settled)
     (matching : (GraphEvent.streamItems stream items).MatchesWork work)
-    : (queue.preparedStreamItems items).BufferedOwnersPresent
-      ∧ (queue.preparedStreamItems items).StoredTaskLinks := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.preparedStreamItems items available).BufferedOwnersPresent
+      ∧ (queue.preparedStreamItems items available).StoredTaskLinks := by
   let property (current : State) := current.BufferedOwnersPresent ∧ current.StoredTaskLinks
-    ∧ current.GroupRefsUnique ∧ current.LiveGroupsRegistered ∧ current.TaskGroupsRegistered
-    ∧ current.StartedTasksRegistered
+    ∧ current.GroupRefsUnique ∧ current.RegistrationFrame work
   have step (current : State) (item : StreamItem) (member : item ∈ items)
-      (prior : property current) : property (current.integrateStreamItem item) := by
+      (prior : property current) : property (current.integrateStreamItem item available) := by
+    have context := prior.2.2.2
     have prepared := prior.1.integrate item.work
-    have preparedLinks := prior.2.1.maybeIntegrateWork prior.2.2.1 prior.2.2.2.2.1
-      prior.2.2.2.2.2 item.work
-    have registration := current.integrateStreamItem_registration prior.2.2.2.1
-      prior.2.2.2.2.1 matching member
-    exact ⟨(prepared.prune preparedLinks _).start _,
-      (preparedLinks.pruneEmptyGroups _).startNewWork _,
-      ((prior.2.2.1.maybeIntegrateWork item.work).pruneEmptyGroups _).startNewWork _,
-      registration.1, registration.2.1,
-      ((prior.2.2.2.2.2.maybeIntegrateWork item.work).pruneEmptyGroups _).startNewWork _⟩
-  have initial : property queue := ⟨owners, links, accounted.refs, accounted.liveGroups,
-    accounted.taskGroups, accounted.started⟩
-  have prepared := State.preparedStreamItems_preserves property initial items step
+    have preparedLinks := prior.2.1.maybeIntegrateWork prior.2.2.1 context.tasks context.started
+      item.work
+    exact ⟨(prepared.prune preparedLinks _).start _ available,
+      (preparedLinks.pruneEmptyGroups _).startNewWork _ available,
+      ((prior.2.2.1.maybeIntegrateWork item.work).pruneEmptyGroups _).startNewWork _ available,
+      (context.integrateStreamItem matching member available).1⟩
+  have initial : property queue := ⟨owners, links, accounted.refs, accounted.registration⟩
+  have prepared := State.preparedStreamItems_preserves property initial items available step
   exact ⟨prepared.1, prepared.2.1⟩
 
 /-- Live owners of every started task also cover the subset with buffered values. -/

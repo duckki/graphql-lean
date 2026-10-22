@@ -1,75 +1,25 @@
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.ReportCutAnnouncements
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.TaskAnnouncementReplay
-import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.FailureSettlementPrefixes
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.SourceHandlerBoundaries
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.FailureInventory
 
-/-! Previously announced contributing owners at the actual ordered settlement cuts. -/
+/-! Previously announced contributing owners at actual source reporting cuts. -/
 
 namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.Execution (WorkQueueEvent)
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
------------------------------------------------------------------------------------------
--- Exact group-notice transport through handler annotations and atomic expansion
------------------------------------------------------------------------------------------
-
-/-- Each annotated block preserves its source handler's group notices from queue `queue`.
-Optional terminal labels have no handler and no group notices. This is derived proof
-evidence about actual output, not a restriction on the scheduler or event source.
--/
-private def SourceBlockNotices : State → List SourceOutputBlock → Prop
-  | _, [] => True
-  | queue, block :: rest =>
-      (queue.rawEventReplay block.1.toList).2.flatMap rawGroupNoticeRefs
-        = block.2.flatMap groupNoticeRefs
-      ∧ SourceBlockNotices (queue.replayGraphEvents block.1.toList) rest
-
-/-- Notice preservation composes at the exact received source prefix.
-Witness: recurse through the original labels, including silent and terminal blocks.
--/
-private theorem SourceBlockNotices.append {queue left right}
-    (first : SourceBlockNotices queue left)
-    (last : SourceBlockNotices (queue.replayGraphEvents (left.filterMap Prod.fst)) right)
-    : SourceBlockNotices queue (left ++ right) := by
-  induction left generalizing queue with
-  | nil => exact last
-  | cons block rest ih =>
-      refine ⟨first.1, ih first.2 ?_⟩
-      cases source : block.1 <;>
-        simpa [source, State.replayGraphEvents] using last
-
-/-- Every annotation prefix inherits its blocks' notice-preservation certificate.
-Witness: take the head equation and recurse through the same pre-handler states.
--/
-private theorem SourceBlockNotices.prefix {queue before after}
-    (known : SourceBlockNotices queue (before ++ after))
-    : SourceBlockNotices queue before := by
-  induction before generalizing queue with
-  | nil => trivial
-  | cons block rest ih => exact ⟨known.1, ih known.2⟩
-
-/-- Blockwise agreement identifies the entire raw and atomic group-notice histories.
-Witness: source replay and output concatenation follow the same original block order.
--/
-private theorem SourceBlockNotices.notices {queue blocks}
-    (known : SourceBlockNotices queue blocks)
-    : (queue.rawEventReplay (blocks.filterMap Prod.fst)).2.flatMap rawGroupNoticeRefs
-      = (blocks.flatMap Prod.snd).flatMap groupNoticeRefs := by
-  induction blocks generalizing queue with
+/-- Atomizing nonempty carrier values retains all group notice refs in their order. -/
+theorem publicationAtoms_flatMap_groupNotices (events : List WorkQueueEvent)
+    (nonempty : ∀ event ∈ events, NonemptyValues event)
+    : (events.flatMap publicationAtoms).flatMap groupNoticeRefs
+      = events.flatMap groupNoticeRefs := by
+  induction events with
   | nil => rfl
-  | cons block rest ih =>
-      cases source : block.1 with
-      | none =>
-          have empty : block.2.flatMap groupNoticeRefs = [] := by
-            simpa [source, State.rawEventReplay] using known.1.symm
-          simpa [source, List.flatMap_append, empty, State.replayGraphEvents]
-            using ih known.2
-      | some event =>
-          have head : (queue.handleGraphEvent event).2.flatMap rawGroupNoticeRefs
-              = block.2.flatMap groupNoticeRefs := by
-            simpa [source, State.rawEventReplay, rawEventStep] using known.1
-          simpa [source, State.rawEventReplay_cons, List.flatMap_append, head,
-            State.replayGraphEvents]
-            using congrArg ((block.2.flatMap groupNoticeRefs) ++ ·) (ih known.2)
+  | cons event rest ih =>
+      simp only [List.flatMap_cons, List.flatMap_append,
+        publicationAtoms_groupNotices event (nonempty event List.mem_cons_self),
+        ih (fun next member => nonempty next (List.mem_cons_of_mem _ member))]
 
 /-- Normalizing and atomizing legal raw output preserves its exact group notices.
 Witness: publisher notice copying and the nonempty payload atomization equations.
@@ -95,81 +45,10 @@ theorem atomicGroupNotices (publisher : IncrementalPublisher)
       exact expand _ (publisher.normalizeBatch_nonemptyValues events nonempty).2
     _ = _ := publisher.normalizeBatch_groupNotices events
 
-/-- Actual handler annotations preserve notices even across silent source inputs.
-Witness: legal item shapes give nonempty payloads; each publisher segment copies notices.
--/
-private theorem State.sourceOutputBlocks_groupNotices (queue : State)
-    (publisher : IncrementalPublisher) (events : List GraphEvent)
-    (nonempty : ∀ event ∈ events, event.NonemptyItems)
-    : SourceBlockNotices queue (queue.sourceOutputBlocks publisher events).2.2 := by
-  induction events generalizing queue publisher with
-  | nil => trivial
-  | cons event rest ih =>
-      refine ⟨
-        ?_,
-        ih _ _ (fun next member => nonempty next (List.mem_cons_of_mem _ member))
-      ⟩
-      simpa [State.rawEventReplay, rawEventStep]
-        using (atomicGroupNotices publisher (queue.handleGraphEvent event).2
-                (queue.handleGraphEvent_nonemptyValues event
-                  (nonempty event (by simp)))).symm
-
-/-- Batch termination contributes no group notice and no source settlement label.
-Witness: append an empty-notice certificate to the unchanged handler annotations.
--/
-private theorem State.sourceBatchBlocks_groupNotices (queue : State)
-    (publisher : IncrementalPublisher) (events : List GraphEvent)
-    (nonempty : ∀ event ∈ events, event.NonemptyItems)
-    : SourceBlockNotices queue (queue.sourceBatchBlocks publisher events).2.2 := by
-  have handlers := queue.sourceOutputBlocks_groupNotices publisher events nonempty
-  unfold State.sourceBatchBlocks
-  split
-  · trivial
-  · dsimp only
-    split
-    · exact handlers.append ⟨rfl, trivial⟩
-    · exact handlers
-
-/-- Started multi-batch replay preserves notices at every original handler boundary.
-Witness: batch agreement and start checks keep pre-handler queue states identical;
-the final optional termination block is notice-free.
--/
-private theorem State.sourceRunBlocks_groupNotices (queue : State)
-    (publisher : IncrementalPublisher) (batches : List (List GraphEvent))
-    (nonempty : ∀ event ∈ batches.flatten, event.NonemptyItems)
-    (started : queue.batchesStarted batches = true)
-    : SourceBlockNotices queue (queue.sourceRunBlocks publisher batches).2.2 := by
-  induction batches generalizing queue publisher with
-  | nil => trivial
-  | cons batch rest ih =>
-      obtain ⟨running, _, restStarted⟩ := queue.batchesStarted_cons batch rest started
-      have first := queue.sourceBatchBlocks_groupNotices publisher batch
-        (fun event member => nonempty event (by simp [member]))
-      cases rest with
-      | nil => simpa [State.sourceRunBlocks] using first
-      | cons next rest =>
-          have stillOpen := ((queue.handleGraphEvents batch).1.batchesStarted_cons next rest
-            restStarted).1
-          have unchanged := queue.handleGraphEvents_nonterminalState batch running stillOpen
-          have agreement := (queue.sourceBatchBlocks_agrees publisher batch).1
-          rw [← agreement] at restStarted
-          have later := ih _ (queue.sourceBatchBlocks publisher batch).2.1
-            (fun event member => nonempty event
-              (List.mem_append_right batch member)) restStarted
-          rw [State.sourceRunBlocks]
-          apply first.append
-          rw [queue.sourceBatchBlocks_inputs_of_open publisher batch running,
-            ← unchanged, ← agreement]
-          exact later
-
------------------------------------------------------------------------------------------
--- An accepted object settlement has a previously announced structural contributor
------------------------------------------------------------------------------------------
-
 /-- Group-only notice refs occur in the scheduler's combined group/stream notice list.
 Witness: each carrier appends its stream refs after its group refs.
 -/
-private theorem groupNotices_subset_pending (events : List Execution.WorkQueueEvent)
+theorem groupNotices_subset_pending (events : List Execution.WorkQueueEvent)
     : (events.flatMap groupNoticeRefs).Subset (pendingRefs events) := by
   intro ref member
   obtain ⟨event, emitted, announced⟩ := List.mem_flatMap.mp member
@@ -177,22 +56,20 @@ private theorem groupNotices_subset_pending (events : List Execution.WorkQueueEv
   refine ⟨event, emitted, ?_⟩
   cases event <;> simp_all [groupNoticeRefs, eventPending, List.map_append]
 
-/-- Every actual eligible object-failure cut has a previously announced contributing owner.
-Witness: recover the exact source prefix, use historical task-start ownership, and transport
-raw notices through actual normalization and atomization at that same output boundary.
-This proves the announcement clause only; earlier cancellation remains a separate obligation.
+/-- Every source reporting cut has a contributor announced before that exact output cut.
+Witness: invert its labeled block, retain the actual preceding host batches and current
+snapshot, and recover the task's historical owner. Notice transport uses the same block
+prefix, including silent handlers; no flattened queue-state correspondence is assumed.
 -/
-theorem createWorkQueue_eligibleObjectFailureCuts_announcedOwner {work : Execution.Work}
+theorem createWorkQueue_sourceObjectFailureCuts_announcedOwner {work : Execution.Work}
     {batches : List (List GraphEvent)} (valid : ValidGraphEvents work batches.flatten)
-    (started : inputsStarted work batches = true) {before after : FailureCuts}
-    {cut : Nat} {occurrence : Occurrence}
-    (split
+    (started : inputsStarted work batches = true) {cut : Nat} {occurrence : Occurrence}
+    (member
       : let queue := State.initialize (Work.fromExecution work)
         let publisher : IncrementalPublisher :=
           { active := queue.initialGroups ++ queue.initialStreams }
-        sourceObjectFailureCuts 0
-          (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher batches).2.2)
-        = before ++ (cut, occurrence) :: after)
+        (cut, occurrence)
+        ∈ sourceObjectFailureCuts 0 (queue.sourceRunBlocks publisher batches).2.2)
     : let queue := State.initialize (Work.fromExecution work)
       ∃ owners owner,
         TaskHasOwners work occurrence owners
@@ -206,27 +83,128 @@ theorem createWorkQueue_eligibleObjectFailureCuts_announcedOwner {work : Executi
   let queue := State.initialize (Work.fromExecution work)
   let publisher : IncrementalPublisher :=
     { active := queue.initialGroups ++ queue.initialStreams }
-  obtain ⟨earlier, outputs, errors, later, node, blocksEq, _, outputEq, _,
-    priorValid, _, _, _, found⟩ :=
-    createWorkQueue_eligibleObjectFailureCuts_split valid started split
-  obtain ⟨owners, owner, structural, contributes, announced⟩ :=
-    createWorkQueue_replayGraphEvents_announcedOwner priorValid found
-  have certificate := queue.sourceRunBlocks_groupNotices publisher batches valid.nonemptyItems
-    (by rwa [← inputsStarted_eq_batchesStarted])
-  rw [blocksEq] at certificate
-  have notices := certificate.prefix.notices
-  rw [notices, outputEq] at announced
+  let blocks := (queue.sourceRunBlocks publisher batches).2.2
+  obtain ⟨blockIndex, outputs, errors, atBlock, boundary⟩ :=
+    sourceObjectFailureCuts_blockCut member
+  obtain ⟨earlier, batch, later, localIndex, inputEq, atBatchBlock, beforeBlocks⟩ :=
+    queue.sourceRunBlocks_blockCut publisher batches atBlock
+  let first := queue.sourceRunBlocks publisher earlier
+  let current := first.1
+  let available := GraphEvent.availableFailures batch
+  have inTrace := current.sourceBatchBlocks_labeledPrefix first.2.1 batch atBatchBlock rfl
+  obtain ⟨before, after, batchEq, beforeTrace⟩ :=
+    current.sourceOutputBlocks_labeledCut first.2.1 batch available inTrace.1 rfl
+  have priorPrefix : (earlier.flatten ++ before).IsPrefix batches.flatten := by
+    refine ⟨.taskFailure occurrence errors :: (after ++ later.flatten), ?_⟩
+    simp only [inputEq, List.flatten_append, List.flatten_cons, batchEq]
+    simp only [List.append_assoc, List.cons_append]
+  have beforeValid := valid.prefix priorPrefix
+  have priorValid := beforeValid.prefix (List.prefix_append earlier.flatten before)
+  have stateEq : current = (queue.runNormalized earlier).1 :=
+    (queue.sourceRunBlocks_agrees earlier).1
+  have accepted := inputsStarted_eachAccepted work earlier later batch before
+    (.taskFailure occurrence errors) (inputEq ▸ started) ⟨after, by simp [batchEq]⟩
+  rw [← State.runNormalized_replayBatches] at accepted
+  obtain ⟨seen, seenPrefix, accepted⟩ := accepted
+  have findNode (state : State)
+      (eligible : state.acceptsGraphEvent (.taskFailure occurrence errors) = true)
+      : ∃ node, state.taskNode? occurrence = some node := by
+    cases found : state.taskNode? occurrence with
+    | none => simp only [State.acceptsGraphEvent, found, Option.isSome_none,
+        Bool.false_eq_true] at eligible
+    | some node => exact ⟨node, rfl⟩
+  have ownerEvidence : ∃ owners owner,
+      TaskHasOwners work occurrence owners ∧ owner ∈ owners
+      ∧ owner ∈ queue.initialGroups.map Execution.DeliveryNode.ref
+        ++ (queue.runNormalized earlier).2.flatten.flatMap groupNoticeRefs
+        ++ (((queue.runNormalized earlier).1).rawEventReplay before available).2.flatMap
+          rawGroupNoticeRefs := by
+    obtain ⟨node, found⟩ := findNode _ accepted
+    have seenValid : ValidGraphEvents work (earlier.flatten ++ seen) := beforeValid.prefix (by
+      obtain ⟨remaining, same⟩ := seenPrefix
+      exact ⟨remaining, by simp [← same, List.append_assoc]⟩)
+    obtain ⟨owners, owner, structural, contributes, announced⟩ :=
+      createWorkQueue_batchPrefix_announcedOwner earlier seen seenValid available found
+    refine ⟨owners, owner, structural, contributes, ?_⟩
+    rcases List.mem_append.mp announced with old | recent
+    · exact List.mem_append_left _ old
+    · apply List.mem_append_right
+      obtain ⟨remaining, same⟩ := seenPrefix
+      rw [← same, State.rawEventReplay_append _ _ _ available, List.flatMap_append]
+      exact List.mem_append_left _ recent
+  obtain ⟨owners, owner, structural, contributes, announced⟩ := ownerEvidence
+  let priorAtoms := (queue.runNormalized earlier).2.flatten.flatMap publicationAtoms
+  let immediate := (current.rawEventReplay before available).2
+  let localAtoms := (first.2.1.normalizeBatch immediate).2.flatMap publicationAtoms
+  have prefixEq : ((blocks.take blockIndex).flatMap Prod.snd) = priorAtoms ++ localAtoms := by
+    rw [beforeBlocks, inTrace.2, beforeTrace, List.flatMap_append,
+      (queue.sourceRunBlocks_agrees earlier).2,
+      (current.sourceOutputBlocks_agrees first.2.1 before available).2.2]
+  have outputPrefix : ((blocks.take blockIndex).flatMap Prod.snd).IsPrefix
+      ((queue.runNormalized batches).2.flatten.flatMap publicationAtoms) := by
+    refine ⟨(blocks.drop blockIndex).flatMap Prod.snd, ?_⟩
+    rw [← List.flatMap_append, List.take_append_drop]
+    exact (queue.sourceRunBlocks_agrees batches).2
+  have takeEq : ((queue.runNormalized batches).2.flatten.flatMap publicationAtoms).take cut
+      = (blocks.take blockIndex).flatMap Prod.snd := by
+    obtain ⟨suffix, same⟩ := outputPrefix
+    rw [same.symm]
+    have bound : cut = ((blocks.take blockIndex).flatMap Prod.snd).length := by
+      simpa only [Nat.zero_add] using boundary
+    rw [bound]
+    simp
+  have priorNotices : priorAtoms.flatMap groupNoticeRefs
+      = (queue.runNormalized earlier).2.flatten.flatMap groupNoticeRefs :=
+    publicationAtoms_flatMap_groupNotices _
+      (createWorkQueue_runNormalized_nonemptyValues priorValid).2
+  have localNotices : localAtoms.flatMap groupNoticeRefs
+      = (current.rawEventReplay before available).2.flatMap rawGroupNoticeRefs :=
+    atomicGroupNotices _ _ (current.rawEventReplay_nonemptyValues before
+      (fun event member => beforeValid.nonemptyItems event (List.mem_append_right _ member))
+      available)
+  have seen : owner ∈ queue.initialGroups.map Execution.DeliveryNode.ref
+      ++ (((queue.runNormalized batches).2.flatten.flatMap publicationAtoms).take cut).flatMap
+          groupNoticeRefs := by
+    rw [takeEq, prefixEq, List.flatMap_append, ← List.append_assoc,
+      priorNotices, localNotices, stateEq]
+    exact announced
   refine ⟨owners, owner, structural, contributes, ?_⟩
-  rcases List.mem_append.mp announced with initial | later
+  rcases List.mem_append.mp seen with initial | carried
   · apply List.mem_append_left
     rw [List.map_append]
     exact List.mem_append_left _ initial
-  · exact List.mem_append_right _ (groupNotices_subset_pending _ later)
+  · exact List.mem_append_right _ (groupNotices_subset_pending _ carried)
 
-/-- Actual replay has one complete mixed inventory whose every failure owner was announced.
-Witness: merge the unchanged source-ordered object cuts with actual stream-failure cuts;
-historical task starts justify object owners and stream openness supplies stream owners.
-The same inventory retains all previously proved exact group and stream error totals.
+/-- Every selected availability cut retains an owner announced by that unchanged cut.
+Source settlements use their actual snapshot-aware task history; aggregate causes use
+an already announced failed-group contributor. First-occurrence selection changes neither. -/
+theorem createWorkQueue_availableObjectFailureCuts_announcedOwner {work : Execution.Work}
+    (generated : ExecutedWork work) {batches : List (List GraphEvent)}
+    (valid : ValidGraphEvents work batches.flatten)
+    (started : inputsStarted work batches = true) {entry : Nat × Occurrence}
+    (member
+      : let queue := State.initialize (Work.fromExecution work)
+        let publisher : IncrementalPublisher :=
+          { active := queue.initialGroups ++ queue.initialStreams }
+        entry
+        ∈ availableObjectFailureCuts work 0 (queue.sourceRunBlocks publisher batches).2.2)
+    : let queue := State.initialize (Work.fromExecution work)
+      ∃ owners owner,
+        TaskHasOwners work entry.2 owners
+        ∧ owner ∈ owners
+        ∧ owner
+          ∈ announcedRefs
+              ((queue.initialGroups ++ queue.initialStreams).map
+                Execution.DeliveryNode.ref)
+              (((queue.runNormalized batches).2.flatten.flatMap publicationAtoms).take
+                entry.1) := by
+  rcases availableObjectFailureCuts_origin member with source | report
+  · exact createWorkQueue_sourceObjectFailureCuts_announcedOwner valid started source
+  · exact createWorkQueue_groupReportCandidateCuts_announcedOwner generated valid report
+
+/-- Actual replay has one complete mixed reporting inventory with prior owner notices.
+Witness: unfiltered source availability and actual stream cuts retain aggregate totals;
+historical starts and stream openness supply their prior contributing announcements.
 -/
 theorem createWorkQueue_announcedFailureInventory_exists {work : Execution.Work}
     (generated : ExecutedWork work) {batches : List (List GraphEvent)}
@@ -236,34 +214,28 @@ theorem createWorkQueue_announcedFailureInventory_exists {work : Execution.Work}
       let atoms := (queue.runNormalized batches).2.flatten.flatMap publicationAtoms
       let initial :=
         (queue.initialGroups ++ queue.initialStreams).map Execution.DeliveryNode.ref
-      ∃ failures : FailureCuts,
-        CompleteFailureInventory work atoms failures
-        ∧ ∀ entry ∈ failures,
-            ∃ owners,
-              TaskHasOwners work entry.2 owners
-              ∧ ∃ ref ∈ owners, ref ∈ announcedRefs initial (atoms.take entry.1) := by
-  dsimp only
+      ∃ reported : FailureCuts,
+        CompleteFailureInventory work atoms reported
+        ∧ FailureReportingWitness work initial atoms reported := by
   let queue := State.initialize (Work.fromExecution work)
   let publisher : IncrementalPublisher :=
     { active := queue.initialGroups ++ queue.initialStreams }
-  let objects := sourceObjectFailureCuts 0
-    (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher batches).2.2)
+  let objects := availableObjectFailureCuts work 0 (queue.sourceRunBlocks publisher batches).2.2
   obtain ⟨matching, _, values, _, covered⟩ :=
     createWorkQueue_runNormalized_streamProducerMatching_withItemCoverage generated valid started
   obtain ⟨streams, cuts, _, supported⟩ := createWorkQueue_runNormalized_streamFailureCuts
     generated valid matching (fun index event atEvent value =>
       (values index event atEvent value).1) covered
-  refine ⟨mergeFailureCuts objects streams,
-    createWorkQueue_completeFailureInventory generated valid started cuts
-      (fun entry member => (supported entry member).1), ?_⟩
+  have inventory := createWorkQueue_completeFailureInventory generated valid cuts
+    (fun entry member => (supported entry member).1)
+  refine ⟨mergeFailureCuts objects streams, inventory, inventory.failureReportingWitness ?_⟩
   intro entry member
   rcases List.mem_append.mp ((mergeFailureCuts_partition objects streams).mem_iff.mp member)
       with fromStream | fromObject
   · obtain ⟨ref, owners, opened⟩ := (supported entry fromStream).2.2
     exact ⟨[ref], owners, ref, List.mem_cons_self, opened.1⟩
-  · obtain ⟨before, after, split⟩ := List.mem_iff_append.mp fromObject
-    obtain ⟨owners, ref, structural, contributes, announced⟩ :=
-      createWorkQueue_eligibleObjectFailureCuts_announcedOwner valid started split
+  · obtain ⟨owners, ref, structural, contributes, announced⟩ :=
+      createWorkQueue_availableObjectFailureCuts_announcedOwner generated valid started fromObject
     exact ⟨owners, structural, ref, contributes, announced⟩
 
 /-- A complete, announced mixed inventory needs only earlier-cancellation exclusion.
@@ -273,6 +245,25 @@ the remaining clause still uses the exact ordered earlier-cut list and one match
 theorem CompleteFailureInventory.failureWitness_iff_uncancelled
     {work events failures initial matching}
     (inventory : CompleteFailureInventory work events failures)
+    (announced
+      : ∀ entry ∈ failures,
+          ∃ owners,
+            TaskHasOwners work entry.2 owners
+            ∧ ∃ ref ∈ owners, ref ∈ announcedRefs initial (events.take entry.1))
+    : FailureWitness work initial matching events failures
+      ↔ ∀ before cut occurrence after,
+          failures = before ++ (cut, occurrence) :: after
+          → ¬TaskCancelled work matching (events.take cut) before occurrence := by
+  rw [inventory.failureWitness_iff]
+  exact ⟨And.right, fun uncancelled => ⟨announced, uncancelled⟩⟩
+
+/-- A complete, announced mixed inventory needs only earlier-cancellation exclusion.
+Witness: project the general complete-inventory equivalence after discharging notices;
+the remaining clause still uses the exact ordered earlier-cut list and one matching.
+-/
+theorem CausalFailureInventory.failureWitness_iff_uncancelled
+    {work events failures initial matching}
+    (inventory : CausalFailureInventory work events failures)
     (announced
       : ∀ entry ∈ failures,
           ∃ owners,

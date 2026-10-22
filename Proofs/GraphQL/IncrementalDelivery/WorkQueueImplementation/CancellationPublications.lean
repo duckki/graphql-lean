@@ -36,8 +36,9 @@ theorem ExecutedWork.runNormalized_rejectedFailure_cancelled {work : Execution.W
         = some taskNode)
     (rejected : taskNode.rejection.isSome = true)
     : Causality.TaskCancelled work
-        ((State.initialize (Work.fromExecution work)).objectFailureContributions
-          batches.flatten)
+        ((State.initialize
+            (Work.fromExecution work)).admittedObjectFailureContributionsForBatches
+          batches)
         (Published matching
           (((State.initialize (Work.fromExecution work)).runNormalized
               batches).2.flatten.flatMap
@@ -70,7 +71,7 @@ theorem ExecutedWork.runNormalized_rejectedFailures_matching {work : Execution.W
             → (queue.runNormalized batches).1.taskNode? occurrence = some taskNode
             → taskNode.rejection.isSome = true
             → Causality.TaskCancelled work
-                (queue.objectFailureContributions batches.flatten)
+                (queue.admittedObjectFailureContributionsForBatches batches)
                 (Published matching atoms) occurrence := by
   obtain ⟨matching, batching, publications⟩ :=
     createWorkQueue_runNormalized_publicationMatching valid started

@@ -15,8 +15,10 @@ private def work : Execution.Work :=
 private def first : Occurrence := .item [] 0
 private def second : Occurrence := .item [] 1
 private def matching : PublicationMatching := fun _ => first
-private def single : Witness := ⟨[], matching, [(0, first)]⟩
-private def pair : Witness := ⟨[], matching, [(0, first), (0, second)]⟩
+private def single : Witness := { events := [], matching, failures := [(0, first)] }
+
+private def pair : Witness :=
+  { events := [], matching, failures := [(0, first), (0, second)] }
 
 private theorem first_known
     : TaskAt work first [stream.ref] none (.item stream (.error 1)) :=
@@ -53,11 +55,27 @@ theorem single_announced : AnnouncedFailures work single := by
       cases impossible
     · intro index node errors impossible
       cases impossible
-  · intro entry member
-    have same : entry = (0, first) := List.mem_singleton.mp member
-    subst entry
-    exact ⟨[stream.ref], ⟨none, _, first_known⟩, stream.ref, List.mem_cons_self,
-      by decide⟩
+  · constructor
+    · intro entry member
+      have same : entry = (0, first) := List.mem_singleton.mp member
+      subst entry
+      exact ⟨[stream.ref], ⟨none, _, first_known⟩, stream.ref, List.mem_cons_self,
+        by decide⟩
+    · constructor
+      · intro before cut occurrence after split
+        obtain ⟨rfl, rfl, rfl, rfl⟩ := singleton_split split
+        exact ⟨by simp [single], by simp, by simp, [stream.ref], none,
+          .item stream (.error 1), first_known, rfl, .root ⟨_, _, first_known⟩,
+          stream.ref, List.mem_cons_self, by decide⟩
+      · refine ⟨CausalFailuresAvailable.of_sublist (List.Sublist.refl _), ?_⟩
+        refine ⟨by simp [single], by simp [single], ?_, ?_, ?_⟩
+        · intro entry member
+          have same : entry = (0, first) := List.mem_singleton.mp member
+          subst entry
+          exact ⟨Nat.le_refl _, .root ⟨[stream.ref], _, first_known⟩,
+            [stream.ref], none, _, first_known, rfl⟩
+        · intro index group errors impossible; cases impossible
+        · intro index node errors impossible; cases impossible
 
 /-- No earlier cut threatens the first failing item's owner.
 Witness: singleton-list splitting leaves no predecessor failure, even at cut zero.

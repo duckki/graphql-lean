@@ -1,4 +1,4 @@
-import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.RawCarrierCoverage
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.BatchedCarrierCoverage
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.FlattenedOutputReplay
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.GroupEventHealth
 
@@ -12,54 +12,36 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 -- Batching and owner normalization preserve each successful carrier's strict count
 -----------------------------------------------------------------------------------------
 
-/-- An actual atomic success carrier retains its raw replay position and object count.
-Witness: flatten started batches, exclude the optional terminal suffix, and invert atomic
-expansion and publisher normalization. Neither step changes preceding object-value counts.
--/
+/-- An actual atomic success retains its raw batched position and strict object count.
+Publisher normalization and atomic expansion preserve the preceding object sequence;
+the underlying queue retains every original host-batch cache boundary. -/
 theorem createWorkQueue_runNormalized_groupSuccess_rawPrefix
     {work : Execution.Work} {inputs index group groups streams}
-    (started : inputsStarted work inputs = true)
+    (_started : inputsStarted work inputs = true)
     (selected
       : (((State.initialize (Work.fromExecution work)).runNormalized
             inputs).2.flatten.flatMap
           publicationAtoms)[index]?
         = some (.groupSuccess group groups streams))
     : ∃ position,
-        ((State.initialize (Work.fromExecution work)).rawEventReplay
-            inputs.flatten).2[position]?
+        ((State.initialize (Work.fromExecution work)).rawBatches inputs).2[position]?
           = some (.groupSuccess group groups streams)
         ∧ (((((State.initialize (Work.fromExecution work)).runNormalized
                 inputs).2.flatten.flatMap
               publicationAtoms).take
               index).flatMap
             normalizedObjectValues).length
-          = ((((State.initialize (Work.fromExecution work)).rawEventReplay
-                inputs.flatten).2.take
+          = ((((State.initialize (Work.fromExecution work)).rawBatches inputs).2.take
                 position).flatMap
               WorkQueueEvent.objectValues).length := by
   let queue := State.initialize (Work.fromExecution work)
   let publisher : IncrementalPublisher := { active := queue.initialGroups ++ queue.initialStreams }
-  let atoms := (publisher.normalizeBatch (queue.rawEventReplay inputs.flatten).2).2.flatMap
-    publicationAtoms
-  obtain ⟨terminal, same⟩ := createWorkQueue_runNormalized_flattened inputs started
-  change (queue.runNormalized inputs).2.flatten.flatMap publicationAtoms
-    = atoms ++ (if terminal then [.workQueueTermination] else []) at same
-  rw [same] at selected ⊢
-  have inside : index < atoms.length := by
-    by_cases inside : index < atoms.length
-    · exact inside
-    have later : atoms.length ≤ index := by omega
-    rw [List.getElem?_append_right later] at selected
-    have member := List.mem_of_getElem? selected
-    cases terminal <;> simp at member
-  have atAtoms := (List.getElem?_append_left inside).symm.trans selected
+  rw [createWorkQueue_runNormalized_rawBatches] at selected ⊢
   obtain ⟨normalizedIndex, normalizedEvent, atomCount⟩ :=
-    publicationAtoms_groupSuccess_prefix _ atAtoms
+    publicationAtoms_groupSuccess_prefix _ selected
   obtain ⟨position, rawEvent, rawCount⟩ :=
-    publisher.normalizeBatch_groupSuccess _ normalizedEvent
-  refine ⟨position, rawEvent, ?_⟩
-  rw [List.take_append_of_le_length (Nat.le_of_lt inside)]
-  exact atomCount.trans rawCount
+    publisher.normalizeBatch_groupSuccess (queue.rawBatches inputs).2 normalizedEvent
+  exact ⟨position, rawEvent, atomCount.trans rawCount⟩
 
 namespace ConformancePlan
 
@@ -68,7 +50,7 @@ namespace ConformancePlan
 -----------------------------------------------------------------------------------------
 
 /-- Every object contributor has published before its successful group on the same witness.
-Witness: flatten the retained batch ledger, derive structural raw-carrier coverage, and
+Witness: retain the original batch ledger, derive structural raw-carrier coverage, and
 use its exact atomic object-prefix interpretation. This includes roots, object-produced
 tasks, and item-produced tasks without assuming their registration or prior publication.
 -/
@@ -83,16 +65,11 @@ theorem groupSuccess_objectContributorsPublished
     (contributes : group.ref ∈ owners)
     : Published w.matching (w.events.take index) (.executionGroup address) := by
   obtain ⟨published, batched, _, interpret, _⟩ := ledger
-  have accepted : (initialQueue work).batchesStarted inputs = true := by
-    rwa [← inputsStarted_eq_batchesStarted]
-  have covered := batched.flatten accepted
   obtain ⟨atFull, beforeEq⟩ := Witness.canonical_event history selected
   obtain ⟨position, atRaw, count⟩ :=
     createWorkQueue_runNormalized_groupSuccess_rawPrefix started atFull
   obtain ⟨value, delivered⟩ :=
-    generated.rawEventReplay_groupContributor_covered valid
-      ((initialQueue work).batchesStarted_acceptsBatch inputs accepted) covered atRaw known
-      contributes
+    generated.rawBatches_groupContributor_covered valid started batched atRaw known contributes
   have within : index ≤ w.events.length :=
     Nat.le_of_lt (List.getElem?_eq_some_iff.mp selected).1
   apply interpret index within (.executionGroup address)

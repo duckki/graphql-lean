@@ -1,4 +1,5 @@
 import Proofs.GraphQL.IncrementalDelivery.Semantics.Collection
+import Proofs.GraphQL.IncrementalDelivery.Semantics.WorkSize
 
 /-! Silent-completion invariants and their preservation by execution combinators. -/
 

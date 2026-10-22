@@ -77,43 +77,18 @@ theorem State.CachedErrorsSatisfy.addGroup {queue : State} {property : Nat → N
   unfold State.addGroup
   split
   · exact supported
-  · split <;> exact supported
+  · split
+    · exact supported
+    · split
+      · split <;> exact supported
+      · exact supported
 
-/-- Parent-link installation leaves every rejection and contributor refs unchanged.
-Witness: the two actual folds register empty nodes and replace only child links.
--/
-theorem State.CachedErrorsSatisfy.addGroups {queue : State} {property : Nat → Nat → Prop}
+/-- Recursive group registration preserves task-local rejection facts. -/
+theorem State.CachedErrorsSatisfy.addGroups {queue : State} {property}
     (supported : State.CachedErrorsSatisfy queue property) (groups : List Group)
     : (queue.addGroups groups).1.CachedErrorsSatisfy property := by
-  let fresh := groups.filter (fun group =>
-    !queue.registeredGroups.contains group.node.ref
-      && (queue.groupNode? group.node.ref).isNone)
-  let link (current : State) (group : Group) :=
-    match group.parent with
-    | none => current
-    | some parent =>
-        match current.groupNode? parent with
-        | none => current
-        | some node =>
-            let children := if node.childGroups.contains group.node.ref then
-              node.childGroups else node.childGroups ++ [group.node.ref]
-            current.putGroupNode { node with childGroups := children }
-  have linked (current : State) (group : Group)
-      (valid : current.CachedErrorsSatisfy property)
-      : (link current group).CachedErrorsSatisfy property := by
-    unfold link
-    split
-    · exact valid
-    · split
-      · exact valid
-      · rename_i node found
-        exact valid.putGroupNode _
-  change (fresh.foldl link (fresh.foldl State.addGroup queue)).CachedErrorsSatisfy
-    property
-  exact fold_preserves _ link fresh linked _
-    (fold_preserves (fun current : State => current.CachedErrorsSatisfy property)
-      State.addGroup fresh (fun _ group valid => valid.addGroup group)
-      queue supported)
+  exact State.addGroups_preserves (fun current => current.CachedErrorsSatisfy property) groups
+    (fun _ group _ valid => valid.addGroup group) queue supported
 
 /-- Adding a task changes membership and counters, never the task's retained rejection.
 Witness: induction through contributing groups and the unchanged rejection projection.
@@ -205,10 +180,9 @@ theorem State.CachedErrorsSatisfy.pruneEmptyGroups {queue : State}
 /-- Activation starts host work without changing task rejections.
 Witness: task, group, and stream start folds preserve the task-rejection facts.
 -/
-theorem State.CachedErrorsSatisfy.startNewWork {queue : State}
-    {property : Nat → Nat → Prop} (supported : State.CachedErrorsSatisfy queue property)
-    (more : NewWork)
-    : (queue.startNewWork more).CachedErrorsSatisfy property := by
+theorem State.CachedErrorsSatisfy.startNewWork {queue : State} {property}
+    (supported : queue.CachedErrorsSatisfy property) (more : NewWork)
+    : (queue.startNewWork more).1.CachedErrorsSatisfy property := by
   have taskStable (current : State) (occurrence : Occurrence)
       (valid : current.CachedErrorsSatisfy property)
       : (current.startTask occurrence).CachedErrorsSatisfy property := by
@@ -218,26 +192,41 @@ theorem State.CachedErrorsSatisfy.startNewWork {queue : State}
     · split
       · exact valid
       · intro node member errors rejected
-        rcases List.mem_append.mp member with old | new
+        rcases List.mem_append.mp member with old | added
         · exact valid node old errors rejected
-        · have same := List.mem_singleton.mp new
-          subst node
+        · cases List.mem_singleton.mp added
           cases rejected
   have groupStable (current : State) (ref : NodeRef)
       (valid : current.CachedErrorsSatisfy property)
-      : (current.startGroup ref).CachedErrorsSatisfy property := by
+      : (current.startGroup ref).1.CachedErrorsSatisfy property := by
     unfold State.startGroup
+    dsimp only [State.cacheTaskFailures, List.foldl_nil]
     split
     · exact valid
-    · rename_i node found
-      exact fold_preserves _ State.startTask node.tasks taskStable current valid
-  have streamStable (current : State) (ref : NodeRef)
-      (valid : current.CachedErrorsSatisfy property)
-      : (current.startStream ref).CachedErrorsSatisfy property := by
-    unfold State.startStream
-    split <;> exact valid
-  exact fold_preserves _ State.startStream _ streamStable _
-    (fold_preserves _ State.startGroup _ groupStable _ supported)
+    · split
+      · exact fold_preserves (fun current : State => current.CachedErrorsSatisfy property)
+          (fun current occurrence => current.startTask occurrence) _ taskStable _ valid
+      · intro node member errors rejected
+        exact valid node (List.mem_filter.mp member).1 errors rejected
+  have groups (refs : NodeRefs)
+      (acc : State × List GroupFailureEvent) (valid : acc.1.CachedErrorsSatisfy property)
+      : (refs.foldl
+          (fun (current, failures) ref =>
+            let (next, queued) := current.startGroup ref
+            (next, failures ++ queued)) acc).1.CachedErrorsSatisfy property := by
+    induction refs generalizing acc with
+    | nil => exact valid
+    | cons ref rest ih => exact ih _ (groupStable _ ref valid)
+  have streams (refs : NodeRefs) (current : State) (valid : current.CachedErrorsSatisfy property)
+      : (refs.foldl State.startStream current).CachedErrorsSatisfy property := by
+    induction refs generalizing current with
+    | nil => exact valid
+    | cons ref rest ih =>
+        apply ih
+        unfold State.startStream
+        split <;> exact valid
+  unfold State.startNewWork
+  exact streams _ _ (groups _ _ supported)
 
 /-- Queue creation contains no uncertified cached failure.
 Witness: the empty state, immediate integration, pruning, and activation.
@@ -333,20 +322,11 @@ theorem State.CachedErrorsSatisfy.taskFailure {queue : State}
 /-- Recursive release preserves rejection-cause facts through both kinds of closure.
 Witness: the actual bounded drain alternates supported success flushes and failure removal.
 -/
-theorem State.CachedErrorsSatisfy.drainReadyGroups {queue : State}
-    {property : Nat → Nat → Prop} (supported : State.CachedErrorsSatisfy queue property)
-    : queue.drainReadyGroups.1.CachedErrorsSatisfy property := by
-  apply State.drainReadyGroups_preserves
-    (fun current => current.CachedErrorsSatisfy property) (valid := supported)
-  · intro current node valid _ _ _ _
-    exact (valid.finishGroupSuccess node).startNewWork _
-  · intro current node occurrence errors valid _ _ selected
-    obtain ⟨_, task, found, rejected⟩ := State.rejectedTask?_sound selected
-    apply valid.taskFailure occurrence errors
-    intro other otherFound
-    have same := Option.some.inj (found.symm.trans otherFound)
-    subst other
-    exact valid task (List.mem_of_find?_eq_some found) errors rejected
+theorem State.CachedErrorsSatisfy.drainReadyGroups {queue : State} {property}
+    (supported : queue.CachedErrorsSatisfy property)
+    : queue.drainReadyGroups.1.CachedErrorsSatisfy property :=
+  State.drainReadyGroups_preserves (fun current => current.CachedErrorsSatisfy property)
+    (fun _ node prior _ _ _ => (prior.finishGroupSuccess node).startNewWork _) supported
 
 /-- Successful settlement never introduces a new retained failure.
 Witness: child integration, each contributor decrement/flush, activation, and full drain.
@@ -399,20 +379,21 @@ theorem State.CachedErrorsSatisfy.streamItems {queue : State}
     (stream : Execution.DeliveryNode) (items : List StreamItem)
     : (queue.streamItems stream items).1.CachedErrorsSatisfy property := by
   let step (acc : State × List Execution.DeliveryNode × List Execution.DeliveryNode
-      × List StreamItemValue) (item : StreamItem) :=
-    let (current, groups, streams, values) := acc
+      × List StreamItemValue × List GroupFailureEvent) (item : StreamItem) :=
+    let (current, groups, streams, values, failures) := acc
     let (integrated, more) := current.maybeIntegrateWork item.work
     let (pruned, nonempty) := integrated.pruneEmptyGroups more.newGroups
-    (pruned.startNewWork { more with newGroups := nonempty }, groups ++ nonempty,
-      streams ++ more.newStreams, values ++ [item.value])
+    let (started, queued) := pruned.startNewWork { more with newGroups := nonempty }
+    (started, groups ++ nonempty, streams ++ more.newStreams,
+      values ++ [item.value], failures ++ queued)
   have stable (acc : State × List Execution.DeliveryNode × List Execution.DeliveryNode
-      × List StreamItemValue) (item : StreamItem)
+      × List StreamItemValue × List GroupFailureEvent) (item : StreamItem)
       (valid : acc.1.CachedErrorsSatisfy property)
       : (step acc item).1.CachedErrorsSatisfy property :=
     ((valid.maybeIntegrateWork item.work).pruneEmptyGroups _).startNewWork _
   dsimp only [State.streamItems]
   split
   · exact supported
-  · exact (fold_preserves _ step items stable (queue, [], [], []) supported).drainReadyGroups
+  · exact (fold_preserves _ step items stable (queue, [], [], [], []) supported).drainReadyGroups
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

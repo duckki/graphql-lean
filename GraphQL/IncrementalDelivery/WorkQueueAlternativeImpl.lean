@@ -160,7 +160,8 @@ def State.cancel (state : State) : State × List HostEffect :=
 -----------------------------------------------------------------------------------------
 
 /-- Classification from the task registration owner loop.
-Dormant live owners still register work; removed owners do not. Active work starts only after complete registration.
+Dormant live owners still register work; removed owners do not.
+Active work starts only after complete registration.
 -/
 inductive TaskRegistration where
   | active
@@ -247,47 +248,6 @@ def State.disposeRejectedTasks (state : State) (integrated : IntegratedWork)
     (targets
       ++ integrated.rejectedTasks.flatMap (fun task => state.cancelTask task.occurrence))
 
-/-- Install all released root/source ownership before disposal or activation. Then dispose
-rejected tasks and start only newly active tasks plus tasks belonging to released roots.
-Targets observe inline disposal, not commands delayed until after host computations start.
-Root membership represents stream activation; native callbacks remain outside this model.
--/
-def State.startNewWork (state : State) (newWork : ReferenceWorkQueue.NewWork)
-    (integrated : IntegratedWork := {}) (targets : List CleanupTarget := [])
-    : State × List CleanupTarget :=
-  if state.stopped then
-    (state, targets)
-  else
-    let groups := newWork.newGroups.map Execution.DeliveryNode.ref
-    let queue := { state.queue with rootGroups := state.queue.rootGroups ++ groups }
-    let queue :=
-      newWork.newStreams.foldl (fun current stream => current.startStream stream.ref)
-        queue
-    let installed := { state with queue }
-    let targets := installed.disposeRejectedTasks integrated targets
-    let queue :=
-      integrated.activeTasks.foldl (fun current task => current.startTask task.occurrence)
-        queue
-    let queue := groups.foldl ReferenceWorkQueue.State.startGroup queue
-    ({ state with queue }, targets)
-
-/-- Startup uses the same registration projections and activation ordering as later work.
-The finite factory exposes initial notices, not initialization effects; generated initial
-work has live contributors. Construction evaluates no host computations or future schedule.
--/
-def State.initialize (work : Work) : State :=
-  let (integrated, newWork) :=
-    ({ queue := {} } : State).maybeIntegrateWork
-      (ReferenceWorkQueue.Work.fromExecution work)
-  let (queue, groups) := integrated.queue.pruneEmptyGroups newWork.newGroups
-  let roots := { newWork.newWork with newGroups := groups }
-  let (started, _) := ({ integrated with queue }).startNewWork roots newWork
-  {
-    started with
-      queue :=
-        { started.queue with initialGroups := groups, initialStreams := roots.newStreams }
-  }
-
 -----------------------------------------------------------------------------------------
 -- Failure removal and last-owner disposal: `removeGroup` and `finishGroupFailure`
 -----------------------------------------------------------------------------------------
@@ -359,9 +319,86 @@ where
 /-- Close the failed wire owner using the same removal that supplies its inline cleanup. -/
 def State.finishGroupFailure (state : State) (group : ReferenceWorkQueue.GroupNode)
     (errors : Nat) (targets : List CleanupTarget := [])
-    : State × WorkQueueEvent × List CleanupTarget :=
+    : State × ReferenceWorkQueue.GroupFailureEvent × List CleanupTarget :=
   let (state, targets) := state.removeGroup group.group.node.ref targets
-  (state, .groupFailure group.group.node errors, targets)
+  (state, ⟨group.group.node, errors⟩, targets)
+
+-----------------------------------------------------------------------------------------
+-- `startNewWork`
+-----------------------------------------------------------------------------------------
+
+/-- Inspect retained computations before starting a released group's private tasks.
+Failure removal is immediate; its notification is returned as an enqueue effect.
+-/
+def State.startGroup (state : State) (ref : Nat) (targets : List CleanupTarget := [])
+    (available : List (Occurrence × Nat) := [])
+    : State × List CleanupTarget × List ReferenceWorkQueue.GroupFailureEvent :=
+  let state := { state with queue := state.queue.cacheTaskFailures available }
+  match state.queue.groupNode? ref with
+  | none => (state, targets, [])
+  | some group =>
+      let errors :=
+        group.tasks.filterMap
+          (fun task => (state.queue.taskNode? task).bind (·.rejection))
+      if errors.isEmpty then
+        let queue :=
+          group.tasks.foldl
+            (fun current task => current.startTask task available) state.queue
+        ({ state with queue }, targets, [])
+      else
+        let (next, failure, targets) := state.finishGroupFailure group errors.sum targets
+        (next, targets, [failure])
+
+/-- Install all released root/source ownership before disposal or activation. Then dispose
+rejected tasks and start only newly active tasks plus tasks belonging to released roots.
+Targets observe inline disposal, not commands delayed until after host computations start.
+Root membership represents stream activation; native callbacks remain outside this model.
+-/
+def State.startNewWork (state : State) (newWork : ReferenceWorkQueue.NewWork)
+    (integrated : IntegratedWork := {}) (targets : List CleanupTarget := [])
+    (available : List (Occurrence × Nat) := [])
+    : State × List CleanupTarget × List ReferenceWorkQueue.GroupFailureEvent :=
+  if state.stopped then
+    (state, targets, [])
+  else
+    let groups := newWork.newGroups.map Execution.DeliveryNode.ref
+    let queue := { state.queue with rootGroups := state.queue.rootGroups ++ groups }
+    let queue :=
+      newWork.newStreams.foldl (fun current stream => current.startStream stream.ref)
+        queue
+    let installed := { state with queue }
+    let targets := installed.disposeRejectedTasks integrated targets
+    let queue :=
+      integrated.activeTasks.foldl
+        (fun current task => current.startTask task.occurrence available) queue
+    groups.foldl
+      (fun (current, targets, failures) ref =>
+        let (next, targets, queued) := current.startGroup ref targets available
+        (next, targets, failures ++ queued))
+      ({ installed with queue }, targets, [])
+
+/-- Initialize through shared registration projections and ordered activation.
+Optional synchronous rejection visibility queues failures in the shared kernel; the
+empty observation gives ordinary asynchronous startup. Initialization effects remain
+outside the finite factory's observable interface.
+-/
+def State.initialize (work : Work) (startup : ReferenceWorkQueue.InitialStartup := {})
+    : State :=
+  let (integrated, newWork) :=
+    ({ queue := {} } : State).maybeIntegrateWork
+      (ReferenceWorkQueue.Work.fromExecution work)
+  let (queue, groups) := integrated.queue.pruneEmptyGroups newWork.newGroups
+  let roots := { newWork.newWork with newGroups := groups }
+  let (started, _, failures) :=
+    ({ integrated with queue }).startNewWork roots newWork [] startup.failures
+  {
+    started with
+      queue :=
+        {
+          started.queue.enqueueGroupFailures failures with
+            initialGroups := groups, initialStreams := roots.newStreams
+        }
+  }
 
 -----------------------------------------------------------------------------------------
 -- Failed task settlement: `taskFailure`
@@ -386,7 +423,7 @@ def State.taskFailure (state : State) (occurrence : Occurrence) (errors : Nat)
               if current.queue.rootGroups.contains group.ref then
                 let (next, failure, targets) :=
                   current.finishGroupFailure node errors targets
-                (next, events ++ [failure], targets)
+                (next, events ++ [.groupFailure failure.group failure.errors], targets)
               else
                 (current, events, targets))
         ({ state with queue }, [], targets)
@@ -395,38 +432,41 @@ def State.taskFailure (state : State) (occurrence : Occurrence) (errors : Nat)
 -- Ready draining with shared successful release and fused failed removal
 -----------------------------------------------------------------------------------------
 
-/-- The reference readiness order and successful release rules, with cleanup carried through
-each actual failed removal. Newly released task rejections use the same path as direct
-failures. The temporary target prefix can include earlier registration disposal.
+/-- Successful ready draining with inline cleanup for newly released failed groups.
+Active cached failures await their FIFO task-failure input; startup notices are returned.
 -/
 def State.drainReadyGroups (state : State) (targets : List CleanupTarget := [])
-    : State × List WorkQueueEvent × List CleanupTarget :=
+    (available : List (Occurrence × Nat) := [])
+    : State
+      × List WorkQueueEvent
+      × List CleanupTarget
+      × List ReferenceWorkQueue.GroupFailureEvent :=
   go state.queue.groupNodes.length state targets
 where
-  go : Nat → State → List CleanupTarget → State × List WorkQueueEvent × List CleanupTarget
-    | 0, current, targets => (current, [], targets)
+  go
+      : Nat → State → List CleanupTarget
+        → State
+          × List WorkQueueEvent
+          × List CleanupTarget
+          × List ReferenceWorkQueue.GroupFailureEvent
+    | 0, current, targets => (current, [], targets, [])
     | fuel + 1, current, targets =>
         let ready :=
           current.queue.rootGroups.findSome?
             fun key => do
               let node ← current.queue.groupNode? key
-              if (current.queue.rejectedTask? node).isSome || node.pending == 0 then
+              if node.pending == 0 then
                 some node
               else
                 none
         match ready with
-        | none => (current, [], targets)
+        | none => (current, [], targets, [])
         | some node =>
-            let (next, events, targets) :=
-              match current.queue.rejectedTask? node with
-              | some (occurrence, errors) => current.taskFailure occurrence errors targets
-              | none =>
-                  let (queue, events, released) := current.queue.finishGroupSuccess node
-                  let (next, targets) :=
-                    ({ current with queue }).startNewWork released {} targets
-                  (next, events, targets)
-            let (finished, later, targets) := go fuel next targets
-            (finished, events ++ later, targets)
+            let (queue, events, released) := current.queue.finishGroupSuccess node
+            let (next, targets, failures) :=
+              ({ current with queue }).startNewWork released {} targets available
+            let (finished, later, targets, queued) := go fuel next targets
+            (finished, events ++ later, targets, failures ++ queued)
 
 -----------------------------------------------------------------------------------------
 -- Registration-bearing handlers: `taskSuccess` and `streamItems`
@@ -439,9 +479,13 @@ failure disposal from the actual ownership transition, not a reconstructed snaps
 -/
 def State.taskSuccess (state : State) (occurrence : Occurrence)
     (result : ReferenceWorkQueue.TaskResult)
-    : State × List WorkQueueEvent × List HostEffect :=
+    (available : List (Occurrence × Nat) := [])
+    : State
+      × List WorkQueueEvent
+      × List HostEffect
+      × List ReferenceWorkQueue.GroupFailureEvent :=
   match state.queue.taskNode? occurrence with
-  | none => (state, [], [])
+  | none => (state, [], [], [])
   | some task =>
       let state :=
         {
@@ -472,12 +516,14 @@ def State.taskSuccess (state : State) (occurrence : Occurrence)
                   )
                 else
                   (current, events, released)) initial
-      let (started, targets) := ({ integrated with queue }).startNewWork released newWork
-      let (finished, later, targets) := started.drainReadyGroups targets
+      let (started, targets, failures) :=
+        ({ integrated with queue }).startNewWork released newWork [] available
+      let (finished, later, targets, queued) := started.drainReadyGroups targets available
       (
         finished,
         events ++ later,
-        [.adopt occurrence] ++ targets.flatMap CleanupTarget.effects
+        [.adopt occurrence] ++ targets.flatMap CleanupTarget.effects,
+        failures ++ queued
       )
 
 /-- Admit each item in FIFO order: register once, adopt, dispose rejected tasks and activate
@@ -488,9 +534,13 @@ receipt-consumption boundary. Wire order keeps STREAM_VALUES first.
 -/
 def State.streamItems (state : State) (stream : Execution.DeliveryNode)
     (items : List ReferenceWorkQueue.StreamItem)
-    : State × List WorkQueueEvent × List HostEffect :=
+    (available : List (Occurrence × Nat) := [])
+    : State
+      × List WorkQueueEvent
+      × List HostEffect
+      × List ReferenceWorkQueue.GroupFailureEvent :=
   if !state.queue.rootStreams.contains stream.ref then
-    (state, [], [.acknowledge stream.ref])
+    (state, [], [.acknowledge stream.ref], [])
   else
     let initial
         : State
@@ -498,16 +548,17 @@ def State.streamItems (state : State) (stream : Execution.DeliveryNode)
           × List Execution.DeliveryNode
           × List StreamItemValue
           × List CleanupTarget
-          × List HostEffect :=
-      (state, [], [], [], [], [])
-    let (current, groups, streams, values, targets, effects) :=
+          × List HostEffect
+          × List ReferenceWorkQueue.GroupFailureEvent :=
+      (state, [], [], [], [], [], [])
+    let (current, groups, streams, values, targets, effects, failures) :=
       items.foldl
-        (fun (current, groups, streams, values, targets, effects) item =>
+        (fun (current, groups, streams, values, targets, effects, failures) item =>
           let (integrated, newWork) := current.maybeIntegrateWork item.work
           let (queue, nonempty) := integrated.queue.pruneEmptyGroups newWork.newGroups
-          let (started, nextTargets) :=
+          let (started, nextTargets, queued) :=
             ({ integrated with queue }).startNewWork
-              { newWork.newWork with newGroups := nonempty } newWork targets
+              { newWork.newWork with newGroups := nonempty } newWork targets available
           (
             started,
             groups ++ nonempty,
@@ -516,15 +567,18 @@ def State.streamItems (state : State) (stream : Execution.DeliveryNode)
             nextTargets,
             effects
             ++ [.adopt item.occurrence]
-            ++ (nextTargets.drop targets.length).flatMap CleanupTarget.effects
+            ++ (nextTargets.drop targets.length).flatMap CleanupTarget.effects,
+            failures ++ queued
           )) initial
-    let (finished, later, allTargets) := current.drainReadyGroups targets
+    let (finished, later, allTargets, queued) :=
+      current.drainReadyGroups targets available
     (
       finished,
       .streamValues stream values groups streams :: later,
       effects
       ++ [.acknowledge stream.ref]
-      ++ (allTargets.drop targets.length).flatMap CleanupTarget.effects
+      ++ (allTargets.drop targets.length).flatMap CleanupTarget.effects,
+      failures ++ queued
     )
 
 -----------------------------------------------------------------------------------------
@@ -536,13 +590,18 @@ at dispatch. Source closure remains shared; source failure cancels its producer 
 aborting the stream Queue or cancelling already admitted descendants.
 -/
 def State.handleGraphEvent (state : State) (event : GraphEvent)
-    : State × List WorkQueueEvent × List HostEffect :=
+    (available : List (Occurrence × Nat) := [])
+    : State
+      × List WorkQueueEvent
+      × List HostEffect
+      × List ReferenceWorkQueue.GroupFailureEvent :=
+  let state := { state with queue := state.queue.cacheTaskFailures available }
   match event with
-  | .taskSuccess occurrence result => state.taskSuccess occurrence result
+  | .taskSuccess occurrence result => state.taskSuccess occurrence result available
   | .taskFailure occurrence errors =>
       let (state, events, targets) := state.taskFailure occurrence errors
-      (state, events, targets.flatMap CleanupTarget.effects)
-  | .streamItems stream items => state.streamItems stream items
+      (state, events, targets.flatMap CleanupTarget.effects, [])
+  | .streamItems stream items => state.streamItems stream items available
   | _ =>
       let effects :=
         match event with
@@ -552,11 +611,11 @@ def State.handleGraphEvent (state : State) (event : GraphEvent)
             else
               []
         | _ => []
-      let (queue, events) := state.queue.handleGraphEvent event
-      ({ state with queue }, events, effects)
+      let (queue, events, failures) := state.queue.handleGraphEvent event
+      ({ state with queue }, events, effects, failures)
 
-/-- Pure counterpart of closure-state updates, accumulated workQueueEvents, and inline effects.
-This is a batch-fold result, not another host or wire event buffer.
+/-- One dispatch's state, ordered work output and inline effects. Pending internal notices
+belong to the shared queue, not a batch-end forwarding accumulator.
 -/
 structure GraphBatchResult where
   state : State
@@ -564,36 +623,38 @@ structure GraphBatchResult where
   effects : List HostEffect := []
 deriving Repr
 
-/-- One iteration of the graph-event dispatch loop. Both registration and failure
-disposal return their effects with the real reduction; there is no replayed cleanup observer.
-Host effects are inline observations, not commands.
--/
+/-- Realize newly enqueued internal notices before consuming the next FIFO entry. -/
 def GraphBatchResult.handleGraphEvent (result : GraphBatchResult) (event : GraphEvent)
+    (available : List (Occurrence × Nat) := [])
     : GraphBatchResult :=
-  let (state, events, effects) := result.state.handleGraphEvent event
+  let (state, events, effects, queued) := result.state.handleGraphEvent event available
   {
-    state
+    state := { state with queue := state.queue.enqueueGroupFailures queued }
     workQueueEvents := result.workQueueEvents ++ events
     effects := result.effects ++ effects
   }
 
-/-- Consume the available FIFO inputs into workQueueEvents.
-Empty roots stop the graph source and emit WORK_QUEUE_TERMINATION; abrupt stop emits none.
-The host chooses batch width, so this imposes no one-publication-per-host-event rule.
+/-- Consume the observed FIFO, retaining inline cleanup and undispatched internal notices.
+Termination requires those notices to have been consumed, before final cleanup.
 -/
 def State.handleGraphEvents (state : State) (batch : List GraphEvent)
     : GraphBatchResult :=
   if state.stopped || state.queue.terminated then
     { state }
   else
-    let reduced := batch.foldl GraphBatchResult.handleGraphEvent { state }
+    let available := ReferenceWorkQueue.GraphEvent.availableFailures batch
+    let reduced :=
+      batch.foldl (fun current event => current.handleGraphEvent event available)
+        ({ state } : GraphBatchResult)
     let queue := reduced.state.queue
-    if queue.rootGroups.isEmpty && queue.rootStreams.isEmpty then
+    if queue.rootGroups.isEmpty
+        && queue.rootStreams.isEmpty
+        && queue.groupFailureEvents.isEmpty then
       let ending := { reduced.state with queue := { queue with terminated := true } }
       let (state, cleanup) := ending.cancel
       {
-        state,
-        workQueueEvents := reduced.workQueueEvents ++ [.workQueueTermination],
+        state
+        workQueueEvents := reduced.workQueueEvents ++ [.workQueueTermination]
         effects := reduced.effects ++ cleanup
       }
     else
@@ -624,8 +685,9 @@ def State.runNormalized (state : State) (batches : List (List GraphEvent))
 The schedule supplies available batches; no host promises or chosen future enter Work.
 -/
 def createWorkQueueForSchedule (work : Work) (schedule : EventSource (List GraphEvent))
+    (startup : ReferenceWorkQueue.InitialStartup := {})
     : Execution.WorkQueue :=
-  let queue := State.initialize work
+  let queue := State.initialize work startup
   {
     initialGroups := queue.queue.initialGroups
     initialStreams := queue.queue.initialStreams
@@ -652,7 +714,7 @@ def createWorkQueueForSchedule (work : Work) (schedule : EventSource (List Graph
 def createWorkQueueForScheduleConforms : Prop :=
   ∀ work schedule,
     ReferenceWorkQueue.ExecutedWork work
-    → work.size ≠ 0
+    → work.isEmpty = false
     → schedule.ValidFor work
     → (createWorkQueueForSchedule work schedule).Conforms work
 
@@ -684,8 +746,9 @@ def ResponseStreamCursor.onWorkQueueFinished (cursor : ResponseStreamCursor)
 
 /-- Initial response and pending IDs, reused from Execution's response initializer. -/
 def ResponseStreamCursor.buildResponse (response : Execution.Response) (work : Work)
+    (startup : ReferenceWorkQueue.InitialStartup := {})
     : Execution.InitialIncrementalStreamResult × ResponseStreamCursor :=
-  let queue := State.initialize work
+  let queue := State.initialize work startup
   let (initial, ids) :=
     Execution.initializeIncrementalResponse response queue.queue.initialGroups
       queue.queue.initialStreams
@@ -749,12 +812,13 @@ def ResponseStreamCursor.run (cursor : ResponseStreamCursor)
 /-- Replay the same pure completion; host effects remain separate from response observation. -/
 def replayIncrementalResponse
     (completed : Execution.Completion (List (Name × Execution.ResponseValue)))
-    (inputs : List (List GraphEvent))
+    (inputs : List (List GraphEvent)) (startup : ReferenceWorkQueue.InitialStartup := {})
     : Execution.InitialIncrementalStreamResult
       × List Execution.IncrementalStreamUpdateResult
       × Bool :=
   let response := Execution.selectionSetResultToResponse completed.result
-  let (initial, cursor) := ResponseStreamCursor.buildResponse response completed.work
+  let (initial, cursor) :=
+    ResponseStreamCursor.buildResponse response completed.work startup
   let (updates, final, _) := cursor.run inputs
   (initial, updates, final.queue.queue.terminated)
 
@@ -786,7 +850,7 @@ def replayMatchesReference : Prop :=
 def createWorkQueueForScheduleMatchesReference : Prop :=
   ∀ work schedule,
     ReferenceWorkQueue.ExecutedWork work
-    → work.size ≠ 0
+    → work.isEmpty = false
     → schedule.ValidFor work
     → createWorkQueueForSchedule work schedule
       = ReferenceWorkQueue.createWorkQueueForSchedule work schedule

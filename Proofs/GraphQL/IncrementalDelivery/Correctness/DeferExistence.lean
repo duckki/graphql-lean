@@ -1,5 +1,6 @@
 import Proofs.GraphQL.IncrementalDelivery.Correctness.DeferDependencies
 import Proofs.GraphQL.IncrementalDelivery.Correctness.MixedExistence
+import Proofs.GraphQL.IncrementalDelivery.Semantics.WorkSize
 
 /-! Defer-only progress specializes the general mixed-work theorem.
 The existing shape and complete-run interfaces remain available to callers.
@@ -19,16 +20,20 @@ open WorkQueueSemantics
 Witness: structural descent; a stream boundary contradicts the original shape.
 -/
 private theorem DeferOnly.roles_at {work address current producer owners}
-    (shape : DeferOnly work) (located : Located work address current producer owners)
+    (shape : DeferOnly work)
+    (located : Located work address current.withoutDeclarations producer owners)
     : RefRoles.WorkRoles (fun _ => false) current := by
   cases current with
   | empty => simp [RefRoles.WorkRoles]
   | combine left right =>
       rw [RefRoles.WorkRoles]
-      exact ⟨shape.roles_at (.left located), shape.roles_at (.right located)⟩
+      exact ⟨shape.roles_at (current := left) (.left located), shape.roles_at (current := right) (.right located)⟩
+  | declareGroups groups tasks =>
+      rw [RefRoles.WorkRoles]
+      exact ⟨by simp, shape.roles_at (current := tasks) located⟩
   | executionGroup groups path result children =>
       rw [RefRoles.WorkRoles]
-      exact ⟨by simp, shape.roles_at (.executionGroup located)⟩
+      exact ⟨by simp, shape.roles_at (current := children) (.executionGroup located)⟩
   | stream node items =>
       have impossible := shape _ _ _ _ (NodeAt.stream located)
       cases impossible
@@ -77,6 +82,9 @@ private theorem constant_defer_noStreams (work : Work)
     : streamAllocationRefs work = [] := by
   cases work with
   | empty => simp [streamAllocationRefs]
+  | declareGroups groups tasks =>
+      rw [RefRoles.WorkRoles] at roles
+      simpa only [streamAllocationRefs] using constant_defer_noStreams tasks roles.2
   | combine left right =>
       rw [RefRoles.WorkRoles] at roles
       rw [streamAllocationRefs, constant_defer_noStreams left roles.1,

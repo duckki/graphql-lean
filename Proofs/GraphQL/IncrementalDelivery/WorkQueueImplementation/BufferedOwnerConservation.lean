@@ -65,14 +65,96 @@ theorem State.putGroupNode_storedOwnersConserved (queue : State) (updated : Grou
 -- Activation and pruning never silently drop a buffered owner's record
 -----------------------------------------------------------------------------------------
 
-/-- Activation preserves all existing buffered owners and values.
-Witness: exact lookup preservation and unchanged group records; it only starts new work.
+/-- A live group record survives startup unless startup records its ref as cancelled. -/
+theorem State.startNewWork_group_present_or_cancelled (queue : State) (released : NewWork)
+    (available : List (Occurrence × Nat) := []) {owner : GroupNode}
+    (present : owner ∈ queue.groupNodes)
+    : owner ∈ (queue.startNewWork released available).1.groupNodes
+      ∨ owner.group.node.ref
+        ∈ (queue.startNewWork released available).1.cancelledGroups := by
+  have group (current : State) (ref : NodeRef) (member : owner ∈ current.groupNodes)
+      : owner ∈ (current.startGroup ref available).1.groupNodes
+        ∨ owner.group.node.ref
+          ∈ (current.startGroup ref available).1.cancelledGroups := by
+    have cached : owner ∈ (current.cacheTaskFailures available).groupNodes := by
+      rwa [State.cacheTaskFailures_groupNodes]
+    unfold State.startGroup
+    dsimp only
+    split
+    · exact .inl cached
+    · rename_i node found
+      split
+      · have unchanged (tasks : List Occurrence) (state : State)
+            : (tasks.foldl (fun state task => state.startTask task available) state).groupNodes
+              = state.groupNodes := by
+          induction tasks generalizing state with
+          | nil => rfl
+          | cons task rest ih => rw [List.foldl_cons, ih, State.startTask_groupNodes]
+        exact .inl (by rwa [unchanged])
+      · let removed := State.removeGroup.collect
+          ((current.cacheTaskFailures available).groupNodes.length + 1)
+          (current.cacheTaskFailures available) [node.group.node.ref] []
+        by_cases cancelled : owner.group.node.ref ∈ removed
+        · exact .inr (List.mem_append_right _ cancelled)
+        · exact .inl (List.mem_filter.mpr ⟨cached, by
+            change (!removed.contains owner.group.node.ref) = true
+            simp [cancelled]⟩)
+  have groups (refs : NodeRefs) (acc : State × List GroupFailureEvent)
+      (prior : owner ∈ acc.1.groupNodes ∨ owner.group.node.ref ∈ acc.1.cancelledGroups)
+      : owner ∈ (refs.foldl (fun (current, failures) ref =>
+          let (next, queued) := current.startGroup ref available
+          (next, failures ++ queued)) acc).1.groupNodes
+        ∨ owner.group.node.ref ∈ (refs.foldl (fun (current, failures) ref =>
+          let (next, queued) := current.startGroup ref available
+          (next, failures ++ queued)) acc).1.cancelledGroups := by
+    induction refs generalizing acc with
+    | nil => exact prior
+    | cons ref rest ih =>
+        apply ih
+        rcases prior with live | cancelled
+        · exact group acc.1 ref live
+        · exact .inr ((acc.1.startGroup_cancelledGroups_prefix ref available).subset cancelled)
+  have streams (refs : NodeRefs) (current : State)
+      (prior : owner ∈ current.groupNodes ∨ owner.group.node.ref ∈ current.cancelledGroups)
+      : owner ∈ (refs.foldl State.startStream current).groupNodes
+        ∨ owner.group.node.ref ∈ (refs.foldl State.startStream current).cancelledGroups := by
+    induction refs generalizing current with
+    | nil => exact prior
+    | cons ref rest ih =>
+        apply ih
+        unfold State.startStream
+        split <;> exact prior
+  unfold State.startNewWork
+  exact streams _ _ (groups _ _ (.inl present))
+
+/-- Startup preserves every buffered owner that remains uncancelled.
+Witness: a removed record is recorded in cancellation history; a surviving contributor
+retains the exact task lookup when its own rejection is absent from the snapshot.
 -/
 theorem State.startNewWork_storedOwnersConserved (queue : State) (released : NewWork)
-    : queue.StoredOwnersConserved [] (queue.startNewWork released) := by
+    (available : List (Occurrence × Nat) := [])
+    (clean
+      : queue.StoredValuesSatisfy
+          (fun occurrence _ =>
+            ∀ errors, (occurrence, errors) ∉ available) := by
+        intro node member value stored errors impossible; cases impossible)
+    : queue.StoredOwnersConserved [] (queue.startNewWork released available).1 := by
   intro occurrence node value found stored ref contributes present uncancelled
-  refine Or.inr ⟨State.startNewWork_lookup_existing found released, ?_⟩
-  rwa [(State.startNewWork_groupCore queue released).1]
+  obtain ⟨owner, live, same⟩ := List.mem_map.mp present
+  have survives : owner ∈ (queue.startNewWork released available).1.groupNodes := by
+    rcases queue.startNewWork_group_present_or_cancelled released available live with
+      kept | cancelled
+    · exact kept
+    · exact False.elim (uncancelled (same ▸ cancelled))
+  obtain ⟨contributor, contributes, refEq⟩ := List.mem_map.mp contributes
+  have own := clean node (State.taskNode?_some found).1 value stored
+  rw [(State.taskNode?_some found).2] at own
+  exact Or.inr
+    ⟨
+      State.startNewWork_lookup_existing found released available own contributes
+        survives (same.trans refEq.symm),
+      List.mem_map.mpr ⟨owner, survives, same⟩
+    ⟩
 
 /-- Empty-shell pruning preserves every live buffered contributor.
 Witness: pruning leaves task lookups unchanged, while buffered membership contradicts
@@ -182,12 +264,13 @@ theorem State.taskFailure_replay_storedOwnersConserved {queue : State}
   exact initial
 
 /-- A drain never forgets a cancelled group ref.
-Witness: failed cleanup appends removed refs; successful flushing and activation leave
-cancellation history unchanged. The induction follows the actual finite drain budget.
+Witness: successful flushing preserves cancellation history, and startup removal can
+extend it. The induction follows the actual finite drain budget.
 -/
 theorem State.drainReadyGroups_go_cancelledGroups_subset (fuel : Nat) (queue : State)
+    (available : List (Occurrence × Nat) := [])
     : queue.cancelledGroups.Subset
-        (State.drainReadyGroups.go fuel queue).1.cancelledGroups := by
+        (State.drainReadyGroups.go available fuel queue).1.cancelledGroups := by
   induction fuel generalizing queue with
   | zero => exact List.Subset.refl _
   | succ fuel ih =>
@@ -196,15 +279,9 @@ theorem State.drainReadyGroups_go_cancelledGroups_subset (fuel : Nat) (queue : S
       split
       · exact List.Subset.refl _
       · rename_i group selected
-        cases cached : queue.rejectedTask? group with
-        | none =>
-            dsimp only
-            intro ref member
-            apply ih _
-            rwa [State.startNewWork_cancelledGroups, State.finishGroupSuccess_cancelledGroups]
-        | some rejected =>
-            obtain ⟨occurrence, errors⟩ := rejected
-            dsimp only
-            exact (queue.taskFailure_cancelledGroups_mono occurrence errors).trans (ih _)
+        intro ref member
+        apply ih _
+        apply State.startNewWork_cancelledGroups_subset _ _ available
+        rwa [State.finishGroupSuccess_cancelledGroups]
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

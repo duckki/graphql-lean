@@ -19,6 +19,9 @@ mutual
     cases h with
     | empty =>
         cases ha; rfl
+    | declareGroups known =>
+        cases ha with
+        | declareGroups attached => exact known.attached_length attached
     | combine hl hr =>
         cases ha with
         | combine hal har =>

@@ -1,6 +1,6 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.RetiredHealthReplay
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.StreamReleaseOwnerReplay
-import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.SuccessfulCarrierOrigins
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.SuccessfulRetirement
 
 /-! Actual source boundaries derive healthy, uncancelled retirement for success carriers. -/
 
@@ -19,13 +19,14 @@ successful group carrier. No output admission or extra internal-state premise is
 theorem ExecutedWork.replayGraphEvents_next_successfulGroupsHealthy
     {work before event} (generated : ExecutedWork work)
     (valid : ValidGraphEvents work (before ++ [event]))
-    (started : (State.initialize (Work.fromExecution work)).acceptsBatch before = true)
+    (started
+      : State.eventsStarted [] (State.initialize (Work.fromExecution work)) before = true)
     : SuccessfulGroupsHealthy work
         ((State.initialize (Work.fromExecution work)).objectFailureContributions
           (before ++ [event]))
         (((State.initialize (Work.fromExecution work)).replayGraphEvents
             before).handleGraphEvent
-          event).2 := by
+          event).2.1 := by
   let queue := (State.initialize (Work.fromExecution work)).replayGraphEvents before
   let failed := (State.initialize (Work.fromExecution work)).objectFailureContributions before
   have priorValid := valid.prefix (List.prefix_append before [event])
@@ -36,13 +37,14 @@ theorem ExecutedWork.replayGraphEvents_next_successfulGroupsHealthy
     generated.replayGraphEvents_ownerAccounting_of_eachAccepted canonical priorValid (by
       intro past next earlier
       obtain ⟨after, same⟩ := earlier
-      apply State.acceptsBatch_atPrefix _ past next after
+      apply State.eventsStarted_atPrefix _ past next after
       simpa only [← same, List.append_assoc, List.singleton_append] using started)
   have counts := (createWorkQueue_retainedFailures (Work.fromExecution work) work
-    ).replayGraphEvents (before := []) (createWorkQueue_pendingAccounting work)
+    ).replayGraphEvents (before := []) (createWorkQueue_pendingAccounting work generated.declarations)
       generated (by intro _ member; cases member) before priorValid started
   simp only [List.append_nil] at counts
-  have successes := (createWorkQueue_pendingAccounting work).replayGraphEvents_successes
+  rw [← State.objectFailureContributions_eq_of_accepts _ before [] started] at counts
+  have successes := (createWorkQueue_pendingAccounting work generated.declarations).replayGraphEvents_successes
     (before := []) generated before priorValid started
   have included : failed.Subset (GraphEvent.failureSettlements before) :=
     ((State.initialize (Work.fromExecution work)).objectFailureContributions_sublist before).subset
@@ -60,11 +62,14 @@ theorem ExecutedWork.replayGraphEvents_next_successfulGroupsHealthy
   cases event with
   | taskSuccess occurrence result =>
       exact (queue.taskSuccess_releaseHealth health.1 health.2.1 generated ledger.groups
-        ledger.childLinks canonical counts failedKnown source successes priorValid included fresh).2.2
+        ledger.childLinks canonical counts failedKnown source successes priorValid included
+          fresh).2.2
   | streamItems stream items =>
       exact (queue.streamItems_releaseHealth health.1 health.2.1 generated ledger.groups
         ledger.childLinks canonical counts failedKnown source successes.refs successes.sound
-          successes.matching).2.2
+          successes.matching successes.registration.live successes.pending
+            (fun occurrence settled recorded => priorValid.succeeds_not_failureSettlements
+              (priorValid.groupSettlements_succeed settled) (included recorded))).2.2
   | taskFailure occurrence errors =>
       exact .of_noGroupSuccess (queue.taskFailure_noGroupSuccess occurrence errors)
   | streamSuccess stream =>
@@ -77,6 +82,13 @@ theorem ExecutedWork.replayGraphEvents_next_successfulGroupsHealthy
       intro group groups streams member
       simp only [State.handleGraphEvent, State.streamFailure] at member
       split at member <;> simp at member
+  | groupFailure notice =>
+      apply SuccessfulGroupsHealthy.of_noGroupSuccess
+      intro group groups streams member
+      simp only [State.handleGraphEvent, State.groupFailure] at member
+      split at member
+      · cases member
+      · split at member <;> simp at member
 
 /-- An actual successful carrier retires its known group healthy and uncancelled.
 Witness: local carrier health rules out supported cancellation; independent closure
@@ -86,12 +98,13 @@ source laws and actual queue replay, including carriers emitted by recursive dra
 theorem ExecutedWork.replayGraphEvents_successfulCarrier_retiredHealthy
     {work before event group groups streams} (generated : ExecutedWork work)
     (valid : ValidGraphEvents work (before ++ [event]))
-    (started : (State.initialize (Work.fromExecution work)).acceptsBatch before = true)
+    (started
+      : State.eventsStarted [] (State.initialize (Work.fromExecution work)) before = true)
     (carrier
       : Execution.WorkQueueEvent.groupSuccess group groups streams
         ∈ (((State.initialize (Work.fromExecution work)).replayGraphEvents
               before).handleGraphEvent
-            event).2)
+            event).2.1)
     : let queue :=
         (State.initialize (Work.fromExecution work)).replayGraphEvents (before ++ [event])
       ∃ dependencies,
@@ -105,17 +118,19 @@ theorem ExecutedWork.replayGraphEvents_successfulCarrier_retiredHealthy
     generated.replayGraphEvents_next_successfulGroupsHealthy valid started
       group groups streams carrier
   have priorValid := valid.prefix (List.prefix_append before [event])
-  have source := valid.eachMatches (List.mem_append_right before List.mem_cons_self)
   obtain ⟨parents, canonical⟩ := generated.groupRecordsCanonical
   have ledger := generated.replayGraphEvents_ownerAccounting_of_eachAccepted canonical
     priorValid (by
       intro past next earlier
       obtain ⟨after, same⟩ := earlier
-      apply State.acceptsBatch_atPrefix _ past next after
+      apply State.eventsStarted_atPrefix _ past next after
       simpa only [← same, List.append_assoc, List.singleton_append] using started)
-  have retired := (State.handleGraphEvent_closureAccounting ledger.pending.liveGroups
-    ledger.pending.taskGroups event source).closed group.ref
-      (List.mem_flatMap.mpr ⟨_, carrier, List.mem_cons_self⟩)
+  have pending := (createWorkQueue_pendingGroupFailures (Work.fromExecution work)).replayGraphEvents
+    (createWorkQueue_liveGroupsRegistered _) before
+  have retired := ((State.dispatchGraphEvent_closureAccounting ledger.pending.liveGroups
+    pending event).2.closed group.ref
+      (List.mem_flatMap.mpr ⟨.groupSuccess group groups streams, carrier,
+        List.mem_cons_self⟩)).1
   refine ⟨dependencies, known, ?_, healthy, ?_⟩
   · rwa [State.replayGraphEvents_append]
   · exact (generated.replayGraphEvents_cancelledRecordsSupported _ valid).healthy_not_mem healthy
@@ -141,29 +156,16 @@ theorem ExecutedWork.runNormalized_successfulCarrier_retiredHealthy
         GroupRecordAt work group dependencies
         ∧ queue.RetiredGroup group.ref
         ∧ ¬GroupRecordInvalidated work
-            ((State.initialize (Work.fromExecution work)).objectFailureContributions
-              batches.flatten)
+            ((State.initialize
+                (Work.fromExecution work)).admittedObjectFailureContributionsForBatches
+              batches)
             group.ref
         ∧ group.ref ∉ queue.cancelledGroups := by
-  obtain ⟨before, event, after, same, emitted⟩ :=
-    createWorkQueue_runNormalized_groupSuccess_origin batches started carrier
-  have earlier : (before ++ [event]).IsPrefix batches.flatten :=
-    ⟨after, by simp [same, List.append_assoc]⟩
-  have accepted := (State.initialize (Work.fromExecution work)).batchesStarted_acceptsBatch batches
-    (by rwa [← inputsStarted_eq_batchesStarted])
-  have priorStarted : (State.initialize (Work.fromExecution work)).acceptsBatch before = true := by
-    rw [same] at accepted
-    exact State.acceptsBatch_prefix accepted
-  obtain ⟨dependencies, known, retired, healthy, _⟩ :=
-    generated.replayGraphEvents_successfulCarrier_retiredHealthy (valid.prefix earlier)
-      priorStarted emitted
-  have durable := generated.retiredRecord_health_stable valid accepted known earlier retired healthy
-  refine ⟨dependencies, known, ?_, durable, ?_⟩
-  · exact (State.runNormalized_groupClosures (createWorkQueue_registration work).1
-      (createWorkQueue_registration work).2 batches (fun _ member => valid.eachMatches member)).2
-        group.ref (List.mem_flatMap.mpr ⟨_, carrier, List.mem_cons_self⟩)
-  · exact (generated.runNormalized_cancelledRecordsSupported batches valid started).healthy_not_mem
-      durable
+  obtain ⟨dependencies, known, retired⟩ :=
+    generated.runNormalized_successfulGroupRetirements valid started carrier
+  exact ⟨dependencies, known, retired.retired,
+    (generated.runNormalized_retiredHealth batches valid started).1 group dependencies
+      known retired.retired retired.uncancelled, retired.uncancelled⟩
 
 /-- Every group-carried stream has a derived uncancelled, retired contributing dependency.
 Witness: exact release ownership identifies the carrier as a dependency; actual successful

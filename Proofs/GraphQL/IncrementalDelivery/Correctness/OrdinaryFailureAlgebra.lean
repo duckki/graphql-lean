@@ -62,6 +62,14 @@ theorem FailedBelow.at_ancestor {path ancestor work}
   obtain ⟨occurrence, owners, producer, payload, known, fails, below⟩ := failed
   exact ⟨occurrence, owners, producer, payload, known, fails, ancestorPrefix.trans below⟩
 
+/-- Declaration metadata preserves the exact failing task occurrence and payload. -/
+theorem FailedBelow.declareGroups {path work} (failed : FailedBelow path work)
+    (groups : List DeferredFragment)
+    : FailedBelow path (.declareGroups groups work) := by
+  obtain ⟨occurrence, owners, producer, payload, known, fails, below⟩ := failed
+  exact ⟨occurrence, owners, producer, payload,
+    (taskAt_declareGroups groups).mpr known, fails, below⟩
+
 /-- A retained failure remains in the left component of combined work.
 Witness: payload-preserving task embedding at the left structural edge.
 -/
@@ -94,7 +102,11 @@ theorem FailedBelow.executionGroup_error (groups : List DeferredFragment)
     _,
     _,
     .object path (.error (cause.getD errors)),
-    (StructuralEquivalence.TaskAt.executionGroup .root).toCurrent,
+    (StructuralEquivalence.TaskAt.executionGroup
+      (StructuralEquivalence.Located.root
+        (root :=
+          .executionGroup groups path { result := .error errors, cause }
+            children))).toCurrent,
     rfl,
     ⟨[], by simp [Payload.path]⟩
   ⟩
@@ -107,7 +119,8 @@ theorem FailedBelow.executionGroup_child {path children}
     (attachment : ResponsePath) (result : TaskOutcome (List (Name × ResponseValue)))
     : FailedBelow path (.executionGroup groups attachment result children) := by
   obtain ⟨occurrence, owners, producer, payload, known, fails, below⟩ := failed
-  obtain ⟨occurrence, owners, producer, embedded⟩ := TaskAt.in_located known
+  obtain ⟨occurrence, owners, producer, embedded⟩ := TaskAt.in_located
+    (root := .executionGroup groups attachment result children) known
     (StructuralEquivalence.Located.executionGroup .root).toCurrent
   exact ⟨occurrence, owners, producer, payload, embedded, fails, below⟩
 
@@ -126,7 +139,8 @@ theorem ItemsHaveFailure.in_stream {path items} (failed : ItemsHaveFailure path 
       (StructuralEquivalence.TaskAt.item .root entry).toCurrent,
       by simp [Payload.failure, TaskOutcome.deliveryResult, failed], attachment⟩
   · obtain ⟨occurrence, owners, producer, payload, known, fails, below⟩ := childFailed
-    obtain ⟨occurrence, owners, producer, embedded⟩ := TaskAt.in_located known
+    obtain ⟨occurrence, owners, producer, embedded⟩ := TaskAt.in_located
+      (root := .stream node items) known
       (StructuralEquivalence.Located.item .root entry).toCurrent
     exact ⟨occurrence, owners, producer, payload, embedded, fails, below⟩
 

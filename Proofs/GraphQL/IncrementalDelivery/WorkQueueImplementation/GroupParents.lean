@@ -32,17 +32,22 @@ theorem State.GroupParentsCanonical.addGroup
     (group : Group)
     (groupCanonical : group.parent = (parents group.node.ref).head?)
     : (queue.addGroup group).GroupParentsCanonical parents := by
+  have appended : ({ queue with
+      groupNodes := queue.groupNodes ++ [({ group } : GroupNode)] } : State).GroupParentsCanonical parents := by
+    intro node member
+    rcases List.mem_append.mp member with old | fresh
+    · exact canonical node old
+    · cases List.mem_singleton.mp fresh
+      exact groupCanonical
   unfold State.addGroup
   split
   · exact canonical
   · split
-    · exact canonical
-    · intro node member
-      rcases List.mem_append.mp member with old | added
-      · exact canonical node old
-      · have same : node = { group } := List.mem_singleton.mp added
-        subst node
-        exact groupCanonical
+    · exact appended
+    · split
+      · split <;> exact canonical
+      · rename_i node found
+        exact appended.putGroupNode _ (canonical node (List.mem_of_find?_eq_some found))
 
 /-- Group integration keeps a canonical parent on every old or newly
 registered group, while mutable child links remain separate metadata. -/
@@ -52,58 +57,8 @@ theorem State.GroupParentsCanonical.addGroups
     (groups : List Group)
     (all : ∀ group ∈ groups, group.parent = (parents group.node.ref).head?)
     : (queue.addGroups groups).1.GroupParentsCanonical parents := by
-  let linkStep (current : State) (group : Group) : State :=
-    match group.parent with
-    | none => current
-    | some parent =>
-        match current.groupNode? parent with
-        | none => current
-        | some node =>
-            let children :=
-              if node.childGroups.contains group.node.ref then
-                node.childGroups
-              else
-                node.childGroups ++ [group.node.ref]
-            current.putGroupNode { node with childGroups := children }
-  have registerFold (more : List Group)
-      (subset : ∀ group ∈ more, group ∈ groups) :
-      ∀ current, current.GroupParentsCanonical parents
-        → (more.foldl State.addGroup current).GroupParentsCanonical parents := by
-    induction more with
-    | nil => intro current currentCanonical; exact currentCanonical
-    | cons group rest ih =>
-        intro current currentCanonical
-        have next := currentCanonical.addGroup group
-          (all group (subset group (by simp)))
-        apply ih
-          (by
-            intro nextGroup member
-            exact subset nextGroup (by simp [member]))
-          (current.addGroup group) next
-  have linkFold (more : List Group) :
-      ∀ current, current.GroupParentsCanonical parents
-        → (more.foldl linkStep current).GroupParentsCanonical parents := by
-    induction more with
-    | nil => intro current currentCanonical; exact currentCanonical
-    | cons group rest ih =>
-        intro current currentCanonical
-        apply ih (linkStep current group)
-        unfold linkStep
-        split
-        · exact currentCanonical
-        · split
-          · exact currentCanonical
-          · rename_i node found
-            exact currentCanonical.putGroupNode _
-              (currentCanonical node (List.mem_of_find?_eq_some found))
-  let fresh := groups.filter (fun group =>
-    !queue.registeredGroups.contains group.node.ref
-      && (queue.groupNode? group.node.ref).isNone)
-  change (fresh.foldl linkStep
-    (fresh.foldl State.addGroup queue)).GroupParentsCanonical parents
-  exact linkFold fresh _
-    (registerFold fresh (by intro group member; exact (List.mem_filter.mp member).1) queue
-      canonical)
+  exact State.addGroups_preserves (fun current => current.GroupParentsCanonical parents) groups
+    (fun _ group member valid => valid.addGroup group (all group member)) queue canonical
 
 /-- Task registration changes memberships and counters, not a group's
 primary-parent descriptor. -/
@@ -229,15 +184,23 @@ theorem State.GroupParentsCanonical.pruneEmptyGroups
               · exact ih _ _ _ currentCanonical
   exact loop _ queue groups [] canonical
 
-/-- Activation changes task and root registries but not group parent metadata. -/
+/-- Cache exposure preserves all stored group metadata. -/
+theorem State.GroupParentsCanonical.cacheTaskFailures {queue : State}
+    {parents : Nat → NodeRefs} (canonical : queue.GroupParentsCanonical parents)
+    (available : List (Occurrence × Nat))
+    : (queue.cacheTaskFailures available).GroupParentsCanonical parents := by
+  intro node member
+  rw [State.cacheTaskFailures_groupNodes] at member
+  exact canonical node member
+
+/-- Startup preserves canonical metadata on each surviving group record. -/
 theorem State.GroupParentsCanonical.startNewWork
     {queue : State} {parents : Nat → NodeRefs}
     (canonical : queue.GroupParentsCanonical parents) (newWork : NewWork)
-    : (queue.startNewWork newWork).GroupParentsCanonical parents := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.startNewWork newWork available).1.GroupParentsCanonical parents := by
   intro node member
-  have same := (queue.startNewWork_groupCore newWork).1
-  rw [same] at member
-  exact canonical node member
+  exact canonical node ((queue.startNewWork_groupNodes_sublist newWork available).subset member)
 
 /-- Removing a failed subtree retains only canonically parented group nodes. -/
 theorem State.GroupParentsCanonical.removeGroup
@@ -271,7 +234,7 @@ theorem createWorkQueue_groupParentsCanonical
   let pruned := (integrated.pruneEmptyGroups newWork.newGroups).1
   let groups := (integrated.pruneEmptyGroups newWork.newGroups).2
   let roots := { newWork with newGroups := groups }
-  let started := pruned.startNewWork roots
+  let started := (pruned.startNewWork roots).1
   have emptyCanonical : ({} : State).GroupParentsCanonical parents := by
     intro node member
     cases member
@@ -296,8 +259,7 @@ private theorem ExecutedWork.initialQueueGroupParentsCanonical
   refine ⟨parents, createWorkQueue_groupParentsCanonical
     (Work.fromExecution work) parents ?_⟩
   intro group member
-  exact workFromSpec_groups_parentCanonical
-    (Located.root (root := work)) canonical member
+  exact workFromSpec_groups_parentCanonical_root canonical member
 
 /-- A successful group flush removes task nodes and group shells without
 changing the parent assignment on survivors. -/
@@ -376,12 +338,12 @@ theorem State.GroupParentsCanonical.taskFailure
 /-- Recursive release preserves canonical group parents.
 Witness: closure removes records, while child activation preserves the group-node map.
 -/
-theorem State.GroupParentsCanonical.drainReadyGroups {queue : State} {parents}
-    (canonical : queue.GroupParentsCanonical parents)
-    : queue.drainReadyGroups.1.GroupParentsCanonical parents :=
+theorem State.GroupParentsCanonical.drainReadyGroups {queue : State}
+    {parents : Nat → NodeRefs} (canonical : queue.GroupParentsCanonical parents)
+    (available : List (Occurrence × Nat) := [])
+    : (queue.drainReadyGroups available).1.GroupParentsCanonical parents :=
   State.drainReadyGroups_preserves (fun state => state.GroupParentsCanonical parents)
-    (fun _ node prior _ _ _ _ => (prior.finishGroupSuccess node).startNewWork _)
-    (fun _ _ occurrence errors prior _ _ _ => prior.taskFailure occurrence errors)
+    (fun _ node prior _ _ _ => (prior.finishGroupSuccess node).startNewWork _ available)
     canonical
 
 /-- Successful task settlement preserves the source's primary-parent assignment.
@@ -394,7 +356,9 @@ theorem State.GroupParentsCanonical.taskSuccess
     (occurrence : Occurrence) (result : TaskResult)
     (childrenCanonical
       : ∀ group ∈ result.work.groups, group.parent = (parents group.node.ref).head?)
-    : (queue.taskSuccess occurrence result).1.GroupParentsCanonical parents := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.taskSuccess occurrence result available).1.GroupParentsCanonical
+        parents := by
   have step (acc : State × List WorkQueueEvent × NewWork) (group : Execution.DeliveryNode)
       (prior : acc.1.GroupParentsCanonical parents)
       : (successGroupStep acc group).1.GroupParentsCanonical parents := by
@@ -418,12 +382,13 @@ theorem State.GroupParentsCanonical.taskSuccess
   cases found : queue.taskNode? occurrence with
   | none => simpa [State.taskSuccess, found] using canonical
   | some node =>
-      rw [queue.taskSuccess_eq occurrence result node found]
+      rw [queue.taskSuccess_eq occurrence result node found available]
       let stored := queue.putTaskNode { node with value := some result.value }
       have storedCanonical : stored.GroupParentsCanonical parents := canonical
       have integrated := storedCanonical.maybeIntegrateWork result.work childrenCanonical
         (some occurrence)
-      exact ((loop node.task.groups (_, [], {}) integrated).startNewWork _).drainReadyGroups
+      exact ((loop node.task.groups (_, [], {}) integrated).startNewWork
+        _ available).drainReadyGroups available
 
 /-- Stream item integration preserves canonical parents for every supplied
 item-work group, regardless of item batch width. -/
@@ -434,22 +399,23 @@ theorem State.GroupParentsCanonical.streamItems
     (childrenCanonical
       : ∀ item ∈ items,
         ∀ group ∈ item.work.groups, group.parent = (parents group.node.ref).head?)
-    : (queue.streamItems stream items).1.GroupParentsCanonical parents := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.streamItems stream items available).1.GroupParentsCanonical parents := by
   let step (acc : State × List Execution.DeliveryNode
-      × List Execution.DeliveryNode × List StreamItemValue)
+      × List Execution.DeliveryNode × List StreamItemValue × List GroupFailureEvent)
       (item : StreamItem) :=
-    let (current, groups, streams, values) := acc
+    let (current, groups, streams, values, failures) := acc
     let (integrated, newWork) := current.maybeIntegrateWork item.work
     let (pruned, nonempty) := integrated.pruneEmptyGroups newWork.newGroups
-    (pruned.startNewWork { newWork with newGroups := nonempty },
-      groups ++ nonempty, streams ++ newWork.newStreams,
-      values ++ [item.value])
+    let (started, queued) := pruned.startNewWork { newWork with newGroups := nonempty } available
+    (started, groups ++ nonempty, streams ++ newWork.newStreams,
+      values ++ [item.value], failures ++ queued)
   have stepCanonical (acc : State × List Execution.DeliveryNode
-      × List Execution.DeliveryNode × List StreamItemValue)
+      × List Execution.DeliveryNode × List StreamItemValue × List GroupFailureEvent)
       (item : StreamItem) (currentCanonical : acc.1.GroupParentsCanonical parents)
       (itemMember : item ∈ items)
       : (step acc item).1.GroupParentsCanonical parents := by
-    obtain ⟨current, groups, streams, values⟩ := acc
+    obtain ⟨current, groups, streams, values, failures⟩ := acc
     let integrated := current.maybeIntegrateWork item.work
     have integratedCanonical : integrated.1.GroupParentsCanonical parents :=
       currentCanonical.maybeIntegrateWork item.work
@@ -458,11 +424,11 @@ theorem State.GroupParentsCanonical.streamItems
     have prunedCanonical : pruned.1.GroupParentsCanonical parents :=
       integratedCanonical.pruneEmptyGroups integrated.2.newGroups
     exact prunedCanonical.startNewWork
-      { integrated.2 with newGroups := pruned.2 }
+      { integrated.2 with newGroups := pruned.2 } available
   have foldCanonical (more : List StreamItem)
       (subset : ∀ item ∈ more, item ∈ items) :
       ∀ acc : State × List Execution.DeliveryNode
-        × List Execution.DeliveryNode × List StreamItemValue,
+        × List Execution.DeliveryNode × List StreamItemValue × List GroupFailureEvent,
         acc.1.GroupParentsCanonical parents
           → (more.foldl step acc).1.GroupParentsCanonical parents := by
     induction more with
@@ -479,7 +445,7 @@ theorem State.GroupParentsCanonical.streamItems
   split
   · exact canonical
   · exact (foldCanonical items (by intro item member; exact member)
-      (queue, [], [], []) canonical).drainReadyGroups
+      (queue, [], [], [], []) canonical).drainReadyGroups available
 
 /-- Closing a stream changes no group-parent metadata. -/
 theorem State.GroupParentsCanonical.streamSuccess
@@ -508,21 +474,29 @@ theorem State.GroupParentsCanonical.handleGraphEvent
     (workCanonical
       : ∀ node dependencies,
           GroupRecordAt work node dependencies → dependencies = parents node.ref)
-    : (queue.handleGraphEvent event).1.GroupParentsCanonical parents := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.handleGraphEvent event available).1.GroupParentsCanonical parents := by
+  have cached := canonical.cacheTaskFailures available
   cases event with
   | taskSuccess occurrence result =>
-      exact canonical.taskSuccess occurrence result
+      exact cached.taskSuccess occurrence result
         (fun group member =>
-          matching.taskChildGroups_parentCanonical workCanonical member)
+          matching.taskChildGroups_parentCanonical workCanonical member) available
   | taskFailure occurrence errors =>
-      exact canonical.taskFailure occurrence errors
+      exact cached.taskFailure occurrence errors
+  | groupFailure failure =>
+      change ((queue.cacheTaskFailures available).groupFailure failure).1.GroupParentsCanonical parents
+      unfold State.groupFailure
+      split
+      · exact cached
+      · split <;> exact cached
   | streamItems stream items =>
-      exact canonical.streamItems stream items
+      exact cached.streamItems stream items
         (fun item itemMember group groupMember =>
           matching.streamItem_childGroups_parentCanonical workCanonical
-            itemMember groupMember)
-  | streamSuccess stream => exact canonical.streamSuccess stream
-  | streamFailure stream errors => exact canonical.streamFailure stream errors
+            itemMember groupMember) available
+  | streamSuccess stream => exact cached.streamSuccess stream
+  | streamFailure stream errors => exact cached.streamFailure stream errors
 
 /-- A host batch preserves canonical group parents if every input event
 matches the fixed generated work tree. -/
@@ -535,10 +509,10 @@ theorem State.GroupParentsCanonical.handleGraphEvents
       : ∀ node dependencies,
           GroupRecordAt work node dependencies → dependencies = parents node.ref)
     : (queue.handleGraphEvents batch).1.GroupParentsCanonical parents := by
+  let available := GraphEvent.availableFailures batch
   let step (acc : State × List WorkQueueEvent) (event : GraphEvent) :=
-    let (current, outputs) := acc
-    let (next, produced) := current.handleGraphEvent event
-    (next, outputs ++ produced)
+    let (next, produced) := acc.1.dispatchGraphEvent event available
+    (next, acc.2 ++ produced)
   have foldCanonical (events : List GraphEvent)
       (subset : ∀ event ∈ events, event ∈ batch) :
       ∀ acc : State × List WorkQueueEvent,
@@ -554,20 +528,18 @@ theorem State.GroupParentsCanonical.handleGraphEvents
           exact subset member (by simp [memberRest])
         obtain ⟨current, outputs⟩ := acc
         have nextCanonical : (step (current, outputs) event).1.GroupParentsCanonical
-            parents := currentCanonical.handleGraphEvent event eventMatch workCanonical
+            parents := currentCanonical.handleGraphEvent event eventMatch workCanonical available
         exact ih restSubset (step (current, outputs) event) nextCanonical
   unfold State.handleGraphEvents
   split
   · exact canonical
-  · cases outcome : batch.foldl step (queue, []) with
+  · let folded := batch.foldl step (queue, [])
+    have final : folded.1.GroupParentsCanonical parents :=
+      foldCanonical batch (fun _ member => member) (queue, []) canonical
+    cases folded with
     | mk current outputs =>
-        have currentCanonical : current.GroupParentsCanonical parents := by
-          have folded := foldCanonical batch (fun _ member => member)
-            (queue, []) canonical
-          rw [outcome] at folded
-          exact folded
-        dsimp only
-        split <;> exact currentCanonical
+        dsimp only at final ⊢
+        split <;> exact final
 
 /-- Replaying matched host batches preserves each live group's generated
 primary parent, irrespective of publication order and batching. -/
@@ -637,8 +609,7 @@ theorem ExecutedWork.runNormalized_groupParentsCanonical
     createWorkQueue_groupParentsCanonical (Work.fromExecution work) parents
       (by
         intro group member
-        exact workFromSpec_groups_parentCanonical
-          (Located.root (root := work)) workCanonical member)
+        exact workFromSpec_groups_parentCanonical_root workCanonical member)
   apply initial.runNormalized batches
   · intro batch batchMember event eventMember
     exact valid.eachMatches

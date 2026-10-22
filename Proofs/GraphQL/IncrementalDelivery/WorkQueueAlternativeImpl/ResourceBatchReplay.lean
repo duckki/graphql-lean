@@ -21,10 +21,12 @@ projections. The dispatcher alone determines queue state, wire events and host e
 -/
 def ResourceBatchObservation.handleGraphEvent (before : ResourceBatchObservation)
     (inventories : ProducerInventories) (event : GraphEvent)
+    (available : List (WorkQueueSemantics.Occurrence × Nat) := [])
     : ResourceBatchObservation :=
-  let observed := before.resources.observeDispatch inventories before.dispatch.state event
+  let observed :=
+    before.resources.observeDispatch inventories before.dispatch.state event available
   {
-    dispatch := before.dispatch.handleGraphEvent event
+    dispatch := before.dispatch.handleGraphEvent event available
     resources := observed.1
     actions := before.actions ++ observed.2
   }
@@ -32,27 +34,32 @@ def ResourceBatchObservation.handleGraphEvent (before : ResourceBatchObservation
 /-- The FIFO fold projects to the real dispatcher, not a separately chosen graph history. -/
 theorem ResourceBatchObservation.fold_dispatch (before : ResourceBatchObservation)
     (inventories : ProducerInventories) (events : List GraphEvent)
-    : (events.foldl (fun acc event => acc.handleGraphEvent inventories event)
+    (available : List (WorkQueueSemantics.Occurrence × Nat) := [])
+    : (events.foldl (fun acc event => acc.handleGraphEvent inventories event available)
         before).dispatch
-      = events.foldl GraphBatchResult.handleGraphEvent before.dispatch := by
+      = events.foldl (fun acc event => acc.handleGraphEvent event available)
+          before.dispatch := by
   exact (List.foldl_hom ResourceBatchObservation.dispatch
-          (g₁ := fun acc event => acc.handleGraphEvent inventories event)
-          (g₂ := GraphBatchResult.handleGraphEvent) (l := events) (init := before)
-          (by intro acc event; rfl)).symm
+          (g₁ := fun acc event => acc.handleGraphEvent inventories event available)
+          (g₂ := fun acc event => acc.handleGraphEvent event available) (l := events)
+          (init := before) (by intro acc event; rfl)).symm
 
 /-- Each step extends the same legal ownership history at its actual intermediate queue. -/
 theorem ResourceBatchObservation.fold_replay (before : ResourceBatchObservation)
     (inventories : ProducerInventories) (events : List GraphEvent)
     (initial : ResourceState)
     (earlier : ResourceReplay initial before.actions before.resources)
+    (available : List (WorkQueueSemantics.Occurrence × Nat) := [])
     : let after :=
-        events.foldl (fun acc event => acc.handleGraphEvent inventories event) before
+        events.foldl (fun acc event => acc.handleGraphEvent inventories event available)
+          before
       ResourceReplay initial after.actions after.resources := by
   induction events generalizing before with
   | nil => exact earlier
   | cons event rest ih =>
       apply ih
-      exact earlier.append (before.resources.observeDispatch_replay inventories before.dispatch.state event)
+      exact earlier.append (before.resources.observeDispatch_replay inventories
+        before.dispatch.state event available)
 
 -----------------------------------------------------------------------------------------
 -- The actual batch boundary controls terminal teardown and ignored late input
@@ -68,12 +75,15 @@ def State.observeResourceBatch (state : State) (resources : ResourceState)
   if state.stopped || state.queue.terminated then
     { dispatch := { state }, resources }
   else
+    let available := ReferenceWorkQueue.GraphEvent.availableFailures batch
     let reduced :=
       batch.foldl
-        (fun acc event => acc.handleGraphEvent inventories event)
+        (fun acc event => acc.handleGraphEvent inventories event available)
         { dispatch := { state }, resources : ResourceBatchObservation }
     let queue := reduced.dispatch.state.queue
-    if queue.rootGroups.isEmpty && queue.rootStreams.isEmpty then
+    if queue.rootGroups.isEmpty
+        && queue.rootStreams.isEmpty
+        && queue.groupFailureEvents.isEmpty then
       let ending :=
         { reduced.dispatch.state with queue := { queue with terminated := true } }
       let (state, cleanup) := ending.cancel
@@ -103,7 +113,7 @@ theorem State.observeResourceBatch_dispatch (state : State) (resources : Resourc
   · simp only [ResourceBatchObservation.fold_dispatch]
     split
     · rfl
-    · exact ResourceBatchObservation.fold_dispatch _ _ _
+    · exact ResourceBatchObservation.fold_dispatch _ _ _ _
 
 /-- The batch root constructs the full compatible resource history, including actual
 terminal stop requests. It does not assert every native resource was acquired or represented.
@@ -117,6 +127,7 @@ theorem State.observeResourceBatch_replay (state : State) (resources : ResourceS
   · exact .nil _
   · have dispatched := ResourceBatchObservation.fold_replay
       { dispatch := { state }, resources } inventories batch resources (.nil _)
+        (ReferenceWorkQueue.GraphEvent.availableFailures batch)
     dsimp only at dispatched ⊢
     split
     · exact dispatched.append (ResourceState.observeStop_replay _ _)
@@ -194,7 +205,8 @@ theorem State.runNormalized_stateFold (state : State) (batches : List (List Grap
           (g₂ := fun (state : State) batch => (state.handleGraphEvents batch).state)
           (l := batches)
           (by
-            intro acc batch; rcases acc with ⟨state, publisher, outputs⟩; dsimp only; split <;> rfl)).symm
+            intro acc batch; rcases acc with ⟨state, publisher, outputs⟩; dsimp only; split <;>
+              rfl)).symm
 
 /-- Exact replay root: ownership observation does not change the normalized runner's state. -/
 theorem State.observeResourceBatches_state (state : State) (resources : ResourceState)

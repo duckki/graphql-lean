@@ -8,7 +8,7 @@ open GraphQL.IncrementalDelivery.Execution
 /-- A value event retains its producing task's readiness witness; extract the event rule.
 -/
 theorem EventAllowed.publicationReady {work initial matching before failed event}
-    (allowed : EventAllowed work initial matching before failed event)
+    (allowed : EventAllowed work initial matching before failed event reported)
     (value : IsValue event)
     : ∃ owners producer payload,
         TaskAt work (matching before.length) owners producer payload
@@ -75,7 +75,7 @@ theorem Explains.cancelled_unpublished
   · have cutBefore : cut ≤ index := Nat.le_of_not_gt earlier
     have inside := (List.getElem?_eq_some_iff.mp selected).1
     obtain ⟨owners, producer, payload, known, ready⟩ :=
-      (explained.2.2 index event selected).publicationReady value
+      (explained.eventAllowed index event selected).publicationReady value
     apply ready.2.1
     have length : (events.take index).length = index := by
       simp only [List.length_take, Nat.min_eq_left (Nat.le_of_lt inside)]
@@ -97,7 +97,7 @@ theorem Explains.producer_before {work groups streams events matching failures}
         ∧ IsValue previous
         ∧ matching earlier = producerOccurrence := by
   have bound := (List.getElem?_eq_some_iff.mp selected).choose
-  have ready := (explained.2.2 index event selected).publicationReady value
+  have ready := (explained.eventAllowed index event selected).publicationReady value
   simp only [List.length_take, Nat.min_eq_left (Nat.le_of_lt bound)] at ready
   obtain ⟨otherOwners, producer, otherPayload, known, ready⟩ := ready
   have same := TaskAt.unique known task
@@ -117,7 +117,7 @@ theorem Explains.item_predecessor {work groups streams events matching failures}
         ∧ IsValue previous
         ∧ matching earlier = .item address ordinal := by
   have bound := (List.getElem?_eq_some_iff.mp selected).choose
-  have ready := (explained.2.2 index event selected).publicationReady value
+  have ready := (explained.eventAllowed index event selected).publicationReady value
   simp only [List.length_take, Nat.min_eq_left (Nat.le_of_lt bound), same] at ready
   obtain ⟨_, _, _, _, ready⟩ := ready
   exact (show Published matching (events.take index) (.item address ordinal)

@@ -1,4 +1,7 @@
 import GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl
+import Tests.GraphQL.IncrementalDelivery.Fixtures.WorkDeclarations
+
+open GraphQL.IncrementalDelivery.Tests (declaredTask)
 
 /-! Executable registration-projection checks independent of conformance proofs. -/
 
@@ -110,8 +113,10 @@ private def parity (name : String) (work : Execution.Work)
       (state.queue.tasks ++ work.tasks)
     same "no eager starts during integration" registered.queue.taskNodes
       state.queue.taskNodes
-    let (started, targets) := registered.startNewWork projections.newWork projections
+    let (started, targets, failures) :=
+      registered.startNewWork projections.newWork projections
     same "disposal consumes rejected projection" targets [.task rejected.occurrence]
+    check "healthy startup queues no failures" failures.isEmpty
     for selected in [active, fresh, activeAgain] do
       check "active and newly released tasks start"
         ((started.queue.taskNode? selected.occurrence).isSome)
@@ -120,25 +125,46 @@ private def parity (name : String) (work : Execution.Work)
         ((started.queue.taskNode? selected.occurrence).isNone)
     same "all released roots installed" started.queue.rootGroups [1, 5]
     same "all released sources installed" started.queue.rootStreams [4, 6]
-    let (stopped, silent) :=
+    let (stopped, silent, stoppedFailures) :=
       ({ registered with stopped := true }).startNewWork projections.newWork projections
     same "closed activation unchanged" stopped { registered with stopped := true }
     check "closed activation silent" silent.isEmpty
+    check "closed activation queues no failures" stoppedFailures.isEmpty
     let duplicate : ReferenceWorkQueue.Work := { tasks := [rejected, rejected] }
-    let (_, _, effects) := state.handleGraphEvent (success duplicate)
+    let (_, _, effects, _) := state.handleGraphEvent (success duplicate)
     same "handoff before one rejected-task abort" effects
       [.adopt (.executionGroup [9]), .abortTask rejected.occurrence]
-    let (_, _, activeEffects) := state.handleGraphEvent (success { tasks := [active] })
+    let (_, _, activeEffects, _) := state.handleGraphEvent (success { tasks := [active] })
     same "accepted active task is not rejected" activeEffects
       [.adopt (.executionGroup [9])]
-    let (activeResult, _, _) := state.handleGraphEvent (success { tasks := [active] })
+    let (activeResult, _, _, _) := state.handleGraphEvent (success { tasks := [active] })
     check "newly active child starts after settlement"
       ((activeResult.queue.taskNode? active.occurrence).isSome)
     check "new contribution prevents premature owner completion"
       ((activeResult.queue.groupNode? 1).any
         (fun (group : ReferenceWorkQueue.GroupNode) => group.pending == 1))
+    let available := [(active.occurrence, 1)]
+    let activeInput := success { tasks := [active] }
+    let referenceStep := state.queue.handleGraphEvent activeInput available
+    let alternativeStep := state.handleGraphEvent activeInput available
+    same "delayed activation exposes the available child rejection"
+      ((alternativeStep.1.queue.taskNode? active.occurrence).bind (·.rejection)) (some 1)
+    same "reference active registration awaits its next cache exposure"
+      ((referenceStep.1.taskNode? active.occurrence).bind (·.rejection)) none
+    same "the same cache exposure aligns intermediate queue records"
+      (alternativeStep.1.queue.cacheTaskFailures available)
+      (referenceStep.1.cacheTaskFailures available)
+    same "available rejection metadata preserves immediate output"
+      alternativeStep.2.1 referenceStep.2.1
+    let failureBatch : List GraphEvent := [activeInput, .taskFailure active.occurrence 1]
+    let alternativeBatch := state.handleGraphEvents failureBatch
+    let referenceBatch := state.queue.handleGraphEvents failureBatch
+    same "FIFO notification aligns the complete batch queue"
+      alternativeBatch.state (State.fromReference referenceBatch.1)
+    same "FIFO notification aligns complete batch output"
+      alternativeBatch.workQueueEvents referenceBatch.2
     let secondRejected := task 16 []
-    let (_, _, itemEffects) :=
+    let (_, _, itemEffects, _) :=
       state.handleGraphEvent
         (.streamItems (node 4)
           [item 0 duplicate, item 1 { tasks := [rejected, secondRejected] }])
@@ -150,30 +176,30 @@ private def parity (name : String) (work : Execution.Work)
         .abortTask secondRejected.occurrence,
         .acknowledge 4
       ]
-    let (ignored, ignoredEvents, ignoredEffects) :=
+    let (ignored, ignoredEvents, ignoredEffects, ignoredFailures) :=
       state.handleGraphEvent (.streamItems (node 7) [item 0 duplicate])
     same "inactive receipt registers nothing" ignored state
     check "inactive receipt publishes nothing" ignoredEvents.isEmpty
+    check "inactive receipt queues no failures" ignoredFailures.isEmpty
     same "inactive receipt still acknowledged" ignoredEffects [.acknowledge 7]
-    let (missing, _, missingEffects) :=
+    let (missing, _, missingEffects, missingFailures) :=
       state.handleGraphEvent
         (.taskSuccess rejected.occurrence
           { value := { path := [], data := [] }, work := duplicate })
     same "missing task result does not register" missing state
     check "missing task result does not adopt" missingEffects.isEmpty
+    check "missing task result queues no failures" missingFailures.isEmpty
     let result : Execution.Result (List (GraphQL.Name × Execution.ResponseValue)) :=
       .ok ([("x", .scalar "X")], 0)
-    let simple : Execution.Work :=
-      .executionGroup [{ node := node 1 }] [] { result } .empty
+    let simple : Execution.Work := declaredTask [{ node := node 1 }] [] { result } .empty
     let simpleDone : GraphEvent :=
       .taskSuccess (.executionGroup [])
         { value := { path := [], data := [("x", .scalar "X")] } }
     parity "startup/prefix" simple []
     parity "completion" simple [[simpleDone]]
     let child : Execution.Work :=
-      .executionGroup [{ node := node 5, ancestors := [node 1] }] [] { result } .empty
-    let nested : Execution.Work :=
-      .executionGroup [{ node := node 1 }] [] { result } child
+      declaredTask [{ node := node 5, ancestors := [node 1] }] [] { result } .empty
+    let nested : Execution.Work := declaredTask [{ node := node 1 }] [] { result } child
     let parentDone : GraphEvent :=
       .taskSuccess (.executionGroup [])
         {
@@ -186,7 +212,7 @@ private def parity (name : String) (work : Execution.Work)
     parity "nested release" nested [[parentDone]]
     parity "nested same batch" nested [[parentDone, childDone]]
     let shared : Execution.Work :=
-      .executionGroup [{ node := node 1 }, { node := node 2 }] [] { result } .empty
+      declaredTask [{ node := node 1 }, { node := node 2 }] [] { result } .empty
     parity "shared owners" shared [[simpleDone]]
     let staged := Execution.Work.combine simple simple
     let first : GraphEvent :=
@@ -206,8 +232,7 @@ private def parity (name : String) (work : Execution.Work)
       [[.streamItems (node 4) [admitted]], [.streamFailure (node 4) 1], [childDone]]
     let held : Execution.Work := .stream (node 6) []
     let stagedSource :=
-      Execution.Work.combine (.executionGroup [{ node := node 1 }] [] { result } held)
-        simple
+      Execution.Work.combine (declaredTask [{ node := node 1 }] [] { result } held) simple
     let heldDone : GraphEvent :=
       .taskSuccess (.executionGroup [0])
         {

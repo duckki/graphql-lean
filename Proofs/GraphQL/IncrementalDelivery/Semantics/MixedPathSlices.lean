@@ -14,6 +14,9 @@ open DeliveryPaths
 mutual
   inductive WorkSlices (containers : Bool) : Work → List (List ResponsePath) → Prop where
     | empty : WorkSlices containers .empty []
+    | declareGroups {groups : List DeferredFragment} {tasks : Work}
+      {slices : List (List ResponsePath)} (known : WorkSlices containers tasks slices)
+      : WorkSlices containers (.declareGroups groups tasks) slices
     | combine {left right : Work} {leftSlices rightSlices : List (List ResponsePath)}
       (hleft : WorkSlices containers left leftSlices)
       (hright : WorkSlices containers right rightSlices)

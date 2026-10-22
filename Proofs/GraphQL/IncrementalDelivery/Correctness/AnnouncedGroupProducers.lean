@@ -71,7 +71,7 @@ theorem Explains.announced_producer_available
         exact retained descriptor eligible
       · obtain ⟨parents, birth, descriptor, eligible⟩ := notices.2.2 owner stream
         exact retained descriptor eligible
-    have allowed := explained.2.2 index event selected
+    have allowed := explained.eventAllowed index event selected
     simp only [EventAllowed,
       List.length_take_of_le (Nat.le_of_lt (List.getElem?_eq_some_iff.mp selected).1)] at allowed
     cases event <;> simp only [eventPending, List.not_mem_nil] at notice
@@ -133,7 +133,7 @@ theorem Explains.announced_group_producer_available
         simpa only [List.take_append_drop] using shorter.append (events.drop (index + 1))
       · obtain ⟨parents, birth, descriptor, _⟩ := notices.2.2 owner stream
         exact False.elim (stream_group_refs_distinct roleCoherent descriptor known same)
-    have allowed := explained.2.2 index event selected
+    have allowed := explained.eventAllowed index event selected
     simp only [EventAllowed,
       List.length_take_of_le (Nat.le_of_lt (List.getElem?_eq_some_iff.mp selected).1)] at allowed
     cases event <;> simp only [eventPending, List.not_mem_nil] at notice

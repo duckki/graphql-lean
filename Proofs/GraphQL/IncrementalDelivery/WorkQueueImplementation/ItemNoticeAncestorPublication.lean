@@ -14,15 +14,15 @@ theorem State.streamItems_groupNotice_boundary (queue : State)
     (stream : Execution.DeliveryNode) (items : List StreamItem)
     {position group groups streams}
     (selected
-      : (queue.streamItems stream items).2[position]?
+      : (queue.streamItems stream items).2.1[position]?
         = some (.groupSuccess group groups streams))
     : queue.rootStreams.contains stream.ref = true
       ∧ ∃ index,
-          (queue.preparedStreamItems items).drainReadyGroups.2[index]?
+          (queue.preparedStreamItems items).drainReadyGroups.2.1[index]?
             = some (.groupSuccess group groups streams)
-          ∧ ((queue.streamItems stream items).2.take position).flatMap
+          ∧ ((queue.streamItems stream items).2.1.take position).flatMap
               WorkQueueEvent.objectValues
-            = ((queue.preparedStreamItems items).drainReadyGroups.2.take index).flatMap
+            = ((queue.preparedStreamItems items).drainReadyGroups.2.1.take index).flatMap
                 WorkQueueEvent.objectValues
           ∧ (queue.streamItems stream items).1
             = (queue.preparedStreamItems items).drainReadyGroups.1 := by
@@ -51,7 +51,7 @@ theorem ExecutedWork.streamItems_groupNoticeAncestor_contributor_before
     (generated : ExecutedWork work)
     (valid : ValidGraphEvents work (before ++ [.streamItems stream items]))
     (started
-      : (State.initialize (Work.fromExecution work)).acceptsBatch
+      : State.eventsStarted [] (State.initialize (Work.fromExecution work))
           (before ++ [.streamItems stream items])
         = true)
     (covered
@@ -60,7 +60,7 @@ theorem ExecutedWork.streamItems_groupNoticeAncestor_contributor_before
     (selected
       : (((State.initialize (Work.fromExecution work)).replayGraphEvents
             before).streamItems
-          stream items).2[position]?
+          stream items).2.1[position]?
         = some (.groupSuccess group groups streams))
     (noticed : child ∈ groups) (known : GroupRecordAt work child dependencies)
     (ancestor : ref ∈ dependencies)
@@ -74,7 +74,7 @@ theorem ExecutedWork.streamItems_groupNoticeAncestor_contributor_before
                 WorkQueueEvent.objectValues).length
               + (((((State.initialize (Work.fromExecution work)).replayGraphEvents
                       before).streamItems
-                    stream items).2.take
+                    stream items).2.1.take
                     position).flatMap
                   WorkQueueEvent.objectValues).length) := by
   let initial := State.initialize (Work.fromExecution work)
@@ -91,12 +91,16 @@ theorem ExecutedWork.streamItems_groupNoticeAncestor_contributor_before
     obtain ⟨active, index, atDrain, prefixEq, finalEq⟩ :=
       queue.streamItems_groupNotice_boundary stream items selected
     have notCancelled := (generated.noticeAncestor_healthy_uncancelled valid
-      (State.acceptsBatch_prefix started) emitted refNoticed known ancestor).2
+      (State.eventsStarted_prefix started) emitted refNoticed known ancestor).2
     have endpoint : initial.replayGraphEvents (before ++ [.streamItems stream items])
-        = (queue.preparedStreamItems items).drainReadyGroups.1 := by
-      rw [State.replayGraphEvents_append]
-      exact finalEq
+        = (queue.dispatchGraphEvent (.streamItems stream items)).1 := by
+      simp only [State.replayGraphEvents, List.foldl_append, List.foldl_cons, List.foldl_nil]
+      rfl
     rw [endpoint] at notCancelled
+    have notCancelled : ref ∉ (queue.preparedStreamItems items).drainReadyGroups.1.cancelledGroups := by
+      simpa only [State.dispatchGraphEvent, State.enqueueGroupFailures,
+        State.handleGraphEvent, State.cacheTaskFailures, List.foldl_nil, finalEq]
+        using notCancelled
     have delivered := generated.streamItems_drainNoticeAncestorValue_before
       (fun _ member => (valid.prefix (List.prefix_append before [_])).eachMatches member)
       (valid.eachMatches (List.mem_append_right before List.mem_cons_self)) known ancestor
@@ -106,7 +110,7 @@ theorem ExecutedWork.streamItems_groupNoticeAncestor_contributor_before
     refine ⟨result.value, ?_⟩
     change (Occurrence.executionGroup address, result.value) ∈ published.take
       (((initial.rawEventReplay before).2.flatMap WorkQueueEvent.objectValues).length
-        + (((queue.streamItems stream items).2.take position).flatMap
+        + (((queue.streamItems stream items).2.1.take position).flatMap
           WorkQueueEvent.objectValues).length)
     rw [prefixEq, List.take_add]
     apply List.mem_append_right
@@ -124,7 +128,8 @@ theorem ExecutedWork.handleGraphEvent_groupNoticeAncestor_contributor_before
     (generated : ExecutedWork work)
     (valid : ValidGraphEvents work (before ++ [event]))
     (started
-      : (State.initialize (Work.fromExecution work)).acceptsBatch (before ++ [event])
+      : State.eventsStarted [] (State.initialize (Work.fromExecution work))
+          (before ++ [event])
         = true)
     (covered
       : (State.initialize (Work.fromExecution work)).ReplayClosuresCovered
@@ -132,7 +137,7 @@ theorem ExecutedWork.handleGraphEvent_groupNoticeAncestor_contributor_before
     (selected
       : (((State.initialize (Work.fromExecution work)).replayGraphEvents
             before).handleGraphEvent
-          event).2[position]?
+          event).2.1[position]?
         = some (.groupSuccess group groups streams))
     (noticed : child ∈ groups) (known : GroupRecordAt work child dependencies)
     (ancestor : ref ∈ dependencies)
@@ -146,7 +151,7 @@ theorem ExecutedWork.handleGraphEvent_groupNoticeAncestor_contributor_before
                 WorkQueueEvent.objectValues).length
               + (((((State.initialize (Work.fromExecution work)).replayGraphEvents
                       before).handleGraphEvent
-                    event).2.take
+                    event).2.1.take
                     position).flatMap
                   WorkQueueEvent.objectValues).length) := by
   let queue := (State.initialize (Work.fromExecution work)).replayGraphEvents before
@@ -168,5 +173,11 @@ theorem ExecutedWork.handleGraphEvent_groupNoticeAncestor_contributor_before
       have member := List.mem_of_getElem? selected
       simp only [State.handleGraphEvent, State.streamFailure] at member
       split at member <;> simp at member
+  | groupFailure notice =>
+      have member := List.mem_of_getElem? selected
+      simp only [State.handleGraphEvent, State.groupFailure] at member
+      split at member
+      · cases member
+      · split at member <;> simp at member
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

@@ -73,10 +73,9 @@ theorem objectStreamBoundaryCertificates {work : Execution.Work}
     rw [terminalShape, ← history, List.take_append_of_le_length (Nat.le_of_lt bound)]
   have partition := inventory ▸ mergeFailureCuts_partition
     (informativeObjectFailureCuts work
-      ((initialQueue work).eligibleFailureBlocks
-        ((initialQueue work).sourceRunBlocks
+      ((initialQueue work).sourceRunBlocks
           { active := (initialQueue work).initialGroups ++ (initialQueue work).initialStreams }
-          inputs).2.2)) streams
+          inputs).2.2) streams
   obtain ⟨prior, input, after, split, action, _, bridge⟩ :=
     generated.atomicObjectStreamHealthy_of_earlierItems valid started cuts
     partition known atFull action nonfailure (matching := w.matching)

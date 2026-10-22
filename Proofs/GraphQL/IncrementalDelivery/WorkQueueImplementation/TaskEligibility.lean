@@ -1,7 +1,7 @@
 import GraphQL.IncrementalDelivery.WorkQueueImplementation
 
-/-! Task-node presence controls settlement handling. Retained rejections are replayed
-in group task-registration order; semantic owner health is a separate replay invariant.
+/-! Task-node presence controls settlement handling. A first rejected task is selected
+only as causal proof evidence; runtime startup reports every cached member rejection.
 -/
 
 namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
@@ -10,7 +10,8 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 /-- A settlement for an absent task leaves the queue unchanged and emits no value. -/
 theorem State.taskSuccess_of_taskNode_none {queue : State} {occurrence : Occurrence}
     (absent : queue.taskNode? occurrence = none) (result : TaskResult)
-    : queue.taskSuccess occurrence result = (queue, []) := by
+    (available : List (Occurrence × Nat) := [])
+    : queue.taskSuccess occurrence result available = (queue, [], []) := by
   simp only [State.taskSuccess, absent]
 
 /-- A rejection for an absent task leaves the queue unchanged and emits no completion. -/
@@ -21,7 +22,8 @@ theorem State.taskFailure_of_taskNode_none {queue : State} {occurrence : Occurre
 
 /-- Any success output came from a retained started task. -/
 theorem State.taskSuccess_output_started {queue : State} {occurrence : Occurrence}
-    {result : TaskResult} (emitted : (queue.taskSuccess occurrence result).2 ≠ [])
+    {result : TaskResult} {available : List (Occurrence × Nat)}
+    (emitted : (queue.taskSuccess occurrence result available).2.1 ≠ [])
     : ∃ node, queue.taskNode? occurrence = some node := by
   cases found : queue.taskNode? occurrence with
   | none => simp [State.taskSuccess, found] at emitted
@@ -63,7 +65,15 @@ theorem State.taskFailure_dormant {queue : State} {occurrence : Occurrence}
       have inactive : group.ref ∉ queue.rootGroups := by simpa using dormant group member
       simp [State.putTaskNode, inactive]
 
-/-- Replaying a rejection uses a listed task and its retained rejected computation. -/
+/-- Select one cached task to explain causal failure, without changing runtime reporting. -/
+def State.rejectedTask? (state : State) (group : GroupNode) : Option (Occurrence × Nat) :=
+  group.tasks.findSome?
+    fun occurrence => do
+      let task ← state.taskNode? occurrence
+      let errors ← task.rejection
+      return (occurrence, errors)
+
+/-- A selected causal explanation uses a listed task and its retained computation. -/
 theorem State.rejectedTask?_sound {queue : State} {group : GroupNode}
     {occurrence : Occurrence} {errors : Nat}
     (selected : queue.rejectedTask? group = some (occurrence, errors))

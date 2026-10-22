@@ -53,7 +53,7 @@ theorem ExecutedWork.handleGraphEvent_noEarlierGroupNotice
     : ref
       ∉ ((((State.initialize (Work.fromExecution work)).replayGraphEvents
             before).handleGraphEvent
-            event).2.flatMap
+            event).2.1.flatMap
           rawGroupNoticeRefs) := by
   cases event with
   | taskSuccess occurrence result =>
@@ -69,5 +69,10 @@ theorem ExecutedWork.handleGraphEvent_noEarlierGroupNotice
   | streamFailure stream errors =>
       simp only [State.handleGraphEvent, State.streamFailure]
       split <;> simp [rawGroupNoticeRefs]
+  | groupFailure notice =>
+      simp only [State.handleGraphEvent, State.groupFailure]
+      split
+      · simp
+      · split <;> simp [rawGroupNoticeRefs]
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

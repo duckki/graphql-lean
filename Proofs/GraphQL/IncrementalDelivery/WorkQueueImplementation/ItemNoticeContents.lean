@@ -21,22 +21,26 @@ theorem streamItemFold_state (items : List StreamItem)
       : State
         × List Execution.DeliveryNode
         × List Execution.DeliveryNode
-        × List StreamItemValue)
-    : (items.foldl streamItemStep acc).1
-      = items.foldl State.integrateStreamItem acc.1 := by
+        × List StreamItemValue
+        × List GroupFailureEvent)
+    (available : List (Occurrence × Nat) := [])
+    : (items.foldl (fun acc item => streamItemStep acc item available) acc).1
+      = items.foldl (fun current item => current.integrateStreamItem item available)
+          acc.1 := by
   induction items generalizing acc with
   | nil => rfl
-  | cons item rest ih => exact ih (streamItemStep acc item)
+  | cons item rest ih => exact ih (streamItemStep acc item available)
 
 /-- Item preparation splits at the actual first integration.
 Witness: projecting the metadata fold gives the ordinary queue-state fold.
 -/
 theorem State.preparedStreamItems_cons (queue : State) (item : StreamItem)
-    (items : List StreamItem)
-    : queue.preparedStreamItems (item :: items)
-      = (queue.integrateStreamItem item).preparedStreamItems items := by
+    (items : List StreamItem) (available : List (Occurrence × Nat) := [])
+    : queue.preparedStreamItems (item :: items) available
+      = (queue.integrateStreamItem item available).preparedStreamItems items
+          available := by
   unfold State.preparedStreamItems
-  rw [streamItemFold_state, streamItemFold_state]
+  rw [streamItemFold_state _ _ available, streamItemFold_state _ _ available]
   rfl
 
 /-- Every accumulated group notice comes from a specific actual item-pruning boundary.
@@ -44,25 +48,29 @@ Witness: split old versus newly appended notices in the concrete fold. The prefi
 an input-list prefix, not a selected scheduler trace or a deduplicated descriptor list.
 -/
 theorem State.streamItemFold_noticeOrigin (queue : State) (items : List StreamItem)
-    {child} (noticed : child ∈ (items.foldl streamItemStep (queue, [], [], [])).2.1)
+    (available : List (Occurrence × Nat)) {child}
+    (noticed
+      : child
+        ∈ (items.foldl (fun acc item => streamItemStep acc item available)
+            (queue, [], [], [], [])).2.1)
     : ∃ before item after,
         items = before ++ item :: after
-        ∧ let current := queue.preparedStreamItems before
+        ∧ let current := queue.preparedStreamItems before available
           child
           ∈ ((current.maybeIntegrateWork item.work).1.pruneEmptyGroups
               (current.maybeIntegrateWork item.work).2.newGroups).2 := by
   have loop (more : List StreamItem)
       (acc : State × List Execution.DeliveryNode × List Execution.DeliveryNode
-        × List StreamItemValue)
-      (member : child ∈ (more.foldl streamItemStep acc).2.1)
+        × List StreamItemValue × List GroupFailureEvent)
+      (member : child ∈ (more.foldl (fun acc item => streamItemStep acc item available) acc).2.1)
       : child ∈ acc.2.1 ∨ ∃ before item after, more = before ++ item :: after ∧
-          let current := acc.1.preparedStreamItems before
+          let current := acc.1.preparedStreamItems before available
           child ∈ ((current.maybeIntegrateWork item.work).1.pruneEmptyGroups
             (current.maybeIntegrateWork item.work).2.newGroups).2 := by
     induction more generalizing acc with
     | nil => exact .inl member
     | cons item rest ih =>
-        rcases ih (streamItemStep acc item) member with old | later
+        rcases ih (streamItemStep acc item available) member with old | later
         · rcases List.mem_append.mp old with previous | introduced
           · exact .inl previous
           · exact .inr ⟨[], item, rest, rfl, introduced⟩
@@ -71,7 +79,7 @@ theorem State.streamItemFold_noticeOrigin (queue : State) (items : List StreamIt
           · simp only [List.cons_append, shape]
           · simpa only [State.preparedStreamItems_cons, streamItemStep,
               State.integrateStreamItem] using introduced
-  exact (loop items (queue, [], [], []) noticed).resolve_left (by simp)
+  exact (loop items (queue, [], [], [], []) noticed).resolve_left (by simp)
 
 -----------------------------------------------------------------------------------------
 -- Source validity and the common replay ledger supply the contents and exclusion facts
@@ -84,11 +92,11 @@ event. No uniqueness assumption on the notices or their payloads is used.
 theorem State.streamItems_noticeGroups (queue : State) (stream : Execution.DeliveryNode)
     (items : List StreamItem) {index : Nat} {emitted values groups streams}
     (selected
-      : (queue.streamItems stream items).2[index]?
+      : (queue.streamItems stream items).2.1[index]?
         = some (.streamValues emitted values groups streams))
     : queue.rootStreams.contains stream.ref = true
       ∧ index = 0
-      ∧ groups = (items.foldl streamItemStep (queue, [], [], [])).2.1 := by
+      ∧ groups = (items.foldl streamItemStep (queue, [], [], [], [])).2.1 := by
   rw [queue.streamItems_eq stream items] at selected
   cases active : queue.rootStreams.contains stream.ref with
   | false =>
@@ -102,11 +110,11 @@ theorem State.streamItems_noticeGroups (queue : State) (stream : Execution.Deliv
           exact ⟨rfl, rfl, rfl⟩
       | succ index =>
           exact False.elim ((queue.preparedStreamItems items).drainReadyGroups_noStreamValues
-            emitted values groups streams (List.mem_of_getElem? selected))
+            emitted values groups streams [] (List.mem_of_getElem? selected))
 
 /-- A leading item notice has retained contents excluding all earlier object publications.
-Witness: recover its actual item-pruning boundary, derive metadata for that input prefix,
-and preserve earlier publication exclusions through fresh child integration. No object
+Witness: recover its pruning boundary before cached startup can remove the child,
+derive metadata there and preserve prior exclusions through fresh integration. No object
 output occurs during preparation, so every item's boundary uses the same strict ledger
 prefix. No notice-admission or caller-supplied state invariant is assumed.
 -/
@@ -118,10 +126,12 @@ theorem ExecutedWork.streamItems_leadingNoticeContents
           (before ++ .streamItems stream items :: after) published)
     (valid : ValidGraphEvents work (before ++ .streamItems stream items :: after))
     : let current := (State.initialize (Work.fromExecution work)).replayGraphEvents before
-      child ∈ (items.foldl streamItemStep (current, [], [], [])).2.1
+      child ∈ (items.foldl streamItemStep (current, [], [], [], [])).2.1
       → ∃ earlier item later,
           items = earlier ++ item :: later
-          ∧ let boundary := (current.preparedStreamItems earlier).integrateStreamItem item
+          ∧ let prepared :=
+              (current.preparedStreamItems earlier).maybeIntegrateWork item.work
+            let boundary := (prepared.1.pruneEmptyGroups prepared.2.newGroups).1
             (∃ dependencies producer, NodeAt work child .group dependencies producer)
             ∧ ∃ node,
                 boundary.groupNode? child.ref = some node
@@ -135,7 +145,7 @@ theorem ExecutedWork.streamItems_leadingNoticeContents
                     publication.1 ∉ node.tasks := by
   intro current noticed
   obtain ⟨earlier, item, later, splitItems, introduced⟩ :=
-    current.streamItemFold_noticeOrigin items noticed
+    current.streamItemFold_noticeOrigin items [] noticed
   have included : earlier.Subset items := by
     rw [splitItems]
     exact List.subset_append_left _ _
@@ -161,7 +171,7 @@ theorem ExecutedWork.streamItems_leadingNoticeContents
   have integrated := prepared.maybeIntegrateWork item.work (by
     intro task taskMember
     exact fresh task (List.mem_flatMap.mpr ⟨item, itemMember, taskMember⟩))
-  exact ((integrated.pruneEmptyGroups _).startNewWork _) node
+  exact (integrated.pruneEmptyGroups _) node
     (List.mem_of_find?_eq_some found)
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

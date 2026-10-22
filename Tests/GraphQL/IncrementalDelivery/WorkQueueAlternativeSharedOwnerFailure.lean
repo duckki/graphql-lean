@@ -34,7 +34,8 @@ example
         SharedOwnerFailure.schedule).Conforms
         SharedOwnerFailure.work :=
   createWorkQueueForScheduleConforms_holds _ _ SharedOwnerFailure.executed
-    SharedOwnerFailure.nonempty SharedOwnerFailure.source_valid
+    ((Execution.Work.isEmpty_eq_false _).mpr SharedOwnerFailure.nonempty)
+    SharedOwnerFailure.source_valid
 
 example
     : (createWorkQueueForSchedule SharedOwnerFailure.work

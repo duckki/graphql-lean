@@ -100,18 +100,27 @@ theorem streamNoticeRefs_terminalCompleted {work inputs ref} {w : Witness}
         ∈ (initialQueue work).initialStreams.map Execution.DeliveryNode.ref
           ++ w.events.flatMap streamNoticeRefs)
     : ref ∈ completedRefs w.events := by
-  have exactHistory := history.trans (createWorkQueue_nonterminalAtoms_flattened inputs started)
-  have notices
-      : w.events.flatMap streamNoticeRefs
-        = ((initialQueue work).rawEventReplay inputs.flatten).2.flatMap rawStreamNoticeRefs := by
-    rw [exactHistory, atomicStreamNotices _ _
-      ((initialQueue work).rawEventReplay_nonemptyValues inputs.flatten valid.nonemptyItems)]
-  have closures
-      : w.events.flatMap streamClosureRefs
-        = ((initialQueue work).rawEventReplay inputs.flatten).2.flatMap rawStreamClosureRefs := by
-    rw [exactHistory, List.flatMap_assoc]
+  let publisher : IncrementalPublisher :=
+    { active := (initialQueue work).initialGroups ++ (initialQueue work).initialStreams }
+  have noticeProjection := atomicStreamNotices publisher ((initialQueue work).rawBatches inputs).2
+    ((initialQueue work).rawBatches_nonemptyValues inputs valid.nonemptyItems)
+  rw [Witness.rawBatches_shape history] at noticeProjection
+  have notices : w.events.flatMap streamNoticeRefs =
+      ((initialQueue work).rawBatches inputs).2.flatMap rawStreamNoticeRefs := by
+    split at noticeProjection <;>
+      simpa [List.flatMap_append, streamNoticeRefs] using noticeProjection
+  have closureProjection : ((publisher.normalizeBatch
+      ((initialQueue work).rawBatches inputs).2).2.flatMap publicationAtoms).flatMap
+        streamClosureRefs
+      = ((initialQueue work).rawBatches inputs).2.flatMap rawStreamClosureRefs := by
+    rw [List.flatMap_assoc]
     simp only [publicationAtoms_streamClosureRefs,
       IncrementalPublisher.normalizeBatch_streamClosureRefs]
+  rw [Witness.rawBatches_shape history] at closureProjection
+  have closures : w.events.flatMap streamClosureRefs =
+      ((initialQueue work).rawBatches inputs).2.flatMap rawStreamClosureRefs := by
+    split at closureProjection <;>
+      simpa [List.flatMap_append, streamClosureRefs] using closureProjection
   rw [notices] at noticed
   have closed := createWorkQueue_terminalStreamCompleted started ended noticed
   apply streamClosureRefs_subset_completed
@@ -134,8 +143,9 @@ theorem announced_terminalCompleted {work inputs ref} {w : Witness}
       : ref ∈ completedRefs w.events := by
     rcases groupNoticeRefs_tracked generated valid started history ref noticed with active | closed
     · have empty := (createWorkQueue_terminalRoots (Work.fromExecution work) inputs ended).1
-      rw [empty] at active
-      cases active
+      have pending := createWorkQueue_terminalPending (Work.fromExecution work) inputs ended
+      simp only [State.groupNoticeSupport, State.pendingGroupFailureRefs, empty, pending,
+        List.map_nil, List.nil_append, List.not_mem_nil] at active
     · exact groupClosureRefs_subset_completed w.events closed
   have streamDone := streamNoticeRefs_terminalCompleted (ref := ref) valid started history ended
   rcases List.mem_append.mp announced with initial | carried

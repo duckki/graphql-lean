@@ -47,7 +47,7 @@ theorem Explains.singleton_published_announced
   have bound := (List.getElem?_eq_some_iff.mp selected).1
   have length : (events.take index).length = index := by
     simp [List.length_take, Nat.min_eq_left (Nat.le_of_lt bound)]
-  have allowed := explained.2.2 index event selected
+  have allowed := explained.eventAllowed index event selected
   have before : ref ∈ announcedRefs ((groups ++ streams).map DeliveryNode.ref)
       (events.take index) := by
     cases event <;> simp only [IsValue] at value

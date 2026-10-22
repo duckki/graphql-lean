@@ -431,8 +431,8 @@ private theorem lateValid
     cbv
     exact .head _
 
--- Matching/ready source evidence alone does not admit a late task result whose
--- runtime record was removed. The start contract rejects it within this same batch.
+-- A callback remains eligible after its runtime record is removed within the same batch.
+-- Eligibility from that earlier boundary does not carry into a later host batch.
 example
     : ReferenceWorkQueue.ValidGraphEvents SharedOwnerFailure.work
         (SharedOwnerFailure.inputs.flatten ++ [lateSuccess]) :=
@@ -441,6 +441,13 @@ example
 example
     : ReferenceWorkQueue.inputsStarted SharedOwnerFailure.work
         [SharedOwnerFailure.inputs.flatten ++ [lateSuccess]]
+      = true := by
+  rw [SharedOwnerFailure.work_shape]
+  cbv
+
+example
+    : ReferenceWorkQueue.inputsStarted SharedOwnerFailure.work
+        [SharedOwnerFailure.inputs.flatten, [lateSuccess]]
       = false := by
   rw [SharedOwnerFailure.work_shape]
   cbv

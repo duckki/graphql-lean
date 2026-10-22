@@ -1,4 +1,5 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.GroupPruningNotices
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.ReadyDrainOutput
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.RegistrationCoverage
 
 /-! Carried group notices refer to the permanent registry at their actual handler boundary. -/
@@ -127,35 +128,27 @@ only removes live records. Child activation and every later iteration keep that 
 -/
 theorem State.drainReadyGroups_go_groupNoticesRegistered {queue : State}
     (live : queue.LiveGroupsRegistered) (tasks : queue.TaskGroupsRegistered) (fuel : Nat)
-    : ∀ event ∈ (State.drainReadyGroups.go fuel queue).2,
+    (available : List (Occurrence × Nat) := [])
+    : ∀ event ∈ (State.drainReadyGroups.go available fuel queue).2.1,
         event.GroupNoticesRegistered queue.registeredGroups := by
-  induction fuel generalizing queue with
-  | zero => simp [State.drainReadyGroups.go]
-  | succ fuel ih =>
-      unfold State.drainReadyGroups.go
-      dsimp only
-      split
-      · simp
-      · rename_i node selected
-        cases failed : queue.rejectedTask? node with
-        | none =>
-            have closed := queue.finishGroupSuccess_registration live tasks node
-            have active := State.startNewWork_registration closed.1 closed.2.1
-              (queue.finishGroupSuccess node).2.2
-            have later := ih active.1 active.2
-            rw [State.startNewWork_registeredGroups, closed.2.2] at later
-            intro event member
-            exact (List.mem_append.mp member).elim
-              (queue.finishGroupSuccess_groupNoticesRegistered live node event) (later event)
-        | some rejection =>
-            obtain ⟨occurrence, errors⟩ := rejection
-            have retained := queue.taskFailure_registration live tasks occurrence errors
-            have later := ih retained.1 retained.2.1
-            rw [retained.2.2] at later
-            intro event member
-            exact (List.mem_append.mp member).elim
-              (queue.taskFailure_groupNoticesRegistered queue.registeredGroups occurrence errors event)
-              (later event)
+  let invariant (current : State) (events : List WorkQueueEvent) :=
+    current.LiveGroupsRegistered ∧ current.TaskGroupsRegistered ∧
+      current.registeredGroups = queue.registeredGroups ∧
+      ∀ event ∈ events, event.GroupNoticesRegistered queue.registeredGroups
+  have result := State.drainReadyGroups_go_outputPreserves invariant (available := available)
+    (fun current events node prior _ _ _ => by
+      have closed := current.finishGroupSuccess_registration prior.1 prior.2.1 node
+      have started := State.startNewWork_registration closed.1 closed.2.1
+        (current.finishGroupSuccess node).2.2 available
+      refine ⟨started.1, started.2, ?_, ?_⟩
+      · rw [State.startNewWork_registeredGroups, closed.2.2, prior.2.2.1]
+      · intro event member
+        rcases List.mem_append.mp member with old | fresh
+        · exact prior.2.2.2 event old
+        · have known := current.finishGroupSuccess_groupNoticesRegistered prior.1 node event fresh
+          rwa [prior.2.2.1] at known)
+    (history := []) ⟨live, tasks, rfl, by simp⟩ fuel
+  simpa only [List.nil_append] using result.2.2.2
 
 -----------------------------------------------------------------------------------------
 -- The single-pass owner fold shares the same permanent registry

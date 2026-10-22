@@ -40,23 +40,27 @@ theorem State.PublicationInventory.streamItems_streamRelease {queue : State}
     {work property published} (inventory : queue.PublicationInventory property published)
     (settled : queue.ChildStreamsSettled) (links : queue.ChildStreamsMatchWork work)
     (generated : ExecutedWork work) (stream : Execution.DeliveryNode)
-    (items : List StreamItem)
+    (items : List StreamItem) (available : List (Occurrence × Nat) := [])
     : ∃ added : List ObjectPublication,
         added.map Prod.snd
-          = (queue.streamItems stream items).2.flatMap WorkQueueEvent.objectValues
-        ∧ (queue.streamItems stream items).1.PublicationInventory property
+          = (queue.streamItems stream items available).2.1.flatMap
+              WorkQueueEvent.objectValues
+        ∧ (queue.streamItems stream items available).1.PublicationInventory property
             (published ++ added)
-        ∧ StreamReleasePublications work added (queue.streamItems stream items).2 := by
+        ∧ StreamReleasePublications work added
+            (queue.streamItems stream items available).2.1 := by
   let step (acc : State × List Execution.DeliveryNode
-      × List Execution.DeliveryNode × List StreamItemValue) (item : StreamItem) :=
-    let (current, groups, streams, values) := acc
+      × List Execution.DeliveryNode × List StreamItemValue × List GroupFailureEvent)
+      (item : StreamItem) :=
+    let (current, groups, streams, values, failures) := acc
     let (integrated, newWork) := current.maybeIntegrateWork item.work
     let (pruned, nonempty) := integrated.pruneEmptyGroups newWork.newGroups
-    (pruned.startNewWork { newWork with newGroups := nonempty },
-      groups ++ nonempty, streams ++ newWork.newStreams, values ++ [item.value])
+    let (started, queued) := pruned.startNewWork { newWork with newGroups := nonempty } available
+    (started, groups ++ nonempty, streams ++ newWork.newStreams,
+      values ++ [item.value], failures ++ queued)
   have loop (more : List StreamItem)
       (acc : State × List Execution.DeliveryNode
-        × List Execution.DeliveryNode × List StreamItemValue)
+        × List Execution.DeliveryNode × List StreamItemValue × List GroupFailureEvent)
       (prior : acc.1.PublicationInventory property published)
       (ready : acc.1.ChildStreamsSettled) (childLinks : acc.1.ChildStreamsMatchWork work)
       : (more.foldl step acc).1.PublicationInventory property published
@@ -66,21 +70,21 @@ theorem State.PublicationInventory.streamItems_streamRelease {queue : State}
     | nil => exact ⟨prior, ready, childLinks⟩
     | cons item rest ih =>
         exact ih _ ⟨prior.unique, prior.provenance,
-          ((prior.stored.maybeIntegrateWork item.work).pruneEmptyGroups _).startNewWork _⟩
-          (((ready.integrateRoots item.work).pruneEmptyGroups _).startNewWork _)
-          (((childLinks.integrateRoots item.work).pruneEmptyGroups _).startNewWork _)
-  obtain ⟨ledger, ready, childLinks⟩ := loop items (queue, [], [], []) inventory settled links
+          ((prior.stored.maybeIntegrateWork item.work).pruneEmptyGroups _).startNewWork _ available⟩
+          (((ready.integrateRoots item.work).pruneEmptyGroups _).startNewWork _ available)
+          (((childLinks.integrateRoots item.work).pruneEmptyGroups _).startNewWork _ available)
+  obtain ⟨ledger, ready, childLinks⟩ := loop items (queue, [], [], [], []) inventory settled links
   unfold State.streamItems
   split
   · exact ⟨[], rfl, by simpa using inventory, StreamReleasePublications.nil work⟩
   · obtain ⟨added, values, final, supported⟩ :=
-      ledger.drainReadyGroups_streamRelease ready childLinks generated
+      ledger.drainReadyGroups_streamRelease ready childLinks generated available
     refine ⟨added, ?_, final, ?_⟩
     · simpa only [List.flatMap_cons, WorkQueueEvent.objectValues, List.nil_append] using values
     · have control : StreamReleasePublications work []
-          [.streamValues stream (items.foldl step (queue, [], [], [])).2.2.2
-            (items.foldl step (queue, [], [], [])).2.1
-            (items.foldl step (queue, [], [], [])).2.2.1] :=
+          [.streamValues stream (items.foldl step (queue, [], [], [], [])).2.2.2.1
+            (items.foldl step (queue, [], [], [], [])).2.1
+            (items.foldl step (queue, [], [], [], [])).2.2.1] :=
         .of_noGroupSuccess (by intros; simp)
       exact control.append supported rfl
 
@@ -97,36 +101,78 @@ theorem State.PublicationInventory.handleGraphEvent_streamRelease {queue : State
       : ∀ occurrence result,
           event = .taskSuccess occurrence result
           → property occurrence result.value ∧ occurrence ∉ published.map Prod.fst)
+    (available : List (Occurrence × Nat) := [])
     : ∃ added : List ObjectPublication,
         added.map Prod.snd
-          = (queue.handleGraphEvent event).2.flatMap WorkQueueEvent.objectValues
-        ∧ (queue.handleGraphEvent event).1.PublicationInventory property
+          = (queue.handleGraphEvent event available).2.1.flatMap
+              WorkQueueEvent.objectValues
+        ∧ (queue.handleGraphEvent event available).1.PublicationInventory property
             (published ++ added)
-        ∧ StreamReleasePublications work added (queue.handleGraphEvent event).2 := by
+        ∧ StreamReleasePublications work added
+            (queue.handleGraphEvent event available).2.1 := by
+  have cached := State.PublicationInventory.mk inventory.unique inventory.provenance
+    (inventory.stored.cacheTaskFailures available)
+  have cachedSettled := settled.cacheTaskFailures available
+  have cachedLinks := links.cacheTaskFailures available
   cases event with
   | taskSuccess occurrence result =>
-      exact inventory.taskSuccess_streamRelease settled links generated source
-        (allowed _ _ rfl).1 (allowed _ _ rfl).2
+      exact cached.taskSuccess_streamRelease cachedSettled cachedLinks generated source
+        (allowed _ _ rfl).1 (allowed _ _ rfl).2 available
   | taskFailure occurrence errors =>
       obtain ⟨added, values, final⟩ := inventory.handleGraphEvent
-        (.taskFailure occurrence errors) allowed
+        (.taskFailure occurrence errors) allowed available
       exact ⟨added, values, final, .of_noGroupSuccess
-        (queue.taskFailure_noGroupSuccess occurrence errors)⟩
+        ((queue.cacheTaskFailures available).taskFailure_noGroupSuccess occurrence errors)⟩
   | streamItems stream items =>
-      exact inventory.streamItems_streamRelease settled links generated stream items
+      exact cached.streamItems_streamRelease cachedSettled cachedLinks generated
+        stream items available
   | streamSuccess stream =>
-      obtain ⟨added, values, final⟩ := inventory.handleGraphEvent (.streamSuccess stream) allowed
+      obtain ⟨added, values, final⟩ :=
+        inventory.handleGraphEvent (.streamSuccess stream) allowed available
       refine ⟨added, values, final, .of_noGroupSuccess ?_⟩
       intro group groups streams
       simp only [State.handleGraphEvent, State.streamSuccess]
       split <;> simp
   | streamFailure stream errors =>
       obtain ⟨added, values, final⟩ := inventory.handleGraphEvent
-        (.streamFailure stream errors) allowed
+        (.streamFailure stream errors) allowed available
       refine ⟨added, values, final, .of_noGroupSuccess ?_⟩
       intro group groups streams
       simp only [State.handleGraphEvent, State.streamFailure]
       split <;> simp
+
+  | groupFailure notice =>
+      obtain ⟨added, values, final⟩ :=
+        inventory.handleGraphEvent (.groupFailure notice) allowed available
+      refine ⟨added, values, final, .of_noGroupSuccess ?_⟩
+      intro group groups streams
+      simp only [State.handleGraphEvent, State.groupFailure]
+      split
+      · simp
+      · split <;> simp
+
+/-- Startup enqueue effects preserve the same publication and stream-release witness. -/
+theorem State.PublicationInventory.dispatchGraphEvent_streamRelease {queue : State}
+    {work property published} (inventory : queue.PublicationInventory property published)
+    (settled : queue.ChildStreamsSettled) (links : queue.ChildStreamsMatchWork work)
+    (generated : ExecutedWork work) (event : GraphEvent)
+    (source : event.MatchesWork work)
+    (allowed
+      : ∀ occurrence result,
+          event = .taskSuccess occurrence result
+          → property occurrence result.value ∧ occurrence ∉ published.map Prod.fst)
+    (available : List (Occurrence × Nat) := [])
+    : ∃ added : List ObjectPublication,
+        added.map Prod.snd
+          = (queue.dispatchGraphEvent event available).2.flatMap
+              WorkQueueEvent.objectValues
+        ∧ (queue.dispatchGraphEvent event available).1.PublicationInventory property
+            (published ++ added)
+        ∧ StreamReleasePublications work added
+            (queue.dispatchGraphEvent event available).2 := by
+  obtain ⟨added, values, next, support⟩ := inventory.handleGraphEvent_streamRelease settled
+    links generated event source allowed available
+  exact ⟨added, values, ⟨next.unique, next.provenance, next.stored⟩, support⟩
 
 -----------------------------------------------------------------------------------------
 -- Concatenate eventwise release witnesses without choosing a different source matching
@@ -142,12 +188,14 @@ theorem State.PublicationInventory.rawEventReplay_streamRelease {queue : State}
     (settled : queue.ChildStreamsSettled) (links : queue.ChildStreamsMatchWork work)
     (generated : ExecutedWork work) (events : List GraphEvent)
     (valid : ValidGraphEvents work (before ++ events))
+    (available : List (Occurrence × Nat) := [])
     : ∃ added : List ObjectPublication,
         added.map Prod.snd
-          = (queue.rawEventReplay events).2.flatMap WorkQueueEvent.objectValues
-        ∧ (queue.rawEventReplay events).1.PublicationInventory
+          = (queue.rawEventReplay events available).2.flatMap WorkQueueEvent.objectValues
+        ∧ (queue.rawEventReplay events available).1.PublicationInventory
             (ObjectValueFrom (before ++ events)) (published ++ added)
-        ∧ StreamReleasePublications work added (queue.rawEventReplay events).2 := by
+        ∧ StreamReleasePublications work added
+            (queue.rawEventReplay events available).2 := by
   induction events generalizing queue before published with
   | nil =>
       refine ⟨[], rfl, ?_, .nil work⟩
@@ -159,15 +207,16 @@ theorem State.PublicationInventory.rawEventReplay_streamRelease {queue : State}
       have current := inventory.mono (fun _ _ source =>
         source.mono (List.subset_append_left before [event]))
       obtain ⟨first, values, after, firstSupport⟩ :=
-        current.handleGraphEvent_streamRelease settled links generated event matching (by
+        current.dispatchGraphEvent_streamRelease settled links generated event matching (by
           intro occurrence result same
           subst event
           exact ⟨⟨result, List.mem_append_right _ List.mem_cons_self, rfl⟩,
-            inventory.fresh_success fresh⟩)
+            inventory.fresh_success fresh⟩) available
       obtain ⟨later, laterValues, final, laterSupport⟩ :=
-        ih after (settled.handleGraphEvent event) (links.handleGraphEvent matching)
+        ih after (settled.handleGraphEvent event available)
+          (links.handleGraphEvent matching available)
           (by simpa only [List.append_assoc, List.singleton_append] using valid)
-      rw [State.rawEventReplay_cons]
+      rw [State.rawEventReplay_cons _ _ _ available]
       refine ⟨first ++ later, ?_, ?_, firstSupport.append laterSupport values⟩
       · simp only [List.map_append, List.flatMap_append, values, laterValues]
       · simpa only [List.append_assoc, List.singleton_append] using final
@@ -195,6 +244,7 @@ theorem State.PublicationInventory.handleGraphEvents_streamRelease {queue : Stat
       (fun _ _ source => source.mono (List.subset_append_left before events))
   · obtain ⟨added, values, final, supported⟩ :=
       inventory.rawEventReplay_streamRelease settled links generated events valid
+        (GraphEvent.availableFailures events)
     dsimp only
     split
     · have control : StreamReleasePublications work [] [.workQueueTermination] :=

@@ -1,6 +1,7 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.ResponseReplay
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.Conformance
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.CursorObservation
+import Proofs.GraphQL.IncrementalDelivery.Semantics.WorkSize
 
 /-! Actual alternative reader replay supplies the existing query observation and conformance
 premises. The same executed work, source, inputs, and completion flag witness both sides;
@@ -51,7 +52,7 @@ theorem ResponseStreamCursor.queryObservation
       (queryCompletion schema resolvers variables operation fuel root).work :=
     ⟨ObjectRef, schema, resolvers, _, fuel, operation.rootType schema, root,
       operation.selectionSet, rfl⟩
-  obtain ⟨matching, started⟩ := valid.2.2.2 inputs admitted
+  obtain ⟨matching, started, _⟩ := valid.2.2.2.2 inputs admitted
   have factory := createWorkQueueForSchedule_eq_reference _ _ generated nonempty valid
   have referenceFinished : complete = true
       → ((ReferenceWorkQueue.ResponseStreamCursor.initialize
@@ -66,7 +67,8 @@ theorem ResponseStreamCursor.queryObservation
     resolvers variables operation fuel root inputs complete applies nonempty valid admitted
     referenceFinished
   refine ⟨
-    fun _ _ => createWorkQueueForScheduleConforms_holds _ _ generated nonempty valid,
+    fun _ _ => createWorkQueueForScheduleConforms_holds _ _ generated
+      ((Execution.Work.isEmpty_eq_false _).mpr nonempty) valid,
     ?_
   ⟩
   have observation := observed.2

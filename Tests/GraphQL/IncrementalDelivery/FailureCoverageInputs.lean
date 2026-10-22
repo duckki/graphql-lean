@@ -1,3 +1,4 @@
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.InitialStartup
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.CursorObservation
 import Tests.GraphQL.IncrementalDelivery.Execution
 
@@ -95,6 +96,7 @@ private theorem inputs_valid : ValidGraphEvents completed.work inputs.flatten :=
   · exact ⟨[0], none, _, task_known, fun _ impossible => by cases impossible⟩
 
 private theorem schedule_valid : schedule.ValidFor completed.work := by
+  apply EventSource.ValidFor.of_asynchronous
   refine ⟨rfl, List.nil_prefix, fun _ _ prior admitted => prior.trans admitted, ?_⟩
   intro batches admitted
   refine ⟨inputs_valid.prefix ?_, ?_⟩

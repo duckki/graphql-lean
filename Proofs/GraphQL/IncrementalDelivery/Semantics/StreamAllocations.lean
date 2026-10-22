@@ -11,6 +11,7 @@ open GraphQL.IncrementalDelivery.Execution
 
 def streamAllocationRefs : Work → List Nat
   | .empty => []
+  | .declareGroups _ tasks => streamAllocationRefs tasks
   | .combine left right => streamAllocationRefs left ++ streamAllocationRefs right
   | .executionGroup _ _ _ children => streamAllocationRefs children
   | .stream node items =>

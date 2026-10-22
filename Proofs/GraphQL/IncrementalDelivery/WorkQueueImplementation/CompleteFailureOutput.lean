@@ -1,9 +1,10 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.CachedFailureOutput
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.AvailableErrors
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.FailureProjection
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.ExecutedTaskErrors
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.PendingReplay
 
-/-! Failed group outputs select one positive contributing task cause. -/
+/-! Immediate failure outputs and retained task causes under host-batch availability. -/
 
 namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
@@ -50,7 +51,7 @@ theorem State.CachedErrorsSatisfy.handleGraphEvent_causes {queue : State} {work 
   | taskFailure occurrence errors =>
       cases found : queue.taskNode? occurrence with
       | none => simpa [State.handleGraphEvent, State.taskFailure, found,
-          State.objectFailureContribution] using causes
+          State.objectFailureContribution, State.cacheTaskFailures] using causes
       | some task =>
           simp only [State.objectFailureContribution, found, List.singleton_append]
           apply (causes.mono
@@ -65,6 +66,13 @@ theorem State.CachedErrorsSatisfy.handleGraphEvent_causes {queue : State} {work 
           subst node
           exact State.incomingFailureCause generated registered matching found source
   | streamItems stream items => exact causes.streamItems stream items
+  | groupFailure failure =>
+      simp only [State.handleGraphEvent, State.cacheTaskFailures, List.foldl_nil,
+        State.objectFailureContribution, List.nil_append]
+      unfold State.groupFailure
+      split
+      · exact causes
+      · split <;> exact causes
   | streamSuccess stream =>
       simp only [State.handleGraphEvent, State.streamSuccess, State.objectFailureContribution,
         List.nil_append]
@@ -74,23 +82,24 @@ theorem State.CachedErrorsSatisfy.handleGraphEvent_causes {queue : State} {work 
         List.nil_append]
       split <;> exact causes
 
-/-- Every raw failed group output copies either the incoming task rejection or a retained
-positive task cause. No group error total, clear-cache premise, or healthy-owner guard is
-needed to identify its count.
+/-- Each group failure from an ordinary handler copies its task notification's cause.
+Internal failure controls have separate aggregate reporting evidence and are excluded
+from this task-local singleton lemma.
 -/
 theorem State.CachedErrorsSatisfy.handleGraphEvent_failureCause {queue : State}
-    {work failed} (causes : queue.CachedErrorsSatisfy (NodeFailureCause work failed))
+    {work failed} (_causes : queue.CachedErrorsSatisfy (NodeFailureCause work failed))
     (generated : ExecutedWork work) (registered : queue.StartedTasksRegistered)
     (matching : queue.RegisteredTasksMatch work) (event : GraphEvent)
-    (source : event.MatchesWork work) {group errors}
+    (source : event.MatchesWork work)
+    (ordinary : ∀ failure, event ≠ .groupFailure failure) {group errors}
     (emitted
       : Execution.WorkQueueEvent.groupFailure group errors
-        ∈ (queue.handleGraphEvent event).2)
+        ∈ (queue.handleGraphEvent event).2.1)
     : NodeFailureCause work (queue.objectFailureContribution event ++ failed) group.ref
         errors := by
   cases event with
   | taskSuccess occurrence result =>
-      exact causes.taskSuccess_output occurrence result emitted
+      exact (queue.taskSuccess_groupFailure_absent occurrence result group errors [] emitted).elim
   | taskFailure occurrence count =>
       obtain ⟨task, found, owner, rfl⟩ :=
         queue.taskFailure_groupFailure_current occurrence count emitted
@@ -98,7 +107,9 @@ theorem State.CachedErrorsSatisfy.handleGraphEvent_failureCause {queue : State}
       have cause := State.incomingFailureCause (failed := failed) generated registered matching
         found source contributor member
       simpa only [State.objectFailureContribution, found, List.singleton_append, same] using cause
-  | streamItems stream items => exact causes.streamItems_output stream items emitted
+  | streamItems stream items =>
+      exact (queue.streamItems_groupFailure_absent stream items group errors [] emitted).elim
+  | groupFailure failure => exact (ordinary failure rfl).elim
   | streamSuccess stream =>
       simp only [State.handleGraphEvent, State.streamSuccess] at emitted
       split at emitted <;> simp at emitted
@@ -121,26 +132,52 @@ theorem State.CachedErrorsSatisfy.replayGraphEvents_causes {queue : State}
       have earlier : (before ++ [event]).IsPrefix (before ++ event :: rest) :=
         ⟨rest, by simp [List.append_assoc]⟩
       obtain ⟨_, source, _⟩ := validGraphEvents_last (valid.prefix earlier)
-      have next := causes.handleGraphEvent_causes generated registered matching event source
-      have result := ih (before := before ++ [event]) next (registered.handleGraphEvent event)
-        (matching.handleGraphEvent event source) (by simpa [List.append_assoc] using valid)
+      have next : (queue.dispatchGraphEvent event).1.CachedErrorsSatisfy
+          (NodeFailureCause work (queue.objectFailureContribution event ++ failed)) :=
+        causes.handleGraphEvent_causes generated registered matching event source
+      have started : (queue.dispatchGraphEvent event).1.StartedTasksRegistered :=
+        registered.handleGraphEvent event
+      have tasks : (queue.dispatchGraphEvent event).1.RegisteredTasksMatch work :=
+        matching.handleGraphEvent event source
+      have result := ih (before := before ++ [event]) next started tasks (by simpa [List.append_assoc] using valid)
       simpa only [State.replayGraphEvents, State.objectFailureContributions,
         List.foldl_cons, List.append_assoc]
         using result
 
-/-- Batch termination changes no retained computation or selected cause. -/
+/-- Actual batch cache exposure preserves task causes from the available source inventory.
+This certificate describes retained task counts. Aggregate startup notices require a
+separate distinct-task contribution list and a sum of those counts.
+-/
 theorem State.CachedErrorsSatisfy.handleGraphEvents_causes {queue : State}
     {work failed before}
     (causes : queue.CachedErrorsSatisfy (NodeFailureCause work failed))
     (generated : ExecutedWork work) (registered : queue.StartedTasksRegistered)
     (matching : queue.RegisteredTasksMatch work) (events : List GraphEvent)
     (valid : ValidGraphEvents work (before ++ events))
-    (running : queue.terminated = false)
+    (_running : queue.terminated = false)
     : (queue.handleGraphEvents events).1.CachedErrorsSatisfy
-        (NodeFailureCause work (queue.objectFailureContributions events ++ failed)) := by
-  have replayed := causes.replayGraphEvents_causes generated registered matching events valid
-  obtain ⟨terminal, same⟩ := queue.handleGraphEvents_stateCore events running
-  rw [same]
-  exact replayed
+        (NodeFailureCause work (GraphEvent.failureSettlements events ++ failed)) := by
+  have enlarged : queue.CachedErrorsSatisfy
+      (NodeFailureCause work (GraphEvent.failureSettlements events ++ failed)) :=
+    causes.mono (fun _ _ cause => cause.mono (List.subset_append_right _ _))
+  refine State.CachedErrorsSatisfy.handleGraphEvents_available
+    (property := NodeFailureCause work (GraphEvent.failureSettlements events ++ failed))
+    enlarged registered matching events
+    (fun event member => valid.eachMatches (List.mem_append_right before member)) ?_
+  intro task known errors available group contributes
+  obtain ⟨event, member, same⟩ := List.mem_filterMap.mp available
+  cases event <;> simp only [Option.some.injEq, reduceCtorEq, Prod.mk.injEq] at same
+  obtain ⟨rfl, rfl⟩ := same
+  have source := valid.eachMatches (List.mem_append_right before member)
+  obtain ⟨owners, producer, path, failedTask⟩ := source
+  obtain ⟨address, payload, taskProducer, _, taskAt⟩ := known.1
+  have recorded : task.occurrence ∈ GraphEvent.failureSettlements events := by
+    apply List.mem_reverse.mpr
+    exact List.mem_flatMap.mpr
+      ⟨.taskFailure task.occurrence _, member, by simp [GraphEvent.groupFailures]⟩
+  exact ⟨task.occurrence, List.mem_append_left _ recorded, owners, producer,
+    .object path (.error _), failedTask,
+    (taskAt.unique failedTask).1 ▸ List.mem_map.mpr ⟨group, contributes, rfl⟩,
+    rfl, generated.taskFailure_positive failedTask rfl⟩
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

@@ -7,129 +7,6 @@ namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.Execution (WorkQueueEvent)
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
------------------------------------------------------------------------------------------
--- Preparing items emits no object values and already retires the noticed ancestry
------------------------------------------------------------------------------------------
-
-/-- A leading item notice's ancestor contributions precede the entire item handler.
-Witness: source accounting supplies prior publication or an entry buffer. Preparation
-already retires the ancestor, and the common ledger's zero-step conservation excludes
-such a buffer without appealing to a later drain publication or closure.
--/
-theorem ExecutedWork.streamItems_leadingAncestor_contributor_before
-    {work before stream items published owner values groups streams child
-      dependencies ref address owners producer payload}
-    {position : Nat}
-    (generated : ExecutedWork work)
-    (valid : ValidGraphEvents work (before ++ [.streamItems stream items]))
-    (started
-      : (State.initialize (Work.fromExecution work)).acceptsBatch
-          (before ++ [.streamItems stream items])
-        = true)
-    (covered
-      : (State.initialize (Work.fromExecution work)).ReplayClosuresCovered
-          (before ++ [.streamItems stream items]) published)
-    (selected
-      : (((State.initialize (Work.fromExecution work)).replayGraphEvents
-            before).streamItems
-          stream items).2[position]?
-        = some (Execution.WorkQueueEvent.streamValues owner values groups streams))
-    (noticed : child ∈ groups) (known : GroupRecordAt work child dependencies)
-    (ancestor : ref ∈ dependencies)
-    (task : TaskAt work (.executionGroup address) owners producer payload)
-    (contributes : ref ∈ owners)
-    : ∃ value,
-        (Occurrence.executionGroup address, value)
-        ∈ published.take
-            (((State.initialize (Work.fromExecution work)).rawEventReplay
-                before).2.flatMap
-              WorkQueueEvent.objectValues).length := by
-  let initial := State.initialize (Work.fromExecution work)
-  let queue := initial.replayGraphEvents before
-  have refNoticed : child.ref ∈ rawGroupNoticeRefs (.streamValues owner values groups streams) :=
-    List.mem_map_of_mem noticed
-  have emitted := List.mem_of_getElem? selected
-  obtain ⟨result, impossible | ⟨_, prior | buffered⟩⟩ :=
-    generated.noticeAncestor_contributor_published_buffered_or_current valid started covered
-      emitted refNoticed known ancestor task contributes
-  · cases impossible
-  · exact ⟨result.value, prior⟩
-  · obtain ⟨node, lookup, stored, taskOwners, nodeContributes, present⟩ := buffered
-    obtain ⟨active, _, notices⟩ := queue.streamItems_noticeGroups stream items selected
-    have matched := valid.eachMatches (List.mem_append_right before List.mem_cons_self)
-    have retired := generated.streamItems_prepared_noticeAncestorsRetired
-      (fun _ member => (valid.prefix (List.prefix_append before [_])).eachMatches member)
-      matched child (notices ▸ noticed)
-      child dependencies known rfl ref ancestor _ _ taskOwners nodeContributes
-    have notCancelled := (generated.noticeAncestor_healthy_uncancelled valid
-      (State.acceptsBatch_prefix started) emitted refNoticed known ancestor).2
-    have endpoint : initial.replayGraphEvents (before ++ [.streamItems stream items])
-        = (queue.preparedStreamItems items).drainReadyGroups.1 := by
-      rw [State.replayGraphEvents_append, State.handleGraphEvent,
-        State.streamItems_eq, active]
-      rfl
-    rw [endpoint] at notCancelled
-    have healthy : ref ∉ (queue.preparedStreamItems items).cancelledGroups :=
-      fun member => notCancelled (State.drainReadyGroups_go_cancelledGroups_subset _ _ member)
-    have prefixes := covered.atPrefixDrainOwners before (.streamItems stream items) []
-    have conserved := prefixes active 0 (Nat.zero_le _) _ node result.value lookup stored
-      ref nodeContributes present healthy
-    rcases conserved with published | retained
-    · simp [State.drainReadyGroups.go] at published
-    · exact False.elim (retired.2 retained.2)
-
------------------------------------------------------------------------------------------
--- The exact raw and atomic carrier retain that earlier object-publication prefix
------------------------------------------------------------------------------------------
-
-/-- Raw replay publishes all contributors of an item notice's ancestor before its carrier.
-Witness: locate the actual source input, which must be a stream-items event. Its notice
-occupies the object-free leading output, so the handler-entry ledger is the strict prefix.
--/
-theorem ExecutedWork.rawEventReplay_itemNoticeAncestor_covered
-    {work events published index owner values groups streams child dependencies ref
-      address owners producer payload}
-    (generated : ExecutedWork work) (valid : ValidGraphEvents work events)
-    (started : (State.initialize (Work.fromExecution work)).acceptsBatch events = true)
-    (covered
-      : (State.initialize (Work.fromExecution work)).ReplayClosuresCovered events
-          published)
-    (selected
-      : ((State.initialize (Work.fromExecution work)).rawEventReplay events).2[index]?
-        = some (.streamValues owner values groups streams))
-    (noticed : child ∈ groups) (known : GroupRecordAt work child dependencies)
-    (ancestor : ref ∈ dependencies)
-    (task : TaskAt work (.executionGroup address) owners producer payload)
-    (contributes : ref ∈ owners)
-    : ∃ value,
-        (Occurrence.executionGroup address, value)
-        ∈ published.take
-            ((((State.initialize (Work.fromExecution work)).rawEventReplay events).2.take
-                index).flatMap
-              WorkQueueEvent.objectValues).length := by
-  obtain ⟨before, event, after, position, same, carrier, count⟩ :=
-    (State.initialize (Work.fromExecution work)).rawEventReplay_output_at events selected
-  obtain ⟨stream, items, rfl⟩ :=
-    ((State.initialize (Work.fromExecution work)).replayGraphEvents
-      before).handleGraphEvent_streamValues_source event carrier
-  have prior : (before ++ [GraphEvent.streamItems stream items]).IsPrefix events :=
-    ⟨after, by simp [same, List.append_assoc]⟩
-  have accepted : (State.initialize (Work.fromExecution work)).acceptsBatch
-      (before ++ [.streamItems stream items]) = true := by
-    apply State.acceptsBatch_prefix (after := after)
-    simpa only [same, List.append_assoc, List.singleton_append] using started
-  have ledger : (State.initialize (Work.fromExecution work)).ReplayClosuresCovered
-      (before ++ [.streamItems stream items]) published := by
-    apply State.ReplayClosuresCovered.prefix (after := after)
-    simpa only [same, List.append_assoc, List.singleton_append] using covered
-  obtain ⟨_, zero, _⟩ :=
-    ((State.initialize (Work.fromExecution work)).replayGraphEvents before).streamItems_noticeGroups
-      stream items carrier
-  rw [count, zero]
-  simp only [List.take_zero, List.flatMap_nil, List.length_nil, Nat.add_zero]
-  exact generated.streamItems_leadingAncestor_contributor_before (valid.prefix prior)
-    accepted ledger carrier noticed known ancestor task contributes
-
 namespace ConformancePlan
 
 /-- An item-carried group notice's ancestor contributors are published on the same matching.
@@ -150,13 +27,47 @@ theorem itemGroupNoticeAncestor_objectContributor_published
     (contributes : ref ∈ owners)
     : Published w.matching (w.events.take index) (.executionGroup address) := by
   obtain ⟨published, batched, _, interpret, _⟩ := ledger
-  have accepted : (initialQueue work).batchesStarted inputs = true := by
-    rwa [← inputsStarted_eq_batchesStarted]
-  obtain ⟨position, rawValues, atRaw, count, _⟩ :=
-    Witness.itemNotice_rawPrefix started history selected (List.mem_append_left _ noticed)
-  obtain ⟨value, delivered⟩ := generated.rawEventReplay_itemNoticeAncestor_covered valid
-    ((initialQueue work).batchesStarted_acceptsBatch inputs accepted) (batched.flatten accepted)
-    atRaw noticed known ancestor task contributes
+  obtain ⟨earlier, batch, later, fifo, stream, items, tail, split, batchEq,
+    active, notices, count⟩ := Witness.itemNotice_sourceBoundary started history selected
+      (List.mem_append_left _ noticed)
+  obtain ⟨parents, canonical⟩ := generated.groupRecordsCanonical
+  have frame := generated.ownerPublicationFrame_atBatchPrefix canonical valid started batched
+    earlier batch later fifo split ⟨.streamItems stream items :: tail, batchEq.symm⟩
+  let initial := State.initialize (Work.fromExecution work)
+  let boundary := initial.replayBatches earlier
+  let available := GraphEvent.availableFailures batch
+  let current := boundary.replayGraphEvents fifo available
+  let offset := ((initial.rawBatches earlier).2.flatMap WorkQueueEvent.objectValues).length
+  let fifoCount := ((boundary.rawEventReplay fifo available).2.flatMap
+    WorkQueueEvent.objectValues).length
+  let batchCount := ((boundary.handleGraphEvents batch).2.flatMap
+    WorkQueueEvent.objectValues).length
+  have batchCovered := (State.BatchClosuresCovered.atBatch earlier batch later
+    (split ▸ batched)).1
+  have atFifo := State.ReplayClosuresCovered.afterPrefix fifo
+    (.streamItems stream items :: tail)
+    (show boundary.ReplayClosuresCovered (fifo ++ .streamItems stream items :: tail)
+      ((published.drop offset).take batchCount) available from batchEq ▸ batchCovered)
+  have handlerCovered := State.ReplayClosuresCovered.prefix [.streamItems stream items] tail atFifo
+  obtain ⟨sourceValid, _, _, _⟩ := generated.uncancelledFrames_atBatchEvent canonical
+    valid started earlier batch later fifo (.streamItems stream items) tail split batchEq
+  have licensed : ∀ occurrence errors, (occurrence, errors) ∈ available →
+      (GraphEvent.taskFailure occurrence errors).MatchesWork work := by
+    intro occurrence errors member
+    obtain ⟨event, received, same⟩ := List.mem_filterMap.mp member
+    cases event <;> simp only [Option.some.injEq, reduceCtorEq, Prod.mk.injEq] at same
+    obtain ⟨rfl, rfl⟩ := same
+    apply valid.eachMatches
+    rw [split, List.flatten_append, List.flatten_cons]
+    exact List.mem_append_right _ (List.mem_append_left _ received)
+  have activeCache : (current.cacheTaskFailures available).rootStreams.contains stream.ref
+      = true := by
+    have same := congrArg State.rootStreams (current.cacheTaskFailures_frame available)
+    rw [show (current.cacheTaskFailures available).rootStreams = current.rootStreams from same]
+    exact active
+  obtain ⟨value, delivered⟩ := frame.streamItems_leadingAncestor_contributor_before generated
+    canonical sourceValid active available licensed handlerCovered activeCache
+    (notices ▸ noticed) known ancestor task contributes
   apply interpret index (Nat.le_of_lt (List.getElem?_eq_some_iff.mp selected).1)
     (.executionGroup address)
   rw [count, ← List.map_take]

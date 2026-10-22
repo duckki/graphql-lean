@@ -83,6 +83,8 @@ The main model's exclusions also apply. In addition:
 - Directive placement/types, non-repeatability, literal unique labels, and
   non-overlapping streamed field selections are assumed valid.
 - Stream execution includes a model extension for steps absent from the draft spec.
+- Failure payloads use error counts. Group completions can aggregate cached task causes,
+  extending the pinned draft's singleton failure mapping to follow GraphQL.js PR #4870.
 - Effectful resolvers, infinite sources, real-time availability, fairness, host
   future termination, and external transport cancellation are not modeled.
 - Optional coalescing of later updates into the initial response is not modeled.

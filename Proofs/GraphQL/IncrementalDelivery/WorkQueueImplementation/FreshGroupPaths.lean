@@ -1,3 +1,4 @@
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.LiveRegistration
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.ProtectedRootPresence
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.IntegrationCandidates
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.StreamPreparation
@@ -31,80 +32,63 @@ theorem State.FreshChildLinks.putGroupNode {queue : State} {old : NodeRefs}
   · subst node; exact valid fresh child included
   · subst node; exact links prior priorMember fresh child included
 
-/-- A newly registered shell has no children; existing records keep their links.
-Witness: split registration, cancellation, and actual empty-shell insertion.
+/-- A new shell has no children, and its immediate parent gains only a fresh ref.
+Witness: the entry registry contains `old`, so a newly attached ref cannot point back
+into it. Existing links are retained through the parent's metadata update.
 -/
 theorem State.FreshChildLinks.addGroup {queue : State} {old : NodeRefs}
     (links : queue.FreshChildLinks old) (group : Group)
+    (registered : old ⊆ queue.registeredGroups)
     : (queue.addGroup group).FreshChildLinks old := by
   unfold State.addGroup
   split
   · exact links
-  · split
-    · exact links
-    · intro node member fresh child included
+  · rename_i absent
+    have fresh : group.node.ref ∉ old := by
+      intro member
+      have missing : group.node.ref ∉ queue.registeredGroups
+          ∧ queue.groupNode? group.node.ref = none := by simpa using absent
+      exact missing.1 (registered member)
+    have appended : ({queue with
+        groupNodes := queue.groupNodes ++ [({group} : GroupNode)]} : State).FreshChildLinks old := by
+      intro node member newRef child included
       rcases List.mem_append.mp member with prior | added
-      · exact links node prior fresh child included
+      · exact links node prior newRef child included
       · obtain rfl := List.mem_singleton.mp added
         cases included
-
-/-- Group integration installs only fresh child refs, including under taskless parents.
-Witness: original live records are registered, new shells have no links, and the second
-pass attaches only descriptors passing the original fresh-registration filter.
--/
-theorem State.addGroups_freshChildLinks {queue : State}
-    (registered : queue.LiveGroupsRegistered) (groups : List Group)
-    : (queue.addGroups groups).1.FreshChildLinks queue.registeredGroups := by
-  let fresh := groups.filter (fun group =>
-    !queue.registeredGroups.contains group.node.ref && (queue.groupNode? group.node.ref).isNone)
-  let linkStep (current : State) (group : Group) : State :=
-    match group.parent with
-    | none => current
-    | some parent =>
-        match current.groupNode? parent with
-        | none => current
-        | some node =>
-            let children := if node.childGroups.contains group.node.ref then
-              node.childGroups else node.childGroups ++ [group.node.ref]
-            current.putGroupNode { node with childGroups := children }
-  have initial : queue.FreshChildLinks queue.registeredGroups := by
-    intro node member absent
-    exact False.elim (absent (registered node member))
-  have registeredFold (more : List Group) (current : State)
-      (links : current.FreshChildLinks queue.registeredGroups)
-      : (more.foldl State.addGroup current).FreshChildLinks queue.registeredGroups := by
-    induction more generalizing current with
-    | nil => exact links
-    | cons group rest ih => exact ih _ (links.addGroup group)
-  have step (current : State) (group : Group)
-      (links : current.FreshChildLinks queue.registeredGroups)
-      (absent : group.node.ref ∉ queue.registeredGroups)
-      : (linkStep current group).FreshChildLinks queue.registeredGroups := by
-    unfold linkStep
     split
-    · exact links
+    · exact appended
     · split
-      · exact links
+      · split <;> exact links
       · rename_i node found
-        apply links.putGroupNode
+        apply appended.putGroupNode
         intro newParent child member
         split at member
         · exact links node (List.mem_of_find?_eq_some found) newParent child member
         · rcases List.mem_append.mp member with prior | added
           · exact links node (List.mem_of_find?_eq_some found) newParent child prior
-          · exact List.mem_singleton.mp added ▸ absent
-  have linkedFold (more : List Group) (included : more.Subset fresh) (current : State)
-      (links : current.FreshChildLinks queue.registeredGroups)
-      : (more.foldl linkStep current).FreshChildLinks queue.registeredGroups := by
-    induction more generalizing current with
-    | nil => exact links
-    | cons group rest ih =>
-        have absent : group.node.ref ∉ queue.registeredGroups := by
-          have condition := (List.mem_filter.mp (included List.mem_cons_self)).2
-          simpa using (Bool.and_eq_true_iff.mp condition).1
-        exact ih (fun _ member => included (List.mem_cons_of_mem _ member)) _
-          (step current group links absent)
-  exact linkedFold fresh (fun _ member => member) _ (registeredFold fresh queue initial)
+          · exact List.mem_singleton.mp added ▸ fresh
+
+/-- Recursive integration installs no edge from a fresh group into the entry registry.
+Witness: live entry groups are registered, and every installation retains that registry
+while attaching only its fresh child ref.
+-/
+theorem State.addGroups_freshChildLinks {queue : State}
+    (registered : queue.LiveGroupsRegistered) (groups : List Group)
+    : (queue.addGroups groups).1.FreshChildLinks queue.registeredGroups := by
+  let property (current : State) := current.FreshChildLinks queue.registeredGroups
+    ∧ queue.registeredGroups ⊆ current.registeredGroups
+  have initial : property queue := by
+    refine ⟨?_, List.Subset.refl _⟩
+    intro node member absent
+    exact False.elim (absent (registered node member))
+  exact (State.addGroups_preserves property groups
+          (fun current group _ prior =>
+            ⟨
+              prior.1.addGroup group prior.2,
+              prior.2.trans (current.addGroup_registeredGroups_subset_old group)
+            ⟩)
+          queue initial).1
 
 -----------------------------------------------------------------------------------------
 -- Task and stream registration leave group child edges unchanged
@@ -232,13 +216,14 @@ new release. This holds for arbitrary finite item work, including taskless wrapp
 theorem State.RootGroupsPresent.integrateStreamItem_registered {queue : State}
     (present : queue.RootGroupsPresent) (registered : queue.LiveGroupsRegistered)
     (refs : queue.GroupRefsUnique) (item : StreamItem)
-    : (queue.integrateStreamItem item).RootGroupsPresent := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.integrateStreamItem item available).RootGroupsPresent := by
   let integrated := queue.maybeIntegrateWork item.work
   let pruned := integrated.1.pruneEmptyGroups integrated.2.newGroups
   let released := { integrated.2 with newGroups := pruned.2 }
   exact (present.pruneIntegratedWork registered item.work).startNewWork released
     (integrated.1.pruneEmptyGroups_keptPresent integrated.2.newGroups
-      (refs.maybeIntegrateWork item.work))
+      (refs.maybeIntegrateWork item.work)) available
 
 /-- Matching item preparation preserves live roots through every integration and pruning.
 Witness: iterate registered-root protection with the independent ref and registry laws.
@@ -246,23 +231,22 @@ The result is at the leading stream-values carrier, before any recursive drainin
 -/
 theorem State.RootGroupsPresent.preparedStreamItems {queue : State} {work stream items}
     (present : queue.RootGroupsPresent) (refs : queue.GroupRefsUnique)
-    (registered : queue.LiveGroupsRegistered) (tasks : queue.TaskGroupsRegistered)
-    (matching : (GraphEvent.streamItems stream items).MatchesWork work)
-    : (queue.preparedStreamItems items).RootGroupsPresent := by
+    (registered : queue.LiveGroupsRegistered) (_tasks : queue.TaskGroupsRegistered)
+    (_matching : (GraphEvent.streamItems stream items).MatchesWork work)
+    (available : List (Occurrence × Nat) := [])
+    : (queue.preparedStreamItems items available).RootGroupsPresent := by
   have result := State.preparedStreamItems_preserves
     (fun current => current.GroupRefsUnique ∧ current.LiveGroupsRegistered
-      ∧ current.TaskGroupsRegistered ∧ current.RootGroupsPresent)
-    (queue := queue) ⟨refs, registered, tasks, present⟩ items (by
-      intro current item member prior
-      have coverage := State.integrateStreamItem_registration prior.2.1 prior.2.2.1
-        matching member
+      ∧ current.RootGroupsPresent)
+    (queue := queue) ⟨refs, registered, present⟩ items available (by
+      intro current item _member prior
       let integrated := current.maybeIntegrateWork item.work
       let pruned := integrated.1.pruneEmptyGroups integrated.2.newGroups
       let released := { integrated.2 with newGroups := pruned.2 }
       exact ⟨((prior.1.maybeIntegrateWork item.work).pruneEmptyGroups
-        integrated.2.newGroups).startNewWork released,
-        coverage.1, coverage.2.1,
-        prior.2.2.2.integrateStreamItem_registered prior.2.1 prior.1 item⟩)
-  exact result.2.2.2
+        integrated.2.newGroups).startNewWork released available,
+        prior.2.1.integrateStreamItem item available,
+        prior.2.2.integrateStreamItem_registered prior.2.1 prior.1 item available⟩)
+  exact result.2.2
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

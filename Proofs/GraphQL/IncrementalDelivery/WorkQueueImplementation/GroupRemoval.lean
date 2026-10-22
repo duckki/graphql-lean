@@ -313,6 +313,29 @@ theorem State.removeGroup_healthyRetained
 -- Failure removal records only causally invalidated cancellation refs
 -----------------------------------------------------------------------------------------
 
+/-- A newly recorded cancellation inherits the selected removal root's cause.
+Witness: every added ref names a live record reached by the actual finite collector;
+canonical edges preserve the root's record-invalidation witness.
+-/
+theorem State.removeGroup_newCancelled_invalidated
+    (queue : State) {work : Execution.Work} {parents : Nat → NodeRefs}
+    {failed : List Occurrence} (links : queue.ChildLinksCanonical parents)
+    (matching : queue.GroupNodesMatchWork work)
+    (canonical
+      : ∀ node dependencies,
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
+    (root : NodeRef) (invalid : GroupRecordInvalidated work failed root)
+    {ref : NodeRef} (recorded : ref ∈ (queue.removeGroup root).cancelledGroups)
+    (fresh : ref ∉ queue.cancelledGroups)
+    : GroupRecordInvalidated work failed ref := by
+  change ref ∈ queue.cancelledGroups ++ queue.collectedRemovalRefs root at recorded
+  have added := (List.mem_append.mp recorded).resolve_left fresh
+  have live := State.removeGroup_collect_mem (queue.groupNodes.length + 1) queue [root] [] added
+  rcases live with impossible | ⟨node, member, same⟩
+  · cases impossible
+  · rw [← same] at added ⊢
+    exact queue.collectedRemovalRefs_failed links matching canonical root invalid node member added
+
 /-- Removing an invalidated record preserves cancellation provenance for all descendants.
 Witness: every newly recorded ref came from a live record reached through canonical edges;
 the removal-causality theorem supplies its record-invalidation witness.

@@ -164,8 +164,10 @@ theorem ResourceState.observeAdoptions_no_producer (resources : ResourceState)
     : (resources.observeAdoptions inventories effects).1 target
       ≠ .owned (.producer producer) := by
   intro remains
-  have before := resources.observeAdoptions_producerOwned_before inventories effects producer target remains
-  have transferred := resources.observeAdoptions_transfers inventories effects producer target emitted
+  have before := resources.observeAdoptions_producerOwned_before inventories effects producer
+    target remains
+  have transferred := resources.observeAdoptions_transfers inventories effects producer target
+    emitted
     (complete producer emitted target before) before
   rw [transferred] at remains
   cases remains
@@ -180,11 +182,13 @@ No lease is acquired here. Receipt acknowledgements and async settlement remain 
 -/
 def ResourceState.observeDispatch (resources : ResourceState)
     (inventories : ProducerInventories) (before : State) (event : GraphEvent)
+    (available : List (Occurrence × Nat) := [])
     : ResourceState × List ResourceAction :=
   let completed := resources.observeNormalCompletion before.queue event
   let adopted :=
     completed.1.observeAdoptions inventories (graphEffects before.queue event)
-  let effects := (({ state := before } : GraphBatchResult).handleGraphEvent event).effects
+  let effects :=
+    (({ state := before } : GraphBatchResult).handleGraphEvent event available).effects
   let requested :=
     adopted.1.requestQueueCleanup (effects.filterMap HostEffect.cleanupStart?)
   (requested.1, completed.2 ++ adopted.2 ++ requested.2)
@@ -192,8 +196,10 @@ def ResourceState.observeDispatch (resources : ResourceState)
 /-- One compatible resource history includes the actual handoff and subsequent disposal. -/
 theorem ResourceState.observeDispatch_replay (resources : ResourceState)
     (inventories : ProducerInventories) (before : State) (event : GraphEvent)
-    : ResourceReplay resources (resources.observeDispatch inventories before event).2
-        (resources.observeDispatch inventories before event).1 :=
+    (available : List (Occurrence × Nat) := [])
+    : ResourceReplay resources
+        (resources.observeDispatch inventories before event available).2
+        (resources.observeDispatch inventories before event available).1 :=
   ((resources.observeNormalCompletion_replay _ _).append
     ((resources.observeNormalCompletion before.queue event).1.observeAdoptions_replay
       inventories _)).append
@@ -220,9 +226,11 @@ theorem ResourceState.observeDispatch_unacquired (resources : ResourceState)
     (inventories : ProducerInventories) (before : State) (event : GraphEvent)
     (target : CleanupTarget) (unacquired : resources target = .unacquired)
     : (resources.observeDispatch inventories before event).1 target = .unacquired := by
-  have completed : (resources.observeNormalCompletion before.queue event).1 target = .unacquired := by
+  have completed : (resources.observeNormalCompletion before.queue event).1 target =
+    .unacquired := by
     rw [resources.observeNormalCompletion_foreign _ _ _ (by rw [unacquired]; simp), unacquired]
-  have adopted := (resources.observeNormalCompletion before.queue event).1.observeAdoptions_unacquired
+  have adopted := (resources.observeNormalCompletion before.queue
+    event).1.observeAdoptions_unacquired
     inventories (graphEffects before.queue event) target completed
   change (ResourceState.requestQueueCleanup _ _).1 target = _
   rw [ResourceState.requestQueueCleanup_foreign]
@@ -232,9 +240,10 @@ theorem ResourceState.observeDispatch_unacquired (resources : ResourceState)
 /-- Every action belongs to this input's normal completion, its ordered adoption labels,
 or the same dispatch's actual cleanup starts. No acquisition or settlement is invented.
 -/
-theorem ResourceState.observeDispatch_actions (resources : ResourceState)
+theorem ResourceState.observeDispatch_actions_available (resources : ResourceState)
     (inventories : ProducerInventories) (before : State) (event : GraphEvent)
-    : ∀ action ∈ (resources.observeDispatch inventories before event).2,
+    (available : List (Occurrence × Nat))
+    : ∀ action ∈ (resources.observeDispatch inventories before event available).2,
         (∃ target,
           normalCompletionTarget? before.queue event = some target
           ∧ action = .finishNormally target)
@@ -242,7 +251,8 @@ theorem ResourceState.observeDispatch_actions (resources : ResourceState)
             .adopt producer ∈ graphEffects before.queue event
             ∧ action = .adopt producer (inventories producer))
         ∨ (∃ effect ∈
-            (({ state := before } : GraphBatchResult).handleGraphEvent event).effects,
+            (({ state := before } : GraphBatchResult).handleGraphEvent event
+              available).effects,
             ∃ target,
               effect.cleanupStart? = some target ∧ action = .requestCleanup target) := by
   intro action member
@@ -256,6 +266,21 @@ theorem ResourceState.observeDispatch_actions (resources : ResourceState)
   · obtain ⟨target, listed, same⟩ := ResourceState.requestQueueCleanup_actions _ _ _ requested
     obtain ⟨effect, emitted, identifies⟩ := List.mem_filterMap.mp listed
     exact Or.inr (Or.inr ⟨effect, emitted, target, identifies, same⟩)
+
+theorem ResourceState.observeDispatch_actions (resources : ResourceState)
+    (inventories : ProducerInventories) (before : State) (event : GraphEvent)
+    : ∀ action ∈ (resources.observeDispatch inventories before event).2,
+        (∃ target,
+          normalCompletionTarget? before.queue event = some target
+          ∧ action = .finishNormally target)
+        ∨ (∃ producer,
+            .adopt producer ∈ graphEffects before.queue event
+            ∧ action = .adopt producer (inventories producer))
+        ∨ (∃ effect ∈
+            (({ state := before } : GraphBatchResult).handleGraphEvent event).effects,
+            ∃ target,
+              effect.cleanupStart? = some target ∧ action = .requestCleanup target) :=
+  resources.observeDispatch_actions_available inventories before event []
 
 /-- A producer-owned identity distinct from the input's normal completion is transferred
 at its adoption label and requested at its actual cleanup operation, in that order.
@@ -316,7 +341,8 @@ theorem GeneratedDispatchHandoffDisposal_holds : GeneratedDispatchHandoffDisposa
   intro work inputs event generated valid started release resources inventories
   dsimp only
   let before := ((State.initialize work).runNormalized inputs).1
-  have covered := GeneratedStoredReleaseDisposal_holds work inputs event generated valid started release resources
+  have covered := GeneratedStoredReleaseDisposal_holds work inputs event generated valid
+    started release resources
   refine ⟨resources.observeDispatch_replay inventories before event, ?_⟩
   intro producer occurrence node key emitted listed owned found stored held dropped
   rcases covered.2 occurrence node key found stored held dropped with active | disposed

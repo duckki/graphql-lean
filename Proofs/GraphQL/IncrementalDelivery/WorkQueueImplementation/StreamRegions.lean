@@ -17,6 +17,7 @@ def streamRegions (work : Execution.Work) (address : Address := [])
     : List (Occurrence × NodeRefs) :=
   match work with
   | .empty => []
+  | .declareGroups _ tasks => streamRegions tasks address
   | .combine left right =>
       streamRegions left (address ++ [0]) ++ streamRegions right (address ++ [1])
   | .executionGroup _ _ _ children => streamRegions children (address ++ [0])
@@ -57,6 +58,8 @@ theorem streamRegions_refs (work : Execution.Work) (address : Address)
     : (streamRegions work address).map Prod.snd = hiddenRegions work := by
   cases work with
   | empty => simp [streamRegions, hiddenRegions]
+  | declareGroups groups tasks =>
+      simpa only [streamRegions, hiddenRegions] using streamRegions_refs tasks address
   | combine left right =>
       simp only [streamRegions, List.map_append, hiddenRegions]
       rw [streamRegions_refs left, streamRegions_refs right]
@@ -88,6 +91,26 @@ decreasing_by
     dsimp only at *
     omega
 
+/-- Address normalization retains every labelled hidden region. -/
+@[simp]
+theorem streamRegions_withoutDeclarations (work : Execution.Work) (address : Address)
+    : streamRegions work.withoutDeclarations address = streamRegions work address := by
+  cases work with
+  | declareGroups groups tasks =>
+      simpa only [Execution.Work.withoutDeclarations, streamRegions]
+        using streamRegions_withoutDeclarations tasks address
+  | _ => rfl
+termination_by work
+
+/-- Normalizing a location can drop declaration refs, but introduces no new refs. -/
+theorem rootRefs_withoutDeclarations_subset (work : Execution.Work)
+    : (rootRefs work.withoutDeclarations).Subset (rootRefs work) := by
+  cases work with
+  | declareGroups groups tasks =>
+      exact (rootRefs_withoutDeclarations_subset tasks).trans (List.subset_append_right _ _)
+  | _ => exact List.Subset.refl _
+termination_by work
+
 /-- Any located subtree retains its labelled hidden regions in the original work.
 Witness: induction on structural navigation, including entry lookup beneath streams. -/
 theorem Located.streamRegions_subset {root address current producer owners}
@@ -96,16 +119,22 @@ theorem Located.streamRegions_subset {root address current producer owners}
   have navigation := StructuralEquivalence.located_of_current located
   clear located
   induction navigation with
-  | root => exact List.Subset.refl _
+  | root => simp only [streamRegions_withoutDeclarations]; exact List.Subset.refl _
   | left _ ih =>
       rw [streamRegions] at ih
-      exact (List.subset_append_left _ _).trans ih
+      intro region member
+      rw [streamRegions_withoutDeclarations] at member
+      exact ih (List.mem_append_left _ member)
   | right _ ih =>
       rw [streamRegions] at ih
-      exact (List.subset_append_right _ _).trans ih
-  | executionGroup _ ih => simpa only [streamRegions] using ih
+      intro region member
+      rw [streamRegions_withoutDeclarations] at member
+      exact ih (List.mem_append_right _ member)
+  | executionGroup _ ih =>
+      simpa only [streamRegions, streamRegions_withoutDeclarations] using ih
   | @item address node items producer owners index result children prior entry ih =>
       intro region member
+      rw [streamRegions_withoutDeclarations] at member
       apply ih
       rw [streamRegions_stream]
       exact List.mem_flatMap.mpr ⟨((result, children), index),
@@ -209,10 +238,11 @@ theorem streamRegion_unexposed {work : Execution.Work} (separated : WorkSeparate
       (fun same => fresh (same ▸ recorded)) ref contains member
 
 /-- Every immediate registration ref belongs to the current root-ref region.
-Witness: the region includes contributors and full ancestors; lowering selects a suffix.
+Witness: the region includes every explicit declaration and its ancestors.
 -/
 theorem workFromSpec_group_rootRef (work : Execution.Work) (address : Address)
-    {group : Group} (member : group ∈ (Work.fromExecution work address).groups)
+    {group : Group}
+    (member : group ∈ (Work.fromExecution work address).groups)
     : group.node.ref ∈ rootRefs work := by
   cases work with
   | empty => cases member
@@ -220,12 +250,13 @@ theorem workFromSpec_group_rootRef (work : Execution.Work) (address : Address)
       rcases List.mem_append.mp member with leftMember | rightMember
       · exact List.mem_append_left _ (workFromSpec_group_rootRef left _ leftMember)
       · exact List.mem_append_right _ (workFromSpec_group_rootRef right _ rightMember)
-  | executionGroup groups path result children =>
-      obtain ⟨fragment, fragmentMember, inChain⟩ := List.mem_flatMap.mp member
-      obtain ⟨ancestors, suffix, _⟩ := workFromSpec_groupChain_member inChain
-      exact List.mem_append_left _ (List.mem_flatMap.mpr
-        ⟨fragment, fragmentMember, List.mem_map.mpr
-          ⟨group.node, suffix.sublist.subset List.mem_cons_self, rfl⟩⟩)
+  | declareGroups groups tasks =>
+      rcases List.mem_append.mp member with declared | nested
+      · obtain ⟨fragment, included, rfl⟩ := List.mem_map.mp declared
+        exact List.mem_append_left _ (List.mem_flatMap.mpr
+          ⟨fragment, included, List.mem_cons_self⟩)
+      · exact List.mem_append_right _ (workFromSpec_group_rootRef tasks _ nested)
+  | executionGroup => cases member
   | stream => cases member
 termination_by sizeOf work
 
@@ -250,7 +281,7 @@ theorem TaskRegionCovered.mono {work before after task}
 Witness: combines narrow the current region; each group task identifies its own location.
 No future item region is exposed by descending through an execution-group child. -/
 theorem workFromSpec_tasks_regionCovered {root current address producer owners seen}
-    (located : Located root address current producer owners)
+    (located : Located root address current.withoutDeclarations producer owners)
     (covered : ∀ ref ∈ rootRefs current, ExposedRef root seen ref)
     : ∀ task ∈ (Work.fromExecution current address).tasks,
         TaskRegionCovered root seen task := by
@@ -259,10 +290,15 @@ theorem workFromSpec_tasks_regionCovered {root current address producer owners s
   | combine left right =>
       intro task member
       rcases List.mem_append.mp member with leftMember | rightMember
-      · exact workFromSpec_tasks_regionCovered (Located.left located)
+      · exact workFromSpec_tasks_regionCovered (current := left) (Located.left located)
           (fun ref member => covered ref (List.mem_append_left _ member)) task leftMember
-      · exact workFromSpec_tasks_regionCovered (Located.right located)
+      · exact workFromSpec_tasks_regionCovered (current := right) (Located.right located)
           (fun ref member => covered ref (List.mem_append_right _ member)) task rightMember
+  | declareGroups groups tasks =>
+      intro task member
+      change task ∈ (Work.fromExecution tasks address).tasks at member
+      exact workFromSpec_tasks_regionCovered (current := tasks) located
+        (fun ref member => covered ref (List.mem_append_right _ member)) task member
   | executionGroup groups path result children =>
       intro task member query location same found
       have taskEq := List.mem_singleton.mp member
@@ -281,19 +317,20 @@ theorem GraphEvent.MatchesWork.streamItem_region {work stream items}
     (matching : (GraphEvent.streamItems stream items).MatchesWork work)
     {item : StreamItem} (member : item ∈ items)
     : ∃ children address producer owners,
-        Located work address children producer owners
+        Located work address children.withoutDeclarations producer owners
         ∧ item.work = Work.fromExecution children address
         ∧ (item.occurrence, rootRefs children) ∈ streamRegions work [] := by
   obtain ⟨_, producer, known, childrenWork⟩ := matching item member
   cases occurrence : item.occurrence with
-  | executionGroup => simp [streamItemWork?, occurrence] at childrenWork
+  | executionGroup => simp [streamItemWork?_eq_lookup, occurrence] at childrenWork
   | item address index =>
       rw [occurrence] at known
       obtain ⟨node, entries, enclosing, result, children, located, entry, _, _⟩ := known
       change locateWork work address = some ⟨.stream node entries, producer, enclosing⟩
         at located
       have lowering : item.work = Work.fromExecution children (address ++ [index]) := by
-        simpa [streamItemWork?, occurrence, located, entry] using childrenWork.symm
+        simpa [streamItemWork?_eq_lookup, occurrence, located, entry]
+          using childrenWork.symm
       exact ⟨children, address ++ [index], some (.item address index), [],
         Located.item located entry, lowering,
         occurrence ▸ Located.streamRegion_member located entry⟩

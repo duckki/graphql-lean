@@ -16,12 +16,13 @@ private def rightTask : Occurrence := .executionGroup [1, 1, 0]
 
 private def work : Execution.Work :=
   .combine .empty
-    (.combine
-      (.executionGroup [⟨left, []⟩] [] ({ result := .error 1, cause := some 1 }) .empty)
+    (.declareGroups [⟨left, []⟩, ⟨right, []⟩]
       (.combine
-        (.executionGroup [⟨right, []⟩] [] ({ result := .error 1, cause := some 1 })
-          .empty)
-        .empty))
+        (.executionGroup [⟨left, []⟩] [] ({ result := .error 1, cause := some 1 }) .empty)
+        (.combine
+          (.executionGroup [⟨right, []⟩] [] ({ result := .error 1, cause := some 1 })
+            .empty)
+          .empty)))
 
 private def first : GraphEvent := .taskFailure leftTask 1
 private def second : GraphEvent := .taskFailure rightTask 1
@@ -80,12 +81,10 @@ theorem actual_cuts
     : let publisher : IncrementalPublisher :=
         { active := initial.initialGroups ++ initial.initialStreams }
       sourceObjectFailureCuts 0
-          (initial.eligibleFailureBlocks
-            (initial.sourceRunBlocks publisher [[first], [second]]).2.2)
+          (initial.sourceRunBlocks publisher [[first], [second]]).2.2
         = [(0, leftTask), (1, rightTask)]
       ∧ sourceObjectFailureCuts 0
-          (initial.eligibleFailureBlocks
-            (initial.sourceRunBlocks publisher [[first, second]]).2.2)
+          (initial.sourceRunBlocks publisher [[first, second]]).2.2
         = [(0, leftTask), (1, rightTask)] := by
   cbv
 
@@ -94,7 +93,7 @@ Witness: the general source-cut theorem, with concrete membership supplied by `a
 -/
 theorem last_cut_inside_nonterminal
     : 1 ≤ (initial.nonterminalAtoms [[first], [second]]).length := by
-  apply initial.eligibleObjectFailureCuts_nonterminalBound [[first], [second]]
+  apply initial.sourceObjectFailureCuts_nonterminalBound [[first], [second]]
     (createWorkQueue_terminated _) (1, rightTask)
   rw [actual_cuts.1]
   simp
@@ -104,13 +103,23 @@ Witness: the two proved general leaves, not a separately chosen batching explana
 Cancellation safety and full event admission are not asserted by this certificate.
 -/
 theorem joint_leaves (matching : PublicationMatching)
-    : (∃ failures,
+    : (∃ failures reported,
         let witness : Witness :=
-          { events := initial.nonterminalAtoms [[first], [second]], matching, failures }
+          {
+            events := initial.nonterminalAtoms [[first], [second]],
+            matching,
+            failures,
+            reported
+          }
         BatchShape work [[first], [second]] witness ∧ AnnouncedFailures work witness)
-      ∧ (∃ failures,
+      ∧ (∃ failures reported,
           let witness : Witness :=
-            { events := initial.nonterminalAtoms [[first, second]], matching, failures }
+            {
+              events := initial.nonterminalAtoms [[first, second]],
+              matching,
+              failures,
+              reported
+            }
           BatchShape work [[first, second]] witness ∧ AnnouncedFailures work witness) :=
   ⟨
     batchShape_and_announcedFailures (inputs := [[first], [second]])

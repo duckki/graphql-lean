@@ -389,12 +389,34 @@ inductive Work where
   | empty
   /-- Join sibling work components without choosing their completion order. -/
   | combine (left right : Work)
+  /-- Ordered declarations for one execution plan's deferred tasks. Contributors on a
+  task are references; they do not determine when or in what order groups are registered.
+  This annotation contributes no task, producer, or structural address edge.
+  -/
+  | declareGroups (groups : List DeferredFragment) (tasks : Work)
   /-- One execution-group task, its contributing fragments, and nested work. -/
   | executionGroup (groups : List DeferredFragment) (path : ResponsePath)
     (outcome : TaskOutcome (List (Name × ResponseValue))) (children : Work)
   /-- One stream descriptor and the finite remaining outer-list items. -/
   | stream (node : DeliveryNode) (items : List (TaskOutcome ResponseValue × Work))
 deriving Repr
+
+/-- Strip leading declaration annotations at one structural location.
+Nested annotations remain until address navigation reaches their location.
+-/
+def Work.withoutDeclarations : Work → Work
+  | .declareGroups _ tasks => tasks.withoutDeclarations
+  | work => work
+
+/-- Whether the immediate work contains no tasks or stream boundaries.
+Declarations add no work; an empty stream boundary is still work. Child outcomes need
+not be inspected once a task or stream boundary is present.
+-/
+def Work.isEmpty : Work → Bool
+  | .empty => true
+  | .combine left right => left.isEmpty && right.isEmpty
+  | .declareGroups _ tasks => tasks.isEmpty
+  | .executionGroup .. | .stream .. => false
 
 structure Completion (α : Type) where
   /-- All collected diagnostics, including diagnostics for data discarded by a bubble.
@@ -736,7 +758,12 @@ mutual
         let tasks ←
           collectExecutionGroups schema resolvers variables fuel parentType source
             executionPlan.newCollectedFieldsMaps path newMap
-        return { initial with work := .combine initial.work tasks }
+        let declarations :=
+          newDeferUsages.filterMap (fun usage => lookupDeferredFragment? newMap usage.ref)
+        return {
+          initial with
+            work := .combine initial.work (.declareGroups declarations tasks)
+        }
 
   /-- Spec `CollectExecutionGroups`: look up owners, construct each execution task, and
   retain it. Finite pure outcomes replace the spec's future computation.
@@ -877,7 +904,9 @@ def getIncrementalStreamUpdateResult (hasNext : Bool)
 /-- The draft's seven queue-output forms, named `WorkQueueEvent` in GraphQL.js.
 Raw queue events carry a provisional owner; spec-facing
 events carry the effective owner selected by the publisher. Their values are identical.
-Node refs are internal identities, not wire IDs.
+Node refs are internal identities, not wire IDs. Failure payloads retain error-list counts,
+rather than the draft's singular error object. A group completion may aggregate selected
+causes from several cached tasks; stream failure retains its single task boundary cause.
 Value lists support multi-task group flushes and multi-item stream updates. Atomic
 work-history admission checks singleton values; WorkBatching may coalesce them again.
 -/
@@ -1042,24 +1071,6 @@ def executeRootSelectionSetCore (schema : Schema) (resolvers : Resolvers ObjectR
   executeExecutionPlan schema resolvers variableValues fuel parentType source
     collected.newDeferUsages executionPlan
 
-/-! Executable work count, independent of any completion order.
-* `combine` contributes no work record of its own; only execution-group tasks, stream
-descriptors, and remaining stream items contribute to the count.
-* `Work.size = 0` corresponds to "{tasks} is empty and {streams} is empty" from the spec.
--/
-
-mutual
-  def Work.size : Work → Nat
-    | .empty => 0
-    | .combine left right => left.size + right.size
-    | .executionGroup _ _ _ children => 1 + children.size
-    | .stream _ items => 1 + Work.itemsSize items
-
-  def Work.itemsSize : List (TaskOutcome ResponseValue × Work) → Nat
-    | [] => 0
-    | (_, work) :: rest => 1 + work.size + Work.itemsSize rest
-end
-
 /-- Generalized return type of query execution: ordinary Response or incremental stream.
 This model name is broader than Section 7's ordinary "execution result" map. Subscription
 streams and request-error results remain out of scope.
@@ -1083,7 +1094,7 @@ def executeRootSelectionSet (createWorkQueue : Work → WorkQueue)
       selectionSet).run
       0
   let response := selectionSetResultToResponse completed.result
-  if completed.work.size == 0 then
+  if completed.work.isEmpty then
     .single response
   else
     let (initial, subsequent) :=

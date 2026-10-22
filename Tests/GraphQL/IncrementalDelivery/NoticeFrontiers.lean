@@ -62,9 +62,14 @@ example
         ∧ 1 ∈ (groups ++ streams).map DeliveryNode.ref := by
   obtain ⟨groups, streams, announced, covers⟩ := announcements_covering_exists nested [0]
     (fun _ => .item [] 0) [.streamValues HistoryScheduling.left [{ item := .null }] [] []] []
-  exact ⟨groups, streams, announced,
+  exact ⟨
+    groups,
+    streams,
+    announced,
     covers HistoryScheduling.right .stream [] (some (.item [] 0))
-      (.stream (.item .root rfl)) child_eligible⟩
+      (.stream (address := [0])
+        (items := [({ result := .ok (.null, 0) }, .empty)]) (by rfl)) child_eligible
+  ⟩
 
 /-- Empty work has an empty covering frontier; nonemptiness is an initialization issue,
 not a requirement invented for every later notice-bearing event.

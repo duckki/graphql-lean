@@ -57,7 +57,7 @@ theorem mixed_failureCertificates_with_closureLedger {work : Execution.Work}
               { active := queue.initialGroups ++ queue.initialStreams }
             let objects :=
               informativeObjectFailureCuts work
-                (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher inputs).2.2)
+                (queue.sourceRunBlocks publisher inputs).2.2
             ∃ streams,
               StreamFailureCuts work
                 ((queue.runNormalized inputs).2.flatten.flatMap publicationAtoms) streams
@@ -102,7 +102,7 @@ theorem mixed_failureCertificates_with_cuts {work : Execution.Work}
               { active := queue.initialGroups ++ queue.initialStreams }
             let objects :=
               informativeObjectFailureCuts work
-                (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher inputs).2.2)
+                (queue.sourceRunBlocks publisher inputs).2.2
             ∃ streams,
               StreamFailureCuts work
                 ((queue.runNormalized inputs).2.flatten.flatMap publicationAtoms) streams

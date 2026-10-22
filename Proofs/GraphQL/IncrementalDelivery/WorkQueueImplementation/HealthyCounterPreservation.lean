@@ -66,18 +66,16 @@ certifies every removed membership as settled. Cached-error closures only remove
 theorem State.HealthyPendingTracks.drainReadyGroups_ofBound {queue : State}
     {work settled failed} (tracks : queue.HealthyPendingTracks work settled failed)
     (bounded : queue.PendingBound (fun _ => True) settled)
-    : queue.drainReadyGroups.1.HealthyPendingTracks work settled failed := by
-  have final := State.drainReadyGroups_preserves
+    (available : List (Occurrence × Nat) := [])
+    : (queue.drainReadyGroups available).1.HealthyPendingTracks work settled failed := by
+  have final := State.drainReadyGroups_preserves (available := available)
     (fun state => state.HealthyPendingTracks work settled failed ∧
       state.PendingBound (fun _ => True) settled)
     (by
-      intro current node prior member _ _ zero
+      intro current node prior member _ zero
       have all := prior.2.allSettled member trivial zero
-      exact ⟨(prior.1.finishGroupSuccess node all).startNewWork _,
-        (prior.2.finishGroupSuccess node all).startNewWork _⟩)
-    (fun _ _ occurrence errors prior _ _ _ =>
-      ⟨prior.1.taskFailure_preserves occurrence errors,
-        prior.2.taskFailure_preserves occurrence errors⟩)
+      exact ⟨(prior.1.finishGroupSuccess node all).startNewWork _ available,
+        (prior.2.finishGroupSuccess node all).startNewWork _ available⟩)
     ⟨tracks, bounded⟩
   exact final.1
 
@@ -160,7 +158,8 @@ theorem State.HealthyPendingTracks.taskSuccess_allOutcomes {queue : State}
     (freshChildren : ∀ task ∈ result.work.tasks, task.occurrence ∉ settled)
     (uniqueOwners : (taskNode.task.groups.map Execution.DeliveryNode.ref).Nodup)
     (childrenMatch : ∀ task ∈ result.work.tasks, TaskMatches work task)
-    : (queue.taskSuccess occurrence result).1.HealthyPendingTracks work
+    (available : List (Occurrence × Nat) := [])
+    : (queue.taskSuccess occurrence result available).1.HealthyPendingTracks work
         (occurrence :: settled) failed := by
   let stored := queue.putTaskNode { taskNode with value := some result.value }
   let integrated := (stored.maybeIntegrateWork result.work (some occurrence)).1
@@ -205,9 +204,9 @@ theorem State.HealthyPendingTracks.taskSuccess_allOutcomes {queue : State}
       failed := by
     intro node member healthy
     simpa [GroupNode.PendingTracks] using final.1 node member healthy
-  rw [queue.taskSuccess_eq occurrence result taskNode found]
-  exact (releasedTracks.startNewWork _).drainReadyGroups_ofBound
-    (final.2.startNewWork _)
+  rw [queue.taskSuccess_eq occurrence result taskNode found available]
+  exact (releasedTracks.startNewWork _ available).drainReadyGroups_ofBound
+    (final.2.startNewWork _ available) available
 
 /-- Stream item integration preserves exact healthy counters and safely drains releases.
 Witness: fresh child tasks preserve exact counts during item-fold induction; the parallel
@@ -218,29 +217,33 @@ theorem State.HealthyPendingTracks.streamItems_ofBound {queue : State}
     (bounded : queue.PendingBound (fun _ => True) settled)
     (stream : Execution.DeliveryNode) (items : List StreamItem)
     (fresh : ∀ item ∈ items, ∀ task ∈ item.work.tasks, task.occurrence ∉ settled)
-    : (queue.streamItems stream items).1.HealthyPendingTracks work settled failed := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.streamItems stream items available).1.HealthyPendingTracks work settled
+        failed := by
   let step (acc : State × List Execution.DeliveryNode
-      × List Execution.DeliveryNode × List StreamItemValue) (item : StreamItem) :=
-    let (current, groups, streams, values) := acc
+      × List Execution.DeliveryNode × List StreamItemValue × List GroupFailureEvent)
+      (item : StreamItem) :=
+    let (current, groups, streams, values, failures) := acc
     let (integrated, newWork) := current.maybeIntegrateWork item.work
     let (pruned, nonempty) := integrated.pruneEmptyGroups newWork.newGroups
-    (pruned.startNewWork { newWork with newGroups := nonempty }, groups ++ nonempty,
-      streams ++ newWork.newStreams, values ++ [item.value])
+    let (started, queued) := pruned.startNewWork { newWork with newGroups := nonempty } available
+    (started, groups ++ nonempty, streams ++ newWork.newStreams,
+      values ++ [item.value], failures ++ queued)
   let invariant (current : State) := current.HealthyPendingTracks work settled failed ∧
     current.PendingBound (fun _ => True) settled
   have stepFacts (acc : State × List Execution.DeliveryNode
-      × List Execution.DeliveryNode × List StreamItemValue)
+      × List Execution.DeliveryNode × List StreamItemValue × List GroupFailureEvent)
       (item : StreamItem) (prior : invariant acc.1)
       (freshItem : ∀ task ∈ item.work.tasks, task.occurrence ∉ settled)
       : invariant (step acc item).1 := by
-    obtain ⟨current, groups, streams, values⟩ := acc
+    obtain ⟨current, groups, streams, values, failures⟩ := acc
     have integratedTracks := prior.1.maybeIntegrateWork item.work freshItem
     have integratedBound := prior.2.maybeIntegrateWork item.work
-    exact ⟨(integratedTracks.pruneEmptyGroups _).startNewWork _,
-      (integratedBound.pruneEmptyGroups _).startNewWork _⟩
+    exact ⟨(integratedTracks.pruneEmptyGroups _).startNewWork _ available,
+      (integratedBound.pruneEmptyGroups _).startNewWork _ available⟩
   have loop (more : List StreamItem) (included : more.Subset items)
       (acc : State × List Execution.DeliveryNode
-        × List Execution.DeliveryNode × List StreamItemValue)
+        × List Execution.DeliveryNode × List StreamItemValue × List GroupFailureEvent)
       (prior : invariant acc.1) : invariant (more.foldl step acc).1 := by
     induction more generalizing acc with
     | nil => exact prior
@@ -250,7 +253,7 @@ theorem State.HealthyPendingTracks.streamItems_ofBound {queue : State}
   dsimp only [State.streamItems]
   split
   · exact tracks
-  · have final := loop items (fun _ member => member) (queue, [], [], []) ⟨tracks, bounded⟩
-    exact final.1.drainReadyGroups_ofBound final.2
+  · have final := loop items (fun _ member => member) (queue, [], [], [], []) ⟨tracks, bounded⟩
+    exact final.1.drainReadyGroups_ofBound final.2 available
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

@@ -1,5 +1,7 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.ItemNoticeAncestorPublication
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.BatchedNoticeAncestorCoverage
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.AtomicCarrierCoverage
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.RecordFailureRoles
 
 /-! Carried group notices account for their full defer ancestry on the canonical witness. -/
 
@@ -26,19 +28,7 @@ theorem ExecutedWork.groupRecord_ancestor_ne_stream
   obtain ⟨roles, rootRoles⟩ := Semantics.RefRoles.executeRoot_roles schema resolvers variables
     fuel parentType source selections 0
   rw [equal] at rootRoles
-  obtain ⟨address, groups, path, result, children, birth, owners, fragment, ancestors,
-    located, member, suffix, dependenciesEq⟩ := known
-  have localRoles := generatedWorkRoles_located rootRoles
-    (StructuralEquivalence.located_of_current located)
-  simp only [Semantics.RefRoles.WorkRoles] at localRoles
-  have fragmentRoles := localRoles.1 fragment member
-  rw [dependenciesEq] at ancestor
-  obtain ⟨node, included, same⟩ := List.mem_map.mp ancestor
-  have chain := suffix.subset (List.mem_cons_of_mem child included)
-  have groupRole : roles ref = false := by
-    rcases List.mem_cons.mp chain with head | tail
-    · exact same ▸ head.symm ▸ fragmentRoles.1
-    · exact same ▸ fragmentRoles.2 node tail
+  have groupRole := (groupRecord_roles rootRoles known).2 ref ancestor
   obtain ⟨streamAddress, items, streamLocated⟩ := streamKnown
   have streamRoles := generatedWorkRoles_located rootRoles
     (StructuralEquivalence.located_of_current streamLocated)
@@ -59,7 +49,8 @@ theorem ExecutedWork.rawEventReplay_groupNoticeAncestor_covered
     {work events published index group groups streams child dependencies ref address
       owners producer payload}
     (generated : ExecutedWork work) (valid : ValidGraphEvents work events)
-    (started : (State.initialize (Work.fromExecution work)).acceptsBatch events = true)
+    (started
+      : State.eventsStarted [] (State.initialize (Work.fromExecution work)) events = true)
     (covered
       : (State.initialize (Work.fromExecution work)).ReplayClosuresCovered events
           published)
@@ -80,9 +71,10 @@ theorem ExecutedWork.rawEventReplay_groupNoticeAncestor_covered
     (State.initialize (Work.fromExecution work)).rawEventReplay_output_at events selected
   have prior : (before ++ [event]).IsPrefix events :=
     ⟨after, by simp [same, List.append_assoc]⟩
-  have accepted : (State.initialize (Work.fromExecution work)).acceptsBatch (before ++ [event])
+  have accepted : State.eventsStarted [] (State.initialize (Work.fromExecution work))
+      (before ++ [event])
       = true := by
-    apply State.acceptsBatch_prefix (after := after)
+    apply State.eventsStarted_prefix (after := after)
     simpa only [same, List.append_assoc, List.singleton_append] using started
   have ledger : (State.initialize (Work.fromExecution work)).ReplayClosuresCovered
       (before ++ [event]) published := by
@@ -116,15 +108,11 @@ theorem groupNoticeAncestor_objectContributor_published
     (contributes : ref ∈ owners)
     : Published w.matching (w.events.take index) (.executionGroup address) := by
   obtain ⟨published, batched, _, interpret, _⟩ := ledger
-  have accepted : (initialQueue work).batchesStarted inputs = true := by
-    rwa [← inputsStarted_eq_batchesStarted]
-  have covered := batched.flatten accepted
   obtain ⟨atFull, beforeEq⟩ := Witness.canonical_event history selected
   obtain ⟨position, atRaw, count⟩ :=
     createWorkQueue_runNormalized_groupSuccess_rawPrefix started atFull
-  obtain ⟨value, delivered⟩ := generated.rawEventReplay_groupNoticeAncestor_covered valid
-    ((initialQueue work).batchesStarted_acceptsBatch inputs accepted) covered atRaw
-      noticed known ancestor task contributes
+  obtain ⟨value, delivered⟩ := generated.rawBatches_groupNoticeAncestor_covered valid
+    started batched atRaw noticed known ancestor task contributes
   apply interpret index (Nat.le_of_lt (List.getElem?_eq_some_iff.mp selected).1)
     (.executionGroup address)
   rw [← beforeEq, count, ← List.map_take]

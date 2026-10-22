@@ -66,9 +66,12 @@ Witness: exact item/task locations and the unchanged executable start checker.
 theorem source_valid
     : ValidGraphEvents work inputs.flatten ∧ inputsStarted work inputs = true := by
   have first : ValidGraphEvents work [.streamFailure stream 1] :=
-    .append .nil ⟨_, _, _, _, stream_located, { result := .error 1, cause := some 1 }, .empty, List.mem_cons_self, rfl⟩
+    .append .nil
+      ⟨_, _, _, _, stream_located, { result := .error 1, cause := some 1 }, .empty,
+        List.mem_cons_self, rfl⟩
       (by simp [GraphEvent.Fresh, GraphEvent.identities])
-      ⟨_, _, _, _, stream_located, (by intro source impossible; cases impossible), { result := .error 1, cause := some 1 }, .empty, rfl, rfl⟩
+      ⟨_, _, _, _, stream_located, (by intro source impossible; cases impossible),
+        { result := .error 1, cause := some 1 }, .empty, rfl, rfl⟩
   refine ⟨.append first ⟨_, _, _, child_known⟩ ?_ ?_, by cbv⟩
   · simp [GraphEvent.Fresh, GraphEvent.identities]
   · exact ⟨_, _, _, child_known, by intro source impossible; cases impossible⟩
@@ -90,10 +93,11 @@ theorem stream_cuts : StreamFailureCuts work atoms [(0, failedItem)] := by
     rfl
   · intro entry member
     obtain rfl := List.mem_singleton.mp member
-    exact ⟨stream, 1, none, by rw [output]; rfl, .item (result := { result := .error 1, cause := some 1 }) stream_located rfl⟩
+    exact ⟨stream, 1, none, by rw [output]; rfl,
+      .item (result := { result := .error 1, cause := some 1 }) stream_located rfl⟩
 
 /-- All source prefixes preserve the missing-parent boundary in this mixed replay.
-Witness: general prefix health follows from generated work and the unchanged source laws.
+Witness: generated prefix health uses this fixture’s checked empty-snapshot eventwise trace.
 The preceding stream failure is deliberately not an object contribution.
 -/
 theorem prefix_missing_parent_health
@@ -101,39 +105,30 @@ theorem prefix_missing_parent_health
         received.IsPrefix inputs.flatten
         → (initial.replayGraphEvents received).MissingParentAncestorsHealthy work
             (initial.objectFailureContributions received) :=
-  generated.prefix_missingParentHealth source_valid.1 source_valid.2
+  generated.eventwisePrefix_missingParentHealth source_valid.1 (by cbv)
 
 /-- The accepted C settlement remains cleanup-safe under the full mixed predecessor list.
-Witness: the general mixed-cut theorem, with the actual stream cut and replay-derived
-missing-parent boundary. It retains the stream failure instead of dropping it
-from the stated conclusion; historical producer-cancellation safety is not assumed.
+Witness: role-aware restriction of group invalidation excludes the unrelated failed
+stream item. The task keeps its original owner and source descriptor.
 -/
 theorem child_owner_safe_after_stream_failure
     : ∃ owners ref,
         TaskHasOwners work childTask owners
         ∧ ref ∈ owners
         ∧ ¬GroupRecordInvalidated work [failedItem] ref := by
-  classical
-  have informative : InformativeFailure work [] childTask :=
-    ⟨[child.ref], child.ref, ⟨none, _, child_known⟩, by simp,
-      fun invalid => invalid.nonempty rfl⟩
-  have raw : let publisher : IncrementalPublisher :=
-      { active := initial.initialGroups ++ initial.initialStreams }
-      sourceObjectFailureCuts 0
-        (initial.eligibleFailureBlocks (initial.sourceRunBlocks publisher inputs).2.2)
-        = [(1, childTask)] := by cbv
-  have split
-      : let publisher : IncrementalPublisher :=
-          { active := initial.initialGroups ++ initial.initialStreams }
-        let objects := informativeObjectFailureCuts work
-          (initial.eligibleFailureBlocks (initial.sourceRunBlocks publisher inputs).2.2)
-        mergeFailureCuts objects [(0, failedItem)] = [(0, failedItem)] ++ [(1, childTask)] := by
-    dsimp only
-    rw [informativeObjectFailureCuts, raw]
-    simp only [selectObjectFailureCuts, informative, ↓reduceIte]
-    cbv
-  exact createWorkQueue_mixedFailureCuts_uninvalidatedObjectOwner generated source_valid.1
-    source_valid.2 prefix_missing_parent_health stream_cuts child_known split
+  refine ⟨[child.ref], child.ref, ⟨none, _, child_known⟩, by simp, ?_⟩
+  have childNode : NodeAt work child .group [parent.ref] none :=
+    NodeAt.group (address := [1, 0]) (groups := [⟨child, [parent]⟩]) (path := [])
+      (result := { result := .error 1, cause := some 1 }) (children := .empty) (owners := [])
+      (group := ⟨child, [parent]⟩) (by cbv) List.mem_cons_self
+  have restriction := generated.groupRecordInvalidated_iff_objectFailures
+    (failed := [failedItem]) (kept := []) (groupRecordAt_of_nodeAt childNode)
+    (by intro ref impossible; cases impossible) (by
+      intro occurrence owners producer path result known member
+      obtain rfl := List.mem_singleton.mp member
+      obtain ⟨_, _, _, _, _, _, _, _, impossible⟩ := known
+      cases impossible)
+  exact fun invalid => (restriction.mp invalid).nonempty rfl
 
 /-- C's failure and the preceding stream failure share one cancellation-safe witness.
 Witness: the general mixed construction retains the actual nonempty inventory and
@@ -164,8 +159,7 @@ theorem taskless_parent_cleanup_ignores_stream
     : GroupRecordInvalidated work [failedItem, childTask] parent.ref
       ↔ GroupRecordInvalidated work [childTask] parent.ref := by
   have record : GroupRecordAt work parent [] :=
-    ⟨[1, 0], [⟨child, [parent]⟩], [], { result := .error 1, cause := some 1 }, .empty, none, [], ⟨child, [parent]⟩,
-      [], by cbv, List.mem_cons_self, List.suffix_cons _ _, rfl⟩
+    ⟨⟨parent, []⟩, by cbv; exact List.mem_cons_self, [], List.suffix_rfl, rfl⟩
   apply generated.groupRecordInvalidated_iff_objectFailures record
     (fun _ member => List.mem_cons_of_mem _ member)
   intro occurrence owners producer path result known member

@@ -1,6 +1,7 @@
 import Proofs.GraphQL.IncrementalDelivery.Correctness.MixedProgressEvents
 import Proofs.GraphQL.IncrementalDelivery.Correctness.MixedOwnerSupport
 import Proofs.GraphQL.IncrementalDelivery.Correctness.GroupScopeReporting
+import Proofs.GraphQL.IncrementalDelivery.Semantics.WorkSize
 
 /-! Complete finite runs for arbitrary coherent generated mixed defer/stream work.
 Supported notice coverage is a proof choice, not a restriction on admitted histories.
@@ -163,7 +164,7 @@ theorem mixed_completeRun_exists {ancestry bound roles base paths pathBound work
     initialization_exists valid coherent continuous ordered nonempty
   obtain ⟨groups, streams, initialized, covers⟩ := initialized.covering_exists
   have initial : Explains work groups streams [] (fun _ => .executionGroup []) [] :=
-    ⟨initialized, by simp [FailureWitness], by simp⟩
+    initialized.emptyExplains _
   obtain ⟨batches, run⟩ := mixed_reporting_continuation valid coherent roleCoherent
     continuous ordered pathCoherent under certified positive allocated initial
     (reportingNoticesCovered_of_noticesCovered (NoticesCovered.initial covers _))

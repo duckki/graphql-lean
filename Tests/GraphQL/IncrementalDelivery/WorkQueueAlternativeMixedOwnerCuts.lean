@@ -4,7 +4,7 @@ import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.SourceRecordP
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.BufferedStopCoverage
 import Tests.GraphQL.IncrementalDelivery.Execution
 
-/-! Two latent failed contributors remove the same held source in one mixed drain.
+/-! Two latent failed contributors remove the same held source during child startup.
 The first failure retains the shared buffer; the second disposes its last live owner.
 -/
 
@@ -40,21 +40,31 @@ private def streamWork : Execution.Work :=
 
 private def work : Execution.Work :=
   .combine .empty
-    (.combine
-      (.executionGroup [⟨root, []⟩, ⟨child, [parent]⟩, ⟨sibling, [parent]⟩] []
-        ({ result := .ok (value.data, 0) }) streamWork)
+    (.declareGroups
+      [
+        ⟨root, []⟩,
+        ⟨parent, []⟩,
+        ⟨child, [parent]⟩,
+        ⟨sibling, [parent]⟩,
+        ⟨supporter, []⟩,
+        ⟨otherSupporter, []⟩
+      ]
       (.combine
-        (.executionGroup [⟨root, []⟩] [] ({ result := .error 1, cause := some 1 }) .empty)
+        (.executionGroup [⟨root, []⟩, ⟨child, [parent]⟩, ⟨sibling, [parent]⟩] []
+          ({ result := .ok (value.data, 0) }) streamWork)
         (.combine
-          (.executionGroup [⟨parent, []⟩] [] ({ result := .ok (parentValue.data, 0) })
-            (.combine .empty .empty))
+          (.executionGroup [⟨root, []⟩] [] ({ result := .error 1, cause := some 1 })
+            .empty)
           (.combine
-            (.executionGroup [⟨child, [parent]⟩, ⟨supporter, []⟩] []
-              ({ result := .error 1, cause := some 1 }) .empty)
+            (.executionGroup [⟨parent, []⟩] [] ({ result := .ok (parentValue.data, 0) })
+              (.combine .empty .empty))
             (.combine
-              (.executionGroup [⟨sibling, [parent]⟩, ⟨otherSupporter, []⟩] []
+              (.executionGroup [⟨child, [parent]⟩, ⟨supporter, []⟩] []
                 ({ result := .error 1, cause := some 1 }) .empty)
-              .empty)))))
+              (.combine
+                (.executionGroup [⟨sibling, [parent]⟩, ⟨otherSupporter, []⟩] []
+                  ({ result := .error 1, cause := some 1 }) .empty)
+                .empty))))))
 
 private def success : GraphEvent :=
   .taskSuccess producer
@@ -77,9 +87,17 @@ private def earlierInputs : List (List GraphEvent) :=
 
 private abbrev before := ((State.initialize work).runNormalized earlierInputs).1
 private abbrev snapshot := registrationSnapshot before.queue finish
-private abbrev events := (before.queue.handleGraphEvent finish).2
+private abbrev immediate := (before.queue.handleGraphEvent finish).2.1
+private abbrev queued := (before.queue.handleGraphEvent finish).2.2
+
+private abbrev events :=
+  immediate
+  ++ queued.map
+      (fun failure =>
+        Execution.WorkQueueEvent.groupFailure failure.group failure.errors)
+
 private abbrev reduced := ({ state := before } : GraphBatchResult).handleGraphEvent finish
-private abbrev view := failurePruningView before.queue finish events
+private abbrev view := failurePruningView before.queue finish immediate
 
 private def buffered : ReferenceWorkQueue.TaskNode :=
   {
@@ -138,7 +156,8 @@ private theorem valid
     : ReferenceWorkQueue.ValidGraphEvents work (earlierInputs.flatten ++ [finish]) := by
   have first : ReferenceWorkQueue.ValidGraphEvents work [success] :=
     .append .nil ⟨_, _, producer_known, rfl, rfl⟩
-      (by simp [ReferenceWorkQueue.GraphEvent.Fresh, ReferenceWorkQueue.GraphEvent.identities, success])
+      (by simp [ReferenceWorkQueue.GraphEvent.Fresh, ReferenceWorkQueue.GraphEvent.identities,
+        success])
       ⟨_, _, _, producer_known, by intro other impossible; cases impossible⟩
   have second : ReferenceWorkQueue.ValidGraphEvents work [success, killRoot] :=
     .append first ⟨_, _, _, root_known⟩
@@ -150,14 +169,17 @@ private theorem valid
       (by simp [ReferenceWorkQueue.GraphEvent.Fresh, ReferenceWorkQueue.GraphEvent.identities,
         success, killRoot, killChild, producer, rootFailure, childFailure])
       ⟨_, _, _, child_known, by intro other impossible; cases impossible⟩
-  have fourth : ReferenceWorkQueue.ValidGraphEvents work [success, killRoot, killChild, killSibling] :=
+  have fourth : ReferenceWorkQueue.ValidGraphEvents work [success, killRoot, killChild,
+    killSibling] :=
     .append third ⟨_, _, _, sibling_known⟩
       (by simp [ReferenceWorkQueue.GraphEvent.Fresh, ReferenceWorkQueue.GraphEvent.identities,
-        success, killRoot, killChild, killSibling, producer, rootFailure, childFailure, siblingFailure])
+        success, killRoot, killChild, killSibling, producer, rootFailure, childFailure,
+          siblingFailure])
       ⟨_, _, _, sibling_known, by intro other impossible; cases impossible⟩
   exact .append fourth ⟨_, _, finisher_known, rfl, rfl⟩
     (by
-      simp [earlierInputs, ReferenceWorkQueue.GraphEvent.Fresh, ReferenceWorkQueue.GraphEvent.identities,
+      simp [earlierInputs, ReferenceWorkQueue.GraphEvent.Fresh,
+        ReferenceWorkQueue.GraphEvent.identities,
         success, killRoot, killChild, killSibling, finish, producer, rootFailure,
         childFailure, siblingFailure, finisher])
     ⟨_, _, _, finisher_known, by intro other impossible; cases impossible⟩
@@ -183,22 +205,31 @@ private def parentNode : ReferenceWorkQueue.GroupNode :=
 private abbrev released :=
   (snapshot.putGroupNode parentNode).finishGroupSuccess parentNode
 
-private abbrev drainEntry := released.1.startNewWork released.2.2
+private abbrev startup := released.1.startNewWork released.2.2
+private abbrev drainEntry := startup.1
 
--- Pin the real mixed-drain boundary and its first shared-owner removal separately.
-example : released.2.1 ++ drainEntry.drainReadyGroups.2 = events := by cbv
-
+-- Startup queues both failures before the later successful-ready drain.
 example
-    : (ReferenceWorkQueue.State.drainReadyGroups.go 1 drainEntry).2
-      = [.groupFailure child 1] := by cbv
+    : released.2.1
+        ++ drainEntry.drainReadyGroups.2.1
+        ++ startup.2.map
+            (fun failure =>
+              Execution.WorkQueueEvent.groupFailure failure.group failure.errors)
+      = events := by cbv
 
-example
-    : (ReferenceWorkQueue.State.drainReadyGroups.go 1 drainEntry).1.taskNode? producer
-      = some buffered := by cbv
+private abbrev startupEntry : ReferenceWorkQueue.State :=
+  {
+    released.1 with
+      rootGroups :=
+        released.1.rootGroups ++ released.2.2.newGroups.map Execution.DeliveryNode.ref
+  }
 
-example
-    : (ReferenceWorkQueue.State.drainReadyGroups.go 2 drainEntry).1.taskNode? producer
-      = none := by cbv
+private abbrev firstCut := startupEntry.startGroup child.ref
+private abbrev secondCut := firstCut.1.startGroup sibling.ref
+
+example : firstCut.2 = [⟨child, 1⟩] := by cbv
+example : firstCut.1.taskNode? producer = some buffered := by cbv
+example : secondCut.1.taskNode? producer = none := by cbv
 
 -----------------------------------------------------------------------------------------
 -- The universal cut and disposal witnesses cover both chronological owner failures
@@ -208,9 +239,11 @@ private theorem ownerCut
     : ∀ owner ∈ buffered.task.groups,
         ∀ group,
           view.groupNode? owner.ref = some group
-          → ∃ root ∈ failureRoots events, view.LiveDescendant root owner.ref :=
-  GeneratedPendingBufferFailureCut_holds work earlierInputs finish generated valid started
-    trivial producer buffered (by cbv) rfl (by cbv) (by cbv)
+          → ∃ root ∈ failureRoots events, view.LiveDescendant root owner.ref := by
+  rw [show failureRoots events = failureRoots immediate
+    ++ queued.map (fun failure => failure.group.ref) by cbv]
+  exact GeneratedPendingBufferFailureCut_holds work earlierInputs finish generated valid
+    started trivial producer buffered (by cbv) rfl (by cbv) (by cbv)
 
 example : ∃ root ∈ failureRoots events, view.LiveDescendant root child.ref :=
   ownerCut child (by simp [buffered]) _ (by cbv)
@@ -274,7 +307,8 @@ example : .stream 6 ∈ before.cleanupTargets := stoppedHeld
 
 example : snapshot.BufferedOwnersPresent := by
   obtain ⟨_, earlierStarted, _⟩ := generatedReplay_beforeNext generated valid started
-  exact GeneratedSnapshotBufferedOwners_holds work earlierInputs finish generated valid earlierStarted
+  exact GeneratedSnapshotBufferedOwners_holds work earlierInputs finish generated valid
+    earlierStarted
 
 example
     : (leases.observeCompletionAndCleanup before finish).1 (.stream 6)

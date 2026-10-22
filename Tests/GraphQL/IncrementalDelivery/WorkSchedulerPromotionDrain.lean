@@ -20,18 +20,20 @@ private def noChildren : Execution.Work := .combine .empty .empty
 
 private def work : Execution.Work :=
   .combine .empty
-    (.combine
-      (.executionGroup [⟨parent, []⟩] [] ({ result := .ok (parentData, 0) }) noChildren)
+    (.declareGroups
+      [⟨parent, []⟩, ⟨child, [parent]⟩, ⟨descendant, [child, parent]⟩, ⟨other, []⟩]
       (.combine
-        (.executionGroup [⟨child, [parent]⟩, ⟨other, []⟩] []
-          ({ result := .ok (sharedData, 0) }) noChildren)
+        (.executionGroup [⟨parent, []⟩] [] ({ result := .ok (parentData, 0) }) noChildren)
         (.combine
-          (.executionGroup [⟨descendant, [child, parent]⟩] []
-            ({ result := .ok ([("z", .scalar "c")], 0) }) noChildren)
+          (.executionGroup [⟨child, [parent]⟩, ⟨other, []⟩] []
+            ({ result := .ok (sharedData, 0) }) noChildren)
           (.combine
-            (.executionGroup [⟨other, []⟩] []
-              ({ result := .ok ([("keep", .scalar "a")], 0) }) noChildren)
-            .empty))))
+            (.executionGroup [⟨descendant, [child, parent]⟩] []
+              ({ result := .ok ([("z", .scalar "c")], 0) }) noChildren)
+            (.combine
+              (.executionGroup [⟨other, []⟩] []
+                ({ result := .ok ([("keep", .scalar "a")], 0) }) noChildren)
+              .empty)))))
 
 private def sharedResult : TaskResult :=
   {

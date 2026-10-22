@@ -44,6 +44,7 @@ mutual
           ((sourceTasks address producer cursors work).map SourceTask.entries) := by
     cases work with
     | empty => exact .empty
+    | declareGroups groups tasks => exact .declareGroups (sourceTasks_entries _ _ _ tasks)
     | combine left right =>
         simpa [sourceTasks] using WorkEntries.combine
           (sourceTasks_entries (address ++ [0]) producer cursors left)
@@ -84,6 +85,9 @@ mutual
     cases hl with
     | empty =>
         cases hr; rfl
+    | declareGroups hl =>
+        cases hr with
+        | declareGroups hr => exact hl.length_eq hr
     | combine hla hlb =>
         cases hr with
         | combine hra hrb =>
@@ -137,6 +141,9 @@ mutual
     cases hl with
     | empty =>
         cases hr; rfl
+    | declareGroups hl =>
+        cases hr with
+        | declareGroups hr => exact hl.of_paths hr same
     | combine hla hlb =>
         cases hr with
         | combine hra hrb =>

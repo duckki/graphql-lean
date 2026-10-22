@@ -1,6 +1,7 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.BufferedWorkProjection
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.StreamSourceOrder
 import Tests.GraphQL.IncrementalDelivery.Execution
+import Proofs.GraphQL.IncrementalDelivery.Semantics.WorkSize
 
 /-! Work legality alone does not license a buffered callback: a generated held stream
 can receive premature items before its owner flushes. Erasing those items changes FIFO.+-/
@@ -33,16 +34,17 @@ private def children : Execution.Work :=
 
 private def work : Execution.Work :=
   .combine .empty
-    (.combine
-      (.executionGroup [{ node := group }, ⟨child, [parent]⟩] []
-        ({ result := .ok ([("values", .list [])], 0) }) children)
+    (.declareGroups [⟨group, []⟩, ⟨parent, []⟩, ⟨child, [parent]⟩]
       (.combine
-        (.executionGroup [{ node := group }] []
-          ({ result := .ok ([("b", .scalar "b")], 0) }) (.combine .empty .empty))
+        (.executionGroup [{ node := group }, ⟨child, [parent]⟩] []
+          ({ result := .ok ([("values", .list [])], 0) }) children)
         (.combine
-          (.executionGroup [{ node := parent }] []
-            ({ result := .ok ([("c", .scalar "c")], 0) }) (.combine .empty .empty))
-          .empty)))
+          (.executionGroup [{ node := group }] []
+            ({ result := .ok ([("b", .scalar "b")], 0) }) (.combine .empty .empty))
+          (.combine
+            (.executionGroup [{ node := parent }] []
+              ({ result := .ok ([("c", .scalar "c")], 0) }) (.combine .empty .empty))
+            .empty))))
 
 private theorem generated : ReferenceWorkQueue.ExecutedWork work := by
   refine ⟨Nat, Tests.schema, Tests.resolvers, [], 50, "Query", .object "Query" 0,

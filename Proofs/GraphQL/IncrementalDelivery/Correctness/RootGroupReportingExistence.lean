@@ -2,6 +2,7 @@ import Proofs.GraphQL.IncrementalDelivery.Correctness.CausalTaskReportAssembly
 import Proofs.GraphQL.IncrementalDelivery.Correctness.AcceptedFailureReporting
 import Proofs.GraphQL.IncrementalDelivery.Correctness.UnannouncedGroupFailureOrigins
 import Proofs.GraphQL.IncrementalDelivery.Correctness.ReportingClosures
+import Proofs.GraphQL.IncrementalDelivery.Semantics.WorkSize
 
 /-! Root defer descriptors admit complete reporting runs with arbitrary nested streams. -/
 
@@ -131,7 +132,7 @@ theorem completeRun_exists_of_root_group_descriptors
     initialization_exists valid coherent continuous ordered nonempty
   obtain ⟨groups, streams, initialized, covers⟩ := initialized.covering_exists
   have initial : Explains work groups streams [] (fun _ => .executionGroup []) [] :=
-    ⟨initialized, by simp [FailureWitness], by simp⟩
+    initialized.emptyExplains _
   obtain ⟨batches, run⟩ := root_groups_reporting_continuation valid coherent roleCoherent
     continuous ordered pathCoherent under positive allocated roots initial
     (reportingNoticesCovered_of_noticesCovered (NoticesCovered.initial covers _))

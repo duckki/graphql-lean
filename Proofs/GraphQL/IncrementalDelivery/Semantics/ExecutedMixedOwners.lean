@@ -36,7 +36,8 @@ mutual
       simp only [run_bind, StateT.run_pure, id_pure_eq]
       refine ⟨Nat.le_trans hle hlt, final, he.trans het hle, ?_⟩
       rw [WorkAt]
-      exact ⟨hw.extend het hlt, hwt⟩
+      refine ⟨hw.extend het hlt, ?_⟩
+      simpa only [WorkAt] using hwt
   termination_by (fuel, 6, 0, 0)
   decreasing_by
     all_goals simp_wf

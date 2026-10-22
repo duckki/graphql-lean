@@ -24,6 +24,7 @@ import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.TaskRegistrati
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.FiniteHistories
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.Minimality
 import Tests.GraphQL.IncrementalDelivery.Execution
+import Proofs.GraphQL.IncrementalDelivery.Semantics.WorkSize
 
 /-! Taskless-parent cancellation: corrected replay and rejection of the former error count. -/
 
@@ -55,29 +56,31 @@ private def keepData : List (Name × ResponseValue) := [("keepQ", .scalar "a")]
 private def children : Execution.Work :=
   .combine
     (.combine .empty
-      (.combine
-        (.executionGroup [⟨c, [e, p]⟩, ⟨d, [q]⟩, ⟨r, []⟩] [.field "user"]
-          ({ result := .error 1, cause := some 1 }) .empty)
+      (.declareGroups [⟨e, [p]⟩, ⟨c, [e, p]⟩, ⟨d, [q]⟩]
         (.combine
-          (.executionGroup [⟨d, [q]⟩, ⟨s, []⟩] [.field "user"]
+          (.executionGroup [⟨c, [e, p]⟩, ⟨d, [q]⟩, ⟨r, []⟩] [.field "user"]
             ({ result := .error 1, cause := some 1 }) .empty)
-          .empty)))
+          (.combine
+            (.executionGroup [⟨d, [q]⟩, ⟨s, []⟩] [.field "user"]
+              ({ result := .error 1, cause := some 1 }) .empty)
+            .empty))))
     .empty
 
 private def work : Execution.Work :=
   .combine .empty
-    (.combine
-      (.executionGroup [⟨p, []⟩] [] ({ result := .error 1, cause := some 1 }) .empty)
+    (.declareGroups [⟨p, []⟩, ⟨q, []⟩, ⟨r, []⟩, ⟨s, []⟩]
       (.combine
-        (.executionGroup [⟨p, []⟩, ⟨q, []⟩, ⟨r, []⟩, ⟨s, []⟩] []
-          ({ result := .ok (userData, 0) }) children)
+        (.executionGroup [⟨p, []⟩] [] ({ result := .error 1, cause := some 1 }) .empty)
         (.combine
-          (.executionGroup [⟨q, []⟩] [] ({ result := .ok (keepData, 0) })
-            (.combine .empty .empty))
+          (.executionGroup [⟨p, []⟩, ⟨q, []⟩, ⟨r, []⟩, ⟨s, []⟩] []
+            ({ result := .ok (userData, 0) }) children)
           (.combine
-            (.executionGroup [⟨r, []⟩] [] ({ result := .error 2, cause := some 1 })
-              .empty)
-            .empty))))
+            (.executionGroup [⟨q, []⟩] [] ({ result := .ok (keepData, 0) })
+              (.combine .empty .empty))
+            (.combine
+              (.executionGroup [⟨r, []⟩] [] ({ result := .error 2, cause := some 1 })
+                .empty)
+              .empty)))))
 
 private def killP : GraphEvent := .taskFailure pTask 1
 private def killY : GraphEvent := .taskFailure yTask 1
@@ -99,8 +102,10 @@ private def finish : GraphEvent :=
       work := Work.fromExecution (.combine .empty .empty) [1, 1, 1, 0, 0]
     }
 
+private def notice : GraphEvent := .groupFailure ⟨d, 2⟩
+
 private def inputs : List (List GraphEvent) :=
-  [[killP], [expand], [killY], [killR], [killX], [finish]]
+  [[killP], [expand], [killY], [killR], [killX], [finish, notice]]
 
 private def rejectedOutputs : List (List Execution.WorkQueueEvent) :=
   [
@@ -113,7 +118,7 @@ private def rejectedOutputs : List (List Execution.WorkQueueEvent) :=
       .groupValues q
         [{ path := [], data := keepData, errors := 0, deliveryGroups := [q] }],
       .groupSuccess q [d] [],
-      .groupFailure d 2,
+      .groupFailure d 3,
       .workQueueTermination
     ]
   ]
@@ -129,7 +134,7 @@ private def correctedOutputs : List (List Execution.WorkQueueEvent) :=
       .groupValues q
         [{ path := [], data := keepData, errors := 0, deliveryGroups := [q] }],
       .groupSuccess q [d] [],
-      .groupFailure d 1,
+      .groupFailure d 2,
       .workQueueTermination
     ]
   ]
@@ -208,10 +213,24 @@ theorem source_valid : ValidGraphEvents work inputs.flatten := by
       (by simp [GraphEvent.Fresh, GraphEvent.identities, killP, expand, killY, killR, killX,
         pTask, uTask, yTask, rTask, xTask])
       ⟨_, _, _, x_known, by simp [GraphEvent.successes, killP, expand, killY, killR]⟩
-  exact .append four ⟨_, _, q_known, rfl, rfl⟩
+  have five : ValidGraphEvents work [killP, expand, killY, killR, killX, finish] :=
+    .append four ⟨_, _, q_known, rfl, rfl⟩
     (by simp [GraphEvent.Fresh, GraphEvent.identities, killP, expand, killY, killR, killX,
       finish, pTask, uTask, yTask, rTask, xTask, qTask])
     ⟨_, _, _, q_known, by intro source impossible; cases impossible⟩
+  exact .append five
+    ⟨
+      ⟨
+        [q.ref],
+        some uTask,
+        NodeAt.group
+          (address := [1, 1, 0, 0, 0, 1, 1, 0]) (group := ⟨d, [q]⟩)
+          (by rfl) (by simp)
+      ⟩,
+      by decide
+    ⟩
+    (by simp [notice, killP, expand, killY, killR, killX, finish,
+      GraphEvent.Fresh, GraphEvent.identities]) trivial
 
 /-- The actual start checker accepts all six settlements, including the late failure.
 Witness: executable initialization and replay; X was started through R before R failed.
@@ -234,7 +253,7 @@ theorem object_child_registration_boundary
     simp [xTask, pTask, uTask, qTask, rTask]
   have matching : expand.MatchesWork work := ⟨_, _, u_known, rfl, rfl⟩
   exact TaskAt.executionGroup_registered_after_object x_known matching
-    (before := [killP]) ⟨[killY, killR, killX, finish], rfl⟩
+    (before := [killP]) ⟨[killY, killR, killX, finish, notice], rfl⟩
     (node := { task := ⟨uTask, [p, q, r, s]⟩ }) (by cbv)
 
 /-- Late child integration records every parent even after ancestor cancellation.
@@ -247,7 +266,7 @@ theorem expanded_parents_registered
       ∀ node ∈ queue.groupNodes,
         ∀ parent, node.group.parent = some parent → parent ∈ queue.registeredGroups :=
   generated.runNormalized_parentsRegistered
-    (source_valid.prefix ⟨[killY, killR, killX, finish], rfl⟩)
+    (source_valid.prefix ⟨[killY, killR, killX, finish, notice], rfl⟩)
 
 /-- Complete source replay preserves parent edges and every registration descriptor.
 Witness: generated ancestry and valid input matching discharge the general replay theorem.
@@ -284,8 +303,7 @@ with no assumed output explanation or contributor-only registration invariant.
 theorem replay_cancellations_supported
     : State.CancelledRecordsSupported
         ((State.initialize (Work.fromExecution work)).runNormalized inputs).1 work
-        ((State.initialize (Work.fromExecution work)).objectFailureContributions
-          inputs.flatten) :=
+        (GraphEvent.failureSettlements inputs.flatten) :=
   generated.runNormalized_cancelledRecordsSupported inputs source_valid inputs_started
 
 /-- Full corrected replay retains exact healthy counters and safe all-group bounds.
@@ -296,7 +314,7 @@ theorem replay_healthy_counters
     : ∃ parents,
         State.HealthyCounterAccounting
           ((State.initialize (Work.fromExecution work)).runNormalized inputs).1
-          work parents inputs.flatten :=
+          work parents inputs.flatten (GraphEvent.failureSettlements inputs.flatten) :=
   generated.runNormalized_healthyCounterLedger inputs source_valid inputs_started
 
 /-- Late registration and redundant rejections retain healthy registered ownership.
@@ -367,10 +385,13 @@ theorem wrapper_never_completes {batches : List (List GraphEvent)}
 Witness: its full parent suffix is present in X's C contributor descriptor.
 -/
 private theorem e_record : GroupRecordAt work e [p.ref] := by
-  refine ⟨[1, 1, 0, 0, 0, 1, 0], [⟨c, [e, p]⟩, ⟨d, [q]⟩, ⟨r, []⟩],
-    [.field "user"], { result := .error 1, cause := some 1 }, .empty, some uTask, _, ⟨c, [e, p]⟩,
-    [p], rfl, List.mem_cons_self, ?_, rfl⟩
-  exact List.suffix_cons _ _
+  exact ⟨
+    ⟨e, [p]⟩,
+    by simp [GroupMetadata.fragments, work, children],
+    [p],
+    List.suffix_rfl,
+    rfl
+  ⟩
 
 /-- The ancestor-only wrapper cannot be used as a contributing structural node.
 Witness: the generated work's finite node inventory contains no E descriptor. This
@@ -397,7 +418,7 @@ theorem contributing_child_producer_support
   have matching : (GraphEvent.taskSuccess uTask result).MatchesWork work :=
     ⟨_, _, u_known, rfl, rfl⟩
   have candidate : (⟨c, some e.ref⟩ : Group) ∈ result.work.groups := by
-    simp [result, children, Work.fromExecution, Work.fromExecution.groupChain,
+    simp [result, children, Work.fromExecution, Work.fromExecution.lowerGroup,
       ReferenceWorkQueue.Work.combine]
   have contributing
       : ∃ task ∈ result.work.tasks, c.ref ∈ task.groups.map DeliveryNode.ref := by
@@ -422,8 +443,8 @@ theorem child_retirement_through_wrapper {queue : State}
     (retired : queue.RetiredGroup e.ref)
     : queue.AncestorsRetired work c.ref := by
   have childRecord : GroupRecordAt work c [e.ref, p.ref] :=
-    ⟨[1, 1, 0, 0, 0, 1, 0], _, _, _, _, _, _, ⟨c, [e, p]⟩,
-      [e, p], rfl, List.mem_cons_self, List.suffix_rfl, rfl⟩
+    ⟨⟨c, [e, p]⟩, by simp [GroupMetadata.fragments, work, children],
+      [e, p], List.suffix_rfl, rfl⟩
   exact .child generated childRecord e_record rfl protectedWrapper retired
 
 /-- P's settled failure justifies E's cancellation without fabricating an E task.
@@ -466,8 +487,8 @@ theorem late_registration_records_supported
       : (((State.initialize (Work.fromExecution work)).runNormalized [[killP], [expand]]).1
           ).cancelledGroups = [p.ref, e.ref, c.ref] := by cbv
   have child : GroupRecordAt work c [e.ref, p.ref] :=
-    ⟨[1, 1, 0, 0, 0, 1, 0], _, _, _, _, _, _, ⟨c, [e, p]⟩,
-      [e, p], rfl, List.mem_cons_self, List.suffix_rfl, rfl⟩
+    ⟨⟨c, [e, p]⟩, by simp [GroupMetadata.fragments, work, children],
+      [e, p], List.suffix_rfl, rfl⟩
   intro ref member
   rw [cancelled] at member
   rcases List.mem_cons.mp member with rfl | more
@@ -585,11 +606,21 @@ theorem late_child_retired
 
 private def NodesAssigned (assigned : Nat → DeliveryNode) : Execution.Work → Prop
   | .empty => True
+  | .declareGroups _ tasks => NodesAssigned assigned tasks
   | .combine left right => NodesAssigned assigned left ∧ NodesAssigned assigned right
   | .executionGroup groups _ _ nested =>
       (∀ group ∈ groups, group.node = assigned group.node.ref)
       ∧ NodesAssigned assigned nested
   | .stream .. => False
+
+private theorem NodesAssigned.withoutDeclarations {assigned work}
+    (assignment : NodesAssigned assigned work)
+    : NodesAssigned assigned work.withoutDeclarations := by
+  cases work with
+  | declareGroups groups tasks =>
+      exact NodesAssigned.withoutDeclarations (work := tasks) assignment
+  | empty | combine | executionGroup | stream => exact assignment
+termination_by sizeOf work
 
 /-- Structural navigation preserves the node assignment. Witness: navigation induction. -/
 private theorem NodesAssigned.located {assigned root address current producer owners}
@@ -599,10 +630,10 @@ private theorem NodesAssigned.located {assigned root address current producer ow
   have navigation := StructuralEquivalence.located_of_current located
   clear located
   induction navigation with
-  | root => exact assignment
-  | left prior ih => exact ih.1
-  | right prior ih => exact ih.2
-  | executionGroup prior ih => exact ih.2
+  | root => exact assignment.withoutDeclarations
+  | left prior ih => exact ih.1.withoutDeclarations
+  | right prior ih => exact ih.2.withoutDeclarations
+  | executionGroup prior ih => exact ih.2.withoutDeclarations
   | item prior entry ih => exact False.elim ih
 
 /-- Each descriptor agrees with its assigned node. Witness: its located group occurrence. -/
@@ -687,13 +718,14 @@ theorem source_respectsStarts
 Witness: the checked prefixes of its fixed finite input trace.
 -/
 theorem source_conforms : source.ValidFor work :=
-  ⟨
-    rfl,
-    ⟨inputs, rfl⟩,
-    fun _ _ before after => before.trans after,
-    fun batches admitted =>
-      ⟨source_validGraphEvents batches admitted, source_respectsStarts batches admitted⟩
-  ⟩
+  EventSource.ValidFor.of_asynchronous
+    ⟨
+      rfl,
+      ⟨inputs, rfl⟩,
+      fun _ _ before after => before.trans after,
+      fun batches admitted =>
+        ⟨source_validGraphEvents batches admitted, source_respectsStarts batches admitted⟩
+    ⟩
 
 /-- The corrected runner ignores X and reports only Y's retained error for D.
 Witness: reduce initialization, every handler, and publisher normalization.
@@ -719,9 +751,8 @@ theorem runner_avoids_rejected_output
 private def sourceCuts : FailureCuts :=
   let queue := State.initialize (Work.fromExecution work)
   sourceObjectFailureCuts 0
-    (queue.eligibleFailureBlocks
-      (queue.sourceRunBlocks { active := queue.initialGroups ++ queue.initialStreams }
-        inputs).2.2)
+    (queue.sourceRunBlocks { active := queue.initialGroups ++ queue.initialStreams }
+      inputs).2.2
 
 /-- Actual accepted source cuts retain Y's failure before the shared value is flushed.
 Witness: the labelled replay retains X's source cut separately from selected licensing.
@@ -823,8 +854,8 @@ theorem taskless_parent_chain
         ∧ GroupRecordAt work e parentDependencies
         ∧ childDependencies = e.ref :: parentDependencies := by
   have child : GroupRecordAt work c [e.ref, p.ref] :=
-    ⟨[1, 1, 0, 0, 0, 1, 0], _, _, _, _, _, _, ⟨c, [e, p]⟩,
-      [e, p], rfl, List.mem_cons_self, List.suffix_rfl, rfl⟩
+    ⟨⟨c, [e, p]⟩, by simp [GroupMetadata.fragments, work, children],
+      [e, p], List.suffix_rfl, rfl⟩
   exact ⟨_, _, child, e_record, generated.groupRecordAncestryChain child e_record rfl⟩
 
 -----------------------------------------------------------------------------------------
@@ -921,13 +952,15 @@ Witness: general started-replay equivalence, including the record-ancestry trans
 theorem equivalent_failure_closures (ref : NodeRef)
     : (GroupInvalidated work (GraphEvent.failureSettlements inputs.flatten) ref
         ↔ GroupInvalidated work
-            ((State.initialize (Work.fromExecution work)).objectFailureContributions
-              inputs.flatten)
+            ((State.initialize
+                (Work.fromExecution work)).admittedObjectFailureContributionsForBatches
+              inputs)
             ref)
       ∧ (GroupRecordInvalidated work (GraphEvent.failureSettlements inputs.flatten) ref
           ↔ GroupRecordInvalidated work
-              ((State.initialize (Work.fromExecution work)).objectFailureContributions
-                inputs.flatten)
+              ((State.initialize
+                  (Work.fromExecution work)).admittedObjectFailureContributionsForBatches
+                inputs)
               ref) := by
   have same := generated.runNormalized_failureInventories_groupInvalidated_iff
     inputs source_valid inputs_started
@@ -941,8 +974,9 @@ theorem accepted_owner_accounting
     : let queue := ((State.initialize (Work.fromExecution work)).runNormalized inputs).1
       let settled := GraphEvent.taskSettlements inputs.flatten
       let failed :=
-        (State.initialize (Work.fromExecution work)).objectFailureContributions
-          inputs.flatten
+        (State.initialize
+          (Work.fromExecution work)).admittedObjectFailureContributionsForBatches
+          inputs
       queue.HealthyRegisteredTaskAccounting work settled failed
       ∧ queue.HealthyPendingTracks work settled failed :=
   generated.runNormalized_acceptedOwnerAccounting inputs source_valid inputs_started
@@ -960,12 +994,12 @@ theorem every_prefix_retired_health (received : List GraphEvent)
       ∧ queue.RootAncestorsHealthy work failed
       ∧ queue.MissingParentAncestorsHealthy work failed := by
   have valid := source_valid.prefix earlier
-  have accepted := (State.initialize (Work.fromExecution work)).batchesStarted_acceptsBatch inputs
-    (by rw [← inputsStarted_eq_batchesStarted]; exact inputs_started)
+  have accepted : State.eventsStarted [] (State.initialize (Work.fromExecution work))
+      inputs.flatten = true := by cbv
   obtain ⟨after, same⟩ := earlier
   rw [← same] at accepted
   exact generated.replayGraphEvents_retiredHealth received valid
-    (State.acceptsBatch_prefix accepted)
+    (State.eventsStarted_prefix accepted)
 
 /-- A selected sublist of received failures is licensed on the exact output history.
 Witness: general defer-only licensing selects informative cuts from the actual source
@@ -973,30 +1007,60 @@ blocks. Y is safe even while its producer's success is still buffered.
 -/
 theorem accepted_failures_licensed (matching : PublicationMatching)
     : ∃ cuts,
-        cuts.Sublist sourceCuts
+        cuts.Sublist
+          ( let queue := State.initialize (Work.fromExecution work)
+            availableObjectFailureCuts work 0
+              (queue.sourceRunBlocks
+                { active := queue.initialGroups ++ queue.initialStreams } inputs).2.2)
         ∧ FailureWitness work (ConformancePlan.initialRefs work) matching
             ((State.initialize (Work.fromExecution work)).nonterminalAtoms inputs)
             cuts := by
   let queue := State.initialize (Work.fromExecution work)
-  let blocks := queue.eligibleFailureBlocks
+  let blocks :=
     (queue.sourceRunBlocks { active := queue.initialGroups ++ queue.initialStreams } inputs).2.2
-  refine ⟨informativeObjectFailureCuts work blocks, informativeObjectFailureCuts_sublist work blocks, ?_⟩
-  exact ConformancePlan.failureWitness_of_defer generated defer_only source_valid inputs_started matching
+  refine ⟨informativeObjectFailureCuts work blocks,
+    informativeObjectFailureCuts_sublist work blocks, ?_⟩
+  exact ConformancePlan.failureWitness_of_defer generated defer_only source_valid
+    inputs_started matching
 
-/-- No value grouping can manufacture the former aggregate completion count for D. -/
+/-- D's complete contributor inventory contains two distinct failed task causes. -/
+private theorem child_reporting_bound {reported errors}
+    (cause : NodeFailureCauses work reported d.ref errors)
+    : errors ≤ 2 := by
+  apply generated.nodeFailureCauses_count_le [xTask, yTask] ?_ cause
+  intro occurrence owners producer payload known owner failed
+  have token := known.observationToken
+  simp [work, children, observationTokens] at token
+  rcases token with rfl | rfl | rfl | rfl | rfl | rfl
+  · have same := (known.unique p_known).1
+    rw [same] at owner
+    simp [d, p] at owner
+  · have same := (known.unique u_known).2.2
+    rw [same] at failed
+    cases failed
+  · simp [xTask]
+  · simp [yTask]
+  · have same := (known.unique q_known).2.2
+    rw [same] at failed
+    cases failed
+  · have same := (known.unique r_known).1
+    rw [same] at owner
+    simp [d, r] at owner
+
+/-- No value grouping can inflate D beyond its two distinct available task causes. -/
 theorem output_not_valid : ¬ValidHistory work ⟨[p, q, r, s], [], rejectedOutputs⟩ := by
   have excludes {events matching failures} (explained : Explains work [p, q, r, s] []
-      events matching failures) : .groupFailure d 2 ∉ events := by
+      events matching failures) : .groupFailure d 3 ∉ events := by
     intro member
     obtain ⟨index, selected⟩ := List.mem_iff_getElem?.mp member
-    have allowed := explained.2.2 index _ selected
-    have count := generated.nodeFailureCause_count allowed.2.2.2
+    obtain ⟨reported, _, _, allowed⟩ := explained.2.2
+    have count := child_reporting_bound (allowed index _ selected).2.2.2
     omega
   rintro (⟨events, matching, failures, explained, batching⟩ |
     ⟨events, matching, failures, explained, _, batching⟩)
   · exact excludes explained ((batching.control_mem (by simp [IsValue])).mp
       (by simp [rejectedOutputs]))
-  · have member := (batching.control_mem (event := .groupFailure d 2) (by simp [IsValue])).mp
+  · have member := (batching.control_mem (event := .groupFailure d 3) (by simp [IsValue])).mp
       (by simp [rejectedOutputs])
     exact excludes explained (List.mem_append.mp member |>.resolve_right (by simp))
 

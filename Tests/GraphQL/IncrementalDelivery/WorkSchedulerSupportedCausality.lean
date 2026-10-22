@@ -62,7 +62,8 @@ private def childEntries : List (TaskOutcome ResponseValue × Execution.Work) :=
   [({ result := .ok (.scalar "x", 0) }, .empty)]
 
 private def children : Execution.Work :=
-  .combine (.combine (.combine .empty (.stream child childEntries)) .empty) .empty
+  .combine (.combine (.combine .empty (.stream child childEntries)) .empty)
+    (.declareGroups [] .empty)
 
 private def entries : List (TaskOutcome ResponseValue × Execution.Work) :=
   [

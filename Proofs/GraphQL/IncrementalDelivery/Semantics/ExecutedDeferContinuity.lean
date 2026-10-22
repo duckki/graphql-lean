@@ -50,8 +50,17 @@ mutual
         (fun p hp => groupsKnown_extend (hpk.2 p hp) he hle)
         (hpp.extend hm he hle)
       simp only [run_bind, StateT.run_pure, id_pure_eq]
-      exact ⟨Nat.le_trans hle hlt, final, he.trans het hle, hfv,
-        continuous_append (hw.extend het hlt) hwt⟩
+      refine ⟨Nat.le_trans hle hlt, final, he.trans het hle, hfv,
+        continuous_append (hw.extend het hlt) ?_⟩
+      refine ⟨?_, ?_, ?_⟩
+      · rw [MixedRefs.WorkAt]
+        refine ⟨?_, hwt.1⟩
+        intro group member
+        obtain ⟨usage, _, found⟩ := List.mem_filterMap.mp member
+        have selected := List.mem_of_find?_eq_some found
+        exact ((hm.extend he hle).extend het hlt group selected).1
+      · simpa only [DeferContinuous] using hwt.2.1
+      · simpa only [DeferScoped, DeferUnder] using hwt.2.2
   termination_by (fuel, 6, 0, 0)
   decreasing_by
     all_goals simp_wf

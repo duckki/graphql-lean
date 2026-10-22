@@ -1,3 +1,5 @@
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.BatchedPublicationHistory
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.BatchedPublicationProvenance
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.PublicationCarrierOrigins
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.PublicationContributors
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.GroupEventAccounting
@@ -8,43 +10,6 @@ import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.PublisherRegis
 
 namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
-
------------------------------------------------------------------------------------------
--- Started replay has exactly the normalized raw nonterminal history
------------------------------------------------------------------------------------------
-
-/-- Removing the optional final marker leaves exactly normalized sequential raw replay.
-Witness: the started-batch equation and the handler-level exclusion of termination.
-All host batches, owner choices, and publication positions are retained.
--/
-theorem createWorkQueue_nonterminalAtoms_flattened {work : Execution.Work}
-    (inputs : List (List GraphEvent)) (started : inputsStarted work inputs = true)
-    : let queue := State.initialize (Work.fromExecution work)
-      let publisher : IncrementalPublisher :=
-        { active := queue.initialGroups ++ queue.initialStreams }
-      queue.nonterminalAtoms inputs
-      = (publisher.normalizeBatch (queue.rawEventReplay inputs.flatten).2).2.flatMap
-          publicationAtoms := by
-  let queue := State.initialize (Work.fromExecution work)
-  let publisher : IncrementalPublisher :=
-    { active := queue.initialGroups ++ queue.initialStreams }
-  let atoms := (publisher.normalizeBatch (queue.rawEventReplay inputs.flatten).2).2.flatMap
-    publicationAtoms
-  have absent : Execution.WorkQueueEvent.workQueueTermination ∉ atoms := by
-    rw [publicationAtoms_list_termination_mem,
-      IncrementalPublisher.normalizeBatch_termination_mem]
-    exact queue.rawEventReplay_noTermination inputs.flatten
-  obtain ⟨terminal, outputs⟩ := createWorkQueue_runNormalized_flattened inputs started
-  change (queue.runNormalized inputs).2.flatten.flatMap publicationAtoms
-    = atoms ++ (if terminal then [.workQueueTermination] else []) at outputs
-  change ((queue.runNormalized inputs).2.flatten.flatMap publicationAtoms).filter _ = atoms
-  rw [outputs, List.filter_append]
-  cases terminal <;> simp only [Bool.false_eq_true, ↓reduceIte, List.filter_nil,
-    List.filter_cons, List.append_nil] <;>
-    apply List.filter_eq_self.mpr <;>
-    intro event member <;>
-    cases event <;> try rfl
-  all_goals exact False.elim (absent member)
 
 namespace ConformancePlan
 
@@ -57,18 +22,17 @@ Witness: started replay preserves the raw output and the queue pairs each public
 with its triggering group's successful closure. No publication admission is assumed.
 -/
 theorem Witness.groupPublication_origin {work inputs} {w : Witness} {index owner payload}
-    (started : inputsStarted work inputs = true)
+    (_started : inputsStarted work inputs = true)
     (history : w.events = (initialQueue work).nonterminalAtoms inputs)
     (selected : w.events[index]? = some (.groupValues owner payload))
     : let queue := initialQueue work
       let publisher : IncrementalPublisher :=
         { active := queue.initialGroups ++ queue.initialStreams }
       Nonempty
-        (GroupPublicationOrigin publisher (queue.rawEventReplay inputs.flatten).2
+        (GroupPublicationOrigin publisher (queue.rawBatches inputs).2
           index owner payload) := by
-  rw [history, createWorkQueue_nonterminalAtoms_flattened inputs started] at selected
-  exact ((initialQueue work).rawEventReplay_publicationPairs inputs.flatten).normalized_origin
-    _ selected
+  have atRaw := (Witness.rawBatches_canonical history selected).1
+  exact ((initialQueue work).rawBatches_publicationPairs inputs).normalized_origin _ atRaw
 
 /-- The actual raw release group is known, open, and historically healthy at its value.
 The selected wire owner may be different, and may already be failed. Contributor
@@ -78,7 +42,7 @@ intervening object-only segment has exactly the same notice state.
 -/
 theorem Witness.groupPublication_releaseReady {work inputs w index owner payload}
     (generated : ExecutedWork work) (valid : ValidGraphEvents work inputs.flatten)
-    (started : inputsStarted work inputs = true)
+    (_started : inputsStarted work inputs = true)
     (history : w.events = (initialQueue work).nonterminalAtoms inputs)
     (healthy : GroupSuccessesHealthy work w)
     (origin
@@ -87,16 +51,13 @@ theorem Witness.groupPublication_releaseReady {work inputs w index owner payload
             active :=
               (initialQueue work).initialGroups ++ (initialQueue work).initialStreams
           }
-          ((initialQueue work).rawEventReplay inputs.flatten).2 index owner payload)
+          ((initialQueue work).rawBatches inputs).2 index owner payload)
     : (∃ dependencies producer, NodeAt work origin.group .group dependencies producer)
       ∧ Open (initialRefs work) (w.events.take index) origin.group.ref
       ∧ ¬NodeFailed work w.matching (w.events.take index) w.failures
           origin.group.ref := by
-  have historyEq := history.trans (createWorkQueue_nonterminalAtoms_flattened inputs started)
-  have carrier : w.events[origin.carrierIndex]?
-      = some (.groupSuccess origin.group origin.groups origin.streams) := by
-    rw [historyEq]
-    exact origin.carrier
+  obtain ⟨carrier, carrierPrefix⟩ := Witness.rawBatches_nonterminal history origin.carrier
+    (by intro impossible; cases impossible)
   obtain ⟨atFull, beforeEq⟩ := Witness.canonical_event history carrier
   have known := createWorkQueue_runNormalized_atomicGroupClosuresLocated generated valid _
     (List.mem_of_getElem? atFull)
@@ -106,7 +67,9 @@ theorem Witness.groupPublication_releaseReady {work inputs w index owner payload
   rw [beforeEq] at opened
   have noticeState := origin.noticeState
   dsimp only at noticeState
-  rw [← historyEq] at noticeState
+  have within := (List.getElem?_eq_some_iff.mp carrier).1
+  have earlier := origin.before_carrier
+  rw [Witness.rawBatches_prefix history index (by omega), carrierPrefix] at noticeState
   refine ⟨known, ?_, healthy.atPrefix carrier index⟩
   simpa only [Open, announcedRefs, initialRefs, initialQueue, noticeState.1,
     noticeState.2]
@@ -127,7 +90,7 @@ def GroupPublicationReleases (work : Execution.Work) (inputs : List (List GraphE
                 active :=
                   (initialQueue work).initialGroups ++ (initialQueue work).initialStreams
               }
-              ((initialQueue work).rawEventReplay inputs.flatten).2 index owner payload,
+              ((initialQueue work).rawBatches inputs).2 index owner payload,
         (∃ dependencies producer, NodeAt work origin.group .group dependencies producer)
         ∧ Open (initialRefs work) (w.events.take index) origin.group.ref
         ∧ ¬NodeFailed work w.matching (w.events.take index) w.failures origin.group.ref
@@ -162,13 +125,13 @@ theorem GroupPublicationReleases.available {work inputs w}
                 active :=
                   (initialQueue work).initialGroups ++ (initialQueue work).initialStreams
               }
-              ((initialQueue work).rawEventReplay inputs.flatten).2 index owner payload,
+              ((initialQueue work).rawBatches inputs).2 index owner payload,
         HealthyOpenOwner work (initialRefs work) w.matching (w.events.take index)
           w.failures (origin.value.deliveryGroups.map Execution.DeliveryNode.ref)
           origin.group := by
   obtain ⟨origin, ⟨dependencies, producer, known⟩, opened, healthy⟩ :=
     releases index owner payload selected
-  have member := createWorkQueue_rawEventReplay_publicationContributors valid
+  have member := createWorkQueue_rawBatches_publicationContributors valid
     origin.group origin.values origin.members.1 origin.value origin.members.2
   exact ⟨origin, ⟨⟨.group, dependencies, producer, known⟩, member, opened⟩, healthy⟩
 
@@ -185,12 +148,12 @@ theorem Witness.groupPublication_contributorsLocated {work}
             active :=
               (initialQueue work).initialGroups ++ (initialQueue work).initialStreams
           }
-          ((initialQueue work).rawEventReplay inputs.flatten).2 index owner payload)
+          ((initialQueue work).rawBatches inputs).2 index owner payload)
     : ∀ contributor ∈ origin.value.deliveryGroups,
         ∃ dependencies producer,
           NodeAt work contributor .group dependencies producer := by
   obtain ⟨occurrence, result, _, same, source⟩ :=
-    createWorkQueue_rawEventReplay_valueSource valid origin.members.1 origin.members.2
+    createWorkQueue_rawBatches_valueSource valid origin.members.1 origin.members.2
   intro contributor member
   exact source.success_contributorsLocated contributor (same.symm ▸ member)
 
@@ -209,7 +172,7 @@ theorem Witness.groupPublication_owner_of_registry {work}
             active :=
               (initialQueue work).initialGroups ++ (initialQueue work).initialStreams
           }
-          ((initialQueue work).rawEventReplay inputs.flatten).2 index owner payload)
+          ((initialQueue work).rawBatches inputs).2 index owner payload)
     (available
       : HealthyOpenOwner work (initialRefs work) w.matching (w.events.take index)
           w.failures (origin.value.deliveryGroups.map Execution.DeliveryNode.ref)

@@ -67,14 +67,15 @@ theorem State.successGroupFold_values_active (queue : State)
 -----------------------------------------------------------------------------------------
 
 /-- An inactive group's task-success publication has an exact later-drain boundary.
-Witness: a missing or rejected task produces no value; the guarded owner fold can only
+Witness: a missing task produces no value; the guarded owner fold can only
 publish initially active groups. Indexed append decomposition identifies the drain block
 and preserves its complete strict output prefix, including earlier owner-fold output.
 -/
 theorem State.taskSuccess_inactiveValue_drain (queue : State)
     (occurrence : Occurrence) (result : TaskResult) {position group values}
+    (available : List (Occurrence × Nat) := [])
     (selected
-      : (queue.taskSuccess occurrence result).2[position]?
+      : (queue.taskSuccess occurrence result available).2.1[position]?
         = some (.groupValues group values))
     (inactive : group.ref ∉ queue.rootGroups)
     : ∃ incoming,
@@ -84,21 +85,23 @@ theorem State.taskSuccess_inactiveValue_drain (queue : State)
                 { incoming with value := some result.value }).maybeIntegrateWork
               result.work (some occurrence)).1
           let released := incoming.task.groups.foldl successGroupStep (prepared, [], {})
-          let activated := released.1.startNewWork released.2.2
+          let activated := (released.1.startNewWork released.2.2 available).1
           ∃ index,
-            activated.drainReadyGroups.2[index]? = some (.groupValues group values)
-            ∧ (queue.taskSuccess occurrence result).2.take position
-              = released.2.1 ++ activated.drainReadyGroups.2.take index := by
+            (activated.drainReadyGroups available).2.1[index]?
+              = some (.groupValues group values)
+            ∧ (queue.taskSuccess occurrence result available).2.1.take position
+              = released.2.1
+                ++ (activated.drainReadyGroups available).2.1.take index := by
   cases found : queue.taskNode? occurrence with
   | none => simp [State.taskSuccess, found] at selected
   | some incoming =>
-      rw [queue.taskSuccess_eq occurrence result incoming found] at selected
+      rw [queue.taskSuccess_eq occurrence result incoming found available] at selected
       let prepared :=
         ((queue.putTaskNode { incoming with value := some result.value }).maybeIntegrateWork
           result.work (some occurrence)).1
       let released := incoming.task.groups.foldl successGroupStep (prepared, [], {})
-      let activated := released.1.startNewWork released.2.2
-      change (released.2.1 ++ activated.drainReadyGroups.2)[position]? = _ at selected
+      let activated := (released.1.startNewWork released.2.2 available).1
+      change (released.2.1 ++ (activated.drainReadyGroups available).2.1)[position]? = _ at selected
       have bound : released.2.1.length ≤ position := by
         by_cases bound : released.2.1.length ≤ position
         · exact bound
@@ -114,8 +117,8 @@ theorem State.taskSuccess_inactiveValue_drain (queue : State)
           using active
       refine ⟨incoming, rfl, position - released.2.1.length, ?_, ?_⟩
       · simpa only [List.getElem?_append_right bound] using selected
-      · rw [queue.taskSuccess_eq occurrence result incoming found]
-        change (released.2.1 ++ activated.drainReadyGroups.2).take position = _
+      · rw [queue.taskSuccess_eq occurrence result incoming found available]
+        change (released.2.1 ++ (activated.drainReadyGroups available).2.1).take position = _
         rw [List.take_append, List.take_of_length_le bound]
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

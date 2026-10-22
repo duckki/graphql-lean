@@ -1,8 +1,12 @@
 import Tests.GraphQL.IncrementalDelivery.Execution
+import Tests.GraphQL.IncrementalDelivery.Fixtures.WorkDeclarations
+
+open GraphQL.IncrementalDelivery.Tests (declaredTask)
 
 /-! Definition-level checks of failure reporting through both executable queues.
-Collected diagnostics remain in Work; only the selected explanation reaches a failed
-completion. No conformance or query-correctness proof modules are imported here.
+Collected diagnostics remain in Work. Failed group completions collect cached task
+causes; each task still contributes only its selected boundary explanation.
+No conformance or query-correctness proof modules are imported here.
 -/
 
 namespace GraphQL.IncrementalDelivery.Tests.DeliveryFailureReporting
@@ -44,7 +48,7 @@ private def failed : Completion (List (Name × ResponseValue)) :=
 #guard bothFinish failed [[.taskFailure (.executionGroup [1, 0]) 1]] [1]
 
 private def failedWork : Work :=
-  .executionGroup [⟨{ ref := 0, path := [] }, []⟩] []
+  declaredTask [⟨{ ref := 0, path := [] }, []⟩] []
     { result := .error 2, cause := some 1 } .empty
 
 example : GraphEvent.MatchesWork failedWork (.taskFailure (.executionGroup []) 1) := by
@@ -77,6 +81,17 @@ private def reversed := complete [defer [field "required", field "fail"]]
 
 private def parent : DeliveryNode := { ref := 2, path := [], label := some (.string "P") }
 
+private def child : DeliveryNode := { ref := 3, path := [], label := some (.string "C") }
+
+private def childFailure (errors : Nat) : GraphEvent := .groupFailure ⟨child, errors⟩
+
+private def outcomeEvents (events : List GraphEvent) : List GraphEvent :=
+  events.filter
+    (fun event =>
+      match event with
+      | .groupFailure _ => false
+      | _ => true)
+
 private def shared :=
   complete
     [
@@ -108,8 +123,131 @@ private def sharedInputs : List (List GraphEvent) :=
   ]
 
 -- C is latent while two shared tasks fail through distinct healthy root owners.
--- Its eventual completion selects one cause rather than summing both settlements.
-#guard bothFinish shared sharedInputs [1, 1, 0, 1]
+-- Its eventual completion includes both cached task causes, without nullable diagnostics.
+#guard bothFinish shared (sharedInputs ++ [[childFailure 2]]) [1, 1, 0, 2]
+
+-- Cache inspection precedes FIFO TASK_FAILURE dispatch within an available host batch.
+-- P completes first; the two root failures precede C's one queued aggregate notice.
+private def queuedSharedInputs : List (List GraphEvent) :=
+  [sharedInputs[2]! ++ sharedInputs[0]! ++ sharedInputs[1]! ++ [childFailure 2]]
+
+#guard bothFinish shared queuedSharedInputs [0, 1, 1, 2]
+
+-- PR #4870's queued-failure test: removal precedes notification. The parent handler
+-- returns C's notice separately, so the remaining TASK_FAILURE inputs precede it.
+private def queuedAfterParent :=
+  let initial :=
+    ReferenceWorkQueue.State.initialize
+      (ReferenceWorkQueue.Work.fromExecution shared.work)
+  let batch := queuedSharedInputs[0]!
+  match batch with
+  | [] => (initial, [], [])
+  | event :: _ => initial.handleGraphEvent event (GraphEvent.availableFailures batch)
+
+#guard (queuedAfterParent.1.groupNode? 3).isNone
+#guard
+  !(queuedAfterParent.2.1.any
+      (fun event =>
+        match event with
+        | .groupFailure _ _ => true
+        | _ => false))
+#guard
+  queuedAfterParent.2.2.map (fun failure => (failure.group.ref, failure.errors))
+  == [(3, 2)]
+
+private def alternativeAfterParent :=
+  let initial := AlternativeWorkQueue.State.initialize shared.work
+  let batch := queuedSharedInputs[0]!
+  match batch with
+  | [] => (initial, [], [], [])
+  | event :: _ => initial.handleGraphEvent event (GraphEvent.availableFailures batch)
+
+#guard (alternativeAfterParent.1.queue.groupNode? 3).isNone
+#guard
+  alternativeAfterParent.2.2.2.map (fun failure => (failure.group.ref, failure.errors))
+  == [(3, 2)]
+#guard
+  ((AlternativeWorkQueue.State.initialize shared.work).handleGraphEvents
+    queuedSharedInputs[0]!).state.queue.groupFailureEvents.isEmpty
+
+-- A host-batch boundary does not forward the pending notice on its own.
+private def queuedBeforeControl :=
+  let initial :=
+    ReferenceWorkQueue.State.initialize
+      (ReferenceWorkQueue.Work.fromExecution shared.work)
+  initial.handleGraphEvents (outcomeEvents queuedSharedInputs[0]!)
+
+#guard
+  queuedBeforeControl.1.groupFailureEvents.map
+    (fun failure => (failure.group.ref, failure.errors))
+  == [(3, 2)]
+#guard !queuedBeforeControl.1.terminated
+#guard
+  !(queuedBeforeControl.2.any
+      (fun event =>
+        match event with
+        | .groupFailure group _ => group.ref == 3
+        | _ => false))
+
+private def eventTrace (events : List WorkQueueEvent) : List (String × Nat × Nat) :=
+  events.filterMap
+    (fun event =>
+      match event with
+      | .groupValues node _ => some ("values", node.ref, 0)
+      | .groupSuccess node _ _ => some ("success", node.ref, 0)
+      | .groupFailure node errors => some ("failure", node.ref, errors)
+      | .workQueueTermination => some ("termination", 0, 0)
+      | _ => none)
+
+private def queuedTrace : List (String × Nat × Nat) :=
+  [
+    ("values", 2, 0),
+    ("success", 2, 0),
+    ("failure", 0, 1),
+    ("failure", 1, 1),
+    ("failure", 3, 2),
+    ("termination", 0, 0)
+  ]
+
+#guard
+  eventTrace
+    ((ReferenceWorkQueue.State.initialize
+        (ReferenceWorkQueue.Work.fromExecution shared.work)).runNormalized
+      queuedSharedInputs).2.flatten
+  == queuedTrace
+#guard
+  eventTrace
+    ((AlternativeWorkQueue.State.initialize shared.work).runNormalized
+      queuedSharedInputs).2.flatten
+  == queuedTrace
+
+-- The same notification order can describe different cache availability. Keeping the
+-- outcome batches separate lets C start before either rejection becomes available.
+-- The queued aggregate control therefore belongs only to the cached-batch run.
+private def splitQueuedInputs : List (List GraphEvent) :=
+  (outcomeEvents queuedSharedInputs.flatten).map (fun event => [event])
+
+#guard same (outcomeEvents queuedSharedInputs.flatten) splitQueuedInputs.flatten
+#guard bothFinish shared splitQueuedInputs [0, 1, 1, 1]
+#guard
+  eventTrace
+    ((ReferenceWorkQueue.State.initialize
+        (ReferenceWorkQueue.Work.fromExecution shared.work)).runNormalized
+      splitQueuedInputs).2.flatten
+  == [
+    ("values", 2, 0),
+    ("success", 2, 0),
+    ("failure", 0, 1),
+    ("failure", 3, 1),
+    ("failure", 1, 1),
+    ("termination", 0, 0)
+  ]
+
+-- A future rejection does not join a completion already emitted when C started.
+private def pendingSharedInputs : List (List GraphEvent) :=
+  [sharedInputs[0]!, sharedInputs[2]! ++ [childFailure 1], sharedInputs[1]!]
+
+#guard bothFinish shared pendingSharedInputs [1, 0, 1, 1]
 
 private def cached :=
   let initial :=
@@ -127,21 +265,20 @@ private def cachedTwice := (cached.handleGraphEvents sharedInputs[1]!).1
 
 private def outerOne : DeliveryNode := { ref := 0, path := [] }
 private def outerTwo : DeliveryNode := { ref := 1, path := [] }
-private def child : DeliveryNode := { ref := 3, path := [], label := some (.string "C") }
 
--- Distinct raw counts make replay selection observable in the count-only model.
--- The second task settles first; releasing C replays tasks in registration order.
+-- Distinct raw counts expose the aggregate without mixing in collected diagnostics.
+-- The second task settles first; releasing C sums the two retained boundary counts.
 private def replayOrder : Completion (List (Name × ResponseValue)) :=
   {
     result := .ok ([], 0),
     work :=
       .combine
-        (.executionGroup [⟨outerOne, []⟩, ⟨child, [parent]⟩] []
+        (declaredTask [⟨outerOne, []⟩, ⟨child, [parent]⟩] []
           { result := .error 3, cause := some 3 } .empty)
         (.combine
-          (.executionGroup [⟨outerTwo, []⟩, ⟨child, [parent]⟩] []
+          (declaredTask [⟨outerTwo, []⟩, ⟨child, [parent]⟩] []
             { result := .error 5, cause := some 5 } .empty)
-          (.executionGroup [⟨parent, []⟩] [] { result := .ok ([("a", .scalar "a")], 0) }
+          (declaredTask [⟨parent, []⟩] [] { result := .ok ([("a", .scalar "a")], 0) }
             .empty))
   }
 
@@ -155,7 +292,88 @@ private def replayOrderInputs : List (List GraphEvent) :=
       }]
   ]
 
-#guard bothFinish replayOrder replayOrderInputs [5, 3, 0, 3]
+#guard bothFinish replayOrder (replayOrderInputs ++ [[childFailure 8]]) [5, 3, 0, 8]
+
+-- Startup failures close each released owner with its own cached cause collection.
+-- Replaying the first rejected task through every active co-owner would report C as 1.
+private def siblings :=
+  complete
+    [
+      defer [field "required" [] [] (some "first")] (some "R1"),
+      defer [field "required" [] [] (some "second")] (some "R2"),
+      defer
+        [
+          field "a",
+          defer
+            [
+              field "required" [] [] (some "first"),
+              field "required" [] [] (some "second")
+            ]
+            (some "C"),
+          defer [field "required" [] [] (some "first")] (some "D")
+        ]
+        (some "P")
+    ]
+
+private def siblingFailure : GraphEvent :=
+  .groupFailure ⟨{ ref := 4, path := [], label := some (.string "D") }, 1⟩
+
+#guard
+  bothFinish siblings (sharedInputs ++ [[childFailure 2, siblingFailure]]) [1, 1, 0, 2, 1]
+#guard bothFinish siblings [queuedSharedInputs[0]! ++ [siblingFailure]] [0, 1, 1, 2, 1]
+
+-- Failures received after startup retain the first triggering task's boundary count.
+private def activeFailures : Completion (List (Name × ResponseValue)) :=
+  {
+    result := .ok ([], 0),
+    work :=
+      .combine
+        (declaredTask [⟨outerOne, []⟩] [] { result := .error 3 } .empty)
+        (declaredTask [⟨outerOne, []⟩] [] { result := .error 5 } .empty)
+  }
+
+#guard bothFinish activeFailures [[.taskFailure (.executionGroup [0]) 3]] [3]
+
+-- The admission relation admits several distinct causes without changing TaskAt.
+example
+    : NodeFailureCauses activeFailures.work
+        [.executionGroup [0], .executionGroup [1]] outerOne.ref 8 := by
+  refine ⟨
+    [(.executionGroup [0], 3), (.executionGroup [1], 5)],
+    by decide,
+    by decide,
+    ?_,
+    rfl
+  ⟩
+  intro occurrence count member
+  simp only [List.mem_cons, List.not_mem_nil, or_false, Prod.mk.injEq] at member
+  rcases member with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
+  · refine ⟨by simp, [outerOne.ref], none, .object [] (.error 3), ?_, by simp, rfl, by decide⟩
+    exact ⟨[⟨outerOne, []⟩], [], { result := .error 3 }, .empty, [], rfl, rfl, rfl⟩
+  · refine ⟨by simp, [outerOne.ref], none, .object [] (.error 5), ?_, by simp, rfl, by decide⟩
+    exact ⟨[⟨outerOne, []⟩], [], { result := .error 5 }, .empty, [], rfl, rfl, rfl⟩
+
+-- A positive number alone cannot stand in for reporting-availability evidence.
+example (work : Work) (ref : Nat) (errors : Nat)
+    : ¬NodeFailureCauses work [] ref errors := by
+  rintro ⟨causes, nonempty, _, supported, _⟩
+  cases causes with
+  | nil => exact nonempty rfl
+  | cons cause rest =>
+      have impossible := (supported cause.1 cause.2 List.mem_cons_self).1
+      exact List.not_mem_nil impossible
+
+-- The aggregate remains a positive delivery-failure explanation.
+example (work : Work) (available : List Occurrence) (ref : Nat)
+    : ¬NodeFailureCauses work available ref 0 := by
+  rintro ⟨causes, nonempty, _, supported, total⟩
+  cases causes with
+  | nil => exact nonempty rfl
+  | cons cause rest =>
+      obtain ⟨_, _, _, _, _, _, _, positive⟩ :=
+        supported cause.1 cause.2 List.mem_cons_self
+      simp only [List.map_cons, List.sum_cons] at total
+      omega
 
 private def sharedValue :=
   complete

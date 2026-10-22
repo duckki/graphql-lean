@@ -1,5 +1,6 @@
 import Proofs.GraphQL.IncrementalDelivery.Correctness.TaskErrors
 import Proofs.GraphQL.IncrementalDelivery.Correctness.FailureCounts
+import Proofs.GraphQL.IncrementalDelivery.Semantics.WorkSize
 
 /-! Error-free complete observations retain no hidden failure or cancellation witness. -/
 
@@ -74,11 +75,11 @@ theorem no_tasks_of_size_zero {work : Work} (empty : work.size = 0)
     have navigation := StructuralEquivalence.located_of_current located
     clear located
     induction navigation with
-    | root => exact empty
+    | root => simpa only [Work.size_withoutDeclarations] using empty
     | left _ ih | right _ ih =>
-        simp only [Work.size] at ih; omega
+        simp only [Work.size, Work.size_withoutDeclarations] at ih ⊢; omega
     | executionGroup _ ih | item _ _ ih =>
-        simp only [Work.size] at ih; omega
+        simp only [Work.size, Work.size_withoutDeclarations] at ih ⊢; omega
   cases StructuralEquivalence.taskAt_of_current known with
   | executionGroup located =>
       have := locatedZero located.toCurrent; simp [Work.size] at this

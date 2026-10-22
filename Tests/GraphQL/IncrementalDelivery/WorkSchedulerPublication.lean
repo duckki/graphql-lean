@@ -24,13 +24,14 @@ private def sharedValue : ExecutionGroupValue :=
 
 private def work : Execution.Work :=
   .combine .empty
-    (.combine
-      (.executionGroup [⟨parent, []⟩] [] ({ result := .ok (firstValue.data, 1) })
-        (.combine .empty .empty))
+    (.declareGroups [⟨parent, []⟩, ⟨other, []⟩]
       (.combine
-        (.executionGroup [⟨parent, []⟩, ⟨other, []⟩] []
-          ({ result := .ok (sharedValue.data, 0) }) (.combine .empty .empty))
-        .empty))
+        (.executionGroup [⟨parent, []⟩] [] ({ result := .ok (firstValue.data, 1) })
+          (.combine .empty .empty))
+        (.combine
+          (.executionGroup [⟨parent, []⟩, ⟨other, []⟩] []
+            ({ result := .ok (sharedValue.data, 0) }) (.combine .empty .empty))
+          .empty)))
 
 private def firstResult : TaskResult := { value := firstValue }
 private def sharedResult : TaskResult := { value := sharedValue }
@@ -52,7 +53,8 @@ Witness: its exact generated execution-group descriptor. -/
 private theorem firstKnown
     : TaskAt work firstTask [parent.ref] none
         (.object [] (.ok (firstValue.data, 1))) := by
-  refine ⟨[⟨parent, []⟩], [], { result := .ok (firstValue.data, 1) }, .combine .empty .empty, [], ?_, rfl, rfl⟩
+  refine ⟨[⟨parent, []⟩], [], { result := .ok (firstValue.data, 1) },
+    .combine .empty .empty, [], ?_, rfl, rfl⟩
   cbv
 
 /-- The second task belongs to both pending defer groups and returns b unchanged.
@@ -60,7 +62,8 @@ Witness: its exact generated descriptor, not a single-owner approximation. -/
 private theorem sharedKnown
     : TaskAt work sharedTask [parent.ref, other.ref] none
         (.object [] (.ok (sharedValue.data, 0))) := by
-  refine ⟨[⟨parent, []⟩, ⟨other, []⟩], [], { result := .ok (sharedValue.data, 0) }, .combine .empty .empty, [], ?_, rfl, rfl⟩
+  refine ⟨[⟨parent, []⟩, ⟨other, []⟩], [], { result := .ok (sharedValue.data, 0) },
+    .combine .empty .empty, [], ?_, rfl, rfl⟩
   cbv
 
 /-- The first input carries the fixed nullable-error result and its empty child boundary.
@@ -93,7 +96,7 @@ theorem inputs_valid_started
 Witness: execute the actual handler while its other shared contributor is still pending.
 -/
 theorem settlement_waits
-    : (initial.taskSuccess firstTask firstResult).2 = []
+    : (initial.taskSuccess firstTask firstResult).2.1 = []
       ∧ (waiting.taskNode? firstTask).bind TaskNode.value = some firstValue := by
   constructor <;> cbv
 
@@ -114,7 +117,7 @@ theorem waiting_value_provenance
 /-- The shared settlement publishes both values once, then closes both contributing groups.
 Witness: the actual single-pass handler; Q does not republish the removed shared value. -/
 theorem later_publication
-    : (waiting.taskSuccess sharedTask sharedResult).2
+    : (waiting.taskSuccess sharedTask sharedResult).2.1
       = [
         .groupValues parent [firstValue, sharedValue],
         .groupSuccess parent [] [],
@@ -122,19 +125,22 @@ theorem later_publication
       ] := by
   cbv
 
-/-- Source annotations retain a silent success before the later four-atom publication block.
-Witness: both split and joined input batches have the same handler blocks, including the
-empty first block and the separate terminal marker. The queue's batching is unchanged.
+/-- Source annotations retain silent settlements at their actual dispatch positions.
+Witness: split and joined batches have the same labelled blocks and terminal output.
 -/
 theorem source_blocks_keep_silent_settlement
     : let publisher : IncrementalPublisher :=
         { active := initial.initialGroups ++ initial.initialStreams }
       let split := initial.sourceRunBlocks publisher [[first], [shared]]
       let joined := initial.sourceRunBlocks publisher [[first, shared]]
-      split.2.2 = joined.2.2
+      split.2.2.flatMap Prod.snd = joined.2.2.flatMap Prod.snd
       ∧ split.2.2.map (fun block => (block.1, block.2.length))
+        = [(some first, 0), (some shared, 4), (none, 1)]
+      ∧ joined.2.2.map (fun block => (block.1, block.2.length))
         = [(some first, 0), (some shared, 4), (none, 1)] := by
-  constructor <;> cbv
+  constructor
+  · cbv
+  · constructor <;> cbv
 
 /-- Flattening annotated handler blocks recovers the actual split-batch output exactly.
 Witness: the general runner-agreement theorem, including the silent first settlement.
@@ -155,7 +161,7 @@ theorem delayed_publication_provenance
         ∧ supplied.value = firstValue
         ∧ (GraphEvent.taskSuccess firstTask supplied).MatchesWork work := by
   have emitted : Execution.WorkQueueEvent.groupValues parent [firstValue, sharedValue]
-      ∈ (waiting.taskSuccess sharedTask sharedResult).2 := by
+      ∈ (waiting.taskSuccess sharedTask sharedResult).2.1 := by
     rw [later_publication]
     exact List.mem_cons_self
   obtain ⟨occurrence, supplied, source, same, matching⟩ :=
@@ -240,12 +246,15 @@ theorem successful_carrier_root_settlements
         ∀ address owners payload,
           TaskAt work (.executionGroup address) owners none payload
           → group.ref ∈ owners
-          → ∃ before event after result,
-              batches.flatten = before ++ event :: after
+          → ∃ earlier batch later fifo event after result,
+              batches = earlier ++ batch :: later
+              ∧ batch = fifo ++ event :: after
               ∧ Execution.WorkQueueEvent.groupSuccess group [] []
-                ∈ ((initial.replayGraphEvents before).handleGraphEvent event).2
+                ∈ (((initial.replayBatches earlier).replayGraphEvents fifo
+                      (GraphEvent.availableFailures batch)).handleGraphEvent
+                    event (GraphEvent.availableFailures batch)).2.1
               ∧ GraphEvent.taskSuccess (.executionGroup address) result
-                ∈ before ++ [event] := by
+                ∈ earlier.flatten ++ (fifo ++ [event]) := by
   intro batches member group owner address owners payload known contributes
   have choices : batches = [[first], [shared]] ∨ batches = [[first, shared]] := by
     simpa only [List.mem_cons, List.not_mem_nil, or_false] using member
@@ -336,7 +345,7 @@ theorem shared_fold_covers_both_values
         ∧ added.map Prod.snd = result.2.1.flatMap WorkQueueEvent.objectValues
         ∧ (firstTask, firstValue) ∈ added
         ∧ (sharedTask, sharedValue) ∈ added
-        ∧ result.2.1 = (waiting.taskSuccess sharedTask sharedResult).2 := by
+        ∧ result.2.1 = (waiting.taskSuccess sharedTask sharedResult).2.1 := by
   let result := [parent, other].foldl successGroupStep (ready, [], {})
   obtain ⟨added, values, inventory, conserved⟩ :=
     ready_inventory.successGroupFold_conserves [parent, other]

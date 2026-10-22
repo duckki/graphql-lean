@@ -125,12 +125,14 @@ theorem State.taskFailure_streamReferences (queue : State) (occurrence : Occurre
   rfl
 
 /-- Recursive group draining emits no stream reference, even when it announces new streams.
-Witness: induction over the executable drain; both success and failure emit only group events.
+Witness: successful flushes emit group events; startup notices have a separate component.
 -/
 theorem State.drainReadyGroups_streamReferences (queue : State)
-    : queue.drainReadyGroups.2.flatMap rawStreamReferenceRefs = [] := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.drainReadyGroups available).2.1.flatMap rawStreamReferenceRefs = [] := by
   have loop (fuel : Nat) (current : State)
-      : (State.drainReadyGroups.go fuel current).2.flatMap rawStreamReferenceRefs = [] := by
+      : (State.drainReadyGroups.go available fuel current).2.1.flatMap rawStreamReferenceRefs
+          = [] := by
     induction fuel generalizing current with
     | zero => rfl
     | succ fuel ih =>
@@ -139,13 +141,8 @@ theorem State.drainReadyGroups_streamReferences (queue : State)
         split
         · rfl
         · rename_i node selected
-          cases cached : current.rejectedTask? node with
-          | none =>
-              simp only [List.flatMap_append, State.finishGroupSuccess_streamReferences,
-                ih, List.nil_append]
-          | some rejected =>
-              obtain ⟨occurrence, errors⟩ := rejected
-              simp only [List.flatMap_append, State.taskFailure_streamReferences, ih, List.nil_append]
+          simp only [List.flatMap_append, State.finishGroupSuccess_streamReferences,
+            ih, List.nil_append]
   exact loop _ queue
 
 /-- Recursive draining cannot emit a stream-value carrier, even one with no items.
@@ -153,20 +150,23 @@ Witness: such a carrier would contribute a ref to the empty stream-reference pro
 -/
 theorem State.drainReadyGroups_noStreamValues (queue : State)
     (stream : Execution.DeliveryNode) (values groups streams)
+    (available : List (Occurrence × Nat) := [])
     : Execution.WorkQueueEvent.streamValues stream values groups streams
-      ∉ queue.drainReadyGroups.2 := by
+      ∉ (queue.drainReadyGroups available).2.1 := by
   intro emitted
-  have impossible : stream.ref ∈ queue.drainReadyGroups.2.flatMap rawStreamReferenceRefs :=
+  have impossible
+      : stream.ref ∈ (queue.drainReadyGroups available).2.1.flatMap rawStreamReferenceRefs :=
     List.mem_flatMap.mpr ⟨_, emitted, List.mem_cons_self⟩
-  rw [State.drainReadyGroups_streamReferences] at impossible
+  rw [State.drainReadyGroups_streamReferences _ available] at impossible
   cases impossible
 
 /-- Task-success output has no stream reference; stream releases are notices only.
 Witness: the contributor fold and final drain append only group events.
 -/
 theorem State.taskSuccess_streamReferences (queue : State) (occurrence : Occurrence)
-    (result : TaskResult)
-    : (queue.taskSuccess occurrence result).2.flatMap rawStreamReferenceRefs = [] := by
+    (result : TaskResult) (available : List (Occurrence × Nat) := [])
+    : (queue.taskSuccess occurrence result available).2.1.flatMap rawStreamReferenceRefs
+      = [] := by
   have loop (groups : List Execution.DeliveryNode) (acc : State × List WorkQueueEvent × NewWork)
       : (groups.foldl successGroupStep acc).2.1.flatMap rawStreamReferenceRefs
         = acc.2.1.flatMap rawStreamReferenceRefs := by
@@ -184,8 +184,9 @@ theorem State.taskSuccess_streamReferences (queue : State) (occurrence : Occurre
   cases found : queue.taskNode? occurrence with
   | none => simp [State.taskSuccess, found]
   | some node =>
-      rw [queue.taskSuccess_eq occurrence result node found]
-      simp only [List.flatMap_append, State.drainReadyGroups_streamReferences, List.append_nil]
+      rw [queue.taskSuccess_eq occurrence result node found available]
+      simp only [List.flatMap_append, State.drainReadyGroups_streamReferences _ available,
+        List.append_nil]
       exact loop _ (_, [], {})
 
 /-- Every emitted stream reference uses a stream active at the handler's entry.
@@ -193,35 +194,45 @@ Witness: task handlers have no references; stream handlers check rootStreams bef
 Even arbitrary unaccepted host events cannot bypass that output guard.
 -/
 theorem State.handleGraphEvent_streamReferences (queue : State) (event : GraphEvent)
-    : ((queue.handleGraphEvent event).2.flatMap rawStreamReferenceRefs).Subset
+    (available : List (Occurrence × Nat) := [])
+    : ((queue.handleGraphEvent event available).2.1.flatMap rawStreamReferenceRefs).Subset
         queue.rootStreams := by
+  have roots : (queue.cacheTaskFailures available).rootStreams = queue.rootStreams := by
+    have frame := congrArg State.rootStreams (queue.cacheTaskFailures_frame available)
+    exact frame
   cases event with
   | taskSuccess occurrence result =>
-      rw [State.handleGraphEvent, State.taskSuccess_streamReferences]
+      rw [State.handleGraphEvent, State.taskSuccess_streamReferences _ _ _ available]
       simp [List.Subset]
   | taskFailure occurrence errors =>
       rw [State.handleGraphEvent, State.taskFailure_streamReferences]
       simp [List.Subset]
   | streamItems stream items =>
-      simp only [State.handleGraphEvent, State.streamItems]
+      simp only [State.handleGraphEvent, State.streamItems, roots]
       split
       · simp [List.Subset]
       · rename_i active
         simpa [rawStreamReferenceRefs, List.Subset,
-          State.drainReadyGroups_streamReferences]
+          State.drainReadyGroups_streamReferences _ available]
           using active
   | streamSuccess stream =>
-      simp only [State.handleGraphEvent, State.streamSuccess]
+      simp only [State.handleGraphEvent, State.streamSuccess, roots]
       split
       · rename_i active
         simpa [rawStreamReferenceRefs, List.Subset] using active
       · simp [List.Subset]
   | streamFailure stream errors =>
-      simp only [State.handleGraphEvent, State.streamFailure]
+      simp only [State.handleGraphEvent, State.streamFailure, roots]
       split
       · rename_i active
         simpa [rawStreamReferenceRefs, List.Subset] using active
       · simp [List.Subset]
+
+  | groupFailure notice =>
+      simp only [State.handleGraphEvent, State.groupFailure]
+      split
+      · simp [List.Subset]
+      · split <;> simp [rawStreamReferenceRefs, List.Subset]
 
 -----------------------------------------------------------------------------------------
 -- Raw event replay threads announcement support through every input inside a batch
@@ -232,16 +243,16 @@ Witness: each handler uses its entry roots; activation accounting justifies the 
 from the old roots and the earlier handler's actual output notices.
 -/
 theorem State.rawEventReplay_streamReferencesAnnounced (queue : State)
-    (events : List GraphEvent)
+    (events : List GraphEvent) (available : List (Occurrence × Nat) := [])
     : ReferencesAnnounced rawStreamNoticeRefs rawStreamReferenceRefs queue.rootStreams
-        (queue.rawEventReplay events).2 := by
+        (queue.rawEventReplay events available).2 := by
   induction events generalizing queue with
   | nil => trivial
   | cons event rest ih =>
-      rw [State.rawEventReplay_cons]
+      rw [State.rawEventReplay_cons _ _ _ available]
       exact (ReferencesAnnounced.of_references
-        (queue.handleGraphEvent_streamReferences event)).append
-        ((ih _).mono (queue.handleGraphEvent_streamRoots event))
+        (queue.handleGraphEvent_streamReferences event available)).append
+        ((ih _).mono (queue.handleGraphEvent_streamRoots event available))
 
 /-- The real batch wrapper preserves prior stream references, including terminal batches.
 Witness: terminated input is ignored; appending queue termination adds no reference.
@@ -250,14 +261,15 @@ theorem State.handleGraphEvents_streamReferencesAnnounced
     (queue : State) (events : List GraphEvent)
     : ReferencesAnnounced rawStreamNoticeRefs rawStreamReferenceRefs queue.rootStreams
         (queue.handleGraphEvents events).2 := by
+  have full := queue.rawEventReplay_streamReferencesAnnounced events
+    (GraphEvent.availableFailures events)
   rw [State.handleGraphEvents_eq_rawEventReplay]
   split
   · trivial
-  · have announced := queue.rawEventReplay_streamReferencesAnnounced events
-    dsimp only
+  · dsimp only
     split
-    · exact announced.append ⟨by simp [rawStreamReferenceRefs, List.Subset], trivial⟩
-    · exact announced
+    · exact full.append ⟨by simp [rawStreamReferenceRefs, List.Subset], trivial⟩
+    · exact full
 
 -----------------------------------------------------------------------------------------
 -- Normalization preserves prior notices for every stream reference

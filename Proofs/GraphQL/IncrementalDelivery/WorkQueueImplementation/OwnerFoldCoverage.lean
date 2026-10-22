@@ -129,21 +129,18 @@ theorem State.successGroupFold_activated_root_coverage {queue : State} {parents 
     (unique : queue.GroupRefsUnique) (forest : queue.RemovalForest parents)
     (groups : List Execution.DeliveryNode)
     (covered : ∃ root ∈ queue.rootGroups, queue.LiveDescendant root target)
+    (available : List (Occurrence × Nat) := [])
     : let folded := groups.foldl successGroupStep (queue, [], {})
-      let next := folded.1.startNewWork folded.2.2
+      let next := (folded.1.startNewWork folded.2.2 available).1
       (∃ node, next.groupNode? target = some node)
       → ∃ root ∈ next.rootGroups, next.LiveDescendant root target := by
   have final := successGroupFold_retained_coverage unique forest groups covered
   intro folded next survives
-  have beforeStart : ∃ node, folded.1.groupNode? target = some node := by
-    simpa only [next, State.groupNode?, (State.startNewWork_groupCore _ _).1]
-      using survives
-  obtain ⟨root, member, path⟩ := final.2.2 beforeStart
-  exact ⟨
-    root,
-    by rwa [(State.startNewWork_groupCore _ _).2.2],
-    path.of_groupNodes_eq (State.startNewWork_groupCore _ _).1
-  ⟩
+  have beforeStart : ∃ node, folded.1.groupNode? target = some node :=
+    State.groupNode?_exists_before_subset
+      (folded.1.startNewWork_groupNodes_sublist folded.2.2 available).subset survives
+  exact State.startNewWork_root_coverage final.2.1 folded.2.2
+    (final.2.2 beforeStart) available survives
 
 /-- Final draining cannot strand a target covered before the contributor fold.
 Witness: delayed-release coverage after the fold, followed by the mixed-drain coverage
@@ -153,20 +150,23 @@ theorem State.successGroupFold_drained_root_coverage {queue : State} {parents ta
     (unique : queue.GroupRefsUnique) (forest : queue.RemovalForest parents)
     (groups : List Execution.DeliveryNode)
     (covered : ∃ root ∈ queue.rootGroups, queue.LiveDescendant root target)
+    (available : List (Occurrence × Nat) := [])
     : let folded := groups.foldl successGroupStep (queue, [], {})
-      let active := folded.1.startNewWork folded.2.2
-      let final := active.drainReadyGroups.1
+      let active := (folded.1.startNewWork folded.2.2 available).1
+      let final := (active.drainReadyGroups available).1
       (∃ node, final.groupNode? target = some node)
       → ∃ root ∈ final.rootGroups, final.LiveDescendant root target := by
   intro folded active final survives
   have frame := successGroupFold_retained_coverage unique forest groups covered
-  have refs := frame.1.startNewWork folded.2.2
-  have currentForest := frame.2.1.startNewWork folded.2.2
+  have refs := frame.1.startNewWork folded.2.2 available
+  have currentForest := frame.2.1.startNewWork folded.2.2 available
   obtain ⟨node, found⟩ := survives
-  obtain ⟨prior, priorFound, _⟩ := (active.drainReadyGroups_descendants refs).1 _ _ found
-  have coverage := State.successGroupFold_activated_root_coverage unique forest groups covered
+  obtain ⟨prior, priorFound, _⟩ := (active.drainReadyGroups_descendants refs available).1 _ _ found
+  have coverage := State.successGroupFold_activated_root_coverage
+    unique forest groups covered available
     ⟨prior, priorFound⟩
-  exact State.drainReadyGroups_root_coverage refs currentForest target coverage ⟨node, found⟩
+  exact State.drainReadyGroups_root_coverage refs currentForest available target
+    coverage ⟨node, found⟩
 
 /-- Actual successful task handling preserves coverage established at child integration.
 Witness: unfold the accepted healthy branch and apply coverage through the unchanged
@@ -175,19 +175,23 @@ single-pass contributor fold, delayed activation, and recursive drain.
 theorem State.taskSuccess_integrated_root_coverage {queue : State}
     {parents target occurrence node} (unique : queue.GroupRefsUnique)
     (found : queue.taskNode? occurrence = some node)
-    (result : TaskResult)
+    (result : TaskResult) (available : List (Occurrence × Nat) := [])
     : let stored := queue.putTaskNode { node with value := some result.value }
       let integrated := (stored.maybeIntegrateWork result.work (some occurrence)).1
       integrated.RemovalForest parents
       → (∃ root ∈ integrated.rootGroups, integrated.LiveDescendant root target)
-      → (∃ child, (queue.taskSuccess occurrence result).1.groupNode? target = some child)
-      → ∃ root ∈ (queue.taskSuccess occurrence result).1.rootGroups,
-          (queue.taskSuccess occurrence result).1.LiveDescendant root target := by
+      → (∃ child,
+          (queue.taskSuccess occurrence result available).1.groupNode? target
+          = some child)
+      → ∃ root ∈ (queue.taskSuccess occurrence result available).1.rootGroups,
+          (queue.taskSuccess occurrence result available).1.LiveDescendant root
+            target := by
   intro stored integrated forest covered survives
   have storedRefs : stored.GroupRefsUnique := unique
   have resultCoverage := State.successGroupFold_drained_root_coverage
-    (storedRefs.maybeIntegrateWork result.work (some occurrence)) forest node.task.groups covered
-  rw [queue.taskSuccess_eq occurrence result node found] at survives ⊢
+    (storedRefs.maybeIntegrateWork result.work (some occurrence)) forest
+      node.task.groups covered available
+  rw [queue.taskSuccess_eq occurrence result node found available] at survives ⊢
   exact resultCoverage survives
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

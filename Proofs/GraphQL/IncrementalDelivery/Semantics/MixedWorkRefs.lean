@@ -14,8 +14,14 @@ open Ancestry
 def MapLower (lower : Nat) (deferMap : DeferMap) : Prop :=
   ∀ ref ∈ mapRefs deferMap, lower ≤ ref
 
+/-- Lower bounds constrain observable task/stream refs. Unused declarations retain
+bounded ancestry metadata but do not impose a new task or a minimum observable ref.
+-/
 def WorkAt (parents : Assignment) (lower bound : Nat) : Work → Prop
   | .empty => True
+  | .declareGroups groups tasks =>
+      (∀ group ∈ groups, FragmentAt parents bound group)
+      ∧ WorkAt parents lower bound tasks
   | .combine left right =>
       WorkAt parents lower bound left ∧ WorkAt parents lower bound right
   | .executionGroup groups _ _ children =>
@@ -41,6 +47,8 @@ theorem WorkAt.extend {parents next : Assignment} {lower start finish : Nat} {wo
     (hle : start ≤ finish)
     : WorkAt next lower finish work := by
   cases work <;> simp only [WorkAt] at h ⊢
+  case declareGroups groups tasks =>
+    exact ⟨fun group member => (h.1 group member).extend he hle, h.2.extend he hle⟩
   case combine left right => exact ⟨h.1.extend he hle, h.2.extend he hle⟩
   case executionGroup groups path result children =>
     exact ⟨h.1, fun g hg => ⟨(h.2.1 g hg).1, (h.2.1 g hg).2.extend he hle⟩,
@@ -62,6 +70,8 @@ theorem WorkAt.lower {parents : Assignment} {lower next bound : Nat} {work : Wor
     (h : WorkAt parents lower bound work) (hle : next ≤ lower)
     : WorkAt parents next bound work := by
   cases work <;> simp only [WorkAt] at h ⊢
+  case declareGroups groups tasks =>
+    exact ⟨h.1, h.2.lower hle⟩
   case combine left right => exact ⟨h.1.lower hle, h.2.lower hle⟩
   case executionGroup groups path result children =>
     exact ⟨h.1, fun g hg => ⟨Nat.le_trans hle (h.2.1 g hg).1, (h.2.1 g hg).2⟩,

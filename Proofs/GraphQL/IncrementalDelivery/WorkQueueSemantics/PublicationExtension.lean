@@ -90,10 +90,10 @@ theorem owner_matching_eq {work initial matching next events failed owners node}
 /-- An event inspects past matching entries and, for a value, its current index only.
 Witness: unfold the event rule and rewrite previous or carrier-inclusive publications.
 -/
-theorem eventAllowed_matching_eq {work initial matching next events failed event}
+theorem eventAllowed_matching_eq {work initial matching next events failed event reported}
     (equal : ∀ index ≤ events.length, matching index = next index)
-    : EventAllowed work initial matching events failed event
-      = EventAllowed work initial next events failed event := by
+    : EventAllowed work initial matching events failed event reported
+      = EventAllowed work initial next events failed event reported := by
   have past := published_matching_eq (events := events)
     (fun index before => equal index (Nat.le_of_lt before))
   have carrier (output : WorkQueueEvent) : Published matching (events ++ [output])
@@ -129,14 +129,15 @@ theorem Explains.change_matching {work groups streams events matching next failu
     (explained : Explains work groups streams events matching failures)
     (equal : ∀ index < events.length, matching index = next index)
     : Explains work groups streams events next failures := by
-  refine ⟨explained.1, explained.2.1.change_matching equal, ?_⟩
+  refine ⟨explained.1, explained.2.1.change_matching equal, explained.reportingFailures,
+    explained.reportingFacts.1, explained.reportingFacts.2.1, ?_⟩
   intro index event selected
   have bound := (List.getElem?_eq_some_iff.mp selected).1
   rw [← eventAllowed_matching_eq (matching := matching) (next := next) (by
     intro earlier before
     simp only [List.length_take] at before
     exact equal earlier (by omega))]
-  exact explained.2.2 index event selected
+  exact explained.eventAllowed index event selected
 
 -----------------------------------------------------------------------------------------
 -- Constructing fresh value publications

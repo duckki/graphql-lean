@@ -1,5 +1,8 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.NoticeControlPrefixes
-import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.RawNoticeHistoryCompletion
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.ActualNoticeCompletion
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.Initialization
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.BatchedPublicationHistory
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.BatchedPublisherRegistry
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.NoticeAncestorSemantics
 
 /-! Actual notice-ancestor completions on the unchanged canonical explanation witness. -/
@@ -20,26 +23,25 @@ splitting preserve notices. Both projections use the same indexed raw carrier.
 theorem Witness.groupNotice_rawControls {work inputs} {w : Witness}
     {index group groups streams}
     (valid : ValidGraphEvents work inputs.flatten)
-    (started : inputsStarted work inputs = true)
+    (_started : inputsStarted work inputs = true)
     (history : w.events = (initialQueue work).nonterminalAtoms inputs)
     (selected : w.events[index]? = some (.groupSuccess group groups streams))
     : ∃ position,
-        ((initialQueue work).rawEventReplay inputs.flatten).2[position]?
+        ((initialQueue work).rawBatches inputs).2[position]?
           = some (.groupSuccess group groups streams)
         ∧ (w.events.take index).flatMap groupNoticeRefs
-          = (((initialQueue work).rawEventReplay inputs.flatten).2.take position).flatMap
+          = (((initialQueue work).rawBatches inputs).2.take position).flatMap
               rawGroupNoticeRefs
         ∧ (w.events.take index).flatMap groupClosureRefs
-          = (((initialQueue work).rawEventReplay inputs.flatten).2.take position).flatMap
+          = (((initialQueue work).rawBatches inputs).2.take position).flatMap
               rawGroupClosureRefs := by
-  have exactHistory := history.trans (createWorkQueue_nonterminalAtoms_flattened inputs started)
-  rw [exactHistory] at selected ⊢
-  have rawShape := (initialQueue work).rawEventReplay_nonemptyValues inputs.flatten
-    valid.nonemptyItems
+  obtain ⟨atAtoms, exactPrefix⟩ := Witness.rawBatches_canonical history selected
+  have rawShape := (initialQueue work).rawBatches_nonemptyValues inputs valid.nonemptyItems
   obtain ⟨sourceIndex, sourceAt, notices, closures⟩ := publicationAtoms_groupSuccess_controls _
-    (IncrementalPublisher.normalizeBatch_nonemptyValues _ _ rawShape).2 selected
+    (IncrementalPublisher.normalizeBatch_nonemptyValues _ _ rawShape).2 atAtoms
   obtain ⟨position, rawAt, rawNotices, rawClosures⟩ :=
     IncrementalPublisher.normalizeBatch_groupSuccess_controls _ _ sourceAt
+  rw [exactPrefix] at notices closures
   exact ⟨position, rawAt, notices.trans rawNotices, closures.trans rawClosures⟩
 
 /-- A canonical item notice retains exact raw strict notice and closure prefixes.
@@ -49,28 +51,27 @@ batch have no group controls. Normalization then recovers one common raw carrier
 theorem Witness.itemNotice_rawControls {work inputs} {w : Witness}
     {index owner values groups streams child}
     (valid : ValidGraphEvents work inputs.flatten)
-    (started : inputsStarted work inputs = true)
+    (_started : inputsStarted work inputs = true)
     (history : w.events = (initialQueue work).nonterminalAtoms inputs)
     (selected : w.events[index]? = some (.streamValues owner values groups streams))
     (noticed : child ∈ groups ++ streams)
     : ∃ position rawValues,
-        ((initialQueue work).rawEventReplay inputs.flatten).2[position]?
+        ((initialQueue work).rawBatches inputs).2[position]?
           = some (.streamValues owner rawValues groups streams)
         ∧ (w.events.take index).flatMap groupNoticeRefs
-          = (((initialQueue work).rawEventReplay inputs.flatten).2.take position).flatMap
+          = (((initialQueue work).rawBatches inputs).2.take position).flatMap
               rawGroupNoticeRefs
         ∧ (w.events.take index).flatMap groupClosureRefs
-          = (((initialQueue work).rawEventReplay inputs.flatten).2.take position).flatMap
+          = (((initialQueue work).rawBatches inputs).2.take position).flatMap
               rawGroupClosureRefs := by
-  have exactHistory := history.trans (createWorkQueue_nonterminalAtoms_flattened inputs started)
-  rw [exactHistory] at selected ⊢
-  have rawShape := (initialQueue work).rawEventReplay_nonemptyValues inputs.flatten
-    valid.nonemptyItems
+  obtain ⟨atAtoms, exactPrefix⟩ := Witness.rawBatches_canonical history selected
+  have rawShape := (initialQueue work).rawBatches_nonemptyValues inputs valid.nonemptyItems
   obtain ⟨sourceIndex, sourceValues, sourceAt, notices, closures⟩ :=
     publicationAtoms_itemNotice_controls _
-      (IncrementalPublisher.normalizeBatch_nonemptyValues _ _ rawShape).2 selected noticed
+      (IncrementalPublisher.normalizeBatch_nonemptyValues _ _ rawShape).2 atAtoms noticed
   obtain ⟨position, rawValues, rawAt, rawNotices, rawClosures⟩ :=
     IncrementalPublisher.normalizeBatch_itemNotice_controls _ _ sourceAt
+  rw [exactPrefix] at notices closures
   exact ⟨position, rawValues, rawAt, notices.trans rawNotices, closures.trans rawClosures⟩
 
 -----------------------------------------------------------------------------------------
@@ -117,6 +118,44 @@ theorem groupNoticeAncestor_announced_group
           same.symm)
     all_goals cases notice
 
+/-- A previously announced group ref has a structural task contributor.
+Initial roots project their initial descriptors. Earlier canonical notices retain their
+generated descriptors through normalization and publication atomization.
+-/
+theorem announcedGroup_contributor {work inputs index ref} {w : Witness}
+    (generated : ExecutedWork work) (valid : ValidGraphEvents work inputs.flatten)
+    (history : w.events = (initialQueue work).nonterminalAtoms inputs)
+    (announced
+      : ref
+        ∈ (initialQueue work).rootGroups ++ (w.events.take index).flatMap groupNoticeRefs)
+    : ∃ occurrence owners, TaskHasOwners work occurrence owners ∧ ref ∈ owners := by
+  rcases List.mem_append.mp announced with initial | prior
+  · rw [createWorkQueue_rootGroups] at initial
+    obtain ⟨group, member, same⟩ := List.mem_map.mp initial
+    obtain ⟨dependencies, known⟩ := generated.initialGroups_nodeAt member
+    obtain ⟨occurrence, owners, payload, task, contributes⟩ := known.group_task
+    exact ⟨occurrence, owners, ⟨none, payload, task⟩, same ▸ contributes⟩
+  · obtain ⟨event, earlier, mentioned⟩ := List.mem_flatMap.mp prior
+    obtain ⟨position, selected⟩ := List.mem_iff_getElem?.mp (List.mem_of_mem_take earlier)
+    have located := createWorkQueue_runNormalized_atomicGroupNoticesLocated generated valid event
+      (List.mem_of_getElem? (Witness.canonical_event history selected).1)
+    apply Execution.WorkQueueEvent.GroupNoticesLocated.contributor located
+    cases event <;> exact mentioned
+
+private theorem batchRejections_match {work inputs earlier batch later}
+    (valid : ValidGraphEvents work (List.flatten inputs))
+    (split : inputs = earlier ++ batch :: later)
+    : ∀ occurrence errors,
+        (occurrence, errors) ∈ GraphEvent.availableFailures batch
+        → (GraphEvent.taskFailure occurrence errors).MatchesWork work := by
+  intro occurrence errors member
+  obtain ⟨event, received, same⟩ := List.mem_filterMap.mp member
+  cases event <;> simp only [Option.some.injEq, reduceCtorEq, Prod.mk.injEq] at same
+  obtain ⟨rfl, rfl⟩ := same
+  apply valid.eachMatches
+  rw [split, List.flatten_append, List.flatten_cons]
+  exact List.mem_append_right _ (List.mem_append_left _ received)
+
 /-- Every group-only closure is also a scheduler completion.
 Witness: group success and failure are completion constructors; other group projections
 are empty. Stream completion refs may additionally occur in the target list.
@@ -148,14 +187,36 @@ theorem groupNoticeAncestor_completed
     : ref ∈ completedRefs (w.events.take index ++ [.groupSuccess group [] []]) := by
   have groupNotice := groupNoticeAncestor_announced_group generated valid history known
     ancestor announced
+  obtain ⟨occurrence, owners, task, contributes⟩ :=
+    announcedGroup_contributor generated valid history groupNotice
   obtain ⟨position, atRaw, notices, closures⟩ :=
     Witness.groupNotice_rawControls valid started history selected
-  rw [notices] at groupNotice
-  have accepted := (initialQueue work).batchesStarted_acceptsBatch inputs
-    (by rwa [← inputsStarted_eq_batchesStarted])
-  have closed := generated.rawEventReplay_groupNoticeAncestor_completed valid accepted atRaw
-    noticed known ancestor groupNotice
-  rw [List.take_add_one, atRaw] at closed
+  obtain ⟨earlier, batch, later, fifo, event, tail, offset, split, batchEq, atHandler, prefixEq⟩ :=
+    (initialQueue work).rawBatches_immediate_rawCut inputs atRaw
+      (by intro group errors impossible; cases impossible) (by intro impossible; cases impossible)
+  obtain ⟨parents, canonical⟩ := generated.groupRecordsCanonical
+  obtain ⟨sourceValid, _, source, _⟩ := generated.uncancelledFrames_atBatchEvent canonical valid
+    started earlier batch later fifo event tail split batchEq
+  have tracking := (initialQueue work).batchPrefix_groupNoticeTracking earlier fifo
+    (GraphEvent.availableFailures batch)
+  have inclusive : ((initialQueue work).rawBatches inputs).2.take (position + 1) =
+      ((initialQueue work).rawBatches earlier).2 ++
+        (((initialQueue work).replayBatches earlier).rawEventReplay fifo
+          (GraphEvent.availableFailures batch)).2 ++
+        ((((initialQueue work).replayBatches earlier).replayGraphEvents fifo
+          (GraphEvent.availableFailures batch)).handleGraphEvent event
+          (GraphEvent.availableFailures batch)).2.1.take (offset + 1) := by
+    simp only [List.take_add_one, atRaw, atHandler, Option.toList_some, prefixEq, List.append_assoc]
+  have closed := source.groupNoticeAncestor_completed tracking generated canonical sourceValid
+    (GraphEvent.availableFailures batch) (batchRejections_match valid split) task contributes
+    atHandler noticed known ancestor (by
+      rw [← inclusive]
+      rw [notices] at groupNotice
+      exact (List.mem_append.mp groupNotice).elim (List.mem_append_left _)
+        (fun member => List.mem_append_right _ (List.mem_flatMap.mpr (by
+          obtain ⟨event, prior, contains⟩ := List.mem_flatMap.mp member
+          exact ⟨event, List.take_subset_take_left _ (Nat.le_succ position) prior, contains⟩))))
+  rw [← inclusive, List.take_add_one, atRaw] at closed
   simp only [Option.toList_some, List.flatMap_append, List.flatMap_singleton,
     rawGroupClosureRefs, ← closures] at closed
   apply groupClosureRefs_subset_completed
@@ -177,15 +238,23 @@ theorem itemGroupNoticeAncestor_completed
     : ref ∈ completedRefs (w.events.take index) := by
   have groupNotice := groupNoticeAncestor_announced_group generated valid history known
     ancestor announced
+  obtain ⟨occurrence, owners, task, contributes⟩ :=
+    announcedGroup_contributor generated valid history groupNotice
   obtain ⟨position, rawValues, atRaw, notices, closures⟩ :=
     Witness.itemNotice_rawControls valid started history selected (List.mem_append_left _ noticed)
-  rw [notices] at groupNotice
-  have accepted := (initialQueue work).batchesStarted_acceptsBatch inputs
-    (by rwa [← inputsStarted_eq_batchesStarted])
-  have closed := generated.rawEventReplay_itemNoticeAncestor_completed valid accepted atRaw
-    noticed known ancestor groupNotice
-  apply groupClosureRefs_subset_completed
-  rwa [closures]
+  obtain ⟨earlier, batch, later, fifo, event, tail, offset, split, batchEq, atHandler, prefixEq⟩ :=
+    (initialQueue work).rawBatches_immediate_rawCut inputs atRaw
+      (by intro group errors impossible; cases impossible) (by intro impossible; cases impossible)
+  obtain ⟨parents, canonical⟩ := generated.groupRecordsCanonical
+  obtain ⟨sourceValid, _, source, _⟩ := generated.uncancelledFrames_atBatchEvent canonical valid
+    started earlier batch later fifo event tail split batchEq
+  have tracking := (initialQueue work).batchPrefix_groupNoticeTracking earlier fifo
+    (GraphEvent.availableFailures batch)
+  have closed := source.itemNoticeAncestor_completed tracking generated canonical sourceValid
+    (GraphEvent.availableFailures batch) (batchRejections_match valid split) task contributes
+    atHandler noticed known ancestor (by rwa [notices, prefixEq] at groupNotice)
+  rw [← prefixEq, ← closures] at closed
+  exact groupClosureRefs_subset_completed _ closed
 
 -----------------------------------------------------------------------------------------
 -- The scheduler's dependency clause now follows from the unchanged source laws

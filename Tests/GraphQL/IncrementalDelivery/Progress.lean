@@ -26,7 +26,8 @@ theorem single_initial (result : Result (List (Name × ResponseValue)))
     (matching : PublicationMatching)
     : Explains (WorkQueueSemantics.single { result }) [WorkQueueSemantics.node] [] []
         matching [] := by
-  exact ⟨WorkQueueSemantics.initialized { result }, by simp [FailureWitness], by simp⟩
+  exact Explains.of_causal_failures (WorkQueueSemantics.initialized { result })
+    (by simp [FailureWitness]) (by simp) (by simp)
 
 /-- A singleton deferred outcome with positive failures has a constructed complete run.
 Witness: a counted failure completion or a fresh publication, then generic finalization.
@@ -54,11 +55,11 @@ theorem single_run_exists (result : Result (List (Name × ResponseValue)))
       have scope : FailureReportedFor [event] [] := by
         have countBound : errors ≤ count := countBound
         rcases control with rfl | rfl
-        · have allowed := reported.2.2 0 (.groupFailure reportedNode count) rfl
+        · have allowed := reported.eventAllowed 0 (.groupFailure reportedNode count) rfl
           obtain ⟨dependencies, producer, descriptor⟩ := allowed.1
           obtain ⟨rfl, _, _, _⟩ := WorkQueueSemantics.node_single descriptor
           exact ⟨WorkQueueSemantics.node, count, by omega, ⟨[], rfl⟩, Or.inl (by simp)⟩
-        · have allowed := reported.2.2 0 (.streamFailure reportedNode count) rfl
+        · have allowed := reported.eventAllowed 0 (.streamFailure reportedNode count) rfl
           obtain ⟨dependencies, producer, descriptor⟩ := allowed.1
           have impossible := (WorkQueueSemantics.node_single descriptor).2.1
           cases impossible
@@ -86,10 +87,12 @@ theorem single_run_exists (result : Result (List (Name × ResponseValue)))
       have ready : CanPublish (WorkQueueSemantics.single ({ result := .ok (data, errors) }))
           WorkQueueSemantics.matching [] [] (.executionGroup []) none :=
         ⟨by simp [Published], WorkQueueSemantics.noCancellation _ _, by simp, trivial⟩
-      have owner : PublicationOwner (WorkQueueSemantics.single ({ result := .ok (data, errors) })) [0]
+      have owner
+          : PublicationOwner (WorkQueueSemantics.single ({ result := .ok (data, errors) })) [0]
           WorkQueueSemantics.matching [] [] [0]
           WorkQueueSemantics.node := by
-        have opened : OpenOwner (WorkQueueSemantics.single ({ result := .ok (data, errors) })) [0] [] [0]
+        have opened
+            : OpenOwner (WorkQueueSemantics.single ({ result := .ok (data, errors) })) [0] [] [0]
             WorkQueueSemantics.node :=
           ⟨⟨.group, [], none, .group (group := { node := WorkQueueSemantics.node })
             .root (by simp)⟩, by simp [WorkQueueSemantics.node], openRef⟩
@@ -146,7 +149,8 @@ example
         ∧ tail.length ≤ 2 := by
   have initial : Explains HistoryScheduling.shared
       [HistoryScheduling.left, HistoryScheduling.right] [] [] HistoryScheduling.matching [] :=
-    ⟨HistoryScheduling.initialized, by simp [FailureWitness], by simp⟩
+    Explains.of_causal_failures HistoryScheduling.initialized
+      (by simp [FailureWitness]) (by simp) (by simp)
   have published :=
     initial.append_event
       (by
@@ -161,7 +165,8 @@ example
     subst occurrence
     exact Or.inr ⟨0, _, rfl, trivial, rfl⟩
   have completed := (WorkBatching.singletons
-    [HistoryScheduling.value HistoryScheduling.left]).finish_accounted published (noFailureCauses _ _ _ _)
+    [HistoryScheduling.value HistoryScheduling.left]).finish_accounted
+      published (noFailureCauses _ _ _ _)
       (by simpa [failedBefore] using accounted)
       (by
         intro occurrence owners producer payload known unpublished
@@ -184,7 +189,8 @@ example
         ∧ tail.length ≤ 2 := by
   have initial : Explains HistoryScheduling.shared
       [HistoryScheduling.left, HistoryScheduling.right] [] [] HistoryScheduling.matching [] :=
-    ⟨HistoryScheduling.initialized, by simp [FailureWitness], by simp⟩
+    Explains.of_causal_failures HistoryScheduling.initialized
+      (by simp [FailureWitness]) (by simp) (by simp)
   have published :=
     initial.append_event
       (by
@@ -231,7 +237,8 @@ example
             WorkQueueSemantics.matching [(0, .executionGroup [])] := by
   have initial := single_initial (.error 2) WorkQueueSemantics.matching
   have task : TaskAt WorkQueueSemantics.failingWork (.executionGroup []) [0] none
-      (.object [] (.error 2)) := .executionGroup .root
+      (.object [] (.error 2)) := .executionGroup (result := { result := .error 2 })
+        (Located.root (root := WorkQueueSemantics.failingWork))
   exact initial.failure_step task rfl (.root ⟨_, _, task⟩)
     ⟨
       0,
@@ -444,7 +451,8 @@ private theorem singleton_failed_explained
     : Explains WorkQueueSemantics.failingWork [WorkQueueSemantics.node] []
         [WorkQueueSemantics.failure] WorkQueueSemantics.matching
         [(0, .executionGroup [])] := by
-  refine ⟨WorkQueueSemantics.initialized _, WorkQueueSemantics.failureWitness _, ?_⟩
+  refine Explains.of_causal_failures (WorkQueueSemantics.initialized _)
+    (WorkQueueSemantics.failureWitness _) (by simp) ?_
   intro index event selected
   cases index with
   | zero =>
@@ -461,7 +469,9 @@ excludes publication; either kind of prior completion would contradict licensing
 example : Open [0] [] 0 := by
   exact singleton_failed_explained.singleton_failure_open (cut := 0) (by simp)
     (show TaskAt WorkQueueSemantics.failingWork (.executionGroup []) [0] none
-            (.object [] (.error 2)) from .executionGroup .root)
+            (.object [] (.error 2)) from .executionGroup
+      (result := { result := .error 2 })
+      (Located.root (root := WorkQueueSemantics.failingWork)))
 
 /-- Accepted settlement is impossible after every contributing owner has completed.
 Witness: the licensing prefix retains a healthy unfinished owner, whether open or latent.
@@ -495,7 +505,8 @@ example : FailureReportedFor [WorkQueueSemantics.failure] [] := by
     simpa [announcedRefs, pendingRefs, completedRefs, eventCompleted, eventPending,
       WorkQueueSemantics.failure] using member
   · simp
-  · exact .executionGroup .root
+  · exact .executionGroup (result := { result := .error 2 })
+      (Located.root (root := WorkQueueSemantics.failingWork))
   · decide
 
 #print axioms accountedHistory_exists_of_initial_owner_coverage

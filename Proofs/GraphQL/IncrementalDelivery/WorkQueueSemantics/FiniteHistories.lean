@@ -23,6 +23,7 @@ may repeat completion refs; a history can consume each token at most once.
 -/
 def observationTokens (address : Address) : Work → List ObservationToken
   | .empty => []
+  | .declareGroups _ tasks => observationTokens address tasks
   | .combine left right =>
       observationTokens (address ++ [0]) left ++ observationTokens (address ++ [1]) right
   | .executionGroup groups _ _ children =>
@@ -45,6 +46,18 @@ decreasing_by
     exact Prod.mk.sizeOf_spec _ _
   omega
 
+/-- Declaration annotations contribute no publication or completion tokens. -/
+@[simp]
+theorem observationTokens_withoutDeclarations (address : Address) (work : Work)
+    : observationTokens address work.withoutDeclarations
+      = observationTokens address work := by
+  cases work with
+  | declareGroups groups tasks =>
+      simpa only [Work.withoutDeclarations, observationTokens]
+        using observationTokens_withoutDeclarations address tasks
+  | _ => rfl
+termination_by work
+
 /-- Every located subtree's token inventory is contained in the root inventory.
 Witness: structural navigation, selecting the corresponding combine side or stream item.
 -/
@@ -54,24 +67,31 @@ theorem Located.observationTokens {work address current producer owners}
   have navigation := StructuralEquivalence.located_of_current located
   clear located
   induction navigation with
-  | root => exact List.Subset.refl _
+  | root =>
+      simp only [observationTokens_withoutDeclarations]
+      intro token member
+      exact member
   | left _ ih =>
       intro token member
+      simp only [observationTokens_withoutDeclarations] at member
       apply ih
       rw [WorkQueueSemantics.observationTokens]
       exact List.mem_append_left _ member
   | right _ ih =>
       intro token member
+      simp only [observationTokens_withoutDeclarations] at member
       apply ih
       rw [WorkQueueSemantics.observationTokens]
       exact List.mem_append_right _ member
   | executionGroup _ ih =>
       intro token member
+      simp only [observationTokens_withoutDeclarations] at member
       apply ih
       rw [WorkQueueSemantics.observationTokens]
       exact List.mem_cons_of_mem _ (List.mem_append_right _ member)
   | @item address node items producer owners index result children _ entry ih =>
       intro token member
+      simp only [observationTokens_withoutDeclarations] at member
       apply ih
       rw [WorkQueueSemantics.observationTokens]
       apply List.mem_cons_of_mem
@@ -129,7 +149,7 @@ def observationToken (occurrence : Occurrence) : WorkQueueEvent → ObservationT
 Witness: the successful task provenance or the control event's node descriptor.
 -/
 theorem EventAllowed.observationToken {work initial matching before failed event}
-    (allowed : EventAllowed work initial matching before failed event)
+    (allowed : EventAllowed work initial matching before failed event reported)
     : observationToken (matching before.length) event ∈ observationTokens [] work := by
   cases event with
   | groupValues node values =>
@@ -152,7 +172,7 @@ theorem EventAllowed.observationToken {work initial matching before failed event
 Witness: the six admitted event constructors; termination is excluded by EventAllowed.
 -/
 theorem EventAllowed.token_cases {work initial matching before failed event}
-    (allowed : EventAllowed work initial matching before failed event)
+    (allowed : EventAllowed work initial matching before failed event reported)
     (occurrence : Occurrence)
     : (IsValue event
         ∧ WorkQueueSemantics.observationToken occurrence event = .inl occurrence)
@@ -175,8 +195,8 @@ theorem Explains.observationToken_unique {work groups streams events matching fa
   have earlier {i j a b} (atI : events[i]? = some a) (atJ : events[j]? = some b)
       (equal : observationToken (matching i) a = observationToken (matching j) b)
       (less : i < j) : False := by
-    have first := explained.2.2 i a atI
-    have second := explained.2.2 j b atJ
+    have first := explained.eventAllowed i a atI
+    have second := explained.eventAllowed j b atJ
     rcases first.token_cases (matching i) with ⟨valueI, tokenI⟩ | ⟨refI, tokenI, closedI⟩
     · rcases second.token_cases (matching j) with ⟨valueJ, tokenJ⟩ | ⟨refJ, tokenJ, _⟩
       · have matchingSame : matching i = matching j := by
@@ -220,7 +240,7 @@ theorem Explains.length_le_observationTokens
   have subset : used.Subset (observationTokens [] work) := by
     intro token member
     obtain ⟨index, rfl⟩ := List.mem_ofFn.mp member
-    have known := (explained.2.2 index.val events[index.val]
+    have known := (explained.eventAllowed index.val events[index.val]
       (List.getElem?_eq_getElem index.isLt)).observationToken
     simpa only [List.length_take, Nat.min_eq_left (Nat.le_of_lt index.isLt)] using known
   simpa only [used, List.length_ofFn] using unique.length_le_of_subset subset

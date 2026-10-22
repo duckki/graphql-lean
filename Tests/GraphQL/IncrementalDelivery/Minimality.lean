@@ -41,7 +41,8 @@ theorem forgedPublication_failureWitness
         [WorkQueueSemantics.value]
         [(1, .executionGroup []), (1, .executionGroup [])] := by
   have known : TaskAt WorkQueueSemantics.failingWork (.executionGroup []) [0] none
-      (.object [] (.error 2)) := .executionGroup .root
+      (.object [] (.error 2)) := .executionGroup (result := { result := .error 2 })
+        (Located.root (root := WorkQueueSemantics.failingWork))
   have licensed : ∃ owners producer payload,
       TaskAt WorkQueueSemantics.failingWork (.executionGroup []) owners producer payload
       ∧ payload.failure.isSome = true
@@ -107,7 +108,14 @@ example
           [] [0, 1] HistoryScheduling.right
       ∧ ¬CanPublish HistoryScheduling.shared HistoryScheduling.matching events []
           (.executionGroup []) none := by
-  refine ⟨.executionGroup .root, WorkQueueSemantics.noCancellation _ _, by simp, ?_, ?_⟩
+  refine ⟨
+    .executionGroup (result := { result := .ok ([], 0) })
+      (Located.root (root := HistoryScheduling.shared)),
+    WorkQueueSemantics.noCancellation _ _,
+    by simp,
+    ?_,
+    ?_
+  ⟩
   · exact (owner_after_object (by simp)).mpr (HistoryScheduling.owner _ (by simp))
   · intro ready
     exact ready.1 ⟨0, _, rfl, trivial, rfl⟩
@@ -158,7 +166,8 @@ example
       ∧ Open [0] [] 0
       ∧ ¬NodeFailureCause WorkQueueSemantics.failingWork [.executionGroup []] 0 0 := by
   have known : TaskAt WorkQueueSemantics.failingWork (.executionGroup []) [0] none
-      (.object [] (.error 2)) := .executionGroup .root
+      (.object [] (.error 2)) := .executionGroup (result := { result := .error 2 })
+        (Located.root (root := WorkQueueSemantics.failingWork))
   refine ⟨NodeFailed.task known (by simp) (by simp [failedBefore]), ?_, ?_⟩
   · simp [Open, announcedRefs, pendingRefs, completedRefs]
   · intro counted
@@ -230,14 +239,14 @@ example
     refine ⟨⟨by simp, by simp, ?_⟩, by simp⟩
     intro node member
     obtain rfl := List.mem_singleton.mp member
-    refine ⟨[], none, .stream (.left .root), ?_⟩
+    refine ⟨[], none, .stream (.left (Located.root (root := orphanWork))), ?_⟩
     exact ⟨by simp [announcedRefs, pendingRefs],
       Or.inl ⟨WorkQueueSemantics.noFailure _ _, Or.inl rfl⟩, by simp, Or.inl rfl⟩
   have empty : Explains orphanWork [] [WorkQueueSemantics.node] [] WorkQueueSemantics.matching [] :=
-    ⟨initial, by simp [FailureWitness], by simp⟩
+    Explains.of_causal_failures initial (by simp [FailureWitness]) (by simp) (by simp)
   have allowed : EventAllowed orphanWork [0] WorkQueueSemantics.matching [] []
       (.streamSuccess WorkQueueSemantics.node) := by
-    exact ⟨⟨[], none, .stream (.left .root)⟩,
+    exact ⟨⟨[], none, .stream (.left (Located.root (root := orphanWork)))⟩,
       by simp [Open, announcedRefs, pendingRefs, completedRefs, WorkQueueSemantics.node],
       WorkQueueSemantics.noFailure _ _, orphan_accounted⟩
   refine ⟨[.streamSuccess WorkQueueSemantics.node], ?_, ?_, ?_⟩
@@ -247,7 +256,8 @@ example
     exact Or.inl (by simp [completedRefs, eventCompleted])
   · intro terminal
     have known : TaskAt orphanWork (.executionGroup [1]) [] none (.object [] (.ok ([], 0))) :=
-      .executionGroup (.right .root)
+      .executionGroup (result := { result := .ok ([], 0) })
+        (.right (Located.root (root := orphanWork)))
     rcases terminal.1 _ _ _ _ known with cancelled | published
     · exact WorkQueueSemantics.noCancellation _ _ cancelled.1
     · rcases published with ⟨index, event, selected, value, _⟩

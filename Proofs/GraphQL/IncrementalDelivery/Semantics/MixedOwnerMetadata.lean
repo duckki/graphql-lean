@@ -12,6 +12,7 @@ open OwnerPaths
 
 def WorkAt (paths : Assignment) (bound : Nat) : Work → Prop
   | .empty => True
+  | .declareGroups _ tasks => WorkAt paths bound tasks
   | .combine left right => WorkAt paths bound left ∧ WorkAt paths bound right
   | .executionGroup groups path _ children =>
       MapAt paths bound path groups ∧ WorkAt paths bound children
@@ -48,6 +49,9 @@ theorem WorkAt.extend {paths next : Assignment} {start finish : Nat} {work : Wor
     : WorkAt next finish work := by
   cases work with
   | empty => simp [WorkAt]
+  | declareGroups groups tasks =>
+      simp only [WorkAt] at h ⊢
+      exact WorkAt.extend (work := tasks) h he hle
   | combine left right =>
       simp only [WorkAt] at h ⊢
       exact ⟨h.1.extend he hle, h.2.extend he hle⟩

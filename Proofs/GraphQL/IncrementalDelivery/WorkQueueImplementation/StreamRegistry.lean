@@ -12,38 +12,20 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 -----------------------------------------------------------------------------------------
 
 /-- Group registration retains the stream registry exactly.
-Witness: both fresh registration and parent-linking folds touch only group fields.
+Witness: recursive installation touches only group fields.
 -/
 theorem State.addGroups_streams (queue : State) (groups : List Group)
     : (queue.addGroups groups).1.streams = queue.streams := by
-  let link (current : State) (group : Group) :=
-    match group.parent with
-    | none => current
-    | some parent =>
-        match current.groupNode? parent with
-        | none => current
-        | some node =>
-            let children := if node.childGroups.contains group.node.ref then node.childGroups
-              else node.childGroups ++ [group.node.ref]
-            current.putGroupNode { node with childGroups := children }
-  have linked : ∀ current group, (link current group).streams = current.streams := by
-    intro current group
-    unfold link
-    split
+  apply State.addGroups_projection State.streams _ queue groups
+  intro current group
+  unfold State.addGroup
+  split
+  · rfl
+  · split
     · rfl
-    · split <;> rfl
-  have registered : ∀ current group,
-      (State.addGroup current group).streams = current.streams := by
-    intro current group
-    unfold State.addGroup
-    split
-    · rfl
-    · dsimp only
-      split <;> rfl
-  change ((groups.filter _).foldl link
-    ((groups.filter _).foldl State.addGroup queue)).streams = _
-  rw [fold_projection State.streams link linked,
-    fold_projection State.streams State.addGroup registered]
+    · split
+      · split <;> rfl
+      · rfl
 
 /-- Task registration retains the stream registry exactly.
 Witness: membership increments and task-node creation change no stream descriptor.
@@ -109,27 +91,43 @@ theorem State.finishGroupSuccess_streams (queue : State) (group : GroupNode)
 Witness: group starts change task nodes; stream starts change only active root refs.
 -/
 theorem State.startNewWork_streams (queue : State) (work : NewWork)
-    : (queue.startNewWork work).streams = queue.streams := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.startNewWork work available).1.streams = queue.streams := by
   have task : ∀ current occurrence,
-      (State.startTask current occurrence).streams = current.streams := by
+      (State.startTask current occurrence available).streams = current.streams := by
     intro current occurrence
     unfold State.startTask
     split
     · rfl
     · split <;> rfl
-  have group : ∀ current ref, (State.startGroup current ref).streams = current.streams := by
+  have group : ∀ current ref, (State.startGroup current ref available).1.streams
+      = current.streams := by
     intro current ref
+    have cached : (current.cacheTaskFailures available).streams = current.streams := by
+      have frame := congrArg State.streams (current.cacheTaskFailures_frame available)
+      exact frame
     unfold State.startGroup
+    dsimp only
     split
-    · rfl
-    · exact fold_projection State.streams State.startTask task _ _
+    · exact cached
+    · split
+      · exact (fold_projection State.streams
+          (fun current task => current.startTask task available) task _ _).trans cached
+      · exact cached
+  let step (acc : State × List GroupFailureEvent) (ref : NodeRef) :=
+    let (next, queued) := acc.1.startGroup ref available
+    (next, acc.2 ++ queued)
+  have groups : ∀ acc ref, (step acc ref).1.streams = acc.1.streams := by
+    intro acc ref
+    exact group acc.1 ref
   have stream : ∀ current ref, (State.startStream current ref).streams = current.streams := by
     intro current ref
     unfold State.startStream
     split <;> rfl
   unfold State.startNewWork
-  rw [fold_projection State.streams State.startStream stream,
-    fold_projection State.streams State.startGroup group]
+  rw [fold_projection State.streams State.startStream stream]
+  exact fold_projection (fun acc : State × List GroupFailureEvent => acc.1.streams) step
+    groups _ _
 
 /-- Failed tasks retain the stream registry even when removing descendant group nodes.
 Witness: every contributor branch changes only group/task nodes and roots.
@@ -147,13 +145,13 @@ theorem State.taskFailure_streams (queue : State) (occurrence : Occurrence) (err
 Witness: group cleanup and activation preserve the descriptor list in every drain step.
 -/
 theorem State.drainReadyGroups_streams (queue : State)
-    : queue.drainReadyGroups.1.streams = queue.streams := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.drainReadyGroups available).1.streams = queue.streams := by
   apply State.drainReadyGroups_preserves (fun current => current.streams = queue.streams)
-    (valid := rfl)
-  · intro current node prior _ _ _ _
-    simpa only [State.startNewWork_streams, State.finishGroupSuccess_streams] using prior
-  · intro current node occurrence errors prior _ _ _
-    rw [State.taskFailure_streams, prior]
+    (available := available) (valid := rfl)
+  intro current node prior _ _ _
+  simpa only [State.startNewWork_streams _ _ available, State.finishGroupSuccess_streams]
+    using prior
 
 -----------------------------------------------------------------------------------------
 -- Registration and release preserve any property of supplied stream descriptors
@@ -165,14 +163,23 @@ def State.StreamsSatisfy (queue : State) (property : Execution.DeliveryNode → 
     : Prop :=
   ∀ stream ∈ queue.streams, property stream.node
 
+/-- Computation-cache exposure leaves every registered stream descriptor unchanged. -/
+theorem State.StreamsSatisfy.cacheTaskFailures {queue : State} {property}
+    (prior : queue.StreamsSatisfy property) (available : List (Occurrence × Nat))
+    : (queue.cacheTaskFailures available).StreamsSatisfy property := by
+  have same := congrArg State.streams (queue.cacheTaskFailures_frame available)
+  intro stream member
+  rw [same] at member
+  exact prior stream member
+
 /-- Recursive draining preserves any property of registered stream descriptors.
 Witness: the stream registry is unchanged by the complete drain.
 -/
 theorem State.StreamsSatisfy.drainReadyGroups {queue : State} {property}
-    (known : queue.StreamsSatisfy property)
-    : queue.drainReadyGroups.1.StreamsSatisfy property := by
+    (known : queue.StreamsSatisfy property) (available : List (Occurrence × Nat) := [])
+    : (queue.drainReadyGroups available).1.StreamsSatisfy property := by
   intro stream member
-  rw [State.drainReadyGroups_streams] at member
+  rw [State.drainReadyGroups_streams _ available] at member
   exact known stream member
 
 /-- Stream integration stores and releases only supplied descriptors or existing entries.
@@ -237,7 +244,7 @@ theorem createWorkQueue_streamsSatisfy {property} (work : Work)
   let pruned := current.1.pruneEmptyGroups current.2.newGroups
   intro stream member
   change stream ∈ (pruned.1.startNewWork
-    { current.2 with newGroups := pruned.2 }).streams at member
+    { current.2 with newGroups := pruned.2 }).1.streams at member
   rw [State.startNewWork_streams] at member
   have same : pruned.1.streams = current.1.streams := State.pruneEmptyGroups_streams _ _
   rw [same] at member
@@ -286,7 +293,8 @@ theorem State.StreamsSatisfy.taskSuccess {queue : State} {property}
     (prior : queue.StreamsSatisfy property) (occurrence : Occurrence)
     (result : TaskResult)
     (supplied : ∀ stream ∈ result.work.streams, property stream.node)
-    : (queue.taskSuccess occurrence result).1.StreamsSatisfy property := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.taskSuccess occurrence result available).1.StreamsSatisfy property := by
   have preserved : ∀ acc group,
       (successGroupStep acc group).1.streams = acc.1.streams := by
     intro acc group
@@ -302,9 +310,9 @@ theorem State.StreamsSatisfy.taskSuccess {queue : State} {property}
       have installed : (queue.putTaskNode { node with value := some result.value }).StreamsSatisfy
           property := prior
       have integrated := installed.maybeIntegrateWork result.work (some occurrence) supplied
-      rw [queue.taskSuccess_eq occurrence result node found]
+      rw [queue.taskSuccess_eq occurrence result node found available]
       intro stream member
-      rw [State.drainReadyGroups_streams, State.startNewWork_streams,
+      rw [State.drainReadyGroups_streams _ available, State.startNewWork_streams _ _ available,
         fold_projection (fun acc : State × List WorkQueueEvent × NewWork => acc.1.streams)
           successGroupStep preserved] at member
       exact integrated.1 stream member
@@ -316,15 +324,19 @@ theorem State.StreamsSatisfy.streamItems {queue : State} {property}
     (prior : queue.StreamsSatisfy property) (stream : Execution.DeliveryNode)
     (items : List StreamItem)
     (supplied : ∀ item ∈ items, ∀ child ∈ item.work.streams, property child.node)
-    : (queue.streamItems stream items).1.StreamsSatisfy property := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.streamItems stream items available).1.StreamsSatisfy property := by
   let step (acc : State × List Execution.DeliveryNode
-      × List Execution.DeliveryNode × List StreamItemValue) (item : StreamItem) :=
+      × List Execution.DeliveryNode × List StreamItemValue × List GroupFailureEvent)
+      (item : StreamItem) :=
     let integrated := acc.1.maybeIntegrateWork item.work
     let pruned := integrated.1.pruneEmptyGroups integrated.2.newGroups
-    (pruned.1.startNewWork { integrated.2 with newGroups := pruned.2 },
-      acc.2.1 ++ pruned.2, acc.2.2.1 ++ integrated.2.newStreams, acc.2.2.2 ++ [item.value])
+    let (started, queued) :=
+      pruned.1.startNewWork { integrated.2 with newGroups := pruned.2 } available
+    (started, acc.2.1 ++ pruned.2, acc.2.2.1 ++ integrated.2.newStreams,
+      acc.2.2.2.1 ++ [item.value], acc.2.2.2.2 ++ queued)
   have loop (more : List StreamItem) (acc : State × List Execution.DeliveryNode
-      × List Execution.DeliveryNode × List StreamItemValue)
+      × List Execution.DeliveryNode × List StreamItemValue × List GroupFailureEvent)
       (known : acc.1.StreamsSatisfy property)
       (inputs : ∀ item ∈ more, ∀ child ∈ item.work.streams, property child.node)
       : (more.foldl step acc).1.StreamsSatisfy property := by
@@ -337,15 +349,15 @@ theorem State.StreamsSatisfy.streamItems {queue : State} {property}
           intro child member
           change child ∈ (State.startNewWork
             ((acc.1.maybeIntegrateWork item.work).1.pruneEmptyGroups
-              (acc.1.maybeIntegrateWork item.work).2.newGroups).1 _).streams at member
-          rw [State.startNewWork_streams, State.pruneEmptyGroups_streams] at member
+              (acc.1.maybeIntegrateWork item.work).2.newGroups).1 _ available).1.streams at member
+          rw [State.startNewWork_streams _ _ available, State.pruneEmptyGroups_streams] at member
           exact integrated.1 child member
         · intro next member
           exact inputs next (List.mem_cons_of_mem _ member)
   unfold State.streamItems
   split
   · exact prior
-  · exact (loop items (queue, [], [], []) prior supplied).drainReadyGroups
+  · exact (loop items (queue, [], [], [], []) prior supplied).drainReadyGroups available
 
 /-- The child stream descriptors explicitly supplied by a host event satisfy `property`.
 This is a proof projection of task/item payloads, not an additional host-source contract.
@@ -363,20 +375,29 @@ Witness: only successful task/item integration adds entries; other handlers reta
 theorem State.StreamsSatisfy.handleGraphEvent {queue : State} {property}
     (prior : queue.StreamsSatisfy property) (event : GraphEvent)
     (supplied : event.ChildStreamsSatisfy property)
-    : (queue.handleGraphEvent event).1.StreamsSatisfy property := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.handleGraphEvent event available).1.StreamsSatisfy property := by
+  have cached := prior.cacheTaskFailures available
   cases event with
-  | taskSuccess occurrence result => exact prior.taskSuccess occurrence result supplied
+  | taskSuccess occurrence result =>
+      exact cached.taskSuccess occurrence result supplied available
   | taskFailure occurrence errors =>
       intro stream member
       rw [State.handleGraphEvent, State.taskFailure_streams] at member
-      exact prior stream member
-  | streamItems stream items => exact prior.streamItems stream items supplied
+      exact cached stream member
+  | streamItems stream items => exact cached.streamItems stream items supplied available
   | streamSuccess stream =>
       simp only [State.handleGraphEvent, State.streamSuccess]
-      split <;> exact prior
+      split <;> exact cached
   | streamFailure stream errors =>
       simp only [State.handleGraphEvent, State.streamFailure]
-      split <;> exact prior
+      split <;> exact cached
+
+  | groupFailure notice =>
+      simp only [State.handleGraphEvent, State.groupFailure]
+      split
+      · exact cached
+      · split <;> exact cached
 
 /-- Every batch retains descriptor properties, including after termination.
 Witness: the actual event replay preserves the registry invariant; terminal flag updates
@@ -389,12 +410,14 @@ theorem State.StreamsSatisfy.handleGraphEvents {queue : State} {property}
   have replay (current : State) (more : List GraphEvent)
       (known : current.StreamsSatisfy property)
       (inputs : ∀ event ∈ more, event.ChildStreamsSatisfy property)
-      : (current.rawEventReplay more).1.StreamsSatisfy property := by
+      : (current.rawEventReplay more (GraphEvent.availableFailures events)).1.StreamsSatisfy
+          property := by
     induction more generalizing current with
     | nil => exact known
     | cons event rest ih =>
-        rw [State.rawEventReplay_cons]
-        exact ih _ (known.handleGraphEvent event (inputs event List.mem_cons_self))
+        rw [State.rawEventReplay_cons _ _ _ (GraphEvent.availableFailures events)]
+        exact ih _ (known.handleGraphEvent event (inputs event List.mem_cons_self)
+          (GraphEvent.availableFailures events))
           (fun next member => inputs next (List.mem_cons_of_mem _ member))
   rw [State.handleGraphEvents_eq_rawEventReplay]
   split

@@ -248,9 +248,28 @@ theorem reportedFailureCuts_nodeFailureCause {work events failures index node er
     ⟨node, errors, atEvent, owners, ⟨producer, payload, known⟩, owner⟩,
     owners, producer, payload, known, owner, failed, positive⟩
 
+/-- First-report placement retains every member of a distinct aggregate report. -/
+theorem reportedFailureCuts_nodeFailureCauses {work events failures index node errors}
+    (causes : NodeFailureCauses work (failedBefore failures index) node.ref errors)
+    (atEvent
+      : events[index]? = some (.groupFailure node errors)
+        ∨ events[index]? = some (.streamFailure node errors))
+    : NodeFailureCauses work
+        (failedBefore (reportedFailureCuts work events failures) index) node.ref
+        errors := by
+  obtain ⟨selected, nonempty, distinct, available, total⟩ := causes
+  refine ⟨selected, nonempty, distinct, ?_, total⟩
+  intro occurrence count member
+  obtain ⟨recorded, owners, producer, payload, known, contributes, failed, positive⟩ :=
+    available occurrence count member
+  exact ⟨reportedFailureCuts_covers_report recorded
+    ⟨node, errors, atEvent, owners, ⟨producer, payload, known⟩, contributes⟩,
+    owners, producer, payload, known, contributes, failed, positive⟩
+
 /-- First-report placement preserves a complete inventory and all selected positive error causes.
 Witness: retained candidates keep their failed descriptors and reachability; report
-indices give bounds, sorting gives order, and contributor coverage preserves each selected positive cause.
+indices give bounds, sorting gives order, and contributor coverage preserves every member
+of each distinct aggregate report.
 Unreported candidates may be omitted, so this does not yet preserve all causal evidence.
 -/
 theorem CompleteFailureInventory.reported {work events failures}
@@ -265,7 +284,7 @@ theorem CompleteFailureInventory.reported {work events failures}
     exact ⟨Nat.le_of_lt (firstReportedFailureCut_spec selected).1,
       same ▸ oldKnown.2.1, same ▸ oldKnown.2.2⟩
   · intro index node errors atEvent
-    exact reportedFailureCuts_nodeFailureCause
+    exact reportedFailureCuts_nodeFailureCauses
       (inventory.2.2.2.1 index node errors atEvent) (.inl atEvent)
   · intro index node errors atEvent
     exact reportedFailureCuts_nodeFailureCause

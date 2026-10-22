@@ -323,24 +323,25 @@ theorem successGroupFold_objectCount_take_le (groups : List Execution.DeliveryNo
 inside the one `published` ledger for that fold followed by the complete ready drain.
 -/
 def State.ReleaseDrainOwners (queue : State) (groups : List Execution.DeliveryNode)
-    (published : List ObjectPublication)
+    (published : List ObjectPublication) (available : List (Occurrence × Nat) := [])
     : Prop :=
   let released := groups.foldl successGroupStep (queue, [], {})
-  let activated := released.1.startNewWork released.2.2
+  let activated := (released.1.startNewWork released.2.2 available).1
   ∀ steps,
     steps ≤ activated.groupNodes.length
     → queue.StoredOwnersConserved
         (published.take
-          ((released.2.1 ++ (State.drainReadyGroups.go steps activated).2).flatMap
+          ((released.2.1
+            ++ (State.drainReadyGroups.go available steps activated).2.1).flatMap
             WorkQueueEvent.objectValues).length)
-        (State.drainReadyGroups.go steps activated).1
+        (State.drainReadyGroups.go available steps activated).1
 
 /-- Every processed-owner and drain boundary conserves the same initial buffered owners.
 `published` labels the complete owner-fold/drain output; each boundary selects its exact
 object-count prefix, including retirement that emits no completion for the removed ref.
 -/
 structure State.ReleaseOwners (queue : State) (groups : List Execution.DeliveryNode)
-    (published : List ObjectPublication)
+    (published : List ObjectPublication) (available : List (Occurrence × Nat) := [])
     : Prop where
   ownerFold
     : ∀ steps,
@@ -349,7 +350,7 @@ structure State.ReleaseOwners (queue : State) (groups : List Execution.DeliveryN
           queue.StoredOwnersConserved
             (published.take (boundary.2.1.flatMap WorkQueueEvent.objectValues).length)
             boundary.1
-  drain : queue.ReleaseDrainOwners groups published
+  drain : queue.ReleaseDrainOwners groups published available
 
 /-- Exact prefixes of the same ledger clear memberships in both release phases.
 `published` labels the whole owner-fold/drain output; raw object counts select the prefix
@@ -357,6 +358,7 @@ at each owner-fold boundary and at each subsequent drain boundary.
 -/
 structure State.ReleaseMembershipsCleared (queue : State)
     (groups : List Execution.DeliveryNode) (published : List ObjectPublication)
+    (available : List (Occurrence × Nat) := [])
     : Prop where
   ownerFold
     : ∀ steps,
@@ -367,19 +369,26 @@ structure State.ReleaseMembershipsCleared (queue : State)
             boundary.1.TaskMembershipAbsent publication.1
   drain
     : let released := groups.foldl successGroupStep (queue, [], {})
-      let activated := released.1.startNewWork released.2.2
+      let activated := (released.1.startNewWork released.2.2 available).1
       ∀ steps,
         steps ≤ activated.groupNodes.length
         → ∀ publication ∈
             published.take
-              ((released.2.1 ++ (State.drainReadyGroups.go steps activated).2).flatMap
+              ((released.2.1
+                ++ (State.drainReadyGroups.go available steps activated).2.1).flatMap
                 WorkQueueEvent.objectValues).length,
-            (State.drainReadyGroups.go steps activated).1.TaskMembershipAbsent
+            (State.drainReadyGroups.go available steps activated).1.TaskMembershipAbsent
               publication.1
 
+  startup
+    : let released := groups.foldl successGroupStep (queue, [], {})
+      let activated := (released.1.startNewWork released.2.2 available).1
+      activated.DrainStartupMembershipsCleared activated.groupNodes.length published
+        available released.2.1
+
 /-- The complete owner-fold/release/drain phase has one common publication ledger.
-Witness: combine owner-fold conservation with simultaneous mixed-drain coverage; activation
-preserves each retained lookup and all stream/link invariants. The same labels justify
+Witness: combine owner-fold conservation with simultaneous drain coverage; a surviving
+carrier group protects its buffered task lookup through startup removal. The same labels justify
 every successful carrier and its stream producers across both parts of the phase.
 -/
 theorem State.PublicationInventory.successGroupFold_drain_bufferedCoverage {queue : State}
@@ -388,24 +397,30 @@ theorem State.PublicationInventory.successGroupFold_drain_bufferedCoverage {queu
     (links : queue.StoredTaskLinks) (settled : queue.ChildStreamsSettled)
     (children : queue.ChildStreamsMatchWork work) (groups : List Execution.DeliveryNode)
     (memberships : queue.GroupMembershipOrder)
+    (available : List (Occurrence × Nat) := [])
+    (clean
+      : ∀ occurrence value,
+          property occurrence value → ∀ errors, (occurrence, errors) ∉ available := by
+        intro occurrence value _ errors member; cases member)
     : let released := groups.foldl successGroupStep (queue, [], {})
-      let drained := (released.1.startNewWork released.2.2).drainReadyGroups
+      let drained :=
+        ((released.1.startNewWork released.2.2 available).1.drainReadyGroups available)
       ∃ added : List ObjectPublication,
         added.map Prod.snd
-          = (released.2.1 ++ drained.2).flatMap WorkQueueEvent.objectValues
+          = (released.2.1 ++ drained.2.1).flatMap WorkQueueEvent.objectValues
         ∧ drained.1.PublicationInventory property (published ++ added)
-        ∧ queue.BufferedClosuresCovered added (released.2.1 ++ drained.2)
+        ∧ queue.BufferedClosuresCovered added (released.2.1 ++ drained.2.1)
         ∧ (∀ occurrence node value,
             queue.taskNode? occurrence = some node
             → node.value = some value
             → (∃ contributor ∈ node.task.groups,
                 ∃ owner, drained.1.groupNode? contributor.ref = some owner)
             → (occurrence, value) ∈ added ∨ drained.1.taskNode? occurrence = some node)
-        ∧ StreamReleasePublications work added (released.2.1 ++ drained.2)
-        ∧ BlocksFollowRegistrations queue.tasks added (released.2.1 ++ drained.2)
+        ∧ StreamReleasePublications work added (released.2.1 ++ drained.2.1)
+        ∧ BlocksFollowRegistrations queue.tasks added (released.2.1 ++ drained.2.1)
         ∧ queue.StoredOwnersConserved added drained.1
-        ∧ queue.ReleaseOwners groups added
-        ∧ queue.ReleaseMembershipsCleared groups added := by
+        ∧ queue.ReleaseOwners groups added available
+        ∧ queue.ReleaseMembershipsCleared groups added available := by
   dsimp only
   let released := groups.foldl successGroupStep (queue, [], {})
   obtain ⟨_, currentLinks, currentSettled, currentChildren, first, firstValues,
@@ -414,51 +429,85 @@ theorem State.PublicationInventory.successGroupFold_drain_bufferedCoverage {queu
     inventory.successGroupFold_prefixCoverage generated refs links settled children groups
       memberships
   have activated := State.PublicationInventory.mk flushed.unique flushed.provenance
-    (flushed.stored.startNewWork released.2.2)
+    (flushed.stored.startNewWork released.2.2 available)
   obtain ⟨later, laterValues, final, laterCoverage, laterConserved, laterStreams, laterOrder,
-    laterOwners, laterCleared⟩ :=
-    activated.drainReadyGroups_go_prefixCoverage (currentLinks.startNewWork _)
-      (released.1.startNewWork released.2.2).groupNodes.length
+    laterOwners, laterCleared, laterStartup⟩ :=
+    activated.drainReadyGroups_go_prefixCoverage_withStartup (currentLinks.startNewWork _ available)
+      (released.1.startNewWork released.2.2 available).1.groupNodes.length available clean
+  let activatedState := (released.1.startNewWork released.2.2 available).1
+  have own {occurrence node value} (lookup : queue.taskNode? occurrence = some node)
+      (stored : node.value = some value) : ∀ errors, (occurrence, errors) ∉ available := by
+    have source := (inventory.stored node (State.taskNode?_some lookup).1 value stored).1
+    rw [(State.taskNode?_some lookup).2] at source
+    exact clean occurrence value source
   have kept : ∀ occurrence node value,
       queue.taskNode? occurrence = some node → node.value = some value
-      → (occurrence, value) ∈ first
-        ∨ (released.1.startNewWork released.2.2).taskNode? occurrence = some node := by
-    intro occurrence node value found stored
-    exact (firstConserved occurrence node value found stored).imp_right
-      (fun retained => State.startNewWork_lookup_existing retained _)
-  refine ⟨first ++ later, ?_, ?_, firstCoverage.append laterCoverage firstValues kept, ?_,
-    firstStreams.append (laterStreams work generated (currentSettled.startNewWork _)
-      (currentChildren.startNewWork _)) firstValues, ?_, ?_, ⟨?_, ?_⟩, ⟨?_, ?_⟩⟩
+      → ∀ owner groups streams,
+          .groupSuccess owner groups streams ∈ (activatedState.drainReadyGroups available).2.1
+          → owner.ref ∈ node.task.groups.map Execution.DeliveryNode.ref
+          → (occurrence, value) ∈ first
+            ∨ activatedState.taskNode? occurrence = some node := by
+    intro occurrence node value found stored owner groups streams emitted contributes
+    rcases firstConserved occurrence node value found stored with published | retained
+    · exact .inl published
+    · obtain ⟨index, atEvent⟩ := List.mem_iff_getElem?.mp emitted
+      obtain ⟨survivor, present⟩ := State.drainReadyGroups_go_success_live
+        activatedState.groupNodes.length activatedState available atEvent
+      obtain ⟨contributor, listed, same⟩ := List.mem_map.mp contributes
+      exact .inr (State.startNewWork_lookup_existing retained _ available (own found stored)
+        listed (List.mem_of_find?_eq_some present)
+        ((State.groupNode?_ref present).trans same.symm))
+  have activatedOwners := firstOwners.append
+    (State.startNewWork_storedOwnersConserved _ released.2.2 available
+      (flushed.stored.mono (fun occurrence value source => clean _ _ source.1)))
+    (State.startNewWork_cancelledGroups_subset _ _ available)
+  refine ⟨
+    first ++ later,
+    ?_,
+    ?_,
+    firstCoverage.append_forCarriers laterCoverage firstValues kept,
+    ?_,
+    firstStreams.append
+      (laterStreams work generated (currentSettled.startNewWork _ available)
+        (currentChildren.startNewWork _ available))
+      firstValues,
+    ?_,
+    ?_,
+    ⟨?_, ?_⟩,
+    ⟨?_, ?_, ?_⟩
+  ⟩
   · simp only [List.map_append, List.flatMap_append, firstValues, laterValues]
     rfl
   · simpa only [List.append_assoc, State.drainReadyGroups, released] using final
   · intro occurrence node value found stored live
-    rcases kept occurrence node value found stored with earlier | retained
+    rcases firstConserved occurrence node value found stored with earlier | retained
     · exact Or.inl (List.mem_append_left _ earlier)
-    · exact (laterConserved occurrence node value retained stored live).imp_left
-        (List.mem_append_right _)
-  · have ordered := laterOrder ((memberships.successGroupFold groups).startNewWork _)
-    rw [(State.startNewWork_groupCore _ _).2.1] at ordered
+    · obtain ⟨contributor, listed, owner, present⟩ := live
+      obtain ⟨survivor, survives, _⟩ := State.drainReadyGroups_go_groupEdgesFrom
+        activatedState.groupNodes.length activatedState available _ _ present
+      have retained := State.startNewWork_lookup_existing retained _ available (own found stored)
+        listed (List.mem_of_find?_eq_some survives) (State.groupNode?_ref survives)
+      exact (laterConserved occurrence node value retained stored
+        ⟨contributor, listed, owner, present⟩).imp_left (List.mem_append_right _)
+  · have ordered := laterOrder ((memberships.successGroupFold groups).startNewWork _ available)
+    rw [State.startNewWork_tasks _ _ available] at ordered
     change BlocksFollowRegistrations (groups.foldl successGroupStep (queue, [], {})).1.tasks
       later _ at ordered
     rw [successGroupFold_tasks] at ordered
     exact firstOrder.append ordered
       (by simpa only [List.length_map] using congrArg List.length firstValues)
-  · have activatedOwners := firstOwners.append
-      (State.startNewWork_storedOwnersConserved _ released.2.2)
-      (by rw [State.startNewWork_cancelledGroups]; exact List.Subset.refl _)
-    have size : later.length = ((released.1.startNewWork released.2.2).drainReadyGroups.2.flatMap
+  · have size : later.length = ((activatedState.drainReadyGroups available).2.1.flatMap
         WorkQueueEvent.objectValues).length := by
       simpa only [List.length_map, State.drainReadyGroups, released]
         using congrArg List.length laterValues
     have fullOwners := laterOwners _ (Nat.le_refl _)
     change State.StoredOwnersConserved _
-      (later.take ((released.1.startNewWork released.2.2).drainReadyGroups.2.flatMap
+      (later.take ((activatedState.drainReadyGroups available).2.1.flatMap
         WorkQueueEvent.objectValues).length) _ at fullOwners
     rw [← size, List.take_length] at fullOwners
     simpa only [List.append_nil, State.drainReadyGroups, released]
       using activatedOwners.append fullOwners
-        (State.drainReadyGroups_go_cancelledGroups_subset _ _)
+        (State.drainReadyGroups_go_cancelledGroups_subset _ _ available)
   · intro steps bounded boundary
     have size : first.length = (released.2.1.flatMap WorkQueueEvent.objectValues).length := by
       simpa only [List.length_map] using congrArg List.length firstValues
@@ -468,16 +517,14 @@ theorem State.PublicationInventory.successGroupFold_drain_bufferedCoverage {queu
     rw [List.take_append_of_le_length count]
     exact foldOwners steps bounded
   · intro steps bounded
-    have activatedOwners := firstOwners.append
-      (State.startNewWork_storedOwnersConserved _ released.2.2)
-      (by rw [State.startNewWork_cancelledGroups]; exact List.Subset.refl _)
     have prefixOwners := activatedOwners.append (laterOwners steps bounded)
-      (State.drainReadyGroups_go_cancelledGroups_subset steps _)
+      (State.drainReadyGroups_go_cancelledGroups_subset steps _ available)
     have size : first.length = (released.2.1.flatMap WorkQueueEvent.objectValues).length := by
       simpa only [List.length_map] using congrArg List.length firstValues
     change queue.StoredOwnersConserved
-      ((first ++ later).take ((released.2.1 ++ (State.drainReadyGroups.go steps
-        (released.1.startNewWork released.2.2)).2).flatMap WorkQueueEvent.objectValues).length) _
+      ((first ++ later).take
+        ((released.2.1 ++ (State.drainReadyGroups.go available steps activatedState).2.1).flatMap
+          WorkQueueEvent.objectValues).length) _
     simpa only [List.flatMap_append, List.length_append, ← size, List.take_append,
       List.take_of_length_le (Nat.le_add_right _ _), Nat.add_sub_cancel_left,
       List.append_nil]
@@ -495,14 +542,21 @@ theorem State.PublicationInventory.successGroupFold_drain_bufferedCoverage {queu
     have size : first.length = (released.2.1.flatMap WorkQueueEvent.objectValues).length := by
       simpa only [List.length_map] using congrArg List.length firstValues
     change publication ∈ (first ++ later).take
-      ((released.2.1 ++ (State.drainReadyGroups.go steps
-        (released.1.startNewWork released.2.2)).2).flatMap WorkQueueEvent.objectValues).length
+      ((released.2.1 ++ (State.drainReadyGroups.go available steps activatedState).2.1).flatMap
+        WorkQueueEvent.objectValues).length
       at member
     simp only [List.flatMap_append, List.length_append, ← size, List.take_append,
       List.take_of_length_le (Nat.le_add_right _ _), Nat.add_sub_cancel_left] at member
     rcases List.mem_append.mp member with old | new
-    · exact ((firstCleared publication old).startNewWork released.2.2).drainReadyGroups_go steps
+    · exact ((firstCleared publication old).startNewWork released.2.2 available).drainReadyGroups_go
+        steps available
     · exact laterCleared steps bounded publication new
+
+  · have size : first.length = (released.2.1.flatMap WorkQueueEvent.objectValues).length := by
+      simpa only [List.length_map] using congrArg List.length firstValues
+    exact laterStartup.prepend first released.2.1 size
+      (fun publication member => (firstCleared publication member).startNewWork
+        released.2.2 available)
 
 -----------------------------------------------------------------------------------------
 -- Fresh task settlement supplies the prepared state used by the joint release proof
@@ -527,29 +581,40 @@ theorem State.PublicationInventory.taskSuccess_preparedCoverage {queue : State}
     (fresh : occurrence ∉ settledTasks) (allowed : property occurrence result.value)
     (unpublished : occurrence ∉ published.map Prod.fst)
     (memberships : queue.GroupMembershipOrder)
+    (available : List (Occurrence × Nat) := [])
+    (clean
+      : ∀ occurrence value,
+          property occurrence value → ∀ errors, (occurrence, errors) ∉ available := by
+        intro occurrence value _ errors member; cases member)
     : let stored := queue.putTaskNode { node with value := some result.value }
       let prepared := (stored.maybeIntegrateWork result.work (some occurrence)).1
       ∃ added : List ObjectPublication,
         added.map Prod.snd
-          = (queue.taskSuccess occurrence result).2.flatMap WorkQueueEvent.objectValues
-        ∧ (queue.taskSuccess occurrence result).1.PublicationInventory property
+          = (queue.taskSuccess occurrence result available).2.1.flatMap
+              WorkQueueEvent.objectValues
+        ∧ (queue.taskSuccess occurrence result available).1.PublicationInventory property
             (published ++ added)
-        ∧ prepared.BufferedClosuresCovered added (queue.taskSuccess occurrence result).2
+        ∧ prepared.BufferedClosuresCovered added
+            (queue.taskSuccess occurrence result available).2.1
         ∧ (∀ task buffered value,
             prepared.taskNode? task = some buffered
             → buffered.value = some value
             → (∃ contributor ∈ buffered.task.groups,
                 ∃ owner,
-                  (queue.taskSuccess occurrence result).1.groupNode? contributor.ref
+                  (queue.taskSuccess occurrence result available).1.groupNode?
+                    contributor.ref
                   = some owner)
             → (task, value) ∈ added
-              ∨ (queue.taskSuccess occurrence result).1.taskNode? task = some buffered)
-        ∧ StreamReleasePublications work added (queue.taskSuccess occurrence result).2
+              ∨ (queue.taskSuccess occurrence result available).1.taskNode? task
+                = some buffered)
+        ∧ StreamReleasePublications work added
+            (queue.taskSuccess occurrence result available).2.1
         ∧ BlocksFollowRegistrations prepared.tasks added
-            (queue.taskSuccess occurrence result).2
-        ∧ prepared.StoredOwnersConserved added (queue.taskSuccess occurrence result).1
-        ∧ prepared.ReleaseOwners node.task.groups added
-        ∧ prepared.ReleaseMembershipsCleared node.task.groups added := by
+            (queue.taskSuccess occurrence result available).2.1
+        ∧ prepared.StoredOwnersConserved added
+            (queue.taskSuccess occurrence result available).1
+        ∧ prepared.ReleaseOwners node.task.groups added available
+        ∧ prepared.ReleaseMembershipsCleared node.task.groups added available := by
   have known := State.taskNode?_some found
   have registered := accounted.started node known.1
   have installedLinks := links.putTaskNode { node with value := some result.value }
@@ -577,8 +642,8 @@ theorem State.PublicationInventory.taskSuccess_preparedCoverage {queue : State}
     preparedLinks preparedSettled preparedChildren node.task.groups
     (State.GroupMembershipOrder.maybeIntegrateWork
       (queue := queue.putTaskNode { node with value := some result.value }) memberships
-      result.work (some occurrence))
-  rw [queue.taskSuccess_eq occurrence result node found]
+      result.work (some occurrence)) available clean
+  rw [queue.taskSuccess_eq occurrence result node found available]
   exact joint
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

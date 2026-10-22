@@ -93,6 +93,29 @@ theorem NodeFailureCause.positive {work failed ref errors}
   obtain ⟨_, _, _, _, _, _, _, _, positive⟩ := h
   exact positive
 
+/-- A supported group aggregate is positive because every selected contribution is. -/
+theorem NodeFailureCauses.positive {work available ref errors}
+    (causes : NodeFailureCauses work available ref errors)
+    : 0 < errors := by
+  obtain ⟨causes, nonempty, _, supported, rfl⟩ := causes
+  cases causes with
+  | nil => exact (nonempty rfl).elim
+  | cons cause rest =>
+      obtain ⟨_, _, _, _, _, _, _, positive⟩ :=
+        supported cause.1 cause.2 List.mem_cons_self
+      simp only [List.map_cons, List.sum_cons]
+      omega
+
+/-- One licensed boundary cause is also a supported singleton group report. -/
+theorem NodeFailureCause.toCauses {work failed ref errors}
+    (cause : NodeFailureCause work failed ref errors)
+    : NodeFailureCauses work failed ref errors := by
+  obtain ⟨occurrence, available, owners, producer, payload, known, owned, count, positive⟩ := cause
+  refine ⟨[(occurrence, errors)], by simp, by simp, ?_, by simp⟩
+  intro task amount member
+  obtain ⟨rfl, rfl⟩ := Prod.mk.inj (List.mem_singleton.mp member)
+  exact ⟨available, owners, producer, payload, known, owned, count, positive⟩
+
 /-- Count failure-completion errors only; successful payload errors are separate. This
 proof observation does not constrain scheduler admission.
 -/
@@ -105,7 +128,7 @@ Successful closure contradicts failure; the reported cause may come from another
 -/
 theorem EventAllowed.failure_completion
     {work initial matching before failed event occurrence owners producer payload ref}
-    (h : EventAllowed work initial matching before failed event)
+    (h : EventAllowed work initial matching before failed event reported)
     (member : occurrence ∈ failedBefore failed before.length)
     (known : TaskAt work occurrence owners producer payload) (owner : ref ∈ owners)
     (closed : ref ∈ eventCompleted event)
@@ -166,7 +189,7 @@ theorem Explains.contributor_failure_reported_of_eventual_notice
     exact ⟨event, List.mem_iff_getElem?.mpr ⟨index, by
       simp [beforeCut, selected]⟩, closes⟩
   obtain ⟨node, errors, same, reports, bound⟩ :=
-    (h.2.2 index event selected).failure_completion
+    (h.eventAllowed index event selected).failure_completion
       (by
         have bound := (List.getElem?_eq_some_iff.mp selected).1
         simpa only [List.length_take, Nat.min_eq_left (Nat.le_of_lt bound)]
@@ -325,7 +348,7 @@ theorem Explains.published_succeeds {work groups streams events matching failure
   have length : (events.take index).length = index := by
     have bound := (List.getElem?_eq_some_iff.mp selected).choose
     simp [List.length_take, Nat.min_eq_left (Nat.le_of_lt bound)]
-  have allowed := h.2.2 index event selected
+  have allowed := h.eventAllowed index event selected
   cases event <;> try contradiction
   case groupValues node values =>
     obtain ⟨_, _, _, _, task, _⟩ := allowed
@@ -379,7 +402,7 @@ theorem Explains.first_failure_open_owner
         (h.2.1 [] cut occurrence rest rfl).2.2.1
       rw [← (known.unique task).2.2, success] at fails
       contradiction
-  have allowed := h.2.2 index event selectedFull
+  have allowed := h.eventAllowed index event selectedFull
   cases event <;> simp only [eventCompleted, List.mem_singleton] at closes
   all_goals simp only [EventAllowed, noFailures] at allowed
   case groupValues | streamValues => contradiction

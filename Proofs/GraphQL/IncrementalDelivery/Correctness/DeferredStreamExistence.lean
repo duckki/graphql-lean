@@ -40,22 +40,22 @@ theorem deferredStreams_located
       rcases ih with ⟨_, impossible, _, _⟩ | ⟨only, birth, owners⟩
       · cases impossible
       · rw [StreamOnly] at only
-        exact Or.inr ⟨only.1, birth, owners⟩
+        exact Or.inr ⟨only.1.withoutDeclarations, birth, owners⟩
   | right _ ih =>
       rcases ih with ⟨_, impossible, _, _⟩ | ⟨only, birth, owners⟩
       · cases impossible
       · rw [StreamOnly] at only
-        exact Or.inr ⟨only.2, birth, owners⟩
+        exact Or.inr ⟨only.2.withoutDeclarations, birth, owners⟩
   | executionGroup _ ih =>
       rcases ih with ⟨rfl, same, rfl, rfl⟩ | ⟨impossible, _, _⟩
       · cases same
-        exact Or.inr ⟨onlyStreams, by simp, Or.inr rfl⟩
+        exact Or.inr ⟨onlyStreams.withoutDeclarations, by simp, Or.inr rfl⟩
       · simp only [StreamOnly] at impossible
   | item _ entry ih =>
       rcases ih with ⟨_, impossible, _, _⟩ | ⟨only, _, _⟩
       · cases impossible
       · rw [StreamOnly] at only
-        exact Or.inr ⟨only _ (List.mem_of_getElem? entry), by simp, Or.inl rfl⟩
+        exact Or.inr ⟨(only _ (List.mem_of_getElem? entry)).withoutDeclarations, by simp, Or.inl rfl⟩
 
 /-- The wrapper's sole deferred task is its root task. Witness: every deeper location
 is stream-only, so cannot contain another execution-group boundary.
@@ -168,7 +168,8 @@ theorem sharedDeferredStreams_success_groups_healthy
           have member := (List.mem_filter.mp member).1
           have fails := explained.2.1.recorded_payload_fails
             (by simpa only [← equal] using member) task
-          simp only [same, success, Payload.failure, Option.isSome_none, Bool.false_eq_true] at fails
+          simp only [same, success, Payload.failure, Option.isSome_none,
+            Bool.false_eq_true] at fails
       | item located entry =>
           exact stream_group_refs_distinct roleCoherent (NodeAt.stream located.toCurrent)
             known (List.mem_singleton.mp owner).symm
@@ -251,7 +252,7 @@ theorem sharedDeferredStreams_completeRun_with_owners
       : node.ref ∈ (groups ++ streams).map DeliveryNode.ref :=
     covers node .group [] none (root node member) (eligible node member)
   have initial : Explains work groups streams [] (fun _ => .executionGroup []) [] :=
-    ⟨initialized, by simp [FailureWitness], by simp⟩
+    initialized.emptyExplains _
   have opened : Open ((groups ++ streams).map DeliveryNode.ref) [] anchor.ref := by
     exact ⟨by simpa [announcedRefs, pendingRefs] using rootNotified anchor member,
       by simp [completedRefs]⟩

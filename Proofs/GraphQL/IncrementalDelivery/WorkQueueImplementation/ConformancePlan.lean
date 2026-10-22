@@ -1,11 +1,12 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.SourceObservation
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.FailureAnnouncementCuts
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.Termination
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.Minimality
+import Proofs.GraphQL.IncrementalDelivery.Semantics.WorkSize
 
 /-! Proof-only conformance obligations and checked dependency edges, not assumed laws. -/
 
 namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue.ConformancePlan
-open GraphQL.IncrementalDelivery.Execution (WorkQueueEvent)
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 open GraphQL.IncrementalDelivery.Execution (WorkQueueEvent DeliveryNode)
 
@@ -35,7 +36,7 @@ structure ReplayPremises (work : Execution.Work) (inputs : List (List GraphEvent
   valid : ValidGraphEvents work inputs.flatten
   started : inputsStarted work inputs = true
 
-/-- One proposed nontermination history, matching, and ordered failure inventory.
+/-- One proposed nontermination history, matching, and separate causal/reporting inventories.
 All obligations below use this same witness; independent existential choices do not
 compose. These are proof data, not additional runtime state or source assumptions.
 -/
@@ -43,6 +44,7 @@ structure Witness where
   events : List WorkQueueEvent
   matching : PublicationMatching
   failures : FailureCuts
+  reported : FailureCuts := failures
 
 -----------------------------------------------------------------------------------------
 -- Shared-witness obligations, with no placeholder proofs
@@ -62,16 +64,25 @@ def BatchShape (work : Execution.Work) (inputs : List (List GraphEvent)) (w : Wi
             [])
     ((initialQueue work).runNormalized inputs).2
 
-/-- The shared cuts have exact error totals and previously announced contributing owners.
+/-- Reporting availability uses its own fresh cuts and covers every causal occurrence.
+Availability may precede causal settlement without adding a duplicate reporting entry.
+-/
+def ReportingAvailability (work : Execution.Work) (w : Witness) : Prop :=
+  FailureReportingWitness work (initialRefs work) w.events w.reported
+  ∧ CausalFailuresAvailable w.failures w.reported
+  ∧ CompleteFailureInventory work w.events w.reported
+
+/-- The causal cuts preserve invalidation and have previously announced contributing owners.
 Witness on the actual nonterminal history: `ConformanceFailureHistory`'s
 `announcedFailures_exists`, sharing the batching leaf's history without changing cut indices.
 -/
 def AnnouncedFailures (work : Execution.Work) (w : Witness) : Prop :=
-  CompleteFailureInventory work w.events w.failures
-  ∧ ∀ entry ∈ w.failures,
+  CausalFailureInventory work w.events w.failures
+  ∧ (∀ entry ∈ w.failures,
       ∃ owners,
         TaskHasOwners work entry.2 owners
-        ∧ ∃ ref ∈ owners, ref ∈ announcedRefs (initialRefs work) (w.events.take entry.1)
+        ∧ ∃ ref ∈ owners, ref ∈ announcedRefs (initialRefs work) (w.events.take entry.1))
+  ∧ ReportingAvailability work w
 
 /-- No accepted failure was cancelled by its ordered predecessors, using the same
 publication matching as every output-admission and terminal obligation.
@@ -91,7 +102,7 @@ def PublicationAdmission (work : Execution.Work) (w : Witness) : Prop :=
     w.events[index]? = some event
     → IsValue event
     → EventAllowed work (initialRefs work) w.matching (w.events.take index) w.failures
-        event
+        event w.reported
 
 /-- Every nonvalue atom satisfies the closure/error/notice rules. Since termination is
 not allowed here, this also excludes stray termination markers from the witness.
@@ -101,7 +112,7 @@ def ControlAdmission (work : Execution.Work) (w : Witness) : Prop :=
     w.events[index]? = some event
     → ¬IsValue event
     → EventAllowed work (initialRefs work) w.matching (w.events.take index) w.failures
-        event
+        event w.reported
 
 /-- All structural tasks are published or justifiably cancelled (including failure)
 at the end of this witness. Required only when concrete replay terminates.
@@ -121,18 +132,14 @@ def CancellationReporting (work : Execution.Work) (w : Witness) : Prop :=
     → ¬Published w.matching w.events occurrence
     → FailureReportedFor w.events payload.path
 
-/-- Every structural node is closed, or unannounced and failed/accounted for. Required
-only when concrete replay terminates, including latent nodes and empty streams.
+/-- A stronger terminal node certificate, retaining latent failure/accounting evidence.
+It supports the proof-only reduction of internal task accounting to node accounting;
+the public Terminal contract requires closure only for announced known nodes.
 -/
 def NodeAccounting (work : Execution.Work) (w : Witness) : Prop :=
-  ∀ node kind dependencies producer,
-    NodeAt work node kind dependencies producer
-    → node.ref ∈ completedRefs w.events
-      ∨ node.ref ∉ announcedRefs (initialRefs work) w.events
-        ∧ (NodeFailed work w.matching w.events w.failures node.ref
-            ∨ NodeAccounted work w.matching w.events w.failures node.ref)
+  NodesTerminal work (initialRefs work) w.matching w.events w.failures
 
-/-- Eight obligations under one witness. This is an internal proof target, not
+/-- Joint obligations under one witness. This is an internal proof target, not
 a premise added to the public conformance statement or the host event-source contract.
 -/
 structure Obligations (work : Execution.Work) (inputs : List (List GraphEvent))
@@ -169,7 +176,7 @@ Witness: the existing complete-inventory equivalence, with no new failure premis
 theorem failureWitness {work w} (announced : AnnouncedFailures work w)
     (uncancelled : UncancelledFailures work w)
     : FailureWitness work (initialRefs work) w.matching w.events w.failures :=
-  (announced.1.failureWitness_iff_uncancelled announced.2).mpr uncancelled
+  (announced.1.failureWitness_iff_uncancelled announced.2.1).mpr uncancelled
 
 /-- The two event classes exhaust the output history under the same licensed cuts.
 Witness: split on value membership and assemble the exact public explanation.
@@ -182,7 +189,8 @@ theorem explains {work w}
     (publications : PublicationAdmission work w) (controls : ControlAdmission work w)
     : Explains work (initialQueue work).initialGroups (initialQueue work).initialStreams
         w.events w.matching w.failures := by
-  refine ⟨initialized, failureWitness announced uncancelled, ?_⟩
+  refine ⟨initialized, failureWitness announced uncancelled, w.reported,
+    announced.2.2.1, announced.2.2.2.1, ?_⟩
   intro index event atIndex
   classical
   by_cases value : IsValue event
@@ -195,21 +203,15 @@ Witness: select publication or pair cancellation with its report on the same his
 theorem terminal {work w} (tasks : TaskAccounting work w) (nodes : NodeAccounting work w)
     (reported : CancellationReporting work w)
     : Terminal work (initialRefs work) w.matching w.events w.failures := by
-  refine ⟨?_, nodes⟩
-  intro occurrence owners producer payload known
-  by_cases published : Published w.matching w.events occurrence
-  · exact Or.inr published
-  · exact Or.inl ⟨(tasks _ _ _ _ known).resolve_right published,
-      reported _ _ _ _ known published⟩
-
-private theorem batching_termination_mem {events batches}
-    (batching : WorkBatching events batches)
-    : WorkQueueEvent.workQueueTermination ∈ batches.flatten
-      ↔ WorkQueueEvent.workQueueTermination ∈ events := by
-  induction batching with
-  | nil => simp
-  | cons nonempty values subsequent ih =>
-      simp only [List.flatten_cons, List.mem_append, values.termination_mem, ih]
+  constructor
+  · intro occurrence owners producer payload known
+    by_cases published : Published w.matching w.events occurrence
+    · exact Or.inr published
+    · exact Or.inl ⟨(tasks _ _ _ _ known).resolve_right published,
+        reported _ _ _ _ known published⟩
+  · intro node kind dependencies producer known announced
+    exact (nodes node kind dependencies producer known).resolve_right
+      (fun hidden => hidden.1 announced)
 
 /-- A shared certificate gives a complete run precisely when concrete replay ended.
 The reverse edge needs no new conjecture: an abstract run contains a termination
@@ -227,9 +229,9 @@ theorem run_iff_terminated {work inputs w}
       ↔ ((initialQueue work).runNormalized inputs).1.terminated = true := by
   constructor
   · rintro ⟨events, matching, failures, _, _, grouped⟩
-    have marker := (batching_termination_mem grouped).mpr
+    have marker := grouped.termination_mem.mpr
       (by simp : WorkQueueEvent.workQueueTermination ∈ events ++ [.workQueueTermination])
-    have actual := (batching_termination_mem batching).mp marker
+    have actual := batching.termination_mem.mp marker
     cases done : ((initialQueue work).runNormalized inputs).1.terminated with
     | false =>
         simp only [done, Bool.false_eq_true, ↓reduceIte, List.append_nil] at actual
@@ -340,11 +342,11 @@ theorem conforms_of_replayWitnessExists (witnesses : ReplayWitnessExists)
     : (createWorkQueueForSchedule work schedule).Conforms work := by
   have admitted : AdmittedReplayWitnesses work schedule := by
     intro inputs accepted
-    obtain ⟨valid, started⟩ := source.2.2.2 inputs accepted
+    obtain ⟨valid, started, _⟩ := source.2.2.2.2 inputs accepted
     exact witnesses work inputs
       ⟨nonempty, generated, initialized, valid, started⟩
-  exact ⟨createWorkQueueForSchedule_initialized work schedule source.2.1,
-    createWorkQueueForSchedule_prefixClosed work schedule source.2.2.1,
+  exact ⟨createWorkQueueForSchedule_initialized work schedule source.2.2.1,
+    createWorkQueueForSchedule_prefixClosed work schedule source.2.2.2.1,
     accountsForWork initialized admitted, terminationMatchesWork initialized admitted⟩
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue.ConformancePlan

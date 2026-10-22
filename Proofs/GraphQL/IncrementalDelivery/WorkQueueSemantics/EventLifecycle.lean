@@ -79,7 +79,7 @@ theorem Explains.allCompleted {work groups streams events matching failures}
         ref ∈ completedRefs events := by
   intro ref member
   obtain ⟨node, kind, dependencies, birth, known, rfl⟩ := h.noticeFacts.supported ref member
-  exact (done.2 node kind dependencies birth known).resolve_right (fun hidden => hidden.1 member)
+  exact done.2 node kind dependencies birth known member
 
 /-- (liveEvents events) requires every newly announced ref in the supplied atomic output
 list to complete in that event or a later event.

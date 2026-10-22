@@ -67,74 +67,62 @@ theorem State.LiveDescendant.appendGroupNode {queue : State} {root target}
   | self found => exact .self (lookup found)
   | child found linked below ih => exact .child (lookup found) linked ih
 
-/-- Registering one descriptor cannot remove any previously live path.
-Witness: the no-op and immediate-cancellation cases leave records alone; insertion appends
-an empty shell without replacing an old lookup.
+/-- Installing a shell and growing its parent's child list retain every live path.
+Witness: old lookups survive the append, and unique refs identify the updated parent.
 -/
 theorem State.LiveDescendant.addGroup {queue : State} {root target}
-    (path : queue.LiveDescendant root target) (group : Group)
+    (path : queue.LiveDescendant root target) (unique : queue.GroupRefsUnique)
+    (group : Group)
     : (queue.addGroup group).LiveDescendant root target := by
   unfold State.addGroup
   split
   · exact path
-  · split
-    · exact State.LiveDescendant.of_groupNodes_eq (queue := queue) rfl path
-    · exact State.LiveDescendant.of_groupNodes_eq
-        (queue := { queue with groupNodes := queue.groupNodes ++ [{ group }] })
-        rfl (path.appendGroupNode { group })
+  · rename_i guard
+    have absent : group.node.ref ∉ queue.registeredGroups
+        ∧ queue.groupNode? group.node.ref = none := by simpa using guard
+    have appended : ({queue with
+        registeredGroups := queue.registeredGroups ++ [group.node.ref],
+        groupNodes := queue.groupNodes ++ [{group}]} : State).LiveDescendant root target :=
+      State.LiveDescendant.of_groupNodes_eq
+        (queue := {queue with groupNodes := queue.groupNodes ++ [{group}]}) rfl
+        (path.appendGroupNode {group})
+    split
+    · exact appended
+    · rename_i parent parentEq
+      split
+      · split <;> exact State.LiveDescendant.of_groupNodes_eq (queue := queue) rfl path
+      · rename_i node found
+        apply State.LiveDescendant.putGroupNode_growing (ref := parent)
+          appended
+        · have fresh : group.node.ref ∉ queue.groupNodes.map (fun node => node.group.node.ref) := by
+            intro member
+            obtain ⟨old, included, same⟩ := List.mem_map.mp member
+            exact List.find?_eq_none.mp absent.2 old included (beq_iff_eq.mpr same)
+          change ((queue.groupNodes ++ [({group} : GroupNode)]).map _).Nodup
+          simpa [List.map_append, fresh] using List.nodup_append.mpr
+            ⟨unique, by simp, by
+              intro ref member other included same
+              obtain rfl := List.mem_singleton.mp included
+              exact fresh (same ▸ member)⟩
+        · simp only [State.groupNode?, List.find?_append]
+          change (queue.groupNode? _).or _ = some node
+          simp [found]
+        · rfl
+        · split
+          · exact List.Subset.refl _
+          · exact List.subset_append_left _ _
 
------------------------------------------------------------------------------------------
--- Both registration passes retain paths, including through taskless ancestor records
------------------------------------------------------------------------------------------
-
-/-- Registering groups and attaching fresh parent links preserves every old live path.
-Witness: both passes preserve unique refs; new shells append and links only extend the
-actual looked-up parent's child list. Descriptor order and stale links are unrestricted.
+/-- Recursive registration preserves old paths through immediate parent updates.
+Witness: distinct refs and the existing path are preserved at each installation.
 -/
 theorem State.LiveDescendant.addGroups {queue : State} {root target}
     (path : queue.LiveDescendant root target) (unique : queue.GroupRefsUnique)
     (groups : List Group)
     : (queue.addGroups groups).1.LiveDescendant root target := by
-  let fresh := groups.filter (fun group =>
-    !queue.registeredGroups.contains group.node.ref && (queue.groupNode? group.node.ref).isNone)
-  let step (current : State) (group : Group) : State :=
-    match group.parent with
-    | none => current
-    | some parent =>
-        match current.groupNode? parent with
-        | none => current
-        | some node =>
-            let children := if node.childGroups.contains group.node.ref then
-              node.childGroups else node.childGroups ++ [group.node.ref]
-            current.putGroupNode { node with childGroups := children }
-  have register (more : List Group) (current : State)
-      (refs : current.GroupRefsUnique) (covered : current.LiveDescendant root target)
-      : (more.foldl State.addGroup current).GroupRefsUnique
-        ∧ (more.foldl State.addGroup current).LiveDescendant root target := by
-    induction more generalizing current with
-    | nil => exact ⟨refs, covered⟩
-    | cons group rest ih => exact ih _ (refs.addGroup group) (covered.addGroup group)
-  have link (more : List Group) (current : State)
-      (refs : current.GroupRefsUnique) (covered : current.LiveDescendant root target)
-      : (more.foldl step current).LiveDescendant root target := by
-    induction more generalizing current with
-    | nil => exact covered
-    | cons group rest ih =>
-        rw [List.foldl_cons]
-        unfold step
-        split
-        · exact ih _ refs covered
-        · split
-          · exact ih _ refs covered
-          · rename_i node found
-            apply ih _ (refs.putGroupNode _)
-            apply covered.putGroupNode_growing refs found
-            · rfl
-            · split
-              · exact List.Subset.refl _
-              · exact List.subset_append_left _ _
-  have registered := register fresh queue unique path
-  exact link fresh _ registered.1 registered.2
+  exact (State.addGroups_preserves
+    (fun current => current.GroupRefsUnique ∧ current.LiveDescendant root target) groups
+    (fun _ group _ prior => ⟨prior.1.addGroup group, prior.2.addGroup prior.1 group⟩)
+    queue ⟨unique, path⟩).2
 
 -----------------------------------------------------------------------------------------
 -- Task and stream registration preserve the same paths through the remaining stages

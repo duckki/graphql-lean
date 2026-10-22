@@ -35,7 +35,7 @@ theorem State.taskFailure_ownerRootsAbsent
     | some node =>
         if current.rootGroups.contains group.ref then
           let (next, failure) := current.finishGroupFailure node errors
-          (next, events ++ [failure])
+          (next, events ++ [.groupFailure failure.group failure.errors])
         else (current, events)
   have stepFacts (acc : State × List WorkQueueEvent)
       (group : Execution.DeliveryNode)
@@ -246,7 +246,9 @@ theorem State.RootGroupsHealthy.taskFailure_initialFrontier
     (fun ancestor member => protection (occurrence :: failed) ancestor member)
 
 /-- Every failure input preserves initial-frontier health under the accepted inventory.
-Witness: accepted tasks use owner removal; missing tasks add no failure token and leave group roots unchanged. No acceptance premise is imposed. -/
+Witness: accepted tasks use owner removal; missing tasks add no failure token and leave
+group roots unchanged. No acceptance premise is imposed.
+-/
 theorem State.RootGroupsHealthy.taskFailure_initialFrontier_contributions
     {queue : State} {work : Execution.Work} {failed : List Occurrence} {groups streams}
     (healthy : queue.RootGroupsHealthy work failed)

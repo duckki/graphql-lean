@@ -19,6 +19,10 @@ mutual
   the slices retain the same absolute stream offsets as the cursor seed. -/
   inductive WorkAttached : List Entry → Work → List (List ResponsePath) → Prop where
     | empty {available : List Entry} : WorkAttached available .empty []
+    | declareGroups {available : List Entry} {groups : List DeferredFragment}
+      {tasks : Work} {slices : List (List ResponsePath)}
+      (known : WorkAttached available tasks slices)
+      : WorkAttached available (.declareGroups groups tasks) slices
     | combine {available : List Entry} {left right : Work}
       {ls rs : List (List ResponsePath)} (hl : WorkAttached available left ls)
       (hr : WorkAttached available right rs)
@@ -72,6 +76,7 @@ mutual
       : WorkAttached right work slices := by
     cases h with
     | empty => exact .empty
+    | declareGroups known => exact .declareGroups (known.mono hm)
     | combine hl hr => exact .combine (hl.mono hm) (hr.mono hm)
     | executionGroup ha hc =>
         refine .executionGroup (hm _ ha) (hc.mono ?_)

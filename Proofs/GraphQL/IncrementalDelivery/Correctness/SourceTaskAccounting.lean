@@ -43,30 +43,32 @@ theorem sourceItemTasks_member {address producer node index ordinal items task}
 and payload. Witness: structural task lookup, recursively preserving absolute addresses.
 -/
 theorem sourceTasks_known {root address work producer owners}
-    (located : Located root address work producer owners)
+    (located : Located root address work.withoutDeclarations producer owners)
     (cursors : ResponsePositions.Cursors) {task}
     (member : task ∈ sourceTasks address producer cursors work)
     : ∃ taskOwners,
         TaskAt root task.occurrence taskOwners task.producer task.payload := by
   cases work with
   | empty => simp [sourceTasks] at member
+  | declareGroups groups tasks =>
+      exact sourceTasks_known (work := tasks) located cursors member
   | combine left right =>
       rw [sourceTasks] at member
       rcases List.mem_append.mp member with member | member
-      · exact sourceTasks_known (.left located) cursors member
-      · exact sourceTasks_known (.right located) cursors member
+      · exact sourceTasks_known (work := left) (.left located) cursors member
+      · exact sourceTasks_known (work := right) (.right located) cursors member
   | executionGroup groups path result children =>
       rw [sourceTasks] at member
       rcases List.mem_cons.mp member with rfl | member
       · exact ⟨_, .executionGroup located⟩
-      · exact sourceTasks_known (.executionGroup located) _ member
+      · exact sourceTasks_known (work := children) (.executionGroup located) _ member
   | stream node items =>
       obtain ⟨offset, result, children, entry, selected⟩ := sourceItemTasks_member member
       simp only [Nat.zero_add] at selected
       rcases selected with rfl | selected
       · exact ⟨_, .item located entry⟩
       · have smaller := List.sizeOf_lt_of_mem (List.mem_of_getElem? entry)
-        exact sourceTasks_known (.item located entry) _ selected
+        exact sourceTasks_known (work := children) (.item located entry) _ selected
 termination_by sizeOf work
 decreasing_by all_goals simp_all; omega
 
@@ -77,7 +79,7 @@ theorem sourceTasks_seeded {cursors work slices task}
     (seeded : WorkCursorSeed cursors work slices)
     (member : task ∈ sourceTasks [] none cursors work)
     : task.Seeded cursors (sourceTasks [] none cursors work) := by
-  obtain ⟨owners, known⟩ := sourceTasks_known .root cursors member
+  obtain ⟨owners, known⟩ := sourceTasks_known (work := work) .root cursors member
   obtain ⟨other, otherMember, same, _, _, seed⟩ := sourceTasks_task_seeded seeded known
   have equal := sourceTasks_same otherMember member same
   simpa only [equal] using seed

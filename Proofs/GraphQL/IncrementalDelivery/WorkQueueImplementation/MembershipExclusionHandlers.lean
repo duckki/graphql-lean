@@ -56,13 +56,15 @@ theorem State.PublicationInventory.taskSuccess_memberships {queue : State}
     (allowed : property occurrence result.value)
     (fresh : occurrence ∉ published.map Prod.fst)
     (childrenFresh : ∀ task ∈ result.work.tasks, task.occurrence ∉ published.map Prod.fst)
+    (available : List (Occurrence × Nat) := [])
     : ∃ added : List ObjectPublication,
         added.map Prod.snd
-          = (queue.taskSuccess occurrence result).2.flatMap WorkQueueEvent.objectValues
-        ∧ (queue.taskSuccess occurrence result).1.PublicationInventory property
+          = (queue.taskSuccess occurrence result available).2.1.flatMap
+              WorkQueueEvent.objectValues
+        ∧ (queue.taskSuccess occurrence result available).1.PublicationInventory property
             (published ++ added)
         ∧ ∀ publication ∈ published ++ added,
-            (queue.taskSuccess occurrence result).1.TaskMembershipAbsent
+            (queue.taskSuccess occurrence result available).1.TaskMembershipAbsent
               publication.1 := by
   cases found : queue.taskNode? occurrence with
   | none =>
@@ -105,14 +107,16 @@ theorem State.PublicationInventory.taskSuccess_memberships {queue : State}
         ⟨[], rfl, by simpa only [List.append_nil] using
           State.PublicationInventory.mk inventory.unique inventory.provenance integrated,
           by simpa only [List.append_nil] using integratedAbsent⟩
-      rw [queue.taskSuccess_eq occurrence result node found]
+      rw [queue.taskSuccess_eq occurrence result node found available]
       let released := node.task.groups.foldl successGroupStep
         (((queue.putTaskNode { node with value := some result.value }).maybeIntegrateWork
           result.work (some occurrence)).1, [], {})
       have activated := State.PublicationInventory.mk final.unique final.provenance
-        (final.stored.startNewWork released.2.2)
+        (final.stored.startNewWork released.2.2 available)
       obtain ⟨later, laterValues, drained, removed⟩ := activated.drainReadyGroups_memberships
-        (fun publication member => (excluded publication member).startNewWork released.2.2)
+        (fun publication member =>
+          (excluded publication member).startNewWork released.2.2 available)
+        available
       refine ⟨added ++ later, ?_, ?_, ?_⟩
       · simp only [List.map_append, List.flatMap_append, values, laterValues]
         rfl
@@ -142,23 +146,28 @@ theorem State.PublicationInventory.streamItems_memberships {queue : State}
     (childrenFresh
       : ∀ item ∈ items,
         ∀ task ∈ item.work.tasks, task.occurrence ∉ published.map Prod.fst)
+    (available : List (Occurrence × Nat) := [])
     : ∃ added : List ObjectPublication,
         added.map Prod.snd
-          = (queue.streamItems stream items).2.flatMap WorkQueueEvent.objectValues
-        ∧ (queue.streamItems stream items).1.PublicationInventory property
+          = (queue.streamItems stream items available).2.1.flatMap
+              WorkQueueEvent.objectValues
+        ∧ (queue.streamItems stream items available).1.PublicationInventory property
             (published ++ added)
         ∧ ∀ publication ∈ published ++ added,
-            (queue.streamItems stream items).1.TaskMembershipAbsent publication.1 := by
+            (queue.streamItems stream items available).1.TaskMembershipAbsent
+              publication.1 := by
   let step (acc : State × List Execution.DeliveryNode
-      × List Execution.DeliveryNode × List StreamItemValue) (item : StreamItem) :=
-    let (current, groups, streams, values) := acc
+      × List Execution.DeliveryNode × List StreamItemValue × List GroupFailureEvent)
+      (item : StreamItem) :=
+    let (current, groups, streams, values, failures) := acc
     let (integrated, newWork) := current.maybeIntegrateWork item.work
     let (pruned, nonempty) := integrated.pruneEmptyGroups newWork.newGroups
-    (pruned.startNewWork { newWork with newGroups := nonempty },
-      groups ++ nonempty, streams ++ newWork.newStreams, values ++ [item.value])
+    let (started, queued) := pruned.startNewWork { newWork with newGroups := nonempty } available
+    (started, groups ++ nonempty, streams ++ newWork.newStreams,
+      values ++ [item.value], failures ++ queued)
   have loop (rest : List StreamItem) (included : rest.Subset items)
       (acc : State × List Execution.DeliveryNode
-        × List Execution.DeliveryNode × List StreamItemValue)
+        × List Execution.DeliveryNode × List StreamItemValue × List GroupFailureEvent)
       (prior : acc.1.PublicationInventory property published)
       (excluded : ∀ publication ∈ published, acc.1.TaskMembershipAbsent publication.1)
       : (rest.foldl step acc).1.PublicationInventory property published
@@ -172,20 +181,21 @@ theorem State.PublicationInventory.streamItems_memberships {queue : State}
             prior.unique,
             prior.provenance,
             ((prior.stored.maybeIntegrateWork item.work).pruneEmptyGroups _).startNewWork
-              _
+              _ available
           ⟩
         intro publication member
         have integrated := (excluded publication member).maybeIntegrateWork item.work (by
           intro task taskMember same
           exact childrenFresh item (included List.mem_cons_self) task taskMember
             (List.mem_map.mpr ⟨publication, member, same⟩))
-        exact (integrated.pruneEmptyGroups _).startNewWork _
-  obtain ⟨folded, excluded⟩ := loop items (List.Subset.refl _) (queue, [], [], []) inventory absent
+        exact (integrated.pruneEmptyGroups _).startNewWork _ available
+  obtain ⟨folded, excluded⟩ :=
+    loop items (List.Subset.refl _) (queue, [], [], [], []) inventory absent
   unfold State.streamItems
   split
   · exact ⟨[], rfl, by simpa using inventory, by simpa using absent⟩
   · simpa only [List.flatMap_cons, WorkQueueEvent.objectValues, List.nil_append]
-      using folded.drainReadyGroups_memberships excluded
+      using folded.drainReadyGroups_memberships excluded available
 
 /-- Every input handler preserves exclusion on its exact object publication inventory.
 Witness: success/item handlers use fresh children and the joint flush ledger; failure and
@@ -201,27 +211,40 @@ theorem State.PublicationInventory.handleGraphEvent_memberships
           event = .taskSuccess occurrence result
           → property occurrence result.value ∧ occurrence ∉ published.map Prod.fst)
     (childrenFresh : ∀ task ∈ event.childTasks, task.occurrence ∉ published.map Prod.fst)
+    (available : List (Occurrence × Nat) := [])
     : ∃ added : List ObjectPublication,
         added.map Prod.snd
-          = (queue.handleGraphEvent event).2.flatMap WorkQueueEvent.objectValues
-        ∧ (queue.handleGraphEvent event).1.PublicationInventory property
+          = (queue.handleGraphEvent event available).2.1.flatMap
+              WorkQueueEvent.objectValues
+        ∧ (queue.handleGraphEvent event available).1.PublicationInventory property
             (published ++ added)
         ∧ ∀ publication ∈ published ++ added,
-            (queue.handleGraphEvent event).1.TaskMembershipAbsent publication.1 := by
-  have preserved := inventory.stored.handleGraphEvent event allowed
+            (queue.handleGraphEvent event available).1.TaskMembershipAbsent
+              publication.1 := by
+  have cached := State.PublicationInventory.mk inventory.unique inventory.provenance
+    (inventory.stored.cacheTaskFailures available)
+  have cachedAbsent := fun publication member =>
+    (absent publication member).cacheTaskFailures available
+  have preserved := inventory.stored.handleGraphEvent event allowed available
   cases event with
   | taskSuccess occurrence result =>
-      exact inventory.taskSuccess_memberships absent occurrence result
-        (allowed _ _ rfl).1 (allowed _ _ rfl).2 childrenFresh
+      exact cached.taskSuccess_memberships cachedAbsent occurrence result
+        (allowed _ _ rfl).1 (allowed _ _ rfl).2 childrenFresh available
   | taskFailure occurrence errors =>
-      refine ⟨[], (queue.taskFailure_objectValues occurrence errors).symm, ?_, ?_⟩
+      refine ⟨
+        [],
+        ((queue.cacheTaskFailures available).taskFailure_objectValues occurrence
+          errors).symm,
+        ?_,
+        ?_
+      ⟩
       · simpa only [List.append_nil] using State.PublicationInventory.mk inventory.unique
           inventory.provenance preserved
       · simpa only [List.append_nil, State.handleGraphEvent]
           using (fun publication member =>
-                  (absent publication member).taskFailure occurrence errors)
+                  (cachedAbsent publication member).taskFailure occurrence errors)
   | streamItems stream items =>
-      apply inventory.streamItems_memberships absent stream items
+      apply cached.streamItems_memberships cachedAbsent stream items (available := available)
       intro item member task taskMember
       exact childrenFresh task (List.mem_flatMap.mpr ⟨item, member, taskMember⟩)
   | streamSuccess stream =>
@@ -231,7 +254,7 @@ theorem State.PublicationInventory.handleGraphEvent_memberships
       · simpa only [List.append_nil] using State.PublicationInventory.mk inventory.unique
           inventory.provenance preserved
       · simp only [State.handleGraphEvent, State.streamSuccess, List.append_nil]
-        split <;> exact absent
+        split <;> exact cachedAbsent
   | streamFailure stream errors =>
       refine ⟨[], ?_, ?_, ?_⟩
       · simp only [State.handleGraphEvent, State.streamFailure]
@@ -239,6 +262,19 @@ theorem State.PublicationInventory.handleGraphEvent_memberships
       · simpa only [List.append_nil] using State.PublicationInventory.mk inventory.unique
           inventory.provenance preserved
       · simp only [State.handleGraphEvent, State.streamFailure, List.append_nil]
-        split <;> exact absent
+        split <;> exact cachedAbsent
+
+  | groupFailure notice =>
+      refine ⟨[], ?_, ?_, ?_⟩
+      · simp only [State.handleGraphEvent, State.groupFailure]
+        split
+        · rfl
+        · split <;> rfl
+      · simpa only [List.append_nil] using State.PublicationInventory.mk inventory.unique
+          inventory.provenance preserved
+      · simp only [State.handleGraphEvent, State.groupFailure, List.append_nil]
+        split
+        · exact cachedAbsent
+        · split <;> exact cachedAbsent
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

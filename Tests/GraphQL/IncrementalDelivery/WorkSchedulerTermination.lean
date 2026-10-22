@@ -29,12 +29,13 @@ private def noChildren : Execution.Work := .combine .empty .empty
 
 private def work : Execution.Work :=
   .combine .empty
-    (.combine
-      (.executionGroup [⟨parent, []⟩] [] ({ result := .ok (firstValue.data, 1) })
-        noChildren)
+    (.declareGroups [⟨parent, []⟩, ⟨other, []⟩]
       (.combine
-        (.executionGroup [⟨parent, []⟩, ⟨other, []⟩] []
-          ({ result := .ok (sharedValue.data, 0) }) noChildren) .empty))
+        (.executionGroup [⟨parent, []⟩] [] ({ result := .ok (firstValue.data, 1) })
+          noChildren)
+        (.combine
+          (.executionGroup [⟨parent, []⟩, ⟨other, []⟩] []
+            ({ result := .ok (sharedValue.data, 0) }) noChildren) .empty)))
 
 private def first : GraphEvent := .taskSuccess firstTask { value := firstValue }
 private def shared : GraphEvent := .taskSuccess sharedTask { value := sharedValue }

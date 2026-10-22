@@ -22,7 +22,7 @@ theorem ExecutedWork.taskSuccess_noticeAncestor_prepared_or_published
     (generated : ExecutedWork work)
     (valid : ValidGraphEvents work (before ++ [.taskSuccess occurrence result]))
     (started
-      : (State.initialize (Work.fromExecution work)).acceptsBatch
+      : State.eventsStarted [] (State.initialize (Work.fromExecution work))
           (before ++ [.taskSuccess occurrence result])
         = true)
     (covered
@@ -32,7 +32,7 @@ theorem ExecutedWork.taskSuccess_noticeAncestor_prepared_or_published
       : output
         ∈ (((State.initialize (Work.fromExecution work)).replayGraphEvents
               before).taskSuccess
-            occurrence result).2)
+            occurrence result).2.1)
     (noticed : child.ref ∈ rawGroupNoticeRefs output)
     (known : GroupRecordAt work child dependencies) (ancestor : ref ∈ dependencies)
     (task : TaskAt work (.executionGroup address) owners producer payload)
@@ -62,15 +62,15 @@ theorem ExecutedWork.taskSuccess_noticeAncestor_prepared_or_published
       emitted noticed known ancestor task contributes
   · obtain ⟨rfl, rfl⟩ := GraphEvent.taskSuccess.inj current
     have healthy := (generated.noticeAncestor_healthy_uncancelled valid
-      (State.acceptsBatch_prefix started) emitted noticed known ancestor).1
+      (State.eventsStarted_prefix started) emitted noticed known ancestor).1
     obtain ⟨liveNode, lookup, nodeContributes, present⟩ :=
       generated.success_with_finalHealthyOwner_live valid started task contributes healthy
         (result := result) (before := before) (after := []) (by simp)
     have same : liveNode = incoming := Option.some.inj (lookup.symm.trans found)
     subst liveNode
-    have accounted := (createWorkQueue_pendingAccounting work).replayGraphEvents
+    have accounted := (createWorkQueue_pendingAccounting work generated.declarations).replayGraphEvents
       (before := []) generated before (valid.prefix (List.prefix_append before [_]))
-        (State.acceptsBatch_prefix started)
+        (State.eventsStarted_prefix started)
     have member := State.taskNode?_some found
     obtain ⟨_, nodePayload, nodeProducer, _, descriptor⟩ :=
       (accounted.matching incoming.task (accounted.started incoming member.1)).1
@@ -131,19 +131,20 @@ theorem ExecutedWork.taskSuccess_noticeAncestor_bufferBefore
       → queue.taskNode? occurrence = some incoming
       → prepared.taskNode? buffered = some node
       → ref ∈ prepared.groupNodes.map (fun owner => owner.group.node.ref)
-      → (queue.taskSuccess occurrence result).2[index]?
+      → (queue.taskSuccess occurrence result).2.1[index]?
         = some (.groupSuccess group groups streams)
       → child ∈ groups
       → ref ∉ (queue.taskSuccess occurrence result).1.cancelledGroups
       → (buffered, value)
         ∈ published.take
-            (((queue.taskSuccess occurrence result).2.take index).flatMap
+            (((queue.taskSuccess occurrence result).2.1.take index).flatMap
               WorkQueueEvent.objectValues).length := by
   intro queue prepared prefixes found lookup present selected noticed uncancelled
   let released := incoming.task.groups.foldl successGroupStep (prepared, [], {})
-  let active := released.1.startNewWork released.2.2
+  let active := (released.1.startNewWork released.2.2).1
   have equation : queue.taskSuccess occurrence result
-      = (active.drainReadyGroups.1, released.2.1 ++ active.drainReadyGroups.2) := by
+      = (active.drainReadyGroups.1, released.2.1 ++ active.drainReadyGroups.2.1,
+          (released.1.startNewWork released.2.2).2 ++ active.drainReadyGroups.2.2) := by
     rw [queue.taskSuccess_eq occurrence result incoming found]
 
   rw [equation] at selected uncancelled ⊢
@@ -152,13 +153,13 @@ theorem ExecutedWork.taskSuccess_noticeAncestor_bufferBefore
   · rw [List.getElem?_append_left inFold] at selected
     rw [List.take_append_of_le_length (Nat.le_of_lt inFold)]
     obtain ⟨parents, canonical, records, links, live, tasks, roots, _⟩ :=
-      generated.replayGraphEvents_preparedRetirement before matching matched incoming
+      generated.replayGraphEvents_preparedRetirement before matching matched incoming [] found
     have preparedUncancelled : ref ∉ prepared.cancelledGroups := by
       intro member
       apply uncancelled
       apply State.drainReadyGroups_go_cancelledGroups_subset
-      simpa only [active, State.startNewWork_cancelledGroups, released,
-        successGroupFold_cancelledGroups] using member
+      apply State.startNewWork_cancelledGroups_subset
+      simpa only [released, successGroupFold_cancelledGroups] using member
     exact (prefixes incoming found).ownerCarrier_ancestorValue generated records
       links canonical live tasks roots selected noticed known ancestor lookup stored task
       contributes present preparedUncancelled
@@ -184,7 +185,7 @@ theorem ExecutedWork.taskSuccess_noticeAncestor_contributor_before
     (generated : ExecutedWork work)
     (valid : ValidGraphEvents work (before ++ [.taskSuccess occurrence result]))
     (started
-      : (State.initialize (Work.fromExecution work)).acceptsBatch
+      : State.eventsStarted [] (State.initialize (Work.fromExecution work))
           (before ++ [.taskSuccess occurrence result])
         = true)
     (covered
@@ -193,7 +194,7 @@ theorem ExecutedWork.taskSuccess_noticeAncestor_contributor_before
     (selected
       : (((State.initialize (Work.fromExecution work)).replayGraphEvents
             before).taskSuccess
-          occurrence result).2[index]?
+          occurrence result).2.1[index]?
         = some (.groupSuccess group groups streams))
     (noticed : child ∈ groups) (known : GroupRecordAt work child dependencies)
     (ancestor : ref ∈ dependencies)
@@ -207,12 +208,12 @@ theorem ExecutedWork.taskSuccess_noticeAncestor_contributor_before
                 WorkQueueEvent.objectValues).length
               + (((((State.initialize (Work.fromExecution work)).replayGraphEvents
                       before).taskSuccess
-                    occurrence result).2.take
+                    occurrence result).2.1.take
                     index).flatMap
                   WorkQueueEvent.objectValues).length) := by
   let initial := State.initialize (Work.fromExecution work)
   let queue := initial.replayGraphEvents before
-  change (queue.taskSuccess occurrence result).2[index]?
+  change (queue.taskSuccess occurrence result).2.1[index]?
     = some (.groupSuccess group groups streams) at selected
   have refNoticed : child.ref ∈ rawGroupNoticeRefs (.groupSuccess group groups streams) :=
     List.mem_map_of_mem noticed
@@ -225,12 +226,12 @@ theorem ExecutedWork.taskSuccess_noticeAncestor_contributor_before
           emitted refNoticed known ancestor task contributes found
       · exact ⟨value, List.take_subset_take_left _ (Nat.le_add_right ..) prior⟩
       · have notCancelled := (generated.noticeAncestor_healthy_uncancelled valid
-          (State.acceptsBatch_prefix started) emitted refNoticed known ancestor).2
+          (State.eventsStarted_prefix started) emitted refNoticed known ancestor).2
         have endpoint : initial.replayGraphEvents
             (before ++ [.taskSuccess occurrence result])
-            = (queue.taskSuccess occurrence result).1 := by
+            = (queue.dispatchGraphEvent (.taskSuccess occurrence result)).1 := by
           simp only [State.replayGraphEvents, List.foldl_append, List.foldl_cons,
-            List.foldl_nil, State.handleGraphEvent]
+            List.foldl_nil]
           rfl
         rw [endpoint] at notCancelled
         have prefixes := covered.atPrefixDrainOwners before

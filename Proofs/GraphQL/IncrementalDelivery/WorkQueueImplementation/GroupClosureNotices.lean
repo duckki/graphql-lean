@@ -56,11 +56,12 @@ Witness: the selected node is active; successful closure exposes precisely the r
 accounted for by the existing notice ledger before the recursive drain continues.
 -/
 theorem State.drainReadyGroups_closureNotices (queue : State)
+    (available : List (Occurrence × Nat) := [])
     : ReferencesAnnounced rawGroupNoticeRefs rawGroupClosureRefs queue.rootGroups
-        queue.drainReadyGroups.2 := by
+        (queue.drainReadyGroups available).2.1 := by
   have loop (fuel : Nat) (current : State)
       : ReferencesAnnounced rawGroupNoticeRefs rawGroupClosureRefs current.rootGroups
-          (State.drainReadyGroups.go fuel current).2 := by
+          (State.drainReadyGroups.go available fuel current).2.1 := by
     induction fuel generalizing current with
     | zero => trivial
     | succ fuel ih =>
@@ -74,19 +75,14 @@ theorem State.drainReadyGroups_closureNotices (queue : State)
           | none => simp [found] at choice
           | some candidate =>
               simp only [found] at choice
-              change (if (current.rejectedTask? candidate).isSome || candidate.pending == 0 then
-                some candidate else none) = some node at choice
+              change (if candidate.pending == 0 then some candidate else none) = some node
+                at choice
               split at choice
               · cases Option.some.inj choice
                 have root := current.groupNode?_ref found ▸ active
-                cases cached : current.rejectedTask? node with
-                | none =>
-                    exact (current.finishGroupSuccess_closureNotices node root).append
-                      ((ih _).mono (current.finishGroupSuccess_groupFailureNotices node).1)
-                | some rejected =>
-                    exact (current.taskFailure_closureNotices rejected.1 rejected.2).append
-                      ((ih _).mono
-                        (current.taskFailure_groupFailureNotices rejected.1 rejected.2).1)
+                exact (current.finishGroupSuccess_closureNotices node root).append
+                  ((ih _).mono
+                    (current.finishGroupSuccess_groupFailureNotices node available).1.1)
               · contradiction
   exact loop _ queue
 
@@ -95,9 +91,9 @@ Witness: the executable root guard licenses each singleton closure; accumulated 
 notices justify the final activation and its recursively drained completions.
 -/
 theorem State.taskSuccess_closureNotices (queue : State) (occurrence : Occurrence)
-    (result : TaskResult)
+    (result : TaskResult) (available : List (Occurrence × Nat) := [])
     : ReferencesAnnounced rawGroupNoticeRefs rawGroupClosureRefs queue.rootGroups
-        (queue.taskSuccess occurrence result).2 := by
+        (queue.taskSuccess occurrence result available).2.1 := by
   cases found : queue.taskNode? occurrence with
   | none => simp [State.taskSuccess, found, ReferencesAnnounced]
   | some node =>
@@ -142,12 +138,13 @@ theorem State.taskSuccess_closureNotices (queue : State) (occurrence : Occurrenc
         State.maybeIntegrateWork_rootGroups _ _ _
       obtain ⟨roots, notices, prior⟩ := loop node.task.groups (integrated.1, [], {})
         (by rw [initial]; exact List.Subset.refl _) rfl trivial
-      rw [queue.taskSuccess_eq occurrence result node found]
+      rw [queue.taskSuccess_eq occurrence result node found available]
       let folded := node.task.groups.foldl successGroupStep (integrated.1, [], {})
-      apply prior.append ((State.drainReadyGroups_closureNotices _).mono ?_)
-      rw [(folded.1.startNewWork_groupCore _).2.2, notices]
+      apply prior.append ((State.drainReadyGroups_closureNotices _ available).mono ?_)
+      have rootsIncluded := (folded.1.startNewWork_groupCore folded.2.2 available).2.2.subset
+      rw [notices] at rootsIncluded
       intro ref member
-      exact (List.mem_append.mp member).elim
+      exact (List.mem_append.mp (rootsIncluded member)).elim
         (fun old => List.mem_append_left _ (roots old))
         (fun fresh => List.mem_append_right _ fresh)
 
@@ -157,57 +154,88 @@ the carrier itself references no closing group, so all drain references are stri
 -/
 theorem State.streamItems_closureNotices (queue : State)
     (stream : Execution.DeliveryNode) (items : List StreamItem)
+    (available : List (Occurrence × Nat) := [])
     : ReferencesAnnounced rawGroupNoticeRefs rawGroupClosureRefs queue.rootGroups
-        (queue.streamItems stream items).2 := by
-  let step (acc : State × List Execution.DeliveryNode
-      × List Execution.DeliveryNode × List StreamItemValue) (item : StreamItem) :=
-    let integrated := acc.1.maybeIntegrateWork item.work
-    let pruned := integrated.1.pruneEmptyGroups integrated.2.newGroups
-    (pruned.1.startNewWork { integrated.2 with newGroups := pruned.2 },
-      acc.2.1 ++ pruned.2, acc.2.2.1 ++ integrated.2.newStreams,
-      acc.2.2.2 ++ [item.value])
+        (queue.streamItems stream items available).2.1 := by
   have loop (more : List StreamItem) (acc : State × List Execution.DeliveryNode
-      × List Execution.DeliveryNode × List StreamItemValue)
-      (prior : acc.1.rootGroups
-        = queue.rootGroups ++ acc.2.1.map Execution.DeliveryNode.ref)
-      : (more.foldl step acc).1.rootGroups
-        = queue.rootGroups ++ (more.foldl step acc).2.1.map Execution.DeliveryNode.ref := by
+      × List Execution.DeliveryNode × List StreamItemValue × List GroupFailureEvent)
+      (prior : acc.1.rootGroups.Subset
+        (queue.rootGroups ++ acc.2.1.map Execution.DeliveryNode.ref))
+      : (more.foldl (fun acc item => streamItemStep acc item available) acc).1.rootGroups.Subset
+          (queue.rootGroups ++ (more.foldl
+            (fun acc item => streamItemStep acc item available) acc).2.1.map
+              Execution.DeliveryNode.ref) := by
     induction more generalizing acc with
     | nil => exact prior
     | cons item rest ih =>
         apply ih
-        dsimp only [step]
-        rw [(State.startNewWork_groupCore _ _).2.2, State.pruneEmptyGroups_rootGroups,
-          State.maybeIntegrateWork_rootGroups, prior, List.map_append, List.append_assoc]
-  unfold State.streamItems
+        let integrated := acc.1.maybeIntegrateWork item.work
+        let pruned := integrated.1.pruneEmptyGroups integrated.2.newGroups
+        have roots := (pruned.1.startNewWork_groupCore
+          { integrated.2 with newGroups := pruned.2 } available).2.2.subset
+        rw [State.pruneEmptyGroups_rootGroups, State.maybeIntegrateWork_rootGroups] at roots
+        intro ref member
+        have selected := roots member
+        change ref ∈ queue.rootGroups
+          ++ (acc.2.1 ++ pruned.2).map Execution.DeliveryNode.ref
+        rw [List.map_append, ← List.append_assoc]
+        exact (List.mem_append.mp selected).elim
+          (fun old => List.mem_append_left _ (prior old))
+          (fun new => List.mem_append_right _ new)
+  rw [queue.streamItems_eq stream items available]
   split
   · trivial
-  · let folded := items.foldl step (queue, [], [], [])
-    have roots := loop items (queue, [], [], []) (by simp)
+  · let folded := items.foldl (fun acc item => streamItemStep acc item available)
+      (queue, [], [], [], [])
+    have roots := loop items (queue, [], [], [], []) (by simp [List.Subset])
     refine ⟨by simp [rawGroupClosureRefs, List.Subset], ?_⟩
-    change ReferencesAnnounced rawGroupNoticeRefs rawGroupClosureRefs
-      (queue.rootGroups ++ folded.2.1.map Execution.DeliveryNode.ref) folded.1.drainReadyGroups.2
-    rw [← roots]
-    exact folded.1.drainReadyGroups_closureNotices
+    exact (folded.1.drainReadyGroups_closureNotices available).mono roots
 
 /-- Every source handler emits group closures with strictly prior notices.
 Witness: the task/item proofs cover all group closures; stream closures reference no groups.
 -/
-theorem State.handleGraphEvent_closureNotices (queue : State) (event : GraphEvent)
+private theorem State.handleGraphEvent_rootClosureNotices (queue : State)
+    (event : GraphEvent) (available : List (Occurrence × Nat) := [])
+    (ordinary : ∀ failure, event ≠ .groupFailure failure)
     : ReferencesAnnounced rawGroupNoticeRefs rawGroupClosureRefs queue.rootGroups
-        (queue.handleGraphEvent event).2 := by
+        (queue.handleGraphEvent event available).2.1 := by
+  have roots := congrArg State.rootGroups (queue.cacheTaskFailures_frame available)
+  change (queue.cacheTaskFailures available).rootGroups = queue.rootGroups at roots
+  rw [← roots]
+  unfold State.handleGraphEvent
   cases event with
   | taskSuccess occurrence result =>
-      exact queue.taskSuccess_closureNotices occurrence result
+      exact (queue.cacheTaskFailures available).taskSuccess_closureNotices
+        occurrence result available
   | taskFailure occurrence errors =>
-      exact queue.taskFailure_closureNotices occurrence errors
-  | streamItems stream items => exact queue.streamItems_closureNotices stream items
+      exact (queue.cacheTaskFailures available).taskFailure_closureNotices occurrence errors
+  | streamItems stream items =>
+      exact (queue.cacheTaskFailures available).streamItems_closureNotices stream items available
   | streamSuccess stream =>
-      simp only [State.handleGraphEvent, State.streamSuccess]
+      simp only [State.streamSuccess]
       split <;> simp [ReferencesAnnounced, rawGroupClosureRefs, List.Subset]
   | streamFailure stream errors =>
-      simp only [State.handleGraphEvent, State.streamFailure]
+      simp only [State.streamFailure]
       split <;> simp [ReferencesAnnounced, rawGroupClosureRefs, List.Subset]
+  | groupFailure failure => exact (ordinary failure rfl).elim
+
+/-- Live roots and queued controls retain the announcements used by every group closure. -/
+theorem State.handleGraphEvent_closureNotices (queue : State) (event : GraphEvent)
+    (available : List (Occurrence × Nat) := [])
+    : ReferencesAnnounced rawGroupNoticeRefs rawGroupClosureRefs queue.groupNoticeSupport
+        (queue.handleGraphEvent event available).2.1 := by
+  by_cases control : ∃ failure, event = .groupFailure failure
+  · obtain ⟨failure, rfl⟩ := control
+    apply (queue.handleGraphEvent_groupFailureNotices (.groupFailure failure) available).1.2.restrict
+    intro output emitted
+    cases output <;> simp [rawGroupClosureRefs, rawGroupFailureRefs, List.Subset]
+    simp only [State.handleGraphEvent, State.groupFailure] at emitted
+    split at emitted
+    · simp at emitted
+    · split at emitted <;> simp at emitted
+  · exact (queue.handleGraphEvent_rootClosureNotices event available
+      (by intro failure same; exact control ⟨failure, same⟩)).mono
+        (List.subset_append_left _ _)
 
 -----------------------------------------------------------------------------------------
 -- Source replay, batching, and publisher normalization preserve that ordering
@@ -217,26 +245,29 @@ theorem State.handleGraphEvent_closureNotices (queue : State) (event : GraphEven
 Witness: existing active-root accounting transports the next handler's initial notices.
 -/
 theorem State.rawEventReplay_closureNotices (queue : State) (events : List GraphEvent)
-    : ReferencesAnnounced rawGroupNoticeRefs rawGroupClosureRefs queue.rootGroups
-        (queue.rawEventReplay events).2 := by
+    (available : List (Occurrence × Nat) := [])
+    : ReferencesAnnounced rawGroupNoticeRefs rawGroupClosureRefs queue.groupNoticeSupport
+        (queue.rawEventReplay events available).2 := by
   induction events generalizing queue with
   | nil => trivial
   | cons event rest ih =>
-      rw [State.rawEventReplay_cons]
-      exact (queue.handleGraphEvent_closureNotices event).append
-        ((ih _).mono (queue.handleGraphEvent_groupFailureNotices event).1)
+      rw [State.rawEventReplay_cons _ _ _ available]
+      exact (show ReferencesAnnounced rawGroupNoticeRefs rawGroupClosureRefs
+        queue.groupNoticeSupport (queue.dispatchGraphEvent event available).2 from
+        queue.handleGraphEvent_closureNotices event available).append
+        ((ih _).mono (queue.dispatchGraphEvent_groupFailureNotices event available).known)
 
 /-- Batch termination adds no group reference and preserves the replay notice law.
 Witness: the real batch wrapper either emits nothing or appends only its terminal marker.
 -/
 theorem State.handleGraphEvents_closureNotices (queue : State) (events : List GraphEvent)
-    : ReferencesAnnounced rawGroupNoticeRefs rawGroupClosureRefs queue.rootGroups
+    : ReferencesAnnounced rawGroupNoticeRefs rawGroupClosureRefs queue.groupNoticeSupport
         (queue.handleGraphEvents events).2 := by
+  have prior := queue.rawEventReplay_closureNotices events (GraphEvent.availableFailures events)
   rw [State.handleGraphEvents_eq_rawEventReplay]
   split
   · trivial
-  · have prior := queue.rawEventReplay_closureNotices events
-    dsimp only
+  · dsimp only
     split
     · exact prior.append ⟨by simp [rawGroupClosureRefs, List.Subset], trivial⟩
     · exact prior
@@ -271,19 +302,19 @@ theorem createWorkQueue_runNormalized_groupClosureNotices (work : Work)
         ((State.initialize work).runNormalized batches).2.flatten := by
   let initial := (State.initialize work).initialGroups.map Execution.DeliveryNode.ref
   have loop (more : List (List GraphEvent)) (acc : NormalizedAcc)
-      (roots : acc.1.rootGroups.Subset (initial ++ acc.2.2.flatten.flatMap groupNoticeRefs))
+      (roots : acc.1.groupNoticeSupport.Subset (initial ++ acc.2.2.flatten.flatMap groupNoticeRefs))
       (known : ReferencesAnnounced groupNoticeRefs groupClosureRefs initial acc.2.2.flatten)
       : ReferencesAnnounced groupNoticeRefs groupClosureRefs initial
           (more.foldl normalizedStep acc).2.2.flatten := by
     induction more generalizing acc with
     | nil => exact known
     | cons batch rest ih =>
-        have localFacts := acc.1.handleGraphEvents_groupFailureNotices batch
+        have localFacts := acc.1.handleGraphEvents_fifoGroupFailureNotices batch
         apply ih
         · rw [normalizedStep_queue, normalizedStep_flatten, List.flatMap_append,
             IncrementalPublisher.normalizeBatch_groupNotices]
           intro ref member
-          rcases List.mem_append.mp (localFacts.1 member) with old | added
+          rcases List.mem_append.mp (localFacts.known member) with old | added
           · exact (List.mem_append.mp (roots old)).elim
               (fun root => List.mem_append_left _ root)
               (fun prior => List.mem_append_right _ (List.mem_append_left _ prior))
@@ -295,7 +326,14 @@ theorem createWorkQueue_runNormalized_groupClosureNotices (work : Work)
   let queue := State.initialize work
   let publisher : IncrementalPublisher := { active := queue.initialGroups ++ queue.initialStreams }
   exact loop batches (queue, publisher, [])
-    (by rw [createWorkQueue_rootGroups]; simp [initial, List.Subset]) trivial
+    (by
+      dsimp only [queue]
+      simp only [initial, State.groupNoticeSupport, State.pendingGroupFailureRefs,
+        State.initialize_groupFailureEvents, List.map_nil, List.append_nil,
+        createWorkQueue_rootGroups, List.flatten_nil, List.flatMap_nil]
+      intro ref member
+      exact member)
+    trivial
 
 /-- Atomic expansion preserves strict prior notices for both group-completion kinds.
 Witness: nonempty stream carriers retain their notices; every completion stays a singleton.

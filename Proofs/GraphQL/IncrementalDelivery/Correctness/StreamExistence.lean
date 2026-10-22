@@ -28,7 +28,9 @@ theorem childFreeStream_located {node items address current producer owners}
   | item located selected ih =>
       rcases ih with ⟨rfl, same, rfl, rfl⟩ | impossible
       · cases same
-        exact Or.inr (childrenEmpty _ (List.mem_of_getElem? selected))
+        have emptyChild := childrenEmpty _ (List.mem_of_getElem? selected)
+        dsimp only at emptyChild
+        exact Or.inr (by rw [emptyChild]; rfl)
       · cases impossible
 
 /-- Every task in a child-free stream has the stream's sole owner and no producer.
@@ -125,7 +127,7 @@ theorem childFreeStream_closed_reports
     : FailureReportedFor events payload.path := by
   obtain ⟨event, member, closes⟩ := List.mem_flatMap.mp closed
   obtain ⟨index, selected⟩ := List.mem_iff_getElem?.mp member
-  have allowed := explained.2.2 index event selected
+  have allowed := explained.eventAllowed index event selected
   have notEarlier : ¬Published matching (events.take index) occurrence := by
     intro earlier
     apply unpublished
@@ -266,7 +268,8 @@ theorem childFreeStream_completeRun_exists (node : DeliveryNode)
       obtain ⟨rfl, _⟩ := childFreeStream_task childrenEmpty known
       simp)
   obtain ⟨tail, _, _, closedHistory, allClosed⟩ :=
-    explained.close_open_refs (childFreeStream_openFailureCauses childrenEmpty positive explained) accounted
+    explained.close_open_refs
+      (childFreeStream_openFailureCauses childrenEmpty positive explained) accounted
       (announcedRefs (([] ++ [node]).map DeliveryNode.ref) events) (fun _ opened => opened.1)
   apply (admissibleRun_exists_iff_reported_history (.stream node items)).mpr
   refine ⟨[], [node], events ++ tail, matching, failures, closedHistory, ?_, ?_⟩

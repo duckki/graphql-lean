@@ -25,6 +25,10 @@ private theorem sourceTasks_cursorExtension_aux (work : Work)
   intro before after slices seeded extended address producer
   cases work with
   | empty => rfl
+  | declareGroups groups tasks =>
+      cases seeded with
+      | declareGroups nested =>
+          exact sourceTasks_cursorExtension_aux tasks before after slices nested extended address producer
   | combine left right =>
       cases seeded with
       | combine leftSeed rightSeed =>

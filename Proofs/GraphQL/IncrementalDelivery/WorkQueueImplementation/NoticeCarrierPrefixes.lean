@@ -1,7 +1,7 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.ItemStreamReleaseAtoms
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.GroupPublicationSupport
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.ItemNoticeContents
-import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.RawCarrierCoverage
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.CarrierOutputCuts
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.StreamActions
 
 /-! Carried group and stream notices retain one joint raw/atomic publication boundary. -/
@@ -191,48 +191,56 @@ none, and stream completions have a distinct closing flag.
 -/
 theorem State.handleGraphEvent_streamValues_source (queue : State) (event : GraphEvent)
     {index : Nat} {owner values groups streams}
+    (available : List (Occurrence × Nat) := [])
     (selected
-      : (queue.handleGraphEvent event).2[index]?
+      : (queue.handleGraphEvent event available).2.1[index]?
         = some (.streamValues owner values groups streams))
     : ∃ stream items, event = .streamItems stream items := by
-  have action := (queue.handleGraphEvent_streamActions event).subset
+  have action := (queue.handleGraphEvent_streamActions event available).subset
     (List.mem_filterMap.mpr ⟨_, List.mem_of_getElem? selected, rfl⟩)
   have source : event.streamAction = some (owner.ref, false) := by
     simpa only [Option.mem_toList] using action
   cases event with
   | streamItems stream items => exact ⟨stream, items, rfl⟩
-  | taskSuccess | taskFailure | streamSuccess | streamFailure =>
+  | taskSuccess | taskFailure | groupFailure | streamSuccess | streamFailure =>
       simp [GraphEvent.streamAction] at source
 
 namespace ConformancePlan
 
 /-- A canonical item notice retains both prefix counts at one raw carrier position.
-Witness: started batches flatten to the same publisher replay; invert atomization and
+Witness: actual batches retain their publisher positions; invert atomization and
 normalization without choosing a different publication matching or carrier occurrence.
 -/
 theorem Witness.itemNotice_rawPrefix {work inputs} {w : Witness}
     {index owner values groups streams child}
-    (started : inputsStarted work inputs = true)
+    (_started : inputsStarted work inputs = true)
     (history : w.events = (initialQueue work).nonterminalAtoms inputs)
     (selected : w.events[index]? = some (.streamValues owner values groups streams))
     (noticed : child ∈ groups ++ streams)
     : ∃ position rawValues,
-        ((initialQueue work).rawEventReplay inputs.flatten).2[position]?
+        ((initialQueue work).rawBatches inputs).2[position]?
           = some (.streamValues owner rawValues groups streams)
         ∧ ((w.events.take index).flatMap normalizedObjectValues).length
-          = ((((initialQueue work).rawEventReplay inputs.flatten).2.take position).flatMap
+          = ((((initialQueue work).rawBatches inputs).2.take position).flatMap
               WorkQueueEvent.objectValues).length
         ∧ ((w.events.take (index + 1)).flatMap normalizedItemValues).length
-          = ((((initialQueue work).rawEventReplay inputs.flatten).2.take
-                (position + 1)).flatMap
+          = ((((initialQueue work).rawBatches inputs).2.take (position + 1)).flatMap
               WorkQueueEvent.itemValues).length := by
-  have exactHistory := history.trans (createWorkQueue_nonterminalAtoms_flattened inputs started)
-  rw [exactHistory] at selected ⊢
+  obtain ⟨atFull, prefixEq⟩ := Witness.rawBatches_canonical history selected
+  have inclusiveEq := Witness.rawBatches_prefix history (index + 1)
+    (by have bound := (List.getElem?_eq_some_iff.mp selected).1; omega)
+  rw [← prefixEq, ← inclusiveEq]
   obtain ⟨sourceIndex, sourceValues, sourceAt, objectCount, itemCount⟩ :=
-    publicationAtoms_noticeCarrier_prefix _ selected noticed
+    publicationAtoms_noticeCarrier_prefix _ atFull noticed
   obtain ⟨position, rawValues, rawAt, rawObjects, rawItems⟩ :=
     IncrementalPublisher.normalizeBatch_streamCarrier_prefix _ _ sourceAt
-  exact ⟨position, rawValues, rawAt, objectCount.trans rawObjects, itemCount.trans rawItems⟩
+  exact ⟨
+    position,
+    rawValues,
+    rawAt,
+    objectCount.trans rawObjects,
+    itemCount.trans rawItems
+  ⟩
 
 /-- An item-carried notice has exactly the object prefix preceding its source handler.
 Witness: recover its raw carrier and actual source input, then invert the accepted item's
@@ -244,27 +252,71 @@ theorem Witness.itemNotice_sourceBoundary
     (history : w.events = (initialQueue work).nonterminalAtoms inputs)
     (selected : w.events[index]? = some (.streamValues owner values groups streams))
     (noticed : child ∈ groups ++ streams)
-    : ∃ before stream items after,
-        inputs.flatten = before ++ .streamItems stream items :: after
-        ∧ let current := (initialQueue work).replayGraphEvents before
+    : ∃ earlier batch later fifo stream items tail,
+        inputs = earlier ++ batch :: later
+        ∧ batch = fifo ++ .streamItems stream items :: tail
+        ∧ let current :=
+            ((initialQueue work).replayBatches earlier).replayGraphEvents fifo
+              (GraphEvent.availableFailures batch)
+          let cached := current.cacheTaskFailures (GraphEvent.availableFailures batch)
           current.rootStreams.contains stream.ref = true
-          ∧ groups = (items.foldl streamItemStep (current, [], [], [])).2.1
+          ∧ groups
+            = (items.foldl
+                (fun acc item =>
+                  streamItemStep acc item (GraphEvent.availableFailures batch))
+                (cached, [], [], [], [])).2.1
           ∧ ((w.events.take index).flatMap normalizedObjectValues).length
-            = (((initialQueue work).rawEventReplay before).2.flatMap
-                WorkQueueEvent.objectValues).length := by
+            = (((initialQueue work).rawBatches earlier).2.flatMap
+                WorkQueueEvent.objectValues).length
+              + ((((initialQueue work).replayBatches earlier).rawEventReplay fifo
+                    (GraphEvent.availableFailures batch)).2.flatMap
+                  WorkQueueEvent.objectValues).length := by
   obtain ⟨rawIndex, rawValues, rawAt, atomicCount, _⟩ :=
     Witness.itemNotice_rawPrefix started history selected noticed
-  obtain ⟨before, event, after, position, shape, emitted, sourceCount⟩ :=
-    (initialQueue work).rawEventReplay_output_at inputs.flatten rawAt
+  obtain ⟨earlier, batch, later, fifo, event, tail, position, split, batchEq, emitted, count⟩ :=
+    (initialQueue work).rawBatches_immediate_handlerCut inputs rawAt
+      (by intro _ _ impossible; cases impossible) (by intro impossible; cases impossible)
+  let current := ((initialQueue work).replayBatches earlier).replayGraphEvents fifo
+    (GraphEvent.availableFailures batch)
+  let available := GraphEvent.availableFailures batch
   obtain ⟨stream, items, rfl⟩ :=
-    ((initialQueue work).replayGraphEvents before).handleGraphEvent_streamValues_source
-      event emitted
-  obtain ⟨active, zero, groupsEq⟩ :=
-    ((initialQueue work).replayGraphEvents before).streamItems_noticeGroups stream items emitted
-  refine ⟨before, stream, items, after, shape, active, groupsEq, ?_⟩
-  exact atomicCount.trans
-    (by simpa only [zero, List.take_zero, List.flatMap_nil,
-      List.length_nil, Nat.add_zero] using sourceCount)
+    current.handleGraphEvent_streamValues_source event available emitted
+  have leading : current.rootStreams.contains stream.ref = true ∧ position = 0 ∧
+      groups = (items.foldl (fun acc item => streamItemStep acc item available)
+        (current.cacheTaskFailures available, [], [], [], [])).2.1 := by
+    change ((current.cacheTaskFailures available).streamItems stream items available).2.1[position]?
+      = some (.streamValues owner rawValues groups streams) at emitted
+    rw [State.streamItems_eq _ _ _ available] at emitted
+    have sameRoots : (current.cacheTaskFailures available).rootStreams = current.rootStreams := by
+      have frame := congrArg State.rootStreams (current.cacheTaskFailures_frame available)
+      exact frame
+    cases active : current.rootStreams.contains stream.ref with
+    | false => simp only [sameRoots, active, Bool.not_false,
+        ↓reduceIte, List.getElem?_nil, reduceCtorEq] at emitted
+    | true =>
+        simp only [sameRoots, active, Bool.not_true,
+          Bool.false_eq_true, ↓reduceIte] at emitted
+        cases position with
+        | zero => cases emitted; exact ⟨rfl, rfl, rfl⟩
+        | succ index =>
+            exact False.elim (State.drainReadyGroups_noStreamValues _ owner rawValues groups streams
+              available (List.mem_of_getElem? emitted))
+  exact ⟨
+    earlier,
+    batch,
+    later,
+    fifo,
+    stream,
+    items,
+    tail,
+    split,
+    batchEq,
+    leading.1,
+    leading.2.2,
+    atomicCount.trans
+      (by simpa only [leading.2.1, List.take_zero,
+        List.flatMap_nil, List.length_nil, Nat.add_zero] using count)
+  ⟩
 
 end ConformancePlan
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

@@ -22,7 +22,7 @@ theorem Explains.zero_group_completion_no_recorded_failure
     (explained : Explains work groups streams events matching failures)
     (selected : events[index]? = some (.groupFailure node 0))
     : ¬HasRecordedFailure work failures (events.take index).length node.ref := by
-  have positive := (explained.2.2 index _ selected).2.2.2.positive
+  have positive := (explained.eventAllowed index _ selected).2.2.2.positive
   omega
 
 -----------------------------------------------------------------------------------------
@@ -74,6 +74,6 @@ theorem Explains.zero_group_completion_dependency_or_unavailable_producer
     simpa only [nodeFailed_filter (Nat.le_refl _)] using failed
   have healthy := Explains.group_healthy_of_no_recorded_failure coherent roleCoherent
     shorter known noRecord produced healthyDependencies
-  exact healthy (explained.2.2 index _ selected).2.2.1
+  exact healthy (explained.eventAllowed index _ selected).2.2.1
 
 end GraphQL.IncrementalDelivery.Correctness

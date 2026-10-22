@@ -17,22 +17,22 @@ theorem State.rawEventReplay_output_prefix_at (queue : State) (received : List G
     {index output} (selected : (queue.rawEventReplay received).2[index]? = some output)
     : ∃ before event after position,
         received = before ++ event :: after
-        ∧ ((queue.replayGraphEvents before).handleGraphEvent event).2[position]?
+        ∧ ((queue.replayGraphEvents before).handleGraphEvent event).2.1[position]?
           = some output
         ∧ (queue.rawEventReplay received).2.take index
           = (queue.rawEventReplay before).2
-            ++ ((queue.replayGraphEvents before).handleGraphEvent event).2.take
+            ++ ((queue.replayGraphEvents before).handleGraphEvent event).2.1.take
                 position := by
   induction received generalizing queue index with
   | nil => simp [State.rawEventReplay] at selected
   | cons event rest ih =>
       rw [State.rawEventReplay_cons] at selected ⊢
-      by_cases earlier : index < (queue.handleGraphEvent event).2.length
+      by_cases earlier : index < (queue.dispatchGraphEvent event).2.length
       · refine ⟨[], event, rest, index, rfl,
           (List.getElem?_append_left earlier).symm.trans selected, ?_⟩
         rw [List.take_append_of_le_length (Nat.le_of_lt earlier)]
         rfl
-      · have later : (queue.handleGraphEvent event).2.length ≤ index := by omega
+      · have later : (queue.dispatchGraphEvent event).2.length ≤ index := by omega
         obtain ⟨before, next, after, position, same, atEvent, exactPrefix⟩ :=
           ih _ ((List.getElem?_append_right later).symm.trans selected)
         refine ⟨event :: before, next, after, position, by simp [same], atEvent, ?_⟩
@@ -51,7 +51,8 @@ and transport both notice and completion lists through the same strict-prefix eq
 theorem ExecutedWork.rawEventReplay_groupNoticeAncestor_completed
     {work events index group groups streams child dependencies ref}
     (generated : ExecutedWork work) (valid : ValidGraphEvents work events)
-    (started : (State.initialize (Work.fromExecution work)).acceptsBatch events = true)
+    (started
+      : State.eventsStarted [] (State.initialize (Work.fromExecution work)) events = true)
     (selected
       : ((State.initialize (Work.fromExecution work)).rawEventReplay events).2[index]?
         = some (.groupSuccess group groups streams))
@@ -68,12 +69,12 @@ theorem ExecutedWork.rawEventReplay_groupNoticeAncestor_completed
     initial.rawEventReplay_output_prefix_at events selected
   have prior : (before ++ [event]).IsPrefix events :=
     ⟨after, by simp [same, List.append_assoc]⟩
-  have accepted : initial.acceptsBatch before = true := by
-    apply State.acceptsBatch_prefix (after := event :: after)
+  have accepted : State.eventsStarted [] initial before = true := by
+    apply State.eventsStarted_prefix (after := event :: after)
     simpa only [same] using started
   have inclusive : outputs.take (index + 1)
       = (initial.rawEventReplay before).2
-        ++ ((initial.replayGraphEvents before).handleGraphEvent event).2.take
+        ++ ((initial.replayGraphEvents before).handleGraphEvent event).2.1.take
           (position + 1) := by
     dsimp only [outputs]
     simp only [List.take_add_one, selected, carrier, Option.toList_some, exactPrefix,
@@ -97,7 +98,8 @@ completion theorem uses precisely the strict prefix retained by that same invers
 theorem ExecutedWork.rawEventReplay_itemNoticeAncestor_completed
     {work events index stream values groups streams child dependencies ref}
     (generated : ExecutedWork work) (valid : ValidGraphEvents work events)
-    (started : (State.initialize (Work.fromExecution work)).acceptsBatch events = true)
+    (started
+      : State.eventsStarted [] (State.initialize (Work.fromExecution work)) events = true)
     (selected
       : ((State.initialize (Work.fromExecution work)).rawEventReplay events).2[index]?
         = some (.streamValues stream values groups streams))
@@ -112,8 +114,8 @@ theorem ExecutedWork.rawEventReplay_itemNoticeAncestor_completed
     initial.rawEventReplay_output_prefix_at events selected
   have prior : (before ++ [event]).IsPrefix events :=
     ⟨after, by simp [same, List.append_assoc]⟩
-  have accepted : initial.acceptsBatch before = true := by
-    apply State.acceptsBatch_prefix (after := event :: after)
+  have accepted : State.eventsStarted [] initial before = true := by
+    apply State.eventsStarted_prefix (after := event :: after)
     simpa only [same] using started
   change ref ∈ initial.rootGroups
     ++ ((initial.rawEventReplay events).2.take index).flatMap rawGroupNoticeRefs at announced

@@ -49,19 +49,19 @@ private theorem adoptionLabels_acknowledgements
 /-- The ghost model's producer-label view is exactly the actual ordered handoff projection. -/
 theorem graphEffects_adoptedProducers (state : State) (event : GraphEvent)
     : (graphEffects state.queue event).filterMap HostEffect.adoptedProducer?
-      = (state.handleGraphEvent event).2.2.filterMap HostEffect.adoptedProducer? := by
+      = (state.handleGraphEvent event).2.2.1.filterMap HostEffect.adoptedProducer? := by
   cases event with
   | taskSuccess occurrence result =>
-      rw [show (state.handleGraphEvent (.taskSuccess occurrence result)).2.2
-        = (state.taskSuccess occurrence result).2.2 from rfl,
+      rw [show (state.handleGraphEvent (.taskSuccess occurrence result)).2.2.1
+        = (state.taskSuccess occurrence result).2.2.1 from rfl,
         State.taskSuccess_adoptedProducers]
       simp only [graphEffects]
       cases found : state.queue.taskNode? occurrence with
       | none => rfl
       | some _ => rfl
   | streamItems stream items =>
-      rw [show (state.handleGraphEvent (.streamItems stream items)).2.2
-        = (state.streamItems stream items).2.2 from rfl,
+      rw [show (state.handleGraphEvent (.streamItems stream items)).2.2.1
+        = (state.streamItems stream items).2.2.1 from rfl,
         State.streamItems_adoptedProducers]
       simp only [graphEffects]
       cases active : state.queue.rootStreams.contains stream.ref <;>
@@ -70,28 +70,32 @@ theorem graphEffects_adoptedProducers (state : State) (event : GraphEvent)
           List.filterMap_nil, List.append_nil]
   | taskFailure occurrence errors =>
       obtain ⟨targets, same⟩ := state.taskFailure_cleanupEffects occurrence errors
-      change [] = (state.handleGraphEvent (.taskFailure occurrence errors)).2.2.filterMap HostEffect.adoptedProducer?
+      change [] = (state.handleGraphEvent (.taskFailure occurrence errors)).2.2.1.filterMap
+        HostEffect.adoptedProducer?
       rw [same, cleanupEffects_adoptedProducers]
-  | streamSuccess => rfl
+  | groupFailure | streamSuccess => rfl
   | streamFailure stream errors =>
-      simp only [graphEffects, State.handleGraphEvent]
+      simp only [graphEffects, State.handleGraphEvent, ReferenceWorkQueue.State.cacheTaskFailures,
+        List.foldl_nil]
+      rfl
 
 /-- Receipt labels retain exactly the actual acknowledgement identities, including ignored input. -/
 theorem graphEffects_acknowledgedStreams (state : State) (event : GraphEvent)
     : (graphEffects state.queue event).filterMap HostEffect.acknowledgedStream?
-      = (state.handleGraphEvent event).2.2.filterMap HostEffect.acknowledgedStream? := by
+      = (state.handleGraphEvent event).2.2.1.filterMap
+          HostEffect.acknowledgedStream? := by
   cases event with
   | taskSuccess occurrence result =>
-      rw [show (state.handleGraphEvent (.taskSuccess occurrence result)).2.2
-        = (state.taskSuccess occurrence result).2.2 from rfl,
+      rw [show (state.handleGraphEvent (.taskSuccess occurrence result)).2.2.1
+        = (state.taskSuccess occurrence result).2.2.1 from rfl,
         State.taskSuccess_acknowledgedStreams]
       simp only [graphEffects]
       split
       · rfl
       · rfl
   | streamItems stream items =>
-      rw [show (state.handleGraphEvent (.streamItems stream items)).2.2
-        = (state.streamItems stream items).2.2 from rfl,
+      rw [show (state.handleGraphEvent (.streamItems stream items)).2.2.1
+        = (state.streamItems stream items).2.2.1 from rfl,
         State.streamItems_acknowledges_once]
       simp only [graphEffects]
       cases active : state.queue.rootStreams.contains stream.ref <;>
@@ -100,10 +104,13 @@ theorem graphEffects_acknowledgedStreams (state : State) (event : GraphEvent)
           List.filterMap_nil, List.nil_append]
   | taskFailure occurrence errors =>
       obtain ⟨targets, same⟩ := state.taskFailure_cleanupEffects occurrence errors
-      change [] = (state.handleGraphEvent (.taskFailure occurrence errors)).2.2.filterMap HostEffect.acknowledgedStream?
+      change [] = (state.handleGraphEvent (.taskFailure occurrence errors)).2.2.1.filterMap
+        HostEffect.acknowledgedStream?
       rw [same, cleanupEffects_acknowledgedStreams]
-  | streamSuccess => rfl
+  | groupFailure | streamSuccess => rfl
   | streamFailure stream errors =>
-      simp only [graphEffects, State.handleGraphEvent]
+      simp only [graphEffects, State.handleGraphEvent, ReferenceWorkQueue.State.cacheTaskFailures,
+        List.foldl_nil]
+      rfl
 
 end GraphQL.IncrementalDelivery.AlternativeWorkQueue

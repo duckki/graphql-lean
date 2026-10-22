@@ -34,7 +34,7 @@ private def shared : State :=
 example : shared.queue.taskNode? waiting.occurrence = none := by cbv
 
 example
-    : (shared.handleGraphEvent (.taskFailure failed.occurrence 1)).2.2
+    : (shared.handleGraphEvent (.taskFailure failed.occurrence 1)).2.2.1
       = [.abortTask waiting.occurrence] := by
   cbv
 

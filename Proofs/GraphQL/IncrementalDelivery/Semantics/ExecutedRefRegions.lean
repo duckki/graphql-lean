@@ -79,7 +79,14 @@ mutual
         (getNewDeferMap collection.newDeferUsages path deferMap) _
         (fun ref hk => Nat.lt_of_lt_of_le (hm ref hk) hl.monotone)
       simp only [run_bind, StateT.run_pure, id_pure_eq]
-      exact hl.append hr hm
+      apply hl.append _ hm
+      apply hr.declareGroups
+      · intro ref member
+        obtain ⟨fragment, selected, within⟩ := List.mem_flatMap.mp member
+        obtain ⟨usage, _, found⟩ := List.mem_filterMap.mp selected
+        exact List.mem_flatMap.mpr ⟨fragment, List.mem_of_find?_eq_some found, within⟩
+      · intro ref member
+        exact Nat.lt_of_lt_of_le (hm ref member) hl.monotone
   termination_by (fuel, 6, 0, 0)
   decreasing_by
     all_goals simp_wf

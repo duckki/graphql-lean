@@ -1,4 +1,4 @@
-import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.BufferedStreamAdmission
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.BatchCallbackProjection
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.TaskProducerOrder
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.StreamRegistrationOrigins
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.StreamAnnouncementReplay
@@ -25,11 +25,12 @@ theorem taskProducers_handleGraphEvent {work : Work} {queue : ReferenceWorkQueue
     {before : List GraphEvent} {event : GraphEvent}
     (prior : TaskProducersSucceeded work queue.tasks before)
     (matching : event.MatchesWork work)
-    : TaskProducersSucceeded work (queue.handleGraphEvent event).1.tasks
+    (available : List (Occurrence × Nat) := [])
+    : TaskProducersSucceeded work (queue.handleGraphEvent event available).1.tasks
         (before ++ [event]) := by
   intro task member producer known
   rw [List.flatMap_append, List.flatMap_singleton]
-  rcases queue.handleGraphEvent_taskChunk event with unchanged | appended
+  rcases queue.handleGraphEvent_taskChunk event available with unchanged | appended
   · rw [unchanged] at member
     exact List.mem_append_left _ (prior task member producer known)
   · rw [appended] at member
@@ -59,7 +60,7 @@ theorem childStreams_successfulProducers {work : Work} {event : GraphEvent}
         matching.streamItem_childStream_producer member supplied, ?_⟩
       intro source same
       exact (Option.some.inj same) ▸ List.mem_map_of_mem member
-  | taskFailure | streamSuccess | streamFailure => trivial
+  | taskFailure | streamSuccess | streamFailure | groupFailure => trivial
 
 /-- Handler registration preserves stream producer support in the retained success prefix.
 An ignored task success cannot register descendants, even though its payload offers them.
@@ -71,7 +72,8 @@ theorem streamProducers_handleGraphEvent {work : Work} {queue : ReferenceWorkQue
           (StreamProducerSeen work
             (before.flatMap ReferenceWorkQueue.GraphEvent.successes)))
     (matching : event.MatchesWork work)
-    : (queue.handleGraphEvent event).1.StreamsSatisfy
+    (available : List (Occurrence × Nat) := [])
+    : (queue.handleGraphEvent event available).1.StreamsSatisfy
         (StreamProducerSeen work
           ((before ++ [event]).flatMap ReferenceWorkQueue.GraphEvent.successes)) := by
   rw [List.flatMap_append, List.flatMap_singleton]
@@ -79,7 +81,7 @@ theorem streamProducers_handleGraphEvent {work : Work} {queue : ReferenceWorkQue
       (StreamProducerSeen work (before.flatMap ReferenceWorkQueue.GraphEvent.successes
         ++ event.successes)) :=
     fun stream member => (prior stream member).mono (List.subset_append_left _ _)
-  apply old.handleGraphEvent event
+  apply old.handleGraphEvent event (available := available)
   have supplied := childStreams_successfulProducers matching
   cases event with
   | taskSuccess occurrence result =>
@@ -87,7 +89,7 @@ theorem streamProducers_handleGraphEvent {work : Work} {queue : ReferenceWorkQue
   | streamItems stream items =>
       exact fun item member child included =>
         (supplied item member child included).mono (List.subset_append_right _ _)
-  | taskFailure | streamSuccess | streamFailure => trivial
+  | taskFailure | streamSuccess | streamFailure | groupFailure => trivial
 
 -----------------------------------------------------------------------------------------
 -- A proof-only invariant derived at initialization and each matching handler
@@ -130,24 +132,64 @@ Existing announcement proofs establish registry membership, not a chosen future 
 theorem SourceSupport.handleGraphEvent {work queue before event}
     (support : SourceSupport work queue before)
     (generated : ReferenceWorkQueue.ExecutedWork work) (matching : event.MatchesWork work)
-    : SourceSupport work (queue.handleGraphEvent event).1 (before ++ [event]) := by
-  refine ⟨support.tasksRegistered.handleGraphEvent event,
-    taskProducers_handleGraphEvent support.taskProducers matching,
-    streamProducers_handleGraphEvent support.streamProducers matching,
-    support.childStreams.handleGraphEvent matching, ?_⟩
+    (available : List (Occurrence × Nat) := [])
+    : SourceSupport work (queue.handleGraphEvent event available).1
+        (before ++ [event]) := by
+  refine ⟨support.tasksRegistered.handleGraphEvent event available,
+    taskProducers_handleGraphEvent support.taskProducers matching available,
+    streamProducers_handleGraphEvent support.streamProducers matching available,
+    support.childStreams.handleGraphEvent matching available, ?_⟩
   obtain ⟨announced, inventory, roots⟩ := support.activeRegistration
-  refine ⟨announced ++ (queue.handleGraphEvent event).2.flatMap
+  refine ⟨announced ++ (queue.handleGraphEvent event available).2.1.flatMap
       ReferenceWorkQueue.rawStreamNoticeRefs,
-    inventory.handleGraphEvent support.childStreams generated matching, ?_⟩
+    inventory.handleGraphEvent support.childStreams generated matching available, ?_⟩
   intro key member
-  rcases List.mem_append.mp (queue.handleGraphEvent_streamRoots event member) with old | fresh
+  rcases List.mem_append.mp (queue.handleGraphEvent_streamRoots event available member)
+      with old | fresh
   · exact List.mem_append_left _ (roots old)
   · exact List.mem_append_right _ fresh
+
+/-- Exposing available rejections changes neither source registration nor producer support. -/
+theorem SourceSupport.cacheTaskFailures {work queue before}
+    (support : SourceSupport work queue before) (available : List (Occurrence × Nat))
+    : SourceSupport work (queue.cacheTaskFailures available) before := by
+  refine ⟨support.tasksRegistered.cacheTaskFailures available, ?_,
+    support.streamProducers.cacheTaskFailures available,
+    support.childStreams.cacheTaskFailures available, ?_⟩
+  · simpa only [ReferenceWorkQueue.State.cacheTaskFailures_tasks] using support.taskProducers
+  · obtain ⟨announced, inventory, roots⟩ := support.activeRegistration
+    have same := congrArg ReferenceWorkQueue.State.rootStreams
+      (queue.cacheTaskFailures_frame available)
+    change (queue.cacheTaskFailures available).rootStreams = queue.rootStreams at same
+    exact ⟨announced, inventory.cacheTaskFailures available, same.symm ▸ roots⟩
+
+/-- Additional retained successes preserve support for the same batch-entry registry. -/
+theorem SourceSupport.extend {work queue before}
+    (support : SourceSupport work queue before) (events : List GraphEvent)
+    : SourceSupport work queue (before ++ events) := by
+  refine ⟨support.tasksRegistered, ?_, ?_, support.childStreams, support.activeRegistration⟩
+  · intro task member producer known
+    rw [List.flatMap_append]
+    exact List.mem_append_left _ (support.taskProducers task member producer known)
+  · intro stream member
+    rw [List.flatMap_append]
+    exact (support.streamProducers stream member).mono (List.subset_append_left _ _)
 
 /-- Batch-end termination changes no registration or producer-support evidence. -/
 theorem SourceSupport.withTerminated {work queue before}
     (support : SourceSupport work queue before) (terminal : Bool)
     : SourceSupport work { queue with terminated := terminal } before := by
+  refine ⟨support.tasksRegistered, support.taskProducers, support.streamProducers,
+    support.childStreams, ?_⟩
+  obtain ⟨announced, inventory, roots⟩ := support.activeRegistration
+  exact ⟨announced, ⟨inventory.unique, inventory.registered, inventory.stored,
+    inventory.unreleased⟩, roots⟩
+
+/-- Enqueueing internal notices leaves registration and producer support unchanged. -/
+theorem SourceSupport.withGroupFailures {work queue before}
+    (support : SourceSupport work queue before)
+    (notices : List ReferenceWorkQueue.GroupFailureEvent)
+    : SourceSupport work {queue with groupFailureEvents := notices} before := by
   refine ⟨support.tasksRegistered, support.taskProducers, support.streamProducers,
     support.childStreams, ?_⟩
   obtain ⟨announced, inventory, roots⟩ := support.activeRegistration
@@ -233,7 +275,8 @@ theorem SourceSupport.ready {work queue before retained event}
       | none => simp [ReferenceWorkQueue.State.acceptsGraphEvent, found] at live
       | some node => exact ⟨owners, producer, _, known, support.taskProducer known found⟩
   | streamItems stream values =>
-      obtain ⟨address, results, producer, dependencies, known, nonempty, unclosed, _, order⟩ := ready
+      obtain ⟨address, results, producer, dependencies, known, nonempty, unclosed, _, order⟩ :=
+        ready
       refine ⟨address, results, producer, dependencies, known, nonempty, ?_,
         support.streamProducer generated (.stream known) live, ?_⟩
       · intro closed
@@ -263,5 +306,6 @@ theorem SourceSupport.ready {work queue before retained event}
         support.streamProducer generated (.stream known) live,
         by rw [items stream.ref]; exact failure
       ⟩
+  | groupFailure _ => trivial
 
 end GraphQL.IncrementalDelivery.AlternativeWorkQueue.NativeRefinement.BufferedCallbacks

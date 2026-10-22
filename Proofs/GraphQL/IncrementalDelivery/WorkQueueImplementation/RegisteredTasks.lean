@@ -41,7 +41,7 @@ theorem TaskMatches.contributorsLocated {work task} (matching : TaskMatches work
   change locateWork work address = some
     ⟨.executionGroup groups path outcome children, producer, enclosing⟩ at located
   have mapped : groups.map Execution.DeferredFragment.node = task.groups := by
-    simpa [taskGroups?, located] using exactGroups
+    simpa [taskGroups?_eq_lookup, located] using exactGroups
   rw [← mapped] at member
   obtain ⟨fragment, inGroups, same⟩ := List.mem_map.mp member
   exact ⟨fragment.ancestors.map Execution.DeliveryNode.ref, producer,
@@ -71,57 +71,18 @@ theorem State.RegisteredTasksMatch.addGroup {queue : State} {work : Execution.Wo
   unfold State.addGroup
   split
   · exact matching
-  · split <;> exact matching
+  · split
+    · exact matching
+    · split
+      · split <;> exact matching
+      · exact matching
 
-/-- Parent links leave the registered-task list unchanged. -/
+/-- Recursive parent registration leaves the registered-task list unchanged. -/
 theorem State.RegisteredTasksMatch.addGroups {queue : State} {work : Execution.Work}
     (matching : queue.RegisteredTasksMatch work) (groups : List Group)
     : (queue.addGroups groups).1.RegisteredTasksMatch work := by
-  let linkStep (current : State) (group : Group) : State :=
-    match group.parent with
-    | none => current
-    | some parent =>
-        match current.groupNode? parent with
-        | none => current
-        | some node =>
-            let children :=
-              if node.childGroups.contains group.node.ref then
-                node.childGroups
-              else
-                node.childGroups ++ [group.node.ref]
-            current.putGroupNode { node with childGroups := children }
-  have linkMatch (current : State) (group : Group)
-      (currentMatch : current.RegisteredTasksMatch work)
-      : (linkStep current group).RegisteredTasksMatch work := by
-    unfold linkStep
-    cases parentEq : group.parent with
-    | none => simpa only [parentEq] using currentMatch
-    | some parent =>
-        cases found : current.groupNode? parent with
-        | none => simpa only [parentEq, found] using currentMatch
-        | some node =>
-            simp only [found]
-            exact currentMatch.putGroupNode _
-  have foldLink (more : List Group) :
-      ∀ current, current.RegisteredTasksMatch work
-        → (more.foldl linkStep current).RegisteredTasksMatch work := by
-    induction more with
-    | nil => intro current currentMatch; exact currentMatch
-    | cons group rest ih =>
-        intro current currentMatch
-        exact ih (linkStep current group) (linkMatch current group currentMatch)
-  have registered (more : List Group)
-      : (more.foldl State.addGroup queue).RegisteredTasksMatch work := by
-    induction more generalizing queue with
-    | nil => exact matching
-    | cons group rest ih =>
-        simpa only [List.foldl_cons]
-          using ih (queue := queue.addGroup group) (matching.addGroup group)
-  let fresh := groups.filter (fun group =>
-    !queue.registeredGroups.contains group.node.ref
-      && (queue.groupNode? group.node.ref).isNone)
-  change (fresh.foldl linkStep (fresh.foldl State.addGroup queue)).RegisteredTasksMatch work
-  exact foldLink fresh _ (registered fresh)
+  exact State.addGroups_preserves (fun current => current.RegisteredTasksMatch work) groups
+    (fun _ group _ valid => valid.addGroup group) queue matching
 
 /-- Task integration appends exactly one new task definition; group-link and
 starting bookkeeping do not change the registered-task list.
@@ -256,7 +217,8 @@ theorem State.RegisteredTasksMatch.pruneEmptyGroups
 theorem State.RegisteredTasksMatch.startTask
     {queue : State} {work : Execution.Work}
     (matching : queue.RegisteredTasksMatch work) (occurrence : Occurrence)
-    : (queue.startTask occurrence).RegisteredTasksMatch work := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.startTask occurrence available).RegisteredTasksMatch work := by
   unfold State.startTask
   split
   · exact matching
@@ -266,20 +228,16 @@ theorem State.RegisteredTasksMatch.startTask
 theorem State.RegisteredTasksMatch.startGroup
     {queue : State} {work : Execution.Work}
     (matching : queue.RegisteredTasksMatch work) (ref : NodeRef)
-    : (queue.startGroup ref).RegisteredTasksMatch work := by
-  unfold State.startGroup
-  split
-  · exact matching
-  · rename_i node found
-    have foldStart (tasks : List Occurrence) :
-        ∀ current, current.RegisteredTasksMatch work
-          → (tasks.foldl State.startTask current).RegisteredTasksMatch work := by
-      induction tasks with
-      | nil => intro current currentMatch; exact currentMatch
-      | cons task rest ih =>
-          intro current currentMatch
-          exact ih (current.startTask task) (currentMatch.startTask task)
-    exact foldStart node.tasks queue matching
+    (available : List (Occurrence × Nat) := [])
+    : (queue.startGroup ref available).1.RegisteredTasksMatch work := by
+  simpa only [State.RegisteredTasksMatch, State.startGroup_tasks] using matching
+
+/-- Cached task outcomes do not change registered task definitions. -/
+theorem State.RegisteredTasksMatch.cacheTaskFailures
+    {queue : State} {work : Execution.Work}
+    (matching : queue.RegisteredTasksMatch work) (available : List (Occurrence × Nat))
+    : (queue.cacheTaskFailures available).RegisteredTasksMatch work := by
+  simpa only [State.RegisteredTasksMatch, State.cacheTaskFailures_tasks] using matching
 
 /-- Starting a stream only changes the active-root list. -/
 theorem State.RegisteredTasksMatch.startStream
@@ -293,30 +251,9 @@ theorem State.RegisteredTasksMatch.startStream
 theorem State.RegisteredTasksMatch.startNewWork
     {queue : State} {work : Execution.Work}
     (matching : queue.RegisteredTasksMatch work) (newWork : NewWork)
-    : (queue.startNewWork newWork).RegisteredTasksMatch work := by
-  let groups := newWork.newGroups.map Execution.DeliveryNode.ref
-  let streams := newWork.newStreams.map Execution.DeliveryNode.ref
-  let current : State := { queue with rootGroups := queue.rootGroups ++ groups }
-  have currentMatch : current.RegisteredTasksMatch work := matching
-  have groupFold (refs : NodeRefs) :
-      ∀ state, state.RegisteredTasksMatch work
-        → (refs.foldl State.startGroup state).RegisteredTasksMatch work := by
-    induction refs with
-    | nil => intro state stateMatch; exact stateMatch
-    | cons ref rest ih =>
-        intro state stateMatch
-        exact ih (state.startGroup ref) (stateMatch.startGroup ref)
-  have streamFold (refs : NodeRefs) :
-      ∀ state, state.RegisteredTasksMatch work
-        → (refs.foldl State.startStream state).RegisteredTasksMatch work := by
-    induction refs with
-    | nil => intro state stateMatch; exact stateMatch
-    | cons ref rest ih =>
-        intro state stateMatch
-        exact ih (state.startStream ref) (stateMatch.startStream ref)
-  change (streams.foldl State.startStream
-    (groups.foldl State.startGroup current)).RegisteredTasksMatch work
-  exact streamFold streams _ (groupFold groups current currentMatch)
+    (available : List (Occurrence × Nat) := [])
+    : (queue.startNewWork newWork available).1.RegisteredTasksMatch work := by
+  simpa only [State.RegisteredTasksMatch, State.startNewWork_tasks] using matching
 
 /-- Initial queue registration exactly inherits structural task provenance
 from the generated Work tree, including combined root work.
@@ -330,7 +267,7 @@ private theorem createWorkQueue_registeredTasksMatch
   let pruned := (integrated.pruneEmptyGroups newWork.newGroups).1
   let groups := (integrated.pruneEmptyGroups newWork.newGroups).2
   let roots := { newWork with newGroups := groups }
-  let started := pruned.startNewWork roots
+  let started := (pruned.startNewWork roots).1
   have emptyMatch : ({} : State).RegisteredTasksMatch work := by
     intro task member
     cases member
@@ -463,16 +400,13 @@ theorem State.RegisteredTasksMatch.taskFailure
 /-- Draining retained outcomes adds no task definitions. Witness: provenance is
 preserved by both closure paths and by activation of already registered work.
 -/
-theorem State.RegisteredTasksMatch.drainReadyGroups
-    {queue : State} {work : Execution.Work}
-    (matching : queue.RegisteredTasksMatch work)
-    : queue.drainReadyGroups.1.RegisteredTasksMatch work := by
-  apply State.drainReadyGroups_preserves (fun current => current.RegisteredTasksMatch work)
-    (valid := matching)
-  · intro current node currentMatch _ _ _ _
-    exact (currentMatch.finishGroupSuccess node).startNewWork _
-  · intro current _ occurrence errors currentMatch _ _ _
-    exact currentMatch.taskFailure occurrence errors
+theorem State.RegisteredTasksMatch.drainReadyGroups {queue : State}
+    {work : Execution.Work} (matching : queue.RegisteredTasksMatch work)
+    (available : List (Occurrence × Nat) := [])
+    : (queue.drainReadyGroups available).1.RegisteredTasksMatch work :=
+  State.drainReadyGroups_preserves (fun current => current.RegisteredTasksMatch work)
+    (fun _ node prior _ _ _ => (prior.finishGroupSuccess node).startNewWork _ available)
+    matching
 
 /-- A successful task integrates only its supplied child task definitions;
 settlement, flushing, and activation preserve their provenance.
@@ -482,7 +416,8 @@ theorem State.RegisteredTasksMatch.taskSuccess
     (matching : queue.RegisteredTasksMatch work)
     (occurrence : Occurrence) (result : TaskResult)
     (childTasks : ∀ task ∈ result.work.tasks, TaskMatches work task)
-    : (queue.taskSuccess occurrence result).1.RegisteredTasksMatch work := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.taskSuccess occurrence result available).1.RegisteredTasksMatch work := by
   let settleStep (current : State) (group : Execution.DeliveryNode) : State :=
     match current.groupNode? group.ref with
     | none => current
@@ -549,8 +484,9 @@ theorem State.RegisteredTasksMatch.taskSuccess
     let finished := taskNode.task.groups.foldl releaseStep (integrated, [], {})
     have finishedMatch : finished.1.RegisteredTasksMatch work :=
       releaseFold taskNode.task.groups (integrated, [], {}) integratedMatch
-    change (finished.1.startNewWork finished.2.2).drainReadyGroups.1.RegisteredTasksMatch work
-    exact (finishedMatch.startNewWork finished.2.2).drainReadyGroups
+    change ((finished.1.startNewWork finished.2.2 available).1.drainReadyGroups
+      available).1.RegisteredTasksMatch work
+    exact (finishedMatch.startNewWork finished.2.2 available).drainReadyGroups available
 
 /-- One stream batch integrates only the child task definitions supplied by its
 items; each item may reveal work independently of the others.
@@ -560,35 +496,39 @@ theorem State.RegisteredTasksMatch.streamItems
     (matching : queue.RegisteredTasksMatch work)
     (stream : Execution.DeliveryNode) (items : List StreamItem)
     (childTasks : ∀ item ∈ items, ∀ task ∈ item.work.tasks, TaskMatches work task)
-    : (queue.streamItems stream items).1.RegisteredTasksMatch work := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.streamItems stream items available).1.RegisteredTasksMatch work := by
   let step (acc : State × List Execution.DeliveryNode
-      × List Execution.DeliveryNode × List StreamItemValue)
+      × List Execution.DeliveryNode × List StreamItemValue × List GroupFailureEvent)
       (item : StreamItem) :=
-    let (current, groups, streams, values) := acc
+    let (current, groups, streams, values, failures) := acc
     let (integrated, newWork) := current.maybeIntegrateWork item.work
     let (pruned, nonempty) := integrated.pruneEmptyGroups newWork.newGroups
+    let (started, queued) :=
+      pruned.startNewWork { newWork with newGroups := nonempty } available
     (
-      pruned.startNewWork { newWork with newGroups := nonempty },
+      started,
       groups ++ nonempty,
       streams ++ newWork.newStreams,
-      values ++ [item.value]
+      values ++ [item.value],
+      failures ++ queued
     )
   have stepMatch (acc : State × List Execution.DeliveryNode
-      × List Execution.DeliveryNode × List StreamItemValue)
+      × List Execution.DeliveryNode × List StreamItemValue × List GroupFailureEvent)
       (item : StreamItem) (itemMember : item ∈ items)
       (currentMatch : acc.1.RegisteredTasksMatch work)
       : (step acc item).1.RegisteredTasksMatch work := by
-    obtain ⟨current, groups, streams, values⟩ := acc
+    obtain ⟨current, groups, streams, values, failures⟩ := acc
     let integrated := current.maybeIntegrateWork item.work
     have integratedMatch : integrated.1.RegisteredTasksMatch work :=
       currentMatch.maybeIntegrateWork item.work (childTasks item itemMember)
     let pruned := integrated.1.pruneEmptyGroups integrated.2.newGroups
     have prunedMatch : pruned.1.RegisteredTasksMatch work :=
       integratedMatch.pruneEmptyGroups integrated.2.newGroups
-    exact prunedMatch.startNewWork { integrated.2 with newGroups := pruned.2 }
+    exact prunedMatch.startNewWork { integrated.2 with newGroups := pruned.2 } available
   have foldMatch (more : List StreamItem) (sublist : ∀ item ∈ more, item ∈ items) :
       ∀ acc : State × List Execution.DeliveryNode
-        × List Execution.DeliveryNode × List StreamItemValue,
+        × List Execution.DeliveryNode × List StreamItemValue × List GroupFailureEvent,
         acc.1.RegisteredTasksMatch work
           → (more.foldl step acc).1.RegisteredTasksMatch work := by
     induction more with
@@ -604,7 +544,8 @@ theorem State.RegisteredTasksMatch.streamItems
   dsimp only [State.streamItems]
   split
   · exact matching
-  · exact (foldMatch items (fun _ member => member) (queue, [], [], []) matching).drainReadyGroups
+  · exact (foldMatch items (fun _ member => member) (queue, [], [], [], [])
+      matching).drainReadyGroups available
 
 /-- Stream closure, successful or failed, cannot register tasks. -/
 theorem State.RegisteredTasksMatch.streamSuccess
@@ -629,25 +570,33 @@ theorem State.RegisteredTasksMatch.handleGraphEvent
     {queue : State} {work : Execution.Work}
     (registered : queue.RegisteredTasksMatch work)
     (event : GraphEvent) (matching : event.MatchesWork work)
-    : (queue.handleGraphEvent event).1.RegisteredTasksMatch work := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.handleGraphEvent event available).1.RegisteredTasksMatch work := by
+  have cached := registered.cacheTaskFailures available
   cases event with
   | taskSuccess occurrence result =>
-      apply registered.taskSuccess occurrence result
+      apply cached.taskSuccess occurrence result (available := available)
       intro task member
       obtain ⟨address, payload, occurrenceEq, known⟩ :=
         matching.childTask_producer member
       exact ⟨⟨address, payload, some occurrence, occurrenceEq, known⟩,
         matching.childTask_groupsExact member⟩
-  | taskFailure occurrence errors => exact registered.taskFailure occurrence errors
+  | groupFailure failure =>
+      change ((queue.cacheTaskFailures available).groupFailure failure).1.RegisteredTasksMatch work
+      unfold State.groupFailure
+      split
+      · exact cached
+      · split <;> exact cached
+  | taskFailure occurrence errors => exact cached.taskFailure occurrence errors
   | streamItems stream items =>
-      apply registered.streamItems stream items
+      apply cached.streamItems stream items (available := available)
       intro item itemMember task taskMember
       obtain ⟨address, payload, occurrenceEq, known⟩ :=
         matching.streamItem_childTask_producer itemMember taskMember
       exact ⟨⟨address, payload, some item.occurrence, occurrenceEq, known⟩,
         matching.streamItem_childTask_groupsExact itemMember taskMember⟩
-  | streamSuccess stream => exact registered.streamSuccess stream
-  | streamFailure stream errors => exact registered.streamFailure stream errors
+  | streamSuccess stream => exact cached.streamSuccess stream
+  | streamFailure stream errors => exact cached.streamFailure stream errors
 
 /-- Every event in a valid graph-event prefix has the required fixed-outcome
 match, including events that occurred before the latest append.
@@ -675,10 +624,10 @@ theorem State.RegisteredTasksMatch.handleGraphEvents
     (batch : List GraphEvent)
     (allMatch : ∀ event ∈ batch, event.MatchesWork work)
     : (queue.handleGraphEvents batch).1.RegisteredTasksMatch work := by
+  let available := GraphEvent.availableFailures batch
   let step (acc : State × List WorkQueueEvent) (event : GraphEvent) :=
-    let (current, outputs) := acc
-    let (next, produced) := current.handleGraphEvent event
-    (next, outputs ++ produced)
+    let (next, produced) := acc.1.dispatchGraphEvent event available
+    (next, acc.2 ++ produced)
   have foldMatch (events : List GraphEvent)
       (subset : ∀ event ∈ events, event ∈ batch) :
       ∀ acc : State × List WorkQueueEvent,
@@ -692,20 +641,14 @@ theorem State.RegisteredTasksMatch.handleGraphEvents
         have restSubset : ∀ member ∈ rest, member ∈ batch := by
           intro member memberRest
           exact subset member (by simp [memberRest])
-        obtain ⟨current, outputs⟩ := acc
-        have nextMatch : (step (current, outputs) event).1.RegisteredTasksMatch work :=
-          currentMatch.handleGraphEvent event eventMatch
-        exact ih restSubset (step (current, outputs) event) nextMatch
+        have nextMatch : (step acc event).1.RegisteredTasksMatch work :=
+          currentMatch.handleGraphEvent event eventMatch available
+        exact ih restSubset (step acc event) nextMatch
   unfold State.handleGraphEvents
   split
   · exact registered
-  · let folded := batch.foldl step (queue, [])
-    have foldedMatch : folded.1.RegisteredTasksMatch work :=
-      foldMatch batch (fun _ member => member) (queue, []) registered
-    cases folded with
-    | mk current outputs =>
-        dsimp only at foldedMatch ⊢
-        split <;> exact foldedMatch
+  · dsimp only
+    split <;> exact foldMatch batch (fun _ member => member) (queue, []) registered
 
 /-- Publisher normalization never changes the queue's registered task set.
 Provenance therefore survives every finite sequence of matching host batches.

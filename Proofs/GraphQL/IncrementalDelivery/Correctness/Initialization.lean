@@ -3,6 +3,7 @@ import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.StructuralEquivalen
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.FailureCauses
 import Proofs.GraphQL.IncrementalDelivery.Semantics.ExecutedDeferContinuity
 import Proofs.GraphQL.IncrementalDelivery.Semantics.ExecutedStreamOwnerRefs
+import Proofs.GraphQL.IncrementalDelivery.Semantics.WorkSize
 
 /-! Nonvacuous initialization for execution-generated work, independent of a schedule.
 This execution-specific bridge is outside the raw work-history proof surface.
@@ -21,6 +22,7 @@ a proof projection of existing work, not an implementation queue or selected sch
 -/
 def initialCandidates : Work → List (DeliveryNode × NodeKind × NodeRefs)
   | .empty => []
+  | .declareGroups _ tasks => initialCandidates tasks
   | .combine left right => initialCandidates left ++ initialCandidates right
   | .executionGroup groups .. =>
       groups.map
@@ -36,6 +38,11 @@ theorem initialCandidates_nonempty {parents lower bound work}
     : initialCandidates work ≠ [] := by
   cases work with
   | empty => exact False.elim (nonempty rfl)
+  | declareGroups groups tasks =>
+      rw [MixedRefs.WorkAt] at coherent
+      simpa only [initialCandidates]
+        using initialCandidates_nonempty
+          (work := tasks) coherent.2 (by simpa only [Work.size] using nonempty)
   | combine left right =>
       rw [MixedRefs.WorkAt] at coherent
       intro empty
@@ -60,6 +67,8 @@ theorem initialCandidates_stream_dependencies {work node parents}
     : parents = [] := by
   cases work with
   | empty => simp [initialCandidates] at member
+  | declareGroups groups tasks =>
+      exact initialCandidates_stream_dependencies (work := tasks) member
   | combine left right =>
       rcases List.mem_append.mp member with member | member
       · exact initialCandidates_stream_dependencies member
@@ -77,15 +86,17 @@ termination_by sizeOf work
 through combine nodes only, stopping at the first deferred or streamed work.
 -/
 theorem initialCandidates_known {root address work node kind parents}
-    (located : Located root address work none [])
+    (located : Located root address work.withoutDeclarations none [])
     (member : (node, kind, parents) ∈ initialCandidates work)
     : NodeAt root node kind parents none := by
   cases work with
   | empty => simp [initialCandidates] at member
+  | declareGroups groups tasks =>
+      exact initialCandidates_known (work := tasks) located member
   | combine left right =>
       rcases List.mem_append.mp member with member | member
-      · exact initialCandidates_known (.left located) member
-      · exact initialCandidates_known (.right located) member
+      · exact initialCandidates_known (work := left) (.left located) member
+      · exact initialCandidates_known (work := right) (.right located) member
   | executionGroup groups path result children =>
       obtain ⟨group, inGroups, equal⟩ := List.mem_map.mp member
       cases equal
@@ -123,6 +134,9 @@ theorem scoped_lower {parents bound owners work lower}
     : MixedRefs.WorkAt parents lower bound work := by
   cases work <;> simp only [MixedRefs.WorkAt, DeferContinuous, StreamOwnersOrdered,
     DeferUnder, OwnersBefore] at coherent continuous ordered under streams ⊢
+  case declareGroups groups tasks =>
+    exact ⟨coherent.1, scoped_lower valid coherent.2 continuous ordered under streams
+      nonempty bounded⟩
   case combine left right =>
     exact ⟨scoped_lower valid coherent.1 continuous.1 ordered.1 under.1 streams.1
         nonempty bounded,
@@ -157,6 +171,8 @@ theorem initialCandidates_lower {parents bound work lower}
     : MixedRefs.WorkAt parents lower bound work := by
   cases work <;> simp only [MixedRefs.WorkAt, DeferContinuous, StreamOwnersOrdered]
     at coherent continuous ordered ⊢
+  case declareGroups groups tasks =>
+    exact ⟨coherent.1, initialCandidates_lower valid coherent.2 continuous ordered bounded⟩
   case combine left right =>
     exact ⟨initialCandidates_lower valid coherent.1 continuous.1 ordered.1
         (fun entry member => bounded entry (List.mem_append_left _ member)),
@@ -178,6 +194,17 @@ theorem initialCandidates_lower {parents bound work lower}
     exact ⟨bounded (node, .stream, []) (by simp [initialCandidates]), coherent.2⟩
 termination_by sizeOf work
 
+/-- Normalizing a location retains task-ref bounds and drops only declaration metadata. -/
+theorem coherent_withoutDeclarations {parents lower bound work}
+    (coherent : MixedRefs.WorkAt parents lower bound work)
+    : MixedRefs.WorkAt parents lower bound work.withoutDeclarations := by
+  cases work with
+  | declareGroups groups tasks =>
+      rw [MixedRefs.WorkAt] at coherent
+      simpa only [Work.withoutDeclarations] using coherent_withoutDeclarations coherent.2
+  | _ => simpa only [Work.withoutDeclarations] using coherent
+termination_by work
+
 /-- Global ref bounds survive structural lookup, including the stricter ref ranges
 below stream items. Witness: induction on the existing navigation evidence.
 -/
@@ -188,16 +215,17 @@ theorem coherent_located {parents lower bound work address current producer owne
   have navigation := StructuralEquivalence.located_of_current located
   clear located
   induction navigation with
-  | root => exact coherent
+  | root => exact coherent_withoutDeclarations coherent
   | left _ ih =>
-      rw [MixedRefs.WorkAt] at ih; exact ih.1
+      rw [MixedRefs.WorkAt] at ih; exact coherent_withoutDeclarations ih.1
   | right _ ih =>
-      rw [MixedRefs.WorkAt] at ih; exact ih.2
+      rw [MixedRefs.WorkAt] at ih; exact coherent_withoutDeclarations ih.2
   | executionGroup _ ih =>
-      rw [MixedRefs.WorkAt] at ih; exact ih.2.2
+      rw [MixedRefs.WorkAt] at ih; exact coherent_withoutDeclarations ih.2.2
   | item _ entry ih =>
       rw [MixedRefs.WorkAt] at ih
-      exact (ih.2.2 _ (List.mem_of_getElem? entry)).lower (by omega)
+      exact coherent_withoutDeclarations
+        ((ih.2.2 _ (List.mem_of_getElem? entry)).lower (by omega))
 
 /-- Every descriptor is within the global ref interval. Witness: its located group
 metadata or stream allocation.

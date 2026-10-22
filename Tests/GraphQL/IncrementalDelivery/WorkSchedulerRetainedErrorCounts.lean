@@ -1,6 +1,6 @@
 import GraphQL.IncrementalDelivery.WorkQueueImplementation
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.FiniteHistories
-import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.FailureReporting
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.ReportingWitness
 import Proofs.GraphQL.IncrementalDelivery.Correctness.NodeRoles
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.DrainAccounting
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.ChildLinks
@@ -18,8 +18,8 @@ import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.CompleteFailur
 import Tests.GraphQL.IncrementalDelivery.Execution
 
 /-! A latent shared owner must retain errors from independently failed contributors.
-Generated-work regressions distinguish collected diagnostics from selected causes,
-retain both rejected computations, and reject invented additive completion counts.
+Generated-work regressions distinguish collected diagnostics from primitive boundary causes,
+aggregate distinct cached task rejections, and reject summing collected diagnostic totals.
 -/
 
 namespace GraphQL.IncrementalDelivery.Tests.WorkSchedulerRetainedErrorCounts
@@ -42,16 +42,17 @@ private def data : List (Name × ResponseValue) := [("a", .scalar "a")]
 
 private def work : Execution.Work :=
   .combine .empty
-    (.combine
-      (.executionGroup [⟨firstRoot, []⟩, ⟨child, [parent]⟩] []
-        ({ result := .error 1, cause := some 1 }) .empty)
+    (.declareGroups [⟨firstRoot, []⟩, ⟨secondRoot, []⟩, ⟨parent, []⟩, ⟨child, [parent]⟩]
       (.combine
-        (.executionGroup [⟨secondRoot, []⟩, ⟨child, [parent]⟩] []
-          ({ result := .error 2, cause := some 1 }) .empty)
+        (.executionGroup [⟨firstRoot, []⟩, ⟨child, [parent]⟩] []
+          ({ result := .error 1, cause := some 1 }) .empty)
         (.combine
-          (.executionGroup [⟨parent, []⟩] [] ({ result := .ok (data, 0) })
-            (.combine .empty .empty))
-          .empty)))
+          (.executionGroup [⟨secondRoot, []⟩, ⟨child, [parent]⟩] []
+            ({ result := .error 2, cause := some 1 }) .empty)
+          (.combine
+            (.executionGroup [⟨parent, []⟩] [] ({ result := .ok (data, 0) })
+              (.combine .empty .empty))
+            .empty))))
 
 private def first : GraphEvent := .taskFailure firstTask 1
 private def second : GraphEvent := .taskFailure secondTask 1
@@ -62,6 +63,8 @@ private def finish : GraphEvent :=
       value := { deliveryGroups := [parent], path := [], data },
       work := Work.fromExecution (.combine .empty .empty) [1, 1, 1, 0, 0]
     }
+
+private def notice : GraphEvent := .groupFailure ⟨child, 2⟩
 
 private def batches (childErrors : Nat) : List (List Execution.WorkQueueEvent) :=
   [
@@ -145,12 +148,12 @@ theorem inputs_valid : ValidGraphEvents work [first, second, finish] := by
       firstTask, secondTask, parentTask])
     ⟨_, _, _, parent_known, by intro source impossible; cases impossible⟩
 
-/-- The runner reports one selected cause for C after both independent failures. -/
+/-- The runner aggregates two cached primitive causes for C after both independent failures. -/
 theorem output
-    : inputsStarted work [[first], [second], [finish]] = true
+    : inputsStarted work [[first], [second], [finish, notice]] = true
       ∧ ((State.initialize (Work.fromExecution work)).runNormalized
-          [[first], [second], [finish]]).2
-        = batches 1 := by cbv
+          [[first], [second], [finish, notice]]).2
+        = batches 2 := by cbv
 
 /-- Only the three displayed task occurrences can contribute errors.
 Witness: the finite structural observation-token inventory.
@@ -163,8 +166,8 @@ private theorem task_cases {occurrence owners producer payload}
 
 private def matching : PublicationMatching := fun _ => parentTask
 private def failures : FailureCuts := [(0, firstTask), (0, secondTask)]
-private def initial : NodeRefs := [firstRoot.ref, parent.ref, secondRoot.ref]
-private def events : List Execution.WorkQueueEvent := (batches 1).flatten.take 5
+private def initial : NodeRefs := [firstRoot.ref, secondRoot.ref, parent.ref]
+private def events : List Execution.WorkQueueEvent := (batches 2).flatten.take 5
 
 /-- The three task addresses expose only R, S, P and the repeated descriptor for C.
 Witness: structural task exhaustiveness and explicit lookups at those addresses.
@@ -422,14 +425,14 @@ private theorem initial_eligible {node occurrence owners payload}
   · simp [TaskCancelled] at cancelled
   · simp [Published] at published
 
-private theorem initialized : Initializes work [firstRoot, parent, secondRoot] [] := by
+private theorem initialized : Initializes work [firstRoot, secondRoot, parent] [] := by
   refine ⟨⟨by decide, ?_, by simp⟩, by simp⟩
   intro node member
   simp only [List.mem_cons, List.not_mem_nil, or_false] at member
   rcases member with rfl | rfl | rfl
   · exact ⟨[], none, first_node, initial_eligible first_known (by simp)⟩
-  · exact ⟨[], none, parent_node, initial_eligible parent_known (by simp)⟩
   · exact ⟨[], none, second_node, initial_eligible second_known (by simp)⟩
+  · exact ⟨[], none, parent_node, initial_eligible parent_known (by simp)⟩
 
 /-- Either retained contributor can supply the same selected positive boundary cause. -/
 theorem first_cause {failed ref} (recorded : firstTask ∈ failed)
@@ -467,10 +470,44 @@ theorem cause_count {failed ref errors} (cause : NodeFailureCause work failed re
     : errors = 1 :=
   generated.nodeFailureCause_count cause
 
-/-- Adding the two diagnostic totals is not an admissible completion explanation. -/
-theorem aggregate_rejected {failed ref} : ¬NodeFailureCause work failed ref 3 := by
+/-- Distinct reporting causes can use each of the two primitive failures at most once. -/
+theorem aggregate_count_le_two {failed ref errors}
+    (cause : NodeFailureCauses work failed ref errors)
+    : errors ≤ 2 := by
+  obtain ⟨causes, nonempty, distinct, available, total⟩ := cause
+  have counts : ∀ entry ∈ causes, entry.2 = 1 := by
+    intro entry member
+    obtain ⟨recorded, owners, producer, payload, known, contributes, rejected, positive⟩ :=
+      available entry.1 entry.2 member
+    exact cause_count ⟨entry.1, recorded, owners, producer, payload, known, contributes,
+      rejected, positive⟩
+  have supported : (causes.map Prod.fst).Subset [firstTask, secondTask] := by
+    intro occurrence member
+    obtain ⟨⟨task, count⟩, selected, rfl⟩ := List.mem_map.mp member
+    obtain ⟨_, owners, producer, payload, known, _, rejected, _⟩ := available task count selected
+    rcases task_cases known with same | same | same
+    · exact List.mem_cons.mpr (.inl same)
+    · exact List.mem_cons.mpr (.inr (List.mem_singleton.mpr same))
+    · subst task
+      have outcome := (known.unique parent_known).2.2
+      rw [outcome] at rejected
+      cases rejected
+  have bound : causes.length ≤ 2 := by
+    simpa only [List.length_map, List.length_cons, List.length_nil]
+      using List.Nodup.length_le_of_subset distinct supported
+  have ones : causes.map Prod.snd = List.replicate causes.length 1 := by
+    apply List.eq_replicate_iff.mpr
+    refine ⟨by simp, ?_⟩
+    intro amount member
+    obtain ⟨entry, included, same⟩ := List.mem_map.mp member
+    exact same.symm.trans (counts entry included)
+  rw [ones, List.sum_replicate_nat, Nat.mul_one] at total
+  omega
+
+/-- Adding collected diagnostics would invent a third primitive reporting cause. -/
+theorem aggregate_rejected {failed ref} : ¬NodeFailureCauses work failed ref 3 := by
   intro cause
-  have equal := cause_count cause
+  have bounded := aggregate_count_le_two cause
   omega
 
 private theorem first_failure_allowed
@@ -479,7 +516,7 @@ private theorem first_failure_allowed
     ⟨[], none, first_node⟩,
     by unfold Open; decide,
     ?_,
-    first_cause (by simp [failures, failedBefore]) (by simp)
+    (first_cause (by simp [failures, failedBefore]) (by simp)).toCauses
   ⟩
   exact NodeFailed.task first_known (by simp) (by simp [failures, failedBefore])
 
@@ -490,7 +527,7 @@ private theorem second_failure_allowed
     ⟨[], none, second_node⟩,
     by unfold Open; decide,
     ?_,
-    second_cause (by simp [failures, failedBefore]) (by simp)
+    (second_cause (by simp [failures, failedBefore]) (by simp)).toCauses
   ⟩
   exact NodeFailed.task second_known (by simp) (by simp [failures, failedBefore])
 
@@ -553,21 +590,27 @@ private theorem parent_success_allowed
 
 private theorem child_failure_allowed
     : EventAllowed work initial matching (events.take 4) failures
-        (.groupFailure child 1) := by
-  refine ⟨
-    ⟨[parent.ref], none, child_node⟩,
-    by unfold Open; decide,
-    ?_,
-    first_cause (by simp [failures, failedBefore]) (by simp)
-  ⟩
-  exact NodeFailed.task first_known (by simp) (by simp [failures, failedBefore])
+        (.groupFailure child 2) := by
+  refine ⟨⟨[parent.ref], none, child_node⟩, by unfold Open; decide, ?_, ?_⟩
+  · exact NodeFailed.task first_known (by simp) (by simp [failures, failedBefore])
+  · exact ⟨[(firstTask, 1), (secondTask, 1)], by simp,
+      by simp [firstTask, secondTask], (by
+        intro occurrence count member
+        rcases List.mem_cons.mp member with first | second
+        · obtain ⟨rfl, rfl⟩ := Prod.mk.inj first
+          exact ⟨by simp [failures, failedBefore], _, none, _, first_known, by simp, rfl,
+            by decide⟩
+        · obtain ⟨rfl, rfl⟩ := Prod.mk.inj (List.mem_singleton.mp second)
+          exact ⟨by simp [failures, failedBefore], _, none, _, second_known, by simp, rfl,
+            by decide⟩), by decide⟩
 
 /-- The corrected five atomic outputs share a coherent admission witness.
 Witness: two independently licensed failures and P's unique successful publication.
 -/
 theorem atomic_explanation
-    : Explains work [firstRoot, parent, secondRoot] [] events matching failures := by
-  refine ⟨initialized, failure_licensed, ?_⟩
+    : Explains work [firstRoot, secondRoot, parent] [] events matching failures := by
+  apply Explains.of_causal_failures initialized failure_licensed
+    (by simp [failures, firstTask, secondTask])
   intro index event selected
   match index with
   | 0 => cases selected; exact first_failure_allowed
@@ -604,13 +647,14 @@ private theorem terminal : Terminal work initial matching events failures := by
       · rw [(known.unique second_known).2.2, Payload.path]
         exact ⟨secondRoot, 1, by decide, ⟨[], rfl⟩,
           Or.inl (by simp [events, batches])⟩
-    · exact Or.inr ⟨2, .groupValues parent [{ path := [], data := data, errors := 0, deliveryGroups := [parent] }], rfl, trivial, rfl⟩
-  · intro node kind dependencies producer known
-    apply Or.inl
+    · exact Or.inr ⟨2,
+        .groupValues parent [{ path := [], data := data, errors := 0, deliveryGroups := [parent] }],
+        rfl, trivial, rfl⟩
+  · intro node kind dependencies producer known _
     rcases (node_cases known).2.2 with
       ⟨rfl, _⟩ | ⟨rfl, _⟩ | ⟨rfl, _⟩ | ⟨rfl, _⟩ <;> decide
 
-/-- The generated runner now yields an admitted terminal history with C's selected cause.
+/-- The generated runner yields an admitted terminal history with C's two-cause report.
 Witness: exact initialized replay, coherent atomic admission, and the actual three batches.
 -/
 theorem runner_admitted
@@ -619,12 +663,12 @@ theorem runner_admitted
         ⟨
           queue.initialGroups,
           queue.initialStreams,
-          (queue.runNormalized [[first], [second], [finish]]).2
+          (queue.runNormalized [[first], [second], [finish, notice]]).2
         ⟩ := by
   change AdmissibleRun work
-    ⟨[firstRoot, parent, secondRoot], [],
+    ⟨[firstRoot, secondRoot, parent], [],
       ((State.initialize (Work.fromExecution work)).runNormalized
-        [[first], [second], [finish]]).2⟩
+        [[first], [second], [finish, notice]]).2⟩
   rw [output.2]
   refine ⟨events, matching, failures, atomic_explanation, terminal, ?_⟩
   exact .cons (batch := [.groupFailure firstRoot 1]) (by simp) (.separate _ .nil)
@@ -635,33 +679,33 @@ theorem runner_admitted
             .groupValues parent
               [{ path := [], data := data, errors := 0, deliveryGroups := [parent] }],
             .groupSuccess parent [child] [],
-            .groupFailure child 1,
+            .groupFailure child 2,
             .workQueueTermination
           ])
         (by simp) (.separate _ (.separate _ (.separate _ (.separate _ .nil)))) .nil))
 
-/-- Reversing the two independent failures still retains the same selected cause.
-Witness: executable replay accepts the reversed starts and reports C's one selected cause.
+/-- Reversing the two independent failures retains the same two-cause aggregate.
+Witness: executable replay accepts the reversed starts and reports both cached causes.
 -/
 theorem reversed_output
-    : inputsStarted work [[second], [first], [finish]] = true
+    : inputsStarted work [[second], [first], [finish, notice]] = true
       ∧ ((State.initialize (Work.fromExecution work)).runNormalized
-          [[second], [first], [finish]]).2
+          [[second], [first], [finish, notice]]).2
         = [
           [.groupFailure secondRoot 1],
           [.groupFailure firstRoot 1],
-          (batches 1)[2]!
+          (batches 2)[2]!
         ] := by
   cbv
 
-/-- Multiple settlements in one host batch retain the same selected cause and control order.
+/-- Multiple settlements in one host batch retain the same two-cause report and control order.
 Witness: direct runner replay, without an intervening observation between the failures.
 -/
 theorem batched_output
-    : inputsStarted work [[first, second, finish]] = true
+    : inputsStarted work [[first, second, finish, notice]] = true
       ∧ ((State.initialize (Work.fromExecution work)).runNormalized
-          [[first, second, finish]]).2
-        = [(batches 1).flatten] := by
+          [[first, second, finish, notice]]).2
+        = [(batches 2).flatten] := by
   cbv
 
 /-- Dormant C retains both task computations and their original diagnostic inventories. -/
@@ -675,7 +719,7 @@ theorem retained_rejections
       ∧ (queue.groupNode? child.ref).bind (fun group => queue.rejectedTask? group)
         = some (firstTask, 1) := by cbv
 
-/-- Reversing settlement order still replays the first registered rejected computation. -/
+/-- The proof-side first-rejection lookup follows registration order after reversed settlements. -/
 theorem retained_registration_order
     : let queue :=
         ((State.initialize (Work.fromExecution work)).runNormalized [[second], [first]]).1
@@ -730,24 +774,23 @@ theorem release_before_second_failure_replay_owners
     release_before_second_failure_inputs.2
   exact accounted.accounting.healthyRegisteredTasks
 
-/-- Every actual source block carries a positive contributing cause at its own boundary.
-Silent settlements remain in the source prefix; future failures are unavailable. -/
+/-- Actual reports retain exact distinct contributing causes from the source trace.
+This checks provenance; reporting availability uses its separately constructed cuts. -/
 theorem source_block_causes
     : let queue := State.initialize (Work.fromExecution work)
       let publisher : IncrementalPublisher :=
         { active := queue.initialGroups ++ queue.initialStreams }
-      SourceBlocksHaveCompleteTotals work []
-        (queue.eligibleFailureBlocks
-          (queue.sourceRunBlocks publisher [[first], [second], [finish]]).2.2) := by
-  exact createWorkQueue_sourceRunBlocks_completeTotals generated
-    (batches := [[first], [second], [finish]]) inputs_valid output.1
+      SourceBlocksHaveFailureTotals work []
+        (queue.sourceRunBlocks publisher [[first], [second], [finish]]).2.2 := by
+  exact createWorkQueue_sourceRunBlocks_groupFailureTotals generated
+    (batches := [[first], [second], [finish]]) inputs_valid
 
-/-- No atomic explanation can invent an additive failure completion for this work. -/
+/-- No atomic explanation can report three errors from these two primitive causes. -/
 theorem aggregate_unexplained {events : List Execution.WorkQueueEvent} {matching failures}
     {index : Nat} (selected : events[index]? = some (.groupFailure child 3))
-    : ¬Explains work [firstRoot, parent, secondRoot] [] events matching failures := by
+    : ¬Explains work [firstRoot, secondRoot, parent] [] events matching failures := by
   intro explained
-  have allowed := explained.2.2 index (.groupFailure child 3) selected
+  have allowed := explained.eventAllowed index (.groupFailure child 3) selected
   exact aggregate_rejected allowed.2.2.2
 
 /-- Keep only group-failure controls when comparing alternative batching witnesses. -/
@@ -795,9 +838,9 @@ private theorem batching_failureControls {events outputs}
       simp only [List.flatten_cons, List.filter_append,
         grouping_failureControls values, ih]
 
-/-- Coalescing values or changing atomic batching cannot admit the aggregate count. -/
+/-- Coalescing values or changing batching cannot invent a third primitive reporting cause. -/
 theorem aggregate_invalid
-    : ¬ValidHistory work ⟨[firstRoot, parent, secondRoot], [], batches 3⟩ := by
+    : ¬ValidHistory work ⟨[firstRoot, secondRoot, parent], [], batches 3⟩ := by
   rintro (⟨events, matching, failures, explained, batching⟩ |
     ⟨events, matching, failures, explained, _, batching⟩)
   · have same := batching_failureControls batching
@@ -815,6 +858,7 @@ theorem aggregate_invalid
     obtain ⟨index, selected⟩ := List.mem_iff_getElem?.mp (List.mem_filter.mp member).1
     exact aggregate_unexplained selected explained
 
+#print axioms aggregate_count_le_two
 #print axioms cause_count
 #print axioms atomic_explanation
 #print axioms runner_admitted

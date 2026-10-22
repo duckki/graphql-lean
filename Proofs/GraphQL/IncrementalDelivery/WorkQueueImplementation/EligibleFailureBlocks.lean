@@ -30,7 +30,7 @@ theorem State.eligibleFailureLabel_contribution (queue : State) (event : GraphEv
       | some node =>
           simp [eligibleFailureLabel, objectFailureContribution, found,
             GraphEvent.failureSettlements, GraphEvent.groupFailures]
-  | taskSuccess | streamItems | streamSuccess | streamFailure => rfl
+  | taskSuccess | streamItems | groupFailure | streamSuccess | streamFailure => rfl
 
 /-- Keep every output block, but label only contributing object failures.
 `queue` follows all original source labels, including ignored settlements. Output events,
@@ -108,7 +108,7 @@ theorem State.eligibleFailureBlocks_contributions (queue : State)
       | some event =>
           have labels : ((queue.eligibleFailureBlocks (block :: rest)).filterMap Prod.fst)
               = (queue.eligibleFailureLabel event).toList
-                ++ ((queue.handleGraphEvent event).1.eligibleFailureBlocks rest).filterMap
+                ++ ((queue.dispatchGraphEvent event).1.eligibleFailureBlocks rest).filterMap
                   Prod.fst := by
             simp only [eligibleFailureBlocks, source, Option.bind_some,
               State.replayGraphEvents, List.filterMap_cons]

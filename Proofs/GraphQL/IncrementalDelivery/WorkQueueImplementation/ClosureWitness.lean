@@ -17,11 +17,11 @@ The same matching also interprets source-item prefixes, including within one han
 This derived certificate covers buffered/prepared maps, not absent structural tasks.
 -/
 def BufferedClosureLedger (work : Execution.Work) (inputs : List (List GraphEvent))
-    (w : Witness)
+    (w : Witness) (queue : State := initialQueue work)
     : Prop :=
   ∃ published : List ObjectPublication,
-    (initialQueue work).BatchClosuresCovered inputs published
-    ∧ ObjectLedgerMatching work inputs w.events w.matching published
+    queue.BatchClosuresCovered inputs published
+    ∧ ObjectLedgerMatching work inputs w.events w.matching published queue
     ∧ (∀ index,
         index ≤ w.events.length
         → ∀ occurrence,

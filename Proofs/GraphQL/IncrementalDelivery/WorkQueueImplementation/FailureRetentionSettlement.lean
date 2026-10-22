@@ -121,34 +121,37 @@ theorem State.RetainedFailures.unrejected_tasks_notFailed {queue : State} {work 
   rw [same] at known
   exact prior.unrejected_noFailedContributor member unrejected ⟨producer, payload, known⟩ owner
 
-/-- Every finite drain prefix preserves retained failures.
-Witness: success flushes an unrejected sound task list; rejection replay removes owners
-while retaining the rejected computation wherever another owner survives.
+/-- Successful draining preserves failures when zero counters certify successful tokens.
+Cached startup failures only remove groups and preserve rejection records at other owners.
 -/
-theorem State.RetainedFailures.drainReadyGroups_go {queue : State} {work failed}
-    (prior : queue.RetainedFailures work failed) (sound : queue.GroupMembershipSound)
-    (matching : queue.RegisteredTasksMatch work) (fuel : Nat)
-    : (State.drainReadyGroups.go fuel queue).1.RetainedFailures work failed := by
+theorem State.RetainedFailures.drainReadyGroups_go {queue : State} {work failed settled}
+    (prior : queue.RetainedFailures work failed) (_sound : queue.GroupMembershipSound)
+    (_matching : queue.RegisteredTasksMatch work) (fuel : Nat)
+    (bounded : queue.PendingBound (fun _ => True) settled)
+    (disjoint : ∀ task ∈ settled, task ∉ failed)
+    (available : List (Occurrence × Nat) := [])
+    : (State.drainReadyGroups.go available fuel queue).1.RetainedFailures work
+        failed := by
   let invariant (current : State) := current.RetainedFailures work failed
-    ∧ current.GroupMembershipSound ∧ current.RegisteredTasksMatch work
-  have preserved := State.drainReadyGroups_go_preserves invariant
-    (fun current node valid member _ unrejected _ => by
-      have safe := valid.1.unrejected_tasks_notFailed valid.2.1 valid.2.2 member unrejected
-      exact ⟨(valid.1.finishGroupSuccess node safe).startNewWork _,
-        (valid.2.1.finishGroupSuccess node).startNewWork _,
-        (valid.2.2.finishGroupSuccess node).startNewWork _⟩)
-    (fun _ _ occurrence errors valid _ _ _ =>
-      ⟨valid.1.taskFailure_preserves occurrence errors,
-        valid.2.1.taskFailure occurrence errors, valid.2.2.taskFailure occurrence errors⟩)
-    (show invariant queue from ⟨prior, sound, matching⟩) fuel
-  exact preserved.1
+    ∧ current.PendingBound (fun _ => True) settled
+  have result := State.drainReadyGroups_go_preserves invariant (available := available)
+    (fun _ node valid member _ zero => by
+      have all := valid.2.allSettled member trivial zero
+      exact ⟨(valid.1.finishGroupSuccess node (fun task listed =>
+          disjoint task (all task listed))).startNewWork _ available,
+        (valid.2.finishGroupSuccess node all).startNewWork _ available⟩)
+    (show invariant queue from ⟨prior, bounded⟩) fuel
+  exact result.1
 
-/-- Full draining preserves retained failures under sound task registration. -/
-theorem State.RetainedFailures.drainReadyGroups {queue : State} {work failed}
+/-- A successful-settlement bound prevents the drain from flushing a failed task. -/
+theorem State.RetainedFailures.drainReadyGroups {queue : State} {work failed settled}
     (prior : queue.RetainedFailures work failed) (sound : queue.GroupMembershipSound)
     (matching : queue.RegisteredTasksMatch work)
-    : queue.drainReadyGroups.1.RetainedFailures work failed :=
-  prior.drainReadyGroups_go sound matching _
+    (bounded : queue.PendingBound (fun _ => True) settled)
+    (disjoint : ∀ task ∈ settled, task ∉ failed)
+    (available : List (Occurrence × Nat) := [])
+    : (queue.drainReadyGroups available).1.RetainedFailures work failed :=
+  prior.drainReadyGroups_go sound matching _ bounded disjoint available
 
 /-- A fresh successful task preserves the rejected computations of earlier failures.
 Witness: success-only counter debt makes every flushed membership a successful settlement;
@@ -163,8 +166,9 @@ theorem State.RetainedFailures.taskSuccess {queue : State} {work failed settled}
     (notFailed : occurrence ∉ failed) (disjoint : ∀ task ∈ settled, task ∉ failed)
     (uniqueOwners : (taskNode.task.groups.map Execution.DeliveryNode.ref).Nodup)
     (childrenMatch : ∀ task ∈ result.work.tasks, TaskMatches work task)
-    : (queue.taskSuccess occurrence result).1.RetainedFailures work failed := by
-  rw [queue.taskSuccess_eq occurrence result taskNode found]
+    (available : List (Occurrence × Nat) := [])
+    : (queue.taskSuccess occurrence result available).1.RetainedFailures work failed := by
+  rw [queue.taskSuccess_eq occurrence result taskNode found available]
   let stored := queue.putTaskNode { taskNode with value := some result.value }
   let integrated := (stored.maybeIntegrateWork result.work (some occurrence)).1
   have storedRefs : stored.GroupRefsUnique := ledger.refs
@@ -222,46 +226,56 @@ theorem State.RetainedFailures.taskSuccess {queue : State} {work failed settled}
         valid.2.1.finishGroupSuccess node (fun task member => safe task (all task member)),
         valid.2.2.1.finishGroupSuccess node, valid.2.2.2.finishGroupSuccess node⟩)
     taskNode.task.groups uniqueOwners (integrated, [], {}) initial debt
-  exact ((loop.1.2.1.startNewWork _).drainReadyGroups
-    (loop.1.2.2.1.startNewWork _) (loop.1.2.2.2.startNewWork _))
+  exact (loop.1.2.1.startNewWork _ available).drainReadyGroups
+    (loop.1.2.2.1.startNewWork _ available) (loop.1.2.2.2.startNewWork _ available)
+    (loop.2.startNewWork _ available) safe available
 
 /-- A matched stream item preserves earlier failure retention while integrating children. -/
 theorem State.RetainedFailures.integrateStreamItem {queue : State} {work failed}
     (prior : queue.RetainedFailures work failed) (refs : queue.GroupRefsUnique)
-    (item : StreamItem)
-    : (queue.integrateStreamItem item).RetainedFailures work failed :=
-  ((prior.maybeIntegrateWork refs item.work).pruneEmptyGroups _).startNewWork _
+    (item : StreamItem) (available : List (Occurrence × Nat) := [])
+    : (queue.integrateStreamItem item available).RetainedFailures work failed :=
+  ((prior.maybeIntegrateWork refs item.work).pruneEmptyGroups _).startNewWork _ available
 
 /-- Matched stream items preserve retained failures through child integration and draining.
 Witness: integration never clears a rejection; the final drain uses sound memberships
 and exact task provenance to distinguish successful closure from rejection replay.
 -/
-theorem State.RetainedFailures.streamItems {queue : State} {work failed stream items}
-    (prior : queue.RetainedFailures work failed) (refs : queue.GroupRefsUnique)
-    (sound : queue.GroupMembershipSound) (matching : queue.RegisteredTasksMatch work)
+theorem State.RetainedFailures.streamItems {queue : State}
+    {work failed stream items settled} (prior : queue.RetainedFailures work failed)
+    (refs : queue.GroupRefsUnique) (sound : queue.GroupMembershipSound)
+    (matching : queue.RegisteredTasksMatch work)
     (source : (GraphEvent.streamItems stream items).MatchesWork work)
-    : (queue.streamItems stream items).1.RetainedFailures work failed := by
+    (bounded : queue.PendingBound (fun _ => True) settled)
+    (disjoint : ∀ task ∈ settled, task ∉ failed)
+    (available : List (Occurrence × Nat) := [])
+    : (queue.streamItems stream items available).1.RetainedFailures work failed := by
   let step (acc : State × List Execution.DeliveryNode
-      × List Execution.DeliveryNode × List Execution.StreamItemValue) (item : StreamItem) :=
-    let (current, groups, streams, values) := acc
+      × List Execution.DeliveryNode × List Execution.StreamItemValue × List GroupFailureEvent)
+      (item : StreamItem) :=
+    let (current, groups, streams, values, failures) := acc
     let (integrated, newWork) := current.maybeIntegrateWork item.work
     let (pruned, nonempty) := integrated.pruneEmptyGroups newWork.newGroups
-    (pruned.startNewWork { newWork with newGroups := nonempty },
-      groups ++ nonempty, streams ++ newWork.newStreams, values ++ [item.value])
+    let (started, queued) := pruned.startNewWork { newWork with newGroups := nonempty } available
+    (started, groups ++ nonempty, streams ++ newWork.newStreams,
+      values ++ [item.value], failures ++ queued)
   let invariant (current : State) := current.RetainedFailures work failed
     ∧ current.GroupRefsUnique ∧ current.GroupMembershipSound ∧ current.RegisteredTasksMatch work
+    ∧ current.PendingBound (fun _ => True) settled
   have preserve (acc) (item : StreamItem) (member : item ∈ items)
       (valid : invariant acc.1) : invariant (step acc item).1 := by
-    obtain ⟨current, groups, streams, values⟩ := acc
+    obtain ⟨current, groups, streams, values, failures⟩ := acc
     have childrenMatch : ∀ task ∈ item.work.tasks, TaskMatches work task := by
       intro task included
       obtain ⟨address, payload, same, known⟩ := source.streamItem_childTask_producer member included
       exact ⟨⟨address, payload, _, same, known⟩,
         source.streamItem_childTask_groupsExact member included⟩
-    exact ⟨valid.1.integrateStreamItem valid.2.1 item,
-      ((valid.2.1.maybeIntegrateWork item.work none).pruneEmptyGroups _).startNewWork _,
-      ((valid.2.2.1.maybeIntegrateWork item.work).pruneEmptyGroups _).startNewWork _,
-      ((valid.2.2.2.maybeIntegrateWork item.work childrenMatch).pruneEmptyGroups _).startNewWork _⟩
+    exact ⟨valid.1.integrateStreamItem valid.2.1 item available,
+      ((valid.2.1.maybeIntegrateWork item.work none).pruneEmptyGroups _).startNewWork _ available,
+      ((valid.2.2.1.maybeIntegrateWork item.work).pruneEmptyGroups _).startNewWork _ available,
+      ((valid.2.2.2.1.maybeIntegrateWork item.work childrenMatch).pruneEmptyGroups _).startNewWork
+        _ available,
+      ((valid.2.2.2.2.maybeIntegrateWork item.work).pruneEmptyGroups _).startNewWork _ available⟩
   have loop (more : List StreamItem) (included : more.Subset items) (acc)
       (valid : invariant acc.1) : invariant (more.foldl step acc).1 := by
     induction more generalizing acc with
@@ -272,8 +286,8 @@ theorem State.RetainedFailures.streamItems {queue : State} {work failed stream i
   dsimp only [State.streamItems]
   split
   · exact prior
-  · have final := loop items (fun _ member => member) (queue, [], [], [])
-      ⟨prior, refs, sound, matching⟩
-    exact final.1.drainReadyGroups final.2.2.1 final.2.2.2
+  · have final := loop items (fun _ member => member) (queue, [], [], [], [])
+      ⟨prior, refs, sound, matching, bounded⟩
+    exact final.1.drainReadyGroups final.2.2.1 final.2.2.2.1 final.2.2.2.2 disjoint available
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

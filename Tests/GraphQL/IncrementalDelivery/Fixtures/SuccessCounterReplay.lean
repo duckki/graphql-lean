@@ -72,11 +72,13 @@ private theorem superset_known
 
 private theorem source_valid : ValidGraphEvents work inputs.flatten := by
   have first : ValidGraphEvents work [supersetFailure] :=
-    .append .nil ⟨_, none, [], superset_known⟩ (by simp [GraphEvent.Fresh, GraphEvent.identities, supersetFailure])
+    .append .nil ⟨_, none, [], superset_known⟩ (by simp [GraphEvent.Fresh,
+      GraphEvent.identities, supersetFailure])
       ⟨_, none, _, superset_known, by simp⟩
   exact .append first ⟨_, none, [], subset_known⟩
     (by
-      simp [GraphEvent.Fresh, GraphEvent.identities, supersetFailure, subsetFailure, supersetTask, subsetTask])
+      simp [GraphEvent.Fresh, GraphEvent.identities, supersetFailure, subsetFailure,
+        supersetTask, subsetTask])
     ⟨_, none, _, subset_known, by simp⟩
 
 /-- Both computations remain started through the dormant shared owner. -/
@@ -108,8 +110,8 @@ The certificate also excludes earlier failure contributors at unregistered group
 -/
 theorem retained_failures : current.RetainedFailures work [subsetTask, supersetTask] := by
   have retained := generated.runNormalized_retainedFailures inputs source_valid inputs_started
-  have inventory : (State.initialize (Work.fromExecution work)).objectFailureContributions
-      inputs.flatten = [subsetTask, supersetTask] := by cbv
+  have inventory : GraphEvent.failureSettlements inputs.flatten = [subsetTask,
+    supersetTask] := by cbv
   rwa [inventory] at retained
 
 /-- Even a causally redundant retained rejection keeps an actual live contributor. -/
@@ -134,8 +136,9 @@ theorem redundant_subset_cause : ¬InformativeFailure work [supersetTask] subset
 theorem root_ancestors_healthy
     : current.RootAncestorsHealthy work [subsetTask, supersetTask] := by
   have health := (generated.runNormalized_retiredHealth inputs source_valid inputs_started).2.1
-  have inventory : (State.initialize (Work.fromExecution work)).objectFailureContributions
-      inputs.flatten = [subsetTask, supersetTask] := by cbv
+  have inventory : (State.initialize (Work.fromExecution
+    work)).admittedObjectFailureContributionsForBatches
+      inputs = [subsetTask, supersetTask] := by cbv
   rwa [inventory] at health
 
 /-- Proof selection omits the redundant rejection and retains its original predecessor cut. -/
@@ -161,10 +164,11 @@ theorem selected_boundary_causes (cut ref : Nat)
 theorem first_failure_ancestorHealth
     : GroupFailureAncestorsHealthy work [supersetTask]
         ((State.initialize (Work.fromExecution work)).handleGraphEvent
-          supersetFailure).2 := by
+          supersetFailure).2.1 := by
   have first : ValidGraphEvents work ([] ++ [supersetFailure]) :=
     source_valid.prefix ⟨[subsetFailure], rfl⟩
   have health := generated.replayGraphEvents_next_failureAncestorsHealthy first (by cbv)
+    (by intro failure same; cases same)
   have inventory : (State.initialize (Work.fromExecution work)).objectFailureContributions
       ([] ++ [supersetFailure]) = [supersetTask] := by cbv
   rw [inventory] at health
@@ -176,7 +180,10 @@ private def parentResult : TaskResult :=
   { value := { deliveryGroups := [parent], path := [], data := [("a", .scalar "a")] } }
 
 private def parentSuccess : GraphEvent := .taskSuccess parentTask parentResult
-private def completedInputs : List (List GraphEvent) := inputs ++ [[parentSuccess]]
+private def childFailure : GraphEvent := .groupFailure { group := c, errors := 2 }
+
+private def completedInputs : List (List GraphEvent) :=
+  inputs ++ [[parentSuccess, childFailure]]
 
 private theorem parent_known
     : TaskAt work parentTask [2] none (.object [] (.ok ([("a", .scalar "a")], 0))) := by
@@ -185,59 +192,73 @@ private theorem parent_known
   cbv
 
 private theorem completed_valid : ValidGraphEvents work completedInputs.flatten := by
-  change ValidGraphEvents work (inputs.flatten ++ [parentSuccess])
-  exact .append source_valid ⟨[2], none, parent_known, by cbv, by cbv⟩
-    (by simp [GraphEvent.Fresh, GraphEvent.identities, parentSuccess, parentTask, inputs,
-      supersetFailure, subsetFailure, supersetTask, subsetTask])
-    ⟨[2], none, _, parent_known, by simp⟩
+  have parentValid : ValidGraphEvents work (inputs.flatten ++ [parentSuccess]) :=
+    .append source_valid ⟨[2], none, parent_known, by cbv, by cbv⟩
+      (by simp [GraphEvent.Fresh, GraphEvent.identities, parentSuccess, parentTask, inputs,
+        supersetFailure, subsetFailure, supersetTask, subsetTask])
+      ⟨[2], none, _, parent_known, by simp⟩
+  have childKnown : NodeAt work c .group [parent.ref] none := by
+    refine ⟨[1, 0], [⟨a, []⟩, ⟨c, [parent]⟩], [], ⟨.error 1, some 1⟩, .empty, [],
+      ⟨c, [parent]⟩, ?_, by simp, rfl, rfl⟩
+    cbv
+  change ValidGraphEvents work ((inputs.flatten ++ [parentSuccess]) ++ [childFailure])
+  exact .append parentValid ⟨⟨[parent.ref], none, childKnown⟩, by decide⟩
+    (by simp [GraphEvent.Fresh, GraphEvent.identities, childFailure, parentSuccess,
+      inputs, supersetFailure, subsetFailure]) trivial
 
 private theorem completed_started : inputsStarted work completedInputs = true := by cbv
 
-/-- Registration-order rejection replay reports the dormant child after parent completion. -/
+/-- Cached-rejection aggregation reports the dormant child after parent completion. -/
 theorem completed_child_failure
     : (((State.initialize (Work.fromExecution work)).runNormalized
           completedInputs).2.flatten.flatMap
         publicationAtoms)[4]?
-      = some (.groupFailure c 1) := by cbv
+      = some (.groupFailure c 2) := by cbv
 
-/-- The earlier selected superset rejection explains the child's later replayed count.
-The runtime keeps both rejections and selects its first registered failed task; the proof
-inventory may omit that redundant task while preserving the same observable completion.
--/
+private noncomputable def completedAvailableCuts : FailureCuts :=
+  let initial := State.initialize (Work.fromExecution work)
+  availableObjectFailureCuts work 0
+    (initial.sourceRunBlocks { active := initial.initialGroups ++ initial.initialStreams }
+      completedInputs).2.2
+
+/-- The actual availability-based causal selection invalidates the aggregate's child. -/
 theorem completed_child_selected_cause
-    : NodeFailureCause work [supersetTask] c.ref 1 := by
-  have cause := createWorkQueue_selectedObjectFailureCuts_nodeFailureCause generated
-    completed_valid completed_started completed_child_failure
-  have candidates : sourceObjectFailureCuts 0
-      ((State.initialize (Work.fromExecution work)).eligibleFailureBlocks
-        ((State.initialize (Work.fromExecution work)).sourceRunBlocks
-          { active := (State.initialize (Work.fromExecution work)).initialGroups
-              ++ (State.initialize (Work.fromExecution work)).initialStreams }
-          completedInputs).2.2) = [(0, supersetTask), (2, subsetTask)] := by cbv
-  dsimp only at cause
-  rw [candidates, selected_cuts] at cause
-  exact cause
+    : GroupInvalidated work
+        (failedBefore (selectObjectFailureCuts work [] completedAvailableCuts) 4) c.ref :=
+  createWorkQueue_selectedObjectFailureCuts_groupInvalidated generated
+    completed_valid completed_child_failure
 
-/-- One informative cut accounts for all actual errors, including the child's later replay. -/
+/-- Reporting retains the causally redundant cached rejection as a distinct unit cause. -/
+theorem completed_child_reporting_causes
+    : NodeFailureCauses work [supersetTask, subsetTask] c.ref 2 := by
+  refine ⟨
+    [(supersetTask, 1), (subsetTask, 1)],
+    by simp,
+    by simp [supersetTask, subsetTask],
+    ?_,
+    rfl
+  ⟩
+  intro occurrence count member
+  simp only [List.mem_cons, List.not_mem_nil, or_false, Prod.mk.injEq] at member
+  rcases member with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
+  · exact ⟨by simp, [0, 1, 3], none, _, superset_known, by decide, rfl, by decide⟩
+  · exact ⟨by simp, [0, 3], none, _, subset_known, by decide, rfl, by decide⟩
+
+/-- Actual reporting availability supplies an informative causal inventory.
+The existential report-cause choices need not equal the source-only cut selection above. -/
 theorem completed_informative_inventory
-    : CompleteFailureInventory work
+    : CausalFailureInventory work
         (((State.initialize (Work.fromExecution work)).runNormalized
             completedInputs).2.flatten.flatMap
-          publicationAtoms) [(0, supersetTask)] := by
+          publicationAtoms)
+        (mergeFailureCuts (selectObjectFailureCuts work [] completedAvailableCuts)
+          []) := by
   have noStreams : StreamFailureCuts work
-      (((State.initialize (Work.fromExecution work)).runNormalized completedInputs).2.flatten.flatMap
-        publicationAtoms) [] := ⟨by cbv, by intro entry member; cases member⟩
-  have inventory := createWorkQueue_completeInformativeFailureInventory generated
-    completed_valid completed_started noStreams (by intro entry member; cases member)
-  have candidates : sourceObjectFailureCuts 0
-      ((State.initialize (Work.fromExecution work)).eligibleFailureBlocks
-        ((State.initialize (Work.fromExecution work)).sourceRunBlocks
-          { active := (State.initialize (Work.fromExecution work)).initialGroups
-              ++ (State.initialize (Work.fromExecution work)).initialStreams }
-          completedInputs).2.2) = [(0, supersetTask), (2, subsetTask)] := by cbv
-  simpa only [informativeObjectFailureCuts, candidates, selected_cuts, mergeFailureCuts,
-    List.merge]
-    using inventory
+      (((State.initialize (Work.fromExecution work)).runNormalized
+        completedInputs).2.flatten.flatMap publicationAtoms) [] :=
+    ⟨by cbv, by intro entry member; cases member⟩
+  exact createWorkQueue_completeInformativeFailureInventory generated
+    completed_valid noStreams (by intro entry member; cases member)
 
 /-- The actual completed replay has a licensed failure witness despite the redundant input. -/
 theorem completed_failure_witness

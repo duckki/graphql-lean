@@ -28,13 +28,15 @@ private def leaf (group : DeliveryNode) (ancestors : List DeliveryNode) (field :
 
 private def work : Execution.Work :=
   .combine .empty
-    (.combine (leaf parent [] "a")
-      (.combine (leaf child [parent] "b")
-        (.combine (leaf grandchild [child, parent] "c")
-          (.combine
-            (.executionGroup [⟨bad, []⟩] [] ({ result := .error 1, cause := some 1 })
-              .empty)
-            .empty))))
+    (.declareGroups
+      [⟨parent, []⟩, ⟨child, [parent]⟩, ⟨grandchild, [child, parent]⟩, ⟨bad, []⟩]
+      (.combine (leaf parent [] "a")
+        (.combine (leaf child [parent] "b")
+          (.combine (leaf grandchild [child, parent] "c")
+            (.combine
+              (.executionGroup [⟨bad, []⟩] [] ({ result := .error 1, cause := some 1 })
+                .empty)
+              .empty)))))
 
 private def result (group : DeliveryNode) (field : Name) (address : Address)
     : TaskResult :=

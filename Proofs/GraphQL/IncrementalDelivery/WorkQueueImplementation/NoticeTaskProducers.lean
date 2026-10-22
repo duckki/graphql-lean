@@ -49,8 +49,10 @@ Witness: activation leaves permanent task definitions unchanged.
 -/
 theorem TaskProducersSucceeded.startNewWork {queue : State} {work received}
     (ready : TaskProducersSucceeded work queue.tasks received) (released : NewWork)
-    : TaskProducersSucceeded work (queue.startNewWork released).tasks received := by
-  rw [(State.startNewWork_groupCore _ _).2.1]
+    (available : List (Occurrence × Nat) := [])
+    : TaskProducersSucceeded work (queue.startNewWork released available).1.tasks
+        received := by
+  rw [(State.startNewWork_groupCore _ _ available).2.1]
   exact ready
 
 /-- Every bounded drain prefix preserves successful source prerequisites.
@@ -59,15 +61,15 @@ unchanged. This applies before later drain steps remove additional live records.
 -/
 theorem TaskProducersSucceeded.drainReadyGroups_go {queue : State} {work received}
     (ready : TaskProducersSucceeded work queue.tasks received) (fuel : Nat)
-    : TaskProducersSucceeded work (State.drainReadyGroups.go fuel queue).1.tasks
+    (available : List (Occurrence × Nat) := [])
+    : TaskProducersSucceeded work (State.drainReadyGroups.go available fuel queue).1.tasks
         received := by
-  apply State.drainReadyGroups_go_preserves
-    (fun current => TaskProducersSucceeded work current.tasks received) (valid := ready)
-  · intro current node prior _ _ _ _
-    apply TaskProducersSucceeded.startNewWork
-    rwa [State.finishGroupSuccess_tasks]
-  · intro current node occurrence errors prior _ _ _
-    simpa only [State.taskFailure_tasks] using prior
+  exact State.drainReadyGroups_go_preserves
+    (fun current => TaskProducersSucceeded work current.tasks received)
+    (fun _ node prior _ _ _ => by
+      rw [(State.startNewWork_groupCore _ _ available).2.1, State.finishGroupSuccess_tasks]
+      exact prior)
+    ready fuel
 
 /-- An item integration adds only tasks produced by that item from the actual source input.
 Witness: source matching supplies each incoming task's unique item producer; old task
@@ -78,9 +80,10 @@ theorem TaskProducersSucceeded.integrateStreamItem {queue : State}
     (ready : TaskProducersSucceeded work queue.tasks received)
     (matching : (GraphEvent.streamItems stream items).MatchesWork work)
     (input : GraphEvent.streamItems stream items ∈ received) {item : StreamItem}
-    (member : item ∈ items)
-    : TaskProducersSucceeded work (queue.integrateStreamItem item).tasks received := by
-  rw [State.integrateStreamItem_tasks]
+    (member : item ∈ items) (available : List (Occurrence × Nat) := [])
+    : TaskProducersSucceeded work (queue.integrateStreamItem item available).tasks
+        received := by
+  rw [State.integrateStreamItem_tasks _ _ available]
   intro task registered producer known
   rcases List.mem_append.mp registered with old | child
   · exact ready task old producer known
@@ -99,14 +102,39 @@ theorem TaskProducersSucceeded.preparedStreamItems {queue : State}
     (ready : TaskProducersSucceeded work queue.tasks received)
     (matching : (GraphEvent.streamItems stream items).MatchesWork work)
     (input : GraphEvent.streamItems stream items ∈ received) (earlier : List StreamItem)
-    (included : earlier.Subset items)
-    : TaskProducersSucceeded work (queue.preparedStreamItems earlier).tasks received := by
+    (included : earlier.Subset items) (available : List (Occurrence × Nat) := [])
+    : TaskProducersSucceeded work (queue.preparedStreamItems earlier available).tasks
+        received := by
   induction earlier generalizing queue with
   | nil => exact ready
   | cons item rest ih =>
-      rw [State.preparedStreamItems_cons]
-      exact ih (ready.integrateStreamItem matching input (included List.mem_cons_self))
+      rw [State.preparedStreamItems_cons _ _ _ available]
+      exact ih (ready.integrateStreamItem matching input (included List.mem_cons_self) available)
         (fun _ member => included (List.mem_cons_of_mem _ member))
+
+/-- Successful flushing leaves the permanent producer prerequisites unchanged. -/
+theorem TaskProducersSucceeded.finishGroupSuccess {queue : State} {work received}
+    (ready : TaskProducersSucceeded work queue.tasks received) (node : GroupNode)
+    : TaskProducersSucceeded work (queue.finishGroupSuccess node).1.tasks received := by
+  rwa [State.finishGroupSuccess_tasks]
+
+/-- The actual task preparation registers only children of this supplied successful input. -/
+theorem TaskProducersSucceeded.taskSuccess_prepared {queue : State}
+    {work received occurrence result}
+    (ready : TaskProducersSucceeded work queue.tasks received)
+    (matching : (GraphEvent.taskSuccess occurrence result).MatchesWork work)
+    (input : GraphEvent.taskSuccess occurrence result ∈ received) (incoming : TaskNode)
+    : let stored := queue.putTaskNode { incoming with value := some result.value }
+      let prepared := (stored.maybeIntegrateWork result.work (some occurrence)).1
+      TaskProducersSucceeded work prepared.tasks received := by
+  intro stored prepared
+  have storedReady : TaskProducersSucceeded work stored.tasks received := ready
+  apply TaskProducersSucceeded.maybeIntegrateWork storedReady
+  intro task member producer known
+  obtain ⟨source, success, owners, payload, descriptor⟩ := matching.childTasks_producer member
+  obtain ⟨_, _, other⟩ := known
+  have same := Option.some.inj (descriptor.unique other).2.1
+  exact List.mem_flatMap.mpr ⟨_, input, same ▸ success⟩
 
 -----------------------------------------------------------------------------------------
 -- Matching source replay supplies the prerequisites without notice-admission assumptions

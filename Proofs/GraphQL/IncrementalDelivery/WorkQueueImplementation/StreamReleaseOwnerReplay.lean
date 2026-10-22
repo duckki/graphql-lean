@@ -55,7 +55,9 @@ theorem State.taskSuccess_streamDependencies {queue : State} {work : Execution.W
     (matching : queue.RegisteredTasksMatch work)
     (links : queue.ChildStreamsMatchWork work) {occurrence result}
     (source : (GraphEvent.taskSuccess occurrence result).MatchesWork work)
-    : StreamReleaseDependencies work (queue.taskSuccess occurrence result).2 := by
+    (available : List (Occurrence × Nat) := [])
+    : StreamReleaseDependencies work
+        (queue.taskSuccess occurrence result available).2.1 := by
   cases found : queue.taskNode? occurrence with
   | none =>
       exact (by
@@ -94,10 +96,11 @@ theorem State.taskSuccess_streamDependencies {queue : State} {work : Execution.W
             exact ih _ nextSound nextMatching nextLinks output
       obtain ⟨nextSound, nextMatching, nextLinks, output⟩ := loop node.task.groups (_, [], {})
         integratedSound integratedMatching integratedLinks (.nil work)
-      rw [queue.taskSuccess_eq occurrence result node found]
+      rw [queue.taskSuccess_eq occurrence result node found available]
       exact output.append
-        (State.drainReadyGroups_streamDependencies generated (nextSound.startNewWork _)
-          (nextMatching.startNewWork _) (nextLinks.startNewWork _))
+        (State.drainReadyGroups_streamDependencies generated
+          (nextSound.startNewWork _ available) (nextMatching.startNewWork _ available)
+          (nextLinks.startNewWork _ available) available)
 
 -----------------------------------------------------------------------------------------
 -- Item integration may expose stored groups; only its final drain releases their streams
@@ -112,17 +115,21 @@ theorem State.streamItems_streamDependencies {queue : State} {work : Execution.W
     (matching : queue.RegisteredTasksMatch work)
     (links : queue.ChildStreamsMatchWork work) {stream items}
     (source : (GraphEvent.streamItems stream items).MatchesWork work)
-    : StreamReleaseDependencies work (queue.streamItems stream items).2 := by
+    (available : List (Occurrence × Nat) := [])
+    : StreamReleaseDependencies work (queue.streamItems stream items available).2.1 := by
   let step (acc : State × List Execution.DeliveryNode
-      × List Execution.DeliveryNode × List StreamItemValue) (item : StreamItem) :=
-    let (current, groups, streams, values) := acc
+      × List Execution.DeliveryNode × List StreamItemValue × List GroupFailureEvent)
+      (item : StreamItem) :=
+    let (current, groups, streams, values, failures) := acc
     let (integrated, newWork) := current.maybeIntegrateWork item.work
     let (pruned, nonempty) := integrated.pruneEmptyGroups newWork.newGroups
-    (pruned.startNewWork { newWork with newGroups := nonempty },
-      groups ++ nonempty, streams ++ newWork.newStreams, values ++ [item.value])
+    let (started, queued) :=
+      pruned.startNewWork { newWork with newGroups := nonempty } available
+    (started, groups ++ nonempty, streams ++ newWork.newStreams,
+      values ++ [item.value], failures ++ queued)
   have loop (more : List StreamItem) (included : more.Subset items)
       (acc : State × List Execution.DeliveryNode
-        × List Execution.DeliveryNode × List StreamItemValue)
+        × List Execution.DeliveryNode × List StreamItemValue × List GroupFailureEvent)
       (sound : acc.1.GroupMembershipSound) (matching : acc.1.RegisteredTasksMatch work)
       (links : acc.1.ChildStreamsMatchWork work)
       : (more.foldl step acc).1.GroupMembershipSound
@@ -138,19 +145,20 @@ theorem State.streamItems_streamDependencies {queue : State} {work : Execution.W
           exact ⟨⟨address, payload, some item.occurrence, equal, known⟩,
             source.streamItem_childTask_groupsExact (included List.mem_cons_self) member⟩
         exact ih (fun _ member => included (List.mem_cons_of_mem _ member)) _
-          (((sound.maybeIntegrateWork item.work).pruneEmptyGroups _).startNewWork _)
+          (((sound.maybeIntegrateWork item.work).pruneEmptyGroups _).startNewWork _
+            available)
           (((matching.maybeIntegrateWork item.work tasks).pruneEmptyGroups _).startNewWork
-            _)
-          (((links.integrateRoots item.work).pruneEmptyGroups _).startNewWork _)
+            _ available)
+          (((links.integrateRoots item.work).pruneEmptyGroups _).startNewWork _ available)
   obtain ⟨nextSound, nextMatching, nextLinks⟩ :=
-    loop items (fun _ member => member) (queue, [], [], []) sound matching links
+    loop items (fun _ member => member) (queue, [], [], [], []) sound matching links
   unfold State.streamItems
   split
   · exact .nil work
   · intro group groups streams member
     have later := (List.mem_cons.mp member).resolve_left (by intro impossible; cases impossible)
     exact State.drainReadyGroups_streamDependencies generated nextSound nextMatching nextLinks
-      group groups streams later
+      available group groups streams later
 
 /-- Every matched source handler emits structurally supported group-carried stream notices.
 Witness: task/item successes use their release theorems; errors and stream closure emit
@@ -160,17 +168,22 @@ theorem State.handleGraphEvent_streamDependencies {queue : State} {work : Execut
     (generated : ExecutedWork work) (sound : queue.GroupMembershipSound)
     (matching : queue.RegisteredTasksMatch work)
     (links : queue.ChildStreamsMatchWork work) (event : GraphEvent)
-    (source : event.MatchesWork work)
-    : StreamReleaseDependencies work (queue.handleGraphEvent event).2 := by
+    (source : event.MatchesWork work) (available : List (Occurrence × Nat) := [])
+    : StreamReleaseDependencies work (queue.handleGraphEvent event available).2.1 := by
+  have currentSound := sound.cacheTaskFailures available
+  have currentMatching := matching.cacheTaskFailures available
+  have currentLinks := links.cacheTaskFailures available
   cases event with
   | taskSuccess =>
-      exact queue.taskSuccess_streamDependencies generated sound matching links source
+      exact (queue.cacheTaskFailures available).taskSuccess_streamDependencies generated
+        currentSound currentMatching currentLinks source available
   | streamItems =>
-      exact queue.streamItems_streamDependencies generated sound matching links source
+      exact (queue.cacheTaskFailures available).streamItems_streamDependencies generated
+        currentSound currentMatching currentLinks source available
   | taskFailure occurrence errors =>
       intro group groups streams member
-      exact False.elim (queue.taskFailure_noGroupSuccess occurrence errors group groups streams
-        member)
+      exact False.elim ((queue.cacheTaskFailures available).taskFailure_noGroupSuccess
+        occurrence errors group groups streams member)
   | streamSuccess stream =>
       intro group groups streams member
       simp only [State.handleGraphEvent, State.streamSuccess] at member
@@ -179,6 +192,12 @@ theorem State.handleGraphEvent_streamDependencies {queue : State} {work : Execut
       intro group groups streams member
       simp only [State.handleGraphEvent, State.streamFailure] at member
       split at member <;> simp at member
+  | groupFailure notice =>
+      intro group groups streams member
+      simp only [State.handleGraphEvent, State.groupFailure] at member
+      split at member
+      · cases member
+      · split at member <;> simp at member
 
 -----------------------------------------------------------------------------------------
 -- Actual batching and publisher normalization preserve the unmodified success carrier
@@ -193,15 +212,17 @@ theorem State.rawEventReplay_streamDependencies {queue : State} {work : Executio
     (matching : queue.RegisteredTasksMatch work)
     (links : queue.ChildStreamsMatchWork work) (received : List GraphEvent)
     (sources : ∀ event ∈ received, event.MatchesWork work)
-    : StreamReleaseDependencies work (queue.rawEventReplay received).2 := by
+    (available : List (Occurrence × Nat) := [])
+    : StreamReleaseDependencies work (queue.rawEventReplay received available).2 := by
   induction received generalizing queue with
   | nil => exact .nil work
   | cons event rest ih =>
       have source := sources event List.mem_cons_self
-      rw [State.rawEventReplay_cons]
+      rw [State.rawEventReplay_cons _ _ _ available]
       exact (queue.handleGraphEvent_streamDependencies generated sound matching links event
-        source).append (ih (sound.handleGraphEvent event)
-          (matching.handleGraphEvent event source) (links.handleGraphEvent source)
+        source available).append (ih (sound.handleGraphEvent event available)
+          (matching.handleGraphEvent event source available)
+          (links.handleGraphEvent source available)
           (fun next member => sources next (List.mem_cons_of_mem _ member)))
 
 /-- The executable batch wrapper adds no group-success carrier of its own.
@@ -217,7 +238,7 @@ theorem State.handleGraphEvents_streamDependencies {queue : State} {work : Execu
   split
   · exact .nil work
   · have raw := queue.rawEventReplay_streamDependencies generated sound matching links
-      received sources
+      received sources (GraphEvent.availableFailures received)
     dsimp only
     split
     · exact raw.append (by intro group groups streams impossible; simp at impossible)
@@ -328,8 +349,8 @@ theorem createWorkQueue_runNormalized_streamRetiredDependency {work : Execution.
           group.ref := by
   refine ⟨createWorkQueue_runNormalized_streamReleaseDependencies generated batches sources
     group groups streams carrier stream released dependencies producer known, ?_⟩
-  exact (State.runNormalized_groupClosures (createWorkQueue_registration work).1
-    (createWorkQueue_registration work).2 batches sources).2 group.ref
+  exact (State.runNormalized_groupClosures (createWorkQueue_liveGroupsRegistered _)
+    (createWorkQueue_pendingGroupFailures _) batches).2 group.ref
       (List.mem_flatMap.mpr ⟨_, carrier, List.mem_cons_self⟩)
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

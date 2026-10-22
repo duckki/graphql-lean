@@ -1,5 +1,6 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.ParentLinkUpdates
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.PublishedMemberships
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.StreamPreparation
 
 /-! Concrete settlement handlers preserve complete live canonical parent links. -/
 
@@ -70,10 +71,11 @@ Witness: both closure branches preserve completeness, as does child activation.
 -/
 theorem State.ParentLinksComplete.drainReadyGroups {queue : State} {parents}
     (complete : queue.ParentLinksComplete parents)
-    : queue.drainReadyGroups.1.ParentLinksComplete parents :=
+    (available : List (Occurrence × Nat) := [])
+    : (queue.drainReadyGroups available).1.ParentLinksComplete parents :=
   State.drainReadyGroups_preserves (fun state => state.ParentLinksComplete parents)
-    (fun _ node prior _ _ _ _ => (prior.finishGroupSuccess node).startNewWork _)
-    (fun _ _ occurrence errors prior _ _ _ => prior.taskFailure occurrence errors)
+    (available := available)
+    (fun _ node prior _ _ _ => (prior.finishGroupSuccess node).startNewWork _ available)
     complete
 
 -----------------------------------------------------------------------------------------
@@ -91,7 +93,8 @@ theorem State.ParentLinksComplete.taskSuccess {queue : State} {parents}
     (result : TaskResult)
     (canonical
       : ∀ group ∈ result.work.groups, group.parent = (parents group.node.ref).head?)
-    : (queue.taskSuccess occurrence result).1.ParentLinksComplete parents := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.taskSuccess occurrence result available).1.ParentLinksComplete parents := by
   let property (current : State) := current.GroupRefsUnique ∧ current.ParentLinksComplete parents
   have step (acc : State × List WorkQueueEvent × NewWork) (group : Execution.DeliveryNode)
       (prior : property acc.1) : property (successGroupStep acc group).1 := by
@@ -115,7 +118,7 @@ theorem State.ParentLinksComplete.taskSuccess {queue : State} {parents}
   cases found : queue.taskNode? occurrence with
   | none => simpa [State.taskSuccess, found] using complete
   | some node =>
-      rw [queue.taskSuccess_eq occurrence result node found]
+      rw [queue.taskSuccess_eq occurrence result node found available]
       let stored := queue.putTaskNode { node with value := some result.value }
       have storedComplete : stored.ParentLinksComplete parents := complete
       have storedUnique : stored.GroupRefsUnique := unique
@@ -123,7 +126,7 @@ theorem State.ParentLinksComplete.taskSuccess {queue : State} {parents}
         result.work canonical (some occurrence)
       have folded := (loop node.task.groups (_, [], {})
         ⟨storedUnique.maybeIntegrateWork result.work (some occurrence), integrated⟩).2
-      exact (folded.startNewWork _).drainReadyGroups
+      exact (folded.startNewWork _ available).drainReadyGroups available
 
 -----------------------------------------------------------------------------------------
 -- Stream items use the same registration invariant at each actual integration boundary
@@ -138,11 +141,12 @@ theorem State.ParentLinksComplete.integrateStreamItem {queue : State} {parents}
     (closed : queue.ParentRegistryClosed parents) (item : StreamItem)
     (canonical
       : ∀ group ∈ item.work.groups, group.parent = (parents group.node.ref).head?)
-    : (queue.integrateStreamItem item).ParentLinksComplete parents :=
+    (available : List (Occurrence × Nat) := [])
+    : (queue.integrateStreamItem item available).ParentLinksComplete parents :=
   ((complete.maybeIntegrateWork unique registered closed item.work
       canonical).pruneEmptyGroups
     _).startNewWork
-    _
+    _ available
 
 /-- A matched stream-item batch retains complete links at every item boundary and afterward.
 Witness: thread permanent registration and ref uniqueness alongside completeness, using
@@ -150,47 +154,41 @@ the independent registry-preservation theorems before the final mixed drain.
 -/
 theorem State.ParentLinksComplete.streamItems {queue : State} {work parents}
     (complete : queue.ParentLinksComplete parents) (unique : queue.GroupRefsUnique)
-    (live : queue.LiveGroupsRegistered) (tasks : queue.TaskGroupsRegistered)
+    (_live : queue.LiveGroupsRegistered) (_tasks : queue.TaskGroupsRegistered)
+    (frame : queue.RegistrationFrame work)
     (closed : queue.ParentRegistryClosed parents) (stream : Execution.DeliveryNode)
     (items : List StreamItem)
     (matching : (GraphEvent.streamItems stream items).MatchesWork work)
     (canonical
       : ∀ node dependencies,
           GroupRecordAt work node dependencies → dependencies = parents node.ref)
-    : (queue.streamItems stream items).1.ParentLinksComplete parents := by
-  let step (acc : State × List Execution.DeliveryNode
-      × List Execution.DeliveryNode × List StreamItemValue) (item : StreamItem) :=
-    let (current, groups, streams, values) := acc
-    let (integrated, released) := current.maybeIntegrateWork item.work
-    let (pruned, nonempty) := integrated.pruneEmptyGroups released.newGroups
-    (pruned.startNewWork { released with newGroups := nonempty },
-      groups ++ nonempty, streams ++ released.newStreams, values ++ [item.value])
-  let property (current : State) := current.GroupRefsUnique ∧ current.LiveGroupsRegistered
-    ∧ current.TaskGroupsRegistered ∧ current.ParentRegistryClosed parents
+    (available : List (Occurrence × Nat) := [])
+    : (queue.streamItems stream items available).1.ParentLinksComplete parents := by
+  let step := fun acc item => streamItemStep acc item available
+  let property (current : State) := current.GroupRefsUnique ∧ current.RegistrationFrame work ∧ current.ParentRegistryClosed parents
     ∧ current.ParentLinksComplete parents
   have loop (more : List StreamItem) (included : more.Subset items)
       (acc : State × List Execution.DeliveryNode
-        × List Execution.DeliveryNode × List StreamItemValue)
+        × List Execution.DeliveryNode × List StreamItemValue × List GroupFailureEvent)
       (prior : property acc.1) : property (more.foldl step acc).1 := by
     induction more generalizing acc with
     | nil => exact prior
     | cons item rest ih =>
         have member := included List.mem_cons_self
-        have registered := acc.1.integrateStreamItem_registration
-          prior.2.1 prior.2.2.1 matching member
-        have registry := prior.2.2.2.1.integrateStreamItem prior.2.1 prior.2.2.1
-          matching member canonical
-        have covered := prior.2.2.2.2.integrateStreamItem prior.1 prior.2.1 prior.2.2.2.1 item
+        have registry := prior.2.2.1.integrateStreamItem prior.2.1.live prior.2.1.tasks
+          prior.2.1 matching member canonical available
+        have covered := prior.2.2.2.integrateStreamItem prior.1 prior.2.1.live prior.2.2.1 item
           (fun _ group => matching.streamItem_childGroups_parentCanonical canonical member group)
-        have refs : (acc.1.integrateStreamItem item).GroupRefsUnique :=
-          ((prior.1.maybeIntegrateWork item.work).pruneEmptyGroups _).startNewWork _
+          available
+        have refs : (acc.1.integrateStreamItem item available).GroupRefsUnique :=
+          ((prior.1.maybeIntegrateWork item.work).pruneEmptyGroups _).startNewWork _ available
         exact ih (fun _ inRest => included (List.mem_cons_of_mem _ inRest)) _
-          ⟨refs, registered.1, registered.2.1, registry, covered⟩
+          ⟨refs, (prior.2.1.integrateStreamItem matching member available).1, registry, covered⟩
   unfold State.streamItems
   split
   · exact complete
-  · exact (loop items (fun _ member => member) (queue, [], [], [])
-      ⟨unique, live, tasks, closed, complete⟩).2.2.2.2.drainReadyGroups
+  · exact (loop items (fun _ member => member) (queue, [], [], [], [])
+      ⟨unique, frame, closed, complete⟩).2.2.2.drainReadyGroups available
 
 /-- Every matched event preserves complete live canonical parent links.
 Witness: the checked object/item handlers; stream termination only changes stream state.
@@ -199,26 +197,42 @@ No event-admission, output-correctness, or retirement premise is needed for this
 theorem State.ParentLinksComplete.handleGraphEvent {queue : State} {work parents}
     (complete : queue.ParentLinksComplete parents) (unique : queue.GroupRefsUnique)
     (live : queue.LiveGroupsRegistered) (tasks : queue.TaskGroupsRegistered)
+    (frame : queue.RegistrationFrame work)
     (closed : queue.ParentRegistryClosed parents) (event : GraphEvent)
     (matching : event.MatchesWork work)
     (canonical
       : ∀ node dependencies,
           GroupRecordAt work node dependencies → dependencies = parents node.ref)
-    : (queue.handleGraphEvent event).1.ParentLinksComplete parents := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.handleGraphEvent event available).1.ParentLinksComplete parents := by
+  have cachedComplete : (queue.cacheTaskFailures available).ParentLinksComplete parents :=
+    complete.of_subset (by rw [State.cacheTaskFailures_groupNodes]; exact List.Subset.refl _)
+  have cachedUnique := unique.cacheTaskFailures available
+  have cachedReg := queue.cacheTaskFailures_registration live tasks available
+  have cachedClosed := closed.of_sameRegistry (queue.cacheTaskFailures_registeredGroups available)
   cases event with
   | taskSuccess occurrence result =>
-      exact complete.taskSuccess unique live closed occurrence result
-        (fun _ member => matching.taskChildGroups_parentCanonical canonical member)
-  | taskFailure occurrence errors => exact complete.taskFailure occurrence errors
+      exact cachedComplete.taskSuccess cachedUnique cachedReg.1 cachedClosed occurrence result
+        (fun _ member => matching.taskChildGroups_parentCanonical canonical member) available
+  | taskFailure occurrence errors => exact cachedComplete.taskFailure occurrence errors
   | streamItems stream items =>
-      exact complete.streamItems unique live tasks closed stream items matching canonical
+      exact cachedComplete.streamItems cachedUnique cachedReg.1 cachedReg.2
+        (frame.cacheTaskFailures available) cachedClosed stream items matching canonical available
   | streamSuccess stream =>
-      change (queue.streamSuccess stream).1.ParentLinksComplete parents
+      change State.ParentLinksComplete
+        ((queue.cacheTaskFailures available).streamSuccess stream).1 parents
       unfold State.streamSuccess
-      split <;> exact complete
+      split <;> exact cachedComplete
   | streamFailure stream errors =>
-      change (queue.streamFailure stream errors).1.ParentLinksComplete parents
+      change State.ParentLinksComplete
+        ((queue.cacheTaskFailures available).streamFailure stream errors).1 parents
       unfold State.streamFailure
-      split <;> exact complete
+      split <;> exact cachedComplete
+
+  | groupFailure failure =>
+      simp only [State.handleGraphEvent, State.groupFailure]
+      split
+      · exact cachedComplete
+      · split <;> exact cachedComplete
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

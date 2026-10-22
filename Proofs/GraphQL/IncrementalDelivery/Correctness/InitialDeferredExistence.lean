@@ -28,7 +28,7 @@ theorem deferredPhase_published_deferred
     (published : Published matching events occurrence)
     : ∃ address, occurrence = .executionGroup address := by
   obtain ⟨index, event, selected, value, same⟩ := published
-  have allowed := explained.2.2 index event selected
+  have allowed := explained.eventAllowed index event selected
   have permitted := phase event (List.mem_of_getElem? selected)
   cases event <;> simp only [DeferredPhaseEvent, IsValue] at permitted value
   all_goals try contradiction
@@ -185,7 +185,8 @@ theorem completeRun_exists_of_initial_deferred_coverage
     have preserved := (deferred.extend (List.Subset.refl _) closures).extend
       (List.Subset.refl _) [.groupSuccess anchor newGroups newStreams]
     obtain ⟨tail, run⟩ := released_streams_run_extension coherent valid refs roleCoherent
-      under positive allocated (fun _ _ _ descriptor => groupInitial descriptor) released preserved dependenciesClosed notified
+      under positive allocated (fun _ _ _ descriptor => groupInitial descriptor)
+      released preserved dependenciesClosed notified
       (WorkBatching.singletons _)
     exact ⟨_, run⟩
   · have allFailed (ref : NodeRef) (member : ref ∈ groups.map DeliveryNode.ref)
@@ -219,7 +220,8 @@ theorem completeRun_exists_of_initial_deferred_coverage
     have retained := streamsNotified_append_controls notified
       (fun event member => (controls event member).2)
     obtain ⟨tail, run⟩ := released_streams_run_extension coherent valid refs roleCoherent
-      under positive allocated (fun _ _ _ descriptor => groupInitial descriptor) closed preserved dependenciesClosed retained
+      under positive allocated (fun _ _ _ descriptor => groupInitial descriptor)
+      closed preserved dependenciesClosed retained
       (WorkBatching.singletons _)
     exact ⟨_, run⟩
 

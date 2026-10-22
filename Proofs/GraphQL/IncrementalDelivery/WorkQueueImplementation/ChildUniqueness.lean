@@ -45,76 +45,36 @@ theorem State.ChildGroupsUnique.addGroup
     (uniqueChildren : queue.ChildGroupsUnique)
     (group : Group)
     : (queue.addGroup group).ChildGroupsUnique := by
+  have appended : ({ queue with
+      groupNodes := queue.groupNodes ++ [({ group } : GroupNode)] } : State).ChildGroupsUnique := by
+    intro node member
+    rcases List.mem_append.mp member with old | added
+    · exact uniqueChildren node old
+    · cases List.mem_singleton.mp added
+      exact List.nodup_nil
   unfold State.addGroup
   split
   · exact uniqueChildren
   · split
-    · exact uniqueChildren
-    · intro node member
-      rcases List.mem_append.mp member with old | added
-      · exact uniqueChildren node old
-      · have same : node = { group } := List.mem_singleton.mp added
-        subst node
-        exact List.nodup_nil
-
-/-- Parent linking adds a child ref only when it is absent.
-Witness: registration preserves empty child lists; the linking fold preserves Nodup.
--/
-theorem State.ChildGroupsUnique.addGroups
-    {queue : State}
-    (uniqueChildren : queue.ChildGroupsUnique)
-    (groups : List Group)
-    : (queue.addGroups groups).1.ChildGroupsUnique := by
-  let linkStep (current : State) (group : Group) : State :=
-    match group.parent with
-    | none => current
-    | some parent =>
-        match current.groupNode? parent with
-        | none => current
-        | some node =>
-            let children :=
-              if node.childGroups.contains group.node.ref then
-                node.childGroups
-              else
-                node.childGroups ++ [group.node.ref]
-            current.putGroupNode { node with childGroups := children }
-  have registerFold (more : List Group) :
-      ∀ current, current.ChildGroupsUnique
-        → (more.foldl State.addGroup current).ChildGroupsUnique := by
-    induction more with
-    | nil => intro current unique; exact unique
-    | cons group rest ih =>
-        intro current unique
-        exact ih (current.addGroup group) (unique.addGroup group)
-  have linkFold (more : List Group) :
-      ∀ current, current.ChildGroupsUnique
-        → (more.foldl linkStep current).ChildGroupsUnique := by
-    induction more with
-    | nil => intro current currentUniqueChildren; exact currentUniqueChildren
-    | cons group rest ih =>
-        intro current currentUniqueChildren
-        apply ih (linkStep current group)
-        unfold linkStep
+    · exact appended
+    · split
+      · split <;> exact uniqueChildren
+      · rename_i node found
+        apply appended.putGroupNode
+        have prior := uniqueChildren node (List.mem_of_find?_eq_some found)
         split
-        · exact currentUniqueChildren
-        · split
-          · exact currentUniqueChildren
-          · rename_i node found
-            apply currentUniqueChildren.putGroupNode
-            have prior := currentUniqueChildren node (List.mem_of_find?_eq_some found)
-            split
-            · exact prior
-            · simp_all [List.nodup_append]
-              intro child member same
-              subst child
-              contradiction
-  let fresh := groups.filter (fun group =>
-    !queue.registeredGroups.contains group.node.ref
-      && (queue.groupNode? group.node.ref).isNone)
-  change (fresh.foldl linkStep
-    (fresh.foldl State.addGroup queue)).ChildGroupsUnique
-  exact linkFold fresh _
-    (registerFold fresh queue uniqueChildren)
+        · exact prior
+        · simp_all [List.nodup_append]
+          intro child member same
+          subst child
+          contradiction
+
+/-- Recursive parent linking adds a child ref only when it is absent. -/
+theorem State.ChildGroupsUnique.addGroups
+    {queue : State} (uniqueChildren : queue.ChildGroupsUnique) (groups : List Group)
+    : (queue.addGroups groups).1.ChildGroupsUnique := by
+  exact State.addGroups_preserves State.ChildGroupsUnique groups
+    (fun _ group _ valid => valid.addGroup group) queue uniqueChildren
 
 /-- Task registration preserves duplicate-free child lists.
 Witness: its node updates change only task memberships and pending counts.
@@ -246,17 +206,21 @@ theorem State.ChildGroupsUnique.pruneEmptyGroups
               · exact ih _ _ _ currentUniqueChildren
   exact loop _ queue groups [] uniqueChildren
 
-/-- Activating released work preserves duplicate-free child lists.
-Witness: activation leaves the entire group-node map unchanged.
--/
-theorem State.ChildGroupsUnique.startNewWork
-    {queue : State}
-    (uniqueChildren : queue.ChildGroupsUnique) (newWork : NewWork)
-    : (queue.startNewWork newWork).ChildGroupsUnique := by
+/-- Cache exposure leaves every child list unchanged. -/
+theorem State.ChildGroupsUnique.cacheTaskFailures {queue : State}
+    (unique : queue.ChildGroupsUnique) (available : List (Occurrence × Nat))
+    : (queue.cacheTaskFailures available).ChildGroupsUnique := by
   intro node member
-  have same := (queue.startNewWork_groupCore newWork).1
-  rw [same] at member
-  exact uniqueChildren node member
+  rw [State.cacheTaskFailures_groupNodes] at member
+  exact unique node member
+
+/-- Activation retains a sublist of unchanged group records. -/
+theorem State.ChildGroupsUnique.startNewWork {queue : State}
+    (unique : queue.ChildGroupsUnique) (newWork : NewWork)
+    (available : List (Occurrence × Nat) := [])
+    : (queue.startNewWork newWork available).1.ChildGroupsUnique := by
+  intro node member
+  exact unique node ((queue.startNewWork_groupNodes_sublist newWork available).subset member)
 
 /-- Removing a failed subtree preserves duplicate-free child lists on survivors.
 Witness: the handler filters group records without altering their child lists.
@@ -293,7 +257,7 @@ theorem createWorkQueue_childGroupsUnique (initialWork : Work)
   let pruned := (integrated.pruneEmptyGroups newWork.newGroups).1
   let groups := (integrated.pruneEmptyGroups newWork.newGroups).2
   let roots := { newWork with newGroups := groups }
-  let started := pruned.startNewWork roots
+  let started := (pruned.startNewWork roots).1
   have emptyUniqueChildren : ({} : State).ChildGroupsUnique := by
     intro node member
     cases member
@@ -391,13 +355,11 @@ theorem State.ChildGroupsUnique.taskFailure
 Witness: every success/failure closure and subsequent activation preserves uniqueness.
 -/
 theorem State.ChildGroupsUnique.drainReadyGroups {queue : State}
-    (uniqueChildren : queue.ChildGroupsUnique)
-    : queue.drainReadyGroups.1.ChildGroupsUnique := by
-  apply State.drainReadyGroups_preserves State.ChildGroupsUnique (valid := uniqueChildren)
-  · intro current node prior _ _ _ _
-    exact (prior.finishGroupSuccess node).startNewWork _
-  · intro current _ occurrence errors prior _ _ _
-    exact prior.taskFailure occurrence errors
+    (unique : queue.ChildGroupsUnique) (available : List (Occurrence × Nat) := [])
+    : (queue.drainReadyGroups available).1.ChildGroupsUnique :=
+  State.drainReadyGroups_preserves State.ChildGroupsUnique
+    (fun _ node prior _ _ _ => (prior.finishGroupSuccess node).startNewWork _ available)
+    unique
 
 /-- Single-pass task success preserves duplicate-free child lists.
 Witness: ignored settlement cleans up only its task; active settlement composes child
@@ -408,7 +370,8 @@ theorem State.ChildGroupsUnique.taskSuccess
     {queue : State}
     (uniqueChildren : queue.ChildGroupsUnique)
     (occurrence : Occurrence) (result : TaskResult)
-    : (queue.taskSuccess occurrence result).1.ChildGroupsUnique := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.taskSuccess occurrence result available).1.ChildGroupsUnique := by
   have loop (groups : List Execution.DeliveryNode)
       (acc : State × List WorkQueueEvent × NewWork) (prior : acc.1.ChildGroupsUnique)
       : (groups.foldl successGroupStep acc).1.ChildGroupsUnique := by
@@ -429,11 +392,12 @@ theorem State.ChildGroupsUnique.taskSuccess
   cases found : queue.taskNode? occurrence with
   | none => simpa only [State.taskSuccess, found] using uniqueChildren
   | some node =>
-      rw [queue.taskSuccess_eq occurrence result node found]
+      rw [queue.taskSuccess_eq occurrence result node found available]
       have installed : State.ChildGroupsUnique
           (queue.putTaskNode { node with value := some result.value }) := uniqueChildren
       have integrated := installed.maybeIntegrateWork result.work (some occurrence)
-      exact ((loop node.task.groups (_, [], {}) integrated).startNewWork _).drainReadyGroups
+      exact ((loop node.task.groups (_, [], {}) integrated).startNewWork
+        _ available).drainReadyGroups available
 
 /-- Stream-item batches preserve duplicate-free child lists.
 Witness: each item's integration, pruning, and activation retain the invariant.
@@ -442,21 +406,22 @@ theorem State.ChildGroupsUnique.streamItems
     {queue : State}
     (uniqueChildren : queue.ChildGroupsUnique)
     (stream : Execution.DeliveryNode) (items : List StreamItem)
-    : (queue.streamItems stream items).1.ChildGroupsUnique := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.streamItems stream items available).1.ChildGroupsUnique := by
   let step (acc : State × List Execution.DeliveryNode
-      × List Execution.DeliveryNode × List StreamItemValue)
+      × List Execution.DeliveryNode × List StreamItemValue × List GroupFailureEvent)
       (item : StreamItem) :=
-    let (current, groups, streams, values) := acc
+    let (current, groups, streams, values, failures) := acc
     let (integrated, newWork) := current.maybeIntegrateWork item.work
     let (pruned, nonempty) := integrated.pruneEmptyGroups newWork.newGroups
-    (pruned.startNewWork { newWork with newGroups := nonempty },
-      groups ++ nonempty, streams ++ newWork.newStreams,
-      values ++ [item.value])
+    let (started, queued) := pruned.startNewWork { newWork with newGroups := nonempty } available
+    (started, groups ++ nonempty, streams ++ newWork.newStreams,
+      values ++ [item.value], failures ++ queued)
   have stepUniqueChildren (acc : State × List Execution.DeliveryNode
-      × List Execution.DeliveryNode × List StreamItemValue)
+      × List Execution.DeliveryNode × List StreamItemValue × List GroupFailureEvent)
       (item : StreamItem) (currentUniqueChildren : acc.1.ChildGroupsUnique)
       : (step acc item).1.ChildGroupsUnique := by
-    obtain ⟨current, groups, streams, values⟩ := acc
+    obtain ⟨current, groups, streams, values, failures⟩ := acc
     let integrated := current.maybeIntegrateWork item.work
     have integratedUniqueChildren : integrated.1.ChildGroupsUnique :=
       currentUniqueChildren.maybeIntegrateWork item.work
@@ -464,11 +429,11 @@ theorem State.ChildGroupsUnique.streamItems
     have prunedUniqueChildren : pruned.1.ChildGroupsUnique :=
       integratedUniqueChildren.pruneEmptyGroups integrated.2.newGroups
     exact prunedUniqueChildren.startNewWork
-      { integrated.2 with newGroups := pruned.2 }
+      { integrated.2 with newGroups := pruned.2 } available
   have foldUniqueChildren (more : List StreamItem)
       (subset : ∀ item ∈ more, item ∈ items) :
       ∀ acc : State × List Execution.DeliveryNode
-        × List Execution.DeliveryNode × List StreamItemValue,
+        × List Execution.DeliveryNode × List StreamItemValue × List GroupFailureEvent,
         acc.1.ChildGroupsUnique
           → (more.foldl step acc).1.ChildGroupsUnique := by
     induction more with
@@ -484,7 +449,7 @@ theorem State.ChildGroupsUnique.streamItems
   split
   · exact uniqueChildren
   · exact (foldUniqueChildren items (by intro item member; exact member)
-      (queue, [], [], []) uniqueChildren).drainReadyGroups
+      (queue, [], [], [], []) uniqueChildren).drainReadyGroups available
 
 /-- Stream exhaustion preserves duplicate-free group child lists.
 Witness: stream closure does not modify group records.
@@ -517,13 +482,37 @@ Witness: the corresponding handler theorem; no host-event semantic premise is ne
 -/
 theorem State.ChildGroupsUnique.handleGraphEvent {queue : State}
     (unique : queue.ChildGroupsUnique) (event : GraphEvent)
-    : (queue.handleGraphEvent event).1.ChildGroupsUnique := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.handleGraphEvent event available).1.ChildGroupsUnique := by
+  have cached := unique.cacheTaskFailures available
   cases event with
-  | taskSuccess occurrence result => exact unique.taskSuccess occurrence result
-  | taskFailure occurrence errors => exact unique.taskFailure occurrence errors
-  | streamItems stream items => exact unique.streamItems stream items
-  | streamSuccess stream => exact unique.streamSuccess stream
-  | streamFailure stream errors => exact unique.streamFailure stream errors
+  | taskSuccess occurrence result => exact cached.taskSuccess occurrence result available
+  | taskFailure occurrence errors => exact cached.taskFailure occurrence errors
+  | streamItems stream items => exact cached.streamItems stream items available
+  | streamSuccess stream => exact cached.streamSuccess stream
+  | streamFailure stream errors => exact cached.streamFailure stream errors
+  | groupFailure failure =>
+      change ((queue.cacheTaskFailures available).groupFailure failure).1.ChildGroupsUnique
+      unfold State.groupFailure
+      split
+      · exact cached
+      · split <;> exact cached
+
+/-- Enqueuing startup effects leaves child-list uniqueness unchanged. -/
+theorem State.ChildGroupsUnique.dispatchGraphEvent {queue : State}
+    (unique : queue.ChildGroupsUnique) (event : GraphEvent)
+    (available : List (Occurrence × Nat) := [])
+    : (queue.dispatchGraphEvent event available).1.ChildGroupsUnique := by
+  exact unique.handleGraphEvent event available
+
+/-- FIFO handlers preserve child-list uniqueness under their common cache snapshot. -/
+theorem State.ChildGroupsUnique.replayGraphEvents {queue : State}
+    (unique : queue.ChildGroupsUnique) (events : List GraphEvent)
+    (available : List (Occurrence × Nat) := [])
+    : (queue.replayGraphEvents events available).ChildGroupsUnique := by
+  induction events generalizing queue with
+  | nil => exact unique
+  | cons event rest ih => exact ih (unique.dispatchGraphEvent event available)
 
 /-- A raw host batch preserves child-list uniqueness.
 Witness: handler induction, including termination-flag updates and absorbed batches.
@@ -531,28 +520,12 @@ Witness: handler induction, including termination-flag updates and absorbed batc
 theorem State.ChildGroupsUnique.handleGraphEvents {queue : State}
     (unique : queue.ChildGroupsUnique) (batch : List GraphEvent)
     : (queue.handleGraphEvents batch).1.ChildGroupsUnique := by
-  let step (acc : State × List WorkQueueEvent) (event : GraphEvent) :=
-    let (next, produced) := acc.1.handleGraphEvent event
-    (next, acc.2 ++ produced)
-  have fold (events : List GraphEvent) :
-      ∀ acc : State × List WorkQueueEvent, acc.1.ChildGroupsUnique
-        → (events.foldl step acc).1.ChildGroupsUnique := by
-    induction events with
-    | nil => intro acc current; exact current
-    | cons event rest ih =>
-        intro acc current
-        exact ih (step acc event) (current.handleGraphEvent event)
-  unfold State.handleGraphEvents
-  split
-  · exact unique
-  · cases outcome : batch.foldl step (queue, []) with
-    | mk current outputs =>
-        have currentUnique : current.ChildGroupsUnique := by
-          have folded := fold batch (queue, []) unique
-          rw [outcome] at folded
-          exact folded
-        dsimp only
-        split <;> exact currentUnique
+  cases running : queue.terminated with
+  | true => simpa only [State.handleGraphEvents, running, ↓reduceIte] using unique
+  | false =>
+      obtain ⟨terminal, same⟩ := queue.handleGraphEvents_stateCore batch running
+      rw [same]
+      exact unique.replayGraphEvents batch (GraphEvent.availableFailures batch)
 
 /-- Normalized replay preserves duplicate-free child lists for arbitrary input batches.
 Witness: each batch updates the queue independently of publisher normalization.

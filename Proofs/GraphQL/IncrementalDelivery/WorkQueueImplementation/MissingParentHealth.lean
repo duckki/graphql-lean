@@ -52,7 +52,8 @@ theorem State.MissingParentAncestorsHealthy.finishGroupSuccess {queue : State}
     ∧ current.RetainedFailures work failed
     ∧ current.MissingParentAncestorsHealthy work failed
   have loop (more : List Occurrence) (safe : ∀ occurrence ∈ more, occurrence ∉ failed)
-      (acc : State × List ExecutionGroupValue × NodeRefs) (invariant : property acc.1) : property (more.foldl step acc).1 := by
+      (acc : State × List ExecutionGroupValue × NodeRefs) (invariant : property acc.1)
+      : property (more.foldl step acc).1 := by
     induction more generalizing acc with
     | nil => exact invariant
     | cons occurrence rest ih =>
@@ -62,7 +63,8 @@ theorem State.MissingParentAncestorsHealthy.finishGroupSuccess {queue : State}
         split
         · exact invariant
         · exact ⟨invariant.1.removeTask occurrence, invariant.2.1.removeTask occurrence,
-            invariant.2.2.1.removeTask occurrence, invariant.2.2.2.1.removeTask occurrence (safe occurrence List.mem_cons_self),
+            invariant.2.2.1.removeTask occurrence,
+            invariant.2.2.2.1.removeTask occurrence (safe occurrence List.mem_cons_self),
             invariant.2.2.2.2.removeTask occurrence⟩
   let flushed := (group.tasks.foldl step (queue, [], [])).1
   have metadata : property flushed := loop group.tasks notFailed (queue, [], [])
@@ -135,19 +137,77 @@ theorem State.RootAncestorsHealthy.append_fresh {queue : State} {work settled fa
   exact (same.symm ▸ retired ref active).healthy_append_fresh generated known
     (healthy ref active node dependencies known same) accounted registered matching fresh
 
-/-- Activation changes no live record, cache, or cancellation marker.
-Witness: the exact group-core and cancellation equations preserve the missing boundary.
--/
+/-- Cache exposure changes no missing-parent health boundary. -/
+theorem State.MissingParentAncestorsHealthy.cacheTaskFailures {queue : State}
+    {work failed} (prior : queue.MissingParentAncestorsHealthy work failed)
+    (available : List (Occurrence × Nat))
+    : (queue.cacheTaskFailures available).MissingParentAncestorsHealthy work failed := by
+  intro node member dependencies known parent parentEq missing uncancelled
+  rw [State.cacheTaskFailures_groupNodes] at member
+  rw [State.groupNode?, State.cacheTaskFailures_groupNodes] at missing
+  rw [State.cacheTaskFailures_cancelledGroups] at uncancelled
+  exact prior node member dependencies known parent parentEq missing uncancelled
+
+/-- Starting a task changes no parent record or cancellation marker. -/
+theorem State.MissingParentAncestorsHealthy.startTask {queue : State} {work failed}
+    (prior : queue.MissingParentAncestorsHealthy work failed) (occurrence : Occurrence)
+    (available : List (Occurrence × Nat) := [])
+    : (queue.startTask occurrence available).MissingParentAncestorsHealthy work
+        failed := by
+  unfold State.startTask
+  split
+  · exact prior
+  · split <;> exact prior
+
+/-- Startup removal cancels every newly missing parent; other starts preserve the boundary. -/
+theorem State.MissingParentAncestorsHealthy.startGroup {queue : State} {work failed}
+    (prior : queue.MissingParentAncestorsHealthy work failed) (ref : NodeRef)
+    (available : List (Occurrence × Nat) := [])
+    : (queue.startGroup ref available).1.MissingParentAncestorsHealthy work failed := by
+  have cached := prior.cacheTaskFailures available
+  unfold State.startGroup
+  dsimp only
+  split
+  · exact cached
+  · split
+    · have loop (tasks : List Occurrence) (current : State)
+          (valid : current.MissingParentAncestorsHealthy work failed)
+          : (tasks.foldl (fun current task => current.startTask task available)
+              current).MissingParentAncestorsHealthy work failed := by
+        induction tasks generalizing current with
+        | nil => exact valid
+        | cons task rest ih => exact ih _ (valid.startTask task available)
+      exact loop _ _ cached
+    · exact cached.removeGroup _
+
+/-- Activation preserves health certificates through immediate failed-group removal. -/
 theorem State.MissingParentAncestorsHealthy.startNewWork {queue : State} {work failed}
     (prior : queue.MissingParentAncestorsHealthy work failed) (released : NewWork)
-    : (queue.startNewWork released).MissingParentAncestorsHealthy work failed := by
-  intro node member dependencies known parent parentEq missing uncancelled
-  rw [(queue.startNewWork_groupCore released).1] at member
-  have wasMissing : queue.groupNode? parent = none := by
-    simpa only [State.groupNode?, (queue.startNewWork_groupCore released).1] using missing
-  rw [State.startNewWork_cancelledGroups] at uncancelled
-  exact prior node member dependencies known parent parentEq wasMissing
-    uncancelled
+    (available : List (Occurrence × Nat) := [])
+    : (queue.startNewWork released available).1.MissingParentAncestorsHealthy work
+        failed := by
+  have groups (refs : NodeRefs) (acc : State × List GroupFailureEvent)
+      (valid : acc.1.MissingParentAncestorsHealthy work failed)
+      : (refs.foldl
+          (fun (current, failures) ref =>
+            let (next, queued) := current.startGroup ref available
+            (next, failures ++ queued))
+          acc).1.MissingParentAncestorsHealthy
+          work failed := by
+    induction refs generalizing acc with
+    | nil => exact valid
+    | cons ref rest ih => exact ih _ (valid.startGroup ref available)
+  have streams (refs : NodeRefs) (current : State)
+      (valid : current.MissingParentAncestorsHealthy work failed)
+      : (refs.foldl State.startStream current).MissingParentAncestorsHealthy work failed := by
+    induction refs generalizing current with
+    | nil => exact valid
+    | cons ref rest ih =>
+        apply ih
+        unfold State.startStream
+        split <;> exact valid
+  unfold State.startNewWork
+  exact streams _ _ (groups _ _ prior)
 
 /-- Activating children preserves healthy root ancestry when their release certifies it.
 Witness: the root-ref list is the old roots followed by the newly released group refs.
@@ -155,21 +215,22 @@ Witness: the root-ref list is the old roots followed by the newly released group
 theorem State.RootAncestorsHealthy.startNewWork {queue : State} {work failed}
     (roots : queue.RootAncestorsHealthy work failed) (released : NewWork)
     (children : ∀ child ∈ released.newGroups, GroupAncestorsHealthy work failed child.ref)
-    : (queue.startNewWork released).RootAncestorsHealthy work failed := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.startNewWork released available).1.RootAncestorsHealthy work failed := by
   intro ref member
-  rw [(queue.startNewWork_groupCore released).2.2] at member
-  rcases List.mem_append.mp member with old | new
+  have old := (queue.startNewWork_groupCore released available).2.2.subset member
+  rcases List.mem_append.mp old with old | new
   · exact roots ref old
   · obtain ⟨child, included, rfl⟩ := List.mem_map.mp new
     exact children child included
 
-/-- Draining preserves the missing-parent boundary and healthy root ancestry together.
-Witness: successful closure proves its released children's ancestry before activation;
-cached failure removes groups and marks every newly missing parent cancelled. A failed
-newly announced child is permitted by the invariant and handled by the failure branch.
+/-- Successful counter debt excludes failed memberships from every ready flush.
+Witness: the drain threads that bound and missing-parent health through startup removal;
+there is no rejected-active-group branch in the release-time drain.
 -/
 theorem State.MissingParentAncestorsHealthy.drainReadyGroups {queue : State}
-    {work failed parents} (prior : queue.MissingParentAncestorsHealthy work failed)
+    {work failed parents settled}
+    (prior : queue.MissingParentAncestorsHealthy work failed)
     (generated : ExecutedWork work) (matching : queue.GroupNodesMatchWork work)
     (links : queue.ChildLinksCanonical parents)
     (fields : queue.GroupParentsCanonical parents)
@@ -182,57 +243,40 @@ theorem State.MissingParentAncestorsHealthy.drainReadyGroups {queue : State}
           ∃ owners producer payload,
             TaskAt work occurrence owners producer payload
             ∧ payload.failure.isSome = true)
-    (roots : queue.RootAncestorsHealthy work failed)
-    (sound : queue.GroupMembershipSound) (tasks : queue.RegisteredTasksMatch work)
-    : queue.drainReadyGroups.1.MissingParentAncestorsHealthy work failed
-      ∧ queue.drainReadyGroups.1.RootAncestorsHealthy work failed := by
+    (roots : queue.RootAncestorsHealthy work failed) (sound : queue.GroupMembershipSound)
+    (tasks : queue.RegisteredTasksMatch work)
+    (bounded : queue.PendingBound (fun _ => True) settled)
+    (disjoint : ∀ occurrence ∈ settled, occurrence ∉ failed)
+    (available : List (Occurrence × Nat) := [])
+    : (queue.drainReadyGroups available).1.MissingParentAncestorsHealthy work failed
+      ∧ (queue.drainReadyGroups available).1.RootAncestorsHealthy work failed := by
   let property (current : State) := current.GroupNodesMatchWork work
     ∧ current.ChildLinksCanonical parents ∧ current.GroupParentsCanonical parents
     ∧ current.RetainedFailures work failed
     ∧ current.MissingParentAncestorsHealthy work failed
     ∧ current.RootAncestorsHealthy work failed
     ∧ current.GroupMembershipSound ∧ current.RegisteredTasksMatch work
-  have result : property queue.drainReadyGroups.1 := by
-    apply State.drainReadyGroups_preserves property
-      (valid := ⟨matching, links, fields, counts, prior, roots, sound, tasks⟩)
-    · intro current node invariant member active unrejected _
-      obtain ⟨matched, linked, parentsKnown, retained, missing, rooted, members, registered⟩ :=
-        invariant
-      have notFailed := retained.unrejected_tasks_notFailed members registered member unrejected
-      have closed := missing.finishGroupSuccess generated matched linked parentsKnown canonical
-        retained failedKnown member notFailed (rooted _ active)
-      have surviving : (current.finishGroupSuccess node).1.RootAncestorsHealthy work failed :=
-        fun ref included => rooted ref (current.finishGroupSuccess_rootsSubset node included)
-      exact ⟨(matched.finishGroupSuccess node).startNewWork _,
-        (linked.finishGroupSuccess node).startNewWork _,
-        (parentsKnown.finishGroupSuccess node).startNewWork _,
-        (retained.finishGroupSuccess node notFailed).startNewWork _,
-        closed.1.startNewWork _, surviving.startNewWork _ closed.2,
-        (members.finishGroupSuccess node).startNewWork _,
-        (registered.finishGroupSuccess node).startNewWork _⟩
-    · intro current node occurrence errors invariant _ _ _
-      obtain ⟨matched, linked, parentsKnown, retained, missing, rooted, members, registered⟩ :=
-        invariant
-      have unchanged : (current.taskFailure occurrence errors).1.RootAncestorsHealthy work failed := by
-        cases found : current.taskNode? occurrence with
-        | none => simpa [State.taskFailure, found] using rooted
-        | some task =>
-            rw [current.taskFailure_eq occurrence errors task found]
-            exact failureGroupFold_preserves
-              (fun state => state.RootAncestorsHealthy work failed)
-              (fun state ref valid key included => valid key
-                (state.removeGroup_rootsSubset ref included))
-              errors task.task.groups _ rooted
-      exact ⟨
-        matched.taskFailure occurrence errors,
-        linked.taskFailure occurrence errors,
-        parentsKnown.taskFailure occurrence errors,
-        retained.taskFailure_preserves occurrence errors,
-        missing.taskFailure_preserves occurrence errors,
-        unchanged,
-        members.taskFailure occurrence errors,
-        registered.taskFailure occurrence errors
-      ⟩
+    ∧ current.PendingBound (fun _ => True) settled
+  have result : property (queue.drainReadyGroups available).1 := by
+    apply State.drainReadyGroups_preserves property (available := available)
+      (valid := ⟨matching, links, fields, counts, prior, roots, sound, tasks, bounded⟩)
+    intro current node invariant member active zero
+    obtain ⟨matched, linked, parentsKnown, retained, missing, rooted, members,
+      registered, pending⟩ := invariant
+    have all := pending.allSettled member trivial zero
+    have notFailed := fun occurrence member => disjoint occurrence (all occurrence member)
+    have closed := missing.finishGroupSuccess generated matched linked parentsKnown canonical
+      retained failedKnown member notFailed (rooted _ active)
+    have surviving : (current.finishGroupSuccess node).1.RootAncestorsHealthy work failed :=
+      fun ref included => rooted ref (current.finishGroupSuccess_rootsSubset node included)
+    exact ⟨(matched.finishGroupSuccess node).startNewWork _ available,
+      (linked.finishGroupSuccess node).startNewWork _ available,
+      (parentsKnown.finishGroupSuccess node).startNewWork _ available,
+      (retained.finishGroupSuccess node notFailed).startNewWork _ available,
+      closed.1.startNewWork _ available, surviving.startNewWork _ closed.2 available,
+      (members.finishGroupSuccess node).startNewWork _ available,
+      (registered.finishGroupSuccess node).startNewWork _ available,
+      (pending.finishGroupSuccess node all).startNewWork _ available⟩
   exact ⟨result.2.2.2.2.1, result.2.2.2.2.2.1⟩
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

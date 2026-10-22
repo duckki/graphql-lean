@@ -36,7 +36,7 @@ theorem deferredPhase_completed_failed {work groups streams events matching fail
     : NodeFailed work matching events failures ref := by
   obtain ⟨event, member, completes⟩ := List.mem_flatMap.mp closed
   obtain ⟨index, selected⟩ := List.mem_iff_getElem?.mp member
-  have allowed := explained.2.2 index event selected
+  have allowed := explained.eventAllowed index event selected
   have permitted := phase event member
   cases event <;>
     simp only [DeferredPhaseEvent, eventCompleted, List.mem_singleton,
@@ -148,7 +148,7 @@ theorem finish_root_deferred_tasks {paths bound work groups streams}
             → Open ((groups ++ streams).map DeliveryNode.ref) events ref := by
   classical
   have initial : Explains work groups streams [] (fun _ => .executionGroup []) [] :=
-    ⟨initialized, by simp [FailureWitness], by simp⟩
+    initialized.emptyExplains _
   obtain ⟨events, matching, failures, explained, phase, maximal⟩ :=
     initial.maximal_extension_preserving
       (fun events _ _ => ∀ event ∈ events, DeferredPhaseEvent event) (by simp)

@@ -17,15 +17,15 @@ is evaluated by the success handler.
 theorem ExecutedWork.replayGraphEvents_success_present
     {work before occurrence result}
     (started
-      : (State.initialize (Work.fromExecution work)).acceptsBatch
+      : State.eventsStarted [] (State.initialize (Work.fromExecution work))
           (before ++ [.taskSuccess occurrence result])
         = true)
     : ∃ node,
         ((State.initialize (Work.fromExecution work)).replayGraphEvents before).taskNode?
           occurrence
         = some node := by
-  have accepted := State.acceptsBatch_atPrefix (State.initialize (Work.fromExecution work))
-    before (.taskSuccess occurrence result) [] started
+  have accepted := State.eventsStarted_atPrefix (State.initialize (Work.fromExecution work))
+    before (.taskSuccess occurrence result) [] [] started
   cases found
         : ((State.initialize (Work.fromExecution work)).replayGraphEvents
             before).taskNode?
@@ -47,17 +47,18 @@ theorem ExecutedWork.successfulCarrier_sourceOwnerHealthy
     {work before event group groups streams} (generated : ExecutedWork work)
     (valid : ValidGraphEvents work (before ++ [event]))
     (started
-      : (State.initialize (Work.fromExecution work)).acceptsBatch (before ++ [event])
+      : State.eventsStarted [] (State.initialize (Work.fromExecution work))
+          (before ++ [event])
         = true)
     (carrier
       : Execution.WorkQueueEvent.groupSuccess group groups streams
         ∈ (((State.initialize (Work.fromExecution work)).replayGraphEvents
               before).handleGraphEvent
-            event).2)
+            event).2.1)
     : ¬GroupInvalidated work (GraphEvent.failureSettlements (before ++ [event]))
         group.ref := by
   obtain ⟨_, _, _, healthy, _⟩ := generated.replayGraphEvents_successfulCarrier_retiredHealthy
-    valid (State.acceptsBatch_prefix started) carrier
+    valid (State.eventsStarted_prefix started) carrier
   intro invalid
   exact healthy ((generated.failureInventories_groupInvalidated_iff _ valid started
     group.ref).mp invalid).toRecordInvalidated
@@ -72,13 +73,14 @@ theorem ExecutedWork.successfulCarrier_contributorSuccess_accepted
       payload}
     (_generated : ExecutedWork work) (_valid : ValidGraphEvents work (before ++ [event]))
     (started
-      : (State.initialize (Work.fromExecution work)).acceptsBatch (before ++ [event])
+      : State.eventsStarted [] (State.initialize (Work.fromExecution work))
+          (before ++ [event])
         = true)
     (_carrier
       : Execution.WorkQueueEvent.groupSuccess group groups streams
         ∈ (((State.initialize (Work.fromExecution work)).replayGraphEvents
               before).handleGraphEvent
-            event).2)
+            event).2.1)
     (prior : (earlier ++ [.taskSuccess occurrence result]).IsPrefix (before ++ [event]))
     (_known : TaskAt work occurrence owners producer payload)
     (_contributes : group.ref ∈ owners)
@@ -86,10 +88,10 @@ theorem ExecutedWork.successfulCarrier_contributorSuccess_accepted
         ((State.initialize (Work.fromExecution work)).replayGraphEvents earlier).taskNode?
           occurrence
         = some node := by
-  have starts : (State.initialize (Work.fromExecution work)).acceptsBatch
+  have starts : State.eventsStarted [] (State.initialize (Work.fromExecution work))
       (earlier ++ [.taskSuccess occurrence result]) = true := by
     obtain ⟨later, same⟩ := prior
-    apply State.acceptsBatch_prefix (after := later)
+    apply State.eventsStarted_prefix (after := later)
     rwa [same]
   exact ExecutedWork.replayGraphEvents_success_present starts
 
@@ -106,13 +108,14 @@ theorem ExecutedWork.successfulCarrier_registeredContributor_processed
     {work before event group groups streams task} (generated : ExecutedWork work)
     (valid : ValidGraphEvents work (before ++ [event]))
     (started
-      : (State.initialize (Work.fromExecution work)).acceptsBatch (before ++ [event])
+      : State.eventsStarted [] (State.initialize (Work.fromExecution work))
+          (before ++ [event])
         = true)
     (carrier
       : Execution.WorkQueueEvent.groupSuccess group groups streams
         ∈ (((State.initialize (Work.fromExecution work)).replayGraphEvents
               before).handleGraphEvent
-            event).2)
+            event).2.1)
     (registered
       : task
         ∈ ((State.initialize (Work.fromExecution work)).replayGraphEvents
@@ -127,7 +130,7 @@ theorem ExecutedWork.successfulCarrier_registeredContributor_processed
   obtain ⟨result, supplied⟩ := generated.successfulCarrier_registeredContributor_succeeded
     valid started carrier registered contributes
   obtain ⟨earlier, later, split⟩ := List.mem_iff_append.mp supplied
-  have accounting := (createWorkQueue_pendingAccounting work).replayGraphEvents (before := [])
+  have accounting := (createWorkQueue_pendingAccounting work generated.declarations).replayGraphEvents (before := [])
     generated (before ++ [event]) valid started
   obtain ⟨_, payload, producer, _, known⟩ := (accounting.matching task registered).1
   have prior : (earlier ++ [GraphEvent.taskSuccess task.occurrence result]).IsPrefix
@@ -145,13 +148,14 @@ theorem ExecutedWork.successfulCarrier_rootContributor_processed
     {work before event group groups streams address owners payload}
     (generated : ExecutedWork work) (valid : ValidGraphEvents work (before ++ [event]))
     (started
-      : (State.initialize (Work.fromExecution work)).acceptsBatch (before ++ [event])
+      : State.eventsStarted [] (State.initialize (Work.fromExecution work))
+          (before ++ [event])
         = true)
     (carrier
       : Execution.WorkQueueEvent.groupSuccess group groups streams
         ∈ (((State.initialize (Work.fromExecution work)).replayGraphEvents
               before).handleGraphEvent
-            event).2)
+            event).2.1)
     (known : TaskAt work (.executionGroup address) owners none payload)
     (contributes : group.ref ∈ owners)
     : ∃ earlier result later node,
@@ -175,13 +179,14 @@ theorem ExecutedWork.successfulCarrier_registeredContributor_prepared
     {work before event group groups streams task} (generated : ExecutedWork work)
     (valid : ValidGraphEvents work (before ++ [event]))
     (started
-      : (State.initialize (Work.fromExecution work)).acceptsBatch (before ++ [event])
+      : State.eventsStarted [] (State.initialize (Work.fromExecution work))
+          (before ++ [event])
         = true)
     (carrier
       : Execution.WorkQueueEvent.groupSuccess group groups streams
         ∈ (((State.initialize (Work.fromExecution work)).replayGraphEvents
               before).handleGraphEvent
-            event).2)
+            event).2.1)
     (registered
       : task
         ∈ ((State.initialize (Work.fromExecution work)).replayGraphEvents

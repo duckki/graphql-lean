@@ -24,11 +24,14 @@ theorem HealthFrame.taskSuccess {queue work parents failed before occurrence res
     (included : failed.Subset (GraphEvent.failureSettlements before))
     (matching : (GraphEvent.taskSuccess occurrence result).MatchesWork work)
     (fresh : (GraphEvent.taskSuccess occurrence result).Fresh before)
-    : HealthFrame (queue.taskSuccess occurrence result).1 work parents failed
-      ∧ SuccessfulGroupsHealthy work failed (queue.taskSuccess occurrence result).2
-      ∧ GroupNoticeAncestorsHealthy work failed (queue.taskSuccess occurrence result).2
+    (available : List (Occurrence × Nat) := [])
+    : HealthFrame (queue.taskSuccess occurrence result available).1 work parents failed
+      ∧ SuccessfulGroupsHealthy work failed
+          (queue.taskSuccess occurrence result available).2.1
+      ∧ GroupNoticeAncestorsHealthy work failed
+          (queue.taskSuccess occurrence result available).2.1
       ∧ GroupFailureAncestorsHealthy work failed
-          (queue.taskSuccess occurrence result).2 := by
+          (queue.taskSuccess occurrence result available).2.1 := by
   have failedKnown : ∀ task ∈ failed, ∃ owners producer payload,
       TaskAt work task owners producer payload ∧ payload.failure.isSome = true := by
     intro task member
@@ -67,11 +70,13 @@ theorem HealthFrame.taskSuccess {queue work parents failed before occurrence res
       let integrated := (stored.maybeIntegrateWork result.work (some occurrence)).1
       have storedFrame : HealthFrame stored work parents failed :=
         ⟨prior.groups, prior.links, prior.counts.putTaskNode found _ rfl (fun rejected => rejected),
-          prior.retired, prior.roots, prior.refs, prior.sound, prior.tasks⟩
+          prior.retired, prior.roots, prior.refs, prior.sound, prior.tasks, prior.live⟩
       have prepared := storedFrame.maybeIntegrateWork result.work
         (fun _ member => matching.taskChildGroups_recordAt member)
         (fun _ member => matching.taskChildGroups_parentCanonical canonical member)
-        children (some occurrence)
+        children (some occurrence) generated canonical
+        ((ledger.registration.children taskNode.task (ledger.started taskNode nodeMember)).sourceChild
+          (State.taskNode?_some found).2 matching).parentRefs
       have storedRefs : stored.GroupRefsUnique := ledger.refs
       have storedMembers : stored.TaskMembershipsUnique := ledger.memberships
       have storedCounts : stored.PendingBound (fun _ => True)
@@ -104,17 +109,21 @@ theorem HealthFrame.taskSuccess {queue work parents failed before occurrence res
         (ledger.started taskNode nodeMember)
       have folded := prepared.successGroupFold generated canonical failedKnown safe
         taskNode.task.groups ownersUnique debt
-      have active := folded.1.startNewWork _ folded.2.1
-      have drained := active.drainReadyGroups generated canonical failedKnown
-      rw [queue.taskSuccess_eq occurrence result taskNode found]
+      have active := folded.1.startNewWork _ folded.2.1 available
+      have bounded := folded.2.2.2.startNewWork
+        (taskNode.task.groups.foldl successGroupStep (integrated, [], {})).2.2 available
+      have drained := active.drainReadyGroups generated canonical failedKnown bounded safe available
+      rw [queue.taskSuccess_eq occurrence result taskNode found available]
       exact ⟨
         drained.1,
-        folded.2.2.append drained.2,
+        folded.2.2.1.append drained.2,
         (State.successGroupFold_noticeAncestorHealth folded.2.1).append
-          (active.drainReadyGroups_noticeHealth generated canonical failedKnown),
+          (active.drainReadyGroups_noticeHealth generated canonical failedKnown bounded
+            safe available),
         (GroupFailureAncestorsHealthy.successGroupFold taskNode.task.groups
           (_, [], {}) (.of_noFailures (by simp))).append
-          (active.drainReadyGroups_failureAncestorHealth generated canonical failedKnown)
+          (active.drainReadyGroups_failureAncestorHealth generated canonical failedKnown
+            available)
       ⟩
 
 end ReleaseHealth

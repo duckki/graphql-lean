@@ -25,14 +25,14 @@ theorem ExecutedWork.noticeAncestor_retired
       : output
         ∈ (((State.initialize (Work.fromExecution work)).replayGraphEvents
               before).handleGraphEvent
-            event).2)
+            event).2.1)
     (noticed : child.ref ∈ rawGroupNoticeRefs output)
     (known : GroupRecordAt work child dependencies) (ancestor : ref ∈ dependencies)
     (task : TaskHasOwners work occurrence owners) (contributes : ref ∈ owners)
     : ((State.initialize (Work.fromExecution work)).replayGraphEvents
         (before ++ [event])).RetiredGroup
         ref :=
-  generated.replayGraphEvents_next_noticeAncestorsRetired matching incoming child.ref
+  generated.replayGraphEvents_next_noticeAncestorsRetired matching incoming [] child.ref
     (List.mem_flatMap.mpr ⟨output, emitted, noticed⟩) child dependencies known rfl
     ref ancestor occurrence owners task contributes
 
@@ -51,13 +51,14 @@ theorem ExecutedWork.noticeAncestor_structuralContributor_succeeded
     (generated : ExecutedWork work)
     (valid : ValidGraphEvents work (before ++ [event]))
     (started
-      : (State.initialize (Work.fromExecution work)).acceptsBatch (before ++ [event])
+      : State.eventsStarted [] (State.initialize (Work.fromExecution work))
+          (before ++ [event])
         = true)
     (emitted
       : output
         ∈ (((State.initialize (Work.fromExecution work)).replayGraphEvents
               before).handleGraphEvent
-            event).2)
+            event).2.1)
     (noticed : child.ref ∈ rawGroupNoticeRefs output)
     (known : GroupRecordAt work child dependencies) (ancestor : ref ∈ dependencies)
     (task : TaskAt work (.executionGroup address) owners producer payload)
@@ -69,7 +70,7 @@ theorem ExecutedWork.noticeAncestor_structuralContributor_succeeded
     (valid.eachMatches (List.mem_append_right before List.mem_cons_self))
     emitted noticed known ancestor ⟨producer, payload, task⟩ contributes
   have healthy := (generated.noticeAncestor_healthy_uncancelled valid
-    (State.acceptsBatch_prefix started) emitted noticed known ancestor).1
+    (State.eventsStarted_prefix started) emitted noticed known ancestor).1
   obtain ⟨registeredTask, registered, occurrenceEq, groupsEq⟩ :=
     generated.retired_structuralContributor_registered valid started task contributes
       retired healthy
@@ -93,7 +94,8 @@ theorem ExecutedWork.noticeAncestor_contributor_published_buffered_or_current
     (generated : ExecutedWork work)
     (valid : ValidGraphEvents work (before ++ [event]))
     (started
-      : (State.initialize (Work.fromExecution work)).acceptsBatch (before ++ [event])
+      : State.eventsStarted [] (State.initialize (Work.fromExecution work))
+          (before ++ [event])
         = true)
     (covered
       : (State.initialize (Work.fromExecution work)).ReplayClosuresCovered
@@ -102,7 +104,7 @@ theorem ExecutedWork.noticeAncestor_contributor_published_buffered_or_current
       : output
         ∈ (((State.initialize (Work.fromExecution work)).replayGraphEvents
               before).handleGraphEvent
-            event).2)
+            event).2.1)
     (noticed : child.ref ∈ rawGroupNoticeRefs output)
     (known : GroupRecordAt work child dependencies) (ancestor : ref ∈ dependencies)
     (task : TaskAt work (.executionGroup address) owners producer payload)
@@ -134,7 +136,7 @@ theorem ExecutedWork.noticeAncestor_contributor_published_buffered_or_current
   rcases List.mem_append.mp succeeded with earlier | current
   · right
     have healthy := (generated.noticeAncestor_healthy_uncancelled valid
-      (State.acceptsBatch_prefix started) emitted noticed known ancestor).1
+      (State.eventsStarted_prefix started) emitted noticed known ancestor).1
     have priorHealthy : ¬GroupRecordInvalidated work
         ((State.initialize (Work.fromExecution work)).objectFailureContributions before) ref := by
       intro invalid
@@ -143,7 +145,7 @@ theorem ExecutedWork.noticeAncestor_contributor_published_buffered_or_current
       rw [State.objectFailureContributions_append]
       exact List.subset_append_right _ _
     exact ⟨earlier, generated.healthy_success_published_or_buffered
-      (valid.prefix (List.prefix_append before [event])) (State.acceptsBatch_prefix started)
+      (valid.prefix (List.prefix_append before [event])) (State.eventsStarted_prefix started)
       (covered.prefix before [event]) task contributes priorHealthy earlier⟩
   · exact .inl (List.mem_singleton.mp current).symm
 

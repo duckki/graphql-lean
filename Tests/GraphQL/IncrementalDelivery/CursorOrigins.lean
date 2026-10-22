@@ -44,7 +44,8 @@ example
         ∧ task.payload = .item child (.ok (.null, 0))
         ∧ task.Seeded [] (sourceTasks [] none [] nested) :=
   sourceTasks_task_seeded nested_seed
-    (TaskAt.item (result := { result := .ok (.null, 0) }) (.executionGroup .root) rfl)
+    (TaskAt.item (result := { result := .ok (.null, 0) })
+      (.executionGroup (Located.root (root := nested))) rfl)
 
 /-- Nested source labels preserve unique structural occurrences independently of cursors.
 -/

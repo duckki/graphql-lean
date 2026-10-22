@@ -1,4 +1,5 @@
 import GraphQL.IncrementalDelivery.Correctness
+import Proofs.GraphQL.IncrementalDelivery.Semantics.WorkSize
 
 /-! Direct-result root execution and scheduler-independent initial data/errors.
 The proof-only factoring mirrors the public branch without restoring an effect program.
@@ -13,13 +14,13 @@ open GraphQL.IncrementalDelivery.Execution
 def executionFromWork (scheduler : (Execution.Work → Execution.WorkQueue))
     (response : Response) (work : Work)
     : ExecutionResult :=
-  if work.size == 0 then
+  if work.isEmpty then
     .single response
   else
     let (initial, subsequent) := yieldIncrementalResults scheduler response work
     .incremental initial (batchIncrementalResults subsequent)
 
-/-- Root execution is exactly the pure core followed by response packaging; witness: rfl.
+/-- Root execution is the pure core followed by packaging, by definitional equality.
 -/
 theorem executeRootSelectionSet_fromWork
     (scheduler : (Execution.Work → Execution.WorkQueue)) (schema : Schema)

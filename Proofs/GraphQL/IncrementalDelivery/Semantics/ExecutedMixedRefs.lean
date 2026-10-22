@@ -49,8 +49,14 @@ mutual
         (fun p hp => groupsKnown_extend (hpk.2 p hp) he hle)
         (fun p hp => ⟨(hpp p hp).1, (hpp p hp).2.1, (hpp p hp).2.2.1⟩)
       simp only [run_bind, StateT.run_pure, id_pure_eq]
-      exact ⟨Nat.le_trans hle hlt, final, he.trans het hle, hfv,
-        workAt_combine (hw.extend het hlt) hwt⟩
+      refine ⟨Nat.le_trans hle hlt, final, he.trans het hle, hfv,
+        workAt_combine (hw.extend het hlt) ?_⟩
+      rw [MixedRefs.WorkAt]
+      refine ⟨?_, hwt⟩
+      intro group member
+      obtain ⟨usage, _, found⟩ := List.mem_filterMap.mp member
+      have selected := List.mem_of_find?_eq_some found
+      exact ((hm.extend he hle).extend het hlt group selected).1
   termination_by (fuel, 6, 0, 0)
   decreasing_by
     all_goals simp_wf

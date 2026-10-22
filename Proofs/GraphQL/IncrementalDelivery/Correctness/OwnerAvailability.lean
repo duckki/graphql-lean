@@ -230,7 +230,7 @@ theorem accountedHistory_exists_of_initial_owner_coverage
             → TaskAccounted work matching events failures occurrence := by
   classical
   have initial : Explains work groups streams [] (fun _ => .executionGroup []) [] :=
-    ⟨initialized, by simp [FailureWitness], by simp⟩
+    initialized.emptyExplains _
   obtain ⟨events, matching, failures, explained, maximal⟩ := initial.maximal_extension
   simp only [List.nil_append] at explained maximal
   refine ⟨events, matching, failures, explained, ?_⟩

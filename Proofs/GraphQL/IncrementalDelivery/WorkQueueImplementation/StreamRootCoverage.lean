@@ -49,14 +49,16 @@ theorem State.maybeIntegrateWork_streams_registered (queue : State) (work : Work
 -- Group processing only adds stream roots, and covers every emitted stream notice
 -----------------------------------------------------------------------------------------
 
-/-- A recursive group drain activates every stream it announces and keeps old stream roots.
-Witness: each successful release activates registered descriptors; group failure changes
-neither stream roots nor stream notices. Concatenate exact notice lists through recursion.
+/-- A recursive successful drain activates every stream notice and keeps old stream roots.
+Witness: each flush releases registered descriptors, then startup activates them before
+recursion. Queued startup failures occupy a separate output component.
 -/
 theorem State.drainReadyGroups_go_streamRoots_cover (fuel : Nat) (queue : State)
+    (available : List (Occurrence × Nat) := [])
     : (queue.rootStreams
-        ++ (State.drainReadyGroups.go fuel queue).2.flatMap rawStreamNoticeRefs).Subset
-        (State.drainReadyGroups.go fuel queue).1.rootStreams := by
+        ++ (State.drainReadyGroups.go available fuel queue).2.1.flatMap
+            rawStreamNoticeRefs).Subset
+        (State.drainReadyGroups.go available fuel queue).1.rootStreams := by
   induction fuel generalizing queue with
   | zero =>
       intro ref member
@@ -67,29 +69,17 @@ theorem State.drainReadyGroups_go_streamRoots_cover (fuel : Nat) (queue : State)
       split
       · intro ref member; simpa using member
       · rename_i node selected
-        cases cached : queue.rejectedTask? node with
-        | none =>
-            have first := queue.finishGroupSuccess_streamRoots_cover node
-            have later := ih ((queue.finishGroupSuccess node).1.startNewWork
-              (queue.finishGroupSuccess node).2.2)
-            intro ref member
-            apply later
-            simp only [List.flatMap_append] at member
-            rcases List.mem_append.mp member with old | notice
-            · exact List.mem_append_left _ (first (List.mem_append_left _ old))
-            · rcases List.mem_append.mp notice with early | late
-              · exact List.mem_append_left _ (first (List.mem_append_right _ early))
-              · exact List.mem_append_right _ late
-        | some rejected =>
-            have noNotices : (queue.taskFailure rejected.1 rejected.2).2.flatMap
-                rawStreamNoticeRefs = [] := by
-              apply List.flatMap_eq_nil_iff.mpr
-              intro event emitted
-              obtain ⟨group, rfl⟩ := queue.taskFailure_event_failure _ _ event emitted
-              rfl
-            simpa only [List.flatMap_append, noNotices, List.nil_append,
-              State.taskFailure_rootStreams]
-              using ih (queue.taskFailure rejected.1 rejected.2).1
+        have first := queue.finishGroupSuccess_streamRoots_cover node available
+        have later := ih ((queue.finishGroupSuccess node).1.startNewWork
+          (queue.finishGroupSuccess node).2.2 available).1
+        intro ref member
+        apply later
+        simp only [List.flatMap_append] at member
+        rcases List.mem_append.mp member with old | notice
+        · exact List.mem_append_left _ (first (List.mem_append_left _ old))
+        · rcases List.mem_append.mp notice with early | late
+          · exact List.mem_append_left _ (first (List.mem_append_right _ early))
+          · exact List.mem_append_right _ late
 
 /-- The actual owner fold retains its registry and roots while accumulating registered
 stream releases, with exactly the same refs as its emitted notices.
@@ -147,16 +137,17 @@ Witness: the owner fold accumulates registered releases; their activation and th
 drain both cover their exact notice inventories while retaining all old stream roots.
 -/
 theorem State.taskSuccess_streamRoots_cover (queue : State) (occurrence : Occurrence)
-    (result : TaskResult)
+    (result : TaskResult) (available : List (Occurrence × Nat) := [])
     : (queue.rootStreams
-        ++ (queue.taskSuccess occurrence result).2.flatMap rawStreamNoticeRefs).Subset
-        (queue.taskSuccess occurrence result).1.rootStreams := by
+        ++ (queue.taskSuccess occurrence result available).2.1.flatMap
+            rawStreamNoticeRefs).Subset
+        (queue.taskSuccess occurrence result available).1.rootStreams := by
   cases found : queue.taskNode? occurrence with
   | none =>
       simp only [State.taskSuccess, found]
       intro ref member; simpa using member
   | some incoming =>
-      rw [queue.taskSuccess_eq occurrence result incoming found]
+      rw [queue.taskSuccess_eq occurrence result incoming found available]
       let prepared := ((queue.putTaskNode
         { incoming with value := some result.value }).maybeIntegrateWork
           result.work (some occurrence)).1
@@ -164,11 +155,11 @@ theorem State.taskSuccess_streamRoots_cover (queue : State) (occurrence : Occurr
       have roots : prepared.rootStreams = queue.rootStreams :=
         State.maybeIntegrateWork_rootStreams _ _ _
       have release := prepared.successGroupFold_streamRelease incoming.task.groups
-      have first := folded.1.startNewWork_streamRoots_cover folded.2.2 release.2.2.2
+      have first := folded.1.startNewWork_streamRoots_cover folded.2.2 release.2.2.2 available
       rw [release.1, release.2.2.1, roots] at first
       have later := State.drainReadyGroups_go_streamRoots_cover
-        (folded.1.startNewWork folded.2.2).groupNodes.length
-        (folded.1.startNewWork folded.2.2)
+        (folded.1.startNewWork folded.2.2 available).1.groupNodes.length
+        (folded.1.startNewWork folded.2.2 available).1 available
       intro ref member
       apply later
       simp only [List.flatMap_append] at member

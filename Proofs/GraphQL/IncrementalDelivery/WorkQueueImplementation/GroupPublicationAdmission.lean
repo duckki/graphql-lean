@@ -124,7 +124,7 @@ theorem mixed_groupPublicationCertificates_with_noticeSafety {work inputs}
               { active := queue.initialGroups ++ queue.initialStreams }
             let objects :=
               informativeObjectFailureCuts work
-                (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher inputs).2.2)
+                (queue.sourceRunBlocks publisher inputs).2.2
             ∃ streams,
               StreamFailureCuts work
                 ((queue.runNormalized inputs).2.flatten.flatMap publicationAtoms) streams
@@ -180,7 +180,7 @@ theorem mixed_groupPublicationCertificates_with_cuts {work inputs}
               { active := queue.initialGroups ++ queue.initialStreams }
             let objects :=
               informativeObjectFailureCuts work
-                (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher inputs).2.2)
+                (queue.sourceRunBlocks publisher inputs).2.2
             ∃ streams,
               StreamFailureCuts work
                 ((queue.runNormalized inputs).2.flatten.flatMap publicationAtoms) streams

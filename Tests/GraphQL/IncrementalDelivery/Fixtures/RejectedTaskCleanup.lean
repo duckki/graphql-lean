@@ -80,6 +80,7 @@ theorem started
 
 /-- The finite source obeys exactly the reference contract at all its prefixes. -/
 theorem sourceValid : schedule.ValidFor SharedOwnerFailure.work := by
+  apply EventSource.ValidFor.of_asynchronous
   refine ⟨rfl, List.nil_prefix, ?_, ?_⟩
   · intro earlier later earlierPrefix admitted
     exact earlierPrefix.trans admitted
@@ -104,7 +105,8 @@ theorem conforms
         (createWorkQueueForSchedule SharedOwnerFailure.work schedule)
         SharedOwnerFailure.work :=
   createWorkQueueForScheduleConforms_holds SharedOwnerFailure.work schedule
-    SharedOwnerFailure.executed SharedOwnerFailure.nonempty sourceValid
+    SharedOwnerFailure.executed
+    ((Execution.Work.isEmpty_eq_false _).mpr SharedOwnerFailure.nonempty) sourceValid
 
 -----------------------------------------------------------------------------------------
 -- Complete actual handoff and rejected-registration cleanup share one resource history

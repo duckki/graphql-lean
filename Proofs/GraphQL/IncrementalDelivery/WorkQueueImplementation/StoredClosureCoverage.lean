@@ -47,7 +47,7 @@ theorem State.PublicationInventory.finishGroupSuccess_storedContributors {queue 
 -----------------------------------------------------------------------------------------
 
 /-- Each indexed successful drain carrier covers every initially buffered contributor.
-Witness: recover the actual pre-closure queue, conserve values through its mixed prefix,
+Witness: recover the actual pre-closure queue, conserve values through its startup-aware prefix,
 and flush using inherited buffered links. One labelled inventory covers that strict output
 prefix and the post-flush state; no intermediate lookup or membership facts are assumed.
 This local witness does not yet identify the common matching across all source handlers.
@@ -55,18 +55,24 @@ This local witness does not yet identify the common matching across all source h
 theorem State.PublicationInventory.drainReadyGroups_go_success_coverage {queue : State}
     {property published} (inventory : queue.PublicationInventory property published)
     (links : queue.StoredTaskLinks) (fuel : Nat) {index group groups streams}
+    (available : List (Occurrence × Nat) := [])
+    (clean
+      : ∀ occurrence value,
+          property occurrence value → ∀ errors, (occurrence, errors) ∉ available := by
+        intro occurrence value _ errors member; cases member)
     (selected
-      : (State.drainReadyGroups.go fuel queue).2[index]?
+      : (State.drainReadyGroups.go available fuel queue).2.1[index]?
         = some (.groupSuccess group groups streams))
     : ∃ (steps : Nat) (node : GroupNode) (added : List ObjectPublication),
         steps < fuel
-        ∧ (State.drainReadyGroups.go steps queue).1.groupNode? node.group.node.ref
+        ∧ (State.drainReadyGroups.go available steps queue).1.groupNode?
+            node.group.node.ref
           = some node
         ∧ node.group.node = group
         ∧ added.map Prod.snd
-          = ((State.drainReadyGroups.go fuel queue).2.take index).flatMap
+          = ((State.drainReadyGroups.go available fuel queue).2.1.take index).flatMap
               WorkQueueEvent.objectValues
-        ∧ ((State.drainReadyGroups.go steps queue).1.finishGroupSuccess
+        ∧ ((State.drainReadyGroups.go available steps queue).1.finishGroupSuccess
             node).1.PublicationInventory
             property (published ++ added)
         ∧ (∀ occurrence task value,
@@ -74,12 +80,12 @@ theorem State.PublicationInventory.drainReadyGroups_go_success_coverage {queue :
             → task.value = some value
             → group.ref ∈ task.task.groups.map Execution.DeliveryNode.ref
             → (occurrence, value) ∈ added) := by
-  obtain ⟨steps, node, before, bound, found, _, _, _, same, output, exactPrefix⟩ :=
-    State.drainReadyGroups_go_success_boundary fuel queue selected
+  obtain ⟨steps, node, before, bound, found, _, _, same, output, exactPrefix⟩ :=
+    State.drainReadyGroups_go_success_boundary fuel queue available selected
   obtain ⟨first, firstValues, advanced, conserved⟩ :=
-    inventory.drainReadyGroups_go_conserves steps
+    inventory.drainReadyGroups_go_conserves steps available clean
   obtain ⟨last, closeBefore, closeOutput, lastValues, final, covered⟩ :=
-    advanced.finishGroupSuccess_storedContributors (links.drainReadyGroups_go steps)
+    advanced.finishGroupSuccess_storedContributors (links.drainReadyGroups_go steps available)
       node (List.mem_of_find?_eq_some found)
   have samePrefix : closeBefore = before :=
     List.append_inj_left' (closeOutput.symm.trans output) rfl
@@ -90,7 +96,8 @@ theorem State.PublicationInventory.drainReadyGroups_go_success_coverage {queue :
   · intro occurrence task value lookup stored contributes
     obtain ⟨contributor, member, sameRef⟩ := List.mem_map.mp contributes
     have live : ∃ contributor ∈ task.task.groups, ∃ owner,
-        (State.drainReadyGroups.go steps queue).1.groupNode? contributor.ref = some owner :=
+        (State.drainReadyGroups.go available steps queue).1.groupNode? contributor.ref
+          = some owner :=
       ⟨contributor, member, node, by simpa only [sameRef, same] using found⟩
     rcases conserved occurrence task value lookup stored live with earlier | retained
     · exact List.mem_append_left _ earlier

@@ -58,10 +58,11 @@ private def childTask : Occurrence := .executionGroup [0, 0, 1, 0, 1, 0]
 
 private def children : Execution.Work :=
   .combine .empty
-    (.combine
-      (.executionGroup [⟨child, []⟩] child.path ({ result := .error 1, cause := some 1 })
-        .empty)
-      .empty)
+    (.declareGroups [⟨child, []⟩]
+      (.combine
+        (.executionGroup [⟨child, []⟩] child.path
+          ({ result := .error 1, cause := some 1 }) .empty)
+        .empty))
 
 private def item : StreamItem :=
   ⟨firstItem, ⟨.object [], 0⟩, Work.fromExecution children [0, 0, 1, 0]⟩

@@ -39,8 +39,74 @@ theorem distinctDeliveryNodes_refs_nodup (nodes : List Execution.DeliveryNode)
             ⟨prior, priorMember, beq_iff_eq.mpr (priorRef.trans same)⟩)
   exact loop nodes [] (by simp)
 
+/-- Recursive registration emits each parentless root ref at most once.
+Witness: every emitted root is permanently registered, and a later installation can
+append a root only while its ref is absent from that growing registry.
+-/
+theorem State.addGroups_newGroups_unique (queue : State) (groups : List Group)
+    : ((queue.addGroups groups).2.map Execution.DeliveryNode.ref).Nodup := by
+  let property (acc : State × List Execution.DeliveryNode × NodeRefs) :=
+    (acc.2.1.map Execution.DeliveryNode.ref).Nodup
+      ∧ acc.2.1.map Execution.DeliveryNode.ref ⊆ acc.1.registeredGroups
+  have visit (fuel : Nat) (acc : State × List Execution.DeliveryNode × NodeRefs)
+      (group : Group) (prior : property acc)
+      : property (State.addGroups.go groups fuel acc group) := by
+    induction fuel generalizing acc group with
+    | zero => exact prior
+    | succ fuel ih =>
+        obtain ⟨current, roots, visited⟩ := acc
+        simp only [State.addGroups.go]
+        split
+        · exact prior
+        · split
+          · exact prior
+          · rename_i fresh
+            have absent : group.node.ref ∉ current.registeredGroups
+                ∧ current.groupNode? group.node.ref = none := by simpa using fresh
+            split
+            · split
+              · have parentless : group.parent = none := by
+                  simpa using ‹group.parent.isNone = true›
+                have missing : group.node.ref ∉ roots.map Execution.DeliveryNode.ref :=
+                  fun member => absent.1 (prior.2 member)
+                have registered : (current.addGroup group).registeredGroups
+                    = current.registeredGroups ++ [group.node.ref] := by
+                  simp [State.addGroup, absent.1, absent.2, parentless]
+                refine ⟨?_, ?_⟩
+                · simpa [List.map_append, missing] using List.nodup_append.mpr
+                    ⟨prior.1, by simp, by
+                      intro ref member other included same
+                      obtain rfl := List.mem_singleton.mp included
+                      exact missing (same ▸ member)⟩
+                · rw [registered]
+                  intro ref member
+                  rw [List.map_append, List.map_singleton] at member
+                  exact (List.mem_append.mp member).elim
+                    (fun old => List.mem_append_left _ (prior.2 old))
+                    (List.mem_append_right _)
+              · exact ⟨prior.1,
+                  prior.2.trans (current.addGroup_registeredGroups_subset_old group)⟩
+            · rename_i parent found
+              have reached := ih (current, roots, visited ++ [group.node.ref]) parent prior
+              split
+              · have parentless : group.parent = none := by
+                  simpa using ‹group.parent.isNone = true›
+                simp [parentless] at found
+              · exact ⟨reached.1, reached.2.trans
+                  (State.addGroup_registeredGroups_subset_old _ group)⟩
+  have loop (more : List Group) (acc : State × List Execution.DeliveryNode × NodeRefs)
+      (prior : property acc)
+      : property
+          (more.foldl
+            (fun acc group => State.addGroups.go groups (groups.length + 1) acc group)
+            acc) := by
+    induction more generalizing acc with
+    | nil => exact prior
+    | cons group rest ih => exact ih _ (visit _ acc group prior)
+  exact (loop groups (queue, [], []) ⟨by simp, by simp⟩).1
+
 /-- Pruning fresh integrated work produces unique group notice refs.
-Witness: integration deduplicates parentless candidates. Canonical links exclude incoming
+Witness: recursive installation emits distinct parentless candidates. Canonical links exclude incoming
 edges to those candidates, and generic frontier pruning preserves uniqueness while
 promoting descendants through taskless shells.
 -/
@@ -64,7 +130,7 @@ theorem State.maybeIntegrateWork_pruned_unique {queue : State} {parents}
     have impossible := integratedLinks parent live child.ref incoming
     rw [root] at impossible
     cases impossible
-  · exact distinctDeliveryNodes_refs_nodup _
+  · exact State.addGroups_newGroups_unique _ _
 
 -----------------------------------------------------------------------------------------
 -- A successful closure removes the only possible parent of its immediate children
@@ -131,6 +197,6 @@ theorem ExecutedWork.initialGroups_unique {work : Execution.Work}
   have links : ({} : State).ChildLinksCanonical parents := by intro node member; cases member
   have children : ({} : State).ChildGroupsUnique := by intro node member; cases member
   exact State.maybeIntegrateWork_pruned_unique links children (Work.fromExecution work)
-    (fun _ member => workFromSpec_groups_parentCanonical Located.root canonical member)
+    (fun _ member => workFromSpec_groups_parentCanonical_root canonical member)
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

@@ -2,7 +2,9 @@ import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.CachedErrors
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.GroupPublication
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.FailureDebt
 
-/-! Failed closures released by later inputs retain their pre-existing retained task rejection. -/
+/-! Immediate failed-closure provenance. Cached startup notices are returned separately
+and forwarded only after the current host batch has been consumed.
+-/
 
 namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.Execution (StreamItemValue WorkQueueEvent)
@@ -53,8 +55,10 @@ theorem State.taskFailure_groupFailure_current (queue : State) (occurrence : Occ
             split at first
             · rcases List.mem_append.mp first with earlier | latest
               · exact Or.inl earlier
-              · have same := Execution.WorkQueueEvent.groupFailure.inj (List.mem_singleton.mp latest)
-                exact Or.inr ⟨by simp [same.1, current.groupNode?_ref found], same.2⟩
+              · have same :=
+                  Execution.WorkQueueEvent.groupFailure.inj (List.mem_singleton.mp latest)
+                exact Or.inr ⟨by simp [same.1, current.groupNode?_ref found,
+                  State.finishGroupFailure], same.2⟩
             · exact Or.inl first
         · exact Or.inr ⟨List.mem_cons_of_mem _ later.1, later.2⟩
   cases found : queue.taskNode? occurrence with
@@ -65,217 +69,127 @@ theorem State.taskFailure_groupFailure_current (queue : State) (occurrence : Occ
         (queue.putTaskNode { task with rejection := some errors }, []) emitted
       exact ⟨task, rfl, origin.resolve_left (by simp)⟩
 
-/-- Every failed closure emitted by the drain satisfies the original cached-error facts.
-Witness: each selected failure emits its selected task rejection, while all preceding cleanup and
-activation preserve the property. Successful flushes emit no failed closure.
--/
-theorem State.CachedErrorsSatisfy.drainReadyGroups_output {queue : State} {property}
-    (cached : queue.CachedErrorsSatisfy property) {group errors}
-    (emitted
-      : Execution.WorkQueueEvent.groupFailure group errors ∈ queue.drainReadyGroups.2)
-    : property group.ref errors := by
-  have loop (fuel : Nat) (current : State) (known : current.CachedErrorsSatisfy property)
-      (member : Execution.WorkQueueEvent.groupFailure group errors
-        ∈ (State.drainReadyGroups.go fuel current).2)
-      : property group.ref errors := by
+/-- The drain's immediate outputs contain only successful closures and values. -/
+theorem State.drainReadyGroups_groupFailure_absent (queue : State)
+    (group : Execution.DeliveryNode) (errors : Nat)
+    (available : List (Occurrence × Nat) := [])
+    : WorkQueueEvent.groupFailure group errors
+      ∉ (queue.drainReadyGroups available).2.1 := by
+  have loop (fuel : Nat) (current : State)
+      : WorkQueueEvent.groupFailure group errors
+        ∉ (State.drainReadyGroups.go available fuel current).2.1 := by
     induction fuel generalizing current with
-    | zero => cases member
+    | zero => simp [State.drainReadyGroups.go]
     | succ fuel ih =>
-        unfold State.drainReadyGroups.go at member
-        dsimp only at member
-        split at member
-        · cases member
-        · rename_i node selected
-          have live : node ∈ current.groupNodes := by
-            obtain ⟨ref, _, choice⟩ := List.exists_of_findSome?_eq_some selected
-            cases found : current.groupNode? ref with
-            | none => simp [found] at choice
-            | some candidate =>
-                simp only [found] at choice
-                change (if _ then some candidate else none) = some node at choice
-                split at choice
-                · cases Option.some.inj choice
-                  exact List.mem_of_find?_eq_some found
-                · contradiction
-          cases failed : current.rejectedTask? node with
-          | none =>
-              rw [failed] at member
-              rcases List.mem_append.mp member with first | later
-              · exact (current.finishGroupSuccess_groupFailure_absent node group errors
-                  first).elim
-              · exact ih _ ((known.finishGroupSuccess node).startNewWork _) later
-          | some rejection =>
-              obtain ⟨occurrence, count⟩ := rejection
-              rw [failed] at member
-              rcases List.mem_append.mp member with first | later
-              · obtain ⟨task, found, contributes, same⟩ :=
-                  current.taskFailure_groupFailure_current occurrence count first
-                obtain ⟨_, selectedTask, selectedFound, rejected⟩ := State.rejectedTask?_sound failed
-                have equal := Option.some.inj (found.symm.trans selectedFound)
-                subst selectedTask
-                obtain ⟨owner, included, ownerRef⟩ := List.mem_map.mp contributes
-                rw [same, ← ownerRef]
-                exact known task (List.mem_of_find?_eq_some found) count rejected owner included
-              · have retained : (current.taskFailure occurrence count).1.CachedErrorsSatisfy
-                    property := by
-                  apply known.taskFailure occurrence count
-                  intro task found
-                  obtain ⟨_, selectedTask, selectedFound, rejected⟩ := State.rejectedTask?_sound failed
-                  have equal := Option.some.inj (found.symm.trans selectedFound)
-                  subst selectedTask
-                  exact known task (List.mem_of_find?_eq_some found) count rejected
-                exact ih _ retained later
-  exact loop _ queue cached emitted
-
------------------------------------------------------------------------------------------
--- Successful inputs can release earlier task rejectiond failures, but cannot invent their counts
------------------------------------------------------------------------------------------
-
-/-- Failed group closures from task success satisfy the pre-input cache predicate.
-Witness: integration and the contributor fold preserve caches and emit only success;
-the final release-time drain transfers the same facts to its failed closures.
--/
-theorem State.CachedErrorsSatisfy.taskSuccess_output {queue : State} {property}
-    (cached : queue.CachedErrorsSatisfy property) (occurrence : Occurrence)
-    (result : TaskResult) {group errors}
-    (emitted
-      : Execution.WorkQueueEvent.groupFailure group errors
-        ∈ (queue.taskSuccess occurrence result).2)
-    : property group.ref errors := by
-  have loop (groups : List Execution.DeliveryNode)
-      (acc : State × List WorkQueueEvent × NewWork)
-      (known : acc.1.CachedErrorsSatisfy property)
-      (absent : Execution.WorkQueueEvent.groupFailure group errors ∉ acc.2.1)
-      : (groups.foldl successGroupStep acc).1.CachedErrorsSatisfy property
-        ∧ Execution.WorkQueueEvent.groupFailure group errors
-          ∉ (groups.foldl successGroupStep acc).2.1 := by
-    induction groups generalizing acc with
-    | nil => exact ⟨known, absent⟩
-    | cons owner rest ih =>
-        dsimp only [List.foldl_cons, successGroupStep]
+        unfold State.drainReadyGroups.go
+        dsimp only
         split
-        · exact ih _ known absent
+        · simp
         · rename_i node found
-          have updated := known.putGroupNode { node with pending := node.pending - 1 }
-          split
-          · apply ih
-            · exact updated.finishGroupSuccess _
-            · intro member
-              exact (List.mem_append.mp member).elim absent
-                (State.finishGroupSuccess_groupFailure_absent _ _ group errors)
-          · exact ih _ updated absent
-  cases found : queue.taskNode? occurrence with
-  | none => simp [State.taskSuccess, found] at emitted
-  | some node =>
-      have stored : State.CachedErrorsSatisfy
-          (queue.putTaskNode { node with value := some result.value }) property :=
-        cached.putTaskNode _ (cached node (List.mem_of_find?_eq_some found))
-      have integrated := stored.maybeIntegrateWork result.work (some occurrence)
-      obtain ⟨known, absent⟩ := loop node.task.groups (_, [], {}) integrated (by simp)
-      rw [queue.taskSuccess_eq occurrence result node found] at emitted
-      rcases List.mem_append.mp emitted with first | later
-      · exact (absent first).elim
-      · exact (known.startNewWork _).drainReadyGroups_output later
+          intro member
+          rcases List.mem_append.mp member with first | later
+          · exact current.finishGroupSuccess_groupFailure_absent node group errors first
+          · exact ih _ later
+  exact loop _ queue
 
-/-- Failed group closures from item arrival satisfy the pre-input cache predicate.
-Witness: item-child integration never creates a cache; only its trailing drain can
-emit failed group closures, each with its unchanged selected cause.
--/
-theorem State.CachedErrorsSatisfy.streamItems_output {queue : State} {property}
-    (cached : queue.CachedErrorsSatisfy property) (stream : Execution.DeliveryNode)
-    (items : List StreamItem) {group errors}
-    (emitted
-      : Execution.WorkQueueEvent.groupFailure group errors
-        ∈ (queue.streamItems stream items).2)
-    : property group.ref errors := by
-  let step (acc : State × List Execution.DeliveryNode × List Execution.DeliveryNode
-      × List StreamItemValue) (item : StreamItem) :=
-    let (current, groups, streams, values) := acc
-    let (integrated, more) := current.maybeIntegrateWork item.work
-    let (pruned, nonempty) := integrated.pruneEmptyGroups more.newGroups
-    (pruned.startNewWork { more with newGroups := nonempty }, groups ++ nonempty,
-      streams ++ more.newStreams, values ++ [item.value])
-  have loop (items : List StreamItem) (acc)
-      (known : acc.1.CachedErrorsSatisfy property)
-      : (items.foldl step acc).1.CachedErrorsSatisfy property := by
-    induction items generalizing acc with
-    | nil => exact known
-    | cons item rest ih =>
-        exact ih _ (((known.maybeIntegrateWork item.work).pruneEmptyGroups _).startNewWork _)
-  unfold State.streamItems at emitted
+/-- Task success returns startup failures separately from its immediate work events. -/
+theorem State.taskSuccess_groupFailure_absent (queue : State) (occurrence : Occurrence)
+    (result : TaskResult) (group : Execution.DeliveryNode) (errors : Nat)
+    (available : List (Occurrence × Nat) := [])
+    : WorkQueueEvent.groupFailure group errors
+      ∉ (queue.taskSuccess occurrence result available).2.1 := by
+  have fold (groups : List Execution.DeliveryNode) (acc : State × List WorkQueueEvent × NewWork)
+      (absent : WorkQueueEvent.groupFailure group errors ∉ acc.2.1)
+      : WorkQueueEvent.groupFailure group errors
+        ∉ (groups.foldl successGroupStep acc).2.1 := by
+    induction groups generalizing acc with
+    | nil => exact absent
+    | cons owner rest ih =>
+        apply ih
+        obtain ⟨current, events, released⟩ := acc
+        dsimp only [successGroupStep]
+        split
+        · exact absent
+        · rename_i node found
+          split
+          · intro member
+            exact (List.mem_append.mp member).elim absent
+              (State.finishGroupSuccess_groupFailure_absent _ _ group errors)
+          · exact absent
+  cases found : queue.taskNode? occurrence with
+  | none => simp [State.taskSuccess, found]
+  | some node =>
+      rw [queue.taskSuccess_eq occurrence result node found available]
+      intro member
+      rcases List.mem_append.mp member with earlier | later
+      · exact fold node.task.groups (_, [], {}) (by simp) earlier
+      · exact State.drainReadyGroups_groupFailure_absent _ group errors available later
+
+/-- Stream-item arrival also defers startup failures outside its immediate outputs. -/
+theorem State.streamItems_groupFailure_absent (queue : State)
+    (stream : Execution.DeliveryNode) (items : List StreamItem)
+    (group : Execution.DeliveryNode) (errors : Nat)
+    (available : List (Occurrence × Nat) := [])
+    : WorkQueueEvent.groupFailure group errors
+      ∉ (queue.streamItems stream items available).2.1 := by
+  unfold State.streamItems
+  split
+  · simp
+  · intro member
+    have later := (List.mem_cons.mp member).resolve_left (by intro same; cases same)
+    exact State.drainReadyGroups_groupFailure_absent _ group errors available later
+
+/-- Forwarding uses the queued head's complete stored payload. -/
+theorem State.groupFailure_origin (queue : State) (supplied : GroupFailureEvent)
+    {group errors}
+    (emitted : WorkQueueEvent.groupFailure group errors ∈ (queue.groupFailure supplied).2)
+    : ∃ rest, queue.groupFailureEvents = ⟨group, errors⟩ :: rest := by
+  unfold State.groupFailure at emitted
   split at emitted
   · cases emitted
-  · have later := (List.mem_cons.mp emitted).resolve_left (by intro same; cases same)
-    exact (loop items (queue, [], [], []) cached).drainReadyGroups_output later
+  · rename_i first rest queued
+    split at emitted
+    · have same := List.mem_singleton.mp emitted
+      obtain ⟨sameGroup, sameErrors⟩ := WorkQueueEvent.groupFailure.inj same
+      cases first with
+      | mk firstGroup firstErrors =>
+          cases sameGroup
+          cases sameErrors
+          exact ⟨rest, queued⟩
+    · cases emitted
 
------------------------------------------------------------------------------------------
--- Concrete exact-cache provenance, with no source or admission assumptions
------------------------------------------------------------------------------------------
-
-/-- The queue itself witnesses the exact ref and count in each of its caches.
-Witness: the same live node supplies membership and both projection equalities.
--/
-theorem State.cachedErrors_fromSelf (queue : State)
-    : queue.CachedErrorsSatisfy
-        (fun ref errors =>
-          ∃ node ∈ queue.taskNodes,
-          ∃ owner ∈ node.task.groups, owner.ref = ref ∧ node.rejection = some errors) :=
-  fun node member _ same owner included => ⟨node, member, owner, included, rfl, same⟩
-
-/-- A failed closure released during task success copies an earlier task rejection exactly.
-Witness: specialize arbitrary cached-error preservation to the input state's cache map.
--/
-theorem State.taskSuccess_groupFailure_cached (queue : State) (occurrence : Occurrence)
-    (result : TaskResult) {group errors}
-    (emitted
-      : Execution.WorkQueueEvent.groupFailure group errors
-        ∈ (queue.taskSuccess occurrence result).2)
-    : ∃ node ∈ queue.taskNodes,
-      ∃ owner ∈ node.task.groups, owner.ref = group.ref ∧ node.rejection = some errors :=
-  queue.cachedErrors_fromSelf.taskSuccess_output occurrence result emitted
-
-/-- A failed closure released during item arrival copies an earlier task rejection exactly.
-Witness: specialize the item-handler preservation theorem to the input cache map.
--/
-theorem State.streamItems_groupFailure_cached (queue : State)
-    (stream : Execution.DeliveryNode) (items : List StreamItem) {group errors}
-    (emitted
-      : Execution.WorkQueueEvent.groupFailure group errors
-        ∈ (queue.streamItems stream items).2)
-    : ∃ node ∈ queue.taskNodes,
-      ∃ owner ∈ node.task.groups, owner.ref = group.ref ∧ node.rejection = some errors :=
-  queue.cachedErrors_fromSelf.streamItems_output stream items emitted
-
------------------------------------------------------------------------------------------
--- Failed closures come from this settlement or a pre-existing cache
------------------------------------------------------------------------------------------
-
-/-- Every failed group closure uses either this task failure or an exact earlier task rejection.
-Witness: dispatch the actual handler; successful inputs can drain prior failures, whereas
-stream closures emit no group failure. No scheduler admission or source law is assumed.
+/-- A failed closure comes from the current task outcome or the stored notice FIFO head.
+Startup removal and later notification consumption are separate transitions.
 -/
 theorem State.handleGraphEvent_groupFailure_origin (queue : State) (event : GraphEvent)
-    {group errors}
+    {group errors} (available : List (Occurrence × Nat) := [])
     (emitted
-      : Execution.WorkQueueEvent.groupFailure group errors
-        ∈ (queue.handleGraphEvent event).2)
+      : WorkQueueEvent.groupFailure group errors
+        ∈ (queue.handleGraphEvent event available).2.1)
     : (∃ occurrence task,
         event = .taskFailure occurrence errors
-        ∧ queue.taskNode? occurrence = some task
+        ∧ (queue.cacheTaskFailures available).taskNode? occurrence = some task
         ∧ group.ref ∈ task.task.groups.map Execution.DeliveryNode.ref)
-      ∨ ∃ node ∈ queue.taskNodes,
-        ∃ owner ∈ node.task.groups,
-          owner.ref = group.ref ∧ node.rejection = some errors := by
+      ∨ ∃ supplied rest,
+          event = .groupFailure supplied
+          ∧ queue.groupFailureEvents = ⟨group, errors⟩ :: rest := by
   cases event with
   | taskSuccess occurrence result =>
-      exact Or.inr (queue.taskSuccess_groupFailure_cached occurrence result emitted)
+      exact (State.taskSuccess_groupFailure_absent
+        _ occurrence result group errors available emitted).elim
   | taskFailure occurrence count =>
       obtain ⟨task, found, owner, same⟩ :=
-        queue.taskFailure_groupFailure_current occurrence count emitted
+        State.taskFailure_groupFailure_current
+          (queue.cacheTaskFailures available) occurrence count emitted
       subst count
-      exact Or.inl ⟨occurrence, task, rfl, found, owner⟩
+      exact .inl ⟨occurrence, task, rfl, found, owner⟩
+  | groupFailure supplied =>
+      obtain ⟨rest, queued⟩ := (queue.cacheTaskFailures available).groupFailure_origin supplied emitted
+      rw [State.cacheTaskFailures_groupFailureEvents] at queued
+      exact .inr ⟨supplied, rest, rfl, queued⟩
   | streamItems stream items =>
-      exact Or.inr (queue.streamItems_groupFailure_cached stream items emitted)
+      exact (State.streamItems_groupFailure_absent
+        _ stream items group errors available emitted).elim
   | streamSuccess stream =>
       simp only [State.handleGraphEvent, State.streamSuccess] at emitted
       split at emitted <;> simp at emitted

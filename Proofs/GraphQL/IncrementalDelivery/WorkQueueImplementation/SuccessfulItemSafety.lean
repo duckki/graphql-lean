@@ -93,8 +93,7 @@ theorem ExecutedWork.publishedItems_safe_mixed
         failures.Perm
           (streams
             ++ informativeObjectFailureCuts work
-                (queue.eligibleFailureBlocks
-                  (queue.sourceRunBlocks publisher batches).2.2)))
+                (queue.sourceRunBlocks publisher batches).2.2))
     (failedPayloads
       : ∀ cut occurrence,
           (cut, occurrence) ∈ failures
@@ -139,15 +138,14 @@ theorem ExecutedWork.publishedItems_safe_mixed
       ∀ address ordinal,
         Published matching atoms (.item address ordinal)
         → ¬TaskCancelled work matching atoms failures (.item address ordinal) := by
-  let atoms := ((State.initialize (Work.fromExecution work)).runNormalized batches).2.flatten.flatMap
-    publicationAtoms
+  let atoms := ((State.initialize (Work.fromExecution work)).runNormalized batches).2.flatten
+    |>.flatMap publicationAtoms
   change ∀ address ordinal, Published matching atoms (.item address ordinal)
     → ¬TaskCancelled work matching atoms failures (.item address ordinal)
   have objectKnown : ∀ entry ∈ informativeObjectFailureCuts work
-      ((State.initialize (Work.fromExecution work)).eligibleFailureBlocks
-        ((State.initialize (Work.fromExecution work)).sourceRunBlocks
-          { active := (State.initialize (Work.fromExecution work)).initialGroups ++
-              (State.initialize (Work.fromExecution work)).initialStreams } batches).2.2),
+      ((State.initialize (Work.fromExecution work)).sourceRunBlocks
+        { active := (State.initialize (Work.fromExecution work)).initialGroups ++
+            (State.initialize (Work.fromExecution work)).initialStreams } batches).2.2,
       ∃ owners producer path errors,
         TaskAt work entry.2 owners producer (.object path (.error errors)) := by
     intro entry member

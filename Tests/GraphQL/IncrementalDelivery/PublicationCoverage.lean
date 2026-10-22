@@ -64,10 +64,11 @@ example (paths : Semantics.OwnerPaths.Assignment) (bound : Nat)
   intro coherent
   have root : NodeAt HistoryScheduling.Lookup.repeated
       HistoryScheduling.Lookup.rootNode .group [] none :=
-    .group (group := { node := HistoryScheduling.Lookup.rootNode }) (.left .root) (by simp)
+    .group (group := { node := HistoryScheduling.Lookup.rootNode }) (.left (Located.root (root := HistoryScheduling.Lookup.repeated))) (by simp)
   have nested : NodeAt HistoryScheduling.Lookup.repeated
       HistoryScheduling.Lookup.nestedNode .stream [1] (some (.executionGroup [1])) :=
-    .stream (.executionGroup (.right .root))
+    .stream (address := [1, 0])
+      (items := [({ result := .ok (.null, 0) }, .empty)]) (by rfl)
   have impossible := workAt_same_path coherent root nested rfl
   cases impossible
 

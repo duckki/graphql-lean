@@ -102,7 +102,8 @@ private theorem ExecutedWork.retiredRecord_sourceHealth_stable
         refine ⟨nextRetired, nextAncestors, ?_⟩
         rw [GraphEvent.failureSettlements_append]
         cases event with
-        | taskSuccess | streamItems | streamSuccess | streamFailure => exact oldHealthy
+        | taskSuccess | streamItems | streamSuccess | streamFailure | groupFailure =>
+            exact oldHealthy
         | taskFailure occurrence errors =>
             let queue := (State.initialize (Work.fromExecution work)).replayGraphEvents previous
             have accepted := acceptedAt previous (.taskFailure occurrence errors)
@@ -170,13 +171,15 @@ theorem ExecutedWork.retiredRecord_health_stable_of_eachAccepted
     (generated.failureInventories_groupInvalidated_iff_of_eachAccepted valid acceptedAt) node.ref
   exact fun invalid => durable.2.2 (sameAfter.mpr invalid)
 
-/-- The executable source start checker supplies all continuation acceptance premises.
-Witness: restrict batch acceptance to each concrete source prefix and apply stability.
+/-- Fixed empty-snapshot replay supplies the eventwise continuation acceptance premises.
+Witness: restrict that same replay checker to each prefix. Actual host batches use their
+own availability snapshots and are not identified with this eventwise state.
 -/
 theorem ExecutedWork.retiredRecord_health_stable
     {work : Execution.Work} (generated : ExecutedWork work) {events : List GraphEvent}
     (valid : ValidGraphEvents work events)
-    (started : (State.initialize (Work.fromExecution work)).acceptsBatch events = true)
+    (started
+      : State.eventsStarted [] (State.initialize (Work.fromExecution work)) events = true)
     {node dependencies} (known : GroupRecordAt work node dependencies)
     {before : List GraphEvent} (earlier : before.IsPrefix events)
     (retired
@@ -193,32 +196,7 @@ theorem ExecutedWork.retiredRecord_health_stable
   apply generated.retiredRecord_health_stable_of_eachAccepted valid _ known earlier retired healthy
   intro past event included
   obtain ⟨after, same⟩ := included
-  apply State.acceptsBatch_atPrefix _ past event after
+  apply State.eventsStarted_atPrefix _ past event after
   simpa only [← same, List.append_assoc, List.singleton_append] using started
-
-/-- Arbitrary started host batching retains the same retired-record health guarantee.
-Witness: flattening supplies every actual sequential-prefix acceptance; no response
-batching choice changes the accepted failure inventory used by this certificate.
--/
-theorem ExecutedWork.runNormalized_retiredRecord_health_stable {work : Execution.Work}
-    (generated : ExecutedWork work) (batches : List (List GraphEvent))
-    (valid : ValidGraphEvents work batches.flatten)
-    (started : inputsStarted work batches = true) {node dependencies}
-    (known : GroupRecordAt work node dependencies) {before : List GraphEvent}
-    (earlier : before.IsPrefix batches.flatten)
-    (retired
-      : ((State.initialize (Work.fromExecution work)).replayGraphEvents
-          before).RetiredGroup
-          node.ref)
-    (healthy
-      : ¬GroupRecordInvalidated work
-          ((State.initialize (Work.fromExecution work)).objectFailureContributions before)
-          node.ref)
-    : ¬GroupRecordInvalidated work
-        ((State.initialize (Work.fromExecution work)).objectFailureContributions
-          batches.flatten)
-        node.ref :=
-  generated.retiredRecord_health_stable_of_eachAccepted valid
-    (inputsStarted_eachAccepted work batches started) known earlier retired healthy
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

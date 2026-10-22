@@ -73,7 +73,7 @@ theorem ValidGraphEvents.itemsBefore_order {work : Execution.Work}
               List.map_map, Function.comp_def]
             rw [ih, order]
           · simpa [GraphEvent.itemsBefore, same] using ih
-      | taskSuccess | taskFailure | streamSuccess | streamFailure =>
+      | taskSuccess | taskFailure | streamSuccess | streamFailure | groupFailure =>
           simpa [GraphEvent.itemsBefore] using ih
 
 -----------------------------------------------------------------------------------------
@@ -92,6 +92,7 @@ theorem GraphEvent.itemsBefore_occurrences_sublist (events : List GraphEvent)
         (event.itemPublications.map Prod.fst) := by
     cases event <;> simp only [GraphEvent.itemsBefore, List.flatMap_singleton,
       GraphEvent.itemPublications, List.map_nil, List.map_map, Function.comp_def]
+    · exact .refl []
     · exact .refl []
     · exact .refl []
     · split
@@ -132,7 +133,8 @@ theorem ValidGraphEvents.earlier_item_sublist {work : Execution.Work}
   obtain ⟨event, eventMember, inEvent⟩ := List.mem_flatMap.mp publicationMember
   have matching := valid.event_matches eventMember
   cases event with
-  | taskSuccess | taskFailure | streamSuccess | streamFailure => cases inEvent
+  | taskSuccess | taskFailure | streamSuccess | streamFailure | groupFailure =>
+      cases inEvent
   | streamItems stream items =>
       obtain ⟨item, inItems, samePublication⟩ := List.mem_map.mp inEvent
       subst publication

@@ -101,7 +101,8 @@ example
 private def source : Execution.DeliveryNode := ⟨0, [.field "empty"], none⟩
 
 private def work : Execution.Work :=
-  .combine (.combine (.combine .empty (.stream source [])) .empty) .empty
+  .combine (.combine (.combine .empty (.stream source [])) .empty)
+    (.declareGroups [] .empty)
 
 private def event : GraphEvent := .streamSuccess source
 private abbrev initial := State.initialize work

@@ -28,7 +28,7 @@ theorem State.taskFailure_unsettledTask {state : State} {work : Work}
         (state.handleGraphEvent (.taskFailure failed errors)).1.queue
         (.task task.occurrence)
       ∨ .abortTask task.occurrence
-        ∈ (state.handleGraphEvent (.taskFailure failed errors)).2.2 := by
+        ∈ (state.handleGraphEvent (.taskFailure failed errors)).2.2.1 := by
   have represent {queue : ReferenceWorkQueue.State}
       (links : queue.TaskLinkedOn task.occurrence (task.groups.map Execution.DeliveryNode.ref))
       (owned : ∃ owner ∈ task.groups, ∃ group, queue.groupNode? owner.ref = some group)
@@ -36,8 +36,10 @@ theorem State.taskFailure_unsettledTask {state : State} {work : Work}
       : RecordTargetRepresented queue (.task task.occurrence) := by
     obtain ⟨owner, member, group, found⟩ := owned
     exact .task found (links group (List.mem_of_find?_eq_some found)
-      (List.mem_map.mpr ⟨owner, member, (ReferenceWorkQueue.State.groupNode?_ref found).symm⟩)) prior.unrejected_lookup
-  have finalUnrejected : (state.handleGraphEvent (.taskFailure failed errors)).1.queue.TaskRejectionsSatisfy
+      (List.mem_map.mpr ⟨owner, member, (ReferenceWorkQueue.State.groupNode?_ref found).symm⟩))
+        prior.unrejected_lookup
+  have finalUnrejected : (state.handleGraphEvent (.taskFailure failed
+    errors)).1.queue.TaskRejectionsSatisfy
       (fun rejected _ => rejected ≠ task.occurrence) := by
     change (state.taskFailure failed errors).1.queue.TaskRejectionsSatisfy _
     have same : (state.taskFailure failed errors).1.queue =
@@ -47,12 +49,14 @@ theorem State.taskFailure_unsettledTask {state : State} {work : Work}
     exact unrejected.taskFailure failed errors (Ne.symm different)
   cases found : state.queue.taskNode? failed with
   | none =>
-      simpa only [State.handleGraphEvent, State.taskFailure, found, List.flatMap_nil]
+      simpa only [State.handleGraphEvent, ReferenceWorkQueue.State.cacheTaskFailures,
+        List.foldl_nil, State.taskFailure, found, List.flatMap_nil]
         using (Or.inl (represent links owned unrejected)
                 : RecordTargetRepresented state.queue (.task task.occurrence)
                   ∨ .abortTask task.occurrence ∈ ([] : List HostEffect))
   | some node =>
-      let stored : State := { state with queue := state.queue.putTaskNode { node with rejection := some errors } }
+      let stored : State :=
+        { state with queue := state.queue.putTaskNode { node with rejection := some errors } }
       have storedFrame : stored.queue.TaskOwnerFrame work :=
         frame.putExistingTaskNode node (List.mem_of_find?_eq_some found)
           { node with rejection := some errors } rfl
@@ -65,7 +69,8 @@ theorem State.taskFailure_unsettledTask {state : State} {work : Work}
         exact (ReferenceWorkQueue.State.taskNode?_some found).2 ▸ Ne.symm different
       have outcome := failureFold_unsettledTask errors node.task.groups (stored, [], [])
         storedFrame storedForest task catalogue links owned List.nodup_nil storedUnrejected
-      simp only [State.handleGraphEvent, State.taskFailure, found] at finalUnrejected ⊢
+      simp only [State.handleGraphEvent, ReferenceWorkQueue.State.cacheTaskFailures,
+        List.foldl_nil, State.taskFailure, found] at finalUnrejected ⊢
       rcases outcome with kept | requested
       · exact .inl (represent kept.1 kept.2 finalUnrejected)
       · exact .inr (List.mem_flatMap.mpr

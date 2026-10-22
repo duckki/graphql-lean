@@ -88,14 +88,16 @@ theorem ExecutedWork.failureInventories_groupInvalidated_iff_of_eachAccepted
       rw [GraphEvent.failureSettlements_append, State.objectFailureContributions_append]
       simp only [State.objectFailureContributions, List.nil_append]
       cases event with
-      | taskSuccess | streamItems | streamSuccess | streamFailure => exact prior ref
+      | taskSuccess | streamItems | streamSuccess | streamFailure | groupFailure =>
+          exact prior ref
       | taskFailure occurrence errors =>
           let queue := (State.initialize (Work.fromExecution work)).replayGraphEvents before
           change queue.acceptsGraphEvent (.taskFailure occurrence errors) = true at accepted
           change GroupInvalidated work (occurrence :: GraphEvent.failureSettlements before) ref
             ↔ GroupInvalidated work
               (queue.objectFailureContribution (.taskFailure occurrence errors)
-                ++ (State.initialize (Work.fromExecution work)).objectFailureContributions before) ref
+                ++ (State.initialize (Work.fromExecution work)).objectFailureContributions before)
+              ref
           cases found : queue.taskNode? occurrence with
           | none => simp [State.acceptsGraphEvent, found] at accepted
           | some node =>
@@ -109,7 +111,8 @@ Witness: executable prefix acceptance supplies the eventwise induction's only st
 theorem ExecutedWork.failureInventories_groupInvalidated_iff
     {work : Execution.Work} (generated : ExecutedWork work) (events : List GraphEvent)
     (valid : ValidGraphEvents work events)
-    (started : (State.initialize (Work.fromExecution work)).acceptsBatch events = true)
+    (started
+      : State.eventsStarted [] (State.initialize (Work.fromExecution work)) events = true)
     (ref : NodeRef)
     : GroupInvalidated work (GraphEvent.failureSettlements events) ref
       ↔ GroupInvalidated work
@@ -118,23 +121,23 @@ theorem ExecutedWork.failureInventories_groupInvalidated_iff
   apply generated.failureInventories_groupInvalidated_iff_of_eachAccepted valid _ ref
   intro before event earlier
   obtain ⟨after, same⟩ := earlier
-  apply State.acceptsBatch_atPrefix _ before event after
+  apply State.eventsStarted_atPrefix _ before event after []
   simpa only [← same, List.append_assoc, List.singleton_append] using started
 
-/-- Started normalized inputs have the same group-invalidation closure in both inventories.
-Witness: batch start discipline gives every actual sequential-prefix acceptance.
+/-- Source failures equal the source-admitted failures along actual started host batches.
+The projection retains batch-entry eligibility and each full availability snapshot.
 -/
 theorem ExecutedWork.runNormalized_failureInventories_groupInvalidated_iff
-    {work : Execution.Work} (generated : ExecutedWork work)
-    (batches : List (List GraphEvent)) (valid : ValidGraphEvents work batches.flatten)
+    {work : Execution.Work} (_generated : ExecutedWork work)
+    (batches : List (List GraphEvent)) (_valid : ValidGraphEvents work batches.flatten)
     (started : inputsStarted work batches = true) (ref : NodeRef)
     : GroupInvalidated work (GraphEvent.failureSettlements batches.flatten) ref
       ↔ GroupInvalidated work
-          ((State.initialize (Work.fromExecution work)).objectFailureContributions
-            batches.flatten)
-          ref :=
-  generated.failureInventories_groupInvalidated_iff_of_eachAccepted valid
-    (inputsStarted_eachAccepted work batches started) ref
+          ((State.initialize
+              (Work.fromExecution work)).admittedObjectFailureContributionsForBatches
+            batches) ref := by
+  rw [State.admittedObjectFailureContributionsForBatches_eq_of_started _ batches
+    (by rwa [inputsStarted_eq_batchesStarted] at started)]
 
 -----------------------------------------------------------------------------------------
 -- Transfer the checked owner and pending ledgers without equating failure tokens
@@ -191,7 +194,7 @@ theorem ExecutedWork.replayGraphEvents_acceptedOwnerAccounting_of_eachAccepted
   exact ⟨ledger.owners.congr_failures same, ledger.healthy.congr_failures same⟩
 
 /-- Started normalized replay likewise has accepted-inventory ownership and exact counts.
-Witness: normalized source-ledger replay and the same proved invalidation equivalence.
+Witness: actual batch replay and exact equality of accepted and supplied failure inventories.
 No missing-parent health or output-admission premise is assumed.
 -/
 theorem ExecutedWork.runNormalized_acceptedOwnerAccounting {work : Execution.Work}
@@ -201,8 +204,9 @@ theorem ExecutedWork.runNormalized_acceptedOwnerAccounting {work : Execution.Wor
     : let queue := ((State.initialize (Work.fromExecution work)).runNormalized batches).1
       let settled := GraphEvent.taskSettlements batches.flatten
       let failed :=
-        (State.initialize (Work.fromExecution work)).objectFailureContributions
-          batches.flatten
+        (State.initialize
+          (Work.fromExecution work)).admittedObjectFailureContributionsForBatches
+          batches
       queue.HealthyRegisteredTaskAccounting work settled failed
       ∧ queue.HealthyPendingTracks work settled failed := by
   obtain ⟨_, _, ledger⟩ := generated.runNormalized_ownerAccounting_of_started batches valid started

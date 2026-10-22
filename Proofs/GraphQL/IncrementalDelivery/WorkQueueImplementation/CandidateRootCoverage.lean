@@ -40,17 +40,71 @@ theorem distinctDeliveryNodes_ref_covered (nodes : List Execution.DeliveryNode)
         · simpa only [List.append_assoc, List.singleton_append] using included
   exact loop nodes [] node.ref (List.mem_map_of_mem member)
 
-/-- Every fresh parentless descriptor contributes its ref to the actual candidate frontier.
-Witness: the two registration filters and ref retention through first-encounter deduplication.
+/-- Every fresh canonical parentless candidate appears in the installed root frontier.
+Witness: a root's first installation appends its ref, and permanent registration prevents
+a later visit from consuming that ref without retaining its root entry.
 -/
 theorem State.addGroups_parentless_candidate (queue : State) (groups : List Group)
+    (registered : queue.LiveGroupsRegistered) {parents : Nat → NodeRefs}
+    (canonical
+      : ∀ candidate ∈ groups, candidate.parent = (parents candidate.node.ref).head?)
     {group : Group} (member : group ∈ groups) (parentless : group.parent = none)
     (fresh : group.node.ref ∉ queue.registeredGroups)
-    (absent : queue.groupNode? group.node.ref = none)
+    (_absent : queue.groupNode? group.node.ref = none)
     : group.node.ref ∈ (queue.addGroups groups).2.map Execution.DeliveryNode.ref := by
-  apply distinctDeliveryNodes_ref_covered
-  apply List.mem_filterMap.mpr
-  exact ⟨group, by simp [member, fresh, absent], by simp [parentless]⟩
+  let property (acc : State × List Execution.DeliveryNode × NodeRefs) :=
+    acc.1.LiveGroupsRegistered ∧ (group.node.ref ∈ acc.1.registeredGroups →
+      group.node.ref ∈ acc.2.1.map Execution.DeliveryNode.ref)
+  have visit (fuel : Nat) (acc : State × List Execution.DeliveryNode × NodeRefs)
+      (candidate : Group) (included : candidate ∈ groups) (prior : property acc)
+      : property (State.addGroups.go groups fuel acc candidate) := by
+    induction fuel generalizing acc candidate with
+    | zero => exact prior
+    | succ fuel ih =>
+        obtain ⟨current, roots, visited⟩ := acc
+        simp only [State.addGroups.go]
+        split
+        · exact prior
+        · split
+          · exact prior
+          · by_cases same : candidate.node.ref = group.node.ref
+            · have noParent : candidate.parent = none := by
+                rw [canonical candidate included, same, ← canonical group member, parentless]
+              simp only [noParent, Option.bind_none, Option.isNone_none, ite_true]
+              exact ⟨prior.1.addGroup candidate, fun _ => by simp [same]⟩
+            · have finish (state : State) (roots : List Execution.DeliveryNode) (visited : NodeRefs)
+                  (valid : property (state, roots, visited))
+                  : property (state.addGroup candidate,
+                    if candidate.parent.isNone then roots ++ [candidate.node] else roots, visited) := by
+                refine ⟨valid.1.addGroup candidate, ?_⟩
+                intro registered
+                have old : group.node.ref ∈ state.registeredGroups := by
+                  rcases List.mem_append.mp
+                    (state.addGroup_registeredGroups_subset candidate registered) with old | new
+                  · exact old
+                  · exact False.elim (same (List.mem_singleton.mp new).symm)
+                have covered := valid.2 old
+                split
+                · rw [List.map_append]
+                  exact List.mem_append_left _ covered
+                · exact covered
+              split
+              · exact finish current roots (visited ++ [candidate.node.ref]) prior
+              · rename_i parent found
+                obtain ⟨ref, _, selected⟩ := Option.bind_eq_some_iff.mp found
+                exact finish _ _ _ (ih _ parent (List.mem_of_find?_eq_some selected) prior)
+  have loop (more : List Group) (included : more ⊆ groups)
+      (acc : State × List Execution.DeliveryNode × NodeRefs) (prior : property acc)
+      : property (more.foldl
+          (fun acc candidate => State.addGroups.go groups (groups.length + 1) acc candidate) acc) := by
+    induction more generalizing acc with
+    | nil => exact prior
+    | cons candidate rest ih =>
+        exact ih (fun _ member => included (List.mem_cons_of_mem _ member)) _
+          (visit _ acc candidate (included List.mem_cons_self) prior)
+  have final := loop groups (List.Subset.refl _) (queue, [], [])
+    ⟨registered, fun known => False.elim (fresh known)⟩
+  exact final.2 ((queue.addGroups_registration registered groups).2.2 group member)
 
 -----------------------------------------------------------------------------------------
 -- Following complete live parent links terminates at a represented root

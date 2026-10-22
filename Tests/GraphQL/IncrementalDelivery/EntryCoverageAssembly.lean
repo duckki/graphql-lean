@@ -60,9 +60,19 @@ private theorem rightCovered (containers : Bool)
       using member
   subst entry
   unfold rightWork
-  exact Or.inr ⟨_, _, _, .object (missing ++ [.field "child"]) (.error 1),
-    (StructuralEquivalence.TaskAt.executionGroup .root).toCurrent,
-    rfl, Or.inr ⟨rfl, ⟨[.field "child"], rfl⟩⟩⟩
+  exact Or.inr
+    ⟨
+      _,
+      _,
+      _,
+      .object (missing ++ [.field "child"]) (.error 1),
+      (by
+        apply StructuralEquivalence.TaskAt.toCurrent
+        apply StructuralEquivalence.TaskAt.executionGroup (result := { result := .error 1 })
+        exact .root),
+      rfl,
+      Or.inr ⟨rfl, ⟨[.field "child"], rfl⟩⟩
+    ⟩
 
 /-- Object assembly retains successful stream data and the tagged null failure together. -/
 example (containers : Bool)
@@ -101,7 +111,10 @@ example (containers : Bool)
     simp only [List.mem_cons, List.not_mem_nil, or_false] at member
     rcases member with rfl | rfl
     · exact Or.inr ⟨_, _, _, .object [.index 0, .field "child"] (.error 1),
-        (StructuralEquivalence.TaskAt.executionGroup .root).toCurrent,
+        (by
+          apply StructuralEquivalence.TaskAt.toCurrent
+          apply StructuralEquivalence.TaskAt.executionGroup (result := { result := .error 1 })
+          exact .root),
         rfl, Or.inr ⟨rfl, ⟨[.field "child"], rfl⟩⟩⟩
     · have flag : containers = true := visible
       exact Or.inl (by simp [preparedItemPositions, ResponsePositions.items,
@@ -131,7 +144,10 @@ example (containers : Bool)
   · intro entry member _
     obtain rfl := List.mem_singleton.mp member
     exact Or.inr ⟨_, _, _, .object [.index 1, .field "child"] (.error 1),
-      (StructuralEquivalence.TaskAt.executionGroup .root).toCurrent,
+      (by
+          apply StructuralEquivalence.TaskAt.toCurrent
+          apply StructuralEquivalence.TaskAt.executionGroup (result := { result := .error 1 })
+          exact .root),
       rfl, Or.inr ⟨rfl, ⟨[.field "child"], rfl⟩⟩⟩
   · apply WorkCursorSeed.stream (index := 1)
     · rfl

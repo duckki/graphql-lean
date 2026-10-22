@@ -46,6 +46,7 @@ def Descends (parents : Assignment) (owners : List Nat) (ref : NodeRef) : Prop :
 
 def WorkUnder (parents : Assignment) (owners : List Nat) : Work → Prop
   | .empty => True
+  | .declareGroups _ tasks => WorkUnder parents owners tasks
   | .combine left right => WorkUnder parents owners left ∧ WorkUnder parents owners right
   | .executionGroup groups _ _ children =>
       (∀ group ∈ groups, Descends parents owners group.node.ref)
@@ -54,6 +55,8 @@ def WorkUnder (parents : Assignment) (owners : List Nat) : Work → Prop
 
 def WorkAt (parents : Assignment) (bound : Nat) : Work → Prop
   | .empty => True
+  | .declareGroups groups tasks =>
+      (∀ group ∈ groups, FragmentAt parents bound group) ∧ WorkAt parents bound tasks
   | .combine left right => WorkAt parents bound left ∧ WorkAt parents bound right
   | .executionGroup groups _ _ children =>
       groups ≠ []

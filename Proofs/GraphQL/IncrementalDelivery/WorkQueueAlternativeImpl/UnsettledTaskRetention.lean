@@ -1,4 +1,4 @@
-import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.IncomingTaskRegistration
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.RegistrationLinks
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.RegistrationTaskRetention
 
 /-! Retain the owners of uncompleted tasks through successful publication. Unlike
@@ -33,22 +33,26 @@ theorem finishGroupSuccess_linkedOwner_present {queue : Kernel} {occurrence keys
     intro same
     exact unlisted (links group live (same ▸ contributes))
   have loop (tasks : List Occurrence) (included : tasks.Subset group.tasks)
-      (acc : Kernel × List ExecutionGroupValue × NodeRefs) (linked : acc.1.TaskLinkedOn occurrence keys)
+      (acc : Kernel × List ExecutionGroupValue × NodeRefs)
+      (linked : acc.1.TaskLinkedOn occurrence keys)
       : (tasks.foldl ReferenceWorkQueue.flushGroupTask acc).1.TaskLinkedOn occurrence keys
-        ∧ (tasks.foldl ReferenceWorkQueue.flushGroupTask acc).1.groupNodes.map (fun node => node.group.node.ref)
+        ∧ (tasks.foldl ReferenceWorkQueue.flushGroupTask acc).1.groupNodes.map
+            (fun node => node.group.node.ref)
           = acc.1.groupNodes.map (fun node => node.group.node.ref) := by
     induction tasks generalizing acc with
     | nil => exact ⟨linked, rfl⟩
     | cons chosen rest ih =>
         rw [List.foldl_cons]
-        have nextLinks : (ReferenceWorkQueue.flushGroupTask acc chosen).1.TaskLinkedOn occurrence keys := by
+        have nextLinks :
+            (ReferenceWorkQueue.flushGroupTask acc chosen).1.TaskLinkedOn occurrence keys := by
           unfold ReferenceWorkQueue.flushGroupTask
           split
           · exact linked
           · exact linked.removeOtherTask chosen
               (fun same => unlisted (same.symm ▸ included List.mem_cons_self))
         have nextKeys : (ReferenceWorkQueue.flushGroupTask acc chosen).1.groupNodes.map
-            (fun node => node.group.node.ref) = acc.1.groupNodes.map (fun node => node.group.node.ref) := by
+            (fun node => node.group.node.ref)
+              = acc.1.groupNodes.map (fun node => node.group.node.ref) := by
           unfold ReferenceWorkQueue.flushGroupTask
           split
           · rfl
@@ -59,7 +63,8 @@ theorem finishGroupSuccess_linkedOwner_present {queue : Kernel} {occurrence keys
   let flushed := (group.tasks.foldl ReferenceWorkQueue.flushGroupTask (queue, [], [])).1
   obtain ⟨flushedLinks, flushedKeys⟩ := loop group.tasks (List.Subset.refl _) (queue, [], []) links
   let current : Kernel := { flushed with
-    groupNodes := flushed.groupNodes.filter (fun node => node.group.node.ref != group.group.node.ref)
+    groupNodes := flushed.groupNodes.filter
+      (fun node => node.group.node.ref != group.group.node.ref)
     rootGroups := flushed.rootGroups.filter (· != group.group.node.ref) }
   have currentLinks : current.TaskLinkedOn occurrence keys := by
     intro node member contributes

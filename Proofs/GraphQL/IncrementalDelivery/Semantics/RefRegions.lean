@@ -14,6 +14,7 @@ def Disjoint (left right : List Nat) : Prop := ∀ ref ∈ left, ref ∉ right
 
 def rootRefs : Work → List Nat
   | .empty => []
+  | .declareGroups groups tasks => groups.flatMap RefRoles.fragmentRefs ++ rootRefs tasks
   | .combine left right => rootRefs left ++ rootRefs right
   | .executionGroup groups _ _ children =>
       groups.flatMap RefRoles.fragmentRefs ++ rootRefs children
@@ -21,6 +22,7 @@ def rootRefs : Work → List Nat
 
 def hiddenRegions : Work → List (List Nat)
   | .empty => []
+  | .declareGroups _ tasks => hiddenRegions tasks
   | .combine left right => hiddenRegions left ++ hiddenRegions right
   | .executionGroup _ _ _ children => hiddenRegions children
   | .stream _ items => items.flatMap (fun item => rootRefs item.2 :: hiddenRegions item.2)
@@ -198,6 +200,35 @@ theorem Output.executionGroup {inherited : List Nat} {start finish : Nat}
     (hg : (groups.flatMap RefRoles.fragmentRefs).Subset inherited)
     (hi : ∀ ref ∈ inherited, ref < start)
     : Output inherited start finish (.executionGroup groups path result children) := by
+  refine ⟨h.monotone, ?_, ?_, ?_, ?_⟩
+  · have hs := (separated_iff children).mp h.separated
+    apply (separated_iff _).mpr
+    simp only [rootRefs, hiddenRegions]
+    refine ⟨?_, hs.2⟩
+    intro region hr
+    apply Disjoint.append_left _ (hs.1 region hr)
+    intro ref hk hregion
+    have := hi ref (hg hk)
+    have := h.hidden region hr ref hregion
+    omega
+  · intro ref hk
+    simp only [allRefs, rootRefs, hiddenRegions, List.mem_append, or_assoc] at hk
+    rcases hk with hk | hk
+    · exact Nat.lt_of_lt_of_le (hi ref (hg hk)) h.monotone
+    · exact h.bounded ref (List.mem_append.mpr hk)
+  · intro ref hk
+    rcases List.mem_append.mp hk with hk | hk
+    · exact Or.inl (hg hk)
+    · exact h.root ref hk
+  · simpa only [hiddenRegions] using h.hidden
+
+/-- Ordered declarations extend the current ref region without introducing a hidden region. -/
+theorem Output.declareGroups {inherited : List Nat} {start finish : Nat}
+    {children : Work} (h : Output inherited start finish children)
+    (groups : List DeferredFragment)
+    (hg : (groups.flatMap RefRoles.fragmentRefs).Subset inherited)
+    (hi : ∀ ref ∈ inherited, ref < start)
+    : Output inherited start finish (.declareGroups groups children) := by
   refine ⟨h.monotone, ?_, ?_, ?_, ?_⟩
   · have hs := (separated_iff children).mp h.separated
     apply (separated_iff _).mpr

@@ -328,14 +328,16 @@ Witness: definitional equality after the task-presence lookup.
 theorem State.taskSuccess_eq {queue : State} (occurrence : Occurrence)
     (result : TaskResult) (taskNode : TaskNode)
     (found : queue.taskNode? occurrence = some taskNode)
-    : queue.taskSuccess occurrence result
+    (available : List (Occurrence × Nat) := [])
+    : queue.taskSuccess occurrence result available
       = let integrated :=
           ((queue.putTaskNode
               { taskNode with value := some result.value }).maybeIntegrateWork
             result.work (some occurrence)).1
         let released := taskNode.task.groups.foldl successGroupStep (integrated, [], {})
-        let drained := (released.1.startNewWork released.2.2).drainReadyGroups
-        (drained.1, released.2.1 ++ drained.2) := by
+        let started := released.1.startNewWork released.2.2 available
+        let drained := started.1.drainReadyGroups available
+        (drained.1, released.2.1 ++ drained.2.1, started.2 ++ drained.2.2) := by
   simp only [State.taskSuccess, found]
   rfl
 

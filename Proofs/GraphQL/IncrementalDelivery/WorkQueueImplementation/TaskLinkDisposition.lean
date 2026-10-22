@@ -1,4 +1,5 @@
-import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.MembershipExclusionIntegration
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.InitializationSpecialization
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.TaskMembershipIntegration
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.UnsettledMemberships
 
 /-! A permanent task is completely linked or globally retired. This proof-only distinction
@@ -7,7 +8,7 @@ It stores no new runtime ledger and imposes no host-source policy.
 -/
 
 namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
-open WorkQueueSemantics (Occurrence)
+open WorkQueueSemantics (Occurrence NodeRefs)
 
 -----------------------------------------------------------------------------------------
 -- Permanent catalogue disposition implies completeness for actual live task records
@@ -107,13 +108,53 @@ theorem State.TaskLinkDisposition.pruneEmptyGroups {queue : State}
   · exact .inl (linked.pruneEmptyGroups groups)
   · exact .inr (retired.pruneEmptyGroups groups)
 
+theorem State.TaskRetired.putTaskNode {queue : State} {occurrence : Occurrence}
+    (retired : queue.TaskRetired occurrence) (updated : TaskNode)
+    : (queue.putTaskNode updated).TaskRetired occurrence := by
+  refine ⟨?_, retired.2.putTaskNode updated⟩
+  apply List.find?_eq_none.mpr
+  intro node member selected
+  obtain ⟨old, oldMember, same⟩ := List.mem_map.mp member
+  split at same
+  · rename_i replacing
+    subst node
+    have oldKey := (occurrence_beq_iff_eq _ _).mp replacing
+    have selectedKey := (occurrence_beq_iff_eq _ _).mp selected
+    exact List.find?_eq_none.mp retired.1 old oldMember
+      ((occurrence_beq_iff_eq _ _).mpr (oldKey.trans selectedKey))
+  · subst node
+    exact List.find?_eq_none.mp retired.1 old oldMember selected
+
+theorem State.TaskLinkDisposition.putTaskNode {queue : State}
+    (disposition : queue.TaskLinkDisposition) (updated : TaskNode)
+    : (queue.putTaskNode updated).TaskLinkDisposition := by
+  intro task member
+  rcases disposition task member with linked | retired
+  · exact .inl linked
+  · exact .inr (retired.putTaskNode updated)
+
+/-- Cache exposure preserves complete links and cannot resurrect a retired computation. -/
+theorem State.TaskLinkDisposition.cacheTaskFailures {queue : State}
+    (disposition : queue.TaskLinkDisposition) (available : List (Occurrence × Nat))
+    : (queue.cacheTaskFailures available).TaskLinkDisposition := by
+  unfold State.cacheTaskFailures
+  induction available generalizing queue with
+  | nil => exact disposition
+  | cons entry rest ih =>
+      apply ih
+      dsimp only [List.foldl_cons]
+      split
+      · exact disposition
+      · exact disposition.putTaskNode _
+
 -----------------------------------------------------------------------------------------
 -- Activation cannot resurrect an occurrence with no membership anywhere
 -----------------------------------------------------------------------------------------
 
 private theorem startTask_groups_tasks (queue : State) (occurrence : Occurrence)
-    : (queue.startTask occurrence).groupNodes = queue.groupNodes
-      ∧ (queue.startTask occurrence).tasks = queue.tasks := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.startTask occurrence available).groupNodes = queue.groupNodes
+      ∧ (queue.startTask occurrence available).tasks = queue.tasks := by
   unfold State.startTask
   split
   · exact ⟨rfl, rfl⟩
@@ -121,8 +162,8 @@ private theorem startTask_groups_tasks (queue : State) (occurrence : Occurrence)
 
 theorem State.TaskRetired.startOtherTask {queue : State} {occurrence : Occurrence}
     (retired : queue.TaskRetired occurrence) (chosen : Occurrence)
-    (different : occurrence ≠ chosen)
-    : (queue.startTask chosen).TaskRetired occurrence := by
+    (different : occurrence ≠ chosen) (available : List (Occurrence × Nat) := [])
+    : (queue.startTask chosen available).TaskRetired occurrence := by
   refine ⟨?_, ?_⟩
   · unfold State.startTask
     split
@@ -140,7 +181,7 @@ theorem State.TaskRetired.startOtherTask {queue : State} {occurrence : Occurrenc
           have same := (occurrence_beq_iff_eq _ _).mp selected
           exact different (same.symm.trans key)
   · intro node member
-    rw [(startTask_groups_tasks queue chosen).1] at member
+    rw [(startTask_groups_tasks queue chosen available).1] at member
     exact retired.2 node member
 
 /-- Starting an occurrence selected by a real group cannot resurrect a retired task.
@@ -150,38 +191,45 @@ freshness or execution-order assumption.
 theorem State.TaskLinkDisposition.startLinkedTask {queue : State}
     (disposition : queue.TaskLinkDisposition) (chosen : Occurrence)
     (selected : ∃ group ∈ queue.groupNodes, chosen ∈ group.tasks)
-    : (queue.startTask chosen).TaskLinkDisposition := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.startTask chosen available).TaskLinkDisposition := by
   intro task member
-  rw [(startTask_groups_tasks queue chosen).2] at member
+  rw [(startTask_groups_tasks queue chosen available).2] at member
   rcases disposition task member with linked | retired
-  · exact .inl (linked.startTask chosen)
+  · exact .inl (linked.startTask chosen available)
   · apply Or.inr
-    apply retired.startOtherTask chosen
+    apply retired.startOtherTask chosen (available := available)
     intro same
     obtain ⟨group, present, listed⟩ := selected
     exact retired.2 group present (same ▸ listed)
 
 theorem State.TaskLinkDisposition.startGroup {queue : State}
     (disposition : queue.TaskLinkDisposition) (key : Nat)
-    : (queue.startGroup key).TaskLinkDisposition := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.startGroup key available).1.TaskLinkDisposition := by
+  have cached := disposition.cacheTaskFailures available
   unfold State.startGroup
+  dsimp only
   split
-  · exact disposition
+  · exact cached
   · rename_i group found
-    have loop (more : List Occurrence) (current : State)
-        (included : more.Subset group.tasks) (live : group ∈ current.groupNodes)
-        (prior : current.TaskLinkDisposition)
-        : (more.foldl State.startTask current).TaskLinkDisposition := by
-      induction more generalizing current with
-      | nil => exact prior
-      | cons chosen rest ih =>
-          apply ih _ (fun _ member => included (List.mem_cons_of_mem _ member))
-          · rw [(startTask_groups_tasks current chosen).1]
-            exact live
-          · exact prior.startLinkedTask chosen
-              ⟨group, live, included List.mem_cons_self⟩
-    exact loop group.tasks queue (List.Subset.refl _) (List.mem_of_find?_eq_some found)
-      disposition
+    split
+    · have loop (more : List Occurrence) (current : State)
+          (included : more.Subset group.tasks) (live : group ∈ current.groupNodes)
+          (prior : current.TaskLinkDisposition)
+          : (more.foldl (fun current task => current.startTask task available)
+              current).TaskLinkDisposition := by
+        induction more generalizing current with
+        | nil => exact prior
+        | cons chosen rest ih =>
+            apply ih _ (fun _ member => included (List.mem_cons_of_mem _ member))
+            · rw [(startTask_groups_tasks current chosen available).1]
+              exact live
+            · exact prior.startLinkedTask chosen
+                ⟨group, live, included List.mem_cons_self⟩ available
+      exact loop group.tasks _ (List.Subset.refl _) (List.mem_of_find?_eq_some found)
+        cached
+    · exact cached.removeGroup _
 
 theorem State.TaskLinkDisposition.startStream {queue : State}
     (disposition : queue.TaskLinkDisposition) (key : Nat)
@@ -191,13 +239,17 @@ theorem State.TaskLinkDisposition.startStream {queue : State}
 
 theorem State.TaskLinkDisposition.startNewWork {queue : State}
     (disposition : queue.TaskLinkDisposition) (released : NewWork)
-    : (queue.startNewWork released).TaskLinkDisposition := by
-  have groups (more : List Nat) (current : State) (prior : current.TaskLinkDisposition)
-      : (more.foldl State.startGroup current).TaskLinkDisposition := by
-    induction more generalizing current with
+    (available : List (Occurrence × Nat) := [])
+    : (queue.startNewWork released available).1.TaskLinkDisposition := by
+  have groups (more : NodeRefs) (acc : State × List GroupFailureEvent)
+      (prior : acc.1.TaskLinkDisposition)
+      : (more.foldl (fun (current, failures) ref =>
+          let (next, queued) := current.startGroup ref available
+          (next, failures ++ queued)) acc).1.TaskLinkDisposition := by
+    induction more generalizing acc with
     | nil => exact prior
-    | cons key rest ih => exact ih _ (prior.startGroup key)
-  have streams (more : List Nat) (current : State) (prior : current.TaskLinkDisposition)
+    | cons key rest ih => exact ih _ (prior.startGroup key available)
+  have streams (more : NodeRefs) (current : State) (prior : current.TaskLinkDisposition)
       : (more.foldl State.startStream current).TaskLinkDisposition := by
     induction more generalizing current with
     | nil => exact prior
@@ -242,36 +294,12 @@ theorem State.TaskLinkDisposition.finishGroupSuccess {queue : State}
   have filtered := folded.filterGroups (fun node => node.group.node.ref != group.group.node.ref)
   let flushed := (group.tasks.foldl flushGroupTask (queue, [], [])).1
   let current : State := { flushed with
-    groupNodes := flushed.groupNodes.filter (fun node => node.group.node.ref != group.group.node.ref)
+    groupNodes :=
+      flushed.groupNodes.filter (fun node => node.group.node.ref != group.group.node.ref)
     rootGroups := flushed.rootGroups.filter (· != group.group.node.ref) }
   have currentDisposition : current.TaskLinkDisposition := filtered
   unfold State.finishGroupSuccess
   exact currentDisposition.pruneEmptyGroups _
-
-theorem State.TaskRetired.putTaskNode {queue : State} {occurrence : Occurrence}
-    (retired : queue.TaskRetired occurrence) (updated : TaskNode)
-    : (queue.putTaskNode updated).TaskRetired occurrence := by
-  refine ⟨?_, retired.2.putTaskNode updated⟩
-  apply List.find?_eq_none.mpr
-  intro node member selected
-  obtain ⟨old, oldMember, same⟩ := List.mem_map.mp member
-  split at same
-  · rename_i replacing
-    subst node
-    have oldKey := (occurrence_beq_iff_eq _ _).mp replacing
-    have selectedKey := (occurrence_beq_iff_eq _ _).mp selected
-    exact List.find?_eq_none.mp retired.1 old oldMember
-      ((occurrence_beq_iff_eq _ _).mpr (oldKey.trans selectedKey))
-  · subst node
-    exact List.find?_eq_none.mp retired.1 old oldMember selected
-
-theorem State.TaskLinkDisposition.putTaskNode {queue : State}
-    (disposition : queue.TaskLinkDisposition) (updated : TaskNode)
-    : (queue.putTaskNode updated).TaskLinkDisposition := by
-  intro task member
-  rcases disposition task member with linked | retired
-  · exact .inl linked
-  · exact .inr (retired.putTaskNode updated)
 
 /-- Rejected computations retain complete links until all their owners are removed. -/
 theorem State.TaskLinkDisposition.taskFailure {queue : State}
@@ -287,7 +315,8 @@ theorem State.TaskLinkDisposition.taskFailure {queue : State}
 
 theorem State.TaskLinkDisposition.drainReadyGroups_go {queue : State}
     (disposition : queue.TaskLinkDisposition) (fuel : Nat)
-    : (State.drainReadyGroups.go fuel queue).1.TaskLinkDisposition := by
+    (available : List (Occurrence × Nat) := [])
+    : (State.drainReadyGroups.go available fuel queue).1.TaskLinkDisposition := by
   induction fuel generalizing queue with
   | zero => exact disposition
   | succ fuel ih =>
@@ -296,16 +325,12 @@ theorem State.TaskLinkDisposition.drainReadyGroups_go {queue : State}
       split
       · exact disposition
       · rename_i group _
-        cases cached : queue.rejectedTask? group with
-        | none => exact ih ((disposition.finishGroupSuccess group).startNewWork _)
-        | some rejected =>
-            obtain ⟨occurrence, errors⟩ := rejected
-            exact ih (disposition.taskFailure occurrence errors)
+        exact ih ((disposition.finishGroupSuccess group).startNewWork _ available)
 
 theorem State.TaskLinkDisposition.drainReadyGroups {queue : State}
-    (disposition : queue.TaskLinkDisposition)
-    : queue.drainReadyGroups.1.TaskLinkDisposition :=
-  disposition.drainReadyGroups_go _
+    (disposition : queue.TaskLinkDisposition) (available : List (Occurrence × Nat) := [])
+    : (queue.drainReadyGroups available).1.TaskLinkDisposition :=
+  disposition.drainReadyGroups_go _ available
 
 -----------------------------------------------------------------------------------------
 -- Registration preserves old dispositions and establishes each new task's links
@@ -413,6 +438,7 @@ theorem State.TaskLinkDisposition.maybeIntegrateWork {queue : State}
 /-- Initial complete scope links are preserved through pruning and actual activation. -/
 theorem createWorkQueue_taskLinkDisposition (work : Work)
     : (State.initialize work).TaskLinkDisposition := by
+  rw [State.initialize_empty_eq_activation]
   let integrated := (({} : State).maybeIntegrateWork work).1
   let newWork := (({} : State).maybeIntegrateWork work).2
   let pruned := (integrated.pruneEmptyGroups newWork.newGroups).1

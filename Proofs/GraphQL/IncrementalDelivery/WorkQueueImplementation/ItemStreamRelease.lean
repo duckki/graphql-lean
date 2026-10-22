@@ -1,4 +1,5 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.StreamNoticeMetadata
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.StreamPreparation
 
 /-! Item-produced stream notices retain a producer from their own item publication batch. -/
 
@@ -42,20 +43,16 @@ Witness: the item loop concatenates exactly each integration's newStreams; their
 come from that item's child work. No source semantics or prior registry premise is used.
 -/
 theorem State.streamItems_noticeSource (queue : State) (stream : Execution.DeliveryNode)
-    (items : List StreamItem) {owner values groups streams}
+    (items : List StreamItem) (available : List (Occurrence × Nat) := [])
+    {owner values groups streams}
     (emitted
       : Execution.WorkQueueEvent.streamValues owner values groups streams
-        ∈ (queue.streamItems stream items).2)
+        ∈ (queue.streamItems stream items available).2.1)
     {child} (noticed : child ∈ streams)
     : ∃ item ∈ items, ∃ entry ∈ item.work.streams, entry.node = child := by
-  let step (acc : State × List Execution.DeliveryNode
-      × List Execution.DeliveryNode × List StreamItemValue) (item : StreamItem) :=
-    let integrated := acc.1.maybeIntegrateWork item.work
-    let pruned := integrated.1.pruneEmptyGroups integrated.2.newGroups
-    (pruned.1.startNewWork { integrated.2 with newGroups := pruned.2 },
-      acc.2.1 ++ pruned.2, acc.2.2.1 ++ integrated.2.newStreams, acc.2.2.2 ++ [item.value])
+  let step := fun acc item => streamItemStep acc item available
   have loop (more : List StreamItem) (acc : State × List Execution.DeliveryNode
-      × List Execution.DeliveryNode × List StreamItemValue)
+      × List Execution.DeliveryNode × List StreamItemValue × List GroupFailureEvent)
       : (more.foldl step acc).2.2.1.Subset
           (acc.2.2.1 ++ more.flatMap (fun item => item.work.streams.map Stream.node)) := by
     induction more generalizing acc with
@@ -75,10 +72,10 @@ theorem State.streamItems_noticeSource (queue : State) (stream : Execution.Deliv
   split at emitted
   · cases emitted
   · have same := (List.mem_cons.mp emitted).resolve_right
-      (State.drainReadyGroups_noStreamValues _ _ _ _ _)
+      (State.drainReadyGroups_noStreamValues _ _ _ _ _ available)
     have notices := (Execution.WorkQueueEvent.streamValues.inj same).2.2.2
     rw [notices] at noticed
-    have member := loop items (queue, [], [], []) noticed
+    have member := loop items (queue, [], [], [], []) noticed
     obtain ⟨item, supplied, descriptor⟩ := List.mem_flatMap.mp member
     obtain ⟨entry, fromItem, same⟩ := List.mem_map.mp descriptor
     exact ⟨item, supplied, entry, fromItem, same⟩
@@ -88,9 +85,10 @@ Witness: the inactive branch emits nothing; the active branch emits one carrier 
 by a group-only drain. Drain-generated stream notices therefore use different carriers.
 -/
 theorem State.streamItems_carrier_index (queue : State) (stream : Execution.DeliveryNode)
-    (items : List StreamItem) {index owner values groups streams}
+    (items : List StreamItem) (available : List (Occurrence × Nat) := [])
+    {index owner values groups streams}
     (atEvent
-      : (queue.streamItems stream items).2[index]?
+      : (queue.streamItems stream items available).2.1[index]?
         = some (.streamValues owner values groups streams))
     : index = 0 := by
   unfold State.streamItems at atEvent
@@ -99,7 +97,7 @@ theorem State.streamItems_carrier_index (queue : State) (stream : Execution.Deli
   · cases index with
     | zero => rfl
     | succ index =>
-        exact False.elim (State.drainReadyGroups_noStreamValues _ _ _ _ _
+        exact False.elim (State.drainReadyGroups_noStreamValues _ _ _ _ _ available
           (List.mem_of_getElem? atEvent))
 
 /-- Each stream notice's producer belongs to the item carrier's own occurrence list.
@@ -107,18 +105,19 @@ Witness: recover the exact supplied child descriptor, then use the source's chil
 match to identify its generating item. Equal item payloads never identify occurrences.
 -/
 theorem State.streamItems_noticeProducer {work : Execution.Work} (queue : State)
-    {stream items} (matching : (GraphEvent.streamItems stream items).MatchesWork work)
+    {stream items} (available : List (Occurrence × Nat) := [])
+    (matching : (GraphEvent.streamItems stream items).MatchesWork work)
     {owner values groups streams}
     (emitted
       : Execution.WorkQueueEvent.streamValues owner values groups streams
-        ∈ (queue.streamItems stream items).2)
+        ∈ (queue.streamItems stream items available).2.1)
     {child} (noticed : child ∈ streams)
     : ∃ occurrence,
         NodeAt work child .stream [] (some occurrence)
         ∧ occurrence
           ∈ (GraphEvent.itemPublications (.streamItems stream items)).map Prod.fst := by
   obtain ⟨item, member, entry, supplied, same⟩ :=
-    queue.streamItems_noticeSource stream items emitted noticed
+    queue.streamItems_noticeSource stream items available emitted noticed
   refine ⟨item.occurrence, same ▸ matching.streamItem_childStream_producer member supplied, ?_⟩
   simp only [GraphEvent.itemPublications, List.map_map, Function.comp_def]
   exact List.mem_map.mpr ⟨item, member, rfl⟩
@@ -166,57 +165,89 @@ theorem ItemStreamReleasePublications.nil (work : Execution.Work)
 Witness: item handlers copy their complete input item list; task handlers and closures emit
 no stream-value carrier. Only source matching and the existing start check are used.
 -/
-theorem State.handleGraphEvent_itemStreamRelease {work : Execution.Work} (queue : State)
-    (event : GraphEvent) (matching : event.MatchesWork work)
-    (accepted : queue.acceptsGraphEvent event = true)
+theorem State.handleGraphEvent_itemStreamRelease_of_itemsStarted {work : Execution.Work}
+    (queue : State) (event : GraphEvent) (matching : event.MatchesWork work)
+    (available : List (Occurrence × Nat) := [])
+    (accepted
+      : ∀ stream items,
+          event = .streamItems stream items
+          → queue.acceptsGraphEvent (.streamItems stream items) = true)
     : ItemStreamReleasePublications work event.itemPublications
-        (queue.handleGraphEvent event).2 := by
+        (queue.handleGraphEvent event available).2.1 := by
+  have eligible : ∀ stream items, event = .streamItems stream items
+      → (queue.cacheTaskFailures available).acceptsGraphEvent (.streamItems stream items)
+          = true := by
+    intro stream items same
+    rw [State.cacheTaskFailures_acceptsGraphEvent]
+    exact accepted stream items same
+  unfold State.handleGraphEvent
+  generalize queue.cacheTaskFailures available = current at eligible ⊢
   cases event with
   | taskSuccess occurrence result =>
       apply ItemStreamReleasePublications.of_noStreamValues
       intro owner values groups streams emitted
       have impossible : owner.ref ∈
-          (queue.taskSuccess occurrence result).2.flatMap rawStreamReferenceRefs :=
+          (current.taskSuccess occurrence result available).2.1.flatMap rawStreamReferenceRefs :=
         List.mem_flatMap.mpr ⟨_, emitted, List.mem_cons_self⟩
-      rw [State.taskSuccess_streamReferences] at impossible
+      rw [State.taskSuccess_streamReferences _ _ _ available] at impossible
       cases impossible
   | taskFailure occurrence errors =>
       apply ItemStreamReleasePublications.of_noStreamValues
       intro owner values groups streams emitted
       have impossible : owner.ref ∈
-          (queue.taskFailure occurrence errors).2.flatMap rawStreamReferenceRefs :=
+          (current.taskFailure occurrence errors).2.flatMap rawStreamReferenceRefs :=
         List.mem_flatMap.mpr ⟨_, emitted, List.mem_cons_self⟩
       rw [State.taskFailure_streamReferences] at impossible
       cases impossible
   | streamItems stream items =>
+      have cachedAccepted := eligible stream items rfl
       intro index owner values groups streams atEvent child noticed
-      change (queue.streamItems stream items).2[index]? = _ at atEvent
+      change (current.streamItems stream items available).2.1[index]? = _ at atEvent
       have member := List.mem_of_getElem? atEvent
       obtain ⟨occurrence, known, source⟩ :=
-        queue.streamItems_noticeProducer matching member noticed
-      have zero := queue.streamItems_carrier_index stream items atEvent
+        current.streamItems_noticeProducer available matching member noticed
+      have zero := current.streamItems_carrier_index stream items available atEvent
       subst index
-      have count := congrArg List.length (queue.streamItems_itemValues stream items accepted)
+      have count := congrArg List.length
+        (current.streamItems_itemValues stream items cachedAccepted available)
       simp only [List.length_map] at count
       refine ⟨occurrence, known, ?_⟩
-      have active : queue.rootStreams.contains stream.ref = true := accepted
-      have whole : ((queue.handleGraphEvent (.streamItems stream items)).2.take 1).flatMap
+      have active : current.rootStreams.contains stream.ref = true := cachedAccepted
+      have whole : ((current.streamItems stream items available).2.1.take 1).flatMap
           WorkQueueEvent.itemValues
-          = (queue.streamItems stream items).2.flatMap WorkQueueEvent.itemValues := by
-        simp only [State.handleGraphEvent, State.streamItems, active, Bool.not_true,
+          = (current.streamItems stream items available).2.1.flatMap WorkQueueEvent.itemValues := by
+        simp only [State.streamItems, active, Bool.not_true,
           Bool.false_eq_true, ite_false, List.take_succ_cons, List.take_zero,
-          List.flatMap_cons, List.flatMap_nil, State.drainReadyGroups_itemValues]
+          List.flatMap_cons, List.flatMap_nil, State.drainReadyGroups_itemValues _ available]
       rw [whole, count, List.take_length]
       exact source
   | streamSuccess stream =>
       apply ItemStreamReleasePublications.of_noStreamValues
       intro owner values groups streams
-      simp only [State.handleGraphEvent, State.streamSuccess]
+      simp only [State.streamSuccess]
       split <;> simp
   | streamFailure stream errors =>
       apply ItemStreamReleasePublications.of_noStreamValues
       intro owner values groups streams
-      simp only [State.handleGraphEvent, State.streamFailure]
+      simp only [State.streamFailure]
       split <;> simp
+
+  | groupFailure failure =>
+      apply ItemStreamReleasePublications.of_noStreamValues
+      intro owner values groups streams
+      simp only [State.groupFailure]
+      split
+      · simp
+      · split <;> simp
+
+/-- Live graph-event eligibility supplies the item-only startup premise. -/
+theorem State.handleGraphEvent_itemStreamRelease {work : Execution.Work} (queue : State)
+    (event : GraphEvent) (matching : event.MatchesWork work)
+    (available : List (Occurrence × Nat) := [])
+    (accepted : queue.acceptsGraphEvent event = true)
+    : ItemStreamReleasePublications work event.itemPublications
+        (queue.handleGraphEvent event available).2.1 :=
+  queue.handleGraphEvent_itemStreamRelease_of_itemsStarted event matching available
+    (fun _ _ same => same ▸ accepted)
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

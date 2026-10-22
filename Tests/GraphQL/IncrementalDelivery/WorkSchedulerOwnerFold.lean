@@ -1,3 +1,4 @@
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.EmptyFailureBatchLedger
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.GroupPublicationAdmission
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.MembershipExclusionBoundaries
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.OwnerFoldCoverage
@@ -28,13 +29,14 @@ private def lastValue : ExecutionGroupValue :=
 
 private def work : Execution.Work :=
   .combine .empty
-    (.combine
-      (.executionGroup [⟨firstOwner, []⟩, ⟨lastOwner, []⟩] []
-        ({ result := .ok (sharedValue.data, 0) }) (.combine .empty .empty))
+    (.declareGroups [⟨firstOwner, []⟩, ⟨lastOwner, []⟩]
       (.combine
-        (.executionGroup [⟨lastOwner, []⟩] []
-          ({ result := .ok (lastValue.data, 0) }) (.combine .empty .empty))
-        .empty))
+        (.executionGroup [⟨firstOwner, []⟩, ⟨lastOwner, []⟩] []
+          ({ result := .ok (sharedValue.data, 0) }) (.combine .empty .empty))
+        (.combine
+          (.executionGroup [⟨lastOwner, []⟩] []
+            ({ result := .ok (lastValue.data, 0) }) (.combine .empty .empty))
+          .empty)))
 
 private def first : GraphEvent := .taskSuccess lastTask ⟨lastValue, {}⟩
 private def finish : GraphEvent := .taskSuccess sharedTask ⟨sharedValue, {}⟩
@@ -129,7 +131,7 @@ This is a concrete queue-bookkeeping fixture, not a generated-work claim.
 theorem earlier_release_survives_later_closure
     : let middle := successGroupStep (queue, [], {}) firstOwner
       let folded := [firstOwner, lastOwner].foldl successGroupStep (queue, [], {})
-      let final := folded.1.startNewWork folded.2.2
+      let final := (folded.1.startNewWork folded.2.2).1
       leftChild.ref ∉ middle.1.rootGroups
       ∧ leftChild ∈ middle.2.2.newGroups
       ∧ ∃ root ∈ final.rootGroups, final.LiveDescendant root leftChild.ref := by
@@ -172,7 +174,9 @@ theorem shared_owner_intermediate_exclusion
   obtain ⟨w, history, _, _, _, _, _, _, _, _, ledger, _, _, _, admitted⟩ :=
     ConformancePlan.mixed_groupPublicationCertificates generated source started
   obtain ⟨published, batches, matching, _⟩ := ledger
-  have covered := batches.flatten (by rwa [← inputsStarted_eq_batchesStarted])
+  have covered := batches.flatten_emptyCache (by rwa [← inputsStarted_eq_batchesStarted])
+    (by intro batch member; simp only [inputs, List.mem_cons, List.not_mem_nil, or_false] at member
+        rcases member with rfl | rfl <;> rfl)
   have selected : w.events[0]? = some (.groupValues firstOwner [sharedValue]) := by
     rw [history]; cbv
   have matched := matching.atObject 0 firstOwner [sharedValue] selected

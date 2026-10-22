@@ -87,6 +87,7 @@ example : (run true false false 0 23).1.result = .ok (.list [.null, .null], 2) :
 
 private def itemCounts : Work → List Nat
   | .empty | .executionGroup _ _ _ _ => []
+  | .declareGroups _ tasks => itemCounts tasks
   | .combine left right => itemCounts left ++ itemCounts right
   | .stream _ items => items.map (fun item => countedErrors item.1.result)
 

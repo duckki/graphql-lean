@@ -207,8 +207,8 @@ theorem State.HealthyTaskLinks.startNewWork
     (links : queue.HealthyTaskLinks work settled failed)
     (newWork : NewWork)
     (ready : queue.HealthyReleaseTaskLinks work settled failed newWork)
-    : (queue.startNewWork newWork).HealthyTaskLinks work settled failed := by
-  let final := queue.startNewWork newWork
+    : (queue.startNewWork newWork).1.HealthyTaskLinks work settled failed := by
+  let final := (queue.startNewWork newWork).1
   obtain ⟨sameGroups, sameTasks, _⟩ := queue.startNewWork_groupCore newWork
   have finalRegistered : final.StartedTasksRegistered :=
     registered.startNewWork newWork
@@ -216,9 +216,7 @@ theorem State.HealthyTaskLinks.startNewWork
   have taskDef : taskNode.task ∈ queue.tasks := by
     rw [← sameTasks]
     exact finalRegistered taskNode taskMember
-  have oldGroup : groupNode ∈ queue.groupNodes := by
-    rw [← sameGroups]
-    exact groupMember
+  have oldGroup : groupNode ∈ queue.groupNodes := sameGroups.subset groupMember
   rcases queue.startNewWork_oldOrRequested newWork taskMember with old | requested
   · exact links taskNode old fresh groupNode oldGroup healthy contributor
   · exact ready taskNode.task taskDef fresh requested groupNode oldGroup

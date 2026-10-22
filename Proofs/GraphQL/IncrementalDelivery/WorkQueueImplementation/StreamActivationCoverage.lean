@@ -35,18 +35,26 @@ theorem State.startStream_streams (queue : State) (ref : NodeRef)
 Witness: starting its tasks changes only task-node bookkeeping.
 -/
 theorem State.startGroup_streams (queue : State) (ref : NodeRef)
-    : (queue.startGroup ref).streams = queue.streams := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.startGroup ref available).1.streams = queue.streams := by
   have task : ∀ current occurrence,
-      (State.startTask current occurrence).streams = current.streams := by
+      (State.startTask current occurrence available).streams = current.streams := by
     intro current occurrence
     unfold State.startTask
     split
     · rfl
     · split <;> rfl
+  have cached : (queue.cacheTaskFailures available).streams = queue.streams := by
+    have frame := congrArg State.streams (queue.cacheTaskFailures_frame available)
+    exact frame
   unfold State.startGroup
+  dsimp only
   split
-  · rfl
-  · exact fold_projection State.streams State.startTask task _ _
+  · exact cached
+  · split
+    · exact (fold_projection State.streams
+        (fun current task => current.startTask task available) task _ _).trans cached
+    · exact cached
 
 /-- Starting a stream cannot remove an already active stream.
 Witness: the concrete operation either keeps roots or appends one ref.
@@ -82,8 +90,9 @@ and starts each supplied registered ref. No source or work-generation premise is
 -/
 theorem State.startNewWork_streamRoots_cover (queue : State) (released : NewWork)
     (registered : released.newStreams.Subset (queue.streams.map Stream.node))
+    (available : List (Occurrence × Nat) := [])
     : (queue.rootStreams ++ released.newStreams.map Execution.DeliveryNode.ref).Subset
-        (queue.startNewWork released).rootStreams := by
+        (queue.startNewWork released available).1.rootStreams := by
   have loop (refs : NodeRefs) (current : State)
       (known : ∀ ref ∈ refs, ∃ stream, current.stream? ref = some stream)
       : (current.rootStreams ++ refs).Subset
@@ -109,12 +118,17 @@ theorem State.startNewWork_streamRoots_cover (queue : State) (released : NewWork
           · exact List.mem_append_right _ next
   unfold State.startNewWork
   let groups := released.newGroups.map Execution.DeliveryNode.ref
-  let current := groups.foldl State.startGroup
-    { queue with rootGroups := queue.rootGroups ++ groups }
+  let step (acc : State × List GroupFailureEvent) (ref : NodeRef) :=
+    let (next, queued) := acc.1.startGroup ref available
+    (next, acc.2 ++ queued)
+  let current := (groups.foldl step
+    ({ queue with rootGroups := queue.rootGroups ++ groups }, [])).1
   have streams : current.streams = queue.streams :=
-    fold_projection State.streams State.startGroup State.startGroup_streams _ _
+    fold_projection (fun acc : State × List GroupFailureEvent => acc.1.streams) step
+      (fun acc ref => acc.1.startGroup_streams ref available) _ _
   have roots : current.rootStreams = queue.rootStreams :=
-    fold_projection State.rootStreams State.startGroup State.startGroup_rootStreams _ _
+    fold_projection (fun acc : State × List GroupFailureEvent => acc.1.rootStreams) step
+      (fun acc ref => acc.1.startGroup_rootStreams ref available) _ _
   have included := loop (released.newStreams.map Execution.DeliveryNode.ref) current (by
     intro ref member
     obtain ⟨node, releasedNode, same⟩ := List.mem_map.mp member
@@ -137,12 +151,14 @@ theorem State.finishGroupSuccess_streams_registered (queue : State) (group : Gro
 Witness: every returned stream is registered and its release list equals its notice list.
 -/
 theorem State.finishGroupSuccess_streamRoots_cover (queue : State) (group : GroupNode)
+    (available : List (Occurrence × Nat) := [])
     : (queue.rootStreams
         ++ (queue.finishGroupSuccess group).2.1.flatMap rawStreamNoticeRefs).Subset
         ((queue.finishGroupSuccess group).1.startNewWork
-          (queue.finishGroupSuccess group).2.2).rootStreams := by
+          (queue.finishGroupSuccess group).2.2 available).1.rootStreams := by
   have covered := (queue.finishGroupSuccess group).1.startNewWork_streamRoots_cover
     (queue.finishGroupSuccess group).2.2 (queue.finishGroupSuccess_streams_registered group)
+    available
   simpa only [State.finishGroupSuccess_rootStreams,
     State.finishGroupSuccess_streamNotices]
     using covered

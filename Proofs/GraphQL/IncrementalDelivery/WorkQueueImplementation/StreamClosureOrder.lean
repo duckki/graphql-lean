@@ -29,7 +29,7 @@ theorem GraphEvent.streamAction_unclosed {work before event action}
     (selected : GraphEvent.streamAction event = some action)
     : action.1 ∉ before.flatMap (fun prior => prior.identities.2) := by
   cases event with
-  | taskSuccess | taskFailure => cases selected
+  | taskSuccess | taskFailure | groupFailure => cases selected
   | streamItems stream items =>
       have same : (stream.ref, false) = action := Option.some.inj selected
       subst action

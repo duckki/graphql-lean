@@ -33,7 +33,7 @@ theorem GraphEvent.MatchesWork.taskIdentity_token {work event}
       obtain ⟨item, included, rfl⟩ := List.mem_map.mp member
       obtain ⟨_, _, known, _⟩ := matching item included
       exact known.observationToken
-  | streamSuccess | streamFailure => simp [GraphEvent.identities] at member
+  | groupFailure | streamSuccess | streamFailure => simp [GraphEvent.identities] at member
 
 /-- Every closed stream has a token in the original finite work.
 Witness: success names a known stream; failure names its located stream boundary.
@@ -44,6 +44,11 @@ theorem GraphEvent.MatchesWork.streamIdentity_token {work event}
     : Sum.inr ref ∈ observationTokens [] work := by
   cases event with
   | taskSuccess | taskFailure | streamItems => simp [GraphEvent.identities] at member
+  | groupFailure failure =>
+      simp only [GraphEvent.identities, List.mem_singleton] at member
+      subst ref
+      obtain ⟨dependencies, producer, known⟩ := matching.1
+      exact known.observationToken
   | streamSuccess stream =>
       simp only [GraphEvent.identities, List.mem_singleton] at member
       subst ref
@@ -64,7 +69,7 @@ theorem GraphEvent.Ready.identities_nonempty {work before event}
     (ready : GraphEvent.Ready work before event)
     : 0 < event.identities.1.length + event.identities.2.length := by
   cases event with
-  | taskSuccess | taskFailure | streamSuccess | streamFailure =>
+  | taskSuccess | taskFailure | groupFailure | streamSuccess | streamFailure =>
       simp [GraphEvent.identities]
   | streamItems stream items =>
       obtain ⟨_, _, _, _, _, nonempty, _⟩ := ready

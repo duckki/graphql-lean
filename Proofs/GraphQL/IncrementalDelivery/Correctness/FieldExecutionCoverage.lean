@@ -357,7 +357,10 @@ theorem executePlan_entriesCovered_of_fields (containers : Bool) (schema : Schem
           variables fuel parentType source plan.newCollectedFieldsMaps tasksValid
           (List.nodup_append.mp uniqueParts).2.1 fieldsCovered path _
       · intro tasks tasksCovered
-        exact runEnsures_pure _ _ (reordered _ (covered.withWork tasksCovered))
+        apply runEnsures_pure
+        apply reordered
+        apply covered.withWork
+        exact tasksCovered.declareGroups _
 
 -----------------------------------------------------------------------------------------
 -- Root collection connects the checked plan comparison to actual prepared query work

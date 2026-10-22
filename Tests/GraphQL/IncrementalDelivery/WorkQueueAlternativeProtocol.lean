@@ -1,5 +1,8 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.Conformance
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.ReaderLifecycle
+import Tests.GraphQL.IncrementalDelivery.Fixtures.WorkDeclarations
+
+open GraphQL.IncrementalDelivery.Tests (declaredTask)
 
 namespace AlternativeProtocolChecks
 open GraphQL (Name)
@@ -25,7 +28,7 @@ private def value (owners : List DeliveryNode) : ExecutionGroupValue :=
 
 private def task (owners : List DeferredFragment) (children : Execution.Work := .empty)
     : Execution.Work :=
-  .executionGroup owners [] ({ result := .ok ([("x", .scalar "X")], 0) }) children
+  declaredTask owners [] ({ result := .ok ([("x", .scalar "X")], 0) }) children
 
 private def success (occurrence : Occurrence) (owners : List DeliveryNode)
     (work : ReferenceWorkQueue.Work := {})
@@ -95,7 +98,7 @@ private def parity (name : String) (work : Execution.Work)
     parity "nested single batch" nested [[parent, childDone]]
     for errors in [0, 1, 4] do
       let failure : Execution.Work :=
-        .executionGroup [{ node := group }] [] ({ result := .error errors }) .empty
+        declaredTask [{ node := group }] [] ({ result := .error errors }) .empty
       parity ("fatal " ++ toString errors) failure
         [[.taskFailure (.executionGroup []) errors]]
     let shared := task [{ node := group }, { node := child }]

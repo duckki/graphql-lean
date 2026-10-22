@@ -50,8 +50,10 @@ theorem State.removeGroup_walk_targets (fuel : Nat) (state : State)
               simpa only [State.removeGroup.walk, found] using tailIH state removed targets unique
           | some group =>
               rw [State.removeGroup.walk, found]
-              let folded := group.tasks.foldl fusedRemovalTaskStep (eraseRemovalGroup state key, targets)
-              have step := taskFold_targets group.tasks (eraseRemovalGroup state key, targets) unique
+              let folded :=
+                group.tasks.foldl fusedRemovalTaskStep (eraseRemovalGroup state key, targets)
+              have step :=
+                taskFold_targets group.tasks (eraseRemovalGroup state key, targets) unique
               have next := ih folded.1 (group.childGroups ++ rest) (key :: removed) folded.2 step.1
               exact ⟨next.1, step.2.trans next.2⟩
 
@@ -102,8 +104,9 @@ theorem State.taskFailure_targets (state : State) (occurrence : Occurrence) (err
 
 theorem State.drainReadyGroups_go_targets (fuel : Nat) (state : State)
     (targets : List CleanupTarget) (unique : targets.Nodup)
-    : let final := State.drainReadyGroups.go fuel state targets
-      final.2.2.Nodup ∧ targets.IsPrefix final.2.2 := by
+    (available : List (Occurrence × Nat) := [])
+    : let final := State.drainReadyGroups.go available fuel state targets
+      final.2.2.1.Nodup ∧ targets.IsPrefix final.2.2.1 := by
   induction fuel generalizing state targets with
   | zero => exact ⟨unique, List.prefix_refl _⟩
   | succ fuel ih =>
@@ -112,31 +115,24 @@ theorem State.drainReadyGroups_go_targets (fuel : Nat) (state : State)
       split
       · exact ⟨unique, List.prefix_refl _⟩
       · rename_i node _
-        cases cached : state.queue.rejectedTask? node with
-        | some rejected =>
-            dsimp only
-            have step := state.taskFailure_targets rejected.1 rejected.2 targets unique
-            have next := ih (state.taskFailure rejected.1 rejected.2 targets).1
-              (state.taskFailure rejected.1 rejected.2 targets).2.2 step.1
-            exact ⟨next.1, step.2.trans next.2⟩
-        | none =>
-            dsimp only
-            have step := State.startNewWork_targets_nodup
-              { state with queue := (state.queue.finishGroupSuccess node).1 }
-              (state.queue.finishGroupSuccess node).2.2 {} targets unique
-            have prefixTargets := State.startNewWork_targets_prefix
-              { state with queue := (state.queue.finishGroupSuccess node).1 }
-              (state.queue.finishGroupSuccess node).2.2 {} targets unique
-            let started := ({ state with queue := (state.queue.finishGroupSuccess node).1 }).startNewWork
-              (state.queue.finishGroupSuccess node).2.2 {} targets
-            have next := ih started.1 started.2 step
-            exact ⟨next.1, prefixTargets.trans next.2⟩
+        dsimp only
+        have step := State.startNewWork_targets_nodup
+          { state with queue := (state.queue.finishGroupSuccess node).1 }
+          (state.queue.finishGroupSuccess node).2.2 {} targets unique available
+        have prefixTargets := State.startNewWork_targets_prefix
+          { state with queue := (state.queue.finishGroupSuccess node).1 }
+          (state.queue.finishGroupSuccess node).2.2 {} targets unique available
+        let started :=
+          ({ state with queue := (state.queue.finishGroupSuccess node).1 }).startNewWork
+          (state.queue.finishGroupSuccess node).2.2 {} targets available
+        have next := ih started.1 started.2.1 step
+        exact ⟨next.1, prefixTargets.trans next.2⟩
 
 theorem State.drainReadyGroups_targets (state : State) (targets : List CleanupTarget)
-    (unique : targets.Nodup)
-    : (state.drainReadyGroups targets).2.2.Nodup
-      ∧ targets.IsPrefix (state.drainReadyGroups targets).2.2 :=
-  State.drainReadyGroups_go_targets _ state targets unique
+    (unique : targets.Nodup) (available : List (Occurrence × Nat) := [])
+    : (state.drainReadyGroups targets available).2.2.1.Nodup
+      ∧ targets.IsPrefix (state.drainReadyGroups targets available).2.2.1 :=
+  State.drainReadyGroups_go_targets _ state targets unique available
 
 /-- A direct failed task requests each inline task/source cleanup identity at most once
 across all its owner cuts. This concerns the actual dispatch trace, not cleanup settlement.

@@ -1,5 +1,6 @@
 import Proofs.GraphQL.IncrementalDelivery.Correctness.QueryObservation
 import Proofs.GraphQL.IncrementalDelivery.Correctness.SourceRealization
+import Proofs.GraphQL.IncrementalDelivery.Semantics.WorkSize
 
 /-! Independent work-history witnesses can be realized by an opaque conforming source. -/
 
@@ -28,7 +29,7 @@ theorem executionFromWork_observes_replay (createWorkQueue : Work → WorkQueue)
   | mk pending ids =>
       have replay := (createWorkQueue work).observes_inputs work ids groups conforms
         nonemptyGroups admitted
-      simp only [executionFromWork, nonempty, beq_iff_eq, ↓reduceIte,
+      simp only [executionFromWork, Work.isEmpty_eq_size, nonempty, beq_iff_eq, ↓reduceIte,
         yieldIncrementalResults, initializeIncrementalResponse, replayResponse, allocated]
       exact ⟨rfl, _, replay.1, fun done => replay.2.mpr (finished done)⟩
 
@@ -59,7 +60,7 @@ theorem WorkObservation.realizes {response work complete result}
                 {} with
       | mk pending ids =>
           have realized := WorkQueueSemantics.specificationSource_observes ids groups batches admitted
-          simp only [executionFromWork, nonempty, beq_iff_eq, ↓reduceIte,
+          simp only [executionFromWork, Work.isEmpty_eq_size, nonempty, beq_iff_eq, ↓reduceIte,
             yieldIncrementalResults, initializeIncrementalResponse, scheduler,
             WorkQueueSemantics.specificationSource, replayResponse, allocated]
           exact ⟨rfl, _, realized.1, fun done => realized.2.mpr (finished done)⟩
@@ -108,7 +109,7 @@ theorem queryObservation_iff_workHistory {schema : Schema}
     split at observed
     · rename_i applies
       obtain ⟨scheduler, conforms, run⟩ := observed.realizes
-      refine ⟨scheduler, fun _ => conforms, ?_⟩
+      refine ⟨scheduler, fun _ => by simpa only [queryCompletion, Work.isEmpty_eq_false] using conforms, ?_⟩
       simpa only [queryObservation, executeQueryWithFuel, applies, ↓reduceIte,
         executeRootSelectionSet_fromWork] using run
     · rename_i invalid

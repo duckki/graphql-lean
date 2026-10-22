@@ -45,6 +45,7 @@ defer ancestors and work produced by streamed items.
 -/
 def WorkAt (nodes : Assignment) (bound : Nat) : Work → Prop
   | .empty => True
+  | .declareGroups groups tasks => MapAt nodes bound groups ∧ WorkAt nodes bound tasks
   | .combine left right => WorkAt nodes bound left ∧ WorkAt nodes bound right
   | .executionGroup groups _ _ children =>
       MapAt nodes bound groups ∧ WorkAt nodes bound children
@@ -122,6 +123,9 @@ theorem WorkAt.extend {nodes next : Assignment} {start finish : Nat} {work : Wor
   cases work with
   | empty => simp [WorkAt]
   | combine left right =>
+      simp only [WorkAt] at known ⊢
+      exact ⟨known.1.extend extension bound, known.2.extend extension bound⟩
+  | declareGroups groups tasks =>
       simp only [WorkAt] at known ⊢
       exact ⟨known.1.extend extension bound, known.2.extend extension bound⟩
   | executionGroup groups path result children =>

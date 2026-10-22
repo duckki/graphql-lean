@@ -411,6 +411,25 @@ theorem FailureWitness.record
       by simpa using active⟩
   · exact witness before cut failed rest original
 
+/-- A newly available rejection is recorded once, independently of causal licensing. -/
+theorem FailureReportingWitness.record
+    {work initial events reported occurrence owners producer payload}
+    (witness : FailureReportingWitness work initial events reported)
+    (known : TaskAt work occurrence owners producer payload)
+    (fails : payload.failure.isSome = true) (reachable : Reachable work occurrence)
+    (opened : ∃ ref ∈ owners, Open initial events ref)
+    (fresh : occurrence ∉ reported.map Prod.snd)
+    : FailureReportingWitness work initial events
+        (reported ++ [(events.length, occurrence)]) := by
+  intro before cut failed after same
+  rcases split_snoc same with ⟨rfl, equal, rfl⟩ | ⟨rest, original, _⟩
+  · cases equal
+    obtain ⟨ref, owner, announced, _⟩ := opened
+    exact ⟨Nat.le_refl _, fun entry member => witness.cut_le member, fresh,
+      ⟨owners, producer, payload, known, fails, reachable,
+        ref, owner, by simpa using announced⟩⟩
+  · exact witness before cut failed rest original
+
 /-- A newly recorded final-boundary failure is invisible at every earlier output index.
 Witness: its cut is strictly larger than the index selected by an existing event.
 -/
@@ -445,17 +464,38 @@ theorem Explains.record_failure
     (active : ¬TaskCancelled work matching events failures occurrence)
     : Explains work groups streams events matching
         (failures ++ [(events.length, occurrence)]) := by
-  refine ⟨explained.1,
-    explained.2.1.record known fails reachable opened active, ?_⟩
-  intro index event selected
-  have earlier : (events.take index).length < events.length := by
-    have bound := (List.getElem?_eq_some_iff.mp selected).1
-    simp only [List.length_take]; omega
-  simpa only [EventAllowed, List.filter_append, List.filter_cons,
-    show decide (events.length ≤ (events.take index).length) = false from
-      decide_eq_false (Nat.not_le.mpr earlier), Bool.false_eq_true, ↓reduceIte,
-    List.filter_nil, List.append_nil]
-    using explained.2.2 index event selected
+  have finish {reported}
+      (reporting : FailureReportingWitness work ((groups ++ streams).map DeliveryNode.ref)
+        events reported)
+      (available : CausalFailuresAvailable (failures ++ [(events.length, occurrence)]) reported)
+      (included : explained.reportingFailures.Subset reported)
+      : Explains work groups streams events matching
+          (failures ++ [(events.length, occurrence)]) := by
+    refine ⟨explained.1, explained.2.1.record known fails reachable opened active,
+      reported, reporting, available, ?_⟩
+    intro index event selected
+    have earlier : (events.take index).length < events.length := by
+      have bound := (List.getElem?_eq_some_iff.mp selected).1
+      simp only [List.length_take]; omega
+    have allowed := (explained.eventAllowed index event selected).reporting_mono
+      (failedBefore_mono included _)
+    simpa only [EventAllowed, List.filter_append, List.filter_cons,
+      show decide (events.length ≤ (events.take index).length) = false from
+        decide_eq_false (Nat.not_le.mpr earlier), Bool.false_eq_true, ↓reduceIte,
+      List.filter_nil, List.append_nil] using allowed
+  by_cases cached : occurrence ∈ explained.reportingFailures.map Prod.snd
+  · obtain ⟨⟨availableCut, task⟩, present, same⟩ := List.mem_map.mp cached
+    dsimp only at same
+    subst task
+    exact finish explained.reportingFacts.1
+      (explained.reportingFacts.2.1.record present (explained.reportingFacts.1.cut_le present))
+      (List.Subset.refl _)
+  · have included : explained.reportingFailures.Subset
+        (explained.reportingFailures ++ [(events.length, occurrence)]) :=
+      List.subset_append_left _ _
+    exact finish (explained.reportingFacts.1.record known fails reachable opened cached)
+      ((explained.reportingFacts.2.1.reporting_mono included).record (by simp) (Nat.le_refl _))
+      included
 
 /-- Any recordable failure can make observable progress by closing one open contributing
 owner. Witness: append its actual failure cut, choose a supported open descriptor, and
@@ -505,7 +545,8 @@ theorem Explains.failure_step
         includes, finish ?_⟩
       simpa only [EventAllowed, nodeFailed_filter (Nat.le_refl _),
         failedBefore_filter _ (Nat.le_refl _)]
-        using And.intro ⟨dependencies, birth, nodeKnown⟩ ⟨nodeOpen, failed, counts⟩
+        using And.intro ⟨dependencies, birth, nodeKnown⟩
+          ⟨nodeOpen, failed, counts.toCauses⟩
   | stream =>
       refine ⟨node, errors, .streamFailure node errors, same ▸ owner, Or.inr rfl,
         includes, finish ?_⟩

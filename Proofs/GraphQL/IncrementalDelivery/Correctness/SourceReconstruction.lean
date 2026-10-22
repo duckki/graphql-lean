@@ -13,6 +13,7 @@ mutual
   errors. -/
   def WorkSuccess : Work → Prop
     | .empty => True
+    | .declareGroups _ tasks => WorkSuccess tasks
     | .combine left right => WorkSuccess left ∧ WorkSuccess right
     | .executionGroup _ _ result children =>
         (∃ data, result.result = .ok (data, 0)) ∧ WorkSuccess children
@@ -33,6 +34,9 @@ mutual
   /-- Typed source slices for work, with existential absolute stream offsets. -/
   inductive WorkEntries : Work → List (List Entry) → Prop where
     | empty : WorkEntries .empty []
+    | declareGroups {groups : List DeferredFragment} {tasks : Work}
+      {slices : List (List Entry)} (known : WorkEntries tasks slices)
+      : WorkEntries (.declareGroups groups tasks) slices
     | combine {left right : Work} {ls rs : List (List Entry)}
       (hl : WorkEntries left ls) (hr : WorkEntries right rs)
       : WorkEntries (.combine left right) (ls ++ rs)

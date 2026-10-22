@@ -59,20 +59,59 @@ inclusive prefix by precisely the number of earlier published input items.
 theorem State.rawEventReplay_itemStreamRelease {work : Execution.Work} (queue : State)
     (events : List GraphEvent)
     (matching : ∀ event ∈ events, event.MatchesWork work)
-    (accepted : queue.acceptsBatch events = true)
+    (available : List (Occurrence × Nat) := [])
+    (accepted : State.eventsStarted available queue events = true)
     : ItemStreamReleasePublications work (events.flatMap GraphEvent.itemPublications)
-        (queue.rawEventReplay events).2 := by
+        (queue.rawEventReplay events available).2 := by
   induction events generalizing queue with
   | nil => exact .nil work
   | cons event rest ih =>
       have both : queue.acceptsGraphEvent event = true
-          ∧ (queue.handleGraphEvent event).1.acceptsBatch rest = true := by
-        simpa only [State.acceptsBatch, Bool.and_eq_true] using accepted
-      rw [State.rawEventReplay_cons, List.flatMap_cons]
+          ∧ State.eventsStarted available
+              (queue.dispatchGraphEvent event available).1 rest = true := by
+        simpa only [State.eventsStarted, Bool.and_eq_true] using accepted
+      rw [State.rawEventReplay_cons _ _ _ available, List.flatMap_cons]
       exact (queue.handleGraphEvent_itemStreamRelease event
-        (matching event List.mem_cons_self) both.1).append
+        (matching event List.mem_cons_self) available both.1).append
         (ih _ (fun next member => matching next (List.mem_cons_of_mem _ member)) both.2)
-        (queue.handleGraphEvent_itemValues event both.1).symm
+        (queue.handleGraphEvent_itemValues event both.1 available).symm
+
+/-- Item release support only requires item callbacks to remain executable. Other buffered
+callbacks can be ignored without changing source item offsets or release provenance.
+-/
+theorem State.rawEventReplay_itemStreamRelease_of_eachItemAccepted {work : Execution.Work}
+    (queue : State) (events : List GraphEvent)
+    (matching : ∀ event ∈ events, event.MatchesWork work)
+    (available : List (Occurrence × Nat))
+    (accepted
+      : ∀ fifo stream items,
+          (fifo ++ [GraphEvent.streamItems stream items]).IsPrefix events
+          → (queue.replayGraphEvents fifo available).acceptsGraphEvent
+              (.streamItems stream items)
+            = true)
+    : ItemStreamReleasePublications work (events.flatMap GraphEvent.itemPublications)
+        (queue.rawEventReplay events available).2 := by
+  induction events generalizing queue with
+  | nil => exact .nil work
+  | cons event rest ih =>
+      have next : ∀ fifo stream items,
+          (fifo ++ [GraphEvent.streamItems stream items]).IsPrefix rest
+          → ((queue.dispatchGraphEvent event available).1.replayGraphEvents
+              fifo available).acceptsGraphEvent (.streamItems stream items) = true := by
+        intro fifo stream items earlier
+        apply accepted (event :: fifo) stream items
+        obtain ⟨tail, same⟩ := earlier
+        exact ⟨tail, by simp [← same]⟩
+      have current : ∀ stream items, event = .streamItems stream items
+          → queue.acceptsGraphEvent (.streamItems stream items) = true := by
+        intro stream items same
+        subst event
+        exact accepted [] stream items ⟨rest, rfl⟩
+      rw [State.rawEventReplay_cons _ _ _ available, List.flatMap_cons]
+      exact (queue.handleGraphEvent_itemStreamRelease_of_itemsStarted event
+        (matching event List.mem_cons_self) available current).append
+        (ih _ (fun next member => matching next (List.mem_cons_of_mem _ member)) next)
+        (queue.handleGraphEvent_itemValues_of_itemsStarted event current available).symm
 
 /-- The real batch wrapper retains the same source item inventory through queue termination.
 Witness: accepted event replay supplies release support; a trailing termination event has
@@ -81,17 +120,20 @@ no carrier or item payload. The existing start law supplies the open entry state
 theorem State.handleGraphEvents_itemStreamRelease {work : Execution.Work} (queue : State)
     (events : List GraphEvent)
     (matching : ∀ event ∈ events, event.MatchesWork work)
+    {before : List GraphEvent} (valid : ValidGraphEvents work (before ++ events))
     (startOpen : queue.terminated = false) (accepted : queue.acceptsBatch events = true)
     : ItemStreamReleasePublications work (events.flatMap GraphEvent.itemPublications)
         (queue.handleGraphEvents events).2 := by
   rw [State.handleGraphEvents_eq_rawEventReplay]
   simp only [startOpen, Bool.false_eq_true, ite_false]
-  have support := queue.rawEventReplay_itemStreamRelease events matching accepted
+  have support := queue.rawEventReplay_itemStreamRelease_of_eachItemAccepted events matching
+    (GraphEvent.availableFailures events) (fun _ _ _ earlier =>
+      State.acceptsBatch_streamItems_live valid accepted earlier)
   split
   · have terminal : ItemStreamReleasePublications work [] [.workQueueTermination] :=
       .of_noStreamValues (by simp)
     simpa only [List.append_nil] using support.append terminal
-      (queue.rawEventReplay_itemValues events accepted).symm
-  · exact support
+      (queue.rawEventReplay_itemValues_admitted events valid accepted).symm
+  · simpa only [List.append_nil] using support
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

@@ -114,7 +114,7 @@ theorem Explains.carried_group_notice_dependencies_stay_healthy
         explained selected sameValue sameCompleted descriptor eligible
     · obtain ⟨parents, birth, descriptor, _⟩ := notices.2.2 announced stream
       exact False.elim (stream_group_refs_distinct roleCoherent descriptor known same)
-  have allowed := explained.2.2 index event selected
+  have allowed := explained.eventAllowed index event selected
   simp only [EventAllowed,
     List.length_take_of_le (Nat.le_of_lt (List.getElem?_eq_some_iff.mp selected).1)] at allowed
   cases event <;> simp only [eventPending, List.not_mem_nil] at noticed

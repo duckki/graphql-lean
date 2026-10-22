@@ -50,26 +50,63 @@ private theorem EffectObservationsCovered.append {first before last after}
     · exact List.mem_append_left _ (earlier.2 _ first)
     · exact List.mem_append_right _ (later.2 _ last)
 
+/-- Cache-aware dispatch emits exactly the accepted producer handoffs. -/
+theorem graphEffects_adoptedProducers_available (state : State) (event : GraphEvent)
+    (available : List (WorkQueueSemantics.Occurrence × Nat))
+    : (graphEffects state.queue event).filterMap HostEffect.adoptedProducer?
+      = (state.handleGraphEvent event available).2.2.1.filterMap
+          HostEffect.adoptedProducer? := by
+  have labels := graphEffects_eq_of_accepts state.queue (state.queue.cacheTaskFailures available)
+    event (state.queue.cacheTaskFailures_acceptsGraphEvent available event).symm
+  rw [labels]
+  clear labels
+  cases event with
+  | taskSuccess occurrence result =>
+      simp only [State.handleGraphEvent, State.taskSuccess_adoptedProducers, graphEffects]
+      cases found : (state.queue.cacheTaskFailures available).taskNode? occurrence <;> rfl
+  | streamItems stream items =>
+      simp only [State.handleGraphEvent, State.streamItems_adoptedProducers, graphEffects]
+      have mapped : (items.map (fun item => HostEffect.adopt item.occurrence)).filterMap
+          HostEffect.adoptedProducer? = items.map (·.occurrence) := by
+        induction items with
+        | nil => rfl
+        | cons item rest ih => simpa only [List.map_cons, List.filterMap_cons,
+            HostEffect.adoptedProducer?] using congrArg (List.cons item.occurrence) ih
+      cases active : (state.queue.cacheTaskFailures available).rootStreams.contains stream.ref <;>
+        simp [mapped, HostEffect.adoptedProducer?, List.filterMap_append]
+  | taskFailure occurrence errors =>
+      simp only [State.handleGraphEvent, graphEffects, cleanupEffects_adoptedProducers,
+        List.filterMap_nil]
+  | groupFailure | streamSuccess => rfl
+  | streamFailure stream errors =>
+      simp only [State.handleGraphEvent, graphEffects]
+
 /-- A dispatch observes no adoption or cleanup without its own actual inline label. -/
 theorem ResourceState.observeDispatch_effectCoverage (resources : ResourceState)
     (inventories : ProducerInventories) (before : State) (event : GraphEvent)
-    : EffectObservationsCovered (resources.observeDispatch inventories before event).2
-        (({ state := before } : GraphBatchResult).handleGraphEvent event).effects := by
+    (available : List (WorkQueueSemantics.Occurrence × Nat) := [])
+    : EffectObservationsCovered
+        (resources.observeDispatch inventories before event available).2
+        (({ state := before } : GraphBatchResult).handleGraphEvent event
+          available).effects := by
   constructor
   · intro producer inventory adopted
-    rcases resources.observeDispatch_actions inventories before event _ adopted with
+    rcases resources.observeDispatch_actions_available inventories before event available _
+      adopted with
       ⟨target, _, same⟩ | ⟨other, emitted, same⟩ | ⟨effect, _, target, _, same⟩
     · cases same
     · cases same
       simp only [GraphBatchResult.handleGraphEvent, List.nil_append]
-      have listed : producer ∈ (graphEffects before.queue event).filterMap HostEffect.adoptedProducer? :=
+      have listed : producer
+          ∈ (graphEffects before.queue event).filterMap HostEffect.adoptedProducer? :=
         List.mem_filterMap.mpr ⟨.adopt producer, emitted, rfl⟩
-      rw [graphEffects_adoptedProducers] at listed
+      rw [graphEffects_adoptedProducers_available before event available] at listed
       obtain ⟨label, actual, selected⟩ := List.mem_filterMap.mp listed
       cases label <;> simp_all only [HostEffect.adoptedProducer?, Option.some.injEq, reduceCtorEq]
     · cases same
   · intro target requested
-    rcases resources.observeDispatch_actions inventories before event _ requested with
+    rcases resources.observeDispatch_actions_available inventories before event available _
+      requested with
       ⟨other, _, same⟩ | ⟨producer, _, same⟩ | ⟨effect, emitted, other, identifies, same⟩
     · cases same
     · cases same
@@ -78,28 +115,32 @@ theorem ResourceState.observeDispatch_effectCoverage (resources : ResourceState)
 
 private theorem GraphBatchResult.handleGraphEvent_effects_append
     (before : GraphBatchResult) (event : GraphEvent)
-    : (before.handleGraphEvent event).effects
+    (available : List (WorkQueueSemantics.Occurrence × Nat) := [])
+    : (before.handleGraphEvent event available).effects
       = before.effects
         ++ (({ state := before.state } : GraphBatchResult).handleGraphEvent
-              event).effects := by
+              event available).effects := by
   simp only [GraphBatchResult.handleGraphEvent, List.nil_append]
 
 /-- Coverage follows the same FIFO accumulator, including any earlier observed prefix. -/
 theorem ResourceBatchObservation.fold_effectCoverage (before : ResourceBatchObservation)
     (inventories : ProducerInventories) (events : List GraphEvent)
     (covered : EffectObservationsCovered before.actions before.dispatch.effects)
+    (available : List (WorkQueueSemantics.Occurrence × Nat) := [])
     : let after :=
-        events.foldl (fun acc event => acc.handleGraphEvent inventories event) before
+        events.foldl (fun acc event => acc.handleGraphEvent inventories event available)
+          before
       EffectObservationsCovered after.actions after.dispatch.effects := by
   induction events generalizing before with
   | nil => exact covered
   | cons event rest ih =>
       apply ih
       change EffectObservationsCovered
-        (before.actions ++ (before.resources.observeDispatch inventories before.dispatch.state event).2)
-        (before.dispatch.handleGraphEvent event).effects
-      rw [GraphBatchResult.handleGraphEvent_effects_append]
-      exact covered.append (before.resources.observeDispatch_effectCoverage _ _ _)
+        (before.actions
+          ++ (before.resources.observeDispatch inventories before.dispatch.state event available).2)
+        (before.dispatch.handleGraphEvent event available).effects
+      rw [GraphBatchResult.handleGraphEvent_effects_append before.dispatch event available]
+      exact covered.append (before.resources.observeDispatch_effectCoverage _ _ _ available)
 
 private theorem ResourceState.observeStop_effectCoverage (resources : ResourceState)
     (state : State)
@@ -126,6 +167,7 @@ theorem State.observeResourceBatch_effectCoverage (state : State)
   · exact EffectObservationsCovered.empty _
   · have covered := ResourceBatchObservation.fold_effectCoverage
       { dispatch := { state }, resources } inventories batch (EffectObservationsCovered.empty _)
+        (ReferenceWorkQueue.GraphEvent.availableFailures batch)
     dsimp only at covered ⊢
     split
     · exact covered.append (ResourceState.observeStop_effectCoverage _ _)
@@ -181,7 +223,8 @@ theorem ResourceState.observeReaderBatch_effectCoverage (resources : ResourceSta
   · exact EffectObservationsCovered.empty _
   · rename_i live
     have running : cursor.finished = false := Bool.eq_false_iff.mpr live
-    have covered := State.observeResourceBatch_effectCoverage cursor.queue resources inventories batch
+    have covered := State.observeResourceBatch_effectCoverage cursor.queue resources inventories
+      batch
     dsimp only at covered ⊢
     rw [State.observeResourceBatch_dispatch] at covered
     exact covered.mono (ResponseStreamCursor.handleBatch_effects_include cursor batch running)
@@ -233,7 +276,9 @@ theorem ResponseStreamCursor.observeResourceRun_projection (cursor : ResponseStr
     (g₁ := fun acc batch => acc.handleBatch inventories batch) (g₂ := step)
     (l := inputs) (init := { cursor, resources }) (by intro acc batch; rfl)
   have reader := List.foldl_hom
-    (fun acc : List Execution.IncrementalStreamUpdateResult × ResponseStreamCursor × List HostEffect => acc.2)
+    (fun acc
+      : List Execution.IncrementalStreamUpdateResult × ResponseStreamCursor × List HostEffect =>
+      acc.2)
     (g₁ := fun acc batch =>
       let next := acc.2.1.handleBatch batch
       (acc.1 ++ next.1.toList, next.2.1, acc.2.2 ++ next.2.2))
@@ -265,11 +310,13 @@ theorem ResponseStreamCursor.observeResourceRun_safety (cursor : ResponseStreamC
         apply ih
         · exact earlier.append (before.resources.observeReaderBatch_replay _ _ _)
         · exact covered.append (before.resources.observeReaderBatch_effectCoverage _ _ _)
-  obtain ⟨legal, covered⟩ := invariant { cursor, resources } (.nil _) (EffectObservationsCovered.empty _)
+  obtain ⟨legal, covered⟩ := invariant { cursor, resources } (.nil _)
+    (EffectObservationsCovered.empty _)
   change EffectObservationsCovered
     (ResponseStreamCursor.observeResourceRun cursor resources inventories inputs).actions
     (ResponseStreamCursor.observeResourceRun cursor resources inventories inputs).effects at covered
-  rw [(ResponseStreamCursor.observeResourceRun_projection cursor resources inventories inputs).2] at covered
+  rw [(ResponseStreamCursor.observeResourceRun_projection cursor resources inventories inputs).2]
+    at covered
   exact ⟨legal, covered⟩
 
 -----------------------------------------------------------------------------------------
@@ -302,11 +349,15 @@ theorem ResponseStreamCursor.observeResourceRun_close_safety
       ResourceReplay resources (observed.actions ++ closed.2) closed.1
       ∧ EffectObservationsCovered (observed.actions ++ closed.2)
           ((cursor.run inputs).2.2 ++ (cursor.run inputs).2.1.close.2) := by
-  obtain ⟨legal, covered⟩ := ResponseStreamCursor.observeResourceRun_safety cursor resources inventories inputs
+  obtain ⟨legal, covered⟩ :=
+    ResponseStreamCursor.observeResourceRun_safety cursor resources inventories
+    inputs
   let observed := ResponseStreamCursor.observeResourceRun cursor resources inventories inputs
-  change ResourceReplay resources (observed.actions ++ (observed.resources.observeReaderClose observed.cursor).2)
+  change ResourceReplay resources
+      (observed.actions ++ (observed.resources.observeReaderClose observed.cursor).2)
       (observed.resources.observeReaderClose observed.cursor).1
-    ∧ EffectObservationsCovered (observed.actions ++ (observed.resources.observeReaderClose observed.cursor).2)
+    ∧ EffectObservationsCovered
+      (observed.actions ++ (observed.resources.observeReaderClose observed.cursor).2)
       ((cursor.run inputs).2.2 ++ (cursor.run inputs).2.1.close.2)
   refine ⟨legal.append (observed.resources.observeReaderClose_replay observed.cursor), ?_⟩
   have closeCovered := observed.resources.observeReaderClose_effectCoverage observed.cursor

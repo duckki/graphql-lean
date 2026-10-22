@@ -17,10 +17,10 @@ drain is item-free, as are every other handler's outputs.
 -/
 theorem State.handleGraphEvent_items_through_output (queue : State)
     (event : GraphEvent) {index output}
-    (selected : (queue.handleGraphEvent event).2[index]? = some output)
-    : (((queue.handleGraphEvent event).2.take (index + 1)).flatMap
+    (selected : (queue.handleGraphEvent event).2.1[index]? = some output)
+    : (((queue.handleGraphEvent event).2.1.take (index + 1)).flatMap
         WorkQueueEvent.itemValues)
-      = (queue.handleGraphEvent event).2.flatMap WorkQueueEvent.itemValues := by
+      = (queue.handleGraphEvent event).2.1.flatMap WorkQueueEvent.itemValues := by
   have noItems {events : List WorkQueueEvent}
       (empty : events.flatMap WorkQueueEvent.itemValues = []) (count : Nat)
       : (events.take count).flatMap WorkQueueEvent.itemValues = [] :=
@@ -28,16 +28,22 @@ theorem State.handleGraphEvent_items_through_output (queue : State)
       List.flatMap_eq_nil_iff.mp empty entry (List.mem_of_mem_take member))
   cases event with
   | taskSuccess occurrence result =>
-      rw [State.handleGraphEvent, queue.taskSuccess_itemValues]
+      change ((queue.taskSuccess occurrence result).2.1.take (index + 1)).flatMap
+        WorkQueueEvent.itemValues = (queue.taskSuccess occurrence result).2.1.flatMap
+          WorkQueueEvent.itemValues
+      rw [queue.taskSuccess_itemValues]
       exact noItems (queue.taskSuccess_itemValues occurrence result) _
   | taskFailure occurrence errors =>
-      rw [State.handleGraphEvent, queue.taskFailure_itemValues]
+      change ((queue.taskFailure occurrence errors).2.take (index + 1)).flatMap
+        WorkQueueEvent.itemValues = (queue.taskFailure occurrence errors).2.flatMap
+          WorkQueueEvent.itemValues
+      rw [queue.taskFailure_itemValues]
       exact noItems (queue.taskFailure_itemValues occurrence errors) _
   | streamItems stream items =>
-      change (queue.streamItems stream items).2[index]? = _ at selected
-      change (((queue.streamItems stream items).2.take (index + 1)).flatMap
+      change (queue.streamItems stream items).2.1[index]? = _ at selected
+      change (((queue.streamItems stream items).2.1.take (index + 1)).flatMap
                 WorkQueueEvent.itemValues)
-      = (queue.streamItems stream items).2.flatMap WorkQueueEvent.itemValues
+      = (queue.streamItems stream items).2.1.flatMap WorkQueueEvent.itemValues
       unfold State.streamItems at selected ⊢
       split at selected
       · simp only [List.getElem?_nil, reduceCtorEq] at selected
@@ -51,6 +57,17 @@ theorem State.handleGraphEvent_items_through_output (queue : State)
   | streamFailure stream errors =>
       simp only [State.handleGraphEvent, State.streamFailure]
       split <;> simp [WorkQueueEvent.itemValues]
+
+  | groupFailure notice =>
+      change ((queue.groupFailure notice).2.take (index + 1)).flatMap WorkQueueEvent.itemValues
+        = (queue.groupFailure notice).2.flatMap WorkQueueEvent.itemValues
+      have empty : (queue.groupFailure notice).2.flatMap WorkQueueEvent.itemValues = [] := by
+        unfold State.groupFailure
+        split
+        · rfl
+        · split <;> simp [WorkQueueEvent.itemValues]
+      rw [empty]
+      exact noItems empty _
 
 /-- A registered-notice certificate includes each projected carried group ref.
 Witness: invert the two notice-bearing constructors and their descriptor-ref maps.
@@ -78,7 +95,9 @@ Accepted item projection and item-first handling then give the exact output-pref
 theorem ExecutedWork.rawEventReplay_groupNotice_itemProducer_prefix
     {work received index output node dependencies source ordinal}
     (generated : ExecutedWork work) (valid : ValidGraphEvents work received)
-    (started : (State.initialize (Work.fromExecution work)).acceptsBatch received = true)
+    (started
+      : State.eventsStarted [] (State.initialize (Work.fromExecution work)) received
+        = true)
     (selected
       : ((State.initialize (Work.fromExecution work)).rawEventReplay received).2[index]?
         = some output)
@@ -95,12 +114,15 @@ theorem ExecutedWork.rawEventReplay_groupNotice_itemProducer_prefix
     initial.rawEventReplay_output_projected_at WorkQueueEvent.itemValues received selected
   have prior : (before ++ [event]).IsPrefix received := ⟨after, by simp [split]⟩
   have beforePrefix : before.IsPrefix received := ⟨event :: after, split.symm⟩
-  have accepted : initial.acceptsBatch (before ++ [event]) = true := by
-    apply State.acceptsBatch_prefix (after := after)
+  have accepted : State.eventsStarted [] initial (before ++ [event]) = true := by
+    apply State.eventsStarted_prefix (after := after)
     simpa only [split, List.append_assoc, List.singleton_append] using started
   have matching := valid.eachMatches (by simp [split] : event ∈ received)
   have registrations := initial.replayGraphEvents_registration
-    (createWorkQueue_registration work).1 (createWorkQueue_registration work).2 before
+    (createWorkQueue_registration work generated.declarations).1 (createWorkQueue_registration work generated.declarations).2 before
+    (fun _ member => (valid.prefix beforePrefix).eachMatches member)
+    (State.initialize_registrationFrame generated.declarations)
+  have context := (State.initialize_registrationFrame generated.declarations).replayGraphEvents before
     (fun _ member => (valid.prefix beforePrefix).eachMatches member)
   have refs (events : List GraphEvent) (queue : State) (unique : queue.GroupRefsUnique)
       : (queue.replayGraphEvents events).GroupRefsUnique := by
@@ -109,16 +131,16 @@ theorem ExecutedWork.rawEventReplay_groupNotice_itemProducer_prefix
     | cons input rest ih => exact ih _ (unique.handleGraphEvent input)
   have registered := ((initial.replayGraphEvents before).handleGraphEvent_groupNoticesRegistered
     (refs before initial (createWorkQueue_groupRefsUnique _)) registrations.1 registrations.2.1
-    event matching output (List.mem_of_getElem? atEvent)).ref noticed
+    context.1 event matching [] output (List.mem_of_getElem? atEvent)).ref noticed
   have success := generated.registered_group_itemProducer_succeeded (valid.prefix prior)
     known (by simpa only [State.replayGraphEvents, List.foldl_append, List.foldl_cons,
-      List.foldl_nil] using registered)
+      List.foldl_nil, State.dispatchGraphEvent, State.enqueueGroupFailures] using registered)
   have observed := (valid.prefix prior).itemSuccess_publication success
-  have exactItems := initial.rawEventReplay_itemValues (before ++ [event]) accepted
+  have exactItems := initial.rawEventReplay_itemValues (before ++ [event]) [] accepted
   have inclusive : ((((initial.rawEventReplay received).2.take (index + 1)).flatMap
       WorkQueueEvent.itemValues).length)
       = ((initial.rawEventReplay before).2.flatMap WorkQueueEvent.itemValues).length
-        + (((((initial.replayGraphEvents before).handleGraphEvent event).2.take
+        + (((((initial.replayGraphEvents before).handleGraphEvent event).2.1.take
             (position + 1)).flatMap WorkQueueEvent.itemValues).length) := by
     simp only [List.take_add_one, selected, atEvent, Option.toList_some,
       List.flatMap_append, List.flatMap_singleton, List.length_append, count, Nat.add_assoc]
@@ -132,7 +154,7 @@ theorem ExecutedWork.rawEventReplay_groupNotice_itemProducer_prefix
     dsimp only at lengths
     rw [State.rawEventReplay_state, State.rawEventReplay_cons] at lengths
     simpa only [show ∀ q : State, q.rawEventReplay [] = (q, []) from fun _ => rfl,
-      List.flatMap_append, List.length_append, List.length_map, List.append_nil] using lengths
+      List.flatMap_append, List.length_append, List.length_map, List.append_nil, State.dispatchGraphEvent] using lengths
   change _ ∈ ((received.flatMap GraphEvent.itemPublications).map Prod.fst).take
     ((((initial.rawEventReplay received).2.take (index + 1)).flatMap
       WorkQueueEvent.itemValues).length)

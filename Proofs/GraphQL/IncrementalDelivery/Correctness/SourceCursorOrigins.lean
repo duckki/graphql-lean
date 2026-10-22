@@ -64,28 +64,57 @@ theorem sourceTasks_located_seeded {work address current producer owners cursors
   have navigation := StructuralEquivalence.located_of_current located
   clear located
   induction navigation with
-  | root => exact ⟨cursors, slices, seeded, .refl _, rfl⟩
+  | root =>
+      exact ⟨
+        cursors,
+        slices,
+        seeded.withoutDeclarations,
+        by rw [sourceTasks_withoutDeclarations]; exact .refl _,
+        rfl
+      ⟩
   | left _ ih =>
       obtain ⟨localCursors, _, seed, included, origin⟩ := ih
       cases seed with
       | combine left right =>
           rw [sourceTasks] at included
-          exact ⟨localCursors, _, left,
-            (List.sublist_append_left _ _).trans included, origin⟩
+          exact ⟨
+            localCursors,
+            _,
+            left.withoutDeclarations,
+            by
+              simpa only [sourceTasks_withoutDeclarations]
+                using (List.sublist_append_left _ _).trans included,
+            origin
+          ⟩
   | right _ ih =>
       obtain ⟨localCursors, _, seed, included, origin⟩ := ih
       cases seed with
       | combine left right =>
           rw [sourceTasks] at included
-          exact ⟨localCursors, _, right,
-            (List.sublist_append_right _ _).trans included, origin⟩
+          exact ⟨
+            localCursors,
+            _,
+            right.withoutDeclarations,
+            by
+              simpa only [sourceTasks_withoutDeclarations]
+                using (List.sublist_append_right _ _).trans included,
+            origin
+          ⟩
   | @executionGroup address groups path result children producer owners located ih =>
       obtain ⟨localCursors, _, seed, included, origin⟩ := ih
       cases seed with
       | executionGroup child =>
           rw [sourceTasks] at included
           simp only [SourceTask.cursors, resultCursors_deliveryResult] at included
-          refine ⟨_, _, child, (List.sublist_cons_self _ _).trans included, ?_⟩
+          refine ⟨
+            _,
+            _,
+            child.withoutDeclarations,
+            by
+              simpa only [sourceTasks_withoutDeclarations]
+                using (List.sublist_cons_self _ _).trans included,
+            ?_
+          ⟩
           exact ⟨
             ⟨.executionGroup address, producer, .object path result.deliveryResult, 0⟩,
             included.subset List.mem_cons_self,
@@ -103,8 +132,8 @@ theorem sourceTasks_located_seeded {work address current producer owners cursors
           exact ⟨
             _,
             childSlices,
-            childSeed,
-            child.trans included,
+            childSeed.withoutDeclarations,
+            by simpa only [sourceTasks_withoutDeclarations] using child.trans included,
             ⟨_, included.subset member, rfl, by simp [SourceTask.cursors]⟩
           ⟩
 

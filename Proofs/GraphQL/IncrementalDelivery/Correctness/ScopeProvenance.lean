@@ -8,6 +8,26 @@ open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.Semantics
 open Semantics.Ancestry Semantics.GeneralScheduling WorkQueueSemantics
 
+/-- Removing outer declaration metadata retains coherent task scopes. -/
+theorem WorkScoped.withoutDeclarations {work} (known : WorkScoped work)
+    : WorkScoped work.withoutDeclarations := by
+  cases work with
+  | declareGroups groups tasks =>
+      rw [WorkScoped] at known
+      exact known.2.withoutDeclarations
+  | _ => exact known
+termination_by work
+
+/-- Removing outer declarations retains the lower bound on task scopes. -/
+theorem ScopesUnder.withoutDeclarations {base work} (known : ScopesUnder base work)
+    : ScopesUnder base work.withoutDeclarations := by
+  cases work with
+  | declareGroups groups tasks =>
+      rw [ScopesUnder] at known
+      exact known.2.withoutDeclarations
+  | _ => exact known
+termination_by work
+
 /-- An indexed child inherits its stream-boundary scope certificate.
 Witness: list membership descent through coherent item work.
 -/
@@ -32,11 +52,12 @@ theorem WorkScoped.located {work address current producer enclosing}
   have navigation := StructuralEquivalence.located_of_current located
   clear located
   induction navigation with
-  | root => exact certified
-  | left _ ih => exact ih.1
-  | right _ ih => exact ih.2
-  | executionGroup _ ih => exact ih.2
-  | item _ entry ih => exact (ih.member (List.mem_of_getElem? entry)).1
+  | root => exact certified.withoutDeclarations
+  | left _ ih => exact ih.1.withoutDeclarations
+  | right _ ih => exact ih.2.withoutDeclarations
+  | executionGroup _ ih => exact ih.2.withoutDeclarations
+  | item _ entry ih =>
+      exact (ih.member (List.mem_of_getElem? entry)).1.withoutDeclarations
 
 /-- An item-list lower bound covers each selected child's scopes.
 Witness: membership induction through the item-list certificate.
@@ -62,11 +83,12 @@ theorem ScopesUnder.located {base work address current producer enclosing}
   have navigation := StructuralEquivalence.located_of_current located
   clear located
   induction navigation with
-  | root => exact under
-  | left _ ih => exact ih.1
-  | right _ ih => exact ih.2
-  | executionGroup _ ih => exact ih.2
-  | item _ entry ih => exact ih.2.member (List.mem_of_getElem? entry)
+  | root => exact under.withoutDeclarations
+  | left _ ih => exact ih.1.withoutDeclarations
+  | right _ ih => exact ih.2.withoutDeclarations
+  | executionGroup _ ih => exact ih.2.withoutDeclarations
+  | item _ entry ih =>
+      exact (ih.2.member (List.mem_of_getElem? entry)).withoutDeclarations
 
 /-- Every represented node scope lies below a certified lower bound.
 Witness: its group inventory entry or its stream boundary at the located subtree.
@@ -146,34 +168,36 @@ theorem producer_scope_context
         obtain ⟨owners, ancestor, payload, task, support⟩ := ih generated
         refine ⟨owners, ancestor, payload, task, ?_⟩
         cases producer with
-        | executionGroup address => exact ⟨support.1.1, support.2.1⟩
+        | executionGroup address =>
+            exact ⟨support.1.1.withoutDeclarations, support.2.1.withoutDeclarations⟩
         | item address index =>
             obtain ⟨node, result, owners, payload, refs, scopes⟩ := support
             rw [MixedRefs.WorkAt] at refs
-            exact ⟨node, result, owners, payload, refs.1, scopes.1⟩
+            exact ⟨node, result, owners, payload, coherent_withoutDeclarations refs.1, scopes.1.withoutDeclarations⟩
     | right _ ih =>
         obtain ⟨owners, ancestor, payload, task, support⟩ := ih generated
         refine ⟨owners, ancestor, payload, task, ?_⟩
         cases producer with
-        | executionGroup address => exact ⟨support.1.2, support.2.2⟩
+        | executionGroup address =>
+            exact ⟨support.1.2.withoutDeclarations, support.2.2.withoutDeclarations⟩
         | item address index =>
             obtain ⟨node, result, owners, payload, refs, scopes⟩ := support
             rw [MixedRefs.WorkAt] at refs
-            exact ⟨node, result, owners, payload, refs.2, scopes.2⟩
+            exact ⟨node, result, owners, payload, coherent_withoutDeclarations refs.2, scopes.2.withoutDeclarations⟩
     | executionGroup navigation =>
         cases generated
         have properties := dependencyProperties_located continuous ordered navigation.toCurrent
         simp only [DeferContinuous, StreamOwnersOrdered] at properties
         exact ⟨_, _, _, TaskAt.executionGroup navigation.toCurrent,
-          properties.1.1, properties.2.1⟩
+          properties.1.1.withoutDeclarations, properties.2.1.withoutDeclarations⟩
     | item navigation selected =>
         cases generated
         have localRefs := coherent_located coherent navigation.toCurrent
         rw [MixedRefs.WorkAt] at localRefs
         have localScopes := certified.located navigation.toCurrent
         exact ⟨_, _, _, TaskAt.item navigation.toCurrent selected, _, _, rfl, rfl,
-          localRefs.2.2 _ (List.mem_of_getElem? selected),
-          (localScopes.member (List.mem_of_getElem? selected)).2⟩
+          coherent_withoutDeclarations (localRefs.2.2 _ (List.mem_of_getElem? selected)),
+          (localScopes.member (List.mem_of_getElem? selected)).2.withoutDeclarations⟩
   exact context (StructuralEquivalence.located_of_current located) rfl
 
 /-- A contributing owner's notice scope covers its task's data attachment.

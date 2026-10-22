@@ -5,7 +5,7 @@ import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.GraphEvents
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.DrainRootCoverage
 import Tests.GraphQL.IncrementalDelivery.Execution
 
-/-! A generated release drains a cached failure and success before closing a shared owner. -/
+/-! Cached startup removes a failed owner before draining shared successful values. -/
 
 namespace GraphQL.IncrementalDelivery.Tests.WorkSchedulerDrainCoverage
 open GraphQL.IncrementalDelivery.Execution
@@ -43,19 +43,27 @@ private def parentValue : ExecutionGroupValue :=
 
 private def work : Execution.Work :=
   .combine .empty
-    (.combine
-      (.executionGroup [⟨root, []⟩, ⟨failed, [parent]⟩] []
-        ({ result := .error 1, cause := some 1 }) .empty)
+    (.declareGroups
+      [
+        ⟨root, []⟩,
+        ⟨parent, []⟩,
+        ⟨failed, [parent]⟩,
+        ⟨firstOwner, [parent]⟩,
+        ⟨lastOwner, [parent]⟩
+      ]
       (.combine
-        (.executionGroup [⟨root, []⟩, ⟨firstOwner, [parent]⟩] []
-          ({ result := .ok (firstValue.data, 0) }) (.combine .empty .empty))
+        (.executionGroup [⟨root, []⟩, ⟨failed, [parent]⟩] []
+          ({ result := .error 1, cause := some 1 }) .empty)
         (.combine
-          (.executionGroup [⟨root, []⟩, ⟨failed, [parent]⟩, ⟨lastOwner, [parent]⟩] []
-            ({ result := .ok (sharedValue.data, 0) }) (.combine .empty .empty))
+          (.executionGroup [⟨root, []⟩, ⟨firstOwner, [parent]⟩] []
+            ({ result := .ok (firstValue.data, 0) }) (.combine .empty .empty))
           (.combine
-            (.executionGroup [⟨parent, []⟩] [] ({ result := .ok (parentValue.data, 0) })
-              (.combine .empty .empty))
-            .empty))))
+            (.executionGroup [⟨root, []⟩, ⟨failed, [parent]⟩, ⟨lastOwner, [parent]⟩] []
+              ({ result := .ok (sharedValue.data, 0) }) (.combine .empty .empty))
+            (.combine
+              (.executionGroup [⟨parent, []⟩] [] ({ result := .ok (parentValue.data, 0) })
+                (.combine .empty .empty))
+              .empty)))))
 
 private def failure : GraphEvent := .taskFailure failedTask 1
 private def first : GraphEvent := .taskSuccess firstTask ⟨firstValue, {}⟩
@@ -128,7 +136,7 @@ private def ready : State :=
   let stored :=
     waiting.putTaskNode { task := ⟨parentTask, [parent]⟩, value := some parentValue }
   let closed := (stored.putGroupNode parentNode).finishGroupSuccess parentNode
-  closed.1.startNewWork closed.2.2
+  (closed.1.startNewWork closed.2.2).1
 
 private def firstNode : TaskNode :=
   { task := ⟨firstTask, firstValue.deliveryGroups⟩, value := some firstValue }
@@ -136,35 +144,31 @@ private def firstNode : TaskNode :=
 private def sharedNode : TaskNode :=
   { task := ⟨sharedTask, sharedValue.deliveryGroups⟩, value := some sharedValue }
 
-private def middle := State.drainReadyGroups.go 2 ready
+private def middle := State.drainReadyGroups.go [] 1 ready
 
 /-- The analyzed drain is the actual suffix of the generated parent-success handler.
 Witness: exact handler reduction, including P's value and the notice carrier before drain.
 -/
 theorem actual_release_boundary
     : (waiting.handleGraphEvent finish).1 = ready.drainReadyGroups.1
-      ∧ (waiting.handleGraphEvent finish).2
+      ∧ (waiting.handleGraphEvent finish).2.1
         = [
             .groupValues parent [parentValue],
             .groupSuccess parent [failed, firstOwner, lastOwner] []
           ]
-          ++ ready.drainReadyGroups.2 := by
+          ++ ready.drainReadyGroups.2.1
+      ∧ (waiting.handleGraphEvent finish).2.2 = [⟨failed, 1⟩] := by
   constructor <;> cbv
 
-/-- The drain first emits F's cached failure, then B's stored value and successful closure.
-Witness: the first two iterations leave C and its exact shared value live; the full drain
+/-- Startup removes F; the first successful drain iteration publishes and closes B.
+Witness: C and its exact shared value remain live at that cut; the full drain
 then publishes that value and closes C. F's cleanup must not discard C's contribution.
 -/
 theorem mixed_drain_output
-    : middle.2
-        = [
-          .groupFailure failed 1,
-          .groupValues firstOwner [firstValue],
-          .groupSuccess firstOwner [] []
-        ]
+    : middle.2.1 = [.groupValues firstOwner [firstValue], .groupSuccess firstOwner [] []]
       ∧ middle.1.taskNode? sharedTask = some sharedNode
-      ∧ ready.drainReadyGroups.2
-        = middle.2
+      ∧ ready.drainReadyGroups.2.1
+        = middle.2.1
           ++ [.groupValues lastOwner [sharedValue], .groupSuccess lastOwner [] []] := by
   constructor
   · cbv
@@ -172,7 +176,7 @@ theorem mixed_drain_output
 
 /-- The actual mixed drain cannot leave any of its three covered roots stranded.
 Witness: generic success/failure root-coverage preservation plus the empty final root list;
-the conclusion is not obtained by evaluating the three final group lookups directly.
+B and C use generic root coverage; reduction checks F's earlier startup removal.
 -/
 theorem mixed_drain_no_stranded_roots
     : ∀ ref ∈ [failed.ref, firstOwner.ref, lastOwner.ref],
@@ -193,17 +197,15 @@ theorem mixed_drain_no_stranded_roots
       rw [noChildren first firstMember] at linked
       cases linked
   intro ref member
-  apply State.drainReadyGroups_no_stranded_group
-    (by unfold State.GroupRefsUnique; cbv; decide)
-    forest
-    (by cbv)
   simp only [List.mem_cons, List.not_mem_nil, or_false] at member
   rcases member with rfl | rfl | rfl
-  · exact ⟨failed.ref, by cbv; exact List.mem_cons_self, .self (by cbv)⟩
-  · exact ⟨firstOwner.ref, by cbv; exact List.mem_cons_of_mem _ List.mem_cons_self,
-      .self (by cbv)⟩
-  · exact ⟨lastOwner.ref,
-      by cbv; exact List.mem_cons_of_mem _ (List.mem_cons_of_mem _ List.mem_cons_self),
+  · cbv
+  · apply State.drainReadyGroups_no_stranded_group
+      (by unfold State.GroupRefsUnique; cbv; decide) forest [] (by cbv)
+    exact ⟨firstOwner.ref, by cbv; exact List.mem_cons_self, .self (by cbv)⟩
+  · apply State.drainReadyGroups_no_stranded_group
+      (by unfold State.GroupRefsUnique; cbv; decide) forest [] (by cbv)
+    exact ⟨lastOwner.ref, by cbv; exact List.mem_cons_of_mem _ List.mem_cons_self,
       .self (by cbv)⟩
 
 /-- The two buffered values are fresh against the already emitted parent publication.
@@ -213,12 +215,10 @@ private theorem ready_inventory
     : ready.PublicationInventory (fun _ _ => True) [(parentTask, parentValue)] := by
   refine ⟨by simp, by simp, ?_⟩
   intro node member value stored
-  let failedNode : TaskNode := { task := ⟨failedTask, [root, failed]⟩, rejection := some 1 }
-  have nodes : ready.taskNodes = [failedNode, firstNode, sharedNode] := by cbv
+  have nodes : ready.taskNodes = [firstNode, sharedNode] := by cbv
   rw [nodes] at member
   simp only [List.mem_cons, List.not_mem_nil, or_false] at member
-  rcases member with rfl | rfl | rfl
-  · cases stored
+  rcases member with rfl | rfl
   · exact ⟨trivial, by simp [firstNode, firstTask, parentTask]⟩
   · exact ⟨trivial, by simp [sharedNode, sharedTask, parentTask]⟩
 
@@ -236,9 +236,9 @@ enumeration or output-admission premise supplies buffered memberships.
 private theorem ready_links : ready.StoredTaskLinks := by
   have valid : ValidGraphEvents work [failure, first, shared] :=
     source_valid.1.prefix ⟨[finish], rfl⟩
-  have accepted : initial.acceptsBatch [failure, first, shared] = true := by cbv
+  have accepted : State.eventsStarted [] initial [failure, first, shared] = true := by cbv
   have linked := generated.replayGraphEvents_storedTaskLinks _ valid accepted
-  have accounted := (createWorkQueue_pendingAccounting work).replayGraphEvents (before := [])
+  have accounted := (createWorkQueue_pendingAccounting work generated.declarations).replayGraphEvents (before := [])
     generated [failure, first, shared] valid accepted
   have found : waiting.taskNode? parentTask
       = some { task := ⟨parentTask, [parent]⟩ } := by cbv
@@ -255,17 +255,16 @@ private theorem ready_links : ready.StoredTaskLinks := by
     { parentNode with pending := 1 } (List.mem_of_find?_eq_some oldGroup) parentNode rfl rfl
   exact (updated.finishGroupSuccess parentNode).startNewWork _
 
-/-- The two-iteration boundary is an exact prefix of the complete three-iteration drain.
-Witness: the general budget-splitting equation preserves both the intermediate state and
-the output concatenation, including the cached failure.
+/-- One successful iteration is an exact prefix of the complete two-iteration drain.
+Witness: the general budget-splitting equation retains state and both output channels.
 -/
 theorem actual_drain_split
     : ready.drainReadyGroups
-      = let later := State.drainReadyGroups.go 1 middle.1
-        (later.1, middle.2 ++ later.2) := by
-  have budget : ready.groupNodes.length = 3 := by cbv
+      = let later := State.drainReadyGroups.go [] 1 middle.1
+        (later.1, middle.2.1 ++ later.2.1, middle.2.2 ++ later.2.2) := by
+  have budget : ready.groupNodes.length = 2 := by cbv
   rw [State.drainReadyGroups, budget]
-  exact State.drainReadyGroups_go_add 2 1 ready
+  exact State.drainReadyGroups_go_add 1 1 ready
 
 /-- The earlier successful carrier is covered without including C's later publication.
 Witness: select B's actual output position in the full drain; its strict prefix contains
@@ -278,7 +277,7 @@ theorem mixed_drain_first_coverage
         ∧ (firstTask, firstValue) ∈ added := by
   obtain ⟨_, _, added, _, _, _, values, inventory, covered⟩ :=
     ready_inventory.drainReadyGroups_go_success_coverage ready_links ready.groupNodes.length
-      (index := 2) (group := firstOwner) (groups := []) (streams := []) (by cbv)
+      (index := 1) (group := firstOwner) (groups := []) (streams := []) (selected := by cbv)
   refine ⟨added, values.trans (by cbv), inventory.unique, ?_⟩
   exact covered firstTask firstNode firstValue (by cbv) rfl
     (by simp [firstNode, firstValue])
@@ -289,14 +288,14 @@ and buffered links internally. The shared occurrence is covered before C's closu
 -/
 theorem mixed_drain_strict_coverage
     : ∃ (added : List ObjectPublication) (before : List WorkQueueEvent),
-        ready.drainReadyGroups.2 = before ++ [.groupSuccess lastOwner [] []]
+        ready.drainReadyGroups.2.1 = before ++ [.groupSuccess lastOwner [] []]
         ∧ added.map Prod.snd = before.flatMap WorkQueueEvent.objectValues
         ∧ (([(parentTask, parentValue)] ++ added).map Prod.fst).Nodup
         ∧ (sharedTask, sharedValue) ∈ added := by
   obtain ⟨_, _, added, _, _, _, values, inventory, covered⟩ :=
     ready_inventory.drainReadyGroups_go_success_coverage ready_links ready.groupNodes.length
-      (index := 4) (group := lastOwner) (groups := []) (streams := []) (by cbv)
-  refine ⟨added, ready.drainReadyGroups.2.take 4, ?_, values, inventory.unique, ?_⟩
+      (index := 3) (group := lastOwner) (groups := []) (streams := []) (selected := by cbv)
+  refine ⟨added, ready.drainReadyGroups.2.1.take 3, ?_, values, inventory.unique, ?_⟩
   · cbv
   · exact covered sharedTask sharedNode sharedValue (by cbv) rfl
       (by simp [sharedNode, sharedValue])
@@ -309,24 +308,24 @@ theorem mixed_drain_shared_ledger
     : ∃ added : List ObjectPublication,
         added.map Prod.snd = [firstValue, sharedValue]
         ∧ (([(parentTask, parentValue)] ++ added).map Prod.fst).Nodup
-        ∧ ready.BufferedClosuresCovered added ready.drainReadyGroups.2
+        ∧ ready.BufferedClosuresCovered added ready.drainReadyGroups.2.1
         ∧ (firstTask, firstValue) ∈ added.take 1
         ∧ (sharedTask, sharedValue) ∈ added.take 2
         ∧ (sharedTask, sharedValue) ∉ added.take 1 := by
   obtain ⟨added, values, inventory, covered, _⟩ :=
     ready_inventory.drainReadyGroups_go_bufferedCoverage ready_links ready.groupNodes.length
   have exactValues : added.map Prod.snd = [firstValue, sharedValue] := values.trans (by cbv)
-  have firstCovered := covered 2 firstOwner [] [] (by cbv)
+  have firstCovered := covered 1 firstOwner [] [] (by cbv)
     firstTask firstNode firstValue (by cbv) rfl (by simp [firstNode, firstValue])
-  have lastCovered := covered 4 lastOwner [] [] (by cbv)
+  have lastCovered := covered 3 lastOwner [] [] (by cbv)
     sharedTask sharedNode sharedValue (by cbv) rfl (by simp [sharedNode, sharedValue])
-  have firstCount : ((ready.drainReadyGroups.2.take 2).flatMap WorkQueueEvent.objectValues).length
+  have firstCount : ((ready.drainReadyGroups.2.1.take 1).flatMap WorkQueueEvent.objectValues).length
       = 1 := by cbv
-  have lastCount : ((ready.drainReadyGroups.2.take 4).flatMap WorkQueueEvent.objectValues).length
+  have lastCount : ((ready.drainReadyGroups.2.1.take 3).flatMap WorkQueueEvent.objectValues).length
       = 2 := by cbv
-  rw [show State.drainReadyGroups.go ready.groupNodes.length ready = ready.drainReadyGroups
+  rw [show State.drainReadyGroups.go [] ready.groupNodes.length ready = ready.drainReadyGroups
     from rfl, firstCount] at firstCovered
-  rw [show State.drainReadyGroups.go ready.groupNodes.length ready = ready.drainReadyGroups
+  rw [show State.drainReadyGroups.go [] ready.groupNodes.length ready = ready.drainReadyGroups
     from rfl, lastCount] at lastCovered
   refine ⟨added, exactValues, inventory.unique, covered, firstCovered, lastCovered, ?_⟩
   intro tooEarly
@@ -341,7 +340,7 @@ theorem mixed_drain_shared_ledger
 
 /-- The internal drain boundary excludes its published task but keeps the later shared one.
 Witness: coverage and membership exclusion use one full-drain ledger. Its exact prefix
-contains B's value after the cached failure; C's still-buffered membership is checked in
+contains B's value after cached startup; C's buffered membership is checked in
 the actual intermediate queue, so future removal cannot justify an earlier notice.
 -/
 theorem mixed_drain_membership_boundary
@@ -349,13 +348,13 @@ theorem mixed_drain_membership_boundary
       ∧ ∃ node ∈ middle.1.groupNodes, sharedTask ∈ node.tasks := by
   obtain ⟨added, _, _, covered, _, _, _, _, cleared⟩ :=
     ready_inventory.drainReadyGroups_go_prefixCoverage ready_links ready.groupNodes.length
-  have firstCovered := covered 2 firstOwner [] [] (by cbv)
+  have firstCovered := covered 1 firstOwner [] [] (by cbv)
     firstTask firstNode firstValue (by cbv) rfl (by simp [firstNode, firstValue])
-  have size : ((ready.drainReadyGroups.2.take 2).flatMap WorkQueueEvent.objectValues).length
-      = (middle.2.flatMap WorkQueueEvent.objectValues).length := by cbv
-  rw [show State.drainReadyGroups.go ready.groupNodes.length ready = ready.drainReadyGroups
+  have size : ((ready.drainReadyGroups.2.1.take 1).flatMap WorkQueueEvent.objectValues).length
+      = (middle.2.1.flatMap WorkQueueEvent.objectValues).length := by cbv
+  rw [show State.drainReadyGroups.go [] ready.groupNodes.length ready = ready.drainReadyGroups
     from rfl, size] at firstCovered
-  refine ⟨cleared 2 (by cbv) (firstTask, firstValue) firstCovered, ?_⟩
+  refine ⟨cleared 1 (by cbv) (firstTask, firstValue) firstCovered, ?_⟩
   refine ⟨{ group := ⟨lastOwner, some parent.ref⟩, tasks := [sharedTask] }, ?_, by simp⟩
   cbv
   exact .head _

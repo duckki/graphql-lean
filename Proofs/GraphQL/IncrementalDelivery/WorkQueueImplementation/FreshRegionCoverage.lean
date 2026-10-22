@@ -3,6 +3,8 @@ import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.RecordCancella
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.ParentlessRegistration
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.PruningBudget
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.StreamAvailability
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.StartupRootCoverage
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.DrainNormalForm
 
 /-! Healthy fresh regions connect to their new candidate roots before stream-item pruning. -/
 
@@ -20,7 +22,8 @@ theorem State.ParentLinksComplete.fresh_region_root_coverage {queue : State}
     (complete : queue.ParentLinksComplete parents) (unique : queue.GroupRefsUnique)
     (registered : queue.LiveGroupsRegistered)
     (closed : queue.ParentRegistryClosed parents)
-    (cancelled : queue.CancelledRecordsSupported work failed) (newWork : Work)
+    (_cancelled : queue.CancelledRecordsSupported work failed)
+    (generated : ExecutedWork work) (newWork : Work)
     (parentTask : Option Occurrence)
     (descriptors
       : ∀ group ∈ newWork.groups,
@@ -51,36 +54,43 @@ theorem State.ParentLinksComplete.fresh_region_root_coverage {queue : State}
     obtain ⟨dependencies, known, head⟩ := descriptors candidate included
     rwa [canonical _ _ known] at head
   have links := complete.maybeIntegrateWork unique registered closed newWork exactParents parentTask
-  have newCancelled := cancelled.maybeIntegrateWork newWork parentTask descriptors
+  have candidateSupport := State.registrationSupported_of_fresh_candidates generated
+    newWork.groups fresh descriptors (fun group member parent head =>
+      (parentCovered group member parent head).resolve_left (by simp))
+  have parentRefs : ∀ group ∈ newWork.groups, ∀ parent, group.parent = some parent →
+      parent ∈ queue.registeredGroups ++ newWork.groups.map (fun group => group.node.ref) := by
+    intro group member parent head
+    obtain ⟨candidate, included, same⟩ :=
+      (parentCovered group member parent head).resolve_left (by simp)
+    exact List.mem_append_right _ (List.mem_map.mpr ⟨candidate, included, same⟩)
   have newRefs := unique.maybeIntegrateWork newWork parentTask
   apply links.candidates_root_coverage forest candidates
     (integrated.2.newGroups.map Execution.DeliveryNode.ref)
     (fun candidate included => exactParents candidate (eligible.mp included).1)
   · intro candidate included parent head
     obtain ⟨original, candidateHealthy⟩ := eligible.mp included
-    obtain ⟨ancestor, ancestorMember, ancestorRef⟩ := parentCovered candidate original parent head
-    obtain ⟨dependencies, known, parentEq⟩ := descriptors candidate original
-    have inDependencies : parent ∈ dependencies := by
-      have first := parentEq.symm.trans head
-      cases dependencies with
-      | nil => cases first
-      | cons ref rest => exact List.mem_cons.mpr (.inl (Option.some.inj first).symm)
-    exact ⟨
-      ancestor,
-      eligible.mpr
-        ⟨
-          ancestorMember,
-          fun invalid =>
-            candidateHealthy (.ancestor known inDependencies (ancestorRef ▸ invalid))
-        ⟩,
-      ancestorRef
-    ⟩
+    rcases parentCovered candidate original parent head with old | ⟨ancestor, ancestorMember, ancestorRef⟩
+    · cases old
+    · obtain ⟨dependencies, known, parentEq⟩ := descriptors candidate original
+      have inDependencies : parent ∈ dependencies := by
+        have first := parentEq.symm.trans head
+        cases dependencies with
+        | nil => cases first
+        | cons ref rest => exact List.mem_cons.mpr (.inl (Option.some.inj first).symm)
+      exact ⟨
+        ancestor,
+        eligible.mpr
+          ⟨
+            ancestorMember,
+            fun invalid =>
+              candidateHealthy (.ancestor known inDependencies (ancestorRef ▸ invalid))
+          ⟩,
+        ancestorRef
+      ⟩
   · intro candidate included
-    obtain ⟨original, candidateHealthy⟩ := eligible.mp included
-    have uncancelled := newCancelled.healthy_not_mem candidateHealthy
-    rw [State.maybeIntegrateWork_cancelledGroups queue newWork parentTask] at uncancelled
-    have present := queue.maybeIntegrateWork_registersRefs newWork parentTask candidate original
-      (.inr (fresh candidate original)) uncancelled
+    obtain ⟨original, _candidateHealthy⟩ := eligible.mp included
+    have present := queue.maybeIntegrateWork_registersRefs newWork parentTask generated
+      registered descriptors parentRefs candidate original (candidateSupport candidate original)
     obtain ⟨node, nodeMember, sameRef⟩ := List.mem_map.mp present
     exact ⟨node, sameRef ▸ newRefs.groupNode?_of_mem nodeMember⟩
   · intro candidate included parentless
@@ -91,8 +101,8 @@ theorem State.ParentLinksComplete.fresh_region_root_coverage {queue : State}
       | some node =>
           exact False.elim (fresh candidate original (State.groupNode?_ref found ▸
             registered node (List.mem_of_find?_eq_some found)))
-    exact queue.addGroups_parentless_candidate newWork.groups original parentless
-      (fresh candidate original) absent
+    exact queue.addGroups_parentless_candidate newWork.groups registered exactParents
+      original parentless (fresh candidate original) absent
   · exact eligible.mpr ⟨member, healthy⟩
 
 -----------------------------------------------------------------------------------------
@@ -109,7 +119,8 @@ theorem State.ParentLinksComplete.fresh_item_root_coverage {queue : State}
     (complete : queue.ParentLinksComplete parents) (unique : queue.GroupRefsUnique)
     (registered : queue.LiveGroupsRegistered)
     (closed : queue.ParentRegistryClosed parents)
-    (cancelled : queue.CancelledRecordsSupported work failed) (item : StreamItem)
+    (cancelled : queue.CancelledRecordsSupported work failed)
+    (generated : ExecutedWork work) (item : StreamItem)
     (descriptors
       : ∀ group ∈ item.work.groups,
           ∃ dependencies,
@@ -123,10 +134,14 @@ theorem State.ParentLinksComplete.fresh_item_root_coverage {queue : State}
     (forest : (queue.maybeIntegrateWork item.work).1.RemovalForest parents)
     {group : Group} (member : group ∈ item.work.groups)
     (healthy : ¬GroupRecordInvalidated work failed group.node.ref)
+    (available : List (Occurrence × Nat) := [])
     (survives
-      : ∃ node, (queue.integrateStreamItem item).groupNode? group.node.ref = some node)
-    : ∃ root ∈ (queue.integrateStreamItem item).rootGroups,
-        (queue.integrateStreamItem item).LiveDescendant root group.node.ref := by
+      : ∃ node,
+          (queue.integrateStreamItem item available).groupNode? group.node.ref
+          = some node)
+    : ∃ root ∈ (queue.integrateStreamItem item available).rootGroups,
+        (queue.integrateStreamItem item available).LiveDescendant root
+          group.node.ref := by
   let integrated := queue.maybeIntegrateWork item.work
   let pruned := integrated.1.pruneEmptyGroups integrated.2.newGroups
   let released := { integrated.2 with newGroups := pruned.2 }
@@ -135,7 +150,7 @@ theorem State.ParentLinksComplete.fresh_item_root_coverage {queue : State}
     intro candidate included
     obtain ⟨dependencies, known, head⟩ := descriptors candidate included
     rwa [canonical _ _ known] at head
-  have covered := complete.fresh_region_root_coverage unique registered closed cancelled
+  have covered := complete.fresh_region_root_coverage unique registered closed cancelled generated
     item.work none descriptors canonical parentCovered fresh forest member healthy
   obtain ⟨root, rootMember, path⟩ := covered
   obtain ⟨candidate, included, candidateRef⟩ := List.mem_map.mp rootMember
@@ -148,19 +163,20 @@ theorem State.ParentLinksComplete.fresh_item_root_coverage {queue : State}
     cases head
   have beforeStart : ∃ node, pruned.1.groupNode? group.node.ref = some node := by
     change ∃ node,
-      (pruned.1.startNewWork released).groupNode? group.node.ref = some node at survives
-    simpa only [State.groupNode?, (State.startNewWork_groupCore _ _).1] using survives
-  have rootsLive := State.maybeIntegrateWork_candidates_live unique item.work exactParents
+      (pruned.1.startNewWork released available).1.groupNode? group.node.ref = some node at survives
+    exact State.groupNode?_exists_before_subset
+      (pruned.1.startNewWork_groupNodes_sublist released available).subset survives
+  have rootsLive := State.maybeIntegrateWork_candidates_live unique registered item.work exactParents
   obtain ⟨retained, retainedMember, below⟩ :=
     State.pruneEmptyGroups_surviving_descendant forest.canonical forest.uniqueChildren frontier
-      (distinctDeliveryNodes_refs_nodup _)
+      (State.addGroups_newGroups_unique _ _)
       rootsLive
       ⟨candidate, included, candidateRef.symm ▸ path⟩ beforeStart
-  refine ⟨retained.ref, ?_, ?_⟩
-  · change retained.ref ∈ (pruned.1.startNewWork released).rootGroups
-    rw [(pruned.1.startNewWork_groupCore released).2.2]
-    exact List.mem_append_right _ (List.mem_map_of_mem retainedMember)
-  · exact below.of_groupNodes_eq (pruned.1.startNewWork_groupCore released).1
+  have prunedForest := forest.of_subset
+    (integrated.1.pruneEmptyGroups_groupNodes_sublist integrated.2.newGroups).subset
+  exact State.startNewWork_root_coverage prunedForest released
+    ⟨retained.ref, List.mem_append_right _ (List.mem_map_of_mem retainedMember), below⟩
+    available survives
 
 /-- Generated stream-item regions supply all new-group coverage premises from bookkeeping.
 Witness: the region inventory derives ref freshness; matched lowering supplies complete
@@ -183,10 +199,14 @@ theorem State.RegionInventory.streamItem_healthy_group_root_coverage {queue : St
     {item : StreamItem} (itemMember : item ∈ items) (fresh : item.occurrence ∉ seen)
     {group : Group} (member : group ∈ item.work.groups)
     (healthy : ¬GroupRecordInvalidated work failed group.node.ref)
+    (available : List (Occurrence × Nat) := [])
     (survives
-      : ∃ node, (queue.integrateStreamItem item).groupNode? group.node.ref = some node)
-    : ∃ root ∈ (queue.integrateStreamItem item).rootGroups,
-        (queue.integrateStreamItem item).LiveDescendant root group.node.ref := by
+      : ∃ node,
+          (queue.integrateStreamItem item available).groupNode? group.node.ref
+          = some node)
+    : ∃ root ∈ (queue.integrateStreamItem item available).rootGroups,
+        (queue.integrateStreamItem item available).LiveDescendant root
+          group.node.ref := by
   have exactParents : ∀ candidate ∈ item.work.groups,
       candidate.parent = (parents candidate.node.ref).head? :=
     fun _ included => matching.streamItem_childGroups_parentCanonical canonical itemMember included
@@ -196,11 +216,13 @@ theorem State.RegionInventory.streamItem_healthy_group_root_coverage {queue : St
   have forest := State.RemovalForest.of_generated generated
     (children.maybeIntegrateWork item.work) (links.maybeIntegrateWork item.work exactParents)
     (records.maybeIntegrateWork item.work descriptors) canonical
-  apply complete.fresh_item_root_coverage unique registered closed cancelled item
-    (canonical := canonical)
-    (parentCovered := matching.streamItem_parentsCovered itemMember)
+  apply complete.fresh_item_root_coverage unique registered closed cancelled generated
+    item (canonical := canonical)
+    (parentCovered :=
+      matching.streamItem_parentsCovered generated.declarations itemMember)
     (fresh := inventory.streamItem_groupsFresh generated matching itemMember fresh)
-    (forest := forest) (member := member) (healthy := healthy) (survives := survives)
+    (forest := forest) (member := member) (healthy := healthy) (available := available)
+    (survives := survives)
   intro candidate included
   obtain ⟨dependencies, known⟩ := descriptors candidate included
   exact ⟨

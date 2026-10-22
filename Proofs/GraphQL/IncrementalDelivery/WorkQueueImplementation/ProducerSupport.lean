@@ -1,4 +1,6 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.RegistrationProvenance
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.RegistrationCoverageCore
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.HealthyContributors
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.GeneratedDescriptors
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.GroupAccounting
 
@@ -36,11 +38,12 @@ private theorem deferContinuous_located
   have navigation := StructuralEquivalence.located_of_current located
   clear located
   induction navigation with
-  | root => exact continuous
-  | left _ ih => rw [DeferContinuous] at ih; exact ih.1
-  | right _ ih => rw [DeferContinuous] at ih; exact ih.2
-  | executionGroup _ ih => rw [DeferContinuous] at ih; exact ih.2
-  | item _ entry ih => rw [DeferContinuous] at ih; exact ih _ (List.mem_of_getElem? entry)
+  | root => exact continuous.withoutDeclarations
+  | left _ ih => rw [DeferContinuous] at ih; exact ih.1.withoutDeclarations
+  | right _ ih => rw [DeferContinuous] at ih; exact ih.2.withoutDeclarations
+  | executionGroup _ ih => rw [DeferContinuous] at ih; exact ih.2.withoutDeclarations
+  | item _ entry ih =>
+      rw [DeferContinuous] at ih; exact (ih _ (List.mem_of_getElem? entry)).withoutDeclarations
 
 /-- Each immediate task contributor belongs to the current defer region.
 Witness: lowering descends through combines but stops at group and stream boundaries. -/
@@ -57,6 +60,9 @@ private theorem workFromSpec_contributor_in_deferRegion
           (workFromSpec_contributor_in_deferRegion left _ inLeft contributor)
       · exact List.mem_append_right _
           (workFromSpec_contributor_in_deferRegion right _ inRight contributor)
+  | declareGroups groups tasks =>
+      change task ∈ (Work.fromExecution tasks address).tasks at member
+      exact workFromSpec_contributor_in_deferRegion tasks address member contributor
   | executionGroup groups path result children =>
       obtain rfl := List.mem_singleton.mp member
       exact List.mem_append_left _ (by simpa [mapRefs, List.map_map] using contributor)
@@ -77,6 +83,46 @@ private theorem coherent_group_dependencies_eq
   rw [sameDependencies, sameNode]
   exact (localWork.2.1 fragment member).2.2
 
+/-- Every immediate child contributor reuses a producer contributor or descends from one.
+Witness: source matching identifies the child lowering; execution's defer continuity
+supplies support, and coherent metadata identifies the contributor's actual ancestors, including refs inherited without fresh declarations. -/
+theorem GraphEvent.MatchesWork.childContributor_producer_support
+    {work : Execution.Work} {occurrence : Occurrence} {result : TaskResult}
+    (generated : ExecutedWork work)
+    (matching : (GraphEvent.taskSuccess occurrence result).MatchesWork work)
+    {task : Task} (taskMember : task ∈ result.work.tasks) {ref : NodeRef}
+    (contributor : ref ∈ task.groups.map Execution.DeliveryNode.ref)
+    : ∃ node dependencies,
+        NodeAt work node .group dependencies (some occurrence)
+        ∧ node.ref = ref
+        ∧ ∃ owner ∈ result.value.deliveryGroups.map Execution.DeliveryNode.ref,
+            owner = ref ∨ owner ∈ dependencies := by
+  obtain ⟨taskAddress, payload, taskEq, taskAt⟩ := matching.childTask_producer taskMember
+  obtain ⟨node, dependencies, descriptor, sameRef⟩ :=
+    TaskAt.executionGroup_owner (taskEq ▸ taskAt) contributor
+  obtain ⟨parents, bound, _, coherent, continuous⟩ := generated.deferMetadata
+  obtain ⟨owners, producer, known, exactGroups, childrenWork⟩ := matching
+  cases occurrence with
+  | item => cases childrenWork
+  | executionGroup address =>
+      obtain ⟨groups, path, outcome, children, enclosing, located, _, _⟩ := known
+      change locateWork work address = some
+        ⟨.executionGroup groups path outcome children, producer, enclosing⟩ at located
+      have lowering : result.work = Work.fromExecution children (address ++ [0]) := by
+        simpa [taskChildWork?_eq_lookup, located] using childrenWork.symm
+      have sameGroups : groups.map Execution.DeferredFragment.node
+          = result.value.deliveryGroups := by
+        simpa [taskGroups?_eq_lookup, located] using exactGroups
+      rw [lowering] at taskMember
+      have localContinuity := deferContinuous_located continuous located
+      obtain ⟨owner, contributes, support⟩ := localContinuity.child_ref_supported
+        (workFromSpec_contributor_in_deferRegion children _ taskMember contributor)
+      refine ⟨node, dependencies, descriptor, sameRef, owner, ?_, ?_⟩
+      · rw [← sameGroups]
+        simpa [mapRefs, List.map_map] using contributes
+      · rw [coherent_group_dependencies_eq coherent descriptor, sameRef]
+        exact support
+
 /-- Every task-owning child group reuses a producer contributor or descends from one.
 Witness: source matching identifies the child lowering; execution's defer continuity
 supplies support, and coherent metadata identifies the child's actual ancestors.
@@ -94,35 +140,11 @@ theorem GraphEvent.MatchesWork.childGroup_producer_support
         ∧ ∃ owner ∈ result.value.deliveryGroups.map Execution.DeliveryNode.ref,
             owner = group.node.ref ∨ owner ∈ dependencies := by
   obtain ⟨task, taskMember, contributor⟩ := contributing
-  obtain ⟨taskAddress, payload, taskEq, taskAt⟩ := matching.childTask_producer taskMember
-  obtain ⟨node, dependencies, descriptor, sameRef⟩ :=
-    TaskAt.executionGroup_owner (taskEq ▸ taskAt) contributor
-  obtain ⟨recordDependencies, record⟩ := matching.taskChildGroups_recordAt member
-  have sameNode := generated.record_eq_node record descriptor sameRef.symm
-  have childKnown : NodeAt work group.node .group dependencies (some occurrence) :=
-    sameNode.symm ▸ descriptor
-  obtain ⟨parents, bound, _, coherent, continuous⟩ := generated.deferMetadata
-  obtain ⟨owners, producer, known, exactGroups, childrenWork⟩ := matching
-  cases occurrence with
-  | item => cases childrenWork
-  | executionGroup address =>
-      obtain ⟨groups, path, outcome, children, enclosing, located, _, _⟩ := known
-      change locateWork work address = some
-        ⟨.executionGroup groups path outcome children, producer, enclosing⟩ at located
-      have lowering : result.work = Work.fromExecution children (address ++ [0]) := by
-        simpa [taskChildWork?, located] using childrenWork.symm
-      have sameGroups : groups.map Execution.DeferredFragment.node
-          = result.value.deliveryGroups := by
-        simpa [taskGroups?, located] using exactGroups
-      rw [lowering] at taskMember
-      have localContinuity := deferContinuous_located continuous located
-      obtain ⟨owner, contributes, support⟩ := localContinuity.child_ref_supported
-        (workFromSpec_contributor_in_deferRegion children _ taskMember contributor)
-      refine ⟨dependencies, childKnown, owner, ?_, ?_⟩
-      · rw [← sameGroups]
-        simpa [mapRefs, List.map_map] using contributes
-      · rw [coherent_group_dependencies_eq coherent childKnown]
-        exact support
+  obtain ⟨node, dependencies, known, sameRef, support⟩ :=
+    matching.childContributor_producer_support generated taskMember contributor
+  obtain ⟨_, record⟩ := matching.taskChildGroups_recordAt member
+  have sameNode := generated.record_eq_node record known sameRef.symm
+  exact ⟨dependencies, sameNode.symm ▸ known, support⟩
 
 /-- A parentless task-owning child cannot introduce an independent defer root.
 Witness: its canonical ancestor list is empty, so producer support must be direct reuse.
@@ -165,6 +187,10 @@ private theorem workFromSpec_contributors_lower {parents lower bound}
       rcases List.mem_append.mp member with inLeft | inRight
       · exact workFromSpec_contributors_lower left _ coherent.1 inLeft contributor
       · exact workFromSpec_contributors_lower right _ coherent.2 inRight contributor
+  | declareGroups groups tasks =>
+      rw [Semantics.MixedRefs.WorkAt] at coherent
+      change task ∈ (Work.fromExecution tasks address).tasks at member
+      exact workFromSpec_contributors_lower tasks address coherent.2 member contributor
   | executionGroup groups path result children =>
       rw [Semantics.MixedRefs.WorkAt] at coherent
       obtain rfl := List.mem_singleton.mp member
@@ -191,7 +217,7 @@ theorem GraphEvent.MatchesWork.streamItem_childGroup_ref_gt
   obtain ⟨task, taskMember, contributor⟩ := contributing
   obtain ⟨owners, producer, known, childrenWork⟩ := matching item itemMember
   cases occurrence : item.occurrence with
-  | executionGroup => simp [streamItemWork?, occurrence] at childrenWork
+  | executionGroup => simp [streamItemWork?_eq_lookup, occurrence] at childrenWork
   | item address index =>
       rw [occurrence] at known
       obtain ⟨node, entries, enclosing, result, children, located, entry, _, samePayload⟩ :=
@@ -201,7 +227,8 @@ theorem GraphEvent.MatchesWork.streamItem_childGroup_ref_gt
       change locateWork work address = some ⟨.stream stream entries, producer, enclosing⟩
         at located
       have lowering : item.work = Work.fromExecution children (address ++ [index]) := by
-        simpa [streamItemWork?, occurrence, located, entry] using childrenWork.symm
+        simpa [streamItemWork?_eq_lookup, occurrence, located, entry]
+          using childrenWork.symm
       have localWork := coherent_located coherent located
       rw [Semantics.MixedRefs.WorkAt] at localWork
       have childBound := localWork.2.2 _ (List.mem_of_getElem? entry)
@@ -264,6 +291,52 @@ theorem State.HealthyRegisteredTaskAccounting.childGroup_live_support
     sameRef.symm ▸ producerContributes, linked, nonzero,
     sameRef.symm ▸ support⟩
 
+/-- A newly revealed contributor has live producer support even without a fresh declaration.
+The descriptor comes from the child task's occurrence, so inherited refs need no invented
+registration candidate. -/
+theorem State.HealthyRegisteredTaskAccounting.childContributor_live_support
+    {queue : State} {work : Execution.Work} {settled failed : List Occurrence}
+    (accounted : queue.HealthyRegisteredTaskAccounting work settled failed)
+    (tracks : queue.HealthyPendingTracks work settled failed)
+    (taskMatching : queue.RegisteredTasksMatch work) (generated : ExecutedWork work)
+    {producer : Task} (producerMember : producer ∈ queue.tasks)
+    (fresh : producer.occurrence ∉ settled) {result : TaskResult}
+    (matching : (GraphEvent.taskSuccess producer.occurrence result).MatchesWork work)
+    {task : Task} (member : task ∈ result.work.tasks) {ref : NodeRef}
+    (contributes : ref ∈ task.groups.map Execution.DeliveryNode.ref)
+    (healthy : ¬GroupInvalidated work failed ref)
+    : ∃ descriptor dependencies,
+        NodeAt work descriptor .group dependencies (some producer.occurrence)
+        ∧ descriptor.ref = ref
+        ∧ ∃ node ∈ queue.groupNodes,
+            ¬GroupInvalidated work failed node.group.node.ref
+            ∧ node.group.node.ref ∈ producer.groups.map Execution.DeliveryNode.ref
+            ∧ producer.occurrence ∈ node.tasks
+            ∧ node.pending ≠ 0
+            ∧ (node.group.node.ref = ref ∨ node.group.node.ref ∈ dependencies) := by
+  obtain ⟨descriptor, dependencies, known, sameRef, owner, ownerMember, support⟩ :=
+    matching.childContributor_producer_support generated member contributes
+  obtain ⟨_, _, _, exactGroups, _⟩ := matching
+  have sameGroups : producer.groups = result.value.deliveryGroups :=
+    Option.some.inj ((taskMatching producer producerMember).2.symm.trans exactGroups)
+  have ownerHealthy : ¬GroupInvalidated work failed owner := by
+    intro failure
+    apply healthy
+    rcases support with same | ancestor
+    · exact same ▸ failure
+    · exact .groupDependency ⟨descriptor, _, known, sameRef⟩ ancestor failure
+  have producerContributes : owner ∈ producer.groups.map Execution.DeliveryNode.ref := by
+    rwa [sameGroups]
+  obtain ⟨node, nodeMember, nodeRef, linked⟩ :=
+    accounted producer producerMember fresh owner producerContributes ownerHealthy
+  have nodeHealthy : ¬GroupInvalidated work failed node.group.node.ref := nodeRef.symm ▸ ownerHealthy
+  have nonzero : node.pending ≠ 0 := by
+    intro zero
+    exact fresh (GroupNode.PendingTracks.allSettled node settled
+      (tracks node nodeMember nodeHealthy) zero producer.occurrence linked)
+  exact ⟨descriptor, dependencies, known, sameRef, node, nodeMember, nodeHealthy,
+    nodeRef.symm ▸ producerContributes, linked, nonzero, nodeRef.symm ▸ support⟩
+
 /-- Directly reused producer refs are already available for healthy child integration.
 Witness: the producer's existing task membership keeps the contributor group live. -/
 theorem State.HealthyRegisteredTaskAccounting.childGroup_available_of_reused
@@ -276,12 +349,13 @@ theorem State.HealthyRegisteredTaskAccounting.childGroup_available_of_reused
     {ref : NodeRef}
     (reused : ref ∈ result.value.deliveryGroups.map Execution.DeliveryNode.ref)
     (healthy : ¬GroupInvalidated work failed ref)
-    : queue.GroupAvailable ref := by
+    : queue.GroupRegistrationSupported work ref := by
   obtain ⟨_, _, _, exactGroups, _⟩ := matching
   have sameGroups : producer.groups = result.value.deliveryGroups :=
     Option.some.inj ((taskMatching producer producerMember).2.symm.trans exactGroups)
-  apply accounted.groupAvailable producerMember fresh _ healthy
-  simpa [sameGroups] using reused
+  obtain ⟨node, member, identity, _⟩ := accounted producer producerMember fresh ref
+    (by simpa [sameGroups] using reused) healthy
+  exact .live (List.mem_map.mpr ⟨node, member, identity⟩)
 
 /-- If child tasks only reuse producer contributor refs, registration availability is
 fully discharged. Witness: each healthy reused ref has the unsettled producer's live
@@ -301,25 +375,6 @@ theorem State.HealthyRegisteredTaskAccounting.childGroupsAvailable_of_reused
   intro task member ref contributor healthy
   exact accounted.childGroup_available_of_reused taskMatching producerMember fresh matching
     (reused task member contributor) healthy
-
-/-- Parentless child work needs no separate registration-availability assumption.
-Witness: every task ref has an immediate group candidate, and each parentless generated
-candidate reuses a producer ref protected by the producer's pending membership. -/
-theorem State.HealthyRegisteredTaskAccounting.childGroupsAvailable_of_parentless
-    {queue : State} {work : Execution.Work} {settled failed : List Occurrence}
-    (accounted : queue.HealthyRegisteredTaskAccounting work settled failed)
-    (taskMatching : queue.RegisteredTasksMatch work)
-    (generated : ExecutedWork work)
-    {producer : Task} (producerMember : producer ∈ queue.tasks)
-    (fresh : producer.occurrence ∉ settled) {result : TaskResult}
-    (matching : (GraphEvent.taskSuccess producer.occurrence result).MatchesWork work)
-    (parentless : ∀ group ∈ result.work.groups, group.parent = none)
-    : queue.ChildGroupsAvailable work failed result.work := by
-  apply accounted.childGroupsAvailable_of_reused taskMatching producerMember fresh matching
-  intro task member ref contributor
-  obtain ⟨group, groupMember, sameRef⟩ := matching.childTasksCovered task member ref contributor
-  exact sameRef ▸ matching.childGroup_parentless_reused generated groupMember
-    ⟨task, member, sameRef.symm ▸ contributor⟩ (parentless group groupMember)
 
 /-- Any unavailable healthy child of a task success has a strictly earlier live ancestor
 with the producer still pending. Witness: eliminate direct reuse from live support;
@@ -357,5 +412,18 @@ theorem State.HealthyRegisteredTaskAccounting.unavailable_child_live_ancestor
   · exact ⟨dependencies, known, node, nodeMember, nodeHealthy, contributes,
       linked, nonzero, ancestor,
       generated.groupAncestorSmaller known ancestor⟩
+
+/-- Every item's healthy contributor refs are available at its actual integration state.
+This sequential proof obligation does not constrain the public host-event semantics. -/
+def State.StreamRegistrationsAvailable (queue : State) (work : Execution.Work)
+    (failed : List Occurrence) (items : List StreamItem)
+    (available : List (Occurrence × Nat) := [])
+    : Prop :=
+  match items with
+  | [] => True
+  | item :: rest =>
+      queue.ChildGroupsAvailable work failed item.work
+      ∧ (queue.integrateStreamItem item available).StreamRegistrationsAvailable work
+          failed rest available
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

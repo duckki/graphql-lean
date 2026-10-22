@@ -1,5 +1,8 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.ActiveLinks
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.RegistrationHistory
+import Tests.GraphQL.IncrementalDelivery.Fixtures.WorkDeclarations
+
+open GraphQL.IncrementalDelivery.Tests (declaredTask)
 
 /-! Focused proof regressions for retained-failure counters and release-time draining.
 These internal-state fixtures exercise the rebuilt bookkeeping witnesses independently
@@ -51,8 +54,8 @@ theorem shared_failure_pending
     simp [State.PendingTracks, GroupNode.PendingTracks, unsettledCount, beforeFailure]
   exact tracks.taskFailure shared 2
 
-/-- The active owner closes, while the latent owner's count and rejection remain available for replay and its
-both memberships survive. Witness: direct reduction of the same public handler.
+/-- The active owner closes while the latent count, rejection and both memberships survive.
+Witness: direct reduction of the same public handler.
 -/
 theorem shared_failure_retains_remaining
     : let after := (beforeFailure.taskFailure shared 2).1
@@ -115,10 +118,10 @@ private def beforeDrain : State :=
   }
 
 private def retainedWork : Execution.Work :=
-  .combine (.executionGroup [⟨root, []⟩, ⟨child, []⟩] [] { result := .error 2 } .empty)
+  .combine (declaredTask [⟨root, []⟩, ⟨child, []⟩] [] { result := .error 2 } .empty)
     .empty
 
-/-- Both recursive drain branches preserve pending counts, membership uniqueness,
+/-- Successful draining and cached startup preserve pending counts, membership uniqueness,
 registered-task provenance, and retirement. Witness: the generic drain induction's
 four independently instantiated preservation theorems.
 -/
@@ -136,20 +139,21 @@ theorem drain_invariants
     decide
   have matching : beforeDrain.RegisteredTasksMatch retainedWork := by
     intro task member
-    have same : task = sharedNode.task := by simpa only [beforeDrain, List.mem_singleton] using member
+    have same : task = sharedNode.task := by
+      simpa only [beforeDrain, List.mem_singleton] using member
     subst task
     exact ⟨⟨[0], .object [] (.error 2), none, rfl,
-      .executionGroup (.left .root)⟩, rfl⟩
+      .executionGroup (.left (Located.root (root := retainedWork)))⟩, rfl⟩
   exact ⟨tracks.drainReadyGroups, memberships.drainReadyGroups, matching.drainReadyGroups,
     retired.drainReadyGroups⟩
 
-/-- The drain actually crosses a successful parent closure and a retained child
-failure, not merely a no-op branch. Witness: exact public transition reduction.
+/-- The parent closes successfully and child startup queues the retained failure.
+Witness: exact public transition reduction with separate immediate and queued outputs.
 -/
 theorem drain_releases_then_fails
     : beforeDrain.drainReadyGroups.1.groupNodes = []
-      ∧ beforeDrain.drainReadyGroups.2
-        = [.groupSuccess parent [child] [], .groupFailure child 2] := by
+      ∧ beforeDrain.drainReadyGroups.2.1 = [.groupSuccess parent [child] []]
+      ∧ beforeDrain.drainReadyGroups.2.2 = [⟨child, 2⟩] := by
   cbv
 
 end GraphQL.IncrementalDelivery.Tests.WorkSchedulerRetainedAccounting

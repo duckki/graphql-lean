@@ -1,5 +1,6 @@
 import Proofs.GraphQL.IncrementalDelivery.Correctness.RootSingletonExistence
 import Proofs.GraphQL.IncrementalDelivery.Correctness.QueryRealization
+import Proofs.GraphQL.IncrementalDelivery.Semantics.WorkSize
 
 /-! Dependent defer IDs need later group-success notices, not full initial coverage. -/
 
@@ -128,11 +129,11 @@ example (first second : Result (List (Name × ResponseValue)))
   have dependency := eligible.2.2.2 0 (by simp)
   rcases dependency.2 with absent | completed | ⟨_, accounted⟩
   · exact absent ⟨none, node 0, .group, [],
-      NodeAt.group (group := { node := node 0 }) (.left .root) (by simp), rfl⟩
+      NodeAt.group (group := { node := node 0 }) (.left (Located.root (root := work first second))) (by simp), rfl⟩
   · simp [completedRefs] at completed
   · rcases accounted (.executionGroup [0]) [0]
       ⟨none, .object [] first, by simpa [node] using (TaskAt.executionGroup (result := { result := first })
-          (Located.left Located.root) : TaskAt (work first second) (.executionGroup [0]) _ _ _)⟩ (by simp)
+          (Located.left (Located.root (root := work first second))) : TaskAt (work first second) (.executionGroup [0]) _ _ _)⟩ (by simp)
       with cancelled | published
     · exact cancelled.nonempty rfl
     · simp [Published] at published

@@ -43,15 +43,17 @@ private def work : Execution.Work :=
   .combine
     (.combine
       (.combine (.combine .empty .empty)
-        (.combine
-          (.executionGroup [⟨group, []⟩] value.path ({ result := .ok (value.data, 0) })
-            children)
-          .empty))
+        (.declareGroups []
+          (.combine
+            (.executionGroup [⟨group, []⟩] value.path ({ result := .ok (value.data, 0) })
+              children)
+            .empty)))
       .empty)
-    (.combine
-      (.executionGroup [⟨group, []⟩] [] ({ result := .ok (lastValue.data, 0) })
-        (.combine .empty .empty))
-      .empty)
+    (.declareGroups [⟨group, []⟩]
+      (.combine
+        (.executionGroup [⟨group, []⟩] [] ({ result := .ok (lastValue.data, 0) })
+          (.combine .empty .empty))
+        .empty))
 
 private def success : GraphEvent :=
   .taskSuccess producer
@@ -193,9 +195,10 @@ private def children : Execution.Work :=
 
 private def work : Execution.Work :=
   .combine .empty
-    (.combine
-      (.executionGroup [⟨group, []⟩] [] ({ result := .ok (value.data, 0) }) children)
-      .empty)
+    (.declareGroups [⟨group, []⟩]
+      (.combine
+        (.executionGroup [⟨group, []⟩] [] ({ result := .ok (value.data, 0) }) children)
+        .empty))
 
 private def event : GraphEvent :=
   .taskSuccess occurrence

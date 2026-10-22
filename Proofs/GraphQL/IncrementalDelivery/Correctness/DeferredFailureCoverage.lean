@@ -104,7 +104,8 @@ theorem partitionWork_failure_task (path : ResponsePath)
           refine ⟨.executionGroup [0], groups.map (fun group => group.node.ref), none,
             .object path completed.deliveryResult, ?_, ?_, rfl⟩
           · exact (StructuralEquivalence.TaskAt.executionGroup
-              (by simpa only [partitionWork, Completion.deliveryResult, List.nil_append] using located)).toCurrent
+              (by simpa only [partitionWork, Completion.deliveryResult, List.nil_append,
+                Work.withoutDeclarations] using located)).toCurrent
           · simp [Payload.failure, Completion.deliveryResult, Completion.outcome,
               TaskOutcome.deliveryResult, first]
       | ok data =>
@@ -392,16 +393,20 @@ theorem executeExecutionPlan_equivalent_coverage (schema : Schema)
       obtain ⟨partitions, retained, results, owners⟩ := collectExecutionGroups_retains_results
         schema resolvers variables fuel parentType source plan.newCollectedFieldsMaps []
         (getNewDeferMap newDeferUsages [] deferMap) initial.2 deferred
+      let declarations := newDeferUsages.filterMap (fun usage =>
+        lookupDeferredFragment? (getNewDeferMap newDeferUsages [] deferMap) usage.ref)
+      let declaredWork := Work.declareGroups declarations (partitionWork [] partitions)
       have actual : ((executeExecutionPlan schema resolvers variables fuel parentType
           source newDeferUsages plan [] deferUsageSet deferMap).run state).1
-          = { initial.1 with work := .combine initial.1.work (partitionWork [] partitions) } := by
-        simp [executeExecutionPlan, initial, outcome, retained]
+          = { initial.1 with work := .combine initial.1.work declaredWork } := by
+        simp [executeExecutionPlan, initial, outcome, retained, declaredWork, declarations]
       rw [outcome, ← results] at equivalent
+      have covered := preparedResponseCovers_equivalentPartitions data errors initial.1.work
+        partitions containers ordinary equivalent
       rw [actual]
       simpa only [outcome, selectionSetResultToResponse,
         GraphQL.Execution.selectionSetResultToResponse]
-        using preparedResponseCovers_equivalentPartitions data errors initial.1.work
-          partitions containers ordinary equivalent
+        using covered.declareGroups_right declarations
 
 /-- The plan-order specialization uses reflexive ordinary field-result equivalence.
 Witness: `executeExecutionPlan_equivalent_coverage`; local field completion equations are

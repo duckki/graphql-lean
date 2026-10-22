@@ -64,8 +64,9 @@ theorem merge_history_value
       Option.toList_some, List.flatMap_append, List.flatMap_cons, List.flatMap_nil,
       List.append_nil, List.map_append, List.map_flatMap, SourceTask.entries_paths,
       initialPositions, List.append_assoc] using nextUnique
-  obtain ⟨owners, known⟩ := sourceTasks_known .root (ResponsePositions.listCursors [] initial) member
-  have allowed := explained.2.2 cut event selected
+  obtain ⟨owners, known⟩ :=
+    sourceTasks_known .root (ResponsePositions.listCursors [] initial) member
+  have allowed := explained.eventAllowed cut event selected
   have bound := (List.getElem?_eq_some_iff.mp selected).choose
   have length : (events.take cut).length = cut := by
     simp [List.length_take, Nat.min_eq_left (Nat.le_of_lt bound)]

@@ -1,5 +1,6 @@
 import Proofs.GraphQL.IncrementalDelivery.Semantics.ContextCompletion
 import Proofs.GraphQL.IncrementalDelivery.Semantics.BasicErrors
+import Proofs.GraphQL.IncrementalDelivery.Semantics.WorkSize
 
 /-! Ordinary streamed items agree with basic completion, including the exact
 short-circuit boundary of a failed streamed item. Outer field directives are

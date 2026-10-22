@@ -17,21 +17,23 @@ private def childTask : Occurrence := .executionGroup [1, 0, 0, 0, 1, 0]
 private def children : Execution.Work :=
   .combine
     (.combine .empty
-      (.combine
-        (.executionGroup [⟨first, []⟩] [.field "user"]
-          ({ result := .ok ([("name", .scalar "name1")], 0) }) (.combine .empty .empty))
+      (.declareGroups []
         (.combine
-          (.executionGroup [⟨second, []⟩] [.field "user"]
-            ({ result := .ok ([("age", .scalar "1")], 0) }) (.combine .empty .empty))
-          .empty)))
+          (.executionGroup [⟨first, []⟩] [.field "user"]
+            ({ result := .ok ([("name", .scalar "name1")], 0) }) (.combine .empty .empty))
+          (.combine
+            (.executionGroup [⟨second, []⟩] [.field "user"]
+              ({ result := .ok ([("age", .scalar "1")], 0) }) (.combine .empty .empty))
+            .empty))))
     .empty
 
 private def work : Execution.Work :=
   .combine .empty
-    (.combine
-      (.executionGroup [⟨first, []⟩, ⟨second, []⟩] []
-        ({ result := .ok ([("user", .object [])], 0) }) children)
-      .empty)
+    (.declareGroups [⟨first, []⟩, ⟨second, []⟩]
+      (.combine
+        (.executionGroup [⟨first, []⟩, ⟨second, []⟩] []
+          ({ result := .ok ([("user", .object [])], 0) }) children)
+        .empty))
 
 private def result : TaskResult :=
   {

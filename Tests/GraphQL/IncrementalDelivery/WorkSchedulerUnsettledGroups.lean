@@ -17,14 +17,15 @@ private def child (index : Nat) : DeliveryNode :=
 
 private def children (index : Nat) : Execution.Work :=
   .combine .empty
-    (.combine
-      (.executionGroup [⟨child index, []⟩] (child index).path
-        (if index = 0 then
-            { result := .error 1, cause := some 1 }
-          else
-            { result := .ok ([("required", .scalar "ok")], 0) })
-        (if index = 0 then .empty else .combine .empty .empty))
-      .empty)
+    (.declareGroups [⟨child index, []⟩]
+      (.combine
+        (.executionGroup [⟨child index, []⟩] (child index).path
+          (if index = 0 then
+              { result := .error 1, cause := some 1 }
+            else
+              { result := .ok ([("required", .scalar "ok")], 0) })
+          (if index = 0 then .empty else .combine .empty .empty))
+        .empty))
 
 private def entries : List (TaskOutcome ResponseValue × Execution.Work) :=
   [
@@ -33,7 +34,8 @@ private def entries : List (TaskOutcome ResponseValue × Execution.Work) :=
   ]
 
 private def work : Execution.Work :=
-  .combine (.combine (.combine .empty (.stream stream entries)) .empty) .empty
+  .combine (.combine (.combine .empty (.stream stream entries)) .empty)
+    (.declareGroups [] .empty)
 
 private def item (index : Nat) : StreamItem :=
   {
@@ -92,7 +94,7 @@ private theorem itemMatches (index : Nat) (bound : index < 2)
       streamLocated, entry, rfl, rfl⟩
   · have located : locateWork work [0, 0, 1] = some ⟨.stream stream entries, none, []⟩ :=
       streamLocated
-    simp [streamItemWork?, item, located, entry]
+    simp [streamItemWork?, taskContext?, item, located, entry]
 
 /-- The first child's failed task has the first stream item as producer.
 Witness: its exact located execution group, not a manually supplied failure count. -/

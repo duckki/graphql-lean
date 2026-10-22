@@ -18,6 +18,7 @@ mutual
   /-- Deferred and streamed task boundaries select one error throughout generated work. -/
   def WorkCertified : Work → Prop
     | .empty => True
+    | .declareGroups _ tasks => WorkCertified tasks
     | .combine left right => WorkCertified left ∧ WorkCertified right
     | .executionGroup _ _ result children =>
         OneFailure result.deliveryResult ∧ WorkCertified children
@@ -174,7 +175,9 @@ mutual
         · exact collectExecutionGroups_counted schema resolvers variables fuel parentType
             source _ path _
         · intro work hw
-          exact runEnsures_pure _ _ ⟨hc.1, ⟨hc.2.1, hw⟩, hc.2.2⟩
+          apply runEnsures_pure
+          refine ⟨hc.1, ⟨hc.2.1, ?_⟩, hc.2.2⟩
+          exact hw
   termination_by (fuel, 6, 0, 0)
   decreasing_by
     all_goals
@@ -486,6 +489,15 @@ theorem ItemsCertified.member {items : List (TaskOutcome ResponseValue × Work)}
       · subst entry; exact ⟨certified.1, certified.2.1⟩
       · exact ih certified.2.2 member
 
+/-- Declaration annotations preserve selected unit causes. -/
+theorem WorkCertified.withoutDeclarations {work : Work} (certified : WorkCertified work)
+    : WorkCertified work.withoutDeclarations := by
+  cases work with
+  | declareGroups groups tasks =>
+      exact WorkCertified.withoutDeclarations (work := tasks) certified
+  | _ => exact certified
+termination_by work
+
 /-- Structural navigation preserves unit causes throughout the generated work tree. -/
 theorem WorkCertified.located {work address current producer owners}
     (certified : WorkCertified work)
@@ -494,11 +506,12 @@ theorem WorkCertified.located {work address current producer owners}
   have navigation := StructuralEquivalence.located_of_current located
   clear located
   induction navigation with
-  | root => exact certified
-  | left _ ih => exact ih.1
-  | right _ ih => exact ih.2
-  | executionGroup _ ih => exact ih.2
-  | item _ entry ih => exact (ih.member (List.mem_of_getElem? entry)).2
+  | root => exact certified.withoutDeclarations
+  | left _ ih => exact ih.1.withoutDeclarations
+  | right _ ih => exact ih.2.withoutDeclarations
+  | executionGroup _ ih => exact ih.2.withoutDeclarations
+  | item _ entry ih =>
+      exact (ih.member (List.mem_of_getElem? entry)).2.withoutDeclarations
 
 /-- Every failing structural task selects one primitive error. -/
 theorem WorkCertified.task {work occurrence owners producer payload}

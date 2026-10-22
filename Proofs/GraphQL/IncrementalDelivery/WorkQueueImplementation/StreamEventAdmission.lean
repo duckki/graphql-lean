@@ -32,7 +32,7 @@ theorem streamAction_healthy_of_successfulItems
         w.failures
         = mergeFailureCuts
             (informativeObjectFailureCuts work
-              (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher inputs).2.2))
+              (queue.sourceRunBlocks publisher inputs).2.2)
             streams)
     (known : NodeAt work stream .stream dependencies producer)
     (selected : w.events[index]? = some event)
@@ -43,7 +43,7 @@ theorem streamAction_healthy_of_successfulItems
   let publisher : IncrementalPublisher :=
     { active := queue.initialGroups ++ queue.initialStreams }
   let objects := informativeObjectFailureCuts work
-    (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher inputs).2.2)
+    (queue.sourceRunBlocks publisher inputs).2.2
   have partition : w.failures.Perm (streams ++ objects) :=
     exactCuts ▸ mergeFailureCuts_partition objects streams
   obtain ⟨atFull, beforeEq⟩ := Witness.canonical_event history selected
@@ -70,7 +70,7 @@ theorem streamAction_healthy_of_successfulItems
       (createWorkQueue_runNormalized_atomicStreamActions_ordered valid)
       known atFull action nonfailure descriptor owner
   obtain ⟨received, input, later, sourceSplit, sameAction, _, _, _⟩ :=
-    createWorkQueue_atomicStream_sourcePrefix started atFull action
+    createWorkQueue_atomicStream_sourcePrefix valid started atFull action
   have sourcePrefix : (received ++ [input]).IsPrefix inputs.flatten :=
     ⟨later, by simp [sourceSplit, List.append_assoc]⟩
   have prior : received.IsPrefix inputs.flatten := ⟨input :: later, sourceSplit.symm⟩
@@ -140,7 +140,7 @@ theorem streamSuccessAdmission_of_successfulItems {work inputs w streams}
         w.failures
         = mergeFailureCuts
             (informativeObjectFailureCuts work
-              (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher inputs).2.2))
+              (queue.sourceRunBlocks publisher inputs).2.2)
             streams)
     : StreamSuccessAdmission work w := by
   intro index stream selected

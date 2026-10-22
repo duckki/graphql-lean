@@ -1,5 +1,6 @@
 import Proofs.GraphQL.IncrementalDelivery.Correctness
 import Tests.GraphQL.IncrementalDelivery.SourceObservation
+import Proofs.GraphQL.IncrementalDelivery.Semantics.WorkSize
 
 /-! Query/work-history bridge regressions. Replay is a proof witness, not a query scheduler. -/
 
@@ -98,8 +99,8 @@ example (response : Response)
 theorem.
 -/
 example
-    : WorkObservation { data := .object [] } (.combine .empty .empty) true
-        (.single { data := .object [] }) := by
+    : WorkObservation { data := .object [] } (.combine .empty (.declareGroups [] .empty))
+        true (.single { data := .object [] }) := by
   have run : queryWorkQueueConforms unavailable schema resolvers [] { selectionSet := [] } 5
         (.object "Query" 0)
       ∧ queryOutcome unavailable schema resolvers [] { selectionSet := [] } 5

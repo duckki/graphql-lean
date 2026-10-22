@@ -20,21 +20,26 @@ theorem State.streamItemFold_groupNoticesUnique {queue : State}
     {work parents stream items} (refs : queue.GroupRefsUnique)
     (live : queue.LiveGroupsRegistered) (tasks : queue.TaskGroupsRegistered)
     (links : queue.ChildLinksCanonical parents) (children : queue.ChildGroupsUnique)
+    (context : queue.RegistrationFrame work)
     (canonical
       : ∀ node dependencies,
           GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (matched : (GraphEvent.streamItems stream items).MatchesWork work)
-    : (((items.foldl streamItemStep (queue, [], [], [])).2.1).map
+    (available : List (Occurrence × Nat) := [])
+    : (((items.foldl (fun acc item => streamItemStep acc item available)
+          (queue, [], [], [], [])).2.1).map
         Execution.DeliveryNode.ref).Nodup := by
   have loop (more : List StreamItem) (included : more.Subset items)
       (acc : State × List Execution.DeliveryNode × List Execution.DeliveryNode
-        × List StreamItemValue)
+        × List StreamItemValue × List GroupFailureEvent)
       (refs : acc.1.GroupRefsUnique) (live : acc.1.LiveGroupsRegistered)
       (tasks : acc.1.TaskGroupsRegistered) (links : acc.1.ChildLinksCanonical parents)
       (children : acc.1.ChildGroupsUnique)
+      (context : acc.1.RegistrationFrame work)
       (known : ∀ child ∈ acc.2.1, child.ref ∈ acc.1.registeredGroups)
       (unique : (acc.2.1.map Execution.DeliveryNode.ref).Nodup)
-      : (((more.foldl streamItemStep acc).2.1).map Execution.DeliveryNode.ref).Nodup := by
+      : (((more.foldl (fun acc item => streamItemStep acc item available) acc).2.1).map
+          Execution.DeliveryNode.ref).Nodup := by
     induction more generalizing acc with
     | nil => exact unique
     | cons item rest ih =>
@@ -43,20 +48,22 @@ theorem State.streamItemFold_groupNoticesUnique {queue : State}
           matched.streamItem_childGroups_parentCanonical canonical member
             (group := group) candidate
         have nextRegistration := acc.1.integrateStreamItem_registration live tasks matched member
-        have nextRefs : (acc.1.integrateStreamItem item).GroupRefsUnique :=
-          ((refs.maybeIntegrateWork item.work).pruneEmptyGroups _).startNewWork _
-        have nextLinks : (acc.1.integrateStreamItem item).ChildLinksCanonical parents :=
+          context available
+        have nextRefs : (acc.1.integrateStreamItem item available).GroupRefsUnique :=
+          ((refs.maybeIntegrateWork item.work).pruneEmptyGroups _).startNewWork _ available
+        have nextLinks : (acc.1.integrateStreamItem item available).ChildLinksCanonical parents :=
           ((links.maybeIntegrateWork item.work parentFields).pruneEmptyGroups _).startNewWork _
-        have nextChildren : (acc.1.integrateStreamItem item).ChildGroupsUnique :=
-          ((children.maybeIntegrateWork item.work).pruneEmptyGroups _).startNewWork _
+            available
+        have nextChildren : (acc.1.integrateStreamItem item available).ChildGroupsUnique :=
+          ((children.maybeIntegrateWork item.work).pruneEmptyGroups _).startNewWork _ available
         apply ih (fun _ later => included (List.mem_cons_of_mem _ later))
-          (streamItemStep acc item) nextRefs nextRegistration.1 nextRegistration.2.1
-          nextLinks nextChildren
+          (streamItemStep acc item available) nextRefs nextRegistration.1 nextRegistration.2.1
+          nextLinks nextChildren (context.integrateStreamItem matched member available).1
         · intro child noticed
           rcases List.mem_append.mp noticed with old | new
           · exact nextRegistration.2.2 (known child old)
           · exact acc.1.integrateStreamItem_groupNoticesRegistered refs live tasks
-              matched member child new
+              context matched member available child new
         · change ((acc.2.1 ++
             ((acc.1.maybeIntegrateWork item.work).1.pruneEmptyGroups
               (acc.1.maybeIntegrateWork item.work).2.newGroups).2).map
@@ -69,7 +76,7 @@ theorem State.streamItemFold_groupNoticesUnique {queue : State}
           obtain ⟨child, noticed, childRef⟩ := List.mem_map.mp later
           exact acc.1.pruneIntegratedWork_notice_unregistered live item.work none noticed
             ((childRef.trans (same.symm.trans priorRef.symm)).symm ▸ known prior priorMember)
-  exact loop items (List.Subset.refl _) (queue, [], [], []) refs live tasks links children
-    (by simp) (by simp)
+  exact loop items (List.Subset.refl _) (queue, [], [], [], []) refs live tasks links
+    children context (by simp) (by simp)
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

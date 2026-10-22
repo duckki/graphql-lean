@@ -38,10 +38,11 @@ private def child (ref index : Nat) : DeliveryNode :=
 
 private def childWork (ref index : Nat) (name : String) : Work :=
   .combine .empty
-    (.combine
-      (.executionGroup [⟨child ref index, []⟩] (child ref index).path
-        ({ result := .ok ([("name", .scalar name)], 0) }) (.combine .empty .empty))
-      .empty)
+    (.declareGroups [⟨child ref index, []⟩]
+      (.combine
+        (.executionGroup [⟨child ref index, []⟩] (child ref index).path
+          ({ result := .ok ([("name", .scalar name)], 0) }) (.combine .empty .empty))
+        .empty))
 
 private def streamed : Work :=
   .stream stream
@@ -52,13 +53,14 @@ private def streamed : Work :=
 
 private def generatedWork : Work :=
   .combine .empty
-    (.combine
-      (.executionGroup [⟨root 0 "R", []⟩, ⟨root 1 "P", []⟩] []
-        ({ result := .error 1, cause := some 1 }) .empty)
+    (.declareGroups [⟨root 0 "R", []⟩, ⟨root 1 "P", []⟩]
       (.combine
-        (.executionGroup [⟨root 1 "P", []⟩] []
-          ({ result := .ok ([("users", .list [])], 0) })
-          (.combine (.combine .empty streamed) .empty)) .empty))
+        (.executionGroup [⟨root 0 "R", []⟩, ⟨root 1 "P", []⟩] []
+          ({ result := .error 1, cause := some 1 }) .empty)
+        (.combine
+          (.executionGroup [⟨root 1 "P", []⟩] []
+            ({ result := .ok ([("users", .list [])], 0) })
+            (.combine (.combine .empty streamed) .empty)) .empty)))
 
 /-- Shared root failure, an unpublished stream, and its deferred item tasks are generated.
 Witness: reduction of the query's defer collection and zero-initial-count stream completion.

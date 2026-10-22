@@ -1,3 +1,4 @@
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.WorkDeclarations
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.OwnerAccounting
 
 /-! Fresh integration candidates and their installed task memberships. -/
@@ -9,33 +10,10 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 -- New root candidates come only from parentless group registrations
 -----------------------------------------------------------------------------------------
 
-/-- Deduplicating descriptors never introduces a new node.
-Witness: membership induction through the first-encounter fold. -/
-private theorem mem_distinctDeliveryNodes {nodes : List Execution.DeliveryNode}
-    {node : Execution.DeliveryNode} (member : node ∈ distinctDeliveryNodes nodes)
-    : node ∈ nodes := by
-  have loop (more selected : List Execution.DeliveryNode)
-      : ∀ node ∈ more.foldl
-          (fun selected node =>
-            if selected.any (fun known => known.ref == node.ref) then selected
-            else selected ++ [node]) selected,
-          node ∈ selected ++ more := by
-    induction more generalizing selected with
-    | nil => simp
-    | cons head rest ih =>
-        intro node member
-        simp only [List.foldl_cons] at member
-        split at member
-        · have prior := ih selected node member
-          simp only [List.mem_append, List.mem_cons] at prior ⊢
-          exact prior.elim Or.inl (fun later => Or.inr (Or.inr later))
-        · have prior := ih (selected ++ [head]) node member
-          simpa [List.append_assoc] using prior
-  simpa using loop nodes [] node member
-
-/-- Every new group-root candidate is a fresh parentless descriptor from the chunk.
-Witness: the registration filter, parent filter, and first-encounter deduplication.
-The candidate may later be pruned; this theorem describes the pre-pruning frontier. -/
+/-- Every new root is a parentless candidate that was absent at registration entry.
+Witness: follow recursive parent visits and preserve the entry registry and live refs
+through each installation. The resulting frontier follows installation order.
+-/
 theorem State.addGroups_newGroup_candidate (queue : State) (groups : List Group)
     {node : Execution.DeliveryNode} (member : node ∈ (queue.addGroups groups).2)
     : ∃ group ∈ groups,
@@ -43,16 +21,75 @@ theorem State.addGroups_newGroup_candidate (queue : State) (groups : List Group)
         ∧ group.parent = none
         ∧ node.ref ∉ queue.registeredGroups
         ∧ queue.groupNode? node.ref = none := by
-  have filtered := mem_distinctDeliveryNodes member
-  obtain ⟨group, fresh, selected⟩ := List.mem_filterMap.mp filtered
-  obtain ⟨candidate, absent⟩ := List.mem_filter.mp fresh
-  cases parent : group.parent with
-  | some ref => simp [parent] at selected
-  | none =>
-      have same : group.node = node := by simpa [parent] using selected
-      have missing : group.node.ref ∉ queue.registeredGroups
-          ∧ queue.groupNode? group.node.ref = none := by simpa using absent
-      exact ⟨group, candidate, same, parent, same ▸ missing⟩
+  let candidate (node : Execution.DeliveryNode) := ∃ group ∈ groups,
+    group.node = node ∧ group.parent = none ∧ node.ref ∉ queue.registeredGroups
+      ∧ queue.groupNode? node.ref = none
+  let retained (current : State) := queue.registeredGroups ⊆ current.registeredGroups
+    ∧ queue.groupNodes.map (fun node => node.group.node.ref)
+      ⊆ current.groupNodes.map (fun node => node.group.node.ref)
+  have install (current : State) (group : Group) (_member : group ∈ groups)
+      (prior : retained current) : retained (current.addGroup group) :=
+    ⟨prior.1.trans (current.addGroup_registeredGroups_subset_old group),
+      prior.2.trans (current.addGroup_refs_subset group)⟩
+  have visit (fuel : Nat) (acc : State × List Execution.DeliveryNode × NodeRefs)
+      (group : Group) (included : group ∈ groups) (prior : retained acc.1)
+      (roots : ∀ node ∈ acc.2.1, candidate node)
+      : ∀ node ∈ (State.addGroups.go groups fuel acc group).2.1, candidate node := by
+    induction fuel generalizing acc group with
+    | zero => exact roots
+    | succ fuel ih =>
+        obtain ⟨current, oldRoots, visited⟩ := acc
+        simp only [State.addGroups.go]
+        split
+        · exact roots
+        · split
+          · exact roots
+          · rename_i fresh
+            have missing : group.node.ref ∉ current.registeredGroups
+                ∧ current.groupNode? group.node.ref = none := by simpa using fresh
+            have rootCandidate (parentless : group.parent = none) : candidate group.node := by
+              refine ⟨group, included, rfl, parentless,
+                fun registered => missing.1 (prior.1 registered), ?_⟩
+              cases found : queue.groupNode? group.node.ref with
+              | none => rfl
+              | some live =>
+                  have member := prior.2 (List.mem_map.mpr
+                    ⟨live, List.mem_of_find?_eq_some found, State.groupNode?_ref found⟩)
+                  obtain ⟨node, nodeMember, same⟩ := List.mem_map.mp member
+                  exact False.elim (List.find?_eq_none.mp missing.2 node nodeMember
+                    (beq_iff_eq.mpr same))
+            split
+            · intro node member
+              split at member
+              · rcases List.mem_append.mp member with old | new
+                · exact roots node old
+                · have equal := List.mem_singleton.mp new
+                  exact equal ▸ rootCandidate (by simpa using ‹group.parent.isNone = true›)
+              · exact roots node member
+            · rename_i parent found
+              obtain ⟨ref, parentEq, selected⟩ := Option.bind_eq_some_iff.mp found
+              have parentRoots := ih (current, oldRoots, visited ++ [group.node.ref]) parent (List.mem_of_find?_eq_some selected) prior roots
+              intro node member
+              split at member
+              · have parentless : group.parent = none := by
+                  simpa using ‹group.parent.isNone = true›
+                simp [parentless] at parentEq
+              · exact parentRoots node member
+  have fold (more : List Group) (included : more ⊆ groups)
+      (acc : State × List Execution.DeliveryNode × NodeRefs) (prior : retained acc.1)
+      (roots : ∀ node ∈ acc.2.1, candidate node)
+      : ∀ node ∈ (more.foldl
+          (fun acc group => State.addGroups.go groups (groups.length + 1) acc group) acc).2.1,
+          candidate node := by
+    induction more generalizing acc with
+    | nil => exact roots
+    | cons group rest ih =>
+        exact ih (fun _ member => included (List.mem_cons_of_mem _ member)) _
+          (State.addGroups.go_preserves retained groups install _ acc group
+            (included List.mem_cons_self) prior)
+          (visit _ acc group (included List.mem_cons_self) prior roots)
+  exact fold groups (List.Subset.refl _) (queue, [], [])
+    ⟨List.Subset.refl _, List.Subset.refl _⟩ (by simp) node member
 
 /-- Task and stream registration do not change the group-root candidate list.
 Witness: project the group component of the three-stage integration algorithm. -/
@@ -139,7 +176,11 @@ theorem State.pruneEmptyGroups_of_nonempty (queue : State)
             · rename_i node found
               have notZero := positive group List.mem_cons_self node found
               simpa [notZero, List.append_assoc] using ih rest (kept ++ [group]) tailPositive
-  simpa only [State.pruneEmptyGroups, List.nil_append]
-    using loop (queue.groupNodes.length + groups.length + 1) groups [] nonzero
+  have result := loop (queue.groupNodes.length + groups.length + 1) groups [] nonzero
+  refine ⟨result.1, ?_⟩
+  intro node member
+  have included :=
+    result.2 (by simpa only [State.pruneEmptyGroups] using member)
+  simpa only [List.nil_append] using included
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

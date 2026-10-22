@@ -82,7 +82,8 @@ Witness: inspect the two lookup guards; streams remain unchanged.
 -/
 theorem State.StreamAnnouncementInventory.startTask {queue : State} {announced : NodeRefs}
     (inventory : queue.StreamAnnouncementInventory announced) (occurrence : Occurrence)
-    : (queue.startTask occurrence).StreamAnnouncementInventory announced := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.startTask occurrence available).StreamAnnouncementInventory announced := by
   unfold State.startTask
   split
   · exact inventory
@@ -95,30 +96,61 @@ theorem State.StreamAnnouncementInventory.startTask {queue : State} {announced :
         · exact .inr ⟨node, old, rfl⟩
         · exact .inl (List.mem_singleton.mp new ▸ rfl)
 
+/-- Exposing task rejections retains every stored child link and stream descriptor. -/
+theorem State.StreamAnnouncementInventory.cacheTaskFailures {queue : State}
+    {announced : NodeRefs} (inventory : queue.StreamAnnouncementInventory announced)
+    (available : List (Occurrence × Nat))
+    : (queue.cacheTaskFailures available).StreamAnnouncementInventory announced := by
+  induction available generalizing queue with
+  | nil => exact inventory
+  | cons entry rest ih =>
+      simp only [State.cacheTaskFailures, List.foldl_cons]
+      split
+      · exact ih inventory
+      · rename_i node found
+        apply ih
+        apply inventory.of_frame
+        · exact List.Subset.refl _
+        intro next included
+        obtain ⟨old, stored, same⟩ := List.mem_map.mp included
+        split at same
+        · subst next; exact .inr ⟨node, (State.taskNode?_some found).1, rfl⟩
+        · subst next; exact .inr ⟨old, stored, rfl⟩
+
 /-- Starting a group preserves unannounced child links while starting its tasks.
 Witness: task-start preservation through the actual membership fold.
 -/
 theorem State.StreamAnnouncementInventory.startGroup {queue : State}
     {announced : NodeRefs} (inventory : queue.StreamAnnouncementInventory announced)
-    (ref : NodeRef)
-    : (queue.startGroup ref).StreamAnnouncementInventory announced := by
+    (ref : NodeRef) (available : List (Occurrence × Nat) := [])
+    : (queue.startGroup ref available).1.StreamAnnouncementInventory announced := by
+  have cached := inventory.cacheTaskFailures available
   unfold State.startGroup
+  dsimp only
   split
-  · exact inventory
-  · exact fold_preserves (fun current => current.StreamAnnouncementInventory announced)
-      State.startTask (fun _ occurrence prior => prior.startTask occurrence) _ _ inventory
+  · exact cached
+  · split
+    · exact fold_preserves (fun current : State => current.StreamAnnouncementInventory announced)
+        (fun current occurrence => current.startTask occurrence available)
+        (fun _ occurrence prior => prior.startTask occurrence available) _ _ cached
+    · exact cached.removeGroup _
 
 /-- New-work activation retains the complete announcement inventory.
 Witness: group starts preserve task links; stream starts change only active roots.
 -/
 theorem State.StreamAnnouncementInventory.startNewWork {queue : State}
     {announced : NodeRefs} (inventory : queue.StreamAnnouncementInventory announced)
-    (work : NewWork)
-    : (queue.startNewWork work).StreamAnnouncementInventory announced := by
-  have groups := fold_preserves (fun current => current.StreamAnnouncementInventory announced)
-    State.startGroup (fun _ ref prior => prior.startGroup ref)
+    (work : NewWork) (available : List (Occurrence × Nat) := [])
+    : (queue.startNewWork work available).1.StreamAnnouncementInventory announced := by
+  let step (acc : State × List GroupFailureEvent) (ref : NodeRef) :=
+    let (current, failures) := acc
+    let (next, queued) := current.startGroup ref available
+    (next, failures ++ queued)
+  have groups := fold_preserves (fun acc => acc.1.StreamAnnouncementInventory announced) step
+    (fun _ ref prior => prior.startGroup ref available)
     (work.newGroups.map Execution.DeliveryNode.ref)
-    { queue with rootGroups := queue.rootGroups ++ work.newGroups.map Execution.DeliveryNode.ref }
+    ({ queue with rootGroups := queue.rootGroups ++
+      work.newGroups.map Execution.DeliveryNode.ref }, [])
     ⟨inventory.unique, inventory.registered, inventory.stored, inventory.unreleased⟩
   apply fold_preserves (fun current => current.StreamAnnouncementInventory announced)
     State.startStream _ _ _ groups
@@ -147,17 +179,18 @@ theorem State.StreamAnnouncementInventory.taskFailure {queue : State}
     · exact .inr ⟨prior, included, rfl⟩
 
 /-- A bounded drain extends the announcement inventory by exactly its emitted stream refs.
-Witness: successful flushes consume links before recursion; failed flushes emit no stream
-notice and only remove links. Structural matching survives both paths and activation.
+Witness: successful flushes consume links before recursion. Startup failure removes links
+and queues group controls; those controls carry no stream notices.
 -/
 theorem State.StreamAnnouncementInventory.drainReadyGroups_go {queue : State}
     {work : Execution.Work} {announced : NodeRefs}
     (inventory : queue.StreamAnnouncementInventory announced)
     (matching : queue.ChildStreamsMatchWork work) (generated : ExecutedWork work)
-    (fuel : Nat)
-    : (State.drainReadyGroups.go fuel queue).1.StreamAnnouncementInventory
+    (fuel : Nat) (available : List (Occurrence × Nat) := [])
+    : (State.drainReadyGroups.go available fuel queue).1.StreamAnnouncementInventory
         (announced
-          ++ (State.drainReadyGroups.go fuel queue).2.flatMap rawStreamNoticeRefs) := by
+          ++ (State.drainReadyGroups.go available fuel queue).2.1.flatMap
+              rawStreamNoticeRefs) := by
   induction fuel generalizing queue announced with
   | zero =>
       simpa only [State.drainReadyGroups.go, List.flatMap_nil, List.append_nil]
@@ -168,19 +201,11 @@ theorem State.StreamAnnouncementInventory.drainReadyGroups_go {queue : State}
       split
       · simpa only [List.flatMap_nil, List.append_nil] using inventory
       · rename_i node selected
-        cases cached : queue.rejectedTask? node with
-        | none =>
-            dsimp only
-            have next := (inventory.finishGroupSuccess matching generated node).startNewWork
-              (queue.finishGroupSuccess node).2.2
-            have result := ih next ((matching.finishGroupSuccess node).startNewWork _)
-            simpa only [List.flatMap_append, ← State.finishGroupSuccess_streamNotices,
-              List.append_assoc] using result
-        | some rejected =>
-            have result := ih (inventory.taskFailure rejected.1 rejected.2)
-              (matching.taskFailure rejected.1 rejected.2)
-            simpa only [List.flatMap_append, State.taskFailure_streamNoticeRefs,
-              List.append_nil, List.nil_append] using result
+        have next := (inventory.finishGroupSuccess matching generated node).startNewWork
+          (queue.finishGroupSuccess node).2.2 available
+        have result := ih next ((matching.finishGroupSuccess node).startNewWork _ available)
+        simpa only [List.flatMap_append, ← State.finishGroupSuccess_streamNotices,
+          List.append_assoc] using result
 
 /-- Actual ready draining emits fresh stream notices, even across multiple inner releases.
 Witness: specialize the bounded inventory induction to the implementation's live-node fuel.
@@ -189,8 +214,10 @@ theorem State.StreamAnnouncementInventory.drainReadyGroups
     {queue : State} {work : Execution.Work} {announced : NodeRefs}
     (inventory : queue.StreamAnnouncementInventory announced)
     (matching : queue.ChildStreamsMatchWork work) (generated : ExecutedWork work)
-    : queue.drainReadyGroups.1.StreamAnnouncementInventory
-        (announced ++ queue.drainReadyGroups.2.flatMap rawStreamNoticeRefs) :=
-  inventory.drainReadyGroups_go matching generated _
+    (available : List (Occurrence × Nat) := [])
+    : (queue.drainReadyGroups available).1.StreamAnnouncementInventory
+        (announced
+          ++ (queue.drainReadyGroups available).2.1.flatMap rawStreamNoticeRefs) :=
+  inventory.drainReadyGroups_go matching generated _ available
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

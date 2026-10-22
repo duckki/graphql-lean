@@ -1,5 +1,6 @@
 import Proofs.GraphQL.IncrementalDelivery.Correctness.SingletonDeferExistence
 import Proofs.GraphQL.IncrementalDelivery.Correctness.QueryRealization
+import Proofs.GraphQL.IncrementalDelivery.Semantics.WorkSize
 
 /-! Nested singleton deferred producers retain causal owner support. -/
 
@@ -14,9 +15,18 @@ open WorkQueueSemantics
 -/
 def Tree : Work → Prop
   | .empty => True
+  | .declareGroups _ tasks => Tree tasks
   | .combine left right => Tree left ∧ Tree right
   | .executionGroup groups _ _ children => (∃ group, groups = [group]) ∧ Tree children
   | .stream .. => False
+
+/-- Declaration metadata leaves the fixture's recursive shape certificate intact. -/
+theorem Tree.withoutDeclarations {work} (shape : Tree work)
+    : Tree work.withoutDeclarations := by
+  cases work with
+  | declareGroups groups tasks => exact Tree.withoutDeclarations (work := tasks) shape
+  | empty | combine | executionGroup | stream => exact shape
+termination_by sizeOf work
 
 /-- Structural lookup preserves the test certificate, by navigation induction. -/
 theorem Tree.located {work address current producer owners}
@@ -25,9 +35,9 @@ theorem Tree.located {work address current producer owners}
   have navigation := StructuralEquivalence.located_of_current located
   clear located
   induction navigation with
-  | root => exact shape
-  | left _ ih => exact ih.1
-  | right _ ih | executionGroup _ ih => exact ih.2
+  | root => exact shape.withoutDeclarations
+  | left _ ih => exact ih.1.withoutDeclarations
+  | right _ ih | executionGroup _ ih => exact ih.2.withoutDeclarations
   | item _ _ ih => exact False.elim ih
 
 /-- The recursive test certificate implies the relational singleton-defer shape.
@@ -75,7 +85,7 @@ example (first second : Result (List (Name × ResponseValue)))
   · simp [work, MixedRefs.WorkAt, FragmentAt, node, ancestors]
   · simp [work, DeferContinuous, DeferUnder, Descends, mapRefs, node, ancestors]
   · simp [work, StreamOwnersOrdered, OwnersBefore]
-  · simpa [node] using (TaskAt.executionGroup (result := { result := second }) (Located.executionGroup Located.root)
+  · simpa [node] using (TaskAt.executionGroup (result := { result := second }) (Located.executionGroup (Located.root (root := work first second)))
       : TaskAt (work first second) (.executionGroup [0]) _ _ _)
   · exact cancelled
 

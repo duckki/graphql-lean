@@ -99,6 +99,9 @@ theorem ReportCutTrace.accounting {cut eager : Report α}
 mutual
   inductive WorkCutTrace : RecordedWork → RecordedWork → Prop where
     | empty : WorkCutTrace .empty .empty
+    | declareGroups {groups eagerGroups tasks eagerTasks}
+      (nested : WorkCutTrace tasks eagerTasks)
+      : WorkCutTrace (.declareGroups groups tasks) (.declareGroups eagerGroups eagerTasks)
     | combine {left eagerLeft right eagerRight}
       (head : WorkCutTrace left eagerLeft) (tail : WorkCutTrace right eagerRight)
       : WorkCutTrace (.combine left right) (.combine eagerLeft eagerRight)
@@ -127,6 +130,7 @@ mutual
       : WorkOriginsRefine cut eager := by
     cases trace with
     | empty => exact .empty
+    | declareGroups nested => exact .declareGroups nested.refines
     | combine head tail => exact .combine head.refines tail.refines
     | executionGroup head nested => exact .executionGroup head.refines nested.refines
     | stream nested => exact .stream nested.refines
@@ -147,6 +151,8 @@ mutual
     cases trace with
     | empty =>
         exact ⟨[], by simp [CutAccounted, RecordedWork.origins, omittedOrigins_self]⟩
+    | declareGroups nested =>
+        simpa only [RecordedWork.origins] using nested.accounting
     | combine head tail =>
         obtain ⟨sites, known⟩ := head.accounting
         obtain ⟨rest, later⟩ := tail.accounting

@@ -117,17 +117,19 @@ theorem State.finishGroupSuccess_streamDependencies {queue : State}
 
 /-- Every stream released anywhere in a recursive drain has its carrier as a dependency.
 Witness: the ready lookup supplies a live group; success preserves the three structural
-invariants and appends its carrier, while failed closure contributes no stream notices.
+invariants and appends its carrier. Startup failures are forwarded separately and carry
+no stream notices.
 -/
 theorem State.drainReadyGroups_streamDependencies {queue : State} {work : Execution.Work}
     (generated : ExecutedWork work) (sound : queue.GroupMembershipSound)
     (matching : queue.RegisteredTasksMatch work)
     (links : queue.ChildStreamsMatchWork work)
-    : StreamReleaseDependencies work queue.drainReadyGroups.2 := by
+    (available : List (Occurrence × Nat) := [])
+    : StreamReleaseDependencies work (queue.drainReadyGroups available).2.1 := by
   have loop (fuel : Nat) (current : State)
       (sound : current.GroupMembershipSound) (matching : current.RegisteredTasksMatch work)
       (links : current.ChildStreamsMatchWork work)
-      : StreamReleaseDependencies work (State.drainReadyGroups.go fuel current).2 := by
+      : StreamReleaseDependencies work (State.drainReadyGroups.go available fuel current).2.1 := by
     induction fuel generalizing current with
     | zero => exact .nil work
     | succ fuel ih =>
@@ -142,29 +144,17 @@ theorem State.drainReadyGroups_streamDependencies {queue : State} {work : Execut
             | none => simp [found] at choice
             | some candidate =>
                 simp only [found] at choice
-                change (if (current.rejectedTask? candidate).isSome || candidate.pending == 0 then
+                change (if candidate.pending == 0 then
                   some candidate else none) = some node at choice
                 split at choice
                 · cases Option.some.inj choice
                   exact List.mem_of_find?_eq_some found
                 · contradiction
-          cases cached : current.rejectedTask? node with
-          | none =>
-              exact (current.finishGroupSuccess_streamDependencies generated sound matching
-                links live).append (ih _ ((sound.finishGroupSuccess node).startNewWork _)
-                  ((matching.finishGroupSuccess node).startNewWork _)
-                  ((links.finishGroupSuccess node).startNewWork _))
-          | some rejection =>
-              obtain ⟨occurrence, errors⟩ := rejection
-              have noRelease : StreamReleaseDependencies work
-                  (current.taskFailure occurrence errors).2 := by
-                intro group groups streams impossible
-                exact False.elim
-                  (current.taskFailure_noGroupSuccess occurrence errors group groups streams impossible)
-              exact noRelease.append
-                (ih _ (sound.taskFailure occurrence errors)
-                  (matching.taskFailure occurrence errors)
-                  (links.taskFailure occurrence errors))
+          exact (current.finishGroupSuccess_streamDependencies generated sound matching
+                  links live).append
+            (ih _ ((sound.finishGroupSuccess node).startNewWork _ available)
+              ((matching.finishGroupSuccess node).startNewWork _ available)
+              ((links.finishGroupSuccess node).startNewWork _ available))
   exact loop _ queue sound matching links
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

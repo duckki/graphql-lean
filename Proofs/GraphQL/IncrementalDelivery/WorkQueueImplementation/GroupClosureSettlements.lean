@@ -13,7 +13,7 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 /-- A success-ledger token has an actual task-success event in that same source prefix.
 Witness: reverse/flat-map membership and the object-only settlement projection.
 -/
-private theorem groupSettlement_source {events : List GraphEvent}
+theorem groupSettlement_source {events : List GraphEvent}
     {occurrence : Occurrence} (settled : occurrence ∈ GraphEvent.groupSettlements events)
     : ∃ result, GraphEvent.taskSuccess occurrence result ∈ events := by
   obtain ⟨event, member, contains⟩ := List.mem_flatMap.mp (List.mem_reverse.mp settled)
@@ -21,7 +21,8 @@ private theorem groupSettlement_source {events : List GraphEvent}
   | taskSuccess task result =>
       have same : occurrence = task := List.mem_singleton.mp contains
       exact ⟨result, same.symm ▸ member⟩
-  | taskFailure | streamItems | streamSuccess | streamFailure => cases contains
+  | taskFailure | groupFailure | streamItems | streamSuccess | streamFailure =>
+      cases contains
 
 /-- Every registered contributor to a healthy retired group has already succeeded.
 Witness: generated replay derives the success-only owner ledger. Accepted/full-source
@@ -31,7 +32,8 @@ live owner, contradicting retirement. The resulting token names an actual source
 theorem ExecutedWork.replayGraphEvents_retiredContributor_succeeded
     {work events ref task} (generated : ExecutedWork work)
     (valid : ValidGraphEvents work events)
-    (started : (State.initialize (Work.fromExecution work)).acceptsBatch events = true)
+    (started
+      : State.eventsStarted [] (State.initialize (Work.fromExecution work)) events = true)
     (registered
       : task
         ∈ ((State.initialize (Work.fromExecution work)).replayGraphEvents events).tasks)
@@ -64,13 +66,14 @@ theorem ExecutedWork.successfulCarrier_registeredContributor_succeeded
     {work before event group groups streams task} (generated : ExecutedWork work)
     (valid : ValidGraphEvents work (before ++ [event]))
     (started
-      : (State.initialize (Work.fromExecution work)).acceptsBatch (before ++ [event])
+      : State.eventsStarted [] (State.initialize (Work.fromExecution work))
+          (before ++ [event])
         = true)
     (carrier
       : Execution.WorkQueueEvent.groupSuccess group groups streams
         ∈ (((State.initialize (Work.fromExecution work)).replayGraphEvents
               before).handleGraphEvent
-            event).2)
+            event).2.1)
     (registered
       : task
         ∈ ((State.initialize (Work.fromExecution work)).replayGraphEvents
@@ -79,7 +82,7 @@ theorem ExecutedWork.successfulCarrier_registeredContributor_succeeded
     : ∃ result, GraphEvent.taskSuccess task.occurrence result ∈ before ++ [event] := by
   obtain ⟨_, _, retired, healthy, _⟩ :=
     generated.replayGraphEvents_successfulCarrier_retiredHealthy valid
-      (State.acceptsBatch_prefix started) carrier
+      (State.eventsStarted_prefix started) carrier
   exact generated.replayGraphEvents_retiredContributor_succeeded valid started registered
     contributes retired healthy
 
@@ -98,13 +101,14 @@ theorem ExecutedWork.successfulCarrier_rootContributor_succeeded
     (generated : ExecutedWork work)
     (valid : ValidGraphEvents work (before ++ [event]))
     (started
-      : (State.initialize (Work.fromExecution work)).acceptsBatch (before ++ [event])
+      : State.eventsStarted [] (State.initialize (Work.fromExecution work))
+          (before ++ [event])
         = true)
     (carrier
       : Execution.WorkQueueEvent.groupSuccess group groups streams
         ∈ (((State.initialize (Work.fromExecution work)).replayGraphEvents
               before).handleGraphEvent
-            event).2)
+            event).2.1)
     (known : TaskAt work (.executionGroup address) owners none payload)
     (contributes : group.ref ∈ owners)
     : ∃ result,
@@ -129,26 +133,49 @@ theorem ExecutedWork.runNormalized_successfulCarrier_rootContributor_prefix
         ∈ ((State.initialize (Work.fromExecution work)).runNormalized batches).2.flatten)
     (known : TaskAt work (.executionGroup address) owners none payload)
     (contributes : group.ref ∈ owners)
-    : ∃ before event after result,
-        batches.flatten = before ++ event :: after
+    : ∃ earlier batch later fifo event after result,
+        batches = earlier ++ batch :: later
+        ∧ batch = fifo ++ event :: after
         ∧ Execution.WorkQueueEvent.groupSuccess group groups streams
-          ∈ (((State.initialize (Work.fromExecution work)).replayGraphEvents
-                before).handleGraphEvent
-              event).2
+          ∈ ((((State.initialize (Work.fromExecution work)).replayBatches
+                earlier).replayGraphEvents
+                fifo (GraphEvent.availableFailures batch)).handleGraphEvent
+              event (GraphEvent.availableFailures batch)).2.1
         ∧ GraphEvent.taskSuccess (.executionGroup address) result
-          ∈ before ++ [event] := by
-  obtain ⟨before, event, after, same, emitted⟩ :=
+          ∈ earlier.flatten ++ (fifo ++ [event]) := by
+  obtain ⟨earlier, batch, later, fifo, event, after, partition, within, emitted⟩ :=
     createWorkQueue_runNormalized_groupSuccess_origin batches started carrier
-  have earlier : (before ++ [event]).IsPrefix batches.flatten :=
-    ⟨after, by simp [same, List.append_assoc]⟩
-  have accepted := (State.initialize (Work.fromExecution work)).batchesStarted_acceptsBatch batches
-    (by rwa [← inputsStarted_eq_batchesStarted])
-  have prefixStarted
-      : (State.initialize (Work.fromExecution work)).acceptsBatch (before ++ [event]) = true := by
-    apply State.acceptsBatch_prefix (after := after)
-    simpa only [List.append_assoc, List.singleton_append, ← same] using accepted
-  obtain ⟨result, supplied⟩ := generated.successfulCarrier_rootContributor_succeeded
-    (valid.prefix earlier) prefixStarted emitted known contributes
-  exact ⟨before, event, after, result, same, emitted, supplied⟩
+  obtain ⟨parents, canonical⟩ := generated.groupRecordsCanonical
+  have sourceValid : ValidGraphEvents work (earlier ++ batch :: later).flatten :=
+    partition ▸ valid
+  have sourceStarted : inputsStarted work (earlier ++ batch :: later) = true :=
+    partition ▸ started
+  have before := generated.uncancelledFrame_atBatchPrefix canonical earlier batch later fifo
+    sourceValid sourceStarted ⟨event :: after, within.symm⟩
+  have next := generated.uncancelledFrame_atBatchPrefix canonical earlier batch later
+    (fifo ++ [event]) sourceValid sourceStarted ⟨after, by
+      simp only [List.append_assoc, List.singleton_append, within]⟩
+  have matching : event.MatchesWork work := by
+    apply sourceValid.eachMatches
+    simp only [List.flatten_append, List.flatten_cons]
+    apply List.mem_append_right
+    apply List.mem_append_left
+    rw [within]
+    exact List.mem_append_right _ List.mem_cons_self
+  obtain ⟨_, _, retired⟩ := State.handleGraphEvent_successfulRetirements before.parent
+    before.cancellations generated canonical event matching (GraphEvent.availableFailures batch)
+      group groups streams emitted
+  obtain ⟨task, initialMember, sameOccurrence, sameOwners⟩ :=
+    TaskAt.executionGroup_initial_registered known
+  let initial := State.initialize (Work.fromExecution work)
+  have registered := (initial.replayBatches earlier).replayGraphEvents_tasks_subset
+    (fifo ++ [event]) (GraphEvent.availableFailures batch)
+    (initial.replayBatches_tasks_subset earlier initialMember)
+  rw [State.replayGraphEvents_append _ _ _ (GraphEvent.availableFailures batch)] at next registered
+  have settled := next.owners.retired_contributor_settled registered (sameOwners.symm ▸ contributes)
+    retired.uncancelled retired.retired
+  obtain ⟨result, supplied⟩ := groupSettlement_source settled
+  exact ⟨earlier, batch, later, fifo, event, after, result, partition, within, emitted,
+    sameOccurrence ▸ supplied⟩
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

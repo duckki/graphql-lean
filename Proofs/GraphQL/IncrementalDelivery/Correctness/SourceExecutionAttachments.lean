@@ -63,7 +63,12 @@ mutual
         · exact collectExecutionGroups_attached available schema resolvers variables fuel parentType source _
             (List.nodup_append.mp hnames).2.1  path _ ha
         · intro work hw
-          exact runEnsures_pure _ _ ((attached_combineWork_fields hnames hc hw).mono hwiden)
+          apply runEnsures_pure
+          refine ((attached_combineWork_fields hnames hc ?_).mono hwiden)
+          obtain ⟨⟨slices, seeds, owned⟩, attachedSlices, attachedSeeds, attached⟩ := hw
+          exact ⟨⟨slices, fun cursors => .declareGroups (seeds cursors), owned⟩,
+            attachedSlices, fun cursors => .declareGroups (attachedSeeds cursors),
+            .declareGroups attached⟩
   termination_by (fuel, 6, 0, 0)
   decreasing_by
     all_goals simp_wf

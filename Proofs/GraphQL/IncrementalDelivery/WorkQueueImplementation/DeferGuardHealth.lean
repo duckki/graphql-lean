@@ -139,35 +139,22 @@ theorem ExecutedWork.defer_nodeFailed_iff_invalidated
   ⟩
 
 -----------------------------------------------------------------------------------------
--- Conditional causal bridge, discharged by the later generated health replay
+-- Informative selection directly supplies the defer-only causal bridge
 -----------------------------------------------------------------------------------------
 
-/-- Every selected defer-only failure retains a historically healthy contributing owner
-once replay preserves missing-parent health. Witness: exact source-cut guard reflection
-and the causal equivalence above. All earlier cuts, including equal-index predecessors,
-are retained; neither output admission nor publication matching correctness is assumed.
-`GuardHealthCuts` supplies the historical premise from the general replay theorem.
+/-- Each informative defer-only cut retains a historically healthy contributing owner.
+Selection excludes earlier invalidation directly. Historical causal reflection converts
+that same ordered predecessor list without a queue-health or output-admission premise.
 -/
-theorem createWorkQueue_eligibleObjectFailureCuts_deferHealthyOwner
+theorem createWorkQueue_informativeObjectFailureCuts_deferHealthyOwner
     {work : Execution.Work} (generated : ExecutedWork work)
     (shape : Correctness.DeferOnly work) {batches : List (List GraphEvent)}
-    (_valid : ValidGraphEvents work batches.flatten)
-    (_started : inputsStarted work batches = true)
-    (_missing
-      : ∀ received : List GraphEvent,
-          received.IsPrefix batches.flatten
-          → State.MissingParentAncestorsHealthy
-              ((State.initialize (Work.fromExecution work)).replayGraphEvents received)
-              work
-              ((State.initialize (Work.fromExecution work)).objectFailureContributions
-                received))
     {before after : FailureCuts} {cut : Nat} {occurrence : Occurrence}
     (split
       : let queue := State.initialize (Work.fromExecution work)
         let publisher : IncrementalPublisher :=
           { active := queue.initialGroups ++ queue.initialStreams }
-        informativeObjectFailureCuts work
-          (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher batches).2.2)
+        informativeObjectFailureCuts work (queue.sourceRunBlocks publisher batches).2.2
         = before ++ (cut, occurrence) :: after)
     (matching : PublicationMatching) (events : List Execution.WorkQueueEvent)
     : ∃ owners ref,
@@ -175,11 +162,10 @@ theorem createWorkQueue_eligibleObjectFailureCuts_deferHealthyOwner
         ∧ ref ∈ owners
         ∧ ¬NodeFailed work matching events before ref := by
   have selected := selectObjectFailureCuts_informative work []
-    (sourceObjectFailureCuts 0
-      ((State.initialize (Work.fromExecution work)).eligibleFailureBlocks
-        ((State.initialize (Work.fromExecution work)).sourceRunBlocks
+    (availableObjectFailureCuts work 0
+      ((State.initialize (Work.fromExecution work)).sourceRunBlocks
           { active := (State.initialize (Work.fromExecution work)).initialGroups
-            ++ (State.initialize (Work.fromExecution work)).initialStreams } batches).2.2))
+            ++ (State.initialize (Work.fromExecution work)).initialStreams } batches).2.2)
   change InformativeFailureCuts work [] (informativeObjectFailureCuts work _) at selected
   rw [split] at selected
   obtain ⟨owners, ref, known, owner, safe⟩ := selected.atCut
@@ -193,32 +179,23 @@ theorem createWorkQueue_eligibleObjectFailureCuts_deferHealthyOwner
 
 namespace ConformancePlan
 
-/-- Missing-parent preservation supplies the defer-only owner-health graph node on the
-exact accepted object cuts. Witness: recover each actual pre-handler guard and transport
-its health to the witness's historical prefix. No alternate matching or cuts are chosen.
+/-- Informative selection supplies owner health on the witness's exact ordered cuts.
+No replacement matching, output history or causal inventory is selected.
 -/
-theorem failureCutOwnerHealth_of_deferMissingParentHealth {work : Execution.Work}
+theorem failureCutOwnerHealth_of_deferInformativeCuts {work : Execution.Work}
     (generated : ExecutedWork work) (shape : Correctness.DeferOnly work)
-    {batches : List (List GraphEvent)} (valid : ValidGraphEvents work batches.flatten)
-    (started : inputsStarted work batches = true)
-    (missing
-      : ∀ received : List GraphEvent,
-          received.IsPrefix batches.flatten
-          → State.MissingParentAncestorsHealthy
-              ((initialQueue work).replayGraphEvents received) work
-              ((initialQueue work).objectFailureContributions received))
+    {batches : List (List GraphEvent)}
     {w : Witness}
     (exactCuts
       : let queue := initialQueue work
         let publisher : IncrementalPublisher :=
           { active := queue.initialGroups ++ queue.initialStreams }
         w.failures
-        = informativeObjectFailureCuts work
-            (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher batches).2.2))
+        = informativeObjectFailureCuts work (queue.sourceRunBlocks publisher batches).2.2)
     : FailureCutOwnerHealth work w := by
   intro before cut occurrence after split
-  exact createWorkQueue_eligibleObjectFailureCuts_deferHealthyOwner generated shape
-    valid started missing (exactCuts.symm.trans split) w.matching (w.events.take cut)
+  exact createWorkQueue_informativeObjectFailureCuts_deferHealthyOwner generated shape
+    (exactCuts.symm.trans split) w.matching (w.events.take cut)
 
 end ConformancePlan
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

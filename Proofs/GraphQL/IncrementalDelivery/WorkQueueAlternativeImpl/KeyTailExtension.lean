@@ -173,6 +173,24 @@ theorem WorkRefines.rekey {before after : Nat → Nat} {left right : Work}
           (∀ item ∈ left, ∀ key ∈ allRefs item.2, after key = before key)
           → ItemsRefine after left right) with
   | empty => intro _; exact .empty
+  | @declareGroups groups tasks eagerTasks nested ih =>
+      intro same
+      have mapped : groups.map (fragment before) = groups.map (fragment after) := by
+        apply List.map_congr_left
+        intro group member
+        symm
+        apply fragment_congr
+        intro key used
+        exact same key (rootRefs_subset_allRefs _ (List.mem_append_left _
+          (List.mem_flatMap.mpr ⟨group, member, used⟩)))
+      rw [mapped]
+      apply WorkRefines.declareGroups
+      apply ih
+      intro key member
+      apply same
+      have included : key ∈ groups.flatMap Semantics.RefRoles.fragmentRefs ++ allRefs tasks :=
+        List.mem_append_right _ member
+      simpa only [allRefs, rootRefs, hiddenRegions, List.append_assoc] using included
   | combine head tail first later =>
       intro same
       exact .combine

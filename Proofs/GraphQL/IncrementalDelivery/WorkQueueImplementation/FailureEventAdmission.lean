@@ -17,6 +17,19 @@ theorem nodeFailureCause_nodeFailed {work matching events failures ref errors}
   obtain ⟨occurrence, failed, owners, producer, payload, known, owner, _, _⟩ := cause
   exact NodeFailed.task known owner failed
 
+/-- Direct contributing failures and defer ancestry retain a historical reached cut.
+Witness: lift each task cause and keep its cut through dependency propagation. -/
+theorem GroupInvalidated.nodeFailed {work matching events failures ref}
+    (invalid : GroupInvalidated work (failedBefore failures events.length) ref)
+    : NodeFailed work matching events failures ref := by
+  induction invalid with
+  | task known owner member =>
+      obtain ⟨producer, payload, task⟩ := known
+      exact NodeFailed.task task owner member
+  | groupDependency known member _ ih =>
+      obtain ⟨node, producer, descriptor, rfl⟩ := known
+      exact NodeFailed.groupDependency descriptor member ih
+
 /-- Every actual failed-group control reports a positive execution-error count.
 Witness: its selected rejected task has the generated positive failure count.
 -/
@@ -28,9 +41,8 @@ theorem createWorkQueue_atomicGroupFailure_positive {work group errors}
         ∈ ((ConformancePlan.initialQueue work).runNormalized inputs).2.flatten.flatMap
             publicationAtoms)
     : 0 < errors := by
-  obtain ⟨_, _, _, _, _, known, _⟩ :=
-    createWorkQueue_runNormalized_atomicGroupFailure_source generated valid emitted
-  exact generated.taskFailure_positive known rfl
+  exact (createWorkQueue_runNormalized_groupFailure_nodeFailureCausesWitness
+    generated valid emitted).positive
 
 namespace ConformancePlan
 
@@ -65,11 +77,11 @@ def FailureAdmission (work : Execution.Work) (w : Witness) : Prop :=
   (∀ index group errors,
     w.events[index]? = some (.groupFailure group errors)
     → EventAllowed work (initialRefs work) w.matching (w.events.take index) w.failures
-        (.groupFailure group errors))
+        (.groupFailure group errors) w.reported)
   ∧ (∀ index stream errors,
       w.events[index]? = some (.streamFailure stream errors)
       → EventAllowed work (initialRefs work) w.matching (w.events.take index) w.failures
-          (.streamFailure stream errors))
+          (.streamFailure stream errors) w.reported)
 
 /-- Actual failed controls are admitted under the same complete announced inventory.
 Witness: queue provenance supplies metadata and open references; exact positive error
@@ -92,11 +104,13 @@ theorem failureAdmission_of_announced {work inputs w}
     rw [beforeEq] at opened
     have length : (w.events.take index).length = index :=
       List.length_take_of_le (Nat.le_of_lt (List.getElem?_eq_some_iff.mp selected).1)
-    have counts := announced.1.2.2.2.1 index group errors selected
+    have invalid := announced.1.2.2.2.1 index group errors selected
+    have reporting := announced.2.2.2.2
+    have counts := reporting.2.2.2.1 index group errors selected
     have failed : NodeFailed work w.matching (w.events.take index) w.failures group.ref :=
-      nodeFailureCause_nodeFailed (length.symm ▸ counts)
+      GroupInvalidated.nodeFailed (length.symm ▸ invalid)
     simp only [EventAllowed]
-    rw [nodeFailed_filter (Nat.le_refl _), failedBefore_filter _ (Nat.le_refl _), length]
+    rw [nodeFailed_filter (Nat.le_refl _), length]
     exact ⟨⟨dependencies, producer, known⟩, opened, failed, counts⟩
   · intro index stream errors selected
     obtain ⟨atFull, beforeEq⟩ := Witness.canonical_event history selected

@@ -1,4 +1,5 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.FusedStreamSources
+import Tests.GraphQL.IncrementalDelivery.Fixtures.SourceDrainCleanup
 
 /-! Generated receipt source safety uses actual FIFO preparation, drain and effects. -/
 
@@ -10,34 +11,12 @@ open AlternativeWorkQueue.NativeRefinement
 example : GeneratedStreamReceiptResourceSafety :=
   GeneratedStreamReceiptResourceSafety_holds
 
-private def group : Execution.DeliveryNode := { ref := 0, path := [] }
-private def carrier : Execution.DeliveryNode := { ref := 9, path := [] }
-private def source : Execution.DeliveryNode := { ref := 7, path := [] }
-private def producer : WorkQueueSemantics.Occurrence := .executionGroup [0]
-
-private def readyFailure : State :=
-  {
-    queue :=
-      {
-        rootGroups := [0]
-        rootStreams := [9]
-        groupNodes := [{ group := ⟨group, none⟩, tasks := [producer] }]
-        tasks := [{ occurrence := producer, groups := [group] }]
-        taskNodes :=
-          [{
-            task := { occurrence := producer, groups := [group] }
-            value := some { deliveryGroups := [group], path := [], data := [] }
-            rejection := some 1
-            childStreams := [7]
-          }]
-        streams := [⟨source⟩, ⟨carrier⟩]
-      }
-  }
+open GraphQL.IncrementalDelivery.Tests.SourceDrainCleanup
 
 -- Receipt consumption ends before its ready-drain cleanup, including a zero-item receipt.
 example
-    : (readyFailure.streamItems carrier []).2.2
-      = [.acknowledge 9, .cancelSource 7, .abortStreamQueue 7] := by
+    : (readyFailure.streamItems carrier []).2.2.1
+      = [.acknowledge 9, .abortTask producer, .cancelSource 7, .abortStreamQueue 7] := by
   cbv
 
 example : (readyFailure.streamItems carrier []).1.queue.taskNode? producer = none := by

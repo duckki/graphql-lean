@@ -167,8 +167,8 @@ theorem LiveRootFrame.drainReadyGroups_go_groupNoticesSeparated
     (canonical
       : ∀ node dependencies,
           GroupRecordAt work node dependencies → dependencies = parents node.ref)
-    (fuel : Nat)
-    : GroupNoticesSeparated (State.drainReadyGroups.go fuel queue).2 := by
+    (fuel : Nat) (available : List (Occurrence × Nat) := [])
+    : GroupNoticesSeparated (State.drainReadyGroups.go available fuel queue).2.1 := by
   induction fuel generalizing queue with
   | zero => simp [State.drainReadyGroups.go, GroupNoticesSeparated]
   | succ fuel ih =>
@@ -182,36 +182,21 @@ theorem LiveRootFrame.drainReadyGroups_go_groupNoticesSeparated
         | none => simp [found] at choice
         | some candidate =>
             simp only [found] at choice
-            change (if (queue.rejectedTask? candidate).isSome || candidate.pending == 0 then
-              some candidate else none) = some node at choice
+            change (if candidate.pending == 0 then some candidate else none) = some node at choice
             split at choice
             · cases Option.some.inj choice
               have same := State.groupNode?_ref found
-              cases cached : queue.rejectedTask? node with
-              | none =>
-                  have next := frame.finishGroupSuccess generated canonical
-                    (same ▸ found) (same ▸ active)
-                  have protection := State.finishGroupSuccess_noticeAncestorRetirement
-                    (queue.finishGroupSuccess_ancestorsRetired generated frame.records frame.links
-                      canonical frame.registered (List.mem_of_find?_eq_some found)
-                      (frame.roots _ (same ▸ active))).2.2
-                  apply (queue.finishGroupSuccess_groupNoticesSeparated node).append (ih next)
-                  intro child noticed
-                  exact next.drainReadyGroups_go_noProtectedNotice generated canonical
-                    ((protection child noticed).mono (fun _ retired => retired.startNewWork _)) fuel
-              | some rejected =>
-                  have noNotices : ∀ event ∈ (queue.taskFailure rejected.1 rejected.2).2,
-                      rawGroupNoticeRefs event = [] := by
-                    intro event emitted
-                    obtain ⟨group, rfl⟩ := queue.taskFailure_event_failure _ _ event emitted
-                    rfl
-                  apply (GroupNoticesSeparated.of_noNotices
-                    (List.flatMap_eq_nil_iff.mpr noNotices)).append
-                    (ih (frame.taskFailure rejected.1 rejected.2))
-                  intro ref member
-                  obtain ⟨event, emitted, noticed⟩ := List.mem_flatMap.mp member
-                  rw [noNotices event emitted] at noticed
-                  cases noticed
+              have next := frame.finishGroupSuccess generated canonical
+                (same ▸ found) (same ▸ active) available
+              have protection := State.finishGroupSuccess_noticeAncestorRetirement
+                (queue.finishGroupSuccess_ancestorsRetired generated frame.records frame.links
+                  canonical frame.registered (List.mem_of_find?_eq_some found)
+                  (frame.roots _ (same ▸ active))).2.2
+              apply (queue.finishGroupSuccess_groupNoticesSeparated node).append (ih next)
+              intro child noticed
+              exact next.drainReadyGroups_go_noProtectedNotice generated canonical
+                ((protection child noticed).mono
+                  (fun _ retired => retired.startNewWork _ available)) fuel available
             · contradiction
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

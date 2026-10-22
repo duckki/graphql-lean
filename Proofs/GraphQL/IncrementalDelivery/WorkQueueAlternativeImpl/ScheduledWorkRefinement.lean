@@ -43,6 +43,9 @@ mutual
   one shared map. No extra/missing tasks or stream positions are permitted. -/
   inductive WorkRefines (keys : Nat → Nat) : Work → Work → Prop where
     | empty : WorkRefines keys .empty .empty
+    | declareGroups {groups tasks eagerTasks} (nested : WorkRefines keys tasks eagerTasks)
+      : WorkRefines keys (.declareGroups groups tasks)
+          (.declareGroups (groups.map (KeyRenaming.fragment keys)) eagerTasks)
     | combine {left right eagerLeft eagerRight}
       (head : WorkRefines keys left eagerLeft)
       (tail : WorkRefines keys right eagerRight)
@@ -82,6 +85,10 @@ mutual
       : WorkRefines keys original (KeyRenaming.work keys original) := by
     cases original with
     | empty => simpa only [KeyRenaming.work] using WorkRefines.empty (keys := keys)
+    | declareGroups groups tasks =>
+        simpa only [KeyRenaming.work]
+          using WorkRefines.declareGroups (groups := groups)
+            (WorkRefines.renaming keys tasks)
     | combine left right =>
         simpa only [KeyRenaming.work]
           using WorkRefines.combine (WorkRefines.renaming keys left)
@@ -248,6 +255,19 @@ theorem ItemsRefine.getElem? {keys left right} (known : ItemsRefine keys left ri
       | nil => trivial
       | cons payload nested tail => exact ih tail
 
+/-- Related work stays related after removing transparent outer declarations. -/
+theorem WorkRefines.withoutDeclarations {keys left right}
+    (known : WorkRefines keys left right)
+    : WorkRefines keys left.withoutDeclarations right.withoutDeclarations := by
+  cases known with
+  | empty => exact .empty
+  | declareGroups nested =>
+      simpa only [Work.withoutDeclarations] using nested.withoutDeclarations
+  | combine head tail => exact .combine head tail
+  | executionGroup payload nested => exact .executionGroup payload nested
+  | stream nested => exact .stream nested
+termination_by sizeOf left
+
 theorem LocationRefines.child {keys left right} (known : LocationRefines keys left right)
     (address : Address) (index : Nat)
     : OptionRefines (LocationRefines keys)
@@ -257,17 +277,17 @@ theorem LocationRefines.child {keys left right} (known : LocationRefines keys le
   dsimp only [LocationRefines] at known
   obtain ⟨related, rfl, rfl⟩ := known
   cases related with
-  | empty => trivial
+  | empty | declareGroups => trivial
   | combine head tail =>
       cases index with
-      | zero => exact ⟨head, rfl, rfl⟩
+      | zero => exact ⟨head.withoutDeclarations, rfl, rfl⟩
       | succ index =>
           cases index with
-          | zero => exact ⟨tail, rfl, rfl⟩
+          | zero => exact ⟨tail.withoutDeclarations, rfl, rfl⟩
           | succ => trivial
   | executionGroup payload nested =>
       cases index with
-      | zero => exact ⟨nested, rfl, KeyRenaming.group_keys ..⟩
+      | zero => exact ⟨nested.withoutDeclarations, rfl, KeyRenaming.group_keys ..⟩
       | succ => trivial
   | @stream node items eagerItems nested =>
       have entry := nested.getElem? index
@@ -282,7 +302,7 @@ theorem LocationRefines.child {keys left right} (known : LocationRefines keys le
               simp only [before, after, OptionRefines] at entry
               simp only [WorkLocation.child?, before, after, Option.map_some,
                 OptionRefines]
-              exact ⟨entry.2, rfl, rfl⟩
+              exact ⟨entry.2.withoutDeclarations, rfl, rfl⟩
 
 theorem LocationRefines.traverse {keys left right}
     (known : LocationRefines keys left right) (route rest : Address)
@@ -306,8 +326,9 @@ theorem WorkRefines.locate {keys left right} (known : WorkRefines keys left righ
     (address : Address)
     : OptionRefines (LocationRefines keys)
         (locateWork left address) (locateWork right address) :=
-  LocationRefines.traverse (left := ⟨left, none, []⟩) (right := ⟨right, none, []⟩)
-    ⟨known, rfl, rfl⟩ [] address
+  LocationRefines.traverse (left := ⟨left.withoutDeclarations, none, []⟩)
+    (right := ⟨right.withoutDeclarations, none, []⟩)
+    ⟨known.withoutDeclarations, rfl, rfl⟩ [] address
 
 theorem WorkRefines.located {keys left right address current producer owners}
     (related : WorkRefines keys left right)

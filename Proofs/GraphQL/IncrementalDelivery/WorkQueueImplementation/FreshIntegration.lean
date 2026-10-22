@@ -38,54 +38,42 @@ private theorem State.InitialCountsAt.putGroupNode {queue : State} {ref : NodeRe
   · subst node; exact balanced sameRef
   · subst node; exact counts old oldMember sameRef
 
-/-- A new empty group starts balanced at every ref; skipped registration changes nothing.
-Witness: the registration branch appends a zero-task, zero-pending node. -/
+private theorem State.InitialCountsAt.appendEmpty {queue : State} {ref}
+    (counts : queue.InitialCountsAt ref) (group : Group) (registeredGroups : NodeRefs)
+    : ({
+            queue with
+              registeredGroups := registeredGroups
+              groupNodes := queue.groupNodes ++ [{ group }]
+          }
+        : State).InitialCountsAt
+        ref := by
+  intro node member sameRef
+  rcases List.mem_append.mp member with old | fresh
+  · exact counts node old sameRef
+  · obtain rfl := List.mem_singleton.mp fresh
+    rfl
+
+/-- Fresh installation starts balanced nodes; linking only changes child lists. -/
 private theorem State.InitialCountsAt.addGroup {queue : State} {ref : NodeRef}
     (counts : queue.InitialCountsAt ref) (group : Group)
     : (queue.addGroup group).InitialCountsAt ref := by
   unfold State.addGroup
   split
   · exact counts
-  · dsimp only
-    split
-    · exact counts
-    · intro node member sameRef
-      rcases List.mem_append.mp member with old | new
-      · exact counts node old sameRef
-      · have same := List.mem_singleton.mp new
-        subst node
-        rfl
+  · split
+    · exact counts.appendEmpty group _
+    · split
+      · split <;> exact counts
+      · rename_i node found
+        apply (counts.appendEmpty group _).putGroupNode _
+        exact counts node (List.mem_of_find?_eq_some found)
 
-/-- Group registration and parent-link installation preserve the selected count equation.
-Witness: registration starts balanced nodes and linking changes only child lists. -/
+/-- Parent-first registration preserves the count equation at the selected ref. -/
 private theorem State.InitialCountsAt.addGroups {queue : State} {ref : NodeRef}
     (counts : queue.InitialCountsAt ref) (groups : List Group)
-    : (queue.addGroups groups).1.InitialCountsAt ref := by
-  let link (current : State) (group : Group) : State :=
-    match group.parent with
-    | none => current
-    | some parent =>
-        match current.groupNode? parent with
-        | none => current
-        | some node =>
-            let children := if node.childGroups.contains group.node.ref then node.childGroups
-              else node.childGroups ++ [group.node.ref]
-            current.putGroupNode { node with childGroups := children }
-  have preserved (current : State) (group : Group) (prior : current.InitialCountsAt ref)
-      : (link current group).InitialCountsAt ref := by
-    unfold link
-    split
-    · exact prior
-    · split
-      · exact prior
-      · rename_i node found
-        exact prior.putGroupNode _ (prior node (List.mem_of_find?_eq_some found))
-  let fresh := groups.filter (fun group =>
-    !queue.registeredGroups.contains group.node.ref
-      && (queue.groupNode? group.node.ref).isNone)
-  exact fold_preserves link (fun state => state.InitialCountsAt ref) preserved fresh _
-    (fold_preserves State.addGroup (fun state => state.InitialCountsAt ref)
-      (fun _ group prior => prior.addGroup group) fresh queue counts)
+    : (queue.addGroups groups).1.InitialCountsAt ref :=
+  State.addGroups_preserves (fun current => current.InitialCountsAt ref) groups
+    (fun _ group _ current => current.addGroup group) queue counts
 
 /-- Task integration preserves local balance, even if it skips duplicate memberships.
 Witness: each inserted membership increments pending by exactly one. -/

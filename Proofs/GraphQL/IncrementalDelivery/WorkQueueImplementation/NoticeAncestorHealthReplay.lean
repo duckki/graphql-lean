@@ -9,7 +9,7 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 -- The accepted source prefix supplies every local health-frame premise
 -----------------------------------------------------------------------------------------
 
-/-- Every actual carried group notice has healthy ancestry at its source-handler boundary.
+/-- Every carried group notice has healthy ancestry at its eventwise handler boundary.
 Witness: started generated replay supplies exact errors and retired/root ancestry. The
 success and item handlers preserve notice ancestry; other handlers emit no group notices.
 Health uses this handler's accepted failure inventory, not a possibly later source prefix.
@@ -17,13 +17,14 @@ Health uses this handler's accepted failure inventory, not a possibly later sour
 theorem ExecutedWork.replayGraphEvents_next_noticeAncestorsHealthy
     {work before event} (generated : ExecutedWork work)
     (valid : ValidGraphEvents work (before ++ [event]))
-    (started : (State.initialize (Work.fromExecution work)).acceptsBatch before = true)
+    (started
+      : State.eventsStarted [] (State.initialize (Work.fromExecution work)) before = true)
     : GroupNoticeAncestorsHealthy work
         ((State.initialize (Work.fromExecution work)).objectFailureContributions
           (before ++ [event]))
         (((State.initialize (Work.fromExecution work)).replayGraphEvents
             before).handleGraphEvent
-          event).2 := by
+          event).2.1 := by
   let queue := (State.initialize (Work.fromExecution work)).replayGraphEvents before
   let failed := (State.initialize (Work.fromExecution work)).objectFailureContributions before
   have priorValid := valid.prefix (List.prefix_append before [event])
@@ -34,13 +35,15 @@ theorem ExecutedWork.replayGraphEvents_next_noticeAncestorsHealthy
     generated.replayGraphEvents_ownerAccounting_of_eachAccepted canonical priorValid (by
       intro past next earlier
       obtain ⟨after, same⟩ := earlier
-      apply State.acceptsBatch_atPrefix _ past next after
+      apply State.eventsStarted_atPrefix _ past next after
       simpa only [← same, List.append_assoc, List.singleton_append] using started)
   have counts := (createWorkQueue_retainedFailures (Work.fromExecution work) work
-    ).replayGraphEvents (before := []) (createWorkQueue_pendingAccounting work)
+    ).replayGraphEvents (before := []) (createWorkQueue_pendingAccounting work generated.declarations)
       generated (by intro _ member; cases member) before priorValid started
   simp only [List.append_nil] at counts
-  have successes := (createWorkQueue_pendingAccounting work).replayGraphEvents_successes
+  rw [← State.objectFailureContributions_eq_of_accepts
+    (State.initialize (Work.fromExecution work)) before [] started] at counts
+  have successes := (createWorkQueue_pendingAccounting work generated.declarations).replayGraphEvents_successes
     (before := []) generated before priorValid started
   have included : failed.Subset (GraphEvent.failureSettlements before) :=
     ((State.initialize (Work.fromExecution work)).objectFailureContributions_sublist before).subset
@@ -51,8 +54,7 @@ theorem ExecutedWork.replayGraphEvents_next_noticeAncestorsHealthy
     intro occurrence member
     obtain ⟨owners, producer, path, errors, known⟩ :=
       priorValid.failureSettlements_known occurrence
-        (((State.initialize (Work.fromExecution work)).objectFailureContributions_sublist before
-          ).subset member)
+        (included member)
     exact ⟨owners, producer, _, known, rfl⟩
   rw [State.objectFailureContributions_append]
   cases event with
@@ -61,8 +63,12 @@ theorem ExecutedWork.replayGraphEvents_next_noticeAncestorsHealthy
         ledger.childLinks canonical counts failedKnown source successes priorValid included fresh
   | streamItems stream items =>
       exact queue.streamItems_noticeAncestorHealth health.1 health.2.1 generated ledger.groups
-        ledger.childLinks canonical counts failedKnown source successes.refs successes.sound successes.matching
+        ledger.childLinks canonical counts failedKnown source successes.refs successes.sound
+        successes.matching successes.registration.live successes.pending
+        (fun occurrence settled recorded => priorValid.succeeds_not_failureSettlements
+          (priorValid.groupSettlements_succeed settled) (included recorded))
   | taskFailure occurrence errors =>
+      change GroupNoticeAncestorsHealthy work _ (queue.taskFailure occurrence errors).2
       apply GroupNoticeAncestorsHealthy.of_noNotices
       intro output member
       cases output with
@@ -79,11 +85,21 @@ theorem ExecutedWork.replayGraphEvents_next_noticeAncestorsHealthy
         =>
           rfl
   | streamSuccess stream =>
-      simp only [State.handleGraphEvent, State.streamSuccess]
-      split <;> simp [GroupNoticeAncestorsHealthy, rawGroupNoticeRefs]
+      change GroupNoticeAncestorsHealthy work _ (queue.streamSuccess stream).2
+      by_cases active : stream.ref ∈ queue.rootStreams <;>
+        simp [State.streamSuccess, active, GroupNoticeAncestorsHealthy, rawGroupNoticeRefs]
   | streamFailure stream errors =>
-      simp only [State.handleGraphEvent, State.streamFailure]
-      split <;> simp [GroupNoticeAncestorsHealthy, rawGroupNoticeRefs]
+      change GroupNoticeAncestorsHealthy work _ (queue.streamFailure stream errors).2
+      by_cases active : stream.ref ∈ queue.rootStreams <;>
+        simp [State.streamFailure, active, GroupNoticeAncestorsHealthy, rawGroupNoticeRefs]
+  | groupFailure notice =>
+      apply GroupNoticeAncestorsHealthy.of_noNotices
+      intro output member
+      change output ∈ (queue.groupFailure notice).2 at member
+      unfold State.groupFailure at member
+      split at member
+      · cases member
+      · split at member <;> simp_all [rawGroupNoticeRefs]
 
 -----------------------------------------------------------------------------------------
 -- Concrete ancestor cancellation is excluded at the same source boundary
@@ -97,12 +113,13 @@ This does not yet assert semantic producer readiness or task accounting for thos
 theorem ExecutedWork.noticeAncestor_healthy_uncancelled
     {work before event output child dependencies ref} (generated : ExecutedWork work)
     (valid : ValidGraphEvents work (before ++ [event]))
-    (started : (State.initialize (Work.fromExecution work)).acceptsBatch before = true)
+    (started
+      : State.eventsStarted [] (State.initialize (Work.fromExecution work)) before = true)
     (emitted
       : output
         ∈ (((State.initialize (Work.fromExecution work)).replayGraphEvents
               before).handleGraphEvent
-            event).2)
+            event).2.1)
     (noticed : child.ref ∈ rawGroupNoticeRefs output)
     (known : GroupRecordAt work child dependencies) (ancestor : ref ∈ dependencies)
     : ¬GroupRecordInvalidated work

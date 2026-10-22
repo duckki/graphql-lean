@@ -81,8 +81,10 @@ theorem streamItemStep_streamRefs
       : State
         × List Execution.DeliveryNode
         × List Execution.DeliveryNode
-        × List StreamItemValue) (item : StreamItem)
-    : (streamItemStep acc item).1.streams.map (fun stream => stream.node.ref)
+        × List StreamItemValue
+        × List GroupFailureEvent) (item : StreamItem)
+    (available : List (Occurrence × Nat) := [])
+    : (streamItemStep acc item available).1.streams.map (fun stream => stream.node.ref)
       = acc.1.streams.map (fun stream => stream.node.ref)
         ++ (acc.1.maybeIntegrateWork item.work).2.newStreams.map
             Execution.DeliveryNode.ref := by
@@ -93,26 +95,32 @@ theorem streamItemStep_streamRefs
 Witness: each item appends the exact same selected refs to registry and notices.
 -/
 theorem State.streamItemFold_streamRefs (queue : State) (items : List StreamItem)
-    : let prepared := items.foldl streamItemStep (queue, [], [], [])
+    (available : List (Occurrence × Nat) := [])
+    : let prepared :=
+        items.foldl (fun acc item => streamItemStep acc item available)
+          (queue, [], [], [], [])
       prepared.1.streams.map (fun stream => stream.node.ref)
       = queue.streams.map (fun stream => stream.node.ref)
         ++ prepared.2.2.1.map Execution.DeliveryNode.ref := by
   have loop (remaining : List StreamItem)
       (acc : State × List Execution.DeliveryNode × List Execution.DeliveryNode
-        × List StreamItemValue)
+        × List StreamItemValue
+        × List GroupFailureEvent)
       (prior : acc.1.streams.map (fun stream => stream.node.ref)
         = queue.streams.map (fun stream => stream.node.ref)
           ++ acc.2.2.1.map Execution.DeliveryNode.ref)
-      : (remaining.foldl streamItemStep acc).1.streams.map (fun stream => stream.node.ref)
+      : (remaining.foldl (fun acc item => streamItemStep acc item available) acc).1.streams.map
+          (fun stream => stream.node.ref)
         = queue.streams.map (fun stream => stream.node.ref)
-          ++ (remaining.foldl streamItemStep acc).2.2.1.map Execution.DeliveryNode.ref := by
+          ++ (remaining.foldl (fun acc item => streamItemStep acc item available) acc).2.2.1.map
+            Execution.DeliveryNode.ref := by
     induction remaining generalizing acc with
     | nil => exact prior
     | cons item rest ih =>
         apply ih
-        rw [streamItemStep_streamRefs, prior]
+        rw [streamItemStep_streamRefs _ _ available, prior]
         simp only [streamItemStep, List.map_append, List.append_assoc]
-  exact loop items (queue, [], [], []) (by simp)
+  exact loop items (queue, [], [], [], []) (by simp)
 
 /-- Every stream supplied by any item is registered by the end of preparation.
 Witness: the item that supplies the ref registers it, and subsequent steps retain it.
@@ -121,15 +129,19 @@ This covers arbitrary repeated input descriptors independently of producer uniqu
 theorem State.streamItemFold_supplied_streamRef (queue : State) (items : List StreamItem)
     {item : StreamItem} (selected : item ∈ items) {stream : Stream}
     (supplied : stream ∈ item.work.streams)
+    (available : List (Occurrence × Nat) := [])
     : stream.node.ref
-      ∈ (items.foldl streamItemStep (queue, [], [], [])).1.streams.map
+      ∈ (items.foldl (fun acc item => streamItemStep acc item available)
+          (queue, [], [], [], [])).1.streams.map
           (fun registered => registered.node.ref) := by
   have loop (remaining : List StreamItem)
       (acc : State × List Execution.DeliveryNode × List Execution.DeliveryNode
-        × List StreamItemValue)
+        × List StreamItemValue
+        × List GroupFailureEvent)
       (prior : item ∈ remaining
         ∨ stream.node.ref ∈ acc.1.streams.map (fun registered => registered.node.ref))
-      : stream.node.ref ∈ (remaining.foldl streamItemStep acc).1.streams.map
+      : stream.node.ref ∈ (remaining.foldl
+          (fun acc item => streamItemStep acc item available) acc).1.streams.map
           (fun registered => registered.node.ref) := by
     induction remaining generalizing acc with
     | nil => exact prior.resolve_left (by simp)
@@ -143,9 +155,9 @@ theorem State.streamItemFold_supplied_streamRef (queue : State) (items : List St
               using acc.1.maybeIntegrateWork_root_streamRef_covered item.work supplied
           · exact .inl later
         · apply Or.inr
-          rw [streamItemStep_streamRefs]
+          rw [streamItemStep_streamRefs _ _ available]
           exact List.mem_append_left _ registered
-  exact loop items (queue, [], [], []) (.inl selected)
+  exact loop items (queue, [], [], [], []) (.inl selected)
 
 /-- A supplied child stream absent before the batch appears in its accumulated notices.
 Witness: complete registration and the exact registry delta force the new ref into notices.
@@ -155,11 +167,13 @@ theorem State.streamItemFold_fresh_notice (queue : State) (items : List StreamIt
     {item : StreamItem} (selected : item ∈ items) {stream : Stream}
     (supplied : stream ∈ item.work.streams)
     (absent : queue.stream? stream.node.ref = none)
+    (available : List (Occurrence × Nat) := [])
     : stream.node.ref
-      ∈ (items.foldl streamItemStep (queue, [], [], [])).2.2.1.map
+      ∈ (items.foldl (fun acc item => streamItemStep acc item available)
+          (queue, [], [], [], [])).2.2.1.map
           Execution.DeliveryNode.ref := by
-  have registered := queue.streamItemFold_supplied_streamRef items selected supplied
-  rw [queue.streamItemFold_streamRefs items] at registered
+  have registered := queue.streamItemFold_supplied_streamRef items selected supplied available
+  rw [queue.streamItemFold_streamRefs items available] at registered
   apply (List.mem_append.mp registered).resolve_left
   intro old
   obtain ⟨prior, included, same⟩ := List.mem_map.mp old
@@ -176,11 +190,13 @@ theorem State.streamItems_fresh_notice {queue : State} (stream : Execution.Deliv
     (items : List StreamItem) (active : queue.rootStreams.contains stream.ref = true)
     {item : StreamItem} (selected : item ∈ items) {child : Stream}
     (supplied : child ∈ item.work.streams) (absent : queue.stream? child.node.ref = none)
+    (available : List (Occurrence × Nat) := [])
     : child.node.ref
-      ∈ (queue.streamItems stream items).2.flatMap rawStreamNoticeRefs := by
-  rw [queue.streamItems_eq stream items]
+      ∈ (queue.streamItems stream items available).2.1.flatMap rawStreamNoticeRefs := by
+  rw [queue.streamItems_eq stream items available]
   simp only [active, Bool.not_true, Bool.false_eq_true, ↓reduceIte, List.flatMap_cons,
     rawStreamNoticeRefs]
-  exact List.mem_append_left _ (queue.streamItemFold_fresh_notice items selected supplied absent)
+  exact List.mem_append_left _
+    (queue.streamItemFold_fresh_notice items selected supplied absent available)
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

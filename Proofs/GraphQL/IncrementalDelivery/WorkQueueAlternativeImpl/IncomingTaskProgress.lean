@@ -23,31 +23,10 @@ theorem generatedReplay_nextAccepted {work inputs event}
     (started : ReferenceWorkQueue.inputsStarted work (inputs ++ [[event]]) = true)
     : ((State.initialize work).runNormalized inputs).1.queue.acceptsGraphEvent event
       = true := by
-  let initial := ReferenceWorkQueue.State.initialize (ReferenceWorkQueue.Work.fromExecution work)
-  have recursive : initial.batchesStarted (inputs ++ [[event]]) = true := by
-    rwa [ReferenceWorkQueue.inputsStarted_eq_batchesStarted] at started
-  have accepted := initial.batchesStarted_acceptsBatch (inputs ++ [[event]]) recursive
-  have loop (queue : Kernel) (before : List GraphEvent)
-      (accepted : queue.acceptsBatch (before ++ [event]) = true)
-      : (queue.replayGraphEvents before).acceptsGraphEvent event = true := by
-    induction before generalizing queue with
-    | nil =>
-        simpa only [List.nil_append, ReferenceWorkQueue.State.acceptsBatch,
-          Bool.and_true, ReferenceWorkQueue.State.replayGraphEvents, List.foldl_nil] using accepted
-    | cons first rest ih =>
-        have tail : (queue.handleGraphEvent first).1.acceptsBatch (rest ++ [event]) = true := by
-          have both : queue.acceptsGraphEvent first = true
-              ∧ (queue.handleGraphEvent first).1.acceptsBatch (rest ++ [event]) = true := by
-            simpa only [List.cons_append, ReferenceWorkQueue.State.acceptsBatch,
-              Bool.and_eq_true]
-              using accepted
-          exact both.2
-        simpa only [ReferenceWorkQueue.State.replayGraphEvents, List.foldl_cons]
-          using ih _ tail
-  rw [(generatedReplay_beforeNext generated valid started).1]
-  exact loop initial inputs.flatten
-    (by simpa only [List.flatten_append, List.flatten_cons,
-      List.flatten_nil, List.append_nil] using accepted)
+  obtain ⟨raw, _, accepted⟩ := generatedReplay_beforeNext generated valid started
+  rw [raw]
+  cases event <;> simpa only [ReferenceWorkQueue.State.acceptsBatch,
+    ReferenceWorkQueue.State.acceptsBatch.go, Bool.false_or, Bool.and_true] using accepted
 
 /-- An accepted child is not this input's settling computation, nor already settled.
 Stream item receipt is not object-task completion.
@@ -65,7 +44,7 @@ theorem acceptedChildTask_not_recorded {queue : Kernel} {work event task settled
           (by simp only [ReferenceWorkQueue.GraphEvent.successes, List.mem_singleton]; exact same)
       · exact fresh old
   | streamItems => exact fresh
-  | taskFailure | streamSuccess | streamFailure => cases child
+  | taskFailure | groupFailure | streamSuccess | streamFailure => cases child
 
 /-- The actual endpoint retains accepted immediate task descriptors in its proof catalogue. -/
 theorem acceptedChildTask_after_registered {queue : Kernel} {event task}
@@ -77,7 +56,8 @@ theorem acceptedChildTask_after_registered {queue : Kernel} {event task}
       | none => simp only [acceptedChildTasks, found, List.not_mem_nil] at returned
       | some node =>
           simp only [acceptedChildTasks, found] at returned
-          rw [ReferenceWorkQueue.State.handleGraphEvent,
+          rw [ReferenceWorkQueue.State.handleGraphEvent, ReferenceWorkQueue.State.cacheTaskFailures,
+        List.foldl_nil,
             ReferenceWorkQueue.State.taskSuccess_tasks found]
           exact List.mem_append_right _ returned
   | streamItems stream items =>
@@ -86,9 +66,10 @@ theorem acceptedChildTask_after_registered {queue : Kernel} {event task}
           ↓reduceIte, List.not_mem_nil] at returned
       | true =>
           simp only [acceptedChildTasks, active, ↓reduceIte] at returned
-          rw [ReferenceWorkQueue.State.handleGraphEvent, queue.streamItems_tasks stream items active]
+          rw [ReferenceWorkQueue.State.handleGraphEvent, ReferenceWorkQueue.State.cacheTaskFailures,
+        List.foldl_nil, queue.streamItems_tasks stream items active]
           exact List.mem_append_right _ returned
-  | taskFailure | streamSuccess | streamFailure => cases returned
+  | taskFailure | groupFailure | streamSuccess | streamFailure => cases returned
 
 /-- Matched permanent task descriptors with the same occurrence have exact equal owners. -/
 theorem registeredTask_catalogue {queue : Kernel} {work task}
@@ -103,7 +84,8 @@ theorem registeredTask_catalogue {queue : Kernel} {work task}
   | some canonical =>
       have same : canonical.occurrence = task.occurrence :=
         (ReferenceWorkQueue.occurrence_beq_iff_eq _ _).mp
-          (List.find?_some (p := fun candidate : Task => candidate.occurrence == task.occurrence) found)
+          (List.find?_some (p := fun candidate : Task => candidate.occurrence ==
+            task.occurrence) found)
       have canonicalGroups := (matching canonical (List.mem_of_find?_eq_some found)).2
       rw [same] at canonicalGroups
       exact ⟨canonical, rfl, Option.some.inj (canonicalGroups.symm.trans (matching task member).2)⟩
@@ -154,21 +136,26 @@ theorem generatedIncomingTask_unpublished {work inputs event task}
         key
         ∉ publicationRoots
             ((((State.initialize work).runNormalized inputs).1.queue).handleGraphEvent
-              event).2 := by
+              event).2.1 := by
   intro key contributes published
   let before := ((State.initialize work).runNormalized inputs).1.queue
-  obtain ⟨_, matching, _⟩ := ReferenceWorkQueue.validGraphEvents_last valid
   have accounted := generatedReplay_nextAccounting generated valid started
-  have closures := ReferenceWorkQueue.State.handleGraphEvent_closureAccounting accounted.liveGroups
-    accounted.taskGroups event matching
+  have ordinary : ∀ failure, event ≠ .groupFailure failure := by
+    intro failure same
+    subst event
+    cases returned
+  have closures := ReferenceWorkQueue.State.handleGraphEvent_removalAccounting
+    accounted.liveGroups event [] ordinary
   have projection := generatedSnapshot_projection generated valid
     (generatedReplay_beforeNext generated valid started).2.1
   have live := registrationSnapshot_publicationRoots_live before event projection published
-  rcases GeneratedIncomingTaskOwnerProgress_holds work inputs event generated valid started task returned
+  rcases GeneratedIncomingTaskOwnerProgress_holds work inputs event generated valid started
+    task returned
       key contributes live with retained | cut
   · have absent := (closures.closed key (by
       obtain ⟨group, groups, streams, emitted, same⟩ := mem_publicationRoots.mp published
-      exact List.mem_flatMap.mpr ⟨_, emitted, same ▸ List.mem_cons_self⟩)).lookup_none
+      exact List.mem_flatMap.mpr ⟨_, List.mem_append_left _ emitted, same ▸
+        List.mem_cons_self⟩)).lookup_none
     exact (ReferenceWorkQueue.State.groupNode?_eq_none_iff _ _).mp absent retained
   · obtain ⟨_, _, path⟩ := cut
     obtain ⟨group, found⟩ := liveDescendant_targetFound path
@@ -195,7 +182,8 @@ theorem generatedAcceptedTask_progress {work inputs event task}
   let before := ((State.initialize work).runNormalized inputs).1
   let snapshot := registrationSnapshot before.queue event
   obtain ⟨prior, matching, fresh⟩ := ReferenceWorkQueue.validGraphEvents_last valid
-  have notSettled : task.occurrence ∉ ReferenceWorkQueue.GraphEvent.taskSettlements inputs.flatten := by
+  have notSettled : task.occurrence ∉ ReferenceWorkQueue.GraphEvent.taskSettlements
+    inputs.flatten := by
     intro processed
     exact acceptedChildTask_unsettled matching prior fresh returned
       (ReferenceWorkQueue.GraphEvent.taskSettlements_subsetIdentities _ processed)
@@ -211,17 +199,19 @@ theorem generatedAcceptedTask_progress {work inputs event task}
       | some group => exact False.elim (owned ⟨owner, member, group, found⟩)
     have accounted := generatedReplay_nextAccounting generated valid started
     have rejections : before.queue.TaskRejectionsSatisfy
-        (fun occurrence _ => occurrence ∈ ReferenceWorkQueue.GraphEvent.taskSettlements inputs.flatten) := by
-      rw [(generatedReplay_beforeNext generated valid started).1]
-      exact ReferenceWorkQueue.createWorkQueue_replay_taskRejections work inputs.flatten
+        (fun occurrence _ => occurrence ∈ ReferenceWorkQueue.GraphEvent.taskSettlements
+          inputs.flatten) := by
+      exact generatedReplay_taskRejections generated valid started
     have aborted := registration_rejectedTask_aborted
-      ⟨accounted.refs, accounted.liveGroups, accounted.taskGroups, accounted.links⟩
-      matching notSettled returned rejections ownerless
+      ⟨⟨accounted.refs, accounted.liveGroups, accounted.taskGroups, accounted.links⟩,
+        accounted.matching, accounted.sound⟩
+      generated.declarations matching notSettled returned rejections ownerless
     have canonical := generatedReplay_beforeNextState generated valid started
     change before = { queue := before.queue } at canonical
     dsimp only
     apply Or.inr
-    change .abortTask task.occurrence ∈ (({ state := before } : GraphBatchResult).handleGraphEvent event).effects
+    change .abortTask task.occurrence ∈ (({ state := before } :
+      GraphBatchResult).handleGraphEvent event).effects
     rw [canonical]
     exact aborted
 
@@ -300,8 +290,10 @@ theorem GeneratedDispatchIncomingTaskRepresentation_holds
   intro work inputs event generated valid started resources inventories
   dsimp only
   intro identities producer occurrence adopted listed acquired owned
-  obtain ⟨address, owners, payload, same, known⟩ := identities producer occurrence adopted listed acquired
-  rcases GeneratedAdoptedTaskProgress_holds work inputs event generated valid started producer address owners payload
+  obtain ⟨address, owners, payload, same, known⟩ := identities producer occurrence adopted
+    listed acquired
+  rcases GeneratedAdoptedTaskProgress_holds work inputs event generated valid started producer
+    address owners payload
       adopted (same ▸ known) with kept | aborted
   · exact same.symm ▸ kept
   · obtain ⟨_, absent⟩ := ResourceState.requestQueueCleanup_still_owned _ _ (.task occurrence) owned

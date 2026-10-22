@@ -19,7 +19,7 @@ theorem GraphEvent.Ready.streamProducer_succeeded
     : ∀ source,
         producer = some source → source ∈ before.flatMap GraphEvent.successes := by
   cases event with
-  | taskSuccess | taskFailure => cases action
+  | taskSuccess | taskFailure | groupFailure => cases action
   | streamItems node items =>
       obtain ⟨_, _, _, _, located, _, _, supported, _⟩ := ready
       have refEq := (Prod.mk.inj (Option.some.inj action)).1
@@ -70,7 +70,7 @@ theorem streamFailuresSafe_of_successfulItems {work inputs w streams}
         w.failures
         = mergeFailureCuts
             (informativeObjectFailureCuts work
-              (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher inputs).2.2))
+              (queue.sourceRunBlocks publisher inputs).2.2)
             streams)
     : StreamFailuresSafe work w := by
   exact informativeStreamFailures_uncancelled generated valid started announced safe cuts exactCuts

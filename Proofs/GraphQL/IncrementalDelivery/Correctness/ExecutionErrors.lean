@@ -20,6 +20,7 @@ mutual
   /-- Every failing delivery projection in this work and its descendants is positive. -/
   def WorkPositive : Work → Prop
     | .empty => True
+    | .declareGroups _ tasks => WorkPositive tasks
     | .combine left right => WorkPositive left ∧ WorkPositive right
     | .executionGroup _ _ result children =>
         BasicErrors.PositiveFailure result.deliveryResult ∧ WorkPositive children
@@ -151,7 +152,9 @@ mutual
         · exact collectExecutionGroups_positive schema resolvers variables fuel parentType
             source _ path _
         · intro work hw
-          exact runEnsures_pure _ _ ⟨hc.1, ⟨hc.2.1, hw⟩, hc.2.2⟩
+          apply runEnsures_pure
+          refine ⟨hc.1, ⟨hc.2.1, ?_⟩, hc.2.2⟩
+          exact hw
   termination_by (fuel, 6, 0, 0)
   decreasing_by
     all_goals

@@ -1,5 +1,6 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.FusedStreamSources
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.PublicationReplay
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.UncancelledReplay
 
 /-! Source transfer through the actual accepted task-success owner fold, delayed activation
 and fused ready drain. Exact phase projection reuses the existing settlement proof.
@@ -94,31 +95,6 @@ theorem successFold_heldSource (groups : List Execution.DeliveryNode)
               ((current.finishGroupSuccess_lookup_unselected updated listed).trans lookup)
         · exact ih _ prior lookup
 
-private theorem startTasks_lookup (tasks : List ReferenceWorkQueue.Task)
-    (queue : ReferenceWorkQueue.State) {occurrence node}
-    (found : queue.taskNode? occurrence = some node)
-    : (tasks.foldl (fun current task => current.startTask task.occurrence)
-        queue).taskNode?
-        occurrence
-      = some node := by
-  induction tasks generalizing queue with
-  | nil => exact found
-  | cons task rest ih =>
-      exact ih _ (ReferenceWorkQueue.State.startTask_lookup_existing found _)
-
-private theorem startTasks_streams (tasks : List ReferenceWorkQueue.Task)
-    (queue : ReferenceWorkQueue.State)
-    : (tasks.foldl (fun current task => current.startTask task.occurrence) queue).streams
-      = queue.streams := by
-  induction tasks generalizing queue with
-  | nil => rfl
-  | cons task rest ih =>
-      rw [List.foldl_cons, ih]
-      unfold ReferenceWorkQueue.State.startTask
-      split
-      · rfl
-      · split <;> rfl
-
 -----------------------------------------------------------------------------------------
 -- Compose the actual pre-drain phase and cumulative cleanup, on one endpoint
 -----------------------------------------------------------------------------------------
@@ -146,12 +122,15 @@ theorem taskSuccess_phaseSource {state : State} {work : Work} {parents : Nat →
         = some node) (held : key ∈ node.childStreams)
     : (state.taskSuccess incoming result).1.queue.taskNode? occurrence = some node
       ∨ key ∈ (state.taskSuccess incoming result).1.queue.rootStreams
-      ∨ .cancelSource key ∈ (state.taskSuccess incoming result).2.2 := by
-  let stored : State := { state with queue := state.queue.putTaskNode { input with value := some result.value } }
+      ∨ .cancelSource key ∈ (state.taskSuccess incoming result).2.2.1 := by
+  let stored : State := { state with
+    queue := state.queue.putTaskNode { input with value := some result.value } }
   let registered := stored.maybeIntegrateWork result.work (some incoming)
-  let released := input.task.groups.foldl ReferenceWorkQueue.successGroupStep (registered.1.queue, [], {})
+  let released := input.task.groups.foldl ReferenceWorkQueue.successGroupStep
+    (registered.1.queue, [], {})
   let active := taskSuccessReadyPhase state incoming result input
-  have prepared : registrationSnapshot state.queue (.taskSuccess incoming result) = registered.1.queue := by
+  have prepared : registrationSnapshot state.queue (.taskSuccess incoming result)
+      = registered.1.queue := by
     simp only [registrationSnapshot, foundInput]
     cases state with
     | mk queue stopped =>
@@ -159,41 +138,51 @@ theorem taskSuccess_phaseSource {state : State} {work : Work} {parents : Nat →
         | false => rfl
         | true => cases running
   rw [prepared] at inventory found
-  have classified := successFold_heldSource input.task.groups (registered.1.queue, [], {}) inventory found held
+  have classified := successFold_heldSource input.task.groups (registered.1.queue, [], {})
+    inventory found held
   have activeRunning : active.1.stopped = false :=
     (taskSuccessReadyPhase_stopped state incoming result input).trans running
-  have queueEq : active.1.queue =
-      (registered.2.activeTasks.foldl (fun current task => current.startTask task.occurrence)
-        released.1).startNewWork released.2.2 :=
-    State.startNewWork_queue { registered.1 with queue := released.1 } released.2.2 registered.2 []
-      ((stored.maybeIntegrateWork_stopped result.work (some incoming)).trans running)
-  have unique : active.2.2.Nodup := State.startNewWork_targets_nodup _ _ _ [] List.nodup_nil
+  have unique : active.2.2.1.Nodup := State.startNewWork_targets_nodup _ _ _ [] List.nodup_nil
   rw [state.taskSuccess_eq incoming result input foundInput]
-  change (active.1.drainReadyGroups active.2.2).1.queue.taskNode? occurrence = some node
-    ∨ key ∈ (active.1.drainReadyGroups active.2.2).1.queue.rootStreams
+  change (active.1.drainReadyGroups active.2.2.1).1.queue.taskNode? occurrence = some node
+    ∨ key ∈ (active.1.drainReadyGroups active.2.2.1).1.queue.rootStreams
     ∨ .cancelSource key ∈ ([.adopt incoming] ++
-      (active.1.drainReadyGroups active.2.2).2.2.flatMap CleanupTarget.effects)
+      (active.1.drainReadyGroups active.2.2.1).2.2.1.flatMap CleanupTarget.effects)
+  have requested_stays (requested : CleanupTarget.stream key ∈ active.2.2.1)
+      : .cancelSource key ∈ [.adopt incoming] ++
+          (active.1.drainReadyGroups active.2.2.1).2.2.1.flatMap CleanupTarget.effects := by
+    obtain ⟨suffix, same⟩ :=
+      (active.1.drainReadyGroups_go_targets active.1.queue.groupNodes.length
+        active.2.2.1 unique).2
+    have listed : CleanupTarget.stream key ∈ (active.1.drainReadyGroups active.2.2.1).2.2.1 := by
+      change CleanupTarget.stream key ∈ (State.drainReadyGroups.go []
+        active.1.queue.groupNodes.length active.1 active.2.2.1).2.2.1
+      rw [← same]
+      exact List.mem_append_left _ requested
+    exact List.mem_append_right _ (List.mem_flatMap.mpr
+      ⟨.stream key, listed, List.mem_cons_self⟩)
   rcases classified with retained | transferred
-  · have kept : active.1.queue.taskNode? occurrence = some node := by
-      rw [queueEq]
-      apply ReferenceWorkQueue.State.startNewWork_lookup_existing _ released.2.2
-      exact startTasks_lookup _ _ retained
-    rcases FusedDrainSourceProgress_holds active.1 work parents active.2.2 activeRunning frame forest
-        readyInventory unique occurrence node key kept held with final | started | requested
-    · exact .inl final
-    · exact .inr (.inl started)
-    · exact .inr (.inr (List.mem_append_right _
-        (List.mem_flatMap.mpr ⟨.stream key, requested, List.mem_cons_self⟩)))
+  · have startup := startup_heldSource { registered.1 with queue := released.1 }
+      released.2.2 registered.2 [] retained held
+    rcases startup with kept | requested
+    · rcases FusedDrainSourceProgress_holds active.1 work parents active.2.2.1 activeRunning
+          frame forest
+          readyInventory unique occurrence node key kept held with final | started | requested
+      · exact .inl final
+      · exact .inr (.inl started)
+      · exact .inr (.inr (List.mem_append_right _
+          (List.mem_flatMap.mpr ⟨.stream key, requested, List.mem_cons_self⟩)))
+    · exact .inr (.inr (requested_stays requested))
   · have started : key ∈ active.1.queue.rootStreams := by
-      rw [queueEq]
-      apply ReferenceWorkQueue.State.startNewWork_streamRoots_cover _ released.2.2 _
+      exact startup_streamRoots { registered.1 with queue := released.1 }
+        released.2.2 registered.2 []
+        ((stored.maybeIntegrateWork_stopped result.work (some incoming)).trans running)
+        (registered.1.queue.successGroupFold_streamRelease input.task.groups).2.2.2
         (List.mem_append_right _ transferred)
-      rw [startTasks_streams]
-      exact (registered.1.queue.successGroupFold_streamRelease input.task.groups).2.2.2
     apply Or.inr; apply Or.inl
     rw [congrArg (fun reduction => reduction.1.rootStreams)
-      (active.1.drainReadyGroups_projection activeRunning frame forest active.2.2)]
-    exact ReferenceWorkQueue.State.drainReadyGroups_go_streamRoots_cover _ active.1.queue
+      (active.1.drainReadyGroups_projection activeRunning frame forest active.2.2.1)]
+    exact ReferenceWorkQueue.State.drainReadyGroups_go_streamRoots_cover _ active.1.queue []
       (List.mem_append_left _ started)
 
 -----------------------------------------------------------------------------------------
@@ -217,7 +206,8 @@ private theorem buffered_ne_input {work events incoming result occurrence node}
   cases value : node.value with
   | none => simp [value] at stored
   | some payload =>
-      obtain ⟨published, _, inventory⟩ := ReferenceWorkQueue.createWorkQueue_rawEventReplay_publications prior
+      obtain ⟨published, _, inventory⟩ :=
+        ReferenceWorkQueue.createWorkQueue_rawEventReplay_publications prior
       rw [ReferenceWorkQueue.State.rawEventReplay_state] at inventory
       have known := ReferenceWorkQueue.State.taskNode?_some found
       have provenance := (inventory.stored node known.1 payload value).1
@@ -237,9 +227,9 @@ theorem referencePrefix_taskSuccess_sources {work : Work}
       : ReferenceWorkQueue.ValidGraphEvents work
           (events ++ [.taskSuccess incoming result]))
     (accepted
-      : (ReferenceWorkQueue.State.initialize
-          (ReferenceWorkQueue.Work.fromExecution work)).acceptsBatch
-          events
+      : ReferenceWorkQueue.State.eventsStarted []
+          (ReferenceWorkQueue.State.initialize
+            (ReferenceWorkQueue.Work.fromExecution work)) events
         = true)
     : let queue :=
         (ReferenceWorkQueue.State.initialize
@@ -253,7 +243,7 @@ theorem referencePrefix_taskSuccess_sources {work : Work}
         → let reduced := ({ queue } : State).taskSuccess incoming result
           reduced.1.queue.taskNode? occurrence = some node
           ∨ key ∈ reduced.1.queue.rootStreams
-          ∨ .cancelSource key ∈ reduced.2.2 := by
+          ∨ .cancelSource key ∈ reduced.2.2.1 := by
   let queue := (ReferenceWorkQueue.State.initialize
     (ReferenceWorkQueue.Work.fromExecution work)).replayGraphEvents events
   change ∀ occurrence node key,
@@ -263,7 +253,7 @@ theorem referencePrefix_taskSuccess_sources {work : Work}
     → let reduced := ({ queue } : State).taskSuccess incoming result
       reduced.1.queue.taskNode? occurrence = some node
       ∨ key ∈ reduced.1.queue.rootStreams
-      ∨ .cancelSource key ∈ reduced.2.2
+      ∨ .cancelSource key ∈ reduced.2.2.1
   intro occurrence node key found stored held
   cases selected : queue.taskNode? incoming with
   | none =>
@@ -273,13 +263,16 @@ theorem referencePrefix_taskSuccess_sources {work : Work}
   | some input =>
       have initial := referencePrefix_inventory work events
       have links := initial input (ReferenceWorkQueue.State.taskNode?_some selected).1
-      have installed := initial.putTaskNode { input with value := some result.value } links.1 links.2
-      have eager : (eagerRegistrationSnapshot queue (.taskSuccess incoming result)).ChildStreamInventory := by
+      have installed := initial.putTaskNode { input with value := some result.value }
+        links.1 links.2
+      have eager : (eagerRegistrationSnapshot queue
+          (.taskSuccess incoming result)).ChildStreamInventory := by
         simp only [eagerRegistrationSnapshot, selected]
         exact installed.maybeIntegrateWork result.work (some incoming)
       have projection := referencePrefix_snapshotProjection generated events
         (.taskSuccess incoming result) valid
-      have inventory : (registrationSnapshot queue (.taskSuccess incoming result)).ChildStreamInventory := by
+      have inventory : (registrationSnapshot queue
+          (.taskSuccess incoming result)).ChildStreamInventory := by
         intro task member
         have prior := eager task (projection.nodes member)
         have registry := congrArg ReferenceWorkQueue.State.streams projection.core
@@ -289,7 +282,8 @@ theorem referencePrefix_taskSuccess_sources {work : Work}
         exact prior
       let active := taskSuccessReadyPhase ({ queue } : State) incoming result input
       have phase : active.1.queue = referenceTaskSuccessReady queue incoming result input :=
-        referencePrefix_taskSuccess_readyProjection generated events incoming result valid accepted input selected
+        referencePrefix_taskSuccess_readyProjection generated events incoming result valid
+          accepted input selected
       obtain ⟨parents, frame, forest⟩ := referencePrefix_taskSuccess_drainFrames
         generated events incoming result valid accepted input selected
       have actualFrame : active.1.queue.TaskOwnerFrame work := by rw [phase]; exact frame
@@ -297,12 +291,109 @@ theorem referencePrefix_taskSuccess_sources {work : Work}
       have readyInventory : active.1.queue.ChildStreamInventory := by
         rw [phase]
         unfold referenceTaskSuccessReady
-        let prepared := ((queue.putTaskNode { input with value := some result.value }).maybeIntegrateWork
+        let prepared := ((queue.putTaskNode
+          { input with value := some result.value }).maybeIntegrateWork
           result.work (some incoming)).1
-        let released := input.task.groups.foldl ReferenceWorkQueue.successGroupStep (prepared, [], {})
+        let released := input.task.groups.foldl ReferenceWorkQueue.successGroupStep
+          (prepared, [], {})
         exact (successFold_inventory input.task.groups (prepared, [], {})
           (installed.maybeIntegrateWork result.work (some incoming))).startNewWork released.2.2
       exact taskSuccess_phaseSource incoming result input rfl inventory selected
         actualFrame actualForest readyInventory found held
+
+/-- A task-success source classification uses the actual source-accounting state.
+Witness: the source frame and structural startup certificates construct the exact ready
+phase. No acceptance or state equality with a flattened earlier history is required.
+-/
+theorem sourceFrame_taskSuccess_sources {queue : ReferenceWorkQueue.State}
+    {work : Work} {parents : Nat → WorkQueueSemantics.NodeRefs} {before : List GraphEvent}
+    (generated : ReferenceWorkQueue.ExecutedWork work)
+    (canonical
+      : ∀ node dependencies,
+          ReferenceWorkQueue.GroupRecordAt work node dependencies
+          → dependencies = parents node.ref)
+    (sourceFrame : ReferenceWorkQueue.UncancelledReplayFrame queue work parents before)
+    (keys : queue.TaskNodeKeysUnique) (initial : queue.ChildStreamInventory)
+    (incoming : Occurrence) (result : ReferenceWorkQueue.TaskResult)
+    (valid
+      : ReferenceWorkQueue.ValidGraphEvents work
+          (before ++ [.taskSuccess incoming result]))
+    {occurrence node key}
+    (found
+      : (registrationSnapshot queue (.taskSuccess incoming result)).taskNode? occurrence
+        = some node) (held : key ∈ node.childStreams)
+    : (({ queue } : State).taskSuccess incoming result).1.queue.taskNode? occurrence
+        = some node
+      ∨ key ∈ (({ queue } : State).taskSuccess incoming result).1.queue.rootStreams
+      ∨ .cancelSource key ∈ (({ queue } : State).taskSuccess incoming result).2.2.1 := by
+  obtain ⟨priorValid, matched, freshEvent⟩ := ReferenceWorkQueue.validGraphEvents_last valid
+  cases selected : queue.taskNode? incoming with
+  | none =>
+      simp only [registrationSnapshot, selected] at found
+      simp only [State.taskSuccess, selected]
+      exact .inl found
+  | some input =>
+      have links := initial input (ReferenceWorkQueue.State.taskNode?_some selected).1
+      have installed := initial.putTaskNode { input with value := some result.value }
+        links.1 links.2
+      have eager : (eagerRegistrationSnapshot queue
+          (.taskSuccess incoming result)).ChildStreamInventory := by
+        simp only [eagerRegistrationSnapshot, selected]
+        exact installed.maybeIntegrateWork result.work (some incoming)
+      have projection := snapshotProjection_of_structuralFrames generated canonical
+        sourceFrame.roots.live sourceFrame.roots.retired sourceFrame.tasks
+        sourceFrame.parent.children keys (.taskSuccess incoming result) matched
+      have inventory : (registrationSnapshot queue
+          (.taskSuccess incoming result)).ChildStreamInventory := by
+        intro task member
+        have prior := eager task (projection.nodes member)
+        have registry := congrArg ReferenceWorkQueue.State.streams projection.core
+        change (registrationSnapshot queue (.taskSuccess incoming result)).streams
+          = (eagerRegistrationSnapshot queue (.taskSuccess incoming result)).streams at registry
+        rw [registry]
+        exact prior
+      have startup := taskSuccess_startFrames generated sourceFrame.pending.registration canonical sourceFrame.roots.live
+        sourceFrame.roots.retired sourceFrame.tasks sourceFrame.parent.children incoming result
+        matched input selected
+      have fresh : incoming ∉ ReferenceWorkQueue.GraphEvent.groupSettlements before :=
+        fun settled => freshEvent.2.2.1 incoming List.mem_cons_self
+          (ReferenceWorkQueue.GraphEvent.groupSettlements_subsetIdentities before settled)
+      have known : ∀ task ∈ result.work.tasks, ReferenceWorkQueue.TaskMatches work task := by
+        intro task member
+        obtain ⟨address, payload, same, known⟩ := matched.childTask_producer member
+        exact ⟨⟨address, payload, some incoming, same, known⟩,
+          matched.childTask_groupsExact member⟩
+      have childFresh : ∀ task ∈ result.work.tasks,
+          task.occurrence ∉ incoming :: ReferenceWorkQueue.GraphEvent.groupSettlements before := by
+        intro task member settled
+        rcases List.mem_cons.mp settled with current | earlier
+        · exact matched.childTasks_not_success member (List.mem_cons.mpr (.inl current))
+        · exact matched.childTasks_unsettled priorValid freshEvent member
+            (ReferenceWorkQueue.GraphEvent.groupSettlements_subsetIdentities before earlier)
+      have phase := congrArg Prod.fst (State.taskSuccess_readyProjection (state := { queue })
+        generated sourceFrame.roots.live.present sourceFrame.pending incoming result input selected
+        fresh known childFresh rfl ⟨parents, startup⟩)
+      change (taskSuccessReadyPhase { queue } incoming result input).1.queue
+        = referenceTaskSuccessReady queue incoming result input at phase
+      let released := referenceTaskSuccessReleased queue incoming result input
+      have readyFrame :
+          (referenceTaskSuccessReady queue incoming result input).TaskOwnerFrame work :=
+        startup.1.startNewWork released.2.2 []
+      have readyForest :
+          (referenceTaskSuccessReady queue incoming result input).RemovalForest parents :=
+        startup.2.startNewWork released.2.2 []
+      have readyInventory :
+          (referenceTaskSuccessReady queue incoming result input).ChildStreamInventory := by
+        unfold referenceTaskSuccessReady
+        let prepared := ((queue.putTaskNode
+          { input with value := some result.value }).maybeIntegrateWork
+            result.work (some incoming)).1
+        exact (successFold_inventory input.task.groups (prepared, [], {})
+          (installed.maybeIntegrateWork result.work (some incoming))).startNewWork released.2.2
+      exact taskSuccess_phaseSource incoming result input rfl inventory selected
+        (by rw [phase]; exact readyFrame)
+        (by rw [phase]; exact readyForest)
+        (by rw [phase]; exact readyInventory)
+        found held
 
 end GraphQL.IncrementalDelivery.AlternativeWorkQueue.NativeRefinement

@@ -1,3 +1,4 @@
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.InitialStartup
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.Nonblocking
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.NonblockingReadiness
 
@@ -17,6 +18,7 @@ private def stalled : EventSource (List GraphEvent) :=
 Witness: it admits only the empty prefix; all event obligations are vacuous.
 -/
 theorem stalled_valid : stalled.ValidFor emptyStream := by
+  apply EventSource.ValidFor.of_asynchronous
   refine ⟨rfl, rfl, ?_, ?_⟩
   · intro before after earlier accepted
     subst after

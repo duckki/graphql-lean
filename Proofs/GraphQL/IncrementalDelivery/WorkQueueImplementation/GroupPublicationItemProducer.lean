@@ -1,3 +1,4 @@
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.BatchedItemProducerPrefixes
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.GroupPublicationOwnership
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.GroupPublicationItemBoundary
 
@@ -51,28 +52,29 @@ theorem Witness.groupPublication_groupItemProducerPublished
             active :=
               (initialQueue work).initialGroups ++ (initialQueue work).initialStreams
           }
-          ((initialQueue work).rawEventReplay inputs.flatten).2 index owner payload)
+          ((initialQueue work).rawBatches inputs).2 index owner payload)
     (known : NodeAt work node .group dependencies (some (.item source ordinal)))
     (sameRef : node.ref = origin.group.ref)
     : Published w.matching (w.events.take index) (.item source ordinal) := by
   obtain ⟨_, _, _, _, interpret⟩ := ledger
-  have accepted : (initialQueue work).batchesStarted inputs = true := by
-    rwa [← inputsStarted_eq_batchesStarted]
-  have atRaw : ((initialQueue work).rawEventReplay inputs.flatten).2[origin.before.length]?
+  have atRaw : ((initialQueue work).rawBatches inputs).2[origin.before.length]?
       = some (.groupValues origin.group origin.values) := by
     have same := congrArg (fun raw : List WorkQueueEvent => raw[origin.before.length]?)
       origin.rawEq
     simpa using same
-  have delivered := generated.rawEventReplay_groupValues_itemProducer_prefix valid
-    ((initialQueue work).batchesStarted_acceptsBatch inputs accepted) atRaw known sameRef
-  have beforeEq : ((initialQueue work).rawEventReplay inputs.flatten).2.take
+  have delivered := generated.rawBatches_groupValues_itemProducer_prefix valid started
+    atRaw known sameRef
+  have beforeEq : ((initialQueue work).rawBatches inputs).2.take
       origin.before.length = origin.before := by
     have same := congrArg (List.take origin.before.length) origin.rawEq
     simpa using same
   rw [beforeEq] at delivered
   have rank := origin.itemRank
-  have historyEq := history.trans (createWorkQueue_nonterminalAtoms_flattened inputs started)
-  rw [← historyEq] at rank
+  have carrier := (Witness.rawBatches_nonterminal history origin.carrier
+    (by intro impossible; cases impossible)).1
+  have within := (List.getElem?_eq_some_iff.mp carrier).1
+  have earlier := origin.before_carrier
+  rw [Witness.rawBatches_prefix history index (by omega)] at rank
   apply interpret index
   rwa [rank]
 

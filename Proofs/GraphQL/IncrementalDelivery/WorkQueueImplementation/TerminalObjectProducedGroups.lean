@@ -21,10 +21,13 @@ theorem published_object_processed {work inputs w address}
     (admitted : PublicationAdmission work w)
     (ledger : BufferedClosureLedger work inputs w)
     (published : Published w.matching w.events (.executionGroup address))
-    : ∃ before result after node,
-        inputs.flatten = before ++ .taskSuccess (.executionGroup address) result :: after
+    : ∃ earlier batch later fifo result tail node,
+        inputs = earlier ++ batch :: later
+        ∧ batch = fifo ++ .taskSuccess (.executionGroup address) result :: tail
         ∧ (GraphEvent.taskSuccess (.executionGroup address) result).MatchesWork work
-        ∧ ((initialQueue work).replayGraphEvents before).taskNode?
+        ∧ ((((initialQueue work).replayBatches earlier).replayGraphEvents fifo
+              (GraphEvent.availableFailures batch)).cacheTaskFailures
+            (GraphEvent.availableFailures batch)).taskNode?
             (.executionGroup address)
           = some node := by
   obtain ⟨index, event, selected, value, same⟩ := published
@@ -57,13 +60,13 @@ theorem published_object_child_registered {work inputs w address owners producer
       : TaskAt work (.executionGroup address) owners
           (some (.executionGroup producer)) payload)
     (published : Published w.matching w.events (.executionGroup producer))
-    : ∃ task ∈ ((initialQueue work).replayGraphEvents inputs.flatten).tasks,
+    : ∃ task ∈ ((initialQueue work).runNormalized inputs).1.tasks,
         task.occurrence = .executionGroup address
         ∧ task.groups.map Execution.DeliveryNode.ref = owners := by
-  obtain ⟨before, result, after, node, sourceEq, matching, found⟩ :=
+  obtain ⟨earlier, batch, later, fifo, result, tail, node, split, batchEq, matching, found⟩ :=
     published_object_processed generated valid started history admitted ledger published
-  exact TaskAt.executionGroup_registered_after_object known matching
-    ⟨after, by simp only [sourceEq, List.append_assoc, List.singleton_append]⟩ found
+  exact TaskAt.executionGroup_registered_after_batch_object known matching started split
+    batchEq found
 
 -----------------------------------------------------------------------------------------
 -- Terminal registration accounting covers all object-produced groups and object tasks
@@ -86,7 +89,7 @@ theorem terminal_objectProducedTask_accounted
     (visible
       : ∀ ref,
           GroupInvalidated work
-            ((initialQueue work).objectFailureContributions inputs.flatten) ref
+            ((initialQueue work).admittedObjectFailureContributionsForBatches inputs) ref
           → GroupInvalidated work (failedBefore w.failures w.events.length) ref)
     (ended : ((initialQueue work).runNormalized inputs).1.terminated = true)
     (known
@@ -115,7 +118,7 @@ theorem terminal_objectProducedGroup_accounted {work inputs w group dependencies
     (visible
       : ∀ ref,
           GroupInvalidated work
-            ((initialQueue work).objectFailureContributions inputs.flatten) ref
+            ((initialQueue work).admittedObjectFailureContributionsForBatches inputs) ref
           → GroupInvalidated work (failedBefore w.failures w.events.length) ref)
     (ended : ((initialQueue work).runNormalized inputs).1.terminated = true)
     (known : NodeAt work group .group dependencies (some (.executionGroup producer)))

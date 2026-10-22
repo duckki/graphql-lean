@@ -7,6 +7,7 @@ import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.CancellationMo
 
 namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.Execution (WorkQueueEvent)
+open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
 -----------------------------------------------------------------------------------------
 -- The bounded mixed drain retains the same buffered producer or emits its child notice
@@ -18,8 +19,13 @@ failed cleanup records removed owners. Sequential composition follows the actual
 -/
 theorem State.drainReadyGroups_go_bufferedStreamsConserved {queue : State}
     (links : queue.StoredTaskLinks) (inventory : queue.ChildStreamInventory) (fuel : Nat)
-    : queue.BufferedStreamsConserved (State.drainReadyGroups.go fuel queue).2
-        (State.drainReadyGroups.go fuel queue).1 := by
+    (available : List (Occurrence × Nat) := [])
+    (clean
+      : queue.StoredValuesSatisfy
+          (fun occurrence _ => ∀ errors, (occurrence, errors) ∉ available) := by
+        intro node member value stored errors impossible; cases impossible)
+    : queue.BufferedStreamsConserved (State.drainReadyGroups.go available fuel queue).2.1
+        (State.drainReadyGroups.go available fuel queue).1 := by
   induction fuel generalizing queue with
   | zero => exact .refl queue
   | succ fuel ih =>
@@ -34,43 +40,41 @@ theorem State.drainReadyGroups_go_bufferedStreamsConserved {queue : State}
           | none => simp [found] at choice
           | some node =>
               simp only [found] at choice
-              change (if (queue.rejectedTask? node).isSome || node.pending == 0 then some node else none)
+              change (if node.pending == 0 then some node else none)
                 = some group at choice
               split at choice
               · cases Option.some.inj choice
                 exact List.mem_of_find?_eq_some found
               · contradiction
-        cases cached : queue.rejectedTask? group with
-        | none =>
-            dsimp only
-            have flushed := State.finishGroupSuccess_bufferedStreamsConserved
-              links inventory group live
-            have active := State.BufferedStreamsConserved.of_emptyOwners
-              ((queue.finishGroupSuccess group).1.startNewWork_storedOwnersConserved
-                (queue.finishGroupSuccess group).2.2) []
-            have first := flushed.append active (by
-              rw [State.startNewWork_cancelledGroups]
-              exact List.Subset.refl _)
-            simp only [List.append_nil] at first
-            exact first.append
-              (ih ((links.finishGroupSuccess group).startNewWork _)
-                ((inventory.finishGroupSuccess group).startNewWork _))
-              (State.drainReadyGroups_go_cancelledGroups_subset _ _)
-        | some rejected =>
-            exact (State.BufferedStreamsConserved.of_emptyOwners
-              (queue.taskFailure_replay_storedOwnersConserved cached)
-              (queue.taskFailure rejected.1 rejected.2).2).append
-              (ih (links.taskFailure _ _) (inventory.taskFailure _ _))
-              (State.drainReadyGroups_go_cancelledGroups_subset _ _)
+        have flushed := State.finishGroupSuccess_bufferedStreamsConserved
+          links inventory group live
+        have cleanFlushed := clean.finishGroupSuccess group
+        have active := State.BufferedStreamsConserved.of_emptyOwners
+          ((queue.finishGroupSuccess group).1.startNewWork_storedOwnersConserved
+            (queue.finishGroupSuccess group).2.2 available cleanFlushed) []
+        have first := flushed.append active
+          (State.startNewWork_cancelledGroups_subset _ _ available)
+        simp only [List.append_nil] at first
+        exact first.append
+          (ih ((links.finishGroupSuccess group).startNewWork _ available)
+            ((inventory.finishGroupSuccess group).startNewWork _ available)
+            (cleanFlushed.startNewWork _ available))
+          (State.drainReadyGroups_go_cancelledGroups_subset _ _ (available := available))
 
 /-- The implementation's full drain has buffered-stream conservation.
 Witness: specialize the bounded theorem to the live group-node budget.
 -/
 theorem State.drainReadyGroups_bufferedStreamsConserved {queue : State}
     (links : queue.StoredTaskLinks) (inventory : queue.ChildStreamInventory)
-    : queue.BufferedStreamsConserved queue.drainReadyGroups.2 queue.drainReadyGroups.1 :=
+    (available : List (Occurrence × Nat) := [])
+    (clean
+      : queue.StoredValuesSatisfy
+          (fun occurrence _ => ∀ errors, (occurrence, errors) ∉ available) := by
+        intro node member value stored errors impossible; cases impossible)
+    : queue.BufferedStreamsConserved (queue.drainReadyGroups available).2.1
+        (queue.drainReadyGroups available).1 :=
   State.drainReadyGroups_go_bufferedStreamsConserved links inventory
-    queue.groupNodes.length
+    queue.groupNodes.length available clean
 
 -----------------------------------------------------------------------------------------
 -- The single-pass owner fold retains earlier streams while emitting new release carriers

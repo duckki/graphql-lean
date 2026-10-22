@@ -23,6 +23,7 @@ theorem State.CancelledRecordsSupported.handleGraphEvent_contribution
     (tasksMatch : queue.RegisteredTasksMatch work)
     (matching : queue.GroupNodesMatchWork work)
     (links : queue.ChildLinksCanonical parents)
+    (sound : queue.GroupMembershipSound)
     (canonical
       : ∀ node dependencies,
           GroupRecordAt work node dependencies → dependencies = parents node.ref)
@@ -32,7 +33,7 @@ theorem State.CancelledRecordsSupported.handleGraphEvent_contribution
   have included : failed.Subset (queue.objectFailureContribution event ++ failed) :=
     List.subset_append_right _ _
   apply (supported.weaken included).handleGraphEvent (cached.weaken included) registered
-    tasksMatch matching links canonical event source
+    tasksMatch matching links sound canonical event source
   intro occurrence errors same node found
   subst event
   simp [State.objectFailureContribution, found]
@@ -57,15 +58,51 @@ theorem State.CachedFailuresSupported.handleGraphEvent_contribution {queue work 
       change (queue.streamFailure stream errors).1.CachedFailuresSupported work failed
       unfold State.streamFailure
       split <;> exact supported
+  | groupFailure failure =>
+      change (queue.groupFailure failure).1.CachedFailuresSupported work failed
+      unfold State.groupFailure
+      split
+      · exact supported
+      · split <;> exact supported
   | taskFailure occurrence errors =>
       cases found : queue.taskNode? occurrence with
       | none =>
           simpa [State.handleGraphEvent, State.taskFailure, State.objectFailureContribution,
+            State.cacheTaskFailures,
             found] using supported
       | some node =>
           have enlarged := supported.weaken (List.subset_append_right [occurrence] failed)
-          simpa [State.handleGraphEvent, State.objectFailureContribution, found]
+          simpa [State.handleGraphEvent, State.objectFailureContribution,
+            State.cacheTaskFailures, found]
             using enlarged.taskFailure registered matching occurrence errors (by simp)
+
+/-- Enqueue effects preserve the cancellation support established by the handler. -/
+theorem State.CancelledRecordsSupported.dispatchGraphEvent_contribution
+    {queue work parents failed}
+    (supported : State.CancelledRecordsSupported queue work failed)
+    (cached : queue.CachedFailuresSupported work failed)
+    (registered : queue.StartedTasksRegistered)
+    (tasksMatch : queue.RegisteredTasksMatch work)
+    (matching : queue.GroupNodesMatchWork work)
+    (links : queue.ChildLinksCanonical parents)
+    (sound : queue.GroupMembershipSound)
+    (canonical
+      : ∀ node dependencies,
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
+    (event : GraphEvent) (source : event.MatchesWork work)
+    : (queue.dispatchGraphEvent event).1.CancelledRecordsSupported work
+        (queue.objectFailureContribution event ++ failed) := by
+  exact supported.handleGraphEvent_contribution cached registered tasksMatch matching
+    links sound canonical event source
+
+/-- Enqueue effects preserve task-local rejection provenance. -/
+theorem State.CachedFailuresSupported.dispatchGraphEvent_contribution {queue work failed}
+    (supported : State.CachedFailuresSupported queue work failed)
+    (registered : queue.StartedTasksRegistered)
+    (matching : queue.RegisteredTasksMatch work) (event : GraphEvent)
+    : (queue.dispatchGraphEvent event).1.CachedFailuresSupported work
+        (queue.objectFailureContribution event ++ failed) := by
+  exact supported.handleGraphEvent_contribution registered matching event
 
 -----------------------------------------------------------------------------------------
 -- Sequential replay preserves support and all metadata used by the handler proof
@@ -84,7 +121,7 @@ theorem State.CachedFailuresSupported.replayGraphEvents_contributions {queue wor
   | nil =>
       simpa [State.replayGraphEvents, State.objectFailureContributions] using supported
   | cons event rest ih =>
-      have tail := ih (supported.handleGraphEvent_contribution registered matching event)
+      have tail := ih (supported.dispatchGraphEvent_contribution registered matching event)
         (registered.handleGraphEvent event)
         (matching.handleGraphEvent event (sources event List.mem_cons_self))
         (fun event member => sources event (List.mem_cons_of_mem _ member))
@@ -101,6 +138,7 @@ theorem State.CancelledRecordsSupported.replayGraphEvents {queue work parents fa
     (tasksMatch : queue.RegisteredTasksMatch work)
     (matching : queue.GroupNodesMatchWork work)
     (links : queue.ChildLinksCanonical parents)
+    (sound : queue.GroupMembershipSound)
     (canonical
       : ∀ node dependencies,
           GroupRecordAt work node dependencies → dependencies = parents node.ref)
@@ -112,12 +150,13 @@ theorem State.CancelledRecordsSupported.replayGraphEvents {queue work parents fa
       simpa [State.replayGraphEvents, State.objectFailureContributions] using supported
   | cons event rest ih =>
       have source := sources event List.mem_cons_self
-      have next := supported.handleGraphEvent_contribution cached registered tasksMatch
-        matching links canonical event source
-      have nextCached := cached.handleGraphEvent_contribution registered tasksMatch event
+      have next := supported.dispatchGraphEvent_contribution cached registered tasksMatch
+        matching links sound canonical event source
+      have nextCached := cached.dispatchGraphEvent_contribution registered tasksMatch event
       have tail := ih next nextCached (registered.handleGraphEvent event)
         (tasksMatch.handleGraphEvent event source) (matching.handleGraphEvent event source)
         (links.handleGraphEvent event source canonical)
+        (sound.handleGraphEvent event)
         (fun event member => sources event (List.mem_cons_of_mem _ member))
       simpa [State.replayGraphEvents, State.objectFailureContributions, List.append_assoc]
         using tail
@@ -138,32 +177,145 @@ theorem ExecutedWork.replayGraphEvents_cancelledRecordsSupported {work : Executi
     (createWorkQueue_cachedFailuresSupported _ _ _) (createWorkQueue_startedTasksRegistered _)
     (createWorkQueue_fromSpec_registeredTasksMatch _) (createWorkQueue_groupNodesMatchWork _)
     (createWorkQueue_childLinksCanonical _ parents
-      (fun _ member => workFromSpec_groups_parentCanonical
-        (Located.root (root := work)) canonical member))
-    canonical events (fun _ member => valid.eachMatches member)
+      (fun _ member => workFromSpec_groups_parentCanonical_root canonical member))
+    (createWorkQueue_groupMembershipSound _) canonical events
+    (fun _ member => valid.eachMatches member)
   simpa only [List.append_nil] using result
 
------------------------------------------------------------------------------------------
--- Batch normalization changes only the termination flag, not cancellation evidence
------------------------------------------------------------------------------------------
+/-- Internal batch provenance uses the complete available source-failure inventory. -/
+private structure State.BatchFailureAccounting (queue : State) (work : Execution.Work)
+    (parents : Nat → NodeRefs) (failed : List Occurrence)
+    : Prop where
+  cancelled : queue.CancelledRecordsSupported work failed
+  cached : queue.CachedFailuresSupported work failed
+  registered : queue.StartedTasksRegistered
+  tasks : queue.RegisteredTasksMatch work
+  groups : queue.GroupNodesMatchWork work
+  links : queue.ChildLinksCanonical parents
+  sound : queue.GroupMembershipSound
 
-/-- Actual normalized replay retains support from exactly its accepted object failures.
-Witness: the existing start-discipline theorem equates batch execution with sequential
-replay up to the termination flag; that flag is irrelevant to cancellation provenance. -/
+private theorem State.BatchFailureAccounting.withTerminated {queue work parents failed}
+    (valid : State.BatchFailureAccounting queue work parents failed) (terminal : Bool)
+    : ({ queue with terminated := terminal } : State).BatchFailureAccounting work parents
+        failed :=
+  ⟨
+    valid.cancelled,
+    valid.cached,
+    valid.registered,
+    valid.tasks,
+    valid.groups,
+    valid.links,
+    valid.sound
+  ⟩
+
+private theorem State.BatchFailureAccounting.handleGraphEvents {queue work parents failed}
+    (valid : State.BatchFailureAccounting queue work parents failed)
+    (batch : List GraphEvent) (sources : ∀ event ∈ batch, event.MatchesWork work)
+    (recorded
+      : ∀ occurrence errors,
+          GraphEvent.taskFailure occurrence errors ∈ batch → occurrence ∈ failed)
+    (canonical
+      : ∀ node dependencies,
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
+    : (queue.handleGraphEvents batch).1.BatchFailureAccounting work parents failed := by
+  let available := GraphEvent.availableFailures batch
+  have availableRecorded : ∀ occurrence errors,
+      (occurrence, errors) ∈ available → occurrence ∈ failed := by
+    intro occurrence errors member
+    obtain ⟨event, inBatch, same⟩ := List.mem_filterMap.mp member
+    cases event <;> simp only [Option.some.injEq, reduceCtorEq, Prod.mk.injEq] at same
+    obtain ⟨rfl, rfl⟩ := same
+    exact recorded _ _ inBatch
+  let step (acc : State × List Execution.WorkQueueEvent) (event : GraphEvent) :=
+    let (next, outputs) := acc.1.dispatchGraphEvent event available
+    (next, acc.2 ++ outputs)
+  have stable (current : State) (event : GraphEvent) (member : event ∈ batch)
+      (prior : current.BatchFailureAccounting work parents failed)
+      : (current.dispatchGraphEvent event available).1.BatchFailureAccounting
+          work parents failed := by
+    have source := sources event member
+    have notified : ∀ occurrence errors, event = .taskFailure occurrence errors →
+        (occurrence, errors) ∈ available := by
+      intro occurrence errors same
+      exact List.mem_filterMap.mpr ⟨event, member, by simp [same]⟩
+    have handled : (current.handleGraphEvent event available).1.BatchFailureAccounting
+        work parents failed := by
+      refine ⟨prior.cancelled.handleGraphEvent prior.cached prior.registered prior.tasks
+          prior.groups prior.links prior.sound canonical event source ?_ available availableRecorded,
+        prior.cached.handleGraphEvent_available prior.registered prior.tasks event source available
+          availableRecorded notified,
+        prior.registered.handleGraphEvent event available,
+        prior.tasks.handleGraphEvent event source available,
+        prior.groups.handleGraphEvent event source available,
+        prior.links.handleGraphEvent event source canonical available,
+        prior.sound.handleGraphEvent event available⟩
+      intro occurrence errors same node found
+      exact availableRecorded _ _ (notified _ _ same)
+    exact ⟨handled.cancelled, handled.cached, handled.registered, handled.tasks,
+      handled.groups, handled.links, handled.sound⟩
+  have fold (events : List GraphEvent) (included : events.Subset batch)
+      (acc : State × List Execution.WorkQueueEvent)
+      (prior : acc.1.BatchFailureAccounting work parents failed)
+      : (events.foldl step acc).1.BatchFailureAccounting work parents failed := by
+    induction events generalizing acc with
+    | nil => exact prior
+    | cons event rest ih =>
+        exact ih (fun _ member => included (List.mem_cons_of_mem _ member)) _
+          (stable _ event (included List.mem_cons_self) prior)
+  unfold State.handleGraphEvents
+  split
+  · exact valid
+  · let folded := batch.foldl step (queue, [])
+    have final : folded.1.BatchFailureAccounting work parents failed :=
+      fold batch (List.Subset.refl _) (queue, []) valid
+    cases folded with
+    | mk current outputs =>
+        dsimp only at final ⊢
+        split
+        · exact final.withTerminated true
+        · exact final
+
+/-- Actual host-batch replay attributes every cancellation to an available source failure.
+Witness: batch-specific cache exposure and FIFO dispatch preserve one fixed source
+inventory, together with source-matched tasks and canonical child edges. This is internal
+provenance; it neither licenses causal cuts nor assumes output-history admission.
+-/
 theorem ExecutedWork.runNormalized_cancelledRecordsSupported {work : Execution.Work}
     (generated : ExecutedWork work) (batches : List (List GraphEvent))
     (valid : ValidGraphEvents work batches.flatten)
-    (started : inputsStarted work batches = true)
+    (_started : inputsStarted work batches = true)
     : ((State.initialize (Work.fromExecution work)).runNormalized
         batches).1.CancelledRecordsSupported
-        work
-        ((State.initialize (Work.fromExecution work)).objectFailureContributions
-          batches.flatten) := by
-  have supported := generated.replayGraphEvents_cancelledRecordsSupported batches.flatten valid
-  obtain ⟨terminal, same⟩ := (State.initialize (Work.fromExecution work)).runNormalized_stateCore
-    batches (by rwa [inputsStarted_eq_batchesStarted] at started)
-  rw [same]
-  exact supported
+        work (GraphEvent.failureSettlements batches.flatten) := by
+  obtain ⟨parents, canonical⟩ := generated.groupRecordsCanonical
+  let failed := GraphEvent.failureSettlements batches.flatten
+  let invariant (current : State) := current.BatchFailureAccounting work parents failed
+  have initial : invariant (State.initialize (Work.fromExecution work)) :=
+    ⟨createWorkQueue_cancelledRecordsSupported _ _ _, createWorkQueue_cachedFailuresSupported _ _ _,
+      createWorkQueue_startedTasksRegistered _, createWorkQueue_fromSpec_registeredTasksMatch _,
+      createWorkQueue_groupNodesMatchWork _, createWorkQueue_childLinksCanonical _ parents
+        (fun _ member => workFromSpec_groups_parentCanonical_root canonical member), createWorkQueue_groupMembershipSound _⟩
+  have batchesPreserve (more : List (List GraphEvent)) (included : more.Subset batches)
+      (current : State) (prior : invariant current) : invariant (current.replayBatches more) := by
+    induction more generalizing current with
+    | nil => exact prior
+    | cons batch rest ih =>
+        apply ih (fun _ member => included (List.mem_cons_of_mem _ member))
+        apply prior.handleGraphEvents batch
+          (fun event member =>
+            valid.eachMatches
+              (List.mem_flatten.mpr ⟨batch, included List.mem_cons_self, member⟩))
+          ?_ canonical
+        intro occurrence errors member
+        apply List.mem_reverse.mpr
+        exact List.mem_flatMap.mpr
+          ⟨
+            .taskFailure occurrence errors,
+            List.mem_flatten.mpr ⟨batch, included List.mem_cons_self, member⟩,
+            by simp [GraphEvent.groupFailures]
+          ⟩
+  rw [State.runNormalized_replayBatches]
+  exact (batchesPreserve batches (List.Subset.refl _) _ initial).cancelled
 
 /-- A causally healthy actual contributor is never recorded as cancelled by replay.
 Witness: record cancellation support and generated contributor equivalence exclude it.
@@ -173,10 +325,7 @@ theorem ExecutedWork.runNormalized_healthy_not_cancelled {work : Execution.Work}
     (valid : ValidGraphEvents work batches.flatten)
     (started : inputsStarted work batches = true) {ref : NodeRef}
     (contributor : ∃ dependencies, NodeHasDependencies work ref .group dependencies)
-    (healthy
-      : ¬GroupInvalidated work
-          ((State.initialize (Work.fromExecution work)).objectFailureContributions
-            batches.flatten) ref)
+    (healthy : ¬GroupInvalidated work (GraphEvent.failureSettlements batches.flatten) ref)
     : ref
       ∉ ((State.initialize (Work.fromExecution work)).runNormalized
           batches).1.cancelledGroups := by
@@ -184,28 +333,23 @@ theorem ExecutedWork.runNormalized_healthy_not_cancelled {work : Execution.Work}
   have supported := generated.runNormalized_cancelledRecordsSupported batches valid started
   exact same ▸ supported.contributor_healthy_not_mem generated known (same.symm ▸ healthy)
 
-/-- Real normalized replay supports caches using accepted failures, not ignored inputs.
-Witness: sequential cache provenance and the batch replay's termination-only state change.
--/
+/-- Retained task rejections after real batch replay have available source contributors. -/
 theorem createWorkQueue_runNormalized_cachedFailuresSupported_contributions
     {work : Execution.Work} (batches : List (List GraphEvent))
     (valid : ValidGraphEvents work batches.flatten)
-    (started : inputsStarted work batches = true)
+    (_started : inputsStarted work batches = true)
     : ((State.initialize (Work.fromExecution work)).runNormalized
         batches).1.CachedFailuresSupported
-        work
-        ((State.initialize (Work.fromExecution work)).objectFailureContributions
-          batches.flatten) := by
-  have initial := createWorkQueue_cachedFailuresSupported (Work.fromExecution work) work []
-  have supported := initial.replayGraphEvents_contributions
-      (createWorkQueue_startedTasksRegistered _)
-      (createWorkQueue_fromSpec_registeredTasksMatch _) batches.flatten
-      (fun _ member => valid.eachMatches member)
-  obtain ⟨terminal, same⟩ := (State.initialize (Work.fromExecution work)).runNormalized_stateCore
-    batches (by rwa [inputsStarted_eq_batchesStarted] at started)
-  rw [same]
-  simpa only [List.append_nil, State.CachedFailuresSupported, State.CachedErrorsSatisfy]
-    using supported
+        work (GraphEvent.failureSettlements batches.flatten) := by
+  apply (createWorkQueue_cachedFailuresSupported (Work.fromExecution work) work
+          (GraphEvent.failureSettlements batches.flatten)).runNormalized
+    (createWorkQueue_startedTasksRegistered _)
+    (createWorkQueue_fromSpec_registeredTasksMatch _) batches
+    (fun _ member => valid.eachMatches member)
+  intro occurrence errors member
+  apply List.mem_reverse.mpr
+  exact List.mem_flatMap.mpr
+    ⟨.taskFailure occurrence errors, member, by simp [GraphEvent.groupFailures]⟩
 
 /-- A healthy live group has no retained rejected computation after actual replay.
 Witness: replay-derived rejection support and sound task membership, without a runtime
@@ -219,10 +363,7 @@ theorem ExecutedWork.runNormalized_unrejected_of_uninvalidated
       : ((State.initialize (Work.fromExecution work)).runNormalized batches).1.groupNode?
           ref
         = some node)
-    (healthy
-      : ¬GroupInvalidated work
-          ((State.initialize (Work.fromExecution work)).objectFailureContributions
-            batches.flatten) ref)
+    (healthy : ¬GroupInvalidated work (GraphEvent.failureSettlements batches.flatten) ref)
     : ((State.initialize (Work.fromExecution work)).runNormalized batches).1.rejectedTask?
         node
       = none := by

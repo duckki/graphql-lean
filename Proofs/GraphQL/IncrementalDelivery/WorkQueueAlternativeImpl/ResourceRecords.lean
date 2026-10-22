@@ -28,6 +28,16 @@ inductive RecordTargetRepresented (queue : ReferenceWorkQueue.State)
     (held : key ∈ node.childStreams)
     : RecordTargetRepresented queue (.stream key)
 
+/-- Queued internal notices change none of the concrete resource-record locations. -/
+theorem RecordTargetRepresented.withGroupFailures {queue target}
+    (represented : RecordTargetRepresented queue target)
+    (notices : List ReferenceWorkQueue.GroupFailureEvent)
+    : RecordTargetRepresented ({ queue with groupFailureEvents := notices }) target := by
+  cases represented with
+  | task found linked unrejected => exact .task found linked unrejected
+  | activeStream active => exact .activeStream active
+  | bufferedStream found stored held => exact .bufferedStream found stored held
+
 /-- Every independently acquired queue-owned lease has one concrete current record location.
 This native construction obligation asks for record locations, not cleanup membership:
 generated proofs derive the missing root path and stop traversal. Producer-owned and requested leases

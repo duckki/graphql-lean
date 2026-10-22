@@ -107,8 +107,10 @@ deriving Repr
 def RecordedOutcome.erase (outcome : RecordedOutcome α) : TaskOutcome α :=
   ⟨outcome.outcome, outcome.cause⟩
 
+/-- Proof-side retained work, including the execution model's ordered declaration metadata. -/
 inductive RecordedWork where
   | empty
+  | declareGroups (groups : List DeferredFragment) (tasks : RecordedWork)
   | combine (left right : RecordedWork)
   | executionGroup (groups : List DeferredFragment) (path : ResponsePath)
     (report : RecordedOutcome (List (Name × ResponseValue))) (children : RecordedWork)
@@ -118,6 +120,7 @@ deriving Repr
 
 def RecordedWork.erase : RecordedWork → Work
   | .empty => .empty
+  | .declareGroups groups tasks => .declareGroups groups tasks.erase
   | .combine left right => .combine left.erase right.erase
   | .executionGroup groups path report children =>
       .executionGroup groups path report.erase children.erase
@@ -132,6 +135,7 @@ decreasing_by
 Discarded future Work is absent; parent reports retain completed initial errors. -/
 def RecordedWork.origins : RecordedWork → List Origin
   | .empty => []
+  | .declareGroups _ tasks => tasks.origins
   | .combine left right => left.origins ++ right.origins
   | .executionGroup _ _ report children => report.origins ++ children.origins
   | .stream _ items => items.flatMap (fun item => item.1.origins ++ item.2.origins)

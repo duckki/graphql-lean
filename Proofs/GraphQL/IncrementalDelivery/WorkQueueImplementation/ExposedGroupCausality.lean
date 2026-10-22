@@ -236,7 +236,9 @@ failures; `objectsRecorded` relates only its object causes to actual accepted se
 theorem ExecutedWork.replayGraphEvents_groupHealthy_of_itemSafety
     {work received matching events failures node dependencies producer}
     (generated : ExecutedWork work) (valid : ValidGraphEvents work received)
-    (_started : (State.initialize (Work.fromExecution work)).acceptsBatch received = true)
+    (_started
+      : State.eventsStarted [] (State.initialize (Work.fromExecution work)) received
+        = true)
     (known : NodeAt work node .group dependencies producer)
     (registered
       : node.ref
@@ -281,7 +283,9 @@ This covers supporting groups removed by successful completion, not cancelled re
 theorem ExecutedWork.replayGraphEvents_retiredGroupHealthy_of_itemSafety
     {work received matching events failures node dependencies producer}
     (generated : ExecutedWork work) (valid : ValidGraphEvents work received)
-    (started : (State.initialize (Work.fromExecution work)).acceptsBatch received = true)
+    (started
+      : State.eventsStarted [] (State.initialize (Work.fromExecution work)) received
+        = true)
     (known : NodeAt work node .group dependencies producer)
     (retired
       : ((State.initialize (Work.fromExecution work)).replayGraphEvents

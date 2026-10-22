@@ -280,7 +280,8 @@ mutual
         ((EagerRecordedExecution.executeCollectedFields schema resolvers variables fuel parentType
           source plan.collectedFieldsMap path usages (getNewDeferMap newUsages path context)
           (route ++ [0])).run state).2
-      simpa only [run_bind, StateT.run_pure, id_pure_eq]
+      simpa only [run_bind, StateT.run_pure, id_pure_eq, RecordedCompletion.origins,
+        RecordedWork.origins]
         using appendWork_scoped _ _ route initial tasks
   termination_by (fuel, 6, 0, 0)
   decreasing_by

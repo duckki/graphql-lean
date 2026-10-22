@@ -11,7 +11,9 @@ research basis. The [implementation guide](implementation.md) describes the exec
 reference queue, its GraphQL.js correspondence, and its conformance proof. The
 [alternative implementation guide](alternative-implementation.md) describes the
 reference-backed queue delta, its proved conformance/resource results, and the separate
-native-refinement boundary. The [porting guide](porting-guide.md) covers concrete choices.
+native-refinement boundary. The [definition map](graphql-js-correspondence.md) covers
+every public queue declaration and its GraphQL.js counterpart or Lean-only responsibility.
+The [porting guide](porting-guide.md) covers concrete choices.
 
 The target draft spec is
 [graphql/graphql-spec PR #1110 at 045e193](https://github.com/graphql/graphql-spec/tree/045e19363c2b55f127960bd3b5e8072a15b29aec). The specification references are:
@@ -31,7 +33,7 @@ The target draft spec is
 | [Observation](../../GraphQL/IncrementalDelivery/Observation.lean) | Finite execution observations, query completion, and query-local queue conformance; shared by Correctness and WorkQueueImplementation. |
 | [Correctness](../../GraphQL/IncrementalDelivery/Correctness.lean) | Public correctness propositions; imports Observation. |
 | [WorkQueueImplementation](../../GraphQL/IncrementalDelivery/WorkQueueImplementation.lean) | Concrete queue/publisher state machine and its projection to the shared WorkQueue interface. |
-| [WorkQueueAlternativeImpl](../../GraphQL/IncrementalDelivery/WorkQueueAlternativeImpl.lean) | Reference-based queue with registration projections, inline failure disposal, and reader guards; conformance and abstract resource safety are proved. Native runtime refinement remains separate. |
+| [WorkQueueAlternativeImpl](../../GraphQL/IncrementalDelivery/WorkQueueAlternativeImpl.lean) | Reference-based queue with registration projections, inline failure disposal, and reader guards. Conformance and resource witnesses cover the finite model; native runtime refinement remains separate. |
 
 WorkQueueSemantics and Correctness are self-contained definition modules. Public
 definitions
@@ -185,10 +187,18 @@ constructor does not assert commutativity or associativity.
 
 | Draft `Work` field/operation | Lean representation |
 | --- | --- |
-| `groups` | The contributing `DeferredFragment` owners on each `Work.executionGroup` occurrence. |
+| `groups` | Ordered fresh `DeferredFragment` declarations in `Work.declareGroups`; task contributor references remain on `Work.executionGroup`. |
 | `tasks` | A `Work.executionGroup` occurrence records one finite execution-group outcome; the item outcomes inside `Work.stream` represent later stream work. |
 | `streams` | Each `Work.stream` occurrence records one stream delivery boundary and its finite remaining items. |
 | Combining work records | `Work.combine` retains sibling work without choosing a schedule; unlike the draft's unordered-map merge, its association is used by the WorkQueue semantics as "address". |
+
+`Work.declareGroups` uniformly annotates a successful plan's task branch after its
+immediate-field work, including plans with no declarations or deferred tasks.
+It adds no task, producer, work count or structural address edge. This retains declaration
+encounter order independently of creation refs and repeated contributor references. Queue
+registration recursively visits a candidate parent before installing its child, so these
+declarations need not already be parent-first. Pruning preserves the resulting root and
+child-link order.
 
 Each nested work occurrence has one structural producer. Scheduler dependencies are
 instead group ancestry or enclosing stream owners; they are not additional producers.
@@ -275,9 +285,9 @@ ExecuteField returns a value, and CompleteListValue does not install a stream ta
 - `Completion.outcome`: retain diagnostics and the selected cause in finite task work.
 - `TaskOutcome.deliveryResult` / `Completion.deliveryResult`: the payload-boundary
   projection that selects a failure explanation while preserving delivered diagnostics.
-- `Work.size`, `Work.itemsSize`: finite executable-record accounting, also used to
-  recognize when no execution-group task, stream descriptor, or remaining stream item
-  exists.
+- `Work.isEmpty`: immediate task/stream emptiness, ignoring declaration annotations.
+  Empty stream boundaries remain nonempty work. Total finite record counts belong to
+  the proof layer.
 - `EventSource.Allows`, `advance`, `IsFinished`, `ofList`, `batch`: observation-state
   plumbing, fixed finite fixture sources, and nonempty order-preserving grouping. Every
   intermediate prefix must be admitted; no available output does not imply termination.
@@ -326,22 +336,43 @@ This `TaskOutcome` stores both `result` and `cause`; its `deliveryResult` is the
 used by `TaskAt` and the graph-event source contract. Collected diagnostics therefore
 remain available for execution-recording refinements even when delivery discards data.
 
-`EventAllowed` uses `NodeFailureCause`: the reported count must be positive and come
-from an accepted failing occurrence contributing to that node. It permits any supported
-explanation, without requiring a singleton error or adding contributing counts.
-Both executable queues retain a rejection on the task, representing GraphQL.js's cached
-`Computation` outcome. Groups retain task membership, not a separate failure cache.
-Starting a released group replays rejected tasks in registration order; it does not
-choose whichever failure happened to settle first. Licensing, ordered cuts, open-ID
-checks, and terminal scope reporting are unchanged.
+The failure event already represents error-list cardinality as a natural number, rather
+than carrying the pinned draft's singular error object. Group completion additionally
+follows [GraphQL.js PR #4870](https://github.com/graphql/graphql-js/pull/4870): startup
+collects every available rejection from retained, started tasks before starting private
+work. Pending tasks are not awaited. This aggregate extends the draft's singleton
+`GROUP_FAILURE` mapping; it does not change task-local propagation or count nullable
+errors from discarded payloads.
 
-`Fixtures/DeliveryFailureReporting.lean` checks both queues' emitted responses for failed
-deferred objects, nullable children, non-null rethrows, stream items, and a latent shared
-owner with two accepted failures. A reversed-settlement case checks task-order rejection
-replay. The fixture also checks retained diagnostics and source-event projection. The
-earlier completion-algebra and recording witnesses require migration to
-the revised work representation. No revised queue-conformance or end-to-end
-failure-reflection result is claimed.
+`EventAllowed` uses `NodeFailureCauses` for groups: a nonempty list of distinct available
+contributing task causes must sum to the reported count. Streams retain the singular
+`NodeFailureCause`. `Explains` separates the available reporting inventory, certified by
+`FailureReportingWitness`, from the licensed causal cancellation cuts. Each causal
+occurrence must already be available for reporting by its causal cut. Thus a
+redundant retained rejection can contribute to a completion without licensing another
+cancellation. Open-owner checks and terminal scope reporting remain required.
+
+Both executable queues retain rejection on the task, representing the cached computation.
+Group startup removes an already-failed group without starting private tasks and enqueues
+its aggregate completion. `GraphEvent.groupFailure` observes that internal notice at its
+FIFO position among task/stream outcomes; dispatch requires the current queued head.
+Undispatched notices remain in queue state across batches and empty calls. The finite host
+batch supplies cache availability; promise timing and native source realizability remain
+outside the model.
+
+Callback admission retains eligibility from every earlier dispatch boundary in the same
+batch. A task can start and retire during that batch while its queued notification remains
+admissible. This is local source validation, with no persistent runtime field or permission
+carried from earlier batches. Internal notices still require the current queued head.
+
+`Fixtures/GraphQLJsAlignment.lean` checks both queues' activation order, skipped private
+work, cached aggregates, completion ordering, shared-value wire ownership and callbacks
+started and retired within one batch.
+`Fixtures/InitialFailureStartup.lean` checks synchronous and asynchronous startup.
+The conformance proofs and these fixtures cover ordered declarations, internal FIFO
+dispatch, and cumulative within-batch callback eligibility. See the
+[proof map](#proof-status-and-verification) for the corresponding witnesses and the
+implementation guides for their source and runtime boundaries.
 
 ## Work-queue contract
 
@@ -384,17 +415,17 @@ one still open at settlement. Actual publications and completions still require 
 
 Failures can precede their notifications. Cut-indexed causality prevents later failure
 from retroactively cancelling a published producer or invalidating an earlier notice.
-`NodeFailureCause` selects a positive explanation from accepted contributing failures
-available through each completion's boundary.
+`NodeFailureCauses` sums distinct positive available task causes for group completions;
+streams retain one licensed `NodeFailureCause`. `CausalFailuresAvailable` requires each
+licensed causal occurrence to be available for reporting at an equal or earlier cut.
 
 `AdmissiblePrefix` includes interrupted or stalled histories. `AdmissibleRun` additionally
 requires each task to be published or causally cancelled with a positive-error completion
 whose path covers the task's response attachment, then emits termination. Reporting may
 follow cancellation and may cover several unannounced tasks. Value coalescing and work
 batching retain the atomic explanation. No lifecycle checker, response-position coverage
-conclusion, or reconstruction property is assumed by admission. The correctness,
-conformance, and finite-progress witnesses include terminal reporting and selected-cause
-accounting.
+conclusion, or reconstruction property is assumed by admission. The reference conformance
+witness constructs cached multi-task reporting from the actual replay's available causes.
 
 See [semantics](semantics.md) for the structural predicates, notice rules, failure
 evidence, optional nonblocking condition, and checked research results. The executable
@@ -495,8 +526,9 @@ zero counted errors.
 
 Directive erasure preserves aliases, selection order, arguments, type conditions,
 ordinary directives, and variable definitions/defaults. These are correctness
-statements proved from the independent contract, not scheduler assumptions.
-Error-aware coverage uses the contract's terminal failure reporting requirement.
+statements derived from the independent contract, not scheduler assumptions.
+`ResponsePositionsDeliveredOrFailed_holds` derives error-aware coverage from terminal
+failure reporting and the stated initial-response and argument-validity premises.
 Liveness is conditional on a complete finite run, not a fairness theorem.
 
 The error-aware coverage decoder uses only error-bearing completion IDs and
@@ -535,7 +567,7 @@ at the broader root scope. That completion covers the cancelled task. The termin
 contract now requires such work-level reporting without assuming the client-visible
 coverage proposition itself. The fixture proves that the omitted-report trace is an
 admitted prefix but cannot terminate under its publication matching, regardless of
-failure cuts. Reference replay and full conformance satisfy the reporting requirement.
+failure cuts. Reference replay reports the broader failure scope.
 
 The reference implementation's public `ImplementationCorrect` in
 `WorkQueueImplementation.lean` supplies these assumptions for actual queue/publisher
@@ -548,11 +580,14 @@ witnesses instead of duplicating these statements. See the [implementation bridg
 
 ## Proof status and verification
 
-Public definitions, proofs, and tests build with terminal reporting and selected-cause
-accounting. The 12 established query-correctness witnesses, error-aware response-position
-coverage, finite progress, reference conformance, and the query bridge use this contract.
-Axiom audits use only `propext`, `Classical.choice`, and `Quot.sound` as needed,
-with no proof holes or added axioms.
+The witnesses below cover ordered declarations, observed internal dispatch, terminal
+failure reporting, and cumulative within-batch callback eligibility. Reference conformance
+includes source-valid startup observations. The alternative queue's conformance,
+equivalence, resource, recording, and query witnesses use their stated finite source and
+ownership premises. These results do not establish refinement of a native host runtime.
+The [reference](implementation.md#verification-and-limits) and
+[alternative](alternative-implementation.md) guides record the detailed proof boundaries.
+No `sorryAx` or added axioms discharge the obligations.
 
 Existing witness modules include general mixed-work progress and agreement of historical
 causality with the publication snapshot on an explained history, by
@@ -562,8 +597,8 @@ direction uses the proved exclusion of publications for failed or cancelled task
 `Tests.GraphQL.IncrementalDelivery.FailureCutBoundary` records that a licensed
 failure immediately after a child notice preserves the carrier's admission and the
 explained history. The generic `Explains.record_failure` witness covers preservation
-as well. Existing reference-conformance, derived-initialization, and
-implementation-to-query witnesses await the same migration; their proof structure is in the
+as well. Reference conformance, derived initialization, and the implementation-to-query
+bridge share the actual replay witness; their proof structure is in the
 [implementation guide](implementation.md#work-queue-conformance).
 
 | Public statement | Witness module (theorem name is the statement plus `_holds`) |

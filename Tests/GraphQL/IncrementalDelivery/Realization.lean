@@ -2,6 +2,7 @@ import Proofs.GraphQL.IncrementalDelivery.Correctness.QueryRealization
 import Tests.GraphQL.IncrementalDelivery.WorkQueueSemantics
 import Tests.GraphQL.IncrementalDelivery.HistoryScheduling
 import Tests.GraphQL.IncrementalDelivery.Execution
+import Proofs.GraphQL.IncrementalDelivery.Semantics.WorkSize
 
 /-! Maximal sources retain alternative outputs and realize successful/failed histories. -/
 
@@ -25,7 +26,7 @@ example
             ] []).workEventStream.admissible
             [[HistoryScheduling.value node]] := by
   exact ⟨specificationSource_conforms HistoryScheduling.initialized,
-    fun node member => (HistoryScheduling.nextOwner node member).2.2.2⟩
+    fun node member => (HistoryScheduling.nextOwner node member).2.2⟩
 
 /-- A complete successful history has a real conforming queue constructor, with no manually
 implemented replay source; witness: work-observation realization.

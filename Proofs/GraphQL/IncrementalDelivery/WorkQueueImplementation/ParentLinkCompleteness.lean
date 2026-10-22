@@ -1,7 +1,7 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.HealthyAncestorCoverage
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.IntegrationPaths
 
-/-! Completeness of canonical child links in the concrete registration passes. -/
+/-! Completeness of canonical child links in recursive registration. -/
 
 namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
@@ -11,7 +11,7 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 -----------------------------------------------------------------------------------------
 
 /-- Every live parent-child pair is linked, or the child's ref is still pending attachment.
-The ref list describes the concrete second-pass input, not an extra runtime data structure.
+The allowance is used only while proving one immediate installation; it is not queue state.
 -/
 private def PendingParentLinks (queue : State) (parents : Nat → NodeRefs)
     (pending : NodeRefs)
@@ -20,47 +20,6 @@ private def PendingParentLinks (queue : State) (parents : Nat → NodeRefs)
   ∀ parent ∈ queue.groupNodes,
     (parents child.group.node.ref).head? = some parent.group.node.ref
     → child.group.node.ref ∈ pending ∨ child.group.node.ref ∈ parent.childGroups
-
-/-- Membership-only registration produces only old records or newly appended empty shells.
-Witness: inspect registration branches; the fold never modifies an existing record.
--/
-private theorem register_origin (queue : State) (groups : List Group)
-    : ∀ node ∈ (groups.foldl State.addGroup queue).groupNodes,
-        node ∈ queue.groupNodes ∨ ∃ group ∈ groups, node = { group } := by
-  induction groups generalizing queue with
-  | nil => exact fun _ member => .inl member
-  | cons group rest ih =>
-      intro node member
-      rcases ih _ node member with prior | ⟨other, later, same⟩
-      · unfold State.addGroup at prior
-        split at prior
-        · exact .inl prior
-        · split at prior
-          · exact .inl prior
-          · rcases List.mem_append.mp prior with old | added
-            · exact .inl old
-            · exact .inr ⟨group, List.mem_cons_self, List.mem_singleton.mp added⟩
-      · exact .inr ⟨other, List.mem_cons_of_mem _ later, same⟩
-
-/-- After fresh registration, only fresh child refs can lack their canonical live edge.
-Witness: new children are pending; an old child cannot acquire a new parent because the
-old permanent registry was parent-closed and no fresh ref belongs to that registry.
--/
-private theorem register_pending {queue : State} {parents}
-    (complete : queue.ParentLinksComplete parents)
-    (registered : queue.LiveGroupsRegistered)
-    (closed : queue.ParentRegistryClosed parents) (fresh : List Group)
-    (newRefs : ∀ group ∈ fresh, group.node.ref ∉ queue.registeredGroups)
-    : PendingParentLinks (fresh.foldl State.addGroup queue) parents
-        (fresh.map (fun group => group.node.ref)) := by
-  intro child childMember parent parentMember head
-  rcases register_origin queue fresh child childMember with oldChild | ⟨group, member, same⟩
-  · rcases register_origin queue fresh parent parentMember with oldParent | ⟨group, member, same⟩
-    · exact .inr (complete child oldChild parent oldParent head)
-    · have parentRegistered := closed child.group.node.ref (registered child oldChild)
-        parent.group.node.ref head
-      exact False.elim (newRefs group member (by simpa only [same] using parentRegistered))
-  · exact .inl (List.mem_map.mpr ⟨group, member, by rw [same]⟩)
 
 -----------------------------------------------------------------------------------------
 -- Updating a parent only grows edges, and discharges its selected child's pending ref
@@ -108,7 +67,7 @@ private theorem PendingParentLinks.putGroupNode {queue : State} {parents pending
       exact equal ▸ children
     · exact List.Subset.refl _
 
-/-- Proof notation for the public second registration pass, with identical branch order. -/
+/-- Proof notation for the immediate parent update after one shell installation. -/
 private def attachChild (queue : State) (group : Group) : State :=
   match group.parent with
   | none => queue
@@ -195,12 +154,99 @@ private theorem attach_complete {queue : State} {parents pending group}
           · exact .inr linked
 
 -----------------------------------------------------------------------------------------
--- Finish the exact two-pass registration algorithm
+-- Immediate installation preserves completeness and live-parent registration
 -----------------------------------------------------------------------------------------
 
-/-- Registering canonical fresh groups establishes every live immediate-parent edge.
-Witness: permanent parent closure protects old pairs during shell insertion; the second
-pass discharges all fresh pending refs. Child-first order and duplicate references are allowed.
+private def LiveParentsRegistered (queue : State) (parents : Nat → NodeRefs) : Prop :=
+  ∀ ref ∈ queue.groupNodes.map (fun node => node.group.node.ref),
+    ∀ parent, (parents ref).head? = some parent → parent ∈ queue.registeredGroups
+
+private theorem liveParents_addGroup {queue : State} {parents}
+    (prior : LiveParentsRegistered queue parents)
+    (registered : queue.LiveGroupsRegistered) (group : Group)
+    (canonical : group.parent = (parents group.node.ref).head?)
+    : LiveParentsRegistered (queue.addGroup group) parents := by
+  have appended (parentReady : ∀ parent, group.parent = some parent → parent ∈ queue.registeredGroups)
+      : LiveParentsRegistered {queue with
+          registeredGroups := queue.registeredGroups ++ [group.node.ref],
+          groupNodes := queue.groupNodes ++ [({group} : GroupNode)]} parents := by
+    intro ref member parent head
+    rw [List.map_append, List.map_singleton] at member
+    rcases List.mem_append.mp member with old | fresh
+    · exact List.mem_append_left _ (prior ref old parent head)
+    · obtain rfl := List.mem_singleton.mp fresh
+      exact List.mem_append_left _ (parentReady parent (canonical.trans head))
+  unfold State.addGroup
+  split
+  · exact prior
+  · split
+    · exact appended (by intro parent same; rw [‹group.parent = none›] at same; cases same)
+    · rename_i parent parentEq
+      split
+      · split <;> exact fun ref member ancestor head =>
+          List.mem_append_left _ (prior ref member ancestor head)
+      · rename_i node found
+        intro ref member ancestor head
+        rw [State.putGroupNode_refs] at member
+        exact appended (fun other same => by
+          have equal : parent = other := Option.some.inj (parentEq.symm.trans same)
+          exact equal ▸ ((State.groupNode?_ref found) ▸
+            registered node (List.mem_of_find?_eq_some found))) ref member ancestor head
+
+private theorem complete_addGroup {queue : State} {parents}
+    (complete : queue.ParentLinksComplete parents) (unique : queue.GroupRefsUnique)
+    (closed : LiveParentsRegistered queue parents) (group : Group)
+    (canonical : group.parent = (parents group.node.ref).head?)
+    : (queue.addGroup group).ParentLinksComplete parents := by
+  unfold State.addGroup
+  split
+  · exact complete
+  · rename_i guard
+    have absent : group.node.ref ∉ queue.registeredGroups
+        ∧ queue.groupNode? group.node.ref = none := by simpa using guard
+    let appended : State := {queue with
+      registeredGroups := queue.registeredGroups ++ [group.node.ref],
+      groupNodes := queue.groupNodes ++ [({group} : GroupNode)]}
+    have pending : PendingParentLinks appended parents [group.node.ref] := by
+      intro child childMember parent parentMember head
+      rcases List.mem_append.mp childMember with oldChild | newChild
+      · rcases List.mem_append.mp parentMember with oldParent | newParent
+        · exact .inr (complete child oldChild parent oldParent head)
+        · obtain rfl := List.mem_singleton.mp newParent
+          exact False.elim (absent.1 (closed child.group.node.ref
+            (List.mem_map_of_mem oldChild) group.node.ref head))
+      · obtain rfl := List.mem_singleton.mp newChild
+        exact .inl List.mem_cons_self
+    have appendedUnique : appended.GroupRefsUnique := by
+      have fresh : group.node.ref ∉ queue.groupNodes.map (fun node => node.group.node.ref) := by
+        intro member
+        obtain ⟨node, member, same⟩ := List.mem_map.mp member
+        exact List.find?_eq_none.mp absent.2 node member (beq_iff_eq.mpr same)
+      change ((queue.groupNodes ++ [({group} : GroupNode)]).map _).Nodup
+      simpa [List.map_append, fresh] using List.nodup_append.mpr
+        ⟨unique, by simp, by
+          intro ref member other included same
+          obtain rfl := List.mem_singleton.mp included
+          exact fresh (same ▸ member)⟩
+    have attached := (attach_complete appendedUnique pending canonical).2
+    have result : (attachChild appended group).ParentLinksComplete parents := by
+      intro child childMember parent parentMember head
+      exact (attached child childMember parent parentMember head).resolve_left (by simp)
+    split
+    · simpa only [attachChild, ‹group.parent = none›, appended] using result
+    · rename_i parent parentEq
+      split
+      · split <;> exact complete
+      · rename_i node found
+        have installed : appended.groupNode? parent = some node := by
+          simp only [State.groupNode?, appended, List.find?_append]
+          change (queue.groupNode? parent).or _ = some node
+          simp [found]
+        simpa only [attachChild, parentEq, installed, appended] using result
+
+/-- Canonical recursive installation establishes every live immediate-parent edge.
+Witness: each shell is attached immediately, and every live child's parent remains in
+registration history. The invariant permits arbitrary candidate encounter order.
 -/
 theorem State.ParentLinksComplete.addGroups {queue : State} {parents}
     (complete : queue.ParentLinksComplete parents) (unique : queue.GroupRefsUnique)
@@ -208,35 +254,19 @@ theorem State.ParentLinksComplete.addGroups {queue : State} {parents}
     (closed : queue.ParentRegistryClosed parents) (groups : List Group)
     (canonical : ∀ group ∈ groups, group.parent = (parents group.node.ref).head?)
     : (queue.addGroups groups).1.ParentLinksComplete parents := by
-  let fresh := groups.filter (fun group =>
-    !queue.registeredGroups.contains group.node.ref && (queue.groupNode? group.node.ref).isNone)
-  have newRefs : ∀ group ∈ fresh, group.node.ref ∉ queue.registeredGroups := by
-    intro group member
-    have condition := (List.mem_filter.mp member).2
-    simpa using (Bool.and_eq_true_iff.mp condition).1
-  have registeredUnique : (fresh.foldl State.addGroup queue).GroupRefsUnique := by
-    have loop (more : List Group) (current : State) (refs : current.GroupRefsUnique)
-        : (more.foldl State.addGroup current).GroupRefsUnique := by
-      induction more generalizing current with
-      | nil => exact refs
-      | cons group rest ih => exact ih _ (refs.addGroup group)
-    exact loop fresh queue unique
-  have loop (more : List Group) (current : State) (refs : current.GroupRefsUnique)
-      (covered : PendingParentLinks current parents (more.map (fun group => group.node.ref)))
-      (canonical : ∀ group ∈ more, group.parent = (parents group.node.ref).head?)
-      : PendingParentLinks (more.foldl attachChild current) parents [] := by
-    induction more generalizing current with
-    | nil => exact covered
-    | cons group rest ih =>
-        have step := attach_complete refs covered (canonical group List.mem_cons_self)
-        exact ih _ step.1 step.2
-          (fun next member => canonical next (List.mem_cons_of_mem _ member))
-  have final := loop fresh _ registeredUnique
-    (register_pending complete registered closed fresh newRefs)
-    (fun group member => canonical group (List.mem_filter.mp member).1)
-  intro child childMember parent parentMember head
-  rcases final child childMember parent parentMember head with impossible | linked
-  · cases impossible
-  · exact linked
+  let property (current : State) := current.ParentLinksComplete parents
+    ∧ current.GroupRefsUnique ∧ current.LiveGroupsRegistered
+      ∧ LiveParentsRegistered current parents
+  have initial : property queue := by
+    refine ⟨complete, unique, registered, ?_⟩
+    intro ref member parent head
+    obtain ⟨node, included, same⟩ := List.mem_map.mp member
+    exact closed ref (same ▸ registered node included) parent head
+  exact (State.addGroups_preserves property groups (fun current group member prior =>
+    ⟨complete_addGroup prior.1 prior.2.1 prior.2.2.2 group (canonical group member),
+      prior.2.1.addGroup group,
+      prior.2.2.1.addGroup group,
+      liveParents_addGroup prior.2.2.2 prior.2.2.1 group (canonical group member)⟩)
+    queue initial).1
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

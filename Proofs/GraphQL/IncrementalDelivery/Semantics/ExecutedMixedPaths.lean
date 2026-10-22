@@ -123,8 +123,10 @@ mutual
         · exact collectExecutionGroups_owns schema resolvers variables fuel parentType source _
             (List.nodup_append.mp hnames).2.1 containers path _
         · intro work hw
-          exact runEnsures_pure _ _
-            ((ownsCompletion_combineWork_fields hnames hc hw).mono hwiden)
+          apply runEnsures_pure
+          refine ((ownsCompletion_combineWork_fields hnames hc ?_).mono hwiden)
+          obtain ⟨slices, known, owned⟩ := hw
+          exact ⟨slices, .declareGroups known, owned⟩
   termination_by (fuel, 6, 0, 0)
   decreasing_by
     all_goals simp_wf

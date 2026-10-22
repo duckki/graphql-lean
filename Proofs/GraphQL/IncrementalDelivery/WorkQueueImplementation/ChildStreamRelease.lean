@@ -1,3 +1,4 @@
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.TaskIntegrationLookups
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.NormalizedPublications
 
 /-! Task-produced streams are released with an earlier stored producer publication. -/
@@ -10,43 +11,6 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 -----------------------------------------------------------------------------------------
 -- Integration retains a settled producer until its child streams are attached
 -----------------------------------------------------------------------------------------
-
-/-- Registering another task preserves every successful task-node lookup.
-Witness: group updates leave the task map unchanged; any new node is appended after it.
--/
-theorem State.addTask_taskNode?_of_some {queue : State} {occurrence node}
-    (found : queue.taskNode? occurrence = some node) (task : Task)
-    : (queue.addTask task).taskNode? occurrence = some node := by
-  let step (current : State) (group : Execution.DeliveryNode) : State :=
-    match current.groupNode? group.ref with
-    | none => current
-    | some groupNode =>
-        if groupNode.tasks.contains task.occurrence then current
-        else current.putGroupNode
-          { groupNode with
-            tasks := groupNode.tasks ++ [task.occurrence]
-            pending := groupNode.pending + 1 }
-  have unchanged (groups : List Execution.DeliveryNode) (current : State)
-      : (groups.foldl step current).taskNodes = current.taskNodes := by
-    induction groups generalizing current with
-    | nil => rfl
-    | cons group rest ih =>
-        rw [List.foldl_cons, ih]
-        dsimp only [step]
-        split
-        · rfl
-        · split <;> rfl
-  let current := task.groups.foldl step { queue with tasks := queue.tasks ++ [task] }
-  have same : current.taskNodes = queue.taskNodes := unchanged _ _
-  change (if task.groups.any (fun group => current.rootGroups.contains group.ref)
-      && (current.taskNode? task.occurrence).isNone then
-        { current with taskNodes := current.taskNodes ++ [{ task }] }
-      else current).taskNode? occurrence = some node
-  split
-  · change queue.taskNodes.find? _ = _ at found
-    simp only [State.taskNode?, List.find?_append, same, found]
-    rfl
-  · simpa only [State.taskNode?, same] using found
 
 /-- Installing a value updates the same successfully looked-up producer node.
 Witness: the first matching entry remains first and is replaced with the settled node.
@@ -119,6 +83,21 @@ theorem State.ChildStreamsSettled.putTaskNode {queue : State}
     exact allowed empty
   · subst node
     exact settled old oldMember empty
+
+/-- Cache exposure preserves producer values and their child-stream links. -/
+theorem State.ChildStreamsSettled.cacheTaskFailures {queue : State}
+    (settled : queue.ChildStreamsSettled) (available : List (Occurrence × Nat))
+    : (queue.cacheTaskFailures available).ChildStreamsSettled := by
+  unfold State.cacheTaskFailures
+  induction available generalizing queue with
+  | nil => exact settled
+  | cons entry rest ih =>
+      apply ih
+      dsimp only [List.foldl_cons]
+      split
+      · exact settled
+      · rename_i node found
+        exact settled.putTaskNode _ (settled node (List.mem_of_find?_eq_some found))
 
 /-- Group registration cannot modify task stream links or stored values.
 Witness: the exact task-map preservation equation. -/
@@ -219,7 +198,8 @@ Witness: the start operation either retains the state or appends the default tas
 -/
 theorem State.ChildStreamsSettled.startTask {queue : State}
     (settled : queue.ChildStreamsSettled) (occurrence : Occurrence)
-    : (queue.startTask occurrence).ChildStreamsSettled := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.startTask occurrence available).ChildStreamsSettled := by
   unfold State.startTask
   split
   · exact settled
@@ -236,12 +216,18 @@ theorem State.ChildStreamsSettled.startTask {queue : State}
 Witness: every individual start creates no producer stream links. -/
 theorem State.ChildStreamsSettled.startGroup {queue : State}
     (settled : queue.ChildStreamsSettled) (ref : NodeRef)
-    : (queue.startGroup ref).ChildStreamsSettled := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.startGroup ref available).1.ChildStreamsSettled := by
+  have cached := settled.cacheTaskFailures available
   unfold State.startGroup
+  dsimp only
   split
-  · exact settled
-  · exact fold_preserves State.ChildStreamsSettled State.startTask
-      (fun _ occurrence prior => prior.startTask occurrence) _ _ settled
+  · exact cached
+  · split
+    · exact fold_preserves State.ChildStreamsSettled
+        (fun current task => current.startTask task available)
+        (fun _ occurrence prior => prior.startTask occurrence available) _ _ cached
+    · exact fun node member => cached node (List.mem_filter.mp member).1
 
 /-- Activating a stream does not modify any task node.
 Witness: both executable branches retain the same task map. -/
@@ -255,12 +241,17 @@ theorem State.ChildStreamsSettled.startStream {queue : State}
 Witness: compose group starts and stream starts in their actual order. -/
 theorem State.ChildStreamsSettled.startNewWork {queue : State}
     (settled : queue.ChildStreamsSettled) (work : NewWork)
-    : (queue.startNewWork work).ChildStreamsSettled := by
-  let current :=
-    { queue with rootGroups := queue.rootGroups ++ work.newGroups.map Execution.DeliveryNode.ref }
-  have groups := fold_preserves State.ChildStreamsSettled State.startGroup
-    (fun _ ref prior => prior.startGroup ref)
-    (work.newGroups.map Execution.DeliveryNode.ref) current settled
+    (available : List (Occurrence × Nat) := [])
+    : (queue.startNewWork work available).1.ChildStreamsSettled := by
+  let step (acc : State × List GroupFailureEvent) (ref : NodeRef) :=
+    let (current, failures) := acc
+    let (next, queued) := current.startGroup ref available
+    (next, failures ++ queued)
+  have groups := fold_preserves (fun acc => acc.1.ChildStreamsSettled) step
+    (fun acc ref prior => prior.startGroup ref available)
+    (work.newGroups.map Execution.DeliveryNode.ref)
+    ({ queue with rootGroups := queue.rootGroups ++
+      work.newGroups.map Execution.DeliveryNode.ref }, []) settled
   exact fold_preserves State.ChildStreamsSettled State.startStream
     (fun _ ref prior => prior.startStream ref) _ _ groups
 
@@ -296,20 +287,20 @@ theorem State.ChildStreamsSettled.taskFailure {queue : State}
 Witness: group cleanup filters task nodes, and activation creates only empty nodes.
 -/
 theorem State.ChildStreamsSettled.drainReadyGroups {queue : State}
-    (settled : queue.ChildStreamsSettled)
-    : queue.drainReadyGroups.1.ChildStreamsSettled := by
-  apply State.drainReadyGroups_preserves State.ChildStreamsSettled (valid := settled)
-  · intro current node prior _ _ _ _
-    exact (prior.finishGroupSuccess node).startNewWork _
-  · intro current node occurrence errors prior _ _ _
-    exact prior.taskFailure occurrence errors
+    (settled : queue.ChildStreamsSettled) (available : List (Occurrence × Nat) := [])
+    : (queue.drainReadyGroups available).1.ChildStreamsSettled := by
+  apply State.drainReadyGroups_preserves State.ChildStreamsSettled
+    (available := available) (valid := settled)
+  intro current node prior _ _ _
+  exact (prior.finishGroupSuccess node).startNewWork _ available
 
 /-- Task success preserves settled stream ownership through integration and release.
 Witness: install the producer value, then follow the contributor fold and final drain.
 -/
 theorem State.ChildStreamsSettled.taskSuccess {queue : State}
     (settled : queue.ChildStreamsSettled) (occurrence : Occurrence) (result : TaskResult)
-    : (queue.taskSuccess occurrence result).1.ChildStreamsSettled := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.taskSuccess occurrence result available).1.ChildStreamsSettled := by
   cases found : queue.taskNode? occurrence with
   | none => simpa only [State.taskSuccess, found] using settled
   | some node =>
@@ -326,47 +317,60 @@ theorem State.ChildStreamsSettled.taskSuccess {queue : State}
           · exact prior
       have processed := fold_preserves (fun acc => acc.1.ChildStreamsSettled)
         successGroupStep step node.task.groups (_, [], {}) integrated
-      rw [queue.taskSuccess_eq occurrence result node found]
-      exact (processed.startNewWork _).drainReadyGroups
+      rw [queue.taskSuccess_eq occurrence result node found available]
+      exact (processed.startNewWork _ available).drainReadyGroups available
 
 /-- Item arrival registers its child streams as roots, without attaching them to tasks.
 Witness: parentless integration, pruning, activation, and draining preserve settled links.
 -/
 theorem State.ChildStreamsSettled.streamItems {queue : State}
     (settled : queue.ChildStreamsSettled) (stream : Execution.DeliveryNode)
-    (items : List StreamItem)
-    : (queue.streamItems stream items).1.ChildStreamsSettled := by
+    (items : List StreamItem) (available : List (Occurrence × Nat) := [])
+    : (queue.streamItems stream items available).1.ChildStreamsSettled := by
   let step (acc : State × List Execution.DeliveryNode
-      × List Execution.DeliveryNode × List StreamItemValue) (item : StreamItem) :=
-    let (current, groups, streams, values) := acc
+      × List Execution.DeliveryNode × List StreamItemValue × List GroupFailureEvent)
+      (item : StreamItem) :=
+    let (current, groups, streams, values, failures) := acc
     let (integrated, newWork) := current.maybeIntegrateWork item.work
     let (pruned, nonempty) := integrated.pruneEmptyGroups newWork.newGroups
-    (pruned.startNewWork { newWork with newGroups := nonempty },
-      groups ++ nonempty, streams ++ newWork.newStreams, values ++ [item.value])
+    let (started, queued) :=
+      pruned.startNewWork { newWork with newGroups := nonempty } available
+    (started, groups ++ nonempty, streams ++ newWork.newStreams,
+      values ++ [item.value], failures ++ queued)
   have folded := fold_preserves (fun acc => acc.1.ChildStreamsSettled) step
-    (fun acc item prior => ((prior.integrateRoots item.work).pruneEmptyGroups _).startNewWork _)
-    items (queue, [], [], []) settled
+    (fun acc item prior =>
+      ((prior.integrateRoots item.work).pruneEmptyGroups _).startNewWork _ available)
+    items (queue, [], [], [], []) settled
   unfold State.streamItems
   split
   · exact settled
-  · exact folded.drainReadyGroups
+  · exact folded.drainReadyGroups available
 
 /-- Every graph-event handler preserves the invariant, even on arbitrary host inputs.
 Witness: successful settlement is the only child-stream attachment path; all other
 handlers retain, create empty, or remove task nodes. -/
 theorem State.ChildStreamsSettled.handleGraphEvent {queue : State}
     (settled : queue.ChildStreamsSettled) (event : GraphEvent)
-    : (queue.handleGraphEvent event).1.ChildStreamsSettled := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.handleGraphEvent event available).1.ChildStreamsSettled := by
+  have cached := settled.cacheTaskFailures available
   cases event with
-  | taskSuccess occurrence result => exact settled.taskSuccess occurrence result
-  | taskFailure occurrence errors => exact settled.taskFailure occurrence errors
-  | streamItems stream items => exact settled.streamItems stream items
+  | taskSuccess occurrence result => exact cached.taskSuccess occurrence result available
+  | taskFailure occurrence errors => exact cached.taskFailure occurrence errors
+  | streamItems stream items => exact cached.streamItems stream items available
   | streamSuccess stream =>
       simp only [State.handleGraphEvent, State.streamSuccess]
-      split <;> exact settled
+      split <;> exact cached
   | streamFailure stream errors =>
       simp only [State.handleGraphEvent, State.streamFailure]
-      split <;> exact settled
+      split <;> exact cached
+
+  | groupFailure notice =>
+      change ((queue.cacheTaskFailures available).groupFailure notice).1.ChildStreamsSettled
+      unfold State.groupFailure
+      split
+      · exact cached
+      · split <;> exact cached
 
 /-- Initialization has no unresolved task carrying child streams.
 Witness: the empty task map followed by root integration, pruning, and starts. -/
@@ -381,8 +385,10 @@ theorem State.ChildStreamsSettled.handleGraphEvents {queue : State}
     (settled : queue.ChildStreamsSettled) (events : List GraphEvent)
     : (queue.handleGraphEvents events).1.ChildStreamsSettled := by
   have folded := fold_preserves
-    (fun acc : State × List WorkQueueEvent => acc.1.ChildStreamsSettled) rawEventStep
-    (fun _ event prior => prior.handleGraphEvent event) events (queue, []) settled
+    (fun acc : State × List WorkQueueEvent => acc.1.ChildStreamsSettled)
+    (fun acc event => rawEventStep acc event (GraphEvent.availableFailures events))
+    (fun _ event prior => prior.handleGraphEvent event (GraphEvent.availableFailures events))
+    events (queue, []) settled
   rw [State.handleGraphEvents_eq_rawEventReplay]
   split
   · exact settled

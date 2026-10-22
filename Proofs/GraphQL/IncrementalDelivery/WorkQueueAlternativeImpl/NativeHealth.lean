@@ -11,13 +11,14 @@ namespace GraphQL.IncrementalDelivery.AlternativeWorkQueue.NativeRefinement
 def TaskPresenceChecked (queue : ReferenceWorkQueue.State) : Prop :=
   ∀ occurrence,
     queue.taskNode? occurrence = none
-    → (∀ result, queue.taskSuccess occurrence result = (queue, []))
+    → (∀ result, queue.taskSuccess occurrence result = (queue, [], []))
       ∧ ∀ errors, queue.taskFailure occurrence errors = (queue, [])
 
 theorem taskPresenceChecked_holds (queue : ReferenceWorkQueue.State)
     : TaskPresenceChecked queue := by
   intro occurrence absent
-  exact ⟨queue.taskSuccess_of_taskNode_none absent, queue.taskFailure_of_taskNode_none absent⟩
+  exact ⟨fun result => queue.taskSuccess_of_taskNode_none absent result,
+    queue.taskFailure_of_taskNode_none absent⟩
 
 /-- A structural cut invariant, not an assumption added to EventSource.ValidFor.
 Each live record's absent immediate parent was not removed by failure.

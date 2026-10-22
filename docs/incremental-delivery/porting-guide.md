@@ -6,13 +6,18 @@ and the [algorithm/proof guide](alternative-implementation.md).
 It describes how to implement the same logical transitions efficiently without copying
 Lean lists, fuel, snapshots, or proof histories into production.
 
-Concrete correspondence here uses GraphQL.js PR #4859 as a baseline and the companion
+Concrete correspondence here uses GraphQL.js PR #4859 with the cached-failure follow-up
+[PR #4870](https://github.com/graphql/graphql-js/pull/4870), and the companion
 `graphql-incremental-delivery-js` implementation as a porting example. The Lean definitions
 and proofs stand independently of either repository's history.
 Public failure-reporting definitions separate collected diagnostics from selected causes;
 the abstract proofs and recording refinements await migration to these definitions.
 Formal JS refinement, concrete cost bounds, native acquisition completeness, exceptional
 cleanup, fairness, and infinite-source progress remain separate projects.
+
+The [GraphQL.js definition map](graphql-js-correspondence.md) lists every public queue
+declaration, preserving upstream names where the responsibility matches and distinguishing
+finite-model adapters from native operations.
 
 ## Shared semantics and deliberate differences
 
@@ -349,11 +354,15 @@ and the initial envelope also keep their collected counts. Work stores both proj
 in `TaskOutcome`; recording inventories remain additive. Never clamp counts, manufacture
 errors from skipped work, or count one originating error again during bubbling.
 
-Follow GraphQL.js's task-computation replay: retain the rejected outcome with the task,
-keep dormant owners' task memberships, and replay the rejection when an owner starts.
-Group task registration order determines which cached rejection is replayed first; failure
-settlement order does not. No per-group failure-origin occurrence is needed. Successful
-results must not integrate work or decrement pending again when another owner starts.
+Retain the rejected computation outcome with the task and keep dormant task memberships.
+Before starting a group, scan its already started computations in task registration order.
+If any are rejected, remove that group immediately and enqueue one completion containing
+all those rejections; start no private work and await no pending computation. Already
+queued task failures cannot complete the removed group again. Failure on an active group
+still reports only its triggering task. No per-group error cache, error-origin occurrence
+or deduplication by error identity is needed. Successful results must not integrate work
+or decrement pending again when another owner starts. The finite Lean batch supplies
+available computation outcomes; native promise/cache visibility needs its own refinement.
 The abstract contract checks causal provenance without imposing that bookkeeping on the
 runtime. Detailed error identity and asynchronous refinement remain separate obligations.
 

@@ -1,4 +1,5 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.RegionRegistration
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.ProducerSupport
 
 /-! Fresh stream-item regions supply sequential registration availability. -/
 
@@ -38,9 +39,21 @@ theorem State.RegionInventory.streamItem_available {queue : State}
     : queue.ChildGroupsAvailable work failed item.work := by
   intro task registered ref contributes _
   obtain ⟨group, included, same⟩ :=
-    matching.streamItem_childTasksCovered member task registered ref contributes
-  exact .inr (same ▸ inventory.streamItem_groupsFresh generated matching member fresh
-    group included)
+    matching.streamItem_childTasksCovered generated.declarations member task registered ref contributes
+  obtain ⟨parents, canonical⟩ := generated.groupRecordsCanonical
+  have descriptors : ∀ group ∈ item.work.groups, ∃ dependencies,
+      GroupRecordAt work group.node dependencies ∧ group.parent = dependencies.head? := by
+    intro group candidate
+    obtain ⟨dependencies, record⟩ := matching.streamItem_childGroups_recordAt member candidate
+    exact ⟨dependencies, record,
+      (matching.streamItem_childGroups_parentCanonical canonical member candidate).trans
+        (congrArg List.head? (canonical _ _ record)).symm⟩
+  have certificate := generated.declarations.sourceStreamItem matching member []
+  have supported := State.registrationSupported_of_fresh_candidates generated item.work.groups
+    (inventory.streamItem_groupsFresh generated matching member fresh) descriptors
+    (fun group candidate parent parentEq =>
+      (certificate.parents group candidate parent parentEq).resolve_left (by simp))
+  exact same ▸ supported group included
 
 -----------------------------------------------------------------------------------------
 -- Freshness holds at each intermediate state inside a multi-item event
@@ -55,14 +68,15 @@ theorem State.RegionInventory.streamItems_available {queue : State}
     (matching : (GraphEvent.streamItems stream items).MatchesWork work)
     (unique : (items.map StreamItem.occurrence).Nodup)
     (fresh : ∀ item ∈ items, item.occurrence ∉ seen)
-    : queue.StreamRegistrationsAvailable work failed items := by
+    (available : List (Occurrence × Nat) := [])
+    : queue.StreamRegistrationsAvailable work failed items available := by
   induction items generalizing queue seen with
   | nil => trivial
   | cons item rest ih =>
       have unique := List.nodup_cons.mp unique
       refine ⟨inventory.streamItem_available generated matching List.mem_cons_self
         (fresh item List.mem_cons_self), ?_⟩
-      apply ih (inventory.integrateStreamItem matching List.mem_cons_self)
+      apply ih (inventory.integrateStreamItem matching List.mem_cons_self available)
         (fun next member => matching next (List.mem_cons_of_mem item member)) unique.2
       intro next member recorded
       rcases List.mem_cons.mp recorded with same | earlier
@@ -77,11 +91,12 @@ theorem createWorkQueue_replay_streamRegistrationsAvailable {work : Execution.Wo
     (valid : ValidGraphEvents work before) {stream items failed}
     (matching : (GraphEvent.streamItems stream items).MatchesWork work)
     (fresh : (GraphEvent.streamItems stream items).Fresh before)
+    (available : List (Occurrence × Nat) := [])
     : ((State.initialize (Work.fromExecution work)).replayGraphEvents
-        before).StreamRegistrationsAvailable
-        work failed items := by
-  apply (createWorkQueue_replay_regionInventory valid).streamItems_available generated
-    matching fresh.1
+        before available).StreamRegistrationsAvailable
+        work failed items available := by
+  apply (createWorkQueue_replay_regionInventory valid available).streamItems_available generated
+    matching fresh.1 (available := available)
   intro item member
   exact fresh.2.2.1 item.occurrence (List.mem_map_of_mem member)
 

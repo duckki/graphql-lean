@@ -15,15 +15,18 @@ Witness: every child integration registers its releases; pruning preserves that 
 and activation retains old roots while adding each registered child stream.
 -/
 theorem State.streamItemFold_streamRoots_cover (queue : State) (items : List StreamItem)
-    : let prepared := items.foldl streamItemStep (queue, [], [], [])
+    (available : List (Occurrence × Nat) := [])
+    : let prepared :=
+        items.foldl (fun acc item => streamItemStep acc item available)
+          (queue, [], [], [], [])
       (queue.rootStreams ++ prepared.2.2.1.map Execution.DeliveryNode.ref).Subset
         prepared.1.rootStreams := by
   have loop (remaining : List StreamItem)
       (acc : State × List Execution.DeliveryNode × List Execution.DeliveryNode
-        × List StreamItemValue)
+        × List StreamItemValue × List GroupFailureEvent)
       (prior : (queue.rootStreams ++ acc.2.2.1.map Execution.DeliveryNode.ref).Subset
         acc.1.rootStreams)
-      : let final := remaining.foldl streamItemStep acc
+      : let final := remaining.foldl (fun acc item => streamItemStep acc item available) acc
         (queue.rootStreams ++ final.2.2.1.map Execution.DeliveryNode.ref).Subset
           final.1.rootStreams := by
     induction remaining generalizing acc with
@@ -36,7 +39,7 @@ theorem State.streamItemFold_streamRoots_cover (queue : State) (items : List Str
           rw [State.pruneEmptyGroups_streams]
           exact (acc.1.maybeIntegrateWork_streams_registered item.work).2
         have next := pruned.1.startNewWork_streamRoots_cover
-          { integrated.2 with newGroups := pruned.2 } registered
+          { integrated.2 with newGroups := pruned.2 } registered available
         have roots : pruned.1.rootStreams = acc.1.rootStreams := by
           rw [State.pruneEmptyGroups_rootStreams, State.maybeIntegrateWork_rootStreams]
         rw [roots] at next
@@ -50,7 +53,7 @@ theorem State.streamItemFold_streamRoots_cover (queue : State) (items : List Str
         · rcases List.mem_append.mp noticed with earlier | added
           · exact List.mem_append_left _ (prior (List.mem_append_right _ earlier))
           · exact List.mem_append_right _ added
-  exact loop items (queue, [], [], []) (by intro ref member; simpa using member)
+  exact loop items (queue, [], [], [], []) (by intro ref member; simpa using member)
 
 /-- An item handler activates every carried stream notice and retains all old roots.
 Witness: the leading item carrier names the prepared streams exactly; its subsequent
@@ -58,16 +61,19 @@ group drain also covers every emitted notice and does not remove any stream root
 -/
 theorem State.streamItems_streamRoots_cover (queue : State)
     (stream : Execution.DeliveryNode) (items : List StreamItem)
+    (available : List (Occurrence × Nat) := [])
     : (queue.rootStreams
-        ++ (queue.streamItems stream items).2.flatMap rawStreamNoticeRefs).Subset
-        (queue.streamItems stream items).1.rootStreams := by
-  rw [queue.streamItems_eq stream items]
+        ++ (queue.streamItems stream items available).2.1.flatMap
+            rawStreamNoticeRefs).Subset
+        (queue.streamItems stream items available).1.rootStreams := by
+  rw [queue.streamItems_eq stream items available]
   split
   · intro ref member; simpa using member
-  · let prepared := items.foldl streamItemStep (queue, [], [], [])
-    have first := queue.streamItemFold_streamRoots_cover items
+  · let prepared := items.foldl (fun acc item => streamItemStep acc item available)
+      (queue, [], [], [], [])
+    have first := queue.streamItemFold_streamRoots_cover items available
     have later := State.drainReadyGroups_go_streamRoots_cover prepared.1.groupNodes.length
-      prepared.1
+      prepared.1 available
     intro ref member
     apply later
     simp only [List.flatMap_cons, rawStreamNoticeRefs] at member

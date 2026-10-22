@@ -187,7 +187,12 @@ mutual
         let tasks ←
           collectExecutionGroups schema resolvers variables fuel parentType source
             plan.newCollectedFieldsMaps path newMap (route ++ [1])
-        return { initial with work := .combine initial.work tasks }
+        let declarations :=
+          newUsages.filterMap (fun usage => lookupDeferredFragment? newMap usage.ref)
+        return {
+          initial with
+            work := .combine initial.work (.declareGroups declarations tasks)
+        }
   termination_by (fuel, 6, 0, 0)
 
   def collectExecutionGroups (schema : Schema) (resolvers : Resolvers ObjectRef)

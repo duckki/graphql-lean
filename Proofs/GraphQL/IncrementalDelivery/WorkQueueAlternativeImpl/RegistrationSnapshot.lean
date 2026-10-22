@@ -67,36 +67,39 @@ structure SnapshotTaskEvidence (queue : Kernel) (work : Work) : Prop where
   matching : queue.RegisteredTasksMatch work
   buffered : queue.StoredTaskLinks
   sound : queue.GroupMembershipSound
+  registration : queue.RegistrationFrame work
 
 private theorem SnapshotTaskEvidence.integrate {queue : Kernel} {work}
     (frame : SnapshotTaskEvidence queue work) (children : ReferenceWorkQueue.Work)
-    (covered
-      : ∀ task ∈ children.tasks,
-        ∀ key ∈ task.groups.map Execution.DeliveryNode.ref,
-          ∃ group ∈ children.groups, group.node.ref = key)
+    (certificate
+      : ReferenceWorkQueue.DeclarationCoverage.WorkCertificate work queue.registeredGroups
+          children)
     (matching : ∀ task ∈ children.tasks, ReferenceWorkQueue.TaskMatches work task)
     (producer : Option Occurrence := none)
     : SnapshotTaskEvidence (queue.maybeIntegrateWork children producer).1 work := by
   have registration := queue.maybeIntegrateWork_registration frame.live frame.contributors
-    children covered producer
+    children certificate.contributors producer
   exact ⟨frame.keys.maybeIntegrateWork children producer, registration.1, registration.2.1,
     frame.started.maybeIntegrateWork children producer,
     frame.matching.maybeIntegrateWork children matching producer,
     frame.buffered.maybeIntegrateWork frame.keys frame.contributors frame.started children producer,
-    frame.sound.maybeIntegrateWork children producer⟩
+    frame.sound.maybeIntegrateWork children producer,
+    (frame.registration.maybeIntegrateWork children certificate producer).1⟩
 
 private theorem SnapshotTaskEvidence.integrateItem {queue : Kernel} {work stream items}
     (frame : SnapshotTaskEvidence queue work)
     (matched : (ReferenceWorkQueue.GraphEvent.streamItems stream items).MatchesWork work)
     {item : ReferenceWorkQueue.StreamItem} (member : item ∈ items)
     : SnapshotTaskEvidence (queue.integrateStreamItem item) work := by
-  have prepared := frame.integrate item.work (matched.streamItem_childTasksCovered member)
+  have certificate := frame.registration.source.sourceStreamItem matched member queue.registeredGroups
+  have prepared := frame.integrate item.work certificate
     (by
       intro task listed
       obtain ⟨address, payload, same, known⟩ := matched.streamItem_childTask_producer member listed
       exact ⟨⟨address, payload, some item.occurrence, same, known⟩,
         matched.streamItem_childTask_groupsExact member listed⟩)
-  have registration := queue.integrateStreamItem_registration frame.live frame.contributors matched member
+  have registration := queue.integrateStreamItem_registration frame.live frame.contributors
+    matched member frame.registration
   exact ⟨
     (prepared.keys.pruneEmptyGroups _).startNewWork _,
     registration.1,
@@ -104,7 +107,8 @@ private theorem SnapshotTaskEvidence.integrateItem {queue : Kernel} {work stream
     (prepared.started.pruneEmptyGroups _).startNewWork _,
     (prepared.matching.pruneEmptyGroups _).startNewWork _,
     (prepared.buffered.pruneEmptyGroups _).startNewWork _,
-    (prepared.sound.pruneEmptyGroups _).startNewWork _
+    (prepared.sound.pruneEmptyGroups _).startNewWork _,
+    (frame.registration.integrateStreamItem matched member).1
   ⟩
 
 theorem eagerRegistrationSnapshot_streamItems (queue : Kernel)
@@ -154,9 +158,9 @@ private theorem eagerRegistrationSnapshot_groupEvidence {queue : Kernel} {work p
       | true =>
           rw [eagerRegistrationSnapshot_streamItems queue stream items active]
           exact ReferenceWorkQueue.State.preparedStreamItems_preserves
-            (fun current => SnapshotGroupEvidence current work parents) frame items
+            (fun current => SnapshotGroupEvidence current work parents) frame items []
             (fun _ _ member next => next.integrateItem canonical matching member)
-  | taskFailure | streamSuccess | streamFailure => exact frame
+  | taskFailure | groupFailure | streamSuccess | streamFailure => exact frame
 
 -----------------------------------------------------------------------------------------
 -- Fresh input identity licenses the new buffered value's existing task memberships
@@ -173,7 +177,7 @@ theorem eagerRegistrationSnapshot_taskEvidence {queue : Kernel} {work settled be
     : SnapshotTaskEvidence (eagerRegistrationSnapshot queue event) work := by
   have initial : SnapshotTaskEvidence queue work :=
     ⟨accounted.refs, accounted.liveGroups, accounted.taskGroups, accounted.started,
-      accounted.matching, buffered, accounted.sound⟩
+      accounted.matching, buffered, accounted.sound, accounted.registration⟩
   cases event with
   | taskSuccess occurrence result =>
       cases found : queue.taskNode? occurrence with
@@ -191,8 +195,10 @@ theorem eagerRegistrationSnapshot_taskEvidence {queue : Kernel} {work settled be
             ⟨initial.keys, initial.live, initial.contributors,
               initial.started.putTaskNode _ registered, initial.matching,
               buffered.putTaskNode _ (fun _ => accounted.links node.task registered unsettled),
-              initial.sound⟩
-          exact installed.integrate result.work matching.childTasksCovered
+              initial.sound, accounted.registration.putTaskNode _ registered⟩
+          exact installed.integrate result.work
+            ((accounted.registration.children node.task registered).sourceChild known.2
+              matching)
             (by
               intro task member
               obtain ⟨address, payload, same, known⟩ := matching.childTask_producer member
@@ -202,13 +208,14 @@ theorem eagerRegistrationSnapshot_taskEvidence {queue : Kernel} {work settled be
   | streamItems stream items =>
       cases active : queue.rootStreams.contains stream.ref with
       | false =>
-          simpa only [eagerRegistrationSnapshot, active, Bool.false_eq_true, ↓reduceIte] using initial
+          simpa only [eagerRegistrationSnapshot, active, Bool.false_eq_true, ↓reduceIte]
+            using initial
       | true =>
           rw [eagerRegistrationSnapshot_streamItems queue stream items active]
           exact ReferenceWorkQueue.State.preparedStreamItems_preserves
-            (fun current => SnapshotTaskEvidence current work) initial items
+            (fun current => SnapshotTaskEvidence current work) initial items []
             (fun _ _ member frame => frame.integrateItem matching member)
-  | taskFailure | streamSuccess | streamFailure => exact initial
+  | taskFailure | groupFailure | streamSuccess | streamFailure => exact initial
 
 /-- Erasing only fresh empty computation nodes retains all cleanup-frame evidence. -/
 theorem SnapshotTaskEvidence.of_projection {queue : Kernel} {work event}
@@ -218,7 +225,7 @@ theorem SnapshotTaskEvidence.of_projection {queue : Kernel} {work event}
   have catalogue := congrArg ReferenceWorkQueue.State.tasks projection.core
   change (registrationSnapshot queue event).tasks = (eagerRegistrationSnapshot queue event).tasks
     at catalogue
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · change (registrationCore (registrationSnapshot queue event)).GroupRefsUnique
     rw [projection.core]
     exact frame.keys
@@ -242,6 +249,24 @@ theorem SnapshotTaskEvidence.of_projection {queue : Kernel} {work event}
     rw [projection.core]
     exact frame.sound
 
+  · apply frame.registration.retain
+    · change (registrationCore (registrationSnapshot queue event)).LiveGroupsRegistered
+      rw [projection.core]
+      exact frame.live
+    · change (registrationCore (registrationSnapshot queue event)).TaskGroupsRegistered
+      rw [projection.core]
+      exact frame.contributors
+    · intro node member
+      rw [catalogue]
+      exact frame.started node (projection.nodes member)
+    · intro task member
+      rwa [catalogue] at member
+    · have registry := congrArg ReferenceWorkQueue.State.registeredGroups projection.core
+      change (registrationSnapshot queue event).registeredGroups
+        = (eagerRegistrationSnapshot queue event).registeredGroups at registry
+      rw [registry]
+      exact List.Subset.refl _
+
 /-- The old eager frame transfers to the actual delayed snapshot through its projection. -/
 theorem registrationSnapshot_taskEvidence {queue : Kernel} {work settled before}
     (projection : SnapshotProjection queue event)
@@ -258,10 +283,17 @@ theorem registrationSnapshot_taskEvidence {queue : Kernel} {work settled before}
 -----------------------------------------------------------------------------------------
 
 private theorem cleared_taskEvidence (state : State) (work : Work)
+    (certified : ReferenceWorkQueue.DeclarationCoverage.Certified [] work)
     : SnapshotTaskEvidence state.clearRecords.queue work := by
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · simp [ReferenceWorkQueue.State.GroupRefsUnique, State.clearRecords]
-  all_goals intro node member; cases member
+  · intro node member; cases member
+  · intro node member; cases member
+  · intro node member; cases member
+  · intro node member; cases member
+  · intro node member; cases member
+  · intro node member; cases member
+  · refine ⟨certified, ?_, ?_, ?_, ?_⟩ <;> intro node member <;> cases member
 
 private theorem cleared_snapshot (state : State) (event : GraphEvent)
     : eagerRegistrationSnapshot state.clearRecords.queue event
@@ -269,7 +301,7 @@ private theorem cleared_snapshot (state : State) (event : GraphEvent)
   cases event with
   | taskSuccess => rfl
   | streamItems => simp [eagerRegistrationSnapshot, State.clearRecords]
-  | taskFailure | streamSuccess | streamFailure => rfl
+  | taskFailure | groupFailure | streamSuccess | streamFailure => rfl
 
 /-- Generated matching source inputs derive both the registration snapshot's forest and
 the actual effect view's forest. New child registration and item activation use the same
@@ -303,7 +335,8 @@ theorem generatedSnapshot_removalForest {work inputs event}
       · intro node child member; cases member
     · obtain ⟨parents, canonical, links, groups⟩ := generated.runNormalized_groupMetadata earlier
       have frame : SnapshotGroupEvidence
-          ((ReferenceWorkQueue.State.initialize (ReferenceWorkQueue.Work.fromExecution work)).runNormalized inputs).1
+          ((ReferenceWorkQueue.State.initialize (ReferenceWorkQueue.Work.fromExecution
+            work)).runNormalized inputs).1
           work parents :=
         ⟨groups, links, ReferenceWorkQueue.createWorkQueue_runNormalized_childGroupsUnique _ _⟩
       have snapshot := eagerRegistrationSnapshot_groupEvidence frame canonical event matching
@@ -313,7 +346,8 @@ theorem generatedSnapshot_removalForest {work inputs event}
   have actual : (registrationSnapshot ((State.initialize work).runNormalized inputs).1.queue
       event).RemovalForest parents := by
     have groups := congrArg ReferenceWorkQueue.State.groupNodes projection.core
-    change (registrationSnapshot _ event).groupNodes = (eagerRegistrationSnapshot _ event).groupNodes
+    change (registrationSnapshot _ event).groupNodes = (eagerRegistrationSnapshot _
+      event).groupNodes
       at groups
     refine ⟨?_, ?_, ?_⟩
     · change (registrationCore (registrationSnapshot _ event)).ChildGroupsUnique
@@ -341,19 +375,31 @@ def GeneratedSnapshotTaskEvidence : Prop :=
         (registrationSnapshot ((State.initialize work).runNormalized inputs).1.queue
           event) work
 
-/-- Initialization, normalized accounting and source freshness discharge the local frame. -/
-theorem GeneratedSnapshotTaskEvidence_holds : GeneratedSnapshotTaskEvidence := by
-  intro work inputs event generated valid started
+/-- Actual cached batch replay supplies the eager reference registration frame. -/
+theorem generatedEagerSnapshot_taskEvidence {work inputs event}
+    (generated : ReferenceWorkQueue.ExecutedWork work)
+    (valid : ReferenceWorkQueue.ValidGraphEvents work (inputs.flatten ++ [event]))
+    (started : ReferenceWorkQueue.inputsStarted work inputs = true)
+    : SnapshotTaskEvidence
+        (eagerRegistrationSnapshot ((State.initialize work).runNormalized inputs).1.queue
+          event)
+        work := by
   obtain ⟨earlier, matching, fresh⟩ := ReferenceWorkQueue.validGraphEvents_last valid
-  apply SnapshotTaskEvidence.of_projection (generatedSnapshot_projection generated valid started)
   rw [State.runNormalized_initialize work inputs generated earlier started]
   simp only [State.fromReference]
   split
   · rw [cleared_snapshot]
-    exact cleared_taskEvidence _ _
-  · obtain ⟨settled, included, accounted⟩ := generated.runNormalized_pendingAccounting inputs earlier started
+    exact cleared_taskEvidence _ _ generated.declarations
+  · obtain ⟨settled, included, accounted⟩ := generated.runNormalized_pendingAccounting inputs
+      earlier started
     apply eagerRegistrationSnapshot_taskEvidence accounted
       (generated.runNormalized_storedTaskLinks inputs earlier started) included event matching fresh
+
+/-- Initialization, normalized accounting and source freshness discharge the local frame. -/
+theorem GeneratedSnapshotTaskEvidence_holds : GeneratedSnapshotTaskEvidence := by
+  intro work inputs event generated valid started
+  exact SnapshotTaskEvidence.of_projection (generatedSnapshot_projection generated valid started)
+    (generatedEagerSnapshot_taskEvidence generated valid started)
 
 /-- Generated snapshot lookups use the permanent catalogue's exact contributing owners. -/
 theorem generatedSnapshot_taskCatalogue {work inputs event}
@@ -399,7 +445,7 @@ theorem generatedSnapshot_failureFrontierSource {work inputs event occurrence}
           (registrationSnapshot ((State.initialize work).runNormalized inputs).1.queue
             event) event
           ((((State.initialize work).runNormalized inputs).1.queue.handleGraphEvent
-              event).2) occurrence
+              event).2.1) occurrence
         = true)
     (owned
       : ∃ owner ∈ node.task.groups,
@@ -407,7 +453,7 @@ theorem generatedSnapshot_failureFrontierSource {work inputs event occurrence}
             (failurePruningView ((State.initialize work).runNormalized inputs).1.queue
               event
               ((((State.initialize work).runNormalized inputs).1.queue.handleGraphEvent
-                  event).2)).groupNode?
+                  event).2.1)).groupNode?
               owner.ref
             = some group)
     (cut
@@ -416,25 +462,25 @@ theorem generatedSnapshot_failureFrontierSource {work inputs event occurrence}
             (failurePruningView ((State.initialize work).runNormalized inputs).1.queue
                 event
                 ((((State.initialize work).runNormalized inputs).1.queue.handleGraphEvent
-                    event).2)).groupNode?
+                    event).2.1)).groupNode?
                 owner.ref
               = some group
             → ∃ root ∈
                 failureRoots
                   ((((State.initialize work).runNormalized
                       inputs).1.queue.handleGraphEvent
-                      event).2),
+                      event).2.1),
                 (failurePruningView ((State.initialize work).runNormalized inputs).1.queue
                   event
                   ((((State.initialize work).runNormalized
                       inputs).1.queue.handleGraphEvent
-                      event).2)).LiveDescendant
+                      event).2.1)).LiveDescendant
                   root owner.ref)
     (held : key ∈ node.childStreams)
     {final targets}
     (trace
       : let before := ((State.initialize work).runNormalized inputs).1.queue
-        let events := (before.handleGraphEvent event).2
+        let events := (before.handleGraphEvent event).2.1
         PruningGroups (failurePruningView before event events) (failureRoots events) final
           targets)
     : .stream key ∈ targets := by
@@ -443,6 +489,7 @@ theorem generatedSnapshot_failureFrontierSource {work inputs event occurrence}
   obtain ⟨task, catalogue, groups⟩ := canonicalTaskCatalogue frame.started frame.matching found
   have linked := frame.buffered node (List.mem_of_find?_eq_some found) stored
   rw [(ReferenceWorkQueue.State.taskNode?_some found).2] at linked
-  exact failureFrontier_heldSource trace (viewForest _) linked pending found catalogue groups owned cut held
+  exact failureFrontier_heldSource trace (viewForest _) linked pending found catalogue groups
+    owned cut held
 
 end GraphQL.IncrementalDelivery.AlternativeWorkQueue.NativeRefinement

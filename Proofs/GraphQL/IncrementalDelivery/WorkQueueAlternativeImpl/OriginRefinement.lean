@@ -91,6 +91,10 @@ mutual
   the existing WorkRefines/key-map certificate, not silently equated here. -/
   inductive WorkOriginsRefine : RecordedWork → RecordedWork → Prop where
     | empty : WorkOriginsRefine .empty .empty
+    | declareGroups {groups eagerGroups tasks eagerTasks}
+      (nested : WorkOriginsRefine tasks eagerTasks)
+      : WorkOriginsRefine (.declareGroups groups tasks)
+          (.declareGroups eagerGroups eagerTasks)
     | combine {left right eagerLeft eagerRight} (head : WorkOriginsRefine left eagerLeft)
       (tail : WorkOriginsRefine right eagerRight)
       : WorkOriginsRefine (.combine left right) (.combine eagerLeft eagerRight)
@@ -121,6 +125,7 @@ mutual
       : left.origins.Sublist right.origins := by
     cases known with
     | empty => exact .refl _
+    | declareGroups nested => simpa only [RecordedWork.origins] using nested.origins
     | combine head tail =>
         simpa only [RecordedWork.origins] using head.origins.append tail.origins
     | executionGroup payload nested =>

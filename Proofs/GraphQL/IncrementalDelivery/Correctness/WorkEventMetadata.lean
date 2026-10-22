@@ -1,4 +1,5 @@
 import Proofs.GraphQL.IncrementalDelivery.Correctness.WorkMetadata
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.ReportingWitness
 
 /-! All observed descriptors come from actual work, through every grouping choice. -/
 
@@ -34,8 +35,8 @@ theorem announcement_nodes {work initial matching events failed groups streams}
     exact ⟨.stream, dependencies, producer, known⟩
 
 /-- Atomic events contain only known descriptors, by owner and announcement rules. -/
-theorem event_allowed_nodes {work initial matching before failed event}
-    (allowed : EventAllowed work initial matching before failed event)
+theorem event_allowed_nodes {work initial matching before failed event reported}
+    (allowed : EventAllowed work initial matching before failed event reported)
     : ∀ node ∈ eventNodes event, KnownNode work node := by
   cases event with
   | groupValues node values =>
@@ -111,7 +112,7 @@ theorem explained_nodes {work groups streams events matching failures}
   intro node member
   obtain ⟨event, selected, member⟩ := List.mem_flatMap.mp member
   obtain ⟨index, selected⟩ := List.mem_iff_getElem?.mp selected
-  exact event_allowed_nodes (explained.2.2 index event selected) node member
+  exact event_allowed_nodes (explained.eventAllowed index event selected) node member
 
 /-- Both initial and later descriptors in an admitted observation retain their source
 paths. Witness: work-node provenance and the independently proved assignment invariant.

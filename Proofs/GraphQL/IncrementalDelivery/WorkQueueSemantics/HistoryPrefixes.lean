@@ -8,12 +8,13 @@ open GraphQL.IncrementalDelivery.Execution
 /-- An event and its notices inspect only failures at the starting boundary.
 Witness: composing cut filters retains exactly the starting-boundary cuts.
 -/
-theorem eventAllowed_filter {work initial matching before failures event bound}
+theorem eventAllowed_filter {work initial matching before failures event bound reported}
     (within : before.length ≤ bound)
     : EventAllowed work initial matching before
         (failures.filter (fun entry => entry.1 ≤ bound)) event
-      = EventAllowed work initial matching before failures event := by
-  have same : (failures.filter (fun entry => entry.1 ≤ bound)).filter
+        (reported.filter (fun entry => entry.1 ≤ bound))
+      = EventAllowed work initial matching before failures event reported := by
+  have same (failures : FailureCuts) : (failures.filter (fun entry => entry.1 ≤ bound)).filter
       (fun entry => entry.1 ≤ before.length)
       = failures.filter (fun entry => entry.1 ≤ before.length) := by
     rw [List.filter_filter]
@@ -23,7 +24,7 @@ theorem eventAllowed_filter {work initial matching before failures event bound}
     have equivalent : (entry.1 ≤ before.length ∧ entry.1 ≤ bound)
         ↔ entry.1 ≤ before.length := by omega
     simp only [equivalent]
-  simp only [EventAllowed, same]
+  simp only [EventAllowed, failedBefore, same]
 
 /-- An output prefix retains exactly the failures at or before its boundary. Ordered
 cuts retain every earlier cause of each kept failure; witness: filter decomposition.
@@ -58,6 +59,36 @@ theorem FailureWitness.prefix {work initial matching head tail failures}
   · simpa only [List.take_append_of_le_length bounded] using facts.2.2.1
   · simpa only [List.take_append_of_le_length bounded] using facts.2.2.2
 
+/-- Reporting availability retains the same bounded, ordered, fresh prefix evidence. -/
+theorem FailureReportingWitness.prefix {work initial head tail reported}
+    (h : FailureReportingWitness work initial (head ++ tail) reported)
+    : FailureReportingWitness work initial head
+        (reported.filter (fun entry => entry.1 ≤ head.length)) := by
+  intro before cut occurrence after equal
+  obtain ⟨left, right, original, keptLeft, keptRight⟩ :=
+    List.filter_eq_append_iff.mp equal
+  obtain ⟨gap, rest, rfl, dropped, kept, _⟩ := List.filter_eq_cons_iff.mp keptRight
+  have facts := h (left ++ gap) cut occurrence rest
+    (by simpa only [List.append_assoc] using original)
+  have bounded : cut ≤ head.length := by simpa using kept
+  have gapEmpty : gap = [] := by
+    apply List.eq_nil_iff_forall_not_mem.mpr
+    intro entry member
+    have earlier := facts.2.1 entry (List.mem_append_right _ member)
+    have rejected := dropped entry member
+    simp only [decide_eq_true_eq] at rejected
+    exact rejected (Nat.le_trans earlier bounded)
+  subst gap
+  simp only [List.append_nil] at facts original
+  have leftKept : left.filter (fun entry => entry.1 ≤ head.length) = left := by
+    apply List.filter_eq_self.mpr
+    intro entry member
+    simpa using Nat.le_trans (facts.2.1 entry member) bounded
+  have same : left = before := leftKept.symm.trans keptLeft
+  rw [← same]
+  refine ⟨bounded, facts.2.1, facts.2.2.1, ?_⟩
+  simpa only [List.take_append_of_le_length bounded] using facts.2.2.2
+
 /-- Explained output histories restrict to any raw-event prefix. The publication
 matching is unchanged and failure evidence is truncated at the boundary.
 -/
@@ -65,12 +96,19 @@ theorem Explains.prefix {work groups streams head tail matching failures}
     (h : Explains work groups streams (head ++ tail) matching failures)
     : Explains work groups streams head matching
         (failures.filter (fun entry => entry.1 ≤ head.length)) := by
-  refine ⟨h.1, h.2.1.prefix, ?_⟩
+  refine ⟨
+    h.1,
+    h.2.1.prefix,
+    h.reportingFailures.filter (fun entry => entry.1 ≤ head.length),
+    h.reportingFacts.1.prefix,
+    h.reportingFacts.2.1.prefix _,
+    ?_
+  ⟩
   intro index event selected
   have bound : index < head.length := List.getElem?_eq_some_iff.mp selected |>.1
   have original : (head ++ tail)[index]? = some event := by
     simpa only [List.getElem?_append_left bound] using selected
-  have allowed := h.2.2 index event original
+  have allowed := h.eventAllowed index event original
   rw [eventAllowed_filter (by simp only [List.length_take]; omega)]
   simpa only [List.take_append_of_le_length (Nat.le_of_lt bound)] using allowed
 
@@ -136,15 +174,23 @@ theorem ValidHistory.prefix {work groups streams before after}
     · exact Or.inr (by simpa [empty] using run)
     · exact Or.inl (run.prefix empty)
 
+/-- Initial notices explain an empty output history with no causal or reporting cuts. -/
+theorem Initializes.emptyExplains {work groups streams}
+    (h : Initializes work groups streams) (matching : PublicationMatching)
+    : Explains work groups streams [] matching [] := by
+  refine ⟨h, ?_, [], ?_, ?_, ?_⟩
+  · simp [FailureWitness]
+  · simp [FailureReportingWitness]
+  · simp [CausalFailuresAvailable]
+  · intro index event selected
+    simp at selected
+
 /-- Every valid initialization admits the empty observation; witness: no outputs,
 no hidden failures, and empty work batching.
 -/
 theorem Initializes.emptyHistory {work groups streams}
     (h : Initializes work groups streams)
-    : AdmissiblePrefix work ⟨groups, streams, []⟩ := by
-  refine ⟨[], (fun _ => .executionGroup []), [], ⟨h, ?_, ?_⟩, .nil⟩
-  · simp [FailureWitness]
-  · intro index event selected
-    simp at selected
+    : AdmissiblePrefix work ⟨groups, streams, []⟩ :=
+  ⟨[], (fun _ => .executionGroup []), [], h.emptyExplains _, .nil⟩
 
 end GraphQL.IncrementalDelivery.WorkQueueSemantics

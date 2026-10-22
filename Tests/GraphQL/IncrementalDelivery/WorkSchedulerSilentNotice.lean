@@ -1,3 +1,4 @@
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.EmptyFailureBatchLedger
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.GroupPublicationAdmission
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.NoticeAncestorPublication
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.NoticeAncestorHealthReplay
@@ -62,16 +63,18 @@ private def selections : List Selection :=
 
 private def work : Execution.Work :=
   .combine .empty
-    (.combine
-      (.executionGroup [⟨root, []⟩, ⟨silent, [parent]⟩] []
-        ({ result := .ok (value.data, 0) }) (.combine .empty .empty))
+    (.declareGroups
+      [⟨root, []⟩, ⟨parent, []⟩, ⟨silent, [parent]⟩, ⟨child, [silent, parent]⟩]
       (.combine
-        (.executionGroup [⟨root, []⟩, ⟨parent, []⟩] []
-          ({ result := .ok (lastValue.data, 0) }) (.combine .empty .empty))
+        (.executionGroup [⟨root, []⟩, ⟨silent, [parent]⟩] []
+          ({ result := .ok (value.data, 0) }) (.combine .empty .empty))
         (.combine
-          (.executionGroup [⟨child, [silent, parent]⟩] []
-            ({ result := .ok ([("c", .scalar "c")], 0) }) (.combine .empty .empty))
-          .empty)))
+          (.executionGroup [⟨root, []⟩, ⟨parent, []⟩] []
+            ({ result := .ok (lastValue.data, 0) }) (.combine .empty .empty))
+          (.combine
+            (.executionGroup [⟨child, [silent, parent]⟩] []
+              ({ result := .ok ([("c", .scalar "c")], 0) }) (.combine .empty .empty))
+            .empty))))
 
 private def initial : State := State.initialize (Work.fromExecution work)
 
@@ -119,7 +122,7 @@ theorem shared_handler_does_not_reannounce {ref}
         ∈ initial.rootGroups
           ++ (initial.rawEventReplay [first]).2.flatMap rawGroupNoticeRefs)
     : ref
-      ∉ ((initial.replayGraphEvents [first]).handleGraphEvent event).2.flatMap
+      ∉ ((initial.replayGraphEvents [first]).handleGraphEvent event).2.1.flatMap
           rawGroupNoticeRefs := by
   apply generated.handleGraphEvent_noEarlierGroupNotice (event := event)
     (before := [first]) _ matched announced
@@ -140,7 +143,7 @@ theorem closing_root_preserves_other_root
   obtain ⟨parents, canonical, records, links, live, tasks, roots, _⟩ :=
     generated.replayGraphEvents_preparedRetirement [first]
       (by intro source member; obtain rfl := List.mem_singleton.mp member;
-          exact ⟨_, _, known, by cbv, by cbv⟩) matched incoming
+          exact ⟨_, _, known, by cbv, by cbv⟩) matched incoming (found := by cbv)
   have existsClosing : ∃ closing, prepared.groupNode? root.ref = some closing := by
     exact ⟨_, rfl⟩
   obtain ⟨closing, found⟩ := existsClosing
@@ -172,7 +175,7 @@ theorem parent_completed_by_child_carrier
       (address := [1, 1, 1, 0]) (groups := [⟨child, [silent, parent]⟩])
       (path := []) (result := { result := .ok ([("c", .scalar "c")], 0) })
       (children := .combine .empty .empty) (owners := []) (by cbv) List.mem_cons_self
-  have closed := generated.ownerNoticeAncestor_completed firstMatches matched
+  have closed := generated.ownerNoticeAncestor_completed firstMatches matched (by cbv)
     (groupRecordAt_of_nodeAt childKnown)
     (List.mem_cons_of_mem _ List.mem_cons_self)
     (incoming := incoming) (index := 2) (group := parent) (groups := [child]) (streams := [])
@@ -190,7 +193,7 @@ Witness: exact reduction of the generated work and single-pass handler. S is a r
 contributing owner, yet is never announced or completed; C is retained for future work.
 -/
 theorem silent_ancestor_carrier
-    : ((initial.replayGraphEvents [first]).handleGraphEvent event).2
+    : ((initial.replayGraphEvents [first]).handleGraphEvent event).2.1
         = [
           .groupValues root [value, lastValue],
           .groupSuccess root [] [],
@@ -223,13 +226,13 @@ theorem silent_ancestor_published_before_notice
     ConformancePlan.mixed_groupPublicationCertificates generated
       (inputs := [[first, event]]) valid (by cbv)
   obtain ⟨published, batches, matching, _⟩ := ledger
-  have covered := batches.flatten (by rw [← inputsStarted_eq_batchesStarted]; cbv)
+  have covered := batches.singleton (by cbv)
   have ownerPrefixes := covered.atPrefixDrainOwners [first] event []
   have certificates := ownerPrefixes incoming (by cbv)
   obtain ⟨parents, canonical, records, links, live, tasks, roots, _⟩ :=
     generated.replayGraphEvents_preparedRetirement [first]
       (by intro source member; obtain rfl := List.mem_singleton.mp member;
-          exact ⟨_, _, known, by cbv, by cbv⟩) matched incoming
+          exact ⟨_, _, known, by cbv, by cbv⟩) matched incoming (found := by cbv)
   have childKnown : NodeAt work child .group [silent.ref, parent.ref] none :=
     .group (work := work) (producer := none) (group := ⟨child, [silent, parent]⟩)
       (address := [1, 1, 1, 0]) (groups := [⟨child, [silent, parent]⟩])
@@ -246,13 +249,13 @@ theorem silent_ancestor_published_before_notice
   refine ⟨w, published, admitted, matching, ?_, ?_⟩
   · have earlier : ((initial.rawEventReplay [first]).2.flatMap
         WorkQueueEvent.objectValues).length = 0 := by cbv
-    have total : (((initial.replayGraphEvents [first]).handleGraphEvent event).2.flatMap
+    have total : (((initial.replayGraphEvents [first]).handleGraphEvent event).2.1.flatMap
         WorkQueueEvent.objectValues).length = 2 := by cbv
     have localCount : ((([root, parent].foldl successGroupStep (prepared, [], {})).2.1.take
         2).flatMap WorkQueueEvent.objectValues).length = 2 := by cbv
     change (occurrence, value) ∈ ((published.drop
       ((initial.rawEventReplay [first]).2.flatMap WorkQueueEvent.objectValues).length).take
-        (((initial.replayGraphEvents [first]).handleGraphEvent event).2.flatMap
+        (((initial.replayGraphEvents [first]).handleGraphEvent event).2.1.flatMap
           WorkQueueEvent.objectValues).length).take
         ((([root, parent].foldl successGroupStep (prepared, [], {})).2.1.take 2).flatMap
           WorkQueueEvent.objectValues).length at emitted
@@ -281,7 +284,7 @@ theorem silent_ancestor_healthy
     (by cbv)
     (output := .groupSuccess parent [child] [])
     (by
-      change _ ∈ ((initial.replayGraphEvents [first]).handleGraphEvent event).2
+      change _ ∈ ((initial.replayGraphEvents [first]).handleGraphEvent event).2.1
       rw [silent_ancestor_carrier.1]
       simp)
     (by simp [rawGroupNoticeRefs])
@@ -306,7 +309,7 @@ theorem silent_ancestor_contributor_succeeded
     (by cbv)
     (output := .groupSuccess parent [child] [])
     (by
-      change _ ∈ ((initial.replayGraphEvents [first]).handleGraphEvent event).2
+      change _ ∈ ((initial.replayGraphEvents [first]).handleGraphEvent event).2.1
       rw [silent_ancestor_carrier.1]
       simp)
     (by simp [rawGroupNoticeRefs])
@@ -330,13 +333,13 @@ theorem all_ancestor_contributors_before_notice
     ConformancePlan.mixed_groupPublicationCertificates generated
       (inputs := [[first, event]]) valid (by cbv)
   obtain ⟨published, batches, matching, _⟩ := ledger
-  have covered := batches.flatten (by rw [← inputsStarted_eq_batchesStarted]; cbv)
+  have covered := batches.singleton (by cbv)
   have childKnown : NodeAt work child .group [silent.ref, parent.ref] none :=
     .group (work := work) (producer := none) (group := ⟨child, [silent, parent]⟩)
       (address := [1, 1, 1, 0]) (groups := [⟨child, [silent, parent]⟩])
       (path := []) (result := { result := .ok ([("c", .scalar "c")], 0) })
       (children := .combine .empty .empty) (owners := []) (by cbv) List.mem_cons_self
-  have selected : ((initial.replayGraphEvents [first]).handleGraphEvent event).2[2]?
+  have selected : ((initial.replayGraphEvents [first]).handleGraphEvent event).2.1[2]?
       = some (.groupSuccess parent [child] []) := by rw [silent_ancestor_carrier.1]; rfl
   have firstOutput := generated.handleGraphEvent_groupNoticeAncestor_contributor_before
     (before := [first]) (event := event) valid (by cbv) covered selected List.mem_cons_self
@@ -346,7 +349,7 @@ theorem all_ancestor_contributors_before_notice
     (before := [first]) (event := event) valid (by cbv) covered selected List.mem_cons_self
     (groupRecordAt_of_nodeAt childKnown) (ref := parent.ref) (by simp) lastKnown (by simp)
   have count : ((initial.rawEventReplay [first]).2.flatMap WorkQueueEvent.objectValues).length
-      + ((((initial.replayGraphEvents [first]).handleGraphEvent event).2.take 2).flatMap
+      + ((((initial.replayGraphEvents [first]).handleGraphEvent event).2.1.take 2).flatMap
           WorkQueueEvent.objectValues).length = 2 := by cbv
   dsimp only [initial] at count
   refine ⟨w, published, admitted, matching, ?_, ?_⟩

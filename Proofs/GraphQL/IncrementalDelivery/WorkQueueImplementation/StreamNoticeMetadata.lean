@@ -52,10 +52,11 @@ Witness: successful flush notices use registry lookups; failed closures announce
 and cleanup/activation leave that registry unchanged for the rest of the drain.
 -/
 theorem State.StreamsSatisfy.drainReadyGroups_notices {queue : State} {property}
-    (known : queue.StreamsSatisfy property)
-    : ∀ event ∈ queue.drainReadyGroups.2, event.StreamNoticesSatisfy property := by
+    (known : queue.StreamsSatisfy property) (available : List (Occurrence × Nat) := [])
+    : ∀ event ∈ (queue.drainReadyGroups available).2.1,
+        event.StreamNoticesSatisfy property := by
   have loop (fuel : Nat) (current : State) (registry : current.StreamsSatisfy property)
-      : ∀ event ∈ (State.drainReadyGroups.go fuel current).2,
+      : ∀ event ∈ (State.drainReadyGroups.go available fuel current).2.1,
           event.StreamNoticesSatisfy property := by
     induction fuel generalizing current with
     | zero => simp [State.drainReadyGroups.go]
@@ -65,25 +66,14 @@ theorem State.StreamsSatisfy.drainReadyGroups_notices {queue : State} {property}
         split
         · simp
         · rename_i node selected
-          cases cached : current.rejectedTask? node with
-          | none =>
-              intro event member
-              rcases List.mem_append.mp member with first | later
-              · exact registry.finishGroupSuccess_output node event first
-              · apply ih _ ?_ event later
-                intro stream stored
-                rw [State.startNewWork_streams, State.finishGroupSuccess_streams] at stored
-                exact registry stream stored
-          | some rejected =>
-              obtain ⟨occurrence, errors⟩ := rejected
-              intro event member
-              rcases List.mem_append.mp member with first | later
-              · obtain ⟨owner, rfl⟩ := current.taskFailure_event_failure occurrence errors event first
-                trivial
-              · apply ih (current.taskFailure occurrence errors).1 ?_ event later
-                intro stream stored
-                rw [State.taskFailure_streams] at stored
-                exact registry stream stored
+          intro event member
+          rcases List.mem_append.mp member with first | later
+          · exact registry.finishGroupSuccess_output node event first
+          · apply ih _ ?_ event later
+            intro stream stored
+            rw [State.startNewWork_streams _ _ available,
+              State.finishGroupSuccess_streams] at stored
+            exact registry stream stored
   exact loop _ queue known
 
 /-- Task-success output retains descriptor properties through every contributor flush.
@@ -94,7 +84,8 @@ theorem State.StreamsSatisfy.taskSuccess_notices {queue : State} {property}
     (known : queue.StreamsSatisfy property) (occurrence : Occurrence)
     (result : TaskResult)
     (supplied : ∀ stream ∈ result.work.streams, property stream.node)
-    : ∀ event ∈ (queue.taskSuccess occurrence result).2,
+    (available : List (Occurrence × Nat) := [])
+    : ∀ event ∈ (queue.taskSuccess occurrence result available).2.1,
         event.StreamNoticesSatisfy property := by
   have loop (groups : List Execution.DeliveryNode) (acc : State × List WorkQueueEvent × NewWork)
       (registry : acc.1.StreamsSatisfy property)
@@ -127,15 +118,15 @@ theorem State.StreamsSatisfy.taskSuccess_notices {queue : State} {property}
       have installed : (queue.putTaskNode { node with value := some result.value }).StreamsSatisfy
           property := known
       have integrated := installed.maybeIntegrateWork result.work (some occurrence) supplied
-      rw [queue.taskSuccess_eq occurrence result node found]
+      rw [queue.taskSuccess_eq occurrence result node found available]
       obtain ⟨registry, notices⟩ := loop node.task.groups (_, [], {}) integrated.1
         (by intro event impossible; cases impossible)
       intro event member
       rcases List.mem_append.mp member with first | later
       · exact notices event first
-      · apply State.StreamsSatisfy.drainReadyGroups_notices ?_ event later
+      · apply State.StreamsSatisfy.drainReadyGroups_notices (available := available) ?_ event later
         intro stream stored
-        rw [State.startNewWork_streams] at stored
+        rw [State.startNewWork_streams _ _ available] at stored
         exact registry stream stored
 
 /-- Item-batch notices retain the properties of each sequentially integrated child stream.
@@ -146,16 +137,20 @@ theorem State.StreamsSatisfy.streamItems_notices {queue : State} {property}
     (known : queue.StreamsSatisfy property) (stream : Execution.DeliveryNode)
     (items : List StreamItem)
     (supplied : ∀ item ∈ items, ∀ child ∈ item.work.streams, property child.node)
-    : ∀ event ∈ (queue.streamItems stream items).2,
+    (available : List (Occurrence × Nat) := [])
+    : ∀ event ∈ (queue.streamItems stream items available).2.1,
         event.StreamNoticesSatisfy property := by
   let step (acc : State × List Execution.DeliveryNode
-      × List Execution.DeliveryNode × List StreamItemValue) (item : StreamItem) :=
+      × List Execution.DeliveryNode × List StreamItemValue × List GroupFailureEvent)
+      (item : StreamItem) :=
     let integrated := acc.1.maybeIntegrateWork item.work
     let pruned := integrated.1.pruneEmptyGroups integrated.2.newGroups
-    (pruned.1.startNewWork { integrated.2 with newGroups := pruned.2 },
-      acc.2.1 ++ pruned.2, acc.2.2.1 ++ integrated.2.newStreams, acc.2.2.2 ++ [item.value])
+    let (started, queued) :=
+      pruned.1.startNewWork { integrated.2 with newGroups := pruned.2 } available
+    (started, acc.2.1 ++ pruned.2, acc.2.2.1 ++ integrated.2.newStreams,
+      acc.2.2.2.1 ++ [item.value], acc.2.2.2.2 ++ queued)
   have loop (more : List StreamItem) (acc : State × List Execution.DeliveryNode
-      × List Execution.DeliveryNode × List StreamItemValue)
+      × List Execution.DeliveryNode × List StreamItemValue × List GroupFailureEvent)
       (registry : acc.1.StreamsSatisfy property)
       (notices : ∀ node ∈ acc.2.2.1, property node)
       (inputs : ∀ item ∈ more, ∀ child ∈ item.work.streams, property child.node)
@@ -170,8 +165,8 @@ theorem State.StreamsSatisfy.streamItems_notices {queue : State} {property}
         · intro child member
           change child ∈ (State.startNewWork
             ((acc.1.maybeIntegrateWork item.work).1.pruneEmptyGroups
-              (acc.1.maybeIntegrateWork item.work).2.newGroups).1 _).streams at member
-          rw [State.startNewWork_streams, State.pruneEmptyGroups_streams] at member
+              (acc.1.maybeIntegrateWork item.work).2.newGroups).1 _ available).1.streams at member
+          rw [State.startNewWork_streams _ _ available, State.pruneEmptyGroups_streams] at member
           exact integrated.1 child member
         · intro node member
           change node ∈ acc.2.2.1 ++ (acc.1.maybeIntegrateWork item.work).2.newStreams at member
@@ -184,12 +179,12 @@ theorem State.StreamsSatisfy.streamItems_notices {queue : State} {property}
   split
   · simp
   · intro event member
-    obtain ⟨registry, notices⟩ := loop items (queue, [], [], []) known
+    obtain ⟨registry, notices⟩ := loop items (queue, [], [], [], []) known
       (by intro node impossible; cases impossible) supplied
     rcases List.mem_cons.mp member with same | later
     · subst event
       exact notices
-    · exact registry.drainReadyGroups_notices event later
+    · exact registry.drainReadyGroups_notices available event later
 
 /-- Every handler emits only stream notices justified by its old or supplied descriptors.
 Witness: task/item release proofs; failure and closure handlers announce no streams.
@@ -197,33 +192,44 @@ Witness: task/item release proofs; failure and closure handlers announce no stre
 theorem State.StreamsSatisfy.handleGraphEvent_notices {queue : State} {property}
     (known : queue.StreamsSatisfy property) (event : GraphEvent)
     (supplied : event.ChildStreamsSatisfy property)
-    : ∀ output ∈ (queue.handleGraphEvent event).2,
+    (available : List (Occurrence × Nat) := [])
+    : ∀ output ∈ (queue.handleGraphEvent event available).2.1,
         output.StreamNoticesSatisfy property := by
+  have cached := known.cacheTaskFailures available
   cases event with
   | taskSuccess occurrence result =>
-      exact known.taskSuccess_notices occurrence result supplied
+      exact cached.taskSuccess_notices occurrence result supplied available
   | taskFailure occurrence errors =>
       intro output member
       cases output with
       | groupSuccess group groups streams =>
-          exact False.elim (queue.taskFailure_noGroupSuccess occurrence errors group groups streams
+          exact False.elim ((queue.cacheTaskFailures available).taskFailure_noGroupSuccess
+            occurrence errors group groups streams
             member)
       | streamValues stream values groups streams =>
           have impossible : stream.ref ∈
-              (queue.taskFailure occurrence errors).2.flatMap rawStreamReferenceRefs :=
+              ((queue.cacheTaskFailures available).taskFailure occurrence errors).2.flatMap
+                rawStreamReferenceRefs :=
             List.mem_flatMap.mpr ⟨_, member, List.mem_cons_self⟩
           rw [State.taskFailure_streamReferences] at impossible
           cases impossible
       | groupValues | groupFailure | streamSuccess | streamFailure | workQueueTermination
         =>
           trivial
-  | streamItems stream items => exact known.streamItems_notices stream items supplied
+  | streamItems stream items =>
+      exact cached.streamItems_notices stream items supplied available
   | streamSuccess stream =>
       simp only [State.handleGraphEvent, State.streamSuccess]
       split <;> simp [WorkQueueEvent.StreamNoticesSatisfy]
   | streamFailure stream errors =>
       simp only [State.handleGraphEvent, State.streamFailure]
       split <;> simp [WorkQueueEvent.StreamNoticesSatisfy]
+
+  | groupFailure failure =>
+      simp only [State.handleGraphEvent, State.groupFailure]
+      split
+      · simp
+      · split <;> simp [WorkQueueEvent.StreamNoticesSatisfy]
 
 -----------------------------------------------------------------------------------------
 -- Event replay, normalization, and atomization retain all stream notice metadata
@@ -235,18 +241,20 @@ Witness: each next handler inherits the updated registry and the remaining sourc
 theorem State.StreamsSatisfy.rawEventReplay_notices {queue : State} {property}
     (known : queue.StreamsSatisfy property) (events : List GraphEvent)
     (supplied : ∀ event ∈ events, event.ChildStreamsSatisfy property)
-    : ∀ output ∈ (queue.rawEventReplay events).2,
+    (available : List (Occurrence × Nat) := [])
+    : ∀ output ∈ (queue.rawEventReplay events available).2,
         output.StreamNoticesSatisfy property := by
   induction events generalizing queue with
   | nil => simp [State.rawEventReplay]
   | cons event rest ih =>
-      rw [State.rawEventReplay_cons]
+      rw [State.rawEventReplay_cons _ _ _ available]
       intro output member
       rcases List.mem_append.mp member with head | tail
-      · exact known.handleGraphEvent_notices event (supplied event List.mem_cons_self)
+      · exact known.handleGraphEvent_notices event (supplied event List.mem_cons_self) available
           output head
-      · exact ih (known.handleGraphEvent event (supplied event List.mem_cons_self))
-          (fun next member => supplied next (List.mem_cons_of_mem _ member)) output tail
+      · have next : (queue.dispatchGraphEvent event available).1.StreamsSatisfy property :=
+          known.handleGraphEvent event (supplied event List.mem_cons_self) available
+        exact ih next (fun next member => supplied next (List.mem_cons_of_mem _ member)) output tail
 
 /-- A whole raw batch emits only justified stream notices, including at termination.
 Witness: raw replay retains metadata; the optional terminal marker adds no notice.
@@ -256,6 +264,8 @@ theorem State.StreamsSatisfy.handleGraphEvents_notices {queue : State} {property
     (supplied : ∀ event ∈ events, event.ChildStreamsSatisfy property)
     : ∀ output ∈ (queue.handleGraphEvents events).2,
         output.StreamNoticesSatisfy property := by
+  have immediate :=
+    known.rawEventReplay_notices events supplied (GraphEvent.availableFailures events)
   rw [State.handleGraphEvents_eq_rawEventReplay]
   split
   · simp
@@ -263,11 +273,11 @@ theorem State.StreamsSatisfy.handleGraphEvents_notices {queue : State} {property
     split
     · intro output member
       rcases List.mem_append.mp member with prior | terminal
-      · exact known.rawEventReplay_notices events supplied output prior
+      · exact immediate output prior
       · have same := List.mem_singleton.mp terminal
         subst output
         trivial
-    · exact known.rawEventReplay_notices events supplied
+    · exact immediate
 
 /-- Normalizing a raw event preserves every stream-notice descriptor property.
 Witness: the publisher copies notice lists unchanged; owner remapping emits only group values.
@@ -299,27 +309,24 @@ theorem IncrementalPublisher.normalizeBatch_streamNoticesSatisfy {property}
           (known event List.mem_cons_self) output head
       · exact ih _ (fun next member => known next (List.mem_cons_of_mem _ member)) output tail
 
-/-- Every stream notice in actual normalized replay names a node of the original work.
-Witness: integrate exact source child descriptors, retain registry provenance at every
-handler boundary, and transport each emitted notice through publisher normalization.
-No generated-ref uniqueness, start law, or abstract admission premise is assumed.
--/
-theorem createWorkQueue_runNormalized_streamNoticesLocated {work : Execution.Work}
-    {batches : List (List GraphEvent)} (valid : ValidGraphEvents work batches.flatten)
-    : ∀ event ∈
-        ((State.initialize (Work.fromExecution work)).runNormalized batches).2.flatten,
-        StreamNoticesSatisfy (StreamLocated work) event := by
+/-- Ordinary publisher replay retains stream metadata through every supplied host batch. -/
+theorem State.StreamsSatisfy.runWithPublisher_notices {queue : State} {property}
+    (known : queue.StreamsSatisfy property) (publisher : IncrementalPublisher)
+    (batches : List (List GraphEvent))
+    (sources : ∀ event ∈ batches.flatten, event.ChildStreamsSatisfy property)
+    : ∀ output ∈ (queue.runWithPublisher publisher batches).2.2.flatten,
+        StreamNoticesSatisfy property output := by
   have loop (more : List (List GraphEvent)) (acc : NormalizedAcc)
-      (registry : acc.1.StreamsSatisfy (StreamLocated work))
-      (notices : ∀ event ∈ acc.2.2.flatten, StreamNoticesSatisfy (StreamLocated work) event)
-      (sources : ∀ event ∈ more.flatten, event.MatchesWork work)
+      (registry : acc.1.StreamsSatisfy property)
+      (notices : ∀ event ∈ acc.2.2.flatten, StreamNoticesSatisfy property event)
+      (sources : ∀ event ∈ more.flatten, event.ChildStreamsSatisfy property)
       : ∀ event ∈ (more.foldl normalizedStep acc).2.2.flatten,
-          StreamNoticesSatisfy (StreamLocated work) event := by
+          StreamNoticesSatisfy property event := by
     induction more generalizing acc with
     | nil => exact notices
     | cons batch rest ih =>
-        have supplied : ∀ event ∈ batch, event.ChildStreamsSatisfy (StreamLocated work) :=
-          fun event member => (sources event (List.mem_append_left _ member)).childStreamsLocated
+        have supplied : ∀ event ∈ batch, event.ChildStreamsSatisfy property :=
+          fun event member => sources event (List.mem_append_left _ member)
         apply ih
         · rw [normalizedStep_queue]
           exact registry.handleGraphEvents batch supplied
@@ -331,13 +338,27 @@ theorem createWorkQueue_runNormalized_streamNoticesLocated {work : Execution.Wor
               (registry.handleGraphEvents_notices batch supplied) event next
         · intro event member
           exact sources event (List.mem_append_right _ member)
+  change ∀ event ∈ (batches.foldl normalizedStep (queue, publisher, [])).2.2.flatten,
+    StreamNoticesSatisfy property event
+  exact loop batches (queue, publisher, []) known
+    (by intro event impossible; cases impossible) sources
+
+/-- Every stream notice in actual normalized replay names a node of the original work.
+Witness: integrate exact source child descriptors, retain registry provenance at every
+handler boundary, and transport each emitted notice through publisher normalization.
+No generated-ref uniqueness, start law, or abstract admission premise is assumed.
+-/
+theorem createWorkQueue_runNormalized_streamNoticesLocated {work : Execution.Work}
+    {batches : List (List GraphEvent)} (valid : ValidGraphEvents work batches.flatten)
+    : ∀ event ∈
+        ((State.initialize (Work.fromExecution work)).runNormalized batches).2.flatten,
+        StreamNoticesSatisfy (StreamLocated work) event := by
   let queue := State.initialize (Work.fromExecution work)
-  let publisher : IncrementalPublisher := { active := queue.initialGroups ++ queue.initialStreams }
-  apply loop batches (queue, publisher, [])
-  · intro stream member
+  have registry : queue.StreamsSatisfy (StreamLocated work) := by
+    intro stream member
     exact ⟨[], none, (createWorkQueue_initialStreams_nodeAt work).1 stream member⟩
-  · intro event impossible; cases impossible
-  · intro event member; exact valid.event_matches member
+  exact registry.runWithPublisher_notices _ batches
+    (fun event member => (valid.event_matches member).childStreamsLocated)
 
 /-- Atomic splitting retains the property of every child stream notice.
 Witness: object atoms have no notices, and earlier stream atoms have none; the final stream

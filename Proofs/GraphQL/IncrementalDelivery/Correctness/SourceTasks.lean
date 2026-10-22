@@ -47,6 +47,7 @@ mutual
       (cursors : ResponsePositions.Cursors)
       : Work → List SourceTask
     | .empty => []
+    | .declareGroups _ tasks => sourceTasks address producer cursors tasks
     | .combine left right =>
         sourceTasks (address ++ [0]) producer cursors left
         ++ sourceTasks (address ++ [1]) producer cursors right
@@ -73,6 +74,18 @@ mutual
             ++ sourceItemTasks address producer node (index + 1) (ordinal + 1) rest)
 end
 
+/-- Declaration annotations leave the source task inventory unchanged. -/
+@[simp]
+theorem sourceTasks_withoutDeclarations (address producer cursors) (work : Work)
+    : sourceTasks address producer cursors work.withoutDeclarations
+      = sourceTasks address producer cursors work := by
+  cases work with
+  | declareGroups groups tasks =>
+      simpa only [Work.withoutDeclarations, sourceTasks]
+        using sourceTasks_withoutDeclarations address producer cursors tasks
+  | _ => rfl
+termination_by work
+
 mutual
   /-- Labelled work positions are exactly the execution's seeded slices. Witness:
   structural descent through the shared cursor certificate, with no schedule choice.
@@ -84,6 +97,7 @@ mutual
         = slices := by
     cases seeded with
     | empty => rfl
+    | declareGroups known => exact sourceTasks_positions known address producer
     | combine left right =>
         simp only [sourceTasks, List.map_append, sourceTasks_positions left,
           sourceTasks_positions right]

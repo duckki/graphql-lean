@@ -1,23 +1,15 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.NoticeCarrierPrefixes
-import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.NoticePublicationExclusion
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.GroupCarrierNoticeContents
 
-/-! Item-carried group notices have actual retained contents on the canonical matching. -/
+/-! Item-carried group notices retain actual pre-startup contents on the canonical matching. -/
 
 namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue.ConformancePlan
 open GraphQL.IncrementalDelivery.Execution (WorkQueueEvent)
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
------------------------------------------------------------------------------------------
--- Raw integration boundaries survive batching, normalization, and final-item atomization
------------------------------------------------------------------------------------------
-
-/-- Every actual item-carried group notice retains only unpublished task memberships.
-Witness: recover its source input and exact item-integration boundary through the real
-publisher/atomization pipeline. The canonical ledger supplies earlier-publication
-exclusion; replay derives task metadata and the reverse ledger bridge gives nonpublication.
-No caller supplies a source index, count equation, retained node, or notice admission.
--/
+/-- Every actual item-carried group notice retains concrete unpublished task memberships.
+The exact batch/FIFO boundary supplies source metadata and the same ledger prefix. Item
+origin inversion locates the introducing pruning boundary before cached startup removal. -/
 theorem itemGroupNotice_unpublished
     {work inputs w index owner values groups streams child}
     (generated : ExecutedWork work) (valid : ValidGraphEvents work inputs.flatten)
@@ -28,38 +20,37 @@ theorem itemGroupNotice_unpublished
     (ready : StreamPublicationReady work w)
     (selected : w.events[index]? = some (.streamValues owner values groups streams))
     (noticed : child ∈ groups)
-    : ∃ before stream items after earlier item later,
-        inputs.flatten = before ++ .streamItems stream items :: after
-        ∧ items = earlier ++ item :: later
-        ∧ let current := (initialQueue work).replayGraphEvents before
-          let boundary := (current.preparedStreamItems earlier).integrateStreamItem item
-          current.rootStreams.contains stream.ref = true
-          ∧ (∃ dependencies producer, NodeAt work child .group dependencies producer)
-          ∧ ∃ node,
-              boundary.groupNode? child.ref = some node
-              ∧ node.group.node = child
-              ∧ node.tasks ≠ []
-              ∧ ∀ occurrence ∈ node.tasks,
-                  ¬Published w.matching (w.events.take index) occurrence := by
-  obtain ⟨before, stream, items, after, sourceShape, active, notices, count⟩ :=
+    : RetainedNoticeContents work w.matching (w.events.take index)
+        (failedBefore w.failures index) inputs.flatten child := by
+  obtain ⟨earlier, batch, later, fifo, stream, items, tail, split, batchEq, _, notices, count⟩ :=
     Witness.itemNotice_sourceBoundary started history selected (List.mem_append_left _ noticed)
   obtain ⟨published, batches, matching, _⟩ := ledger
-  have covered := batches.flatten (by rwa [← inputsStarted_eq_batchesStarted])
-  rw [sourceShape] at covered
-  have source : ValidGraphEvents work (before ++ .streamItems stream items :: after) :=
-    sourceShape ▸ valid
-  obtain ⟨earlier, item, later, splitItems, located, node, found, same,
-      contents, _, unpublished⟩ :=
-    generated.streamItems_leadingNotice_unpublished covered source matching objects ready count
-      (notices ▸ noticed)
-  exact ⟨before, stream, items, after, earlier, item, later, sourceShape, splitItems,
-    active, located, node, found, same, contents, unpublished⟩
+  obtain ⟨parents, canonical⟩ := generated.groupRecordsCanonical
+  obtain ⟨sourceValid, _, source, _⟩ := generated.uncancelledFrames_atBatchEvent canonical
+    valid started earlier batch later fifo (.streamItems stream items) tail split batchEq
+  let boundary := (initialQueue work).replayBatches earlier
+  let available := GraphEvent.availableFailures batch
+  let current := boundary.replayGraphEvents fifo available
+  have cut := batchHandlerMembershipCut batches valid started split batchEq
+  have sourceCut := batchPublicationCut batches valid started earlier batch later fifo split
+    ⟨.streamItems stream items :: tail, batchEq.symm⟩
+  have prior : (earlier.flatten ++ fifo).IsPrefix inputs.flatten :=
+    ⟨.streamItems stream items :: tail ++ later.flatten,
+      by simp [split, batchEq, List.append_assoc]⟩
+  have producers : TaskProducersSucceeded work (current.cacheTaskFailures available).tasks
+      inputs.flatten := by
+    rw [State.cacheTaskFailures_tasks]
+    exact sourceCut.1.mono prior.subset
+  have input : GraphEvent.streamItems stream items ∈ inputs.flatten := by
+    rw [split, List.flatten_append, List.flatten_cons, batchEq]
+    exact List.mem_append_right _ (List.mem_append_left _
+      (List.mem_append_right _ List.mem_cons_self))
+  apply source.streamItems_leadingNotice_contents generated canonical
+    (sourceValid.eachMatches (List.mem_append_right _ List.mem_cons_self)) cut producers
+    input matching objects ready (notices ▸ noticed)
+  simpa only [List.flatMap_append, List.length_append] using count
 
-/-- An item-carried group notice retains concrete unpublished tasks.
-Witness: recover the actual handler from one atomic boundary.
-Invert its leading item carrier, then preserve the task metadata to the exact introducing
-item while the common publication ledger excludes its retained task memberships.
--/
+/-- Item-carried group notices have the same retained contents on the causal-cut witness. -/
 theorem itemGroupNotice_contents
     {work inputs w index owner values groups streams child}
     (generated : ExecutedWork work) (valid : ValidGraphEvents work inputs.flatten)
@@ -76,71 +67,12 @@ theorem itemGroupNotice_contents
         w.failures.Perm
           (streamCuts
             ++ informativeObjectFailureCuts work
-                (queue.eligibleFailureBlocks
-                  (queue.sourceRunBlocks publisher inputs).2.2)))
+                (queue.sourceRunBlocks publisher inputs).2.2))
     (selected : w.events[index]? = some (.streamValues owner values groups streams))
     (noticed : child ∈ groups)
     : RetainedNoticeContents work w.matching (w.events.take index)
-        (failedBefore w.failures index) inputs.flatten child := by
-  obtain ⟨before, event, after, publisher, localIndex, sourceShape, _, emitted, count⟩ :=
-    Witness.handlerBoundary started history selected
-  obtain ⟨normalizedIndex, normalizedValues, normalizedAt, atomicCount, _⟩ :=
-    publicationAtoms_noticeCarrier_prefix _ emitted (List.mem_append_left _ noticed)
-  obtain ⟨rawIndex, rawValues, rawAt, rawCount, _⟩ :=
-    publisher.normalizeBatch_streamCarrier_prefix _ normalizedAt
-  obtain ⟨stream, items, rfl⟩ :=
-    ((initialQueue work).replayGraphEvents before).handleGraphEvent_streamValues_source event rawAt
-  obtain ⟨_, zero, groupEq⟩ :=
-    ((initialQueue work).replayGraphEvents before).streamItems_noticeGroups stream items rawAt
-  have objectCount
-      : ((w.events.take index).flatMap normalizedObjectValues).length
-        = (((initialQueue work).rawEventReplay before).2.flatMap
-            WorkQueueEvent.objectValues).length := by
-    simpa only [atomicCount, rawCount, zero, List.take_zero, List.flatMap_nil,
-      List.length_nil, Nat.add_zero]
-      using count
-  obtain ⟨published, batches, matching, _⟩ := ledger
-  have covered := batches.flatten (by rwa [← inputsStarted_eq_batchesStarted])
-  rw [sourceShape] at covered
-  have source : ValidGraphEvents work (before ++ .streamItems stream items :: after) :=
-    sourceShape ▸ valid
-  obtain ⟨earlier, item, later, splitItems, located, node, found, same,
-    contents, _, unpublished⟩ :=
-    generated.streamItems_leadingNotice_unpublished covered source matching objects ready
-      objectCount (groupEq ▸ noticed)
-  have prior := source.prefix (List.prefix_append before (.streamItems stream items :: after))
-  obtain ⟨eventMatching, _, _⟩ := source.atPrefix (show
-    (before ++ [GraphEvent.streamItems stream items]).IsPrefix
-      (before ++ GraphEvent.streamItems stream items :: after) from ⟨after, by simp⟩)
-  obtain ⟨sound, registered⟩ := State.replay_noticeTaskProvenance
-    (createWorkQueue_groupMembershipSound _) (createWorkQueue_fromSpec_registeredTasksMatch work)
-    before (fun _ member => prior.eachMatches member)
-  have included : earlier.Subset items := by
-    rw [splitItems]
-    exact List.subset_append_left _ _
-  obtain ⟨preparedSound, preparedRegistered⟩ :=
-    State.preparedStreamItems_noticeTaskProvenance sound registered eventMatching earlier included
-  obtain ⟨boundarySound, boundaryRegistered⟩ :=
-    State.integrateStreamItem_noticeTaskProvenance (item := item)
-      preparedSound preparedRegistered eventMatching (by simp [splitItems])
-  have sourceReady := (createWorkQueue_replayGraphEvents_producerOrder prior).1.mono
-    (show before.Subset inputs.flatten from sourceShape ▸ List.subset_append_left _ _)
-  have input : GraphEvent.streamItems stream items ∈ inputs.flatten := by
-    rw [sourceShape]
-    exact List.mem_append_right _ List.mem_cons_self
-  exact ⟨
-    located,
-    _,
-    node,
-    found,
-    same,
-    contents,
-    boundarySound,
-    boundaryRegistered,
-    (sourceReady.preparedStreamItems eventMatching input earlier
-      included).integrateStreamItem
-      eventMatching input (by simp [splitItems]),
-    unpublished
-  ⟩
+        (failedBefore w.failures index) inputs.flatten child :=
+  itemGroupNotice_unpublished generated valid started history ledger objects ready
+    selected noticed
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue.ConformancePlan

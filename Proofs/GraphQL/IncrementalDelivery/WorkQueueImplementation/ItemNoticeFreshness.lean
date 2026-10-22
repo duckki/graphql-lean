@@ -35,33 +35,39 @@ contains the entry registry. This permits distinct items to prune genuine taskle
 -/
 theorem State.streamItemFold_noRegisteredNotice {queue : State} {work stream items ref}
     (live : queue.LiveGroupsRegistered) (tasks : queue.TaskGroupsRegistered)
+    (context : queue.RegistrationFrame work)
     (matched : (GraphEvent.streamItems stream items).MatchesWork work)
     (registered : ref ∈ queue.registeredGroups)
+    (available : List (Occurrence × Nat) := [])
     : ref
-      ∉ ((items.foldl streamItemStep (queue, [], [], [])).2.1.map
+      ∉ ((items.foldl (fun acc item => streamItemStep acc item available)
+            (queue, [], [], [], [])).2.1.map
           Execution.DeliveryNode.ref) := by
   have loop (more : List StreamItem) (included : more.Subset items)
       (acc : State × List Execution.DeliveryNode × List Execution.DeliveryNode
-        × List StreamItemValue)
+        × List StreamItemValue × List GroupFailureEvent)
       (live : acc.1.LiveGroupsRegistered) (tasks : acc.1.TaskGroupsRegistered)
+      (context : acc.1.RegistrationFrame work)
       (registered : ref ∈ acc.1.registeredGroups)
       (absent : ref ∉ acc.2.1.map Execution.DeliveryNode.ref)
-      : ref ∉ ((more.foldl streamItemStep acc).2.1.map Execution.DeliveryNode.ref) := by
+      : ref ∉ ((more.foldl (fun acc item => streamItemStep acc item available) acc).2.1.map
+          Execution.DeliveryNode.ref) := by
     induction more generalizing acc with
     | nil => exact absent
     | cons item rest ih =>
         have next := acc.1.integrateStreamItem_registration live tasks matched
-          (included List.mem_cons_self)
+          (included List.mem_cons_self) context available
         apply ih (fun _ member => included (List.mem_cons_of_mem _ member))
-          (streamItemStep acc item) next.1 next.2.1 (next.2.2 registered)
+          (streamItemStep acc item available) next.1 next.2.1 (context.integrateStreamItem matched (included List.mem_cons_self) available).1
+          (next.2.2 registered)
         simp only [streamItemStep, List.map_append, List.mem_append, not_or]
         refine ⟨absent, ?_⟩
         intro repeated
         obtain ⟨child, noticed, same⟩ := List.mem_map.mp repeated
         exact acc.1.pruneIntegratedWork_notice_unregistered live item.work none noticed
           (same ▸ registered)
-  exact loop items (List.Subset.refl _) (queue, [], [], []) live tasks registered
-    (by simp)
+  exact loop items (List.Subset.refl _) (queue, [], [], [], []) live tasks context
+    registered (by simp)
 
 -----------------------------------------------------------------------------------------
 -- Earlier announced refs are both registered and protected through the later drain
@@ -84,26 +90,27 @@ theorem ExecutedWork.streamItems_noEarlierGroupNotice
     : ref
       ∉ ((((State.initialize (Work.fromExecution work)).replayGraphEvents
             before).streamItems
-            stream items).2.flatMap
+            stream items).2.1.flatMap
           rawGroupNoticeRefs) := by
   let initial := State.initialize (Work.fromExecution work)
   let queue := initial.replayGraphEvents before
-  have registry := createWorkQueue_registration work
-  have covered := initial.replayGraphEvents_registration registry.1 registry.2 before matching
+  have registry := createWorkQueue_registration work generated.declarations
+  have covered := initial.replayGraphEvents_registration registry.1 registry.2 before matching (State.initialize_registrationFrame generated.declarations)
   have registered :=
-    createWorkQueue_rawEventReplay_announcedRegistered before matching ref announced
+    createWorkQueue_rawEventReplay_announcedRegistered generated before matching ref announced
   have protectedRef :=
     generated.rawEventReplay_announcedAncestorsRetired before matching ref announced
-  have noLeading := queue.streamItemFold_noRegisteredNotice covered.1 covered.2.1 matched registered
+  have noLeading := queue.streamItemFold_noRegisteredNotice covered.1 covered.2.1
+    ((State.initialize_registrationFrame generated.declarations).replayGraphEvents before matching).1 matched registered
   have preparedProtected : (queue.preparedStreamItems items).AncestorsRetired work ref :=
     State.preparedStreamItems_preserves (fun current => current.AncestorsRetired work ref)
-      protectedRef items (fun current item _ prior => prior.mono (fun _ retired =>
+      protectedRef items [] (fun current item _ prior => prior.mono (fun _ retired =>
         ((retired.maybeIntegrateWork item.work).pruneEmptyGroups _).startNewWork _))
   obtain ⟨parents, canonical, frame⟩ := generated.streamItems_prepared_liveRootFrame
     matching matched (generated.replayGraphEvents_rootsPresent before matching)
   have noDrain := frame.drainReadyGroups_go_noProtectedNotice generated canonical
     preparedProtected (queue.preparedStreamItems items).groupNodes.length
-  change ref ∉ (queue.streamItems stream items).2.flatMap rawGroupNoticeRefs
+  change ref ∉ (queue.streamItems stream items).2.1.flatMap rawGroupNoticeRefs
   rw [queue.streamItems_eq stream items]
   split
   · simp

@@ -28,7 +28,7 @@ def failureGroupStep (errors : Nat) (acc : State × List WorkQueueEvent)
   | some node =>
       if current.rootGroups.contains group.ref then
         let (next, failure) := current.finishGroupFailure node errors
-        (next, events ++ [failure])
+        (next, events ++ [.groupFailure failure.group failure.errors])
       else
         (current, events)
 

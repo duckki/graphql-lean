@@ -386,8 +386,7 @@ theorem ExecutedWork.runNormalized_removalForest
     exact valid.eachMatches (List.mem_flatten.mpr ⟨batch, batchMember, member⟩)
   have initial := createWorkQueue_childLinksCanonical (Work.fromExecution work) parents (by
     intro group member
-    exact workFromSpec_groups_parentCanonical (Located.root (root := work))
-      canonical member)
+    exact workFromSpec_groups_parentCanonical_root canonical member)
   exact ⟨parents, State.RemovalForest.of_generated generated
     (createWorkQueue_runNormalized_childGroupsUnique (Work.fromExecution work) batches)
     (initial.runNormalized batches matched canonical)

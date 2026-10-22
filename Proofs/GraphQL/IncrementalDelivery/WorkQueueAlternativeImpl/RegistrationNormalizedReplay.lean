@@ -1,5 +1,5 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.RegistrationBatchReplay
-import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.RegistrationRefinement
+import Proofs.GraphQL.IncrementalDelivery.Semantics.WorkSize
 
 /-! Exact generated replay and factory equivalence under the original source contract. -/
 
@@ -33,6 +33,60 @@ theorem State.fromReference_stopped (queue : ReferenceWorkQueue.State)
     : (State.fromReference queue).stopped = queue.terminated := by
   cases ended : queue.terminated <;> simp [State.fromReference, ended, State.clearRecords]
 
+private theorem fromReference_terminated (queue : ReferenceWorkQueue.State)
+    : (State.fromReference queue).queue.terminated = queue.terminated := by
+  unfold State.fromReference
+  split <;> rfl
+
+/-- Checked factory reduction using only admitted inputs of the original valid source.
+Witness: the replay target supplies both emitted batches and projected termination;
+propositional/function extensionality then identifies the two opaque output sources.
+This deliberately does not assume replay equality on arbitrary malformed graph inputs.
+-/
+theorem createWorkQueueForScheduleMatchesReference_of_replay
+    (replay : replayMatchesReference)
+    : createWorkQueueForScheduleMatchesReference := by
+  intro work schedule generated _ valid
+  let alternative := State.initialize work
+  let reference := ReferenceWorkQueue.State.initialize (ReferenceWorkQueue.Work.fromExecution work)
+  have emitted (inputs : List (List GraphEvent)) (admitted : schedule.admissible inputs)
+      : (alternative.runNormalized inputs).2 = (reference.runNormalized inputs).2
+        ∧ (alternative.runNormalized inputs).1.queue.terminated
+          = (reference.runNormalized inputs).1.terminated := by
+    obtain ⟨matching, started, _⟩ := valid.2.2.2.2 inputs admitted
+    obtain ⟨state, outputs⟩ := replay work inputs generated matching started
+    exact ⟨outputs, (congrArg (fun state : State => state.queue.terminated) state).trans
+      (fromReference_terminated _)⟩
+  have admissible : (fun outputs => ∃ inputs, schedule.admissible inputs
+        ∧ (alternative.runNormalized inputs).2 = outputs)
+      = (fun outputs => ∃ inputs, schedule.admissible inputs
+        ∧ (reference.runNormalized inputs).2 = outputs) := by
+    funext outputs
+    apply propext
+    constructor
+    · rintro ⟨inputs, admitted, same⟩
+      exact ⟨inputs, admitted, (emitted inputs admitted).1.symm.trans same⟩
+    · rintro ⟨inputs, admitted, same⟩
+      exact ⟨inputs, admitted, (emitted inputs admitted).1.trans same⟩
+  have finished : (fun outputs => ∃ inputs, schedule.admissible inputs
+        ∧ (alternative.runNormalized inputs).2 = outputs
+        ∧ (alternative.runNormalized inputs).1.queue.terminated = true)
+      = (fun outputs => ∃ inputs, schedule.admissible inputs
+        ∧ (reference.runNormalized inputs).2 = outputs
+        ∧ (reference.runNormalized inputs).1.terminated = true) := by
+    funext outputs
+    apply propext
+    constructor
+    · rintro ⟨inputs, admitted, same, ended⟩
+      obtain ⟨batches, terminal⟩ := emitted inputs admitted
+      exact ⟨inputs, admitted, batches.symm.trans same, terminal.symm.trans ended⟩
+    · rintro ⟨inputs, admitted, same, ended⟩
+      obtain ⟨batches, terminal⟩ := emitted inputs admitted
+      exact ⟨inputs, admitted, batches.trans same, terminal.trans ended⟩
+  unfold createWorkQueueForSchedule ReferenceWorkQueue.createWorkQueueForSchedule
+  dsimp only
+  rw [admissible, finished, State.initialize_queue]
+
 private abbrev ReferenceAcc :=
   ReferenceWorkQueue.State
   × ReferenceWorkQueue.IncrementalPublisher
@@ -64,67 +118,56 @@ private abbrev alternativeStep (acc : AlternativeAcc) (batch : List GraphEvent)
 -----------------------------------------------------------------------------------------
 
 private theorem normalizedFold {work : Work}
-    (generated : ReferenceWorkQueue.ExecutedWork work) (before : List GraphEvent)
+    (generated : ReferenceWorkQueue.ExecutedWork work) (earlier : List (List GraphEvent))
     (inputs : List (List GraphEvent))
-    (valid : ReferenceWorkQueue.ValidGraphEvents work (before ++ inputs.flatten))
-    (accepted
-      : (ReferenceWorkQueue.State.initialize
-          (ReferenceWorkQueue.Work.fromExecution work)).acceptsBatch
-          before
-        = true)
-    (queue : ReferenceWorkQueue.State)
-    (provenance
-      : queue.terminated = false
-        → queue
-          = (ReferenceWorkQueue.State.initialize
-              (ReferenceWorkQueue.Work.fromExecution work)).replayGraphEvents
-              before)
-    (started : queue.batchesStarted inputs = true)
+    (valid : ReferenceWorkQueue.ValidGraphEvents work (earlier ++ inputs).flatten)
+    (started : ReferenceWorkQueue.inputsStarted work (earlier ++ inputs) = true)
     (publisher : ReferenceWorkQueue.IncrementalPublisher)
     (outputs : List (List WorkQueueEvent))
-    : inputs.foldl alternativeStep (State.fromReference queue, publisher, outputs)
+    : let queue :=
+        (ReferenceWorkQueue.State.initialize
+          (ReferenceWorkQueue.Work.fromExecution work)).replayBatches
+          earlier
+      inputs.foldl alternativeStep (State.fromReference queue, publisher, outputs)
       = let reference := inputs.foldl referenceStep (queue, publisher, outputs)
         (State.fromReference reference.1, reference.2.1, reference.2.2) := by
-  induction inputs generalizing before queue publisher outputs with
+  let initial := ReferenceWorkQueue.State.initialize (ReferenceWorkQueue.Work.fromExecution work)
+  induction inputs generalizing earlier publisher outputs with
   | nil => rfl
   | cons batch rest ih =>
-      obtain ⟨startOpen, batchAccepted, restStarted⟩ := queue.batchesStarted_cons batch rest started
-      have same := provenance startOpen
-      have acceptedNext : (ReferenceWorkQueue.State.initialize
-          (ReferenceWorkQueue.Work.fromExecution work)).acceptsBatch (before ++ batch) = true := by
-        rw [reference_acceptsBatch_append]
-        simp only [accepted, Bool.true_and, ← same]
-        exact batchAccepted
-      have initialPart : (before ++ batch).IsPrefix (before ++ (batch :: rest).flatten) :=
-        ⟨rest.flatten, by simp [List.append_assoc]⟩
-      have bridge : ((State.fromReference queue).handleGraphEvents batch).state
-            = State.fromReference (queue.handleGraphEvents batch).1
-          ∧ ((State.fromReference queue).handleGraphEvents batch).workQueueEvents
-            = (queue.handleGraphEvents batch).2 := by
-        rw [same]
-        exact referencePrefix_handleGraphEvents generated before batch
-          (valid.prefix initialPart) acceptedNext
+      let queue := initial.replayBatches earlier
+      have bridge := referencePrefix_handleGraphEvents generated earlier batch rest valid started
+      change ((State.fromReference queue).handleGraphEvents batch).state
+          = State.fromReference (queue.handleGraphEvents batch).1
+        ∧ ((State.fromReference queue).handleGraphEvents batch).workQueueEvents
+          = (queue.handleGraphEvents batch).2 at bridge
       have validNext : ReferenceWorkQueue.ValidGraphEvents work
-          ((before ++ batch) ++ rest.flatten) := by
-        simpa [List.append_assoc] using valid
-      have provenanceNext : (queue.handleGraphEvents batch).1.terminated = false
-          → (queue.handleGraphEvents batch).1 = (ReferenceWorkQueue.State.initialize
-            (ReferenceWorkQueue.Work.fromExecution work)).replayGraphEvents (before ++ batch) := by
-        intro nextOpen
-        rw [queue.handleGraphEvents_nonterminalState batch startOpen nextOpen, same]
-        simp [ReferenceWorkQueue.State.replayGraphEvents, List.foldl_append]
+          ((earlier ++ [batch]) ++ rest).flatten := by
+        simpa only [List.append_assoc, List.singleton_append] using valid
+      have startedNext : ReferenceWorkQueue.inputsStarted work ((earlier ++ [batch]) ++ rest)
+          = true := by
+        simpa only [List.append_assoc, List.singleton_append] using started
+      have queueNext : initial.replayBatches (earlier ++ [batch])
+          = (queue.handleGraphEvents batch).1 := by
+        rw [ReferenceWorkQueue.State.replayBatches_append]
+        rfl
+      change (batch :: rest).foldl alternativeStep (State.fromReference queue, publisher, outputs)
+        = let reference := (batch :: rest).foldl referenceStep (queue, publisher, outputs)
+          (State.fromReference reference.1, reference.2.1, reference.2.2)
       simp only [List.foldl_cons, alternativeStep, referenceStep, bridge.1, bridge.2]
       split
-      · exact ih (before ++ batch) validNext acceptedNext (queue.handleGraphEvents batch).1
-          provenanceNext restStarted publisher outputs
-      · exact ih (before ++ batch) validNext acceptedNext (queue.handleGraphEvents batch).1
-          provenanceNext restStarted
+      · have next := ih (earlier ++ [batch]) validNext startedNext publisher outputs
+        rw [queueNext] at next
+        exact next
+      · have next := ih (earlier ++ [batch]) validNext startedNext
           (publisher.normalizeBatch (queue.handleGraphEvents batch).2).1
           (outputs ++ [(publisher.normalizeBatch (queue.handleGraphEvents batch).2).2])
+        rw [queueNext] at next
+        exact next
 
 /-- Generated normalized replay has exactly the reference output and terminal projection.
-Witness: the public start checker supplies accepted prefixes; live batch states equal sequential
-replay, and terminal retirement is observed only through the existing reference projection.
+Witness: the public start checker supplies actual host batches; the queue follows their
+cache snapshots, and terminal retirement uses the existing reference projection.
 The generated-work domain excludes malformed task catalogues with conflicting owners.
 -/
 theorem State.runNormalized_initialize (work : Work) (inputs : List (List GraphEvent))
@@ -138,15 +181,14 @@ theorem State.runNormalized_initialize (work : Work) (inputs : List (List GraphE
             inputs
         (State.fromReference reference.1, reference.2) := by
   let queue := ReferenceWorkQueue.State.initialize (ReferenceWorkQueue.Work.fromExecution work)
-  have same := normalizedFold generated [] inputs (by simpa using valid) rfl queue
-    (fun _ => rfl) (by simpa only [ReferenceWorkQueue.inputsStarted_eq_batchesStarted] using started)
+  have same := normalizedFold generated [] inputs (by simpa using valid) (by simpa using started)
     ({ active := queue.initialGroups ++ queue.initialStreams } :
       ReferenceWorkQueue.IncrementalPublisher) []
   rw [State.initialize_fromReference]
   simp only [State.runNormalized, ReferenceWorkQueue.State.runNormalized,
-    ReferenceWorkQueue.State.runWithPublisher, State.fromReference_initialGroups,
+    State.fromReference_initialGroups,
     State.fromReference_initialStreams]
-  rw [same]
+  exact congrArg (fun result : AlternativeAcc => (result.1, result.2.2)) same
 
 /-- Witness of the exact public replay target, with no new caller or host assumption. -/
 theorem replayMatchesReference_holds : replayMatchesReference := by
@@ -166,6 +208,7 @@ theorem createWorkQueueForSchedule_eq_reference (work : Work)
     (valid : schedule.ValidFor work)
     : createWorkQueueForSchedule work schedule
       = ReferenceWorkQueue.createWorkQueueForSchedule work schedule :=
-  createWorkQueueForScheduleMatchesReference_holds work schedule generated nonempty valid
+  createWorkQueueForScheduleMatchesReference_holds work schedule generated
+    ((Execution.Work.isEmpty_eq_false work).mpr nonempty) valid
 
 end GraphQL.IncrementalDelivery.AlternativeWorkQueue

@@ -41,7 +41,7 @@ theorem objectFailuresSafe_of_successfulItems {work inputs w streams}
         w.failures
         = mergeFailureCuts
             (informativeObjectFailureCuts work
-              (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher inputs).2.2))
+              (queue.sourceRunBlocks publisher inputs).2.2)
             streams)
     : ObjectFailuresSafe work w := by
   exact informativeObjectFailures_uncancelled generated valid started announced safe cuts exactCuts

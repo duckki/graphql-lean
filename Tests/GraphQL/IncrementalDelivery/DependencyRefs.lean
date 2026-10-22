@@ -38,8 +38,9 @@ example {groups streams matching events failures}
         ∧ ¬NodeFailed CursorOrigins.nested matching events failures ref
         ∧ ref ≤ 1 := by
   apply producer_owner_ref_le explained nested_metadata.1 nested_metadata.2.1
-    nested_metadata.2.2.1
-    nested_metadata.2.2.2 (TaskAt.item (.executionGroup .root) rfl)
+    nested_metadata.2.2.1 nested_metadata.2.2.2
+    (TaskAt.item (result := { result := .ok (.null, 0) })
+      (.executionGroup (Located.root (root := CursorOrigins.nested))) rfl)
     (by simp [CursorOrigins.child]) healthy fresh parentFresh active
 
 /-- The deferred root is an eligible initial frontier for the nested-stream fixture.
@@ -63,7 +64,8 @@ private theorem nested_initialized
   · simp [announcedRefs, pendingRefs]
   · intro accounted
     have impossible := accounted (.executionGroup []) [0]
-      ⟨none, _, TaskAt.executionGroup Located.root⟩ (by simp [CursorOrigins.parent])
+      ⟨none, _, TaskAt.executionGroup (result := { result := .ok ([("items", .list [.null, .null])], 0) })
+        (Located.root (root := CursorOrigins.nested))⟩ (by simp [CursorOrigins.parent])
     rcases impossible with cancelled | published
     · exact cancelled.nonempty rfl
     · simp [Published] at published
@@ -81,11 +83,13 @@ example
         ∧ ref ≤ 1 := by
   have initial : Explains CursorOrigins.nested [CursorOrigins.parent] [] []
       (fun _ => .executionGroup []) [] :=
-    ⟨nested_initialized, by simp [FailureWitness], by simp⟩
+    Explains.of_causal_failures nested_initialized
+      (by simp [FailureWitness]) (by simp) (by simp)
   apply readyTask_owner_ref_le initial nested_metadata.1 nested_metadata.2.1
     nested_metadata.2.2.1 nested_metadata.2.2.2
-    (TaskAt.item (index := 0) (.executionGroup .root) rfl) (by simp [CursorOrigins.child])
-    (fun failure => failure.nonempty rfl)
+    (TaskAt.item (result := { result := .ok (.null, 0) }) (index := 0)
+      (.executionGroup (Located.root (root := CursorOrigins.nested))) rfl)
+    (by simp [CursorOrigins.child]) (fun failure => failure.nonempty rfl)
   rintro (cancelled | published)
   · exact cancelled.nonempty rfl
   · simp [Published] at published
@@ -97,7 +101,8 @@ example
     : ∃ node kind parents,
         NodeAt CursorOrigins.nested node kind parents (some (.executionGroup []))
         ∧ node.ref = 1 :=
-  (TaskAt.item (index := 0) (.executionGroup .root) rfl).owner_at_producer
+  (TaskAt.item (result := { result := .ok (.null, 0) }) (index := 0)
+    (.executionGroup (Located.root (root := CursorOrigins.nested))) rfl).owner_at_producer
     (by simp [CursorOrigins.child])
 
 end GraphQL.IncrementalDelivery.Tests.DependencyRefs

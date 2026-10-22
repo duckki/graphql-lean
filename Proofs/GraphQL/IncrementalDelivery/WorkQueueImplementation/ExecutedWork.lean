@@ -3,6 +3,7 @@ import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.GroupRecords
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.ExecutedAncestorChains
 import Proofs.GraphQL.IncrementalDelivery.Correctness.Initialization
 import Proofs.GraphQL.IncrementalDelivery.Correctness.DependencyRefs
+import Proofs.GraphQL.IncrementalDelivery.Correctness.NodeRoles
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.FailureReporting
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.FailureExtension
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.StructuralEquivalence
@@ -249,6 +250,7 @@ of the finite spec Work, not a queue runtime field.
 -/
 private def contributorRefsNodup : Execution.Work → Prop
   | .empty => True
+  | .declareGroups _ tasks => contributorRefsNodup tasks
   | .combine left right => contributorRefsNodup left ∧ contributorRefsNodup right
   | .executionGroup groups _ _ children =>
       (groups.map (fun group => group.node.ref)).Nodup ∧ contributorRefsNodup children
@@ -263,6 +265,18 @@ decreasing_by
   dsimp only
   omega
 
+/-- Normalizing an address view retains contributor uniqueness of every task. -/
+private theorem contributorRefsNodup_withoutDeclarations {work : Execution.Work}
+    (unique : contributorRefsNodup work)
+    : contributorRefsNodup work.withoutDeclarations := by
+  cases work with
+  | declareGroups groups tasks =>
+      simpa only [Execution.Work.withoutDeclarations]
+        using contributorRefsNodup_withoutDeclarations (work := tasks)
+          (by simpa only [contributorRefsNodup] using unique)
+  | _ => simpa only [Execution.Work.withoutDeclarations] using unique
+termination_by work
+
 /-- Every located subtree inherits contributor uniqueness from its root.
 Witness: follow the structural location proof one child edge at a time.
 -/
@@ -274,23 +288,23 @@ private theorem contributorRefsNodup_located
     : contributorRefsNodup current := by
   have former := WorkQueueSemantics.StructuralEquivalence.located_of_current located
   induction former with
-  | root => exact unique
+  | root => exact contributorRefsNodup_withoutDeclarations unique
   | left parent ih =>
       have parentUnique := ih parent.toCurrent
       simp only [contributorRefsNodup] at parentUnique
-      exact parentUnique.1
+      exact contributorRefsNodup_withoutDeclarations parentUnique.1
   | right parent ih =>
       have parentUnique := ih parent.toCurrent
       simp only [contributorRefsNodup] at parentUnique
-      exact parentUnique.2
+      exact contributorRefsNodup_withoutDeclarations parentUnique.2
   | executionGroup parent ih =>
       have parentUnique := ih parent.toCurrent
       simp only [contributorRefsNodup] at parentUnique
-      exact parentUnique.2
+      exact contributorRefsNodup_withoutDeclarations parentUnique.2
   | item parent entry ih =>
       have parentUnique := ih parent.toCurrent
       simp only [contributorRefsNodup] at parentUnique
-      exact parentUnique _ (List.mem_of_getElem? entry)
+      exact contributorRefsNodup_withoutDeclarations (parentUnique _ (List.mem_of_getElem? entry))
 
 /-- A structural task in contributor-unique Work has a duplicate-free owner
 list. Stream items have a singleton owner; execution groups inherit the
@@ -804,7 +818,8 @@ private theorem executePlan_contributors_of_prior
                 partition.2 path partition.1 nextMap prior middle
         · intro tasks tasksUnique
           apply Semantics.runEnsures_pure
-          exact contributorRefsNodup_combine initialUnique tasksUnique
+          apply contributorRefsNodup_combine initialUnique
+          simpa only [contributorRefsNodup] using tasksUnique
 
 /-- Every finite pure value completion produces Work with duplicate-free
 contributor lists. Witness: strong induction on fuel, with a smaller-type
@@ -969,20 +984,7 @@ theorem generatedWorkRoles_located
     (rootRoles : Semantics.RefRoles.WorkRoles roles work)
     (located : StructuralEquivalence.Located work address current producer owners)
     : Semantics.RefRoles.WorkRoles roles current := by
-  induction located with
-  | root => exact rootRoles
-  | left _ ih =>
-      simp only [Semantics.RefRoles.WorkRoles] at ih
-      exact ih.1
-  | right _ ih =>
-      simp only [Semantics.RefRoles.WorkRoles] at ih
-      exact ih.2
-  | executionGroup _ ih =>
-      simp only [Semantics.RefRoles.WorkRoles] at ih
-      exact ih.2
-  | item _ entry ih =>
-      simp only [Semantics.RefRoles.WorkRoles] at ih
-      exact ih.2 _ (List.mem_of_getElem? entry)
+  exact Correctness.workRoles_located rootRoles located.toCurrent
 
 /-- Generated defer nodes have role `false`, and generated stream nodes have
 role `true`, even when Work contains repeated descriptors for a shared ref. -/
@@ -1046,24 +1048,7 @@ private theorem ExecutedWork.groupDependenciesValid
       (rootAt : Semantics.MixedRefs.WorkAt parents 0 bound root)
       (located : StructuralEquivalence.Located root address current producer owners)
       : ∃ lower, Semantics.MixedRefs.WorkAt parents lower bound current := by
-    induction located with
-    | root => exact ⟨0, rootAt⟩
-    | left prior ih =>
-        obtain ⟨lower, currentAt⟩ := ih
-        simp only [Semantics.MixedRefs.WorkAt] at currentAt
-        exact ⟨lower, currentAt.1⟩
-    | right prior ih =>
-        obtain ⟨lower, currentAt⟩ := ih
-        simp only [Semantics.MixedRefs.WorkAt] at currentAt
-        exact ⟨lower, currentAt.2⟩
-    | executionGroup prior ih =>
-        obtain ⟨lower, currentAt⟩ := ih
-        simp only [Semantics.MixedRefs.WorkAt] at currentAt
-        exact ⟨lower, currentAt.2.2⟩
-    | item prior entry ih =>
-        obtain ⟨lower, currentAt⟩ := ih
-        simp only [Semantics.MixedRefs.WorkAt] at currentAt
-        exact ⟨_, currentAt.2.2 _ (List.mem_of_getElem? entry)⟩
+    exact ⟨0, coherent_located rootAt located.toCurrent⟩
   obtain ⟨ObjectRef, schema, resolvers, variables, fuel, parentType, source,
     selections, equal⟩ := generated
   obtain ⟨_, parents, valid, rootAt, _⟩ :=
@@ -1255,6 +1240,29 @@ theorem workFromSpec_groups_parentCanonical
   obtain ⟨dependencies, known, parent⟩ := workFromSpec_groups_recordAt located member
   rw [parent, canonical _ _ known]
 
+/-- Raw child metadata determines parent links before address normalization. -/
+theorem workFromSpec_groups_parentCanonical_of_fragments
+    {root current : Execution.Work} {address : Address} {parents : Nat → NodeRefs}
+    (contained : (GroupMetadata.fragments current).Subset (GroupMetadata.fragments root))
+    (canonical
+      : ∀ node dependencies,
+          GroupRecordAt root node dependencies → dependencies = parents node.ref)
+    {group : Group} (member : group ∈ (Work.fromExecution current address).groups)
+    : group.parent = (parents group.node.ref).head? := by
+  obtain ⟨dependencies, known, parent⟩ := workFromSpec_groups_recordAt_of_fragments contained member
+  rw [parent, canonical _ _ known]
+
+/-- Initial raw declarations determine parents before structural address normalization. -/
+theorem workFromSpec_groups_parentCanonical_root {work : Execution.Work}
+    {address : Address} {parents : Nat → NodeRefs}
+    (canonical
+      : ∀ node dependencies,
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
+    {group : Group} (member : group ∈ (Work.fromExecution work address).groups)
+    : group.parent = (parents group.node.ref).head? :=
+  workFromSpec_groups_parentCanonical_of_fragments
+    (root := work) (current := work) (fun _ member => member) canonical member
+
 /-- Generated ancestry identifies contributor and ancestor-only registration records.
 Witness: execution's exact chain assignment and the descriptor's suffix certificate.
 -/
@@ -1271,12 +1279,9 @@ theorem ExecutedWork.groupRecordsValid {work : Execution.Work}
     schema resolvers variables fuel parentType source selections 0
   refine ⟨parents, _, valid, ?_⟩
   intro node dependencies known
-  obtain ⟨address, groups, path, result, children, producer, owners, fragment,
-    ancestors, located, member, suffix, dependenciesEq⟩ := known
+  obtain ⟨fragment, member, ancestors, suffix, dependenciesEq⟩ := known
   have rootAt := equal ▸ coherent
-  have localWork := coherent_located rootAt located
-  rw [Semantics.MixedRefs.WorkAt] at localWork
-  have fragmentAt := (localWork.2.1 fragment member).2
+  have fragmentAt := GroupMetadata.fragmentAt rootAt member
   rw [dependenciesEq]
   exact ancestor_suffix_canonical valid fragmentAt.1 fragmentAt.2 suffix
 
@@ -1315,7 +1320,7 @@ theorem GraphEvent.MatchesWork.taskChildGroups_recordAt
   obtain ⟨owners, producer, known, _, childrenWork⟩ := matching
   cases occurrence with
   | item address index =>
-      simp only [taskChildWork?] at childrenWork
+      simp only [taskChildWork?_eq_lookup] at childrenWork
       cases childrenWork
   | executionGroup address =>
       obtain ⟨groups, path, outcome, children, enclosing,
@@ -1325,14 +1330,11 @@ theorem GraphEvent.MatchesWork.taskChildGroups_recordAt
         at located
       have childLowering : result.work =
           Work.fromExecution children (address ++ [0]) := by
-        simpa [taskChildWork?, located] using childrenWork.symm
+        simpa [taskChildWork?_eq_lookup, located] using childrenWork.symm
       rw [childLowering] at member
-      have childLocated : Located work (address ++ [0]) children
-          (some (.executionGroup address))
-          (groups.map (fun group => group.node.ref)) :=
-        WorkQueueSemantics.Located.executionGroup located
       obtain ⟨dependencies, knownChild, _⟩ :=
-        workFromSpec_groups_recordAt childLocated member
+        workFromSpec_groups_recordAt_of_fragments
+          (GroupMetadata.executionGroup_children located) member
       exact ⟨dependencies, knownChild⟩
 
 /-- A matched stream item has the same full-chain registration provenance.
@@ -1349,7 +1351,7 @@ theorem GraphEvent.MatchesWork.streamItem_childGroups_recordAt
       obtain ⟨owners, producer, known, childrenWork⟩ := matching _ itemMember
       cases itemOccurrence with
       | executionGroup address =>
-          simp only [streamItemWork?] at childrenWork
+          simp only [streamItemWork?_eq_lookup] at childrenWork
           cases childrenWork
       | item address index =>
           obtain ⟨node, entries, enclosing, result, children, located, entry,
@@ -1358,13 +1360,11 @@ theorem GraphEvent.MatchesWork.streamItem_childGroups_recordAt
             ⟨.stream node entries, producer, enclosing⟩ at located
           have childLowering : itemWork =
               Work.fromExecution children (address ++ [index]) := by
-            simpa [streamItemWork?, located, entry] using childrenWork.symm
+            simpa [streamItemWork?_eq_lookup, located, entry] using childrenWork.symm
           rw [childLowering] at groupMember
-          have childLocated : Located work (address ++ [index]) children
-              (some (.item address index)) [] :=
-            WorkQueueSemantics.Located.item located entry
           obtain ⟨dependencies, knownChild, _⟩ :=
-            workFromSpec_groups_recordAt childLocated groupMember
+            workFromSpec_groups_recordAt_of_fragments
+              (GroupMetadata.item_children located entry) groupMember
           exact ⟨dependencies, knownChild⟩
 
 /-- The same generated defer ref cannot lower with two different primary

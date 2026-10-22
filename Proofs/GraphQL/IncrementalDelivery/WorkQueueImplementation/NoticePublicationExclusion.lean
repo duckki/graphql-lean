@@ -18,7 +18,8 @@ ledger's indexed label is therefore in that prefix. No payload equality selects 
 -/
 theorem ObjectLedgerMatching.objectPublication_before
     {work inputs events matching published position index group values}
-    (ledger : ObjectLedgerMatching work inputs events matching published)
+    {sourceQueue : State}
+    (ledger : ObjectLedgerMatching work inputs events matching published sourceQueue)
     (selected : events[position]? = some (.groupValues group values))
     (nonempty : values ≠ []) (earlier : position < index)
     : ∃ value,
@@ -57,7 +58,8 @@ assuming admission of carried notices or of the whole history.
 -/
 theorem objectOccurrence_published_mem
     {work inputs w published index address}
-    (ledger : ObjectLedgerMatching work inputs w.events w.matching published)
+    {sourceQueue : State}
+    (ledger : ObjectLedgerMatching work inputs w.events w.matching published sourceQueue)
     (objects : GroupPublicationAdmission work w)
     (streams : StreamPublicationReady work w)
     (observed : Published w.matching (w.events.take index) (.executionGroup address))
@@ -90,7 +92,8 @@ Stream publications cannot provide a second route around the object-label exclus
 -/
 theorem retainedGroupMembers_unpublished
     {work inputs w published index} {queue : State} {node : GroupNode}
-    (ledger : ObjectLedgerMatching work inputs w.events w.matching published)
+    {sourceQueue : State}
+    (ledger : ObjectLedgerMatching work inputs w.events w.matching published sourceQueue)
     (objects : GroupPublicationAdmission work w)
     (streams : StreamPublicationReady work w)
     (sound : queue.GroupMembershipSound) (registered : queue.RegisteredTasksMatch work)
@@ -179,7 +182,8 @@ theorem ExecutedWork.streamItems_leadingNotice_unpublished
       : (State.initialize (Work.fromExecution work)).ReplayClosuresCovered
           (before ++ .streamItems stream items :: after) published)
     (valid : ValidGraphEvents work (before ++ .streamItems stream items :: after))
-    (ledger : ObjectLedgerMatching work inputs w.events w.matching published)
+    {sourceQueue : State}
+    (ledger : ObjectLedgerMatching work inputs w.events w.matching published sourceQueue)
     (objects : ConformancePlan.GroupPublicationAdmission work w)
     (streams : ConformancePlan.StreamPublicationReady work w)
     (count
@@ -187,10 +191,12 @@ theorem ExecutedWork.streamItems_leadingNotice_unpublished
         = (((State.initialize (Work.fromExecution work)).rawEventReplay before).2.flatMap
             WorkQueueEvent.objectValues).length)
     : let current := (State.initialize (Work.fromExecution work)).replayGraphEvents before
-      child ∈ (items.foldl streamItemStep (current, [], [], [])).2.1
+      child ∈ (items.foldl streamItemStep (current, [], [], [], [])).2.1
       → ∃ earlier item later,
           items = earlier ++ item :: later
-          ∧ let boundary := (current.preparedStreamItems earlier).integrateStreamItem item
+          ∧ let prepared :=
+              (current.preparedStreamItems earlier).maybeIntegrateWork item.work
+            let boundary := (prepared.1.pruneEmptyGroups prepared.2.newGroups).1
             (∃ dependencies producer, NodeAt work child .group dependencies producer)
             ∧ ∃ node,
                 boundary.groupNode? child.ref = some node
@@ -217,10 +223,17 @@ theorem ExecutedWork.streamItems_leadingNotice_unpublished
     exact List.subset_append_left _ _
   obtain ⟨preparedSound, preparedRegistered⟩ :=
     State.preparedStreamItems_noticeTaskProvenance sound registered matching earlier included
-  obtain ⟨boundarySound, boundaryRegistered⟩ :=
-    State.integrateStreamItem_noticeTaskProvenance (item := item)
-      preparedSound preparedRegistered matching
-      (by simp [splitItems])
+  have itemMember : item ∈ items := by simp [splitItems]
+  have integratedRegistered := preparedRegistered.maybeIntegrateWork item.work (by
+    intro task candidate
+    obtain ⟨address, payload, same, known⟩ :=
+      matching.streamItem_childTask_producer itemMember candidate
+    exact ⟨⟨address, payload, some item.occurrence, same, known⟩,
+      matching.streamItem_childTask_groupsExact itemMember candidate⟩)
+  have boundarySound := (preparedSound.maybeIntegrateWork item.work).pruneEmptyGroups
+    ((current.preparedStreamItems earlier).maybeIntegrateWork item.work).2.newGroups
+  have boundaryRegistered := integratedRegistered.pruneEmptyGroups
+    ((current.preparedStreamItems earlier).maybeIntegrateWork item.work).2.newGroups
   have excludedAtAtom : ∀ publication ∈ published.take
       ((w.events.take index).flatMap normalizedObjectValues).length,
       publication.1 ∉ node.tasks := by simpa only [count] using excluded

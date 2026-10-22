@@ -27,28 +27,37 @@ theorem State.maybeIntegrateWork_terminated (state : State)
 /-- Actual per-item integration retains the incoming semantic flag. -/
 theorem streamRegistrationStep_terminated (acc : StreamRegistrationAcc)
     (item : ReferenceWorkQueue.StreamItem)
-    : (streamRegistrationStep acc item).1.queue.terminated = acc.1.queue.terminated := by
+    (available : List (Occurrence × Nat) := [])
+    : (streamRegistrationStep acc item available).1.queue.terminated
+      = acc.1.queue.terminated := by
   change (({ (acc.1.maybeIntegrateWork item.work).1 with queue :=
     ((acc.1.maybeIntegrateWork item.work).1.queue.pruneEmptyGroups
-      (acc.1.maybeIntegrateWork item.work).2.newGroups).1 }).startNewWork _ _ _).1.queue.terminated = _
-  rw [State.startNewWork_terminated _ _ _ acc.2.2.2.2.1, ReferenceWorkQueue.State.pruneEmptyGroups_terminated,
+      (acc.1.maybeIntegrateWork item.work).2.newGroups).1 }).startNewWork
+      _ _ _ available).1.queue.terminated = _
+  rw [State.startNewWork_terminated _ _ _ acc.2.2.2.2.1 available,
+    ReferenceWorkQueue.State.pruneEmptyGroups_terminated,
     State.maybeIntegrateWork_terminated]
 
 /-- An actual receipt terminates only at the enclosing batch boundary, not an item. -/
 theorem State.streamItems_terminated (state : State) (stream : Execution.DeliveryNode)
     (items : List ReferenceWorkQueue.StreamItem)
-    : (state.streamItems stream items).1.queue.terminated = state.queue.terminated := by
+    (available : List (Occurrence × Nat) := [])
+    : (state.streamItems stream items available).1.queue.terminated
+      = state.queue.terminated := by
   unfold State.streamItems
   split
   · rfl
-  · rw [State.drainReadyGroups_terminated]
-    exact ReferenceWorkQueue.fold_projection (fun acc : StreamRegistrationAcc => acc.1.queue.terminated)
-      streamRegistrationStep streamRegistrationStep_terminated _ _
+  · rw [State.drainReadyGroups_terminated _ _ available]
+    exact ReferenceWorkQueue.fold_projection
+      (fun acc : StreamRegistrationAcc => acc.1.queue.terminated)
+      (fun acc item => streamRegistrationStep acc item available)
+      (fun acc item => streamRegistrationStep_terminated acc item available) _ _
 
 /-- Actual object registration, owner settlement and draining retain the semantic flag. -/
 theorem State.taskSuccess_terminated (state : State) (occurrence : Occurrence)
     (result : ReferenceWorkQueue.TaskResult)
-    : (state.taskSuccess occurrence result).1.queue.terminated
+    (available : List (Occurrence × Nat) := [])
+    : (state.taskSuccess occurrence result available).1.queue.terminated
       = state.queue.terminated := by
   have step (acc : ReferenceWorkQueue.State × List WorkQueueEvent × ReferenceWorkQueue.NewWork)
       (group : Execution.DeliveryNode)
@@ -63,29 +72,39 @@ theorem State.taskSuccess_terminated (state : State) (occurrence : Occurrence)
   cases found : state.queue.taskNode? occurrence with
   | none => simp only [State.taskSuccess, found]
   | some node =>
-      rw [state.taskSuccess_eq occurrence result node found]
+      rw [state.taskSuccess_eq occurrence result node found available]
       dsimp only
-      rw [State.drainReadyGroups_terminated, State.startNewWork_terminated,
+      rw [State.drainReadyGroups_terminated _ _ available,
+        State.startNewWork_terminated _ _ _ _ available,
         ReferenceWorkQueue.fold_projection
-          (fun acc : ReferenceWorkQueue.State × List WorkQueueEvent × ReferenceWorkQueue.NewWork => acc.1.terminated)
+          (fun acc : ReferenceWorkQueue.State × List WorkQueueEvent
+              × ReferenceWorkQueue.NewWork => acc.1.terminated)
           ReferenceWorkQueue.successGroupStep step,
         State.maybeIntegrateWork_terminated _ result.work (some occurrence)]
       rfl
 
-/-- All five actual handlers preserve semantic termination, even on malformed raw input. -/
+/-- All actual handlers preserve semantic termination, even on malformed raw input. -/
 theorem State.handleGraphEvent_terminated (state : State) (event : GraphEvent)
-    : (state.handleGraphEvent event).1.queue.terminated = state.queue.terminated := by
-  cases event with
-  | taskSuccess occurrence result => exact state.taskSuccess_terminated occurrence result
-  | streamItems stream items => exact state.streamItems_terminated stream items
-  | taskFailure occurrence errors =>
-      exact state.taskFailure_terminated occurrence errors
-  | streamSuccess stream =>
-      simp only [State.handleGraphEvent]
-      exact state.queue.handleGraphEvent_terminated (.streamSuccess stream)
-  | streamFailure stream errors =>
-      simp only [State.handleGraphEvent]
-      exact state.queue.handleGraphEvent_terminated (.streamFailure stream errors)
+    (available : List (Occurrence × Nat) := [])
+    : (state.handleGraphEvent event available).1.queue.terminated
+      = state.queue.terminated := by
+  let current : State := { state with queue := state.queue.cacheTaskFailures available }
+  have preserved : (state.handleGraphEvent event available).1.queue.terminated
+      = current.queue.terminated := by
+    cases event with
+    | taskSuccess occurrence result =>
+        exact current.taskSuccess_terminated occurrence result available
+    | streamItems stream items =>
+        exact current.streamItems_terminated stream items available
+    | taskFailure occurrence errors =>
+        exact current.taskFailure_terminated occurrence errors
+    | groupFailure failure =>
+        exact current.queue.handleGraphEvent_terminated (.groupFailure failure)
+    | streamSuccess stream =>
+        exact current.queue.handleGraphEvent_terminated (.streamSuccess stream)
+    | streamFailure stream errors =>
+        exact current.queue.handleGraphEvent_terminated (.streamFailure stream errors)
+  exact preserved.trans (state.queue.cacheTaskFailures_terminated available)
 
 -----------------------------------------------------------------------------------------
 -- Only batch completion aligns semantic termination and reader retirement
@@ -97,16 +116,20 @@ theorem State.handleGraphEvents_flagsAligned (state : State) (batch : List Graph
     : (state.handleGraphEvents batch).state.stopped
       = (state.handleGraphEvents batch).state.queue.terminated := by
   have loop (events : List GraphEvent) (acc : GraphBatchResult)
+      (available : List (Occurrence × Nat))
       (same : acc.state.stopped = acc.state.queue.terminated)
-      : (events.foldl GraphBatchResult.handleGraphEvent acc).state.stopped
-        = (events.foldl GraphBatchResult.handleGraphEvent acc).state.queue.terminated := by
+      : (events.foldl (fun current event => current.handleGraphEvent event available)
+          acc).state.stopped
+        = (events.foldl (fun current event => current.handleGraphEvent event available)
+            acc).state.queue.terminated := by
     induction events generalizing acc with
     | nil => exact same
     | cons event rest ih =>
         apply ih
-        change (acc.state.handleGraphEvent event).1.stopped
-          = (acc.state.handleGraphEvent event).1.queue.terminated
-        rw [State.handleGraphEvent_stopped, State.handleGraphEvent_terminated]
+        change (acc.state.handleGraphEvent event available).1.stopped
+          = (acc.state.handleGraphEvent event available).1.queue.terminated
+        rw [State.handleGraphEvent_stopped _ _ available,
+          State.handleGraphEvent_terminated _ _ available]
         exact same
   unfold State.handleGraphEvents
   split
@@ -114,7 +137,7 @@ theorem State.handleGraphEvents_flagsAligned (state : State) (batch : List Graph
   · dsimp only
     split
     · rw [State.cancel_stopped, State.cancel_terminated]
-    · exact loop batch { state } aligned
+    · exact loop batch { state } (ReferenceWorkQueue.GraphEvent.availableFailures batch) aligned
 
 /-- Actual normalization retains aligned flags for every finite input sequence. -/
 theorem State.runNormalized_flagsAligned (state : State) (inputs : List (List GraphEvent))

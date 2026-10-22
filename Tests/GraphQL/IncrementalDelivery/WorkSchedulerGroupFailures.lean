@@ -94,9 +94,15 @@ Witness: the general source-block coverage theorem at each selected atomic outpu
 -/
 theorem shared_candidate_nodeFailed (matching : PublicationMatching) {index : Nat}
     {group : DeliveryNode} (selected : atoms[index]? = some (.groupFailure group 1))
-    : NodeFailed work matching (atoms.take index) candidateCuts group.ref :=
-  createWorkQueue_sourceObjectFailureCuts_nodeFailed generated source_valid.1 matching
-    selected
+    : NodeFailed work matching (atoms.take index) candidateCuts group.ref := by
+  have member := List.mem_of_getElem? selected
+  have same : group = left ∨ group = right := by simpa [output, eq_comm] using member
+  rcases same with rfl | rfl
+  all_goals
+    refine ⟨0, by simp [shared_candidate_cuts], Nat.zero_le _,
+      .task ⟨none, _, task_known⟩ ?_ ?_⟩
+    · simp
+    · simp [failedBefore, shared_candidate_cuts]
 
 /-- Constructed cut uniqueness follows from source freshness, not a manually checked list.
 Witness: apply the generic source-subsequence theorem to the shared generated execution.
@@ -268,7 +274,8 @@ theorem prior_source_valid
     intro item member
     have same := List.mem_singleton.mp member
     subst item
-    exact ⟨[stream.ref], none, TaskAt.item (result := { result := .ok (.scalar "x", 0) }) stream_located rfl, by cbv⟩
+    exact ⟨[stream.ref], none, TaskAt.item (result := { result := .ok (.scalar "x",
+      0) }) stream_located rfl, by cbv⟩
   have firstValid : ValidGraphEvents work [first] :=
     .append .nil firstMatch (by simp [first, GraphEvent.Fresh, GraphEvent.identities])
       ⟨_, _, _, _, stream_located, by simp, by simp,
@@ -278,10 +285,12 @@ theorem prior_source_valid
       (by simp [first, leftTask, GraphEvent.Fresh, GraphEvent.identities])
       ⟨_, _, _, left_known, by intro source impossible; cases impossible⟩
   refine ⟨.append two ?_ ?_ ?_, by cbv⟩
-  · exact ⟨_, _, _, _, stream_located, { result := .error 1, cause := some 1 }, .empty, List.mem_cons_of_mem _ List.mem_cons_self, rfl⟩
+  · exact ⟨_, _, _, _, stream_located, { result := .error 1, cause := some 1 }, .empty,
+    List.mem_cons_of_mem _ List.mem_cons_self, rfl⟩
   · simp [first, GraphEvent.Fresh, GraphEvent.identities]
   · exact ⟨_, _, _, _, stream_located,
-      (by intro source impossible; cases impossible), { result := .error 1, cause := some 1 }, .empty, rfl, rfl⟩
+      (by intro source impossible; cases impossible), { result := .error 1, cause := some 1 },
+        .empty, rfl, rfl⟩
 
 /-- The final failure extends the same valid, actually started source trace.
 Witness: its distinct task identity, exact two-error outcome, and root readiness.

@@ -1,3 +1,4 @@
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.WorkDeclarations
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.FailureRetentionSettlement
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.RetiredAncestorHealth
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.MissingParentRetirement
@@ -144,7 +145,8 @@ theorem State.MissingParentAncestorsHealthy.removeTask {queue : State} {work fai
 
 /-- Pruning preserves any invariant stable under removing a healthy record, and gives
 released records healthy ancestry. Witness: retention excludes failed contributors of
-an empty task list, while generated child chains propagate health. The callback shares this traversal
+an empty task list, while generated child chains propagate health. The callback shares this
+traversal
 between the missing-parent boundary and global retired-record health.
 -/
 theorem State.pruneEmptyGroups_health_preserves {queue : State} {work failed parents}
@@ -240,8 +242,11 @@ theorem State.pruneEmptyGroups_health_preserves {queue : State} {work failed par
                 rcases List.mem_append.mp member with earlier | latest
                 · exact done next earlier
                 · exact (List.mem_singleton.mp latest) ▸ pending group List.mem_cons_self
-  exact loop _ queue groups [] initial matching links counts healthy
-    (by intro group member; cases member)
+  have result := loop (queue.groupNodes.length + groups.length + 1) queue groups [] initial
+    matching links counts healthy (by intro group member; cases member)
+  refine ⟨result.1, ?_⟩
+  intro group member
+  exact result.2 group (by simpa only [State.pruneEmptyGroups] using member)
 
 /-- Pruning preserves absent-parent health and healthy release ancestry.
 Witness: instantiate the shared health traversal with canonical parents and the

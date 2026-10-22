@@ -89,8 +89,8 @@ theorem failureWitness_iff_nodup_and {work initial matching events failures}
 -- Node accounting derives internal task accounting, but not observable reporting
 -----------------------------------------------------------------------------------------
 
-/-- The node clause of Terminal, separated only for this redundancy experiment.
-The other arguments are the same work, initial refs, and history explanation as Terminal.
+/-- A stronger node-accounting view for the task-redundancy experiment.
+Unannounced nodes retain explicit failure/accounting evidence in this proof-only view.
 -/
 def NodesTerminal (work : Work) (initial : NodeRefs) (matching : PublicationMatching)
     (events : List WorkQueueEvent) (failed : FailureCuts)
@@ -101,6 +101,41 @@ def NodesTerminal (work : Work) (initial : NodeRefs) (matching : PublicationMatc
       ∨ node.ref ∉ announcedRefs initial events
         ∧ (NodeFailed work matching events failed node.ref
             ∨ NodeAccounted work matching events failed node.ref)
+
+/-- Terminal task accounting supplies the unannounced-node accounting alternative.
+Witness: every contributing task is cancelled or published, independently of ownership
+nonemptiness, node health, or event admission.
+-/
+theorem Terminal.nodesTerminal {work initial matching events failures}
+    (terminal : Terminal work initial matching events failures)
+    : NodesTerminal work initial matching events failures := by
+  intro node kind dependencies producer known
+  by_cases announced : node.ref ∈ announcedRefs initial events
+  · exact Or.inl (terminal.2 node kind dependencies producer known announced)
+  · refine Or.inr ⟨announced, Or.inr ?_⟩
+    rintro occurrence owners ⟨birth, payload, located⟩ _
+    exact terminal.tasks_accounted located
+
+/-- The stronger node-accounting formulation is exactly the same terminal contract.
+Witness: task accounting supplies omitted nodes; announced nodes must be completed.
+This equivalence holds for arbitrary raw work without an explained-history premise.
+-/
+theorem terminal_iff_tasks_and_nodes {work initial matching events failures}
+    : Terminal work initial matching events failures
+      ↔ (∀ occurrence owners producer payload,
+          TaskAt work occurrence owners producer payload
+          → (TaskCancelled work matching events failures occurrence
+              ∧ FailureReportedFor events payload.path)
+            ∨ Published matching events occurrence)
+        ∧ NodesTerminal work initial matching events failures := by
+  constructor
+  · intro terminal
+    exact ⟨terminal.1, terminal.nodesTerminal⟩
+  · rintro ⟨tasks, nodes⟩
+    refine ⟨tasks, ?_⟩
+    intro node kind dependencies producer known announced
+    exact (nodes node kind dependencies producer known).resolve_right
+      (fun hidden => hidden.1 announced)
 
 /-- Explained terminal nodes internally account for every nonempty-owned task.
 Witness: an outstanding task has a healthy unclosed owner, contradicting the node clause.
@@ -146,9 +181,10 @@ theorem terminal_iff_nodes_and_reporting {work groups streams events matching fa
             → FailureReportedFor events payload.path := by
   constructor
   · intro terminal
-    exact ⟨terminal.2, fun _ _ _ _ known unpublished =>
+    exact ⟨terminal.nodesTerminal, fun _ _ _ _ known unpublished =>
       terminal.failure_reported known unpublished⟩
   · rintro ⟨nodes, reported⟩
+    apply terminal_iff_tasks_and_nodes.mpr
     refine ⟨?_, nodes⟩
     intro occurrence owners producer payload known
     by_cases published : Published matching events occurrence

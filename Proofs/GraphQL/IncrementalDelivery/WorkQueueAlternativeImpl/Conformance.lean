@@ -1,4 +1,4 @@
-import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.ReferenceReplay
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.RegistrationRefinement
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.Conformance
 
 /-! Transfer the independent WorkQueue contract through exact observable-factory equality. -/

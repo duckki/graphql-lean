@@ -82,11 +82,13 @@ theorem failureFold_outside_survives {parents key} (errors : Nat)
               simp only [active, ↓reduceIte] at outside ⊢
               have emitted : .groupFailure owner.group.node errors ∈
                   (rest.foldl (failureGroupStep errors)
-                    (queue.removeGroup owner.group.node.ref, events ++ [.groupFailure owner.group.node errors])).2 :=
+                    (queue.removeGroup owner.group.node.ref,
+                      events ++ [.groupFailure owner.group.node errors])).2 :=
                 failureFold_eventsSubset errors rest _ (List.mem_append_right _ List.mem_cons_self)
               have notBelow := outside owner.group.node.ref
                 (List.mem_filterMap.mpr ⟨_, emitted, rfl⟩)
-              have kept := (ReferenceWorkQueue.State.removeGroup_groupNodeRetained forest notBelow).trans lookup
+              have kept := (ReferenceWorkQueue.State.removeGroup_groupNodeRetained forest
+                notBelow).trans lookup
               let removed := ReferenceWorkQueue.State.removeGroup.collect
                 (queue.groupNodes.length + 1) queue [owner.group.node.ref] []
               have edges : (queue.removeGroup owner.group.node.ref).GroupEdgesFrom queue :=
@@ -127,8 +129,10 @@ theorem taskFailure_lostBufferedSource (state : State) (failed : Occurrence)
     (found : state.queue.taskNode? occurrence = some node)
     (held : key ∈ node.childStreams)
     (changed : (state.taskFailure failed errors).1.queue.taskNode? occurrence ≠ some node)
-    : .cancelSource key ∈ (state.handleGraphEvent (.taskFailure failed errors)).2.2 := by
-  have target := (state.taskFailure_heldSource failed errors different found held).resolve_left changed
+    : .cancelSource key
+      ∈ (state.handleGraphEvent (.taskFailure failed errors)).2.2.1 := by
+  have target := (state.taskFailure_heldSource failed errors different found held).resolve_left
+    changed
   exact List.mem_flatMap.mpr ⟨.stream key, target, List.mem_cons_self⟩
 
 /-- Complete disappearance specializes exact-record loss at the actual endpoint. -/
@@ -137,7 +141,8 @@ theorem taskFailure_droppedBufferedSource (state : State) (failed : Occurrence)
     (found : state.queue.taskNode? occurrence = some node)
     (held : key ∈ node.childStreams)
     (dropped : (state.taskFailure failed errors).1.queue.taskNode? occurrence = none)
-    : .cancelSource key ∈ (state.handleGraphEvent (.taskFailure failed errors)).2.2 := by
+    : .cancelSource key
+      ∈ (state.handleGraphEvent (.taskFailure failed errors)).2.2.1 := by
   apply taskFailure_lostBufferedSource state failed errors different found held
   rw [dropped]
   intro impossible
@@ -174,7 +179,8 @@ theorem generatedReplay_bufferedSource {work : Work} {inputs : List (List GraphE
   simp only [State.fromReference] at found
   split at found
   · cases found
-  · obtain ⟨published, _, inventory⟩ := ReferenceWorkQueue.createWorkQueue_runNormalized_publications valid
+  · obtain ⟨published, _, inventory⟩ :=
+      ReferenceWorkQueue.createWorkQueue_runNormalized_publications valid
     have known := ReferenceWorkQueue.State.taskNode?_some found
     have source := (inventory.stored node known.1 value stored).1
     rwa [known.2] at source
@@ -236,7 +242,8 @@ theorem GeneratedTaskFailureDisposal_holds : GeneratedTaskFailureDisposal := by
   intro occurrence node key found stored _owned held dropped
   have different : occurrence ≠ failed :=
     generatedReplay_buffered_ne_taskInput generated valid started found stored List.mem_cons_self
-  have requested := taskFailure_droppedBufferedSource before failed errors different found held dropped
+  have requested := taskFailure_droppedBufferedSource before failed errors different found held
+    dropped
   refine ⟨requested, fun owned => resources.requestQueueCleanup_owned _ _ ?_ owned⟩
   exact List.mem_filterMap.mpr ⟨.cancelSource key, requested, rfl⟩
 

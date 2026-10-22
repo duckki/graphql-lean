@@ -48,7 +48,8 @@ theorem HealthFrame.contributor {acc : State × List WorkQueueEvent × NewWork}
         prior.links.putGroupNode _ (prior.links node member),
         prior.counts.putGroupNodeSameTasks prior.refs node member _ rfl rfl,
         prior.retired.putGroupNode _, prior.roots, prior.refs.putGroupNode _,
-        prior.sound.putGroupNode _ (prior.sound node member), prior.tasks.putGroupNode _⟩
+        prior.sound.putGroupNode _ (prior.sound node member), prior.tasks.putGroupNode _,
+        prior.live.putGroupNode _ (prior.live node member)⟩
     have nextDebt := debt.decrement prior.refs fresh found
     split
     · rename_i finishes
@@ -94,7 +95,8 @@ theorem HealthFrame.successGroupFold {queue work parents failed settled}
     : let final := groups.foldl successGroupStep (queue, [], {})
       HealthFrame final.1 work parents failed
       ∧ (∀ child ∈ final.2.2.newGroups, GroupAncestorsHealthy work failed child.ref)
-      ∧ SuccessfulGroupsHealthy work failed final.2.1 := by
+      ∧ SuccessfulGroupsHealthy work failed final.2.1
+      ∧ final.1.PendingBound (fun _ => True) settled := by
   have loop (more : List Execution.DeliveryNode)
       (unique : (more.map Execution.DeliveryNode.ref).Nodup)
       (acc : State × List WorkQueueEvent × NewWork)
@@ -106,9 +108,10 @@ theorem HealthFrame.successGroupFold {queue work parents failed settled}
       : HealthFrame (more.foldl successGroupStep acc).1 work parents failed
         ∧ (∀ child ∈ (more.foldl successGroupStep acc).2.2.newGroups,
             GroupAncestorsHealthy work failed child.ref)
-        ∧ SuccessfulGroupsHealthy work failed (more.foldl successGroupStep acc).2.1 := by
+        ∧ SuccessfulGroupsHealthy work failed (more.foldl successGroupStep acc).2.1
+        ∧ (more.foldl successGroupStep acc).1.PendingBound (fun _ => True) settled := by
     induction more generalizing acc with
-    | nil => exact ⟨frame, released, output⟩
+    | nil => exact ⟨frame, released, output, debt.toBound⟩
     | cons group rest ih =>
         have next := frame.contributor generated canonical failedKnown safe released output
           group (List.nodup_cons.mp unique).1 debt

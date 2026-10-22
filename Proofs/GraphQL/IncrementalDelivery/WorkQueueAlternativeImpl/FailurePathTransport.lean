@@ -31,7 +31,8 @@ theorem State.taskFailure_lookup_survivingOwner_unchanged {queue : State}
     (same : owner.group.node.ref = contributor.ref)
     : (queue.taskFailure failed errors).1.taskNode? occurrence = some node := by
   by_cases different : occurrence ≠ failed
-  · exact State.taskFailure_lookup_survivingOwner found failed errors different contributes live same
+  · exact State.taskFailure_lookup_survivingOwner found failed errors different contributes
+      live same
   · have equal : occurrence = failed := Classical.not_not.mp different
     subst failed
     have rejected := unchanged.resolve_left (by simp)
@@ -93,8 +94,8 @@ theorem failurePath_unpublishedLater {current : Kernel} {parents root key}
     (fuel : Nat)
     : key
       ∉ publicationRoots
-          (ReferenceWorkQueue.State.drainReadyGroups.go fuel
-            (current.removeGroup root)).2 := by
+          (ReferenceWorkQueue.State.drainReadyGroups.go [] fuel
+            (current.removeGroup root)).2.1 := by
   intro published
   have live := drainReadyGroups_go_publicationRoots_live fuel (current.removeGroup root) published
   obtain ⟨node, member, same⟩ := List.mem_map.mp live
@@ -115,14 +116,15 @@ theorem failureBoundary_path {before current : Kernel} {event parents earlier ta
     : (failurePruningView before event
         (earlier
           ++ [.groupFailure failed errors]
-          ++ (ReferenceWorkQueue.State.drainReadyGroups.go fuel
-                (current.removeGroup failed.ref)).2)).LiveDescendant
+          ++ (ReferenceWorkQueue.State.drainReadyGroups.go [] fuel
+                (current.removeGroup failed.ref)).2.1)).LiveDescendant
         failed.ref target := by
   apply failurePruningView_pathFrom edges path
   intro key fromRoot toTarget published
   have split : key ∈ publicationRoots earlier
       ∨ key ∈ publicationRoots
-        (ReferenceWorkQueue.State.drainReadyGroups.go fuel (current.removeGroup failed.ref)).2 := by
+        (ReferenceWorkQueue.State.drainReadyGroups.go [] fuel (current.removeGroup
+          failed.ref)).2.1 := by
     simpa only [publicationRoots, List.filterMap_append, List.filterMap_cons,
       List.filterMap_nil, List.nil_append, List.append_nil, List.mem_append]
       using published
@@ -141,7 +143,8 @@ theorem taskFailure_failureRoot_active (queue : Kernel)
       (roots : acc.1.rootGroups.Subset queue.rootGroups)
       (prior : ∀ group count, .groupFailure group count ∈ acc.2 → group.ref ∈ queue.rootGroups)
       : ∀ group count,
-          .groupFailure group count ∈ (groups.foldl (ReferenceWorkQueue.failureGroupStep errors) acc).2
+          .groupFailure group count ∈ (groups.foldl (ReferenceWorkQueue.failureGroupStep
+            errors) acc).2
           → group.ref ∈ queue.rootGroups := by
     induction groups generalizing acc with
     | nil => exact prior
@@ -206,8 +209,8 @@ theorem taskFailureBoundary_path {before current : Kernel}
     : (failurePruningView before event
         (earlier
           ++ (current.taskFailure occurrence errors).2
-          ++ (ReferenceWorkQueue.State.drainReadyGroups.go fuel
-                (current.taskFailure occurrence errors).1).2)).LiveDescendant
+          ++ (ReferenceWorkQueue.State.drainReadyGroups.go [] fuel
+                (current.taskFailure occurrence errors).1).2.1)).LiveDescendant
         root target := by
   apply failurePruningView_pathFrom edges path
   intro key fromRoot toTarget published
@@ -240,8 +243,8 @@ theorem taskFailure_ownerCut {before current : Kernel} {event parents earlier ke
           (failurePruningView before event
             (earlier
               ++ (current.taskFailure occurrence errors).2
-              ++ (ReferenceWorkQueue.State.drainReadyGroups.go fuel
-                    (current.taskFailure occurrence errors).1).2)).LiveDescendant
+              ++ (ReferenceWorkQueue.State.drainReadyGroups.go [] fuel
+                    (current.taskFailure occurrence errors).1).2.1)).LiveDescendant
             root key := by
   classical
   by_cases kept : key ∈ (current.taskFailure occurrence errors).1.groupNodes.map
@@ -281,37 +284,42 @@ theorem drainFailureBoundary_path {before initial : Kernel}
     {event parents preceding target}
     (forest : initial.RemovalForest parents)
     (edges : initial.GroupEdgesFrom (registrationSnapshot before event))
-    (live : initial.LiveGroupsRegistered) (tasks : initial.TaskGroupsRegistered)
+    (live : initial.LiveGroupsRegistered)
     (closures
       : ReferenceWorkQueue.GroupClosureAccounting
           (registrationSnapshot before event) (initial, preceding))
     (steps fuel : Nat) (failed : DeliveryNode) (errors : Nat)
     (path
-      : (ReferenceWorkQueue.State.drainReadyGroups.go steps initial).1.LiveDescendant
+      : (ReferenceWorkQueue.State.drainReadyGroups.go [] steps initial).1.LiveDescendant
           failed.ref target)
-    : let current := (ReferenceWorkQueue.State.drainReadyGroups.go steps initial).1
+    : let current := (ReferenceWorkQueue.State.drainReadyGroups.go [] steps initial).1
       let earlier :=
-        preceding ++ (ReferenceWorkQueue.State.drainReadyGroups.go steps initial).2
+        preceding ++ (ReferenceWorkQueue.State.drainReadyGroups.go [] steps initial).2.1
       (failurePruningView before event
         (earlier
           ++ [.groupFailure failed errors]
-          ++ (ReferenceWorkQueue.State.drainReadyGroups.go fuel
-                (current.removeGroup failed.ref)).2)).LiveDescendant
+          ++ (ReferenceWorkQueue.State.drainReadyGroups.go [] fuel
+                (current.removeGroup failed.ref)).2.1)).LiveDescendant
         failed.ref target := by
   dsimp only
-  have prefixClosures := ReferenceWorkQueue.State.drainReadyGroups_go_closureAccounting live tasks steps
+  have prefixClosures := ReferenceWorkQueue.State.drainReadyGroups_go_closureAccounting live steps
   have allClosures := closures.append prefixClosures
   have prefixForest := ReferenceWorkQueue.State.drainReadyGroups_go_preserves
     (fun queue => queue.RemovalForest parents)
-    (fun _ node current _ _ _ _ => (current.finishGroupSuccess node).startNewWork _)
-    (fun _ _ occurrence errors current _ _ _ => current.taskFailure occurrence errors)
+    (fun _ node current _ _ _ => (current.finishGroupSuccess node).startNewWork _)
     forest steps
   apply failureBoundary_path failed errors fuel prefixForest
     ((ReferenceWorkQueue.State.drainReadyGroups_go_groupEdgesFrom steps initial).trans edges)
     _ path
   intro key published
   obtain ⟨owner, groups, streams, emitted, sameKey⟩ := mem_publicationRoots.mp published
-  exact (allClosures.closed key
-    (List.mem_flatMap.mpr ⟨_, emitted, sameKey ▸ List.mem_cons_self⟩)).lookup_none
+  apply ReferenceWorkQueue.State.RetiredGroup.lookup_none (allClosures.closed key ?_)
+  apply List.mem_flatMap.mpr
+  refine ⟨.groupSuccess owner groups streams, ?_, ?_⟩
+  · rcases List.mem_append.mp emitted with prior | current
+    · exact List.mem_append_left _ prior
+    · exact List.mem_append_right _ (List.mem_append_left _ current)
+  · change key ∈ [owner.ref]
+    simp only [List.mem_singleton, sameKey]
 
 end GraphQL.IncrementalDelivery.AlternativeWorkQueue.NativeRefinement

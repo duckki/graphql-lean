@@ -18,7 +18,10 @@ def good : Work :=
 def bad : Work :=
   .executionGroup [{ node := b }] [] ({ result := .error 1, cause := some 1 }) .empty
 
-def wk : Work := .combine .empty (.combine good (.combine bad .empty))
+def wk : Work :=
+  .combine .empty
+    (.declareGroups [{ node := a }, { node := b }] (.combine good (.combine bad .empty)))
+
 def goodID : Occurrence := .executionGroup [1, 0]
 def badID : Occurrence := .executionGroup [1, 1, 0]
 
@@ -54,10 +57,10 @@ private theorem locations {address current producer owners}
       ∨ (address = [1, 1, 0] ∧ current = bad ∧ producer = none ∧ owners = []) := by
   replace h := StructuralEquivalence.located_of_current h
   induction h with
-  | root => simp
+  | root => simp [Work.withoutDeclarations, wk]
   | left _ ih | right _ ih | executionGroup _ ih | item _ _ ih =>
       rcases ih with ih | ih | ih | ih | ih | ih | ih <;>
-        simp_all [wk, good, bad, a, b, goodID]
+        simp_all [wk, good, bad, a, b, goodID, Work.withoutDeclarations]
 
 /-- Only the successful first task and the failing second task occur in this work. -/
 private theorem tasks {occurrence owners producer payload}
@@ -82,7 +85,7 @@ private theorem tasks {occurrence owners producer payload}
 
 /-- The second query group is the actual failing occurrence in the prepared work. -/
 theorem badTask : TaskAt wk badID [1] none (.object [] (.error 1)) :=
-  .executionGroup (.left (.right (.right .root)))
+  .executionGroup (.left (.right (.right (Located.root (root := wk)))))
 
 /-- Reject the original cut: only group zero is announced, but group one fails. -/
 example (events : List WorkQueueEvent)
@@ -133,7 +136,7 @@ example
         [(1, .executionGroup [])] := by
   intro explained
   have known : TaskAt WorkQueueSemantics.failingWork (.executionGroup []) [0] none
-      (.object [] (.error 2)) := .executionGroup .root
+      (.object [] (.error 2)) := .executionGroup (Located.root (root := WorkQueueSemantics.failingWork))
   obtain ⟨ref, member, opened⟩ := explained.first_failure_open_owner known
   have same : ref = 0 := by simpa using member
   subst ref
@@ -158,7 +161,7 @@ example
         simpa [Prod.mk.injEq, and_assoc] using equal.symm
       rcases same with ⟨rfl, rfl, rfl⟩
       have known : TaskAt sharedFailure (.executionGroup []) [0, 1] none
-          (.object [] (.error 1)) := .executionGroup .root
+          (.object [] (.error 1)) := .executionGroup (Located.root (root := sharedFailure))
       exact ⟨
         by simp,
         by simp,

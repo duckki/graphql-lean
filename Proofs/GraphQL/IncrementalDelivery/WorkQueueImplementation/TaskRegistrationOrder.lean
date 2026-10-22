@@ -71,12 +71,13 @@ theorem State.taskSuccess_objectProducersRegisteredBefore {queue : State}
     {work occurrence result} (ordered : ObjectProducersRegisteredBefore work queue.tasks)
     (started : queue.StartedTasksRegistered)
     (matching : (GraphEvent.taskSuccess occurrence result).MatchesWork work)
+    (available : List (Occurrence × Nat) := [])
     : ObjectProducersRegisteredBefore work
-        (queue.taskSuccess occurrence result).1.tasks := by
+        (queue.taskSuccess occurrence result available).1.tasks := by
   cases found : queue.taskNode? occurrence with
   | none => simpa only [State.taskSuccess, found] using ordered
   | some node =>
-      rw [State.taskSuccess_tasks found]
+      rw [State.taskSuccess_tasks found available]
       apply ordered.append
       intro task member source known
       obtain ⟨_, _, _, located⟩ := matching.childTask_producer member
@@ -92,12 +93,14 @@ object-producer obligation is impossible. Existing registry order is preserved.
 theorem State.streamItems_objectProducersRegisteredBefore {queue : State}
     {work stream items} (ordered : ObjectProducersRegisteredBefore work queue.tasks)
     (matching : (GraphEvent.streamItems stream items).MatchesWork work)
-    : ObjectProducersRegisteredBefore work (queue.streamItems stream items).1.tasks := by
+    (available : List (Occurrence × Nat) := [])
+    : ObjectProducersRegisteredBefore work
+        (queue.streamItems stream items available).1.tasks := by
   cases active : queue.rootStreams.contains stream.ref with
   | false =>
       simpa only [State.streamItems, active, Bool.not_false, ↓reduceIte] using ordered
   | true =>
-      rw [queue.streamItems_tasks stream items active]
+      rw [queue.streamItems_tasks stream items active available]
       apply ordered.append
       intro task member source known
       obtain ⟨item, itemMember, taskMember⟩ := List.mem_flatMap.mp member
@@ -116,20 +119,35 @@ theorem State.handleGraphEvent_objectProducersRegisteredBefore {queue : State} {
     (ordered : ObjectProducersRegisteredBefore work queue.tasks)
     (started : queue.StartedTasksRegistered) (event : GraphEvent)
     (matching : event.MatchesWork work)
-    : ObjectProducersRegisteredBefore work (queue.handleGraphEvent event).1.tasks := by
+    (available : List (Occurrence × Nat) := [])
+    : ObjectProducersRegisteredBefore work
+        (queue.handleGraphEvent event available).1.tasks := by
+  let current := queue.cacheTaskFailures available
+  have cached : ObjectProducersRegisteredBefore work current.tasks := by
+    simpa only [current, State.cacheTaskFailures_tasks] using ordered
+  have registered := started.cacheTaskFailures available
   cases event with
-  | taskSuccess =>
-      exact State.taskSuccess_objectProducersRegisteredBefore ordered started matching
-  | streamItems =>
-      exact State.streamItems_objectProducersRegisteredBefore ordered matching
+  | taskSuccess occurrence result =>
+      exact State.taskSuccess_objectProducersRegisteredBefore cached registered matching available
+  | streamItems stream items =>
+      exact State.streamItems_objectProducersRegisteredBefore cached matching available
+  | groupFailure failure =>
+      change ObjectProducersRegisteredBefore work (current.groupFailure failure).1.tasks
+      unfold State.groupFailure
+      split
+      · exact cached
+      · split <;> exact cached
   | taskFailure occurrence errors =>
-      simpa only [State.handleGraphEvent, State.taskFailure_tasks] using ordered
+      change ObjectProducersRegisteredBefore work (current.taskFailure occurrence errors).1.tasks
+      rwa [State.taskFailure_tasks]
   | streamSuccess stream =>
-      simp only [State.handleGraphEvent, State.streamSuccess]
-      split <;> exact ordered
+      change ObjectProducersRegisteredBefore work (current.streamSuccess stream).1.tasks
+      unfold State.streamSuccess
+      split <;> exact cached
   | streamFailure stream errors =>
-      simp only [State.handleGraphEvent, State.streamFailure]
-      split <;> exact ordered
+      change ObjectProducersRegisteredBefore work (current.streamFailure stream errors).1.tasks
+      unfold State.streamFailure
+      split <;> exact cached
 
 /-- Actual valid replay registers every object producer before each of its children.
 Witness: initial immediate lowering and handler induction, with started-task registration
@@ -138,19 +156,21 @@ needed; this is registration order, not yet observable publication order.
 -/
 theorem createWorkQueue_replayGraphEvents_objectProducersRegisteredBefore {work events}
     (valid : ValidGraphEvents work events)
+    (available : List (Occurrence × Nat) := [])
     : ObjectProducersRegisteredBefore work
         ((State.initialize (Work.fromExecution work)).replayGraphEvents
-          events).tasks := by
+          events available).tasks := by
   have loop (more : List GraphEvent) (queue : State)
       (ordered : ObjectProducersRegisteredBefore work queue.tasks)
       (started : queue.StartedTasksRegistered)
       (matching : ∀ event ∈ more, event.MatchesWork work)
-      : ObjectProducersRegisteredBefore work (queue.replayGraphEvents more).tasks := by
+      : ObjectProducersRegisteredBefore work (queue.replayGraphEvents more available).tasks := by
     induction more generalizing queue with
     | nil => exact ordered
     | cons event rest ih =>
         exact ih _ (State.handleGraphEvent_objectProducersRegisteredBefore ordered started
-          event (matching event List.mem_cons_self)) (started.handleGraphEvent event)
+          event (matching event List.mem_cons_self) available)
+          (started.handleGraphEvent event available)
           (fun next member => matching next (List.mem_cons_of_mem _ member))
   exact loop events _ (createWorkQueue_objectProducersRegisteredBefore work)
     (createWorkQueue_startedTasksRegistered _) (fun _ member => valid.eachMatches member)

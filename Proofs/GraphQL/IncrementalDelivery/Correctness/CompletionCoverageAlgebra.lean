@@ -51,6 +51,14 @@ def WorkFieldsCovered (containers : Bool) (path : ResponsePath)
           ((sourceTasks [] none cursors work).flatMap (SourceTask.positions containers))
           work
 
+/-- Declaration annotations preserve retained partition positions and failure witnesses. -/
+theorem WorkFieldsCovered.declareGroups {containers path ordinary work}
+    (covered : WorkFieldsCovered containers path ordinary work)
+    (groups : List DeferredFragment)
+    : WorkFieldsCovered containers path ordinary (.declareGroups groups work) := by
+  intro reference errors success cursors
+  simpa only [sourceTasks] using (covered reference errors success cursors).declareGroups groups
+
 -----------------------------------------------------------------------------------------
 -- Exact or bubbling ordinary results need no recursive comparison
 -----------------------------------------------------------------------------------------

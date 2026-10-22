@@ -22,8 +22,8 @@ registrations. The result does not require output freshness or an abstract expla
 -/
 theorem State.rawEventReplay_groupNoticesRegistered {queue : State} {work}
     (refs : queue.GroupRefsUnique) (live : queue.LiveGroupsRegistered)
-    (tasks : queue.TaskGroupsRegistered) (events : List GraphEvent)
-    (matching : ∀ event ∈ events, event.MatchesWork work)
+    (tasks : queue.TaskGroupsRegistered) (frame : queue.RegistrationFrame work)
+    (events : List GraphEvent) (matching : ∀ event ∈ events, event.MatchesWork work)
     : ∀ output ∈ (queue.rawEventReplay events).2,
         output.GroupNoticesRegistered
           (queue.replayGraphEvents events).registeredGroups := by
@@ -33,35 +33,36 @@ theorem State.rawEventReplay_groupNoticesRegistered {queue : State} {work}
       have matched := matching event List.mem_cons_self
       have later : ∀ entry ∈ rest, entry.MatchesWork work :=
         fun _ member => matching _ (List.mem_cons_of_mem _ member)
-      have registered := queue.handleGraphEvent_registration live tasks event matched
-      have continuation := State.replayGraphEvents_registration registered.1 registered.2.1
-        rest later
+      have next := (frame.dispatchGraphEvent event matched).1
+      have continuation := State.replayGraphEvents_registration next.live next.tasks
+        rest later next
       intro output member
       rw [State.rawEventReplay_cons] at member
       rcases List.mem_append.mp member with first | following
-      · exact (queue.handleGraphEvent_groupNoticesRegistered refs live tasks event matched
+      · exact (queue.handleGraphEvent_groupNoticesRegistered refs live tasks frame event matched []
           output first).mono continuation.2.2
-      · exact ih (refs.handleGraphEvent event) registered.1 registered.2.1 later output following
+      · exact ih (queue := (queue.dispatchGraphEvent event).1) (refs.handleGraphEvent event) next.live next.tasks next later output following
 
 /-- Initial and earlier-source group announcements remain registered at the next handler.
 Witness: initialization gives live registered roots, and matching replay preserves both
 their registrations and the registrations attached to each actual carried notice.
 -/
 theorem createWorkQueue_rawEventReplay_announcedRegistered {work : Execution.Work}
-    (events : List GraphEvent) (matching : ∀ event ∈ events, event.MatchesWork work)
+    (generated : ExecutedWork work) (events : List GraphEvent)
+    (matching : ∀ event ∈ events, event.MatchesWork work)
     : let initial := State.initialize (Work.fromExecution work)
       ∀ ref ∈
         initial.rootGroups
         ++ (initial.rawEventReplay events).2.flatMap rawGroupNoticeRefs,
         ref ∈ (initial.replayGraphEvents events).registeredGroups := by
   intro initial ref announced
-  have registered := createWorkQueue_registration work
+  have registered := createWorkQueue_registration work generated.declarations
   rcases List.mem_append.mp announced with root | pending
   · obtain ⟨node, member, same⟩ := List.mem_map.mp (createWorkQueue_rootGroupsPresent _ ref root)
     exact (initial.replayGraphEvents_registration registered.1 registered.2 events
-      matching).2.2 (same ▸ registered.1 node member)
+      matching (State.initialize_registrationFrame generated.declarations)).2.2 (same ▸ registered.1 node member)
   · obtain ⟨event, emitted, notice⟩ := List.mem_flatMap.mp pending
     exact (initial.rawEventReplay_groupNoticesRegistered (createWorkQueue_groupRefsUnique _)
-      registered.1 registered.2 events matching event emitted).ref notice
+      registered.1 registered.2 (State.initialize_registrationFrame generated.declarations) events matching event emitted).ref notice
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

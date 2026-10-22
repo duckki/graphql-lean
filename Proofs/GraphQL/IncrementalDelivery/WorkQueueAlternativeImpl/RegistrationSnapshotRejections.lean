@@ -25,10 +25,10 @@ theorem eagerRegistrationSnapshot_taskRejections {queue : ReferenceWorkQueue.Sta
       | true =>
           rw [eagerRegistrationSnapshot_streamItems queue stream items active]
           exact ReferenceWorkQueue.State.preparedStreamItems_preserves
-            (fun current => current.TaskRejectionsSatisfy property) prior items
+            (fun current => current.TaskRejectionsSatisfy property) prior items []
             (fun _ item _ supported =>
               ((supported.maybeIntegrateWork item.work).pruneEmptyGroups _).startNewWork _)
-  | taskFailure | streamSuccess | streamFailure => exact prior
+  | taskFailure | groupFailure | streamSuccess | streamFailure => exact prior
 
 /-- The actual delayed view retains only rejections supported by the same earlier inputs. -/
 theorem registrationSnapshot_taskRejections {queue : ReferenceWorkQueue.State} {property}

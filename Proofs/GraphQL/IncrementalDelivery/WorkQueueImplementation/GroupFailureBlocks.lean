@@ -1,108 +1,59 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.SourceOutputBlocks
 
-/-! Failed group closures retain selected causes from their actual source-handler prefix. -/
+/-! Aggregate report provenance across actual FIFO blocks and retained host batches. -/
 
 namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.Execution (WorkQueueEvent)
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
-/-- Each block's failed-group causes use only `before` and labels through that block.
-Earlier silent handlers count; later handlers do not. This proof annotation allows a
-successful handler to release several cached failures without inventing a current failure.
--/
-def SourceBlocksHaveFailureTotals (work : Execution.Work)
-    : List GraphEvent → List SourceOutputBlock → Prop
-  | _, [] => True
-  | before, block :: rest =>
-      (∀ group errors,
-        Execution.WorkQueueEvent.groupFailure group errors ∈ block.2
-        → GroupFailureSourceCause work (before ++ block.1.toList) group.ref errors)
-      ∧ SourceBlocksHaveFailureTotals work (before ++ block.1.toList) rest
+/-- Every report is explained by distinct actual source rejections retained in this run.
+This is source provenance, not notification-prefix availability: a host batch can expose a
+rejection before its FIFO callback, and a queued report can precede that callback. Exact
+reporting cuts are established separately from this complete source inventory. -/
+def SourceBlocksHaveFailureTotals (work : Execution.Work) (before : List GraphEvent)
+    (blocks : List SourceOutputBlock)
+    : Prop :=
+  ∀ group errors,
+    WorkQueueEvent.groupFailure group errors ∈ blocks.flatMap Prod.snd
+    → GroupFailureSources work (before ++ blocks.filterMap Prod.fst) group.ref errors
 
-/-- Consecutive certified block lists retain the exact intervening source prefix.
-Witness: recursion over the first list and concatenation of its optional source labels.
--/
+/-- Consecutive block lists retain exact provenance without asserting callback consumption. -/
 theorem SourceBlocksHaveFailureTotals.append {work before left right}
     (first : SourceBlocksHaveFailureTotals work before left)
     (last : SourceBlocksHaveFailureTotals work (before ++ left.filterMap Prod.fst) right)
     : SourceBlocksHaveFailureTotals work before (left ++ right) := by
-  induction left generalizing before with
-  | nil => simpa using last
-  | cons block rest ih =>
-      refine ⟨first.1, ih first.2 ?_⟩
-      cases source : block.1 <;>
-        simpa [List.filterMap_cons, source, List.append_assoc] using last
+  intro group errors emitted
+  rw [List.flatMap_append] at emitted
+  simp only [List.filterMap_append]
+  rcases List.mem_append.mp emitted with earlier | later
+  · exact (first group errors earlier).weaken (by
+      intro event member
+      rw [← List.append_assoc]
+      exact List.mem_append_left _ member)
+  · simpa only [List.append_assoc] using last group errors later
 
-/-- A selected block's totals use precisely its preceding labels and its own optional input.
-Witness: peel off earlier blocks, preserving their order even when they emit no output.
--/
+/-- A report's exact causes belong to the retained source inventory of the whole trace.
+Their availability at the report is not inferred from its consumed notification prefix. -/
 theorem SourceBlocksHaveFailureTotals.atBlock {work initial before block after}
     (totals : SourceBlocksHaveFailureTotals work initial (before ++ block :: after))
     {group errors}
-    (emitted : Execution.WorkQueueEvent.groupFailure group errors ∈ block.2)
-    : GroupFailureSourceCause work
-        (initial ++ before.filterMap Prod.fst ++ block.1.toList) group.ref errors := by
-  induction before generalizing initial with
-  | nil => simpa using totals.1 group errors emitted
-  | cons head rest ih =>
-      have result := ih totals.2
-      cases source : head.1 <;>
-        simpa [List.filterMap_cons, source, List.append_assoc] using result
+    (emitted : WorkQueueEvent.groupFailure group errors ∈ block.2)
+    : GroupFailureSources work
+        (initial ++ (before ++ block :: after).filterMap Prod.fst) group.ref errors :=
+  totals group errors
+    (List.mem_flatMap.mpr ⟨block, List.mem_append_right _ List.mem_cons_self, emitted⟩)
 
------------------------------------------------------------------------------------------
--- Each handler preserves totals and records their source boundary
------------------------------------------------------------------------------------------
-
-/-- Atomic normalized failure membership is exactly raw failure membership in the batch.
-Witness: publisher failure copying and the control-preserving atomic expansion.
--/
+/-- Atomic normalization copies group failures and their exact counts. -/
 theorem IncrementalPublisher.normalizeBatch_atomicGroupFailure_mem
     (publisher : IncrementalPublisher) (events : List WorkQueueEvent) {group errors}
-    : Execution.WorkQueueEvent.groupFailure group errors
+    : WorkQueueEvent.groupFailure group errors
         ∈ (publisher.normalizeBatch events).2.flatMap publicationAtoms
-      ↔ Execution.WorkQueueEvent.groupFailure group errors ∈ events := by
+      ↔ WorkQueueEvent.groupFailure group errors ∈ events := by
   rw [List.mem_flatMap]
   simp only [publicationAtoms_groupFailure_mem, exists_eq_right]
   exact publisher.normalizeBatch_groupFailure_mem events
 
-/-- Handler annotation preserves retained causes and certifies each exact source prefix.
-Witness: joint cache/registration induction and publisher copying. Delayed completions
-may draw on earlier failures but never on a later handler, even in the same host batch.
--/
-theorem State.CachedErrorsSatisfy.sourceOutputBlocks_totals {queue : State} {work before}
-    (totals : queue.CachedErrorsSatisfy (GroupFailureSourceCause work before))
-    (generated : ExecutedWork work) (registered : queue.StartedTasksRegistered)
-    (tasks : queue.RegisteredTasksMatch work) (publisher : IncrementalPublisher)
-    (events : List GraphEvent) (valid : ValidGraphEvents work (before ++ events))
-    : (queue.sourceOutputBlocks publisher events).1.CachedErrorsSatisfy
-        (GroupFailureSourceCause work (before ++ events))
-      ∧ SourceBlocksHaveFailureTotals work before
-          (queue.sourceOutputBlocks publisher events).2.2 := by
-  induction events generalizing queue publisher before with
-  | nil => exact ⟨by simpa [State.sourceOutputBlocks] using totals, trivial⟩
-  | cons event rest ih =>
-      have initialPart : (before ++ [event]).IsPrefix (before ++ event :: rest) :=
-        ⟨rest, by simp [List.append_assoc]⟩
-      have localLaws := valid.atPrefix initialPart
-      have next := totals.handleGraphEvent_totals generated registered tasks event
-        localLaws.1 localLaws.2.1
-      obtain ⟨cached, certified⟩ := ih next (registered.handleGraphEvent event)
-        (tasks.handleGraphEvent event localLaws.1)
-        (publisher.normalizeBatch (queue.handleGraphEvent event).2).1
-        (by simpa [List.append_assoc] using valid)
-      refine ⟨by simpa [State.sourceOutputBlocks, List.append_assoc] using cached, ?_⟩
-      refine ⟨?_, certified⟩
-      intro group errors emitted
-      exact totals.handleGraphEvent_outputTotal registered tasks event localLaws.1
-        ((publisher.normalizeBatch_atomicGroupFailure_mem _).mp emitted)
-
------------------------------------------------------------------------------------------
--- Termination adds no source identity and ignored batches supply no contributors
------------------------------------------------------------------------------------------
-
-/-- An open batch retains every source label, including handlers with empty output.
-Witness: the optional termination marker carries no label and changes no handler input.
--/
+/-- An open batch retains every FIFO label, including handlers with empty output. -/
 theorem State.sourceBatchBlocks_inputs_of_open (queue : State)
     (publisher : IncrementalPublisher) (events : List GraphEvent)
     (running : queue.terminated = false)
@@ -110,9 +61,7 @@ theorem State.sourceBatchBlocks_inputs_of_open (queue : State)
   simp only [State.sourceBatchBlocks, running, Bool.false_eq_true, ↓reduceIte]
   split <;> simp [State.sourceOutputBlocks_inputs]
 
-/-- A terminated runner ignores all later source batches in the annotated view too.
-Witness: induction over batch wrapping, which never invokes a handler after termination.
--/
+/-- A terminated runner ignores later source batches in the annotated view too. -/
 theorem State.sourceRunBlocks_of_terminated (queue : State)
     (publisher : IncrementalPublisher) (batches : List (List GraphEvent))
     (finished : queue.terminated = true)
@@ -122,75 +71,82 @@ theorem State.sourceRunBlocks_of_terminated (queue : State)
   | cons batch rest ih =>
       simp [State.sourceRunBlocks, State.sourceBatchBlocks, finished, ih]
 
-/-- An open batch preserves exact prefix causes through its optional terminal block.
-Witness: handler totals and the absence of group failures in the unlabelled terminal block.
--/
-theorem State.CachedErrorsSatisfy.sourceBatchBlocks_totals {queue : State} {work before}
-    (totals : queue.CachedErrorsSatisfy (GroupFailureSourceCause work before))
-    (generated : ExecutedWork work) (registered : queue.StartedTasksRegistered)
-    (tasks : queue.RegisteredTasksMatch work) (publisher : IncrementalPublisher)
+/-- Actual batch blocks preserve queued causes and emitted aggregate provenance.
+The entire supplied batch licenses cache exposure before individual callback consumption. -/
+theorem State.FailureSourceFrame.sourceBatchBlocks_totals {queue : State} {work before}
+    (frame : queue.FailureSourceFrame work before)
+    (queued : queue.QueuedFailureSources work before) (publisher : IncrementalPublisher)
     (events : List GraphEvent) (valid : ValidGraphEvents work (before ++ events))
     (running : queue.terminated = false)
-    : (queue.sourceBatchBlocks publisher events).1.CachedErrorsSatisfy
-        (GroupFailureSourceCause work (before ++ events))
+    : (queue.sourceBatchBlocks publisher events).1.FailureSourceFrame work
+        (before ++ events)
+      ∧ (queue.sourceBatchBlocks publisher events).1.QueuedFailureSources work
+          (before ++ events)
       ∧ SourceBlocksHaveFailureTotals work before
           (queue.sourceBatchBlocks publisher events).2.2 := by
-  obtain ⟨cached, certified⟩ := totals.sourceOutputBlocks_totals generated registered tasks
-    publisher events valid
-  simp only [State.sourceBatchBlocks, running, Bool.false_eq_true, ↓reduceIte]
-  split
-  · exact ⟨cached, certified.append (by simp [SourceBlocksHaveFailureTotals])⟩
-  · exact ⟨cached, certified⟩
+  have extended : queue.FailureSourceFrame work (before ++ events) :=
+    ⟨frame.rejections.mono (fun _ _ member => List.mem_append_left events member),
+      frame.unique, frame.sound, frame.matching, frame.started⟩
+  have waiting := queued.weaken (List.subset_append_left before events)
+  have sources := extended.handleGraphEvents_sources waiting events
+    (List.subset_append_right _ _) (fun _ member => valid.eachMatches member)
+  refine ⟨?_, ?_, ?_⟩
+  · rw [(queue.sourceBatchBlocks_agrees publisher events).1]
+    exact extended.handleGraphEvents events (List.subset_append_right _ _)
+      (fun _ member => valid.eachMatches member)
+  · rw [(queue.sourceBatchBlocks_agrees publisher events).1]
+    exact sources.1
+  · intro group errors emitted
+    rw [queue.sourceBatchBlocks_inputs_of_open publisher events running]
+    rw [(queue.sourceBatchBlocks_agrees publisher events).2.2] at emitted
+    exact sources.2 group errors
+      ((publisher.normalizeBatch_atomicGroupFailure_mem _).mp emitted)
 
-/-- Actual multi-batch annotations certify totals against retained source prefixes only.
-Witness: open batches retain every input; terminated tails are empty. Registry and cache
-preservation follow the same queue state as the executable batch runner.
--/
-theorem State.CachedErrorsSatisfy.sourceRunBlocks_totals {queue : State} {work before}
-    (totals : queue.CachedErrorsSatisfy (GroupFailureSourceCause work before))
-    (generated : ExecutedWork work) (registered : queue.StartedTasksRegistered)
-    (tasks : queue.RegisteredTasksMatch work) (publisher : IncrementalPublisher)
+/-- Multi-batch provenance follows actual cache snapshots and pending FIFO state. -/
+theorem State.FailureSourceFrame.sourceRunBlocks_totals {queue : State} {work before}
+    (frame : queue.FailureSourceFrame work before)
+    (queued : queue.QueuedFailureSources work before) (publisher : IncrementalPublisher)
     (batches : List (List GraphEvent))
     (valid : ValidGraphEvents work (before ++ batches.flatten))
     : SourceBlocksHaveFailureTotals work before
         (queue.sourceRunBlocks publisher batches).2.2 := by
   induction batches generalizing queue publisher before with
-  | nil => trivial
+  | nil => intro group errors emitted; cases emitted
   | cons batch rest ih =>
       cases running : queue.terminated with
-      | true => rw [queue.sourceRunBlocks_of_terminated publisher _ running]; trivial
+      | true =>
+          rw [queue.sourceRunBlocks_of_terminated publisher _ running]
+          intro group errors emitted
+          cases emitted
       | false =>
           have firstValid : ValidGraphEvents work (before ++ batch) :=
             valid.prefix ⟨rest.flatten, by simp [List.append_assoc]⟩
-          have batchMatch : ∀ event ∈ batch, event.MatchesWork work := fun event member =>
-            firstValid.eachMatches (List.mem_append_right before member)
-          obtain ⟨cached, certified⟩ := totals.sourceBatchBlocks_totals generated registered
-            tasks publisher batch firstValid running
-          have agreement := (queue.sourceBatchBlocks_agrees publisher batch).1
-          have nextRegistered := registered.handleGraphEvents batch
-          have nextTasks := tasks.handleGraphEvents batch batchMatch
-          rw [← agreement] at nextRegistered nextTasks
-          have tailTotals := ih cached nextRegistered nextTasks
-            (queue.sourceBatchBlocks publisher batch).2.1
-            (by simpa [List.append_assoc] using valid)
+          obtain ⟨next, waiting, certified⟩ := frame.sourceBatchBlocks_totals queued publisher
+            batch firstValid running
+          have tailTotals := ih next waiting (queue.sourceBatchBlocks publisher batch).2.1
+            (by simpa only [List.flatten_cons, List.append_assoc] using valid)
           apply certified.append
           rw [queue.sourceBatchBlocks_inputs_of_open publisher batch running]
           exact tailTotals
 
-/-- Actual normalized output blocks have exact selected source causes at their boundaries.
-Witness: initially empty caches, generated task metadata, valid inputs, and prefix replay.
-No accepted-start, output-admission, or failure-cut-licensing premise is assumed.
--/
+/-- Every actual group report has exact distinct causes from retained source rejections.
+Reporting availability and licensed causal cuts remain separate proof obligations. -/
 theorem createWorkQueue_sourceRunBlocks_groupFailureTotals {work : Execution.Work}
-    (generated : ExecutedWork work) {batches : List (List GraphEvent)}
+    (_generated : ExecutedWork work) {batches : List (List GraphEvent)}
     (valid : ValidGraphEvents work batches.flatten)
     : let queue := State.initialize (Work.fromExecution work)
       let publisher : IncrementalPublisher :=
         { active := queue.initialGroups ++ queue.initialStreams }
       SourceBlocksHaveFailureTotals work []
-        (queue.sourceRunBlocks publisher batches).2.2 :=
-  State.CachedErrorsSatisfy.sourceRunBlocks_totals (createWorkQueue_cachedErrors _ _)
-    generated (createWorkQueue_startedTasksRegistered _)
-    (createWorkQueue_fromSpec_registeredTasksMatch work) _ batches valid
+        (queue.sourceRunBlocks publisher batches).2.2 := by
+  have initial : (State.initialize (Work.fromExecution work)).FailureSourceFrame work [] :=
+    ⟨createWorkQueue_taskRejections _ _, createWorkQueue_taskMembershipsUnique _,
+      createWorkQueue_groupMembershipSound _, createWorkQueue_fromSpec_registeredTasksMatch work,
+      createWorkQueue_startedTasksRegistered _⟩
+  have queued : (State.initialize (Work.fromExecution work)).QueuedFailureSources work [] := by
+    intro failure member
+    rw [State.initialize_groupFailureEvents] at member
+    cases member
+  exact initial.sourceRunBlocks_totals queued _ batches valid
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

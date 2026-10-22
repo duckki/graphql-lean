@@ -29,6 +29,9 @@ theorem WorkRefines.renameRight {keys : Nat → Nat} {left right : Work}
           ItemsRefine (rename ∘ keys) left
             (right.map (fun item => (item.1, work rename item.2)))) with
   | empty => simpa only [work] using WorkRefines.empty (keys := rename ∘ keys)
+  | declareGroups nested ih =>
+      simpa only [work, List.map_map, fragment_comp, Function.comp_def]
+        using WorkRefines.declareGroups (keys := rename ∘ keys) ih
   | combine head tail ihHead ihTail =>
       simpa only [work] using WorkRefines.combine ihHead ihTail
   | executionGroup payload nested ih =>
