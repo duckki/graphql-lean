@@ -35,7 +35,7 @@ def queryWorkQueueConforms (createWorkQueue : Execution.Work → Execution.WorkQ
     : Prop :=
   let work := (queryCompletion schema resolvers variables operation fuel source).work
   Execution.rootSourceAppliesBool schema operation source = true
-  → work.size ≠ 0
+  → work.isEmpty = false
   → (createWorkQueue work).Conforms work
 
 namespace Execution

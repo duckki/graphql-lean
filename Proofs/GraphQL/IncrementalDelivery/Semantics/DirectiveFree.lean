@@ -1,4 +1,5 @@
 import Proofs.GraphQL.IncrementalDelivery.Semantics.Completion
+import Proofs.GraphQL.IncrementalDelivery.Semantics.WorkSize
 
 /-! Basic-execution agreement for operations without incremental directives. -/
 

@@ -1,8 +1,11 @@
 import GraphQL.IncrementalDelivery.WorkQueueImplementation
 import Tests.GraphQL.IncrementalDelivery.Execution
+import Tests.GraphQL.IncrementalDelivery.Fixtures.WorkDeclarations
+
+open GraphQL.IncrementalDelivery.Tests (declaredTask)
 
 /-! Definition-level regressions for outcomes settled before their owner's announcement.
-These checks intentionally do not import implementation proofs awaiting migration.
+These checks retain task rejections through dormant-owner activation.
 -/
 
 namespace GraphQL.IncrementalDelivery.Tests.WorkSchedulerRetainedOutcomes
@@ -25,28 +28,46 @@ private def sharedData : List (Name × ResponseValue) := [("a", .scalar "a")]
 
 private def work (sharedResult : Result (List (Name × ResponseValue))) : Execution.Work :=
   .combine .empty
-    (.combine (.executionGroup [⟨root, []⟩] [] (.error 1) .empty)
+    (.declareGroups [⟨root, []⟩, ⟨parent, []⟩, ⟨child, [parent]⟩]
       (.combine
-        (.executionGroup [⟨root, []⟩, ⟨child, [parent]⟩] [] sharedResult
-          (match sharedResult with
-            | .ok _ => .combine .empty .empty
-            | .error _ => .empty))
+        (.executionGroup [⟨root, []⟩] [] ({ result := .error 1, cause := some 1 }) .empty)
         (.combine
-          (.executionGroup [⟨parent, []⟩] [] (.ok (parentData, 0))
-            (.combine .empty .empty))
-          .empty)))
+          (.executionGroup [⟨root, []⟩, ⟨child, [parent]⟩] []
+            {
+              result := sharedResult,
+              cause :=
+                match sharedResult with
+                | .error _ => some 1
+                | .ok _ => none
+            }
+            (match sharedResult with
+              | .ok _ => .combine .empty .empty
+              | .error _ => .empty))
+          (.combine
+            (.executionGroup [⟨parent, []⟩] [] ({ result := .ok (parentData, 0) })
+              (.combine .empty .empty))
+            .empty))))
 
 private def failureWork : Execution.Work := work (.error 2)
 private def successWork : Execution.Work := work (.ok (sharedData, 0))
 
 private def cancellationWork : Execution.Work :=
   .combine .empty
-    (.combine (.executionGroup [⟨root, []⟩] [] (.error 1) .empty)
-      (.combine (.executionGroup [⟨root, []⟩, ⟨child, [parent]⟩] [] (.error 2) .empty)
-        (.combine (.executionGroup [⟨parent, []⟩] [] (.error 1) .empty) .empty)))
+    (.declareGroups [⟨root, []⟩, ⟨parent, []⟩, ⟨child, [parent]⟩]
+      (.combine
+        (.executionGroup [⟨root, []⟩] [] ({ result := .error 1, cause := some 1 }) .empty)
+        (.combine
+          (.executionGroup [⟨root, []⟩, ⟨child, [parent]⟩] []
+            ({ result := .error 2, cause := some 1 }) .empty)
+          (.combine
+            (.executionGroup [⟨parent, []⟩] [] ({ result := .error 1, cause := some 1 })
+              .empty)
+            .empty))))
 
 private def first : GraphEvent := .taskFailure firstTask 1
-private def sharedFailure : GraphEvent := .taskFailure sharedTask 2
+private def sharedFailure : GraphEvent := .taskFailure sharedTask 1
+
+private def notice : GraphEvent := .groupFailure ⟨child, 1⟩
 
 private def sharedValue : ExecutionGroupValue :=
   { deliveryGroups := [root, child], path := [], data := sharedData }
@@ -75,7 +96,7 @@ private def updates (work : Execution.Work) (inputs : List (List GraphEvent))
     : List IncrementalStreamUpdateResult :=
   ((ResponseStreamCursor.initialize { data := .object [] } work).2.run inputs).1
 
-/-- The two-error shared failure comes from actual query execution.
+/-- A shared task collects two diagnostics and reports its selected unit cause.
 Witness: reduction of the pure resolver fixture, including its nullable field error.
 -/
 theorem failure_generated : ExecutedWork failureWork := by
@@ -116,23 +137,24 @@ theorem source_payloads
       ∧ finish.MatchesWork successWork := by
   refine ⟨?_, ?_, ?_, ?_⟩
   · refine ⟨[root.ref, child.ref], none, [], ?_⟩
-    exact ⟨[⟨root, []⟩, ⟨child, [parent]⟩], [], .error 2, .empty, [], rfl, rfl, rfl⟩
+    exact ⟨[⟨root, []⟩, ⟨child, [parent]⟩], [], { result := .error 2, cause := some 1 }, .empty,
+      [], rfl, rfl, rfl⟩
   · refine ⟨[root.ref, child.ref], none, ?_, rfl, rfl⟩
-    exact ⟨[⟨root, []⟩, ⟨child, [parent]⟩], [], .ok (sharedData, 0),
+    exact ⟨[⟨root, []⟩, ⟨child, [parent]⟩], [], { result := .ok (sharedData, 0) },
       .combine .empty .empty, [], rfl, rfl, rfl⟩
   · refine ⟨[parent.ref], none, ?_, rfl, rfl⟩
-    exact ⟨[⟨parent, []⟩], [], .ok (parentData, 0), .combine .empty .empty,
+    exact ⟨[⟨parent, []⟩], [], { result := .ok (parentData, 0) }, .combine .empty .empty,
       [], rfl, rfl, rfl⟩
   · refine ⟨[parent.ref], none, ?_, rfl, rfl⟩
-    exact ⟨[⟨parent, []⟩], [], .ok (parentData, 0), .combine .empty .empty,
+    exact ⟨[⟨parent, []⟩], [], { result := .ok (parentData, 0) }, .combine .empty .empty,
       [], rfl, rfl, rfl⟩
 
 /-- Both settlement orders remain eligible under the unchanged start checker.
 Witness: executable start/handler replay, including the silent middle settlement.
 -/
 theorem inputs_started
-    : inputsStarted failureWork [[first], [sharedFailure], [finish]] = true
-      ∧ inputsStarted failureWork [[sharedFailure], [finish]] = true
+    : inputsStarted failureWork [[first], [sharedFailure], [finish, notice]] = true
+      ∧ inputsStarted failureWork [[sharedFailure], [finish, notice]] = true
       ∧ inputsStarted successWork [[first], [sharedSuccess], [finish]] = true
       ∧ inputsStarted successWork [[first], [finish], [sharedSuccess]] = true := by
   cbv
@@ -148,7 +170,7 @@ theorem failure_retained
     : let before := ((queue failureWork).handleGraphEvents [first]).1
       let (after, events) := before.handleGraphEvents [sharedFailure]
       events = []
-      ∧ (after.groupNode? child.ref).map GroupNode.failure = some (some 2)
+      ∧ (after.taskNode? sharedTask).bind TaskNode.rejection = some 1
       ∧ (after.pruneEmptyGroups [child]).2 = [child]
       ∧ after.rootGroups = [parent.ref]
       ∧ after.terminated = false := by
@@ -158,14 +180,14 @@ theorem failure_retained
 Witness: exact normalized output; the silent source settlement adds no output batch.
 -/
 theorem failure_released
-    : ((queue failureWork).runNormalized [[first], [sharedFailure], [finish]]).2
+    : ((queue failureWork).runNormalized [[first], [sharedFailure], [finish, notice]]).2
       = [
         [.groupFailure root 1],
         [
           .groupValues parent
             [{ path := [], data := parentData, errors := 0, deliveryGroups := [parent] }],
           .groupSuccess parent [child] [],
-          .groupFailure child 2,
+          .groupFailure child 1,
           .workQueueTermination
         ]
       ] := by
@@ -175,14 +197,14 @@ theorem failure_released
 Witness: the actual queue, publisher, and response mapper allocate C's ID before use.
 -/
 theorem failure_wire
-    : updates failureWork [[first], [sharedFailure], [finish]]
+    : updates failureWork [[first], [sharedFailure], [finish, notice]]
       = [
         { hasNext := true, completed := [{ id := "0", errors := 1 }] },
         {
           hasNext := false,
           pending := [{ id := "2", path := [], label := child.label }],
           incremental := [.object "1" parentData],
-          completed := [{ id := "1" }, { id := "2", errors := 2 }]
+          completed := [{ id := "1" }, { id := "2", errors := 1 }]
         }
       ] := by
   cbv
@@ -191,13 +213,13 @@ theorem failure_wire
 Witness: direct response-cursor reduction with the same three settlements in one batch.
 -/
 theorem failure_one_batch
-    : updates failureWork [[first, sharedFailure, finish]]
+    : updates failureWork [[first, sharedFailure, finish, notice]]
       = [{
           hasNext := false,
           pending := [{ id := "2", path := [], label := child.label }],
           incremental := [.object "1" parentData],
           completed :=
-            [{ id := "0", errors := 1 }, { id := "1" }, { id := "2", errors := 2 }]
+            [{ id := "0", errors := 1 }, { id := "1" }, { id := "2", errors := 1 }]
         }] := by
   cbv
 
@@ -205,14 +227,14 @@ theorem failure_one_batch
 Witness: an initially shared failure completes R now and C on normal parent release.
 -/
 theorem shared_failure_before_owner_closes
-    : updates failureWork [[sharedFailure], [finish]]
+    : updates failureWork [[sharedFailure], [finish, notice]]
       = [
-        { hasNext := true, completed := [{ id := "0", errors := 2 }] },
+        { hasNext := true, completed := [{ id := "0", errors := 1 }] },
         {
           hasNext := false,
           pending := [{ id := "2", path := [], label := child.label }],
           incremental := [.object "1" parentData],
-          completed := [{ id := "1" }, { id := "2", errors := 2 }]
+          completed := [{ id := "1" }, { id := "2", errors := 1 }]
         }
       ] := by
   cbv
@@ -308,8 +330,9 @@ theorem drained_once
 
 private def sharedOnly : Execution.Work :=
   .combine
-    (.executionGroup [⟨root, []⟩, ⟨child, [parent]⟩] [] (.ok (sharedData, 0)) .empty)
-    (.executionGroup [⟨parent, []⟩] [] (.ok (parentData, 0)) .empty)
+    (declaredTask [⟨root, []⟩, ⟨child, [parent]⟩] []
+      ({ result := .ok (sharedData, 0) }) .empty)
+    (declaredTask [⟨parent, []⟩] [] ({ result := .ok (parentData, 0) }) .empty)
 
 /-- A shared value already published through R leaves no latent work to announce for C.
 Witness: a small raw-work fixture exercises successful membership removal and pruning.
@@ -350,12 +373,17 @@ private def cascade : State :=
           childGroups := [grandchild.ref],
           tasks := [sharedTask]
         },
-        { group := ⟨grandchild, some child.ref⟩, failure := some 2 }
+        {
+          group := ⟨grandchild, some child.ref⟩,
+          tasks := [.executionGroup [9]],
+          pending := 1
+        }
       ],
     taskNodes :=
       [
         { task := ⟨parentTask, [parent]⟩, value := some parentValue },
-        { task := ⟨sharedTask, [child]⟩, value := some sharedValue }
+        { task := ⟨sharedTask, [child]⟩, value := some sharedValue },
+        { task := ⟨.executionGroup [9], [grandchild]⟩, rejection := some 2 }
       ]
   }
 
@@ -363,14 +391,14 @@ private def cascade : State :=
 Witness: a local settled-state fixture exhausts three levels without another host input.
 -/
 theorem recursive_release
-    : cascade.drainReadyGroups.2
+    : cascade.drainReadyGroups.2.1
         = [
           .groupValues parent [parentValue],
           .groupSuccess parent [child] [],
           .groupValues child [sharedValue],
-          .groupSuccess child [grandchild] [],
-          .groupFailure grandchild 2
+          .groupSuccess child [grandchild] []
         ]
+      ∧ cascade.drainReadyGroups.2.2 = [⟨grandchild, 2⟩]
       ∧ cascade.drainReadyGroups.1.groupNodes = [] := by
   cbv
 

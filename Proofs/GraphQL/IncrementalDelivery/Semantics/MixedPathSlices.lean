@@ -14,32 +14,35 @@ open DeliveryPaths
 mutual
   inductive WorkSlices (containers : Bool) : Work → List (List ResponsePath) → Prop where
     | empty : WorkSlices containers .empty []
+    | declareGroups {groups : List DeferredFragment} {tasks : Work}
+      {slices : List (List ResponsePath)} (known : WorkSlices containers tasks slices)
+      : WorkSlices containers (.declareGroups groups tasks) slices
     | combine {left right : Work} {leftSlices rightSlices : List (List ResponsePath)}
       (hleft : WorkSlices containers left leftSlices)
       (hright : WorkSlices containers right rightSlices)
       : WorkSlices containers (.combine left right) (leftSlices ++ rightSlices)
     | executionGroup {groups : List DeferredFragment} {path : ResponsePath}
-      {completed : Result (List (Name × ResponseValue))} {children : Work}
+      {completed : TaskOutcome (List (Name × ResponseValue))} {children : Work}
       {slices : List (List ResponsePath)}
       (hchildren : WorkSlices containers children slices)
       : WorkSlices containers (.executionGroup groups path completed children)
-          (result (fields containers path) completed :: slices)
-    | stream {node : DeliveryNode} {items : List (Result ResponseValue × Work)}
+          (result (fields containers path) completed.result :: slices)
+    | stream {node : DeliveryNode} {items : List (TaskOutcome ResponseValue × Work)}
       {index : Nat} {slices : List (List ResponsePath)}
       (hitems : ItemSlices containers node.path index items slices)
       : WorkSlices containers (.stream node items) slices
 
   inductive ItemSlices (containers : Bool)
-      : ResponsePath → Nat → List (Result ResponseValue × Work) → List (List ResponsePath)
-        → Prop where
+      : ResponsePath → Nat → List (TaskOutcome ResponseValue × Work)
+        → List (List ResponsePath) → Prop where
     | nil {path : ResponsePath} {index : Nat} : ItemSlices containers path index [] []
-    | cons {path : ResponsePath} {index : Nat} {completed : Result ResponseValue}
-      {children : Work} {items : List (Result ResponseValue × Work)}
+    | cons {path : ResponsePath} {index : Nat} {completed : TaskOutcome ResponseValue}
+      {children : Work} {items : List (TaskOutcome ResponseValue × Work)}
       {childSlices tailSlices : List (List ResponsePath)}
       (hchildren : WorkSlices containers children childSlices)
       (tail : ItemSlices containers path (index + 1) items tailSlices)
       : ItemSlices containers path index ((completed, children) :: items)
-          (result (value containers (path ++ [.index index])) completed
+          (result (value containers (path ++ [.index index])) completed.result
             :: (childSlices ++ tailSlices))
 end
 
@@ -54,7 +57,7 @@ def OwnsCompletion (containers : Bool) (paths : α → List ResponsePath)
     ∧ Owns scope (result paths completed.result ++ slices.flatten)
 
 def OwnsItems (containers : Bool) (path : ResponsePath) (index : Nat)
-    (scope : ResponsePath → Prop) (items : List (Result ResponseValue × Work))
+    (scope : ResponsePath → Prop) (items : List (TaskOutcome ResponseValue × Work))
     : Prop :=
   ∃ slices, ItemSlices containers path index items slices ∧ Owns scope slices.flatten
 

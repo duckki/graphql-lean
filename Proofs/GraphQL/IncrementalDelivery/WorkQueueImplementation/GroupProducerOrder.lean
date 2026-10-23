@@ -1,4 +1,5 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.TaskProducerOrder
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.GroupMembershipOrder
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.PublicationInventory
 
 /-! Exact successful flush labels preserve structural producer ordering. -/

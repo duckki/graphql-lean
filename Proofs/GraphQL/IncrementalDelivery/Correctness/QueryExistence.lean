@@ -1,6 +1,7 @@
 import Proofs.GraphQL.IncrementalDelivery.Correctness.QueryRealization
 import Proofs.GraphQL.IncrementalDelivery.Correctness.Initialization
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.CompletionExistence
+import Proofs.GraphQL.IncrementalDelivery.Semantics.WorkSize
 
 /-! Query-prefix existence without assuming scheduler conformance or an admitted history.
 This establishes initialization independently of the complete-run construction in
@@ -128,6 +129,8 @@ theorem completeObservation_exists_iff_reported_history (response : Response)
       ↔ work.size = 0
         ∨ ∃ groups streams events matching failures,
             WorkQueueSemantics.Explains work groups streams events matching failures
+            ∧ WorkQueueSemantics.OpenFailureCauses work
+                ((groups ++ streams).map DeliveryNode.ref) matching events failures
             ∧ ∀ occurrence owners producer payload,
                 WorkQueueSemantics.TaskAt work occurrence owners producer payload
                 → (WorkQueueSemantics.TaskCancelled work matching events failures

@@ -16,6 +16,7 @@ or failure licensing is assumed, and ignored settlements are not added to the le
 -/
 theorem createWorkQueue_mixedFailureCuts_objectsRecorded {work : Execution.Work}
     {inputs : List (List GraphEvent)} {streams failures : FailureCuts}
+    (generated : ExecutedWork work) (valid : ValidGraphEvents work inputs.flatten)
     (started : inputsStarted work inputs = true)
     (cuts
       : StreamFailureCuts work
@@ -28,25 +29,22 @@ theorem createWorkQueue_mixedFailureCuts_objectsRecorded {work : Execution.Work}
           { active := queue.initialGroups ++ queue.initialStreams }
         failures.Perm
           (streams
-            ++ sourceObjectFailureCuts 0
-                (queue.eligibleFailureBlocks
-                  (queue.sourceRunBlocks publisher inputs).2.2)))
+            ++ informativeObjectFailureCuts work
+                (queue.sourceRunBlocks publisher inputs).2.2))
     {count occurrence owners producer path result}
     (known : TaskAt work occurrence owners producer (.object path result))
     (recorded : occurrence ∈ failedBefore failures count)
     : occurrence
-      ∈ (State.initialize (Work.fromExecution work)).objectFailureContributions
-          inputs.flatten := by
-  let queue := State.initialize (Work.fromExecution work)
-  let publisher : IncrementalPublisher :=
-    { active := queue.initialGroups ++ queue.initialStreams }
-  have ledger := queue.eligibleObjectFailureCuts_ledger 0
-    (queue.sourceRunBlocks publisher inputs).2.2
-  rw [queue.sourceRunBlocks_inputs_of_started publisher
-    (by rwa [← inputsStarted_eq_batchesStarted])] at ledger
-  rw [← ledger, List.mem_reverse]
+      ∈ (State.initialize
+          (Work.fromExecution work)).admittedObjectFailureContributionsForBatches
+          inputs := by
+  rw [State.admittedObjectFailureContributionsForBatches_eq_of_started _ inputs
+    (by rwa [← inputsStarted_eq_batchesStarted])]
   obtain ⟨entry, kept, same⟩ := List.mem_map.mp ((cuts.object_mem_iff partition known).mp recorded)
-  exact List.mem_map.mpr ⟨entry, (List.mem_filter.mp kept).1, same⟩
+  have available := (informativeObjectFailureCuts_sublist work _).subset (List.mem_filter.mp kept).1
+  obtain ⟨errors, received⟩ := createWorkQueue_availableObjectFailureCuts_source generated valid available
+  rw [same] at received
+  exact List.mem_reverse.mpr (List.mem_flatMap.mpr ⟨_, received, List.mem_cons_self⟩)
 
 namespace ConformancePlan
 
@@ -85,15 +83,15 @@ theorem groupSuccessesHealthy_of_successfulItems {work inputs w streams}
           { active := queue.initialGroups ++ queue.initialStreams }
         w.failures
         = mergeFailureCuts
-            (sourceObjectFailureCuts 0
-              (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher inputs).2.2))
+            (informativeObjectFailureCuts work
+              (queue.sourceRunBlocks publisher inputs).2.2)
             streams)
     : GroupSuccessesHealthy work w := by
   let queue := initialQueue work
   let publisher : IncrementalPublisher :=
     { active := queue.initialGroups ++ queue.initialStreams }
-  let objects := sourceObjectFailureCuts 0
-    (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher inputs).2.2)
+  let objects := informativeObjectFailureCuts work
+    (queue.sourceRunBlocks publisher inputs).2.2
   have partition : w.failures.Perm (streams ++ objects) :=
     exactCuts ▸ mergeFailureCuts_partition objects streams
   intro index group groups children selected
@@ -104,17 +102,18 @@ theorem groupSuccessesHealthy_of_successfulItems {work inputs w streams}
     createWorkQueue_runNormalized_groupClosuresLocated generated valid _ carrier
   obtain ⟨_, _, retired, _, uncancelled⟩ :=
     generated.runNormalized_successfulCarrier_retiredHealthy valid started carrier
-  obtain ⟨terminal, queueEq⟩ := createWorkQueue_runNormalized_stateCore started
-  rw [queueEq] at retired uncancelled
-  have accepted := queue.batchesStarted_acceptsBatch inputs
-    (by rwa [← inputsStarted_eq_batchesStarted])
-  exact generated.replayGraphEvents_retiredGroupHealthy_of_itemSafety valid accepted known
-    retired uncancelled
+  intro failure
+  have exposed := (createWorkQueue_runNormalized_regionInventory valid).registered_exposed
+    retired.1
+  have invalid := generated.exposed_groupFailure_invalidated valid known exposed
     (fun cut occurrence member => (announced.1.2.2.1 (cut, occurrence) member).2.2)
+    safe failure
+  have recorded := invalid.toRecordInvalidated.restrict_objectFailures generated
+    (groupRecordAt_of_nodeAt known)
     (fun occurrence owners producer path result descriptor member =>
-      createWorkQueue_mixedFailureCuts_objectsRecorded started cuts partition descriptor
-        member)
-    safe
+      createWorkQueue_mixedFailureCuts_objectsRecorded generated valid started cuts partition descriptor member)
+  exact (generated.runNormalized_retiredHealth inputs valid started).1 group dependencies
+    (groupRecordAt_of_nodeAt known) retired uncancelled recorded
 
 /-- Successful group health holds at every shorter output prefix using the same cuts.
 Witness: extend a hypothetical earlier failure to the full history and contradict durable

@@ -26,7 +26,7 @@ theorem Explains.completion_reports_task
     (contributes : ref ∈ owners) (selected : events[index]? = some event)
     (afterSettlement : cut ≤ index) (closed : ref ∈ eventCompleted event)
     : FailureReportedFor events payload.path := by
-  have allowed := explained.2.2 index event selected
+  have allowed := explained.eventAllowed index event selected
   have recordedBefore : occurrence ∈ failedBefore failures (events.take index).length := by
     have bound := (List.getElem?_eq_some_iff.mp selected).1
     simpa only [List.length_take, Nat.min_eq_left (Nat.le_of_lt bound)]
@@ -89,7 +89,7 @@ theorem Explains.recorded_owner_reported_of_eventual_notice
           ref ∈ completedRefs events)
     (recorded : (cut, occurrence) ∈ failures)
     (known : TaskAt work occurrence owners producer payload)
-    (positive : 0 < payload.failure.getD 0)
+    (_positive : 0 < payload.failure.getD 0)
     (descriptor : NodeAt work node kind dependencies birth)
     (contributes : node.ref ∈ owners)
     (unfinished : node.ref ∉ completedRefs (events.take cut))
@@ -102,7 +102,7 @@ theorem Explains.recorded_owner_reported_of_eventual_notice
   have nonzero : 0 < errors := by omega
   rcases selected with group | stream
   all_goals
-    have allowed := explained.2.2 index _ (by assumption)
+    have allowed := explained.eventAllowed index _ (by assumption)
     obtain ⟨parents, source, reportedNode⟩ := allowed.1
     have scope := workAt_same_path coherent reportedNode descriptor same
     refine ⟨reporter, errors, nonzero, ?_, ?_⟩
@@ -162,10 +162,10 @@ theorem Explains.recorded_task_reported
   obtain ⟨index, node, errors, afterSettlement, contributes, selected, _⟩ :=
     explained.failure_reported_of_closures closedRefs recorded known openOwner
   rcases selected with group | stream
-  · exact Explains.completion_reports_task coherent explained recorded known positive contributes group
-      afterSettlement (by simp [eventCompleted])
-  · exact Explains.completion_reports_task coherent explained recorded known positive contributes stream
-      afterSettlement (by simp [eventCompleted])
+  · exact Explains.completion_reports_task coherent explained recorded known positive
+      contributes group afterSettlement (by simp [eventCompleted])
+  · exact Explains.completion_reports_task coherent explained recorded known positive
+      contributes stream afterSettlement (by simp [eventCompleted])
 
 /-- A positive singleton-owned failure is reported once announced IDs close.
 Witness: settlement licensing itself keeps the sole owner open; its actual later

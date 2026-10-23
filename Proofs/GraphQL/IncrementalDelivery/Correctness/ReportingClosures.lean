@@ -16,8 +16,8 @@ open WorkQueueSemantics
 
 /-- A failed open ref has a notice-free closure preserving reporting-aware coverage.
 Witness: its existing failure count supplies a permitted completion; no producer publishes,
-and closing an already-failed ref satisfies no healthy defer dependency. The count may be
-zero when the failure came from a dependency, so this alone is not a covering report.
+and closing an already-failed ref satisfies no healthy defer dependency. Its selected positive cause supplies the count; inherited failure alone does not
+license an error completion.
 -/
 theorem reporting_complete_failed
     {ancestry bound roles work groups streams events matching failures node kind
@@ -32,6 +32,9 @@ theorem reporting_complete_failed
     (opened : Open ((groups ++ streams).map DeliveryNode.ref) events node.ref)
     (failed : NodeFailed work matching events failures node.ref)
     (accounted : NodeAccounted work matching events failures node.ref)
+    (cause
+      : ∃ errors,
+          NodeFailureCause work (failedBefore failures events.length) node.ref errors)
     : ∃ event,
         Explains work groups streams (events ++ [event]) matching failures
         ∧ ReportingNoticesCovered ancestry work ((groups ++ streams).map DeliveryNode.ref)
@@ -40,8 +43,7 @@ theorem reporting_complete_failed
         ∧ eventCompleted event = [node.ref]
         ∧ ¬IsValue event := by
   obtain ⟨event, allowed, pending, completed, control⟩ := completion_exists known opened
-    accounted (by simpa only [explained.2.1.failedBefore_eq (Nat.le_refl _)]
-      using explained.2.1.known)
+    accounted (fun _ => cause)
   have extended := explained.append_event allowed
   have failureTransport : ∀ ref, NodeFailed work matching events failures ref →
       NodeFailed work matching (events ++ [event]) failures ref :=
@@ -95,6 +97,9 @@ theorem close_reporting_frontier
     (valid : Valid ancestry bound) (coherent : MixedRefs.WorkAt ancestry 0 bound work)
     (roleCoherent : RefRoles.WorkRoles roles work)
     (explained : Explains work groups streams events matching failures)
+    (causes
+      : OpenFailureCauses work ((groups ++ streams).map DeliveryNode.ref)
+          matching events failures)
     (covered
       : ReportingNoticesCovered ancestry work ((groups ++ streams).map DeliveryNode.ref)
           matching events failures)
@@ -142,6 +147,7 @@ theorem close_reporting_frontier
         obtain ⟨event, extended, retained, pending, completed, control⟩ :=
           reporting_complete_failed valid coherent roleCoherent explained covered known
             (same ▸ opened) (same ▸ failed) nodeAccounted
+            (same ▸ causes ref opened failed)
         have nextHealthy : ∀ other ∈ announcedRefs ((groups ++ streams).map DeliveryNode.ref)
             (events ++ [event]), ¬NodeFailed work matching (events ++ [event]) failures other →
             other ∈ completedRefs (events ++ [event]) := by
@@ -151,7 +157,8 @@ theorem close_reporting_frontier
           have closed := healthyClosed other prior (fun failed => healthy (failed.append _))
           simpa only [completedRefs, List.flatMap_append]
             using List.mem_append_left (completedRefs [event]) closed
-        obtain ⟨tail, bounded, controls, finished, frontier, closed⟩ := ih extended retained
+        obtain ⟨tail, bounded, controls, finished, frontier, closed⟩ := ih extended
+          (causes.append_completion explained.2.1 pending completed) retained
           (fun task owners birth payload known =>
             (accounted task owners birth payload known).append [event]) nextHealthy (by
             intro other active
@@ -167,7 +174,7 @@ theorem close_reporting_frontier
         · simpa only [List.append_assoc, List.singleton_append] using finished
         · simpa only [List.append_assoc, List.singleton_append] using frontier
         · simpa only [List.append_assoc, List.singleton_append] using closed
-      · obtain ⟨tail, bounded, controls, finished, frontier, closed⟩ := ih explained covered
+      · obtain ⟨tail, bounded, controls, finished, frontier, closed⟩ := ih explained causes covered
           accounted healthyClosed (by
             intro other active
             rcases List.mem_cons.mp (covers other active) with equal | member
@@ -190,9 +197,14 @@ theorem mixed_reporting_closed_extension
     (roleCoherent : RefRoles.WorkRoles roles work)
     (continuous : DeferContinuous ancestry work) (ordered : StreamOwnersOrdered work)
     (pathCoherent : MixedOwnerPaths.WorkAt paths pathBound work)
+    (allocated : (streamAllocationRefs work).Nodup)
+    (positive : ExecutionErrors.WorkPositive work)
     (initial : Explains work groups streams head matching failures)
     (coverage
       : ReportingNoticesCovered ancestry work ((groups ++ streams).map DeliveryNode.ref)
+          matching head failures)
+    (support
+      : StreamNoticesSupported ancestry work ((groups ++ streams).map DeliveryNode.ref)
           matching head failures)
     : ∃ tail next cuts,
         Explains work groups streams (head ++ tail) next cuts
@@ -208,9 +220,9 @@ theorem mixed_reporting_closed_extension
             ¬NodeFailed work next (head ++ tail) cuts ref
             → DependencySatisfied work ((groups ++ streams).map DeliveryNode.ref) next
                 (head ++ tail) cuts ref := by
-  obtain ⟨tail, next, cuts, explained, covered, accounted, dependencies⟩ :=
+  obtain ⟨tail, next, cuts, explained, covered, causes, accounted, dependencies⟩ :=
     mixed_reporting_accounted_extension valid coherent roleCoherent continuous ordered
-      pathCoherent initial coverage
+      pathCoherent allocated positive initial coverage support
   have healthyClosed : ∀ ref ∈ announcedRefs ((groups ++ streams).map DeliveryNode.ref)
       (head ++ tail), ¬NodeFailed work next (head ++ tail) cuts ref →
       ref ∈ completedRefs (head ++ tail) := by
@@ -222,7 +234,7 @@ theorem mixed_reporting_closed_extension
     · exact closed
     · exact False.elim (fresh announced)
   obtain ⟨closures, _, controls, finished, frontier, closed⟩ := close_reporting_frontier
-    valid coherent roleCoherent explained covered accounted healthyClosed
+    valid coherent roleCoherent explained causes covered accounted healthyClosed
     (announcedRefs ((groups ++ streams).map DeliveryNode.ref) (head ++ tail))
     (fun _ opened => opened.1)
   have satisfied : ∀ ref, ¬NodeFailed work next (head ++ tail ++ closures) cuts ref →

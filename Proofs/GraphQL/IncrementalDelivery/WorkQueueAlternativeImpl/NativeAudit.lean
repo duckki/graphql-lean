@@ -38,7 +38,7 @@ def AuditWitness.Valid (audit : AuditWitness) : Prop :=
   ∧ CleanupReplay audit.cleanupBefore audit.cleanupActions audit.cleanupAfter
 
 def AuditWitness.LocalSafety (audit : AuditWitness) : Prop :=
-  (∀ key, groupIsHealthy audit.queue.queue key = audit.queue.queue.groupIsHealthy key)
+  (SafeParentCuts audit.queue.queue ∧ TaskPresenceChecked audit.queue.queue)
   ∧ (∀ target,
       audit.resourcesBefore target ≠ .unacquired
       → audit.resourcesAfter target ≠ .unacquired)
@@ -59,7 +59,7 @@ def AuditWitness.LocalSafety (audit : AuditWitness) : Prop :=
 theorem AuditWitness.localSafety (audit : AuditWitness) (valid : audit.Valid)
     : audit.LocalSafety := by
   obtain ⟨cuts, covered, resources, receiptValid, receipt, cleanupValid, cleanup⟩ := valid
-  exact ⟨groupIsHealthy_eq_reference _ cuts, resources.never_forgets,
+  exact ⟨⟨cuts, taskPresenceChecked_holds _⟩, resources.never_forgets,
     fun running target owned => cancel_requests_owned _ _ running covered target owned,
     receipt.preserves_valid receiptValid, receipt.accepted,
     receipt.acknowledgementCount_le_one, cleanup.preserves_valid cleanupValid,

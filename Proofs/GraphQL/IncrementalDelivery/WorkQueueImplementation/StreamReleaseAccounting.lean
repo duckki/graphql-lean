@@ -99,7 +99,8 @@ theorem StreamReleasePublications.flush {work : Execution.Work}
         · simp [equal] at atEvent
       subst index
       simp only [List.map_nil, List.isEmpty_nil, ↓reduceIte, List.nil_append,
-        List.getElem?_cons_zero, Option.some.injEq, Execution.WorkQueueEvent.groupSuccess.injEq] at atEvent
+        List.getElem?_cons_zero, Option.some.injEq,
+        Execution.WorkQueueEvent.groupSuccess.injEq] at atEvent
       obtain ⟨rfl, rfl, rfl⟩ := atEvent
       obtain ⟨_, _, impossible⟩ := supported stream member dependencies producer known
       cases impossible
@@ -168,25 +169,30 @@ theorem State.PublicationInventory.finishGroupSuccess_streamRelease {queue : Sta
 
 /-- Recursive draining publishes each released stream's producer before its carrier.
 Witness: one common selection per successful flush extends both the inventory and release
-support; failed closures emit no stream notices, and later drains preserve earlier offsets.
+support; startup-failure notices are returned separately, and later drains preserve offsets.
 -/
 theorem State.PublicationInventory.drainReadyGroups_streamRelease {queue : State}
     {work property published} (inventory : queue.PublicationInventory property published)
     (settled : queue.ChildStreamsSettled) (links : queue.ChildStreamsMatchWork work)
-    (generated : ExecutedWork work)
+    (generated : ExecutedWork work) (available : List (Occurrence × Nat) := [])
     : ∃ added : List ObjectPublication,
-        added.map Prod.snd = queue.drainReadyGroups.2.flatMap WorkQueueEvent.objectValues
-        ∧ queue.drainReadyGroups.1.PublicationInventory property (published ++ added)
-        ∧ StreamReleasePublications work added queue.drainReadyGroups.2 := by
+        added.map Prod.snd
+          = (queue.drainReadyGroups available).2.1.flatMap WorkQueueEvent.objectValues
+        ∧ (queue.drainReadyGroups available).1.PublicationInventory property
+            (published ++ added)
+        ∧ StreamReleasePublications work added
+            (queue.drainReadyGroups available).2.1 := by
   have loop (fuel : Nat) (current : State) (priorPublished : List ObjectPublication)
       (prior : current.PublicationInventory property priorPublished)
       (ready : current.ChildStreamsSettled) (childLinks : current.ChildStreamsMatchWork work)
       : ∃ added : List ObjectPublication,
           added.map Prod.snd
-            = (State.drainReadyGroups.go fuel current).2.flatMap WorkQueueEvent.objectValues
-          ∧ (State.drainReadyGroups.go fuel current).1.PublicationInventory property
+            = (State.drainReadyGroups.go available fuel current).2.1.flatMap
+                WorkQueueEvent.objectValues
+          ∧ (State.drainReadyGroups.go available fuel current).1.PublicationInventory property
               (priorPublished ++ added)
-          ∧ StreamReleasePublications work added (State.drainReadyGroups.go fuel current).2 := by
+          ∧ StreamReleasePublications work added
+              (State.drainReadyGroups.go available fuel current).2.1 := by
     induction fuel generalizing current priorPublished with
     | zero =>
         exact ⟨
@@ -201,33 +207,16 @@ theorem State.PublicationInventory.drainReadyGroups_streamRelease {queue : State
         split
         · exact ⟨[], rfl, by simpa using prior, StreamReleasePublications.nil work⟩
         · rename_i node selected
-          cases cached : node.failure with
-          | none =>
-              dsimp only
-              obtain ⟨first, firstValues, flushed, firstSupport⟩ :=
-                prior.finishGroupSuccess_streamRelease ready childLinks generated node
-              obtain ⟨later, laterValues, final, laterSupport⟩ := ih _ _
-                ⟨flushed.unique, flushed.provenance,
-                  flushed.stored.startNewWork (current.finishGroupSuccess node).2.2⟩
-                ((ready.finishGroupSuccess node).startNewWork _)
-                ((childLinks.finishGroupSuccess node).startNewWork _)
-              refine ⟨first ++ later, ?_, ?_, firstSupport.append laterSupport firstValues⟩
-              · simp only [List.map_append, List.flatMap_append, firstValues, laterValues]
-              · simpa only [List.append_assoc] using final
-          | some errors =>
-              dsimp only
-              obtain ⟨added, values, final, supported⟩ := ih _ _
-                ⟨prior.unique, prior.provenance, prior.stored.removeGroup _⟩
-                (ready.removeGroup _) (childLinks.removeGroup _)
-              have control : StreamReleasePublications work []
-                  [(current.finishGroupFailure node errors).2] := by
-                intro index group groups streams atEvent
-                cases index <;> simp [State.finishGroupFailure] at atEvent
-              refine ⟨added, ?_, final, ?_⟩
-              · simpa only [State.finishGroupFailure, List.flatMap_append,
-                  List.flatMap_singleton, WorkQueueEvent.objectValues, List.nil_append]
-                  using values
-              · exact control.append supported rfl
+          obtain ⟨first, firstValues, flushed, firstSupport⟩ :=
+            prior.finishGroupSuccess_streamRelease ready childLinks generated node
+          obtain ⟨later, laterValues, final, laterSupport⟩ := ih _ _
+            ⟨flushed.unique, flushed.provenance,
+              flushed.stored.startNewWork (current.finishGroupSuccess node).2.2 available⟩
+            ((ready.finishGroupSuccess node).startNewWork _ available)
+            ((childLinks.finishGroupSuccess node).startNewWork _ available)
+          refine ⟨first ++ later, ?_, ?_, firstSupport.append laterSupport firstValues⟩
+          · simp only [List.map_append, List.flatMap_append, firstValues, laterValues]
+          · simpa only [List.append_assoc] using final
   exact loop _ queue published inventory settled links
 
 /-- One contributor step preserves stream links and extends one common publication ledger.
@@ -280,13 +269,15 @@ theorem State.PublicationInventory.taskSuccess_streamRelease {queue : State}
     (source : (GraphEvent.taskSuccess occurrence result).MatchesWork work)
     (allowed : property occurrence result.value)
     (fresh : occurrence ∉ published.map Prod.fst)
+    (available : List (Occurrence × Nat) := [])
     : ∃ added : List ObjectPublication,
         added.map Prod.snd
-          = (queue.taskSuccess occurrence result).2.flatMap WorkQueueEvent.objectValues
-        ∧ (queue.taskSuccess occurrence result).1.PublicationInventory property
+          = (queue.taskSuccess occurrence result available).2.1.flatMap
+              WorkQueueEvent.objectValues
+        ∧ (queue.taskSuccess occurrence result available).1.PublicationInventory property
             (published ++ added)
         ∧ StreamReleasePublications work added
-            (queue.taskSuccess occurrence result).2 := by
+            (queue.taskSuccess occurrence result available).2.1 := by
   cases found : queue.taskNode? occurrence with
   | none =>
       simp only [State.taskSuccess, found]
@@ -329,21 +320,15 @@ theorem State.PublicationInventory.taskSuccess_streamRelease {queue : State}
         loop node.task.groups (_, [], {})
           ⟨integratedSettled, integratedLinks, [], rfl, initialLedger,
             StreamReleasePublications.nil work⟩
-      rw [queue.taskSuccess_eq occurrence result node found]
-      split
-      · refine ⟨[], rfl, ?_, ?_⟩
-        · simpa only [List.append_nil]
-            using State.PublicationInventory.mk inventory.unique inventory.provenance
-              (inventory.stored.removeTask occurrence)
-        · exact StreamReleasePublications.nil work
+      rw [queue.taskSuccess_eq occurrence result node found available]
       let released := node.task.groups.foldl successGroupStep
         (((queue.putTaskNode { node with value := some result.value }).maybeIntegrateWork
           result.work (some occurrence)).1, [], {})
       have activated := State.PublicationInventory.mk final.unique final.provenance
-        (final.stored.startNewWork released.2.2)
+        (final.stored.startNewWork released.2.2 available)
       obtain ⟨later, laterValues, drained, laterSupport⟩ :=
-        activated.drainReadyGroups_streamRelease (ready.startNewWork _)
-          (childLinks.startNewWork _) generated
+        activated.drainReadyGroups_streamRelease (ready.startNewWork _ available)
+          (childLinks.startNewWork _ available) generated available
       refine ⟨added ++ later, ?_, ?_, supported.append laterSupport values⟩
       · simp only [List.map_append, List.flatMap_append, values, laterValues]
         rfl
@@ -368,13 +353,14 @@ theorem createWorkQueue_runNormalized_taskSuccess_streamRelease {work : Executio
         published.map (fun publication => publication.2)
           = before.2.flatten.flatMap normalizedObjectValues
         ∧ added.map Prod.snd
-          = (before.1.taskSuccess occurrence result).2.flatMap WorkQueueEvent.objectValues
+          = (before.1.taskSuccess occurrence result).2.1.flatMap
+              WorkQueueEvent.objectValues
         ∧ ((published ++ added).map Prod.fst).Nodup
         ∧ (∀ publication ∈ published ++ added,
             ObjectValueFrom (batches.flatten ++ [.taskSuccess occurrence result])
               publication.1 publication.2)
         ∧ StreamReleasePublications work added
-            (before.1.taskSuccess occurrence result).2 := by
+            (before.1.taskSuccess occurrence result).2.1 := by
   have priorValid := valid.prefix (List.prefix_append _ _)
   obtain ⟨source, fresh, _⟩ := valid.atPrefix
     (before := batches.flatten) (event := .taskSuccess occurrence result) ⟨[], by simp⟩

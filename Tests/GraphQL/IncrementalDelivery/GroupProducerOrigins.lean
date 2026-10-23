@@ -38,25 +38,29 @@ private def child (ref index : Nat) : DeliveryNode :=
 
 private def childWork (ref index : Nat) (name : String) : Work :=
   .combine .empty
-    (.combine
-      (.executionGroup [⟨child ref index, []⟩] (child ref index).path
-        (.ok ([("name", .scalar name)], 0)) (.combine .empty .empty)) .empty)
+    (.declareGroups [⟨child ref index, []⟩]
+      (.combine
+        (.executionGroup [⟨child ref index, []⟩] (child ref index).path
+          ({ result := .ok ([("name", .scalar name)], 0) }) (.combine .empty .empty))
+        .empty))
 
 private def streamed : Work :=
   .stream stream
     [
-      (.ok (.object [], 0), childWork 3 0 "name1"),
-      (.ok (.object [], 0), childWork 4 1 "name2")
+      ({ result := .ok (.object [], 0) }, childWork 3 0 "name1"),
+      ({ result := .ok (.object [], 0) }, childWork 4 1 "name2")
     ]
 
 private def generatedWork : Work :=
   .combine .empty
-    (.combine
-      (.executionGroup [⟨root 0 "R", []⟩, ⟨root 1 "P", []⟩] [] (.error 1) .empty)
+    (.declareGroups [⟨root 0 "R", []⟩, ⟨root 1 "P", []⟩]
       (.combine
-        (.executionGroup [⟨root 1 "P", []⟩] []
-          (.ok ([("users", .list [])], 0))
-          (.combine (.combine .empty streamed) .empty)) .empty))
+        (.executionGroup [⟨root 0 "R", []⟩, ⟨root 1 "P", []⟩] []
+          ({ result := .error 1, cause := some 1 }) .empty)
+        (.combine
+          (.executionGroup [⟨root 1 "P", []⟩] []
+            ({ result := .ok ([("users", .list [])], 0) })
+            (.combine (.combine .empty streamed) .empty)) .empty)))
 
 /-- Shared root failure, an unpublished stream, and its deferred item tasks are generated.
 Witness: reduction of the query's defer collection and zero-initial-count stream completion.
@@ -77,7 +81,7 @@ private theorem first_child
     streamAddress ++ [0, 1, 0],
     [⟨child 3 0, []⟩],
     (child 3 0).path,
-    .ok ([("name", .scalar "name1")], 0),
+    { result := .ok ([("name", .scalar "name1")], 0) },
     .combine .empty .empty,
     [],
     ⟨child 3 0, []⟩,
@@ -93,7 +97,7 @@ private theorem second_child
     streamAddress ++ [1, 1, 0],
     [⟨child 4 1, []⟩],
     (child 4 1).path,
-    .ok ([("name", .scalar "name2")], 0),
+    { result := .ok ([("name", .scalar "name2")], 0) },
     .combine .empty .empty,
     [],
     ⟨child 4 1, []⟩,
@@ -106,7 +110,7 @@ private theorem second_child
 private theorem first_item
     : TaskAt generatedWork (.item streamAddress 0) [2]
         (some (.executionGroup [1, 1, 0])) (.item stream (.ok (.object [], 0))) :=
-  .item
+  .item (result := { result := .ok (.object [], 0) })
     (show Located generatedWork streamAddress streamed
             (some (.executionGroup [1, 1, 0])) [1] from rfl)
     rfl
@@ -114,7 +118,7 @@ private theorem first_item
 private theorem second_item
     : TaskAt generatedWork (.item streamAddress 1) [2]
         (some (.executionGroup [1, 1, 0])) (.item stream (.ok (.object [], 0))) :=
-  .item
+  .item (result := { result := .ok (.object [], 0) })
     (show Located generatedWork streamAddress streamed
             (some (.executionGroup [1, 1, 0])) [1] from rfl)
     rfl
@@ -186,7 +190,7 @@ private theorem certificates
       childWork, root, child, stream]
   have positive : ExecutionErrors.WorkPositive generatedWork := by
     simp [ExecutionErrors.WorkPositive, ExecutionErrors.ItemsPositive,
-      BasicErrors.PositiveFailure, generatedWork, streamed, childWork]
+      BasicErrors.PositiveFailure, TaskOutcome.deliveryResult, generatedWork, streamed, childWork]
   exact ⟨ancestry, _, roles, paths, _, valid, coherent, roleCoherent, continuous, ordered,
     pathCoherent, under, positive⟩
 
@@ -199,7 +203,9 @@ theorem generated_completeRun : ∃ history, AdmissibleRun generatedWork history
   obtain ⟨ancestry, refBound, roles, paths, pathBound, valid, coherent, roleCoherent,
     continuous, ordered, pathCoherent, under, positive⟩ := certificates
   exact mixed_completeRun_exists_of_group_origins valid coherent roleCoherent continuous
-    ordered pathCoherent under positive generated_origins (by decide)
+    ordered pathCoherent under positive
+    (by simp [generatedWork, streamed, childWork, GeneralScheduling.streamAllocationRefs])
+    generated_origins (by decide)
 
 /-- Every cancelled task in a closed accounted reporting frontier has an actual report.
 Witness: the full structural-origin induction for arbitrary explained output histories,
@@ -230,7 +236,8 @@ theorem cancelled_task_reported
   obtain ⟨ancestry, refBound, roles, paths, pathBound, valid, coherent, roleCoherent,
     continuous, ordered, pathCoherent, under, positive⟩ := certificates
   exact Explains.cancelled_reported_of_group_origins valid coherent roleCoherent continuous
-    ordered pathCoherent under positive generated_origins explained covered satisfied closed
+    ordered pathCoherent under positive
+    generated_origins explained covered satisfied closed
     accounted cancelled known
 
 #print axioms generated_origins

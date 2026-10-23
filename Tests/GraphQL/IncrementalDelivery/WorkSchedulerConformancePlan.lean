@@ -11,6 +11,7 @@ import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.TerminalItemPr
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.TerminalObjectProducedGroups
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.ObjectProducedStreamNotices
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.Conformance
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.StartupConformance
 
 /-! Exact-target and shared-certificate checks for the proof-only conformance graph. -/
 
@@ -23,6 +24,14 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 Witness: `createWorkQueueForScheduleConforms_holds`, without any internal construction hypothesis.
 -/
 example : createWorkQueueForScheduleConforms := createWorkQueueForScheduleConforms_holds
+
+/-- The same public contract holds for any source-valid synchronous startup observation.
+No internal accounting premise, asynchronous restriction, or changed source law is supplied.
+-/
+example (startup : InitialStartup) : createWorkQueueForScheduleConforms startup :=
+  createWorkQueueForScheduleConformsWithStartup_holds startup
+
+#print axioms createWorkQueueForScheduleConformsWithStartup_holds
 
 /-- All eight construction leaves are proved together on one replay witness.
 Witness: `replayWitnessExists_holds`, not eight independent existential certificates.
@@ -69,7 +78,7 @@ example {work inputs} (premises : ReplayPremises work inputs)
         BatchShape work inputs w
         ∧ PublicationAdmission work w
         ∧ ControlAdmission work w
-        ∧ ∀ task ∈ ((initialQueue work).replayGraphEvents inputs.flatten).tasks,
+        ∧ ∀ task ∈ ((initialQueue work).runNormalized inputs).1.tasks,
             TaskAccounted work w.matching w.events w.failures task.occurrence := by
   obtain ⟨w, _, batching, _, _, publications, controls, _, registered, _⟩ :=
     mixed_registeredTerminalCertificates premises
@@ -220,7 +229,7 @@ theorem retired_groups_accounted_on_shared_witness {work inputs}
         ∧ UncancelledFailures work w
         ∧ ∀ node dependencies producer,
             NodeAt work node .group dependencies producer
-            → ((initialQueue work).replayGraphEvents inputs.flatten).RetiredGroup node.ref
+            → ((initialQueue work).runNormalized inputs).1.RetiredGroup node.ref
             → NodeFailed work w.matching w.events w.failures node.ref
               ∨ NodeAccounted work w.matching w.events w.failures node.ref := by
   obtain ⟨w, history, batching, announced, uncancelled, _, _, _, _, _, ledger, _,
@@ -235,7 +244,9 @@ theorem retired_groups_accounted_on_shared_witness {work inputs}
 
 private def stream : Execution.DeliveryNode := { ref := 0, path := [] }
 private def work : Execution.Work := .stream stream []
-private def emptyWitness : Witness := ⟨[], fun _ => .executionGroup [], []⟩
+
+private def emptyWitness : Witness :=
+  { events := [], matching := fun _ => .executionGroup [], failures := [] }
 
 /-- Even an exhausted stream retains its root until its concrete completion input.
 Witness: after that input, the generic termination theorem empties both root lists.
@@ -255,7 +266,8 @@ terminal coverage is required only after the runtime flag becomes true.
 theorem initial_obligations : Obligations work [] emptyWitness := by
   constructor
   · exact WorkBatching.nil
-  · simp [AnnouncedFailures, CompleteFailureInventory, emptyWitness]
+  · simp [AnnouncedFailures, CausalFailureInventory, ReportingAvailability,
+      CompleteFailureInventory, FailureReportingWitness, CausalFailuresAvailable, emptyWitness]
   · intro before cut occurrence after impossible
     cases before <;> cases impossible
   · intro index event impossible
@@ -274,7 +286,7 @@ Witness: the general raw-stream completion theorem after the concrete stream-suc
 -/
 example
     : stream.ref
-      ∈ ((initialQueue work).rawEventReplay [.streamSuccess stream]).2.flatMap
+      ∈ ((initialQueue work).rawBatches [[.streamSuccess stream]]).2.flatMap
           rawStreamClosureRefs :=
   createWorkQueue_terminalStreamCompleted (inputs := [[.streamSuccess stream]])
     (by decide) (by decide) (by decide)

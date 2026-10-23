@@ -68,6 +68,7 @@ theorem supported_failure
       producer payload}
     (valid : Valid ancestry bound) (coherent : MixedRefs.WorkAt ancestry 0 bound work)
     (roleCoherent : RefRoles.WorkRoles roles work)
+    (positive : ExecutionErrors.WorkPositive work)
     (explained : Explains work groups streams events matching failures)
     (covered
       : SupportedNoticesCovered ancestry work ((groups ++ streams).map DeliveryNode.ref)
@@ -82,7 +83,7 @@ theorem supported_failure
             matching (events ++ [event]) cuts := by
   obtain ⟨node, count, event, contributes, control, _, extended⟩ :=
     explained.failure_step known fails (ready.reachable explained known) opened
-      ready.2.1
+      ready.2.1 (positive.task known fails)
   have included : failures ⊆ failures ++ [(events.length, occurrence)] :=
     List.subset_append_left _ _
   have failed : NodeFailed work matching (events ++ [event])
@@ -126,6 +127,7 @@ theorem extend_ready_supported
     (roleCoherent : RefRoles.WorkRoles roles work)
     (continuous : DeferContinuous ancestry work) (ordered : StreamOwnersOrdered work)
     (coherent : MixedOwnerPaths.WorkAt paths pathBound work)
+    (positive : ExecutionErrors.WorkPositive work)
     (explained : Explains work groups streams events matching failures)
     (covered
       : SupportedNoticesCovered ancestry work ((groups ++ streams).map DeliveryNode.ref)
@@ -154,7 +156,7 @@ theorem extend_ready_supported
       ∃ event next cuts, Explains work groups streams (events ++ [event]) next cuts
         ∧ SupportedNoticesCovered ancestry work ((groups ++ streams).map DeliveryNode.ref)
             next (events ++ [event]) cuts := by
-    obtain ⟨event, cuts, extended, retained⟩ := supported_failure valid refs roleCoherent
+    obtain ⟨event, cuts, extended, retained⟩ := supported_failure valid refs roleCoherent positive
       explained covered known ready fails ⟨ref, member, opened⟩
     exact ⟨event, matching, cuts, extended, retained⟩
   cases payload with
@@ -163,9 +165,7 @@ theorem extend_ready_supported
       | error errors => exact failing rfl
       | ok value =>
           obtain ⟨data, errors⟩ := value
-          have deferred : ∃ address, occurrence = .executionGroup address := by
-            cases StructuralEquivalence.taskAt_of_current known with
-            | executionGroup => exact ⟨_, rfl⟩
+          have deferred := known.object_occurrence
           obtain ⟨address, rfl⟩ := deferred
           obtain ⟨node, kind, dependencies, nodeProducer, descriptor, same⟩ :=
             known.owner_known member
@@ -210,8 +210,8 @@ theorem extend_ready_supported
       | ok value =>
           obtain ⟨item, errors⟩ := value
           have ownerRef : ref = node.ref := by
-            cases StructuralEquivalence.taskAt_of_current known with
-            | item located selected => exact List.mem_singleton.mp member
+            rw [known.item_owners] at member
+            exact List.mem_singleton.mp member
           have selected := stream_owner_of_open coherent known (ownerRef ▸ opened)
             (ownerRef ▸ healthy)
           obtain ⟨newGroups, newStreams, extended, notices⟩ :=

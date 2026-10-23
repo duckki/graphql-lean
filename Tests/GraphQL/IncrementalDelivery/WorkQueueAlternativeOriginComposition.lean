@@ -157,7 +157,8 @@ private theorem stream_constructed (required : Bool) (initialCount : Nat)
     (.list (if required then .nonNull itemType else itemType)) (streamFields initialCount)
     values [] [] [] true [] literal 7
 
-private def items (work : RecordedWork) : List (Report ResponseValue × RecordedWork) :=
+private def items (work : RecordedWork)
+    : List (RecordedOutcome ResponseValue × RecordedWork) :=
   match work with
   | .combine _ (.stream _ items) => items
   | _ => []

@@ -147,7 +147,7 @@ theorem conflicting_raw_dispatch_differs
 #print axioms State.maybeIntegrateWork_startTasks
 #print axioms activateRegisteredTasks_pruneEmptyGroups
 #print axioms State.startNewWork_queue
-#print axioms State.integrateStreamItem_queue
+#print axioms State.integrateStreamItem_cache_projects
 #print axioms referencePrefix_preparedItems_invariants
 #print axioms referencePrefix_streamRegistrationFold
 #print axioms referencePrefix_streamItems
@@ -185,7 +185,7 @@ theorem conflicting_raw_dispatch_differs
 #print axioms State.maybeIntegrateWork_rejected
 #print axioms State.startNewWork_rejected
 #print axioms State.taskSuccess_ownerless_aborted
-#print axioms NativeRefinement.streamRegistrationFold_ownerPresent
+#print axioms NativeRefinement.streamRegistrationFold_existingTask_progress
 #print axioms NativeRefinement.streamRegistrationFold_ownerless_target
 #print axioms NativeRefinement.GeneratedAdoptedTaskRegistrationProgress_holds
 #print axioms createWorkQueueForScheduleMatchesReference_of_replay

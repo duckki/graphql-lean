@@ -1,3 +1,4 @@
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.EmptyFailureBatchLedger
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.GroupPublicationAdmission
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.AtomicItemNoticeContents
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.NoticeItemPublication
@@ -29,17 +30,22 @@ private def child (index : Nat) : DeliveryNode :=
 
 private def children (index : Nat) : Execution.Work :=
   .combine .empty
-    (.combine
-      (.executionGroup [⟨child index, []⟩] (child index).path
-        (.ok ([("name", .scalar ("name" ++ toString (index + 1)))], 0))
-        (.combine .empty .empty))
-      .empty)
+    (.declareGroups [⟨child index, []⟩]
+      (.combine
+        (.executionGroup [⟨child index, []⟩] (child index).path
+          ({ result := .ok ([("name", .scalar ("name" ++ toString (index + 1)))], 0) })
+          (.combine .empty .empty))
+        .empty))
 
-private def entries : List (Result ResponseValue × Execution.Work) :=
-  [(.ok (.object [], 0), children 0), (.ok (.object [], 0), children 1)]
+private def entries : List (TaskOutcome ResponseValue × Execution.Work) :=
+  [
+    ({ result := .ok (.object [], 0) }, children 0),
+    ({ result := .ok (.object [], 0) }, children 1)
+  ]
 
 private def work : Execution.Work :=
-  .combine (.combine (.combine .empty (.stream stream entries)) .empty) .empty
+  .combine (.combine (.combine .empty (.stream stream entries)) .empty)
+    (.declareGroups [] .empty)
 
 private def producer : Occurrence := .item [0, 0, 1] 0
 private def occurrence : Occurrence := .executionGroup [0, 0, 1, 0, 1, 0]
@@ -74,15 +80,17 @@ private theorem stream_located
 private theorem known
     : TaskAt work occurrence [(child 0).ref] (some producer)
         (.object (child 0).path (.ok ([("name", .scalar "name1")], 0))) :=
-  .executionGroup (groups := [⟨child 0, []⟩]) (children := .combine .empty .empty)
-    (owners := []) (by cbv)
+  .executionGroup (result := { result := .ok ([("name", .scalar "name1")], 0) })
+    (groups := [⟨child 0, []⟩]) (children := .combine .empty .empty) (owners := [])
+    (by cbv)
 
 private theorem valid : ValidGraphEvents work received := by
   have first : ValidGraphEvents work [.streamItems stream [item]] := by
     refine .append .nil ?_ ?_ ?_
     · intro entry member
       obtain rfl := List.mem_singleton.mp member
-      exact ⟨_, _, TaskAt.item stream_located rfl, by cbv⟩
+      exact ⟨_, _, TaskAt.item (result := { result := .ok (.object [],
+        0) }) stream_located rfl, by cbv⟩
     · simp [GraphEvent.Fresh, GraphEvent.identities, item]
     · exact ⟨_, _, _, _, stream_located, by simp, by simp,
         (by intro source impossible; cases impossible), rfl⟩
@@ -159,7 +167,12 @@ private theorem secondMatches
     : (GraphEvent.streamItems stream [secondItem]).MatchesWork work := by
   intro entry member
   obtain rfl := List.mem_singleton.mp member
-  exact ⟨_, _, TaskAt.item stream_located rfl, by cbv⟩
+  exact ⟨
+    _,
+    _,
+    TaskAt.item (result := { result := .ok (.object [], 0) }) stream_located rfl,
+    by cbv
+  ⟩
 
 private theorem valid_with_second
     : ValidGraphEvents work (received ++ [.streamItems stream [secondItem]]) := by
@@ -180,7 +193,7 @@ theorem second_item_does_not_reannounce {ref}
         ∈ initial.rootGroups
           ++ (initial.rawEventReplay received).2.flatMap rawGroupNoticeRefs)
     : ref
-      ∉ ((initial.replayGraphEvents received).streamItems stream [secondItem]).2.flatMap
+      ∉ ((initial.replayGraphEvents received).streamItems stream [secondItem]).2.1.flatMap
           rawGroupNoticeRefs :=
   generated.streamItems_noEarlierGroupNotice (before := received)
     (fun _ member => valid.eachMatches member) secondMatches announced
@@ -196,7 +209,7 @@ theorem second_item_notice_origin
           child 1
           ∈ ((boundary.maybeIntegrateWork supplied.work).1.pruneEmptyGroups
               (boundary.maybeIntegrateWork supplied.work).2.newGroups).2 := by
-  exact initial.streamItemFold_noticeOrigin [item, secondItem]
+  exact initial.streamItemFold_noticeOrigin [item, secondItem] []
     (by cbv; exact .tail _ (.head _))
 
 /-- A later item's noticed child excludes an earlier child's actual published occurrence.
@@ -213,12 +226,13 @@ theorem later_item_notice_excludes_prior_publication
         ∧ ∃ earlier supplied later,
             [secondItem] = earlier ++ supplied :: later
             ∧ let current := initial.replayGraphEvents received
-              let boundary :=
-                (current.preparedStreamItems earlier).integrateStreamItem supplied
+              let registered :=
+                (current.preparedStreamItems earlier).maybeIntegrateWork supplied.work
+              let boundary := (registered.1.pruneEmptyGroups registered.2.newGroups).1
               ∃ node,
                 boundary.groupNode? (child 1).ref = some node
                 ∧ node.group.node = child 1
-                ∧ (node.tasks ≠ [] ∨ node.failure.isSome = true)
+                ∧ node.tasks ≠ []
                 ∧ (∀ publication ∈ published.take 1, publication.1 ∉ node.tasks)
                 ∧ ∀ task ∈ node.tasks, ¬Published w.matching (w.events.take 3) task := by
   have source := valid_with_second
@@ -227,7 +241,7 @@ theorem later_item_notice_excludes_prior_publication
       (inputs := [received ++ [GraphEvent.streamItems stream [secondItem]]])
       (by simpa using source) (by cbv)
   obtain ⟨published, batches, matching, _⟩ := ledger
-  have covered := batches.flatten (by rw [← inputsStarted_eq_batchesStarted]; cbv)
+  have covered := batches.singleton (by cbv)
   have carrier := (initial.replayGraphEvents received).streamItems_noticeGroups
     stream [secondItem] (index := 0) (emitted := stream) (values := [secondItem.value])
     (groups := [child 1]) (streams := []) (by cbv)
@@ -257,7 +271,7 @@ theorem atomic_item_notice_unpublished
           ∃ node : GroupNode,
             queue.groupNode? (child 1).ref = some node
             ∧ node.group.node = child 1
-            ∧ (node.tasks ≠ [] ∨ node.failure.isSome = true)
+            ∧ node.tasks ≠ []
             ∧ ∀ task ∈ node.tasks, ¬Published w.matching (w.events.take 3) task := by
   let inputs := [received ++ [GraphEvent.streamItems stream [secondItem]]]
   have source : ValidGraphEvents work inputs.flatten := by simpa [inputs] using valid_with_second
@@ -266,8 +280,7 @@ theorem atomic_item_notice_unpublished
   have selected : w.events[3]? = some (.streamValues stream [wireValue] [child 1] []) := by
     rw [history]
     cbv
-  obtain ⟨before, sourceStream, items, after, earlier, supplied, later,
-      _, _, _, _, node, found, same, contents, unpublished⟩ :=
+  obtain ⟨_, boundary, node, found, same, contents, _, _, _, unpublished⟩ :=
     ConformancePlan.itemGroupNotice_unpublished generated source (by cbv) history ledger
       admitted streamReady selected List.mem_cons_self
   exact ⟨w, admitted, selected, _, node, found, same, contents, unpublished⟩
@@ -345,7 +358,7 @@ theorem atomic_notice_itemProducer_published
   have located : NodeAt work (child 1) .group [] (some secondItem.occurrence) :=
     NodeAt.group (address := [0, 0, 1, 1, 1, 0])
       (groups := [⟨child 1, []⟩]) (path := (child 1).path)
-      (result := .ok ([("name", .scalar "name2")], 0))
+      (result := { result := .ok ([("name", .scalar "name2")], 0) })
       (children := .combine .empty .empty) (owners := []) (by cbv) List.mem_cons_self
   exact ⟨
     w,
@@ -361,7 +374,8 @@ private theorem valid_batched
   · intro entry member
     simp only [List.mem_cons, List.not_mem_nil, or_false] at member
     rcases member with rfl | rfl
-    · exact ⟨_, _, TaskAt.item stream_located rfl, by cbv⟩
+    · exact ⟨_, _, TaskAt.item (result := { result := .ok (.object [],
+      0) }) stream_located rfl, by cbv⟩
     · exact secondMatches _ List.mem_cons_self
   · simp [GraphEvent.Fresh, GraphEvent.identities, item, secondItem, producer]
   · refine ⟨_, _, _, _, stream_located, by simp, by simp,
@@ -390,12 +404,12 @@ theorem batched_notice_itemProducers_published
   have first : NodeAt work (child 0) .group [] (some producer) :=
     NodeAt.group (address := [0, 0, 1, 0, 1, 0])
       (groups := [⟨child 0, []⟩]) (path := (child 0).path)
-      (result := .ok ([("name", .scalar "name1")], 0))
+      (result := { result := .ok ([("name", .scalar "name1")], 0) })
       (children := .combine .empty .empty) (owners := []) (by cbv) List.mem_cons_self
   have second : NodeAt work (child 1) .group [] (some secondItem.occurrence) :=
     NodeAt.group (address := [0, 0, 1, 1, 1, 0])
       (groups := [⟨child 1, []⟩]) (path := (child 1).path)
-      (result := .ok ([("name", .scalar "name2")], 0))
+      (result := { result := .ok ([("name", .scalar "name2")], 0) })
       (children := .combine .empty .empty) (owners := []) (by cbv) List.mem_cons_self
   exact ⟨
     w,
@@ -438,7 +452,7 @@ theorem atomic_item_notice_canAnnounce
   have located : NodeAt work (child 1) .group [] (some secondItem.occurrence) :=
     NodeAt.group (address := [0, 0, 1, 1, 1, 0])
       (groups := [⟨child 1, []⟩]) (path := (child 1).path)
-      (result := .ok ([("name", .scalar "name2")], 0))
+      (result := { result := .ok ([("name", .scalar "name2")], 0) })
       (children := .combine .empty .empty) (owners := []) (by cbv) List.mem_cons_self
   refine ⟨w, admitted, selected, ?_⟩
   exact ConformancePlan.groupNotice_canAnnounce generated source
@@ -455,7 +469,7 @@ pruned frontiers; notice health is not assumed from the observed output.
 theorem batched_item_notice_ancestors_healthy
     : GroupNoticeAncestorsHealthy work
         (initial.objectFailureContributions [.streamItems stream [item, secondItem]])
-        (initial.handleGraphEvent (.streamItems stream [item, secondItem])).2 :=
+        (initial.handleGraphEvent (.streamItems stream [item, secondItem])).2.1 :=
   generated.replayGraphEvents_next_noticeAncestorsHealthy (before := []) valid_batched
     (by cbv)
 
@@ -466,7 +480,7 @@ without assuming the handler's output is admitted by the scheduler contract.
 theorem batched_item_notice_ancestors_retired
     : (initial.replayGraphEvents
         [.streamItems stream [item, secondItem]]).GroupNoticeAncestorsRetired
-        work (initial.handleGraphEvent (.streamItems stream [item, secondItem])).2 :=
+        work (initial.handleGraphEvent (.streamItems stream [item, secondItem])).2.1 :=
   generated.replayGraphEvents_next_noticeAncestorsRetired (before := []) (by simp)
     (valid_batched.eachMatches List.mem_cons_self)
 
@@ -484,17 +498,22 @@ private def nestedChild (index : Nat) : DeliveryNode :=
 
 private def nestedWork (index : Nat) : Execution.Work :=
   .combine .empty
-    (.combine
-      (.executionGroup [⟨nestedChild index, [shell index]⟩] (nestedChild index).path
-        (.ok ([("name", .scalar ("name" ++ toString (index + 1)))], 0))
-        (.combine .empty .empty))
-      .empty)
+    (.declareGroups [⟨shell index, []⟩, ⟨nestedChild index, [shell index]⟩]
+      (.combine
+        (.executionGroup [⟨nestedChild index, [shell index]⟩] (nestedChild index).path
+          ({ result := .ok ([("name", .scalar ("name" ++ toString (index + 1)))], 0) })
+          (.combine .empty .empty))
+        .empty))
 
-private def nestedEntries : List (Result ResponseValue × Execution.Work) :=
-  [(.ok (.object [], 0), nestedWork 0), (.ok (.object [], 0), nestedWork 1)]
+private def nestedEntries : List (TaskOutcome ResponseValue × Execution.Work) :=
+  [
+    ({ result := .ok (.object [], 0) }, nestedWork 0),
+    ({ result := .ok (.object [], 0) }, nestedWork 1)
+  ]
 
 private def nested : Execution.Work :=
-  .combine (.combine (.combine .empty (.stream stream nestedEntries)) .empty) .empty
+  .combine (.combine (.combine .empty (.stream stream nestedEntries)) .empty)
+    (.declareGroups [] .empty)
 
 private def nestedItem (index : Nat) : StreamItem :=
   ⟨
@@ -517,8 +536,10 @@ private theorem validNested
   · intro entry member
     simp only [List.mem_cons, List.not_mem_nil, or_false] at member
     rcases member with rfl | rfl
-    · exact ⟨_, _, TaskAt.item nestedLocated rfl, by cbv⟩
-    · exact ⟨_, _, TaskAt.item nestedLocated rfl, by cbv⟩
+    · exact ⟨_, _, TaskAt.item (result := { result := .ok (.object [],
+      0) }) nestedLocated rfl, by cbv⟩
+    · exact ⟨_, _, TaskAt.item (result := { result := .ok (.object [],
+      0) }) nestedLocated rfl, by cbv⟩
   · simp [GraphEvent.Fresh, GraphEvent.identities, nestedItem]
   · refine ⟨_, _, _, _, nestedLocated, by simp, by simp,
       (by intro source impossible; cases impossible), ?_⟩
@@ -558,12 +579,12 @@ theorem taskless_item_child_root_covered
   obtain ⟨parents, canonical⟩ := generatedNested.groupRecordsCanonical
   have initialCanonical : ∀ group ∈ (Work.fromExecution nested).groups,
       group.parent = (parents group.node.ref).head? :=
-    fun _ member => workFromSpec_groups_parentCanonical Located.root canonical member
-  have registered := createWorkQueue_registration nested
+    fun _ member => workFromSpec_groups_parentCanonical_root canonical member
+  have registered := createWorkQueue_registration nested generatedNested.declarations
   apply (createWorkQueue_regionInventory nested).streamItem_healthy_group_root_coverage
     generatedNested (createWorkQueue_parentLinksComplete _ parents initialCanonical)
     (createWorkQueue_groupRefsUnique _) registered.1
-    (createWorkQueue_parentRegistryClosed canonical)
+    (createWorkQueue_parentRegistryClosed canonical generatedNested.declarations)
     (createWorkQueue_cancelledRecordsSupported _ nested [])
     (createWorkQueue_groupNodesMatchWork nested) (createWorkQueue_childGroupsUnique _)
     (createWorkQueue_childLinksCanonical _ parents initialCanonical) canonical
@@ -578,7 +599,7 @@ This establishes preparation presence before any later drain can close a group.
 theorem batched_preparation_roots_present
     : ((State.initialize (Work.fromExecution nested)).preparedStreamItems
         [nestedItem 0, nestedItem 1]).RootGroupsPresent := by
-  have registration := createWorkQueue_registration nested
+  have registration := createWorkQueue_registration nested generatedNested.declarations
   exact (createWorkQueue_rootGroupsPresent (Work.fromExecution nested)).preparedStreamItems
     (createWorkQueue_groupRefsUnique _) registration.1 registration.2
     (validNested.eachMatches List.mem_cons_self)
@@ -599,11 +620,11 @@ private theorem childKnown (index : Nat) (bound : index < 2)
   rcases alternatives with rfl | rfl
   · exact .group (groups := [⟨nestedChild 0, [shell 0]⟩])
       (children := .combine .empty .empty) (address := [0, 0, 1, 0, 1, 0])
-      (path := (nestedChild 0).path) (result := .ok ([("name", .scalar "name1")], 0))
+      (path := (nestedChild 0).path) (result := { result := .ok ([("name", .scalar "name1")], 0) })
       (owners := []) (by cbv) List.mem_cons_self
   · exact .group (groups := [⟨nestedChild 1, [shell 1]⟩])
       (children := .combine .empty .empty) (address := [0, 0, 1, 1, 1, 0])
-      (path := (nestedChild 1).path) (result := .ok ([("name", .scalar "name2")], 0))
+      (path := (nestedChild 1).path) (result := { result := .ok ([("name", .scalar "name2")], 0) })
       (owners := []) (by cbv) List.mem_cons_self
 
 /-- One item carrier accounts for both silently pruned ancestors on its canonical witness.

@@ -1,4 +1,5 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.RetirementHandlers
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.OwnerReplayClosure
 
 /-! Joint owner accounting and retired ancestry from generated source histories. -/
 
@@ -29,7 +30,7 @@ theorem ExecutedWork.initialOwnerAncestry {work : Execution.Work}
           GroupRecordAt work node dependencies → dependencies = parents node.ref)
     : (State.initialize (Work.fromExecution work)).OwnerAncestry work parents [] :=
   ⟨
-    createWorkQueue_ownerAccounting work parents canonical,
+    createWorkQueue_ownerAccounting work parents canonical generated,
     generated.initialRootAncestorsRetired,
     createWorkQueue_healthyRetiredAncestors generated
   ⟩
@@ -61,7 +62,7 @@ theorem State.OwnerAncestry.handleGraphEvent {queue : State}
         exact prior.accounting.taskSuccess_available generated prior.retired matching fresh
           accepted
     | streamItems stream items => exact streamAvailable stream items rfl
-    | taskFailure | streamSuccess | streamFailure => trivial
+    | taskFailure | groupFailure | streamSuccess | streamFailure => trivial
   have next := prior.accounting.handleGraphEvent canonical generated valid event matching fresh
     accepted available
   have subset : (GraphEvent.failureSettlements before).Subset
@@ -78,7 +79,9 @@ theorem State.OwnerAncestry.handleGraphEvent {queue : State}
     | taskSuccess occurrence result =>
         exact State.taskSuccess_retirement prior.roots retired generated prior.accounting.groups
           prior.accounting.links canonical prior.accounting.pending.liveGroups
-          prior.accounting.pending.taskGroups supported cancelled matching
+          prior.accounting.pending.taskGroups supported cancelled
+          prior.accounting.pending.started prior.accounting.pending.matching
+          prior.accounting.pending.sound prior.accounting.pending.registration matching
     | taskFailure occurrence errors =>
         exact ⟨
           prior.roots.taskFailure occurrence errors,
@@ -91,7 +94,13 @@ theorem State.OwnerAncestry.handleGraphEvent {queue : State}
         exact State.streamItems_retirement prior.roots retired prior.accounting.pending.refs
           generated prior.accounting.groups prior.accounting.links canonical
           prior.accounting.pending.liveGroups prior.accounting.pending.taskGroups supported
-          cancelled matching
+          cancelled prior.accounting.pending.started prior.accounting.pending.matching
+          prior.accounting.pending.sound prior.accounting.pending.registration matching
+    | groupFailure failure =>
+        simp only [State.handleGraphEvent, State.cacheTaskFailures, List.foldl_nil, State.groupFailure]
+        split
+        · exact ⟨prior.roots, retired⟩
+        · split <;> exact ⟨prior.roots, retired⟩
     | streamSuccess stream =>
         simp only [State.handleGraphEvent, State.streamSuccess]
         split <;> exact ⟨prior.roots, retired⟩
@@ -103,6 +112,12 @@ theorem State.OwnerAncestry.handleGraphEvent {queue : State}
 -----------------------------------------------------------------------------------------
 -- Generated replay supplies stream availability at every actual earlier state
 -----------------------------------------------------------------------------------------
+
+/-- Retaining pending controls changes no owner or retired-ancestor certificate. -/
+theorem State.OwnerAncestry.withGroupFailures {queue : State} {work parents events}
+    (prior : queue.OwnerAncestry work parents events) (notices : List GroupFailureEvent)
+    : ({ queue with groupFailureEvents := notices }).OwnerAncestry work parents events :=
+  ⟨prior.accounting.withGroupFailures notices, prior.roots, prior.retired⟩
 
 /-- Healthy owner existence and retired ancestry follow from generated legal started replay.
 Witness: induction on source-event validity; region separation derives sequential stream
@@ -131,12 +146,13 @@ theorem ExecutedWork.replayGraphEvents_ownerAncestry {work : Execution.Work}
       have earlier := ih (fun past next included =>
         acceptedAt past next (included.trans (List.prefix_append before [event])))
       rw [State.replayGraphEvents_append]
-      apply earlier.handleGraphEvent generated canonical validBefore event matching fresh
-        (acceptedAt before event (List.prefix_refl _))
-      intro stream items same
-      subst event
-      exact createWorkQueue_replay_streamRegistrationsAvailable generated validBefore
-        matching fresh
+      have next := earlier.handleGraphEvent generated canonical validBefore event matching fresh
+        (acceptedAt before event (List.prefix_refl _)) (by
+          intro stream items same
+          subst event
+          exact createWorkQueue_replay_streamRegistrationsAvailable generated validBefore
+            matching fresh)
+      exact next.withGroupFailures _
 
 /-- Changing the terminal flag preserves all owner and ancestor evidence.
 Witness: none of these internal certificates inspect batch-control state.
@@ -147,8 +163,9 @@ theorem State.OwnerAncestry.withTerminated {queue : State} {work parents events}
   ⟨prior.accounting.withTerminated terminated, prior.roots, prior.retired⟩
 
 /-- Normalized generated replay retains healthy owners without any availability premise.
-Witness: the input start checker licenses each replay step, joint ancestry/owner induction
-derives integration availability, and normalization changes only the final terminal flag.
+Witness: actual batch ownership and independent structural retirement supply the joint
+certificate under the same consumed history. Supported cancellations license healthy
+retirement at that batch boundary.
 This proves internal accounting, not yet output admission or full implementation conformance.
 -/
 theorem ExecutedWork.runNormalized_ownerAncestry {work : Execution.Work}
@@ -161,13 +178,12 @@ theorem ExecutedWork.runNormalized_ownerAncestry {work : Execution.Work}
         ∧ ((State.initialize (Work.fromExecution work)).runNormalized
             batches).1.OwnerAncestry
             work parents batches.flatten := by
-  obtain ⟨parents, canonical⟩ := generated.groupRecordsCanonical
-  have replayed := generated.replayGraphEvents_ownerAncestry parents canonical valid
-    (inputsStarted_eachAccepted work batches started)
-  obtain ⟨terminated, same⟩ := createWorkQueue_runNormalized_stateCore started
-  refine ⟨parents, canonical, ?_⟩
-  rw [same]
-  exact replayed.withTerminated terminated
+  obtain ⟨parents, canonical, accounting⟩ :=
+    generated.runNormalized_ownerAccounting_of_started batches valid started
+  have structural := generated.runNormalized_structuralRetirement batches
+    (fun _ batch _ event => valid.eachMatches (List.mem_flatten.mpr ⟨_, batch, event⟩))
+  exact ⟨parents, canonical, accounting, structural.1,
+    structural.2.healthy accounting.cancelled⟩
 
 /-- Both combined-outcome and success-only healthy ownership follow from source laws.
 Witness: project the unconditional normalized owner/ancestry theorem and its ledger bridge.

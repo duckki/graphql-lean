@@ -142,12 +142,31 @@ theorem State.ChildStreamInventory.pruneEmptyGroups {queue : State}
   rw [State.pruneEmptyGroups_streams]
   exact inventory node member
 
+/-- Cache exposure preserves each task's distinct registered child links.
+Witness: rejection replacement retains the old link list and stream registry.
+-/
+theorem State.ChildStreamInventory.cacheTaskFailures {queue : State}
+    (inventory : queue.ChildStreamInventory) (available : List (Occurrence × Nat))
+    : (queue.cacheTaskFailures available).ChildStreamInventory := by
+  unfold State.cacheTaskFailures
+  induction available generalizing queue with
+  | nil => exact inventory
+  | cons entry rest ih =>
+      apply ih
+      dsimp only [List.foldl_cons]
+      split
+      · exact inventory
+      · rename_i node found
+        have known := inventory node (List.mem_of_find?_eq_some found)
+        exact inventory.putTaskNode _ known.1 known.2
+
 /-- Starting a task keeps existing nodes or appends a node with no child links.
 Witness: inspect the lookup guards; no stream descriptor is changed.
 -/
 theorem State.ChildStreamInventory.startTask {queue : State}
     (inventory : queue.ChildStreamInventory) (occurrence : Occurrence)
-    : (queue.startTask occurrence).ChildStreamInventory := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.startTask occurrence available).ChildStreamInventory := by
   unfold State.startTask
   split
   · exact inventory
@@ -160,30 +179,40 @@ theorem State.ChildStreamInventory.startTask {queue : State}
         · exact .inr ⟨node, old, rfl⟩
         · exact .inl (List.mem_singleton.mp new ▸ rfl)
 
-/-- Starting a group preserves stored stream links while starting its tasks.
-Witness: failed/missing groups do nothing; healthy starts use task-start preservation.
+/-- Starting a group retains each surviving task's distinct registered child links.
+Witness: cache updates retain links, successful starts append empty links, and failed
+startup filters task nodes without changing the stream registry.
 -/
 theorem State.ChildStreamInventory.startGroup {queue : State}
     (inventory : queue.ChildStreamInventory) (ref : NodeRef)
-    : (queue.startGroup ref).ChildStreamInventory := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.startGroup ref available).1.ChildStreamInventory := by
+  have cached := inventory.cacheTaskFailures available
   unfold State.startGroup
+  dsimp only
   split
-  · exact inventory
+  · exact cached
   · split
-    · exact inventory
-    · exact fold_preserves State.ChildStreamInventory State.startTask
-        (fun _ occurrence prior => prior.startTask occurrence) _ _ inventory
+    · exact fold_preserves State.ChildStreamInventory
+        (fun current task => current.startTask task available)
+        (fun _ occurrence prior => prior.startTask occurrence available) _ _ cached
+    · exact fun node member => cached node (List.mem_filter.mp member).1
 
 /-- Activating new work preserves distinct registered child links.
-Witness: group starts preserve the invariant, and stream starts only update active roots.
+Witness: the actual group fold retains surviving links; stream starts update roots only.
 -/
 theorem State.ChildStreamInventory.startNewWork {queue : State}
     (inventory : queue.ChildStreamInventory) (work : NewWork)
-    : (queue.startNewWork work).ChildStreamInventory := by
-  have groups := fold_preserves State.ChildStreamInventory State.startGroup
-    (fun _ ref prior => prior.startGroup ref) (work.newGroups.map Execution.DeliveryNode.ref)
-    { queue with rootGroups := queue.rootGroups ++ work.newGroups.map Execution.DeliveryNode.ref }
-    inventory
+    (available : List (Occurrence × Nat) := [])
+    : (queue.startNewWork work available).1.ChildStreamInventory := by
+  let step (acc : State × List GroupFailureEvent) (ref : NodeRef) :=
+    let (next, queued) := acc.1.startGroup ref available
+    (next, acc.2 ++ queued)
+  have groups := fold_preserves (fun acc => acc.1.ChildStreamInventory) step
+    (fun _ ref prior => prior.startGroup ref available)
+    (work.newGroups.map Execution.DeliveryNode.ref)
+    ({ queue with rootGroups := queue.rootGroups ++
+      work.newGroups.map Execution.DeliveryNode.ref }, []) inventory
   apply fold_preserves State.ChildStreamInventory State.startStream _ _ _ groups
   intro current ref prior
   unfold State.startStream

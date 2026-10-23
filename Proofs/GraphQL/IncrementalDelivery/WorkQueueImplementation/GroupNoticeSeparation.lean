@@ -21,39 +21,37 @@ theorem ExecutedWork.taskSuccess_groupNoticesSeparated
     : GroupNoticesSeparated
         ((((State.initialize (Work.fromExecution work)).replayGraphEvents
             before).taskSuccess
-            occurrence result).2) := by
+            occurrence result).2.1) := by
   let queue := (State.initialize (Work.fromExecution work)).replayGraphEvents before
-  change GroupNoticesSeparated (queue.taskSuccess occurrence result).2
+  change GroupNoticesSeparated (queue.taskSuccess occurrence result).2.1
   cases found : queue.taskNode? occurrence with
   | none => simp [State.taskSuccess, found, GroupNoticesSeparated]
   | some incoming =>
       rw [queue.taskSuccess_eq occurrence result incoming found]
-      split
-      · simp [GroupNoticesSeparated]
-      · let stored := queue.putTaskNode { incoming with value := some result.value }
-        let prepared := (stored.maybeIntegrateWork result.work (some occurrence)).1
-        let folded := incoming.task.groups.foldl successGroupStep (prepared, [], {})
-        let active := folded.1.startNewWork folded.2.2
-        obtain ⟨parents, canonical, records, links, live, tasks, roots, _⟩ :=
-          generated.replayGraphEvents_preparedRetirement before matching matched incoming
-        obtain ⟨refs, _, support⟩ :=
-          generated.taskSuccess_prepared_noticeMetadata matching matched incoming
-        have storedPresent : stored.RootGroupsPresent :=
-          generated.replayGraphEvents_rootsPresent before matching
-        have frame : LiveRootFrame prepared work parents :=
-          ⟨refs, records, links, live, tasks, roots, support,
-            storedPresent.maybeIntegrateWork result.work (some occurrence)⟩
-        have separated := frame.successGroupFold_noticeSeparation generated canonical
-          incoming.task.groups
-        obtain ⟨activeParents, activeCanonical, activeFrame⟩ :=
-          generated.taskSuccess_drain_liveRootFrame matching matched incoming
-            (generated.replayGraphEvents_rootsPresent before matching)
-        change GroupNoticesSeparated (folded.2.1 ++ active.drainReadyGroups.2)
-        apply separated.2.2.append
-          (activeFrame.drainReadyGroups_go_groupNoticesSeparated generated activeCanonical _)
-        intro ref noticed
-        exact activeFrame.drainReadyGroups_go_noProtectedNotice generated activeCanonical
-          ((separated.2.1 ref noticed).mono (fun _ retired => retired.startNewWork _)) _
+      let stored := queue.putTaskNode { incoming with value := some result.value }
+      let prepared := (stored.maybeIntegrateWork result.work (some occurrence)).1
+      let folded := incoming.task.groups.foldl successGroupStep (prepared, [], {})
+      let active := (folded.1.startNewWork folded.2.2).1
+      obtain ⟨parents, canonical, records, links, live, tasks, roots, _⟩ :=
+        generated.replayGraphEvents_preparedRetirement before matching matched incoming [] found
+      obtain ⟨refs, _, support⟩ :=
+        generated.taskSuccess_prepared_noticeMetadata matching matched incoming
+      have storedPresent : stored.RootGroupsPresent :=
+        generated.replayGraphEvents_rootsPresent before matching
+      have frame : LiveRootFrame prepared work parents :=
+        ⟨refs, records, links, live, tasks, roots, support,
+          storedPresent.maybeIntegrateWork result.work (some occurrence)⟩
+      have separated := frame.successGroupFold_noticeSeparation generated canonical
+        incoming.task.groups
+      obtain ⟨activeParents, activeCanonical, activeFrame⟩ :=
+        generated.taskSuccess_drain_liveRootFrame matching matched incoming found
+          (generated.replayGraphEvents_rootsPresent before matching)
+      change GroupNoticesSeparated (folded.2.1 ++ active.drainReadyGroups.2.1)
+      apply separated.2.2.append
+        (activeFrame.drainReadyGroups_go_groupNoticesSeparated generated activeCanonical _)
+      intro ref noticed
+      exact activeFrame.drainReadyGroups_go_noProtectedNotice generated activeCanonical
+        ((separated.2.1 ref noticed).mono (fun _ retired => retired.startNewWork _)) _
 
 /-- An item handler's leading group notices cannot recur in its subsequent drain.
 Witness: preparation protects every leading notice before its carrier is emitted; the
@@ -66,21 +64,21 @@ theorem ExecutedWork.streamItems_groupNoticesSeparated
     : GroupNoticesSeparated
         ((((State.initialize (Work.fromExecution work)).replayGraphEvents
             before).streamItems
-            stream items).2) := by
+            stream items).2.1) := by
   let queue := (State.initialize (Work.fromExecution work)).replayGraphEvents before
-  let prepared := items.foldl streamItemStep (queue, [], [], [])
+  let prepared := items.foldl streamItemStep (queue, [], [], [], [])
   have protection := generated.streamItems_prepared_noticeAncestorsRetired matching matched
   obtain ⟨parents, canonical, frame⟩ := generated.streamItems_prepared_liveRootFrame
     matching matched (generated.replayGraphEvents_rootsPresent before matching)
-  change GroupNoticesSeparated (queue.streamItems stream items).2
+  change GroupNoticesSeparated (queue.streamItems stream items).2.1
   rw [queue.streamItems_eq stream items]
   split
   · simp [GroupNoticesSeparated]
   · change GroupNoticesSeparated
-      ([.streamValues stream prepared.2.2.2 prepared.2.1 prepared.2.2.1]
-        ++ prepared.1.drainReadyGroups.2)
+      ([.streamValues stream prepared.2.2.2.1 prepared.2.1 prepared.2.2.1]
+        ++ prepared.1.drainReadyGroups.2.1)
     apply (show GroupNoticesSeparated
-      [.streamValues stream prepared.2.2.2 prepared.2.1 prepared.2.2.1]
+      [.streamValues stream prepared.2.2.2.1 prepared.2.1 prepared.2.2.1]
       from by simp [GroupNoticesSeparated]).append
         (frame.drainReadyGroups_go_groupNoticesSeparated generated canonical _)
     intro ref noticed
@@ -98,7 +96,7 @@ theorem ExecutedWork.handleGraphEvent_groupNoticesSeparated {work before event}
     : GroupNoticesSeparated
         ((((State.initialize (Work.fromExecution work)).replayGraphEvents
             before).handleGraphEvent
-            event).2) := by
+            event).2.1) := by
   cases event with
   | taskSuccess occurrence result =>
       exact generated.taskSuccess_groupNoticesSeparated matching matched
@@ -112,6 +110,11 @@ theorem ExecutedWork.handleGraphEvent_groupNoticesSeparated {work before event}
   | streamFailure stream errors =>
       simp only [State.handleGraphEvent, State.streamFailure]
       split <;> simp [GroupNoticesSeparated]
+  | groupFailure notice =>
+      simp only [State.handleGraphEvent, State.groupFailure]
+      split
+      · simp [GroupNoticesSeparated]
+      · split <;> simp [GroupNoticesSeparated]
 
 -----------------------------------------------------------------------------------------
 -- Raw replay is fresh against initialization and every earlier carrier
@@ -157,10 +160,10 @@ theorem ExecutedWork.rawEventReplay_groupNoticeSeparation
       rw [State.rawEventReplay_state]
       change GroupNoticesSeparated
         ((initial.rawEventReplay before).2
-          ++ ((initial.replayGraphEvents before).handleGraphEvent event).2)
+          ++ ((initial.replayGraphEvents before).handleGraphEvent event).2.1)
         ∧ ∀ ref ∈ initial.rootGroups,
           ref ∉ ((initial.rawEventReplay before).2
-            ++ ((initial.replayGraphEvents before).handleGraphEvent event).2).flatMap
+            ++ ((initial.replayGraphEvents before).handleGraphEvent event).2.1).flatMap
               rawGroupNoticeRefs
       refine ⟨separated.append later (fun ref noticed => excludes
         (List.mem_append_right _ noticed)), ?_⟩

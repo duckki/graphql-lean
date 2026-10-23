@@ -1,3 +1,4 @@
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.InitializationSpecialization
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.TaskLinkDispositionHandlers
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.BufferedOwnerRetention
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.StartedTaskAnnouncements
@@ -77,7 +78,8 @@ theorem State.TaskOwnersPresent.addTask {queue : State}
     (owners : queue.TaskOwnersPresent) (roots : queue.RootGroupsPresent) (task : Task)
     : (queue.addTask task).TaskOwnersPresent := by
   intro node member
-  rcases queue.addTask_startedOldOrRootOwner task member with old | ⟨same, owner, contributes, active⟩
+  rcases queue.addTask_startedOldOrRootOwner task member with
+    old | ⟨same, owner, contributes, active⟩
   · obtain ⟨key, contributes, present⟩ := owners node old
     exact ⟨key, contributes, queue.addTask_includesRefs task key present⟩
   · subst node
@@ -149,22 +151,113 @@ theorem State.TaskOwnersPresent.finishGroupSuccess {queue : State}
   exact ⟨key, contributes, State.finishGroupSuccess_linkedOwner_present group live
     (disposition.startedLinks registered old) member contributes present⟩
 
+/-- Exposing cached failures preserves each computation's owner metadata. -/
+theorem State.TaskOwnersPresent.cacheTaskFailures {queue : State}
+    (owners : queue.TaskOwnersPresent) (available : List (Occurrence × Nat))
+    : (queue.cacheTaskFailures available).TaskOwnersPresent := by
+  induction available generalizing queue with
+  | nil => exact owners
+  | cons entry rest ih =>
+      simp only [State.cacheTaskFailures, List.foldl_cons]
+      split
+      · exact ih owners
+      · rename_i node found
+        exact ih (owners.putTaskNode _ (owners node (List.mem_of_find?_eq_some found)))
+
+/-- A newly started computation is supported by the live group requesting it. -/
+private theorem State.TaskOwnersPresent.startLinkedTask {queue : State} {work}
+    (owners : queue.TaskOwnersPresent) (sound : queue.GroupMembershipSound)
+    (registered : queue.StartedTasksRegistered)
+    (matching : queue.RegisteredTasksMatch work) (chosen : Occurrence) (group : GroupNode)
+    (live : group ∈ queue.groupNodes) (listed : chosen ∈ group.tasks)
+    (available : List (Occurrence × Nat))
+    : (queue.startTask chosen available).TaskOwnersPresent := by
+  have newOwner (node : TaskNode) (member : node ∈ (queue.startTask chosen available).taskNodes)
+      (same : node.task.occurrence = chosen)
+      : ∃ key ∈ node.task.groups.map Execution.DeliveryNode.ref,
+          key ∈ (queue.startTask chosen available).groupNodes.map (fun g => g.group.node.ref) := by
+    have groupLive : group ∈ (queue.startTask chosen available).groupNodes := by
+      rwa [State.startTask_groupNodes]
+    exact ⟨group.group.node.ref,
+      (sound.startTask chosen available).startedOwner (registered.startTask chosen available)
+        (matching.startTask chosen available) member groupLive (same.symm ▸ listed),
+      List.mem_map_of_mem groupLive⟩
+  intro node member
+  have started := member
+  unfold State.startTask at member
+  split at member
+  · simpa only [State.startTask_groupNodes] using owners node member
+  · split at member
+    · simpa only [State.startTask_groupNodes] using owners node member
+    · rename_i task found
+      rcases List.mem_append.mp member with old | fresh
+      · simpa only [State.startTask_groupNodes] using owners node old
+      · obtain rfl := List.mem_singleton.mp fresh
+        exact newOwner _ started ((occurrence_beq_iff_eq _ _).mp
+          (List.find?_some (p := fun task : Task => task.occurrence == chosen) found))
+
+/-- Healthy startup retains owners; failed startup removes unsupported computations. -/
+theorem State.TaskOwnersPresent.startGroup {queue : State} {work : Execution.Work}
+    (owners : queue.TaskOwnersPresent) (sound : queue.GroupMembershipSound)
+    (registered : queue.StartedTasksRegistered)
+    (matching : queue.RegisteredTasksMatch work) (ref : Nat)
+    (available : List (Occurrence × Nat) := [])
+    : (queue.startGroup ref available).1.TaskOwnersPresent := by
+  have tasks (more : List Occurrence) (group : GroupNode) (current : State)
+      (prior : current.TaskOwnersPresent) (valid : current.GroupMembershipSound)
+      (known : current.StartedTasksRegistered) (matched : current.RegisteredTasksMatch work)
+      (live : group ∈ current.groupNodes) (listed : more.Subset group.tasks)
+      : (more.foldl (fun current task => current.startTask task available)
+          current).TaskOwnersPresent := by
+    induction more generalizing current with
+    | nil => exact prior
+    | cons task rest ih =>
+        exact ih _
+          (prior.startLinkedTask valid known matched task group live
+            (listed List.mem_cons_self) available)
+          (valid.startTask task available) (known.startTask task available)
+          (matched.startTask task available) (by rwa [State.startTask_groupNodes])
+          (fun _ member => listed (List.mem_cons_of_mem _ member))
+  unfold State.startGroup
+  dsimp only
+  split
+  · exact owners.cacheTaskFailures available
+  · rename_i group found
+    split
+    · exact tasks _ group _ (owners.cacheTaskFailures available)
+        (sound.cacheTaskFailures available) (registered.cacheTaskFailures available)
+        (matching.cacheTaskFailures available) (List.mem_of_find?_eq_some found)
+        (List.Subset.refl _)
+    · exact State.TaskOwnersPresent.removeGroup _ _
+
+/-- Activation follows each actual startup state, including immediate group removal. -/
 theorem State.TaskOwnersPresent.startNewWork {queue : State} {work : Execution.Work}
     (owners : queue.TaskOwnersPresent) (sound : queue.GroupMembershipSound)
     (registered : queue.StartedTasksRegistered)
     (matching : queue.RegisteredTasksMatch work) (released : NewWork)
-    : (queue.startNewWork released).TaskOwnersPresent := by
-  intro node member
-  rw [(queue.startNewWork_groupCore released).1]
-  rcases queue.startNewWork_oldOrRequested released member with old | requested
-  · exact owners node old
-  · obtain ⟨group, live, listed⟩ := List.mem_flatMap.mp requested
-    split at listed
-    · have contributes := (sound.startNewWork released).startedOwner
-        (registered.startNewWork released) (matching.startNewWork released) member
-        (by rwa [(queue.startNewWork_groupCore released).1]) listed
-      exact ⟨group.group.node.ref, contributes, List.mem_map_of_mem live⟩
-    · cases listed
+    (available : List (Occurrence × Nat) := [])
+    : (queue.startNewWork released available).1.TaskOwnersPresent := by
+  have groups (more : NodeRefs) (acc : State × List GroupFailureEvent)
+      (prior : acc.1.TaskOwnersPresent) (valid : acc.1.GroupMembershipSound)
+      (known : acc.1.StartedTasksRegistered) (matched : acc.1.RegisteredTasksMatch work)
+      : (more.foldl (fun (current, failures) ref =>
+          let (next, queued) := current.startGroup ref available
+          (next, failures ++ queued)) acc).1.TaskOwnersPresent := by
+    induction more generalizing acc with
+    | nil => exact prior
+    | cons ref rest ih =>
+        exact ih _ (prior.startGroup valid known matched ref available)
+          (valid.startGroup ref available) (known.startGroup ref available)
+          (matched.startGroup ref available)
+  have streams (more : NodeRefs) (current : State) (prior : current.TaskOwnersPresent)
+      : (more.foldl State.startStream current).TaskOwnersPresent := by
+    induction more generalizing current with
+    | nil => exact prior
+    | cons ref rest ih =>
+        apply ih
+        unfold State.startStream
+        split <;> exact prior
+  exact streams _ _ (groups _ _ owners sound registered matching)
 
 -----------------------------------------------------------------------------------------
 -- Non-registering release carries one compatible owner and membership frame
@@ -183,14 +276,16 @@ structure State.TaskOwnerFrame (queue : State) (work : Execution.Work) : Prop wh
 
 theorem State.TaskOwnerFrame.startNewWork {queue : State} {work : Execution.Work}
     (frame : queue.TaskOwnerFrame work) (released : NewWork)
-    : (queue.startNewWork released).TaskOwnerFrame work :=
+    (available : List (Occurrence × Nat) := [])
+    : (queue.startNewWork released available).1.TaskOwnerFrame work :=
   ⟨
-    frame.owners.startNewWork frame.sound frame.registered frame.matching released,
-    frame.disposition.startNewWork released,
-    frame.keys.startNewWork released,
-    frame.registered.startNewWork released,
-    frame.matching.startNewWork released,
-    frame.sound.startNewWork released
+    frame.owners.startNewWork frame.sound frame.registered frame.matching released
+      available,
+    frame.disposition.startNewWork released available,
+    frame.keys.startNewWork released available,
+    frame.registered.startNewWork released available,
+    frame.matching.startNewWork released available,
+    frame.sound.startNewWork released available
   ⟩
 
 theorem State.TaskOwnerFrame.finishGroupSuccess {queue : State} {work : Execution.Work}
@@ -218,13 +313,28 @@ theorem State.TaskOwnerFrame.removeGroup {queue : State} {work : Execution.Work}
     frame.sound.removeGroup key
   ⟩
 
+/-- Rejection replay retains live owners through the task update and owner removals. -/
+theorem State.TaskOwnerFrame.taskFailure {queue : State} {work : Execution.Work}
+    (frame : queue.TaskOwnerFrame work) (occurrence : Occurrence) (errors : Nat)
+    : (queue.taskFailure occurrence errors).1.TaskOwnerFrame work := by
+  cases found : queue.taskNode? occurrence with
+  | none => simpa only [State.taskFailure, found] using frame
+  | some task =>
+      have member := List.mem_of_find?_eq_some found
+      rw [queue.taskFailure_eq occurrence errors task found]
+      apply failureGroupFold_preserves (fun current => current.TaskOwnerFrame work)
+        (fun _ ref prior => prior.removeGroup ref)
+      exact ⟨frame.owners.putTaskNode _ (frame.owners task member),
+        frame.disposition.putTaskNode _, frame.keys,
+        frame.registered.putTaskNode _ (frame.registered task member), frame.matching, frame.sound⟩
+
 theorem State.TaskOwnerFrame.drainReadyGroups {queue : State} {work : Execution.Work}
-    (frame : queue.TaskOwnerFrame work)
-    : queue.drainReadyGroups.1.TaskOwnerFrame work :=
+    (frame : queue.TaskOwnerFrame work) (available : List (Occurrence × Nat) := [])
+    : (queue.drainReadyGroups available).1.TaskOwnerFrame work :=
   State.drainReadyGroups_preserves (fun current => current.TaskOwnerFrame work)
     (valid := frame)
-    (fun _ group prior live _ _ _ => (prior.finishGroupSuccess group live).startNewWork _)
-    (fun _ group _ prior _ _ _ => prior.removeGroup group.group.node.ref)
+    (fun _ group prior live _ _ =>
+      (prior.finishGroupSuccess group live).startNewWork _ available)
 
 theorem State.TaskOwnerFrame.removeTask {queue : State} {work : Execution.Work}
     (frame : queue.TaskOwnerFrame work) (occurrence : Occurrence)
@@ -313,8 +423,10 @@ theorem State.TaskOwnerFrame.putExistingTaskNode {queue : State} {work : Executi
     frame.registered.putTaskNode updated (sameTask ▸ frame.registered node member),
     frame.matching, frame.sound⟩
 
+set_option maxHeartbeats 800000 in
 theorem createWorkQueue_taskOwnerFrame (work : Execution.Work)
     : (State.initialize (Work.fromExecution work)).TaskOwnerFrame work := by
+  rw [State.initialize_empty_eq_activation]
   let initial := Work.fromExecution work
   let integrated := (({} : State).maybeIntegrateWork initial).1
   let newWork := (({} : State).maybeIntegrateWork initial).2

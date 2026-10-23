@@ -1,5 +1,6 @@
 import Proofs.GraphQL.IncrementalDelivery.Correctness.RootExecution
 import Proofs.GraphQL.IncrementalDelivery.Correctness.SourceObservation
+import Proofs.GraphQL.IncrementalDelivery.Semantics.WorkSize
 
 /-! Query observations reduced to independent work-history witnesses.
 Finite replay is proof-only and consumes supplied input groups; it is not a scheduler
@@ -87,7 +88,7 @@ theorem executionFromWork_observes_workHistory
               (scheduler work).initialStreams ensureID).run
               {} with
     | mk pending ids =>
-        simp only [executionFromWork, empty, beq_iff_eq, ↓reduceIte,
+        simp only [executionFromWork, Work.isEmpty_eq_size, empty, beq_iff_eq, ↓reduceIte,
           yieldIncrementalResults, initializeIncrementalResponse, allocated] at observed
         cases result with
         | single value => cases observed
@@ -158,7 +159,8 @@ theorem queryObservation_workHistory {createWorkQueue : Work → WorkQueue}
   · rename_i applies
     simp only [queryObservation, executeQueryWithFuel, applies, ↓reduceIte] at observed
     exact executeRootSelectionSet_observes_workHistory createWorkQueue schema resolvers _ fuel
-      (operation.rootType schema) source operation.selectionSet (conforms applies) observed
+      (operation.rootType schema) source operation.selectionSet
+      (by simpa only [queryCompletion, Work.isEmpty_eq_false] using conforms applies) observed
   · rename_i invalid
     simp only [queryObservation, executeQueryWithFuel, invalid] at observed
     cases result with

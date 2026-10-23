@@ -1,4 +1,8 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.FailureRemoval
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.FailureProjection
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.CacheEligibility
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.ActiveRejectionReplay
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.LiveRootReplay
 
 /-! Initial-frontier health under the actual accepted object-failure inventory. -/
 
@@ -9,7 +13,7 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 It includes task failures, so its cleanup proof is independent of failure-free replay.
 -/
 def GraphEvent.OnlyCloses : GraphEvent → Prop
-  | .taskFailure .. | .streamSuccess .. | .streamFailure .. => True
+  | .taskFailure .. | .groupFailure .. | .streamSuccess .. | .streamFailure .. => True
   | .taskSuccess .. | .streamItems .. => False
 
 -----------------------------------------------------------------------------------------
@@ -61,6 +65,13 @@ private theorem ClosingFrontier.handleGraphEvent
         List.nil_append]
       split <;> exact ⟨frontier.healthy, frontier.frontier, frontier.present,
         frontier.registered, frontier.matching⟩
+  | groupFailure failure =>
+      simp only [State.handleGraphEvent, State.groupFailure, State.objectFailureContribution,
+        List.nil_append]
+      split
+      · exact frontier
+      · split <;> exact ⟨frontier.healthy, frontier.frontier, frontier.present,
+          frontier.registered, frontier.matching⟩
 
 /-- Successive closing inputs preserve health under their accepted contributions.
 Witness: handler induction threads both the real state and reverse failure inventory;
@@ -79,7 +90,10 @@ private theorem ClosingFrontier.replayGraphEvents
   | cons event rest ih =>
       have next := frontier.handleGraphEvent generated initialized (closes event (by simp))
         (matching event (by simp))
-      have later := ih next (fun event member => closes event (by simp [member]))
+      have dispatched : ClosingFrontier (queue.dispatchGraphEvent event).1 work groups
+          (queue.objectFailureContribution event ++ failed) :=
+        ⟨next.healthy, next.frontier, next.present, next.registered, next.matching⟩
+      have later := ih dispatched (fun event member => closes event (by simp [member]))
         (fun event member => matching event (by simp [member]))
       simpa only [State.replayGraphEvents, List.foldl_cons,
         State.objectFailureContributions, List.append_assoc]
@@ -121,9 +135,65 @@ theorem createWorkQueue_replayRootsHealthy_closingContributions
     initialized events closes matching
   simpa only [List.append_nil] using final.healthy
 
-/-- Normalized closing-only replay preserves health with the same accepted inventory.
-Witness: source matching instantiates eventwise health; start discipline transports the
-state through batch termination and publisher normalization without changing roots. -/
+private theorem closing_replay_roots_subset (queue : State) (events : List GraphEvent)
+    (available : List (Occurrence × Nat)) (closes : ∀ event ∈ events, event.OnlyCloses)
+    : (queue.replayGraphEvents events available).rootGroups.Subset queue.rootGroups := by
+  have one (current : State) (event : GraphEvent) (closes : event.OnlyCloses)
+      : (current.dispatchGraphEvent event available).1.rootGroups.Subset current.rootGroups := by
+    let cached := current.cacheTaskFailures available
+    cases event with
+    | taskSuccess | streamItems => cases closes
+    | taskFailure occurrence errors =>
+        simpa only [State.dispatchGraphEvent, State.enqueueGroupFailures,
+          State.handleGraphEvent, cached, State.cacheTaskFailures_rootGroups]
+          using cached.taskFailure_rootsSubset occurrence errors
+    | streamSuccess stream =>
+        intro ref member
+        change ref ∈ (cached.streamSuccess stream).1.rootGroups at member
+        unfold State.streamSuccess at member
+        split at member <;> simpa only [cached, State.cacheTaskFailures_rootGroups] using member
+    | streamFailure stream errors =>
+        intro ref member
+        change ref ∈ (cached.streamFailure stream errors).1.rootGroups at member
+        unfold State.streamFailure at member
+        split at member <;> simpa only [cached, State.cacheTaskFailures_rootGroups] using member
+    | groupFailure failure =>
+        intro ref member
+        change ref ∈ (cached.groupFailure failure).1.rootGroups at member
+        unfold State.groupFailure at member
+        split at member
+        · simpa only [cached, State.cacheTaskFailures_rootGroups] using member
+        · split at member <;> simpa only [cached, State.cacheTaskFailures_rootGroups] using member
+  induction events generalizing queue with
+  | nil => exact List.Subset.refl _
+  | cons event rest ih =>
+      intro ref active
+      exact one queue event (closes _ List.mem_cons_self)
+        (ih _ (fun next member => closes next (List.mem_cons_of_mem _ member)) active)
+
+private theorem closing_batches_roots_subset (queue : State)
+    (batches : List (List GraphEvent))
+    (closes : ∀ event ∈ batches.flatten, event.OnlyCloses)
+    : (queue.replayBatches batches).rootGroups.Subset queue.rootGroups := by
+  induction batches generalizing queue with
+  | nil => exact List.Subset.refl _
+  | cons batch rest ih =>
+      intro ref active
+      have later := ih (queue.handleGraphEvents batch).1
+        (fun event member => closes event (List.mem_append_right _ member)) active
+      cases running : queue.terminated with
+      | true => simpa only [State.handleGraphEvents, running, ite_true] using later
+      | false =>
+          obtain ⟨terminal, core⟩ := queue.handleGraphEvents_stateCore batch running
+          rw [core] at later
+          exact closing_replay_roots_subset queue batch (GraphEvent.availableFailures batch)
+            (fun event member => closes event (List.mem_append_left _ member)) later
+
+/-- Normalized closing-only replay preserves health under all admitted source failures.
+Witness: roots remain in the protected initial frontier; source failure retention and
+active-cache exclusion rule out a direct failed contributor to a surviving root.
+Initialization independently protects every represented defer dependency.
+-/
 theorem createWorkQueue_runNormalized_rootsHealthy_closingContributions
     {work : Execution.Work} (generated : ExecutedWork work)
     (initialized
@@ -135,13 +205,45 @@ theorem createWorkQueue_runNormalized_rootsHealthy_closingContributions
     : ((State.initialize (Work.fromExecution work)).runNormalized
         batches).1.RootGroupsHealthy
         work
-        ((State.initialize (Work.fromExecution work)).objectFailureContributions
-          batches.flatten) := by
-  have healthy := createWorkQueue_replayRootsHealthy_closingContributions generated
-    initialized batches.flatten (fun _ member => valid.eachMatches member) closes
-  rw [inputsStarted_eq_batchesStarted] at started
-  obtain ⟨terminal, same⟩ := State.runNormalized_stateCore _ batches started
-  rw [same]
-  exact healthy
+        ((State.initialize
+            (Work.fromExecution work)).admittedObjectFailureContributionsForBatches
+          batches) := by
+  let initial := State.initialize (Work.fromExecution work)
+  let final := (initial.runNormalized batches).1
+  have checked : initial.batchesStarted batches = true := by
+    rwa [← inputsStarted_eq_batchesStarted]
+  rw [State.admittedObjectFailureContributionsForBatches_eq_of_started _ batches checked]
+  have frontier : final.rootGroups.Subset
+      (initial.initialGroups.map Execution.DeliveryNode.ref) := by
+    intro ref active
+    have root : ref ∈ initial.rootGroups := by
+      apply closing_batches_roots_subset initial batches closes
+      simpa only [final, State.runNormalized_replayBatches] using active
+    simpa only [initial, createWorkQueue_rootGroups] using root
+  have present : final.RootGroupsPresent := generated.runNormalized_rootsPresent batches
+    (fun event member => valid.eachMatches member)
+  have retained := generated.runNormalized_retainedFailures batches valid started
+  have clean := createWorkQueue_runNormalized_noActiveCachedFailure generated batches valid started
+  intro ref active invalid
+  obtain ⟨node, member, same⟩ := List.mem_map.mp (frontier active)
+  obtain ⟨dependencies, producer, known, protection⟩ :=
+    Initializes.groupDependencies_uninvalidated initialized member
+  have failure : GroupInvalidated work (GraphEvent.failureSettlements batches.flatten) node.ref :=
+    same.symm ▸ invalid
+  rcases generated.groupInvalidated_causes known failure with
+    ⟨occurrence, owners, taskKnown, owner, recorded⟩
+      | ⟨dependency, inDependencies, ancestorFailure⟩
+  · obtain ⟨group, live, refEq⟩ := List.mem_map.mp (present ref active)
+    have contributes : group.group.node.ref ∈ owners := by
+      rw [refEq, ← same]
+      exact owner
+    obtain ⟨listed, task, lookup, rejected, rest⟩ :=
+      retained.retained occurrence recorded owners taskKnown group live contributes
+    have none := (State.rejectedTask?_eq_none_iff.mp
+      (clean group live (refEq.symm ▸ active))) occurrence listed task lookup
+    rw [none] at rejected
+    cases rejected
+  · exact protection (GraphEvent.failureSettlements batches.flatten) dependency
+      inDependencies ancestorFailure
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

@@ -26,7 +26,8 @@ theorem SnapshotTaskEvidence.putPending {queue : Kernel} {work key node}
     keys := frame.keys.putGroupNode _,
     live := frame.live.putGroupNode _ (frame.live node member),
     buffered := frame.buffered.putGroupNodeSameTasks frame.keys node member _ rfl rfl,
-    sound := frame.sound.putGroupNode _ (frame.sound node member) }
+    sound := frame.sound.putGroupNode _ (frame.sound node member),
+    registration := frame.registration.putGroupNode _ (frame.live node member) }
 
 -----------------------------------------------------------------------------------------
 -- The actual contributor fold constructs the drain's registration and retirement evidence
@@ -63,7 +64,7 @@ theorem successGroupFold_releaseEvidence {queue : Kernel} {work parents}
         · rename_i node found
           let updated := { node with pending := node.pending - 1 }
           have updatedFrame := frame.putPending found updated.pending
-          have updatedForest := forest.putCounters frame.keys found updated.pending node.failure
+          have updatedForest := forest.putCounters frame.keys found updated.pending
           have updatedEdges := (ReferenceWorkQueue.State.putPending_groupEdgesFrom frame.keys
             found updated.pending).trans edges
           have updatedClosures := closures.post (fun _ retired => retired.putGroupNode updated)

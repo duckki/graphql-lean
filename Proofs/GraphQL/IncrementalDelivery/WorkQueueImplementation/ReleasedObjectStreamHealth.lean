@@ -63,8 +63,9 @@ theorem ExecutedWork.runNormalized_releasedObjectStreamHealthy_of_itemSafety
           TaskAt work occurrence owners producer (.object path result)
           → occurrence ∈ failedBefore failures events.length
           → occurrence
-            ∈ (State.initialize (Work.fromExecution work)).objectFailureContributions
-                batches.flatten)
+            ∈ (State.initialize
+                (Work.fromExecution work)).admittedObjectFailureContributionsForBatches
+                batches)
     (itemsSafe
       : ∀ address index,
           Occurrence.item address index ∈ batches.flatten.flatMap GraphEvent.successes
@@ -81,12 +82,22 @@ theorem ExecutedWork.runNormalized_releasedObjectStreamHealthy_of_itemSafety
   cases Option.some.inj same
   have support := generated.runNormalized_streamHealthyDependency valid started carrier
     released known
-  obtain ⟨terminal, queueEq⟩ := createWorkQueue_runNormalized_stateCore started
-  rw [queueEq] at support
-  have accepted := (State.initialize (Work.fromExecution work)).batchesStarted_acceptsBatch batches
-    (by rwa [← inputsStarted_eq_batchesStarted])
-  exact generated.replayGraphEvents_objectStreamHealthy_of_itemSafety valid accepted known
-    settled support.1 support.2.1.1 (.inr support.2) failedPayloads objectsRecorded
-    itemsSafe contributors
+  obtain ⟨ancestor, path, result, producer⟩ := NodeAt.stream_objectProducer_owners known
+  obtain ⟨owner, ownerDependencies, descriptor, sameRef⟩ :=
+    TaskAt.executionGroup_owner producer support.1
+  have retired := sameRef.symm ▸ support.2.1
+  have uncancelled := sameRef.symm ▸ support.2.2
+  have healthy : ¬NodeFailed work matching events failures owner.ref := by
+    intro failure
+    have exposed := (createWorkQueue_runNormalized_regionInventory valid).registered_exposed
+      retired.1
+    have invalid := generated.exposed_groupFailure_invalidated valid descriptor exposed
+      failedPayloads itemsSafe failure
+    have recorded := invalid.toRecordInvalidated.restrict_objectFailures generated
+      (groupRecordAt_of_nodeAt descriptor) objectsRecorded
+    exact (generated.runNormalized_retiredHealth batches valid started).1 owner ownerDependencies
+      (groupRecordAt_of_nodeAt descriptor) retired uncancelled recorded
+  exact generated.objectProducedStream_healthy_of_dependency valid known settled support.1
+    failedPayloads itemsSafe (sameRef ▸ healthy) contributors
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

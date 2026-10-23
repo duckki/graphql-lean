@@ -37,9 +37,8 @@ theorem groupSuccessAllowed_of_certificates
           { active := queue.initialGroups ++ queue.initialStreams }
         w.failures.Perm
           (streamCuts
-            ++ sourceObjectFailureCuts 0
-                (queue.eligibleFailureBlocks
-                  (queue.sourceRunBlocks publisher inputs).2.2)))
+            ++ informativeObjectFailureCuts work
+                (queue.sourceRunBlocks publisher inputs).2.2))
     (selected : w.events[index]? = some (.groupSuccess group groups streams))
     : EventAllowed work (initialRefs work) w.matching (w.events.take index) w.failures
         (.groupSuccess group groups streams) := by
@@ -94,8 +93,8 @@ theorem mixed_admissionCertificates {work inputs}
             let publisher : IncrementalPublisher :=
               { active := queue.initialGroups ++ queue.initialStreams }
             let objects :=
-              sourceObjectFailureCuts 0
-                (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher inputs).2.2)
+              informativeObjectFailureCuts work
+                (queue.sourceRunBlocks publisher inputs).2.2
             ∃ streams,
               StreamFailureCuts work
                 ((queue.runNormalized inputs).2.flatten.flatMap publicationAtoms) streams

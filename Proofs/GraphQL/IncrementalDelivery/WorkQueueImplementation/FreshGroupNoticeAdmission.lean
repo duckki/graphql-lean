@@ -81,9 +81,8 @@ theorem groupNotice_canAnnounce_of_fresh
           { active := queue.initialGroups ++ queue.initialStreams }
         w.failures.Perm
           (streamCuts
-            ++ sourceObjectFailureCuts 0
-                (queue.eligibleFailureBlocks
-                  (queue.sourceRunBlocks publisher inputs).2.2)))
+            ++ informativeObjectFailureCuts work
+                (queue.sourceRunBlocks publisher inputs).2.2))
     (contents
       : RetainedNoticeContents work w.matching (w.events.take index)
           (failedBefore w.failures index) inputs.flatten child)
@@ -130,9 +129,8 @@ theorem groupNotice_canAnnounce
           { active := queue.initialGroups ++ queue.initialStreams }
         w.failures.Perm
           (streamCuts
-            ++ sourceObjectFailureCuts 0
-                (queue.eligibleFailureBlocks
-                  (queue.sourceRunBlocks publisher inputs).2.2)))
+            ++ informativeObjectFailureCuts work
+                (queue.sourceRunBlocks publisher inputs).2.2))
     (contents
       : RetainedNoticeContents work w.matching (w.events.take index)
           (failedBefore w.failures index) inputs.flatten child)

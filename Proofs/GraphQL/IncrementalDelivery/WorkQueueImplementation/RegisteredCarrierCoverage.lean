@@ -22,7 +22,8 @@ theorem ExecutedWork.successfulCarrier_registeredContributor_covered
     (generated : ExecutedWork work)
     (valid : ValidGraphEvents work (before ++ [event]))
     (started
-      : (State.initialize (Work.fromExecution work)).acceptsBatch (before ++ [event])
+      : State.eventsStarted [] (State.initialize (Work.fromExecution work))
+          (before ++ [event])
         = true)
     (covered
       : (State.initialize (Work.fromExecution work)).ReplayClosuresCovered
@@ -30,7 +31,7 @@ theorem ExecutedWork.successfulCarrier_registeredContributor_covered
     (carrier
       : (((State.initialize (Work.fromExecution work)).replayGraphEvents
             before).handleGraphEvent
-          event).2[index]?
+          event).2.1[index]?
         = some (.groupSuccess group groups streams))
     (registered
       : task
@@ -45,18 +46,18 @@ theorem ExecutedWork.successfulCarrier_registeredContributor_covered
                 WorkQueueEvent.objectValues).length
               + (((((State.initialize (Work.fromExecution work)).replayGraphEvents
                       before).handleGraphEvent
-                    event).2.take
+                    event).2.1.take
                     index).flatMap
                   WorkQueueEvent.objectValues).length) := by
   let initial := State.initialize (Work.fromExecution work)
   have boundary (earlier : List GraphEvent) (prior : earlier.IsPrefix (before ++ [event]))
       : (initial.replayGraphEvents earlier).PendingAccounting work
           (GraphEvent.taskSettlements earlier) := by
-    have accepts : initial.acceptsBatch earlier = true := by
+    have accepts : State.eventsStarted [] initial earlier = true := by
       obtain ⟨later, same⟩ := prior
-      apply State.acceptsBatch_prefix (after := later)
+      apply State.eventsStarted_prefix (after := later)
       rwa [same]
-    exact (createWorkQueue_pendingAccounting work).replayGraphEvents
+    exact (createWorkQueue_pendingAccounting work generated.declarations).replayGraphEvents
       (before := []) generated earlier (valid.prefix prior) accepts
   have final := boundary (before ++ [event]) ⟨[], by simp⟩
   obtain ⟨_, payload, producer, _, known⟩ := (final.matching task registered).1
@@ -67,9 +68,8 @@ theorem ExecutedWork.successfulCarrier_registeredContributor_covered
         (before ++ [event]))
       : ∃ node,
           (initial.replayGraphEvents earlier).taskNode? task.occurrence = some node
-          ∧ (initial.replayGraphEvents earlier).taskHasHealthyOwner node.task = true
           ∧ group.ref ∈ node.task.groups.map Execution.DeliveryNode.ref := by
-    obtain ⟨node, found, healthy⟩ :=
+    obtain ⟨node, found⟩ :=
       generated.successfulCarrier_contributorSuccess_accepted valid started
         (List.mem_of_getElem? carrier) prior known contributes
     have earlierPrefix := (List.prefix_append earlier
@@ -79,13 +79,13 @@ theorem ExecutedWork.successfulCarrier_registeredContributor_covered
     obtain ⟨_, _, _, _, descriptor⟩ :=
       (ledger.matching node.task (ledger.started node lookup.1)).1
     have sameOwners := (TaskAt.unique (lookup.2 ▸ descriptor) known).1
-    exact ⟨node, found, healthy, sameOwners.symm ▸ contributes⟩
+    exact ⟨node, found, sameOwners.symm ▸ contributes⟩
   rcases List.mem_append.mp supplied with earlier | current
   · obtain ⟨prefixInputs, middle, sameBefore⟩ := List.mem_iff_append.mp earlier
     have prior : (prefixInputs ++ [GraphEvent.taskSuccess task.occurrence result]).IsPrefix
         (before ++ [event]) :=
       ⟨middle ++ [event], by simp [sameBefore, List.append_assoc]⟩
-    obtain ⟨node, found, healthy, contributes⟩ := accepted prefixInputs prior
+    obtain ⟨node, found, contributes⟩ := accepted prefixInputs prior
     have prefixBoundary := boundary prefixInputs
       ((List.prefix_append prefixInputs [GraphEvent.taskSuccess task.occurrence result]).trans
         prior)
@@ -103,23 +103,23 @@ theorem ExecutedWork.successfulCarrier_registeredContributor_covered
       rw [sameBefore, List.append_assoc, List.cons_append]
       exact List.mem_append_right _ member
     have states : initial.replayGraphEvents before
-        = ((initial.replayGraphEvents prefixInputs).taskSuccess
-            task.occurrence result).1.replayGraphEvents middle := by
+        = ((initial.replayGraphEvents prefixInputs).dispatchGraphEvent
+            (.taskSuccess task.occurrence result)).1.replayGraphEvents middle := by
       simp only [sameBefore, State.replayGraphEvents, List.foldl_append,
-        List.foldl_cons, State.handleGraphEvent]
-    have atCarrier : ((((initial.replayGraphEvents prefixInputs).taskSuccess
-        task.occurrence result).1.replayGraphEvents middle).handleGraphEvent event).2[index]?
+        List.foldl_cons]
+    have atCarrier : ((((initial.replayGraphEvents prefixInputs).dispatchGraphEvent
+        (.taskSuccess task.occurrence result)).1.replayGraphEvents middle).handleGraphEvent event).2.1[index]?
         = some (.groupSuccess group groups streams) := by
-      change ((initial.replayGraphEvents before).handleGraphEvent event).2[index]?
+      change ((initial.replayGraphEvents before).handleGraphEvent event).2.1[index]?
         = some (.groupSuccess group groups streams) at carrier
       rwa [states] at carrier
     have delivered := suffix.success_before_carrier prefixBoundary.liveGroups
-      prefixBoundary.taskGroups prefixBoundary.started matchingLater found healthy
+      prefixBoundary.taskGroups prefixBoundary.registration matchingLater found
       atCarrier contributes
     refine ⟨result.value, ?_⟩
     change (task.occurrence, result.value) ∈ published.take
       (((initial.rawEventReplay before).2.flatMap WorkQueueEvent.objectValues).length
-        + ((((initial.replayGraphEvents before).handleGraphEvent event).2.take index).flatMap
+        + ((((initial.replayGraphEvents before).handleGraphEvent event).2.1.take index).flatMap
           WorkQueueEvent.objectValues).length)
     rw [states, sameBefore]
     simp only [State.rawEventReplay_append, State.rawEventReplay_state,
@@ -127,12 +127,13 @@ theorem ExecutedWork.successfulCarrier_registeredContributor_covered
       State.handleGraphEvent, Nat.add_assoc]
     rw [List.take_add]
     exact List.mem_append_right _
-      (by simpa only [Nat.add_assoc, State.handleGraphEvent] using delivered)
+      (by simpa only [Nat.add_assoc, State.dispatchGraphEvent, State.handleGraphEvent, State.cacheTaskFailures,
+        List.foldl_nil] using delivered)
   · have same := List.mem_singleton.mp current
     subst event
-    obtain ⟨node, found, healthy, contributes⟩ := accepted before ⟨[], by simp⟩
+    obtain ⟨node, found, contributes⟩ := accepted before ⟨[], by simp⟩
     have suffix := covered.afterPrefix before [GraphEvent.taskSuccess task.occurrence result]
-    have delivered := suffix.success_at_carrier found healthy carrier contributes
+    have delivered := suffix.success_at_carrier found carrier contributes
     refine ⟨result.value, ?_⟩
     rw [List.take_add]
     exact List.mem_append_right _ delivered
@@ -146,7 +147,8 @@ theorem ExecutedWork.successfulCarrier_rootContributor_covered
     (generated : ExecutedWork work)
     (valid : ValidGraphEvents work (before ++ [event]))
     (started
-      : (State.initialize (Work.fromExecution work)).acceptsBatch (before ++ [event])
+      : State.eventsStarted [] (State.initialize (Work.fromExecution work))
+          (before ++ [event])
         = true)
     (covered
       : (State.initialize (Work.fromExecution work)).ReplayClosuresCovered
@@ -154,7 +156,7 @@ theorem ExecutedWork.successfulCarrier_rootContributor_covered
     (carrier
       : (((State.initialize (Work.fromExecution work)).replayGraphEvents
             before).handleGraphEvent
-          event).2[index]?
+          event).2.1[index]?
         = some (.groupSuccess group groups streams))
     (known : TaskAt work (.executionGroup address) owners none payload)
     (contributes : group.ref ∈ owners)
@@ -166,7 +168,7 @@ theorem ExecutedWork.successfulCarrier_rootContributor_covered
                 WorkQueueEvent.objectValues).length
               + (((((State.initialize (Work.fromExecution work)).replayGraphEvents
                       before).handleGraphEvent
-                    event).2.take
+                    event).2.1.take
                     index).flatMap
                   WorkQueueEvent.objectValues).length) := by
   obtain ⟨task, registered, occurrence, groups⟩ :=

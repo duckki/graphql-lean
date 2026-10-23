@@ -54,8 +54,7 @@ theorem LiveRootFrame.successGroupStep_noProtectedNotice
       have active : updated.group.node.ref ∈ next.rootGroups := by
         have flags := Bool.and_eq_true_iff.mp finishes
         have refEq := State.groupNode?_ref found
-        simpa only [updated, refEq, List.contains_iff_mem]
-          using (Bool.and_eq_true_iff.mp flags.1).1
+        simpa only [updated, refEq, List.contains_iff_mem] using flags.1
       have updatedMember : updated ∈ next.groupNodes := by
         exact List.mem_map.mpr ⟨node, member, by simp [updated]⟩
       have lookup := nextFrame.refs.groupNode?_of_mem updatedMember
@@ -103,8 +102,8 @@ theorem LiveRootFrame.successGroupFold_noProtectedNotice {queue work parents ref
 
 /-- A recursive drain cannot announce a group whose ancestors were already protected.
 Witness: each actual selected successful flush excludes that ref and preserves its
-protection; failure cleanup emits no notices and cannot undo retirement. The result holds
-at every bounded drain prefix, including prefixes after cached-error closures.
+protection through child startup and the successful ready drain. The result holds at
+every bounded drain prefix with the same supplied rejection snapshot.
 -/
 theorem LiveRootFrame.drainReadyGroups_go_noProtectedNotice
     {queue work parents ref} (frame : LiveRootFrame queue work parents)
@@ -113,7 +112,10 @@ theorem LiveRootFrame.drainReadyGroups_go_noProtectedNotice
       : ∀ node dependencies,
           GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (protectedRef : queue.AncestorsRetired work ref) (fuel : Nat)
-    : ref ∉ (State.drainReadyGroups.go fuel queue).2.flatMap rawGroupNoticeRefs := by
+    (available : List (Occurrence × Nat) := [])
+    : ref
+      ∉ (State.drainReadyGroups.go available fuel queue).2.1.flatMap
+          rawGroupNoticeRefs := by
   induction fuel generalizing queue with
   | zero => simp [State.drainReadyGroups.go]
   | succ fuel ih =>
@@ -127,23 +129,17 @@ theorem LiveRootFrame.drainReadyGroups_go_noProtectedNotice
         | none => simp [found] at choice
         | some candidate =>
             simp only [found] at choice
-            change (if candidate.failure.isSome || candidate.pending == 0 then
-              some candidate else none) = some node at choice
+            change (if candidate.pending == 0 then some candidate else none) = some node at choice
             split at choice
             · cases Option.some.inj choice
               have same := State.groupNode?_ref found
-              cases cached : node.failure with
-              | none =>
-                  rw [List.flatMap_append, List.mem_append, not_or]
-                  exact ⟨frame.finishGroupSuccess_noProtectedNotice generated canonical
-                    (same ▸ found) (same ▸ active) protectedRef,
-                    ih (frame.finishGroupSuccess generated canonical
-                      (same ▸ found) (same ▸ active))
-                      (protectedRef.mono (fun _ retired =>
-                        (retired.finishGroupSuccess node).startNewWork _))⟩
-              | some errors =>
-                  exact ih (frame.removeGroup node.group.node.ref)
-                    (protectedRef.mono (fun _ retired => retired.removeGroup node.group.node.ref))
+              rw [List.flatMap_append, List.mem_append, not_or]
+              exact ⟨frame.finishGroupSuccess_noProtectedNotice generated canonical
+                (same ▸ found) (same ▸ active) protectedRef,
+                ih (frame.finishGroupSuccess generated canonical
+                  (same ▸ found) (same ▸ active) available)
+                  (protectedRef.mono (fun _ retired =>
+                    (retired.finishGroupSuccess node).startNewWork _ available))⟩
             · contradiction
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

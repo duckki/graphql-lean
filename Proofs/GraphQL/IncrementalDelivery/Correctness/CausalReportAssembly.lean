@@ -195,6 +195,9 @@ theorem finish_accounted_of_report_scopes
     (coherent : MixedOwnerPaths.WorkAt paths bound work)
     (under : ExecutionPaths.WorkUnder base work)
     (explained : Explains work groups streams events matching failures)
+    (supported
+      : OpenFailureCauses work ((groups ++ streams).map DeliveryNode.ref)
+          matching events failures)
     (batched : WorkBatching events batches)
     (accounted
       : ∀ occurrence owners producer payload,
@@ -221,7 +224,7 @@ theorem finish_accounted_of_report_scopes
         ∧ (∀ event ∈ tail, eventPending event = [] ∧ ¬IsValue event)
         ∧ tail.length
           ≤ (announcedRefs ((groups ++ streams).map DeliveryNode.ref) events).length := by
-  apply batched.finish_accounted explained accounted
+  apply batched.finish_accounted explained supported accounted
   intro occurrence owners producer payload known unpublished
   exact cancelled_reported_of_group_and_task_scopes coherent under groupReports taskReports
     ((accounted occurrence owners producer payload known).resolve_right unpublished) known

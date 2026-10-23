@@ -1,26 +1,28 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.SourceObservation
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.BatchReplay
 
-/-! State projections and start checks for executable source-event and batch replay. -/
+/-! Replay preserves host-batch boundaries. Eventwise reasoning within one batch uses
+that entire batch's fixed availability snapshot, including its unconsumed suffix.
+-/
 
 namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.Execution (WorkQueueEvent)
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
-/-- Replay source events through the executable queue while forgetting raw
-work-event output. This is proof-side notation for the queue's state fold. -/
-def State.replayGraphEvents (queue : State) (events : List GraphEvent) : State :=
-  events.foldl (fun current event => (current.handleGraphEvent event).1) queue
+/-- Replay one batch prefix under an explicitly supplied computation-availability snapshot. -/
+def State.replayGraphEvents (queue : State) (events : List GraphEvent)
+    (available : List (Occurrence × Nat) := [])
+    : State :=
+  events.foldl (fun current event => (current.dispatchGraphEvent event available).1) queue
 
-/-- Appending one source event performs exactly one further queue handler step.
-Witness: the list-fold concatenation equation. -/
-theorem State.replayGraphEvents_append (queue : State)
-    (before : List GraphEvent) (event : GraphEvent)
-    : queue.replayGraphEvents (before ++ [event])
-      = ((queue.replayGraphEvents before).handleGraphEvent event).1 := by
-  simp [State.replayGraphEvents, List.foldl_append]
+/-- Appending inputs composes event replay while preserving the availability snapshot. -/
+theorem State.replayGraphEvents_append (queue : State) (before after : List GraphEvent)
+    (available : List (Occurrence × Nat) := [])
+    : queue.replayGraphEvents (before ++ after) available
+      = (queue.replayGraphEvents before available).replayGraphEvents after available := by
+  simp only [State.replayGraphEvents, List.foldl_append]
 
-/-- A recursive view of the existing `inputsStarted` fold, used only to make
-its per-batch conditions available to induction proofs. -/
+/-- The recursive form of the public source start/stop checker. -/
 def State.batchesStarted : State → List (List GraphEvent) → Bool
   | _, [] => true
   | queue, batch :: rest =>
@@ -30,9 +32,7 @@ def State.batchesStarted : State → List (List GraphEvent) → Bool
       && queue.acceptsBatch batch
       && next.batchesStarted rest
 
-/-- The recursive view computes exactly the Boolean validity component of
-the implementation's batch fold. -/
-private theorem State.fold_started_eq
+theorem State.fold_started_eq
     (queue : State) (valid : Bool) (batches : List (List GraphEvent))
     : (batches.foldl
         (fun (state, good) batch =>
@@ -47,38 +47,17 @@ private theorem State.fold_started_eq
       rw [ih]
       simp [State.batchesStarted, Bool.and_assoc]
 
-/-- The public start-discipline checker is the recursive predicate at the
-generated queue's initial state. -/
-theorem inputsStarted_eq_batchesStarted
-    (work : Execution.Work) (batches : List (List GraphEvent))
+/-- The public source checker is the recursive predicate at concrete initialization. -/
+theorem inputsStarted_eq_batchesStarted (work : Execution.Work)
+    (batches : List (List GraphEvent))
     : inputsStarted work batches
       = (State.initialize (Work.fromExecution work)).batchesStarted batches := by
   unfold inputsStarted
   rw [State.fold_started_eq]
-  simp
+  rfl
 
-/-- The work-event accumulator does not affect the executable queue-state
-projection of one batch's event fold. -/
-theorem State.foldGraphEvents_state
-    (queue : State) (outputs : List WorkQueueEvent)
-    (events : List GraphEvent)
-    : (events.foldl
-        (fun (current, accumulated) event =>
-          let (next, produced) := current.handleGraphEvent event
-          (next, accumulated ++ produced))
-        (queue, outputs)).1
-      = queue.replayGraphEvents events := by
-  induction events generalizing queue outputs with
-  | nil => rfl
-  | cons event rest ih =>
-      simp only [List.foldl_cons, State.replayGraphEvents]
-      exact ih (queue.handleGraphEvent event).1
-        (outputs ++ (queue.handleGraphEvent event).2)
-
-/-- A true recursive batch check exposes the current batch's start checks
-and the remaining batch suffix's check. -/
-theorem State.batchesStarted_cons
-    (queue : State) (batch : List GraphEvent)
+/-- A valid batch exposes acceptance and the actual next batch's starting state. -/
+theorem State.batchesStarted_cons (queue : State) (batch : List GraphEvent)
     (rest : List (List GraphEvent))
     (valid : queue.batchesStarted (batch :: rest) = true)
     : queue.terminated = false
@@ -87,312 +66,277 @@ theorem State.batchesStarted_cons
   simp [State.batchesStarted] at valid
   exact ⟨valid.1.1.1, valid.1.2, valid.2⟩
 
-/-- Publisher normalization never changes the queue-state projection of a
-batch replay. Thus state accounting may be proved before wire mapping. -/
+/-- Batch-start checks concatenate through the actual batch-aware state replay. -/
+theorem State.batchesStarted_append (queue : State)
+    (before after : List (List GraphEvent))
+    : queue.batchesStarted (before ++ after)
+      = (queue.batchesStarted before
+          && (queue.replayBatches before).batchesStarted after) := by
+  induction before generalizing queue with
+  | nil => simp [State.batchesStarted, State.replayBatches]
+  | cons batch rest ih =>
+      simp only [List.cons_append, State.batchesStarted, State.replayBatches, List.foldl_cons]
+      rw [ih]
+      simp only [State.replayBatches, Bool.and_assoc]
+
+/-- Output accumulation leaves the dispatch fold's state unchanged. -/
+theorem State.foldGraphEvents_state (queue : State) (outputs : List WorkQueueEvent)
+    (events : List GraphEvent) (available : List (Occurrence × Nat))
+    : (events.foldl
+        (fun (current, accumulated) event =>
+          let (next, produced) := current.dispatchGraphEvent event available
+          (next, accumulated ++ produced))
+        (queue, outputs)).1
+      = queue.replayGraphEvents events available := by
+  induction events generalizing queue outputs with
+  | nil => rfl
+  | cons event rest ih =>
+      simp only [List.foldl_cons, State.replayGraphEvents]
+      exact ih (queue.dispatchGraphEvent event available).1
+        (outputs ++ (queue.dispatchGraphEvent event available).2)
+
+/-- Publisher normalization preserves exact complete-batch state replay. -/
 theorem State.runNormalized_stateFold (queue : State) (batches : List (List GraphEvent))
     : (queue.runNormalized batches).1
-      = batches.foldl (fun current batch => (current.handleGraphEvents batch).1)
-          queue := by
-  have stepState (acc : NormalizedAcc) (batch : List GraphEvent)
-      : (normalizedStep acc batch).1 =
-          (acc.1.handleGraphEvents batch).1 := by
-    obtain ⟨current, publisher, outputs⟩ := acc
-    simp only [normalizedStep]
-    split <;> rfl
-  have foldState (more : List (List GraphEvent)) (acc : NormalizedAcc)
-      : (more.foldl normalizedStep acc).1 =
-          more.foldl (fun current batch => (current.handleGraphEvents batch).1)
-            acc.1 := by
-    induction more generalizing acc with
-    | nil => rfl
-    | cons batch rest ih =>
-        simp only [List.foldl_cons]
-        rw [ih, stepState]
-  let publisher : IncrementalPublisher :=
-    { active := queue.initialGroups ++ queue.initialStreams }
-  change (batches.foldl normalizedStep (queue, publisher, [])).1 = _
-  exact foldState batches (queue, publisher, [])
+      = batches.foldl (fun current batch => (current.handleGraphEvents batch).1) queue :=
+  queue.runNormalized_replayBatches batches
 
------------------------------------------------------------------------------------------
--- Started batches agree with event replay, except for the final control flag
------------------------------------------------------------------------------------------
+/-- Strict eventwise start checking is a proof-only language for conditional lemmas.
+Unlike public batch admission, it requires membership at every consumption step. It is
+not derived from `inputsStarted` or used to restrict the public source domain.
+-/
+def State.eventsStarted (available : List (Occurrence × Nat))
+    : State → List GraphEvent → Bool
+  | _, [] => true
+  | queue, event :: rest =>
+      queue.acceptsGraphEvent event
+      && State.eventsStarted available (queue.dispatchGraphEvent event available).1 rest
 
-/-- A sequential trace records only the start check that the executable
-queue performs immediately before each graph event. -/
-private inductive AcceptedTrace : State → List GraphEvent → Prop where
-  | nil (queue : State) : AcceptedTrace queue []
-  | cons {queue : State} {event : GraphEvent} {rest : List GraphEvent}
-    (accepted : queue.acceptsGraphEvent event = true)
-    (tail : AcceptedTrace (queue.handleGraphEvent event).1 rest)
-    : AcceptedTrace queue (event :: rest)
-
-/-- The executable batch-start checker is equivalent to an eventwise accepted
-trace in its forward direction. -/
-private theorem State.acceptsBatch_trace
-    (queue : State) (events : List GraphEvent)
-    (accepted : queue.acceptsBatch events = true)
-    : AcceptedTrace queue events := by
-  induction events generalizing queue with
-  | nil => exact .nil queue
-  | cons event rest ih =>
-      have both : queue.acceptsGraphEvent event = true
-          ∧ ((queue.handleGraphEvent event).1).acceptsBatch rest = true := by
-        simpa [State.acceptsBatch] using accepted
-      exact .cons both.1 (ih (queue.handleGraphEvent event).1 both.2)
-
-/-- Accepted traces concatenate when the second trace starts at the first
-trace's executable final queue state. -/
-theorem AcceptedTrace.append
-    {queue : State} {first second : List GraphEvent}
-    (left : AcceptedTrace queue first)
-    (right : AcceptedTrace (queue.replayGraphEvents first) second)
-    : AcceptedTrace queue (first ++ second) := by
-  induction left generalizing second with
-  | nil queue =>
-      simpa [State.replayGraphEvents] using right
-  | @cons queue event rest accepted tail ih =>
-      simpa [State.replayGraphEvents] using AcceptedTrace.cons accepted (ih right)
-
-/-- Accepted-event traces are prefix closed. -/
-theorem AcceptedTrace.prefix
-    {queue : State} {events before : List GraphEvent}
-    (trace : AcceptedTrace queue events) (earlier : before.IsPrefix events)
-    : AcceptedTrace queue before := by
-  induction trace generalizing before with
-  | nil queue =>
-      have empty : before = [] := by
-        have length := earlier.length_le
-        simp at length
-        exact length
-      subst before
-      exact .nil queue
-  | @cons queue event rest accepted tail ih =>
-      cases before with
-      | nil => exact .nil queue
-      | cons first remaining =>
-          obtain ⟨suffix, same⟩ := earlier
-          have parts : first = event ∧ remaining ++ suffix = rest := by
-            simpa using List.cons.inj same
-          rcases parts with ⟨rfl, tailEq⟩
-          exact .cons accepted (ih ⟨suffix, tailEq⟩)
-
-/-- In an accepted trace, the last event is accepted after replaying exactly
-the events before it. -/
-private theorem AcceptedTrace.lastAccepted
-    {queue : State} {before : List GraphEvent} {event : GraphEvent}
-    (trace : AcceptedTrace queue (before ++ [event]))
-    : (queue.replayGraphEvents before).acceptsGraphEvent event = true := by
+/-- Strict eventwise checks compose with the same computation snapshot. -/
+theorem State.eventsStarted_append (queue : State) (available : List (Occurrence × Nat))
+    (before after : List GraphEvent)
+    : State.eventsStarted available queue (before ++ after)
+      = (State.eventsStarted available queue before
+          && State.eventsStarted available (queue.replayGraphEvents before available)
+              after) := by
   induction before generalizing queue with
-  | nil =>
-      cases trace with
-      | cons accepted tail => simpa [State.replayGraphEvents] using accepted
+  | nil => simp [State.eventsStarted, State.replayGraphEvents]
+  | cons event rest ih =>
+      simp only [List.cons_append, State.eventsStarted]
+      rw [ih]
+      simp only [State.replayGraphEvents, List.foldl_cons, Bool.and_assoc]
+
+/-- A strict eventwise prefix retains its fixed availability snapshot. -/
+theorem State.eventsStarted_prefix {queue : State} {before after : List GraphEvent}
+    {available : List (Occurrence × Nat)}
+    (accepted : State.eventsStarted available queue (before ++ after) = true)
+    : State.eventsStarted available queue before = true := by
+  rw [State.eventsStarted_append] at accepted
+  exact (Bool.and_eq_true_iff.mp accepted).1
+
+/-- Eligibility retained from dispatch boundaries strictly before the replayed history ends. -/
+def State.replayEligibility (earlier : GraphEvent → Bool)
+    (available : List (Occurrence × Nat))
+    : State → List GraphEvent → GraphEvent → Bool
+  | _, [] => earlier
+  | queue, event :: rest =>
+      State.replayEligibility
+        (fun candidate => earlier candidate || queue.acceptsGraphEvent candidate)
+        available (queue.dispatchGraphEvent event available).1 rest
+
+/-- Within-batch checks compose with accumulated eligibility and fixed cache availability. -/
+theorem State.acceptsBatch_go_append (earlier : GraphEvent → Bool) (queue : State)
+    (available : List (Occurrence × Nat)) (before after : List GraphEvent)
+    : State.acceptsBatch.go earlier available queue (before ++ after)
+      = (State.acceptsBatch.go earlier available queue before
+          && State.acceptsBatch.go
+              (State.replayEligibility earlier available queue before) available
+              (queue.replayGraphEvents before available) after) := by
+  induction before generalizing queue earlier with
+  | nil => simp [State.acceptsBatch.go, State.replayGraphEvents, State.replayEligibility]
+  | cons event rest ih =>
+      simp only [List.cons_append, State.acceptsBatch.go]
+      rw [ih]
+      simp only [State.replayGraphEvents, State.replayEligibility, List.foldl_cons,
+        Bool.and_assoc]
+
+/-- Admission retains the accumulated eligibility and checks the residual FIFO. -/
+theorem State.acceptsBatch_go_cons_eligible (earlier : GraphEvent → Bool) (queue : State)
+    (available : List (Occurrence × Nat)) (event : GraphEvent) (rest : List GraphEvent)
+    (accepted : State.acceptsBatch.go earlier available queue (event :: rest) = true)
+    : (earlier event || queue.acceptsGraphEvent event) = true
+      ∧ State.acceptsBatch.go
+          (fun candidate => earlier candidate || queue.acceptsGraphEvent candidate)
+          available (queue.dispatchGraphEvent event available).1 rest
+        = true := by
+  have first := (Bool.and_eq_true_iff.mp accepted).1
+  have later := (Bool.and_eq_true_iff.mp accepted).2
+  refine ⟨?_, later⟩
+  cases event with
+  | groupFailure failure => simp only [Bool.or_eq_true]; exact Or.inr first
+  | taskSuccess | taskFailure | streamItems | streamSuccess | streamFailure => exact first
+
+/-- A within-batch history retains the complete batch's eligibility and cache visibility. -/
+theorem State.acceptsBatch_go_prefix {earlier : GraphEvent → Bool} {queue : State}
+    {before after : List GraphEvent} {available : List (Occurrence × Nat)}
+    (accepted : State.acceptsBatch.go earlier available queue (before ++ after) = true)
+    : State.acceptsBatch.go earlier available queue before = true := by
+  rw [State.acceptsBatch_go_append] at accepted
+  exact (Bool.and_eq_true_iff.mp accepted).1
+
+/-- Accumulated permission has an actual earlier dispatch-boundary witness. -/
+theorem State.replayEligibility_witness (earlier : GraphEvent → Bool) (queue : State)
+    (available : List (Occurrence × Nat)) (before : List GraphEvent) (event : GraphEvent)
+    (eligible : State.replayEligibility earlier available queue before event = true)
+    : earlier event = true
+      ∨ ∃ history,
+          history.IsPrefix before
+          ∧ (queue.replayGraphEvents history available).acceptsGraphEvent event
+            = true := by
+  induction before generalizing earlier queue with
+  | nil => exact Or.inl eligible
   | cons first rest ih =>
-      cases trace with
-      | cons accepted tail =>
-          simpa [State.replayGraphEvents] using ih tail
+      rcases ih _ _ eligible with prior | ⟨history, isPrefix, accepted⟩
+      · simp only [Bool.or_eq_true] at prior
+        rcases prior with old | current
+        · exact Or.inl old
+        · exact Or.inr ⟨[], ⟨first :: rest, rfl⟩, current⟩
+      · obtain ⟨suffix, same⟩ := isPrefix
+        exact Or.inr ⟨first :: history, ⟨suffix, by simp [same]⟩, accepted⟩
 
-/-- Prefix closure and the last-event lemma expose the acceptance fact at
-any event position in a complete accepted trace. -/
-private theorem AcceptedTrace.acceptedAt
-    {queue : State} {events before : List GraphEvent} {event : GraphEvent}
-    (trace : AcceptedTrace queue events)
+/-- Admission under a fixed snapshot identifies an actual earlier eligibility boundary. -/
+theorem State.acceptsBatch_go_eachAccepted (queue : State)
+    (events before : List GraphEvent) (event : GraphEvent)
+    (available : List (Occurrence × Nat))
+    (accepted : State.acceptsBatch.go (fun _ => false) available queue events = true)
     (earlier : (before ++ [event]).IsPrefix events)
-    : (queue.replayGraphEvents before).acceptsGraphEvent event = true :=
-  (trace.prefix earlier).lastAccepted
+    : ∃ history,
+        history.IsPrefix before
+        ∧ (queue.replayGraphEvents history available).acceptsGraphEvent event = true := by
+  obtain ⟨after, joined⟩ := earlier
+  have all : State.acceptsBatch.go (fun _ => false) available queue
+      ((before ++ [event]) ++ after) = true := joined ▸ accepted
+  have prefixAccepted := all |> State.acceptsBatch_go_prefix
+  rw [State.acceptsBatch_go_append] at prefixAccepted
+  have last := (Bool.and_eq_true_iff.mp prefixAccepted).2
+  have permission := (State.acceptsBatch_go_cons_eligible _ _ _ event [] last).1
+  simp only [Bool.or_eq_true] at permission
+  rcases permission with previous | current
+  · rcases State.replayEligibility_witness _ queue _ before event previous with impossible | witness
+    · cases impossible
+    · exact witness
+  · exact ⟨before, ⟨[], by simp⟩, current⟩
 
-/-- One open batch changes exactly the sequentially replayed queue state,
-apart from the final termination flag. The raw-event accumulator has no
-effect on any task, group, or stream bookkeeping. -/
-theorem State.handleGraphEvents_stateCore
-    (queue : State) (events : List GraphEvent)
+/-- Prefix invariants may use the evidence established at every earlier history cut. -/
+theorem prefix_invariant {α : Type} (events : List α) (property : List α → Prop)
+    (initial : property [])
+    (step
+      : ∀ history event rest,
+          events = history ++ event :: rest
+          → (∀ earlier, earlier.IsPrefix history → property earlier)
+          → property (history ++ [event]))
+    : property events := by
+  have loop (remaining history : List α) (split : events = history ++ remaining)
+      (known : ∀ earlier, earlier.IsPrefix history → property earlier)
+      : property events := by
+    induction remaining generalizing history with
+    | nil => simpa only [split, List.append_nil] using known history (List.prefix_refl _)
+    | cons event rest ih =>
+        have next := step history event rest split known
+        apply ih (history ++ [event]) (by simp [split, List.append_assoc])
+        intro earlier before
+        by_cases shorter : earlier.length ≤ history.length
+        · exact known earlier (List.prefix_of_prefix_length_le before
+            (List.prefix_append _ _) shorter)
+        · have same : earlier = history ++ [event] := before.eq_of_length_le (by
+            simp only [List.length_append, List.length_singleton]
+            omega)
+          exact same ▸ next
+  exact loop events []
+    (by simp)
+    (fun earlier before => by
+      have empty := List.eq_nil_of_prefix_nil before
+      exact empty ▸ initial)
+
+/-- Every admitted callback was eligible at a boundary at or before its consumption. -/
+theorem State.acceptsBatch_eachAccepted (queue : State) (batch before : List GraphEvent)
+    (event : GraphEvent) (accepted : queue.acceptsBatch batch = true)
+    (earlier : (before ++ [event]).IsPrefix batch)
+    : ∃ history,
+        history.IsPrefix before
+        ∧ (queue.replayGraphEvents history
+            (GraphEvent.availableFailures batch)).acceptsGraphEvent
+            event
+          = true := by
+  obtain ⟨after, joined⟩ := earlier
+  have all : State.acceptsBatch.go (fun _ => false) (GraphEvent.availableFailures batch) queue
+      ((before ++ [event]) ++ after) = true := by
+    simpa only [joined, State.acceptsBatch] using accepted
+  have prefixAccepted := all |> State.acceptsBatch_go_prefix
+  rw [State.acceptsBatch_go_append] at prefixAccepted
+  have last := (Bool.and_eq_true_iff.mp prefixAccepted).2
+  have permission := (State.acceptsBatch_go_cons_eligible _ _ _ event [] last).1
+  simp only [Bool.or_eq_true] at permission
+  rcases permission with previous | current
+  · rcases State.replayEligibility_witness _ queue _ before event previous with impossible | witness
+    · cases impossible
+    · exact witness
+  · exact ⟨before, ⟨[], by simp⟩, current⟩
+
+/-- An accepted batch history exposes a later batch at the batch-aware history state. -/
+theorem State.batchesStarted_eachBatch (queue : State)
+    (before : List (List GraphEvent)) (batch : List GraphEvent)
+    (after : List (List GraphEvent))
+    (valid : queue.batchesStarted (before ++ batch :: after) = true)
+    : (queue.replayBatches before).acceptsBatch batch = true := by
+  rw [State.batchesStarted_append] at valid
+  exact ((queue.replayBatches before).batchesStarted_cons batch after
+    (Bool.and_eq_true_iff.mp valid).2).2.1
+
+/-- The public start discipline licenses an event with its original host-batch snapshot. -/
+theorem inputsStarted_eachAccepted (work : Execution.Work)
+    (beforeBatches afterBatches : List (List GraphEvent))
+    (batch before : List GraphEvent) (event : GraphEvent)
+    (started : inputsStarted work (beforeBatches ++ batch :: afterBatches) = true)
+    (earlier : (before ++ [event]).IsPrefix batch)
+    : ∃ history,
+        history.IsPrefix before
+        ∧ (((State.initialize (Work.fromExecution work)).replayBatches
+              beforeBatches).replayGraphEvents
+            history (GraphEvent.availableFailures batch)).acceptsGraphEvent
+            event
+          = true := by
+  rw [inputsStarted_eq_batchesStarted] at started
+  exact State.acceptsBatch_eachAccepted _ batch before event
+    (State.batchesStarted_eachBatch _ beforeBatches batch afterBatches started) earlier
+
+/-- One unfinished batch uses fixed-snapshot event replay, then may set termination. -/
+theorem State.handleGraphEvents_stateCore (queue : State) (events : List GraphEvent)
     (startOpen : queue.terminated = false)
     : ∃ terminal : Bool,
         (queue.handleGraphEvents events).1
-        = { queue.replayGraphEvents events with terminated := terminal } := by
-  let step (acc : State × List WorkQueueEvent) (event : GraphEvent) :=
-    let (current, outputs) := acc
-    let (next, produced) := current.handleGraphEvent event
-    (next, outputs ++ produced)
-  have folded : (events.foldl step (queue, [])).1 =
-      queue.replayGraphEvents events := queue.foldGraphEvents_state [] events
-  cases outcome : events.foldl step (queue, []) with
-  | mk current outputs =>
-      rw [outcome] at folded
-      dsimp only at folded
-      cases empty : current.rootGroups.isEmpty && current.rootStreams.isEmpty with
-      | true =>
-          refine ⟨true, ?_⟩
-          change (if queue.terminated then (queue, []) else
-              match events.foldl step (queue, []) with
-              | (current, outputs) =>
-                  if current.rootGroups.isEmpty && current.rootStreams.isEmpty then
-                    ({ current with terminated := true },
-                      outputs ++ [.workQueueTermination])
-                  else (current, outputs)).1 =
-            { queue.replayGraphEvents events with terminated := true }
-          simp only [startOpen, Bool.false_eq_true, ite_false, outcome]
-          rw [← folded]
-          simp [empty]
-      | false =>
-          refine ⟨current.terminated, ?_⟩
-          change (if queue.terminated then (queue, []) else
-              match events.foldl step (queue, []) with
-              | (current, outputs) =>
-                  if current.rootGroups.isEmpty && current.rootStreams.isEmpty then
-                    ({ current with terminated := true },
-                      outputs ++ [.workQueueTermination])
-                  else (current, outputs)).1 =
-            { queue.replayGraphEvents events with terminated := current.terminated }
-          simp only [startOpen, Bool.false_eq_true, ite_false, outcome]
-          rw [← folded]
-          simp [empty]
-
-/-- Before termination, a batch handler has exactly the state obtained by
-sequentially replaying its graph events. Termination only toggles its flag. -/
-theorem State.handleGraphEvents_nonterminalState
-    (queue : State) (events : List GraphEvent)
-    (startOpen : queue.terminated = false)
-    (endOpen : (queue.handleGraphEvents events).1.terminated = false)
-    : (queue.handleGraphEvents events).1 = queue.replayGraphEvents events := by
-  let step (acc : State × List WorkQueueEvent) (event : GraphEvent) :=
-    let (current, outputs) := acc
-    let (next, produced) := current.handleGraphEvent event
-    (next, outputs ++ produced)
-  have folded : (events.foldl step (queue, [])).1 =
-      queue.replayGraphEvents events :=
-    queue.foldGraphEvents_state [] events
-  change (if queue.terminated then (queue, []) else
-      match events.foldl step (queue, []) with
-      | (current, outputs) =>
-          if current.rootGroups.isEmpty && current.rootStreams.isEmpty then
-            ({ current with terminated := true },
-              outputs ++ [.workQueueTermination])
-          else (current, outputs)).1.terminated = false at endOpen
-  change (if queue.terminated then (queue, []) else
-      match events.foldl step (queue, []) with
-      | (current, outputs) =>
-          if current.rootGroups.isEmpty && current.rootStreams.isEmpty then
-            ({ current with terminated := true },
-              outputs ++ [.workQueueTermination])
-          else (current, outputs)).1 = queue.replayGraphEvents events
-  cases outcome : events.foldl step (queue, []) with
-  | mk current outputs =>
-      rw [outcome] at folded
-      dsimp only at folded
-      simp only [startOpen, Bool.false_eq_true, ite_false]
-      cases empty : current.rootGroups.isEmpty && current.rootStreams.isEmpty with
-      | true => simp [startOpen, outcome, empty] at endOpen
-      | false => simpa [empty] using folded
-
-/-- For host batches accepted by the start checker, the queue state used by
-the public adapter is sequential graph-event replay with only its terminal
-flag possibly changed. A terminal batch cannot have a later accepted batch. -/
-theorem State.runNormalized_stateCore (queue : State)
-    (batches : List (List GraphEvent))
-    (started : queue.batchesStarted batches = true)
-    : ∃ terminal : Bool,
-        (queue.runNormalized batches).1
-        = { queue.replayGraphEvents batches.flatten with terminated := terminal } := by
-  induction batches generalizing queue with
-  | nil =>
-      refine ⟨queue.terminated, ?_⟩
-      simp [State.runNormalized_stateFold, State.replayGraphEvents]
-  | cons batch rest ih =>
-      obtain ⟨startOpen, _, restStarted⟩ :=
-        queue.batchesStarted_cons batch rest started
-      let next := (queue.handleGraphEvents batch).1
-      cases rest with
-      | nil =>
-          obtain ⟨terminal, same⟩ :=
-            queue.handleGraphEvents_stateCore batch startOpen
-          refine ⟨terminal, ?_⟩
-          rw [queue.runNormalized_stateFold]
-          simpa [State.replayGraphEvents, next] using same
-      | cons later tail =>
-          have nextOpen : next.terminated = false :=
-            (next.batchesStarted_cons later tail restStarted).1
-          have same : next = queue.replayGraphEvents batch :=
-            queue.handleGraphEvents_nonterminalState batch startOpen nextOpen
-          obtain ⟨terminal, restSame⟩ :=
-            ih next restStarted
-          refine ⟨terminal, ?_⟩
-          rw [queue.runNormalized_stateFold]
-          simpa [next, same, State.runNormalized_stateFold,
-            State.replayGraphEvents, List.foldl_append] using restSame
-
-/-- Every input admitted by the public start-discipline checker forms one
-sequentially accepted graph-event trace after flattening its batches. -/
-private theorem State.batchesStarted_trace
-    (queue : State) (batches : List (List GraphEvent))
-    (valid : queue.batchesStarted batches = true)
-    : AcceptedTrace queue batches.flatten := by
-  induction batches generalizing queue with
-  | nil => exact .nil queue
-  | cons batch rest ih =>
-      obtain ⟨startOpen, batchAccepted, restStarted⟩ :=
-        queue.batchesStarted_cons batch rest valid
-      have firstTrace : AcceptedTrace queue batch :=
-        queue.acceptsBatch_trace batch batchAccepted
-      cases rest with
-      | nil =>
-          simpa using firstTrace
-      | cons nextBatch later =>
-          let next := (queue.handleGraphEvents batch).1
-          have nextOpen : next.terminated = false :=
-            (next.batchesStarted_cons nextBatch later restStarted).1
-          have same : next = queue.replayGraphEvents batch :=
-            queue.handleGraphEvents_nonterminalState batch startOpen nextOpen
-          have tailTrace : AcceptedTrace next (nextBatch :: later).flatten :=
-            ih next restStarted
-          rw [same] at tailTrace
-          simpa using firstTrace.append tailTrace
-
-/-- Started batches license every flattened input at its actual sequential state.
-Witness: the accepted-trace bridge and the recursive batch acceptance equation.
-This does not require a batch to remain nonterminal after its final event.
--/
-theorem State.batchesStarted_acceptsBatch (queue : State)
-    (batches : List (List GraphEvent)) (started : queue.batchesStarted batches = true)
-    : queue.acceptsBatch batches.flatten = true := by
-  have all {current events} (trace : AcceptedTrace current events)
-      : current.acceptsBatch events = true := by
-    induction trace with
-    | nil => rfl
-    | cons accepted _ ih =>
-        simpa only [State.acceptsBatch, Bool.and_eq_true] using And.intro accepted ih
-  exact all (queue.batchesStarted_trace batches started)
-
-/-- The public source start-discipline clause supplies the precise
-event-by-event acceptance premise of the replay accounting theorem. -/
-theorem inputsStarted_eachAccepted
-    (work : Execution.Work) (batches : List (List GraphEvent))
-    (started : inputsStarted work batches = true)
-    (before : List GraphEvent) (event : GraphEvent)
-    (earlier : (before ++ [event]).IsPrefix batches.flatten)
-    : (((State.initialize (Work.fromExecution work)).replayGraphEvents
-          before).acceptsGraphEvent
-        event)
-      = true := by
-  have recursive : (State.initialize (Work.fromExecution work)).batchesStarted batches = true := by
-    rw [← inputsStarted_eq_batchesStarted]
-    exact started
-  have trace := (State.initialize (Work.fromExecution work)).batchesStarted_trace
-    batches recursive
-  exact trace.acceptedAt earlier
-
-/-- Accepted normalized replay agrees with eventwise replay except for termination.
-Witness: the recursive start-checker bridge and the normalized queue-state equation. -/
-theorem createWorkQueue_runNormalized_stateCore
-    {work : Execution.Work} {batches : List (List GraphEvent)}
-    (started : inputsStarted work batches = true)
-    : ∃ terminal : Bool,
-        ((State.initialize (Work.fromExecution work)).runNormalized batches).1
         = {
-          (State.initialize (Work.fromExecution work)).replayGraphEvents
-              batches.flatten with
+          queue.replayGraphEvents events (GraphEvent.availableFailures events) with
             terminated := terminal
         } := by
-  rw [inputsStarted_eq_batchesStarted] at started
-  exact State.runNormalized_stateCore _ batches started
+  let available := GraphEvent.availableFailures events
+  let step (acc : State × List WorkQueueEvent) (event : GraphEvent) :=
+    let (next, produced) := acc.1.dispatchGraphEvent event available
+    (next, acc.2 ++ produced)
+  have folded : (events.foldl step (queue, [])).1
+      = queue.replayGraphEvents events available :=
+    queue.foldGraphEvents_state [] events available
+  unfold State.handleGraphEvents
+  simp only [startOpen, Bool.false_eq_true, ite_false]
+  split
+  · refine ⟨true, ?_⟩
+    change { (events.foldl step (queue, [])).1 with terminated := true }
+      = { queue.replayGraphEvents events available with terminated := true }
+    exact congrArg (fun current => { current with terminated := true }) folded
+  · refine ⟨(events.foldl step (queue, [])).1.terminated, ?_⟩
+    change (events.foldl step (queue, [])).1
+      = { queue.replayGraphEvents events available with
+          terminated := (events.foldl step (queue, [])).1.terminated }
+    rw [folded]
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

@@ -27,7 +27,8 @@ theorem itemCursorSeed_entry {path index items slices}
     : ∃ childSlices,
         WorkCursorSeed
           (resultCursors
-            (ResponsePositions.listCursors (path ++ [.index (index + offset)])) result)
+            (ResponsePositions.listCursors (path ++ [.index (index + offset)]))
+            result.result)
           children childSlices := by
   induction offset generalizing index items slices with
   | zero =>
@@ -63,39 +64,78 @@ theorem sourceTasks_located_seeded {work address current producer owners cursors
   have navigation := StructuralEquivalence.located_of_current located
   clear located
   induction navigation with
-  | root => exact ⟨cursors, slices, seeded, .refl _, rfl⟩
+  | root =>
+      exact ⟨
+        cursors,
+        slices,
+        seeded.withoutDeclarations,
+        by rw [sourceTasks_withoutDeclarations]; exact .refl _,
+        rfl
+      ⟩
   | left _ ih =>
       obtain ⟨localCursors, _, seed, included, origin⟩ := ih
       cases seed with
       | combine left right =>
           rw [sourceTasks] at included
-          exact ⟨localCursors, _, left,
-            (List.sublist_append_left _ _).trans included, origin⟩
+          exact ⟨
+            localCursors,
+            _,
+            left.withoutDeclarations,
+            by
+              simpa only [sourceTasks_withoutDeclarations]
+                using (List.sublist_append_left _ _).trans included,
+            origin
+          ⟩
   | right _ ih =>
       obtain ⟨localCursors, _, seed, included, origin⟩ := ih
       cases seed with
       | combine left right =>
           rw [sourceTasks] at included
-          exact ⟨localCursors, _, right,
-            (List.sublist_append_right _ _).trans included, origin⟩
+          exact ⟨
+            localCursors,
+            _,
+            right.withoutDeclarations,
+            by
+              simpa only [sourceTasks_withoutDeclarations]
+                using (List.sublist_append_right _ _).trans included,
+            origin
+          ⟩
   | @executionGroup address groups path result children producer owners located ih =>
       obtain ⟨localCursors, _, seed, included, origin⟩ := ih
       cases seed with
       | executionGroup child =>
           rw [sourceTasks] at included
-          refine ⟨_, _, child, (List.sublist_cons_self _ _).trans included, ?_⟩
-          exact ⟨⟨.executionGroup address, producer, .object path result, 0⟩,
-            included.subset List.mem_cons_self, rfl, rfl⟩
+          simp only [SourceTask.cursors, resultCursors_deliveryResult] at included
+          refine ⟨
+            _,
+            _,
+            child.withoutDeclarations,
+            by
+              simpa only [sourceTasks_withoutDeclarations]
+                using (List.sublist_cons_self _ _).trans included,
+            ?_
+          ⟩
+          exact ⟨
+            ⟨.executionGroup address, producer, .object path result.deliveryResult, 0⟩,
+            included.subset List.mem_cons_self,
+            rfl,
+            by simp [SourceTask.cursors]
+          ⟩
   | @item address node items producer owners index result children located entry ih =>
       obtain ⟨localCursors, _, seed, included, origin⟩ := ih
       cases seed with
       | @stream _ _ _ start _ cursor itemsSeed =>
           rw [sourceTasks, cursor, Option.getD_some] at included
           obtain ⟨member, child⟩ := sourceItemTasks_entry entry address producer node start 0
-          simp only [Nat.zero_add] at member child
+          simp only [Nat.zero_add, SourceTask.cursors, resultCursors_deliveryResult] at member child
           obtain ⟨childSlices, childSeed⟩ := itemCursorSeed_entry itemsSeed entry
-          exact ⟨_, childSlices, childSeed, child.trans included,
-            ⟨_, included.subset member, rfl, rfl⟩⟩
+          exact ⟨
+            _,
+            childSlices,
+            childSeed.withoutDeclarations,
+            by simpa only [sourceTasks_withoutDeclarations] using child.trans included,
+            ⟨_, included.subset member, rfl, by simp [SourceTask.cursors]⟩
+          ⟩
 
 /-- An item label's response index is its producer-seeded start plus its task ordinal.
 Object labels do not consume a stream cursor.
@@ -128,7 +168,7 @@ theorem sourceTasks_task_seeded {work occurrence owners producer payload cursors
       obtain ⟨_, _, _, included, _⟩ :=
         sourceTasks_located_seeded seeded located.toCurrent
       rw [sourceTasks] at included
-      exact ⟨⟨.executionGroup address, producer, .object path result, 0⟩,
+      exact ⟨⟨.executionGroup address, producer, .object path result.deliveryResult, 0⟩,
         included.subset List.mem_cons_self, rfl, rfl, rfl, trivial⟩
   | @item address node items producer owners index result children located entry =>
       obtain ⟨localCursors, _, seed, included, origin⟩ :=

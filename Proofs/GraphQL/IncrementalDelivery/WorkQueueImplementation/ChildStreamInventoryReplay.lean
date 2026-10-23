@@ -1,5 +1,6 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.ChildStreamInventory
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.ChildStreamProvenance
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.StreamPreparation
 
 /-! Distinct registered child-stream links survive every executable replay step. -/
 
@@ -54,17 +55,30 @@ theorem State.ChildStreamInventory.finishGroupSuccess {queue : State}
   rw [State.finishGroupSuccess_streams]
   exact inventory node (retained member)
 
+/-- Rejection retention preserves the task's registered child-stream links. -/
+theorem State.ChildStreamInventory.taskFailure {queue : State}
+    (inventory : queue.ChildStreamInventory) (occurrence : Occurrence) (errors : Nat)
+    : (queue.taskFailure occurrence errors).1.ChildStreamInventory := by
+  cases found : queue.taskNode? occurrence with
+  | none => simpa only [State.taskFailure, found] using inventory
+  | some task =>
+      have links := inventory task (List.mem_of_find?_eq_some found)
+      rw [queue.taskFailure_eq occurrence errors task found]
+      exact failureGroupFold_preserves State.ChildStreamInventory
+        (fun _ ref prior => prior.removeGroup ref) _ _ _
+        (inventory.putTaskNode _ links.1 links.2)
+
 /-- Recursive draining preserves the child-link inventory.
 Witness: cleanup and activation preserve it at every bounded drain step.
 -/
 theorem State.ChildStreamInventory.drainReadyGroups {queue : State}
     (inventory : queue.ChildStreamInventory)
-    : queue.drainReadyGroups.1.ChildStreamInventory := by
-  apply State.drainReadyGroups_preserves State.ChildStreamInventory (valid := inventory)
-  · intro current node prior _ _ _ _
-    exact (prior.finishGroupSuccess node).startNewWork _
-  · intro current node errors prior _ _ _
-    exact prior.removeGroup _
+    (available : List (Occurrence × Nat) := [])
+    : (queue.drainReadyGroups available).1.ChildStreamInventory := by
+  apply State.drainReadyGroups_preserves State.ChildStreamInventory
+    (available := available) (valid := inventory)
+  · intro current node prior _ _ _
+    exact (prior.finishGroupSuccess node).startNewWork _ available
 
 -----------------------------------------------------------------------------------------
 -- Settlements and batched replay preserve the same inventory
@@ -76,8 +90,8 @@ their uniqueness and permanent registration.
 -/
 theorem State.ChildStreamInventory.taskSuccess {queue : State}
     (inventory : queue.ChildStreamInventory) (occurrence : Occurrence)
-    (result : TaskResult)
-    : (queue.taskSuccess occurrence result).1.ChildStreamInventory := by
+    (result : TaskResult) (available : List (Occurrence × Nat) := [])
+    : (queue.taskSuccess occurrence result available).1.ChildStreamInventory := by
   cases found : queue.taskNode? occurrence with
   | none => simpa only [State.taskSuccess, found] using inventory
   | some node =>
@@ -97,83 +111,63 @@ theorem State.ChildStreamInventory.taskSuccess {queue : State}
           · exact prior
       have processed := fold_preserves (fun acc => acc.1.ChildStreamInventory)
         successGroupStep step node.task.groups (_, [], {}) integrated
-      rw [queue.taskSuccess_eq occurrence result node found]
-      split
-      · exact inventory.removeTask occurrence
-      · exact (processed.startNewWork _).drainReadyGroups
-
-/-- Failure retains certified links on surviving tasks.
-Witness: task deletion, group cleanup, and cache-only updates preserve the invariant.
--/
-theorem State.ChildStreamInventory.taskFailure {queue : State}
-    (inventory : queue.ChildStreamInventory) (occurrence : Occurrence) (errors : Nat)
-    : (queue.taskFailure occurrence errors).1.ChildStreamInventory := by
-  unfold State.taskFailure
-  split
-  · exact inventory
-  · split
-    · exact inventory.removeTask occurrence
-    apply fold_preserves (fun acc : State × List WorkQueueEvent => acc.1.ChildStreamInventory)
-    · intro acc group prior
-      obtain ⟨current, events⟩ := acc
-      dsimp only
-      split
-      · exact prior
-      · split
-        · exact prior.removeGroup _
-        · exact prior
-    · exact inventory.removeTask occurrence
+      rw [queue.taskSuccess_eq occurrence result node found available]
+      exact (processed.startNewWork _ available).drainReadyGroups available
 
 /-- Item integration and its trailing drain preserve distinct registered links.
 Witness: parentless integration, pruning, and activation preserve the invariant per item.
 -/
 theorem State.ChildStreamInventory.streamItems {queue : State}
     (inventory : queue.ChildStreamInventory) (stream : Execution.DeliveryNode)
-    (items : List StreamItem)
-    : (queue.streamItems stream items).1.ChildStreamInventory := by
-  let step (acc : State × List Execution.DeliveryNode
-      × List Execution.DeliveryNode × List StreamItemValue) (item : StreamItem) :=
-    let (current, groups, streams, values) := acc
-    let (integrated, newWork) := current.maybeIntegrateWork item.work
-    let (pruned, nonempty) := integrated.pruneEmptyGroups newWork.newGroups
-    (pruned.startNewWork { newWork with newGroups := nonempty },
-      groups ++ nonempty, streams ++ newWork.newStreams, values ++ [item.value])
-  have folded := fold_preserves (fun acc => acc.1.ChildStreamInventory) step
-    (fun acc item prior => ((prior.maybeIntegrateWork item.work).pruneEmptyGroups _).startNewWork _)
-    items (queue, [], [], []) inventory
-  unfold State.streamItems
+    (items : List StreamItem) (available : List (Occurrence × Nat) := [])
+    : (queue.streamItems stream items available).1.ChildStreamInventory := by
+  have folded := fold_preserves (fun acc => acc.1.ChildStreamInventory)
+    (fun acc item => streamItemStep acc item available)
+    (fun acc item prior =>
+      ((prior.maybeIntegrateWork item.work).pruneEmptyGroups _).startNewWork _ available)
+    items (queue, [], [], [], []) inventory
+  rw [queue.streamItems_eq stream items available]
   split
   · exact inventory
-  · exact folded.drainReadyGroups
+  · exact folded.drainReadyGroups available
 
 /-- Every graph-event handler preserves the child-link inventory, even on raw inputs.
 Witness: settlement preservation; stream closure only changes root and completion fields.
 -/
 theorem State.ChildStreamInventory.handleGraphEvent {queue : State}
     (inventory : queue.ChildStreamInventory) (event : GraphEvent)
-    : (queue.handleGraphEvent event).1.ChildStreamInventory := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.handleGraphEvent event available).1.ChildStreamInventory := by
+  have cached := inventory.cacheTaskFailures available
   cases event with
-  | taskSuccess occurrence result => exact inventory.taskSuccess occurrence result
-  | taskFailure occurrence errors => exact inventory.taskFailure occurrence errors
-  | streamItems stream items => exact inventory.streamItems stream items
+  | taskSuccess occurrence result => exact cached.taskSuccess occurrence result available
+  | taskFailure occurrence errors => exact cached.taskFailure occurrence errors
+  | streamItems stream items => exact cached.streamItems stream items available
   | streamSuccess stream =>
       simp only [State.handleGraphEvent, State.streamSuccess]
-      split <;> exact inventory
+      split <;> exact cached
   | streamFailure stream errors =>
       simp only [State.handleGraphEvent, State.streamFailure]
-      split <;> exact inventory
+      split <;> exact cached
+
+  | groupFailure failure =>
+      simp only [State.handleGraphEvent, State.groupFailure]
+      split
+      · exact cached
+      · split <;> exact cached
 
 /-- Raw event replay preserves distinct registered child links.
 Witness: induction over the exact handler fold, with no source assumptions.
 -/
 theorem State.ChildStreamInventory.rawEventReplay {queue : State}
     (inventory : queue.ChildStreamInventory) (events : List GraphEvent)
-    : (queue.rawEventReplay events).1.ChildStreamInventory := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.rawEventReplay events available).1.ChildStreamInventory := by
   induction events generalizing queue with
   | nil => exact inventory
   | cons event rest ih =>
-      rw [State.rawEventReplay_cons]
-      exact ih (inventory.handleGraphEvent event)
+      rw [State.rawEventReplay_cons _ _ _ available]
+      exact ih (inventory.handleGraphEvent event available)
 
 /-- A batched handler retains the inventory across its terminal-flag update.
 Witness: raw replay preservation; an already terminated queue is unchanged.
@@ -185,7 +179,7 @@ theorem State.ChildStreamInventory.handleGraphEvents {queue : State}
   split
   · exact inventory
   · dsimp only
-    split <;> exact inventory.rawEventReplay events
+    split <;> exact inventory.rawEventReplay events (GraphEvent.availableFailures events)
 
 /-- Arbitrary normalized replay from initialization has a certified child-link inventory.
 Witness: the empty initial task map and per-batch preservation; normalization changes no

@@ -175,7 +175,8 @@ theorem growingSiblingRefinement_holds : GrowingSiblingRefinement := by
               retargetTail_prefix images, retargetTail_boundary ..,
               retargetTail_fresh middle (scheduledHead.run left).2 target⟩
           · simp [allRefs, rootRefs, hiddenRegions]
-          · exact CompletionRefines.fatal_cut combine _
+          · rw [first.completion.2.2]
+            exact CompletionRefines.fatal_cut combine _
               (by simpa only [outcome] using first.completion.1) (positive errors outcome)
       | ok value =>
           obtain ⟨next, later, continuedLater⟩ := ih middle _ _ first.supplies continued

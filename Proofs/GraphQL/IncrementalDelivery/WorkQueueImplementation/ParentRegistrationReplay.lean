@@ -1,4 +1,5 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.ParentRegistration
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.StreamPreparation
 
 /-! Parent-closed permanent registration throughout actual matched replay. -/
 
@@ -17,22 +18,26 @@ theorem createWorkQueue_parentRegistryClosed {work : Execution.Work} {parents}
     (canonical
       : ∀ node dependencies,
           GroupRecordAt work node dependencies → dependencies = parents node.ref)
+    (certified : DeclarationCoverage.Certified [] work)
     : (State.initialize (Work.fromExecution work)).ParentRegistryClosed parents := by
   have empty : ({} : State).ParentRegistryClosed parents := by
     intro ref member
     cases member
   have closure := empty.maybeIntegrateWork (by intro node member; cases member)
     (Work.fromExecution work)
-    (fun _ member => workFromSpec_groups_parentCanonical Located.root canonical member)
-    (workFromSpec_parentsCovered work)
+    (fun _ member => workFromSpec_groups_parentCanonical_root canonical member)
+    (workFromSpec_parentsCovered work certified)
   have registered := State.maybeIntegrateWork_registration
     (queue := {}) (by intro node member; cases member)
     (by intro task member; cases member) (Work.fromExecution work)
-    (workFromSpec_immediateGroupsCoverTasks work [])
+    (by
+      intro task member ref contributor
+      exact Or.inr (workFromSpec_immediateGroupsCoverTasks work [] certified
+        task member ref contributor))
   have pruned := State.pruneEmptyGroups_registration registered.1 registered.2.1
     (({} : State).maybeIntegrateWork (Work.fromExecution work)).2.newGroups
   exact (closure.of_sameRegistry pruned.2.2).of_sameRegistry
-    (State.startNewWork_registeredGroups _ _)
+    (State.startNewWork_registeredGroups _ _ [])
 
 /-- Successful closure preserves parent-registry closure despite retiring live shells.
 Witness: flushing and pruning retain the exact permanent registry.
@@ -49,8 +54,9 @@ Witness: the existing registry-equality theorem covers closure, promotion, and a
 theorem State.ParentRegistryClosed.drainReadyGroups {queue : State} {parents}
     (prior : queue.ParentRegistryClosed parents) (live : queue.LiveGroupsRegistered)
     (tasks : queue.TaskGroupsRegistered)
-    : queue.drainReadyGroups.1.ParentRegistryClosed parents :=
-  prior.of_sameRegistry (queue.drainReadyGroups_registration live tasks).2.2
+    (available : List (Occurrence × Nat) := [])
+    : (queue.drainReadyGroups available).1.ParentRegistryClosed parents :=
+  prior.of_sameRegistry (queue.drainReadyGroups_registration live tasks available).2.2
 
 -----------------------------------------------------------------------------------------
 -- Successful settlements introduce complete child chains before publishing
@@ -62,12 +68,14 @@ registry, as do final activation and draining. No health or admission premise is
 -/
 theorem State.ParentRegistryClosed.taskSuccess {queue : State} {work parents}
     (prior : queue.ParentRegistryClosed parents) (live : queue.LiveGroupsRegistered)
-    (tasks : queue.TaskGroupsRegistered) (occurrence : Occurrence) (result : TaskResult)
+    (tasks : queue.TaskGroupsRegistered)
+    (frame : queue.RegistrationFrame work) (occurrence : Occurrence) (result : TaskResult)
     (matching : (GraphEvent.taskSuccess occurrence result).MatchesWork work)
     (canonical
       : ∀ node dependencies,
           GroupRecordAt work node dependencies → dependencies = parents node.ref)
-    : (queue.taskSuccess occurrence result).1.ParentRegistryClosed parents := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.taskSuccess occurrence result available).1.ParentRegistryClosed parents := by
   let property (current : State) := current.LiveGroupsRegistered
     ∧ current.TaskGroupsRegistered ∧ current.ParentRegistryClosed parents
   have step (acc : State × List WorkQueueEvent × NewWork) (group : Execution.DeliveryNode)
@@ -96,88 +104,79 @@ theorem State.ParentRegistryClosed.taskSuccess {queue : State} {work parents}
   cases found : queue.taskNode? occurrence with
   | none => simpa [State.taskSuccess, found] using prior
   | some node =>
-      rw [queue.taskSuccess_eq occurrence result node found]
-      split
-      · exact prior
-      · let stored := queue.putTaskNode { node with value := some result.value }
-        have storedPrior : stored.ParentRegistryClosed parents := prior
-        have registered := stored.maybeIntegrateWork_registration live tasks result.work
-          matching.childTasksCovered (some occurrence)
-        have integrated := storedPrior.maybeIntegrateWork live result.work
-          (fun _ member => matching.taskChildGroups_parentCanonical canonical member)
-          matching.childParentsCovered (some occurrence)
-        have folded := loop node.task.groups (_, [], {})
-          ⟨registered.1, registered.2.1, integrated⟩
-        let finished := node.task.groups.foldl successGroupStep
-          ((stored.maybeIntegrateWork result.work (some occurrence)).1, [], {})
-        have started := State.startNewWork_registration folded.1 folded.2.1 finished.2.2
-        exact (folded.2.2.of_sameRegistry
-          (State.startNewWork_registeredGroups _ finished.2.2)
-          ).drainReadyGroups started.1 started.2
+      rw [queue.taskSuccess_eq occurrence result node found available]
+      let stored := queue.putTaskNode { node with value := some result.value }
+      have storedPrior : stored.ParentRegistryClosed parents := prior
+      have producerRegistered := frame.started node (List.mem_of_find?_eq_some found)
+      have same : node.task.occurrence = occurrence :=
+        (occurrence_beq_iff_eq _ _).mp (List.find?_some
+          (p := fun candidate : TaskNode => candidate.task.occurrence == occurrence) found)
+      have certificate := (frame.children node.task producerRegistered).sourceChild same matching
+      have registered := stored.maybeIntegrateWork_registration live tasks result.work
+        certificate.contributors (some occurrence)
+      have integrated := storedPrior.maybeIntegrateWork live result.work
+        (fun _ member => matching.taskChildGroups_parentCanonical canonical member)
+        certificate.parents (some occurrence)
+      have folded := loop node.task.groups (_, [], {})
+        ⟨registered.1, registered.2.1, integrated⟩
+      let finished := node.task.groups.foldl successGroupStep
+        ((stored.maybeIntegrateWork result.work (some occurrence)).1, [], {})
+      have started := State.startNewWork_registration folded.1 folded.2.1 finished.2.2 available
+      exact (folded.2.2.of_sameRegistry
+        (State.startNewWork_registeredGroups _ finished.2.2 available)
+        ).drainReadyGroups started.1 started.2 available
 
 /-- Each matched stream item preserves the parent-closed registry before the final drain.
 Witness: child registration covers all parents; taskless pruning and activation retain it.
 -/
 theorem State.ParentRegistryClosed.integrateStreamItem {queue : State} {work parents}
     (prior : queue.ParentRegistryClosed parents) (live : queue.LiveGroupsRegistered)
-    (tasks : queue.TaskGroupsRegistered) {stream items}
+    (tasks : queue.TaskGroupsRegistered)
+    (frame : queue.RegistrationFrame work) {stream items}
     (matching : (GraphEvent.streamItems stream items).MatchesWork work)
     {item : StreamItem} (member : item ∈ items)
     (canonical
       : ∀ node dependencies,
           GroupRecordAt work node dependencies → dependencies = parents node.ref)
-    : (queue.integrateStreamItem item).ParentRegistryClosed parents := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.integrateStreamItem item available).ParentRegistryClosed parents := by
+  have certificate := frame.source.sourceStreamItem matching member queue.registeredGroups
   have registered := queue.maybeIntegrateWork_registration live tasks item.work
-    (matching.streamItem_childTasksCovered member)
+    certificate.contributors
   have integrated := prior.maybeIntegrateWork live item.work
     (fun _ group => matching.streamItem_childGroups_parentCanonical canonical member group)
-    (matching.streamItem_parentsCovered member)
+    certificate.parents
   have pruned := State.pruneEmptyGroups_registration registered.1 registered.2.1
     (queue.maybeIntegrateWork item.work).2.newGroups
   exact (integrated.of_sameRegistry pruned.2.2).of_sameRegistry
-    (State.startNewWork_registeredGroups _ _)
+    (State.startNewWork_registeredGroups _ _ available)
 
 /-- Any matched stream-item batch preserves primary-parent registry closure.
 Witness: thread the actual item-integration states and retain closure through draining.
 -/
 theorem State.ParentRegistryClosed.streamItems {queue : State} {work parents}
-    (prior : queue.ParentRegistryClosed parents) (live : queue.LiveGroupsRegistered)
-    (tasks : queue.TaskGroupsRegistered) (stream : Execution.DeliveryNode)
+    (prior : queue.ParentRegistryClosed parents) (_live : queue.LiveGroupsRegistered)
+    (_tasks : queue.TaskGroupsRegistered)
+    (frame : queue.RegistrationFrame work) (stream : Execution.DeliveryNode)
     (items : List StreamItem)
     (matching : (GraphEvent.streamItems stream items).MatchesWork work)
     (canonical
       : ∀ node dependencies,
           GroupRecordAt work node dependencies → dependencies = parents node.ref)
-    : (queue.streamItems stream items).1.ParentRegistryClosed parents := by
-  let step (acc : State × List Execution.DeliveryNode
-      × List Execution.DeliveryNode × List StreamItemValue) (item : StreamItem) :=
-    let (current, groups, streams, values) := acc
-    let (integrated, released) := current.maybeIntegrateWork item.work
-    let (pruned, nonempty) := integrated.pruneEmptyGroups released.newGroups
-    (pruned.startNewWork { released with newGroups := nonempty },
-      groups ++ nonempty, streams ++ released.newStreams, values ++ [item.value])
-  let property (current : State) := current.LiveGroupsRegistered
-    ∧ current.TaskGroupsRegistered ∧ current.ParentRegistryClosed parents
-  have loop (more : List StreamItem) (included : more.Subset items)
-      (acc : State × List Execution.DeliveryNode
-        × List Execution.DeliveryNode × List StreamItemValue)
-      (invariant : property acc.1) : property (more.foldl step acc).1 := by
-    induction more generalizing acc with
-    | nil => exact invariant
-    | cons item rest ih =>
-        have member := included List.mem_cons_self
-        have registered := acc.1.integrateStreamItem_registration
-          invariant.1 invariant.2.1 matching member
-        have closure := invariant.2.2.integrateStreamItem invariant.1 invariant.2.1
-          matching member canonical
-        exact ih (fun _ inRest => included (List.mem_cons_of_mem _ inRest)) _
-          ⟨registered.1, registered.2.1, closure⟩
-  unfold State.streamItems
+    (available : List (Occurrence × Nat) := [])
+    : (queue.streamItems stream items available).1.ParentRegistryClosed parents := by
+  rw [queue.streamItems_eq stream items available]
   split
   · exact prior
-  · have final := loop items (fun _ member => member) (queue, [], [], [])
-      ⟨live, tasks, prior⟩
-    exact final.2.2.drainReadyGroups final.1 final.2.1
+  · let property (current : State) :=
+      current.RegistrationFrame work ∧ current.ParentRegistryClosed parents
+    have step (current : State) (item : StreamItem) (member : item ∈ items)
+        (invariant : property current) : property (current.integrateStreamItem item available) :=
+      ⟨(invariant.1.integrateStreamItem matching member available).1,
+        invariant.2.integrateStreamItem invariant.1.live invariant.1.tasks invariant.1
+          matching member canonical available⟩
+    have final := State.preparedStreamItems_preserves property ⟨frame, prior⟩ items available step
+    exact final.2.drainReadyGroups final.1.live final.1.tasks available
 
 -----------------------------------------------------------------------------------------
 -- The actual event and normalized-batch boundaries
@@ -189,99 +188,102 @@ the old registry, including ignored-event branches.
 -/
 theorem State.ParentRegistryClosed.handleGraphEvent {queue : State} {work parents}
     (prior : queue.ParentRegistryClosed parents) (live : queue.LiveGroupsRegistered)
-    (tasks : queue.TaskGroupsRegistered) (event : GraphEvent)
+    (tasks : queue.TaskGroupsRegistered)
+    (frame : queue.RegistrationFrame work) (event : GraphEvent)
     (matching : event.MatchesWork work)
     (canonical
       : ∀ node dependencies,
           GroupRecordAt work node dependencies → dependencies = parents node.ref)
-    : (queue.handleGraphEvent event).1.ParentRegistryClosed parents := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.handleGraphEvent event available).1.ParentRegistryClosed parents := by
+  have cached := prior.of_sameRegistry (queue.cacheTaskFailures_registeredGroups available)
+  have registration := queue.cacheTaskFailures_registration live tasks available
   cases event with
   | taskSuccess occurrence result =>
-      exact prior.taskSuccess live tasks occurrence result matching canonical
+      exact cached.taskSuccess registration.1 registration.2 (frame.cacheTaskFailures available) occurrence result matching canonical
+        available
   | taskFailure occurrence errors =>
-      exact prior.of_sameRegistry
-        (queue.taskFailure_registration live tasks occurrence errors).2.2
+      exact cached.of_sameRegistry
+        ((queue.cacheTaskFailures available).taskFailure_registration
+          registration.1 registration.2 occurrence errors).2.2
   | streamItems stream items =>
-      exact prior.streamItems live tasks stream items matching canonical
+      exact cached.streamItems registration.1 registration.2 (frame.cacheTaskFailures available) stream items matching canonical
+        available
   | streamSuccess stream =>
-      change (queue.streamSuccess stream).1.ParentRegistryClosed parents
+      change ((queue.cacheTaskFailures available).streamSuccess
+        stream).1.ParentRegistryClosed parents
       unfold State.streamSuccess
-      split <;> exact prior
+      split <;> exact cached
   | streamFailure stream errors =>
-      change (queue.streamFailure stream errors).1.ParentRegistryClosed parents
+      change ((queue.cacheTaskFailures available).streamFailure
+        stream errors).1.ParentRegistryClosed parents
       unfold State.streamFailure
-      split <;> exact prior
+      split <;> exact cached
+
+  | groupFailure notice =>
+      change ((queue.cacheTaskFailures available).groupFailure notice).1.ParentRegistryClosed parents
+      unfold State.groupFailure
+      split
+      · exact cached
+      · split <;> exact cached
 
 /-- Matched host batches preserve closure while keeping all live/task refs registered.
 Witness: fold over actual handler states and preserve the final done-flag update.
 -/
 theorem State.ParentRegistryClosed.handleGraphEvents {queue : State} {work parents}
-    (prior : queue.ParentRegistryClosed parents) (live : queue.LiveGroupsRegistered)
-    (tasks : queue.TaskGroupsRegistered) (events : List GraphEvent)
+    (prior : queue.ParentRegistryClosed parents) (_live : queue.LiveGroupsRegistered)
+    (_tasks : queue.TaskGroupsRegistered)
+    (frame : queue.RegistrationFrame work) (events : List GraphEvent)
     (matching : ∀ event ∈ events, event.MatchesWork work)
     (canonical
       : ∀ node dependencies,
           GroupRecordAt work node dependencies → dependencies = parents node.ref)
     : (queue.handleGraphEvents events).1.ParentRegistryClosed parents := by
-  let step (acc : State × List WorkQueueEvent) (event : GraphEvent) :=
-    let (current, outputs) := acc
-    let (next, produced) := current.handleGraphEvent event
-    (next, outputs ++ produced)
-  let property (current : State) := current.LiveGroupsRegistered
-    ∧ current.TaskGroupsRegistered ∧ current.ParentRegistryClosed parents
+  let available := GraphEvent.availableFailures events
   have loop (more : List GraphEvent) (included : more.Subset events)
-      (acc : State × List WorkQueueEvent) (invariant : property acc.1)
-      : property (more.foldl step acc).1 := by
-    induction more generalizing acc with
-    | nil => exact invariant
+      (current : State) (registered : current.RegistrationFrame work)
+      (closed : current.ParentRegistryClosed parents)
+      : (current.replayGraphEvents more available).ParentRegistryClosed parents := by
+    induction more generalizing current with
+    | nil => exact closed
     | cons event rest ih =>
-        have matched := matching event (included List.mem_cons_self)
-        have registered := acc.1.handleGraphEvent_registration invariant.1 invariant.2.1
-          event matched
-        exact ih (fun _ member => included (List.mem_cons_of_mem _ member)) _
-          ⟨registered.1, registered.2.1,
-            invariant.2.2.handleGraphEvent invariant.1 invariant.2.1 event matched canonical⟩
-  unfold State.handleGraphEvents
-  split
-  · exact prior
-  · have final := (loop events (fun _ member => member) (queue, []) ⟨live, tasks, prior⟩).2.2
-    dsimp only
-    split <;> exact final
+        have source := matching event (included List.mem_cons_self)
+        have handled := closed.handleGraphEvent registered.live registered.tasks registered
+          event source canonical available
+        have next : (current.dispatchGraphEvent event available).1.ParentRegistryClosed parents := handled
+        exact ih (fun _ member => included (List.mem_cons_of_mem _ member))
+          (current.dispatchGraphEvent event available).1
+          (registered.dispatchGraphEvent event source available).1 next
+  cases running : queue.terminated with
+  | true => simpa only [State.handleGraphEvents, running, ↓reduceIte] using prior
+  | false =>
+      obtain ⟨terminal, same⟩ := queue.handleGraphEvents_stateCore events running
+      rw [same]
+      exact loop events (fun _ member => member) queue frame prior
 
 /-- Parent registry closure survives every supplied normalized replay prefix.
 Witness: fold over matched batches; publisher state and batching do not affect the registry.
 -/
 theorem State.ParentRegistryClosed.runNormalized {queue : State} {work parents}
     (prior : queue.ParentRegistryClosed parents) (live : queue.LiveGroupsRegistered)
-    (tasks : queue.TaskGroupsRegistered) (batches : List (List GraphEvent))
+    (tasks : queue.TaskGroupsRegistered)
+    (frame : queue.RegistrationFrame work) (batches : List (List GraphEvent))
     (matching : ∀ batch ∈ batches, ∀ event ∈ batch, event.MatchesWork work)
     (canonical
       : ∀ node dependencies,
           GroupRecordAt work node dependencies → dependencies = parents node.ref)
     : (queue.runNormalized batches).1.ParentRegistryClosed parents := by
-  let property (current : State) := current.LiveGroupsRegistered
-    ∧ current.TaskGroupsRegistered ∧ current.ParentRegistryClosed parents
-  have step (acc : NormalizedAcc) (batch : List GraphEvent)
-      (matched : ∀ event ∈ batch, event.MatchesWork work) (invariant : property acc.1)
-      : property (normalizedStep acc batch).1 := by
-    have registered := acc.1.handleGraphEvents_registration invariant.1 invariant.2.1
-      batch matched
-    have closure := invariant.2.2.handleGraphEvents invariant.1 invariant.2.1 batch
-      matched canonical
-    unfold normalizedStep
-    dsimp only
-    split <;> exact ⟨registered.1, registered.2.1, closure⟩
-  have loop (more : List (List GraphEvent)) (included : more.Subset batches)
-      (acc : NormalizedAcc) (invariant : property acc.1)
-      : property (more.foldl normalizedStep acc).1 := by
-    induction more generalizing acc with
-    | nil => exact invariant
-    | cons batch rest ih =>
-        exact ih (fun _ member => included (List.mem_cons_of_mem _ member)) _
-          (step acc batch (matching batch (included List.mem_cons_self)) invariant)
-  exact (loop batches (fun _ member => member)
-    (queue, { active := queue.initialGroups ++ queue.initialStreams }, [])
-    ⟨live, tasks, prior⟩).2.2
+  rw [State.runNormalized_replayBatches]
+  induction batches generalizing queue with
+  | nil => exact prior
+  | cons batch rest ih =>
+      have matched := matching batch List.mem_cons_self
+      exact ih
+        (prior.handleGraphEvents live tasks frame batch matched canonical)
+        (frame.handleGraphEvents batch matched).1.live
+        (frame.handleGraphEvents batch matched).1.tasks
+        (frame.handleGraphEvents batch matched).1
+        (fun more member => matching more (List.mem_cons_of_mem _ member))
 
 /-- Every generated valid replay has permanently registered parents for its live groups.
 Witness: canonical full-chain lowering, registry closure throughout replay, and the live
@@ -296,12 +298,12 @@ theorem ExecutedWork.runNormalized_parentsRegistered {work : Execution.Work}
   obtain ⟨parents, canonical⟩ := generated.groupRecordsCanonical
   have matched : ∀ batch ∈ batches, ∀ event ∈ batch, event.MatchesWork work :=
     fun _ batch _ event => valid.eachMatches (List.mem_flatten.mpr ⟨_, batch, event⟩)
-  have initial := createWorkQueue_registration work
-  have registered := createWorkQueue_runNormalized_registration valid
-  have closure := (createWorkQueue_parentRegistryClosed canonical).runNormalized
-    initial.1 initial.2 batches matched canonical
+  have initial := createWorkQueue_registration work generated.declarations
+  have registered := createWorkQueue_runNormalized_registration valid generated.declarations
+  have closure := (createWorkQueue_parentRegistryClosed canonical generated.declarations).runNormalized
+    initial.1 initial.2 (State.initialize_registrationFrame generated.declarations) batches matched canonical
   have parentFields := (createWorkQueue_groupParentsCanonical (Work.fromExecution work) parents
-    (fun _ member => workFromSpec_groups_parentCanonical Located.root canonical member)
+    (fun _ member => workFromSpec_groups_parentCanonical_root canonical member)
     ).runNormalized batches matched canonical
   dsimp only
   intro node member parent parentEq

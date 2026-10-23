@@ -19,7 +19,8 @@ task-bearing ancestors, and conservation on that same ledger prefix excludes ret
 their buffered data. The ancestor need not emit a completion or be the carrier's owner.
 -/
 theorem State.ReleaseOwners.ownerCarrier_ancestorValue {queue : State}
-    {work parents owners published} (prefixes : queue.ReleaseOwners owners published)
+    {work parents owners published available}
+    (prefixes : queue.ReleaseOwners owners published available)
     (generated : ExecutedWork work) (records : queue.GroupNodesMatchWork work)
     (links : queue.ChildLinksCanonical parents)
     (canonical

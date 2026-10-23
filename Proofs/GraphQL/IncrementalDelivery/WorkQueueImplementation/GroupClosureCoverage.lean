@@ -3,6 +3,8 @@ import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.GroupFrontierU
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.PromotionPaths
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.ProtectedRootPresence
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.ForestPathPreservation
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.StartupRootCoverage
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.DrainNormalForm
 
 /-! Successful group closure transfers surviving descendants to its released frontier. -/
 
@@ -49,6 +51,24 @@ theorem State.RemovalForest.flushGroupTasks {queue : State} {parents}
           (match node.value with | none => values | some value => values ++ [value])
           (streams ++ node.childStreams)
         exact ⟨next.1, next.2.trans (queue.removeTask_groupEdgesFrom occurrence)⟩
+
+/-- Success retains the forest through membership mapping, parent removal, and pruning.
+Witness: the flush forest and the actual ref filters; no acyclicity is assumed anew.
+-/
+theorem State.RemovalForest.finishGroupSuccess {queue : State} {parents}
+    (forest : queue.RemovalForest parents) (group : GroupNode)
+    : (queue.finishGroupSuccess group).1.RemovalForest parents := by
+  let flushed := (group.tasks.foldl flushGroupTask (queue, [], [])).1
+  let current : State := { flushed with
+    groupNodes := (flushed.groupNodes.filter
+      (fun node => node.group.node.ref != group.group.node.ref))
+    rootGroups := flushed.rootGroups.filter (· != group.group.node.ref) }
+  let candidates := group.childGroups.filterMap
+    (fun ref => (current.groupNode? ref).map (fun node => node.group.node))
+  have currentForest : current.RemovalForest parents :=
+    (forest.flushGroupTasks group.tasks [] []).1.of_subset
+      (fun _ member => (List.mem_filter.mp member).1)
+  exact currentForest.of_subset (current.pruneEmptyGroups_groupNodes_sublist candidates).subset
 
 -----------------------------------------------------------------------------------------
 -- The removed root's surviving descendants are covered by newly released roots
@@ -195,46 +215,62 @@ theorem State.LiveDescendant.finishGroupSuccess {queue : State} {parents root ta
   exact currentPath.pruneEmptyGroups currentLinks currentChildren candidateFrontier
     candidateUnique candidateLive survives
 
-/-- Activating a successful release puts every surviving descendant under an active root.
-Witness: the returned covering root is appended by `startNewWork`, which leaves all
-group records and paths unchanged. No further host settlement is needed for activation.
+/-- A successful flush covers each surviving descendant with a released root before startup.
+Witness: pruning gives the complete contributor frontier while preserving its live paths.
+-/
+theorem State.finishGroupSuccess_released_descendant_coverage {queue : State}
+    {parents target} (forest : queue.RemovalForest parents) {group : GroupNode}
+    (found : queue.groupNode? group.group.node.ref = some group)
+    (path : queue.LiveDescendant group.group.node.ref target)
+    (survives : ∃ node, (queue.finishGroupSuccess group).1.groupNode? target = some node)
+    : let result := queue.finishGroupSuccess group
+      ∃ root ∈ result.1.rootGroups ++ result.2.2.newGroups.map Execution.DeliveryNode.ref,
+        result.1.LiveDescendant root target := by
+  obtain ⟨root, released, below⟩ :=
+    State.finishGroupSuccess_surviving_descendant forest found path survives
+  exact ⟨root.ref, List.mem_append_right _ (List.mem_map_of_mem released), below⟩
+
+/-- Activation covers each closing-group descendant that survives startup removal.
+Witness: released frontier coverage survives every cached-failure subtree removal.
 -/
 theorem State.finishGroupSuccess_activated_descendant {queue : State} {parents target}
     (forest : queue.RemovalForest parents)
     {group : GroupNode} (found : queue.groupNode? group.group.node.ref = some group)
     (path : queue.LiveDescendant group.group.node.ref target)
-    (survives : ∃ node, (queue.finishGroupSuccess group).1.groupNode? target = some node)
+    (available : List (Occurrence × Nat) := [])
+    (survives
+      : ∃ node,
+          ((queue.finishGroupSuccess group).1.startNewWork
+            (queue.finishGroupSuccess group).2.2 available).1.groupNode?
+            target
+          = some node)
     : let result := queue.finishGroupSuccess group
-      let next := result.1.startNewWork result.2.2
+      let next := (result.1.startNewWork result.2.2 available).1
       ∃ root ∈ next.rootGroups, next.LiveDescendant root target := by
-  intro result next
-  obtain ⟨root, released, below⟩ :=
-    State.finishGroupSuccess_surviving_descendant forest found path survives
-  refine ⟨root.ref, ?_, below.of_groupNodes_eq (result.1.startNewWork_groupCore result.2.2).1⟩
-  rw [(result.1.startNewWork_groupCore result.2.2).2.2]
-  exact List.mem_append_right _ (List.mem_map_of_mem released)
+  have before := State.groupNode?_exists_before_subset
+    ((queue.finishGroupSuccess group).1.startNewWork_groupNodes_sublist
+      (queue.finishGroupSuccess group).2.2 available).subset survives
+  exact State.startNewWork_root_coverage (forest.finishGroupSuccess group) _
+    (State.finishGroupSuccess_released_descendant_coverage forest found path before)
+    available survives
 
------------------------------------------------------------------------------------------
--- Complete root coverage survives one successful close-and-activate step
------------------------------------------------------------------------------------------
-
-/-- Every previously root-covered surviving group remains root-covered after success.
-Witness: closing-group descendants use the promoted frontier; unrelated paths retain
-their roots and edges. Activation appends releases. No separate root-frontier law is used.
+/-- Each previously root-covered target that survives a flush is covered before startup.
+Witness: closing-group descendants use the released frontier; unrelated paths retain
+their original active roots and edges through successful pruning.
 -/
-theorem State.finishGroupSuccess_root_coverage {queue : State} {parents target}
+theorem State.finishGroupSuccess_released_root_coverage {queue : State} {parents target}
     (forest : queue.RemovalForest parents)
     {group : GroupNode} (found : queue.groupNode? group.group.node.ref = some group)
     (covered : ∃ root ∈ queue.rootGroups, queue.LiveDescendant root target)
     (survives : ∃ node, (queue.finishGroupSuccess group).1.groupNode? target = some node)
     : let result := queue.finishGroupSuccess group
-      let next := result.1.startNewWork result.2.2
-      ∃ root ∈ next.rootGroups, next.LiveDescendant root target := by
-  intro result next
+      ∃ root ∈ result.1.rootGroups ++ result.2.2.newGroups.map Execution.DeliveryNode.ref,
+        result.1.LiveDescendant root target := by
+  intro result
   classical
   obtain ⟨root, member, path⟩ := covered
   by_cases affected : queue.LiveDescendant group.group.node.ref target
-  · exact State.finishGroupSuccess_activated_descendant forest found affected survives
+  · exact State.finishGroupSuccess_released_descendant_coverage forest found affected survives
   · have outside : ¬queue.LiveDescendant group.group.node.ref root :=
       fun reaches => affected (reaches.trans path)
     have different : root ≠ group.group.node.ref := fun same => affected (same ▸ path)
@@ -249,12 +285,33 @@ theorem State.finishGroupSuccess_root_coverage {queue : State} {parents target}
           have missing := List.find?_eq_none.mp lookup node live
           simp [ref] at missing
       | some node => exact ⟨node, rfl⟩
-    have retainedPath := path.finishGroupSuccess forest found affected rootSurvives
-    refine ⟨root, ?_, retainedPath.of_groupNodes_eq
-      (result.1.startNewWork_groupCore result.2.2).1⟩
-    rw [(result.1.startNewWork_groupCore result.2.2).2.2]
-    apply List.mem_append_left
+    refine ⟨root, List.mem_append_left _ ?_,
+      path.finishGroupSuccess forest found affected rootSurvives⟩
     rw [State.finishGroupSuccess_rootGroups]
     exact List.mem_filter.mpr ⟨member, by simp [different]⟩
+
+/-- Successful close-and-startup preserves root coverage of every surviving target.
+Witness: flush coverage transfers through actual startup, including immediate cached
+failure removal. Survival is measured at the activated endpoint.
+-/
+theorem State.finishGroupSuccess_root_coverage {queue : State} {parents target}
+    (forest : queue.RemovalForest parents)
+    {group : GroupNode} (found : queue.groupNode? group.group.node.ref = some group)
+    (covered : ∃ root ∈ queue.rootGroups, queue.LiveDescendant root target)
+    (available : List (Occurrence × Nat) := [])
+    (survives
+      : ∃ node,
+          ((queue.finishGroupSuccess group).1.startNewWork
+            (queue.finishGroupSuccess group).2.2 available).1.groupNode?
+            target
+          = some node)
+    : let result := queue.finishGroupSuccess group
+      let next := (result.1.startNewWork result.2.2 available).1
+      ∃ root ∈ next.rootGroups, next.LiveDescendant root target := by
+  have before := State.groupNode?_exists_before_subset
+    ((queue.finishGroupSuccess group).1.startNewWork_groupNodes_sublist
+      (queue.finishGroupSuccess group).2.2 available).subset survives
+  exact State.startNewWork_root_coverage (forest.finishGroupSuccess group) _
+    (State.finishGroupSuccess_released_root_coverage forest found covered before) available survives
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

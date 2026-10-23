@@ -27,7 +27,7 @@ theorem mixed_rootTerminalCertificates {work inputs}
         ∧ Explains work (initialQueue work).initialGroups
             (initialQueue work).initialStreams w.events w.matching w.failures
         ∧ (((initialQueue work).runNormalized inputs).1.terminated = true
-            → ∀ task ∈ ((initialQueue work).replayGraphEvents inputs.flatten).tasks,
+            → ∀ task ∈ ((initialQueue work).runNormalized inputs).1.tasks,
                 TaskAccounted work w.matching w.events w.failures task.occurrence)
         ∧ (((initialQueue work).runNormalized inputs).1.terminated = true
             → ∀ node kind dependencies,

@@ -1,3 +1,4 @@
+import Proofs.GraphQL.IncrementalDelivery.Correctness.TaskErrors
 import Proofs.GraphQL.IncrementalDelivery.Correctness.WorkMetadata
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.TaskReadiness
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.PublicationExtension
@@ -112,12 +113,13 @@ theorem ready_owner_dependency_unsatisfied
 /-- A ready task with an announced healthy owner can extend the actual explained history.
 Witness: longest-path object ownership or exact stream ownership for successful outcomes;
 reachable failing outcomes instead append a justified cut and counted failure completion.
-No success or error-positivity premise is required.
+Success is unrestricted; failed tasks require execution-certified positive causes.
 -/
 theorem extend_ready_announced
     {paths bound work groups streams events matching failures
       occurrence owners producer payload}
     (coherent : MixedOwnerPaths.WorkAt paths bound work)
+    (positive : ExecutionErrors.WorkPositive work)
     (explained : Explains work groups streams events matching failures)
     (known : TaskAt work occurrence owners producer payload)
     (ready : CanPublish work matching events failures occurrence producer)
@@ -142,7 +144,7 @@ theorem extend_ready_announced
       ∃ event next cuts, Explains work groups streams (events ++ [event]) next cuts := by
     obtain ⟨node, errors, event, _, _, _, extended⟩ := explained.failure_step known fails
       (ready.reachable explained known) ⟨ref, member, opened⟩
-      ready.2.1
+      ready.2.1 (positive.task known fails)
     exact ⟨event, matching, _, extended⟩
   cases payload with
   | object path result =>
@@ -165,8 +167,7 @@ theorem extend_ready_announced
       | ok value =>
           obtain ⟨item, errors⟩ := value
           have ownerRef : ref = node.ref := by
-            cases StructuralEquivalence.taskAt_of_current known with
-            | item located selected => exact List.mem_singleton.mp member
+            exact List.mem_singleton.mp (by simpa only [known.item_owners] using member)
           have selected := stream_owner_of_open coherent known (ownerRef ▸ opened)
             (ownerRef ▸ healthy)
           exact ⟨_, _, _, explained.publish_item known ready selected⟩
@@ -183,6 +184,7 @@ theorem maximal_outstanding_unannounced
     {paths bound work groups streams events matching failures occurrence owners producer
       payload}
     (coherent : MixedOwnerPaths.WorkAt paths bound work)
+    (positive : ExecutionErrors.WorkPositive work)
     (explained : Explains work groups streams events matching failures)
     (maximal
       : ∀ event next cuts, ¬Explains work groups streams (events ++ [event]) next cuts)
@@ -198,7 +200,7 @@ theorem maximal_outstanding_unannounced
     readyTask_exists known outstanding
   refine ⟨next, nextOwners, nextProducer, result, task, ready, ?_⟩
   intro ref member healthy notified
-  obtain ⟨event, nextMatching, cuts, extended⟩ := extend_ready_announced coherent explained
+  obtain ⟨event, nextMatching, cuts, extended⟩ := extend_ready_announced coherent positive explained
     task ready ⟨ref, member, notified, healthy⟩
   exact maximal event nextMatching cuts extended
 
@@ -215,6 +217,7 @@ This covers a useful class of work, not general nested fresh-notice execution.
 theorem accountedHistory_exists_of_initial_owner_coverage
     {paths bound work groups streams}
     (coherent : MixedOwnerPaths.WorkAt paths bound work)
+    (positive : ExecutionErrors.WorkPositive work)
     (initialized : Initializes work groups streams)
     (covered
       : ∀ occurrence owners producer payload,
@@ -227,7 +230,7 @@ theorem accountedHistory_exists_of_initial_owner_coverage
             → TaskAccounted work matching events failures occurrence := by
   classical
   have initial : Explains work groups streams [] (fun _ => .executionGroup []) [] :=
-    ⟨initialized, by simp [FailureWitness], by simp⟩
+    initialized.emptyExplains _
   obtain ⟨events, matching, failures, explained, maximal⟩ := initial.maximal_extension
   simp only [List.nil_append] at explained maximal
   refine ⟨events, matching, failures, explained, ?_⟩
@@ -235,7 +238,7 @@ theorem accountedHistory_exists_of_initial_owner_coverage
   apply Classical.byContradiction
   intro outstanding
   obtain ⟨next, nextOwners, nextProducer, result, task, ready, unannounced⟩ :=
-    maximal_outstanding_unannounced coherent explained
+    maximal_outstanding_unannounced coherent positive explained
       (fun event next cuts extended => by
         have impossible := maximal [event] next cuts extended
         cases impossible) known outstanding

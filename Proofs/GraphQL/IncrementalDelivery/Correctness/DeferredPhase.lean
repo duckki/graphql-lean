@@ -36,7 +36,7 @@ theorem deferredPhase_completed_failed {work groups streams events matching fail
     : NodeFailed work matching events failures ref := by
   obtain ⟨event, member, completes⟩ := List.mem_flatMap.mp closed
   obtain ⟨index, selected⟩ := List.mem_iff_getElem?.mp member
-  have allowed := explained.2.2 index event selected
+  have allowed := explained.eventAllowed index event selected
   have permitted := phase event member
   cases event <;>
     simp only [DeferredPhaseEvent, eventCompleted, List.mem_singleton,
@@ -75,6 +75,7 @@ theorem extend_deferred_phase
     {paths bound work groups streams events matching failures address owners producer
       payload}
     (coherent : MixedOwnerPaths.WorkAt paths bound work)
+    (positive : ExecutionErrors.WorkPositive work)
     (explained : Explains work groups streams events matching failures)
     (known : TaskAt work (.executionGroup address) owners producer payload)
     (ready : CanPublish work matching events failures (.executionGroup address) producer)
@@ -97,15 +98,18 @@ theorem extend_deferred_phase
       · exact ready.1 published
   cases StructuralEquivalence.taskAt_of_current known with
   | @executionGroup address fragments path result children producer enclosing located =>
-      cases result with
+      cases outcome : result.deliveryResult with
       | error errors =>
+          have failing : (Payload.object path result.deliveryResult).failure.isSome = true := by
+            simp [Payload.failure, outcome]
           obtain ⟨node, count, event, _, control, _, extended⟩ :=
-            explained.failure_step known rfl (ready.reachable explained known)
+            explained.failure_step known failing (ready.reachable explained known)
               ⟨ref, member, opened⟩
-              ready.2.1
+              ready.2.1 (positive.task known failing)
           refine ⟨event, matching, _, extended, ?_⟩
           rcases control with rfl | rfl <;> trivial
       | ok value =>
+          rw [outcome] at known
           obtain ⟨data, errors⟩ := value
           obtain ⟨node, kind, dependencies, nodeProducer, nodeKnown, same⟩ :=
             known.owner_known member
@@ -126,6 +130,7 @@ not covered by the producer-free premise. No history or terminal-run premise is 
 -/
 theorem finish_root_deferred_tasks {paths bound work groups streams}
     (coherent : MixedOwnerPaths.WorkAt paths bound work)
+    (positive : ExecutionErrors.WorkPositive work)
     (initialized : Initializes work groups streams)
     (roots
       : ∀ address owners producer payload,
@@ -143,7 +148,7 @@ theorem finish_root_deferred_tasks {paths bound work groups streams}
             → Open ((groups ++ streams).map DeliveryNode.ref) events ref := by
   classical
   have initial : Explains work groups streams [] (fun _ => .executionGroup []) [] :=
-    ⟨initialized, by simp [FailureWitness], by simp⟩
+    initialized.emptyExplains _
   obtain ⟨events, matching, failures, explained, phase, maximal⟩ :=
     initial.maximal_extension_preserving
       (fun events _ _ => ∀ event ∈ events, DeferredPhaseEvent event) (by simp)
@@ -160,7 +165,7 @@ theorem finish_root_deferred_tasks {paths bound work groups streams}
         fun cancelled => outstanding (Or.inl cancelled), by simp, trivial⟩
     obtain ⟨nonempty, notices⟩ := covered address owners none payload known
     obtain ⟨ref, member, healthy, _⟩ := explained.outstanding_owner known nonempty outstanding
-    obtain ⟨event, next, cuts, extended, permitted⟩ := extend_deferred_phase coherent
+    obtain ⟨event, next, cuts, extended, permitted⟩ := extend_deferred_phase coherent positive
       explained known ready ⟨ref, member, List.mem_append_left _ (notices ref member), healthy⟩
     have impossible := maximal [event] next cuts extended (by
       intro other inEvents

@@ -29,7 +29,9 @@ private def stream : DeliveryNode := { ref := 1, path := [.field "strict"] }
 private def producer : Occurrence := .executionGroup [1, 0]
 
 private def children : Execution.Work :=
-  .combine (.combine (.combine .empty .empty) (.stream stream [(.error 1, .empty)]))
+  .combine
+    (.combine (.combine .empty .empty)
+      (.stream stream [({ result := .error 1, cause := some 1 }, .empty)]))
     .empty
 
 private def value : ExecutionGroupValue :=
@@ -52,17 +54,32 @@ Witness: exact task/stream locations, prior producer success, and executable sta
 theorem source_valid
     : ValidGraphEvents work inputs.flatten ∧ inputsStarted work inputs = true := by
   have parent : TaskAt work producer [group.ref] none (.object [] (.ok (value.data, 0))) :=
-    .executionGroup (groups := [⟨group, []⟩]) (children := children) (owners := []) (by cbv)
+    .executionGroup (result := { result := .ok (value.data, 0) }) (groups := [⟨group, []⟩]) (children := children) (owners := []) (by cbv)
   have located : Located work [1, 0, 0, 0, 1]
-      (.stream stream [(.error 1, .empty)]) (some producer) [group.ref] := by cbv
+      (.stream stream [({ result := .error 1, cause := some 1 }, .empty)]) (some producer) [group.ref] := by cbv
   have prior : ValidGraphEvents work [first] :=
     .append .nil ⟨_, _, parent, by cbv, by cbv⟩
       (by simp [first, GraphEvent.Fresh, GraphEvent.identities])
       ⟨_, _, _, parent, by intro source impossible; cases impossible⟩
-  refine ⟨.append prior ⟨_, _, _, _, located, .empty, List.mem_cons_self⟩ ?_ ?_, by cbv⟩
+  refine ⟨
+    .append prior
+      ⟨
+        _,
+        _,
+        _,
+        _,
+        located,
+        { result := .error 1, cause := some 1 },
+        .empty,
+        List.mem_cons_self,
+        rfl
+      ⟩
+      ?_ ?_,
+    by cbv
+  ⟩
   · simp [first, GraphEvent.Fresh, GraphEvent.identities]
   · exact ⟨_, _, _, _, located,
-      (by intro source same; cases same; simp [first, GraphEvent.successes]), .empty, rfl⟩
+      (by intro source same; cases same; simp [first, GraphEvent.successes]), { result := .error 1, cause := some 1 }, .empty, rfl, rfl⟩
 
 /-- The generated child stream is attached before its producer can be flushed.
 Witness: the general fresh-producer registration theorem, instantiated at the actual
@@ -80,7 +97,7 @@ theorem child_stream_attached
         ∧ next.value = some value
         ∧ stream.ref ∈ next.childStreams := by
   have parent : TaskAt work producer [group.ref] none (.object [] (.ok (value.data, 0))) :=
-    .executionGroup (groups := [⟨group, []⟩]) (children := children) (owners := []) (by cbv)
+    .executionGroup (result := { result := .ok (value.data, 0) }) (groups := [⟨group, []⟩]) (children := children) (owners := []) (by cbv)
   apply ExecutedWork.taskSuccess_prepared_childStream generated
     (before := []) .nil (stream := ⟨stream⟩) (node := { task := ⟨producer, [group]⟩ })
     (result := { value, work := Work.fromExecution children [1, 0, 0] })
@@ -235,11 +252,15 @@ private def value : ResponseValue := .object [("strict", .list [.scalar "x"])]
 private def children : Execution.Work :=
   .combine
     (.combine
-      (.combine (.combine .empty .empty) (.stream child [(.error 1, .empty)])) .empty)
-    .empty
+      (.combine (.combine .empty .empty)
+        (.stream child [({ result := .error 1, cause := some 1 }, .empty)])) .empty)
+    (.declareGroups [] .empty)
 
-private def entries : List (Result ResponseValue × Execution.Work) :=
-  [(.ok (value, 0), children), (.error 1, .empty)]
+private def entries : List (TaskOutcome ResponseValue × Execution.Work) :=
+  [
+    ({ result := .ok (value, 0) }, children),
+    ({ result := .error 1, cause := some 1 }, .empty)
+  ]
 
 private def first : GraphEvent :=
   .streamItems outer [⟨producer, ⟨value, 0⟩, Work.fromExecution children [0, 0, 1, 0]⟩]
@@ -261,24 +282,40 @@ theorem source_valid
     : ValidGraphEvents work inputs.flatten ∧ inputsStarted work inputs = true := by
   have root : Located work [0, 0, 1] (.stream outer entries) none [] := by cbv
   have nested : Located work [0, 0, 1, 0, 0, 0, 1]
-      (.stream child [(.error 1, .empty)]) (some producer) [] := by cbv
+      (.stream child [({ result := .error 1, cause := some 1 }, .empty)]) (some producer) [] := by cbv
   have prior : ValidGraphEvents work [first] := by
     refine .append .nil ?_ ?_ ?_
     · intro supplied member
       obtain rfl := List.mem_singleton.mp member
-      exact ⟨_, _, .item root rfl, by cbv⟩
+      exact ⟨_, _, .item (result := { result := .ok (value, 0) }) root rfl, by cbv⟩
     · simp [first, GraphEvent.Fresh, GraphEvent.identities]
     · exact ⟨_, _, _, _, root, by simp, by simp,
         (by intro source impossible; cases impossible), rfl⟩
   have two : ValidGraphEvents work [first, .streamFailure outer 1] := by
-    refine .append prior ⟨_, _, _, _, root, .empty,
-      List.mem_cons_of_mem _ List.mem_cons_self⟩ ?_ ?_
+    refine .append prior ⟨_, _, _, _, root, { result := .error 1, cause := some 1 }, .empty,
+      List.mem_cons_of_mem _ List.mem_cons_self, rfl⟩ ?_ ?_
     · simp [first, GraphEvent.Fresh, GraphEvent.identities]
-    · exact ⟨_, _, _, _, root, (by intro source impossible; cases impossible), .empty, rfl⟩
-  refine ⟨.append two ⟨_, _, _, _, nested, .empty, List.mem_cons_self⟩ ?_ ?_, by cbv⟩
+    · exact ⟨_, _, _, _, root, (by intro source impossible; cases impossible),
+        { result := .error 1, cause := some 1 }, .empty, rfl, rfl⟩
+  refine ⟨
+    .append two
+      ⟨
+        _,
+        _,
+        _,
+        _,
+        nested,
+        { result := .error 1, cause := some 1 },
+        .empty,
+        List.mem_cons_self,
+        rfl
+      ⟩
+      ?_ ?_,
+    by cbv
+  ⟩
   · simp [first, outer, child, GraphEvent.Fresh, GraphEvent.identities]
   · exact ⟨_, _, _, _, nested,
-      (by intro source same; cases same; simp [first, GraphEvent.successes]), .empty, rfl⟩
+      (by intro source same; cases same; simp [first, GraphEvent.successes]), { result := .error 1, cause := some 1 }, .empty, rfl, rfl⟩
 
 /-- The item-produced stream completes even though its outer stream has failed first.
 Witness: general complete notice coverage and actual terminal stream tracking, using the
@@ -295,7 +332,7 @@ theorem child_completed_after_outer_failure
   apply ConformancePlan.terminal_itemProducedStream_completed generated source_valid.1
     source_valid.2 history (by cbv)
     (address := [0, 0, 1]) (index := 0) (dependencies := [])
-  · exact ⟨[0, 0, 1, 0, 0, 0, 1], [(.error 1, .empty)], by cbv⟩
+  · exact ⟨[0, 0, 1, 0, 0, 0, 1], [({ result := .error 1, cause := some 1 }, .empty)], by cbv⟩
   · simp [inputs, first, GraphEvent.successes, producer]
 
 /-- Both failures are licensed on one matching despite the earlier outer-stream failure.

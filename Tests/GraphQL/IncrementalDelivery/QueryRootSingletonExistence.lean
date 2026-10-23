@@ -1,5 +1,6 @@
 import Proofs.GraphQL.IncrementalDelivery.Correctness.QueryRootSingletonExistence
 import Tests.GraphQL.IncrementalDelivery.Execution
+import Proofs.GraphQL.IncrementalDelivery.Semantics.WorkSize
 
 /-! Complete outcomes through actual execution of ancestor-dependent defer queries. -/
 
@@ -17,9 +18,18 @@ This test-only certificate lets reduction check the shape of actual prepared wor
 -/
 def Flat : Work → Prop
   | .empty => True
+  | .declareGroups _ tasks => Flat tasks
   | .combine left right => Flat left ∧ Flat right
   | .executionGroup groups _ _ children => (∃ group, groups = [group]) ∧ children.size = 0
   | .stream .. => False
+
+/-- Declaration metadata leaves the flat fixture certificate unchanged. -/
+theorem Flat.withoutDeclarations {work} (shape : Flat work)
+    : Flat work.withoutDeclarations := by
+  cases work with
+  | declareGroups groups tasks => exact Flat.withoutDeclarations (work := tasks) shape
+  | empty | combine | executionGroup | stream => exact shape
+termination_by sizeOf work
 
 /-- Navigation either stays among flat root boundaries or enters a task-free child.
 Witness: combine preserves the certificate; a deferred edge enters zero-count work.
@@ -30,18 +40,18 @@ theorem Flat.located {work address current producer owners}
   have navigation := StructuralEquivalence.located_of_current located
   clear located
   induction navigation with
-  | root => exact Or.inl ⟨flat, rfl⟩
+  | root => exact Or.inl ⟨flat.withoutDeclarations, rfl⟩
   | left _ ih =>
       rcases ih with ⟨flat, root⟩ | empty
-      · exact Or.inl ⟨flat.1, root⟩
-      · exact Or.inr (Nat.add_eq_zero_iff.mp empty).1
+      · exact Or.inl ⟨flat.1.withoutDeclarations, root⟩
+      · exact Or.inr (by simpa only [Work.size_withoutDeclarations] using (Nat.add_eq_zero_iff.mp empty).1)
   | right _ ih =>
       rcases ih with ⟨flat, root⟩ | empty
-      · exact Or.inl ⟨flat.2, root⟩
-      · exact Or.inr (Nat.add_eq_zero_iff.mp empty).2
+      · exact Or.inl ⟨flat.2.withoutDeclarations, root⟩
+      · exact Or.inr (by simpa only [Work.size_withoutDeclarations] using (Nat.add_eq_zero_iff.mp empty).2)
   | executionGroup _ ih =>
       rcases ih with ⟨flat, _⟩ | impossible
-      · exact Or.inr flat.2
+      · exact Or.inr (by simpa only [Work.size_withoutDeclarations] using flat.2)
       · simp [Work.size] at impossible
   | item _ _ ih =>
       rcases ih with ⟨impossible, _⟩ | impossible

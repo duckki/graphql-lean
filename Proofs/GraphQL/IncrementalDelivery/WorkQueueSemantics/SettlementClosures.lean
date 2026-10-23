@@ -111,7 +111,7 @@ theorem Explains.contributor_closed_before_settlement_failed
   have beforeCut : index < cut := by simp only [List.length_take] at bound; omega
   have original : events[index]? = some event := by
     simpa only [List.getElem?_take_of_lt beforeCut] using selected
-  have allowed := earlier.2.2 index event selected
+  have allowed := earlier.eventAllowed index event selected
   cases event <;>
     simp only [eventCompleted, List.mem_singleton, List.not_mem_nil] at closes
   all_goals try contradiction

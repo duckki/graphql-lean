@@ -1,5 +1,8 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.Conformance
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.ReaderLifecycle
+import Tests.GraphQL.IncrementalDelivery.Fixtures.WorkDeclarations
+
+open GraphQL.IncrementalDelivery.Tests (declaredTask)
 
 namespace AlternativeProtocolChecks
 open GraphQL (Name)
@@ -25,7 +28,7 @@ private def value (owners : List DeliveryNode) : ExecutionGroupValue :=
 
 private def task (owners : List DeferredFragment) (children : Execution.Work := .empty)
     : Execution.Work :=
-  .executionGroup owners [] (.ok ([("x", .scalar "X")], 0)) children
+  declaredTask owners [] ({ result := .ok ([("x", .scalar "X")], 0) }) children
 
 private def success (occurrence : Occurrence) (owners : List DeliveryNode)
     (work : ReferenceWorkQueue.Work := {})
@@ -95,7 +98,7 @@ private def parity (name : String) (work : Execution.Work)
     parity "nested single batch" nested [[parent, childDone]]
     for errors in [0, 1, 4] do
       let failure : Execution.Work :=
-        .executionGroup [{ node := group }] [] (.error errors) .empty
+        declaredTask [{ node := group }] [] ({ result := .error errors }) .empty
       parity ("fatal " ++ toString errors) failure
         [[.taskFailure (.executionGroup []) errors]]
     let shared := task [{ node := group }, { node := child }]
@@ -107,7 +110,8 @@ private def parity (name : String) (work : Execution.Work)
     parity "shared staging failure" two
       [[success (.executionGroup [0]) [group]], [.taskFailure (.executionGroup [1]) 0]]
     let finite : Execution.Work :=
-      .stream stream ((List.range 128).map (fun _ => (.ok (.scalar "I", 0), .empty)))
+      .stream stream
+        ((List.range 128).map (fun _ => ({ result := .ok (.scalar "I", 0) }, .empty)))
     let streamBatches :=
       (List.range 128).map
         (fun index => [ReferenceWorkQueue.GraphEvent.streamItems stream [item [] index]])
@@ -117,7 +121,8 @@ private def parity (name : String) (work : Execution.Work)
     parity "source failure" finite
       [[.streamItems stream [item [] 0]], [.streamFailure stream 2]]
     parity "empty boundary" (.stream stream []) [[.streamSuccess stream]]
-    let childStream : Execution.Work := .stream stream [(.ok (.scalar "I", 0), childWork)]
+    let childStream : Execution.Work :=
+      .stream stream [({ result := .ok (.scalar "I", 0) }, childWork)]
     let sourceItem := item [] 0 (ReferenceWorkQueue.Work.fromExecution childWork [0])
     parity "accepted child survives source failure" childStream
       [[.streamItems stream [sourceItem]], [.streamFailure stream 1], [childDone]]
@@ -235,13 +240,17 @@ private def parity (name : String) (work : Execution.Work)
                 },
                 {
                   group := ⟨child, some group.ref⟩,
-                  tasks := [childTask.occurrence],
-                  failure := some 1
+                  tasks := [childTask.occurrence, .executionGroup [99]],
+                  pending := 2
                 }
               ]
-            tasks := [parentTask, childTask]
+            tasks := [parentTask, childTask, ⟨.executionGroup [99], [child]⟩]
             taskNodes :=
-              [{ task := parentTask }, { task := childTask, childStreams := [held.ref] }]
+              [
+                { task := parentTask },
+                { task := childTask, childStreams := [held.ref] },
+                { task := ⟨.executionGroup [99], [child]⟩, rejection := some 1 }
+              ]
             streams := [⟨held⟩]
           }
       }

@@ -166,14 +166,15 @@ theorem State.ParentLinksComplete.pruneEmptyGroups {queue : State} {parents}
               · exact ih _ _ _ covered
   exact loop _ queue groups [] complete
 
-/-- Activation retains parent-link completeness because it leaves group records unchanged.
-Witness: the checked group-core equation for starting new work.
+/-- Activation preserves all canonical edges between surviving records.
+Witness: startup can filter failed groups but cannot remove an edge between two retained
+records; it introduces no group record or child edge.
 -/
 theorem State.ParentLinksComplete.startNewWork {queue : State} {parents}
     (complete : queue.ParentLinksComplete parents) (newWork : NewWork)
-    : (queue.startNewWork newWork).ParentLinksComplete parents :=
-  complete.of_subset
-    (by rw [(queue.startNewWork_groupCore newWork).1]; exact List.Subset.refl _)
+    (available : List (Occurrence × Nat) := [])
+    : (queue.startNewWork newWork available).1.ParentLinksComplete parents :=
+  complete.of_subset (queue.startNewWork_groupNodes_sublist newWork available).subset
 
 /-- Removing a failed subtree preserves complete links between surviving groups.
 Witness: the removal algorithm only filters the live group map.

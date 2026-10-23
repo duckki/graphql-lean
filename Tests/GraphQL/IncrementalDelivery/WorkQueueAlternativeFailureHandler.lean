@@ -62,7 +62,8 @@ private theorem owned
 private theorem source_disposal
     : .cancelSource 2 ∈ reduced.effects
       ∧ observed.1 (.stream 2) = .cleanupRequested .queue := by
-  have covered := GeneratedTaskFailureDisposal_holds _ _ _ _ SharedOwnerFailure.executed valid started
+  have covered := GeneratedTaskFailureDisposal_holds _ _ _ _ SharedOwnerFailure.executed valid
+    started
     SharedOwnerFailure.leases
   have dropped := covered.2 SharedOwnerFailure.heldProducer buffered 2 (by cbv) rfl owned
     (by decide) (by cbv)
@@ -124,7 +125,10 @@ example
       = [.groupFailure group0 1, .groupFailure group1 1] := by cbv
 
 -- The actual full-handler theorem, not separate single-root results, proves disposal.
-example : .cancelSource 7 ∈ (({ queue := shared } : State).taskFailure failed 1).2.2 := by
+example
+    : .cancelSource 7
+      ∈ (({ queue := shared } : State).handleGraphEvent
+          (.taskFailure failed 1)).2.2.1 := by
   apply taskFailure_droppedBufferedSource (occurrence := producer) (node := node) _ failed
     1 (by decide) (by cbv) (by decide) (by cbv)
 

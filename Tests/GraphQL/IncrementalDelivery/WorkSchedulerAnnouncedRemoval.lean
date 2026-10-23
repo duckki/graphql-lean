@@ -44,7 +44,7 @@ theorem prefix_valid : ValidGraphEvents work [sharedFailure] := by
   have known : TaskAt work sharedTask [child.ref, other.ref] none
       (.object [] (.error 1)) := by
     refine ⟨[{ node := child, ancestors := [parent] }, { node := other }],
-      [], .error 1, .empty, [], ?_, rfl, rfl⟩
+      [], { result := .error 1, cause := some 1 }, .empty, [], ?_, rfl, rfl⟩
     cbv
   exact .append .nil ⟨_, _, _, known⟩
     (by simp [sharedFailure, GraphEvent.Fresh, GraphEvent.identities])
@@ -59,7 +59,7 @@ theorem inputs_started
 /-- The latent owner remains cached while only its announced co-owner emits failure.
 Witness: concrete replay retains C's error and its link from P, without announcing C. -/
 theorem latent_failure_retained
-    : (before.groupNode? child.ref).map GroupNode.failure = some (some 1)
+    : (before.taskNode? sharedTask).map TaskNode.rejection = some (some 1)
       ∧ child.ref ∉ before.rootGroups
       ∧ (before.groupNode? parent.ref).map GroupNode.childGroups = some [child.ref]
       ∧ (initial.runNormalized [[sharedFailure]]).2 = [[.groupFailure other 1]] := by
@@ -100,7 +100,6 @@ theorem parent_failure_removes_cached_child
     · exact .self (node := (before.groupNode? child.ref).getD { group := { node := child } })
         (by cbv)
   exact generated.runNormalized_taskFailure_covers [[sharedFailure]] prefix_valid found
-    (by cbv)
     (owner := parent)
     (by simp [taskNode])
     (by

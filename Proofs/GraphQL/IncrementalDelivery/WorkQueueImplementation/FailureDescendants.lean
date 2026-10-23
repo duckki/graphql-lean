@@ -126,90 +126,65 @@ theorem State.LiveDescendant.removeGroup_or_absent
 
 /-- An accepted task failure removes descendants of each announced contributing group.
 Witness: an earlier removal clears the target or retains its path and active owner.
-Caching another owner's failure changes no child links. Unannounced owners are retained,
-and a settlement with no healthy owner is ignored; neither case implies removal.
+Dormant owners are retained without changing child links; active owners are removed
+whenever the task node is still present.
 -/
 theorem State.taskFailure_liveDescendant_absent
     {queue : State} {parents occurrence errors taskNode owner target}
     (forest : queue.RemovalForest parents)
     (unique : queue.GroupRefsUnique)
     (found : queue.taskNode? occurrence = some taskNode)
-    (accepted : queue.taskHasHealthyOwner taskNode.task = true)
     (contributes : owner ∈ taskNode.task.groups)
     (active : owner.ref ∈ queue.rootGroups)
     (path : queue.LiveDescendant owner.ref target)
     : (queue.taskFailure occurrence errors).1.groupNode? target = none
       ∧ target ∉ (queue.taskFailure occurrence errors).1.rootGroups := by
-  let step (acc : State × List WorkQueueEvent)
-      (group : Execution.DeliveryNode) : State × List WorkQueueEvent :=
-    let (current, events) := acc
-    match current.groupNode? group.ref with
-    | none => (current, events)
-    | some node =>
-        if current.rootGroups.contains group.ref then
-          let (next, failure) := current.finishGroupFailure node errors
-          (next, events ++ [failure])
-        else (current.putGroupNode
-          { node with
-            pending := node.pending - 1
-            failure := some (node.failure.getD 0 + errors) }, events)
+  let step := failureGroupStep errors
   let cleared (current : State) :=
     current.groupNode? target = none ∧ target ∉ current.rootGroups
   have stepState (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode)
       : (step acc group).1 = acc.1
-        ∨ (step acc group).1 = acc.1.removeGroup group.ref
-        ∨ ∃ node, acc.1.groupNode? group.ref = some node
-            ∧ (step acc group).1 = acc.1.putGroupNode
-                { node with
-                  pending := node.pending - 1
-                  failure := some (node.failure.getD 0 + errors) } := by
+        ∨ (step acc group).1 = acc.1.removeGroup group.ref := by
     obtain ⟨current, events⟩ := acc
     cases nodeFound : current.groupNode? group.ref with
-    | none => exact Or.inl (by simp [step, nodeFound])
+    | none => exact Or.inl (by simp [step, failureGroupStep, nodeFound])
     | some node =>
         have nodeRef := State.groupNode?_ref nodeFound
         by_cases announced : group.ref ∈ current.rootGroups
-        · exact Or.inr (Or.inl (by
-            simp [step, nodeFound, announced, State.finishGroupFailure, nodeRef]))
-        · exact Or.inr (Or.inr ⟨node, rfl, by
-            simp [step, nodeFound, announced]⟩)
+        · exact Or.inr (by
+            simp [step, failureGroupStep, nodeFound, announced, State.finishGroupFailure, nodeRef])
+        · exact Or.inl (by simp [step, failureGroupStep, nodeFound, announced])
   have stepUnique (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode)
       (currentUnique : acc.1.GroupRefsUnique)
       : (step acc group).1.GroupRefsUnique := by
-    rcases stepState acc group with same | removed | ⟨node, _, cached⟩
+    rcases stepState acc group with same | removed
     · exact same ▸ currentUnique
     · rw [removed]
       exact currentUnique.removeGroup group.ref
-    · rw [cached]
-      exact currentUnique.putGroupNode _
   have stepForest (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode)
       (currentForest : acc.1.RemovalForest parents)
-      (currentUnique : acc.1.GroupRefsUnique)
+      (_currentUnique : acc.1.GroupRefsUnique)
       : (step acc group).1.RemovalForest parents := by
-    rcases stepState acc group with same | removed | ⟨node, nodeFound, cached⟩
+    rcases stepState acc group with same | removed
     · exact same ▸ currentForest
     · rw [removed]
       exact currentForest.removeGroup group.ref
-    · rw [cached]
-      exact currentForest.putCounters currentUnique nodeFound _ _
   have stepCleared (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode)
       (absent : cleared acc.1) : cleared (step acc group).1 := by
-    rcases stepState acc group with same | removed | ⟨node, _, cached⟩
+    rcases stepState acc group with same | removed
     · simpa only [same] using absent
     · rw [removed]
       exact ⟨State.removeGroup_groupNodeAbsent absent.1 group.ref,
         fun member => absent.2 (acc.1.removeGroup_rootsSubset group.ref member)⟩
-    · rw [cached]
-      exact ⟨State.putCounters_groupNodeAbsent absent.1 _ _, absent.2⟩
   have stepPath (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode)
       (currentForest : acc.1.RemovalForest parents)
-      (currentUnique : acc.1.GroupRefsUnique)
+      (_currentUnique : acc.1.GroupRefsUnique)
       {root} (currentPath : acc.1.LiveDescendant root target)
       (currentActive : root ∈ acc.1.rootGroups)
       : cleared (step acc group).1
         ∨ (step acc group).1.LiveDescendant root target
           ∧ root ∈ (step acc group).1.rootGroups := by
-    rcases stepState acc group with same | removed | ⟨node, nodeFound, cached⟩
+    rcases stepState acc group with same | removed
     · exact Or.inr (same ▸ ⟨currentPath, currentActive⟩)
     · rw [removed]
       by_cases affected : acc.1.LiveDescendant group.ref target
@@ -221,8 +196,6 @@ theorem State.taskFailure_liveDescendant_absent
             (acc.1.groupNodes.length + 1) acc.1 [group.ref] [] :=
           fun member => rootOutside ((State.removeGroup_collect_mem_iff currentForest).mp member)
         exact List.mem_filter.mpr ⟨currentActive, by simpa using notCollected⟩
-    · rw [cached]
-      exact Or.inr ⟨currentPath.putCounters currentUnique nodeFound _ _, currentActive⟩
   have stepCovers (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode)
       (currentForest : acc.1.RemovalForest parents)
       (currentPath : acc.1.LiveDescendant group.ref target)
@@ -232,7 +205,8 @@ theorem State.taskFailure_liveDescendant_absent
     have nodeRef := State.groupNode?_ref nodeFound
     have removed := State.removeGroup_liveDescendant_absent currentForest currentPath
     obtain ⟨current, events⟩ := acc
-    simpa [step, nodeFound, currentActive, cleared, State.finishGroupFailure, nodeRef]
+    simpa [step, failureGroupStep, nodeFound, currentActive, cleared,
+      State.finishGroupFailure, nodeRef]
       using removed
   have foldCleared (more : List Execution.DeliveryNode) (acc : State × List WorkQueueEvent)
       (absent : cleared acc.1) : cleared (more.foldl step acc).1 := by
@@ -257,11 +231,13 @@ theorem State.taskFailure_liveDescendant_absent
           · exact foldCleared rest (step acc group) absent
           · exact ih (step acc group) (stepForest acc group currentForest currentUnique)
               (stepUnique acc group currentUnique) later survives stillActive
-  let current := queue.removeTask occurrence
-  unfold State.taskFailure
-  simp only [found, accepted, Bool.not_true, Bool.false_eq_true, ite_false]
-  exact foldCovers taskNode.task.groups (current, []) (forest.removeTask occurrence)
-    (unique.removeTask occurrence) contributes (path.removeTask occurrence) active
+  rw [queue.taskFailure_eq occurrence errors taskNode found]
+  let current := queue.putTaskNode { taskNode with rejection := some errors }
+  have currentForest : current.RemovalForest parents :=
+    ⟨forest.uniqueChildren, forest.canonical, forest.increasing⟩
+  exact foldCovers taskNode.task.groups (current, []) currentForest unique contributes
+    (State.LiveDescendant.of_groupNodes_eq (queue := queue) (next := current) rfl path)
+    active
 
 /-- An accepted failure covers announced-owner descendants after generated replay.
 Witness: generated metadata and concrete bookkeeping derive the removal forest; the
@@ -276,11 +252,6 @@ theorem ExecutedWork.runNormalized_taskFailure_covers
       : ((State.initialize (Work.fromExecution work)).runNormalized batches).1.taskNode?
           occurrence
         = some taskNode)
-    (accepted
-      : ((State.initialize (Work.fromExecution work)).runNormalized
-          batches).1.taskHasHealthyOwner
-          taskNode.task
-        = true)
     (contributes : owner ∈ taskNode.task.groups)
     (active
       : owner.ref
@@ -295,6 +266,6 @@ theorem ExecutedWork.runNormalized_taskFailure_covers
       ∧ target ∉ (queue.taskFailure occurrence errors).1.rootGroups := by
   obtain ⟨parents, forest⟩ := generated.runNormalized_removalForest batches valid
   exact State.taskFailure_liveDescendant_absent forest
-    (createWorkQueue_runNormalized_groupRefsUnique _ _) found accepted contributes active path
+    (createWorkQueue_runNormalized_groupRefsUnique _ _) found contributes active path
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

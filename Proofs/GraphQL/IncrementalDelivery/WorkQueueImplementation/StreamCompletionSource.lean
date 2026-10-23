@@ -47,29 +47,35 @@ theorem no_streamCompletions_of_no_references {events : List WorkQueueEvent}
 Witness: its group-only output has no stream reference from which to recover a completion.
 -/
 theorem State.drainReadyGroups_streamCompletions (queue : State)
-    : queue.drainReadyGroups.2.filterMap WorkQueueEvent.streamCompletion = [] :=
-  no_streamCompletions_of_no_references queue.drainReadyGroups_streamReferences
+    (available : List (Occurrence × Nat) := [])
+    : (queue.drainReadyGroups available).2.1.filterMap WorkQueueEvent.streamCompletion
+      = [] :=
+  no_streamCompletions_of_no_references
+    (queue.drainReadyGroups_streamReferences available)
 
 /-- Each handler emits only its own exact stream completion, or none.
 Witness: task handlers have no stream references; guarded stream closures copy their
 node and error count, while item arrival emits no completion.
 -/
 theorem State.handleGraphEvent_streamCompletions (queue : State) (event : GraphEvent)
-    : ((queue.handleGraphEvent event).2.filterMap WorkQueueEvent.streamCompletion).Sublist
+    (available : List (Occurrence × Nat) := [])
+    : ((queue.handleGraphEvent event available).2.1.filterMap
+        WorkQueueEvent.streamCompletion).Sublist
         event.streamCompletion.toList := by
   cases event with
   | taskSuccess occurrence result =>
       rw [State.handleGraphEvent, no_streamCompletions_of_no_references
-        (queue.taskSuccess_streamReferences occurrence result)]
+        ((queue.cacheTaskFailures available).taskSuccess_streamReferences occurrence result
+          available)]
       exact List.nil_sublist _
   | taskFailure occurrence errors =>
       rw [State.handleGraphEvent, no_streamCompletions_of_no_references
-        (queue.taskFailure_streamReferences occurrence errors)]
+        ((queue.cacheTaskFailures available).taskFailure_streamReferences occurrence errors)]
       exact List.nil_sublist _
   | streamItems stream items =>
       simp only [State.handleGraphEvent, State.streamItems]
       split <;> simp [WorkQueueEvent.streamCompletion, GraphEvent.streamCompletion,
-        List.filterMap_cons, State.drainReadyGroups_streamCompletions]
+        List.filterMap_cons, State.drainReadyGroups_streamCompletions _ available]
   | streamSuccess stream =>
       simp only [State.handleGraphEvent, State.streamSuccess]
       split <;> simp [WorkQueueEvent.streamCompletion, GraphEvent.streamCompletion]
@@ -77,19 +83,27 @@ theorem State.handleGraphEvent_streamCompletions (queue : State) (event : GraphE
       simp only [State.handleGraphEvent, State.streamFailure]
       split <;> simp [WorkQueueEvent.streamCompletion, GraphEvent.streamCompletion]
 
+  | groupFailure failure =>
+      simp only [State.handleGraphEvent, State.groupFailure]
+      split
+      · simp [GraphEvent.streamCompletion]
+      · split <;> simp [WorkQueueEvent.streamCompletion, GraphEvent.streamCompletion]
+
 /-- Eventwise replay retains a subsequence of exact source stream completions.
 Witness: append the corresponding per-handler subsequences in execution order.
 -/
 theorem State.rawEventReplay_streamCompletions (queue : State) (events : List GraphEvent)
-    : ((queue.rawEventReplay events).2.filterMap WorkQueueEvent.streamCompletion).Sublist
+    (available : List (Occurrence × Nat) := [])
+    : ((queue.rawEventReplay events available).2.filterMap
+        WorkQueueEvent.streamCompletion).Sublist
         (events.filterMap GraphEvent.streamCompletion) := by
   induction events generalizing queue with
   | nil => exact .refl _
   | cons event rest ih =>
-      rw [State.rawEventReplay_cons, List.filterMap_append]
-      have combined := (queue.handleGraphEvent_streamCompletions event).append
-        (ih (queue.handleGraphEvent event).1)
-      cases event <;> simpa [List.filterMap_cons, GraphEvent.streamCompletion] using combined
+      rw [State.rawEventReplay_cons _ _ _ available, List.filterMap_append]
+      have combined := (queue.handleGraphEvent_streamCompletions event available).append
+        (ih (queue.dispatchGraphEvent event available).1)
+      cases event <;> simpa [List.filterMap_cons, GraphEvent.streamCompletion, State.dispatchGraphEvent] using combined
 
 /-- The batch wrapper creates no stream completion independently of the source.
 Witness: ignored batches are empty, and queue termination adds no stream completion.
@@ -99,14 +113,16 @@ theorem State.handleGraphEvents_streamCompletions (queue : State)
     : ((queue.handleGraphEvents events).2.filterMap
         WorkQueueEvent.streamCompletion).Sublist
         (events.filterMap GraphEvent.streamCompletion) := by
+  have immediate :=
+    queue.rawEventReplay_streamCompletions events (GraphEvent.availableFailures events)
   rw [State.handleGraphEvents_eq_rawEventReplay]
   split
   · exact List.nil_sublist _
   · dsimp only
     split
-    · simpa [List.filterMap_append, List.filterMap_cons, WorkQueueEvent.streamCompletion]
-        using queue.rawEventReplay_streamCompletions events
-    · exact queue.rawEventReplay_streamCompletions events
+    · simpa only [List.filterMap_append, List.filterMap_cons, List.filterMap_nil,
+        WorkQueueEvent.streamCompletion, List.append_nil] using immediate
+    · simpa only [List.filterMap_append, List.append_nil] using immediate
 
 -----------------------------------------------------------------------------------------
 -- Normalization and atomic expansion preserve the completion constructor and descriptor

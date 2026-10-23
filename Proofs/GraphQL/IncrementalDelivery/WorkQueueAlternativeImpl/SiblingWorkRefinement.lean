@@ -58,6 +58,7 @@ theorem siblingWorkRefinement_holds : SiblingWorkRefinement := by
       | error errors =>
           simp only [StateT.run_pure, id_pure_eq, Completion.error, isFatal,
             Bool.true_eq_false, false_implies, and_true]
+          rw [refined.2.2]
           apply CompletionRefines.fatal_cut combine _ _ (positive errors result)
           simpa only [result] using refined.1
       | ok value =>

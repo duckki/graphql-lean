@@ -19,22 +19,27 @@ mutual
   the slices retain the same absolute stream offsets as the cursor seed. -/
   inductive WorkAttached : List Entry → Work → List (List ResponsePath) → Prop where
     | empty {available : List Entry} : WorkAttached available .empty []
+    | declareGroups {available : List Entry} {groups : List DeferredFragment}
+      {tasks : Work} {slices : List (List ResponsePath)}
+      (known : WorkAttached available tasks slices)
+      : WorkAttached available (.declareGroups groups tasks) slices
     | combine {available : List Entry} {left right : Work}
       {ls rs : List (List ResponsePath)} (hl : WorkAttached available left ls)
       (hr : WorkAttached available right rs)
       : WorkAttached available (.combine left right) (ls ++ rs)
     | executionGroup {available : List Entry} {groups : List DeferredFragment}
-      {path : ResponsePath} {completed : Result (List (Name × ResponseValue))}
+      {path : ResponsePath} {completed : TaskOutcome (List (Name × ResponseValue))}
       {children : Work} {slices : List (List ResponsePath)}
       (ha : (path, Atom.object) ∈ available)
       (hc
         : WorkAttached
-            (available ++ TypedResponse.result (TypedResponse.fields path) completed)
+            (available
+              ++ TypedResponse.result (TypedResponse.fields path) completed.result)
             children slices)
       : WorkAttached available (.executionGroup groups path completed children)
-          (result (fields true path) completed :: slices)
+          (result (fields true path) completed.result :: slices)
     | stream {available : List Entry} {node : DeliveryNode}
-      {items : List (Result ResponseValue × Work)} {index : Nat}
+      {items : List (TaskOutcome ResponseValue × Work)} {index : Nat}
       {slices : List (List ResponsePath)}
       (ha : (node.path, Atom.list) ∈ available)
       (hi : ItemsAttached available node.path index items slices)
@@ -43,22 +48,22 @@ mutual
   /-- Stream items attach their children beneath their own value, starting at the
   given response index; sibling items share the original ambient entries. -/
   inductive ItemsAttached
-      : List Entry → ResponsePath → Nat → List (Result ResponseValue × Work)
+      : List Entry → ResponsePath → Nat → List (TaskOutcome ResponseValue × Work)
         → List (List ResponsePath) → Prop where
     | nil {available : List Entry} {path : ResponsePath} {index : Nat}
       : ItemsAttached available path index [] []
     | cons {available : List Entry} {path : ResponsePath} {index : Nat}
-      {completed : Result ResponseValue} {children : Work}
-      {tail : List (Result ResponseValue × Work)} {cs ts : List (List ResponsePath)}
+      {completed : TaskOutcome ResponseValue} {children : Work}
+      {tail : List (TaskOutcome ResponseValue × Work)} {cs ts : List (List ResponsePath)}
       (hc
         : WorkAttached
             (available
               ++ TypedResponse.result
-                  (TypedResponse.value (path ++ [.index index])) completed)
+                  (TypedResponse.value (path ++ [.index index])) completed.result)
             children cs)
       (ht : ItemsAttached available path (index + 1) tail ts)
       : ItemsAttached available path index ((completed, children) :: tail)
-          (result (value true (path ++ [.index index])) completed :: (cs ++ ts))
+          (result (value true (path ++ [.index index])) completed.result :: (cs ++ ts))
 end
 
 mutual
@@ -71,6 +76,7 @@ mutual
       : WorkAttached right work slices := by
     cases h with
     | empty => exact .empty
+    | declareGroups known => exact .declareGroups (known.mono hm)
     | combine hl hr => exact .combine (hl.mono hm) (hr.mono hm)
     | executionGroup ha hc =>
         refine .executionGroup (hm _ ha) (hc.mono ?_)
@@ -82,8 +88,9 @@ mutual
 
   /-- Adding ambient entries preserves item attachments, by induction through children. -/
   theorem ItemsAttached.mono {left right : List Entry} {path : ResponsePath} {index : Nat}
-      {items : List (Result ResponseValue × Work)} {slices : List (List ResponsePath)}
-      (h : ItemsAttached left path index items slices) (hm : ∀entry ∈ left, entry ∈ right)
+      {items : List (TaskOutcome ResponseValue × Work)}
+      {slices : List (List ResponsePath)} (h : ItemsAttached left path index items slices)
+      (hm : ∀entry ∈ left, entry ∈ right)
       : ItemsAttached right path index items slices := by
     cases h with
     | nil => exact .nil
@@ -122,7 +129,7 @@ def OwnedAttachedWork (available : List Entry) (scope : ResponsePath → Prop) (
 
 /-- Items have owned, attached slices at the supplied absolute starting index. -/
 def OwnedAttachedItems (available : List Entry) (path : ResponsePath) (index : Nat)
-    (scope : ResponsePath → Prop) (items : List (Result ResponseValue × Work))
+    (scope : ResponsePath → Prop) (items : List (TaskOutcome ResponseValue × Work))
     : Prop :=
   SeedOwnsItems path index scope items
   ∧ ∃ slices,

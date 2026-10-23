@@ -99,9 +99,10 @@ theorem State.maybeIntegrateWork_includesRefs (state : State)
 Witness: exact initial kernel correspondence transfers the existing reference invariant.
 -/
 theorem State.initialize_pendingAccounting (work : Work)
+    (certified : ReferenceWorkQueue.DeclarationCoverage.Certified [] work)
     : (State.initialize work).queue.PendingAccounting work [] := by
   rw [State.initialize_queue]
-  exact ReferenceWorkQueue.createWorkQueue_pendingAccounting work
+  exact ReferenceWorkQueue.createWorkQueue_pendingAccounting work certified
 
 /-- Initial active roots have live records, as established by reference initialization. -/
 theorem State.initialize_rootsPresent (work : Work)

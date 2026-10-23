@@ -1,5 +1,6 @@
 import Proofs.GraphQL.IncrementalDelivery.Correctness.MixedNoticeCoverage
 import Proofs.GraphQL.IncrementalDelivery.Correctness.MixedExistence
+import Proofs.GraphQL.IncrementalDelivery.Semantics.WorkSize
 
 /-! An eligible stream can need a later carrier after shared-owner object publication. -/
 
@@ -14,7 +15,7 @@ def node (ref : NodeRef) : DeliveryNode := { ref, path := [] }
 /-- One shared task accounts for both owners and reveals an empty stream. -/
 def work : Work :=
   .executionGroup [{ node := node 0 }, { node := node 1, ancestors := [node 0] }]
-    [] (.ok ([], 0)) (.stream (node 2) [])
+    [] ({ result := .ok ([], 0) }) (.stream (node 2) [])
 
 /-- Ref one retains its ancestor; the stream's dependencies come from structural owners.
 -/
@@ -37,15 +38,16 @@ theorem located_work {address current producer owners}
           ∧ producer = some (.executionGroup [])
           ∧ owners = [0, 1]) := by
   cases address with
-  | nil => simp_all [Located, locateWork, locateWork.go, WorkLocation.mk.injEq]
+  | nil => simp_all [Located, locateWork, locateWork.go, WorkLocation.mk.injEq,
+      work, Work.withoutDeclarations]
   | cons index rest =>
       cases index with
       | zero =>
           cases rest <;>
-            simp_all [Located, locateWork, locateWork.go, WorkLocation.child?,
+            simp_all [Located, locateWork, locateWork.go, WorkLocation.child?, Work.withoutDeclarations,
               WorkLocation.mk.injEq, work, node]
       | succ index =>
-          simp [Located, locateWork, locateWork.go, WorkLocation.child?, work] at known
+          simp [Located, locateWork, locateWork.go, WorkLocation.child?, Work.withoutDeclarations, work] at known
 
 /-- All node metadata comes from the two shared fragments or the stream child.
 Witness: the exact structural location classification.
@@ -108,7 +110,8 @@ theorem initial_ready
     : Explains work [node 0] [] [] matching []
       ∧ CanPublish work matching [] [] (.executionGroup []) none :=
   ⟨
-    ⟨initialized, by simp [FailureWitness], by simp⟩,
+    Explains.of_causal_failures initialized (by simp [FailureWitness]) (by simp)
+      (by simp),
     by refine ⟨by simp [Published], fun failed => failed.nonempty rfl, by simp, trivial⟩
   ⟩
 
@@ -122,7 +125,7 @@ theorem initial_covered : NoticesCovered work [0] matching [] [] := by
   · exact eligible.1 (by simp [node, announcedRefs, pendingRefs])
   · exact ready_owner_dependency_unsatisfied initial_ready.1
       (show TaskAt work (.executionGroup []) [0, 1] none (.object [] (.ok ([], 0)))
-        from .executionGroup .root) (by simp : 0 ∈ [0, 1]) initial_ready.2
+        from .executionGroup (Located.root (root := work))) (by simp : 0 ∈ [0, 1]) initial_ready.2
       (by simpa [node, failedBefore] using eligible.2.2.2 0 (by simp))
   · have impossible := eligible.2.2.1 (.executionGroup []) rfl
     simp [Published] at impossible
@@ -133,7 +136,7 @@ Witness: the event rule and equal response-path lengths for all potential owners
 theorem published : Explains work [node 0] [] [value] matching [] := by
   apply initial_ready.1.append_event
   refine ⟨[0, 1], none, { path := [], data := [] }, rfl,
-    .executionGroup .root, initial_ready.2, ?_⟩
+    .executionGroup (Located.root (root := work)), initial_ready.2, ?_⟩
   have opened : OpenOwner work [0] [] [0, 1] (node 0) :=
     ⟨⟨.group, [], none, .group (group := { node := node 0 }) .root (by simp)⟩,
       by simp [node], by simp [Open, announcedRefs, pendingRefs, completedRefs, node]⟩
@@ -171,7 +174,7 @@ Witness: the produced stream is eligible, but object publications carry no notic
 example : ¬NoticesCovered work [0] matching [value] [] := by
   intro covered
   exact covered (node 2) .stream [0, 1] (some (.executionGroup []))
-    (NodeAt.stream (.executionGroup .root)) stream_eligible
+    (NodeAt.stream (.executionGroup (Located.root (root := work)))) stream_eligible
 
 /-- Ref zero remains an open, unsatisfied dependency after publication.
 Witness: it is represented and announced but has no completion entry yet.
@@ -275,6 +278,7 @@ example : ∃ history, AdmissibleRun work history := by
   · exact reporting_metadata.1
   · exact reporting_metadata.2.1
   · exact reporting_metadata.2.2.1
+  · simp [work, GeneralScheduling.streamAllocationRefs]
   · simp [work, Work.size]
 
 end GraphQL.IncrementalDelivery.Tests.MixedNoticeCoverage

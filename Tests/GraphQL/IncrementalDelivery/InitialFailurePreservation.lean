@@ -54,7 +54,7 @@ example
     : ((completeStreamItems schema resolvers [] 30 (.nonNull (.named "User")) fields
           values [.field "users"] 0).run
           0).1
-        = [(.error 1, .empty)]
+        = [({ result := .error 1, cause := some 1 }, .empty)]
       ∧ GraphQL.Execution.completeValueList schema resolvers [] 30
           (.nonNull (.named "User")) (fields.map Semantics.eraseField) values
         = .error 4 := by
@@ -64,9 +64,10 @@ example
 Witness: the generalized stream theorem; the retained count and child work are arbitrary.
 -/
 example {ObjectRef : Type} (environment : Resolvers ObjectRef) (fuel : Nat)
-    (values : List (ResolverValue ObjectRef)) (state errors : Nat) (children : Work)
+    (values : List (ResolverValue ObjectRef)) (state errors : Nat) (cause : Option Nat)
+    (children : Work)
     (failed
-      : (.error errors, children)
+      : ({ result := .error errors, cause }, children)
         ∈ ((completeStreamItems schema environment [] fuel (.nonNull (.named "User"))
               fields values [.field "users"] 0).run
             state).1)
@@ -75,7 +76,7 @@ example {ObjectRef : Type} (environment : Resolvers ObjectRef) (fuel : Nat)
           (.nonNull (.named "User")) (fields.map Semantics.eraseField) values
         = .error count := by
   apply completeStreamItems_failure_bubbles schema environment [] fuel
-    (.nonNull (.named "User")) fields values _ [.field "users"] 0 state errors children failed
+    (.nonNull (.named "User")) fields values _ [.field "users"] 0 state errors cause children failed
   intro field member
   simp only [fields, List.mem_singleton] at member
   subst field

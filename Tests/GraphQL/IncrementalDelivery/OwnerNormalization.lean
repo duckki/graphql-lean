@@ -17,7 +17,7 @@ def value : ExecutionGroupValue :=
 
 def work : Work :=
   .executionGroup [{ node := parent }, { node := child }] value.path
-    (.ok (value.data, value.errors)) .empty
+    ({ result := .ok (value.data, value.errors) }) .empty
 
 /-- Structural lookup exposes precisely the shared root task and its empty child. -/
 theorem located_work {address current producer owners}
@@ -28,15 +28,16 @@ theorem located_work {address current producer owners}
           ∧ producer = some (.executionGroup [])
           ∧ owners = [0, 1]) := by
   cases address with
-  | nil => simp_all [Located, locateWork, locateWork.go, WorkLocation.mk.injEq]
+  | nil =>
+      simp_all [Located, locateWork, locateWork.go, WorkLocation.mk.injEq, Work.withoutDeclarations, work]
   | cons index rest =>
       cases index with
       | zero =>
           cases rest <;>
-            simp_all [Located, locateWork, locateWork.go, WorkLocation.child?,
+            simp_all [Located, locateWork, locateWork.go, WorkLocation.child?, Work.withoutDeclarations,
               WorkLocation.mk.injEq, work, parent, child]
       | succ index =>
-          simp [Located, locateWork, locateWork.go, WorkLocation.child?, work] at known
+          simp [Located, locateWork, locateWork.go, WorkLocation.child?, Work.withoutDeclarations, work] at known
 
 /-- The full available-owner inventory is exactly the two contributing descriptors. -/
 theorem node_work {node kind parents birth} (known : NodeAt work node kind parents birth)
@@ -90,7 +91,7 @@ example
     : EventAllowed work [0, 1] (fun _ => .executionGroup []) [] []
         (.groupValues (selectGroupOwner [0, 1] parent contributors) [value]) := by
   apply normalized_groupValues_allowed (owners := [0, 1]) (producer := none)
-  · exact .executionGroup .root
+  · exact .executionGroup (Located.root (root := work))
   · exact ⟨by simp [Published], WorkQueueSemantics.noCancellation _ _, by simp, trivial⟩
   · exact available parent (by simp [contributors])
   · intro node member _
@@ -174,7 +175,8 @@ def generated : Work :=
 theorem generated_location
     : Located generated [0, 0, 1, 0]
         (.executionGroup [{ node := parent }, { node := child }] value.path
-          (.ok (value.data, value.errors)) (.combine .empty .empty)) none [] := by
+          ({ result := .ok (value.data, value.errors) }) (.combine .empty .empty))
+        none [] := by
   cbv
 
 /-- The audited owner/path/value combination is genuinely execution-generated, not only

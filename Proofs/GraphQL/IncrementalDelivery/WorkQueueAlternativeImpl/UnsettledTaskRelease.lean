@@ -25,7 +25,7 @@ theorem taskSuccess_registrationDebt {queue : Kernel}
     (matching
       : (ReferenceWorkQueue.GraphEvent.taskSuccess occurrence result).MatchesWork work)
     (found : queue.taskNode? occurrence = some node)
-    (healthy : queue.taskHasHealthyOwner node.task = true) (fresh : occurrence ∉ settled)
+    (fresh : occurrence ∉ settled)
     : (registrationSnapshot queue (.taskSuccess occurrence result)).PendingDebtBound
         (fun _ => True) (occurrence :: settled)
         (node.task.groups.map DeliveryNode.ref) := by
@@ -61,7 +61,7 @@ theorem taskSuccess_registrationDebt {queue : Kernel}
     (fun candidate member _ => owned candidate member) fresh
   change (registrationCore (registrationSnapshot queue (.taskSuccess occurrence result))).PendingDebtBound
     (fun _ => True) (occurrence :: settled) (node.task.groups.map DeliveryNode.ref)
-  simp only [registrationSnapshot, found, healthy, ↓reduceIte]
+  simp only [registrationSnapshot, found]
   rw [State.maybeIntegrateWork_registrationCore { queue := stored } result.work (some occurrence)]
   exact debt
 

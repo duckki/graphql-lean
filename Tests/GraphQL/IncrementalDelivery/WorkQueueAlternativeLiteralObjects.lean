@@ -168,9 +168,9 @@ example
         ∧ next 27 = 31
         ∧ CompletionRefines next cut.1 eager.1 := by
   obtain ⟨next, related⟩ := constructed
-  have early := related.completion.2.locate [0, 0, 1]
-  have later := related.completion.2.locate [1, 1, 0, 0, 0, 1]
-  have nested := related.completion.2.locate [1, 1, 1, 0, 0, 0, 1]
+  have early := related.completion.2.1.locate [0, 0, 1]
+  have later := related.completion.2.1.locate [1, 1, 0, 0, 0, 1]
+  have nested := related.completion.2.1.locate [1, 1, 1, 0, 0, 0, 1]
   cbv at early later nested
   refine ⟨next, ?_, ?_, stream_key early.1, stream_key later.1, stream_key nested.1,
     ?_, related.completion⟩
@@ -193,14 +193,14 @@ example
                     { ref := 16, path := [] }
                   ]
               }]
-              path (.ok ([("nested", .list [])], 0))
+              path ({ result := .ok ([("nested", .list [])], 0) })
               (.combine
                 (.combine .empty
                   (.stream { ref := 26, path := path ++ [.field "nested"] }
                     [
-                      (.ok (.scalar "x", 0), .empty),
-                      (.ok (.null, 0), .empty),
-                      (.ok (.scalar "z", 0), .empty)
+                      ({ result := .ok (.scalar "x", 0) }, .empty),
+                      ({ result := .ok (.null, 0) }, .empty),
+                      ({ result := .ok (.scalar "z", 0) }, .empty)
                     ]))
                 .empty),
             none,

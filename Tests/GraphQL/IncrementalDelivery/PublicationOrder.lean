@@ -46,6 +46,6 @@ example
         task.occurrence = .item [] 1
         ∧ task.producer = none
         ∧ task.payload = .item HistoryScheduling.stream (.ok (.null, 0)) :=
-  sourceTasks_task (TaskAt.item .root rfl) _
+  sourceTasks_task (TaskAt.item (result := { result := .ok (.null, 0) }) .root rfl) _
 
 end GraphQL.IncrementalDelivery.Tests.PublicationOrder

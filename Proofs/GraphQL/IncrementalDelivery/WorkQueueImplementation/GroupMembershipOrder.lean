@@ -37,16 +37,22 @@ Witness: old lists are unchanged; a fresh group has no task memberships yet.
 theorem State.GroupMembershipOrder.addGroup {queue : State}
     (ordered : queue.GroupMembershipOrder) (group : Group)
     : (queue.addGroup group).GroupMembershipOrder := by
+  have appended : ({ queue with
+      groupNodes := queue.groupNodes ++ [({ group } : GroupNode)] } : State).GroupMembershipOrder := by
+    intro node member
+    rcases List.mem_append.mp member with old | fresh
+    · exact ordered node old
+    · cases List.mem_singleton.mp fresh
+      exact List.nil_sublist _
   unfold State.addGroup
   split
   · exact ordered
   · split
-    · exact ordered
-    · intro node member
-      rcases List.mem_append.mp member with old | fresh
-      · exact ordered node old
-      · cases List.mem_singleton.mp fresh
-        exact List.nil_sublist _
+    · exact appended
+    · split
+      · split <;> exact ordered
+      · rename_i node found
+        exact appended.putGroupNode _ (ordered node (List.mem_of_find?_eq_some found))
 
 /-- Group registration and parent linking leave all task membership orders unchanged.
 Witness: new nodes are empty; parent-link replacement retains the old task list.
@@ -54,35 +60,8 @@ Witness: new nodes are empty; parent-link replacement retains the old task list.
 theorem State.GroupMembershipOrder.addGroups {queue : State}
     (ordered : queue.GroupMembershipOrder) (groups : List Group)
     : (queue.addGroups groups).1.GroupMembershipOrder := by
-  let step (current : State) (group : Group) : State :=
-    match group.parent with
-    | none => current
-    | some parent =>
-        match current.groupNode? parent with
-        | none => current
-        | some node =>
-            let children := if node.childGroups.contains group.node.ref then
-              node.childGroups else node.childGroups ++ [group.node.ref]
-            current.putGroupNode { node with childGroups := children }
-  have links (more : List Group) (current : State) (prior : current.GroupMembershipOrder)
-      : (more.foldl step current).GroupMembershipOrder := by
-    induction more generalizing current with
-    | nil => exact prior
-    | cons group rest ih =>
-        apply ih
-        unfold step
-        split
-        · exact prior
-        · split
-          · exact prior
-          · rename_i node found
-            exact prior.putGroupNode _ (prior node (List.mem_of_find?_eq_some found))
-  have register (more : List Group) (current : State) (prior : current.GroupMembershipOrder)
-      : (more.foldl State.addGroup current).GroupMembershipOrder := by
-    induction more generalizing current with
-    | nil => exact prior
-    | cons group rest ih => exact ih _ (prior.addGroup group)
-  exact links _ _ (register _ queue ordered)
+  exact State.addGroups_preserves (fun current => current.GroupMembershipOrder) groups
+    (fun _ group _ valid => valid.addGroup group) queue ordered
 
 /-- Adding one task appends its occurrence to each group at most once, in registration order.
 Witness: the permanent registry is extended first. An owner without the new occurrence
@@ -196,16 +175,23 @@ theorem State.GroupMembershipOrder.pruneEmptyGroups {queue : State}
               · exact ih _ _ _ prior
   exact loop _ queue groups [] ordered
 
-/-- Activating work preserves the exact group nodes and permanent task registry.
-Witness: the existing activation projection equations transport the subsequence property.
--/
+/-- Cache exposure does not alter group memberships or permanent registration order. -/
+theorem State.GroupMembershipOrder.cacheTaskFailures {queue : State}
+    (ordered : queue.GroupMembershipOrder) (available : List (Occurrence × Nat))
+    : (queue.cacheTaskFailures available).GroupMembershipOrder := by
+  intro node member
+  rw [State.cacheTaskFailures_groupNodes] at member
+  rw [State.cacheTaskFailures_tasks]
+  exact ordered node member
+
+/-- Startup preserves membership order for every surviving group record. -/
 theorem State.GroupMembershipOrder.startNewWork {queue : State}
     (ordered : queue.GroupMembershipOrder) (work : NewWork)
-    : (queue.startNewWork work).GroupMembershipOrder := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.startNewWork work available).1.GroupMembershipOrder := by
   intro node member
-  rw [(State.startNewWork_groupCore _ _).1] at member
-  rw [(State.startNewWork_groupCore _ _).2.1]
-  exact ordered node member
+  rw [State.startNewWork_tasks]
+  exact ordered node ((queue.startNewWork_groupNodes_sublist work available).subset member)
 
 /-- Removing a shared task filters all owner memberships while preserving their order.
 Witness: filtering yields a subsequence of each already ordered list.
@@ -270,17 +256,29 @@ theorem State.GroupMembershipOrder.finishGroupSuccess {queue : State}
     exact flushedOrder node (List.mem_filter.mp member).1
   exact currentOrder.pruneEmptyGroups _
 
+/-- Failure either removes owners or changes only their counters and retained errors.
+Witness: each failure-owner step preserves its surviving ordered membership list.
+-/
+theorem State.GroupMembershipOrder.taskFailure {queue : State}
+    (ordered : queue.GroupMembershipOrder) (occurrence : Occurrence) (errors : Nat)
+    : (queue.taskFailure occurrence errors).1.GroupMembershipOrder := by
+  cases found : queue.taskNode? occurrence with
+  | none => simpa [State.taskFailure, found] using ordered
+  | some task =>
+      rw [queue.taskFailure_eq occurrence errors task found]
+      exact failureGroupFold_preserves State.GroupMembershipOrder
+        (fun _ ref prior => prior.removeGroup ref) errors task.task.groups _ ordered
+
 /-- Releasing settled roots preserves registration-order memberships at every iteration.
 Witness: the generic drain induction uses successful cleanup, activation, and failure.
 -/
 theorem State.GroupMembershipOrder.drainReadyGroups {queue : State}
-    (ordered : queue.GroupMembershipOrder)
-    : queue.drainReadyGroups.1.GroupMembershipOrder := by
-  apply State.drainReadyGroups_preserves State.GroupMembershipOrder (valid := ordered)
-  · intro current node prior _ _ _ _
-    exact (prior.finishGroupSuccess node).startNewWork _
-  · intro current node errors prior _ _ _
-    exact prior.finishGroupFailure node errors
+    (ordered : queue.GroupMembershipOrder) (available : List (Occurrence × Nat) := [])
+    : (queue.drainReadyGroups available).1.GroupMembershipOrder := by
+  apply State.drainReadyGroups_preserves State.GroupMembershipOrder
+    (available := available) (valid := ordered)
+  intro current node prior _ _ _
+  exact (prior.finishGroupSuccess node).startNewWork _ available
 
 -----------------------------------------------------------------------------------------
 -- Host-event handling preserves the order through all registration and release paths
@@ -329,90 +327,81 @@ their subsequences of the extended permanent registry.
 -/
 theorem State.GroupMembershipOrder.taskSuccess {queue : State}
     (ordered : queue.GroupMembershipOrder) (occurrence : Occurrence) (result : TaskResult)
-    : (queue.taskSuccess occurrence result).1.GroupMembershipOrder := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.taskSuccess occurrence result available).1.GroupMembershipOrder := by
   unfold State.taskSuccess
   split
   · exact ordered
   · rename_i node found
-    split
-    · exact ordered.removeTask occurrence
-    · have stored : (queue.putTaskNode
-          { node with value := some result.value }).GroupMembershipOrder := ordered
-      have integrated := stored.maybeIntegrateWork result.work (some occurrence)
-      have released := fold_preserves successGroupStep
-        (fun acc => acc.1.GroupMembershipOrder) successGroupStep_groupMembershipOrder
-        node.task.groups (_, [], {}) integrated
-      exact (released.startNewWork _).drainReadyGroups
-
-/-- Failure either removes owners or changes only their counters and retained errors.
-Witness: each failure-owner step preserves its surviving ordered membership list.
--/
-theorem State.GroupMembershipOrder.taskFailure {queue : State}
-    (ordered : queue.GroupMembershipOrder) (occurrence : Occurrence) (errors : Nat)
-    : (queue.taskFailure occurrence errors).1.GroupMembershipOrder := by
-  have step (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode)
-      (prior : acc.1.GroupMembershipOrder)
-      : (failureGroupStep errors acc group).1.GroupMembershipOrder := by
-    obtain ⟨current, events⟩ := acc
-    dsimp only [failureGroupStep]
-    split
-    · exact prior
-    · rename_i node found
-      split
-      · exact prior.finishGroupFailure node errors
-      · exact prior.putGroupNode _ (prior node (List.mem_of_find?_eq_some found))
-  unfold State.taskFailure
-  split
-  · exact ordered
-  · rename_i node found
-    split
-    · exact ordered.removeTask occurrence
-    · exact fold_preserves (failureGroupStep errors)
-        (fun acc => acc.1.GroupMembershipOrder) step node.task.groups
-        (queue.removeTask occurrence, []) (ordered.removeTask occurrence)
+    have stored : (queue.putTaskNode
+        { node with value := some result.value }).GroupMembershipOrder := ordered
+    have integrated := stored.maybeIntegrateWork result.work (some occurrence)
+    have released := fold_preserves successGroupStep
+      (fun acc => acc.1.GroupMembershipOrder) successGroupStep_groupMembershipOrder
+      node.task.groups (_, [], {}) integrated
+    exact (released.startNewWork _ available).drainReadyGroups available
 
 /-- Each stream-item chunk appends its child tasks before ordered activation and draining.
 Witness: fold over the real item-integration step, retaining the extended registry order.
 -/
 theorem State.GroupMembershipOrder.streamItems {queue : State}
     (ordered : queue.GroupMembershipOrder) (stream : Execution.DeliveryNode)
-    (items : List StreamItem)
-    : (queue.streamItems stream items).1.GroupMembershipOrder := by
+    (items : List StreamItem) (available : List (Occurrence × Nat) := [])
+    : (queue.streamItems stream items available).1.GroupMembershipOrder := by
   let step (acc : State × List Execution.DeliveryNode
-      × List Execution.DeliveryNode × List StreamItemValue) (item : StreamItem) :=
-    let (current, groups, streams, values) := acc
+      × List Execution.DeliveryNode × List StreamItemValue × List GroupFailureEvent)
+      (item : StreamItem) :=
+    let (current, groups, streams, values, failures) := acc
     let (integrated, work) := current.maybeIntegrateWork item.work
     let (pruned, nonempty) := integrated.pruneEmptyGroups work.newGroups
-    (pruned.startNewWork { work with newGroups := nonempty },
-      groups ++ nonempty, streams ++ work.newStreams, values ++ [item.value])
+    let (started, queued) := pruned.startNewWork { work with newGroups := nonempty } available
+    (started, groups ++ nonempty, streams ++ work.newStreams,
+      values ++ [item.value], failures ++ queued)
   have preserved (acc : State × List Execution.DeliveryNode
-      × List Execution.DeliveryNode × List StreamItemValue) (item : StreamItem)
+      × List Execution.DeliveryNode × List StreamItemValue × List GroupFailureEvent)
+      (item : StreamItem)
       (prior : acc.1.GroupMembershipOrder) : (step acc item).1.GroupMembershipOrder :=
-    ((prior.maybeIntegrateWork item.work).pruneEmptyGroups _).startNewWork _
+    ((prior.maybeIntegrateWork item.work).pruneEmptyGroups _).startNewWork _ available
   unfold State.streamItems
   split
   · exact ordered
   · exact (fold_preserves step (fun acc => acc.1.GroupMembershipOrder) preserved
-      items (queue, [], [], []) ordered).drainReadyGroups
+      items (queue, [], [], [], []) ordered).drainReadyGroups available
 
 /-- Every graph-event handler preserves the task-membership ordering invariant.
 Witness: task and item handlers preserve it; stream closure changes only root streams.
 -/
 theorem State.GroupMembershipOrder.handleGraphEvent {queue : State}
     (ordered : queue.GroupMembershipOrder) (event : GraphEvent)
-    : (queue.handleGraphEvent event).1.GroupMembershipOrder := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.handleGraphEvent event available).1.GroupMembershipOrder := by
+  have cached := ordered.cacheTaskFailures available
   cases event with
-  | taskSuccess occurrence result => exact ordered.taskSuccess occurrence result
-  | taskFailure occurrence errors => exact ordered.taskFailure occurrence errors
-  | streamItems stream items => exact ordered.streamItems stream items
+  | taskSuccess occurrence result => exact cached.taskSuccess occurrence result available
+  | taskFailure occurrence errors => exact cached.taskFailure occurrence errors
+  | streamItems stream items => exact cached.streamItems stream items available
   | streamSuccess stream =>
-      change (queue.streamSuccess stream).1.GroupMembershipOrder
+      change ((queue.cacheTaskFailures available).streamSuccess stream).1.GroupMembershipOrder
       unfold State.streamSuccess
-      split <;> exact ordered
+      split <;> exact cached
   | streamFailure stream errors =>
-      change (queue.streamFailure stream errors).1.GroupMembershipOrder
+      change ((queue.cacheTaskFailures available).streamFailure
+        stream errors).1.GroupMembershipOrder
       unfold State.streamFailure
-      split <;> exact ordered
+      split <;> exact cached
+  | groupFailure failure =>
+      change ((queue.cacheTaskFailures available).groupFailure failure).1.GroupMembershipOrder
+      unfold State.groupFailure
+      split
+      · exact cached
+      · split <;> exact cached
+
+/-- Forwarding a queued notice changes no task-membership order. -/
+theorem State.GroupMembershipOrder.dispatchGraphEvent {queue : State}
+    (ordered : queue.GroupMembershipOrder) (event : GraphEvent)
+    (available : List (Occurrence × Nat) := [])
+    : (queue.dispatchGraphEvent event available).1.GroupMembershipOrder := by
+  exact ordered.handleGraphEvent event available
 
 /-- Initial queue construction orders memberships by its immediate task registrations.
 Witness: empty-state integration, pruning, and activation preserve the empty invariant.
@@ -430,10 +419,37 @@ No source validity or generated-work premise is required for this list-order fac
 -/
 theorem State.GroupMembershipOrder.replayGraphEvents {queue : State}
     (ordered : queue.GroupMembershipOrder) (events : List GraphEvent)
-    : (queue.replayGraphEvents events).GroupMembershipOrder := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.replayGraphEvents events available).GroupMembershipOrder := by
   induction events generalizing queue with
   | nil => exact ordered
-  | cons event rest ih => exact ih (ordered.handleGraphEvent event)
+  | cons event rest ih => exact ih (ordered.dispatchGraphEvent event available)
+
+/-- Actual host batches preserve the same registration-order membership invariant. -/
+theorem State.GroupMembershipOrder.handleGraphEvents {queue : State}
+    (ordered : queue.GroupMembershipOrder) (events : List GraphEvent)
+    : (queue.handleGraphEvents events).1.GroupMembershipOrder := by
+  cases running : queue.terminated with
+  | true => simpa only [State.handleGraphEvents, running, ↓reduceIte] using ordered
+  | false =>
+      obtain ⟨terminal, same⟩ := queue.handleGraphEvents_stateCore events running
+      rw [same]
+      exact ordered.replayGraphEvents events (GraphEvent.availableFailures events)
+
+/-- Membership order survives the actual normalized batch state fold. -/
+theorem State.GroupMembershipOrder.runNormalized {queue : State}
+    (ordered : queue.GroupMembershipOrder) (batches : List (List GraphEvent))
+    : (queue.runNormalized batches).1.GroupMembershipOrder := by
+  rw [State.runNormalized_replayBatches]
+  induction batches generalizing queue with
+  | nil => exact ordered
+  | cons batch rest ih => exact ih (ordered.handleGraphEvents batch)
+
+/-- Every actual normalized endpoint has group memberships in permanent registry order. -/
+theorem createWorkQueue_runNormalized_groupMembershipOrder (work : Work)
+    (batches : List (List GraphEvent))
+    : ((State.initialize work).runNormalized batches).1.GroupMembershipOrder :=
+  (createWorkQueue_groupMembershipOrder work).runNormalized batches
 
 -----------------------------------------------------------------------------------------
 -- Actual flush selections retain the permanent registration order

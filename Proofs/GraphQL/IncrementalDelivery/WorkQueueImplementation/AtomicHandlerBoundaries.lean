@@ -1,8 +1,7 @@
-import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.SourceHandlerBoundaries
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.BatchImmediateBoundaries
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.NoticeCarrierPrefixes
-import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.NoticeFailureSupport
 
-/-! Canonical atomic outputs retain a joint source, publication, and failure boundary. -/
+/-! Canonical atomic outputs retain a joint source and publication boundary. -/
 
 namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.Execution (WorkQueueEvent)
@@ -25,122 +24,116 @@ theorem IncrementalPublisher.normalizeBatch_atomicObjectValues
         simp only [List.flatMap_cons, List.flatMap_append, (publicationAtoms_values output).1, ih]
   rw [atoms, publisher.normalizeBatch_objectValues]
 
+/-- Every immediate atomic output retains its actual batch/FIFO handler and object offset. -/
+theorem State.sourceRunBlocks_immediateBoundary (queue : State)
+    (publisher : IncrementalPublisher) (batches : List (List GraphEvent)) {index output}
+    (selected
+      : ((queue.sourceRunBlocks publisher batches).2.2.flatMap Prod.snd)[index]?
+        = some output)
+    (notStartup : ∀ group errors, output ≠ .groupFailure group errors)
+    (notTermination : output ≠ .workQueueTermination)
+    : ∃ earlier batch later fifo source tail,
+      ∃ currentPublisher : IncrementalPublisher,
+      ∃ localIndex,
+        batches = earlier ++ batch :: later
+        ∧ batch = fifo ++ source :: tail
+        ∧ let current :=
+            (queue.replayBatches earlier).replayGraphEvents fifo
+              (GraphEvent.availableFailures batch)
+          ((currentPublisher.normalizeBatch
+              (current.handleGraphEvent source
+                (GraphEvent.availableFailures batch)).2.1).2.flatMap
+              publicationAtoms)[localIndex]?
+            = some output
+          ∧ ((((queue.sourceRunBlocks publisher batches).2.2.flatMap Prod.snd).take
+                index).flatMap
+              normalizedObjectValues).length
+            = ((queue.rawBatches earlier).2.flatMap WorkQueueEvent.objectValues).length
+              + (((queue.replayBatches earlier).rawEventReplay fifo
+                    (GraphEvent.availableFailures batch)).2.flatMap
+                  WorkQueueEvent.objectValues).length
+              + ((((currentPublisher.normalizeBatch
+                      (current.handleGraphEvent source
+                        (GraphEvent.availableFailures batch)).2.1).2.flatMap
+                    publicationAtoms).take
+                    localIndex).flatMap
+                  normalizedObjectValues).length := by
+  obtain ⟨earlier, batch, later, batchIndex, split, atBatch, position⟩ :=
+    queue.sourceRunBlocks_atomicBatch publisher batches selected
+  let first := queue.sourceRunBlocks publisher earlier
+  let current := queue.replayBatches earlier
+  let atoms := (current.sourceBatchBlocks first.2.1 batch).2.2.flatMap Prod.snd
+  have immediate := current.sourceBatchBlocks_immediatePrefix first.2.1 batch atBatch
+    notStartup notTermination
+  obtain ⟨fifo, source, tail, handlerPublisher, localIndex, batchEq, atHandler, _, strict⟩ :=
+    current.sourceOutputBlocks_atomicImmediate first.2.1 batch
+      (GraphEvent.availableFailures batch) immediate.1
+  have cut : ((queue.sourceRunBlocks publisher batches).2.2.flatMap Prod.snd).take index
+      = first.2.2.flatMap Prod.snd ++ atoms.take batchIndex := by
+    rw [split, State.sourceRunBlocks_append]
+    change ((first.2.2 ++ _).flatMap Prod.snd).take index = _
+    rw [List.flatMap_append]
+    have sameState : first.1 = current := queue.sourceRunBlocks_state publisher earlier
+    change ((_ ++ (first.1.sourceRunBlocks first.2.1 (batch :: later)).2.2.flatMap
+      Prod.snd).take index) = _
+    rw [sameState, State.sourceRunBlocks, List.flatMap_append, position,
+      List.take_length_add_append,
+      List.take_append_of_le_length (Nat.le_of_lt (List.getElem?_eq_some_iff.mp atBatch).1)]
+  refine ⟨earlier, batch, later, fifo, source, tail, handlerPublisher, localIndex,
+    split, batchEq, atHandler, ?_⟩
+  rw [cut, immediate.2, strict, List.flatMap_append, List.flatMap_append,
+    List.length_append, List.length_append, queue.sourceRunBlocks_rawBatches,
+    IncrementalPublisher.normalizeBatch_atomicObjectValues,
+    IncrementalPublisher.normalizeBatch_atomicObjectValues]
+  exact (Nat.add_assoc _ _ _).symm
+
 namespace ConformancePlan
 
------------------------------------------------------------------------------------------
--- One positional split supplies both the object prefix and the visible failure inventory
------------------------------------------------------------------------------------------
-
-/-- A canonical atom retains its actual source handler, publication count, and earlier cuts.
-Witness: flatten actual handler annotations and split once at the atom's position. The
-same split recovers the handler's publisher and the accepted failures visible at that
-output cut. No independent equal-payload lookup or event-admission premise is used.
--/
+/-- A canonical immediate atom retains its actual handler, cache snapshot and object offset.
+The batch and FIFO partitions identify the same queue and publication prefix. Forwarded
+startup reports have their own batch-end block and are outside this immediate-handler cut. -/
 theorem Witness.handlerBoundary {work inputs} {w : Witness} {index event}
-    (started : inputsStarted work inputs = true)
+    (_started : inputsStarted work inputs = true)
     (history : w.events = (initialQueue work).nonterminalAtoms inputs)
-    {streams : FailureCuts}
-    (partition
-      : let queue := initialQueue work
-        let publisher : IncrementalPublisher :=
-          { active := queue.initialGroups ++ queue.initialStreams }
-        w.failures.Perm
-          (streams
-            ++ sourceObjectFailureCuts 0
-                (queue.eligibleFailureBlocks
-                  (queue.sourceRunBlocks publisher inputs).2.2)))
     (selected : w.events[index]? = some event)
-    : ∃ before source after,
+    (notStartup : ∀ group errors, event ≠ .groupFailure group errors)
+    (notTermination : event ≠ .workQueueTermination)
+    : ∃ earlier batch later fifo source tail,
       ∃ publisher : IncrementalPublisher,
       ∃ localIndex,
-        inputs.flatten = before ++ source :: after
-        ∧ (initialQueue work).acceptsBatch before = true
-        ∧ let current := (initialQueue work).replayGraphEvents before
-          ((publisher.normalizeBatch (current.handleGraphEvent source).2).2.flatMap
+        inputs = earlier ++ batch :: later
+        ∧ batch = fifo ++ source :: tail
+        ∧ let current :=
+            ((initialQueue work).replayBatches earlier).replayGraphEvents fifo
+              (GraphEvent.availableFailures batch)
+          ((publisher.normalizeBatch
+              (current.handleGraphEvent source
+                (GraphEvent.availableFailures batch)).2.1).2.flatMap
               publicationAtoms)[localIndex]?
             = some event
           ∧ ((w.events.take index).flatMap normalizedObjectValues).length
-            = (((initialQueue work).rawEventReplay before).2.flatMap
+            = (((initialQueue work).rawBatches earlier).2.flatMap
                 WorkQueueEvent.objectValues).length
+              + ((((initialQueue work).replayBatches earlier).rawEventReplay fifo
+                    (GraphEvent.availableFailures batch)).2.flatMap
+                  WorkQueueEvent.objectValues).length
               + ((((publisher.normalizeBatch
-                      (current.handleGraphEvent source).2).2.flatMap
+                      (current.handleGraphEvent source
+                        (GraphEvent.availableFailures batch)).2.1).2.flatMap
                     publicationAtoms).take
                     localIndex).flatMap
-                  normalizedObjectValues).length
-          ∧ ((initialQueue work).objectFailureContributions before).Subset
-              (failedBefore w.failures index) := by
+                  normalizedObjectValues).length := by
+  obtain ⟨atFull, beforeEq⟩ := Witness.canonical_event history selected
   let queue := initialQueue work
-  let initialPublisher : IncrementalPublisher :=
+  let publisher : IncrementalPublisher :=
     { active := queue.initialGroups ++ queue.initialStreams }
-  have batches : queue.batchesStarted inputs = true := by
-    rwa [← inputsStarted_eq_batchesStarted]
-  have exactHistory : w.events
-      = (queue.sourceOutputBlocks initialPublisher inputs.flatten).2.2.flatMap Prod.snd := by
-    rw [(queue.sourceOutputBlocks_agrees initialPublisher inputs.flatten).2.2]
-    exact history.trans (createWorkQueue_nonterminalAtoms_flattened inputs started)
-  have atAtom := selected
-  rw [exactHistory] at atAtom
-  obtain ⟨before, source, after, publisher, localIndex, shape, localAt, _, strict, visible⟩ :=
-    queue.sourceOutputBlocks_atomicHandler initialPublisher inputs.flatten atAtom
-  have accepted := queue.batchesStarted_acceptsBatch inputs batches
-  rw [shape] at accepted
-  refine ⟨before, source, after, publisher, localIndex, shape,
-    State.acceptsBatch_prefix accepted, localAt, ?_, ?_⟩
-  · rw [exactHistory, strict, List.flatMap_append, List.length_append,
-      initialPublisher.normalizeBatch_atomicObjectValues]
-  · intro occurrence earlier
-    have through : occurrence ∈ queue.objectFailureContributions (before ++ [source]) := by
-      rw [queue.objectFailureContributions_append]
-      exact List.mem_append_right _ earlier
-    rw [← visible, List.mem_reverse] at through
-    have samePartition := partition
-    dsimp only at samePartition
-    rw [queue.sourceRunBlocks_objectCuts initialPublisher inputs batches] at samePartition
-    exact (failedBefore_partition samePartition index).mem_iff.mpr
-      (List.mem_append_right _ through)
-
-/-- A canonical handler's retained caches are supported by failures at that same atom's cut.
-Witness: the joint handler boundary above, generated accepted-cache accounting, and
-inclusion of its accepted inventory in the original mixed cuts. Internal success-release
-operations can preserve this support without selecting a new history or failure witness.
--/
-theorem Witness.handlerBoundary_cachedFailures {work inputs} {w : Witness} {index event}
-    (generated : ExecutedWork work) (valid : ValidGraphEvents work inputs.flatten)
-    (started : inputsStarted work inputs = true)
-    (history : w.events = (initialQueue work).nonterminalAtoms inputs)
-    {streams : FailureCuts}
-    (partition
-      : let queue := initialQueue work
-        let publisher : IncrementalPublisher :=
-          { active := queue.initialGroups ++ queue.initialStreams }
-        w.failures.Perm
-          (streams
-            ++ sourceObjectFailureCuts 0
-                (queue.eligibleFailureBlocks
-                  (queue.sourceRunBlocks publisher inputs).2.2)))
-    (selected : w.events[index]? = some event)
-    : ∃ before source after,
-      ∃ publisher : IncrementalPublisher,
-      ∃ localIndex,
-        inputs.flatten = before ++ source :: after
-        ∧ let current := (initialQueue work).replayGraphEvents before
-          ((publisher.normalizeBatch (current.handleGraphEvent source).2).2.flatMap
-              publicationAtoms)[localIndex]?
-            = some event
-          ∧ ((w.events.take index).flatMap normalizedObjectValues).length
-            = (((initialQueue work).rawEventReplay before).2.flatMap
-                WorkQueueEvent.objectValues).length
-              + ((((publisher.normalizeBatch
-                      (current.handleGraphEvent source).2).2.flatMap
-                    publicationAtoms).take
-                    localIndex).flatMap
-                  normalizedObjectValues).length
-          ∧ current.CachedFailuresSupported work (failedBefore w.failures index) := by
-  obtain ⟨before, source, after, publisher, localIndex, shape, accepted, emitted, count, visible⟩ :=
-    Witness.handlerBoundary started history partition selected
-  have prior : ValidGraphEvents work before := valid.prefix ⟨source :: after, shape.symm⟩
-  exact ⟨before, source, after, publisher, localIndex, shape, emitted, count,
-    (generated.replayGraphEvents_cachedAcceptedFailures prior accepted).weaken visible⟩
+  have output := (queue.sourceRunBlocks_agrees inputs).2
+  rw [← output] at atFull beforeEq
+  obtain ⟨earlier, batch, later, fifo, source, tail, handlerPublisher, localIndex, split,
+    batchEq, atHandler, count⟩ := queue.sourceRunBlocks_immediateBoundary publisher inputs
+    atFull notStartup notTermination
+  exact ⟨earlier, batch, later, fifo, source, tail, handlerPublisher, localIndex, split,
+    batchEq, atHandler, beforeEq ▸ count⟩
 
 end ConformancePlan
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

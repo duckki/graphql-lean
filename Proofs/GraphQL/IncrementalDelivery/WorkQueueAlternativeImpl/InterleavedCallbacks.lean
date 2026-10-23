@@ -1,4 +1,7 @@
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.BufferedStreamRoots
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.InterleavedCallbackRecords
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.BufferedWorkProjection
+import Proofs.GraphQL.IncrementalDelivery.Semantics.WorkSize
 
 /-! FIFO enqueue/reduction histories, including callbacks carried across batch boundaries.
 The ghost inventory retains callback identity; semantic filtering erases only payloads.
@@ -10,107 +13,8 @@ namespace
 open ReferenceWorkQueue (StreamAction)
 
 -----------------------------------------------------------------------------------------
--- One host history fixes enqueue order, receipts, pending callbacks and actual batches
------------------------------------------------------------------------------------------
-
-/-- Proof-only observations of one host run. `received` retains consumed and pending
-callbacks; none of these histories or ghost receipt identities are production storage.
--/
-structure CallbackBuffer where
-  queue : ReferenceWorkQueue.State
-  batches : List (List BufferedCallback) := []
-  pending : List BufferedCallback := []
-  received : List BufferedCallback := []
-
-def CallbackBuffer.rawBatches (buffer : CallbackBuffer) : List (List GraphEvent) :=
-  buffer.batches.map (List.map BufferedCallback.event)
-
-def CallbackBuffer.enqueue (buffer : CallbackBuffer) (callback : BufferedCallback)
-    : CallbackBuffer :=
-  {
-    buffer with
-      pending := buffer.pending ++ [callback], received := buffer.received ++ [callback]
-  }
-
-def CallbackBuffer.reduce (buffer : CallbackBuffer) (front rest : List BufferedCallback)
-    : CallbackBuffer :=
-  {
-    buffer with
-      queue := (buffer.queue.handleGraphEvents (front.map BufferedCallback.event)).1,
-      batches := buffer.batches ++ [front],
-      pending := rest
-  }
-
-/-- Enqueue checks current permission and fixed original source laws, including all
-earlier pending callbacks. Reduction takes a FIFO prefix and rechecks ownership through
-the actual reducer. A callback may remain pending while its task is retired.
--/
-inductive CallbackHistory (work : Work) (initial : ReferenceWorkQueue.State)
-    : CallbackBuffer → Prop where
-  | initial : CallbackHistory work initial { queue := initial }
-  | enqueue {buffer} (history : CallbackHistory work initial buffer)
-    (callback : BufferedCallback) (running : buffer.queue.terminated = false)
-    (started : buffer.queue.acceptsGraphEvent callback.event = true)
-    (receiptFresh : callback.receipt ∉ buffer.received.map BufferedCallback.receipt)
-    (matching : callback.event.MatchesWork work)
-    (fresh
-      : callback.event.Fresh
-          (buffer.rawBatches.flatten ++ buffer.pending.map BufferedCallback.event))
-    (ready
-      : callback.event.Ready work
-          (buffer.rawBatches.flatten ++ buffer.pending.map BufferedCallback.event))
-    : CallbackHistory work initial (buffer.enqueue callback)
-  | reduce {buffer} (history : CallbackHistory work initial buffer)
-    (front rest : List BufferedCallback) (fifo : buffer.pending = front ++ rest)
-    : CallbackHistory work initial (buffer.reduce front rest)
-
------------------------------------------------------------------------------------------
 -- Stream activation survives earlier reductions, but never a prior own closure
 -----------------------------------------------------------------------------------------
-
-/-- Freshness/readiness exclude prior closure for every kind of stream callback. -/
-theorem streamAction_unclosed {work before event action}
-    (fresh : ReferenceWorkQueue.GraphEvent.Fresh before event)
-    (ready : ReferenceWorkQueue.GraphEvent.Ready work before event)
-    (source : ReferenceWorkQueue.GraphEvent.streamAction event = some action)
-    : action.1 ∉ before.flatMap (fun prior => prior.identities.2) := by
-  cases event with
-  | taskSuccess | taskFailure => cases source
-  | streamItems stream items =>
-      cases source
-      exact ready.choose_spec.choose_spec.choose_spec.choose_spec.2.2.1
-  | streamSuccess stream =>
-      cases source
-      exact fresh.2.2.2 stream.ref List.mem_cons_self
-  | streamFailure stream errors =>
-      cases source
-      exact fresh.2.2.2 stream.ref List.mem_cons_self
-
-/-- Stream membership depends only on its active root, not task registration or flags. -/
-theorem streamAction_accepts_iff (queue : ReferenceWorkQueue.State)
-    (event : GraphEvent) (action : StreamAction)
-    (source : event.streamAction = some action)
-    : queue.acceptsGraphEvent event = true ↔ action.1 ∈ queue.rootStreams := by
-  cases event with
-  | taskSuccess | taskFailure => cases source
-  | streamItems stream items | streamSuccess stream | streamFailure stream errors =>
-      cases source
-      exact List.contains_iff_mem
-
-/-- Batch-end termination changes no active-root membership. Earlier legal events
-cannot remove a pending stream unless they contain its own closure.
--/
-theorem rootStream_survives_batch (queue : ReferenceWorkQueue.State)
-    (events : List GraphEvent) (key : Nat) (active : key ∈ queue.rootStreams)
-    (unclosed : key ∉ events.flatMap (fun prior => prior.identities.2))
-    : key ∈ (queue.handleGraphEvents events).1.rootStreams := by
-  cases ended : queue.terminated with
-  | true =>
-      simpa only [queue.handleGraphEvents_after_termination events ended] using active
-  | false =>
-      obtain ⟨terminal, same⟩ := queue.handleGraphEvents_stateCore events ended
-      rw [same]
-      exact rootStream_survives_replay queue events key active unclosed
 
 private theorem unclosed_of_sublist {before events : List GraphEvent} {key : Nat}
     (unclosed : key ∉ before.flatMap (fun prior => prior.identities.2))
@@ -322,7 +226,7 @@ Receipt identities stay in the host history, even when their payloads are filter
 -/
 theorem CallbackHistory.projected_runNormalized {work buffer}
     (generated : ReferenceWorkQueue.ExecutedWork work) (nonempty : work.size ≠ 0)
-    (_history
+    (history
       : CallbackHistory work
           (ReferenceWorkQueue.State.initialize
             (ReferenceWorkQueue.Work.fromExecution work))
@@ -331,7 +235,7 @@ theorem CallbackHistory.projected_runNormalized {work buffer}
         ReferenceWorkQueue.State.initialize (ReferenceWorkQueue.Work.fromExecution work)
       initial.runNormalized (projectHistory initial buffer.rawBatches)
       = initial.runNormalized buffer.rawBatches :=
-  projectHistory_runNormalized _ _ (initialized_boundary generated nonempty)
+  history.projectedAtEntry_runNormalized generated nonempty
 
 /-- Exact interleaved callback projection keeps the original semantic source contract. -/
 theorem CallbackHistory.projected_source_valid {work buffer}
@@ -347,12 +251,7 @@ theorem CallbackHistory.projected_source_valid {work buffer}
             (ReferenceWorkQueue.Work.fromExecution work))
           buffer.rawBatches)).ValidFor
         work := by
-  apply source_valid_of_laws
-  · simpa only [List.nil_append] using projectHistory_work_valid_of_streams generated
-      (ReferenceWorkQueue.State.initialize (ReferenceWorkQueue.Work.fromExecution work))
-      [] [] buffer.rawBatches history.invariant.reducedStreams history.work_valid .nil
-      (.refl []) (fun _ => rfl) (SourceSupport.initialize work)
-  · exact projected_inputsStarted generated nonempty _
+  exact history.projectedAtEntry_source_valid generated nonempty
 
 /-- Conformance for this same history's projected source, not an independent schedule. -/
 theorem CallbackHistory.projected_conforms {work buffer}
@@ -369,7 +268,8 @@ theorem CallbackHistory.projected_conforms {work buffer}
               (ReferenceWorkQueue.Work.fromExecution work))
             buffer.rawBatches))).Conforms
         work :=
-  createWorkQueueForScheduleConforms_holds _ _ generated nonempty
+  createWorkQueueForScheduleConforms_holds _ _ generated
+    ((Execution.Work.isEmpty_eq_false work).mpr nonempty)
     (history.projected_source_valid generated nonempty)
 
 end GraphQL.IncrementalDelivery.AlternativeWorkQueue.NativeRefinement.BufferedCallbacks

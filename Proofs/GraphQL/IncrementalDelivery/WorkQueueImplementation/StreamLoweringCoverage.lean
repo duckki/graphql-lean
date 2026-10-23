@@ -22,23 +22,36 @@ theorem Located.streamRegistrationWork {root address current producer enclosing}
   have navigation := StructuralEquivalence.located_of_current located
   clear located
   induction navigation with
-  | root => exact ⟨_, rfl, List.Subset.refl _⟩
+  | root =>
+      refine ⟨_, rfl, ?_⟩
+      rw [Work.fromExecution_streams_withoutDeclarations]
+      exact fun _ member => member
   | left _ ih =>
       obtain ⟨chunk, same, included⟩ := ih
-      exact ⟨chunk, same, (List.subset_append_left _ _).trans included⟩
+      refine ⟨chunk, same, ?_⟩
+      rw [Work.fromExecution_streams_withoutDeclarations]
+      intro task member
+      exact included (List.mem_append_left _ member)
   | right _ ih =>
       obtain ⟨chunk, same, included⟩ := ih
-      exact ⟨chunk, same, (List.subset_append_right _ _).trans included⟩
-  | executionGroup prior _ =>
-      refine ⟨_, ?_, List.Subset.refl _⟩
-      have found := prior.toCurrent
-      unfold WorkQueueSemantics.Located at found
-      simp [taskRegistrationWork?, taskChildWork?, found]
-  | item prior entry _ =>
-      refine ⟨_, ?_, List.Subset.refl _⟩
-      have found := prior.toCurrent
-      unfold WorkQueueSemantics.Located at found
-      simp [taskRegistrationWork?, streamItemWork?, found, entry]
+      refine ⟨chunk, same, ?_⟩
+      rw [Work.fromExecution_streams_withoutDeclarations]
+      intro task member
+      exact included (List.mem_append_right _ member)
+  | @executionGroup address groups path result children producer owners prior _ =>
+      refine ⟨Work.fromExecution children (address ++ [0]), ?_, ?_⟩
+      · have found := prior.toCurrent
+        unfold WorkQueueSemantics.Located at found
+        simp [taskRegistrationWork?, taskChildWork?_eq_lookup, found]
+      · rw [Work.fromExecution_streams_withoutDeclarations]
+        exact fun _ member => member
+  | @item address node items producer owners index result children prior entry _ =>
+      refine ⟨Work.fromExecution children (address ++ [index]), ?_, ?_⟩
+      · have found := prior.toCurrent
+        unfold WorkQueueSemantics.Located at found
+        simp [taskRegistrationWork?, streamItemWork?_eq_lookup, found, entry]
+      · rw [Work.fromExecution_streams_withoutDeclarations]
+        exact fun _ member => member
 
 /-- Every stream descriptor occurs in the chunk installed at its producer boundary.
 Witness: inverse immediate lowering includes the singleton structural stream descriptor.
@@ -87,7 +100,7 @@ theorem GraphEvent.MatchesWork.itemChildStreams_complete {work stream items}
   obtain ⟨chunk, boundary, member⟩ := NodeAt.stream_registrationWork known
   obtain ⟨_, _, _, children⟩ := matching item selected
   cases identity : item.occurrence with
-  | executionGroup address => simp [streamItemWork?, identity] at children
+  | executionGroup address => simp [streamItemWork?_eq_lookup, identity] at children
   | item address index =>
       rw [identity] at boundary children
       exact (Option.some.inj (boundary.symm.trans children)) ▸ member

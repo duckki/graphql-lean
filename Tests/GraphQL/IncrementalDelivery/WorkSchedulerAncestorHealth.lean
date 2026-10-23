@@ -23,15 +23,20 @@ private def emptyChildren : Execution.Work := .combine .empty .empty
 
 private def leaf (group : DeliveryNode) (ancestors : List DeliveryNode) (field : Name)
     : Execution.Work :=
-  .executionGroup [⟨group, ancestors⟩] [] (.ok ([(field, .scalar field)], 0))
-    emptyChildren
+  .executionGroup [⟨group, ancestors⟩] []
+    ({ result := .ok ([(field, .scalar field)], 0) }) emptyChildren
 
 private def work : Execution.Work :=
   .combine .empty
-    (.combine (leaf parent [] "a")
-      (.combine (leaf child [parent] "b")
-        (.combine (leaf grandchild [child, parent] "c")
-          (.combine (.executionGroup [⟨bad, []⟩] [] (.error 1) .empty) .empty))))
+    (.declareGroups
+      [⟨parent, []⟩, ⟨child, [parent]⟩, ⟨grandchild, [child, parent]⟩, ⟨bad, []⟩]
+      (.combine (leaf parent [] "a")
+        (.combine (leaf child [parent] "b")
+          (.combine (leaf grandchild [child, parent] "c")
+            (.combine
+              (.executionGroup [⟨bad, []⟩] [] ({ result := .error 1, cause := some 1 })
+                .empty)
+              .empty)))))
 
 private def result (group : DeliveryNode) (field : Name) (address : Address)
     : TaskResult :=
@@ -116,7 +121,7 @@ theorem initialized : Initializes work initial.initialGroups initial.initialStre
     exact ⟨[1, 0], [⟨parent, []⟩], [], _, emptyChildren, [], ⟨parent, []⟩,
       rfl, by simp, rfl, rfl⟩
   have badKnown : NodeAt work bad .group [] none := by
-    exact ⟨[1, 1, 1, 1, 0], [⟨bad, []⟩], [], .error 1, .empty, [], ⟨bad, []⟩,
+    exact ⟨[1, 1, 1, 1, 0], [⟨bad, []⟩], [], { result := .error 1, cause := some 1 }, .empty, [], ⟨bad, []⟩,
       rfl, by simp, rfl, rfl⟩
   have eligible (group : DeliveryNode) (known : NodeAt work group .group [] none)
       : CanAnnounce work [] (fun _ => .executionGroup []) [] [] group .group [] none := by

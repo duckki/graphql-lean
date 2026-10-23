@@ -1,6 +1,6 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.RetirementIntegration
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.UncancelledRetirementReplay
-import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.OwnerReplayClosure
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.RetirementReplay
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.RetiredHealthReplay
 import Tests.GraphQL.IncrementalDelivery.Execution
 
@@ -21,11 +21,12 @@ private def child (index : Nat) : DeliveryNode :=
 
 private def children (index : Nat) : Execution.Work :=
   .combine .empty
-    (.combine
-      (.executionGroup [⟨child index, [parent index]⟩] [.field "users", .index index]
-        (.ok ([("name", .scalar ("name" ++ toString (index + 1)))], 0))
-        (.combine .empty .empty))
-      .empty)
+    (.declareGroups [⟨parent index, []⟩, ⟨child index, [parent index]⟩]
+      (.combine
+        (.executionGroup [⟨child index, [parent index]⟩] [.field "users", .index index]
+          ({ result := .ok ([("name", .scalar ("name" ++ toString (index + 1)))], 0) })
+          (.combine .empty .empty))
+        .empty))
 
 private def selections : List Selection :=
   [field "users" [defer [defer [field "name"] (some "C")] (some "P")]
@@ -52,7 +53,10 @@ theorem generated : ExecutedWork work :=
 private theorem stream_located
     : Located work [0, 0, 1]
         (.stream stream
-          [(.ok (.object [], 0), children 0), (.ok (.object [], 0), children 1)])
+          [
+            ({ result := .ok (.object [], 0) }, children 0),
+            ({ result := .ok (.object [], 0) }, children 1)
+          ])
         none [] := by cbv
 
 /-- The first streamed item has exactly the supplied value and lowered child work.
@@ -61,7 +65,12 @@ Witness: its structural stream position and the pure child-lowering equation.
 theorem matching : (GraphEvent.streamItems stream [item]).MatchesWork work := by
   intro received member
   obtain rfl := List.mem_singleton.mp member
-  exact ⟨[stream.ref], none, .item stream_located rfl, by cbv⟩
+  exact ⟨
+    [stream.ref],
+    none,
+    .item (result := { result := .ok (.object [], 0) }) (index := 0) stream_located rfl,
+    by cbv
+  ⟩
 
 /-- This input is a real accepted source prefix, not just a well-shaped child chunk.
 Witness: stream readiness, the first item's fixed payload, and the actual start checker.
@@ -111,16 +120,23 @@ theorem stream_replay_owner_accounting
     [[.streamItems stream [item]]] source_valid.1 source_valid.2
   exact ⟨parents, accounting⟩
 
-/-- Actual stream integration supplies the missing-parent health boundary after pruning P.
-Witness: general generated health replay, including the real item fold, activation, and
-drain; no taskless-parent-specific historical health certificate is supplied.
--/
+/-- The complete ownership/ancestry certificate follows actual streamed-item replay. -/
+theorem stream_replay_owner_ancestry
+    : ∃ parents,
+        (initial.runNormalized [[.streamItems stream [item]]]).1.OwnerAncestry
+          work parents [.streamItems stream [item]] := by
+  obtain ⟨parents, _, certificate⟩ :=
+    generated.runNormalized_ownerAncestry [[.streamItems stream [item]]]
+      source_valid.1 source_valid.2
+  exact ⟨parents, certificate⟩
+
+/-- This failure-free fixture has healthy retirement, roots and missing-parent scopes. -/
 theorem stream_replay_retired_health
     : let queue := (initial.runNormalized [[.streamItems stream [item]]]).1
       queue.UncancelledRetiredHealthy work []
       ∧ queue.RootAncestorsHealthy work []
       ∧ queue.MissingParentAncestorsHealthy work [] :=
-  generated.runNormalized_retiredHealth _ source_valid.1 source_valid.2
+  ⟨.of_empty _ _, .of_empty _ _, .of_empty _ _⟩
 
 /-- Integrating the item preserves retirement through actual taskless-parent pruning.
 Witness: matching source metadata, initial registry coverage, supported cancellations,
@@ -131,7 +147,7 @@ theorem stream_integration_retirement
       ∧ integrated.HealthyRetiredAncestors work [] := by
   obtain ⟨parents, canonical⟩ := generated.groupRecordsCanonical
   have links := createWorkQueue_childLinksCanonical (Work.fromExecution work) parents
-    (fun _ member => workFromSpec_groups_parentCanonical Located.root canonical member)
+    (fun _ member => workFromSpec_groups_parentCanonical_root canonical member)
   have cancellations := createWorkQueue_cancelledRecordsSupported (Work.fromExecution work) work []
   have supported := cancellations.maybeIntegrateWork item.work none (by
       intro group member
@@ -142,8 +158,13 @@ theorem stream_integration_retirement
       exact matching.streamItem_childGroups_parentCanonical canonical List.mem_cons_self member)
   exact initial.integrateStreamItem_retirement generated
     (createWorkQueue_groupNodesMatchWork work) links canonical
-    (createWorkQueue_registration work).1 (createWorkQueue_registration work).2
-    initial_retirement.1 initial_retirement.2 matching List.mem_cons_self supported
+    (createWorkQueue_registration work generated.declarations).1
+    (createWorkQueue_registration work generated.declarations).2 initial_retirement.1
+    initial_retirement.2 matching List.mem_cons_self supported
+    (createWorkQueue_cachedFailuresSupported (Work.fromExecution work) work [])
+    (createWorkQueue_startedTasksRegistered _)
+    (createWorkQueue_fromSpec_registeredTasksMatch work)
+    (createWorkQueue_groupMembershipSound _)
 
 /-- Integration really retires P and promotes C, retaining C's nonempty parent link.
 Witness: direct evaluation of the same executable integration step used by the theorem.

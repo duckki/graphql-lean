@@ -30,7 +30,7 @@ theorem completedRefs_used {events : List WorkQueueEvent} {ref : NodeRef}
 
 /-- Every permitted atomic reference is open before the event, by owner/closure rules. -/
 theorem EventAllowed.reference {work initial matching before failed event}
-    (h : EventAllowed work initial matching before failed event)
+    (h : EventAllowed work initial matching before failed event reported)
     : ∀ ref ∈ eventUsed event, Open initial before ref := by
   intro ref member
   cases event <;> simp only [eventUsed, List.mem_singleton] at member
@@ -60,10 +60,10 @@ theorem Explains.references {work groups streams events matching failures}
     | cons event rest ih =>
         constructor
         · have selected : events[before.length]? = some event := by simp [equal]
-          have allowed := h.2.2 before.length event selected
-          rw [equal] at allowed
+          have allowed := h.eventAllowed before.length event selected
           intro ref member
           have opened := allowed.reference ref member
+          rw [equal] at opened
           simp only [List.take_left] at opened
           exact ⟨List.mem_append_left _ opened.1, opened.2⟩
         · have tail := ih (before ++ [event]) (by simpa [List.append_assoc] using equal)

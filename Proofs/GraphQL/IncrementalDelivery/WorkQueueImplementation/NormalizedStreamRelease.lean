@@ -10,36 +10,6 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 -- Normalization preserves stream carriers and their preceding object-value counts
 -----------------------------------------------------------------------------------------
 
-/-- Normalize the head event before normalizing the tail with its updated publisher.
-Witness: the actual fold accumulates output by concatenation and changes no earlier output.
--/
-theorem IncrementalPublisher.normalizeBatch_cons (publisher : IncrementalPublisher)
-    (event : WorkQueueEvent) (events : List WorkQueueEvent)
-    : publisher.normalizeBatch (event :: events)
-      = let head := publisher.handleWorkQueueEvent event
-        let tail := head.1.normalizeBatch events
-        (tail.1, head.2 ++ tail.2) := by
-  let step (acc : IncrementalPublisher × List Execution.WorkQueueEvent) (event : WorkQueueEvent) :=
-    let next := acc.1.handleWorkQueueEvent event
-    (next.1, acc.2 ++ next.2)
-  have accumulator (events : List WorkQueueEvent) (current : IncrementalPublisher)
-      (before : List Execution.WorkQueueEvent)
-      : events.foldl step (current, before)
-        = ((current.normalizeBatch events).1,
-            before ++ (current.normalizeBatch events).2) := by
-    induction events generalizing current before with
-    | nil => simp [IncrementalPublisher.normalizeBatch]
-    | cons head rest ih =>
-        simp only [List.foldl_cons, step]
-        rw [ih]
-        change _ = ((rest.foldl step _).1, before ++ (rest.foldl step _).2)
-        rw [ih]
-        simp only [List.append_assoc, List.nil_append]
-  change events.foldl step _ = _
-  simpa only [step, List.nil_append]
-    using accumulator events (publisher.handleWorkQueueEvent event).1
-      (publisher.handleWorkQueueEvent event).2
-
 /-- A normalized group-success carrier is the unchanged singleton of that raw event.
 Witness: object normalization emits only object events; every other constructor keeps its
 own distinct tag. Thus no owner choice creates, removes, or moves a carrier within an event.
@@ -191,22 +161,6 @@ theorem NormalizedStreamReleasePublications.append {work first second left right
 -----------------------------------------------------------------------------------------
 -- All actual normalized batches share the same fresh occurrence-labelled inventory
 -----------------------------------------------------------------------------------------
-
-/-- A normalized step appends precisely the mapped raw batch to flattened prior output.
-Witness: an empty raw batch normalizes to empty output; the nonempty branch appends one
-batch whose flattening is exactly its mapped events. No batch boundary is changed.
--/
-theorem normalizedStep_flatten (acc : NormalizedAcc) (batch : List GraphEvent)
-    : (normalizedStep acc batch).2.2.flatten
-      = acc.2.2.flatten
-        ++ (acc.2.1.normalizeBatch (acc.1.handleGraphEvents batch).2).2 := by
-  obtain ⟨queue, publisher, outputs⟩ := acc
-  dsimp only [normalizedStep]
-  split
-  · rename_i empty
-    rw [List.isEmpty_iff.mp empty]
-    simp [IncrementalPublisher.normalizeBatch]
-  · simp
 
 /-- Whole normalized replay supplies one inventory for freshness, provenance, and every
 task-produced stream carrier's earlier producer. Witness: each actual batch contributes its

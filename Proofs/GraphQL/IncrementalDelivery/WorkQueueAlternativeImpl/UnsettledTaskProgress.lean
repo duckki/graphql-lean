@@ -1,6 +1,6 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.IncomingTaskProgress
 
-/-! All five generated handlers preserve or abort an owned prepared task genuinely
+/-! Generated handlers preserve or abort an owned prepared task genuinely
 unsettled in the actual input history. Completed buffered tasks are outside this domain;
 no stronger source law or desired endpoint/resource condition is assumed.
 -/
@@ -23,35 +23,49 @@ theorem handleGraphEvent_tasks_eq_snapshot (queue : Kernel) (event : GraphEvent)
   cases event with
   | taskSuccess occurrence result =>
       cases found : queue.taskNode? occurrence with
-      | none => simp only [ReferenceWorkQueue.State.handleGraphEvent,
-          ReferenceWorkQueue.State.taskSuccess, registrationSnapshot, found]
+      | none =>
+          simp only [ReferenceWorkQueue.State.handleGraphEvent,
+            ReferenceWorkQueue.State.cacheTaskFailures,
+            List.foldl_nil,
+              ReferenceWorkQueue.State.taskSuccess, registrationSnapshot, found]
       | some node =>
-          cases healthy : queue.taskHasHealthyOwner node.task with
-          | false =>
-              simp only [ReferenceWorkQueue.State.handleGraphEvent,
-                ReferenceWorkQueue.State.taskSuccess, registrationSnapshot, found, healthy,
-                Bool.not_false, Bool.false_eq_true, ↓reduceIte, ReferenceWorkQueue.State.removeTask]
-          | true =>
-              rw [ReferenceWorkQueue.State.handleGraphEvent,
-                ReferenceWorkQueue.State.taskSuccess_tasks found healthy]
-              simp only [registrationSnapshot, found, healthy, ↓reduceIte,
-                State.maybeIntegrateWork_tasks, ReferenceWorkQueue.State.putTaskNode]
+          rw [ReferenceWorkQueue.State.handleGraphEvent, ReferenceWorkQueue.State.cacheTaskFailures,
+        List.foldl_nil,
+            ReferenceWorkQueue.State.taskSuccess_tasks found]
+          simp only [registrationSnapshot, found,
+            State.maybeIntegrateWork_tasks, ReferenceWorkQueue.State.putTaskNode]
   | streamItems stream items =>
       cases active : queue.rootStreams.contains stream.ref with
       | false =>
           simp only [ReferenceWorkQueue.State.handleGraphEvent,
+            ReferenceWorkQueue.State.cacheTaskFailures,
+        List.foldl_nil,
             ReferenceWorkQueue.State.streamItems, registrationSnapshot, active, Bool.not_false,
             Bool.false_eq_true, ↓reduceIte]
       | true =>
-          rw [ReferenceWorkQueue.State.handleGraphEvent, queue.streamItems_tasks stream items active,
+          rw [ReferenceWorkQueue.State.handleGraphEvent, ReferenceWorkQueue.State.cacheTaskFailures,
+        List.foldl_nil, queue.streamItems_tasks stream items active,
             registrationSnapshot_itemFold queue stream items active, streamRegistrationFold_tasks]
   | taskFailure occurrence errors => exact queue.taskFailure_tasks occurrence errors
+  | groupFailure failure =>
+      simp only [ReferenceWorkQueue.State.handleGraphEvent,
+        ReferenceWorkQueue.State.cacheTaskFailures, List.foldl_nil,
+        registrationSnapshot, ReferenceWorkQueue.State.groupFailure]
+      split
+      · rfl
+      · split <;> rfl
   | streamSuccess stream =>
-      simp only [ReferenceWorkQueue.State.handleGraphEvent, ReferenceWorkQueue.State.streamSuccess]
-      split <;> rfl
+      cases active : queue.rootStreams.contains stream.ref <;>
+        simp only [ReferenceWorkQueue.State.handleGraphEvent,
+          ReferenceWorkQueue.State.cacheTaskFailures, List.foldl_nil,
+          ReferenceWorkQueue.State.streamSuccess, active, Bool.false_eq_true, ↓reduceIte,
+          registrationSnapshot]
   | streamFailure stream errors =>
-      simp only [ReferenceWorkQueue.State.handleGraphEvent, ReferenceWorkQueue.State.streamFailure]
-      split <;> rfl
+      cases active : queue.rootStreams.contains stream.ref <;>
+        simp only [ReferenceWorkQueue.State.handleGraphEvent,
+          ReferenceWorkQueue.State.cacheTaskFailures, List.foldl_nil,
+          ReferenceWorkQueue.State.streamFailure, active, Bool.false_eq_true, ↓reduceIte,
+          registrationSnapshot]
 
 -----------------------------------------------------------------------------------------
 -- Genuine unsettledness excludes successful transfer for every handler
@@ -76,21 +90,31 @@ theorem generatedUnsettledTask_unpublished {work inputs event task}
         key
         ∉ publicationRoots
             ((((State.initialize work).runNormalized inputs).1.queue).handleGraphEvent
-              event).2 := by
+              event).2.1 := by
   intro key contributes published
   let before := ((State.initialize work).runNormalized inputs).1.queue
-  obtain ⟨_, matching, _⟩ := ReferenceWorkQueue.validGraphEvents_last valid
+  have ordinary : ∀ failure, event ≠ .groupFailure failure := by
+    intro failure same
+    subst event
+    simp only [ReferenceWorkQueue.State.handleGraphEvent,
+      ReferenceWorkQueue.State.cacheTaskFailures, List.foldl_nil,
+      ReferenceWorkQueue.State.groupFailure] at published
+    split at published
+    · cases published
+    · split at published <;> simp [publicationRoots] at published
   have accounted := generatedReplay_nextAccounting generated valid started
-  have closures := ReferenceWorkQueue.State.handleGraphEvent_closureAccounting accounted.liveGroups
-    accounted.taskGroups event matching
+  have closures := ReferenceWorkQueue.State.handleGraphEvent_removalAccounting
+    accounted.liveGroups event [] ordinary
   have projection := generatedSnapshot_projection generated valid
     (generatedReplay_beforeNext generated valid started).2.1
   have live := registrationSnapshot_publicationRoots_live before event projection published
-  rcases GeneratedUnsettledTaskOwnerProgress_holds work inputs event generated valid started task registered pending
+  rcases GeneratedUnsettledTaskOwnerProgress_holds work inputs event generated valid started
+    task registered pending
       key contributes live with retained | cut
   · have absent := (closures.closed key (by
       obtain ⟨group, groups, streams, emitted, same⟩ := mem_publicationRoots.mp published
-      exact List.mem_flatMap.mpr ⟨_, emitted, same ▸ List.mem_cons_self⟩)).lookup_none
+      exact List.mem_flatMap.mpr ⟨_, List.mem_append_left _ emitted, same ▸
+        List.mem_cons_self⟩)).lookup_none
     exact (ReferenceWorkQueue.State.groupNode?_eq_none_iff _ _).mp absent retained
   · obtain ⟨_, _, path⟩ := cut
     obtain ⟨_, found⟩ := liveDescendant_targetFound path
@@ -120,7 +144,7 @@ def GeneratedPreparedUnsettledTaskProgress : Prop :=
         → RecordTargetRepresented reduced.state.queue (.task task.occurrence)
           ∨ .abortTask task.occurrence ∈ reduced.effects
 
-/-- The exact original pending/decrement proofs construct all five handler cases. -/
+/-- The original pending/decrement proofs also cover internal notification dispatch. -/
 theorem GeneratedPreparedUnsettledTaskProgress_holds
     : GeneratedPreparedUnsettledTaskProgress := by
   intro work inputs event generated valid started task

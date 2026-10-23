@@ -1,6 +1,7 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.ItemPublicationReflection
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.TerminalRegisteredTasks
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.FullControlAdmission
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.ActualSourceFrames
 
 /-! A published item exposes all its immediate child nodes to concrete terminal accounting. -/
 
@@ -26,18 +27,17 @@ theorem terminal_itemProducedTask_accounted
       : Explains work (initialQueue work).initialGroups
           (initialQueue work).initialStreams w.events w.matching w.failures)
     (visible
-      : ((initialQueue work).objectFailureContributions inputs.flatten).Subset
-          (failedBefore w.failures w.events.length))
+      : ∀ ref,
+          GroupInvalidated work
+            ((initialQueue work).admittedObjectFailureContributionsForBatches inputs) ref
+          → GroupInvalidated work (failedBefore w.failures w.events.length) ref)
     (ended : ((initialQueue work).runNormalized inputs).1.terminated = true)
     (known
       : TaskAt work (.executionGroup address) owners (some (.item source index)) payload)
     (published : Published w.matching w.events (.item source index))
     : TaskAccounted work w.matching w.events w.failures (.executionGroup address) := by
-  have accepted : (initialQueue work).batchesStarted inputs = true := by
-    rwa [← inputsStarted_eq_batchesStarted]
   obtain ⟨task, member, identity, _⟩ :=
-    TaskAt.executionGroup_registered_of_itemSuccess known valid
-      ((initialQueue work).batchesStarted_acceptsBatch inputs accepted)
+    (generated.runNormalized_producerRegistrationAccounting valid started).item_registered known
       (published_item_success valid started history admitted ledger published)
   exact identity
   ▸ terminal_registeredTask_accounted generated valid started history ledger
@@ -58,22 +58,22 @@ theorem terminal_itemProducedGroup_accounted
       : Explains work (initialQueue work).initialGroups
           (initialQueue work).initialStreams w.events w.matching w.failures)
     (visible
-      : ((initialQueue work).objectFailureContributions inputs.flatten).Subset
-          (failedBefore w.failures w.events.length))
+      : ∀ ref,
+          GroupInvalidated work
+            ((initialQueue work).admittedObjectFailureContributionsForBatches inputs) ref
+          → GroupInvalidated work (failedBefore w.failures w.events.length) ref)
     (ended : ((initialQueue work).runNormalized inputs).1.terminated = true)
     (known : NodeAt work group .group dependencies (some (.item source index)))
     (published : Published w.matching w.events (.item source index))
     : NodeFailed work w.matching w.events w.failures group.ref
       ∨ NodeAccounted work w.matching w.events w.failures group.ref := by
-  have accepted : (initialQueue work).batchesStarted inputs = true := by
-    rwa [← inputsStarted_eq_batchesStarted]
   have success := published_item_success valid started history admitted ledger published
   obtain ⟨occurrence, owners, payload, task, contributes⟩ := known.group_task
   cases occurrence with
   | executionGroup address =>
       obtain ⟨candidate, member, _, groups⟩ :=
-        TaskAt.executionGroup_registered_of_itemSuccess task valid
-          ((initialQueue work).batchesStarted_acceptsBatch inputs accepted) success
+        (generated.runNormalized_producerRegistrationAccounting valid started).item_registered task
+          success
       exact terminal_registeredContributor_groupAccounted generated valid started history ledger
         explained visible ended known member (groups.symm ▸ contributes)
   | item address ordinal =>
@@ -120,8 +120,10 @@ theorem terminal_itemProducedNode_accounted
       : Explains work (initialQueue work).initialGroups
           (initialQueue work).initialStreams w.events w.matching w.failures)
     (visible
-      : ((initialQueue work).objectFailureContributions inputs.flatten).Subset
-          (failedBefore w.failures w.events.length))
+      : ∀ ref,
+          GroupInvalidated work
+            ((initialQueue work).admittedObjectFailureContributionsForBatches inputs) ref
+          → GroupInvalidated work (failedBefore w.failures w.events.length) ref)
     (ended : ((initialQueue work).runNormalized inputs).1.terminated = true)
     (known : NodeAt work node kind dependencies (some (.item source index)))
     (published : Published w.matching w.events (.item source index))

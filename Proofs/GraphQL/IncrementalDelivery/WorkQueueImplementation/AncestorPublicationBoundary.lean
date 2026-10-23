@@ -22,7 +22,8 @@ theorem ExecutedWork.activeAncestorContributor_published_before_handler
     (generated : ExecutedWork work)
     (valid : ValidGraphEvents work (before ++ [event]))
     (started
-      : (State.initialize (Work.fromExecution work)).acceptsBatch (before ++ [event])
+      : State.eventsStarted [] (State.initialize (Work.fromExecution work))
+          (before ++ [event])
         = true)
     (covered
       : (State.initialize (Work.fromExecution work)).ReplayClosuresCovered
@@ -31,7 +32,7 @@ theorem ExecutedWork.activeAncestorContributor_published_before_handler
       : Execution.WorkQueueEvent.groupSuccess group groups streams
         ∈ (((State.initialize (Work.fromExecution work)).replayGraphEvents
               before).handleGraphEvent
-            event).2)
+            event).2.1)
     (active
       : group.ref
         ∈ ((State.initialize (Work.fromExecution work)).replayGraphEvents
@@ -46,7 +47,7 @@ theorem ExecutedWork.activeAncestorContributor_published_before_handler
                 before).2.flatMap
               WorkQueueEvent.objectValues).length := by
   have prior := valid.prefix (List.prefix_append before [event])
-  have accepted := State.acceptsBatch_prefix started
+  have accepted := State.eventsStarted_prefix started
   have roots := (generated.replayGraphEvents_structuralRetirement before
     (fun _ member => prior.eachMatches member)).1
   have retired := roots group.ref active group dependencies record rfl ref ancestor

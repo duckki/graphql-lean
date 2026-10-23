@@ -1,6 +1,7 @@
 import Proofs.GraphQL.IncrementalDelivery.Correctness.MixedProgressEvents
 import Proofs.GraphQL.IncrementalDelivery.Correctness.MixedOwnerSupport
 import Proofs.GraphQL.IncrementalDelivery.Correctness.GroupScopeReporting
+import Proofs.GraphQL.IncrementalDelivery.Semantics.WorkSize
 
 /-! Complete finite runs for arbitrary coherent generated mixed defer/stream work.
 Supported notice coverage is a proof choice, not a restriction on admitted histories.
@@ -28,6 +29,7 @@ theorem mixed_supported_accounted_extension
     (roleCoherent : RefRoles.WorkRoles roles work)
     (continuous : DeferContinuous ancestry work) (ordered : StreamOwnersOrdered work)
     (pathCoherent : MixedOwnerPaths.WorkAt paths pathBound work)
+    (positive : ExecutionErrors.WorkPositive work)
     (initial : Explains work groups streams head matching failures)
     (coverage
       : SupportedNoticesCovered ancestry work ((groups ++ streams).map DeliveryNode.ref)
@@ -91,7 +93,7 @@ theorem mixed_supported_accounted_extension
       exact covered node kind dependencies nextProducer descriptor
         supported
     obtain ⟨event, nextMatching, cuts, extended, retained⟩ :=
-      extend_ready_supported valid coherent roleCoherent continuous ordered pathCoherent
+      extend_ready_supported valid coherent roleCoherent continuous ordered pathCoherent positive
         explained covered task ready ⟨ref, member, notified, healthy⟩
     have impossible := maximal [event] nextMatching cuts extended retained
     cases impossible
@@ -112,9 +114,13 @@ theorem mixed_reporting_continuation
     (under : ExecutionPaths.WorkUnder base work)
     (certified : ScopeMetadata.WorkScoped work)
     (positive : ExecutionErrors.WorkPositive work)
+    (allocated : (streamAllocationRefs work).Nodup)
     (explained : Explains work groups streams events matching failures)
     (covered
       : ReportingNoticesCovered ancestry work ((groups ++ streams).map DeliveryNode.ref)
+          matching events failures)
+    (support
+      : StreamNoticesSupported ancestry work ((groups ++ streams).map DeliveryNode.ref)
           matching events failures)
     (batched : WorkBatching events batches)
     : (History.mk groups streams batches).CanFinish work := by
@@ -122,7 +128,8 @@ theorem mixed_reporting_continuation
     pathCoherent under certified
   obtain ⟨tail, next, cuts, extended, frontier, accounted, closed, satisfied⟩ :=
     mixed_reporting_closed_extension
-    valid coherent roleCoherent continuous ordered pathCoherent explained covered
+    valid coherent roleCoherent continuous ordered pathCoherent allocated positive
+      explained covered support
   have reports : ∀ occurrence owners producer payload,
       TaskAt work occurrence owners producer payload
       → ¬Published next (events ++ tail) occurrence
@@ -132,7 +139,8 @@ theorem mixed_reporting_continuation
       ordered pathCoherent under certified positive origins extended frontier.2 satisfied
       closed accounted ((accounted _ _ _ _ known).resolve_right unpublished) known
   obtain ⟨closures, run, _, _⟩ :=
-    (batched.append (WorkBatching.singletons tail)).finish_accounted extended accounted reports
+    (batched.append (WorkBatching.singletons tail)).finish_accounted extended
+      (fun ref opened _ => False.elim (opened.2 (closed ref opened.1))) accounted reports
   refine ⟨tail.map (fun event => [event]) ++ closures.map (fun event => [event])
     ++ [[.workQueueTermination]], ?_⟩
   simpa only [List.append_assoc] using run
@@ -149,17 +157,18 @@ theorem mixed_completeRun_exists {ancestry bound roles base paths pathBound work
     (pathCoherent : MixedOwnerPaths.WorkAt paths pathBound work)
     (under : ExecutionPaths.WorkUnder base work)
     (certified : ScopeMetadata.WorkScoped work)
-    (positive : ExecutionErrors.WorkPositive work) (nonempty : work.size ≠ 0)
+    (positive : ExecutionErrors.WorkPositive work)
+    (allocated : (streamAllocationRefs work).Nodup) (nonempty : work.size ≠ 0)
     : ∃ history, AdmissibleRun work history := by
   obtain ⟨groups, streams, initialized⟩ :=
     initialization_exists valid coherent continuous ordered nonempty
   obtain ⟨groups, streams, initialized, covers⟩ := initialized.covering_exists
   have initial : Explains work groups streams [] (fun _ => .executionGroup []) [] :=
-    ⟨initialized, by simp [FailureWitness], by simp⟩
+    initialized.emptyExplains _
   obtain ⟨batches, run⟩ := mixed_reporting_continuation valid coherent roleCoherent
-    continuous ordered pathCoherent under certified positive initial
+    continuous ordered pathCoherent under certified positive allocated initial
     (reportingNoticesCovered_of_noticesCovered (NoticesCovered.initial covers _))
-    WorkBatching.nil
+    (by intro index event selected; simp at selected) WorkBatching.nil
   exact ⟨⟨groups, streams, batches⟩, run⟩
 
 end GraphQL.IncrementalDelivery.Correctness

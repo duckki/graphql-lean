@@ -285,24 +285,22 @@ theorem successGroupFold_activateRegisteredTasks
             have member : updated ∈ next.groupNodes := by
               exact List.mem_map.mpr ⟨node, List.mem_of_find?_eq_some found, by simp [updated]⟩
             by_cases ready : (next.rootGroups.contains group.ref
-                && updated.pending == 0 && updated.failure.isNone) = true
+                && updated.pending == 0) = true
             · have zero : updated.pending = 0 :=
-                beq_iff_eq.mp (Bool.and_eq_true_iff.mp (Bool.and_eq_true_iff.mp ready).1).2
+                beq_iff_eq.mp (Bool.and_eq_true_iff.mp ready).2
               have all := nextBound.allSettled member True.intro zero
               have different : ∀ task ∈ tasks, task.occurrence ∉ updated.tasks := by
                 intro task included linked
                 exact fresh task included (all task.occurrence linked)
               have closed := activateRegisteredTasks_finishGroupSuccess next tasks updated different
-              change (queue.rootGroups.contains group.ref && node.pending - 1 == 0
-                && node.failure.isNone) = true at ready
+              change (queue.rootGroups.contains group.ref && node.pending - 1 == 0) = true at ready
               dsimp only [next, updated] at closed
               simp only [ReferenceWorkQueue.successGroupStep, completeSuccessAcc, original,
                 activation_groupNode?, found, ← activateRegisteredTasks_putGroupNode,
                 activation_rootGroups, putGroupNode_rootGroups, ready, ↓reduceIte, closed]
               exact ⟨nextKeys.finishGroupSuccess updated,
                 nextBound.finishGroupSuccess updated all, True.intro⟩
-            · change ¬(queue.rootGroups.contains group.ref && node.pending - 1 == 0
-                && node.failure.isNone) = true at ready
+            · change ¬(queue.rootGroups.contains group.ref && node.pending - 1 == 0) = true at ready
               simp only [ReferenceWorkQueue.successGroupStep, completeSuccessAcc, original,
                 activation_groupNode?, found, ← activateRegisteredTasks_putGroupNode,
                 activation_rootGroups, putGroupNode_rootGroups, ready, Bool.false_eq_true, ↓reduceIte]

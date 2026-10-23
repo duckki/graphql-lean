@@ -10,7 +10,7 @@ private def userPath : ResponsePath := [.field "user"]
 private def userInitial : List (Name × ResponseValue) := [("user", .object [])]
 
 private def userChildren : Work :=
-  .executionGroup [] (userPath ++ [.field "required"]) (.error 1) .empty
+  .executionGroup [] (userPath ++ [.field "required"]) ({ result := .error 1 }) .empty
 
 /-- A nullable ordinary user has a real failed task below the initial partial user. -/
 private theorem userCovered (containers : Bool)
@@ -19,9 +19,19 @@ private theorem userCovered (containers : Bool)
   intro entry member _
   obtain rfl := List.mem_singleton.mp member
   unfold userChildren
-  exact Or.inr ⟨_, _, _, .object (userPath ++ [.field "required"]) (.error 1),
-    (StructuralEquivalence.TaskAt.executionGroup .root).toCurrent,
-    rfl, Or.inr ⟨rfl, ⟨[.field "required"], rfl⟩⟩⟩
+  exact Or.inr
+    ⟨
+      _,
+      _,
+      _,
+      .object (userPath ++ [.field "required"]) (.error 1),
+      (by
+        apply StructuralEquivalence.TaskAt.toCurrent
+        apply StructuralEquivalence.TaskAt.executionGroup (result := { result := .error 1 })
+        exact .root),
+      rfl,
+      Or.inr ⟨rfl, ⟨[.field "required"], rfl⟩⟩
+    ⟩
 
 /-- A successful deferred payload can preserve a failed child and nullable ordinary root.
 Its counted errors and external cursor table do not affect this pure comparison.
@@ -29,9 +39,10 @@ Its counted errors and external cursor table do not affect this pure comparison.
 example (containers : Bool) (cursors : ResponsePositions.Cursors) (errors : Nat)
     : EntriesCovered containers [(userPath, .null)]
         ((sourceTasks [] none cursors
-            (.executionGroup [] [] (.ok (userInitial, errors)) userChildren)).flatMap
+            (.executionGroup [] [] ({ result := .ok (userInitial, errors) })
+              userChildren)).flatMap
           (SourceTask.positions containers))
-        (.executionGroup [] [] (.ok (userInitial, errors)) userChildren) :=
+        (.executionGroup [] [] ({ result := .ok (userInitial, errors) }) userChildren) :=
   (userCovered containers).executionGroup userInitial errors [] cursors
 
 private def node : DeliveryNode := { ref := 9, path := [.field "xs"] }
@@ -41,10 +52,14 @@ private def itemInitial : ResponseValue :=
   .object [("ok", .scalar "x"), ("child", .object [])]
 
 private def itemChildren : Work :=
-  .executionGroup [] (itemPath ++ [.field "child", .field "required"]) (.error 1) .empty
+  .executionGroup [] (itemPath ++ [.field "child", .field "required"])
+    ({ result := .error 1 }) .empty
 
-private def items : List (Result ResponseValue × Work) :=
-  [(.ok (.scalar "a", 2), .empty), (.ok (itemInitial, 3), itemChildren)]
+private def items : List (TaskOutcome ResponseValue × Work) :=
+  [
+    ({ result := .ok (.scalar "a", 2) }, .empty),
+    ({ result := .ok (itemInitial, 3) }, itemChildren)
+  ]
 
 private def itemReference : List TypedResponse.Entry :=
   [(itemPath ++ [.field "ok"], .scalar "x"), (itemPath ++ [.field "child"], .null)]
@@ -63,7 +78,10 @@ private theorem itemCovered (containers : Bool)
   · unfold itemChildren
     exact Or.inr ⟨_, _, _,
       .object (itemPath ++ [.field "child", .field "required"]) (.error 1),
-      (StructuralEquivalence.TaskAt.executionGroup .root).toCurrent,
+      (by
+          apply StructuralEquivalence.TaskAt.toCurrent
+          apply StructuralEquivalence.TaskAt.executionGroup (result := { result := .error 1 })
+          exact .root),
       rfl, Or.inr ⟨rfl, ⟨[.field "required"], by simp [Payload.path, List.append_assoc]⟩⟩⟩
 
 /-- Retention uses absolute index four: initial count three plus item ordinal one.
@@ -87,7 +105,7 @@ example
 
 /-- Separate retained partitions combine scalar data and null failure explanations. -/
 example (containers : Bool)
-    : let left := .executionGroup [] [] (.ok (userInitial, 0)) userChildren
+    : let left := .executionGroup [] [] ({ result := .ok (userInitial, 0) }) userChildren
       let right := .stream node items
       EntriesCovered containers ([(userPath, .null)] ++ itemReference)
         ((sourceTasks [] none [(node.path, 3)] (.combine left right)).flatMap

@@ -25,10 +25,31 @@ theorem Explains.after_carrier_before_settlements
       matching failures := by simpa only [List.take_append_drop] using explained
   have shorter := combined.prefix
   rw [length] at shorter
-  have allowed := explained.2.2 index event selected
-  rw [← eventAllowed_filter (bound := index) (by rw [length]; exact Nat.le_refl _)] at allowed
-  have extended := shorter.append_event allowed
-  simpa only [List.take_add_one, selected, Option.toList_some] using extended
+  have reporting : FailureReportingWitness work ((groups ++ streams).map DeliveryNode.ref)
+      (events.take index ++ events.drop index) explained.reportingFailures := by
+    simpa only [List.take_append_drop] using explained.reportingFacts.1
+  have reports := reporting.prefix
+  rw [length] at reports
+  refine ⟨
+    shorter.1,
+    ?_,
+    explained.reportingFailures.filter (fun entry => entry.1 ≤ index),
+    ?_,
+    explained.reportingFacts.2.1.prefix index,
+    ?_
+  ⟩
+  · simpa only [List.take_add_one, selected, Option.toList_some]
+      using shorter.2.1.append [event]
+  · simpa only [List.take_add_one, selected, Option.toList_some]
+      using reports.append [event]
+  · intro position output found
+    have within := (List.getElem?_eq_some_iff.mp found).1
+    have before : position < index + 1 := by simp only [List.length_take] at within; omega
+    have original : events[position]? = some output := by
+      simpa only [List.getElem?_take_of_lt before] using found
+    rw [eventAllowed_filter (by simp only [List.length_take]; omega)]
+    simpa only [List.take_take, Nat.min_eq_left (Nat.le_of_lt before)]
+      using explained.eventAllowed position output original
 
 /-- Healthy accounting before the next settlements excludes every future own failure.
 Witness: a visible record contradicts health. An omitted record has a cut after the cutoff,

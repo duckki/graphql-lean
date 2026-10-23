@@ -10,7 +10,9 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
 private def node : DeliveryNode := { ref := 0, path := [.field "values"] }
 private def emptyWork : Execution.Work := .stream node []
-private def failedWork : Execution.Work := .stream node [(.error 1, .empty)]
+
+private def failedWork : Execution.Work :=
+  .stream node [({ result := .error 1, cause := some 1 }, .empty)]
 
 /-- An exhausted stream may immediately close without publishing items.
 Witness: its empty source cursor has reached the exact result count; the queue starts it.
@@ -31,10 +33,10 @@ theorem failed_source_valid
     : ValidGraphEvents failedWork [.streamFailure node 1]
       ∧ inputsStarted failedWork [[.streamFailure node 1]] = true := by
   refine ⟨.append .nil ?_ ?_ ?_, by cbv⟩
-  · exact ⟨[], [(.error 1, .empty)], none, [], Located.root, .empty, List.mem_cons_self⟩
+  · exact ⟨[], [({ result := .error 1, cause := some 1 }, .empty)], none, [], Located.root, { result := .error 1, cause := some 1 }, .empty, List.mem_cons_self, rfl⟩
   · simp [GraphEvent.Fresh, GraphEvent.identities]
-  · exact ⟨[], [(.error 1, .empty)], none, [], Located.root,
-      (by intro source impossible; cases impossible), .empty, rfl⟩
+  · exact ⟨[], [({ result := .error 1, cause := some 1 }, .empty)], none, [], Located.root,
+      (by intro source impossible; cases impossible), { result := .error 1, cause := some 1 }, .empty, rfl, rfl⟩
 
 /-- Empty success and first-item failure each emit one closure, followed by termination.
 Witness: evaluate both real runners and project the single closing stream action.
@@ -130,11 +132,15 @@ theorem stream_order_alone_is_not_openness
 
 private def failureNode : DeliveryNode := { ref := 0, path := [.field "strict"] }
 
-private def failureEntries : List (Result ResponseValue × Execution.Work) :=
-  [(.ok (.scalar "x", 0), .empty), (.error 1, .empty)]
+private def failureEntries : List (TaskOutcome ResponseValue × Execution.Work) :=
+  [
+    ({ result := .ok (.scalar "x", 0) }, .empty),
+    ({ result := .error 1, cause := some 1 }, .empty)
+  ]
 
 private def generatedFailureWork : Execution.Work :=
-  .combine (.combine (.combine .empty (.stream failureNode failureEntries)) .empty) .empty
+  .combine (.combine (.combine .empty (.stream failureNode failureEntries)) .empty)
+    (.declareGroups [] .empty)
 
 private def firstArrival : GraphEvent :=
   .streamItems failureNode [⟨.item [0, 0, 1] 0, ⟨.scalar "x", 0⟩, {}⟩]
@@ -168,17 +174,18 @@ theorem generated_failure_source_valid
     intro supplied member
     have same := List.mem_singleton.mp member
     subst supplied
-    exact ⟨[failureNode.ref], none, TaskAt.item failure_located rfl, by cbv⟩
+    exact ⟨[failureNode.ref], none, TaskAt.item (result := { result := .ok (.scalar "x", 0) }) failure_located rfl, by cbv⟩
   have firstValid : ValidGraphEvents generatedFailureWork [firstArrival] :=
     .append .nil firstMatch
       (by simp [firstArrival, GraphEvent.Fresh, GraphEvent.identities])
       ⟨_, _, _, _, failure_located, by simp, by simp,
         (by intro source impossible; cases impossible), rfl⟩
   refine ⟨.append firstValid ?_ ?_ ?_, by cbv⟩
-  · exact ⟨_, _, _, _, failure_located, .empty, List.mem_cons_of_mem _ List.mem_cons_self⟩
+  · exact ⟨_, _, _, _, failure_located, { result := .error 1, cause := some 1 }, .empty,
+      List.mem_cons_of_mem _ List.mem_cons_self, rfl⟩
   · simp [firstArrival, GraphEvent.Fresh, GraphEvent.identities]
   · exact ⟨_, _, _, _, failure_located,
-      (by intro source impossible; cases impossible), .empty, rfl⟩
+      (by intro source impossible; cases impossible), { result := .error 1, cause := some 1 }, .empty, rfl, rfl⟩
 
 /-- The failed generated stream emits exactly its successful prefix, error, and termination.
 Witness: evaluate the unchanged queue/publisher; the second item has no value event.
@@ -226,7 +233,7 @@ theorem generated_failure_accounting
 /-- The generated first failure has a licensed cut and its exact one-error total.
 Witness: assemble candidate cuts from the actual joint matching. The only failure
 position is one, so no prior cut can cancel its task; the generic licensing equivalence
-then proves FailureWitness, and exact stream error accounting gives NodeErrors.
+then proves FailureWitness, and exact stream error accounting gives NodeFailureCause.
 This checks failure evidence, not full admission of every output event.
 -/
 theorem generated_failure_cut_licensed
@@ -238,7 +245,7 @@ theorem generated_failure_cut_licensed
         ∧ FailureWitness generatedFailureWork
             ((queue.initialGroups ++ queue.initialStreams).map DeliveryNode.ref)
             matching atoms failures
-        ∧ NodeErrors generatedFailureWork (failedBefore failures 1) failureNode.ref
+        ∧ NodeFailureCause generatedFailureWork (failedBefore failures 1) failureNode.ref
             1 := by
   obtain ⟨matching, _, values, _, covered⟩ :=
     createWorkQueue_runNormalized_streamProducerMatching_withItemCoverage failure_generated
@@ -257,7 +264,7 @@ theorem generated_failure_cut_licensed
     ?_,
     cuts.nodeErrors
       (createWorkQueue_runNormalized_atomicStreamActions_ordered
-        generated_failure_source_valid.1) ?_
+        generated_failure_source_valid.1) ?_ (by decide)
   ⟩
   · apply (cuts.failureWitness_iff (fun entry member =>
       ⟨(evidence entry member).1, (evidence entry member).2.2⟩)).mpr
@@ -303,7 +310,7 @@ theorem generated_publication_survives_failure
     rw [shape]
     rfl
   have failedKnown : TaskAt generatedFailureWork (.item [0, 0, 1] 1) [failureNode.ref]
-      none (.item failureNode (.error 1)) := TaskAt.item failure_located rfl
+      none (.item failureNode (.error 1)) := TaskAt.item (result := { result := .error 1, cause := some 1 }) failure_located rfl
   have failedPayloads cut occurrence (member : (cut, occurrence) ∈ failures)
       : ∃ owners producer payload,
           TaskAt generatedFailureWork occurrence owners producer payload

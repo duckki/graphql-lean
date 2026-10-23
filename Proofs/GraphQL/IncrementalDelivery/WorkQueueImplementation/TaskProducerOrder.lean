@@ -1,4 +1,6 @@
-import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.GroupMembershipOrder
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.PendingReplay
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.TaskCatalogue
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.GraphEvents
 
 /-! Source freshness excludes reverse producer edges in concrete registration order. -/
 
@@ -22,34 +24,50 @@ Witness: the actual acceptance guards and permanent-registry equations; cleanup 
 removes or reorders permanent task registrations.
 -/
 theorem State.handleGraphEvent_taskChunk (queue : State) (event : GraphEvent)
-    : (queue.handleGraphEvent event).1.tasks = queue.tasks
-      ∨ (queue.handleGraphEvent event).1.tasks = queue.tasks ++ event.childTasks := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.handleGraphEvent event available).1.tasks = queue.tasks
+      ∨ (queue.handleGraphEvent event available).1.tasks
+        = queue.tasks ++ event.childTasks := by
+  have cached := queue.cacheTaskFailures_tasks available
   cases event with
   | taskSuccess occurrence result =>
-      cases found : queue.taskNode? occurrence with
-      | none => left; simp only [State.handleGraphEvent, State.taskSuccess, found]
+      cases found : (queue.cacheTaskFailures available).taskNode? occurrence with
+      | none =>
+          left
+          simpa only [State.handleGraphEvent, State.taskSuccess, found] using cached
       | some node =>
-          cases healthy : queue.taskHasHealthyOwner node.task with
-          | false => left; rw [State.handleGraphEvent,
-              State.taskSuccess_of_noHealthyOwner found healthy]; rfl
-          | true => exact .inr (State.taskSuccess_tasks found healthy)
+          right
+          simpa only [State.handleGraphEvent, cached, GraphEvent.childTasks]
+            using State.taskSuccess_tasks found available
+  | groupFailure failure =>
+      left
+      simp only [State.handleGraphEvent, State.groupFailure]
+      split
+      · exact cached
+      · split <;> exact cached
   | taskFailure occurrence errors =>
-      exact .inl (queue.taskFailure_tasks occurrence errors)
+      left
+      exact ((queue.cacheTaskFailures available).taskFailure_tasks occurrence errors).trans cached
   | streamItems stream items =>
-      cases active : queue.rootStreams.contains stream.ref with
+      cases active
+            : (queue.cacheTaskFailures available).rootStreams.contains stream.ref with
       | false =>
           left
-          simp only [State.handleGraphEvent, State.streamItems, active, Bool.not_false,
-            ↓reduceIte]
-      | true => exact .inr (queue.streamItems_tasks stream items active)
+          simpa only [State.handleGraphEvent, State.streamItems, active, Bool.not_false,
+            ↓reduceIte] using cached
+      | true =>
+          right
+          simpa only [State.handleGraphEvent, cached, GraphEvent.childTasks]
+            using (queue.cacheTaskFailures available).streamItems_tasks stream items
+              active available
   | streamSuccess stream =>
       left
       simp only [State.handleGraphEvent, State.streamSuccess]
-      split <;> rfl
+      split <;> exact cached
   | streamFailure stream errors =>
       left
       simp only [State.handleGraphEvent, State.streamFailure]
-      split <;> rfl
+      split <;> exact cached
 
 /-- Every offered child task has a producer that succeeds in that same source event.
 Witness: exact task/item child-work matching supplies its structural producer.
@@ -67,7 +85,7 @@ theorem GraphEvent.MatchesWork.childTasks_producer {work event}
       obtain ⟨item, selected, child⟩ := List.mem_flatMap.mp member
       obtain ⟨_, payload, _, known⟩ := matching.streamItem_childTask_producer selected child
       exact ⟨item.occurrence, List.mem_map.mpr ⟨item, selected, rfl⟩, _, payload, known⟩
-  | taskFailure | streamSuccess | streamFailure => cases member
+  | taskFailure | groupFailure | streamSuccess | streamFailure => cases member
 
 /-- A freshly offered child has not settled in any preceding source input.
 Witness: earlier child settlement would require this event's producer to settle twice.
@@ -81,7 +99,7 @@ theorem GraphEvent.MatchesWork.childTasks_unsettled {work before event}
   | streamItems stream items =>
       obtain ⟨item, selected, child⟩ := List.mem_flatMap.mp member
       exact matching.streamItem_childTasksFresh valid fresh selected child
-  | taskFailure | streamSuccess | streamFailure => cases member
+  | taskFailure | groupFailure | streamSuccess | streamFailure => cases member
 
 /-- A source event never supplies its own child task as a simultaneous producer success.
 Witness: object production strictly decreases structural rank; stream successes carry
@@ -108,7 +126,7 @@ theorem GraphEvent.MatchesWork.childTasks_not_success {work event}
       obtain ⟨_, _, known, _⟩ := matching source sourceMember
       rw [same, occurrence] at known
       cases StructuralEquivalence.taskAt_of_current known
-  | taskFailure | streamSuccess | streamFailure => cases member
+  | taskFailure | groupFailure | streamSuccess | streamFailure => cases member
 
 -----------------------------------------------------------------------------------------
 -- Source-ready registrations rule out a child appearing before its producer
@@ -163,17 +181,17 @@ theorem State.handleGraphEvent_producerOrder {queue : State} {work before event}
     (ready : TaskProducersSucceeded work queue.tasks before)
     (ordered : ProducerOrder work (queue.tasks.map Task.occurrence))
     (valid : ValidGraphEvents work before) (matching : GraphEvent.MatchesWork work event)
-    (fresh : event.Fresh before)
-    : TaskProducersSucceeded work (queue.handleGraphEvent event).1.tasks
+    (fresh : event.Fresh before) (available : List (Occurrence × Nat) := [])
+    : TaskProducersSucceeded work (queue.handleGraphEvent event available).1.tasks
         (before ++ [event])
       ∧ ProducerOrder work
-          ((queue.handleGraphEvent event).1.tasks.map Task.occurrence) := by
+          ((queue.handleGraphEvent event available).1.tasks.map Task.occurrence) := by
   have later (tasks : List Task) (prior : TaskProducersSucceeded work tasks before)
       : TaskProducersSucceeded work tasks (before ++ [event]) := by
     intro task member producer known
     rw [List.flatMap_append]
     exact List.mem_append_left _ (prior task member producer known)
-  rcases queue.handleGraphEvent_taskChunk event with unchanged | appended
+  rcases queue.handleGraphEvent_taskChunk event available with unchanged | appended
   · rw [unchanged]
     exact ⟨later _ ready, ordered⟩
   rw [appended]
@@ -206,25 +224,61 @@ theorem State.handleGraphEvent_producerOrder {queue : State} {work before event}
       exact matching.childTasks_unsettled valid fresh parentMember
         (GraphEvent.successes_mem_settled (ready task member parent.occurrence known))
 
+/-- FIFO enqueue effects change no task producer metadata. -/
+theorem State.dispatchGraphEvent_producerOrder {queue : State} {work before event}
+    (ready : TaskProducersSucceeded work queue.tasks before)
+    (ordered : ProducerOrder work (queue.tasks.map Task.occurrence))
+    (valid : ValidGraphEvents work before) (matching : GraphEvent.MatchesWork work event)
+    (fresh : event.Fresh before) (available : List (Occurrence × Nat) := [])
+    : TaskProducersSucceeded work (queue.dispatchGraphEvent event available).1.tasks
+        (before ++ [event])
+      ∧ ProducerOrder work
+          ((queue.dispatchGraphEvent event available).1.tasks.map Task.occurrence) := by
+  have next := State.handleGraphEvent_producerOrder ready ordered valid matching fresh available
+  exact ⟨next.1, next.2⟩
+
 /-- Every source-valid replay has producer-ready registrations in non-reversed order.
 Witness: induction over source prefixes using the actual append-or-ignore registry
 equation. No generated-work, announcement, or publication-admission premise is needed.
 -/
 theorem createWorkQueue_replayGraphEvents_producerOrder {work events}
-    (valid : ValidGraphEvents work events)
+    (valid : ValidGraphEvents work events) (available : List (Occurrence × Nat) := [])
     : TaskProducersSucceeded work
-        ((State.initialize (Work.fromExecution work)).replayGraphEvents events).tasks
+        ((State.initialize (Work.fromExecution work)).replayGraphEvents events
+          available).tasks
         events
       ∧ ProducerOrder work
           (((State.initialize (Work.fromExecution work)).replayGraphEvents
-              events).tasks.map
+              events available).tasks.map
             Task.occurrence) := by
   induction valid with
   | nil => exact createWorkQueue_producerOrder work
   | @append before event valid matching fresh _ ih =>
       simpa only [State.replayGraphEvents, List.foldl_append, List.foldl_cons,
         List.foldl_nil]
-        using State.handleGraphEvent_producerOrder ih.1 ih.2 valid matching fresh
+        using State.dispatchGraphEvent_producerOrder ih.1 ih.2 valid matching fresh
+          available
+
+/-- A fresh input's child is not already in the permanent task registry.
+Witness: the child has a producer settling in this input. Prior registration would require
+that same producer to have succeeded earlier, contradicting source freshness. The argument
+does not require the child itself to have settled or published.
+-/
+theorem GraphEvent.MatchesWork.childTask_not_registered {queue : State}
+    {work before event} (matching : GraphEvent.MatchesWork work event)
+    (ready : TaskProducersSucceeded work queue.tasks before) (fresh : event.Fresh before)
+    {child : Task} (member : child ∈ event.childTasks)
+    : child.occurrence ∉ queue.tasks.map Task.occurrence := by
+  intro registered
+  obtain ⟨task, taskMember, same⟩ := List.mem_map.mp registered
+  obtain ⟨producer, success, known⟩ := matching.childTasks_producer member
+  have earlier := ready task taskMember producer (same.symm ▸ known)
+  have incoming : producer ∈ event.identities.1 := by
+    simpa only [List.flatMap_singleton]
+      using GraphEvent.successes_mem_settled (events := [event])
+        (by simpa only [List.flatMap_singleton] using success)
+  exact fresh.2.2.1 producer incoming
+    (GraphEvent.successes_mem_settled earlier)
 
 -----------------------------------------------------------------------------------------
 -- Subsequence transport gives strict ordering within an actual flush selection
@@ -265,5 +319,45 @@ theorem ProducerOrder.producer_before {work occurrences child parent}
     rw [same] at lower
     exact False.elim (Nat.lt_irrefl _ lower)
   omega
+
+/-- Source provenance follows any matching FIFO sequence, including ignored callbacks. -/
+theorem State.replayGraphEvents_producerOrder {queue : State} {work before}
+    (ready : TaskProducersSucceeded work queue.tasks before)
+    (ordered : ProducerOrder work (queue.tasks.map Task.occurrence))
+    (events : List GraphEvent) (valid : ValidGraphEvents work (before ++ events))
+    (available : List (Occurrence × Nat))
+    : TaskProducersSucceeded work (queue.replayGraphEvents events available).tasks
+        (before ++ events)
+      ∧ ProducerOrder work
+          ((queue.replayGraphEvents events available).tasks.map Task.occurrence) := by
+  induction events generalizing queue before with
+  | nil =>
+      simpa only [List.append_nil, State.replayGraphEvents, List.foldl_nil]
+        using And.intro ready ordered
+  | cons event rest ih =>
+      have boundary : (before ++ [event]).IsPrefix (before ++ event :: rest) := ⟨rest, by simp⟩
+      obtain ⟨validBefore, matching, fresh⟩ := validGraphEvents_last (valid.prefix boundary)
+      have next := State.dispatchGraphEvent_producerOrder ready ordered validBefore matching fresh
+        available
+      simpa only [State.replayGraphEvents, List.foldl_cons, List.append_assoc,
+        List.singleton_append]
+        using ih next.1 next.2
+          (by simpa only [List.append_assoc, List.singleton_append] using valid)
+
+/-- A running host batch retains producer provenance at its exact residual queue. -/
+theorem State.handleGraphEvents_producerOrder {queue : State} {work before}
+    (ready : TaskProducersSucceeded work queue.tasks before)
+    (ordered : ProducerOrder work (queue.tasks.map Task.occurrence))
+    (events : List GraphEvent) (valid : ValidGraphEvents work (before ++ events))
+    (running : queue.terminated = false)
+    : TaskProducersSucceeded work (queue.handleGraphEvents events).1.tasks
+        (before ++ events)
+      ∧ ProducerOrder work
+          ((queue.handleGraphEvents events).1.tasks.map Task.occurrence) := by
+  have replayed := State.replayGraphEvents_producerOrder ready ordered events valid
+    (GraphEvent.availableFailures events)
+  obtain ⟨terminal, same⟩ := queue.handleGraphEvents_stateCore events running
+  rw [same]
+  exact replayed
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

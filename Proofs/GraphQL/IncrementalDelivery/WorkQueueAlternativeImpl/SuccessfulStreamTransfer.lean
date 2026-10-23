@@ -32,12 +32,13 @@ theorem successfulFlush_heldSource {queue : ReferenceWorkQueue.State}
     (held : key ∈ node.childStreams)
     : let closed := queue.finishGroupSuccess group
       key ∈ closed.2.2.newStreams.map Execution.DeliveryNode.ref
-      ∧ key ∈ (closed.1.startNewWork closed.2.2).rootStreams
+      ∧ key ∈ (closed.1.startNewWork closed.2.2).1.rootStreams
       ∧ .stream key
-        ∈ ({ queue := closed.1.startNewWork closed.2.2 } : State).cleanupTargets := by
+        ∈ ({ queue := (closed.1.startNewWork closed.2.2).1 } : State).cleanupTargets := by
   have released := inventory.finishGroupSuccess_childRef_covered group selected found held
   have notice := queue.finishGroupSuccess_streamNotices group ▸ released
-  have active := queue.finishGroupSuccess_streamRoots_cover group (List.mem_append_right _ notice)
+  have active := queue.finishGroupSuccess_streamRoots_cover group []
+    (List.mem_append_right _ notice)
   exact ⟨released, active, State.rootStream_cleanupTarget _ active⟩
 
 /-- Generated alternative replay retains the reference's permanent child-source inventory. -/
@@ -71,9 +72,9 @@ def GeneratedFlushStreamCoverage : Prop :=
         → key ∈ node.childStreams
         → let closed := queue.finishGroupSuccess group
           key ∈ closed.2.2.newStreams.map Execution.DeliveryNode.ref
-          ∧ key ∈ (closed.1.startNewWork closed.2.2).rootStreams
+          ∧ key ∈ (closed.1.startNewWork closed.2.2).1.rootStreams
           ∧ .stream key
-            ∈ ({ queue := closed.1.startNewWork closed.2.2 } : State).cleanupTargets
+            ∈ ({ queue := (closed.1.startNewWork closed.2.2).1 } : State).cleanupTargets
 
 /-- Reuse concrete reference release coverage on the actual projected replay inventory. -/
 theorem GeneratedFlushStreamCoverage_holds : GeneratedFlushStreamCoverage := by
@@ -93,22 +94,39 @@ no new stream notices. Earlier accumulated batch notices are intentionally not u
 -/
 theorem graphEvent_newStream_active (queue : ReferenceWorkQueue.State)
     (event : GraphEvent) {key : Nat}
-    (noticed : key ∈ (queue.handleGraphEvent event).2.flatMap rawStreamNoticeRefs)
+    (noticed : key ∈ (queue.handleGraphEvent event).2.1.flatMap rawStreamNoticeRefs)
     : key ∈ (queue.handleGraphEvent event).1.rootStreams := by
   cases event with
   | taskSuccess occurrence result =>
-      exact queue.taskSuccess_streamRoots_cover occurrence result (List.mem_append_right _ noticed)
+      exact queue.taskSuccess_streamRoots_cover occurrence result []
+        (List.mem_append_right _ noticed)
   | streamItems stream items =>
-      exact queue.streamItems_streamRoots_cover stream items (List.mem_append_right _ noticed)
+      exact queue.streamItems_streamRoots_cover stream items [] (List.mem_append_right _ noticed)
   | taskFailure occurrence errors =>
-      rw [ReferenceWorkQueue.State.handleGraphEvent, queue.taskFailure_streamNoticeRefs] at noticed
+      simp only [ReferenceWorkQueue.State.handleGraphEvent,
+        ReferenceWorkQueue.State.cacheTaskFailures, List.foldl_nil] at noticed
+      rw [queue.taskFailure_streamNoticeRefs] at noticed
       cases noticed
   | streamSuccess stream =>
-      simp only [ReferenceWorkQueue.State.handleGraphEvent, ReferenceWorkQueue.State.streamSuccess] at noticed
-      split at noticed <;> simp [rawStreamNoticeRefs] at noticed
+      simp only [ReferenceWorkQueue.State.handleGraphEvent, ReferenceWorkQueue.State.streamSuccess,
+        ReferenceWorkQueue.State.cacheTaskFailures,
+        List.foldl_nil] at noticed
+      cases active : queue.rootStreams.contains stream.ref <;>
+        simp only [active, Bool.false_eq_true, ↓reduceIte, List.flatMap_nil,
+          List.flatMap_cons, rawStreamNoticeRefs, List.append_nil] at noticed <;> cases noticed
   | streamFailure stream errors =>
-      simp only [ReferenceWorkQueue.State.handleGraphEvent, ReferenceWorkQueue.State.streamFailure] at noticed
-      split at noticed <;> simp [rawStreamNoticeRefs] at noticed
+      simp only [ReferenceWorkQueue.State.handleGraphEvent, ReferenceWorkQueue.State.streamFailure,
+        ReferenceWorkQueue.State.cacheTaskFailures,
+        List.foldl_nil] at noticed
+      cases active : queue.rootStreams.contains stream.ref <;>
+        simp only [active, Bool.false_eq_true, ↓reduceIte, List.flatMap_nil,
+          List.flatMap_cons, rawStreamNoticeRefs, List.append_nil] at noticed <;> cases noticed
+  | groupFailure notice =>
+      simp only [ReferenceWorkQueue.State.handleGraphEvent, ReferenceWorkQueue.State.groupFailure,
+        ReferenceWorkQueue.State.cacheTaskFailures, List.foldl_nil] at noticed
+      split at noticed
+      · cases noticed
+      · split at noticed <;> simp_all [rawStreamNoticeRefs]
 
 /-- Dispatch's actual newly announced source is reachable by the alternative stop walk. -/
 theorem GraphBatchResult.releasedStream_cleanupTarget (result : GraphBatchResult)
@@ -116,11 +134,12 @@ theorem GraphBatchResult.releasedStream_cleanupTarget (result : GraphBatchResult
     (projection
       : (
           (result.state.handleGraphEvent event).1.queue,
-          (result.state.handleGraphEvent event).2.1
+          (result.state.handleGraphEvent event).2.1,
+          (result.state.handleGraphEvent event).2.2.2
         )
         = result.state.queue.handleGraphEvent event)
     (noticed
-      : key ∈ (result.state.queue.handleGraphEvent event).2.flatMap rawStreamNoticeRefs)
+      : key ∈ (result.state.queue.handleGraphEvent event).2.1.flatMap rawStreamNoticeRefs)
     : .stream key ∈ (result.handleGraphEvent event).state.cleanupTargets := by
   apply State.rootStream_cleanupTarget
   change key ∈ (result.state.handleGraphEvent event).1.queue.rootStreams
@@ -133,15 +152,17 @@ theorem GraphBatchResult.releasedStream_stopRequest (result : GraphBatchResult)
     (projection
       : (
           (result.state.handleGraphEvent event).1.queue,
-          (result.state.handleGraphEvent event).2.1
+          (result.state.handleGraphEvent event).2.1,
+          (result.state.handleGraphEvent event).2.2.2
         )
         = result.state.queue.handleGraphEvent event)
     (noticed
-      : key ∈ (result.state.queue.handleGraphEvent event).2.flatMap rawStreamNoticeRefs)
+      : key ∈ (result.state.queue.handleGraphEvent event).2.1.flatMap rawStreamNoticeRefs)
     : .cancelSource key ∈ (result.handleGraphEvent event).state.cancel.2 := by
   have covered := GraphBatchResult.releasedStream_cleanupTarget result event projection noticed
   rw [State.cancel_effects]
-  change HostEffect.cancelSource key ∈ if (result.state.handleGraphEvent event).1.stopped then [] else _
+  change HostEffect.cancelSource key
+    ∈ if (result.state.handleGraphEvent event).1.stopped then [] else _
   rw [State.handleGraphEvent_stopped]
   simp only [running, Bool.false_eq_true, ↓reduceIte]
   exact List.mem_flatMap.mpr ⟨.stream key, covered, List.mem_cons_self⟩

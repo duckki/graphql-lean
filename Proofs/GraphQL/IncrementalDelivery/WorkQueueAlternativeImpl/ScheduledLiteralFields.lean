@@ -28,10 +28,10 @@ def LiteralFields (resolvers : Resolvers ObjectRef) (parentType : Name)
     : Prop :=
   ∀ entry ∈ fields, LiteralFieldValues resolvers parentType source entry.2
 
-private theorem literal_pure_result (result : Result α)
-    : LiteralRunRefines (Pure.pure ({ result } : Completion α))
-        (Pure.pure ({ result } : Completion α)) :=
-  fun _ => ⟨⟨ResultRefines.refl result, .empty⟩, rfl⟩
+private theorem literal_pure_result (result : Result α) (cause : Option Nat)
+    : LiteralRunRefines (Pure.pure ({ result, cause } : Completion α))
+        (Pure.pure ({ result, cause } : Completion α)) :=
+  fun _ => ⟨⟨ResultRefines.refl result, .empty, rfl⟩, rfl⟩
 
 theorem literal_executeResponseField_refines (schema : Schema)
     (resolvers : Resolvers ObjectRef) (variables : VariableValues) (fuel : Nat)
@@ -47,27 +47,28 @@ theorem literal_executeResponseField_refines (schema : Schema)
   | zero =>
       simpa only [ScheduledExecution.executeResponseField, Semantics.executeResponseField,
         Completion.error]
-        using literal_pure_result (α := List (Name × ResponseValue)) (.error 1)
+        using literal_pure_result (α := List (Name × ResponseValue)) (.error 1) (some 1)
   | succ fuel =>
       cases fields with
       | nil =>
           simpa only [ScheduledExecution.executeResponseField,
             Semantics.executeResponseField, Completion.error]
             using literal_pure_result (α := List (Name × ResponseValue)) (.error 1)
+              (some 1)
       | cons field rest =>
           simp only [ScheduledExecution.executeResponseField, Semantics.executeResponseField]
           split
           · simp_all only [Completion.error]
-            exact literal_pure_result _
+            exact literal_pure_result _ _
           · simp_all only
             split
             · simp_all only
-              exact literal_pure_result _
+              exact literal_pure_result _ _
             · rename_i arguments _
               simp_all only
               split
               · simp_all only
-                exact literal_pure_result _
+                exact literal_pure_result _ _
               · rename_i resolved known
                 simp_all only
                 exact (literal_completeValue_withStream_refines schema resolvers variables

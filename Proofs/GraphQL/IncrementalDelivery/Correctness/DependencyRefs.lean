@@ -25,20 +25,20 @@ theorem dependencyProperties_located {parents work address current producer owne
   have navigation := StructuralEquivalence.located_of_current located
   clear located
   induction navigation with
-  | root => exact ⟨continuous, ordered⟩
+  | root => exact ⟨continuous.withoutDeclarations, ordered.withoutDeclarations⟩
   | left _ ih =>
       simp only [DeferContinuous, StreamOwnersOrdered] at ih
-      exact ⟨ih.1.1, ih.2.1⟩
+      exact ⟨ih.1.1.withoutDeclarations, ih.2.1.withoutDeclarations⟩
   | right _ ih =>
       simp only [DeferContinuous, StreamOwnersOrdered] at ih
-      exact ⟨ih.1.2, ih.2.2⟩
+      exact ⟨ih.1.2.withoutDeclarations, ih.2.2.withoutDeclarations⟩
   | executionGroup _ ih =>
       simp only [DeferContinuous, StreamOwnersOrdered] at ih
-      exact ⟨ih.1.2, ih.2.2⟩
+      exact ⟨ih.1.2.withoutDeclarations, ih.2.2.withoutDeclarations⟩
   | item _ selected ih =>
       simp only [DeferContinuous, StreamOwnersOrdered] at ih
-      exact ⟨ih.1 _ (List.mem_of_getElem? selected),
-        ih.2 _ (List.mem_of_getElem? selected)⟩
+      exact ⟨(ih.1 _ (List.mem_of_getElem? selected)).withoutDeclarations,
+        (ih.2 _ (List.mem_of_getElem? selected)).withoutDeclarations⟩
 
 /-- Located producer contexts either retain deferred ancestry/owner support or enter a
 fresh stream-item ref region. Witness: the producer-generating edge, then append descent.
@@ -65,28 +65,29 @@ theorem producer_ref_context {parents bound work address current enclosing produ
         obtain ⟨owners, ancestor, payload, known, supported⟩ := ih generated
         refine ⟨owners, ancestor, payload, known, ?_⟩
         rcases supported with ⟨under, before⟩ | ⟨ref, same, bounded⟩
-        · exact Or.inl ⟨under.1, before.1⟩
+        · exact Or.inl ⟨under.1.withoutDeclarations, before.1.withoutDeclarations⟩
         · rw [MixedRefs.WorkAt] at bounded
-          exact Or.inr ⟨ref, same, bounded.1⟩
+          exact Or.inr ⟨ref, same, coherent_withoutDeclarations bounded.1⟩
     | right _ ih =>
         obtain ⟨owners, ancestor, payload, known, supported⟩ := ih generated
         refine ⟨owners, ancestor, payload, known, ?_⟩
         rcases supported with ⟨under, before⟩ | ⟨ref, same, bounded⟩
-        · exact Or.inl ⟨under.2, before.2⟩
+        · exact Or.inl ⟨under.2.withoutDeclarations, before.2.withoutDeclarations⟩
         · rw [MixedRefs.WorkAt] at bounded
-          exact Or.inr ⟨ref, same, bounded.2⟩
+          exact Or.inr ⟨ref, same, coherent_withoutDeclarations bounded.2⟩
     | executionGroup navigation =>
         cases generated
         have properties := dependencyProperties_located continuous ordered navigation.toCurrent
         simp only [DeferContinuous, StreamOwnersOrdered] at properties
         exact ⟨_, _, _, .executionGroup navigation.toCurrent,
-          Or.inl ⟨properties.1.1, properties.2.1⟩⟩
+          Or.inl ⟨properties.1.1.withoutDeclarations, properties.2.1.withoutDeclarations⟩⟩
     | item navigation selected =>
         cases generated
         have localWork := coherent_located coherent navigation.toCurrent
         rw [MixedRefs.WorkAt] at localWork
         exact ⟨_, _, _, .item navigation.toCurrent selected,
-          Or.inr ⟨_, rfl, localWork.2.2 _ (List.mem_of_getElem? selected)⟩⟩
+          Or.inr ⟨_, rfl, coherent_withoutDeclarations
+            (localWork.2.2 _ (List.mem_of_getElem? selected))⟩⟩
   exact context (StructuralEquivalence.located_of_current located) rfl
 
 /-- Generated task owner lists are nonempty at every structural occurrence.
@@ -326,6 +327,7 @@ descent until an execution-group boundary or a vacuous stream-owner check.
 private theorem ownersBefore_nil (work : Work) : OwnersBefore [] work := by
   cases work with
   | empty | executionGroup => trivial
+  | declareGroups groups tasks => exact ownersBefore_nil tasks
   | combine left right => exact ⟨ownersBefore_nil left, ownersBefore_nil right⟩
   | stream => simp [OwnersBefore]
 termination_by sizeOf work
@@ -343,22 +345,22 @@ theorem ownersBefore_located {work address current producer owners}
       (navigation : StructuralEquivalence.Located work address current producer owners)
       : StreamOwnersOrdered current := by
     induction navigation with
-    | root => exact ordered
+    | root => exact ordered.withoutDeclarations
     | left _ ih =>
-        rw [StreamOwnersOrdered] at ih; exact ih.1
+        rw [StreamOwnersOrdered] at ih; exact ih.1.withoutDeclarations
     | right _ ih | executionGroup _ ih =>
-        rw [StreamOwnersOrdered] at ih; exact ih.2
+        rw [StreamOwnersOrdered] at ih; exact ih.2.withoutDeclarations
     | item _ selected ih =>
         rw [StreamOwnersOrdered] at ih
-        exact ih _ (List.mem_of_getElem? selected)
+        exact (ih _ (List.mem_of_getElem? selected)).withoutDeclarations
   induction navigation with
   | root => exact ownersBefore_nil _
-  | left _ ih => exact ih.1
-  | right _ ih => exact ih.2
+  | left _ ih => exact ih.1.withoutDeclarations
+  | right _ ih => exact ih.2.withoutDeclarations
   | executionGroup navigation =>
       have properties := localOrder navigation
       rw [StreamOwnersOrdered] at properties
-      exact properties.1
+      exact properties.1.withoutDeclarations
   | item => exact ownersBefore_nil _
 
 /-- Every stream's explicit enclosing-owner dependency has a smaller ref. Witness:

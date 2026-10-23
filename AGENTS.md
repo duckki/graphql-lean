@@ -47,8 +47,8 @@ Public modules separate these responsibilities:
 - `WorkQueueImplementation`: the executable reference queue/publisher and its conformance
   and query-observation propositions; it imports Observation, not Correctness.
 - `WorkQueueAlternativeImpl`: a reference-backed queue with registration projections,
-  inline last-owner disposal, and reader effects. Abstract conformance/resource proofs
-  are complete; concrete host refinement remains a separate boundary.
+  inline last-owner disposal, and reader effects. Abstract conformance/resource witnesses
+  await the declaration/FIFO rebuild; concrete host refinement remains a separate boundary.
 
 Keep WorkQueueSemantics, Correctness, WorkQueueImplementation, and WorkQueueAlternativeImpl
 as single public modules.
@@ -71,7 +71,8 @@ abbreviations do not enforce separate numeric types.
 `executeQuery`, `executeQueryWithFuel`, and `executeRootSelectionSet` return
 `ExecutionResult`: an ordinary response when work is empty, otherwise an initial
 incremental result and resumable response stream. Empty stream boundaries are nonempty
-work. The finite stream hook retains a boundary at `initialCount = list.length`, but not
+work. `Work.isEmpty` checks this boundary directly; total record counts belong to the
+proof layer. The finite stream hook retains a boundary at `initialCount = list.length`, but not
 when the count exceeds the list. The pinned draft does not wire streaming into its list
 completion algorithm; this extension is documented explicitly.
 
@@ -124,8 +125,45 @@ terminated outcomes. This bridge does not depend on the optional ResponseStreamC
 CursorCorrectness supplies reusable end-to-end results without duplicating the public
 query-correctness propositions.
 
-The 12 established public query-correctness statements, reference conformance, the
-query bridge, and finite-progress witnesses are verified against terminal reporting.
+Group startup follows GraphQL.js PR #4870: inspect all cached task rejections before
+starting private work, remove a failed group immediately, and queue one aggregate notice.
+Available finite host batches expose computation rejections before FIFO notification
+consumption. Task-local causes remain distinct from collected diagnostics. Group reports
+use distinct available task causes; streams retain one cause. FailureReportingWitness
+separates reporting availability from licensed causal FailureWitness cuts.
+CausalFailuresAvailable requires the same occurrence to be available for reporting at
+or before its causal cut, allowing earlier availability without duplicate reporting entries.
+Neither proof evidence nor the queued notice introduces a per-group runtime cause cache.
+Startup returns `GroupFailureEvent` enqueue effects. Dispatch and initialization retain
+these notices in `State.groupFailureEvents`, a FIFO projection of native internal events.
+`GraphEvent` includes their observed dispatch among task/stream outcomes; admission checks
+the current queued head and forwarding uses its stored descriptor/count. This is queued
+event state, not a per-group cause cache. The temporary `errors` collection remains local
+to `startGroup`. Host batch boundaries carry cache availability, so flatten-only replay
+is not an implementation state bridge. Callback admission retains eligibility from every
+earlier dispatch boundary within the same batch, including work started and retired there;
+this local validation predicate does not persist eligibility across batches or add runtime
+state. Internal notices always require the current FIFO head. The complete definition map is in
+`docs/incremental-delivery/graphql-js-correspondence.md`.
+
+Initial synchronous rejections are an explicit `InitialStartup` host observation.
+`initialize`, response initialization, and `ValidFor` accept an optional startup observation.
+The default is empty; the shared initializer retains queued notices, and replay preserves them
+across batches and empty calls. `Execution.Work.declareGroups` retains ordered fresh group
+declarations after immediate-field work, separately from task contributors. It adds no
+structural address edge or work count. Lowering preserves declaration encounter order;
+registration recursively visits candidate parents before children and attaches links in
+installation order. An absent live parent prevents installation. Pruning preserves that
+root/child order; creation refs are identities, not a global ordering key. Raw fixture work must declare registration candidates explicitly; contributors never
+create group declarations.
+
+The reference/alternative conformance, equivalence, resource and query-bridge witnesses
+cover ordered declarations, observed internal FIFO dispatch, and batch-local callback
+eligibility. The independent work-accounting contract is unchanged. Concrete host runtime
+refinement remains a separate boundary.
+
+The 12 public query-correctness statements retain their proof modules and implementation
+bridges over the terminal-reporting contract.
 Safety and disjointness statements cover admitted prefixes,
 including errors.
 ID liveness and lifecycle cover complete finite runs. Reconstruction, basic-position
@@ -167,9 +205,10 @@ Repo organization is:
 
 Run `lake build`, `lake build Tests`, and `lake lint` for whole-project verification,
 or `make all` to include changed-file formatting checks. The default build and lint
-exclude tests; CI builds `Tests` explicitly. Definitions, proofs, and tests build with
-terminal failure reporting. Existing axiom audits contain only `propext`,
-`Classical.choice`, and `Quot.sound`, with no proof holes or added axioms.
+exclude tests; CI builds `Tests` explicitly. Definitions, proofs, and regressions cover
+terminal reporting, ordered declarations, internal FIFO dispatch, and batch-local callback
+eligibility. Axiom audits contain only `propext`, `Classical.choice`, and `Quot.sound`,
+with no proof holes or added axioms.
 
 Verification commands are in `docs/development.md`. Topic guides record proof status,
 witnesses, and regression coverage without duplicating build or test commands.

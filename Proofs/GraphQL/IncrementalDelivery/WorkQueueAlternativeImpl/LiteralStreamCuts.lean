@@ -45,7 +45,7 @@ end LiteralCuts
 one scope. None of these facts claims native recording times or error-object association. -/
 def ReportCutAccounting (cut eager : Report α) (sites : List SiblingCut) : Prop :=
   ReportRefines cut eager
-  ∧ OmissionAtCuts ⟨cut, .empty⟩ ⟨eager, .empty⟩ sites
+  ∧ OmissionAtCuts ⟨cut, .empty, none⟩ ⟨eager, .empty, none⟩ sites
   ∧ eager.origins.Nodup
   ∧ ScheduledErrors.countedErrors cut.outcome
       + (omittedOrigins cut.origins eager.origins).length
@@ -74,24 +74,26 @@ theorem literal_report_cut_accounting (schema : Schema) (resolvers : Resolvers O
 /-- The same ordered positions and one preselected cut inventory, including the
 fatal item if present. Children remain actual Work, not flattened into the item count. -/
 inductive ItemCutAccounting
-    : List (Report ResponseValue × RecordedWork)
-      → List (Report ResponseValue × RecordedWork) → List (List SiblingCut) → Prop where
+    : List (RecordedOutcome ResponseValue × RecordedWork)
+      → List (RecordedOutcome ResponseValue × RecordedWork) → List (List SiblingCut)
+      → Prop where
   | nil : ItemCutAccounting [] [] []
   | cons {cut eager children eagerChildren rest eagerRest sites remaining}
-    (head : ReportCutAccounting cut eager sites)
+    (head : ReportCutAccounting cut.toReport eager.toReport sites)
     (cutChildren : EmptyRecordedWork children)
     (eagerVacant : EmptyRecordedWork eagerChildren)
     (tail : ItemCutAccounting rest eagerRest remaining)
     : ItemCutAccounting ((cut, children) :: rest) ((eager, eagerChildren) :: eagerRest)
         (sites :: remaining)
 
-def ItemCutAccounting.AtIndex (cut eager : List (Report ResponseValue × RecordedWork))
+def ItemCutAccounting.AtIndex
+    (cut eager : List (RecordedOutcome ResponseValue × RecordedWork))
     (sites : List (List SiblingCut)) (index : Nat)
     : Prop :=
   match cut[index]?, eager[index]?, sites[index]? with
   | none, none, none => True
   | some before, some after, some cuts =>
-      ReportCutAccounting before.1 after.1 cuts
+      ReportCutAccounting before.1.toReport after.1.toReport cuts
       ∧ EmptyRecordedWork before.2
       ∧ EmptyRecordedWork after.2
   | _, _, _ => False

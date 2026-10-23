@@ -1,5 +1,5 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.GroupPublicationMatching
-import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.GroupPublisherRegistry
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.BatchedPublisherRegistry
 
 /-! Actual remapped object owners satisfy the scheduler rule on the shared task matching. -/
 
@@ -65,7 +65,7 @@ prefix; atomic expansion and earlier values of the same block leave notice state
 theorem Witness.groupPublication_contributorRegistry {work inputs index owner payload}
     {w : Witness} (generated : ExecutedWork work)
     (valid : ValidGraphEvents work inputs.flatten)
-    (started : inputsStarted work inputs = true)
+    (_started : inputsStarted work inputs = true)
     (history : w.events = (initialQueue work).nonterminalAtoms inputs)
     (origin
       : GroupPublicationOrigin
@@ -73,7 +73,7 @@ theorem Witness.groupPublication_contributorRegistry {work inputs index owner pa
             active :=
               (initialQueue work).initialGroups ++ (initialQueue work).initialStreams
           }
-          ((initialQueue work).rawEventReplay inputs.flatten).2 index owner payload)
+          ((initialQueue work).rawBatches inputs).2 index owner payload)
     : ∀ candidate ∈ origin.value.deliveryGroups,
         candidate.ref
           ∈ (({
@@ -87,9 +87,9 @@ theorem Witness.groupPublication_contributorRegistry {work inputs index owner pa
   let publisher : IncrementalPublisher :=
     { active := (initialQueue work).initialGroups ++ (initialQueue work).initialStreams }
   have isPrefix : origin.before.IsPrefix
-      ((initialQueue work).rawEventReplay inputs.flatten).2 :=
+      ((initialQueue work).rawBatches inputs).2 :=
     ⟨_, origin.rawEq.symm⟩
-  have shape := (initialQueue work).rawEventReplay_nonemptyValues inputs.flatten
+  have shape := (initialQueue work).rawBatches_nonemptyValues inputs
     valid.nonemptyItems
   have normalizedShape := (publisher.normalizeBatch_nonemptyValues origin.before
     (fun event member => shape event (isPrefix.subset member))).2
@@ -97,13 +97,16 @@ theorem Witness.groupPublication_contributorRegistry {work inputs index owner pa
   obtain ⟨silentPending, silentCompleted⟩ := GroupPublicationOrigin.object_prefix_refs
     (publisher.normalizeBatch origin.before).1 origin.group origin.values origin.offset
   simp only [pendingRefs, completedRefs] at pending completed silentPending silentCompleted
-  have same := history.trans (createWorkQueue_nonterminalAtoms_flattened inputs started)
+  have carrier := (Witness.rawBatches_nonterminal history origin.carrier
+    (by intro impossible; cases impossible)).1
+  have within := (List.getElem?_eq_some_iff.mp carrier).1
+  have earlier := origin.before_carrier
   have valuePrefix := origin.valuePrefix
-  rw [← same] at valuePrefix
+  rw [Witness.rawBatches_prefix history index (by omega)] at valuePrefix
   intro candidate member
   obtain ⟨dependencies, producer, known⟩ :=
     Witness.groupPublication_contributorsLocated valid origin candidate member
-  have registry := createWorkQueue_rawPrefix_groupRegistry generated valid known isPrefix
+  have registry := createWorkQueue_rawBatchPrefix_groupRegistry generated valid known isPrefix
   dsimp only at registry
   rw [registry, valuePrefix]
   simp only [Open, announcedRefs, pendingRefs, completedRefs, List.flatMap_append]

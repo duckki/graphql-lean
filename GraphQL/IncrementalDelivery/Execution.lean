@@ -360,6 +360,24 @@ structure DeferredFragment where
   ancestors : List DeliveryNode := []
 deriving Repr
 
+/-- A fixed task/item outcome retains collected diagnostics separately from its selected
+failure explanation. Keeping both projections in Work preserves execution accounting even
+when a failed delivery reports only the explanation for discarding its payload.
+-/
+structure TaskOutcome (α : Type) where
+  result : Result α
+  cause : Option Nat := none
+deriving Repr
+
+/-- Delivered data retains every diagnostic; a discarded payload reports its selected
+cause. Raw outcomes without cause metadata retain their original count, including zero;
+the projection does not manufacture a positive explanation.
+-/
+def TaskOutcome.deliveryResult (outcome : TaskOutcome α) : Result α :=
+  match outcome.result with
+  | .error errors => .error (outcome.cause.getD errors)
+  | .ok result => .ok result
+
 /-- Finite resolver work retained after the initial response.
 
 A task may contribute to multiple fragments, but its data is delivered only once.
@@ -371,47 +389,103 @@ inductive Work where
   | empty
   /-- Join sibling work components without choosing their completion order. -/
   | combine (left right : Work)
+  /-- Ordered declarations for one execution plan's deferred tasks. Contributors on a
+  task are references; they do not determine when or in what order groups are registered.
+  This annotation contributes no task, producer, or structural address edge.
+  -/
+  | declareGroups (groups : List DeferredFragment) (tasks : Work)
   /-- One execution-group task, its contributing fragments, and nested work. -/
   | executionGroup (groups : List DeferredFragment) (path : ResponsePath)
-    (result : Result (List (Name × ResponseValue))) (children : Work)
+    (outcome : TaskOutcome (List (Name × ResponseValue))) (children : Work)
   /-- One stream descriptor and the finite remaining outer-list items. -/
-  | stream (node : DeliveryNode) (items : List (Result ResponseValue × Work))
+  | stream (node : DeliveryNode) (items : List (TaskOutcome ResponseValue × Work))
 deriving Repr
 
+/-- Strip leading declaration annotations at one structural location.
+Nested annotations remain until address navigation reaches their location.
+-/
+def Work.withoutDeclarations : Work → Work
+  | .declareGroups _ tasks => tasks.withoutDeclarations
+  | work => work
+
+/-- Whether the immediate work contains no tasks or stream boundaries.
+Declarations add no work; an empty stream boundary is still work. Child outcomes need
+not be inspected once a task or stream boundary is present.
+-/
+def Work.isEmpty : Work → Bool
+  | .empty => true
+  | .combine left right => left.isEmpty && right.isEmpty
+  | .declareGroups _ tasks => tasks.isEmpty
+  | .executionGroup .. | .stream .. => false
+
 structure Completion (α : Type) where
+  /-- All collected diagnostics, including diagnostics for data discarded by a bubble.
+  Ordinary execution and the initial envelope use this projection.
+  -/
   result : Result α
   work : Work := .empty
+  /-- A selected explanation for a bubbling failure, or for the null produced by catching
+  it. Retaining the latter lets an enclosing non-null wrapper propagate the same cause.
+  Successful mapping/wrapping clears this metadata; diagnostics remain in `result`.
+  Counts stand for error lists, not identities of detailed error objects.
+  -/
+  cause : Option Nat := none
 deriving Repr
 
 namespace Completion
 
 def pure (value : α) : Completion α := { result := .ok (value, 0) }
 
-def error (errors : Nat := 1) : Completion α := { result := .error errors }
+def error (errors : Nat := 1) : Completion α :=
+  { result := .error errors, cause := some errors }
 
 def combine (f : α -> β -> γ) (left : Completion α) (right : Completion β)
     : Completion γ :=
   let result := Result.combine f left.result right.result
   match result with
-  | .error errors => error errors
+  | .error errors =>
+      {
+        error errors with
+          cause :=
+            match left.result with
+            | .error _ => left.cause
+            | .ok _ => right.cause
+      }
   | .ok _ => { result := result, work := .combine left.work right.work }
 
 def map (f : α -> β) (completed : Completion α) : Completion β :=
   match completed.result with
-  | .error errors => error errors
+  | .error errors => { error errors with cause := completed.cause }
   | .ok (value, errors) => { result := .ok (f value, errors), work := completed.work }
 
 def catchNull (wrap : α -> ResponseValue) (completed : Completion α)
     : Completion ResponseValue :=
   match completed.result with
-  | .error errors => { result := .ok (.null, errors) }
+  | .error errors => { result := .ok (.null, errors), cause := completed.cause }
   | .ok (value, errors) =>
       { result := .ok (wrap value, errors), work := completed.work }
 
 def nonNull (completed : Completion ResponseValue) : Completion ResponseValue :=
   match nonNullCompletion completed.result with
-  | .error errors => error errors
+  | .error errors =>
+      {
+        error errors with
+          cause :=
+            match completed.result with
+            -- A caught child failure may have produced this null. Rethrow its cause;
+            -- otherwise the null violation itself supplies the one-error cause.
+            | .ok (.null, _) => some (completed.cause.getD 1)
+            | _ => completed.cause
+      }
   | .ok result => { completed with result := .ok result }
+
+/-- Retain both accounting projections when completion becomes deferred or streamed work. -/
+def outcome (completed : Completion α) : TaskOutcome α :=
+  { result := completed.result, cause := completed.cause }
+
+/-- Reporting projection at a deferred-object or streamed-item delivery boundary. -/
+def deliveryResult (completed : Completion α) : Result α :=
+  completed.outcome.deliveryResult
 
 end Completion
 
@@ -524,7 +598,7 @@ mutual
     | 0, _ | _, [] => return .error 1
     | fuel + 1, field :: _ =>
         let failed : Completion ResponseValue :=
-          { result := handleFieldError definition.outputType }
+          { result := handleFieldError definition.outputType, cause := some 1 }
         match coerceArgumentValues schema variables definition.arguments
                 field.arguments with
         | .error => return failed
@@ -609,7 +683,7 @@ mutual
       else
         .ok none
     match streamUsage with
-    | .error errors => return { result := .ok (.null, errors) }
+    | .error errors => return { result := .ok (.null, errors), cause := some errors }
     | .ok none =>
         return (← completeListValue schema resolvers variables fuel inner fields values
                     path 0 deferUsageSet deferMap).catchNull
@@ -647,7 +721,7 @@ mutual
       (variables : VariableValues) (fuel : Nat) (itemType : TypeRef)
       (fields : List FieldDetails) (values : List (ResolverValue ObjectRef))
       (path : ResponsePath) (index : Nat)
-      : StateM NodeRef (List (Result ResponseValue × Work)) := do
+      : StateM NodeRef (List (TaskOutcome ResponseValue × Work)) := do
     match values with
     | [] => return []
     | value :: rest =>
@@ -655,12 +729,12 @@ mutual
           completeValue schema resolvers variables fuel itemType fields value
             (path ++ [.index index]) [] [] false
         match head.result with
-        | .error _ => return [(head.result, .empty)]
+        | .error _ => return [(head.outcome, .empty)]
         | .ok _ =>
             let tail ←
               completeStreamItems schema resolvers variables fuel itemType fields rest
                 path (index + 1)
-            return (head.result, head.work) :: tail
+            return (head.outcome, head.work) :: tail
 
   /-- Spec `ExecuteExecutionPlan`: consume an already-built plan. Collection and
   BuildExecutionPlan belong to the caller, not to plan execution.
@@ -684,7 +758,12 @@ mutual
         let tasks ←
           collectExecutionGroups schema resolvers variables fuel parentType source
             executionPlan.newCollectedFieldsMaps path newMap
-        return { initial with work := .combine initial.work tasks }
+        let declarations :=
+          newDeferUsages.filterMap (fun usage => lookupDeferredFragment? newMap usage.ref)
+        return {
+          initial with
+            work := .combine initial.work (.declareGroups declarations tasks)
+        }
 
   /-- Spec `CollectExecutionGroups`: look up owners, construct each execution task, and
   retain it. Finite pure outcomes replace the spec's future computation.
@@ -705,7 +784,8 @@ mutual
         let tail ←
           collectExecutionGroups schema resolvers variables fuel parentType source rest
             path deferMap
-        return .combine (.executionGroup groups path completed.result completed.work) tail
+        return .combine (.executionGroup groups path completed.outcome completed.work)
+          tail
 
   /-- Spec `ExecuteExecutionGroup`. Deferred errors remain in the task result until its
   delivery boundary is processed.
@@ -824,7 +904,9 @@ def getIncrementalStreamUpdateResult (hasNext : Bool)
 /-- The draft's seven queue-output forms, named `WorkQueueEvent` in GraphQL.js.
 Raw queue events carry a provisional owner; spec-facing
 events carry the effective owner selected by the publisher. Their values are identical.
-Node refs are internal identities, not wire IDs.
+Node refs are internal identities, not wire IDs. Failure payloads retain error-list counts,
+rather than the draft's singular error object. A group completion may aggregate selected
+causes from several cached tasks; stream failure retains its single task boundary cause.
 Value lists support multi-task group flushes and multi-item stream updates. Atomic
 work-history admission checks singleton values; WorkBatching may coalesce them again.
 -/
@@ -989,24 +1071,6 @@ def executeRootSelectionSetCore (schema : Schema) (resolvers : Resolvers ObjectR
   executeExecutionPlan schema resolvers variableValues fuel parentType source
     collected.newDeferUsages executionPlan
 
-/-! Executable work count, independent of any completion order.
-* `combine` contributes no work record of its own; only execution-group tasks, stream
-descriptors, and remaining stream items contribute to the count.
-* `Work.size = 0` corresponds to "{tasks} is empty and {streams} is empty" from the spec.
--/
-
-mutual
-  def Work.size : Work → Nat
-    | .empty => 0
-    | .combine left right => left.size + right.size
-    | .executionGroup _ _ _ children => 1 + children.size
-    | .stream _ items => 1 + Work.itemsSize items
-
-  def Work.itemsSize : List (Result ResponseValue × Work) → Nat
-    | [] => 0
-    | (_, work) :: rest => 1 + work.size + Work.itemsSize rest
-end
-
 /-- Generalized return type of query execution: ordinary Response or incremental stream.
 This model name is broader than Section 7's ordinary "execution result" map. Subscription
 streams and request-error results remain out of scope.
@@ -1030,7 +1094,7 @@ def executeRootSelectionSet (createWorkQueue : Work → WorkQueue)
       selectionSet).run
       0
   let response := selectionSetResultToResponse completed.result
-  if completed.work.size == 0 then
+  if completed.work.isEmpty then
     .single response
   else
     let (initial, subsequent) :=

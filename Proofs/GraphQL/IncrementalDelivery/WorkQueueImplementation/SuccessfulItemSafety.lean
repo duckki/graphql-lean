@@ -92,9 +92,8 @@ theorem ExecutedWork.publishedItems_safe_mixed
           { active := queue.initialGroups ++ queue.initialStreams }
         failures.Perm
           (streams
-            ++ sourceObjectFailureCuts 0
-                (queue.eligibleFailureBlocks
-                  (queue.sourceRunBlocks publisher batches).2.2)))
+            ++ informativeObjectFailureCuts work
+                (queue.sourceRunBlocks publisher batches).2.2))
     (failedPayloads
       : ∀ cut occurrence,
           (cut, occurrence) ∈ failures
@@ -139,20 +138,19 @@ theorem ExecutedWork.publishedItems_safe_mixed
       ∀ address ordinal,
         Published matching atoms (.item address ordinal)
         → ¬TaskCancelled work matching atoms failures (.item address ordinal) := by
-  let atoms := ((State.initialize (Work.fromExecution work)).runNormalized batches).2.flatten.flatMap
-    publicationAtoms
+  let atoms := ((State.initialize (Work.fromExecution work)).runNormalized batches).2.flatten
+    |>.flatMap publicationAtoms
   change ∀ address ordinal, Published matching atoms (.item address ordinal)
     → ¬TaskCancelled work matching atoms failures (.item address ordinal)
-  have objectKnown : ∀ entry ∈ sourceObjectFailureCuts 0
-      ((State.initialize (Work.fromExecution work)).eligibleFailureBlocks
-        ((State.initialize (Work.fromExecution work)).sourceRunBlocks
-          { active := (State.initialize (Work.fromExecution work)).initialGroups ++
-              (State.initialize (Work.fromExecution work)).initialStreams } batches).2.2),
+  have objectKnown : ∀ entry ∈ informativeObjectFailureCuts work
+      ((State.initialize (Work.fromExecution work)).sourceRunBlocks
+        { active := (State.initialize (Work.fromExecution work)).initialGroups ++
+            (State.initialize (Work.fromExecution work)).initialStreams } batches).2.2,
       ∃ owners producer path errors,
         TaskAt work entry.2 owners producer (.object path (.error errors)) := by
     intro entry member
     obtain ⟨_, owners, producer, path, errors, known, _⟩ :=
-      createWorkQueue_eligibleObjectFailureCuts_origin generated valid entry member
+      createWorkQueue_informativeObjectFailureCuts_origin generated valid entry member
     exact ⟨owners, producer, path, errors, known⟩
   have atPosition : ∀ index event address ordinal,
       atoms[index]? = some event → IsValue event → matching index = .item address ordinal

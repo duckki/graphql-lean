@@ -29,18 +29,21 @@ def childGroup : Group := ⟨child, some parent.ref⟩
 def children : Execution.Work :=
   .combine
     (.combine .empty
-      (.combine
-        (.executionGroup [⟨child, [parent]⟩] [.field "user"]
-          (.ok ([("name", .scalar "name1")], 0)) (.combine .empty .empty))
-        .empty))
+      (.declareGroups [⟨child, [parent]⟩]
+        (.combine
+          (.executionGroup [⟨child, [parent]⟩] [.field "user"]
+            ({ result := .ok ([("name", .scalar "name1")], 0) }) (.combine .empty .empty))
+          .empty)))
     .empty
 
 /-- The exact generated work for the nested-object fixture. -/
 def work : Execution.Work :=
   .combine .empty
-    (.combine
-      (.executionGroup [⟨parent, []⟩] [] (.ok ([("user", .object [])], 0)) children)
-      .empty)
+    (.declareGroups [⟨parent, []⟩]
+      (.combine
+        (.executionGroup [⟨parent, []⟩] [] ({ result := .ok ([("user", .object [])], 0) })
+          children)
+        .empty))
 
 /-- The parent's matched value and nonempty lowered child work. -/
 def result : TaskResult :=
@@ -64,7 +67,7 @@ Witness: locate the generated parent task and check exact lowering. -/
 theorem matching
     : (GraphEvent.taskSuccess producer.occurrence result).MatchesWork work := by
   refine ⟨[parent.ref], none, ?_, ?_, ?_⟩
-  · refine ⟨[⟨parent, []⟩], [], _, children, [], ?_, rfl, rfl⟩
+  · refine ⟨[⟨parent, []⟩], [], { result := .ok (result.value.data, 0) }, children, [], ?_, rfl, rfl⟩
     cbv
   · cbv
   · cbv
@@ -72,9 +75,9 @@ theorem matching
 /-- The child's group candidate is supplied by the matched producer success.
 Witness: its immediate lowering, not compilation of future work at initialization. -/
 theorem child_candidate : childGroup ∈ result.work.groups := by
-  have groups : result.work.groups = [⟨parent, none⟩, childGroup] := by cbv
+  have groups : result.work.groups = [childGroup] := by cbv
   rw [groups]
-  exact List.mem_cons_of_mem _ List.mem_cons_self
+  exact List.mem_cons_self
 
 /-- This is genuine descendant support, not reuse of an already-live child group.
 Witness: initialization contains only P; C is supplied later by the producer. -/
@@ -99,7 +102,7 @@ theorem child_supported_by_pending_ancestor
     rw [tasks]
     exact List.mem_cons_self
   obtain ⟨dependencies, known, node, nodeMember, _, _, linked, nonzero, support⟩ :=
-    (createWorkQueue_healthyRegisteredTaskAccounting work).childGroup_live_support
+    (createWorkQueue_healthyRegisteredTaskAccounting work generated).childGroup_live_support
       (createWorkQueue_healthyPendingTracks work)
       (createWorkQueue_fromSpec_registeredTasksMatch work)
       generated producerMember (by simp) matching child_candidate
@@ -120,7 +123,7 @@ theorem child_registration_available
   have tasks : queue.tasks = [producer] := by cbv
   have producerMember : producer ∈ queue.tasks := by rw [tasks]; simp
   exact (createWorkQueue_healthyRetiredAncestors generated).childGroupsAvailable
-    (createWorkQueue_healthyRegisteredTaskAccounting work)
+    (createWorkQueue_healthyRegisteredTaskAccounting work generated)
     (createWorkQueue_healthyPendingTracks work)
     (createWorkQueue_fromSpec_registeredTasksMatch work)
     generated producerMember (by simp) matching
@@ -135,7 +138,7 @@ theorem produced_child_ownerAncestry
           work parents [.taskSuccess parentTask result] := by
   have known : TaskAt work parentTask [parent.ref] none
       (.object [] (.ok ([("user", .object [])], 0))) := by
-    refine ⟨[⟨parent, []⟩], [], _, children, [], ?_, rfl, rfl⟩
+    refine ⟨[⟨parent, []⟩], [], { result := .ok (result.value.data, 0) }, children, [], ?_, rfl, rfl⟩
     cbv
   have valid : ValidGraphEvents work [.taskSuccess parentTask result] :=
     .append .nil matching (by simp [GraphEvent.Fresh, GraphEvent.identities])

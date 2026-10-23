@@ -12,7 +12,8 @@ namespace
 open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.Semantics
 
-def itemOrigins (items : List (Report ResponseValue × RecordedWork)) : List Origin :=
+def itemOrigins (items : List (RecordedOutcome ResponseValue × RecordedWork))
+    : List Origin :=
   items.flatMap (fun item => item.1.origins ++ item.2.origins)
 
 attribute [local simp] id_pure_eq id_bind_eq id_map_eq run_bind run_map
@@ -224,7 +225,7 @@ mutual
             StateT.run_pure, id_pure_eq]
           exact appendWork_scoped _ _ route
             (catchNull_scoped ResponseValue.list _ _ initial)
-            (by simpa only [RecordedWork.origins, itemOrigins] using items)
+            (by simpa only [RecordedWork.origins, RecordedCompletion.outcome, itemOrigins] using items)
   termination_by (fuel, 3, 0, 0)
   decreasing_by
     all_goals simp_wf
@@ -242,19 +243,19 @@ mutual
     cases values with
     | nil =>
         simpa only [RecordedExecution.completeStreamItems, StateT.run_pure, id_pure_eq,
-          itemOrigins, List.flatMap_nil] using Scoped.empty route
+          RecordedCompletion.outcome, itemOrigins, List.flatMap_nil] using Scoped.empty route
     | cons value rest =>
         have head := completeValue_origins schema resolvers variables fuel itemType fields
           value (path ++ [.index index]) [] [] false (route ++ [0]) state
         simp only [RecordedExecution.completeStreamItems, run_bind]
         split
-        · simpa only [StateT.run_pure, id_pure_eq, itemOrigins, List.flatMap_cons,
+        · simpa only [StateT.run_pure, id_pure_eq, RecordedCompletion.outcome, itemOrigins, List.flatMap_cons,
             List.flatMap_nil, RecordedWork.origins, List.append_nil] using head.left.parent
         · have tail := completeStreamItems_origins schema resolvers variables fuel itemType
             fields rest path (index + 1) (route ++ [1])
             ((RecordedExecution.completeValue schema resolvers variables fuel itemType fields
               value (path ++ [.index index]) [] [] false (route ++ [0])).run state).2
-          simpa only [run_bind, StateT.run_pure, id_pure_eq, itemOrigins, List.flatMap_cons,
+          simpa only [run_bind, StateT.run_pure, id_pure_eq, RecordedCompletion.outcome, itemOrigins, List.flatMap_cons,
             RecordedCompletion.origins] using Scoped.join head tail
   termination_by (fuel, 2, sizeOf itemType, sizeOf values)
   decreasing_by
@@ -283,7 +284,8 @@ mutual
         ((RecordedExecution.executeCollectedFields schema resolvers variables fuel parentType
           source plan.collectedFieldsMap path usages (getNewDeferMap newUsages path context)
           (route ++ [0])).run state).2
-      simpa only [run_bind, StateT.run_pure, id_pure_eq]
+      simpa only [run_bind, StateT.run_pure, id_pure_eq, RecordedCompletion.origins,
+        RecordedWork.origins]
         using appendWork_scoped _ _ route initial tasks
   termination_by (fuel, 6, 0, 0)
   decreasing_by
@@ -312,7 +314,8 @@ mutual
           ((RecordedExecution.executeCollectedFields schema resolvers variables fuel parentType
             source fields path usages context (route ++ [0])).run state).2
         simpa only [RecordedExecution.collectExecutionGroups, run_bind, StateT.run_pure,
-          id_pure_eq, RecordedWork.origins, RecordedCompletion.origins]
+          id_pure_eq, RecordedWork.origins, RecordedCompletion.origins,
+          RecordedCompletion.outcome]
           using Scoped.join head tail
   termination_by (fuel, 5, 0, sizeOf partitions)
   decreasing_by

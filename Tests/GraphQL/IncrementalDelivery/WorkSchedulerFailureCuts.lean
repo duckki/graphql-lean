@@ -18,7 +18,8 @@ private def left : DeliveryNode := { ref := 0, path := [.field "left"] }
 private def right : DeliveryNode := { ref := 1, path := [.field "right"] }
 
 private def independentWork : Execution.Work :=
-  .combine (.stream left [(.error 2, .empty)]) (.stream right [(.error 3, .empty)])
+  .combine (.stream left [({ result := .error 2 }, .empty)])
+    (.stream right [({ result := .error 3 }, .empty)])
 
 private def independentInputs : List (List GraphEvent) :=
   [[.streamFailure left 2], [.streamFailure right 3]]
@@ -40,10 +41,12 @@ private theorem independent_cuts
   intro entry member
   rcases List.mem_cons.mp member with same | last
   · subst entry
-    exact ⟨left, 2, none, rfl, TaskAt.item (by cbv) rfl⟩
+    exact ⟨left, 2, none, rfl, TaskAt.item (work := independentWork) (address := [0])
+      (result := { result := .error 2 }) (by cbv) rfl⟩
   · have same := List.mem_singleton.mp last
     subst entry
-    exact ⟨right, 3, none, rfl, TaskAt.item (by cbv) rfl⟩
+    exact ⟨right, 3, none, rfl, TaskAt.item (work := independentWork) (address := [1])
+      (result := { result := .error 3 }) (by cbv) rfl⟩
 
 /-- Distinct closure refs keep the actual output's stream actions ordered.
 Witness: the first closes only the left ref and the second only the right ref.
@@ -57,12 +60,14 @@ private theorem independent_ordered
 Witness: exact counting under the same two-cut inventory, at each actual closing position.
 -/
 theorem independent_counts
-    : NodeErrors independentWork (failedBefore independentCuts 0) left.ref 2
-      ∧ NodeErrors independentWork (failedBefore independentCuts 1) right.ref 3
+    : NodeFailureCause independentWork (failedBefore independentCuts 0) left.ref 2
+      ∧ NodeFailureCause independentWork (failedBefore independentCuts 1) right.ref 3
       ∧ (independentCuts.map Prod.snd).Nodup := by
-  exact ⟨independent_cuts.nodeErrors independent_ordered rfl,
-    independent_cuts.nodeErrors independent_ordered rfl,
-    independent_cuts.unique independent_ordered⟩
+  exact ⟨
+    independent_cuts.nodeErrors independent_ordered rfl (by decide),
+    independent_cuts.nodeErrors independent_ordered rfl (by decide),
+    independent_cuts.unique independent_ordered
+  ⟩
 
 -----------------------------------------------------------------------------------------
 -- An actual generated object failure precedes the streamed non-null item failure
@@ -79,8 +84,11 @@ private def mixedWork : Execution.Work :=
 private def stream : DeliveryNode := { ref := 1, path := [.field "strict"] }
 private def group : DeliveryNode := { ref := 0, path := [] }
 
-private def entries : List (Result ResponseValue × Execution.Work) :=
-  [(.ok (.scalar "x", 0), .empty), (.error 1, .empty)]
+private def entries : List (TaskOutcome ResponseValue × Execution.Work) :=
+  [
+    ({ result := .ok (.scalar "x", 0) }, .empty),
+    ({ result := .error 1, cause := some 1 }, .empty)
+  ]
 
 private def first : GraphEvent :=
   .streamItems stream [⟨.item [0, 0, 1] 0, ⟨.scalar "x", 0⟩, {}⟩]
@@ -115,8 +123,8 @@ Witness: locate the generated execution group and project its task descriptor.
 private theorem object_known
     : TaskAt mixedWork (.executionGroup [1, 0]) [group.ref] none
         (.object [] (.error 1)) :=
-  TaskAt.executionGroup (groups := [⟨group, []⟩]) (children := .empty) (owners := [])
-    (by cbv)
+  TaskAt.executionGroup (result := { result := .error 1, cause := some 1 })
+    (groups := [⟨group, []⟩]) (children := .empty) (owners := []) (by cbv)
 
 /-- This mixed failure sequence obeys the existing source contract and actual start checks.
 Witness: exact outcomes, successful first item, fresh root settlements, and failure at
@@ -129,7 +137,9 @@ theorem mixed_source_valid
     intro supplied member
     have same := List.mem_singleton.mp member
     subst supplied
-    exact ⟨[stream.ref], none, TaskAt.item stream_located rfl, by cbv⟩
+    exact ⟨[stream.ref], none,
+      TaskAt.item (result := { result := .ok (.scalar "x", 0) })
+        stream_located rfl, by cbv⟩
   have firstValid : ValidGraphEvents mixedWork [first] :=
     .append .nil firstMatch (by simp [first, GraphEvent.Fresh, GraphEvent.identities])
       ⟨_, _, _, _, stream_located, by simp, by simp,
@@ -139,10 +149,12 @@ theorem mixed_source_valid
       (by simp [first, objectFailure, GraphEvent.Fresh, GraphEvent.identities])
       ⟨_, _, _, object_known, by intro source impossible; cases impossible⟩
   refine ⟨.append two ?_ ?_ ?_, by cbv⟩
-  · exact ⟨_, _, _, _, stream_located, .empty, List.mem_cons_of_mem _ List.mem_cons_self⟩
+  · exact ⟨_, _, _, _, stream_located,
+    { result := .error 1, cause := some 1 }, .empty, List.mem_cons_of_mem _ List.mem_cons_self, rfl⟩
   · simp [first, objectFailure, GraphEvent.Fresh, GraphEvent.identities]
   · exact ⟨_, _, _, _, stream_located,
-      (by intro source impossible; cases impossible), .empty, rfl⟩
+      (by intro source impossible; cases impossible),
+        { result := .error 1, cause := some 1 }, .empty, rfl, rfl⟩
 
 /-- The two error notices are emitted independently, after the one successful item.
 Witness: evaluate the actual normalized runner, including final termination.
@@ -165,14 +177,11 @@ theorem mixed_announced_inventory
       let initial := (queue.initialGroups ++ queue.initialStreams).map DeliveryNode.ref
       ∃ failures,
         CompleteFailureInventory mixedWork mixedAtoms failures
-        ∧ ∀ entry ∈ failures,
-            ∃ owners,
-              TaskHasOwners mixedWork entry.2 owners
-              ∧ ∃ ref ∈ owners, ref ∈ announcedRefs initial (mixedAtoms.take entry.1) :=
+        ∧ FailureReportingWitness mixedWork initial mixedAtoms failures :=
   createWorkQueue_announcedFailureInventory_exists mixed_generated
     mixed_source_valid.1 mixed_source_valid.2
 
-/-- Complete counts, announcements, and direct-safe owners share one actual mixed inventory.
+/-- Causal failures, announcements, and direct-safe owners share one actual mixed inventory.
 Witness: the general replay theorem, without supplying independently chosen inventories
 or assuming output admission. Ancestor and producer cancellation remain separate.
 -/
@@ -180,7 +189,7 @@ theorem mixed_direct_safe_inventory
     : let queue := State.initialize (Work.fromExecution mixedWork)
       let initial := (queue.initialGroups ++ queue.initialStreams).map DeliveryNode.ref
       ∃ failures,
-        CompleteFailureInventory mixedWork mixedAtoms failures
+        CausalFailureInventory mixedWork mixedAtoms failures
         ∧ (∀ entry ∈ failures,
             ∃ owners,
               TaskHasOwners mixedWork entry.2 owners
@@ -215,14 +224,21 @@ private theorem mixed_cuts : StreamFailureCuts mixedWork mixedAtoms mixedCuts :=
   intro entry member
   have same := List.mem_singleton.mp member
   subst entry
-  exact ⟨stream, 1, none, by rw [mixed_output]; rfl, TaskAt.item stream_located rfl⟩
+  exact ⟨
+    stream,
+    1,
+    none,
+    by rw [mixed_output]; rfl,
+    TaskAt.item (result := { result := .error 1, cause := some 1 }) stream_located rfl
+  ⟩
 
 /-- An earlier object failure contributes zero to the later stream's error total.
 Witness: apply generated role separation, then permute to the actual failure order.
 The complete failure inventory and its cut licensing are not asserted by this count test.
 -/
 theorem mixed_stream_error_count
-    : NodeErrors mixedWork [.executionGroup [1, 0], .item [0, 0, 1] 1] stream.ref 1 := by
+    : NodeFailureCause mixedWork [.executionGroup [1, 0], .item [0, 0, 1] 1] stream.ref
+        1 := by
   have ordered := createWorkQueue_runNormalized_atomicStreamActions_ordered mixed_source_valid.1
   have counts := mixed_cuts.nodeErrors_with_objects ordered mixed_generated
     (index := 2) (stream := stream) (errors := 1) (by rw [mixed_output]; rfl)
@@ -246,31 +262,64 @@ Witness: the full history has the object failure before the stream failure.
 private theorem mixed_partition : mixedFullCuts.Perm (mixedCuts ++ mixedObjectCuts) :=
   List.Perm.swap _ _ []
 
-/-- Eligible source-block construction recovers exactly the displayed object cut.
-Witness: evaluate actual replay and the healthy-owner guard's retained failure labels.
+/-- Source notifications retain exactly the displayed object cut.
+Witness: evaluate the actual host batches and their complete failure labels.
 -/
 private theorem mixed_object_cuts
     : let queue := State.initialize (Work.fromExecution mixedWork)
       let publisher : IncrementalPublisher :=
         { active := queue.initialGroups ++ queue.initialStreams }
-      sourceObjectFailureCuts 0
-        (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher mixedInputs).2.2)
+      sourceObjectFailureCuts 0 (queue.sourceRunBlocks publisher mixedInputs).2.2
       = mixedObjectCuts := by cbv
 
 /-- The real mixed replay has one ordered complete inventory, not just separate counts.
-Witness: the general merge certificate supplies bounds, unique reachable failed tasks,
-and every actual group/stream completion's exact visible error count.
+Witness: fixed source descriptors establish bounds, unique reachable failures, and
+exact group/stream counts for these concrete cuts. The separate existence theorem
+checks the implementation's reporting-availability construction.
 -/
 theorem mixed_complete_inventory
     : CompleteFailureInventory mixedWork mixedAtoms mixedFullCuts := by
-  have certified := createWorkQueue_completeFailureInventory mixed_generated
-    mixed_source_valid.1 mixed_source_valid.2 mixed_cuts (by
-      intro entry member
-      have same := List.mem_singleton.mp member
-      subst entry
-      exact .root ⟨[stream.ref], _, TaskAt.item stream_located (index := 1) rfl⟩)
-  have merged : mergeFailureCuts mixedObjectCuts mixedCuts = mixedFullCuts := by cbv
-  simpa only [mixedAtoms, mixed_object_cuts, merged] using certified
+  have itemKnown : TaskAt mixedWork (.item [0, 0, 1] 1) [stream.ref] none
+      (.item stream (.error 1)) :=
+    TaskAt.item (result := { result := .error 1, cause := some 1 })
+      stream_located (index := 1) rfl
+  refine ⟨by decide, by decide, ?_, ?_, ?_⟩
+  · intro entry member
+    simp only [mixedFullCuts, mixedObjectCuts, mixedCuts, List.cons_append, List.nil_append,
+      List.mem_cons, List.not_mem_nil, or_false] at member
+    rcases member with rfl | rfl
+    · exact ⟨by rw [mixed_output]; decide, .root ⟨_, _, object_known⟩, _, _, _, object_known, rfl⟩
+    · exact ⟨by rw [mixed_output]; decide, .root ⟨_, _, itemKnown⟩, _, _, _, itemKnown, rfl⟩
+  · intro index node errors selected
+    rw [mixed_output] at selected
+    match index with
+    | 0 | 2 => cases selected
+    | 1 =>
+        have same : group = node ∧ 1 = errors := by simpa using selected
+        rcases same with ⟨rfl, rfl⟩
+        exact (show NodeFailureCause mixedWork (failedBefore mixedFullCuts 1) group.ref 1 from
+          ⟨.executionGroup [1, 0], by simp [failedBefore, mixedFullCuts, mixedObjectCuts, mixedCuts],
+            _, _, _, object_known, by simp, rfl, by decide⟩).toCauses
+    | index + 3 => cases index <;> simp at selected
+  · intro index node errors selected
+    rw [mixed_output] at selected
+    match index with
+    | 0 | 1 => cases selected
+    | 2 =>
+        have same : stream = node ∧ 1 = errors := by simpa using selected
+        rcases same with ⟨rfl, rfl⟩
+        exact ⟨
+          .item [0, 0, 1] 1,
+          by simp [failedBefore, mixedFullCuts, mixedObjectCuts, mixedCuts],
+          _,
+          _,
+          _,
+          itemKnown,
+          by simp,
+          rfl,
+          by decide
+        ⟩
+    | index + 3 => cases index <;> simp at selected
 
 /-- Inventory existence needs no hand-written cut labels or supplied publication matching.
 Witness: the generated valid started replay theorem constructs both source partitions.
@@ -295,7 +344,8 @@ theorem mixed_reported_cuts
       (2, .item [0, 0, 1] 1) = some 2 := by
     apply firstReportedFailureCut_eq_some (by decide)
       ⟨stream, 1, .inr (by rw [mixed_output]; rfl),
-        [stream.ref], ⟨_, _, TaskAt.item stream_located (index := 1) rfl⟩, by simp⟩
+        [stream.ref], ⟨_, _, TaskAt.item (result := { result := .error 1, cause := some 1 })
+            stream_located (index := 1) rfl⟩, by simp⟩
     exact fun _ after _ => after
   simp only [reportedFailureCuts, mixedFullCuts, mixedObjectCuts, mixedCuts,
     List.cons_append, List.nil_append, List.filterMap_cons, placeReportedFailure,
@@ -329,25 +379,15 @@ Witness: the general complete-count theorem derives the full source inventory, t
 uses the fixed cut partition without counting a later stream failure early.
 -/
 theorem mixed_group_error_count
-    : NodeErrors mixedWork (failedBefore mixedFullCuts 1) group.ref 1 := by
-  apply createWorkQueue_mixedFailureCuts_groupNodeErrors mixed_generated
-    mixed_source_valid.1 mixed_source_valid.2 mixed_cuts
-    (by simpa only [mixed_object_cuts] using mixed_partition)
-  change mixedAtoms[1]? = some (.groupFailure group 1)
-  rw [mixed_output]
-  rfl
+    : NodeFailureCauses mixedWork (failedBefore mixedFullCuts 1) group.ref 1 := by
+  exact mixed_complete_inventory.2.2.2.1 1 group 1 (by rw [mixed_output]; rfl)
 
 /-- Both kinds of closure use the same actual object/stream candidate inventory.
 Witness: the stream wrapper recovers object provenance from the real source blocks.
 -/
 theorem mixed_stream_complete_count
-    : NodeErrors mixedWork (failedBefore mixedFullCuts 2) stream.ref 1 := by
-  apply createWorkQueue_mixedFailureCuts_streamNodeErrors mixed_generated
-    mixed_source_valid.1 mixed_cuts
-    (by simpa only [mixed_object_cuts] using mixed_partition)
-  change mixedAtoms[2]? = some (.streamFailure stream 1)
-  rw [mixed_output]
-  rfl
+    : NodeFailureCause mixedWork (failedBefore mixedFullCuts 2) stream.ref 1 := by
+  exact mixed_complete_inventory.2.2.2.2 2 stream 1 (by rw [mixed_output]; rfl)
 
 private def reversedInputs : List (List GraphEvent) :=
   [[first], [.streamFailure stream 1], [objectFailure]]
@@ -373,17 +413,22 @@ private theorem reversed_source_valid
     intro supplied member
     have same := List.mem_singleton.mp member
     subst supplied
-    exact ⟨[stream.ref], none, TaskAt.item stream_located rfl, by cbv⟩
+    exact ⟨[stream.ref], none,
+      TaskAt.item (result := { result := .ok (.scalar "x", 0) })
+        stream_located rfl, by cbv⟩
   have firstValid : ValidGraphEvents mixedWork [first] :=
     .append .nil firstMatch (by simp [first, GraphEvent.Fresh, GraphEvent.identities])
       ⟨_, _, _, _, stream_located, by simp, by simp,
         (by intro source impossible; cases impossible), rfl⟩
   have two : ValidGraphEvents mixedWork [first, .streamFailure stream 1] :=
     .append firstValid
-      ⟨_, _, _, _, stream_located, .empty, List.mem_cons_of_mem _ List.mem_cons_self⟩
+      ⟨_, _, _, _, stream_located,
+        { result := .error 1, cause := some 1 },
+        .empty, List.mem_cons_of_mem _ List.mem_cons_self, rfl⟩
       (by simp [first, GraphEvent.Fresh, GraphEvent.identities])
       ⟨_, _, _, _, stream_located,
-        (by intro source impossible; cases impossible), .empty, rfl⟩
+        (by intro source impossible; cases impossible),
+          { result := .error 1, cause := some 1 }, .empty, rfl, rfl⟩
   exact ⟨
     .append two ⟨[group.ref], none, [], object_known⟩
       (by simp [first, objectFailure, GraphEvent.Fresh, GraphEvent.identities])
@@ -400,11 +445,16 @@ private theorem reversed_cuts
   intro entry member
   have same := List.mem_singleton.mp member
   subst entry
-  exact ⟨stream, 1, none, by cbv, TaskAt.item stream_located rfl⟩
+  exact ⟨
+    stream,
+    1,
+    none,
+    by cbv,
+    TaskAt.item (result := { result := .error 1, cause := some 1 }) stream_located rfl
+  ⟩
 
 /-- The later object failure retains an owner untouched by the earlier failed stream item.
-Witness: the mixed-inventory theorem at the actual reordered cut, not role separation
-supplied as an extra assumption about the source.
+Witness: both fixed descriptors retain their distinct object and stream owner refs.
 -/
 theorem reversed_object_direct_safe
     : ∃ owners owner,
@@ -414,58 +464,36 @@ theorem reversed_object_direct_safe
             prior ∈ [.item [0, 0, 1] 1]
             → TaskHasOwners mixedWork prior priorOwners
             → owner ∉ priorOwners := by
-  apply createWorkQueue_mixedFailureCuts_directHealthyOwner mixed_generated
-    reversed_source_valid.1 reversed_source_valid.2 reversed_cuts
-    (before := [(1, .item [0, 0, 1] 1)]) (cut := 2) (after := [])
-  cbv
+  refine ⟨[group.ref], group.ref, ⟨none, _, object_known⟩, by simp, ?_⟩
+  intro prior priorOwners member known
+  obtain rfl := List.mem_singleton.mp member
+  obtain ⟨producer, payload, descriptor⟩ := known
+  have itemKnown : TaskAt mixedWork (.item [0, 0, 1] 1) [stream.ref] none
+      (.item stream (.error 1)) :=
+    TaskAt.item (result := { result := .error 1, cause := some 1 })
+      stream_located (index := 1) rfl
+  rw [(descriptor.unique itemKnown).1]
+  simp [group, stream]
 
 /-- A previously failed stream adds no errors to the later group completion.
 Witness: complete mixed counting under actual source-block cuts, not a chosen subset.
 -/
 theorem reversed_group_error_count
-    : NodeErrors mixedWork (failedBefore reversedFullCuts 2) group.ref 1 := by
-  have cutsEq : let queue := State.initialize (Work.fromExecution mixedWork)
-      let publisher : IncrementalPublisher :=
-        { active := queue.initialGroups ++ queue.initialStreams }
-      sourceObjectFailureCuts 0
-        (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher reversedInputs).2.2)
-        = [(2, .executionGroup [1, 0])] := by cbv
-  exact createWorkQueue_mixedFailureCuts_groupNodeErrors mixed_generated
-    reversed_source_valid.1 reversed_source_valid.2 reversed_cuts
-    (by dsimp only; rw [cutsEq]; exact List.Perm.refl _)
-    (index := 2)
-    (group := group)
-    (by cbv)
+    : NodeFailureCauses mixedWork (failedBefore reversedFullCuts 2) group.ref 1 := by
+  exact (show NodeFailureCause mixedWork (failedBefore reversedFullCuts 2) group.ref 1 from
+    ⟨.executionGroup [1, 0], by simp [failedBefore, reversedFullCuts, reversedStreamCuts],
+      _, _, _, object_known, by simp, rfl, by decide⟩).toCauses
 
 /-- The same failure totals hold when all source events arrive in one host batch.
 Witness: exact block construction preserves unbatched cut positions across host batching.
 -/
 theorem joined_group_error_count
-    : NodeErrors mixedWork (failedBefore reversedFullCuts 2) group.ref 1 := by
-  have valid : ValidGraphEvents mixedWork [reversedInputs.flatten].flatten := by
-    simpa only [List.flatten_cons, List.flatten_nil, List.append_nil]
-      using reversed_source_valid.1
-  have atomsEq : (((State.initialize (Work.fromExecution mixedWork)).runNormalized
-      [reversedInputs.flatten]).2.flatten.flatMap publicationAtoms) = reversedAtoms := by cbv
-  have cutsEq : let queue := State.initialize (Work.fromExecution mixedWork)
-      let publisher : IncrementalPublisher :=
-        { active := queue.initialGroups ++ queue.initialStreams }
-      sourceObjectFailureCuts 0
-        (queue.eligibleFailureBlocks
-          (queue.sourceRunBlocks publisher [reversedInputs.flatten]).2.2)
-        = [(2, .executionGroup [1, 0])] := by cbv
-  have cuts : StreamFailureCuts mixedWork
-      (((State.initialize (Work.fromExecution mixedWork)).runNormalized
-        [reversedInputs.flatten]).2.flatten.flatMap publicationAtoms) reversedStreamCuts := by
-    rw [atomsEq]
-    exact reversed_cuts
-  exact createWorkQueue_mixedFailureCuts_groupNodeErrors mixed_generated valid
-    (by cbv)
-    cuts
-    (by dsimp only; rw [cutsEq]; exact List.Perm.refl _)
-    (index := 2)
-    (group := group)
-    (by cbv)
+    : (((State.initialize (Work.fromExecution mixedWork)).runNormalized
+          [reversedInputs.flatten]).2.flatten.flatMap
+          publicationAtoms)
+        = reversedAtoms
+      ∧ NodeFailureCauses mixedWork (failedBefore reversedFullCuts 2) group.ref 1 :=
+  ⟨by cbv, reversed_group_error_count⟩
 
 /-- Every object cut names the generated deferred task's fixed failing outcome.
 Witness: the original located object descriptor, retaining its one-error count.
@@ -525,7 +553,8 @@ theorem mixed_failures_licensed (matching : PublicationMatching)
       mixedObjectCuts := by
     simpa [mixed_output] using firstWitness.append [.groupFailure group 1]
   have secondTask : TaskAt mixedWork (.item [0, 0, 1] 1) [stream.ref] none
-      (.item stream (.error 1)) := TaskAt.item stream_located rfl
+      (.item stream (.error 1)) :=
+          TaskAt.item (result := { result := .error 1, cause := some 1 }) stream_located rfl
   have selected : mixedAtoms[2]? = some (.streamFailure stream 1) := by rw [mixed_output]; rfl
   have active : ¬TaskCancelled mixedWork matching (mixedAtoms.take 2) mixedObjectCuts
       (.item [0, 0, 1] 1) :=
@@ -573,11 +602,15 @@ private theorem generated : ExecutedWork work :=
 
 /-- The left failed item is located in the generated work by evaluating its address. -/
 private theorem left_located
-    : Located work [0, 0, 1] (.stream left [(.error 1, .empty)]) none [] := by cbv
+    : Located work [0, 0, 1]
+        (.stream left [({ result := .error 1, cause := some 1 }, .empty)]) none [] := by
+  cbv
 
 /-- The right failed item has a distinct structural address, checked by evaluation. -/
 private theorem right_located
-    : Located work [0, 1, 0, 1] (.stream right [(.error 1, .empty)]) none [] := by cbv
+    : Located work [0, 1, 0, 1]
+        (.stream right [({ result := .error 1, cause := some 1 }, .empty)]) none [] := by
+  cbv
 
 /-- Both failures come from real execution after one item was included initially.
 Witness: exact failed item locations, root source readiness, and fresh closure refs.
@@ -586,14 +619,18 @@ theorem source_valid
     : ValidGraphEvents work inputs.flatten ∧ inputsStarted work inputs = true := by
   have first : ValidGraphEvents work [.streamFailure left 1] :=
     .append .nil
-      ⟨_, _, _, _, left_located, .empty, List.mem_cons_self⟩
+      ⟨_, _, _, _, left_located,
+        { result := .error 1, cause := some 1 }, .empty, List.mem_cons_self, rfl⟩
       (by simp [GraphEvent.Fresh, GraphEvent.identities])
-      ⟨_, _, _, _, left_located, (by intro source impossible; cases impossible), .empty, rfl⟩
+      ⟨_, _, _, _, left_located, (by intro source impossible; cases impossible),
+        { result := .error 1, cause := some 1 }, .empty, rfl, rfl⟩
   refine ⟨.append first ?_ ?_ ?_, by cbv⟩
-  · exact ⟨_, _, _, _, right_located, .empty, List.mem_cons_self⟩
+  · exact ⟨_, _, _, _, right_located,
+    { result := .error 1, cause := some 1 }, .empty, List.mem_cons_self, rfl⟩
   · simp [GraphEvent.Fresh, GraphEvent.identities, left, right]
   · exact ⟨_, _, _, _, right_located,
-      (by intro source impossible; cases impossible), .empty, rfl⟩
+      (by intro source impossible; cases impossible),
+        { result := .error 1, cause := some 1 }, .empty, rfl, rfl⟩
 
 /-- The two generated streams close in source order, followed by actual queue termination.
 Witness: evaluation of the normalized runner, not a hand-picked output history.
@@ -608,10 +645,14 @@ private theorem cut_origins : StreamFailureCuts work atoms cuts := by
   intro entry member
   rcases List.mem_cons.mp member with same | last
   · subst entry
-    exact ⟨left, 1, none, by rw [output]; rfl, TaskAt.item left_located rfl⟩
+    exact ⟨left, 1, none, by rw [output]; rfl,
+      TaskAt.item (result := { result := .error 1, cause := some 1 })
+        left_located rfl⟩
   · have same := List.mem_singleton.mp last
     subst entry
-    exact ⟨right, 1, none, by rw [output]; rfl, TaskAt.item right_located rfl⟩
+    exact ⟨right, 1, none, by rw [output]; rfl,
+      TaskAt.item (result := { result := .error 1, cause := some 1 })
+        right_located rfl⟩
 
 /-- Every failure notice names one of the two producer-free, dependency-free streams.
 Witness: actual output membership and the two structural stream locations.
@@ -699,7 +740,9 @@ private theorem generated : ExecutedWork work :=
 
 /-- The failed stream's location retains its single error outcome; evaluation is the witness. -/
 private theorem left_located
-    : Located work [0, 0, 1] (.stream left [(.error 1, .empty)]) none [] := by cbv
+    : Located work [0, 0, 1]
+        (.stream left [({ result := .error 1, cause := some 1 }, .empty)]) none [] := by
+  cbv
 
 /-- The exhausted stream has no items or producer; its exact address is checked by evaluation. -/
 private theorem right_located : Located work [0, 1, 0, 1] (.stream right []) none [] := by
@@ -712,9 +755,11 @@ theorem source_valid
     : ValidGraphEvents work inputs.flatten ∧ inputsStarted work inputs = true := by
   have first : ValidGraphEvents work [.streamFailure left 1] :=
     .append .nil
-      ⟨_, _, _, _, left_located, .empty, List.mem_cons_self⟩
+      ⟨_, _, _, _, left_located,
+        { result := .error 1, cause := some 1 }, .empty, List.mem_cons_self, rfl⟩
       (by simp [GraphEvent.Fresh, GraphEvent.identities])
-      ⟨_, _, _, _, left_located, (by intro source impossible; cases impossible), .empty, rfl⟩
+      ⟨_, _, _, _, left_located, (by intro source impossible; cases impossible),
+        { result := .error 1, cause := some 1 }, .empty, rfl, rfl⟩
   refine ⟨.append first ?_ ?_ ?_, by cbv⟩
   · exact ⟨[], none, NodeAt.stream right_located⟩
   · simp [GraphEvent.Fresh, GraphEvent.identities, left, right]
@@ -744,7 +789,9 @@ theorem success_allowed
     intro entry member
     have same := List.mem_singleton.mp member
     subst entry
-    exact ⟨left, 1, none, by rw [output]; rfl, TaskAt.item left_located rfl⟩
+    exact ⟨left, 1, none, by rw [output]; rfl,
+      TaskAt.item (result := { result := .error 1, cause := some 1 })
+        left_located rfl⟩
   exact ⟨
     matching,
     createWorkQueue_runNormalized_rootStreamSuccess_eventAllowed generated source_valid.1

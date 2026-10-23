@@ -28,14 +28,58 @@ theorem State.rawEventReplay_itemStreamNoticeFresh (queue : State)
   obtain ⟨before, event, after, position, _, emitted, prior⟩ :=
     queue.rawEventReplay_output_prefix_at events selected
   obtain ⟨stream, items, rfl⟩ :=
-    (queue.replayGraphEvents before).handleGraphEvent_streamValues_source event emitted
-  have zero := (queue.replayGraphEvents before).streamItems_carrier_index stream items emitted
-  have fresh := (queue.replayGraphEvents before).streamItems_notices_fresh stream items emitted
+    (queue.replayGraphEvents before).handleGraphEvent_streamValues_source event [] emitted
+  have zero := (queue.replayGraphEvents before).streamItems_carrier_index stream items [] emitted
+  have fresh := (queue.replayGraphEvents before).streamItems_notices_fresh stream items [] emitted
   rw [prior, zero, List.take_zero, List.append_nil]
   intro repeated
   apply fresh.2 child noticed
-  have registered := queue.rawEventReplay_streamRegistry before repeated
+  have registered := queue.rawEventReplay_streamRegistry before [] repeated
   rwa [State.rawEventReplay_state] at registered
+
+/-- An actual item-carried stream notice excludes all earlier batch and FIFO notices.
+Permanent stream registration composes at the exact raw carrier cut. Cache exposure
+preserves that registry, and item preparation selects only fresh stream descriptors.
+-/
+theorem State.rawBatches_itemStreamNoticeFresh (queue : State)
+    (inputs : List (List GraphEvent)) {index owner values groups streams child}
+    (selected
+      : (queue.rawBatches inputs).2[index]?
+        = some (.streamValues owner values groups streams))
+    (noticed : child ∈ streams)
+    : child.ref
+      ∉ queue.streams.map (fun stream => stream.node.ref)
+        ++ ((queue.rawBatches inputs).2.take index).flatMap rawStreamNoticeRefs := by
+  obtain ⟨earlier, batch, later, fifo, event, tail, position, _, _, emitted, prefixEq⟩ :=
+    queue.rawBatches_immediate_rawCut inputs selected
+      (by intro group errors impossible; cases impossible) (by intro impossible; cases impossible)
+  let available := GraphEvent.availableFailures batch
+  let boundary := queue.replayBatches earlier
+  let current := boundary.replayGraphEvents fifo available
+  obtain ⟨stream, items, rfl⟩ :=
+    current.handleGraphEvent_streamValues_source event available emitted
+  have atItems : ((current.cacheTaskFailures available).streamItems stream items
+      available).2.1[position]? = some (.streamValues owner values groups streams) := emitted
+  have zero := (current.cacheTaskFailures available).streamItems_carrier_index stream items
+    available atItems
+  have fresh := (current.cacheTaskFailures available).streamItems_notices_fresh stream items
+    available atItems
+  intro repeated
+  apply fresh.2 child noticed
+  rw [prefixEq, zero, List.take_zero, List.append_nil, List.flatMap_append] at repeated
+  have first := queue.rawBatches_streamRegistry earlier
+  rw [State.rawBatches_state] at first
+  have next := boundary.rawEventReplay_streamRegistry fifo available
+  rw [State.rawEventReplay_state _ fifo available] at next
+  have registered : child.ref ∈ current.streams.map (fun stream => stream.node.ref) := by
+    apply next
+    rcases List.mem_append.mp repeated with old | noticed
+    · exact List.mem_append_left _ (first (List.mem_append_left _ old))
+    · rcases List.mem_append.mp noticed with earlier | sameBatch
+      · exact List.mem_append_left _ (first (List.mem_append_right _ earlier))
+      · exact List.mem_append_right _ sameBatch
+  have cacheFrame := congrArg State.streams (current.cacheTaskFailures_frame available)
+  rwa [cacheFrame]
 
 namespace ConformancePlan
 
@@ -85,25 +129,24 @@ and normalization preserve one common indexed carrier and all preceding stream n
 theorem Witness.itemNotice_rawStreamPrefix {work inputs} {w : Witness}
     {index owner values groups streams child}
     (valid : ValidGraphEvents work inputs.flatten)
-    (started : inputsStarted work inputs = true)
+    (_started : inputsStarted work inputs = true)
     (history : w.events = (initialQueue work).nonterminalAtoms inputs)
     (selected : w.events[index]? = some (.streamValues owner values groups streams))
     (noticed : child ∈ groups ++ streams)
     : ∃ position rawValues,
-        ((initialQueue work).rawEventReplay inputs.flatten).2[position]?
+        ((initialQueue work).rawBatches inputs).2[position]?
           = some (.streamValues owner rawValues groups streams)
         ∧ (w.events.take index).flatMap streamNoticeRefs
-          = (((initialQueue work).rawEventReplay inputs.flatten).2.take position).flatMap
+          = (((initialQueue work).rawBatches inputs).2.take position).flatMap
               rawStreamNoticeRefs := by
-  have exactHistory := history.trans (createWorkQueue_nonterminalAtoms_flattened inputs started)
-  rw [exactHistory] at selected ⊢
-  have rawShape := (initialQueue work).rawEventReplay_nonemptyValues inputs.flatten
-    valid.nonemptyItems
+  obtain ⟨atAtoms, exactPrefix⟩ := Witness.rawBatches_canonical history selected
+  have rawShape := (initialQueue work).rawBatches_nonemptyValues inputs valid.nonemptyItems
   obtain ⟨sourceIndex, sourceValues, sourceAt, notices⟩ :=
     publicationAtoms_itemNotice_streamPrefix _
-      (IncrementalPublisher.normalizeBatch_nonemptyValues _ _ rawShape).2 selected noticed
+      (IncrementalPublisher.normalizeBatch_nonemptyValues _ _ rawShape).2 atAtoms noticed
   obtain ⟨position, rawValues, rawAt, rawNotices⟩ :=
     IncrementalPublisher.normalizeBatch_itemNotice_streamPrefix _ _ sourceAt
+  rw [exactPrefix] at notices
   exact ⟨position, rawValues, rawAt, notices.trans rawNotices⟩
 
 /-- An actual item-carried stream notice is fresh against every earlier announcement.
@@ -126,7 +169,7 @@ theorem itemStreamNotice_fresh {work inputs index owner values groups streams ch
   intro announced
   have repeated := streamNode_announced_stream generated valid history descriptor announced
   rw [notices] at repeated
-  apply (initialQueue work).rawEventReplay_itemStreamNoticeFresh inputs.flatten rawAt
+  apply (initialQueue work).rawBatches_itemStreamNoticeFresh inputs rawAt
     noticed
   rcases List.mem_append.mp repeated with initial | prior
   · apply List.mem_append_left
@@ -138,7 +181,7 @@ theorem itemStreamNotice_fresh {work inputs index owner values groups streams ch
         = (({} : State).maybeIntegrateWork (Work.fromExecution work)).1.streams := by
       let integrated := ({} : State).maybeIntegrateWork (Work.fromExecution work)
       let pruned := integrated.1.pruneEmptyGroups integrated.2.newGroups
-      change (pruned.1.startNewWork { integrated.2 with newGroups := pruned.2 }).streams
+      change (pruned.1.startNewWork { integrated.2 with newGroups := pruned.2 }).1.streams
         = integrated.1.streams
       rw [State.startNewWork_streams, State.pruneEmptyGroups_streams]
     rw [registry]
@@ -189,13 +232,16 @@ theorem itemStreamNoticeRefs_nodup {work inputs owner values groups streams} {in
   | cons child rest =>
       obtain ⟨position, rawValues, rawAt, _⟩ := Witness.itemNotice_rawStreamPrefix
         valid started history selected (List.mem_append_right groups List.mem_cons_self)
-      obtain ⟨before, event, after, localIndex, _, emitted, _⟩ :=
-        (initialQueue work).rawEventReplay_output_prefix_at inputs.flatten rawAt
+      obtain ⟨earlier, batch, later, fifo, event, tail, localIndex, _, _, emitted, _⟩ :=
+        (initialQueue work).rawBatches_immediate_rawCut inputs rawAt
+          (by intro group errors impossible; cases impossible)
+          (by intro impossible; cases impossible)
+      let available := GraphEvent.availableFailures batch
+      let current := ((initialQueue work).replayBatches earlier).replayGraphEvents fifo available
       obtain ⟨stream, items, rfl⟩ :=
-        ((initialQueue work).replayGraphEvents before).handleGraphEvent_streamValues_source
-          event emitted
-      exact (((initialQueue work).replayGraphEvents before).streamItems_notices_fresh
-        stream items emitted).1
+        current.handleGraphEvent_streamValues_source event available emitted
+      exact ((current.cacheTaskFailures available).streamItems_notices_fresh stream items
+        available emitted).1
 
 /-- The combined group/stream notice list on an item carrier has no repeated ref.
 Witness: global group uniqueness gives its group sublist; fresh registration gives stream

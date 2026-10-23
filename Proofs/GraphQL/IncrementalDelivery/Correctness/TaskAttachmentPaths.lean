@@ -25,6 +25,15 @@ theorem ItemsUnder.member {base items} (under : ItemsUnder base items)
       · subst entry; exact under.1
       · exact ih under.2 later
 
+/-- Transparent declaration annotations preserve the retained attachment bound. -/
+theorem WorkUnder.withoutDeclarations {base work} (known : WorkUnder base work)
+    : WorkUnder base work.withoutDeclarations := by
+  cases work with
+  | declareGroups groups tasks =>
+      exact WorkUnder.withoutDeclarations (work := tasks) known
+  | _ => exact known
+termination_by work
+
 /-- A located subtree has a local bound below `base` and below its nearest producer's
 attachment. Witness: navigation induction; combine preserves the bound, while execution
 groups and stream items install their own producer-local bound.
@@ -43,23 +52,27 @@ theorem WorkUnder.located {base work address current producer enclosing}
   have navigation := StructuralEquivalence.located_of_current located
   clear located
   induction navigation with
-  | root => exact ⟨base, under, ⟨[], by simp⟩, by simp⟩
+  | root => exact ⟨base, under.withoutDeclarations, ⟨[], by simp⟩, by simp⟩
   | left _ ih =>
       obtain ⟨path, certified, below, parent⟩ := ih
-      exact ⟨path, certified.1, below, parent⟩
+      exact ⟨path, certified.1.withoutDeclarations, below, parent⟩
   | right _ ih =>
       obtain ⟨path, certified, below, parent⟩ := ih
-      exact ⟨path, certified.2, below, parent⟩
+      exact ⟨path, certified.2.withoutDeclarations, below, parent⟩
   | @executionGroup address groups path result children birth enclosing located ih =>
       obtain ⟨localPath, certified, below, _⟩ := ih
-      refine ⟨path, certified.2, below.trans certified.1, ?_⟩
+      refine ⟨path, certified.2.withoutDeclarations, below.trans certified.1, ?_⟩
       intro occurrence same
       cases same
       exact ⟨_, _, _, .executionGroup located.toCurrent, ⟨[], by simp [Payload.path]⟩⟩
   | @item address node items birth enclosing index result children located entry ih =>
       obtain ⟨localPath, certified, below, _⟩ := ih
-      refine ⟨node.path, certified.2.member (List.mem_of_getElem? entry),
-        below.trans certified.1, ?_⟩
+      refine ⟨
+        node.path,
+        (certified.2.member (List.mem_of_getElem? entry)).withoutDeclarations,
+        below.trans certified.1,
+        ?_
+      ⟩
       intro occurrence same
       cases same
       exact ⟨_, _, _, .item located.toCurrent entry, ⟨[], by simp [Payload.path]⟩⟩

@@ -59,7 +59,8 @@ def SeededWorkReconstructs (path : ResponsePath)
 /-- Successful streamed items reconstruct a basic list suffix with its actual absolute
 offset. -/
 def SeededItemsReconstructs (path : ResponsePath) (index : Nat)
-    (basic : Result (List ResponseValue)) (streamed : List (Result ResponseValue × Work))
+    (basic : Result (List ResponseValue))
+    (streamed : List (TaskOutcome ResponseValue × Work))
     : Prop :=
   ItemsSuccess streamed
   → ∃ data slices,
@@ -238,7 +239,10 @@ theorem seeded_error (entries : α → List Entry) (cursors : α → Cursors)
 theorem seeded_failedField (path : ResponsePath) (name : Name) (fieldType : TypeRef)
     (basic : Result (List (Name × ResponseValue)))
     : SeededReconstructs (fields path) (fieldCursors path) basic
-        {result := singleFieldResult name (handleFieldError fieldType)} := by
+        {
+          result := singleFieldResult name (handleFieldError fieldType),
+          cause := if fieldType.isNonNull then some 1 else none
+        } := by
   refine ⟨?_, ?_⟩
   · cases fieldType <;> simp [BasicErrors.PositiveFailure, singleFieldResult, handleFieldError]
   · cases fieldType <;> simp [CompletionSuccess, singleFieldResult, handleFieldError]

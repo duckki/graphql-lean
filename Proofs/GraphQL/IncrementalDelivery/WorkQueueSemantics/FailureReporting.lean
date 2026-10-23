@@ -86,21 +86,35 @@ theorem le_sum {values : List Nat} {value : Nat} (h : value ∈ values)
       · simp
       · simpa using Nat.le_trans (ih member) (Nat.le_add_left rest.sum head)
 
-/-- A node's counted errors include each recorded contributing failure; witness:
-the summand for that task and uniqueness of its payload.
--/
-theorem NodeErrors.contribution_le
-    {work failed ref errors occurrence owners producer payload}
-    (h : NodeErrors work failed ref errors) (member : occurrence ∈ failed)
-    (known : TaskAt work occurrence owners producer payload) (owner : ref ∈ owners)
-    : payload.failure.getD 0 ≤ errors := by
-  obtain ⟨contribution, counts, rfl⟩ := h
-  obtain ⟨more, otherProducer, other, task, counted⟩ := counts occurrence member
-  obtain ⟨rfl, rfl, rfl⟩ := known.unique task
-  have same : contribution occurrence = payload.failure.getD 0 := by
-    simpa [owner] using counted
-  rw [← same]
-  exact le_sum (List.mem_map.mpr ⟨occurrence, member, rfl⟩)
+/-- Every selected causal explanation is positive by the admission relation. -/
+theorem NodeFailureCause.positive {work failed ref errors}
+    (h : NodeFailureCause work failed ref errors)
+    : 0 < errors := by
+  obtain ⟨_, _, _, _, _, _, _, _, positive⟩ := h
+  exact positive
+
+/-- A supported group aggregate is positive because every selected contribution is. -/
+theorem NodeFailureCauses.positive {work available ref errors}
+    (causes : NodeFailureCauses work available ref errors)
+    : 0 < errors := by
+  obtain ⟨causes, nonempty, _, supported, rfl⟩ := causes
+  cases causes with
+  | nil => exact (nonempty rfl).elim
+  | cons cause rest =>
+      obtain ⟨_, _, _, _, _, _, _, positive⟩ :=
+        supported cause.1 cause.2 List.mem_cons_self
+      simp only [List.map_cons, List.sum_cons]
+      omega
+
+/-- One licensed boundary cause is also a supported singleton group report. -/
+theorem NodeFailureCause.toCauses {work failed ref errors}
+    (cause : NodeFailureCause work failed ref errors)
+    : NodeFailureCauses work failed ref errors := by
+  obtain ⟨occurrence, available, owners, producer, payload, known, owned, count, positive⟩ := cause
+  refine ⟨[(occurrence, errors)], by simp, by simp, ?_, by simp⟩
+  intro task amount member
+  obtain ⟨rfl, rfl⟩ := Prod.mk.inj (List.mem_singleton.mp member)
+  exact ⟨available, owners, producer, payload, known, owned, count, positive⟩
 
 /-- Count failure-completion errors only; successful payload errors are separate. This
 proof observation does not constrain scheduler admission.
@@ -109,19 +123,19 @@ def failureErrors : WorkQueueEvent → Nat
   | .groupFailure _ errors | .streamFailure _ errors => errors
   | _ => 0
 
-/-- Closing an owner of a known failed task reports at least that task's errors.
-Witness: successful closure contradicts failure, and failure closure counts its tasks.
+/-- Closing an owner of a known failed task reports a positive causal explanation.
+Successful closure contradicts failure; the reported cause may come from another contributor.
 -/
 theorem EventAllowed.failure_completion
     {work initial matching before failed event occurrence owners producer payload ref}
-    (h : EventAllowed work initial matching before failed event)
+    (h : EventAllowed work initial matching before failed event reported)
     (member : occurrence ∈ failedBefore failed before.length)
     (known : TaskAt work occurrence owners producer payload) (owner : ref ∈ owners)
     (closed : ref ∈ eventCompleted event)
     : ∃ node errors,
         node.ref = ref
         ∧ (event = .groupFailure node errors ∨ event = .streamFailure node errors)
-        ∧ payload.failure.getD 0 ≤ errors := by
+        ∧ 0 < errors := by
   cases event <;>
     simp only [EventAllowed, nodeFailed_filter (Nat.le_refl _),
       failedBefore_filter _ (Nat.le_refl _)] at h
@@ -138,10 +152,10 @@ theorem EventAllowed.failure_completion
     exact False.elim (h.2.2.1 failure)
   case groupFailure node errors =>
     subst ref
-    exact ⟨node, errors, rfl, Or.inl rfl, h.2.2.2.contribution_le member known owner⟩
+    exact ⟨node, errors, rfl, Or.inl rfl, h.2.2.2.positive⟩
   case streamFailure node errors =>
     subst ref
-    exact ⟨node, errors, rfl, Or.inr rfl, h.2.2.2.contribution_le member known owner⟩
+    exact ⟨node, errors, rfl, Or.inr rfl, h.2.2.2.positive⟩
 
 /-- A selected contributor unclosed at settlement has a later failed completion if it is
 eventually announced and all announced refs close. Witness: locate its actual closure;
@@ -163,7 +177,7 @@ theorem Explains.contributor_failure_reported_of_eventual_notice
         ∧ node.ref = ref
         ∧ (events[index]? = some (.groupFailure node errors)
             ∨ events[index]? = some (.streamFailure node errors))
-        ∧ payload.failure.getD 0 ≤ errors := by
+        ∧ 0 < errors := by
   obtain ⟨event, selected, closes⟩ :=
     List.mem_flatMap.mp (closedRefs ref announced)
   obtain ⟨index, selected⟩ := List.mem_iff_getElem?.mp selected
@@ -175,7 +189,7 @@ theorem Explains.contributor_failure_reported_of_eventual_notice
     exact ⟨event, List.mem_iff_getElem?.mpr ⟨index, by
       simp [beforeCut, selected]⟩, closes⟩
   obtain ⟨node, errors, same, reports, bound⟩ :=
-    (h.2.2 index event selected).failure_completion
+    (h.eventAllowed index event selected).failure_completion
       (by
         have bound := (List.getElem?_eq_some_iff.mp selected).1
         simpa only [List.length_take, Nat.min_eq_left (Nat.le_of_lt bound)]
@@ -206,7 +220,7 @@ theorem Explains.failure_reported_of_eventual_notice
         ∧ node.ref ∈ owners
         ∧ (events[index]? = some (.groupFailure node errors)
             ∨ events[index]? = some (.streamFailure node errors))
-        ∧ payload.failure.getD 0 ≤ errors := by
+        ∧ 0 < errors := by
   obtain ⟨ref, owner, unfinished, announced⟩ := eventualOwner
   obtain ⟨index, node, errors, afterCut, same, reports, bound⟩ :=
     h.contributor_failure_reported_of_eventual_notice closedRefs member known owner
@@ -233,7 +247,7 @@ theorem Explains.failure_reported_of_closures
         ∧ node.ref ∈ owners
         ∧ (events[index]? = some (.groupFailure node errors)
             ∨ events[index]? = some (.streamFailure node errors))
-        ∧ payload.failure.getD 0 ≤ errors := by
+        ∧ 0 < errors := by
   obtain ⟨ref, owner, opened⟩ := openOwner
   apply h.failure_reported_of_eventual_notice closedRefs member known
   refine ⟨ref, owner, opened.2, ?_⟩
@@ -262,13 +276,13 @@ theorem Explains.failure_reported {work groups streams events matching failures}
         ∧ node.ref ∈ owners
         ∧ (events[index]? = some (.groupFailure node errors)
             ∨ events[index]? = some (.streamFailure node errors))
-        ∧ payload.failure.getD 0 ≤ errors :=
+        ∧ 0 < errors :=
   h.failure_reported_of_closures (h.allCompleted done) member known openOwner
 
-/-- A recorded failure with a still-open owner is bounded by all reported failure errors
-in a terminal history; witness: its later completion is one summand.
+/-- A recorded failure with a still-open owner forces positive reported failure errors.
+Its later completion selects a positive cause and contributes to the emitted sum.
 -/
-theorem Explains.failure_le_total {work groups streams events matching failures}
+theorem Explains.failure_total_positive {work groups streams events matching failures}
     (h : Explains work groups streams events matching failures)
     (done
       : Terminal work ((groups ++ streams).map DeliveryNode.ref) matching events failures)
@@ -278,10 +292,10 @@ theorem Explains.failure_le_total {work groups streams events matching failures}
     (openOwner
       : ∃ ref ∈ owners,
           Open ((groups ++ streams).map DeliveryNode.ref) (events.take cut) ref)
-    : payload.failure.getD 0 ≤ (events.map failureErrors).sum := by
+    : 0 < (events.map failureErrors).sum := by
   obtain ⟨index, node, errors, _, _, reports, bound⟩ :=
     h.failure_reported done member known openOwner
-  apply Nat.le_trans bound
+  apply Nat.lt_of_lt_of_le bound
   apply le_sum
   rcases reports with group | stream
   · exact List.mem_map.mpr
@@ -334,7 +348,7 @@ theorem Explains.published_succeeds {work groups streams events matching failure
   have length : (events.take index).length = index := by
     have bound := (List.getElem?_eq_some_iff.mp selected).choose
     simp [List.length_take, Nat.min_eq_left (Nat.le_of_lt bound)]
-  have allowed := h.2.2 index event selected
+  have allowed := h.eventAllowed index event selected
   cases event <;> try contradiction
   case groupValues node values =>
     obtain ⟨_, _, _, _, task, _⟩ := allowed
@@ -388,7 +402,7 @@ theorem Explains.first_failure_open_owner
         (h.2.1 [] cut occurrence rest rfl).2.2.1
       rw [← (known.unique task).2.2, success] at fails
       contradiction
-  have allowed := h.2.2 index event selectedFull
+  have allowed := h.eventAllowed index event selectedFull
   cases event <;> simp only [eventCompleted, List.mem_singleton] at closes
   all_goals simp only [EventAllowed, noFailures] at allowed
   case groupValues | streamValues => contradiction
@@ -400,8 +414,8 @@ theorem Explains.first_failure_open_owner
     exact unpaid (allowed.2.2.2 occurrence owners ⟨producer, payload, known⟩ owner)
   case groupFailure | streamFailure => exact allowed.2.2.1.nonempty rfl
 
-/-- Every terminal run has an explanation whose first failure is bounded by emitted
-errors. Witness: its open owner must report, and batching preserves the error sum.
+/-- Every terminal run with an accepted failure emits positive failure errors.
+The first failure has an open owner; its later report and batching preserve positivity.
 -/
 theorem AdmissibleRun.first_failure_accounting {work history}
     (run : AdmissibleRun work history)
@@ -415,15 +429,14 @@ theorem AdmissibleRun.first_failure_accounting {work history}
         ∧ ∀ cut occurrence rest owners producer payload,
             failures = (cut, occurrence) :: rest
             → TaskAt work occurrence owners producer payload
-            → payload.failure.getD 0
-              ≤ (history.batches.flatten.map failureErrors).sum := by
+            → 0 < (history.batches.flatten.map failureErrors).sum := by
   obtain ⟨events, matching, failures, explained, done, batching⟩ := run
   refine ⟨events, matching, failures, explained, done, batching, ?_⟩
   intro cut occurrence rest owners producer payload equal known
   subst failures
   rw [batching.failureErrors_eq]
   simpa [failureErrors]
-    using explained.failure_le_total done (by simp) known
+    using explained.failure_total_positive done (by simp) known
       (explained.first_failure_open_owner known)
 
 /-- Zero reported failure errors imply every work task succeeds, provided actual failure

@@ -51,7 +51,7 @@ theorem GraphEvent.MatchesWork.childStreams_producerSeen {work : Execution.Work}
         matching.streamItem_childStream_producer member supplied, ?_⟩
       intro parent same
       exact (Option.some.inj same) ▸ List.mem_map_of_mem member
-  | taskFailure | streamSuccess | streamFailure => trivial
+  | taskFailure | groupFailure | streamSuccess | streamFailure => trivial
 
 /-- Actual source replay registers only streams with previously received producers.
 Witness: initialization registers producer-free descriptors; matched handlers extend
@@ -59,8 +59,9 @@ provenance by their own identities. No source start, freshness, or output admiss
 -/
 theorem createWorkQueue_replay_streamProducersSeen {work : Execution.Work}
     {events : List GraphEvent} (valid : ValidGraphEvents work events)
+    (available : List (Occurrence × Nat) := [])
     : ((State.initialize (Work.fromExecution work)).replayGraphEvents
-        events).StreamsSatisfy
+        events available).StreamsSatisfy
         (StreamProducerSeen work (events.flatMap (fun event => event.identities.1))) := by
   induction valid with
   | nil =>
@@ -68,12 +69,14 @@ theorem createWorkQueue_replay_streamProducersSeen {work : Execution.Work}
       exact ⟨[], none, (createWorkQueue_initialStreams_nodeAt work).1 stream member,
         fun _ impossible => nomatch impossible⟩
   | @append before event valid matching fresh ready ih =>
-      rw [State.replayGraphEvents_append, List.flatMap_append, List.flatMap_singleton]
-      have old : ((State.initialize (Work.fromExecution work)).replayGraphEvents before).StreamsSatisfy
+      rw [State.replayGraphEvents_append _ before [event] available, List.flatMap_append,
+        List.flatMap_singleton]
+      have old : ((State.initialize (Work.fromExecution work)).replayGraphEvents
+          before available).StreamsSatisfy
           (StreamProducerSeen work
             (before.flatMap (fun event => event.identities.1) ++ event.identities.1)) :=
         fun stream member => (ih stream member).mono (List.subset_append_left _ _)
-      apply old.handleGraphEvent event
+      apply old.handleGraphEvent event (available := available)
       have new := matching.childStreams_producerSeen
       cases event with
       | taskSuccess occurrence result =>
@@ -81,7 +84,7 @@ theorem createWorkQueue_replay_streamProducersSeen {work : Execution.Work}
       | streamItems stream items =>
           exact fun item member child supplied =>
             (new item member child supplied).mono (List.subset_append_right _ _)
-      | taskFailure | streamSuccess | streamFailure => trivial
+      | taskFailure | groupFailure | streamSuccess | streamFailure => trivial
 
 -----------------------------------------------------------------------------------------
 -- Fresh structural producers cannot collide with any earlier registered stream ref
@@ -115,11 +118,13 @@ theorem ExecutedWork.replayGraphEvents_taskChildStream_absent
     (matching : (GraphEvent.taskSuccess occurrence result).MatchesWork work)
     (fresh : (GraphEvent.taskSuccess occurrence result).Fresh before)
     {stream : Stream} (member : stream ∈ result.work.streams)
-    : ((State.initialize (Work.fromExecution work)).replayGraphEvents before).stream?
+    (available : List (Occurrence × Nat) := [])
+    : ((State.initialize (Work.fromExecution work)).replayGraphEvents
+        before available).stream?
         stream.node.ref
       = none := by
   obtain ⟨dependencies, known⟩ := matching.childStream_producer member
-  exact (createWorkQueue_replay_streamProducersSeen valid).freshProducer_streamAbsent
+  exact (createWorkQueue_replay_streamProducersSeen valid available).freshProducer_streamAbsent
     generated known (fresh.2.2.1 occurrence List.mem_cons_self)
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

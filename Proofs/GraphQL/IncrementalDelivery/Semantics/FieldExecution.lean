@@ -24,7 +24,8 @@ def executeResponseField (schema : Schema) (resolvers : Resolvers ObjectRef)
           let failed : Completion (List (Name × ResponseValue)) :=
             {
               result :=
-                singleFieldResult responseName (handleFieldError definition.outputType)
+                singleFieldResult responseName (handleFieldError definition.outputType),
+              cause := if definition.outputType.isNonNull then some 1 else none
             }
           match coerceArgumentValues schema variables definition.arguments
                   field.arguments with
@@ -86,7 +87,7 @@ theorem executeCollectedFields_eq (schema : Schema) (resolvers : Resolvers Objec
                   | error =>
                       cases definition.outputType <;>
                         simp [handleFieldError, singleFieldResult, Completion.map,
-                          Completion.error]
+                          Completion.error, TypeRef.isNonNull]
                   | success arguments =>
                       cases hr
                             : resolveFieldValue resolvers parentType field.fieldName
@@ -94,7 +95,7 @@ theorem executeCollectedFields_eq (schema : Schema) (resolvers : Resolvers Objec
                       | none =>
                           cases definition.outputType <;>
                             simp [hr, handleFieldError, singleFieldResult, Completion.map,
-                              Completion.error]
+                              Completion.error, TypeRef.isNonNull]
                       | some resolved => simp [hr]
 
 /-- Empty collection returns an empty pure result, by unfolding the collector. -/

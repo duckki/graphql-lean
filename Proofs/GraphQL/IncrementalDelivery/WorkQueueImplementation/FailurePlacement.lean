@@ -234,65 +234,42 @@ theorem reportedFailureCuts_covers_report {work events failures occurrence index
       same
     ⟩
 
-/-- Removing only noncontributors from a distinct failure list preserves its error total.
-Witness: restrict the original contribution function; omitted summands are zero, and
-the retained list is a permutation of a membership filter of the original list.
--/
-theorem nodeErrors_restrict {work failed selected ref errors}
-    (counts : NodeErrors work failed ref errors) (failedUnique : failed.Nodup)
-    (selectedUnique : selected.Nodup) (included : selected.Subset failed)
-    (complete
-      : ∀ occurrence ∈ failed,
-          ∀ owners,
-            TaskHasOwners work occurrence owners → ref ∈ owners → occurrence ∈ selected)
-    : NodeErrors work selected ref errors := by
-  classical
-  obtain ⟨contribution, known, total⟩ := counts
-  let kept := fun occurrence => decide (occurrence ∈ selected)
-  have same : (failed.filter kept).Perm selected := by
-    apply (List.perm_ext_iff_of_nodup (failedUnique.filter _) selectedUnique).mpr
-    intro occurrence
-    simp only [List.mem_filter, kept, decide_eq_true_eq]
-    exact ⟨And.right, fun member => ⟨included member, member⟩⟩
-  have zero : ((failed.filter (fun occurrence => !kept occurrence)).map contribution).sum = 0 := by
-    apply List.sum_eq_zero_iff_forall_eq_nat.mpr
-    intro count member
-    obtain ⟨occurrence, retained, rfl⟩ := List.mem_map.mp member
-    obtain ⟨owners, producer, payload, task, amount⟩ := known occurrence
-      (List.mem_filter.mp retained).1
-    have omitted : occurrence ∉ selected := by
-      simpa [kept] using (List.mem_filter.mp retained).2
-    have nonowner : ref ∉ owners := fun owner => omitted
-      (complete occurrence (List.mem_filter.mp retained).1 owners ⟨producer, payload, task⟩ owner)
-    simpa [nonowner] using amount
-  refine ⟨contribution, fun occurrence member => known occurrence (included member), ?_⟩
-  have partition := ((List.filter_append_perm kept failed).map contribution).sum_nat
-  rw [List.map_append, List.sum_append, zero, Nat.add_zero,
-    (same.map contribution).sum_nat] at partition
-  exact total.trans partition.symm
-
-/-- Any failed-owner event retains its exact total after first-report placement.
-Witness: placement is a distinct subset of the visible old failures and retains every
-contributor to this closure, so only zero summands can disappear.
--/
-theorem reportedFailureCuts_nodeErrors {work events failures index node errors}
-    (unique : (failures.map Prod.snd).Nodup)
-    (counts : NodeErrors work (failedBefore failures index) node.ref errors)
+/-- First-report placement retains every selected contributing cause of a failure event. -/
+theorem reportedFailureCuts_nodeFailureCause {work events failures index node errors}
+    (cause : NodeFailureCause work (failedBefore failures index) node.ref errors)
     (atEvent
       : events[index]? = some (.groupFailure node errors)
         ∨ events[index]? = some (.streamFailure node errors))
-    : NodeErrors work (failedBefore (reportedFailureCuts work events failures) index)
-        node.ref errors := by
-  apply nodeErrors_restrict counts
-    ((List.filter_sublist.map Prod.snd).nodup unique)
-    ((List.filter_sublist.map Prod.snd).nodup (reportedFailureCuts_unique unique))
-    (reportedFailureCuts_visible_subset work events failures index)
-  intro occurrence member owners task owner
-  exact reportedFailureCuts_covers_report member ⟨node, errors, atEvent, owners, task, owner⟩
+    : NodeFailureCause work
+        (failedBefore (reportedFailureCuts work events failures) index) node.ref
+        errors := by
+  obtain ⟨occurrence, settled, owners, producer, payload, known, owner, failed, positive⟩ := cause
+  exact ⟨occurrence, reportedFailureCuts_covers_report settled
+    ⟨node, errors, atEvent, owners, ⟨producer, payload, known⟩, owner⟩,
+    owners, producer, payload, known, owner, failed, positive⟩
 
-/-- First-report placement preserves a complete inventory and all reported error totals.
+/-- First-report placement retains every member of a distinct aggregate report. -/
+theorem reportedFailureCuts_nodeFailureCauses {work events failures index node errors}
+    (causes : NodeFailureCauses work (failedBefore failures index) node.ref errors)
+    (atEvent
+      : events[index]? = some (.groupFailure node errors)
+        ∨ events[index]? = some (.streamFailure node errors))
+    : NodeFailureCauses work
+        (failedBefore (reportedFailureCuts work events failures) index) node.ref
+        errors := by
+  obtain ⟨selected, nonempty, distinct, available, total⟩ := causes
+  refine ⟨selected, nonempty, distinct, ?_, total⟩
+  intro occurrence count member
+  obtain ⟨recorded, owners, producer, payload, known, contributes, failed, positive⟩ :=
+    available occurrence count member
+  exact ⟨reportedFailureCuts_covers_report recorded
+    ⟨node, errors, atEvent, owners, ⟨producer, payload, known⟩, contributes⟩,
+    owners, producer, payload, known, contributes, failed, positive⟩
+
+/-- First-report placement preserves a complete inventory and all selected positive error causes.
 Witness: retained candidates keep their failed descriptors and reachability; report
-indices give bounds, sorting gives order, and contributor coverage preserves both totals.
+indices give bounds, sorting gives order, and contributor coverage preserves every member
+of each distinct aggregate report.
 Unreported candidates may be omitted, so this does not yet preserve all causal evidence.
 -/
 theorem CompleteFailureInventory.reported {work events failures}
@@ -307,10 +284,10 @@ theorem CompleteFailureInventory.reported {work events failures}
     exact ⟨Nat.le_of_lt (firstReportedFailureCut_spec selected).1,
       same ▸ oldKnown.2.1, same ▸ oldKnown.2.2⟩
   · intro index node errors atEvent
-    exact reportedFailureCuts_nodeErrors inventory.2.1
+    exact reportedFailureCuts_nodeFailureCauses
       (inventory.2.2.2.1 index node errors atEvent) (.inl atEvent)
   · intro index node errors atEvent
-    exact reportedFailureCuts_nodeErrors inventory.2.1
+    exact reportedFailureCuts_nodeFailureCause
       (inventory.2.2.2.2 index node errors atEvent) (.inr atEvent)
 
 -----------------------------------------------------------------------------------------

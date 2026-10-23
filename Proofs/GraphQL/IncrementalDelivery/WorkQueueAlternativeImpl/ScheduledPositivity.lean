@@ -16,7 +16,8 @@ open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.Semantics
 open GraphQL.IncrementalDelivery.Correctness.ExecutionErrors
   (
-  WorkPositive ItemsPositive Positive pure error combine map catchNull nonNull failedField
+  WorkPositive ItemsPositive Positive deliveryPositive pure error combine map catchNull
+    nonNull failedField
   )
 
 variable {ObjectRef : Type}
@@ -76,7 +77,8 @@ mutual
         · exact collectExecutionGroups_positive schema resolvers variables fuel parentType
             source _ path _
         · intro work hw
-          exact runEnsures_pure _ _ ⟨hc.1, hc.2, hw⟩
+          refine runEnsures_pure _ _ ⟨hc.1, ⟨hc.2.1, ?_⟩, hc.2.2⟩
+          exact hw
   termination_by (fuel, 6, 0, 0)
   decreasing_by
     all_goals
@@ -108,7 +110,7 @@ mutual
           · exact collectExecutionGroups_positive schema resolvers variables fuel parentType
               source rest path deferMap
           · intro work hw
-            exact runEnsures_pure _ _ ⟨hc, hw⟩
+            exact runEnsures_pure _ _ ⟨⟨deliveryPositive hc, hc.2.1⟩, hw⟩
   termination_by (fuel, 5, 0, sizeOf partitions)
   decreasing_by
     all_goals
@@ -278,7 +280,14 @@ mutual
     unfold completeListValueWithStream
     dsimp only
     split
-    · exact runEnsures_pure _ _ ⟨by simp [BasicErrors.PositiveFailure], trivial⟩
+    · rename_i errors he
+      have count : errors = 1 := by
+        split at he
+        · exact getStreamUsage_error_count variables _ errors he
+        · simp at he
+      subst errors
+      exact runEnsures_pure _ _ ⟨by simp [BasicErrors.PositiveFailure], trivial,
+        by simp [CompletionReporting.CauseValid, CompletionReporting.diagnostics]⟩
     · refine runEnsures_bind Positive _ _ _ ?_ ?_
       · exact completeListValue_positive schema resolvers variables fuel inner fields
           values path 0 usages deferMap
@@ -300,7 +309,7 @@ mutual
                 _ _ path usage.initialCount
             · intro tail ht
               exact runEnsures_pure _ _ ⟨(catchNull _ initial hi).1,
-                (catchNull _ initial hi).2, ht⟩
+                ⟨(catchNull _ initial hi).2.1, ht⟩, (catchNull _ initial hi).2.2⟩
   termination_by (fuel, 3, 0, 0)
   decreasing_by
     all_goals subst_vars; simp_wf
@@ -327,7 +336,9 @@ mutual
         · intro head hh
           split
           · rename_i errors failed
-            exact runEnsures_pure _ _ (error errors (hh.1 errors failed))
+            refine runEnsures_pure _ _ ⟨?_, trivial, ?_⟩
+            · simpa [BasicErrors.PositiveFailure, Completion.error] using hh.1 errors failed
+            · simpa [CompletionReporting.CauseValid, CompletionReporting.diagnostics, Completion.error, failed] using hh.2.2
           · refine runEnsures_bind Positive _ _ _ ?_ ?_
             · exact completeListValue_positive schema resolvers variables fuel itemType fields
                 rest path (index + 1) usages deferMap
@@ -361,12 +372,12 @@ mutual
         · intro head hh
           split
           · rename_i errors he
-            exact runEnsures_pure _ _ ⟨by simpa only [he] using hh.1, trivial, trivial⟩
+            exact runEnsures_pure _ _ ⟨deliveryPositive hh, trivial, trivial⟩
           · refine runEnsures_bind ItemsPositive _ _ _ ?_ ?_
             · exact completeStreamItems_positive schema resolvers variables fuel itemType
                 fields rest path (index + 1)
             · intro tail ht
-              exact runEnsures_pure _ _ ⟨hh.1, hh.2, ht⟩
+              exact runEnsures_pure _ _ ⟨deliveryPositive hh, hh.2.1, ht⟩
   termination_by (fuel, 2, sizeOf itemType, sizeOf values)
   decreasing_by
     all_goals subst_vars; simp_wf
@@ -403,6 +414,6 @@ theorem root_task_failure_positive (schema : Schema) (resolvers : Resolvers Obje
     recursiveScheduledPositivity_holds ObjectRef schema resolvers variables fuel
       parentType source selections supply
   simpa only [failed, Option.getD_some]
-    using positive.2.task task (by simp only [failed, Option.isSome_some])
+    using positive.2.1.task task (by simp only [failed, Option.isSome_some])
 
 end GraphQL.IncrementalDelivery.AlternativeWorkQueue.NativeRefinement.ScheduledExecution

@@ -16,17 +16,42 @@ open ScheduledErrors (ResultRefines)
 -- Recursive relation: one key map, unchanged structure, related retained payloads
 -----------------------------------------------------------------------------------------
 
+/-- Collected outcomes may omit diagnostics, while the same escaping cause is retained.
+This extra component is necessary: diagnostic-count refinement alone says nothing about
+which error reaches an incremental boundary.
+-/
+def TaskOutcomeRefines (scheduled eager : TaskOutcome α) : Prop :=
+  ResultRefines scheduled.result eager.result ∧ scheduled.cause = eager.cause
+
+theorem TaskOutcomeRefines.refl (outcome : TaskOutcome α)
+    : TaskOutcomeRefines outcome outcome :=
+  ⟨ResultRefines.refl _, rfl⟩
+
+/-- Coupled cause metadata also relates the outcomes actually delivered by each task. -/
+theorem TaskOutcomeRefines.deliveryResult {left right : TaskOutcome α}
+    (known : TaskOutcomeRefines left right)
+    : ResultRefines left.deliveryResult right.deliveryResult := by
+  rcases left with ⟨left, cause⟩
+  rcases right with ⟨right, otherCause⟩
+  obtain ⟨related, rfl⟩ := known
+  cases left <;> cases right <;> cases cause <;>
+    simp_all [ResultRefines, ScheduledErrors.SameData, TaskOutcome.deliveryResult,
+      ScheduledErrors.countedErrors]
+
 mutual
   /-- Retained Work has the same structure and data; counts may decrease and keys use
   one shared map. No extra/missing tasks or stream positions are permitted. -/
   inductive WorkRefines (keys : Nat → Nat) : Work → Work → Prop where
     | empty : WorkRefines keys .empty .empty
+    | declareGroups {groups tasks eagerTasks} (nested : WorkRefines keys tasks eagerTasks)
+      : WorkRefines keys (.declareGroups groups tasks)
+          (.declareGroups (groups.map (KeyRenaming.fragment keys)) eagerTasks)
     | combine {left right eagerLeft eagerRight}
       (head : WorkRefines keys left eagerLeft)
       (tail : WorkRefines keys right eagerRight)
       : WorkRefines keys (.combine left right) (.combine eagerLeft eagerRight)
     | executionGroup {groups path result eagerResult children eagerChildren}
-      (payload : ResultRefines result eagerResult)
+      (payload : TaskOutcomeRefines result eagerResult)
       (nested : WorkRefines keys children eagerChildren)
       : WorkRefines keys (.executionGroup groups path result children)
           (.executionGroup (groups.map (KeyRenaming.fragment keys)) path eagerResult
@@ -37,11 +62,11 @@ mutual
 
   /-- Same ordered stream positions, with related payloads and recursively related Work. -/
   inductive ItemsRefine (keys : Nat → Nat)
-      : List (Result ResponseValue × Work) → List (Result ResponseValue × Work)
+      : List (TaskOutcome ResponseValue × Work) → List (TaskOutcome ResponseValue × Work)
         → Prop where
     | nil : ItemsRefine keys [] []
     | cons {result eagerResult children eagerChildren rest eagerRest}
-      (payload : ResultRefines result eagerResult)
+      (payload : TaskOutcomeRefines result eagerResult)
       (nested : WorkRefines keys children eagerChildren)
       (tail : ItemsRefine keys rest eagerRest)
       : ItemsRefine keys ((result, children) :: rest)
@@ -50,7 +75,9 @@ end
 
 /-- A completion relates its initial result and all retained Work using the same map. -/
 def CompletionRefines (keys : Nat → Nat) (scheduled eager : Completion α) : Prop :=
-  ResultRefines scheduled.result eager.result ∧ WorkRefines keys scheduled.work eager.work
+  ResultRefines scheduled.result eager.result
+  ∧ WorkRefines keys scheduled.work eager.work
+  ∧ scheduled.cause = eager.cause
 
 mutual
   /-- Exact key renaming is a special case; no retained count changes are required. -/
@@ -58,6 +85,10 @@ mutual
       : WorkRefines keys original (KeyRenaming.work keys original) := by
     cases original with
     | empty => simpa only [KeyRenaming.work] using WorkRefines.empty (keys := keys)
+    | declareGroups groups tasks =>
+        simpa only [KeyRenaming.work]
+          using WorkRefines.declareGroups (groups := groups)
+            (WorkRefines.renaming keys tasks)
     | combine left right =>
         simpa only [KeyRenaming.work]
           using WorkRefines.combine (WorkRefines.renaming keys left)
@@ -65,20 +96,20 @@ mutual
     | executionGroup groups path result children =>
         simpa only [KeyRenaming.work]
           using WorkRefines.executionGroup (groups := groups) (path := path)
-            (ResultRefines.refl result) (WorkRefines.renaming keys children)
+            (TaskOutcomeRefines.refl result) (WorkRefines.renaming keys children)
     | stream node items =>
         simpa only [KeyRenaming.work]
           using WorkRefines.stream (node := node) (ItemsRefine.renaming keys items)
   termination_by sizeOf original
 
   theorem ItemsRefine.renaming (keys : Nat → Nat)
-      (items : List (Result ResponseValue × Work))
+      (items : List (TaskOutcome ResponseValue × Work))
       : ItemsRefine keys items
           (items.map (fun item => (item.1, KeyRenaming.work keys item.2))) := by
     cases items with
     | nil => exact .nil
     | cons item rest =>
-        exact .cons (ResultRefines.refl item.1) (WorkRefines.renaming keys item.2)
+        exact .cons (TaskOutcomeRefines.refl item.1) (WorkRefines.renaming keys item.2)
           (ItemsRefine.renaming keys rest)
   termination_by sizeOf items
   decreasing_by
@@ -103,33 +134,35 @@ inductive PayloadRefines (keys : Nat → Nat) : Payload → Payload → Prop whe
 
 theorem CompletionRefines.pure (keys : Nat → Nat) (value : α)
     : CompletionRefines keys (.pure value) (.pure value) :=
-  ⟨ResultRefines.refl _, .empty⟩
+  ⟨ResultRefines.refl _, .empty, rfl⟩
 
 theorem CompletionRefines.error {keys : Nat → Nat} {left right : Nat}
-    (known : ResultRefines (.error left : Result α) (.error right))
+    (known : ResultRefines (.error left : Result α) (.error right)) (same : left = right)
     : CompletionRefines keys (.error left : Completion α) (.error right) :=
-  ⟨known, .empty⟩
+  ⟨known, .empty, congrArg some same⟩
 
 /-- A fatal scope discards semantic child Work on both sides, including an eager suffix.
 The positive actual failure is essential to preserve zero-error equivalence. -/
 theorem CompletionRefines.fatal_cut (combine : α → β → γ)
     {keys : Nat → Nat} {errors : Nat} {head : Completion α} (tail : Completion β)
     (known : ResultRefines (.error errors) head.result) (positive : 0 < errors)
-    : CompletionRefines keys (.error errors : Completion γ)
+    : CompletionRefines keys
+        ({ result := .error errors, cause := head.cause } : Completion γ)
         (Completion.combine combine head tail) := by
   have result := known.fatal_cut combine tail.result positive
-  refine ⟨
-    by
-      simpa only [Completion.error, ScheduledErrors.completion_combine_result]
-        using result,
-    ?_
-  ⟩
-  cases outcome : head.result with
+  refine ⟨by simpa only [ScheduledErrors.completion_combine_result] using result, ?_, ?_⟩
+  all_goals cases outcome : head.result with
   | error count =>
       cases later : tail.result <;>
-        simp only [Completion.error, Completion.combine, outcome, later, Result.combine]
-      all_goals exact .empty
+        simp only [Completion.combine, outcome, later, Result.combine]
+      all_goals first | rfl | exact .empty
   | ok value => simp [ResultRefines, ScheduledErrors.SameData, outcome] at known
+
+/-- Related completions retain related future-task outcomes. -/
+theorem CompletionRefines.outcome {keys : Nat → Nat} {left right : Completion α}
+    (known : CompletionRefines keys left right)
+    : TaskOutcomeRefines left.outcome right.outcome :=
+  ⟨known.1, known.2.2⟩
 
 theorem CompletionRefines.combine (combine : α → β → γ)
     {keys : Nat → Nat} {left eagerLeft : Completion α} {right eagerRight : Completion β}
@@ -138,61 +171,57 @@ theorem CompletionRefines.combine (combine : α → β → γ)
     : CompletionRefines keys (Completion.combine combine left right)
         (Completion.combine combine eagerLeft eagerRight) := by
   have result := head.1.combine combine tail.1
-  refine ⟨by simpa only [ScheduledErrors.completion_combine_result] using result, ?_⟩
-  rcases left with ⟨left, leftWork⟩
-  rcases eagerLeft with ⟨eagerLeft, eagerLeftWork⟩
-  rcases right with ⟨right, rightWork⟩
-  rcases eagerRight with ⟨eagerRight, eagerRightWork⟩
-  rcases left with errors | ⟨value, errors⟩
-  <;> rcases eagerLeft with eagerErrors | ⟨eagerValue, eagerErrors⟩
-  <;> rcases right with laterErrors | ⟨laterValue, laterErrors⟩
-  <;> rcases eagerRight with laterEagerErrors | ⟨laterEagerValue, laterEagerErrors⟩
-  <;> simp_all only [CompletionRefines, ResultRefines, ScheduledErrors.SameData,
-    false_and]
-  all_goals simp only [Completion.combine, Result.combine, Completion.error]
-  all_goals first | exact .empty | exact .combine head.2 tail.2
+  refine ⟨by simpa only [ScheduledErrors.completion_combine_result] using result, ?_, ?_⟩
+  all_goals
+    cases hl : left.result <;> cases he : eagerLeft.result <;>
+      cases hr : right.result <;> cases her : eagerRight.result <;>
+      simp_all only [CompletionRefines, ResultRefines, ScheduledErrors.SameData, false_and]
+  all_goals simp_all only [Completion.combine, Result.combine]
+  all_goals first | exact .empty | exact .combine head.2.1 tail.2.1
 
 theorem CompletionRefines.map (wrap : α → β) {keys : Nat → Nat}
     {left right : Completion α} (known : CompletionRefines keys left right)
     : CompletionRefines keys (left.map wrap) (right.map wrap) := by
-  refine ⟨known.1.completion_map wrap, ?_⟩
-  rcases left with ⟨left, leftWork⟩
-  rcases right with ⟨right, rightWork⟩
-  rcases left with errors | ⟨value, errors⟩
-  <;> rcases right with eagerErrors | ⟨eagerValue, eagerErrors⟩
-  <;> simp_all only [CompletionRefines, ResultRefines, ScheduledErrors.SameData,
-    false_and]
-  · exact .empty
-  · exact known.2
+  refine ⟨known.1.completion_map wrap, ?_, ?_⟩
+  all_goals
+    cases hl : left.result <;> cases hr : right.result <;>
+      simp_all only [CompletionRefines, ResultRefines, ScheduledErrors.SameData, false_and]
+  all_goals simp_all only [Completion.map]
+  all_goals exact .empty
 
 theorem CompletionRefines.catchNull (wrap : α → ResponseValue) {keys : Nat → Nat}
     {left right : Completion α} (known : CompletionRefines keys left right)
     : CompletionRefines keys (left.catchNull wrap) (right.catchNull wrap) := by
-  refine ⟨known.1.catchNull wrap, ?_⟩
-  rcases left with ⟨left, leftWork⟩
-  rcases right with ⟨right, rightWork⟩
-  rcases left with errors | ⟨value, errors⟩
-  <;> rcases right with eagerErrors | ⟨eagerValue, eagerErrors⟩
-  <;> simp_all only [CompletionRefines, ResultRefines, ScheduledErrors.SameData,
-    false_and]
-  · exact .empty
-  · exact known.2
+  refine ⟨known.1.catchNull wrap, ?_, ?_⟩
+  all_goals
+    cases hl : left.result <;> cases hr : right.result <;>
+      simp_all only [CompletionRefines, ResultRefines, ScheduledErrors.SameData, false_and]
+  all_goals simp_all only [Completion.catchNull]
+  all_goals exact .empty
 
 theorem CompletionRefines.nonNull {keys : Nat → Nat}
     {left right : Completion ResponseValue} (known : CompletionRefines keys left right)
     : CompletionRefines keys left.nonNull right.nonNull := by
-  refine ⟨known.1.nonNull, ?_⟩
-  rcases left with ⟨left, leftWork⟩
-  rcases right with ⟨right, rightWork⟩
-  rcases left with errors | ⟨value, errors⟩
-  <;> rcases right with eagerErrors | ⟨eagerValue, eagerErrors⟩
-  <;> simp_all only [CompletionRefines, ResultRefines, ScheduledErrors.SameData,
-    false_and]
-  · exact .empty
-  · obtain ⟨⟨rfl, bounded, zero⟩, nested⟩ := known
-    cases value with
-    | null => cases errors <;> cases eagerErrors <;> exact .empty
-    | scalar | object | list => exact nested
+  refine ⟨known.1.nonNull, ?_, ?_⟩
+  · rcases left with ⟨left, leftWork⟩
+    rcases right with ⟨right, rightWork⟩
+    rcases left with errors | ⟨value, errors⟩
+    <;> rcases right with eagerErrors | ⟨eagerValue, eagerErrors⟩
+    <;> simp_all only [CompletionRefines, ResultRefines, ScheduledErrors.SameData,
+      false_and]
+    · exact .empty
+    · obtain ⟨⟨rfl, bounded, zero⟩, nested, sameCause⟩ := known
+      cases value with
+      | null => cases errors <;> cases eagerErrors <;> exact .empty
+      | scalar | object | list => exact nested
+  · rcases left with ⟨left, leftWork, leftCause⟩
+    rcases right with ⟨right, rightWork, rightCause⟩
+    rcases left with errors | ⟨value, errors⟩
+    <;> rcases right with eagerErrors | ⟨eagerValue, eagerErrors⟩
+    <;> simp_all only [CompletionRefines, ResultRefines, ScheduledErrors.SameData, false_and]
+    · simp [Completion.nonNull, nonNullCompletion]
+    · obtain ⟨⟨rfl, bounded, zero⟩, nested, sameCause⟩ := known
+      cases value <;> simp [Completion.nonNull, nonNullCompletion]
 
 -----------------------------------------------------------------------------------------
 -- Coupled lookups include absence and preserve ordered enclosing owners/producers
@@ -214,7 +243,7 @@ theorem ItemsRefine.getElem? {keys left right} (known : ItemsRefine keys left ri
     (index : Nat)
     : OptionRefines
         (fun before after =>
-          ResultRefines before.1 after.1 ∧ WorkRefines keys before.2 after.2)
+          TaskOutcomeRefines before.1 after.1 ∧ WorkRefines keys before.2 after.2)
         left[index]? right[index]? := by
   induction index generalizing left right with
   | zero =>
@@ -226,6 +255,19 @@ theorem ItemsRefine.getElem? {keys left right} (known : ItemsRefine keys left ri
       | nil => trivial
       | cons payload nested tail => exact ih tail
 
+/-- Related work stays related after removing transparent outer declarations. -/
+theorem WorkRefines.withoutDeclarations {keys left right}
+    (known : WorkRefines keys left right)
+    : WorkRefines keys left.withoutDeclarations right.withoutDeclarations := by
+  cases known with
+  | empty => exact .empty
+  | declareGroups nested =>
+      simpa only [Work.withoutDeclarations] using nested.withoutDeclarations
+  | combine head tail => exact .combine head tail
+  | executionGroup payload nested => exact .executionGroup payload nested
+  | stream nested => exact .stream nested
+termination_by sizeOf left
+
 theorem LocationRefines.child {keys left right} (known : LocationRefines keys left right)
     (address : Address) (index : Nat)
     : OptionRefines (LocationRefines keys)
@@ -235,17 +277,17 @@ theorem LocationRefines.child {keys left right} (known : LocationRefines keys le
   dsimp only [LocationRefines] at known
   obtain ⟨related, rfl, rfl⟩ := known
   cases related with
-  | empty => trivial
+  | empty | declareGroups => trivial
   | combine head tail =>
       cases index with
-      | zero => exact ⟨head, rfl, rfl⟩
+      | zero => exact ⟨head.withoutDeclarations, rfl, rfl⟩
       | succ index =>
           cases index with
-          | zero => exact ⟨tail, rfl, rfl⟩
+          | zero => exact ⟨tail.withoutDeclarations, rfl, rfl⟩
           | succ => trivial
   | executionGroup payload nested =>
       cases index with
-      | zero => exact ⟨nested, rfl, KeyRenaming.group_keys ..⟩
+      | zero => exact ⟨nested.withoutDeclarations, rfl, KeyRenaming.group_keys ..⟩
       | succ => trivial
   | @stream node items eagerItems nested =>
       have entry := nested.getElem? index
@@ -260,7 +302,7 @@ theorem LocationRefines.child {keys left right} (known : LocationRefines keys le
               simp only [before, after, OptionRefines] at entry
               simp only [WorkLocation.child?, before, after, Option.map_some,
                 OptionRefines]
-              exact ⟨entry.2, rfl, rfl⟩
+              exact ⟨entry.2.withoutDeclarations, rfl, rfl⟩
 
 theorem LocationRefines.traverse {keys left right}
     (known : LocationRefines keys left right) (route rest : Address)
@@ -284,8 +326,9 @@ theorem WorkRefines.locate {keys left right} (known : WorkRefines keys left righ
     (address : Address)
     : OptionRefines (LocationRefines keys)
         (locateWork left address) (locateWork right address) :=
-  LocationRefines.traverse (left := ⟨left, none, []⟩) (right := ⟨right, none, []⟩)
-    ⟨known, rfl, rfl⟩ [] address
+  LocationRefines.traverse (left := ⟨left.withoutDeclarations, none, []⟩)
+    (right := ⟨right.withoutDeclarations, none, []⟩)
+    ⟨known.withoutDeclarations, rfl, rfl⟩ [] address
 
 theorem WorkRefines.located {keys left right address current producer owners}
     (related : WorkRefines keys left right)
@@ -342,7 +385,7 @@ theorem WorkRefines.task {keys left right occurrence owners producer value}
           exact ⟨
             _,
             by simpa only [KeyRenaming.group_keys] using TaskAt.executionGroup located,
-            .object payload
+            .object payload.deliveryResult
           ⟩
   | @item address node items producer enclosing index result children found entry =>
       obtain ⟨after, located, nested⟩ := related.located found.toCurrent
@@ -360,7 +403,7 @@ theorem WorkRefines.task {keys left right occurrence owners producer value}
                 by
                   simpa only [List.map_singleton, KeyRenaming.node]
                     using TaskAt.item located eager,
-                .item item.1
+                .item item.1.deliveryResult
               ⟩
 
 theorem WorkRefines.task_before {keys left right occurrence owners producer value}
@@ -377,7 +420,7 @@ theorem WorkRefines.task_before {keys left right occurrence owners producer valu
       cases nested with
       | executionGroup payload children =>
           exact ⟨_, _, TaskAt.executionGroup located,
-            (KeyRenaming.group_keys ..).symm, .object payload⟩
+            (KeyRenaming.group_keys ..).symm, .object payload.deliveryResult⟩
   | @item address node items producer enclosing index result children found entry =>
       obtain ⟨before, enclosing, located, _, nested⟩ :=
         related.located_before found.toCurrent
@@ -390,7 +433,7 @@ theorem WorkRefines.task_before {keys left right occurrence owners producer valu
           | some before =>
               rw [scheduled] at item
               rcases before with ⟨beforeResult, beforeChildren⟩
-              exact ⟨_, _, TaskAt.item located scheduled, rfl, .item item.1⟩
+              exact ⟨_, _, TaskAt.item located scheduled, rfl, .item item.1.deliveryResult⟩
 
 theorem WorkRefines.delivery_node {keys left right node kind dependencies producer}
     (related : WorkRefines keys left right)

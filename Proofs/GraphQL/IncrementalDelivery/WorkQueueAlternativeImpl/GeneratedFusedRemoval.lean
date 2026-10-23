@@ -1,4 +1,4 @@
-import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.FusedRemovalProjection
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.FusedStartupProjection
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.TaskOwnerHandlers
 
 /-! Independently construct the actual-removal frame on the original generated source
@@ -8,21 +8,6 @@ lifts still have to carry the same frame through their internal registration/rel
 
 namespace GraphQL.IncrementalDelivery.AlternativeWorkQueue
 open WorkQueueSemantics (NodeRefs)
-
-/-- The reference source construction supplies actual live-node registration, complete
-contributor links and owner existence. No cleanup target or projected endpoint is assumed.
--/
-theorem
-    _root_.GraphQL.IncrementalDelivery.ReferenceWorkQueue.State.TaskOwnerFrame.removalTaskFrame
-    {queue : ReferenceWorkQueue.State} {work : Work} (frame : queue.TaskOwnerFrame work)
-    : RemovalTaskFrame queue := by
-  refine ⟨frame.registered, fun _ member => frame.disposition.startedLinks frame.registered member, ?_⟩
-  intro node member
-  obtain ⟨key, contributes, present⟩ := frame.owners node member
-  obtain ⟨owner, ownerMember, ownerKey⟩ := List.mem_map.mp contributes
-  obtain ⟨group, groupMember, groupKey⟩ := List.mem_map.mp present
-  exact List.any_eq_true.mpr ⟨owner, ownerMember,
-    List.any_eq_true.mpr ⟨group, groupMember, beq_iff_eq.mpr (groupKey.trans ownerKey.symm)⟩⟩
 
 /-- Exact full-queue removal projection at every original valid started generated
 reference prefix. The local record frame, matching, membership soundness and finite forest

@@ -20,30 +20,30 @@ theorem State.taskSuccess_groupNoticesUnique {queue : State} {parents}
     (occurrence : Occurrence) (result : TaskResult)
     (canonical
       : ∀ group ∈ result.work.groups, group.parent = (parents group.node.ref).head?)
-    : ∀ event ∈ (queue.taskSuccess occurrence result).2,
+    (available : List (Occurrence × Nat) := [])
+    : ∀ event ∈ (queue.taskSuccess occurrence result available).2.1,
         (rawGroupNoticeRefs event).Nodup := by
   cases found : queue.taskNode? occurrence with
   | none => simp [State.taskSuccess, found]
   | some incoming =>
-      rw [queue.taskSuccess_eq occurrence result incoming found]
-      split
-      · simp
-      · let stored := queue.putTaskNode { incoming with value := some result.value }
-        let prepared := (stored.maybeIntegrateWork result.work (some occurrence)).1
-        let folded := incoming.task.groups.foldl successGroupStep (prepared, [], {})
-        have storedLinks : stored.ChildLinksCanonical parents := links
-        have storedChildren : stored.ChildGroupsUnique := children
-        have preparedLinks := storedLinks.maybeIntegrateWork result.work canonical (some occurrence)
-        have preparedChildren := storedChildren.maybeIntegrateWork result.work (some occurrence)
-        obtain ⟨foldedLinks, foldedChildren, notices⟩ :=
-          prepared.successGroupFold_groupNoticesUnique preparedLinks preparedChildren
-            incoming.task.groups
-        intro event emitted
-        rcases List.mem_append.mp emitted with owner | drain
-        · exact notices event owner
-        · exact State.drainReadyGroups_go_groupNoticesUnique
-            (foldedLinks.startNewWork folded.2.2) (foldedChildren.startNewWork folded.2.2)
-            _ event drain
+      rw [queue.taskSuccess_eq occurrence result incoming found available]
+      let stored := queue.putTaskNode { incoming with value := some result.value }
+      let prepared := (stored.maybeIntegrateWork result.work (some occurrence)).1
+      let folded := incoming.task.groups.foldl successGroupStep (prepared, [], {})
+      have storedLinks : stored.ChildLinksCanonical parents := links
+      have storedChildren : stored.ChildGroupsUnique := children
+      have preparedLinks := storedLinks.maybeIntegrateWork result.work canonical (some occurrence)
+      have preparedChildren := storedChildren.maybeIntegrateWork result.work (some occurrence)
+      obtain ⟨foldedLinks, foldedChildren, notices⟩ :=
+        prepared.successGroupFold_groupNoticesUnique preparedLinks preparedChildren
+          incoming.task.groups
+      intro event emitted
+      rcases List.mem_append.mp emitted with owner | drain
+      · exact notices event owner
+      · exact State.drainReadyGroups_go_groupNoticesUnique
+          (foldedLinks.startNewWork folded.2.2 available)
+          (foldedChildren.startNewWork folded.2.2 available)
+          _ available event drain
 
 /-- Matching item handling carries a unique leading group list and unique drain lists.
 Witness: the item fold separates its fresh registered frontiers; each later success
@@ -53,32 +53,36 @@ theorem State.streamItems_groupNoticesUnique {queue : State} {work parents strea
     (refs : queue.GroupRefsUnique) (live : queue.LiveGroupsRegistered)
     (tasks : queue.TaskGroupsRegistered) (links : queue.ChildLinksCanonical parents)
     (children : queue.ChildGroupsUnique)
+    (context : queue.RegistrationFrame work)
     (canonical
       : ∀ node dependencies,
           GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (matched : (GraphEvent.streamItems stream items).MatchesWork work)
-    : ∀ event ∈ (queue.streamItems stream items).2, (rawGroupNoticeRefs event).Nodup := by
-  have leading := queue.streamItemFold_groupNoticesUnique refs live tasks links children
-    canonical matched
-  have preparedLinks : (queue.preparedStreamItems items).ChildLinksCanonical parents :=
+    (available : List (Occurrence × Nat) := [])
+    : ∀ event ∈ (queue.streamItems stream items available).2.1,
+        (rawGroupNoticeRefs event).Nodup := by
+  have leading := queue.streamItemFold_groupNoticesUnique refs live tasks links children context
+    canonical matched available
+  have preparedLinks : (queue.preparedStreamItems items available).ChildLinksCanonical parents :=
     State.preparedStreamItems_preserves (fun current => current.ChildLinksCanonical parents)
-      links items (fun current item member prior => by
+      links items available (fun current item member prior => by
         have fields := fun group included =>
           matched.streamItem_childGroups_parentCanonical canonical member
             (group := group) included
-        exact ((prior.maybeIntegrateWork item.work fields).pruneEmptyGroups _).startNewWork _)
-  have preparedChildren : (queue.preparedStreamItems items).ChildGroupsUnique :=
+        exact ((prior.maybeIntegrateWork item.work fields).pruneEmptyGroups _).startNewWork _
+          available)
+  have preparedChildren : (queue.preparedStreamItems items available).ChildGroupsUnique :=
     State.preparedStreamItems_preserves (fun current => current.ChildGroupsUnique)
-      children items (fun current item _ prior =>
-        ((prior.maybeIntegrateWork item.work).pruneEmptyGroups _).startNewWork _)
-  rw [queue.streamItems_eq stream items]
+      children items available (fun current item _ prior =>
+        ((prior.maybeIntegrateWork item.work).pruneEmptyGroups _).startNewWork _ available)
+  rw [queue.streamItems_eq stream items available]
   split
   · simp
   · intro event emitted
     rcases List.mem_cons.mp emitted with rfl | drain
     · exact leading
     · exact State.drainReadyGroups_go_groupNoticesUnique preparedLinks preparedChildren _
-        event drain
+        available event drain
 
 /-- Every matching source handler has duplicate-free group-notice lists.
 Witness: the two producing handlers use real pruning and fold certificates; task failures
@@ -88,17 +92,19 @@ theorem State.handleGraphEvent_groupNoticesUnique {queue : State} {work parents}
     (refs : queue.GroupRefsUnique) (live : queue.LiveGroupsRegistered)
     (tasks : queue.TaskGroupsRegistered) (links : queue.ChildLinksCanonical parents)
     (children : queue.ChildGroupsUnique)
+    (context : queue.RegistrationFrame work)
     (canonical
       : ∀ node dependencies,
           GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (event : GraphEvent) (matched : event.MatchesWork work)
-    : ∀ output ∈ (queue.handleGraphEvent event).2, (rawGroupNoticeRefs output).Nodup := by
+    : ∀ output ∈ (queue.handleGraphEvent event).2.1,
+        (rawGroupNoticeRefs output).Nodup := by
   cases event with
   | taskSuccess occurrence result =>
       exact queue.taskSuccess_groupNoticesUnique links children occurrence result
         (fun _ member => matched.taskChildGroups_parentCanonical canonical member)
   | streamItems stream items =>
-      exact queue.streamItems_groupNoticesUnique refs live tasks links children canonical matched
+      exact queue.streamItems_groupNoticesUnique refs live tasks links children context canonical matched
   | taskFailure occurrence errors =>
       intro output emitted
       have empty : rawGroupNoticeRefs output = [] := by
@@ -117,6 +123,11 @@ theorem State.handleGraphEvent_groupNoticesUnique {queue : State} {work parents}
   | streamFailure stream errors =>
       simp only [State.handleGraphEvent, State.streamFailure]
       split <;> simp [rawGroupNoticeRefs]
+  | groupFailure notice =>
+      simp only [State.handleGraphEvent, State.groupFailure]
+      split
+      · simp [rawGroupNoticeRefs]
+      · split <;> simp [rawGroupNoticeRefs]
 
 -----------------------------------------------------------------------------------------
 -- Matching source replay preserves every required implementation fact independently
@@ -130,6 +141,7 @@ theorem State.rawEventReplay_groupNoticesUnique {queue : State} {work parents}
     (refs : queue.GroupRefsUnique) (live : queue.LiveGroupsRegistered)
     (tasks : queue.TaskGroupsRegistered) (links : queue.ChildLinksCanonical parents)
     (children : queue.ChildGroupsUnique)
+    (context : queue.RegistrationFrame work)
     (canonical
       : ∀ node dependencies,
           GroupRecordAt work node dependencies → dependencies = parents node.ref)
@@ -139,14 +151,14 @@ theorem State.rawEventReplay_groupNoticesUnique {queue : State} {work parents}
   | nil => simp [State.rawEventReplay]
   | cons event rest ih =>
       have matched := matching event List.mem_cons_self
-      have registration := queue.handleGraphEvent_registration live tasks event matched
+      have registration := (context.dispatchGraphEvent event matched).1
       intro output emitted
       rw [State.rawEventReplay_cons] at emitted
       rcases List.mem_append.mp emitted with first | later
-      · exact queue.handleGraphEvent_groupNoticesUnique refs live tasks links children
+      · exact queue.handleGraphEvent_groupNoticesUnique refs live tasks links children context
           canonical event matched output first
-      · exact ih (refs.handleGraphEvent event) registration.1 registration.2.1
-          (links.handleGraphEvent event matched canonical) (children.handleGraphEvent event)
+      · exact ih (queue := (queue.dispatchGraphEvent event).1) (refs.handleGraphEvent event) registration.live registration.tasks
+          (links.handleGraphEvent event matched canonical) (children.handleGraphEvent event) registration
           (fun _ member => matching _ (List.mem_cons_of_mem _ member)) output later
 
 /-- Every group-notice list produced by generated matching replay is duplicate-free.
@@ -159,11 +171,11 @@ theorem ExecutedWork.rawEventReplay_groupNoticesUnique {work : Execution.Work}
     : ∀ output ∈ ((State.initialize (Work.fromExecution work)).rawEventReplay events).2,
         (rawGroupNoticeRefs output).Nodup := by
   obtain ⟨parents, canonical⟩ := generated.groupRecordsCanonical
-  have registered := createWorkQueue_registration work
+  have registered := createWorkQueue_registration work generated.declarations
   exact State.rawEventReplay_groupNoticesUnique (createWorkQueue_groupRefsUnique _)
     registered.1 registered.2 (createWorkQueue_childLinksCanonical _ parents
-      (fun _ member => workFromSpec_groups_parentCanonical Located.root canonical member))
-    (createWorkQueue_childGroupsUnique _) canonical events matching
+      (fun _ member => workFromSpec_groups_parentCanonical_root canonical member))
+    (createWorkQueue_childGroupsUnique _) (State.initialize_registrationFrame generated.declarations) canonical events matching
 
 /-- Initial and all raw carried group refs are globally duplicate-free.
 Witness: unique initialization and per-carrier lists combine with independently proved

@@ -1,6 +1,7 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.InitialAncestorAccounting
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.InitialRootCoverage
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.ImmediateStreamCoverage
+import Proofs.GraphQL.IncrementalDelivery.Semantics.WorkSize
 
 /-! The reference constructor derives the work-queue initialization contract.
 No event-source or supplied initial-notice premise is needed.
@@ -24,7 +25,7 @@ theorem ExecutedWork.initialGroup_notice_exists {work group dependencies}
   obtain ⟨address, groups, path, result, children, enclosing, fragment,
     located, member, rfl, rfl⟩ := known
   have taskKnown : TaskAt work (.executionGroup address)
-      (groups.map (fun group => group.node.ref)) none (.object path result) :=
+      (groups.map (fun group => group.node.ref)) none (.object path result.deliveryResult) :=
     .executionGroup located
   obtain ⟨task, registered, _, owners⟩ :=
     TaskAt.executionGroup_initial_registered taskKnown
@@ -32,7 +33,7 @@ theorem ExecutedWork.initialGroup_notice_exists {work group dependencies}
     rw [owners]
     exact List.mem_map_of_mem member
   obtain ⟨node, live, same, _⟩ := createWorkQueue_healthyRegisteredTaskAccounting work
-    task registered (by simp) fragment.node.ref contributes
+    generated task registered (by simp) fragment.node.ref contributes
     (fun failure => failure.nonempty rfl)
   have found := (createWorkQueue_groupRefsUnique (Work.fromExecution work)).groupNode?_of_mem live
   rw [same] at found

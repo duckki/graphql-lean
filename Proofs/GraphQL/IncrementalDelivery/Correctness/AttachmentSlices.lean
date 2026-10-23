@@ -19,6 +19,9 @@ mutual
     cases h with
     | empty =>
         cases ha; rfl
+    | declareGroups known =>
+        cases ha with
+        | declareGroups attached => exact known.attached_length attached
     | combine hl hr =>
         cases ha with
         | combine hal har =>
@@ -34,7 +37,7 @@ mutual
   induction.
   -/
   theorem ItemEntries.attached_length {path other : ResponsePath} {index next : Nat}
-      {items : List (Result ResponseValue × Work)} {entries : List (List Entry)}
+      {items : List (TaskOutcome ResponseValue × Work)} {entries : List (List Entry)}
       {available : List Entry} {slices : List (List ResponsePath)}
       (h : ItemEntries path index items entries)
       (ha : ItemsAttached available other next items slices)
@@ -56,7 +59,7 @@ theorem value_paths_head (path : ResponsePath) (data : ResponseValue)
 /-- Nonempty successful item slices fix their starting index, by equating the
 first item's root path in the typed and attachment witnesses. -/
 theorem ItemsAttached.index_eq {available : List Entry} {path : ResponsePath}
-    {left right : Nat} {items : List (Result ResponseValue × Work)}
+    {left right : Nat} {items : List (TaskOutcome ResponseValue × Work)}
     {entries : List (List Entry)} (h : ItemEntries path left items entries)
     (hs : ItemsSuccess items)
     (ha : ItemsAttached available path right items (entryPaths entries)) (hn : items ≠ [])
@@ -64,11 +67,11 @@ theorem ItemsAttached.index_eq {available : List Entry} {path : ResponsePath}
   cases h with
   | nil => exact (hn rfl).elim
   | @cons _ _ completed children tail cs ts hc ht =>
-      obtain ⟨data, rfl⟩ := hs.1
-      generalize he : entryPaths (result (value (path ++ [.index left])) (.ok (data, 0)) :: (cs ++ ts)) = slices at ha
+      obtain ⟨data, success⟩ := hs.1
+      generalize he : entryPaths (result (value (path ++ [.index left])) completed.result :: (cs ++ ts)) = slices at ha
       cases ha with
       | cons hac hat =>
-          simp only [entryPaths, List.map_cons, List.map_append, result, value_paths, DeliveryPaths.result] at he
+          simp only [success, entryPaths, List.map_cons, List.map_append, result, value_paths, DeliveryPaths.result] at he
           have hh := congrArg List.head? (List.cons.inj he).1
           rw [value_paths_head, value_paths_head] at hh
           have heq := List.append_cancel_left (Option.some.inj hh)

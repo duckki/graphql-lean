@@ -1,3 +1,4 @@
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.WorkDeclarations
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.PrunedFrontierUniqueness
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.FailureDescendants
 
@@ -173,13 +174,18 @@ theorem State.pruneEmptyGroups_budget_complete {queue : State} {parents groups}
     (unique : (groups.map Execution.DeliveryNode.ref).Nodup)
     (live : ∀ group ∈ groups, ∃ node, queue.groupNode? group.ref = some node)
     (extra : Nat)
-    : State.pruneEmptyGroups.go (queue.groupNodes.length + groups.length + 1 + extra)
-        queue groups []
-      = queue.pruneEmptyGroups groups := by
-  apply PruningFrontier.fuel_add (parents := parents)
-  · exact ⟨links, children, by simpa using frontier,
-      by simpa using unique, by simpa using live⟩
-  · simp only [List.length_nil]; omega
+    : let result :=
+        State.pruneEmptyGroups.go
+          (queue.groupNodes.length + groups.length + 1 + extra) queue groups []
+      result = queue.pruneEmptyGroups groups := by
+  have same := PruningFrontier.fuel_add (parents := parents)
+    (fuel := queue.groupNodes.length + groups.length + 1)
+    (remaining := groups) (kept := [])
+    (show PruningFrontier queue parents groups [] from
+      ⟨links, children, by simpa using frontier,
+        by simpa using unique, by simpa using live⟩)
+    (by simp only [List.length_nil]; omega) extra
+  exact same
 
 -----------------------------------------------------------------------------------------
 -- Every surviving descendant remains covered by a retained frontier root
@@ -323,11 +329,15 @@ theorem State.pruneEmptyGroups_surviving_descendant {queue : State}
     (survives : ∃ node, (queue.pruneEmptyGroups groups).1.groupNode? target = some node)
     : ∃ root ∈ (queue.pruneEmptyGroups groups).2,
         (queue.pruneEmptyGroups groups).1.LiveDescendant root.ref target := by
-  apply PruningFrontier.covers (parents := parents) (survives := survives)
-  · exact ⟨links, children, by simpa using frontier,
-      by simpa using unique, by simpa using live⟩
-  · simp only [List.length_nil]; omega
-  · simpa using covered
+  have result := PruningFrontier.covers (parents := parents)
+    (remaining := groups) (kept := [])
+    (fuel := queue.groupNodes.length + groups.length + 1)
+    (show PruningFrontier queue parents groups [] from
+      ⟨links, children, by simpa using frontier,
+        by simpa using unique, by simpa using live⟩)
+    (by simp only [List.length_nil]; omega) (by simpa using covered) survives
+  obtain ⟨root, member, path⟩ := result
+  exact ⟨root, by simpa only [State.pruneEmptyGroups] using member, path⟩
 
 -----------------------------------------------------------------------------------------
 -- Surviving roots also keep their original descendant paths

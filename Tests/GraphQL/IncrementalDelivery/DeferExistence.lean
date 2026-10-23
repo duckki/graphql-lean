@@ -1,5 +1,6 @@
 import Proofs.GraphQL.IncrementalDelivery.Correctness.DeferExistence
 import Proofs.GraphQL.IncrementalDelivery.Correctness.QueryRealization
+import Proofs.GraphQL.IncrementalDelivery.Semantics.WorkSize
 
 /-! Shared deferred owners retain causal support through nested task producers. -/
 
@@ -14,9 +15,18 @@ open WorkQueueSemantics
 -/
 def Tree : Work → Prop
   | .empty => True
+  | .declareGroups _ tasks => Tree tasks
   | .combine left right => Tree left ∧ Tree right
   | .executionGroup _ _ _ children => Tree children
   | .stream .. => False
+
+/-- Declaration metadata leaves the fixture's recursive shape certificate intact. -/
+theorem Tree.withoutDeclarations {work} (shape : Tree work)
+    : Tree work.withoutDeclarations := by
+  cases work with
+  | declareGroups groups tasks => exact Tree.withoutDeclarations (work := tasks) shape
+  | empty | combine | executionGroup | stream => exact shape
+termination_by sizeOf work
 
 /-- Every located subtree retains the recursive certificate, by navigation induction. -/
 theorem Tree.located {work address current producer owners}
@@ -25,10 +35,11 @@ theorem Tree.located {work address current producer owners}
   have navigation := StructuralEquivalence.located_of_current located
   clear located
   induction navigation with
-  | root => exact shape
-  | left _ ih => exact ih.1
-  | right _ ih => exact ih.2
-  | executionGroup _ ih => exact ih
+  | root => exact shape.withoutDeclarations
+  | left _ ih => exact ih.1.withoutDeclarations
+  | right _ ih => exact ih.2.withoutDeclarations
+  | @executionGroup address groups path result children producer owners located ih =>
+      exact Tree.withoutDeclarations (work := children) ih
   | item _ _ ih => exact False.elim ih
 
 /-- The recursive test certificate implies the relational defer-only work shape.
@@ -45,13 +56,13 @@ def node (ref : NodeRef) : DeliveryNode := { ref, path := [] }
 
 /-- A shared producer reveals a shared child whose owners have different ancestors. -/
 def work (first second : Result (List (Name × ResponseValue))) : Work :=
-  .executionGroup [{ node := node 0 }, { node := node 1 }] [] first
+  .executionGroup [{ node := node 0 }, { node := node 1 }] [] { result := first }
     (.executionGroup
       [
         { node := node 2, ancestors := [node 0] },
         { node := node 3, ancestors := [node 1] }
       ]
-      [] second .empty)
+      [] { result := second } .empty)
 
 /-- Each produced owner inherits the ancestry of its own supporting producer owner. -/
 def ancestors (ref : NodeRef) : NodeRefs :=
@@ -73,7 +84,8 @@ example (first second : Result (List (Name × ResponseValue)))
   · simp [work, MixedRefs.WorkAt, FragmentAt, node, ancestors]
   · simp [work, DeferContinuous, DeferUnder, Descends, mapRefs, node, ancestors]
   · simp [work, StreamOwnersOrdered, OwnersBefore]
-  · exact TaskAt.executionGroup (.executionGroup .root)
+  · simpa using (TaskAt.executionGroup (result := { result := second }) (Located.executionGroup (Located.root (root := work first second)))
+      : TaskAt (work first second) (.executionGroup [0]) _ _ _)
   · exact member
   · exact cancelled
 
@@ -116,8 +128,10 @@ theorem shared_run_exists (first second : Result (List (Name × ResponseValue)))
 account for one; the child still requires the full transitive ancestry to be satisfied.
 -/
 def silent (first second : Result (List (Name × ResponseValue))) : Work :=
-  .executionGroup [{ node := node 0 }, { node := node 1, ancestors := [node 0] }] [] first
-    (.executionGroup [{ node := node 2, ancestors := [node 1, node 0] }] [] second .empty)
+  .executionGroup [{ node := node 0 }, { node := node 1, ancestors := [node 0] }] []
+    { result := first }
+    (.executionGroup [{ node := node 2, ancestors := [node 1, node 0] }] []
+      { result := second } .empty)
 
 /-- Full transitive ancestry includes the silently accounted owner's ancestor. -/
 def silentAncestors (ref : NodeRef) : NodeRefs :=

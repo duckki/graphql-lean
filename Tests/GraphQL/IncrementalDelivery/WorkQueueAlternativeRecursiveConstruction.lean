@@ -122,18 +122,18 @@ example
         ∧ next 10 = 14
         ∧ CompletionRefines next cut.1 eager.1 := by
   obtain ⟨next, related⟩ := constructed
-  have outer := related.completion.2.locate [0, 1, 0, 1]
-  have before := related.completion.2.locate [0, 1, 0, 1, 0, 0, 1, 0, 1]
-  have after := related.completion.2.locate [0, 1, 0, 1, 0, 0, 1, 1, 1, 0, 1]
-  have deferred := related.completion.2.locate [0, 1, 0, 1, 0, 1, 0, 0, 0, 1]
-  have later := related.completion.2.locate [0, 1, 1, 0, 1]
+  have outer := related.completion.2.1.locate [0, 1, 0, 1]
+  have before := related.completion.2.1.locate [0, 1, 0, 1, 0, 0, 1, 0, 1]
+  have after := related.completion.2.1.locate [0, 1, 0, 1, 0, 0, 1, 1, 1, 0, 1]
+  have deferred := related.completion.2.1.locate [0, 1, 0, 1, 0, 1, 0, 0, 0, 1]
+  have later := related.completion.2.1.locate [0, 1, 1, 0, 1]
   cbv at outer before after deferred later
   refine ⟨next, stream_key outer.1, stream_key before.1, stream_key after.1,
     stream_key deferred.1, stream_key later.1, ?_, related.completion⟩
   simpa only [show cut.2 = 10 by cbv, show eager.2 = 14 by cbv]
     using related.supplies.boundary
 
-private def streamItems (work : Work) : List (Result ResponseValue × Work) :=
+private def streamItems (work : Work) : List (TaskOutcome ResponseValue × Work) :=
   match WorkQueueSemantics.locateWork work [0, 1, 0, 1] with
   | some ⟨.stream _ items, _, _⟩ => items
   | _ => []
@@ -145,8 +145,10 @@ example
   cbv
 
 example
-    : (streamItems cut.1.work)[1]? = some (.error 2, .empty)
-      ∧ (streamItems eager.1.work)[1]? = some (.error 3, .empty) := by cbv
+    : (streamItems cut.1.work)[1]?
+        = some ({ result := .error 2, cause := some 1 }, .empty)
+      ∧ (streamItems eager.1.work)[1]?
+        = some ({ result := .error 3, cause := some 1 }, .empty) := by cbv
 
 -----------------------------------------------------------------------------------------
 -- Ordinary lists also construct maps after inherited gaps and caught object failures
@@ -282,16 +284,16 @@ private def firstItem : WorkQueueSemantics.Occurrence := .item [0, 1, 0, 1] 0
 
 private theorem fatal_task
     : WorkQueueSemantics.TaskAt cut.1.work fatalItem [0] none
-        (.item { ref := 0, path := [.field "users"] } (.error 2)) := by
+        (.item { ref := 0, path := [.field "users"] } (.error 1)) := by
   refine ⟨{ ref := 0, path := [.field "users"] }, streamItems cut.1.work,
-    [], .error 2, .empty, ?_, ?_, rfl, rfl⟩
+    [], { result := .error 2, cause := some 1 }, .empty, ?_, ?_, rfl, rfl⟩
   · cbv
   · cbv
 
 private theorem first_task
     : ∃ value, WorkQueueSemantics.TaskAt cut.1.work firstItem [0] none value := by
   let item := (streamItems cut.1.work)[0]'(by cbv)
-  refine ⟨.item { ref := 0, path := [.field "users"] } item.1,
+  refine ⟨.item { ref := 0, path := [.field "users"] } item.1.deliveryResult,
     { ref := 0, path := [.field "users"] }, streamItems cut.1.work,
     [], item.1, item.2, ?_, ?_, rfl, rfl⟩
   · cbv
@@ -309,13 +311,13 @@ example
     : ∃ next,
         WorkSemanticsRefines next cut.1.work eager.1.work
         ∧ WorkQueueSemantics.TaskAt eager.1.work fatalItem [1] none
-            (.item { ref := 1, path := [.field "users"] } (.error 3))
+            (.item { ref := 1, path := [.field "users"] } (.error 1))
         ∧ WorkQueueSemantics.Causality.NodeFailed eager.1.work [fatalItem]
             (fun _ => False) 1
         ∧ WorkQueueSemantics.Causality.TaskCancelled eager.1.work [fatalItem]
             (fun _ => False) firstItem := by
   obtain ⟨next, related, semantics⟩ := constructed_semantics
-  have outer := related.completion.2.locate [0, 1, 0, 1]
+  have outer := related.completion.2.1.locate [0, 1, 0, 1]
   cbv at outer
   have owner : next 0 = 1 := stream_key outer.1
   have failure : WorkQueueSemantics.Causality.NodeFailed cut.1.work [fatalItem] (fun _ => False) 0 :=
@@ -328,7 +330,7 @@ example
   · obtain ⟨after, actual, _⟩ := semantics.tasks _ _ _ _ fatal_task
     have exactLookup : ∀ payload,
         WorkQueueSemantics.TaskAt eager.1.work fatalItem [1] none payload
-        → payload = .item { ref := 1, path := [.field "users"] } (.error 3) := by
+        → payload = .item { ref := 1, path := [.field "users"] } (.error 1) := by
       intro payload known
       rcases known with ⟨node, items, enclosing, result, children, located, item, _, rfl⟩
       cbv at located

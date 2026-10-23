@@ -1,3 +1,6 @@
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.Conformance
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.ExecutedTaskErrors
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.TerminalReporting
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.DescriptorMetadata
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.GraphEvents
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.CancellationPreservation
@@ -5,6 +8,7 @@ import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.CancellationRe
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.FiniteHistories
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.Minimality
 import Tests.GraphQL.IncrementalDelivery.Execution
+import Proofs.GraphQL.IncrementalDelivery.Semantics.WorkSize
 
 /-! A shared success can register a child after its failed parent has been removed. -/
 
@@ -35,26 +39,35 @@ private def keepData : List (Name × ResponseValue) := [("keepQ", .scalar "a")]
 private def children : Execution.Work :=
   .combine
     (.combine .empty
-      (.combine
-        (.executionGroup [⟨c, [p]⟩, ⟨d, [q]⟩, ⟨r, []⟩] [.field "user"] (.error 1) .empty)
+      (.declareGroups [⟨c, [p]⟩, ⟨d, [q]⟩]
         (.combine
-          (.executionGroup [⟨d, [q]⟩, ⟨s, []⟩] [.field "user"] (.error 1) .empty)
-          .empty)))
+          (.executionGroup [⟨c, [p]⟩, ⟨d, [q]⟩, ⟨r, []⟩] [.field "user"]
+            ({ result := .error 1, cause := some 1 }) .empty)
+          (.combine
+            (.executionGroup [⟨d, [q]⟩, ⟨s, []⟩] [.field "user"]
+              ({ result := .error 1, cause := some 1 }) .empty)
+            .empty))))
     .empty
 
 private def work : Execution.Work :=
   .combine .empty
-    (.combine (.executionGroup [⟨p, []⟩] [] (.error 1) .empty)
+    (.declareGroups [⟨p, []⟩, ⟨q, []⟩, ⟨r, []⟩, ⟨s, []⟩]
       (.combine
-        (.executionGroup [⟨p, []⟩, ⟨q, []⟩, ⟨r, []⟩, ⟨s, []⟩] []
-          (.ok (userData, 0)) children)
+        (.executionGroup [⟨p, []⟩] [] ({ result := .error 1, cause := some 1 }) .empty)
         (.combine
-          (.executionGroup [⟨q, []⟩] [] (.ok (keepData, 0)) (.combine .empty .empty))
-          (.combine (.executionGroup [⟨r, []⟩] [] (.error 2) .empty) .empty))))
+          (.executionGroup [⟨p, []⟩, ⟨q, []⟩, ⟨r, []⟩, ⟨s, []⟩] []
+            ({ result := .ok (userData, 0) }) children)
+          (.combine
+            (.executionGroup [⟨q, []⟩] [] ({ result := .ok (keepData, 0) })
+              (.combine .empty .empty))
+            (.combine
+              (.executionGroup [⟨r, []⟩] [] ({ result := .error 2, cause := some 1 })
+                .empty)
+              .empty)))))
 
 private def killP : GraphEvent := .taskFailure pTask 1
 private def killY : GraphEvent := .taskFailure yTask 1
-private def killR : GraphEvent := .taskFailure rTask 2
+private def killR : GraphEvent := .taskFailure rTask 1
 private def killX : GraphEvent := .taskFailure xTask 1
 
 private def expand : GraphEvent :=
@@ -72,8 +85,10 @@ private def finish : GraphEvent :=
       work := Work.fromExecution (.combine .empty .empty) [1, 1, 1, 0, 0]
     }
 
+private def notice : GraphEvent := .groupFailure ⟨d, 2⟩
+
 private def inputs : List (List GraphEvent) :=
-  [[killP], [expand], [killY], [killR], [killX], [finish]]
+  [[killP], [expand], [killY], [killR], [killX], [finish, notice]]
 
 private def rejectedOutputs : List (List Execution.WorkQueueEvent) :=
   [
@@ -86,7 +101,7 @@ private def rejectedOutputs : List (List Execution.WorkQueueEvent) :=
       .groupValues q
         [{ path := [], data := keepData, errors := 0, deliveryGroups := [q] }],
       .groupSuccess q [d] [],
-      .groupFailure d 2,
+      .groupFailure d 3,
       .workQueueTermination
     ]
   ]
@@ -95,14 +110,14 @@ private def correctedOutputs : List (List Execution.WorkQueueEvent) :=
   [
     [.groupFailure p 1],
     [.groupFailure s 1],
-    [.groupFailure r 2],
+    [.groupFailure r 1],
     [
       .groupValues q
         [{ path := [], data := userData, errors := 0, deliveryGroups := [p, q, r, s] }],
       .groupValues q
         [{ path := [], data := keepData, errors := 0, deliveryGroups := [q] }],
       .groupSuccess q [d] [],
-      .groupFailure d 1,
+      .groupFailure d 2,
       .workQueueTermination
     ]
   ]
@@ -124,7 +139,7 @@ theorem generated : ExecutedWork work := by
 
 /-- P's private failure descriptor. Witness: the root task's structural address. -/
 private theorem p_known : TaskAt work pTask [p.ref] none (.object [] (.error 1)) :=
-  ⟨_, [], .error 1, .empty, [], rfl, rfl, rfl⟩
+  ⟨_, [], { result := .error 1, cause := some 1 }, .empty, [], rfl, rfl, rfl⟩
 
 /-- P's first failure establishes causal support for every ref it cancels.
 Witness: the general handler theorem with generated parent metadata and actual task
@@ -144,8 +159,8 @@ theorem first_failure_cancellation_supported
       (fun _ member =>
         workFromSpec_groups_parentCanonical
           (Located.root (root := work)) canonical member))
-    canonical killP ⟨_, _, _, p_known⟩
-  intro occurrence errors same _ _ _
+    (createWorkQueue_groupMembershipSound _) canonical killP ⟨_, _, _, p_known⟩
+  intro occurrence errors same _ _
   have equal : occurrence = pTask := by cases same; rfl
   simp [equal]
 
@@ -153,28 +168,28 @@ theorem first_failure_cancellation_supported
 private theorem u_known
     : TaskAt work uTask [p.ref, q.ref, r.ref, s.ref] none
         (.object [] (.ok (userData, 0))) :=
-  ⟨_, [], .ok (userData, 0), children, [], rfl, rfl, rfl⟩
+  ⟨_, [], { result := .ok (userData, 0) }, children, [], rfl, rfl, rfl⟩
 
 /-- X's descriptor. Witness: the first nested failure under the shared producer. -/
 private theorem x_known
     : TaskAt work xTask [c.ref, d.ref, r.ref] (some uTask)
         (.object [.field "user"] (.error 1)) :=
-  ⟨_, _, .error 1, .empty, _, rfl, rfl, rfl⟩
+  ⟨_, _, { result := .error 1, cause := some 1 }, .empty, _, rfl, rfl, rfl⟩
 
 /-- Y's descriptor. Witness: the second nested failure under the shared producer. -/
 private theorem y_known
     : TaskAt work yTask [d.ref, s.ref] (some uTask)
         (.object [.field "user"] (.error 1)) :=
-  ⟨_, _, .error 1, .empty, _, rfl, rfl, rfl⟩
+  ⟨_, _, { result := .error 1, cause := some 1 }, .empty, _, rfl, rfl, rfl⟩
 
 /-- Q's remaining success descriptor. Witness: its root address and fixed scalar value. -/
 private theorem q_known
     : TaskAt work qTask [q.ref] none (.object [] (.ok (keepData, 0))) :=
-  ⟨_, [], .ok (keepData, 0), .combine .empty .empty, [], rfl, rfl, rfl⟩
+  ⟨_, [], { result := .ok (keepData, 0) }, .combine .empty .empty, [], rfl, rfl, rfl⟩
 
 /-- R's private two-error descriptor. Witness: the last root task's structural address. -/
-private theorem r_known : TaskAt work rTask [r.ref] none (.object [] (.error 2)) :=
-  ⟨_, [], .error 2, .empty, [], rfl, rfl, rfl⟩
+private theorem r_known : TaskAt work rTask [r.ref] none (.object [] (.error 1)) :=
+  ⟨_, [], { result := .error 2, cause := some 1 }, .empty, [], rfl, rfl, rfl⟩
 
 /-- Every settlement matches its fixed outcome, is fresh, and follows its producer.
 Witness: six source-extension steps; the nested failures follow the shared user success.
@@ -203,50 +218,66 @@ theorem source_valid : ValidGraphEvents work inputs.flatten := by
       (by simp [GraphEvent.Fresh, GraphEvent.identities, killP, expand, killY, killR, killX,
         pTask, uTask, yTask, rTask, xTask])
       ⟨_, _, _, x_known, by simp [GraphEvent.successes, killP, expand, killY, killR]⟩
-  exact .append four ⟨_, _, q_known, rfl, rfl⟩
+  have five : ValidGraphEvents work [killP, expand, killY, killR, killX, finish] :=
+    .append four ⟨_, _, q_known, rfl, rfl⟩
     (by simp [GraphEvent.Fresh, GraphEvent.identities, killP, expand, killY, killR, killX,
       finish, pTask, uTask, yTask, rTask, xTask, qTask])
     ⟨_, _, _, q_known, by intro source impossible; cases impossible⟩
+  exact .append five
+    ⟨
+      ⟨
+        [q.ref],
+        some uTask,
+        NodeAt.group
+          (address := [1, 1, 0, 0, 0, 1, 1, 0]) (group := ⟨d, [q]⟩)
+          (by rfl) (by simp)
+      ⟩,
+      by decide
+    ⟩
+    (by simp [notice, killP, expand, killY, killR, killX, finish,
+      GraphEvent.Fresh, GraphEvent.identities]) trivial
 
 /-- The actual start checker accepts all six settlements, including the late failure.
 Witness: executable initialization and replay; X was started through R before R failed.
 -/
 theorem inputs_started : inputsStarted work inputs = true := by cbv
 
-/-- The actual guard excludes X's ignored failure from the final cause inventory.
-Witness: evaluate the existing accepted-failure projection through all six source events.
+/-- Presence accepts X's late rejection as well as the three earlier source failures.
+Witness: the projection follows every actual handler boundary.
 -/
 theorem accepted_failure_inventory
     : (State.initialize (Work.fromExecution work)).objectFailureContributions
         inputs.flatten
-      = [rTask, yTask, pTask] := by cbv
+      = [xTask, rTask, yTask, pTask] := by cbv
 
 /-- Every cancellation in the complete split-batch replay has an accepted failure cause.
-Witness: the general generated-replay theorem and the actual guard-selected inventory,
-which omits X while covering late registration and the final retained-failure drain. -/
+Witness: generated replay covers late registration and the retained-rejection drain
+under the complete received-failure inventory. -/
 theorem replay_cancellation_supported
     : ((State.initialize (Work.fromExecution work)).runNormalized
         inputs).1.CancelledRecordsSupported
-        work [rTask, yTask, pTask] := by
+        work [xTask, rTask, yTask, pTask] := by
   have supported := generated.runNormalized_cancelledRecordsSupported inputs source_valid
     inputs_started
-  simpa only [accepted_failure_inventory] using supported
+  simpa only [show GraphEvent.failureSettlements inputs.flatten
+    = [xTask, rTask, yTask, pTask] by cbv]
+    using supported
 
-/-- Joined input batching derives the same cancellation causes without counting X.
+/-- Joined input batching derives the same complete cancellation inventory.
 Witness: start discipline for the joined batch and general normalized replay support. -/
 theorem joined_cancellation_supported
     : State.CancelledRecordsSupported
         ((State.initialize (Work.fromExecution work)).runNormalized [inputs.flatten]).1
-        work [rTask, yTask, pTask] := by
+        work [xTask, rTask, yTask, pTask] := by
   have valid : ValidGraphEvents work [inputs.flatten].flatten := by
     simpa using source_valid
   have supported := generated.runNormalized_cancelledRecordsSupported [inputs.flatten]
     valid (by cbv)
   simpa only [List.flatten_cons, List.flatten_nil, List.append_nil,
-    accepted_failure_inventory]
+    show GraphEvent.failureSettlements inputs.flatten = [xTask, rTask, yTask, pTask] by cbv]
     using supported
 
-/-- The queue emits P1, S1, R2, then announces D and reports only Y's one error.
+/-- The queue emits P1, S1, R1, then announces D and aggregates two cached rejections.
 Witness: executable queue and publisher replay, including the final termination marker.
 -/
 theorem output
@@ -265,7 +296,7 @@ theorem late_child_stays_cancelled
       ∧ before.groupNode? c.ref = none
       ∧ before.cancelledGroups.contains p.ref = true
       ∧ before.cancelledGroups.contains c.ref = true
-      ∧ before.groupIsHealthy c.ref = false := by cbv
+      ∧ before.cancelledGroups.contains c.ref = true := by cbv
 
 /-- The same correction holds when the host supplies all settlements in one batch.
 Witness: executable replay preserves the corrected atomic outputs under joined input.
@@ -280,7 +311,7 @@ Witness: after the shared success, D and R still admit X's settlement and R clos
 theorem healthy_coowner_preserved
     : let before :=
         ((State.initialize (Work.fromExecution work)).runNormalized (inputs.take 2)).1
-      before.taskHasHealthyOwner ⟨xTask, [c, d, r]⟩ = true
+      (before.taskNode? xTask).isSome = true
       ∧ (before.taskFailure xTask 1).2 = [.groupFailure r 1] := by cbv
 
 private def grandchild : DeliveryNode := ⟨6, [.field "user"], none⟩
@@ -305,15 +336,20 @@ theorem late_child_never_recreated (later : List (List GraphEvent))
   · simp [p, c]
   · rfl
   · rfl
+  · rfl
   · simp
 
 /-- Candidate order cannot hide the subsequently discovered cancellation of a parent.
-Witness: register a grandchild first, then retire C; the missing-parent walk rejects it.
+Witness: register a grandchild first,
+  then cancel C and the grandchild through parent-first traversal.
 -/
 theorem child_first_registration
     : let retired : State := { registeredGroups := [p.ref], cancelledGroups := [p.ref] }
       let next := (retired.addGroups [⟨grandchild, some c.ref⟩, ⟨c, some p.ref⟩]).1
-      next.groupNode? c.ref = none ∧ next.groupIsHealthy grandchild.ref = false := by cbv
+      next.groupNode? c.ref = none
+      ∧ next.cancelledGroups.contains c.ref = true
+      ∧ next.groupNode? grandchild.ref = none
+      ∧ next.cancelledGroups.contains grandchild.ref = true := by cbv
 
 /-- Initialization of the generated fixture does not invent a cancelled group.
 Witness: the general initialization equation, independent of outcomes and source order. -/
@@ -335,7 +371,7 @@ theorem successful_retirement_keeps_cancellations (prior : NodeRefs)
       (queue.finishGroupSuccess parent).1.cancelledGroups = prior := by
   exact State.finishGroupSuccess_cancelledGroups _ _
 
-/-- Successful removal remains distinct from cancellation for future health walks.
+/-- Successful removal preserves an uncancelled registration boundary.
 Witness: successful group closure and empty-group pruning leave no cancellation ref.
 -/
 theorem successful_retirement_preserved
@@ -344,8 +380,10 @@ theorem successful_retirement_preserved
         { registeredGroups := [p.ref], rootGroups := [p.ref], groupNodes := [parent] }
       let closed := (initial.finishGroupSuccess parent).1
       let pruned := (initial.pruneEmptyGroups [p]).1
-      (closed.addGroup ⟨c, some p.ref⟩).groupIsHealthy c.ref = true
-      ∧ (pruned.addGroup ⟨c, some p.ref⟩).groupIsHealthy c.ref = true := by cbv
+      (closed.addGroup ⟨c, some p.ref⟩).cancelledGroups = []
+      ∧ (closed.addGroup ⟨c, some p.ref⟩).groupNode? c.ref = none
+      ∧ (pruned.addGroup ⟨c, some p.ref⟩).cancelledGroups = []
+      ∧ (pruned.addGroup ⟨c, some p.ref⟩).groupNode? c.ref = none := by cbv
 
 /-- Failure retirement remembers both existing descendants and the removed ancestor.
 Witness: traverse P/C and reject a subsequently arriving grandchild of C.
@@ -358,153 +396,20 @@ theorem existing_descendants_retired
       ∧ (retired.addGroup ⟨grandchild, some c.ref⟩).groupNode? grandchild.ref = none := by
   cbv
 
------------------------------------------------------------------------------------------
--- Exact completion counts determine the required failure ordering
------------------------------------------------------------------------------------------
-
-/-- These six occurrences exhaust the tasks. Witness: the finite observation inventory. -/
-private theorem task_cases {occurrence owners producer payload}
-    (known : TaskAt work occurrence owners producer payload)
-    : occurrence = pTask
-      ∨ occurrence = uTask
-      ∨ occurrence = xTask
-      ∨ occurrence = yTask
-      ∨ occurrence = qTask
-      ∨ occurrence = rTask := by
-  have member := known.observationToken
-  simpa [observationTokens, work, children, pTask, uTask, xTask, yTask, qTask, rTask]
-    using member
-
-open Classical in
-/-- A unique list counts a chosen occurrence at most once. Witness: list induction. -/
-private theorem sum_indicator (failed : List Occurrence) (unique : failed.Nodup)
-    (target : Occurrence) (amount : Nat)
-    : (failed.map (fun occurrence => if occurrence = target then amount else 0)).sum
-      = if target ∈ failed then amount else 0 := by
-  induction failed with
-  | nil => simp
-  | cons occurrence rest ih =>
-      have fresh := List.nodup_cons.mp unique
-      by_cases same : occurrence = target
-      · subst occurrence
-        simp [ih fresh.2, fresh.1]
-      · simp [same, Ne.symm same, ih fresh.2]
-
-/-- Summing contributions distributes over addition. Witness: list induction. -/
-private theorem sum_add (failed : List Occurrence) (left right : Occurrence → Nat)
-    : (failed.map (fun occurrence => left occurrence + right occurrence)).sum
-      = (failed.map left).sum + (failed.map right).sum := by
-  induction failed with
-  | nil => simp
-  | cons occurrence rest ih => simp [ih, Nat.add_assoc, Nat.add_left_comm]
-
-open Classical in
-/-- Only the four failing tasks contribute errors, once each in a unique inventory.
-Witness: fixed task descriptors determine each summand; finite indicator sums count it.
--/
-private theorem counts {failed ref errors} (unique : failed.Nodup)
-    (counted : NodeErrors work failed ref errors)
-    : errors
-      = (if pTask ∈ failed then if ref ∈ [p.ref] then 1 else 0 else 0)
-        + (if xTask ∈ failed then if ref ∈ [c.ref, d.ref, r.ref] then 1 else 0 else 0)
-        + (if yTask ∈ failed then if ref ∈ [d.ref, s.ref] then 1 else 0 else 0)
-        + (if rTask ∈ failed then if ref ∈ [r.ref] then 2 else 0 else 0) := by
-  obtain ⟨contribution, values, total⟩ := counted
-  have exactValue : ∀ occurrence ∈ failed,
-      contribution occurrence =
-        (if occurrence = pTask then if ref ∈ [p.ref] then 1 else 0 else 0)
-        + (if occurrence = xTask then if ref ∈ [c.ref, d.ref, r.ref] then 1 else 0 else 0)
-        + (if occurrence = yTask then if ref ∈ [d.ref, s.ref] then 1 else 0 else 0)
-        + (if occurrence = rTask then if ref ∈ [r.ref] then 2 else 0 else 0) := by
-    intro occurrence member
-    obtain ⟨owners, producer, payload, known, assigned⟩ := values occurrence member
-    rcases task_cases known with rfl | rfl | rfl | rfl | rfl | rfl
-    · obtain ⟨rfl, _, rfl⟩ := known.unique p_known
-      simpa [pTask, xTask, yTask, rTask, Payload.failure] using assigned
-    · obtain ⟨rfl, _, rfl⟩ := known.unique u_known
-      simpa [pTask, uTask, xTask, yTask, rTask, Payload.failure] using assigned
-    · obtain ⟨rfl, _, rfl⟩ := known.unique x_known
-      simpa [pTask, xTask, yTask, rTask, Payload.failure] using assigned
-    · obtain ⟨rfl, _, rfl⟩ := known.unique y_known
-      simpa [pTask, xTask, yTask, rTask, Payload.failure] using assigned
-    · obtain ⟨rfl, _, rfl⟩ := known.unique q_known
-      simpa [pTask, qTask, xTask, yTask, rTask, Payload.failure] using assigned
-    · obtain ⟨rfl, _, rfl⟩ := known.unique r_known
-      simpa [pTask, xTask, yTask, rTask, Payload.failure] using assigned
-  rw [total, List.map_congr_left exactValue]
-  simp only [sum_add, sum_indicator failed unique]
-
-/-- P's report forces its own failure; S's report forces Y; R2 excludes X; D2 needs X.
-Witness: specialize the exact finite count formula at the four reporting group refs.
--/
-private theorem count_constraints {failed} (unique : failed.Nodup)
-    : (NodeErrors work failed p.ref 1 → pTask ∈ failed)
-      ∧ (NodeErrors work failed s.ref 1 → yTask ∈ failed)
-      ∧ (NodeErrors work failed r.ref 2 → rTask ∈ failed ∧ xTask ∉ failed)
-      ∧ (NodeErrors work failed d.ref 2 → xTask ∈ failed) := by
-  classical
-  refine ⟨?_, ?_, ?_, ?_⟩
-  · intro counted
-    have total := counts unique counted
-    apply Classical.byContradiction
-    intro absent
-    simp [p, r, c, d, s, absent] at total
-  · intro counted
-    have total := counts unique counted
-    apply Classical.byContradiction
-    intro absent
-    simp [p, r, c, d, s, absent] at total
-  · intro counted
-    have total := counts unique counted
-    by_cases recorded : rTask ∈ failed
-    · refine ⟨recorded, ?_⟩
-      intro included
-      simp [p, r, c, d, s, recorded, included] at total
-    · by_cases included : xTask ∈ failed
-        <;> simp [p, r, c, d, s, recorded, included] at total
-  · intro counted
-    have total := counts unique counted
-    apply Classical.byContradiction
-    intro absent
-    by_cases included : yTask ∈ failed
-      <;> simp [p, r, d, s, absent, included] at total
-
-/-- Visible failures have bounded cuts. Witness: invert filtering and mapping. -/
-private theorem cut_of_member {failures bound occurrence}
-    (member : occurrence ∈ failedBefore failures bound)
-    : ∃ cut, (cut, occurrence) ∈ failures ∧ cut ≤ bound := by
-  obtain ⟨⟨cut, other⟩, kept, same⟩ := List.mem_map.mp member
-  obtain ⟨included, bounded⟩ := List.mem_filter.mp kept
-  dsimp only at same
-  subst other
-  exact ⟨cut, included, of_decide_eq_true bounded⟩
-
-/-- A strictly earlier failure cut must occur before a selected entry in ordered evidence.
-Witness: any later-list occurrence would reverse the witness's nondecreasing cut order.
--/
-private theorem prior_entry {initial matching events failures before after cut occurrence}
-    (witness : FailureWitness work initial matching events failures)
-    (split : failures = before ++ (cut, occurrence) :: after)
-    {earlier previous} (member : (earlier, previous) ∈ failures) (less : earlier < cut)
-    : (earlier, previous) ∈ before := by
-  rw [split] at member
-  rcases List.mem_append.mp member with prior | later
-  · exact prior
-  · rcases List.mem_cons.mp later with same | later
-    · have equal := (Prod.mk.inj same).1
-      omega
-    · obtain ⟨middle, rest, afterEq⟩ := List.mem_iff_append.mp later
-      have earlierSplit : failures = (before ++ (cut, occurrence) :: middle)
-          ++ (earlier, previous) :: rest := by
-        simp only [split, afterEq, List.append_assoc, List.cons_append]
-      have bound := (witness _ earlier previous rest earlierSplit).2.1
-        (cut, occurrence) (by simp)
-      dsimp only at bound
-      omega
-
-/-- C inherits P's failure despite its separate producer. Witness: X's descriptor. -/
 private theorem c_known : NodeAt work c .group [p.ref] (some uTask) :=
-  ⟨[1, 1, 0, 0, 0, 1, 0], _, _, .error 1, .empty, _, ⟨c, [p]⟩, rfl, by simp, rfl, rfl⟩
+  ⟨
+    [1, 1, 0, 0, 0, 1, 0],
+    _,
+    _,
+    { result := .error 1, cause := some 1 },
+    .empty,
+    _,
+    ⟨c, [p]⟩,
+    rfl,
+    by simp,
+    rfl,
+    rfl
+  ⟩
 
 /-- Late registration propagates P's actual failure to C's retained cancellation ref.
 Witness: structural parent metadata instantiates the general provenance-preservation proof.
@@ -521,190 +426,23 @@ theorem late_child_cancellation_supported
     obtain rfl := List.mem_singleton.mp member
     exact ⟨[p.ref], some uTask, c_known, rfl⟩
 
-/-- The P, Y, and R failures cancel X, including C's inherited failure through P.
-Witness: at their latest cut all three X owners have failed and X remains unpublished.
--/
-private theorem x_cancelled {matching events before pCut yCut rCut}
-    (pRecorded : (pCut, pTask) ∈ before) (yRecorded : (yCut, yTask) ∈ before)
-    (rRecorded : (rCut, rTask) ∈ before)
-    (pBound : pCut ≤ events.length) (yBound : yCut ≤ events.length)
-    (rBound : rCut ≤ events.length) (unpublished : ¬Published matching events xTask)
-    : TaskCancelled work matching events before xTask := by
-  let cut := max pCut (max yCut rCut)
-  have recorded : cut ∈ before.map Prod.fst := by
-    have hp : pCut ∈ before.map Prod.fst := List.mem_map.mpr ⟨_, pRecorded, rfl⟩
-    have hy : yCut ∈ before.map Prod.fst := List.mem_map.mpr ⟨_, yRecorded, rfl⟩
-    have hr : rCut ∈ before.map Prod.fst := List.mem_map.mpr ⟨_, rRecorded, rfl⟩
-    by_cases py : pCut ≤ yCut
-    · by_cases yr : yCut ≤ rCut
-      · simpa [cut, Nat.max_eq_right yr, Nat.max_eq_right (Nat.le_trans py yr)] using hr
-      · simpa [cut, Nat.max_eq_left (by omega : rCut ≤ yCut), Nat.max_eq_right py] using hy
-    · by_cases pr : pCut ≤ rCut
-      · simpa [cut, Nat.max_eq_right (by omega : yCut ≤ rCut), Nat.max_eq_right pr] using hr
-      · have equal : cut = pCut := by dsimp [cut]; omega
-        simpa [equal] using hp
-  refine ⟨
-    cut,
-    recorded,
-    by dsimp [cut]; omega,
-    Causality.TaskCancelled.owners ⟨_, _, x_known⟩ ?_ (by simp) ?_
-  ⟩
-  · intro published
-    apply unpublished
-    simpa only [List.take_append_drop] using published.append (events.drop cut)
-  · intro ref member
-    simp only [List.mem_cons, List.not_mem_nil, or_false] at member
-    rcases member with rfl | rfl | rfl
-    · exact .groupDependency (dependency := p.ref) ⟨c, some uTask, c_known, rfl⟩ (by simp)
-        (.task ⟨_, _, p_known⟩ (by simp) (mem_failedBefore pRecorded (by dsimp [cut]; omega)))
-    · exact .task ⟨_, _, y_known⟩ (by simp)
-        (mem_failedBefore yRecorded (by dsimp [cut]; omega))
-    · exact .task ⟨_, _, r_known⟩ (by simp)
-        (mem_failedBefore rRecorded (by dsimp [cut]; omega))
-
-/-- No explanation can report P1, S1, R2 in order and later report D2 for this work.
-Witness: exact counts require X strictly after the three cuts cancelling all its owners,
-contradicting failure licensing. This excludes every matching and failure-cut choice.
--/
-theorem closure_counts_unexplained {events : List Execution.WorkQueueEvent}
-    {matching failures} {i j k l : Nat} (atP : events[i]? = some (.groupFailure p 1))
-    (atS : events[j]? = some (.groupFailure s 1))
-    (atR : events[k]? = some (.groupFailure r 2))
-    (atD : events[l]? = some (.groupFailure d 2)) (pBefore : i ≤ k) (sBefore : j ≤ k)
-    : ¬Explains work [p, q, r, s] [] events matching failures := by
-  intro explained
-  have pAllowed := explained.2.2 i _ atP
-  have sAllowed := explained.2.2 j _ atS
-  have rAllowed := explained.2.2 k _ atR
-  have dAllowed := explained.2.2 l _ atD
-  simp only [EventAllowed, failedBefore_filter _ (Nat.le_refl _)]
-    at pAllowed sAllowed rAllowed dAllowed
-  have unique (bound : Nat) : (failedBefore failures bound).Nodup :=
-    explained.failures_nodup.sublist (List.filter_sublist.map Prod.snd)
-  have pRequired := (count_constraints (unique _)).1 pAllowed.2.2.2
-  have yRequired := (count_constraints (unique _)).2.1 sAllowed.2.2.2
-  obtain ⟨rRequired, xExcluded⟩ := (count_constraints (unique _)).2.2.1 rAllowed.2.2.2
-  have xRequired := (count_constraints (unique _)).2.2.2 dAllowed.2.2.2
-  obtain ⟨pCut, pMember, pBound⟩ := cut_of_member pRequired
-  obtain ⟨yCut, yMember, yBound⟩ := cut_of_member yRequired
-  obtain ⟨rCut, rMember, rBound⟩ := cut_of_member rRequired
-  obtain ⟨xCut, xMember, _⟩ := cut_of_member xRequired
-  have late : (events.take k).length < xCut := by
-    apply Classical.byContradiction
-    intro early
-    apply xExcluded
-    exact mem_failedBefore xMember (by omega)
-  simp only [List.length_take] at pBound yBound rBound late
-  obtain ⟨before, after, split⟩ := List.mem_iff_append.mp xMember
-  have priorP := prior_entry explained.2.1 split pMember (by omega)
-  have priorY := prior_entry explained.2.1 split yMember (by omega)
-  have priorR := prior_entry explained.2.1 split rMember (by omega)
-  have license := explained.2.1 before xCut xTask after split
-  apply license.2.2.2
-  apply x_cancelled priorP priorY priorR
-  · simp only [List.length_take, Nat.min_eq_left license.1]; omega
-  · simp only [List.length_take, Nat.min_eq_left license.1]; omega
-  · simp only [List.length_take, Nat.min_eq_left license.1]; omega
-  · intro published
-    have full : Published matching events xTask := by
-      simpa only [List.take_append_drop] using published.append (events.drop xCut)
-    have impossible := explained.published_succeeds x_known full
-    cases impossible
-
------------------------------------------------------------------------------------------
--- Value batching cannot repair the completion reports
------------------------------------------------------------------------------------------
-
-/-- Keep completion error reports while forgetting value and success events. -/
-private def isGroupFailure : Execution.WorkQueueEvent → Bool
-  | .groupFailure .. => true
-  | _ => false
-
-/-- Value combination never touches failure controls. Witness: constructor inspection. -/
-private theorem combine_failureControls {left right merged}
-    (compatible : combineValues left right = some merged)
-    : isGroupFailure left = false
-      ∧ isGroupFailure right = false
-      ∧ isGroupFailure merged = false := by
-  cases left <;> cases right <;> simp only [combineValues] at compatible
-    <;> try contradiction
-  all_goals split at compatible
-  all_goals cases compatible
-  all_goals exact ⟨rfl, rfl, rfl⟩
-
-/-- Value grouping preserves failure controls. Witness: induction on grouping evidence. -/
-private theorem grouping_failureControls {events grouped}
-    (grouping : ValueGrouping events grouped)
-    : events.filter isGroupFailure = grouped.filter isGroupFailure := by
-  induction grouping with
-  | nil => rfl
-  | separate head _ ih => simp only [List.filter_cons]; split <;> simp_all
-  | combine head _ compatible ih =>
-      obtain ⟨left, right, merged⟩ := combine_failureControls compatible
-      simpa only [List.filter_cons, left, right, merged, Bool.false_eq_true,
-        ite_false] using ih
-
-/-- Batching preserves ordered failure controls. Witness: per-batch filter equations. -/
-private theorem batching_failureControls {events batches}
-    (batching : WorkBatching events batches)
-    : events.filter isGroupFailure = batches.flatten.filter isGroupFailure := by
-  induction batching with
-  | nil => rfl
-  | cons _ values _ ih =>
-      simp only [List.flatten_cons, List.filter_append, grouping_failureControls values, ih]
-
-/-- Filtering retains enough order to force the incompatible error counts.
-Witness: split around P, S, R, and D, recovering ordered positions in any atomic history.
--/
-private theorem output_controls_unexplained {events matching failures}
-    (same : events.filter isGroupFailure = rejectedOutputs.flatten.filter isGroupFailure)
-    : ¬Explains work [p, q, r, s] [] events matching failures := by
-  change events.filter isGroupFailure =
-    [.groupFailure p 1, .groupFailure s 1, .groupFailure r 2, .groupFailure d 2] at same
-  obtain ⟨beforeP, restP, splitP, _, _, tailP⟩ := List.filter_eq_cons_iff.mp same
-  obtain ⟨beforeS, restS, splitS, _, _, tailS⟩ := List.filter_eq_cons_iff.mp tailP
-  obtain ⟨beforeR, restR, splitR, _, _, tailR⟩ := List.filter_eq_cons_iff.mp tailS
-  have dMember : Execution.WorkQueueEvent.groupFailure d 2 ∈ events := by
-    have filtered : Execution.WorkQueueEvent.groupFailure d 2 ∈ events.filter isGroupFailure := by
-      rw [same]
-      simp
-    exact (List.mem_filter.mp filtered).1
-  obtain ⟨l, atD⟩ := List.mem_iff_getElem?.mp dMember
-  have atP : events[beforeP.length]? = some (.groupFailure p 1) := by
-    simp [splitP]
-  have atS : events[beforeP.length + 1 + beforeS.length]? = some (.groupFailure s 1) := by
-    simp [splitP, splitS, List.getElem?_append_right, List.getElem?_cons, Nat.add_assoc]
-  have atR : events[beforeP.length + 1 + beforeS.length + 1 + beforeR.length]? =
-      some (.groupFailure r 2) := by
-    simp [splitP, splitS, splitR, List.getElem?_append_right, List.getElem?_cons,
-      Nat.add_assoc]
-  exact closure_counts_unexplained atP atS atR atD (by omega) (by omega)
-
-/-- The former output is rejected for every failure witness, matching, and batching.
-Witness: all regroupings preserve P1, S1, R2, and D2; their counts contradict licensing.
-The pre-correction runner produced this trace, not merely a failed candidate explanation.
--/
-theorem output_not_valid : ¬ValidHistory work ⟨[p, q, r, s], [], rejectedOutputs⟩ := by
-  rintro (⟨events, matching, failures, explained, batching⟩ |
-    ⟨events, matching, failures, explained, _, batching⟩)
-  · exact output_controls_unexplained (batching_failureControls batching) explained
-  · have same := batching_failureControls batching
-    simp only [List.filter_append, isGroupFailure, List.filter_cons_of_neg,
-      Bool.false_eq_true, not_false_eq_true, List.filter_nil, List.append_nil] at same
-    exact output_controls_unexplained same explained
-
------------------------------------------------------------------------------------------
--- The same generated work and host source remain within the public conformance premises
------------------------------------------------------------------------------------------
-
-/-- All nodes in this stream-free work agree with the ref-to-descriptor assignment. -/
 private def NodesAssigned (assigned : Nat → DeliveryNode) : Execution.Work → Prop
   | .empty => True
+  | .declareGroups _ tasks => NodesAssigned assigned tasks
   | .combine left right => NodesAssigned assigned left ∧ NodesAssigned assigned right
   | .executionGroup groups _ _ nested =>
       (∀ group ∈ groups, group.node = assigned group.node.ref)
       ∧ NodesAssigned assigned nested
   | .stream .. => False
+
+private theorem NodesAssigned.withoutDeclarations {assigned work}
+    (assignment : NodesAssigned assigned work)
+    : NodesAssigned assigned work.withoutDeclarations := by
+  cases work with
+  | declareGroups groups tasks =>
+      exact NodesAssigned.withoutDeclarations (work := tasks) assignment
+  | empty | combine | executionGroup | stream => exact assignment
+termination_by sizeOf work
 
 /-- Structural navigation preserves the node assignment. Witness: navigation induction. -/
 private theorem NodesAssigned.located {assigned root address current producer owners}
@@ -714,10 +452,10 @@ private theorem NodesAssigned.located {assigned root address current producer ow
   have navigation := StructuralEquivalence.located_of_current located
   clear located
   induction navigation with
-  | root => exact assignment
-  | left prior ih => exact ih.1
-  | right prior ih => exact ih.2
-  | executionGroup prior ih => exact ih.2
+  | root => exact assignment.withoutDeclarations
+  | left prior ih => exact ih.1.withoutDeclarations
+  | right prior ih => exact ih.2.withoutDeclarations
+  | executionGroup prior ih => exact ih.2.withoutDeclarations
   | item prior entry ih => exact False.elim ih
 
 /-- Each descriptor agrees with its assigned node. Witness: its located group occurrence. -/
@@ -758,7 +496,7 @@ theorem initialized
     · simp [Published] at published
   have known {node : DeliveryNode} (member : node ∈ [p, q, r, s])
       : NodeAt work node .group [] none := by
-    refine ⟨[1, 1, 0], _, [], .ok (userData, 0), children, [], ⟨node, []⟩,
+    refine ⟨[1, 1, 0], _, [], { result := .ok (userData, 0) }, children, [], ⟨node, []⟩,
       rfl, ?_, rfl, rfl⟩
     simpa only [List.mem_cons, List.not_mem_nil, or_false, DeferredFragment.mk.injEq,
       and_true] using member
@@ -801,21 +539,82 @@ theorem source_respectsStarts
 Witness: the checked prefixes of its fixed finite input trace.
 -/
 theorem source_conforms : source.ValidFor work :=
-  ⟨
-    rfl,
-    ⟨inputs, rfl⟩,
-    fun _ _ before after => before.trans after,
-    fun batches admitted =>
-      ⟨source_validGraphEvents batches admitted, source_respectsStarts batches admitted⟩
-  ⟩
+  EventSource.ValidFor.of_asynchronous
+    ⟨
+      rfl,
+      ⟨inputs, rfl⟩,
+      fun _ _ before after => before.trans after,
+      fun batches admitted =>
+        ⟨source_validGraphEvents batches admitted, source_respectsStarts batches admitted⟩
+    ⟩
 
 /-- The corrected implementation no longer emits the rejected completion counts.
-Witness: exact replay reports one error for D; the former trace reports two.
+Witness: D reports two distinct task causes; the rejected trace reports three.
 -/
 theorem runner_avoids_rejected_output
     : ((State.initialize (Work.fromExecution work)).runNormalized inputs).2
       ≠ rejectedOutputs := by
   rw [output.2.2]
   simp [correctedOutputs, rejectedOutputs]
+
+/-- D's complete contributor inventory contains two distinct failed task causes. -/
+private theorem child_reporting_bound {reported errors}
+    (cause : NodeFailureCauses work reported d.ref errors)
+    : errors ≤ 2 := by
+  apply generated.nodeFailureCauses_count_le [xTask, yTask] ?_ cause
+  intro occurrence owners producer payload known owner failed
+  have token := known.observationToken
+  simp [work, children, observationTokens] at token
+  rcases token with rfl | rfl | rfl | rfl | rfl | rfl
+  · have same := (known.unique p_known).1
+    rw [same] at owner
+    simp [d, p] at owner
+  · have same := (known.unique u_known).2.2
+    rw [same] at failed
+    cases failed
+  · simp [xTask]
+  · simp [yTask]
+  · have same := (known.unique q_known).2.2
+    rw [same] at failed
+    cases failed
+  · have same := (known.unique r_known).1
+    rw [same] at owner
+    simp [d, r] at owner
+
+/-- No batching,
+  matching or failure inventory can justify D's count beyond its two distinct task causes. -/
+theorem output_not_valid : ¬ValidHistory work ⟨[p, q, r, s], [], rejectedOutputs⟩ := by
+  have excludes {events matching failures} (explained : Explains work [p, q, r, s] []
+      events matching failures) : .groupFailure d 3 ∉ events := by
+    intro member
+    obtain ⟨index, selected⟩ := List.mem_iff_getElem?.mp member
+    obtain ⟨reported, _, _, allowed⟩ := explained.2.2
+    have count := child_reporting_bound (allowed index _ selected).2.2.2
+    omega
+  rintro (⟨events, matching, failures, explained, batching⟩ |
+    ⟨events, matching, failures, explained, _, batching⟩)
+  · exact excludes explained ((batching.control_mem (by simp [IsValue])).mp
+      (by simp [rejectedOutputs]))
+  · have member := (batching.control_mem (event := .groupFailure d 3) (by simp [IsValue])).mp
+      (by simp [rejectedOutputs])
+    exact excludes explained (List.mem_append.mp member |>.resolve_right (by simp))
+
+/-- Canonical accounting admits and terminates the actual six-settlement replay. -/
+theorem actual_output_admitted
+    : AdmissibleRun work
+        ((ConformancePlan.initialQueue work).normalizedHistory inputs) := by
+  have nonempty : work.size ≠ 0 := by decide
+  obtain ⟨w, obligations⟩ := ConformancePlan.replayWitnessExists_holds work inputs
+    ⟨nonempty, generated, initialized, source_valid, inputs_started⟩
+  have explained := ConformancePlan.explains initialized obligations.announced
+    obligations.uncancelled obligations.publications obligations.controls
+  exact (ConformancePlan.run_iff_terminated explained obligations.batching
+          (fun ended =>
+            ConformancePlan.terminal (obligations.tasks ended)
+              (obligations.nodes ended) (obligations.reported ended))).mpr
+    (by cbv)
+
+#print axioms actual_output_admitted
+#print axioms output_not_valid
 
 end GraphQL.IncrementalDelivery.Tests.WorkSchedulerLateFailedParent

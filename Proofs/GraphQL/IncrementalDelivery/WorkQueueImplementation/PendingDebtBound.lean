@@ -187,9 +187,7 @@ theorem State.PendingDebtBound.decrement {queue : State} {eligible settled remai
     (bounded : queue.PendingDebtBound eligible settled (ref :: remaining))
     (unique : queue.GroupRefsUnique) (absent : ref ∉ remaining)
     {node : GroupNode} (found : queue.groupNode? ref = some node)
-    (failure : Option Nat := node.failure)
-    : (queue.putGroupNode
-        { node with pending := node.pending - 1, failure }).PendingDebtBound
+    : (queue.putGroupNode { node with pending := node.pending - 1 }).PendingDebtBound
         eligible settled remaining := by
   have nodeRef := queue.groupNode?_ref found
   have nodeMember := List.mem_of_find?_eq_some found
@@ -280,10 +278,9 @@ theorem successGroupFold_preservesBound (eligible : Nat → Prop)
           split
           · rename_i ready
             have active : group.ref ∈ queue.rootGroups := by
-              simpa [State.putGroupNode]
-                using (Bool.and_eq_true_iff.mp (Bool.and_eq_true_iff.mp ready).1).1
+              simpa [State.putGroupNode] using (Bool.and_eq_true_iff.mp ready).1
             have zero : node.pending - 1 = 0 := by
-              simpa using (Bool.and_eq_true_iff.mp (Bool.and_eq_true_iff.mp ready).1).2
+              simpa using (Bool.and_eq_true_iff.mp ready).2
             have member : { node with pending := node.pending - 1 } ∈
                 (queue.putGroupNode { node with pending := node.pending - 1 }).groupNodes := by
               apply List.mem_map.mpr
@@ -295,60 +292,21 @@ theorem successGroupFold_preservesBound (eligible : Nat → Prop)
           · exact ⟨nextValid, nextBound⟩
       exact ih tailUnique (successGroupStep acc group) step.1 step.2
 
-/-- The failure fold also preserves the pending lower bound on every surviving group.
-Witness: distinct-owner induction; active failures remove their debt-bearing records,
-while latent failures pay exactly one reserved decrement before retaining the error.
+/-- Failure closes active owners and preserves every surviving pending lower bound.
+Witness: the owner fold removes groups without changing any surviving counters.
 -/
 theorem failureGroupFold_preservesBound (eligible : Nat → Prop)
     (settled : List Occurrence) (invariant : State → Prop)
-    (refs : ∀ queue, invariant queue → queue.GroupRefsUnique)
-    (decrement
-      : ∀ queue (node : GroupNode) errors,
-          invariant queue
-          → queue.groupNode? node.group.node.ref = some node
-          → invariant
-              (queue.putGroupNode
-                {
-                  node with
-                    pending := node.pending - 1
-                    failure := some (node.failure.getD 0 + errors)
-                }))
     (remove : ∀ queue ref, invariant queue → invariant (queue.removeGroup ref))
     (errors : Nat) (groups : List Execution.DeliveryNode)
-    (unique : (groups.map Execution.DeliveryNode.ref).Nodup)
     (acc : State × List WorkQueueEvent) (valid : invariant acc.1)
-    (bounded
-      : acc.1.PendingDebtBound eligible settled (groups.map Execution.DeliveryNode.ref))
+    (bounded : acc.1.PendingBound eligible settled)
     : invariant (groups.foldl (failureGroupStep errors) acc).1
       ∧ (groups.foldl (failureGroupStep errors) acc).1.PendingBound eligible settled := by
-  suffices result : invariant (groups.foldl (failureGroupStep errors) acc).1 ∧
-      (groups.foldl (failureGroupStep errors) acc).1.PendingDebtBound eligible settled [] from
-    ⟨result.1, result.2.toBound⟩
-  induction groups generalizing acc with
-  | nil => exact ⟨valid, bounded⟩
-  | cons group rest ih =>
-      obtain ⟨absent, tailUnique⟩ := List.nodup_cons.mp unique
-      have step : invariant (failureGroupStep errors acc group).1 ∧
-          (failureGroupStep errors acc group).1.PendingDebtBound eligible settled
-            (rest.map Execution.DeliveryNode.ref) := by
-        obtain ⟨queue, events⟩ := acc
-        dsimp only [failureGroupStep]
-        cases found : queue.groupNode? group.ref with
-        | none => exact ⟨valid, bounded.skipMissing found⟩
-        | some node =>
-            dsimp only
-            split
-            · have same := queue.groupNode?_ref found
-              change invariant (queue.removeGroup node.group.node.ref) ∧
-                (queue.removeGroup node.group.node.ref).PendingDebtBound eligible settled _
-              rw [same]
-              exact ⟨remove queue group.ref valid,
-                (bounded.removeGroup group.ref).skipMissing
-                  (queue.removeGroup_ownGroupAbsent group.ref)⟩
-            · have same := queue.groupNode?_ref found
-              exact ⟨decrement queue node errors valid (same ▸ found),
-                bounded.decrement (refs queue valid) absent found
-                  (some (node.failure.getD 0 + errors))⟩
-      exact ih tailUnique (failureGroupStep errors acc group) step.1 step.2
+  apply failureGroupFold_preserves
+    (fun queue => invariant queue ∧ queue.PendingBound eligible settled)
+    (fun queue ref prior => ⟨remove queue ref prior.1,
+      fun node member relevant => prior.2 node (List.mem_filter.mp member).1 relevant⟩)
+    errors groups acc ⟨valid, bounded⟩
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

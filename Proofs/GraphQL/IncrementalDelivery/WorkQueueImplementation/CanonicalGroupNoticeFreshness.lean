@@ -1,6 +1,6 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.GroupNoticeSeparation
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.CanonicalNoticeCompletion
-import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.GroupNoticeUniqueness
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.BatchedNoticeHistory
 
 /-! Actual canonical group notices are fresh without assuming output admission. -/
 
@@ -48,14 +48,33 @@ theorem groupNode_announced_group {work inputs index child dependencies producer
         exact False.elim (generated.groupStreamRefsDisjoint known located same.symm)
     all_goals cases notice
 
+/-- Initial and canonical carried group refs are globally duplicate-free.
+Witness: legal source payloads make normalization and atomic expansion retain the exact
+raw group-notice inventory, whose uniqueness is derived from actual queue replay.
+-/
+theorem groupNoticeRefs_nodup {work inputs} {w : Witness}
+    (generated : ExecutedWork work) (valid : ValidGraphEvents work inputs.flatten)
+    (started : inputsStarted work inputs = true)
+    (history : w.events = (initialQueue work).nonterminalAtoms inputs)
+    : ((initialQueue work).rootGroups ++ w.events.flatMap groupNoticeRefs).Nodup := by
+  let publisher : IncrementalPublisher :=
+    { active := (initialQueue work).initialGroups ++ (initialQueue work).initialStreams }
+  have controls := atomicGroupNotices publisher ((initialQueue work).rawBatches inputs).2
+    ((initialQueue work).rawBatches_nonemptyValues inputs valid.nonemptyItems)
+  rw [Witness.rawBatches_shape history] at controls
+  have same : w.events.flatMap groupNoticeRefs =
+      ((initialQueue work).rawBatches inputs).2.flatMap rawGroupNoticeRefs := by
+    split at controls <;> simpa [List.flatMap_append, groupNoticeRefs] using controls
+  rw [same]
+  exact generated.rawBatches_groupRefs_nodup valid started
+
 -----------------------------------------------------------------------------------------
 -- Canonical carrier origins retain the exact strict raw notice prefix
 -----------------------------------------------------------------------------------------
 
 /-- Every actual canonical group notice is fresh against all previous announcements.
-Witness: exact raw carrier/control prefixes transport raw replay separation; generated
-roles exclude stream announcements. The selected carrier may contain several notices,
-whose internal uniqueness remains a separate obligation.
+Witness: the unique actual batch notice inventory separates the selected carrier from
+its strict prefix. Generated roles exclude announcements from unrelated stream refs.
 -/
 theorem groupNotice_fresh {work inputs index event child dependencies producer}
     {w : Witness} (generated : ExecutedWork work)
@@ -68,41 +87,18 @@ theorem groupNotice_fresh {work inputs index event child dependencies producer}
     : child.ref ∉ announcedRefs (initialRefs work) (w.events.take index) := by
   intro announced
   have repeated := groupNode_announced_group generated valid history known announced
-  have matching : ∀ entry ∈ inputs.flatten, entry.MatchesWork work :=
-    fun _ member => valid.eachMatches member
-  cases event <;> simp only [groupNoticeRefs] at noticed
-  case groupSuccess group groups streams =>
-    obtain ⟨position, rawAt, notices, _⟩ :=
-      Witness.groupNotice_rawControls valid started history selected
-    rw [notices] at repeated
-    exact generated.rawEventReplay_groupNoticeFresh matching rawAt noticed repeated
-  case streamValues owner values groups streams =>
-    obtain ⟨actual, included, same⟩ := List.mem_map.mp noticed
-    obtain ⟨position, rawValues, rawAt, notices, _⟩ :=
-      Witness.itemNotice_rawControls valid started history selected
-        (List.mem_append_left streams included)
-    rw [notices] at repeated
-    exact generated.rawEventReplay_groupNoticeFresh matching rawAt
-      (List.mem_map.mpr ⟨actual, included, same⟩) repeated
-  all_goals cases noticed
+  have unique := groupNoticeRefs_nodup generated valid started history
+  have split : w.events = w.events.take index ++ w.events.drop index :=
+    (List.take_append_drop index w.events).symm
+  conv at unique => arg 1; arg 2; rw [split]
+  rw [List.flatMap_append, ← List.append_assoc] at unique
+  have suffix : event ∈ w.events.drop index := List.mem_of_getElem?
+    (show (w.events.drop index)[0]? = some event by simpa using selected)
+  exact (List.nodup_append.mp unique).2.2 child.ref repeated child.ref
+    (List.mem_flatMap.mpr ⟨event, suffix, noticed⟩) rfl
 
 -----------------------------------------------------------------------------------------
 -- Normalization and atomization preserve the entire ordered group-notice inventory
 -----------------------------------------------------------------------------------------
-
-/-- Initial and canonical carried group refs are globally duplicate-free.
-Witness: legal source payloads make normalization and atomic expansion retain the exact
-raw group-notice inventory, whose uniqueness is derived from actual queue replay.
--/
-theorem groupNoticeRefs_nodup {work inputs} {w : Witness}
-    (generated : ExecutedWork work) (valid : ValidGraphEvents work inputs.flatten)
-    (started : inputsStarted work inputs = true)
-    (history : w.events = (initialQueue work).nonterminalAtoms inputs)
-    : ((initialQueue work).rootGroups ++ w.events.flatMap groupNoticeRefs).Nodup := by
-  have exactHistory := history.trans (createWorkQueue_nonterminalAtoms_flattened inputs started)
-  rw [exactHistory, atomicGroupNotices _ _
-    ((initialQueue work).rawEventReplay_nonemptyValues inputs.flatten valid.nonemptyItems)]
-  exact generated.rawEventReplay_groupRefs_nodup inputs.flatten
-    (fun _ member => valid.eachMatches member)
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue.ConformancePlan

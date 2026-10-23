@@ -17,17 +17,25 @@ private def child (index : Nat) : DeliveryNode :=
 
 private def children (index : Nat) : Execution.Work :=
   .combine .empty
-    (.combine
-      (.executionGroup [⟨child index, []⟩] (child index).path
-        (if index = 0 then .error 1 else .ok ([("required", .scalar "ok")], 0))
-        (if index = 0 then .empty else .combine .empty .empty))
-      .empty)
+    (.declareGroups [⟨child index, []⟩]
+      (.combine
+        (.executionGroup [⟨child index, []⟩] (child index).path
+          (if index = 0 then
+              { result := .error 1, cause := some 1 }
+            else
+              { result := .ok ([("required", .scalar "ok")], 0) })
+          (if index = 0 then .empty else .combine .empty .empty))
+        .empty))
 
-private def entries : List (Result ResponseValue × Execution.Work) :=
-  [(.ok (.object [], 0), children 0), (.ok (.object [], 0), children 1)]
+private def entries : List (TaskOutcome ResponseValue × Execution.Work) :=
+  [
+    ({ result := .ok (.object [], 0) }, children 0),
+    ({ result := .ok (.object [], 0) }, children 1)
+  ]
 
 private def work : Execution.Work :=
-  .combine (.combine (.combine .empty (.stream stream entries)) .empty) .empty
+  .combine (.combine (.combine .empty (.stream stream entries)) .empty)
+    (.declareGroups [] .empty)
 
 private def item (index : Nat) : StreamItem :=
   {
@@ -78,22 +86,22 @@ private theorem itemMatches (index : Nat) (bound : index < 2)
         TaskAt work (item index).occurrence owners producer
           (.item stream (.ok ((item index).value.item, (item index).value.errors)))
         ∧ streamItemWork? work (item index).occurrence = some (item index).work := by
-  have entry : entries[index]? = some (.ok (.object [], 0), children index) := by
+  have entry : entries[index]? = some ({ result := .ok (.object [], 0) }, children index) := by
     have casesIndex : index = 0 ∨ index = 1 := by omega
     rcases casesIndex with rfl | rfl <;> rfl
   refine ⟨[stream.ref], none, ?_, ?_⟩
-  · exact ⟨stream, entries, [], .ok (.object [], 0), children index,
+  · exact ⟨stream, entries, [], { result := .ok (.object [], 0) }, children index,
       streamLocated, entry, rfl, rfl⟩
   · have located : locateWork work [0, 0, 1] = some ⟨.stream stream entries, none, []⟩ :=
       streamLocated
-    simp [streamItemWork?, item, located, entry]
+    simp [streamItemWork?, taskContext?, item, located, entry]
 
 /-- The first child's failed task has the first stream item as producer.
 Witness: its exact located execution group, not a manually supplied failure count. -/
 private theorem failedKnown
     : TaskAt work failedTask [(child 0).ref] (some (item 0).occurrence)
         (.object (child 0).path (.error 1)) := by
-  refine ⟨[⟨child 0, []⟩], (child 0).path, .error 1, .empty, [], ?_, rfl, rfl⟩
+  refine ⟨[⟨child 0, []⟩], (child 0).path, { result := .error 1, cause := some 1 }, .empty, [], ?_, rfl, rfl⟩
   cbv
 
 /-- The split-item history stays valid when a child fails before the next item arrives.
@@ -247,7 +255,7 @@ Witness: its exact task location and producing stream-item occurrence. -/
 private theorem successKnown
     : TaskAt work successfulTask [(child 1).ref] (some (item 1).occurrence)
         (.object (child 1).path (.ok ([("required", .scalar "ok")], 0))) := by
-  refine ⟨[⟨child 1, []⟩], (child 1).path, _, .combine .empty .empty, [], ?_, rfl, rfl⟩
+  refine ⟨[⟨child 1, []⟩], (child 1).path, { result := .ok ([("required", .scalar "ok")], 0) }, .combine .empty .empty, [], ?_, rfl, rfl⟩
   cbv
 
 /-- Successful settlement is a legal continuation of the split stream/failure prefix.

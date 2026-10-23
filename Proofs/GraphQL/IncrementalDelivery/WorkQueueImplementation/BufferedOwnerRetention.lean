@@ -52,7 +52,7 @@ theorem State.pruneEmptyGroups_linkedOwner_present {queue : State} {task : TaskN
                   have listed := links node
                     (List.mem_of_find?_eq_some found) (selected.symm ▸ same ▸ contributes)
                   have noTasks : node.tasks = [] :=
-                    List.isEmpty_iff.mp (Bool.and_eq_true_iff.mp empty).1
+                    List.isEmpty_iff.mp empty
                   simp only [noTasks, List.not_mem_nil] at listed
                 have nextLinks : State.TaskLinkedOn
                     { current with groupNodes :=

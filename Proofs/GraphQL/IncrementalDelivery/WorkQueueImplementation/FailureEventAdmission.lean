@@ -10,29 +10,28 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 -- Positive exact error totals exhibit a visible contributing failure
 -----------------------------------------------------------------------------------------
 
-/-- A positive exact node-error count supplies a historical failure of that node.
-Witness: a positive summand identifies a visible task with this owner; its retained cut
-causes node failure. No output admission or previously licensed inventory is assumed.
--/
-theorem nodeErrors_nodeFailed_of_positive {work matching events failures ref errors}
-    (counts : NodeErrors work (failedBefore failures events.length) ref errors)
-    (positive : 0 < errors)
+/-- A reported task cause supplies a historical failure of its owning node. -/
+theorem nodeFailureCause_nodeFailed {work matching events failures ref errors}
+    (cause : NodeFailureCause work (failedBefore failures events.length) ref errors)
     : NodeFailed work matching events failures ref := by
-  obtain ⟨contribution, known, total⟩ := counts
-  rw [total] at positive
-  obtain ⟨count, member, pos⟩ := List.sum_pos_iff_exists_pos_nat.mp positive
-  obtain ⟨occurrence, recorded, same⟩ := List.mem_map.mp member
-  obtain ⟨owners, producer, payload, task, counted⟩ := known occurrence recorded
-  have owner : ref ∈ owners := by
-    by_cases present : ref ∈ owners
-    · exact present
-    · simp [present, same] at counted
-      omega
-  exact NodeFailed.task task owner recorded
+  obtain ⟨occurrence, failed, owners, producer, payload, known, owner, _, _⟩ := cause
+  exact NodeFailed.task known owner failed
+
+/-- Direct contributing failures and defer ancestry retain a historical reached cut.
+Witness: lift each task cause and keep its cut through dependency propagation. -/
+theorem GroupInvalidated.nodeFailed {work matching events failures ref}
+    (invalid : GroupInvalidated work (failedBefore failures events.length) ref)
+    : NodeFailed work matching events failures ref := by
+  induction invalid with
+  | task known owner member =>
+      obtain ⟨producer, payload, task⟩ := known
+      exact NodeFailed.task task owner member
+  | groupDependency known member _ ih =>
+      obtain ⟨node, producer, descriptor, rfl⟩ := known
+      exact NodeFailed.groupDependency descriptor member ih
 
 /-- Every actual failed-group control reports a positive execution-error count.
-Witness: the nonempty source-contributor sum contains a generated failed task, whose
-fixed error count is positive. Cached aggregation does not manufacture zero failures.
+Witness: its selected rejected task has the generated positive failure count.
 -/
 theorem createWorkQueue_atomicGroupFailure_positive {work group errors}
     {inputs : List (List GraphEvent)}
@@ -42,14 +41,8 @@ theorem createWorkQueue_atomicGroupFailure_positive {work group errors}
         ∈ ((ConformancePlan.initialQueue work).runNormalized inputs).2.flatten.flatMap
             publicationAtoms)
     : 0 < errors := by
-  obtain ⟨parts, nonempty, _, total, sources⟩ :=
-    createWorkQueue_runNormalized_atomicGroupFailure_source generated valid emitted
-  obtain ⟨entry, member⟩ := List.exists_mem_of_ne_nil parts nonempty
-  obtain ⟨_, owners, producer, path, known, _⟩ := sources entry.1 entry.2 member
-  have positive : 0 < entry.2 := generated.taskFailure_positive known rfl
-  rw [← total]
-  exact List.sum_pos_iff_exists_pos_nat.mpr
-    ⟨entry.2, List.mem_map.mpr ⟨entry, member, rfl⟩, positive⟩
+  exact (createWorkQueue_runNormalized_groupFailure_nodeFailureCausesWitness
+    generated valid emitted).positive
 
 namespace ConformancePlan
 
@@ -84,11 +77,11 @@ def FailureAdmission (work : Execution.Work) (w : Witness) : Prop :=
   (∀ index group errors,
     w.events[index]? = some (.groupFailure group errors)
     → EventAllowed work (initialRefs work) w.matching (w.events.take index) w.failures
-        (.groupFailure group errors))
+        (.groupFailure group errors) w.reported)
   ∧ (∀ index stream errors,
       w.events[index]? = some (.streamFailure stream errors)
       → EventAllowed work (initialRefs work) w.matching (w.events.take index) w.failures
-          (.streamFailure stream errors))
+          (.streamFailure stream errors) w.reported)
 
 /-- Actual failed controls are admitted under the same complete announced inventory.
 Witness: queue provenance supplies metadata and open references; exact positive error
@@ -111,13 +104,13 @@ theorem failureAdmission_of_announced {work inputs w}
     rw [beforeEq] at opened
     have length : (w.events.take index).length = index :=
       List.length_take_of_le (Nat.le_of_lt (List.getElem?_eq_some_iff.mp selected).1)
-    have counts := announced.1.2.2.2.1 index group errors selected
-    have positive := createWorkQueue_atomicGroupFailure_positive generated valid
-      (List.mem_of_getElem? atFull)
+    have invalid := announced.1.2.2.2.1 index group errors selected
+    have reporting := announced.2.2.2.2
+    have counts := reporting.2.2.2.1 index group errors selected
     have failed : NodeFailed work w.matching (w.events.take index) w.failures group.ref :=
-      nodeErrors_nodeFailed_of_positive (length.symm ▸ counts) positive
+      GroupInvalidated.nodeFailed (length.symm ▸ invalid)
     simp only [EventAllowed]
-    rw [nodeFailed_filter (Nat.le_refl _), failedBefore_filter _ (Nat.le_refl _), length]
+    rw [nodeFailed_filter (Nat.le_refl _), length]
     exact ⟨⟨dependencies, producer, known⟩, opened, failed, counts⟩
   · intro index stream errors selected
     obtain ⟨atFull, beforeEq⟩ := Witness.canonical_event history selected
@@ -134,9 +127,8 @@ theorem failureAdmission_of_announced {work inputs w}
     have length : (w.events.take index).length = index :=
       List.length_take_of_le (Nat.le_of_lt (List.getElem?_eq_some_iff.mp selected).1)
     have counts := announced.1.2.2.2.2 index stream errors selected
-    have positive : 0 < errors := generated.taskFailure_positive task rfl
     have failed : NodeFailed work w.matching (w.events.take index) w.failures stream.ref :=
-      nodeErrors_nodeFailed_of_positive (length.symm ▸ counts) positive
+      nodeFailureCause_nodeFailed (length.symm ▸ counts)
     simp only [EventAllowed]
     rw [nodeFailed_filter (Nat.le_refl _), failedBefore_filter _ (Nat.le_refl _), length]
     exact ⟨⟨dependencies, producer, known⟩, opened, failed, counts⟩

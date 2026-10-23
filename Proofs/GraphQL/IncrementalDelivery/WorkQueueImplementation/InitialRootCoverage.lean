@@ -1,5 +1,8 @@
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.InitializationSpecialization
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.DrainNormalForm
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.CandidateRootCoverage
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.PruningBudget
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.StartupRootCoverage
 
 /-! Generated initialization places every surviving live group below an announced root. -/
 
@@ -53,7 +56,7 @@ theorem ExecutedWork.initial_candidate_root_coverage {work : Execution.Work}
   obtain ⟨parents, canonical⟩ := generated.groupRecordsCanonical
   have groupCanonical : ∀ group ∈ (Work.fromExecution work).groups,
       group.parent = (parents group.node.ref).head? :=
-    fun _ member => workFromSpec_groups_parentCanonical Located.root canonical member
+    fun _ member => workFromSpec_groups_parentCanonical_root canonical member
   have emptyLinks : ({} : State).ParentLinksComplete parents := by
     intro node member
     cases member
@@ -69,24 +72,36 @@ theorem ExecutedWork.initial_candidate_root_coverage {work : Execution.Work}
     State.GroupNodesMatchWork.maybeIntegrateWork (by intro node member; cases member) _
       (by
         intro group member
-        obtain ⟨dependencies, known, _⟩ := workFromSpec_groups_recordAt Located.root member
+        obtain ⟨dependencies, known, _⟩ := workFromSpec_groups_recordAt_root member
         exact ⟨dependencies, known⟩)
   have forest := State.RemovalForest.of_generated generated children links records canonical
   have unique : integrated.1.GroupRefsUnique :=
     State.GroupRefsUnique.maybeIntegrateWork (by simp [State.GroupRefsUnique]) _
+  have certificate := generated.declarations.lower (Located.root (root := work))
+  have descriptors : ∀ candidate ∈ (Work.fromExecution work).groups, ∃ dependencies,
+      GroupRecordAt work candidate.node dependencies ∧ candidate.parent = dependencies.head? :=
+    fun _ member => workFromSpec_groups_recordAt_root member
   have live : ∀ group ∈ (Work.fromExecution work).groups,
       ∃ node, integrated.1.groupNode? group.node.ref = some node := by
     intro group member
     have present := ({} : State).maybeIntegrateWork_registersRefs (Work.fromExecution work) none
-      group member (.inr (by simp)) (by rw [State.addGroups_cancelledGroups_empty rfl]; simp)
+      generated (by intro node member; cases member) descriptors certificate.parentRefs
+      group member (generated.empty_registrationSupported _)
     obtain ⟨node, nodeMember, same⟩ := List.mem_map.mp present
     exact ⟨node, same ▸ unique.groupNode?_of_mem nodeMember⟩
   intro group member
   apply complete.candidates_root_coverage forest (Work.fromExecution work).groups
     (integrated.2.newGroups.map Execution.DeliveryNode.ref) groupCanonical
-    (workFromSpec_parentsCovered work) live
+    (by
+      intro candidate included parent head
+      rcases workFromSpec_parentsCovered work generated.declarations [] candidate included parent head with
+        old | fresh
+      · cases old
+      · exact fresh)
+    live
   · intro candidate included parentless
-    exact ({} : State).addGroups_parentless_candidate _ included parentless (by simp) rfl
+    exact ({} : State).addGroups_parentless_candidate _ (by intro node member; cases member)
+      groupCanonical included parentless (by simp) rfl
   · exact member
 
 -----------------------------------------------------------------------------------------
@@ -104,15 +119,16 @@ theorem ExecutedWork.initial_live_group_root_coverage {work : Execution.Work}
       ∀ target,
         (∃ node, initial.groupNode? target = some node)
         → ∃ root ∈ initial.rootGroups, initial.LiveDescendant root target := by
+  rw [State.initialize_empty_eq_activation]
   intro initial target survives
   let integrated := ({} : State).maybeIntegrateWork (Work.fromExecution work)
   let pruned := integrated.1.pruneEmptyGroups integrated.2.newGroups
   let released := { integrated.2 with newGroups := pruned.2 }
-  let started := pruned.1.startNewWork released
+  let started := (pruned.1.startNewWork released).1
   obtain ⟨parents, canonical⟩ := generated.groupRecordsCanonical
   have groupCanonical : ∀ group ∈ (Work.fromExecution work).groups,
       group.parent = (parents group.node.ref).head? :=
-    fun _ member => workFromSpec_groups_parentCanonical Located.root canonical member
+    fun _ member => workFromSpec_groups_parentCanonical_root canonical member
   have children : integrated.1.ChildGroupsUnique :=
     State.ChildGroupsUnique.maybeIntegrateWork (by intro node member; cases member) _
   have links : integrated.1.ChildLinksCanonical parents :=
@@ -122,16 +138,23 @@ theorem ExecutedWork.initial_live_group_root_coverage {work : Execution.Work}
     State.GroupRefsUnique.maybeIntegrateWork (by simp [State.GroupRefsUnique]) _
   have registered := ({} : State).maybeIntegrateWork_registration
     (by intro node member; cases member) (by intro task member; cases member)
-    (Work.fromExecution work) (workFromSpec_immediateGroupsCoverTasks work [])
+    (Work.fromExecution work) (by
+      intro task member ref contributes
+      exact .inr (workFromSpec_immediateGroupsCoverTasks work [] generated.declarations
+        task member ref contributes))
   have origin := ({} : State).maybeIntegrateWork_registeredGroups_subset (Work.fromExecution work)
+  have certificate := generated.declarations.lower (Located.root (root := work))
+  have descriptors : ∀ candidate ∈ (Work.fromExecution work).groups, ∃ dependencies,
+      GroupRecordAt work candidate.node dependencies ∧ candidate.parent = dependencies.head? :=
+    fun _ member => workFromSpec_groups_recordAt_root member
   have candidateLive : ∀ group ∈ integrated.2.newGroups,
       ∃ node, integrated.1.groupNode? group.ref = some node := by
     intro group member
     obtain ⟨candidate, included, same, _⟩ :=
       ({} : State).addGroups_newGroup_candidate (Work.fromExecution work).groups member
     have present := ({} : State).maybeIntegrateWork_registersRefs (Work.fromExecution work) none
-      candidate included (.inr (by simp))
-      (by rw [State.addGroups_cancelledGroups_empty rfl]; simp)
+      generated (by intro node member; cases member) descriptors certificate.parentRefs
+      candidate included (generated.empty_registrationSupported _)
     obtain ⟨node, nodeMember, nodeRef⟩ := List.mem_map.mp present
     exact ⟨node, same ▸ nodeRef ▸ unique.groupNode?_of_mem nodeMember⟩
   have frontier : integrated.1.GroupFrontier integrated.2.newGroups := by
@@ -143,7 +166,8 @@ theorem ExecutedWork.initial_live_group_root_coverage {work : Execution.Work}
     cases head
   have beforeStart : ∃ node, pruned.1.groupNode? target = some node := by
     change ∃ node, started.groupNode? target = some node at survives
-    simpa only [started, State.groupNode?, (State.startNewWork_groupCore _ _).1] using survives
+    exact State.groupNode?_exists_before_subset
+      (pruned.1.startNewWork_groupNodes_sublist released []).subset survives
   obtain ⟨node, found⟩ := beforeStart
   have originalMember := (integrated.1.pruneEmptyGroups_groupNodes_sublist
     integrated.2.newGroups).subset (List.mem_of_find?_eq_some found)
@@ -156,12 +180,22 @@ theorem ExecutedWork.initial_live_group_root_coverage {work : Execution.Work}
     ⟨descriptor, included, descriptorRef.symm ▸
       (sameRef.trans (State.groupNode?_ref found)) ▸ below⟩
   obtain ⟨root, retained, path⟩ := State.pruneEmptyGroups_surviving_descendant links children
-    frontier (distinctDeliveryNodes_refs_nodup _) candidateLive covered ⟨node, found⟩
-  refine ⟨root.ref, ?_, ?_⟩
-  · change root.ref ∈ started.rootGroups
-    rw [(pruned.1.startNewWork_groupCore released).2.2]
-    exact List.mem_append_right _ (List.mem_map_of_mem retained)
-  · apply State.LiveDescendant.of_groupNodes_eq (queue := pruned.1) (path := path)
-    exact (pruned.1.startNewWork_groupCore released).1
+    frontier (State.addGroups_newGroups_unique _ _) candidateLive covered ⟨node, found⟩
+  have records : integrated.1.GroupNodesMatchWork work :=
+    State.GroupNodesMatchWork.maybeIntegrateWork (by intro node member; cases member) _
+      (by
+        intro group member
+        obtain ⟨dependencies, known, _⟩ := workFromSpec_groups_recordAt_root member
+        exact ⟨dependencies, known⟩)
+  have forest := State.RemovalForest.of_generated generated children links records canonical
+  have prunedForest := forest.of_subset
+    (integrated.1.pruneEmptyGroups_groupNodes_sublist integrated.2.newGroups).subset
+  obtain ⟨cover, active, covered⟩ := State.startNewWork_root_coverage prunedForest released
+    ⟨root.ref, List.mem_append_right _ (List.mem_map_of_mem retained), path⟩ [] survives
+  exact ⟨
+    cover,
+    active,
+    State.LiveDescendant.of_groupNodes_eq (queue := started) (next := initial) rfl covered
+  ⟩
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

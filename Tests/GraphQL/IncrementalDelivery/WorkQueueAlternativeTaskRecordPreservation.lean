@@ -41,7 +41,11 @@ example : RecordTargetRepresented before.queue (.task RejectedTaskCleanup.produc
       rw [found] at live
       cases live
   | some group =>
-      apply RecordTargetRepresented.task found
+      apply RecordTargetRepresented.task found ?_
+        (by
+          unfold before
+          rw [SharedOwnerFailure.work_shape]
+          cbv)
       have allLinked : before.queue.groupNodes.all
           (fun group => group.group.node.ref != SharedOwnerFailure.groupH.ref
             || group.tasks.contains RejectedTaskCleanup.producer) = true := by
@@ -60,7 +64,8 @@ example
   have unfinished := (invariant RejectedTaskCleanup.producer (by simp [stale])).2
   apply unfinished
   simp [ReferenceWorkQueue.GraphEvent.taskSettlements, ReferenceWorkQueue.GraphEvent.groupSuccesses,
-    ReferenceWorkQueue.GraphEvent.groupFailures, SharedOwnerFailure.parentSuccess, RejectedTaskCleanup.producer]
+    ReferenceWorkQueue.GraphEvent.groupFailures, SharedOwnerFailure.parentSuccess,
+    RejectedTaskCleanup.producer]
 
 -- The real completion observer releases that computation rather than aborting its buffer.
 example
@@ -70,7 +75,7 @@ example
   exact stale.finishQueueTarget_owned (.task RejectedTaskCleanup.producer)
     (by simp [stale])
 
-#print axioms registrationSnapshot_unsettledOwner
+#print axioms registrationSnapshot_unsettledTask_progress
 #print axioms GeneratedRepresentedUnsettledTaskProgress_holds
 #print axioms GeneratedDispatchExistingTaskRepresentation_holds
 #print axioms GeneratedDispatchTasksPendingRepresented_holds

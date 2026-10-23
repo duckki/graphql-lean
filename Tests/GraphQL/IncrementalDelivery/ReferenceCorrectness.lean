@@ -1,4 +1,8 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.CursorCorrectness
+import Tests.GraphQL.IncrementalDelivery.Fixtures.WorkDeclarations
+import Proofs.GraphQL.IncrementalDelivery.Semantics.WorkSize
+
+open GraphQL.IncrementalDelivery.Tests (declaredTask)
 
 namespace GraphQL.IncrementalDelivery.Tests.ReferenceCorrectness
 open GraphQL.IncrementalDelivery.ReferenceWorkQueue
@@ -40,7 +44,7 @@ example (response : Execution.Response) (work : Execution.Work)
 example (sources : Execution.Work → EventSource (List GraphEvent))
     (work : Execution.Work) (generated : ExecutedWork work)
     (valid : (sources work).ValidFor work)
-    (nonempty : work.size ≠ 0)
+    (nonempty : work.isEmpty = false)
     : (createWorkQueueForSchedule work (sources work)).Conforms work :=
   createWorkQueueForScheduleConforms_holds work (sources work) generated nonempty valid
 
@@ -57,8 +61,8 @@ private def group : Execution.DeliveryNode := { ref := 0, path := [] }
 private def deepGroup : Execution.DeliveryNode := { ref := 1, path := [.field "obj"] }
 
 private def sharedWork : Execution.Work :=
-  .executionGroup [{ node := group }, { node := deepGroup }] [.field "obj"]
-    (.ok ([("x", .scalar "X")], 0)) .empty
+  declaredTask [{ node := group }, { node := deepGroup }] [.field "obj"]
+    ({ result := .ok ([("x", .scalar "X")], 0) }) .empty
 
 private def sharedSuccess : GraphEvent :=
   .taskSuccess (.executionGroup [])
@@ -131,7 +135,7 @@ example (createWorkQueue : Execution.Work → Execution.WorkQueue) (schema : Sch
         operation fuel root
       ↔ let work := (queryCompletion schema resolvers variables operation fuel root).work
         Execution.rootSourceAppliesBool schema operation root = true
-        → work.size ≠ 0
+        → work.isEmpty = false
         → (createWorkQueue work).Conforms work :=
   Iff.rfl
 
@@ -154,7 +158,7 @@ example (schema : Schema) (resolvers : Execution.Resolvers ObjectRef)
                 ((Execution.executeRootSelectionSetCore schema resolvers prepared fuel
                     (operation.rootType schema) root operation.selectionSet).run
                   0).1
-              completed.work.size ≠ 0
+              completed.work.isEmpty = false
               → (createWorkQueue completed.work).Conforms completed.work)
           ∧ (Execution.executeQueryWithFuel createWorkQueue schema resolvers variables
               operation fuel root).Observes
@@ -199,7 +203,7 @@ example (schema : Schema) (operation : Operation)
           let (updates, finalCursor) := cursor.run inputs
           let createWorkQueue := fun work => createWorkQueueForSchedule work schedule
           Execution.rootSourceAppliesBool schema operation root = true
-          → work.size ≠ 0
+          → work.isEmpty = false
           → schedule.ValidFor work
           → schedule.admissible inputs
           → (complete = true → finalCursor.queue.terminated = true)
@@ -231,7 +235,7 @@ example (schema : Schema) (resolvers : Execution.Resolvers ObjectRef)
     (applies : Execution.rootSourceAppliesBool schema operation root = true)
     : let completed := queryCompletion schema resolvers variables operation fuel root
       let (initial, updates, _) := replayIncrementalResponse completed inputs
-      completed.work.size ≠ 0 → schedule.ValidFor completed.work
+      completed.work.isEmpty = false → schedule.ValidFor completed.work
       → schedule.admissible inputs
       → queryObservation
           (fun work => createWorkQueueForSchedule work schedule) schema resolvers
@@ -263,12 +267,13 @@ example (schema : Schema) (resolvers : Execution.Resolvers ObjectRef)
         ResponseStreamCursor.initialize
           (Execution.selectionSetResultToResponse completed.result) completed.work
       let (updates, finalCursor) := cursor.run inputs
-      completed.work.size ≠ 0 → schedule.ValidFor completed.work
+      completed.work.isEmpty = false → schedule.ValidFor completed.work
       → schedule.admissible inputs → finalCursor.queue.terminated = true
-      → queryOutcome (fun work => createWorkQueueForSchedule work schedule)
-          schema resolvers variables operation fuel root (.incremental initial updates) :=
-  ResponseStreamCursor.queryOutcome schema resolvers variables operation fuel root
-    schedule inputs applies
+      → queryOutcome (fun work => createWorkQueueForSchedule work schedule) schema
+          resolvers variables operation fuel root (.incremental initial updates) := by
+  simpa only [Execution.Work.isEmpty_eq_false]
+    using ResponseStreamCursor.queryOutcome schema resolvers variables operation fuel root
+      schedule inputs applies
 
 /-- Under the existing work/source premises, cursor prefixes have safe IDs and disjoint
 slices; terminated cursors have valid lifecycles and zero-error response reconstruction.
@@ -286,7 +291,8 @@ example (sources : Execution.Work → EventSource (List GraphEvent))
       let (initial, cursor) := ResponseStreamCursor.initialize response work
       let (updates, finalCursor) := cursor.run inputs
       let result := ExecutionObservation.incremental initial updates
-      work.size ≠ 0 → (sources work).ValidFor work → (sources work).admissible inputs
+      work.isEmpty = false → (sources work).ValidFor work
+      → (sources work).admissible inputs
       → (complete = true → finalCursor.queue.terminated = true)
       → result.idUsageValid
         ∧ (∃ slices, result.DeliversSlices true slices ∧ slices.flatten.Nodup)
@@ -303,7 +309,7 @@ example (sources : Execution.Work → EventSource (List GraphEvent))
   dsimp only
   intro nonempty valid admitted finished
   exact ResponseStreamCursor.queryCorrectness schema resolvers variables operation fuel root
-    (sources _) inputs complete applies nonempty valid admitted finished
+    (sources _) inputs complete applies ((Execution.Work.isEmpty_eq_false _).mp nonempty) valid admitted finished
 
 /-- Complete admitted reference observations inherit failure-aware position coverage.
 Witness: the shared implementation replay bridge supplies the public theorem's premises.

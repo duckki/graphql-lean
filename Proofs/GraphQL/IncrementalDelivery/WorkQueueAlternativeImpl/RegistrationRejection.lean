@@ -1,4 +1,5 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.RegistrationHostEffects
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.RegistrationRejections
 
 /-! Rejected-task disposal follows the temporary registration projection, not a second
 owner scan. These local facts are independent of native acquisition observations.
@@ -22,7 +23,8 @@ theorem State.addTask_rejected_of_missing (state : State) (task : ReferenceWorkQ
     induction owners with
     | nil => rfl
     | cons owner rest ih =>
-        have absent : initial.1.groupNode? owner.ref = none := missing owner (included List.mem_cons_self)
+        have absent : initial.1.groupNode? owner.ref = none :=
+          missing owner (included List.mem_cons_self)
         rw [List.foldl_cons]
         simp only [classifyOwner, absent]
         exact ih (fun _ member => included (List.mem_cons_of_mem _ member))
@@ -43,8 +45,10 @@ private theorem registerTasks_includesKeys
   | cons task rest ih =>
       have next : (acc.1.queue.groupNodes.map (fun node => node.group.node.ref)).Subset
           ((acc.1.addTask task).1.queue.groupNodes.map (fun node => node.group.node.ref)) := by
-        have groups := congrArg ReferenceWorkQueue.State.groupNodes (acc.1.addTask_registrationCore task)
-        change (acc.1.addTask task).1.queue.groupNodes = (acc.1.queue.addTask task).groupNodes at groups
+        have groups :=
+          congrArg ReferenceWorkQueue.State.groupNodes (acc.1.addTask_registrationCore task)
+        change (acc.1.addTask task).1.queue.groupNodes
+          = (acc.1.queue.addTask task).groupNodes at groups
         rw [groups]
         exact ReferenceWorkQueue.State.addTask_includesRefs _ _
       have forget : (registerTaskStep acc task).1 = (acc.1.addTask task).1 := by
@@ -111,7 +115,8 @@ theorem State.maybeIntegrateWork_rejected {state : State} (work : ReferenceWorkQ
   apply registerTasks_rejected work.tasks initial task returned
   intro owner listed
   have known := missing owner listed
-  change (registered.1.queue.addStreams work.streams producer).1.groupNode? owner.ref = none at known
+  change (registered.1.queue.addStreams work.streams producer).1.groupNode? owner.ref
+    = none at known
   cases producer with
   | none => exact known
   | some parent =>
@@ -122,16 +127,19 @@ theorem State.maybeIntegrateWork_rejected {state : State} (work : ReferenceWorkQ
 -- The actual projection licenses inline cleanup without evaluating a rejected task
 -----------------------------------------------------------------------------------------
 
-/-- Rejected disposal always includes the computation identity, even if unstarted. -/
+/-- Disposal includes an unrejected computation identity, even if unstarted. -/
 theorem State.disposeRejectedTasks_contains (state : State) (integrated : IntegratedWork)
     (targets : List CleanupTarget) (task : ReferenceWorkQueue.Task)
     (rejected : task ∈ integrated.rejectedTasks)
+    (unrejected
+      : (state.queue.taskNode? task.occurrence).any (fun node => node.rejection.isSome)
+        = false)
     : .task task.occurrence ∈ state.disposeRejectedTasks integrated targets := by
   rw [State.disposeRejectedTasks, mem_uniqueCleanupTargets]
   apply List.mem_append_right
   apply List.mem_flatMap.mpr
   refine ⟨task, rejected, ?_⟩
-  simp only [State.cancelTask]
+  simp only [State.cancelTask, unrejected, Bool.false_eq_true, ↓reduceIte]
   exact List.mem_append_left _ List.mem_cons_self
 
 /-- Activation's cleanup targets retain every rejected computation of the scope. -/
@@ -139,17 +147,62 @@ theorem State.startNewWork_rejected (state : State) (roots : ReferenceWorkQueue.
     (integrated : IntegratedWork) (targets : List CleanupTarget)
     (running : state.stopped = false) (task : ReferenceWorkQueue.Task)
     (rejected : task ∈ integrated.rejectedTasks)
-    : .task task.occurrence ∈ (state.startNewWork roots integrated targets).2 := by
-  simp only [State.startNewWork, running, Bool.false_eq_true, ↓reduceIte]
-  exact State.disposeRejectedTasks_contains _ integrated targets task rejected
+    {settled : List Occurrence}
+    (prior : state.queue.TaskRejectionsSatisfy (fun occurrence _ => occurrence ∈ settled))
+    (fresh : task.occurrence ∉ settled)
+    (available : List (Occurrence × Nat) := [])
+    : .task task.occurrence
+      ∈ (state.startNewWork roots integrated targets available).2.1 := by
+  apply State.startNewWork_disposedTargets state roots integrated targets running
+    available
+  apply State.disposeRejectedTasks_contains _ integrated targets task rejected
+  have nodes (streams : List Execution.DeliveryNode) (queue : ReferenceWorkQueue.State)
+      : (streams.foldl
+          (fun (current : ReferenceWorkQueue.State) (stream : Execution.DeliveryNode) =>
+            current.startStream stream.ref)
+          queue).taskNodes = queue.taskNodes := by
+    induction streams generalizing queue with
+    | nil => rfl
+    | cons stream rest ih =>
+        rw [List.foldl_cons, ih]
+        unfold ReferenceWorkQueue.State.startStream
+        split <;> rfl
+  have supported : (roots.newStreams.foldl
+      (fun (current : ReferenceWorkQueue.State) (stream : Execution.DeliveryNode) =>
+        current.startStream stream.ref)
+      { state.queue with rootGroups := state.queue.rootGroups
+        ++ roots.newGroups.map Execution.DeliveryNode.ref }).TaskRejectionsSatisfy
+          (fun occurrence _ => occurrence ∈ settled) := by
+    intro node member errors failure
+    rw [nodes] at member
+    exact prior node member errors failure
+  cases found
+        : (roots.newStreams.foldl
+            (fun (current : ReferenceWorkQueue.State) (stream : Execution.DeliveryNode) =>
+              current.startStream stream.ref)
+            {
+              state.queue with
+                rootGroups :=
+                  state.queue.rootGroups ++ roots.newGroups.map Execution.DeliveryNode.ref
+            }).taskNode?
+            task.occurrence with
+  | none => simp only [Option.any_none]
+  | some node =>
+      cases failed : node.rejection with
+      | none => simp only [Option.any_some, failed, Option.isSome_none]
+      | some errors =>
+          exact False.elim (fresh ((ReferenceWorkQueue.State.taskNode?_some found).2 ▸
+            supported node (List.mem_of_find?_eq_some found) errors failed))
 
 /-- An accepted object's rejected projection emits its abort in that actual handler.
 Owner settlement and the ready drain cannot hide the already accumulated target.
 -/
 theorem State.taskSuccess_rejected {state : State} {occurrence result node}
     (found : state.queue.taskNode? occurrence = some node)
-    (healthy : state.queue.taskHasHealthyOwner node.task = true)
     (running : state.stopped = false) (task : ReferenceWorkQueue.Task)
+    {settled : List Occurrence}
+    (prior : state.queue.TaskRejectionsSatisfy (fun occurrence _ => occurrence ∈ settled))
+    (fresh : task.occurrence ∉ settled)
     (rejected
       : task
         ∈ (({
@@ -159,29 +212,41 @@ theorem State.taskSuccess_rejected {state : State} {occurrence result node}
               }
             : State).maybeIntegrateWork
             result.work (some occurrence)).2.rejectedTasks)
-    : .abortTask task.occurrence ∈ (state.taskSuccess occurrence result).2.2 := by
+    (available : List (Occurrence × Nat) := [])
+    : .abortTask task.occurrence
+      ∈ (state.taskSuccess occurrence result available).2.2.1 := by
   let stored : State :=
     { state with queue := state.queue.putTaskNode { node with value := some result.value } }
   let registered := stored.maybeIntegrateWork result.work (some occurrence)
-  let folded := node.task.groups.foldl ReferenceWorkQueue.successGroupStep (registered.1.queue, [], {})
+  let folded :=
+    node.task.groups.foldl ReferenceWorkQueue.successGroupStep (registered.1.queue, [], {})
   let starting : State := { registered.1 with queue := folded.1 }
   have guard : starting.stopped = false :=
     (State.maybeIntegrateWork_stopped stored result.work (some occurrence)).trans running
-  have target := State.startNewWork_rejected starting folded.2.2 registered.2 [] guard task rejected
-  let active := starting.startNewWork folded.2.2 registered.2 []
-  have unique := State.startNewWork_targets_nodup starting folded.2.2 registered.2 [] List.nodup_nil
-  have targetFinal : .task task.occurrence ∈ (active.1.drainReadyGroups active.2).2.2 :=
-    (active.1.drainReadyGroups_targets active.2 unique).2.sublist.subset target
-  rw [State.taskSuccess_eq state occurrence result node found]
-  simp only [healthy, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
+  have storedSupport : stored.queue.TaskRejectionsSatisfy
+      (fun occurrence _ => occurrence ∈ settled) :=
+    prior.putTaskNode _ (prior node (List.mem_of_find?_eq_some found))
+  have registeredSupport := State.maybeIntegrateWork_taskRejections storedSupport
+    result.work (some occurrence)
+  have target := State.startNewWork_rejected starting folded.2.2 registered.2 [] guard task
+    rejected (registeredSupport.successGroupFold node.task.groups) fresh available
+  let active := starting.startNewWork folded.2.2 registered.2 [] available
+  have unique := State.startNewWork_targets_nodup starting folded.2.2 registered.2 []
+    List.nodup_nil available
+  have targetFinal : .task task.occurrence
+      ∈ (active.1.drainReadyGroups active.2.1 available).2.2.1 :=
+    (active.1.drainReadyGroups_targets active.2.1 unique available).2.sublist.subset target
+  rw [State.taskSuccess_eq state occurrence result node found available]
   apply List.mem_append_right
   exact List.mem_flatMap.mpr ⟨.task task.occurrence, targetFinal, List.mem_cons_self⟩
 
 /-- Registration-time owner absence, not an endpoint scan, constructs object abort. -/
 theorem State.taskSuccess_ownerless_aborted {state : State} {occurrence result node}
     (found : state.queue.taskNode? occurrence = some node)
-    (healthy : state.queue.taskHasHealthyOwner node.task = true)
     (running : state.stopped = false) (task : ReferenceWorkQueue.Task)
+    {settled : List Occurrence}
+    (prior : state.queue.TaskRejectionsSatisfy (fun occurrence _ => occurrence ∈ settled))
+    (fresh : task.occurrence ∉ settled)
     (returned : task ∈ result.work.tasks)
     (missing
       : ∀ owner ∈ task.groups,
@@ -194,9 +259,11 @@ theorem State.taskSuccess_ownerless_aborted {state : State} {occurrence result n
             result.work (some occurrence)).1.queue.groupNode?
             owner.ref
           = none)
-    : .abortTask task.occurrence ∈ (state.taskSuccess occurrence result).2.2 :=
-  State.taskSuccess_rejected found healthy running task
+    (available : List (Occurrence × Nat) := [])
+    : .abortTask task.occurrence
+      ∈ (state.taskSuccess occurrence result available).2.2.1 :=
+  State.taskSuccess_rejected found running task prior fresh
     (State.maybeIntegrateWork_rejected result.work (some occurrence) task returned
-      missing)
+      missing) available
 
 end GraphQL.IncrementalDelivery.AlternativeWorkQueue

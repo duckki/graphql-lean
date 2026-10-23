@@ -82,7 +82,7 @@ example
               (emptyItem 0).item with
                 work :=
                   ReferenceWorkQueue.Work.fromExecution
-                    (.executionGroup [] [] (.ok ([], 0)) .empty)
+                    (.executionGroup [] [] ({ result := .ok ([], 0) }) .empty)
             }
         }
         : CompletedItemScope).canReuse

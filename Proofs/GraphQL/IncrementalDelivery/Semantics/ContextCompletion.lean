@@ -1,5 +1,6 @@
 import Proofs.GraphQL.IncrementalDelivery.Semantics.ContextCollection
 import Proofs.GraphQL.IncrementalDelivery.Semantics.Completion
+import Proofs.GraphQL.IncrementalDelivery.Semantics.WorkSize
 
 /-! Ordinary value completion agrees with basic execution inside an active defer group. -/
 

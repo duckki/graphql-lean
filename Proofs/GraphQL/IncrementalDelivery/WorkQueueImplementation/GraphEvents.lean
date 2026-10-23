@@ -68,6 +68,7 @@ theorem GraphEvent.MatchesWork.successes_succeed {work} {event : GraphEvent}
       subst occurrence
       obtain ⟨owners, producer, known, _⟩ := matching item inItems
       exact ⟨owners, producer, _, known, rfl⟩
+  | groupFailure failure => simp [GraphEvent.successes] at member
   | taskFailure task errors =>
       simp [GraphEvent.successes] at member
   | streamSuccess stream =>
@@ -102,7 +103,7 @@ theorem GraphEvent.MatchesWork.success_contributorsLocated
   obtain ⟨owners, producer, known, exactGroups, _⟩ := matching
   cases occurrence with
   | item address index =>
-      simp only [taskGroups?] at exactGroups
+      simp only [taskGroups?_eq_lookup] at exactGroups
       cases exactGroups
   | executionGroup address =>
       obtain ⟨groups, path, outcome, children, enclosing,
@@ -112,7 +113,7 @@ theorem GraphEvent.MatchesWork.success_contributorsLocated
         change locateWork work address = some
           ⟨.executionGroup groups path outcome children, producer, enclosing⟩
           at located
-        simpa [taskGroups?, located] using exactGroups
+        simpa [taskGroups?_eq_lookup, located] using exactGroups
       rw [← mapped] at member
       obtain ⟨fragment, inGroups, same⟩ := List.mem_map.mp member
       refine ⟨fragment.ancestors.map Execution.DeliveryNode.ref,
@@ -132,7 +133,7 @@ theorem GraphEvent.MatchesWork.success_contributorsNodup
   obtain ⟨owners, producer, known, exactGroups, _⟩ := matching
   cases occurrence with
   | item address index =>
-      simp only [taskGroups?] at exactGroups
+      simp only [taskGroups?_eq_lookup] at exactGroups
       cases exactGroups
   | executionGroup address =>
       have unique := generated.taskOwners_nodup known
@@ -143,7 +144,7 @@ theorem GraphEvent.MatchesWork.success_contributorsNodup
         change locateWork work address = some
           ⟨.executionGroup groups path outcome children, producer, enclosing⟩
           at located
-        simpa [taskGroups?, located] using exactGroups
+        simpa [taskGroups?_eq_lookup, located] using exactGroups
       rw [← mapped]
       rw [ownerEq] at unique
       simpa only [List.map_map, Function.comp_def] using unique
@@ -155,7 +156,7 @@ observed before the parent settlement that releases it.
 theorem workFromSpec_tasks_taskAt
     {root current : Execution.Work} {address : Address}
     {producer : Option Occurrence} {enclosing : NodeRefs}
-    (located : Located root address current producer enclosing)
+    (located : Located root address current.withoutDeclarations producer enclosing)
     {task : Task} (member : task ∈ (Work.fromExecution current address).tasks)
     : ∃ taskAddress payload,
         task.occurrence = .executionGroup taskAddress
@@ -163,15 +164,18 @@ theorem workFromSpec_tasks_taskAt
             (task.groups.map Execution.DeliveryNode.ref) producer payload := by
   cases current with
   | empty => simp [Work.fromExecution] at member
+  | declareGroups groups tasks =>
+      change task ∈ (Work.fromExecution tasks address).tasks at member
+      exact workFromSpec_tasks_taskAt (current := tasks) located member
   | combine left right =>
       simp only [Work.fromExecution, Work.combine, List.mem_append] at member
       rcases member with inLeft | inRight
-      · exact workFromSpec_tasks_taskAt located.left inLeft
-      · exact workFromSpec_tasks_taskAt located.right inRight
+      · exact workFromSpec_tasks_taskAt (current := left) located.left inLeft
+      · exact workFromSpec_tasks_taskAt (current := right) located.right inRight
   | executionGroup groups path result children =>
       simp only [Work.fromExecution, List.mem_singleton] at member
       subst task
-      refine ⟨address, .object path result, rfl, ?_⟩
+      refine ⟨address, .object path result.deliveryResult, rfl, ?_⟩
       simpa only [List.map_map, Function.comp_def] using TaskAt.executionGroup located
   | stream node items => simp [Work.fromExecution] at member
 termination_by sizeOf current
@@ -187,22 +191,25 @@ refs. The exact list matters when comparing queued tasks with host values.
 theorem workFromSpec_tasks_groupsExact
     {root current : Execution.Work} {address : Address}
     {producer : Option Occurrence} {enclosing : NodeRefs}
-    (located : Located root address current producer enclosing)
+    (located : Located root address current.withoutDeclarations producer enclosing)
     {task : Task} (member : task ∈ (Work.fromExecution current address).tasks)
     : taskGroups? root task.occurrence = some task.groups := by
   cases current with
   | empty => simp [Work.fromExecution] at member
+  | declareGroups groups tasks =>
+      change task ∈ (Work.fromExecution tasks address).tasks at member
+      exact workFromSpec_tasks_groupsExact (current := tasks) located member
   | combine left right =>
       simp only [Work.fromExecution, Work.combine, List.mem_append] at member
       rcases member with inLeft | inRight
-      · exact workFromSpec_tasks_groupsExact located.left inLeft
-      · exact workFromSpec_tasks_groupsExact located.right inRight
+      · exact workFromSpec_tasks_groupsExact (current := left) located.left inLeft
+      · exact workFromSpec_tasks_groupsExact (current := right) located.right inRight
   | executionGroup groups path result children =>
       simp only [Work.fromExecution, List.mem_singleton] at member
       subst task
       change locateWork root address = some
         ⟨.executionGroup groups path result children, producer, enclosing⟩ at located
-      simp [taskGroups?, located]
+      simp [taskGroups?_eq_lookup, located]
   | stream node items => simp [Work.fromExecution] at member
 termination_by sizeOf current
 decreasing_by
@@ -218,7 +225,7 @@ private theorem workFromSpec_tasks_contributorsNodup
     {root current : Execution.Work} {address : Address}
     {producer : Option Occurrence} {enclosing : NodeRefs}
     (generated : ExecutedWork root)
-    (located : Located root address current producer enclosing)
+    (located : Located root address current.withoutDeclarations producer enclosing)
     {task : Task} (member : task ∈ (Work.fromExecution current address).tasks)
     : (task.groups.map Execution.DeliveryNode.ref).Nodup := by
   obtain ⟨taskAddress, payload, _, known⟩ :=
@@ -240,7 +247,7 @@ theorem GraphEvent.MatchesWork.childTask_producer
   obtain ⟨owners, producer, known, _, childrenWork⟩ := matching
   cases occurrence with
   | item address index =>
-      simp only [taskChildWork?] at childrenWork
+      simp only [taskChildWork?_eq_lookup] at childrenWork
       cases childrenWork
   | executionGroup address =>
       obtain ⟨groups, path, outcome, children, enclosing,
@@ -250,9 +257,9 @@ theorem GraphEvent.MatchesWork.childTask_producer
         at located
       have childLowering : result.work =
           Work.fromExecution children (address ++ [0]) := by
-        simpa [taskChildWork?, located] using childrenWork.symm
+        simpa [taskChildWork?_eq_lookup, located] using childrenWork.symm
       rw [childLowering] at member
-      have childLocated : Located work (address ++ [0]) children
+      have childLocated : Located work (address ++ [0]) children.withoutDeclarations
           (some (.executionGroup address))
           (groups.map (fun group => group.node.ref)) :=
         WorkQueueSemantics.Located.executionGroup located
@@ -272,7 +279,7 @@ theorem GraphEvent.MatchesWork.taskChildGroups_parentCanonical
   obtain ⟨owners, producer, known, _, childrenWork⟩ := matching
   cases occurrence with
   | item address index =>
-      simp only [taskChildWork?] at childrenWork
+      simp only [taskChildWork?_eq_lookup] at childrenWork
       cases childrenWork
   | executionGroup address =>
       obtain ⟨groups, path, outcome, children, enclosing,
@@ -282,13 +289,10 @@ theorem GraphEvent.MatchesWork.taskChildGroups_parentCanonical
         at located
       have childLowering : result.work =
           Work.fromExecution children (address ++ [0]) := by
-        simpa [taskChildWork?, located] using childrenWork.symm
+        simpa [taskChildWork?_eq_lookup, located] using childrenWork.symm
       rw [childLowering] at member
-      have childLocated : Located work (address ++ [0]) children
-          (some (.executionGroup address))
-          (groups.map (fun group => group.node.ref)) :=
-        WorkQueueSemantics.Located.executionGroup located
-      exact workFromSpec_groups_parentCanonical childLocated canonical member
+      exact workFromSpec_groups_parentCanonical_of_fragments
+        (GroupMetadata.executionGroup_children located) canonical member
 
 /-- Child tasks released by a successful group retain the spec's exact
 contributor-node list in the queue lowering.
@@ -301,7 +305,7 @@ theorem GraphEvent.MatchesWork.childTask_groupsExact
   obtain ⟨owners, producer, known, _, childrenWork⟩ := matching
   cases occurrence with
   | item address index =>
-      simp only [taskChildWork?] at childrenWork
+      simp only [taskChildWork?_eq_lookup] at childrenWork
       cases childrenWork
   | executionGroup address =>
       obtain ⟨groups, path, outcome, children, enclosing,
@@ -311,9 +315,9 @@ theorem GraphEvent.MatchesWork.childTask_groupsExact
         at located
       have childLowering : result.work =
           Work.fromExecution children (address ++ [0]) := by
-        simpa [taskChildWork?, located] using childrenWork.symm
+        simpa [taskChildWork?_eq_lookup, located] using childrenWork.symm
       rw [childLowering] at member
-      have childLocated : Located work (address ++ [0]) children
+      have childLocated : Located work (address ++ [0]) children.withoutDeclarations
           (some (.executionGroup address))
           (groups.map (fun group => group.node.ref)) :=
         WorkQueueSemantics.Located.executionGroup located
@@ -338,7 +342,7 @@ theorem GraphEvent.MatchesWork.streamItem_childTask_producer
       obtain ⟨owners, producer, known, childrenWork⟩ := matching _ itemMember
       cases itemOccurrence with
       | executionGroup address =>
-          simp only [streamItemWork?] at childrenWork
+          simp only [streamItemWork?_eq_lookup] at childrenWork
           cases childrenWork
       | item address index =>
           obtain ⟨node, entries, enclosing, result, children, located, entry,
@@ -347,9 +351,9 @@ theorem GraphEvent.MatchesWork.streamItem_childTask_producer
             ⟨.stream node entries, producer, enclosing⟩ at located
           have childLowering : itemWork =
               Work.fromExecution children (address ++ [index]) := by
-            simpa [streamItemWork?, located, entry] using childrenWork.symm
+            simpa [streamItemWork?_eq_lookup, located, entry] using childrenWork.symm
           rw [childLowering] at taskMember
-          have childLocated : Located work (address ++ [index]) children
+          have childLocated : Located work (address ++ [index]) children.withoutDeclarations
               (some (.item address index)) [] :=
             WorkQueueSemantics.Located.item located entry
           exact workFromSpec_tasks_taskAt childLocated taskMember
@@ -366,7 +370,7 @@ theorem GraphEvent.MatchesWork.streamItem_childTask_groupsExact
       obtain ⟨owners, producer, known, childrenWork⟩ := matching _ itemMember
       cases itemOccurrence with
       | executionGroup address =>
-          simp only [streamItemWork?] at childrenWork
+          simp only [streamItemWork?_eq_lookup] at childrenWork
           cases childrenWork
       | item address index =>
           obtain ⟨node, entries, enclosing, result, children, located, entry,
@@ -375,9 +379,9 @@ theorem GraphEvent.MatchesWork.streamItem_childTask_groupsExact
             ⟨.stream node entries, producer, enclosing⟩ at located
           have childLowering : itemWork =
               Work.fromExecution children (address ++ [index]) := by
-            simpa [streamItemWork?, located, entry] using childrenWork.symm
+            simpa [streamItemWork?_eq_lookup, located, entry] using childrenWork.symm
           rw [childLowering] at taskMember
-          have childLocated : Located work (address ++ [index]) children
+          have childLocated : Located work (address ++ [index]) children.withoutDeclarations
               (some (.item address index)) [] :=
             WorkQueueSemantics.Located.item located entry
           exact workFromSpec_tasks_groupsExact childLocated taskMember
@@ -399,7 +403,7 @@ theorem GraphEvent.MatchesWork.streamItem_childGroups_parentCanonical
       obtain ⟨owners, producer, known, childrenWork⟩ := matching _ itemMember
       cases itemOccurrence with
       | executionGroup address =>
-          simp only [streamItemWork?] at childrenWork
+          simp only [streamItemWork?_eq_lookup] at childrenWork
           cases childrenWork
       | item address index =>
           obtain ⟨node, entries, enclosing, result, children, located, entry,
@@ -408,12 +412,10 @@ theorem GraphEvent.MatchesWork.streamItem_childGroups_parentCanonical
             ⟨.stream node entries, producer, enclosing⟩ at located
           have childLowering : itemWork =
               Work.fromExecution children (address ++ [index]) := by
-            simpa [streamItemWork?, located, entry] using childrenWork.symm
+            simpa [streamItemWork?_eq_lookup, located, entry] using childrenWork.symm
           rw [childLowering] at groupMember
-          have childLocated : Located work (address ++ [index]) children
-              (some (.item address index)) [] :=
-            WorkQueueSemantics.Located.item located entry
-          exact workFromSpec_groups_parentCanonical childLocated canonical groupMember
+          exact workFromSpec_groups_parentCanonical_of_fragments
+            (GroupMetadata.item_children located entry) canonical groupMember
 
 /-- Successful task settlement releases only child tasks with distinct
 contributor refs. Witness: exact child-work matching and generated structure.
@@ -484,6 +486,7 @@ theorem ValidGraphEvents.groupSettlement_producerBefore
             rcases known with ⟨groups, path, result, children, enclosing,
               located, _, payloadEqual⟩
             simp [payloadEqual] at payloadSame
+        | groupFailure failure => simp [GraphEvent.identities] at latest
         | streamSuccess stream => simp [GraphEvent.identities] at latest
         | streamFailure stream errors => simp [GraphEvent.identities] at latest
 
@@ -495,7 +498,7 @@ private theorem GraphEvent.success_mem_identities {event : GraphEvent}
     : occurrence ∈ event.identities.1 := by
   cases event with
   | taskSuccess _ _ | streamItems _ _ => exact success
-  | taskFailure _ _ | streamSuccess _ | streamFailure _ _ =>
+  | taskFailure _ _ | groupFailure _ | streamSuccess _ | streamFailure _ _ =>
       simp [GraphEvent.successes] at success
 
 /-- Successful producer occurrences in an event prefix have already been

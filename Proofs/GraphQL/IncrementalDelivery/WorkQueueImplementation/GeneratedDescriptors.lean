@@ -11,6 +11,17 @@ open GraphQL.IncrementalDelivery.Semantics.OwnerPaths (mapNodes fragmentNodes)
 -- One descriptor assignment covers both contributor nodes and ancestor-only records
 -----------------------------------------------------------------------------------------
 
+/-- Stripping outer declarations retains the underlying descriptor certificate. -/
+theorem DescriptorMetadata.WorkAt.withoutDeclarations {nodes bound work}
+    (known : DescriptorMetadata.WorkAt nodes bound work)
+    : DescriptorMetadata.WorkAt nodes bound work.withoutDeclarations := by
+  cases work with
+  | declareGroups groups tasks =>
+      rw [DescriptorMetadata.WorkAt] at known
+      simpa only [Execution.Work.withoutDeclarations] using known.2.withoutDeclarations
+  | _ => simpa only [Execution.Work.withoutDeclarations] using known
+termination_by work
+
 /-- Structural navigation preserves the descriptor certificate of the selected subwork.
 Witness: address induction, following child work through groups and streamed items.
 -/
@@ -22,13 +33,14 @@ theorem DescriptorMetadata.WorkAt.located
   have navigation := StructuralEquivalence.located_of_current located
   clear located
   induction navigation with
-  | root => exact known
-  | left _ ih => rw [DescriptorMetadata.WorkAt] at ih; exact ih.1
-  | right _ ih => rw [DescriptorMetadata.WorkAt] at ih; exact ih.2
-  | executionGroup _ ih => rw [DescriptorMetadata.WorkAt] at ih; exact ih.2
+  | root => exact known.withoutDeclarations
+  | left _ ih => rw [DescriptorMetadata.WorkAt] at ih; exact ih.1.withoutDeclarations
+  | right _ ih => rw [DescriptorMetadata.WorkAt] at ih; exact ih.2.withoutDeclarations
+  | executionGroup _ ih =>
+      rw [DescriptorMetadata.WorkAt] at ih; exact ih.2.withoutDeclarations
   | item _ entry ih =>
       rw [DescriptorMetadata.WorkAt] at ih
-      exact ih.2 _ (List.mem_of_getElem? entry)
+      exact (ih.2 _ (List.mem_of_getElem? entry)).withoutDeclarations
 
 /-- A real structural node agrees with its complete allocated descriptor.
 Witness: its located contributor map or stream descriptor supplies the assignment.
@@ -55,12 +67,8 @@ theorem DescriptorMetadata.WorkAt.record {nodes bound work node dependencies}
     (known : DescriptorMetadata.WorkAt nodes bound work)
     (record : GroupRecordAt work node dependencies)
     : DescriptorMetadata.Assigned nodes bound node := by
-  obtain ⟨address, groups, path, result, children, producer, owners, fragment,
-    ancestors, located, member, suffix, _⟩ := record
-  have localWork := known.located located
-  rw [DescriptorMetadata.WorkAt] at localWork
-  exact localWork.1 node (List.mem_flatMap.mpr
-    ⟨fragment, member, suffix.subset List.mem_cons_self⟩)
+  obtain ⟨fragment, member, ancestors, suffix, _⟩ := record
+  exact GroupMetadata.fragmentDescriptor known member node (suffix.subset List.mem_cons_self)
 
 /-- Root-generated work has a complete descriptor assignment for all of its metadata.
 Witness: instantiate the pure execution induction at the generating root and supply zero.

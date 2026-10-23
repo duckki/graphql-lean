@@ -14,8 +14,8 @@ def child : DeliveryNode := { ref := 1, path := [.field "items"] }
 
 def nested : Work :=
   .executionGroup [{ node := parent }] []
-    (.ok ([("items", .list [.null, .null])], 0))
-    (.stream child [(.ok (.null, 0), .empty)])
+    ({ result := .ok ([("items", .list [.null, .null])], 0) })
+    (.stream child [({ result := .ok (.null, 0) }, .empty)])
 
 /-- A nested stream's cursor is absent initially; its deferred producer supplies index 2.
 -/
@@ -43,7 +43,9 @@ example
         ∧ task.producer = some (.executionGroup [])
         ∧ task.payload = .item child (.ok (.null, 0))
         ∧ task.Seeded [] (sourceTasks [] none [] nested) :=
-  sourceTasks_task_seeded nested_seed (TaskAt.item (.executionGroup .root) rfl)
+  sourceTasks_task_seeded nested_seed
+    (TaskAt.item (result := { result := .ok (.null, 0) })
+      (.executionGroup (Located.root (root := nested))) rfl)
 
 /-- Nested source labels preserve unique structural occurrences independently of cursors.
 -/
@@ -57,8 +59,8 @@ remains permissive; it is the generated execution's position certificate that ex
 -/
 example
     : ¬((sourceTasks [] none [(child.path, 2)]
-          (.combine (.stream child [(.ok (.null, 0), .empty)])
-            (.stream child [(.ok (.null, 0), .empty)]))).flatMap
+          (.combine (.stream child [({ result := .ok (.null, 0) }, .empty)])
+            (.stream child [({ result := .ok (.null, 0) }, .empty)]))).flatMap
           (SourceTask.positions true)).Nodup := by
   decide
 

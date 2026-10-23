@@ -38,14 +38,14 @@ private theorem parentKnown
     : TaskAt SharedOwnerFailure.work producer [0, 1] none
         (.object [] (.ok (SharedOwnerFailure.data, 0))) := by
   refine ⟨[{ node := SharedOwnerFailure.groupG }, { node := SharedOwnerFailure.groupH }], [],
-    .ok (SharedOwnerFailure.data, 0), SharedOwnerFailure.childWork, [], ?_, rfl, rfl⟩
+    { result := .ok (SharedOwnerFailure.data, 0) }, SharedOwnerFailure.childWork, [], ?_, rfl, rfl⟩
   rw [SharedOwnerFailure.work_shape]
   rfl
 
 private theorem failedKnown
     : TaskAt SharedOwnerFailure.work (.executionGroup [1, 1, 0]) [0] none
         (.object [] (.error 1)) := by
-  refine ⟨[{ node := SharedOwnerFailure.groupG }], [], .error 1, .empty, [], ?_, rfl, rfl⟩
+  refine ⟨[{ node := SharedOwnerFailure.groupG }], [], { result := .error 1, cause := some 1 }, .empty, [], ?_, rfl, rfl⟩
   rw [SharedOwnerFailure.work_shape]
   rfl
 
@@ -54,7 +54,7 @@ theorem childKnown
     : TaskAt SharedOwnerFailure.work child [0] (some producer)
         (.object [.field "box"] (.ok ([("values", .list [])], 0))) := by
   refine ⟨[{ node := SharedOwnerFailure.groupG }], [.field "box"],
-    .ok ([("values", .list [])], 0), SharedOwnerFailure.streamWork, [0, 1], ?_, rfl, rfl⟩
+    { result := .ok ([("values", .list [])], 0) }, SharedOwnerFailure.streamWork, [0, 1], ?_, rfl, rfl⟩
   rw [SharedOwnerFailure.work_shape]
   rfl
 
@@ -80,6 +80,7 @@ theorem started
 
 /-- The finite source obeys exactly the reference contract at all its prefixes. -/
 theorem sourceValid : schedule.ValidFor SharedOwnerFailure.work := by
+  apply EventSource.ValidFor.of_asynchronous
   refine ⟨rfl, List.nil_prefix, ?_, ?_⟩
   · intro earlier later earlierPrefix admitted
     exact earlierPrefix.trans admitted
@@ -104,7 +105,8 @@ theorem conforms
         (createWorkQueueForSchedule SharedOwnerFailure.work schedule)
         SharedOwnerFailure.work :=
   createWorkQueueForScheduleConforms_holds SharedOwnerFailure.work schedule
-    SharedOwnerFailure.executed SharedOwnerFailure.nonempty sourceValid
+    SharedOwnerFailure.executed
+    ((Execution.Work.isEmpty_eq_false _).mpr SharedOwnerFailure.nonempty) sourceValid
 
 -----------------------------------------------------------------------------------------
 -- Complete actual handoff and rejected-registration cleanup share one resource history

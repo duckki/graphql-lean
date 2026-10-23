@@ -30,7 +30,7 @@ theorem OwnsCompletion.mono {containers : Bool} {paths : α → List ResponsePat
   exact ⟨slices, hw, ho.mono hs⟩
 
 theorem OwnsItems.mono {containers : Bool} {path : ResponsePath} {index : Nat}
-    {left right : ResponsePath → Prop} {items : List (Result ResponseValue × Work)}
+    {left right : ResponsePath → Prop} {items : List (TaskOutcome ResponseValue × Work)}
     (h : OwnsItems containers path index left items) (hs : ∀ path, left path → right path)
     : OwnsItems containers path index right items := by
   obtain ⟨slices, hw, ho⟩ := h
@@ -73,12 +73,14 @@ theorem ownsCompletion_combine {containers : Bool} {pa : α → List ResponsePat
   cases he : left.result with
   | error errors =>
       cases hre : right.result <;>
-        simp [Completion.combine, he, hre, GraphQL.Execution.Result.combine, ownsCompletion_error]
+        simp only [Completion.combine, he, hre, GraphQL.Execution.Result.combine] <;>
+        exact ⟨[], .empty, owns_nil _⟩
   | ok leftData =>
       rcases leftData with ⟨a, ea⟩
       cases hre : right.result with
       | error errors =>
-          simp [Completion.combine, he, hre, GraphQL.Execution.Result.combine, ownsCompletion_error]
+          simp only [Completion.combine, he, hre, GraphQL.Execution.Result.combine]
+          exact ⟨[], .empty, owns_nil _⟩
       | ok rightData =>
           rcases rightData with ⟨b, eb⟩
           obtain ⟨sl, hsl, hol⟩ := hl
@@ -102,7 +104,9 @@ theorem ownsCompletion_map {containers : Bool} {pa : α → List ResponsePath}
     (h : OwnsCompletion containers pa scope completed)
     : OwnsCompletion containers pb scope (completed.map f) := by
   cases he : completed.result with
-  | error errors => simp [Completion.map, he, ownsCompletion_error]
+  | error errors =>
+      simp only [Completion.map, he]
+      exact ⟨[], .empty, owns_nil _⟩
   | ok data =>
       rcases data with ⟨data, errors⟩
       obtain ⟨slices, hw, ho⟩ := h
@@ -150,8 +154,9 @@ theorem ownsCompletion_nonNull {containers : Bool} {path : ResponsePath}
         completed.nonNull := by
   cases he : completed.result with
   | error errors =>
-      simp [Completion.nonNull, he, nonNullCompletion,
-        GraphQL.Execution.nonNullCompletion, ownsCompletion_error]
+      simp only [Completion.nonNull, he, nonNullCompletion,
+        GraphQL.Execution.nonNullCompletion]
+      exact ⟨[], .empty, owns_nil _⟩
   | ok data =>
       rcases data with ⟨data, errors⟩
       cases data <;>
@@ -166,9 +171,13 @@ theorem OwnsCompletion.executionGroup {containers : Bool} {path : ResponsePath}
     (h : OwnsCompletion containers (fields containers path) scope completed)
     (groups : List DeferredFragment)
     : OwnsWork containers scope
-        (.executionGroup groups path completed.result completed.work) := by
+        (.executionGroup groups path completed.outcome completed.work) := by
   obtain ⟨slices, hw, ho⟩ := h
-  exact ⟨_, .executionGroup hw, by simpa only [List.flatten_cons] using ho⟩
+  exact ⟨
+    _,
+    .executionGroup hw,
+    by simpa only [Completion.outcome, List.flatten_cons] using ho
+  ⟩
 
 theorem ownsCompletion_combineWork {containers : Bool} {paths : α → List ResponsePath}
     {sa sb sc : ResponsePath → Prop} {completed : Completion α} {work : Work}
@@ -239,7 +248,10 @@ theorem ownsCompletion_combineWork_fields {containers : Bool} {path : ResponsePa
 theorem ownsCompletion_failedField (containers : Bool) (path : ResponsePath)
     (name : Name) (fieldType : TypeRef)
     : OwnsCompletion containers (fields containers path) (Below (path ++ [.field name]))
-        {result := singleFieldResult name (handleFieldError fieldType)} := by
+        {
+          result := singleFieldResult name (handleFieldError fieldType),
+          cause := if fieldType.isNonNull then some 1 else none
+        } := by
   refine ⟨[], .empty, ?_⟩
   cases fieldType <;>
     simp only [singleFieldResult, handleFieldError, GraphQL.Execution.singleFieldResult,
@@ -253,7 +265,7 @@ theorem ownsItems_nil (containers : Bool) (path : ResponsePath) (index : Nat)
 
 theorem ownsItems_cons {containers : Bool} {path : ResponsePath} {index : Nat}
     {sa sb sc : ResponsePath → Prop} {completed : Completion ResponseValue}
-    {items : List (Result ResponseValue × Work)}
+    {items : List (TaskOutcome ResponseValue × Work)}
     (hl
       : OwnsCompletion containers (value containers (path ++ [.index index])) sa
           completed)
@@ -261,19 +273,20 @@ theorem ownsItems_cons {containers : Bool} {path : ResponsePath} {index : Nat}
     (hd : ∀ p, sa p → sb p → False)
     (hls : ∀ p, sa p → sc p) (hrs : ∀ p, sb p → sc p)
     : OwnsItems containers path index sc
-        ((completed.result, completed.work) :: items) := by
+        ((completed.outcome, completed.work) :: items) := by
   obtain ⟨sl, hsl, hol⟩ := hl
   obtain ⟨sr, hsr, hor⟩ := hr
   exact ⟨
     _,
     .cons hsl hsr,
     by
-      simpa only [List.flatten_cons, List.flatten_append, List.append_assoc]
+      simpa only [Completion.outcome, List.flatten_cons, List.flatten_append,
+        List.append_assoc]
         using owns_append hol hor hd hls hrs
   ⟩
 
 theorem OwnsItems.stream {containers : Bool} {node : DeliveryNode} {index : Nat}
-    {scope : ResponsePath → Prop} {items : List (Result ResponseValue × Work)}
+    {scope : ResponsePath → Prop} {items : List (TaskOutcome ResponseValue × Work)}
     (h : OwnsItems containers node.path index scope items)
     : OwnsWork containers scope (.stream node items) := by
   obtain ⟨slices, hi, ho⟩ := h

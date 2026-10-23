@@ -41,21 +41,26 @@ def data (index : Nat) : List (Name × ResponseValue) :=
 /-- Each item introduces separate successful and failing deferred tasks. -/
 def children (index : Nat) : Execution.Work :=
   .combine .empty
-    (.combine
-      (.executionGroup [⟨successGroup index, []⟩] (successGroup index).path
-        (.ok (data index, 0)) (.combine .empty .empty))
+    (.declareGroups [⟨successGroup index, []⟩, ⟨failureGroup index, []⟩]
       (.combine
-        (.executionGroup [⟨failureGroup index, []⟩] (failureGroup index).path (.error 1)
-          .empty)
-        .empty))
+        (.executionGroup [⟨successGroup index, []⟩] (successGroup index).path
+          ({ result := .ok (data index, 0) }) (.combine .empty .empty))
+        (.combine
+          (.executionGroup [⟨failureGroup index, []⟩] (failureGroup index).path
+            ({ result := .error 1, cause := some 1 }) .empty)
+          .empty)))
 
 /-- The two finite stream outcomes, with their own deferred regions. -/
-def entries : List (Result ResponseValue × Execution.Work) :=
-  [(.ok (.object [], 0), children 0), (.ok (.object [], 0), children 1)]
+def entries : List (TaskOutcome ResponseValue × Execution.Work) :=
+  [
+    ({ result := .ok (.object [], 0) }, children 0),
+    ({ result := .ok (.object [], 0) }, children 1)
+  ]
 
 /-- The exact finite work produced by the fixture query. -/
 def work : Execution.Work :=
-  .combine (.combine (.combine .empty (.stream stream entries)) .empty) .empty
+  .combine (.combine (.combine .empty (.stream stream entries)) .empty)
+    (.declareGroups [] .empty)
 
 /-- An item settlement carries its value and address-indexed lowered child work. -/
 def item (index : Nat) : StreamItem :=
@@ -120,21 +125,22 @@ theorem itemMatches (index : Nat) (bound : index < 2)
         TaskAt work (item index).occurrence owners producer
           (.item stream (.ok ((item index).value.item, (item index).value.errors)))
         ∧ streamItemWork? work (item index).occurrence = some (item index).work := by
-  have entry : entries[index]? = some (.ok (.object [], 0), children index) := by
+  have entry : entries[index]? = some ({ result := .ok (.object [], 0) }, children index) := by
     have casesIndex : index = 0 ∨ index = 1 := by omega
     rcases casesIndex with rfl | rfl <;> rfl
   refine ⟨[stream.ref], none, ?_, ?_⟩
-  · exact ⟨stream, entries, [], .ok (.object [], 0), children index,
+  · exact ⟨stream, entries, [], { result := .ok (.object [], 0) }, children index,
       streamLocated, entry, rfl, rfl⟩
   · have located : locateWork work [0, 0, 1] = some ⟨.stream stream entries, none, []⟩ :=
       streamLocated
-    simp [streamItemWork?, item, located, entry]
+    simp [streamItemWork?, taskContext?, item, located, entry]
 
 /-- The first item's name task succeeds. Witness: its exact execution-group descriptor. -/
 theorem successKnown
     : TaskAt work successfulTask [(successGroup 0).ref] (some (item 0).occurrence)
         (.object (successGroup 0).path (.ok (data 0, 0))) := by
-  refine ⟨[⟨successGroup 0, []⟩], (successGroup 0).path, _, .combine .empty .empty,
+  refine ⟨[⟨successGroup 0, []⟩], (successGroup 0).path,
+    { result := .ok (data 0, 0) }, .combine .empty .empty,
     [], ?_, rfl, rfl⟩
   cbv
 
@@ -142,7 +148,8 @@ theorem successKnown
 theorem failureKnown
     : TaskAt work failedTask [(failureGroup 0).ref] (some (item 0).occurrence)
         (.object (failureGroup 0).path (.error 1)) := by
-  refine ⟨[⟨failureGroup 0, []⟩], (failureGroup 0).path, _, .empty, [], ?_, rfl, rfl⟩
+  refine ⟨[⟨failureGroup 0, []⟩], (failureGroup 0).path,
+    { result := .error 1, cause := some 1 }, .empty, [], ?_, rfl, rfl⟩
   cbv
 
 /-- Stream arrival, successful release, and failure form a valid source prefix.
@@ -228,7 +235,7 @@ theorem next_item_task_announced
       : ((State.initialize (Work.fromExecution work)).replayGraphEvents
           (before.flatten ++ [second])).taskNode? (.executionGroup [0, 0, 1, 1, 1, 0])
         = some { task := ⟨.executionGroup [0, 0, 1, 1, 1, 0], [successGroup 1]⟩ } := by cbv
-  exact createWorkQueue_replayGraphEvents_announcedOwner continuation_valid found
+  exact createWorkQueue_replayGraphEvents_announcedOwner continuation_valid [] found
 
 -----------------------------------------------------------------------------------------
 -- Region separation closes registration and accounting through arbitrary stream batches

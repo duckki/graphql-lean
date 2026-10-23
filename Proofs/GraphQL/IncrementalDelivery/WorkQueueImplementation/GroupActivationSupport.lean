@@ -1,3 +1,4 @@
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.WorkDeclarations
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.GroupProvenance
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.RegisteredTasks
 
@@ -10,13 +11,11 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 -- Separate registered ancestor shells from groups supported by actual contributors
 -----------------------------------------------------------------------------------------
 
-/-- Groups outside `supported` have no task memberships or cached error, and every
+/-- Groups outside `supported` have no task memberships, and every
 active root is supported. Registration alone supplies neither fact about a group ref.
 -/
 structure State.GroupRefSupport (queue : State) (supported : Nat → Prop) : Prop where
-  contents
-    : ∀ node ∈ queue.groupNodes,
-        ¬supported node.group.node.ref → node.tasks = [] ∧ node.failure = none
+  contents : ∀ node ∈ queue.groupNodes, ¬supported node.group.node.ref → node.tasks = []
   roots : ∀ ref ∈ queue.rootGroups, supported ref
 
 /-- An empty queue has no unsupported contents or active roots.
@@ -31,8 +30,7 @@ Witness: split the node-map membership; root refs do not change.
 -/
 theorem State.GroupRefSupport.putGroupNode {queue : State} {supported}
     (valid : queue.GroupRefSupport supported) (updated : GroupNode)
-    (contents
-      : ¬supported updated.group.node.ref → updated.tasks = [] ∧ updated.failure = none)
+    (contents : ¬supported updated.group.node.ref → updated.tasks = [])
     : (queue.putGroupNode updated).GroupRefSupport supported := by
   refine ⟨?_, valid.roots⟩
   intro node member absent
@@ -47,61 +45,39 @@ Witness: existing records survive; the only new record has no task or error.
 theorem State.GroupRefSupport.addGroup {queue : State} {supported}
     (valid : queue.GroupRefSupport supported) (group : Group)
     : (queue.addGroup group).GroupRefSupport supported := by
+  have appended : ({ queue with
+      groupNodes := queue.groupNodes ++ [({ group } : GroupNode)] } : State).GroupRefSupport supported := by
+    refine ⟨?_, valid.roots⟩
+    intro node member absent
+    rcases List.mem_append.mp member with old | new
+    · exact valid.contents node old absent
+    · cases List.mem_singleton.mp new
+      rfl
   unfold State.addGroup
   split
   · exact valid
   · split
-    · exact ⟨valid.contents, valid.roots⟩
-    · refine ⟨?_, valid.roots⟩
-      intro node member absent
-      rcases List.mem_append.mp member with old | new
-      · exact valid.contents node old absent
-      · have same := List.mem_singleton.mp new
-        subst node
-        exact ⟨rfl, rfl⟩
+    · exact ⟨appended.contents, valid.roots⟩
+    · split
+      · split <;> exact ⟨valid.contents, valid.roots⟩
+      · rename_i node found
+        refine ⟨?_, valid.roots⟩
+        intro target member absent
+        obtain ⟨old, oldMember, same⟩ := List.mem_map.mp member
+        by_cases selected : old.group.node.ref = node.group.node.ref
+        · simp only [selected, BEq.rfl, ite_true] at same
+          subst target
+          exact valid.contents node (List.mem_of_find?_eq_some found) absent
+        · simp only [beq_eq_false_iff_ne.mpr selected, Bool.false_eq_true, ite_false] at same
+          subst target
+          exact appended.contents old oldMember absent
 
-/-- Installing ancestor links does not activate or populate their records.
-Witness: registration and child-link folds preserve the same support predicate.
--/
+/-- Recursive group installation preserves empty unsupported records and active-root support. -/
 theorem State.GroupRefSupport.addGroups {queue : State} {supported}
     (valid : queue.GroupRefSupport supported) (groups : List Group)
     : (queue.addGroups groups).1.GroupRefSupport supported := by
-  let link (current : State) (group : Group) :=
-    match group.parent with
-    | none => current
-    | some parent =>
-        match current.groupNode? parent with
-        | none => current
-        | some node =>
-            let children := if node.childGroups.contains group.node.ref then
-              node.childGroups else node.childGroups ++ [group.node.ref]
-            current.putGroupNode { node with childGroups := children }
-  have registered (more : List Group) (current : State)
-      (known : current.GroupRefSupport supported)
-      : (more.foldl State.addGroup current).GroupRefSupport supported := by
-    induction more generalizing current with
-    | nil => exact known
-    | cons group rest ih => exact ih _ (known.addGroup group)
-  have linked (more : List Group) (current : State)
-      (known : current.GroupRefSupport supported)
-      : (more.foldl link current).GroupRefSupport supported := by
-    induction more generalizing current with
-    | nil => exact known
-    | cons group rest ih =>
-        apply ih
-        unfold link
-        split
-        · exact known
-        · split
-          · exact known
-          · rename_i node found
-            exact known.putGroupNode _
-              (known.contents node (List.mem_of_find?_eq_some found))
-  let fresh := groups.filter (fun group =>
-    !queue.registeredGroups.contains group.node.ref
-      && (queue.groupNode? group.node.ref).isNone)
-  change (fresh.foldl link (fresh.foldl State.addGroup queue)).GroupRefSupport supported
-  exact linked fresh _ (registered fresh queue valid)
+  exact State.addGroups_preserves (fun current => current.GroupRefSupport supported) groups
+    (fun _ group _ valid => valid.addGroup group) queue valid
 
 /-- Task registration populates only its actual contributing refs.
 Witness: each successful lookup is at a supported task-owner ref; other records stay empty.
@@ -178,7 +154,7 @@ theorem State.GroupRefSupport.maybeIntegrateWork {queue : State} {supported}
 
 /-- Every retained pruning candidate has actual supported contents, not just a record.
 Witness: fuel induction removes unsupported empty shells and follows their children;
-each kept candidate has a nonempty task list or cached failure at its own lookup.
+each kept candidate has a nonempty task list at its own lookup.
 -/
 theorem State.GroupRefSupport.pruneEmptyGroups {queue : State} {supported}
     (valid : queue.GroupRefSupport supported) (groups : List Execution.DeliveryNode)
@@ -210,9 +186,9 @@ theorem State.GroupRefSupport.pruneEmptyGroups {queue : State} {supported}
                   apply Classical.byContradiction
                   intro absent
                   have same := State.groupNode?_ref found
-                  obtain ⟨tasks, failure⟩ := known.contents node
+                  have tasks := known.contents node
                     (List.mem_of_find?_eq_some found) (same ▸ absent)
-                  simp [tasks, failure] at nonempty
+                  simp [tasks] at nonempty
                 apply ih _ _ _ known
                 intro candidate member
                 rcases List.mem_append.mp member with old | new
@@ -220,7 +196,74 @@ theorem State.GroupRefSupport.pruneEmptyGroups {queue : State} {supported}
                 · have same := List.mem_singleton.mp new
                   subst candidate
                   exact supportedGroup
-  exact loop _ queue groups [] valid (by simp)
+  have result := loop (queue.groupNodes.length + groups.length + 1) queue groups [] valid (by simp)
+  refine ⟨result.1, ?_⟩
+  intro group member
+  exact result.2 group (by simpa only [State.pruneEmptyGroups] using member)
+
+/-- Exposing task rejections changes neither contributor memberships nor active group refs. -/
+theorem State.GroupRefSupport.cacheTaskFailures {queue : State} {supported}
+    (valid : queue.GroupRefSupport supported) (available : List (Occurrence × Nat))
+    : (queue.cacheTaskFailures available).GroupRefSupport supported := by
+  constructor
+  · intro node member absent
+    rw [State.cacheTaskFailures_groupNodes] at member
+    exact valid.contents node member absent
+  · intro ref member
+    rw [State.cacheTaskFailures_rootGroups] at member
+    exact valid.roots ref member
+
+/-- A startup notice names the same group ref inspected by that startup call. -/
+theorem State.startGroup_failure_ref (queue : State) (ref : NodeRef)
+    (available : List (Occurrence × Nat)) {failure : GroupFailureEvent}
+    (reported : failure ∈ (queue.startGroup ref available).2)
+    : failure.group.ref = ref := by
+  unfold State.startGroup at reported
+  dsimp only at reported
+  split at reported
+  · cases reported
+  · rename_i node found
+    split at reported
+    · cases reported
+    · obtain rfl := List.mem_singleton.mp reported
+      exact State.groupNode?_ref found
+
+/-- Every accumulated startup notice comes from the supplied released group refs. -/
+theorem State.startNewWork_failure_refs (queue : State) (more : NewWork)
+    (available : List (Occurrence × Nat))
+    : ∀ failure ∈ (queue.startNewWork more available).2,
+        failure.group.ref ∈ more.newGroups.map Execution.DeliveryNode.ref := by
+  let step (acc : State × List GroupFailureEvent) (ref : NodeRef) :=
+    let (current, failures) := acc
+    let (next, queued) := current.startGroup ref available
+    (next, failures ++ queued)
+  have loop (refs : NodeRefs) (acc : State × List GroupFailureEvent)
+      (inputs : refs.Subset (more.newGroups.map Execution.DeliveryNode.ref))
+      (prior : ∀ failure ∈ acc.2,
+        failure.group.ref ∈ more.newGroups.map Execution.DeliveryNode.ref)
+      : ∀ failure ∈ (refs.foldl step acc).2,
+          failure.group.ref ∈ more.newGroups.map Execution.DeliveryNode.ref := by
+    induction refs generalizing acc with
+    | nil => exact prior
+    | cons ref rest ih =>
+        apply ih _ (fun _ member => inputs (List.mem_cons_of_mem _ member))
+        intro failure member
+        rcases List.mem_append.mp member with earlier | new
+        · exact prior failure earlier
+        · rw [acc.1.startGroup_failure_ref ref available new]
+          exact inputs List.mem_cons_self
+  unfold State.startNewWork
+  exact loop _ _ (List.Subset.refl _) (by intro failure member; cases member)
+
+/-- Released supported group refs also support every returned startup notice. -/
+theorem State.startNewWork_failures_supported {queue : State} {supported : NodeRef → Prop}
+    (more : NewWork) (available : List (Occurrence × Nat))
+    (groups : ∀ group ∈ more.newGroups, supported group.ref)
+    : ∀ failure ∈ (queue.startNewWork more available).2, supported failure.group.ref := by
+  intro failure member
+  obtain ⟨group, included, same⟩ := List.mem_map.mp
+    (queue.startNewWork_failure_refs more available failure member)
+  exact same ▸ groups group included
 
 /-- Activating already-supported notices preserves support for every active root.
 Witness: activation leaves group contents unchanged and appends exactly these refs.
@@ -228,14 +271,15 @@ Witness: activation leaves group contents unchanged and appends exactly these re
 theorem State.GroupRefSupport.startNewWork {queue : State} {supported}
     (valid : queue.GroupRefSupport supported) (newWork : NewWork)
     (groups : ∀ group ∈ newWork.newGroups, supported group.ref)
-    : (queue.startNewWork newWork).GroupRefSupport supported := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.startNewWork newWork available).1.GroupRefSupport supported := by
   constructor
   · intro node member absent
-    rw [(queue.startNewWork_groupCore newWork).1] at member
-    exact valid.contents node member absent
+    exact valid.contents node
+      ((queue.startNewWork_groupCore newWork available).1.subset member) absent
   · intro ref member
-    rw [(queue.startNewWork_groupCore newWork).2.2] at member
-    rcases List.mem_append.mp member with old | new
+    have original := (queue.startNewWork_groupCore newWork available).2.2.subset member
+    rcases List.mem_append.mp original with old | new
     · exact valid.roots ref old
     · obtain ⟨group, within, same⟩ := List.mem_map.mp new
       exact same ▸ groups group within

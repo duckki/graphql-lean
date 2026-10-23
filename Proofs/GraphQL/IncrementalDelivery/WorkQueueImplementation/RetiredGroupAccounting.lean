@@ -1,4 +1,5 @@
-import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.RetiredContributorPublication
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.SuccessfulOwnerReplay
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.CancellationReplay
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.AtomicHandlerBoundaries
 
 /-! Healthy retired groups are accounted on the canonical publication matching. -/
@@ -12,7 +13,7 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 -----------------------------------------------------------------------------------------
 
 /-- Every contributor of a healthy retired group has an actual canonical publication.
-Witness: structural retirement supplies a value in the raw source ledger; exact payload
+Witness: structural retirement supplies a value in the actual batch ledger; exact payload
 counts transport that entry through normalization and atomization to the shared matching.
 No completion notice, output admission, or separately chosen publication witness is needed.
 -/
@@ -24,23 +25,35 @@ theorem retiredGroup_contributorPublished
     (ledger : BufferedClosureLedger work inputs w)
     (known : TaskAt work (.executionGroup address) owners producer payload)
     (contributes : ref ∈ owners)
-    (retired : ((initialQueue work).replayGraphEvents inputs.flatten).RetiredGroup ref)
+    (retired : ((initialQueue work).runNormalized inputs).1.RetiredGroup ref)
     (healthy
       : ¬GroupRecordInvalidated work
-          ((initialQueue work).objectFailureContributions inputs.flatten) ref)
+          ((initialQueue work).admittedObjectFailureContributionsForBatches inputs) ref)
     : Published w.matching w.events (.executionGroup address) := by
   obtain ⟨published, covered, _, interpret, _⟩ := ledger
-  have accepted : (initialQueue work).batchesStarted inputs = true := by
-    rwa [← inputsStarted_eq_batchesStarted]
-  obtain ⟨value, delivered⟩ := generated.retired_structuralContributor_published valid
-    ((initialQueue work).batchesStarted_acceptsBatch inputs accepted)
-    (covered.flatten accepted) known contributes retired healthy
-  have exactHistory := history.trans (createWorkQueue_nonterminalAtoms_flattened inputs started)
+  obtain ⟨parents, canonical⟩ := generated.groupRecordsCanonical
+  have frame := (initial_ownerPublicationFrame generated canonical).rawBatches generated
+    canonical inputs valid (by rwa [← inputsStarted_eq_batchesStarted]) covered
+  rw [State.rawBatches_state, ← State.runNormalized_replayBatches] at frame
+  simp only [List.nil_append] at frame
+  have healthySource := healthy
+  rw [State.admittedObjectFailureContributionsForBatches_eq_of_started _ inputs
+    (by rwa [← inputsStarted_eq_batchesStarted])] at healthySource
+  have uncancelled := (generated.runNormalized_cancelledRecordsSupported inputs valid started)
+    |>.healthy_not_mem healthySource
+  obtain ⟨value, delivered⟩ := frame.retired_structuralContributor_published generated valid
+    known contributes retired uncancelled
   have count
       : (w.events.flatMap normalizedObjectValues).length
-        = (((initialQueue work).rawEventReplay inputs.flatten).2.flatMap
+        = (((initialQueue work).rawBatches inputs).2.flatMap
             WorkQueueEvent.objectValues).length := by
-    rw [exactHistory, IncrementalPublisher.normalizeBatch_atomicObjectValues]
+    have exactValues := IncrementalPublisher.normalizeBatch_atomicObjectValues
+      ({ active := (initialQueue work).initialGroups ++ (initialQueue work).initialStreams }
+        : IncrementalPublisher) ((initialQueue work).rawBatches inputs).2
+    rw [Witness.rawBatches_shape history, List.flatMap_append] at exactValues
+    split at exactValues <;>
+      simpa only [List.flatMap_singleton, List.flatMap_nil, normalizedObjectValues,
+        List.append_nil] using congrArg List.length exactValues
   have atEnd := interpret w.events.length (Nat.le_refl _) (.executionGroup address)
   rw [List.take_length] at atEnd
   apply atEnd
@@ -58,11 +71,11 @@ theorem retiredGroup_nodeAccounted
     (history : w.events = (initialQueue work).nonterminalAtoms inputs)
     (ledger : BufferedClosureLedger work inputs w)
     (known : NodeAt work group .group dependencies producer)
-    (retired
-      : ((initialQueue work).replayGraphEvents inputs.flatten).RetiredGroup group.ref)
+    (retired : ((initialQueue work).runNormalized inputs).1.RetiredGroup group.ref)
     (healthy
       : ¬GroupRecordInvalidated work
-          ((initialQueue work).objectFailureContributions inputs.flatten) group.ref)
+          ((initialQueue work).admittedObjectFailureContributionsForBatches inputs)
+          group.ref)
     : NodeAccounted work w.matching w.events w.failures group.ref := by
   intro occurrence owners ⟨taskProducer, payload, task⟩ contributes
   cases occurrence with

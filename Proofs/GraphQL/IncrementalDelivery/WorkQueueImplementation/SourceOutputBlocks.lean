@@ -59,12 +59,14 @@ theorem sourceOutputBlocks_at {blocks : List SourceOutputBlock} {index event}
 This proof-only view does not choose inputs, change batching, or license any failure cut.
 -/
 def State.sourceOutputBlocks (queue : State) (publisher : IncrementalPublisher)
-    : List GraphEvent → State × IncrementalPublisher × List SourceOutputBlock
+    (events : List GraphEvent) (available : List (Occurrence × Nat) := [])
+    : State × IncrementalPublisher × List SourceOutputBlock :=
+  match events with
   | [] => (queue, publisher, [])
   | event :: rest =>
-      let handled := queue.handleGraphEvent event
+      let handled := queue.dispatchGraphEvent event available
       let normalized := publisher.normalizeBatch handled.2
-      let later := handled.1.sourceOutputBlocks normalized.1 rest
+      let later := handled.1.sourceOutputBlocks normalized.1 rest available
       (
         later.1,
         later.2.1,
@@ -75,9 +77,9 @@ def State.sourceOutputBlocks (queue : State) (publisher : IncrementalPublisher)
 Witness: concatenate normalization through the same raw replay, including empty segments.
 -/
 theorem State.sourceOutputBlocks_agrees (queue : State) (publisher : IncrementalPublisher)
-    (events : List GraphEvent)
-    : let traced := queue.sourceOutputBlocks publisher events
-      let raw := queue.rawEventReplay events
+    (events : List GraphEvent) (available : List (Occurrence × Nat) := [])
+    : let traced := queue.sourceOutputBlocks publisher events available
+      let raw := queue.rawEventReplay events available
       let normalized := publisher.normalizeBatch raw.2
       traced.1 = raw.1
       ∧ traced.2.1 = normalized.1
@@ -87,18 +89,20 @@ theorem State.sourceOutputBlocks_agrees (queue : State) (publisher : Incremental
       IncrementalPublisher.normalizeBatch]
   | cons event rest ih =>
       dsimp only [State.sourceOutputBlocks]
-      rw [State.rawEventReplay_cons, IncrementalPublisher.normalizeBatch_append]
+      rw [State.rawEventReplay_cons queue event rest available,
+        IncrementalPublisher.normalizeBatch_append]
       obtain ⟨state, mapper, output⟩ :=
-        ih (queue.handleGraphEvent event).1
-          (publisher.normalizeBatch (queue.handleGraphEvent event).2).1
+        ih (queue.dispatchGraphEvent event available).1
+          (publisher.normalizeBatch (queue.dispatchGraphEvent event available).2).1
       exact ⟨state, mapper, by simp only [List.flatMap_cons, output, List.flatMap_append]⟩
 
 /-- Handler labels retain exactly the received source sequence, including silent handlers.
 Witness: each recursive call contributes its source event once before the continuation.
 -/
 theorem State.sourceOutputBlocks_inputs (queue : State) (publisher : IncrementalPublisher)
-    (events : List GraphEvent)
-    : ((queue.sourceOutputBlocks publisher events).2.2.filterMap Prod.fst) = events := by
+    (events : List GraphEvent) (available : List (Occurrence × Nat) := [])
+    : ((queue.sourceOutputBlocks publisher events available).2.2.filterMap Prod.fst)
+      = events := by
   induction events generalizing queue publisher with
   | nil => rfl
   | cons event rest ih => simp [State.sourceOutputBlocks, ih]
@@ -107,17 +111,19 @@ theorem State.sourceOutputBlocks_inputs (queue : State) (publisher : Incremental
 -- The real batch wrapper adds only its optional terminal block
 -----------------------------------------------------------------------------------------
 
-/-- Retain handler boundaries through the queue's actual batch termination branches.
-The terminal block has no source settlement and therefore cannot create a failure label.
--/
+/-- Retain actual FIFO dispatch blocks and the optional batch termination block.
+Queued group failures keep their own supplied source label and consumed output position. -/
 def State.sourceBatchBlocks (queue : State) (publisher : IncrementalPublisher)
     (events : List GraphEvent)
     : State × IncrementalPublisher × List SourceOutputBlock :=
   if queue.terminated then
     (queue, publisher, [])
   else
-    let traced := queue.sourceOutputBlocks publisher events
-    if traced.1.rootGroups.isEmpty && traced.1.rootStreams.isEmpty then
+    let available := GraphEvent.availableFailures events
+    let traced := queue.sourceOutputBlocks publisher events available
+    if traced.1.rootGroups.isEmpty
+        && traced.1.rootStreams.isEmpty
+        && traced.1.groupFailureEvents.isEmpty then
       (
         { traced.1 with terminated := true },
         traced.2.1,
@@ -138,6 +144,7 @@ theorem State.sourceBatchBlocks_agrees (queue : State) (publisher : IncrementalP
       ∧ traced.2.1 = normalized.1
       ∧ traced.2.2.flatMap Prod.snd = normalized.2.flatMap publicationAtoms := by
   have ⟨state, mapper, output⟩ := queue.sourceOutputBlocks_agrees publisher events
+    (GraphEvent.availableFailures events)
   simp only [State.sourceBatchBlocks, State.handleGraphEvents_eq_rawEventReplay]
   split
   · simp [IncrementalPublisher.normalizeBatch]
@@ -162,7 +169,7 @@ theorem State.sourceBatchBlocks_inputs (queue : State) (publisher : IncrementalP
     · simp only [List.filterMap_append, List.filterMap_cons, List.filterMap_nil,
         List.append_nil, State.sourceOutputBlocks_inputs]
       exact .refl _
-    · rw [State.sourceOutputBlocks_inputs]
+    · rw [queue.sourceOutputBlocks_inputs publisher events (GraphEvent.availableFailures events)]
       exact .refl _
 
 -----------------------------------------------------------------------------------------
@@ -173,7 +180,9 @@ theorem State.sourceBatchBlocks_inputs (queue : State) (publisher : IncrementalP
 Only the proof view is flattened: queue termination still occurs at the supplied boundaries.
 -/
 def State.sourceRunBlocks (queue : State) (publisher : IncrementalPublisher)
-    : List (List GraphEvent) → State × IncrementalPublisher × List SourceOutputBlock
+    (batches : List (List GraphEvent))
+    : State × IncrementalPublisher × List SourceOutputBlock :=
+  match batches with
   | [] => (queue, publisher, [])
   | batch :: rest =>
       let first := queue.sourceBatchBlocks publisher batch

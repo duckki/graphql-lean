@@ -6,6 +6,24 @@ namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.Execution (WorkQueueEvent)
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
+/-- Actual item preparation never forgets an earlier cancellation marker. -/
+theorem State.preparedStreamItems_cancelledGroups_subset (queue : State)
+    (items : List StreamItem) (available : List (Occurrence × Nat) := [])
+    : queue.cancelledGroups.Subset
+        (queue.preparedStreamItems items available).cancelledGroups := by
+  apply State.preparedStreamItems_preserves
+    (fun current => queue.cancelledGroups.Subset current.cancelledGroups)
+    (List.Subset.refl _) items available
+  intro current item member prior
+  apply prior.trans
+  let integrated := current.maybeIntegrateWork item.work
+  let pruned := integrated.1.pruneEmptyGroups integrated.2.newGroups
+  let released := { integrated.2 with newGroups := pruned.2 }
+  apply List.Subset.trans (l₂ := pruned.1.cancelledGroups) ?_
+    (pruned.1.startNewWork_cancelledGroups_prefix released available).subset
+  rw [State.pruneEmptyGroups_cancelledGroups, State.maybeIntegrateWork_cancelledGroups]
+  exact current.addGroups_cancelledGroups_subset item.work.groups
+
 -----------------------------------------------------------------------------------------
 -- A leading item notice cannot rely on a completion from its later recursive drain
 -----------------------------------------------------------------------------------------
@@ -22,9 +40,9 @@ theorem ExecutedWork.streamPrepared_noticeAncestor_completed
     (known : GroupRecordAt work child dependencies) (ancestor : ref ∈ dependencies)
     : let initial := State.initialize (Work.fromExecution work)
       let queue := initial.replayGraphEvents before
-      let prepared := items.foldl streamItemStep (queue, [], [], [])
+      let prepared := items.foldl streamItemStep (queue, [], [], [], [])
       child ∈ prepared.2.1
-      → ref ∉ queue.cancelledGroups
+      → ref ∉ prepared.1.cancelledGroups
       → ref
         ∈ initial.rootGroups
           ++ (initial.rawEventReplay before).2.flatMap rawGroupNoticeRefs
@@ -33,21 +51,25 @@ theorem ExecutedWork.streamPrepared_noticeAncestor_completed
   obtain ⟨parents, canonical, frame⟩ :=
     generated.streamItems_prepared_liveRootFrame matching matched
       (generated.replayGraphEvents_rootsPresent before matching)
-  have ancestry := generated.streamItems_prepared_noticeAncestorsRetired matching matched
+  have ancestry := generated.streamItems_prepared_noticeAncestorsRetired matching matched []
     child noticed
   have tracking := initial.rawEventReplay_groupNoticeTracking before
   apply tracking.completed_of_inactive_uncancelled announced
   · rw [State.rawEventReplay_state]
     intro retained
-    have active : ref ∈ prepared.1.rootGroups := by
-      rw [State.streamItemFold_rootGroups]
-      exact List.mem_append_left _ retained
-    obtain ⟨_, owner, producer, ownerKnown, same⟩ := frame.support.roots ref active
-    obtain ⟨occurrence, owners, payload, task, contributes⟩ := ownerKnown.group_task
-    have retired := ancestry child dependencies known rfl ref ancestor occurrence owners
-      ⟨producer, payload, task⟩ (same ▸ contributes)
-    exact retired.2 (frame.present ref active)
-  · simpa only [State.rawEventReplay_state] using uncancelled
+    have state := List.mem_append.mp (queue.streamItemFold_rootGroups items []
+      (List.mem_append_left _ retained))
+    rcases state with active | cancelled
+    ·
+      obtain ⟨_, owner, producer, ownerKnown, same⟩ := frame.support.roots ref active
+      obtain ⟨occurrence, owners, payload, task, contributes⟩ := ownerKnown.group_task
+      have retired := ancestry child dependencies known rfl ref ancestor occurrence owners
+        ⟨producer, payload, task⟩ (same ▸ contributes)
+      exact retired.2 (frame.present ref active)
+    · exact uncancelled cancelled
+  · rw [State.rawEventReplay_state]
+    intro cancelled
+    exact uncancelled (queue.preparedStreamItems_cancelledGroups_subset items [] cancelled)
 
 -----------------------------------------------------------------------------------------
 -- Prior source notices and pending owner-fold notices use the same exact completion cut
@@ -86,6 +108,10 @@ theorem ExecutedWork.ownerNoticeAncestor_completed
     {incoming : TaskNode} {index : Nat}
     (generated : ExecutedWork work) (matching : ∀ event ∈ before, event.MatchesWork work)
     (matched : (GraphEvent.taskSuccess occurrence result).MatchesWork work)
+    (found
+      : ((State.initialize (Work.fromExecution work)).replayGraphEvents before).taskNode?
+          occurrence
+        = some incoming)
     (known : GroupRecordAt work child dependencies) (ancestor : ref ∈ dependencies)
     : let initial := State.initialize (Work.fromExecution work)
       let queue := initial.replayGraphEvents before
@@ -106,7 +132,7 @@ theorem ExecutedWork.ownerNoticeAncestor_completed
             rawGroupClosureRefs) := by
   intro initial queue prepared output selected noticed uncancelled announced
   obtain ⟨parents, canonical, records, links, live, tasks, roots, _⟩ :=
-    generated.replayGraphEvents_preparedRetirement before matching matched incoming
+    generated.replayGraphEvents_preparedRetirement before matching matched incoming (found := found)
   obtain ⟨refs, _, support⟩ :=
     generated.taskSuccess_prepared_noticeMetadata matching matched incoming
   have storedPresent :
@@ -118,7 +144,7 @@ theorem ExecutedWork.ownerNoticeAncestor_completed
     simpa only [List.flatMap_append, List.mem_append, or_assoc] using announced
   rw [List.flatMap_append]
   rcases alternatives with earlier | current
-  · have tracked := initial.rawEventReplay_groupNoticeTracking before ref earlier
+  · have tracked := initial.rawEventReplay_groupNoticeTracking before [] ref earlier
     rw [State.rawEventReplay_state] at tracked
     rcases tracked with active | cancelled | closed
     · have activePrepared : ref ∈ prepared.rootGroups := by
@@ -157,34 +183,39 @@ theorem GroupNoticeTracking.drainNoticeAncestor_completed
     (canonical
       : ∀ node dependencies,
           GroupRecordAt work node dependencies → dependencies = parents node.ref)
-    (fuel : Nat) {index group groups streams child dependencies ref}
+    (fuel : Nat) (available : List (Occurrence × Nat) := [])
+    {index group groups streams child dependencies ref}
     (selected
-      : (State.drainReadyGroups.go fuel queue).2[index]?
+      : (State.drainReadyGroups.go available fuel queue).2.1[index]?
         = some (.groupSuccess group groups streams))
     (noticed : child ∈ groups) (known : GroupRecordAt work child dependencies)
     (ancestor : ref ∈ dependencies)
-    (uncancelled : ref ∉ (State.drainReadyGroups.go fuel queue).1.cancelledGroups)
+    (uncancelled
+      : ref ∉ (State.drainReadyGroups.go available fuel queue).1.cancelledGroups)
     (announced
       : ref
         ∈ initial
           ++ ((before
-                ++ (State.drainReadyGroups.go fuel queue).2.take (index + 1)).flatMap
+                ++ (State.drainReadyGroups.go available fuel queue).2.1.take
+                    (index + 1)).flatMap
                 rawGroupNoticeRefs))
     : ref
-      ∈ ((before ++ (State.drainReadyGroups.go fuel queue).2.take (index + 1)).flatMap
+      ∈ ((before
+          ++ (State.drainReadyGroups.go available fuel queue).2.1.take
+              (index + 1)).flatMap
           rawGroupClosureRefs) := by
   have alternatives : ref ∈ initial ++ before.flatMap rawGroupNoticeRefs
-      ∨ ref ∈ ((State.drainReadyGroups.go fuel queue).2.take
+      ∨ ref ∈ ((State.drainReadyGroups.go available fuel queue).2.1.take
         (index + 1)).flatMap rawGroupNoticeRefs := by
     simpa only [List.flatMap_append, List.mem_append, or_assoc] using announced
-  have localResult := frame.drainNoticeAncestor_completed generated canonical fuel selected
-    noticed known ancestor uncancelled
+  have localResult := frame.drainNoticeAncestor_completed generated canonical fuel available
+    selected noticed known ancestor uncancelled
   rw [List.flatMap_append]
   rcases alternatives with earlier | current
   · rcases tracked ref earlier with active | cancelled | closed
     · exact List.mem_append_right _ (localResult (List.mem_append_left _ active))
     · exact False.elim (uncancelled
-        (State.drainReadyGroups_go_cancelledGroups_subset fuel queue cancelled))
+        (State.drainReadyGroups_go_cancelledGroups_subset fuel queue available cancelled))
     · exact List.mem_append_left _ closed
   · exact List.mem_append_right _ (localResult (List.mem_append_right _ current))
 
@@ -192,34 +223,39 @@ theorem GroupNoticeTracking.drainNoticeAncestor_completed
 Witness: retained roots or actual closures cover old refs; every new notice is activated.
 -/
 theorem State.successGroupFold_groupNoticeTracking (queue : State)
-    (owners : List Execution.DeliveryNode)
+    (owners : List Execution.DeliveryNode) (available : List (Occurrence × Nat) := [])
     : let folded := owners.foldl successGroupStep (queue, [], {})
       GroupNoticeTracking queue.rootGroups
-        (folded.1.startNewWork folded.2.2, folded.2.1) := by
+        ((folded.1.startNewWork folded.2.2 available).1, folded.2.1) := by
   intro folded ref member
-  rw [(folded.1.startNewWork_groupCore _).2.2]
+  have tracked := folded.1.startNewWork_tracks_roots folded.2.2 available
   rcases List.mem_append.mp member with old | noticed
   · rcases queue.successGroupFold_tracks_roots owners ref old with active | closed
-    · exact .inl (List.mem_append_left _ active)
+    · exact (tracked ref (List.mem_append_left _ active)).imp_right Or.inl
     · exact .inr (.inr closed)
-  · exact .inl (List.mem_append_right _
-      ((successGroupFold_groupNotices queue owners).symm ▸ noticed))
+  · exact (tracked ref (List.mem_append_right _
+      ((successGroupFold_groupNotices queue owners).symm ▸ noticed))).imp_right Or.inl
 
 /-- The leading stream-values carrier tracks exactly the roots its item fold activated.
 Witness: item integration preserves old roots and appends its complete notice frontier.
 -/
 theorem State.streamItemFold_groupNoticeTracking (queue : State)
     (stream : Execution.DeliveryNode) (items : List StreamItem)
-    : let prepared := items.foldl streamItemStep (queue, [], [], [])
+    (available : List (Occurrence × Nat) := [])
+    : let prepared :=
+        items.foldl (fun acc item => streamItemStep acc item available)
+          (queue, [], [], [], [])
       GroupNoticeTracking queue.rootGroups
         (
           prepared.1,
-          [.streamValues stream prepared.2.2.2 prepared.2.1 prepared.2.2.1]
+          [.streamValues stream prepared.2.2.2.1 prepared.2.1 prepared.2.2.1]
         ) := by
   intro prepared ref member
-  apply Or.inl
-  rw [queue.streamItemFold_rootGroups items]
-  simpa only [List.flatMap_singleton, rawGroupNoticeRefs] using member
+  have mentioned : ref ∈ queue.rootGroups ++ prepared.2.1.map Execution.DeliveryNode.ref := by
+    simpa only [List.flatMap_singleton, rawGroupNoticeRefs] using member
+  exact (List.mem_append.mp
+          (queue.streamItemFold_rootGroups items available mentioned)).imp_right
+    Or.inl
 
 -----------------------------------------------------------------------------------------
 -- Actual preparation stages retain the earlier source-history tracking certificate
@@ -232,44 +268,30 @@ adds its emitted frontier, and integration cannot erase earlier cancellation mar
 theorem GroupNoticeTracking.taskSuccessPreparation {initial queue before}
     (tracked : GroupNoticeTracking initial (queue, before)) (occurrence : Occurrence)
     (result : TaskResult) (incoming : TaskNode)
+    (available : List (Occurrence × Nat) := [])
     : let prepared :=
         ((queue.putTaskNode
             { incoming with value := some result.value }).maybeIntegrateWork
           result.work (some occurrence)).1
       let folded := incoming.task.groups.foldl successGroupStep (prepared, [], {})
       GroupNoticeTracking initial
-        (folded.1.startNewWork folded.2.2, before ++ folded.2.1) := by
+        ((folded.1.startNewWork folded.2.2 available).1, before ++ folded.2.1) := by
   intro prepared folded
   have roots : prepared.rootGroups = queue.rootGroups :=
     State.maybeIntegrateWork_rootGroups _ _ _
   have first : GroupNoticeTracking queue.rootGroups
-      (folded.1.startNewWork folded.2.2, folded.2.1) := by
+      ((folded.1.startNewWork folded.2.2 available).1, folded.2.1) := by
     rw [← roots]
-    exact prepared.successGroupFold_groupNoticeTracking incoming.task.groups
+    exact prepared.successGroupFold_groupNoticeTracking incoming.task.groups available
   apply tracked.append first
   intro ref member
-  rw [State.startNewWork_cancelledGroups, successGroupFold_cancelledGroups]
+  apply (folded.1.startNewWork_cancelledGroups_prefix folded.2.2 available).subset
+  rw [successGroupFold_cancelledGroups]
   change ref ∈ ((queue.putTaskNode
     { incoming with value := some result.value }).maybeIntegrateWork
       result.work (some occurrence)).1.cancelledGroups
   rw [State.maybeIntegrateWork_cancelledGroups _ result.work (some occurrence)]
   exact State.addGroups_cancelledGroups_subset _ result.work.groups member
-
-/-- Stream-item preparation retains every cancellation recorded before the input.
-Witness: registration only appends cancellations; pruning and activation preserve them.
--/
-theorem State.preparedStreamItems_cancelledGroups_subset (queue : State)
-    (items : List StreamItem)
-    : queue.cancelledGroups.Subset (queue.preparedStreamItems items).cancelledGroups := by
-  apply State.preparedStreamItems_preserves
-    (fun current => queue.cancelledGroups.Subset current.cancelledGroups)
-    (List.Subset.refl _) items
-  intro current item member prior
-  apply prior.trans
-  unfold State.integrateStreamItem
-  rw [State.startNewWork_cancelledGroups, State.pruneEmptyGroups_cancelledGroups,
-    State.maybeIntegrateWork_cancelledGroups]
-  exact current.addGroups_cancelledGroups_subset item.work.groups
 
 /-- Earlier source notices and the leading item notice are tracked at item drain entry.
 Witness: item preparation activates its exact frontier while preserving prior cancellations.
@@ -277,13 +299,16 @@ Witness: item preparation activates its exact frontier while preserving prior ca
 theorem GroupNoticeTracking.streamItemsPreparation {initial queue before}
     (tracked : GroupNoticeTracking initial (queue, before))
     (stream : Execution.DeliveryNode) (items : List StreamItem)
-    : let prepared := items.foldl streamItemStep (queue, [], [], [])
+    (available : List (Occurrence × Nat) := [])
+    : let prepared :=
+        items.foldl (fun acc item => streamItemStep acc item available)
+          (queue, [], [], [], [])
       GroupNoticeTracking initial
         (
           prepared.1,
-          before ++ [.streamValues stream prepared.2.2.2 prepared.2.1 prepared.2.2.1]
+          before ++ [.streamValues stream prepared.2.2.2.1 prepared.2.1 prepared.2.2.1]
         ) :=
-  tracked.append (queue.streamItemFold_groupNoticeTracking stream items)
-    (queue.preparedStreamItems_cancelledGroups_subset items)
+  tracked.append (queue.streamItemFold_groupNoticeTracking stream items available)
+    (queue.preparedStreamItems_cancelledGroups_subset items available)
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

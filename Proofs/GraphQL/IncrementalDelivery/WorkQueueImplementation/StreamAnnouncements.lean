@@ -34,17 +34,41 @@ theorem State.finishGroupSuccess_streamNotices (queue : State) (group : GroupNod
   rw [events, List.flatMap_append]
   split <;> simp [rawStreamNoticeRefs]
 
+/-- Failed-task cleanup does not start a stream, including when it caches latent errors.
+Witness: every contributor branch leaves rootStreams unchanged. -/
+theorem State.taskFailure_rootStreams (queue : State) (occurrence : Occurrence)
+    (errors : Nat)
+    : (queue.taskFailure occurrence errors).1.rootStreams = queue.rootStreams := by
+  cases found : queue.taskNode? occurrence with
+  | none => simp [State.taskFailure, found]
+  | some task =>
+      rw [queue.taskFailure_eq occurrence errors task found]
+      exact failureGroupFold_preserves (fun current => current.rootStreams = queue.rootStreams)
+        (fun _ _ prior => prior) errors task.task.groups _ rfl
+
+/-- Rejection output announces no stream refs. -/
+theorem State.taskFailure_streamNotices (queue : State) (occurrence : Occurrence)
+    (errors : Nat)
+    : (queue.taskFailure occurrence errors).2.flatMap rawStreamNoticeRefs = [] := by
+  apply List.flatMap_eq_nil_iff.mpr
+  intro event member
+  obtain ⟨owner, rfl⟩ := queue.taskFailure_event_failure occurrence errors event member
+  rfl
+
 /-- Recursive draining activates only old streams or streams announced in its own output.
-Witness: each successful flush names every newly activated ref; failure closures preserve
-active streams, and induction concatenates the notice evidence from later drain steps.
+Witness: each successful flush names every newly activated ref; startup failure removes
+groups without activating streams, and later drain steps concatenate their notices.
 -/
 theorem State.drainReadyGroups_streamRoots (queue : State)
-    : queue.drainReadyGroups.1.rootStreams.Subset
-        (queue.rootStreams ++ queue.drainReadyGroups.2.flatMap rawStreamNoticeRefs) := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.drainReadyGroups available).1.rootStreams.Subset
+        (queue.rootStreams
+          ++ (queue.drainReadyGroups available).2.1.flatMap rawStreamNoticeRefs) := by
   have loop (fuel : Nat) (current : State)
-      : (State.drainReadyGroups.go fuel current).1.rootStreams.Subset
+      : (State.drainReadyGroups.go available fuel current).1.rootStreams.Subset
           (current.rootStreams
-            ++ (State.drainReadyGroups.go fuel current).2.flatMap rawStreamNoticeRefs) := by
+            ++ (State.drainReadyGroups.go available fuel current).2.1.flatMap
+              rawStreamNoticeRefs) := by
     induction fuel generalizing current with
     | zero => intro ref member; exact List.mem_append_left _ member
     | succ fuel ih =>
@@ -53,27 +77,19 @@ theorem State.drainReadyGroups_streamRoots (queue : State)
         split
         · intro ref member; exact List.mem_append_left _ member
         · rename_i node selected
-          cases cached : node.failure with
-          | none =>
-              dsimp only
-              intro ref member
-              have later := ih _ member
-              have activated := (current.finishGroupSuccess node).1.startNewWork_rootStreams
-                (current.finishGroupSuccess node).2.2
-              rw [State.finishGroupSuccess_rootStreams,
-                State.finishGroupSuccess_streamNotices] at activated
-              simp only [List.flatMap_append, List.mem_append]
-              rcases List.mem_append.mp later with earlier | announced
-              · rcases List.mem_append.mp (activated earlier) with old | fresh
-                · exact .inl old
-                · exact .inr (.inl fresh)
-              · exact .inr (.inr announced)
-          | some errors =>
-              have same : (current.removeGroup node.group.node.ref).rootStreams
-                  = current.rootStreams := rfl
-              simpa only [State.finishGroupFailure, List.flatMap_append,
-                List.flatMap_singleton, rawStreamNoticeRefs, List.nil_append, same]
-                using ih (current.removeGroup node.group.node.ref)
+          intro ref member
+          have later := ih _ member
+          have activated := (current.finishGroupSuccess node).1.startNewWork_rootStreams
+            (current.finishGroupSuccess node).2.2 available
+          rw [State.finishGroupSuccess_rootStreams,
+            State.finishGroupSuccess_streamNotices] at activated
+          simp only [List.flatMap_append, List.mem_append]
+          rcases List.mem_append.mp later with earlier | announced
+          · rcases List.mem_append.mp (activated earlier) with old | fresh
+            · exact .inl old
+            · exact .inr (.inl fresh)
+          · exact .inr (.inr announced)
+
   exact loop _ queue
 
 /-- A task-success handler activates only old streams or streams announced in its output.
@@ -81,10 +97,11 @@ Witness: its contributor fold preserves old active refs and accumulates the exac
 notice lists; activation and the final drain add only explicitly announced stream refs.
 -/
 theorem State.taskSuccess_streamRoots (queue : State) (occurrence : Occurrence)
-    (result : TaskResult)
-    : (queue.taskSuccess occurrence result).1.rootStreams.Subset
+    (result : TaskResult) (available : List (Occurrence × Nat) := [])
+    : (queue.taskSuccess occurrence result available).1.rootStreams.Subset
         (queue.rootStreams
-          ++ (queue.taskSuccess occurrence result).2.flatMap rawStreamNoticeRefs) := by
+          ++ (queue.taskSuccess occurrence result available).2.1.flatMap
+              rawStreamNoticeRefs) := by
   cases found : queue.taskNode? occurrence with
   | none =>
       simp only [State.taskSuccess, found]; intro ref member; exact List.mem_append_left _ member
@@ -101,6 +118,7 @@ theorem State.taskSuccess_streamRoots (queue : State) (occurrence : Occurrence)
         induction groups generalizing acc with
         | nil => exact ⟨same, notices⟩
         | cons group rest ih =>
+            obtain ⟨current, events, released⟩ := acc
             apply ih
             · dsimp only [successGroupStep]
               split
@@ -118,15 +136,13 @@ theorem State.taskSuccess_streamRoots (queue : State) (occurrence : Occurrence)
       have initial : integrated.1.rootStreams = queue.rootStreams :=
         State.maybeIntegrateWork_rootStreams _ _ _
       obtain ⟨same, notices⟩ := loop node.task.groups (integrated.1, [], {}) initial rfl
-      rw [queue.taskSuccess_eq occurrence result node found]
-      split
-      · exact fun _ member => List.mem_append_left _ member
+      rw [queue.taskSuccess_eq occurrence result node found available]
       have included := ((node.task.groups.foldl successGroupStep
         (integrated.1, [], {})).1).startNewWork_rootStreams
-          (node.task.groups.foldl successGroupStep (integrated.1, [], {})).2.2
+          (node.task.groups.foldl successGroupStep (integrated.1, [], {})).2.2 available
       rw [same, notices] at included
       intro ref member
-      have later := State.drainReadyGroups_streamRoots _ member
+      have later := State.drainReadyGroups_streamRoots _ available member
       simp only [List.flatMap_append, List.mem_append]
       rcases List.mem_append.mp later with earlier | announced
       · rcases List.mem_append.mp (included earlier) with old | fresh
@@ -134,56 +150,27 @@ theorem State.taskSuccess_streamRoots (queue : State) (occurrence : Occurrence)
         · exact .inr (.inl fresh)
       · exact .inr (.inr announced)
 
-/-- Failed-task cleanup does not start a stream, including when it caches latent errors.
-Witness: every contributor branch leaves rootStreams unchanged. -/
-theorem State.taskFailure_rootStreams (queue : State) (occurrence : Occurrence)
-    (errors : Nat)
-    : (queue.taskFailure occurrence errors).1.rootStreams = queue.rootStreams := by
-  let step (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode) :=
-    match acc.1.groupNode? group.ref with
-    | none => acc
-    | some node =>
-        if acc.1.rootGroups.contains group.ref then
-          let failure := acc.1.finishGroupFailure node errors
-          (failure.1, acc.2 ++ [failure.2])
-        else (acc.1.putGroupNode
-          { node with pending := node.pending - 1
-                      failure := some (node.failure.getD 0 + errors) }, acc.2)
-  have loop (groups : List Execution.DeliveryNode) (acc : State × List WorkQueueEvent)
-      : (groups.foldl step acc).1.rootStreams = acc.1.rootStreams := by
-    induction groups generalizing acc with
-    | nil => rfl
-    | cons group rest ih =>
-        rw [List.foldl_cons, ih]
-        unfold step
-        split
-        · rfl
-        · split <;> rfl
-  unfold State.taskFailure
-  split
-  · rfl
-  · split
-    · rfl
-    exact loop _ (_, [])
-
 /-- Stream-item integration activates only streams named in its emitted notice list.
 Witness: item activation uses its accumulated newStreams; the final drain justifies any
 further activation with its own subsequent group-success notices.
 -/
 theorem State.streamItems_streamRoots (queue : State) (stream : Execution.DeliveryNode)
-    (items : List StreamItem)
-    : (queue.streamItems stream items).1.rootStreams.Subset
+    (items : List StreamItem) (available : List (Occurrence × Nat) := [])
+    : (queue.streamItems stream items available).1.rootStreams.Subset
         (queue.rootStreams
-          ++ (queue.streamItems stream items).2.flatMap rawStreamNoticeRefs) := by
+          ++ (queue.streamItems stream items available).2.1.flatMap
+              rawStreamNoticeRefs) := by
   let step (acc : State × List Execution.DeliveryNode
-      × List Execution.DeliveryNode × List StreamItemValue) (item : StreamItem) :=
+      × List Execution.DeliveryNode × List StreamItemValue × List GroupFailureEvent)
+      (item : StreamItem) :=
     let integrated := acc.1.maybeIntegrateWork item.work
     let pruned := integrated.1.pruneEmptyGroups integrated.2.newGroups
-    (pruned.1.startNewWork { integrated.2 with newGroups := pruned.2 },
-      acc.2.1 ++ pruned.2, acc.2.2.1 ++ integrated.2.newStreams,
-      acc.2.2.2 ++ [item.value])
+    let (started, queued) :=
+      pruned.1.startNewWork { integrated.2 with newGroups := pruned.2 } available
+    (started, acc.2.1 ++ pruned.2, acc.2.2.1 ++ integrated.2.newStreams,
+      acc.2.2.2.1 ++ [item.value], acc.2.2.2.2 ++ queued)
   have loop (more : List StreamItem) (acc : State × List Execution.DeliveryNode
-      × List Execution.DeliveryNode × List StreamItemValue)
+      × List Execution.DeliveryNode × List StreamItemValue × List GroupFailureEvent)
       (prior : acc.1.rootStreams.Subset
         (queue.rootStreams ++ acc.2.2.1.map Execution.DeliveryNode.ref))
       : (more.foldl step acc).1.rootStreams.Subset
@@ -197,7 +184,7 @@ theorem State.streamItems_streamRoots (queue : State) (stream : Execution.Delive
           (acc.1.maybeIntegrateWork item.work).2.newGroups).1.startNewWork_rootStreams
             { (acc.1.maybeIntegrateWork item.work).2 with newGroups :=
                 ((acc.1.maybeIntegrateWork item.work).1.pruneEmptyGroups
-                  (acc.1.maybeIntegrateWork item.work).2.newGroups).2 }
+                  (acc.1.maybeIntegrateWork item.work).2.newGroups).2 } available
         have membership := included active
         rw [State.pruneEmptyGroups_rootStreams, State.maybeIntegrateWork_rootStreams] at membership
         change ref ∈ queue.rootStreams ++
@@ -212,10 +199,10 @@ theorem State.streamItems_streamRoots (queue : State) (stream : Execution.Delive
   unfold State.streamItems
   split
   · intro ref member; exact List.mem_append_left _ member
-  · have included := loop items (queue, [], [], []) (by
+  · have included := loop items (queue, [], [], [], []) (by
       intro ref member; exact List.mem_append_left _ member)
     intro ref member
-    have later := State.drainReadyGroups_streamRoots _ member
+    have later := State.drainReadyGroups_streamRoots _ available member
     simp only [List.flatMap_cons, rawStreamNoticeRefs, List.mem_append]
     rcases List.mem_append.mp later with earlier | announced
     · rcases List.mem_append.mp (included earlier) with old | fresh
@@ -228,47 +215,66 @@ Witness: the two release paths above; failure only preserves refs and stream clo
 removes them. This property is unconditional on work generation or source admissibility.
 -/
 theorem State.handleGraphEvent_streamRoots (queue : State) (event : GraphEvent)
-    : (queue.handleGraphEvent event).1.rootStreams.Subset
+    (available : List (Occurrence × Nat) := [])
+    : (queue.handleGraphEvent event available).1.rootStreams.Subset
         (queue.rootStreams
-          ++ (queue.handleGraphEvent event).2.flatMap rawStreamNoticeRefs) := by
+          ++ (queue.handleGraphEvent event available).2.1.flatMap
+              rawStreamNoticeRefs) := by
+  have roots : (queue.cacheTaskFailures available).rootStreams = queue.rootStreams := by
+    have frame := congrArg State.rootStreams (queue.cacheTaskFailures_frame available)
+    exact frame
   cases event with
-  | taskSuccess occurrence result => exact queue.taskSuccess_streamRoots occurrence result
+  | taskSuccess occurrence result =>
+      simpa only [State.handleGraphEvent, roots]
+        using (queue.cacheTaskFailures available).taskSuccess_streamRoots occurrence
+          result available
   | taskFailure occurrence errors =>
       intro ref member
-      rw [State.handleGraphEvent, State.taskFailure_rootStreams] at member
-      exact List.mem_append_left _ member
-  | streamItems stream items => exact queue.streamItems_streamRoots stream items
+      rw [State.handleGraphEvent, State.taskFailure_rootStreams, roots] at member
+      exact List.mem_append_left _ (by simpa only [roots] using member)
+  | streamItems stream items =>
+      simpa only [State.handleGraphEvent, roots]
+        using (queue.cacheTaskFailures available).streamItems_streamRoots stream items
+          available
   | streamSuccess stream =>
-      simp only [State.handleGraphEvent, State.streamSuccess]
+      simp only [State.handleGraphEvent, State.streamSuccess, roots]
       split
       · intro ref member; exact List.mem_append_left _ (List.mem_filter.mp member).1
-      · intro ref member; exact List.mem_append_left _ member
+      · intro ref member; exact List.mem_append_left _ (by simpa only [roots] using member)
   | streamFailure stream errors =>
-      simp only [State.handleGraphEvent, State.streamFailure]
+      simp only [State.handleGraphEvent, State.streamFailure, roots]
       split
       · intro ref member; exact List.mem_append_left _ (List.mem_filter.mp member).1
-      · intro ref member; exact List.mem_append_left _ member
+      · intro ref member; exact List.mem_append_left _ (by simpa only [roots] using member)
 
------------------------------------------------------------------------------------------
--- Replay and termination retain the same notice justification
------------------------------------------------------------------------------------------
+  -----------------------------------------------------------------------------------------
+  -- Replay and termination retain the same notice justification
+  -----------------------------------------------------------------------------------------
+
+  | groupFailure notice =>
+      simp only [State.handleGraphEvent, State.groupFailure]
+      split
+      · intro ref member; exact List.mem_append_left _ (by simpa only [roots] using member)
+      · split <;> intro ref member <;>
+          exact List.mem_append_left _ (by simpa only [roots] using member)
 
 /-- Raw event replay activates no stream outside the old roots and its emitted notices.
 Witness: concatenate each handler's activation evidence in exact execution/output order.
 -/
 theorem State.rawEventReplay_streamRoots (queue : State) (events : List GraphEvent)
-    : (queue.rawEventReplay events).1.rootStreams.Subset
+    (available : List (Occurrence × Nat) := [])
+    : (queue.rawEventReplay events available).1.rootStreams.Subset
         (queue.rootStreams
-          ++ (queue.rawEventReplay events).2.flatMap rawStreamNoticeRefs) := by
+          ++ (queue.rawEventReplay events available).2.flatMap rawStreamNoticeRefs) := by
   induction events generalizing queue with
   | nil => intro ref member; exact List.mem_append_left _ member
   | cons event rest ih =>
-      rw [State.rawEventReplay_cons]
+      rw [State.rawEventReplay_cons _ _ _ available]
       intro ref member
-      have later := ih (queue.handleGraphEvent event).1 member
+      have later := ih (queue.dispatchGraphEvent event available).1 member
       simp only [List.flatMap_append, List.mem_append]
       rcases List.mem_append.mp later with current | announced
-      · have present := queue.handleGraphEvent_streamRoots event current
+      · have present := queue.handleGraphEvent_streamRoots event available current
         rcases List.mem_append.mp present with old | added
         · exact .inl old
         · exact .inr (.inl added)
@@ -282,15 +288,23 @@ theorem State.handleGraphEvents_streamRoots (queue : State) (events : List Graph
     : (queue.handleGraphEvents events).1.rootStreams.Subset
         (queue.rootStreams
           ++ (queue.handleGraphEvents events).2.flatMap rawStreamNoticeRefs) := by
+  have noNotices (failures : List GroupFailureEvent)
+      : (failures.map (fun failure =>
+          WorkQueueEvent.groupFailure failure.group failure.errors)).flatMap rawStreamNoticeRefs
+          = [] := by
+    apply List.flatMap_eq_nil_iff.mpr
+    intro event member
+    obtain ⟨failure, _, rfl⟩ := List.mem_map.mp member
+    rfl
   rw [State.handleGraphEvents_eq_rawEventReplay]
   split
   · intro ref member; exact List.mem_append_left _ member
-  · have included := queue.rawEventReplay_streamRoots events
+  · have included := queue.rawEventReplay_streamRoots events (GraphEvent.availableFailures events)
     dsimp only
     split
     · simpa only [List.flatMap_append, List.flatMap_singleton, rawStreamNoticeRefs,
-        List.append_nil] using included
-    · exact included
+        noNotices, List.append_nil] using included
+    · simpa only [List.flatMap_append, noNotices, List.append_nil] using included
 
 /-- Every initially active stream is recorded in the queue's initial stream notices.
 Witness: immediate integration/pruning leaves no active streams; initialization starts
@@ -305,7 +319,7 @@ theorem createWorkQueue_streamRoots (work : Work)
   have empty : pruned.1.rootStreams = [] := by
     rw [State.pruneEmptyGroups_rootStreams, State.maybeIntegrateWork_rootStreams]
   have included := pruned.1.startNewWork_rootStreams released
-  change (pruned.1.startNewWork released).rootStreams.Subset
+  change (pruned.1.startNewWork released).1.rootStreams.Subset
     (released.newStreams.map Execution.DeliveryNode.ref)
   simpa only [empty, List.nil_append] using included
 

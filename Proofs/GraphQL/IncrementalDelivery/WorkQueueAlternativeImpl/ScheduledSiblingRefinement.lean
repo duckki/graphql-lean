@@ -18,7 +18,9 @@ attribute [local simp] id_pure_eq id_bind_eq id_map_eq run_bind run_map
 /-- Bubbling results have no retained semantic work. Native resource cleanup is not
 asserted by this proof predicate. -/
 def FailureForm (completed : Completion α) : Prop :=
-  ∀ errors, completed.result = .error errors → completed = .error errors
+  ∀ errors,
+    completed.result = .error errors
+    → completed = { Completion.error errors with cause := completed.cause }
 
 private theorem error_form (errors : Nat)
     : FailureForm (Completion.error errors : Completion α) := by
@@ -57,7 +59,8 @@ theorem executeResponseField_failure_form (schema : Schema)
           · exact runEnsures_pure _ _ (error_form 1)
           · rename_i definition _
             have failed : FailureForm
-                ({ result := singleFieldResult name (handleFieldError definition.outputType) }
+                ({ result := singleFieldResult name (handleFieldError definition.outputType),
+                   cause := if definition.outputType.isNonNull then some 1 else none }
                   : Completion _) := by
               cases definition.outputType <;>
                 simp [FailureForm, singleFieldResult, handleFieldError, Completion.error]
@@ -121,7 +124,8 @@ theorem executeCollectedFields_actions (schema : Schema) (resolvers : Resolvers 
       | error errors =>
           have form := executeResponseField_failure_form schema resolvers variables fuel
             parentType source name group path usages context supply errors failed
-          simp only [StateT.run_pure, id_pure_eq, form]
+          simp only [StateT.run_pure, id_pure_eq]
+          exact Prod.ext form rfl
       | ok value => simp only [ih, fieldActions]
 
 /-- Exact decomposition of recursively cut ordinary/initial list items. -/

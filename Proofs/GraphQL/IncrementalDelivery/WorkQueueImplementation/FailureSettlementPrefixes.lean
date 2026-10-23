@@ -6,11 +6,11 @@ namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
 -----------------------------------------------------------------------------------------
--- Invert a selected label without forgetting the handler's guard
+-- Invert a selected label without forgetting the handler's presence check
 -----------------------------------------------------------------------------------------
 
-/-- A selected object-failure label comes from a started task with a healthy contributor.
-Witness: invert the optional source label, task lookup, and exact executable owner guard.
+/-- A selected object-failure label comes from a present started task.
+Witness: invert the optional source label, task lookup, and exact executable presence check.
 -/
 theorem State.eligibleFailureLabel_objectFailure_iff {queue : State}
     {source : Option GraphEvent} {occurrence : Occurrence}
@@ -18,13 +18,12 @@ theorem State.eligibleFailureLabel_objectFailure_iff {queue : State}
         = some occurrence
       ↔ ∃ errors node,
           source = some (.taskFailure occurrence errors)
-          ∧ queue.taskNode? occurrence = some node
-          ∧ queue.taskHasHealthyOwner node.task = true := by
+          ∧ queue.taskNode? occurrence = some node := by
   cases source with
   | none => simp
   | some event =>
       cases event with
-      | taskSuccess | streamItems | streamSuccess | streamFailure =>
+      | taskSuccess | streamItems | groupFailure | streamSuccess | streamFailure =>
           simp [State.eligibleFailureLabel, State.objectFailureContribution]
       | taskFailure task errors =>
           cases found : queue.taskNode? task with
@@ -33,10 +32,10 @@ theorem State.eligibleFailureLabel_objectFailure_iff {queue : State}
               rintro rfl
               simp [found]
           | some node =>
-              cases healthy : queue.taskHasHealthyOwner node.task <;>
-                simp [State.eligibleFailureLabel, State.objectFailureContribution,
-                  found, healthy, GraphEvent.objectFailure?]
-              all_goals rintro rfl; simp_all
+              simp [State.eligibleFailureLabel, State.objectFailureContribution,
+                found, GraphEvent.objectFailure?]
+              rintro rfl
+              simp_all
 
 /-- Replay through an optional block label reaches the same state as the label prefix.
 Witness: absent labels do nothing and present labels perform one ordinary handler step.
@@ -67,10 +66,7 @@ theorem State.eligibleObjectFailureCuts_split {queue : State} {offset : Nat}
         ∧ cut = offset + (earlier.flatMap Prod.snd).length
         ∧ before = sourceObjectFailureCuts offset (queue.eligibleFailureBlocks earlier)
         ∧ (queue.replayGraphEvents (earlier.filterMap Prod.fst)).taskNode? occurrence
-          = some node
-        ∧ (queue.replayGraphEvents (earlier.filterMap Prod.fst)).taskHasHealthyOwner
-            node.task
-          = true := by
+          = some node := by
   induction blocks generalizing queue offset before with
   | nil => simp [State.eligibleFailureBlocks, sourceObjectFailureCuts] at split
   | cons block rest ih =>
@@ -91,15 +87,13 @@ theorem State.eligibleObjectFailureCuts_split {queue : State} {offset : Nat}
                   (queue.eligibleFailureBlocks earlier)
               ∧ (queue.replayGraphEvents (earlier.filterMap Prod.fst)).taskNode?
                   occurrence = some node
-              ∧ (queue.replayGraphEvents (earlier.filterMap Prod.fst)).taskHasHealthyOwner
-                  node.task = true := by
+ := by
         obtain ⟨earlier, outputs, errors, later, node, blocksEq, boundary, cutsEq,
-          found, healthy⟩ := ih tailSplit
+          found⟩ := ih tailSplit
         refine ⟨block :: earlier, outputs, errors, later, node,
-          by simp [blocksEq], ?_, prefixEq earlier cutsEq, ?_, ?_⟩
+          by simp [blocksEq], ?_, prefixEq earlier cutsEq, ?_⟩
         · simpa only [List.flatMap_cons, List.length_append, Nat.add_assoc] using boundary
         · simpa only [replay_block_cons] using found
-        · simpa only [replay_block_cons] using healthy
       cases selected
             : ((block.1.bind queue.eligibleFailureLabel).bind
                 GraphEvent.objectFailure?) with
@@ -124,7 +118,7 @@ theorem State.eligibleObjectFailureCuts_split {queue : State} {offset : Nat}
                     using split
                 exact (List.cons.inj equality).1
               obtain ⟨rfl, rfl⟩ := Prod.mk.inj same
-              obtain ⟨errors, node, label, found, healthy⟩ :=
+              obtain ⟨errors, node, label, found⟩ :=
                 State.eligibleFailureLabel_objectFailure_iff.mp selected
               exact ⟨
                 [],
@@ -135,8 +129,7 @@ theorem State.eligibleObjectFailureCuts_split {queue : State} {offset : Nat}
                 by simp [← label],
                 by simp,
                 rfl,
-                found,
-                healthy
+                found
               ⟩
           | cons first prior =>
               have same : (offset, task) = first ∧
@@ -150,7 +143,7 @@ theorem State.eligibleObjectFailureCuts_split {queue : State} {offset : Nat}
               simp only [State.eligibleFailureBlocks, sourceObjectFailureCuts, selected]
               rw [same.1, ← cutsEq]
 
-/-- Earlier selected cuts contain exactly the guard-filtered contribution ledger.
+/-- Earlier selected cuts contain exactly the presence-filtered contribution ledger.
 Witness: occurrence projection and selected-label accounting; reversal changes only the
 bookkeeping convention, not which settlements preceded the selected cut.
 -/
@@ -185,7 +178,7 @@ theorem State.sourceRunBlocks_inputs_of_started {queue : State}
       apply ih
       rwa [(queue.sourceBatchBlocks_agrees publisher batch).1]
 
-/-- Every split of actual eligible object cuts retains its precise source prefix and guard.
+/-- Every split of actual eligible object cuts retains its precise source prefix and task lookup.
 Witness: the block split above, exact started-input replay, publication-atom agreement,
 and the earlier-cut ledger equality. This does not assume output admission or licensing.
 -/
@@ -217,15 +210,12 @@ theorem createWorkQueue_eligibleObjectFailureCuts_split {work : Execution.Work}
         ∧ (before.map Prod.snd).reverse
           = queue.objectFailureContributions (earlier.filterMap Prod.fst)
         ∧ (queue.replayGraphEvents (earlier.filterMap Prod.fst)).taskNode? occurrence
-          = some node
-        ∧ (queue.replayGraphEvents (earlier.filterMap Prod.fst)).taskHasHealthyOwner
-            node.task
-          = true := by
+          = some node := by
   dsimp only at split ⊢
   let queue := State.initialize (Work.fromExecution work)
   let publisher : IncrementalPublisher :=
     { active := queue.initialGroups ++ queue.initialStreams }
-  obtain ⟨earlier, outputs, errors, later, node, blocksEq, boundary, cutsEq, found, healthy⟩ :=
+  obtain ⟨earlier, outputs, errors, later, node, blocksEq, boundary, cutsEq, found⟩ :=
     State.eligibleObjectFailureCuts_split split
   have boundary : cut = (earlier.flatMap Prod.snd).length := by simpa using boundary
   have labels := queue.sourceRunBlocks_inputs_of_started publisher
@@ -243,7 +233,7 @@ theorem createWorkQueue_eligibleObjectFailureCuts_split {work : Execution.Work}
   have sourceBefore : (earlier.filterMap Prod.fst).IsPrefix batches.flatten :=
     (List.prefix_append _ _).trans sourcePrefix
   refine ⟨earlier, outputs, errors, later, node, blocksEq, boundary, ?_, sourcePrefix,
-    valid.prefix sourceBefore, valid.eachMatches ?_, cutsEq, ?_, found, healthy⟩
+    valid.prefix sourceBefore, valid.eachMatches ?_, cutsEq, ?_, found⟩
   · have outputsEq := (queue.sourceRunBlocks_agrees batches).2
     rw [blocksEq] at outputsEq
     rw [← outputsEq, boundary]

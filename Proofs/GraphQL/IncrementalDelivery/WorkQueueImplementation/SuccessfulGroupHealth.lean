@@ -52,16 +52,16 @@ theorem SuccessfulGroupsHealthy.of_noGroupSuccess {work failed events}
   exact False.elim (absent group groups streams member)
 
 -----------------------------------------------------------------------------------------
--- Exact errors and healthy ancestry justify each individual successful flush
+-- Nonfailed memberships and healthy ancestry justify each individual successful flush
 -----------------------------------------------------------------------------------------
 
 /-- A successful flush emits only its supplied healthy group as a success carrier.
-Witness: exact error accounting excludes direct failure of an uncached group; healthy
-ancestry excludes inherited failure. The flush output has just this one success carrier.
+Witness: retention excludes direct failure when all flushed memberships are nonfailed;
+healthy ancestry excludes inherited failure. The flush output has just this one success carrier.
 -/
 theorem State.finishGroupSuccess_successfulGroupsHealthy {queue : State}
     {work failed dependencies} (generated : ExecutedWork work)
-    (counts : queue.GroupErrorAccounting work failed)
+    (counts : queue.RetainedFailures work failed)
     (failedKnown
       : ∀ occurrence ∈ failed,
           ∃ owners producer payload,
@@ -69,10 +69,10 @@ theorem State.finishGroupSuccess_successfulGroupsHealthy {queue : State}
             ∧ payload.failure.isSome = true)
     {group : GroupNode} (live : group ∈ queue.groupNodes)
     (known : GroupRecordAt work group.group.node dependencies)
-    (uncached : group.failure = none)
+    (notFailed : ∀ occurrence ∈ group.tasks, occurrence ∉ failed)
     (ancestors : GroupAncestorsHealthy work failed group.group.node.ref)
     : SuccessfulGroupsHealthy work failed (queue.finishGroupSuccess group).2.1 := by
-  have healthy := counts.recordHealthy_of_ancestors generated live uncached known ancestors
+  have healthy := counts.recordHealthy_of_ancestors generated live notFailed known ancestors
     failedKnown
   intro carrier groups streams member
   obtain ⟨_, _, _, output, _, _⟩ := queue.finishGroupSuccess_publications group

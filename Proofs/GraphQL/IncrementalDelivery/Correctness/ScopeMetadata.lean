@@ -34,6 +34,7 @@ mutual
   -/
   def WorkScoped : Work → Prop
     | .empty => True
+    | .declareGroups groups tasks => MapScoped groups ∧ WorkScoped tasks
     | .combine left right => WorkScoped left ∧ WorkScoped right
     | .executionGroup groups _ _ children => MapScoped groups ∧ WorkScoped children
     | .stream node items => ItemsScoped node.path items
@@ -41,19 +42,20 @@ mutual
   /-- Both defer and stream notice scopes in work lie below the enclosing base scope. -/
   def ScopesUnder (base : ResponsePath) : Work → Prop
     | .empty => True
+    | .declareGroups groups tasks => MapUnder base groups ∧ ScopesUnder base tasks
     | .combine left right => ScopesUnder base left ∧ ScopesUnder base right
     | .executionGroup groups _ _ children =>
         MapUnder base groups ∧ ScopesUnder base children
     | .stream node items => base.IsPrefix node.path ∧ ItemsUnder base items
 
   /-- Item child work has coherent scopes, all below the stream's list attachment. -/
-  def ItemsScoped (base : ResponsePath) : List (Result ResponseValue × Work) → Prop
+  def ItemsScoped (base : ResponsePath) : List (TaskOutcome ResponseValue × Work) → Prop
     | [] => True
     | (_, children) :: rest =>
         (WorkScoped children ∧ ScopesUnder base children) ∧ ItemsScoped base rest
 
   /-- All item child scopes lie below base, independently of their internal coherence. -/
-  def ItemsUnder (base : ResponsePath) : List (Result ResponseValue × Work) → Prop
+  def ItemsUnder (base : ResponsePath) : List (TaskOutcome ResponseValue × Work) → Prop
     | [] => True
     | (_, children) :: rest => ScopesUnder base children ∧ ItemsUnder base rest
 end
@@ -180,6 +182,8 @@ mutual
       : ScopesUnder base work := by
     cases work with
     | empty => trivial
+    | declareGroups groups tasks =>
+        exact ⟨fun node member => below.trans (under.1 node member), under.2.mono below⟩
     | combine left right => exact ⟨under.1.mono below, under.2.mono below⟩
     | executionGroup groups path result children =>
         exact ⟨fun node member => below.trans (under.1 node member), under.2.mono below⟩
@@ -255,7 +259,7 @@ theorem nonNull (base : ResponsePath) (completed : Completion ResponseValue)
     : Under base completed.nonNull := by
   unfold Completion.nonNull
   split
-  · exact error _ _
+  · simp [Under, Completion.error, WorkScoped, ScopesUnder]
   · exact h
 
 end GraphQL.IncrementalDelivery.Correctness.ScopeMetadata

@@ -55,12 +55,15 @@ theorem Explains.published_item {work groups streams events matching failures cu
   have payloadSame := (known.unique actual).2.2
   rw [same] at known
   obtain ⟨node, items, enclosing, result, children, _, _, _, payload⟩ := known
-  refine ⟨node, result, payload, ?_, ?_⟩
-  · rw [← payloadSame, payload] at success
-    cases result <;> simp_all [Payload.failure, Except.isOk, Except.toBool]
-  · apply SourceTask.item_position payload
-    rw [← payloadSame, payload] at success
-    cases result <;> simp_all [Payload.failure, Except.isOk, Except.toBool]
+  have delivered : (Payload.item node result.deliveryResult).failure = none := by
+    rw [← payload, payloadSame]
+    exact success
+  have succeeds : result.deliveryResult.isOk = true := by
+    cases outcome : result.deliveryResult with
+    | error errors => simp [outcome, Payload.failure] at delivered
+    | ok value => rfl
+  exact ⟨node, result.deliveryResult, payload, succeeds,
+    SourceTask.item_position payload succeeds⟩
 
 /-- A publication of any stream item includes a publication of its initial ordinal.
 Witness: either the item itself is ordinal zero or the predecessor-chain theorem.

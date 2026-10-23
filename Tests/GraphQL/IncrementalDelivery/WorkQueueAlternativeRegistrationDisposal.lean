@@ -102,9 +102,16 @@ private def queue : ReferenceWorkQueue.State :=
     groupNodes :=
       [
         { group := { node := node 1 }, tasks := [parent], pending := 1 },
-        { group := { node := node 3 }, failure := some 1 }
+        { group := { node := node 3 }, tasks := [.executionGroup [99]], pending := 1 }
       ]
-    taskNodes := [{ task := { occurrence := parent, groups := [node 1] } }]
+    taskNodes :=
+      [
+        { task := { occurrence := parent, groups := [node 1] } },
+        {
+          task := { occurrence := .executionGroup [99], groups := [node 3] },
+          rejection := some 1
+        }
+      ]
   }
 
 private def success (work : ReferenceWorkQueue.Work) : GraphEvent :=
@@ -115,7 +122,7 @@ private def item (work : ReferenceWorkQueue.Work) : ReferenceWorkQueue.StreamIte
 
 -- Inspect the actual handler trace, including handoff and acknowledgement placement.
 private def handlerEffects (before : ReferenceWorkQueue.State) (event : GraphEvent) :=
-  (({ queue := before } : State).handleGraphEvent event).2.2
+  (({ queue := before } : State).handleGraphEvent event).2.2.1
 
 -- Removed owner, including duplicate references, contributes one abort.
 example
@@ -185,8 +192,9 @@ example
     : handlerEffects
         {
           queue with
-            groupNodes :=
-              queue.groupNodes.map (fun group => { group with failure := some 1 })
+            taskNodes :=
+              (queue.taskNodes.filter
+                (fun taskNode => taskNode.task.occurrence != parent))
         }
         (success { tasks := [task [0]] })
       = [] := by cbv
@@ -215,6 +223,7 @@ example
   | streamItems stream items => exact State.streamItems_cleanupStarts_nodup _ stream items
   | taskFailure occurrence errors =>
       exact State.taskFailure_cleanupStarts_nodup _ occurrence errors
+  | groupFailure => exact List.nodup_nil
   | streamSuccess => exact List.nodup_nil
   | streamFailure stream errors =>
       simp only [handlerEffects, State.handleGraphEvent]

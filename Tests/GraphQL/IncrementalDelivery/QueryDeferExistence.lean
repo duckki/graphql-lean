@@ -43,6 +43,7 @@ def failing : Operation :=
 This guard is test-only and does not prescribe how scheduling observes those tasks.
 -/
 def hasSharedProducer : Work → Bool
+  | .declareGroups _ tasks => hasSharedProducer tasks
   | .empty => false
   | .combine left right => hasSharedProducer left || hasSharedProducer right
   | .executionGroup groups _ _ children =>

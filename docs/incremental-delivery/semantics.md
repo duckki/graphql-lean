@@ -22,9 +22,12 @@ This is a proposed completion of the pinned draft's unspecified queue interface,
 not a claim that the GraphQL specification already states these invariants.
 For the execution/spec cross-reference, see [execution guide](README.md).
 
-Public definitions include a terminal failure-reporting requirement. The correctness,
-conformance, finite-progress proofs, and regressions below are verified against this
-terminal contract.
+The terminal-reporting contract separates collected diagnostics, selected causal failures
+and reporting availability. The default reference implementation's conformance and query
+bridge are proved over that contract. `createWorkQueueForScheduleConformsWithStartup_holds`
+also covers source-valid `InitialStartup` observations, including synchronous rejections.
+[The implementation guide](implementation.md#initial-activation-and-declaration-order)
+records the corresponding finite host-source assumptions and query-bridge scope.
 
 The [checked research results](#checked-research-results) establish that failure uniqueness
 follows from licensing and event provenance in explained histories. Terminal task
@@ -148,12 +151,16 @@ more operational detail than our task requires.
 - `AdmissiblePrefix work history`: a possibly interrupted finite output history.
 - `AdmissibleRun work history`: an accounted-for history ending in queue termination.
 - `ValidHistory`: either of those cases.
-- `AdmissibleNext work history batch`: the current history is valid and not
-  terminal, the batch is nonempty, and appending it gives another valid history.
+- `AdmissibleNext work history batch`: the current history is an admitted prefix,
+  the batch is nonempty, and appending it gives another valid history. Prefixes exclude
+  termination, so no separate nonterminal condition is needed.
 
 `AdmissibleNext` does not choose an output or assert availability. Several
 different batches may satisfy it. It describes maximal contract possibilities;
 an individual conforming source may allow fewer.
+`AdmissiblePrefix.not_run` separates prefixes from completed runs using termination
+membership. `admissibleNext_iff_valid_nonterminal` proves that the prefix-based definition
+admits exactly the same extensions as a valid history with completed runs excluded.
 
 A complete event sequence is not chosen by initialization. Output evidence is
 existentially quantified for each finite history. If an extension is admitted,
@@ -270,7 +277,22 @@ The witness records accepted settlement order, not reporting order. Equal cuts p
 list order. Later cancellation does not remove an accepted failure from `failedBefore`.
 This distinction is represented by the licensing predicate, not by adding queue state,
 host timestamps, or a second index to each failure. Actual completion events retain their
-`Open` requirement and exact error totals through their own output boundary.
+`Open` requirement. Streams select one licensed positive task cause. Groups use
+`NodeFailureCauses`: a nonempty collection of distinct available task rejections whose
+selected boundary counts sum to the reported count. No collected nullable diagnostics
+or unrelated positive number can enter that sum.
+
+`FailureReportingWitness` supplies a separate ordered inventory of available outcomes.
+Each occurrence is fresh, reachable, failing and has a previously announced contributor.
+It may already be causally covered: availability for reporting does not license another
+cancellation. `Explains` uses `CausalFailuresAvailable` to require reporting availability
+for the same occurrence at or before each causal cut. A cached rejection can therefore
+support a later causal cut without duplicating its reporting entry; future availability
+cannot justify earlier cancellation. The original uncancelled licensing rule still
+applies only to the causal cuts.
+Both inventories are existential observation evidence, not runtime ledgers. The contract
+permits supported reporting subsets; the reference reports every rejection cached when
+a group starts and only the triggering task for failure after startup.
 
 Cancellation and node failure are assessed at a reached failure cut using
 the failures known through that cut and the value publications in `events.take cut`.
@@ -301,11 +323,11 @@ to be cancelled; it is equivalent to the disjunction but avoids nesting a recurs
 predicate under `Or` with a bound producer.
 
 The least rules cannot manufacture failure by cyclic justification. `failedBefore`
-exposes only failures available at a given cut. Error totals use those justified
-occurrences, not arbitrary error numbers. Public query-correctness witnesses, finite
-progress, auxiliary research results, and reference-queue conformance include terminal
-failure reporting. Neither the contract nor these proofs establish refinement of the
-actual GraphQL.js runtime.
+exposes only failures available at a given cut. Failure explanations use those justified
+occurrences and their task-local delivery projections. Public query-correctness witnesses,
+finite progress, auxiliary research results, and reference-queue conformance retain terminal
+failure reporting and selected-cause accounting. These results do not establish refinement
+of the actual GraphQL.js runtime.
 
 The release requirement retains the boundary exposed by two independent defer groups:
 announcing only the successful group must not allow the other, never-announced failing
@@ -313,12 +335,11 @@ group to cancel silently and terminate with zero reported errors. Such a failure
 has no previously announced owner and cannot enter the failure witness.
 
 A settled shared failure can remain accepted after the owner through which it started
-has closed, while another owner is still latent. `Explains.failure_reported` and
-`failure_le_total` require an owner still open at settlement; the zero-error correctness
-proof instead uses the first accepted failure. A successful owner closure would imply
-publication or cancellation of that task, and no earlier failure can explain a failed
-closure. `Explains.first_failure_open_owner` and `AdmissibleRun.first_failure_accounting`
-prove this argument without adding an admission premise.
+has closed, while another owner is still latent. The previous additive `failure_le_total`
+argument does not apply to selected explanations: a completion may report a different
+supported cause with a smaller count. Rebuilding zero-error reflection must use causal
+positivity and terminal covering reports, rather than an additive lower bound for every
+accepted failure. This adds no premise to admission.
 
 This list is proof evidence, not a ready queue, mutable ledger, or implementation
 requirement. Successful silent completions are abstracted away: publication
@@ -329,8 +350,9 @@ not host time.
 ### 5. Completion and aggregation remain separate
 
 `Terminal` requires each task to have either a publication or both causal cancellation
-and `FailureReportedFor events payload.path`. Every structural node is either closed
-or unannounced and failed/accounted for. Only then may a run append termination.
+and `FailureReportedFor events payload.path`. Every announced known node must be
+completed. Unannounced-node task accounting already follows from the task clause,
+so it adds no separate terminal obligation. Only then may a run append termination.
 
 `Payload.path` is the object task's response attachment or a streamed item's list path.
 An item's structural ordinal is not an absolute response index. `FailureReportedFor`
@@ -369,16 +391,16 @@ reconstruction success, response disjointness, or equality to basic execution.
 
 ## Verification and limitations
 
-Definitions, proofs, and regressions build with terminal failure reporting. The
-query-correctness witnesses, finite progress, history/realization proofs, reference
-conformance, and implementation-to-query bridge account for that requirement.
-`ResponsePositionsDeliveredOrFailed_holds` proves error-aware client coverage with
-valid modeled incremental arguments and an error-free initial envelope; later counted
-errors are permitted. Axiom audits use only `propext`, `Classical.choice`, and
-`Quot.sound` as needed, with no proof holes or added axioms.
+The public query-correctness witnesses, finite progress, history/realization proofs,
+reference conformance, and regressions use the terminal-reporting contract.
+`ResponsePositionsDeliveredOrFailed_holds` proves failure-aware client coverage for valid
+modeled incremental arguments and an error-free initial envelope; later counted errors
+are permitted. No proof holes or new axioms discharge these obligations.
 
-The [implementation guide](implementation.md#work-queue-conformance) details the
-reference-queue conformance and implementation-to-query proof structure.
+Reference conformance constructs the terminal reporting witness from actual replay.
+The implementation-to-query bridge supplies conformance for the same work and source
+that produce its response observation. Their detailed proof boundaries are maintained in the
+[implementation guide](implementation.md#work-queue-conformance).
 The [incremental-delivery proof map](README.md#proof-status-and-verification)
 lists the public witnesses. These finite results do not imply host fairness, completion
 of every admitted prefix, or refinement of the actual GraphQL.js implementation.
@@ -439,8 +461,8 @@ Admission assumes no response-correctness conclusion or supported-coverage premi
 
 The work, mapper, and query regressions cover alternative owner/closure choices,
 duplicate rejection, nested cancellation, counted failures, empty streams, shared
-producers, and actual mixed defer/stream/defer/stream observations. Definitions, proofs,
-and regressions build with terminal failure reporting.
+producers, and actual mixed defer/stream/defer/stream observations under terminal failure
+reporting. The [proof map](README.md#proof-status-and-verification) links their witnesses.
 
 These results do **not** establish:
 
@@ -518,12 +540,13 @@ also admit the continuation. No concrete host scheduling policy is implemented h
 ### Redundancy and necessary constraints
 
 [WorkQueueSemantics/Minimality](../../Proofs/GraphQL/IncrementalDelivery/WorkQueueSemantics/Minimality.lean)
-proves two precise redundancy results:
+proves precise redundancy results:
 
 | Clause | Checked result | Boundary |
 | --- | --- | --- |
 | Explicit failure-occurrence `Nodup` | `FailureWitness.nodup` and `failureWitness_iff_nodup_and` derive uniqueness when failures are unpublished; `Explains.failures_nodup` supplies it for explained histories. | Event provenance excludes successful publications of failing tasks; an earlier duplicate cancels the unpublished task. |
-| Terminal task accounting | `terminal_iff_nodes` derives it from terminal node accounting in an explained history. | Requires every task to have an owner; raw ownerless tasks invalidate the implication. |
+| Unannounced-node terminal accounting | `terminal_iff_tasks_and_nodes` recovers the stronger node-accounting view from the retained task clause and announced-node completion. | Equivalent for all raw work; no ownership or explained-history assumption is needed. |
+| Terminal task accounting | `terminal_iff_nodes_and_reporting` derives it from the stronger node-accounting view in an explained history, retaining cancellation reporting. | Requires every task to have an owner; raw ownerless tasks invalidate the implication. |
 
 Only terminal task accounting is retained as a public clause. A concrete explained
 ownerless-work history closes its only stream node while leaving an unpublished successful
@@ -539,8 +562,10 @@ isolate requirements rather than silently strengthening admission:
 - Treating a recorded failure as sufficient, without any announcement requirement, permits
   causal cancellation of never-announced work without an output reporting its failure.
   The prior-announcement requirement excludes this case, as the checked regression shows.
-- Failure and open-owner evidence alone allow an incorrect claimed error count;
-  `NodeErrors` excludes reporting zero for a two-error contribution.
+- Failure and open-owner evidence alone allow an unsupported claimed error count;
+  groups require a sum of distinct available positive task causes, and streams require
+  one licensed positive contributing cause.
+  The failure-reporting regressions reject unsupported counts under these rules.
 
 This is not an exhaustive independence audit of every clause. Removing `Nodup` evidence
 does not eliminate the ordered failure cuts themselves. An equivalent purely output-based
@@ -572,8 +597,8 @@ the completion-entry order inside a coalesced response. Any future partial-order
 must therefore specify its observational quotient explicitly; exact wire equality is
 too strong.
 
-The research witnesses are verified against the terminal reporting contract. Axiom audits
-for the principal research theorems use only Lean's standard axioms
+The principal research witnesses use the same contract. Their axiom audits use only
+Lean's standard axioms
 (`propext`, `Classical.choice`, and `Quot.sound` as needed), with no proof holes or added
 axioms.
 
@@ -591,5 +616,5 @@ axioms.
   changes are acceptable before generalizing local commutation to trace reduction.
 - **Implementation refinement:** connect an actual host/runtime implementation to the
   proved reference machine, and establish optional nonblocking for its source policy.
-  Reference-machine conformance includes terminal failure reporting; see the
+  Reference-machine conformance is witnessed separately from native refinement; see the
   [proof structure](implementation.md#proof-structure).

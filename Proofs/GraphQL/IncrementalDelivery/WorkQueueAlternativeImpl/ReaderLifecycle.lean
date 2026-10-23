@@ -27,7 +27,9 @@ theorem State.cancel_noFinish (state : State)
 
 private theorem graphFold_finishCount (batch : List GraphEvent)
     (result : GraphBatchResult)
-    : (batch.foldl GraphBatchResult.handleGraphEvent result).effects.countP
+    (available : List (WorkQueueSemantics.Occurrence × Nat) := [])
+    : (batch.foldl (fun acc event => acc.handleGraphEvent event available)
+        result).effects.countP
         HostEffect.isResponseFinished
       = result.effects.countP HostEffect.isResponseFinished := by
   induction batch generalizing result with
@@ -35,12 +37,13 @@ private theorem graphFold_finishCount (batch : List GraphEvent)
   | cons event rest ih =>
       rw [List.foldl_cons, ih]
       simp only [GraphBatchResult.handleGraphEvent, List.countP_append,
-        State.handleGraphEvent_noFinish, Nat.add_zero]
+        State.handleGraphEvent_noFinish _ _ available, Nat.add_zero]
 
 theorem State.handleGraphEvents_noFinish (state : State) (batch : List GraphEvent)
     : (state.handleGraphEvents batch).effects.countP HostEffect.isResponseFinished
       = 0 := by
   have empty := graphFold_finishCount batch ({ state } : GraphBatchResult)
+    (ReferenceWorkQueue.GraphEvent.availableFailures batch)
   unfold State.handleGraphEvents
   split
   · rfl
@@ -63,7 +66,8 @@ theorem ResponseStreamCursor.handleBatch_finishCount (cursor : ResponseStreamCur
       by_cases silent : (cursor.queue.handleGraphEvents batch).workQueueEvents.isEmpty = true
       · simp [silent, State.handleGraphEvents_noFinish]
       · by_cases continued :
-            (cursor.publisher.handleBatch (cursor.queue.handleGraphEvents batch).workQueueEvents).1.hasNext
+            (cursor.publisher.handleBatch
+              (cursor.queue.handleGraphEvents batch).workQueueEvents).1.hasNext
               = true
         · simp [silent, continued, State.handleGraphEvents_noFinish]
         · simp [silent, continued, State.handleGraphEvents_noFinish,

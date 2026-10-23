@@ -1,3 +1,4 @@
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.BatchedItemProducerPrefixes
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.NoticeItemBoundary
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.NoticeCarrierPrefixes
 
@@ -95,17 +96,14 @@ theorem Witness.groupNotice_itemRawPrefix {work inputs} {w : Witness} {index eve
     (selected : w.events[index]? = some event)
     (noticed : ref ∈ groupNoticeRefs event)
     : ∃ position output,
-        ((initialQueue work).rawEventReplay inputs.flatten).2[position]? = some output
+        ((initialQueue work).rawBatches inputs).2[position]? = some output
         ∧ ref ∈ rawGroupNoticeRefs output
         ∧ ((w.events.take (index + 1)).flatMap normalizedItemValues).length
-          = ((((initialQueue work).rawEventReplay inputs.flatten).2.take
-                (position + 1)).flatMap
+          = ((((initialQueue work).rawBatches inputs).2.take (position + 1)).flatMap
               WorkQueueEvent.itemValues).length := by
   cases event with
   | groupSuccess group groups streams =>
-      have exactHistory := history.trans (createWorkQueue_nonterminalAtoms_flattened inputs started)
-      have atFull := selected
-      rw [exactHistory] at atFull
+      obtain ⟨atFull, prefixEq⟩ := Witness.rawBatches_canonical history selected
       obtain ⟨sourceIndex, atSource, sourceCount⟩ :=
         publicationAtoms_groupSuccess_itemPrefix _ atFull
       obtain ⟨position, atRaw, rawCount⟩ :=
@@ -114,7 +112,7 @@ theorem Witness.groupNotice_itemRawPrefix {work inputs} {w : Witness} {index eve
       simp only [List.take_add_one, selected, atRaw, Option.toList_some,
         List.flatMap_append, List.flatMap_singleton, normalizedItemValues,
         WorkQueueEvent.itemValues, List.append_nil]
-      rw [exactHistory]
+      rw [← prefixEq]
       exact sourceCount.trans rawCount
   | streamValues owner values groups streams =>
       obtain ⟨child, member, same⟩ := List.mem_map.mp noticed
@@ -141,12 +139,10 @@ theorem Witness.groupNotice_itemProducerPublished
     (noticed : node.ref ∈ groupNoticeRefs event)
     : Published w.matching (w.events.take (index + 1)) (.item source ordinal) := by
   obtain ⟨_, _, _, _, interpret⟩ := ledger
-  have batches : (initialQueue work).batchesStarted inputs = true := by
-    rwa [← inputsStarted_eq_batchesStarted]
   obtain ⟨position, output, atRaw, rawNotice, itemCount⟩ :=
     w.groupNotice_itemRawPrefix started history selected noticed
-  have delivered := generated.rawEventReplay_groupNotice_itemProducer_prefix valid
-    ((initialQueue work).batchesStarted_acceptsBatch inputs batches) atRaw known rawNotice
+  have delivered := generated.rawBatches_groupNotice_itemProducer_prefix valid started
+    atRaw known rawNotice
   apply interpret (index + 1)
   rwa [itemCount]
 

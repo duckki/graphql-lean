@@ -73,7 +73,10 @@ theorem ownsCompletion_combine_fields {containers : Bool} {path : ResponsePath}
 theorem ownsCompletion_failedField (containers : Bool) (path : ResponsePath)
     (name : Name) (fieldType : TypeRef)
     : OwnsCompletion containers (fields containers path) (Below (path ++ [.field name]))
-        { result := singleFieldResult name (handleFieldError fieldType) } := by
+        {
+          result := singleFieldResult name (handleFieldError fieldType),
+          cause := if fieldType.isNonNull then some 1 else none
+        } := by
   cases fieldType <;>
     simp only [singleFieldResult, handleFieldError, GraphQL.Execution.singleFieldResult,
       GraphQL.Execution.handleFieldError, OwnsCompletion, completion, result, work,

@@ -2,9 +2,7 @@ import Proofs.GraphQL.IncrementalDelivery.Correctness.ReportingNoticeCoverage
 import Proofs.GraphQL.IncrementalDelivery.Correctness.TaskErrors
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.SettlementClosures
 
-/-! Zero-count failed group closures need dependency or producer explanations.
-They cannot substitute for positive-error reports of a directly settled contributor.
--/
+/-! Selected failure completions always carry a positive contributor cause. -/
 
 namespace GraphQL.IncrementalDelivery.Correctness
 open GraphQL.IncrementalDelivery.Execution
@@ -15,27 +13,16 @@ open WorkQueueSemantics
 -- A zero-count closure has no direct settled contributor
 -----------------------------------------------------------------------------------------
 
-/-- A zero-count group completion has no contributor failure recorded at its boundary.
-Witness: each accepted contributor has an execution-certified positive count, and that
-count is bounded by the completion's exact contribution sum. Later settlements are not
-included by this statement, even if they have already been recorded in the final history.
+/-- A zero-count group failure is excluded by the supported-cause admission rule.
+Witness: every admitted failure completion has a positive selected cause.
 -/
 theorem Explains.zero_group_completion_no_recorded_failure
     {work groups streams events matching failures index node}
-    (positive : ExecutionErrors.WorkPositive work)
+    (_positive : ExecutionErrors.WorkPositive work)
     (explained : Explains work groups streams events matching failures)
     (selected : events[index]? = some (.groupFailure node 0))
     : ¬HasRecordedFailure work failures (events.take index).length node.ref := by
-  intro recorded
-  obtain ⟨occurrence, owners, settled, ⟨producer, payload, known⟩, contributes⟩ := recorded
-  obtain ⟨entry, member, same⟩ := List.mem_map.mp settled
-  have inCuts := (List.mem_filter.mp member).1
-  have actual : (entry.1, occurrence) ∈ failures := by simpa only [← same] using inCuts
-  have counted := positive.task known (explained.2.1.recorded_payload_fails actual known)
-  have allowed := explained.2.2 index _ selected
-  simp only [EventAllowed, failedBefore_filter _ (Nat.le_refl _)] at allowed
-  have bound := allowed.2.2.2.contribution_le
-    (List.mem_map.mpr ⟨entry, member, same⟩) known contributes
+  have positive := (explained.eventAllowed index _ selected).2.2.2.positive
   omega
 
 -----------------------------------------------------------------------------------------
@@ -87,6 +74,6 @@ theorem Explains.zero_group_completion_dependency_or_unavailable_producer
     simpa only [nodeFailed_filter (Nat.le_refl _)] using failed
   have healthy := Explains.group_healthy_of_no_recorded_failure coherent roleCoherent
     shorter known noRecord produced healthyDependencies
-  exact healthy (explained.2.2 index _ selected).2.2.1
+  exact healthy (explained.eventAllowed index _ selected).2.2.1
 
 end GraphQL.IncrementalDelivery.Correctness

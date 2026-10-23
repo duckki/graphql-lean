@@ -60,14 +60,17 @@ example : (eager deferredCaught).2 = (scheduled deferredCaught).2 := by cbv
 
 private def groupErrors : Work → List Nat
   | .empty | .stream _ _ => []
+  | .declareGroups _ tasks => groupErrors tasks
   | .combine left right => groupErrors left ++ groupErrors right
   | .executionGroup _ _ result children =>
-      ScheduledErrors.countedErrors result :: groupErrors children
+      ScheduledErrors.countedErrors result.result :: groupErrors children
 
 private theorem groupErrors_renaming (keys : Nat → Nat) (original : Work)
     : groupErrors (KeyRenaming.work keys original) = groupErrors original := by
   cases original with
   | empty => simp only [KeyRenaming.work, groupErrors]
+  | declareGroups groups tasks =>
+      simp only [KeyRenaming.work, groupErrors, groupErrors_renaming keys tasks]
   | combine left right =>
       simp only [KeyRenaming.work, groupErrors, groupErrors_renaming keys left,
         groupErrors_renaming keys right]
@@ -94,8 +97,9 @@ private def streamedCaught : List Selection :=
 
 private def itemErrors : Work → List Nat
   | .empty | .executionGroup _ _ _ _ => []
+  | .declareGroups _ tasks => itemErrors tasks
   | .combine left right => itemErrors left ++ itemErrors right
-  | .stream _ items => items.map (fun item => ScheduledErrors.countedErrors item.1)
+  | .stream _ items => items.map (fun item => ScheduledErrors.countedErrors item.1.result)
 
 -- Both nullable object items complete; each recursively cuts its own field scope.
 example : itemErrors (eager streamedCaught).1.work = [2, 2] := by cbv

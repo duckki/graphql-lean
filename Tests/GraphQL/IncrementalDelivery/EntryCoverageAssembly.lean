@@ -16,10 +16,10 @@ private def leftInitial : List (Name × ResponseValue) :=
 private def rightInitial : List (Name × ResponseValue) := [("missing", .object [])]
 
 private def leftWork : Work :=
-  .stream streamNode [(.ok (.scalar "b", 2), .empty)]
+  .stream streamNode [({ result := .ok (.scalar "b", 2) }, .empty)]
 
 private def rightWork : Work :=
-  .executionGroup [] (missing ++ [.field "child"]) (.error 1) .empty
+  .executionGroup [] (missing ++ [.field "child"]) ({ result := .error 1 }) .empty
 
 private def leftReference : List (Name × ResponseValue) :=
   [("xs", .list [.scalar "a", .scalar "b"])]
@@ -60,9 +60,19 @@ private theorem rightCovered (containers : Bool)
       using member
   subst entry
   unfold rightWork
-  exact Or.inr ⟨_, _, _, .object (missing ++ [.field "child"]) (.error 1),
-    (StructuralEquivalence.TaskAt.executionGroup .root).toCurrent,
-    rfl, Or.inr ⟨rfl, ⟨[.field "child"], rfl⟩⟩⟩
+  exact Or.inr
+    ⟨
+      _,
+      _,
+      _,
+      .object (missing ++ [.field "child"]) (.error 1),
+      (by
+        apply StructuralEquivalence.TaskAt.toCurrent
+        apply StructuralEquivalence.TaskAt.executionGroup (result := { result := .error 1 })
+        exact .root),
+      rfl,
+      Or.inr ⟨rfl, ⟨[.field "child"], rfl⟩⟩
+    ⟩
 
 /-- Object assembly retains successful stream data and the tagged null failure together. -/
 example (containers : Bool)
@@ -92,15 +102,19 @@ example (containers : Bool)
     : EntriesCovered containers
         (TypedResponse.value [] (.list [.null, .list []]))
         (preparedValuePositions containers [] (.list [.object [], .list []])
-          (.executionGroup [] [.index 0, .field "child"] (.error 1) .empty))
-        (.executionGroup [] [.index 0, .field "child"] (.error 1) .empty) := by
+          (.executionGroup [] [.index 0, .field "child"] ({ result := .error 1 }) .empty))
+        (.executionGroup [] [.index 0, .field "child"] ({ result := .error 1 })
+          .empty) := by
   apply EntriesCovered.list
   · intro entry member visible
     change entry ∈ [([.index 0], .null), ([.index 1], .list)] at member
     simp only [List.mem_cons, List.not_mem_nil, or_false] at member
     rcases member with rfl | rfl
     · exact Or.inr ⟨_, _, _, .object [.index 0, .field "child"] (.error 1),
-        (StructuralEquivalence.TaskAt.executionGroup .root).toCurrent,
+        (by
+          apply StructuralEquivalence.TaskAt.toCurrent
+          apply StructuralEquivalence.TaskAt.executionGroup (result := { result := .error 1 })
+          exact .root),
         rfl, Or.inr ⟨rfl, ⟨[.field "child"], rfl⟩⟩⟩
     · have flag : containers = true := visible
       exact Or.inl (by simp [preparedItemPositions, ResponsePositions.items,
@@ -112,8 +126,10 @@ The streamed scalar has a counted error; the second initial object has no leaf p
 -/
 example (containers : Bool)
     : let first : Work :=
-        .stream { ref := 8, path := [.index 0] } [(.ok (.scalar "b", 2), .empty)]
-      let second : Work := .executionGroup [] [.index 1, .field "child"] (.error 1) .empty
+        .stream { ref := 8, path := [.index 0] }
+          [({ result := .ok (.scalar "b", 2) }, .empty)]
+      let second : Work :=
+        .executionGroup [] [.index 1, .field "child"] ({ result := .error 1 }) .empty
       EntriesCovered containers
         [([.index 0, .index 1], .scalar "b"), ([.index 1], .null)]
         (preparedItemPositions containers [] 0 [.list [.scalar "a"], .object []]
@@ -128,7 +144,10 @@ example (containers : Bool)
   · intro entry member _
     obtain rfl := List.mem_singleton.mp member
     exact Or.inr ⟨_, _, _, .object [.index 1, .field "child"] (.error 1),
-      (StructuralEquivalence.TaskAt.executionGroup .root).toCurrent,
+      (by
+          apply StructuralEquivalence.TaskAt.toCurrent
+          apply StructuralEquivalence.TaskAt.executionGroup (result := { result := .error 1 })
+          exact .root),
       rfl, Or.inr ⟨rfl, ⟨[.field "child"], rfl⟩⟩⟩
   · apply WorkCursorSeed.stream (index := 1)
     · rfl

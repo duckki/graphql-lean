@@ -69,8 +69,8 @@ theorem itemLineageCertificates_with_cuts {work : Execution.Work}
             let publisher : IncrementalPublisher :=
               { active := queue.initialGroups ++ queue.initialStreams }
             let objects :=
-              sourceObjectFailureCuts 0
-                (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher inputs).2.2)
+              informativeObjectFailureCuts work
+                (queue.sourceRunBlocks publisher inputs).2.2
             ∃ streams,
               StreamFailureCuts work
                 ((queue.runNormalized inputs).2.flatten.flatMap publicationAtoms) streams

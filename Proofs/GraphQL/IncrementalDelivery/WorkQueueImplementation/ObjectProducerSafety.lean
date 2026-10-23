@@ -33,16 +33,16 @@ theorem ExecutedWork.objectProducer_context
     | root => cases same
     | left _ ih =>
         obtain ⟨owners, ancestor, payload, task, under⟩ := ih same
-        exact ⟨owners, ancestor, payload, task, under.1⟩
+        exact ⟨owners, ancestor, payload, task, under.1.withoutDeclarations⟩
     | right _ ih =>
         obtain ⟨owners, ancestor, payload, task, under⟩ := ih same
-        exact ⟨owners, ancestor, payload, task, under.2⟩
+        exact ⟨owners, ancestor, payload, task, under.2.withoutDeclarations⟩
     | executionGroup prior =>
         cases same
         have properties := Correctness.dependencyProperties_located continuous ordered
           prior.toCurrent
         simp only [DeferContinuous] at properties
-        exact ⟨_, _, _, .executionGroup prior.toCurrent, properties.1.1⟩
+        exact ⟨_, _, _, .executionGroup prior.toCurrent, properties.1.1.withoutDeclarations⟩
     | item => cases same
   obtain ⟨owners, ancestor, payload, task, under⟩ :=
     context (StructuralEquivalence.located_of_current located) rfl

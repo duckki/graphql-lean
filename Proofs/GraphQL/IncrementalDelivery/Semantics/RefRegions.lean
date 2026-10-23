@@ -14,6 +14,7 @@ def Disjoint (left right : List Nat) : Prop := ∀ ref ∈ left, ref ∉ right
 
 def rootRefs : Work → List Nat
   | .empty => []
+  | .declareGroups groups tasks => groups.flatMap RefRoles.fragmentRefs ++ rootRefs tasks
   | .combine left right => rootRefs left ++ rootRefs right
   | .executionGroup groups _ _ children =>
       groups.flatMap RefRoles.fragmentRefs ++ rootRefs children
@@ -21,6 +22,7 @@ def rootRefs : Work → List Nat
 
 def hiddenRegions : Work → List (List Nat)
   | .empty => []
+  | .declareGroups _ tasks => hiddenRegions tasks
   | .combine left right => hiddenRegions left ++ hiddenRegions right
   | .executionGroup _ _ _ children => hiddenRegions children
   | .stream _ items => items.flatMap (fun item => rootRefs item.2 :: hiddenRegions item.2)
@@ -47,10 +49,11 @@ structure Output (inherited : List Nat) (start finish : Nat) (work : Work) : Pro
   root : ∀ ref ∈ rootRefs work, ref ∈ inherited ∨ start ≤ ref
   hidden : ∀ region ∈ hiddenRegions work, ∀ ref ∈ region, start ≤ ref
 
-def itemRegions (items : List (Result ResponseValue × Work)) : List (List Nat) :=
+def itemRegions (items : List (TaskOutcome ResponseValue × Work)) : List (List Nat) :=
   items.flatMap (fun item => regions item.2)
 
-structure ItemsOutput (start finish : Nat) (items : List (Result ResponseValue × Work))
+structure ItemsOutput (start finish : Nat)
+    (items : List (TaskOutcome ResponseValue × Work))
     : Prop where
   monotone : start ≤ finish
   separated : (itemRegions items).Pairwise Disjoint
@@ -193,10 +196,39 @@ theorem Output.append {inherited : List Nat} {start middle finish : Nat}
 theorem Output.executionGroup {inherited : List Nat} {start finish : Nat}
     {children : Work} (h : Output inherited start finish children)
     (groups : List DeferredFragment) (path : ResponsePath)
-    (result : Result (List (Name × ResponseValue)))
+    (result : TaskOutcome (List (Name × ResponseValue)))
     (hg : (groups.flatMap RefRoles.fragmentRefs).Subset inherited)
     (hi : ∀ ref ∈ inherited, ref < start)
     : Output inherited start finish (.executionGroup groups path result children) := by
+  refine ⟨h.monotone, ?_, ?_, ?_, ?_⟩
+  · have hs := (separated_iff children).mp h.separated
+    apply (separated_iff _).mpr
+    simp only [rootRefs, hiddenRegions]
+    refine ⟨?_, hs.2⟩
+    intro region hr
+    apply Disjoint.append_left _ (hs.1 region hr)
+    intro ref hk hregion
+    have := hi ref (hg hk)
+    have := h.hidden region hr ref hregion
+    omega
+  · intro ref hk
+    simp only [allRefs, rootRefs, hiddenRegions, List.mem_append, or_assoc] at hk
+    rcases hk with hk | hk
+    · exact Nat.lt_of_lt_of_le (hi ref (hg hk)) h.monotone
+    · exact h.bounded ref (List.mem_append.mpr hk)
+  · intro ref hk
+    rcases List.mem_append.mp hk with hk | hk
+    · exact Or.inl (hg hk)
+    · exact h.root ref hk
+  · simpa only [hiddenRegions] using h.hidden
+
+/-- Ordered declarations extend the current ref region without introducing a hidden region. -/
+theorem Output.declareGroups {inherited : List Nat} {start finish : Nat}
+    {children : Work} (h : Output inherited start finish children)
+    (groups : List DeferredFragment)
+    (hg : (groups.flatMap RefRoles.fragmentRefs).Subset inherited)
+    (hi : ∀ ref ∈ inherited, ref < start)
+    : Output inherited start finish (.declareGroups groups children) := by
   refine ⟨h.monotone, ?_, ?_, ?_, ?_⟩
   · have hs := (separated_iff children).mp h.separated
     apply (separated_iff _).mpr
@@ -233,7 +265,7 @@ theorem ItemsOutput.empty {start finish : Nat} (h : start ≤ finish)
   ⟨h, by simp [itemRegions], by simp [itemRegions]⟩
 
 theorem ItemsOutput.widen {start finish lower upper : Nat}
-    {items : List (Result ResponseValue × Work)} (h : ItemsOutput start finish items)
+    {items : List (TaskOutcome ResponseValue × Work)} (h : ItemsOutput start finish items)
     (hl : lower ≤ start) (hu : finish ≤ upper)
     : ItemsOutput lower upper items :=
   ⟨
@@ -247,8 +279,9 @@ theorem ItemsOutput.widen {start finish lower upper : Nat}
   ⟩
 
 theorem ItemsOutput.cons {start middle finish : Nat} {children : Work}
-    {items : List (Result ResponseValue × Work)} (head : Output [] start middle children)
-    (tail : ItemsOutput middle finish items) (result : Result ResponseValue)
+    {items : List (TaskOutcome ResponseValue × Work)}
+    (head : Output [] start middle children) (tail : ItemsOutput middle finish items)
+    (result : TaskOutcome ResponseValue)
     : ItemsOutput start finish ((result, children) :: items) := by
   refine ⟨Nat.le_trans head.monotone tail.monotone, ?_, ?_⟩
   · simp only [itemRegions, List.flatMap_cons]
@@ -266,7 +299,7 @@ theorem ItemsOutput.cons {start middle finish : Nat} {children : Work}
       exact ⟨Nat.le_trans head.monotone hh.1, hh.2⟩
 
 theorem Output.stream (inherited : List Nat) (node : DeliveryNode)
-    {finish : Nat} {items : List (Result ResponseValue × Work)}
+    {finish : Nat} {items : List (TaskOutcome ResponseValue × Work)}
     (h : ItemsOutput (node.ref + 1) finish items)
     : Output inherited node.ref finish (.stream node items) := by
   refine ⟨by have := h.monotone; omega, ?_, ?_, ?_, ?_⟩

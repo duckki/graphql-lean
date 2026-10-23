@@ -1,4 +1,7 @@
 import GraphQL.IncrementalDelivery.WorkQueueImplementation
+import Tests.GraphQL.IncrementalDelivery.Fixtures.WorkDeclarations
+
+open GraphQL.IncrementalDelivery.Tests (declaredTask)
 
 namespace GraphQL.IncrementalDelivery.Tests.WorkSchedulerAncestorRegistration
 open GraphQL.IncrementalDelivery.Execution
@@ -18,7 +21,7 @@ private def c : DeliveryNode := ⟨5, [.field "user"], some (.string "C")⟩
 private def d : DeliveryNode := ⟨6, [.field "user"], some (.string "D")⟩
 
 private def wrapped : Execution.Work :=
-  .executionGroup [⟨c, [e, p]⟩] [.field "user"] (.ok ([], 0)) .empty
+  declaredTask [⟨c, [e, p]⟩] [.field "user"] ({ result := .ok ([], 0) }) .empty
 
 /-- The conversion maps empty execution work to empty queue collections. -/
 example : Work.fromExecution .empty = ({} : ReferenceWorkQueue.Work) := rfl
@@ -50,10 +53,10 @@ example
       queue.registeredGroups = [p.ref, e.ref, c.ref]
       ∧ queue.groupNodes.map (fun node => node.group.node.ref) = [c.ref]
       ∧ queue.cancelledGroups = []
-      ∧ queue.groupIsHealthy c.ref = true := by cbv
+      ∧ queue.taskNode? (.executionGroup []) ≠ none := by cbv; simp
 
 private def nested : Execution.Work :=
-  .executionGroup [⟨p, []⟩] [] (.ok ([], 0)) wrapped
+  declaredTask [⟨p, []⟩] [] ({ result := .ok ([], 0) }) wrapped
 
 private def parentSuccess : GraphEvent :=
   .taskSuccess (.executionGroup [])
@@ -96,6 +99,12 @@ example
 /-- Normal release starts the child task despite its taskless intermediate parent. -/
 example : inputsStarted nested [[parentSuccess], [childSuccess]] = true := by cbv
 
+/-- A child absent at batch availability is eligible after its producer starts it. -/
+example
+    : let queue := State.initialize (Work.fromExecution nested)
+      queue.acceptsGraphEvent childSuccess = false
+      ∧ queue.acceptsBatch [parentSuccess, childSuccess] = true := by cbv
+
 -----------------------------------------------------------------------------------------
 -- Cancellation through the taskless parent in the exact counterexample replay
 -----------------------------------------------------------------------------------------
@@ -113,22 +122,24 @@ private def children : Execution.Work :=
   .combine
     (.combine .empty
       (.combine
-        (.executionGroup [⟨c, [e, p]⟩, ⟨d, [q]⟩, ⟨r, []⟩] [.field "user"] (.error 1)
-          .empty)
+        (declaredTask [⟨c, [e, p]⟩, ⟨d, [q]⟩, ⟨r, []⟩] [.field "user"]
+          ({ result := .error 1 }) .empty)
         (.combine
-          (.executionGroup [⟨d, [q]⟩, ⟨s, []⟩] [.field "user"] (.error 1) .empty)
+          (declaredTask [⟨d, [q]⟩, ⟨s, []⟩] [.field "user"] ({ result := .error 1 })
+            .empty)
           .empty)))
     .empty
 
 private def work : Execution.Work :=
   .combine .empty
-    (.combine (.executionGroup [⟨p, []⟩] [] (.error 1) .empty)
+    (.combine (declaredTask [⟨p, []⟩] [] ({ result := .error 1 }) .empty)
       (.combine
-        (.executionGroup [⟨p, []⟩, ⟨q, []⟩, ⟨r, []⟩, ⟨s, []⟩] []
-          (.ok (userData, 0)) children)
+        (declaredTask [⟨p, []⟩, ⟨q, []⟩, ⟨r, []⟩, ⟨s, []⟩] []
+          ({ result := .ok (userData, 0) }) children)
         (.combine
-          (.executionGroup [⟨q, []⟩] [] (.ok (keepData, 0)) (.combine .empty .empty))
-          (.combine (.executionGroup [⟨r, []⟩] [] (.error 2) .empty) .empty))))
+          (declaredTask [⟨q, []⟩] [] ({ result := .ok (keepData, 0) })
+            (.combine .empty .empty))
+          (.combine (declaredTask [⟨r, []⟩] [] ({ result := .error 2 }) .empty) .empty))))
 
 private def expand : GraphEvent :=
   .taskSuccess uTask
@@ -149,7 +160,7 @@ private def beforeX : List (List GraphEvent) :=
   [[.taskFailure pTask 1], [expand], [.taskFailure yTask 1], [.taskFailure rTask 2]]
 
 private def inputs : List (List GraphEvent) :=
-  beforeX ++ [[.taskFailure xTask 1], [finish]]
+  beforeX ++ [[.taskFailure xTask 1], [finish, .groupFailure ⟨d, 2⟩]]
 
 /-- Parent-first registration propagates P's cancellation through E to C. -/
 example
@@ -158,12 +169,14 @@ example
       ∧ queue.cancelledGroups = [0, 4, 5, 3, 2]
       ∧ queue.groupNode? e.ref = none
       ∧ queue.groupNode? c.ref = none
-      ∧ queue.groupIsHealthy c.ref = false := by cbv
+      ∧ c.ref ∈ queue.cancelledGroups := by
+  cbv
+  exact List.mem_cons_of_mem _ (List.mem_cons_of_mem _ List.mem_cons_self)
 
 /-- The same host prefix still obeys the executable start discipline. -/
 example : inputsStarted work inputs = true := by cbv
 
-/-- X adds no error after cancellation; D reports only its earlier Y failure. -/
+/-- X cannot report cancelled C; later D startup aggregates its cached X and Y causes. -/
 example
     : ((State.initialize (Work.fromExecution work)).runNormalized inputs).2
       = [
@@ -178,7 +191,7 @@ example
           .groupValues q
             [{ path := [], data := keepData, errors := 0, deliveryGroups := [q] }],
           .groupSuccess q [d] [],
-          .groupFailure d 1,
+          .groupFailure d 2,
           .workQueueTermination
         ]
       ] := by cbv

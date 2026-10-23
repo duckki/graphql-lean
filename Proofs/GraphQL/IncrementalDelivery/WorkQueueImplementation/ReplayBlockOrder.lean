@@ -1,4 +1,4 @@
-import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.FlattenedClosureLedger
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.BatchOutputReplay
 
 /-! Started batches retain value-block order on their one shared publication ledger. -/
 
@@ -19,59 +19,39 @@ theorem State.handleGraphEvents_blocksFollowRegistrations {queue : State}
     (ordered
       : BlocksFollowRegistrations (queue.handleGraphEvents events).1.tasks published
           (queue.handleGraphEvents events).2)
-    : BlocksFollowRegistrations (queue.replayGraphEvents events).tasks published
-        (queue.rawEventReplay events).2 := by
+    : BlocksFollowRegistrations
+        (queue.replayGraphEvents events (GraphEvent.availableFailures events)).tasks
+        published
+        (queue.rawEventReplay events (GraphEvent.availableFailures events)).2 := by
   rw [State.handleGraphEvents_eq_rawEventReplay] at ordered
   simp only [running, Bool.false_eq_true, ↓reduceIte] at ordered
-  rw [← State.rawEventReplay_state]
+  rw [← State.rawEventReplay_state _ _ (GraphEvent.availableFailures events)]
   split at ordered
   · exact (BlocksFollowRegistrations.append_iff.mp ordered).1
   · exact ordered
 
-/-- Started batches retain every raw block's registration order on the same full ledger.
-Witness: strip each wrapper, compose consecutive label slices, and enlarge earlier block
-registries along the actual append-only source replay. No new occurrence matching is chosen.
+/-- Every actual raw batch block retains order on the one shared publication ledger.
+Witness: compose exact batch label slices and extend each earlier registry along actual
+batch transitions. Cache snapshots and queued completion controls remain in the replay.
 -/
-theorem State.BatchClosuresCovered.blocks_flatten {queue : State} {batches published}
+theorem State.BatchClosuresCovered.blocks_rawBatches {queue : State} {batches published}
     (covered : queue.BatchClosuresCovered batches published)
-    (started : queue.batchesStarted batches = true)
-    : BlocksFollowRegistrations (queue.replayGraphEvents batches.flatten).tasks published
-        (queue.rawEventReplay batches.flatten).2 := by
+    : BlocksFollowRegistrations (queue.rawBatches batches).1.tasks published
+        (queue.rawBatches batches).2 := by
   induction batches generalizing queue published with
   | nil => trivial
   | cons batch rest ih =>
-      obtain ⟨running, _, later⟩ := queue.batchesStarted_cons batch rest started
-      have first := queue.handleGraphEvents_blocksFollowRegistrations running
-        (BlocksFollowRegistrations.take_iff.mp covered.2.1)
-      cases rest with
-      | nil =>
-          simpa only [List.flatten_cons, List.flatten_nil, List.append_nil] using first
-      | cons next tail =>
-          have openNext := ((queue.handleGraphEvents batch).1.batchesStarted_cons
-            next tail later).1
-          have remaining := ih covered.2.2 later
-          have counts := congrArg List.length
-            (queue.handleGraphEvents_objectValues batch running)
-          rw [counts, queue.handleGraphEvents_nonterminalState batch running openNext]
-            at remaining
-          change BlocksFollowRegistrations
-            (queue.replayGraphEvents (batch ++ (next :: tail).flatten)).tasks published
-            (queue.rawEventReplay (batch ++ (next :: tail).flatten)).2
-          have stateSplit : queue.replayGraphEvents (batch ++ (next :: tail).flatten)
-              = (queue.replayGraphEvents batch).replayGraphEvents (next :: tail).flatten := by
-            simp only [State.replayGraphEvents, List.foldl_append]
-          rw [stateSplit, State.rawEventReplay_append]
-          dsimp only
-          rw [State.rawEventReplay_state]
-          apply BlocksFollowRegistrations.append_iff.mpr
-          exact ⟨first.mono (State.replayGraphEvents_tasks_sublist _ _), remaining⟩
+      have first := BlocksFollowRegistrations.take_iff.mp covered.2.1
+      have remaining := ih covered.2.2
+      apply BlocksFollowRegistrations.append_iff.mpr
+      exact ⟨first.mono (State.rawBatches_tasks_sublist _ _), remaining⟩
 
 -----------------------------------------------------------------------------------------
 -- Source validity turns exact registry subsequences into strict producer ordering
 -----------------------------------------------------------------------------------------
 
 /-- Each actual raw value block has producer order on its slice of the shared ledger.
-Witness: flatten the retained batch certificate and restrict the source-derived final
+Witness: retain the actual batch certificate and restrict the source-derived final
 registry's pairwise producer relation to this exact indexed slice.
 -/
 theorem createWorkQueue_batch_blockProducerOrder
@@ -82,20 +62,16 @@ theorem createWorkQueue_batch_blockProducerOrder
     (started : inputsStarted work batches = true)
     (valid : ValidGraphEvents work batches.flatten)
     (selected
-      : ((State.initialize (Work.fromExecution work)).rawEventReplay
-          batches.flatten).2[index]?
+      : ((State.initialize (Work.fromExecution work)).rawBatches batches).2[index]?
         = some (.groupValues group values))
     : ProducerOrder work
         ((List.take values.length
             (published.drop
-              (((((State.initialize (Work.fromExecution work)).rawEventReplay
-                    batches.flatten).2.take
+              (((((State.initialize (Work.fromExecution work)).rawBatches batches).2.take
                   index).flatMap
                   WorkQueueEvent.objectValues).length))).map
           Prod.fst) := by
-  have admitted : (State.initialize (Work.fromExecution work)).batchesStarted batches = true := by
-    rwa [← inputsStarted_eq_batchesStarted]
-  exact (createWorkQueue_replayGraphEvents_producerOrder valid).2.sublist
-    ((covered.blocks_flatten admitted).atEvent selected)
+  exact (createWorkQueue_rawBatches_producerOrder valid started).sublist
+    (covered.blocks_rawBatches.atEvent selected)
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

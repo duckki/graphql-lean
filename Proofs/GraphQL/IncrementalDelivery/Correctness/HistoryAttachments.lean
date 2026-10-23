@@ -87,7 +87,7 @@ theorem history_publication_attachment
   apply history_ready_attachment explained success attached member
   obtain ⟨owners, known⟩ := sourceTasks_known .root cursors member
   have bound := (List.getElem?_eq_some_iff.mp selected).choose
-  have allowed := (explained.2.2 cut event selected).publicationReady value
+  have allowed := (explained.eventAllowed cut event selected).publicationReady value
   simp only [List.length_take, Nat.min_eq_left (Nat.le_of_lt bound)] at allowed
   obtain ⟨otherOwners, producer, payload, actual, ready⟩ := allowed
   have producerEq := (known.unique (same ▸ actual)).2.1

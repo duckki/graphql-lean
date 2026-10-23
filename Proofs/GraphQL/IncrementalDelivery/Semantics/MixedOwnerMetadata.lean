@@ -12,6 +12,7 @@ open OwnerPaths
 
 def WorkAt (paths : Assignment) (bound : Nat) : Work → Prop
   | .empty => True
+  | .declareGroups _ tasks => WorkAt paths bound tasks
   | .combine left right => WorkAt paths bound left ∧ WorkAt paths bound right
   | .executionGroup groups path _ children =>
       MapAt paths bound path groups ∧ WorkAt paths bound children
@@ -28,7 +29,7 @@ decreasing_by
   omega
 
 def ItemsAt (paths : Assignment) (bound : Nat)
-    (items : List (GraphQL.Execution.Result ResponseValue × Work))
+    (items : List (TaskOutcome ResponseValue × Work))
     : Prop :=
   ∀ item ∈ items, WorkAt paths bound item.2
 
@@ -39,7 +40,7 @@ def Completed (paths : Assignment) (start : Nat) (output : Completion α × Nat)
   Output paths start output.1.work output.2
 
 def ItemsOutput (paths : Assignment) (start : Nat)
-    (output : List (GraphQL.Execution.Result ResponseValue × Work) × Nat)
+    (output : List (TaskOutcome ResponseValue × Work) × Nat)
     : Prop :=
   start ≤ output.2 ∧ ∃ next, Extends start paths next ∧ ItemsAt next output.2 output.1
 
@@ -48,6 +49,9 @@ theorem WorkAt.extend {paths next : Assignment} {start finish : Nat} {work : Wor
     : WorkAt next finish work := by
   cases work with
   | empty => simp [WorkAt]
+  | declareGroups groups tasks =>
+      simp only [WorkAt] at h ⊢
+      exact WorkAt.extend (work := tasks) h he hle
   | combine left right =>
       simp only [WorkAt] at h ⊢
       exact ⟨h.1.extend he hle, h.2.extend he hle⟩
@@ -69,7 +73,7 @@ decreasing_by
   omega
 
 theorem ItemsAt.extend {paths next : Assignment} {start finish : Nat}
-    {items : List (GraphQL.Execution.Result ResponseValue × Work)}
+    {items : List (TaskOutcome ResponseValue × Work)}
     (h : ItemsAt paths start items) (he : Extends start paths next) (hle : start ≤ finish)
     : ItemsAt next finish items :=
   fun item hi => (h item hi).extend he hle

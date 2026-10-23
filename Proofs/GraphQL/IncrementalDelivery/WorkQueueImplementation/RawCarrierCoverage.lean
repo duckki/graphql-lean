@@ -19,23 +19,23 @@ theorem State.rawEventReplay_output_projected_at {α : Type}
     {index output} (selected : (queue.rawEventReplay received).2[index]? = some output)
     : ∃ before event after position,
         received = before ++ event :: after
-        ∧ ((queue.replayGraphEvents before).handleGraphEvent event).2[position]?
+        ∧ ((queue.replayGraphEvents before).handleGraphEvent event).2.1[position]?
           = some output
         ∧ (((queue.rawEventReplay received).2.take index).flatMap project).length
           = ((queue.rawEventReplay before).2.flatMap project).length
-            + ((((queue.replayGraphEvents before).handleGraphEvent event).2.take
+            + ((((queue.replayGraphEvents before).handleGraphEvent event).2.1.take
                   position).flatMap
                 project).length := by
   induction received generalizing queue index with
   | nil => simp [State.rawEventReplay] at selected
   | cons event rest ih =>
       rw [State.rawEventReplay_cons] at selected ⊢
-      by_cases earlier : index < (queue.handleGraphEvent event).2.length
+      by_cases earlier : index < (queue.dispatchGraphEvent event).2.length
       · refine ⟨[], event, rest, index, rfl, ?_, ?_⟩
         · exact (List.getElem?_append_left earlier).symm.trans selected
         · rw [List.take_append_of_le_length (Nat.le_of_lt earlier)]
-          simp [State.rawEventReplay, State.replayGraphEvents]
-      · have later : (queue.handleGraphEvent event).2.length ≤ index := by omega
+          simp [State.rawEventReplay, State.replayGraphEvents, State.dispatchGraphEvent]
+      · have later : (queue.dispatchGraphEvent event).2.length ≤ index := by omega
         obtain ⟨before, next, after, position, same, atEvent, count⟩ :=
           ih _ ((List.getElem?_append_right later).symm.trans selected)
         refine ⟨event :: before, next, after, position, by simp [same], atEvent, ?_⟩
@@ -51,12 +51,12 @@ theorem State.rawEventReplay_output_at (queue : State) (received : List GraphEve
     {index output} (selected : (queue.rawEventReplay received).2[index]? = some output)
     : ∃ before event after position,
         received = before ++ event :: after
-        ∧ ((queue.replayGraphEvents before).handleGraphEvent event).2[position]?
+        ∧ ((queue.replayGraphEvents before).handleGraphEvent event).2.1[position]?
           = some output
         ∧ (((queue.rawEventReplay received).2.take index).flatMap
             WorkQueueEvent.objectValues).length
           = ((queue.rawEventReplay before).2.flatMap WorkQueueEvent.objectValues).length
-            + ((((queue.replayGraphEvents before).handleGraphEvent event).2.take
+            + ((((queue.replayGraphEvents before).handleGraphEvent event).2.1.take
                   position).flatMap
                 WorkQueueEvent.objectValues).length :=
   queue.rawEventReplay_output_projected_at WorkQueueEvent.objectValues received selected
@@ -68,7 +68,8 @@ ledger restricted to that source prefix. Exact count equality transports its str
 theorem ExecutedWork.rawEventReplay_groupContributor_covered
     {work events published index group groups streams address owners producer payload}
     (generated : ExecutedWork work) (valid : ValidGraphEvents work events)
-    (started : (State.initialize (Work.fromExecution work)).acceptsBatch events = true)
+    (started
+      : State.eventsStarted [] (State.initialize (Work.fromExecution work)) events = true)
     (covered
       : (State.initialize (Work.fromExecution work)).ReplayClosuresCovered events
           published)
@@ -87,9 +88,9 @@ theorem ExecutedWork.rawEventReplay_groupContributor_covered
     (State.initialize (Work.fromExecution work)).rawEventReplay_output_at events selected
   have prior : (before ++ [event]).IsPrefix events :=
     ⟨after, by simp [same, List.append_assoc]⟩
-  have accepted : (State.initialize (Work.fromExecution work)).acceptsBatch
+  have accepted : State.eventsStarted [] (State.initialize (Work.fromExecution work))
       (before ++ [event]) = true := by
-    apply State.acceptsBatch_prefix (after := after)
+    apply State.eventsStarted_prefix (after := after)
     simpa only [same, List.append_assoc, List.singleton_append] using started
   have ledger : (State.initialize (Work.fromExecution work)).ReplayClosuresCovered
       (before ++ [event]) published := by

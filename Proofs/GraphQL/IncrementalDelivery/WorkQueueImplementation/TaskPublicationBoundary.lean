@@ -42,7 +42,7 @@ theorem State.successGroupFold_values_active (queue : State)
           · rename_i ready
             have active : node.group.node.ref ∈ acc.1.rootGroups := by
               simp only [Bool.and_eq_true, List.contains_iff_mem] at ready
-              exact acc.1.groupNode?_ref found ▸ ready.1.1
+              exact acc.1.groupNode?_ref found ▸ ready.1
             let updated := { node with pending := node.pending - 1 }
             have remainingRoots
                 : ((acc.1.putGroupNode updated).finishGroupSuccess updated).1.rootGroups.Subset
@@ -67,61 +67,58 @@ theorem State.successGroupFold_values_active (queue : State)
 -----------------------------------------------------------------------------------------
 
 /-- An inactive group's task-success publication has an exact later-drain boundary.
-Witness: a missing or rejected task produces no value; the guarded owner fold can only
+Witness: a missing task produces no value; the guarded owner fold can only
 publish initially active groups. Indexed append decomposition identifies the drain block
 and preserves its complete strict output prefix, including earlier owner-fold output.
 -/
 theorem State.taskSuccess_inactiveValue_drain (queue : State)
     (occurrence : Occurrence) (result : TaskResult) {position group values}
+    (available : List (Occurrence × Nat) := [])
     (selected
-      : (queue.taskSuccess occurrence result).2[position]?
+      : (queue.taskSuccess occurrence result available).2.1[position]?
         = some (.groupValues group values))
     (inactive : group.ref ∉ queue.rootGroups)
     : ∃ incoming,
         queue.taskNode? occurrence = some incoming
-        ∧ queue.taskHasHealthyOwner incoming.task = true
         ∧ let prepared :=
             ((queue.putTaskNode
                 { incoming with value := some result.value }).maybeIntegrateWork
               result.work (some occurrence)).1
           let released := incoming.task.groups.foldl successGroupStep (prepared, [], {})
-          let activated := released.1.startNewWork released.2.2
+          let activated := (released.1.startNewWork released.2.2 available).1
           ∃ index,
-            activated.drainReadyGroups.2[index]? = some (.groupValues group values)
-            ∧ (queue.taskSuccess occurrence result).2.take position
-              = released.2.1 ++ activated.drainReadyGroups.2.take index := by
+            (activated.drainReadyGroups available).2.1[index]?
+              = some (.groupValues group values)
+            ∧ (queue.taskSuccess occurrence result available).2.1.take position
+              = released.2.1
+                ++ (activated.drainReadyGroups available).2.1.take index := by
   cases found : queue.taskNode? occurrence with
   | none => simp [State.taskSuccess, found] at selected
   | some incoming =>
-      rw [queue.taskSuccess_eq occurrence result incoming found] at selected
-      cases healthy : queue.taskHasHealthyOwner incoming.task with
-      | false => simp [healthy] at selected
-      | true =>
-          simp only [healthy, Bool.not_true, Bool.false_eq_true, ↓reduceIte] at selected
-          let prepared :=
-            ((queue.putTaskNode { incoming with value := some result.value }).maybeIntegrateWork
-              result.work (some occurrence)).1
-          let released := incoming.task.groups.foldl successGroupStep (prepared, [], {})
-          let activated := released.1.startNewWork released.2.2
-          change (released.2.1 ++ activated.drainReadyGroups.2)[position]? = _ at selected
-          have bound : released.2.1.length ≤ position := by
-            by_cases bound : released.2.1.length ≤ position
-            · exact bound
-            exfalso
-            have first : released.2.1[position]? = some (.groupValues group values) := by
-              simpa only
-                [List.getElem?_append_left (by omega : position < released.2.1.length)]
-                using selected
-            have active := prepared.successGroupFold_values_active incoming.task.groups
-              (List.mem_of_getElem? first)
-            apply inactive
-            simpa only [prepared, State.maybeIntegrateWork_rootGroups, State.putTaskNode]
-              using active
-          refine ⟨incoming, rfl, healthy, position - released.2.1.length, ?_, ?_⟩
-          · simpa only [List.getElem?_append_right bound] using selected
-          · rw [queue.taskSuccess_eq occurrence result incoming found]
-            simp only [healthy, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
-            change (released.2.1 ++ activated.drainReadyGroups.2).take position = _
-            rw [List.take_append, List.take_of_length_le bound]
+      rw [queue.taskSuccess_eq occurrence result incoming found available] at selected
+      let prepared :=
+        ((queue.putTaskNode { incoming with value := some result.value }).maybeIntegrateWork
+          result.work (some occurrence)).1
+      let released := incoming.task.groups.foldl successGroupStep (prepared, [], {})
+      let activated := (released.1.startNewWork released.2.2 available).1
+      change (released.2.1 ++ (activated.drainReadyGroups available).2.1)[position]? = _ at selected
+      have bound : released.2.1.length ≤ position := by
+        by_cases bound : released.2.1.length ≤ position
+        · exact bound
+        exfalso
+        have first : released.2.1[position]? = some (.groupValues group values) := by
+          simpa only
+            [List.getElem?_append_left (by omega : position < released.2.1.length)]
+            using selected
+        have active := prepared.successGroupFold_values_active incoming.task.groups
+          (List.mem_of_getElem? first)
+        apply inactive
+        simpa only [prepared, State.maybeIntegrateWork_rootGroups, State.putTaskNode]
+          using active
+      refine ⟨incoming, rfl, position - released.2.1.length, ?_, ?_⟩
+      · simpa only [List.getElem?_append_right bound] using selected
+      · rw [queue.taskSuccess_eq occurrence result incoming found available]
+        change (released.2.1 ++ (activated.drainReadyGroups available).2.1).take position = _
+        rw [List.take_append, List.take_of_length_le bound]
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

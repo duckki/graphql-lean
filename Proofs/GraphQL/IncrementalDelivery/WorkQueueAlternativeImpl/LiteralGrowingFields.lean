@@ -29,6 +29,9 @@ theorem WorkRefines.renameRight {keys : Nat → Nat} {left right : Work}
           ItemsRefine (rename ∘ keys) left
             (right.map (fun item => (item.1, work rename item.2)))) with
   | empty => simpa only [work] using WorkRefines.empty (keys := rename ∘ keys)
+  | declareGroups nested ih =>
+      simpa only [work, List.map_map, fragment_comp, Function.comp_def]
+        using WorkRefines.declareGroups (keys := rename ∘ keys) ih
   | combine head tail ihHead ihTail =>
       simpa only [work] using WorkRefines.combine ihHead ihTail
   | executionGroup payload nested ih =>
@@ -42,7 +45,7 @@ theorem WorkRefines.renameRight {keys : Nat → Nat} {left right : Work}
 theorem CompletionRefines.renameRight {keys : Nat → Nat} {left right : Completion α}
     (known : CompletionRefines keys left right) (rename : Nat → Nat)
     : CompletionRefines (rename ∘ keys) left (completion rename right) :=
-  ⟨known.1, known.2.renameRight rename⟩
+  ⟨known.1, known.2.1.renameRight rename, known.2.2⟩
 
 -----------------------------------------------------------------------------------------
 -- Original field lookup/coercion/resolution branches transport actual literal runs

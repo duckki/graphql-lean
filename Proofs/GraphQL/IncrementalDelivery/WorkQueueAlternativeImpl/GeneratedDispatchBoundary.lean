@@ -1,3 +1,5 @@
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.UncancelledReplay
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.TaskRejections
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.ReferenceReplay
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.InputReplay
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.PublicationReplay
@@ -48,40 +50,28 @@ theorem generatedReplay_beforeBatch {work inputs batch}
     (started : ReferenceWorkQueue.inputsStarted work (inputs ++ [batch]) = true)
     : ((State.initialize work).runNormalized inputs).1.queue
         = (ReferenceWorkQueue.State.initialize
-            (ReferenceWorkQueue.Work.fromExecution work)).replayGraphEvents
-            inputs.flatten
+            (ReferenceWorkQueue.Work.fromExecution work)).replayBatches
+            inputs
       ∧ ReferenceWorkQueue.inputsStarted work inputs = true
-      ∧ (ReferenceWorkQueue.State.initialize
-          (ReferenceWorkQueue.Work.fromExecution work)).acceptsBatch
-          inputs.flatten
+      ∧ ((ReferenceWorkQueue.State.initialize
+            (ReferenceWorkQueue.Work.fromExecution work)).replayBatches
+          inputs).acceptsBatch
+          batch
         = true := by
   let initial := ReferenceWorkQueue.State.initialize (ReferenceWorkQueue.Work.fromExecution work)
   have recursive : initial.batchesStarted (inputs ++ [batch]) = true := by
     rwa [ReferenceWorkQueue.inputsStarted_eq_batchesStarted] at started
-  obtain ⟨earlier, later⟩ := batchesStarted_append initial inputs [batch] recursive
-  have running := ((initial.runNormalized inputs).1.batchesStarted_cons batch [] later).1
-  obtain ⟨terminal, same⟩ := initial.runNormalized_stateCore inputs earlier
-  have flag : terminal = false := by simpa [same] using running
-  have rawFlag : (initial.replayGraphEvents inputs.flatten).terminated = false := by
-    rw [← ReferenceWorkQueue.State.rawEventReplay_state,
-      ReferenceWorkQueue.State.rawEventReplay_terminated]
-    exact ReferenceWorkQueue.createWorkQueue_terminated _
-  have unchanged : { initial.replayGraphEvents inputs.flatten with
-      terminated := (initial.replayGraphEvents inputs.flatten).terminated }
-      = initial.replayGraphEvents inputs.flatten := by
-    cases initial.replayGraphEvents inputs.flatten
-    rfl
-  have exactState : (initial.runNormalized inputs).1 = initial.replayGraphEvents inputs.flatten := by
-    rw [same, flag]
-    simpa only [rawFlag] using unchanged
-  refine ⟨?_, ?_, initial.batchesStarted_acceptsBatch inputs earlier⟩
-  · rw [State.runNormalized_initialize work inputs generated valid
-      (by rwa [ReferenceWorkQueue.inputsStarted_eq_batchesStarted])]
-    change (State.fromReference (initial.runNormalized inputs).1).queue
-      = initial.replayGraphEvents inputs.flatten
-    rw [exactState]
-    simp only [State.fromReference, rawFlag, Bool.false_eq_true, ↓reduceIte]
-  · rwa [ReferenceWorkQueue.inputsStarted_eq_batchesStarted]
+  rw [ReferenceWorkQueue.State.batchesStarted_append, Bool.and_eq_true] at recursive
+  have next := (initial.replayBatches inputs).batchesStarted_cons batch [] recursive.2
+  have priorStarted : ReferenceWorkQueue.inputsStarted work inputs = true := by
+    rw [ReferenceWorkQueue.inputsStarted_eq_batchesStarted]
+    exact recursive.1
+  refine ⟨?_, priorStarted, next.2.1⟩
+  rw [State.runNormalized_initialize work inputs generated valid priorStarted]
+  dsimp only
+  rw [ReferenceWorkQueue.State.runNormalized_replayBatches]
+  change (State.fromReference (initial.replayBatches inputs)).queue = initial.replayBatches inputs
+  simp only [State.fromReference, next.1, Bool.false_eq_true, ↓reduceIte]
 
 /-- The singleton dispatch boundary specializes the same actual next-batch projection. -/
 theorem generatedReplay_beforeNext {work inputs event}
@@ -90,14 +80,73 @@ theorem generatedReplay_beforeNext {work inputs event}
     (started : ReferenceWorkQueue.inputsStarted work (inputs ++ [[event]]) = true)
     : ((State.initialize work).runNormalized inputs).1.queue
         = (ReferenceWorkQueue.State.initialize
-            (ReferenceWorkQueue.Work.fromExecution work)).replayGraphEvents
-            inputs.flatten
+            (ReferenceWorkQueue.Work.fromExecution work)).replayBatches
+            inputs
       ∧ ReferenceWorkQueue.inputsStarted work inputs = true
-      ∧ (ReferenceWorkQueue.State.initialize
-          (ReferenceWorkQueue.Work.fromExecution work)).acceptsBatch
-          inputs.flatten
+      ∧ ((ReferenceWorkQueue.State.initialize
+            (ReferenceWorkQueue.Work.fromExecution work)).replayBatches
+          inputs).acceptsBatch
+          [event]
         = true :=
   generatedReplay_beforeBatch generated (valid.prefix ⟨[event], rfl⟩) started
+
+/-- Actual cached batches derive the complete all-outcomes task ledger before a next input. -/
+theorem generatedReplay_pendingAccounting {work inputs event}
+    (generated : ReferenceWorkQueue.ExecutedWork work)
+    (valid : ReferenceWorkQueue.ValidGraphEvents work (inputs.flatten ++ [event]))
+    (started : ReferenceWorkQueue.inputsStarted work (inputs ++ [[event]]) = true)
+    : ((State.initialize work).runNormalized inputs).1.queue.PendingAccounting work
+        (ReferenceWorkQueue.GraphEvent.taskSettlements inputs.flatten) := by
+  obtain ⟨raw, _, _⟩ := generatedReplay_beforeNext generated valid started
+  have allValid : ReferenceWorkQueue.ValidGraphEvents work (inputs ++ [[event]]).flatten := by
+    simpa only [List.flatten_append, List.flatten_cons, List.flatten_nil, List.append_nil]
+      using valid
+  have ledger := generated.pendingLedger_atBatchPrefix inputs [event] [] [] allValid started
+    ⟨[event], rfl⟩
+  rw [raw]
+  simpa only [List.append_nil, ReferenceWorkQueue.State.replayGraphEvents, List.foldl_nil]
+    using ledger
+
+/-- Actual batch-prefix source accounting is available at the same next-input queue. -/
+theorem generatedReplay_sourceFrame {work inputs event}
+    {parents : Nat → WorkQueueSemantics.NodeRefs}
+    (generated : ReferenceWorkQueue.ExecutedWork work)
+    (canonical
+      : ∀ node dependencies,
+          ReferenceWorkQueue.GroupRecordAt work node dependencies
+          → dependencies = parents node.ref)
+    (valid : ReferenceWorkQueue.ValidGraphEvents work (inputs.flatten ++ [event]))
+    (started : ReferenceWorkQueue.inputsStarted work (inputs ++ [[event]]) = true)
+    : ReferenceWorkQueue.UncancelledReplayFrame
+        ((State.initialize work).runNormalized inputs).1.queue work parents
+        inputs.flatten := by
+  obtain ⟨raw, _, _⟩ := generatedReplay_beforeNext generated valid started
+  have allValid : ReferenceWorkQueue.ValidGraphEvents work (inputs ++ [[event]]).flatten := by
+    simpa only [List.flatten_append, List.flatten_cons, List.flatten_nil, List.append_nil]
+      using valid
+  have source := generated.uncancelledFrame_atBatchPrefix canonical inputs [event] [] []
+    allValid started ⟨[event], rfl⟩
+  rw [raw]
+  simpa only [List.append_nil, ReferenceWorkQueue.State.replayGraphEvents, List.foldl_nil]
+    using source
+
+/-- Retained rejections at the real next-input cut come from earlier source task outcomes. -/
+theorem generatedReplay_taskRejections {work inputs event}
+    (generated : ReferenceWorkQueue.ExecutedWork work)
+    (valid : ReferenceWorkQueue.ValidGraphEvents work (inputs.flatten ++ [event]))
+    (started : ReferenceWorkQueue.inputsStarted work (inputs ++ [[event]]) = true)
+    : ((State.initialize work).runNormalized inputs).1.queue.TaskRejectionsSatisfy
+        (fun occurrence _ =>
+          occurrence ∈ ReferenceWorkQueue.GraphEvent.taskSettlements inputs.flatten) := by
+  obtain ⟨raw, _, _⟩ := generatedReplay_beforeNext generated valid started
+  rw [raw, ← ReferenceWorkQueue.State.runNormalized_replayBatches]
+  refine (ReferenceWorkQueue.createWorkQueue_runNormalized_taskRejections
+    (ReferenceWorkQueue.Work.fromExecution work) inputs).mono
+    (after := fun occurrence _ => occurrence ∈
+      ReferenceWorkQueue.GraphEvent.taskSettlements inputs.flatten) ?_
+  intro occurrence errors received
+  apply List.mem_reverse.mpr
+  exact List.mem_flatMap.mpr ⟨.taskFailure occurrence errors, received, List.mem_cons_self⟩
 
 /-- A next started input cannot follow terminal retirement or an interrupted reader. -/
 theorem generatedReplay_beforeNextState {work inputs event}
@@ -133,10 +182,32 @@ theorem generatedReplay_dispatchProjection {work inputs event}
     (valid : ReferenceWorkQueue.ValidGraphEvents work (inputs.flatten ++ [event]))
     (started : ReferenceWorkQueue.inputsStarted work (inputs ++ [[event]]) = true)
     : let before := ((State.initialize work).runNormalized inputs).1
-      ((before.handleGraphEvent event).1.queue, (before.handleGraphEvent event).2.1)
+      (
+        (before.handleGraphEvent event).1.queue,
+        (before.handleGraphEvent event).2.1,
+        (before.handleGraphEvent event).2.2.2
+      )
       = before.queue.handleGraphEvent event := by
-  obtain ⟨raw, _, accepted⟩ := generatedReplay_beforeNext generated valid started
+  obtain ⟨raw, _, _⟩ := generatedReplay_beforeNext generated valid started
+  obtain ⟨prior, matched, _⟩ := ReferenceWorkQueue.validGraphEvents_last valid
   rw [generatedReplay_beforeNextState generated valid started, raw]
-  exact referencePrefix_handleGraphEvent generated inputs.flatten event valid accepted
+  obtain ⟨parents, canonical, owners, roots, retired⟩ :=
+    generated.batchPrefix_structuralFrames inputs [] (fun _ member => prior.eachMatches member)
+      (by simp) []
+  have allValid : ReferenceWorkQueue.ValidGraphEvents work (inputs ++ [[event]]).flatten := by
+    simpa only [List.flatten_append, List.flatten_cons, List.flatten_nil, List.append_nil]
+      using valid
+  have accounting := generated.pendingLedger_atBatchPrefix inputs [event] [] [] allValid started
+    ⟨[event], rfl⟩
+  simp only [List.append_nil] at accounting
+  have children := (ReferenceWorkQueue.createWorkQueue_childGroupsUnique
+    (ReferenceWorkQueue.Work.fromExecution work)).runNormalized inputs
+  have keys := (ReferenceWorkQueue.createWorkQueue_taskNodeKeysUnique
+    (ReferenceWorkQueue.Work.fromExecution work)).runNormalized inputs
+  rw [ReferenceWorkQueue.State.runNormalized_replayBatches] at children keys
+  apply State.handleGraphEvent_projection_of_consumedAvailability generated canonical
+    roots retired owners children keys inputs.flatten event accounting valid rfl []
+  intro occurrence errors member
+  cases member
 
 end GraphQL.IncrementalDelivery.AlternativeWorkQueue.NativeRefinement

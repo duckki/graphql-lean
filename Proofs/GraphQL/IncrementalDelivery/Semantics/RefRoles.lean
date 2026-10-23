@@ -20,6 +20,7 @@ def fragmentRefs (fragment : DeferredFragment) : List Nat :=
 
 def deferMetadataRefs : Work → List Nat
   | .empty => []
+  | .declareGroups groups tasks => groups.flatMap fragmentRefs ++ deferMetadataRefs tasks
   | .combine left right => deferMetadataRefs left ++ deferMetadataRefs right
   | .executionGroup groups _ _ children =>
       groups.flatMap fragmentRefs ++ deferMetadataRefs children
@@ -37,6 +38,11 @@ decreasing_by
 def WorkRoles (roles : Assignment) : Work → Prop
   | .empty => True
   | .combine left right => WorkRoles roles left ∧ WorkRoles roles right
+  | .declareGroups groups tasks =>
+      (∀ group ∈ groups,
+        roles group.node.ref = false
+        ∧ ∀ ancestor ∈ group.ancestors, roles ancestor.ref = false)
+      ∧ WorkRoles roles tasks
   | .executionGroup groups _ _ children =>
       (∀ group ∈ groups,
         roles group.node.ref = false
@@ -205,7 +211,7 @@ theorem workAt_nonNull (roles : Assignment) (bound : Nat)
 
 theorem workAt_deferred (roles : Assignment) (bound : Nat) (deferMap : DeferMap)
     (refs : List Nat) (path : ResponsePath)
-    (result : Result (List (Name × ResponseValue))) (children : Work)
+    (result : TaskOutcome (List (Name × ResponseValue))) (children : Work)
     (hm : MapAt roles bound deferMap) (hc : WorkAt roles bound children)
     : WorkAt roles bound
         (.executionGroup (refs.filterMap (lookupDeferredFragment? deferMap)) path result
@@ -219,7 +225,7 @@ theorem workAt_deferred (roles : Assignment) (bound : Nat) (deferMap : DeferMap)
   exact hm.fragment (List.mem_of_find?_eq_some hl) ref href
 
 theorem workAt_stream (roles : Assignment) (bound : Nat) (node : DeliveryNode)
-    (items : List (Result ResponseValue × Work))
+    (items : List (TaskOutcome ResponseValue × Work))
     (hn : node.ref < bound ∧ roles node.ref = true)
     (hi : ∀ item ∈ items, WorkAt roles bound item.2)
     : WorkAt roles bound (.stream node items) := by
@@ -249,6 +255,21 @@ theorem WorkAt.roles {roles : Assignment} {bound : Nat} {work : Work}
         fun ref hk => h.1 ref (by rw [streamAllocationRefs]; exact List.mem_append_right _ hk),
         fun ref hk => h.2 ref (by rw [deferMetadataRefs]; exact List.mem_append_right _ hk)⟩
       exact ⟨hl.roles, hr.roles⟩
+  | declareGroups groups children =>
+      rw [WorkRoles]
+      have hg (group : DeferredFragment) (hm : group ∈ groups) : RefsAt roles bound false (fragmentRefs group) := by
+        intro ref hk
+        apply h.2 ref
+        rw [deferMetadataRefs]
+        exact List.mem_append_left _ (List.mem_flatMap.mpr ⟨group, hm, hk⟩)
+      have hc : WorkAt roles bound children := ⟨by simpa only [streamAllocationRefs] using h.1,
+        fun ref hk => h.2 ref (by rw [deferMetadataRefs]; exact List.mem_append_right _ hk)⟩
+      refine ⟨?_, hc.roles⟩
+      intro group hm
+      refine ⟨(hg group hm _ (by simp [fragmentRefs])).2, ?_⟩
+      intro ancestor ha
+      exact (hg group hm ancestor.ref
+        (List.mem_cons_of_mem _ (List.mem_map.mpr ⟨ancestor, ha, rfl⟩))).2
   | executionGroup groups path result children =>
       rw [WorkRoles]
       have hg (group : DeferredFragment) (hm : group ∈ groups) : RefsAt roles bound false (fragmentRefs group) := by

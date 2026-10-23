@@ -337,7 +337,7 @@ mutual
             · refine runEnsures_bind (fun _ : NodeRef => True) _ _ _ (fun _ => trivial) ?_
               intro ref _
               refine runEnsures_bind
-                (fun _ : List (Result ResponseValue × Work) => True) _ _ _
+                (fun _ : List (TaskOutcome ResponseValue × Work) => True) _ _ _
                 (fun _ => trivial) ?_
               intro items _
               exact runEnsures_pure _ _
@@ -440,9 +440,10 @@ theorem completeStreamItems_failure_bubbles (schema : Schema)
     (itemType : TypeRef) (selected : List FieldDetails)
     (values : List (ResolverValue ObjectRef))
     (valid : ∀ field ∈ selected, ArgumentValidity.FieldArgumentsValid variables field)
-    (path : ResponsePath) (index state errors : Nat) (children : Work)
+    (path : ResponsePath) (index state errors : Nat) (cause : Option Nat)
+    (children : Work)
     (failed
-      : (.error errors, children)
+      : ({ result := .error errors, cause }, children)
         ∈ ((completeStreamItems schema resolvers variables fuel itemType selected values
               path index).run
             state).1)
@@ -468,10 +469,11 @@ theorem completeStreamItems_failure_bubbles (schema : Schema)
       | ok pair =>
           have completed := outcome
           dsimp only [head, action] at completed
-          have tailFailed : (.error errors, children)
+          have tailFailed : ({ result := .error errors, cause }, children)
               ∈ ((completeStreamItems schema resolvers variables fuel itemType selected rest
                     path (index + 1)).run next).1 := by
-            simpa [completeStreamItems, completed, next, action] using failed
+            simpa [completeStreamItems, Completion.outcome, completed, next, action]
+              using failed
           obtain ⟨ordinaryCount, ordinaryFailed⟩ := ih (index + 1) next tailFailed
           cases item : GraphQL.Execution.completeValue schema resolvers variables fuel
               itemType (selected.map eraseField) value <;>

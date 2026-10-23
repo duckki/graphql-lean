@@ -1,6 +1,8 @@
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.TaskCatalogue
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.StreamRegions
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.RegistrationProvenance
-import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.OwnerAccounting
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.RegisteredTasks
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.StartedTasks
 
 /-! Queue registration never reaches a still-hidden stream-item ref region. -/
 
@@ -12,100 +14,6 @@ open Semantics.RefRegions
 -----------------------------------------------------------------------------------------
 -- Exact permanent-task registry equations avoid repeating invariant traversals
 -----------------------------------------------------------------------------------------
-
-/-- Recursive release preserves the permanent task registry.
-Witness: each successful flush, activation, and cached-failure removal leaves it unchanged.
--/
-theorem State.drainReadyGroups_tasks (queue : State)
-    : queue.drainReadyGroups.1.tasks = queue.tasks := by
-  apply State.drainReadyGroups_preserves (fun current => current.tasks = queue.tasks)
-  · intro current node prior _ _ _ _
-    rw [(State.startNewWork_groupCore _ _).2.1, State.finishGroupSuccess_tasks, prior]
-  · intro current node errors prior _ _ _
-    exact prior
-  · rfl
-
-/-- A contributor step changes pending/live bookkeeping but not registered tasks.
-Witness: ref-preserving updates and the successful-cleanup registry equation. -/
-theorem successGroupStep_tasks (acc : State × List WorkQueueEvent × NewWork)
-    (group : Execution.DeliveryNode)
-    : (successGroupStep acc group).1.tasks = acc.1.tasks := by
-  obtain ⟨current, events, released⟩ := acc
-  dsimp only [successGroupStep]
-  split
-  · rfl
-  · split
-    · exact State.finishGroupSuccess_tasks _ _
-    · rfl
-
-/-- An eligible successful task appends exactly the supplied child tasks.
-Witness: the accepting guard selects integration; release preserves the appended registry.
--/
-theorem State.taskSuccess_tasks {queue : State} {occurrence result node}
-    (found : queue.taskNode? occurrence = some node)
-    (eligible : queue.taskHasHealthyOwner node.task = true)
-    : (queue.taskSuccess occurrence result).1.tasks
-      = queue.tasks ++ result.work.tasks := by
-  have loop (groups : List Execution.DeliveryNode) (acc : State × List WorkQueueEvent × NewWork)
-      : (groups.foldl successGroupStep acc).1.tasks = acc.1.tasks := by
-    induction groups generalizing acc with
-    | nil => rfl
-    | cons group rest ih =>
-        rw [List.foldl_cons, ih, successGroupStep_tasks]
-  rw [queue.taskSuccess_eq occurrence result node found]
-  simp only [eligible, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
-  rw [State.drainReadyGroups_tasks, (State.startNewWork_groupCore _ _).2.1, loop,
-    State.maybeIntegrateWork_tasks_append]
-  rfl
-
-/-- Task failure retains permanent registrations even when removing live descendants.
-Witness: every owner-handler branch leaves the task registry unchanged. -/
-theorem State.taskFailure_tasks (queue : State) (occurrence : Occurrence) (errors : Nat)
-    : (queue.taskFailure occurrence errors).1.tasks = queue.tasks := by
-  let step (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode) :=
-    match acc.1.groupNode? group.ref with
-    | none => acc
-    | some node =>
-        if acc.1.rootGroups.contains group.ref then
-          let (next, failure) := acc.1.finishGroupFailure node errors
-          (next, acc.2 ++ [failure])
-        else (acc.1.putGroupNode
-          { node with pending := node.pending - 1
-                      failure := some (node.failure.getD 0 + errors) }, acc.2)
-  have loop (groups : List Execution.DeliveryNode) (acc : State × List WorkQueueEvent)
-      : (groups.foldl step acc).1.tasks = acc.1.tasks := by
-    induction groups generalizing acc with
-    | nil => rfl
-    | cons group rest ih =>
-        rw [List.foldl_cons, ih]
-        unfold step
-        split
-        · rfl
-        · split <;> rfl
-  unfold State.taskFailure
-  split
-  · rfl
-  · split
-    · rfl
-    · exact loop _ _
-
-/-- One stream-item integration appends exactly its immediate child tasks.
-Witness: pruning and activation preserve the integration append equation. -/
-theorem State.integrateStreamItem_tasks (queue : State) (item : StreamItem)
-    : (queue.integrateStreamItem item).tasks = queue.tasks ++ item.work.tasks := by
-  unfold State.integrateStreamItem
-  rw [(State.startNewWork_groupCore _ _).2.1, State.pruneEmptyGroups_tasks,
-    State.maybeIntegrateWork_tasks_append]
-
-/-- Initialization registers exactly the immediate input tasks.
-Witness: empty-queue integration, followed by registry-preserving pruning and activation. -/
-theorem createWorkQueue_tasks (work : Work)
-    : (State.initialize work).tasks = work.tasks := by
-  unfold State.initialize
-  dsimp only
-  rw [(State.startNewWork_groupCore _ _).2.1, State.pruneEmptyGroups_tasks,
-    State.maybeIntegrateWork_tasks_append]
-  rfl
 
 -----------------------------------------------------------------------------------------
 -- Task regions remain inside the exposed ref inventory
@@ -141,39 +49,35 @@ theorem State.RegisteredRegions.taskSuccess {queue : State} {work seen occurrenc
     (covered : queue.RegisteredRegions work seen)
     (started : queue.StartedTasksRegistered)
     (matching : (GraphEvent.taskSuccess occurrence result).MatchesWork work)
-    : (queue.taskSuccess occurrence result).1.RegisteredRegions work seen := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.taskSuccess occurrence result available).1.RegisteredRegions work seen := by
   cases found : queue.taskNode? occurrence with
   | none => simpa only [State.taskSuccess, found] using covered
   | some node =>
-      cases eligible : queue.taskHasHealthyOwner node.task with
-      | false =>
-          rw [State.taskSuccess_of_noHealthyOwner found eligible result]
-          exact covered
-      | true =>
-          have registered := started node (List.mem_of_find?_eq_some found)
-          have same : node.task.occurrence = occurrence := (occurrence_beq_iff_eq _ _).mp
-            (List.find?_some (p := fun candidate : TaskNode =>
-              candidate.task.occurrence == occurrence) found)
-          obtain ⟨owners, producer, known, _, childrenWork⟩ := matching
-          cases occurrence with
-          | item => cases childrenWork
-          | executionGroup address =>
-              obtain ⟨groups, path, outcome, children, enclosing, located, _, _⟩ := known
-              change locateWork work address = some
-                ⟨.executionGroup groups path outcome children, producer, enclosing⟩ at located
-              have lowering : result.work = Work.fromExecution children (address ++ [0]) := by
-                simpa [taskChildWork?, located] using childrenWork.symm
-              have childCovered : ∀ ref ∈ rootRefs children, ExposedRef work seen ref := by
-                intro ref member
-                exact covered node.task registered address _ same located ref
-                  (List.mem_append_right _ member)
-              intro task member
-              rw [State.taskSuccess_tasks found eligible] at member
-              rcases List.mem_append.mp member with old | new
-              · exact covered task old
-              · rw [lowering] at new
-                exact workFromSpec_tasks_regionCovered (Located.executionGroup located)
-                  childCovered task new
+      have registered := started node (List.mem_of_find?_eq_some found)
+      have same : node.task.occurrence = occurrence := (occurrence_beq_iff_eq _ _).mp
+        (List.find?_some (p := fun candidate : TaskNode =>
+          candidate.task.occurrence == occurrence) found)
+      obtain ⟨owners, producer, known, _, childrenWork⟩ := matching
+      cases occurrence with
+      | item => cases childrenWork
+      | executionGroup address =>
+          obtain ⟨groups, path, outcome, children, enclosing, located, _, _⟩ := known
+          change locateWork work address = some
+            ⟨.executionGroup groups path outcome children, producer, enclosing⟩ at located
+          have lowering : result.work = Work.fromExecution children (address ++ [0]) := by
+            simpa [taskChildWork?_eq_lookup, located] using childrenWork.symm
+          have childCovered : ∀ ref ∈ rootRefs children, ExposedRef work seen ref := by
+            intro ref member
+            exact covered node.task registered address _ same located ref
+              (List.mem_append_right _ member)
+          intro task member
+          rw [State.taskSuccess_tasks found available] at member
+          rcases List.mem_append.mp member with old | new
+          · exact covered task old
+          · rw [lowering] at new
+            exact workFromSpec_tasks_regionCovered (Located.executionGroup located)
+              childCovered task new
 
 /-- Task failure cannot expose a new ref region.
 Witness: the permanent registry is unchanged by failure cleanup. -/
@@ -189,9 +93,10 @@ Witness: region coverage depends only on the unchanged permanent task registry.
 -/
 theorem State.RegisteredRegions.drainReadyGroups {queue : State} {work seen}
     (covered : queue.RegisteredRegions work seen)
-    : queue.drainReadyGroups.1.RegisteredRegions work seen := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.drainReadyGroups available).1.RegisteredRegions work seen := by
   intro task member
-  rw [State.drainReadyGroups_tasks] at member
+  rw [State.drainReadyGroups_tasks _ available] at member
   exact covered task member
 
 /-- Integrating one matched stream item exposes its region and no other region.
@@ -200,12 +105,13 @@ theorem State.RegisteredRegions.integrateStreamItem {queue : State}
     {work seen stream items} (covered : queue.RegisteredRegions work seen)
     (matching : (GraphEvent.streamItems stream items).MatchesWork work)
     {item : StreamItem} (member : item ∈ items)
-    : (queue.integrateStreamItem item).RegisteredRegions work
+    (available : List (Occurrence × Nat) := [])
+    : (queue.integrateStreamItem item available).RegisteredRegions work
         (item.occurrence :: seen) := by
   obtain ⟨children, address, producer, owners, located, lowering, region⟩ :=
     matching.streamItem_region member
   intro task registered
-  rw [State.integrateStreamItem_tasks] at registered
+  rw [State.integrateStreamItem_tasks _ _ available] at registered
   rcases List.mem_append.mp registered with old | new
   · exact (covered task old).mono (by intro occurrence recorded; exact .tail _ recorded)
   · rw [lowering] at new
@@ -219,19 +125,23 @@ whole batch's observed-item set without asserting earlier registration availabil
 theorem State.RegisteredRegions.streamItems {queue : State} {work seen stream items}
     (covered : queue.RegisteredRegions work seen)
     (matching : (GraphEvent.streamItems stream items).MatchesWork work)
-    : (queue.streamItems stream items).1.RegisteredRegions work
+    (available : List (Occurrence × Nat) := [])
+    : (queue.streamItems stream items available).1.RegisteredRegions work
         (seen ++ items.map StreamItem.occurrence) := by
   let after := seen ++ items.map StreamItem.occurrence
   let step (acc : State × List Execution.DeliveryNode
-      × List Execution.DeliveryNode × List StreamItemValue) (item : StreamItem) :=
-    let (current, groups, streams, values) := acc
+      × List Execution.DeliveryNode × List StreamItemValue × List GroupFailureEvent)
+      (item : StreamItem) :=
+    let (current, groups, streams, values, failures) := acc
     let (integrated, newWork) := current.maybeIntegrateWork item.work
     let (pruned, nonempty) := integrated.pruneEmptyGroups newWork.newGroups
-    (pruned.startNewWork { newWork with newGroups := nonempty },
-      groups ++ nonempty, streams ++ newWork.newStreams, values ++ [item.value])
+    let (started, queued) :=
+      pruned.startNewWork { newWork with newGroups := nonempty } available
+    (started, groups ++ nonempty, streams ++ newWork.newStreams,
+      values ++ [item.value], failures ++ queued)
   have loop (more : List StreamItem) (included : more.Subset items)
       (acc : State × List Execution.DeliveryNode
-        × List Execution.DeliveryNode × List StreamItemValue)
+        × List Execution.DeliveryNode × List StreamItemValue × List GroupFailureEvent)
       (prior : acc.1.RegisteredRegions work after)
       : (more.foldl step acc).1.RegisteredRegions work after := by
     induction more generalizing acc with
@@ -239,7 +149,7 @@ theorem State.RegisteredRegions.streamItems {queue : State} {work seen stream it
     | cons item rest ih =>
         have member := included List.mem_cons_self
         apply ih (fun _ member => included (List.mem_cons_of_mem _ member)) (step acc item)
-        apply (prior.integrateStreamItem matching member).mono
+        apply (prior.integrateStreamItem matching member available).mono
         intro occurrence recorded
         rcases List.mem_cons.mp recorded with same | old
         · exact List.mem_append_right _ (same ▸ List.mem_map_of_mem member)
@@ -249,7 +159,8 @@ theorem State.RegisteredRegions.streamItems {queue : State} {work seen stream it
   unfold State.streamItems
   split
   · exact initial
-  · exact (loop items (fun _ member => member) (queue, [], [], []) initial).drainReadyGroups
+  · exact (loop items (fun _ member => member)
+      (queue, [], [], [], []) initial).drainReadyGroups available
 
 /-- Matching events preserve region coverage using exactly their supplied identities.
 Witness: task/closure handlers expose no new region; stream batches add their item regions.
@@ -257,20 +168,194 @@ Witness: task/closure handlers expose no new region; stream batches add their it
 theorem State.RegisteredRegions.handleGraphEvent {queue : State} {work seen}
     (covered : queue.RegisteredRegions work seen) (started : queue.StartedTasksRegistered)
     (event : GraphEvent) (matching : event.MatchesWork work)
-    : (queue.handleGraphEvent event).1.RegisteredRegions work
+    (available : List (Occurrence × Nat) := [])
+    : (queue.handleGraphEvent event available).1.RegisteredRegions work
         (seen ++ event.identities.1) := by
+  have cached : (queue.cacheTaskFailures available).RegisteredRegions work seen := by
+    intro task member
+    rw [State.cacheTaskFailures_tasks] at member
+    exact covered task member
+  have registered := started.cacheTaskFailures available
   cases event with
   | taskSuccess occurrence result =>
-      exact (covered.taskSuccess started matching).mono (List.subset_append_left _ _)
+      exact (cached.taskSuccess registered matching available).mono (List.subset_append_left _ _)
   | taskFailure occurrence errors =>
-      exact (covered.taskFailure occurrence errors).mono (List.subset_append_left _ _)
-  | streamItems stream items => exact covered.streamItems matching
+      exact (cached.taskFailure occurrence errors).mono (List.subset_append_left _ _)
+  | groupFailure failure =>
+      change ((queue.cacheTaskFailures available).groupFailure failure).1.RegisteredRegions _ _
+      unfold State.groupFailure
+      split
+      · exact cached.mono (List.subset_append_left _ _)
+      · split <;> exact cached.mono (List.subset_append_left _ _)
+  | streamItems stream items => exact cached.streamItems matching available
   | streamSuccess stream =>
-      simp only [State.handleGraphEvent, State.streamSuccess]
-      split <;> exact covered.mono (List.subset_append_left _ _)
+      change ((queue.cacheTaskFailures available).streamSuccess stream).1.RegisteredRegions
+        work (seen ++ [])
+      unfold State.streamSuccess
+      split <;> exact cached.mono (List.subset_append_left _ _)
   | streamFailure stream errors =>
-      simp only [State.handleGraphEvent, State.streamFailure]
-      split <;> exact covered.mono (List.subset_append_left _ _)
+      change ((queue.cacheTaskFailures available).streamFailure stream errors).1.RegisteredRegions
+        work (seen ++ [])
+      unfold State.streamFailure
+      split <;> exact cached.mono (List.subset_append_left _ _)
+
+-----------------------------------------------------------------------------------------
+-- Permanent registration refs remain in exposed source regions
+-----------------------------------------------------------------------------------------
+
+/-- Every registered ref belongs to an already exposed root or stream-item region. -/
+abbrev State.RegisteredRefsCovered (queue : State) (work : Execution.Work)
+    (seen : List Occurrence)
+    : Prop :=
+  queue.RegistrationsSatisfy (ExposedRef work seen)
+
+/-- Recording more source identities retains every registration's exposed region. -/
+theorem State.RegisteredRefsCovered.mono {queue : State} {work before after}
+    (covered : queue.RegisteredRefsCovered work before) (included : before.Subset after)
+    : queue.RegisteredRefsCovered work after :=
+  State.RegistrationsSatisfy.mono covered (fun _ known => known.mono included)
+
+/-- Initial candidate refs, including empty declarations, lie in the root region. -/
+theorem createWorkQueue_registeredRefsCovered (work : Execution.Work)
+    : (State.initialize (Work.fromExecution work)).RegisteredRefsCovered work [] := by
+  have empty : ({} : State).RegisteredRefsCovered work [] := by
+    intro ref member; cases member
+  exact ((empty.maybeIntegrateWork (Work.fromExecution work)
+    (fun _ member => .inl (workFromSpec_group_rootRef work [] member))).pruneEmptyGroups
+      _).startNewWork _
+
+/-- A successful task registers only refs in its permanent task's covered defer region. -/
+theorem State.RegisteredRefsCovered.taskSuccess {queue : State}
+    {work seen occurrence result} (covered : queue.RegisteredRefsCovered work seen)
+    (regions : queue.RegisteredRegions work seen) (started : queue.StartedTasksRegistered)
+    (matching : (GraphEvent.taskSuccess occurrence result).MatchesWork work)
+    (available : List (Occurrence × Nat) := [])
+    : (queue.taskSuccess occurrence result available).1.RegisteredRefsCovered work
+        seen := by
+  cases found : queue.taskNode? occurrence with
+  | none => simpa only [State.taskSuccess, found] using covered
+  | some node =>
+      have registered := started node (List.mem_of_find?_eq_some found)
+      have same : node.task.occurrence = occurrence := (occurrence_beq_iff_eq _ _).mp
+        (List.find?_some (p := fun candidate : TaskNode =>
+          candidate.task.occurrence == occurrence) found)
+      apply State.RegistrationsSatisfy.taskSuccess covered occurrence result ?_ available
+      obtain ⟨owners, producer, known, _, childrenWork⟩ := matching
+      cases occurrence with
+      | item => cases childrenWork
+      | executionGroup address =>
+          obtain ⟨groups, path, outcome, children, enclosing, located, _, _⟩ := known
+          change locateWork work address = some
+            ⟨.executionGroup groups path outcome children, producer, enclosing⟩ at located
+          have lowering : result.work = Work.fromExecution children (address ++ [0]) := by
+            simpa [taskChildWork?_eq_lookup, located] using childrenWork.symm
+          intro group member
+          rw [lowering] at member
+          exact regions node.task registered address _ same located group.node.ref
+            (List.mem_append_right _ (workFromSpec_group_rootRef children _ member))
+
+/-- One matched item registers refs only in its newly exposed finite region. -/
+theorem State.RegisteredRefsCovered.integrateStreamItem {queue : State}
+    {work seen stream items} (covered : queue.RegisteredRefsCovered work seen)
+    (matching : (GraphEvent.streamItems stream items).MatchesWork work)
+    {item : StreamItem} (member : item ∈ items)
+    (available : List (Occurrence × Nat) := [])
+    : (queue.integrateStreamItem item available).RegisteredRefsCovered work
+        (item.occurrence :: seen) := by
+  obtain ⟨children, address, producer, owners, located, lowering, region⟩ :=
+    matching.streamItem_region member
+  have prior : queue.RegisteredRefsCovered work (item.occurrence :: seen) :=
+    covered.mono (by intro occurrence included; exact .tail _ included)
+  unfold State.integrateStreamItem
+  apply State.RegistrationsSatisfy.startNewWork
+  apply State.RegistrationsSatisfy.pruneEmptyGroups
+  apply State.RegistrationsSatisfy.maybeIntegrateWork prior
+  intro group included
+  rw [lowering] at included
+  exact .inr ⟨item.occurrence, List.mem_cons_self, _, region,
+    workFromSpec_group_rootRef children address included⟩
+
+/-- A stream batch exposes only the regions of its supplied items.
+Witness: fold one-item coverage; every intermediate certificate can be weakened to the
+whole batch's observed-item set without asserting earlier registration availability. -/
+theorem State.RegisteredRefsCovered.streamItems {queue : State} {work seen stream items}
+    (covered : queue.RegisteredRefsCovered work seen)
+    (matching : (GraphEvent.streamItems stream items).MatchesWork work)
+    (available : List (Occurrence × Nat) := [])
+    : (queue.streamItems stream items available).1.RegisteredRefsCovered work
+        (seen ++ items.map StreamItem.occurrence) := by
+  let after := seen ++ items.map StreamItem.occurrence
+  let step (acc : State × List Execution.DeliveryNode
+      × List Execution.DeliveryNode × List StreamItemValue × List GroupFailureEvent)
+      (item : StreamItem) :=
+    let (current, groups, streams, values, failures) := acc
+    let (integrated, newWork) := current.maybeIntegrateWork item.work
+    let (pruned, nonempty) := integrated.pruneEmptyGroups newWork.newGroups
+    let (started, queued) :=
+      pruned.startNewWork { newWork with newGroups := nonempty } available
+    (started, groups ++ nonempty, streams ++ newWork.newStreams,
+      values ++ [item.value], failures ++ queued)
+  have loop (more : List StreamItem) (included : more.Subset items)
+      (acc : State × List Execution.DeliveryNode
+        × List Execution.DeliveryNode × List StreamItemValue × List GroupFailureEvent)
+      (prior : acc.1.RegisteredRefsCovered work after)
+      : (more.foldl step acc).1.RegisteredRefsCovered work after := by
+    induction more generalizing acc with
+    | nil => exact prior
+    | cons item rest ih =>
+        have member := included List.mem_cons_self
+        apply ih (fun _ member => included (List.mem_cons_of_mem _ member)) (step acc item)
+        apply (prior.integrateStreamItem matching member available).mono
+        intro occurrence recorded
+        rcases List.mem_cons.mp recorded with same | old
+        · exact List.mem_append_right _ (same ▸ List.mem_map_of_mem member)
+        · exact old
+  have initial : queue.RegisteredRefsCovered work after :=
+    covered.mono (List.subset_append_left seen _)
+  unfold State.streamItems
+  split
+  · exact initial
+  · exact (loop items (fun _ member => member)
+      (queue, [], [], [], []) initial).drainReadyGroups available
+
+/-- A matching dispatch registers refs only in the enlarged source prefix. -/
+theorem State.RegisteredRefsCovered.handleGraphEvent {queue : State} {work seen}
+    (covered : queue.RegisteredRefsCovered work seen)
+    (regions : queue.RegisteredRegions work seen) (started : queue.StartedTasksRegistered)
+    (event : GraphEvent) (matching : event.MatchesWork work)
+    (available : List (Occurrence × Nat) := [])
+    : (queue.handleGraphEvent event available).1.RegisteredRefsCovered work
+        (seen ++ event.identities.1) := by
+  have cached := State.RegistrationsSatisfy.cacheTaskFailures covered available
+  have taskRegions : (queue.cacheTaskFailures available).RegisteredRegions work seen := by
+    intro task member
+    rw [State.cacheTaskFailures_tasks] at member
+    exact regions task member
+  have registered := started.cacheTaskFailures available
+  have prior : (queue.cacheTaskFailures available).RegisteredRefsCovered work
+      (seen ++ event.identities.1) :=
+    State.RegisteredRefsCovered.mono cached (List.subset_append_left _ _)
+  cases event with
+  | taskSuccess occurrence result =>
+      exact (State.RegisteredRefsCovered.taskSuccess cached taskRegions registered matching
+        available).mono (List.subset_append_left _ _)
+  | taskFailure occurrence errors => exact prior.taskFailure occurrence errors
+  | streamItems stream items =>
+      exact State.RegisteredRefsCovered.streamItems cached matching available
+  | groupFailure failure =>
+      change ((queue.cacheTaskFailures available).groupFailure failure).1.RegisteredRefsCovered _ _
+      unfold State.groupFailure
+      split
+      · exact prior
+      · split <;> exact prior
+  | streamSuccess stream =>
+      change ((queue.cacheTaskFailures available).streamSuccess stream).1.RegisteredRefsCovered _ _
+      unfold State.streamSuccess
+      split <;> exact prior
+  | streamFailure stream errors =>
+      change ((queue.cacheTaskFailures available).streamFailure stream errors).1.RegisteredRefsCovered _ _
+      unfold State.streamFailure
+      split <;> exact prior
 
 -----------------------------------------------------------------------------------------
 -- Registered refs inherit their permanent tasks' exposed-region certificates
@@ -283,22 +368,15 @@ structure State.RegionInventory (queue : State) (work : Execution.Work)
     : Prop where
   regions : queue.RegisteredRegions work seen
   matching : queue.RegisteredTasksMatch work
-  registrations : queue.RegistrationsSupportedBy (Task.SupportsGroup work)
+  registrations : queue.RegisteredRefsCovered work seen
   started : queue.StartedTasksRegistered
 
-/-- Every registered contributor or ancestor ref belongs to an exposed task region.
-Witness: full-chain task support supplies the ref inside its covered source region,
-without inferring direct ownership from registration.
--/
+/-- Every permanent registration has already been exposed by the source history. -/
 theorem State.RegionInventory.registered_exposed {queue : State} {work seen}
     (inventory : queue.RegionInventory work seen) {ref : NodeRef}
     (registered : ref ∈ queue.registeredGroups)
-    : ExposedRef work seen ref := by
-  obtain ⟨task, member, address, groups, path, result, children, producer, owners,
-    fragment, same, located, included, inChain⟩ := inventory.registrations ref registered
-  apply inventory.regions task member address _ same located ref
-  exact List.mem_append_left _ (List.mem_flatMap.mpr
-    ⟨fragment, included, inChain⟩)
+    : ExposedRef work seen ref :=
+  inventory.registrations ref registered
 
 /-- One matched item updates the inventory at its actual integration boundary.
 Witness: region coverage and the existing task-provenance/registry preservation lemmas. -/
@@ -306,7 +384,8 @@ theorem State.RegionInventory.integrateStreamItem {queue : State} {work seen str
     (inventory : queue.RegionInventory work seen)
     (matching : (GraphEvent.streamItems stream items).MatchesWork work)
     {item : StreamItem} (member : item ∈ items)
-    : (queue.integrateStreamItem item).RegionInventory work
+    (available : List (Occurrence × Nat) := [])
+    : (queue.integrateStreamItem item available).RegionInventory work
         (item.occurrence :: seen) := by
   have childTasks : ∀ task ∈ item.work.tasks, TaskMatches work task := by
     intro task taskMember
@@ -315,18 +394,14 @@ theorem State.RegionInventory.integrateStreamItem {queue : State} {work seen str
     exact ⟨⟨address, payload, _, same, known⟩,
       matching.streamItem_childTask_groupsExact member taskMember⟩
   exact ⟨
-    inventory.regions.integrateStreamItem matching member,
+    inventory.regions.integrateStreamItem matching member available,
     ((inventory.matching.maybeIntegrateWork item.work childTasks).pruneEmptyGroups
       _).startNewWork
-      _,
-    ((inventory.registrations.maybeIntegrateWork item.work
-        (fun _ groupMember => matching.streamItem_groupsSupported member groupMember)
-        ).pruneEmptyGroups
-      _).startNewWork
-      _,
+      _ available,
+    inventory.registrations.integrateStreamItem matching member available,
     ((inventory.started.maybeIntegrateWork item.work none).pruneEmptyGroups
       _).startNewWork
-      _
+      _ available
   ⟩
 
 /-- Initial registration cannot use any stream item's hidden region.
@@ -336,7 +411,7 @@ theorem createWorkQueue_regionInventory (work : Execution.Work)
   ⟨
     createWorkQueue_registeredRegions work,
     createWorkQueue_fromSpec_registeredTasksMatch work,
-    createWorkQueue_fromSpec_registrationsSupported work,
+    createWorkQueue_registeredRefsCovered work,
     createWorkQueue_startedTasksRegistered _
   ⟩
 
@@ -345,27 +420,126 @@ Witness: region coverage plus unchanged provenance, registration, and start inva
 theorem State.RegionInventory.handleGraphEvent {queue : State} {work seen}
     (inventory : queue.RegionInventory work seen)
     (event : GraphEvent) (matching : event.MatchesWork work)
-    : (queue.handleGraphEvent event).1.RegionInventory work
+    (available : List (Occurrence × Nat) := [])
+    : (queue.handleGraphEvent event available).1.RegionInventory work
         (seen ++ event.identities.1) :=
   ⟨
-    inventory.regions.handleGraphEvent inventory.started event matching,
-    inventory.matching.handleGraphEvent event matching,
-    inventory.registrations.handleGraphEvent event matching,
-    inventory.started.handleGraphEvent event
+    inventory.regions.handleGraphEvent inventory.started event matching available,
+    inventory.matching.handleGraphEvent event matching available,
+    inventory.registrations.handleGraphEvent inventory.regions inventory.started event
+      matching available,
+    inventory.started.handleGraphEvent event available
   ⟩
+
+/-- Realizing FIFO enqueue effects preserves the permanent region inventory. -/
+theorem State.RegionInventory.dispatchGraphEvent {queue : State} {work seen}
+    (inventory : queue.RegionInventory work seen)
+    (event : GraphEvent) (matching : event.MatchesWork work)
+    (available : List (Occurrence × Nat) := [])
+    : (queue.dispatchGraphEvent event available).1.RegionInventory work
+        (seen ++ event.identities.1) := by
+  have next := inventory.handleGraphEvent event matching available
+  exact ⟨next.regions, next.matching, next.registrations, next.started⟩
+
+/-- A larger observed region inventory retains all existing certificates. -/
+theorem State.RegionInventory.mono {queue : State} {work before after}
+    (prior : queue.RegionInventory work before) (included : before.Subset after)
+    : queue.RegionInventory work after :=
+  ⟨
+    prior.regions.mono included,
+    prior.matching,
+    prior.registrations.mono included,
+    prior.started
+  ⟩
+
+/-- Cache exposure leaves the permanent region inventory unchanged. -/
+theorem State.RegionInventory.cacheTaskFailures {queue : State} {work seen}
+    (prior : queue.RegionInventory work seen) (available : List (Occurrence × Nat))
+    : (queue.cacheTaskFailures available).RegionInventory work seen := by
+  refine ⟨?_, prior.matching.cacheTaskFailures available,
+    prior.registrations.cacheTaskFailures available, prior.started.cacheTaskFailures available⟩
+  intro task member
+  rw [State.cacheTaskFailures_tasks] at member
+  exact prior.regions task member
+
+/-- The batch-control flag does not affect registration or source-region evidence. -/
+theorem State.RegionInventory.withTerminated {queue : State} {work seen}
+    (prior : queue.RegionInventory work seen) (terminated : Bool)
+    : ({queue with terminated := terminated}).RegionInventory work seen :=
+  ⟨prior.regions, prior.matching, prior.registrations, prior.started⟩
+
+/-- A fixed-snapshot event fold exposes only the supplied source identities. -/
+theorem State.RegionInventory.replayGraphEvents {queue : State} {work seen}
+    (prior : queue.RegionInventory work seen) (events : List GraphEvent)
+    (matching : ∀ event ∈ events, event.MatchesWork work)
+    (available : List (Occurrence × Nat) := [])
+    : (queue.replayGraphEvents events available).RegionInventory work
+        (seen ++ events.flatMap (fun event => event.identities.1)) := by
+  induction events generalizing queue seen with
+  | nil => simpa [State.replayGraphEvents] using prior
+  | cons event rest ih =>
+      have next := prior.dispatchGraphEvent event (matching event List.mem_cons_self) available
+      have result := ih next
+        (fun next member => matching next (List.mem_cons_of_mem _ member))
+      simpa only [State.replayGraphEvents, List.foldl_cons, List.flatMap_cons,
+        List.append_assoc] using result
+
+/-- Complete host batches preserve region provenance even after termination. -/
+theorem State.RegionInventory.handleGraphEvents {queue : State} {work seen}
+    (prior : queue.RegionInventory work seen) (events : List GraphEvent)
+    (matching : ∀ event ∈ events, event.MatchesWork work)
+    : (queue.handleGraphEvents events).1.RegionInventory work
+        (seen ++ events.flatMap (fun event => event.identities.1)) := by
+  cases running : queue.terminated with
+  | true =>
+      simpa only [State.handleGraphEvents, running, ↓reduceIte]
+        using prior.mono (List.subset_append_left _ _)
+  | false =>
+      have replayed := prior.replayGraphEvents events matching (GraphEvent.availableFailures events)
+      obtain ⟨terminal, same⟩ := queue.handleGraphEvents_stateCore events running
+      rw [same]
+      exact replayed.withTerminated terminal
+
+/-- Region provenance follows actual batches without selecting a flattened cache history. -/
+theorem State.RegionInventory.runNormalized {queue : State} {work seen}
+    (prior : queue.RegionInventory work seen) (batches : List (List GraphEvent))
+    (matching : ∀ batch ∈ batches, ∀ event ∈ batch, event.MatchesWork work)
+    : (queue.runNormalized batches).1.RegionInventory work
+        (seen ++ batches.flatten.flatMap (fun event => event.identities.1)) := by
+  rw [State.runNormalized_replayBatches]
+  induction batches generalizing queue seen with
+  | nil => simpa [State.replayBatches] using prior
+  | cons batch rest ih =>
+      have next := prior.handleGraphEvents batch (matching batch List.mem_cons_self)
+      have result := ih next (fun next member => matching next (List.mem_cons_of_mem _ member))
+      simpa only [State.replayBatches, List.foldl_cons, List.flatten_cons,
+        List.flatMap_append, List.append_assoc] using result
+
+/-- Every registered region at the actual normalized endpoint has an observed source. -/
+theorem createWorkQueue_runNormalized_regionInventory {work : Execution.Work}
+    {batches : List (List GraphEvent)} (valid : ValidGraphEvents work batches.flatten)
+    : ((State.initialize (Work.fromExecution work)).runNormalized
+        batches).1.RegionInventory
+        work (batches.flatten.flatMap (fun event => event.identities.1)) :=
+  (createWorkQueue_regionInventory work).runNormalized batches
+    (fun _ batchMember _ eventMember =>
+      valid.eachMatches (List.mem_flatten.mpr ⟨_, batchMember, eventMember⟩))
 
 /-- Arbitrary matching source replay registers only already-exposed ref regions.
 Witness: induction through the actual event handlers, including both failures and
 successful releases. Neither pending ledgers nor registration availability is assumed. -/
 theorem createWorkQueue_replay_regionInventory {work : Execution.Work}
     {events : List GraphEvent} (valid : ValidGraphEvents work events)
+    (available : List (Occurrence × Nat) := [])
     : ((State.initialize (Work.fromExecution work)).replayGraphEvents
-        events).RegionInventory
+        events available).RegionInventory
         work (events.flatMap (fun event => event.identities.1)) := by
   induction valid with
   | nil => exact createWorkQueue_regionInventory work
   | @append before event validBefore matching fresh ready ih =>
-      rw [State.replayGraphEvents_append, List.flatMap_append, List.flatMap_singleton]
-      exact ih.handleGraphEvent event matching
+      rw [State.replayGraphEvents_append _ _ _ available, List.flatMap_append,
+        List.flatMap_singleton]
+      simpa only [State.replayGraphEvents, List.foldl_cons, List.foldl_nil]
+        using ih.dispatchGraphEvent event matching available
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

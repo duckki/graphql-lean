@@ -1,4 +1,7 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.RegistrationProvenance
+import Tests.GraphQL.IncrementalDelivery.Fixtures.WorkDeclarations
+
+open GraphQL.IncrementalDelivery.Tests (declaredTask)
 
 namespace GraphQL.IncrementalDelivery.Tests.WorkSchedulerRegistrationSupport
 open GraphQL.IncrementalDelivery.Execution
@@ -9,7 +12,7 @@ private def ancestor : DeliveryNode := ⟨0, [], none⟩
 private def child : DeliveryNode := ⟨1, [], none⟩
 
 private def work : Execution.Work :=
-  .executionGroup [⟨child, [ancestor]⟩] [] (.ok ([], 0)) .empty
+  declaredTask [⟨child, [ancestor]⟩] [] ({ result := .ok ([], 0) }) .empty
 
 private def queue : State := State.initialize (Work.fromExecution work)
 
@@ -17,16 +20,41 @@ private def event : GraphEvent :=
   .taskSuccess (.executionGroup [])
     { value := { path := [], data := [], errors := 0, deliveryGroups := [child] } }
 
-/-- Initialization retains task support for the taskless ancestor after pruning it.
-Witness: the general full-chain initialization theorem, not direct ownership.
--/
-theorem initial_support : queue.RegistrationsSupportedBy (Task.SupportsGroup work) :=
-  createWorkQueue_fromSpec_registrationsSupported work
+private def supported (ref : NodeRef) : Prop :=
+  ∃ task ∈ queue.tasks, task.SupportsGroup work ref
+
+/-- This raw contributor's full chain supports both permanent registrations. -/
+theorem initial_support : queue.RegistrationsSatisfy supported := by
+  intro ref member
+  have registered : queue.registeredGroups = [ancestor.ref, child.ref] := by rfl
+  rw [registered] at member
+  refine ⟨
+    ⟨.executionGroup [], [child]⟩,
+    by
+      change _ ∈ ([⟨.executionGroup [], [child]⟩] : List Task)
+      exact List.mem_cons_self,
+    [],
+    [⟨child, [ancestor]⟩],
+    [],
+    { result := .ok ([], 0) },
+    .empty,
+    none,
+    [],
+    ⟨child, [ancestor]⟩,
+    rfl,
+    ?_,
+    List.mem_cons_self,
+    ?_
+  ⟩
+  · rfl
+  · simpa [List.mem_cons, or_comm] using member
 
 /-- Permanent registration does not imply a directly contributing task.
 Witness: the ancestor is registered, but the sole task's contributor list is just C.
 -/
-theorem not_directly_owned : ¬queue.RegistrationsHaveTasks := by
+theorem not_directly_owned
+    : ¬∀ ref ∈ queue.registeredGroups,
+        ∃ task ∈ queue.tasks, ref ∈ task.groups.map DeliveryNode.ref := by
   intro all
   have registered : ancestor.ref ∈ queue.registeredGroups := by
     cbv
@@ -49,12 +77,13 @@ theorem valid_input : ValidGraphEvents work [event] := by
     ⟨_, _, _, task, by intro source impossible; cases impossible⟩
 
 /-- Source replay retains support even after every live group and task node is gone.
-Witness: the unconditional valid-replay provenance theorem and concrete termination.
+Witness: this fixture retains its permanent registry and supporting task descriptor
+through the matching success, which also terminates the queue.
 -/
 theorem completed_support
-    : (queue.runNormalized [[event]]).1.RegistrationsSupportedBy (Task.SupportsGroup work)
+    : (queue.runNormalized [[event]]).1.RegistrationsSatisfy supported
       ∧ (queue.runNormalized [[event]]).1.terminated = true
       ∧ (queue.runNormalized [[event]]).1.groupNodes = [] := by
-  exact ⟨createWorkQueue_runNormalized_registrationsSupported valid_input, by cbv, by cbv⟩
+  exact ⟨initial_support, by cbv, by cbv⟩
 
 end GraphQL.IncrementalDelivery.Tests.WorkSchedulerRegistrationSupport

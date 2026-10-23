@@ -1,4 +1,5 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.OutputAtoms
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.InitialStartupReplay
 
 /-! Actual queue/publisher output has nonempty value events and nonempty batches. -/
 
@@ -51,70 +52,6 @@ theorem State.finishGroupSuccess_nonemptyValues (queue : State) (group : GroupNo
     simp only [List.isEmpty_iff] at nonempty
     simpa [WorkQueueEvent.NonemptyValues] using nonempty
 
-/-- Every value event emitted during recursive draining is nonempty.
-Witness: each successful flush checks its selected values; cached failures contain only
-control events, and induction preserves the property through later drain steps.
--/
-theorem State.drainReadyGroups_nonemptyValues (queue : State)
-    : ∀ event ∈ queue.drainReadyGroups.2, event.NonemptyValues := by
-  have loop (fuel : Nat) (current : State)
-      : ∀ event ∈ (State.drainReadyGroups.go fuel current).2, event.NonemptyValues := by
-    induction fuel generalizing current with
-    | zero => simp [State.drainReadyGroups.go]
-    | succ fuel ih =>
-        unfold State.drainReadyGroups.go
-        dsimp only
-        split
-        · simp
-        · rename_i node selected
-          cases cached : node.failure with
-          | none =>
-              intro event member
-              rcases List.mem_append.mp member with first | later
-              · exact current.finishGroupSuccess_nonemptyValues node event first
-              · exact ih _ event later
-          | some errors =>
-              intro event member
-              rcases List.mem_append.mp member with first | later
-              · have same := List.mem_singleton.mp first
-                subst event
-                trivial
-              · exact ih _ event later
-  exact loop _ queue
-
-/-- Every value event released by task success is nonempty.
-Witness: the contributor fold and final recursive drain append only checked group flushes. -/
-theorem State.taskSuccess_nonemptyValues (queue : State) (occurrence : Occurrence)
-    (result : TaskResult)
-    : ∀ event ∈ (queue.taskSuccess occurrence result).2, event.NonemptyValues := by
-  have loop (groups : List Execution.DeliveryNode) (acc : State × List WorkQueueEvent × NewWork)
-      (prior : ∀ event ∈ acc.2.1, event.NonemptyValues)
-      : ∀ event ∈ (groups.foldl successGroupStep acc).2.1, event.NonemptyValues := by
-    induction groups generalizing acc with
-    | nil => exact prior
-    | cons group rest ih =>
-        apply ih
-        obtain ⟨current, events, released⟩ := acc
-        dsimp only [successGroupStep]
-        split
-        · exact prior
-        · split
-          · intro event member
-            rcases List.mem_append.mp member with earlier | latest
-            · exact prior event earlier
-            · exact State.finishGroupSuccess_nonemptyValues _ _ event latest
-          · exact prior
-  cases found : queue.taskNode? occurrence with
-  | none => simp [State.taskSuccess, found]
-  | some node =>
-      rw [queue.taskSuccess_eq occurrence result node found]
-      split
-      · simp
-      intro event member
-      rcases List.mem_append.mp member with first | later
-      · exact loop _ (_, [], {}) (by simp) event first
-      · exact State.drainReadyGroups_nonemptyValues _ event later
-
 /-- Task failure emits only control events, so the nonempty-value property is preserved.
 Witness: the owner fold either emits group failure or caches an unannounced group's errors.
 -/
@@ -127,10 +64,8 @@ theorem State.taskFailure_nonemptyValues (queue : State) (occurrence : Occurrenc
     | some node =>
         if acc.1.rootGroups.contains group.ref then
           let (next, failure) := acc.1.finishGroupFailure node errors
-          (next, acc.2 ++ [failure])
-        else (acc.1.putGroupNode
-          { node with pending := node.pending - 1
-                      failure := some (node.failure.getD 0 + errors) }, acc.2)
+          (next, acc.2 ++ [WorkQueueEvent.groupFailure failure.group failure.errors])
+        else acc
   have loop (groups : List Execution.DeliveryNode) (acc : State × List WorkQueueEvent)
       (prior : ∀ event ∈ acc.2, event.NonemptyValues)
       : ∀ event ∈ (groups.foldl step acc).2, event.NonemptyValues := by
@@ -152,9 +87,63 @@ theorem State.taskFailure_nonemptyValues (queue : State) (occurrence : Occurrenc
   unfold State.taskFailure
   split
   · simp
-  · split
-    · simp
-    exact loop _ (_, []) (by simp)
+  · exact loop _ (_, []) (by simp)
+
+/-- Every value event emitted during recursive draining is nonempty.
+Witness: each successful flush checks its selected values; cached failures contain only
+control events, and induction preserves the property through later drain steps.
+-/
+theorem State.drainReadyGroups_nonemptyValues (queue : State)
+    (available : List (Occurrence × Nat) := [])
+    : ∀ event ∈ (queue.drainReadyGroups available).2.1, event.NonemptyValues := by
+  have loop (fuel : Nat) (current : State)
+      : ∀ event ∈ (State.drainReadyGroups.go available fuel current).2.1,
+          event.NonemptyValues := by
+    induction fuel generalizing current with
+    | zero => simp [State.drainReadyGroups.go]
+    | succ fuel ih =>
+        unfold State.drainReadyGroups.go
+        dsimp only
+        split
+        · simp
+        · rename_i node selected
+          intro event member
+          rcases List.mem_append.mp member with first | later
+          · exact current.finishGroupSuccess_nonemptyValues node event first
+          · exact ih _ event later
+  exact loop _ queue
+
+/-- Every value event released by task success is nonempty.
+Witness: the contributor fold and final recursive drain append only checked group flushes. -/
+theorem State.taskSuccess_nonemptyValues (queue : State) (occurrence : Occurrence)
+    (result : TaskResult) (available : List (Occurrence × Nat) := [])
+    : ∀ event ∈ (queue.taskSuccess occurrence result available).2.1,
+        event.NonemptyValues := by
+  have loop (groups : List Execution.DeliveryNode) (acc : State × List WorkQueueEvent × NewWork)
+      (prior : ∀ event ∈ acc.2.1, event.NonemptyValues)
+      : ∀ event ∈ (groups.foldl successGroupStep acc).2.1, event.NonemptyValues := by
+    induction groups generalizing acc with
+    | nil => exact prior
+    | cons group rest ih =>
+        apply ih
+        obtain ⟨current, events, released⟩ := acc
+        dsimp only [successGroupStep]
+        split
+        · exact prior
+        · split
+          · intro event member
+            rcases List.mem_append.mp member with earlier | latest
+            · exact prior event earlier
+            · exact State.finishGroupSuccess_nonemptyValues _ _ event latest
+          · exact prior
+  cases found : queue.taskNode? occurrence with
+  | none => simp [State.taskSuccess, found]
+  | some node =>
+      rw [queue.taskSuccess_eq occurrence result node found available]
+      intro event member
+      rcases List.mem_append.mp member with first | later
+      · exact loop _ (_, [], {}) (by simp) event first
+      · exact State.drainReadyGroups_nonemptyValues _ available event later
 
 /-- A nonempty item arrival cannot produce an empty stream-value event.
 Witness: exact item copying excludes an empty accumulator; the final group drain preserves
@@ -162,16 +151,17 @@ nonempty values independently.
 -/
 theorem State.streamItems_nonemptyValues (queue : State) (stream : Execution.DeliveryNode)
     (items : List StreamItem) (nonempty : items ≠ [])
-    : ∀ event ∈ (queue.streamItems stream items).2, event.NonemptyValues := by
+    (available : List (Occurrence × Nat) := [])
+    : ∀ event ∈ (queue.streamItems stream items available).2.1, event.NonemptyValues := by
   by_cases active : queue.rootStreams.contains stream.ref = true
-  · have exactItems := queue.streamItems_itemValues stream items active
+  · have exactItems := queue.streamItems_itemValues stream items active available
     simp only [State.streamItems, active, Bool.not_true, Bool.false_eq_true, ite_false]
     intro event member
     rcases List.mem_cons.mp member with same | later
     · subst event
       intro empty
       simp only [State.streamItems, active, Bool.not_true, Bool.false_eq_true, ite_false,
-        List.flatMap_cons, WorkQueueEvent.itemValues, State.drainReadyGroups_itemValues,
+        List.flatMap_cons, WorkQueueEvent.itemValues, State.drainReadyGroups_itemValues _ available,
         List.append_nil] at exactItems
       rw [empty] at exactItems
       have lengths := congrArg List.length exactItems
@@ -180,7 +170,7 @@ theorem State.streamItems_nonemptyValues (queue : State) (stream : Execution.Del
       cases items with
       | nil => exact nonempty rfl
       | cons item rest => simp at lengths
-    · exact State.drainReadyGroups_nonemptyValues _ event later
+    · exact State.drainReadyGroups_nonemptyValues _ available event later
   · have inactive : queue.rootStreams.contains stream.ref = false := Bool.eq_false_iff.mpr active
     simp only [State.streamItems, inactive, Bool.not_false, ite_true, List.not_mem_nil,
       false_implies, implies_true]
@@ -189,14 +179,17 @@ theorem State.streamItems_nonemptyValues (queue : State) (stream : Execution.Del
 Witness: task/stream handler lemmas; stream closures contain no value list. -/
 theorem State.handleGraphEvent_nonemptyValues (queue : State) (event : GraphEvent)
     (nonempty : event.NonemptyItems)
-    : ∀ output ∈ (queue.handleGraphEvent event).2, output.NonemptyValues := by
+    (available : List (Occurrence × Nat) := [])
+    : ∀ output ∈ (queue.handleGraphEvent event available).2.1, output.NonemptyValues := by
   cases event with
   | taskSuccess occurrence result =>
-      exact queue.taskSuccess_nonemptyValues occurrence result
+      exact (queue.cacheTaskFailures available).taskSuccess_nonemptyValues
+        occurrence result available
   | taskFailure occurrence errors =>
-      exact queue.taskFailure_nonemptyValues occurrence errors
+      exact (queue.cacheTaskFailures available).taskFailure_nonemptyValues occurrence errors
   | streamItems stream items =>
-      exact queue.streamItems_nonemptyValues stream items nonempty
+      exact (queue.cacheTaskFailures available).streamItems_nonemptyValues
+        stream items nonempty available
   | streamSuccess stream =>
       simp only [State.handleGraphEvent, State.streamSuccess]
       split <;> simp [WorkQueueEvent.NonemptyValues]
@@ -204,18 +197,25 @@ theorem State.handleGraphEvent_nonemptyValues (queue : State) (event : GraphEven
       simp only [State.handleGraphEvent, State.streamFailure]
       split <;> simp [WorkQueueEvent.NonemptyValues]
 
+  | groupFailure notice =>
+      simp only [State.handleGraphEvent, State.groupFailure]
+      split
+      · simp [WorkQueueEvent.NonemptyValues]
+      · split <;> simp [WorkQueueEvent.NonemptyValues]
+
 /-- Eventwise replay preserves nonempty raw payloads without any queue-state premise.
 Witness: concatenate each handler's shape result through the actual queue fold. -/
 theorem State.rawEventReplay_nonemptyValues (queue : State) (events : List GraphEvent)
     (nonempty : ∀ event ∈ events, event.NonemptyItems)
-    : ∀ output ∈ (queue.rawEventReplay events).2, output.NonemptyValues := by
+    (available : List (Occurrence × Nat) := [])
+    : ∀ output ∈ (queue.rawEventReplay events available).2, output.NonemptyValues := by
   induction events generalizing queue with
   | nil => simp [State.rawEventReplay]
   | cons event rest ih =>
-      rw [State.rawEventReplay_cons]
+      rw [State.rawEventReplay_cons _ _ _ available]
       intro output member
       rcases List.mem_append.mp member with first | later
-      · exact queue.handleGraphEvent_nonemptyValues event (nonempty _ List.mem_cons_self)
+      · exact queue.handleGraphEvent_nonemptyValues event (nonempty _ List.mem_cons_self) available
           output first
       · exact ih _ (fun next member => nonempty next (List.mem_cons_of_mem _ member)) output later
 
@@ -224,18 +224,20 @@ Witness: the exact batch/eventwise replay equation and the handler shape invaria
 theorem State.handleGraphEvents_nonemptyValues (queue : State) (events : List GraphEvent)
     (nonempty : ∀ event ∈ events, event.NonemptyItems)
     : ∀ output ∈ (queue.handleGraphEvents events).2, output.NonemptyValues := by
-  rw [State.handleGraphEvents_eq_rawEventReplay]
+  have immediate := queue.rawEventReplay_nonemptyValues events nonempty
+    (GraphEvent.availableFailures events)
+  rw [queue.handleGraphEvents_eq_rawEventReplay events]
   split
   · simp
   · dsimp only
     split
     · intro output member
       rcases List.mem_append.mp member with earlier | latest
-      · exact queue.rawEventReplay_nonemptyValues events nonempty output earlier
+      · exact immediate output earlier
       · have same := List.mem_singleton.mp latest
         subst output
         trivial
-    · exact queue.rawEventReplay_nonemptyValues events nonempty
+    · exact immediate
 
 -----------------------------------------------------------------------------------------
 -- Publisher normalization retains nonempty output batches and value lists
@@ -263,7 +265,8 @@ theorem IncrementalPublisher.normalizeBatch_nonemptyValues
   let step (acc : IncrementalPublisher × List Execution.WorkQueueEvent) (event : WorkQueueEvent) :=
     let (next, produced) := acc.1.handleWorkQueueEvent event
     (next, acc.2 ++ produced)
-  have loop (more : List WorkQueueEvent) (acc : IncrementalPublisher × List Execution.WorkQueueEvent)
+  have loop (more : List WorkQueueEvent)
+      (acc : IncrementalPublisher × List Execution.WorkQueueEvent)
       (shape : ∀ event ∈ more, event.NonemptyValues)
       (prior : ∀ event ∈ acc.2, NonemptyValues event)
       : ((more.foldl step acc).2 = [] ↔ acc.2 = [] ∧ more = [])
@@ -289,10 +292,10 @@ theorem IncrementalPublisher.normalizeBatch_nonemptyValues
 /-- Actual replay has nonempty normalized batches and nonempty payload lists.
 Witness: source readiness, handler shape preservation, and the normalized batch fold.
 No generated-work metadata, start law, or abstract output-admission premise is needed. -/
-theorem createWorkQueue_runNormalized_nonemptyValues {work : Execution.Work}
-    {batches : List (List GraphEvent)} (valid : ValidGraphEvents work batches.flatten)
-    : let outputs :=
-        ((State.initialize (Work.fromExecution work)).runNormalized batches).2
+theorem State.runNormalized_nonemptyValues (queue : State)
+    (batches : List (List GraphEvent))
+    (shape : ∀ event ∈ batches.flatten, event.NonemptyItems)
+    : let outputs := (queue.runNormalized batches).2
       (∀ batch ∈ outputs, batch ≠ [])
       ∧ ∀ event ∈ outputs.flatten, NonemptyValues event := by
   have step (acc : NormalizedAcc) (batch : List GraphEvent)
@@ -308,7 +311,8 @@ theorem createWorkQueue_runNormalized_nonemptyValues {work : Execution.Work}
     split
     · exact prior
     · rename_i rawNonempty
-      have retained : (publisher.normalizeBatch (queue.handleGraphEvents batch).2).2 ≠ [] := by
+      have retained
+          : (publisher.normalizeBatch (queue.handleGraphEvents batch).2).2 ≠ [] := by
         intro empty
         exact rawNonempty (List.isEmpty_iff.mpr (mapped.1.mp empty))
       constructor
@@ -327,7 +331,8 @@ theorem createWorkQueue_runNormalized_nonemptyValues {work : Execution.Work}
       (prior : (∀ batch ∈ acc.2.2, batch ≠ [])
         ∧ ∀ event ∈ acc.2.2.flatten, NonemptyValues event)
       : (∀ batch ∈ (more.foldl normalizedStep acc).2.2, batch ≠ [])
-        ∧ ∀ event ∈ (more.foldl normalizedStep acc).2.2.flatten, NonemptyValues event := by
+        ∧ ∀ event ∈ (more.foldl normalizedStep acc).2.2.flatten,
+            NonemptyValues event := by
     induction more generalizing acc with
     | nil => exact prior
     | cons batch rest ih =>
@@ -340,17 +345,35 @@ theorem createWorkQueue_runNormalized_nonemptyValues {work : Execution.Work}
               (by simp only [List.flatten_cons, List.mem_append]
                   exact Or.inr member))
           (step acc batch first prior)
-  exact loop batches (_, _, []) valid.nonemptyItems (by simp)
+  change let outputs := (queue.runWithPublisher _ batches).2.2
+    (∀ batch ∈ outputs, batch ≠ []) ∧ ∀ event ∈ outputs.flatten, NonemptyValues event
+  exact loop batches (_, _, []) shape (by simp)
+
+/-- Ordinary initialization specializes the startup-aware nonempty-output theorem. -/
+theorem createWorkQueue_runNormalized_nonemptyValues {work : Execution.Work}
+    {batches : List (List GraphEvent)} (valid : ValidGraphEvents work batches.flatten)
+    : let outputs :=
+        ((State.initialize (Work.fromExecution work)).runNormalized batches).2
+      (∀ batch ∈ outputs, batch ≠ []) ∧ ∀ event ∈ outputs.flatten, NonemptyValues event :=
+  State.runNormalized_nonemptyValues _ batches valid.nonemptyItems
 
 /-- Actual normalized output has an exact singleton-publication batching witness.
 Witness: derived nonempty output shape and the independent value-splitting construction.
 This does not yet prove that those atoms satisfy `EventAllowed`. -/
+theorem State.runNormalized_atomicBatching (queue : State)
+    (batches : List (List GraphEvent))
+    (shape : ∀ event ∈ batches.flatten, event.NonemptyItems)
+    : let outputs := (queue.runNormalized batches).2
+      WorkBatching (outputs.flatten.flatMap publicationAtoms) outputs := by
+  obtain ⟨nonempty, values⟩ := queue.runNormalized_nonemptyValues batches shape
+  exact publicationAtoms_batching _ nonempty values
+
+/-- Ordinary initialization retains the same exact atomic batching witness. -/
 theorem createWorkQueue_runNormalized_atomicBatching {work : Execution.Work}
     {batches : List (List GraphEvent)} (valid : ValidGraphEvents work batches.flatten)
     : let outputs :=
         ((State.initialize (Work.fromExecution work)).runNormalized batches).2
-      WorkBatching (outputs.flatten.flatMap publicationAtoms) outputs := by
-  obtain ⟨nonempty, shape⟩ := createWorkQueue_runNormalized_nonemptyValues valid
-  exact publicationAtoms_batching _ nonempty shape
+      WorkBatching (outputs.flatten.flatMap publicationAtoms) outputs :=
+  State.runNormalized_atomicBatching _ batches valid.nonemptyItems
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

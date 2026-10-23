@@ -11,17 +11,29 @@ open GraphQL.IncrementalDelivery.Execution
 -- Closing one open node
 -----------------------------------------------------------------------------------------
 
+/-- Each failed open notification has a positive settled contributor available for
+its eventual completion. This is construction evidence, not an admission assumption.
+-/
+def OpenFailureCauses (work : Work) (initial : NodeRefs) (matching : PublicationMatching)
+    (events : List WorkQueueEvent) (failures : FailureCuts)
+    : Prop :=
+  ∀ ref,
+    Open initial events ref
+    → NodeFailed work matching events failures ref
+    → ∃ errors, NodeFailureCause work (failedBefore failures events.length) ref errors
+
 /-- An open node whose tasks are accounted for has a permitted completion. Witness:
-success when healthy, or its finite contribution sum when failed; neither adds notices.
+success when healthy, or a supported positive task cause when failed; neither adds notices.
 -/
 theorem completion_exists
     {work initial matching events failed node kind dependencies birth}
     (known : NodeAt work node kind dependencies birth)
     (opened : Open initial events node.ref)
     (accounted : NodeAccounted work matching events failed node.ref)
-    (failuresKnown
-      : ∀ occurrence ∈ failedBefore failed events.length,
-          ∃ owners producer payload, TaskAt work occurrence owners producer payload)
+    (cause
+      : NodeFailed work matching events failed node.ref
+        → ∃ errors,
+            NodeFailureCause work (failedBefore failed events.length) node.ref errors)
     : ∃ event,
         EventAllowed work initial matching events failed event
         ∧ eventPending event = []
@@ -29,13 +41,13 @@ theorem completion_exists
         ∧ ¬IsValue event := by
   classical
   by_cases failure : NodeFailed work matching events failed node.ref
-  · obtain ⟨errors, counted⟩ := NodeErrors.exists failuresKnown node.ref
+  · obtain ⟨errors, counted⟩ := cause failure
     cases kind with
     | group =>
         refine ⟨.groupFailure node errors, ?_, rfl, rfl, id⟩
         simpa only [EventAllowed, nodeFailed_filter (Nat.le_refl _),
           failedBefore_filter _ (Nat.le_refl _)]
-          using And.intro ⟨dependencies, birth, known⟩ ⟨opened, failure, counted⟩
+          using And.intro ⟨dependencies, birth, known⟩ ⟨opened, failure, counted.toCauses⟩
     | stream =>
         refine ⟨.streamFailure node errors, ?_, rfl, rfl, id⟩
         simpa only [EventAllowed, nodeFailed_filter (Nat.le_refl _),
@@ -70,6 +82,33 @@ theorem open_append_completion {initial events event closed ref}
     List.mem_append, List.mem_singleton, not_or]
   exact and_assoc.symm
 
+/-- A notice-free closure preserves the causes of all remaining open failures.
+All recorded cuts are already in the original prefix, so appended outputs create no
+new causal failure; each original selected cause remains available at the new boundary.
+-/
+theorem OpenFailureCauses.append_completion
+    {work initial matching events failures event ref}
+    (supported : OpenFailureCauses work initial matching events failures)
+    (witness : FailureWitness work initial matching events failures)
+    (pending : eventPending event = []) (completed : eventCompleted event = [ref])
+    : OpenFailureCauses work initial matching (events ++ [event]) failures := by
+  intro other opened failed
+  obtain ⟨cut, recorded, _, snapshot⟩ := failed
+  obtain ⟨entry, member, same⟩ := List.mem_map.mp recorded
+  have bounded : cut ≤ events.length := same ▸ witness.cut_le member
+  have prior : NodeFailed work matching events failures other :=
+    ⟨
+      cut,
+      recorded,
+      bounded,
+      by simpa only [List.take_append_of_le_length bounded] using snapshot
+    ⟩
+  obtain ⟨errors, cause⟩ := supported other
+    ((open_append_completion pending completed).mp opened).1 prior
+  refine ⟨errors, ?_⟩
+  rw [witness.failedBefore_eq (Nat.le_refl _)] at cause
+  rwa [witness.failedBefore_eq (by simp)]
+
 /-- An open ref outside a suffix's selected closure refs remains open. Witness:
 announcements persist, and any new completion would contradict the selected-ref bound.
 -/
@@ -97,6 +136,9 @@ future notice carrier can deliberately be left open by this existential construc
 -/
 theorem Explains.close_accounted_refs {work groups streams events matching failures}
     (explained : Explains work groups streams events matching failures)
+    (supported
+      : OpenFailureCauses work ((groups ++ streams).map DeliveryNode.ref)
+          matching events failures)
     (refs : NodeRefs)
     (announced
       : ∀ ref ∈ refs,
@@ -121,7 +163,7 @@ theorem Explains.close_accounted_refs {work groups streams events matching failu
       ⟩
   | cons ref rest ih =>
       by_cases closed : ref ∈ completedRefs events
-      · obtain ⟨tail, bounded, controls, finished, completes, selected⟩ := ih explained
+      · obtain ⟨tail, bounded, controls, finished, completes, selected⟩ := ih explained supported
           (fun other member => announced other (by simp [member]))
           (fun other member => accounted other (by simp [member]))
         refine ⟨tail, by simp only [List.length_cons]; omega, controls, finished, ?_, ?_⟩
@@ -137,11 +179,11 @@ theorem Explains.close_accounted_refs {work groups streams events matching failu
         obtain ⟨node, kind, dependencies, birth, known, same⟩ :=
           explained.noticeFacts.supported ref opened.1
         obtain ⟨event, allowed, pending, completed, control⟩ := completion_exists known
-          (same ▸ opened) (same ▸ accounted ref (by simp)) (by simpa only [explained.2.1.failedBefore_eq (Nat.le_refl _)]
-            using explained.2.1.known)
+          (same ▸ opened) (same ▸ accounted ref (by simp)) (supported node.ref (same ▸ opened))
         have extended := explained.append_event
           allowed
-        obtain ⟨tail, bounded, controls, finished, completes, selected⟩ := ih extended
+        obtain ⟨tail, bounded, controls, finished, completes, selected⟩ :=
+          ih extended (supported.append_completion explained.2.1 pending completed)
           (fun other member => by
             simpa only [announcedRefs, pendingRefs, List.flatMap_append, List.flatMap_cons,
               List.flatMap_nil, pending, List.append_nil]
@@ -169,6 +211,9 @@ using its supported descriptor and preserving the original failure cuts and matc
 -/
 theorem Explains.close_open_refs {work groups streams events matching failures}
     (explained : Explains work groups streams events matching failures)
+    (supported
+      : OpenFailureCauses work ((groups ++ streams).map DeliveryNode.ref)
+          matching events failures)
     (accounted
       : ∀ occurrence owners producer payload,
           TaskAt work occurrence owners producer payload
@@ -203,8 +248,7 @@ theorem Explains.close_open_refs {work groups streams events matching failures}
           rintro occurrence owners ⟨producer, payload, task⟩ _
           exact accounted occurrence owners producer payload task
         obtain ⟨event, allowed, pending, completed, control⟩ :=
-          completion_exists known (same ▸ opened) nodeAccounted (by simpa only [explained.2.1.failedBefore_eq (Nat.le_refl _)]
-            using explained.2.1.known)
+          completion_exists known (same ▸ opened) nodeAccounted (supported node.ref (same ▸ opened))
         have extended :=
           explained.append_event
             allowed
@@ -222,7 +266,8 @@ theorem Explains.close_open_refs {work groups streams events matching failures}
           · exact False.elim (facts.2 (equal.trans same.symm))
           · exact member
         obtain ⟨tail, bounded, controls, finished, closed⟩ :=
-          ih extended stillAccounted nextCover
+          ih extended (supported.append_completion explained.2.1 pending completed)
+            stillAccounted nextCover
         refine ⟨event :: tail, by simp only [List.length_cons]; omega, ?_, ?_, ?_⟩
         · intro next member
           rcases List.mem_cons.mp member with rfl | member
@@ -231,7 +276,7 @@ theorem Explains.close_open_refs {work groups streams events matching failures}
         · simpa only [List.append_assoc, List.singleton_append] using finished
         · simpa only [List.append_assoc, List.singleton_append] using closed
       · obtain ⟨tail, bounded, controls, finished, closed⟩ :=
-          ih explained accounted (by
+          ih explained supported accounted (by
             intro other active
             rcases List.mem_cons.mp (covers other active) with equal | member
             · exact False.elim (opened (equal ▸ active))
@@ -245,6 +290,9 @@ and publication matching. No new payload or cancellation is invented.
 -/
 theorem Explains.finish_accounted {work groups streams events matching failures}
     (explained : Explains work groups streams events matching failures)
+    (supported
+      : OpenFailureCauses work ((groups ++ streams).map DeliveryNode.ref)
+          matching events failures)
     (accounted
       : ∀ occurrence owners producer payload,
           TaskAt work occurrence owners producer payload
@@ -262,29 +310,19 @@ theorem Explains.finish_accounted {work groups streams events matching failures}
         ∧ Terminal work ((groups ++ streams).map DeliveryNode.ref) matching
             (events ++ tail) failures := by
   obtain ⟨tail, bounded, controls, finished, closed⟩ :=
-    explained.close_open_refs accounted
+    explained.close_open_refs supported accounted
       (announcedRefs ((groups ++ streams).map DeliveryNode.ref) events)
       (fun _ opened => opened.1)
   refine ⟨tail, bounded, controls, finished, ?_⟩
   rw [Terminal]
-  have finalAccounting : ∀ occurrence owners producer payload,
-      TaskAt work occurrence owners producer payload →
-      TaskAccounted work matching (events ++ tail) failures occurrence :=
-    fun occurrence owners producer payload task =>
-      (accounted occurrence owners producer payload task).append tail
   refine ⟨?_, ?_⟩
   · intro occurrence owners producer payload known
     by_cases published : Published matching events occurrence
     · exact Or.inr (published.append tail)
     · exact Or.inl ⟨((accounted _ _ _ _ known).resolve_right published).append tail,
         (reported _ _ _ _ known published).append tail⟩
-  intro node kind dependencies birth _
-  by_cases announced : node.ref ∈ announcedRefs ((groups ++ streams).map DeliveryNode.ref)
-      (events ++ tail)
-  · exact Or.inl (closed node.ref announced)
-  · refine Or.inr ⟨announced, Or.inr ?_⟩
-    rintro occurrence owners ⟨producer, payload, task⟩ _
-    exact finalAccounting occurrence owners producer payload task
+  intro node kind dependencies birth _ announced
+  exact closed node.ref announced
 
 /-- An internally accounted, reported prefix extends to a complete run, preserving its
 initialization and every existing work batch. Witness: append closures and a separate
@@ -294,6 +332,9 @@ theorem WorkBatching.finish_accounted
     {work groups streams events matching failures batches}
     (batched : WorkBatching events batches)
     (explained : Explains work groups streams events matching failures)
+    (supported
+      : OpenFailureCauses work ((groups ++ streams).map DeliveryNode.ref)
+          matching events failures)
     (accounted
       : ∀ occurrence owners producer payload,
           TaskAt work occurrence owners producer payload
@@ -314,7 +355,7 @@ theorem WorkBatching.finish_accounted
         ∧ tail.length
           ≤ (announcedRefs ((groups ++ streams).map DeliveryNode.ref) events).length := by
   obtain ⟨tail, bounded, controls, finished, terminal⟩ :=
-    explained.finish_accounted accounted reported
+    explained.finish_accounted supported accounted reported
   refine ⟨tail, ⟨events ++ tail, matching, failures, finished, terminal, ?_⟩,
     controls, bounded⟩
   exact (batched.append (WorkBatching.singletons tail)).append
@@ -329,6 +370,8 @@ theorem admissibleRun_exists_iff_reported_history (work : Work)
     : (∃ history, AdmissibleRun work history)
       ↔ ∃ groups streams events matching failures,
           Explains work groups streams events matching failures
+          ∧ OpenFailureCauses work ((groups ++ streams).map DeliveryNode.ref) matching
+              events failures
           ∧ ∀ occurrence owners producer payload,
               TaskAt work occurrence owners producer payload
               → (TaskCancelled work matching events failures occurrence
@@ -336,11 +379,16 @@ theorem admissibleRun_exists_iff_reported_history (work : Work)
                 ∨ Published matching events occurrence := by
   constructor
   · rintro ⟨history, events, matching, failures, explained, terminal, _⟩
-    exact ⟨history.initialGroups, history.initialStreams, events, matching, failures,
-      explained, terminal.1⟩
-  · rintro ⟨groups, streams, events, matching, failures, explained, reported⟩
+    refine ⟨history.initialGroups, history.initialStreams, events, matching, failures,
+      explained, ?_, terminal.1⟩
+    intro ref opened _
+    obtain ⟨node, kind, dependencies, birth, known, same⟩ :=
+      explained.noticeFacts.supported ref opened.1
+    exact (opened.2 (same ▸ terminal.2 node kind dependencies birth known
+      (same ▸ opened.1))).elim
+  · rintro ⟨groups, streams, events, matching, failures, explained, supported, reported⟩
     obtain ⟨tail, run, _, _⟩ := (WorkBatching.singletons events).finish_accounted
-      explained
+      explained supported
       (fun _ _ _ _ known => (reported _ _ _ _ known).elim
         (fun cancelled => Or.inl cancelled.1) Or.inr)
       (fun _ _ _ _ known unpublished =>

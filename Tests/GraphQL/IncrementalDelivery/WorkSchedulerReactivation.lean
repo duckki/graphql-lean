@@ -51,13 +51,14 @@ private def sharedTask : Occurrence := .executionGroup [1, 1, 1, 0]
 
 private def leaf (group : DeferredFragment) (alias name value : String)
     : Execution.Work :=
-  .executionGroup [group] [.field alias] (.ok ([(name, .scalar value)], 0))
+  .executionGroup [group] [.field alias] ({ result := .ok ([(name, .scalar value)], 0) })
     (.combine .empty .empty)
 
 private def objectChildren (alias : String) : Execution.Work :=
   .combine .empty
-    (.combine (leaf childFragment alias "name" "name1")
-      (.combine (leaf ⟨survivor, []⟩ alias "age" "1") .empty))
+    (.declareGroups []
+      (.combine (leaf childFragment alias "name" "name1")
+        (.combine (leaf ⟨survivor, []⟩ alias "age" "1") .empty)))
 
 private def sharedChildren : Execution.Work :=
   .combine (objectChildren "u1") (.combine (objectChildren "u2") .empty)
@@ -70,15 +71,17 @@ checks it against the actual query executor rather than assuming this shape.
 -/
 private def work : Execution.Work :=
   .combine .empty
-    (.combine
-      (.executionGroup [⟨parent, []⟩] [] (.ok ([("a", .scalar "a")], 0))
-        (.combine .empty .empty))
+    (.declareGroups [⟨parent, []⟩, childFragment, ⟨survivor, []⟩, ⟨failureOwner, []⟩]
       (.combine
-        (.executionGroup [childFragment, ⟨failureOwner, []⟩] [] (.error 1) .empty)
+        (.executionGroup [⟨parent, []⟩] [] ({ result := .ok ([("a", .scalar "a")], 0) })
+          (.combine .empty .empty))
         (.combine
-          (.executionGroup [childFragment, ⟨survivor, []⟩] [] (.ok (sharedData, 0))
-            sharedChildren)
-          .empty)))
+          (.executionGroup [childFragment, ⟨failureOwner, []⟩] []
+            ({ result := .error 1, cause := some 1 }) .empty)
+          (.combine
+            (.executionGroup [childFragment, ⟨survivor, []⟩] []
+              ({ result := .ok (sharedData, 0) }) sharedChildren)
+            .empty))))
 
 /-- This is execution-generated work for pure finite resolvers, not an arbitrary tree.
 Witness: evaluate the displayed query against the shared schema and resolver fixture.
@@ -91,21 +94,21 @@ theorem generated : ExecutedWork work := by
 private theorem parent_known
     : TaskAt work parentTask [parent.ref] none
         (.object [] (.ok ([("a", .scalar "a")], 0))) := by
-  refine ⟨[⟨parent, []⟩], [], _, .combine .empty .empty, [], ?_, rfl, rfl⟩
+  refine ⟨[⟨parent, []⟩], [], { result := .ok ([("a", .scalar "a")], 0) }, .combine .empty .empty, [], ?_, rfl, rfl⟩
   cbv
 
 /-- C and S share the non-null failure. Witness: its fixed generated task location. -/
 private theorem failure_known
     : TaskAt work failedTask [child.ref, failureOwner.ref] none
         (.object [] (.error 1)) := by
-  refine ⟨[childFragment, ⟨failureOwner, []⟩], [], _, .empty, [], ?_, rfl, rfl⟩
+  refine ⟨[childFragment, ⟨failureOwner, []⟩], [], { result := .error 1, cause := some 1 }, .empty, [], ?_, rfl, rfl⟩
   cbv
 
 /-- C and R share both object fields. Witness: their generated task and child work. -/
 private theorem shared_known
     : TaskAt work sharedTask [child.ref, survivor.ref] none
         (.object [] (.ok (sharedData, 0))) := by
-  refine ⟨[childFragment, ⟨survivor, []⟩], [], _, sharedChildren, [], ?_, rfl, rfl⟩
+  refine ⟨[childFragment, ⟨survivor, []⟩], [], { result := .ok (sharedData, 0) }, sharedChildren, [], ?_, rfl, rfl⟩
   cbv
 
 -----------------------------------------------------------------------------------------
@@ -128,8 +131,10 @@ private def parentSuccess : GraphEvent :=
       work := Work.fromExecution (.combine .empty .empty) [1, 0, 0]
     }
 
+private def notice : GraphEvent := .groupFailure ⟨child, 1⟩
+
 private def batches : List (List GraphEvent) :=
-  [[failure], [sharedSuccess], [parentSuccess]]
+  [[failure], [sharedSuccess], [parentSuccess, notice]]
 
 private def initial : State := State.initialize (Work.fromExecution work)
 
@@ -151,40 +156,51 @@ theorem inputs_valid : ValidGraphEvents work batches.flatten := by
       simp [failure, sharedSuccess, GraphEvent.Fresh, GraphEvent.identities,
         failedTask, sharedTask])
       ⟨_, _, _, shared_known, by intro source impossible; cases impossible⟩
-  exact .append second ⟨_, _, parent_known, by cbv, by cbv⟩
+  have three : ValidGraphEvents work [failure, sharedSuccess, parentSuccess] := .append second ⟨_, _, parent_known, by cbv, by cbv⟩
     (by
       simp [failure, sharedSuccess, parentSuccess, GraphEvent.Fresh, GraphEvent.identities,
         failedTask, sharedTask, parentTask])
     ⟨_, _, _, parent_known, by intro source impossible; cases impossible⟩
+  exact .append three
+    ⟨
+      ⟨
+        [parent.ref],
+        none,
+        NodeAt.group (address := [1, 1, 0]) (group := childFragment) (by rfl) (by simp)
+      ⟩,
+      by decide
+    ⟩
+    (by simp [notice, failure, sharedSuccess, parentSuccess, GraphEvent.Fresh,
+      GraphEvent.identities]) trivial
 
 /-- Every event settles an actually started task before queue termination.
 Witness: evaluate the public start-discipline checker on the same input batches.
 -/
 theorem inputs_started : inputsStarted work batches = true := by cbv
 
-/-- Initial notices are legal: P, S, and R are root-produced groups without dependencies.
+/-- Initial notices are legal: P, R, and S are root-produced groups without dependencies.
 Witness: their actual work descriptors and empty-history announcement eligibility.
 -/
 theorem initialized : Initializes work initial.initialGroups initial.initialStreams := by
   have parentKnown : NodeAt work parent .group [] none := by
-    refine ⟨[1, 0], [⟨parent, []⟩], [], .ok ([("a", .scalar "a")], 0),
+    refine ⟨[1, 0], [⟨parent, []⟩], [], { result := .ok ([("a", .scalar "a")], 0) },
       .combine .empty .empty, [],
       ⟨parent, []⟩, ?_, by simp, rfl, rfl⟩
     cbv
   have failureKnown : NodeAt work failureOwner .group [] none := by
-    refine ⟨[1, 1, 0], [childFragment, ⟨failureOwner, []⟩], [], .error 1, .empty, [],
+    refine ⟨[1, 1, 0], [childFragment, ⟨failureOwner, []⟩], [], { result := .error 1, cause := some 1 }, .empty, [],
       ⟨failureOwner, []⟩, ?_, by simp, rfl, rfl⟩
     cbv
   have survivorKnown : NodeAt work survivor .group [] none := by
     refine ⟨[1, 1, 1, 0], [childFragment, ⟨survivor, []⟩], [],
-      .ok (sharedData, 0), sharedChildren, [],
+      { result := .ok (sharedData, 0) }, sharedChildren, [],
       ⟨survivor, []⟩, ?_, by simp, rfl, rfl⟩
     cbv
   have eligible (group : DeliveryNode) (known : NodeAt work group .group [] none)
       : CanAnnounce work [] (fun _ => .executionGroup []) [] [] group .group [] none :=
     ⟨by simp [announcedRefs, pendingRefs], Or.inl ⟨fun failure => failure.nonempty rfl,
         Or.inr (group_not_initially_accounted known)⟩, by simp, by simp⟩
-  have notices : initial.initialGroups = [parent, failureOwner, survivor]
+  have notices : initial.initialGroups = [parent, survivor, failureOwner]
       ∧ initial.initialStreams = [] := by cbv
   rw [notices.1, notices.2]
   refine ⟨⟨by decide, ?_, by simp⟩, by simp⟩
@@ -192,8 +208,8 @@ theorem initialized : Initializes work initial.initialGroups initial.initialStre
   simp only [List.mem_cons, List.not_mem_nil, or_false] at member
   rcases member with rfl | rfl | rfl
   · exact ⟨[], none, parentKnown, eligible _ parentKnown⟩
-  · exact ⟨[], none, failureKnown, eligible _ failureKnown⟩
   · exact ⟨[], none, survivorKnown, eligible _ survivorKnown⟩
+  · exact ⟨[], none, failureKnown, eligible _ failureKnown⟩
 
 -----------------------------------------------------------------------------------------
 -- Reintegration retains cancellation and releases only surviving work
@@ -203,9 +219,9 @@ theorem initialized : Initializes work initial.initialGroups initial.initialStre
 Witness: both prefix lookups retain the error, while completed release removes the node.
 -/
 theorem child_retained_until_release
-    : ((initial.runNormalized [[failure]]).1.groupNode? child.ref).map GroupNode.failure
+    : ((initial.runNormalized [[failure]]).1.taskNode? failedTask).map TaskNode.rejection
         = some (some 1)
-      ∧ (beforeRelease.groupNode? child.ref).map GroupNode.failure = some (some 1)
+      ∧ (beforeRelease.taskNode? failedTask).map TaskNode.rejection = some (some 1)
       ∧ finalState.groupNode? child.ref = none := by
   constructor
   · cbv
@@ -259,12 +275,22 @@ theorem normalized_output
       ] := by
   cbv
 
-/-- Registration is supported by tasks or their ancestors, not necessarily direct ownership.
-Witness: the current generic registration-provenance theorem on the valid replay.
--/
+/-- Every permanent registration retains its declaration or contributor descriptor. -/
 theorem registrations_supported
-    : finalState.RegistrationsSupportedBy (Task.SupportsGroup work) :=
-  createWorkQueue_runNormalized_registrationsSupported inputs_valid
+    : finalState.RegistrationsSatisfy
+        (fun ref =>
+          ∃ node dependencies,
+            GroupRecordAt work node dependencies ∧ node.ref = ref) := by
+  intro ref member
+  have registry : finalState.registeredGroups =
+      [parent.ref, child.ref, survivor.ref, failureOwner.ref] := by cbv
+  rw [registry] at member
+  simp only [List.mem_cons, List.not_mem_nil, or_false] at member
+  rcases member with rfl | rfl | rfl | rfl
+  · exact ⟨parent, [], ⟨⟨parent, []⟩, by simp [GroupMetadata.fragments, work], [], List.suffix_rfl, rfl⟩, rfl⟩
+  · exact ⟨child, [parent.ref], ⟨childFragment, by simp [GroupMetadata.fragments, work], [parent], List.suffix_rfl, rfl⟩, rfl⟩
+  · exact ⟨survivor, [], ⟨⟨survivor, []⟩, by simp [GroupMetadata.fragments, work], [], List.suffix_rfl, rfl⟩, rfl⟩
+  · exact ⟨failureOwner, [], ⟨⟨failureOwner, []⟩, by simp [GroupMetadata.fragments, work], [], List.suffix_rfl, rfl⟩, rfl⟩
 
 /-- The shared failure/success sequence preserves healthy owners and ancestry.
 Witness: current joint replay accounting, without any extra integration-availability law.

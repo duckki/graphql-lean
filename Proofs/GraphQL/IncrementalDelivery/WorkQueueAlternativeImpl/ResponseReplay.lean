@@ -62,7 +62,8 @@ theorem ResponseStreamCursor.fromReference_finished
     : (ResponseStreamCursor.fromReference cursor).finished = cursor.queue.terminated := by
   unfold ResponseStreamCursor.fromReference
   split
-  · simpa only [ResponseStreamCursor.onWorkQueueFinished] using (by assumption : cursor.queue.terminated = true).symm
+  · simpa only [ResponseStreamCursor.onWorkQueueFinished]
+      using (by assumption : cursor.queue.terminated = true).symm
   · rfl
 
 @[simp]
@@ -151,49 +152,33 @@ theorem ResponseStreamCursor.run_cons (cursor : ResponseStreamCursor)
   rw [List.foldl_cons]
   exact cursorFold_prefix _ _ _ _
 
-/-- Valid started generated online replay preserves updates and the projected residual reader.
-The live cursor carries its actual sequential-prefix provenance, not an assumed state invariant.
+/-- Valid started online replay preserves updates and the projected residual reader.
+The cursor carries its actual batch-prefix provenance; each supplied batch retains its
+own failure-availability snapshot.
 -/
 theorem ResponseStreamCursor.run_fromReference
     (cursor : ReferenceWorkQueue.ResponseStreamCursor) (inputs : List (List GraphEvent))
     {work : Work} (generated : ReferenceWorkQueue.ExecutedWork work)
-    (before : List GraphEvent)
-    (valid : ReferenceWorkQueue.ValidGraphEvents work (before ++ inputs.flatten))
-    (accepted
-      : (ReferenceWorkQueue.State.initialize
-          (ReferenceWorkQueue.Work.fromExecution work)).acceptsBatch
-          before
-        = true)
+    (earlier : List (List GraphEvent))
+    (valid : ReferenceWorkQueue.ValidGraphEvents work (earlier ++ inputs).flatten)
     (provenance
-      : cursor.queue.terminated = false
-        → cursor.queue
-          = (ReferenceWorkQueue.State.initialize
-              (ReferenceWorkQueue.Work.fromExecution work)).replayGraphEvents
-              before)
-    (started : cursor.queue.batchesStarted inputs = true)
+      : cursor.queue
+        = (ReferenceWorkQueue.State.initialize
+            (ReferenceWorkQueue.Work.fromExecution work)).replayBatches
+            earlier)
+    (started : ReferenceWorkQueue.inputsStarted work (earlier ++ inputs) = true)
     : ((ResponseStreamCursor.fromReference cursor).run inputs).1 = (cursor.run inputs).1
       ∧ ((ResponseStreamCursor.fromReference cursor).run inputs).2.1
         = ResponseStreamCursor.fromReference (cursor.run inputs).2 := by
-  induction inputs generalizing cursor before with
+  induction inputs generalizing cursor earlier with
   | nil => exact ⟨rfl, rfl⟩
   | cons batch rest ih =>
-      obtain ⟨startOpen, batchAccepted, restStarted⟩ :=
-        cursor.queue.batchesStarted_cons batch rest started
-      have same := provenance startOpen
-      have acceptedNext : (ReferenceWorkQueue.State.initialize
-          (ReferenceWorkQueue.Work.fromExecution work)).acceptsBatch (before ++ batch) = true := by
-        rw [reference_acceptsBatch_append]
-        simp only [accepted, Bool.true_and, ← same]
-        exact batchAccepted
-      have initialPart : (before ++ batch).IsPrefix (before ++ (batch :: rest).flatten) :=
-        ⟨rest.flatten, by simp [List.append_assoc]⟩
       have reducer : ((State.fromReference cursor.queue).handleGraphEvents batch).state
             = State.fromReference (cursor.queue.handleGraphEvents batch).1
           ∧ ((State.fromReference cursor.queue).handleGraphEvents batch).workQueueEvents
             = (cursor.queue.handleGraphEvents batch).2 := by
-        rw [same]
-        exact referencePrefix_handleGraphEvents generated before batch
-          (valid.prefix initialPart) acceptedNext
+        rw [provenance]
+        exact referencePrefix_handleGraphEvents generated earlier batch rest valid started
       have stepQueue : (cursor.step batch).2.queue = (cursor.queue.handleGraphEvents batch).1 := by
         rw [ReferenceWorkQueue.ResponseStreamCursor.step_eq]
         cases reduced : cursor.queue.handleGraphEvents batch with
@@ -201,20 +186,20 @@ theorem ResponseStreamCursor.run_fromReference
             dsimp only
             split <;> rfl
       have validNext : ReferenceWorkQueue.ValidGraphEvents work
-          ((before ++ batch) ++ rest.flatten) := by
-        simpa [List.append_assoc] using valid
-      have provenanceNext : (cursor.step batch).2.queue.terminated = false
-          → (cursor.step batch).2.queue = (ReferenceWorkQueue.State.initialize
-            (ReferenceWorkQueue.Work.fromExecution work)).replayGraphEvents (before ++ batch) := by
-        rw [stepQueue]
-        intro nextOpen
-        rw [cursor.queue.handleGraphEvents_nonterminalState batch startOpen nextOpen, same]
-        simp [ReferenceWorkQueue.State.replayGraphEvents, List.foldl_append]
+          ((earlier ++ [batch]) ++ rest).flatten := by
+        simpa only [List.append_assoc, List.singleton_append] using valid
+      have provenanceNext : (cursor.step batch).2.queue = (ReferenceWorkQueue.State.initialize
+          (ReferenceWorkQueue.Work.fromExecution work)).replayBatches (earlier ++ [batch]) := by
+        rw [stepQueue, ReferenceWorkQueue.State.replayBatches_append, ← provenance]
+        rfl
+      have startedNext : ReferenceWorkQueue.inputsStarted work ((earlier ++ [batch]) ++ rest)
+          = true := by
+        simpa only [List.append_assoc, List.singleton_append] using started
       rw [ResponseStreamCursor.run_cons, ReferenceWorkQueue.ResponseStreamCursor.run_cons]
       obtain ⟨update, next⟩ := ResponseStreamCursor.handleBatch_fromReference cursor batch reducer
       simp only [update, next]
-      obtain ⟨updates, final⟩ := ih (cursor.step batch).2 (before ++ batch) validNext acceptedNext
-        provenanceNext (by simpa only [stepQueue] using restStarted)
+      obtain ⟨updates, final⟩ := ih (cursor.step batch).2 (earlier ++ [batch]) validNext
+        provenanceNext startedNext
       exact ⟨congrArg (fun tail => (cursor.step batch).1.toList ++ tail) updates, final⟩
 
 /-- Shared initialization allocates the same initial IDs and starts with a live reader. -/
@@ -247,10 +232,7 @@ theorem ResponseStreamCursor.run_initialize_fromReference (response : Execution.
       ∧ ((ResponseStreamCursor.fromReference cursor).run inputs).2.1
         = ResponseStreamCursor.fromReference (cursor.run inputs).2 := by
   exact ResponseStreamCursor.run_fromReference _ inputs generated []
-    (by simpa using valid) rfl (fun _ => rfl)
-    (by simpa only [ReferenceWorkQueue.inputsStarted_eq_batchesStarted,
-      ReferenceWorkQueue.ResponseStreamCursor.initialize,
-      ReferenceWorkQueue.initializeIncrementalResponse] using started)
+    (by simpa using valid) rfl (by simpa using started)
 
 /-- Actual initialized readers emit the reference updates for valid started generated inputs. -/
 theorem ResponseStreamCursor.run_buildResponse_updates (response : Execution.Response)
@@ -262,7 +244,8 @@ theorem ResponseStreamCursor.run_buildResponse_updates (response : Execution.Res
       = ((ReferenceWorkQueue.ResponseStreamCursor.initialize response work).2.run
           inputs).1 := by
   rw [ResponseStreamCursor.buildResponse_fromReference]
-  exact (ResponseStreamCursor.run_initialize_fromReference response work inputs generated valid started).1
+  exact (ResponseStreamCursor.run_initialize_fromReference response work inputs generated valid
+    started).1
 
 /-- Terminal record clearing preserves the reference's semantic completion flag. -/
 theorem ResponseStreamCursor.run_buildResponse_terminated (response : Execution.Response)
@@ -275,7 +258,8 @@ theorem ResponseStreamCursor.run_buildResponse_terminated (response : Execution.
       = ((ReferenceWorkQueue.ResponseStreamCursor.initialize response work).2.run
           inputs).2.queue.terminated := by
   rw [ResponseStreamCursor.buildResponse_fromReference,
-    (ResponseStreamCursor.run_initialize_fromReference response work inputs generated valid started).2,
+    (ResponseStreamCursor.run_initialize_fromReference response work inputs generated valid
+      started).2,
     ResponseStreamCursor.fromReference_terminated]
 
 /-- The actual generated reader and normalized replay have the same full queue state,
@@ -289,7 +273,8 @@ theorem ResponseStreamCursor.run_buildResponse_queue (response : Execution.Respo
     : ((ResponseStreamCursor.buildResponse response work).2.run inputs).2.1.queue
       = ((State.initialize work).runNormalized inputs).1 := by
   rw [ResponseStreamCursor.buildResponse_fromReference,
-    (ResponseStreamCursor.run_initialize_fromReference response work inputs generated valid started).2,
+    (ResponseStreamCursor.run_initialize_fromReference response work inputs generated valid
+      started).2,
     ResponseStreamCursor.fromReference_queue]
   have same := (ReferenceWorkQueue.ResponseStreamCursor.run_initialize response work inputs).2
   rw [same, State.runNormalized_initialize work inputs generated valid started]
@@ -305,10 +290,12 @@ theorem ResponseStreamCursor.run_buildResponse_finished (response : Execution.Re
     : ((ResponseStreamCursor.buildResponse response work).2.run inputs).2.1.finished
       = ((State.initialize work).runNormalized inputs).1.queue.terminated := by
   rw [ResponseStreamCursor.buildResponse_fromReference,
-    (ResponseStreamCursor.run_initialize_fromReference response work inputs generated valid started).2,
+    (ResponseStreamCursor.run_initialize_fromReference response work inputs generated valid
+      started).2,
     ResponseStreamCursor.fromReference_finished]
   have same := (ReferenceWorkQueue.ResponseStreamCursor.run_initialize response work inputs).2
-  rw [same, State.runNormalized_initialize work inputs generated valid started, State.fromReference_terminated]
+  rw [same, State.runNormalized_initialize work inputs generated valid started,
+    State.fromReference_terminated]
 
 /-- Actual response replay is identical; host effects and terminal record erasure are separate. -/
 theorem replayIncrementalResponse_eq_reference
@@ -323,7 +310,8 @@ theorem replayIncrementalResponse_eq_reference
   unfold replayIncrementalResponse
   simp only [ResponseStreamCursor.buildResponse_fromReference]
   obtain ⟨updates, final⟩ := ResponseStreamCursor.run_initialize_fromReference
-    (Execution.selectionSetResultToResponse completed.result) completed.work inputs generated valid started
+    (Execution.selectionSetResultToResponse completed.result) completed.work inputs generated valid
+    started
   simp only [updates, final, ResponseStreamCursor.fromReference_terminated]
 
 /-- Witness of the exact public response-replay target, including counted errors and notices. -/

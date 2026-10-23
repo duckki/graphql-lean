@@ -29,7 +29,7 @@ theorem StreamFailureCuts.nodeFailed {work events failures index stream errors m
 
 /-- A stream failure completion satisfies every clause of EventAllowed.
 Witness: its exact item gives stream metadata and causal failure, closure order gives
-the exact error sum, and the caller supplies the independently proved open reference.
+the selected cause, and the caller supplies the independently proved open reference.
 This is local admission; licensing the entire failure-cut list remains separate.
 -/
 theorem StreamFailureCuts.eventAllowed
@@ -37,7 +37,7 @@ theorem StreamFailureCuts.eventAllowed
     (cuts : StreamFailureCuts work events failures)
     (ordered : (events.filterMap streamAction).Pairwise StreamAction.Before)
     (atEvent : events[index]? = some (.streamFailure stream errors))
-    (opened : Open initial (events.take index) stream.ref)
+    (opened : Open initial (events.take index) stream.ref) (positive : 0 < errors)
     : EventAllowed work initial matching (events.take index) failures
         (.streamFailure stream errors) := by
   obtain ⟨occurrence, member⟩ := cuts.covers atEvent
@@ -51,7 +51,7 @@ theorem StreamFailureCuts.eventAllowed
   simp only [EventAllowed]
   rw [nodeFailed_filter (Nat.le_refl _), failedBefore_filter _ (Nat.le_refl _), length]
   exact ⟨⟨dependencies, producer, known⟩, opened, cuts.nodeFailed atEvent,
-    cuts.nodeErrors ordered atEvent⟩
+    cuts.nodeErrors ordered atEvent positive⟩
 
 -----------------------------------------------------------------------------------------
 -- Actual normalized output supplies openness and closure order without admission premises
@@ -87,7 +87,12 @@ theorem createWorkQueue_runNormalized_streamFailure_eventAllowed {work : Executi
           index) failures (.streamFailure stream errors) := by
   apply cuts.eventAllowed
     (createWorkQueue_runNormalized_atomicStreamActions_ordered valid) atEvent
-  exact createWorkQueue_runNormalized_streamOpenAt generated valid atEvent
-    (by simp [streamReferenceRefs])
+  · exact createWorkQueue_runNormalized_streamOpenAt generated valid atEvent
+      (by simp [streamReferenceRefs])
+  · obtain ⟨occurrence, member⟩ := cuts.covers atEvent
+    obtain ⟨node, count, producer, selected, task⟩ := cuts.2 _ member
+    obtain ⟨rfl, rfl⟩ := Execution.WorkQueueEvent.streamFailure.inj
+      (Option.some.inj (selected.symm.trans atEvent))
+    exact generated.taskFailure_positive task rfl
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

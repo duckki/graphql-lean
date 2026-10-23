@@ -39,6 +39,9 @@ inductive Occurrence where
   | item (address : Address) (index : Nat)
 deriving Repr, BEq, DecidableEq
 
+/-- Observable task payload after its delivery-boundary projection. Work retains the
+separate collected diagnostics; admission and response error totals use this projection.
+-/
 inductive Payload where
   | object (path : ResponsePath) (result : Result (List (Name × ResponseValue)))
   | item (node : DeliveryNode) (result : Result ResponseValue)
@@ -65,23 +68,24 @@ structure WorkLocation where
 def WorkLocation.child? (location : WorkLocation) (address : Address) (index : Nat)
     : Option WorkLocation :=
   match location.current, index with
-  | .combine left _, 0 => some { location with current := left }
-  | .combine _ right, 1 => some { location with current := right }
+  | .combine left _, 0 => some { location with current := left.withoutDeclarations }
+  | .combine _ right, 1 => some { location with current := right.withoutDeclarations }
   | .executionGroup groups _ _ children, 0 =>
       some
         ⟨
-          children,
+          children.withoutDeclarations,
           some (.executionGroup address),
           groups.map (fun group => group.node.ref)
         ⟩
   | .stream _ items, index =>
-      items[index]?.map (fun entry => ⟨entry.2, some (.item address index), []⟩)
+      items[index]?.map
+        (fun entry => ⟨entry.2.withoutDeclarations, some (.item address index), []⟩)
   | _, _ => none
 
 /-- Follow an address in work; invalid edges have no location. No refs are deduplicated.
 -/
 def locateWork (work : Work) (address : Address) : Option WorkLocation :=
-  go [] ⟨work, none, []⟩ address
+  go [] ⟨work.withoutDeclarations, none, []⟩ address
 where
   /-- Consume the remaining route while retaining its absolute address prefix. -/
   go (route : Address) (location : WorkLocation) : Address → Option WorkLocation
@@ -103,17 +107,17 @@ def TaskAt (work : Work) (occurrence : Occurrence) (owners : NodeRefs)
     : Prop :=
   match occurrence with
   | .executionGroup address =>
-      ∃ groups path result children enclosing,
-        Located work address (.executionGroup groups path result children) producer
+      ∃ groups path outcome children enclosing,
+        Located work address (.executionGroup groups path outcome children) producer
           enclosing
         ∧ owners = groups.map (fun group => group.node.ref)
-        ∧ payload = .object path result
+        ∧ payload = .object path outcome.deliveryResult
   | .item address index =>
-      ∃ node items enclosing result children,
+      ∃ node items enclosing outcome children,
         Located work address (.stream node items) producer enclosing
-        ∧ items[index]? = some (result, children)
+        ∧ items[index]? = some (outcome, children)
         ∧ owners = [node.ref]
-        ∧ payload = .item node result
+        ∧ payload = .item node outcome.deliveryResult
 
 /-- Some location contains this node descriptor. Dependencies are defer ancestors for a
 group and enclosing defer owners for a stream; they are never structural producers.
@@ -343,8 +347,9 @@ have closed. This permits an already-started shared task to settle through a sti
 latent owner. The uncancelled premise remains mandatory; prior announcement alone does
 not keep fully invalidated work alive. Work with no announced owner cannot fail silently.
 
-Completion events separately require an open owner and count failures settled by their
-own boundary. Earlier completions are not retroactively charged for later settlements.
+Completion events separately require an open owner. Group reporting may combine available
+rejections recorded by FailureReportingWitness; causal cancellation still uses only these
+licensed cuts. Later availability cannot change an earlier completion's explanation.
 Every cut is bounded by the observed output length. In an explained history, failed
 occurrences remain unique: an earlier copy cancels the unpublished task through its owners.
 -/
@@ -361,6 +366,35 @@ def FailureWitness (work : Work) (initial : NodeRefs) (matching : PublicationMat
           ∧ Reachable work occurrence
           ∧ ∃ ref ∈ owners, ref ∈ announcedRefs initial (events.take cut))
       ∧ ¬TaskCancelled work matching (events.take cut) before occurrence
+
+/-- Available failure outcomes for reporting, independently of which failures license
+cancellation. A retained computation can reject after its task is already causally covered.
+Every entry is fresh, reachable, ordered, and has a previously announced contributor.
+These existential observation cuts are proof evidence, not a runtime failure ledger.
+-/
+def FailureReportingWitness (work : Work) (initial : NodeRefs)
+    (events : List WorkQueueEvent) (reported : FailureCuts)
+    : Prop :=
+  ∀ before cut occurrence after,
+    reported = before ++ (cut, occurrence) :: after
+    → cut ≤ events.length
+      ∧ (∀ earlier ∈ before, earlier.1 ≤ cut)
+      ∧ occurrence ∉ before.map Prod.snd
+      ∧ (∃ owners producer payload,
+          TaskAt work occurrence owners producer payload
+          ∧ payload.failure.isSome = true
+          ∧ Reachable work occurrence
+          ∧ ∃ ref ∈ owners, ref ∈ announcedRefs initial (events.take cut))
+
+/-- Every causal failure has the same task occurrence available for reporting at or
+before its causal cut. Earlier availability can support later cancellation without
+duplicating an occurrence in the reporting witness. Availability alone does not license
+cancellation; that remains the responsibility of `FailureWitness`.
+-/
+def CausalFailuresAvailable (failures reported : FailureCuts) : Prop :=
+  ∀ cut occurrence,
+    (cut, occurrence) ∈ failures
+    → ∃ availableCut, (availableCut, occurrence) ∈ reported ∧ availableCut ≤ cut
 
 -----------------------------------------------------------------------------------------
 -- Which events are permitted?
@@ -503,27 +537,55 @@ def CanPublish (work : Work) (matching : PublicationMatching)
     | .item address (index + 1) => Published matching events (.item address index)
     | _ => True
 
-/-- The claimed error count sums supplied accepted failures contributing to the node ref.
-Completion rules supply settlements through the event boundary, not notification order.
+/-- A selected explanation comes from an accepted failing task contributing to this
+node. Task-local boundary projection supplies the payload's failure count; this relation
+selects among contributing tasks without adding their counts or identifying equal errors
+across nodes. The caller supplies failures available at the completion boundary.
+Any supported positive explanation is permitted; no particular settlement order or
+universal singleton-error rule is imposed on implementations.
 -/
-def NodeErrors (work : Work) (failed : List Occurrence) (ref : NodeRef) (errors : Nat)
+def NodeFailureCause (work : Work) (failed : List Occurrence) (ref : NodeRef)
+    (errors : Nat)
     : Prop :=
-  ∃ contribution : Occurrence → Nat,
-    (∀ occurrence ∈ failed,
-      ∃ owners producer payload,
-        TaskAt work occurrence owners producer payload
-        ∧ contribution occurrence = if ref ∈ owners then payload.failure.getD 0 else 0)
-    ∧ errors = (failed.map contribution).sum
+  ∃ occurrence ∈ failed,
+    ∃ owners producer payload,
+      TaskAt work occurrence owners producer payload
+      ∧ ref ∈ owners
+      ∧ payload.failure = some errors
+      ∧ 0 < errors
+
+/-- A group reports a nonempty collection of distinct available task rejections.
+Each contribution uses that task's selected boundary count, not its collected diagnostics.
+The contract permits supported subsets; the reference reports all rejections cached when
+starting the group and only the triggering cause for a failure on an active group.
+-/
+def NodeFailureCauses (work : Work) (available : List Occurrence) (ref : NodeRef)
+    (errors : Nat)
+    : Prop :=
+  ∃ causes : List (Occurrence × Nat),
+    causes ≠ []
+    ∧ (causes.map Prod.fst).Nodup
+    ∧ (∀ occurrence count,
+        (occurrence, count) ∈ causes
+        → occurrence ∈ available
+          ∧ ∃ owners producer payload,
+              TaskAt work occurrence owners producer payload
+              ∧ ref ∈ owners
+              ∧ payload.failure = some count
+              ∧ 0 < count)
+    ∧ errors = (causes.map Prod.snd).sum
 
 /-- The next atomic event has valid provenance, dependencies, ownership, and notices
 relative to the observed prefix and known failures. New notices follow the carrier.
 All checks use only failure cuts at or before `before.length`. Notice eligibility
 sees the carrier's publication or closure, but not failures recorded after that carrier.
+Group counts use available reporting failures; stream counts use one licensed item cause.
 Object contributor metadata is ignored here: `TaskAt` and `PublicationOwner` use the
 original Work.
 -/
 def EventAllowed (work : Work) (initial : NodeRefs) (matching : PublicationMatching)
     (before : List WorkQueueEvent) (failures : FailureCuts) (event : WorkQueueEvent)
+    (reported : FailureCuts := failures)
     : Prop :=
   let failures := failures.filter (fun entry => entry.1 ≤ before.length)
   match event with
@@ -559,20 +621,21 @@ def EventAllowed (work : Work) (initial : NodeRefs) (matching : PublicationMatch
       (∃ dependencies producer, NodeAt work node .group dependencies producer)
       ∧ Open initial before node.ref
       ∧ NodeFailed work matching before failures node.ref
-      ∧ NodeErrors work (failedBefore failures before.length) node.ref errors
+      ∧ NodeFailureCauses work (failedBefore reported before.length) node.ref errors
   | .streamFailure node errors =>
       (∃ dependencies producer, NodeAt work node .stream dependencies producer)
       ∧ Open initial before node.ref
       ∧ NodeFailed work matching before failures node.ref
-      ∧ NodeErrors work (failedBefore failures before.length) node.ref errors
+      ∧ NodeFailureCause work (failedBefore failures before.length) node.ref errors
   | .workQueueTermination => False
 
 -----------------------------------------------------------------------------------------
 -- Admitted histories and batching
 -----------------------------------------------------------------------------------------
 
-/-- Initial notices and atomic outputs follow the work rules under one publication
-matching and bounded failure cuts. No wire correctness or eventual progress is assumed.
+/-- Initial notices and atomic outputs share one publication matching. Each causal failure
+is available for reporting by its causal cut; redundant retained rejections may be reported
+without licensing extra cancellation. No wire correctness or progress is assumed.
 -/
 def Explains (work : Work) (groups streams : List DeliveryNode)
     (events : List WorkQueueEvent) (matching : PublicationMatching)
@@ -581,10 +644,14 @@ def Explains (work : Work) (groups streams : List DeliveryNode)
   Initializes work groups streams
   ∧ FailureWitness work ((groups ++ streams).map DeliveryNode.ref) matching events
       failures
-  ∧ ∀ index event,
-      events[index]? = some event
-      → EventAllowed work ((groups ++ streams).map DeliveryNode.ref) matching
-          (events.take index) failures event
+  ∧ ∃ reported,
+      FailureReportingWitness work ((groups ++ streams).map DeliveryNode.ref) events
+        reported
+      ∧ CausalFailuresAvailable failures reported
+      ∧ ∀ index event,
+          events[index]? = some event
+          → EventAllowed work ((groups ++ streams).map DeliveryNode.ref) matching
+              (events.take index) failures event reported
 
 /-- An error-bearing completion in the output history covers the supplied attachment
 path. In an explained history, its node is known and was announced before completion;
@@ -598,8 +665,8 @@ def FailureReportedFor (events : List WorkQueueEvent) (path : ResponsePath) : Pr
     ∧ (.groupFailure node errors ∈ events ∨ .streamFailure node errors ∈ events)
 
 /-- Every task is published or causally cancelled with an error-bearing completion
-covering its attachment path. Every node is closed or unannounced and failed/accounted
-for. Reporting is required only at termination: cancellation may precede notification.
+covering its attachment path. Every announced known node is completed.
+Reporting is required only at termination: cancellation may precede notification.
 Unannounced nodes may remain omitted when a reported scope covers their unpublished work.
 This work-level reporting law does not assume wire decoding, response-position coverage,
 successful reconstruction, or equivalence to ordinary execution.
@@ -614,10 +681,8 @@ def Terminal (work : Work) (initial : NodeRefs) (matching : PublicationMatching)
       ∨ Published matching events occurrence)
   ∧ ∀ node kind dependencies producer,
       NodeAt work node kind dependencies producer
+      → node.ref ∈ announcedRefs initial events
       → node.ref ∈ completedRefs events
-        ∨ node.ref ∉ announcedRefs initial events
-          ∧ (NodeFailed work matching events failures node.ref
-              ∨ NodeAccounted work matching events failures node.ref)
 
 /-- Adjacent compatible value events may be represented by a single spec event with
 multiple values. This is independent of work-event and response-event batching.
@@ -687,13 +752,12 @@ def AdmissibleRun (work : Work) (history : History) : Prop :=
 def ValidHistory (work : Work) (history : History) : Prop :=
   AdmissiblePrefix work history ∨ AdmissibleRun work history
 
-/-- A nonempty batch may extend the valid, nonterminal history. Several batches may
+/-- A nonempty batch may extend an admitted prefix to a valid history. Several batches may
 qualify; none is chosen or promised.
 -/
 def AdmissibleNext (work : Work) (history : History) (batch : List WorkQueueEvent)
     : Prop :=
-  ValidHistory work history
-  ∧ ¬AdmissibleRun work history
+  AdmissiblePrefix work history
   ∧ batch ≠ []
   ∧ ValidHistory work { history with batches := history.batches ++ [batch] }
 

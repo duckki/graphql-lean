@@ -41,7 +41,7 @@ theorem NoStreamRefines.pure (value : α)
 theorem NoStreamRefines.error (errors : Nat)
     : NoStreamRefines (Pure.pure (Completion.error errors : Completion α))
         (Pure.pure (Completion.error errors : Completion α)) :=
-  fun _ => ⟨CompletionRefines.error (ResultRefines.refl _), rfl, rfl⟩
+  fun _ => ⟨CompletionRefines.error (ResultRefines.refl _) rfl, rfl, rfl⟩
 
 theorem NoStreamRefines.map {scheduled eager : StateM Nat (Completion α)}
     (known : NoStreamRefines scheduled eager) (wrap : Completion α → Completion β)
@@ -167,6 +167,7 @@ mutual
                 itemType fields value (path ++ [.index index]) usages context false
                 supply).1 errors outcome
             simp only [StateT.run_pure, id_pure_eq]
+            rw [related.2.2]
             refine ⟨
               CompletionRefines.fatal_cut List.cons _ ?_ positive,
               by trivial,
@@ -236,10 +237,10 @@ theorem literal_completeStreamItems_refines (schema : Schema)
       <;> simp only [ScheduledErrors.SameData, outcome, eagerOutcome] at same
       · simp only [StateT.run_pure, id_pure_eq]
         refine ⟨.cons ?_ .empty .nil, by trivial, by trivial⟩
-        simpa only [outcome, eagerOutcome] using related.1
+        exact related.outcome
       · simp only [StateT.run_pure, id_pure_eq, run_bind]
-        refine ⟨.cons ?_ related.2 tail, tailSupply, eagerTailSupply⟩
-        simpa only [outcome, eagerOutcome] using related.1
+        refine ⟨.cons ?_ related.2.1 tail, tailSupply, eagerTailSupply⟩
+        exact related.outcome
 
 -----------------------------------------------------------------------------------------
 -- Outer stream boundary allocates the same single key in the literal fragment
@@ -294,7 +295,7 @@ theorem literal_completeListValueWithStream_refines (schema : Schema)
       intro supply
       simp only [ScheduledExecution.completeListValueWithStream,
         Execution.completeListValueWithStream, usageResult]
-      exact ⟨⟨ResultRefines.refl _, .empty⟩, by trivial⟩
+      exact ⟨⟨ResultRefines.refl _, .empty, rfl⟩, by trivial⟩
   | ok option =>
       cases option with
       | none =>
@@ -341,7 +342,8 @@ theorem literal_completeListValueWithStream_refines (schema : Schema)
               simp only [freshNodeRef, run_bind, StateT.run_get, StateT.run_set,
                 StateT.run_pure, id_pure_eq]
               exact ⟨⟨(related.catchNull ResponseValue.list).1,
-                .combine (related.catchNull ResponseValue.list).2 (.stream tail)⟩,
+                .combine (related.catchNull ResponseValue.list).2.1 (.stream tail),
+                (related.catchNull ResponseValue.list).2.2⟩,
                 tailSupply.trans eagerTailSupply.symm⟩
 
 /-- All literal completions, including outer stream boundaries and recursively changed

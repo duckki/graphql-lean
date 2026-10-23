@@ -125,7 +125,7 @@ theorem StreamFailureCuts.unique {work events failures}
 /-- Finite pointwise witnesses can be labelled without changing their index order.
 Witness: list induction chooses one existing witness per index, retaining its property.
 -/
-private theorem choose_indexed_witnesses (indices : List Nat)
+theorem choose_indexed_witnesses (indices : List Nat)
     (property : Nat → Occurrence → Prop)
     (supported : ∀ index ∈ indices, ∃ occurrence, property index occurrence)
     : ∃ entries : FailureCuts,

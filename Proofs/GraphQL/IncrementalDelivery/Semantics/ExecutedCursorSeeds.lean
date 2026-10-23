@@ -54,7 +54,10 @@ mutual
         · exact collectExecutionGroups_seeded schema resolvers variables fuel parentType source _
             (List.nodup_append.mp hnames).2.1  path _
         · intro work hw
-          exact runEnsures_pure _ _ ((seeded_combineWork_fields hnames hc hw).mono hwiden)
+          apply runEnsures_pure
+          refine ((seeded_combineWork_fields hnames hc ?_).mono hwiden)
+          obtain ⟨slices, seeds, owned⟩ := hw
+          exact ⟨slices, fun cursors => .declareGroups (seeds cursors), owned⟩
   termination_by (fuel, 6, 0, 0)
   decreasing_by
     all_goals simp_wf
@@ -353,9 +356,9 @@ mutual
           split
           · rename_i errors he
             apply runEnsures_pure
-            exact ⟨[[]], by simpa only [he, result, List.nil_append] using
+            exact ⟨[[]], by simpa only [Completion.outcome, he, result, List.nil_append] using
               (ItemCursorSeed.cons  (path := path) (index := index)
-                (completed := head.result) WorkCursorSeed.empty ItemCursorSeed.nil), owns_nil _⟩
+                (completed := head.outcome) WorkCursorSeed.empty ItemCursorSeed.nil), owns_nil _⟩
           · refine runEnsures_bind (SeedOwnsItems path (index + 1)
               (UnderItems path (index + 1))) _ _ _ ?_ ?_
             · exact completeStreamItems_seeded schema resolvers variables fuel itemType selected rest

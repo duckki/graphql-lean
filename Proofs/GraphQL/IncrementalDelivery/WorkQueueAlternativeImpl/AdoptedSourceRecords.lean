@@ -45,55 +45,65 @@ theorem GeneratedAdoptedSourceProgress_holds : GeneratedAdoptedSourceProgress :=
       cases inputFound : before.queue.taskNode? incoming with
       | none => simp [graphEffects, inputFound] at adopted
       | some input =>
-          cases healthy : before.queue.taskHasHealthyOwner input.task with
-          | false => simp [graphEffects, inputFound, healthy] at adopted
-          | true =>
-              have same : producer = incoming := by
-                simpa only [graphEffects, inputFound, healthy, ↓reduceIte,
-                  List.mem_singleton, HostEffect.adopt.injEq]
-                  using adopted
-              subst producer
-              have rawFound := inputFound
-              rw [raw] at rawFound
-              obtain ⟨node, found, _, value, held⟩ := generated.taskSuccess_prepared_childStream
-                prior matching fresh rawFound (matching.taskChildStreams_complete known)
-              have prepared :
-                  (registrationSnapshot before.queue (.taskSuccess incoming result)).taskNode?
-                    incoming = some node := by
-                apply projection.buffered
-                · change (eagerRegistrationSnapshot before.queue
-                    (.taskSuccess incoming result)).taskNode? incoming = some node
-                  simp only [eagerRegistrationSnapshot, inputFound, healthy, ↓reduceIte]
-                  rw [raw]
-                  exact found
-                · rw [value]; rfl
-              exact GeneratedPreparedSourceProgress_holds work inputs _ generated valid
-                started trivial incoming node source.ref prepared (by rw [value]; rfl)
-                held
+          have same : producer = incoming := by
+            simpa only [graphEffects, inputFound, List.mem_singleton,
+              HostEffect.adopt.injEq]
+              using adopted
+          subst producer
+          have origins := generated.batchPrefix_streamProducersSeen inputs [] []
+            (by simpa using prior)
+          simp only [List.append_nil] at origins
+          have absent : before.queue.stream? source.ref = none := by
+            rw [raw]
+            exact origins.freshProducer_streamAbsent generated known
+              (fresh.2.2.1 incoming List.mem_cons_self)
+          obtain ⟨node, found, _, value, held⟩ :=
+            ReferenceWorkQueue.State.maybeIntegrateWork_fresh_stream_attached
+              (ReferenceWorkQueue.State.putTaskNode_value_lookup inputFound result.value)
+              result.work (matching.taskChildStreams_complete known) absent
+          have prepared :
+              (registrationSnapshot before.queue (.taskSuccess incoming result)).taskNode?
+                incoming = some node := by
+            apply projection.buffered
+            · change (eagerRegistrationSnapshot before.queue
+                (.taskSuccess incoming result)).taskNode? incoming = some node
+              simp only [eagerRegistrationSnapshot, inputFound]
+              exact found
+            · rw [value]; rfl
+          exact GeneratedPreparedSourceProgress_holds work inputs _ generated valid
+            started trivial incoming node source.ref prepared (by rw [value]; rfl)
+            held
   | streamItems stream items =>
       cases active : before.queue.rootStreams.contains stream.ref with
       | false => simp only [graphEffects, active, Bool.false_eq_true, ↓reduceIte,
           List.nil_append, List.mem_singleton, reduceCtorEq] at adopted
       | true =>
-          have listed : .adopt producer ∈ items.map (fun item => HostEffect.adopt item.occurrence) := by
+          have listed : .adopt producer ∈
+              items.map (fun item => HostEffect.adopt item.occurrence) := by
             simpa only [graphEffects, active, ↓reduceIte, List.mem_append,
               List.mem_singleton, reduceCtorEq, or_false]
               using adopted
           obtain ⟨item, selected, same⟩ := List.mem_map.mp listed
           have identity : item.occurrence = producer := HostEffect.adopt.inj same
-          have rawActive := active
-          rw [raw] at rawActive
-          have notice := generated.streamItems_child_notice prior matching fresh rawActive
-            selected (identity.symm ▸ known)
-          rw [← raw] at notice
+          have origins := generated.batchPrefix_streamProducersSeen inputs [] []
+            (by simpa using prior)
+          simp only [List.append_nil] at origins
+          have absent : before.queue.stream? source.ref = none := by
+            rw [raw]
+            exact origins.freshProducer_streamAbsent generated (identity.symm ▸ known)
+              (fresh.2.2.1 item.occurrence (List.mem_map_of_mem selected))
+          have notice := ReferenceWorkQueue.State.streamItems_fresh_notice stream items active
+            selected
+            (matching.itemChildStreams_complete selected (identity.symm ▸ known)) absent
           have dispatch := generatedReplay_dispatchProjection generated valid started
           apply Or.inl
           apply RecordTargetRepresented.activeStream
-          change source.ref ∈ (before.handleGraphEvent (.streamItems stream items)).1.queue.rootStreams
+          change source.ref ∈
+            (before.handleGraphEvent (.streamItems stream items)).1.queue.rootStreams
           rw [congrArg (fun pair => pair.1.rootStreams) dispatch]
-          exact before.queue.streamItems_streamRoots_cover stream items
+          exact before.queue.streamItems_streamRoots_cover stream items []
             (List.mem_append_right _ notice)
-  | taskFailure | streamSuccess => cases adopted
+  | taskFailure | groupFailure | streamSuccess => cases adopted
   | streamFailure stream errors =>
       simp only [graphEffects] at adopted
       split at adopted <;> simp at adopted
@@ -141,7 +151,8 @@ theorem ResourceState.observeAdoptions_queueOwned_origin (resources : ResourceSt
   | cons effect rest ih =>
       cases effect with
       | adopt producer =>
-          rcases ih (resources.adopt producer (inventories producer)) owned with earlier | transferred
+          rcases ih (resources.adopt producer (inventories producer)) owned with
+            earlier | transferred
           · unfold ResourceState.adopt at earlier
             split at earlier
             · rename_i selected
@@ -210,7 +221,8 @@ theorem GeneratedDispatchSourcesRepresented_of_progress
   · obtain ⟨producer, emitted, listed, lease⟩ := transferred
     have original := resources.observeNormalCompletion_owned_origin _ _ _ (.producer producer) lease
     obtain ⟨source, dependencies, same, known⟩ := identities producer key emitted listed original
-    rcases progress work inputs event generated valid started producer source dependencies emitted known with
+    rcases progress work inputs event generated valid started producer source dependencies
+      emitted known with
       retained | cancelled
     · exact same ▸ retained
     · obtain ⟨_, absent⟩ := ResourceState.requestQueueCleanup_still_owned _ _ (.stream key) owned

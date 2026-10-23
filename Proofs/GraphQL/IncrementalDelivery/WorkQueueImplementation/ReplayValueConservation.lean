@@ -14,9 +14,10 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 Witness: otherwise it was retired, and every source handler preserves that retirement.
 No source matching, freshness, or admission premise is needed for this backward fact.
 -/
-theorem State.replayGraphEvents_live_registered {queue : State} {ref}
-    (registered : ref ∈ queue.registeredGroups) (events : List GraphEvent)
-    {owner} (live : (queue.replayGraphEvents events).groupNode? ref = some owner)
+theorem State.replayGraphEvents_live_registered {queue : State}
+    {available : List (Occurrence × Nat)} {ref}
+    (registered : ref ∈ queue.registeredGroups) (events : List GraphEvent) {owner}
+    (live : (queue.replayGraphEvents events available).groupNode? ref = some owner)
     : ∃ earlier, queue.groupNode? ref = some earlier := by
   cases found : queue.groupNode? ref with
   | some node => exact ⟨node, rfl⟩
@@ -24,10 +25,10 @@ theorem State.replayGraphEvents_live_registered {queue : State} {ref}
       have retired := State.RetiredGroup.of_lookup_none registered found
       have preserve (events : List GraphEvent) (current : State)
           (prior : current.RetiredGroup ref)
-          : (current.replayGraphEvents events).RetiredGroup ref := by
+          : (current.replayGraphEvents events available).RetiredGroup ref := by
         induction events generalizing current with
         | nil => exact prior
-        | cons event rest ih => exact ih _ (prior.handleGraphEvent event)
+        | cons event rest ih => exact ih _ (prior.handleGraphEvent event available)
       have absent := (preserve events queue retired).lookup_none
       rw [live] at absent
       cases absent
@@ -41,39 +42,41 @@ Witness: compose the stored-value clauses of the same per-handler ledger. Perman
 registration transports endpoint liveness backward; take/drop membership embeds each
 local publication into the full list without comparing or relabelling equal payloads.
 -/
-theorem State.ReplayClosuresCovered.conserves {queue : State} {work events published}
-    (covered : queue.ReplayClosuresCovered events published)
-    (live : queue.LiveGroupsRegistered) (registered : queue.TaskGroupsRegistered)
-    (started : queue.StartedTasksRegistered)
+theorem State.ReplayClosuresCovered.conserves {queue : State}
+    {available : List (Occurrence × Nat)} {work events published}
+    (covered : queue.ReplayClosuresCovered events published available)
+    (registration : queue.RegistrationFrame work)
     (matching : ∀ event ∈ events, event.MatchesWork work)
     : queue.StoredValuesConserved
         (published.take
-          ((queue.rawEventReplay events).2.flatMap WorkQueueEvent.objectValues).length)
-        (queue.replayGraphEvents events) := by
+          ((queue.rawEventReplay events available).2.flatMap
+            WorkQueueEvent.objectValues).length)
+        (queue.replayGraphEvents events available) := by
   induction events generalizing queue published with
   | nil => exact fun _ _ _ found _ _ => Or.inr found
   | cons event rest ih =>
       intro occurrence node value found stored survivor
       obtain ⟨contributor, contributes, owner, survives⟩ := survivor
-      have next := queue.handleGraphEvent_registration live registered event
-        (matching event List.mem_cons_self)
+      have next := registration.dispatchGraphEvent event
+        (matching event List.mem_cons_self) available
       have known := State.taskNode?_some found
-      have recorded := registered node.task (started node known.1) contributor.ref
+      have recorded := registration.tasks node.task (registration.started node known.1) contributor.ref
         (List.mem_map.mpr ⟨contributor, contributes, rfl⟩)
       obtain ⟨currentOwner, currentLive⟩ := State.replayGraphEvents_live_registered
-        (next.2.2 recorded) rest survives
+        (next.2 recorded) rest survives
       rcases covered.2.2.1 occurrence node value found stored
           ⟨contributor, contributes, currentOwner, currentLive⟩ with now | retained
       · apply Or.inl
-        rw [State.rawEventReplay_cons, List.flatMap_append, List.length_append, List.take_add]
+        rw [State.rawEventReplay_cons queue event rest available, List.flatMap_append,
+          List.length_append, List.take_add]
         exact List.mem_append_left _ now
-      · have remaining := ih covered.tail next.1 next.2.1
-          (started.handleGraphEvent event)
+      · have remaining := ih covered.tail next.1
           (fun later member => matching later (List.mem_cons_of_mem _ member))
         rcases remaining occurrence node value retained stored
             ⟨contributor, contributes, owner, survives⟩ with later | still
         · apply Or.inl
-          rw [State.rawEventReplay_cons, List.flatMap_append, List.length_append, List.take_add]
+          rw [State.rawEventReplay_cons queue event rest available, List.flatMap_append,
+          List.length_append, List.take_add]
           exact List.mem_append_right _ later
         · exact Or.inr still
 
@@ -81,10 +84,10 @@ theorem State.ReplayClosuresCovered.conserves {queue : State} {work events publi
 Witness: retain each prefix handler's certificates and truncate only the recursion.
 The conservation theorem still bounds publication by the shorter replay's actual count.
 -/
-theorem State.ReplayClosuresCovered.prefix {queue : State} {published}
-    (before after : List GraphEvent)
-    (covered : queue.ReplayClosuresCovered (before ++ after) published)
-    : queue.ReplayClosuresCovered before published := by
+theorem State.ReplayClosuresCovered.prefix {queue : State}
+    {available : List (Occurrence × Nat)} {published} (before after : List GraphEvent)
+    (covered : queue.ReplayClosuresCovered (before ++ after) published available)
+    : queue.ReplayClosuresCovered before published available := by
   induction before generalizing queue published with
   | nil => trivial
   | cons event rest ih =>
@@ -95,13 +98,13 @@ theorem State.ReplayClosuresCovered.prefix {queue : State} {published}
 /-- Removing earlier handlers leaves the actual intermediate queue and remaining labels.
 Witness: add exact handler output counts while composing the ledger drops and state fold.
 -/
-theorem State.ReplayClosuresCovered.afterPrefix {queue : State} {published}
-    (before after : List GraphEvent)
-    (covered : queue.ReplayClosuresCovered (before ++ after) published)
-    : (queue.replayGraphEvents before).ReplayClosuresCovered after
+theorem State.ReplayClosuresCovered.afterPrefix {queue : State}
+    {available : List (Occurrence × Nat)} {published} (before after : List GraphEvent)
+    (covered : queue.ReplayClosuresCovered (before ++ after) published available)
+    : (queue.replayGraphEvents before available).ReplayClosuresCovered after
         (published.drop
-          ((queue.rawEventReplay before).2.flatMap
-            WorkQueueEvent.objectValues).length) := by
+          ((queue.rawEventReplay before available).2.flatMap
+            WorkQueueEvent.objectValues).length) available := by
   induction before generalizing queue published with
   | nil => exact covered
   | cons event rest ih =>

@@ -1,4 +1,4 @@
-import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.CachedErrors
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.AvailableErrors
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.GroupInvalidation
 
 /-! Provenance of retained failures, independent of output-history admission. -/
@@ -11,66 +11,108 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 -- Cached failures have a recorded contributing task
 -----------------------------------------------------------------------------------------
 
-/-- Each live error cache has an owner contribution from a task in `failed`.
-The predicate certifies provenance, not the exact accumulated count or output admission.
+/-- Retained task rejections have recorded contributors for each of their owners.
+This proof-only predicate observes task outcomes, not a per-group cache.
 -/
 def State.CachedFailuresSupported (queue : State) (work : Execution.Work)
     (failed : List Occurrence)
     : Prop :=
-  ∀ node ∈ queue.groupNodes,
-    node.failure.isSome = true
-    → ∃ occurrence ∈ failed,
-        ∃ owners, TaskHasOwners work occurrence owners ∧ node.group.node.ref ∈ owners
+  queue.CachedErrorsSatisfy
+    (fun ref _ =>
+      ∃ occurrence ∈ failed,
+        ∃ owners, TaskHasOwners work occurrence owners ∧ ref ∈ owners)
 
-/-- Cache support is the error-independent instance of exact cached-error facts.
-Witness: a present option contains a count; conversely an exact count is present.
--/
+/-- Failure provenance is the count-independent instance of task-rejection facts. -/
 theorem State.cachedFailuresSupported_iff {queue work failed}
     : State.CachedFailuresSupported queue work failed
       ↔ queue.CachedErrorsSatisfy
           (fun ref _ =>
             ∃ occurrence ∈ failed,
-              ∃ owners, TaskHasOwners work occurrence owners ∧ ref ∈ owners) := by
-  constructor
-  · intro supported node member errors same
-    exact supported node member (by simp [same])
-  · intro cached node member present
-    cases same : node.failure with
-    | none => simp [same] at present
-    | some errors => exact cached node member errors same
+              ∃ owners, TaskHasOwners work occurrence owners ∧ ref ∈ owners) :=
+  Iff.rfl
 
-/-- A supported cache invalidates its owner in the independent cleanup relation.
-Witness: its recorded contributing task is a direct invalidation cause.
--/
-theorem State.CachedFailuresSupported.invalidated {queue work failed node}
+/-- A retained rejection invalidates every contributor named by its task. -/
+theorem State.CachedFailuresSupported.invalidated {queue work failed node group}
     (supported : State.CachedFailuresSupported queue work failed)
-    (member : node ∈ queue.groupNodes) (cached : node.failure.isSome = true)
-    : GroupInvalidated work failed node.group.node.ref := by
-  obtain ⟨occurrence, recorded, owners, known, owner⟩ := supported node member cached
-  exact .task known owner recorded
+    (member : node ∈ queue.taskNodes) (cached : node.rejection.isSome = true)
+    (owner : group ∈ node.task.groups)
+    : GroupInvalidated work failed group.ref := by
+  cases rejected : node.rejection with
+  | none => simp [rejected] at cached
+  | some errors =>
+      obtain ⟨occurrence, recorded, owners, known, contributes⟩ :=
+        supported node member errors rejected group owner
+      exact .task known contributes recorded
 
-/-- Healthy groups cannot contain a retained failure.
-Witness: a nonempty cache would supply a direct invalidation cause.
--/
-theorem State.CachedFailuresSupported.healthy_none {queue work failed node}
+/-- A task with a healthy contributor cannot retain a supported rejection. -/
+theorem State.CachedFailuresSupported.healthy_none {queue work failed node group}
     (supported : State.CachedFailuresSupported queue work failed)
-    (member : node ∈ queue.groupNodes)
-    (healthy : ¬GroupInvalidated work failed node.group.node.ref)
-    : node.failure = none := by
-  cases cached : node.failure with
+    (member : node ∈ queue.taskNodes) (owner : group ∈ node.task.groups)
+    (healthy : ¬GroupInvalidated work failed group.ref)
+    : node.rejection = none := by
+  cases rejected : node.rejection with
   | none => rfl
-  | some errors => exact (healthy (supported.invalidated member (by simp [cached]))).elim
+  | some errors =>
+      exact (healthy (supported.invalidated member (by simp [rejected]) owner)).elim
 
-/-- More recorded tasks preserve every existing cache witness.
-Witness: inclusion transports the contributor's membership.
--/
+/-- Enlarging the failure inventory preserves every retained contributor witness. -/
 theorem State.CachedFailuresSupported.weaken {queue work before after}
     (supported : State.CachedFailuresSupported queue work before)
     (included : before.Subset after)
-    : queue.CachedFailuresSupported work after := by
-  intro node member cached
-  obtain ⟨occurrence, recorded, owners, known, owner⟩ := supported node member cached
-  exact ⟨occurrence, included recorded, owners, known, owner⟩
+    : queue.CachedFailuresSupported work after :=
+  supported.mono
+    (by
+      rintro ref errors ⟨occurrence, recorded, owners, known, contributes⟩
+      exact ⟨occurrence, included recorded, owners, known, contributes⟩)
+
+/-- A matched rejected task provides the same recorded occurrence to each contributor. -/
+private theorem availableFailureSupport {work : Execution.Work} {failed : List Occurrence}
+    {task : Task} (known : TaskMatches work task) (recorded : task.occurrence ∈ failed)
+    {group : Execution.DeliveryNode} (member : group ∈ task.groups)
+    : ∃ occurrence ∈ failed,
+        ∃ owners, TaskHasOwners work occurrence owners ∧ group.ref ∈ owners := by
+  obtain ⟨address, payload, producer, _, taskAt⟩ := known.1
+  exact ⟨task.occurrence, recorded, _, ⟨producer, payload, taskAt⟩,
+    List.mem_map.mpr ⟨group, member, rfl⟩⟩
+
+/-- Every newly exposed rejection is supported by the batch's recorded source occurrence. -/
+theorem State.CachedFailuresSupported.cacheTaskFailures {queue work failed}
+    (supported : State.CachedFailuresSupported queue work failed)
+    (registered : queue.StartedTasksRegistered)
+    (matching : queue.RegisteredTasksMatch work) (available : List (Occurrence × Nat))
+    (recorded
+      : ∀ occurrence errors, (occurrence, errors) ∈ available → occurrence ∈ failed)
+    : (queue.cacheTaskFailures available).CachedFailuresSupported work failed := by
+  apply State.CachedErrorsSatisfy.cacheTaskFailures supported registered matching available
+  intro task known errors member group contributes
+  exact availableFailureSupport known (recorded _ _ member) contributes
+
+/-- Startup retains failure provenance from both old caches and the batch snapshot. -/
+theorem State.CachedFailuresSupported.startGroup_available {queue work failed}
+    (supported : State.CachedFailuresSupported queue work failed)
+    (registered : queue.StartedTasksRegistered)
+    (matching : queue.RegisteredTasksMatch work) (ref : NodeRef)
+    (available : List (Occurrence × Nat))
+    (recorded
+      : ∀ occurrence errors, (occurrence, errors) ∈ available → occurrence ∈ failed)
+    : (queue.startGroup ref available).1.CachedFailuresSupported work failed := by
+  apply State.CachedErrorsSatisfy.startGroup_available supported registered matching ref available
+  intro task known errors member group contributes
+  exact availableFailureSupport known (recorded _ _ member) contributes
+
+/-- Released work retains support licensed by a fixed batch availability snapshot. -/
+theorem State.CachedFailuresSupported.startNewWork_available {queue work failed}
+    (supported : State.CachedFailuresSupported queue work failed)
+    (registered : queue.StartedTasksRegistered)
+    (matching : queue.RegisteredTasksMatch work) (more : NewWork)
+    (available : List (Occurrence × Nat))
+    (recorded
+      : ∀ occurrence errors, (occurrence, errors) ∈ available → occurrence ∈ failed)
+    : (queue.startNewWork more available).1.CachedFailuresSupported work failed := by
+  apply State.CachedErrorsSatisfy.startNewWork_available
+    supported registered matching more available
+  intro task known errors member group contributes
+  exact availableFailureSupport known (recorded _ _ member) contributes
 
 /-- A pointwise invariant is preserved by folding individually preserving steps.
 Witness: list induction threads the actual state, without queue-admission assumptions.
@@ -84,25 +126,11 @@ private theorem fold_preserves {α β : Type} (property : β → Prop)
   | nil => exact valid
   | cons item rest ih => exact ih _ (preserved state item valid)
 
-/-- Replacing a group preserves cache provenance when the replacement has a witness.
-Witness: every updated node is either the replacement or an unchanged old node.
--/
+/-- Group metadata changes leave task-rejection provenance unchanged. -/
 theorem State.CachedFailuresSupported.putGroupNode {queue work failed}
     (supported : State.CachedFailuresSupported queue work failed) (updated : GroupNode)
-    (replacement
-      : updated.failure.isSome = true
-        → ∃ occurrence ∈ failed,
-            ∃ owners,
-              TaskHasOwners work occurrence owners ∧ updated.group.node.ref ∈ owners)
-    : (queue.putGroupNode updated).CachedFailuresSupported work failed := by
-  rw [State.cachedFailuresSupported_iff] at supported ⊢
-  apply supported.putGroupNode updated
-  intro errors same
-  exact replacement (by simp [same])
-
------------------------------------------------------------------------------------------
--- Integration and activation do not introduce failure caches
------------------------------------------------------------------------------------------
+    : (queue.putGroupNode updated).CachedFailuresSupported work failed :=
+  supported
 
 /-- Fresh group registration starts with no error cache.
 Witness: existing nodes retain their witnesses and the appended node has `none`.
@@ -161,12 +189,12 @@ theorem State.CachedFailuresSupported.pruneEmptyGroups {queue work failed}
   rw [State.cachedFailuresSupported_iff] at supported ⊢
   exact supported.pruneEmptyGroups groups
 
-/-- Activation starts host work without changing group caches.
-Witness: task, group, and stream start folds preserve the group-node projection.
+/-- Activation without new input availability retains supported task rejections.
+Witness: startup preserves rejection facts on every retained computation.
 -/
 theorem State.CachedFailuresSupported.startNewWork {queue work failed}
     (supported : State.CachedFailuresSupported queue work failed) (more : NewWork)
-    : (queue.startNewWork more).CachedFailuresSupported work failed := by
+    : (queue.startNewWork more).1.CachedFailuresSupported work failed := by
   rw [State.cachedFailuresSupported_iff] at supported ⊢
   exact supported.startNewWork more
 
@@ -253,53 +281,17 @@ theorem State.CachedFailuresSupported.taskFailure {queue work failed}
     (matching : queue.RegisteredTasksMatch work) (occurrence : Occurrence) (errors : Nat)
     (recorded : occurrence ∈ failed)
     : (queue.taskFailure occurrence errors).1.CachedFailuresSupported work failed := by
-  let step (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode) :=
-    let (current, outputs) := acc
-    match current.groupNode? group.ref with
-    | none => (current, outputs)
-    | some node =>
-        if current.rootGroups.contains group.ref then
-          let (next, failure) := current.finishGroupFailure node errors
-          (next, outputs ++ [failure])
-        else (current.putGroupNode
-          { node with
-            pending := node.pending - 1
-            failure := some (node.failure.getD 0 + errors) }, outputs)
-  unfold State.taskFailure
-  split
-  · exact supported
-  · rename_i taskNode found
-    split <;> try exact supported.removeTask occurrence
-    have member := List.mem_of_find?_eq_some found
-    have same : taskNode.task.occurrence = occurrence :=
-      (occurrence_beq_iff_eq _ _).mp
-        (List.find?_some (p := fun node : TaskNode => node.task.occurrence == occurrence) found)
-    obtain ⟨address, payload, producer, _, known⟩ :=
-      (matching taskNode.task (registered taskNode member)).1
-    have owners : TaskHasOwners work occurrence
-        (taskNode.task.groups.map Execution.DeliveryNode.ref) := ⟨producer, payload, same ▸ known⟩
-    have fold (groups : List Execution.DeliveryNode)
-        (included : groups.Subset taskNode.task.groups)
-        (acc : State × List WorkQueueEvent) (valid : acc.1.CachedFailuresSupported work failed)
-        : (groups.foldl step acc).1.CachedFailuresSupported work failed := by
-      induction groups generalizing acc with
-      | nil => exact valid
-      | cons group rest ih =>
-          apply ih (fun _ member => included (List.mem_cons_of_mem _ member))
-          obtain ⟨current, outputs⟩ := acc
-          dsimp only [step]
-          split
-          · exact valid
-          · rename_i node located
-            split
-            · exact valid.removeGroup node.group.node.ref
-            · apply valid.putGroupNode
-              intro _
-              refine ⟨occurrence, recorded, _, owners, ?_⟩
-              rw [current.groupNode?_ref located]
-              exact List.mem_map.mpr ⟨group, included List.mem_cons_self, rfl⟩
-    exact fold taskNode.task.groups (List.Subset.refl _)
-      (queue.removeTask occurrence, []) (supported.removeTask occurrence)
+  apply State.CachedErrorsSatisfy.taskFailure supported occurrence errors
+  intro node found group member
+  have live := List.mem_of_find?_eq_some found
+  have same : node.task.occurrence = occurrence :=
+    (occurrence_beq_iff_eq _ _).mp
+      (List.find?_some (p := fun candidate : TaskNode =>
+        candidate.task.occurrence == occurrence) found)
+  obtain ⟨address, payload, producer, _, known⟩ :=
+    (matching node.task (registered node live)).1
+  exact ⟨occurrence, recorded, _, ⟨producer, payload, same ▸ known⟩,
+    List.mem_map.mpr ⟨group, member, rfl⟩⟩
 
 /-- One host event preserves support when any failed task is included in `failed`.
 Witness: unchanged caches on nonfailure handlers and task provenance on failure.
@@ -313,6 +305,12 @@ theorem State.CachedFailuresSupported.handleGraphEvent {queue work failed}
     : (queue.handleGraphEvent event).1.CachedFailuresSupported work failed := by
   cases event with
   | taskSuccess occurrence result => exact supported.taskSuccess occurrence result
+  | groupFailure failure =>
+      change (queue.groupFailure failure).1.CachedFailuresSupported work failed
+      unfold State.groupFailure
+      split
+      · exact supported
+      · split <;> exact supported
   | taskFailure occurrence errors =>
       exact supported.taskFailure registered matching occurrence errors (recorded _ _ rfl)
   | streamItems stream items => exact supported.streamItems stream items
@@ -329,6 +327,23 @@ theorem State.CachedFailuresSupported.handleGraphEvent {queue work failed}
 -- Provenance through finite host replay
 -----------------------------------------------------------------------------------------
 
+/-- Batch dispatch retains supported caches when its current failure is in the snapshot. -/
+theorem State.CachedFailuresSupported.handleGraphEvent_available {queue work failed}
+    (supported : State.CachedFailuresSupported queue work failed)
+    (registered : queue.StartedTasksRegistered)
+    (matching : queue.RegisteredTasksMatch work) (event : GraphEvent)
+    (source : event.MatchesWork work) (available : List (Occurrence × Nat))
+    (recorded
+      : ∀ occurrence errors, (occurrence, errors) ∈ available → occurrence ∈ failed)
+    (notified
+      : ∀ occurrence errors,
+          event = .taskFailure occurrence errors → (occurrence, errors) ∈ available)
+    : (queue.handleGraphEvent event available).1.CachedFailuresSupported work failed := by
+  refine State.CachedErrorsSatisfy.handleGraphEvent_available supported registered matching
+    event source available ?_ notified
+  intro task known errors member group contributes
+  exact availableFailureSupport known (recorded _ _ member) contributes
+
 /-- A host batch preserves cache support and the task-registration witnesses it uses.
 Witness: sequential event handling maintains all three internal facts together.
 -/
@@ -340,35 +355,15 @@ theorem State.CachedFailuresSupported.handleGraphEvents {queue work failed}
     (recorded
       : ∀ occurrence errors, .taskFailure occurrence errors ∈ batch → occurrence ∈ failed)
     : (queue.handleGraphEvents batch).1.CachedFailuresSupported work failed := by
-  let invariant (current : State) := current.CachedFailuresSupported work failed
-    ∧ current.StartedTasksRegistered ∧ current.RegisteredTasksMatch work
-  let step (acc : State × List WorkQueueEvent) (event : GraphEvent) :=
-    let (current, outputs) := acc
-    let (next, produced) := current.handleGraphEvent event
-    (next, outputs ++ produced)
-  have fold (events : List GraphEvent) (included : events.Subset batch)
-      (acc : State × List WorkQueueEvent) (valid : invariant acc.1)
-      : invariant (events.foldl step acc).1 := by
-    induction events generalizing acc with
-    | nil => exact valid
-    | cons event rest ih =>
-        apply ih (fun _ member => included (List.mem_cons_of_mem _ member))
-        have eventMember := included List.mem_cons_self
-        refine ⟨valid.1.handleGraphEvent valid.2.1 valid.2.2 event ?_,
-          valid.2.1.handleGraphEvent event, valid.2.2.handleGraphEvent event
-            (allMatch event eventMember)⟩
-        intro occurrence errors same
-        exact recorded occurrence errors (same ▸ eventMember)
-  unfold State.handleGraphEvents
-  split
-  · exact supported
-  · let folded := batch.foldl step (queue, [])
-    have final : folded.1.CachedFailuresSupported work failed :=
-      (fold batch (List.Subset.refl _) (queue, []) ⟨supported, registered, matching⟩).1
-    cases folded with
-    | mk current outputs =>
-        dsimp only at final ⊢
-        split <;> exact final
+  apply State.CachedErrorsSatisfy.handleGraphEvents_available
+    supported registered matching batch allMatch
+  intro task known errors available group contributes
+  obtain ⟨event, eventMember, same⟩ := List.mem_filterMap.mp available
+  cases event <;> simp only [Option.some.injEq, reduceCtorEq, Prod.mk.injEq] at same
+  obtain ⟨rfl, rfl⟩ := same
+  obtain ⟨address, payload, producer, _, taskAt⟩ := known.1
+  exact ⟨task.occurrence, recorded _ _ eventMember, _, ⟨producer, payload, taskAt⟩,
+    List.mem_map.mpr ⟨group, contributes, rfl⟩⟩
 
 /-- Normalized replay preserves support by input failures, independently of wire output.
 Witness: batch induction carries registration alongside cache support; normalization
@@ -416,18 +411,18 @@ theorem State.CachedFailuresSupported.runNormalized {queue work failed}
 Witness: replay support with exactly the failed-task identities extracted from the input.
 No explained output history, fairness, or queue-conformance premise is used.
 -/
-theorem createWorkQueue_runNormalized_cachedFailure_hasSource
-    {work : Execution.Work} {batches : List (List GraphEvent)}
-    (valid : ValidGraphEvents work batches.flatten) {node : GroupNode}
+theorem createWorkQueue_runNormalized_cachedFailure_hasSource {work : Execution.Work}
+    {batches : List (List GraphEvent)} (valid : ValidGraphEvents work batches.flatten)
+    {node : TaskNode} {group : Execution.DeliveryNode} {errors : Nat}
     (member
       : node
         ∈ ((State.initialize (Work.fromExecution work)).runNormalized
-            batches).1.groupNodes)
-    (cached : node.failure.isSome = true)
+            batches).1.taskNodes)
+    (cached : node.rejection = some errors) (contributes : group ∈ node.task.groups)
     : ∃ occurrence errors owners,
         .taskFailure occurrence errors ∈ batches.flatten
         ∧ TaskHasOwners work occurrence owners
-        ∧ node.group.node.ref ∈ owners := by
+        ∧ group.ref ∈ owners := by
   let failed := batches.flatten.filterMap (fun event => match event with
     | .taskFailure occurrence _ => some occurrence
     | _ => none)
@@ -439,7 +434,8 @@ theorem createWorkQueue_runNormalized_cachedFailure_hasSource
   have supported := initialized.runNormalized (createWorkQueue_startedTasksRegistered _)
       (createWorkQueue_fromSpec_registeredTasksMatch work) batches
       (fun _ member => valid.eachMatches member) recorded
-  obtain ⟨occurrence, inFailed, owners, known, owner⟩ := supported node member cached
+  obtain ⟨occurrence, inFailed, owners, known, owner⟩ :=
+    supported node member errors cached group contributes
   obtain ⟨event, inInputs, same⟩ := List.mem_filterMap.mp inFailed
   cases event <;> simp only [Option.some.injEq, reduceCtorEq] at same
   rename_i actual errors

@@ -25,8 +25,8 @@ theorem ExecutedWork.taskSuccess_noticeAncestor_completed
       let queue := initial.replayGraphEvents before
       let outputs :=
         (initial.rawEventReplay before).2
-        ++ (queue.taskSuccess occurrence result).2.take (index + 1)
-      (queue.taskSuccess occurrence result).2[index]?
+        ++ (queue.taskSuccess occurrence result).2.1.take (index + 1)
+      (queue.taskSuccess occurrence result).2.1[index]?
         = some (.groupSuccess group groups streams)
       → child ∈ groups
       → ref ∉ (queue.taskSuccess occurrence result).1.cancelledGroups
@@ -34,44 +34,39 @@ theorem ExecutedWork.taskSuccess_noticeAncestor_completed
       → ref ∈ outputs.flatMap rawGroupClosureRefs := by
   intro initial queue outputs selected noticed uncancelled announced
   have priorUncancelled : ref ∉ queue.cancelledGroups :=
-    fun member => uncancelled (queue.taskSuccess_cancelledGroups_subset _ _ member)
+    fun member => uncancelled (queue.taskSuccess_cancelledGroups_subset _ _ [] member)
   cases found : queue.taskNode? occurrence with
   | none => simp [State.taskSuccess, found] at selected
   | some incoming =>
-      cases healthy : queue.taskHasHealthyOwner incoming.task with
-      | false =>
-          rw [queue.taskSuccess_eq occurrence result incoming found] at selected
-          simp [healthy] at selected
-      | true =>
-          let prepared := ((queue.putTaskNode
-            { incoming with value := some result.value }).maybeIntegrateWork
-              result.work (some occurrence)).1
-          let folded := incoming.task.groups.foldl successGroupStep (prepared, [], {})
-          let active := folded.1.startNewWork folded.2.2
-          have equation : queue.taskSuccess occurrence result
-              = (active.drainReadyGroups.1, folded.2.1 ++ active.drainReadyGroups.2) := by
-            rw [queue.taskSuccess_eq occurrence result incoming found]
-            simp only [healthy, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
-            rfl
-          dsimp only [outputs] at announced ⊢
-          rw [equation] at selected uncancelled announced ⊢
-          dsimp only at selected uncancelled announced ⊢
-          by_cases inFold : index < folded.2.1.length
-          · rw [List.getElem?_append_left inFold] at selected
-            rw [List.take_append_of_le_length (by omega : index + 1 ≤ folded.2.1.length)]
-              at announced ⊢
-            exact generated.ownerNoticeAncestor_completed matching matched known ancestor
-              selected noticed priorUncancelled announced
-          · have inDrain : folded.2.1.length ≤ index := by omega
-            rw [List.getElem?_append_right inDrain] at selected
-            rw [List.take_append, List.take_of_length_le (by omega
-              : folded.2.1.length ≤ index + 1), ← List.append_assoc] at announced ⊢
-            have offset
-                : index + 1 - folded.2.1.length = index - folded.2.1.length + 1 := by
-              omega
-            rw [offset] at announced ⊢
-            exact generated.taskDrainNoticeAncestor_completed matching matched known
-              ancestor selected noticed uncancelled announced
+      let prepared := ((queue.putTaskNode
+        { incoming with value := some result.value }).maybeIntegrateWork
+          result.work (some occurrence)).1
+      let folded := incoming.task.groups.foldl successGroupStep (prepared, [], {})
+      let active := (folded.1.startNewWork folded.2.2).1
+      have equation : queue.taskSuccess occurrence result
+          = (active.drainReadyGroups.1, folded.2.1 ++ active.drainReadyGroups.2.1,
+            (folded.1.startNewWork folded.2.2).2 ++ active.drainReadyGroups.2.2) := by
+        rw [queue.taskSuccess_eq occurrence result incoming found]
+
+      dsimp only [outputs] at announced ⊢
+      rw [equation] at selected uncancelled announced ⊢
+      dsimp only at selected uncancelled announced ⊢
+      by_cases inFold : index < folded.2.1.length
+      · rw [List.getElem?_append_left inFold] at selected
+        rw [List.take_append_of_le_length (by omega : index + 1 ≤ folded.2.1.length)]
+          at announced ⊢
+        exact generated.ownerNoticeAncestor_completed matching matched found known ancestor
+          selected noticed priorUncancelled announced
+      · have inDrain : folded.2.1.length ≤ index := by omega
+        rw [List.getElem?_append_right inDrain] at selected
+        rw [List.take_append, List.take_of_length_le (by omega
+          : folded.2.1.length ≤ index + 1), ← List.append_assoc] at announced ⊢
+        have offset
+            : index + 1 - folded.2.1.length = index - folded.2.1.length + 1 := by
+          omega
+        rw [offset] at announced ⊢
+        exact generated.taskDrainNoticeAncestor_completed matching matched found known
+          ancestor selected noticed uncancelled announced
 
 /-- An item handler's group-success notice completes its announced ancestors by that carrier.
 Witness: a group-success output cannot be the leading item carrier; its successor index
@@ -86,8 +81,8 @@ theorem ExecutedWork.streamItems_groupNoticeAncestor_completed
       let queue := initial.replayGraphEvents before
       let outputs :=
         (initial.rawEventReplay before).2
-        ++ (queue.streamItems stream items).2.take (index + 1)
-      (queue.streamItems stream items).2[index]?
+        ++ (queue.streamItems stream items).2.1.take (index + 1)
+      (queue.streamItems stream items).2.1[index]?
         = some (.groupSuccess group groups streams)
       → child ∈ groups
       → ref ∉ (queue.streamItems stream items).1.cancelledGroups
@@ -123,14 +118,16 @@ task-success and item handlers can carry group notices, and both preserve the ex
 theorem ExecutedWork.handleGraphEvent_groupNoticeAncestor_completed
     {work before event index group groups streams child dependencies ref}
     (generated : ExecutedWork work) (valid : ValidGraphEvents work (before ++ [event]))
-    (started : (State.initialize (Work.fromExecution work)).acceptsBatch before = true)
+    (started
+      : State.eventsStarted [] (State.initialize (Work.fromExecution work)) before = true)
     (known : GroupRecordAt work child dependencies) (ancestor : ref ∈ dependencies)
     : let initial := State.initialize (Work.fromExecution work)
       let queue := initial.replayGraphEvents before
       let outputs :=
         (initial.rawEventReplay before).2
-        ++ (queue.handleGraphEvent event).2.take (index + 1)
-      (queue.handleGraphEvent event).2[index]? = some (.groupSuccess group groups streams)
+        ++ (queue.handleGraphEvent event).2.1.take (index + 1)
+      (queue.handleGraphEvent event).2.1[index]?
+        = some (.groupSuccess group groups streams)
       → child ∈ groups
       → ref ∈ initial.rootGroups ++ outputs.flatMap rawGroupNoticeRefs
       → ref ∈ outputs.flatMap rawGroupClosureRefs := by
@@ -159,6 +156,12 @@ theorem ExecutedWork.handleGraphEvent_groupNoticeAncestor_completed
       have member := List.mem_of_getElem? selected
       simp only [State.handleGraphEvent, State.streamFailure] at member
       split at member <;> simp at member
+  | groupFailure notice =>
+      have member := List.mem_of_getElem? selected
+      simp only [State.handleGraphEvent, State.groupFailure] at member
+      split at member
+      · cases member
+      · split at member <;> simp at member
 
 -----------------------------------------------------------------------------------------
 -- A leading item carrier cannot borrow a closure from its later drain
@@ -172,31 +175,37 @@ prepared-root completion theorem applies without using any later drain output.
 theorem ExecutedWork.handleGraphEvent_itemNoticeAncestor_completed
     {work before event index stream values groups streams child dependencies ref}
     (generated : ExecutedWork work) (valid : ValidGraphEvents work (before ++ [event]))
-    (started : (State.initialize (Work.fromExecution work)).acceptsBatch before = true)
+    (started
+      : State.eventsStarted [] (State.initialize (Work.fromExecution work)) before = true)
     (known : GroupRecordAt work child dependencies) (ancestor : ref ∈ dependencies)
     : let initial := State.initialize (Work.fromExecution work)
       let queue := initial.replayGraphEvents before
       let outputs :=
-        (initial.rawEventReplay before).2 ++ (queue.handleGraphEvent event).2.take index
-      (queue.handleGraphEvent event).2[index]?
+        (initial.rawEventReplay before).2 ++ (queue.handleGraphEvent event).2.1.take index
+      (queue.handleGraphEvent event).2.1[index]?
         = some (.streamValues stream values groups streams)
       → child ∈ groups
       → ref ∈ initial.rootGroups ++ outputs.flatMap rawGroupNoticeRefs
       → ref ∈ outputs.flatMap rawGroupClosureRefs := by
   intro initial queue outputs selected noticed announced
-  obtain ⟨owner, items, rfl⟩ := queue.handleGraphEvent_streamValues_source event selected
-  obtain ⟨_, rfl, notices⟩ := queue.streamItems_noticeGroups owner items selected
+  obtain ⟨owner, items, rfl⟩ := queue.handleGraphEvent_streamValues_source event [] selected
+  obtain ⟨active, rfl, notices⟩ := queue.streamItems_noticeGroups owner items selected
   have uncancelled := (generated.noticeAncestor_healthy_uncancelled valid started
     (List.mem_of_getElem? selected) (List.mem_map_of_mem noticed) known ancestor).2
   rw [State.replayGraphEvents_append] at uncancelled
-  have priorUncancelled : ref ∉ queue.cancelledGroups :=
-    fun member => uncancelled (queue.streamItems_cancelledGroups_subset _ _ member)
+  have preparedUncancelled : ref ∉ (queue.preparedStreamItems items).cancelledGroups := by
+    intro member
+    apply uncancelled
+    change ref ∈ (queue.streamItems owner items).1.cancelledGroups
+    rw [queue.streamItems_eq owner items]
+    simp only [active, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
+    exact State.drainReadyGroups_go_cancelledGroups_subset _ _ [] member
   have matching : ∀ entry ∈ before, entry.MatchesWork work :=
     fun _ member => (valid.prefix (List.prefix_append before [_])).eachMatches member
   have matched := valid.eachMatches (List.mem_append_right before List.mem_cons_self)
   dsimp only [outputs] at announced ⊢
   simp only [List.take_zero, List.append_nil] at announced ⊢
   exact generated.streamPrepared_noticeAncestor_completed matching matched known ancestor
-    (notices ▸ noticed) priorUncancelled announced
+    (notices ▸ noticed) preparedUncancelled announced
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

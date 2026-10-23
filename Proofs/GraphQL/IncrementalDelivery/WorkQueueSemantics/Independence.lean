@@ -52,7 +52,8 @@ theorem owner_after_object
     : PublicationOwner work initial matching (events ++ [.groupValues carrier values])
         failed owners node
       ↔ PublicationOwner work initial matching events failed owners node := by
-  simp [PublicationOwner, HealthyOpenOwner, OpenOwner, Open, announcedRefs, pendingRefs, completedRefs,
+  simp [PublicationOwner, HealthyOpenOwner, OpenOwner, Open, announcedRefs, pendingRefs,
+    completedRefs,
     List.flatMap_append, eventPending, eventCompleted, (causality_append_eq bounded _).1]
 
 /-- Two distinct ready object tasks may publish in this order with the same owners.
@@ -203,7 +204,8 @@ Witness: its open ref remains open, and all node-accounting facts persist on ext
 theorem EventAllowed.groupSuccess_after_other
     {work initial matching events failed node other}
     (allowed
-      : EventAllowed work initial matching events failed (.groupSuccess node [] []))
+      : EventAllowed work initial matching events failed (.groupSuccess node [] [])
+          reported)
     (bounded : ∀ entry ∈ failed, entry.1 ≤ events.length)
     (distinct : other.ref ≠ node.ref)
     : EventAllowed work initial matching (events ++ [.groupSuccess other [] []]) failed
@@ -226,10 +228,10 @@ theorem Explains.group_closures_commute
     (explained : Explains work groups streams events matching failures)
     (leftAllowed
       : EventAllowed work ((groups ++ streams).map DeliveryNode.ref) matching
-          events failures (.groupSuccess left [] []))
+          events failures (.groupSuccess left [] []) reported)
     (rightAllowed
       : EventAllowed work ((groups ++ streams).map DeliveryNode.ref) matching
-          events failures (.groupSuccess right [] []))
+          events failures (.groupSuccess right [] []) reported)
     (distinct : left.ref ≠ right.ref)
     : Explains work groups streams
         (events ++ [.groupSuccess left [] [], .groupSuccess right [] []]) matching
@@ -246,9 +248,9 @@ theorem Explains.group_closures_commute
                 (events ++ [.groupSuccess right [] [], .groupSuccess left [] []]) := by
   have ordered {first second : DeliveryNode}
       (firstAllowed : EventAllowed work ((groups ++ streams).map DeliveryNode.ref) matching
-        events failures (.groupSuccess first [] []))
+        events failures (.groupSuccess first [] []) reported)
       (secondAllowed : EventAllowed work ((groups ++ streams).map DeliveryNode.ref) matching
-        events failures (.groupSuccess second [] []))
+        events failures (.groupSuccess second [] []) reported)
       (different : first.ref ≠ second.ref)
       : Explains work groups streams
           (events ++ [.groupSuccess first [] [], .groupSuccess second [] []]) matching

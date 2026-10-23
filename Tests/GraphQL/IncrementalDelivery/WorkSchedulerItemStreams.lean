@@ -14,23 +14,25 @@ private def outer : DeliveryNode := { ref := 0, path := [.field "users"] }
 private def child (index : Nat) : DeliveryNode :=
   { ref := index + 1, path := [.field "users", .index index, .field "values"] }
 
-private def childItems : List (Result ResponseValue × Execution.Work) :=
+private def childItems : List (TaskOutcome ResponseValue × Execution.Work) :=
   [
-    (.ok (.scalar "x", 0), .empty),
-    (.ok (.null, 0), .empty),
-    (.ok (.scalar "z", 0), .empty)
+    ({ result := .ok (.scalar "x", 0) }, .empty),
+    ({ result := .ok (.null, 0) }, .empty),
+    ({ result := .ok (.scalar "z", 0) }, .empty)
   ]
 
 private def children (index : Nat) : Execution.Work :=
-  .combine (.combine (.combine .empty (.stream (child index) childItems)) .empty) .empty
+  .combine (.combine (.combine .empty (.stream (child index) childItems)) .empty)
+    (.declareGroups [] .empty)
 
 private def value : ResponseValue := .object [("values", .list [])]
 
-private def entries : List (Result ResponseValue × Execution.Work) :=
-  [(.ok (value, 0), children 0), (.ok (value, 0), children 1)]
+private def entries : List (TaskOutcome ResponseValue × Execution.Work) :=
+  [({ result := .ok (value, 0) }, children 0), ({ result := .ok (value, 0) }, children 1)]
 
 private def work : Execution.Work :=
-  .combine (.combine (.combine .empty (.stream outer entries)) .empty) .empty
+  .combine (.combine (.combine .empty (.stream outer entries)) .empty)
+    (.declareGroups [] .empty)
 
 private def item (index : Nat) : StreamItem :=
   {
@@ -64,17 +66,27 @@ private theorem itemMatches (index : Nat) (bound : index < 2)
         TaskAt work (item index).occurrence owners producer
           (.item outer (.ok ((item index).value.item, (item index).value.errors)))
         ∧ streamItemWork? work (item index).occurrence = some (item index).work := by
-  have entry : entries[index]? = some (.ok (value, 0), children index) := by
+  have entry : entries[index]? = some ({ result := .ok (value, 0) }, children index) := by
     have casesIndex : index = 0 ∨ index = 1 := by omega
     rcases casesIndex with rfl | rfl <;> rfl
   refine ⟨
     [outer.ref],
     none,
-    ⟨outer, entries, [], .ok (value, 0), children index, outerLocated, entry, rfl, rfl⟩,
+    ⟨
+      outer,
+      entries,
+      [],
+      { result := .ok (value, 0) },
+      children index,
+      outerLocated,
+      entry,
+      rfl,
+      rfl
+    ⟩,
     ?_
   ⟩
   have located : locateWork work [0, 0, 1] = some ⟨.stream outer entries, none, []⟩ := outerLocated
-  simp [streamItemWork?, item, located, entry]
+  simp [streamItemWork?, taskContext?, item, located, entry]
 
 /-- A child stream retains its corresponding outer item as producer.
 Witness: the exact generated child location at either outer item index.
@@ -197,7 +209,7 @@ theorem continued_inputs_valid_started
     have same := List.mem_singleton.mp member
     subst supplied
     refine ⟨[(child 0).ref], some (item 0).occurrence, ?_, by cbv⟩
-    exact ⟨child 0, childItems, [], .ok (.scalar "x", 0), .empty,
+    exact ⟨child 0, childItems, [], { result := .ok (.scalar "x", 0) }, .empty,
       childLocated 0 (by omega), rfl, rfl, rfl⟩
   · simp [joined, next, leaf, item, GraphEvent.Fresh, GraphEvent.identities]
   · refine ⟨[0, 0, 1, 0, 0, 0, 1], childItems, some (item 0).occurrence, [],

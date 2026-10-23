@@ -20,7 +20,7 @@ example : GeneratedPreparedUnsettledTaskProgress :=
 private theorem failedKnown
     : WorkQueueSemantics.TaskAt SharedOwnerFailure.work (.executionGroup [1, 1, 0]) [0]
         none (.object [] (.error 1)) := by
-  refine ⟨[{ node := SharedOwnerFailure.groupG }], [], .error 1, .empty, [], ?_, rfl, rfl⟩
+  refine ⟨[{ node := SharedOwnerFailure.groupG }], [], { result := .error 1, cause := some 1 }, .empty, [], ?_, rfl, rfl⟩
   rw [SharedOwnerFailure.work_shape]
   rfl
 

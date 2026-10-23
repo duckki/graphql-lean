@@ -36,7 +36,7 @@ theorem decode_eventPositionAtoms_value
                 initial cut
           ) := by
   obtain ⟨owners, known⟩ := sourceTasks_known .root initial member
-  have allowed := explained.2.2 cut event selected
+  have allowed := explained.eventAllowed cut event selected
   have bound := (List.getElem?_eq_some_iff.mp selected).choose
   have length : (events.take cut).length = cut := by
     simp [List.length_take, Nat.min_eq_left (Nat.le_of_lt bound)]

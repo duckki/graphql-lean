@@ -88,9 +88,9 @@ theorem RetainedNoticeContents.append_nonObject
     (itemOnly
       : IsValue event → ∃ address ordinal, matching events.length = .item address ordinal)
     : RetainedNoticeContents work matching (events ++ [event]) failed received child := by
-  obtain ⟨located, queue, node, found, same, retained, sound, registered, cached,
+  obtain ⟨located, queue, node, found, same, retained, sound, registered,
     ready, unpublished⟩ := contents
-  refine ⟨located, queue, node, found, same, retained, sound, registered, cached, ready, ?_⟩
+  refine ⟨located, queue, node, found, same, retained, sound, registered, ready, ?_⟩
   intro occurrence member published
   rcases published_append_singleton_iff.mp published with earlier | current
   · exact unpublished occurrence member earlier

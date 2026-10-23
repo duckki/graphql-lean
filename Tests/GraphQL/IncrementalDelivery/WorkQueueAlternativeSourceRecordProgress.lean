@@ -77,27 +77,21 @@ private def before : State := { queue := { taskNodes := [node] } }
 private def event : GraphEvent := .taskSuccess occurrence { value, work := {} }
 private abbrev reduced := ({ state := before } : GraphBatchResult).handleGraphEvent event
 
--- An already stored orphan is dropped by a repeated success, without a failure operation.
+-- Raw ownerless success retains its buffered source after the presence check.
+-- Generated-work ownership guarantees are tested separately above.
 example : (registrationSnapshot before.queue event).taskNode? occurrence = some node := by
   cbv
 
-example : reduced.effects = [] := by cbv
-example : reduced.state.queue.taskNodes = [] := by cbv
+example : reduced.effects = [.adopt occurrence] := by cbv
+example : reduced.state.queue.taskNodes = [node] := by cbv
 
-private theorem unrepresented
-    : ¬RecordTargetRepresented reduced.state.queue (.stream 7) := by
-  intro represented
-  cases represented with
-  | activeStream active => cbv at active; cases active
-  | bufferedStream found stored held => cbv at found; cases found
+private theorem represented : RecordTargetRepresented reduced.state.queue (.stream 7) :=
+  .bufferedStream (occurrence := occurrence) (node := node) (by cbv) rfl (by decide)
 
 example
-    : ¬(RecordTargetRepresented reduced.state.queue (.stream 7)
-        ∨ .cancelSource 7 ∈ reduced.effects) := by
-  intro outcome
-  rcases outcome with represented | requested
-  · exact unrepresented represented
-  · cbv at requested; cases requested
+    : RecordTargetRepresented reduced.state.queue (.stream 7)
+      ∨ .cancelSource 7 ∈ reduced.effects :=
+  Or.inl represented
 
 #print axioms State.taskSuccess_readyProjection
 #print axioms referencePrefix_taskSuccess_readyProjection
@@ -108,6 +102,6 @@ example
 #print axioms adopted_source_progress
 #print axioms GeneratedPreparedSourceProgress_holds
 #print axioms GeneratedDispatchSourceRepresentation_holds
-#print axioms unrepresented
+#print axioms represented
 
 end AlternativeSourceRecordProgressChecks

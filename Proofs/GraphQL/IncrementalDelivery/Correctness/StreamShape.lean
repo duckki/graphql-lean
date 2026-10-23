@@ -1,4 +1,5 @@
 import Proofs.GraphQL.IncrementalDelivery.Correctness.OwnerAvailability
+import Proofs.GraphQL.IncrementalDelivery.Semantics.WorkSize
 
 /-! Structural facts for stream-only work, independent of progress and reporting. -/
 
@@ -16,6 +17,7 @@ Item outcomes, errors, nesting depth, and branching are unrestricted.
 -/
 def StreamOnly : Work → Prop
   | .empty => True
+  | .declareGroups _ tasks => StreamOnly tasks
   | .combine left right => StreamOnly left ∧ StreamOnly right
   | .executionGroup .. => False
   | .stream _ items => ∀ entry ∈ items, StreamOnly entry.2
@@ -28,6 +30,17 @@ decreasing_by
     Prod.mk.sizeOf_spec _ _
   omega
 
+/-- Declaration annotations do not introduce deferred tasks. -/
+theorem StreamOnly.withoutDeclarations {work : Work} (known : StreamOnly work)
+    : StreamOnly work.withoutDeclarations := by
+  cases work with
+  | declareGroups groups tasks =>
+      simpa only [StreamOnly, Work.withoutDeclarations]
+        using StreamOnly.withoutDeclarations (work := tasks)
+          (by simpa only [StreamOnly] using known)
+  | _ => simpa only [Work.withoutDeclarations] using known
+termination_by work
+
 /-- Every location in stream-only work is stream-only and has no enclosing defer refs.
 Witness: structural navigation; stream-item edges reset enclosing owners to empty.
 -/
@@ -38,17 +51,17 @@ theorem StreamOnly.located {work address current producer owners}
   have navigation := StructuralEquivalence.located_of_current located
   clear located
   induction navigation with
-  | root => exact ⟨onlyStreams, rfl⟩
+  | root => exact ⟨onlyStreams.withoutDeclarations, rfl⟩
   | left _ ih =>
       rw [StreamOnly] at ih
-      exact ⟨ih.1.1, ih.2⟩
+      exact ⟨ih.1.1.withoutDeclarations, ih.2⟩
   | right _ ih =>
       rw [StreamOnly] at ih
-      exact ⟨ih.1.2, ih.2⟩
+      exact ⟨ih.1.2.withoutDeclarations, ih.2⟩
   | executionGroup _ ih => exact False.elim (by simpa only [StreamOnly] using ih.1)
   | item _ entry ih =>
       rw [StreamOnly] at ih
-      exact ⟨ih.1 _ (List.mem_of_getElem? entry), rfl⟩
+      exact ⟨(ih.1 _ (List.mem_of_getElem? entry)).withoutDeclarations, rfl⟩
 
 /-- Every stream-only task has a single stream owner without defer dependencies.
 Witness: its item descriptor and the empty enclosing-owner context at its location.
@@ -87,10 +100,14 @@ Witness: descend through combine nodes only, stopping before the first stream's 
 theorem StreamOnly.first_stream {work address current producer owners}
     (onlyStreams : StreamOnly current)
     (nonempty : current.size ≠ 0)
-    (located : Located work address current producer owners)
+    (located : Located work address current.withoutDeclarations producer owners)
     : ∃ node, NodeAt work node .stream owners producer := by
   cases current with
   | empty => exact False.elim (nonempty rfl)
+  | declareGroups groups tasks =>
+      apply StreamOnly.first_stream (current := tasks)
+        (by simpa only [StreamOnly] using onlyStreams)
+        (by simpa only [Work.size] using nonempty) located
   | executionGroup => simp only [StreamOnly] at onlyStreams
   | stream node items => exact ⟨node, .stream located⟩
   | combine left right =>

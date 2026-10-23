@@ -124,6 +124,17 @@ theorem WorkBatching.nil_iff {events batches} (h : WorkBatching events batches)
     : events = [] ↔ batches = [] := by
   cases h <;> simp_all
 
+/-- Work batching preserves termination membership, by partition and grouping induction.
+-/
+theorem WorkBatching.termination_mem {events batches} (h : WorkBatching events batches)
+    : WorkQueueEvent.workQueueTermination ∈ batches.flatten
+      ↔ WorkQueueEvent.workQueueTermination ∈ events := by
+  induction h with
+  | nil => simp
+  | @cons batch tail grouped rest nonempty values subsequent ih =>
+      simpa only [List.flatten_cons, List.mem_append]
+        using or_congr values.termination_mem ih
+
 /-- Work batching preserves a final termination marker, by splitting at batch boundaries.
 -/
 theorem WorkBatching.terminates {events batches} (h : WorkBatching events batches)
@@ -147,7 +158,36 @@ theorem Explains.noTermination {work groups streams events matching failures}
     : WorkQueueEvent.workQueueTermination ∉ events := by
   intro member
   obtain ⟨index, selected⟩ := List.mem_iff_getElem?.mp member
-  exact h.2.2 index _ selected
+  exact h.eventAllowed index _ selected
+
+/-- An admitted prefix cannot also be a completed run of the same observable history.
+Witness: prefix explanations exclude termination, while complete batching retains it.
+-/
+theorem AdmissiblePrefix.not_run {work history} (admitted : AdmissiblePrefix work history)
+    : ¬AdmissibleRun work history := by
+  obtain ⟨events, matching, failures, explained, batches⟩ := admitted
+  intro finished
+  obtain ⟨finalEvents, finalMatching, finalFailures, _, _, finalBatches⟩ := finished
+  have marker := finalBatches.termination_mem.mpr
+    (List.mem_append_right finalEvents List.mem_cons_self)
+  exact explained.noTermination (batches.termination_mem.mp marker)
+
+/-- Prefix-based next-batch admission is exactly valid, nonterminal extension.
+Witness: disjointness of prefix and completed histories removes the redundant condition.
+-/
+theorem admissibleNext_iff_valid_nonterminal {work history batch}
+    : AdmissibleNext work history batch
+      ↔ ValidHistory work history
+        ∧ ¬AdmissibleRun work history
+        ∧ batch ≠ []
+        ∧ ValidHistory work { history with batches := history.batches ++ [batch] } := by
+  constructor
+  · rintro ⟨admitted, nonempty, next⟩
+    exact ⟨Or.inl admitted, admitted.not_run, nonempty, next⟩
+  · rintro ⟨valid, unfinished, nonempty, next⟩
+    rcases valid with admitted | finished
+    · exact ⟨admitted, nonempty, next⟩
+    · exact False.elim (unfinished finished)
 
 /-- Every complete admitted run terminates only in its last work batch, using the unique
 appended marker and grouping preservation.

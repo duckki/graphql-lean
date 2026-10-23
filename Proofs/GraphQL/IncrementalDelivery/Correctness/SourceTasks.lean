@@ -47,12 +47,13 @@ mutual
       (cursors : ResponsePositions.Cursors)
       : Work → List SourceTask
     | .empty => []
+    | .declareGroups _ tasks => sourceTasks address producer cursors tasks
     | .combine left right =>
         sourceTasks (address ++ [0]) producer cursors left
         ++ sourceTasks (address ++ [1]) producer cursors right
     | .executionGroup _ path result children =>
         let task : SourceTask :=
-          ⟨.executionGroup address, producer, .object path result, 0⟩
+          ⟨.executionGroup address, producer, .object path result.deliveryResult, 0⟩
         task :: sourceTasks (address ++ [0]) (some task.occurrence) task.cursors children
     | .stream node items =>
         sourceItemTasks address producer node
@@ -62,16 +63,28 @@ mutual
   -/
   def sourceItemTasks (address : Address) (producer : Option Occurrence)
       (node : DeliveryNode) (index ordinal : Nat)
-      : List (Result ResponseValue × Work) → List SourceTask
+      : List (TaskOutcome ResponseValue × Work) → List SourceTask
     | [] => []
     | (result, children) :: rest =>
         let task : SourceTask :=
-          ⟨.item address ordinal, producer, .item node result, index⟩
+          ⟨.item address ordinal, producer, .item node result.deliveryResult, index⟩
         task
         :: (sourceTasks (address ++ [ordinal]) (some task.occurrence)
               task.cursors children
             ++ sourceItemTasks address producer node (index + 1) (ordinal + 1) rest)
 end
+
+/-- Declaration annotations leave the source task inventory unchanged. -/
+@[simp]
+theorem sourceTasks_withoutDeclarations (address producer cursors) (work : Work)
+    : sourceTasks address producer cursors work.withoutDeclarations
+      = sourceTasks address producer cursors work := by
+  cases work with
+  | declareGroups groups tasks =>
+      simpa only [Work.withoutDeclarations, sourceTasks]
+        using sourceTasks_withoutDeclarations address producer cursors tasks
+  | _ => rfl
+termination_by work
 
 mutual
   /-- Labelled work positions are exactly the execution's seeded slices. Witness:
@@ -84,12 +97,13 @@ mutual
         = slices := by
     cases seeded with
     | empty => rfl
+    | declareGroups known => exact sourceTasks_positions known address producer
     | combine left right =>
         simp only [sourceTasks, List.map_append, sourceTasks_positions left,
           sourceTasks_positions right]
     | executionGroup children =>
         simp only [sourceTasks, List.map_cons, SourceTask.cursors, SourceTask.positions,
-          sourceTasks_positions children, ← funext (source_fields_eq_positions true _)]
+          DeliveryPaths.result_deliveryResult, resultCursors_deliveryResult, sourceTasks_positions children, ← funext (source_fields_eq_positions true _)]
     | stream cursor items =>
         simp only [sourceTasks, cursor, Option.getD_some]
         exact sourceItemTasks_positions items address producer _ 0
@@ -109,7 +123,8 @@ mutual
     | nil => rfl
     | cons children rest =>
         simp only [sourceItemTasks, List.map_cons, List.map_append, SourceTask.cursors,
-          SourceTask.positions, path_eq, sourceTasks_positions children,
+          SourceTask.positions, path_eq, DeliveryPaths.result_deliveryResult,
+          resultCursors_deliveryResult, sourceTasks_positions children,
           sourceItemTasks_positions rest address producer node (ordinal + 1) path_eq,
           ← funext (source_value_eq_positions true _)]
   termination_by sizeOf items

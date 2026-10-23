@@ -33,10 +33,11 @@ theorem item_payload_success {node result}
 
 /-- Per-item zero-error results and successful child work give list success, by induction.
 -/
-theorem itemsSuccess_of_forall {items : List (Result ResponseValue × Work)}
+theorem itemsSuccess_of_forall {items : List (TaskOutcome ResponseValue × Work)}
     (all
       : ∀ entry ∈ items,
-          (∃ data, entry.1 = .ok (data, 0)) ∧ SourceReconstruction.WorkSuccess entry.2)
+          (∃ data, entry.1.result = .ok (data, 0))
+          ∧ SourceReconstruction.WorkSuccess entry.2)
     : SourceReconstruction.ItemsSuccess items := by
   induction items with
   | nil => trivial
@@ -51,7 +52,7 @@ theorem itemsSuccess_of_forall {items : List (Result ResponseValue × Work)}
 Witness: structural navigation supplies each deferred/item task and its child subtree.
 -/
 theorem located_workSuccess {root address work producer owners}
-    (located : Located root address work producer owners)
+    (located : Located root address work.withoutDeclarations producer owners)
     (all
       : ∀ occurrence owners producer payload,
           TaskAt root occurrence owners producer payload
@@ -59,13 +60,19 @@ theorem located_workSuccess {root address work producer owners}
     : SourceReconstruction.WorkSuccess work := by
   cases work with
   | empty => trivial
+  | declareGroups groups tasks =>
+      exact located_workSuccess (work := tasks) located all
   | combine left right =>
-      exact ⟨located_workSuccess (.left located) all,
-        located_workSuccess (.right located) all⟩
+      exact ⟨located_workSuccess (work := left) (.left located) all,
+        located_workSuccess (work := right) (.right located) all⟩
   | executionGroup groups path result children =>
       have success := all _ _ _ _ (.executionGroup located)
-      exact ⟨object_payload_success success.1 success.2,
-        located_workSuccess (.executionGroup located) all⟩
+      exact ⟨
+        by
+          obtain ⟨data, same⟩ := object_payload_success success.1 success.2
+          exact ⟨data, Semantics.CompletionReporting.result_eq_ok_of_deliveryResult_eq_ok same⟩,
+        located_workSuccess (work := children) (.executionGroup located) all
+      ⟩
   | stream node items =>
       apply itemsSuccess_of_forall
       intro entry member
@@ -75,8 +82,12 @@ theorem located_workSuccess {root address work producer owners}
           have smaller := List.sizeOf_lt_of_mem member
           rw [equal] at selected
           have success := all _ _ _ _ (.item located selected)
-          exact ⟨item_payload_success success.1 success.2,
-            located_workSuccess (.item located selected) all⟩
+          exact ⟨
+            by
+              obtain ⟨data, same⟩ := item_payload_success success.1 success.2
+              exact ⟨data, Semantics.CompletionReporting.result_eq_ok_of_deliveryResult_eq_ok same⟩,
+            located_workSuccess (work := children) (.item located selected) all
+          ⟩
 termination_by sizeOf work
 decreasing_by all_goals simp_all; omega
 
@@ -87,7 +98,7 @@ theorem WorkObservation.workSuccess {response work result}
     (observed : WorkObservation response work true result)
     (positive : ExecutionErrors.WorkPositive work) (zero : result.totalErrors = 0)
     : SourceReconstruction.WorkSuccess work :=
-  located_workSuccess .root
+  located_workSuccess (work := work) .root
     (fun _ _ _ _ known =>
       ⟨
         observed.tasks_succeed positive zero known,
@@ -105,7 +116,7 @@ theorem WorkObservation.completionSuccess
           completed.work true result)
     (positive : ExecutionErrors.Positive completed) (zero : result.totalErrors = 0)
     : SourceReconstruction.CompletionSuccess completed := by
-  refine ⟨?_, observed.workSuccess positive.2 zero⟩
+  refine ⟨?_, observed.workSuccess positive.2.1 zero⟩
   have errors := observed.initial_errors_le
   cases equal : completed.result with
   | error count =>

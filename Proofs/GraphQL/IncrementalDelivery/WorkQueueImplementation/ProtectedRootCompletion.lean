@@ -1,188 +1,93 @@
-import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.RootPresenceReplay
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.StartupRootCompletion
 
-/-! Announced groups cannot disappear through another supported group's failure cleanup. -/
+/-! Announced-group completion through cache-aware startup and successful draining. -/
 
 namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.Execution (WorkQueueEvent)
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
------------------------------------------------------------------------------------------
--- A smaller frame suffices for failure cleanup, including latent error-cache updates
------------------------------------------------------------------------------------------
+private def startupControls (failures : List GroupFailureEvent) : List WorkQueueEvent :=
+  failures.map (fun failure => .groupFailure failure.group failure.errors)
 
-/-- Structural metadata and retired ancestry for the currently announced group roots.
-Unlike `LiveRootFrame`, this certificate does not constrain mutable task or error contents.
--/
-structure RootClosureFrame (queue : State) (work : Execution.Work)
-    (parents : Nat → NodeRefs)
-    : Prop where
-  records : queue.GroupNodesMatchWork work
-  links : queue.ChildLinksCanonical parents
-  roots : queue.RootAncestorsRetired work
-  support
-    : ∀ ref ∈ queue.rootGroups,
-        ∃ dependencies, NodeHasDependencies work ref .group dependencies
+private theorem startupControls_noticeRefs (failures : List GroupFailureEvent)
+    : (startupControls failures).flatMap rawGroupNoticeRefs = [] := by
+  induction failures with
+  | nil => rfl
+  | cons failure rest ih => simpa only [startupControls, List.map_cons,
+      List.flatMap_cons, rawGroupNoticeRefs, List.nil_append] using ih
 
-/-- The independently proved live-root frame supplies the smaller closure frame.
-Witness: retain only descriptor, ancestry, child-link, and active-root support facts.
--/
-theorem LiveRootFrame.rootClosureFrame {queue work parents}
-    (frame : LiveRootFrame queue work parents)
-    : RootClosureFrame queue work parents :=
-  ⟨frame.records, frame.links, frame.roots, frame.support.roots⟩
+private abbrev StartupGroupCompletion (initial : NodeRefs)
+    (result : State × List WorkQueueEvent × List GroupFailureEvent)
+    : Prop :=
+  GroupNoticeCompletion initial (result.1, result.2.1 ++ startupControls result.2.2)
 
-/-- Removing failed task memberships preserves all structural root-closure facts.
-Witness: descriptors, child links, and active roots are unchanged; retirement persists.
--/
-theorem RootClosureFrame.removeTask {queue work parents}
-    (frame : RootClosureFrame queue work parents) (occurrence : Occurrence)
-    : RootClosureFrame (queue.removeTask occurrence) work parents :=
-  ⟨
-    frame.records.removeTask _,
-    frame.links.removeTask _,
-    frame.roots.mono (fun _ member => member) (fun _ retired => retired.removeTask _),
-    frame.support
-  ⟩
+private theorem StartupGroupCompletion.append {initial first second}
+    (left : StartupGroupCompletion initial first)
+    (right : StartupGroupCompletion first.1.rootGroups second)
+    : StartupGroupCompletion initial
+        (second.1, first.2.1 ++ second.2.1, first.2.2 ++ second.2.2) := by
+  have combined := GroupNoticeCompletion.append left right
+  apply combined.perm
+  simpa only [startupControls, List.map_append, List.append_assoc]
+    using (List.perm_append_comm_assoc (startupControls first.2.2)
+            second.2.1 (startupControls second.2.2)).append_left
+      first.2.1
 
-/-- Failed subtree removal preserves the closure frame of every surviving root.
-Witness: record and root filtering preserve metadata and permanent ancestor retirement.
+/-- Successful release and cache-aware activation complete every removed announced root.
+Newly failed children use their own queued controls; the successful parent uses its
+immediate closure. No active or newly announced root is discharged by silent cancellation.
 -/
-theorem RootClosureFrame.removeGroup {queue work parents}
-    (frame : RootClosureFrame queue work parents) (ref : NodeRef)
-    : RootClosureFrame (queue.removeGroup ref) work parents :=
-  ⟨
-    frame.records.removeGroup _,
-    frame.links.removeGroup _,
-    frame.roots.mono (queue.removeGroup_rootsSubset _)
-      (fun _ retired => retired.removeGroup _),
-    fun _ member => frame.support _ (queue.removeGroup_rootsSubset _ member)
-  ⟩
-
-/-- Failure cleanup removes no other announced root than the failed root itself.
-Witness: any collected ref has a live descendant path. A supported starting root cannot
-reach a distinct root whose task-bearing ancestors are already retired. Stale links and
-taskless intermediate groups need no additional restriction.
--/
-theorem RootClosureFrame.removeGroup_tracks_roots {queue work parents root}
-    (frame : RootClosureFrame queue work parents) (generated : ExecutedWork work)
+theorem LiveRootFrame.finishGroupSuccess_groupNoticeCompletion {queue work parents}
+    (frame : LiveRootFrame queue work parents) (generated : ExecutedWork work)
     (canonical
       : ∀ node dependencies,
           GroupRecordAt work node dependencies → dependencies = parents node.ref)
-    (active : root ∈ queue.rootGroups)
-    : ∀ ref ∈ queue.rootGroups,
-        ref ∈ (queue.removeGroup root).rootGroups ∨ ref = root := by
-  intro ref member
-  by_cases collected : ref ∈ State.removeGroup.collect (queue.groupNodes.length + 1)
-      queue [root] []
-  · obtain impossible | ⟨start, atStart, path⟩ :=
-      State.removeGroup_collect_provenance _ _ _ _ collected
-    · cases impossible
-    · have same := List.mem_singleton.mp atStart
-      rw [same] at path
-      obtain ⟨dependencies, owner, producer, known, sameOwner⟩ := frame.support root active
-      obtain ⟨occurrence, owners, payload, task, contributes⟩ := known.group_task
-      exact .inr ((frame.roots ref member).supported_path_eq generated frame.records
-        frame.links canonical path ⟨producer, payload, task⟩ (sameOwner ▸ contributes)).symm
-  · exact .inl (List.mem_filter.mpr ⟨member, by simpa using collected⟩)
-
------------------------------------------------------------------------------------------
--- Exact notice tracking needs active roots or emitted completions, never silent cancellation
------------------------------------------------------------------------------------------
-
-/-- Initial and newly announced group refs remain active or have an emitted completion.
-The initial refs and segment result are concrete queue data, not assumed scheduler output.
--/
-def GroupNoticeCompletion (initial : NodeRefs) (result : State × List WorkQueueEvent)
-    : Prop :=
-  ∀ ref ∈ initial ++ result.2.flatMap rawGroupNoticeRefs,
-    ref ∈ result.1.rootGroups ∨ ref ∈ result.2.flatMap rawGroupClosureRefs
-
-/-- A silent root-preserving transition satisfies completion tracking.
-Witness: all tracked refs remain active and there are no new notices.
--/
-theorem GroupNoticeCompletion.silent {initial queue}
-    (included : initial.Subset queue.rootGroups)
-    : GroupNoticeCompletion initial (queue, []) := by
-  intro ref member
-  exact .inl (included (by simpa using member))
-
-/-- Completion tracking composes across consecutive concrete segments.
-Witness: surviving roots feed the next segment; emitted completions persist in the output.
--/
-theorem GroupNoticeCompletion.append {initial first second}
-    (left : GroupNoticeCompletion initial first)
-    (right : GroupNoticeCompletion first.1.rootGroups second)
-    : GroupNoticeCompletion initial (second.1, first.2 ++ second.2) := by
-  intro ref member
-  have later (member : ref ∈ first.1.rootGroups ++ second.2.flatMap rawGroupNoticeRefs) :=
-    (right ref member).imp_right (List.mem_append_right (first.2.flatMap rawGroupClosureRefs))
-  simp only [List.flatMap_append] at member ⊢
-  rcases List.mem_append.mp member with old | noticed
-  · rcases left ref (List.mem_append_left _ old) with active | closed
-    · exact later (List.mem_append_left _ active)
-    · exact .inr (List.mem_append_left _ closed)
-  · rcases List.mem_append.mp noticed with earlier | next
-    · rcases left ref (List.mem_append_right _ earlier) with active | closed
-      · exact later (List.mem_append_left _ active)
-      · exact .inr (List.mem_append_left _ closed)
-    · exact later (List.mem_append_right _ next)
-
-/-- Successful closure and activation track every old or newly released group exactly.
-Witness: the only removed old root has the emitted success control; releases are activated.
--/
-theorem State.finishGroupSuccess_groupNoticeCompletion (queue : State) (node : GroupNode)
-    : GroupNoticeCompletion queue.rootGroups
+    {node : GroupNode} (found : queue.groupNode? node.group.node.ref = some node)
+    (active : node.group.node.ref ∈ queue.rootGroups)
+    (available : List (Occurrence × Nat) := [])
+    : let result := queue.finishGroupSuccess node
+      StartupGroupCompletion queue.rootGroups
         (
-          (queue.finishGroupSuccess node).1.startNewWork
-            (queue.finishGroupSuccess node).2.2,
-          (queue.finishGroupSuccess node).2.1
+          (result.1.startNewWork result.2.2 available).1,
+          result.2.1,
+          (result.1.startNewWork result.2.2 available).2
         ) := by
+  intro result
+  have closed := frame.finishGroupSuccess_unactivated generated canonical found active
+  have protection := queue.finishGroupSuccess_ancestorsRetired generated frame.records
+    frame.links canonical frame.registered (List.mem_of_find?_eq_some found)
+    (frame.roots _ active)
+  have support := frame.support.finishGroupSuccess node
+  have queued := closed.rootClosureFrame.startNewWork_groupNoticeCompletion
+    closed.support generated canonical result.2.2 protection.2.2 support.2 available
   intro ref member
-  rw [(State.startNewWork_groupCore _ _).2.2]
-  rcases List.mem_append.mp member with old | noticed
-  · rcases queue.finishGroupSuccess_tracks_roots node ref old with active | closed
-    · exact .inl (List.mem_append_left _ active)
-    · exact .inr closed
-  · exact .inl (List.mem_append_right _
+  have mentioned : ref ∈ queue.rootGroups ++ result.2.1.flatMap rawGroupNoticeRefs := by
+    simpa only [List.flatMap_append, startupControls_noticeRefs, List.append_nil]
+      using member
+  have activated (member : ref ∈ result.1.rootGroups
+      ++ result.2.2.newGroups.map Execution.DeliveryNode.ref) :=
+    (queued ref (List.mem_append_left _ member)).imp_right
+      (List.mem_append_right (result.2.1.flatMap rawGroupClosureRefs))
+  rw [List.flatMap_append]
+  rcases List.mem_append.mp mentioned with old | noticed
+  · rcases queue.finishGroupSuccess_tracks_roots node ref old with retained | completed
+    · exact activated (List.mem_append_left _ retained)
+    · exact .inr (List.mem_append_left _ completed)
+  · exact activated (List.mem_append_right _
       ((queue.finishGroupSuccess_groupNotices node).symm ▸ noticed))
 
-/-- An active failed closure completes every announced ref it removes.
-Witness: protected roots exclude collateral removal, and the failed root has its own
-failure control. This permits latent descendants to be cancelled without announcing them.
--/
-theorem RootClosureFrame.finishGroupFailure_groupNoticeCompletion {queue work parents}
-    (frame : RootClosureFrame queue work parents) (generated : ExecutedWork work)
-    (canonical
-      : ∀ node dependencies,
-          GroupRecordAt work node dependencies → dependencies = parents node.ref)
-    (node : GroupNode) (errors : Nat) (active : node.group.node.ref ∈ queue.rootGroups)
-    : GroupNoticeCompletion queue.rootGroups
-        (
-          (queue.finishGroupFailure node errors).1,
-          [(queue.finishGroupFailure node errors).2]
-        ) := by
-  intro ref member
-  have old : ref ∈ queue.rootGroups := by
-    simpa [State.finishGroupFailure, rawGroupNoticeRefs] using member
-  rcases frame.removeGroup_tracks_roots generated canonical active ref old with kept | closed
-  · exact .inl kept
-  · exact .inr (by simpa [State.finishGroupFailure, rawGroupClosureRefs] using closed)
-
------------------------------------------------------------------------------------------
--- The actual recursive drain preserves this stronger lifecycle tracking
------------------------------------------------------------------------------------------
-
-/-- Recursive draining cannot silently lose any earlier or internally announced group.
-Witness: each real success activates its notices, each failure closes its only removed
-announced root, and the preserved live-root frame supports the next internal step.
+/-- Every actual drain prefix retains announced groups or their own completion controls.
+The proof follows successful ready closures and immediate failed child startup, retaining
+both output channels until the enclosing batch forwards queued failures.
 -/
 theorem LiveRootFrame.drainReadyGroups_go_groupNoticeCompletion {queue work parents}
     (frame : LiveRootFrame queue work parents) (generated : ExecutedWork work)
     (canonical
       : ∀ node dependencies,
           GroupRecordAt work node dependencies → dependencies = parents node.ref)
-    (fuel : Nat)
-    : GroupNoticeCompletion queue.rootGroups (State.drainReadyGroups.go fuel queue) := by
+    (fuel : Nat) (available : List (Occurrence × Nat) := [])
+    : StartupGroupCompletion queue.rootGroups
+        (State.drainReadyGroups.go available fuel queue) := by
   induction fuel generalizing queue with
   | zero => exact .silent (List.Subset.refl _)
   | succ fuel ih =>
@@ -196,20 +101,14 @@ theorem LiveRootFrame.drainReadyGroups_go_groupNoticeCompletion {queue work pare
         | none => simp [found] at choice
         | some candidate =>
             simp only [found] at choice
-            change (if candidate.failure.isSome || candidate.pending == 0 then
-              some candidate else none) = some node at choice
+            change (if candidate.pending == 0 then some candidate else none) = some node at choice
             split at choice
             · cases Option.some.inj choice
               have same := State.groupNode?_ref found
-              cases cached : node.failure with
-              | none =>
-                  exact (queue.finishGroupSuccess_groupNoticeCompletion node).append
-                    (ih (frame.finishGroupSuccess generated canonical
-                      (same ▸ found) (same ▸ active)))
-              | some errors =>
-                  exact (frame.rootClosureFrame.finishGroupFailure_groupNoticeCompletion
-                    generated canonical node errors (same ▸ active)).append
-                      (ih (frame.removeGroup node.group.node.ref))
+              exact (frame.finishGroupSuccess_groupNoticeCompletion generated canonical
+                (same ▸ found) (same ▸ active) available).append
+                  (ih (frame.finishGroupSuccess generated canonical
+                    (same ▸ found) (same ▸ active) available))
             · contradiction
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

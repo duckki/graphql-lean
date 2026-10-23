@@ -22,114 +22,109 @@ def BatchProducerIdentities (work : Work) (before : ResourceBatchObservation)
   ∀ earlier event later,
     batch = earlier ++ event :: later
     → let current :=
-        earlier.foldl (fun acc event => acc.handleGraphEvent inventories event) before
+        earlier.foldl
+          (fun acc event =>
+            acc.handleGraphEvent inventories event
+              (ReferenceWorkQueue.GraphEvent.availableFailures batch))
+          before
       ProducerTasksMatchWork work current.resources inventories
         (graphEffects current.dispatch.state.queue event)
       ∧ ProducerSourcesMatchWork work current.resources inventories
           (graphEffects current.dispatch.state.queue event)
 
------------------------------------------------------------------------------------------
--- Every input uses the same accepted history and real FIFO accumulator
------------------------------------------------------------------------------------------
-
-/-- Raw record/pending-history preservation spans the entire actual FIFO fold.
-This also covers roots becoming empty before the wrapper's final clearing step.
+/-- The actual FIFO fold preserves the full representation invariant at batch completion.
+Intermediate cuts use full-batch exclusions while keeping the consumed-outcome ledger exact.
 -/
-theorem generatedRaw_resourceFold {work past batch before inventories}
+theorem generatedRaw_resourceFold {work inputs batch resources inventories}
     (generated : ReferenceWorkQueue.ExecutedWork work)
-    (valid : ReferenceWorkQueue.ValidGraphEvents work (past ++ batch))
-    (accepted : (initial work).acceptsBatch (past ++ batch) = true)
-    (same : before.dispatch.state.queue = (initial work).replayGraphEvents past)
-    (running : before.dispatch.state.stopped = false)
+    (valid : ReferenceWorkQueue.ValidGraphEvents work (inputs.flatten ++ batch))
+    (started : ReferenceWorkQueue.inputsStarted work (inputs ++ [batch]) = true)
     (represented
-      : QueueResourcesRepresented before.dispatch.state.queue
-          (ReferenceWorkQueue.GraphEvent.taskSettlements past) before.resources)
-    (identities : BatchProducerIdentities work before inventories batch)
-    : let after :=
-        batch.foldl (fun acc event => acc.handleGraphEvent inventories event) before
-      after.dispatch.state.queue = (initial work).replayGraphEvents (past ++ batch)
-      ∧ QueueResourcesRepresented after.dispatch.state.queue
-          (ReferenceWorkQueue.GraphEvent.taskSettlements (past ++ batch))
+      : QueueResourcesRepresented
+          ((State.initialize work).runNormalized inputs).1.queue
+          (ReferenceWorkQueue.GraphEvent.taskSettlements inputs.flatten) resources)
+    (identities
+      : BatchProducerIdentities work
+          {
+            dispatch := { state := ((State.initialize work).runNormalized inputs).1 },
+            resources
+          }
+          inventories batch)
+    : let after := resourceFifoPrefix work inputs batch batch resources inventories
+      QueueResourcesRepresented after.dispatch.state.queue
+        (ReferenceWorkQueue.GraphEvent.taskSettlements (inputs.flatten ++ batch))
+        after.resources := by
+  have loop (remaining fifo : List GraphEvent) (partition : batch = fifo ++ remaining)
+      (prior : let actual := resourceFifoPrefix work inputs batch fifo resources inventories
+        BatchResourcesRepresented actual.dispatch.state.queue
+          (ReferenceWorkQueue.GraphEvent.taskSettlements (inputs.flatten ++ fifo))
+          (ReferenceWorkQueue.GraphEvent.taskSettlements (inputs.flatten ++ batch))
+          actual.resources)
+      : let after := resourceFifoPrefix work inputs batch batch resources inventories
+        QueueResourcesRepresented after.dispatch.state.queue
+          (ReferenceWorkQueue.GraphEvent.taskSettlements (inputs.flatten ++ batch))
           after.resources := by
-  induction batch generalizing past before with
-  | nil => simpa only [List.append_nil, List.foldl_nil] using And.intro same represented
-  | cons event rest ih =>
-      obtain ⟨tasks, sources⟩ := identities [] event rest rfl
-      have firstValid : ReferenceWorkQueue.ValidGraphEvents work (past ++ [event]) :=
-        valid.prefix ⟨rest, by simp⟩
-      have firstAccepted : (initial work).acceptsBatch (past ++ [event]) = true :=
-        ReferenceWorkQueue.State.acceptsBatch_prefix (by simpa only [List.append_assoc, List.singleton_append] using accepted)
-      have progress := generatedRaw_resourceInvariant generated firstValid firstAccepted
-        (same ▸ represented) (same ▸ tasks) (same ▸ sources)
-      let next := before.handleGraphEvent inventories event
-      have beforeState : before.dispatch.state = { queue := (initial work).replayGraphEvents past } := by
-        rw [State.eq_queue_of_running _ running, same]
-      have nextSame : next.dispatch.state.queue = (initial work).replayGraphEvents (past ++ [event]) := by
-        rw [ReferenceWorkQueue.State.replayGraphEvents_append, ← same]
-        change (before.dispatch.state.handleGraphEvent event).1.queue
-          = (before.dispatch.state.queue.handleGraphEvent event).1
-        rw [beforeState]
-        exact congrArg Prod.fst (referencePrefix_handleGraphEvent generated past event firstValid
-          (ReferenceWorkQueue.State.acceptsBatch_prefix firstAccepted))
-      have nextRunning : next.dispatch.state.stopped = false :=
-        (State.handleGraphEvent_stopped before.dispatch.state event).trans running
-      have observer := before.resources.observeDispatch_sameQueue inventories before.dispatch.state
-        { queue := (initial work).replayGraphEvents past } event same running
-      have nextRepresented : QueueResourcesRepresented next.dispatch.state.queue
-          (ReferenceWorkQueue.GraphEvent.taskSettlements (past ++ [event])) next.resources := by
-        rw [nextSame, ReferenceWorkQueue.GraphEvent.taskSettlements_append,
-          ReferenceWorkQueue.State.replayGraphEvents_append]
-        change QueueResourcesRepresented (((initial work).replayGraphEvents past).handleGraphEvent event).1
-          (event.recordTaskOutcome (ReferenceWorkQueue.GraphEvent.taskSettlements past))
-          (before.resources.observeDispatch inventories before.dispatch.state event).1
-        rw [observer]
-        exact progress
-      have nextIdentities : BatchProducerIdentities work next inventories rest := by
-        intro earlier input later partition
-        have result := identities (event :: earlier) input later
-          (by simpa only [List.cons_append] using congrArg (List.cons event) partition)
-        simpa only [List.foldl_cons] using result
-      have suffix := ih (past := past ++ [event])
-        (by simpa only [List.append_assoc, List.singleton_append] using valid)
-        (by simpa only [List.append_assoc, List.singleton_append] using accepted)
-        nextSame nextRunning nextRepresented nextIdentities
-      simpa only [List.foldl_cons, List.append_assoc, List.singleton_append] using suffix
+    induction remaining generalizing fifo with
+    | nil =>
+        have same : batch = fifo := by simpa only [List.append_nil] using partition
+        subst fifo
+        exact prior.complete
+    | cons event rest ih =>
+        obtain ⟨tasks, sources⟩ := identities fifo event rest partition
+        have next := generatedRaw_resourceInvariant generated valid started partition prior tasks
+          sources
+        have combined : resourceFifoPrefix work inputs batch (fifo ++ [event]) resources inventories
+            = (resourceFifoPrefix work inputs batch fifo resources inventories).handleGraphEvent
+                inventories event (ReferenceWorkQueue.GraphEvent.availableFailures batch) := by
+          simp only [resourceFifoPrefix, List.foldl_append, List.foldl_cons, List.foldl_nil]
+        apply ih (fifo ++ [event])
+          (by simpa only [List.append_assoc, List.singleton_append] using partition)
+        rw [combined]
+        simpa only [List.append_assoc] using next
+  apply loop batch [] (by simp)
+  simpa only [resourceFifoPrefix, List.foldl_nil, List.append_nil]
+    using (represented.batch
+            (excluded :=
+              ReferenceWorkQueue.GraphEvent.taskSettlements (inputs.flatten ++ batch)))
 
-/-- All root/record evidence is derived at the actual pre-clear raw endpoint. -/
-theorem generatedRaw_recordRootEvidence {work events}
+/-- Root evidence is derived at the actual exposed pre-clear endpoint. Cache exposure
+changes no roots, memberships, contributors, or stored-source attachment.
+-/
+theorem generatedRaw_recordRootEvidence {work inputs batch resources inventories}
     (generated : ReferenceWorkQueue.ExecutedWork work)
-    (valid : ReferenceWorkQueue.ValidGraphEvents work events)
-    (accepted : (initial work).acceptsBatch events = true)
-    : let queue := (initial work).replayGraphEvents events
+    (valid : ReferenceWorkQueue.ValidGraphEvents work (inputs.flatten ++ batch))
+    (started : ReferenceWorkQueue.inputsStarted work (inputs ++ [batch]) = true)
+    : let actual := resourceFifoPrefix work inputs batch batch resources inventories
+      let queue :=
+        actual.dispatch.state.queue.cacheTaskFailures
+          (ReferenceWorkQueue.GraphEvent.availableFailures batch)
       queue.GroupMembershipSound
       ∧ queue.StartedTasksRegistered
       ∧ queue.LiveContributorsCovered
       ∧ queue.BufferedOwnersPresent := by
-  have ledger := (ReferenceWorkQueue.createWorkQueue_pendingAccounting work).replayGraphEvents
-    (before := []) generated events valid accepted
-  exact ⟨ledger.sound, ledger.started, generated.replayGraphEvents_liveContributorsCovered _ valid accepted,
-    generated.replayGraphEvents_bufferedOwnersPresent _ valid accepted⟩
+  obtain ⟨parents, canonical⟩ := generated.groupRecordsCanonical
+  have source := resourceFifoPrefix_sourceFrame (resources := resources)
+    (inventories := inventories)
+    generated canonical valid started (fifo := batch) (tail := []) (by simp)
+  have ledger := resourceFifoPrefix_pendingAccounting (resources := resources)
+    (inventories := inventories) generated valid started (fifo := batch) (tail := []) (by simp)
+  refine ⟨ledger.sound, ledger.started, ?_, source.tasks.owners.buffered⟩
+  rw [(resourceFifoPrefix_cacheProjection generated valid started (fifo := batch) (tail := [])
+    (by simp)).1]
+  exact (generated.batchPrefix_liveContributorsCovered valid started (fifo := batch)
+          (tail := []) (by simp)).cacheTaskFailures
+    _
 
------------------------------------------------------------------------------------------
--- The actual arbitrary-width wrapper retains records or safely clears them
------------------------------------------------------------------------------------------
-
-/-- The next started batch has not crossed the same public terminal/stopped guard. -/
+/-- The started next batch begins before the public terminal/stopped guard. -/
 theorem generatedReplay_beforeBatchRunning {work inputs batch}
     (generated : ReferenceWorkQueue.ExecutedWork work)
     (valid : ReferenceWorkQueue.ValidGraphEvents work inputs.flatten)
     (started : ReferenceWorkQueue.inputsStarted work (inputs ++ [batch]) = true)
     : let before := ((State.initialize work).runNormalized inputs).1
       before.stopped = false ∧ before.queue.terminated = false := by
-  dsimp only
-  obtain ⟨raw, priorStarted, _⟩ := generatedReplay_beforeBatch generated valid started
-  have flag : ((State.initialize work).runNormalized inputs).1.queue.terminated = false := by
-    rw [raw, ← ReferenceWorkQueue.State.rawEventReplay_state, ReferenceWorkQueue.State.rawEventReplay_terminated]
-    exact ReferenceWorkQueue.createWorkQueue_terminated _
-  refine ⟨?_, flag⟩
-  rw [State.runNormalized_initialize work inputs generated valid priorStarted] at flag ⊢
-  simp only [State.fromReference] at flag ⊢
-  split <;> simp_all [State.clearRecords]
+  obtain ⟨same, active⟩ := generatedResource_beforeBatch generated valid started
+  rw [same]
+  exact ⟨rfl, active⟩
 
 /-- Every started generated FIFO batch preserves record/pending-history coverage and
 constructs a compatible legal history. Terminal erasure leaves no queue-owned remainder.
@@ -154,8 +149,8 @@ def GeneratedResourceBatchInvariant : Prop :=
           ∧ (observed.dispatch.state.stopped = true
               → ∀ target, observed.resources target ≠ .owned .queue)
 
-/-- Compose the raw FIFO induction with generated topology before terminal clearing.
-The model never obtains resource safety merely by erasing a record or setting stopped.
+/-- Compose actual cached FIFO resource progress with topology before terminal erasure.
+No record is deemed safe merely because the wrapper clears it or marks the reader stopped.
 -/
 theorem GeneratedResourceBatchInvariant_holds : GeneratedResourceBatchInvariant := by
   intro work inputs batch generated valid started resources inventories
@@ -163,54 +158,72 @@ theorem GeneratedResourceBatchInvariant_holds : GeneratedResourceBatchInvariant 
   intro represented identities
   let before := ((State.initialize work).runNormalized inputs).1
   let first : ResourceBatchObservation := { dispatch := { state := before }, resources }
-  let reduced := batch.foldl (fun acc event => acc.handleGraphEvent inventories event) first
-  have accepted : (initial work).acceptsBatch (inputs.flatten ++ batch) = true := by
-    have all := (initial work).batchesStarted_acceptsBatch (inputs ++ [batch])
-      (by rwa [← ReferenceWorkQueue.inputsStarted_eq_batchesStarted])
-    simpa only [List.flatten_append, List.flatten_cons, List.flatten_nil, List.append_nil] using all
+  let available := ReferenceWorkQueue.GraphEvent.availableFailures batch
+  let reduced :=
+    batch.foldl (fun acc event => acc.handleGraphEvent inventories event available) first
+  have after := generatedRaw_resourceFold generated valid started represented identities
   have priorValid := valid.prefix ⟨batch, rfl⟩
   obtain ⟨running, active⟩ := generatedReplay_beforeBatchRunning generated priorValid started
-  obtain ⟨same, after⟩ := generatedRaw_resourceFold generated valid accepted
-    (generatedReplay_beforeBatch generated priorValid started).1 running represented identities
   refine ⟨State.observeResourceBatch_replay before resources inventories batch, ?_⟩
-  change QueueResourcesRepresented (State.observeResourceBatch before resources inventories batch).dispatch.state.queue
+  change QueueResourcesRepresented
+      (State.observeResourceBatch before resources inventories batch).dispatch.state.queue
       (ReferenceWorkQueue.GraphEvent.taskSettlements (inputs.flatten ++ batch))
       (State.observeResourceBatch before resources inventories batch).resources
     ∧ ((State.observeResourceBatch before resources inventories batch).dispatch.state.stopped = true
-      → ∀ target, (State.observeResourceBatch before resources inventories batch).resources target ≠ .owned .queue)
+      → ∀ target, (State.observeResourceBatch before resources inventories batch).resources target
+        ≠ .owned .queue)
   change before.stopped = false at running
   change before.queue.terminated = false at active
-  simp only [State.observeResourceBatch, running, active, Bool.false_or, Bool.false_eq_true, ↓reduceIte]
+  simp only [State.observeResourceBatch, running, active, Bool.false_or, Bool.false_eq_true,
+    ↓reduceIte]
   by_cases empty :
     (reduced.dispatch.state.queue.rootGroups.isEmpty
-      && reduced.dispatch.state.queue.rootStreams.isEmpty)
-    = true
-  · change (batch.foldl (fun acc event => acc.handleGraphEvent inventories event) first).dispatch.state.queue
-        = (initial work).replayGraphEvents (inputs.flatten ++ batch) at same
-    obtain ⟨sound, registered, covered, owners⟩ := generatedRaw_recordRootEvidence generated valid accepted
-    have noOwned := after.emptyRoots_no_owned (same.symm ▸ sound) (same.symm ▸ registered)
-      (same.symm ▸ covered) (same.symm ▸ owners) empty
-    have requestedNoOwned : ∀ state target, (reduced.resources.observeStop state).1 target ≠ .owned .queue := by
+      && reduced.dispatch.state.queue.rootStreams.isEmpty
+      && reduced.dispatch.state.queue.groupFailureEvents.isEmpty) = true
+  · have keys := resourceFifoPrefix_taskKeys (resources := resources) (inventories := inventories)
+      generated valid started (fifo := batch) (tail := []) (by simp)
+    have licensed (occurrence errors) (member : (occurrence, errors) ∈ available)
+        : occurrence ∈ ReferenceWorkQueue.GraphEvent.taskSettlements (inputs.flatten ++ batch) := by
+      obtain ⟨event, included, failure⟩ := List.mem_filterMap.mp member
+      cases event <;> simp only [Option.some.injEq, reduceCtorEq, Prod.mk.injEq] at failure
+      obtain ⟨rfl, rfl⟩ := failure
+      exact List.mem_reverse.mpr (List.mem_flatMap.mpr
+        ⟨_, List.mem_append_right _ included, List.mem_cons_self⟩)
+    have exposed := (after.batch.cacheTaskFailures keys available licensed).complete
+    obtain ⟨sound, registered, covered, owners⟩ := generatedRaw_recordRootEvidence
+      (resources := resources) (inventories := inventories) generated valid started
+    have roots := reduced.dispatch.state.queue.cacheTaskFailures_frame available
+    have emptyExposed :
+        ((reduced.dispatch.state.queue.cacheTaskFailures available).rootGroups.isEmpty
+        && (reduced.dispatch.state.queue.cacheTaskFailures available).rootStreams.isEmpty)
+          = true := by
+      have groups := congrArg ReferenceWorkQueue.State.rootGroups roots
+      have streams := congrArg ReferenceWorkQueue.State.rootStreams roots
+      rw [groups, streams]
+      exact (Bool.and_eq_true_iff.mp empty).1
+    have noOwned := exposed.emptyRoots_no_owned sound registered covered owners emptyExposed
+    have requestedNoOwned : ∀ state target,
+        (reduced.resources.observeStop state).1 target ≠ .owned .queue := by
       intro state target owned
       obtain ⟨earlier, _⟩ := ResourceState.requestQueueCleanup_still_owned _ _ target owned
       exact noOwned target earlier
-    dsimp only [reduced, first] at empty
+    dsimp only [reduced, first, available] at empty
     simp only [empty, ↓reduceIte]
     exact ⟨⟨fun occurrence owned => False.elim (requestedNoOwned _ _ owned),
       fun key owned => False.elim (requestedNoOwned _ _ owned)⟩, fun _ => requestedNoOwned _⟩
-  · dsimp only [reduced, first] at empty
+  · dsimp only [reduced, first, available] at empty
     simp only [empty, Bool.false_eq_true, ↓reduceIte]
     refine ⟨after, ?_⟩
     intro stopped
     have preserved : reduced.dispatch.state.stopped = before.stopped := by
       have loop (events : List GraphEvent) (current : ResourceBatchObservation)
-          : (events.foldl (fun acc event => acc.handleGraphEvent inventories event) current).dispatch.state.stopped
-              = current.dispatch.state.stopped := by
+          : (events.foldl (fun acc event => acc.handleGraphEvent inventories event available)
+              current).dispatch.state.stopped = current.dispatch.state.stopped := by
         induction events generalizing current with
         | nil => rfl
         | cons event rest ih =>
             rw [List.foldl_cons, ih]
-            exact State.handleGraphEvent_stopped current.dispatch.state event
+            exact State.handleGraphEvent_stopped current.dispatch.state event available
       exact loop batch first
     change reduced.dispatch.state.stopped = true at stopped
     rw [preserved, running] at stopped

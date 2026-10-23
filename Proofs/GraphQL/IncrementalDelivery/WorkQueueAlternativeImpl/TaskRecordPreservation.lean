@@ -16,8 +16,9 @@ private abbrev Kernel := ReferenceWorkQueue.State
 -----------------------------------------------------------------------------------------
 
 /-- Registration only appends permanent task descriptors, across all input kinds. -/
-theorem registrationSnapshot_oldTasks (queue : Kernel) (event : GraphEvent)
-    : queue.tasks.Subset (registrationSnapshot queue event).tasks := by
+theorem registrationSnapshot_oldTasks_available (queue : Kernel) (event : GraphEvent)
+    (available : List (Occurrence × Nat))
+    : queue.tasks.Subset (registrationSnapshot queue event available).tasks := by
   cases event with
   | taskSuccess occurrence result =>
       cases found : queue.taskNode? occurrence with
@@ -25,63 +26,165 @@ theorem registrationSnapshot_oldTasks (queue : Kernel) (event : GraphEvent)
           simpa only [registrationSnapshot, found]
             using (show queue.tasks.Subset queue.tasks from fun _ member => member)
       | some node =>
-          cases healthy : queue.taskHasHealthyOwner node.task with
-          | false =>
-              simpa only [registrationSnapshot, found, healthy, Bool.false_eq_true,
-                ↓reduceIte] using (show queue.tasks.Subset queue.tasks from fun _ member => member)
-          | true =>
-              simp only [registrationSnapshot, found, healthy, ↓reduceIte,
-                State.maybeIntegrateWork_tasks, ReferenceWorkQueue.State.putTaskNode]
-              exact fun _ member => List.mem_append_left _ member
+          simp only [registrationSnapshot, found,
+            State.maybeIntegrateWork_tasks, ReferenceWorkQueue.State.putTaskNode]
+          exact fun _ member => List.mem_append_left _ member
   | streamItems stream items =>
       cases active : queue.rootStreams.contains stream.ref with
       | false =>
           simpa only [registrationSnapshot, active, Bool.false_eq_true,
             ↓reduceIte] using (show queue.tasks.Subset queue.tasks from fun _ member => member)
       | true =>
-          rw [registrationSnapshot_itemFold queue stream items active, streamRegistrationFold_tasks]
+          rw [registrationSnapshot_itemFold queue stream items active available,
+            streamRegistrationFold_tasks _ _ available]
           exact List.subset_append_left _ _
-  | taskFailure | streamSuccess | streamFailure => exact fun _ member => member
+  | taskFailure | groupFailure | streamSuccess | streamFailure =>
+      exact fun _ member => member
 
-/-- An old unsettled task blocks item empty-shell pruning even without a task node.
-The exact registration fold carries the original link/registry invariants and one owner key.
+/-- Empty-snapshot specialization for the established eventwise catalogue interface. -/
+theorem registrationSnapshot_oldTasks (queue : Kernel) (event : GraphEvent)
+    : queue.tasks.Subset (registrationSnapshot queue event).tasks :=
+  registrationSnapshot_oldTasks_available queue event []
+
+/-- Registration keeps an old unsettled task owner or emits that task’s actual abort.
+The item fold may remove owners during cached startup; its cleanup is retained explicitly.
 -/
-theorem registrationSnapshot_unsettledOwner {queue : Kernel} {work settled task key}
+theorem registrationSnapshot_unsettledTask_progress {queue : Kernel} {work settled task}
     (accounted : queue.PendingAccounting work settled) (registered : task ∈ queue.tasks)
     (pending : task.occurrence ∉ settled)
-    (contributes : key ∈ task.groups.map DeliveryNode.ref)
-    (present : key ∈ queue.groupNodes.map (fun node => node.group.node.ref))
+    (owned : ∃ owner ∈ task.groups, ∃ group, queue.groupNode? owner.ref = some group)
+    (rejections : queue.TaskRejectionsSatisfy (fun occurrence _ => occurrence ∈ settled))
     (event : GraphEvent) (matching : event.MatchesWork work)
-    : key
-      ∈ (registrationSnapshot queue event).groupNodes.map
-          (fun node => node.group.node.ref) := by
+    (available : List (Occurrence × Nat) := [])
+    (cached : queue.cacheTaskFailures available = queue := by rfl)
+    (licensed
+      : ∀ occurrence errors, (occurrence, errors) ∈ available → occurrence ∈ settled := by
+        intro occurrence errors member; cases member)
+    : (∃ owner ∈ task.groups,
+        ∃ group,
+          (registrationSnapshot queue event available).groupNode? owner.ref = some group)
+      ∨ .abortTask task.occurrence
+        ∈ (({ queue } : State).handleGraphEvent event available).2.2.1 := by
   cases event with
   | taskSuccess occurrence result =>
       cases found : queue.taskNode? occurrence with
-      | none => simpa only [registrationSnapshot, found] using present
+      | none => simpa only [registrationSnapshot, found] using Or.inl owned
       | some node =>
-          cases healthy : queue.taskHasHealthyOwner node.task with
-          | false => simpa only [registrationSnapshot, found, healthy, Bool.false_eq_true,
-              ↓reduceIte] using present
-          | true =>
-              simp only [registrationSnapshot, found, healthy, ↓reduceIte]
-              exact State.maybeIntegrateWork_includesRefs _ result.work
-                (some occurrence) present
+          left
+          obtain ⟨owner, member, group, lookup⟩ := owned
+          have present : owner.ref ∈ queue.groupNodes.map (fun node => node.group.node.ref) :=
+            List.mem_map.mpr ⟨group, List.mem_of_find?_eq_some lookup,
+              ReferenceWorkQueue.State.groupNode?_ref lookup⟩
+          have retained : owner.ref ∈ (registrationSnapshot queue
+              (.taskSuccess occurrence result) available).groupNodes.map
+                (fun node => node.group.node.ref) := by
+            simp only [registrationSnapshot, found]
+            exact State.maybeIntegrateWork_includesRefs _ result.work (some occurrence) present
+          refine ⟨owner, member, ?_⟩
+          cases lookup
+                : (registrationSnapshot queue (.taskSuccess occurrence result)
+                    available).groupNode?
+                    owner.ref with
+          | some group => exact ⟨group, rfl⟩
+          | none =>
+              exact False.elim (((ReferenceWorkQueue.State.groupNode?_eq_none_iff _ _).mp lookup)
+                retained)
   | streamItems stream items =>
       cases active : queue.rootStreams.contains stream.ref with
-      | false => simpa only [registrationSnapshot, active, Bool.false_eq_true,
-          ↓reduceIte] using present
+      | false =>
+          simpa only [registrationSnapshot, active, Bool.false_eq_true, ↓reduceIte]
+            using Or.inl owned
       | true =>
-          rw [registrationSnapshot_itemFold queue stream items active]
-          exact streamRegistrationFold_ownerPresent items ({ queue }, [], [], [], [], [])
-            ⟨accounted.refs, accounted.liveGroups, accounted.taskGroups, accounted.links⟩
-            registered pending contributes present
-            (fun item member => matching.streamItem_childTasksCovered member)
-  | taskFailure | streamSuccess | streamFailure => exact present
+          have frame : SourceRegistrationFrame queue settled work :=
+            ⟨⟨accounted.refs, accounted.liveGroups, accounted.taskGroups, accounted.links⟩,
+              accounted.matching, accounted.sound⟩
+          have childMatching : ∀ item ∈ items, ∀ task ∈ item.work.tasks,
+              ReferenceWorkQueue.TaskMatches work task := by
+            intro item member task listed
+            obtain ⟨address, payload, same, known⟩ :=
+              matching.streamItem_childTask_producer member listed
+            exact ⟨⟨address, payload, some item.occurrence, same, known⟩,
+              matching.streamItem_childTask_groupsExact member listed⟩
+          rcases streamRegistrationFold_existingTask_progress items
+              (({ queue } : State), [], [], [], [], [], []) frame
+              (fun item member => matching.streamItem_childTasksCovered accounted.registration.source member)
+              childMatching registered
+              pending owned rejections rfl List.nodup_nil available licensed with kept | requested
+          · left
+            rwa [registrationSnapshot_itemFold queue stream items active available]
+          · right
+            simp only [State.handleGraphEvent, cached]
+            exact streamItems_target_aborted_available active available requested
+  | taskFailure | groupFailure | streamSuccess | streamFailure => exact .inl owned
 
 -----------------------------------------------------------------------------------------
 -- Existing pending records progress across every generated handler
 -----------------------------------------------------------------------------------------
+
+/-- Existing task records progress at an actual exposed source cut with full-batch failure
+exclusions. The consumed ledger still licenses the input's settlement; the larger set only
+identifies the tracked computation that must remain unfinished throughout this batch.
+-/
+theorem sourceFrame_existingTask_progress_available {queue : Kernel}
+    {work parents before event excluded occurrence}
+    (generated : ReferenceWorkQueue.ExecutedWork work)
+    (canonical
+      : ∀ node dependencies,
+          ReferenceWorkQueue.GroupRecordAt work node dependencies
+          → dependencies = parents node.ref)
+    (source : ReferenceWorkQueue.UncancelledReplayFrame queue work parents before)
+    (accounted
+      : queue.PendingAccounting work
+          (ReferenceWorkQueue.GraphEvent.taskSettlements before))
+    (keys : queue.TaskNodeKeysUnique)
+    (valid : ReferenceWorkQueue.ValidGraphEvents work (before ++ [event]))
+    (included
+      : (event.recordTaskOutcome
+          (ReferenceWorkQueue.GraphEvent.taskSettlements before)).Subset
+          excluded)
+    (rejections : queue.TaskRejectionsSatisfy (fun rejected _ => rejected ∈ excluded))
+    (available : List (Occurrence × Nat))
+    (cached : queue.cacheTaskFailures available = queue)
+    (licensed : ∀ rejected errors, (rejected, errors) ∈ available → rejected ∈ excluded)
+    (represented : RecordTargetRepresented queue (.task occurrence))
+    (pending : occurrence ∉ excluded)
+    : let reduced := ({ queue } : State).handleGraphEvent event available
+      RecordTargetRepresented reduced.1.queue (.task occurrence)
+      ∨ .abortTask occurrence ∈ reduced.2.2.1 := by
+  obtain ⟨_, matched, _⟩ := ReferenceWorkQueue.validGraphEvents_last valid
+  have earlier
+      : (ReferenceWorkQueue.GraphEvent.taskSettlements before).Subset excluded := by
+    intro target member
+    apply included
+    cases event with
+    | taskSuccess | taskFailure => exact List.mem_cons_of_mem _ member
+    | streamItems | groupFailure | streamSuccess | streamFailure => exact member
+  cases represented with
+  | @task key occurrence group found linked _ =>
+      obtain ⟨task, member, same, contributes⟩ := accounted.sound group
+        (List.mem_of_find?_eq_some found) occurrence linked
+      have taskFresh : task.occurrence ∉ excluded := by simpa only [← same] using pending
+      obtain ⟨owner, ownerMember, ownerKey⟩ := List.mem_map.mp contributes
+      have initialOwned : ∃ owner ∈ task.groups, ∃ node,
+          queue.groupNode? owner.ref = some node := by
+        refine ⟨owner, ownerMember, group, ?_⟩
+        rw [ownerKey, ReferenceWorkQueue.State.groupNode?_ref found]
+        exact found
+      rcases registrationSnapshot_unsettledTask_progress
+          (pendingAccounting_weakenSettled accounted earlier) member taskFresh initialOwned
+          rejections event matched available cached licensed with owned | aborted
+      · have unrejected : queue.TaskRejectionsSatisfy
+            (fun rejected _ => rejected ≠ task.occurrence) :=
+          rejections.mono (fun rejected _ member same => taskFresh (same ▸ member))
+        have inputPending : task.occurrence ∉ event.recordTaskOutcome
+            (ReferenceWorkQueue.GraphEvent.taskSettlements before) :=
+          fun member => taskFresh (included member)
+        have progress := sourceFrame_preparedTask_progress_available generated canonical source
+          accounted keys valid available cached unrejected
+          (fun rejected errors member same => taskFresh (same ▸ licensed rejected errors member))
+          (registrationSnapshot_oldTasks_available queue event available member) inputPending owned
+        simpa only [← same] using progress
+      · exact .inr (by simpa only [← same] using aborted)
 
 /-- A pre-handler task membership still unsettled after this input is represented at the
 actual endpoint or aborted there. Completion history excludes legitimately removed buffers.
@@ -101,8 +204,8 @@ def GeneratedRepresentedUnsettledTaskProgress : Prop :=
         → RecordTargetRepresented reduced.state.queue (.task occurrence)
           ∨ .abortTask occurrence ∈ reduced.effects
 
-/-- Membership soundness identifies the old descriptor; exact registration retains its
-owner; the all-handler prepared-task theorem constructs the endpoint or abort alternative.
+/-- Membership soundness identifies the old descriptor. Registration retains an owner
+or emits an abort; the prepared-task theorem completes the owner-preserving branch.
 -/
 theorem GeneratedRepresentedUnsettledTaskProgress_holds
     : GeneratedRepresentedUnsettledTaskProgress := by
@@ -110,36 +213,38 @@ theorem GeneratedRepresentedUnsettledTaskProgress_holds
   dsimp only
   intro represented pending
   let before := ((State.initialize work).runNormalized inputs).1
+  let queue := before.queue
+  let settled := ReferenceWorkQueue.GraphEvent.taskSettlements inputs.flatten
+  obtain ⟨parents, canonical⟩ := generated.groupRecordsCanonical
+  have source := generatedReplay_sourceFrame generated canonical valid started
   have accounted := generatedReplay_nextAccounting generated valid started
-  obtain ⟨_, matching, _⟩ := ReferenceWorkQueue.validGraphEvents_last valid
-  cases represented with
-  | @task key occurrence group found linked =>
-      obtain ⟨task, member, same, contributes⟩ := accounted.sound group
-        (List.mem_of_find?_eq_some found) occurrence linked
-      have unsettled
-          : task.occurrence
-            ∉ ReferenceWorkQueue.GraphEvent.taskSettlements inputs.flatten := by
-        intro settled
-        apply pending
-        rw [← same]
-        cases event with
-        | taskSuccess | taskFailure => exact List.mem_cons_of_mem _ settled
-        | streamItems | streamSuccess | streamFailure => exact settled
-      have present := registrationSnapshot_unsettledOwner accounted member unsettled contributes
-        (List.mem_map_of_mem (List.mem_of_find?_eq_some found)) event matching
-      obtain ⟨owner, ownerMember, ownerKey⟩ := List.mem_map.mp contributes
-      have owned : ∃ owner ∈ task.groups, ∃ node,
-          (registrationSnapshot before.queue event).groupNode? owner.ref = some node := by
-        refine ⟨owner, ownerMember, ?_⟩
-        cases lookup : (registrationSnapshot before.queue event).groupNode? owner.ref with
-        | some node => exact ⟨node, rfl⟩
-        | none =>
-            exact False.elim ((ReferenceWorkQueue.State.groupNode?_eq_none_iff _ _).mp lookup
-              (ownerKey.symm ▸ present))
-      exact same
-      ▸ GeneratedPreparedUnsettledTaskProgress_holds work inputs event generated valid
-          started task (registrationSnapshot_oldTasks _ _ member) (same.symm ▸ pending)
-          owned
+  have keys : queue.TaskNodeKeysUnique := by
+    obtain ⟨raw, _, _⟩ := generatedReplay_beforeNext generated valid started
+    change ((State.initialize work).runNormalized inputs).1.queue.TaskNodeKeysUnique
+    rw [raw, ← ReferenceWorkQueue.State.runNormalized_replayBatches]
+    exact (ReferenceWorkQueue.createWorkQueue_taskNodeKeysUnique
+      (ReferenceWorkQueue.Work.fromExecution work)).runNormalized inputs
+  have rejections : queue.TaskRejectionsSatisfy
+      (fun rejected _ => rejected ∈ event.recordTaskOutcome settled) := by
+    refine (generatedReplay_taskRejections generated valid started).mono
+      (after := fun rejected _ => rejected ∈ event.recordTaskOutcome settled) ?_
+    intro rejected errors member
+    cases event with
+    | taskSuccess | taskFailure => exact List.mem_cons_of_mem _ member
+    | streamItems | groupFailure | streamSuccess | streamFailure => exact member
+  have canonicalState := generatedReplay_beforeNextState generated valid started
+  change before = { queue := queue } at canonicalState
+  change let reduced := ({ state := before } : GraphBatchResult).handleGraphEvent event
+    RecordTargetRepresented reduced.state.queue (.task occurrence)
+      ∨ .abortTask occurrence ∈ reduced.effects
+  rw [canonicalState]
+  have progress := sourceFrame_existingTask_progress_available generated canonical source accounted
+    keys valid (List.Subset.refl _) rejections [] rfl
+    (by intro rejected errors member; cases member) represented pending
+  dsimp only [GraphBatchResult.handleGraphEvent]
+  rcases progress with retained | aborted
+  · exact .inl (retained.withGroupFailures _)
+  · exact .inr (List.mem_append_right _ aborted)
 
 -----------------------------------------------------------------------------------------
 -- The independent resource observer keeps the same pending completion history
@@ -167,10 +272,12 @@ theorem ResourceState.observeDispatch_existingQueueOwned_survivesCompletion
     : (resources.observeNormalCompletion before.queue event).1 target
       = .owned .queue := by
   obtain ⟨adopted, _⟩ := ResourceState.requestQueueCleanup_still_owned _ _ target owned
-  rcases ResourceState.observeAdoptions_queueOwned_origin _ _ _ target adopted with earlier | transferred
+  rcases ResourceState.observeAdoptions_queueOwned_origin _ _ _ target adopted
+      with earlier | transferred
   · exact earlier
   · obtain ⟨producer, _, _, lease⟩ := transferred
-    have original := resources.observeNormalCompletion_owned_origin _ _ target (.producer producer) lease
+    have original := resources.observeNormalCompletion_owned_origin _ _ target
+      (.producer producer) lease
     rw [initial] at original
     cases original
 
@@ -197,7 +304,7 @@ theorem ResourceState.observeNormalCompletion_taskUnsettled (resources : Resourc
       · subst failed
         exact resources.finishQueueTarget_not_owned (.task occurrence) owned
       · exact pending earlier
-  | streamItems | streamSuccess | streamFailure => exact pending
+  | streamItems | groupFailure | streamSuccess | streamFailure => exact pending
 
 /-- Still-owned existing pending leases retain records; completion/cancellation alternatives
 are excluded by the actual observer, not assumed as successful ownership preservation.
@@ -224,9 +331,11 @@ theorem GeneratedDispatchExistingTaskRepresentation_holds
   dsimp only
   intro represented pending initial owned
   let before := ((State.initialize work).runNormalized inputs).1
-  have completed := resources.observeDispatch_existingQueueOwned_survivesCompletion inventories before event
+  have completed := resources.observeDispatch_existingQueueOwned_survivesCompletion
+    inventories before event
     (.task occurrence) initial owned
-  have unfinished := resources.observeNormalCompletion_taskUnsettled before.queue event occurrence _ pending completed
+  have unfinished := resources.observeNormalCompletion_taskUnsettled before.queue event
+    occurrence _ pending completed
   rcases GeneratedRepresentedUnsettledTaskProgress_holds work inputs event generated valid started
       occurrence represented unfinished with kept | aborted
   · exact kept
@@ -268,21 +377,29 @@ theorem GeneratedDispatchTasksPendingRepresented_holds
   let before := ((State.initialize work).runNormalized inputs).1
   obtain ⟨prior, matching, fresh⟩ := ReferenceWorkQueue.validGraphEvents_last valid
   obtain ⟨adopted, _⟩ := ResourceState.requestQueueCleanup_still_owned _ _ (.task occurrence) owned
-  rcases ResourceState.observeAdoptions_queueOwned_origin _ _ _ (.task occurrence) adopted with earlier | transferred
-  · have original := resources.observeNormalCompletion_owned_origin _ _ (.task occurrence) .queue earlier
+  rcases ResourceState.observeAdoptions_queueOwned_origin _ _ _ (.task occurrence) adopted
+      with earlier | transferred
+  · have original := resources.observeNormalCompletion_owned_origin _ _ (.task occurrence)
+      .queue earlier
     obtain ⟨represented, pending⟩ := beforeInvariant occurrence original
-    exact ⟨GeneratedDispatchExistingTaskRepresentation_holds work inputs event generated valid started
+    exact ⟨GeneratedDispatchExistingTaskRepresentation_holds work inputs event
+      generated valid started
       resources inventories occurrence represented pending original owned,
-      resources.observeNormalCompletion_taskUnsettled before.queue event occurrence _ pending earlier⟩
+      resources.observeNormalCompletion_taskUnsettled before.queue event occurrence
+        _ pending earlier⟩
   · obtain ⟨producer, emitted, listed, acquired⟩ := transferred
-    have original := resources.observeNormalCompletion_owned_origin _ _ (.task occurrence) (.producer producer) acquired
-    have represented := GeneratedDispatchIncomingTaskRepresentation_holds work inputs event generated valid started
+    have original := resources.observeNormalCompletion_owned_origin _ _ (.task occurrence)
+      (.producer producer) acquired
+    have represented := GeneratedDispatchIncomingTaskRepresentation_holds work inputs event
+      generated valid started
       resources inventories identities producer occurrence emitted listed original owned
-    obtain ⟨address, owners, payload, same, known⟩ := identities producer occurrence emitted listed original
+    obtain ⟨address, owners, payload, same, known⟩ :=
+      identities producer occurrence emitted listed original
     obtain ⟨task, returned, identity⟩ := adoptedTask_returned matching emitted (same ▸ known)
     have childFresh := acceptedChildTask_unsettled matching prior fresh returned
     have unfinished := acceptedChildTask_not_recorded matching returned
-      (fun member => childFresh (ReferenceWorkQueue.GraphEvent.taskSettlements_subsetIdentities _ member))
+      (fun member =>
+        childFresh (ReferenceWorkQueue.GraphEvent.taskSettlements_subsetIdentities _ member))
     exact ⟨represented, same.symm ▸ identity ▸ unfinished⟩
 
 end GraphQL.IncrementalDelivery.AlternativeWorkQueue.NativeRefinement

@@ -4,7 +4,7 @@ import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.PendingCounts
 /-! Local host-protocol safety. Reachable cleanup is not acquired-resource coverage. -/
 
 namespace GraphQL.IncrementalDelivery.AlternativeWorkQueue
-open GraphQL.IncrementalDelivery.WorkQueueSemantics (Occurrence)
+open GraphQL.IncrementalDelivery.WorkQueueSemantics (Occurrence NodeRefs)
 
 private instance : LawfulBEq Occurrence where
   rfl := (ReferenceWorkQueue.occurrence_beq_iff_eq _ _).mpr rfl
@@ -201,29 +201,162 @@ theorem State.disposeRejectedTasks_prefix (state : State) (integrated : Integrat
   unfold State.disposeRejectedTasks uniqueCleanupTargets
   rw [List.foldl_append]
   change targets.IsPrefix ((integrated.rejectedTasks.flatMap
-    (fun task => state.cancelTask task.occurrence)).foldl insertTarget (uniqueCleanupTargets targets))
+    (fun task => state.cancelTask task.occurrence)).foldl insertTarget
+      (uniqueCleanupTargets targets))
   rw [uniqueCleanupTargets_eq_self targets unique]
   exact targetFold_prefix _ _
 
-/-- Activation consumes the actual rejection projection without duplicating cleanup identities. -/
+/-- Inline last-owner disposal preserves any target property stable under deduplication. -/
+private theorem removeGroup_targets_preserves (property : List CleanupTarget → Prop)
+    (extend
+      : ∀ targets pending,
+          property targets → property (uniqueCleanupTargets (targets ++ pending)))
+    (state : State) (key : Nat) (targets : List CleanupTarget) (valid : property targets)
+    : property (state.removeGroup key targets).2 := by
+  let step (acc : State × List CleanupTarget) (occurrence : Occurrence) :=
+    let (current, targets) := acc
+    match current.queue.task? occurrence with
+    | none => (current, targets)
+    | some task =>
+        if task.groups.all (fun owner => (current.queue.groupNode? owner.ref).isNone) then
+          ({ current with queue := current.queue.removeTask occurrence },
+            uniqueCleanupTargets (targets ++ current.cancelTask occurrence))
+        else
+          (current, targets)
+  have fold (tasks : List Occurrence) (acc : State × List CleanupTarget)
+      (valid : property acc.2) : property (tasks.foldl step acc).2 := by
+    induction tasks generalizing acc with
+    | nil => exact valid
+    | cons occurrence rest ih =>
+        apply ih
+        obtain ⟨current, targets⟩ := acc
+        dsimp only [step]
+        split
+        · exact valid
+        · split
+          · exact extend _ _ valid
+          · exact valid
+  have loop (fuel : Nat) : ∀ pending current removed targets,
+      property targets
+        → property (State.removeGroup.walk fuel current pending removed targets).2.2 := by
+    induction fuel with
+    | zero =>
+        intro pending current removed targets valid
+        simpa only [State.removeGroup.walk] using valid
+    | succ fuel ih =>
+        intro pending
+        induction pending with
+        | nil =>
+            intro current removed targets valid
+            simpa only [State.removeGroup.walk] using valid
+        | cons ref rest next =>
+            intro current removed targets valid
+            rw [State.removeGroup.walk]
+            split
+            · exact next current removed targets valid
+            · rename_i group found
+              exact ih _ _ _ _ (fold group.tasks _ valid)
+  exact loop _ _ _ _ _ valid
+
+private theorem startGroup_targets_preserves (property : List CleanupTarget → Prop)
+    (extend
+      : ∀ targets pending,
+          property targets → property (uniqueCleanupTargets (targets ++ pending)))
+    (state : State) (ref : Nat) (targets : List CleanupTarget)
+    (available : List (Occurrence × Nat)) (valid : property targets)
+    : property (state.startGroup ref targets available).2.1 := by
+  unfold State.startGroup
+  dsimp only
+  split
+  · exact valid
+  · split
+    · exact valid
+    · exact removeGroup_targets_preserves property extend _ _ targets valid
+
+private theorem startNewWork_targets_preserves (property : List CleanupTarget → Prop)
+    (extend
+      : ∀ targets pending,
+          property targets → property (uniqueCleanupTargets (targets ++ pending)))
+    (state : State) (newWork : ReferenceWorkQueue.NewWork) (integrated : IntegratedWork)
+    (targets : List CleanupTarget) (available : List (Occurrence × Nat))
+    (valid : property targets)
+    : property (state.startNewWork newWork integrated targets available).2.1 := by
+  have fold (refs : NodeRefs)
+      (acc : State × List CleanupTarget × List ReferenceWorkQueue.GroupFailureEvent)
+      (valid : property acc.2.1)
+      : property (refs.foldl
+          (fun (current, targets, failures) ref =>
+            let (next, targets, queued) := current.startGroup ref targets available
+            (next, targets, failures ++ queued)) acc).2.1 := by
+    induction refs generalizing acc with
+    | nil => exact valid
+    | cons ref rest ih =>
+        apply ih
+        exact startGroup_targets_preserves property extend _ _ _ available valid
+  unfold State.startNewWork
+  split
+  · exact valid
+  · exact fold _ _ (extend _ _ valid)
+
+/-- Cached group startup retains every cleanup target already emitted by scope disposal. -/
+theorem State.startNewWork_disposedTargets (state : State)
+    (newWork : ReferenceWorkQueue.NewWork) (integrated : IntegratedWork)
+    (targets : List CleanupTarget) (running : state.stopped = false)
+    (available : List (Occurrence × Nat) := [])
+    : let queue :=
+        {
+          state.queue with
+            rootGroups :=
+              state.queue.rootGroups ++ newWork.newGroups.map Execution.DeliveryNode.ref
+        }
+      let queue :=
+        newWork.newStreams.foldl (fun current stream => current.startStream stream.ref)
+          queue
+      (({ state with queue } : State).disposeRejectedTasks integrated targets).Subset
+        (state.startNewWork newWork integrated targets available).2.1 := by
+  have fold (refs : NodeRefs)
+      (acc : State × List CleanupTarget × List ReferenceWorkQueue.GroupFailureEvent)
+      {target : CleanupTarget} (member : target ∈ acc.2.1)
+      : target ∈ (refs.foldl
+          (fun (current, targets, failures) ref =>
+            let (next, targets, queued) := current.startGroup ref targets available
+            (next, targets, failures ++ queued)) acc).2.1 := by
+    induction refs generalizing acc with
+    | nil => exact member
+    | cons ref rest ih =>
+        apply ih
+        exact startGroup_targets_preserves (fun targets => target ∈ targets)
+          (fun targets pending member =>
+            (mem_uniqueCleanupTargets _ _).mpr (List.mem_append_left _ member))
+          _ _ _ available member
+  dsimp only
+  intro target member
+  unfold State.startNewWork
+  simp only [running, Bool.false_eq_true, ite_false]
+  exact fold _ _ member
+
+/-- Activation and cached-failure cleanup do not duplicate target identities. -/
 theorem State.startNewWork_targets_nodup (state : State)
     (newWork : ReferenceWorkQueue.NewWork) (integrated : IntegratedWork)
     (targets : List CleanupTarget) (unique : targets.Nodup)
-    : (state.startNewWork newWork integrated targets).2.Nodup := by
-  unfold State.startNewWork
-  split
-  · exact unique
-  · exact State.disposeRejectedTasks_nodup _ _ _
+    (available : List (Occurrence × Nat) := [])
+    : (state.startNewWork newWork integrated targets available).2.1.Nodup :=
+  startNewWork_targets_preserves (fun targets => targets.Nodup)
+    (fun _ _ _ => uniqueCleanupTargets_nodup _) state newWork integrated targets available
+    unique
 
-/-- Activation only extends a receipt's already accumulated target identities. -/
+/-- Activation only extends the already accumulated unique target prefix. -/
 theorem State.startNewWork_targets_prefix (state : State)
     (newWork : ReferenceWorkQueue.NewWork) (integrated : IntegratedWork)
     (targets : List CleanupTarget) (unique : targets.Nodup)
-    : targets.IsPrefix (state.startNewWork newWork integrated targets).2 := by
-  unfold State.startNewWork
-  split
-  · exact List.prefix_refl _
-  · exact State.disposeRejectedTasks_prefix _ _ _ unique
+    (available : List (Occurrence × Nat) := [])
+    : targets.IsPrefix (state.startNewWork newWork integrated targets available).2.1 := by
+  have preserved := startNewWork_targets_preserves
+    (fun current => current.Nodup ∧ targets.IsPrefix current)
+    (fun current pending prior => ⟨uniqueCleanupTargets_nodup _,
+      prior.2.trans (uniqueCleanupTargets_append_prefix current pending prior.1)⟩)
+    state newWork integrated targets available ⟨unique, List.prefix_refl _⟩
+  exact preserved.2
 
 @[simp]
 theorem State.clearRecords_terminated (state : State)
@@ -258,7 +391,7 @@ theorem State.cancel_idempotent (state : State)
 /-- Source failure requests producer cancellation only, never an admitted queue abort. -/
 theorem State.handleGraphEvent_streamFailure_effects (state : State)
     (stream : Execution.DeliveryNode) (errors : Nat)
-    : (state.handleGraphEvent (.streamFailure stream errors)).2.2
+    : (state.handleGraphEvent (.streamFailure stream errors)).2.2.1
       = if state.queue.rootStreams.contains stream.ref then
           [.cancelSource stream.ref]
         else

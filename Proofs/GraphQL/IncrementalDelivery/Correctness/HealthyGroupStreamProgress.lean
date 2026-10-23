@@ -39,8 +39,9 @@ theorem released_streams_run_extension_of_healthy_groups
             batches ++ tail.map (fun event => [event]) ++ [[.workQueueTermination]]
           ⟩ := by
   obtain ⟨tail, next, cuts, admitted, accounted⟩ :=
-    account_released_streams coherent explained deferred closed notified
-  obtain ⟨closures, _, _, finished, allClosed⟩ := admitted.close_open_refs accounted
+    account_released_streams coherent positive explained deferred closed notified
+  obtain ⟨closures, _, _, finished, allClosed⟩ := admitted.close_open_refs
+    (Explains.openFailureCauses_of_healthy_groups positive admitted (healthyGroups _ _ _ admitted)) accounted
     (announcedRefs ((groups ++ streams).map DeliveryNode.ref) (events ++ tail))
     (fun _ opened => opened.1)
   have reports occurrence owners producer payload
@@ -53,6 +54,7 @@ theorem released_streams_run_extension_of_healthy_groups
   have finalBatching := (batched.append (WorkBatching.singletons tail)).append
     (WorkBatching.singletons closures)
   obtain ⟨last, run, _, _⟩ := finalBatching.finish_accounted finished
+    (fun ref opened _ => (opened.2 (allClosed ref opened.1)).elim)
     (fun occurrence owners producer payload known =>
       (accounted occurrence owners producer payload known).append closures) reports
   refine ⟨tail ++ closures ++ last, ?_⟩

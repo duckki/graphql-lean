@@ -1,9 +1,10 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.BufferedCarrierReplay
 
-/-! Batch certificates retain their occurrence labels when source inputs are flattened. -/
+/-! Batch certificates retain their labels and actual rejection snapshots. -/
 
 namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.Execution (WorkQueueEvent)
+open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
 -----------------------------------------------------------------------------------------
 -- Taking the ledger at the full raw object count preserves every handler slice
@@ -15,10 +16,12 @@ No exact length or payload equality premise is needed, even for a short supplied
 -/
 theorem State.replayClosuresCovered_take_iff (queue : State)
     (events : List GraphEvent) (published : List ObjectPublication)
+    (available : List (Occurrence × Nat) := [])
     : queue.ReplayClosuresCovered events
         (published.take
-          ((queue.rawEventReplay events).2.flatMap WorkQueueEvent.objectValues).length)
-      ↔ queue.ReplayClosuresCovered events published := by
+          ((queue.rawEventReplay events available).2.flatMap
+            WorkQueueEvent.objectValues).length) available
+      ↔ queue.ReplayClosuresCovered events published available := by
   induction events generalizing queue published with
   | nil => rfl
   | cons event rest ih =>
@@ -31,14 +34,15 @@ theorem State.replayClosuresCovered_take_iff (queue : State)
 Witness: peel the first inputs, preserve their local certificates, and add their
 value counts when dropping labels for the continuation. No new labels are selected.
 -/
-theorem State.ReplayClosuresCovered.append {queue : State} {published}
-    (before after : List GraphEvent)
-    (first : queue.ReplayClosuresCovered before published)
+theorem State.ReplayClosuresCovered.append {queue : State}
+    {available : List (Occurrence × Nat)} {published} (before after : List GraphEvent)
+    (first : queue.ReplayClosuresCovered before published available)
     (last
-      : (queue.replayGraphEvents before).ReplayClosuresCovered after
+      : (queue.replayGraphEvents before available).ReplayClosuresCovered after
           (published.drop
-            ((queue.rawEventReplay before).2.flatMap WorkQueueEvent.objectValues).length))
-    : queue.ReplayClosuresCovered (before ++ after) published := by
+            ((queue.rawEventReplay before available).2.flatMap
+              WorkQueueEvent.objectValues).length) available)
+    : queue.ReplayClosuresCovered (before ++ after) published available := by
   induction before generalizing queue published with
   | nil => exact last
   | cons event rest ih =>
@@ -50,48 +54,21 @@ theorem State.ReplayClosuresCovered.append {queue : State} {published}
         List.drop_drop, State.replayGraphEvents, List.foldl_cons] using last
 
 -----------------------------------------------------------------------------------------
--- Started batches add no intervening state change before another accepted input
+-- Batch output uses its own snapshot and adds only object-free control notices
 -----------------------------------------------------------------------------------------
 
-/-- An open batch wrapper preserves the raw object-value sequence exactly.
-Witness: its only optional output is a terminal control marker, whose object list is empty.
+/-- An open batch has the same object values as replay with that batch's cache snapshot.
+Witness: forwarded startup failures and the optional termination marker contain no object
+values. Different batches retain different snapshots, so this is not a flattening law.
 -/
 theorem State.handleGraphEvents_objectValues (queue : State) (events : List GraphEvent)
     (running : queue.terminated = false)
     : (queue.handleGraphEvents events).2.flatMap WorkQueueEvent.objectValues
-      = (queue.rawEventReplay events).2.flatMap WorkQueueEvent.objectValues := by
-  rw [State.handleGraphEvents_eq_rawEventReplay]
+      = (queue.rawEventReplay events (GraphEvent.availableFailures events)).2.flatMap
+          WorkQueueEvent.objectValues := by
+  rw [State.handleGraphEvents_eq_rawEventReplay queue events]
   simp only [running, Bool.false_eq_true, ↓reduceIte]
-  split
-  · simp [WorkQueueEvent.objectValues]
-  · rfl
-
-/-- Every started batch certificate is a certificate for the flattened source replay.
-Witness: batch wrappers preserve object counts, and a following accepted batch proves
-the previous wrapper did not terminate or alter the sequential queue state. Concatenation
-retains the same ledger, including unused labels after an interrupted prefix.
--/
-theorem State.BatchClosuresCovered.flatten {queue : State} {batches published}
-    (covered : queue.BatchClosuresCovered batches published)
-    (started : queue.batchesStarted batches = true)
-    : queue.ReplayClosuresCovered batches.flatten published := by
-  induction batches generalizing queue published with
-  | nil => trivial
-  | cons batch rest ih =>
-      obtain ⟨running, _, later⟩ := queue.batchesStarted_cons batch rest started
-      have counts := congrArg List.length (queue.handleGraphEvents_objectValues batch running)
-      have first := covered.1
-      rw [counts] at first
-      have initial := (queue.replayClosuresCovered_take_iff batch published).mp first
-      cases rest with
-      | nil =>
-          simpa only [List.flatten_cons, List.flatten_nil, List.append_nil] using initial
-      | cons next tail =>
-          have openNext := ((queue.handleGraphEvents batch).1.batchesStarted_cons
-            next tail later).1
-          have remaining := ih covered.2.2 later
-          rw [counts, queue.handleGraphEvents_nonterminalState batch running openNext]
-            at remaining
-          exact initial.append batch ((next :: tail).flatten) remaining
+  split <;> simp only [List.flatMap_append, List.flatMap_singleton,
+    WorkQueueEvent.objectValues, List.append_nil]
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

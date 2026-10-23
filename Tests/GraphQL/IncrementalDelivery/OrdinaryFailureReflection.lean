@@ -49,6 +49,27 @@ example
         = .error 2 := by
   constructor <;> cbv
 
+private def failedChild (node : DeliveryNode) : Work :=
+  .combine .empty
+    (.declareGroups [{ node }]
+      (.combine
+        (.executionGroup [{ node }] node.path
+          { result := .error 1, cause := some 1 } .empty)
+        .empty))
+
+private theorem failedChild_hasTask (node : DeliveryNode)
+    : ∃ occurrence owners producer payload,
+        TaskAt (failedChild node) occurrence owners producer payload
+        ∧ payload.failure.isSome = true :=
+  ⟨
+    _,
+    _,
+    _,
+    _,
+    .executionGroup (.left (.right (Located.root (root := failedChild node)))),
+    rfl
+  ⟩
+
 /-- Both streamed items succeed partially and keep their own failing deferred child.
 Witness: the actual stream entries. A theorem requiring a failed item itself would miss
 this ordinary bubbling case, since no item result is an error.
@@ -58,7 +79,7 @@ example
       | .combine (.combine (.combine _ (.stream _ items)) _) _ =>
           items.length = 2
           ∧ ∀ entry ∈ items,
-              (∃ data errors, entry.1 = .ok (data, errors))
+              (∃ data errors, entry.1 = { result := .ok (data, errors) })
               ∧ ∃ occurrence owners producer payload,
                   TaskAt entry.2 occurrence owners producer payload
                   ∧ payload.failure.isSome = true
@@ -73,10 +94,7 @@ example
     all_goals
       constructor
       · exact ⟨.object [], 0, rfl⟩
-      · exact ⟨_, _, _, _,
-          (StructuralEquivalence.TaskAt.executionGroup
-            (StructuralEquivalence.Located.left
-              (StructuralEquivalence.Located.right .root))).toCurrent, rfl⟩
+      · exact failedChild_hasTask _
 
 /-- Mixed root reflection derives retained failure evidence instead of stipulating it.
 Witness: the general executable theorem applied to an actual ordinary bubble; its

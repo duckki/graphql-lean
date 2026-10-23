@@ -16,42 +16,56 @@ def resultCursors (cursors : α → Cursors) : Result α → Cursors
   | .error _ => []
   | .ok (data, _) => cursors data
 
+/-- Boundary failure reporting leaves the payload's list cursors unchanged. -/
+@[simp]
+theorem resultCursors_deliveryResult (cursors : α → Cursors) (outcome : TaskOutcome α)
+    : resultCursors cursors outcome.deliveryResult
+      = resultCursors cursors outcome.result := by
+  cases outcome with
+  | mk completed cause => cases completed <;> rfl
+
 def CursorExtends (before after : Cursors) : Prop :=
   ∀ path index, cursorAt before path = some index → cursorAt after path = some index
 
 mutual
   inductive WorkCursorSeed : Cursors → Work → List (List ResponsePath) → Prop where
     | empty {cursors : Cursors} : WorkCursorSeed cursors .empty []
+    | declareGroups {cursors : Cursors} {groups : List DeferredFragment} {tasks : Work}
+      {slices : List (List ResponsePath)} (known : WorkCursorSeed cursors tasks slices)
+      : WorkCursorSeed cursors (.declareGroups groups tasks) slices
     | combine {cursors : Cursors} {left right : Work}
       {ls rs : List (List ResponsePath)}
       (hl : WorkCursorSeed cursors left ls) (hr : WorkCursorSeed cursors right rs)
       : WorkCursorSeed cursors (.combine left right) (ls ++ rs)
     | executionGroup {cursors : Cursors} {groups : List DeferredFragment}
-      {path : ResponsePath} {completed : Result (List (Name × ResponseValue))}
+      {path : ResponsePath} {completed : TaskOutcome (List (Name × ResponseValue))}
       {children : Work} {slices : List (List ResponsePath)}
-      (hc : WorkCursorSeed (resultCursors (fieldCursors path) completed) children slices)
+      (hc
+        : WorkCursorSeed (resultCursors (fieldCursors path) completed.result) children
+            slices)
       : WorkCursorSeed cursors (.executionGroup groups path completed children)
-          (result (fields true path) completed :: slices)
+          (result (fields true path) completed.result :: slices)
     | stream {cursors : Cursors} {node : DeliveryNode}
-      {items : List (Result ResponseValue × Work)} {index : Nat}
+      {items : List (TaskOutcome ResponseValue × Work)} {index : Nat}
       {slices : List (List ResponsePath)}
       (hc : cursorAt cursors node.path = some index)
       (hi : ItemCursorSeed node.path index items slices)
       : WorkCursorSeed cursors (.stream node items) slices
 
   inductive ItemCursorSeed
-      : ResponsePath → Nat → List (Result ResponseValue × Work) → List (List ResponsePath)
-        → Prop where
+      : ResponsePath → Nat → List (TaskOutcome ResponseValue × Work)
+        → List (List ResponsePath) → Prop where
     | nil {path : ResponsePath} {index : Nat} : ItemCursorSeed path index [] []
-    | cons {path : ResponsePath} {index : Nat} {completed : Result ResponseValue}
-      {children : Work} {tail : List (Result ResponseValue × Work)}
+    | cons {path : ResponsePath} {index : Nat} {completed : TaskOutcome ResponseValue}
+      {children : Work} {tail : List (TaskOutcome ResponseValue × Work)}
       {cs ts : List (List ResponsePath)}
       (hc
-        : WorkCursorSeed (resultCursors (listCursors (path ++ [.index index])) completed)
+        : WorkCursorSeed
+            (resultCursors (listCursors (path ++ [.index index])) completed.result)
             children cs)
       (ht : ItemCursorSeed path (index + 1) tail ts)
       : ItemCursorSeed path index ((completed, children) :: tail)
-          (result (value true (path ++ [.index index])) completed :: (cs ++ ts))
+          (result (value true (path ++ [.index index])) completed.result :: (cs ++ ts))
 end
 
 mutual
@@ -60,13 +74,14 @@ mutual
       : WorkSlices true work slices := by
     cases h with
     | empty => exact .empty
+    | declareGroups known => exact .declareGroups known.slices
     | combine hl hr => exact .combine hl.slices hr.slices
     | executionGroup hc => exact .executionGroup hc.slices
     | stream _ hi => exact .stream hi.slices
 
   theorem ItemCursorSeed.slices {path : ResponsePath} {index : Nat}
-      {items : List (Result ResponseValue × Work)} {slices : List (List ResponsePath)}
-      (h : ItemCursorSeed path index items slices)
+      {items : List (TaskOutcome ResponseValue × Work)}
+      {slices : List (List ResponsePath)} (h : ItemCursorSeed path index items slices)
       : ItemSlices true path index items slices := by
     cases h with
     | nil => exact .nil
@@ -79,6 +94,9 @@ theorem WorkCursorSeed.extend {before after : Cursors} {work : Work}
     : WorkCursorSeed after work slices := by
   cases work with
   | empty => cases h; exact .empty
+  | declareGroups groups tasks =>
+      cases h with
+      | declareGroups known => exact .declareGroups (known.extend he)
   | combine left right =>
       cases h with
       | combine hl hr => exact .combine (hl.extend he) (hr.extend he)
@@ -89,6 +107,18 @@ theorem WorkCursorSeed.extend {before after : Cursors} {work : Work}
       cases h with
       | stream hc hi => exact .stream (he _ _ hc) hi
 termination_by sizeOf work
+
+/-- Transparent declarations preserve the seed and exact slice list. -/
+theorem WorkCursorSeed.withoutDeclarations {cursors work slices}
+    (known : WorkCursorSeed cursors work slices)
+    : WorkCursorSeed cursors work.withoutDeclarations slices := by
+  cases work with
+  | declareGroups groups tasks =>
+      cases known with
+      | declareGroups nested =>
+          simpa only [Work.withoutDeclarations] using nested.withoutDeclarations
+  | _ => simpa only [Work.withoutDeclarations] using known
+termination_by work
 
 theorem cursorAt_append {left right : Cursors} {path : ResponsePath} {index : Nat}
     (h : cursorAt left path = some index)
@@ -223,6 +253,11 @@ mutual
       : left = right := by
     cases work with
     | empty => cases hl; cases hr; rfl
+    | declareGroups groups tasks =>
+        cases hl with
+        | declareGroups hl =>
+            cases hr with
+            | declareGroups hr => exact hl.unique hr
     | combine left right =>
         cases hl with
         | combine hll hlr =>
@@ -244,8 +279,8 @@ mutual
   termination_by sizeOf work
 
   theorem ItemCursorSeed.unique {path : ResponsePath} {index : Nat}
-      {items : List (Result ResponseValue × Work)} {left right : List (List ResponsePath)}
-      (hl : ItemCursorSeed path index items left)
+      {items : List (TaskOutcome ResponseValue × Work)}
+      {left right : List (List ResponsePath)} (hl : ItemCursorSeed path index items left)
       (hr : ItemCursorSeed path index items right)
       : left = right := by
     cases items with

@@ -1,3 +1,4 @@
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.InitializationSpecialization
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.StreamAnnouncementHandlers
 
 /-! Every actual normalized stream announcement is globally unique. -/
@@ -15,6 +16,7 @@ Witness: empty history and links, fresh root registration, pruning, and activati
 theorem createWorkQueue_streamAnnouncementInventory (work : Work)
     : (State.initialize work).StreamAnnouncementInventory
         ((State.initialize work).initialStreams.map Execution.DeliveryNode.ref) := by
+  rw [State.initialize_empty_eq_activation]
   have empty : ({} : State).StreamAnnouncementInventory [] := by
     refine ⟨by simp, ?_, ?_, ?_⟩
     · intro ref impossible; cases impossible
@@ -35,17 +37,35 @@ theorem State.StreamAnnouncementInventory.rawEventReplay
     (inventory : queue.StreamAnnouncementInventory announced)
     (matching : queue.ChildStreamsMatchWork work) (generated : ExecutedWork work)
     (events : List GraphEvent) (sources : ∀ event ∈ events, event.MatchesWork work)
-    : (queue.rawEventReplay events).1.StreamAnnouncementInventory
-        (announced ++ (queue.rawEventReplay events).2.flatMap rawStreamNoticeRefs) := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.rawEventReplay events available).1.StreamAnnouncementInventory
+        (announced
+          ++ (queue.rawEventReplay events available).2.flatMap rawStreamNoticeRefs) := by
   induction events generalizing queue announced with
   | nil => simpa only [State.rawEventReplay, List.foldl_nil,
       List.flatMap_nil, List.append_nil] using inventory
   | cons event rest ih =>
       have source := sources event List.mem_cons_self
-      have next := inventory.handleGraphEvent matching generated source
-      have later := ih next (matching.handleGraphEvent source)
+      have next := inventory.handleGraphEvent matching generated source available
+      have dispatched : (queue.dispatchGraphEvent event available).1.StreamAnnouncementInventory
+          (announced ++ (queue.dispatchGraphEvent event available).2.flatMap rawStreamNoticeRefs) := by
+        simpa only [State.dispatchGraphEvent]
+          using (show ((queue.handleGraphEvent event available).1.enqueueGroupFailures
+                        (queue.handleGraphEvent event
+                          available).2.2).StreamAnnouncementInventory
+                        (announced
+                          ++ (queue.handleGraphEvent event available).2.1.flatMap
+                              rawStreamNoticeRefs) from ⟨
+                  next.unique,
+                  next.registered,
+                  next.stored,
+                  next.unreleased
+                ⟩)
+      have links : (queue.dispatchGraphEvent event available).1.ChildStreamsMatchWork work :=
+        matching.handleGraphEvent source available
+      have later := ih dispatched links
         (fun next member => sources next (List.mem_cons_of_mem _ member))
-      rw [State.rawEventReplay_cons]
+      rw [State.rawEventReplay_cons queue event rest available]
       simpa only [List.flatMap_append, List.append_assoc] using later
 
 /-- Batch handling retains the inventory across empty and terminating outputs.
@@ -64,6 +84,7 @@ theorem State.StreamAnnouncementInventory.handleGraphEvents
   split
   · simpa only [List.flatMap_nil, List.append_nil] using inventory
   · have replayed := inventory.rawEventReplay matching generated events sources
+      (GraphEvent.availableFailures events)
     dsimp only
     split
     · simp only [List.flatMap_append, List.flatMap_singleton, rawStreamNoticeRefs,

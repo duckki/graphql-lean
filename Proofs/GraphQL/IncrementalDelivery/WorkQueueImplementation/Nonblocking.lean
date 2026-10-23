@@ -32,7 +32,7 @@ theorem admittedInputs_canFinish {work : Execution.Work}
           = true := by
   let budget := 2 * (observationTokens [] work).length
   have bounded : ∀ history, schedule.admissible history → history.flatten.length ≤ budget :=
-    fun history accepted => (valid.2.2.2 history accepted).1.length_le_budget
+    fun history accepted => (valid.2.2.2.2 history accepted).1.length_le_budget
   have finish (remaining : Nat) : ∀ history, schedule.admissible history →
       budget - history.flatten.length = remaining →
       ∃ suffix, schedule.admissible (history ++ suffix) ∧
@@ -94,6 +94,7 @@ theorem createWorkQueueForSchedule_nonblocking_of_inputsCanFinish
     : (createWorkQueueForSchedule work schedule).Nonblocking := by
   intro batches admitted
   obtain ⟨inputs, accepted, same⟩ := admitted
+  change ((State.initialize (Work.fromExecution work)).runNormalized inputs).2 = batches at same
   obtain ⟨more, extended, terminal⟩ := finish inputs accepted
   obtain ⟨suffix, outputs⟩ :=
     (State.initialize (Work.fromExecution work)).runNormalized_outputs_prefix inputs more

@@ -60,8 +60,7 @@ theorem failureGroupStep_groupRefs_subset (errors : Nat)
     · intro ref member
       obtain ⟨node, retained, same⟩ := List.mem_map.mp member
       exact List.mem_map.mpr ⟨node, (List.mem_filter.mp retained).1, same⟩
-    · rw [State.putGroupNode_refs]
-      exact List.Subset.refl _
+    · exact List.Subset.refl _
 
 /-- The complete failed-owner fold introduces no live group ref.
 Witness: compose the per-step ref subsets in actual contributor order.
@@ -127,17 +126,14 @@ theorem State.taskFailure_lookup_survivingOwner {queue : State} {occurrence node
     {owner : GroupNode} (live : owner ∈ (queue.taskFailure failed errors).1.groupNodes)
     (same : owner.group.node.ref = contributor.ref)
     : (queue.taskFailure failed errors).1.taskNode? occurrence = some node := by
-  have retained := (queue.removeTask_lookup_other different).trans found
-  unfold State.taskFailure at live ⊢
   cases lookup : queue.taskNode? failed with
-  | none => simpa only [lookup] using found
+  | none => simpa only [State.taskFailure, lookup] using found
   | some failing =>
-      simp only [lookup] at live ⊢
-      cases healthy : queue.taskHasHealthyOwner failing.task with
-      | false =>
-          simpa only [healthy, Bool.not_false, ↓reduceIte] using retained
-      | true =>
-          simp only [healthy, Bool.not_true, Bool.false_eq_true, ↓reduceIte] at live ⊢
-          exact failureGroupFold_lookup_survivingOwner errors _ _ retained contributes live same
+      rw [queue.taskFailure_eq failed errors failing lookup] at live ⊢
+      have retained :=
+        State.putTaskNode_lookup_other found { failing with rejection := some errors }
+          (by simpa only [(State.taskNode?_some lookup).2] using Ne.symm different)
+      exact failureGroupFold_lookup_survivingOwner errors _ _ retained contributes live
+        same
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

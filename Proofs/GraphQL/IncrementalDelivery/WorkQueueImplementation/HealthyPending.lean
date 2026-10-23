@@ -1,5 +1,6 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.ActiveLinks
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.GroupInvalidation
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.TaskRejections
 
 /-! Pending counts for healthy groups and root-health preservation. -/
 
@@ -91,12 +92,21 @@ theorem createWorkQueue_rootGroups (work : Work)
   have empty : pruned.1.rootGroups = [] := by
     rw [State.pruneEmptyGroups_rootGroups, State.maybeIntegrateWork_rootGroups]
   change (pruned.1.startNewWork
-    { integrated.2 with newGroups := pruned.2 }).rootGroups = _
-  rw [(pruned.1.startNewWork_groupCore _).2.2, empty]
+    { integrated.2 with newGroups := pruned.2 }).1.rootGroups = _
+  have noRejections : pruned.1.TaskRejectionsSatisfy (fun _ _ => False) :=
+    State.TaskRejectionsSatisfy.pruneEmptyGroups
+      (State.TaskRejectionsSatisfy.maybeIntegrateWork
+        (queue := {}) (by intro node member; cases member) work) _
+  have clean : ∀ node ∈ pruned.1.taskNodes, node.rejection = none := by
+    intro node member
+    cases rejected : node.rejection with
+    | none => rfl
+    | some errors => exact (noRejections node member errors rejected).elim
+  rw [(pruned.1.startNewWork_groupCore_of_no_cached_failures _ clean).2, empty]
   rfl
 
 /-- Every initial root has a live group node. Witness: pruning retains only present
-groups, and starting them leaves the group-node map unchanged.
+groups, and startup preserves presence for every surviving root.
 -/
 theorem createWorkQueue_rootGroupsPresent (work : Work)
     : (State.initialize work).RootGroupsPresent := by
@@ -106,12 +116,13 @@ theorem createWorkQueue_rootGroupsPresent (work : Work)
     State.GroupRefsUnique.maybeIntegrateWork (by simp [State.GroupRefsUnique]) work none
   have present := integrated.1.pruneEmptyGroups_keptPresent
     integrated.2.newGroups unique
-  intro ref member
-  rw [createWorkQueue_rootGroups] at member
-  change ref ∈ (pruned.1.startNewWork
-    { integrated.2 with newGroups := pruned.2 }).groupNodes.map _
-  rw [(pruned.1.startNewWork_groupCore _).1]
-  exact present ref member
+  have empty : pruned.1.rootGroups = [] := by
+    rw [State.pruneEmptyGroups_rootGroups, State.maybeIntegrateWork_rootGroups]
+  have initial : pruned.1.RootGroupsPresent := by
+    intro ref member
+    rw [empty] at member
+    cases member
+  exact initial.startNewWork { integrated.2 with newGroups := pruned.2 } present
 
 /-- Successful group closure only removes a root; it does not activate its
 children until the caller explicitly starts the released Work. -/
@@ -204,49 +215,15 @@ root during the failure fold. -/
 theorem State.taskFailure_rootsSubset
     (queue : State) (occurrence : Occurrence) (errors : Nat)
     : (queue.taskFailure occurrence errors).1.rootGroups.Subset queue.rootGroups := by
-  let step (acc : State × List WorkQueueEvent)
-      (group : Execution.DeliveryNode) : State × List WorkQueueEvent :=
-    let (current, events) := acc
-    match current.groupNode? group.ref with
-    | none => (current, events)
-    | some node =>
-        if current.rootGroups.contains group.ref then
-          let (next, failure) := current.finishGroupFailure node errors
-          (next, events ++ [failure])
-        else
-          (current.putGroupNode
-            { node with
-                pending := node.pending - 1
-                failure := some (node.failure.getD 0 + errors) }, events)
-  have one (acc : State × List WorkQueueEvent)
-      (group : Execution.DeliveryNode)
-      : (step acc group).1.rootGroups.Subset acc.1.rootGroups := by
-    obtain ⟨current, events⟩ := acc
-    dsimp only [step]
-    split
-    · exact List.Subset.refl _
-    · rename_i node found
-      split
-      · simpa [State.finishGroupFailure] using current.removeGroup_rootsSubset
-          node.group.node.ref
-      · exact List.Subset.refl _
-  have fold (groups : List Execution.DeliveryNode) :
-      ∀ acc : State × List WorkQueueEvent,
-        (groups.foldl step acc).1.rootGroups.Subset acc.1.rootGroups := by
-    induction groups with
-    | nil => intro acc; exact List.Subset.refl _
-    | cons group rest ih =>
-        intro acc
-        exact (ih (step acc group)).trans (one acc group)
-  unfold State.taskFailure
-  split
-  · exact List.Subset.refl _
-  · rename_i taskNode found
-    split <;> try exact List.Subset.refl _
-    let current := queue.removeTask occurrence
-    change (taskNode.task.groups.foldl step (current, [])).1.rootGroups.Subset
-      queue.rootGroups
-    exact fold taskNode.task.groups (current, [])
+  cases found : queue.taskNode? occurrence with
+  | none =>
+      simp only [State.taskFailure, found]
+      exact List.Subset.refl _
+  | some node =>
+      rw [queue.taskFailure_eq occurrence errors node found]
+      apply failureGroupFold_preserves (fun state => state.rootGroups.Subset queue.rootGroups)
+        (fun state ref prior => (state.removeGroup_rootsSubset ref).trans prior)
+      exact List.Subset.refl _
 
 /-- Newly activated groups preserve root health when each released group is
 uninvalidated; streams do not affect this group-root predicate. -/
@@ -255,11 +232,11 @@ theorem State.RootGroupsHealthy.startNewWork
     (healthy : queue.RootGroupsHealthy work failed) (newWork : NewWork)
     (releasedHealthy
       : ∀ group ∈ newWork.newGroups, ¬GroupInvalidated work failed group.ref)
-    : (queue.startNewWork newWork).RootGroupsHealthy work failed := by
+    : (queue.startNewWork newWork).1.RootGroupsHealthy work failed := by
   intro ref member
   have roots := (queue.startNewWork_groupCore newWork).2.2
-  rw [roots] at member
-  rcases List.mem_append.mp member with old | new
+  have original := roots.subset member
+  rcases List.mem_append.mp original with old | new
   · exact healthy ref old
   · obtain ⟨group, groupMember, refEq⟩ := List.mem_map.mp new
     subst ref
@@ -315,71 +292,31 @@ theorem State.HealthyPendingTracks.addGroup
     {queue : State} {work : Execution.Work} {settled failed : List Occurrence}
     (tracks : queue.HealthyPendingTracks work settled failed) (group : Group)
     : (queue.addGroup group).HealthyPendingTracks work settled failed := by
+  have appended : ({ queue with
+      groupNodes := queue.groupNodes ++ [({ group } : GroupNode)] } : State).HealthyPendingTracks
+        work settled failed := by
+    intro node member healthy
+    rcases List.mem_append.mp member with old | added
+    · exact tracks node old healthy
+    · cases List.mem_singleton.mp added
+      simp [GroupNode.PendingTracks, unsettledCount]
   unfold State.addGroup
   split
   · exact tracks
   · split
-    · exact tracks
-    · intro node member healthy
-      rcases List.mem_append.mp member with old | added
-      · exact tracks node old healthy
-      · have same : node = { group } := List.mem_singleton.mp added
-        subst node
-        simp [GroupNode.PendingTracks, unsettledCount]
+    · exact appended
+    · split
+      · split <;> exact tracks
+      · rename_i node found
+        exact appended.putGroupNode _ (tracks node (List.mem_of_find?_eq_some found))
 
-/-- Installing parent-child links leaves every pending counter unchanged. -/
+/-- Recursive installation preserves pending counters for every healthy group. -/
 theorem State.HealthyPendingTracks.addGroups
     {queue : State} {work : Execution.Work} {settled failed : List Occurrence}
-    (tracks : queue.HealthyPendingTracks work settled failed)
-    (groups : List Group)
+    (tracks : queue.HealthyPendingTracks work settled failed) (groups : List Group)
     : (queue.addGroups groups).1.HealthyPendingTracks work settled failed := by
-  let linkStep (current : State) (group : Group) : State :=
-    match group.parent with
-    | none => current
-    | some parent =>
-        match current.groupNode? parent with
-        | none => current
-        | some node =>
-            let children :=
-              if node.childGroups.contains group.node.ref then
-                node.childGroups
-              else node.childGroups ++ [group.node.ref]
-            current.putGroupNode { node with childGroups := children }
-  have registerFold (more : List Group) :
-      ∀ current, current.HealthyPendingTracks work settled failed
-        → (more.foldl State.addGroup current).HealthyPendingTracks work settled failed := by
-    induction more with
-    | nil => intro current currentTracks; exact currentTracks
-    | cons group rest ih =>
-        intro current currentTracks
-        exact ih (current.addGroup group) (currentTracks.addGroup group)
-  have linkStepTracks (current : State) (group : Group)
-      (currentTracks : current.HealthyPendingTracks work settled failed)
-      : (linkStep current group).HealthyPendingTracks work settled failed := by
-    unfold linkStep
-    split
-    · exact currentTracks
-    · rename_i node found
-      split
-      · exact currentTracks
-      · rename_i node found
-        apply currentTracks.putGroupNode
-        exact currentTracks node (List.mem_of_find?_eq_some found)
-  have linkFold (more : List Group) :
-      ∀ current, current.HealthyPendingTracks work settled failed
-        → (more.foldl linkStep current).HealthyPendingTracks work settled failed := by
-    induction more with
-    | nil => intro current currentTracks; exact currentTracks
-    | cons group rest ih =>
-        intro current currentTracks
-        exact ih (linkStep current group) (linkStepTracks current group currentTracks)
-  let fresh := groups.filter (fun group =>
-    !queue.registeredGroups.contains group.node.ref
-      && (queue.groupNode? group.node.ref).isNone)
-  change (fresh.foldl linkStep
-    (fresh.foldl State.addGroup queue)).HealthyPendingTracks work settled failed
-  exact linkFold fresh _
-    (registerFold fresh queue tracks)
+  exact State.addGroups_preserves (fun current => current.HealthyPendingTracks work settled failed)
+    groups (fun _ group _ valid => valid.addGroup group) queue tracks
 
 /-- Integrating a task with a fresh occurrence adds one membership and one
 pending token to every group that newly links it. -/
@@ -505,11 +442,12 @@ theorem State.HealthyPendingTracks.startNewWork
     {queue : State} {work : Execution.Work} {settled failed : List Occurrence}
     (tracks : queue.HealthyPendingTracks work settled failed)
     (newWork : NewWork)
-    : (queue.startNewWork newWork).HealthyPendingTracks work settled failed := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.startNewWork newWork available).1.HealthyPendingTracks work settled
+        failed := by
   intro node member healthy
-  have same := (queue.startNewWork_groupCore newWork).1
-  rw [same] at member
-  exact tracks node member healthy
+  have same := (queue.startNewWork_groupCore newWork available).1
+  exact tracks node (same.subset member) healthy
 
 theorem State.HealthyPendingTracks.removeGroup
     {queue : State} {work : Execution.Work} {settled failed : List Occurrence}
@@ -531,6 +469,20 @@ theorem State.HealthyPendingTracks.weakenFailures
   intro failedBefore
   exact healthy (GroupInvalidated.mono failedBefore included)
 
+/-- Rejection retention leaves exact counters on surviving healthy groups unchanged. -/
+theorem State.HealthyPendingTracks.taskFailure_preserves
+    {queue : State} {work settled failed}
+    (tracks : queue.HealthyPendingTracks work settled failed)
+    (occurrence : Occurrence) (errors : Nat)
+    : (queue.taskFailure occurrence errors).1.HealthyPendingTracks work settled
+        failed := by
+  cases found : queue.taskNode? occurrence with
+  | none => simpa [State.taskFailure, found] using tracks
+  | some node =>
+      rw [queue.taskFailure_eq occurrence errors node found]
+      exact failureGroupFold_preserves (fun state => state.HealthyPendingTracks work settled failed)
+        (fun _ ref prior => prior.removeGroup ref) _ _ _ tracks
+
 /-- A failed task changes memberships and counters only in newly invalidated owners.
 Witness: registration provenance and membership soundness identify those owners;
 the actual failure fold therefore preserves every still-healthy ledger.
@@ -538,100 +490,21 @@ the actual failure fold therefore preserves every still-healthy ledger.
 theorem State.HealthyPendingTracks.taskFailure
     {queue : State} {work : Execution.Work} {settled failed : List Occurrence}
     (tracks : queue.HealthyPendingTracks work settled failed)
-    (registered : queue.StartedTasksRegistered)
-    (matching : queue.RegisteredTasksMatch work)
-    (sound : queue.GroupMembershipSound)
+    (_registered : queue.StartedTasksRegistered)
+    (_matching : queue.RegisteredTasksMatch work)
+    (_sound : queue.GroupMembershipSound)
     (occurrence : Occurrence) (errors : Nat)
     : (queue.taskFailure occurrence errors).1.HealthyPendingTracks
         work settled (occurrence :: failed) := by
-  let step (acc : State × List WorkQueueEvent)
-      (group : Execution.DeliveryNode) :=
-    let (current, events) := acc
-    match current.groupNode? group.ref with
-    | none => (current, events)
-    | some node =>
-        if current.rootGroups.contains group.ref then
-          let (next, failure) := current.finishGroupFailure node errors
-          (next, events ++ [failure])
-        else
-          (current.putGroupNode
-            { node with
-                pending := node.pending - 1
-                failure := some (node.failure.getD 0 + errors) }, events)
-  have stepTracks (acc : State × List WorkQueueEvent)
-      (group : Execution.DeliveryNode)
-      (invalid : GroupInvalidated work (occurrence :: failed) group.ref)
-      (currentTracks : acc.1.HealthyPendingTracks work settled (occurrence :: failed))
-      : (step acc group).1.HealthyPendingTracks
-          work settled (occurrence :: failed) := by
-    obtain ⟨current, events⟩ := acc
-    dsimp only [step]
-    split
-    · exact currentTracks
-    · rename_i node found
-      split
-      · rw [State.finishGroupFailure, State.groupNode?_ref found]
-        exact currentTracks.removeGroup group.ref
-      · apply currentTracks.putGroupNode
-        intro healthy
-        exact (healthy ((current.groupNode?_ref found).symm ▸ invalid)).elim
-  have foldTracks (groups : List Execution.DeliveryNode) :
-      (∀ group ∈ groups, GroupInvalidated work (occurrence :: failed) group.ref) →
-      ∀ acc : State × List WorkQueueEvent,
-        acc.1.HealthyPendingTracks work settled (occurrence :: failed)
-          → (groups.foldl step acc).1.HealthyPendingTracks
-              work settled (occurrence :: failed) := by
-    induction groups with
-    | nil => intro _ acc currentTracks; exact currentTracks
-    | cons group rest ih =>
-        intro invalid acc currentTracks
-        exact ih (fun item member => invalid item (List.mem_cons_of_mem _ member))
-          (step acc group) (stepTracks acc group (invalid group List.mem_cons_self) currentTracks)
-  unfold State.taskFailure
-  split
-  · exact tracks.weakenFailures (by intro item member; simp [member])
-  · rename_i taskNode found
-    have member := List.mem_of_find?_eq_some found
-    have same : taskNode.task.occurrence = occurrence :=
-      (occurrence_beq_iff_eq _ _).mp
-        (List.find?_some (p := fun node : TaskNode => node.task.occurrence == occurrence) found)
-    obtain ⟨_, payload, producer, _, known⟩ :=
-      (matching taskNode.task (registered taskNode member)).1
-    have owners : TaskHasOwners work occurrence
-        (taskNode.task.groups.map Execution.DeliveryNode.ref) :=
-      ⟨producer, payload, same ▸ known⟩
-    have invalid (group : Execution.DeliveryNode) (inGroups : group ∈ taskNode.task.groups)
-        : GroupInvalidated work (occurrence :: failed) group.ref :=
-      .task owners (List.mem_map.mpr ⟨group, inGroups, rfl⟩) List.mem_cons_self
-    let current := queue.removeTask occurrence
-    have currentTracks : current.HealthyPendingTracks
-        work settled (occurrence :: failed) := by
-      intro node nodeMember healthy
-      obtain ⟨old, oldMember, equal⟩ := List.mem_map.mp nodeMember
-      subst node
-      have absent : occurrence ∉ old.tasks := by
-        intro listed
-        exact healthy (.task owners
-          (sound.startedOwner registered matching (groupNode := old)
-            member oldMember (same.symm ▸ listed))
-          List.mem_cons_self)
-      have unchanged : old.tasks.filter (· != occurrence) = old.tasks := by
-        apply List.filter_eq_self.mpr
-        intro task taskMember
-        have different : (task == occurrence) = false := by
-          cases equal : task == occurrence with
-          | false => rfl
-          | true =>
-              exact (absent ((occurrence_beq_iff_eq _ _).mp equal ▸ taskMember)).elim
-        simp [bne, different]
-      change old.pending = unsettledCount (old.tasks.filter (· != occurrence)) settled
-      rw [unchanged]
-      exact (tracks.weakenFailures (by intro item itemMember; simp [itemMember]))
-        old oldMember healthy
-    split <;> try exact currentTracks
-    change (taskNode.task.groups.foldl step (current, [])).1.HealthyPendingTracks
-      work settled (occurrence :: failed)
-    exact foldTracks taskNode.task.groups invalid (current, []) currentTracks
+  have prior := tracks.weakenFailures (after := occurrence :: failed)
+    (by intro item member; simp [member])
+  cases found : queue.taskNode? occurrence with
+  | none => simpa [State.taskFailure, found] using prior
+  | some node =>
+      rw [queue.taskFailure_eq occurrence errors node found]
+      exact failureGroupFold_preserves
+        (fun state => state.HealthyPendingTracks work settled (occurrence :: failed))
+        (fun _ ref valid => valid.removeGroup ref) _ _ _ prior
 
 /-- Flushing a task already present in the settlement prefix changes no
 healthy pending count, even for latent groups that share the task. -/

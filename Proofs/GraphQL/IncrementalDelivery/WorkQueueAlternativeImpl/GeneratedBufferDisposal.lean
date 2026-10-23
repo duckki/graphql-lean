@@ -57,6 +57,6 @@ theorem GeneratedStoredReleaseDisposal_holds : GeneratedStoredReleaseDisposal :=
       (List.mem_filterMap.mpr ⟨.cancelSource key, requested, rfl⟩) owned
     cases event with
     | taskSuccess | streamItems => intro same; cases same
-    | taskFailure | streamSuccess | streamFailure => cases release
+    | taskFailure | groupFailure | streamSuccess | streamFailure => cases release
 
 end GraphQL.IncrementalDelivery.AlternativeWorkQueue.NativeRefinement

@@ -12,12 +12,17 @@ open scoped List
 /-- A stream entry and its child tasks occur at the corresponding labelled offsets.
 Witness: list lookup induction retains both the absolute index and structural ordinal.
 -/
-theorem sourceItemTasks_entry {items : List (Result ResponseValue × Work)}
+theorem sourceItemTasks_entry {items : List (TaskOutcome ResponseValue × Work)}
     {offset result children} (entry : items[offset]? = some (result, children))
     (address : Address) (producer : Option Occurrence) (node : DeliveryNode)
     (index ordinal : Nat)
     : let task : SourceTask :=
-        ⟨.item address (ordinal + offset), producer, .item node result, index + offset⟩
+        ⟨
+          .item address (ordinal + offset),
+          producer,
+          .item node result.deliveryResult,
+          index + offset
+        ⟩
       task ∈ sourceItemTasks address producer node index ordinal items
       ∧ sourceTasks (address ++ [ordinal + offset]) (some task.occurrence)
           task.cursors children
@@ -55,26 +60,47 @@ theorem sourceTasks_located {work address current producer owners}
   have navigation := StructuralEquivalence.located_of_current located
   clear located
   induction navigation with
-  | root => exact ⟨cursors, .refl _⟩
+  | root =>
+      refine ⟨cursors, ?_⟩
+      rw [sourceTasks_withoutDeclarations]
+      exact .refl _
   | left _ ih =>
       obtain ⟨localCursors, included⟩ := ih
       rw [sourceTasks] at included
-      exact ⟨localCursors, (List.sublist_append_left _ _).trans included⟩
+      exact ⟨
+        localCursors,
+        by
+          simpa only [sourceTasks_withoutDeclarations]
+            using (List.sublist_append_left _ _).trans included
+      ⟩
   | right _ ih =>
       obtain ⟨localCursors, included⟩ := ih
       rw [sourceTasks] at included
-      exact ⟨localCursors, (List.sublist_append_right _ _).trans included⟩
+      exact ⟨
+        localCursors,
+        by
+          simpa only [sourceTasks_withoutDeclarations]
+            using (List.sublist_append_right _ _).trans included
+      ⟩
   | executionGroup _ ih =>
       obtain ⟨_, included⟩ := ih
       rw [sourceTasks] at included
-      exact ⟨_, (List.sublist_cons_self _ _).trans included⟩
+      exact ⟨
+        _,
+        by
+          simpa only [sourceTasks_withoutDeclarations]
+            using (List.sublist_cons_self _ _).trans included
+      ⟩
   | @item address node items producer owners index result children located entry ih =>
       obtain ⟨localCursors, included⟩ := ih
       rw [sourceTasks] at included
       have child := (sourceItemTasks_entry entry address producer node
         ((ResponsePositions.cursorAt localCursors node.path).getD 0) 0).2
       simp only [Nat.zero_add] at child
-      exact ⟨_, child.trans included⟩
+      exact ⟨
+        _,
+        by simpa only [sourceTasks_withoutDeclarations] using child.trans included
+      ⟩
 
 /-- Every scheduler task has a source label with its exact occurrence, producer, and
 payload. Witness: the located source inventory and, for streams, indexed entry lookup.
@@ -90,7 +116,7 @@ theorem sourceTasks_task {work occurrence owners producer payload}
   | @executionGroup address groups path result children producer owners located =>
       obtain ⟨_, included⟩ := sourceTasks_located located.toCurrent cursors
       rw [sourceTasks] at included
-      exact ⟨⟨.executionGroup address, producer, .object path result, 0⟩,
+      exact ⟨⟨.executionGroup address, producer, .object path result.deliveryResult, 0⟩,
         included.subset (List.mem_cons_self), rfl, rfl, rfl⟩
   | @item address node items producer owners index result children located entry =>
       obtain ⟨localCursors, included⟩ := sourceTasks_located located.toCurrent cursors

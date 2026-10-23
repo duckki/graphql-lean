@@ -31,6 +31,7 @@ theorem multiple_run_exists (first second : Result (List (Name × ResponseValue)
   · simp [work, ExecutionPaths.WorkUnder, ExecutionPaths.ItemsUnder, node]
   · simpa [work, ExecutionErrors.WorkPositive, ExecutionErrors.ItemsPositive]
       using And.intro firstPositive secondPositive
+  · simp [work, GeneralScheduling.streamAllocationRefs, node]
   · exact initialized first second
   · exact fun _ _ _ _ known => (deferred_task known).1
   · intro address owners producer payload known
@@ -195,11 +196,14 @@ example (outer middle inner : Result ResponseValue)
       ExecutionPaths.WorkUnder, ExecutionPaths.ItemsUnder, node]
   · simpa [independentStreams, NestedStreamExistence.nested, ExecutionErrors.WorkPositive,
       ExecutionErrors.ItemsPositive] using ⟨outerPositive, middlePositive, innerPositive⟩
+  · simp [independentStreams, NestedStreamExistence.nested,
+      GeneralScheduling.streamAllocationRefs,
+      NestedStreamExistence.node, node]
   · refine ⟨⟨by simp, by simp, ?_⟩, by simp⟩
     intro stream member
     have same := List.mem_singleton.mp member
     subst stream
-    refine ⟨[], none, NodeAt.stream (.left .root), ?_⟩
+    refine ⟨[], none, NodeAt.stream (.left (Located.root (root := independentStreams outer middle inner))), ?_⟩
     exact ⟨by simp [announcedRefs, pendingRefs],
       Or.inl ⟨fun failure => failure.nonempty rfl, Or.inl rfl⟩, by simp, Or.inl rfl⟩
   · exact fun _ _ _ _ known => (noDeferred known).elim

@@ -1,3 +1,4 @@
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.WorkDeclarations
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.ChildUniqueness
 
 /-! Taskless-shell pruning retains a duplicate-free group-notice frontier. -/
@@ -165,7 +166,8 @@ theorem State.pruneEmptyGroups_unique_frontier {queue : State} {parents groups}
                       unique
                   simpa only [List.map_append, List.map_singleton, List.append_assoc]
                     using reordered
-  exact loop _ queue groups [] links children (by simpa using frontier)
-    (by simpa using unique)
+  have result := loop (queue.groupNodes.length + groups.length + 1) queue groups [] links children
+    (by simpa using frontier) (by simpa using unique)
+  exact result
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

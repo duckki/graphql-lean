@@ -24,14 +24,17 @@ mutual
   private def entries (work : Work) (address : List Nat := []) : List Entry :=
     match work with
     | .empty => []
+    | .declareGroups _ tasks => entries tasks address
     | .combine left right =>
         entries left (address ++ [0]) ++ entries right (address ++ [1])
     | .executionGroup groups path result children =>
-        .task address groups path result :: entries children (address ++ [0])
+        .task address groups path result.deliveryResult
+        :: entries children (address ++ [0])
     | .stream node items =>
-        .stream address node (items.map Prod.fst) :: itemEntries items address 0
+        .stream address node (items.map (fun item => item.1.deliveryResult))
+        :: itemEntries items address 0
 
-  private def itemEntries (items : List (Result ResponseValue × Work))
+  private def itemEntries (items : List (TaskOutcome ResponseValue × Work))
       (address : List Nat) (index : Nat)
       : List Entry :=
     match items with

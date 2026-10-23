@@ -2,6 +2,7 @@ import Proofs.GraphQL.IncrementalDelivery.Correctness.BoundedTaskReportAssembly
 import Proofs.GraphQL.IncrementalDelivery.Correctness.AcceptedFailureReporting
 import Proofs.GraphQL.IncrementalDelivery.Correctness.UnannouncedGroupFailureOrigins
 import Proofs.GraphQL.IncrementalDelivery.Correctness.ReportingClosures
+import Proofs.GraphQL.IncrementalDelivery.Semantics.WorkSize
 
 /-! Structural group origins close the unavailable-producer reporting induction. -/
 
@@ -312,16 +313,20 @@ theorem mixed_reporting_continuation_of_group_origins
     (pathCoherent : MixedOwnerPaths.WorkAt paths pathBound work)
     (under : ExecutionPaths.WorkUnder base work)
     (positive : ExecutionErrors.WorkPositive work)
+    (allocated : (streamAllocationRefs work).Nodup)
     (origins : GroupProducerOrigins work)
     (explained : Explains work groups streams events matching failures)
     (covered
       : ReportingNoticesCovered ancestry work ((groups ++ streams).map DeliveryNode.ref)
           matching events failures)
+    (support
+      : StreamNoticesSupported ancestry work ((groups ++ streams).map DeliveryNode.ref)
+          matching events failures)
     (batched : WorkBatching events batches)
     : (History.mk groups streams batches).CanFinish work := by
   obtain ⟨tail, next, cuts, extended, frontier, accounted, closed, satisfied⟩ :=
     mixed_reporting_closed_extension valid coherent roleCoherent continuous ordered
-      pathCoherent explained covered
+      pathCoherent allocated positive explained covered support
   have reports : ∀ occurrence owners producer payload,
       TaskAt work occurrence owners producer payload
       → ¬Published next (events ++ tail) occurrence
@@ -331,7 +336,8 @@ theorem mixed_reporting_continuation_of_group_origins
       ordered pathCoherent under positive origins extended frontier.2 satisfied closed
       accounted ((accounted _ _ _ _ known).resolve_right unpublished) known
   obtain ⟨closures, run, _, _⟩ :=
-    (batched.append (WorkBatching.singletons tail)).finish_accounted extended accounted reports
+    (batched.append (WorkBatching.singletons tail)).finish_accounted extended
+      (fun ref opened _ => False.elim (opened.2 (closed ref opened.1))) accounted reports
   refine ⟨tail.map (fun event => [event]) ++ closures.map (fun event => [event])
     ++ [[.workQueueTermination]], ?_⟩
   simpa only [List.append_assoc] using run
@@ -351,6 +357,7 @@ theorem mixed_completeRun_exists_of_group_origins
     (pathCoherent : MixedOwnerPaths.WorkAt paths pathBound work)
     (under : ExecutionPaths.WorkUnder base work)
     (positive : ExecutionErrors.WorkPositive work)
+    (allocated : (streamAllocationRefs work).Nodup)
     (origins : GroupProducerOrigins work)
     (nonempty : work.size ≠ 0)
     : ∃ history, AdmissibleRun work history := by
@@ -358,11 +365,11 @@ theorem mixed_completeRun_exists_of_group_origins
     initialization_exists valid coherent continuous ordered nonempty
   obtain ⟨groups, streams, initialized, covers⟩ := initialized.covering_exists
   have initial : Explains work groups streams [] (fun _ => .executionGroup []) [] :=
-    ⟨initialized, by simp [FailureWitness], by simp⟩
+    initialized.emptyExplains _
   obtain ⟨batches, run⟩ := mixed_reporting_continuation_of_group_origins valid coherent
-    roleCoherent continuous ordered pathCoherent under positive origins initial
+    roleCoherent continuous ordered pathCoherent under positive allocated origins initial
     (reportingNoticesCovered_of_noticesCovered (NoticesCovered.initial covers _))
-    WorkBatching.nil
+    (by intro index event selected; simp at selected) WorkBatching.nil
   exact ⟨⟨groups, streams, batches⟩, run⟩
 
 end GraphQL.IncrementalDelivery.Correctness

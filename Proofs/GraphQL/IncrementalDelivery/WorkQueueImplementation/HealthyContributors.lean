@@ -1,4 +1,7 @@
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.RegistrationSupport
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.HealthyPending
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.DeclarationLowering
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.RegistrationProvenance
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.CancellationRegistration
 
 /-! Healthy contributor presence, task links, and release. -/
@@ -90,99 +93,28 @@ private theorem State.HealthyRegisteredTaskAccounting.toStartedLinks
     unique.sameNode member groupMember same
   exact equal ▸ linked
 
-/-- Immediate lowering installs each task's contributor group in the same
-Work collection as the task, before queue initialization registers tasks. -/
+/-- Certified root work declares all initial task contributors in the same integration. -/
 theorem workFromSpec_immediateGroupsCoverTasks (work : Execution.Work) (address : Address)
+    (certified : DeclarationCoverage.Certified [] work)
     : ∀ task ∈ (Work.fromExecution work address).tasks,
       ∀ ref ∈ task.groups.map Execution.DeliveryNode.ref,
         ∃ group ∈ (Work.fromExecution work address).groups, group.node.ref = ref := by
-  cases work with
-  | empty => simp [Work.fromExecution]
-  | combine left right =>
-      intro task member ref contributor
-      simp only [Work.fromExecution, Work.combine, List.mem_append] at member ⊢
-      rcases member with inLeft | inRight
-      · obtain ⟨group, groupMember, same⟩ :=
-          workFromSpec_immediateGroupsCoverTasks left (address ++ [0])
-            task inLeft ref contributor
-        exact ⟨group, Or.inl groupMember, same⟩
-      · obtain ⟨group, groupMember, same⟩ :=
-          workFromSpec_immediateGroupsCoverTasks right (address ++ [1])
-            task inRight ref contributor
-        exact ⟨group, Or.inr groupMember, same⟩
-  | executionGroup fragments path result children =>
-      intro task member ref contributor
-      simp only [Work.fromExecution, List.mem_singleton] at member
-      subst task
-      simp only [List.map_map, Function.comp_def] at contributor
-      obtain ⟨fragment, fragmentMember, fragmentRef⟩ :=
-        List.mem_map.mp contributor
-      let group : Group :=
-        ⟨fragment.node, fragment.ancestors.head?.map Execution.DeliveryNode.ref⟩
-      have groupMember : group ∈ (Work.fromExecution
-          (.executionGroup fragments path result children) address).groups := by
-        exact List.mem_flatMap.mpr
-          ⟨fragment, fragmentMember, workFromSpec_groupChain_self _ _⟩
-      exact ⟨group, groupMember, fragmentRef⟩
-  | stream node items => simp [Work.fromExecution]
-termination_by sizeOf work
-decreasing_by
-  all_goals simp_wf
-  all_goals subst work
-  all_goals simp [sizeOf, Execution.Work._sizeOf_1]
-  all_goals omega
+  intro task member ref contributor
+  have covered := certified.immediate address member contributor
+  exact List.mem_map.mp ((List.mem_append.mp covered).resolve_left (by simp))
 
-/-- A matched task-success event releases a lowered child Work chunk whose
-tasks all have their contributor groups registered in that same chunk. -/
-theorem GraphEvent.MatchesWork.childTasksCovered
-    {work : Execution.Work} {occurrence : Occurrence} {result : TaskResult}
-    (matching : (GraphEvent.taskSuccess occurrence result).MatchesWork work)
-    : ∀ task ∈ result.work.tasks,
-      ∀ ref ∈ task.groups.map Execution.DeliveryNode.ref,
-        ∃ group ∈ result.work.groups, group.node.ref = ref := by
-  obtain ⟨owners, producer, known, _, childrenWork⟩ := matching
-  cases occurrence with
-  | item address index =>
-      simp only [taskChildWork?] at childrenWork
-      cases childrenWork
-  | executionGroup address =>
-      obtain ⟨groups, path, outcome, children, enclosing,
-        located, _, _⟩ := known
-      change locateWork work address = some
-        ⟨.executionGroup groups path outcome children, producer, enclosing⟩
-        at located
-      have childLowering : result.work =
-          Work.fromExecution children (address ++ [0]) := by
-        simpa [taskChildWork?, located] using childrenWork.symm
-      rw [childLowering]
-      exact workFromSpec_immediateGroupsCoverTasks children (address ++ [0])
-
-/-- Each matched stream item's child Work registers the contributor groups
-of every child task before the queue activates the item. -/
+/-- A stream item's fresh context declares all of its immediate task contributors. -/
 theorem GraphEvent.MatchesWork.streamItem_childTasksCovered
     {work : Execution.Work} {stream : Execution.DeliveryNode} {items : List StreamItem}
     (matching : (GraphEvent.streamItems stream items).MatchesWork work)
+    (certified : DeclarationCoverage.Certified [] work)
     {item : StreamItem} (itemMember : item ∈ items)
     : ∀ task ∈ item.work.tasks,
       ∀ ref ∈ task.groups.map Execution.DeliveryNode.ref,
         ∃ group ∈ item.work.groups, group.node.ref = ref := by
-  cases item with
-  | mk itemOccurrence itemValue itemWork =>
-      obtain ⟨owners, producer, known, childrenWork⟩ := matching _ itemMember
-      cases itemOccurrence with
-      | executionGroup address =>
-          simp only [streamItemWork?] at childrenWork
-          cases childrenWork
-      | item address index =>
-          obtain ⟨node, entries, enclosing, result, children, located, entry,
-            _, _⟩ := known
-          change locateWork work address = some
-            ⟨.stream node entries, producer, enclosing⟩ at located
-          have childLowering : itemWork =
-              Work.fromExecution children (address ++ [index]) := by
-            simpa [streamItemWork?, located, entry] using childrenWork.symm
-          rw [childLowering]
-          exact workFromSpec_immediateGroupsCoverTasks children (address ++ [index])
+  intro task member ref contributes
+  have covered := (certified.sourceStreamItem matching itemMember []).contributors task member ref contributes
+  exact covered.resolve_left (by simp)
 
 /-- A group can participate in registration when it is already live or its ref has
 never been registered. Retired refs deliberately do not satisfy this predicate. -/
@@ -190,12 +122,31 @@ def State.GroupAvailable (queue : State) (ref : NodeRef) : Prop :=
   ref ∈ queue.groupNodes.map (fun node => node.group.node.ref)
   ∨ ref ∉ queue.registeredGroups
 
+/-- Registration support implies ordinary live-or-fresh availability. -/
+theorem State.GroupRegistrationSupported.available {queue work ref}
+    (supported : State.GroupRegistrationSupported queue work ref)
+    : queue.GroupAvailable ref := by
+  cases supported with
+  | live member => exact Or.inl member
+  | fresh absent _ => exact Or.inr absent
+
 /-- Unavailable refs are exactly retired refs, not merely absent live nodes.
 Witness: the two alternatives of availability and the permanent-registry definition. -/
 theorem State.groupUnavailable_iff_retired (queue : State) (ref : NodeRef)
     : ¬queue.GroupAvailable ref ↔ queue.RetiredGroup ref := by
   classical
   simp [State.GroupAvailable, State.RetiredGroup, not_or, and_comm]
+
+/-- An unsettled registered task retains a live group for each healthy contributor. -/
+theorem State.HealthyRegisteredTaskAccounting.groupAvailable
+    {queue : State} {work : Execution.Work} {settled failed : List Occurrence}
+    (accounted : queue.HealthyRegisteredTaskAccounting work settled failed)
+    {task : Task} (member : task ∈ queue.tasks) (fresh : task.occurrence ∉ settled)
+    {ref : NodeRef} (contributor : ref ∈ task.groups.map Execution.DeliveryNode.ref)
+    (healthy : ¬GroupInvalidated work failed ref)
+    : queue.GroupAvailable ref := by
+  obtain ⟨node, nodeMember, sameRef, _⟩ := accounted task member fresh ref contributor healthy
+  exact Or.inl (List.mem_map.mpr ⟨node, nodeMember, sameRef⟩)
 
 /-- A future replay cannot make a retired contributor available again.
 Witness: retirement preservation, used contrapositively. This connects the general
@@ -213,175 +164,58 @@ theorem State.GroupAvailable.beforeReplay {queue : State} {ref : NodeRef}
       (((queue.runNormalized batches).1.groupUnavailable_iff_retired ref).mpr
         (retired.runNormalized batches) available)
 
-/-- Each healthy contributor of a newly integrated task is live or never registered.
-This is a proof obligation for the concrete replay, not a host-source assumption. -/
+/-- Every healthy new contributor has a fresh parent chain ending at a live record or root.
+This is derived proof evidence about replay, not a host-source assumption. -/
 def State.ChildGroupsAvailable (queue : State) (work : Execution.Work)
     (failed : List Occurrence) (newWork : Work)
     : Prop :=
   ∀ task ∈ newWork.tasks,
   ∀ ref ∈ task.groups.map Execution.DeliveryNode.ref,
-    ¬GroupInvalidated work failed ref → queue.GroupAvailable ref
+    ¬GroupInvalidated work failed ref → queue.GroupRegistrationSupported work ref
 
-/-- Registering a candidate preserves availability unless the ref is cancelled.
-Witness: an uncancelled fresh ref either stays fresh or acquires its live node. -/
-private theorem State.GroupAvailable.addGroup {queue : State} {ref : NodeRef}
-    (available : queue.GroupAvailable ref) (group : Group)
-    (uncancelled : ref ∉ (queue.addGroup group).cancelledGroups)
-    : (queue.addGroup group).GroupAvailable ref := by
-  unfold State.addGroup
-  split
-  · exact available
-  · rename_i freshGroup
-    split
-    · rename_i blocked
-      have different : ref ≠ group.node.ref := by
-        intro same
-        simp only [State.addGroup, freshGroup, blocked, ite_true] at uncancelled
-        exact uncancelled (List.mem_append_right _ (by simp [same]))
-      rcases available with live | fresh
-      · exact Or.inl live
-      · exact Or.inr (by simpa using And.intro fresh different)
-    · rcases available with live | fresh
-      · exact Or.inl (by simpa only [List.map_append, List.map_cons, List.map_nil] using
-          List.mem_append_left [group.node.ref] live)
-      · by_cases same : ref = group.node.ref
-        · subst ref
-          exact Or.inl (by simp)
-        · exact Or.inr (by simpa using And.intro fresh same)
-
-/-- An available, uncancelled ref is live after its registration.
-Witness: reuse an old live node; refusal would contradict the cancellation exclusion. -/
-private theorem State.addGroup_registersRef (queue : State) (group : Group)
-    (available : queue.GroupAvailable group.node.ref)
-    (uncancelled : group.node.ref ∉ (queue.addGroup group).cancelledGroups)
-    : group.node.ref
-      ∈ (queue.addGroup group).groupNodes.map (fun node => node.group.node.ref) := by
-  unfold State.addGroup
-  cases found : queue.groupNode? group.node.ref with
-  | some node =>
-      simp only [Option.isSome_some, Bool.or_true, ite_true]
-      have member : node ∈ queue.groupNodes :=
-        List.mem_of_find?_eq_some found
-      have same := queue.groupNode?_ref found
-      exact List.mem_map.mpr ⟨node, member, same⟩
-  | none =>
-      have fresh : group.node.ref ∉ queue.registeredGroups := by
-        rcases available with live | fresh
-        · obtain ⟨node, member, same⟩ := List.mem_map.mp live
-          exact False.elim ((List.find?_eq_none.mp found) node member
-            (by simpa using same))
-        · exact fresh
-      simp only [Option.isSome_none, Bool.or_false]
-      simp only [show queue.registeredGroups.contains group.node.ref = false by
-        simpa using fresh, Bool.false_eq_true, ite_false]
-      split
-      · rename_i blocked
-        have freshCheck : queue.registeredGroups.contains group.node.ref = false := by
-          simpa using fresh
-        simp only [State.addGroup, freshCheck, found, Option.isSome_none, Bool.or_self,
-          Bool.false_eq_true, ite_false, blocked, ite_true] at uncancelled
-        exact False.elim (uncancelled (List.mem_append_right _ (by simp)))
-      · apply List.mem_map.mpr
-        exact ⟨{ group }, List.mem_append.mpr (Or.inr (by simp)), rfl⟩
-
-/-- Available requested refs are live unless the registration batch cancels them.
-Witness: cancellation history grows monotonically, and parent linking preserves live refs.
--/
-theorem State.addGroups_registersRefs (queue : State) (groups : List Group)
+/-- Supported candidates acquire live records through parent-first registration. -/
+theorem State.addGroups_registersRefs {work : Execution.Work}
+    (queue : State) (groups : List Group) (generated : ExecutedWork work)
+    (coverage : queue.LiveGroupsRegistered)
+    (matching
+      : ∀ group ∈ groups,
+          ∃ dependencies,
+            GroupRecordAt work group.node dependencies
+            ∧ group.parent = dependencies.head?)
+    (closed
+      : ∀ group ∈ groups,
+          ∀ parent,
+            group.parent = some parent
+            → parent ∈ queue.registeredGroups ++ groups.map (fun group => group.node.ref))
     : ∀ group ∈ groups,
-        queue.GroupAvailable group.node.ref
-        → group.node.ref ∉ (queue.addGroups groups).1.cancelledGroups
+        queue.GroupRegistrationSupported work group.node.ref
         → group.node.ref
           ∈ (queue.addGroups groups).1.groupNodes.map
               (fun node => node.group.node.ref) := by
-  let linkStep (current : State) (group : Group) : State :=
-    match group.parent with
-    | none => current
-    | some parent =>
-        match current.groupNode? parent with
-        | none => current
-        | some node =>
-            let children :=
-              if node.childGroups.contains group.node.ref then
-                node.childGroups
-              else
-                node.childGroups ++ [group.node.ref]
-            current.putGroupNode { node with childGroups := children }
-  have linkStepRefs (current : State) (group : Group) :
-      (linkStep current group).groupNodes.map (fun node => node.group.node.ref)
-        = current.groupNodes.map (fun node => node.group.node.ref) := by
-    unfold linkStep
-    split
-    · rfl
-    · split
-      · rfl
-      · exact current.putGroupNode_refs _
-  have linkFold (more : List Group) :
-      ∀ current : State,
-        (more.foldl linkStep current).groupNodes.map (fun node => node.group.node.ref)
-          = current.groupNodes.map (fun node => node.group.node.ref) := by
-    induction more with
-    | nil => intro current; rfl
-    | cons group rest ih =>
-        intro current
-        rw [List.foldl_cons, ih, linkStepRefs]
-  have registerIncluded (more : List Group) :
-      ∀ current : State,
-        current.GroupRefsIncluded (more.foldl State.addGroup current) := by
-    induction more with
-    | nil => intro current ref member; exact member
-    | cons group rest ih =>
-        intro current
-        exact (current.addGroup_includesRefs group).trans
-          (ih (current.addGroup group))
-  have registerRefs (more : List Group) :
-      ∀ current : State, ∀ group ∈ more,
-        current.GroupAvailable group.node.ref →
-        group.node.ref ∉ (more.foldl State.addGroup current).cancelledGroups →
-        group.node.ref ∈ (more.foldl State.addGroup current).groupNodes.map
-          (fun node => node.group.node.ref) := by
-    induction more with
-    | nil => intro current group member; cases member
-    | cons first rest ih =>
-        intro current group member available uncancelled
-        have unblocked : group.node.ref ∉ (current.addGroup first).cancelledGroups := by
-          intro member
-          exact uncancelled ((current.addGroup first).foldAddGroup_cancelledGroups_subset
-            rest member)
-        rcases List.mem_cons.mp member with same | later
-        · subst group
-          exact registerIncluded rest (current.addGroup first) first.node.ref
-            (current.addGroup_registersRef first available unblocked)
-        · exact ih (current.addGroup first) group later
-            (available.addGroup first unblocked) uncancelled
-  intro group member available uncancelled
-  let fresh := groups.filter (fun group =>
-    !queue.registeredGroups.contains group.node.ref
-      && (queue.groupNode? group.node.ref).isNone)
-  change group.node.ref ∈
-    (fresh.foldl linkStep (fresh.foldl State.addGroup queue)).groupNodes.map
-      (fun node => node.group.node.ref)
-  rw [linkFold]
-  rw [State.addGroups_cancelledGroups] at uncancelled
-  rcases available with live | new
-  · exact registerIncluded fresh queue group.node.ref live
-  · cases found : queue.groupNode? group.node.ref with
-    | some node =>
-        exact registerIncluded fresh queue group.node.ref
-          (List.mem_map.mpr ⟨node, List.mem_of_find?_eq_some found,
-            queue.groupNode?_ref found⟩)
-    | none =>
-        have memberFresh : group ∈ fresh := by simp [fresh, member, new, found]
-        exact registerRefs fresh queue group memberFresh (Or.inr new) uncancelled
+  intro group member supported
+  exact queue.addGroups_supported_live supported generated coverage groups matching closed
+    (List.mem_map.mpr ⟨group, member, rfl⟩)
 
-/-- Integration retains every available candidate not cancelled during registration.
-Witness: group registration supplies live nodes; task and stream integration retain them.
+/-- Integration retains every supported candidate.
+Witness: parent-first registration supplies live nodes; task and stream integration retain them.
 -/
-theorem State.maybeIntegrateWork_registersRefs
-    (queue : State) (newWork : Work) (parentTask : Option Occurrence)
+theorem State.maybeIntegrateWork_registersRefs (queue : State) (newWork : Work)
+    (parentTask : Option Occurrence) {work : Execution.Work}
+    (generated : ExecutedWork work) (coverage : queue.LiveGroupsRegistered)
+    (matching
+      : ∀ group ∈ newWork.groups,
+          ∃ dependencies,
+            GroupRecordAt work group.node dependencies
+            ∧ group.parent = dependencies.head?)
+    (closed
+      : ∀ group ∈ newWork.groups,
+          ∀ parent,
+            group.parent = some parent
+            → parent
+              ∈ queue.registeredGroups
+                ++ newWork.groups.map (fun group => group.node.ref))
     : ∀ group ∈ newWork.groups,
-        queue.GroupAvailable group.node.ref
-        → group.node.ref ∉ (queue.addGroups newWork.groups).1.cancelledGroups
+        queue.GroupRegistrationSupported work group.node.ref
         → group.node.ref
           ∈ (queue.maybeIntegrateWork newWork parentTask).1.groupNodes.map
               (fun node => node.group.node.ref) := by
@@ -406,57 +240,35 @@ theorem State.maybeIntegrateWork_registersRefs
     · exact member
     · dsimp
       split <;> exact member
-  intro group member available uncancelled
+  intro group member supported
   change group.node.ref ∈
     (withTasks.addStreams newWork.streams parentTask).1.groupNodes.map
       (fun node => node.group.node.ref)
   exact (taskIncluded.trans streamIncluded) group.node.ref
-    (queue.addGroups_registersRefs newWork.groups group member available uncancelled)
+    (queue.addGroups_registersRefs newWork.groups generated coverage matching closed group
+      member supported)
 
-/-- Integrating immediate Work appends precisely its task descriptors. -/
-theorem State.maybeIntegrateWork_tasks_append
-    (queue : State) (newWork : Work) (parentTask : Option Occurrence)
-    : (queue.maybeIntegrateWork newWork parentTask).1.tasks
-      = queue.tasks ++ newWork.tasks := by
-  have taskFold (more : List Task) :
-      ∀ current : State,
-        (more.foldl State.addTask current).tasks = current.tasks ++ more := by
-    induction more with
-    | nil => intro current; simp
-    | cons task rest ih =>
-        intro current
-        rw [List.foldl_cons, ih, State.addTask_tasks]
-        simp [List.append_assoc]
-  let withGroups := (queue.addGroups newWork.groups).1
-  let withTasks := newWork.tasks.foldl State.addTask withGroups
-  change (withTasks.addStreams newWork.streams parentTask).1.tasks
-      = queue.tasks ++ newWork.tasks
-  rw [State.addStreams_tasks, taskFold, State.addGroups_tasks]
-
-/-- Immediately integrated root tasks have every contributor group live,
-provided the Work chunk lists those groups beside the tasks. -/
-theorem initialIntegration_taskGroupsPresent
-    (work : Work)
-    (covered
-      : ∀ task ∈ work.tasks,
-        ∀ ref ∈ task.groups.map Execution.DeliveryNode.ref,
-          ∃ group ∈ work.groups, group.node.ref = ref)
-    : ∀ task ∈ (({} : State).maybeIntegrateWork work).1.tasks,
+/-- Generated initial tasks have all contributor records live before pruning. -/
+theorem initialIntegration_taskGroupsPresent (work : Execution.Work)
+    (generated : ExecutedWork work)
+    : ∀ task ∈ (({} : State).maybeIntegrateWork (Work.fromExecution work)).1.tasks,
       ∀ ref ∈ task.groups.map Execution.DeliveryNode.ref,
-        ∃ node ∈ (({} : State).maybeIntegrateWork work).1.groupNodes,
+        ∃ node ∈ (({} : State).maybeIntegrateWork (Work.fromExecution work)).1.groupNodes,
           node.group.node.ref = ref := by
   intro task member ref contributor
-  have taskMember : task ∈ work.tasks := by
+  have taskMember : task ∈ (Work.fromExecution work).tasks := by
     rw [State.maybeIntegrateWork_tasks_append] at member
     simpa using member
   obtain ⟨group, groupMember, same⟩ :=
-    covered task taskMember ref contributor
-  have refMember := ({} : State).maybeIntegrateWork_registersRefs
-    work none group groupMember (Or.inr (by simp))
-    (by rw [State.addGroups_cancelledGroups_empty rfl]; simp)
-  rw [same] at refMember
-  obtain ⟨node, nodeMember, nodeRef⟩ := List.mem_map.mp refMember
-  exact ⟨node, nodeMember, nodeRef⟩
+    workFromSpec_immediateGroupsCoverTasks work [] generated.declarations task taskMember ref contributor
+  have live := ({} : State).maybeIntegrateWork_registersRefs (Work.fromExecution work) none
+    generated (by intro node member; cases member)
+    (fun _ member => workFromSpec_groups_recordAt_root member)
+    (fun group member parent parentEq =>
+      generated.declarations.parents [] member parentEq)
+    group groupMember (generated.empty_registrationSupported group.node.ref)
+  rw [same] at live
+  exact List.mem_map.mp live
 
 /-- Contributor presence discharges the only old-task condition needed when
 new child groups are integrated. -/
@@ -585,12 +397,19 @@ theorem State.HealthyContributorGroupsPresent.maybeIntegrateWork
         ∀ ref ∈ task.groups.map Execution.DeliveryNode.ref,
           ∃ group ∈ newWork.groups, group.node.ref = ref)
     (available : queue.ChildGroupsAvailable work failed newWork)
-    (cancelled : queue.CancelledGroupsSupported work failed)
+    (generated : ExecutedWork work) (coverage : queue.LiveGroupsRegistered)
     (descriptors
       : ∀ group ∈ newWork.groups,
-          ∃ dependencies producer,
-            NodeAt work group.node .group dependencies producer
+          ∃ dependencies,
+            GroupRecordAt work group.node dependencies
             ∧ group.parent = dependencies.head?)
+    (closed
+      : ∀ group ∈ newWork.groups,
+          ∀ parent,
+            group.parent = some parent
+            → parent
+              ∈ queue.registeredGroups
+                ++ newWork.groups.map (fun group => group.node.ref))
     : (queue.maybeIntegrateWork newWork parentTask).1.HealthyContributorGroupsPresent
         work settled failed := by
   let withGroups := (queue.addGroups newWork.groups).1
@@ -617,10 +436,8 @@ theorem State.HealthyContributorGroupsPresent.maybeIntegrateWork
             taskCovered ref contributor
           have groupRef : group.node.ref ∈ withGroups.groupNodes.map
               (fun node => node.group.node.ref) :=
-            queue.addGroups_registersRefs newWork.groups group groupMember
+            queue.addGroups_registersRefs newWork.groups generated coverage descriptors closed group groupMember
               (same ▸ available task (subset task (by simp)) ref contributor healthy)
-              ((cancelled.addGroups newWork.groups descriptors).healthy_not_mem
-                (same ▸ healthy))
           rw [same] at groupRef
           obtain ⟨node, nodeMember, nodeRef⟩ := List.mem_map.mp
             (included ref groupRef)
@@ -757,13 +574,14 @@ theorem State.HealthyContributorGroupsPresent.filterGroupRef
     exact List.mem_filter.mpr ⟨nodeMember, by simp [different]⟩
   exact ⟨node, retained, same⟩
 
-/-- Activating groups changes no group refs. Each newly requested fresh task
-must already have the contributor nodes it names. -/
-theorem State.HealthyContributorGroupsPresent.startNewWork
+/-- Without cached rejections, activation retains each fresh task's healthy contributors.
+Newly requested tasks must already have the contributor nodes they name. -/
+theorem State.HealthyContributorGroupsPresent.startNewWork_of_no_cached_failures
     {queue : State} {work : Execution.Work} {settled failed : List Occurrence}
     (present : queue.HealthyContributorGroupsPresent work settled failed)
     (registered : queue.StartedTasksRegistered)
     (newWork : NewWork)
+    (unrejected : ∀ node ∈ queue.taskNodes, node.rejection = none)
     (requestedPresent
       : ∀ task ∈ queue.tasks,
           task.occurrence ∈ queue.releaseRequests newWork
@@ -771,10 +589,11 @@ theorem State.HealthyContributorGroupsPresent.startNewWork
           → ∀ ref ∈ task.groups.map Execution.DeliveryNode.ref,
               ¬GroupInvalidated work failed ref
               → ∃ node ∈ queue.groupNodes, node.group.node.ref = ref)
-    : (queue.startNewWork newWork).HealthyContributorGroupsPresent
+    : (queue.startNewWork newWork).1.HealthyContributorGroupsPresent
         work settled failed := by
-  let final := queue.startNewWork newWork
-  obtain ⟨sameGroups, sameTasks, _⟩ := queue.startNewWork_groupCore newWork
+  let final := (queue.startNewWork newWork).1
+  have sameGroups := (queue.startNewWork_groupCore_of_no_cached_failures newWork unrejected).1
+  have sameTasks := queue.startNewWork_tasks newWork []
   have finalRegistered : final.StartedTasksRegistered :=
     registered.startNewWork newWork
   intro taskNode taskMember fresh ref contributor healthy
@@ -838,7 +657,7 @@ theorem State.pruneEmptyGroups_preservesNonempty
                         (same.trans nodeRef.symm)
                     subst target
                     exact targetNonempty
-                      (List.isEmpty_iff.mp (Bool.and_eq_true_iff.mp prunable).1)
+                      (List.isEmpty_iff.mp prunable)
                   have retained : target ∈ current.groupNodes.filter
                       (fun entry => entry.group.node.ref != group.ref) := by
                     apply List.mem_filter.mpr
@@ -939,14 +758,16 @@ theorem State.HealthyTaskLinks.taskFailure
     : (queue.taskFailure occurrence errors).1.HealthyTaskLinks
         work settled (occurrence :: failed) := by
   intro taskNode taskMember fresh groupNode groupMember healthy contributor
-  obtain ⟨priorMember, different⟩ :=
+  obtain ⟨prior, priorMember, sameTask⟩ :=
     queue.taskFailure_startedSurvivor occurrence errors taskMember
   have priorHealthy : ¬GroupInvalidated work failed groupNode.group.node.ref := by
     intro failure
     exact healthy (GroupInvalidated.mono failure
       (by intro earlier member; simp [member]))
-  have priorLinks := (links.toTaskLinkedOn priorMember fresh).taskFailure
-    occurrence errors different
+  have priorFresh : prior.task.occurrence ∉ settled := sameTask.symm ▸ fresh
+  have priorLinks := (links.toTaskLinkedOn priorMember priorFresh).taskFailure_preserves
+    occurrence errors
+  rw [sameTask] at priorLinks
   apply priorLinks groupNode groupMember
   exact mem_healthyContributorRefs_iff.mpr ⟨contributor, priorHealthy⟩
 

@@ -1,3 +1,4 @@
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.ReadyDrainOutput
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.GroupActivationSupport
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.GroupPublication
 
@@ -50,8 +51,8 @@ theorem State.GroupRefSupport.removeTask {queue : State} {supported}
   intro node member absent
   obtain ⟨old, oldMember, same⟩ := List.mem_map.mp member
   subst node
-  obtain ⟨tasks, failure⟩ := valid.contents old oldMember absent
-  exact ⟨by simp [tasks], failure⟩
+  have tasks := valid.contents old oldMember absent
+  simp only [tasks, List.filter_nil]
 
 /-- Removing a failed subtree preserves support of every surviving record and root.
 Witness: both collections are filtered without adding contents or active refs.
@@ -102,63 +103,113 @@ theorem State.GroupRefSupport.finishGroupSuccess {queue : State} {supported}
       fun ref member => known.roots ref (List.mem_filter.mp member).1⟩
   exact retained.pruneEmptyGroups _
 
+/-- Failure only closes supported active roots and retains all surviving contents. -/
+theorem State.GroupRefSupport.taskFailure_support_all {queue : State} {supported}
+    (valid : queue.GroupRefSupport supported) (occurrence : Occurrence) (errors : Nat)
+    : (queue.taskFailure occurrence errors).1.GroupRefSupport supported
+      ∧ ∀ event ∈ (queue.taskFailure occurrence errors).2,
+          event.GroupClosureRefSupported supported := by
+  have loop (groups : List Execution.DeliveryNode) (acc : State × List WorkQueueEvent)
+      (known : acc.1.GroupRefSupport supported)
+      (outputs : ∀ event ∈ acc.2, event.GroupClosureRefSupported supported)
+      : (groups.foldl (failureGroupStep errors) acc).1.GroupRefSupport supported
+        ∧ ∀ event ∈ (groups.foldl (failureGroupStep errors) acc).2,
+            event.GroupClosureRefSupported supported := by
+    induction groups generalizing acc with
+    | nil => exact ⟨known, outputs⟩
+    | cons group rest ih =>
+        apply ih
+        · obtain ⟨current, events⟩ := acc
+          dsimp only [failureGroupStep]
+          split
+          · exact known
+          · split
+            · exact known.removeGroup _
+            · exact known
+        · obtain ⟨current, events⟩ := acc
+          dsimp only [failureGroupStep]
+          split
+          · exact outputs
+          · rename_i node found
+            split
+            · rename_i active
+              intro event member
+              rcases List.mem_append.mp member with old | closed
+              · exact outputs event old
+              · have same := List.mem_singleton.mp closed
+                subst event
+                change supported node.group.node.ref
+                exact (current.groupNode?_ref found).symm ▸
+                  known.roots group.ref (List.contains_iff_mem.mp active)
+            · exact outputs
+  cases found : queue.taskNode? occurrence with
+  | none =>
+      exact ⟨
+        by simpa [State.taskFailure, found] using valid,
+        by simp [State.taskFailure, found]
+      ⟩
+  | some node =>
+      rw [queue.taskFailure_eq occurrence errors node found]
+      exact loop node.task.groups (_, []) ⟨valid.contents, valid.roots⟩ (by simp)
+
 /-- Recursive draining preserves contributor support, including newly promoted roots.
 Witness: each success prunes released children before activation; failures only remove.
 -/
 theorem State.GroupRefSupport.drainReadyGroups_support {queue : State} {supported}
-    (valid : queue.GroupRefSupport supported)
-    : queue.drainReadyGroups.1.GroupRefSupport supported
-      ∧ ∀ event ∈ queue.drainReadyGroups.2, event.GroupClosureRefSupported supported := by
+    (valid : queue.GroupRefSupport supported) (available : List (Occurrence × Nat) := [])
+    : (queue.drainReadyGroups available).1.GroupRefSupport supported
+      ∧ (∀ event ∈ (queue.drainReadyGroups available).2.1,
+          event.GroupClosureRefSupported supported)
+      ∧ ∀ failure ∈ (queue.drainReadyGroups available).2.2,
+          supported failure.group.ref := by
   have loop (fuel : Nat) (current : State) (known : current.GroupRefSupport supported)
-      : (State.drainReadyGroups.go fuel current).1.GroupRefSupport supported
-        ∧ ∀ event ∈ (State.drainReadyGroups.go fuel current).2,
-            event.GroupClosureRefSupported supported := by
+      : (State.drainReadyGroups.go available fuel current).1.GroupRefSupport supported
+        ∧ (∀ event ∈ (State.drainReadyGroups.go available fuel current).2.1,
+            event.GroupClosureRefSupported supported)
+        ∧ ∀ failure ∈ (State.drainReadyGroups.go available fuel current).2.2,
+            supported failure.group.ref := by
     induction fuel generalizing current with
-    | zero => exact ⟨known, by simp [State.drainReadyGroups.go]⟩
+    | zero =>
+        exact ⟨
+          known,
+          by simp [State.drainReadyGroups.go],
+          by simp [State.drainReadyGroups.go]
+        ⟩
     | succ fuel ih =>
         unfold State.drainReadyGroups.go
         dsimp only
         split
-        · exact ⟨known, by simp⟩
+        · exact ⟨known, by simp, by simp⟩
         · rename_i node selected
-          have refSupported : supported node.group.node.ref := by
-            obtain ⟨ref, active, choice⟩ := List.exists_of_findSome?_eq_some selected
+          have active : node.group.node.ref ∈ current.rootGroups := by
+            obtain ⟨ref, member, choice⟩ := List.exists_of_findSome?_eq_some selected
             cases found : current.groupNode? ref with
             | none => simp [found] at choice
-            | some candidate =>
+            | some group =>
                 simp only [found] at choice
-                change (if _ then some candidate else none) = some node at choice
+                change (if group.pending == 0 then some group else none) = some node at choice
                 split at choice
                 · cases Option.some.inj choice
-                  exact State.groupNode?_ref found ▸ known.roots ref active
+                  exact State.groupNode?_ref found ▸ member
                 · contradiction
-          cases cached : node.failure with
-          | none =>
-              obtain ⟨retained, released⟩ := known.finishGroupSuccess node
-              obtain ⟨next, outputs⟩ := ih _ (retained.startNewWork _ released)
-              refine ⟨next, ?_⟩
-              intro event member
-              exact (List.mem_append.mp member).elim
-                (current.finishGroupSuccess_groupClosureRefSupported node refSupported event)
-                (outputs event)
-          | some errors =>
-              obtain ⟨next, outputs⟩ := ih _ (known.removeGroup node.group.node.ref)
-              refine ⟨next, ?_⟩
-              intro event member
-              rcases List.mem_append.mp member with first | later
-              · have same := List.mem_singleton.mp first
-                subst event
-                exact refSupported
-              · exact outputs event later
+          obtain ⟨retained, released⟩ := known.finishGroupSuccess node
+          have failures := State.startNewWork_failures_supported
+            (queue := (current.finishGroupSuccess node).1) _ available released
+          obtain ⟨final, outputs, queued⟩ := ih _ (retained.startNewWork _ released available)
+          exact ⟨final, fun event member => (List.mem_append.mp member).elim
+              (current.finishGroupSuccess_groupClosureRefSupported node
+                (known.roots _ active) event) (outputs event),
+            fun failure member => (List.mem_append.mp member).elim
+              (failures failure) (queued failure)⟩
   exact loop _ queue valid
 
 /-- Draining preserves the queue's support invariant.
 Witness: project the joint state/output draining theorem.
 -/
 theorem State.GroupRefSupport.drainReadyGroups {queue : State} {supported}
-    (valid : queue.GroupRefSupport supported)
-    : queue.drainReadyGroups.1.GroupRefSupport supported :=
-  valid.drainReadyGroups_support.1
+    (valid : queue.GroupRefSupport supported) (available : List (Occurrence × Nat) := [])
+    : (queue.drainReadyGroups available).1.GroupRefSupport supported :=
+  (valid.drainReadyGroups_support available).1
 
 -----------------------------------------------------------------------------------------
 -- The single-pass task handlers and stream-item integration retain the same invariant
@@ -172,9 +223,12 @@ theorem State.GroupRefSupport.taskSuccess_support {queue : State} {supported}
     (valid : queue.GroupRefSupport supported) (occurrence : Occurrence)
     (result : TaskResult)
     (owners : ∀ task ∈ result.work.tasks, ∀ group ∈ task.groups, supported group.ref)
-    : (queue.taskSuccess occurrence result).1.GroupRefSupport supported
-      ∧ ∀ event ∈ (queue.taskSuccess occurrence result).2,
-          event.GroupClosureRefSupported supported := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.taskSuccess occurrence result available).1.GroupRefSupport supported
+      ∧ (∀ event ∈ (queue.taskSuccess occurrence result available).2.1,
+          event.GroupClosureRefSupported supported)
+      ∧ ∀ failure ∈ (queue.taskSuccess occurrence result available).2.2,
+          supported failure.group.ref := by
   have loop (groups : List Execution.DeliveryNode)
       (acc : State × List WorkQueueEvent × NewWork)
       (known : acc.1.GroupRefSupport supported)
@@ -199,7 +253,7 @@ theorem State.GroupRefSupport.taskSuccess_support {queue : State} {supported}
             have active : group.ref ∈ acc.1.rootGroups := by
               simp only [Bool.and_eq_true, State.putGroupNode,
                 List.contains_iff_mem] at closes
-              exact closes.1.1
+              exact closes.1
             have refSupported := State.groupNode?_ref found ▸ known.roots group.ref active
             obtain ⟨retained, newGroups⟩ := updated.finishGroupSuccess
               { node with pending := node.pending - 1 }
@@ -214,19 +268,26 @@ theorem State.GroupRefSupport.taskSuccess_support {queue : State} {supported}
   | none =>
       exact ⟨
         by simpa [State.taskSuccess, found] using valid,
+        by simp [State.taskSuccess, found],
         by simp [State.taskSuccess, found]
       ⟩
   | some node =>
-      rw [queue.taskSuccess_eq occurrence result node found]
-      split
-      · exact ⟨valid.removeTask occurrence, by simp⟩
-      · have stored : (queue.putTaskNode { node with value := some result.value }).GroupRefSupport
-            supported := ⟨valid.contents, valid.roots⟩
-        obtain ⟨known, released, outputs⟩ := loop node.task.groups (_, [], {})
-          (stored.maybeIntegrateWork result.work owners (some occurrence)) (by simp) (by simp)
-        obtain ⟨next, later⟩ := (known.startNewWork _ released).drainReadyGroups_support
-        exact ⟨next, fun event member =>
-          (List.mem_append.mp member).elim (outputs event) (later event)⟩
+      rw [queue.taskSuccess_eq occurrence result node found available]
+      have stored : (queue.putTaskNode { node with value := some result.value }).GroupRefSupport
+          supported := ⟨valid.contents, valid.roots⟩
+      obtain ⟨known, released, outputs⟩ := loop node.task.groups (_, [], {})
+        (stored.maybeIntegrateWork result.work owners (some occurrence)) (by simp) (by simp)
+      let processed := node.task.groups.foldl successGroupStep
+        (((queue.putTaskNode { node with value := some result.value }).maybeIntegrateWork
+          result.work (some occurrence)).1, [], {})
+      have failures := State.startNewWork_failures_supported
+        (queue := processed.1) processed.2.2 available released
+      obtain ⟨next, later, queued⟩ :=
+        (known.startNewWork _ released available).drainReadyGroups_support available
+      exact ⟨next, fun event member =>
+        (List.mem_append.mp member).elim (outputs event) (later event),
+        fun failure member => (List.mem_append.mp member).elim
+          (failures failure) (queued failure)⟩
 
 /-- Successful settlement preserves queue support independently of its output projection.
 Witness: project the joint single-pass state/output theorem.
@@ -235,69 +296,21 @@ theorem State.GroupRefSupport.taskSuccess {queue : State} {supported}
     (valid : queue.GroupRefSupport supported) (occurrence : Occurrence)
     (result : TaskResult)
     (owners : ∀ task ∈ result.work.tasks, ∀ group ∈ task.groups, supported group.ref)
-    : (queue.taskSuccess occurrence result).1.GroupRefSupport supported :=
-  (valid.taskSuccess_support occurrence result owners).1
+    (available : List (Occurrence × Nat) := [])
+    : (queue.taskSuccess occurrence result available).1.GroupRefSupport supported :=
+  (valid.taskSuccess_support occurrence result owners available).1
 
-/-- Task failure can create a cache only at an actual supported task-owner ref.
-Witness: remove memberships once, then either remove an active owner or cache its failure.
--/
+/-- Failure support follows from active root support; dormant owners remain unchanged. -/
 theorem State.GroupRefSupport.taskFailure_support {queue : State} {supported}
     (valid : queue.GroupRefSupport supported) (occurrence : Occurrence) (errors : Nat)
-    (owners
+    (_owners
       : ∀ node,
           queue.taskNode? occurrence = some node
           → ∀ group ∈ node.task.groups, supported group.ref)
     : (queue.taskFailure occurrence errors).1.GroupRefSupport supported
       ∧ ∀ event ∈ (queue.taskFailure occurrence errors).2,
-          event.GroupClosureRefSupported supported := by
-  let step (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode) :=
-    match acc.1.groupNode? group.ref with
-    | none => acc
-    | some node =>
-        if acc.1.rootGroups.contains group.ref then
-          let (next, event) := acc.1.finishGroupFailure node errors
-          (next, acc.2 ++ [event])
-        else (acc.1.putGroupNode
-          { node with pending := node.pending - 1
-                      failure := some (node.failure.getD 0 + errors) }, acc.2)
-  have loop (groups : List Execution.DeliveryNode)
-      (all : ∀ group ∈ groups, supported group.ref) (acc : State × List WorkQueueEvent)
-      (known : acc.1.GroupRefSupport supported)
-      (outputs : ∀ event ∈ acc.2, event.GroupClosureRefSupported supported)
-      : (groups.foldl step acc).1.GroupRefSupport supported
-        ∧ ∀ event ∈ (groups.foldl step acc).2,
-            event.GroupClosureRefSupported supported := by
-    induction groups generalizing acc with
-    | nil => exact ⟨known, outputs⟩
-    | cons group rest ih =>
-        refine ih (fun node member => all node (List.mem_cons_of_mem _ member)) _ ?_ ?_
-        all_goals unfold step; split
-        · exact known
-        · rename_i node found
-          split
-          · exact known.removeGroup node.group.node.ref
-          · apply known.putGroupNode
-            intro absent
-            exact (absent (State.groupNode?_ref found ▸ all group List.mem_cons_self)).elim
-        · exact outputs
-        · rename_i node found
-          split
-          · intro event member
-            rcases List.mem_append.mp member with old | closed
-            · exact outputs event old
-            · have same := List.mem_singleton.mp closed
-              subst event
-              change supported node.group.node.ref
-              exact State.groupNode?_ref found ▸ all group List.mem_cons_self
-          · exact outputs
-  unfold State.taskFailure
-  split
-  · exact ⟨valid, by simp⟩
-  · rename_i node found
-    split
-    · exact ⟨valid.removeTask occurrence, by simp⟩
-    · exact loop node.task.groups (owners node found) (_, [])
-        (valid.removeTask occurrence) (by simp)
+          event.GroupClosureRefSupported supported :=
+  valid.taskFailure_support_all occurrence errors
 
 /-- Failed settlement preserves queue support independently of its output projection.
 Witness: project the joint failure-fold state/output theorem.
@@ -320,35 +333,47 @@ theorem State.GroupRefSupport.streamItems_support {queue : State} {supported}
     (owners
       : ∀ item ∈ items,
         ∀ task ∈ item.work.tasks, ∀ group ∈ task.groups, supported group.ref)
-    : (queue.streamItems stream items).1.GroupRefSupport supported
-      ∧ ∀ event ∈ (queue.streamItems stream items).2,
-          event.GroupClosureRefSupported supported := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.streamItems stream items available).1.GroupRefSupport supported
+      ∧ (∀ event ∈ (queue.streamItems stream items available).2.1,
+          event.GroupClosureRefSupported supported)
+      ∧ ∀ failure ∈ (queue.streamItems stream items available).2.2,
+          supported failure.group.ref := by
   let step (acc : State × List Execution.DeliveryNode
-      × List Execution.DeliveryNode × List StreamItemValue) (item : StreamItem) :=
+      × List Execution.DeliveryNode × List StreamItemValue × List GroupFailureEvent)
+      (item : StreamItem) :=
     let (integrated, newWork) := acc.1.maybeIntegrateWork item.work
     let (pruned, nonempty) := integrated.pruneEmptyGroups newWork.newGroups
-    (pruned.startNewWork { newWork with newGroups := nonempty },
-      acc.2.1 ++ nonempty, acc.2.2.1 ++ newWork.newStreams, acc.2.2.2 ++ [item.value])
+    let (started, queued) := pruned.startNewWork { newWork with newGroups := nonempty } available
+    (started, acc.2.1 ++ nonempty, acc.2.2.1 ++ newWork.newStreams,
+      acc.2.2.2.1 ++ [item.value], acc.2.2.2.2 ++ queued)
   have loop (more : List StreamItem) (subset : more.Subset items)
       (acc : State × List Execution.DeliveryNode
-        × List Execution.DeliveryNode × List StreamItemValue)
+        × List Execution.DeliveryNode × List StreamItemValue × List GroupFailureEvent)
       (known : acc.1.GroupRefSupport supported)
-      : (more.foldl step acc).1.GroupRefSupport supported := by
+      (failures : ∀ failure ∈ acc.2.2.2.2, supported failure.group.ref)
+      : (more.foldl step acc).1.GroupRefSupport supported
+        ∧ ∀ failure ∈ (more.foldl step acc).2.2.2.2, supported failure.group.ref := by
     induction more generalizing acc with
-    | nil => exact known
+    | nil => exact ⟨known, failures⟩
     | cons item rest ih =>
-        apply ih (fun _ h => subset (List.mem_cons_of_mem _ h))
         have integrated := known.maybeIntegrateWork item.work
           (owners item (subset List.mem_cons_self))
         obtain ⟨pruned, released⟩ := integrated.pruneEmptyGroups
           (acc.1.maybeIntegrateWork item.work).2.newGroups
-        exact pruned.startNewWork _ released
+        apply ih (fun _ member => subset (List.mem_cons_of_mem _ member)) _
+          (pruned.startNewWork _ released available)
+        intro failure member
+        exact (List.mem_append.mp member).elim (failures failure)
+          (State.startNewWork_failures_supported _ available released failure)
   unfold State.streamItems
   split
-  · exact ⟨valid, by simp⟩
-  · obtain ⟨next, outputs⟩ :=
-      (loop items (fun _ h => h) (queue, [], [], []) valid).drainReadyGroups_support
-    refine ⟨next, ?_⟩
+  · exact ⟨valid, by simp, by simp⟩
+  · obtain ⟨prepared, failures⟩ :=
+      loop items (List.Subset.refl _) (queue, [], [], [], []) valid (by simp)
+    obtain ⟨next, outputs, queued⟩ := prepared.drainReadyGroups_support available
+    refine ⟨next, ?_, fun failure member =>
+      (List.mem_append.mp member).elim (failures failure) (queued failure)⟩
     intro event member
     rcases List.mem_cons.mp member with same | later
     · subst event
@@ -364,7 +389,8 @@ theorem State.GroupRefSupport.streamItems {queue : State} {supported}
     (owners
       : ∀ item ∈ items,
         ∀ task ∈ item.work.tasks, ∀ group ∈ task.groups, supported group.ref)
-    : (queue.streamItems stream items).1.GroupRefSupport supported :=
-  (valid.streamItems_support stream items owners).1
+    (available : List (Occurrence × Nat) := [])
+    : (queue.streamItems stream items available).1.GroupRefSupport supported :=
+  (valid.streamItems_support stream items owners available).1
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

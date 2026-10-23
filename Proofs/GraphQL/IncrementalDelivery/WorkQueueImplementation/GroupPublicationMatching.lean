@@ -18,13 +18,13 @@ theorem taskAt_owners_of_taskGroups {work occurrence owners producer payload gro
     (exactGroups : taskGroups? work occurrence = some groups)
     : owners = groups.map Execution.DeliveryNode.ref := by
   cases occurrence with
-  | item address ordinal => simp [taskGroups?] at exactGroups
+  | item address ordinal => simp [taskGroups?_eq_lookup] at exactGroups
   | executionGroup address =>
       obtain ⟨fragments, path, outcome, children, enclosing, located, ownerEq, _⟩ := known
       change locateWork work address
         = some ⟨.executionGroup fragments path outcome children, producer, enclosing⟩ at located
       have nodes : fragments.map Execution.DeferredFragment.node = groups := by
-        simpa [taskGroups?, located] using exactGroups
+        simpa [taskGroups?_eq_lookup, located] using exactGroups
       rw [← nodes]
       simpa only [List.map_map, Function.comp_def] using ownerEq
 
@@ -39,7 +39,7 @@ Witness: preserved object rank selects the same full raw value and source occurr
 the strengthened closure ledger. Distinct tasks with equal wire data cannot be confused.
 -/
 theorem Witness.groupPublication_taskAt {work inputs w index owner payload}
-    (started : inputsStarted work inputs = true)
+    (_started : inputsStarted work inputs = true)
     (history : w.events = (initialQueue work).nonterminalAtoms inputs)
     (ledger : BufferedClosureLedger work inputs w)
     (selected : w.events[index]? = some (.groupValues owner payload))
@@ -49,7 +49,7 @@ theorem Witness.groupPublication_taskAt {work inputs w index owner payload}
             active :=
               (initialQueue work).initialGroups ++ (initialQueue work).initialStreams
           }
-          ((initialQueue work).rawEventReplay inputs.flatten).2 index owner payload)
+          ((initialQueue work).rawBatches inputs).2 index owner payload)
     : ∃ producer,
         TaskAt work (w.matching index)
           (origin.value.deliveryGroups.map Execution.DeliveryNode.ref) producer
@@ -57,8 +57,7 @@ theorem Witness.groupPublication_taskAt {work inputs w index owner payload}
   obtain ⟨_, _, exactLedger, _⟩ := ledger
   have raw := origin.rawValue_atRank
   dsimp only at raw
-  have historyEq := history.trans (createWorkQueue_nonterminalAtoms_flattened inputs started)
-  rw [← historyEq] at raw
+  rw [(Witness.rawBatches_canonical history selected).2] at raw
   obtain ⟨result, _, same, source⟩ := exactLedger.source_at selected raw
   obtain ⟨owners, producer, known, groups, _⟩ := source
   have refs := taskAt_owners_of_taskGroups known groups
@@ -82,7 +81,7 @@ theorem GroupPublicationReleases.matched_available {work inputs w}
                 active :=
                   (initialQueue work).initialGroups ++ (initialQueue work).initialStreams
               }
-              ((initialQueue work).rawEventReplay inputs.flatten).2 index owner payload,
+              ((initialQueue work).rawBatches inputs).2 index owner payload,
         (∃ producer,
           TaskAt work (w.matching index)
             (origin.value.deliveryGroups.map Execution.DeliveryNode.ref) producer

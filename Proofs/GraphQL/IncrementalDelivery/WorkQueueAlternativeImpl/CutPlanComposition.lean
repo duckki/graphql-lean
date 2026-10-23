@@ -84,8 +84,17 @@ theorem plan_cuts_of_fields (schema : Schema) (resolvers : Resolvers ObjectRef)
       (fun key member => Nat.lt_of_lt_of_le (contextBound key member) mapped.scheduledMonotone)
     rw [partitions_prefix _ deferredBefore.below mapped.compatible,
       context_prefix _ contextBound mapped.compatible] at tail
-    simp only [run_bind, StateT.run_pure, id_pure_eq, CompletionCutTrace]
-    exact ⟨head.1, .combine head.2 tail⟩
+    let declarations := newUsages.filterMap
+      (fun usage => lookupDeferredFragment? (getNewDeferMap newUsages path context) usage.ref)
+    have declaredMap : (newUsages.map (usage keys)).filterMap
+        (fun usage => lookupDeferredFragment?
+          ((getNewDeferMap newUsages path context).map (fragment keys)) usage.ref)
+        = declarations.map (fragment keys) := by
+      simp only [declarations, List.filterMap_map, Function.comp_def, usage,
+        lookup_fragment supplies.injective, List.map_filterMap]
+    simp only [run_bind, StateT.run_pure, id_pure_eq, CompletionCutTrace,
+      declaredMap, partitions]
+    exact ⟨head.1, .combine head.2 (.declareGroups tail)⟩
 
 theorem object_cuts_of_plan (schema : Schema) (resolvers : Resolvers ObjectRef)
     (variables : VariableValues) (fuel : Nat)

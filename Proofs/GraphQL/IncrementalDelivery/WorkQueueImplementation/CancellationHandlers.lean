@@ -1,106 +1,54 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.CancellationPreservation
-import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.ChildLinks
-import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.CachedFailures
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.StartupHealth
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.CacheEligibility
 
-/-! Causal support for cancellation refs written by executable graph-event handlers. -/
+/-! Source support for cancellation written by task dispatch and cached-failure startup. -/
 
 namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.Execution (StreamItemValue WorkQueueEvent)
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
------------------------------------------------------------------------------------------
--- Successful transitions retain support; failure removal requires a real cause
------------------------------------------------------------------------------------------
-
-/-- Task cleanup preserves the cancellation registry and its causal witnesses.
-Witness: removing task nodes and memberships changes no retained cancellation ref. -/
+/-- Task retirement leaves the permanent cancellation inventory unchanged. -/
 theorem State.CancelledRecordsSupported.removeTask {queue work failed}
     (supported : State.CancelledRecordsSupported queue work failed) (task : Occurrence)
     : (queue.removeTask task).CancelledRecordsSupported work failed :=
   supported
 
-/-- Activation retains cancellation support exactly.
-Witness: the unchanged-history equation for starting released work. -/
-theorem State.CancelledRecordsSupported.startNewWork {queue work failed}
-    (supported : State.CancelledRecordsSupported queue work failed) (newWork : NewWork)
-    : (queue.startNewWork newWork).CancelledRecordsSupported work failed := by
-  intro ref member
-  rw [State.startNewWork_cancelledGroups] at member
-  exact supported ref member
-
-/-- Successful closure cannot introduce an unsupported cancellation.
-Witness: successful flushing and pruning preserve the exact cancellation list. -/
-theorem State.CancelledRecordsSupported.finishGroupSuccess {queue work failed}
-    (supported : State.CancelledRecordsSupported queue work failed) (node : GroupNode)
-    : (queue.finishGroupSuccess node).1.CancelledRecordsSupported work failed := by
-  intro ref member
-  rw [State.finishGroupSuccess_cancelledGroups] at member
-  exact supported ref member
-
-/-- Facts threaded through release draining, all internal to the executable queue.
-No output-history admission or response-correctness condition is included. -/
-private def State.CancellationContext (queue : State) (work : Execution.Work)
-    (parents : Nat → NodeRefs) (failed : List Occurrence)
-    : Prop :=
-  queue.CancelledRecordsSupported work failed
-  ∧ queue.CachedFailuresSupported work failed
-  ∧ queue.GroupNodesMatchWork work
-  ∧ queue.ChildLinksCanonical parents
-
-/-- Success preserves the four facts needed by subsequent release-time failures.
-Witness: unchanged cancellation refs plus existing cache and metadata preservation. -/
-private theorem State.CancellationContext.finishGroupSuccess {queue work parents failed}
-    (valid : State.CancellationContext queue work parents failed) (node : GroupNode)
-    : (queue.finishGroupSuccess node).1.CancellationContext work parents failed :=
-  ⟨
-    valid.1.finishGroupSuccess node,
-    valid.2.1.finishGroupSuccess node,
-    valid.2.2.1.finishGroupSuccess node,
-    valid.2.2.2.finishGroupSuccess node
-  ⟩
-
-/-- Activation does not alter cancellation evidence, failure caches, or causal metadata.
-Witness: compose the corresponding four activation-preservation theorems. -/
-private theorem State.CancellationContext.startNewWork {queue work parents failed}
-    (valid : State.CancellationContext queue work parents failed) (newWork : NewWork)
-    : (queue.startNewWork newWork).CancellationContext work parents failed :=
-  ⟨
-    valid.1.startNewWork newWork,
-    valid.2.1.startNewWork newWork,
-    valid.2.2.1.startNewWork newWork,
-    valid.2.2.2.startNewWork newWork
-  ⟩
-
-/-- Draining settled groups records only cancellations justified by prior failures.
-Witness: a selected failure cache supplies its root's invalidation; canonical child links
-justify descendant removal. Successful closures and activation retain support. -/
-theorem State.CancelledRecordsSupported.drainReadyGroups {queue work parents failed}
+/-- Failure-owner cleanup writes only cancellation refs supported by recorded tasks. -/
+private theorem State.CancelledRecordsSupported.taskFailure_of_causes
+    {queue work parents failed}
     (supported : State.CancelledRecordsSupported queue work failed)
-    (cached : queue.CachedFailuresSupported work failed)
     (matching : queue.GroupNodesMatchWork work)
     (links : queue.ChildLinksCanonical parents)
     (canonical
       : ∀ node dependencies,
           GroupRecordAt work node dependencies → dependencies = parents node.ref)
-    : queue.drainReadyGroups.1.CancelledRecordsSupported work failed := by
-  have drained := State.drainReadyGroups_preserves
-    (fun current => current.CancellationContext work parents failed)
-    (fun _ node prior _ _ _ _ => (prior.finishGroupSuccess node).startNewWork _)
-    (fun current node errors prior member _ failure =>
-      show (current.finishGroupFailure node errors).1.CancellationContext
-          work parents failed from
-        ⟨prior.1.removeGroup prior.2.2.2 prior.2.2.1 canonical node.group.node.ref
-          (prior.2.1.invalidated member (by simp [failure])).toRecordInvalidated,
-         prior.2.1.removeGroup node.group.node.ref,
-         prior.2.2.1.removeGroup node.group.node.ref,
-         prior.2.2.2.removeGroup node.group.node.ref⟩)
-    (show queue.CancellationContext work parents failed from
-      ⟨supported, cached, matching, links⟩)
-  exact drained.1
-
------------------------------------------------------------------------------------------
--- A task failure justifies cancellation of all owners visited by its handler
------------------------------------------------------------------------------------------
+    (occurrence : Occurrence) (errors : Nat)
+    (causes
+      : ∀ node,
+          queue.taskNode? occurrence = some node
+          → ∀ group ∈ node.task.groups,
+              ∃ task ∈ failed,
+                ∃ owners, TaskHasOwners work task owners ∧ group.ref ∈ owners)
+    : (queue.taskFailure occurrence errors).1.CancelledRecordsSupported work failed := by
+  cases found : queue.taskNode? occurrence with
+  | none => simpa [State.taskFailure, found] using supported
+  | some node =>
+      rw [queue.taskFailure_eq occurrence errors node found]
+      let invariant (state : State) := state.CancelledRecordsSupported work failed
+        ∧ state.GroupNodesMatchWork work ∧ state.ChildLinksCanonical parents
+      have permitted (group : Execution.DeliveryNode) (member : group ∈ node.task.groups)
+          : GroupRecordInvalidated work failed group.ref := by
+        obtain ⟨task, recorded, owners, known, owner⟩ := causes node found group member
+        exact (GroupInvalidated.task known owner recorded).toRecordInvalidated
+      have final := failureGroupFold_preserves_on invariant (GroupRecordInvalidated work failed)
+        (fun state ref prior invalidated =>
+          ⟨prior.1.removeGroup prior.2.2 prior.2.1 canonical ref invalidated,
+            prior.2.1.removeGroup ref, prior.2.2.removeGroup ref⟩)
+        errors node.task.groups permitted
+        (queue.putTaskNode { node with rejection := some errors }, [])
+        ⟨supported, matching, links⟩
+      exact final.1
 
 /-- Failed-task handling preserves support using the actual started task's contributors.
 Witness: task provenance licenses each removed owner; canonical edges license descendants.
@@ -116,97 +64,222 @@ theorem State.CancelledRecordsSupported.taskFailure {queue work parents failed}
       : ∀ node dependencies,
           GroupRecordAt work node dependencies → dependencies = parents node.ref)
     (occurrence : Occurrence) (errors : Nat)
-    (recorded
-      : ∀ node,
-          queue.taskNode? occurrence = some node
-          → queue.taskHasHealthyOwner node.task = true
-          → occurrence ∈ failed)
+    (recorded : ∀ node, queue.taskNode? occurrence = some node → occurrence ∈ failed)
     : (queue.taskFailure occurrence errors).1.CancelledRecordsSupported work failed := by
-  let step (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode) :=
-    let (current, outputs) := acc
-    match current.groupNode? group.ref with
-    | none => (current, outputs)
-    | some node =>
-        if current.rootGroups.contains group.ref then
-          let (next, failure) := current.finishGroupFailure node errors
-          (next, outputs ++ [failure])
-        else (current.putGroupNode
-          { node with
-            pending := node.pending - 1
-            failure := some (node.failure.getD 0 + errors) }, outputs)
-  unfold State.taskFailure
-  split
-  · exact supported
-  · rename_i taskNode found
-    split
-    · exact supported.removeTask occurrence
-    · rename_i accepted
-      have healthy : queue.taskHasHealthyOwner taskNode.task = true := by
-        simpa using accepted
-      have member := List.mem_of_find?_eq_some found
-      have same : taskNode.task.occurrence = occurrence :=
-        (occurrence_beq_iff_eq _ _).mp
-          (List.find?_some (p := fun node : TaskNode => node.task.occurrence == occurrence) found)
-      obtain ⟨address, payload, producer, _, known⟩ :=
-        (tasksMatch taskNode.task (registered taskNode member)).1
-      have owners : TaskHasOwners work occurrence
-          (taskNode.task.groups.map Execution.DeliveryNode.ref) :=
-        ⟨producer, payload, same ▸ known⟩
-      let invariant (current : State) := current.CancelledRecordsSupported work failed
-        ∧ current.GroupNodesMatchWork work ∧ current.ChildLinksCanonical parents
-      have fold (groups : List Execution.DeliveryNode)
-          (included : groups.Subset taskNode.task.groups)
-          (acc : State × List WorkQueueEvent) (valid : invariant acc.1)
-          : invariant (groups.foldl step acc).1 := by
-        induction groups generalizing acc with
-        | nil => exact valid
-        | cons group rest ih =>
-            apply ih (fun _ member => included (List.mem_cons_of_mem _ member))
-            obtain ⟨current, outputs⟩ := acc
-            dsimp only [step]
-            split
-            · exact valid
-            · rename_i node located
-              have nodeMember := List.mem_of_find?_eq_some located
-              split
-              · have invalid : GroupRecordInvalidated work failed node.group.node.ref := by
-                  rw [current.groupNode?_ref located]
-                  exact .task owners
-                    (List.mem_map.mpr ⟨group, included List.mem_cons_self, rfl⟩)
-                    (recorded taskNode found healthy)
-                exact ⟨valid.1.removeGroup valid.2.2 valid.2.1 canonical _ invalid,
-                  valid.2.1.removeGroup _, valid.2.2.removeGroup _⟩
-              · exact ⟨valid.1, valid.2.1.putGroupNode _ (valid.2.1 node nodeMember),
-                  valid.2.2.putGroupNode _ (valid.2.2 node nodeMember)⟩
-      exact (fold taskNode.task.groups (List.Subset.refl _)
-        (queue.removeTask occurrence, [])
-        ⟨supported.removeTask occurrence, matching.removeTask occurrence,
-          links.removeTask occurrence⟩).1
+  apply supported.taskFailure_of_causes matching links canonical occurrence errors
+  intro node found group contributes
+  have same : node.task.occurrence = occurrence :=
+    (occurrence_beq_iff_eq _ _).mp
+      (List.find?_some
+        (p := fun candidate : TaskNode => candidate.task.occurrence == occurrence) found)
+  obtain ⟨address, payload, producer, _, known⟩ :=
+    (tasksMatch node.task (registered node (List.mem_of_find?_eq_some found))).1
+  exact ⟨occurrence, recorded node found, _, ⟨producer, payload, same ▸ known⟩,
+    List.mem_map.mpr ⟨group, contributes, rfl⟩⟩
 
------------------------------------------------------------------------------------------
--- Successful producers integrate child work before releasing retained outcomes
------------------------------------------------------------------------------------------
+/-- Successful closure retains existing cancellation witnesses. -/
+theorem State.CancelledRecordsSupported.finishGroupSuccess {queue work failed}
+    (supported : State.CancelledRecordsSupported queue work failed) (node : GroupNode)
+    : (queue.finishGroupSuccess node).1.CancelledRecordsSupported work failed := by
+  intro ref member
+  rw [State.finishGroupSuccess_cancelledGroups] at member
+  exact supported ref member
 
-/-- Matched child integration preserves cancellation causes and release metadata.
-Witness: registration propagates real parent invalidation; other integration stages
-retain cancellation history, caches, and fixed-work descriptors. -/
-private theorem State.CancellationContext.maybeIntegrateWork {queue work parents failed}
-    (valid : State.CancellationContext queue work parents failed) (newWork : Work)
-    (parentTask : Option Occurrence)
-    (descriptors
-      : ∀ group ∈ newWork.groups,
-          ∃ dependencies,
-            GroupRecordAt work group.node dependencies
-            ∧ group.parent = dependencies.head?)
+/-- Startup cancellation is licensed by a cached contributing rejection. -/
+theorem State.CancelledRecordsSupported.startGroup {queue work parents failed}
+    (supported : State.CancelledRecordsSupported queue work failed)
+    (cached : queue.CachedFailuresSupported work failed)
+    (registered : queue.StartedTasksRegistered) (tasks : queue.RegisteredTasksMatch work)
+    (sound : queue.GroupMembershipSound) (matching : queue.GroupNodesMatchWork work)
+    (links : queue.ChildLinksCanonical parents)
     (canonical
       : ∀ node dependencies,
           GroupRecordAt work node dependencies → dependencies = parents node.ref)
-    : (queue.maybeIntegrateWork newWork parentTask).1.CancellationContext
-        work parents failed := by
-  refine ⟨valid.1.maybeIntegrateWork newWork parentTask descriptors,
-    valid.2.1.maybeIntegrateWork newWork parentTask,
-    valid.2.2.1.maybeIntegrateWork newWork ?_ parentTask,
-    valid.2.2.2.maybeIntegrateWork newWork ?_ parentTask⟩
+    (ref : NodeRef)
+    (available : List (Occurrence × Nat) := [])
+    (availableRecorded
+      : ∀ occurrence errors, (occurrence, errors) ∈ available → occurrence ∈ failed := by
+        intro occurrence errors member; cases member)
+    : (queue.startGroup ref available).1.CancelledRecordsSupported work failed := by
+  have starts (more : List Occurrence) (current : State)
+      (valid : current.CancelledRecordsSupported work failed)
+      : (more.foldl (fun current task => current.startTask task available)
+          current).CancelledRecordsSupported work failed := by
+    induction more generalizing current with
+    | nil => exact valid
+    | cons task rest ih =>
+        apply ih
+        dsimp only
+        unfold State.startTask
+        split
+        · exact valid
+        · split <;> exact valid
+  have cancelledCache : (queue.cacheTaskFailures
+      available).CancelledRecordsSupported work failed := by
+    intro key member
+    rw [State.cacheTaskFailures_cancelledGroups] at member
+    exact supported key member
+  have supportedCache := cached.cacheTaskFailures registered tasks available availableRecorded
+  have registeredCache := registered.cacheTaskFailures available
+  have tasksCache := tasks.cacheTaskFailures available
+  have soundCache := sound.cacheTaskFailures available
+  have matchingCache := matching.cacheTaskFailures available
+  have linksCache := links.cacheTaskFailures available
+  unfold State.startGroup
+  dsimp only
+  split
+  · exact cancelledCache
+  · rename_i node found
+    split
+    · exact starts _ _ cancelledCache
+    · rename_i rejected
+      have nonempty : node.tasks.filterMap
+          (fun task => ((queue.cacheTaskFailures available).taskNode? task).bind (·.rejection))
+          ≠ [] := by
+        intro empty
+        simp only [empty, List.isEmpty_nil] at rejected
+        exact rejected trivial
+      have invalid := supportedCache.startGroup_invalidated registeredCache tasksCache soundCache
+        found nonempty
+      exact cancelledCache.removeGroup linksCache matchingCache canonical node.group.node.ref
+        invalid.toRecordInvalidated
+
+/-- Internal provenance retained between integrations and startup disposal. -/
+private structure State.CancellationContext (queue : State) (work : Execution.Work)
+    (parents : Nat → NodeRefs) (failed : List Occurrence)
+    : Prop where
+  cancelled : queue.CancelledRecordsSupported work failed
+  cached : queue.CachedFailuresSupported work failed
+  groups : queue.GroupNodesMatchWork work
+  links : queue.ChildLinksCanonical parents
+  registered : queue.StartedTasksRegistered
+  tasks : queue.RegisteredTasksMatch work
+  sound : queue.GroupMembershipSound
+
+private theorem State.CancellationContext.finishGroupSuccess {queue work parents failed}
+    (valid : State.CancellationContext queue work parents failed) (node : GroupNode)
+    : (queue.finishGroupSuccess node).1.CancellationContext work parents failed :=
+  ⟨
+    valid.cancelled.finishGroupSuccess node,
+    valid.cached.finishGroupSuccess node,
+    valid.groups.finishGroupSuccess node,
+    valid.links.finishGroupSuccess node,
+    valid.registered.finishGroupSuccess node,
+    valid.tasks.finishGroupSuccess node,
+    valid.sound.finishGroupSuccess node
+  ⟩
+
+private theorem State.CancellationContext.startNewWork {queue work parents failed}
+    (valid : State.CancellationContext queue work parents failed) (more : NewWork)
+    (canonical
+      : ∀ node dependencies,
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
+    (available : List (Occurrence × Nat) := [])
+    (availableRecorded
+      : ∀ occurrence errors, (occurrence, errors) ∈ available → occurrence ∈ failed := by
+        intro occurrence errors member; cases member)
+    : (queue.startNewWork more available).1.CancellationContext work parents failed := by
+  have stable (current : State) (ref : NodeRef)
+      (prior : current.CancellationContext work parents failed)
+      : (current.startGroup ref available).1.CancellationContext work parents failed := by
+    have sub := (current.startGroup_groupNodes_sublist ref available).subset
+    exact ⟨prior.cancelled.startGroup prior.cached prior.registered prior.tasks prior.sound
+        prior.groups prior.links canonical ref available availableRecorded,
+      prior.cached.startGroup_available prior.registered prior.tasks ref available
+        availableRecorded,
+      (fun node member => prior.groups node (sub member)),
+      (fun node member => prior.links node (sub member)),
+      prior.registered.startGroup ref available, prior.tasks.startGroup ref available,
+      prior.sound.startGroup ref available⟩
+  have groups (refs : NodeRefs) (acc : State × List GroupFailureEvent)
+      (prior : acc.1.CancellationContext work parents failed)
+      : (refs.foldl (fun (current, failures) ref =>
+          let (next, queued) := current.startGroup ref available
+          (next, failures ++ queued)) acc).1.CancellationContext work parents failed := by
+    induction refs generalizing acc with
+    | nil => exact prior
+    | cons ref rest ih => exact ih _ (stable _ ref prior)
+  have streams (refs : NodeRefs) (current : State)
+      (prior : current.CancellationContext work parents failed)
+      : (refs.foldl State.startStream current).CancellationContext work parents failed := by
+    induction refs generalizing current with
+    | nil => exact prior
+    | cons ref rest ih =>
+        apply ih
+        unfold State.startStream
+        split
+        · exact prior
+        · exact ⟨prior.cancelled, prior.cached, prior.groups, prior.links,
+            prior.registered, prior.tasks, prior.sound⟩
+  unfold State.startNewWork
+  exact streams _ _ (groups _ _ ⟨valid.cancelled, valid.cached, valid.groups, valid.links,
+    valid.registered, valid.tasks, valid.sound⟩)
+
+/-- Activation may append cancellations, each supported by a cached task cause. -/
+theorem State.CancelledRecordsSupported.startNewWork {queue work parents failed}
+    (supported : State.CancelledRecordsSupported queue work failed)
+    (cached : queue.CachedFailuresSupported work failed)
+    (registered : queue.StartedTasksRegistered) (tasks : queue.RegisteredTasksMatch work)
+    (sound : queue.GroupMembershipSound) (matching : queue.GroupNodesMatchWork work)
+    (links : queue.ChildLinksCanonical parents)
+    (canonical
+      : ∀ node dependencies,
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
+    (more : NewWork)
+    (available : List (Occurrence × Nat) := [])
+    (availableRecorded
+      : ∀ occurrence errors, (occurrence, errors) ∈ available → occurrence ∈ failed := by
+        intro occurrence errors member; cases member)
+    : (queue.startNewWork more available).1.CancelledRecordsSupported work failed :=
+  (State.CancellationContext.startNewWork
+    ⟨supported, cached, matching, links, registered, tasks, sound⟩ more
+    canonical available availableRecorded).cancelled
+
+/-- Recursive successful draining retains supported cancellation history through startup. -/
+theorem State.CancelledRecordsSupported.drainReadyGroups {queue work parents failed}
+    (supported : State.CancelledRecordsSupported queue work failed)
+    (cached : queue.CachedFailuresSupported work failed)
+    (matching : queue.GroupNodesMatchWork work)
+    (links : queue.ChildLinksCanonical parents)
+    (canonical
+      : ∀ node dependencies,
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
+    (registered : queue.StartedTasksRegistered) (tasks : queue.RegisteredTasksMatch work)
+    (sound : queue.GroupMembershipSound)
+    (available : List (Occurrence × Nat) := [])
+    (availableRecorded
+      : ∀ occurrence errors, (occurrence, errors) ∈ available → occurrence ∈ failed := by
+        intro occurrence errors member; cases member)
+    : (queue.drainReadyGroups available).1.CancelledRecordsSupported work failed := by
+  have final := State.drainReadyGroups_preserves
+    (fun current => current.CancellationContext work parents failed) (available := available)
+    (fun _ node prior _ _ _ => (prior.finishGroupSuccess node).startNewWork
+      _ canonical available availableRecorded)
+    (show queue.CancellationContext work parents failed from
+      ⟨supported, cached, matching, links, registered, tasks, sound⟩)
+  exact final.cancelled
+
+private theorem State.CancellationContext.maybeIntegrateWork {queue work parents failed}
+    (valid : State.CancellationContext queue work parents failed) (more : Work)
+    (producer : Option Occurrence)
+    (descriptors
+      : ∀ group ∈ more.groups,
+          ∃ dependencies,
+            GroupRecordAt work group.node dependencies
+            ∧ group.parent = dependencies.head?)
+    (knownTasks : ∀ task ∈ more.tasks, TaskMatches work task)
+    (canonical
+      : ∀ node dependencies,
+          GroupRecordAt work node dependencies → dependencies = parents node.ref)
+    : (queue.maybeIntegrateWork more producer).1.CancellationContext work parents
+        failed := by
+  refine ⟨valid.cancelled.maybeIntegrateWork more producer descriptors,
+    valid.cached.maybeIntegrateWork more producer,
+    valid.groups.maybeIntegrateWork more ?_ producer,
+    valid.links.maybeIntegrateWork more ?_ producer,
+    valid.registered.maybeIntegrateWork more producer,
+    valid.tasks.maybeIntegrateWork more knownTasks producer,
+    valid.sound.maybeIntegrateWork more producer⟩
   · intro group member
     obtain ⟨dependencies, known, _⟩ := descriptors group member
     exact ⟨dependencies, known⟩
@@ -214,17 +287,16 @@ private theorem State.CancellationContext.maybeIntegrateWork {queue work parents
     obtain ⟨dependencies, known, parent⟩ := descriptors group member
     rw [parent, canonical group.node dependencies known]
 
-/-- Empty-shell promotion preserves the facts needed by later failure draining.
-Witness: pruning preserves cancellation history and only filters existing metadata. -/
 private theorem State.CancellationContext.pruneEmptyGroups {queue work parents failed}
     (valid : State.CancellationContext queue work parents failed)
     (groups : List Execution.DeliveryNode)
     : (queue.pruneEmptyGroups groups).1.CancellationContext work parents failed := by
-  refine ⟨?_, valid.2.1.pruneEmptyGroups groups, valid.2.2.1.pruneEmptyGroups groups,
-    valid.2.2.2.pruneEmptyGroups groups⟩
+  refine ⟨?_, valid.cached.pruneEmptyGroups groups, valid.groups.pruneEmptyGroups groups,
+    valid.links.pruneEmptyGroups groups, valid.registered.pruneEmptyGroups groups,
+    valid.tasks.pruneEmptyGroups groups, valid.sound.pruneEmptyGroups groups⟩
   intro ref member
   rw [State.pruneEmptyGroups_cancelledGroups] at member
-  exact valid.1 ref member
+  exact valid.cancelled ref member
 
 /-- Successful settlement preserves support even when it releases an older cached failure.
 Witness: child registration and the single-pass success loop preserve the local facts;
@@ -234,6 +306,8 @@ theorem State.CancelledRecordsSupported.taskSuccess {queue work parents failed}
     (cached : queue.CachedFailuresSupported work failed)
     (matching : queue.GroupNodesMatchWork work)
     (links : queue.ChildLinksCanonical parents)
+    (registered : queue.StartedTasksRegistered)
+    (tasksMatch : queue.RegisteredTasksMatch work) (sound : queue.GroupMembershipSound)
     (canonical
       : ∀ node dependencies,
           GroupRecordAt work node dependencies → dependencies = parents node.ref)
@@ -243,7 +317,13 @@ theorem State.CancelledRecordsSupported.taskSuccess {queue work parents failed}
           ∃ dependencies,
             GroupRecordAt work group.node dependencies
             ∧ group.parent = dependencies.head?)
-    : (queue.taskSuccess occurrence result).1.CancelledRecordsSupported work failed := by
+    (knownTasks : ∀ task ∈ result.work.tasks, TaskMatches work task)
+    (available : List (Occurrence × Nat) := [])
+    (availableRecorded
+      : ∀ occurrence errors, (occurrence, errors) ∈ available → occurrence ∈ failed := by
+        intro occurrence errors member; cases member)
+    : (queue.taskSuccess occurrence result available).1.CancelledRecordsSupported work
+        failed := by
   have step (acc : State × List WorkQueueEvent × NewWork) (group : Execution.DeliveryNode)
       (valid : acc.1.CancellationContext work parents failed)
       : (successGroupStep acc group).1.CancellationContext work parents failed := by
@@ -255,9 +335,11 @@ theorem State.CancelledRecordsSupported.taskSuccess {queue work parents failed}
       have member := List.mem_of_find?_eq_some found
       have updated : State.CancellationContext
           (current.putGroupNode { node with pending := node.pending - 1 }) work parents failed :=
-        ⟨valid.1, valid.2.1.putGroupNode _ (valid.2.1 node member),
-          valid.2.2.1.putGroupNode _ (valid.2.2.1 node member),
-          valid.2.2.2.putGroupNode _ (valid.2.2.2 node member)⟩
+        ⟨valid.cancelled, valid.cached.putGroupNode _,
+          valid.groups.putGroupNode _ (valid.groups node member),
+          valid.links.putGroupNode _ (valid.links node member),
+          valid.registered.putGroupNode _, valid.tasks.putGroupNode _,
+          valid.sound.putGroupNode _ (valid.sound node member)⟩
       split
       · exact updated.finishGroupSuccess _
       · exact updated
@@ -273,19 +355,22 @@ theorem State.CancelledRecordsSupported.taskSuccess {queue work parents failed}
   split
   · exact supported
   · rename_i taskNode found
-    split
-    · exact supported.removeTask occurrence
-    · let withValue := queue.putTaskNode { taskNode with value := some result.value }
-      have before : withValue.CancellationContext work parents failed :=
-        ⟨supported, cached, matching, links⟩
-      have integrated := before.maybeIntegrateWork result.work (some occurrence)
-        descriptors canonical
-      have released := fold taskNode.task.groups
-        ((withValue.maybeIntegrateWork result.work (some occurrence)).1, [], {}) integrated
-      have started := released.startNewWork
-        (taskNode.task.groups.foldl successGroupStep
-          ((withValue.maybeIntegrateWork result.work (some occurrence)).1, [], {})).2.2
-      exact started.1.drainReadyGroups started.2.1 started.2.2.1 started.2.2.2 canonical
+    let withValue := queue.putTaskNode { taskNode with value := some result.value }
+    have before : withValue.CancellationContext work parents failed :=
+      ⟨supported, State.CachedErrorsSatisfy.putTaskNode cached _
+        (cached taskNode (List.mem_of_find?_eq_some found)), matching, links,
+        registered.putTaskNode _ (registered taskNode (List.mem_of_find?_eq_some found)),
+        tasksMatch, sound⟩
+    have integrated := before.maybeIntegrateWork result.work (some occurrence)
+      descriptors knownTasks canonical
+    have released := fold taskNode.task.groups
+      ((withValue.maybeIntegrateWork result.work (some occurrence)).1, [], {}) integrated
+    have started := released.startNewWork
+      (taskNode.task.groups.foldl successGroupStep
+        ((withValue.maybeIntegrateWork result.work (some occurrence)).1, [], {})).2.2 canonical
+      available availableRecorded
+    exact started.cancelled.drainReadyGroups started.cached started.groups started.links canonical
+      started.registered started.tasks started.sound available availableRecorded
 
 /-- Item batches preserve support through integration, activation, and retained failures.
 Witness: each matched child chunk preserves the same context before the final drain. -/
@@ -294,6 +379,8 @@ theorem State.CancelledRecordsSupported.streamItems {queue work parents failed}
     (cached : queue.CachedFailuresSupported work failed)
     (matching : queue.GroupNodesMatchWork work)
     (links : queue.ChildLinksCanonical parents)
+    (registered : queue.StartedTasksRegistered)
+    (tasksMatch : queue.RegisteredTasksMatch work) (sound : queue.GroupMembershipSound)
     (canonical
       : ∀ node dependencies,
           GroupRecordAt work node dependencies → dependencies = parents node.ref)
@@ -304,31 +391,41 @@ theorem State.CancelledRecordsSupported.streamItems {queue work parents failed}
           ∃ dependencies,
             GroupRecordAt work group.node dependencies
             ∧ group.parent = dependencies.head?)
-    : (queue.streamItems stream items).1.CancelledRecordsSupported work failed := by
+    (knownTasks : ∀ item ∈ items, ∀ task ∈ item.work.tasks, TaskMatches work task)
+    (available : List (Occurrence × Nat) := [])
+    (availableRecorded
+      : ∀ occurrence errors, (occurrence, errors) ∈ available → occurrence ∈ failed := by
+        intro occurrence errors member; cases member)
+    : (queue.streamItems stream items available).1.CancelledRecordsSupported work
+        failed := by
   let step (acc : State × List Execution.DeliveryNode × List Execution.DeliveryNode
-      × List StreamItemValue) (item : StreamItem) :=
-    let (current, groups, streams, values) := acc
+      × List StreamItemValue × List GroupFailureEvent) (item : StreamItem) :=
+    let (current, groups, streams, values, failures) := acc
     let (integrated, more) := current.maybeIntegrateWork item.work
     let (pruned, nonempty) := integrated.pruneEmptyGroups more.newGroups
-    (pruned.startNewWork { more with newGroups := nonempty }, groups ++ nonempty,
-      streams ++ more.newStreams, values ++ [item.value])
+    let (started, queued) := pruned.startNewWork { more with newGroups := nonempty } available
+    (started, groups ++ nonempty, streams ++ more.newStreams,
+      values ++ [item.value], failures ++ queued)
   have fold (more : List StreamItem) (included : more.Subset items)
       (acc : State × List Execution.DeliveryNode × List Execution.DeliveryNode
-        × List StreamItemValue) (valid : acc.1.CancellationContext work parents failed)
+        × List StreamItemValue × List GroupFailureEvent)
+      (valid : acc.1.CancellationContext work parents failed)
       : (more.foldl step acc).1.CancellationContext work parents failed := by
     induction more generalizing acc with
     | nil => exact valid
     | cons item rest ih =>
         apply ih (fun _ member => included (List.mem_cons_of_mem _ member))
         have integrated := valid.maybeIntegrateWork item.work none
-          (descriptors item (included List.mem_cons_self)) canonical
-        exact (integrated.pruneEmptyGroups _).startNewWork _
+          (descriptors item (included List.mem_cons_self))
+          (knownTasks item (included List.mem_cons_self)) canonical
+        exact (integrated.pruneEmptyGroups _).startNewWork _ canonical available availableRecorded
   unfold State.streamItems
   split
   · exact supported
-  · have final := fold items (List.Subset.refl _) (queue, [], [], [])
-      ⟨supported, cached, matching, links⟩
-    exact final.1.drainReadyGroups final.2.1 final.2.2.1 final.2.2.2 canonical
+  · have final := fold items (List.Subset.refl _) (queue, [], [], [], [])
+      ⟨supported, cached, matching, links, registered, tasksMatch, sound⟩
+    exact final.cancelled.drainReadyGroups final.cached final.groups final.links canonical
+      final.registered final.tasks final.sound available availableRecorded
 
 -----------------------------------------------------------------------------------------
 -- The source's structural matching discharges child-registration metadata
@@ -344,6 +441,7 @@ theorem State.CancelledRecordsSupported.handleGraphEvent {queue work parents fai
     (tasksMatch : queue.RegisteredTasksMatch work)
     (matching : queue.GroupNodesMatchWork work)
     (links : queue.ChildLinksCanonical parents)
+    (sound : queue.GroupMembershipSound)
     (canonical
       : ∀ node dependencies,
           GroupRecordAt work node dependencies → dependencies = parents node.ref)
@@ -351,37 +449,81 @@ theorem State.CancelledRecordsSupported.handleGraphEvent {queue work parents fai
     (recorded
       : ∀ occurrence errors,
           event = .taskFailure occurrence errors
-          → ∀ node,
-              queue.taskNode? occurrence = some node
-              → queue.taskHasHealthyOwner node.task = true
-              → occurrence ∈ failed)
-    : (queue.handleGraphEvent event).1.CancelledRecordsSupported work failed := by
+          → ∀ node, queue.taskNode? occurrence = some node → occurrence ∈ failed)
+    (available : List (Occurrence × Nat) := [])
+    (availableRecorded
+      : ∀ occurrence errors, (occurrence, errors) ∈ available → occurrence ∈ failed := by
+        intro occurrence errors member; cases member)
+    : (queue.handleGraphEvent event available).1.CancelledRecordsSupported work
+        failed := by
+  let current := queue.cacheTaskFailures available
+  have cancelledCache : current.CancelledRecordsSupported work failed := by
+    intro ref member
+    rw [State.cacheTaskFailures_cancelledGroups] at member
+    exact supported ref member
+  have cachedCache := cached.cacheTaskFailures registered tasksMatch available availableRecorded
+  have registeredCache := registered.cacheTaskFailures available
+  have tasksCache := tasksMatch.cacheTaskFailures available
+  have matchingCache := matching.cacheTaskFailures available
+  have linksCache := links.cacheTaskFailures available
+  have soundCache := sound.cacheTaskFailures available
+  have recordedCache : ∀ occurrence errors, event = .taskFailure occurrence errors →
+      ∀ node, current.taskNode? occurrence = some node → occurrence ∈ failed := by
+    intro occurrence errors same node found
+    change (queue.cacheTaskFailures available).taskNode? occurrence = some node at found
+    have present : (queue.taskNode? occurrence).isSome = true := by
+      have unchanged := queue.cacheTaskFailures_acceptsGraphEvent
+        available (.taskFailure occurrence errors)
+      simpa only [State.acceptsGraphEvent, found, Option.isSome_some] using unchanged.symm
+    cases original : queue.taskNode? occurrence with
+    | none => simp [original] at present
+    | some old => exact recorded occurrence errors same old original
   cases event with
   | taskSuccess occurrence result =>
-      apply supported.taskSuccess cached matching links canonical occurrence result
-      intro group member
-      obtain ⟨dependencies, known⟩ := source.taskChildGroups_recordAt member
-      refine ⟨dependencies, known, ?_⟩
-      rw [canonical group.node dependencies known]
-      exact source.taskChildGroups_parentCanonical canonical member
+      apply cancelledCache.taskSuccess cachedCache matchingCache linksCache
+        registeredCache tasksCache
+        soundCache canonical occurrence result (available := available)
+        (availableRecorded := availableRecorded)
+      · intro group member
+        obtain ⟨dependencies, known⟩ := source.taskChildGroups_recordAt member
+        refine ⟨dependencies, known, ?_⟩
+        rw [canonical group.node dependencies known]
+        exact source.taskChildGroups_parentCanonical canonical member
+      · intro task member
+        obtain ⟨address, payload, same, known⟩ := source.childTask_producer member
+        exact ⟨⟨address, payload, some occurrence, same, known⟩,
+          source.childTask_groupsExact member⟩
+  | groupFailure failure =>
+      change (current.groupFailure failure).1.CancelledRecordsSupported work failed
+      unfold State.groupFailure
+      split
+      · exact cancelledCache
+      · split <;> exact cancelledCache
   | taskFailure occurrence errors =>
-      exact supported.taskFailure registered tasksMatch matching links canonical occurrence
-        errors (recorded occurrence errors rfl)
+      exact cancelledCache.taskFailure registeredCache tasksCache matchingCache linksCache canonical
+        occurrence errors (recordedCache occurrence errors rfl)
   | streamItems stream items =>
-      apply supported.streamItems cached matching links canonical stream items
-      intro item itemMember group member
-      obtain ⟨dependencies, known⟩ :=
-        source.streamItem_childGroups_recordAt itemMember member
-      refine ⟨dependencies, known, ?_⟩
-      rw [canonical group.node dependencies known]
-      exact source.streamItem_childGroups_parentCanonical canonical itemMember member
+      apply cancelledCache.streamItems cachedCache matchingCache linksCache
+        registeredCache tasksCache
+        soundCache canonical stream items (available := available)
+        (availableRecorded := availableRecorded)
+      · intro item itemMember group member
+        obtain ⟨dependencies, known⟩ := source.streamItem_childGroups_recordAt itemMember member
+        refine ⟨dependencies, known, ?_⟩
+        rw [canonical group.node dependencies known]
+        exact source.streamItem_childGroups_parentCanonical canonical itemMember member
+      · intro item itemMember task member
+        obtain ⟨address, payload, same, known⟩ :=
+          source.streamItem_childTask_producer itemMember member
+        exact ⟨⟨address, payload, some item.occurrence, same, known⟩,
+          source.streamItem_childTask_groupsExact itemMember member⟩
   | streamSuccess stream =>
-      change (queue.streamSuccess stream).1.CancelledRecordsSupported work failed
+      change (current.streamSuccess stream).1.CancelledRecordsSupported work failed
       unfold State.streamSuccess
-      split <;> exact supported
+      split <;> exact cancelledCache
   | streamFailure stream errors =>
-      change (queue.streamFailure stream errors).1.CancelledRecordsSupported work failed
+      change (current.streamFailure stream errors).1.CancelledRecordsSupported work failed
       unfold State.streamFailure
-      split <;> exact supported
+      split <;> exact cancelledCache
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

@@ -33,7 +33,7 @@ theorem Explains.group_failure_positive
     have combined : Explains work groups streams (events.take index ++ events.drop index)
         matching failures := by simpa only [List.take_append_drop] using explained
     have shorter := combined.prefix
-    obtain ⟨dependencies, producer, known⟩ := (explained.2.2 index _ selected).1
+    obtain ⟨dependencies, producer, known⟩ := (explained.eventAllowed index _ selected).1
     have noRecord : ¬HasRecordedFailure work
         (failures.filter (fun entry => entry.1 ≤ (events.take index).length))
         (events.take index).length node.ref := by
@@ -41,8 +41,8 @@ theorem Explains.group_failure_positive
         using Explains.zero_group_completion_no_recorded_failure positive explained
           selected
     have healthy := Explains.announced_group_healthy_of_no_recorded_failure valid coherent
-      roleCoherent shorter known (explained.2.2 index _ selected).2.1.1 noRecord
-    exact False.elim (healthy (explained.2.2 index _ selected).2.2.1)
+      roleCoherent shorter known (explained.eventAllowed index _ selected).2.1.1 noRecord
+    exact False.elim (healthy (explained.eventAllowed index _ selected).2.2.1)
   · omega
 
 -----------------------------------------------------------------------------------------
@@ -73,11 +73,11 @@ theorem Explains.closed_group_contributor_reports_scope
   rcases selected with group | stream
   · have nonzero := Explains.group_failure_positive valid coherent roleCoherent positive
       explained group
-    obtain ⟨parents, source, actual⟩ := (explained.2.2 index _ group).1
+    obtain ⟨parents, source, actual⟩ := (explained.eventAllowed index _ group).1
     have path := workAt_same_path pathCoherent actual descriptor same
     exact ⟨node, errors, nonzero, ⟨[], by simp only [List.append_nil, path]⟩,
       Or.inl (List.mem_of_getElem? group)⟩
-  · obtain ⟨parents, source, actual⟩ := (explained.2.2 index _ stream).1
+  · obtain ⟨parents, source, actual⟩ := (explained.eventAllowed index _ stream).1
     exact False.elim (stream_group_refs_distinct roleCoherent actual descriptor same)
 
 /-- A failed announced group reports its full scope once all announced refs have closed.

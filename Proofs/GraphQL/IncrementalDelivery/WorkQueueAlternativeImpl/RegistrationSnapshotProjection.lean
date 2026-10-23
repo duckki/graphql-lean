@@ -17,26 +17,21 @@ but before ready draining. Task success retains the real delayed task-node store
 algorithm does not construct this view, run a second registration pass or use it to decide
 cleanup; endpoint/effect witnesses must be supplied separately by actual reductions.
 -/
-def registrationSnapshot (queue : Kernel) : GraphEvent → Kernel
+def registrationSnapshot (queue : Kernel) (event : GraphEvent)
+    (available : List (WorkQueueSemantics.Occurrence × Nat) := [])
+    : Kernel :=
+  match event with
   | .taskSuccess occurrence result =>
       match queue.taskNode? occurrence with
       | none => queue
       | some task =>
-          if queue.taskHasHealthyOwner task.task then
-            let stored : State :=
-              { queue := queue.putTaskNode { task with value := some result.value } }
-            (stored.maybeIntegrateWork result.work (some occurrence)).1.queue
-          else
-            queue
+          let stored : State :=
+            { queue := queue.putTaskNode { task with value := some result.value } }
+          (stored.maybeIntegrateWork result.work (some occurrence)).1.queue
   | .streamItems stream items =>
       if queue.rootStreams.contains stream.ref then
-        (items.foldl
-          (fun current item =>
-            let (integrated, newWork) := current.maybeIntegrateWork item.work
-            let (queue, groups) := integrated.queue.pruneEmptyGroups newWork.newGroups
-            (({ integrated with queue }).startNewWork
-              { newWork.newWork with newGroups := groups } newWork).1)
-          ({ queue } : State)).queue
+        (items.foldl (fun acc item => streamRegistrationStep acc item available)
+          ({ queue }, [], [], [], [], [], [])).1.queue
       else
         queue
   | _ => queue
@@ -47,12 +42,8 @@ def eagerRegistrationSnapshot (queue : Kernel) : GraphEvent → Kernel
       match queue.taskNode? occurrence with
       | none => queue
       | some node =>
-          if queue.taskHasHealthyOwner node.task then
-            ((queue.putTaskNode
-                { node with value := some result.value }).maybeIntegrateWork
-              result.work (some occurrence)).1
-          else
-            queue
+          ((queue.putTaskNode { node with value := some result.value }).maybeIntegrateWork
+            result.work (some occurrence)).1
   | .streamItems stream items =>
       if queue.rootStreams.contains stream.ref then
         queue.preparedStreamItems items
@@ -136,40 +127,122 @@ private theorem activation_buffered_lookup {queue : Kernel} {occurrence node}
               cases stored
             · cases next
 
-private theorem startNewWork_state_targets (state : State)
-    (roots : ReferenceWorkQueue.NewWork) (integrated : IntegratedWork)
-    (targets : List CleanupTarget)
-    : (state.startNewWork roots integrated targets).1
-      = (state.startNewWork roots integrated).1 := by
-  unfold State.startNewWork
-  split <;> rfl
-
 /-- The public snapshot's item fold is the actual receipt fold with metadata erased. -/
 theorem registrationSnapshot_itemFold (queue : Kernel)
     (stream : Execution.DeliveryNode) (items : List ReferenceWorkQueue.StreamItem)
     (active : queue.rootStreams.contains stream.ref = true)
-    : registrationSnapshot queue (.streamItems stream items)
-      = (items.foldl streamRegistrationStep ({ queue }, [], [], [], [], [])).1.queue := by
+    (available : List (WorkQueueSemantics.Occurrence × Nat) := [])
+    : registrationSnapshot queue (.streamItems stream items) available
+      = (items.foldl (fun acc item => streamRegistrationStep acc item available)
+          ({ queue }, [], [], [], [], [], [])).1.queue := by
   simp only [registrationSnapshot, active, ↓reduceIte]
-  have state := List.foldl_hom (fun acc : StreamRegistrationAcc => acc.1)
-    (l := items) (init := ({ queue }, [], [], [], [], [])) (g₁ := streamRegistrationStep)
-    (g₂ := fun current item =>
-      let integrated := current.maybeIntegrateWork item.work
-      let pruned := integrated.1.queue.pruneEmptyGroups integrated.2.newGroups
-      (({ integrated.1 with queue := pruned.1 }).startNewWork
-        { integrated.2.newWork with newGroups := pruned.2 } integrated.2).1)
-    (by
-      intro acc item
-      exact (startNewWork_state_targets _ _ _ _).symm)
-  exact congrArg State.queue state
 
 -----------------------------------------------------------------------------------------
 -- Generated source prefixes derive the projection, not a new host law
 -----------------------------------------------------------------------------------------
 
-/-- Delayed task registration and eager stream activation preserve the needed snapshot
-information at every generated raw source prefix. No batch admission is required here.
+/-- Concrete structural certificates give the delayed registration snapshot projection.
+The snapshot follows the actual item fold, including cumulative cleanup targets; these
+proof views add no host law or alternate production pass.
 -/
+theorem snapshotProjection_of_structuralFrames {queue : Kernel} {work : Work}
+    {parents : Nat → WorkQueueSemantics.NodeRefs}
+    (generated : ReferenceWorkQueue.ExecutedWork work)
+    (canonical
+      : ∀ node dependencies,
+          ReferenceWorkQueue.GroupRecordAt work node dependencies
+          → dependencies = parents node.ref)
+    (roots : ReferenceWorkQueue.LiveRootFrame queue work parents)
+    (retired : queue.UncancelledRetiredAncestors work)
+    (owners : queue.TaskOwnerFrame work) (children : queue.ChildGroupsUnique)
+    (keys : queue.TaskNodeKeysUnique) (event : GraphEvent)
+    (matched : event.MatchesWork work)
+    : SnapshotProjection queue event := by
+  have present := roots.present
+  cases event with
+  | taskSuccess occurrence result =>
+      cases found : queue.taskNode? occurrence with
+      | none =>
+          apply SnapshotProjection.of_eq
+          simp only [registrationSnapshot, eagerRegistrationSnapshot, found]
+      | some node =>
+          let stored : State :=
+            { queue := queue.putTaskNode { node with value := some result.value } }
+          let integrated := stored.maybeIntegrateWork result.work (some occurrence)
+          have ready : ∀ key, some occurrence = some key
+              → (stored.queue.taskNode? key).isSome = true := by
+            intro key same
+            cases same
+            change ((queue.putTaskNode { node with value := some result.value }).taskNode?
+              occurrence).isSome = true
+            rw [ReferenceWorkQueue.State.putTaskNode_lookup_same found
+              { node with value := some result.value }
+              (ReferenceWorkQueue.State.taskNode?_some found).2]
+            rfl
+          have complete := stored.maybeIntegrateWork_complete result.work present
+            (some occurrence) ready
+          dsimp only at complete
+          refine ⟨?_, ?_, ?_, ?_, by intro _ _ impossible; cases impossible⟩
+          all_goals simp only [registrationSnapshot, eagerRegistrationSnapshot, found]
+          · exact stored.maybeIntegrateWork_registrationCore result.work (some occurrence)
+          · change integrated.1.queue.taskNodes.Subset
+              (stored.queue.maybeIntegrateWork result.work (some occurrence)).1.taskNodes
+            rw [← complete.1]
+            exact activation_nodes_subset _ _
+          · intro key candidate lookup
+            rw [← complete.1]
+            exact activateRegisteredTasks_lookup lookup _
+          · intro key candidate lookup stored
+            rw [← complete.1] at lookup
+            exact activation_buffered_lookup _ lookup stored
+  | streamItems stream items =>
+      have same : registrationSnapshot queue (.streamItems stream items)
+          = eagerRegistrationSnapshot queue (.streamItems stream items) := by
+        cases active : queue.rootStreams.contains stream.ref with
+        | false => simp only [registrationSnapshot, eagerRegistrationSnapshot, active,
+            Bool.false_eq_true, ↓reduceIte]
+        | true =>
+            rw [registrationSnapshot_itemFold queue stream items active]
+            simp only [eagerRegistrationSnapshot, active, ↓reduceIte]
+            have known : ∀ item ∈ items,
+                ∀ task ∈ item.work.tasks, ReferenceWorkQueue.TaskMatches work task := by
+              intro item member task supplied
+              obtain ⟨address, payload, same, located⟩ :=
+                matched.streamItem_childTask_producer member supplied
+              exact ⟨⟨address, payload, some item.occurrence, same, located⟩,
+                matched.streamItem_childTask_groupsExact member supplied⟩
+            have fold := streamRegistrationFold_projection_of_unavailableChildren
+              ({ queue }, [], [], [], [], [], []) items rfl known []
+              (by intro item _ task _ member; cases member) (by
+                intro before item after partition
+                have included : before.Subset items := by
+                  intro supplied member
+                  rw [partition]
+                  exact List.mem_append_left _ member
+                have member : item ∈ items := by
+                  rw [partition]
+                  exact List.mem_append_right _ List.mem_cons_self
+                have partialMatch : (ReferenceWorkQueue.GraphEvent.streamItems stream before
+                    ).MatchesWork work := fun item member => matched item (included member)
+                have preparedRoots := (roots.prepareItems retired generated canonical
+                  partialMatch).1
+                have preparedOwners := owners.prepareItems_of_registered roots.registered
+                  roots.tasks roots.present generated.declarations partialMatch
+                have preparedKeys : (queue.preparedStreamItems before).TaskNodeKeysUnique := by
+                  apply ReferenceWorkQueue.State.preparedStreamItems_preserves
+                    (fun current => current.TaskNodeKeysUnique) keys before []
+                  intro current item _ prior
+                  exact ((prior.maybeIntegrateWork item.work).pruneEmptyGroups _).startNewWork _
+                have startup := streamItem_startFrames generated canonical roots retired owners
+                  children stream items matched before included item member []
+                exact ⟨preparedRoots.present, preparedOwners.matching, preparedKeys,
+                  parents, startup⟩)
+            exact congrArg Prod.fst fold
+      exact SnapshotProjection.of_eq same
+  | taskFailure | groupFailure | streamSuccess | streamFailure =>
+      exact SnapshotProjection.of_eq rfl
+
+/-- A generated raw event prefix supplies snapshot certificates without extra admission. -/
 theorem referencePrefix_snapshotProjection {work : Work}
     (generated : ReferenceWorkQueue.ExecutedWork work) (events : List GraphEvent)
     (event : GraphEvent)
@@ -180,68 +253,16 @@ theorem referencePrefix_snapshotProjection {work : Work}
           events
       SnapshotProjection queue event := by
   obtain ⟨earlier, matched, _⟩ := ReferenceWorkQueue.validGraphEvents_last valid
-  let queue := (ReferenceWorkQueue.State.initialize
-    (ReferenceWorkQueue.Work.fromExecution work)).replayGraphEvents events
-  change SnapshotProjection queue event
-  have present := generated.replayGraphEvents_rootsPresent events
-    (fun event member => earlier.eachMatches member)
-  cases event with
-  | taskSuccess occurrence result =>
-      cases found : queue.taskNode? occurrence with
-      | none =>
-          apply SnapshotProjection.of_eq
-          simp only [registrationSnapshot, eagerRegistrationSnapshot, found]
-      | some node =>
-          cases healthy : queue.taskHasHealthyOwner node.task with
-          | false =>
-              apply SnapshotProjection.of_eq
-              simp only [registrationSnapshot, eagerRegistrationSnapshot, found, healthy,
-                Bool.false_eq_true, ↓reduceIte]
-          | true =>
-              let stored : State :=
-                { queue := queue.putTaskNode { node with value := some result.value } }
-              let integrated := stored.maybeIntegrateWork result.work (some occurrence)
-              have ready : ∀ key, some occurrence = some key
-                  → (stored.queue.taskNode? key).isSome = true := by
-                intro key same
-                cases same
-                change ((queue.putTaskNode { node with value := some result.value }).taskNode?
-                  occurrence).isSome = true
-                rw [ReferenceWorkQueue.State.putTaskNode_lookup_same found
-                  { node with value := some result.value }
-                  (ReferenceWorkQueue.State.taskNode?_some found).2]
-                rfl
-              have complete := stored.maybeIntegrateWork_complete result.work present
-                (some occurrence) ready
-              dsimp only at complete
-              refine ⟨?_, ?_, ?_, ?_, by intro _ _ impossible; cases impossible⟩
-              all_goals simp only [registrationSnapshot, eagerRegistrationSnapshot, found,
-                healthy, ↓reduceIte]
-              · exact stored.maybeIntegrateWork_registrationCore result.work (some occurrence)
-              · change integrated.1.queue.taskNodes.Subset
-                  (stored.queue.maybeIntegrateWork result.work (some occurrence)).1.taskNodes
-                rw [← complete.1]
-                exact activation_nodes_subset _ _
-              · intro key candidate lookup
-                rw [← complete.1]
-                exact activateRegisteredTasks_lookup lookup _
-              · intro key candidate lookup stored
-                rw [← complete.1] at lookup
-                exact activation_buffered_lookup _ lookup stored
-  | streamItems stream items =>
-      have same : registrationSnapshot queue (.streamItems stream items)
-          = eagerRegistrationSnapshot queue (.streamItems stream items) := by
-        cases active : queue.rootStreams.contains stream.ref with
-        | false => simp only [registrationSnapshot, eagerRegistrationSnapshot, active,
-            Bool.false_eq_true, ↓reduceIte]
-        | true =>
-            rw [registrationSnapshot_itemFold queue stream items active]
-            simp only [eagerRegistrationSnapshot, active, ↓reduceIte]
-            exact congrArg Prod.fst (referencePrefix_streamRegistrationFold generated events
-              (fun event member => earlier.eachMatches member) stream items matched)
-      exact SnapshotProjection.of_eq same
-  | taskFailure | streamSuccess | streamFailure =>
-      exact SnapshotProjection.of_eq rfl
+  obtain ⟨parents, canonical, owners, roots, retired⟩ :=
+    generated.batchPrefix_structuralFrames [] events (by simp)
+      (fun _ member => earlier.eachMatches member) []
+  exact snapshotProjection_of_structuralFrames generated canonical roots retired owners
+    ((ReferenceWorkQueue.createWorkQueue_childGroupsUnique
+        (ReferenceWorkQueue.Work.fromExecution work)).replayGraphEvents
+      events)
+    ((ReferenceWorkQueue.createWorkQueue_taskNodeKeysUnique
+        (ReferenceWorkQueue.Work.fromExecution work)).replayGraphEvents
+      events) event matched
 
 /-- The normalized actual state inherits the same projection; retired snapshots are empty. -/
 theorem generatedSnapshot_projection {work inputs event}
@@ -259,28 +280,16 @@ theorem generatedSnapshot_projection {work inputs event}
       simp only [registrationSnapshot, eagerRegistrationSnapshot, State.clearRecords,
         ReferenceWorkQueue.State.taskNode?, List.find?_nil, List.contains_nil,
         Bool.false_eq_true, ↓reduceIte]
-  · rename_i running
-    obtain ⟨flag, same⟩ := ReferenceWorkQueue.createWorkQueue_runNormalized_stateCore started
-    have flagZero : flag = false := by
-      have notStopped : ((ReferenceWorkQueue.State.initialize
-        (ReferenceWorkQueue.Work.fromExecution work)).runNormalized inputs).1.terminated = false := by
-        simpa only [Bool.false_eq_true, not_false_eq_true, Bool.eq_false_iff]
-          using running
-      simpa only [same] using notStopped
-    let raw := (ReferenceWorkQueue.State.initialize
-      (ReferenceWorkQueue.Work.fromExecution work)).replayGraphEvents inputs.flatten
-    have rawFlag : raw.terminated = false := by
-      change ((ReferenceWorkQueue.State.initialize
-        (ReferenceWorkQueue.Work.fromExecution work)).replayGraphEvents inputs.flatten).terminated = false
-      rw [← ReferenceWorkQueue.State.rawEventReplay_state,
-        ReferenceWorkQueue.State.rawEventReplay_terminated]
-      exact ReferenceWorkQueue.createWorkQueue_terminated _
-    have update : { raw with terminated := false } = raw := by
-      rw [← rawFlag]
-    rw [same]
-    change SnapshotProjection { raw with terminated := flag } event
-    rw [flagZero, update]
-    exact referencePrefix_snapshotProjection generated inputs.flatten event valid
+  · obtain ⟨parents, canonical, roots, retired⟩ := generated.runNormalized_liveRootFrame inputs
+      (fun _ member => earlier.eachMatches member)
+    have owners := generated.runNormalized_taskOwnerFrame_of_matching inputs
+      (fun _ member => earlier.eachMatches member)
+    exact snapshotProjection_of_structuralFrames generated canonical roots retired owners
+      ((ReferenceWorkQueue.createWorkQueue_childGroupsUnique
+        (ReferenceWorkQueue.Work.fromExecution work)).runNormalized inputs)
+      ((ReferenceWorkQueue.createWorkQueue_taskNodeKeysUnique
+        (ReferenceWorkQueue.Work.fromExecution work)).runNormalized inputs)
+      event (ReferenceWorkQueue.validGraphEvents_last valid).2.1
 
 end GraphQL.IncrementalDelivery.AlternativeWorkQueue.NativeRefinement
 

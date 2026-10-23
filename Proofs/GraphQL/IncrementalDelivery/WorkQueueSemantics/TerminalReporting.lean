@@ -123,7 +123,7 @@ theorem Explains.failure_report_known {work groups streams events matching failu
   rcases failure with member | member
   all_goals
     obtain ⟨index, selected⟩ := List.mem_iff_getElem?.mp member
-    have allowed := explained.2.2 index _ selected
+    have allowed := explained.eventAllowed index _ selected
     obtain ⟨dependencies, producer, known⟩ := allowed.1
     refine ⟨node, _, dependencies, producer, known, below, ?_⟩
     apply explained.noticeFacts.closed node.ref

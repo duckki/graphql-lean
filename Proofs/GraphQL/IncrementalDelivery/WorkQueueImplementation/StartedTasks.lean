@@ -48,59 +48,18 @@ theorem State.StartedTasksRegistered.addGroup
   unfold State.addGroup
   split
   · exact registered
-  · split <;> exact registered
+  · split
+    · exact registered
+    · split
+      · split <;> exact registered
+      · exact registered
 
 theorem State.StartedTasksRegistered.addGroups
     {queue : State} (registered : queue.StartedTasksRegistered)
     (groups : List Group)
     : (queue.addGroups groups).1.StartedTasksRegistered := by
-  let linkStep (current : State) (group : Group) : State :=
-    match group.parent with
-    | none => current
-    | some parent =>
-        match current.groupNode? parent with
-        | none => current
-        | some node =>
-            let children :=
-              if node.childGroups.contains group.node.ref then
-                node.childGroups
-              else
-                node.childGroups ++ [group.node.ref]
-            current.putGroupNode { node with childGroups := children }
-  have linkRegistered (current : State) (group : Group)
-      (currentRegistered : current.StartedTasksRegistered)
-      : (linkStep current group).StartedTasksRegistered := by
-    unfold linkStep
-    cases parentEq : group.parent with
-    | none => simpa only [parentEq] using currentRegistered
-    | some parent =>
-        cases found : current.groupNode? parent with
-        | none => simpa only [parentEq, found] using currentRegistered
-        | some node =>
-            simp only [found]
-            exact currentRegistered.putGroupNode _
-  have foldLink (more : List Group) :
-      ∀ current, current.StartedTasksRegistered
-        → (more.foldl linkStep current).StartedTasksRegistered := by
-    induction more with
-    | nil => intro current currentRegistered; exact currentRegistered
-    | cons group rest ih =>
-        intro current currentRegistered
-        exact ih (linkStep current group)
-          (linkRegistered current group currentRegistered)
-  have withGroups (more : List Group) :
-      (more.foldl State.addGroup queue).StartedTasksRegistered := by
-    induction more generalizing queue with
-    | nil => exact registered
-    | cons group rest ih =>
-        simpa only [List.foldl_cons]
-          using ih (queue := queue.addGroup group) (registered.addGroup group)
-  let fresh := groups.filter (fun group =>
-    !queue.registeredGroups.contains group.node.ref
-      && (queue.groupNode? group.node.ref).isNone)
-  change (fresh.foldl linkStep
-    (fresh.foldl State.addGroup queue)).StartedTasksRegistered
-  exact foldLink fresh _ (withGroups fresh)
+  exact State.addGroups_preserves State.StartedTasksRegistered groups
+    (fun _ group _ valid => valid.addGroup group) queue registered
 
 /-- Task registration creates a started node only after appending that same
 definition to the task list.
@@ -237,8 +196,8 @@ theorem State.StartedTasksRegistered.pruneEmptyGroups
 /-- A started task comes from the registered-task lookup. -/
 theorem State.StartedTasksRegistered.startTask
     {queue : State} (registered : queue.StartedTasksRegistered)
-    (occurrence : Occurrence)
-    : (queue.startTask occurrence).StartedTasksRegistered := by
+    (occurrence : Occurrence) (available : List (Occurrence × Nat) := [])
+    : (queue.startTask occurrence available).StartedTasksRegistered := by
   unfold State.startTask
   split
   · exact registered
@@ -252,24 +211,40 @@ theorem State.StartedTasksRegistered.startTask
         subst node
         exact List.mem_of_find?_eq_some found
 
+/-- Cache exposure replaces outcomes while retaining a registered task definition. -/
+theorem State.StartedTasksRegistered.cacheTaskFailures {queue : State}
+    (registered : queue.StartedTasksRegistered) (available : List (Occurrence × Nat))
+    : (queue.cacheTaskFailures available).StartedTasksRegistered := by
+  induction available generalizing queue with
+  | nil => exact registered
+  | cons entry rest ih =>
+      simp only [State.cacheTaskFailures, List.foldl_cons]
+      split
+      · exact ih registered
+      · rename_i node found
+        exact ih (registered.putTaskNode _ (registered node (List.mem_of_find?_eq_some found)))
+
+/-- Group startup starts registered tasks or removes rejected groups and task nodes. -/
 theorem State.StartedTasksRegistered.startGroup
     {queue : State} (registered : queue.StartedTasksRegistered) (ref : NodeRef)
-    : (queue.startGroup ref).StartedTasksRegistered := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.startGroup ref available).1.StartedTasksRegistered := by
+  have cached := registered.cacheTaskFailures available
+  have tasks (more : List Occurrence) (current : State)
+      (valid : current.StartedTasksRegistered)
+      : (more.foldl (fun current task => current.startTask task available)
+          current).StartedTasksRegistered := by
+    induction more generalizing current with
+    | nil => exact valid
+    | cons task rest ih => exact ih _ (valid.startTask task available)
   unfold State.startGroup
+  dsimp only
   split
-  · exact registered
-  · rename_i node found
-    have foldStart (tasks : List Occurrence) :
-        ∀ current, current.StartedTasksRegistered
-          → (tasks.foldl State.startTask current).StartedTasksRegistered := by
-      induction tasks with
-      | nil => intro current currentRegistered; exact currentRegistered
-      | cons task rest ih =>
-          intro current currentRegistered
-          exact ih (current.startTask task) (currentRegistered.startTask task)
-    split
-    · exact registered
-    · exact foldStart node.tasks queue registered
+  · exact cached
+  · split
+    · exact tasks _ _ cached
+    · intro node member
+      exact cached node (List.mem_filter.mp member).1
 
 theorem State.StartedTasksRegistered.startStream
     {queue : State} (registered : queue.StartedTasksRegistered) (ref : NodeRef)
@@ -282,31 +257,25 @@ the corresponding Work integration step.
 -/
 theorem State.StartedTasksRegistered.startNewWork
     {queue : State} (registered : queue.StartedTasksRegistered)
-    (newWork : NewWork)
-    : (queue.startNewWork newWork).StartedTasksRegistered := by
-  let groups := newWork.newGroups.map Execution.DeliveryNode.ref
-  let streams := newWork.newStreams.map Execution.DeliveryNode.ref
-  let current : State := { queue with rootGroups := queue.rootGroups ++ groups }
-  have currentRegistered : current.StartedTasksRegistered := registered
-  have groupFold (refs : NodeRefs) :
-      ∀ state, state.StartedTasksRegistered
-        → (refs.foldl State.startGroup state).StartedTasksRegistered := by
-    induction refs with
-    | nil => intro state stateRegistered; exact stateRegistered
-    | cons ref rest ih =>
-        intro state stateRegistered
-        exact ih (state.startGroup ref) (stateRegistered.startGroup ref)
-  have streamFold (refs : NodeRefs) :
-      ∀ state, state.StartedTasksRegistered
-        → (refs.foldl State.startStream state).StartedTasksRegistered := by
-    induction refs with
-    | nil => intro state stateRegistered; exact stateRegistered
-    | cons ref rest ih =>
-        intro state stateRegistered
-        exact ih (state.startStream ref) (stateRegistered.startStream ref)
-  change (streams.foldl State.startStream
-    (groups.foldl State.startGroup current)).StartedTasksRegistered
-  exact streamFold streams _ (groupFold groups current currentRegistered)
+    (newWork : NewWork) (available : List (Occurrence × Nat) := [])
+    : (queue.startNewWork newWork available).1.StartedTasksRegistered := by
+  have groups (refs : NodeRefs) (current : State) (failures : List GroupFailureEvent)
+      (valid : current.StartedTasksRegistered)
+      : (refs.foldl
+          (fun (current, failures) ref =>
+            let (next, queued) := current.startGroup ref available
+            (next, failures ++ queued))
+          (current, failures)).1.StartedTasksRegistered := by
+    induction refs generalizing current failures with
+    | nil => exact valid
+    | cons ref rest ih => exact ih _ _ (valid.startGroup ref available)
+  have streams (refs : NodeRefs) (current : State) (valid : current.StartedTasksRegistered)
+      : (refs.foldl State.startStream current).StartedTasksRegistered := by
+    induction refs generalizing current with
+    | nil => exact valid
+    | cons ref rest ih => exact ih _ (valid.startStream ref)
+  unfold State.startNewWork
+  exact streams _ _ (groups _ _ [] registered)
 
 /-- WorkQueue initialization starts no unregistered task node. -/
 theorem createWorkQueue_startedTasksRegistered (initialWork : Work)
@@ -316,7 +285,7 @@ theorem createWorkQueue_startedTasksRegistered (initialWork : Work)
   let pruned := (integrated.pruneEmptyGroups newWork.newGroups).1
   let groups := (integrated.pruneEmptyGroups newWork.newGroups).2
   let roots := { newWork with newGroups := groups }
-  let started := pruned.startNewWork roots
+  let started := (pruned.startNewWork roots).1
   have emptyRegistered : ({} : State).StartedTasksRegistered := by
     intro node member
     cases member
@@ -415,18 +384,29 @@ theorem State.StartedTasksRegistered.finishGroupFailure
     : (queue.finishGroupFailure group errors).1.StartedTasksRegistered :=
   registered.removeGroup group.group.node.ref
 
+/-- Rejection retention preserves started nodes' registered task definitions. -/
+theorem State.StartedTasksRegistered.taskFailure
+    {queue : State} (registered : queue.StartedTasksRegistered)
+    (occurrence : Occurrence) (errors : Nat)
+    : (queue.taskFailure occurrence errors).1.StartedTasksRegistered := by
+  cases found : queue.taskNode? occurrence with
+  | none => simpa [State.taskFailure, found] using registered
+  | some node =>
+      rw [queue.taskFailure_eq occurrence errors node found]
+      exact failureGroupFold_preserves State.StartedTasksRegistered
+        (fun _ ref prior => prior.removeGroup ref) _ _ _
+        (registered.putTaskNode _ (registered node (List.mem_of_find?_eq_some found)))
+
 /-- Draining settled roots starts only previously registered tasks.
 Witness: both closure paths and activation preserve the registration invariant.
 -/
 theorem State.StartedTasksRegistered.drainReadyGroups
     {queue : State} (registered : queue.StartedTasksRegistered)
-    : queue.drainReadyGroups.1.StartedTasksRegistered := by
-  apply State.drainReadyGroups_preserves State.StartedTasksRegistered
-    (valid := registered)
-  · intro current node currentRegistered _ _ _ _
-    exact (currentRegistered.finishGroupSuccess node).startNewWork _
-  · intro current node errors currentRegistered _ _ _
-    exact currentRegistered.finishGroupFailure node errors
+    (available : List (Occurrence × Nat) := [])
+    : (queue.drainReadyGroups available).1.StartedTasksRegistered :=
+  State.drainReadyGroups_preserves State.StartedTasksRegistered
+    (fun _ node prior _ _ _ => (prior.finishGroupSuccess node).startNewWork _ available)
+    registered
 
 /-- The single-pass success-owner fold preserves started-task registration before
 activation and draining. Witness: each decrement or successful flush preserves it.
@@ -455,7 +435,8 @@ definitions through value storage, child integration, and group flushes.
 theorem State.StartedTasksRegistered.taskSuccess
     {queue : State} (registered : queue.StartedTasksRegistered)
     (occurrence : Occurrence) (result : TaskResult)
-    : (queue.taskSuccess occurrence result).1.StartedTasksRegistered := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.taskSuccess occurrence result available).1.StartedTasksRegistered := by
   let settleStep (current : State) (group : Execution.DeliveryNode) : State :=
     match current.groupNode? group.ref with
     | none => current
@@ -475,8 +456,7 @@ theorem State.StartedTasksRegistered.taskSuccess
     | some node =>
         let node := { node with pending := node.pending - 1 }
         let current := current.putGroupNode node
-        if current.rootGroups.contains group.ref && node.pending == 0
-            && node.failure.isNone then
+        if current.rootGroups.contains group.ref && node.pending == 0 then
           let (next, finished, newWork) := current.finishGroupSuccess node
           (
             next,
@@ -518,7 +498,6 @@ theorem State.StartedTasksRegistered.taskSuccess
   split
   · exact registered
   · rename_i taskNode found
-    split <;> try exact registered.removeTask occurrence
     have taskMember : taskNode.task ∈ queue.tasks :=
       registered taskNode (List.mem_of_find?_eq_some found)
     let withValue := queue.putTaskNode { taskNode with value := some result.value }
@@ -530,117 +509,57 @@ theorem State.StartedTasksRegistered.taskSuccess
     let finished := taskNode.task.groups.foldl releaseStep (integrated, [], {})
     have finishedRegistered : finished.1.StartedTasksRegistered :=
       releaseFold taskNode.task.groups (integrated, [], {}) integratedRegistered
-    change (finished.1.startNewWork finished.2.2).drainReadyGroups.1.StartedTasksRegistered
-    exact (finishedRegistered.startNewWork finished.2.2).drainReadyGroups
-
-/-- Task failure filters started nodes while preserving their registration. -/
-theorem State.StartedTasksRegistered.taskFailure
-    {queue : State} (registered : queue.StartedTasksRegistered)
-    (occurrence : Occurrence) (errors : Nat)
-    : (queue.taskFailure occurrence errors).1.StartedTasksRegistered := by
-  let step (acc : State × List WorkQueueEvent)
-      (group : Execution.DeliveryNode) : State × List WorkQueueEvent :=
-    let (current, events) := acc
-    match current.groupNode? group.ref with
-    | none => (current, events)
-    | some node =>
-        if current.rootGroups.contains group.ref then
-          let (next, failure) := current.finishGroupFailure node errors
-          (next, events ++ [failure])
-        else
-          (current.putGroupNode
-            { node with
-                pending := node.pending - 1
-                failure := some (node.failure.getD 0 + errors) }, events)
-  have stepRegistered (acc : State × List WorkQueueEvent)
-      (group : Execution.DeliveryNode)
-      (currentRegistered : acc.1.StartedTasksRegistered)
-      : (step acc group).1.StartedTasksRegistered := by
-    obtain ⟨current, events⟩ := acc
-    change (match current.groupNode? group.ref with
-      | none => (current, events)
-      | some node =>
-          if current.rootGroups.contains group.ref then
-            let (next, failure) := current.finishGroupFailure node errors
-            (next, events ++ [failure])
-          else
-            (current.putGroupNode
-              { node with
-                  pending := node.pending - 1
-                  failure := some (node.failure.getD 0 + errors)
-              }, events)).1.StartedTasksRegistered
-    cases found : current.groupNode? group.ref with
-    | none => exact currentRegistered
-    | some node =>
-        by_cases started : current.rootGroups.contains group.ref = true
-        · simp only [started, ite_true]
-          exact currentRegistered.finishGroupFailure node errors
-        · simp only [started]
-          exact currentRegistered.putGroupNode _
-  have foldRegistered (groups : List Execution.DeliveryNode) :
-      ∀ acc : State × List WorkQueueEvent,
-        acc.1.StartedTasksRegistered
-          → (groups.foldl step acc).1.StartedTasksRegistered := by
-    induction groups with
-    | nil => intro acc currentRegistered; exact currentRegistered
-    | cons group rest ih =>
-        intro acc currentRegistered
-        exact ih (step acc group) (stepRegistered acc group currentRegistered)
-  unfold State.taskFailure
-  split
-  · exact registered
-  · rename_i taskNode found
-    split <;> try exact registered.removeTask occurrence
-    let current := queue.removeTask occurrence
-    have currentRegistered : current.StartedTasksRegistered := registered.removeTask occurrence
-    change (taskNode.task.groups.foldl step (current, [])).1.StartedTasksRegistered
-    exact foldRegistered taskNode.task.groups (current, []) currentRegistered
+    change ((finished.1.startNewWork finished.2.2 available).1.drainReadyGroups
+      available).1.StartedTasksRegistered
+    exact (finishedRegistered.startNewWork finished.2.2 available).drainReadyGroups available
 
 /-- Each stream item may integrate child work and start its task nodes; every
 such node remains linked to the integrated task definition.
 -/
-theorem State.StartedTasksRegistered.streamItems
-    {queue : State} (registered : queue.StartedTasksRegistered)
-    (stream : Execution.DeliveryNode) (items : List StreamItem)
-    : (queue.streamItems stream items).1.StartedTasksRegistered := by
+theorem State.StartedTasksRegistered.streamItems {queue : State}
+    (unique : queue.StartedTasksRegistered) (stream : Execution.DeliveryNode)
+    (items : List StreamItem) (available : List (Occurrence × Nat) := [])
+    : (queue.streamItems stream items available).1.StartedTasksRegistered := by
   let step (acc : State × List Execution.DeliveryNode
-      × List Execution.DeliveryNode × List StreamItemValue)
+      × List Execution.DeliveryNode × List StreamItemValue × List GroupFailureEvent)
       (item : StreamItem) :=
-    let (current, groups, streams, values) := acc
+    let (current, groups, streams, values, failures) := acc
     let (integrated, newWork) := current.maybeIntegrateWork item.work
     let (pruned, nonempty) := integrated.pruneEmptyGroups newWork.newGroups
+    let (started, queued) :=
+      pruned.startNewWork { newWork with newGroups := nonempty } available
     (
-      pruned.startNewWork { newWork with newGroups := nonempty },
+      started,
       groups ++ nonempty,
       streams ++ newWork.newStreams,
-      values ++ [item.value]
+      values ++ [item.value],
+      failures ++ queued
     )
-  have stepRegistered (acc : State × List Execution.DeliveryNode
-      × List Execution.DeliveryNode × List StreamItemValue)
-      (item : StreamItem) (currentRegistered : acc.1.StartedTasksRegistered)
+  have stepUnique (acc : State × List Execution.DeliveryNode
+      × List Execution.DeliveryNode × List StreamItemValue × List GroupFailureEvent)
+      (item : StreamItem) (currentUnique : acc.1.StartedTasksRegistered)
       : (step acc item).1.StartedTasksRegistered := by
-    obtain ⟨current, groups, streams, values⟩ := acc
+    obtain ⟨current, groups, streams, values, failures⟩ := acc
     let integrated := current.maybeIntegrateWork item.work
-    have integratedRegistered : integrated.1.StartedTasksRegistered :=
-      currentRegistered.maybeIntegrateWork item.work
+    have integratedUnique : integrated.1.StartedTasksRegistered :=
+      currentUnique.maybeIntegrateWork item.work
     let pruned := integrated.1.pruneEmptyGroups integrated.2.newGroups
-    have prunedRegistered : pruned.1.StartedTasksRegistered :=
-      integratedRegistered.pruneEmptyGroups integrated.2.newGroups
-    exact prunedRegistered.startNewWork { integrated.2 with newGroups := pruned.2 }
-  have foldRegistered (more : List StreamItem) :
+    have prunedUnique : pruned.1.StartedTasksRegistered :=
+      integratedUnique.pruneEmptyGroups integrated.2.newGroups
+    exact prunedUnique.startNewWork { integrated.2 with newGroups := pruned.2 } available
+  have foldUnique (more : List StreamItem) :
       ∀ acc : State × List Execution.DeliveryNode
-        × List Execution.DeliveryNode × List StreamItemValue,
-        acc.1.StartedTasksRegistered
-          → (more.foldl step acc).1.StartedTasksRegistered := by
+        × List Execution.DeliveryNode × List StreamItemValue × List GroupFailureEvent,
+        acc.1.StartedTasksRegistered → (more.foldl step acc).1.StartedTasksRegistered := by
     induction more with
-    | nil => intro acc currentRegistered; exact currentRegistered
+    | nil => intro acc currentUnique; exact currentUnique
     | cons item rest ih =>
-        intro acc currentRegistered
-        exact ih (step acc item) (stepRegistered acc item currentRegistered)
+        intro acc currentUnique
+        exact ih (step acc item) (stepUnique acc item currentUnique)
   dsimp only [State.streamItems]
   split
-  · exact registered
-  · exact (foldRegistered items (queue, [], [], []) registered).drainReadyGroups
+  · exact unique
+  · exact (foldUnique items (queue, [], [], [], []) unique).drainReadyGroups available
 
 theorem State.StartedTasksRegistered.streamSuccess
     {queue : State} (registered : queue.StartedTasksRegistered)
@@ -659,48 +578,45 @@ theorem State.StartedTasksRegistered.streamFailure
 /-- Started-node registration holds after any queue event, independently of
 whether that host event matched the spec Work.
 -/
-theorem State.StartedTasksRegistered.handleGraphEvent
-    {queue : State} (registered : queue.StartedTasksRegistered)
-    (event : GraphEvent)
-    : (queue.handleGraphEvent event).1.StartedTasksRegistered := by
+theorem State.StartedTasksRegistered.handleGraphEvent {queue : State}
+    (unique : queue.StartedTasksRegistered) (event : GraphEvent)
+    (available : List (Occurrence × Nat) := [])
+    : (queue.handleGraphEvent event available).1.StartedTasksRegistered := by
+  have cached := unique.cacheTaskFailures available
   cases event with
-  | taskSuccess occurrence result => exact registered.taskSuccess occurrence result
-  | taskFailure occurrence errors => exact registered.taskFailure occurrence errors
-  | streamItems stream items => exact registered.streamItems stream items
-  | streamSuccess stream => exact registered.streamSuccess stream
-  | streamFailure stream errors => exact registered.streamFailure stream errors
+  | taskSuccess occurrence result => exact cached.taskSuccess occurrence result available
+  | taskFailure occurrence errors => exact cached.taskFailure occurrence errors
+  | groupFailure failure =>
+      change ((queue.cacheTaskFailures available).groupFailure failure).1.StartedTasksRegistered
+      unfold State.groupFailure
+      split
+      · exact cached
+      · split <;> exact cached
+  | streamItems stream items => exact cached.streamItems stream items available
+  | streamSuccess stream => exact cached.streamSuccess stream
+  | streamFailure stream errors => exact cached.streamFailure stream errors
 
-theorem State.StartedTasksRegistered.handleGraphEvents
-    {queue : State} (registered : queue.StartedTasksRegistered)
-    (batch : List GraphEvent)
+/-- Every available host batch retains registration of started computations. -/
+theorem State.StartedTasksRegistered.handleGraphEvents {queue : State}
+    (unique : queue.StartedTasksRegistered) (batch : List GraphEvent)
     : (queue.handleGraphEvents batch).1.StartedTasksRegistered := by
+  let available := GraphEvent.availableFailures batch
   let step (acc : State × List WorkQueueEvent) (event : GraphEvent) :=
-    let (current, outputs) := acc
-    let (next, produced) := current.handleGraphEvent event
-    (next, outputs ++ produced)
-  have foldRegistered (events : List GraphEvent) :
+    let (next, produced) := acc.1.dispatchGraphEvent event available
+    (next, acc.2 ++ produced)
+  have foldUnique (events : List GraphEvent) :
       ∀ acc : State × List WorkQueueEvent,
-        acc.1.StartedTasksRegistered
-          → (events.foldl step acc).1.StartedTasksRegistered := by
+        acc.1.StartedTasksRegistered → (events.foldl step acc).1.StartedTasksRegistered := by
     induction events with
-    | nil => intro acc currentRegistered; exact currentRegistered
+    | nil => intro acc currentUnique; exact currentUnique
     | cons event rest ih =>
-        intro acc currentRegistered
-        obtain ⟨current, outputs⟩ := acc
-        have nextRegistered :
-            (step (current, outputs) event).1.StartedTasksRegistered :=
-          currentRegistered.handleGraphEvent event
-        exact ih (step (current, outputs) event) nextRegistered
+        intro acc currentUnique
+        exact ih (step acc event) (currentUnique.handleGraphEvent event available)
   unfold State.handleGraphEvents
   split
-  · exact registered
-  · let folded := batch.foldl step (queue, [])
-    have foldedRegistered : folded.1.StartedTasksRegistered :=
-      foldRegistered batch (queue, []) registered
-    cases folded with
-    | mk current outputs =>
-        dsimp only at foldedRegistered ⊢
-        split <;> exact foldedRegistered
+  · exact unique
+  · dsimp only
+    split <;> exact foldUnique batch (queue, []) unique
 
 /-- The registration invariant survives all finite graph-event batches and
 publisher normalization, without a source assumption.

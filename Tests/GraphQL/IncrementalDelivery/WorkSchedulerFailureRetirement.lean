@@ -1,4 +1,7 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation
+import Tests.GraphQL.IncrementalDelivery.Fixtures.WorkDeclarations
+
+open GraphQL.IncrementalDelivery.Tests (declaredTask)
 
 /-! Failed-owner retirement alone does not prove health of retained descendant shells. -/
 
@@ -13,8 +16,8 @@ private def failedTask : Occurrence := .executionGroup [0]
 
 private def work : Execution.Work :=
   .combine
-    (.executionGroup [⟨parent, []⟩] [] (.error 1) .empty)
-    (.executionGroup [⟨child, [parent]⟩] [] (.ok ([], 0)) .empty)
+    (declaredTask [⟨parent, []⟩] [] ({ result := .error 1 }) .empty)
+    (declaredTask [⟨child, [parent]⟩] [] ({ result := .ok ([], 0) }) .empty)
 
 private def childNode : GroupNode :=
   { group := ⟨child, some parent.ref⟩, tasks := [.executionGroup [1]], pending := 1 }
@@ -50,7 +53,7 @@ theorem failed_owners_retired
 Witness: the actual dependency rule propagates the parent's recorded task failure. -/
 theorem child_invalidated : GroupInvalidated work [failedTask] child.ref := by
   have known : NodeAt work child .group [parent.ref] none := by
-    exact ⟨[1], [⟨child, [parent]⟩], [], .ok ([], 0), .empty, [],
+    exact ⟨[1], [⟨child, [parent]⟩], [], { result := .ok ([], 0) }, .empty, [],
       ⟨child, [parent]⟩, rfl, List.mem_cons_self, rfl, rfl⟩
   exact .groupDependency ⟨child, none, known, rfl⟩ List.mem_cons_self
     (.task ⟨none, _, failed_known⟩ List.mem_cons_self List.mem_cons_self)

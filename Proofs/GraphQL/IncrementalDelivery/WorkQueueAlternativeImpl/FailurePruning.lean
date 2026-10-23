@@ -106,7 +106,7 @@ theorem PruningTasks.heldSource {queue occurrences final targets}
         right
         apply List.mem_append_left
         simp only [State.cancelTask, found, Option.toList_some, List.flatMap_cons,
-          List.flatMap_nil, List.append_nil, List.mem_append, List.mem_singleton]
+          List.flatMap_nil, List.append_nil, List.mem_append]
         exact Or.inr (List.mem_map.mpr ⟨key, held, rfl⟩)
       · rcases ih ((queue.removeTask_lookup_other same).trans found) with kept | requested
         · exact Or.inl kept

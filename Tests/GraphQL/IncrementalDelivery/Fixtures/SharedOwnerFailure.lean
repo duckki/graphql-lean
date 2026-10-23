@@ -1,5 +1,7 @@
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.InitialStartup
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.ResourceOwnership
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.GraphEvents
+import Proofs.GraphQL.IncrementalDelivery.Semantics.WorkSize
 
 /-! Generated shared-owner failure fixture with a held source below an object task.
 The execution/source/start witnesses are kept separate from host resource acquisition.
@@ -75,13 +77,14 @@ def streamWork : Execution.Work := .combine (.combine .empty (.stream source [])
 def childWork : Execution.Work :=
   .combine
     (.combine .empty
-      (.combine
-        (.executionGroup [{ node := groupG }] [.field "box"]
-          (.ok ([("values", .list [])], 0)) streamWork)
+      (.declareGroups []
         (.combine
-          (.executionGroup [{ node := groupH }] [.field "box"]
-            (.ok ([("dummy", .scalar "ok")], 0)) (.combine .empty .empty))
-          .empty)))
+          (.executionGroup [{ node := groupG }] [.field "box"]
+            ({ result := .ok ([("values", .list [])], 0) }) streamWork)
+          (.combine
+            (.executionGroup [{ node := groupH }] [.field "box"]
+              ({ result := .ok ([("dummy", .scalar "ok")], 0) }) (.combine .empty .empty))
+            .empty))))
     .empty
 
 def data : List (Name × ResponseValue) :=
@@ -90,12 +93,17 @@ def data : List (Name × ResponseValue) :=
 theorem work_shape
     : work
       = .combine .empty
-          (.combine
-            (.executionGroup [{ node := groupG }, { node := groupH }] []
-              (.ok (data, 0)) childWork)
-            (.combine (.executionGroup [{ node := groupG }] [] (.error 1) .empty)
-              (.combine (.executionGroup [{ node := groupH }] [] (.error 1) .empty)
-                .empty))) := by
+          (.declareGroups [{ node := groupG }, { node := groupH }]
+            (.combine
+              (.executionGroup [{ node := groupG }, { node := groupH }] []
+                ({ result := .ok (data, 0) }) childWork)
+              (.combine
+                (.executionGroup [{ node := groupG }] []
+                  ({ result := .error 1, cause := some 1 }) .empty)
+                (.combine
+                  (.executionGroup [{ node := groupH }] []
+                    ({ result := .error 1, cause := some 1 }) .empty)
+                  .empty)))) := by
   cbv
 
 theorem executed : ReferenceWorkQueue.ExecutedWork work := by
@@ -133,27 +141,27 @@ def inputs : List (List GraphEvent) :=
 private theorem shared_task
     : TaskAt work (.executionGroup [1, 0]) [0, 1] none (.object [] (.ok (data, 0))) := by
   refine ⟨[{ node := groupG }, { node := groupH }], [],
-    .ok (data, 0), childWork, [], ?_, rfl, rfl⟩
+    { result := .ok (data, 0) }, childWork, [], ?_, rfl, rfl⟩
   rw [work_shape]
   rfl
 
 private theorem source_task
     : TaskAt work heldProducer [0] (some (.executionGroup [1, 0]))
         (.object [.field "box"] (.ok ([("values", .list [])], 0))) := by
-  refine ⟨[{ node := groupG }], [.field "box"], .ok ([("values", .list [])], 0),
+  refine ⟨[{ node := groupG }], [.field "box"], { result := .ok ([("values", .list [])], 0) },
     streamWork, [0, 1], ?_, rfl, rfl⟩
   rw [work_shape]
   rfl
 
 private theorem g_task
     : TaskAt work (.executionGroup [1, 1, 0]) [0] none (.object [] (.error 1)) := by
-  refine ⟨[{ node := groupG }], [], .error 1, .empty, [], ?_, rfl, rfl⟩
+  refine ⟨[{ node := groupG }], [], { result := .error 1, cause := some 1 }, .empty, [], ?_, rfl, rfl⟩
   rw [work_shape]
   rfl
 
 private theorem h_task
     : TaskAt work (.executionGroup [1, 1, 1, 0]) [1] none (.object [] (.error 1)) := by
-  refine ⟨[{ node := groupH }], [], .error 1, .empty, [], ?_, rfl, rfl⟩
+  refine ⟨[{ node := groupH }], [], { result := .error 1, cause := some 1 }, .empty, [], ?_, rfl, rfl⟩
   rw [work_shape]
   rfl
 
@@ -216,6 +224,7 @@ private theorem prefix_cases {batches : List (List GraphEvent)}
   · right; right; right; right; simpa [four, inputs] using chosen
 
 theorem source_valid : schedule.ValidFor work := by
+  apply EventSource.ValidFor.of_asynchronous
   refine ⟨rfl, List.nil_prefix, ?_, ?_⟩
   · intro before after earlier admitted
     exact earlier.trans admitted

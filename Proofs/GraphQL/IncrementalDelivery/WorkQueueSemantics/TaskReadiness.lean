@@ -331,7 +331,7 @@ theorem Explains.completed_accounted {work groups streams events matching failur
   obtain ⟨event, member, completes⟩ := List.mem_flatMap.mp closed
   obtain ⟨index, selected⟩ := List.mem_iff_getElem?.mp member
   have bound := Nat.le_of_lt (List.getElem?_eq_some_iff.mp selected).1
-  have allowed := explained.2.2 index event selected
+  have allowed := explained.eventAllowed index event selected
   cases event <;> simp only [eventCompleted, List.mem_singleton, List.not_mem_nil] at completes
   all_goals try contradiction
   all_goals subst ref

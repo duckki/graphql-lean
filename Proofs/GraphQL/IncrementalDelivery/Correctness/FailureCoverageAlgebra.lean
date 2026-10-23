@@ -53,6 +53,8 @@ mutual
             (SourceTask.positions containers) := by
     cases work with
     | empty => rfl
+    | declareGroups groups tasks =>
+        exact sourceTasks_positions_relabel containers tasks cursors address other producer parent
     | combine left right =>
         simp only [sourceTasks, List.flatMap_append]
         rw [sourceTasks_positions_relabel containers left cursors (address ++ [0])
@@ -72,7 +74,7 @@ mutual
   Witness: each payload has the same absolute item index and seeds the same child cursors.
   -/
   theorem sourceItemTasks_positions_relabel (containers : Bool)
-      (items : List (Result ResponseValue × Work)) (node : DeliveryNode)
+      (items : List (TaskOutcome ResponseValue × Work)) (node : DeliveryNode)
       (index ordinal : Nat) (address other : Address)
       (producer parent : Option Occurrence)
       : (sourceItemTasks address producer node index ordinal items).flatMap
@@ -99,7 +101,9 @@ end
 private theorem located_embed {work address current producer owners}
     (known : StructuralEquivalence.Located work address current producer owners)
     {root route enclosing dependencies}
-    (embedded : StructuralEquivalence.Located root route work enclosing dependencies)
+    (embedded
+      : StructuralEquivalence.Located root route work.withoutDeclarations enclosing
+          dependencies)
     : ∃ parent refs,
         StructuralEquivalence.Located root (route ++ address) current parent refs := by
   induction known with
@@ -123,7 +127,7 @@ Witness: structural location induction, followed by the same group/item lookup.
 theorem TaskAt.in_located {work occurrence owners producer payload}
     (known : TaskAt work occurrence owners producer payload)
     {root route enclosing dependencies}
-    (embedded : Located root route work enclosing dependencies)
+    (embedded : Located root route work.withoutDeclarations enclosing dependencies)
     : ∃ occurrence owners producer, TaskAt root occurrence owners producer payload := by
   have base := StructuralEquivalence.located_of_current embedded
   cases StructuralEquivalence.taskAt_of_current known with
@@ -155,6 +159,20 @@ theorem TaskAt.in_combine_right {work occurrence owners producer payload}
 -----------------------------------------------------------------------------------------
 -- Adding retained work preserves an existing prepared-response explanation
 -----------------------------------------------------------------------------------------
+
+/-- Adding ordered declarations to the task branch preserves source coverage exactly. -/
+theorem PreparedResponseCovers.declareGroups_right
+    {reference response left right containers}
+    (covered : PreparedResponseCovers reference response (.combine left right) containers)
+    (groups : List DeferredFragment)
+    : PreparedResponseCovers reference response
+        (.combine left (.declareGroups groups right)) containers := by
+  intro path member
+  rcases covered path member with delivered | failed
+  · exact Or.inl (by simpa only [sourceTasks] using delivered)
+  · obtain ⟨occurrence, owners, producer, payload, known, fails, related⟩ := failed
+    exact Or.inr ⟨occurrence, owners, producer, payload,
+      (taskAt_combine_declareGroups_right groups).mpr known, fails, related⟩
 
 /-- Additional right-hand work cannot lose an existing coverage explanation.
 Witness: source positions retain their cursors under relabelling; failures embed on the

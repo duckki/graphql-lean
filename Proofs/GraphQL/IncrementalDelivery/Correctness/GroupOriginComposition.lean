@@ -54,7 +54,8 @@ Witness: structural navigation induction; only a local root acquires the enclosi
 theorem located_embed {work address current producer owners}
     (known : StructuralEquivalence.Located work address current producer owners)
     {root route parent refs}
-    (embedded : StructuralEquivalence.Located root route work parent refs)
+    (embedded
+      : StructuralEquivalence.Located root route work.withoutDeclarations parent refs)
     : StructuralEquivalence.Located root (route ++ address) current
         (reparent route parent producer) (enclosingOwners refs owners producer) := by
   induction known with
@@ -71,8 +72,8 @@ theorem located_embed {work address current producer owners}
 Witness: the same group or indexed stream entry at the transported location.
 -/
 theorem task_embed {work occurrence owners producer payload}
-    (known : TaskAt work occurrence owners producer payload)
-    {root route parent refs} (embedded : Located root route work parent refs)
+    (known : TaskAt work occurrence owners producer payload) {root route parent refs}
+    (embedded : Located root route work.withoutDeclarations parent refs)
     : TaskAt root (relocate route occurrence) owners (reparent route parent producer)
         payload := by
   have base := StructuralEquivalence.located_of_current embedded
@@ -86,8 +87,8 @@ theorem task_embed {work occurrence owners producer payload}
 Witness: retain the same deferred-fragment member at its relocated task location.
 -/
 theorem group_embed {work node dependencies producer}
-    (known : NodeAt work node .group dependencies producer)
-    {root route parent refs} (embedded : Located root route work parent refs)
+    (known : NodeAt work node .group dependencies producer) {root route parent refs}
+    (embedded : Located root route work.withoutDeclarations parent refs)
     : NodeAt root node .group dependencies (reparent route parent producer) := by
   obtain ⟨address, groups, path, result, children, owners, group, located, member,
     rfl, rfl⟩ := known
@@ -212,7 +213,7 @@ theorem located_stream_component {node items address current producer owners}
       : StructuralEquivalence.Located (.stream node items) address current producer
           owners)
     : current = .stream node items
-      ∨ ∃ (index : Nat) (result : Result ResponseValue) (children : Work)
+      ∨ ∃ (index : Nat) (result : TaskOutcome ResponseValue) (children : Work)
           (address : Address) (producer : Option Occurrence) (owners : NodeRefs),
           items[index]? = some (result, children)
           ∧ StructuralEquivalence.Located children address current producer owners := by
@@ -245,7 +246,7 @@ Witness: recover an actual item entry and retain its deferred-fragment member.
 -/
 theorem group_in_stream {stream items node dependencies producer}
     (known : NodeAt (.stream stream items) node .group dependencies producer)
-    : ∃ (index : Nat) (result : Result ResponseValue) (children : Work)
+    : ∃ (index : Nat) (result : TaskOutcome ResponseValue) (children : Work)
         (producer : Option Occurrence),
         items[index]? = some (result, children)
         ∧ NodeAt children node .group dependencies producer := by
@@ -303,8 +304,8 @@ theorem GroupProducerOrigins.origin {work node dependencies producer}
 /-- Root-free embedding transports an origin's producer and descriptor together.
 Witness: exact location and task relocation; attachment paths and owner refs are fixed.
 -/
-theorem GroupOrigin.embed {work root route ref}
-    (origin : GroupOrigin work ref) (embedded : Located root route work none [])
+theorem GroupOrigin.embed {work root route ref} (origin : GroupOrigin work ref)
+    (embedded : Located root route work.withoutDeclarations none [])
     : GroupOrigin root ref := by
   obtain ⟨node, parents, producer, known, same, supported⟩ := origin
   refine ⟨node, parents, _, GroupOriginComposition.group_embed known embedded, same, ?_⟩
@@ -323,14 +324,14 @@ Witness: root-free embedding at the left edge, retaining the same group ref.
 -/
 theorem GroupOrigin.combine_left {work ref} (origin : GroupOrigin work ref) (right : Work)
     : GroupOrigin (.combine work right) ref :=
-  origin.embed (Located.left Located.root)
+  origin.embed (Located.left (root := .combine work right) Located.root)
 
 /-- Adding a left component preserves a right-hand origin.
 Witness: root-free embedding at the right edge, retaining the same group ref.
 -/
 theorem GroupOrigin.combine_right {work ref} (origin : GroupOrigin work ref) (left : Work)
     : GroupOrigin (.combine left work) ref :=
-  origin.embed (Located.right Located.root)
+  origin.embed (Located.right (root := .combine left work) Located.root)
 
 /-- Complete origins also give a component certificate with any inherited refs.
 Witness: every descriptor takes the locally witnessed alternative.
@@ -423,9 +424,9 @@ theorem GroupOriginsExcept.executionGroup {inherited groups path result children
     · by_cases inheritedRef : node.ref ∈ inherited
       · exact Or.inl inheritedRef
       obtain ⟨origin, parents, birth, originKnown, same, supported⟩ := localOrigin
-      have embedded : Located (.executionGroup groups path result children) [0] children
+      have embedded : Located (.executionGroup groups path result children) [0] children.withoutDeclarations
           (some (.executionGroup [])) (groups.map (fun group => group.node.ref)) :=
-        Located.executionGroup Located.root
+        Located.executionGroup (root := .executionGroup groups path result children) Located.root
       have descriptor := GroupOriginComposition.group_embed originKnown embedded
       rcases supported with root | ⟨source, owners, ancestor, payload, ref, rfl,
         task, member, earlier, below⟩
@@ -440,7 +441,7 @@ theorem GroupOriginsExcept.executionGroup {inherited groups path result children
             supported'⟩
         · refine Or.inr ⟨origin, parents, _, descriptor, same, Or.inr ?_⟩
           exact ⟨.executionGroup [], groups.map (fun group => group.node.ref), none,
-            .object path result, ref, rfl, TaskAt.executionGroup Located.root,
+            .object path result.deliveryResult, ref, rfl, TaskAt.executionGroup Located.root,
             member, earlier, below⟩
       · refine Or.inr ⟨origin, parents, _, descriptor, same, Or.inr ?_⟩
         refine ⟨GroupOriginComposition.relocate [0] source, owners,
@@ -456,10 +457,10 @@ Empty streams have no group-origin obligations.
 -/
 theorem GroupProducerOrigins.stream {stream items}
     (origins
-      : ∀ (index : Nat) (result : Result ResponseValue) children,
+      : ∀ (index : Nat) (result : TaskOutcome ResponseValue) children,
           items[index]? = some (result, children) → GroupProducerOrigins children)
     (rootSupport
-      : ∀ (index : Nat) (result : Result ResponseValue) children node dependencies,
+      : ∀ (index : Nat) (result : TaskOutcome ResponseValue) children node dependencies,
           items[index]? = some (result, children)
           → NodeAt children node .group dependencies none
           → stream.ref < node.ref ∧ stream.path.IsPrefix node.path)
@@ -469,15 +470,15 @@ theorem GroupProducerOrigins.stream {stream items}
     GroupOriginComposition.group_in_stream known
   obtain ⟨origin, parents, birth, originKnown, same, supported⟩ :=
     origins _ _ _ entry _ _ _ component
-  have embedded : Located (.stream stream items) [index] children
-      (some (.item [] index)) [] := Located.item Located.root entry
+  have embedded : Located (.stream stream items) [index] children.withoutDeclarations
+      (some (.item [] index)) [] := Located.item (root := .stream stream items) Located.root entry
   refine ⟨origin, parents, _, GroupOriginComposition.group_embed originKnown embedded,
     same, Or.inr ?_⟩
   rcases supported with root | ⟨source, owners, ancestor, payload, ref, rfl,
     task, member, earlier, below⟩
   · subst birth
     have support := rootSupport _ _ _ _ _ entry originKnown
-    exact ⟨.item [] index, [stream.ref], none, .item stream result, stream.ref, rfl,
+    exact ⟨.item [] index, [stream.ref], none, .item stream result.deliveryResult, stream.ref, rfl,
       TaskAt.item Located.root entry, by simp, support.1, support.2⟩
   · refine ⟨GroupOriginComposition.relocate [index] source, owners,
       GroupOriginComposition.reparent [index] (some (.item [] index)) ancestor,

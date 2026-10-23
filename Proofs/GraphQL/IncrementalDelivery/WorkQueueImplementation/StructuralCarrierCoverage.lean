@@ -20,13 +20,14 @@ theorem ExecutedWork.successfulCarrier_structuralContributor_registered
     (generated : ExecutedWork work)
     (valid : ValidGraphEvents work (before ++ [event]))
     (started
-      : (State.initialize (Work.fromExecution work)).acceptsBatch (before ++ [event])
+      : State.eventsStarted [] (State.initialize (Work.fromExecution work))
+          (before ++ [event])
         = true)
     (carrier
       : Execution.WorkQueueEvent.groupSuccess group groups streams
         ∈ (((State.initialize (Work.fromExecution work)).replayGraphEvents
               before).handleGraphEvent
-            event).2)
+            event).2.1)
     (known : TaskAt work (.executionGroup address) owners producer payload)
     (contributes : group.ref ∈ owners)
     : ∃ task ∈
@@ -36,7 +37,7 @@ theorem ExecutedWork.successfulCarrier_structuralContributor_registered
         ∧ task.groups.map Execution.DeliveryNode.ref = owners := by
   obtain ⟨_, _, retired, healthy, _⟩ :=
     generated.replayGraphEvents_successfulCarrier_retiredHealthy valid
-      (State.acceptsBatch_prefix started) carrier
+      (State.eventsStarted_prefix started) carrier
   exact generated.retired_structuralContributor_registered valid started known contributes
     retired healthy
 
@@ -51,7 +52,8 @@ theorem ExecutedWork.successfulCarrier_structuralContributor_covered
     (generated : ExecutedWork work)
     (valid : ValidGraphEvents work (before ++ [event]))
     (started
-      : (State.initialize (Work.fromExecution work)).acceptsBatch (before ++ [event])
+      : State.eventsStarted [] (State.initialize (Work.fromExecution work))
+          (before ++ [event])
         = true)
     (covered
       : (State.initialize (Work.fromExecution work)).ReplayClosuresCovered
@@ -59,7 +61,7 @@ theorem ExecutedWork.successfulCarrier_structuralContributor_covered
     (carrier
       : (((State.initialize (Work.fromExecution work)).replayGraphEvents
             before).handleGraphEvent
-          event).2[index]?
+          event).2.1[index]?
         = some (.groupSuccess group groups streams))
     (known : TaskAt work (.executionGroup address) owners producer payload)
     (contributes : group.ref ∈ owners)
@@ -71,7 +73,7 @@ theorem ExecutedWork.successfulCarrier_structuralContributor_covered
                 WorkQueueEvent.objectValues).length
               + (((((State.initialize (Work.fromExecution work)).replayGraphEvents
                       before).handleGraphEvent
-                    event).2.take
+                    event).2.1.take
                     index).flatMap
                   WorkQueueEvent.objectValues).length) := by
   obtain ⟨task, registered, occurrence, groups⟩ :=

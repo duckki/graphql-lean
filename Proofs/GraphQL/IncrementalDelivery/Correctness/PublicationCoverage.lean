@@ -20,7 +20,11 @@ theorem combineValues_errors {left right combined}
     (h : combineValues left right = some combined)
     : workEventErrors combined = workEventErrors left + workEventErrors right := by
   cases left <;> cases right <;> simp only [combineValues] at h <;> try contradiction
-  all_goals split at h <;> cases h <;> simp [workEventErrors]
+  all_goals
+    split at h
+    · cases h
+      simp [workEventErrors]
+    · cases h
 
 /-- Value grouping preserves all error counts, by induction on grouping. -/
 theorem valueGrouping_errors {events grouped} (h : ValueGrouping events grouped)
@@ -45,7 +49,7 @@ theorem workBatching_errors {events batches} (h : WorkBatching events batches)
 identifies the payload from the event's provenance premise.
 -/
 theorem event_publication_errors {work initial matching before failed event}
-    (allowed : EventAllowed work initial matching before failed event)
+    (allowed : EventAllowed work initial matching before failed event reported)
     (value : IsValue event) {owners producer payload}
     (known : TaskAt work (matching before.length) owners producer payload)
     : payloadErrors payload = workEventErrors event := by
@@ -72,7 +76,7 @@ theorem published_errors_le {work groups streams events matching failures}
   have bound := (List.getElem?_eq_some_iff.mp selected).choose
   have task : TaskAt work (matching (events.take index).length) owners producer payload := by
     simpa [List.length_take, Nat.min_eq_left (Nat.le_of_lt bound), same] using known
-  rw [event_publication_errors (explained.2.2 index event selected) value task]
+  rw [event_publication_errors (explained.eventAllowed index event selected) value task]
   exact le_sum (List.mem_map.mpr
     ⟨event, List.mem_iff_getElem?.mpr ⟨index, selected⟩, rfl⟩)
 
@@ -175,6 +179,6 @@ theorem queryOutcome_payload_errors_zero {createWorkQueue : Work → WorkQueue}
   simp only [applies, ↓reduceIte] at witnessed
   exact witnessed.payload_errors_zero
     (ExecutionErrors.executeRootSelectionSetCore_positive schema resolvers _ fuel
-      (operation.rootType schema) source operation.selectionSet 0).2 zero known
+      (operation.rootType schema) source operation.selectionSet 0).2.1 zero known
 
 end GraphQL.IncrementalDelivery.Correctness

@@ -46,10 +46,11 @@ example
       OwnerPaths.mapNodes, OwnerPaths.fragmentNodes, OwnerPaths.Assigned, Below,
       DeferredPhase.node]
   have selected (owners : NodeRefs) (member : 0 ∈ owners)
-      : PublicationOwner work [0, 1] WorkQueueSemantics.matching [] [] owners (DeferredPhase.node 0) := by
+      : PublicationOwner work [0, 1] WorkQueueSemantics.matching [] [] owners
+          (DeferredPhase.node 0) := by
     have opened : OpenOwner work [0, 1] [] owners (DeferredPhase.node 0) :=
       ⟨⟨.group, [], none,
-        .group (group := {node := DeferredPhase.node 0}) (.left .root) (by simp)⟩,
+        .group (group := {node := DeferredPhase.node 0}) (.left (Located.root (root := work))) (by simp)⟩,
         member, by simp [Open, announcedRefs, pendingRefs, completedRefs, DeferredPhase.node]⟩
     refine ⟨opened, ⟨DeferredPhase.node 0, opened, WorkQueueSemantics.noFailure _ _⟩, ?_⟩
     intro other available
@@ -58,11 +59,14 @@ example
     simp [← assigned.2, DeferredPhase.node]
   have empty : Explains work [DeferredPhase.node 0, DeferredPhase.node 1] [] []
       WorkQueueSemantics.matching [] :=
-    ⟨DeferredPhase.initialized _ _, by simp [FailureWitness], by simp⟩
+    Explains.of_causal_failures (DeferredPhase.initialized _ _)
+      (by simp [FailureWitness]) (by simp) (by simp)
   have left : TaskAt work (.executionGroup [0]) [0] none (.object [] (.ok (leftData, 0))) :=
-    .executionGroup (.left .root)
+    .executionGroup (result := { result := .ok (leftData, 0) })
+      (.left (Located.root (root := work)))
   have right : TaskAt work (.executionGroup [1]) [0, 1] none (.object [] (.ok (rightData, 0))) :=
-    .executionGroup (.right .root)
+    .executionGroup (result := { result := .ok (rightData, 0) })
+      (.right (Located.root (root := work)))
   have ready (address : Address) : CanPublish work WorkQueueSemantics.matching [] []
       (.executionGroup address) none :=
     ⟨by simp [Published], WorkQueueSemantics.noCancellation _ _, by simp, trivial⟩
@@ -97,7 +101,8 @@ example
   have published : Explains HistoryScheduling.shared
       [HistoryScheduling.left, HistoryScheduling.right] []
       [HistoryScheduling.value HistoryScheduling.left] HistoryScheduling.matching [] := by
-    refine ⟨HistoryScheduling.initialized, by simp [FailureWitness], ?_⟩
+    refine Explains.of_causal_failures HistoryScheduling.initialized
+      (by simp [FailureWitness]) (by simp) ?_
     intro index event selected
     cases index with
     | zero =>

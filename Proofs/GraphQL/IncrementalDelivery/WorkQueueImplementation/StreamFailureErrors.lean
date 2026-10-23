@@ -1,6 +1,7 @@
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.ExecutedTaskErrors
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.StreamFailureCuts
 
-/-! Exact stream error totals for output-aligned failure cuts. -/
+/-! Selected stream failure causes for output-aligned failure cuts. -/
 
 namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
@@ -60,56 +61,32 @@ theorem StreamFailureCuts.visible_prefix {work events failures index occurrence}
     earlier
   ⟩
 
-/-- Each stream failure reports exactly the contributing errors in all visible stream cuts.
-Witness: prior closures have different stream refs and hence contribute zero; the current
-cut is the sole contributing failed item and retains its exact reported error count.
-No cancellation-safety or already-admitted-history assumption is used for this count.
+/-- A positive stream failure selects its contributing failed item from the visible cuts.
+Witness: the current output's cut identifies that exact item and count; other failures
+need not be summed or excluded from the inventory.
 -/
 theorem StreamFailureCuts.nodeErrors {work events failures index stream errors}
     (cuts : StreamFailureCuts work events failures)
-    (ordered : (events.filterMap streamAction).Pairwise StreamAction.Before)
+    (_ordered : (events.filterMap streamAction).Pairwise StreamAction.Before)
     (atEvent : events[index]? = some (.streamFailure stream errors))
-    : NodeErrors work (failedBefore failures index) stream.ref errors := by
-  classical
+    (positive : 0 < errors)
+    : NodeFailureCause work (failedBefore failures index) stream.ref errors := by
   obtain ⟨occurrence, member⟩ := cuts.covers atEvent
   obtain ⟨current, count, producer, selected, task⟩ := cuts.2 _ member
-  have same := Execution.WorkQueueEvent.streamFailure.inj (Option.some.inj (selected.symm.trans atEvent))
-  obtain ⟨sameNode, sameCount⟩ := same
+  obtain ⟨sameNode, sameCount⟩ :=
+    Execution.WorkQueueEvent.streamFailure.inj (Option.some.inj (selected.symm.trans atEvent))
   subst current count
-  obtain ⟨before, after, split, visible, earlier⟩ := cuts.visible_prefix member
-  have oldFacts (entry : Nat × Occurrence) (included : entry ∈ before)
-      : ∃ node errors producer,
-          TaskAt work entry.2 [node.ref] producer (.item node (.error errors))
-          ∧ node.ref ≠ stream.ref ∧ entry.2 ≠ occurrence := by
-    have member : entry ∈ failures := by rw [split]; exact List.mem_append_left _ included
-    obtain ⟨node, errors, producer, atPrior, prior⟩ := cuts.2 entry member
-    have different := streamFailure_refs_ne ordered atPrior atEvent (earlier entry included)
-    refine ⟨node, errors, producer, prior, different, ?_⟩
-    intro same
-    rw [same] at prior
-    exact different (List.cons.inj (prior.unique task).1).1
-  let contribution := fun source => if source = occurrence then errors else 0
-  rw [visible]
-  refine ⟨contribution, ?_, ?_⟩
-  · intro source included
-    rcases List.mem_append.mp included with prior | current
-    · obtain ⟨entry, inBefore, same⟩ := List.mem_map.mp prior
-      subst source
-      obtain ⟨node, count, producer, known, different, notCurrent⟩ := oldFacts entry inBefore
-      exact ⟨[node.ref], producer, _, known, by simp [contribution, notCurrent, Ne.symm different]⟩
-    · have same := List.mem_singleton.mp current
-      subst source
-      exact ⟨[stream.ref], producer, _, task, by simp [contribution, Payload.failure]⟩
-  · have oldZero : ((before.map Prod.snd).map contribution).sum = 0 := by
-      apply List.sum_eq_zero_iff_forall_eq_nat.mpr
-      intro count included
-      obtain ⟨source, inBefore, same⟩ := List.mem_map.mp included
-      obtain ⟨entry, member, sameSource⟩ := List.mem_map.mp inBefore
-      obtain ⟨node, errors, producer, known, different, notCurrent⟩ := oldFacts entry member
-      rw [← same, ← sameSource]
-      simp [contribution, notCurrent]
-    rw [List.map_append, List.sum_append, oldZero]
-    simp [contribution]
+  exact ⟨
+    occurrence,
+    mem_failedBefore member (Nat.le_refl _),
+    [stream.ref],
+    producer,
+    .item stream (.error errors),
+    task,
+    by simp,
+    rfl,
+    positive
+  ⟩
 
 -----------------------------------------------------------------------------------------
 -- Object-task failures do not add errors to a generated stream's completion
@@ -149,10 +126,9 @@ theorem ExecutedWork.itemFailure_not_groupOwner {work : Execution.Work}
   intro member
   exact generated.groupStreamRefsDisjoint groupKnown streamKnown (List.mem_singleton.mp member)
 
-/-- Adding only failed object tasks leaves the exact stream error total unchanged.
-Witness: generated role separation makes every added contribution zero. Existing
-contributions retain their values; object tasks cannot share a stream-item occurrence.
-The added failures may be reordered separately when constructing the eventual full cuts.
+/-- Adding object failure candidates preserves the selected positive stream cause.
+Witness: the exact item descriptor supplies positivity in generated work; extending the
+inventory retains that item without changing its count.
 -/
 theorem StreamFailureCuts.nodeErrors_with_objects
     {work events failures index stream errors}
@@ -161,59 +137,24 @@ theorem StreamFailureCuts.nodeErrors_with_objects
     (generated : ExecutedWork work)
     (atEvent : events[index]? = some (.streamFailure stream errors))
     (objects : List Occurrence)
-    (knownObjects
+    (_knownObjects
       : ∀ occurrence ∈ objects,
           ∃ owners producer path errors,
             TaskAt work occurrence owners producer (.object path (.error errors)))
-    : NodeErrors work (failedBefore failures index ++ objects) stream.ref errors := by
-  classical
+    : NodeFailureCause work (failedBefore failures index ++ objects) stream.ref
+        errors := by
   obtain ⟨occurrence, member⟩ := cuts.covers atEvent
   obtain ⟨node, count, producer, selected, task⟩ := cuts.2 _ member
   obtain ⟨sameNode, sameCount⟩ :=
     Execution.WorkQueueEvent.streamFailure.inj (Option.some.inj (selected.symm.trans atEvent))
   subst node count
-  obtain ⟨dependencies, streamKnown⟩ := (itemTask_owner_nodeAt task).2
-  obtain ⟨contribution, values, total⟩ := cuts.nodeErrors ordered atEvent
-  let extended := fun source => if source ∈ objects then 0 else contribution source
-  have disjoint : ∀ source ∈ failedBefore failures index, source ∉ objects := by
-    intro source inCuts inObjects
-    obtain ⟨entry, retained, same⟩ := List.mem_map.mp inCuts
-    obtain ⟨owner, count, parent, _, descriptor⟩ := cuts.2 entry (List.mem_filter.mp retained).1
-    obtain ⟨owners, otherProducer, path, errors, object⟩ := knownObjects source inObjects
-    rw [same] at descriptor
-    have impossible := (descriptor.unique object).2.2
-    cases impossible
-  refine ⟨extended, ?_, ?_⟩
-  · intro source included
-    rcases List.mem_append.mp included with fromStream | fromObject
-    · obtain ⟨owners, parent, payload, descriptor, count⟩ := values source fromStream
-      exact ⟨owners, parent, payload, descriptor, by
-        simpa [extended, disjoint source fromStream] using count⟩
-    · obtain ⟨owners, parent, path, count, descriptor⟩ := knownObjects source fromObject
-      have absent := generated.objectFailure_not_streamOwner streamKnown descriptor
-      exact ⟨owners, parent, _, descriptor, by simp [extended, fromObject, absent]⟩
-  · have oldSame : (failedBefore failures index).map extended
-        = (failedBefore failures index).map contribution := by
-      apply List.map_congr_left
-      intro source member
-      simp [extended, disjoint source member]
-    have newZero : (objects.map extended).sum = 0 := by
-      apply List.sum_eq_zero_iff_forall_eq_nat.mpr
-      intro count member
-      obtain ⟨source, member, same⟩ := List.mem_map.mp member
-      rw [← same]
-      simp [extended, member]
-    simpa only [List.map_append, List.sum_append, oldSame, newZero, Nat.add_zero] using total
+  exact (cuts.nodeErrors ordered atEvent (generated.taskFailure_positive task rfl)).mono
+    (List.subset_append_left _ _)
 
-/-- Reordering the full failure inventory preserves its node-error count.
-Witness: retain each occurrence's exact contribution and permute the summands. This
-lets object and stream failures interleave without imposing an order on error summation.
--/
+/-- Reordering a failure inventory preserves an existing selected cause. -/
 theorem nodeErrors_of_perm {work failures more ref errors}
-    (counts : NodeErrors work failures ref errors) (reordered : failures.Perm more)
-    : NodeErrors work more ref errors := by
-  obtain ⟨contribution, known, total⟩ := counts
-  exact ⟨contribution, fun occurrence member => known occurrence (reordered.mem_iff.mpr member),
-    total.trans (reordered.map contribution).sum_nat⟩
+    (cause : NodeFailureCause work failures ref errors) (reordered : failures.Perm more)
+    : NodeFailureCause work more ref errors :=
+  cause.mono reordered.subset
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

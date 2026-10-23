@@ -38,11 +38,19 @@ def result (paths : α → List ResponsePath) : Result α → List ResponsePath
   | .error _ => []
   | .ok (data, _) => paths data
 
+/-- Selecting a boundary cause preserves every position introduced by a result. -/
+@[simp]
+theorem result_deliveryResult (paths : α → List ResponsePath) (outcome : TaskOutcome α)
+    : result paths outcome.deliveryResult = result paths outcome.result := by
+  cases outcome with
+  | mk completed cause => cases completed <;> rfl
+
 def work (containers : Bool) : Work → List ResponsePath
   | .empty | .stream .. => []
   | .combine left right => work containers left ++ work containers right
+  | .declareGroups _ tasks => work containers tasks
   | .executionGroup _ path completed children =>
-      result (fields containers path) completed ++ work containers children
+      result (fields containers path) completed.result ++ work containers children
 
 def completion (containers : Bool) (paths : α → List ResponsePath)
     (completed : Completion α)
@@ -53,8 +61,9 @@ def completion (containers : Bool) (paths : α → List ResponsePath)
 def workSlices (containers : Bool) : Work → List (List ResponsePath)
   | .empty | .stream .. => []
   | .combine left right => workSlices containers left ++ workSlices containers right
+  | .declareGroups _ tasks => workSlices containers tasks
   | .executionGroup _ path completed children =>
-      result (fields containers path) completed :: workSlices containers children
+      result (fields containers path) completed.result :: workSlices containers children
 
 def completionSlices (containers : Bool) (paths : α → List ResponsePath)
     (completed : Completion α)

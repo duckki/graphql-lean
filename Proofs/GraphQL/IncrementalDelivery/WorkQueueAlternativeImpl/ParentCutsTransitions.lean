@@ -4,6 +4,7 @@ import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.StreamPreparat
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.DrainNormalForm
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.IntegrationPathCoverage
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.FailureDescendants
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.ParentLinkUpdates
 
 /-! Live-parent cancellation safety across accounting updates and failure removal. -/
 
@@ -71,12 +72,20 @@ theorem State.LiveParentsUncancelled.addStreams {queue : State}
   · dsimp only
     split <;> exact safe
 
-theorem State.LiveParentsUncancelled.maybeIntegrateWork {queue : State} {parents}
+theorem State.LiveParentsUncancelled.maybeIntegrateWork {queue : State} {source parents}
     (safe : queue.LiveParentsUncancelled) (live : queue.LiveGroupsRegistered)
     (closed : queue.ParentRegistryClosed parents)
     (fields : queue.GroupParentsCanonical parents) (work : Work)
     (canonical : ∀ group ∈ work.groups, group.parent = (parents group.node.ref).head?)
-    (ordered : ParentsBefore [] work.groups) (parentTask : Option Occurrence := none)
+    (cancelled : queue.CancellationsRetired) (generated : ExecutedWork source)
+    (known
+      : ∀ group ∈ work.groups,
+          ∃ dependencies, GroupRecordAt source group.node dependencies)
+    (ancestry
+      : ∀ node dependencies,
+          GroupRecordAt source node dependencies → dependencies = parents node.ref)
+    (covered : work.ParentsCovered queue.registeredGroups)
+    (parentTask : Option Occurrence := none)
     : (queue.maybeIntegrateWork work parentTask).1.LiveParentsUncancelled := by
   have loop (tasks : List Task) (current : State) (safe : current.LiveParentsUncancelled)
       : (tasks.foldl State.addTask current).LiveParentsUncancelled := by
@@ -84,7 +93,8 @@ theorem State.LiveParentsUncancelled.maybeIntegrateWork {queue : State} {parents
     | nil => exact safe
     | cons task rest ih => exact ih _ (safe.addTask task)
   exact (loop work.tasks _
-          (safe.addGroups live closed fields work.groups canonical ordered))
+          (safe.addGroups live closed fields cancelled work.groups generated known
+            canonical ancestry covered))
   |>.addStreams work.streams parentTask
 
 theorem State.LiveParentsUncancelled.pruneEmptyGroups {queue : State}
@@ -92,13 +102,6 @@ theorem State.LiveParentsUncancelled.pruneEmptyGroups {queue : State}
     : (queue.pruneEmptyGroups groups).1.LiveParentsUncancelled :=
   safe.of_subset (queue.pruneEmptyGroups_groupNodes_sublist groups).subset
     (queue.pruneEmptyGroups_cancelledGroups groups)
-
-theorem State.LiveParentsUncancelled.startNewWork {queue : State}
-    (safe : queue.LiveParentsUncancelled) (released : NewWork)
-    : (queue.startNewWork released).LiveParentsUncancelled :=
-  safe.of_subset
-    (by rw [(queue.startNewWork_groupCore released).1]; exact List.Subset.refl _)
-    (queue.startNewWork_cancelledGroups released)
 
 theorem State.LiveParentsUncancelled.finishGroupSuccess {queue : State}
     (safe : queue.LiveParentsUncancelled) (group : GroupNode)
@@ -117,7 +120,8 @@ theorem State.LiveParentsUncancelled.finishGroupSuccess {queue : State}
   let flushed := (group.tasks.foldl flushGroupTask (queue, [], [])).1
   have after : flushed.LiveParentsUncancelled := flush group.tasks (queue, [], []) safe
   let filtered : State := { flushed with
-    groupNodes := flushed.groupNodes.filter (fun node => node.group.node.ref != group.group.node.ref)
+    groupNodes := flushed.groupNodes.filter
+      (fun node => node.group.node.ref != group.group.node.ref)
     rootGroups := flushed.rootGroups.filter (· != group.group.node.ref) }
   have kept : filtered.LiveParentsUncancelled := after.of_subset List.filter_sublist.subset rfl
   exact kept.pruneEmptyGroups _
@@ -149,5 +153,68 @@ theorem State.LiveParentsUncancelled.removeGroup {queue : State} {parents}
     have gone := (State.removeGroup_liveDescendant_absent forest (path.trans below)).1
     have present := (unique.removeGroup root).groupNode?_of_mem kept
     simp [gone] at present
+
+/-- Startup either preserves group structure or removes the entire failed subtree. -/
+theorem State.LiveParentsUncancelled.startGroup {queue : State} {parents}
+    (safe : queue.LiveParentsUncancelled) (unique : queue.GroupRefsUnique)
+    (fields : queue.GroupParentsCanonical parents)
+    (complete : queue.ParentLinksComplete parents) (forest : queue.RemovalForest parents)
+    (ref : Nat) (available : List (Occurrence × Nat) := [])
+    : (queue.startGroup ref available).1.LiveParentsUncancelled := by
+  have included : (queue.cacheTaskFailures available).groupNodes.Subset queue.groupNodes := by
+    rw [State.cacheTaskFailures_groupNodes]
+    exact List.Subset.refl _
+  have cached := safe.of_subset included (queue.cacheTaskFailures_cancelledGroups available)
+  have tasks (more : List Occurrence) (current : State)
+      (prior : current.LiveParentsUncancelled)
+      : (more.foldl (fun current task => current.startTask task available)
+          current).LiveParentsUncancelled := by
+    induction more generalizing current with
+    | nil => exact prior
+    | cons task rest ih =>
+        apply ih
+        change (current.startTask task available).LiveParentsUncancelled
+        unfold State.startTask
+        split
+        · exact prior
+        · split <;> exact prior
+  unfold State.startGroup
+  dsimp only
+  split
+  · exact cached
+  · split
+    · exact tasks _ _ cached
+    · exact cached.removeGroup (unique.cacheTaskFailures available)
+        (fields.cacheTaskFailures available) (complete.of_subset included)
+        (forest.of_subset included) _
+
+/-- Complete parent links retain parent safety throughout the actual startup fold. -/
+theorem State.LiveParentsUncancelled.startNewWork {queue : State} {parents}
+    (safe : queue.LiveParentsUncancelled) (unique : queue.GroupRefsUnique)
+    (fields : queue.GroupParentsCanonical parents)
+    (complete : queue.ParentLinksComplete parents) (forest : queue.RemovalForest parents)
+    (released : NewWork) (available : List (Occurrence × Nat) := [])
+    : (queue.startNewWork released available).1.LiveParentsUncancelled := by
+  have groups (more : NodeRefs) (acc : State × List GroupFailureEvent)
+      (prior : acc.1.LiveParentsUncancelled) (included : acc.1.groupNodes.Sublist queue.groupNodes)
+      : (more.foldl (fun (current, failures) ref =>
+          let (next, queued) := current.startGroup ref available
+          (next, failures ++ queued)) acc).1.LiveParentsUncancelled := by
+    induction more generalizing acc with
+    | nil => exact prior
+    | cons ref rest ih =>
+        have next := prior.startGroup (List.Nodup.sublist (included.map _) unique)
+          (fun node member => fields node (included.subset member))
+          (complete.of_subset included.subset) (forest.of_subset included.subset) ref available
+        exact ih _ next ((acc.1.startGroup_groupNodes_sublist ref available).trans included)
+  have streams (more : NodeRefs) (current : State) (prior : current.LiveParentsUncancelled)
+      : (more.foldl State.startStream current).LiveParentsUncancelled := by
+    induction more generalizing current with
+    | nil => exact prior
+    | cons ref rest ih =>
+        apply ih
+        unfold State.startStream
+        split <;> exact prior
+  exact streams _ _ (groups _ _ safe (List.Sublist.refl _))
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

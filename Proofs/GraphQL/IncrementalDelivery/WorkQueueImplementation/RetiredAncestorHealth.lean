@@ -1,4 +1,4 @@
-import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.AncestorCertificates
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.MissingParentCertificates
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.AncestorGuardHealth
 
 /-! Fresh registered settlements cannot newly invalidate retired healthy ancestors. -/
@@ -52,18 +52,6 @@ theorem State.AncestorsRetired.healthy_append_fresh
 -- The health guard's absent-parent boundary reduces to retirement preservation
 -----------------------------------------------------------------------------------------
 
-/-- Each live record with an absent, uncancelled parent retains its ancestor-retirement
-certificate. `queue` is the actual state; `work` supplies full registration ancestry.
-This is an internal replay invariant to prove, not a host-input or scheduler premise.
--/
-def State.MissingParentAncestorsRetired (queue : State) (work : Execution.Work) : Prop :=
-  ∀ node ∈ queue.groupNodes,
-    ∀ parent,
-      node.group.parent = some parent
-      → queue.groupNode? parent = none
-      → parent ∉ queue.cancelledGroups
-      → queue.AncestorsRetired work node.group.node.ref
-
 /-- At a protected missing-parent boundary, recording a fresh registered settlement
 preserves the health obligation. Witness: instantiate retired-ancestry preservation for
 each uncached live record; no output admission, publication, or guard-soundness assumption
@@ -78,53 +66,15 @@ theorem State.MissingParentAncestorsHealthy.append_fresh
     {task : Task} (registered : task ∈ queue.tasks)
     (matching : TaskMatches work task) (fresh : task.occurrence ∉ settled)
     : queue.MissingParentAncestorsHealthy work (failed ++ [task.occurrence]) := by
-  intro node member uncached dependencies record parent parentEq missing uncancelled
+  intro node member dependencies record parent parentEq missing uncancelled
   exact (retired node member parent parentEq missing uncancelled).healthy_append_fresh
     generated record
-    (healthy node member uncached dependencies record parent parentEq missing uncancelled)
+    (healthy node member dependencies record parent parentEq missing uncancelled)
     accounted registered matching fresh
 
 -----------------------------------------------------------------------------------------
 -- Failure removal cannot create a new uncancelled missing-parent boundary
 -----------------------------------------------------------------------------------------
-
-/-- An absent uncancelled ref after failure removal was already absent and uncancelled.
-Witness: every filtered-out ref is recorded as cancelled by the same operation. This
-needs no generated-work, subtree-coverage, or traversal-budget premise.
--/
-theorem State.removeGroup_missing_uncancelled (queue : State) (root parent : Nat)
-    (missing : (queue.removeGroup root).groupNode? parent = none)
-    (uncancelled : parent ∉ (queue.removeGroup root).cancelledGroups)
-    : queue.groupNode? parent = none ∧ parent ∉ queue.cancelledGroups := by
-  let removed := State.removeGroup.collect (queue.groupNodes.length + 1) queue [root] []
-  have noCancellation : parent ∉ queue.cancelledGroups ++ removed := uncancelled
-  have oldUncancelled : parent ∉ queue.cancelledGroups :=
-    fun member => noCancellation (List.mem_append_left _ member)
-  refine ⟨?_, oldUncancelled⟩
-  cases found : queue.groupNode? parent with
-  | none => rfl
-  | some node =>
-      have same := State.groupNode?_ref found
-      have notRemoved : parent ∉ removed :=
-        fun member => noCancellation (List.mem_append_right _ member)
-      have retained : node ∈ (queue.removeGroup root).groupNodes :=
-        List.mem_filter.mpr ⟨List.mem_of_find?_eq_some found, by
-          change (!removed.contains node.group.node.ref) = true
-          simp [same, notRemoved]⟩
-      have absent := List.find?_eq_none.mp missing node retained
-      exact False.elim (absent (beq_iff_eq.mpr same))
-
-/-- Failure cleanup preserves missing-parent retirement certificates.
-Witness: surviving records retain their parents, newly absent refs are cancelled, and
-permanent ancestor retirement survives removal.
--/
-theorem State.MissingParentAncestorsRetired.removeGroup {queue : State} {work}
-    (retired : queue.MissingParentAncestorsRetired work) (root : Nat)
-    : (queue.removeGroup root).MissingParentAncestorsRetired work := by
-  intro node member parent parentEq missing uncancelled
-  have prior := queue.removeGroup_missing_uncancelled root parent missing uncancelled
-  exact (retired node (List.mem_filter.mp member).1 parent parentEq prior.1 prior.2).mono
-    (fun _ ancestorRetired => ancestorRetired.removeGroup root)
 
 /-- Failure cleanup preserves missing-parent health for the same failure inventory.
 Witness: every accepting missing-parent boundary existed before filtering; new missing
@@ -133,9 +83,26 @@ parents carry cancellation markers and cannot use the guard's accepting branch.
 theorem State.MissingParentAncestorsHealthy.removeGroup {queue : State} {work failed}
     (healthy : queue.MissingParentAncestorsHealthy work failed) (root : Nat)
     : (queue.removeGroup root).MissingParentAncestorsHealthy work failed := by
-  intro node member uncached dependencies record parent parentEq missing uncancelled
+  intro node member dependencies record parent parentEq missing uncancelled
   have prior := queue.removeGroup_missing_uncancelled root parent missing uncancelled
-  exact healthy node (List.mem_filter.mp member).1 uncached dependencies record
+  exact healthy node (List.mem_filter.mp member).1 dependencies record
     parent parentEq prior.1 prior.2
+
+/-- Replaying a retained rejection preserves historical health of uncancelled parents.
+Witness: task replacement leaves group metadata unchanged; each owner removal either
+preserves an old missing parent or records its cancellation.
+-/
+theorem State.MissingParentAncestorsHealthy.taskFailure_preserves {queue : State}
+    {work failed} (healthy : queue.MissingParentAncestorsHealthy work failed)
+    (occurrence : Occurrence) (errors : Nat)
+    : (queue.taskFailure occurrence errors).1.MissingParentAncestorsHealthy work
+        failed := by
+  cases found : queue.taskNode? occurrence with
+  | none => simpa [State.taskFailure, found] using healthy
+  | some task =>
+      rw [queue.taskFailure_eq occurrence errors task found]
+      exact failureGroupFold_preserves
+        (fun current => current.MissingParentAncestorsHealthy work failed)
+        (fun _ ref valid => valid.removeGroup ref) errors task.task.groups _ healthy
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

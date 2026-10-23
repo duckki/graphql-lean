@@ -42,17 +42,16 @@ theorem State.TaskMembershipAbsent.taskSuccess {queue : State} {occurrence}
     (absent : queue.TaskMembershipAbsent occurrence) (settled : Occurrence)
     (result : TaskResult)
     (fresh : ∀ child ∈ result.work.tasks, occurrence ≠ child.occurrence)
-    : (queue.taskSuccess settled result).1.TaskMembershipAbsent occurrence := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.taskSuccess settled result available).1.TaskMembershipAbsent occurrence := by
   cases found : queue.taskNode? settled with
   | none => simpa only [State.taskSuccess, found] using absent
   | some node =>
-      rw [queue.taskSuccess_eq settled result node found]
-      split
-      · exact absent.removeTask settled
-      · have stored := absent.putTaskNode { node with value := some result.value }
-        have integrated := stored.maybeIntegrateWork result.work fresh (some settled)
-        apply State.TaskMembershipAbsent.drainReadyGroups_go
-        exact (integrated.successGroupFold node.task.groups [] {}).startNewWork _
+      rw [queue.taskSuccess_eq settled result node found available]
+      have stored := absent.putTaskNode { node with value := some result.value }
+      have integrated := stored.maybeIntegrateWork result.work fresh (some settled)
+      apply State.TaskMembershipAbsent.drainReadyGroups_go (available := available)
+      exact (integrated.successGroupFold node.task.groups [] {}).startNewWork _ available
 
 /-- Item preparation preserves an exclusion when all offered child identities differ.
 Witness: each actual integration, empty-shell pruning, and activation preserves it.
@@ -60,11 +59,13 @@ Witness: each actual integration, empty-shell pruning, and activation preserves 
 theorem State.TaskMembershipAbsent.preparedStreamItems {queue : State} {occurrence}
     (absent : queue.TaskMembershipAbsent occurrence) (items : List StreamItem)
     (fresh : ∀ item ∈ items, ∀ child ∈ item.work.tasks, occurrence ≠ child.occurrence)
-    : (queue.preparedStreamItems items).TaskMembershipAbsent occurrence := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.preparedStreamItems items available).TaskMembershipAbsent occurrence := by
   apply State.preparedStreamItems_preserves (fun current => current.TaskMembershipAbsent occurrence)
-    absent items
+    absent items available
   intro current item member prior
-  exact ((prior.maybeIntegrateWork item.work (fresh item member)).pruneEmptyGroups _).startNewWork _
+  exact ((prior.maybeIntegrateWork item.work (fresh item member)).pruneEmptyGroups _).startNewWork
+    _ available
 
 /-- Stream-item handling preserves the exclusion through preparation and draining.
 Witness: the leading stream event is only output; it does not modify group memberships.
@@ -73,11 +74,12 @@ theorem State.TaskMembershipAbsent.streamItems {queue : State} {occurrence}
     (absent : queue.TaskMembershipAbsent occurrence) (stream : Execution.DeliveryNode)
     (items : List StreamItem)
     (fresh : ∀ item ∈ items, ∀ child ∈ item.work.tasks, occurrence ≠ child.occurrence)
-    : (queue.streamItems stream items).1.TaskMembershipAbsent occurrence := by
-  rw [queue.streamItems_eq stream items]
+    (available : List (Occurrence × Nat) := [])
+    : (queue.streamItems stream items available).1.TaskMembershipAbsent occurrence := by
+  rw [queue.streamItems_eq stream items available]
   split
   · exact absent
-  · exact (absent.preparedStreamItems items fresh).drainReadyGroups_go _
+  · exact (absent.preparedStreamItems items fresh available).drainReadyGroups_go _ available
 
 /-- No handler restores an excluded occurrence unless it is offered as fresh child work.
 Witness: success/item preservation handles integration; failure and stream closures only
@@ -86,44 +88,40 @@ remove records or update counters, errors, and active-stream refs.
 theorem State.TaskMembershipAbsent.handleGraphEvent {queue : State} {occurrence}
     (absent : queue.TaskMembershipAbsent occurrence) (event : GraphEvent)
     (fresh : ∀ child ∈ event.childTasks, occurrence ≠ child.occurrence)
-    : (queue.handleGraphEvent event).1.TaskMembershipAbsent occurrence := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.handleGraphEvent event available).1.TaskMembershipAbsent occurrence := by
+  have cached := absent.cacheTaskFailures available
   cases event with
-  | taskSuccess settled result => exact absent.taskSuccess settled result fresh
-  | taskFailure settled errors => exact absent.taskFailure settled errors
+  | taskSuccess settled result => exact cached.taskSuccess settled result fresh available
+  | taskFailure settled errors => exact cached.taskFailure settled errors
   | streamItems stream items =>
-      exact absent.streamItems stream items (fun item member child childMember =>
-        fresh child (List.mem_flatMap.mpr ⟨item, member, childMember⟩))
+      exact cached.streamItems stream items (fun item member child childMember =>
+        fresh child (List.mem_flatMap.mpr ⟨item, member, childMember⟩)) available
   | streamSuccess stream =>
       simp only [State.handleGraphEvent, State.streamSuccess]
-      split <;> exact absent
+      split <;> exact cached
   | streamFailure stream errors =>
       simp only [State.handleGraphEvent, State.streamFailure]
-      split <;> exact absent
+      split <;> exact cached
+
+  | groupFailure notice =>
+      change ((queue.cacheTaskFailures available).groupFailure notice).1.TaskMembershipAbsent occurrence
+      unfold State.groupFailure
+      split
+      · exact cached
+      · split <;> exact cached
+
+/-- Dispatch cannot restore an excluded membership through enqueue effects. -/
+theorem State.TaskMembershipAbsent.dispatchGraphEvent {queue : State} {occurrence}
+    (absent : queue.TaskMembershipAbsent occurrence) (event : GraphEvent)
+    (fresh : ∀ child ∈ event.childTasks, occurrence ≠ child.occurrence)
+    (available : List (Occurrence × Nat) := [])
+    : (queue.dispatchGraphEvent event available).1.TaskMembershipAbsent occurrence := by
+  exact absent.handleGraphEvent event fresh available
 
 -----------------------------------------------------------------------------------------
 -- The existing source laws forbid reuse of any permanently registered task identity
 -----------------------------------------------------------------------------------------
-
-/-- A fresh input's child is not already in the permanent task registry.
-Witness: the child has a producer settling in this input. Prior registration would require
-that same producer to have succeeded earlier, contradicting source freshness. The argument
-does not require the child itself to have settled or published.
--/
-theorem GraphEvent.MatchesWork.childTask_not_registered {queue : State}
-    {work before event} (matching : GraphEvent.MatchesWork work event)
-    (ready : TaskProducersSucceeded work queue.tasks before) (fresh : event.Fresh before)
-    {child : Task} (member : child ∈ event.childTasks)
-    : child.occurrence ∉ queue.tasks.map Task.occurrence := by
-  intro registered
-  obtain ⟨task, taskMember, same⟩ := List.mem_map.mp registered
-  obtain ⟨producer, success, known⟩ := matching.childTasks_producer member
-  have earlier := ready task taskMember producer (same.symm ▸ known)
-  have incoming : producer ∈ event.identities.1 := by
-    simpa only [List.flatMap_singleton]
-      using GraphEvent.successes_mem_settled (events := [event])
-        (by simpa only [List.flatMap_singleton] using success)
-  exact fresh.2.2.1 producer incoming
-    (GraphEvent.successes_mem_settled earlier)
 
 /-- Registered membership exclusion survives every valid source continuation.
 Witness: permanent registration persists, each incoming child differs by producer
@@ -137,21 +135,22 @@ theorem State.TaskMembershipAbsent.replayGraphEvents_registered
     (ready : TaskProducersSucceeded work queue.tasks before)
     (ordered : ProducerOrder work (queue.tasks.map Task.occurrence))
     (events : List GraphEvent) (valid : ValidGraphEvents work (before ++ events))
-    : (queue.replayGraphEvents events).TaskMembershipAbsent occurrence := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.replayGraphEvents events available).TaskMembershipAbsent occurrence := by
   induction events generalizing queue before with
   | nil => exact absent
   | cons event rest ih =>
       have earlier : (before ++ [event]).IsPrefix (before ++ event :: rest) := ⟨rest, by simp⟩
       obtain ⟨matching, fresh, _⟩ := valid.atPrefix earlier
-      have continued := absent.handleGraphEvent event (by
+      have continued := absent.dispatchGraphEvent event (by
         intro child member same
-        exact matching.childTask_not_registered ready fresh member (same ▸ registered))
-      have next := State.handleGraphEvent_producerOrder ready ordered
-        (valid.prefix (List.prefix_append before (event :: rest))) matching fresh
+        exact matching.childTask_not_registered ready fresh member (same ▸ registered)) available
+      have next := State.dispatchGraphEvent_producerOrder ready ordered
+        (valid.prefix (List.prefix_append before (event :: rest))) matching fresh available
       apply ih continued _ next.1 next.2
         (by simpa only [List.append_assoc, List.singleton_append] using valid)
       obtain ⟨task, member, same⟩ := List.mem_map.mp registered
       exact List.mem_map.mpr
-        ⟨task, queue.handleGraphEvent_tasks_subset event member, same⟩
+        ⟨task, queue.handleGraphEvent_tasks_subset event available member, same⟩
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

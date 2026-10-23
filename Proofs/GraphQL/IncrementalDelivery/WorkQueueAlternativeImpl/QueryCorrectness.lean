@@ -1,6 +1,7 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.QueryObservation
 import Proofs.GraphQL.IncrementalDelivery.Correctness.QueryReconstruction
 import Proofs.GraphQL.IncrementalDelivery.Correctness.QueryLifecycle
+import Proofs.GraphQL.IncrementalDelivery.Semantics.WorkSize
 
 /-! End-to-end alternative reader correctness, inherited from the independent query
 theorems through actual-factory observation. Concrete host refinement remains separate.

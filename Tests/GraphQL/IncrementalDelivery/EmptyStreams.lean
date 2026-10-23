@@ -1,5 +1,6 @@
 import Proofs.GraphQL.IncrementalDelivery.Correctness
 import Tests.GraphQL.IncrementalDelivery.Execution
+import Proofs.GraphQL.IncrementalDelivery.Semantics.WorkSize
 
 /-! Exhausted stream boundaries remain real work, with no synthetic item publication. -/
 
@@ -37,6 +38,17 @@ inductive BoundaryTree (node : DeliveryNode) : Work → Prop where
     : BoundaryTree node left → BoundaryTree node right
       → BoundaryTree node (.combine left right)
   | stream : BoundaryTree node (.stream node [])
+  | declareGroups {work}
+    : BoundaryTree node work → BoundaryTree node (.declareGroups [] work)
+
+/-- Task-free boundary constructors are unchanged by declaration erasure. -/
+theorem BoundaryTree.withoutDeclarations {node work} (shape : BoundaryTree node work)
+    : BoundaryTree node work.withoutDeclarations := by
+  cases shape with
+  | empty => exact .empty
+  | combine left right => exact .combine left right
+  | stream => exact .stream
+  | declareGroups tasks => exact tasks.withoutDeclarations
 
 /-- Navigation preserves the task-free shape and root context, by address induction. -/
 theorem BoundaryTree.located {node work address current producer owners}
@@ -45,13 +57,13 @@ theorem BoundaryTree.located {node work address current producer owners}
     : BoundaryTree node current ∧ producer = none ∧ owners = [] := by
   replace known := StructuralEquivalence.located_of_current known
   induction known with
-  | root => exact ⟨shape, rfl, rfl⟩
+  | root => exact ⟨shape.withoutDeclarations, rfl, rfl⟩
   | left _ ih =>
       cases ih.1 with
-      | combine left _ => exact ⟨left, ih.2⟩
+      | combine left _ => exact ⟨left.withoutDeclarations, ih.2⟩
   | right _ ih =>
       cases ih.1 with
-      | combine _ right => exact ⟨right, ih.2⟩
+      | combine _ right => exact ⟨right.withoutDeclarations, ih.2⟩
   | executionGroup _ ih => cases ih.1
   | item _ entry ih => cases ih.1; simp at entry
 
@@ -87,7 +99,7 @@ theorem BoundaryTree.run {node work} (shape : BoundaryTree node work)
     exact ⟨[], none, known, by simp [announcedRefs, pendingRefs],
       Or.inl ⟨fun failure => failure.nonempty rfl, Or.inl rfl⟩, by simp, Or.inl rfl⟩
   have initial : Explains work [] [node] [] matching [] :=
-    ⟨initialized, by simp [FailureWitness], by simp⟩
+    Explains.of_causal_failures initialized (by simp [FailureWitness]) (by simp) (by simp)
   have allowed : EventAllowed work [node.ref] matching [] [] (.streamSuccess node) := by
     refine ⟨⟨[], none, known⟩, ?_, fun failure => failure.nonempty rfl, ?_⟩
     · simp [Open, announcedRefs, completedRefs]
@@ -98,9 +110,9 @@ theorem BoundaryTree.run {node work} (shape : BoundaryTree node work)
   · constructor
     · intro occurrence owners producer payload task
       exact False.elim (shape.noTask task)
-    · intro other kind parents birth descriptor
+    · intro other kind parents birth descriptor _
       obtain rfl := shape.node descriptor
-      exact Or.inl (by simp [completedRefs, eventCompleted])
+      simp [completedRefs, eventCompleted]
   · exact .cons (tail := []) (by simp) (.separate _ (.separate _ .nil)) .nil
 
 /-- The precise wire trace has a pending ID and its completion, but no item patch. -/
@@ -130,13 +142,13 @@ theorem empty_outcome
       { data := .object [("empty", .list [])] } := by cbv
   rw [response]
   have workEq : (prepared (streamed "empty" 0)).work =
-      .combine (.combine (.combine .empty (.stream (node "empty") [])) .empty) .empty := by cbv
+      .combine (.combine (.combine .empty (.stream (node "empty") [])) .empty) (.declareGroups [] .empty) := by cbv
   have shape : BoundaryTree (node "empty") (prepared (streamed "empty" 0)).work := by
     rw [workEq]
-    exact .combine (.combine (.combine .empty .stream) .empty) .empty
+    exact .combine (.combine (.combine .empty .stream) .empty) (.declareGroups .empty)
   have known : NodeAt (prepared (streamed "empty" 0)).work (node "empty") .stream [] none := by
     rw [workEq]
-    exact .stream (.right (.left (.left .root)))
+    exact NodeAt.stream (address := [0, 0, 1]) (items := []) (by rfl)
   exact .incremental [] [node "empty"]
     [[[.streamSuccess (node "empty"), .workQueueTermination]]]
     (by rw [workEq]; decide)
@@ -164,14 +176,15 @@ theorem exact_outcome
   have workEq : (prepared (streamed "values" 3)).work =
       .combine (.combine (.combine
         (.combine .empty (.combine .empty (.combine .empty .empty)))
-        (.stream (node "values") [])) .empty) .empty := by cbv
+        (.stream (node "values") [])) .empty) (.declareGroups [] .empty) := by cbv
   have shape : BoundaryTree (node "values") (prepared (streamed "values" 3)).work := by
     rw [workEq]
     exact .combine (.combine (.combine
-      (.combine .empty (.combine .empty (.combine .empty .empty))) .stream) .empty) .empty
+      (.combine .empty (.combine .empty (.combine .empty .empty))) .stream) .empty)
+      (.declareGroups .empty)
   have known : NodeAt (prepared (streamed "values" 3)).work (node "values") .stream [] none := by
     rw [workEq]
-    exact .stream (.right (.left (.left .root)))
+    exact NodeAt.stream (address := [0, 0, 1]) (items := []) (by rfl)
   exact .incremental [] [node "values"]
     [[[.streamSuccess (node "values"), .workQueueTermination]]]
     (by rw [workEq]; decide)
@@ -239,6 +252,7 @@ def boundaries : Nat → Work → List (DeliveryNode × Nat)
   | fuel + 1, work =>
       match work with
       | .empty => []
+      | .declareGroups _ tasks => boundaries fuel tasks
       | .combine left right => boundaries fuel left ++ boundaries fuel right
       | .executionGroup _ _ _ children => boundaries fuel children
       | .stream stream items =>

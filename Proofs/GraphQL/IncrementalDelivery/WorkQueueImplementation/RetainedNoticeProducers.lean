@@ -1,6 +1,6 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.GroupNoticeProducers
 
-/-! Both retained tasks and error-only caches supply a source-ready notice contributor. -/
+/-! Retained tasks supply a source-ready notice contributor. -/
 
 namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
@@ -27,49 +27,33 @@ theorem ExecutedWork.groupContributor_object
         (generated.groupStreamRefsDisjoint group ⟨address, items, located⟩ refEq)
 
 -----------------------------------------------------------------------------------------
--- Cached failures retain their original source prerequisite after task removal
+-- Retained task registrations supply their original source prerequisite
 -----------------------------------------------------------------------------------------
 
-/-- A retained notice has a source-ready object contributor even when its task list is empty.
-Witness: nonempty memberships use permanent task registration. An error-only record uses
-the contributing accepted failure, whose source-readiness bridge replaces the removed
-membership. Generated role separation excludes stream items in either group inventory.
+/-- A retained notice has a source-ready object contributor.
+Witness: its nonempty memberships use permanent task registration, which records each
+task's successful source prerequisite.
 -/
 theorem RetainedNoticeContents.sourceReadyContributor
     {work matching events failed received child}
     (contents : RetainedNoticeContents work matching events failed received child)
-    (generated : ExecutedWork work)
-    (failedReady
-      : ∀ address owners producer payload,
-          TaskAt work (.executionGroup address) owners producer payload
-          → Occurrence.executionGroup address ∈ failed
-          → ∀ source,
-              producer = some source → source ∈ received.flatMap GraphEvent.successes)
     : ∃ address owners producer payload,
         TaskAt work (.executionGroup address) owners producer payload
         ∧ child.ref ∈ owners
         ∧ ∀ source,
             producer = some source → source ∈ received.flatMap GraphEvent.successes := by
-  obtain ⟨⟨dependencies, birth, located⟩, queue, node, found, same, retained,
-    sound, registered, cached, producers, _⟩ := contents
+  obtain ⟨_, queue, node, found, same, retained,
+    sound, registered, producers, _⟩ := contents
   have member := List.mem_of_find?_eq_some found
-  by_cases hasTasks : node.tasks ≠ []
-  · obtain ⟨occurrence, listed⟩ := List.exists_mem_of_ne_nil _ hasTasks
-    obtain ⟨task, taskMember, _, owner⟩ := sound node member occurrence listed
-    obtain ⟨address, payload, producer, isObject, known⟩ := (registered task taskMember).1
-    refine ⟨address, _, producer, payload, isObject ▸ known, same ▸ owner, ?_⟩
-    intro source parent
-    exact producers task taskMember source ⟨_, payload, parent ▸ known⟩
-  · obtain ⟨occurrence, failed, owners, ⟨producer, payload, known⟩, owner⟩ :=
-      cached node member (retained.resolve_left hasTasks)
-    have contributes : child.ref ∈ owners := same ▸ owner
-    obtain ⟨address, rfl⟩ := generated.groupContributor_object located known contributes
-    exact ⟨address, owners, producer, payload, known, contributes,
-      failedReady address owners producer payload known failed⟩
+  obtain ⟨occurrence, listed⟩ := List.exists_mem_of_ne_nil _ retained
+  obtain ⟨task, taskMember, _, owner⟩ := sound node member occurrence listed
+  obtain ⟨address, payload, producer, isObject, known⟩ := (registered task taskMember).1
+  refine ⟨address, _, producer, payload, isObject ▸ known, same ▸ owner, ?_⟩
+  intro source parent
+  exact producers task taskMember source ⟨_, payload, parent ▸ known⟩
 
 /-- Concrete retained contents select a ready descriptor once causal dependencies are ready.
-Witness: recover a source-ready contributor from live tasks or its accepted error cache,
-identify the group's canonical dependencies, then descend through reused producers.
+Witness: recover a source-ready contributor from retained tasks, identify the group's canonical dependencies, then descend through reused producers.
 No separate readiness premise for all retained task producers is introduced.
 -/
 theorem RetainedNoticeContents.readyDescriptor
@@ -88,12 +72,6 @@ theorem RetainedNoticeContents.readyDescriptor
       : ∀ source index,
           Occurrence.item source index ∈ received.flatMap GraphEvent.successes
           → ¬TaskCancelled work matching events failures (.item source index))
-    (failedReady
-      : ∀ address owners producer payload,
-          TaskAt work (.executionGroup address) owners producer payload
-          → Occurrence.executionGroup address ∈ failedBefore failures events.length
-          → ∀ source,
-              producer = some source → source ∈ received.flatMap GraphEvent.successes)
     (known : NodeAt work child .group dependencies birth)
     (itemsPublished
       : ∀ source index,
@@ -112,7 +90,7 @@ theorem RetainedNoticeContents.readyDescriptor
         NodeAt work child .group dependencies producer
         ∧ ∀ source, producer = some source → Published matching events source := by
   obtain ⟨address, owners, producer, payload, task, owner, sourceReady⟩ :=
-    contents.sourceReadyContributor generated failedReady
+    contents.sourceReadyContributor
   obtain ⟨node, parents, descriptor, same⟩ := task.executionGroup_owner owner
   have nodeEq := generated.nodeRefCoherent _ _ _ _ _ _ _ _ descriptor known same
   obtain ⟨assignment, canonical⟩ := generated.groupDependenciesCanonical

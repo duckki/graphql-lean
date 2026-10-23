@@ -1,3 +1,4 @@
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.DeclarationMetadata
 import GraphQL.IncrementalDelivery.WorkQueueImplementation
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.StructuralEquivalence
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.AncestorChainMetadata
@@ -9,100 +10,108 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 -- Registration metadata includes taskless ancestors, not just task contributors
 -----------------------------------------------------------------------------------------
 
-/-- A registration descriptor occurs in a contributor's full ancestor chain in `work`.
-`dependencies` records the suffix above that descriptor. This supplies no task ownership,
-publication, or producer assertion for an ancestor-only record.
+/-- A registration descriptor belongs to an explicit declaration or contributor chain.
+This records metadata without claiming that an unused declaration has a supporting task.
 -/
 def GroupRecordAt (work : Execution.Work) (node : Execution.DeliveryNode)
     (dependencies : NodeRefs)
     : Prop :=
-  ∃ address groups path result children producer owners fragment ancestors,
-    Located work address (.executionGroup groups path result children) producer owners
-    ∧ fragment ∈ groups
-    ∧ (node :: ancestors).IsSuffix (fragment.node :: fragment.ancestors)
-    ∧ dependencies = ancestors.map Execution.DeliveryNode.ref
+  ∃ fragment ∈ GroupMetadata.fragments work,
+    ∃ ancestors,
+      (node :: ancestors).IsSuffix (fragment.node :: fragment.ancestors)
+      ∧ dependencies = ancestors.map Execution.DeliveryNode.ref
 
-/-- Every actual task-contributing group has its own registration descriptor.
-Witness: the entire contributor chain is a suffix of itself.
--/
+/-- An actual contributor supplies its own registration record through located metadata. -/
 theorem groupRecordAt_of_nodeAt {work node dependencies producer}
     (known : NodeAt work node .group dependencies producer)
     : GroupRecordAt work node dependencies := by
   obtain ⟨address, groups, path, result, children, owners, fragment,
     located, member, nodeEq, dependenciesEq⟩ := known
-  refine ⟨address, groups, path, result, children, producer, owners, fragment,
-    fragment.ancestors, located, member, ?_, dependenciesEq⟩
-  rw [nodeEq]
-  exact List.suffix_rfl
+  refine ⟨fragment, GroupMetadata.located_fragments located ?_,
+    fragment.ancestors, ?_, dependenciesEq⟩
+  · rw [GroupMetadata.fragments]
+    exact List.mem_append_left _ member
+  · rw [nodeEq]
+    exact List.suffix_rfl
 
-/-- A recorded nonempty ancestry list supplies its immediate parent's own descriptor.
-Witness: removing the child from the chain suffix retains the parent's exact suffix.
--/
+/-- A recorded chain supplies its immediate parent's exact suffix. -/
 theorem GroupRecordAt.parent {work node ref dependencies}
     (known : GroupRecordAt work node (ref :: dependencies))
     : ∃ parent, parent.ref = ref ∧ GroupRecordAt work parent dependencies := by
-  obtain ⟨address, groups, path, result, children, producer, owners, fragment,
-    ancestors, located, member, suffix, equal⟩ := known
+  obtain ⟨fragment, member, ancestors, suffix, equal⟩ := known
   cases ancestors with
   | nil => cases equal
   | cons parent rest =>
       obtain ⟨refEq, dependenciesEq⟩ := List.cons.inj equal
-      exact ⟨parent, refEq.symm, address, groups, path, result, children, producer,
-        owners, fragment, rest, located, member,
+      exact ⟨parent, refEq.symm, fragment, member, rest,
         (List.suffix_cons _ _).trans suffix, dependenciesEq⟩
 
-/-- Each lowered chain entry retains precisely the ancestor suffix above its node.
-Witness: induction over the nearest-first chain; lowering appends its head last.
--/
-theorem workFromSpec_groupChain_member {nodes : List Execution.DeliveryNode}
-    {group : Group} (member : group ∈ Work.fromExecution.groupChain nodes)
-    : ∃ ancestors,
-        (group.node :: ancestors).IsSuffix nodes
-        ∧ group.parent = ancestors.head?.map Execution.DeliveryNode.ref := by
-  induction nodes with
-  | nil => simp [Work.fromExecution.groupChain] at member
-  | cons node ancestors ih =>
-      rcases List.mem_append.mp member with earlier | last
-      · obtain ⟨tail, suffix, parent⟩ := ih earlier
-        exact ⟨tail, suffix.trans (List.suffix_cons _ _), parent⟩
-      · have same := List.mem_singleton.mp last
-        subst group
-        exact ⟨ancestors, List.suffix_rfl, rfl⟩
+/-- Every registration candidate retains the metadata of its explicit declaration. -/
+theorem workFromSpec_groups_metadata {current : Execution.Work} {address : Address}
+    {group : Group}
+    (member : group ∈ (Work.fromExecution current address).groups)
+    : ∃ fragment ∈ GroupMetadata.fragments current,
+        ∃ ancestors,
+          (group.node :: ancestors).IsSuffix (fragment.node :: fragment.ancestors)
+          ∧ group.parent = ancestors.head?.map Execution.DeliveryNode.ref := by
+  cases current with
+  | empty => simp [Work.fromExecution] at member
+  | combine left right =>
+      simp only [Work.fromExecution, Work.combine, List.mem_append] at member
+      rcases member with inLeft | inRight
+      · obtain ⟨fragment, found, ancestors, suffix, parent⟩ :=
+          workFromSpec_groups_metadata (current := left) inLeft
+        exact ⟨fragment, by rw [GroupMetadata.fragments]; exact List.mem_append_left _ found,
+          ancestors, suffix, parent⟩
+      · obtain ⟨fragment, found, ancestors, suffix, parent⟩ :=
+          workFromSpec_groups_metadata (current := right) inRight
+        exact ⟨fragment, by rw [GroupMetadata.fragments]; exact List.mem_append_right _ found,
+          ancestors, suffix, parent⟩
+  | declareGroups groups tasks =>
+      simp only [Work.fromExecution, List.mem_append] at member
+      rcases member with declared | nested
+      · obtain ⟨fragment, found, rfl⟩ := List.mem_map.mp declared
+        exact ⟨fragment, by rw [GroupMetadata.fragments]; exact List.mem_append_left _ found,
+          fragment.ancestors, List.suffix_rfl, rfl⟩
+      · obtain ⟨fragment, found, ancestors, suffix, parent⟩ :=
+          workFromSpec_groups_metadata (current := tasks) nested
+        exact ⟨fragment, by rw [GroupMetadata.fragments]; exact List.mem_append_right _ found,
+          ancestors, suffix, parent⟩
+  | executionGroup => cases member
+  | stream node items => simp [Work.fromExecution] at member
+termination_by sizeOf current
 
-/-- A contributor itself remains a candidate even when its ancestors precede it.
-Witness: it is the final entry appended by chain lowering.
--/
-theorem workFromSpec_groupChain_self (node : Execution.DeliveryNode)
-    (ancestors : List Execution.DeliveryNode)
-    : (⟨node, ancestors.head?.map Execution.DeliveryNode.ref⟩ : Group)
-      ∈ Work.fromExecution.groupChain (node :: ancestors) := by
-  simp [Work.fromExecution.groupChain]
+/-- Metadata inclusion connects any lowered work chunk with its original source. -/
+theorem workFromSpec_groups_recordAt_of_fragments
+    {root current : Execution.Work} {address : Address}
+    (contained : (GroupMetadata.fragments current).Subset (GroupMetadata.fragments root))
+    {group : Group} (member : group ∈ (Work.fromExecution current address).groups)
+    : ∃ dependencies,
+        GroupRecordAt root group.node dependencies
+        ∧ group.parent = dependencies.head? := by
+  obtain ⟨fragment, found, ancestors, suffix, parent⟩ := workFromSpec_groups_metadata member
+  exact ⟨
+    ancestors.map Execution.DeliveryNode.ref,
+    ⟨fragment, contained found, ancestors, suffix, rfl⟩,
+    by simpa only [List.head?_map] using parent
+  ⟩
 
-/-- Lowering any located chunk produces registration descriptors of the original work.
-Witness: traverse only `combine` and select a suffix of an actual contributor chain.
--/
+/-- Located subwork contributes only registration metadata already present in its root. -/
 theorem workFromSpec_groups_recordAt
     {root current : Execution.Work} {address : Address} {producer : Option Occurrence}
     {owners : NodeRefs} (located : Located root address current producer owners)
     {group : Group} (member : group ∈ (Work.fromExecution current address).groups)
     : ∃ dependencies,
-        GroupRecordAt root group.node dependencies
-        ∧ group.parent = dependencies.head? := by
-  cases current with
-  | empty => simp [Work.fromExecution] at member
-  | combine left right =>
-      rcases List.mem_append.mp member with inLeft | inRight
-      · exact workFromSpec_groups_recordAt located.left inLeft
-      · exact workFromSpec_groups_recordAt located.right inRight
-  | executionGroup fragments path result children =>
-      obtain ⟨fragment, fragmentMember, chainMember⟩ := List.mem_flatMap.mp member
-      obtain ⟨ancestors, suffix, parent⟩ := workFromSpec_groupChain_member chainMember
-      refine ⟨ancestors.map Execution.DeliveryNode.ref,
-        ⟨address, fragments, path, result, children, producer, owners, fragment,
-          ancestors, located, fragmentMember, suffix, rfl⟩, ?_⟩
-      simpa only [List.head?_map] using parent
-  | stream node items => simp [Work.fromExecution] at member
-termination_by sizeOf current
+        GroupRecordAt root group.node dependencies ∧ group.parent = dependencies.head? :=
+  workFromSpec_groups_recordAt_of_fragments (GroupMetadata.located_fragments located)
+    member
+
+/-- Root registration includes explicit declarations before address normalization. -/
+theorem workFromSpec_groups_recordAt_root {work : Execution.Work} {group : Group}
+    (member : group ∈ (Work.fromExecution work).groups)
+    : ∃ dependencies,
+        GroupRecordAt work group.node dependencies ∧ group.parent = dependencies.head? :=
+  workFromSpec_groups_recordAt_of_fragments (fun _ member => member) member
 
 /-- Exact generated ancestry assignments also identify every taskless ancestor suffix.
 Witness: descend the coherent parent chain, retaining the strict allocation-ref bound.

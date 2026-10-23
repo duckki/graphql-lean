@@ -50,46 +50,68 @@ theorem State.taskFailure_streamNoticeRefs (queue : State) (occurrence : Occurre
   | none => simp [State.taskFailure, found]
   | some incoming =>
       rw [queue.taskFailure_eq occurrence errors incoming found]
-      split
-      · rfl
-      · exact loop _ _
+      exact loop _ _
 
 /-- Every handler retains announced stream roots or emits their actual completion.
 Witness: task/item success covers all new stream notices, task failure preserves roots,
 and each stream-close branch removes only its explicitly completed ref.
 -/
 theorem State.handleGraphEvent_streamNoticeCompletion (queue : State) (event : GraphEvent)
-    : StreamNoticeCompletion queue.rootStreams (queue.handleGraphEvent event) := by
+    (available : List (Occurrence × Nat) := [])
+    : StreamNoticeCompletion queue.rootStreams
+        (
+          (queue.handleGraphEvent event available).1,
+          (queue.handleGraphEvent event available).2.1
+        ) := by
+  let current := queue.cacheTaskFailures available
+  have roots : current.rootStreams = queue.rootStreams := by
+    have frame := congrArg State.rootStreams (queue.cacheTaskFailures_frame available)
+    exact frame
+  rw [← roots]
+  unfold State.handleGraphEvent
   cases event with
   | taskSuccess occurrence result =>
       intro ref member
-      exact .inl (queue.taskSuccess_streamRoots_cover occurrence result member)
+      exact .inl (current.taskSuccess_streamRoots_cover occurrence result available member)
   | taskFailure occurrence errors =>
       intro ref member
-      simp only [State.handleGraphEvent, State.taskFailure_streamNoticeRefs,
+      simp only [State.taskFailure_streamNoticeRefs,
         List.append_nil] at member
-      exact .inl (by rwa [State.handleGraphEvent, State.taskFailure_rootStreams])
+      exact .inl (by rwa [State.taskFailure_rootStreams])
   | streamItems stream items =>
       intro ref member
-      exact .inl (queue.streamItems_streamRoots_cover stream items member)
+      exact .inl (current.streamItems_streamRoots_cover stream items available member)
   | streamSuccess stream =>
-      simp only [State.handleGraphEvent, State.streamSuccess]
+      simp only [State.streamSuccess]
       split
       · intro ref member
-        have old : ref ∈ queue.rootStreams := by simpa [rawStreamNoticeRefs] using member
+        have old : ref ∈ current.rootStreams := by simpa [rawStreamNoticeRefs] using member
         by_cases same : ref = stream.ref
         · exact .inr (by simp [rawStreamClosureRefs, same])
         · exact .inl (List.mem_filter.mpr ⟨old, by simpa using same⟩)
       · intro ref member; exact .inl (by simpa using member)
   | streamFailure stream errors =>
-      simp only [State.handleGraphEvent, State.streamFailure]
+      simp only [State.streamFailure]
       split
       · intro ref member
-        have old : ref ∈ queue.rootStreams := by simpa [rawStreamNoticeRefs] using member
+        have old : ref ∈ current.rootStreams := by simpa [rawStreamNoticeRefs] using member
         by_cases same : ref = stream.ref
         · exact .inr (by simp [rawStreamClosureRefs, same])
         · exact .inl (List.mem_filter.mpr ⟨old, by simpa using same⟩)
       · intro ref member; exact .inl (by simpa using member)
+
+  | groupFailure failure =>
+      simp only [State.groupFailure]
+      split
+      · intro ref member; exact .inl (by simpa using member)
+      · split <;> intro ref member <;> exact .inl (by simpa [rawStreamNoticeRefs] using member)
+
+/-- Realized enqueue effects preserve the stream completion certificate. -/
+theorem State.dispatchGraphEvent_streamNoticeCompletion (queue : State)
+    (event : GraphEvent) (available : List (Occurrence × Nat) := [])
+    : StreamNoticeCompletion queue.rootStreams
+        (queue.dispatchGraphEvent event available) :=
+  queue.handleGraphEvent_streamNoticeCompletion event available
 
 -----------------------------------------------------------------------------------------
 -- Concrete tracking composes across arbitrary source replay
@@ -121,20 +143,54 @@ Witness: compose the actual handler results in order. Unlike protected group cle
 this concrete invariant requires no generated-work or matching-source premise.
 -/
 theorem State.rawEventReplay_streamNoticeCompletion (queue : State)
-    (events : List GraphEvent)
-    : StreamNoticeCompletion queue.rootStreams (queue.rawEventReplay events) := by
+    (events : List GraphEvent) (available : List (Occurrence × Nat) := [])
+    : StreamNoticeCompletion queue.rootStreams
+        (queue.rawEventReplay events available) := by
   induction events generalizing queue with
   | nil => intro ref member; exact .inl (by simpa [State.rawEventReplay] using member)
   | cons event rest ih =>
-      rw [State.rawEventReplay_cons]
-      exact (queue.handleGraphEvent_streamNoticeCompletion event).append (ih _)
+      rw [State.rawEventReplay_cons queue event rest available]
+      exact (queue.dispatchGraphEvent_streamNoticeCompletion event available).append (ih _)
+
+/-- Additional controls without stream notices preserve exact stream completion tracking. -/
+theorem StreamNoticeCompletion.append_noticeFree {initial result}
+    (tracked : StreamNoticeCompletion initial result) (controls : List WorkQueueEvent)
+    (noNotices : controls.flatMap rawStreamNoticeRefs = [])
+    : StreamNoticeCompletion initial (result.1, result.2 ++ controls) := by
+  have right : StreamNoticeCompletion result.1.rootStreams (result.1, controls) := by
+    intro ref member
+    exact .inl (by simpa only [noNotices, List.append_nil] using member)
+  exact tracked.append right
+
+/-- Actual FIFO replay and termination retain the exact stream completion certificate. -/
+theorem State.handleGraphEvents_streamNoticeCompletion (queue : State)
+    (events : List GraphEvent)
+    : StreamNoticeCompletion queue.rootStreams (queue.handleGraphEvents events) := by
+  have prior := queue.rawEventReplay_streamNoticeCompletion events
+    (GraphEvent.availableFailures events)
+  rw [State.handleGraphEvents_eq_rawEventReplay]
+  split
+  · intro ref member; exact .inl (by simpa using member)
+  · dsimp only
+    split
+    · exact prior.append_noticeFree [.workQueueTermination] rfl
+    · exact prior
+
+/-- Stream completion tracking composes over the actual raw batch output and state. -/
+theorem State.rawBatches_streamNoticeCompletion (queue : State)
+    (batches : List (List GraphEvent))
+    : StreamNoticeCompletion queue.rootStreams (queue.rawBatches batches) := by
+  induction batches generalizing queue with
+  | nil => intro ref member; exact .inl (by simpa [State.rawBatches] using member)
+  | cons batch rest ih =>
+      exact (queue.handleGraphEvents_streamNoticeCompletion batch).append (ih _)
 
 /-- At termination every initial or carried stream notice has an emitted stream completion.
 Witness: initialization activates every notice, exact raw tracking retains it until closure,
 and the started replay's terminal root set is empty. Empty streams require no special case.
 -/
 theorem createWorkQueue_terminalStreamCompleted {work inputs ref}
-    (started : inputsStarted work inputs = true)
+    (_started : inputsStarted work inputs = true)
     (ended
       : ((State.initialize (Work.fromExecution work)).runNormalized inputs).1.terminated
         = true)
@@ -142,23 +198,20 @@ theorem createWorkQueue_terminalStreamCompleted {work inputs ref}
       : ref
         ∈ (State.initialize (Work.fromExecution work)).initialStreams.map
             Execution.DeliveryNode.ref
-          ++ ((State.initialize (Work.fromExecution work)).rawEventReplay
-                inputs.flatten).2.flatMap
+          ++ ((State.initialize (Work.fromExecution work)).rawBatches inputs).2.flatMap
               rawStreamNoticeRefs)
     : ref
-      ∈ ((State.initialize (Work.fromExecution work)).rawEventReplay
-          inputs.flatten).2.flatMap
+      ∈ ((State.initialize (Work.fromExecution work)).rawBatches inputs).2.flatMap
           rawStreamClosureRefs := by
   have noticed : ref ∈ (State.initialize (Work.fromExecution work)).rootStreams
-      ++ ((State.initialize (Work.fromExecution work)).rawEventReplay inputs.flatten).2.flatMap
+      ++ ((State.initialize (Work.fromExecution work)).rawBatches inputs).2.flatMap
         rawStreamNoticeRefs := by
     rcases List.mem_append.mp announced with initial | carried
     · exact List.mem_append_left _ (createWorkQueue_initialStreams_active _ initial)
     · exact List.mem_append_right _ carried
-  have tracked := State.rawEventReplay_streamNoticeCompletion
-    (State.initialize (Work.fromExecution work)) inputs.flatten ref noticed
-  have empty := (createWorkQueue_replayGraphEvents_terminalRoots started ended).2
-  rw [State.rawEventReplay_state] at tracked
-  exact tracked.resolve_left (by rw [empty]; simp)
+  have tracked := State.rawBatches_streamNoticeCompletion
+    (State.initialize (Work.fromExecution work)) inputs ref noticed
+  have empty := (createWorkQueue_replayBatches_terminalRoots ended).2
+  exact tracked.resolve_left (by rw [State.rawBatches_state, empty]; simp)
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

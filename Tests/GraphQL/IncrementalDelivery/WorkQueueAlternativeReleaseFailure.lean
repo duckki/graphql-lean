@@ -39,16 +39,20 @@ private def streamWork : Execution.Work :=
 
 private def work : Execution.Work :=
   .combine .empty
-    (.combine
-      (.executionGroup [⟨root, []⟩, ⟨child, [parent]⟩] []
-        (.ok (value.data, 0)) streamWork)
-      (.combine (.executionGroup [⟨root, []⟩] [] (.error 1) .empty)
+    (.declareGroups [⟨root, []⟩, ⟨parent, []⟩, ⟨child, [parent]⟩, ⟨supporter, []⟩]
+      (.combine
+        (.executionGroup [⟨root, []⟩, ⟨child, [parent]⟩] []
+          ({ result := .ok (value.data, 0) }) streamWork)
         (.combine
-          (.executionGroup [⟨parent, []⟩] [] (.ok (parentValue.data, 0))
-            (.combine .empty .empty))
+          (.executionGroup [⟨root, []⟩] [] ({ result := .error 1, cause := some 1 })
+            .empty)
           (.combine
-            (.executionGroup [⟨child, [parent]⟩, ⟨supporter, []⟩] [] (.error 1) .empty)
-            .empty))))
+            (.executionGroup [⟨parent, []⟩] [] ({ result := .ok (parentValue.data, 0) })
+              (.combine .empty .empty))
+            (.combine
+              (.executionGroup [⟨child, [parent]⟩, ⟨supporter, []⟩] []
+                ({ result := .error 1, cause := some 1 }) .empty)
+              .empty)))))
 
 private def success : GraphEvent :=
   .taskSuccess producer
@@ -69,7 +73,7 @@ private def earlierInputs : List (List GraphEvent) := [[success], [killRoot], [k
 private def inputs : List (List GraphEvent) := earlierInputs ++ [[finish]]
 private abbrev before := ((State.initialize work).runNormalized earlierInputs).1
 private abbrev reduced := ({ state := before } : GraphBatchResult).handleGraphEvent finish
-private abbrev events := (before.queue.handleGraphEvent finish).2
+private abbrev events := (before.queue.handleGraphEvent finish).2.1
 private abbrev snapshot := registrationSnapshot before.queue finish
 private abbrev view := failurePruningView before.queue finish events
 
@@ -92,24 +96,34 @@ private theorem generated : ReferenceWorkQueue.ExecutedWork work := by
 private theorem producer_known
     : TaskAt work producer [root.ref, child.ref] none
         (.object [] (.ok (value.data, 0))) :=
-  ⟨_, [], .ok (value.data, 0), streamWork, [], rfl, rfl, rfl⟩
+  ⟨_, [], { result := .ok (value.data, 0) }, streamWork, [], rfl, rfl, rfl⟩
 
 private theorem root_known
     : TaskAt work rootFailure [root.ref] none (.object [] (.error 1)) :=
-  ⟨_, [], .error 1, .empty, [], rfl, rfl, rfl⟩
+  ⟨_, [], { result := .error 1, cause := some 1 }, .empty, [], rfl, rfl, rfl⟩
 
 private theorem child_known
     : TaskAt work childFailure [child.ref, supporter.ref] none (.object [] (.error 1)) :=
-  ⟨_, [], .error 1, .empty, [], rfl, rfl, rfl⟩
+  ⟨_, [], { result := .error 1, cause := some 1 }, .empty, [], rfl, rfl, rfl⟩
 
 private theorem finisher_known
     : TaskAt work finisher [parent.ref] none (.object [] (.ok (parentValue.data, 0))) :=
-  ⟨_, [], .ok (parentValue.data, 0), .combine .empty .empty, [], rfl, rfl, rfl⟩
+  ⟨
+    _,
+    [],
+    { result := .ok (parentValue.data, 0) },
+    .combine .empty .empty,
+    [],
+    rfl,
+    rfl,
+    rfl
+  ⟩
 
 private theorem valid : ReferenceWorkQueue.ValidGraphEvents work inputs.flatten := by
   have first : ReferenceWorkQueue.ValidGraphEvents work [success] :=
     .append .nil ⟨_, _, producer_known, rfl, rfl⟩
-      (by simp [ReferenceWorkQueue.GraphEvent.Fresh, ReferenceWorkQueue.GraphEvent.identities, success])
+      (by simp [ReferenceWorkQueue.GraphEvent.Fresh,
+        ReferenceWorkQueue.GraphEvent.identities, success])
       ⟨_, _, _, producer_known, by intro other impossible; cases impossible⟩
   have second : ReferenceWorkQueue.ValidGraphEvents work [success, killRoot] :=
     .append first ⟨_, _, _, root_known⟩
@@ -133,19 +147,15 @@ example : ReferenceWorkQueue.inputsStarted work inputs = true := by cbv
 example : before.queue.taskNode? producer = some buffered := by cbv
 
 example
-    : (before.queue.groupNode? child.ref).map ReferenceWorkQueue.GroupNode.failure
+    : (before.queue.taskNode? childFailure).map ReferenceWorkQueue.TaskNode.rejection
       = some (some 1) := by cbv
 
 example : before.queue.rootGroups = [parent.ref] := by cbv
 example : reduced.state.queue.taskNode? producer = none := by cbv
 
 example
-    : events
-      = [
-        .groupValues parent [parentValue],
-        .groupSuccess parent [child] [],
-        .groupFailure child 1
-      ] := by cbv
+    : events = [.groupValues parent [parentValue], .groupSuccess parent [child] []] := by
+  cbv
 
 example : GeneratedSnapshotTaskEvidence := GeneratedSnapshotTaskEvidence_holds
 
@@ -165,11 +175,13 @@ private abbrev failureBoundary := released.1.startNewWork released.2.2
 
 -- Parent closure cannot dispose a buffer owned by its child, including the failed child.
 private theorem updatedFrame : SnapshotTaskEvidence updated work := by
-  have frame := GeneratedSnapshotTaskEvidence_holds work earlierInputs finish generated valid (by cbv)
+  have frame := GeneratedSnapshotTaskEvidence_holds work earlierInputs finish generated valid
+    (by cbv)
   have found : snapshot.groupNode? parent.ref = some parentNode := by cbv
   have registered := frame.live parentNode (List.mem_of_find?_eq_some found)
   exact { frame with
     keys := frame.keys.putGroupNode closing,
+    registration := frame.registration.putGroupNode closing registered,
     live := frame.live.putGroupNode closing registered,
     buffered := frame.buffered.putGroupNodeSameTasks frame.keys parentNode
       (List.mem_of_find?_eq_some found) closing rfl rfl,
@@ -183,61 +195,41 @@ example : released.1.taskNode? producer = some buffered := by
           rfl
           (by decide)).1
 
-example : failureBoundary.rootGroups = [child.ref] := by cbv
-example : released.2.1 ++ failureBoundary.drainReadyGroups.2 = events := by cbv
+example : failureBoundary.1.rootGroups = [] := by cbv
+example : failureBoundary.2 = [⟨child, 1⟩] := by cbv
+example : released.2.1 ++ failureBoundary.1.drainReadyGroups.2.1 = events := by cbv
+example : (before.queue.handleGraphEvent finish).2.2 = [⟨child, 1⟩] := by cbv
 
 private theorem childPath : view.LiveDescendant child.ref child.ref := by
-  have frame := GeneratedSnapshotTaskEvidence_holds work earlierInputs finish generated valid (by cbv)
+  have frame := GeneratedSnapshotTaskEvidence_holds work earlierInputs finish generated valid
+    (by cbv)
   have found : snapshot.groupNode? parent.ref = some parentNode := by cbv
   have registered := frame.live parentNode (List.mem_of_find?_eq_some found)
   have updatedLive := frame.live.putGroupNode closing registered
-  have postRegistration := updated.finishGroupSuccess_registration updatedLive frame.contributors closing
-  have activeRegistration := ReferenceWorkQueue.State.startNewWork_registration
-    postRegistration.1 postRegistration.2.1 released.2.2
   have closed := ReferenceWorkQueue.State.finishGroupSuccess_closureAccounting updatedLive closing
     (by cbv; exact List.mem_cons_self)
-  have initialClosures : ReferenceWorkQueue.GroupClosureAccounting snapshot
-      (failureBoundary, released.2.1) := by
+  have closures : ReferenceWorkQueue.GroupClosureAccounting snapshot
+      (released.1, released.2.1) := by
     simpa only [List.nil_append]
       using (ReferenceWorkQueue.GroupClosureAccounting.silent
               (fun _ retired => retired.putGroupNode closing)).append
-        (closed.post (fun _ retired => retired.startNewWork released.2.2))
-  have edges : failureBoundary.GroupEdgesFrom snapshot := by
-    intro key node live
-    rw [ReferenceWorkQueue.State.groupNode?,
-      (ReferenceWorkQueue.State.startNewWork_groupCore _ _).1] at live
-    exact ((updated.finishGroupSuccess_descendants closing).1.trans
-      (ReferenceWorkQueue.State.putPending_groupEdgesFrom frame.keys found 0)) key node live
+        closed
+  have edges : released.1.GroupEdgesFrom snapshot :=
+    (updated.finishGroupSuccess_descendants closing).1.trans
+      (ReferenceWorkQueue.State.putPending_groupEdgesFrom frame.keys found 0)
   obtain ⟨parents, forest, _⟩ := generatedSnapshot_removalForest
     (inputs := earlierInputs) (event := finish) generated valid (by cbv)
-  have activeForest := ((forest.putCounters frame.keys found 0 none).finishGroupSuccess closing).startNewWork
-    released.2.2
-  have activeFrame := (updatedFrame.finishGroupSuccess closing).startNewWork released.2.2
-  have tracked := drain_pendingBuffer_ownerCut (before := before.queue) (event := finish)
-    activeFrame activeForest edges initialClosures failureBoundary.groupNodes.length
-    (occurrence := producer) (node := buffered) (by cbv) rfl
-    (by
-      intro key contributes
-      change key ∉ publicationRoots (released.2.1 ++ failureBoundary.drainReadyGroups.2)
-      have onlyPub : publicationRoots
-          (released.2.1 ++ failureBoundary.drainReadyGroups.2) = [parent.ref] := by cbv
-      rw [onlyPub]
-      have keys : key = root.ref ∨ key = child.ref := by simpa [buffered] using contributes
-      rcases keys with rfl | rfl <;> decide)
-    (owner := child) (by simp [buffered])
-    (by cbv; exact List.mem_cons_self)
-  rcases tracked with kept | cut
-  · have dropped : failureBoundary.drainReadyGroups.1.taskNode? producer = none := by cbv
-    change failureBoundary.drainReadyGroups.1.taskNode? producer = some buffered ∧ _ at kept
-    rw [dropped] at kept
-    contradiction
-  · obtain ⟨key, failed, path⟩ := cut
-    have onlyFailure : failureRoots failureBoundary.drainReadyGroups.2 = [child.ref] := by cbv
-    have same : key = child.ref := List.mem_singleton.mp (onlyFailure ▸ failed)
-    have exactEvents : released.2.1 ++ failureBoundary.drainReadyGroups.2 = events := by cbv
-    change (failurePruningView before.queue finish
-      (released.2.1 ++ failureBoundary.drainReadyGroups.2)).LiveDescendant key child.ref at path
-    simpa only [exactEvents, same] using path
+  have afterForest := (forest.putCounters frame.keys found 0).finishGroupSuccess closing
+  have queued : (⟨child, 1⟩ : ReferenceWorkQueue.GroupFailureEvent) ∈ failureBoundary.2 := by
+    cbv; exact List.mem_cons_self
+  have path : released.1.LiveDescendant child.ref child.ref := .self (by cbv)
+  have transported := startupFailureBoundary_path (before := before.queue) (event := finish)
+    released.2.2 afterForest edges closures failureBoundary.1.groupNodes.length queued path
+  have exactEvents : released.2.1 ++ failureBoundary.1.drainReadyGroups.2.1 = events := by cbv
+  change (failurePruningView before.queue finish
+    (released.2.1 ++ failureBoundary.1.drainReadyGroups.2.1)).LiveDescendant child.ref child.ref
+    at transported
+  simpa only [exactEvents] using transported
 
 example : view.LiveDescendant child.ref child.ref := childPath
 
@@ -254,7 +246,8 @@ example : snapshot.taskNode? finisher = some newlyStored := by cbv
 example
     : snapshot.TaskLinkedOn finisher
         (newlyStored.task.groups.map Execution.DeliveryNode.ref) := by
-  have frame := GeneratedSnapshotTaskEvidence_holds work earlierInputs finish generated valid (by cbv)
+  have frame := GeneratedSnapshotTaskEvidence_holds work earlierInputs finish generated valid
+    (by cbv)
   exact frame.buffered newlyStored
     (List.mem_of_find?_eq_some
       (show snapshot.taskNode? finisher
@@ -262,7 +255,8 @@ example
     rfl
 
 private theorem target : .cancelSource 4 ∈ reduced.effects := by
-  have classified := generatedPrepared_sourceClassified (inputs := earlierInputs) (event := finish) (occurrence := producer)
+  have classified := generatedPrepared_sourceClassified (inputs := earlierInputs)
+    (event := finish) (occurrence := producer)
     (node := buffered) (key := 4) generated valid (by cbv) trivial (by cbv) rfl (by decide)
   rcases classified with retained | active | requested
   · have dropped : reduced.state.queue.taskNode? producer = none := by cbv
@@ -382,10 +376,11 @@ private def child (index : Nat) : Execution.DeliveryNode :=
 
 private def children (index : Nat) : Execution.Work :=
   .combine .empty
-    (.combine
-      (.executionGroup [⟨child index, []⟩] (child index).path
-        (.ok ([("name", .scalar ("name" ++ toString (index + 1)))], 0))
-        (.combine .empty .empty)) .empty)
+    (.declareGroups [⟨child index, []⟩]
+      (.combine
+        (.executionGroup [⟨child index, []⟩] (child index).path
+          ({ result := .ok ([("name", .scalar ("name" ++ toString (index + 1)))], 0) })
+          (.combine .empty .empty)) .empty))
 
 private def occurrence : Occurrence := .item [0, 0, 1] 0
 private def childOccurrence : Occurrence := .executionGroup [0, 0, 1, 0, 1, 0]
@@ -410,19 +405,23 @@ private theorem generated : ReferenceWorkQueue.ExecutedWork work :=
 private theorem located
     : Located work [0, 0, 1]
         (.stream stream
-          [(.ok (.object [], 0), children 0), (.ok (.object [], 0), children 1)])
+          [
+            ({ result := .ok (.object [], 0) }, children 0),
+            ({ result := .ok (.object [], 0) }, children 1)
+          ])
         none [] := by cbv
 
 private theorem known
     : TaskAt work occurrence [stream.ref] none (.item stream (.ok (.object [], 0))) :=
-  .item located rfl
+  .item (result := { result := .ok (.object [], 0) }) located rfl
 
 private theorem valid : ReferenceWorkQueue.ValidGraphEvents work [event] := by
   refine .append .nil ?_ ?_ ?_
   · intro candidate member
     obtain rfl := List.mem_singleton.mp member
     exact ⟨_, _, known, by cbv⟩
-  · simp [event, ReferenceWorkQueue.GraphEvent.Fresh, ReferenceWorkQueue.GraphEvent.identities, item]
+  · simp [event, ReferenceWorkQueue.GraphEvent.Fresh,
+      ReferenceWorkQueue.GraphEvent.identities, item]
   · exact ⟨_, _, _, _, located, by simp, by simp,
       (by intro producer impossible; cases impossible), rfl⟩
 

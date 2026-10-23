@@ -111,7 +111,8 @@ private def inconsistent : List DeferUsage :=
 private def rawPlan : ExecutionPlan := { newCollectedFieldsMaps := [([2], [])] }
 
 private def firstAncestors : Work → List Nat
-  | .combine .empty (.combine (.executionGroup (fragment :: _) _ _ _) .empty) =>
+  | .combine .empty
+      (.declareGroups _ (.combine (.executionGroup (fragment :: _) _ _ _) .empty)) =>
       fragment.ancestors.map DeliveryNode.ref
   | _ => []
 

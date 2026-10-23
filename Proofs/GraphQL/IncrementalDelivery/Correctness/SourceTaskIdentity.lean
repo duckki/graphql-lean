@@ -34,6 +34,8 @@ mutual
       : task.Under address := by
     cases work with
     | empty => simp [sourceTasks] at member
+    | declareGroups groups tasks =>
+        exact sourceTasks_under address producer cursors tasks member
     | combine left right =>
         rw [sourceTasks] at member
         rcases List.mem_append.mp member with member | member
@@ -137,6 +139,8 @@ mutual
           (fun left right => left.occurrence ≠ right.occurrence) := by
     cases work with
     | empty => exact .nil
+    | declareGroups groups tasks =>
+        exact sourceTasks_unique address producer cursors tasks
     | combine left right =>
         rw [sourceTasks, List.pairwise_append]
         refine ⟨sourceTasks_unique _ _ _ _, sourceTasks_unique _ _ _ _, ?_⟩

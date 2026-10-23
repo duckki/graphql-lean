@@ -21,7 +21,8 @@ theorem ExecutedWork.success_retired_childStream_notice
     {work events occurrence result owners producer payload ref before after stream
       dependencies}
     (generated : ExecutedWork work) (valid : ValidGraphEvents work events)
-    (started : (State.initialize (Work.fromExecution work)).acceptsBatch events = true)
+    (started
+      : State.eventsStarted [] (State.initialize (Work.fromExecution work)) events = true)
     (known : TaskAt work occurrence owners producer payload) (contributes : ref ∈ owners)
     (healthy
       : ¬GroupRecordInvalidated work
@@ -40,7 +41,7 @@ theorem ExecutedWork.success_retired_childStream_notice
     : stream.ref
       ∈ ((State.initialize (Work.fromExecution work)).rawEventReplay events).2.flatMap
           rawStreamNoticeRefs := by
-  obtain ⟨node, found, accepted, owns, live⟩ := generated.success_with_finalHealthyOwner_live
+  obtain ⟨node, found, owns, live⟩ := generated.success_with_finalHealthyOwner_live
     valid started known contributes healthy sourceEq
   have earlier : before.IsPrefix events := ⟨.taskSuccess occurrence result :: after, sourceEq.symm⟩
   have boundary : (before ++ [GraphEvent.taskSuccess occurrence result]).IsPrefix events :=
@@ -50,7 +51,7 @@ theorem ExecutedWork.success_retired_childStream_notice
     generated.taskSuccess_prepared_childStream (valid.prefix earlier) matching fresh found
       (matching.taskChildStreams_complete child)
   have conserved := generated.success_conservesBufferedStreams (sourceEq ▸ valid)
-    (sourceEq ▸ started) found accepted
+    (sourceEq ▸ started) found
   have preparedLive := State.maybeIntegrateWork_includesRefs
     (((State.initialize (Work.fromExecution work)).replayGraphEvents before).putTaskNode
       { node with value := some result.value }) result.work (some occurrence) ref live

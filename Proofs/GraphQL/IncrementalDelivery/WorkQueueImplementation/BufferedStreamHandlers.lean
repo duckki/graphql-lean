@@ -10,6 +10,25 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 -- The new value is protected from immediately after its complete child attachment
 -----------------------------------------------------------------------------------------
 
+private theorem storedValues_successGroupFold {queue : State} {property}
+    (stored : queue.StoredValuesSatisfy property) (groups : List Execution.DeliveryNode)
+    : (groups.foldl successGroupStep (queue, [], {})).1.StoredValuesSatisfy property := by
+  have loop (more : List Execution.DeliveryNode)
+      (acc : State × List Execution.WorkQueueEvent × NewWork)
+      (known : acc.1.StoredValuesSatisfy property)
+      : (more.foldl successGroupStep acc).1.StoredValuesSatisfy property := by
+    induction more generalizing acc with
+    | nil => exact known
+    | cons group rest ih =>
+        obtain ⟨current, events, released⟩ := acc
+        dsimp only [List.foldl_cons, successGroupStep]
+        split
+        · exact ih _ known
+        · split
+          · exact ih _ ((known.putGroupNode _).finishGroupSuccess _)
+          · exact ih _ (known.putGroupNode _)
+  exact loop groups (queue, [], {}) stored
+
 /-- Successful processing releases or retains each stream attached in its prepared state.
 Witness: unsettled memberships justify the newly stored value; complete integration,
 the original owner fold, activation, and draining preserve the same producer and links.
@@ -18,12 +37,20 @@ theorem State.taskSuccess_preparedBufferedStreams {queue : State} {work settled}
     (accounted : queue.PendingAccounting work settled) (links : queue.StoredTaskLinks)
     (inventory : queue.ChildStreamInventory) {occurrence result node}
     (found : queue.taskNode? occurrence = some node)
-    (healthy : queue.taskHasHealthyOwner node.task = true) (fresh : occurrence ∉ settled)
+    (fresh : occurrence ∉ settled)
+    (available : List (Occurrence × Nat) := [])
+    (clean
+      : queue.StoredValuesSatisfy
+          (fun occurrence _ => ∀ errors, (occurrence, errors) ∉ available) := by
+        intro node member value stored errors impossible; cases impossible)
+    (own : ∀ errors, (occurrence, errors) ∉ available := by
+      intro errors impossible; cases impossible)
     : let prepared :=
         ((queue.putTaskNode { node with value := some result.value }).maybeIntegrateWork
           result.work (some occurrence)).1
-      prepared.BufferedStreamsConserved (queue.taskSuccess occurrence result).2
-        (queue.taskSuccess occurrence result).1 := by
+      prepared.BufferedStreamsConserved
+        (queue.taskSuccess occurrence result available).2.1
+        (queue.taskSuccess occurrence result available).1 := by
   let stored := queue.putTaskNode { node with value := some result.value }
   let prepared := (stored.maybeIntegrateWork result.work (some occurrence)).1
   let released := node.task.groups.foldl successGroupStep (prepared, [], {})
@@ -43,22 +70,24 @@ theorem State.taskSuccess_preparedBufferedStreams {queue : State} {work settled}
   have fold := State.successGroupFold_bufferedStreamsConserved
     (storedRefs.maybeIntegrateWork result.work (some occurrence)) preparedLinks
     preparedInventory node.task.groups
+  have cleanPrepared := (clean.putTaskNode { node with value := some result.value }
+    (fun _ _ => known.2 ▸ own)).maybeIntegrateWork result.work (some occurrence)
+  have cleanFolded := storedValues_successGroupFold cleanPrepared node.task.groups
   have activation := State.BufferedStreamsConserved.of_emptyOwners
-    (released.1.startNewWork_storedOwnersConserved released.2.2) []
-  have first := fold.append activation (by
-    rw [State.startNewWork_cancelledGroups]
-    exact List.Subset.refl _)
+    (released.1.startNewWork_storedOwnersConserved released.2.2 available cleanFolded) []
+  have first := fold.append activation
+    (State.startNewWork_cancelledGroups_subset _ _ available)
   simp only [List.append_nil] at first
   have activeLinks := links.taskSuccess_release accounted occurrence result node found fresh
+    available
   have foldedInventory := preparedInventory.successGroupFold node.task.groups [] {}
-  have activeInventory := foldedInventory.startNewWork released.2.2
+  have activeInventory := foldedInventory.startNewWork released.2.2 available
   have final := first.append
-    (State.drainReadyGroups_bufferedStreamsConserved activeLinks activeInventory)
-    (State.drainReadyGroups_go_cancelledGroups_subset _ _)
-  rw [queue.taskSuccess_eq occurrence result node found]
-  simpa only [healthy, Bool.not_true, Bool.false_eq_true, ↓reduceIte, stored, prepared,
-    released]
-    using final
+    (State.drainReadyGroups_bufferedStreamsConserved activeLinks activeInventory available
+      (cleanFolded.startNewWork released.2.2 available))
+    (State.drainReadyGroups_go_cancelledGroups_subset _ _ (available := available))
+  rw [queue.taskSuccess_eq occurrence result node found available]
+  simpa only [stored, prepared, released] using final
 
 -----------------------------------------------------------------------------------------
 -- Fresh source identity prevents overwriting an earlier buffered producer
@@ -75,8 +104,15 @@ theorem State.taskSuccess_bufferedStreamsConserved {queue : State} {work settled
     (included : settled.Subset (before.flatMap (fun event => event.identities.1)))
     (occurrence : Occurrence) (result : TaskResult)
     (fresh : (GraphEvent.taskSuccess occurrence result).Fresh before)
-    : queue.BufferedStreamsConserved (queue.taskSuccess occurrence result).2
-        (queue.taskSuccess occurrence result).1 := by
+    (available : List (Occurrence × Nat) := [])
+    (clean
+      : queue.StoredValuesSatisfy
+          (fun occurrence _ => ∀ errors, (occurrence, errors) ∉ available) := by
+        intro node member value stored errors impossible; cases impossible)
+    (own : ∀ errors, (occurrence, errors) ∉ available := by
+      intro errors impossible; cases impossible)
+    : queue.BufferedStreamsConserved (queue.taskSuccess occurrence result available).2.1
+        (queue.taskSuccess occurrence result available).1 := by
   have different {task buffered value} (lookup : queue.taskNode? task = some buffered)
       (stored : buffered.value = some value) : occurrence ≠ task := by
     intro same
@@ -87,28 +123,18 @@ theorem State.taskSuccess_bufferedStreamsConserved {queue : State} {work settled
   | none =>
       simpa only [State.taskSuccess, found] using State.BufferedStreamsConserved.refl queue
   | some node =>
-      cases healthy : queue.taskHasHealthyOwner node.task with
-      | false =>
-          rw [queue.taskSuccess_eq occurrence result node found]
-          simp only [healthy, Bool.not_false, ↓reduceIte]
-          intro task buffered value stream lookup stored linked owner contributes live uncancelled
-          exact .inr
-            ⟨
-              (queue.removeTask_lookup_other (different lookup stored).symm).trans lookup,
-              by simpa only [State.removeTask, List.map_map, Function.comp_def] using live
-            ⟩
-      | true =>
-          apply (State.taskSuccess_preparedBufferedStreams accounted links inventory found healthy
-            (fun member => fresh.2.2.1 occurrence List.mem_cons_self (included member))).of_lookups
-          · intro task buffered value lookup stored
-            have retained := State.putTaskNode_lookup_other lookup
-              { node with value := some result.value }
-              ((State.taskNode?_some found).2 ▸ different lookup stored)
-            exact State.maybeIntegrateWork_lookup_other retained result.work (some occurrence)
-              (fun same => different lookup stored (Option.some.inj same))
-          · exact State.maybeIntegrateWork_includesRefs
-              (queue.putTaskNode { node with value := some result.value })
-              result.work (some occurrence)
+      apply (State.taskSuccess_preparedBufferedStreams accounted links inventory found
+        (fun member => fresh.2.2.1 occurrence List.mem_cons_self (included member))
+        available clean own).of_lookups
+      · intro task buffered value lookup stored
+        have retained := State.putTaskNode_lookup_other lookup
+          { node with value := some result.value }
+          ((State.taskNode?_some found).2 ▸ different lookup stored)
+        exact State.maybeIntegrateWork_lookup_other retained result.work (some occurrence)
+          (fun same => different lookup stored (Option.some.inj same))
+      · exact State.maybeIntegrateWork_includesRefs
+          (queue.putTaskNode { node with value := some result.value })
+          result.work (some occurrence)
 
 /-- Fresh failure cannot discard an older buffered child while its contributor survives.
 Witness: exact empty-publication owner conservation from source provenance and retained

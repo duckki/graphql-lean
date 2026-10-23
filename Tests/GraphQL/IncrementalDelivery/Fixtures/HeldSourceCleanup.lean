@@ -1,4 +1,7 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.ResourceOwnership
+import Tests.GraphQL.IncrementalDelivery.Fixtures.WorkDeclarations
+
+open GraphQL.IncrementalDelivery.Tests (declaredTask)
 
 /-! Raw held-source cleanup fixture: last-owner failure requests disposal before unlinking.
 Acquisition is ghost evidence; this module alone does not assert execution generates work.
@@ -14,8 +17,9 @@ private def heldSource : DeliveryNode := { ref := 3, path := [] }
 
 def work : Execution.Work :=
   .combine
-    (.executionGroup [{ node := owner }] [] (.ok ([], 0)) (.stream heldSource []))
-    (.executionGroup [{ node := owner }] [] (.error 1) .empty)
+    (declaredTask [{ node := owner }] [] ({ result := .ok ([], 0) })
+      (.stream heldSource []))
+    (declaredTask [{ node := owner }] [] ({ result := .error 1 }) .empty)
 
 def success : GraphEvent :=
   .taskSuccess (.executionGroup [0])

@@ -9,7 +9,7 @@ open GraphQL.IncrementalDelivery.Execution
 witness: extract CanPublish from the corresponding value rule.
 -/
 theorem EventAllowed.freshPublication {work initial matching before failed event}
-    (allowed : EventAllowed work initial matching before failed event)
+    (allowed : EventAllowed work initial matching before failed event reported)
     (value : IsValue event)
     : ¬Published matching before (matching before.length) := by
   cases event <;> try contradiction
@@ -23,7 +23,7 @@ theorem EventAllowed.freshPublication {work initial matching before failed event
 /-- Every value atom comes from an actual successful task; witness: its event rule.
 -/
 theorem EventAllowed.publicationTask {work initial matching before failed event}
-    (allowed : EventAllowed work initial matching before failed event)
+    (allowed : EventAllowed work initial matching before failed event reported)
     (value : IsValue event)
     : ∃ owners producer payload,
         TaskAt work (matching before.length) owners producer payload
@@ -52,7 +52,7 @@ theorem Explains.publication_unique {work groups streams events matching failure
     have bound := (List.getElem?_eq_some_iff.mp atJ).choose
     have length : (events.take j).length = j := by
       simp [List.length_take, Nat.min_eq_left (Nat.le_of_lt bound)]
-    have fresh := (explained.2.2 j b atJ).freshPublication valueJ
+    have fresh := (explained.eventAllowed j b atJ).freshPublication valueJ
     rw [length] at fresh
     apply fresh
     exact ⟨i, a, (List.getElem?_take_of_lt less).trans atI, valueI, equal⟩
@@ -88,7 +88,7 @@ theorem Explains.published_task {work groups streams events matching failures oc
         TaskAt work occurrence owners producer payload ∧ payload.failure = none := by
   obtain ⟨index, event, selected, value, same⟩ := published
   have bound := (List.getElem?_eq_some_iff.mp selected).choose
-  have task := (explained.2.2 index event selected).publicationTask value
+  have task := (explained.eventAllowed index event selected).publicationTask value
   simpa [List.length_take, Nat.min_eq_left (Nat.le_of_lt bound), same] using task
 
 end GraphQL.IncrementalDelivery.WorkQueueSemantics

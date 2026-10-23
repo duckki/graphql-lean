@@ -119,7 +119,7 @@ example : CompletionRefines keys firstScheduled firstEager :=
 -- Nested item keys are included: agreement on only the root region is insufficient.
 private def hidden : Work :=
   .stream { ref := 0, path := [] }
-    [(.ok (.null, 0), .stream { ref := 8, path := [.index 0] } [])]
+    [({ result := .ok (.null, 0) }, .stream { ref := 8, path := [.index 0] } [])]
 
 example : allRefs hidden = [0, 8] := by cbv
 example : 8 ∉ rootRefs hidden := by simp [hidden, rootRefs]
@@ -142,7 +142,7 @@ example (failed : List Occurrence) (published : Occurrence → Prop)
     : ∀ occurrence,
         Causality.TaskCancelled eager.1.work failed published occurrence
         ↔ Causality.TaskCancelled scheduled.1.work failed published occurrence :=
-  (recursiveWorkCausality_holds keys keys_injective _ _ actual_refinement.2 failed
+  (recursiveWorkCausality_holds keys keys_injective _ _ actual_refinement.2.1 failed
     published).2.2
 
 example : PrefixWorkExtension := prefixWorkExtension_holds

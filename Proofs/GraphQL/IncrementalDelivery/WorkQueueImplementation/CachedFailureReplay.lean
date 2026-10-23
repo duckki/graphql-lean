@@ -1,172 +1,75 @@
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.ActualSourceFrames
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.CachedFailurePersistence
-import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.PublicationReplay
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.RetiredHealthReplay
 
-/-! Cached failures survive host processing until permanent cancellation is recorded. -/
+/-! Actual source rejection cannot retire an owning ref successfully.
+Generated retirement health replaces the obsolete arbitrary-state cache persistence law.
+-/
 
 namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
-open GraphQL.IncrementalDelivery.Execution (StreamItemValue WorkQueueEvent)
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
-/-- Successful task processing cannot erase a retained failure.
-Witness: integration retains caches; a success flush requires an empty selected cache;
-activation and final draining retain the failure or its permanent cancellation marker.
+/-- An owning ref absent after a valid source rejection has a cancellation marker.
+Witness: source matching identifies its fixed owner; permanent registration survives the
+continuation. The recorded rejection invalidates that ref, contradicting uncancelled
+successful retirement in generated replay.
 -/
-theorem State.FailureRetained.taskSuccess {queue : State} {ref}
-    (retained : queue.FailureRetained ref) (unique : queue.GroupRefsUnique)
-    (occurrence : Occurrence) (result : TaskResult)
-    : (queue.taskSuccess occurrence result).1.FailureRetained ref := by
-  have step (acc : State × List WorkQueueEvent × NewWork) (group : Execution.DeliveryNode)
-      (prior : acc.1.FailureRetained ref) (refs : acc.1.GroupRefsUnique)
-      : (successGroupStep acc group).1.FailureRetained ref
-        ∧ (successGroupStep acc group).1.GroupRefsUnique := by
-    obtain ⟨current, outputs, released⟩ := acc
-    dsimp only [successGroupStep]
-    split
-    · exact ⟨prior, refs⟩
-    · rename_i node found
-      have updated := prior.putCounters refs found (node.pending - 1) node.failure
-        (fun same => same)
-      have updatedRefs := refs.putGroupNode { node with pending := node.pending - 1 }
-      split
-      · rename_i success
-        have clear : node.failure = none := by
-          have parts :
-              ((current.putGroupNode { node with pending := node.pending - 1 }).rootGroups.contains
-                  group.ref = true ∧ node.pending - 1 == 0)
-                ∧ node.failure.isNone = true := by
-            simpa only [Bool.and_eq_true] using success
-          simpa using parts.2
-        have member : { node with pending := node.pending - 1 }
-            ∈ (current.putGroupNode { node with pending := node.pending - 1 }).groupNodes :=
-          List.mem_map.mpr ⟨node, List.mem_of_find?_eq_some found, by simp⟩
-        exact ⟨updated.finishGroupSuccess updatedRefs _ member clear,
-          updatedRefs.finishGroupSuccess _⟩
-      · exact ⟨updated, updatedRefs⟩
-  have fold (groups : List Execution.DeliveryNode) (acc : State × List WorkQueueEvent × NewWork)
-      (prior : acc.1.FailureRetained ref) (refs : acc.1.GroupRefsUnique)
-      : (groups.foldl successGroupStep acc).1.FailureRetained ref
-        ∧ (groups.foldl successGroupStep acc).1.GroupRefsUnique := by
-    induction groups generalizing acc with
-    | nil => exact ⟨prior, refs⟩
-    | cons group rest ih =>
-        obtain ⟨retained, unique⟩ := step acc group prior refs
-        exact ih _ retained unique
-  unfold State.taskSuccess
-  split
-  · exact retained
-  · rename_i node found
-    split
-    · exact retained.removeTask occurrence
-    · let stored := queue.putTaskNode { node with value := some result.value }
-      have prior : stored.FailureRetained ref := retained
-      have refs : stored.GroupRefsUnique := unique
-      obtain ⟨retained, unique⟩ := fold node.task.groups
-        ((stored.maybeIntegrateWork result.work (some occurrence)).1, [], {})
-        (prior.maybeIntegrateWork refs result.work (some occurrence))
-        (refs.maybeIntegrateWork result.work (some occurrence))
-      exact (retained.startNewWork _).drainReadyGroups (unique.startNewWork _)
-
-/-- Failed task processing retains each earlier cache or marks its removal.
-Witness: immediate failures record subtree cancellations; latent updates install a cache;
-ignored settlements only remove task memberships.
--/
-theorem State.FailureRetained.taskFailure {queue : State} {ref}
-    (retained : queue.FailureRetained ref) (unique : queue.GroupRefsUnique)
-    (occurrence : Occurrence) (errors : Nat)
-    : (queue.taskFailure occurrence errors).1.FailureRetained ref := by
-  have fold (groups : List Execution.DeliveryNode) (acc : State × List WorkQueueEvent)
-      (prior : acc.1.FailureRetained ref) (refs : acc.1.GroupRefsUnique)
-      : (groups.foldl (failureGroupStep errors) acc).1.FailureRetained ref := by
-    induction groups generalizing acc with
-    | nil => exact prior
-    | cons group rest ih =>
-        apply ih
-        · dsimp only [failureGroupStep]
-          split
-          · exact prior
-          · rename_i node found
-            split
-            · exact prior.removeGroup _
-            · exact prior.putCounters refs found _ _ (by simp)
-        · dsimp only [failureGroupStep]
-          split
-          · exact refs
-          · split
-            · exact refs.removeGroup _
-            · exact refs.putGroupNode _
-  unfold State.taskFailure
-  split
-  · exact retained
-  · rename_i node found
-    split
-    · exact retained.removeTask occurrence
-    · exact fold node.task.groups (queue.removeTask occurrence, [])
-        (retained.removeTask occurrence) (unique.removeTask occurrence)
-
-/-- Item arrival retains earlier failure caches through preparation and draining.
-Witness: item-child integration, pruning, activation, and the final drain each preserve
-the concrete cache-or-cancellation alternative. The stream need not be active.
--/
-theorem State.FailureRetained.streamItems {queue : State} {ref}
-    (retained : queue.FailureRetained ref) (unique : queue.GroupRefsUnique)
-    (stream : Execution.DeliveryNode) (items : List StreamItem)
-    : (queue.streamItems stream items).1.FailureRetained ref := by
-  let step (acc : State × List Execution.DeliveryNode × List Execution.DeliveryNode
-      × List StreamItemValue) (item : StreamItem) :=
-    let (current, groups, streams, values) := acc
-    let (integrated, more) := current.maybeIntegrateWork item.work
-    let (pruned, nonempty) := integrated.pruneEmptyGroups more.newGroups
-    (pruned.startNewWork { more with newGroups := nonempty }, groups ++ nonempty,
-      streams ++ more.newStreams, values ++ [item.value])
-  have fold (more : List StreamItem) (acc)
-      (prior : acc.1.FailureRetained ref) (refs : acc.1.GroupRefsUnique)
-      : (more.foldl step acc).1.FailureRetained ref
-        ∧ (more.foldl step acc).1.GroupRefsUnique := by
-    induction more generalizing acc with
-    | nil => exact ⟨prior, refs⟩
-    | cons item rest ih =>
-        have integrated := prior.maybeIntegrateWork refs item.work
-        have integratedRefs := refs.maybeIntegrateWork item.work
-        exact ih _ ((integrated.pruneEmptyGroups integratedRefs _).startNewWork _)
-          ((integratedRefs.pruneEmptyGroups _).startNewWork _)
-  unfold State.streamItems
-  split
-  · exact retained
-  · obtain ⟨retained, unique⟩ := fold items (queue, [], [], []) retained unique
-    exact retained.drainReadyGroups unique
-
-/-- Every executable host handler preserves a retained failure without source premises.
-Witness: dispatch the exact handlers; stream closure leaves group data untouched.
--/
-theorem State.FailureRetained.handleGraphEvent {queue : State} {ref}
-    (retained : queue.FailureRetained ref) (unique : queue.GroupRefsUnique)
-    (event : GraphEvent)
-    : (queue.handleGraphEvent event).1.FailureRetained ref := by
-  cases event with
-  | taskSuccess occurrence result => exact retained.taskSuccess unique occurrence result
-  | taskFailure occurrence errors => exact retained.taskFailure unique occurrence errors
-  | streamItems stream items => exact retained.streamItems unique stream items
-  | streamSuccess stream =>
-      change (queue.streamSuccess stream).1.FailureRetained ref
-      unfold State.streamSuccess
-      split <;> exact retained
-  | streamFailure stream errors =>
-      change (queue.streamFailure stream errors).1.FailureRetained ref
-      unfold State.streamFailure
-      split <;> exact retained
-
-/-- An earlier failure survives every finite raw continuation until marked cancelled.
-Witness: replay induction composes handler retention and unique-ref preservation.
-No event matching, source fairness, wire admission, or terminal-reporting premise is used.
--/
-theorem State.FailureRetained.rawEventReplay {queue : State} {ref}
-    (retained : queue.FailureRetained ref) (unique : queue.GroupRefsUnique)
-    (events : List GraphEvent)
-    : (queue.rawEventReplay events).1.FailureRetained ref := by
-  induction events generalizing queue with
-  | nil => exact retained
-  | cons event rest ih =>
-      rw [State.rawEventReplay_cons]
-      exact ih (retained.handleGraphEvent unique event) (unique.handleGraphEvent event)
+theorem ExecutedWork.runNormalized_failedContributor_cancelled_of_absent
+    {work inputs earlier batch later fifo after occurrence errors task ref}
+    (generated : ExecutedWork work) (valid : ValidGraphEvents work inputs.flatten)
+    (started : inputsStarted work inputs = true)
+    (split : inputs = earlier ++ batch :: later)
+    (batchEq : batch = fifo ++ .taskFailure occurrence errors :: after)
+    (found
+      : (((State.initialize (Work.fromExecution work)).replayBatches
+            earlier).replayGraphEvents
+          fifo (GraphEvent.availableFailures batch)).taskNode?
+          occurrence
+        = some task)
+    (owner : ref ∈ task.task.groups.map Execution.DeliveryNode.ref)
+    (absent
+      : ((State.initialize (Work.fromExecution work)).runNormalized inputs).1.groupNode?
+          ref
+        = none)
+    : ref
+      ∈ ((State.initialize (Work.fromExecution work)).runNormalized
+          inputs).1.cancelledGroups := by
+  let initial := State.initialize (Work.fromExecution work)
+  obtain ⟨parents, canonical⟩ := generated.groupRecordsCanonical
+  have frames := generated.uncancelledFrames_atBatchEvent canonical valid started earlier batch
+    later fifo (.taskFailure occurrence errors) after split batchEq
+  have metadata := frames.2.2.1.tasks
+  have originalRegistered := metadata.registered task (List.mem_of_find?_eq_some found)
+  have original := metadata.matching task.task originalRegistered
+  obtain ⟨⟨address, payload, producer, identity, known⟩, exactGroups⟩ := original
+  have occurrenceEq := (State.taskNode?_some found).2
+  rw [occurrenceEq] at known exactGroups
+  have failureMember : GraphEvent.taskFailure occurrence errors ∈ inputs.flatten := by
+    rw [split, List.flatten_append, List.flatten_cons, batchEq]
+    exact List.mem_append_right _ (List.mem_append_left _ (List.mem_append_right _
+      List.mem_cons_self))
+  have recorded : occurrence ∈ GraphEvent.failureSettlements inputs.flatten := by
+    apply List.mem_reverse.mpr
+    exact List.mem_flatMap.mpr ⟨.taskFailure occurrence errors, failureMember, List.mem_cons_self⟩
+  obtain ⟨actualTask, registered, sameOccurrence⟩ :=
+    generated.runNormalized_failedTasksRegistered inputs valid started occurrence recorded
+  have ledger := generated.runNormalized_pendingLedger inputs valid started
+  have actual := ledger.matching actualTask registered
+  have actualGroups := actual.2
+  rw [sameOccurrence] at actualGroups
+  have sameGroups : actualTask.groups = task.task.groups :=
+    Option.some.inj (actualGroups.symm.trans exactGroups)
+  have finalRegistered : ref ∈ ((initial.runNormalized inputs).1).registeredGroups :=
+    ledger.taskGroups actualTask registered ref (sameGroups.symm ▸ owner)
+  have failed := (generated.runNormalized_failureInventories_groupInvalidated_iff
+    inputs valid started ref).mp (GroupInvalidated.task ⟨producer, payload, known⟩ owner recorded)
+  obtain ⟨group, dependencies, descriptor, sameRef⟩ :=
+    TaskAt.executionGroup_owner (occurrenceEq.symm.trans identity ▸ known) owner
+  have health := (generated.runNormalized_retiredHealth inputs valid started).1
+  apply Classical.byContradiction
+  intro uncancelled
+  exact health group dependencies (groupRecordAt_of_nodeAt descriptor)
+    (.of_lookup_none (sameRef.symm ▸ finalRegistered) (sameRef.symm ▸ absent))
+    (sameRef.symm ▸ uncancelled) (sameRef.symm ▸ failed.toRecordInvalidated)
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

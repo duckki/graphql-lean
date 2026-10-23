@@ -56,6 +56,7 @@ mutual
           apply runEnsures_pure
           refine ⟨hi.positive, ?_⟩
           intro hs
+          simp only [CompletionSuccess, WorkSuccess] at hs
           obtain ⟨initialData, si, hiData, his, hip, hiseed⟩ := hi.reconstruct ⟨hs.1, hs.2.1⟩
           obtain ⟨taskData, st, htData, hts, htp, htseed⟩ := ht hs.2.2
           have hb := basicFields_append schema resolvers variables fuel parentType source
@@ -66,7 +67,8 @@ mutual
             simpa [executionPlanGroups, eraseGroups] using hb
           obtain ⟨data, hd, hpd⟩ := basicFields_perm schema resolvers variables fuel parentType source path
             _ _ hpall _ hcombined
-          refine ⟨data, si ++ st, hd, .combine his hts, ?_, ?_⟩
+          refine ⟨data, si ++ st, hd, .combine his ?_, ?_, ?_⟩
+          · exact .declareGroups hts
           · apply List.Perm.trans _ hpd
             simpa only [List.flatten_append, TypedResponse.fields_append, List.append_assoc] using hip.append htp
           · intro hn
@@ -76,7 +78,7 @@ mutual
             simpa only [entryPaths, List.map_append]
               using WorkCursorSeed.combine
                 (hiseed (by simpa only [List.map_append] using hparts.1))
-                (htseed _ hparts.2.1)
+                (.declareGroups (htseed _ hparts.2.1))
   termination_by (fuel, 6, 0, 0)
   decreasing_by
     all_goals simp_wf
@@ -132,12 +134,14 @@ mutual
             refine ⟨head ++ tail, _, ?_, .combine (.executionGroup hsh) hst, ?_, ?_⟩
             · simpa [eraseGroups] using basicFields_append schema resolvers variables fuel parentType source
                 _ _ head tail hh htail
-            · simpa only [List.flatten_append, List.flatten_cons, TypedResponse.fields_append] using hhp.append htailp
+            · simpa only [Completion.outcome, List.flatten_append, List.flatten_cons, TypedResponse.fields_append] using hhp.append htailp
             · intro cursors hn
               have hn' : (((result (fields path) completed.result ++ sh.flatten) ++ st.flatten).map Prod.fst).Nodup := by
-                simpa only [List.flatten_append, List.flatten_cons] using hn
+                simpa only [Completion.outcome, List.flatten_append, List.flatten_cons]
+                  using hn
               have hparts := List.nodup_append.mp (by simpa only [List.map_append] using hn')
-              simpa only [entryPaths, List.map_append, List.map_cons, result_fields_paths]
+              simpa only [Completion.outcome, entryPaths, List.map_append, List.map_cons,
+                result_fields_paths]
                 using WorkCursorSeed.combine
                   (WorkCursorSeed.executionGroup
                     (hseedh (by simpa only [List.map_append] using hparts.1)))
@@ -475,7 +479,7 @@ mutual
           split
           · rename_i errors he
             apply runEnsures_pure
-            simp [SeededItemsReconstructs, ItemsSuccess, he]
+            simp [SeededItemsReconstructs, ItemsSuccess, Completion.outcome, he]
           · refine runEnsures_bind (SeededItemsReconstructs path (index + 1)
               (GraphQL.Execution.completeValueList schema resolvers variables fuel itemType (selected.map eraseField) rest)) _ _ _ ?_ ?_
             · exact completeStreamItems_seeded schema resolvers variables fuel itemType selected rest path (index + 1)

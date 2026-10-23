@@ -1,9 +1,10 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.ClosingFailureHealth
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.MissingParentHealth
 import Proofs.GraphQL.IncrementalDelivery.Correctness.Initialization
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.FailureRetentionReplay
 import Tests.GraphQL.IncrementalDelivery.Execution
 
-/-! Root health counts accepted failures, not late outcomes of already cancelled work. -/
+/-! Root ancestry stays healthy while dormant task rejections await normal release. -/
 
 namespace GraphQL.IncrementalDelivery.Tests.WorkSchedulerClosingHealth
 open GraphQL.IncrementalDelivery.Execution
@@ -20,13 +21,18 @@ private def parentTask : Occurrence := .executionGroup [1, 1, 1, 0]
 
 private def work : Execution.Work :=
   .combine .empty
-    (.combine (.executionGroup [⟨root, []⟩, ⟨child, [parent]⟩] [] (.error 1) .empty)
+    (.declareGroups
+      [⟨root, []⟩, ⟨parent, []⟩, ⟨child, [parent]⟩, ⟨nested, [child, parent]⟩]
       (.combine
-        (.executionGroup [⟨root, []⟩, ⟨nested, [child, parent]⟩] [] (.error 1) .empty)
+        (.executionGroup [⟨root, []⟩, ⟨child, [parent]⟩] []
+          ({ result := .error 1, cause := some 1 }) .empty)
         (.combine
-          (.executionGroup [⟨parent, []⟩] []
-            (.ok ([("a", .scalar "a")], 0)) (.combine .empty .empty))
-          .empty)))
+          (.executionGroup [⟨root, []⟩, ⟨nested, [child, parent]⟩] []
+            ({ result := .error 1, cause := some 1 }) .empty)
+          (.combine
+            (.executionGroup [⟨parent, []⟩] []
+              ({ result := .ok ([("a", .scalar "a")], 0) }) (.combine .empty .empty))
+            .empty))))
 
 private def first : GraphEvent := .taskFailure firstTask 1
 private def second : GraphEvent := .taskFailure secondTask 1
@@ -46,11 +52,11 @@ theorem generated : ExecutedWork work := by
 
 private theorem first_known
     : TaskAt work firstTask [root.ref, child.ref] none (.object [] (.error 1)) :=
-  ⟨_, [], .error 1, .empty, [], rfl, rfl, rfl⟩
+  ⟨_, [], { result := .error 1, cause := some 1 }, .empty, [], rfl, rfl, rfl⟩
 
 private theorem second_known
     : TaskAt work secondTask [root.ref, nested.ref] none (.object [] (.error 1)) :=
-  ⟨_, [], .error 1, .empty, [], rfl, rfl, rfl⟩
+  ⟨_, [], { result := .error 1, cause := some 1 }, .empty, [], rfl, rfl, rfl⟩
 
 /-- Both host failures are fresh, match pure outcomes, and were requested by the queue.
 Witness: root producer readiness plus the source append rules and start checker. -/
@@ -72,11 +78,12 @@ theorem source_valid
 Witness: both generated contributors have no ancestor or producer dependencies. -/
 theorem initialized : Initializes work initial.initialGroups initial.initialStreams := by
   have rootKnown : NodeAt work root .group [] none := by
-    refine ⟨[1, 0], [⟨root, []⟩, ⟨child, [parent]⟩], [], .error 1, .empty, [],
+    refine ⟨[1, 0], [⟨root, []⟩, ⟨child, [parent]⟩], [],
+      { result := .error 1, cause := some 1 }, .empty, [],
       ⟨root, []⟩, ?_, by simp, rfl, rfl⟩
     cbv
   have parentKnown : NodeAt work parent .group [] none := by
-    refine ⟨[1, 1, 1, 0], [⟨parent, []⟩], [], .ok ([("a", .scalar "a")], 0),
+    refine ⟨[1, 1, 1, 0], [⟨parent, []⟩], [], { result := .ok ([("a", .scalar "a")], 0) },
       .combine .empty .empty, [], ⟨parent, []⟩, ?_, by simp, rfl, rfl⟩
     cbv
   have eligible (group : DeliveryNode) (known : NodeAt work group .group [] none)
@@ -95,14 +102,13 @@ theorem initialized : Initializes work initial.initialGroups initial.initialStre
     subst group
     exact ⟨[], none, parentKnown, eligible _ parentKnown⟩
 
-/-- The late task is still started but has no healthy owner, so it contributes no failure.
-Witness: C's retained error invalidates D's ancestry; the concrete inventory keeps only
-the first occurrence, and the parent remains an active root. -/
+/-- The presence check accepts the late rejection and retains both source tokens.
+The independent parent remains the sole active root. -/
 theorem accepted_inventory
     : let before := (initial.handleGraphEvent first).1
       before.taskNode? secondTask = some { task := ⟨secondTask, [root, nested]⟩ }
-      ∧ before.taskHasHealthyOwner ⟨secondTask, [root, nested]⟩ = false
-      ∧ initial.objectFailureContributions inputs.flatten = [firstTask]
+      ∧ (before.taskNode? secondTask).map TaskNode.rejection = some none
+      ∧ initial.objectFailureContributions inputs.flatten = [secondTask, firstTask]
       ∧ (initial.runNormalized inputs).1.rootGroups = [parent.ref]
       ∧ (initial.runNormalized inputs).2 = [[.groupFailure root 1]] := by
   cbv
@@ -110,7 +116,8 @@ theorem accepted_inventory
 /-- A nonempty surviving frontier is healthy under the exact accepted-failure inventory.
 Witness: the general normalized closing-replay theorem, not evaluation of root health. -/
 theorem surviving_root_health
-    : (initial.runNormalized inputs).1.RootGroupsHealthy work [firstTask] := by
+    : (initial.runNormalized inputs).1.RootGroupsHealthy work
+        [secondTask, firstTask] := by
   have healthy := createWorkQueue_runNormalized_rootsHealthy_closingContributions generated
     initialized inputs source_valid.1 source_valid.2 (by
       intro event member
@@ -118,8 +125,10 @@ theorem surviving_root_health
         List.cons_append, List.nil_append, List.mem_cons, List.not_mem_nil, or_false] at member
       rcases member with rfl | rfl <;> trivial)
   change (initial.runNormalized inputs).1.RootGroupsHealthy work
-    (initial.objectFailureContributions inputs.flatten) at healthy
-  rw [accepted_inventory.2.2.1] at healthy
+    (initial.admittedObjectFailureContributionsForBatches inputs) at healthy
+  have counted : initial.admittedObjectFailureContributionsForBatches inputs
+      = [secondTask, firstTask] := by cbv
+  rw [counted] at healthy
   exact healthy
 
 -----------------------------------------------------------------------------------------
@@ -167,11 +176,17 @@ theorem failed_child_release_health
     [first] valid (by cbv)
   have parentMember : parentNode ∈ (initial.replayGraphEvents [first]).groupNodes := by
     cbv; exact List.mem_cons_self
-  have counts := (createWorkQueue_groupErrorAccounting (Work.fromExecution work) work).replayGraphEvents
-    (before := []) (createWorkQueue_pendingAccounting work) generated [first] valid (by cbv)
-  change (initial.replayGraphEvents [first]).GroupErrorAccounting work [firstTask] at counts
-  have readyCounts : ready.GroupErrorAccounting work [firstTask] :=
-    counts.putGroupNode { parentNode with pending := 0 } (counts.live parentNode parentMember)
+  have beforeCounts := (createWorkQueue_retainedFailures
+    (Work.fromExecution work) work).replayGraphEvents
+    (before := []) (available := []) (createWorkQueue_pendingAccounting work generated.declarations) generated
+    (by intro occurrence member; cases member) [first] valid (by cbv)
+  change (initial.replayGraphEvents [first]).RetainedFailures work [firstTask] at beforeCounts
+  have storedCounts := beforeCounts.putTaskNode
+    (occurrence := parentTask) (old := { task := ⟨parentTask, [parent]⟩ }) (by cbv)
+    { task := ⟨parentTask, [parent]⟩, value := some parentResult.value } rfl (by simp)
+  have readyCounts : ready.RetainedFailures work [firstTask] :=
+    storedCounts.putGroupNodeSameTasks (by cbv; decide) parentNode
+      (by cbv; exact List.mem_cons_self) { parentNode with pending := 0 } rfl rfl
   have readyMatching : ready.GroupNodesMatchWork work :=
     ledger.groups.putGroupNode _ (ledger.groups parentNode parentMember)
   have readyLinks : ready.ChildLinksCanonical parents :=
@@ -183,7 +198,7 @@ theorem failed_child_release_health
     intro node member ref parentEq
     have nodes : ready.groupNodes =
         [{ parentNode with pending := 0 },
-          { group := ⟨child, some parent.ref⟩, pending := 0, failure := some 1,
+          { group := ⟨child, some parent.ref⟩, tasks := [firstTask], pending := 1,
             childGroups := [nested.ref] },
           { group := ⟨nested, some child.ref⟩, tasks := [secondTask], pending := 1 }] := by cbv
     rw [nodes] at member
@@ -195,7 +210,7 @@ theorem failed_child_release_health
   have parentRecord : GroupRecordAt work parent [] :=
     groupRecordAt_of_nodeAt
       (show NodeAt work parent .group [] none from
-        ⟨[1, 1, 1, 0], _, [], .ok ([("a", .scalar "a")], 0),
+        ⟨[1, 1, 1, 0], _, [], { result := .ok ([("a", .scalar "a")], 0) },
           .combine .empty .empty, [], ⟨parent, []⟩,
           rfl, List.mem_cons_self, rfl, rfl⟩)
   have ancestors : GroupAncestorsHealthy work [firstTask] parent.ref :=
@@ -209,7 +224,7 @@ theorem failed_child_release_health
   have member : { parentNode with pending := 0 } ∈ ready.groupNodes := by
     cbv; exact List.mem_cons_self
   have closed := missing.finishGroupSuccess generated readyMatching readyLinks readyFields
-    canonical readyCounts failedKnown member rfl ancestors
+    canonical readyCounts failedKnown member (by simp [parentNode, firstTask, parentTask]) ancestors
   have childReleased : child ∈
       (ready.finishGroupSuccess { parentNode with pending := 0 }).2.2.newGroups := by
     cbv; exact List.mem_cons_self
@@ -223,7 +238,24 @@ theorem failed_child_release_health
     closed.2 child childReleased,
     .task ⟨none, _, first_known⟩ (by simp) List.mem_cons_self,
     (missing.drainReadyGroups generated readyMatching readyLinks readyFields canonical
-      readyCounts failedKnown roots).1,
+      readyCounts failedKnown roots
+      (ledger.pending.sound.putGroupNode { parentNode with pending := 0 }
+        (fun occurrence listed =>
+          ledger.pending.sound parentNode parentMember occurrence listed))
+      ledger.pending.matching
+      (settled := [parentTask])
+      (by
+        intro node member _
+        have nodes : ready.groupNodes =
+            [{ parentNode with pending := 0 },
+              { group := ⟨child, some parent.ref⟩, tasks := [firstTask], pending := 1,
+                childGroups := [nested.ref] },
+              { group := ⟨nested, some child.ref⟩, tasks := [secondTask], pending := 1 }] := by cbv
+        rw [nodes] at member
+        simp only [List.mem_cons, List.not_mem_nil, or_false] at member
+        rcases member with rfl | rfl | rfl <;>
+          simp [unsettledCount, parentNode, parentTask, firstTask, secondTask])
+      (by simp [parentTask, firstTask])).1,
     by cbv
   ⟩
 

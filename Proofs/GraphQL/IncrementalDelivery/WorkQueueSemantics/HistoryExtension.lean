@@ -87,22 +87,55 @@ theorem FailureWitness.append {work initial matching events failures}
   · simpa only [List.take_append_of_le_length bounded] using known
   · simpa only [List.take_append_of_le_length bounded] using active
 
+/-- Appending outputs preserves reporting availability at all existing cuts. -/
+theorem FailureReportingWitness.append {work initial events reported}
+    (witness : FailureReportingWitness work initial events reported)
+    (tail : List WorkQueueEvent)
+    : FailureReportingWitness work initial (events ++ tail) reported := by
+  intro before cut occurrence after same
+  obtain ⟨bounded, ordered, fresh, known⟩ := witness before cut occurrence after same
+  refine ⟨by simp only [List.length_append]; omega, ordered, fresh, ?_⟩
+  simpa only [List.take_append_of_le_length bounded] using known
+
+/-- Enlarging reporting availability retains every already supported group aggregate. -/
+theorem NodeFailureCauses.mono {work before after ref errors}
+    (cause : NodeFailureCauses work before ref errors) (included : before.Subset after)
+    : NodeFailureCauses work after ref errors := by
+  obtain ⟨causes, nonempty, distinct, supported, total⟩ := cause
+  refine ⟨causes, nonempty, distinct, ?_, total⟩
+  intro occurrence count member
+  have known := supported occurrence count member
+  exact ⟨included known.1, known.2⟩
+
+/-- Only group reports inspect reporting availability, and that requirement is monotone. -/
+theorem EventAllowed.reporting_mono
+    {work initial matching before failures event reported more}
+    (allowed : EventAllowed work initial matching before failures event reported)
+    (included
+      : (failedBefore reported before.length).Subset (failedBefore more before.length))
+    : EventAllowed work initial matching before failures event more := by
+  cases event <;> try exact allowed
+  case groupFailure node errors =>
+    exact ⟨allowed.1, allowed.2.1, allowed.2.2.1, allowed.2.2.2.mono included⟩
+
 /-- One permitted event extends an explained history, retaining its publication
 matching and failure cuts. Witness: preserve earlier indices and check the final one.
 -/
-theorem Explains.append_event {work groups streams events matching failures event}
+theorem Explains.append_reported_event
+    {work groups streams events matching failures event}
     (explained : Explains work groups streams events matching failures)
     (allowed
       : EventAllowed work ((groups ++ streams).map DeliveryNode.ref) matching
-          events failures event)
+          events failures event explained.reportingFailures)
     : Explains work groups streams (events ++ [event]) matching failures := by
-  refine ⟨explained.1, explained.2.1.append [event], ?_⟩
+  refine ⟨explained.1, explained.2.1.append [event], explained.reportingFailures,
+    explained.reportingFacts.1.append [event], explained.reportingFacts.2.1, ?_⟩
   intro index next selected
   by_cases earlier : index < events.length
   · have original : events[index]? = some next := by
       simpa only [List.getElem?_append_left earlier] using selected
     simpa only [List.take_append_of_le_length (Nat.le_of_lt earlier)]
-      using explained.2.2 index next original
+      using explained.eventAllowed index next original
   · have bound := (List.getElem?_eq_some_iff.mp selected).1
     have sameIndex : index = events.length := by
       simp only [List.length_append, List.length_singleton] at bound
@@ -112,35 +145,50 @@ theorem Explains.append_event {work groups streams events matching failures even
     subst next
     simpa using allowed
 
+/-- A cause licensed for cancellation is also available in the reporting inventory. -/
+theorem Explains.append_event {work groups streams events matching failures event}
+    (explained : Explains work groups streams events matching failures)
+    (allowed
+      : EventAllowed work ((groups ++ streams).map DeliveryNode.ref) matching
+          events failures event)
+    : Explains work groups streams (events ++ [event]) matching failures :=
+  explained.append_reported_event
+    (allowed.reporting_mono (explained.reportingFacts.2.1.failedBefore_subset _))
+
 -----------------------------------------------------------------------------------------
 -- Finite error counts and output batches
 -----------------------------------------------------------------------------------------
 
-/-- Actual recorded task failures always have a finite node-error count. Witness: choose
-each task's fixed descriptor and sum its contribution; no positive-count premise is used.
+/-- A positive recorded contributor supplies its own boundary explanation.
+Witness: retain that task's descriptor and selected count without summing other failures.
 -/
-theorem NodeErrors.exists {work failed}
-    (known
-      : ∀ occurrence ∈ failed,
-          ∃ owners producer payload,
-            TaskAt work occurrence owners producer payload) (ref : NodeRef)
-    : ∃ errors, NodeErrors work failed ref errors := by
-  classical
-  let contribution := fun occurrence =>
-    if member : occurrence ∈ failed then
-      let owners := Classical.choose (known occurrence member)
-      let payload := Classical.choose
-        (Classical.choose_spec (Classical.choose_spec (known occurrence member)))
-      if ref ∈ owners then payload.failure.getD 0 else 0
-    else 0
-  refine ⟨(failed.map contribution).sum, contribution, ?_, rfl⟩
-  intro occurrence member
-  refine ⟨Classical.choose (known occurrence member),
-    Classical.choose (Classical.choose_spec (known occurrence member)),
-    Classical.choose (Classical.choose_spec (Classical.choose_spec (known occurrence member))),
-    Classical.choose_spec (Classical.choose_spec (Classical.choose_spec
-      (known occurrence member))), ?_⟩
-  simp only [contribution, dite_eq_left member]
+theorem NodeFailureCause.of_task {work failed occurrence owners producer payload ref}
+    (known : TaskAt work occurrence owners producer payload)
+    (recorded : occurrence ∈ failed) (contributes : ref ∈ owners)
+    (fails : payload.failure.isSome = true) (positive : 0 < payload.failure.getD 0)
+    : NodeFailureCause work failed ref (payload.failure.getD 0) := by
+  refine ⟨
+    occurrence,
+    recorded,
+    owners,
+    producer,
+    payload,
+    known,
+    contributes,
+    ?_,
+    positive
+  ⟩
+  cases failure : payload.failure with
+  | none => simp [failure] at fails
+  | some errors => simp
+
+/-- Additional settled failures preserve an already supported boundary explanation. -/
+theorem NodeFailureCause.mono {work before after ref errors}
+    (cause : NodeFailureCause work before ref errors) (included : before.Subset after)
+    : NodeFailureCause work after ref errors := by
+  obtain ⟨task, recorded, owners, producer, payload, known, contributes, failure, positive⟩ := cause
+  exact ⟨task, included recorded, owners, producer, payload, known, contributes,
+    failure, positive⟩
 
 /-- Every recorded failure supplies a structural task descriptor. Witness: its failure
 cut evidence, ignoring only reachability and the open owner.

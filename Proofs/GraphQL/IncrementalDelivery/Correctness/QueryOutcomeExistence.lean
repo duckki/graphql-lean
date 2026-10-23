@@ -1,6 +1,8 @@
 import Proofs.GraphQL.IncrementalDelivery.Correctness.MixedExistence
 import Proofs.GraphQL.IncrementalDelivery.Correctness.QueryRealization
 import Proofs.GraphQL.IncrementalDelivery.Semantics.ExecutedRefRoles
+import Proofs.GraphQL.IncrementalDelivery.Semantics.ExecutedStreamAllocations
+import Proofs.GraphQL.IncrementalDelivery.Semantics.WorkSize
 
 /-! Complete query outcomes for every finite execution-generated work tree.
 Execution supplies all metadata; no scheduler, history, or work-shape premise is assumed.
@@ -42,7 +44,8 @@ theorem executeRoot_completeRun_exists (schema : Schema)
     (ScopeMetadata.executeRootSelectionSetCore_scopes schema resolvers variables fuel
       parentType source selections 0).1
     (ExecutionErrors.executeRootSelectionSetCore_positive schema resolvers variables fuel
-      parentType source selections 0).2
+      parentType source selections 0).2.1
+    (executeRoot_streamRefs_unique schema resolvers variables fuel parentType source selections 0)
     nonempty
 
 /-- Every prepared execution has a complete ordinary or incremental observation.

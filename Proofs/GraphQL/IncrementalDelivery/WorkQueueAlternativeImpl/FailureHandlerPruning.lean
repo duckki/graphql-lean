@@ -32,20 +32,6 @@ private def publishedRoots (events : List WorkQueueEvent) : NodeRefs :=
 -- Sequential failure output preserves every owner outside its emitted subtrees
 -----------------------------------------------------------------------------------------
 
-private theorem counterEdges {queue : Kernel} (unique : queue.GroupRefsUnique) {key node}
-    (found : queue.groupNode? key = some node) (pending : Nat) (failure : Option Nat)
-    : (queue.putGroupNode { node with pending, failure }).GroupEdgesFrom queue := by
-  obtain ⟨sameKeys, children⟩ := unique.counterUpdate_shape found pending failure
-  intro other updated lookup
-  unfold ReferenceWorkQueue.State.putGroupNode at lookup
-  rw [ReferenceWorkQueue.State.groupNode?_mapRefs queue _ sameKeys] at lookup
-  cases prior : queue.groupNode? other with
-  | none => simp [prior] at lookup
-  | some old =>
-      have same : (if old.group.node.ref == node.group.node.ref then
-          { node with pending, failure } else old) = updated := by simpa [prior] using lookup
-      exact ⟨old, rfl, same ▸ children old (List.mem_of_find?_eq_some prior)⟩
-
 private theorem failureFold_eventsSubset (errors : Nat)
     (groups : List Execution.DeliveryNode) (acc : Kernel × List WorkQueueEvent)
     : acc.2.Subset (groups.foldl (failureGroupStep errors) acc).2 := by
@@ -91,24 +77,18 @@ theorem failureFold_outside_survives {parents key} (errors : Nat)
           cases active : queue.rootGroups.contains group.ref with
           | false =>
               simp only [active, Bool.false_eq_true, ↓reduceIte] at outside ⊢
-              let next := queue.putGroupNode
-                { owner with pending := owner.pending - 1, failure := some (owner.failure.getD 0 + errors) }
-              have edges := counterEdges unique found (owner.pending - 1) (some (owner.failure.getD 0 + errors))
-              have path : next.LiveDescendant key key :=
-                (ReferenceWorkQueue.State.LiveDescendant.self lookup).putCounters unique found _ _
-              apply ih (next, events) (unique.putGroupNode _)
-                (forest.putCounters unique found _ _) path.found
-              intro root member below
-              exact outside root member (edges.liveDescendant below)
+              exact ih (queue, events) unique forest ⟨node, lookup⟩ outside
           | true =>
               simp only [active, ↓reduceIte] at outside ⊢
               have emitted : .groupFailure owner.group.node errors ∈
                   (rest.foldl (failureGroupStep errors)
-                    (queue.removeGroup owner.group.node.ref, events ++ [.groupFailure owner.group.node errors])).2 :=
+                    (queue.removeGroup owner.group.node.ref,
+                      events ++ [.groupFailure owner.group.node errors])).2 :=
                 failureFold_eventsSubset errors rest _ (List.mem_append_right _ List.mem_cons_self)
               have notBelow := outside owner.group.node.ref
                 (List.mem_filterMap.mpr ⟨_, emitted, rfl⟩)
-              have kept := (ReferenceWorkQueue.State.removeGroup_groupNodeRetained forest notBelow).trans lookup
+              have kept := (ReferenceWorkQueue.State.removeGroup_groupNodeRetained forest
+                notBelow).trans lookup
               let removed := ReferenceWorkQueue.State.removeGroup.collect
                 (queue.groupNodes.length + 1) queue [owner.group.node.ref] []
               have edges : (queue.removeGroup owner.group.node.ref).GroupEdgesFrom queue :=
@@ -129,19 +109,13 @@ theorem taskFailure_outside_survives {queue : Kernel} {parents key}
   | none => simpa only [ReferenceWorkQueue.State.taskFailure, found] using live
   | some task =>
       rw [queue.taskFailure_eq failed errors task found] at outside ⊢
-      cases healthy : queue.taskHasHealthyOwner task.task with
-      | false =>
-          simp only [healthy, Bool.not_false, ↓reduceIte] at outside ⊢
-          exact ((ReferenceWorkQueue.State.LiveDescendant.self live.choose_spec).removeTask failed).found
-      | true =>
-          simp only [healthy, Bool.not_true, Bool.false_eq_true, ↓reduceIte] at outside ⊢
-          apply failureFold_outside_survives errors _ _ (unique.removeTask _)
-            (forest.removeTask _)
-            ((ReferenceWorkQueue.State.LiveDescendant.self live.choose_spec).removeTask
-              failed).found
-          intro root member path
-          exact outside root member
-            ((queue.removeTask_groupEdgesFrom failed).liveDescendant path)
+      apply failureFold_outside_survives errors _ _ unique
+        ⟨forest.uniqueChildren, forest.canonical, forest.increasing⟩ live
+      intro root member path
+      exact outside root member
+        (ReferenceWorkQueue.State.LiveDescendant.of_groupNodes_eq
+          (queue := queue.putTaskNode { task with rejection := some errors })
+          (next := queue) rfl path)
 
 -----------------------------------------------------------------------------------------
 -- Exact actual-handler disposal, without a publication-filtered observer
@@ -155,8 +129,11 @@ theorem taskFailure_lostBufferedSource (state : State) (failed : Occurrence)
     (found : state.queue.taskNode? occurrence = some node)
     (held : key ∈ node.childStreams)
     (changed : (state.taskFailure failed errors).1.queue.taskNode? occurrence ≠ some node)
-    : .cancelSource key ∈ (state.taskFailure failed errors).2.2 :=
-  (state.taskFailure_heldSource failed errors different found held).resolve_left changed
+    : .cancelSource key
+      ∈ (state.handleGraphEvent (.taskFailure failed errors)).2.2.1 := by
+  have target := (state.taskFailure_heldSource failed errors different found held).resolve_left
+    changed
+  exact List.mem_flatMap.mpr ⟨.stream key, target, List.mem_cons_self⟩
 
 /-- Complete disappearance specializes exact-record loss at the actual endpoint. -/
 theorem taskFailure_droppedBufferedSource (state : State) (failed : Occurrence)
@@ -164,7 +141,8 @@ theorem taskFailure_droppedBufferedSource (state : State) (failed : Occurrence)
     (found : state.queue.taskNode? occurrence = some node)
     (held : key ∈ node.childStreams)
     (dropped : (state.taskFailure failed errors).1.queue.taskNode? occurrence = none)
-    : .cancelSource key ∈ (state.taskFailure failed errors).2.2 := by
+    : .cancelSource key
+      ∈ (state.handleGraphEvent (.taskFailure failed errors)).2.2.1 := by
   apply taskFailure_lostBufferedSource state failed errors different found held
   rw [dropped]
   intro impossible
@@ -201,7 +179,8 @@ theorem generatedReplay_bufferedSource {work : Work} {inputs : List (List GraphE
   simp only [State.fromReference] at found
   split at found
   · cases found
-  · obtain ⟨published, _, inventory⟩ := ReferenceWorkQueue.createWorkQueue_runNormalized_publications valid
+  · obtain ⟨published, _, inventory⟩ :=
+      ReferenceWorkQueue.createWorkQueue_runNormalized_publications valid
     have known := ReferenceWorkQueue.State.taskNode?_some found
     have source := (inventory.stored node known.1 value stored).1
     rwa [known.2] at source
@@ -263,7 +242,8 @@ theorem GeneratedTaskFailureDisposal_holds : GeneratedTaskFailureDisposal := by
   intro occurrence node key found stored _owned held dropped
   have different : occurrence ≠ failed :=
     generatedReplay_buffered_ne_taskInput generated valid started found stored List.mem_cons_self
-  have requested := taskFailure_droppedBufferedSource before failed errors different found held dropped
+  have requested := taskFailure_droppedBufferedSource before failed errors different found held
+    dropped
   refine ⟨requested, fun owned => resources.requestQueueCleanup_owned _ _ ?_ owned⟩
   exact List.mem_filterMap.mpr ⟨.cancelSource key, requested, rfl⟩
 

@@ -279,7 +279,8 @@ private theorem generatedStop_forest {work inputs}
     · intro node child member; cases member
   · obtain ⟨parents, canonical, links, records⟩ := generated.runNormalized_groupMetadata valid
     exact ⟨parents, ReferenceWorkQueue.State.RemovalForest.of_generated generated
-      (ReferenceWorkQueue.createWorkQueue_runNormalized_childGroupsUnique _ _) links records canonical⟩
+      (ReferenceWorkQueue.createWorkQueue_runNormalized_childGroupsUnique _ _) links records
+        canonical⟩
 
 private theorem generatedStop_rootsPresent {work inputs}
     (generated : ReferenceWorkQueue.ExecutedWork work)
@@ -290,10 +291,7 @@ private theorem generatedStop_rootsPresent {work inputs}
   simp only [State.fromReference]
   split
   · intro key member; cases member
-  · obtain ⟨terminal, same⟩ := ReferenceWorkQueue.createWorkQueue_runNormalized_stateCore started
-    rw [same]
-    exact generated.replayGraphEvents_rootsPresent inputs.flatten
-      (fun _ member => valid.eachMatches member)
+  · exact generated.runNormalized_rootsPresent inputs (fun _ member => valid.eachMatches member)
 
 /-- Generated replay's stop covers each task and held source at any rooted live owner.
 Root reachability is deliberately explicit: this theorem does not infer acquisition or

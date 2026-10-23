@@ -1,7 +1,7 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.PublicationTransfer
 
 /-! Actual publication keys justify the cleanup view's transfer exclusion. NodeRefs suffice:
-no equality between a contributing descriptor and the carrier descriptor is assumed.+-/
+no equality between a contributing descriptor and the carrier descriptor is assumed. -/
 
 namespace GraphQL.IncrementalDelivery.AlternativeWorkQueue.NativeRefinement
 open GraphQL.IncrementalDelivery.WorkQueueSemantics (Occurrence)
@@ -56,7 +56,7 @@ No sufficient-budget, forest, source, or generated-work premise is needed.
 -/
 theorem drainReadyGroups_go_publicationRoots_live (fuel : Nat) (queue : Kernel)
     : (publicationRoots
-        (ReferenceWorkQueue.State.drainReadyGroups.go fuel queue).2).Subset
+        (ReferenceWorkQueue.State.drainReadyGroups.go [] fuel queue).2.1).Subset
         (queue.groupNodes.map (fun node => node.group.node.ref)) := by
   induction fuel generalizing queue with
   | zero => intro key member; cases member
@@ -77,34 +77,16 @@ theorem drainReadyGroups_go_publicationRoots_live (fuel : Nat) (queue : Kernel)
               · cases Option.some.inj choice
                 exact List.mem_of_find?_eq_some found
               · contradiction
-        cases cached : node.failure with
-        | none =>
-            dsimp only
-            intro key published
-            rw [publicationRoots, List.filterMap_append] at published
-            rcases List.mem_append.mp published with first | later
-            · have same := flush_publicationRoots queue node first
-              exact same.symm ▸ List.mem_map.mpr ⟨node, live, rfl⟩
-            · have present := ih _ later
-              rw [(ReferenceWorkQueue.State.startNewWork_groupCore _ _).1] at present
-              exact edges_keys (queue.finishGroupSuccess_descendants node).1 key present
-        | some errors =>
-            dsimp only
-            intro key published
-            have later : key ∈ publicationRoots
-                (ReferenceWorkQueue.State.drainReadyGroups.go fuel
-                  (queue.finishGroupFailure node errors).1).2 := by
-              simpa only [publicationRoots, List.filterMap_cons, List.filterMap_append,
-                List.filterMap_nil, List.nil_append,
-                ReferenceWorkQueue.State.finishGroupFailure]
-                using published
-            have edges : (queue.finishGroupFailure node errors).1.GroupEdgesFrom queue := by
-              intro key group found
-              exact queue.filterRefs_groupEdgesFrom
-                (fun key => !(ReferenceWorkQueue.State.removeGroup.collect
-                  (queue.groupNodes.length + 1) queue [node.group.node.ref] []).contains key)
-                key group found
-            exact edges_keys edges key (ih _ later)
+        intro key published
+        rw [publicationRoots, List.filterMap_append] at published
+        rcases List.mem_append.mp published with first | later
+        · have same := flush_publicationRoots queue node first
+          exact same.symm ▸ List.mem_map.mpr ⟨node, live, rfl⟩
+        · have present := ih _ later
+          have startup := (ReferenceWorkQueue.State.startNewWork_groupCore
+            (queue.finishGroupSuccess node).1 (queue.finishGroupSuccess node).2.2).1
+          have prior := (startup.map (fun group => group.group.node.ref)).subset present
+          exact edges_keys (queue.finishGroupSuccess_descendants node).1 key prior
 
 private theorem fold_publicationRoots_live (queue : Kernel)
     (groups : List Execution.DeliveryNode)
@@ -115,7 +97,8 @@ private theorem fold_publicationRoots_live (queue : Kernel)
   have loop (more : List Execution.DeliveryNode)
       (current : Kernel) (events : List WorkQueueEvent) (released : ReferenceWorkQueue.NewWork)
       (keys : current.GroupRefsIncluded queue)
-      (known : (publicationRoots events).Subset (queue.groupNodes.map (fun node => node.group.node.ref)))
+      (known : (publicationRoots events).Subset (queue.groupNodes.map (fun node =>
+        node.group.node.ref)))
       : let folded := more.foldl ReferenceWorkQueue.successGroupStep (current, events, released)
         folded.1.GroupRefsIncluded queue
         ∧ (publicationRoots folded.2.1).Subset
@@ -154,55 +137,50 @@ health, forest, descriptor-equality, or source premise is needed for this lookup
 -/
 theorem eagerRegistrationSnapshot_publicationRoots_live (queue : Kernel)
     (event : GraphEvent)
-    : (publicationRoots (queue.handleGraphEvent event).2).Subset
+    : (publicationRoots (queue.handleGraphEvent event).2.1).Subset
         ((eagerRegistrationSnapshot queue event).groupNodes.map
           (fun node => node.group.node.ref)) := by
   cases event with
   | taskSuccess occurrence result =>
+      simp only [ReferenceWorkQueue.State.handleGraphEvent,
+        ReferenceWorkQueue.State.cacheTaskFailures, List.foldl_nil]
       cases found : queue.taskNode? occurrence with
       | none =>
-          simp only [ReferenceWorkQueue.State.handleGraphEvent,
-            ReferenceWorkQueue.State.taskSuccess, found, publicationRoots, List.filterMap_nil]
+          simp only [ReferenceWorkQueue.State.taskSuccess, found, publicationRoots,
+            List.filterMap_nil]
           intro key member; cases member
       | some node =>
-          cases healthy : queue.taskHasHealthyOwner node.task with
-          | false =>
-              simp only [ReferenceWorkQueue.State.handleGraphEvent,
-                ReferenceWorkQueue.State.taskSuccess, found, healthy, Bool.not_false,
-                ↓reduceIte, publicationRoots, List.filterMap_nil]
-              intro key member; cases member
-          | true =>
-              let snapshot := eagerRegistrationSnapshot queue (.taskSuccess occurrence result)
-              have prepared := fold_publicationRoots_live snapshot node.task.groups
-              have snapshotEq : snapshot =
-                  ((queue.putTaskNode { node with value := some result.value }).maybeIntegrateWork
-                    result.work (some occurrence)).1 := by
-                simp only [snapshot, eagerRegistrationSnapshot, found, healthy, ↓reduceIte]
-              rw [snapshotEq] at prepared
-              change (publicationRoots (queue.handleGraphEvent _).2).Subset
-                (snapshot.groupNodes.map (fun node => node.group.node.ref))
-              rw [snapshotEq]
-              simp only [ReferenceWorkQueue.State.handleGraphEvent]
-              rw [queue.taskSuccess_eq occurrence result node found]
-              simp only [healthy, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
-              change (publicationRoots (_ ++ _)).Subset _
-              intro key published
-              rw [publicationRoots, List.filterMap_append] at published
-              rcases List.mem_append.mp published with first | later
-              · exact prepared.2 first
-              · apply prepared.1 key
-                have present := drainReadyGroups_go_publicationRoots_live _ _ later
-                rwa [(ReferenceWorkQueue.State.startNewWork_groupCore _ _).1] at present
+          let snapshot := eagerRegistrationSnapshot queue (.taskSuccess occurrence result)
+          have prepared := fold_publicationRoots_live snapshot node.task.groups
+          have snapshotEq : snapshot =
+              ((queue.putTaskNode { node with value := some result.value }).maybeIntegrateWork
+                result.work (some occurrence)).1 := by
+            simp only [snapshot, eagerRegistrationSnapshot, found]
+          rw [snapshotEq] at prepared
+          change (publicationRoots (queue.taskSuccess occurrence result).2.1).Subset
+            (snapshot.groupNodes.map (fun node => node.group.node.ref))
+          rw [snapshotEq]
+          rw [queue.taskSuccess_eq occurrence result node found]
+          change (publicationRoots (_ ++ _)).Subset _
+          intro key published
+          rw [publicationRoots, List.filterMap_append] at published
+          rcases List.mem_append.mp published with first | later
+          · exact prepared.2 first
+          · apply prepared.1 key
+            have present := drainReadyGroups_go_publicationRoots_live _ _ later
+            exact ((ReferenceWorkQueue.State.startNewWork_groupCore _ _).1.map
+              (fun group => group.group.node.ref)).subset present
   | streamItems stream items =>
+      simp only [ReferenceWorkQueue.State.handleGraphEvent,
+        ReferenceWorkQueue.State.cacheTaskFailures, List.foldl_nil]
       cases active : queue.rootStreams.contains stream.ref with
       | false =>
-          simp only [ReferenceWorkQueue.State.handleGraphEvent,
-            ReferenceWorkQueue.State.streamItems, active, Bool.not_false, ↓reduceIte,
+          simp only [ReferenceWorkQueue.State.streamItems, active, Bool.not_false, ↓reduceIte,
             publicationRoots, List.filterMap_nil]
           intro key member; cases member
       | true =>
           rw [eagerRegistrationSnapshot_streamItems queue stream items active]
-          change (publicationRoots (queue.streamItems stream items).2).Subset _
+          change (publicationRoots (queue.streamItems stream items).2.1).Subset _
           rw [queue.streamItems_eq stream items]
           simp only [active, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
           intro key published
@@ -217,6 +195,13 @@ theorem eagerRegistrationSnapshot_publicationRoots_live (queue : Kernel)
   | streamFailure stream errors =>
       simp only [ReferenceWorkQueue.State.handleGraphEvent, ReferenceWorkQueue.State.streamFailure]
       split <;> intro key member <;> cases member
+  | groupFailure notice =>
+      intro key published
+      obtain ⟨group, groups, streams, carrier, _⟩ := mem_publicationRoots.mp published
+      simp only [ReferenceWorkQueue.State.handleGraphEvent, ReferenceWorkQueue.State.groupFailure] at carrier
+      split at carrier
+      · cases carrier
+      · split at carrier <;> simp at carrier
 
 -----------------------------------------------------------------------------------------
 -- The exact key-based exclusion transfers its held source through the complete handler
@@ -225,13 +210,14 @@ theorem eagerRegistrationSnapshot_publicationRoots_live (queue : Kernel)
 /-- The actual delayed snapshot has the same contributor keys as the eager proof view. -/
 theorem registrationSnapshot_publicationRoots_live (queue : Kernel) (event : GraphEvent)
     (projection : SnapshotProjection queue event)
-    : (publicationRoots (queue.handleGraphEvent event).2).Subset
+    : (publicationRoots (queue.handleGraphEvent event).2.1).Subset
         ((registrationSnapshot queue event).groupNodes.map
           (fun node => node.group.node.ref)) := by
   have keys := congrArg (fun queue : Kernel => queue.groupNodes.map
     (fun node => node.group.node.ref)) projection.core
   change (registrationSnapshot queue event).groupNodes.map (fun node => node.group.node.ref)
-    = (eagerRegistrationSnapshot queue event).groupNodes.map (fun node => node.group.node.ref) at keys
+    = (eagerRegistrationSnapshot queue event).groupNodes.map (fun node => node.group.node.ref)
+      at keys
   rw [keys]
   exact eagerRegistrationSnapshot_publicationRoots_live queue event
 
@@ -254,10 +240,10 @@ theorem generatedSnapshot_publishedKeyTransfer {work inputs event occurrence}
     (carrier
       : WorkQueueEvent.groupSuccess owner groups streams
         ∈ ((((State.initialize work).runNormalized inputs).1.queue).handleGraphEvent
-            event).2)
+            event).2.1)
     : key
         ∈ ((((State.initialize work).runNormalized inputs).1.queue).handleGraphEvent
-            event).2.flatMap
+            event).2.1.flatMap
             ReferenceWorkQueue.rawStreamNoticeRefs
       ∧ key
         ∈ (({ state := ((State.initialize work).runNormalized inputs).1 }
@@ -268,19 +254,25 @@ theorem generatedSnapshot_publishedKeyTransfer {work inputs event occurrence}
             : GraphBatchResult).handleGraphEvent
             event).state.cleanupTargets := by
   let before := ((State.initialize work).runNormalized inputs).1
-  have published : owner.ref ∈ publicationRoots (before.queue.handleGraphEvent event).2 :=
+  have published : owner.ref ∈ publicationRoots (before.queue.handleGraphEvent event).2.1 :=
     mem_publicationRoots.mpr ⟨owner, groups, streams, carrier, rfl⟩
   obtain ⟨beforeRaw, earlierStarted, accepted⟩ := generatedReplay_beforeNext generated valid started
   have projection := generatedSnapshot_projection generated valid earlierStarted
   have live := registrationSnapshot_publicationRoots_live before.queue event projection published
   have conservation := generatedSnapshot_bufferedStreamsConserved generated valid started
   dsimp only at conservation
-  have rawCarrier := carrier
-  rw [beforeRaw] at rawCarrier
-  obtain ⟨_, _, retired, _, uncancelled⟩ :=
-    generated.replayGraphEvents_successfulCarrier_retiredHealthy valid accepted rawCarrier
-  rw [ReferenceWorkQueue.State.replayGraphEvents_append, ← beforeRaw] at retired uncancelled
-  have notice := conservation.retired_notice found stored held contributes live retired.2 uncancelled
+  obtain ⟨earlier, matching, _⟩ := ReferenceWorkQueue.validGraphEvents_last valid
+  obtain ⟨parents, canonical⟩ := generated.groupRecordsCanonical
+  have frame :=
+    (ReferenceWorkQueue.initial_uncancelledReplayFrame generated canonical).runNormalized
+      (before := []) generated canonical inputs earlier
+      (by rwa [ReferenceWorkQueue.inputsStarted_eq_batchesStarted] at earlierStarted)
+  rw [ReferenceWorkQueue.State.runNormalized_replayBatches, ← beforeRaw] at frame
+  obtain ⟨_, _, retirement⟩ := ReferenceWorkQueue.State.handleGraphEvent_successfulRetirements
+    frame.parent frame.cancellations generated canonical event matching [] owner groups streams
+      carrier
+  have notice := conservation.retired_notice found stored held contributes live
+    retirement.retired.2 retirement.uncancelled
   have dispatch := generatedReplay_dispatchProjection generated valid started
   exact ⟨notice, (congrArg (fun pair => pair.1.rootStreams) dispatch).symm ▸
       graphEvent_newStream_active _ _ notice,
@@ -306,16 +298,18 @@ def GeneratedPublicationExclusionTransfer : Prop :=
         snapshot.taskNode? occurrence = some node
         → node.value.isSome = true
         → key ∈ node.childStreams
-        → pruningPending snapshot event (before.queue.handleGraphEvent event).2 occurrence
+        → pruningPending snapshot event (before.queue.handleGraphEvent event).2.1
+            occurrence
           = false
         → key
-            ∈ (before.queue.handleGraphEvent event).2.flatMap
+            ∈ (before.queue.handleGraphEvent event).2.1.flatMap
                 ReferenceWorkQueue.rawStreamNoticeRefs
           ∧ key ∈ reduced.state.queue.rootStreams
           ∧ .stream key ∈ reduced.state.cleanupTargets
 
 /-- Exact catalogue contributors and the actual false filter extract a successful key.
-The same full-handler conservation/retirement witness constructs notice, root, and stop reachability.
+The same full-handler conservation/retirement witness constructs notice, root, and stop
+  reachability.
 -/
 theorem GeneratedPublicationExclusionTransfer_holds
     : GeneratedPublicationExclusionTransfer := by
@@ -327,13 +321,14 @@ theorem GeneratedPublicationExclusionTransfer_holds
     earlierStarted found
   have published : task.groups.any
       (fun owner => (publicationRoots
-        ((((State.initialize work).runNormalized inputs).1.queue).handleGraphEvent event).2).contains
+        ((((State.initialize work).runNormalized inputs).1.queue).handleGraphEvent
+          event).2.1).contains
         owner.ref) = true := by
     cases event with
     | taskSuccess | streamItems =>
         simpa only [pruningPending, catalogue, Bool.not_false, Bool.true_and,
           Bool.not_eq_false'] using excluded
-    | taskFailure | streamSuccess | streamFailure => cases release
+    | taskFailure | groupFailure | streamSuccess | streamFailure => cases release
   obtain ⟨contributor, member, selected⟩ := List.any_eq_true.mp published
   obtain ⟨owner, groups, streams, carrier, sameKey⟩ :=
     mem_publicationRoots.mp (List.contains_iff_mem.mp selected)

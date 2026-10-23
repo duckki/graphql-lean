@@ -1,4 +1,4 @@
-import GraphQL.IncrementalDelivery.WorkQueueSemantics
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.ReportingWitness
 
 /-! Notice facts derived from output-history accounting, with no queue-state witness. -/
 
@@ -82,8 +82,8 @@ structure EventAccounting (work : Work) (initial : NodeRefs)
   completion : ∀ ref ∈ eventCompleted event, Open initial before ref
 
 /-- Every permitted atom has fresh notices and open-ref closures, by its event rule. -/
-theorem EventAllowed.accounting {work initial matching before failed event}
-    (h : EventAllowed work initial matching before failed event)
+theorem EventAllowed.accounting {work initial matching before failed event reported}
+    (h : EventAllowed work initial matching before failed event reported)
     : EventAccounting work initial before event := by
   cases event with
   | groupValues =>
@@ -139,9 +139,10 @@ theorem Explains.notices {work groups streams events matching failures}
     | cons event rest ih =>
         constructor
         · have selected : events[before.length]? = some event := by simp [equal]
-          have allowed := h.2.2 before.length event selected
-          rw [equal] at allowed
-          simpa using allowed.accounting
+          have allowed := h.eventAllowed before.length event selected
+          have accounted := allowed.accounting
+          rw [equal] at accounted
+          simpa using accounted
         · apply ih (before ++ [event])
           simpa [List.append_assoc] using equal
   exact go [] events rfl

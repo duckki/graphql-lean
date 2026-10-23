@@ -1,5 +1,5 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.AncestorCertificates
-import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.GroupFailureNotices
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.GroupNoticeProjection
 
 /-! Concrete retirement evidence for the ancestry of carried group notices. -/
 
@@ -51,10 +51,11 @@ Witness: both closure branches preserve retirement, as does child activation.
 -/
 theorem State.RetiredGroup.drainReadyGroups_go {queue : State} {ref}
     (retired : queue.RetiredGroup ref) (fuel : Nat)
-    : (State.drainReadyGroups.go fuel queue).1.RetiredGroup ref := by
+    (available : List (Occurrence × Nat) := [])
+    : (State.drainReadyGroups.go available fuel queue).1.RetiredGroup ref := by
   apply State.drainReadyGroups_go_preserves (fun state => state.RetiredGroup ref)
-    (fun _ node prior _ _ _ _ => (prior.finishGroupSuccess node).startNewWork _)
-    (fun _ node _ prior _ _ _ => prior.removeGroup node.group.node.ref) retired
+    (available := available) (valid := retired)
+  exact fun _ node prior _ _ _ => (prior.finishGroupSuccess node).startNewWork _ available
 
 /-- Successful release's exact notice list inherits the pruned frontier's certificates.
 Witness: the actual output and release list have the same group-ref projection.

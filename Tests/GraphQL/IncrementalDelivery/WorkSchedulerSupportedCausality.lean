@@ -58,14 +58,18 @@ private def failedItem : Occurrence := .item [0, 0, 1] 1
 private def childItem : Occurrence := .item [0, 0, 1, 0, 0, 0, 1] 0
 private def value : ResponseValue := .object [("values", .list [])]
 
-private def childEntries : List (Result ResponseValue × Execution.Work) :=
-  [(.ok (.scalar "x", 0), .empty)]
+private def childEntries : List (TaskOutcome ResponseValue × Execution.Work) :=
+  [({ result := .ok (.scalar "x", 0) }, .empty)]
 
 private def children : Execution.Work :=
-  .combine (.combine (.combine .empty (.stream child childEntries)) .empty) .empty
+  .combine (.combine (.combine .empty (.stream child childEntries)) .empty)
+    (.declareGroups [] .empty)
 
-private def entries : List (Result ResponseValue × Execution.Work) :=
-  [(.ok (value, 0), children), (.error 1, .empty)]
+private def entries : List (TaskOutcome ResponseValue × Execution.Work) :=
+  [
+    ({ result := .ok (value, 0) }, children),
+    ({ result := .error 1, cause := some 1 }, .empty)
+  ]
 
 private def first : GraphEvent :=
   .streamItems outer [⟨parent, ⟨value, 0⟩, Work.fromExecution children [0, 0, 1, 0]⟩]
@@ -113,16 +117,16 @@ theorem source_valid
     intro item member
     have same := List.mem_singleton.mp member
     subst item
-    exact ⟨[outer.ref], none, TaskAt.item outer_located rfl, by cbv⟩
+    exact ⟨[outer.ref], none, TaskAt.item (result := { result := .ok (value, 0) }) outer_located rfl, by cbv⟩
   have initial : ValidGraphEvents work [first] :=
     .append .nil itemMatches (by simp [first, GraphEvent.Fresh, GraphEvent.identities])
       ⟨_, _, _, _, outer_located, by simp, by simp,
         (by intro source impossible; cases impossible), rfl⟩
   refine ⟨.append initial ?_ ?_ ?_, by cbv⟩
-  · exact ⟨_, _, _, _, outer_located, .empty, List.mem_cons_of_mem _ List.mem_cons_self⟩
+  · exact ⟨_, _, _, _, outer_located, { result := .error 1, cause := some 1 }, .empty, List.mem_cons_of_mem _ List.mem_cons_self, rfl⟩
   · simp [first, GraphEvent.Fresh, GraphEvent.identities]
   · exact ⟨_, _, _, _, outer_located,
-      (by intro source impossible; cases impossible), .empty, rfl⟩
+      (by intro source impossible; cases impossible), { result := .error 1, cause := some 1 }, .empty, rfl, rfl⟩
 
 /-- Actual output announces the child with its producer, then closes only the outer stream.
 Witness: execute the normalized runner; the still-active child prevents termination.
@@ -141,7 +145,13 @@ private theorem failed_payloads (cut occurrence) (member : (cut, occurrence) ∈
   have same : cut = 1 ∧ occurrence = failedItem := by
     simpa only [cuts, List.mem_singleton, Prod.mk.injEq] using member
   rcases same with ⟨rfl, rfl⟩
-  exact ⟨[outer.ref], none, _, TaskAt.item outer_located rfl, rfl⟩
+  exact ⟨
+    [outer.ref],
+    none,
+    _,
+    TaskAt.item (result := { result := .error 1, cause := some 1 }) outer_located rfl,
+    rfl
+  ⟩
 
 /-- The actual history has supported publication without using any event-admission premise.
 Witness: its only value is the producer-free first item, emitted before the failure cut.
@@ -153,8 +163,17 @@ private theorem supported : PublicationSupport work matching atoms cuts := by
       have same : event = .streamValues outer [⟨value, 0⟩] [] [child] := by
         simpa [output] using selected.symm
       subst event
-      refine ⟨[outer.ref], none, _, outer.ref, TaskAt.item outer_located rfl,
-        rfl, List.mem_cons_self, ?_, ?_⟩
+      refine ⟨
+        [outer.ref],
+        none,
+        _,
+        outer.ref,
+        TaskAt.item (result := { result := .ok (value, 0) }) outer_located rfl,
+        rfl,
+        List.mem_cons_self,
+        ?_,
+        ?_
+      ⟩
       · rintro ⟨cut, member, reached, _⟩
         have same : cut = 1 := by simpa [cuts] using member
         simp [same] at reached
@@ -181,7 +200,9 @@ theorem parent_survives
     : NodeFailed work matching atoms cuts outer.ref
       ∧ ¬TaskCancelled work matching atoms cuts parent := by
   refine ⟨
-    NodeFailed.task (TaskAt.item outer_located (index := 1) rfl)
+    NodeFailed.task
+      (TaskAt.item (result := { result := .error 1, cause := some 1 }) outer_located
+        (index := 1) rfl)
       List.mem_cons_self (by simp [failedBefore, cuts, failedItem, output]),
     ?_
   ⟩
@@ -201,7 +222,7 @@ theorem child_survives : ¬NodeFailed work matching atoms cuts child.ref := by
     simpa [failedBefore, cuts, output] using failed
   subst occurrence
   have exactTask : TaskAt work failedItem [outer.ref] none (.item outer (.error 1)) :=
-    TaskAt.item outer_located rfl
+    TaskAt.item (result := { result := .error 1, cause := some 1 }) outer_located rfl
   rw [(known.unique exactTask).1] at owner
   simp [outer, child] at owner
 
@@ -244,7 +265,7 @@ theorem next_source_valid
   · intro item member
     have same := List.mem_singleton.mp member
     subst item
-    exact ⟨[child.ref], some parent, TaskAt.item child_located rfl, by cbv⟩
+    exact ⟨[child.ref], some parent, TaskAt.item (result := { result := .ok (.scalar "x", 0) }) child_located rfl, by cbv⟩
   · simp [nextItem, inputs, first, GraphEvent.Fresh, GraphEvent.identities,
       childItem, parent, outer, child]
   · exact ⟨_, _, _, _, child_located, by simp,
@@ -269,8 +290,9 @@ theorem next_ready : CanPublish work matching atoms cuts childItem (some parent)
   have source : TaskAt work (matching atoms.length) [child.ref] (some parent)
       (.item child (.ok (.scalar "x", 0))) := by
     simpa only [output, List.length_cons, List.length_nil, matching, Nat.reduceAdd,
-      Nat.reduceEqDiff, ↓reduceIte, childItem]
-      using (TaskAt.item child_located (index := 0) rfl)
+      Nat.reduceEqDiff, ↓reduceIte, childItem, TaskOutcome.deliveryResult]
+      using (TaskAt.item (result := { result := .ok (.scalar "x", 0) }) child_located
+              (index := 0) rfl)
   have same : matching atoms.length = childItem := by rw [output]; rfl
   rw [← same]
   apply supported.canPublish_next (event := nextEvent) failed_payloads trivial source rfl
@@ -303,11 +325,13 @@ Witness: its producer is the first outer item; both stream descriptors have empt
 dependencies. This is structural metadata, not a cancellation or output-admission premise.
 -/
 theorem child_lineage : ItemLineage work childItem := by
-  apply ItemLineage.step (TaskAt.item child_located rfl) child_known
+  apply ItemLineage.step
+    (TaskAt.item (result := { result := .ok (.scalar "x", 0) }) child_located rfl)
+    child_known
   intro source same
   cases same
-  exact .step (TaskAt.item outer_located rfl) (.stream outer_located)
-    (by intro parent impossible; cases impossible)
+  exact .step (TaskAt.item (result := { result := .ok (value, 0) }) outer_located rfl)
+    (.stream outer_located) (by intro parent impossible; cases impossible)
 
 /-- The child survives an actual earlier outer-stream failure under the canonical witness.
 Witness: general successful-item certificates, without a lineage or publication-support
@@ -331,7 +355,7 @@ theorem nested_item_certificates
       rw [sameHistory, output]
       rfl
     have count := announced.1.2.2.2.2 1 outer 1 atFailure
-    simp [empty, failedBefore, NodeErrors] at count
+    simp [empty, failedBefore, NodeFailureCause] at count
   · apply safe _ _
     simp [inputs, nextItem, first, childItem, GraphEvent.successes]
 

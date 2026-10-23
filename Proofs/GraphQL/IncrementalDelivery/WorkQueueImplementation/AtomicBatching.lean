@@ -114,8 +114,8 @@ theorem WorkBatching.atomic_eq_flatten {events batches}
 /-- Admitted atoms carry singleton payloads; observable events may coalesce several atoms.
 Witness: project the exact payload equality from either publication constructor.
 -/
-theorem EventAllowed.atomicValues {work initial matching before failures event}
-    (allowed : EventAllowed work initial matching before failures event)
+theorem EventAllowed.atomicValues {work initial matching before failures event reported}
+    (allowed : EventAllowed work initial matching before failures event reported)
     : AtomicValues event := by
   cases event <;> try trivial
   case groupValues =>
@@ -133,6 +133,6 @@ theorem Explains.atomicValues {work groups streams events matching failures}
     : ∀ event ∈ events, AtomicValues event := by
   intro event member
   obtain ⟨index, selected⟩ := List.mem_iff_getElem?.mp member
-  exact EventAllowed.atomicValues (explained.2.2 index event selected)
+  exact EventAllowed.atomicValues (explained.eventAllowed index event selected)
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

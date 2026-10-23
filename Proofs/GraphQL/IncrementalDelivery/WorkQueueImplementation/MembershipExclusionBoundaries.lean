@@ -16,15 +16,40 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 Witness: splitting its actual iteration budget gives an output-prefix decomposition.
 -/
 theorem State.drainReadyGroups_go_objectCount_le (queue : State) {steps fuel : Nat}
-    (bounded : steps ≤ fuel)
-    : ((State.drainReadyGroups.go steps queue).2.flatMap
+    (bounded : steps ≤ fuel) (available : List (Occurrence × Nat) := [])
+    : ((State.drainReadyGroups.go available steps queue).2.1.flatMap
         WorkQueueEvent.objectValues).length
-      ≤ ((State.drainReadyGroups.go fuel queue).2.flatMap
+      ≤ ((State.drainReadyGroups.go available fuel queue).2.1.flatMap
           WorkQueueEvent.objectValues).length := by
-  have split := State.drainReadyGroups_go_add steps (fuel - steps) queue
+  have split := State.drainReadyGroups_go_add steps (fuel - steps) queue available
   rw [Nat.add_sub_of_le bounded] at split
   rw [split, List.flatMap_append, List.length_append]
   exact Nat.le_add_right _ _
+
+/-- The flush before cached startup is a prefix of the complete drain's immediate output. -/
+theorem State.drainReadyGroups_beforeStartup_objectCount_le (queue : State)
+    {steps fuel : Nat} (bounded : steps < fuel)
+    (available : List (Occurrence × Nat) := []) {node : GroupNode}
+    (chosen
+      : (State.drainReadyGroups.go available steps queue).1.rootGroups.findSome?
+          (fun ref => do
+            let candidate ←
+              (State.drainReadyGroups.go available steps queue).1.groupNode? ref
+            if candidate.pending == 0 then some candidate else none)
+        = some node)
+    : (((State.drainReadyGroups.go available steps queue).2.1
+        ++ ((State.drainReadyGroups.go available steps queue).1.finishGroupSuccess
+              node).2.1).flatMap
+        WorkQueueEvent.objectValues).length
+      ≤ ((State.drainReadyGroups.go available fuel queue).2.1.flatMap
+          WorkQueueEvent.objectValues).length := by
+  have output := congrArg (fun result : State × List WorkQueueEvent × List GroupFailureEvent =>
+    result.2.1) (State.drainReadyGroups_go_add steps 1 queue available)
+  dsimp only at output
+  simp only [State.drainReadyGroups.go, chosen, List.append_nil] at output
+  rw [← output]
+  exact queue.drainReadyGroups_go_objectCount_le (steps := steps + 1) (fuel := fuel)
+    (by omega) available
 
 private theorem split_labels {published : List ObjectPublication}
     {publication offset count full} (bounded : count ≤ full)
@@ -82,7 +107,6 @@ theorem createWorkQueue_taskSuccess_foldMemberships
       let stored := current.putTaskNode { incoming with value := some result.value }
       let prepared := (stored.maybeIntegrateWork result.work (some occurrence)).1
       current.taskNode? occurrence = some incoming
-      → current.taskHasHealthyOwner incoming.task = true
       → ∀ steps,
           steps ≤ incoming.task.groups.length
           → let boundary :=
@@ -94,14 +118,14 @@ theorem createWorkQueue_taskSuccess_foldMemberships
                     WorkQueueEvent.objectValues).length
                   + (boundary.2.1.flatMap WorkQueueEvent.objectValues).length),
               boundary.1.TaskMembershipAbsent publication.1 := by
-  intro current stored prepared found healthy steps bounded boundary publication member
+  intro current stored prepared found steps bounded boundary publication member
   have count := successGroupFold_objectCount_take_le incoming.task.groups (prepared, [], {}) steps
   have full : (boundary.2.1.flatMap WorkQueueEvent.objectValues).length
-      ≤ ((current.handleGraphEvent (.taskSuccess occurrence result)).2.flatMap
+      ≤ ((current.handleGraphEvent (.taskSuccess occurrence result)).2.1.flatMap
           WorkQueueEvent.objectValues).length := by
-    rw [State.handleGraphEvent, current.taskSuccess_eq occurrence result incoming found]
-    simp only [healthy, Bool.not_true, Bool.false_eq_true, ↓reduceIte,
-      List.flatMap_append, List.length_append]
+    simp only [State.handleGraphEvent, State.cacheTaskFailures, List.foldl_nil]
+    rw [current.taskSuccess_eq occurrence result incoming found]
+    simp only [List.flatMap_append, List.length_append]
     exact Nat.le_trans count (Nat.le_add_right _ _)
   rcases split_labels full member with old | new
   · obtain ⟨absent, fresh⟩ :=
@@ -109,8 +133,9 @@ theorem createWorkQueue_taskSuccess_foldMemberships
     have installed := absent.putTaskNode { incoming with value := some result.value }
     have integrated := installed.maybeIntegrateWork result.work fresh (some occurrence)
     exact integrated.successGroupFold (incoming.task.groups.take steps) [] {}
-  · exact ((covered.atPrefixMemberships before (.taskSuccess occurrence result) after)
-      incoming found healthy).ownerFold steps bounded publication new
+  · have prepared := covered.atPrefixMemberships before (.taskSuccess occurrence result) after
+    simp only [State.cacheTaskFailures, List.foldl_nil] at prepared
+    exact (prepared incoming found).ownerFold steps bounded publication new
 
 /-- A task-success drain excludes every object published so far on the original ledger.
 Witness: earlier-handler labels survive fresh preparation and the owner fold; the retained
@@ -127,9 +152,8 @@ theorem createWorkQueue_taskSuccess_drainMemberships
       let stored := current.putTaskNode { incoming with value := some result.value }
       let prepared := (stored.maybeIntegrateWork result.work (some occurrence)).1
       let released := incoming.task.groups.foldl successGroupStep (prepared, [], {})
-      let active := released.1.startNewWork released.2.2
+      let active := (released.1.startNewWork released.2.2).1
       current.taskNode? occurrence = some incoming
-      → current.taskHasHealthyOwner incoming.task = true
       → ∀ steps,
           steps ≤ active.groupNodes.length
           → ∀ publication ∈
@@ -137,19 +161,20 @@ theorem createWorkQueue_taskSuccess_drainMemberships
                 ((((State.initialize (Work.fromExecution work)).rawEventReplay
                     before).2.flatMap
                     WorkQueueEvent.objectValues).length
-                  + ((released.2.1 ++ (State.drainReadyGroups.go steps active).2).flatMap
+                  + ((released.2.1
+                      ++ (State.drainReadyGroups.go [] steps active).2.1).flatMap
                       WorkQueueEvent.objectValues).length),
-              (State.drainReadyGroups.go steps active).1.TaskMembershipAbsent
+              (State.drainReadyGroups.go [] steps active).1.TaskMembershipAbsent
                 publication.1 := by
-  intro current stored prepared released active found healthy steps bounded publication member
+  intro current stored prepared released active found steps bounded publication member
   have count := active.drainReadyGroups_go_objectCount_le bounded
-  have full : ((released.2.1 ++ (State.drainReadyGroups.go steps active).2).flatMap
+  have full : ((released.2.1 ++ (State.drainReadyGroups.go [] steps active).2.1).flatMap
       WorkQueueEvent.objectValues).length
-      ≤ ((current.handleGraphEvent (.taskSuccess occurrence result)).2.flatMap
+      ≤ ((current.handleGraphEvent (.taskSuccess occurrence result)).2.1.flatMap
           WorkQueueEvent.objectValues).length := by
-    rw [State.handleGraphEvent, current.taskSuccess_eq occurrence result incoming found]
-    simpa only [healthy, Bool.not_true, Bool.false_eq_true, ↓reduceIte,
-      List.flatMap_append, List.length_append, State.drainReadyGroups,
+    simp only [State.handleGraphEvent, State.cacheTaskFailures, List.foldl_nil]
+    rw [current.taskSuccess_eq occurrence result incoming found]
+    simpa only [List.flatMap_append, List.length_append, State.drainReadyGroups,
       stored, prepared, released, active] using Nat.add_le_add_left count
         (released.2.1.flatMap WorkQueueEvent.objectValues).length
   rcases split_labels full member with old | new
@@ -159,8 +184,9 @@ theorem createWorkQueue_taskSuccess_drainMemberships
     have integrated := stored.maybeIntegrateWork result.work fresh (some occurrence)
     apply State.TaskMembershipAbsent.drainReadyGroups_go
     exact (integrated.successGroupFold incoming.task.groups [] {}).startNewWork _
-  · exact ((covered.atPrefixMemberships before (.taskSuccess occurrence result) after)
-      incoming found healthy).drain steps bounded publication new
+  · have prepared := covered.atPrefixMemberships before (.taskSuccess occurrence result) after
+    simp only [State.cacheTaskFailures, List.foldl_nil] at prepared
+    exact (prepared incoming found).drain steps bounded publication new
 
 /-- An active item handler excludes the full object history at every internal drain boundary.
 Witness: source freshness preserves all earlier labels through item preparation, while
@@ -183,16 +209,17 @@ theorem createWorkQueue_streamItems_drainMemberships
                 ((((State.initialize (Work.fromExecution work)).rawEventReplay
                     before).2.flatMap
                     WorkQueueEvent.objectValues).length
-                  + ((State.drainReadyGroups.go steps prepared).2.flatMap
+                  + ((State.drainReadyGroups.go [] steps prepared).2.1.flatMap
                       WorkQueueEvent.objectValues).length),
-              (State.drainReadyGroups.go steps prepared).1.TaskMembershipAbsent
+              (State.drainReadyGroups.go [] steps prepared).1.TaskMembershipAbsent
                 publication.1 := by
   intro current prepared active steps bounded publication member
-  have full : ((State.drainReadyGroups.go steps prepared).2.flatMap
+  have full : ((State.drainReadyGroups.go [] steps prepared).2.1.flatMap
       WorkQueueEvent.objectValues).length
-      ≤ ((current.handleGraphEvent (.streamItems stream items)).2.flatMap
+      ≤ ((current.handleGraphEvent (.streamItems stream items)).2.1.flatMap
           WorkQueueEvent.objectValues).length := by
-    rw [State.handleGraphEvent, current.streamItems_eq stream items]
+    simp only [State.handleGraphEvent, State.cacheTaskFailures, List.foldl_nil]
+    rw [current.streamItems_eq stream items]
     simpa only [active, Bool.not_true, Bool.false_eq_true, ↓reduceIte, List.flatMap_cons,
       WorkQueueEvent.objectValues, List.nil_append, State.drainReadyGroups,
       State.preparedStreamItems, prepared]
@@ -203,8 +230,108 @@ theorem createWorkQueue_streamItems_drainMemberships
     apply (absent.preparedStreamItems items ?_).drainReadyGroups_go steps
     intro item itemMember child childMember
     exact fresh child (List.mem_flatMap.mpr ⟨item, itemMember, childMember⟩)
-  · exact (covered.atPrefixMemberships before (.streamItems stream items) after)
-      active steps bounded publication new
+  · have prepared := covered.atPrefixMemberships before (.streamItems stream items) after
+    simp only [State.cacheTaskFailures, List.foldl_nil] at prepared
+    exact prepared.drain active steps bounded publication new
+
+/-- The same eventwise ledger clears full-history task-drain labels before cached startup. -/
+theorem createWorkQueue_taskSuccess_drainStartupMemberships
+    {work before occurrence result after published incoming}
+    (covered
+      : (State.initialize (Work.fromExecution work)).ReplayClosuresCovered
+          (before ++ .taskSuccess occurrence result :: after) published)
+    (valid : ValidGraphEvents work (before ++ .taskSuccess occurrence result :: after))
+    : let current := (State.initialize (Work.fromExecution work)).replayGraphEvents before
+      let stored := current.putTaskNode { incoming with value := some result.value }
+      let prepared := (stored.maybeIntegrateWork result.work (some occurrence)).1
+      let released := incoming.task.groups.foldl successGroupStep (prepared, [], {})
+      let active := (released.1.startNewWork released.2.2).1
+      current.taskNode? occurrence = some incoming
+      → active.DrainStartupMembershipsCleared active.groupNodes.length published []
+          (((State.initialize (Work.fromExecution work)).rawEventReplay before).2
+            ++ released.2.1) := by
+  intro current stored prepared released active found steps bounded node
+  dsimp only
+  intro chosen publication member
+  have count := active.drainReadyGroups_beforeStartup_objectCount_le bounded [] chosen
+  have full : ((released.2.1 ++ (State.drainReadyGroups.go [] steps active).2.1
+        ++ ((State.drainReadyGroups.go [] steps active).1.finishGroupSuccess node).2.1).flatMap
+      WorkQueueEvent.objectValues).length
+      ≤ ((current.handleGraphEvent (.taskSuccess occurrence result)).2.1.flatMap
+        WorkQueueEvent.objectValues).length := by
+    simp only [State.handleGraphEvent, State.cacheTaskFailures, List.foldl_nil]
+    rw [current.taskSuccess_eq occurrence result incoming found]
+    simp only [List.flatMap_append, List.length_append]
+    simpa only [List.flatMap_append, List.length_append, Nat.add_assoc, State.drainReadyGroups,
+      stored, prepared, released, active] using Nat.add_le_add_left count
+        (released.2.1.flatMap WorkQueueEvent.objectValues).length
+  have selected : publication ∈ published.take
+      ((((State.initialize (Work.fromExecution work)).rawEventReplay before).2.flatMap
+          WorkQueueEvent.objectValues).length
+        + ((released.2.1 ++ (State.drainReadyGroups.go [] steps active).2.1
+            ++ ((State.drainReadyGroups.go [] steps active).1.finishGroupSuccess node).2.1).flatMap
+          WorkQueueEvent.objectValues).length) := by
+    simpa only [List.flatMap_append, List.length_append, Nat.add_assoc] using member
+  rcases split_labels full selected with old | fresh
+  · obtain ⟨absent, childFresh⟩ :=
+      createWorkQueue_beforeHandlerMemberships covered valid publication old
+    have integrated := (absent.putTaskNode
+      { incoming with value := some result.value }).maybeIntegrateWork result.work childFresh
+        (some occurrence)
+    have started :=
+      (integrated.successGroupFold incoming.task.groups [] {}).startNewWork released.2.2
+    exact (started.drainReadyGroups_go steps).finishGroupSuccess node
+  · have cleared := covered.atPrefixMemberships before (.taskSuccess occurrence result) after
+    simp only [State.cacheTaskFailures, List.foldl_nil] at cleared
+    apply (cleared incoming found).startup steps bounded node chosen publication
+    simpa only [List.flatMap_append, List.length_append, Nat.add_assoc, State.dispatchGraphEvent] using fresh
+
+/-- The same eventwise ledger clears full-history item-drain labels before cached startup. -/
+theorem createWorkQueue_streamItems_drainStartupMemberships
+    {work before stream items after published}
+    (covered
+      : (State.initialize (Work.fromExecution work)).ReplayClosuresCovered
+          (before ++ .streamItems stream items :: after) published)
+    (valid : ValidGraphEvents work (before ++ .streamItems stream items :: after))
+    : let current := (State.initialize (Work.fromExecution work)).replayGraphEvents before
+      let prepared := current.preparedStreamItems items
+      current.rootStreams.contains stream.ref = true
+      → prepared.DrainStartupMembershipsCleared prepared.groupNodes.length published []
+          ((State.initialize (Work.fromExecution work)).rawEventReplay before).2 := by
+  intro current prepared active steps bounded node
+  dsimp only
+  intro chosen publication member
+  have count := prepared.drainReadyGroups_beforeStartup_objectCount_le bounded [] chosen
+  have full : (((State.drainReadyGroups.go [] steps prepared).2.1
+        ++ (State.finishGroupSuccess
+              (State.drainReadyGroups.go [] steps prepared).1 node).2.1).flatMap
+      WorkQueueEvent.objectValues).length
+      ≤ ((current.handleGraphEvent (.streamItems stream items)).2.1.flatMap
+        WorkQueueEvent.objectValues).length := by
+    simp only [State.handleGraphEvent, State.cacheTaskFailures, List.foldl_nil]
+    rw [current.streamItems_eq stream items]
+    simpa only [active, Bool.not_true, Bool.false_eq_true, ite_false,
+      List.flatMap_cons, WorkQueueEvent.objectValues, List.nil_append, State.drainReadyGroups,
+      State.preparedStreamItems, prepared] using count
+  have selected : publication ∈ published.take
+      ((((State.initialize (Work.fromExecution work)).rawEventReplay before).2.flatMap
+          WorkQueueEvent.objectValues).length
+        + (((State.drainReadyGroups.go [] steps prepared).2.1
+            ++ (State.finishGroupSuccess
+              (State.drainReadyGroups.go [] steps prepared).1 node).2.1).flatMap
+          WorkQueueEvent.objectValues).length) := by
+    simpa only [List.flatMap_append, List.length_append, Nat.add_assoc] using member
+  rcases split_labels full selected with old | fresh
+  · obtain ⟨absent, childFresh⟩ :=
+      createWorkQueue_beforeHandlerMemberships covered valid publication old
+    have ready := absent.preparedStreamItems items (by
+      intro item itemMember child childMember
+      exact childFresh child (List.mem_flatMap.mpr ⟨item, itemMember, childMember⟩))
+    exact (ready.drainReadyGroups_go steps).finishGroupSuccess node
+  · have cleared := covered.atPrefixMemberships before (.streamItems stream items) after
+    simp only [State.cacheTaskFailures, List.foldl_nil] at cleared
+    apply cleared.startup active steps bounded node chosen publication
+    simpa only [List.nil_append, State.dispatchGraphEvent] using fresh
 
 -----------------------------------------------------------------------------------------
 -- Actual carrier positions recover their own exclusion boundary, not a later endpoint
@@ -226,7 +353,6 @@ theorem createWorkQueue_taskSuccess_ownerCarrierMemberships
       let prepared := (stored.maybeIntegrateWork result.work (some occurrence)).1
       let output := (incoming.task.groups.foldl successGroupStep (prepared, [], {})).2.1
       current.taskNode? occurrence = some incoming
-      → current.taskHasHealthyOwner incoming.task = true
       → output[index]? = some (.groupSuccess group groups streams)
       → ∃ steps,
           steps < incoming.task.groups.length
@@ -241,7 +367,7 @@ theorem createWorkQueue_taskSuccess_ownerCarrierMemberships
                       WorkQueueEvent.objectValues).length
                     + ((output.take index).flatMap WorkQueueEvent.objectValues).length),
                 boundary.1.TaskMembershipAbsent publication.1 := by
-  intro current stored prepared output found healthy selected
+  intro current stored prepared output found selected
   obtain ⟨steps, bounded, exactPrefix⟩ :=
     successGroupFold_carrier_boundary prepared incoming.task.groups selected
   refine ⟨steps, bounded, exactPrefix, ?_⟩
@@ -253,7 +379,7 @@ theorem createWorkQueue_taskSuccess_ownerCarrierMemberships
     simp only [List.take_add_one, selected, Option.toList_some, List.flatMap_append,
       List.flatMap_singleton, WorkQueueEvent.objectValues, List.append_nil]
   have excluded := createWorkQueue_taskSuccess_foldMemberships covered valid
-    found healthy (steps + 1) (by omega)
+    found (steps + 1) (by omega)
   dsimp only [prepared, stored, current] at count
   simpa only [count] using excluded
 

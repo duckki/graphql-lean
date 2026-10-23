@@ -1,5 +1,6 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.TerminationShape
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.GroupNoticeTracking
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.BatchOutputReplay
 
 /-! Concrete termination exhausts active roots; this alone does not account for latent work. -/
 
@@ -28,9 +29,11 @@ theorem State.handleGraphEvents_terminalRoots {queue : State}
       split
       · rename_i empty
         intro _
-        simpa using empty
+        have both := Bool.and_eq_true_iff.mp (Bool.and_eq_true_iff.mp empty).1
+        exact ⟨List.isEmpty_iff.mp both.1, List.isEmpty_iff.mp both.2⟩
       · intro impossible
-        rw [State.rawEventReplay_terminated, ended] at impossible
+        rw [State.rawEventReplay_terminated _ _ (GraphEvent.availableFailures events), ended]
+          at impossible
         cases impossible
 
 /-- Publisher replay preserves the same terminal-root invariant across arbitrary batches.
@@ -60,56 +63,106 @@ theorem createWorkQueue_terminalRoots (work : Work) (inputs : List (List GraphEv
   State.runNormalized_terminalRoots
     (by rw [createWorkQueue_terminated]; intro impossible; cases impossible) inputs ended
 
+/-- A running batch terminates only after consuming all pending internal notices. -/
+theorem State.handleGraphEvents_terminalPending {queue : State}
+    (prior : queue.terminated = true → queue.groupFailureEvents = [])
+    (events : List GraphEvent)
+    : (queue.handleGraphEvents events).1.terminated = true
+      → (queue.handleGraphEvents events).1.groupFailureEvents = [] := by
+  rw [State.handleGraphEvents_eq_rawEventReplay]
+  cases ended : queue.terminated with
+  | true => simpa only [ended, ↓reduceIte] using prior
+  | false =>
+      simp only [Bool.false_eq_true, ↓reduceIte]
+      split
+      · rename_i empty
+        intro _
+        exact List.isEmpty_iff.mp (Bool.and_eq_true_iff.mp empty).2
+      · intro impossible
+        rw [State.rawEventReplay_terminated _ _ (GraphEvent.availableFailures events), ended]
+          at impossible
+        cases impossible
+
+/-- Normalized batch replay retains the pending-FIFO termination condition. -/
+theorem State.runNormalized_terminalPending {queue : State}
+    (prior : queue.terminated = true → queue.groupFailureEvents = [])
+    (inputs : List (List GraphEvent))
+    : (queue.runNormalized inputs).1.terminated = true
+      → (queue.runNormalized inputs).1.groupFailureEvents = [] := by
+  rw [State.runNormalized_stateFold]
+  induction inputs generalizing queue with
+  | nil => exact prior
+  | cons batch rest ih => exact ih (State.handleGraphEvents_terminalPending prior batch)
+
+/-- Every terminated initialized queue has consumed all its internal group notices. -/
+theorem createWorkQueue_terminalPending (work : Work) (inputs : List (List GraphEvent))
+    (ended : ((State.initialize work).runNormalized inputs).1.terminated = true)
+    : ((State.initialize work).runNormalized inputs).1.groupFailureEvents = [] :=
+  State.runNormalized_terminalPending
+    (by rw [createWorkQueue_terminated]; intro impossible; cases impossible) inputs ended
+
 -----------------------------------------------------------------------------------------
--- Started eventwise replay shares the final root lists
+-- Actual batch state and output retain the final root and notice evidence
 -----------------------------------------------------------------------------------------
 
-/-- A terminated started replay also has empty roots before publisher normalization.
-Witness: accepted batches and flattened eventwise replay differ only in the terminal flag.
-This transports concrete emptiness, not abstract task or latent-node coverage.
+/-- A terminated actual batch replay has empty group and stream root lists.
+Witness: publisher normalization projects to the same batch state without changing cache
+visibility or flattening source input boundaries.
 -/
-theorem createWorkQueue_replayGraphEvents_terminalRoots {work inputs}
-    (started : inputsStarted work inputs = true)
+theorem createWorkQueue_replayBatches_terminalRoots {work inputs}
     (ended
       : ((State.initialize (Work.fromExecution work)).runNormalized inputs).1.terminated
         = true)
-    : ((State.initialize (Work.fromExecution work)).replayGraphEvents
-          inputs.flatten).rootGroups
-        = []
-      ∧ ((State.initialize (Work.fromExecution work)).replayGraphEvents
-          inputs.flatten).rootStreams
+    : ((State.initialize (Work.fromExecution work)).replayBatches inputs).rootGroups = []
+      ∧ ((State.initialize (Work.fromExecution work)).replayBatches inputs).rootStreams
         = [] := by
   have empty := createWorkQueue_terminalRoots (Work.fromExecution work) inputs ended
-  obtain ⟨flag, same⟩ := State.runNormalized_stateCore _ inputs
-    ((inputsStarted_eq_batchesStarted work inputs) ▸ started)
-  simpa only [same] using empty
+  rwa [State.runNormalized_replayBatches] at empty
 
-/-- At termination, every announced group has a completion or a concrete cancellation mark.
-Witness: eventwise notice tracking excludes the active-root alternative. The stronger
-generated-work result in `GroupCompletionReplay` eliminates silent cancellation as well.
+/-- Actual raw batch replay retains every prior cancellation marker. -/
+theorem State.rawBatches_cancelledGroups_subset (queue : State)
+    (batches : List (List GraphEvent))
+    : queue.cancelledGroups.Subset (queue.rawBatches batches).1.cancelledGroups := by
+  induction batches generalizing queue with
+  | nil => exact List.Subset.refl _
+  | cons batch rest ih =>
+      exact (queue.handleGraphEvents_cancelledGroups_subset batch).trans (ih _)
+
+/-- Actual batches retain an active, cancelled or completed explanation for every notice.
+Witness: compose the per-batch tracking theorem over the same raw-output and queue fold.
+-/
+theorem State.rawBatches_groupNoticeTracking (queue : State)
+    (batches : List (List GraphEvent))
+    : GroupNoticeTracking queue.rootGroups (queue.rawBatches batches) := by
+  induction batches generalizing queue with
+  | nil => exact .silent (List.Subset.refl _)
+  | cons batch rest ih =>
+      exact (queue.handleGraphEvents_groupNoticeTracking batch).append (ih _)
+        (State.rawBatches_cancelledGroups_subset _ rest)
+
+/-- At termination, each announced group has a completion or concrete cancellation mark.
+Witness: actual-batch notice tracking excludes the empty active-root alternative. The
+stronger generated-work completion bridge must separately rule out silent cancellation.
 -/
 theorem createWorkQueue_terminalGroupTracking {work inputs ref}
-    (started : inputsStarted work inputs = true)
+    (_started : inputsStarted work inputs = true)
     (ended
       : ((State.initialize (Work.fromExecution work)).runNormalized inputs).1.terminated
         = true)
     (announced
       : ref
         ∈ (State.initialize (Work.fromExecution work)).rootGroups
-          ++ ((State.initialize (Work.fromExecution work)).rawEventReplay
-                inputs.flatten).2.flatMap
+          ++ ((State.initialize (Work.fromExecution work)).rawBatches inputs).2.flatMap
               rawGroupNoticeRefs)
     : ref
-        ∈ ((State.initialize (Work.fromExecution work)).replayGraphEvents
-            inputs.flatten).cancelledGroups
+        ∈ ((State.initialize (Work.fromExecution work)).rawBatches
+            inputs).1.cancelledGroups
       ∨ ref
-        ∈ ((State.initialize (Work.fromExecution work)).rawEventReplay
-            inputs.flatten).2.flatMap
+        ∈ ((State.initialize (Work.fromExecution work)).rawBatches inputs).2.flatMap
             rawGroupClosureRefs := by
-  have tracked := State.rawEventReplay_groupNoticeTracking
-    (State.initialize (Work.fromExecution work)) inputs.flatten ref announced
-  have empty := (createWorkQueue_replayGraphEvents_terminalRoots started ended).1
-  rw [State.rawEventReplay_state] at tracked
-  exact tracked.resolve_left (by rw [empty]; simp)
+  have tracked := State.rawBatches_groupNoticeTracking
+    (State.initialize (Work.fromExecution work)) inputs ref announced
+  have empty := (createWorkQueue_replayBatches_terminalRoots ended).1
+  exact tracked.resolve_left (by rw [State.rawBatches_state, empty]; simp)
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

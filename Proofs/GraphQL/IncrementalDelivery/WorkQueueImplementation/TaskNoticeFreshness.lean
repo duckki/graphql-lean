@@ -25,50 +25,45 @@ theorem ExecutedWork.taskSuccess_noProtectedNotice
     : ref
       ∉ ((((State.initialize (Work.fromExecution work)).replayGraphEvents
             before).taskSuccess
-            occurrence result).2.flatMap
+            occurrence result).2.1.flatMap
           rawGroupNoticeRefs) := by
   let queue := (State.initialize (Work.fromExecution work)).replayGraphEvents before
-  change ref ∉ (queue.taskSuccess occurrence result).2.flatMap rawGroupNoticeRefs
+  change ref ∉ (queue.taskSuccess occurrence result).2.1.flatMap rawGroupNoticeRefs
   cases found : queue.taskNode? occurrence with
   | none => simp [State.taskSuccess, found]
   | some incoming =>
-      cases healthy : queue.taskHasHealthyOwner incoming.task with
-      | false =>
-          rw [queue.taskSuccess_eq occurrence result incoming found]
-          simp [healthy]
-      | true =>
-          let stored := queue.putTaskNode { incoming with value := some result.value }
-          let prepared := (stored.maybeIntegrateWork result.work (some occurrence)).1
-          let folded := incoming.task.groups.foldl successGroupStep (prepared, [], {})
-          let active := folded.1.startNewWork folded.2.2
-          obtain ⟨parents, canonical, records, links, live, tasks, roots, _⟩ :=
-            generated.replayGraphEvents_preparedRetirement before matching matched incoming
-          obtain ⟨refs, _, support⟩ :=
-            generated.taskSuccess_prepared_noticeMetadata matching matched incoming
-          have storedPresent : stored.RootGroupsPresent :=
-            generated.replayGraphEvents_rootsPresent before matching
-          have preparedPresent := storedPresent.maybeIntegrateWork result.work (some occurrence)
-          have preparedFrame : LiveRootFrame prepared work parents :=
-            ⟨refs, records, links, live, tasks, roots, support, preparedPresent⟩
-          have storedProtected : stored.AncestorsRetired work ref := protectedRef
-          have preparedProtected := storedProtected.mono
-            (fun _ retired => retired.maybeIntegrateWork result.work (some occurrence))
-          have ownerExclusion := preparedFrame.successGroupFold_noProtectedNotice
-            generated canonical preparedProtected incoming.task.groups
-          have activeProtected : active.AncestorsRetired work ref :=
-            ownerExclusion.2.1.mono (fun _ retired => retired.startNewWork folded.2.2)
-          obtain ⟨activeParents, activeCanonical, activeFrame⟩ :=
-            generated.taskSuccess_drain_liveRootFrame matching matched incoming
-              (generated.replayGraphEvents_rootsPresent before matching)
-          have drainExclusion := activeFrame.drainReadyGroups_go_noProtectedNotice generated
-            activeCanonical activeProtected active.groupNodes.length
-          have equation : queue.taskSuccess occurrence result
-              = (active.drainReadyGroups.1, folded.2.1 ++ active.drainReadyGroups.2) := by
-            rw [queue.taskSuccess_eq occurrence result incoming found]
-            simp only [healthy, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
-            rfl
-          rw [equation, List.flatMap_append, List.mem_append, not_or]
-          exact ⟨ownerExclusion.2.2, drainExclusion⟩
+      let stored := queue.putTaskNode { incoming with value := some result.value }
+      let prepared := (stored.maybeIntegrateWork result.work (some occurrence)).1
+      let folded := incoming.task.groups.foldl successGroupStep (prepared, [], {})
+      let active := (folded.1.startNewWork folded.2.2).1
+      obtain ⟨parents, canonical, records, links, live, tasks, roots, _⟩ :=
+        generated.replayGraphEvents_preparedRetirement before matching matched incoming [] found
+      obtain ⟨refs, _, support⟩ :=
+        generated.taskSuccess_prepared_noticeMetadata matching matched incoming
+      have storedPresent : stored.RootGroupsPresent :=
+        generated.replayGraphEvents_rootsPresent before matching
+      have preparedPresent := storedPresent.maybeIntegrateWork result.work (some occurrence)
+      have preparedFrame : LiveRootFrame prepared work parents :=
+        ⟨refs, records, links, live, tasks, roots, support, preparedPresent⟩
+      have storedProtected : stored.AncestorsRetired work ref := protectedRef
+      have preparedProtected := storedProtected.mono
+        (fun _ retired => retired.maybeIntegrateWork result.work (some occurrence))
+      have ownerExclusion := preparedFrame.successGroupFold_noProtectedNotice
+        generated canonical preparedProtected incoming.task.groups
+      have activeProtected : active.AncestorsRetired work ref :=
+        ownerExclusion.2.1.mono (fun _ retired => retired.startNewWork folded.2.2)
+      obtain ⟨activeParents, activeCanonical, activeFrame⟩ :=
+        generated.taskSuccess_drain_liveRootFrame matching matched incoming found
+          (generated.replayGraphEvents_rootsPresent before matching)
+      have drainExclusion := activeFrame.drainReadyGroups_go_noProtectedNotice generated
+        activeCanonical activeProtected active.groupNodes.length
+      have equation : queue.taskSuccess occurrence result
+          = (active.drainReadyGroups.1, folded.2.1 ++ active.drainReadyGroups.2.1,
+            (folded.1.startNewWork folded.2.2).2 ++ active.drainReadyGroups.2.2) := by
+        rw [queue.taskSuccess_eq occurrence result incoming found]
+
+      rw [equation, List.flatMap_append, List.mem_append, not_or]
+      exact ⟨ownerExclusion.2.2, drainExclusion⟩
 
 -----------------------------------------------------------------------------------------
 -- Earlier announcements supply protection, even when their nodes have since disappeared
@@ -92,7 +87,7 @@ theorem ExecutedWork.taskSuccess_noEarlierGroupNotice
     : ref
       ∉ ((((State.initialize (Work.fromExecution work)).replayGraphEvents
             before).taskSuccess
-            occurrence result).2.flatMap
+            occurrence result).2.1.flatMap
           rawGroupNoticeRefs) :=
   generated.taskSuccess_noProtectedNotice matching matched
     (generated.rawEventReplay_announcedAncestorsRetired before matching ref announced)

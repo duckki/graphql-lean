@@ -20,7 +20,8 @@ lookup is treated as cancellation, and no extra host-source premise is assumed.
 theorem ExecutedWork.retired_structuralContributor_registered
     {work events address owners producer payload ref} (generated : ExecutedWork work)
     (valid : ValidGraphEvents work events)
-    (started : (State.initialize (Work.fromExecution work)).acceptsBatch events = true)
+    (started
+      : State.eventsStarted [] (State.initialize (Work.fromExecution work)) events = true)
     (known : TaskAt work (.executionGroup address) owners producer payload)
     (contributes : ref ∈ owners)
     (retired
@@ -62,7 +63,8 @@ theorem ExecutedWork.retired_structuralContributor_registered
                 · exact refEq ▸ GroupRecordInvalidated.ancestor
                     (groupRecordAt_of_nodeAt descriptor) dependency invalid
               have parentRetired :
-                  ((State.initialize (Work.fromExecution work)).replayGraphEvents events).RetiredGroup
+                  ((State.initialize (Work.fromExecution work)).replayGraphEvents
+                    events).RetiredGroup
                     parentRef := by
                 rcases support with reused | dependency
                 · exact (reused.trans refEq).symm ▸ retired
@@ -81,10 +83,10 @@ theorem ExecutedWork.retired_structuralContributor_registered
               rw [occurrence] at succeeded
               have matching := valid.eachMatches succeeded
               obtain ⟨before, after, split⟩ := List.mem_iff_append.mp succeeded
-              obtain ⟨parentNode, found, eligible⟩ :=
+              obtain ⟨parentNode, found⟩ :=
                 generated.success_with_finalHealthyOwner_processed valid started parentKnown
                   parentContributes parentHealthy split
               exact TaskAt.executionGroup_registered_after_object known matching
-                ⟨after, by simp [split, List.append_assoc]⟩ found eligible
+                ⟨after, by simp [split, List.append_assoc]⟩ found
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

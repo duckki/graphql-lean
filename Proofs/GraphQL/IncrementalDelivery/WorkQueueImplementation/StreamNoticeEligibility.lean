@@ -51,7 +51,7 @@ theorem AnnouncedFailures.stream_unrecorded {work w stream dependencies producer
   obtain ⟨entry, kept, same⟩ := List.mem_map.mp recorded
   obtain ⟨member, reached⟩ := List.mem_filter.mp kept
   have reached : entry.1 ≤ count := by simpa using reached
-  obtain ⟨otherOwners, otherKnown, ref, contributes, notified⟩ := announced.2 entry member
+  obtain ⟨otherOwners, otherKnown, ref, contributes, notified⟩ := announced.2.1 entry member
   obtain ⟨parent, payload, task⟩ := known
   obtain ⟨otherParent, otherPayload, otherTask⟩ := otherKnown
   rw [same] at otherTask

@@ -95,7 +95,7 @@ theorem State.addTask_complete_eq_reference {state : State} {work : Work}
     simp only [active, ↓reduceIte, selected, Bool.true_and, ReferenceWorkQueue.State.startTask]
     cases node : (state.addTask task).1.queue.taskNode? task.occurrence with
     | none => simp only [Option.isSome_none, Option.isNone_none, Bool.false_eq_true,
-        ↓reduceIte, lookup]
+        ↓reduceIte, lookup, List.findSome?]
     | some found => simp only [Option.isSome_some, Option.isNone_some, ↓reduceIte,
         Bool.false_eq_true]
   · have unselected : task.groups.any (fun group => state.queue.rootGroups.contains group.ref)

@@ -8,6 +8,16 @@ open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.Semantics
 open WorkQueueSemantics
 
+/-- Stripping declaration annotations retains role assignments of the underlying work. -/
+theorem workRoles_withoutDeclarations {roles work} (known : RefRoles.WorkRoles roles work)
+    : RefRoles.WorkRoles roles work.withoutDeclarations := by
+  cases work with
+  | declareGroups groups tasks =>
+      simp only [RefRoles.WorkRoles] at known
+      simpa only [Work.withoutDeclarations] using workRoles_withoutDeclarations known.2
+  | _ => simpa only [Work.withoutDeclarations] using known
+termination_by work
+
 /-- A located subtree retains the original assignment of stream and defer ref roles.
 Witness: structural navigation through combine, deferred, and stream-item boundaries.
 -/
@@ -18,14 +28,14 @@ theorem workRoles_located {roles work address current producer owners}
   have navigation := StructuralEquivalence.located_of_current located
   clear located
   induction navigation with
-  | root => exact coherent
+  | root => exact workRoles_withoutDeclarations coherent
   | left _ ih =>
-      rw [RefRoles.WorkRoles] at ih; exact ih.1
+      rw [RefRoles.WorkRoles] at ih; exact workRoles_withoutDeclarations ih.1
   | right _ ih | executionGroup _ ih =>
-      rw [RefRoles.WorkRoles] at ih; exact ih.2
+      rw [RefRoles.WorkRoles] at ih; exact workRoles_withoutDeclarations ih.2
   | item _ entry ih =>
       rw [RefRoles.WorkRoles] at ih
-      exact ih.2 _ (List.mem_of_getElem? entry)
+      exact workRoles_withoutDeclarations (ih.2 _ (List.mem_of_getElem? entry))
 
 /-- A known group's ref has defer role and a known stream's ref has stream role.
 Witness: the metadata at its located boundary, retaining repeated descriptors.

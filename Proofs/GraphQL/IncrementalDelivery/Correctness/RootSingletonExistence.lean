@@ -1,4 +1,5 @@
 import Proofs.GraphQL.IncrementalDelivery.Correctness.SingletonDeferExistence
+import Proofs.GraphQL.IncrementalDelivery.Semantics.WorkSize
 
 /-! The producer-free singleton-defer progress theorem specializes nested-defer progress.
 Its original shape and complete-run interface remain available to existing callers.

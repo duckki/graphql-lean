@@ -31,8 +31,8 @@ theorem streamAction_healthy_of_successfulItems
           { active := queue.initialGroups ++ queue.initialStreams }
         w.failures
         = mergeFailureCuts
-            (sourceObjectFailureCuts 0
-              (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher inputs).2.2))
+            (informativeObjectFailureCuts work
+              (queue.sourceRunBlocks publisher inputs).2.2)
             streams)
     (known : NodeAt work stream .stream dependencies producer)
     (selected : w.events[index]? = some event)
@@ -42,8 +42,8 @@ theorem streamAction_healthy_of_successfulItems
   let queue := initialQueue work
   let publisher : IncrementalPublisher :=
     { active := queue.initialGroups ++ queue.initialStreams }
-  let objects := sourceObjectFailureCuts 0
-    (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher inputs).2.2)
+  let objects := informativeObjectFailureCuts work
+    (queue.sourceRunBlocks publisher inputs).2.2
   have partition : w.failures.Perm (streams ++ objects) :=
     exactCuts ▸ mergeFailureCuts_partition objects streams
   obtain ⟨atFull, beforeEq⟩ := Witness.canonical_event history selected
@@ -57,7 +57,7 @@ theorem streamAction_healthy_of_successfulItems
         TaskAt work entry.2 owners producer (.object path (.error errors)) := by
     intro entry member
     obtain ⟨_, owners, producer, path, errors, descriptor, _⟩ :=
-      createWorkQueue_eligibleObjectFailureCuts_origin generated valid entry member
+      createWorkQueue_informativeObjectFailureCuts_origin generated valid entry member
     exact ⟨owners, producer, path, errors, descriptor⟩
   have length : (w.events.take index).length = index :=
     List.length_take_of_le (Nat.le_of_lt (List.getElem?_eq_some_iff.mp selected).1)
@@ -70,7 +70,7 @@ theorem streamAction_healthy_of_successfulItems
       (createWorkQueue_runNormalized_atomicStreamActions_ordered valid)
       known atFull action nonfailure descriptor owner
   obtain ⟨received, input, later, sourceSplit, sameAction, _, _, _⟩ :=
-    createWorkQueue_atomicStream_sourcePrefix started atFull action
+    createWorkQueue_atomicStream_sourcePrefix valid started atFull action
   have sourcePrefix : (received ++ [input]).IsPrefix inputs.flatten :=
     ⟨later, by simp [sourceSplit, List.append_assoc]⟩
   have prior : received.IsPrefix inputs.flatten := ⟨input :: later, sourceSplit.symm⟩
@@ -139,8 +139,8 @@ theorem streamSuccessAdmission_of_successfulItems {work inputs w streams}
           { active := queue.initialGroups ++ queue.initialStreams }
         w.failures
         = mergeFailureCuts
-            (sourceObjectFailureCuts 0
-              (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher inputs).2.2))
+            (informativeObjectFailureCuts work
+              (queue.sourceRunBlocks publisher inputs).2.2)
             streams)
     : StreamSuccessAdmission work w := by
   intro index stream selected

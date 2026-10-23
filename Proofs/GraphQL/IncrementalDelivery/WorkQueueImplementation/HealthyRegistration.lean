@@ -153,8 +153,8 @@ theorem State.HealthyRegisteredTaskAccounting.addStreams
     split <;> exact accounted task old fresh ref contributor healthy
 
 /-- Coherent child integration retains old links and registers healthy contributors.
-Witness: task provenance identifies actual owners; record-aware cancellation support
-prevents refusing their refs even when other candidates are taskless ancestors.
+Witness: ancestry support and declaration closure license each healthy installation,
+including chunks containing taskless ancestor records.
 -/
 theorem State.HealthyRegisteredTaskAccounting.maybeIntegrateWork
     {queue : State} {work : Execution.Work} {settled failed : List Occurrence}
@@ -164,16 +164,21 @@ theorem State.HealthyRegisteredTaskAccounting.maybeIntegrateWork
     (covered
       : ∀ task ∈ newWork.tasks,
         ∀ ref ∈ task.groups.map Execution.DeliveryNode.ref,
-          ∃ group ∈ newWork.groups, group.node.ref = ref)
+          ref ∈ queue.registeredGroups ∨ ∃ group ∈ newWork.groups, group.node.ref = ref)
     (available : queue.ChildGroupsAvailable work failed newWork)
-    (cancelled : queue.CancelledRecordsSupported work failed)
-    (generated : ExecutedWork work)
-    (taskMatching : ∀ task ∈ newWork.tasks, TaskMatches work task)
+    (generated : ExecutedWork work) (coverage : queue.LiveGroupsRegistered)
     (descriptors
       : ∀ group ∈ newWork.groups,
           ∃ dependencies,
             GroupRecordAt work group.node dependencies
             ∧ group.parent = dependencies.head?)
+    (closed
+      : ∀ group ∈ newWork.groups,
+          ∀ parent,
+            group.parent = some parent
+            → parent
+              ∈ queue.registeredGroups
+                ++ newWork.groups.map (fun group => group.node.ref))
     : (queue.maybeIntegrateWork newWork parentTask).1.HealthyRegisteredTaskAccounting
         work settled failed := by
   let withGroups := (queue.addGroups newWork.groups).1
@@ -198,21 +203,16 @@ theorem State.HealthyRegisteredTaskAccounting.maybeIntegrateWork
             ¬GroupInvalidated work failed ref
             → ∃ node ∈ current.groupNodes, node.group.node.ref = ref := by
           intro ref contributor healthy
-          obtain ⟨group, groupMember, same⟩ :=
-            taskCovered ref contributor
-          obtain ⟨dependencies, source, producer, known, sourceRef⟩ :=
-            (taskMatching task (subset task (by simp))).contributorKnown contributor
-          have notCancelled : ref ∉ withGroups.cancelledGroups := by
-            rw [← sourceRef]
-            have grouped := cancelled.addGroups newWork.groups descriptors
-            exact grouped.contributor_healthy_not_mem generated known
-              (sourceRef.symm ▸ healthy)
-          have groupRef : group.node.ref ∈ withGroups.groupNodes.map
-              (fun node => node.group.node.ref) :=
-            queue.addGroups_registersRefs newWork.groups group groupMember
-              (same ▸ available task (subset task (by simp)) ref contributor healthy)
-              (same ▸ notCancelled)
-          rw [same] at groupRef
+          have groupRef : ref ∈ withGroups.groupNodes.map
+              (fun node => node.group.node.ref) := by
+            have support := available task (subset task (by simp)) ref contributor healthy
+            rcases taskCovered ref contributor with registered | candidate
+            · exact queue.addGroups_includesRefs newWork.groups ref
+                (support.registered_live registered)
+            · obtain ⟨group, groupMember, same⟩ := candidate
+              rw [← same]
+              exact queue.addGroups_registersRefs newWork.groups generated coverage descriptors
+                closed group groupMember (same ▸ support)
           obtain ⟨node, nodeMember, nodeRef⟩ := List.mem_map.mp
             (included ref groupRef)
           exact ⟨node, nodeMember, nodeRef⟩
@@ -240,22 +240,23 @@ theorem State.HealthyRegisteredTaskAccounting.putTaskNode
     : (queue.putTaskNode updated).HealthyRegisteredTaskAccounting work settled failed :=
   accounted
 
-/-- Starting newly released tasks leaves their registered task and group
-membership maps untouched. -/
-theorem State.HealthyRegisteredTaskAccounting.startNewWork
+/-- Startup without cached rejections preserves healthy registered-task memberships. -/
+theorem State.HealthyRegisteredTaskAccounting.startNewWork_of_no_cached_failures
     {queue : State} {work : Execution.Work} {settled failed : List Occurrence}
     (accounted : queue.HealthyRegisteredTaskAccounting work settled failed)
     (newWork : NewWork)
-    : (queue.startNewWork newWork).HealthyRegisteredTaskAccounting
+    (unrejected : ∀ node ∈ queue.taskNodes, node.rejection = none)
+    : (queue.startNewWork newWork).1.HealthyRegisteredTaskAccounting
         work settled failed := by
-  obtain ⟨sameGroups, sameTasks, _⟩ := queue.startNewWork_groupCore newWork
+  have sameGroups := (queue.startNewWork_groupCore_of_no_cached_failures newWork unrejected).1
+  have sameTasks := queue.startNewWork_tasks newWork []
   intro task taskMember fresh ref contributor healthy
   have oldTask : task ∈ queue.tasks := by
     rw [sameTasks] at taskMember
     exact taskMember
   obtain ⟨node, oldMember, same, linked⟩ :=
     accounted task oldTask fresh ref contributor healthy
-  have finalMember : node ∈ (queue.startNewWork newWork).groupNodes := by
+  have finalMember : node ∈ (queue.startNewWork newWork).1.groupNodes := by
     rw [sameGroups]
     exact oldMember
   exact ⟨node, finalMember, same, linked⟩
@@ -813,11 +814,11 @@ theorem State.GroupRefsUnique.settleTaskGroups
         exact ih (step current group) (stepUnique current group currentUnique)
   exact foldUnique groups queue unique
 
-/-- The first task-success release preserves registered healthy memberships.
-Witness: decrement debt through the interleaved loop and nonempty pruning; recursive
-drain preservation is a separate obligation after this activation boundary.
+/-- The task-success owner fold preserves registered healthy memberships before activation.
+Witness: decrement debt through the interleaved loop and nonempty pruning. Startup and
+recursive draining must separately justify any removal caused by cached rejections.
 -/
-theorem State.HealthyRegisteredTaskAccounting.taskSuccess_release
+theorem State.HealthyRegisteredTaskAccounting.taskSuccess_beforeActivation
     {queue : State} {work : Execution.Work} {settled failed : List Occurrence}
     (accounted : queue.HealthyRegisteredTaskAccounting work settled failed)
     (rootsHealthy : queue.RootGroupsHealthy work failed)
@@ -829,14 +830,19 @@ theorem State.HealthyRegisteredTaskAccounting.taskSuccess_release
         ∀ ref ∈ task.groups.map Execution.DeliveryNode.ref,
           ∃ group ∈ result.work.groups, group.node.ref = ref)
     (available : queue.ChildGroupsAvailable work failed result.work)
-    (cancelled : queue.CancelledRecordsSupported work failed)
-    (generated : ExecutedWork work)
-    (taskMatching : ∀ task ∈ result.work.tasks, TaskMatches work task)
+    (generated : ExecutedWork work) (coverage : queue.LiveGroupsRegistered)
     (descriptors
       : ∀ group ∈ result.work.groups,
           ∃ dependencies,
             GroupRecordAt work group.node dependencies
             ∧ group.parent = dependencies.head?)
+    (closed
+      : ∀ group ∈ result.work.groups,
+          ∀ parent,
+            group.parent = some parent
+            → parent
+              ∈ queue.registeredGroups
+                ++ result.work.groups.map (fun group => group.node.ref))
     (uniqueContributors : (taskNode.task.groups.map Execution.DeliveryNode.ref).Nodup)
     (debt
       : let withValue := queue.putTaskNode { taskNode with value := some result.value }
@@ -846,8 +852,7 @@ theorem State.HealthyRegisteredTaskAccounting.taskSuccess_release
     : let withValue := queue.putTaskNode { taskNode with value := some result.value }
       let integrated := (withValue.maybeIntegrateWork result.work (some occurrence)).1
       let released := taskNode.task.groups.foldl successGroupStep (integrated, [], {})
-      (released.1.startNewWork released.2.2).HealthyRegisteredTaskAccounting
-        work (occurrence :: settled) failed := by
+      released.1.HealthyRegisteredTaskAccounting work (occurrence :: settled) failed := by
   let withValue := queue.putTaskNode { taskNode with value := some result.value }
   have withValueAccounting : withValue.HealthyRegisteredTaskAccounting
       work settled failed := accounted.putTaskNode _
@@ -856,7 +861,11 @@ theorem State.HealthyRegisteredTaskAccounting.taskSuccess_release
   have integratedAccounting : integrated.HealthyRegisteredTaskAccounting
       work settled failed :=
     withValueAccounting.maybeIntegrateWork withValueRefs result.work
-      (some occurrence) covered available cancelled generated taskMatching descriptors
+      (some occurrence)
+      (by intro task member ref contributor; exact Or.inr (covered task member ref contributor))
+      (fun task member ref contributes healthy =>
+        (available task member ref contributes healthy).of_same_fields rfl rfl)
+      generated coverage descriptors closed
   have integratedRoots : integrated.RootGroupsHealthy work failed := by
     intro ref member
     rw [State.maybeIntegrateWork_rootGroups] at member
@@ -882,6 +891,6 @@ theorem State.HealthyRegisteredTaskAccounting.taskSuccess_release
         valid.2.2.finishGroupSuccess_ofPendingBound counts.toBound valid.1
           node member (valid.2.1 _ active) all⟩)
     taskNode.task.groups uniqueContributors (integrated, [], {}) valid debt
-  exact facts.1.2.2.startNewWork _
+  exact facts.1.2.2
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

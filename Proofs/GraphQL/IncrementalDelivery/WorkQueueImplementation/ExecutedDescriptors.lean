@@ -40,7 +40,13 @@ mutual
       simp only [run_bind, StateT.run_pure, id_pure_eq]
       refine ⟨Nat.le_trans hle hlt, final, he.trans het hle, ?_⟩
       rw [WorkAt]
-      exact ⟨hw.extend het hlt, hwt⟩
+      refine ⟨hw.extend het hlt, ?_⟩
+      rw [WorkAt]
+      refine ⟨?_, hwt⟩
+      have declarations := mapAt_filterMap
+        (hm.extend (he.trans het hle) (Nat.le_trans hle hlt))
+        (collection.newDeferUsages.map (·.ref))
+      simpa only [List.filterMap_map, Function.comp_def] using declarations
   termination_by (fuel, 6, 0, 0)
   decreasing_by
     all_goals simp_wf

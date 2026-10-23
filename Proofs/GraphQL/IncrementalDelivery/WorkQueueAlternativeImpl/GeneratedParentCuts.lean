@@ -2,7 +2,7 @@ import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.NativeHealth
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.ParentCutsHandlers
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.ReferenceReplay
 
-/-! Generated replay discharges the live-ancestor guard's missing-parent boundary. -/
+/-! Generated replay has safe missing-parent cuts and uses the task-presence check. -/
 
 namespace GraphQL.IncrementalDelivery.AlternativeWorkQueue.NativeRefinement
 
@@ -37,16 +37,10 @@ theorem GeneratedParentCuts_holds : GeneratedParentCuts := by
   intro work inputs generated valid started
   exact generatedReplay_safeParentCuts generated inputs valid started
 
-/-- The live-ancestor and reference health guards agree on every key after generated replay.
-This is model guard equivalence, not a projection of the actual native record map.
--/
-theorem generatedReplay_groupIsHealthy_eq_reference {work : Work}
-    (generated : ReferenceWorkQueue.ExecutedWork work) (inputs : List (List GraphEvent))
-    (valid : ReferenceWorkQueue.ValidGraphEvents work inputs.flatten)
-    (started : ReferenceWorkQueue.inputsStarted work inputs = true) (key : Nat)
-    : groupIsHealthy ((State.initialize work).runNormalized inputs).1.queue key
-      = ((State.initialize work).runNormalized inputs).1.queue.groupIsHealthy key :=
-  groupIsHealthy_eq_reference _
-    (generatedReplay_safeParentCuts generated inputs valid started) key
+/-- Task-presence settlement checking holds at every replay boundary, including raw ones. -/
+theorem generatedReplay_taskPresenceChecked (work : Work)
+    (inputs : List (List GraphEvent))
+    : TaskPresenceChecked ((State.initialize work).runNormalized inputs).1.queue :=
+  taskPresenceChecked_holds _
 
 end GraphQL.IncrementalDelivery.AlternativeWorkQueue.NativeRefinement

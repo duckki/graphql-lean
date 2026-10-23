@@ -18,21 +18,34 @@ invariants. The caller provides no publication ledger or admitted-output hypothe
 -/
 theorem ExecutedWork.handleGraphEvent_bufferedStreamsConserved {work before event}
     (generated : ExecutedWork work) (valid : ValidGraphEvents work before)
-    (started : (State.initialize (Work.fromExecution work)).acceptsBatch before = true)
+    (started
+      : State.eventsStarted [] (State.initialize (Work.fromExecution work)) before = true)
     (matching : event.MatchesWork work) (fresh : event.Fresh before)
     : let queue := (State.initialize (Work.fromExecution work)).replayGraphEvents before
-      queue.BufferedStreamsConserved (queue.handleGraphEvent event).2
+      queue.BufferedStreamsConserved (queue.handleGraphEvent event).2.1
         (queue.handleGraphEvent event).1 := by
-  have accounted := (createWorkQueue_pendingAccounting work).replayGraphEvents
+  have accounted := (createWorkQueue_pendingAccounting work generated.declarations).replayGraphEvents
     (before := []) generated before valid started
   have links := generated.replayGraphEvents_storedTaskLinks before valid started
-  have children := (createWorkQueue_childStreamInventory (Work.fromExecution work)).rawEventReplay before
+  have children := (createWorkQueue_childStreamInventory (Work.fromExecution work)).rawEventReplay
+    before
   rw [State.rawEventReplay_state] at children
   obtain ⟨_, _, inventory⟩ := createWorkQueue_rawEventReplay_publications valid
   rw [State.rawEventReplay_state] at inventory
   exact State.handleGraphEvent_bufferedStreamsConserved accounted links children
     (inventory.stored.mono (fun _ _ source => source.1))
     (GraphEvent.taskSettlements_subsetIdentities before) event matching fresh
+
+/-- Enqueue realization retains the handler's buffered-stream conservation fields. -/
+theorem ExecutedWork.dispatchGraphEvent_bufferedStreamsConserved {work before event}
+    (generated : ExecutedWork work) (valid : ValidGraphEvents work before)
+    (started
+      : State.eventsStarted [] (State.initialize (Work.fromExecution work)) before = true)
+    (matching : event.MatchesWork work) (fresh : event.Fresh before)
+    : let queue := (State.initialize (Work.fromExecution work)).replayGraphEvents before
+      queue.BufferedStreamsConserved (queue.dispatchGraphEvent event).2
+        (queue.dispatchGraphEvent event).1 :=
+  generated.handleGraphEvent_bufferedStreamsConserved valid started matching fresh
 
 /-- Every source continuation releases or retains each protected earlier buffered stream.
 Witness: compose the actual per-handler certificates in source order, retaining exact
@@ -41,7 +54,8 @@ lookups and the monotonically growing cancellation history across each boundary.
 theorem ExecutedWork.replayGraphEvents_bufferedStreamsConserved {work before events}
     (generated : ExecutedWork work) (valid : ValidGraphEvents work (before ++ events))
     (started
-      : (State.initialize (Work.fromExecution work)).acceptsBatch (before ++ events)
+      : State.eventsStarted [] (State.initialize (Work.fromExecution work))
+          (before ++ events)
         = true)
     : let queue := (State.initialize (Work.fromExecution work)).replayGraphEvents before
       queue.BufferedStreamsConserved (queue.rawEventReplay events).2
@@ -52,14 +66,14 @@ theorem ExecutedWork.replayGraphEvents_bufferedStreamsConserved {work before eve
       have initial : before.IsPrefix (before ++ event :: rest) := List.prefix_append _ _
       have step : (before ++ [event]).IsPrefix (before ++ event :: rest) := ⟨rest, by simp⟩
       obtain ⟨matching, fresh, _⟩ := valid.atPrefix step
-      have first := generated.handleGraphEvent_bufferedStreamsConserved (valid.prefix initial)
-        (State.acceptsBatch_prefix started) matching fresh
+      have first := generated.dispatchGraphEvent_bufferedStreamsConserved (valid.prefix initial)
+        (State.eventsStarted_prefix started) matching fresh
       have later := ih (before := before ++ [event])
         (by simpa only [List.append_assoc, List.singleton_append] using valid)
         (by simpa only [List.append_assoc, List.singleton_append] using started)
       rw [State.replayGraphEvents_append] at later
       simpa only [State.rawEventReplay_cons, State.rawEventReplay_state,
-        State.replayGraphEvents, List.foldl_cons]
+        State.replayGraphEvents, List.foldl_cons, List.foldl_nil]
         using first.append later (State.replayGraphEvents_cancelledGroups_subset _ rest)
 
 /-- An accepted success conserves its prepared streams through every later input.
@@ -70,18 +84,13 @@ theorem ExecutedWork.success_conservesBufferedStreams
     {work before occurrence result after node} (generated : ExecutedWork work)
     (valid : ValidGraphEvents work (before ++ .taskSuccess occurrence result :: after))
     (started
-      : (State.initialize (Work.fromExecution work)).acceptsBatch
+      : State.eventsStarted [] (State.initialize (Work.fromExecution work))
           (before ++ .taskSuccess occurrence result :: after)
         = true)
     (found
       : ((State.initialize (Work.fromExecution work)).replayGraphEvents before).taskNode?
           occurrence
         = some node)
-    (healthy
-      : ((State.initialize (Work.fromExecution work)).replayGraphEvents
-          before).taskHasHealthyOwner
-          node.task
-        = true)
     : let queue := (State.initialize (Work.fromExecution work)).replayGraphEvents before
       let prepared :=
         ((queue.putTaskNode { node with value := some result.value }).maybeIntegrateWork
@@ -90,26 +99,34 @@ theorem ExecutedWork.success_conservesBufferedStreams
         (queue.rawEventReplay (.taskSuccess occurrence result :: after)).2
         (queue.replayGraphEvents (.taskSuccess occurrence result :: after)) := by
   have prior := valid.prefix (List.prefix_append before _)
-  have priorStarted := State.acceptsBatch_prefix (before := before) started
-  have accounted := (createWorkQueue_pendingAccounting work).replayGraphEvents
+  have priorStarted := State.eventsStarted_prefix (before := before) started
+  have accounted := (createWorkQueue_pendingAccounting work generated.declarations).replayGraphEvents
     (before := []) generated before prior priorStarted
   have links := generated.replayGraphEvents_storedTaskLinks before prior priorStarted
-  have children := (createWorkQueue_childStreamInventory (Work.fromExecution work)).rawEventReplay before
+  have children := (createWorkQueue_childStreamInventory (Work.fromExecution work)).rawEventReplay
+    before
   rw [State.rawEventReplay_state] at children
   have boundary : (before ++ [GraphEvent.taskSuccess occurrence result]).IsPrefix
       (before ++ .taskSuccess occurrence result :: after) := ⟨after, by simp⟩
   have fresh := (valid.atPrefix boundary).2.1
   have first := State.taskSuccess_preparedBufferedStreams (result := result)
-    accounted links children found healthy
+    accounted links children found
     (fun member => fresh.2.2.1 occurrence List.mem_cons_self
       (GraphEvent.taskSettlements_subsetIdentities before member))
+  have dispatched :
+      let queue := (State.initialize (Work.fromExecution work)).replayGraphEvents before
+      (((queue.putTaskNode { node with value := some result.value }).maybeIntegrateWork
+        result.work (some occurrence)).1).BufferedStreamsConserved
+          (queue.dispatchGraphEvent (.taskSuccess occurrence result)).2
+          (queue.dispatchGraphEvent (.taskSuccess occurrence result)).1 := first
   have later := generated.replayGraphEvents_bufferedStreamsConserved
     (before := before ++ [.taskSuccess occurrence result]) (events := after)
     (by simpa only [List.append_assoc, List.singleton_append] using valid)
     (by simpa only [List.append_assoc, List.singleton_append] using started)
   rw [State.replayGraphEvents_append] at later
   simpa only [State.rawEventReplay_cons, State.rawEventReplay_state,
-    State.replayGraphEvents, List.foldl_cons, State.handleGraphEvent]
-    using first.append later (State.replayGraphEvents_cancelledGroups_subset _ after)
+    State.replayGraphEvents, List.foldl_cons, List.foldl_nil, State.handleGraphEvent,
+    State.cacheTaskFailures]
+    using dispatched.append later (State.replayGraphEvents_cancelledGroups_subset _ after)
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

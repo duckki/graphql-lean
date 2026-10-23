@@ -12,7 +12,8 @@ private def narrow : DeliveryNode := { ref := 0, path := [.field "object"] }
 private def fresh : DeliveryNode :=
   { ref := 1, path := [.field "object", .field "child"] }
 
-private def result : Result (List (Name × ResponseValue)) := .ok ([], 0)
+private def result : TaskOutcome (List (Name × ResponseValue)) :=
+  { result := .ok ([], 0) }
 
 private def rootWork (node : DeliveryNode) : Work :=
   .executionGroup [⟨node, []⟩] node.path result .empty
@@ -76,7 +77,7 @@ theorem produced_scope_has_origin : GroupProducerOrigins produced := by
   exact origins.resolve (by simp)
 
 private def streamed : Work :=
-  .stream narrow [(.ok (.object [], 0), rootWork fresh)]
+  .stream narrow [({ result := .ok (.object [], 0) }, rootWork fresh)]
 
 /-- A defer introduced inside a streamed item uses that item's producer and list scope.
 Witness: stream composition turns the child root into an indexed item-produced descriptor;
@@ -88,7 +89,7 @@ theorem streamed_scope_has_origin : GroupProducerOrigins streamed := by
     have bound : index < 1 := (List.getElem?_eq_some_iff.mp entry).1
     have zero : index = 0 := Nat.eq_zero_of_le_zero (Nat.le_of_lt_succ bound)
     subst index
-    have same : result = .ok (.object [], 0) ∧ children = rootWork fresh := by
+    have same : result = { result := .ok (.object [], 0) } ∧ children = rootWork fresh := by
       simpa using entry.symm
     rcases same with ⟨rfl, rfl⟩
     exact root_origins fresh
@@ -96,7 +97,7 @@ theorem streamed_scope_has_origin : GroupProducerOrigins streamed := by
     have bound : index < 1 := (List.getElem?_eq_some_iff.mp entry).1
     have zero : index = 0 := Nat.eq_zero_of_le_zero (Nat.le_of_lt_succ bound)
     subst index
-    have same : result = .ok (.object [], 0) ∧ children = rootWork fresh := by
+    have same : result = { result := .ok (.object [], 0) } ∧ children = rootWork fresh := by
       simpa using entry.symm
     rcases same with ⟨rfl, rfl⟩
     rcases Correctness.GroupOriginComposition.group_in_executionGroup known with

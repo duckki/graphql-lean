@@ -45,6 +45,7 @@ defer ancestors and work produced by streamed items.
 -/
 def WorkAt (nodes : Assignment) (bound : Nat) : Work → Prop
   | .empty => True
+  | .declareGroups groups tasks => MapAt nodes bound groups ∧ WorkAt nodes bound tasks
   | .combine left right => WorkAt nodes bound left ∧ WorkAt nodes bound right
   | .executionGroup groups _ _ children =>
       MapAt nodes bound groups ∧ WorkAt nodes bound children
@@ -62,7 +63,7 @@ decreasing_by
 
 /-- Every item's child work has descriptors from the same assignment. -/
 def ItemsAt (nodes : Assignment) (bound : Nat)
-    (items : List (GraphQL.Execution.Result ResponseValue × Work))
+    (items : List (TaskOutcome ResponseValue × Work))
     : Prop :=
   ∀ item ∈ items, WorkAt nodes bound item.2
 
@@ -76,7 +77,7 @@ def Completed (nodes : Assignment) (start : Nat) (output : Completion α × Nat)
 
 /-- Stream-item completion extends the same assignment across all generated child work. -/
 def ItemsOutput (nodes : Assignment) (start : Nat)
-    (output : List (GraphQL.Execution.Result ResponseValue × Work) × Nat)
+    (output : List (TaskOutcome ResponseValue × Work) × Nat)
     : Prop :=
   start ≤ output.2 ∧ ∃ next, Extends start nodes next ∧ ItemsAt next output.2 output.1
 
@@ -122,6 +123,9 @@ theorem WorkAt.extend {nodes next : Assignment} {start finish : Nat} {work : Wor
   cases work with
   | empty => simp [WorkAt]
   | combine left right =>
+      simp only [WorkAt] at known ⊢
+      exact ⟨known.1.extend extension bound, known.2.extend extension bound⟩
+  | declareGroups groups tasks =>
       simp only [WorkAt] at known ⊢
       exact ⟨known.1.extend extension bound, known.2.extend extension bound⟩
   | executionGroup groups path result children =>

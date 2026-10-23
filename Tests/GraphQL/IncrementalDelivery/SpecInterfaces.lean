@@ -1,4 +1,5 @@
 import Tests.GraphQL.IncrementalDelivery.Execution
+import Proofs.GraphQL.IncrementalDelivery.Semantics.WorkSize
 
 /-! Spec algorithm boundaries, response mapping, and caller-controlled lazy batching. -/
 
@@ -85,12 +86,14 @@ immediate data and deferred work at the caller's alias-based path.
 mutual
   private def noticePaths : Work → List ResponsePath
     | .empty => []
+    | .declareGroups _ tasks => noticePaths tasks
     | .combine left right => noticePaths left ++ noticePaths right
     | .executionGroup groups _ _ children =>
         groups.map (·.node.path) ++ noticePaths children
     | .stream node items => node.path :: itemNoticePaths items
 
-  private def itemNoticePaths : List (Result ResponseValue × Work) → List ResponsePath
+  private def itemNoticePaths
+      : List (TaskOutcome ResponseValue × Work) → List ResponsePath
     | [] => []
     | (_, work) :: rest => noticePaths work ++ itemNoticePaths rest
 end

@@ -29,20 +29,26 @@ first, before its item-free group drain, including groups released by those same
 theorem State.handleGraphEvent_items_before_groupValues (queue : State)
     (event : GraphEvent) {index group values}
     (selected
-      : (queue.handleGraphEvent event).2[index]? = some (.groupValues group values))
-    : (((queue.handleGraphEvent event).2.take index).flatMap WorkQueueEvent.itemValues)
-      = (queue.handleGraphEvent event).2.flatMap WorkQueueEvent.itemValues := by
+      : (queue.handleGraphEvent event).2.1[index]? = some (.groupValues group values))
+    : (((queue.handleGraphEvent event).2.1.take index).flatMap WorkQueueEvent.itemValues)
+      = (queue.handleGraphEvent event).2.1.flatMap WorkQueueEvent.itemValues := by
   cases event with
   | taskSuccess occurrence result =>
-      rw [State.handleGraphEvent, queue.taskSuccess_itemValues]
+      change ((queue.taskSuccess occurrence result).2.1.take index).flatMap
+        WorkQueueEvent.itemValues = (queue.taskSuccess occurrence result).2.1.flatMap
+          WorkQueueEvent.itemValues
+      rw [queue.taskSuccess_itemValues]
       exact no_items_prefix (queue.taskSuccess_itemValues occurrence result) index
   | taskFailure occurrence errors =>
-      rw [State.handleGraphEvent, queue.taskFailure_itemValues]
+      change ((queue.taskFailure occurrence errors).2.take index).flatMap
+        WorkQueueEvent.itemValues = (queue.taskFailure occurrence errors).2.flatMap
+          WorkQueueEvent.itemValues
+      rw [queue.taskFailure_itemValues]
       exact no_items_prefix (queue.taskFailure_itemValues occurrence errors) index
   | streamItems stream items =>
-      change (queue.streamItems stream items).2[index]? = _ at selected
-      change (((queue.streamItems stream items).2.take index).flatMap WorkQueueEvent.itemValues)
-        = (queue.streamItems stream items).2.flatMap WorkQueueEvent.itemValues
+      change (queue.streamItems stream items).2.1[index]? = _ at selected
+      change (((queue.streamItems stream items).2.1.take index).flatMap WorkQueueEvent.itemValues)
+        = (queue.streamItems stream items).2.1.flatMap WorkQueueEvent.itemValues
       unfold State.streamItems at selected ⊢
       split at selected
       · simp only [List.getElem?_nil, reduceCtorEq] at selected
@@ -67,6 +73,13 @@ theorem State.handleGraphEvent_items_before_groupValues (queue : State)
         simp at impossible
       · simp at selected
 
+  | groupFailure notice =>
+      have member := List.mem_of_getElem? selected
+      simp only [State.handleGraphEvent, State.groupFailure] at member
+      split at member
+      · cases member
+      · split at member <;> simp at member
+
 -----------------------------------------------------------------------------------------
 -- Structural registration identifies the producing source item before that block
 -----------------------------------------------------------------------------------------
@@ -79,7 +92,9 @@ put every item through that handler strictly before this object block.
 theorem ExecutedWork.rawEventReplay_groupValues_itemProducer_prefix
     {work received index group values node dependencies source ordinal}
     (generated : ExecutedWork work) (valid : ValidGraphEvents work received)
-    (started : (State.initialize (Work.fromExecution work)).acceptsBatch received = true)
+    (started
+      : State.eventsStarted [] (State.initialize (Work.fromExecution work)) received
+        = true)
     (selected
       : ((State.initialize (Work.fromExecution work)).rawEventReplay received).2[index]?
         = some (.groupValues group values))
@@ -95,18 +110,18 @@ theorem ExecutedWork.rawEventReplay_groupValues_itemProducer_prefix
     initial.rawEventReplay_output_projected_at WorkQueueEvent.itemValues received selected
   have prior : (before ++ [event]).IsPrefix received :=
     ⟨after, by simp [split, List.append_assoc]⟩
-  have accepted : initial.acceptsBatch (before ++ [event]) = true := by
-    apply State.acceptsBatch_prefix (after := after)
+  have accepted : State.eventsStarted [] initial (before ++ [event]) = true := by
+    apply State.eventsStarted_prefix (after := after)
     simpa only [split, List.append_assoc, List.singleton_append] using started
   obtain ⟨groups, streams, carrier⟩ :=
     ((initial.replayGraphEvents before).handleGraphEvent_publicationPairs event).next atEvent
   obtain ⟨_, _, retired, _, _⟩ :=
     generated.replayGraphEvents_successfulCarrier_retiredHealthy (valid.prefix prior)
-      (State.acceptsBatch_prefix accepted) (List.mem_of_getElem? carrier)
+      (State.eventsStarted_prefix accepted) (List.mem_of_getElem? carrier)
   have success := generated.registered_group_itemProducer_succeeded (valid.prefix prior)
     known (sameRef.symm ▸ retired.1)
   have observed := (valid.prefix prior).itemSuccess_publication success
-  have exactItems := initial.rawEventReplay_itemValues (before ++ [event]) accepted
+  have exactItems := initial.rawEventReplay_itemValues (before ++ [event]) [] accepted
   have size : (((initial.rawEventReplay received).2.take index).flatMap
       WorkQueueEvent.itemValues).length
       = ((before ++ [event]).flatMap GraphEvent.itemPublications).length := by
@@ -117,7 +132,8 @@ theorem ExecutedWork.rawEventReplay_groupValues_itemProducer_prefix
     dsimp only at lengths
     rw [State.rawEventReplay_state, State.rawEventReplay_cons] at lengths
     simpa only [show ∀ q : State, q.rawEventReplay [] = (q, []) from fun _ => rfl,
-      List.flatMap_append, List.length_append, List.length_map, List.append_nil] using lengths
+      List.flatMap_append, List.length_append, List.length_map, List.append_nil,
+      State.dispatchGraphEvent] using lengths
   change _ ∈ ((received.flatMap GraphEvent.itemPublications).map Prod.fst).take
     ((((initial.rawEventReplay received).2.take index).flatMap WorkQueueEvent.itemValues).length)
   rw [size]

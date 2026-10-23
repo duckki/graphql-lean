@@ -7,7 +7,7 @@ namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
 -----------------------------------------------------------------------------------------
--- The actual guard selects proof labels, never source inputs or emitted events
+-- The task-presence check selects proof labels, never source inputs or emitted events
 -----------------------------------------------------------------------------------------
 
 /-- Retain an input label exactly when its actual handler accepts an object failure.
@@ -17,7 +17,7 @@ def State.eligibleFailureLabel (queue : State) (event : GraphEvent) : Option Gra
   if (queue.objectFailureContribution event).isEmpty then none else some event
 
 /-- The retained label records precisely the handler's eligible failure contribution.
-Witness: non-failure inputs have no token; task failures use the same owner guard.
+Witness: non-failure inputs have no token; task failures use the same presence check.
 -/
 theorem State.eligibleFailureLabel_contribution (queue : State) (event : GraphEvent)
     : GraphEvent.failureSettlements (queue.eligibleFailureLabel event).toList
@@ -28,10 +28,9 @@ theorem State.eligibleFailureLabel_contribution (queue : State) (event : GraphEv
       | none => simp [eligibleFailureLabel, objectFailureContribution, found,
           GraphEvent.failureSettlements]
       | some node =>
-          cases eligible : queue.taskHasHealthyOwner node.task <;>
-            simp [eligibleFailureLabel, objectFailureContribution, found, eligible,
-              GraphEvent.failureSettlements, GraphEvent.groupFailures]
-  | taskSuccess | streamItems | streamSuccess | streamFailure => rfl
+          simp [eligibleFailureLabel, objectFailureContribution, found,
+            GraphEvent.failureSettlements, GraphEvent.groupFailures]
+  | taskSuccess | streamItems | groupFailure | streamSuccess | streamFailure => rfl
 
 /-- Keep every output block, but label only contributing object failures.
 `queue` follows all original source labels, including ignored settlements. Output events,
@@ -73,7 +72,7 @@ theorem State.eligibleFailureBlocks_outputs (queue : State)
   | cons block rest ih => simp only [eligibleFailureBlocks, List.flatMap_cons, ih]
 
 /-- Selected failure labels are a subsequence of the original source labels.
-Witness: the actual guard either retains an existing label or removes only that label.
+Witness: the task-presence check either retains an existing label or removes only that label.
 -/
 theorem State.eligibleFailureBlocks_inputs (queue : State)
     (blocks : List SourceOutputBlock)
@@ -92,7 +91,7 @@ theorem State.eligibleFailureBlocks_inputs (queue : State)
           · simpa [eligibleFailureLabel, empty]
               using (ih (queue.replayGraphEvents [event])).cons_cons event
 
-/-- The selected labels have exactly the complete guard-filtered failure ledger.
+/-- The selected labels have exactly the complete presence-filtered failure ledger.
 Witness: reverse-order contribution concatenation through all original handler states.
 -/
 theorem State.eligibleFailureBlocks_contributions (queue : State)
@@ -109,7 +108,7 @@ theorem State.eligibleFailureBlocks_contributions (queue : State)
       | some event =>
           have labels : ((queue.eligibleFailureBlocks (block :: rest)).filterMap Prod.fst)
               = (queue.eligibleFailureLabel event).toList
-                ++ ((queue.handleGraphEvent event).1.eligibleFailureBlocks rest).filterMap
+                ++ ((queue.dispatchGraphEvent event).1.eligibleFailureBlocks rest).filterMap
                   Prod.fst := by
             simp only [eligibleFailureBlocks, source, Option.bind_some,
               State.replayGraphEvents, List.filterMap_cons]

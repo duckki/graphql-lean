@@ -1,5 +1,6 @@
 import Proofs.GraphQL.IncrementalDelivery.Correctness.StreamFailureScopes
 import Proofs.GraphQL.IncrementalDelivery.Correctness.CausalReportAssembly
+import Proofs.GraphQL.IncrementalDelivery.Correctness.AnnouncedGroupProducers
 
 /-! Stream failure reporting after healthy deferred groups have released their work. -/
 
@@ -41,6 +42,50 @@ theorem snapshot_cancelled_reported_of_healthy_groups
 -----------------------------------------------------------------------------------------
 -- Singleton stream failures supply reports from actual closures
 -----------------------------------------------------------------------------------------
+
+/-- Failed open refs have a positive recorded cause when deferred groups stay healthy.
+Witness: actual announcements exclude unavailable producers; healthy groups exclude both
+dependency-failure rules, leaving a directly recorded contributing task.
+-/
+theorem Explains.openFailureCauses_of_healthy_groups
+    {work groups streams events matching failures}
+    (positive : ExecutionErrors.WorkPositive work)
+    (explained : Explains work groups streams events matching failures)
+    (healthyGroups
+      : ∀ node dependencies birth,
+          NodeAt work node .group dependencies birth
+          → ¬NodeFailed work matching events failures node.ref)
+    : OpenFailureCauses work ((groups ++ streams).map DeliveryNode.ref)
+        matching events failures := by
+  intro ref opened failed
+  obtain ⟨owner, kind, parents, birth, descriptor, same, available⟩ :=
+    Explains.announced_producer_available explained opened.1
+  have snapshot := explained.nodeFailed_snapshot failed
+  cases snapshot with
+  | task known contributes recorded =>
+      obtain ⟨producer, payload, task⟩ := known
+      obtain ⟨entry, member, occurrenceEq⟩ := List.mem_map.mp recorded
+      have inCuts := (List.mem_filter.mp member).1
+      have fails := explained.2.1.recorded_payload_fails
+        (by simpa only [← occurrenceEq] using inCuts) task
+      exact ⟨payload.failure.getD 0,
+        .of_task task recorded contributes fails (positive.task task fails)⟩
+  | groupDependency known member failure =>
+      obtain ⟨node, producer, known, equal⟩ := known
+      exact False.elim (healthyGroups node _ producer known (equal ▸ failed))
+  | streamDependencies known nonempty failures =>
+      obtain ⟨node, producer, known, equal⟩ := known
+      obtain ⟨dependency, member⟩ := List.exists_mem_of_ne_nil _ nonempty
+      obtain ⟨group, ancestors, birth, groupKnown, groupRef⟩ :=
+        stream_dependency_group known member
+      exact False.elim (healthyGroups group ancestors birth groupKnown
+        (groupRef ▸ explained.snapshot_nodeFailed (failures dependency member)))
+  | producers _ noRoot unpublished _ =>
+      cases birth with
+      | none => exact False.elim (noRoot ⟨owner, kind, parents, descriptor, same⟩)
+      | some source =>
+          exact False.elim (unpublished source
+            ⟨owner, kind, parents, descriptor, same⟩ (available source rfl))
 
 /-- Closing announced refs reports cancelled attachments if all deferred groups stay
 healthy. Witness: a recorded failure cannot belong to a group task, so every such failure

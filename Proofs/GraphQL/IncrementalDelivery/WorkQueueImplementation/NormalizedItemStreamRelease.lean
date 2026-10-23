@@ -163,16 +163,16 @@ Witness: started batches copy all supplied items in order; matching payloads loc
 producer, and normalization/concatenation retain that same ordered inventory throughout.
 Generated-ref uniqueness, output admission, and additional source assumptions are unnecessary.
 -/
-theorem createWorkQueue_runNormalized_itemStreamReleasePublications
-    {work : Execution.Work} {batches : List (List GraphEvent)}
+theorem State.runNormalized_itemStreamReleasePublications
+    {work : Execution.Work} (queue : State) {batches : List (List GraphEvent)}
     (valid : ValidGraphEvents work batches.flatten)
-    (started : inputsStarted work batches = true)
+    (started : queue.batchesStarted batches = true)
     : NormalizedItemStreamReleasePublications work
         (batches.flatten.flatMap GraphEvent.itemPublications)
-        ((State.initialize (Work.fromExecution work)).runNormalized
-          batches).2.flatten := by
+        (queue.runNormalized batches).2.flatten := by
   have loop (more : List (List GraphEvent)) (acc : NormalizedAcc)
-      (published : List ItemPublication)
+      (published : List ItemPublication) (before : List GraphEvent)
+      (valid : ValidGraphEvents work (before ++ more.flatten))
       (values : published.map Prod.snd = acc.2.2.flatten.flatMap normalizedItemValues)
       (supported : NormalizedItemStreamReleasePublications work published acc.2.2.flatten)
       (matching : ∀ event ∈ more.flatten, event.MatchesWork work)
@@ -180,15 +180,20 @@ theorem createWorkQueue_runNormalized_itemStreamReleasePublications
       : NormalizedItemStreamReleasePublications work
           (published ++ more.flatten.flatMap GraphEvent.itemPublications)
           (more.foldl normalizedStep acc).2.2.flatten := by
-    induction more generalizing acc published with
+    induction more generalizing acc published before with
     | nil =>
         simpa only [List.flatten_nil, List.flatMap_nil, List.append_nil, List.foldl_nil]
           using supported
     | cons batch rest ih =>
         obtain ⟨startOpen, accepted, nextStarted⟩ := acc.1.batchesStarted_cons batch rest started
+        have validBatch : ValidGraphEvents work (before ++ batch) :=
+          valid.prefix ⟨rest.flatten, by simp [List.append_assoc]⟩
+        have validRest : ValidGraphEvents work ((before ++ batch) ++ rest.flatten) := by
+          simpa [List.append_assoc] using valid
         have rawSupport := acc.1.handleGraphEvents_itemStreamRelease batch
-          (fun event member => matching event (List.mem_append_left _ member)) startOpen accepted
-        have rawValues := acc.1.handleGraphEvents_itemValues batch startOpen accepted
+          (fun event member => matching event (List.mem_append_left _ member)) validBatch
+          startOpen accepted
+        have rawValues := acc.1.handleGraphEvents_itemValues batch validBatch startOpen accepted
         have nextValues : (published ++ batch.flatMap GraphEvent.itemPublications).map Prod.snd
             = (normalizedStep acc batch).2.2.flatten.flatMap normalizedItemValues := by
           rw [normalizedStep_itemValues, List.map_append, values, rawValues]
@@ -197,16 +202,26 @@ theorem createWorkQueue_runNormalized_itemStreamReleasePublications
             (normalizedStep acc batch).2.2.flatten := by
           rw [normalizedStep_flatten]
           exact supported.append (rawSupport.normalizeBatch acc.2.1) values
-        have finished := ih (normalizedStep acc batch) _ nextValues nextSupport
+        have finished := ih (normalizedStep acc batch) _ (before ++ batch) validRest
+          nextValues nextSupport
           (fun event member => matching event (List.mem_append_right _ member))
           (by rw [normalizedStep_queue]; exact nextStarted)
         simpa only [List.flatten_cons, List.flatMap_append, List.append_assoc,
           List.foldl_cons]
           using finished
-  rw [inputsStarted_eq_batchesStarted] at started
-  let queue := State.initialize (Work.fromExecution work)
   let publisher : IncrementalPublisher := { active := queue.initialGroups ++ queue.initialStreams }
-  exact loop batches (queue, publisher, []) [] rfl (.nil work)
+  exact loop batches (queue, publisher, []) [] [] valid rfl (.nil work)
     (fun event member => valid.event_matches member) started
+
+/-- Ordinary initialization specializes the same item-stream release correspondence. -/
+theorem createWorkQueue_runNormalized_itemStreamReleasePublications
+    {work : Execution.Work} {batches : List (List GraphEvent)}
+    (valid : ValidGraphEvents work batches.flatten)
+    (started : inputsStarted work batches = true)
+    : NormalizedItemStreamReleasePublications work
+        (batches.flatten.flatMap GraphEvent.itemPublications)
+        ((State.initialize (Work.fromExecution work)).runNormalized batches).2.flatten :=
+  State.runNormalized_itemStreamReleasePublications _ valid
+    (by rwa [← inputsStarted_eq_batchesStarted])
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

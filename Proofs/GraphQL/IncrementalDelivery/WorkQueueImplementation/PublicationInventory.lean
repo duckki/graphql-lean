@@ -1,3 +1,4 @@
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.ObjectPublications
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.StoredValues
 
 /-! Occurrence-indexed publication inventories through actual successful group flushes. -/
@@ -10,18 +11,6 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 -----------------------------------------------------------------------------------------
 -- Proof-only occurrence labels explain the values in actual raw queue output
 -----------------------------------------------------------------------------------------
-
-/-- A published object payload paired with its original execution-group occurrence.
-The occurrence is proof evidence, not an added field in the implementation or wire format.
--/
-abbrev ObjectPublication := Occurrence × ExecutionGroupValue
-
-/-- Object values in one raw queue event; stream payloads and control events are excluded.
--/
-abbrev _root_.GraphQL.IncrementalDelivery.Execution.WorkQueueEvent.objectValues
-  : WorkQueueEvent → List ExecutionGroupValue
-  | .groupValues _ values => values
-  | _ => []
 
 /-- Label the nonempty stored values of selected nodes with their original occurrences. -/
 def storedPublications (nodes : List TaskNode) : List ObjectPublication :=
@@ -86,6 +75,14 @@ structure State.PublicationInventory (queue : State)
     : queue.StoredValuesSatisfy
         (fun occurrence value =>
           property occurrence value ∧ occurrence ∉ published.map Prod.fst)
+
+/-- Retaining queued controls leaves publication provenance and stored values unchanged. -/
+theorem State.PublicationInventory.withGroupFailures {queue property published}
+    (inventory : State.PublicationInventory queue property published)
+    (notices : List GroupFailureEvent)
+    : ({ queue with groupFailureEvents := notices }).PublicationInventory property
+        published :=
+  ⟨inventory.unique, inventory.provenance, inventory.stored⟩
 
 /-- Enlarging the allowed source evidence does not change publication freshness.
 Witness: weaken provenance in both parts of the same inventory. -/
@@ -191,22 +188,57 @@ theorem State.PublicationInventory.finishGroupSuccess {queue : State} {property 
   exact ⟨storedPublications selected,
     inventory.finishGroupSuccess_selected group selected unique known events retained absent⟩
 
+/-- Task failure emits only group-failure notices, never object values.
+Witness: the owner fold appends failure notices or silently updates cached errors. -/
+theorem State.taskFailure_objectValues (queue : State) (occurrence : Occurrence)
+    (errors : Nat)
+    : (queue.taskFailure occurrence errors).2.flatMap WorkQueueEvent.objectValues
+      = [] := by
+  let step (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode) :=
+    match acc.1.groupNode? group.ref with
+    | none => acc
+    | some node =>
+        if acc.1.rootGroups.contains group.ref then
+          let (next, failure) := acc.1.finishGroupFailure node errors
+          (next, acc.2 ++ [WorkQueueEvent.groupFailure failure.group failure.errors])
+        else acc
+  have loop (groups : List Execution.DeliveryNode) (acc : State × List WorkQueueEvent)
+      : (groups.foldl step acc).2.flatMap WorkQueueEvent.objectValues =
+          acc.2.flatMap WorkQueueEvent.objectValues := by
+    induction groups generalizing acc with
+    | nil => rfl
+    | cons group rest ih =>
+        rw [List.foldl_cons, ih]
+        unfold step
+        split
+        · rfl
+        · split
+          · simp [State.finishGroupFailure, List.flatMap_append, WorkQueueEvent.objectValues]
+          · rfl
+  unfold State.taskFailure
+  split
+  · rfl
+  · exact loop _ (_, [])
+
 /-- Recursive draining adds exactly its fresh object publications to the inventory.
 Witness: each successful flush removes its selected occurrences before later drains;
 cached-failure closures emit no object values and cannot restore any stored value.
 -/
 theorem State.PublicationInventory.drainReadyGroups {queue : State} {property published}
     (inventory : queue.PublicationInventory property published)
+    (available : List (Occurrence × Nat) := [])
     : ∃ added : List ObjectPublication,
-        added.map Prod.snd = queue.drainReadyGroups.2.flatMap WorkQueueEvent.objectValues
-        ∧ queue.drainReadyGroups.1.PublicationInventory property
+        added.map Prod.snd
+          = (queue.drainReadyGroups available).2.1.flatMap WorkQueueEvent.objectValues
+        ∧ (queue.drainReadyGroups available).1.PublicationInventory property
             (published ++ added) := by
   have loop (fuel : Nat) (current : State) (priorPublished : List ObjectPublication)
       (prior : current.PublicationInventory property priorPublished)
       : ∃ added : List ObjectPublication,
           added.map Prod.snd
-            = (State.drainReadyGroups.go fuel current).2.flatMap WorkQueueEvent.objectValues
-          ∧ (State.drainReadyGroups.go fuel current).1.PublicationInventory property
+            = (State.drainReadyGroups.go available fuel current).2.1.flatMap
+                WorkQueueEvent.objectValues
+          ∧ (State.drainReadyGroups.go available fuel current).1.PublicationInventory property
               (priorPublished ++ added) := by
     induction fuel generalizing current priorPublished with
     | zero =>
@@ -222,24 +254,14 @@ theorem State.PublicationInventory.drainReadyGroups {queue : State} {property pu
         split
         · exact ⟨[], rfl, by simpa using prior⟩
         · rename_i node selected
-          cases cached : node.failure with
-          | none =>
-              dsimp only
-              obtain ⟨first, firstValues, flushed⟩ := prior.finishGroupSuccess node
-              obtain ⟨later, laterValues, final⟩ := ih _ _
-                ⟨flushed.unique, flushed.provenance,
-                  flushed.stored.startNewWork (current.finishGroupSuccess node).2.2⟩
-              refine ⟨first ++ later, ?_, ?_⟩
-              · simp only [List.map_append, List.flatMap_append, firstValues, laterValues]
-              · simpa only [List.append_assoc] using final
-          | some errors =>
-              dsimp only
-              obtain ⟨added, values, final⟩ := ih _ _
-                ⟨prior.unique, prior.provenance, prior.stored.removeGroup _⟩
-              refine ⟨added, ?_, final⟩
-              simpa only [State.finishGroupFailure, List.flatMap_append,
-                List.flatMap_singleton, WorkQueueEvent.objectValues, List.nil_append]
-                using values
+          obtain ⟨first, firstValues, flushed⟩ := prior.finishGroupSuccess node
+          obtain ⟨later, laterValues, final⟩ := ih _ _
+            ⟨flushed.unique, flushed.provenance,
+              flushed.stored.startNewWork (current.finishGroupSuccess node).2.2 available⟩
+          refine ⟨first ++ later, ?_, ?_⟩
+          · simp only [List.map_append, List.flatMap_append, firstValues, laterValues]
+          · simpa only [List.append_assoc] using final
+
   exact loop _ queue published inventory
 
 -----------------------------------------------------------------------------------------
@@ -280,10 +302,12 @@ theorem State.PublicationInventory.taskSuccess {queue : State} {property publish
     (inventory : queue.PublicationInventory property published) (occurrence : Occurrence)
     (result : TaskResult) (allowed : property occurrence result.value)
     (fresh : occurrence ∉ published.map Prod.fst)
+    (available : List (Occurrence × Nat) := [])
     : ∃ added : List ObjectPublication,
         added.map Prod.snd
-          = (queue.taskSuccess occurrence result).2.flatMap WorkQueueEvent.objectValues
-        ∧ (queue.taskSuccess occurrence result).1.PublicationInventory property
+          = (queue.taskSuccess occurrence result available).2.1.flatMap
+              WorkQueueEvent.objectValues
+        ∧ (queue.taskSuccess occurrence result available).1.PublicationInventory property
             (published ++ added) := by
   cases found : queue.taskNode? occurrence with
   | none =>
@@ -314,18 +338,13 @@ theorem State.PublicationInventory.taskSuccess {queue : State} {property publish
       obtain ⟨added, values, final⟩ := loop node.task.groups (_, [], {})
         ⟨[], rfl, by simpa only [List.append_nil] using
           State.PublicationInventory.mk inventory.unique inventory.provenance integrated⟩
-      rw [queue.taskSuccess_eq occurrence result node found]
-      split
-      · refine ⟨[], rfl, ?_⟩
-        simpa only [List.append_nil]
-          using State.PublicationInventory.mk inventory.unique inventory.provenance
-            (inventory.stored.removeTask occurrence)
+      rw [queue.taskSuccess_eq occurrence result node found available]
       let released := node.task.groups.foldl successGroupStep
         (((queue.putTaskNode { node with value := some result.value }).maybeIntegrateWork
           result.work (some occurrence)).1, [], {})
       have activated := State.PublicationInventory.mk final.unique final.provenance
-        (final.stored.startNewWork released.2.2)
-      obtain ⟨later, laterValues, drained⟩ := activated.drainReadyGroups
+        (final.stored.startNewWork released.2.2 available)
+      obtain ⟨later, laterValues, drained⟩ := activated.drainReadyGroups available
       refine ⟨added ++ later, ?_, ?_⟩
       · simp only [List.map_append, List.flatMap_append, values, laterValues]
         rfl
@@ -335,43 +354,6 @@ theorem State.PublicationInventory.taskSuccess {queue : State} {property publish
 -- Failure controls preserve the inventory; stream arrivals can drain stored object values
 -----------------------------------------------------------------------------------------
 
-/-- Task failure emits only group-failure notices, never object values.
-Witness: the owner fold appends failure notices or silently updates cached errors. -/
-theorem State.taskFailure_objectValues (queue : State) (occurrence : Occurrence)
-    (errors : Nat)
-    : (queue.taskFailure occurrence errors).2.flatMap WorkQueueEvent.objectValues
-      = [] := by
-  let step (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode) :=
-    match acc.1.groupNode? group.ref with
-    | none => acc
-    | some node =>
-        if acc.1.rootGroups.contains group.ref then
-          let (next, failure) := acc.1.finishGroupFailure node errors
-          (next, acc.2 ++ [failure])
-        else
-          (acc.1.putGroupNode
-            { node with pending := node.pending - 1
-                        failure := some (node.failure.getD 0 + errors) }, acc.2)
-  have loop (groups : List Execution.DeliveryNode) (acc : State × List WorkQueueEvent)
-      : (groups.foldl step acc).2.flatMap WorkQueueEvent.objectValues =
-          acc.2.flatMap WorkQueueEvent.objectValues := by
-    induction groups generalizing acc with
-    | nil => rfl
-    | cons group rest ih =>
-        rw [List.foldl_cons, ih]
-        unfold step
-        split
-        · rfl
-        · split
-          · simp [State.finishGroupFailure, List.flatMap_append, WorkQueueEvent.objectValues]
-          · rfl
-  unfold State.taskFailure
-  split
-  · rfl
-  · split
-    · rfl
-    exact loop _ (_, [])
-
 /-- Stream-item arrival can publish stored object values through its final ready-group drain.
 Witness: item integration preserves the inventory; draining then supplies exact, fresh
 occurrence labels for every object value after the leading stream-item event.
@@ -379,34 +361,39 @@ occurrence labels for every object value after the leading stream-item event.
 theorem State.PublicationInventory.streamItems {queue : State} {property published}
     (inventory : queue.PublicationInventory property published)
     (stream : Execution.DeliveryNode) (items : List StreamItem)
+    (available : List (Occurrence × Nat) := [])
     : ∃ added : List ObjectPublication,
         added.map Prod.snd
-          = (queue.streamItems stream items).2.flatMap WorkQueueEvent.objectValues
-        ∧ (queue.streamItems stream items).1.PublicationInventory property
+          = (queue.streamItems stream items available).2.1.flatMap
+              WorkQueueEvent.objectValues
+        ∧ (queue.streamItems stream items available).1.PublicationInventory property
             (published ++ added) := by
   let step (acc : State × List Execution.DeliveryNode
-      × List Execution.DeliveryNode × List StreamItemValue) (item : StreamItem) :=
-    let (current, groups, streams, values) := acc
+      × List Execution.DeliveryNode × List StreamItemValue × List GroupFailureEvent)
+      (item : StreamItem) :=
+    let (current, groups, streams, values, failures) := acc
     let (integrated, newWork) := current.maybeIntegrateWork item.work
     let (pruned, nonempty) := integrated.pruneEmptyGroups newWork.newGroups
-    (pruned.startNewWork { newWork with newGroups := nonempty },
-      groups ++ nonempty, streams ++ newWork.newStreams, values ++ [item.value])
+    let (started, queued) :=
+      pruned.startNewWork { newWork with newGroups := nonempty } available
+    (started, groups ++ nonempty, streams ++ newWork.newStreams,
+      values ++ [item.value], failures ++ queued)
   have loop (rest : List StreamItem)
       (acc : State × List Execution.DeliveryNode
-        × List Execution.DeliveryNode × List StreamItemValue)
+        × List Execution.DeliveryNode × List StreamItemValue × List GroupFailureEvent)
       (prior : acc.1.PublicationInventory property published)
       : (rest.foldl step acc).1.PublicationInventory property published := by
     induction rest generalizing acc with
     | nil => exact prior
     | cons item rest ih =>
         exact ih _ ⟨prior.unique, prior.provenance,
-          ((prior.stored.maybeIntegrateWork item.work).pruneEmptyGroups _).startNewWork _⟩
-  have folded := loop items (queue, [], [], []) inventory
+          ((prior.stored.maybeIntegrateWork item.work).pruneEmptyGroups _).startNewWork _ available⟩
+  have folded := loop items (queue, [], [], [], []) inventory
   unfold State.streamItems
   split
   · exact ⟨[], rfl, by simpa using inventory⟩
   · simpa only [List.flatMap_cons, WorkQueueEvent.objectValues, List.nil_append]
-      using folded.drainReadyGroups
+      using folded.drainReadyGroups available
 
 /-- Every event extends the publication inventory with exactly its emitted object values.
 Witness: success and item handlers extend the ledger through their final drains; failure
@@ -417,26 +404,31 @@ theorem State.PublicationInventory.handleGraphEvent {queue : State} {property pu
       : ∀ occurrence result,
           event = .taskSuccess occurrence result
           → property occurrence result.value ∧ occurrence ∉ published.map Prod.fst)
+    (available : List (Occurrence × Nat) := [])
     : ∃ added : List ObjectPublication,
         added.map Prod.snd
-          = (queue.handleGraphEvent event).2.flatMap WorkQueueEvent.objectValues
-        ∧ (queue.handleGraphEvent event).1.PublicationInventory property
+          = (queue.handleGraphEvent event available).2.1.flatMap
+              WorkQueueEvent.objectValues
+        ∧ (queue.handleGraphEvent event available).1.PublicationInventory property
             (published ++ added) := by
-  have preserved := inventory.stored.handleGraphEvent event allowed
+  have preserved := inventory.stored.handleGraphEvent event allowed available
+  have cached : (queue.cacheTaskFailures available).PublicationInventory property published :=
+    ⟨inventory.unique, inventory.provenance, inventory.stored.cacheTaskFailures available⟩
   cases event with
   | taskSuccess occurrence result =>
-      exact inventory.taskSuccess occurrence result (allowed _ _ rfl).1 (allowed _ _ rfl).2
+      exact cached.taskSuccess occurrence result (allowed _ _ rfl).1 (allowed _ _ rfl).2 available
   | taskFailure occurrence errors =>
       exact ⟨
         [],
-        (queue.taskFailure_objectValues occurrence errors).symm,
+        ((queue.cacheTaskFailures available).taskFailure_objectValues occurrence
+          errors).symm,
         by
           simpa only [List.append_nil]
             using State.PublicationInventory.mk inventory.unique inventory.provenance
               preserved
       ⟩
   | streamItems stream items =>
-      exact inventory.streamItems stream items
+      exact cached.streamItems stream items available
   | streamSuccess stream =>
       refine ⟨
         [],
@@ -459,5 +451,32 @@ theorem State.PublicationInventory.handleGraphEvent {queue : State} {property pu
       ⟩
       simp only [State.handleGraphEvent, State.streamFailure]
       split <;> rfl
+
+  | groupFailure notice =>
+      refine ⟨[], ?_, ?_⟩
+      · simp only [State.handleGraphEvent, State.groupFailure]
+        split
+        · rfl
+        · split <;> rfl
+      · simpa only [List.append_nil]
+          using State.PublicationInventory.mk inventory.unique inventory.provenance
+            preserved
+
+/-- Enqueue effects do not change published or stored object values. -/
+theorem State.PublicationInventory.dispatchGraphEvent {queue : State} {property published}
+    (inventory : queue.PublicationInventory property published) (event : GraphEvent)
+    (allowed
+      : ∀ occurrence result,
+          event = .taskSuccess occurrence result
+          → property occurrence result.value ∧ occurrence ∉ published.map Prod.fst)
+    (available : List (Occurrence × Nat) := [])
+    : ∃ added : List ObjectPublication,
+        added.map Prod.snd
+          = (queue.dispatchGraphEvent event available).2.flatMap
+              WorkQueueEvent.objectValues
+        ∧ (queue.dispatchGraphEvent event available).1.PublicationInventory property
+            (published ++ added) := by
+  obtain ⟨added, values, next⟩ := inventory.handleGraphEvent event allowed available
+  exact ⟨added, values, next.unique, next.provenance, next.stored⟩
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

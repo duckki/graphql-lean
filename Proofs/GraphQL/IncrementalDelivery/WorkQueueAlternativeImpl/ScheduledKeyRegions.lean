@@ -96,7 +96,14 @@ mutual
         (getNewDeferMap collection.newDeferUsages path deferMap) _
         (fun key hk => Nat.lt_of_lt_of_le (hm key hk) hl.monotone)
       simp only [run_bind, StateT.run_pure, id_pure_eq]
-      exact hl.append hr hm
+      apply hl.append _ hm
+      apply hr.declareGroups
+      · intro key member
+        obtain ⟨fragment, selected, within⟩ := List.mem_flatMap.mp member
+        obtain ⟨usage, _, found⟩ := List.mem_filterMap.mp selected
+        exact List.mem_flatMap.mpr ⟨fragment, List.mem_of_find?_eq_some found, within⟩
+      · intro key member
+        exact Nat.lt_of_lt_of_le (hm key member) hl.monotone
   termination_by (fuel, 6, 0, 0)
   decreasing_by
     all_goals simp_wf
@@ -125,7 +132,7 @@ mutual
           source rest path deferMap _ (fun key hk => Nat.lt_of_lt_of_le (hm key hk) hl.monotone)
         have hd := hl.executionGroup (usages.filterMap (lookupDeferredFragment? deferMap)) path
           ((executeCollectedFields schema resolvers variables fuel parentType source groups path
-            usages deferMap).run state).1.result (mapRefs_filterMap_subset deferMap usages) hm
+            usages deferMap).run state).1.outcome (mapRefs_filterMap_subset deferMap usages) hm
         simp only [collectExecutionGroups, run_bind, StateT.run_pure, id_pure_eq]
         exact hd.append hr hm
   termination_by (fuel, 5, 0, sizeOf partitions)

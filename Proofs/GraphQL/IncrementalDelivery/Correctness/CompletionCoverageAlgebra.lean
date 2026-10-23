@@ -51,6 +51,14 @@ def WorkFieldsCovered (containers : Bool) (path : ResponsePath)
           ((sourceTasks [] none cursors work).flatMap (SourceTask.positions containers))
           work
 
+/-- Declaration annotations preserve retained partition positions and failure witnesses. -/
+theorem WorkFieldsCovered.declareGroups {containers path ordinary work}
+    (covered : WorkFieldsCovered containers path ordinary work)
+    (groups : List DeferredFragment)
+    : WorkFieldsCovered containers path ordinary (.declareGroups groups work) := by
+  intro reference errors success cursors
+  simpa only [sourceTasks] using (covered reference errors success cursors).declareGroups groups
+
 -----------------------------------------------------------------------------------------
 -- Exact or bubbling ordinary results need no recursive comparison
 -----------------------------------------------------------------------------------------
@@ -212,10 +220,10 @@ theorem FieldsCompletionCovered.executionGroup {containers path ordinary complet
     (covered : FieldsCompletionCovered containers path ordinary completed)
     (groups : List DeferredFragment)
     : WorkFieldsCovered containers path ordinary
-        (.executionGroup groups path completed.result completed.work) := by
+        (.executionGroup groups path completed.outcome completed.work) := by
   intro reference errors success cursors
   obtain ⟨initial, count, initialSuccess, covered⟩ := covered reference errors success
-  rw [initialSuccess]
+  rw [Completion.outcome, initialSuccess]
   exact covered.executionGroup initial count groups cursors
 
 /-- Covered deferred partitions combine at the same actual ambient cursor environment.

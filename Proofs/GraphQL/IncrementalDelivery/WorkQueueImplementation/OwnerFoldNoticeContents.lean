@@ -32,7 +32,7 @@ theorem successGroupStep_noticeContents {work : Execution.Work}
       ∧ ∃ node,
           (successGroupStep acc owner).1.groupNode? child.ref = some node
           ∧ node.group.node = child
-          ∧ (node.tasks ≠ [] ∨ node.failure.isSome = true) := by
+          ∧ node.tasks ≠ [] := by
   obtain ⟨queue, events, released⟩ := acc
   dsimp only at refs records support newOutput
   dsimp only [successGroupStep] at selected ⊢
@@ -100,7 +100,7 @@ theorem State.successGroupFold_noticeContents {queue : State} {work}
           ∧ ∃ node,
               boundary.1.groupNode? child.ref = some node
               ∧ node.group.node = child
-              ∧ (node.tasks ≠ [] ∨ node.failure.isSome = true) := by
+              ∧ node.tasks ≠ [] := by
   obtain ⟨steps, bound, lower, _, found, exactPrefix⟩ :=
     successGroupFold_event_boundary owners (queue, [], {}) selected (Nat.zero_le _)
   have next : (owners.take (steps + 1)).foldl successGroupStep (queue, [], {})
@@ -141,7 +141,6 @@ theorem ExecutedWork.taskSuccess_ownerNoticeContents
       let prepared := (stored.maybeIntegrateWork result.work (some occurrence)).1
       let output := (incoming.task.groups.foldl successGroupStep (prepared, [], {})).2.1
       current.taskNode? occurrence = some incoming
-      → current.taskHasHealthyOwner incoming.task = true
       → output[index]? = some (.groupSuccess group groups streams)
       → child ∈ groups
       → ∃ steps,
@@ -154,7 +153,7 @@ theorem ExecutedWork.taskSuccess_ownerNoticeContents
             ∧ ∃ node,
                 boundary.1.groupNode? child.ref = some node
                 ∧ node.group.node = child
-                ∧ (node.tasks ≠ [] ∨ node.failure.isSome = true)
+                ∧ node.tasks ≠ []
                 ∧ ∀ publication ∈
                     published.take
                       ((((State.initialize (Work.fromExecution work)).rawEventReplay
@@ -163,7 +162,7 @@ theorem ExecutedWork.taskSuccess_ownerNoticeContents
                         + ((output.take index).flatMap
                             WorkQueueEvent.objectValues).length),
                     publication.1 ∉ node.tasks := by
-  intro current stored prepared output found healthy selected noticed
+  intro current stored prepared output found selected noticed
   have prior := valid.prefix (List.prefix_append before (.taskSuccess occurrence result :: after))
   obtain ⟨matching, _, _⟩ := valid.atPrefix (show
     (before ++ [GraphEvent.taskSuccess occurrence result]).IsPrefix
@@ -182,7 +181,7 @@ theorem ExecutedWork.taskSuccess_ownerNoticeContents
     change ((output.take (index + 1)).flatMap WorkQueueEvent.objectValues).length = _
     simp only [List.take_add_one, selected, Option.toList_some, List.flatMap_append,
       List.flatMap_singleton, WorkQueueEvent.objectValues, List.append_nil]
-  have excluded := createWorkQueue_taskSuccess_foldMemberships covered valid found healthy
+  have excluded := createWorkQueue_taskSuccess_foldMemberships covered valid found
     (steps + 1) (by omega)
   dsimp only [prepared, stored, current] at count
   simp only [count] at excluded

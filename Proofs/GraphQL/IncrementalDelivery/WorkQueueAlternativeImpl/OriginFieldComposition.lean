@@ -50,10 +50,10 @@ theorem responseField_fatal_empty (schema : Schema) (resolvers : Resolvers Objec
                 exact fun errors fatal => RecordedCompletion.map_fatal_empty _ _ errors fatal
 
 theorem RecordedCompletion.map_id_of_empty {completed : RecordedCompletion α}
-    (empty : completed.work = .empty)
+    (empty : completed.work = .empty) (fatal : completed.report.outcome = .error errors)
     : completed.map id = completed := by
-  obtain ⟨⟨outcome, origins, accounts⟩, work⟩ := completed
-  cases outcome <;> simp_all [RecordedCompletion.map, Report.map]
+  obtain ⟨⟨outcome, origins, accounts⟩, work, cause⟩ := completed
+  simp_all [RecordedCompletion.map, Report.map]
 
 theorem responseField_origins_of_values (schema : Schema)
     (resolvers : Resolvers ObjectRef) (variables : VariableValues) (fuel : Nat)
@@ -147,7 +147,8 @@ theorem fields_origins_of_values (schema : Schema) (resolvers : Resolvers Object
             head.1 outcome (field_fatal_positive schema resolvers variables fuel parentType source name group
               path usages context (route ++ [0]) left errors outcome)
           rw [RecordedCompletion.map_id_of_empty (responseField_fatal_empty schema resolvers variables fuel
-            parentType source name group path usages context (route ++ [0]) left errors outcome)] at known
+            parentType source name group path usages context (route ++ [0]) left errors outcome)
+            outcome] at known
           simpa only [KeyRenaming.fields] using known
       | ok value =>
           have restBefore : FieldsBefore left rest :=

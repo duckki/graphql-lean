@@ -25,9 +25,9 @@ private def unstarted : State :=
       }
   }
 
--- An unfinished membership blocks success; failure removes it with a real abort target.
+-- An unfinished membership blocks success; cached rejection at startup removes its owner.
 example : (unstarted.drainReadyGroups).2.1 = [] := by cbv
-example : (unstarted.drainReadyGroups).2.2 = [] := by cbv
+example : (unstarted.drainReadyGroups).2.2.1 = [] := by cbv
 
 private def failed : State :=
   {
@@ -38,14 +38,24 @@ private def failed : State :=
             groupNodes :=
               [{
                 group := ⟨group, none⟩,
-                tasks := [task.occurrence],
-                pending := 1,
-                failure := some 1
+                tasks := [task.occurrence, .executionGroup [1]],
+                pending := 1
+              }]
+            tasks := task :: [{ occurrence := .executionGroup [1], groups := [group] }]
+            taskNodes :=
+              [{
+                task := { occurrence := .executionGroup [1], groups := [group] }
+                rejection := some 1
               }]
         }
   }
 
-example : (failed.drainReadyGroups).2.2 = [.task task.occurrence] := by cbv
+example : (failed.startGroup 0).2.1 = [.task task.occurrence] := by cbv
+
+example : (failed.startGroup 0).2.2 = [⟨group, 1⟩] := by cbv
+
+-- Ready draining waits for notifications; startup performs cached-failure inspection.
+example : (failed.drainReadyGroups).2.2.1 = [] := by cbv
 
 #print axioms FusedUnsettledDrainProgress_holds
 #print axioms drain_unsettledTask

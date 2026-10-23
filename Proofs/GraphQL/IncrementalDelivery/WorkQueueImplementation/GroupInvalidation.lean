@@ -229,7 +229,7 @@ theorem GroupInvalidated.hasContributor {work failed ref}
       obtain ⟨address, groups, path, result, children, enclosing, group,
         located, member, nodeEq, _⟩ := descriptor
       refine ⟨.executionGroup address, groups.map (fun group => group.node.ref),
-        ⟨producer, .object path result, .executionGroup located⟩, ?_⟩
+        ⟨producer, .object path result.deliveryResult, .executionGroup located⟩, ?_⟩
       rw [← same, nodeEq]
       exact List.mem_map_of_mem member
 

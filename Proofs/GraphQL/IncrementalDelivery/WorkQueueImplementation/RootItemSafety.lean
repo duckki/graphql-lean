@@ -97,7 +97,7 @@ theorem ValidGraphEvents.itemSuccess_publication {work received source index}
       simpa only [GraphEvent.itemPublications, GraphEvent.successes, List.map_map,
         Function.comp_def]
         using included
-  | taskFailure | streamSuccess | streamFailure => cases included
+  | taskFailure | groupFailure | streamSuccess | streamFailure => cases included
 
 /-- Covered successful source items of root streams are safe under the mixed inventory.
 Witness: source coverage provides their real publication, then root-item safety applies

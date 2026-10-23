@@ -23,23 +23,31 @@ theorem Located.exposedRootRefs {work address current producer owners seen ref}
   have navigation := StructuralEquivalence.located_of_current located
   clear located
   induction navigation with
-  | root => exact fun _ included => .inl included
+  | root => exact fun _ included => .inl (rootRefs_withoutDeclarations_subset _ included)
   | left _ ih =>
       exact fun other included =>
-        ih (List.mem_append_left _ member) other (List.mem_append_left _ included)
+        ih (List.mem_append_left _ (rootRefs_withoutDeclarations_subset _ member)) other (List.mem_append_left _ (rootRefs_withoutDeclarations_subset _ included))
   | right _ ih =>
       exact fun other included =>
-        ih (List.mem_append_right _ member) other (List.mem_append_right _ included)
+        ih (List.mem_append_right _ (rootRefs_withoutDeclarations_subset _ member)) other (List.mem_append_right _ (rootRefs_withoutDeclarations_subset _ included))
   | executionGroup _ ih =>
       exact fun other included =>
-        ih (List.mem_append_right _ member) other (List.mem_append_right _ included)
+        ih (List.mem_append_right _ (rootRefs_withoutDeclarations_subset _ member)) other (List.mem_append_right _ (rootRefs_withoutDeclarations_subset _ included))
   | @item address stream items birth enclosing index result children prior entry _ =>
       have region := Located.streamRegion_member prior.toCurrent entry
       have observed : Occurrence.item address index ∈ seen := by
         apply Classical.byContradiction
         intro absent
-        exact streamRegion_unexposed separated region absent member exposed
-      exact fun other included => .inr ⟨_, observed, rootRefs children, region, included⟩
+        exact streamRegion_unexposed separated region absent (rootRefs_withoutDeclarations_subset _ member) exposed
+      exact fun other included =>
+        .inr
+          ⟨
+            _,
+            observed,
+            rootRefs children,
+            region,
+            rootRefs_withoutDeclarations_subset _ included
+          ⟩
 
 /-- An exposed ref directly below a stream-item producer identifies that observed item.
 Witness: invert navigation to the last producer edge and use disjoint ref regions.
@@ -57,15 +65,17 @@ theorem Located.itemProducer_seen
       : Occurrence.item source index ∈ seen := by
     induction navigation with
     | root => cases same
-    | left _ ih => exact ih same (List.mem_append_left _ member)
-    | right _ ih => exact ih same (List.mem_append_right _ member)
+    | left _ ih =>
+        exact ih same (List.mem_append_left _ (rootRefs_withoutDeclarations_subset _ member))
+    | right _ ih =>
+        exact ih same (List.mem_append_right _ (rootRefs_withoutDeclarations_subset _ member))
     | executionGroup => cases same
     | item prior entry =>
         cases same
         apply Classical.byContradiction
         intro absent
         exact streamRegion_unexposed separated (Located.streamRegion_member prior.toCurrent entry)
-          absent member exposed
+          absent (rootRefs_withoutDeclarations_subset _ member) exposed
   exact descend (StructuralEquivalence.located_of_current located) rfl member
 
 -----------------------------------------------------------------------------------------
@@ -155,7 +165,7 @@ theorem ValidGraphEvents.itemIdentity_success {work received source index}
   refine ⟨event, member, ?_⟩
   cases event with
   | taskSuccess | streamItems => exact included
-  | streamSuccess | streamFailure => cases included
+  | groupFailure | streamSuccess | streamFailure => cases included
   | taskFailure occurrence errors =>
       have same := List.mem_singleton.mp included
       subst occurrence

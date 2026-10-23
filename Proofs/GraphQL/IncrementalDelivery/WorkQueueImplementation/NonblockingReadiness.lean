@@ -1,4 +1,4 @@
-import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.ActiveFailureCaches
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.ActiveRejectionReplay
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.RetiredHealthReplay
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.HealthyCounterReplay
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.RootPresenceReplay
@@ -25,34 +25,24 @@ theorem ExecutedWork.runNormalized_rootGroupsHealthy {work : Execution.Work}
         batches).1.RootGroupsHealthy
         work (GraphEvent.failureSettlements batches.flatten) := by
   let queue := ((State.initialize (Work.fromExecution work)).runNormalized batches).1
-  let failed := (State.initialize (Work.fromExecution work)).objectFailureContributions
-    batches.flatten
   obtain ⟨_, ledger⟩ := generated.runNormalized_healthyCounterLedger batches valid started
   have clear := createWorkQueue_runNormalized_noActiveCachedFailure
-    (Work.fromExecution work) batches
+    generated batches valid started
   have ancestry := (generated.runNormalized_retiredHealth batches valid started).2.1
-  have counts := generated.runNormalized_groupErrorAccounting batches valid started
+  rw [State.admittedObjectFailureContributionsForBatches_eq_of_started _ batches
+    (by rwa [inputsStarted_eq_batchesStarted] at started)] at ancestry
+  have counts := generated.runNormalized_retainedFailures batches valid started
   intro ref active invalid
-  have accepted : GroupInvalidated work failed ref :=
-    (generated.runNormalized_failureInventories_groupInvalidated_iff batches valid started
-      ref).mp invalid
-  have present := generated.replayGraphEvents_rootsPresent batches.flatten
+  have rootsPresent : queue.RootGroupsPresent := generated.runNormalized_rootsPresent batches
     (fun _ member => valid.eachMatches member)
-  obtain ⟨terminal, same⟩ := createWorkQueue_runNormalized_stateCore started
-  have rootsPresent : queue.RootGroupsPresent := by
-    dsimp only [queue]
-    rw [same]
-    exact present
   obtain ⟨node, member, nodeRef⟩ := List.mem_map.mp (rootsPresent ref active)
   obtain ⟨dependencies, known⟩ := ledger.groups node member
   have cause := generated.groupRecordInvalidated_causes known
-    (nodeRef.symm ▸ accepted.toRecordInvalidated)
+    (nodeRef.symm ▸ invalid.toRecordInvalidated)
   rcases cause with direct | inherited
   · obtain ⟨occurrence, owners, ⟨producer, payload, task⟩, owner, recorded⟩ := direct
-    have received := ((State.initialize (Work.fromExecution work)).objectFailureContributions_sublist
-      batches.flatten).subset recorded
     obtain ⟨actualOwners, actualProducer, path, errors, actual⟩ :=
-      valid.failureSettlements_known occurrence received
+      valid.failureSettlements_known occurrence recorded
     have sameOwners := (task.unique actual).1
     exact counts.uncached_noFailedContributor generated member
       (clear node member (nodeRef.symm ▸ active)) actual (by simp [Payload.failure])

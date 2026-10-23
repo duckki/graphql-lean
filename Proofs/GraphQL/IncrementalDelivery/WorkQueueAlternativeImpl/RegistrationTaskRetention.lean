@@ -1,5 +1,7 @@
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.ActivationRegistrationFrames
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.RegistrationActivationSafety
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.RegistrationAccounting
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.RegistrationRejections
 
 /-! Registration-phase retention is independent of computation start and stored values. -/
 
@@ -23,14 +25,16 @@ theorem RegistrationFrame.integrate {state : State} {settled}
     (covered
       : ∀ task ∈ work.tasks,
         ∀ key ∈ task.groups.map DeliveryNode.ref,
-          ∃ group ∈ work.groups, group.node.ref = key)
+          key ∈ state.queue.registeredGroups
+          ∨ ∃ group ∈ work.groups, group.node.ref = key)
     (producer : Option Occurrence := none)
     : RegistrationFrame (state.maybeIntegrateWork work producer).1.queue settled := by
   have registration := state.maybeIntegrateWork_registrationCore work producer
   have registered := state.queue.maybeIntegrateWork_registration frame.live frame.contributors
     work covered producer
   refine ⟨state.maybeIntegrateWork_groupKeysUnique frame.keys work producer, ?_, ?_,
-    state.maybeIntegrateWork_unsettledTaskLinks frame.links frame.keys frame.contributors work producer⟩
+    state.maybeIntegrateWork_unsettledTaskLinks frame.links frame.keys frame.contributors
+      work producer⟩
   · change (registrationCore (state.maybeIntegrateWork work producer).1.queue).LiveGroupsRegistered
     rw [registration]; exact registered.1
   · change (registrationCore (state.maybeIntegrateWork work producer).1.queue).TaskGroupsRegistered
@@ -46,20 +50,92 @@ theorem RegistrationFrame.prune {queue : Kernel} {settled}
     frame.links.pruneEmptyGroups groups⟩
 
 /-- Actual delayed starts retain the registration frame, even for a stopped reader. -/
-theorem RegistrationFrame.start {state : State} {settled}
+theorem RegistrationFrame.start {state : State} {settled work parents}
     (frame : RegistrationFrame state.queue settled) (roots : ReferenceWorkQueue.NewWork)
     (integrated : IntegratedWork) (targets : List CleanupTarget := [])
+    (activation : ActivationFrame state integrated work parents)
     : RegistrationFrame (state.startNewWork roots integrated targets).1.queue
         settled := by
-  have groups := State.startNewWork_groupNodes state roots integrated targets
-  have catalogues := State.startNewWork_catalogues state roots integrated targets
+  have groups := State.startNewWork_groupNodes_sublist state roots integrated targets activation
+  have catalogues := State.startNewWork_catalogues state roots integrated targets activation
   refine ⟨?_, ?_, ?_, ?_⟩
-  · simpa only [ReferenceWorkQueue.State.GroupRefsUnique, groups] using frame.keys
-  · simpa only [ReferenceWorkQueue.State.LiveGroupsRegistered, groups, catalogues.2] using frame.live
+  · exact frame.keys.sublist (groups.map _)
+  · intro node member
+    rw [catalogues.2]
+    exact frame.live node (groups.subset member)
   · simpa only [ReferenceWorkQueue.State.TaskGroupsRegistered, catalogues.1, catalogues.2]
       using frame.contributors
-  · simpa only [ReferenceWorkQueue.State.UnsettledTaskLinks, ReferenceWorkQueue.State.TaskLinkedOn,
-      groups, catalogues.1] using frame.links
+  · intro task member fresh node live contributor
+    rw [catalogues.1] at member
+    exact frame.links task member fresh node (groups.subset live) contributor
+
+/-- Registration consistency needed while cached startup can remove live owners. -/
+structure SourceRegistrationFrame (queue : Kernel) (settled : List Occurrence)
+    (work : Work)
+    : Prop
+    extends RegistrationFrame queue settled where
+  matching : queue.RegisteredTasksMatch work
+  sound : queue.GroupMembershipSound
+
+/-- Source-matched child registration extends the same membership and catalogue frame. -/
+theorem SourceRegistrationFrame.integrate {state : State} {settled work}
+    (frame : SourceRegistrationFrame state.queue settled work)
+    (children : ReferenceWorkQueue.Work)
+    (covered
+      : ∀ task ∈ children.tasks,
+        ∀ key ∈ task.groups.map DeliveryNode.ref,
+          key ∈ state.queue.registeredGroups
+          ∨ ∃ group ∈ children.groups, group.node.ref = key)
+    (matching : ∀ task ∈ children.tasks, ReferenceWorkQueue.TaskMatches work task)
+    (producer : Option Occurrence := none)
+    : SourceRegistrationFrame (state.maybeIntegrateWork children producer).1.queue settled
+        work := by
+  have core := state.maybeIntegrateWork_registrationCore children producer
+  refine ⟨frame.toRegistrationFrame.integrate children covered producer, ?_, ?_⟩
+  · change (registrationCore _).RegisteredTasksMatch work
+    rw [core]
+    exact frame.matching.maybeIntegrateWork children matching producer
+  · change (registrationCore _).GroupMembershipSound
+    rw [core]
+    exact frame.sound.maybeIntegrateWork children producer
+
+/-- Empty-shell pruning preserves source consistency on surviving memberships. -/
+theorem SourceRegistrationFrame.prune {queue : Kernel} {settled work}
+    (frame : SourceRegistrationFrame queue settled work) (groups : List DeliveryNode)
+    : SourceRegistrationFrame (queue.pruneEmptyGroups groups).1 settled work :=
+  ⟨
+    frame.toRegistrationFrame.prune groups,
+    frame.matching.pruneEmptyGroups groups,
+    frame.sound.pruneEmptyGroups groups
+  ⟩
+
+/-- Native cached startup preserves source registration consistency without assuming
+live-owner retention or supplying an activation/refinement certificate.
+-/
+theorem SourceRegistrationFrame.start {state : State} {settled work}
+    (frame : SourceRegistrationFrame state.queue settled work)
+    (roots : ReferenceWorkQueue.NewWork) (integrated : IntegratedWork)
+    (targets : List CleanupTarget := []) (available : List (Occurrence × Nat) := [])
+    : SourceRegistrationFrame
+        (state.startNewWork roots integrated targets available).1.queue settled work := by
+  have groups := State.startNewWork_groupNodes_sublist_of_matching frame.matching frame.sound
+    roots integrated targets available
+  have catalogue := State.startNewWork_permanentCatalogues state roots integrated targets available
+  refine ⟨⟨?_, ?_, ?_, ?_⟩, ?_, ?_⟩
+  · exact frame.keys.sublist (groups.map _)
+  · intro node member
+    rw [catalogue.2]
+    exact frame.live node (groups.subset member)
+  · simpa only [ReferenceWorkQueue.State.TaskGroupsRegistered, catalogue.1, catalogue.2]
+      using frame.contributors
+  · intro task member fresh node live contributes
+    rw [catalogue.1] at member
+    exact frame.links task member fresh node (groups.subset live) contributes
+  · simpa only [ReferenceWorkQueue.State.RegisteredTasksMatch, catalogue.1] using frame.matching
+  · intro node member occurrence linked
+    obtain ⟨task, registered, same, contributes⟩ := frame.sound node (groups.subset member)
+      occurrence linked
+    exact ⟨task, catalogue.1.symm ▸ registered, same, contributes⟩
 
 -----------------------------------------------------------------------------------------
 -- A linked task blocks empty-shell removal independently of computation start
@@ -98,7 +174,7 @@ theorem pruneEmptyGroups_linkedOwner_present {queue : Kernel} {occurrence keys k
                   have listed := links node (List.mem_of_find?_eq_some found)
                     (nodeKey.symm ▸ same ▸ contributes)
                   have noTasks : node.tasks = [] :=
-                    List.isEmpty_iff.mp (Bool.and_eq_true_iff.mp empty).1
+                    List.isEmpty_iff.mp empty
                   simp only [noTasks, List.not_mem_nil] at listed
                 have nextLinks : ReferenceWorkQueue.State.TaskLinkedOn
                     { current with groupNodes :=

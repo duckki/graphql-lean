@@ -1,5 +1,8 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation
 import Tests.GraphQL.IncrementalDelivery.Execution
+import Tests.GraphQL.IncrementalDelivery.Fixtures.WorkDeclarations
+
+open GraphQL.IncrementalDelivery.Tests (declaredTask)
 
 /-! A deferred stream stays buffered with its producer until shared-owner release. -/
 
@@ -29,20 +32,22 @@ private def children : Execution.Work :=
     (.combine .empty
       (.stream stream
         [
-          (.ok (.scalar "x", 0), .empty),
-          (.ok (.null, 0), .empty),
-          (.ok (.scalar "z", 0), .empty)
+          ({ result := .ok (.scalar "x", 0) }, .empty),
+          ({ result := .ok (.null, 0) }, .empty),
+          ({ result := .ok (.scalar "z", 0) }, .empty)
         ]))
     .empty
 
 private def work : Execution.Work :=
   .combine .empty
-    (.combine
-      (.executionGroup [⟨parent, []⟩] [] (.ok (producerValue.data, 0)) children)
+    (.declareGroups [⟨parent, []⟩, ⟨other, []⟩]
       (.combine
-        (.executionGroup [⟨parent, []⟩, ⟨other, []⟩] [] (.ok (sharedValue.data, 0))
-          (.combine .empty .empty))
-        .empty))
+        (.executionGroup [⟨parent, []⟩] [] ({ result := .ok (producerValue.data, 0) })
+          children)
+        (.combine
+          (.executionGroup [⟨parent, []⟩, ⟨other, []⟩] []
+            ({ result := .ok (sharedValue.data, 0) }) (.combine .empty .empty))
+          .empty)))
 
 private def producerResult : TaskResult :=
   { value := producerValue, work := Work.fromExecution children [1, 0, 0] }
@@ -67,7 +72,7 @@ Witness: its exact generated task descriptor and child stream subtree. -/
 private theorem producerKnown
     : TaskAt work producerTask [parent.ref] none
         (.object [] (.ok (producerValue.data, 0))) := by
-  refine ⟨[⟨parent, []⟩], [], _, children, [], ?_, rfl, rfl⟩
+  refine ⟨[⟨parent, []⟩], [], { result := .ok (producerValue.data, 0) }, children, [], ?_, rfl, rfl⟩
   cbv
 
 /-- The independent shared task supplies b to both pending groups.
@@ -75,7 +80,8 @@ Witness: its generated two-owner descriptor. -/
 private theorem sharedKnown
     : TaskAt work sharedTask [parent.ref, other.ref] none
         (.object [] (.ok (sharedValue.data, 0))) := by
-  refine ⟨[⟨parent, []⟩, ⟨other, []⟩], [], _, .combine .empty .empty, [], ?_, rfl, rfl⟩
+  refine ⟨[⟨parent, []⟩, ⟨other, []⟩], [], { result := .ok (sharedValue.data, 0) },
+    .combine .empty .empty, [], ?_, rfl, rfl⟩
   cbv
 
 /-- Both input settlements obey source semantics and are accepted in their actual states.
@@ -98,8 +104,8 @@ Witness: navigate the executor's exact child-work address and retain its enclosi
 private theorem streamKnown
     : NodeAt work stream .stream [parent.ref] (some producerTask) := by
   refine ⟨[1, 0, 0, 0, 1],
-    [(.ok (.scalar "x", 0), .empty), (.ok (.null, 0), .empty),
-      (.ok (.scalar "z", 0), .empty)], ?_⟩
+    [({ result := .ok (.scalar "x", 0) }, .empty), ({ result := .ok (.null, 0) }, .empty),
+      ({ result := .ok (.scalar "z", 0) }, .empty)], ?_⟩
   cbv
 
 /-- Settlement alone neither publishes the producer nor starts its child stream.
@@ -150,7 +156,8 @@ private def publisher : IncrementalPublisher := { active := [parent, other] }
 /-- The local flush state inherits the replay invariant before the contributor closes.
 Witness: settled-value installation and the pending-only group update preserve it. -/
 private theorem atFlush_settled : atFlush.ChildStreamsSettled := by
-  have waited := createWorkQueue_runNormalized_childStreamsSettled (Work.fromExecution work) [[first]]
+  have waited := createWorkQueue_runNormalized_childStreamsSettled
+    (Work.fromExecution work) [[first]]
   exact (waited.putTaskNode _ (by simp)).putGroupNode _
 
 /-- The actual flush intermediate retains its stored links' structural producer evidence.
@@ -163,7 +170,7 @@ private theorem atFlush_matches : atFlush.ChildStreamsMatchWork work := by
 Witness: evaluation of the single-pass shared-owner handler; no stream was started early.
 -/
 theorem delayed_release
-    : (waiting.taskSuccess sharedTask sharedResult).2
+    : (waiting.taskSuccess sharedTask sharedResult).2.1
         = (atFlush.finishGroupSuccess closing).2.1 ++ [.groupSuccess other [] []]
       ∧ (waiting.taskSuccess sharedTask sharedResult).1.rootStreams = [stream.ref] := by
   constructor <;> cbv
@@ -279,7 +286,7 @@ its producer is among the two earlier values, not merely among settled input tas
 theorem handler_release_inventory
     : ∃ added : List ObjectPublication,
         added.map Prod.snd
-          = (waiting.taskSuccess sharedTask sharedResult).2.flatMap
+          = (waiting.taskSuccess sharedTask sharedResult).2.1.flatMap
               WorkQueueEvent.objectValues
         ∧ (added.map Prod.fst).Nodup
         ∧ (∀ publication ∈ added,
@@ -379,11 +386,11 @@ theorem stream_start_barrier
 -- One joint matching for the released producer and the subsequent streamed items
 -----------------------------------------------------------------------------------------
 
-private def streamEntries : List (Result ResponseValue × Execution.Work) :=
+private def streamEntries : List (TaskOutcome ResponseValue × Execution.Work) :=
   [
-    (.ok (.scalar "x", 0), .empty),
-    (.ok (.null, 0), .empty),
-    (.ok (.scalar "z", 0), .empty)
+    ({ result := .ok (.scalar "x", 0) }, .empty),
+    ({ result := .ok (.null, 0) }, .empty),
+    ({ result := .ok (.scalar "z", 0) }, .empty)
   ]
 
 private def item (index : Nat) : StreamItem :=
@@ -416,14 +423,15 @@ private theorem itemMatches (index : Nat) (bound : index < 3)
         TaskAt work (item index).occurrence owners producer
           (.item stream (.ok ((item index).value.item, (item index).value.errors)))
         ∧ streamItemWork? work (item index).occurrence = some (item index).work := by
-  have entry : streamEntries[index]? = some (.ok ((item index).value.item, 0), .empty) := by
+  have entry : streamEntries[index]? = some ({ result := .ok ((item index).value.item, 0) }, .empty)
+      := by
     have casesIndex : index = 0 ∨ index = 1 ∨ index = 2 := by omega
     rcases casesIndex with rfl | rfl | rfl <;> rfl
   refine ⟨[stream.ref], some producerTask, ?_, ?_⟩
   · exact ⟨stream, streamEntries, [parent.ref], _, .empty, streamLocated, entry, rfl, rfl⟩
   · have located : locateWork work [1, 0, 0, 0, 1]
         = some ⟨.stream stream streamEntries, some producerTask, [parent.ref]⟩ := streamLocated
-    simp [streamItemWork?, item, located, entry, Work.fromExecution]
+    simp [streamItemWork?, taskContext?, item, located, entry, Work.fromExecution]
 
 /-- The released stream can legally supply all items and finish after the two task inputs.
 Witness: fixed outcomes, fresh occurrences, prior producer settlement, contiguous indices,
@@ -677,7 +685,7 @@ theorem completed_stream_registry_located
 private def nestedStream : DeliveryNode := { ref := 3, path := [.index 0] }
 
 private def itemProducedWork : Execution.Work :=
-  .stream stream [(.ok (.list [], 0), .stream nestedStream [])]
+  .stream stream [({ result := .ok (.list [], 0) }, .stream nestedStream [])]
 
 private def producingItem : StreamItem :=
   {
@@ -698,8 +706,8 @@ theorem item_stream_retains_producer
     have same := List.mem_singleton.mp member
     subst item
     refine ⟨[stream.ref], none, ?_, by cbv⟩
-    exact ⟨stream, [(.ok (.list [], 0), .stream nestedStream [])], [],
-      .ok (.list [], 0), .stream nestedStream [], Located.root, rfl, rfl, rfl⟩
+    exact ⟨stream, [({ result := .ok (.list [], 0) }, .stream nestedStream [])], [],
+      { result := .ok (.list [], 0) }, .stream nestedStream [], Located.root, rfl, rfl, rfl⟩
   apply matching.streamItem_childStream_producer List.mem_cons_self
     (child := ⟨nestedStream⟩)
   exact List.mem_cons_self
@@ -807,8 +815,8 @@ theorem normalized_equal_payloads_do_not_identify_producer
 
 private def duplicateStreamWork : Execution.Work :=
   .combine
-    (.executionGroup [⟨parent, []⟩] [] (.ok ([], 0)) (.stream stream []))
-    (.executionGroup [⟨other, []⟩] [] (.ok ([], 0)) (.stream stream []))
+    (declaredTask [⟨parent, []⟩] [] ({ result := .ok ([], 0) }) (.stream stream []))
+    (declaredTask [⟨other, []⟩] [] ({ result := .ok ([], 0) }) (.stream stream []))
 
 /-- Permissive raw work can reuse a stream ref below two distinct task producers.
 Witness: two exact stream locations; generated allocation uniqueness must not be silently

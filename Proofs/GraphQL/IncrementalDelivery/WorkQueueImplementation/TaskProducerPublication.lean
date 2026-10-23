@@ -25,7 +25,7 @@ theorem ExecutedWork.taskSuccess_ancestorProducer_beforeValue
     (generated : ExecutedWork work)
     (valid : ValidGraphEvents work (before ++ [.taskSuccess occurrence result]))
     (started
-      : (State.initialize (Work.fromExecution work)).acceptsBatch
+      : State.eventsStarted [] (State.initialize (Work.fromExecution work))
           (before ++ [.taskSuccess occurrence result])
         = true)
     (covered
@@ -34,7 +34,7 @@ theorem ExecutedWork.taskSuccess_ancestorProducer_beforeValue
     (selected
       : (((State.initialize (Work.fromExecution work)).replayGraphEvents
             before).taskSuccess
-          occurrence result).2[position]?
+          occurrence result).2.1[position]?
         = some (.groupValues group values))
     (known
       : TaskAt work (.executionGroup address) owners
@@ -52,7 +52,7 @@ theorem ExecutedWork.taskSuccess_ancestorProducer_beforeValue
                 WorkQueueEvent.objectValues).length
               + (((((State.initialize (Work.fromExecution work)).replayGraphEvents
                       before).taskSuccess
-                    occurrence result).2.take
+                    occurrence result).2.1.take
                     position).flatMap
                   WorkQueueEvent.objectValues).length) := by
   let initial := State.initialize (Work.fromExecution work)
@@ -61,19 +61,19 @@ theorem ExecutedWork.taskSuccess_ancestorProducer_beforeValue
   obtain ⟨groups, streams, next⟩ := (queue.taskSuccess_publicationPairs occurrence result).next
     selected
   have carrier : Execution.WorkQueueEvent.groupSuccess group groups streams
-      ∈ (queue.handleGraphEvent (.taskSuccess occurrence result)).2 :=
+      ∈ (queue.handleGraphEvent (.taskSuccess occurrence result)).2.1 :=
     List.mem_of_getElem? next
   by_cases active : group.ref ∈ queue.rootGroups
   · obtain ⟨value, emitted⟩ := generated.activeAncestorContributor_published_before_handler
       valid started covered carrier active record ancestor parentKnown parentContributes
     exact ⟨value, List.take_subset_take_left _ (Nat.le_add_right ..) emitted⟩
-  · obtain ⟨incoming, found, guard, index, atDrain, prefixEq⟩ :=
-      queue.taskSuccess_inactiveValue_drain occurrence result selected active
+  · obtain ⟨incoming, found, index, atDrain, prefixEq⟩ :=
+      queue.taskSuccess_inactiveValue_drain occurrence result [] selected active
     let prepared :=
       ((queue.putTaskNode { incoming with value := some result.value }).maybeIntegrateWork
         result.work (some occurrence)).1
     let released := incoming.task.groups.foldl successGroupStep (prepared, [], {})
-    let activated := released.1.startNewWork released.2.2
+    let activated := (released.1.startNewWork released.2.2).1
     obtain ⟨parentResult, succeeded, emitted | buffered⟩ :=
       generated.successfulCarrier_ancestorProducer_published_or_buffered valid started covered
         carrier known contributes record ancestor parentKnown parentContributes
@@ -98,30 +98,29 @@ theorem ExecutedWork.taskSuccess_ancestorProducer_beforeValue
         (some occurrence) ref present
       obtain ⟨_, _, _, healthy, _⟩ :=
         generated.replayGraphEvents_successfulCarrier_retiredHealthy valid
-          (State.acceptsBatch_prefix started) carrier
+          (State.eventsStarted_prefix started) carrier
       have ancestorHealthy : ¬GroupRecordInvalidated work
           (initial.objectFailureContributions (before ++ [.taskSuccess occurrence result]))
           ref := fun invalid => healthy (.ancestor record ancestor invalid)
       have notCancelled :=
         (generated.replayGraphEvents_cancelledRecordsSupported _ valid).healthy_not_mem
           ancestorHealthy
-      have finalState : initial.replayGraphEvents (before ++ [.taskSuccess occurrence result])
-          = activated.drainReadyGroups.1 := by
+      have finalCancelled :
+          (initial.replayGraphEvents (before ++ [.taskSuccess occurrence result])).cancelledGroups
+            = activated.drainReadyGroups.1.cancelledGroups := by
         rw [State.replayGraphEvents_append]
-        change (queue.taskSuccess occurrence result).1 = _
+        change (queue.taskSuccess occurrence result).1.cancelledGroups = _
         rw [queue.taskSuccess_eq occurrence result incoming found]
-        simp only [guard, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
-        rfl
-      rw [finalState] at notCancelled
+      rw [finalCancelled] at notCancelled
       have prefixes := covered.atPrefixDrainOwners before (.taskSuccess occurrence result) []
       have delivered := generated.taskSuccess_drainAncestorValue_before
         (fun event member => (valid.prefix (List.prefix_append before [_])).eachMatches member)
-        sourceMatched record ancestor taskOwners nodeContributes stored prefixes found guard
+        sourceMatched record ancestor taskOwners nodeContributes stored prefixes found
         preparedLookup preparedPresent atDrain notCancelled
       refine ⟨parentResult.value, ?_⟩
       change (Occurrence.executionGroup source, parentResult.value)
         ∈ published.take (offset +
-          (((queue.taskSuccess occurrence result).2.take position).flatMap
+          (((queue.taskSuccess occurrence result).2.1.take position).flatMap
             WorkQueueEvent.objectValues).length)
       rw [prefixEq, List.take_add]
       apply List.mem_append_right

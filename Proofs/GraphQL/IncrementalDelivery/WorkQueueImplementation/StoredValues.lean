@@ -68,6 +68,21 @@ theorem State.StoredValuesSatisfy.putTaskNode {queue : State} {property}
   · subst node
     exact stored old oldMember value same
 
+/-- Exposing computation rejections preserves each stored value and its identity. -/
+theorem State.StoredValuesSatisfy.cacheTaskFailures {queue : State} {property}
+    (stored : queue.StoredValuesSatisfy property) (available : List (Occurrence × Nat))
+    : (queue.cacheTaskFailures available).StoredValuesSatisfy property := by
+  unfold State.cacheTaskFailures
+  induction available generalizing queue with
+  | nil => exact stored
+  | cons entry rest ih =>
+      apply ih
+      dsimp only [List.foldl_cons]
+      split
+      · exact stored
+      · rename_i node found
+        exact stored.putTaskNode _ (stored node (List.mem_of_find?_eq_some found))
+
 /-- Group registration and parent-link installation do not modify task nodes.
 Witness: the exact task-map equation for group integration. -/
 theorem State.StoredValuesSatisfy.addGroups {queue : State} {property}
@@ -127,7 +142,8 @@ theorem State.StoredValuesSatisfy.pruneEmptyGroups {queue : State} {property}
 Witness: direct cases of the executable start operation. -/
 theorem State.StoredValuesSatisfy.startTask {queue : State} {property}
     (stored : queue.StoredValuesSatisfy property) (occurrence : Occurrence)
-    : (queue.startTask occurrence).StoredValuesSatisfy property := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.startTask occurrence available).StoredValuesSatisfy property := by
   unfold State.startTask
   split
   · exact stored
@@ -144,14 +160,18 @@ theorem State.StoredValuesSatisfy.startTask {queue : State} {property}
 Witness: lift empty-node task start through the group's membership fold. -/
 theorem State.StoredValuesSatisfy.startGroup {queue : State} {property}
     (stored : queue.StoredValuesSatisfy property) (ref : NodeRef)
-    : (queue.startGroup ref).StoredValuesSatisfy property := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.startGroup ref available).1.StoredValuesSatisfy property := by
+  have cached := stored.cacheTaskFailures available
   unfold State.startGroup
+  dsimp only
   split
-  · exact stored
+  · exact cached
   · split
-    · exact stored
-    · exact fold_preserves (fun state => state.StoredValuesSatisfy property) State.startTask
-        (fun _ occurrence prior => prior.startTask occurrence) _ _ stored
+    · exact fold_preserves (fun state : State => state.StoredValuesSatisfy property)
+        (fun current task => current.startTask task available)
+        (fun _ occurrence prior => prior.startTask occurrence available) _ _ cached
+    · exact fun node member => cached node (List.mem_filter.mp member).1
 
 /-- Stream start changes only the active stream refs.
 Witness: neither executable branch modifies task nodes. -/
@@ -165,12 +185,17 @@ theorem State.StoredValuesSatisfy.startStream {queue : State} {property}
 Witness: compose the group/task and stream activation folds. -/
 theorem State.StoredValuesSatisfy.startNewWork {queue : State} {property}
     (stored : queue.StoredValuesSatisfy property) (work : NewWork)
-    : (queue.startNewWork work).StoredValuesSatisfy property := by
-  let current :=
-    { queue with rootGroups := queue.rootGroups ++ work.newGroups.map Execution.DeliveryNode.ref }
-  have groups := fold_preserves (fun state => state.StoredValuesSatisfy property)
-    State.startGroup (fun _ ref prior => prior.startGroup ref)
-    (work.newGroups.map Execution.DeliveryNode.ref) current stored
+    (available : List (Occurrence × Nat) := [])
+    : (queue.startNewWork work available).1.StoredValuesSatisfy property := by
+  let step (acc : State × List GroupFailureEvent) (ref : NodeRef) :=
+    let (current, failures) := acc
+    let (next, queued) := current.startGroup ref available
+    (next, failures ++ queued)
+  have groups := fold_preserves (fun acc => acc.1.StoredValuesSatisfy property)
+    step (fun acc ref prior => prior.startGroup ref available)
+    (work.newGroups.map Execution.DeliveryNode.ref)
+    ({ queue with rootGroups := queue.rootGroups ++
+      work.newGroups.map Execution.DeliveryNode.ref }, []) stored
   exact fold_preserves (fun state => state.StoredValuesSatisfy property) State.startStream
     (fun _ ref prior => prior.startStream ref) _ _ groups
 
@@ -189,19 +214,31 @@ theorem State.StoredValuesSatisfy.finishGroupSuccess {queue : State} {property}
   obtain ⟨_, _, _, _, retained, _⟩ := queue.finishGroupSuccess_publications group
   exact fun node member => stored node (retained member)
 
+/-- Failed task settlement cannot install a value.
+Witness: its owner fold updates failure caches or filters nodes through group removal. -/
+theorem State.StoredValuesSatisfy.taskFailure {queue : State} {property}
+    (stored : queue.StoredValuesSatisfy property) (occurrence : Occurrence) (errors : Nat)
+    : (queue.taskFailure occurrence errors).1.StoredValuesSatisfy property := by
+  cases found : queue.taskNode? occurrence with
+  | none => simpa [State.taskFailure, found] using stored
+  | some task =>
+      rw [queue.taskFailure_eq occurrence errors task found]
+      apply failureGroupFold_preserves (fun current => current.StoredValuesSatisfy property)
+        (fun _ ref prior => prior.removeGroup ref)
+      exact stored.putTaskNode _ (stored task (List.mem_of_find?_eq_some found))
+
 /-- Recursive draining preserves every stored occurrence/value property.
 Witness: successful flushes remove values, activation adds only empty nodes, and failed
 closures filter existing nodes. No source or queue-accounting premise is needed.
 -/
 theorem State.StoredValuesSatisfy.drainReadyGroups {queue : State} {property}
     (stored : queue.StoredValuesSatisfy property)
-    : queue.drainReadyGroups.1.StoredValuesSatisfy property := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.drainReadyGroups available).1.StoredValuesSatisfy property := by
   apply State.drainReadyGroups_preserves (fun current => current.StoredValuesSatisfy property)
-    (valid := stored)
-  · intro current node prior _ _ _ _
-    exact (prior.finishGroupSuccess node).startNewWork _
-  · intro current node errors prior _ _ _
-    exact prior.removeGroup _
+    (available := available) (valid := stored)
+  intro current node prior _ _ _
+  exact (prior.finishGroupSuccess node).startNewWork _ available
 
 -----------------------------------------------------------------------------------------
 -- Only a task-success input can install a resolved object value
@@ -213,7 +250,8 @@ released-work activation/draining. Values may leave the state during this same h
 theorem State.StoredValuesSatisfy.taskSuccess {queue : State} {property}
     (stored : queue.StoredValuesSatisfy property) (occurrence : Occurrence)
     (result : TaskResult) (allowed : property occurrence result.value)
-    : (queue.taskSuccess occurrence result).1.StoredValuesSatisfy property := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.taskSuccess occurrence result available).1.StoredValuesSatisfy property := by
   cases found : queue.taskNode? occurrence with
   | none => simpa only [State.taskSuccess, found] using stored
   | some node =>
@@ -235,54 +273,34 @@ theorem State.StoredValuesSatisfy.taskSuccess {queue : State} {property}
           · exact prior
       have processed := fold_preserves (fun acc => acc.1.StoredValuesSatisfy property)
         successGroupStep step node.task.groups (_, [], {}) integrated
-      rw [queue.taskSuccess_eq occurrence result node found]
-      split
-      · exact stored.removeTask occurrence
-      exact (processed.startNewWork _).drainReadyGroups
-
-/-- Failed task settlement cannot install a value.
-Witness: its owner fold updates failure caches or filters nodes through group removal. -/
-theorem State.StoredValuesSatisfy.taskFailure {queue : State} {property}
-    (stored : queue.StoredValuesSatisfy property) (occurrence : Occurrence) (errors : Nat)
-    : (queue.taskFailure occurrence errors).1.StoredValuesSatisfy property := by
-  unfold State.taskFailure
-  split
-  · exact stored
-  · split
-    · exact stored.removeTask occurrence
-    apply fold_preserves
-      (fun acc : State × List WorkQueueEvent => acc.1.StoredValuesSatisfy property)
-    · intro acc group prior
-      obtain ⟨current, events⟩ := acc
-      dsimp only
-      split
-      · exact prior
-      · split
-        · exact prior.removeGroup _
-        · exact prior
-    · exact fun node member => stored node (List.mem_filter.mp member).1
+      rw [queue.taskSuccess_eq occurrence result node found available]
+      exact (processed.startNewWork _ available).drainReadyGroups available
 
 /-- Item arrival integrates and starts child work, but creates no resolved object value.
 Witness: the item fold and final drain compose value-preserving integration and release. -/
 theorem State.StoredValuesSatisfy.streamItems {queue : State} {property}
     (stored : queue.StoredValuesSatisfy property) (stream : Execution.DeliveryNode)
     (items : List StreamItem)
-    : (queue.streamItems stream items).1.StoredValuesSatisfy property := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.streamItems stream items available).1.StoredValuesSatisfy property := by
   let step (acc : State × List Execution.DeliveryNode
-      × List Execution.DeliveryNode × List StreamItemValue) (item : StreamItem) :=
-    let (current, groups, streams, values) := acc
+      × List Execution.DeliveryNode × List StreamItemValue × List GroupFailureEvent)
+      (item : StreamItem) :=
+    let (current, groups, streams, values, failures) := acc
     let (integrated, newWork) := current.maybeIntegrateWork item.work
     let (pruned, nonempty) := integrated.pruneEmptyGroups newWork.newGroups
-    (pruned.startNewWork { newWork with newGroups := nonempty },
-      groups ++ nonempty, streams ++ newWork.newStreams, values ++ [item.value])
+    let (started, queued) :=
+      pruned.startNewWork { newWork with newGroups := nonempty } available
+    (started, groups ++ nonempty, streams ++ newWork.newStreams,
+      values ++ [item.value], failures ++ queued)
   have folded := fold_preserves (fun acc => acc.1.StoredValuesSatisfy property) step
     (fun acc item prior =>
-      ((prior.maybeIntegrateWork item.work).pruneEmptyGroups _).startNewWork _)
-    items (queue, [], [], []) stored
+      ((prior.maybeIntegrateWork item.work).pruneEmptyGroups _).startNewWork _ available)
+    items (queue, [], [], [], []) stored
   unfold State.streamItems
   split
   · exact stored
-  · exact folded.drainReadyGroups
+  · exact folded.drainReadyGroups available
 
 /-- All event handlers preserve the property if any newly supplied task value satisfies it.
 Witness: task success is the only storing branch; stream closures leave task nodes intact.
@@ -292,18 +310,31 @@ theorem State.StoredValuesSatisfy.handleGraphEvent {queue : State} {property}
     (allowed
       : ∀ occurrence result,
           event = .taskSuccess occurrence result → property occurrence result.value)
-    : (queue.handleGraphEvent event).1.StoredValuesSatisfy property := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.handleGraphEvent event available).1.StoredValuesSatisfy property := by
+  have cached := stored.cacheTaskFailures available
   cases event with
   | taskSuccess occurrence result =>
-      exact stored.taskSuccess occurrence result (allowed _ _ rfl)
-  | taskFailure occurrence errors => exact stored.taskFailure occurrence errors
-  | streamItems stream items => exact stored.streamItems stream items
+      exact cached.taskSuccess occurrence result (allowed _ _ rfl) available
+  | taskFailure occurrence errors => exact cached.taskFailure occurrence errors
+  | streamItems stream items => exact cached.streamItems stream items available
   | streamSuccess stream =>
-      simp only [State.handleGraphEvent, State.streamSuccess]
-      split <;> exact stored
+      change ((queue.cacheTaskFailures available).streamSuccess stream).1.StoredValuesSatisfy
+        property
+      unfold State.streamSuccess
+      split <;> exact cached
   | streamFailure stream errors =>
-      simp only [State.handleGraphEvent, State.streamFailure]
-      split <;> exact stored
+      change ((queue.cacheTaskFailures available).streamFailure stream errors).1.StoredValuesSatisfy
+        property
+      unfold State.streamFailure
+      split <;> exact cached
+
+  | groupFailure notice =>
+      change ((queue.cacheTaskFailures available).groupFailure notice).1.StoredValuesSatisfy property
+      unfold State.groupFailure
+      split
+      · exact cached
+      · split <;> exact cached
 
 /-- Initial integration and activation store no resolved values.
 Witness: the empty task map satisfies every value predicate, preserved through creation. -/
@@ -318,22 +349,80 @@ theorem createWorkQueue_storedValues (work : Work) (property)
 Witness: induction through actual handlers, retaining its task occurrence and host event.
 No source validity or scheduler-conformance premise is needed for this provenance fact. -/
 theorem createWorkQueue_replay_storedValues (work : Work) (events : List GraphEvent)
-    : ((State.initialize work).replayGraphEvents events).StoredValuesSatisfy
+    (available : List (Occurrence × Nat) := [])
+    : ((State.initialize work).replayGraphEvents events available).StoredValuesSatisfy
         (fun occurrence value =>
           ∃ result, .taskSuccess occurrence result ∈ events ∧ result.value = value) := by
   let property := fun occurrence value => ∃ result,
     GraphEvent.taskSuccess occurrence result ∈ events ∧ result.value = value
   have loop (more : List GraphEvent) (included : more.Subset events) (queue : State)
       (stored : queue.StoredValuesSatisfy property)
-      : (queue.replayGraphEvents more).StoredValuesSatisfy property := by
+      : (queue.replayGraphEvents more available).StoredValuesSatisfy property := by
     induction more generalizing queue with
     | nil => exact stored
     | cons event rest ih =>
         apply ih (fun _ member => included (List.mem_cons_of_mem event member))
-        apply stored.handleGraphEvent event
+        apply stored.handleGraphEvent event (available := available)
         intro occurrence result same
         exact ⟨result, same ▸ included List.mem_cons_self, rfl⟩
   exact loop events (List.Subset.refl _) _ (createWorkQueue_storedValues work property)
+
+/-- A complete host batch preserves value facts under its actual rejection snapshot. -/
+theorem State.StoredValuesSatisfy.handleGraphEvents {queue : State} {property}
+    (stored : queue.StoredValuesSatisfy property) (events : List GraphEvent)
+    (allowed
+      : ∀ occurrence result,
+          GraphEvent.taskSuccess occurrence result ∈ events
+          → property occurrence result.value)
+    : (queue.handleGraphEvents events).1.StoredValuesSatisfy property := by
+  let available := GraphEvent.availableFailures events
+  have loop (more : List GraphEvent) (included : more.Subset events) (current : State)
+      (prior : current.StoredValuesSatisfy property)
+      : (current.replayGraphEvents more available).StoredValuesSatisfy property := by
+    induction more generalizing current with
+    | nil => exact prior
+    | cons event rest ih =>
+        apply ih (fun _ member => included (List.mem_cons_of_mem _ member))
+        apply prior.handleGraphEvent event (available := available)
+        intro occurrence result same
+        exact allowed _ _ (same ▸ included List.mem_cons_self)
+  cases running : queue.terminated with
+  | true => simpa only [State.handleGraphEvents, running, ↓reduceIte] using stored
+  | false =>
+      obtain ⟨terminal, same⟩ := queue.handleGraphEvents_stateCore events running
+      rw [same]
+      exact loop events (List.Subset.refl _) queue stored
+
+/-- Normalized replay preserves value facts through actual host batch boundaries. -/
+theorem State.StoredValuesSatisfy.runNormalized {queue : State} {property}
+    (stored : queue.StoredValuesSatisfy property) (batches : List (List GraphEvent))
+    (allowed
+      : ∀ occurrence result,
+          GraphEvent.taskSuccess occurrence result ∈ batches.flatten
+          → property occurrence result.value)
+    : (queue.runNormalized batches).1.StoredValuesSatisfy property := by
+  rw [State.runNormalized_replayBatches]
+  induction batches generalizing queue with
+  | nil => exact stored
+  | cons batch rest ih =>
+      apply ih
+        (stored.handleGraphEvents batch
+          (by
+            intro occurrence result member
+            exact allowed _ _ (List.mem_flatten.mpr ⟨batch, List.mem_cons_self, member⟩)))
+      intro occurrence result member
+      exact allowed _ _ (List.mem_append_right batch member)
+
+/-- Every retained value in actual replay comes from an exact supplied task success. -/
+theorem createWorkQueue_runNormalized_storedValues (work : Work)
+    (batches : List (List GraphEvent))
+    : ((State.initialize work).runNormalized batches).1.StoredValuesSatisfy
+        (fun occurrence value =>
+          ∃ result,
+            GraphEvent.taskSuccess occurrence result ∈ batches.flatten
+            ∧ result.value = value) :=
+  (createWorkQueue_storedValues work _).runNormalized batches
+    (fun _ result member => ⟨result, member, rfl⟩)
 
 -----------------------------------------------------------------------------------------
 -- Exact source matching reaches the stored and published data/error payloads
@@ -366,6 +455,20 @@ theorem createWorkQueue_replay_storedValues_match {work : Execution.Work}
             ∧ result.value = value
             ∧ (GraphEvent.taskSuccess occurrence result).MatchesWork work) := by
   refine (createWorkQueue_replay_storedValues (Work.fromExecution work) events).mono ?_
+  intro occurrence value ⟨result, member, same⟩
+  exact ⟨result, member, same, valid.event_matches member⟩
+
+/-- Valid actual batch replay retains the exact matching successful payload source. -/
+theorem createWorkQueue_runNormalized_storedValues_match {work : Execution.Work}
+    {batches : List (List GraphEvent)} (valid : ValidGraphEvents work batches.flatten)
+    : ((State.initialize (Work.fromExecution work)).runNormalized
+        batches).1.StoredValuesSatisfy
+        (fun occurrence value =>
+          ∃ result,
+            GraphEvent.taskSuccess occurrence result ∈ batches.flatten
+            ∧ result.value = value
+            ∧ (GraphEvent.taskSuccess occurrence result).MatchesWork work) := by
+  refine (createWorkQueue_runNormalized_storedValues (Work.fromExecution work) batches).mono ?_
   intro occurrence value ⟨result, member, same⟩
   exact ⟨result, member, same, valid.event_matches member⟩
 
@@ -433,15 +536,50 @@ theorem State.StoredValuesSatisfy.finishGroupSuccess_outputs {queue : State} {pr
   obtain ⟨occurrence, _, certificate⟩ := stored.published emitted member
   exact ⟨occurrence, certificate⟩
 
+/-- Task failure emits no object publication, including when it retains a latent error.
+Witness: every fold step appends only a group-failure notice or leaves output unchanged.
+-/
+theorem State.taskFailure_publishedValues (queue : State) (occurrence : Occurrence)
+    (errors : Nat) (property : Occurrence → ExecutionGroupValue → Prop)
+    : PublishedValuesSatisfy property (queue.taskFailure occurrence errors).2 := by
+  let step (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode) :=
+    match acc.1.groupNode? group.ref with
+    | none => acc
+    | some node =>
+        if acc.1.rootGroups.contains group.ref then
+          let (next, failure) := acc.1.finishGroupFailure node errors
+          (next, acc.2 ++ [WorkQueueEvent.groupFailure failure.group failure.errors])
+        else acc
+  have loop (groups : List Execution.DeliveryNode) (acc : State × List WorkQueueEvent)
+      (prior : PublishedValuesSatisfy property acc.2)
+      : PublishedValuesSatisfy property (groups.foldl step acc).2 := by
+    induction groups generalizing acc with
+    | nil => exact prior
+    | cons group rest ih =>
+        apply ih
+        unfold step
+        split
+        · exact prior
+        · split
+          · apply prior.append
+            intro trigger values impossible
+            simp [State.finishGroupFailure] at impossible
+          · exact prior
+  unfold State.taskFailure
+  split
+  · intro trigger values impossible; cases impossible
+  · exact loop _ (_, []) (by intro trigger values impossible; cases impossible)
+
 /-- Object values emitted during recursive draining retain stored source provenance.
 Witness: induction on the actual drain budget, composing successful flush output with
 later drain output; cached-failure events contain no object values.
 -/
 theorem State.StoredValuesSatisfy.drainReadyGroups_outputs {queue : State} {property}
     (stored : queue.StoredValuesSatisfy property)
-    : PublishedValuesSatisfy property queue.drainReadyGroups.2 := by
+    (available : List (Occurrence × Nat) := [])
+    : PublishedValuesSatisfy property (queue.drainReadyGroups available).2.1 := by
   have loop (fuel : Nat) (current : State) (prior : current.StoredValuesSatisfy property)
-      : PublishedValuesSatisfy property (State.drainReadyGroups.go fuel current).2 := by
+      : PublishedValuesSatisfy property (State.drainReadyGroups.go available fuel current).2.1 := by
     induction fuel generalizing current with
     | zero => intro trigger values impossible; cases impossible
     | succ fuel ih =>
@@ -450,17 +588,8 @@ theorem State.StoredValuesSatisfy.drainReadyGroups_outputs {queue : State} {prop
         split
         · intro trigger values impossible; cases impossible
         · rename_i node selected
-          cases cached : node.failure with
-          | none =>
-              dsimp only
-              exact (prior.finishGroupSuccess_outputs node).append
-                (ih _ ((prior.finishGroupSuccess node).startNewWork _))
-          | some errors =>
-              dsimp only
-              apply PublishedValuesSatisfy.append
-              · intro trigger values impossible
-                simp [State.finishGroupFailure] at impossible
-              · exact ih _ (prior.removeGroup _)
+          exact (prior.finishGroupSuccess_outputs node).append
+            (ih _ ((prior.finishGroupSuccess node).startNewWork _ available))
   exact loop _ queue stored
 
 /-- The success handler's object publications preserve old and newly installed value facts.
@@ -469,7 +598,9 @@ Earlier flushes can remove shared memberships, but cannot introduce unrelated va
 theorem State.StoredValuesSatisfy.taskSuccess_outputs {queue : State} {property}
     (stored : queue.StoredValuesSatisfy property) (occurrence : Occurrence)
     (result : TaskResult) (allowed : property occurrence result.value)
-    : PublishedValuesSatisfy property (queue.taskSuccess occurrence result).2 := by
+    (available : List (Occurrence × Nat) := [])
+    : PublishedValuesSatisfy property
+        (queue.taskSuccess occurrence result available).2.1 := by
   cases found : queue.taskNode? occurrence with
   | none =>
       intro trigger values emitted
@@ -498,11 +629,9 @@ theorem State.StoredValuesSatisfy.taskSuccess_outputs {queue : State} {property}
           · exact ⟨valuesKnown, emittedKnown⟩
       have processed := fold_preserves invariant successGroupStep step node.task.groups
         (_, [], {}) ⟨integrated, by intro trigger values impossible; cases impossible⟩
-      rw [queue.taskSuccess_eq occurrence result node found]
-      split
-      · intro trigger values impossible
-        cases impossible
-      exact processed.2.append ((processed.1.startNewWork _).drainReadyGroups_outputs)
+      rw [queue.taskSuccess_eq occurrence result node found available]
+      exact processed.2.append
+        ((processed.1.startNewWork _ available).drainReadyGroups_outputs available)
 
 /-- Actual success-handler publications have exact source payloads from the current prefix.
 Witness: prior stored provenance plus the current matching input, transported through
@@ -518,7 +647,7 @@ theorem createWorkQueue_replay_taskSuccess_publishedValues {work : Execution.Wor
             ∧ (GraphEvent.taskSuccess source supplied).MatchesWork work)
         (((State.initialize (Work.fromExecution work)).replayGraphEvents
             events).taskSuccess
-          occurrence result).2 := by
+          occurrence result).2.1 := by
   let property := fun source value => ∃ supplied,
     GraphEvent.taskSuccess source supplied ∈ events ++ [.taskSuccess occurrence result]
       ∧ supplied.value = value ∧ (GraphEvent.taskSuccess source supplied).MatchesWork work
@@ -533,44 +662,6 @@ theorem createWorkQueue_replay_taskSuccess_publishedValues {work : Execution.Wor
 -- Every handler's object output retains a genuine task-success source
 -----------------------------------------------------------------------------------------
 
-/-- Task failure emits no object publication, including when it retains a latent error.
-Witness: every fold step appends only a group-failure notice or leaves output unchanged.
--/
-theorem State.taskFailure_publishedValues (queue : State) (occurrence : Occurrence)
-    (errors : Nat) (property : Occurrence → ExecutionGroupValue → Prop)
-    : PublishedValuesSatisfy property (queue.taskFailure occurrence errors).2 := by
-  let step (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode) :=
-    match acc.1.groupNode? group.ref with
-    | none => acc
-    | some node =>
-        if acc.1.rootGroups.contains group.ref then
-          let (next, failure) := acc.1.finishGroupFailure node errors
-          (next, acc.2 ++ [failure])
-        else (acc.1.putGroupNode
-          { node with pending := node.pending - 1
-                      failure := some (node.failure.getD 0 + errors) }, acc.2)
-  have loop (groups : List Execution.DeliveryNode) (acc : State × List WorkQueueEvent)
-      (prior : PublishedValuesSatisfy property acc.2)
-      : PublishedValuesSatisfy property (groups.foldl step acc).2 := by
-    induction groups generalizing acc with
-    | nil => exact prior
-    | cons group rest ih =>
-        apply ih
-        unfold step
-        split
-        · exact prior
-        · split
-          · apply prior.append
-            intro trigger values impossible
-            simp [State.finishGroupFailure] at impossible
-          · exact prior
-  unfold State.taskFailure
-  split
-  · intro trigger values impossible; cases impossible
-  · split
-    · intro trigger values impossible; cases impossible
-    exact loop _ (_, []) (by intro trigger values impossible; cases impossible)
-
 /-- A stream handler may drain stored object values, all with their earlier provenance.
 Witness: item integration installs no object value; the final recursive drain can flush
 only the preserved stored values. The leading stream-value event is not an object patch.
@@ -578,24 +669,28 @@ only the preserved stored values. The leading stream-value event is not an objec
 theorem State.StoredValuesSatisfy.streamItems_outputs {queue : State} {property}
     (stored : queue.StoredValuesSatisfy property) (stream : Execution.DeliveryNode)
     (items : List StreamItem)
-    : PublishedValuesSatisfy property (queue.streamItems stream items).2 := by
+    (available : List (Occurrence × Nat) := [])
+    : PublishedValuesSatisfy property (queue.streamItems stream items available).2.1 := by
   let step (acc : State × List Execution.DeliveryNode
-      × List Execution.DeliveryNode × List StreamItemValue) (item : StreamItem) :=
-    let (current, groups, streams, values) := acc
+      × List Execution.DeliveryNode × List StreamItemValue × List GroupFailureEvent)
+      (item : StreamItem) :=
+    let (current, groups, streams, values, failures) := acc
     let (integrated, newWork) := current.maybeIntegrateWork item.work
     let (pruned, nonempty) := integrated.pruneEmptyGroups newWork.newGroups
-    (pruned.startNewWork { newWork with newGroups := nonempty },
-      groups ++ nonempty, streams ++ newWork.newStreams, values ++ [item.value])
+    let (started, queued) :=
+      pruned.startNewWork { newWork with newGroups := nonempty } available
+    (started, groups ++ nonempty, streams ++ newWork.newStreams,
+      values ++ [item.value], failures ++ queued)
   have folded := fold_preserves (fun acc => acc.1.StoredValuesSatisfy property) step
     (fun acc item prior =>
-      ((prior.maybeIntegrateWork item.work).pruneEmptyGroups _).startNewWork _)
-    items (queue, [], [], []) stored
+      ((prior.maybeIntegrateWork item.work).pruneEmptyGroups _).startNewWork _ available)
+    items (queue, [], [], [], []) stored
   unfold State.streamItems
   split
   · intro trigger values impossible; cases impossible
   · intro trigger values emitted value member
     have later := (List.mem_cons.mp emitted).resolve_left (by intro impossible; cases impossible)
-    exact folded.drainReadyGroups_outputs trigger values later value member
+    exact folded.drainReadyGroups_outputs available trigger values later value member
 
 /-- Every event preserves the source property on emitted object values.
 Witness: success may install its supplied value, item arrival may drain earlier ones,
@@ -606,12 +701,15 @@ theorem State.StoredValuesSatisfy.handleGraphEvent_outputs {queue : State} {prop
     (allowed
       : ∀ occurrence result,
           event = .taskSuccess occurrence result → property occurrence result.value)
-    : PublishedValuesSatisfy property (queue.handleGraphEvent event).2 := by
+    (available : List (Occurrence × Nat) := [])
+    : PublishedValuesSatisfy property (queue.handleGraphEvent event available).2.1 := by
+  have cached := stored.cacheTaskFailures available
   cases event with
   | taskSuccess occurrence result =>
-      exact stored.taskSuccess_outputs occurrence result (allowed _ _ rfl)
-  | taskFailure occurrence errors => exact queue.taskFailure_publishedValues _ _ _
-  | streamItems stream items => exact stored.streamItems_outputs stream items
+      exact cached.taskSuccess_outputs occurrence result (allowed _ _ rfl) available
+  | taskFailure occurrence errors =>
+      exact (queue.cacheTaskFailures available).taskFailure_publishedValues _ _ _
+  | streamItems stream items => exact cached.streamItems_outputs stream items available
   | streamSuccess stream =>
       intro trigger values emitted
       simp only [State.handleGraphEvent, State.streamSuccess] at emitted
@@ -620,6 +718,13 @@ theorem State.StoredValuesSatisfy.handleGraphEvent_outputs {queue : State} {prop
       intro trigger values emitted
       simp only [State.handleGraphEvent, State.streamFailure] at emitted
       split at emitted <;> simp at emitted
+
+  | groupFailure notice =>
+      intro trigger values emitted
+      simp only [State.handleGraphEvent, State.groupFailure] at emitted
+      split at emitted
+      · simp at emitted
+      · split at emitted <;> simp at emitted
 
 /-- Every handler after a legal source prefix emits only exact successful source payloads.
 Witness: earlier stored provenance or the current task-success input; recursive draining
@@ -636,7 +741,7 @@ theorem createWorkQueue_replay_event_publishedValues {work : Execution.Work}
             ∧ (GraphEvent.taskSuccess occurrence supplied).MatchesWork work)
         (((State.initialize (Work.fromExecution work)).replayGraphEvents
             before).handleGraphEvent
-          event).2 := by
+          event).2.1 := by
   let property := fun occurrence value => ∃ supplied,
     GraphEvent.taskSuccess occurrence supplied ∈ before ++ [event]
       ∧ supplied.value = value ∧ (GraphEvent.taskSuccess occurrence supplied).MatchesWork work

@@ -63,7 +63,12 @@ mutual
         · exact collectExecutionGroups_attached available schema resolvers variables fuel parentType source _
             (List.nodup_append.mp hnames).2.1  path _ ha
         · intro work hw
-          exact runEnsures_pure _ _ ((attached_combineWork_fields hnames hc hw).mono hwiden)
+          apply runEnsures_pure
+          refine ((attached_combineWork_fields hnames hc ?_).mono hwiden)
+          obtain ⟨⟨slices, seeds, owned⟩, attachedSlices, attachedSeeds, attached⟩ := hw
+          exact ⟨⟨slices, fun cursors => .declareGroups (seeds cursors), owned⟩,
+            attachedSlices, fun cursors => .declareGroups (attachedSeeds cursors),
+            .declareGroups attached⟩
   termination_by (fuel, 6, 0, 0)
   decreasing_by
     all_goals simp_wf
@@ -396,15 +401,15 @@ mutual
           split
           · rename_i errors he
             apply runEnsures_pure
-            have hs : ItemCursorSeed path index [(head.result, .empty)] [[]] := by
-              simpa only [he, result, List.nil_append]
+            have hs : ItemCursorSeed path index [(head.outcome, .empty)] [[]] := by
+              simpa only [Completion.outcome, he, result, List.nil_append]
                 using (ItemCursorSeed.cons (path := path) (index := index)
-                        (completed := head.result) WorkCursorSeed.empty
+                        (completed := head.outcome) WorkCursorSeed.empty
                         ItemCursorSeed.nil)
             refine ⟨⟨[[]], hs, owns_nil _⟩, [[]], hs, ?_⟩
-            simpa only [he, result, List.nil_append]
+            simpa only [Completion.outcome, he, result, List.nil_append]
               using (ItemsAttached.cons (available := available) (path := path)
-                      (index := index) (completed := head.result) WorkAttached.empty
+                      (index := index) (completed := head.outcome) WorkAttached.empty
                       ItemsAttached.nil)
           · refine runEnsures_bind (OwnedAttachedItems available path (index + 1)
               (UnderItems path (index + 1))) _ _ _ ?_ ?_

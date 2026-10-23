@@ -25,19 +25,19 @@ theorem terminal_registeredTask_reported {work inputs task} {w : Witness}
       : Explains work (initialQueue work).initialGroups
           (initialQueue work).initialStreams w.events w.matching w.failures)
     (ended : ((initialQueue work).runNormalized inputs).1.terminated = true)
-    (member : task ∈ ((initialQueue work).replayGraphEvents inputs.flatten).tasks)
+    (member : task ∈ ((initialQueue work).runNormalized inputs).1.tasks)
     (unpublished : ¬Published w.matching w.events task.occurrence)
     {address owners producer payload}
     (known : TaskAt work (.executionGroup address) owners producer payload)
     (identity : task.occurrence = .executionGroup address)
     : FailureReportedFor w.events payload.path := by
   classical
-  have matched := (createWorkQueue_replay_regionInventory valid).matching task member
+  have matched := (createWorkQueue_runNormalized_regionInventory valid).matching task member
   obtain ⟨_, stored, birth, sameOccurrence, structural⟩ := matched.1
   by_cases healthyOwner :
     ∃ ref ∈ task.groups.map Execution.DeliveryNode.ref,
       ¬GroupInvalidated work
-        ((initialQueue work).objectFailureContributions inputs.flatten) ref
+        ((initialQueue work).admittedObjectFailureContributionsForBatches inputs) ref
   · obtain ⟨ref, contributes, healthy⟩ := healthyOwner
     have retired := generated.terminal_healthyContributor_retired valid started ended
       member contributes healthy
@@ -51,7 +51,7 @@ theorem terminal_registeredTask_reported {work inputs task} {w : Witness}
     obtain ⟨ref, contributes⟩ :=
       List.exists_mem_of_ne_nil owners (generated.taskOwners_nonempty known)
     have invalid : GroupInvalidated work
-        ((initialQueue work).objectFailureContributions inputs.flatten) ref := by
+        ((initialQueue work).admittedObjectFailureContributionsForBatches inputs) ref := by
       apply Classical.byContradiction
       intro healthy
       exact healthyOwner ⟨ref, sameOwners.symm ▸ contributes, healthy⟩
@@ -81,23 +81,21 @@ theorem terminal_availableObjectTaskReporting {work inputs w}
     (ended : ((initialQueue work).runNormalized inputs).1.terminated = true)
     : AvailableObjectTaskReporting work w := by
   intro address owners producer payload known available unpublished
-  have registered : ∃ task ∈ ((initialQueue work).replayGraphEvents inputs.flatten).tasks,
+  have registered : ∃ task ∈ ((initialQueue work).runNormalized inputs).1.tasks,
       task.occurrence = .executionGroup address
       ∧ task.groups.map Execution.DeliveryNode.ref = owners := by
+    have registration := generated.runNormalized_producerRegistrationAccounting valid started
     cases producer with
-    | none => exact TaskAt.executionGroup_replay_registered known inputs.flatten
+    | none =>
+        exact registration.root_registered known
     | some parent =>
         cases parent with
         | executionGroup source =>
             exact published_object_child_registered generated valid started history admitted
               ledger known (available _ rfl)
         | item source index =>
-            have accepted : (initialQueue work).batchesStarted inputs = true := by
-              rwa [← inputsStarted_eq_batchesStarted]
-            exact TaskAt.executionGroup_registered_of_itemSuccess known valid
-              ((initialQueue work).batchesStarted_acceptsBatch inputs accepted)
-              (published_item_success valid started history admitted ledger
-                (available _ rfl))
+            exact registration.item_registered known
+              (published_item_success valid started history admitted ledger (available _ rfl))
   obtain ⟨task, member, identity, _⟩ := registered
   exact terminal_registeredTask_reported generated valid started history ledger explained
     ended member (identity.symm ▸ unpublished) known identity

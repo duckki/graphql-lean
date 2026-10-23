@@ -10,38 +10,45 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 -- Publisher normalization preserves exact group-notice and completion inventories
 -----------------------------------------------------------------------------------------
 
-/-- Every canonical group notice remains active or has a canonical group completion.
-Witness: raw tracking, exact notice/closure projection through normalization and atomization,
-and agreement between started eventwise replay and the actual normalized final state.
+/-- Every canonical group notice remains active, pending or has a canonical completion.
+Witness: FIFO tracking, exact notice/closure projection through normalization and atomization,
+and agreement between actual raw batch replay and the normalized final state.
 No abstract admission, failure matching, or terminal premise is required.
 -/
 theorem groupNoticeRefs_tracked {work inputs} {w : Witness}
     (generated : ExecutedWork work) (valid : ValidGraphEvents work inputs.flatten)
-    (started : inputsStarted work inputs = true)
+    (_started : inputsStarted work inputs = true)
     (history : w.events = (initialQueue work).nonterminalAtoms inputs)
     : ∀ ref ∈ (initialQueue work).rootGroups ++ w.events.flatMap groupNoticeRefs,
-        ref ∈ ((initialQueue work).runNormalized inputs).1.rootGroups
+        ref ∈ ((initialQueue work).runNormalized inputs).1.groupNoticeSupport
         ∨ ref ∈ w.events.flatMap groupClosureRefs := by
-  have exactHistory := history.trans (createWorkQueue_nonterminalAtoms_flattened inputs started)
-  have notices
-      : w.events.flatMap groupNoticeRefs
-        = ((initialQueue work).rawEventReplay inputs.flatten).2.flatMap rawGroupNoticeRefs := by
-    rw [exactHistory, atomicGroupNotices _ _
-      ((initialQueue work).rawEventReplay_nonemptyValues inputs.flatten valid.nonemptyItems)]
-  have closures
-      : w.events.flatMap groupClosureRefs
-        = ((initialQueue work).rawEventReplay inputs.flatten).2.flatMap rawGroupClosureRefs := by
-    rw [exactHistory, List.flatMap_assoc]
+  let publisher : IncrementalPublisher :=
+    { active := (initialQueue work).initialGroups ++ (initialQueue work).initialStreams }
+  have noticeProjection := atomicGroupNotices publisher ((initialQueue work).rawBatches inputs).2
+    ((initialQueue work).rawBatches_nonemptyValues inputs valid.nonemptyItems)
+  rw [Witness.rawBatches_shape history] at noticeProjection
+  have notices : w.events.flatMap groupNoticeRefs =
+      ((initialQueue work).rawBatches inputs).2.flatMap rawGroupNoticeRefs := by
+    split at noticeProjection <;>
+      simpa [List.flatMap_append, groupNoticeRefs] using noticeProjection
+  have closureProjection : ((publisher.normalizeBatch
+      ((initialQueue work).rawBatches inputs).2).2.flatMap publicationAtoms).flatMap
+        groupClosureRefs
+      = ((initialQueue work).rawBatches inputs).2.flatMap rawGroupClosureRefs := by
+    rw [List.flatMap_assoc]
     simp only [publicationAtoms_groupClosureRefs,
       IncrementalPublisher.normalizeBatch_groupClosureRefs]
-  obtain ⟨flag, state⟩ := State.runNormalized_stateCore (initialQueue work) inputs
-    ((inputsStarted_eq_batchesStarted work inputs) ▸ started)
+  rw [Witness.rawBatches_shape history] at closureProjection
+  have closures : w.events.flatMap groupClosureRefs =
+      ((initialQueue work).rawBatches inputs).2.flatMap rawGroupClosureRefs := by
+    split at closureProjection <;>
+      simpa [List.flatMap_append, groupClosureRefs] using closureProjection
   intro ref member
   rw [notices] at member
-  rw [state, closures]
-  have tracked := generated.rawEventReplay_groupNoticeCompletion inputs.flatten
+  rw [State.runNormalized_replayBatches, closures]
+  have tracked := generated.rawBatches_groupNoticeCompletion inputs
     (fun _ member => valid.eachMatches member) ref member
-  simpa only [State.rawEventReplay_state] using tracked
+  simpa only [State.rawBatches_state] using tracked
 
 -----------------------------------------------------------------------------------------
 -- The announced-group branch of terminal node accounting is discharged
@@ -65,9 +72,10 @@ theorem groupNode_terminalCompleted {work inputs node dependencies producer} {w 
   simp only [List.take_length] at groupNotice
   rcases groupNoticeRefs_tracked generated valid started history node.ref groupNotice with
     active | completed
-  · have empty := (createWorkQueue_terminalRoots (Work.fromExecution work) inputs ended).1
-    rw [empty] at active
-    cases active
+  · have roots := (createWorkQueue_terminalRoots (Work.fromExecution work) inputs ended).1
+    have pending := createWorkQueue_terminalPending (Work.fromExecution work) inputs ended
+    simp only [State.groupNoticeSupport, State.pendingGroupFailureRefs, roots, pending,
+      List.map_nil, List.append_nil, List.not_mem_nil] at active
   · exact groupClosureRefs_subset_completed w.events completed
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue.ConformancePlan

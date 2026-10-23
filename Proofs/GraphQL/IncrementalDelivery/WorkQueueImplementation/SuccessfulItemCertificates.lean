@@ -115,8 +115,8 @@ theorem successfulItemCertificates_with_closureLedger {work : Execution.Work}
             let publisher : IncrementalPublisher :=
               { active := queue.initialGroups ++ queue.initialStreams }
             let objects :=
-              sourceObjectFailureCuts 0
-                (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher inputs).2.2)
+              informativeObjectFailureCuts work
+                (queue.sourceRunBlocks publisher inputs).2.2
             ∃ streams,
               StreamFailureCuts work
                 ((queue.runNormalized inputs).2.flatten.flatMap publicationAtoms) streams
@@ -124,8 +124,8 @@ theorem successfulItemCertificates_with_closureLedger {work : Execution.Work}
   let queue := initialQueue work
   let publisher : IncrementalPublisher :=
     { active := queue.initialGroups ++ queue.initialStreams }
-  let objects := sourceObjectFailureCuts 0
-    (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher inputs).2.2)
+  let objects := informativeObjectFailureCuts work
+    (queue.sourceRunBlocks publisher inputs).2.2
   let atoms := (queue.runNormalized inputs).2.flatten.flatMap publicationAtoms
   obtain ⟨published, matching, _, values, notices, covered, prefixes, closures,
     objectPrefixes, objectLedger⟩ :=
@@ -133,7 +133,9 @@ theorem successfulItemCertificates_with_closureLedger {work : Execution.Work}
   obtain ⟨streams, cuts, announced⟩ :=
     announcedFailures_with_cuts_exists generated valid started matching
   let failures := mergeFailureCuts objects streams
-  let w : Witness := { events := queue.nonterminalAtoms inputs, matching, failures }
+  let reported := mergeFailureCuts
+    (availableObjectFailureCuts work 0 (queue.sourceRunBlocks publisher inputs).2.2) streams
+  let w : Witness := { events := queue.nonterminalAtoms inputs, matching, failures, reported }
   have shape := queue.runNormalized_terminalShape inputs (createWorkQueue_terminated _)
   have itemsSafe := generated.publishedItems_safe_mixed valid started cuts
     (mergeFailureCuts_partition objects streams)
@@ -264,8 +266,8 @@ theorem successfulItemCertificates_with_cuts {work : Execution.Work}
             let publisher : IncrementalPublisher :=
               { active := queue.initialGroups ++ queue.initialStreams }
             let objects :=
-              sourceObjectFailureCuts 0
-                (queue.eligibleFailureBlocks (queue.sourceRunBlocks publisher inputs).2.2)
+              informativeObjectFailureCuts work
+                (queue.sourceRunBlocks publisher inputs).2.2
             ∃ streams,
               StreamFailureCuts work
                 ((queue.runNormalized inputs).2.flatten.flatMap publicationAtoms) streams

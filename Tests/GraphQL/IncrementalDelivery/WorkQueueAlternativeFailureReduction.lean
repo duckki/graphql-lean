@@ -70,18 +70,26 @@ private def shared : State :=
       {
         shared with
           queue :=
-            ({ shared.queue with rootGroups := [1] }).putGroupNode
+            ({
+              shared.queue with
+                rootGroups := [1],
+                taskNodes :=
+                  [
+                    { task := task 9 [1, 2], rejection := some 1 },
+                    { task := task 10 [1, 2], childStreams := [7] }
+                  ]
+            }).putGroupNode
               {
                 group := { node := node 2 }
                 tasks := [.executionGroup [9], .executionGroup [10]]
                 pending := 2
-                failure := some 1
               }
       }
     check "failed but live dormant co-owner still owns work"
       (failedCoOwner.removeGroup 1).2.isEmpty
     let (failed, notices, effects) := shared.taskFailure (.executionGroup [9]) 2
-    same "settling input is not aborted; shared source is disposed once" effects
+    same "settling input is not aborted; shared source is disposed once"
+      (effects.flatMap CleanupTarget.effects)
       [.abortTask (.executionGroup [10]), .cancelSource 7, .abortStreamQueue 7]
     same "both announced failed owners retain wire order" notices
       [.groupFailure (node 1) 2, .groupFailure (node 2) 2]
@@ -154,27 +162,31 @@ private def shared : State :=
                 { group := { node := node 1 }, tasks := [.executionGroup [10]] },
                 {
                   group := { node := node 2 },
-                  tasks := [.executionGroup [10]],
-                  failure := some 1
+                  tasks := [.executionGroup [10], .executionGroup [11]],
+                  pending := 1,
                 }
               ]
-            tasks := [task 10 [1, 2]]
+            tasks := [task 10 [1, 2], task 11 [2]]
             taskNodes :=
-              [{
-                task := task 10 [1, 2],
-                value := some { path := [], data := [] },
-                childStreams := [7]
-              }]
+              [
+                {
+                  task := task 10 [1, 2],
+                  value := some { path := [], data := [] },
+                  childStreams := [7]
+                },
+                { task := task 11 [2], rejection := some 1 }
+              ]
             streams := [{ node := node 7 }]
           }
       }
-    let (released, events, targets) := ready.drainReadyGroups
+    let (released, events, targets, queued) := ready.drainReadyGroups
     check "successful publication is transfer, not disposal" targets.isEmpty
     check "later co-owner failure cannot cancel a released source"
       (released.queue.rootStreams.contains 7)
     let reference := ready.queue.drainReadyGroups
     same "mixed success/failure drain keeps reference state" released.queue reference.1
-    same "mixed success/failure drain keeps reference wire events" events reference.2
+    same "ready drain keeps reference immediate wire events" events reference.2.1
+    same "ready drain keeps reference startup notices" queued reference.2.2
     let cached : State :=
       {
         queue :=
@@ -191,13 +203,13 @@ private def shared : State :=
                 },
                 {
                   group := { node := node 2, parent := some 1 },
-                  tasks := [.executionGroup [10]],
-                  pending := 1,
-                  failure := some 2
+                  tasks := [.executionGroup [10], .executionGroup [11]],
+                  pending := 2
                 }
               ]
-            tasks := [task 9 [1], task 10 [2]]
-            taskNodes := [{ task := task 9 [1] }]
+            tasks := [task 9 [1], task 10 [2], task 11 [2]]
+            taskNodes :=
+              [{ task := task 9 [1] }, { task := task 11 [2], rejection := some 2 }]
           }
       }
     let success : GraphEvent :=
@@ -206,17 +218,25 @@ private def shared : State :=
     same "released cached failure disposes an unstarted task inline" reduced.effects
       [.adopt (.executionGroup [9]), .abortTask (.executionGroup [10])]
     same "cached failure uses the shared accounting result" reduced.state.queue
-      (cached.queue.handleGraphEvent success).1
+      (cached.queue.dispatchGraphEvent success).1
     same "cached failure keeps wire result" reduced.workQueueEvents
-      (cached.queue.handleGraphEvent success).2
+      (cached.queue.handleGraphEvent success).2.1
+    same "cached startup failure is queued separately"
+      reduced.state.queue.groupFailureEvents
+      (cached.queue.dispatchGraphEvent success).1.groupFailureEvents
     let receipt : State :=
       { cached with queue := { cached.queue with rootGroups := [2], rootStreams := [4] } }
-    let (_, receiptEvents, receiptEffects) :=
-      receipt.streamItems (node 4)
+    let receiptInput : GraphEvent :=
+      .streamItems (node 4)
         [{ occurrence := .item [] 0, value := { item := .scalar "item" } }]
-    same "receipt acknowledgement precedes ready-drain cleanup" receiptEffects
+    let receiptStep := receipt.handleGraphEvent receiptInput
+    same "active cached failure waits for its FIFO notification" receiptStep.2.2.1
+      [.adopt (.item [] 0), .acknowledge 4]
+    let receiptBatch :=
+      receipt.handleGraphEvents [receiptInput, .taskFailure (.executionGroup [11]) 2]
+    same "receipt acknowledgement precedes FIFO failure cleanup" receiptBatch.effects
       [.adopt (.item [] 0), .acknowledge 4, .abortTask (.executionGroup [10])]
-    same "receipt carrier precedes cached failure notice" receiptEvents
+    same "receipt carrier precedes FIFO failure notice" receiptBatch.workQueueEvents
       [
         .streamValues (node 4) [{ item := .scalar "item" }] [] [],
         .groupFailure (node 2) 2

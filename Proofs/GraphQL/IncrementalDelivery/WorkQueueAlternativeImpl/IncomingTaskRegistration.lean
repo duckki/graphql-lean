@@ -1,4 +1,5 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.AdoptedSourceRecords
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.RegistrationSnapshotRejections
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.RegistrationReceiptCoverage
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.TaskRegistrationCoverage
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.TaskProducerOrder
@@ -25,8 +26,7 @@ def acceptedChildTasks (before : Kernel) : GraphEvent → List Task
   | .taskSuccess occurrence result =>
       match before.taskNode? occurrence with
       | none => []
-      | some node =>
-          if before.taskHasHealthyOwner node.task then result.work.tasks else []
+      | some _ => result.work.tasks
   | .streamItems stream items =>
       if before.rootStreams.contains stream.ref then
         items.flatMap (fun item => item.work.tasks)
@@ -38,70 +38,97 @@ def acceptedChildTasks (before : Kernel) : GraphEvent → List Task
 no computation node was started. The unsettled registration frame justifies receipt-wide
 retention; no native acquisition or desired endpoint conclusion is assumed.
 -/
-theorem registration_rejectedTask_aborted {before : Kernel} {event task work settled}
-    (frame : RegistrationFrame before settled)
+theorem registration_rejectedTask_aborted_available {before : Kernel}
+    {event task work settled} (frame : SourceRegistrationFrame before settled work)
+    (certified : ReferenceWorkQueue.DeclarationCoverage.Certified [] work)
     (matching : event.MatchesWork work) (fresh : task.occurrence ∉ settled)
     (returned : task ∈ acceptedChildTasks before event)
+    (rejections : before.TaskRejectionsSatisfy (fun occurrence _ => occurrence ∈ settled))
+    (available : List (Occurrence × Nat))
+    (cached : before.cacheTaskFailures available = before)
+    (licensed
+      : ∀ occurrence errors, (occurrence, errors) ∈ available → occurrence ∈ settled)
     (ownerless
       : ∀ owner ∈ task.groups,
-          (registrationSnapshot before event).groupNode? owner.ref = none)
+          (registrationSnapshot before event available).groupNode? owner.ref = none)
     : .abortTask task.occurrence
       ∈ (({ state := { queue := before } } : GraphBatchResult).handleGraphEvent
-          event).effects := by
+          event available).effects := by
   have emitted : .abortTask task.occurrence ∈
-      (({ queue := before } : State).handleGraphEvent event).2.2 := by
+      (({ queue := before } : State).handleGraphEvent event available).2.2.1 := by
     cases event with
     | taskSuccess occurrence result =>
         cases found : before.taskNode? occurrence with
         | none => simp [acceptedChildTasks, found] at returned
         | some node =>
-            cases healthy : before.taskHasHealthyOwner node.task with
-            | false => simp [acceptedChildTasks, found, healthy] at returned
-            | true =>
-                simp only [acceptedChildTasks, found, healthy, ↓reduceIte] at returned
-                simp only [registrationSnapshot, found, healthy, ↓reduceIte] at ownerless
-                exact State.taskSuccess_ownerless_aborted found healthy rfl task returned ownerless
+            simp only [acceptedChildTasks, found] at returned
+            simp only [registrationSnapshot, found] at ownerless
+            simpa only [State.handleGraphEvent, cached]
+              using State.taskSuccess_ownerless_aborted (state := { queue := before })
+                found rfl task rejections fresh returned ownerless available
     | streamItems stream items =>
         cases active : before.rootStreams.contains stream.ref with
         | false => simp only [acceptedChildTasks, active, Bool.false_eq_true,
             ↓reduceIte, List.not_mem_nil] at returned
         | true =>
             simp only [acceptedChildTasks, active, ↓reduceIte] at returned
-            rw [registrationSnapshot_itemFold before stream items active] at ownerless
-            exact streamItems_ownerless_aborted frame
-              (fun item member => matching.streamItem_childTasksCovered member)
-              active returned fresh ownerless
-    | taskFailure | streamSuccess | streamFailure => cases returned
+            rw [registrationSnapshot_itemFold before stream items active available] at ownerless
+            simpa only [State.handleGraphEvent, cached]
+              using streamItems_ownerless_aborted_available frame
+                (fun item member =>
+                  matching.streamItem_childTasksCovered certified member)
+                (by
+                  intro item member task listed
+                  obtain ⟨address, payload, same, known⟩ :=
+                    matching.streamItem_childTask_producer member listed
+                  exact ⟨⟨address, payload, some item.occurrence, same, known⟩,
+                    matching.streamItem_childTask_groupsExact member listed⟩)
+                active returned fresh rejections available ownerless licensed
+    | taskFailure | groupFailure | streamSuccess | streamFailure => cases returned
   unfold GraphBatchResult.handleGraphEvent
   exact List.mem_append_right _ emitted
+
+theorem registration_rejectedTask_aborted {before : Kernel} {event task work settled}
+    (frame : SourceRegistrationFrame before settled work)
+    (certified : ReferenceWorkQueue.DeclarationCoverage.Certified [] work)
+    (matching : event.MatchesWork work) (fresh : task.occurrence ∉ settled)
+    (returned : task ∈ acceptedChildTasks before event)
+    (rejections : before.TaskRejectionsSatisfy (fun occurrence _ => occurrence ∈ settled))
+    (ownerless
+      : ∀ owner ∈ task.groups,
+          (registrationSnapshot before event).groupNode? owner.ref = none)
+    : .abortTask task.occurrence
+      ∈ (({ state := { queue := before } } : GraphBatchResult).handleGraphEvent
+          event).effects :=
+  registration_rejectedTask_aborted_available frame certified matching fresh returned
+    rejections [] rfl (by simp) ownerless
 
 /-- The registration snapshot's permanent catalogue contains every accepted task.
 Subsequent item registration preserves prior entries; this says nothing about live owners.
 -/
-theorem registrationSnapshot_acceptedTask_registered {before : Kernel} {event task}
-    (returned : task ∈ acceptedChildTasks before event)
-    : task ∈ (registrationSnapshot before event).tasks := by
+theorem registrationSnapshot_acceptedTask_registered_available {before : Kernel}
+    {event task} (returned : task ∈ acceptedChildTasks before event)
+    (available : List (Occurrence × Nat))
+    : task ∈ (registrationSnapshot before event available).tasks := by
   cases event with
   | taskSuccess occurrence result =>
       cases found : before.taskNode? occurrence with
       | none => simp [acceptedChildTasks, found] at returned
       | some node =>
-          cases healthy : before.taskHasHealthyOwner node.task with
-          | false => simp [acceptedChildTasks, found, healthy] at returned
-          | true =>
-              simp only [acceptedChildTasks, found, healthy, ↓reduceIte] at returned
-              simp only [registrationSnapshot, found, healthy, ↓reduceIte,
-                State.maybeIntegrateWork_tasks]
-              exact List.mem_append_right _ returned
+          simp only [acceptedChildTasks, found] at returned
+          simp only [registrationSnapshot, found,
+            State.maybeIntegrateWork_tasks]
+          exact List.mem_append_right _ returned
   | streamItems stream items =>
       cases active : before.rootStreams.contains stream.ref with
       | false => simp only [acceptedChildTasks, active, Bool.false_eq_true,
           ↓reduceIte, List.not_mem_nil] at returned
       | true =>
           simp only [acceptedChildTasks, active, ↓reduceIte] at returned
-          rw [registrationSnapshot_itemFold before stream items active]
+          rw [registrationSnapshot_itemFold before stream items active available]
           have loop (more : List ReferenceWorkQueue.StreamItem) (current : StreamRegistrationAcc)
-              : (more.foldl streamRegistrationStep current).1.queue.tasks
+              : (more.foldl (fun acc item => streamRegistrationStep acc item available)
+                  current).1.queue.tasks
                   = current.1.queue.tasks ++ more.flatMap (fun item => item.work.tasks) := by
             induction more generalizing current with
             | nil => simp
@@ -111,7 +138,12 @@ theorem registrationSnapshot_acceptedTask_registered {before : Kernel} {event ta
                   List.flatMap_cons, List.append_assoc]
           rw [loop]
           exact List.mem_append_right _ returned
-  | taskFailure | streamSuccess | streamFailure => cases returned
+  | taskFailure | groupFailure | streamSuccess | streamFailure => cases returned
+
+theorem registrationSnapshot_acceptedTask_registered {before : Kernel} {event task}
+    (returned : task ∈ acceptedChildTasks before event)
+    : task ∈ (registrationSnapshot before event).tasks :=
+  registrationSnapshot_acceptedTask_registered_available returned []
 
 -----------------------------------------------------------------------------------------
 -- Generated replay derives unsettled links at this same registration snapshot
@@ -129,13 +161,9 @@ private theorem eagerRegistrationSnapshot_unsettledLinks {queue : Kernel} {work 
       cases found : queue.taskNode? occurrence with
       | none => simpa only [eagerRegistrationSnapshot, found] using accounted.links
       | some node =>
-          cases healthy : queue.taskHasHealthyOwner node.task with
-          | false => simpa only [eagerRegistrationSnapshot, found, healthy,
-              Bool.false_eq_true, ↓reduceIte] using accounted.links
-          | true =>
-              simp only [eagerRegistrationSnapshot, found, healthy, ↓reduceIte]
-              exact (accounted.links.putTaskNode _).maybeIntegrateWork accounted.refs
-                accounted.taskGroups result.work (some occurrence)
+          simp only [eagerRegistrationSnapshot, found]
+          exact (accounted.links.putTaskNode _).maybeIntegrateWork accounted.refs
+            accounted.taskGroups result.work (some occurrence)
   | streamItems stream items =>
       cases active : queue.rootStreams.contains stream.ref with
       | false => simpa only [eagerRegistrationSnapshot, active, Bool.false_eq_true,
@@ -146,16 +174,26 @@ private theorem eagerRegistrationSnapshot_unsettledLinks {queue : Kernel} {work 
             ∧ current.GroupRefsUnique ∧ current.LiveGroupsRegistered ∧ current.TaskGroupsRegistered
           suffices invariant (queue.preparedStreamItems items) from this.1
           apply ReferenceWorkQueue.State.preparedStreamItems_preserves invariant
-            ⟨accounted.links, accounted.refs, accounted.liveGroups, accounted.taskGroups⟩ items
+            ⟨accounted.links, accounted.refs, accounted.liveGroups, accounted.taskGroups⟩
+            items
           intro current item member prior
           have registered := current.maybeIntegrateWork_registration prior.2.2.1 prior.2.2.2
-            item.work (matching.streamItem_childTasksCovered member)
+            item.work (by
+              intro task listed ref contributes
+              exact .inr (matching.streamItem_childTasksCovered accounted.registration.source
+                member task listed ref contributes))
           have pruned := ReferenceWorkQueue.State.pruneEmptyGroups_registration
             registered.1 registered.2.1 (current.maybeIntegrateWork item.work).2.newGroups
-          exact ⟨((prior.1.maybeIntegrateWork prior.2.1 prior.2.2.2 item.work).pruneEmptyGroups _).startNewWork _,
-            ((prior.2.1.maybeIntegrateWork item.work none).pruneEmptyGroups _).startNewWork _,
-            ReferenceWorkQueue.State.startNewWork_registration pruned.1 pruned.2.1 _⟩
-  | taskFailure | streamSuccess | streamFailure => exact accounted.links
+          exact ⟨
+            ((prior.1.maybeIntegrateWork prior.2.1 prior.2.2.2 item.work).pruneEmptyGroups
+              _).startNewWork
+              _,
+            ((prior.2.1.maybeIntegrateWork item.work none).pruneEmptyGroups
+              _).startNewWork
+              _,
+            ReferenceWorkQueue.State.startNewWork_registration pruned.1 pruned.2.1 _
+          ⟩
+  | taskFailure | groupFailure | streamSuccess | streamFailure => exact accounted.links
 
 /-- The delayed snapshot retains all reference unsettled links through its accounting core. -/
 theorem registrationSnapshot_unsettledLinks {queue : Kernel} {work settled}
@@ -176,18 +214,15 @@ theorem acceptedChildTasks_subset (queue : Kernel) (event : GraphEvent)
       cases found : queue.taskNode? occurrence with
       | none => simp only [acceptedChildTasks, found, List.not_mem_nil] at returned
       | some node =>
-          cases healthy : queue.taskHasHealthyOwner node.task with
-          | false => simp only [acceptedChildTasks, found, healthy, Bool.false_eq_true,
-              ↓reduceIte, List.not_mem_nil] at returned
-          | true => simpa only [acceptedChildTasks, found, healthy, ↓reduceIte,
-              ReferenceWorkQueue.GraphEvent.childTasks] using returned
+          simpa only [acceptedChildTasks, found, ↓reduceIte,
+          ReferenceWorkQueue.GraphEvent.childTasks] using returned
   | streamItems stream items =>
       cases active : queue.rootStreams.contains stream.ref with
       | false => simp only [acceptedChildTasks, active, Bool.false_eq_true,
           ↓reduceIte, List.not_mem_nil] at returned
       | true => simpa only [acceptedChildTasks, active, ↓reduceIte,
           ReferenceWorkQueue.GraphEvent.childTasks] using returned
-  | taskFailure | streamSuccess | streamFailure => cases returned
+  | taskFailure | groupFailure | streamSuccess | streamFailure => cases returned
 
 /-- Accepted immediate child tasks are fresh against the actual preceding input history.
 The structural producer cannot have settled before the source admits its child's chunk.
@@ -214,28 +249,20 @@ theorem adoptedTask_returned {queue : Kernel} {work event producer address owner
       cases found : queue.taskNode? incoming with
       | none => simp [graphEffects, found] at adopted
       | some node =>
-          cases healthy : queue.taskHasHealthyOwner node.task with
-          | false => simp [graphEffects, found, healthy] at adopted
-          | true =>
-              have same : producer = incoming := by
-                simpa only [graphEffects, found, healthy, ↓reduceIte, List.mem_singleton,
-                  HostEffect.adopt.injEq]
-                  using adopted
-              subst producer
-              obtain ⟨task, returned, identity, _⟩ := matching.taskChildren_complete known
-              exact ⟨
-                task,
-                by
-                  simpa only [acceptedChildTasks, found, healthy, ↓reduceIte]
-                    using returned,
-                identity
-              ⟩
+          have same : producer = incoming := by
+            simpa only [graphEffects, found, ↓reduceIte, List.mem_singleton,
+              HostEffect.adopt.injEq]
+              using adopted
+          subst producer
+          obtain ⟨task, returned, identity, _⟩ := matching.taskChildren_complete known
+          exact ⟨task, by simpa only [acceptedChildTasks, found] using returned, identity⟩
   | streamItems stream items =>
       cases active : queue.rootStreams.contains stream.ref with
       | false => simp only [graphEffects, active, Bool.false_eq_true, ↓reduceIte,
           List.nil_append, List.mem_singleton, reduceCtorEq] at adopted
       | true =>
-          have listed : .adopt producer ∈ items.map (fun item => HostEffect.adopt item.occurrence) := by
+          have listed : .adopt producer ∈ items.map (fun item => HostEffect.adopt
+            item.occurrence) := by
             simpa only [graphEffects, active, ↓reduceIte, List.mem_append,
               List.mem_singleton, reduceCtorEq, or_false]
               using adopted
@@ -250,7 +277,7 @@ theorem adoptedTask_returned {queue : Kernel} {work event producer address owner
               exact List.mem_flatMap.mpr ⟨item, selected, returned⟩,
             taskIdentity
           ⟩
-  | taskFailure | streamSuccess => cases adopted
+  | taskFailure | groupFailure | streamSuccess => cases adopted
   | streamFailure stream errors =>
       simp only [graphEffects] at adopted
       split at adopted <;> simp at adopted
@@ -265,13 +292,11 @@ theorem generatedSnapshot_unsettledLinks {work inputs event}
     : (registrationSnapshot ((State.initialize work).runNormalized inputs).1.queue
         event).UnsettledTaskLinks
         (ReferenceWorkQueue.GraphEvent.taskSettlements inputs.flatten) := by
-  obtain ⟨raw, priorStarted, accepted⟩ := generatedReplay_beforeNext generated valid started
+  obtain ⟨_, priorStarted, _⟩ := generatedReplay_beforeNext generated valid started
   have projection := generatedSnapshot_projection generated valid priorStarted
-  obtain ⟨prior, matching, _⟩ := ReferenceWorkQueue.validGraphEvents_last valid
-  rw [raw] at projection ⊢
-  apply registrationSnapshot_unsettledLinks _ event projection matching
-  exact (ReferenceWorkQueue.createWorkQueue_pendingAccounting work).replayGraphEvents
-    (before := []) generated inputs.flatten prior accepted
+  obtain ⟨_, matching, _⟩ := ReferenceWorkQueue.validGraphEvents_last valid
+  exact registrationSnapshot_unsettledLinks
+    (generatedReplay_pendingAccounting generated valid started) event projection matching
 
 -----------------------------------------------------------------------------------------
 -- Every incoming structural task is retained or rejected explicitly at registration
@@ -306,33 +331,44 @@ theorem GeneratedAdoptedTaskRegistrationProgress_holds
   let before := ((State.initialize work).runNormalized inputs).1
   let snapshot := registrationSnapshot before.queue event
   obtain ⟨prior, matching, fresh⟩ := ReferenceWorkQueue.validGraphEvents_last valid
-  obtain ⟨raw, _, accepted⟩ := generatedReplay_beforeNext generated valid started
-  have accounted := (ReferenceWorkQueue.createWorkQueue_pendingAccounting work).replayGraphEvents
-    (before := []) generated inputs.flatten prior accepted
-  have frame : RegistrationFrame before.queue
-      (ReferenceWorkQueue.GraphEvent.taskSettlements inputs.flatten) := by
-    rw [raw]
-    exact ⟨accounted.refs, accounted.liveGroups, accounted.taskGroups, accounted.links⟩
+  have accounted := generatedReplay_pendingAccounting generated valid started
+  have frame : SourceRegistrationFrame before.queue
+      (ReferenceWorkQueue.GraphEvent.taskSettlements inputs.flatten) work :=
+    ⟨⟨accounted.refs, accounted.liveGroups, accounted.taskGroups, accounted.links⟩,
+      accounted.matching, accounted.sound⟩
   obtain ⟨task, returned, identity⟩ := adoptedTask_returned matching adopted known
-  have unsettled : task.occurrence ∉ ReferenceWorkQueue.GraphEvent.taskSettlements inputs.flatten := by
+  have unsettled : task.occurrence ∉ ReferenceWorkQueue.GraphEvent.taskSettlements
+    inputs.flatten := by
     intro settled
     exact acceptedChildTask_unsettled matching prior fresh returned
       (ReferenceWorkQueue.GraphEvent.taskSettlements_subsetIdentities _ settled)
   have linked := generatedSnapshot_unsettledLinks generated valid started task
     (registrationSnapshot_acceptedTask_registered returned) unsettled
+  have rejections : before.queue.TaskRejectionsSatisfy
+      (fun occurrence _ => occurrence ∈ ReferenceWorkQueue.GraphEvent.taskSettlements
+        inputs.flatten) := by
+    exact generatedReplay_taskRejections generated valid started
+  have snapshotRejections := registrationSnapshot_taskRejections rejections event
+    (generatedSnapshot_projection generated valid (generatedReplay_beforeNext generated valid
+      started).2.1)
+  have unrejected : snapshot.TaskRejectionsSatisfy
+      (fun rejected _ => rejected ≠ task.occurrence) := snapshotRejections.mono
+        (fun occurrence _ member same => unsettled (same ▸ member))
   by_cases owned :
     ∃ owner ∈ task.groups, ∃ group, snapshot.groupNode? owner.ref = some group
   · obtain ⟨owner, contributes, group, found⟩ := owned
-    refine Or.inl (.task found ?_)
+    refine Or.inl (.task found ?_ (identity ▸ unrejected.unrejected_lookup))
     rw [← identity]
     apply linked group (List.mem_of_find?_eq_some found)
-    exact List.mem_map.mpr ⟨owner, contributes, (ReferenceWorkQueue.State.groupNode?_ref found).symm⟩
+    exact List.mem_map.mpr ⟨owner, contributes, (ReferenceWorkQueue.State.groupNode?_ref
+      found).symm⟩
   · have ownerless : ∀ owner ∈ task.groups, snapshot.groupNode? owner.ref = none := by
       intro owner member
       cases found : snapshot.groupNode? owner.ref with
       | none => rfl
       | some group => exact False.elim (owned ⟨owner, member, group, found⟩)
-    have aborted := registration_rejectedTask_aborted frame matching unsettled returned ownerless
+    have aborted := registration_rejectedTask_aborted frame generated.declarations matching unsettled returned
+      rejections ownerless
     have canonical := generatedReplay_beforeNextState generated valid started
     dsimp only at canonical
     change before = { queue := before.queue } at canonical

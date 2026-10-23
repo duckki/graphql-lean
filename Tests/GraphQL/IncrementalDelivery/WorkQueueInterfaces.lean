@@ -28,24 +28,29 @@ example (work : Execution.Work) (schedule : EventSource (List GraphEvent))
         ∧ (∀ batches,
             schedule.admissible batches → inputsStarted work batches = true) := by
   constructor
-  · rintro ⟨history, empty, prefixes, batches⟩
+  · rintro ⟨_, history, empty, prefixes, batches⟩
     exact ⟨history, empty, prefixes, fun xs allowed => (batches xs allowed).1,
-      fun xs allowed => (batches xs allowed).2⟩
+      fun xs allowed => (batches xs allowed).2.1⟩
   · rintro ⟨history, empty, prefixes, events, starts⟩
-    exact ⟨history, empty, prefixes, fun xs allowed => ⟨events xs allowed, starts xs allowed⟩⟩
+    refine ⟨by simp [InitialStartup.MatchesWork], history, empty, prefixes, ?_⟩
+    intro xs allowed
+    refine ⟨events xs allowed, starts xs allowed, ?_⟩
+    cases xs with
+    | nil => trivial
+    | cons first rest => intro failure impossible; cases impossible
 
 /-- A source admitting only the empty input satisfies the host contract for arbitrary
 work. Initial-notice correctness and progress are not hidden source assumptions.
 -/
 example (work : Execution.Work)
     : EventSource.ValidFor (EventSource.ofList ([] : List (List GraphEvent))) work := by
-  refine ⟨rfl, List.prefix_refl _, ?_, ?_⟩
+  refine ⟨by simp [InitialStartup.MatchesWork], rfl, List.prefix_refl _, ?_, ?_⟩
   · intro before after prior accepted
     exact prior.trans accepted
   · intro batches accepted
     change batches.IsPrefix [] at accepted
     obtain rfl := List.prefix_nil.mp accepted
-    exact ⟨.nil, rfl⟩
+    exact ⟨.nil, rfl, trivial⟩
 
 /-- Conformance requires only nonempty executed work and a valid source.
 This exact definition-level check rules out an extra caller initialization premise.
@@ -55,7 +60,7 @@ example
       ↔ ∀ work (schedule : EventSource (List GraphEvent)),
           let queue := createWorkQueueForSchedule work schedule
           ExecutedWork work
-          → work.size ≠ 0
+          → work.isEmpty = false
           → schedule.ValidFor work
           → queue.Conforms work :=
   Iff.rfl
@@ -68,7 +73,7 @@ example
       ↔ ∀ (sources : Execution.Work → EventSource (List GraphEvent)) work,
           ExecutedWork work
           → (sources work).ValidFor work
-          → work.size ≠ 0
+          → work.isEmpty = false
           → (createWorkQueueForSchedule work (sources work)).Conforms work := by
   constructor
   · intro conforms sources work
@@ -89,7 +94,7 @@ example (schema : Schema) (resolvers : Execution.Resolvers ObjectRef)
         complete
       ↔ let completed := queryCompletion schema resolvers variables operation fuel root
         Execution.rootSourceAppliesBool schema operation root = true
-        ∧ completed.work.size ≠ 0
+        ∧ completed.work.isEmpty = false
         ∧ schedule.ValidFor completed.work
         ∧ ∃ inputs,
             schedule.admissible inputs

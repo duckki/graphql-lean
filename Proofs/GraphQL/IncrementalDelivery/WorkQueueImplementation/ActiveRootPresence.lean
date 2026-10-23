@@ -40,11 +40,13 @@ theorem LiveRootFrame.startNewWork {queue work parents}
     (supported
       : ∀ child ∈ released.newGroups,
           ∃ dependencies, NodeHasDependencies work child.ref .group dependencies)
-    : LiveRootFrame (queue.startNewWork released) work parents := by
-  have coverage := State.startNewWork_registration frame.registered frame.tasks released
-  refine ⟨frame.refs.startNewWork _, frame.records.startNewWork _, frame.links.startNewWork _,
-    coverage.1, coverage.2, frame.roots.startNewWork _ protectedRoots,
-    frame.support.startNewWork _ supported, frame.present.startNewWork _ ?_⟩
+    (available : List (Occurrence × Nat) := [])
+    : LiveRootFrame (queue.startNewWork released available).1 work parents := by
+  have coverage := State.startNewWork_registration frame.registered frame.tasks released available
+  refine ⟨frame.refs.startNewWork _ available, frame.records.startNewWork _ available,
+    frame.links.startNewWork _ available,
+    coverage.1, coverage.2, frame.roots.startNewWork _ protectedRoots available,
+    frame.support.startNewWork _ supported available, frame.present.startNewWork _ ?_ available⟩
   intro ref member
   obtain ⟨child, included, same⟩ := List.mem_map.mp member
   exact same ▸ live child included
@@ -93,8 +95,9 @@ theorem LiveRootFrame.finishGroupSuccess {queue work parents}
           GroupRecordAt work node dependencies → dependencies = parents node.ref)
     {group : GroupNode} (found : queue.groupNode? group.group.node.ref = some group)
     (active : group.group.node.ref ∈ queue.rootGroups)
+    (available : List (Occurrence × Nat) := [])
     : let result := queue.finishGroupSuccess group
-      LiveRootFrame (result.1.startNewWork result.2.2) work parents := by
+      LiveRootFrame (result.1.startNewWork result.2.2 available).1 work parents := by
   have protection := State.finishGroupSuccess_ancestorsRetired generated frame.records
     frame.links canonical frame.registered (List.mem_of_find?_eq_some found)
     (frame.roots _ active)
@@ -102,11 +105,24 @@ theorem LiveRootFrame.finishGroupSuccess {queue work parents}
   have closed := frame.finishGroupSuccess_unactivated generated canonical found active
   exact closed.startNewWork _ protection.2.2
     (fun child member => State.finishGroupSuccess_newGroupsPresent frame.refs group child.ref
-      (List.mem_map_of_mem member)) support.2
+      (List.mem_map_of_mem member)) support.2 available
 
 -----------------------------------------------------------------------------------------
 -- Every executable drain prefix retains live roots, including transient failed roots
 -----------------------------------------------------------------------------------------
+
+/-- Retained rejection replay preserves the live-root frame through owner removal. -/
+theorem LiveRootFrame.taskFailure {queue work parents}
+    (frame : LiveRootFrame queue work parents) (occurrence : Occurrence) (errors : Nat)
+    : LiveRootFrame (queue.taskFailure occurrence errors).1 work parents := by
+  cases found : queue.taskNode? occurrence with
+  | none => simpa only [State.taskFailure, found] using frame
+  | some task =>
+      rw [queue.taskFailure_eq occurrence errors task found]
+      exact failureGroupFold_preserves (fun current => LiveRootFrame current work parents)
+        (fun _ ref prior => prior.removeGroup ref) _ _ _
+        ⟨frame.refs, frame.records, frame.links, frame.registered, frame.tasks,
+          frame.roots, ⟨frame.support.contents, frame.support.roots⟩, frame.present⟩
 
 /-- Every bounded recursive drain preserves the complete live-root frame.
 Witness: invert the real ready-root search. Successful closures activate certified live
@@ -117,8 +133,8 @@ theorem LiveRootFrame.drainReadyGroups_go {queue work parents}
     (canonical
       : ∀ node dependencies,
           GroupRecordAt work node dependencies → dependencies = parents node.ref)
-    (fuel : Nat)
-    : LiveRootFrame (State.drainReadyGroups.go fuel queue).1 work parents := by
+    (fuel : Nat) (available : List (Occurrence × Nat) := [])
+    : LiveRootFrame (State.drainReadyGroups.go available fuel queue).1 work parents := by
   induction fuel generalizing queue with
   | zero => exact frame
   | succ fuel ih =>
@@ -132,16 +148,13 @@ theorem LiveRootFrame.drainReadyGroups_go {queue work parents}
         | none => simp [found] at choice
         | some candidate =>
             simp only [found] at choice
-            change (if candidate.failure.isSome || candidate.pending == 0 then
+            change (if candidate.pending == 0 then
               some candidate else none) = some node at choice
             split at choice
             · cases Option.some.inj choice
               have same := State.groupNode?_ref found
-              cases cached : node.failure with
-              | none =>
-                  exact ih (frame.finishGroupSuccess generated canonical
-                    (same ▸ found) (same ▸ active))
-              | some errors => exact ih (frame.removeGroup node.group.node.ref)
+              exact ih (frame.finishGroupSuccess generated canonical
+                (same ▸ found) (same ▸ active) available)
             · contradiction
 
 /-- The executable drain's chosen finite bound preserves live active roots.
@@ -152,8 +165,9 @@ theorem LiveRootFrame.drainReadyGroups {queue work parents}
     (canonical
       : ∀ node dependencies,
           GroupRecordAt work node dependencies → dependencies = parents node.ref)
-    : LiveRootFrame queue.drainReadyGroups.1 work parents :=
-  frame.drainReadyGroups_go generated canonical queue.groupNodes.length
+    (available : List (Occurrence × Nat) := [])
+    : LiveRootFrame (queue.drainReadyGroups available).1 work parents :=
+  frame.drainReadyGroups_go generated canonical queue.groupNodes.length available
 
 -----------------------------------------------------------------------------------------
 -- Previously announced ancestors complete by the actual recursive-drain notice carrier
@@ -169,28 +183,32 @@ theorem LiveRootFrame.drainNoticeAncestor_completed {queue work parents}
     (canonical
       : ∀ node dependencies,
           GroupRecordAt work node dependencies → dependencies = parents node.ref)
-    (fuel : Nat) {index group groups streams child dependencies ref}
+    (fuel : Nat) (available : List (Occurrence × Nat) := [])
+    {index group groups streams child dependencies ref}
     (selected
-      : (State.drainReadyGroups.go fuel queue).2[index]?
+      : (State.drainReadyGroups.go available fuel queue).2.1[index]?
         = some (.groupSuccess group groups streams))
     (noticed : child ∈ groups) (known : GroupRecordAt work child dependencies)
     (ancestor : ref ∈ dependencies)
-    (uncancelled : ref ∉ (State.drainReadyGroups.go fuel queue).1.cancelledGroups)
+    (uncancelled
+      : ref ∉ (State.drainReadyGroups.go available fuel queue).1.cancelledGroups)
     (announced
       : ref
         ∈ queue.rootGroups
-          ++ ((State.drainReadyGroups.go fuel queue).2.take (index + 1)).flatMap
+          ++ ((State.drainReadyGroups.go available fuel queue).2.1.take
+                (index + 1)).flatMap
               rawGroupNoticeRefs)
     : ref
-      ∈ ((State.drainReadyGroups.go fuel queue).2.take (index + 1)).flatMap
+      ∈ ((State.drainReadyGroups.go available fuel queue).2.1.take (index + 1)).flatMap
           rawGroupClosureRefs := by
-  obtain ⟨steps, node, before, bounded, found, active, cached, zero, same, output,
-    exactPrefix⟩ := queue.drainReadyGroups_go_success_boundary fuel selected
-  let segment := State.drainReadyGroups.go steps queue
+  obtain ⟨steps, node, before, bounded, found, active, zero, same, output,
+    exactPrefix, cancelledAtEnd⟩ :=
+    queue.drainReadyGroups_go_success_boundary_withCancellation fuel available selected
+  let segment := State.drainReadyGroups.go available steps queue
   let closed := segment.1.finishGroupSuccess node
-  let next := closed.1.startNewWork closed.2.2
-  have prefixFrame := frame.drainReadyGroups_go generated canonical steps
-  have nextFrame := prefixFrame.finishGroupSuccess generated canonical found active
+  let next := (closed.1.startNewWork closed.2.2 available).1
+  have prefixFrame := frame.drainReadyGroups_go generated canonical steps available
+  have nextFrame := prefixFrame.finishGroupSuccess generated canonical found active available
   have ancestry := State.finishGroupSuccess_ancestorsRetired generated prefixFrame.records
     prefixFrame.links canonical prefixFrame.registered (List.mem_of_find?_eq_some found)
     (prefixFrame.roots _ active)
@@ -200,12 +218,13 @@ theorem LiveRootFrame.drainNoticeAncestor_completed {queue work parents}
       List.mem_map_of_mem (f := Execution.DeliveryNode.ref) noticed⟩
   rw [← segment.1.finishGroupSuccess_groupNotices node] at emitted
   obtain ⟨released, included, sameRef⟩ := List.mem_map.mp emitted
-  have tracking := (queue.drainReadyGroups_go_groupNoticeTracking steps).append
-    (segment.1.finishGroupSuccess_groupNoticeTracking node)
-    (by rw [State.startNewWork_cancelledGroups, State.finishGroupSuccess_cancelledGroups]
-        exact fun _ member => member)
-  have atCarrier : (State.drainReadyGroups.go fuel queue).2.take (index + 1)
-      = segment.2 ++ closed.2.1 := by
+  have tracking := (queue.drainReadyGroups_go_groupNoticeTracking steps available).append
+    (segment.1.finishGroupSuccess_groupNoticeTracking node available)
+    (by
+      have kept := State.startNewWork_cancelledGroups_subset closed.1 closed.2.2 available
+      simpa only [closed, State.finishGroupSuccess_cancelledGroups] using kept)
+  have atCarrier : (State.drainReadyGroups.go available fuel queue).2.1.take (index + 1)
+      = segment.2.1 ++ closed.2.1 := by
     rw [List.take_add_one, selected, exactPrefix, output, List.append_assoc]
     rfl
   rw [atCarrier] at announced ⊢
@@ -216,12 +235,8 @@ theorem LiveRootFrame.drainNoticeAncestor_completed {queue work parents}
     have retired : next.RetiredGroup ref :=
       (ancestry.2.2 released included child dependencies known sameRef.symm
         ref ancestor occurrence owners ⟨producer, payload, task⟩
-        (ownerRef ▸ contributes)).startNewWork _
+        (ownerRef ▸ contributes)).startNewWork _ available
     exact retired.2 (nextFrame.present ref retained)
-  · intro cancelled
-    rw [State.startNewWork_cancelledGroups, State.finishGroupSuccess_cancelledGroups]
-      at cancelled
-    exact uncancelled (queue.drainReadyGroups_go_prefix_cancelledSubset
-      (Nat.le_of_lt bounded) cancelled)
+  · exact fun cancelled => uncancelled (cancelledAtEnd cancelled)
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

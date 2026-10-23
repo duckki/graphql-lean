@@ -1,4 +1,5 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.GroupRefs
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.StartupFrames
 
 /-! Initial pending counts produced by work integration. -/
 
@@ -30,67 +31,30 @@ theorem State.InitialCounts.putGroupNode {queue : State} (counts : queue.Initial
 theorem State.InitialCounts.addGroup {queue : State} (counts : queue.InitialCounts)
     (group : Group)
     : (queue.addGroup group).InitialCounts := by
+  have appended : ({ queue with
+      groupNodes := queue.groupNodes ++ [({ group } : GroupNode)] } : State).InitialCounts := by
+    intro node member
+    rcases List.mem_append.mp member with earlier | new
+    · exact counts node earlier
+    · have same := List.mem_singleton.mp new
+      subst node
+      rfl
   unfold State.addGroup
   split
   · exact counts
   · split
-    · exact counts
-    · intro node member
-      simp only [List.mem_append, List.mem_singleton] at member
-      rcases member with earlier | new
-      · exact counts node earlier
-      · subst node
-        rfl
+    · exact appended
+    · split
+      · split <;> exact counts
+      · rename_i node found
+        exact appended.putGroupNode _ (counts node (List.mem_of_find?_eq_some found))
 
-/-- Group registration and parent-link installation preserve zero-task shells and
-all existing pending counts. Witness: two folds, neither changing task counts alone.
--/
+/-- Parent-first registration preserves all task counts while installing empty shells. -/
 theorem State.InitialCounts.addGroups {queue : State} (counts : queue.InitialCounts)
     (groups : List Group)
     : (queue.addGroups groups).1.InitialCounts := by
-  let linkStep (current : State) (group : Group) : State :=
-    match group.parent with
-    | none => current
-    | some parent =>
-        match current.groupNode? parent with
-        | none => current
-        | some node =>
-            let children :=
-              if node.childGroups.contains group.node.ref then
-                node.childGroups
-              else
-                node.childGroups ++ [group.node.ref]
-            current.putGroupNode { node with childGroups := children }
-  have linkCounts (current : State) (group : Group)
-      (balanced : current.InitialCounts) : (linkStep current group).InitialCounts := by
-    unfold linkStep
-    cases parent : group.parent with
-    | none => simpa only [parent] using balanced
-    | some ref =>
-        cases found : current.groupNode? ref with
-        | none => simpa only [parent, found] using balanced
-        | some node =>
-            simp only [found]
-            apply balanced.putGroupNode
-            exact balanced node (List.mem_of_find?_eq_some found)
-  have foldCounts (more : List Group) :
-      ∀ current, current.InitialCounts → (more.foldl linkStep current).InitialCounts := by
-    induction more with
-    | nil => intro current balanced; exact balanced
-    | cons group rest ih =>
-        intro current balanced
-        exact ih (linkStep current group) (linkCounts current group balanced)
-  have registeredCounts (more : List Group) : (more.foldl State.addGroup queue).InitialCounts := by
-    induction more generalizing queue with
-    | nil => exact counts
-    | cons group rest ih =>
-        simpa only [List.foldl_cons]
-          using ih (queue := queue.addGroup group) (counts.addGroup group)
-  let fresh := groups.filter (fun group =>
-    !queue.registeredGroups.contains group.node.ref
-      && (queue.groupNode? group.node.ref).isNone)
-  change (fresh.foldl linkStep (fresh.foldl State.addGroup queue)).InitialCounts
-  exact foldCounts fresh _ (registeredCounts fresh)
+  exact State.addGroups_preserves State.InitialCounts groups
+    (fun _ group _ valid => valid.addGroup group) queue counts
 
 /-- Task registration adds one pending token wherever it adds a group membership. -/
 theorem State.InitialCounts.addTask {queue : State} (counts : queue.InitialCounts)
@@ -220,25 +184,12 @@ theorem State.InitialCounts.startTask {queue : State} (counts : queue.InitialCou
   · exact counts
   · split <;> exact counts
 
-/-- Starting a group preserves every pending count through its task fold. -/
+/-- Group startup only removes records, preserving counts on all surviving groups. -/
 theorem State.InitialCounts.startGroup {queue : State} (counts : queue.InitialCounts)
-    (ref : NodeRef)
-    : (queue.startGroup ref).InitialCounts := by
-  unfold State.startGroup
-  split
-  · exact counts
-  · rename_i node found
-    have taskFold (tasks : List Occurrence) :
-        ∀ current, current.InitialCounts →
-          (tasks.foldl State.startTask current).InitialCounts := by
-      induction tasks with
-      | nil => intro current balanced; exact balanced
-      | cons task rest ih =>
-          intro current balanced
-          exact ih (current.startTask task) (balanced.startTask task)
-    split
-    · exact counts
-    · exact taskFold node.tasks queue counts
+    (ref : NodeRef) (available : List (Occurrence × Nat) := [])
+    : (queue.startGroup ref available).1.InitialCounts := by
+  intro node member
+  exact counts node ((queue.startGroup_groupNodes_sublist ref available).subset member)
 
 /-- Starting a stream changes only its root-ref registry. -/
 theorem State.InitialCounts.startStream {queue : State} (counts : queue.InitialCounts)
@@ -247,32 +198,12 @@ theorem State.InitialCounts.startStream {queue : State} (counts : queue.InitialC
   unfold State.startStream
   split <;> exact counts
 
-/-- Releasing new roots preserves initial counts through group and stream starts. -/
+/-- Root activation preserves counts because its only group changes are removals. -/
 theorem State.InitialCounts.startNewWork {queue : State} (counts : queue.InitialCounts)
-    (newWork : NewWork)
-    : (queue.startNewWork newWork).InitialCounts := by
-  let groups := newWork.newGroups.map Execution.DeliveryNode.ref
-  let streams := newWork.newStreams.map Execution.DeliveryNode.ref
-  let current : State := { queue with rootGroups := queue.rootGroups ++ groups }
-  have groupFold (refs : NodeRefs) :
-      ∀ current, current.InitialCounts →
-        (refs.foldl State.startGroup current).InitialCounts := by
-    induction refs with
-    | nil => intro current balanced; exact balanced
-    | cons ref rest ih =>
-        intro current balanced
-        exact ih (current.startGroup ref) (balanced.startGroup ref)
-  have streamFold (refs : NodeRefs) :
-      ∀ current, current.InitialCounts →
-        (refs.foldl State.startStream current).InitialCounts := by
-    induction refs with
-    | nil => intro current balanced; exact balanced
-    | cons ref rest ih =>
-        intro current balanced
-        exact ih (current.startStream ref) (balanced.startStream ref)
-  change (streams.foldl State.startStream
-    (groups.foldl State.startGroup current)).InitialCounts
-  exact streamFold streams _ (groupFold groups current counts)
+    (newWork : NewWork) (available : List (Occurrence × Nat) := [])
+    : (queue.startNewWork newWork available).1.InitialCounts := by
+  intro node member
+  exact counts node ((queue.startNewWork_groupNodes_sublist newWork available).subset member)
 
 /-- Queue creation balances every live group's initial pending count. Witness:
 registration balances task memberships, pruning only removes nodes, and starting
@@ -285,7 +216,7 @@ theorem createWorkQueue_initialCounts (initialWork : Work)
   let pruned := (integrated.pruneEmptyGroups newWork.newGroups).1
   let groups := (integrated.pruneEmptyGroups newWork.newGroups).2
   let roots := { newWork with newGroups := groups }
-  let started := pruned.startNewWork roots
+  let started := (pruned.startNewWork roots).1
   have emptyCounts : ({} : State).InitialCounts := by
     intro node member
     cases member

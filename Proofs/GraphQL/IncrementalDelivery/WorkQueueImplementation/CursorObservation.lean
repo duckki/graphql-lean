@@ -1,6 +1,7 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.CursorReplay
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.Conformance
 import Proofs.GraphQL.IncrementalDelivery.Correctness.QueryRealization
+import Proofs.GraphQL.IncrementalDelivery.Semantics.WorkSize
 
 namespace GraphQL.IncrementalDelivery.ReferenceWorkQueue
 open GraphQL.IncrementalDelivery.WorkQueueSemantics
@@ -19,7 +20,8 @@ theorem createWorkQueueForSchedule_conforms_executed
     (valid : source.ValidFor work)
     (nonempty : work.size ≠ 0)
     : (createWorkQueueForSchedule work source).Conforms work :=
-  createWorkQueueForScheduleConforms_holds work source generated nonempty valid
+  createWorkQueueForScheduleConforms_holds work source generated
+    ((Execution.Work.isEmpty_eq_false work).mpr nonempty) valid
 
 -----------------------------------------------------------------------------------------
 -- Canonical response replay includes the cursor's singleton response grouping
@@ -219,6 +221,7 @@ theorem implementationCorrect_holds (schema : Schema) (operation : Operation)
   dsimp only
   intro observed
   rcases observed with ⟨applies, nonempty, valid, inputs, admitted, finished, same⟩
+  have nonempty := (Execution.Work.isEmpty_eq_false _).mp nonempty
   subst result
   exact ResponseStreamCursor.queryObservation (fun _ => schedule) schema resolvers variables
     operation fuel root inputs complete applies nonempty valid admitted finished
@@ -249,6 +252,7 @@ theorem ResponseStreamCursor.queryOutcome
   intro nonempty valid admitted finished
   exact (implementationCorrect_holds schema operation resolvers variables fuel root
     schedule _ true
-    ⟨applies, nonempty, valid, inputs, admitted, (fun _ => finished), rfl⟩).2
+    ⟨applies, (Execution.Work.isEmpty_eq_false _).mpr nonempty, valid, inputs, admitted,
+      (fun _ => finished), rfl⟩).2
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

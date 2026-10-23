@@ -106,7 +106,7 @@ theorem literal_collectExecutionGroups_run (schema : Schema)
         KeyRenaming.partitions, List.map_nil, StateT.run_pure, id_pure_eq, workRun]
       refine ⟨keys, ⟨fun _ _ => rfl, supplies, Nat.le_refl _, Nat.le_refl _, ?_, ?_⟩⟩
       · simp [allRefs, rootRefs, hiddenRegions]
-      · exact ⟨ResultRefines.refl _, .empty⟩
+      · exact ⟨ResultRefines.refl _, .empty, rfl⟩
   | cons partition rest ih =>
       rcases partition with ⟨usages, fields⟩
       let partition := (usages, fields)
@@ -152,10 +152,10 @@ theorem literal_collectExecutionGroups_run (schema : Schema)
       refine ⟨next, ⟨prefixSame, tail.supplies,
         Nat.le_trans head.scheduledMonotone tail.scheduledMonotone,
         Nat.le_trans head.eagerMonotone tail.eagerMonotone, regions.bounded, ?_⟩⟩
-      refine ⟨ResultRefines.refl _, .combine ?_ tail.completion.2⟩
+      refine ⟨ResultRefines.refl _, .combine ?_ tail.completion.2.1, rfl⟩
       rw [← ownersMapped]
-      exact WorkRefines.executionGroup head.completion.1
-        (head.completion.2.rekey
+      exact WorkRefines.executionGroup ⟨head.completion.1, head.completion.2.2⟩
+        (head.completion.2.1.rekey
           (fun key member => tail.compatible key (head.bounded key member)))
 
 /-- Literal deferred partitions construct their witnesses even after an earlier failed
@@ -248,7 +248,28 @@ theorem literal_executeExecutionPlan_run (schema : Schema)
       (fun key member => Nat.lt_of_lt_of_le (contextBound key member) head.scheduledMonotone)
     rw [partitions_prefix _ deferredBound head.compatible,
       context_prefix _ contextBound head.compatible] at tail
-    simp only [run_bind, StateT.run_pure, id_pure_eq]
+    let declarations := newUsages.filterMap
+      (fun usage => lookupDeferredFragment? (getNewDeferMap newUsages path context) usage.ref)
+    have declaredBound : ∀ key ∈ declarations.flatMap RefRoles.fragmentRefs, key < left := by
+      intro key member
+      obtain ⟨group, included, inGroup⟩ := List.mem_flatMap.mp member
+      obtain ⟨usage, _, found⟩ := List.mem_filterMap.mp included
+      exact contextBound key (List.mem_flatMap.mpr
+        ⟨group, List.mem_of_find?_eq_some found, inGroup⟩)
+    have declaredMap : (newUsages.map (usage keys)).filterMap
+        (fun usage => lookupDeferredFragment?
+          ((getNewDeferMap newUsages path context).map (fragment keys)) usage.ref)
+        = declarations.map (fragment keys) := by
+      simp only [declarations, List.filterMap_map, Function.comp_def, usage,
+        lookup_fragment supplies.injective, List.map_filterMap]
+    have declaredNext : declarations.map (fragment next) = declarations.map (fragment keys) :=
+      List.map_congr_left (fun group member => fragment_congr group (fun key inGroup =>
+        (tail.compatible key (Nat.lt_of_lt_of_le
+          (declaredBound key (List.mem_flatMap.mpr ⟨group, member, inGroup⟩))
+          head.scheduledMonotone)).trans
+          (head.compatible key (declaredBound key
+            (List.mem_flatMap.mpr ⟨group, member, inGroup⟩)))))
+    simp only [run_bind, StateT.run_pure, id_pure_eq, declaredMap, partitions]
     refine ⟨next, ⟨?_, tail.supplies,
       Nat.le_trans head.scheduledMonotone tail.scheduledMonotone,
       Nat.le_trans head.eagerMonotone tail.eagerMonotone, ?_, ?_⟩⟩
@@ -258,11 +279,26 @@ theorem literal_executeExecutionPlan_run (schema : Schema)
     · intro key member
       rcases (mem_allRefs_combine _ _ _).mp member with inHead | inTail
       · exact Nat.lt_of_lt_of_le (head.bounded key inHead) tail.scheduledMonotone
-      · exact tail.bounded key inTail
+      · have splitRefs : key ∈ declarations.flatMap RefRoles.fragmentRefs
+            ∨ key ∈ allRefs
+              ((ScheduledExecution.collectExecutionGroups schema resolvers variables fuel
+                parentType source original.newCollectedFieldsMaps path
+                (getNewDeferMap newUsages path context)).run
+                ((ScheduledExecution.executeCollectedFields schema resolvers variables fuel
+                  parentType source original.collectedFieldsMap path usages
+                  (getNewDeferMap newUsages path context)).run left).2).1 := by
+          simpa only [allRefs, rootRefs, hiddenRegions, List.mem_append, or_assoc]
+            using inTail
+        exact splitRefs.elim
+          (fun prior => Nat.lt_of_lt_of_le (declaredBound key prior)
+            (Nat.le_trans head.scheduledMonotone tail.scheduledMonotone))
+          (fun later => tail.bounded key later)
     · refine ⟨?_, .combine
-        (head.completion.2.rekey (fun key member => tail.compatible key (head.bounded key member)))
-        tail.completion.2⟩
-      simpa only [cutOutcome, eagerOutcome] using head.completion.1
+        (head.completion.2.1.rekey (fun key member => tail.compatible key (head.bounded key member)))
+        ?_, by simpa only [cutOutcome, eagerOutcome] using head.completion.2.2⟩
+      · simpa only [cutOutcome, eagerOutcome] using head.completion.1
+      · rw [← declaredNext]
+        exact .declareGroups tail.completion.2.1
 
 /-- Literal-valued execution plans construct one full witness, including initial
 failure and failed deferred tasks. Bounds concern the original actual input metadata;

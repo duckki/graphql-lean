@@ -21,13 +21,14 @@ mutual
   -/
   def WorkUnder (base : ResponsePath) : Work → Prop
     | .empty => True
+    | .declareGroups _ tasks => WorkUnder base tasks
     | .combine left right => WorkUnder base left ∧ WorkUnder base right
     | .executionGroup _ path _ children =>
         base.IsPrefix path ∧ WorkUnder path children
     | .stream node items => base.IsPrefix node.path ∧ ItemsUnder node.path items
 
   /-- Every streamed item's child work stays below the enclosing list's `base` path. -/
-  def ItemsUnder (base : ResponsePath) : List (Result ResponseValue × Work) → Prop
+  def ItemsUnder (base : ResponsePath) : List (TaskOutcome ResponseValue × Work) → Prop
     | [] => True
     | (_, children) :: rest => WorkUnder base children ∧ ItemsUnder base rest
 end
@@ -44,6 +45,7 @@ theorem WorkUnder.mono {base next work} (under : WorkUnder next work)
     : WorkUnder base work := by
   cases work with
   | empty => trivial
+  | declareGroups groups tasks => exact WorkUnder.mono (work := tasks) under below
   | combine left right =>
       exact ⟨WorkUnder.mono under.1 below, WorkUnder.mono under.2 below⟩
   | executionGroup => exact ⟨below.trans under.1, under.2⟩
@@ -98,7 +100,7 @@ theorem nonNull (base : ResponsePath) (completed : Completion ResponseValue)
     : Under base (Completion.nonNull completed) := by
   unfold Completion.nonNull
   split
-  · exact error _ _
+  · simp [Under, Completion.error, WorkUnder]
   · exact h
 
 -----------------------------------------------------------------------------------------
@@ -129,12 +131,13 @@ mutual
         · exact collectExecutionGroups_under schema resolvers variables fuel parentType
             source _ path _
         · intro work hw
-          exact runEnsures_pure _ _ ⟨hc, hw⟩
+          apply runEnsures_pure
+          refine ⟨hc, ?_⟩
+          exact hw
   termination_by (fuel, 6, 0, 0)
   decreasing_by
     all_goals simp_wf
     all_goals repeat first | apply Prod.Lex.left; omega | apply Prod.Lex.right
-    all_goals try omega
 
   /-- Each execution group uses the current path and certifies its own child work.
   Witness: partition-list induction and collected-field completion.
@@ -235,7 +238,6 @@ mutual
   decreasing_by
     all_goals subst_vars; simp_wf
     all_goals repeat first | apply Prod.Lex.left; omega | apply Prod.Lex.right
-    all_goals try omega
 
   /-- Value completion retains only work below the value's attachment.
   Witness: mutual induction on fuel, type wrappers, object plans, and list completion.
@@ -300,7 +302,6 @@ mutual
   decreasing_by
     all_goals subst_vars; simp_wf
     all_goals repeat first | apply Prod.Lex.left; omega | apply Prod.Lex.right
-    all_goals try omega
 
   /-- The stream hook attaches retained tails at the list's path, including empty tails.
   Witness: initial-list completion and certified stream-item children.

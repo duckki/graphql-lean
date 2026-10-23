@@ -17,21 +17,23 @@ private def childTask : Occurrence := .executionGroup [1, 0, 0, 0, 1, 0]
 private def children : Execution.Work :=
   .combine
     (.combine .empty
-      (.combine
-        (.executionGroup [⟨first, []⟩] [.field "user"]
-          (.ok ([("name", .scalar "name1")], 0)) (.combine .empty .empty))
+      (.declareGroups []
         (.combine
-          (.executionGroup [⟨second, []⟩] [.field "user"]
-            (.ok ([("age", .scalar "1")], 0)) (.combine .empty .empty))
-          .empty)))
+          (.executionGroup [⟨first, []⟩] [.field "user"]
+            ({ result := .ok ([("name", .scalar "name1")], 0) }) (.combine .empty .empty))
+          (.combine
+            (.executionGroup [⟨second, []⟩] [.field "user"]
+              ({ result := .ok ([("age", .scalar "1")], 0) }) (.combine .empty .empty))
+            .empty))))
     .empty
 
 private def work : Execution.Work :=
   .combine .empty
-    (.combine
-      (.executionGroup [⟨first, []⟩, ⟨second, []⟩] []
-        (.ok ([("user", .object [])], 0)) children)
-      .empty)
+    (.declareGroups [⟨first, []⟩, ⟨second, []⟩]
+      (.combine
+        (.executionGroup [⟨first, []⟩, ⟨second, []⟩] []
+          ({ result := .ok ([("user", .object [])], 0) }) children)
+        .empty))
 
 private def result : TaskResult :=
   {
@@ -56,13 +58,14 @@ private theorem generated : ExecutedWork work := by
 private theorem child_known
     : TaskAt work childTask [first.ref] (some parentTask)
         (.object [.field "user"] (.ok ([("name", .scalar "name1")], 0))) :=
-  .executionGroup (groups := [⟨first, []⟩]) (children := .combine .empty .empty)
+  .executionGroup (result := { result := .ok ([("name", .scalar "name1")], 0) })
+    (groups := [⟨first, []⟩]) (children := .combine .empty .empty)
     (owners := [first.ref, second.ref]) (by cbv)
 
 private theorem valid : ValidGraphEvents work received := by
   have known : TaskAt work parentTask [first.ref, second.ref] none
       (.object [] (.ok ([("user", .object [])], 0))) :=
-    .executionGroup (groups := [⟨first, []⟩, ⟨second, []⟩])
+    .executionGroup (result := { result := .ok ([("user", .object [])], 0) }) (groups := [⟨first, []⟩, ⟨second, []⟩])
       (children := children) (owners := []) (by cbv)
   exact .append .nil ⟨_, _, known, by cbv, by cbv⟩
     (by simp [GraphEvent.Fresh, GraphEvent.identities])
@@ -89,7 +92,7 @@ theorem buffered_reuse_selects_rootDescriptor
           ∧ birth = none := by
   have descriptor : NodeAt work first .group [] (some parentTask) :=
     .group (address := [1, 0, 0, 0, 1, 0]) (groups := [⟨first, []⟩])
-      (path := [.field "user"]) (result := .ok ([("name", .scalar "name1")], 0))
+      (path := [.field "user"]) (result := { result := .ok ([("name", .scalar "name1")], 0) })
       (children := .combine .empty .empty) (owners := [first.ref, second.ref])
       (by cbv) List.mem_cons_self
   obtain ⟨birth, known, ready⟩ := generated.groupNotice_readyDescriptor

@@ -25,13 +25,20 @@ theorem mixed_reporting_accounted_extension
     (roleCoherent : RefRoles.WorkRoles roles work)
     (continuous : DeferContinuous ancestry work) (ordered : StreamOwnersOrdered work)
     (pathCoherent : MixedOwnerPaths.WorkAt paths pathBound work)
+    (allocated : (streamAllocationRefs work).Nodup)
+    (positive : ExecutionErrors.WorkPositive work)
     (initial : Explains work groups streams head matching failures)
     (coverage
       : ReportingNoticesCovered ancestry work ((groups ++ streams).map DeliveryNode.ref)
           matching head failures)
+    (support
+      : StreamNoticesSupported ancestry work ((groups ++ streams).map DeliveryNode.ref)
+          matching head failures)
     : ∃ tail next cuts,
         Explains work groups streams (head ++ tail) next cuts
         ∧ ReportingNoticesCovered ancestry work ((groups ++ streams).map DeliveryNode.ref)
+            next (head ++ tail) cuts
+        ∧ OpenFailureCauses work ((groups ++ streams).map DeliveryNode.ref)
             next (head ++ tail) cuts
         ∧ (∀ occurrence owners producer payload,
             TaskAt work occurrence owners producer payload
@@ -41,12 +48,16 @@ theorem mixed_reporting_accounted_extension
             → DependencySatisfied work ((groups ++ streams).map DeliveryNode.ref) next
                 (head ++ tail) cuts ref := by
   classical
-  obtain ⟨tail, matching, failures, explained, covered, maximal⟩ :=
+  obtain ⟨tail, matching, failures, explained, properties, maximal⟩ :=
     initial.maximal_extension_preserving
       (fun events matching failures => ReportingNoticesCovered ancestry work
-        ((groups ++ streams).map DeliveryNode.ref) matching events failures)
-      coverage
-  generalize joined : head ++ tail = events at explained covered maximal
+        ((groups ++ streams).map DeliveryNode.ref) matching events failures
+        ∧ StreamNoticesSupported ancestry work ((groups ++ streams).map DeliveryNode.ref)
+          matching events failures)
+      ⟨coverage, support⟩
+  generalize joined : head ++ tail = events at explained properties maximal
+  have covered := properties.1
+  have supported := properties.2
   have dependency {ref}
       (healthy : ¬NodeFailed work matching events failures ref)
       (accounted : NodeAccounted work matching events failures ref)
@@ -61,17 +72,22 @@ theorem mixed_reporting_accounted_extension
         · obtain ⟨birth, node, kind, parents, descriptor, same⟩ := supported
           cases kind with
           | group =>
-              obtain ⟨newGroups, newStreams, extended, notices⟩ :=
-                explained.complete_group_noticesCovered descriptor
+              obtain ⟨newGroups, newStreams, extended, notices, newSupport⟩ :=
+                Explains.complete_group_reporting roleCoherent allocated explained descriptor
                   (same ▸ ⟨announced, completed⟩) (same ▸ healthy) (same ▸ accounted)
+              have keptSupport :=
+                supported.append (fun _ _ => rfl) (fun _ _ => rfl)
+                  (by
+                    simpa only [explained.2.1.filter_eq_self (Nat.le_refl _)]
+                      using newSupport)
               have impossible := maximal [.groupSuccess node newGroups newStreams]
-                matching failures extended (reportingNoticesCovered_of_noticesCovered notices)
+                matching failures extended ⟨notices, keptSupport⟩
               cases impossible
           | stream =>
-              obtain ⟨extended, retained⟩ := reporting_complete_stream valid coherent
-                roleCoherent explained covered descriptor (same ▸ ⟨announced, completed⟩)
+              obtain ⟨extended, retained, keptSupport⟩ := reporting_complete_stream valid coherent
+                roleCoherent explained covered supported descriptor (same ▸ ⟨announced, completed⟩)
                   (same ▸ healthy) (same ▸ accounted)
-              have impossible := maximal [.streamSuccess node] matching failures extended retained
+              have impossible := maximal [.streamSuccess node] matching failures extended ⟨retained, keptSupport⟩
               cases impossible
       · exact Or.inr (Or.inr ⟨announced, accounted⟩)
     · exact Or.inl supported
@@ -93,10 +109,10 @@ theorem mixed_reporting_accounted_extension
           (least smaller (by simpa only [same] using before) smallerHealthy))
       exact covered.1 node kind dependencies nextProducer descriptor
         supported
-    obtain ⟨event, nextMatching, cuts, extended, retained⟩ :=
-      extend_ready_reporting valid coherent roleCoherent continuous ordered pathCoherent
-        explained covered task ready ⟨ref, member, notified, healthy⟩
-    have impossible := maximal [event] nextMatching cuts extended retained
+    obtain ⟨event, nextMatching, cuts, extended, retained, keptSupport⟩ :=
+      extend_ready_reporting valid coherent roleCoherent continuous ordered pathCoherent allocated positive
+        explained covered supported task ready ⟨ref, member, notified, healthy⟩
+    have impossible := maximal [event] nextMatching cuts extended ⟨retained, keptSupport⟩
     cases impossible
   have dependencies : ∀ ref,
       ¬NodeFailed work matching events failures ref →
@@ -108,6 +124,8 @@ theorem mixed_reporting_accounted_extension
     obtain ⟨producer, payload, known⟩ := projected
     exact accounted occurrence owners producer payload known
   exact ⟨tail, matching, failures, joined.symm ▸ explained, joined.symm ▸ covered,
+    joined.symm ▸ Explains.openFailureCauses_of_supported_streams valid coherent
+      roleCoherent allocated positive explained supported,
     joined.symm ▸ accounted, joined.symm ▸ dependencies⟩
 
 -----------------------------------------------------------------------------------------

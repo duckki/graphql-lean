@@ -1,4 +1,6 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.ItemAnnotationOrder
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.ActiveRejectionReplay
+import Tests.GraphQL.IncrementalDelivery.Fixtures.StoredValueStartup
 import Tests.GraphQL.IncrementalDelivery.WorkSchedulerProducerAvailability
 import Tests.GraphQL.IncrementalDelivery.WorkSchedulerStreamAvailability
 
@@ -27,9 +29,30 @@ theorem generated_parent_output
             ∧ supplied.value = value
             ∧ (GraphEvent.taskSuccess occurrence supplied).MatchesWork
                 WorkSchedulerProducerSupport.work)
-        (WorkSchedulerProducerSupport.queue.handleGraphEvent event).2 := by
+        (WorkSchedulerProducerSupport.queue.handleGraphEvent event).2.1 := by
   exact createWorkQueue_replay_event_publishedValues .nil _
     WorkSchedulerProducerSupport.matching
+
+/-- Generated parent success preserves a clear frontier through nonempty child work.
+Witness: initial rejection support is empty, so every incoming child identity is clean.
+-/
+theorem generated_parent_frontier_clear
+    : (WorkSchedulerProducerSupport.queue.taskSuccess
+        WorkSchedulerProducerSupport.parentTask
+        WorkSchedulerProducerSupport.result).1.NoActiveCachedFailure := by
+  have rejections := createWorkQueue_taskRejections
+    (Work.fromExecution WorkSchedulerProducerSupport.work) (fun _ _ => False)
+  apply State.NoActiveCachedFailure.taskSuccess_of_cleanChildren
+    (groups := createWorkQueue_groupRefsUnique _)
+    (tasks := createWorkQueue_taskNodeKeysUnique _)
+  · intro group member active
+    apply State.rejectedTask?_eq_none_iff.mpr
+    intro occurrence listed task found
+    cases rejected : task.rejection with
+    | none => rfl
+    | some errors =>
+        exact False.elim (rejections task (List.mem_of_find?_eq_some found) errors rejected)
+  · exact rejections.mono (fun _ _ impossible => False.elim impossible)
 
 -----------------------------------------------------------------------------------------
 -- A stored child value is published only after its ancestor releases it
@@ -78,16 +101,67 @@ occurs after the parent's child notice, so provenance is not vacuous.
 -/
 theorem delayed_child_provenance
     : PublishedValuesSatisfy (fun source payload => source = occurrence ∧ payload = value)
-        before.drainReadyGroups.2
-      ∧ before.drainReadyGroups.2
+        before.drainReadyGroups.2.1
+      ∧ before.drainReadyGroups.2.1
         = [
           .groupSuccess parent [child] [],
           .groupValues child [value],
           .groupSuccess child [] []
         ] := by exact ⟨stored.drainReadyGroups_outputs, by cbv⟩
 
+/-- A clear active frontier stays clear during delayed child publication.
+Witness: the general drain preservation theorem, with this fixture's unique record keys.
+-/
+theorem delayed_child_clear : before.drainReadyGroups.1.NoActiveCachedFailure := by
+  apply State.NoActiveCachedFailure.drainReadyGroups
+    (groups := by change ([parent.ref, child.ref] : NodeRefs).Nodup; decide)
+    (tasks := by change ([occurrence] : List Occurrence).Nodup; decide)
+  intro group member active
+  simp only [before, List.mem_cons, List.not_mem_nil, or_false] at member
+  rcases member with rfl | rfl <;> rfl
+
+/-- A pending active cached rejection waits for its FIFO failure notification.
+Witness: draining keeps the waiting owner and rejection, emitting no immediate or queued
+output; therefore rejection freedom cannot be concluded without a clear initial frontier.
+-/
+theorem pending_rejection_waits
+    : let waiting : State :=
+        {
+          Fixtures.StoredValueStartup.lastOwner with
+            rootGroups := [Fixtures.StoredValueStartup.failingGroup.ref]
+        }
+      waiting.drainReadyGroups.1 = waiting
+      ∧ waiting.drainReadyGroups.2.1 = []
+      ∧ waiting.drainReadyGroups.2.2 = []
+      ∧ ¬waiting.drainReadyGroups.1.NoActiveCachedFailure := by
+  refine ⟨by cbv, by cbv, by cbv, ?_⟩
+  intro clear
+  have rejected := clear
+    { group := { node := Fixtures.StoredValueStartup.failingGroup },
+      tasks := [Fixtures.StoredValueStartup.buffered.task.occurrence,
+        Fixtures.StoredValueStartup.rejected.task.occurrence], pending := 1 }
+    (by change _ ∈ [_]; exact List.mem_cons_self) (by decide)
+  change some (Fixtures.StoredValueStartup.rejected.task.occurrence, 1) = none at rejected
+  cases rejected
+
 private def item : StreamItem :=
   { occurrence := .item [2] 0, value := { item := .scalar "item" } }
+
+/-- Stream-triggered child startup and draining preserve the clear frontier.
+Witness: the generic item-handler theorem excludes incoming children from retained
+rejections; this stored-value fixture has no rejected task nodes.
+-/
+theorem stream_triggered_frontier_clear
+    : (before.streamItems stream [item]).1.NoActiveCachedFailure := by
+  apply State.NoActiveCachedFailure.streamItems_of_cleanChildren
+    (groups := by change ([parent.ref, child.ref] : NodeRefs).Nodup; decide)
+    (tasks := by change ([occurrence] : List Occurrence).Nodup; decide)
+  · intro group member active
+    simp only [before, List.mem_cons, List.not_mem_nil, or_false] at member
+    rcases member with rfl | rfl <;> rfl
+  · intro node member errors rejected
+    obtain rfl := List.mem_singleton.mp member
+    cases rejected
 
 /-- Stream processing can emit an earlier stored object value without changing its source.
 Witness: the full stream-output provenance theorem and exact nonempty output, including
@@ -95,8 +169,8 @@ the original execution-error count. This remains an internal handler-boundary re
 -/
 theorem stream_triggered_object_provenance
     : PublishedValuesSatisfy (fun source payload => source = occurrence ∧ payload = value)
-        (before.streamItems stream [item]).2
-      ∧ (before.streamItems stream [item]).2
+        (before.streamItems stream [item]).2.1
+      ∧ (before.streamItems stream [item]).2.1
         = [
           .streamValues stream [item.value] [] [],
           .groupSuccess parent [child] [],
@@ -121,7 +195,7 @@ theorem stream_triggered_object_inventory
       (fun source payload => source = occurrence ∧ payload = value) [] :=
     ⟨by simp, by simp, stored.mono (fun _ _ known => ⟨known, by simp⟩)⟩
   obtain ⟨published, values, final⟩ := inventory.streamItems stream [item]
-  have emitted : (before.streamItems stream [item]).2.flatMap WorkQueueEvent.objectValues
+  have emitted : (before.streamItems stream [item]).2.1.flatMap WorkQueueEvent.objectValues
       = [value] := by rw [stream_triggered_object_provenance.2]; rfl
   exact ⟨published, values.trans emitted, by simpa only [List.nil_append] using final⟩
 
@@ -155,7 +229,8 @@ theorem generated_parent_normalized_inventory
   have known : TaskAt WorkSchedulerProducerSupport.work
       WorkSchedulerProducerSupport.parentTask [WorkSchedulerProducerSupport.parent.ref] none
       (.object [] (.ok ([("user", .object [])], 0))) := by
-    refine ⟨[⟨WorkSchedulerProducerSupport.parent, []⟩], [], _,
+    refine ⟨[⟨WorkSchedulerProducerSupport.parent, []⟩], [],
+      { result := .ok ([("user", .object [])], 0) },
       WorkSchedulerProducerSupport.children, [], ?_, rfl, rfl⟩
     cbv
   have ready : event.Ready WorkSchedulerProducerSupport.work [] :=
@@ -192,6 +267,27 @@ theorem mixed_publication_matching
   · simpa only [List.flatten_append, List.flatten_singleton]
       using WorkSchedulerStreamRoots.continuation_valid
   · exact WorkSchedulerStreamRoots.inputs_started.2
+
+/-- Actual mixed source replay clears active rejections across separate and joined batches.
+Witness: the general consumed-failure proof uses the actual cache snapshot for each layout,
+including the joined batch's early availability of its later task rejection.
+-/
+theorem mixed_frontier_clear
+    : let initial := State.initialize (Work.fromExecution WorkSchedulerStreamRoots.work)
+      let inputs := WorkSchedulerStreamRoots.before ++ [[WorkSchedulerStreamRoots.second]]
+      (initial.runNormalized inputs).1.NoActiveCachedFailure
+      ∧ (initial.runNormalized [inputs.flatten]).1.NoActiveCachedFailure := by
+  intro initial inputs
+  have valid : ValidGraphEvents WorkSchedulerStreamRoots.work inputs.flatten := by
+    dsimp only [inputs]
+    simpa only [List.flatten_append, List.flatten_singleton]
+      using WorkSchedulerStreamRoots.continuation_valid
+  constructor
+  · exact createWorkQueue_runNormalized_noActiveCachedFailure WorkSchedulerStreamRoots.generated
+      inputs valid WorkSchedulerStreamRoots.inputs_started.2
+  · apply createWorkQueue_runNormalized_noActiveCachedFailure WorkSchedulerStreamRoots.generated
+    · simpa only [List.flatten_singleton] using valid
+    · cbv
 
 /-- The mixed-prefix matching covers two real item values and a nonempty object patch.
 Witness: evaluate both payload projections after the intervening deferred failure; the

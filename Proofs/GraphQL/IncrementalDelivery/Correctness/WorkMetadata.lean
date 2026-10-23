@@ -29,6 +29,17 @@ theorem located_producer_context {work address current producer owners}
   | executionGroup located _ => exact ⟨_, _, _, .executionGroup located.toCurrent⟩
   | item => rfl
 
+/-- Declaration transparency preserves the path assignment of retained tasks. -/
+theorem workAt_withoutDeclarations {paths bound work}
+    (known : MixedOwnerPaths.WorkAt paths bound work)
+    : MixedOwnerPaths.WorkAt paths bound work.withoutDeclarations := by
+  cases work with
+  | declareGroups groups tasks =>
+      simp only [MixedOwnerPaths.WorkAt] at known
+      simpa only [Work.withoutDeclarations] using workAt_withoutDeclarations known
+  | _ => simpa only [Work.withoutDeclarations] using known
+termination_by work
+
 /-- Structural lookup retains a generated work's coherent ref-to-path assignment;
 witness: address navigation, including each streamed item's child work.
 -/
@@ -39,16 +50,16 @@ theorem workAt_located {paths bound work address current producer owners}
   have navigation := StructuralEquivalence.located_of_current located
   clear located
   induction navigation with
-  | root => exact coherent
+  | root => exact workAt_withoutDeclarations coherent
   | left _ ih =>
-      rw [MixedOwnerPaths.WorkAt] at ih; exact ih.1
+      rw [MixedOwnerPaths.WorkAt] at ih; exact workAt_withoutDeclarations ih.1
   | right _ ih =>
-      rw [MixedOwnerPaths.WorkAt] at ih; exact ih.2
+      rw [MixedOwnerPaths.WorkAt] at ih; exact workAt_withoutDeclarations ih.2
   | executionGroup _ ih =>
-      rw [MixedOwnerPaths.WorkAt] at ih; exact ih.2
+      rw [MixedOwnerPaths.WorkAt] at ih; exact workAt_withoutDeclarations ih.2
   | item _ entry ih =>
       rw [MixedOwnerPaths.WorkAt] at ih
-      exact ih.2 _ (List.mem_of_getElem? entry)
+      exact workAt_withoutDeclarations (ih.2 _ (List.mem_of_getElem? entry))
 
 /-- Every node descriptor agrees with its generated ref's absolute path assignment;
 witness: the located defer map or stream node.

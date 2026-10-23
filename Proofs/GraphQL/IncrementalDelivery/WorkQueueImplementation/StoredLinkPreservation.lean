@@ -137,10 +137,11 @@ theorem State.StoredTaskLinks.taskSuccess_release {queue : State} {work settled}
     (linked : queue.StoredTaskLinks) (accounted : queue.PendingAccounting work settled)
     (occurrence : Occurrence) (result : TaskResult) (node : TaskNode)
     (found : queue.taskNode? occurrence = some node) (fresh : occurrence ∉ settled)
+    (available : List (Occurrence × Nat) := [])
     : let stored := queue.putTaskNode { node with value := some result.value }
       let integrated := (stored.maybeIntegrateWork result.work (some occurrence)).1
       let released := node.task.groups.foldl successGroupStep (integrated, [], {})
-      (released.1.startNewWork released.2.2).StoredTaskLinks := by
+      (released.1.startNewWork released.2.2 available).1.StoredTaskLinks := by
   have known := State.taskNode?_some found
   have registered := accounted.started node known.1
   have taskLinks := accounted.links node.task registered (known.2.symm ▸ fresh)
@@ -154,7 +155,7 @@ theorem State.StoredTaskLinks.taskSuccess_release {queue : State} {work settled}
     accounted.refs
   have flushed := integrated.successGroupFold
     (refs.maybeIntegrateWork result.work (some occurrence)) node.task.groups [] {}
-  exact flushed.startNewWork _
+  exact flushed.startNewWork _ available
 
 /-- Fresh successful settlement preserves buffered links through its full handler.
 Witness: the release-state theorem followed by recursive draining; ignored successes
@@ -163,67 +164,19 @@ remove the settled task without installing a value.
 theorem State.StoredTaskLinks.taskSuccess {queue : State} {work settled}
     (linked : queue.StoredTaskLinks) (accounted : queue.PendingAccounting work settled)
     (occurrence : Occurrence) (result : TaskResult) (fresh : occurrence ∉ settled)
-    : (queue.taskSuccess occurrence result).1.StoredTaskLinks := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.taskSuccess occurrence result available).1.StoredTaskLinks := by
   cases found : queue.taskNode? occurrence with
   | none => simpa only [State.taskSuccess, found] using linked
   | some node =>
-      have released := linked.taskSuccess_release accounted occurrence result node found fresh
-      rw [queue.taskSuccess_eq occurrence result node found]
-      split
-      · exact linked.removeTask occurrence
-      · exact released.drainReadyGroups
+      have released :=
+        linked.taskSuccess_release accounted occurrence result node found fresh available
+      rw [queue.taskSuccess_eq occurrence result node found available]
+      exact released.drainReadyGroups available
 
 -----------------------------------------------------------------------------------------
 -- Failed task processing and stream inputs do not install buffered object values
 -----------------------------------------------------------------------------------------
-
-/-- Failure processing preserves every surviving buffered membership.
-Witness: removal drops the failed occurrence; each owner either retires or keeps its
-memberships while accumulating a cached error. This also covers ignored late failures.
--/
-theorem State.StoredTaskLinks.taskFailure {queue : State} (linked : queue.StoredTaskLinks)
-    (unique : queue.GroupRefsUnique) (occurrence : Occurrence) (errors : Nat)
-    : (queue.taskFailure occurrence errors).1.StoredTaskLinks := by
-  let step (acc : State × List WorkQueueEvent) (group : Execution.DeliveryNode)
-      : State × List WorkQueueEvent :=
-    match acc.1.groupNode? group.ref with
-    | none => acc
-    | some node =>
-        if acc.1.rootGroups.contains group.ref then
-          (acc.1.removeGroup node.group.node.ref,
-            acc.2 ++ [.groupFailure node.group.node errors])
-        else
-          (acc.1.putGroupNode
-            { node with
-              pending := node.pending - 1
-              failure := some (node.failure.getD 0 + errors) }, acc.2)
-  have loop (groups : List Execution.DeliveryNode) (acc : State × List WorkQueueEvent)
-      (prior : acc.1.StoredTaskLinks) (refs : acc.1.GroupRefsUnique)
-      : (groups.foldl step acc).1.StoredTaskLinks := by
-    induction groups generalizing acc with
-    | nil => exact prior
-    | cons group rest ih =>
-        apply ih
-        · unfold step
-          split
-          · exact prior
-          · rename_i node found
-            split
-            · exact prior.removeGroup _
-            · exact prior.putGroupNodeSameTasks refs node (List.mem_of_find?_eq_some found)
-                _ rfl rfl
-        · unfold step
-          split
-          · exact refs
-          · split
-            · exact refs.removeGroup _
-            · exact refs.putGroupNode _
-  unfold State.taskFailure
-  split
-  · exact linked
-  · split
-    · exact linked.removeTask occurrence
-    · exact loop _ _ (linked.removeTask occurrence) (unique.removeTask occurrence)
 
 /-- Sequential stream-item integration preserves buffered object memberships.
 Witness: carry permanent registration and unique refs through each actual integration
@@ -239,34 +192,39 @@ theorem State.StoredTaskLinks.streamItems {queue : State}
         ∀ task ∈ item.work.tasks,
         ∀ ref ∈ task.groups.map Execution.DeliveryNode.ref,
           ∃ group ∈ item.work.groups, group.node.ref = ref)
-    : (queue.streamItems stream items).1.StoredTaskLinks := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.streamItems stream items available).1.StoredTaskLinks := by
   let step (acc : State × List Execution.DeliveryNode
-      × List Execution.DeliveryNode × List StreamItemValue) (item : StreamItem) :=
-    let (current, groups, streams, values) := acc
+      × List Execution.DeliveryNode × List StreamItemValue × List GroupFailureEvent)
+      (item : StreamItem) :=
+    let (current, groups, streams, values, failures) := acc
     let (integrated, newWork) := current.maybeIntegrateWork item.work
     let (pruned, nonempty) := integrated.pruneEmptyGroups newWork.newGroups
-    (pruned.startNewWork { newWork with newGroups := nonempty },
-      groups ++ nonempty, streams ++ newWork.newStreams, values ++ [item.value])
+    let (started, queued) := pruned.startNewWork { newWork with newGroups := nonempty } available
+    (started, groups ++ nonempty, streams ++ newWork.newStreams,
+      values ++ [item.value], failures ++ queued)
   let invariant (current : State) :=
     current.StoredTaskLinks ∧ current.GroupRefsUnique ∧ current.LiveGroupsRegistered
       ∧ current.TaskGroupsRegistered ∧ current.StartedTasksRegistered
   have preserve (acc) (item : StreamItem) (member : item ∈ items)
       (prior : invariant acc.1) : invariant (step acc item).1 := by
-    obtain ⟨current, groups, streams, values⟩ := acc
+    obtain ⟨current, groups, streams, values, failures⟩ := acc
     have links := prior.1.maybeIntegrateWork prior.2.1 prior.2.2.2.1 prior.2.2.2.2 item.work
     have refs := prior.2.1.maybeIntegrateWork item.work none
     have registration := current.maybeIntegrateWork_registration prior.2.2.1 prior.2.2.2.1
-      item.work (allCovered item member)
+      item.work (by
+        intro task taskMember ref contributor
+        exact Or.inr (allCovered item member task taskMember ref contributor))
     have pruned := State.pruneEmptyGroups_registration registration.1 registration.2.1
       (current.maybeIntegrateWork item.work).2.newGroups
     have activated := State.startNewWork_registration pruned.1 pruned.2.1
       { (current.maybeIntegrateWork item.work).2 with
         newGroups := ((current.maybeIntegrateWork item.work).1.pruneEmptyGroups
-          (current.maybeIntegrateWork item.work).2.newGroups).2 }
+          (current.maybeIntegrateWork item.work).2.newGroups).2 } available
     have registered := prior.2.2.2.2.maybeIntegrateWork item.work none
-    exact ⟨(links.pruneEmptyGroups _).startNewWork _,
-      (refs.pruneEmptyGroups _).startNewWork _, activated.1, activated.2,
-      (registered.pruneEmptyGroups _).startNewWork _⟩
+    exact ⟨(links.pruneEmptyGroups _).startNewWork _ available,
+      (refs.pruneEmptyGroups _).startNewWork _ available, activated.1, activated.2,
+      (registered.pruneEmptyGroups _).startNewWork _ available⟩
   have loop (more : List StreamItem) (included : more.Subset items) (acc)
       (prior : invariant acc.1) : invariant (more.foldl step acc).1 := by
     induction more generalizing acc with
@@ -277,8 +235,8 @@ theorem State.StoredTaskLinks.streamItems {queue : State}
   unfold State.streamItems
   split
   · exact linked
-  · exact (loop items (fun _ member => member) (queue, [], [], [])
-      ⟨linked, unique, live, covered, started⟩).1.drainReadyGroups
+  · exact (loop items (fun _ member => member) (queue, [], [], [], [])
+      ⟨linked, unique, live, covered, started⟩).1.drainReadyGroups available
 
 -----------------------------------------------------------------------------------------
 -- Event-level interface and initialization
@@ -292,24 +250,35 @@ theorem State.StoredTaskLinks.handleGraphEvent {queue : State} {work settled bef
     (linked : queue.StoredTaskLinks) (accounted : queue.PendingAccounting work settled)
     (included : settled.Subset (before.flatMap (fun event => event.identities.1)))
     (event : GraphEvent) (matching : event.MatchesWork work) (fresh : event.Fresh before)
-    : (queue.handleGraphEvent event).1.StoredTaskLinks := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.handleGraphEvent event available).1.StoredTaskLinks := by
+  have cached := linked.cacheTaskFailures available
+  have ledger := accounted.cacheTaskFailures available
   cases event with
   | taskSuccess occurrence result =>
-      exact linked.taskSuccess accounted occurrence result
+      exact cached.taskSuccess ledger occurrence result
         (fun member =>
           fresh.2.2.1 occurrence (by simp [GraphEvent.identities]) (included member))
+        available
   | taskFailure occurrence errors =>
-      exact linked.taskFailure accounted.refs occurrence errors
+      exact cached.taskFailure occurrence errors
   | streamItems stream items =>
-      exact linked.streamItems accounted.refs accounted.liveGroups accounted.taskGroups
-        accounted.started stream items
-        (fun _ member => matching.streamItem_childTasksCovered member)
+      exact cached.streamItems ledger.refs ledger.liveGroups ledger.taskGroups
+        ledger.started stream items
+        (fun _ member => matching.streamItem_childTasksCovered accounted.registration.source member) available
   | streamSuccess stream =>
       dsimp only [State.handleGraphEvent, State.streamSuccess]
-      split <;> exact linked
+      split <;> exact cached
   | streamFailure stream errors =>
       dsimp only [State.handleGraphEvent, State.streamFailure]
-      split <;> exact linked
+      split <;> exact cached
+
+  | groupFailure notice =>
+      change ((queue.cacheTaskFailures available).groupFailure notice).1.StoredTaskLinks
+      unfold State.groupFailure
+      split
+      · exact cached
+      · split <;> exact cached
 
 /-- Initialization satisfies buffered links because it installs no resolved object value.
 Witness: the unconditional initial stored-value theorem with the false payload predicate.

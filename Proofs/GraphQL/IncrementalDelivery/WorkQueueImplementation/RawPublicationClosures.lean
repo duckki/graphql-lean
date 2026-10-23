@@ -79,55 +79,6 @@ theorem State.finishGroupSuccess_publicationPairs (queue : State) (group : Group
   · exact .control _ (by simp [WorkQueueEvent.IsGroupValue]) .nil
   · exact .publication _ _ _ _ .nil
 
-/-- Recursive draining preserves paired publications through successes and cached failures.
-Witness: successful flushes supply pairs; failed closures are single control events.
--/
-theorem State.drainReadyGroups_publicationPairs (queue : State)
-    : GroupPublicationPairs queue.drainReadyGroups.2 := by
-  have loop (fuel : Nat) (current : State)
-      : GroupPublicationPairs (State.drainReadyGroups.go fuel current).2 := by
-    induction fuel generalizing current with
-    | zero => exact .nil
-    | succ fuel ih =>
-        unfold State.drainReadyGroups.go
-        dsimp only
-        split
-        · exact .nil
-        · rename_i node selected
-          cases cached : node.failure with
-          | none => exact (current.finishGroupSuccess_publicationPairs node).append (ih _)
-          | some errors =>
-              exact (GroupPublicationPairs.control _ (by simp [State.finishGroupFailure,
-                WorkQueueEvent.IsGroupValue]) .nil).append (ih _)
-  exact loop _ queue
-
-/-- A successful settlement emits whole pairs through the single-pass fold and final drain.
-Witness: each fold flush and the recursive release drain preserve the same shape.
--/
-theorem State.taskSuccess_publicationPairs (queue : State) (occurrence : Occurrence)
-    (result : TaskResult)
-    : GroupPublicationPairs (queue.taskSuccess occurrence result).2 := by
-  have loop (groups : List Execution.DeliveryNode) (acc : State × List WorkQueueEvent × NewWork)
-      (prior : GroupPublicationPairs acc.2.1)
-      : GroupPublicationPairs (groups.foldl successGroupStep acc).2.1 := by
-    induction groups generalizing acc with
-    | nil => exact prior
-    | cons group rest ih =>
-        apply ih
-        dsimp only [successGroupStep]
-        split
-        · exact prior
-        · split
-          · exact prior.append (State.finishGroupSuccess_publicationPairs _ _)
-          · exact prior
-  cases found : queue.taskNode? occurrence with
-  | none => simpa [State.taskSuccess, found] using GroupPublicationPairs.nil
-  | some node =>
-      rw [queue.taskSuccess_eq occurrence result node found]
-      split
-      · exact .nil
-      · exact (loop _ (_, [], {}) .nil).append (State.drainReadyGroups_publicationPairs _)
-
 /-- Task failure contributes only control events and cannot leave an unmatched publication.
 Witness: the actual failure fold either retains output or appends a failed-group closure.
 -/
@@ -140,10 +91,8 @@ theorem State.taskFailure_publicationPairs (queue : State) (occurrence : Occurre
     | some node =>
         if acc.1.rootGroups.contains group.ref then
           let (next, failure) := acc.1.finishGroupFailure node errors
-          (next, acc.2 ++ [failure])
-        else (acc.1.putGroupNode
-          { node with pending := node.pending - 1
-                      failure := some (node.failure.getD 0 + errors) }, acc.2)
+          (next, acc.2 ++ [WorkQueueEvent.groupFailure failure.group failure.errors])
+        else acc
   have loop (groups : List Execution.DeliveryNode) (acc : State × List WorkQueueEvent)
       (prior : GroupPublicationPairs acc.2)
       : GroupPublicationPairs (groups.foldl step acc).2 := by
@@ -155,39 +104,84 @@ theorem State.taskFailure_publicationPairs (queue : State) (occurrence : Occurre
         split
         · exact prior
         · split
-          · exact prior.append (.control _ (by simp [State.finishGroupFailure,
-              WorkQueueEvent.IsGroupValue]) .nil)
+          · exact prior.append (.control _ (by simp [WorkQueueEvent.IsGroupValue]) .nil)
           · exact prior
   unfold State.taskFailure
   split
   · exact .nil
-  · split
-    · exact .nil
-    · exact loop _ (_, []) .nil
+  · exact loop _ (_, []) .nil
+
+/-- Recursive draining preserves complete publication/closure pairs.
+Witness: each successful flush supplies pairs; startup failures are returned separately.
+-/
+theorem State.drainReadyGroups_publicationPairs (queue : State)
+    (available : List (Occurrence × Nat) := [])
+    : GroupPublicationPairs (queue.drainReadyGroups available).2.1 := by
+  have loop (fuel : Nat) (current : State)
+      : GroupPublicationPairs (State.drainReadyGroups.go available fuel current).2.1 := by
+    induction fuel generalizing current with
+    | zero => exact .nil
+    | succ fuel ih =>
+        unfold State.drainReadyGroups.go
+        dsimp only
+        split
+        · exact .nil
+        · exact (current.finishGroupSuccess_publicationPairs _).append (ih _)
+  exact loop _ queue
+
+/-- A successful settlement emits whole pairs through the single-pass fold and final drain.
+Witness: each fold flush and the recursive release drain preserve the same shape.
+-/
+theorem State.taskSuccess_publicationPairs (queue : State) (occurrence : Occurrence)
+    (result : TaskResult) (available : List (Occurrence × Nat) := [])
+    : GroupPublicationPairs (queue.taskSuccess occurrence result available).2.1 := by
+  have loop (groups : List Execution.DeliveryNode) (acc : State × List WorkQueueEvent × NewWork)
+      (prior : GroupPublicationPairs acc.2.1)
+      : GroupPublicationPairs (groups.foldl successGroupStep acc).2.1 := by
+    induction groups generalizing acc with
+    | nil => exact prior
+    | cons group rest ih =>
+        apply ih
+        obtain ⟨current, events, released⟩ := acc
+        dsimp only [successGroupStep]
+        split
+        · exact prior
+        · split
+          · exact prior.append (State.finishGroupSuccess_publicationPairs _ _)
+          · exact prior
+  cases found : queue.taskNode? occurrence with
+  | none => simpa [State.taskSuccess, found] using GroupPublicationPairs.nil
+  | some node =>
+      rw [queue.taskSuccess_eq occurrence result node found available]
+      exact (loop _ (_, [], {}) .nil).append (State.drainReadyGroups_publicationPairs _ available)
 
 /-- An item batch precedes a release drain whose object publications all have closures.
 Witness: its leading stream event is not an object publication; reuse the drain theorem.
 -/
 theorem State.streamItems_publicationPairs (queue : State)
     (stream : Execution.DeliveryNode) (items : List StreamItem)
-    : GroupPublicationPairs (queue.streamItems stream items).2 := by
+    (available : List (Occurrence × Nat) := [])
+    : GroupPublicationPairs (queue.streamItems stream items available).2.1 := by
   unfold State.streamItems
   split
   · exact .nil
   · exact .control _ (by simp [WorkQueueEvent.IsGroupValue])
-      (State.drainReadyGroups_publicationPairs _)
+      (State.drainReadyGroups_publicationPairs _ available)
 
 /-- Every source handler returns complete publication/closure pairs.
 Witness: the three publication-capable handlers above; stream closures are controls.
 -/
 theorem State.handleGraphEvent_publicationPairs (queue : State) (event : GraphEvent)
-    : GroupPublicationPairs (queue.handleGraphEvent event).2 := by
+    (available : List (Occurrence × Nat) := [])
+    : GroupPublicationPairs (queue.handleGraphEvent event available).2.1 := by
   cases event with
   | taskSuccess occurrence result =>
-      exact queue.taskSuccess_publicationPairs occurrence result
+      exact (queue.cacheTaskFailures available).taskSuccess_publicationPairs
+        occurrence result available
   | taskFailure occurrence errors =>
-      exact queue.taskFailure_publicationPairs occurrence errors
-  | streamItems stream items => exact queue.streamItems_publicationPairs stream items
+      exact (queue.cacheTaskFailures available).taskFailure_publicationPairs occurrence errors
+  | streamItems stream items =>
+      exact (queue.cacheTaskFailures available).streamItems_publicationPairs stream items available
   | streamSuccess stream =>
       simp only [State.handleGraphEvent, State.streamSuccess]
       split
@@ -199,6 +193,14 @@ theorem State.handleGraphEvent_publicationPairs (queue : State) (event : GraphEv
       · exact .control _ (by simp [WorkQueueEvent.IsGroupValue]) .nil
       · exact .nil
 
+  | groupFailure notice =>
+      simp only [State.handleGraphEvent, State.groupFailure]
+      split
+      · exact .nil
+      · split
+        · exact .control _ (by simp [WorkQueueEvent.IsGroupValue]) .nil
+        · exact .nil
+
 -----------------------------------------------------------------------------------------
 -- Actual replay retains the immediate successful carrier
 -----------------------------------------------------------------------------------------
@@ -207,12 +209,13 @@ theorem State.handleGraphEvent_publicationPairs (queue : State) (event : GraphEv
 Witness: append each handler's exact output while threading the real queue state.
 -/
 theorem State.rawEventReplay_publicationPairs (queue : State) (events : List GraphEvent)
-    : GroupPublicationPairs (queue.rawEventReplay events).2 := by
+    (available : List (Occurrence × Nat) := [])
+    : GroupPublicationPairs (queue.rawEventReplay events available).2 := by
   induction events generalizing queue with
   | nil => exact .nil
   | cons event rest ih =>
-      rw [State.rawEventReplay_cons]
-      exact (queue.handleGraphEvent_publicationPairs event).append (ih _)
+      rw [State.rawEventReplay_cons _ _ _ available]
+      exact (queue.handleGraphEvent_publicationPairs event available).append (ih _)
 
 /-- Batch handling never splits an emitted object's immediate successful carrier.
 Witness: the raw replay theorem and the optional trailing termination control.
@@ -220,14 +223,14 @@ Witness: the raw replay theorem and the optional trailing termination control.
 theorem State.handleGraphEvents_publicationPairs (queue : State)
     (events : List GraphEvent)
     : GroupPublicationPairs (queue.handleGraphEvents events).2 := by
-  rw [State.handleGraphEvents_eq_rawEventReplay]
+  have full := queue.rawEventReplay_publicationPairs events (GraphEvent.availableFailures events)
+  rw [State.handleGraphEvents_eq_rawEventReplay queue events]
   split
   · exact .nil
   · dsimp only
     split
-    · exact (queue.rawEventReplay_publicationPairs events).append
-        (.control _ (by simp [WorkQueueEvent.IsGroupValue]) .nil)
-    · exact queue.rawEventReplay_publicationPairs events
+    · exact full.append (.control _ (by simp [WorkQueueEvent.IsGroupValue]) .nil)
+    · exact full
 
 /-- Every actual raw object publication has a same-group successful closure immediately
 after it, independently of source validity or generated-work assumptions.

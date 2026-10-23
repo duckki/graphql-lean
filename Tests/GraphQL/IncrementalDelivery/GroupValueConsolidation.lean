@@ -68,7 +68,7 @@ example (work initial matching before failures owner)
 
 def work : Execution.Work :=
   .executionGroup [{ node := parent }, { node := child }] value.path
-    (.ok (value.data, value.errors)) .empty
+    ({ result := .ok (value.data, value.errors) }) .empty
 
 /-- The reference source still rejects an incorrect contributor list before normalization.
 Witness: its exact taskGroups lookup disagrees, regardless of the response payload.
@@ -77,6 +77,7 @@ example
     : ¬GraphEvent.MatchesWork work
         (.taskSuccess (.executionGroup [])
           { value := { value with deliveryGroups := [] } }) := by
-  simp [GraphEvent.MatchesWork, taskGroups?, locateWork, locateWork.go, work]
+  simp [GraphEvent.MatchesWork, taskGroups?, taskContext?, locateWork, locateWork.go,
+    Work.withoutDeclarations, work]
 
 end GraphQL.IncrementalDelivery.Tests.GroupValueConsolidation

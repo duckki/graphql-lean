@@ -1,5 +1,6 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.RegistrationAccounting
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.BufferedLookupPreservation
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.TaskNodeKeys
 
 /-! Whole-scope registration correspondence, retaining stored values and held streams. -/
 
@@ -379,8 +380,10 @@ theorem activateRegisteredTasks_addStreams (queue : ReferenceWorkQueue.State)
                   || selected.any (fun known => known.node.ref == stream.node.ref) then
                 selected else selected ++ [stream]) []
           let updated : ReferenceWorkQueue.TaskNode :=
-            { node with childStreams := node.childStreams ++ fresh.map (fun stream => stream.node.ref) }
-          let prepared : ReferenceWorkQueue.State := { queue with streams := queue.streams ++ fresh }
+            { node with
+              childStreams := node.childStreams ++ fresh.map (fun stream => stream.node.ref) }
+          let prepared : ReferenceWorkQueue.State :=
+            { queue with streams := queue.streams ++ fresh }
           have stored : prepared.taskNode? occurrence = some node := found
           have attached := activateRegisteredTasks_putTaskNode stored updated
             (ReferenceWorkQueue.State.taskNode?_some found).2 tasks
@@ -438,11 +441,13 @@ theorem State.maybeIntegrateWork_complete (state : State) (work : ReferenceWorkQ
     work.streams parent registeredReady
   change activateRegisteredTasks
         (registered.1.queue.addStreams work.streams parent).1 registered.2.1
-      = ((work.tasks.foldl ReferenceWorkQueue.State.addTask grouped).addStreams work.streams parent).1
+      = ((work.tasks.foldl ReferenceWorkQueue.State.addTask grouped).addStreams
+          work.streams parent).1
     ∧ (⟨(state.queue.addGroups work.groups).2,
         (registered.1.queue.addStreams work.streams parent).2⟩ : ReferenceWorkQueue.NewWork)
       = ⟨(state.queue.addGroups work.groups).2,
-        ((work.tasks.foldl ReferenceWorkQueue.State.addTask grouped).addStreams work.streams parent).2⟩
+        ((work.tasks.foldl ReferenceWorkQueue.State.addTask grouped).addStreams
+          work.streams parent).2⟩
   change activateRegisteredTasks registered.1.queue registered.2.1
     = work.tasks.foldl ReferenceWorkQueue.State.addTask grouped at complete
   rw [complete] at attached
@@ -518,6 +523,7 @@ theorem activateRegisteredTasks_eq_startTasks {queue : ReferenceWorkQueue.State}
         split
         · rfl
         · rw [lookup]
+          rfl
       change activateRegisteredTasks (activateRegisteredTask queue task) rest
         = rest.foldl (fun current task => current.startTask task.occurrence)
           (queue.startTask task.occurrence)
@@ -560,5 +566,58 @@ theorem State.maybeIntegrateWork_startTasks {state : State} {work : Work}
     exact List.mem_append_right _ (state.maybeIntegrateWork_activeTasks incoming parent member)
   rw [activateRegisteredTasks_eq_startTasks registered _ members] at complete
   exact complete
+
+/-- Eager completion only appends computation records to its original store.
+Witness: every individual activation keeps the store or appends one missing descriptor.
+-/
+theorem activateRegisteredTasks_taskNodes_sublist (queue : ReferenceWorkQueue.State)
+    (tasks : List ReferenceWorkQueue.Task)
+    : queue.taskNodes.Sublist (activateRegisteredTasks queue tasks).taskNodes := by
+  induction tasks generalizing queue with
+  | nil => exact .refl _
+  | cons task rest ih =>
+      apply List.Sublist.trans (l₂ := (activateRegisteredTask queue task).taskNodes) ?_ (ih _)
+      unfold activateRegisteredTask
+      split
+      · exact .refl _
+      · exact (List.prefix_append _ _).sublist
+
+/-- Actual cache-aware delayed starts recover reference registration after cache exposure.
+Witness: exact eager scope completion supplies catalogue coherence and unique task keys;
+the cache/start congruence then transports every active task under the supplied snapshot.
+Intermediate rejections can differ before exposure. New-work notices are already identical.
+-/
+theorem State.maybeIntegrateWork_startTasks_cache {state : State} {work : Work}
+    (present : state.queue.RootGroupsPresent)
+    (matching : state.queue.RegisteredTasksMatch work)
+    (unique : state.queue.TaskNodeKeysUnique)
+    (incoming : ReferenceWorkQueue.Work)
+    (known : ∀ task ∈ incoming.tasks, ReferenceWorkQueue.TaskMatches work task)
+    (available : List (Occurrence × Nat)) (parent : Option Occurrence := none)
+    (ready
+      : ∀ occurrence,
+          parent = some occurrence
+          → (state.queue.taskNode? occurrence).isSome = true := by simp)
+    : let alternative := state.maybeIntegrateWork incoming parent
+      let reference := state.queue.maybeIntegrateWork incoming parent
+      (alternative.2.activeTasks.foldl
+          (fun current task => current.startTask task.occurrence available)
+          alternative.1.queue).cacheTaskFailures
+          available
+        = reference.1.cacheTaskFailures available
+      ∧ alternative.2.newWork = reference.2 := by
+  have complete := state.maybeIntegrateWork_complete incoming present parent ready
+  have started := state.maybeIntegrateWork_startTasks present matching incoming known parent ready
+  dsimp only at complete started ⊢
+  have finalKeys := unique.maybeIntegrateWork incoming parent
+  rw [← complete.1] at finalKeys
+  have initialKeys : (state.maybeIntegrateWork incoming parent).1.queue.TaskNodeKeysUnique :=
+    finalKeys.sublist ((activateRegisteredTasks_taskNodes_sublist _ _).map _)
+  have exposed := initialKeys.startTasks_cache_congr initialKeys available rfl
+    ((state.maybeIntegrateWork incoming parent).2.activeTasks.map
+      ReferenceWorkQueue.Task.occurrence)
+  simp only [List.foldl_map] at exposed
+  exact ⟨exposed.trans (congrArg (fun queue => queue.cacheTaskFailures available) started.1),
+    started.2⟩
 
 end GraphQL.IncrementalDelivery.AlternativeWorkQueue

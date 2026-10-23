@@ -18,12 +18,11 @@ The history may be a nonterminal prefix of the full output; the ledger is unchan
 structure ObjectLedgerMatching (work : Execution.Work) (inputs : List (List GraphEvent))
     (events : List Execution.WorkQueueEvent) (matching : PublicationMatching)
     (published : List ObjectPublication)
+    (queue : State := State.initialize (Work.fromExecution work))
     : Prop where
   rawValues
     : published.map Prod.snd
-      = ((State.initialize (Work.fromExecution work)).rawEventReplay
-          inputs.flatten).2.flatMap
-          WorkQueueEvent.objectValues
+      = (queue.rawBatches inputs).2.flatMap WorkQueueEvent.objectValues
   source
     : ∀ publication ∈ published,
         ∃ result,
@@ -40,10 +39,10 @@ structure ObjectLedgerMatching (work : Execution.Work) (inputs : List (List Grap
 /-- Restricting the observed output prefix preserves exact object-ledger positions.
 Witness: every retained index and strict prefix agree with the larger history.
 -/
-theorem ObjectLedgerMatching.prefix {work inputs events matching published before}
-    (ledger : ObjectLedgerMatching work inputs events matching published)
+theorem ObjectLedgerMatching.prefix {work inputs events matching published before queue}
+    (ledger : ObjectLedgerMatching work inputs events matching published queue)
     (initial : before.IsPrefix events)
-    : ObjectLedgerMatching work inputs before matching published := by
+    : ObjectLedgerMatching work inputs before matching published queue := by
   obtain ⟨after, rfl⟩ := initial
   refine ⟨ledger.rawValues, ledger.source, ?_⟩
   intro index group values selected
@@ -56,15 +55,13 @@ theorem ObjectLedgerMatching.prefix {work inputs events matching published befor
 Witness: take both projections of the same indexed ledger entry. Equality of serialized
 payloads is never used to select an occurrence or its contributor list.
 -/
-theorem ObjectLedgerMatching.source_at {work inputs events matching published}
-    (ledger : ObjectLedgerMatching work inputs events matching published)
+theorem ObjectLedgerMatching.source_at {work inputs events matching published queue}
+    (ledger : ObjectLedgerMatching work inputs events matching published queue)
     {index group values value}
     (selected : events[index]? = some (.groupValues group values))
     (raw
       : let count := ((events.take index).flatMap normalizedObjectValues).length
-        (((State.initialize (Work.fromExecution work)).rawEventReplay
-            inputs.flatten).2.flatMap
-          WorkQueueEvent.objectValues)[count]?
+        ((queue.rawBatches inputs).2.flatMap WorkQueueEvent.objectValues)[count]?
         = some value)
     : ∃ result,
         GraphEvent.taskSuccess (matching index) result ∈ inputs.flatten

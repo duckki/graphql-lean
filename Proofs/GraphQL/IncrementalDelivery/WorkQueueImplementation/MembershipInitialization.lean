@@ -29,68 +29,29 @@ theorem State.TaskMembershipsUnique.putGroupNode {queue : State}
 theorem State.TaskMembershipsUnique.addGroup {queue : State}
     (unique : queue.TaskMembershipsUnique) (group : Group)
     : (queue.addGroup group).TaskMembershipsUnique := by
+  have appended : ({ queue with
+      groupNodes := queue.groupNodes ++ [({ group } : GroupNode)] } : State).TaskMembershipsUnique := by
+    intro node member
+    rcases List.mem_append.mp member with old | fresh
+    · exact unique node old
+    · cases List.mem_singleton.mp fresh
+      exact by simp
   unfold State.addGroup
   split
   · exact unique
   · split
-    · exact unique
-    · intro node member
-      simp only [List.mem_append, List.mem_singleton] at member
-      rcases member with earlier | new
-      · exact unique node earlier
-      · subst node
-        simp
+    · exact appended
+    · split
+      · split <;> exact unique
+      · rename_i node found
+        exact appended.putGroupNode _ (unique node (List.mem_of_find?_eq_some found))
 
 /-- Parent-link registration leaves every group's task list unchanged. -/
 theorem State.TaskMembershipsUnique.addGroups {queue : State}
     (unique : queue.TaskMembershipsUnique) (groups : List Group)
     : (queue.addGroups groups).1.TaskMembershipsUnique := by
-  let linkStep (current : State) (group : Group) : State :=
-    match group.parent with
-    | none => current
-    | some parent =>
-        match current.groupNode? parent with
-        | none => current
-        | some node =>
-            let children :=
-              if node.childGroups.contains group.node.ref then
-                node.childGroups
-              else
-                node.childGroups ++ [group.node.ref]
-            current.putGroupNode { node with childGroups := children }
-  have linkUnique (current : State) (group : Group)
-      (currentUnique : current.TaskMembershipsUnique)
-      : (linkStep current group).TaskMembershipsUnique := by
-    unfold linkStep
-    cases parent : group.parent with
-    | none => simpa only [parent] using currentUnique
-    | some ref =>
-        cases found : current.groupNode? ref with
-        | none => simpa only [parent, found] using currentUnique
-        | some node =>
-            simp only [found]
-            apply currentUnique.putGroupNode
-            exact currentUnique node (List.mem_of_find?_eq_some found)
-  have foldUnique (more : List Group) :
-      ∀ current, current.TaskMembershipsUnique
-        → (more.foldl linkStep current).TaskMembershipsUnique := by
-    induction more with
-    | nil => intro current currentUnique; exact currentUnique
-    | cons group rest ih =>
-        intro current currentUnique
-        exact ih (linkStep current group) (linkUnique current group currentUnique)
-  have registeredUnique (more : List Group)
-      : (more.foldl State.addGroup queue).TaskMembershipsUnique := by
-    induction more generalizing queue with
-    | nil => exact unique
-    | cons group rest ih =>
-        simpa only [List.foldl_cons]
-          using ih (queue := queue.addGroup group) (unique.addGroup group)
-  let fresh := groups.filter (fun group =>
-    !queue.registeredGroups.contains group.node.ref
-      && (queue.groupNode? group.node.ref).isNone)
-  change (fresh.foldl linkStep (fresh.foldl State.addGroup queue)).TaskMembershipsUnique
-  exact foldUnique fresh _ (registeredUnique fresh)
+  exact State.addGroups_preserves (fun current => current.TaskMembershipsUnique) groups
+    (fun _ group _ valid => valid.addGroup group) queue unique
 
 /-- Adding a task checks membership before appending it, so group lists stay unique. -/
 theorem State.TaskMembershipsUnique.addTask {queue : State}
@@ -220,59 +181,13 @@ theorem State.TaskMembershipsUnique.pruneEmptyGroups {queue : State}
               · exact ih _ _ _ currentUnique
   exact loop _ queue groups [] unique
 
-/-- Starting tasks, groups, and streams leaves their group membership lists intact. -/
+/-- Activation only removes group records, preserving surviving membership lists. -/
 theorem State.TaskMembershipsUnique.startNewWork {queue : State}
     (unique : queue.TaskMembershipsUnique) (newWork : NewWork)
-    : (queue.startNewWork newWork).TaskMembershipsUnique := by
-  let groups := newWork.newGroups.map Execution.DeliveryNode.ref
-  let streams := newWork.newStreams.map Execution.DeliveryNode.ref
-  let current : State := { queue with rootGroups := queue.rootGroups ++ groups }
-  have taskStart (state : State) (task : Occurrence)
-      (currentUnique : state.TaskMembershipsUnique)
-      : (state.startTask task).TaskMembershipsUnique := by
-    unfold State.startTask
-    split
-    · exact currentUnique
-    · split <;> exact currentUnique
-  have taskFold (tasks : List Occurrence) :
-      ∀ state, state.TaskMembershipsUnique
-        → (tasks.foldl State.startTask state).TaskMembershipsUnique := by
-    induction tasks with
-    | nil => intro state currentUnique; exact currentUnique
-    | cons task rest ih =>
-        intro state currentUnique
-        exact ih (state.startTask task) (taskStart state task currentUnique)
-  have groupStart (state : State) (ref : NodeRef)
-      (currentUnique : state.TaskMembershipsUnique)
-      : (state.startGroup ref).TaskMembershipsUnique := by
-    unfold State.startGroup
-    split
-    · exact currentUnique
-    · rename_i node found
-      split
-      · exact currentUnique
-      · exact taskFold node.tasks state currentUnique
-  have groupFold (refs : NodeRefs) :
-      ∀ state, state.TaskMembershipsUnique
-        → (refs.foldl State.startGroup state).TaskMembershipsUnique := by
-    induction refs with
-    | nil => intro state currentUnique; exact currentUnique
-    | cons ref rest ih =>
-        intro state currentUnique
-        exact ih (state.startGroup ref) (groupStart state ref currentUnique)
-  have streamFold (refs : NodeRefs) :
-      ∀ state, state.TaskMembershipsUnique
-        → (refs.foldl State.startStream state).TaskMembershipsUnique := by
-    induction refs with
-    | nil => intro state currentUnique; exact currentUnique
-    | cons ref rest ih =>
-        intro state currentUnique
-        apply ih (state.startStream ref)
-        unfold State.startStream
-        split <;> exact currentUnique
-  change (streams.foldl State.startStream
-    (groups.foldl State.startGroup current)).TaskMembershipsUnique
-  exact streamFold streams _ (groupFold groups current unique)
+    (available : List (Occurrence × Nat) := [])
+    : (queue.startNewWork newWork available).1.TaskMembershipsUnique := by
+  intro node member
+  exact unique node ((queue.startNewWork_groupNodes_sublist newWork available).subset member)
 
 /-- Queue creation gives every live group a duplicate-free task membership list.
 Witness: registration checks membership, while pruning and activation preserve it.
@@ -284,7 +199,7 @@ theorem createWorkQueue_taskMembershipsUnique (initialWork : Work)
   let pruned := (integrated.pruneEmptyGroups newWork.newGroups).1
   let groups := (integrated.pruneEmptyGroups newWork.newGroups).2
   let roots := { newWork with newGroups := groups }
-  let started := pruned.startNewWork roots
+  let started := (pruned.startNewWork roots).1
   have emptyUnique : ({} : State).TaskMembershipsUnique := by
     intro node member
     cases member

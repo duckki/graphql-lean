@@ -21,35 +21,53 @@ theorem SnapshotTaskEvidence.finishGroupSuccess {queue : Kernel} {work}
   have registration := queue.finishGroupSuccess_registration frame.live frame.contributors group
   exact ⟨frame.keys.finishGroupSuccess group, registration.1, registration.2.1,
     frame.started.finishGroupSuccess group, frame.matching.finishGroupSuccess group,
-    frame.buffered.finishGroupSuccess group, frame.sound.finishGroupSuccess group⟩
+    frame.buffered.finishGroupSuccess group, frame.sound.finishGroupSuccess group,
+    frame.registration.finishGroupSuccess group⟩
 
 /-- Activation creates no buffered value and preserves exact registered task ownership. -/
 theorem SnapshotTaskEvidence.startNewWork {queue : Kernel} {work}
     (frame : SnapshotTaskEvidence queue work) (released : ReferenceWorkQueue.NewWork)
-    : SnapshotTaskEvidence (queue.startNewWork released) work := by
-  have registration := ReferenceWorkQueue.State.startNewWork_registration frame.live frame.contributors released
+    : SnapshotTaskEvidence (queue.startNewWork released).1 work := by
+  have registration := ReferenceWorkQueue.State.startNewWork_registration frame.live
+    frame.contributors released
   exact ⟨frame.keys.startNewWork released, registration.1, registration.2,
     frame.started.startNewWork released, frame.matching.startNewWork released,
-    frame.buffered.startNewWork released, frame.sound.startNewWork released⟩
+    frame.buffered.startNewWork released, frame.sound.startNewWork released,
+    frame.registration.startNewWork released⟩
 
 /-- Failure only removes live records; their permanent catalogue and surviving links remain. -/
 theorem SnapshotTaskEvidence.removeGroup {queue : Kernel} {work}
     (frame : SnapshotTaskEvidence queue work) (key : Nat)
     : SnapshotTaskEvidence (queue.removeGroup key) work := by
-  exact ⟨frame.keys.removeGroup key,
+  refine ⟨frame.keys.removeGroup key,
     fun node member => frame.live node (List.mem_filter.mp member).1,
     frame.contributors, frame.started.removeGroup key, frame.matching.removeGroup key,
-    frame.buffered.removeGroup key, frame.sound.removeGroup key⟩
+    frame.buffered.removeGroup key, frame.sound.removeGroup key, ?_⟩
+  apply frame.registration.retain (next := queue.removeGroup key)
+    (fun node member => frame.live node (List.mem_filter.mp member).1)
+    frame.contributors (frame.started.removeGroup key)
+  · exact fun _ member => member
+  · exact fun _ member => member
+
+/-- Rejection replay preserves metadata for every surviving computation record. -/
+theorem SnapshotTaskEvidence.taskFailure {queue : Kernel} {work}
+    (frame : SnapshotTaskEvidence queue work) (occurrence : Occurrence) (errors : Nat)
+    : SnapshotTaskEvidence (queue.taskFailure occurrence errors).1 work := by
+  have registration := queue.taskFailure_registration frame.live frame.contributors occurrence
+    errors
+  exact ⟨frame.keys.taskFailure occurrence errors, registration.1, registration.2.1,
+    frame.started.taskFailure occurrence errors, frame.matching.taskFailure occurrence errors,
+    frame.buffered.taskFailure occurrence errors, frame.sound.taskFailure occurrence errors,
+    frame.registration.taskFailure occurrence errors⟩
 
 /-- Any bounded mixed drain retains the same sound registration frame on surviving records. -/
 theorem SnapshotTaskEvidence.drainReadyGroups {queue : Kernel} {work}
     (frame : SnapshotTaskEvidence queue work) (fuel : Nat)
-    : SnapshotTaskEvidence (ReferenceWorkQueue.State.drainReadyGroups.go fuel queue).1
+    : SnapshotTaskEvidence (ReferenceWorkQueue.State.drainReadyGroups.go [] fuel queue).1
         work :=
   ReferenceWorkQueue.State.drainReadyGroups_go_preserves
     (fun current => SnapshotTaskEvidence current work)
-    (fun _ group prior _ _ _ _ => (prior.finishGroupSuccess group).startNewWork _)
-    (fun _ group _ prior _ _ _ => prior.removeGroup group.group.node.ref)
+    (fun _ group prior _ _ _ => (prior.finishGroupSuccess group).startNewWork _)
     frame fuel
 
 -----------------------------------------------------------------------------------------

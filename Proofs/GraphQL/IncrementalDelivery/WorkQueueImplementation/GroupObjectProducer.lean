@@ -1,5 +1,5 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.GroupAncestorProducer
-import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.HandlerProducerPublication
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.BatchedAncestorProducerCoverage
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.GroupPublicationItemProducer
 
 /-! General object producer readiness on the unchanged common conformance witness. -/
@@ -27,10 +27,7 @@ theorem Witness.groupPublication_objectProducerPublished
             active :=
               (initialQueue work).initialGroups ++ (initialQueue work).initialStreams
           }
-          ((initialQueue work).rawEventReplay inputs.flatten).2 index owner payload)
-    (boundary
-      : GroupPublicationHandlerBoundary (initialQueue work) inputs.flatten origin.group
-          origin.values (origin.before.flatMap WorkQueueEvent.objectValues).length)
+          ((initialQueue work).rawBatches inputs).2 index owner payload)
     (rawKnown
       : ∃ dependencies producer, NodeAt work origin.group .group dependencies producer)
     (contributes
@@ -60,42 +57,26 @@ theorem Witness.groupPublication_objectProducerPublished
           ledger selected origin ⟨owners, taskPayload, descriptor⟩ parentKnown
         exact reused ▸ parentContributes
       · obtain ⟨published, batched, _, interpret, _⟩ := ledger
-        have accepted : (initialQueue work).batchesStarted inputs = true := by
-          rwa [← inputsStarted_eq_batchesStarted]
-        have received := (initialQueue work).batchesStarted_acceptsBatch inputs accepted
-        have prior : (boundary.before ++ [boundary.event]).IsPrefix inputs.flatten :=
-          ⟨boundary.after, by simp [boundary.sourceEq, List.append_assoc]⟩
-        have priorAccepted : (initialQueue work).acceptsBatch
-            (boundary.before ++ [boundary.event]) = true := by
-          apply State.acceptsBatch_prefix (after := boundary.after)
-          simpa only [boundary.sourceEq, List.append_assoc, List.singleton_append] using received
-        have earlierLedger : (initialQueue work).ReplayClosuresCovered
-            (boundary.before ++ [boundary.event]) published := by
-          apply State.ReplayClosuresCovered.prefix (after := boundary.after)
-          simpa only [boundary.sourceEq, List.append_assoc, List.singleton_append]
-            using batched.flatten accepted
-        obtain ⟨value, delivered⟩ := generated.handleGraphEvent_ancestorProducer_beforeValue
-          (valid.prefix prior) priorAccepted earlierLedger boundary.atHandler known contributes
-          (groupRecordAt_of_nodeAt childKnown) dependency parentKnown parentContributes
+        have atRaw : ((initialQueue work).rawBatches inputs).2[origin.before.length]?
+            = some (.groupValues origin.group origin.values) := by
+          have same := congrArg (fun raw : List WorkQueueEvent => raw[origin.before.length]?)
+            origin.rawEq
+          simpa using same
+        obtain ⟨value, delivered⟩ := generated.rawBatches_ancestorProducer_beforeValue valid
+          started batched atRaw known contributes (groupRecordAt_of_nodeAt childKnown)
+          dependency parentKnown parentContributes
+        have beforeEq : ((initialQueue work).rawBatches inputs).2.take origin.before.length
+            = origin.before := by
+          have same := congrArg (List.take origin.before.length) origin.rawEq
+          simpa using same
+        rw [beforeEq] at delivered
         have rank := origin.objectRank
-        have historyEq := history.trans (createWorkQueue_nonterminalAtoms_flattened inputs started)
-        rw [← historyEq] at rank
+        rw [(Witness.rawBatches_canonical history selected).2] at rank
         apply interpret index (Nat.le_of_lt (List.getElem?_eq_some_iff.mp selected).1)
         rw [← List.map_take]
-        refine List.mem_map.mpr ⟨(_, value), ?_, rfl⟩
-        have count := boundary.count
-        apply List.take_subset_take_left _
-          (show (((initialQueue work).rawEventReplay boundary.before).2.flatMap
-                    WorkQueueEvent.objectValues).length
-                  + (((((initialQueue work).replayGraphEvents
-                          boundary.before).handleGraphEvent
-                        boundary.event).2.take
-                        boundary.position).flatMap
-                      WorkQueueEvent.objectValues).length
-                ≤ ((w.events.take index).flatMap normalizedObjectValues).length from ?_)
-          delivered
-        change (origin.before.flatMap WorkQueueEvent.objectValues).length = _ at count
-        omega
+        apply List.mem_map.mpr
+        refine ⟨(_, value), ?_, rfl⟩
+        exact List.take_subset_take_left _ (by omega) delivered
 
 /-- Every actual object value has its structural producer in the strict output prefix.
 Witness: the actual release origin supplies raw group provenance and contributor identity.
@@ -117,10 +98,9 @@ theorem GroupPublicationReleases.producerPublished
       exact releases.itemProducerPublished generated valid started history ledger selected produced
   | executionGroup source =>
       obtain ⟨origin, rawKnown, _, _⟩ := releases index owner payload selected
-      obtain ⟨boundary⟩ := origin.handlerBoundary
-      have contributes := createWorkQueue_rawEventReplay_publicationContributors valid
+      have contributes := createWorkQueue_rawBatches_publicationContributors valid
         origin.group origin.values origin.members.1 origin.value origin.members.2
       exact Witness.groupPublication_objectProducerPublished generated valid started history
-        ledger selected origin boundary rawKnown contributes produced
+        ledger selected origin rawKnown contributes produced
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue.ConformancePlan

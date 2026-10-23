@@ -1,4 +1,5 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl.PruningTaskOwnership
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.TaskRejections
 
 /-! Task ownership progress follows the exact fused-removal trace, including unstarted work. -/
 
@@ -12,19 +13,44 @@ private abbrev Kernel := ReferenceWorkQueue.State
 -- The actual task fold cannot silently dispose the selected occurrence
 -----------------------------------------------------------------------------------------
 
+/-- Task pruning preserves every retained rejection fact. -/
+theorem PruningTasks.taskRejections {queue occurrences final targets property}
+    (trace : PruningTasks queue occurrences final targets)
+    (prior : queue.TaskRejectionsSatisfy property)
+    : final.TaskRejectionsSatisfy property := by
+  induction trace with
+  | nil => exact prior
+  | missing _ _ ih | shared _ _ _ ih => exact ih prior
+  | dispose _ _ _ ih => exact ih (prior.removeTask _)
+
+/-- Group pruning preserves every retained rejection fact. -/
+theorem PruningGroups.taskRejections {queue pending final targets property}
+    (trace : PruningGroups queue pending final targets)
+    (prior : queue.TaskRejectionsSatisfy property)
+    : final.TaskRejectionsSatisfy property := by
+  induction trace with
+  | nil => exact prior
+  | missing _ _ ih => exact ih prior
+  | visit _ tasks _ ih => exact ih (tasks.taskRejections prior)
+
 /-- A task fold preserves this occurrence's memberships or requests its actual abort. -/
 theorem PruningTasks.linkedOnOrAbort {queue occurrences final targets occurrence keys}
     (trace : PruningTasks queue occurrences final targets)
     (links : queue.TaskLinkedOn occurrence keys)
+    (unrejected : queue.TaskRejectionsSatisfy (fun rejected _ => rejected ≠ occurrence))
     : final.TaskLinkedOn occurrence keys ∨ .task occurrence ∈ targets := by
   induction trace with
   | nil => exact Or.inl links
-  | missing _ _ ih | shared _ _ _ ih => exact ih links
+  | missing _ _ ih | shared _ _ _ ih => exact ih links unrejected
   | @dispose task rest final targets queue chosen found ownerless trace ih =>
       by_cases same : occurrence = chosen
       · subst chosen
-        exact Or.inr (List.mem_append_left _ (List.mem_append_left _ List.mem_cons_self))
-      · rcases ih (links.removeOtherTask chosen same) with kept | aborted
+        right
+        apply List.mem_append_left
+        simp only [State.cancelTask, unrejected.unrejected_lookup,
+          Bool.false_eq_true, ↓reduceIte]
+        exact List.mem_append_left _ List.mem_cons_self
+      · rcases ih (links.removeOtherTask chosen same) (unrejected.removeTask chosen) with kept | aborted
         · exact Or.inl kept
         · exact Or.inr (List.mem_append_right _ aborted)
 
@@ -34,13 +60,14 @@ theorem PruningTasks.ownerlessSelected_aborted
     (trace : PruningTasks queue occurrences final targets)
     (selected : occurrence ∈ occurrences) (catalogue : queue.task? occurrence = some task)
     (ownerless : ∀ owner ∈ task.groups, queue.groupNode? owner.ref = none)
+    (unrejected : queue.TaskRejectionsSatisfy (fun rejected _ => rejected ≠ occurrence))
     : .task occurrence ∈ targets := by
   induction trace with
   | nil => cases selected
   | @missing queue rest final targets chosen absent trace ih =>
       rcases List.mem_cons.mp selected with same | later
       · subst chosen; rw [absent] at catalogue; contradiction
-      · exact ih later catalogue ownerless
+      · exact ih later catalogue ownerless unrejected
   | @shared found queue rest final targets chosen lookup retained trace ih =>
       rcases List.mem_cons.mp selected with same | later
       · subst chosen
@@ -49,13 +76,16 @@ theorem PruningTasks.ownerlessSelected_aborted
           List.all_eq_true.mpr (fun owner member => by simp [ownerless owner member])
         rw [all] at retained
         contradiction
-      · exact ih later catalogue ownerless
+      · exact ih later catalogue ownerless unrejected
   | @dispose found rest final targets queue chosen lookup owners trace ih =>
       rcases List.mem_cons.mp selected with same | later
       · subst chosen
-        exact List.mem_append_left _ (List.mem_append_left _ List.mem_cons_self)
+        apply List.mem_append_left
+        simp only [State.cancelTask, unrejected.unrejected_lookup,
+          Bool.false_eq_true, ↓reduceIte]
+        exact List.mem_append_left _ List.mem_cons_self
       · apply List.mem_append_right
-        apply ih later catalogue
+        apply ih later catalogue ?_ (unrejected.removeTask chosen)
         intro owner member
         cases live : (queue.removeTask chosen).groupNode? owner.ref with
         | none => rfl
@@ -84,20 +114,21 @@ theorem PruningGroups.linkedOwnerOrAbort {queue pending final targets occurrence
     (links : queue.TaskLinkedOn occurrence (task.groups.map Execution.DeliveryNode.ref))
     (catalogue : queue.task? occurrence = some task)
     (owned : ∃ owner ∈ task.groups, ∃ group, queue.groupNode? owner.ref = some group)
+    (unrejected : queue.TaskRejectionsSatisfy (fun rejected _ => rejected ≠ occurrence))
     : (∃ owner ∈ task.groups, ∃ group, final.groupNode? owner.ref = some group)
       ∨ .task occurrence ∈ targets := by
   induction trace with
   | nil => exact Or.inl owned
-  | missing _ _ ih => exact ih links catalogue owned
+  | missing _ _ ih => exact ih links catalogue owned unrejected
   | @visit group queue key current first keys final later lookup tasks rest ih =>
       have currentCatalogue : current.task? occurrence = some task := (tasks.taskLookup occurrence).trans catalogue
       have filteredLinks : (withoutGroup queue key).TaskLinkedOn occurrence
           (task.groups.map Execution.DeliveryNode.ref) :=
         fun owner member contributes => links owner (List.mem_filter.mp member).1 contributes
-      rcases tasks.linkedOnOrAbort filteredLinks with currentLinks | aborted
+      rcases tasks.linkedOnOrAbort filteredLinks unrejected with currentLinks | aborted
       · by_cases currentOwned :
           ∃ owner ∈ task.groups, ∃ group, current.groupNode? owner.ref = some group
-        · rcases ih currentLinks currentCatalogue currentOwned with kept | aborted
+        · rcases ih currentLinks currentCatalogue currentOwned (tasks.taskRejections unrejected) with kept | aborted
           · exact Or.inl kept
           · exact Or.inr (List.mem_append_right _ aborted)
         · have ownerless : ∀ owner ∈ task.groups, (withoutGroup queue key).groupNode? owner.ref = none := by
@@ -124,22 +155,23 @@ theorem PruningGroups.linkedOwnerOrAbort {queue pending final targets occurrence
               same.trans (ReferenceWorkQueue.State.groupNode?_ref lookup).symm⟩)
           exact Or.inr
             (List.mem_append_left _
-              (tasks.ownerlessSelected_aborted linked catalogue ownerless))
+              (tasks.ownerlessSelected_aborted linked catalogue ownerless unrejected))
       · exact Or.inr (List.mem_append_left _ aborted)
 
 /-- The actual trace preserves complete contributor links or includes this task's abort. -/
 theorem PruningGroups.linkedOnOrAbort {queue pending final targets occurrence keys}
     (trace : PruningGroups queue pending final targets)
     (links : queue.TaskLinkedOn occurrence keys)
+    (unrejected : queue.TaskRejectionsSatisfy (fun rejected _ => rejected ≠ occurrence))
     : final.TaskLinkedOn occurrence keys ∨ .task occurrence ∈ targets := by
   induction trace with
   | nil => exact .inl links
-  | missing _ _ ih => exact ih links
+  | missing _ _ ih => exact ih links unrejected
   | @visit group queue key current first more final later found tasks rest ih =>
       have filtered : (withoutGroup queue key).TaskLinkedOn occurrence keys := fun group member contributes =>
         links group (List.mem_filter.mp member).1 contributes
-      rcases tasks.linkedOnOrAbort filtered with current | requested
-      · rcases ih current with kept | later
+      rcases tasks.linkedOnOrAbort filtered unrejected with current | requested
+      · rcases ih current (tasks.taskRejections unrejected) with kept | later
         · exact .inl kept
         · exact .inr (List.mem_append_right _ later)
       · exact .inr (List.mem_append_left _ requested)
@@ -156,6 +188,7 @@ def FusedRemovalTaskProgress : Prop :=
     → state.queue.TaskLinkedOn task.occurrence
         (task.groups.map Execution.DeliveryNode.ref)
     → (∃ owner ∈ task.groups, ∃ group, state.queue.groupNode? owner.ref = some group)
+    → state.queue.TaskRejectionsSatisfy (fun rejected _ => rejected ≠ task.occurrence)
     → let reduced := state.removeGroup root initial
       (reduced.1.queue.TaskLinkedOn task.occurrence
           (task.groups.map Execution.DeliveryNode.ref)
@@ -164,7 +197,7 @@ def FusedRemovalTaskProgress : Prop :=
       ∨ .abortTask task.occurrence ∈ reduced.2.flatMap CleanupTarget.effects
 
 theorem FusedRemovalTaskProgress_holds : FusedRemovalTaskProgress := by
-  intro state root task initial unique catalogue links owned
+  intro state root task initial unique catalogue links owned unrejected
   obtain ⟨final, targets, trace, cleanup, groups, _records⟩ := pruningRemoval_witness state root initial unique
   have aborted (requested : CleanupTarget.task task.occurrence ∈ targets)
       : HostEffect.abortTask task.occurrence ∈ (state.removeGroup root initial).2.flatMap CleanupTarget.effects := by
@@ -172,8 +205,8 @@ theorem FusedRemovalTaskProgress_holds : FusedRemovalTaskProgress := by
       rw [cleanup, mem_uniqueCleanupTargets]
       exact List.mem_append_right _ requested
     exact List.mem_flatMap.mpr ⟨.task task.occurrence, target, List.mem_cons_self⟩
-  rcases trace.linkedOnOrAbort links with retained | requested
-  · rcases trace.linkedOwnerOrAbort links catalogue owned with live | requested
+  rcases trace.linkedOnOrAbort links unrejected with retained | requested
+  · rcases trace.linkedOwnerOrAbort links catalogue owned unrejected with live | requested
     · apply Or.inl
       refine ⟨?_, ?_⟩
       · intro group member contributes

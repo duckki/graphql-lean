@@ -1,4 +1,6 @@
 import Proofs.GraphQL.IncrementalDelivery.Semantics.BasicErrors
+import Proofs.GraphQL.IncrementalDelivery.Semantics.CompletionReporting
+import Proofs.GraphQL.IncrementalDelivery.Semantics.SingleStreamCompletion
 import Proofs.GraphQL.IncrementalDelivery.Semantics.CollectionProperties
 
 /-! Every bubbling failure in mixed defer/stream execution carries a positive count.
@@ -15,89 +17,116 @@ variable {ObjectRef : Type}
 attribute [local simp] id_pure_eq id_bind_eq id_map_eq run_bind run_map
 
 mutual
-  /-- Every failing result in this work and its descendants has a positive error count. -/
+  /-- Every failing delivery projection in this work and its descendants is positive. -/
   def WorkPositive : Work → Prop
     | .empty => True
+    | .declareGroups _ tasks => WorkPositive tasks
     | .combine left right => WorkPositive left ∧ WorkPositive right
     | .executionGroup _ _ result children =>
-        BasicErrors.PositiveFailure result ∧ WorkPositive children
+        BasicErrors.PositiveFailure result.deliveryResult ∧ WorkPositive children
     | .stream _ items => ItemsPositive items
 
   /-- Each streamed item's result and child work satisfy positive failure accounting. -/
-  def ItemsPositive : List (Result ResponseValue × Work) → Prop
+  def ItemsPositive : List (TaskOutcome ResponseValue × Work) → Prop
     | [] => True
     | (result, children) :: rest =>
-        BasicErrors.PositiveFailure result ∧ WorkPositive children ∧ ItemsPositive rest
+        BasicErrors.PositiveFailure result.deliveryResult
+        ∧ WorkPositive children
+        ∧ ItemsPositive rest
 end
 
-/-- The initial completion and all nested work have positive failure counts. -/
+/-- Collected failures and nested delivery failures are positive; the selected cause
+is positive and bounded by the completion's collected diagnostics.
+-/
 
 def Positive (completed : Completion α) : Prop :=
-  BasicErrors.PositiveFailure completed.result ∧ WorkPositive completed.work
+  BasicErrors.PositiveFailure completed.result
+  ∧ WorkPositive completed.work
+  ∧ CompletionReporting.CauseValid completed
 
-/-- Pure completion has no failure, by its successful result constructor. -/
+theorem deliveryPositive {completed : Completion α} (h : Positive completed)
+    : BasicErrors.PositiveFailure completed.deliveryResult :=
+  fun _ failed => CompletionReporting.deliveryResult_positive completed h.2.2 failed
 
-theorem pure (value : α) : Positive (Completion.pure value) := by
-  simp [Positive, Completion.pure, BasicErrors.PositiveFailure, WorkPositive]
+/-- Pure completion has no failure or retained cause. -/
+theorem pure (value : α) : Positive (Completion.pure value) :=
+  ⟨
+    by simp [BasicErrors.PositiveFailure, Completion.pure],
+    trivial,
+    CompletionReporting.pure_valid value
+  ⟩
 
-/-- An explicit positive error satisfies the certificate, with empty child work. -/
-
+/-- An explicit positive error supplies its own delivery explanation. -/
 theorem error {α : Type} (errors : Nat) (h : 0 < errors)
-    : Positive (Completion.error errors : Completion α) := by
-  simpa [Positive, Completion.error, BasicErrors.PositiveFailure, WorkPositive] using h
+    : Positive (Completion.error errors : Completion α) :=
+  ⟨
+    by simpa [BasicErrors.PositiveFailure, Completion.error] using h,
+    trivial,
+    CompletionReporting.error_valid errors h
+  ⟩
 
-/-- Combining certified completions preserves positivity, by result case analysis. -/
-
+/-- Combination preserves collected positivity, child work, and the selected cause. -/
 theorem combine (f : α → β → γ) (left : Completion α) (right : Completion β)
     (hl : Positive left) (hr : Positive right)
     : Positive (Completion.combine f left right) := by
-  have hp := BasicErrors.combine f left.result right.result hl.1 hr.1
-  cases he : Result.combine f left.result right.result with
-  | error errors => simpa only [Completion.combine, he] using error errors (hp errors he)
-  | ok result =>
-      simp only [Completion.combine, he]
-      exact ⟨by simp [BasicErrors.PositiveFailure], hl.2, hr.2⟩
+  refine ⟨?_, ?_, CompletionReporting.combine_valid f left right hl.2.2 hr.2.2⟩
+  · simpa only [CompletionReporting.combine_result]
+      using BasicErrors.combine f left.result right.result hl.1 hr.1
+  · cases he : Result.combine f left.result right.result with
+    | error errors => simp [Completion.combine, he, Completion.error, WorkPositive]
+    | ok result =>
+        simpa only [Completion.combine, he, WorkPositive] using And.intro hl.2.1 hr.2.1
 
-/-- Mapping success preserves the certificate; failure discards work. -/
-
+/-- Mapping success preserves diagnostics and clears any caught-null cause. -/
 theorem map (f : α → β) (completed : Completion α) (h : Positive completed)
     : Positive (Completion.map f completed) := by
-  cases he : completed.result with
-  | error errors => simpa only [Completion.map, he] using error errors (h.1 errors he)
-  | ok result =>
-      rcases result with ⟨value, errors⟩
-      simpa [Positive, Completion.map, he, BasicErrors.PositiveFailure] using h.2
+  refine ⟨?_, ?_, CompletionReporting.map_valid f completed h.2.2⟩
+  · cases he : completed.result with
+    | error errors =>
+        simpa [Completion.map, he, Completion.error, BasicErrors.PositiveFailure] using h.1 errors he
+    | ok result => simp [Completion.map, he, BasicErrors.PositiveFailure]
+  · cases he : completed.result with
+    | error errors => simp [Completion.map, he, Completion.error, WorkPositive]
+    | ok result => simpa only [Completion.map, he] using h.2.1
 
-/-- Catching null removes bubbling failure and retains only successful child work. -/
-
+/-- Catching a failure retains its cause with null and every collected diagnostic. -/
 theorem catchNull (f : α → ResponseValue) (completed : Completion α)
     (h : Positive completed)
     : Positive (Completion.catchNull f completed) := by
-  cases he : completed.result <;>
-    simp [Positive, Completion.catchNull, he, BasicErrors.PositiveFailure, WorkPositive, h.2]
+  refine ⟨?_, ?_, CompletionReporting.catchNull_valid f completed h.2.2⟩
+  · cases he : completed.result <;> simp [Completion.catchNull, he, BasicErrors.PositiveFailure]
+  · cases he : completed.result with
+    | error errors => simp [Completion.catchNull, he, WorkPositive]
+    | ok result => simpa only [Completion.catchNull, he] using h.2.1
 
-/-- Non-null completion preserves or introduces a positive error, by result cases. -/
-
+/-- Non-null completion propagates an existing positive cause or creates a null violation. -/
 theorem nonNull (completed : Completion ResponseValue) (h : Positive completed)
     : Positive (Completion.nonNull completed) := by
-  have hp := BasicErrors.nonNull completed.result h.1
-  unfold Completion.nonNull
-  split
-  · rename_i errors he
-    exact error errors (hp errors he)
-  · exact ⟨by simp [BasicErrors.PositiveFailure], h.2⟩
+  refine ⟨?_, ?_, CompletionReporting.nonNull_valid completed h.2.2⟩
+  · have hp := BasicErrors.nonNull completed.result h.1
+    cases he : nonNullCompletion completed.result with
+    | error errors =>
+        simpa [Completion.nonNull, he, Completion.error, BasicErrors.PositiveFailure] using hp errors he
+    | ok result => simp [Completion.nonNull, he, BasicErrors.PositiveFailure]
+  · unfold Completion.nonNull
+    split
+    · trivial
+    · exact h.2.1
 
-/-- A failed field has a counted error, by the inherited field-error rules. -/
-
+/-- Field errors retain the cause supplied by the field completion boundary. -/
 theorem failedField (name : Name) (fieldType : TypeRef)
     : Positive
         ({
             result :=
               GraphQL.Execution.singleFieldResult name
-                (GraphQL.Execution.handleFieldError fieldType)
+                (GraphQL.Execution.handleFieldError fieldType),
+            cause := if fieldType.isNonNull then some 1 else none
           }
-          : Completion _) :=
-  ⟨BasicErrors.field name _ (BasicErrors.handle fieldType), trivial⟩
+          : Completion _) := by
+  refine ⟨BasicErrors.field name _ (BasicErrors.handle fieldType), trivial, ?_⟩
+  cases fieldType <;>
+    simp [CompletionReporting.CauseValid, CompletionReporting.diagnostics,
+      GraphQL.Execution.singleFieldResult, GraphQL.Execution.handleFieldError, TypeRef.isNonNull]
 
 mutual
   /-- Plan execution retains certified immediate and deferred work, by mutual induction.
@@ -123,7 +152,9 @@ mutual
         · exact collectExecutionGroups_positive schema resolvers variables fuel parentType
             source _ path _
         · intro work hw
-          exact runEnsures_pure _ _ ⟨hc.1, hc.2, hw⟩
+          apply runEnsures_pure
+          refine ⟨hc.1, ⟨hc.2.1, ?_⟩, hc.2.2⟩
+          exact hw
   termination_by (fuel, 6, 0, 0)
   decreasing_by
     all_goals
@@ -155,7 +186,7 @@ mutual
           · exact collectExecutionGroups_positive schema resolvers variables fuel parentType
               source rest path deferMap
           · intro work hw
-            exact runEnsures_pure _ _ ⟨hc, hw⟩
+            exact runEnsures_pure _ _ ⟨⟨deliveryPositive hc, hc.2.1⟩, hw⟩
   termination_by (fuel, 5, 0, sizeOf partitions)
   decreasing_by
     all_goals
@@ -323,7 +354,14 @@ mutual
     unfold completeListValueWithStream
     dsimp only
     split
-    · exact runEnsures_pure _ _ ⟨by simp [BasicErrors.PositiveFailure], trivial⟩
+    · rename_i errors he
+      have count : errors = 1 := by
+        split at he
+        · exact getStreamUsage_error_count variables _ errors he
+        · simp at he
+      subst errors
+      exact runEnsures_pure _ _ ⟨by simp [BasicErrors.PositiveFailure], trivial,
+        by simp [CompletionReporting.CauseValid, CompletionReporting.diagnostics]⟩
     · refine runEnsures_bind Positive _ _ _ ?_ ?_
       · exact completeListValue_positive schema resolvers variables fuel inner fields
           values path 0 usages deferMap
@@ -345,7 +383,7 @@ mutual
                 _ _ path usage.initialCount
             · intro tail ht
               exact runEnsures_pure _ _ ⟨(catchNull _ initial hi).1,
-                (catchNull _ initial hi).2, ht⟩
+                ⟨(catchNull _ initial hi).2.1, ht⟩, (catchNull _ initial hi).2.2⟩
   termination_by (fuel, 3, 0, 0)
   decreasing_by
     all_goals subst_vars; simp_wf
@@ -403,12 +441,12 @@ mutual
         · intro head hh
           split
           · rename_i errors he
-            exact runEnsures_pure _ _ ⟨by simpa only [he] using hh.1, trivial, trivial⟩
+            exact runEnsures_pure _ _ ⟨deliveryPositive hh, trivial, trivial⟩
           · refine runEnsures_bind ItemsPositive _ _ _ ?_ ?_
             · exact completeStreamItems_positive schema resolvers variables fuel itemType
                 fields rest path (index + 1)
             · intro tail ht
-              exact runEnsures_pure _ _ ⟨hh.1, hh.2, ht⟩
+              exact runEnsures_pure _ _ ⟨deliveryPositive hh, hh.2.1, ht⟩
   termination_by (fuel, 2, sizeOf itemType, sizeOf values)
   decreasing_by
     all_goals subst_vars; simp_wf

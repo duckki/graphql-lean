@@ -65,15 +65,16 @@ end ConformancePlan
 -- Public conformance witness
 -----------------------------------------------------------------------------------------
 
-/-- The executable reference queue satisfies its public conformance proposition.
+/-- The executable reference queue satisfies conformance with asynchronous initial activation.
 Witness: `ExecutedWork.initializes` derives the constructor's initial-notice law;
 `ConformancePlan.replayWitnessExists_holds` constructs every actual replay's shared
 explanation and terminal certificates. The checked adapter then proves all four contract
 clauses using only the work and event-source assumptions in `createWorkQueueForScheduleConforms`.
 -/
 theorem createWorkQueueForScheduleConforms_holds
-    : createWorkQueueForScheduleConforms := by
+    : createWorkQueueForScheduleConforms {} := by
   intro work schedule generated nonempty valid
+  have nonempty := (Execution.Work.isEmpty_eq_false work).mp nonempty
   exact ConformancePlan.conforms_of_replayWitnessExists
     ConformancePlan.replayWitnessExists_holds generated nonempty
     (generated.initializes nonempty) valid

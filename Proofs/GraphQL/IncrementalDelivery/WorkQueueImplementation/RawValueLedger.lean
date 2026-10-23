@@ -1,4 +1,4 @@
-import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.FlattenedClosureLedger
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.BatchOutputReplay
 
 /-! Retain full contributor-bearing object values across the actual host batch boundaries. -/
 
@@ -20,25 +20,17 @@ def State.batchedObjectValues (queue : State)
       let next := queue.handleGraphEvents batch
       next.2.flatMap WorkQueueEvent.objectValues ++ next.1.batchedObjectValues rest
 
-/-- Started batches preserve the exact full raw-value sequence of sequential replay.
-Witness: a later started batch excludes intermediate termination; the optional final
-marker contains no object value. Full contributor lists survive, not just serialized data.
+/-- Raw actual batches retain the exact full contributor-bearing object sequence.
+Witness: both projections follow the same handler output and next queue for each batch.
+No flattening or eventwise state equivalence is required.
 -/
-theorem State.batchedObjectValues_flattened (queue : State)
-    (batches : List (List GraphEvent)) (started : queue.batchesStarted batches = true)
+theorem State.batchedObjectValues_rawBatches (queue : State)
+    (batches : List (List GraphEvent))
     : queue.batchedObjectValues batches
-      = (queue.rawEventReplay batches.flatten).2.flatMap WorkQueueEvent.objectValues := by
+      = (queue.rawBatches batches).2.flatMap WorkQueueEvent.objectValues := by
   induction batches generalizing queue with
   | nil => rfl
   | cons batch rest ih =>
-      obtain ⟨running, _, later⟩ := queue.batchesStarted_cons batch rest started
-      rw [State.batchedObjectValues, queue.handleGraphEvents_objectValues batch running]
-      cases rest with
-      | nil => simp [State.batchedObjectValues]
-      | cons next tail =>
-          have remains := ((queue.handleGraphEvents batch).1.batchesStarted_cons next tail later).1
-          rw [ih _ later, queue.handleGraphEvents_nonterminalState batch running remains]
-          simp only [List.flatten_cons, State.rawEventReplay_append, List.flatMap_append,
-            State.rawEventReplay_state]
+      simp only [State.batchedObjectValues, State.rawBatches, List.flatMap_append, ih]
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

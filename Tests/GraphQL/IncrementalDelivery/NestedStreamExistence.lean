@@ -1,5 +1,6 @@
 import Proofs.GraphQL.IncrementalDelivery.Correctness.NestedStreamExistence
 import Proofs.GraphQL.IncrementalDelivery.Correctness.QueryRealization
+import Proofs.GraphQL.IncrementalDelivery.Semantics.WorkSize
 
 /-! Complete nested-stream runs are constructed, not assumed as regression inputs. -/
 
@@ -19,9 +20,10 @@ notices, combine navigation, and cancellation of unpublished descendants after f
 def nested (outer middle inner : Result ResponseValue) : Work :=
   .stream (node 0)
     [(
-      outer,
+      { result := outer },
       .combine
-        (.stream (node 1) [(middle, .stream (node 2) [(inner, .empty)])])
+        (.stream (node 1)
+          [({ result := middle }, .stream (node 2) [({ result := inner }, .empty)])])
         (.stream (node 3) [])
     )]
 
@@ -78,9 +80,9 @@ example
         AdmissibleRun
           (.stream { ref := 0, path := [.field "rows"] }
             [(
-              .error 1,
+              { result := .error 1 },
               .stream { ref := 1, path := [.field "rows", .index 0, .field "items"] }
-                [(.ok (.null, 0), .empty)]
+                [({ result := .ok (.null, 0) }, .empty)]
             )]) history := by
   apply StreamOnly.completeRun_exists
     (paths := fun ref => if ref = 0 then [.field "rows"]
@@ -98,7 +100,10 @@ Witness: the parent's left scope is not a prefix of its child's right attachment
 example
     : ¬ExecutionPaths.WorkUnder []
         (.stream { ref := 0, path := [.field "left"] }
-          [(.error 1, .stream { ref := 1, path := [.field "right"] } [])]) := by
+          [(
+            { result := .error 1 },
+            .stream { ref := 1, path := [.field "right"] } []
+          )]) := by
   simp [ExecutionPaths.WorkUnder, ExecutionPaths.ItemsUnder]
 
 /-- Notice coverage is not vacuous on control-only suffixes: reporting more failures

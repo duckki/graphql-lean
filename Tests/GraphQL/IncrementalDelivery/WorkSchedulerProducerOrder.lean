@@ -1,6 +1,9 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.GroupProducerOrder
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.GroupPublicationProducerOrder
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.PublicationReplay
+import Tests.GraphQL.IncrementalDelivery.Fixtures.WorkDeclarations
+
+open GraphQL.IncrementalDelivery.Tests (declaredTask)
 
 /-! A shared group buffers its producer and child until a third task settles. -/
 
@@ -12,12 +15,15 @@ open GraphQL.IncrementalDelivery.WorkQueueSemantics
 private def owner : DeliveryNode := { ref := 0, path := [] }
 
 private def childWork : Execution.Work :=
-  .executionGroup [⟨owner, []⟩] [.field "obj"] (.ok ([("x", .scalar "X")], 0)) .empty
+  declaredTask [⟨owner, []⟩] [.field "obj"]
+    ({ result := .ok ([("x", .scalar "X")], 0) }) .empty
 
 private def work : Execution.Work :=
   .combine
-    (.executionGroup [⟨owner, []⟩] [] (.ok ([("obj", .object [])], 0)) childWork)
-    (.executionGroup [⟨owner, []⟩] [] (.ok ([("blocker", .scalar "B")], 0)) .empty)
+    (declaredTask [⟨owner, []⟩] [] ({ result := .ok ([("obj", .object [])], 0) })
+      childWork)
+    (declaredTask [⟨owner, []⟩] [] ({ result := .ok ([("blocker", .scalar "B")], 0) })
+      .empty)
 
 private def parentTask : Occurrence := .executionGroup [0]
 private def blockerTask : Occurrence := .executionGroup [1]
@@ -63,13 +69,15 @@ private def waiting : State := initial.replayGraphEvents before
 private theorem child_known
     : TaskAt work childTask [owner.ref] (some parentTask)
         (.object childResult.value.path (.ok (childResult.value.data, 0))) := by
-  refine ⟨[⟨owner, []⟩], [.field "obj"], _, .empty, [owner.ref], ?_, rfl, rfl⟩
+  refine ⟨[⟨owner, []⟩], [.field "obj"], { result := .ok (childResult.value.data, 0) },
+    .empty, [owner.ref], ?_, rfl, rfl⟩
   cbv
 
 private theorem valid : ValidGraphEvents work before := by
   have parentKnown : TaskAt work parentTask [owner.ref] none
       (.object [] (.ok (parentResult.value.data, 0))) := by
-    refine ⟨[⟨owner, []⟩], [], _, childWork, [], ?_, rfl, rfl⟩
+    refine ⟨[⟨owner, []⟩], [], { result := .ok (parentResult.value.data, 0) }, childWork, [],
+      ?_, rfl, rfl⟩
     cbv
   have first : ValidGraphEvents work [.taskSuccess parentTask parentResult] :=
     .append .nil ⟨_, _, parentKnown, by cbv, by cbv⟩
@@ -87,7 +95,7 @@ private def group : GroupNode :=
 
 private def prepared : State :=
   (waiting.putTaskNode
-    ⟨⟨blockerTask, [owner]⟩, some blockerResult.value, []⟩).putGroupNode
+    ⟨⟨blockerTask, [owner]⟩, some blockerResult.value, none, []⟩).putGroupNode
     group
 
 /-- The child settles while its parent remains buffered; the blocker releases them together.
@@ -96,7 +104,7 @@ than settlement order, putting the blocker before the already-settled child.
 -/
 theorem shared_release_output
     : (initial.rawEventReplay before).2 = []
-      ∧ (waiting.taskSuccess blockerTask blockerResult).2
+      ∧ (waiting.taskSuccess blockerTask blockerResult).2.1
         = [
           .groupValues owner [parentResult.value, blockerResult.value, childResult.value],
           .groupSuccess owner [] []
@@ -133,9 +141,9 @@ theorem shared_release_producer_before
   obtain ⟨added, values, _, ordered, covered⟩ :=
     inventory.finishGroupSuccess_producerOrder memberships order group List.mem_cons_self
   have parent := covered parentTask (by simp [group])
-    ⟨⟨parentTask, [owner]⟩, some parentResult.value, []⟩ parentResult.value (by cbv) rfl
+    ⟨⟨parentTask, [owner]⟩, some parentResult.value, none, []⟩ parentResult.value (by cbv) rfl
   have child := covered childTask (by simp [group])
-    ⟨⟨childTask, [owner]⟩, some childResult.value, []⟩ childResult.value (by cbv) rfl
+    ⟨⟨childTask, [owner]⟩, some childResult.value, none, []⟩ childResult.value (by cbv) rfl
   refine ⟨added, ?_, parent, child, ?_⟩
   · exact values
   · intro index selected

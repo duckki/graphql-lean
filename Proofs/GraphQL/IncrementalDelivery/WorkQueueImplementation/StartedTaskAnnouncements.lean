@@ -65,7 +65,7 @@ contributors exactly. Already started tasks are retained without requiring a liv
 theorem State.startNewWork_startedOldOrOwner {queue : State} {work : Execution.Work}
     (sound : queue.GroupMembershipSound) (registered : queue.StartedTasksRegistered)
     (matching : queue.RegisteredTasksMatch work) (newWork : NewWork)
-    {node : TaskNode} (member : node ∈ (queue.startNewWork newWork).taskNodes)
+    {node : TaskNode} (member : node ∈ (queue.startNewWork newWork).1.taskNodes)
     : node ∈ queue.taskNodes
       ∨ ∃ owner ∈ node.task.groups,
           owner.ref ∈ newWork.newGroups.map Execution.DeliveryNode.ref := by
@@ -78,13 +78,16 @@ theorem State.startNewWork_startedOldOrOwner {queue : State} {work : Execution.W
         then group.tasks else []) at listed
     split at listed
     · rename_i released
-      have finalSound := sound.startNewWork newWork
       have finalRegistered := registered.startNewWork newWork
       have finalMatching := matching.startNewWork newWork
-      have finalGroup : group ∈ (queue.startNewWork newWork).groupNodes := by
-        rwa [(queue.startNewWork_groupCore newWork).1]
-      have contributes := finalSound.startedOwner finalRegistered finalMatching
-        member finalGroup listed
+      obtain ⟨task, taskRegistered, identity, contributes⟩ :=
+        sound group groupMember node.task.occurrence listed
+      have taskGroups := (matching task taskRegistered).2
+      rw [identity] at taskGroups
+      have nodeGroups := (finalMatching node.task (finalRegistered node member)).2
+      have sameGroups := Option.some.inj (taskGroups.symm.trans nodeGroups)
+      have contributes : group.group.node.ref ∈ node.task.groups.map Execution.DeliveryNode.ref :=
+        sameGroups ▸ contributes
       obtain ⟨owner, ownerMember, refEq⟩ := List.mem_map.mp contributes
       exact ⟨owner, ownerMember, refEq ▸ released⟩
     · cases listed
@@ -124,6 +127,53 @@ theorem State.StartedTasksAnnounced.putTaskNode {queue : State} {announced : Nod
   · subst node
     exact known old oldMember
 
+/-- Cache exposure retains each task's historical contributor notice. -/
+theorem State.StartedTasksAnnounced.cacheTaskFailures {queue : State} {announced}
+    (known : queue.StartedTasksAnnounced announced) (available : List (Occurrence × Nat))
+    : (queue.cacheTaskFailures available).StartedTasksAnnounced announced := by
+  unfold State.cacheTaskFailures
+  induction available generalizing queue with
+  | nil => exact known
+  | cons entry rest ih =>
+      apply ih
+      dsimp only [List.foldl_cons]
+      split
+      · exact known
+      · rename_i node found
+        exact known.putTaskNode _ (known node (List.mem_of_find?_eq_some found))
+
+/-- Starting a listed task uses the already announced contributing group. -/
+private theorem State.StartedTasksAnnounced.startLinkedTask {queue : State}
+    {work announced} (known : queue.StartedTasksAnnounced announced)
+    (sound : queue.GroupMembershipSound) (registered : queue.StartedTasksRegistered)
+    (matching : queue.RegisteredTasksMatch work) (chosen : Occurrence) (group : GroupNode)
+    (live : group ∈ queue.groupNodes) (listed : chosen ∈ group.tasks)
+    (noticed : group.group.node.ref ∈ announced) (available : List (Occurrence × Nat))
+    : (queue.startTask chosen available).StartedTasksAnnounced announced := by
+  have newOwner (node : TaskNode) (member : node ∈ (queue.startTask chosen available).taskNodes)
+      (same : node.task.occurrence = chosen)
+      : ∃ owner ∈ node.task.groups, owner.ref ∈ announced := by
+    have groupLive : group ∈ (queue.startTask chosen available).groupNodes := by
+      rwa [State.startTask_groupNodes]
+    have contributes := (sound.startTask chosen available).startedOwner
+      (registered.startTask chosen available) (matching.startTask chosen available)
+      member groupLive (same.symm ▸ listed)
+    obtain ⟨owner, member, refEq⟩ := List.mem_map.mp contributes
+    exact ⟨owner, member, refEq.symm ▸ noticed⟩
+  intro node member
+  have started := member
+  unfold State.startTask at member
+  split at member
+  · exact known node member
+  · split at member
+    · exact known node member
+    · rename_i task found
+      rcases List.mem_append.mp member with old | fresh
+      · exact known node old
+      · obtain rfl := List.mem_singleton.mp fresh
+        exact newOwner _ started ((occurrence_beq_iff_eq _ _).mp
+          (List.find?_some (p := fun task : Task => task.occurrence == chosen) found))
+
 /-- Removing a completed or cancelled task preserves surviving start justifications.
 Witness: task cleanup filters old task nodes without changing their contributors.
 -/
@@ -146,8 +196,11 @@ Witness: the executable failure handler keeps only unchanged old task nodes.
 theorem State.StartedTasksAnnounced.taskFailure {queue : State} {announced : NodeRefs}
     (known : queue.StartedTasksAnnounced announced) (occurrence : Occurrence)
     (errors : Nat)
-    : (queue.taskFailure occurrence errors).1.StartedTasksAnnounced announced :=
-  fun node member => known node (queue.taskFailure_startedSubset occurrence errors member)
+    : (queue.taskFailure occurrence errors).1.StartedTasksAnnounced announced := by
+  intro node member
+  obtain ⟨old, oldMember, sameTask⟩ := queue.taskFailure_startedSurvivor occurrence errors member
+  have prior := known old oldMember
+  simpa only [sameTask] using prior
 
 /-- Group registration cannot change a started task's historical notice witness.
 Witness: the exact task-node map equation for group integration.
@@ -229,14 +282,68 @@ theorem State.StartedTasksAnnounced.startNewWork {queue : State} {work : Executi
     {announced : NodeRefs} (known : queue.StartedTasksAnnounced announced)
     (sound : queue.GroupMembershipSound) (registered : queue.StartedTasksRegistered)
     (matching : queue.RegisteredTasksMatch work) (newWork : NewWork)
-    : (queue.startNewWork newWork).StartedTasksAnnounced
+    (available : List (Occurrence × Nat) := [])
+    : (queue.startNewWork newWork available).1.StartedTasksAnnounced
         (announced ++ newWork.newGroups.map Execution.DeliveryNode.ref) := by
-  intro node member
-  rcases queue.startNewWork_startedOldOrOwner sound registered matching newWork member with
-    old | fresh
-  · exact (known.mono (List.subset_append_left _ _)) node old
-  · obtain ⟨owner, contributes, released⟩ := fresh
-    exact ⟨owner, contributes, List.mem_append_right _ released⟩
+  let seen := announced ++ newWork.newGroups.map Execution.DeliveryNode.ref
+  have groupStep (current : State) (ref : NodeRef) (noticed : ref ∈ seen)
+      (prior : current.StartedTasksAnnounced seen) (members : current.GroupMembershipSound)
+      (started : current.StartedTasksRegistered) (tasks : current.RegisteredTasksMatch work)
+      : (current.startGroup ref available).1.StartedTasksAnnounced seen := by
+    have cached := prior.cacheTaskFailures available
+    have cachedSound := members.cacheTaskFailures available
+    have cachedRegistered := started.cacheTaskFailures available
+    have cachedMatching := tasks.cacheTaskFailures available
+    unfold State.startGroup
+    dsimp only
+    split
+    · exact cached
+    · rename_i group found
+      split
+      · have loop (more : List Occurrence) (state : State)
+            (inputs : more.Subset group.tasks) (live : group ∈ state.groupNodes)
+            (known : state.StartedTasksAnnounced seen) (sound : state.GroupMembershipSound)
+            (registered : state.StartedTasksRegistered) (matching : state.RegisteredTasksMatch work)
+            : (more.foldl (fun current task => current.startTask task available)
+                state).StartedTasksAnnounced seen := by
+          induction more generalizing state with
+          | nil => exact known
+          | cons chosen rest ih =>
+              apply ih _ (fun _ member => inputs (List.mem_cons_of_mem _ member))
+              · rwa [State.startTask_groupNodes]
+              · exact known.startLinkedTask sound registered matching chosen group live
+                  (inputs List.mem_cons_self) (State.groupNode?_ref found ▸ noticed) available
+              · exact sound.startTask chosen available
+              · exact registered.startTask chosen available
+              · exact matching.startTask chosen available
+        exact loop _ _ (List.Subset.refl _) (List.mem_of_find?_eq_some found) cached
+          cachedSound cachedRegistered cachedMatching
+      · exact cached.removeGroup _
+  have groups (refs : NodeRefs) (acc : State × List GroupFailureEvent)
+      (inputs : refs.Subset (newWork.newGroups.map Execution.DeliveryNode.ref))
+      (prior : acc.1.StartedTasksAnnounced seen) (members : acc.1.GroupMembershipSound)
+      (started : acc.1.StartedTasksRegistered) (tasks : acc.1.RegisteredTasksMatch work)
+      : (refs.foldl (fun (current, failures) ref =>
+          let (next, queued) := current.startGroup ref available
+          (next, failures ++ queued)) acc).1.StartedTasksAnnounced seen := by
+    induction refs generalizing acc with
+    | nil => exact prior
+    | cons ref rest ih =>
+        exact ih _ (fun _ member => inputs (List.mem_cons_of_mem _ member))
+          (groupStep acc.1 ref (List.mem_append_right _ (inputs List.mem_cons_self))
+            prior members started tasks) (members.startGroup ref available)
+          (started.startGroup ref available) (tasks.startGroup ref available)
+  have streams (refs : NodeRefs) (current : State) (prior : current.StartedTasksAnnounced seen)
+      : (refs.foldl State.startStream current).StartedTasksAnnounced seen := by
+    induction refs generalizing current with
+    | nil => exact prior
+    | cons ref rest ih =>
+        apply ih
+        unfold State.startStream
+        split <;> exact prior
+  unfold State.startNewWork
+  exact streams _ _ (groups _ _ (List.Subset.refl _)
+    (known.mono (List.subset_append_left _ _)) sound registered matching)
 
 -----------------------------------------------------------------------------------------
 -- Release-time draining retains old notices and supplies new ones before activation
@@ -261,15 +368,18 @@ theorem State.StartedTasksAnnounced.drainReadyGroups {queue : State}
     (known : queue.StartedTasksAnnounced announced) (sound : queue.GroupMembershipSound)
     (registered : queue.StartedTasksRegistered)
     (matching : queue.RegisteredTasksMatch work)
-    : queue.drainReadyGroups.1.StartedTasksAnnounced
-        (announced ++ queue.drainReadyGroups.2.flatMap rawGroupNoticeRefs) := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.drainReadyGroups available).1.StartedTasksAnnounced
+        (announced
+          ++ (queue.drainReadyGroups available).2.1.flatMap rawGroupNoticeRefs) := by
   have loop (fuel : Nat) (current : State) (seen : NodeRefs)
       (currentKnown : current.StartedTasksAnnounced seen)
       (currentSound : current.GroupMembershipSound)
       (currentRegistered : current.StartedTasksRegistered)
       (currentMatching : current.RegisteredTasksMatch work)
-      : (State.drainReadyGroups.go fuel current).1.StartedTasksAnnounced
-          (seen ++ (State.drainReadyGroups.go fuel current).2.flatMap rawGroupNoticeRefs) := by
+      : (State.drainReadyGroups.go available fuel current).1.StartedTasksAnnounced
+          (seen ++ (State.drainReadyGroups.go available fuel current).2.1.flatMap
+            rawGroupNoticeRefs) := by
     induction fuel generalizing current seen with
     | zero => simpa [State.drainReadyGroups.go] using currentKnown
     | succ fuel ih =>
@@ -278,28 +388,20 @@ theorem State.StartedTasksAnnounced.drainReadyGroups {queue : State}
         split
         · simpa using currentKnown
         · rename_i node selected
-          cases cached : node.failure with
-          | none =>
-              let first := current.finishGroupSuccess node
-              have firstSound := (currentSound.finishGroupSuccess node).startNewWork first.2.2
-              have firstRegistered :=
-                (currentRegistered.finishGroupSuccess node).startNewWork first.2.2
-              have firstMatching :=
-                (currentMatching.finishGroupSuccess node).startNewWork first.2.2
-              have firstKnown := (currentKnown.finishGroupSuccess node).startNewWork
-                (currentSound.finishGroupSuccess node)
-                (currentRegistered.finishGroupSuccess node)
-                (currentMatching.finishGroupSuccess node) first.2.2
-              rw [current.finishGroupSuccess_groupNotices node] at firstKnown
-              simpa only [List.flatMap_append, List.append_assoc]
-                using ih _ _ firstKnown firstSound firstRegistered firstMatching
-          | some errors =>
-              have firstKnown := currentKnown.removeGroup node.group.node.ref
-              simpa only [State.finishGroupFailure, List.flatMap_append,
-                List.flatMap_singleton, rawGroupNoticeRefs, List.nil_append]
-                using ih _ _ firstKnown (currentSound.finishGroupFailure node errors)
-                  (currentRegistered.finishGroupFailure node errors)
-                  (currentMatching.finishGroupFailure node errors)
+          let first := current.finishGroupSuccess node
+          have firstSound := (currentSound.finishGroupSuccess node).startNewWork first.2.2 available
+          have firstRegistered :=
+            (currentRegistered.finishGroupSuccess node).startNewWork first.2.2 available
+          have firstMatching :=
+            (currentMatching.finishGroupSuccess node).startNewWork first.2.2 available
+          have firstKnown := (currentKnown.finishGroupSuccess node).startNewWork
+            (currentSound.finishGroupSuccess node)
+            (currentRegistered.finishGroupSuccess node)
+            (currentMatching.finishGroupSuccess node) first.2.2 available
+          rw [current.finishGroupSuccess_groupNotices node] at firstKnown
+          simpa only [List.flatMap_append, List.append_assoc]
+            using ih _ _ firstKnown firstSound firstRegistered firstMatching
+
   exact loop _ queue announced known sound registered matching
 
 -----------------------------------------------------------------------------------------
@@ -335,11 +437,12 @@ theorem createWorkQueue_startedTasksAnnounced (work : Execution.Work)
     intro node member
     cases member
   have registered : pruned.StartedTasksRegistered :=
-    (emptyRegistered.maybeIntegrateWork (Work.fromExecution work)).pruneEmptyGroups newWork.newGroups
+    (emptyRegistered.maybeIntegrateWork (Work.fromExecution work)).pruneEmptyGroups
+      newWork.newGroups
   have matching : pruned.RegisteredTasksMatch work := by
     intro task member
     apply createWorkQueue_fromSpec_registeredTasksMatch work task
-    change task ∈ (pruned.startNewWork roots).tasks
+    change task ∈ (pruned.startNewWork roots).1.tasks
     rwa [(pruned.startNewWork_groupCore roots).2.1]
   exact prunedKnown.startNewWork sound registered matching roots
 

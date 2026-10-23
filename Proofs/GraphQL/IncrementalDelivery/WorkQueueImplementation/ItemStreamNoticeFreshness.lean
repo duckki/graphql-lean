@@ -1,5 +1,6 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.StreamRegistrationFreshness
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.ItemStreamRelease
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation.StreamPreparation
 
 /-! A multi-item carrier announces each new stream once and excludes the old registry. -/
 
@@ -22,14 +23,16 @@ theorem streamItemFold_streamNoticeInventory (items : List StreamItem)
       : State
         × List Execution.DeliveryNode
         × List Execution.DeliveryNode
-        × List StreamItemValue)
+        × List StreamItemValue
+        × List GroupFailureEvent)
     (old : excluded.Subset (acc.1.streams.map (fun stream => stream.node.ref)))
     (covered
       : (acc.2.2.1.map Execution.DeliveryNode.ref).Subset
           (acc.1.streams.map (fun stream => stream.node.ref)))
     (unique : (acc.2.2.1.map Execution.DeliveryNode.ref).Nodup)
     (fresh : ∀ ref ∈ acc.2.2.1.map Execution.DeliveryNode.ref, ref ∉ excluded)
-    : let final := items.foldl streamItemStep acc
+    (available : List (Occurrence × Nat) := [])
+    : let final := items.foldl (fun acc item => streamItemStep acc item available) acc
       excluded.Subset (final.1.streams.map (fun stream => stream.node.ref))
       ∧ (final.2.2.1.map Execution.DeliveryNode.ref).Subset
           (final.1.streams.map (fun stream => stream.node.ref))
@@ -39,10 +42,10 @@ theorem streamItemFold_streamNoticeInventory (items : List StreamItem)
   | nil => exact ⟨old, covered, unique, fresh⟩
   | cons item rest ih =>
       let integrated := acc.1.maybeIntegrateWork item.work
-      let next := streamItemStep acc item
+      let next := streamItemStep acc item available
       have registry : next.1.streams = integrated.1.streams := by
         dsimp only [next, streamItemStep]
-        rw [State.startNewWork_streams, State.pruneEmptyGroups_streams]
+        rw [State.startNewWork_streams _ _ available, State.pruneEmptyGroups_streams]
       have notices : next.2.2.1 = acc.2.2.1 ++ integrated.2.newStreams := rfl
       have stored := acc.1.maybeIntegrateWork_streams_registered item.work
       have added := acc.1.maybeIntegrateWork_streamNotices_fresh item.work
@@ -81,23 +84,24 @@ Witness: initialize the preparation inventory with no carried notices; the handl
 the resulting list once before draining, and the drain never emits another item carrier.
 -/
 theorem State.streamItems_notices_fresh (queue : State) (stream : Execution.DeliveryNode)
-    (items : List StreamItem) {position : Nat} {owner : Execution.DeliveryNode}
+    (items : List StreamItem) (available : List (Occurrence × Nat) := [])
+    {position : Nat} {owner : Execution.DeliveryNode}
     {values : List StreamItemValue} {groups streams : List Execution.DeliveryNode}
     (selected
-      : (queue.streamItems stream items).2[position]?
+      : (queue.streamItems stream items available).2.1[position]?
         = some (.streamValues owner values groups streams))
     : (streams.map Execution.DeliveryNode.ref).Nodup
       ∧ ∀ node ∈ streams,
           node.ref ∉ queue.streams.map (fun stream => stream.node.ref) := by
-  have zero := queue.streamItems_carrier_index stream items selected
-  rw [zero, queue.streamItems_eq] at selected
+  have zero := queue.streamItems_carrier_index stream items available selected
+  rw [zero, queue.streamItems_eq stream items available] at selected
   split at selected
   · cases selected
   · have same := Execution.WorkQueueEvent.streamValues.inj (Option.some.inj selected)
     obtain ⟨_, _, _, rfl⟩ := same
     have inventory := streamItemFold_streamNoticeInventory items
-      (queue.streams.map (fun stream => stream.node.ref)) (queue, [], [], [])
-      (List.Subset.refl _) (by intro ref impossible; cases impossible) (by simp) (by simp)
+      (queue.streams.map (fun stream => stream.node.ref)) (queue, [], [], [], [])
+      (List.Subset.refl _) (by intro ref impossible; cases impossible) (by simp) (by simp) available
     refine ⟨inventory.2.2.1, ?_⟩
     intro node member
     exact inventory.2.2.2 node.ref (List.mem_map_of_mem member)

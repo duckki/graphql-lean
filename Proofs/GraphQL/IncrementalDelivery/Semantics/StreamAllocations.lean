@@ -11,6 +11,7 @@ open GraphQL.IncrementalDelivery.Execution
 
 def streamAllocationRefs : Work → List Nat
   | .empty => []
+  | .declareGroups _ tasks => streamAllocationRefs tasks
   | .combine left right => streamAllocationRefs left ++ streamAllocationRefs right
   | .executionGroup _ _ _ children => streamAllocationRefs children
   | .stream node items =>
@@ -36,7 +37,7 @@ def StreamAllocated (start : Nat) (work : Work) (finish : Nat) : Prop :=
 def StreamsCompleted (start : Nat) (output : Completion α × Nat) : Prop :=
   StreamAllocated start output.1.work output.2
 
-def itemAllocationRefs (items : List (Result ResponseValue × Work)) : List Nat :=
+def itemAllocationRefs (items : List (TaskOutcome ResponseValue × Work)) : List Nat :=
   items.flatMap (fun item => streamAllocationRefs item.2)
 
 theorem RefsAllocated.empty {start finish : Nat} (h : start ≤ finish)

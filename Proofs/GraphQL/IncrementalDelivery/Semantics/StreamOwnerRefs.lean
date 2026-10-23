@@ -13,12 +13,14 @@ open GraphQL.IncrementalDelivery.Execution
 
 def OwnersBefore (owners : List Nat) : Work → Prop
   | .empty => True
+  | .declareGroups _ tasks => OwnersBefore owners tasks
   | .combine left right => OwnersBefore owners left ∧ OwnersBefore owners right
   | .executionGroup .. => True
   | .stream node _ => ∀ owner ∈ owners, owner < node.ref
 
 def StreamOwnersOrdered : Work → Prop
   | .empty => True
+  | .declareGroups _ tasks => StreamOwnersOrdered tasks
   | .combine left right => StreamOwnersOrdered left ∧ StreamOwnersOrdered right
   | .executionGroup groups _ _ children =>
       OwnersBefore (groups.map (·.node.ref)) children ∧ StreamOwnersOrdered children
@@ -35,6 +37,7 @@ decreasing_by
 
 def StreamRefsFrom (start : Nat) : Work → Prop
   | .empty => True
+  | .declareGroups _ tasks => StreamRefsFrom start tasks
   | .combine left right => StreamRefsFrom start left ∧ StreamRefsFrom start right
   | .executionGroup _ _ _ children => StreamRefsFrom start children
   | .stream node items => start ≤ node.ref ∧ ∀ item ∈ items, StreamRefsFrom start item.2
@@ -52,6 +55,7 @@ theorem StreamRefsFrom.mono {start next : Nat} {work : Work}
     (h : StreamRefsFrom start work) (hle : next ≤ start)
     : StreamRefsFrom next work := by
   cases work <;> simp only [StreamRefsFrom] at h ⊢
+  case declareGroups groups tasks => exact StreamRefsFrom.mono (work := tasks) h hle
   case combine left right => exact ⟨h.1.mono hle, h.2.mono hle⟩
   case executionGroup groups path result children => exact h.mono hle
   case stream node items => exact ⟨Nat.le_trans hle h.1, fun item hi => (h.2 item hi).mono hle⟩
@@ -71,6 +75,10 @@ theorem StreamRefsFrom.ownersBefore {start : Nat} {work : Work}
     : OwnersBefore owners work := by
   cases work with
   | empty => trivial
+  | declareGroups groups tasks =>
+      simpa only [OwnersBefore]
+        using StreamRefsFrom.ownersBefore (work := tasks)
+          (by simpa only [StreamRefsFrom] using h) ho
   | combine left right =>
       rw [StreamRefsFrom] at h
       exact ⟨h.1.ownersBefore ho, h.2.ownersBefore ho⟩
@@ -83,6 +91,7 @@ termination_by sizeOf work
 theorem ownersBefore_nil (work : Work) : OwnersBefore [] work := by
   cases work with
   | empty => trivial
+  | declareGroups groups tasks => exact ownersBefore_nil tasks
   | combine left right => exact ⟨ownersBefore_nil left, ownersBefore_nil right⟩
   | executionGroup groups path result children => trivial
   | stream node items => simp [OwnersBefore]
@@ -166,7 +175,7 @@ theorem deferMapBefore_new {start finish : Nat} {deferMap : DeferMap}
     simpa only [he] using hu usage hm
 
 theorem streamRefs_deferred (state : Nat) (deferMap : DeferMap) (refs : List Nat)
-    (path : ResponsePath) (result : Result (List (Name × ResponseValue)))
+    (path : ResponsePath) (result : TaskOutcome (List (Name × ResponseValue)))
     (children : Work) (hm : DeferMapBefore state deferMap)
     (hc : StreamRefsFrom state children ∧ StreamOwnersOrdered children)
     : StreamRefsFrom state
@@ -181,5 +190,27 @@ theorem streamRefs_deferred (state : Nat) (deferMap : DeferMap) (refs : List Nat
   obtain ⟨group, hg, rfl⟩ := List.mem_map.mp hk
   obtain ⟨_, _, hf⟩ := List.mem_filterMap.mp hg
   exact hm group (List.mem_of_find?_eq_some hf)
+
+/-- Transparent declarations preserve the underlying OwnersBefore certificate. -/
+theorem OwnersBefore.withoutDeclarations {owners work} (known : OwnersBefore owners work)
+    : OwnersBefore owners work.withoutDeclarations := by
+  cases work with
+  | declareGroups groups tasks =>
+      simpa only [Work.withoutDeclarations]
+        using OwnersBefore.withoutDeclarations (work := tasks)
+          (by simpa only [OwnersBefore] using known)
+  | _ => simpa only [Work.withoutDeclarations] using known
+termination_by work
+
+/-- Transparent declarations preserve the underlying StreamOwnersOrdered certificate. -/
+theorem StreamOwnersOrdered.withoutDeclarations {work} (known : StreamOwnersOrdered work)
+    : StreamOwnersOrdered work.withoutDeclarations := by
+  cases work with
+  | declareGroups groups tasks =>
+      simpa only [Work.withoutDeclarations]
+        using StreamOwnersOrdered.withoutDeclarations (work := tasks)
+          (by simpa only [StreamOwnersOrdered] using known)
+  | _ => simpa only [Work.withoutDeclarations] using known
+termination_by work
 
 end GraphQL.IncrementalDelivery.Semantics.GeneralScheduling

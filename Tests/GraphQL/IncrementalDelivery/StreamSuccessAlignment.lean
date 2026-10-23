@@ -47,13 +47,15 @@ private theorem ordinarySuccess
   cbv
 
 /-- General alignment keeps the full tail without assuming error-count agreement. -/
-example : items.length = 2 ∧ ∀ entry ∈ items, entry.1 = .ok (.object [], 0) := by
+example
+    : items.length = 2
+      ∧ ∀ entry ∈ items, entry.1 = { result := .ok (.object [], 0) } := by
   have aligned := completeStreamItems_aligns_ordinarySuccess schema resolvers [] 20
     (.named "User") selected values valid path 0 0 [.null, .null] 2 ordinarySuccess
   constructor
   · exact aligned.1
   · intro entry member
-    have results : items.map Prod.fst = [.ok (.object [], 0), .ok (.object [], 0)] := by cbv
+    have results : items.map Prod.fst = [{ result := .ok (.object [], 0) }, { result := .ok (.object [], 0) }] := by cbv
     have present : entry.1 ∈ items.map Prod.fst := List.mem_map.mpr ⟨entry, member, rfl⟩
     rw [results] at present
     simpa only [List.mem_cons, List.not_mem_nil, or_false, or_self] using present

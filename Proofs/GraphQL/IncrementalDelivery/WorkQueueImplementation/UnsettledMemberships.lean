@@ -19,16 +19,16 @@ theorem State.TaskLinkedOn.addRegisteredGroups
     (linked : queue.TaskLinkedOn occurrence refs) (unique : queue.GroupRefsUnique)
     (registered : refs.Subset queue.registeredGroups) (groups : List Group)
     : (queue.addGroups groups).1.TaskLinkedOn occurrence refs := by
-  let fresh := groups.filter (fun group =>
-    !queue.registeredGroups.contains group.node.ref
-      && (queue.groupNode? group.node.ref).isNone)
-  have retained := linked.addGroups unique fresh (by
-    intro group member contributor
-    have absent : group.node.ref ∉ queue.registeredGroups := by
-      have chosen := (List.mem_filter.mp member).2
-      simpa using (Bool.and_eq_true_iff.mp chosen).1
-    exact (absent (registered contributor)).elim)
-  simpa only [State.addGroups, fresh, List.filter_filter, Bool.and_self] using retained
+  let property (current : State) := current.GroupRefsUnique
+    ∧ current.TaskLinkedOn occurrence refs ∧ refs ⊆ current.registeredGroups
+  have install (current : State) (group : Group) (_member : group ∈ groups)
+      (valid : property current) : property (current.addGroup group) := by
+    refine ⟨valid.1.addGroup group, valid.2.1.addGroup group ?_, ?_⟩
+    · intro absent _ contributes
+      exact absent (valid.2.2 contributes)
+    · exact valid.2.2.trans (State.addGroup_registeredGroups_subset_old current group)
+  exact (State.addGroups_preserves property groups install queue
+          ⟨unique, linked, registered⟩).2.1
 
 /-- Each unsettled permanent task is linked in every surviving contributor node.
 Unlike healthy registration accounting, this asserts no owner-node existence and ignores
@@ -166,14 +166,25 @@ theorem State.UnsettledTaskLinks.pruneEmptyGroups {queue : State}
   exact (linked task member fresh).pruneEmptyGroups groups
 
 /-- Starting released work preserves links, even when cached failure skips task starts.
-Witness: activation leaves the permanent task registry and group nodes unchanged.
+Witness: activation preserves the catalogue and filters existing group records.
 -/
 theorem State.UnsettledTaskLinks.startNewWork {queue : State} {settled : List Occurrence}
     (linked : queue.UnsettledTaskLinks settled) (work : NewWork)
-    : (queue.startNewWork work).UnsettledTaskLinks settled := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.startNewWork work available).1.UnsettledTaskLinks settled := by
   intro task member fresh
-  rw [(queue.startNewWork_groupCore work).2.1] at member
-  exact (linked task member fresh).startNewWork work
+  rw [(queue.startNewWork_groupCore work available).2.1] at member
+  exact (linked task member fresh).startNewWork work available
+
+/-- Cache exposure preserves the catalogue and live task memberships. -/
+theorem State.UnsettledTaskLinks.cacheTaskFailures {queue : State}
+    {settled : List Occurrence} (linked : queue.UnsettledTaskLinks settled)
+    (available : List (Occurrence × Nat))
+    : (queue.cacheTaskFailures available).UnsettledTaskLinks settled := by
+  intro task member fresh node live contributes
+  rw [State.cacheTaskFailures_tasks] at member
+  rw [State.cacheTaskFailures_groupNodes] at live
+  exact linked task member fresh node live contributes
 
 /-- Every initialized task is linked to each of its live contributors.
 Witness: initial task integration, pruning, and activation, before any outcome settles.
@@ -199,6 +210,17 @@ theorem State.UnsettledTaskLinks.finishGroupSuccess {queue : State}
   exact (linked task member fresh).finishOtherGroupSuccess group
     (fun present => fresh (all task.occurrence present))
 
+/-- Retaining a rejection preserves links of every unsettled registered task. -/
+theorem State.UnsettledTaskLinks.taskFailure {queue : State} {settled : List Occurrence}
+    (linked : queue.UnsettledTaskLinks settled) (occurrence : Occurrence) (errors : Nat)
+    : (queue.taskFailure occurrence errors).1.UnsettledTaskLinks settled := by
+  cases found : queue.taskNode? occurrence with
+  | none => simpa [State.taskFailure, found] using linked
+  | some node =>
+      rw [queue.taskFailure_eq occurrence errors node found]
+      exact failureGroupFold_preserves (fun state => state.UnsettledTaskLinks settled)
+        (fun _ ref prior => prior.removeGroup ref) _ _ _ linked
+
 /-- Pending lower bounds justify every success flush in a recursive drain.
 Witness: joint drain induction on the bound and unsettled links; failure removal
 and activation preserve the same invariant without any group-health assumption.
@@ -206,17 +228,16 @@ and activation preserve the same invariant without any group-health assumption.
 theorem State.UnsettledTaskLinks.drainReadyGroups_ofBound {queue : State}
     {settled : List Occurrence} (linked : queue.UnsettledTaskLinks settled)
     (bounded : queue.PendingBound (fun _ => True) settled)
-    : queue.drainReadyGroups.1.UnsettledTaskLinks settled := by
+    (available : List (Occurrence × Nat) := [])
+    : (queue.drainReadyGroups available).1.UnsettledTaskLinks settled := by
   have final := State.drainReadyGroups_preserves
-    (fun current => current.UnsettledTaskLinks settled ∧
+    (available := available) (fun current => current.UnsettledTaskLinks settled ∧
       current.PendingBound (fun _ => True) settled)
     (by
-      intro current node prior member _ _ zero
+      intro current node prior member _ zero
       have all := prior.2.allSettled member trivial zero
-      exact ⟨(prior.1.finishGroupSuccess node all).startNewWork _,
-        (prior.2.finishGroupSuccess node all).startNewWork _⟩)
-    (fun _ node _ prior _ _ _ =>
-      ⟨prior.1.removeGroup node.group.node.ref, prior.2.removeGroup node.group.node.ref⟩)
+      exact ⟨(prior.1.finishGroupSuccess node all).startNewWork _ available,
+        (prior.2.finishGroupSuccess node all).startNewWork _ available⟩)
     ⟨linked, bounded⟩
   exact final.1
 
@@ -226,9 +247,10 @@ Witness: every exact ledger implies the lower bound used by the generalized proo
 theorem State.UnsettledTaskLinks.drainReadyGroups {queue : State}
     {settled : List Occurrence} (linked : queue.UnsettledTaskLinks settled)
     (tracks : queue.PendingTracks settled)
-    : queue.drainReadyGroups.1.UnsettledTaskLinks settled :=
+    (available : List (Occurrence × Nat) := [])
+    : (queue.drainReadyGroups available).1.UnsettledTaskLinks settled :=
   linked.drainReadyGroups_ofBound
-    (fun node member _ => Nat.le_of_eq (tracks node member).symm)
+    (fun node member _ => Nat.le_of_eq (tracks node member).symm) available
 
 /-- Sound membership and complete unsettled links identify a registered task's owners.
 Witness: structural task-group uniqueness identifies any membership witness with the

@@ -30,23 +30,36 @@ theorem Located.taskRegistrationWork {root address current producer enclosing}
   have navigation := StructuralEquivalence.located_of_current located
   clear located
   induction navigation with
-  | root => exact ⟨_, rfl, List.Subset.refl _⟩
+  | root =>
+      refine ⟨_, rfl, ?_⟩
+      rw [Work.fromExecution_tasks_withoutDeclarations]
+      exact fun _ member => member
   | left _ ih =>
       obtain ⟨chunk, same, included⟩ := ih
-      exact ⟨chunk, same, (List.subset_append_left _ _).trans included⟩
+      refine ⟨chunk, same, ?_⟩
+      rw [Work.fromExecution_tasks_withoutDeclarations]
+      intro task member
+      exact included (List.mem_append_left _ member)
   | right _ ih =>
       obtain ⟨chunk, same, included⟩ := ih
-      exact ⟨chunk, same, (List.subset_append_right _ _).trans included⟩
-  | executionGroup prior _ =>
-      refine ⟨_, ?_, List.Subset.refl _⟩
-      have found := prior.toCurrent
-      unfold WorkQueueSemantics.Located at found
-      simp [taskRegistrationWork?, taskChildWork?, found]
-  | item prior entry _ =>
-      refine ⟨_, ?_, List.Subset.refl _⟩
-      have found := prior.toCurrent
-      unfold WorkQueueSemantics.Located at found
-      simp [taskRegistrationWork?, streamItemWork?, found, entry]
+      refine ⟨chunk, same, ?_⟩
+      rw [Work.fromExecution_tasks_withoutDeclarations]
+      intro task member
+      exact included (List.mem_append_right _ member)
+  | @executionGroup address groups path result children producer owners prior _ =>
+      refine ⟨Work.fromExecution children (address ++ [0]), ?_, ?_⟩
+      · have found := prior.toCurrent
+        unfold WorkQueueSemantics.Located at found
+        simp [taskRegistrationWork?, taskChildWork?_eq_lookup, found]
+      · rw [Work.fromExecution_tasks_withoutDeclarations]
+        exact fun _ member => member
+  | @item address node items producer owners index result children prior entry _ =>
+      refine ⟨Work.fromExecution children (address ++ [index]), ?_, ?_⟩
+      · have found := prior.toCurrent
+        unfold WorkQueueSemantics.Located at found
+        simp [taskRegistrationWork?, streamItemWork?_eq_lookup, found, entry]
+      · rw [Work.fromExecution_tasks_withoutDeclarations]
+        exact fun _ member => member
 
 /-- An object task occurs in the chunk installed at its own producer boundary.
 Witness: inverse immediate lowering retains its exact occurrence and contributor list.
@@ -124,27 +137,27 @@ theorem GraphEvent.MatchesWork.streamItemChildren_complete {work stream items}
     TaskAt.executionGroup_registrationWork known
   obtain ⟨_, _, _, childWork⟩ := matching item selected
   cases sameOccurrence : item.occurrence with
-  | executionGroup source => simp [streamItemWork?, sameOccurrence] at childWork
+  | executionGroup source => simp [streamItemWork?_eq_lookup, sameOccurrence] at childWork
   | item source index =>
       rw [sameOccurrence] at boundary childWork
       have same : chunk = item.work := Option.some.inj (boundary.symm.trans childWork)
       exact ⟨task, same ▸ member, occurrence, groups⟩
 
-/-- A healthy accepted object success registers all structural children at that boundary.
+/-- A present object success registers all structural children at that boundary.
 Witness: exact source completeness and the executable task-registry append equation.
-The explicit guard is essential: a started but ignored success must not reveal its work.
+Task presence controls integration, including settlements whose owners were invalidated.
 -/
 theorem State.taskSuccess_child_registered {queue : State}
     {work producer result node} (found : queue.taskNode? producer = some node)
-    (eligible : queue.taskHasHealthyOwner node.task = true)
     (matching : (GraphEvent.taskSuccess producer result).MatchesWork work)
     {address owners payload}
     (known : TaskAt work (.executionGroup address) owners (some producer) payload)
-    : ∃ task ∈ (queue.taskSuccess producer result).1.tasks,
+    (available : List (Occurrence × Nat) := [])
+    : ∃ task ∈ (queue.taskSuccess producer result available).1.tasks,
         task.occurrence = .executionGroup address
         ∧ task.groups.map Execution.DeliveryNode.ref = owners := by
   obtain ⟨task, member, occurrence, groups⟩ := matching.taskChildren_complete known
-  rw [State.taskSuccess_tasks found eligible]
+  rw [State.taskSuccess_tasks found available]
   exact ⟨task, List.mem_append_right _ member, occurrence, groups⟩
 
 /-- Integrating an observed item registers its entire immediate structural task chunk.
@@ -155,11 +168,12 @@ theorem State.integrateStreamItem_child_registered (queue : State) {work stream 
     (matching : (GraphEvent.streamItems stream items).MatchesWork work)
     {item : StreamItem} (selected : item ∈ items) {address owners payload}
     (known : TaskAt work (.executionGroup address) owners (some item.occurrence) payload)
-    : ∃ task ∈ (queue.integrateStreamItem item).tasks,
+    (available : List (Occurrence × Nat) := [])
+    : ∃ task ∈ (queue.integrateStreamItem item available).tasks,
         task.occurrence = .executionGroup address
         ∧ task.groups.map Execution.DeliveryNode.ref = owners := by
   obtain ⟨task, member, occurrence, groups⟩ := matching.streamItemChildren_complete selected known
-  rw [State.integrateStreamItem_tasks]
+  rw [State.integrateStreamItem_tasks _ _ available]
   exact ⟨task, List.mem_append_right _ member, occurrence, groups⟩
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

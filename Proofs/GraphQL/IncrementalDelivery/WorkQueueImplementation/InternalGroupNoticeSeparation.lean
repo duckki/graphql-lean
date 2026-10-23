@@ -103,8 +103,7 @@ theorem LiveRootFrame.successGroupStep_noticeSeparation
       have active : updated.group.node.ref ∈ next.rootGroups := by
         have flags := Bool.and_eq_true_iff.mp finishes
         have same := State.groupNode?_ref found
-        simpa only [updated, same, List.contains_iff_mem]
-          using (Bool.and_eq_true_iff.mp flags.1).1
+        simpa only [updated, same, List.contains_iff_mem] using flags.1
       have updatedMember : updated ∈ next.groupNodes :=
         List.mem_map.mpr ⟨node, member, by simp [updated]⟩
       have lookup := nextFrame.refs.groupNode?_of_mem updatedMember
@@ -168,8 +167,8 @@ theorem LiveRootFrame.drainReadyGroups_go_groupNoticesSeparated
     (canonical
       : ∀ node dependencies,
           GroupRecordAt work node dependencies → dependencies = parents node.ref)
-    (fuel : Nat)
-    : GroupNoticesSeparated (State.drainReadyGroups.go fuel queue).2 := by
+    (fuel : Nat) (available : List (Occurrence × Nat) := [])
+    : GroupNoticesSeparated (State.drainReadyGroups.go available fuel queue).2.1 := by
   induction fuel generalizing queue with
   | zero => simp [State.drainReadyGroups.go, GroupNoticesSeparated]
   | succ fuel ih =>
@@ -183,28 +182,21 @@ theorem LiveRootFrame.drainReadyGroups_go_groupNoticesSeparated
         | none => simp [found] at choice
         | some candidate =>
             simp only [found] at choice
-            change (if candidate.failure.isSome || candidate.pending == 0 then
-              some candidate else none) = some node at choice
+            change (if candidate.pending == 0 then some candidate else none) = some node at choice
             split at choice
             · cases Option.some.inj choice
               have same := State.groupNode?_ref found
-              cases cached : node.failure with
-              | none =>
-                  have next := frame.finishGroupSuccess generated canonical
-                    (same ▸ found) (same ▸ active)
-                  have protection := State.finishGroupSuccess_noticeAncestorRetirement
-                    (queue.finishGroupSuccess_ancestorsRetired generated frame.records frame.links
-                      canonical frame.registered (List.mem_of_find?_eq_some found)
-                      (frame.roots _ (same ▸ active))).2.2
-                  apply (queue.finishGroupSuccess_groupNoticesSeparated node).append (ih next)
-                  intro child noticed
-                  exact next.drainReadyGroups_go_noProtectedNotice generated canonical
-                    ((protection child noticed).mono (fun _ retired => retired.startNewWork _)) fuel
-              | some errors =>
-                  apply (show GroupNoticesSeparated [.groupFailure node.group.node errors]
-                    from by simp [GroupNoticesSeparated]).append
-                      (ih (frame.removeGroup node.group.node.ref))
-                  simp [rawGroupNoticeRefs]
+              have next := frame.finishGroupSuccess generated canonical
+                (same ▸ found) (same ▸ active) available
+              have protection := State.finishGroupSuccess_noticeAncestorRetirement
+                (queue.finishGroupSuccess_ancestorsRetired generated frame.records frame.links
+                  canonical frame.registered (List.mem_of_find?_eq_some found)
+                  (frame.roots _ (same ▸ active))).2.2
+              apply (queue.finishGroupSuccess_groupNoticesSeparated node).append (ih next)
+              intro child noticed
+              exact next.drainReadyGroups_go_noProtectedNotice generated canonical
+                ((protection child noticed).mono
+                  (fun _ retired => retired.startNewWork _ available)) fuel available
             · contradiction
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

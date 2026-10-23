@@ -15,12 +15,16 @@ open ScheduledWork
 mutual
   inductive WorkRecordings : RecordedWork → RecordedWork → Prop where
     | empty : WorkRecordings .empty .empty
+    | declareGroups {groups eagerGroups tasks eagerTasks}
+      (nested : WorkRecordings tasks eagerTasks)
+      : WorkRecordings (.declareGroups groups tasks)
+          (.declareGroups eagerGroups eagerTasks)
     | combine {left eagerLeft right eagerRight}
       (head : WorkRecordings left eagerLeft) (tail : WorkRecordings right eagerRight)
       : WorkRecordings (.combine left right) (.combine eagerLeft eagerRight)
     | executionGroup
       {groups eagerGroups path eagerPath report eagerReport children eagerChildren}
-      (head : ReportRecording report eagerReport)
+      (head : ReportRecording report.toReport eagerReport.toReport)
       (nested : WorkRecordings children eagerChildren)
       : WorkRecordings (.executionGroup groups path report children)
           (.executionGroup eagerGroups eagerPath eagerReport eagerChildren)
@@ -28,11 +32,11 @@ mutual
       : WorkRecordings (.stream node items) (.stream eagerNode eagerItems)
 
   inductive ItemsRecordings
-      : List (Report ResponseValue × RecordedWork)
-        → List (Report ResponseValue × RecordedWork) → Prop where
+      : List (RecordedOutcome ResponseValue × RecordedWork)
+        → List (RecordedOutcome ResponseValue × RecordedWork) → Prop where
     | nil : ItemsRecordings [] []
     | cons {report eagerReport children eagerChildren rest eagerRest}
-      (head : ReportRecording report eagerReport)
+      (head : ReportRecording report.toReport eagerReport.toReport)
       (nested : WorkRecordings children eagerChildren)
       (tail : ItemsRecordings rest eagerRest)
       : ItemsRecordings ((report, children) :: rest)
@@ -45,6 +49,9 @@ mutual
       : WorkRecordings cut eager := by
     cases trace with
     | empty => exact .empty
+    | declareGroups nested =>
+        exact .declareGroups
+          (nested.recording (by simpa only [RecordedWork.origins] using unique))
     | combine head tail =>
         simp only [RecordedWork.origins] at unique
         exact .combine (head.recording (List.nodup_append.mp unique).1)
