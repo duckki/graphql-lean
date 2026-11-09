@@ -91,20 +91,21 @@ theorem executeField_fieldPairProbe_tagged_object_field_ok_of_field_children
       -> ∀ responseName fieldName arguments directives childSelectionSet,
           Selection.field responseName fieldName arguments directives childSelectionSet
             ∈ selectionSet
-          -> ∃ responseValue fieldErrors,
-              Execution.executeField schema
-                (fieldPairProbeResolvers schema rootSelectionSet targetParent
-                  leftField rightField leftArguments rightArguments)
-                variableValues (fuel + 1) parentType
-                (.object sourceRuntimeType (some tag)) responseName
-                [{
-                  fieldName := fieldName
-                  arguments := arguments
-                  selectionSet := childSelectionSet
-                }]
-              = .ok ([(responseName, responseValue)], fieldErrors) := by
+          -> ∀ (_hTypeNames : selectionSetTypenameFree selectionSet := by typename_free),
+              ∃ responseValue fieldErrors,
+                Execution.executeField schema
+                  (fieldPairProbeResolvers schema rootSelectionSet targetParent
+                    leftField rightField leftArguments rightArguments)
+                  variableValues (fuel + 1) parentType
+                  (.object sourceRuntimeType (some tag)) responseName
+                  [{
+                    fieldName := fieldName
+                    arguments := arguments
+                    selectionSet := childSelectionSet
+                  }]
+                = .ok ([(responseName, responseValue)], fieldErrors) := by
   intro hchildren responseName fieldName arguments directives
-    childSelectionSet hmem
+    childSelectionSet hmem hTypeNames
   rcases hchildren responseName fieldName arguments directives
       childSelectionSet hmem with
     ⟨fieldDefinition, hlookup, hcoerce, hfuel, hleafOrChild⟩
@@ -182,15 +183,16 @@ theorem executeSelectionSetAsResponse_fieldPairProbe_tagged_object_of_field_chil
                                   errors := childErrors
                                 }
                                 : Execution.Response))))
-      -> ∃ responseFields errors,
-          Execution.executeSelectionSetAsResponse schema
-            (fieldPairProbeResolvers schema rootSelectionSet targetParent
-              leftField rightField leftArguments rightArguments)
-            variableValues (fuel + 1) parentType
-            (.object sourceRuntimeType (some tag)) selectionSet
-          = ({ data := Execution.ResponseValue.object responseFields, errors := errors }
-              : Execution.Response) := by
-  intro hfree hnormal hobject hchildren
+      -> ∀ (_hTypeNames : selectionSetTypenameFree selectionSet := by typename_free),
+          ∃ responseFields errors,
+            Execution.executeSelectionSetAsResponse schema
+              (fieldPairProbeResolvers schema rootSelectionSet targetParent
+                leftField rightField leftArguments rightArguments)
+              variableValues (fuel + 1) parentType
+              (.object sourceRuntimeType (some tag)) selectionSet
+            = ({ data := Execution.ResponseValue.object responseFields, errors := errors }
+                : Execution.Response) := by
+  intro hfree hnormal hobject hchildren hTypeNames
   let resolvers :=
     fieldPairProbeResolvers schema rootSelectionSet targetParent leftField
       rightField leftArguments rightArguments
@@ -304,15 +306,16 @@ theorem
                                       errors := childErrors
                                     }
                                     : Execution.Response))))
-      -> ∃ responseFields errors,
-          Execution.executeSelectionSetAsResponse schema
-            (fieldPairProbeResolvers schema rootSelectionSet targetParent
-              leftField rightField leftArguments rightArguments)
-            variableValues (fuel + 1) runtimeType
-            (.object runtimeType (some tag)) selectionSet
-          = ({ data := Execution.ResponseValue.object responseFields, errors := errors }
-              : Execution.Response) := by
-  intro hnonObject hruntimeObject hfree hnormal hbodyChildren
+      -> ∀ (_hTypeNames : selectionSetTypenameFree selectionSet := by typename_free),
+          ∃ responseFields errors,
+            Execution.executeSelectionSetAsResponse schema
+              (fieldPairProbeResolvers schema rootSelectionSet targetParent
+                leftField rightField leftArguments rightArguments)
+              variableValues (fuel + 1) runtimeType
+              (.object runtimeType (some tag)) selectionSet
+            = ({ data := Execution.ResponseValue.object responseFields, errors := errors }
+                : Execution.Response) := by
+  intro hnonObject hruntimeObject hfree hnormal hbodyChildren hTypeNames
   let resolvers :=
     fieldPairProbeResolvers schema rootSelectionSet targetParent leftField
       rightField leftArguments rightArguments
@@ -471,29 +474,30 @@ theorem
                       = true)
           -> selectionSetDeepHeadPromotionAvailable schema rootSelectionSet
               parentType selectionSet
-          -> ∃ responseFields errors,
-              Execution.executeSelectionSetAsResponse schema
-                (fieldPairProbeResolvers schema rootSelectionSet targetParent
-                  leftField rightField leftArguments rightArguments)
-                variableValues (fuel + 1) sourceRuntimeType
-                (.object sourceRuntimeType (some tag)) selectionSet
-              = ({
-                    data := Execution.ResponseValue.object responseFields,
-                    errors := errors
-                  }
-                  : Execution.Response) := by
+          -> ∀ (_hTypeNames : selectionSetTypenameFree selectionSet := by typename_free),
+              ∃ responseFields errors,
+                Execution.executeSelectionSetAsResponse schema
+                  (fieldPairProbeResolvers schema rootSelectionSet targetParent
+                    leftField rightField leftArguments rightArguments)
+                  variableValues (fuel + 1) sourceRuntimeType
+                  (.object sourceRuntimeType (some tag)) selectionSet
+                = ({
+                      data := Execution.ResponseValue.object responseFields,
+                      errors := errors
+                    }
+                    : Execution.Response) := by
   intro hschema n
   induction n with
   | zero =>
       intro parentType variableDefinitions selectionSet fuel sourceRuntimeType
         targetParent leftField rightField leftArguments rightArguments tag
         hsize _hfuel _hvalid _hcoercion _hfree _hnormal _hinclude _hpromote
-        _hheadPromote
+        _hheadPromote _hTypeNames
       omega
   | succ n ih =>
       intro parentType variableDefinitions selectionSet fuel sourceRuntimeType
         targetParent leftField rightField leftArguments rightArguments tag
-        hsize hfuel hvalid hcoercion hfree hnormal hinclude hpromote hheadPromote
+        hsize hfuel hvalid hcoercion hfree hnormal hinclude hpromote hheadPromote hTypeNames
       have hsourceObject :
           objectTypeNameBool schema sourceRuntimeType = true :=
         objectTypeNameBool_of_typeIncludesObjectBool hschema hinclude
@@ -875,6 +879,10 @@ theorem
                 ≤ childFuel := by
             dsimp [childFuel]
             omega
+          have hbodyTypes : selectionSetTypenameFree bodySelectionSet :=
+            selectionSetTypenameFree_fragmentChildren hTypeNames hinlineMem
+          have hchildTypes : selectionSetTypenameFree bodyChildSelectionSet :=
+            selectionSetTypenameFree_fieldChildren hbodyTypes hbodyFieldMem
           have hchildFree :
               selectionSetDirectiveFree bodyChildSelectionSet :=
             selectionSetDirectiveFree_field_child_of_mem hbodyFree
@@ -1066,22 +1074,23 @@ theorem
                       = true)
           -> selectionSetDeepHeadPromotionAvailable schema rootSelectionSet
               parentType selectionSet
-          -> ∃ responseFields errors,
-              Execution.executeSelectionSetAsResponse schema
-                (fieldPairProbeResolvers schema rootSelectionSet targetParent
-                  leftField rightField leftArguments rightArguments)
-                variableValues
-                (selectionSetDeepProbeFuel schema parentType selectionSet + 1)
-                sourceRuntimeType (.object sourceRuntimeType (some tag))
-                selectionSet
-              = ({
-                    data := Execution.ResponseValue.object responseFields,
-                    errors := errors
-                  }
-                  : Execution.Response) := by
+          -> ∀ (_hTypeNames : selectionSetTypenameFree selectionSet := by typename_free),
+              ∃ responseFields errors,
+                Execution.executeSelectionSetAsResponse schema
+                  (fieldPairProbeResolvers schema rootSelectionSet targetParent
+                    leftField rightField leftArguments rightArguments)
+                  variableValues
+                  (selectionSetDeepProbeFuel schema parentType selectionSet + 1)
+                  sourceRuntimeType (.object sourceRuntimeType (some tag))
+                  selectionSet
+                = ({
+                      data := Execution.ResponseValue.object responseFields,
+                      errors := errors
+                    }
+                    : Execution.Response) := by
   intro hschema parentType variableDefinitions selectionSet sourceRuntimeType
     targetParent leftField rightField leftArguments rightArguments tag hvalid
-    hcoercion hfree hnormal hinclude hpromote hheadPromote
+    hcoercion hfree hnormal hinclude hpromote hheadPromote hTypeNames
   exact executeSelectionSetAsResponse_fieldPairProbe_tagged_of_valid_normal_promoted_fuel_ge_size
     schema rootSelectionSet variableValues hschema (SelectionSet.size selectionSet + 1)
     parentType variableDefinitions selectionSet
@@ -1132,28 +1141,31 @@ theorem
               Selection.field responseName fieldName arguments directives
                   childSelectionSet
                 ∈ selectionSet
-              -> ∃ responseValue fieldErrors,
-                  Execution.executeField schema
-                    (fieldPairProbeResolvers schema rootSelectionSet targetParent
-                      leftField rightField leftArguments rightArguments)
-                    variableValues
-                    (fuel + 1) parentType
-                    (.object sourceRuntimeType (some tag)) responseName
-                    [{
-                      fieldName := fieldName,
-                      arguments := arguments,
-                      selectionSet := childSelectionSet
-                    }]
-                  = .ok ([(responseName, responseValue)], fieldErrors) := by
+              -> ∀ (_hTypeNames
+                    : selectionSetTypenameFree selectionSet := by typename_free),
+                  ∃ responseValue fieldErrors,
+                    Execution.executeField schema
+                      (fieldPairProbeResolvers schema rootSelectionSet targetParent
+                        leftField rightField leftArguments rightArguments)
+                      variableValues
+                      (fuel + 1) parentType
+                      (.object sourceRuntimeType (some tag)) responseName
+                      [{
+                        fieldName := fieldName,
+                        arguments := arguments,
+                        selectionSet := childSelectionSet
+                      }]
+                    = .ok ([(responseName, responseValue)], fieldErrors) := by
   intro hschema parentType variableDefinitions selectionSet
     fuel sourceRuntimeType targetParent leftField rightField leftArguments
     rightArguments tag hfuel hvalid hcoercion hfree hnormal hobject hinclude
     hpromote hheadPromote
-  refine
-    executeField_fieldPairProbe_tagged_object_field_ok_of_field_children
-      schema rootSelectionSet variableValues fuel targetParent leftField
-      rightField parentType sourceRuntimeType leftArguments rightArguments
-      tag selectionSet ?_
+  intro selectedResponse selectedField selectedArguments selectedDirectives selectedChildren selectedMem hTypeNames
+  refine executeField_fieldPairProbe_tagged_object_field_ok_of_field_children schema
+    rootSelectionSet variableValues fuel targetParent leftField rightField parentType
+    sourceRuntimeType leftArguments rightArguments tag selectionSet ?_ selectedResponse
+    selectedField selectedArguments selectedDirectives selectedChildren selectedMem
+    hTypeNames
   intro responseName fieldName arguments directives childSelectionSet hmem
   rcases selectionSetValid_field_lookup_of_mem hvalid hmem with
     ⟨fieldDefinition, hlookup, harguments, _hfieldSelectionValid⟩
@@ -1399,28 +1411,32 @@ theorem
               Selection.field responseName fieldName arguments directives
                   childSelectionSet
                 ∈ selectionSet
-              -> ∃ responseValue fieldErrors,
-                  Execution.executeField schema
-                    (fieldPairProbeResolvers schema rootSelectionSet targetParent
-                      leftField rightField leftArguments rightArguments)
-                    variableValues
-                    (selectionSetDeepProbeFuel schema parentType selectionSet + 1)
-                    parentType
-                    (.object sourceRuntimeType (some tag)) responseName
-                    [{
-                      fieldName := fieldName,
-                      arguments := arguments,
-                      selectionSet := childSelectionSet
-                    }]
-                  = .ok ([(responseName, responseValue)], fieldErrors) := by
+              -> ∀ (_hTypeNames
+                    : selectionSetTypenameFree selectionSet := by typename_free),
+                  ∃ responseValue fieldErrors,
+                    Execution.executeField schema
+                      (fieldPairProbeResolvers schema rootSelectionSet targetParent
+                        leftField rightField leftArguments rightArguments)
+                      variableValues
+                      (selectionSetDeepProbeFuel schema parentType selectionSet + 1)
+                      parentType
+                      (.object sourceRuntimeType (some tag)) responseName
+                      [{
+                        fieldName := fieldName,
+                        arguments := arguments,
+                        selectionSet := childSelectionSet
+                      }]
+                    = .ok ([(responseName, responseValue)], fieldErrors) := by
   intro hschema parentType variableDefinitions selectionSet sourceRuntimeType
     targetParent leftField rightField leftArguments rightArguments tag hvalid
     hcoercion hfree hnormal hobject hinclude hpromote hheadPromote
+  intro responseName fieldName arguments directives childSelectionSet hmem hTypeNames
   exact executeField_fieldPairProbe_tagged_object_field_ok_of_valid_normal_promoted_fuel_ge
     schema rootSelectionSet variableValues hschema parentType variableDefinitions
     selectionSet (selectionSetDeepProbeFuel schema parentType selectionSet)
     sourceRuntimeType targetParent leftField rightField leftArguments rightArguments tag
     (by omega) hvalid hcoercion hfree hnormal hobject hinclude hpromote hheadPromote
+    responseName fieldName arguments directives childSelectionSet hmem hTypeNames
 
 end GroundTypeNormalization
 

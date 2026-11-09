@@ -1,4 +1,5 @@
 import GraphQL.SchemaWellFormedness
+import Proofs.GraphQL.Schema.Typename
 
 /-!
 Field lookup facts derived from schema well-formedness predicates.
@@ -125,6 +126,64 @@ theorem schemaWellFormed_lookupType_typeDefinitionWellFormed
       simp [typeDefinitionWellFormed]
   · exact hschema.2.2.1 typeDefinition hschemaType
 
+theorem typenameFieldDefinition_wellFormed (schema : Schema)
+    : fieldDefinitionWellFormed schema Schema.typenameFieldDefinition := by
+  constructor
+  · exact ⟨.builtinScalar .string, rfl, trivial⟩
+  · simp [Schema.typenameFieldDefinition, inputValueDefinitionsWellFormed, namesAreUnique]
+
+theorem typenameFieldDefinition_implements (schema : Schema)
+    : fieldDefinitionImplements schema Schema.typenameFieldDefinition
+        Schema.typenameFieldDefinition := by
+  refine ⟨?_, ?_⟩
+  · exact ⟨⟨.builtinScalar .string, rfl, trivial⟩,
+      ⟨.builtinScalar .string, rfl, trivial⟩, Or.inl rfl⟩
+  · simp [argumentDefinitionsImplement, Schema.typenameFieldDefinition]
+
+theorem lookupField_typename_implements {schema : Schema} {parentType objectType : Name}
+    {expected : FieldDefinition}
+    (hlookup : schema.lookupField parentType "__typename" = some expected)
+    (hobject : schema.objectType objectType)
+    : ∃ implementation,
+        schema.lookupField objectType "__typename" = some implementation
+        ∧ fieldDefinitionImplements schema implementation expected := by
+  rcases Schema.lookupField_eq_some_cases hlookup with ⟨_, rfl, _⟩ | ⟨hne, _⟩
+  · obtain ⟨definition, hobject⟩ := hobject
+    exact ⟨_, Schema.lookupField_typename ⟨.object definition, hobject, trivial⟩,
+      typenameFieldDefinition_implements schema⟩
+  · exact False.elim (hne rfl)
+
+theorem schemaWellFormed_lookupField_wellFormed
+    {schema : Schema} {parentType fieldName : Name}
+    {fieldDefinition : FieldDefinition}
+    : schemaWellFormed schema
+      -> schema.lookupField parentType fieldName = some fieldDefinition
+      -> fieldDefinitionWellFormed schema fieldDefinition := by
+  intro hschema hlookup
+  rcases Schema.lookupField_eq_some_cases hlookup with ⟨_, rfl, _⟩ | ⟨_, hlookup⟩
+  · exact typenameFieldDefinition_wellFormed schema
+  cases htype : schema.lookupType parentType with
+  | none =>
+      simp [Schema.lookupDeclaredField, htype] at hlookup
+  | some typeDefinition =>
+      have htypeWell :
+          typeDefinitionWellFormed schema typeDefinition :=
+        schemaWellFormed_lookupType_typeDefinitionWellFormed hschema htype
+      cases hfields : typeDefinition.fields? with
+      | none =>
+          simp [Schema.lookupDeclaredField, htype, hfields] at hlookup
+      | some fields =>
+          have hfield :
+              Schema.lookupFieldDefinition fields fieldName =
+                some fieldDefinition := by
+            simpa [Schema.lookupDeclaredField, htype, hfields,
+              Schema.lookupFieldDefinition]
+              using hlookup
+          cases typeDefinition <;> simp [TypeDefinition.fields?] at hfields
+          all_goals
+            subst fields
+            exact fieldDefinitionsWellFormed_lookupFieldDefinition_wellFormed htypeWell.1 hfield
+
 theorem schemaWellFormed_lookupField_outputType
     {schema : Schema} {parentType fieldName : Name}
     {fieldDefinition : FieldDefinition}
@@ -132,24 +191,7 @@ theorem schemaWellFormed_lookupField_outputType
       -> schema.lookupField parentType fieldName = some fieldDefinition
       -> fieldDefinition.outputType.isOutputType schema := by
   intro hschema hlookup
-  cases htype : schema.lookupType parentType with
-  | none =>
-      simp [Schema.lookupField, htype] at hlookup
-  | some typeDefinition =>
-      have htypeWell :
-          typeDefinitionWellFormed schema typeDefinition :=
-        schemaWellFormed_lookupType_typeDefinitionWellFormed hschema htype
-      cases hfields : typeDefinition.fields? with
-      | none =>
-          simp [Schema.lookupField, htype, hfields] at hlookup
-      | some fields =>
-          have hfield :
-              Schema.lookupFieldDefinition fields fieldName =
-                some fieldDefinition := by
-            simpa [Schema.lookupField, htype, hfields, Schema.lookupFieldDefinition]
-              using hlookup
-          exact typeDefinitionWellFormed_lookupFieldDefinition_outputType
-            htypeWell hfields hfield
+  exact (schemaWellFormed_lookupField_wellFormed hschema hlookup).1
 
 end SchemaWellFormedness
 

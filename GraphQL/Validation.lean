@@ -7,7 +7,8 @@ Spec reference: GraphQL September 2025.
   schema and operation syntax.
 - Fidelity note: the model is intentionally partial. It omits document-level
   multi-operation rules, mutation/subscription rules, custom directive definitions, full
-  input coercion and literal type checking, fragment-must-be-used, and meta-field rules.
+  input coercion and literal type checking, fragment-must-be-used, and schema introspection.
+  Shared field lookup supplies `__typename`; ordinary argument and leaf rules apply.
 -/
 
 namespace GraphQL

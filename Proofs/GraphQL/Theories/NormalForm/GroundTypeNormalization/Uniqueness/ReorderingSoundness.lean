@@ -946,30 +946,30 @@ theorem executeField_singleton_equivalent_succ
             simpa [ArgumentCoercionResult.equivalent, hleftCoercion, hrightCoercion]
               using hcoercion
           have hresolve :
-              resolvers.resolve executionParentType fieldName leftCoercedArguments
+              resolveFieldValue resolvers executionParentType fieldName leftCoercedArguments
                   source =
-                resolvers.resolve executionParentType fieldName
+                resolveFieldValue resolvers executionParentType fieldName
                   rightCoercedArguments source :=
-            resolvers.resolve_argumentsEquivalent _ _ _ _ _ harguments
+            resolveFieldValue_argumentsEquivalent resolvers _ _ _ _ _ harguments
           cases hleftResolve
-                : resolvers.resolve executionParentType fieldName
+                : resolveFieldValue resolvers executionParentType fieldName
                     leftCoercedArguments source with
           | none =>
               have hrightResolve :
-                  resolvers.resolve executionParentType fieldName
+                  resolveFieldValue resolvers executionParentType fieldName
                     rightCoercedArguments source = none := by
                 rw [← hresolve]
                 exact hleftResolve
-              simp only [executeField, resolveFieldValue, hlookup, hleftCoercion,
+              simp only [executeField, hlookup, hleftCoercion,
                 hrightCoercion, hleftResolve, hrightResolve]
               exact selectionSetResultEquivalent_of_eq rfl
           | some value =>
               have hrightResolve :
-                  resolvers.resolve executionParentType fieldName
+                  resolveFieldValue resolvers executionParentType fieldName
                     rightCoercedArguments source = some value := by
                 rw [← hresolve]
                 exact hleftResolve
-              simp only [executeField, resolveFieldValue, hlookup, hleftCoercion,
+              simp only [executeField, hlookup, hleftCoercion,
                 hrightCoercion, hleftResolve, hrightResolve]
               apply selectionSetResultEquivalent_singleFieldResult
               exact hcomplete schema resolvers variableValues

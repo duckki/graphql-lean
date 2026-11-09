@@ -37,19 +37,20 @@ theorem
                     (fuel - leafProbeFuel bodyFieldDefinition.outputType)
                     runtimeType bodyResponseName bodyFieldName bodyArguments
                     bodyChildSelectionSet bodyFieldDefinition)
-      -> ∃ responseField responseFields errors,
-          Execution.executeSelectionSetAsResponse schema
-            (deepSelectionSetSuccessResolversWithRef schema rootSelectionSet objectRef)
-            variableValues (fuel + 1) runtimeType
-            (.object runtimeType objectRef) selectionSet
-          = ({
-                data :=
-                  Execution.ResponseValue.object (responseField :: responseFields),
-                errors := errors
-              }
-              : Execution.Response) := by
+      -> ∀ (_hTypeNames : selectionSetTypenameFree selectionSet := by typename_free),
+          ∃ responseField responseFields errors,
+            Execution.executeSelectionSetAsResponse schema
+              (deepSelectionSetSuccessResolversWithRef schema rootSelectionSet objectRef)
+              variableValues (fuel + 1) runtimeType
+              (.object runtimeType objectRef) selectionSet
+            = ({
+                  data :=
+                    Execution.ResponseValue.object (responseField :: responseFields),
+                  errors := errors
+                }
+                : Execution.Response) := by
   intro hnonObject hruntimeObject hfree hnormal hinlineMem hbodyNonempty
-    hbodyReady
+    hbodyReady hTypeNames
   rcases List.mem_iff_append.mp hinlineMem with
     ⟨pref, suffix, hselectionSet⟩
   subst selectionSet
@@ -188,26 +189,27 @@ theorem
                     ∧ schema.typeIncludesObjectBool
                         targetFieldDefinition.outputType.namedType runtimeType
                       = true)
-          -> ∃ responseFields errors,
-              Execution.executeSelectionSetAsResponse schema
-                (deepSelectionSetSuccessResolversWithRef schema rootSelectionSet
-                  objectRef)
-                variableValues (fuel + 1) sourceRuntimeType
-                (.object sourceRuntimeType objectRef) selectionSet
-              = ({
-                    data := Execution.ResponseValue.object responseFields,
-                    errors := errors
-                  }
-                  : Execution.Response) := by
+          -> ∀ (_hTypeNames : selectionSetTypenameFree selectionSet := by typename_free),
+              ∃ responseFields errors,
+                Execution.executeSelectionSetAsResponse schema
+                  (deepSelectionSetSuccessResolversWithRef schema rootSelectionSet
+                    objectRef)
+                  variableValues (fuel + 1) sourceRuntimeType
+                  (.object sourceRuntimeType objectRef) selectionSet
+                = ({
+                      data := Execution.ResponseValue.object responseFields,
+                      errors := errors
+                    }
+                    : Execution.Response) := by
   intro hschema n
   induction n with
   | zero =>
       intro parentType variableDefinitions selectionSet fuel sourceRuntimeType
-        hsize _hfuel _hvalid _hcoercion _hfree _hnormal _hinclude _hpromote
+        hsize _hfuel _hvalid _hcoercion _hfree _hnormal _hinclude _hpromote _hTypeNames
       omega
   | succ n ih =>
       intro parentType variableDefinitions selectionSet fuel sourceRuntimeType
-        hsize hfuel hvalid hcoercion hfree hnormal hinclude hpromote
+        hsize hfuel hvalid hcoercion hfree hnormal hinclude hpromote hTypeNames
       have hsourceObject :
           objectTypeNameBool schema sourceRuntimeType = true :=
         objectTypeNameBool_of_typeIncludesObjectBool hschema hinclude
@@ -434,21 +436,22 @@ theorem
                     ∧ schema.typeIncludesObjectBool
                         targetFieldDefinition.outputType.namedType runtimeType
                       = true)
-          -> ∃ responseFields errors,
-              Execution.executeSelectionSetAsResponse schema
-                (deepSelectionSetSuccessResolversWithRef schema rootSelectionSet
-                  objectRef)
-                variableValues
-                (selectionSetDeepProbeFuel schema parentType selectionSet + 1)
-                sourceRuntimeType (.object sourceRuntimeType objectRef)
-                selectionSet
-              = ({
-                    data := Execution.ResponseValue.object responseFields,
-                    errors := errors
-                  }
-                  : Execution.Response) := by
+          -> ∀ (_hTypeNames : selectionSetTypenameFree selectionSet := by typename_free),
+              ∃ responseFields errors,
+                Execution.executeSelectionSetAsResponse schema
+                  (deepSelectionSetSuccessResolversWithRef schema rootSelectionSet
+                    objectRef)
+                  variableValues
+                  (selectionSetDeepProbeFuel schema parentType selectionSet + 1)
+                  sourceRuntimeType (.object sourceRuntimeType objectRef)
+                  selectionSet
+                = ({
+                      data := Execution.ResponseValue.object responseFields,
+                      errors := errors
+                    }
+                    : Execution.Response) := by
   intro hschema parentType variableDefinitions selectionSet sourceRuntimeType
-    hvalid hcoercion hfree hnormal hinclude hpromote
+    hvalid hcoercion hfree hnormal hinclude hpromote hTypeNames
   exact executeSelectionSetAsResponse_deepSelectionSetSuccessWithRef_valid_normal_promoted_fuel_ge_size
     schema rootSelectionSet objectRef variableValues hschema
     (SelectionSet.size selectionSet + 1) parentType variableDefinitions selectionSet

@@ -72,6 +72,8 @@ theorem validNormalObjectSelectionSets_semanticallyEquivalent_equalUpToReorderin
     (hsem
       : selectionSetsSemanticallyEquivalentAtVariableValues schema
           leftVariableValues rightVariableValues parentType left right)
+    (hleftTypes : selectionSetTypenameFree left := by typename_free)
+    (hrightTypes : selectionSetTypenameFree right := by typename_free)
     : SelectionSetEqualUpToReorderingWithCoercion schema leftVariableValues
         rightVariableValues parentType left right := by
   have hsemSame :
@@ -119,7 +121,9 @@ theorem validNormalObjectSelectionSets_semanticallyEquivalent_equalUpToReorderin
             hschema hleftValid hrightValid hleftCoercionAll hrightCoercionAll
             hleftFree hrightFree hleftNormal
             hrightNormal (supportSelectionSets := []) (minFuel := 0)
-            (by simp) hdiff with
+            (by simp) hdiff
+            (selectionSetTypenameFree_flatten_cons hleftTypes
+              (selectionSetTypenameFree_flatten_cons hrightTypes selectionSetTypenameFree_nil)) with
         ⟨runtimeType, hinclude, ObjectRef, resolvers, fuel, ref, _hfuel,
           _hsupport, hnotData⟩
       have hruntimeEq : runtimeType = parentType :=

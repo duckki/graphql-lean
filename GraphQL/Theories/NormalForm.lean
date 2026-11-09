@@ -714,6 +714,24 @@ def normalizeOperationsEqualUpToReorderingSemanticallyEquivalent
       (normalizeOperation schema right)
   -> operationsSemanticallyEquivalent schema left right
 
+-- Domain of structural uniqueness: exclude `__typename` fields, since they may have
+-- the same value without unique provenance (multiple fields with the same type may
+-- resolve to the same value).
+-- This checks field names rather than response aliases, including nested selections.
+mutual
+  def selectionTypenameFree : Selection -> Prop
+    | .field _responseName fieldName _arguments _directives children =>
+        fieldName ≠ "__typename" ∧ selectionSetTypenameFree children
+    | .inlineFragment _typeCondition _directives children =>
+        selectionSetTypenameFree children
+
+  def selectionSetTypenameFree (selections : List Selection) : Prop :=
+    ∀ selection, selection ∈ selections -> selectionTypenameFree selection
+end
+
+def operationTypenameFree (operation : Operation) : Prop :=
+  selectionSetTypenameFree operation.selectionSet
+
 -- States: Two semantically equivalent normal operations are syntactically equal.
 -- The theorem witness is
 -- `GroundTypeNormalization.normal_operations_semanticallyEquivalent_equalUpToReordering`
@@ -726,6 +744,8 @@ def normalOperationsSemanticallyEquivalentEqualUpToReordering
   -> Validation.operationDefinitionValid schema right
   -> operationDirectiveFree left
   -> operationDirectiveFree right
+  -> operationTypenameFree left
+  -> operationTypenameFree right
   -> operationNormal schema left
   -> operationNormal schema right
   -> variableDefinitionsSyntacticallyEquivalent left.variableDefinitions
@@ -744,6 +764,8 @@ def normalizeOperationUniqueUpToReordering (schema : Schema) (left right : Opera
   -> Validation.operationDefinitionValid schema right
   -> operationDirectiveFree left
   -> operationDirectiveFree right
+  -> operationTypenameFree left
+  -> operationTypenameFree right
   -> operationFieldsValidInPossibleTypes schema left
   -> operationFieldsValidInPossibleTypes schema right
   -> operationFieldsSameOutputShape schema left
@@ -1336,6 +1358,8 @@ def completeNormalOperationsSemanticallyEquivalentEqualUpToReordering
   SchemaWellFormedness.schemaWellFormed schema
   -> Validation.operationDefinitionValid schema left
   -> Validation.operationDefinitionValid schema right
+  -> operationTypenameFree left
+  -> operationTypenameFree right
   -> completeNormalOperation schema left
   -> completeNormalOperation schema right
   -> variableDefinitionsSyntacticallyEquivalent left.variableDefinitions
@@ -1358,6 +1382,8 @@ def completeNormalizeOperationUniqueUpToReordering
   SchemaWellFormedness.schemaWellFormed schema
   -> Validation.operationDefinitionValid schema left
   -> Validation.operationDefinitionValid schema right
+  -> operationTypenameFree left
+  -> operationTypenameFree right
   -> operationFieldsValidInPossibleTypes schema left
   -> operationFieldsValidInPossibleTypes schema right
   -> operationFieldsSameOutputShape schema left

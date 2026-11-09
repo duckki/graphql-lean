@@ -40,25 +40,26 @@ theorem
                     ∈ selectionSet
                   -> PathLocalSelectionSetCurrentContext bodySelectionSet
                       currentSelectionSet)
-          -> ∃ responseFields errors,
-              Execution.executeSelectionSetAsResponse schema
-                (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
-                  (fieldPairPathLocalProbeResolvers schema
-                    leftInitialSelectionSet rightInitialSelectionSet targetParent
-                    leftField rightField leftArguments rightArguments
-                    leftRuntime rightRuntime)
-                  targetParent leftField rightField leftArguments
-                  rightArguments)
-                variableValues (fuel + 1) runtimeType
-                (projectionTargetResolverValue
-                  (.object runtimeType
-                    (FieldPairPathLocalProbeRef.target tag currentSelectionSet)))
-                selectionSet
-              = ({
-                    data := Execution.ResponseValue.object responseFields,
-                    errors := errors
-                  }
-                  : Execution.Response) := by
+          -> ∀ (_hTypeNames : selectionSetTypenameFree selectionSet := by typename_free),
+              ∃ responseFields errors,
+                Execution.executeSelectionSetAsResponse schema
+                  (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
+                    (fieldPairPathLocalProbeResolvers schema
+                      leftInitialSelectionSet rightInitialSelectionSet targetParent
+                      leftField rightField leftArguments rightArguments
+                      leftRuntime rightRuntime)
+                    targetParent leftField rightField leftArguments
+                    rightArguments)
+                  variableValues (fuel + 1) runtimeType
+                  (projectionTargetResolverValue
+                    (.object runtimeType
+                      (FieldPairPathLocalProbeRef.target tag currentSelectionSet)))
+                  selectionSet
+                = ({
+                      data := Execution.ResponseValue.object responseFields,
+                      errors := errors
+                    }
+                    : Execution.Response) := by
   intro hschema n
   induction n with
   | zero =>
@@ -66,13 +67,13 @@ theorem
         targetParent leftField rightField leftArguments rightArguments
         leftRuntime rightRuntime tag currentSelectionSet hsize
         _hfuel _hvalid _hcoercion _hfree _hnormal _hinclude _hsupport
-        _hobjectContext _habstractContext
+        _hobjectContext _habstractContext _hTypeNames
       omega
   | succ n ih =>
       intro normalParentType variableDefinitions selectionSet fuel runtimeType
         targetParent leftField rightField leftArguments rightArguments
         leftRuntime rightRuntime tag currentSelectionSet hsize hfuel hvalid
-        hcoercion hfree hnormal hinclude hsupport hobjectContext habstractContext
+        hcoercion hfree hnormal hinclude hsupport hobjectContext habstractContext hTypeNames
       have hruntimeObject :
           objectTypeNameBool schema runtimeType = true :=
         objectTypeNameBool_of_typeIncludesObjectBool hschema hinclude
@@ -655,35 +656,36 @@ theorem
           -> schema.typeIncludesObjectBool fieldDefinition.outputType.namedType
                 runtimeType
               = true
-          -> ∃ responseFields childErrors,
-              Execution.executeSelectionSetAsResponse schema
-                (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
-                  (fieldPairPathLocalProbeResolvers schema
-                    leftInitialSelectionSet rightInitialSelectionSet
+          -> ∀ (_hTypeNames : selectionSetTypenameFree selectionSet := by typename_free),
+              ∃ responseFields childErrors,
+                Execution.executeSelectionSetAsResponse schema
+                  (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
+                    (fieldPairPathLocalProbeResolvers schema
+                      leftInitialSelectionSet rightInitialSelectionSet
+                      targetParent leftField rightField targetLeftArguments
+                      targetRightArguments leftRuntime rightRuntime)
                     targetParent leftField rightField targetLeftArguments
-                    targetRightArguments leftRuntime rightRuntime)
-                  targetParent leftField rightField targetLeftArguments
-                  targetRightArguments)
-                variableValues (fuel - leafProbeFuel fieldDefinition.outputType)
-                runtimeType
-                (projectionTargetResolverValue
-                  (.object runtimeType
-                    (FieldPairPathLocalProbeRef.target tag
-                      (fieldPairPathLocalNextSelectionSet schema parentType
-                        runtimeType fieldName pathArguments
-                        currentSelectionSet))))
-                childSelectionSet
-              = ({
-                    data := Execution.ResponseValue.object responseFields,
-                    errors := childErrors
-                  }
-                  : Execution.Response) := by
+                    targetRightArguments)
+                  variableValues (fuel - leafProbeFuel fieldDefinition.outputType)
+                  runtimeType
+                  (projectionTargetResolverValue
+                    (.object runtimeType
+                      (FieldPairPathLocalProbeRef.target tag
+                        (fieldPairPathLocalNextSelectionSet schema parentType
+                          runtimeType fieldName pathArguments
+                          currentSelectionSet))))
+                  childSelectionSet
+                = ({
+                      data := Execution.ResponseValue.object responseFields,
+                      errors := childErrors
+                    }
+                    : Execution.Response) := by
   intro hschema variableDefinitions parentType runtimeType targetParent
     leftField rightField responseName fieldName targetLeftArguments
     targetRightArguments PathArgumentType pathArguments arguments directives leftRuntime
     rightRuntime selectionSet childSelectionSet fieldDefinition fuel tag
     hvalid hcoercion hfree hnormal hparentObject hfuel hsupport hcontext hmem hlookup
-    hcomposite hinclude
+    hcomposite hinclude hTypeNames
   have hruntimeObject : objectTypeNameBool schema runtimeType = true :=
     objectTypeNameBool_of_typeIncludesObjectBool hschema hinclude
   rcases
@@ -822,15 +824,16 @@ theorem
           -> objectTypeNameBool schema parentType = true
           -> PathLocalSupportValidNormal schema parentType currentSelectionSet
           -> PathLocalSelectionSetCurrentContext selectionSet currentSelectionSet
-          -> PathLocalSelectionSetFieldChildrenReady schema rootSelectionSet
-              leftInitialSelectionSet rightInitialSelectionSet variableValues fuel
-              targetParent leftField rightField parentType leftArguments
-              rightArguments leftRuntime rightRuntime tag currentSelectionSet
-              selectionSet := by
+          -> ∀ (_hTypeNames : selectionSetTypenameFree selectionSet := by typename_free),
+              PathLocalSelectionSetFieldChildrenReady schema rootSelectionSet
+                leftInitialSelectionSet rightInitialSelectionSet variableValues fuel
+                targetParent leftField rightField parentType leftArguments
+                rightArguments leftRuntime rightRuntime tag currentSelectionSet
+                selectionSet := by
   intro hschema n parentType variableDefinitions selectionSet fuel
     targetParent leftField rightField leftArguments rightArguments leftRuntime
     rightRuntime tag currentSelectionSet hsize hfuel hvalid hcoercion hfree hnormal
-    hparentObject hsupport hcontext
+    hparentObject hsupport hcontext hTypeNames
   intro responseName fieldName arguments directives childSelectionSet hmem
   rcases selectionSetValid_field_lookup_of_mem hvalid hmem with
     ⟨fieldDefinition, hlookup, hargumentsValid, _hfieldSelectionValid⟩
@@ -3114,11 +3117,14 @@ theorem
                     (FieldPairPathLocalProbeRef.target FieldPairProbeTag.right
                       rightInitialSelectionSet)))
                 rightChildSelectionSet).data)
-      -> ¬ selectionSetsDataEquivalent schema parentType left right := by
+      -> ∀ (_hTypeNames : selectionSetTypenameFree (left ++ right) := by typename_free),
+          ¬ selectionSetsDataEquivalent schema parentType left right := by
   intro hschema hleftValid hrightValid hleftCoercion hrightCoercion hleftFree
     hrightFree hleftNormal hrightNormal hparentObject hfuelAppend hleftMem
     hrightMem hlookup hcomposite hleftInclude hrightInclude hreflect
-    hargumentsDiff hchildDataNot
+    hargumentsDiff hchildDataNot hTypeNames
+  have hleftTypes := selectionSetTypenameFree_append_left hTypeNames
+  have hrightTypes := selectionSetTypenameFree_append_right hTypeNames
   let rootSelectionSet : List Selection :=
     [Selection.inlineFragment (some parentType) [] (left ++ right)]
   let variableValues : Execution.VariableValues := []
@@ -3642,11 +3648,14 @@ theorem
                     (FieldPairPathLocalProbeRef.target FieldPairProbeTag.right
                       rightInitialSelectionSet)))
                 rightChildSelectionSet).data)
-      -> ¬ selectionSetsDataEquivalent schema parentType left right := by
+      -> ∀ (_hTypeNames : selectionSetTypenameFree (left ++ right) := by typename_free),
+          ¬ selectionSetsDataEquivalent schema parentType left right := by
   intro hschema hleftValid hrightValid hleftCoercion hrightCoercion hleftFree
     hrightFree hleftNormal hrightNormal hparentObject hfuelAppend hleftMem
     hrightMem hleftLookup hrightLookup hleftComposite hrightComposite
-    hleftInclude hrightInclude hfieldDiff hchildDataNot
+    hleftInclude hrightInclude hfieldDiff hchildDataNot hTypeNames
+  have hleftTypes := selectionSetTypenameFree_append_left hTypeNames
+  have hrightTypes := selectionSetTypenameFree_append_right hTypeNames
   let rootSelectionSet : List Selection :=
     [Selection.inlineFragment (some parentType) [] (left ++ right)]
   let variableValues : Execution.VariableValues := []

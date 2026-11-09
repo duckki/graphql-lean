@@ -317,7 +317,14 @@ private theorem annotatedExecution_admissible
   case case8 =>
     intro parentType source responseName field rest fuel definition hlookup coercedArguments hcoerce
       resolved hresolve complete_ih
-    have hcomplete := complete_ih (hresolvers _ _ _ _ _ hresolve)
+    have hbounded : resolverValueListsBounded listSize resolved := by
+      by_cases hmeta : field.fieldName = "__typename"
+      · cases source <;>
+          simp [resolveFieldValue, hmeta, resolveTypenameField] at hresolve
+        cases hresolve
+        trivial
+      · exact hresolvers _ _ _ _ _ (by simpa [resolveFieldValue, hmeta] using hresolve)
+    have hcomplete := complete_ih hbounded
     cases hcompleted
           : completeAnnotatedResponseValue schema resolvers variableValues fuel
               definition.outputType (field :: rest) resolved with
@@ -331,7 +338,7 @@ private theorem annotatedExecution_admissible
           annotatedFieldsResultAdmissible,
           foldAnnotatedResponseFields, concreteAlgebra, responseFieldObservation,
           ResponseObservation.combine, ResponseObservation.empty]
-        exact hcomplete
+        assumption
   case case9 =>
     simp [completeAnnotatedResponseValue, annotatedValueResultAdmissible]
   case case10 =>

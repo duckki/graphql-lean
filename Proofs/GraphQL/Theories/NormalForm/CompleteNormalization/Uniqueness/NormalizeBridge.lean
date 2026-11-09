@@ -1,4 +1,5 @@
 import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.Semantics
+import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.TypenameFree
 import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.ReadinessPreservation
 import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.Uniqueness.OperationBridge
 import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.Uniqueness.RestrictedSemantics
@@ -83,7 +84,7 @@ theorem completeNormalizeOperation_boolVarsEquivalent
 theorem completeNormalizeOperation_uniqueUpToReordering
     {schema : Schema} {left right : Operation}
     : completeNormalizeOperationUniqueUpToReordering schema left right := by
-  intro hschema hleftValid hrightValid hleftFields hrightFields
+  intro hschema hleftValid hrightValid hleftTypes hrightTypes hleftFields hrightFields
     hleftShapes hrightShapes hleftBoolFeasible hrightBoolFeasible hdefinitions hvariables hsem
   have hleftNormalizedValid :
       Validation.operationDefinitionValid schema
@@ -161,7 +162,10 @@ theorem completeNormalizeOperation_uniqueUpToReordering
     complete_normal_operations_equalUpToReordering_of_complete_bool_vars_semantics
       hschema hleftNormalizedValid hrightNormalizedValid
       hleftNormalizedNormal hrightNormalizedNormal hnormalizedVariables
-      hnormalizedDefinitions hnormalizedSemantics
+      hnormalizedDefinitions
+    (completeNormalizeOperation_typenameFree schema left hleftTypes)
+    (completeNormalizeOperation_typenameFree schema right hrightTypes)
+    hnormalizedSemantics
 
 end CompleteNormalization
 

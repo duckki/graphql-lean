@@ -1,4 +1,5 @@
 import GraphQL.Execution
+import Proofs.GraphQL.Execution.Typename
 import Proofs.GraphQL.Schema.CustomScalars
 import Proofs.GraphQL.Validation.SelectionValidity
 import Proofs.GraphQL.Validation.Variables

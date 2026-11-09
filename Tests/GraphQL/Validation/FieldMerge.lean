@@ -73,7 +73,7 @@ private theorem userField_children (left right : List Selection)
   rcases hleft with rfl | rfl <;> rcases hright with rfl | rfl <;>
     simp [collectSubfields, collectFields, returnScopeSchema, userField,
       directName, fragmentName, nameField, TypeRef.namedType,
-      Schema.lookupField, Schema.lookupType, Schema.allTypes, Schema.builtinScalarDefinitions,
+      Schema.lookupField, Schema.lookupDeclaredField, Schema.lookupType, Schema.allTypes, Schema.builtinScalarDefinitions,
       TypeDefinition.name, TypeDefinition.fields?, BuiltinScalar.name]
 
 private theorem userField_merge (left right : List Selection)
@@ -170,7 +170,7 @@ theorem returnScopeQuery_canMerge
   have hcollect : collectFields returnScopeSchema "Query" returnScopeQuery.selectionSet
       = [userField directName, userField fragmentName] := by
     simp [collectFields, returnScopeQuery, returnScopeSchema, userField,
-      Schema.lookupField, Schema.lookupType, Schema.allTypes, Schema.builtinScalarDefinitions,
+      Schema.lookupField, Schema.lookupDeclaredField, Schema.lookupType, Schema.allTypes, Schema.builtinScalarDefinitions,
       TypeDefinition.name, TypeDefinition.fields?, BuiltinScalar.name]
   rw [hcollect] at hleft hright
   simp at hleft hright
@@ -193,7 +193,7 @@ theorem returnScopeQuery_valid
       GraphQL.Validation.argumentsValid, returnScopeQuery, returnScopeSchema,
       directName, fragmentName, Operation.rootType, OperationType.rootType, TypeRef.namedType,
       TypeRef.isOutputType, Schema.isOutputType, Schema.isLeafType, Schema.isCompositeType,
-      Schema.lookupField, Schema.lookupType, Schema.allTypes, Schema.builtinScalarDefinitions,
+      Schema.lookupField, Schema.lookupDeclaredField, Schema.lookupType, Schema.allTypes, Schema.builtinScalarDefinitions,
       TypeDefinition.name, TypeDefinition.fields?, TypeDefinition.isOutputType,
       TypeDefinition.isLeafType, TypeDefinition.isCompositeType, BuiltinScalar.name,
       Schema.typesOverlap, Schema.typeIncludesObject, Schema.getPossibleTypes]
@@ -211,7 +211,7 @@ theorem unrelatedScope_rejected
   have hcollect : collectFields returnScopeSchema "Other" (directName ++ fragmentName)
       = [otherName, nameField] := by
     simp [collectFields, directName, fragmentName, returnScopeSchema, otherName, nameField,
-      Schema.lookupField, Schema.lookupType, Schema.allTypes, Schema.builtinScalarDefinitions,
+      Schema.lookupField, Schema.lookupDeclaredField, Schema.lookupType, Schema.allTypes, Schema.builtinScalarDefinitions,
       TypeDefinition.name, TypeDefinition.fields?, BuiltinScalar.name]
   have hpair := fieldsInSetCanMerge_pair (left := otherName) (right := nameField) hmerge
     (by rw [hcollect]; simp) (by rw [hcollect]; simp) rfl
@@ -304,7 +304,7 @@ theorem sameResponseShape_disjointParents_nestedMismatch_rejected
           = [nameField, intField] := by
         simp [collectSubfields, collectFields, branchField, directName, disjointReturnSchema,
           returnScopeSchema, nameField, intField, TypeRef.namedType,
-          Schema.lookupField, Schema.lookupType, Schema.allTypes, Schema.builtinScalarDefinitions,
+          Schema.lookupField, Schema.lookupDeclaredField, Schema.lookupType, Schema.allTypes, Schema.builtinScalarDefinitions,
           TypeDefinition.name, TypeDefinition.fields?, BuiltinScalar.name]
       have hchild := hchildren huser hother nameField (by rw [hcollect]; simp)
         intField (by rw [hcollect]; simp) rfl

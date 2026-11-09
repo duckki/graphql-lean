@@ -1557,17 +1557,19 @@ theorem left_selectionSet_deepFieldReadyWithRef_append_framed_of_valid_normal
           Selection.field leftResponseName leftFieldName leftArguments
               leftDirectives leftChildSelectionSet
             ∈ left
-          -> ∃ fieldDefinition,
-              schema.lookupField parentType leftFieldName = some fieldDefinition
-              ∧ leafProbeFuel fieldDefinition.outputType
-                ≤ selectionSetDeepProbeFuel schema parentType (left ++ right)
-              ∧ deepFieldSelectionSetExecutionReadyWithRef schema
-                  [Selection.inlineFragment (some parentType) [] (left ++ right)]
-                  objectRef variableValues
-                  (selectionSetDeepProbeFuel schema parentType (left ++ right)
-                    - leafProbeFuel fieldDefinition.outputType)
-                  parentType leftResponseName leftFieldName leftArguments
-                  leftChildSelectionSet fieldDefinition := by
+          -> ∀ (_hTypeNames
+                : selectionSetTypenameFree (left ++ right) := by typename_free),
+              ∃ fieldDefinition,
+                schema.lookupField parentType leftFieldName = some fieldDefinition
+                ∧ leafProbeFuel fieldDefinition.outputType
+                  ≤ selectionSetDeepProbeFuel schema parentType (left ++ right)
+                ∧ deepFieldSelectionSetExecutionReadyWithRef schema
+                    [Selection.inlineFragment (some parentType) [] (left ++ right)]
+                    objectRef variableValues
+                    (selectionSetDeepProbeFuel schema parentType (left ++ right)
+                      - leafProbeFuel fieldDefinition.outputType)
+                    parentType leftResponseName leftFieldName leftArguments
+                    leftChildSelectionSet fieldDefinition := by
   intro hschema hleftValid hrightValid hleftCoercion hleftFree hrightFree hleftNormal
     hrightNormal hobject
   have hfuel :
@@ -1607,7 +1609,9 @@ theorem left_selectionSet_deepFieldReadyWithRef_append_framed_of_valid_normal
         (targetFieldDefinition := targetFieldDefinition)
         happendRuntime hinclude
   intro leftResponseName leftFieldName leftArguments leftDirectives
-    leftChildSelectionSet hmem
+    leftChildSelectionSet hmem hTypeNames
+  have hleftTypes := selectionSetTypenameFree_append_left hTypeNames
+  have hrightTypes := selectionSetTypenameFree_append_right hTypeNames
   exact deepFieldSelectionSetReadyWithRef_of_valid_normal_object_promoted_fuel_ge_size
     schema [Selection.inlineFragment (some parentType) [] (left ++ right)]
     objectRef variableValues hschema (SelectionSet.size left + 1)
@@ -1637,17 +1641,19 @@ theorem right_selectionSet_deepFieldReadyWithRef_append_framed_of_valid_normal
           Selection.field rightResponseName rightFieldName rightArguments
               rightDirectives rightChildSelectionSet
             ∈ right
-          -> ∃ fieldDefinition,
-              schema.lookupField parentType rightFieldName = some fieldDefinition
-              ∧ leafProbeFuel fieldDefinition.outputType
-                ≤ selectionSetDeepProbeFuel schema parentType (left ++ right)
-              ∧ deepFieldSelectionSetExecutionReadyWithRef schema
-                  [Selection.inlineFragment (some parentType) [] (left ++ right)]
-                  objectRef variableValues
-                  (selectionSetDeepProbeFuel schema parentType (left ++ right)
-                    - leafProbeFuel fieldDefinition.outputType)
-                  parentType rightResponseName rightFieldName rightArguments
-                  rightChildSelectionSet fieldDefinition := by
+          -> ∀ (_hTypeNames
+                : selectionSetTypenameFree (left ++ right) := by typename_free),
+              ∃ fieldDefinition,
+                schema.lookupField parentType rightFieldName = some fieldDefinition
+                ∧ leafProbeFuel fieldDefinition.outputType
+                  ≤ selectionSetDeepProbeFuel schema parentType (left ++ right)
+                ∧ deepFieldSelectionSetExecutionReadyWithRef schema
+                    [Selection.inlineFragment (some parentType) [] (left ++ right)]
+                    objectRef variableValues
+                    (selectionSetDeepProbeFuel schema parentType (left ++ right)
+                      - leafProbeFuel fieldDefinition.outputType)
+                    parentType rightResponseName rightFieldName rightArguments
+                    rightChildSelectionSet fieldDefinition := by
   intro hschema hleftValid hrightValid hrightCoercion hleftFree hrightFree hleftNormal
     hrightNormal hobject
   have hfuel :
@@ -1687,7 +1693,9 @@ theorem right_selectionSet_deepFieldReadyWithRef_append_framed_of_valid_normal
         (targetFieldDefinition := targetFieldDefinition)
         happendRuntime hinclude
   intro rightResponseName rightFieldName rightArguments rightDirectives
-    rightChildSelectionSet hmem
+    rightChildSelectionSet hmem hTypeNames
+  have hleftTypes := selectionSetTypenameFree_append_left hTypeNames
+  have hrightTypes := selectionSetTypenameFree_append_right hTypeNames
   exact deepFieldSelectionSetReadyWithRef_of_valid_normal_object_promoted_fuel_ge_size
     schema [Selection.inlineFragment (some parentType) [] (left ++ right)]
     objectRef variableValues hschema (SelectionSet.size right + 1)
@@ -1719,20 +1727,21 @@ theorem selectionSet_deepSuccessFieldOk_framed_of_valid_normal_members
       -> ∀ responseName fieldName arguments directives childSelectionSet,
           Selection.field responseName fieldName arguments directives childSelectionSet
             ∈ selectionSet
-          -> ∃ responseValue fieldErrors,
-              Execution.executeField schema
-                (deepSelectionSetSuccessResolversWithRef schema
-                  [Selection.inlineFragment (some parentType) [] (List.flatten members)]
-                  objectRef)
-                variableValues (fuel + 1) parentType source responseName
-                [{
-                  fieldName := fieldName,
-                  arguments := arguments,
-                  selectionSet := childSelectionSet
-                }]
-              = .ok ([(responseName, responseValue)], fieldErrors) := by
+          -> ∀ (_hTypeNames : selectionSetTypenameFree selectionSet := by typename_free),
+              ∃ responseValue fieldErrors,
+                Execution.executeField schema
+                  (deepSelectionSetSuccessResolversWithRef schema
+                    [Selection.inlineFragment (some parentType) [] (List.flatten members)]
+                    objectRef)
+                  variableValues (fuel + 1) parentType source responseName
+                  [{
+                    fieldName := fieldName,
+                    arguments := arguments,
+                    selectionSet := childSelectionSet
+                  }]
+                = .ok ([(responseName, responseValue)], fieldErrors) := by
   intro hschema hmembers hmember hobject hfuel responseName fieldName
-    arguments directives childSelectionSet hmem
+    arguments directives childSelectionSet hmem hTypeNames
   let rootSelectionSet :=
     [Selection.inlineFragment (some parentType) [] (List.flatten members)]
   rcases hmembers selectionSet hmember with
@@ -1813,21 +1822,25 @@ theorem left_selectionSet_deepSuccessFieldOk_append_framed_of_valid_normal_fuel_
       -> ∀ responseName fieldName arguments directives childSelectionSet,
           Selection.field responseName fieldName arguments directives childSelectionSet
             ∈ left
-          -> ∃ responseValue fieldErrors,
-              Execution.executeField schema
-                (deepSelectionSetSuccessResolversWithRef schema
-                  [Selection.inlineFragment (some parentType) [] (left ++ right)]
-                  objectRef)
-                variableValues (fuel + 1) parentType source responseName
-                [{
-                  fieldName := fieldName,
-                  arguments := arguments,
-                  selectionSet := childSelectionSet
-                }]
-              = .ok ([(responseName, responseValue)], fieldErrors) := by
+          -> ∀ (_hTypeNames
+                : selectionSetTypenameFree (left ++ right) := by typename_free),
+              ∃ responseValue fieldErrors,
+                Execution.executeField schema
+                  (deepSelectionSetSuccessResolversWithRef schema
+                    [Selection.inlineFragment (some parentType) [] (left ++ right)]
+                    objectRef)
+                  variableValues (fuel + 1) parentType source responseName
+                  [{
+                    fieldName := fieldName,
+                    arguments := arguments,
+                    selectionSet := childSelectionSet
+                  }]
+                = .ok ([(responseName, responseValue)], fieldErrors) := by
   intro hschema hleftValid hrightValid hleftCoercion hleftFree hrightFree hleftNormal
     hrightNormal hobject hfuel responseName fieldName arguments directives
-    childSelectionSet hmem
+    childSelectionSet hmem hTypeNames
+  have hleftTypes := selectionSetTypenameFree_append_left hTypeNames
+  have hrightTypes := selectionSetTypenameFree_append_right hTypeNames
   have hleftFuel :
       selectionSetDeepProbeFuel schema parentType left ≤ fuel := by
     have happend :=
@@ -1903,21 +1916,25 @@ theorem right_selectionSet_deepSuccessFieldOk_append_framed_of_valid_normal_fuel
       -> ∀ responseName fieldName arguments directives childSelectionSet,
           Selection.field responseName fieldName arguments directives childSelectionSet
             ∈ right
-          -> ∃ responseValue fieldErrors,
-              Execution.executeField schema
-                (deepSelectionSetSuccessResolversWithRef schema
-                  [Selection.inlineFragment (some parentType) [] (left ++ right)]
-                  objectRef)
-                variableValues (fuel + 1) parentType source responseName
-                [{
-                  fieldName := fieldName,
-                  arguments := arguments,
-                  selectionSet := childSelectionSet
-                }]
-              = .ok ([(responseName, responseValue)], fieldErrors) := by
+          -> ∀ (_hTypeNames
+                : selectionSetTypenameFree (left ++ right) := by typename_free),
+              ∃ responseValue fieldErrors,
+                Execution.executeField schema
+                  (deepSelectionSetSuccessResolversWithRef schema
+                    [Selection.inlineFragment (some parentType) [] (left ++ right)]
+                    objectRef)
+                  variableValues (fuel + 1) parentType source responseName
+                  [{
+                    fieldName := fieldName,
+                    arguments := arguments,
+                    selectionSet := childSelectionSet
+                  }]
+                = .ok ([(responseName, responseValue)], fieldErrors) := by
   intro hschema hleftValid hrightValid hrightCoercion hleftFree hrightFree hleftNormal
     hrightNormal hobject hfuel responseName fieldName arguments directives
-    childSelectionSet hmem
+    childSelectionSet hmem hTypeNames
+  have hleftTypes := selectionSetTypenameFree_append_left hTypeNames
+  have hrightTypes := selectionSetTypenameFree_append_right hTypeNames
   have hrightFuel :
       selectionSetDeepProbeFuel schema parentType right ≤ fuel := by
     have happend :=
@@ -1992,23 +2009,27 @@ theorem left_selectionSet_deepSuccessFieldOk_append_framed_of_valid_normal
       -> ∀ responseName fieldName arguments directives childSelectionSet,
           Selection.field responseName fieldName arguments directives childSelectionSet
             ∈ left
-          -> ∃ responseValue fieldErrors,
-              Execution.executeField schema
-                (deepSelectionSetSuccessResolversWithRef schema
-                  [Selection.inlineFragment (some parentType) [] (left ++ right)]
-                  objectRef)
-                variableValues
-                (selectionSetDeepProbeFuel schema parentType (left ++ right) + 1)
-                parentType source responseName
-                [{
-                  fieldName := fieldName,
-                  arguments := arguments,
-                  selectionSet := childSelectionSet
-                }]
-              = .ok ([(responseName, responseValue)], fieldErrors) := by
+          -> ∀ (_hTypeNames
+                : selectionSetTypenameFree (left ++ right) := by typename_free),
+              ∃ responseValue fieldErrors,
+                Execution.executeField schema
+                  (deepSelectionSetSuccessResolversWithRef schema
+                    [Selection.inlineFragment (some parentType) [] (left ++ right)]
+                    objectRef)
+                  variableValues
+                  (selectionSetDeepProbeFuel schema parentType (left ++ right) + 1)
+                  parentType source responseName
+                  [{
+                    fieldName := fieldName,
+                    arguments := arguments,
+                    selectionSet := childSelectionSet
+                  }]
+                = .ok ([(responseName, responseValue)], fieldErrors) := by
   intro hschema hleftValid hrightValid hleftCoercion hleftFree hrightFree hleftNormal
     hrightNormal hobject responseName fieldName arguments directives
-    childSelectionSet hmem
+    childSelectionSet hmem hTypeNames
+  have hleftTypes := selectionSetTypenameFree_append_left hTypeNames
+  have hrightTypes := selectionSetTypenameFree_append_right hTypeNames
   rcases
       left_selectionSet_deepFieldReadyWithRef_append_framed_of_valid_normal
         objectRef variableValues hschema hleftValid hrightValid hleftCoercion hleftFree
@@ -2044,23 +2065,27 @@ theorem right_selectionSet_deepSuccessFieldOk_append_framed_of_valid_normal
       -> ∀ responseName fieldName arguments directives childSelectionSet,
           Selection.field responseName fieldName arguments directives childSelectionSet
             ∈ right
-          -> ∃ responseValue fieldErrors,
-              Execution.executeField schema
-                (deepSelectionSetSuccessResolversWithRef schema
-                  [Selection.inlineFragment (some parentType) [] (left ++ right)]
-                  objectRef)
-                variableValues
-                (selectionSetDeepProbeFuel schema parentType (left ++ right) + 1)
-                parentType source responseName
-                [{
-                  fieldName := fieldName,
-                  arguments := arguments,
-                  selectionSet := childSelectionSet
-                }]
-              = .ok ([(responseName, responseValue)], fieldErrors) := by
+          -> ∀ (_hTypeNames
+                : selectionSetTypenameFree (left ++ right) := by typename_free),
+              ∃ responseValue fieldErrors,
+                Execution.executeField schema
+                  (deepSelectionSetSuccessResolversWithRef schema
+                    [Selection.inlineFragment (some parentType) [] (left ++ right)]
+                    objectRef)
+                  variableValues
+                  (selectionSetDeepProbeFuel schema parentType (left ++ right) + 1)
+                  parentType source responseName
+                  [{
+                    fieldName := fieldName,
+                    arguments := arguments,
+                    selectionSet := childSelectionSet
+                  }]
+                = .ok ([(responseName, responseValue)], fieldErrors) := by
   intro hschema hleftValid hrightValid hrightCoercion hleftFree hrightFree hleftNormal
     hrightNormal hobject responseName fieldName arguments directives
-    childSelectionSet hmem
+    childSelectionSet hmem hTypeNames
+  have hleftTypes := selectionSetTypenameFree_append_left hTypeNames
+  have hrightTypes := selectionSetTypenameFree_append_right hTypeNames
   rcases
       right_selectionSet_deepFieldReadyWithRef_append_framed_of_valid_normal
         objectRef variableValues hschema hleftValid hrightValid hrightCoercion hleftFree
@@ -2112,37 +2137,41 @@ theorem left_selectionSet_fieldPairProbeProjectionFieldOk_append_framed_leaf_tar
       -> ∀ responseName fieldName arguments directives childSelectionSet,
           Selection.field responseName fieldName arguments directives childSelectionSet
             ∈ left
-          -> ∃ responseValue fieldErrors,
-              Execution.executeField schema
-                (fieldPairOrDeepSuccessResolvers schema
-                  [Selection.inlineFragment (some parentType) [] (left ++ right)]
-                  (fieldPairProbeResolvers schema
+          -> ∀ (_hTypeNames
+                : selectionSetTypenameFree (left ++ right) := by typename_free),
+              ∃ responseValue fieldErrors,
+                Execution.executeField schema
+                  (fieldPairOrDeepSuccessResolvers schema
                     [Selection.inlineFragment (some parentType) [] (left ++ right)]
+                    (fieldPairProbeResolvers schema
+                      [Selection.inlineFragment (some parentType) [] (left ++ right)]
+                      parentType leftField rightField
+                      (Execution.coercedArgumentsForField schema variableValues
+                        parentType leftField leftArguments)
+                      (Execution.coercedArgumentsForField schema variableValues
+                        parentType rightField rightArguments))
                     parentType leftField rightField
                     (Execution.coercedArgumentsForField schema variableValues
                       parentType leftField leftArguments)
                     (Execution.coercedArgumentsForField schema variableValues
                       parentType rightField rightArguments))
-                  parentType leftField rightField
-                  (Execution.coercedArgumentsForField schema variableValues
-                    parentType leftField leftArguments)
-                  (Execution.coercedArgumentsForField schema variableValues
-                    parentType rightField rightArguments))
-                variableValues
-                (selectionSetDeepProbeFuel schema parentType (left ++ right) + 1)
-                parentType
-                (projectionRootResolverValue
-                  (.object parentType (none : Option FieldPairProbeTag)))
-                responseName
-                [{
-                  fieldName := fieldName,
-                  arguments := arguments,
-                  selectionSet := childSelectionSet
-                }]
-              = .ok ([(responseName, responseValue)], fieldErrors) := by
+                  variableValues
+                  (selectionSetDeepProbeFuel schema parentType (left ++ right) + 1)
+                  parentType
+                  (projectionRootResolverValue
+                    (.object parentType (none : Option FieldPairProbeTag)))
+                  responseName
+                  [{
+                    fieldName := fieldName,
+                    arguments := arguments,
+                    selectionSet := childSelectionSet
+                  }]
+                = .ok ([(responseName, responseValue)], fieldErrors) := by
   intro hschema hleftValid hrightValid hleftCoercion hleftFree hrightFree hleftNormal
     hrightNormal hobject hleftLeaf hrightLeaf hrightNotLeft responseName
-    fieldName arguments directives childSelectionSet hmem
+    fieldName arguments directives childSelectionSet hmem hTypeNames
+  have hleftTypes := selectionSetTypenameFree_append_left hTypeNames
+  have hrightTypes := selectionSetTypenameFree_append_right hTypeNames
   let rootSelectionSet :=
     [Selection.inlineFragment (some parentType) [] (left ++ right)]
   let base :=
@@ -2365,37 +2394,41 @@ theorem right_selectionSet_fieldPairProbeProjectionFieldOk_append_framed_leaf_ta
       -> ∀ responseName fieldName arguments directives childSelectionSet,
           Selection.field responseName fieldName arguments directives childSelectionSet
             ∈ right
-          -> ∃ responseValue fieldErrors,
-              Execution.executeField schema
-                (fieldPairOrDeepSuccessResolvers schema
-                  [Selection.inlineFragment (some parentType) [] (left ++ right)]
-                  (fieldPairProbeResolvers schema
+          -> ∀ (_hTypeNames
+                : selectionSetTypenameFree (left ++ right) := by typename_free),
+              ∃ responseValue fieldErrors,
+                Execution.executeField schema
+                  (fieldPairOrDeepSuccessResolvers schema
                     [Selection.inlineFragment (some parentType) [] (left ++ right)]
+                    (fieldPairProbeResolvers schema
+                      [Selection.inlineFragment (some parentType) [] (left ++ right)]
+                      parentType leftField rightField
+                      (Execution.coercedArgumentsForField schema variableValues
+                        parentType leftField leftArguments)
+                      (Execution.coercedArgumentsForField schema variableValues
+                        parentType rightField rightArguments))
                     parentType leftField rightField
                     (Execution.coercedArgumentsForField schema variableValues
                       parentType leftField leftArguments)
                     (Execution.coercedArgumentsForField schema variableValues
                       parentType rightField rightArguments))
-                  parentType leftField rightField
-                  (Execution.coercedArgumentsForField schema variableValues
-                    parentType leftField leftArguments)
-                  (Execution.coercedArgumentsForField schema variableValues
-                    parentType rightField rightArguments))
-                variableValues
-                (selectionSetDeepProbeFuel schema parentType (left ++ right) + 1)
-                parentType
-                (projectionRootResolverValue
-                  (.object parentType (none : Option FieldPairProbeTag)))
-                responseName
-                [{
-                  fieldName := fieldName,
-                  arguments := arguments,
-                  selectionSet := childSelectionSet
-                }]
-              = .ok ([(responseName, responseValue)], fieldErrors) := by
+                  variableValues
+                  (selectionSetDeepProbeFuel schema parentType (left ++ right) + 1)
+                  parentType
+                  (projectionRootResolverValue
+                    (.object parentType (none : Option FieldPairProbeTag)))
+                  responseName
+                  [{
+                    fieldName := fieldName,
+                    arguments := arguments,
+                    selectionSet := childSelectionSet
+                  }]
+                = .ok ([(responseName, responseValue)], fieldErrors) := by
   intro hschema hleftValid hrightValid hrightCoercion hleftFree hrightFree hleftNormal
     hrightNormal hobject hleftLeaf hrightLeaf hrightNotLeft responseName
-    fieldName arguments directives childSelectionSet hmem
+    fieldName arguments directives childSelectionSet hmem hTypeNames
+  have hleftTypes := selectionSetTypenameFree_append_left hTypeNames
+  have hrightTypes := selectionSetTypenameFree_append_right hTypeNames
   let rootSelectionSet :=
     [Selection.inlineFragment (some parentType) [] (left ++ right)]
   let base :=
@@ -2615,9 +2648,12 @@ theorem not_selectionSetsDataEquivalent_of_valid_normal_object_arguments_diff_le
               leftArguments)
             (Execution.coercedArgumentsForField schema [] parentType fieldName
               rightArguments)
-      -> ¬ selectionSetsDataEquivalent schema parentType left right := by
+      -> ∀ (_hTypeNames : selectionSetTypenameFree (left ++ right) := by typename_free),
+          ¬ selectionSetsDataEquivalent schema parentType left right := by
   intro hschema hleftValid hrightValid hleftCoercion hrightCoercion hleftFree hrightFree hleftNormal
-    hrightNormal hobject hleftMem hrightMem hleafOfLookup hargumentsDiff
+    hrightNormal hobject hleftMem hrightMem hleafOfLookup hargumentsDiff hTypeNames
+  have hleftTypes := selectionSetTypenameFree_append_left hTypeNames
+  have hrightTypes := selectionSetTypenameFree_append_right hTypeNames
   let rootSelectionSet :=
     [Selection.inlineFragment (some parentType) [] (left ++ right)]
   let variableValues : Execution.VariableValues := []
@@ -2850,10 +2886,13 @@ theorem not_selectionSetsDataEquivalent_of_valid_normal_object_fieldName_diff_le
             -> (TypeRef.named fieldDefinition.outputType.namedType).isCompositeBool schema
                 = false)
       -> leftFieldName ≠ rightFieldName
-      -> ¬ selectionSetsDataEquivalent schema parentType left right := by
+      -> ∀ (_hTypeNames : selectionSetTypenameFree (left ++ right) := by typename_free),
+          ¬ selectionSetsDataEquivalent schema parentType left right := by
   intro hschema hleftValid hrightValid hleftCoercion hrightCoercion hleftFree hrightFree hleftNormal
     hrightNormal hobject hleftMem hrightMem hleftLeafOfLookup
-    hrightLeafOfLookup hfieldDiff
+    hrightLeafOfLookup hfieldDiff hTypeNames
+  have hleftTypes := selectionSetTypenameFree_append_left hTypeNames
+  have hrightTypes := selectionSetTypenameFree_append_right hTypeNames
   let rootSelectionSet :=
     [Selection.inlineFragment (some parentType) [] (left ++ right)]
   let variableValues : Execution.VariableValues := []
@@ -3388,21 +3427,24 @@ theorem
       -> objectTypeNameBool schema parentType = false
       -> Selection.inlineFragment (some typeCondition) directives childSelectionSet ∈ left
       -> typeCondition ∉ right.filterMap inlineFragmentTypeCondition?
-      -> ¬ Execution.ResponseValue.semanticEquivalent
-            (Execution.executeSelectionSetAsResponse schema
-              (deepSelectionSetSuccessResolversWithRef schema
-                [Selection.inlineFragment (some parentType) [] (left ++ right)]
-                PUnit.unit)
-              [] (selectionSetDeepProbeFuel schema parentType (left ++ right) + 1)
-              typeCondition (.object typeCondition PUnit.unit) left).data
-            (Execution.executeSelectionSetAsResponse schema
-              (deepSelectionSetSuccessResolversWithRef schema
-                [Selection.inlineFragment (some parentType) [] (left ++ right)]
-                PUnit.unit)
-              [] (selectionSetDeepProbeFuel schema parentType (left ++ right) + 1)
-              typeCondition (.object typeCondition PUnit.unit) right).data := by
+      -> ∀ (_hTypeNames : selectionSetTypenameFree (left ++ right) := by typename_free),
+          ¬ Execution.ResponseValue.semanticEquivalent
+              (Execution.executeSelectionSetAsResponse schema
+                (deepSelectionSetSuccessResolversWithRef schema
+                  [Selection.inlineFragment (some parentType) [] (left ++ right)]
+                  PUnit.unit)
+                [] (selectionSetDeepProbeFuel schema parentType (left ++ right) + 1)
+                typeCondition (.object typeCondition PUnit.unit) left).data
+              (Execution.executeSelectionSetAsResponse schema
+                (deepSelectionSetSuccessResolversWithRef schema
+                  [Selection.inlineFragment (some parentType) [] (left ++ right)]
+                  PUnit.unit)
+                [] (selectionSetDeepProbeFuel schema parentType (left ++ right) + 1)
+                typeCondition (.object typeCondition PUnit.unit) right).data := by
   intro hschema hleftValid hrightValid hleftCoercion hleftFree hrightFree hleftNormal
-    hrightNormal hnonObject hleftMem hrightNoTypeCondition
+    hrightNormal hnonObject hleftMem hrightNoTypeCondition hTypeNames
+  have hleftTypes := selectionSetTypenameFree_append_left hTypeNames
+  have hrightTypes := selectionSetTypenameFree_append_right hTypeNames
   have hdirectives : directives = [] :=
     selectionSetDirectiveFree_inlineFragment_directives_nil_of_mem
       hleftFree hleftMem
@@ -3587,21 +3629,24 @@ theorem
       -> Selection.inlineFragment (some typeCondition) directives childSelectionSet
           ∈ right
       -> typeCondition ∉ left.filterMap inlineFragmentTypeCondition?
-      -> ¬ Execution.ResponseValue.semanticEquivalent
-            (Execution.executeSelectionSetAsResponse schema
-              (deepSelectionSetSuccessResolversWithRef schema
-                [Selection.inlineFragment (some parentType) [] (right ++ left)]
-                PUnit.unit)
-              [] (selectionSetDeepProbeFuel schema parentType (right ++ left) + 1)
-              typeCondition (.object typeCondition PUnit.unit) left).data
-            (Execution.executeSelectionSetAsResponse schema
-              (deepSelectionSetSuccessResolversWithRef schema
-                [Selection.inlineFragment (some parentType) [] (right ++ left)]
-                PUnit.unit)
-              [] (selectionSetDeepProbeFuel schema parentType (right ++ left) + 1)
-              typeCondition (.object typeCondition PUnit.unit) right).data := by
+      -> ∀ (_hTypeNames : selectionSetTypenameFree (left ++ right) := by typename_free),
+          ¬ Execution.ResponseValue.semanticEquivalent
+              (Execution.executeSelectionSetAsResponse schema
+                (deepSelectionSetSuccessResolversWithRef schema
+                  [Selection.inlineFragment (some parentType) [] (right ++ left)]
+                  PUnit.unit)
+                [] (selectionSetDeepProbeFuel schema parentType (right ++ left) + 1)
+                typeCondition (.object typeCondition PUnit.unit) left).data
+              (Execution.executeSelectionSetAsResponse schema
+                (deepSelectionSetSuccessResolversWithRef schema
+                  [Selection.inlineFragment (some parentType) [] (right ++ left)]
+                  PUnit.unit)
+                [] (selectionSetDeepProbeFuel schema parentType (right ++ left) + 1)
+                typeCondition (.object typeCondition PUnit.unit) right).data := by
   intro hschema hleftValid hrightValid hrightCoercion hleftFree hrightFree hleftNormal
-    hrightNormal hnonObject hrightMem hleftNoTypeCondition hsemantic
+    hrightNormal hnonObject hrightMem hleftNoTypeCondition hTypeNames hsemantic
+  have hleftTypes := selectionSetTypenameFree_append_left hTypeNames
+  have hrightTypes := selectionSetTypenameFree_append_right hTypeNames
   have hswapped :=
     responseData_not_semanticEquivalent_of_valid_normal_abstract_left_typeCondition_diff_runtime
       (schema := schema)
@@ -3639,9 +3684,12 @@ theorem not_selectionSetsDataEquivalent_of_valid_normal_object_left_responseName
       -> Selection.field responseName fieldName arguments directives childSelectionSet
           ∈ left
       -> responseName ∉ right.filterMap Selection.responseName?
-      -> ¬ selectionSetsDataEquivalent schema parentType left right := by
+      -> ∀ (_hTypeNames : selectionSetTypenameFree (left ++ right) := by typename_free),
+          ¬ selectionSetsDataEquivalent schema parentType left right := by
   intro hschema hleftValid hrightValid hleftCoercion hrightCoercion hleftFree hrightFree hleftNormal
-    hrightNormal hobject hleftMem hrightNoResponseName
+    hrightNormal hobject hleftMem hrightNoResponseName hTypeNames
+  have hleftTypes := selectionSetTypenameFree_append_left hTypeNames
+  have hrightTypes := selectionSetTypenameFree_append_right hTypeNames
   let rootSelectionSet :=
     [Selection.inlineFragment (some parentType) [] (left ++ right)]
   let variableValues : Execution.VariableValues := []
@@ -3704,9 +3752,12 @@ theorem not_selectionSetsDataEquivalent_of_valid_normal_object_right_responseNam
       -> Selection.field responseName fieldName arguments directives childSelectionSet
           ∈ right
       -> responseName ∉ left.filterMap Selection.responseName?
-      -> ¬ selectionSetsDataEquivalent schema parentType left right := by
+      -> ∀ (_hTypeNames : selectionSetTypenameFree (left ++ right) := by typename_free),
+          ¬ selectionSetsDataEquivalent schema parentType left right := by
   intro hschema hleftValid hrightValid hleftCoercion hrightCoercion hleftFree hrightFree hleftNormal
-    hrightNormal hobject hrightMem hleftNoResponseName
+    hrightNormal hobject hrightMem hleftNoResponseName hTypeNames
+  have hleftTypes := selectionSetTypenameFree_append_left hTypeNames
+  have hrightTypes := selectionSetTypenameFree_append_right hTypeNames
   let rootSelectionSet :=
     [Selection.inlineFragment (some parentType) [] (left ++ right)]
   let variableValues : Execution.VariableValues := []

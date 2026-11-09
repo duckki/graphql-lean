@@ -77,29 +77,31 @@ theorem
       -> ∀ responseName fieldName arguments directives childSelectionSet,
           Selection.field responseName fieldName arguments directives childSelectionSet
             ∈ selectionSet
-          -> ∃ responseValue fieldErrors,
-              Execution.executeField schema
-                (fieldPairOrDeepSuccessResolvers schema
-                  [Selection.inlineFragment (some parentType) [] (List.flatten members)]
-                  (fieldPairProbeResolvers schema
+          -> ∀ (_hTypeNames : selectionSetTypenameFree selectionSet := by typename_free),
+              ∃ responseValue fieldErrors,
+                Execution.executeField schema
+                  (fieldPairOrDeepSuccessResolvers schema
                     [Selection.inlineFragment (some parentType) [] (List.flatten members)]
+                    (fieldPairProbeResolvers schema
+                      [Selection.inlineFragment (some parentType) []
+                        (List.flatten members)]
+                      parentType leftField rightField leftArguments rightArguments)
                     parentType leftField rightField leftArguments rightArguments)
-                  parentType leftField rightField leftArguments rightArguments)
-                variableValues
-                (fuel + 1)
-                parentType
-                (projectionRootResolverValue
-                  (.object parentType (none : Option FieldPairProbeTag)))
-                responseName
-                [{
-                  fieldName := fieldName,
-                  arguments := arguments,
-                  selectionSet := childSelectionSet
-                }]
-              = .ok ([(responseName, responseValue)], fieldErrors) := by
+                  variableValues
+                  (fuel + 1)
+                  parentType
+                  (projectionRootResolverValue
+                    (.object parentType (none : Option FieldPairProbeTag)))
+                  responseName
+                  [{
+                    fieldName := fieldName,
+                    arguments := arguments,
+                    selectionSet := childSelectionSet
+                  }]
+                = .ok ([(responseName, responseValue)], fieldErrors) := by
   intro hschema hmembers hmember hobject hfuel hleftLeaf hrightLeaf
     hrightNotLeft responseName fieldName arguments directives
-    childSelectionSet hmem
+    childSelectionSet hmem hTypeNames
   let rootSelectionSet :=
     [Selection.inlineFragment (some parentType) [] (List.flatten members)]
   let base :=
@@ -331,29 +333,31 @@ theorem
       -> ∀ responseName fieldName arguments directives childSelectionSet,
           Selection.field responseName fieldName arguments directives childSelectionSet
             ∈ selectionSet
-          -> ∃ responseValue fieldErrors,
-              Execution.executeField schema
-                (fieldPairOrDeepSuccessResolvers schema
-                  [Selection.inlineFragment (some parentType) [] (List.flatten members)]
-                  (fieldPairProbeResolvers schema
+          -> ∀ (_hTypeNames : selectionSetTypenameFree selectionSet := by typename_free),
+              ∃ responseValue fieldErrors,
+                Execution.executeField schema
+                  (fieldPairOrDeepSuccessResolvers schema
                     [Selection.inlineFragment (some parentType) [] (List.flatten members)]
+                    (fieldPairProbeResolvers schema
+                      [Selection.inlineFragment (some parentType) []
+                        (List.flatten members)]
+                      parentType leftField rightField leftArguments rightArguments)
                     parentType leftField rightField leftArguments rightArguments)
-                  parentType leftField rightField leftArguments rightArguments)
-                variableValues
-                (fuel + 1)
-                parentType
-                (projectionRootResolverValue
-                  (.object parentType (none : Option FieldPairProbeTag)))
-                responseName
-                [{
-                  fieldName := fieldName,
-                  arguments := arguments,
-                  selectionSet := childSelectionSet
-                }]
-              = .ok ([(responseName, responseValue)], fieldErrors) := by
+                  variableValues
+                  (fuel + 1)
+                  parentType
+                  (projectionRootResolverValue
+                    (.object parentType (none : Option FieldPairProbeTag)))
+                  responseName
+                  [{
+                    fieldName := fieldName,
+                    arguments := arguments,
+                    selectionSet := childSelectionSet
+                  }]
+                = .ok ([(responseName, responseValue)], fieldErrors) := by
   intro hschema hmembers hmember hobject hfuel hleftLeaf hrightComposite
     hrightNotLeft responseName fieldName arguments directives
-    childSelectionSet hmem
+    childSelectionSet hmem hTypeNames
   let rootSelectionSet :=
     [Selection.inlineFragment (some parentType) [] (List.flatten members)]
   let base :=
@@ -682,15 +686,25 @@ theorem
               fieldName leftArguments)
             (Execution.coercedArgumentsForField schema variableValues parentType
               fieldName rightArguments)
-      -> selectionSetContextualRuntimeDataDiffWitnessWithFuelGe schema
-          parentType parentType left right
-          (variableValues := variableValues)
-          (fun selectionSet => selectionSet ∈ supportSelectionSets)
-          minFuel := by
+      -> ∀ (_hTypeNames
+            : selectionSetTypenameFree
+                (List.flatten
+                  (left :: right :: supportSelectionSets)) := by typename_free),
+          selectionSetContextualRuntimeDataDiffWitnessWithFuelGe schema
+            parentType parentType left right
+            (variableValues := variableValues)
+            (fun selectionSet => selectionSet ∈ supportSelectionSets)
+            minFuel := by
   intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
     hleftFree hrightFree hleftNormal
     hrightNormal hobject hsupportValid hleftMem hrightMem hlookup hleaf
-    hargumentsDiff
+    hargumentsDiff hTypeNames
+  have hleftTypes : selectionSetTypenameFree left :=
+    selectionSetTypenameFree_flatten_mem hTypeNames (by simp)
+  have hrightTypes : selectionSetTypenameFree right :=
+    selectionSetTypenameFree_flatten_mem hTypeNames (by simp)
+  have hsupportTypes : selectionSetTypenameFree (List.flatten supportSelectionSets) :=
+    selectionSetTypenameFree_append_right (selectionSetTypenameFree_append_right hTypeNames)
   let members : List (List Selection) := left :: right :: supportSelectionSets
   let rootSelectionSet :=
     [Selection.inlineFragment (some parentType) [] (List.flatten members)]
@@ -1053,15 +1067,25 @@ theorem
       -> (TypeRef.named rightFieldDefinition.outputType.namedType).isCompositeBool schema
           = false
       -> leftFieldName ≠ rightFieldName
-      -> selectionSetContextualRuntimeDataDiffWitnessWithFuelGe schema
-          parentType parentType left right
-          (variableValues := variableValues)
-          (fun selectionSet => selectionSet ∈ supportSelectionSets)
-          minFuel := by
+      -> ∀ (_hTypeNames
+            : selectionSetTypenameFree
+                (List.flatten
+                  (left :: right :: supportSelectionSets)) := by typename_free),
+          selectionSetContextualRuntimeDataDiffWitnessWithFuelGe schema
+            parentType parentType left right
+            (variableValues := variableValues)
+            (fun selectionSet => selectionSet ∈ supportSelectionSets)
+            minFuel := by
   intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
     hleftFree hrightFree hleftNormal
     hrightNormal hobject hsupportValid hleftMem hrightMem hleftLookup
-    hrightLookup hleftLeaf hrightLeaf hfieldDiff
+    hrightLookup hleftLeaf hrightLeaf hfieldDiff hTypeNames
+  have hleftTypes : selectionSetTypenameFree left :=
+    selectionSetTypenameFree_flatten_mem hTypeNames (by simp)
+  have hrightTypes : selectionSetTypenameFree right :=
+    selectionSetTypenameFree_flatten_mem hTypeNames (by simp)
+  have hsupportTypes : selectionSetTypenameFree (List.flatten supportSelectionSets) :=
+    selectionSetTypenameFree_append_right (selectionSetTypenameFree_append_right hTypeNames)
   let members : List (List Selection) := left :: right :: supportSelectionSets
   let rootSelectionSet :=
     [Selection.inlineFragment (some parentType) [] (List.flatten members)]
@@ -1436,15 +1460,25 @@ theorem
       -> (TypeRef.named rightFieldDefinition.outputType.namedType).isCompositeBool schema
           = true
       -> leftFieldName ≠ rightFieldName
-      -> selectionSetContextualRuntimeDataDiffWitnessWithFuelGe schema
-          parentType parentType left right
-          (variableValues := variableValues)
-          (fun selectionSet => selectionSet ∈ supportSelectionSets)
-          minFuel := by
+      -> ∀ (_hTypeNames
+            : selectionSetTypenameFree
+                (List.flatten
+                  (left :: right :: supportSelectionSets)) := by typename_free),
+          selectionSetContextualRuntimeDataDiffWitnessWithFuelGe schema
+            parentType parentType left right
+            (variableValues := variableValues)
+            (fun selectionSet => selectionSet ∈ supportSelectionSets)
+            minFuel := by
   intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
     hleftFree hrightFree hleftNormal
     hrightNormal hobject hsupportValid hleftMem hrightMem hleftLookup
-    hrightLookup hleftLeaf hrightComposite hfieldDiff
+    hrightLookup hleftLeaf hrightComposite hfieldDiff hTypeNames
+  have hleftTypes : selectionSetTypenameFree left :=
+    selectionSetTypenameFree_flatten_mem hTypeNames (by simp)
+  have hrightTypes : selectionSetTypenameFree right :=
+    selectionSetTypenameFree_flatten_mem hTypeNames (by simp)
+  have hsupportTypes : selectionSetTypenameFree (List.flatten supportSelectionSets) :=
+    selectionSetTypenameFree_append_right (selectionSetTypenameFree_append_right hTypeNames)
   let members : List (List Selection) := left :: right :: supportSelectionSets
   let rootSelectionSet :=
     [Selection.inlineFragment (some parentType) [] (List.flatten members)]
@@ -1938,14 +1972,24 @@ theorem
       -> Selection.field responseName fieldName arguments directives childSelectionSet
           ∈ left
       -> responseName ∉ right.filterMap Selection.responseName?
-      -> selectionSetContextualRuntimeDataDiffWitnessWithFuelGe schema
-          parentType parentType left right
-          (variableValues := variableValues)
-          (fun selectionSet => selectionSet ∈ supportSelectionSets)
-          minFuel := by
+      -> ∀ (_hTypeNames
+            : selectionSetTypenameFree
+                (List.flatten
+                  (left :: right :: supportSelectionSets)) := by typename_free),
+          selectionSetContextualRuntimeDataDiffWitnessWithFuelGe schema
+            parentType parentType left right
+            (variableValues := variableValues)
+            (fun selectionSet => selectionSet ∈ supportSelectionSets)
+            minFuel := by
   intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
     hleftFree hrightFree hleftNormal
-    hrightNormal hobject hsupportValid hleftMem hrightNoResponseName
+    hrightNormal hobject hsupportValid hleftMem hrightNoResponseName hTypeNames
+  have hleftTypes : selectionSetTypenameFree left :=
+    selectionSetTypenameFree_flatten_mem hTypeNames (by simp)
+  have hrightTypes : selectionSetTypenameFree right :=
+    selectionSetTypenameFree_flatten_mem hTypeNames (by simp)
+  have hsupportTypes : selectionSetTypenameFree (List.flatten supportSelectionSets) :=
+    selectionSetTypenameFree_append_right (selectionSetTypenameFree_append_right hTypeNames)
   let members : List (List Selection) := left :: right :: supportSelectionSets
   let rootSelectionSet :=
     [Selection.inlineFragment (some parentType) [] (List.flatten members)]
@@ -2145,14 +2189,24 @@ theorem
       -> Selection.field responseName fieldName arguments directives childSelectionSet
           ∈ right
       -> responseName ∉ left.filterMap Selection.responseName?
-      -> selectionSetContextualRuntimeDataDiffWitnessWithFuelGe schema
-          parentType parentType left right
-          (variableValues := variableValues)
-          (fun selectionSet => selectionSet ∈ supportSelectionSets)
-          minFuel := by
+      -> ∀ (_hTypeNames
+            : selectionSetTypenameFree
+                (List.flatten
+                  (left :: right :: supportSelectionSets)) := by typename_free),
+          selectionSetContextualRuntimeDataDiffWitnessWithFuelGe schema
+            parentType parentType left right
+            (variableValues := variableValues)
+            (fun selectionSet => selectionSet ∈ supportSelectionSets)
+            minFuel := by
   intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
     hleftFree hrightFree hleftNormal
-    hrightNormal hobject hsupportValid hrightMem hleftNoResponseName
+    hrightNormal hobject hsupportValid hrightMem hleftNoResponseName hTypeNames
+  have hleftTypes : selectionSetTypenameFree left :=
+    selectionSetTypenameFree_flatten_mem hTypeNames (by simp)
+  have hrightTypes : selectionSetTypenameFree right :=
+    selectionSetTypenameFree_flatten_mem hTypeNames (by simp)
+  have hsupportTypes : selectionSetTypenameFree (List.flatten supportSelectionSets) :=
+    selectionSetTypenameFree_append_right (selectionSetTypenameFree_append_right hTypeNames)
   have hwitness :
       selectionSetContextualRuntimeDataDiffWitnessWithFuelGe schema
         parentType parentType right left
@@ -2171,6 +2225,8 @@ theorem
       hschema hrightValid hleftValid hrightCoercion hleftCoercion hrightFree
       hleftFree hrightNormal
       hleftNormal hobject hsupportValid hrightMem hleftNoResponseName
+      (selectionSetTypenameFree_flatten_cons hrightTypes
+        (selectionSetTypenameFree_flatten_cons hleftTypes hsupportTypes))
   rcases hwitness with
     ⟨hinclude, ObjectRef, resolvers, fuel, ref, hfuel,
       hsupport, hnot⟩
@@ -2218,14 +2274,24 @@ theorem
                 ∧ selectionSetNormal schema parentType supportSelectionSet)
       -> Selection.inlineFragment (some typeCondition) directives childSelectionSet ∈ left
       -> typeCondition ∉ right.filterMap inlineFragmentTypeCondition?
-      -> selectionSetContextualRuntimeDataDiffWitnessWithFuelGe schema
-          parentType typeCondition left right
-          (variableValues := variableValues)
-          (fun selectionSet => selectionSet ∈ supportSelectionSets)
-          minFuel := by
+      -> ∀ (_hTypeNames
+            : selectionSetTypenameFree
+                (List.flatten
+                  (left :: right :: supportSelectionSets)) := by typename_free),
+          selectionSetContextualRuntimeDataDiffWitnessWithFuelGe schema
+            parentType typeCondition left right
+            (variableValues := variableValues)
+            (fun selectionSet => selectionSet ∈ supportSelectionSets)
+            minFuel := by
   intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
     hleftFree hrightFree hleftNormal
-    hrightNormal hnonObject hsupportValid hleftMem hrightNoTypeCondition
+    hrightNormal hnonObject hsupportValid hleftMem hrightNoTypeCondition hTypeNames
+  have hleftTypes : selectionSetTypenameFree left :=
+    selectionSetTypenameFree_flatten_mem hTypeNames (by simp)
+  have hrightTypes : selectionSetTypenameFree right :=
+    selectionSetTypenameFree_flatten_mem hTypeNames (by simp)
+  have hsupportTypes : selectionSetTypenameFree (List.flatten supportSelectionSets) :=
+    selectionSetTypenameFree_append_right (selectionSetTypenameFree_append_right hTypeNames)
   have hdirectives : directives = [] :=
     selectionSetDirectiveFree_inlineFragment_directives_nil_of_mem
       hleftFree hleftMem
@@ -2506,14 +2572,24 @@ theorem
       -> Selection.inlineFragment (some typeCondition) directives childSelectionSet
           ∈ right
       -> typeCondition ∉ left.filterMap inlineFragmentTypeCondition?
-      -> selectionSetContextualRuntimeDataDiffWitnessWithFuelGe schema
-          parentType typeCondition left right
-          (variableValues := variableValues)
-          (fun selectionSet => selectionSet ∈ supportSelectionSets)
-          minFuel := by
+      -> ∀ (_hTypeNames
+            : selectionSetTypenameFree
+                (List.flatten
+                  (left :: right :: supportSelectionSets)) := by typename_free),
+          selectionSetContextualRuntimeDataDiffWitnessWithFuelGe schema
+            parentType typeCondition left right
+            (variableValues := variableValues)
+            (fun selectionSet => selectionSet ∈ supportSelectionSets)
+            minFuel := by
   intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
     hleftFree hrightFree hleftNormal
-    hrightNormal hnonObject hsupportValid hrightMem hleftNoTypeCondition
+    hrightNormal hnonObject hsupportValid hrightMem hleftNoTypeCondition hTypeNames
+  have hleftTypes : selectionSetTypenameFree left :=
+    selectionSetTypenameFree_flatten_mem hTypeNames (by simp)
+  have hrightTypes : selectionSetTypenameFree right :=
+    selectionSetTypenameFree_flatten_mem hTypeNames (by simp)
+  have hsupportTypes : selectionSetTypenameFree (List.flatten supportSelectionSets) :=
+    selectionSetTypenameFree_append_right (selectionSetTypenameFree_append_right hTypeNames)
   exact
     selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_symm
       (selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_abstract_left_typeCondition_diff_finiteSupport
@@ -2526,7 +2602,9 @@ theorem
         (childSelectionSet := childSelectionSet) (minFuel := minFuel)
         hschema hrightValid hleftValid hrightCoercion hleftCoercion hrightFree
         hleftFree hrightNormal
-        hleftNormal hnonObject hsupportValid hrightMem hleftNoTypeCondition)
+        hleftNormal hnonObject hsupportValid hrightMem hleftNoTypeCondition
+        (selectionSetTypenameFree_flatten_cons hrightTypes
+          (selectionSetTypenameFree_flatten_cons hleftTypes hsupportTypes)))
 
 noncomputable def selectionSetTargetInlineFragmentSelectionSets (typeCondition : Name)
     : List Selection -> List (List Selection)

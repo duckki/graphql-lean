@@ -23,6 +23,12 @@ value definitions carry input types and optional constant defaults.
 are valid input and output leaf types; their constant defaults may contain opaque
 object or list payloads. Those payloads do not use input-object field definitions.
 
+`Schema.lookupDeclaredField` searches only explicit object/interface fields.
+`Schema.lookupField` additionally supplies the implicit `__typename: String!`
+field, with no arguments, on objects, interfaces, and unions. The implicit
+definition takes precedence over conflicting raw declarations. It does not add
+members to declared field lists or satisfy their non-emptiness requirement.
+
 Raw syntax remains permissive. Invalid references, duplicate declarations,
 self-implementation, and cycles are representable. Lookup and finite reachability
 helpers do not require a well-formedness proof.

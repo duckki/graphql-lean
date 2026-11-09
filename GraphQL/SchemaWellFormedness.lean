@@ -10,7 +10,7 @@ Spec reference: GraphQL September 2025.
   object/interface field implementation compatibility and interface inheritance.
 - Fidelity note: several normative rules are omitted, including reserved `__` names,
   directive validation, extensions,
-  OneOf, mutation/subscription roots, and introspection.
+  OneOf, mutation/subscription roots, and schema introspection.
 -/
 
 namespace GraphQL

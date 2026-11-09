@@ -37,6 +37,11 @@ applicability. Variable compatibility includes the nullable-variable exception
 for a non-null default. Root and composite selection sets must be nonempty.
 The modeled value checks are not a full input-coercion implementation.
 
+Shared field lookup permits `__typename` directly on objects, interfaces, and
+unions. Its implicit `String!` definition makes the ordinary validation rules
+reject arguments and child selections. Aliases, directives, field merging, and
+normalization use the same field machinery as other selections.
+
 Custom-scalar arguments accept opaque constant payloads, including object values.
 Variables can supply the entire payload. Scalar-specific acceptance is assumed;
 variables nested inside opaque literal payloads are not modeled.

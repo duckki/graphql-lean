@@ -1341,14 +1341,15 @@ private theorem annotatedExecution_inclusion_all
               = some resolved := by
           unfold coerceAndResolveFieldValue
           simp only [hrightCoercion]
-          unfold resolveFieldValue at hresolve ⊢
           calc
-            resolvers.resolve parentType rightField.fieldName rightCoercedArguments source
-                = resolvers.resolve parentType field.fieldName
+            resolveFieldValue resolvers parentType rightField.fieldName
+                  rightCoercedArguments source
+                = resolveFieldValue resolvers parentType field.fieldName
                     rightCoercedArguments source := by
               rw [hfield]
-            _ = resolvers.resolve parentType field.fieldName coercedArguments source :=
-              (resolvers.resolve_argumentsEquivalent parentType field.fieldName
+            _ = resolveFieldValue resolvers parentType field.fieldName coercedArguments
+                  source :=
+              (resolveFieldValue_argumentsEquivalent resolvers parentType field.fieldName
                 _ _ source hcoercedArguments).symm
             _ = some resolved := hresolve
         have hrightResolved :
@@ -2355,20 +2356,19 @@ private theorem recursiveChildTransfer_proved
                 simpa [ArgumentCoercionResult.equivalent, hleftCoerce, hrightCoerce]
                   using hcoerced
               have hsameResolved : rightResolved = leftResolved := by
-                unfold resolveFieldValue at hleftResolve hrightResolve
-                have h : resolvers.resolve parentType rightHeadField.fieldName
+                have h : resolveFieldValue resolvers parentType rightHeadField.fieldName
                     rightCoerced (.object runtimeType ref)
                     = some leftResolved := by
                   calc
-                    resolvers.resolve parentType rightHeadField.fieldName
+                    resolveFieldValue resolvers parentType rightHeadField.fieldName
                           rightCoerced (.object runtimeType ref)
-                        = resolvers.resolve parentType
+                        = resolveFieldValue resolvers parentType
                             leftHeadField.fieldName rightCoerced
                             (.object runtimeType ref) := by
                       rw [hfieldEq]
-                    _ = resolvers.resolve parentType leftHeadField.fieldName
+                    _ = resolveFieldValue resolvers parentType leftHeadField.fieldName
                           leftCoerced (.object runtimeType ref) :=
-                      (resolvers.resolve_argumentsEquivalent parentType
+                      (resolveFieldValue_argumentsEquivalent resolvers parentType
                         leftHeadField.fieldName _ _ (.object runtimeType ref)
                         hcoercedArguments).symm
                     _ = some leftResolved := hleftResolve

@@ -497,8 +497,11 @@ def executeScheduleItem
           )
       | .success coercedArguments =>
           let resolved :=
-            resolvers.resolve item.key.parentType item.key.fieldName
-              coercedArguments sources
+            if item.key.fieldName == "__typename" then
+              sources.map resolveTypenameField
+            else
+              resolvers.resolve item.key.parentType item.key.fieldName
+                coercedArguments sources
           if !(resolved.length == sources.length) then
             (
               [],
@@ -913,10 +916,11 @@ def typeDefinitionCompleteValueFuelBound : TypeDefinition -> Nat
   | _ => 0
 
 def schemaCompleteValueFuelBound (schema : Schema) : Nat :=
+  -- The implicit `__typename` scalar needs one tick even without declared output fields.
   schema.types.foldl
     (fun bound typeDefinition =>
       max bound (typeDefinitionCompleteValueFuelBound typeDefinition))
-    0
+    1
 
 def specQueryFuelBound (schema : Schema) (operation : Operation) : Nat :=
   operation.size * (schemaCompleteValueFuelBound schema + 1)

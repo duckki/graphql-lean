@@ -71,25 +71,26 @@ theorem
           rightFieldDefinition.outputType.namedType rightRuntime rightSpine
       -> leafProbeFuel leftFieldDefinition.outputType ≤ parentFuel
       -> leafProbeFuel rightFieldDefinition.outputType ≤ parentFuel
-      -> selectionSetFieldsExecuteOk schema
-          (fieldPairOrDeepSuccessResolvers schema
-            [Selection.inlineFragment (some parentType) [] (List.flatten members)]
-            (fieldPairSelectedPathProbeResolvers schema
-              (fieldPairPathLocalNextSelectionSet schema parentType leftRuntime
-                leftFieldName leftArguments (List.flatten members))
-              (fieldPairPathLocalNextSelectionSet schema parentType rightRuntime
-                rightFieldName rightArguments (List.flatten members))
-              leftSpine rightSpine parentType leftFieldName rightFieldName
-              leftArguments rightArguments leftRuntime rightRuntime)
-            parentType leftFieldName rightFieldName leftArguments
-            rightArguments)
-          variableValues (parentFuel + 1) parentType
-          (projectionRootResolverValue
-            (.object parentType FieldPairSelectedPathProbeRef.root))
-          selectionSet := by
+      -> ∀ (_hTypeNames : selectionSetTypenameFree selectionSet := by typename_free),
+          selectionSetFieldsExecuteOk schema
+            (fieldPairOrDeepSuccessResolvers schema
+              [Selection.inlineFragment (some parentType) [] (List.flatten members)]
+              (fieldPairSelectedPathProbeResolvers schema
+                (fieldPairPathLocalNextSelectionSet schema parentType leftRuntime
+                  leftFieldName leftArguments (List.flatten members))
+                (fieldPairPathLocalNextSelectionSet schema parentType rightRuntime
+                  rightFieldName rightArguments (List.flatten members))
+                leftSpine rightSpine parentType leftFieldName rightFieldName
+                leftArguments rightArguments leftRuntime rightRuntime)
+              parentType leftFieldName rightFieldName leftArguments
+              rightArguments)
+            variableValues (parentFuel + 1) parentType
+            (projectionRootResolverValue
+              (.object parentType FieldPairSelectedPathProbeRef.root))
+            selectionSet := by
   intro hschema hmembers hmember hobject hparentFuel hleftLookup
     hrightLookup hleftComposite hrightComposite hleftInclude hrightInclude
-    hleftSpineValid hrightSpineValid hleftLeafFuel hrightLeafFuel
+    hleftSpineValid hrightSpineValid hleftLeafFuel hrightLeafFuel hTypeNames
   rcases hmembers selectionSet hmember with
     ⟨variableDefinitions, hvalid, hcoercion, hfree, hnormal⟩
   have hsupport :
@@ -687,15 +688,25 @@ theorem
                   parentType rightFieldName
                   (Execution.coercedArgumentsForField schema variableValues
                     parentType rightFieldName arguments))
-      -> selectionSetContextualRuntimeDataDiffWitnessWithFuelGe schema
-          parentType parentType left right
-          (variableValues := variableValues)
-          (fun selectionSet => selectionSet ∈ supportSelectionSets)
-          minFuel := by
+      -> ∀ (_hTypeNames
+            : selectionSetTypenameFree
+                (List.flatten
+                  (left :: right :: supportSelectionSets)) := by typename_free),
+          selectionSetContextualRuntimeDataDiffWitnessWithFuelGe schema
+            parentType parentType left right
+            (variableValues := variableValues)
+            (fun selectionSet => selectionSet ∈ supportSelectionSets)
+            minFuel := by
   intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
     hleftFree hrightFree hleftNormal
     hrightNormal hobject hsupportValid hleftMem hrightMem hleftLookup
-    hrightLookup hleftComposite hrightComposite hrightNotLeft
+    hrightLookup hleftComposite hrightComposite hrightNotLeft hTypeNames
+  have hleftTypes : selectionSetTypenameFree left :=
+    selectionSetTypenameFree_flatten_mem hTypeNames (by simp)
+  have hrightTypes : selectionSetTypenameFree right :=
+    selectionSetTypenameFree_flatten_mem hTypeNames (by simp)
+  have hsupportTypes : selectionSetTypenameFree supportSelectionSets.flatten :=
+    selectionSetTypenameFree_append_right (selectionSetTypenameFree_append_right hTypeNames)
   let members : List (List Selection) :=
     left :: right :: supportSelectionSets
   let currentSelectionSet : List Selection := List.flatten members
@@ -825,6 +836,8 @@ theorem
       leafProbeFuel_le_selectionSetDeepProbeFuel_of_field_mem schema
         parentType hrightMemCurrent hrightLookup
     omega
+  have hleftChildTypes := selectionSetTypenameFree_fieldChildren hleftTypes hleftMem
+  have hrightChildTypes := selectionSetTypenameFree_fieldChildren hrightTypes hrightMem
   have hpairedPath :
       NormalSelectionSetPairedPath schema
         leftFieldDefinition.outputType.namedType
@@ -1283,12 +1296,15 @@ theorem
                     (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.right
                       rightInitialSelectionSet rightInitialSpine)))
                 rightChildSelectionSet).data)
-      -> ¬ selectionSetsDataEquivalent schema parentType left right := by
+      -> ∀ (_hTypeNames : selectionSetTypenameFree (left ++ right) := by typename_free),
+          ¬ selectionSetsDataEquivalent schema parentType left right := by
   intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
     hleftFree hrightFree hleftNormal
     hrightNormal hobject hleftMem hrightMem hlookup hcomposite
     hleftInclude hrightInclude hleftSpineValid hrightSpineValid
-    hargumentsDiff hleftCoerced hrightCoerced hchildDataNot
+    hargumentsDiff hleftCoerced hrightCoerced hchildDataNot hTypeNames
+  have hleftTypes := selectionSetTypenameFree_append_left hTypeNames
+  have hrightTypes := selectionSetTypenameFree_append_right hTypeNames
   let parentFuel := selectionSetDeepProbeFuel schema parentType (left ++ right)
   let rootSelectionSet : List Selection :=
     [Selection.inlineFragment (some parentType) [] (left ++ right)]
@@ -1781,11 +1797,14 @@ theorem
       -> (TypeRef.named fieldDefinition.outputType.namedType).isCompositeBool schema
           = true
       -> ¬ Argument.argumentsEquivalent leftArguments rightArguments
-      -> ¬ selectionSetsDataEquivalent schema parentType left right := by
+      -> ∀ (_hTypeNames : selectionSetTypenameFree (left ++ right) := by typename_free),
+          ¬ selectionSetsDataEquivalent schema parentType left right := by
   intro hcoercionReflects hschema hleftValid hrightValid hleftCoercion hrightCoercion
     hleftFree hrightFree hleftNormal
     hrightNormal hobject hleftMem hrightMem hlookup hcomposite
-    hargumentsDiff
+    hargumentsDiff hTypeNames
+  have hleftTypes := selectionSetTypenameFree_append_left hTypeNames
+  have hrightTypes := selectionSetTypenameFree_append_right hTypeNames
   let parentFuel := selectionSetDeepProbeFuel schema parentType (left ++ right)
   let childFuel := parentFuel - leafProbeFuel fieldDefinition.outputType - 1
   let rootSelectionSet : List Selection :=
@@ -1876,6 +1895,8 @@ theorem
         (List.mem_append_right left hrightMem) hlookup
     dsimp [childFuel, parentFuel]
     omega
+  have hleftChildTypes := selectionSetTypenameFree_fieldChildren hleftTypes hleftMem
+  have hrightChildTypes := selectionSetTypenameFree_fieldChildren hrightTypes hrightMem
   have hpairedPath :
       NormalSelectionSetPairedPath schema
         fieldDefinition.outputType.namedType
@@ -2095,11 +2116,14 @@ theorem
       -> (TypeRef.named rightFieldDefinition.outputType.namedType).isCompositeBool schema
           = true
       -> leftFieldName ≠ rightFieldName
-      -> ¬ selectionSetsDataEquivalent schema parentType left right := by
+      -> ∀ (_hTypeNames : selectionSetTypenameFree (left ++ right) := by typename_free),
+          ¬ selectionSetsDataEquivalent schema parentType left right := by
   intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
     hleftFree hrightFree hleftNormal
     hrightNormal hobject hleftMem hrightMem hleftLookup hrightLookup
-    hleftComposite hrightComposite hfieldDiff
+    hleftComposite hrightComposite hfieldDiff hTypeNames
+  have hleftTypes := selectionSetTypenameFree_append_left hTypeNames
+  have hrightTypes := selectionSetTypenameFree_append_right hTypeNames
   let parentFuel := selectionSetDeepProbeFuel schema parentType (left ++ right)
   let leftChildFuel :=
     parentFuel - leafProbeFuel leftFieldDefinition.outputType - 1
@@ -2166,6 +2190,8 @@ theorem
         (List.mem_append_right left hrightMem) hrightLookup
     dsimp [rightChildFuel, parentFuel]
     omega
+  have hleftChildTypes := selectionSetTypenameFree_fieldChildren hleftTypes hleftMem
+  have hrightChildTypes := selectionSetTypenameFree_fieldChildren hrightTypes hrightMem
   have hpairedPath :
       NormalSelectionSetPairedPath schema
         leftFieldDefinition.outputType.namedType

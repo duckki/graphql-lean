@@ -18,8 +18,8 @@ theorem
     normal_operations_semanticallyEquivalent_equalUpToReordering_of_validNormalSelectionSets
     {schema : Schema} {left right : Operation}
     : normalOperationsSemanticallyEquivalentEqualUpToReordering schema left right := by
-  intro hschema hleftValid hrightValid hleftFree hrightFree hleftNormal
-    hrightNormal hdefinitions hsem
+  intro hschema hleftValid hrightValid hleftFree hrightFree hleftTypes hrightTypes
+    hleftNormal hrightNormal hdefinitions hsem
   have hroot :
       left.rootType schema = right.rootType schema :=
     operation_rootType_eq_of_operationDefinitionValid hleftValid hrightValid

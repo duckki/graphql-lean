@@ -1,5 +1,6 @@
 import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Semantics
 import Proofs.GraphQL.Execution.ArgumentCoercion
+import Proofs.GraphQL.Theories.NormalForm.TypenameFree
 import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Uniqueness.Feasibility
 import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Validity
 
@@ -90,6 +91,8 @@ def normalSelectionSetsSemanticallyEquivalentEqualUpToReordering
   -> selectionSetDirectiveFree right
   -> selectionSetNormal schema parentType left
   -> selectionSetNormal schema parentType right
+  -> selectionSetTypenameFree left
+  -> selectionSetTypenameFree right
   -> selectionSetsSemanticallyEquivalent schema parentType left right
   -> SelectionSetEqualUpToReordering left right
 
@@ -104,6 +107,8 @@ def feasibleNormalSelectionSetsSemanticallyEquivalentEqualUpToReordering
   -> selectionSetNormal schema parentType right
   -> selectionSetFeasibleInScope schema parentType left
   -> selectionSetFeasibleInScope schema parentType right
+  -> selectionSetTypenameFree left
+  -> selectionSetTypenameFree right
   -> selectionSetsSemanticallyEquivalent schema parentType left right
   -> SelectionSetEqualUpToReordering left right
 
@@ -119,6 +124,8 @@ def validNormalSelectionSetsSemanticallyEquivalentEqualUpToReordering
   -> selectionSetDirectiveFree right
   -> selectionSetNormal schema parentType left
   -> selectionSetNormal schema parentType right
+  -> selectionSetTypenameFree left
+  -> selectionSetTypenameFree right
   -> selectionSetsSemanticallyEquivalent schema parentType left right
   -> SelectionSetEqualUpToReordering left right
 
@@ -131,6 +138,8 @@ def normalSelectionSetsDataEquivalentEqualUpToReordering
   -> selectionSetDirectiveFree right
   -> selectionSetNormal schema parentType left
   -> selectionSetNormal schema parentType right
+  -> selectionSetTypenameFree left
+  -> selectionSetTypenameFree right
   -> selectionSetsDataEquivalent schema parentType left right
   -> SelectionSetEqualUpToReordering left right
 
@@ -146,6 +155,8 @@ def validSelectionSetsDataEquivalentEqualUpToReordering
   -> selectionSetDirectiveFree right
   -> selectionSetNormal schema parentType left
   -> selectionSetNormal schema parentType right
+  -> selectionSetTypenameFree left
+  -> selectionSetTypenameFree right
   -> selectionSetsDataEquivalent schema parentType left right
   -> SelectionSetEqualUpToReordering left right
 

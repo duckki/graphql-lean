@@ -126,8 +126,10 @@ assumptions that are not GraphQL validation rules.
 The extra assumptions are important because they expose a real gap between
 GraphQL operation validity and runtime semantics.
 
-`operationFieldsSameOutputShape` is a conservative sufficient condition over the
-field names occurring in the operation, including nested and inactive selections.
+`operationFieldsSameOutputShape` is included specifically to satisfy the spec's
+unconditional `SameResponseShape` check after normalization. It is a conservative
+sufficient condition over the field names occurring in the operation, including
+nested and inactive selections.
 For each such name, `fieldSameOutputShape` requires every declaration-to-possible-object
 lookup across the schema to preserve list/non-null wrappers and leaf types.
 It does not restrict unused field names, but it can restrict declarations outside
@@ -269,6 +271,13 @@ validation requirements. They are theorem-specific preconditions for asking a st
 question, namely whether a normalized operation is itself a valid GraphQL operation.
 
 ### Uniqueness Up To Reordering
+
+Uniqueness requires `operationTypenameFree` for both operations: no selected field
+may have the name `__typename`, at any depth, regardless of its response alias.
+Both normalizers preserve this predicate. The builtin remains supported by
+execution and normalization soundness. The
+[uniqueness guide](normal-form-uniqueness.md) explains why deterministic type-name
+leaves require this domain restriction and links the proved counterexample.
 
 Uniqueness says valid normal operations with the same resolver-parametric semantics
 have the same structure modulo order, with corresponding field arguments compared

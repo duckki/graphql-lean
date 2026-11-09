@@ -66,43 +66,46 @@ theorem
           = false
       -> (TypeRef.named rightFieldDefinition.outputType.namedType).isCompositeBool schema
           = false
-      -> ¬ Execution.ResponseValue.semanticEquivalent
-            (Execution.executeSelectionSetAsResponse schema
-              (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
-                (fieldPairSelectedPathProbeResolvers schema
-                  leftInitialSelectionSet rightInitialSelectionSet
-                  leftInitialSpine rightInitialSpine targetParent leftProbeField
-                  rightProbeField targetLeftArguments targetRightArguments
-                  leftRuntime rightRuntime)
-                targetParent leftProbeField rightProbeField targetLeftArguments
-                targetRightArguments)
-              variableValues (fuel + 1) leftParentType
-              (projectionTargetResolverValue
-                (.object leftSourceRuntimeType
-                  (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.left
-                    leftCurrentSelectionSet leftSpine)))
-              left).data
-            (Execution.executeSelectionSetAsResponse schema
-              (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
-                (fieldPairSelectedPathProbeResolvers schema
-                  leftInitialSelectionSet rightInitialSelectionSet
-                  leftInitialSpine rightInitialSpine targetParent leftProbeField
-                  rightProbeField targetLeftArguments targetRightArguments
-                  leftRuntime rightRuntime)
-                targetParent leftProbeField rightProbeField targetLeftArguments
-                targetRightArguments)
-              variableValues (fuel + 1) rightParentType
-              (projectionTargetResolverValue
-                (.object rightSourceRuntimeType
-                  (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.right
-                    rightCurrentSelectionSet rightSpine)))
-              right).data := by
+      -> ∀ (_hTypeNames : selectionSetTypenameFree (left ++ right) := by typename_free),
+          ¬ Execution.ResponseValue.semanticEquivalent
+              (Execution.executeSelectionSetAsResponse schema
+                (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
+                  (fieldPairSelectedPathProbeResolvers schema
+                    leftInitialSelectionSet rightInitialSelectionSet
+                    leftInitialSpine rightInitialSpine targetParent leftProbeField
+                    rightProbeField targetLeftArguments targetRightArguments
+                    leftRuntime rightRuntime)
+                  targetParent leftProbeField rightProbeField targetLeftArguments
+                  targetRightArguments)
+                variableValues (fuel + 1) leftParentType
+                (projectionTargetResolverValue
+                  (.object leftSourceRuntimeType
+                    (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.left
+                      leftCurrentSelectionSet leftSpine)))
+                left).data
+              (Execution.executeSelectionSetAsResponse schema
+                (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
+                  (fieldPairSelectedPathProbeResolvers schema
+                    leftInitialSelectionSet rightInitialSelectionSet
+                    leftInitialSpine rightInitialSpine targetParent leftProbeField
+                    rightProbeField targetLeftArguments targetRightArguments
+                    leftRuntime rightRuntime)
+                  targetParent leftProbeField rightProbeField targetLeftArguments
+                  targetRightArguments)
+                variableValues (fuel + 1) rightParentType
+                (projectionTargetResolverValue
+                  (.object rightSourceRuntimeType
+                    (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.right
+                      rightCurrentSelectionSet rightSpine)))
+                right).data := by
   intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
     hleftFree hrightFree hleftNormal
     hrightNormal hleftObject hrightObject hleftFuel hrightFuel
     hleftSpineValid hrightSpineValid hleftSupport hrightSupport
     hleftContext hrightContext hleftMem hrightMem hleftLookup
-    hrightLookup hleftLeaf hrightLeaf
+    hrightLookup hleftLeaf hrightLeaf hTypeNames
+  have hleftTypes := selectionSetTypenameFree_append_left hTypeNames
+  have hrightTypes := selectionSetTypenameFree_append_right hTypeNames
   let resolvers :=
     fieldPairOrDeepSuccessResolvers schema rootSelectionSet
       (fieldPairSelectedPathProbeResolvers schema leftInitialSelectionSet
@@ -336,43 +339,46 @@ theorem
           = false
       -> (TypeRef.named rightFieldDefinition.outputType.namedType).isCompositeBool schema
           = false
-      -> ¬ Execution.ResponseValue.semanticEquivalent
-            (Execution.executeSelectionSetAsResponse schema
-              (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
-                (fieldPairSelectedPathProbeResolvers schema
-                  leftInitialSelectionSet rightInitialSelectionSet
-                  leftInitialSpine rightInitialSpine targetParent leftProbeField
-                  rightProbeField targetLeftArguments targetRightArguments
-                  leftRuntime rightRuntime)
-                targetParent leftProbeField rightProbeField targetLeftArguments
-                targetRightArguments)
-              variableValues (leftFuel + 1) leftParentType
-              (projectionTargetResolverValue
-                (.object leftSourceRuntimeType
-                  (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.left
-                    leftCurrentSelectionSet leftSpine)))
-              left).data
-            (Execution.executeSelectionSetAsResponse schema
-              (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
-                (fieldPairSelectedPathProbeResolvers schema
-                  leftInitialSelectionSet rightInitialSelectionSet
-                  leftInitialSpine rightInitialSpine targetParent leftProbeField
-                  rightProbeField targetLeftArguments targetRightArguments
-                  leftRuntime rightRuntime)
-                targetParent leftProbeField rightProbeField targetLeftArguments
-                targetRightArguments)
-              variableValues (rightFuel + 1) rightParentType
-              (projectionTargetResolverValue
-                (.object rightSourceRuntimeType
-                  (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.right
-                    rightCurrentSelectionSet rightSpine)))
-              right).data := by
+      -> ∀ (_hTypeNames : selectionSetTypenameFree (left ++ right) := by typename_free),
+          ¬ Execution.ResponseValue.semanticEquivalent
+              (Execution.executeSelectionSetAsResponse schema
+                (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
+                  (fieldPairSelectedPathProbeResolvers schema
+                    leftInitialSelectionSet rightInitialSelectionSet
+                    leftInitialSpine rightInitialSpine targetParent leftProbeField
+                    rightProbeField targetLeftArguments targetRightArguments
+                    leftRuntime rightRuntime)
+                  targetParent leftProbeField rightProbeField targetLeftArguments
+                  targetRightArguments)
+                variableValues (leftFuel + 1) leftParentType
+                (projectionTargetResolverValue
+                  (.object leftSourceRuntimeType
+                    (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.left
+                      leftCurrentSelectionSet leftSpine)))
+                left).data
+              (Execution.executeSelectionSetAsResponse schema
+                (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
+                  (fieldPairSelectedPathProbeResolvers schema
+                    leftInitialSelectionSet rightInitialSelectionSet
+                    leftInitialSpine rightInitialSpine targetParent leftProbeField
+                    rightProbeField targetLeftArguments targetRightArguments
+                    leftRuntime rightRuntime)
+                  targetParent leftProbeField rightProbeField targetLeftArguments
+                  targetRightArguments)
+                variableValues (rightFuel + 1) rightParentType
+                (projectionTargetResolverValue
+                  (.object rightSourceRuntimeType
+                    (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.right
+                      rightCurrentSelectionSet rightSpine)))
+                right).data := by
   intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
     hleftFree hrightFree hleftNormal
     hrightNormal hleftObject hrightObject hleftFuel hrightFuel
     hleftSpineValid hrightSpineValid hleftSupport hrightSupport
     hleftContext hrightContext hleftMem hrightMem hleftLookup
-    hrightLookup hleftLeaf hrightLeaf
+    hrightLookup hleftLeaf hrightLeaf hTypeNames
+  have hleftTypes := selectionSetTypenameFree_append_left hTypeNames
+  have hrightTypes := selectionSetTypenameFree_append_right hTypeNames
   let resolvers :=
     fieldPairOrDeepSuccessResolvers schema rootSelectionSet
       (fieldPairSelectedPathProbeResolvers schema leftInitialSelectionSet
@@ -598,19 +604,22 @@ theorem
           = false
       -> (TypeRef.named rightFieldDefinition.outputType.namedType).isCompositeBool schema
           = false
-      -> SelectedPathTaggedSelectionSetsResponseDiffWitness schema
-          rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
-          leftInitialSpine rightInitialSpine variableValues (fuel + 1)
-          parentType parentType targetParent leftProbeField rightProbeField
-          targetLeftArguments targetRightArguments leftRuntime rightRuntime
-          leftCurrentSelectionSet rightCurrentSelectionSet leftSpine rightSpine
-          left right := by
+      -> ∀ (_hTypeNames : selectionSetTypenameFree (left ++ right) := by typename_free),
+          SelectedPathTaggedSelectionSetsResponseDiffWitness schema
+            rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
+            leftInitialSpine rightInitialSpine variableValues (fuel + 1)
+            parentType parentType targetParent leftProbeField rightProbeField
+            targetLeftArguments targetRightArguments leftRuntime rightRuntime
+            leftCurrentSelectionSet rightCurrentSelectionSet leftSpine rightSpine
+            left right := by
   intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
     hleftFree hrightFree hleftNormal
     hrightNormal hobject hleftFuel hrightFuel hleftSpineValid
     hrightSpineValid hleftSupport hrightSupport hleftContext
     hrightContext hleftMem hrightMem hleftLookup hrightLookup hleftLeaf
-    hrightLeaf
+    hrightLeaf hTypeNames
+  have hleftTypes := selectionSetTypenameFree_append_left hTypeNames
+  have hrightTypes := selectionSetTypenameFree_append_right hTypeNames
   rcases
       executeSelectionSetAsResponse_fieldPairOrDeepSuccess_selectedPathProbe_tagged_of_valid_normal_runtimeSpine_support_context_fuel_ge_size
         schema rootSelectionSet leftInitialSelectionSet
@@ -747,17 +756,20 @@ theorem
       -> (TypeRef.named rightFieldDefinition.outputType.namedType).isCompositeBool schema
           = false
       -> leftFieldName ≠ rightFieldName
-      -> ∃ leftSpine rightSpine,
-          SelectedPathTaggedSelectionSetsResponseDiffWitness schema
-            rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
-            leftInitialSpine rightInitialSpine variableValues (fuel + 1)
-            parentType parentType targetParent leftProbeField rightProbeField
-            targetLeftArguments targetRightArguments leftRuntime rightRuntime
-            left right leftSpine rightSpine left right := by
+      -> ∀ (_hTypeNames : selectionSetTypenameFree (left ++ right) := by typename_free),
+          ∃ leftSpine rightSpine,
+            SelectedPathTaggedSelectionSetsResponseDiffWitness schema
+              rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
+              leftInitialSpine rightInitialSpine variableValues (fuel + 1)
+              parentType parentType targetParent leftProbeField rightProbeField
+              targetLeftArguments targetRightArguments leftRuntime rightRuntime
+              left right leftSpine rightSpine left right := by
   intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
     hleftFree hrightFree hleftNormal
     hrightNormal hobject hleftFuel hrightFuel hleftMem hrightMem
-    hleftLookup hrightLookup hleftLeaf hrightLeaf _hfieldDiff
+    hleftLookup hrightLookup hleftLeaf hrightLeaf _hfieldDiff hTypeNames
+  have hleftTypes := selectionSetTypenameFree_append_left hTypeNames
+  have hrightTypes := selectionSetTypenameFree_append_right hTypeNames
   rcases
       normalSelectionSetObservableResponsePath_of_valid_normal_object_field_mem
         hleftValid hleftNormal hobject hleftMem hleftLookup with
@@ -832,17 +844,20 @@ theorem
       -> (TypeRef.named fieldDefinition.outputType.namedType).isCompositeBool schema
           = false
       -> ¬ Argument.argumentsEquivalent leftArguments rightArguments
-      -> ∃ leftSpine rightSpine,
-          SelectedPathTaggedSelectionSetsResponseDiffWitness schema
-            rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
-            leftInitialSpine rightInitialSpine variableValues (fuel + 1)
-            parentType parentType targetParent leftProbeField rightProbeField
-            targetLeftArguments targetRightArguments leftRuntime rightRuntime
-            left right leftSpine rightSpine left right := by
+      -> ∀ (_hTypeNames : selectionSetTypenameFree (left ++ right) := by typename_free),
+          ∃ leftSpine rightSpine,
+            SelectedPathTaggedSelectionSetsResponseDiffWitness schema
+              rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
+              leftInitialSpine rightInitialSpine variableValues (fuel + 1)
+              parentType parentType targetParent leftProbeField rightProbeField
+              targetLeftArguments targetRightArguments leftRuntime rightRuntime
+              left right leftSpine rightSpine left right := by
   intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
     hleftFree hrightFree hleftNormal
     hrightNormal hobject hleftFuel hrightFuel hleftMem hrightMem
-    hlookup hleaf _hargumentsDiff
+    hlookup hleaf _hargumentsDiff hTypeNames
+  have hleftTypes := selectionSetTypenameFree_append_left hTypeNames
+  have hrightTypes := selectionSetTypenameFree_append_right hTypeNames
   rcases
       normalSelectionSetObservableResponsePath_of_valid_normal_object_field_mem
         hleftValid hleftNormal hobject hleftMem hlookup with
@@ -931,43 +946,46 @@ theorem
       -> schema.lookupField rightParentType rightFieldName = some rightFieldDefinition
       -> (TypeRef.named rightFieldDefinition.outputType.namedType).isCompositeBool schema
           = false
-      -> ¬ Execution.ResponseValue.semanticEquivalent
-            (Execution.executeSelectionSetAsResponse schema
-              (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
-                (fieldPairSelectedPathProbeResolvers schema
-                  leftInitialSelectionSet rightInitialSelectionSet
-                  leftInitialSpine rightInitialSpine targetParent leftProbeField
-                  rightProbeField targetLeftArguments targetRightArguments
-                  leftRuntime rightRuntime)
-                targetParent leftProbeField rightProbeField targetLeftArguments
-                targetRightArguments)
-              variableValues (fuel + 1) leftParentType
-              (projectionTargetResolverValue
-                (.object leftSourceRuntimeType
-                  (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.left
-                    leftCurrentSelectionSet leftSpine)))
-              left).data
-            (Execution.executeSelectionSetAsResponse schema
-              (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
-                (fieldPairSelectedPathProbeResolvers schema
-                  leftInitialSelectionSet rightInitialSelectionSet
-                  leftInitialSpine rightInitialSpine targetParent leftProbeField
-                  rightProbeField targetLeftArguments targetRightArguments
-                  leftRuntime rightRuntime)
-                targetParent leftProbeField rightProbeField targetLeftArguments
-                targetRightArguments)
-              variableValues (fuel + 1) rightParentType
-              (projectionTargetResolverValue
-                (.object rightSourceRuntimeType
-                  (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.right
-                    rightCurrentSelectionSet rightSpine)))
-              right).data := by
+      -> ∀ (_hTypeNames : selectionSetTypenameFree (left ++ right) := by typename_free),
+          ¬ Execution.ResponseValue.semanticEquivalent
+              (Execution.executeSelectionSetAsResponse schema
+                (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
+                  (fieldPairSelectedPathProbeResolvers schema
+                    leftInitialSelectionSet rightInitialSelectionSet
+                    leftInitialSpine rightInitialSpine targetParent leftProbeField
+                    rightProbeField targetLeftArguments targetRightArguments
+                    leftRuntime rightRuntime)
+                  targetParent leftProbeField rightProbeField targetLeftArguments
+                  targetRightArguments)
+                variableValues (fuel + 1) leftParentType
+                (projectionTargetResolverValue
+                  (.object leftSourceRuntimeType
+                    (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.left
+                      leftCurrentSelectionSet leftSpine)))
+                left).data
+              (Execution.executeSelectionSetAsResponse schema
+                (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
+                  (fieldPairSelectedPathProbeResolvers schema
+                    leftInitialSelectionSet rightInitialSelectionSet
+                    leftInitialSpine rightInitialSpine targetParent leftProbeField
+                    rightProbeField targetLeftArguments targetRightArguments
+                    leftRuntime rightRuntime)
+                  targetParent leftProbeField rightProbeField targetLeftArguments
+                  targetRightArguments)
+                variableValues (fuel + 1) rightParentType
+                (projectionTargetResolverValue
+                  (.object rightSourceRuntimeType
+                    (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.right
+                      rightCurrentSelectionSet rightSpine)))
+                right).data := by
   intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
     hleftFree hrightFree hleftNormal
     hrightNormal hleftObject hrightObject hleftFuel hrightFuel
     hleftSpineValid hrightSpineValid hleftSupport hrightSupport
     hleftContext hrightContext hleftObservable hrightMem hrightLookup
-    hrightLeaf
+    hrightLeaf hTypeNames
+  have hleftTypes := selectionSetTypenameFree_append_left hTypeNames
+  have hrightTypes := selectionSetTypenameFree_append_right hTypeNames
   rcases
       field_leaf_of_object_normalSelectionSetObservableResponsePath_single
         hleftObject hleftObservable with
@@ -1041,43 +1059,46 @@ theorem
       -> schema.lookupField rightParentType rightFieldName = some rightFieldDefinition
       -> (TypeRef.named rightFieldDefinition.outputType.namedType).isCompositeBool schema
           = false
-      -> ¬ Execution.ResponseValue.semanticEquivalent
-            (Execution.executeSelectionSetAsResponse schema
-              (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
-                (fieldPairSelectedPathProbeResolvers schema
-                  leftInitialSelectionSet rightInitialSelectionSet
-                  leftInitialSpine rightInitialSpine targetParent leftProbeField
-                  rightProbeField targetLeftArguments targetRightArguments
-                  leftRuntime rightRuntime)
-                targetParent leftProbeField rightProbeField targetLeftArguments
-                targetRightArguments)
-              variableValues (leftFuel + 1) leftParentType
-              (projectionTargetResolverValue
-                (.object leftSourceRuntimeType
-                  (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.left
-                    leftCurrentSelectionSet leftSpine)))
-              left).data
-            (Execution.executeSelectionSetAsResponse schema
-              (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
-                (fieldPairSelectedPathProbeResolvers schema
-                  leftInitialSelectionSet rightInitialSelectionSet
-                  leftInitialSpine rightInitialSpine targetParent leftProbeField
-                  rightProbeField targetLeftArguments targetRightArguments
-                  leftRuntime rightRuntime)
-                targetParent leftProbeField rightProbeField targetLeftArguments
-                targetRightArguments)
-              variableValues (rightFuel + 1) rightParentType
-              (projectionTargetResolverValue
-                (.object rightSourceRuntimeType
-                  (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.right
-                    rightCurrentSelectionSet rightSpine)))
-              right).data := by
+      -> ∀ (_hTypeNames : selectionSetTypenameFree (left ++ right) := by typename_free),
+          ¬ Execution.ResponseValue.semanticEquivalent
+              (Execution.executeSelectionSetAsResponse schema
+                (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
+                  (fieldPairSelectedPathProbeResolvers schema
+                    leftInitialSelectionSet rightInitialSelectionSet
+                    leftInitialSpine rightInitialSpine targetParent leftProbeField
+                    rightProbeField targetLeftArguments targetRightArguments
+                    leftRuntime rightRuntime)
+                  targetParent leftProbeField rightProbeField targetLeftArguments
+                  targetRightArguments)
+                variableValues (leftFuel + 1) leftParentType
+                (projectionTargetResolverValue
+                  (.object leftSourceRuntimeType
+                    (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.left
+                      leftCurrentSelectionSet leftSpine)))
+                left).data
+              (Execution.executeSelectionSetAsResponse schema
+                (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
+                  (fieldPairSelectedPathProbeResolvers schema
+                    leftInitialSelectionSet rightInitialSelectionSet
+                    leftInitialSpine rightInitialSpine targetParent leftProbeField
+                    rightProbeField targetLeftArguments targetRightArguments
+                    leftRuntime rightRuntime)
+                  targetParent leftProbeField rightProbeField targetLeftArguments
+                  targetRightArguments)
+                variableValues (rightFuel + 1) rightParentType
+                (projectionTargetResolverValue
+                  (.object rightSourceRuntimeType
+                    (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.right
+                      rightCurrentSelectionSet rightSpine)))
+                right).data := by
   intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
     hleftFree hrightFree hleftNormal
     hrightNormal hleftObject hrightObject hleftFuel hrightFuel
     hleftSpineValid hrightSpineValid hleftSupport hrightSupport
     hleftContext hrightContext hleftObservable hrightMem hrightLookup
-    hrightLeaf
+    hrightLeaf hTypeNames
+  have hleftTypes := selectionSetTypenameFree_append_left hTypeNames
+  have hrightTypes := selectionSetTypenameFree_append_right hTypeNames
   rcases
       field_leaf_of_object_normalSelectionSetObservableResponsePath_single
         hleftObject hleftObservable with
@@ -1151,43 +1172,46 @@ theorem
           = false
       -> NormalSelectionSetObservableResponsePath schema rightParentType right
           [responseName]
-      -> ¬ Execution.ResponseValue.semanticEquivalent
-            (Execution.executeSelectionSetAsResponse schema
-              (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
-                (fieldPairSelectedPathProbeResolvers schema
-                  leftInitialSelectionSet rightInitialSelectionSet
-                  leftInitialSpine rightInitialSpine targetParent leftProbeField
-                  rightProbeField targetLeftArguments targetRightArguments
-                  leftRuntime rightRuntime)
-                targetParent leftProbeField rightProbeField targetLeftArguments
-                targetRightArguments)
-              variableValues (fuel + 1) leftParentType
-              (projectionTargetResolverValue
-                (.object leftSourceRuntimeType
-                  (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.left
-                    leftCurrentSelectionSet leftSpine)))
-              left).data
-            (Execution.executeSelectionSetAsResponse schema
-              (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
-                (fieldPairSelectedPathProbeResolvers schema
-                  leftInitialSelectionSet rightInitialSelectionSet
-                  leftInitialSpine rightInitialSpine targetParent leftProbeField
-                  rightProbeField targetLeftArguments targetRightArguments
-                  leftRuntime rightRuntime)
-                targetParent leftProbeField rightProbeField targetLeftArguments
-                targetRightArguments)
-              variableValues (fuel + 1) rightParentType
-              (projectionTargetResolverValue
-                (.object rightSourceRuntimeType
-                  (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.right
-                    rightCurrentSelectionSet rightSpine)))
-              right).data := by
+      -> ∀ (_hTypeNames : selectionSetTypenameFree (left ++ right) := by typename_free),
+          ¬ Execution.ResponseValue.semanticEquivalent
+              (Execution.executeSelectionSetAsResponse schema
+                (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
+                  (fieldPairSelectedPathProbeResolvers schema
+                    leftInitialSelectionSet rightInitialSelectionSet
+                    leftInitialSpine rightInitialSpine targetParent leftProbeField
+                    rightProbeField targetLeftArguments targetRightArguments
+                    leftRuntime rightRuntime)
+                  targetParent leftProbeField rightProbeField targetLeftArguments
+                  targetRightArguments)
+                variableValues (fuel + 1) leftParentType
+                (projectionTargetResolverValue
+                  (.object leftSourceRuntimeType
+                    (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.left
+                      leftCurrentSelectionSet leftSpine)))
+                left).data
+              (Execution.executeSelectionSetAsResponse schema
+                (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
+                  (fieldPairSelectedPathProbeResolvers schema
+                    leftInitialSelectionSet rightInitialSelectionSet
+                    leftInitialSpine rightInitialSpine targetParent leftProbeField
+                    rightProbeField targetLeftArguments targetRightArguments
+                    leftRuntime rightRuntime)
+                  targetParent leftProbeField rightProbeField targetLeftArguments
+                  targetRightArguments)
+                variableValues (fuel + 1) rightParentType
+                (projectionTargetResolverValue
+                  (.object rightSourceRuntimeType
+                    (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.right
+                      rightCurrentSelectionSet rightSpine)))
+                right).data := by
   intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
     hleftFree hrightFree hleftNormal
     hrightNormal hleftObject hrightObject hleftFuel hrightFuel
     hleftSpineValid hrightSpineValid hleftSupport hrightSupport
     hleftContext hrightContext hleftMem hleftLookup hleftLeaf
-    hrightObservable
+    hrightObservable hTypeNames
+  have hleftTypes := selectionSetTypenameFree_append_left hTypeNames
+  have hrightTypes := selectionSetTypenameFree_append_right hTypeNames
   rcases
       field_leaf_of_object_normalSelectionSetObservableResponsePath_single
         hrightObject hrightObservable with
@@ -1262,43 +1286,46 @@ theorem
           = false
       -> NormalSelectionSetObservableResponsePath schema rightParentType right
           [responseName]
-      -> ¬ Execution.ResponseValue.semanticEquivalent
-            (Execution.executeSelectionSetAsResponse schema
-              (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
-                (fieldPairSelectedPathProbeResolvers schema
-                  leftInitialSelectionSet rightInitialSelectionSet
-                  leftInitialSpine rightInitialSpine targetParent leftProbeField
-                  rightProbeField targetLeftArguments targetRightArguments
-                  leftRuntime rightRuntime)
-                targetParent leftProbeField rightProbeField targetLeftArguments
-                targetRightArguments)
-              variableValues (leftFuel + 1) leftParentType
-              (projectionTargetResolverValue
-                (.object leftSourceRuntimeType
-                  (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.left
-                    leftCurrentSelectionSet leftSpine)))
-              left).data
-            (Execution.executeSelectionSetAsResponse schema
-              (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
-                (fieldPairSelectedPathProbeResolvers schema
-                  leftInitialSelectionSet rightInitialSelectionSet
-                  leftInitialSpine rightInitialSpine targetParent leftProbeField
-                  rightProbeField targetLeftArguments targetRightArguments
-                  leftRuntime rightRuntime)
-                targetParent leftProbeField rightProbeField targetLeftArguments
-                targetRightArguments)
-              variableValues (rightFuel + 1) rightParentType
-              (projectionTargetResolverValue
-                (.object rightSourceRuntimeType
-                  (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.right
-                    rightCurrentSelectionSet rightSpine)))
-              right).data := by
+      -> ∀ (_hTypeNames : selectionSetTypenameFree (left ++ right) := by typename_free),
+          ¬ Execution.ResponseValue.semanticEquivalent
+              (Execution.executeSelectionSetAsResponse schema
+                (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
+                  (fieldPairSelectedPathProbeResolvers schema
+                    leftInitialSelectionSet rightInitialSelectionSet
+                    leftInitialSpine rightInitialSpine targetParent leftProbeField
+                    rightProbeField targetLeftArguments targetRightArguments
+                    leftRuntime rightRuntime)
+                  targetParent leftProbeField rightProbeField targetLeftArguments
+                  targetRightArguments)
+                variableValues (leftFuel + 1) leftParentType
+                (projectionTargetResolverValue
+                  (.object leftSourceRuntimeType
+                    (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.left
+                      leftCurrentSelectionSet leftSpine)))
+                left).data
+              (Execution.executeSelectionSetAsResponse schema
+                (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
+                  (fieldPairSelectedPathProbeResolvers schema
+                    leftInitialSelectionSet rightInitialSelectionSet
+                    leftInitialSpine rightInitialSpine targetParent leftProbeField
+                    rightProbeField targetLeftArguments targetRightArguments
+                    leftRuntime rightRuntime)
+                  targetParent leftProbeField rightProbeField targetLeftArguments
+                  targetRightArguments)
+                variableValues (rightFuel + 1) rightParentType
+                (projectionTargetResolverValue
+                  (.object rightSourceRuntimeType
+                    (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.right
+                      rightCurrentSelectionSet rightSpine)))
+                right).data := by
   intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
     hleftFree hrightFree hleftNormal
     hrightNormal hleftObject hrightObject hleftFuel hrightFuel
     hleftSpineValid hrightSpineValid hleftSupport hrightSupport
     hleftContext hrightContext hleftMem hleftLookup hleftLeaf
-    hrightObservable
+    hrightObservable hTypeNames
+  have hleftTypes := selectionSetTypenameFree_append_left hTypeNames
+  have hrightTypes := selectionSetTypenameFree_append_right hTypeNames
   rcases
       field_leaf_of_object_normalSelectionSetObservableResponsePath_single
         hrightObject hrightObservable with
@@ -1445,42 +1472,45 @@ theorem
                     selectionSet := childSelectionSet
                   }]
                 = .ok ([(responseName, responseValue)], fieldErrors))
-      -> ¬ Execution.ResponseValue.semanticEquivalent
-            (Execution.executeSelectionSetAsResponse schema
-              (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
-                (fieldPairSelectedPathProbeResolvers schema
-                  leftInitialSelectionSet rightInitialSelectionSet
-                  leftInitialSpine rightInitialSpine targetParent leftProbeField
-                  rightProbeField targetLeftArguments targetRightArguments
-                  leftRuntime rightRuntime)
-                targetParent leftProbeField rightProbeField targetLeftArguments
-                targetRightArguments)
-              variableValues (fuel + 1) leftParentType
-              (projectionTargetResolverValue
-                (.object leftSourceRuntimeType
-                  (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.left
-                    leftCurrentSelectionSet leftSpine)))
-              left).data
-            (Execution.executeSelectionSetAsResponse schema
-              (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
-                (fieldPairSelectedPathProbeResolvers schema
-                  leftInitialSelectionSet rightInitialSelectionSet
-                  leftInitialSpine rightInitialSpine targetParent leftProbeField
-                  rightProbeField targetLeftArguments targetRightArguments
-                  leftRuntime rightRuntime)
-                targetParent leftProbeField rightProbeField targetLeftArguments
-                targetRightArguments)
-              variableValues (fuel + 1) rightParentType
-              (projectionTargetResolverValue
-                (.object rightSourceRuntimeType
-                  (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.right
-                    rightCurrentSelectionSet rightSpine)))
-              right).data := by
+      -> ∀ (_hTypeNames : selectionSetTypenameFree (left ++ right) := by typename_free),
+          ¬ Execution.ResponseValue.semanticEquivalent
+              (Execution.executeSelectionSetAsResponse schema
+                (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
+                  (fieldPairSelectedPathProbeResolvers schema
+                    leftInitialSelectionSet rightInitialSelectionSet
+                    leftInitialSpine rightInitialSpine targetParent leftProbeField
+                    rightProbeField targetLeftArguments targetRightArguments
+                    leftRuntime rightRuntime)
+                  targetParent leftProbeField rightProbeField targetLeftArguments
+                  targetRightArguments)
+                variableValues (fuel + 1) leftParentType
+                (projectionTargetResolverValue
+                  (.object leftSourceRuntimeType
+                    (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.left
+                      leftCurrentSelectionSet leftSpine)))
+                left).data
+              (Execution.executeSelectionSetAsResponse schema
+                (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
+                  (fieldPairSelectedPathProbeResolvers schema
+                    leftInitialSelectionSet rightInitialSelectionSet
+                    leftInitialSpine rightInitialSpine targetParent leftProbeField
+                    rightProbeField targetLeftArguments targetRightArguments
+                    leftRuntime rightRuntime)
+                  targetParent leftProbeField rightProbeField targetLeftArguments
+                  targetRightArguments)
+                variableValues (fuel + 1) rightParentType
+                (projectionTargetResolverValue
+                  (.object rightSourceRuntimeType
+                    (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.right
+                      rightCurrentSelectionSet rightSpine)))
+                right).data := by
   intro hleftFree hrightFree hleftNormal hrightNormal hleftObject
     hrightObject hleftMem hrightMem hleftLookup hrightLookup hleftCoercion
     hrightCoercion
     hleftObjectOutput hrightLeaf hleftFuel hrightFuel hleftChildResponse
-    hleftFieldOk hrightFieldOk
+    hleftFieldOk hrightFieldOk hTypeNames
+  have hleftTypes := selectionSetTypenameFree_append_left hTypeNames
+  have hrightTypes := selectionSetTypenameFree_append_right hTypeNames
   let resolvers :=
     fieldPairOrDeepSuccessResolvers schema rootSelectionSet
       (fieldPairSelectedPathProbeResolvers schema leftInitialSelectionSet
@@ -1707,42 +1737,45 @@ theorem
                     selectionSet := childSelectionSet
                   }]
                 = .ok ([(responseName, responseValue)], fieldErrors))
-      -> ¬ Execution.ResponseValue.semanticEquivalent
-            (Execution.executeSelectionSetAsResponse schema
-              (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
-                (fieldPairSelectedPathProbeResolvers schema
-                  leftInitialSelectionSet rightInitialSelectionSet
-                  leftInitialSpine rightInitialSpine targetParent leftProbeField
-                  rightProbeField targetLeftArguments targetRightArguments
-                  leftRuntime rightRuntime)
-                targetParent leftProbeField rightProbeField targetLeftArguments
-                targetRightArguments)
-              variableValues (leftFuel + 1) leftParentType
-              (projectionTargetResolverValue
-                (.object leftSourceRuntimeType
-                  (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.left
-                    leftCurrentSelectionSet leftSpine)))
-              left).data
-            (Execution.executeSelectionSetAsResponse schema
-              (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
-                (fieldPairSelectedPathProbeResolvers schema
-                  leftInitialSelectionSet rightInitialSelectionSet
-                  leftInitialSpine rightInitialSpine targetParent leftProbeField
-                  rightProbeField targetLeftArguments targetRightArguments
-                  leftRuntime rightRuntime)
-                targetParent leftProbeField rightProbeField targetLeftArguments
-                targetRightArguments)
-              variableValues (rightFuel + 1) rightParentType
-              (projectionTargetResolverValue
-                (.object rightSourceRuntimeType
-                  (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.right
-                    rightCurrentSelectionSet rightSpine)))
-              right).data := by
+      -> ∀ (_hTypeNames : selectionSetTypenameFree (left ++ right) := by typename_free),
+          ¬ Execution.ResponseValue.semanticEquivalent
+              (Execution.executeSelectionSetAsResponse schema
+                (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
+                  (fieldPairSelectedPathProbeResolvers schema
+                    leftInitialSelectionSet rightInitialSelectionSet
+                    leftInitialSpine rightInitialSpine targetParent leftProbeField
+                    rightProbeField targetLeftArguments targetRightArguments
+                    leftRuntime rightRuntime)
+                  targetParent leftProbeField rightProbeField targetLeftArguments
+                  targetRightArguments)
+                variableValues (leftFuel + 1) leftParentType
+                (projectionTargetResolverValue
+                  (.object leftSourceRuntimeType
+                    (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.left
+                      leftCurrentSelectionSet leftSpine)))
+                left).data
+              (Execution.executeSelectionSetAsResponse schema
+                (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
+                  (fieldPairSelectedPathProbeResolvers schema
+                    leftInitialSelectionSet rightInitialSelectionSet
+                    leftInitialSpine rightInitialSpine targetParent leftProbeField
+                    rightProbeField targetLeftArguments targetRightArguments
+                    leftRuntime rightRuntime)
+                  targetParent leftProbeField rightProbeField targetLeftArguments
+                  targetRightArguments)
+                variableValues (rightFuel + 1) rightParentType
+                (projectionTargetResolverValue
+                  (.object rightSourceRuntimeType
+                    (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.right
+                      rightCurrentSelectionSet rightSpine)))
+                right).data := by
   intro hleftFree hrightFree hleftNormal hrightNormal hleftObject
     hrightObject hleftMem hrightMem hleftLookup hrightLookup hleftCoercion
     hrightCoercion
     hleftObjectOutput hrightLeaf hleftFuel hrightFuel hleftChildResponse
-    hleftFieldOk hrightFieldOk
+    hleftFieldOk hrightFieldOk hTypeNames
+  have hleftTypes := selectionSetTypenameFree_append_left hTypeNames
+  have hrightTypes := selectionSetTypenameFree_append_right hTypeNames
   let resolvers :=
     fieldPairOrDeepSuccessResolvers schema rootSelectionSet
       (fieldPairSelectedPathProbeResolvers schema leftInitialSelectionSet
@@ -1902,43 +1935,46 @@ theorem
       -> objectTypeNameBool schema leftFieldDefinition.outputType.namedType = true
       -> (TypeRef.named rightFieldDefinition.outputType.namedType).isCompositeBool schema
           = false
-      -> ¬ Execution.ResponseValue.semanticEquivalent
-            (Execution.executeSelectionSetAsResponse schema
-              (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
-                (fieldPairSelectedPathProbeResolvers schema
-                  leftInitialSelectionSet rightInitialSelectionSet
-                  leftInitialSpine rightInitialSpine targetParent leftProbeField
-                  rightProbeField targetLeftArguments targetRightArguments
-                  leftRuntime rightRuntime)
-                targetParent leftProbeField rightProbeField targetLeftArguments
-                targetRightArguments)
-              variableValues (fuel + 1) leftParentType
-              (projectionTargetResolverValue
-                (.object leftSourceRuntimeType
-                  (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.left
-                    leftCurrentSelectionSet leftSpine)))
-              left).data
-            (Execution.executeSelectionSetAsResponse schema
-              (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
-                (fieldPairSelectedPathProbeResolvers schema
-                  leftInitialSelectionSet rightInitialSelectionSet
-                  leftInitialSpine rightInitialSpine targetParent leftProbeField
-                  rightProbeField targetLeftArguments targetRightArguments
-                  leftRuntime rightRuntime)
-                targetParent leftProbeField rightProbeField targetLeftArguments
-                targetRightArguments)
-              variableValues (fuel + 1) rightParentType
-              (projectionTargetResolverValue
-                (.object rightSourceRuntimeType
-                  (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.right
-                    rightCurrentSelectionSet rightSpine)))
-              right).data := by
+      -> ∀ (_hTypeNames : selectionSetTypenameFree (left ++ right) := by typename_free),
+          ¬ Execution.ResponseValue.semanticEquivalent
+              (Execution.executeSelectionSetAsResponse schema
+                (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
+                  (fieldPairSelectedPathProbeResolvers schema
+                    leftInitialSelectionSet rightInitialSelectionSet
+                    leftInitialSpine rightInitialSpine targetParent leftProbeField
+                    rightProbeField targetLeftArguments targetRightArguments
+                    leftRuntime rightRuntime)
+                  targetParent leftProbeField rightProbeField targetLeftArguments
+                  targetRightArguments)
+                variableValues (fuel + 1) leftParentType
+                (projectionTargetResolverValue
+                  (.object leftSourceRuntimeType
+                    (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.left
+                      leftCurrentSelectionSet leftSpine)))
+                left).data
+              (Execution.executeSelectionSetAsResponse schema
+                (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
+                  (fieldPairSelectedPathProbeResolvers schema
+                    leftInitialSelectionSet rightInitialSelectionSet
+                    leftInitialSpine rightInitialSpine targetParent leftProbeField
+                    rightProbeField targetLeftArguments targetRightArguments
+                    leftRuntime rightRuntime)
+                  targetParent leftProbeField rightProbeField targetLeftArguments
+                  targetRightArguments)
+                variableValues (fuel + 1) rightParentType
+                (projectionTargetResolverValue
+                  (.object rightSourceRuntimeType
+                    (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.right
+                      rightCurrentSelectionSet rightSpine)))
+                right).data := by
   intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
     hleftFree hrightFree hleftNormal
     hrightNormal hleftObject hrightObject hleftFuel hrightFuel
     hleftSpineValid hrightSpineValid hleftSupport hrightSupport
     hleftContext hrightContext hleftMem hrightMem hleftLookup
-    hrightLookup hleftObjectOutput hrightLeaf
+    hrightLookup hleftObjectOutput hrightLeaf hTypeNames
+  have hleftTypes := selectionSetTypenameFree_append_left hTypeNames
+  have hrightTypes := selectionSetTypenameFree_append_right hTypeNames
   let resolvers :=
     fieldPairOrDeepSuccessResolvers schema rootSelectionSet
       (fieldPairSelectedPathProbeResolvers schema leftInitialSelectionSet
@@ -2148,43 +2184,46 @@ theorem
       -> objectTypeNameBool schema leftFieldDefinition.outputType.namedType = true
       -> (TypeRef.named rightFieldDefinition.outputType.namedType).isCompositeBool schema
           = false
-      -> ¬ Execution.ResponseValue.semanticEquivalent
-            (Execution.executeSelectionSetAsResponse schema
-              (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
-                (fieldPairSelectedPathProbeResolvers schema
-                  leftInitialSelectionSet rightInitialSelectionSet
-                  leftInitialSpine rightInitialSpine targetParent leftProbeField
-                  rightProbeField targetLeftArguments targetRightArguments
-                  leftRuntime rightRuntime)
-                targetParent leftProbeField rightProbeField targetLeftArguments
-                targetRightArguments)
-              variableValues (leftFuel + 1) leftParentType
-              (projectionTargetResolverValue
-                (.object leftSourceRuntimeType
-                  (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.left
-                    leftCurrentSelectionSet leftSpine)))
-              left).data
-            (Execution.executeSelectionSetAsResponse schema
-              (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
-                (fieldPairSelectedPathProbeResolvers schema
-                  leftInitialSelectionSet rightInitialSelectionSet
-                  leftInitialSpine rightInitialSpine targetParent leftProbeField
-                  rightProbeField targetLeftArguments targetRightArguments
-                  leftRuntime rightRuntime)
-                targetParent leftProbeField rightProbeField targetLeftArguments
-                targetRightArguments)
-              variableValues (rightFuel + 1) rightParentType
-              (projectionTargetResolverValue
-                (.object rightSourceRuntimeType
-                  (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.right
-                    rightCurrentSelectionSet rightSpine)))
-              right).data := by
+      -> ∀ (_hTypeNames : selectionSetTypenameFree (left ++ right) := by typename_free),
+          ¬ Execution.ResponseValue.semanticEquivalent
+              (Execution.executeSelectionSetAsResponse schema
+                (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
+                  (fieldPairSelectedPathProbeResolvers schema
+                    leftInitialSelectionSet rightInitialSelectionSet
+                    leftInitialSpine rightInitialSpine targetParent leftProbeField
+                    rightProbeField targetLeftArguments targetRightArguments
+                    leftRuntime rightRuntime)
+                  targetParent leftProbeField rightProbeField targetLeftArguments
+                  targetRightArguments)
+                variableValues (leftFuel + 1) leftParentType
+                (projectionTargetResolverValue
+                  (.object leftSourceRuntimeType
+                    (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.left
+                      leftCurrentSelectionSet leftSpine)))
+                left).data
+              (Execution.executeSelectionSetAsResponse schema
+                (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
+                  (fieldPairSelectedPathProbeResolvers schema
+                    leftInitialSelectionSet rightInitialSelectionSet
+                    leftInitialSpine rightInitialSpine targetParent leftProbeField
+                    rightProbeField targetLeftArguments targetRightArguments
+                    leftRuntime rightRuntime)
+                  targetParent leftProbeField rightProbeField targetLeftArguments
+                  targetRightArguments)
+                variableValues (rightFuel + 1) rightParentType
+                (projectionTargetResolverValue
+                  (.object rightSourceRuntimeType
+                    (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.right
+                      rightCurrentSelectionSet rightSpine)))
+                right).data := by
   intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
     hleftFree hrightFree hleftNormal
     hrightNormal hleftObject hrightObject hleftFuel hrightFuel
     hleftSpineValid hrightSpineValid hleftSupport hrightSupport
     hleftContext hrightContext hleftMem hrightMem hleftLookup
-    hrightLookup hleftObjectOutput hrightLeaf
+    hrightLookup hleftObjectOutput hrightLeaf hTypeNames
+  have hleftTypes := selectionSetTypenameFree_append_left hTypeNames
+  have hrightTypes := selectionSetTypenameFree_append_right hTypeNames
   let resolvers :=
     fieldPairOrDeepSuccessResolvers schema rootSelectionSet
       (fieldPairSelectedPathProbeResolvers schema leftInitialSelectionSet
@@ -2386,19 +2425,22 @@ theorem
       -> objectTypeNameBool schema leftFieldDefinition.outputType.namedType = true
       -> (TypeRef.named rightFieldDefinition.outputType.namedType).isCompositeBool schema
           = false
-      -> SelectedPathTaggedSelectionSetsResponseDiffWitness schema
-          rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
-          leftInitialSpine rightInitialSpine variableValues (fuel + 1)
-          parentType parentType targetParent leftProbeField rightProbeField
-          targetLeftArguments targetRightArguments leftRuntime rightRuntime
-          leftCurrentSelectionSet rightCurrentSelectionSet leftSpine rightSpine
-          left right := by
+      -> ∀ (_hTypeNames : selectionSetTypenameFree (left ++ right) := by typename_free),
+          SelectedPathTaggedSelectionSetsResponseDiffWitness schema
+            rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
+            leftInitialSpine rightInitialSpine variableValues (fuel + 1)
+            parentType parentType targetParent leftProbeField rightProbeField
+            targetLeftArguments targetRightArguments leftRuntime rightRuntime
+            leftCurrentSelectionSet rightCurrentSelectionSet leftSpine rightSpine
+            left right := by
   intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
     hleftFree hrightFree hleftNormal
     hrightNormal hobject hleftFuel hrightFuel hleftSpineValid
     hrightSpineValid hleftSupport hrightSupport hleftContext
     hrightContext hleftMem hrightMem hleftLookup hrightLookup
-    hleftObjectOutput hrightLeaf
+    hleftObjectOutput hrightLeaf hTypeNames
+  have hleftTypes := selectionSetTypenameFree_append_left hTypeNames
+  have hrightTypes := selectionSetTypenameFree_append_right hTypeNames
   rcases
       executeSelectionSetAsResponse_fieldPairOrDeepSuccess_selectedPathProbe_tagged_of_valid_normal_runtimeSpine_support_context_fuel_ge_size
         schema rootSelectionSet leftInitialSelectionSet
@@ -2547,40 +2589,43 @@ theorem
           targetParent leftProbeField rightProbeField rightParentType
           targetLeftArguments targetRightArguments leftRuntime rightRuntime
           FieldPairProbeTag.right right
-      -> ¬ Execution.ResponseValue.semanticEquivalent
-            (Execution.executeSelectionSetAsResponse schema
-              (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
-                (fieldPairSelectedPathProbeResolvers schema
-                  leftInitialSelectionSet rightInitialSelectionSet
-                  leftInitialSpine rightInitialSpine targetParent leftProbeField
-                  rightProbeField targetLeftArguments targetRightArguments
-                  leftRuntime rightRuntime)
-                targetParent leftProbeField rightProbeField targetLeftArguments
-                targetRightArguments)
-              variableValues (fuel + 1) leftParentType
-              (projectionTargetResolverValue
-                (.object leftSourceRuntimeType
-                  (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.left
-                    leftCurrentSelectionSet leftSpine)))
-              left).data
-            (Execution.executeSelectionSetAsResponse schema
-              (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
-                (fieldPairSelectedPathProbeResolvers schema
-                  leftInitialSelectionSet rightInitialSelectionSet
-                  leftInitialSpine rightInitialSpine targetParent leftProbeField
-                  rightProbeField targetLeftArguments targetRightArguments
-                  leftRuntime rightRuntime)
-                targetParent leftProbeField rightProbeField targetLeftArguments
-                targetRightArguments)
-              variableValues (fuel + 1) rightParentType
-              (projectionTargetResolverValue
-                (.object rightSourceRuntimeType
-                  (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.right
-                    rightCurrentSelectionSet rightSpine)))
-              right).data := by
+      -> ∀ (_hTypeNames : selectionSetTypenameFree (left ++ right) := by typename_free),
+          ¬ Execution.ResponseValue.semanticEquivalent
+              (Execution.executeSelectionSetAsResponse schema
+                (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
+                  (fieldPairSelectedPathProbeResolvers schema
+                    leftInitialSelectionSet rightInitialSelectionSet
+                    leftInitialSpine rightInitialSpine targetParent leftProbeField
+                    rightProbeField targetLeftArguments targetRightArguments
+                    leftRuntime rightRuntime)
+                  targetParent leftProbeField rightProbeField targetLeftArguments
+                  targetRightArguments)
+                variableValues (fuel + 1) leftParentType
+                (projectionTargetResolverValue
+                  (.object leftSourceRuntimeType
+                    (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.left
+                      leftCurrentSelectionSet leftSpine)))
+                left).data
+              (Execution.executeSelectionSetAsResponse schema
+                (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
+                  (fieldPairSelectedPathProbeResolvers schema
+                    leftInitialSelectionSet rightInitialSelectionSet
+                    leftInitialSpine rightInitialSpine targetParent leftProbeField
+                    rightProbeField targetLeftArguments targetRightArguments
+                    leftRuntime rightRuntime)
+                  targetParent leftProbeField rightProbeField targetLeftArguments
+                  targetRightArguments)
+                variableValues (fuel + 1) rightParentType
+                (projectionTargetResolverValue
+                  (.object rightSourceRuntimeType
+                    (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.right
+                      rightCurrentSelectionSet rightSpine)))
+                right).data := by
   intro hleftFree hrightFree hleftNormal hrightNormal hleftObject
     hrightObject hleftMem hrightMem hleftLookup hrightLookup hrightFuel
-    hleftComposite hrightLeaf hleftReady hrightReady
+    hleftComposite hrightLeaf hleftReady hrightReady hTypeNames
+  have hleftTypes := selectionSetTypenameFree_append_left hTypeNames
+  have hrightTypes := selectionSetTypenameFree_append_right hTypeNames
   let resolvers :=
     fieldPairOrDeepSuccessResolvers schema rootSelectionSet
       (fieldPairSelectedPathProbeResolvers schema leftInitialSelectionSet
@@ -2909,40 +2954,43 @@ theorem
           targetParent leftProbeField rightProbeField rightParentType
           targetLeftArguments targetRightArguments leftRuntime rightRuntime
           FieldPairProbeTag.right right
-      -> ¬ Execution.ResponseValue.semanticEquivalent
-            (Execution.executeSelectionSetAsResponse schema
-              (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
-                (fieldPairSelectedPathProbeResolvers schema
-                  leftInitialSelectionSet rightInitialSelectionSet
-                  leftInitialSpine rightInitialSpine targetParent leftProbeField
-                  rightProbeField targetLeftArguments targetRightArguments
-                  leftRuntime rightRuntime)
-                targetParent leftProbeField rightProbeField targetLeftArguments
-                targetRightArguments)
-              variableValues (leftFuel + 1) leftParentType
-              (projectionTargetResolverValue
-                (.object leftSourceRuntimeType
-                  (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.left
-                    leftCurrentSelectionSet leftSpine)))
-              left).data
-            (Execution.executeSelectionSetAsResponse schema
-              (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
-                (fieldPairSelectedPathProbeResolvers schema
-                  leftInitialSelectionSet rightInitialSelectionSet
-                  leftInitialSpine rightInitialSpine targetParent leftProbeField
-                  rightProbeField targetLeftArguments targetRightArguments
-                  leftRuntime rightRuntime)
-                targetParent leftProbeField rightProbeField targetLeftArguments
-                targetRightArguments)
-              variableValues (rightFuel + 1) rightParentType
-              (projectionTargetResolverValue
-                (.object rightSourceRuntimeType
-                  (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.right
-                    rightCurrentSelectionSet rightSpine)))
-              right).data := by
+      -> ∀ (_hTypeNames : selectionSetTypenameFree (left ++ right) := by typename_free),
+          ¬ Execution.ResponseValue.semanticEquivalent
+              (Execution.executeSelectionSetAsResponse schema
+                (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
+                  (fieldPairSelectedPathProbeResolvers schema
+                    leftInitialSelectionSet rightInitialSelectionSet
+                    leftInitialSpine rightInitialSpine targetParent leftProbeField
+                    rightProbeField targetLeftArguments targetRightArguments
+                    leftRuntime rightRuntime)
+                  targetParent leftProbeField rightProbeField targetLeftArguments
+                  targetRightArguments)
+                variableValues (leftFuel + 1) leftParentType
+                (projectionTargetResolverValue
+                  (.object leftSourceRuntimeType
+                    (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.left
+                      leftCurrentSelectionSet leftSpine)))
+                left).data
+              (Execution.executeSelectionSetAsResponse schema
+                (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
+                  (fieldPairSelectedPathProbeResolvers schema
+                    leftInitialSelectionSet rightInitialSelectionSet
+                    leftInitialSpine rightInitialSpine targetParent leftProbeField
+                    rightProbeField targetLeftArguments targetRightArguments
+                    leftRuntime rightRuntime)
+                  targetParent leftProbeField rightProbeField targetLeftArguments
+                  targetRightArguments)
+                variableValues (rightFuel + 1) rightParentType
+                (projectionTargetResolverValue
+                  (.object rightSourceRuntimeType
+                    (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.right
+                      rightCurrentSelectionSet rightSpine)))
+                right).data := by
   intro hleftFree hrightFree hleftNormal hrightNormal hleftObject
     hrightObject hleftMem hrightMem hleftLookup hrightLookup hrightFuel
-    hleftComposite hrightLeaf hleftReady hrightReady
+    hleftComposite hrightLeaf hleftReady hrightReady hTypeNames
+  have hleftTypes := selectionSetTypenameFree_append_left hTypeNames
+  have hrightTypes := selectionSetTypenameFree_append_right hTypeNames
   let resolvers :=
     fieldPairOrDeepSuccessResolvers schema rootSelectionSet
       (fieldPairSelectedPathProbeResolvers schema leftInitialSelectionSet
@@ -3279,43 +3327,46 @@ theorem
           = true
       -> (TypeRef.named rightFieldDefinition.outputType.namedType).isCompositeBool schema
           = false
-      -> ¬ Execution.ResponseValue.semanticEquivalent
-            (Execution.executeSelectionSetAsResponse schema
-              (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
-                (fieldPairSelectedPathProbeResolvers schema
-                  leftInitialSelectionSet rightInitialSelectionSet
-                  leftInitialSpine rightInitialSpine targetParent leftProbeField
-                  rightProbeField targetLeftArguments targetRightArguments
-                  leftRuntime rightRuntime)
-                targetParent leftProbeField rightProbeField targetLeftArguments
-                targetRightArguments)
-              variableValues (fuel + 1) leftParentType
-              (projectionTargetResolverValue
-                (.object leftSourceRuntimeType
-                  (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.left
-                    leftCurrentSelectionSet leftSpine)))
-              left).data
-            (Execution.executeSelectionSetAsResponse schema
-              (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
-                (fieldPairSelectedPathProbeResolvers schema
-                  leftInitialSelectionSet rightInitialSelectionSet
-                  leftInitialSpine rightInitialSpine targetParent leftProbeField
-                  rightProbeField targetLeftArguments targetRightArguments
-                  leftRuntime rightRuntime)
-                targetParent leftProbeField rightProbeField targetLeftArguments
-                targetRightArguments)
-              variableValues (fuel + 1) rightParentType
-              (projectionTargetResolverValue
-                (.object rightSourceRuntimeType
-                  (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.right
-                    rightCurrentSelectionSet rightSpine)))
-              right).data := by
+      -> ∀ (_hTypeNames : selectionSetTypenameFree (left ++ right) := by typename_free),
+          ¬ Execution.ResponseValue.semanticEquivalent
+              (Execution.executeSelectionSetAsResponse schema
+                (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
+                  (fieldPairSelectedPathProbeResolvers schema
+                    leftInitialSelectionSet rightInitialSelectionSet
+                    leftInitialSpine rightInitialSpine targetParent leftProbeField
+                    rightProbeField targetLeftArguments targetRightArguments
+                    leftRuntime rightRuntime)
+                  targetParent leftProbeField rightProbeField targetLeftArguments
+                  targetRightArguments)
+                variableValues (fuel + 1) leftParentType
+                (projectionTargetResolverValue
+                  (.object leftSourceRuntimeType
+                    (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.left
+                      leftCurrentSelectionSet leftSpine)))
+                left).data
+              (Execution.executeSelectionSetAsResponse schema
+                (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
+                  (fieldPairSelectedPathProbeResolvers schema
+                    leftInitialSelectionSet rightInitialSelectionSet
+                    leftInitialSpine rightInitialSpine targetParent leftProbeField
+                    rightProbeField targetLeftArguments targetRightArguments
+                    leftRuntime rightRuntime)
+                  targetParent leftProbeField rightProbeField targetLeftArguments
+                  targetRightArguments)
+                variableValues (fuel + 1) rightParentType
+                (projectionTargetResolverValue
+                  (.object rightSourceRuntimeType
+                    (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.right
+                      rightCurrentSelectionSet rightSpine)))
+                right).data := by
   intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
     hleftFree hrightFree hleftNormal
     hrightNormal hleftObject hrightObject hleftFuel hrightFuel
     hleftSpineValid hrightSpineValid hleftSupport hrightSupport
     hleftContext hrightContext hleftMem hrightMem hleftLookup
-    hrightLookup hleftComposite hrightLeaf
+    hrightLookup hleftComposite hrightLeaf hTypeNames
+  have hleftTypes := selectionSetTypenameFree_append_left hTypeNames
+  have hrightTypes := selectionSetTypenameFree_append_right hTypeNames
   have hleftReady :
       SelectedPathSelectionSetFieldChildrenReady schema rootSelectionSet
         leftInitialSelectionSet rightInitialSelectionSet
@@ -3430,43 +3481,46 @@ theorem
           = true
       -> (TypeRef.named rightFieldDefinition.outputType.namedType).isCompositeBool schema
           = false
-      -> ¬ Execution.ResponseValue.semanticEquivalent
-            (Execution.executeSelectionSetAsResponse schema
-              (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
-                (fieldPairSelectedPathProbeResolvers schema
-                  leftInitialSelectionSet rightInitialSelectionSet
-                  leftInitialSpine rightInitialSpine targetParent leftProbeField
-                  rightProbeField targetLeftArguments targetRightArguments
-                  leftRuntime rightRuntime)
-                targetParent leftProbeField rightProbeField targetLeftArguments
-                targetRightArguments)
-              variableValues (leftFuel + 1) leftParentType
-              (projectionTargetResolverValue
-                (.object leftSourceRuntimeType
-                  (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.left
-                    leftCurrentSelectionSet leftSpine)))
-              left).data
-            (Execution.executeSelectionSetAsResponse schema
-              (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
-                (fieldPairSelectedPathProbeResolvers schema
-                  leftInitialSelectionSet rightInitialSelectionSet
-                  leftInitialSpine rightInitialSpine targetParent leftProbeField
-                  rightProbeField targetLeftArguments targetRightArguments
-                  leftRuntime rightRuntime)
-                targetParent leftProbeField rightProbeField targetLeftArguments
-                targetRightArguments)
-              variableValues (rightFuel + 1) rightParentType
-              (projectionTargetResolverValue
-                (.object rightSourceRuntimeType
-                  (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.right
-                    rightCurrentSelectionSet rightSpine)))
-              right).data := by
+      -> ∀ (_hTypeNames : selectionSetTypenameFree (left ++ right) := by typename_free),
+          ¬ Execution.ResponseValue.semanticEquivalent
+              (Execution.executeSelectionSetAsResponse schema
+                (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
+                  (fieldPairSelectedPathProbeResolvers schema
+                    leftInitialSelectionSet rightInitialSelectionSet
+                    leftInitialSpine rightInitialSpine targetParent leftProbeField
+                    rightProbeField targetLeftArguments targetRightArguments
+                    leftRuntime rightRuntime)
+                  targetParent leftProbeField rightProbeField targetLeftArguments
+                  targetRightArguments)
+                variableValues (leftFuel + 1) leftParentType
+                (projectionTargetResolverValue
+                  (.object leftSourceRuntimeType
+                    (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.left
+                      leftCurrentSelectionSet leftSpine)))
+                left).data
+              (Execution.executeSelectionSetAsResponse schema
+                (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
+                  (fieldPairSelectedPathProbeResolvers schema
+                    leftInitialSelectionSet rightInitialSelectionSet
+                    leftInitialSpine rightInitialSpine targetParent leftProbeField
+                    rightProbeField targetLeftArguments targetRightArguments
+                    leftRuntime rightRuntime)
+                  targetParent leftProbeField rightProbeField targetLeftArguments
+                  targetRightArguments)
+                variableValues (rightFuel + 1) rightParentType
+                (projectionTargetResolverValue
+                  (.object rightSourceRuntimeType
+                    (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.right
+                      rightCurrentSelectionSet rightSpine)))
+                right).data := by
   intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
     hleftFree hrightFree hleftNormal
     hrightNormal hleftObject hrightObject hleftFuel hrightFuel
     hleftSpineValid hrightSpineValid hleftSupport hrightSupport
     hleftContext hrightContext hleftMem hrightMem hleftLookup
-    hrightLookup hleftComposite hrightLeaf
+    hrightLookup hleftComposite hrightLeaf hTypeNames
+  have hleftTypes := selectionSetTypenameFree_append_left hTypeNames
+  have hrightTypes := selectionSetTypenameFree_append_right hTypeNames
   have hleftReady :
       SelectedPathSelectionSetFieldChildrenReady schema rootSelectionSet
         leftInitialSelectionSet rightInitialSelectionSet
@@ -3573,19 +3627,22 @@ theorem
           = true
       -> (TypeRef.named rightFieldDefinition.outputType.namedType).isCompositeBool schema
           = false
-      -> SelectedPathTaggedSelectionSetsResponseDiffWitness schema
-          rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
-          leftInitialSpine rightInitialSpine variableValues (fuel + 1)
-          parentType parentType targetParent leftProbeField rightProbeField
-          targetLeftArguments targetRightArguments leftRuntime rightRuntime
-          leftCurrentSelectionSet rightCurrentSelectionSet leftSpine rightSpine
-          left right := by
+      -> ∀ (_hTypeNames : selectionSetTypenameFree (left ++ right) := by typename_free),
+          SelectedPathTaggedSelectionSetsResponseDiffWitness schema
+            rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
+            leftInitialSpine rightInitialSpine variableValues (fuel + 1)
+            parentType parentType targetParent leftProbeField rightProbeField
+            targetLeftArguments targetRightArguments leftRuntime rightRuntime
+            leftCurrentSelectionSet rightCurrentSelectionSet leftSpine rightSpine
+            left right := by
   intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
     hleftFree hrightFree hleftNormal
     hrightNormal hobject hleftFuel hrightFuel hleftSpineValid
     hrightSpineValid hleftSupport hrightSupport hleftContext
     hrightContext hleftMem hrightMem hleftLookup hrightLookup
-    hleftComposite hrightLeaf
+    hleftComposite hrightLeaf hTypeNames
+  have hleftTypes := selectionSetTypenameFree_append_left hTypeNames
+  have hrightTypes := selectionSetTypenameFree_append_right hTypeNames
   rcases
       executeSelectionSetAsResponse_fieldPairOrDeepSuccess_selectedPathProbe_tagged_of_valid_normal_runtimeSpine_support_context_fuel_ge_size
         schema rootSelectionSet leftInitialSelectionSet

@@ -384,36 +384,39 @@ theorem normalSelectionSetPairedPathDataDiffAt_of_object_composite_pair
           targetLeftArguments targetRightArguments leftRuntime rightRuntime
           leftChildSpine rightChildSpine leftChildSelectionSet
           rightChildSelectionSet
-      -> NormalSelectionSetPairedPathDataDiffAt schema rootSelectionSet
-          leftInitialSelectionSet rightInitialSelectionSet leftInitialSpine
-          rightInitialSpine variableValues leftFuel rightFuel leftParentType
-          rightParentType leftParentType rightParentType targetParent
-          leftProbeField rightProbeField targetLeftArguments
-          targetRightArguments leftRuntime rightRuntime
-          ({
-              responseName := responseName,
-              fieldName := leftFieldName,
-              arguments := leftArguments,
-              childRuntime := some leftChildRuntime
-            }
-            :: leftChildSpine)
-          ({
-              responseName := responseName,
-              fieldName := rightFieldName,
-              arguments := rightArguments,
-              childRuntime := some rightChildRuntime
-            }
-            :: rightChildSpine)
-          left right := by
+      -> ∀ (_hTypeNames : selectionSetTypenameFree (left ++ right) := by typename_free),
+          NormalSelectionSetPairedPathDataDiffAt schema rootSelectionSet
+            leftInitialSelectionSet rightInitialSelectionSet leftInitialSpine
+            rightInitialSpine variableValues leftFuel rightFuel leftParentType
+            rightParentType leftParentType rightParentType targetParent
+            leftProbeField rightProbeField targetLeftArguments
+            targetRightArguments leftRuntime rightRuntime
+            ({
+                responseName := responseName,
+                fieldName := leftFieldName,
+                arguments := leftArguments,
+                childRuntime := some leftChildRuntime
+              }
+              :: leftChildSpine)
+            ({
+                responseName := responseName,
+                fieldName := rightFieldName,
+                arguments := rightArguments,
+                childRuntime := some rightChildRuntime
+              }
+              :: rightChildSpine)
+            left right := by
   intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
     hleftFree hrightFree hleftNormal
     hrightNormal hleftObject hrightObject hleftFuel hrightFuel hleftMem
     hrightMem hleftLookup hrightLookup hleftComposite hrightComposite
     hleftChildValid hrightChildValid hleftChildFree hrightChildFree
     hleftChildNormal hrightChildNormal hleftChildSpineValid
-    hrightChildSpineValid hchildDiff leftCurrentSelectionSet
+    hrightChildSpineValid hchildDiff hTypeNames leftCurrentSelectionSet
     rightCurrentSelectionSet hleftSupport hrightSupport hleftContext
     hrightContext
+  have hleftTypes := selectionSetTypenameFree_append_left hTypeNames
+  have hrightTypes := selectionSetTypenameFree_append_right hTypeNames
   let leftStep : NormalSelectionSetObservableFieldStep :=
     { responseName := responseName, fieldName := leftFieldName,
       arguments := leftArguments, childRuntime := some leftChildRuntime }
@@ -672,19 +675,22 @@ theorem normalSelectionSetPairedPathDataDiffAt_of_object_left_responseName
       -> Selection.field responseName fieldName arguments directives childSelectionSet
           ∈ left
       -> responseName ∉ right.filterMap Selection.responseName?
-      -> NormalSelectionSetPairedPathDataDiffAt schema rootSelectionSet
-          leftInitialSelectionSet rightInitialSelectionSet leftInitialSpine
-          rightInitialSpine variableValues leftFuel rightFuel leftParentType
-          rightParentType leftRuntimeType rightRuntimeType targetParent
-          leftProbeField rightProbeField targetLeftArguments
-          targetRightArguments leftRuntime rightRuntime leftSpine rightSpine
-          left right := by
+      -> ∀ (_hTypeNames : selectionSetTypenameFree (left ++ right) := by typename_free),
+          NormalSelectionSetPairedPathDataDiffAt schema rootSelectionSet
+            leftInitialSelectionSet rightInitialSelectionSet leftInitialSpine
+            rightInitialSpine variableValues leftFuel rightFuel leftParentType
+            rightParentType leftRuntimeType rightRuntimeType targetParent
+            leftProbeField rightProbeField targetLeftArguments
+            targetRightArguments leftRuntime rightRuntime leftSpine rightSpine
+            left right := by
   intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
     hleftFree hrightFree hleftNormal
     hrightNormal hleftObject hrightObject hleftFuel hrightFuel
     hleftSpineValid hrightSpineValid hleftMem hrightMissing
-    leftCurrentSelectionSet rightCurrentSelectionSet hleftSupport
+    hTypeNames leftCurrentSelectionSet rightCurrentSelectionSet hleftSupport
     hrightSupport hleftContext hrightContext
+  have hleftTypes := selectionSetTypenameFree_append_left hTypeNames
+  have hrightTypes := selectionSetTypenameFree_append_right hTypeNames
   have hleftRuntimeEq : leftRuntimeType = leftParentType :=
     typeIncludesObjectBool_eq_of_objectTypeNameBool_true schema hleftObject
       (selectedFieldSpineRuntimeValid_typeIncludes hleftSpineValid)
@@ -760,20 +766,23 @@ theorem normalSelectionSetPairedPathDataDiffAt_of_object_leaf_pair
           = false
       -> (TypeRef.named rightFieldDefinition.outputType.namedType).isCompositeBool schema
           = false
-      -> NormalSelectionSetPairedPathDataDiffAt schema rootSelectionSet
-          leftInitialSelectionSet rightInitialSelectionSet leftInitialSpine
-          rightInitialSpine variableValues leftFuel rightFuel leftParentType
-          rightParentType leftRuntimeType rightRuntimeType targetParent
-          leftProbeField rightProbeField targetLeftArguments
-          targetRightArguments leftRuntime rightRuntime leftSpine rightSpine
-          left right := by
+      -> ∀ (_hTypeNames : selectionSetTypenameFree (left ++ right) := by typename_free),
+          NormalSelectionSetPairedPathDataDiffAt schema rootSelectionSet
+            leftInitialSelectionSet rightInitialSelectionSet leftInitialSpine
+            rightInitialSpine variableValues leftFuel rightFuel leftParentType
+            rightParentType leftRuntimeType rightRuntimeType targetParent
+            leftProbeField rightProbeField targetLeftArguments
+            targetRightArguments leftRuntime rightRuntime leftSpine rightSpine
+            left right := by
   intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
     hleftFree hrightFree hleftNormal
     hrightNormal hleftObject hrightObject hleftFuel hrightFuel
     hleftSpineValid hrightSpineValid hleftMem hrightMem hleftLookup
-    hrightLookup hleftLeaf hrightLeaf leftCurrentSelectionSet
+    hrightLookup hleftLeaf hrightLeaf hTypeNames leftCurrentSelectionSet
     rightCurrentSelectionSet hleftSupport hrightSupport hleftContext
     hrightContext
+  have hleftTypes := selectionSetTypenameFree_append_left hTypeNames
+  have hrightTypes := selectionSetTypenameFree_append_right hTypeNames
   have hleftRuntimeEq : leftRuntimeType = leftParentType :=
     typeIncludesObjectBool_eq_of_objectTypeNameBool_true schema hleftObject
       (selectedFieldSpineRuntimeValid_typeIncludes hleftSpineValid)
@@ -849,20 +858,23 @@ theorem normalSelectionSetPairedPathDataDiffAt_of_object_composite_left_leaf
           = true
       -> (TypeRef.named rightFieldDefinition.outputType.namedType).isCompositeBool schema
           = false
-      -> NormalSelectionSetPairedPathDataDiffAt schema rootSelectionSet
-          leftInitialSelectionSet rightInitialSelectionSet leftInitialSpine
-          rightInitialSpine variableValues leftFuel rightFuel leftParentType
-          rightParentType leftRuntimeType rightRuntimeType targetParent
-          leftProbeField rightProbeField targetLeftArguments
-          targetRightArguments leftRuntime rightRuntime leftSpine rightSpine
-          left right := by
+      -> ∀ (_hTypeNames : selectionSetTypenameFree (left ++ right) := by typename_free),
+          NormalSelectionSetPairedPathDataDiffAt schema rootSelectionSet
+            leftInitialSelectionSet rightInitialSelectionSet leftInitialSpine
+            rightInitialSpine variableValues leftFuel rightFuel leftParentType
+            rightParentType leftRuntimeType rightRuntimeType targetParent
+            leftProbeField rightProbeField targetLeftArguments
+            targetRightArguments leftRuntime rightRuntime leftSpine rightSpine
+            left right := by
   intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
     hleftFree hrightFree hleftNormal
     hrightNormal hleftObject hrightObject hleftFuel hrightFuel
     hleftSpineValid hrightSpineValid hleftMem hrightMem hleftLookup
-    hrightLookup hleftComposite hrightLeaf leftCurrentSelectionSet
+    hrightLookup hleftComposite hrightLeaf hTypeNames leftCurrentSelectionSet
     rightCurrentSelectionSet hleftSupport hrightSupport hleftContext
     hrightContext
+  have hleftTypes := selectionSetTypenameFree_append_left hTypeNames
+  have hrightTypes := selectionSetTypenameFree_append_right hTypeNames
   have hleftRuntimeEq : leftRuntimeType = leftParentType :=
     typeIncludesObjectBool_eq_of_objectTypeNameBool_true schema hleftObject
       (selectedFieldSpineRuntimeValid_typeIncludes hleftSpineValid)
@@ -939,20 +951,23 @@ theorem normalSelectionSetPairedPathDataDiffAt_of_object_leaf_composite_right
           = false
       -> (TypeRef.named rightFieldDefinition.outputType.namedType).isCompositeBool schema
           = true
-      -> NormalSelectionSetPairedPathDataDiffAt schema rootSelectionSet
-          leftInitialSelectionSet rightInitialSelectionSet leftInitialSpine
-          rightInitialSpine variableValues leftFuel rightFuel leftParentType
-          rightParentType leftRuntimeType rightRuntimeType targetParent
-          leftProbeField rightProbeField targetLeftArguments
-          targetRightArguments leftRuntime rightRuntime leftSpine rightSpine
-          left right := by
+      -> ∀ (_hTypeNames : selectionSetTypenameFree (left ++ right) := by typename_free),
+          NormalSelectionSetPairedPathDataDiffAt schema rootSelectionSet
+            leftInitialSelectionSet rightInitialSelectionSet leftInitialSpine
+            rightInitialSpine variableValues leftFuel rightFuel leftParentType
+            rightParentType leftRuntimeType rightRuntimeType targetParent
+            leftProbeField rightProbeField targetLeftArguments
+            targetRightArguments leftRuntime rightRuntime leftSpine rightSpine
+            left right := by
   intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
     hleftFree hrightFree hleftNormal
     hrightNormal hleftObject hrightObject hleftFuel hrightFuel
     hleftSpineValid hrightSpineValid hleftMem hrightMem hleftLookup
-    hrightLookup hleftLeaf hrightComposite leftCurrentSelectionSet
+    hrightLookup hleftLeaf hrightComposite hTypeNames leftCurrentSelectionSet
     rightCurrentSelectionSet hleftSupport hrightSupport hleftContext
     hrightContext
+  have hleftTypes := selectionSetTypenameFree_append_left hTypeNames
+  have hrightTypes := selectionSetTypenameFree_append_right hTypeNames
   have hleftRuntimeEq : leftRuntimeType = leftParentType :=
     typeIncludesObjectBool_eq_of_objectTypeNameBool_true schema hleftObject
       (selectedFieldSpineRuntimeValid_typeIncludes hleftSpineValid)
@@ -1009,13 +1024,14 @@ theorem normalSelectionSetPairedPathDataDiff_of_valid_normal
       -> left ≠ []
       -> right ≠ []
       -> NormalSelectionSetPairedPath schema leftParentType rightParentType left right
-      -> NormalSelectionSetPairedPathDataDiff schema rootSelectionSet
-          variableValues leftFuel rightFuel leftParentType rightParentType
-          targetParent leftProbeField rightProbeField
-          targetLeftArguments targetRightArguments left right := by
+      -> ∀ (_hTypeNames : selectionSetTypenameFree (left ++ right) := by typename_free),
+          NormalSelectionSetPairedPathDataDiff schema rootSelectionSet
+            variableValues leftFuel rightFuel leftParentType rightParentType
+            targetParent leftProbeField rightProbeField
+            targetLeftArguments targetRightArguments left right := by
   intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
     hleftFree hrightFree hleftNormal
-    hrightNormal hleftFuel hrightFuel hleftNonempty hrightNonempty hpath
+    hrightNormal hleftFuel hrightFuel hleftNonempty hrightNonempty hpath hTypeNames
   induction hpath generalizing leftVariableDefinitions
       rightVariableDefinitions leftFuel rightFuel with
   | @objectLeftResponseName pathLeftParentType pathRightParentType
@@ -1212,8 +1228,14 @@ theorem normalSelectionSetPairedPathDataDiff_of_valid_normal
       have hrightChildValid :=
         selectionSetValid_field_child_of_mem_lookup hrightValid hrightMem
           hrightChildNonempty hrightLookup
+      have hleftChildTypes : selectionSetTypenameFree leftChildSelectionSet :=
+        selectionSetTypenameFree_fieldChildren
+          (selectionSetTypenameFree_append_left hTypeNames) hleftMem
       have hleftChildFree :=
         selectionSetDirectiveFree_field_child_of_mem hleftFree hleftMem
+      have hrightChildTypes : selectionSetTypenameFree rightChildSelectionSet :=
+        selectionSetTypenameFree_fieldChildren
+          (selectionSetTypenameFree_append_right hTypeNames) hrightMem
       have hrightChildFree :=
         selectionSetDirectiveFree_field_child_of_mem hrightFree hrightMem
       have hleftChildNormal :=
@@ -1323,6 +1345,9 @@ theorem normalSelectionSetPairedPathDataDiff_of_valid_normal
       have hleftChildValid :=
         selectionSetValid_inlineFragment_some_child_of_mem hleftValid
           hleftMem
+      have hleftChildTypes : selectionSetTypenameFree leftChildSelectionSet :=
+        selectionSetTypenameFree_fragmentChildren
+          (selectionSetTypenameFree_append_left hTypeNames) hleftMem
       have hleftChildFree :=
         selectionSetDirectiveFree_inlineFragment_child_of_mem hleftFree
           hleftMem
@@ -1367,7 +1392,9 @@ theorem normalSelectionSetPairedPathDataDiff_of_valid_normal
             hrightCoercion
             hleftChildFree hrightFree
             hleftChildNormal hrightNormal hleftChildFuel hrightFuel
-            hleftChildNonempty hrightNonempty with
+            hleftChildNonempty hrightNonempty
+            (selectionSetTypenameFree_append hleftChildTypes
+              (selectionSetTypenameFree_append_right hTypeNames)) with
         ⟨leftChildRuntime, rightChildRuntime, leftSpine, rightSpine,
           hleftChildSpineValid, hrightSpineValid, hchildDataDiff⟩
       have hleftChildRuntimeEq : leftChildRuntime = typeCondition :=
@@ -1413,6 +1440,9 @@ theorem normalSelectionSetPairedPathDataDiff_of_valid_normal
       have hrightChildValid :=
         selectionSetValid_inlineFragment_some_child_of_mem hrightValid
           hrightMem
+      have hrightChildTypes : selectionSetTypenameFree rightChildSelectionSet :=
+        selectionSetTypenameFree_fragmentChildren
+          (selectionSetTypenameFree_append_right hTypeNames) hrightMem
       have hrightChildFree :=
         selectionSetDirectiveFree_inlineFragment_child_of_mem hrightFree
           hrightMem
@@ -1456,7 +1486,9 @@ theorem normalSelectionSetPairedPathDataDiff_of_valid_normal
                   htypeObjectBool)))
             hleftFree hrightChildFree
             hleftNormal hrightChildNormal hleftFuel hrightChildFuel
-            hleftNonempty hrightChildNonempty with
+            hleftNonempty hrightChildNonempty
+            (selectionSetTypenameFree_append
+              (selectionSetTypenameFree_append_left hTypeNames) hrightChildTypes) with
         ⟨leftChildRuntime, rightChildRuntime, leftSpine, rightSpine,
           hleftSpineValid, hrightChildSpineValid, hchildDataDiff⟩
       have hrightChildRuntimeEq : rightChildRuntime = typeCondition :=

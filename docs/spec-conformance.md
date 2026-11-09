@@ -20,6 +20,8 @@ are documented in [schemas](schema.md), [operations](operations.md),
   declarations, self-implementation rejection, and cycle rejection.
 - **Query operations:** fields, aliases, arguments, variables and defaults, inline
   fragments, runtime type conditions, and `@skip` / `@include`.
+- **Type-name introspection:** implicit `__typename: String!` on objects,
+  interfaces, and unions, resolved from the concrete runtime object type.
 - **Operation validation:** field and argument validity, required arguments,
   variable uses and input-type compatibility, selection shape and non-emptiness,
   fragment applicability, and same-response-name merge compatibility.
@@ -50,7 +52,7 @@ Not covered:
 - Mutation and subscription execution.
 - Custom directives and directive definitions beyond the modeled built-ins.
 - Scalar/enum parsing and coercion details, including result coercion.
-- Introspection and meta-fields.
+- Schema introspection, including `__schema` and `__type`.
 - Request errors, detailed execution errors, messages, paths, locations, and
   response `extensions`.
 - Response serialization, transport, and HTTP behavior.

@@ -7,6 +7,8 @@ Spec reference: GraphQL September 2025.
   modes.
 - 6.3 Executing Selection Sets: field collection, grouped field execution, and subfield
   merging are represented over selections.
+- 4.1 Type Name Introspection: `__typename` resolves from the source object's runtime
+  type independently of user resolvers.
 - 6.4 Executing Fields: resolver invocation, argument default materialization, value
   completion, and execution-error null bubbling are modeled for a synchronous query
   fragment. Argument coercion failure is handled as a field error before resolver
@@ -669,12 +671,21 @@ mutual
           (collectSubfields schema variableValues objectType objectValue fields)
 end
 
--- Spec 6.4.2 `ResolveFieldValue`: pass the argument values already coerced by
--- `ExecuteField` directly to the supplied resolver.
+-- Spec 4.1 `__typename`: the concrete object type is carried by the runtime source.
+-- A non-object source is a modeled field error rather than a user-resolver fallback.
+def resolveTypenameField : ResolverValue ObjectRef -> Option (ResolverValue ObjectRef)
+  | .object runtimeType _ref => some (.scalar runtimeType)
+  | _ => none
+
+-- Spec 6.4.2 `ResolveFieldValue`: dispatch the implicit type-name field internally;
+-- ordinary fields pass already-coerced argument values directly to the supplied resolver.
 def resolveFieldValue (resolvers : Resolvers ObjectRef) (parentType fieldName : Name)
     (arguments : CoercedArguments) (source : ResolverValue ObjectRef)
     : Option (ResolverValue ObjectRef) :=
-  resolvers.resolve parentType fieldName arguments source
+  if fieldName == "__typename" then
+    resolveTypenameField source
+  else
+    resolvers.resolve parentType fieldName arguments source
 
 -- Spec 6.3.3 `ExecuteCollectedFields`, 6.4 `ExecuteField`, and 6.4.3 `CompleteValue`:
 -- partial fuel-bounded execution model with spec-shaped null bubbling through non-null

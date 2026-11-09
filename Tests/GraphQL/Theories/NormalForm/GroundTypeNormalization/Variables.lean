@@ -56,8 +56,9 @@ private def userField (children : List Selection) : FieldMerge.ScopedField :=
   }
 
 attribute [local simp] schema nameDefinition arguments direct fragment selections
-  Schema.lookupField Schema.lookupType Schema.allTypes Schema.builtinScalarDefinitions
-  TypeDefinition.name TypeDefinition.fields? BuiltinScalar.name TypeRef.namedType
+  Schema.lookupField Schema.lookupDeclaredField Schema.lookupType Schema.allTypes
+  Schema.builtinScalarDefinitions TypeDefinition.name TypeDefinition.fields?
+  BuiltinScalar.name TypeRef.namedType
 
 private theorem nameField_merge
     : FieldMerge.fieldsForNameCanMerge schema nameField nameField := by

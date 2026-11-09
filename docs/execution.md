@@ -25,6 +25,21 @@ its value, and accumulates counted errors. `Response` is a data/errors envelope;
 position. The explicit fuel parameter bounds recursive completion, with
 `Execution.outOfFuel` represented by `.error 1`.
 
+## Type-name introspection
+
+Spec 4.1 `__typename` is an implicit `String!` field on objects, interfaces, and
+unions. `resolveFieldValue` resolves it through `resolveTypenameField`, returning
+the concrete type name carried by `ResolverValue.object` without invoking the
+user resolver. A selection through an interface or union therefore returns the
+runtime object's name. Aliases determine response keys; the field name determines
+built-in dispatch. Normal collection, directives, completion, and fuel rules apply.
+A non-object source fails resolution and uses the ordinary non-null error path.
+
+The named-fragment, incremental, and alternative executors share this behavior.
+The breadth executor maps the same built-in resolution over its source batch
+without calling the host batch resolver. Schema introspection through `__schema`
+and `__type` remains outside scope.
+
 ## Inputs and defaults
 
 Supplied variable values and operation defaults are assumed already coerced and

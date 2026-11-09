@@ -412,7 +412,7 @@ mutual
                         simp [hleftCoerce, hrightCoerce,
                           ArgumentCoercionResult.equivalent] at hcoercedArguments ⊢
                       rw [hfieldName]
-                      exact resolvers.resolve_argumentsEquivalent _ _ _ _ _
+                      exact resolveFieldValue_argumentsEquivalent resolvers _ _ _ _ _
                         hcoercedArguments
                     have hlookupAll : ∀ field,
                         field ∈ rightHead :: rightRest

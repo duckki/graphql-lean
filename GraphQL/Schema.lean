@@ -6,11 +6,13 @@ Spec reference: GraphQL September 2025.
   represented directly, constant values are separated for defaults, and coercion/source
   parsing are out of scope.
 - 2.14 Schema Coordinates are not modeled; this formalization has no source-level
-  coordinate syntax or introspection surface.
+  coordinate syntax.
 - 3.3-3.13 Type System: schema and type definitions cover core GraphQL types, wrapping
   types, built-in scalars, and the `@skip`/`@include` scalar dependencies, but omit
-  descriptions, arbitrary directives, extensions, introspection, mutation/subscription
+  descriptions, arbitrary directives, extensions, schema introspection, mutation/subscription
   roots, and OneOf metadata.
+- 4.1 Type Name Introspection: field lookup supplies implicit `__typename: String!`
+  on composite types without adding it to their declared field lists.
 - 5.5.2.3 Fragment Spread Is Possible: possible-object helpers model the spec's
   `GetPossibleTypes` basis for overlap checks.
 -/
@@ -452,7 +454,7 @@ def name : TypeDefinition -> Name
   | .enum enumType => enumType.name
   | .inputObject inputObjectType => inputObjectType.name
 
--- Spec 5.3 field selection lookup applies only to object and interface definitions.
+-- Spec 3.6 / 3.7 declared field lists belong only to object and interface definitions.
 def fields? : TypeDefinition -> Option (List FieldDefinition)
   | .object objectType => some objectType.fields
   | .interface interfaceType => some interfaceType.fields
@@ -495,7 +497,7 @@ def isOutputType : TypeDefinition -> Prop
 end TypeDefinition
 
 -- Spec 3.3 `Schema`: partial; only the query root and type list are modeled, omitting
--- mutation/subscription roots, directives, descriptions, extensions, and introspection.
+-- mutation/subscription roots, directives, descriptions, extensions, and schema introspection.
 structure Schema where
   queryType : Name
   types : List TypeDefinition
@@ -613,11 +615,28 @@ def objectTypesImplementingInterface (schema : Schema) (interfaceName : Name)
       schema.objectTypeImplementsInterfaceBool objectType interfaceName)).map
     ObjectType.name
 
-def lookupField (schema : Schema) (parentType fieldName : Name)
+-- Lookup over explicitly declared fields; implicit meta-fields are handled separately.
+def lookupDeclaredField (schema : Schema) (parentType fieldName : Name)
     : Option FieldDefinition := do
   let typeDefinition <- schema.lookupType parentType
   let fields <- typeDefinition.fields?
   fields.find? (fun field => field.name == fieldName)
+
+-- Spec 4.1 `__typename` is a non-null string leaf without arguments.
+def typenameFieldDefinition : FieldDefinition :=
+  { name := "__typename", outputType := .nonNull (.named "String") }
+
+-- Spec 4.1 / 5.3 selectable field lookup. The implicit definition takes precedence
+-- over conflicting raw declarations and is available directly on unions as well.
+def lookupField (schema : Schema) (parentType fieldName : Name)
+    : Option FieldDefinition :=
+  if fieldName == "__typename" then
+    match schema.lookupType parentType with
+    | some (.object _) | some (.interface _) | some (.union _) =>
+        some typenameFieldDefinition
+    | _ => none
+  else
+    schema.lookupDeclaredField parentType fieldName
 
 -- Spec 5.4.1 argument definition lookup by name.
 def lookupArgumentDefinition (definitions : List InputValueDefinition)

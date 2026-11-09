@@ -610,13 +610,13 @@ mutual
                     | error =>
                         simp [executeField, hlookup, hcoerce]
                     | success coercedArguments =>
-                        cases hresolve : resolvers.resolve parentType
+                        cases hresolve : resolveFieldValue resolvers parentType
                             field.fieldName coercedArguments source with
                         | none =>
-                            simp [executeField, resolveFieldValue, hlookup, hresolve,
+                            simp [executeField, hlookup, hresolve,
                               hcoerce]
                         | some resolved =>
-                            simp [executeField, resolveFieldValue, hlookup, hresolve,
+                            simp [executeField, hlookup, hresolve,
                               hcoerce,
                               completeValue_firstOccurrences schema resolvers
                                 variableValues fuel fieldDefinition.outputType resolved

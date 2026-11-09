@@ -526,7 +526,7 @@ theorem typeDefinitionCompleteValueFuelBound_le_schemaCompleteValueFuelBound
   intro hmem
   simpa [schemaCompleteValueFuelBound]
     using typeDefinitionCompleteValueFuelBound_le_schemaTypesFold_of_mem
-      schema.types 0 typeDefinition hmem
+      schema.types 1 typeDefinition hmem
 
 theorem lookupField_typeRefCompleteValueFuelBound_le_schemaCompleteValueFuelBound
     (schema : Schema) (parentType fieldName : Name) (fieldDefinition : FieldDefinition)
@@ -534,18 +534,20 @@ theorem lookupField_typeRefCompleteValueFuelBound_le_schemaCompleteValueFuelBoun
       -> typeRefCompleteValueFuelBound fieldDefinition.outputType
           <= schemaCompleteValueFuelBound schema := by
   intro hlookup
+  rcases Schema.lookupField_eq_some_cases hlookup with ⟨_, rfl, _⟩ | ⟨_, hlookup⟩
+  · exact typeDefinitionsCompleteValueFuelBound_fold_start_le schema.types 1
   cases htype : schema.lookupType parentType with
   | none =>
-      simp [Schema.lookupField, htype] at hlookup
+      simp [Schema.lookupDeclaredField, htype] at hlookup
   | some typeDefinition =>
       cases hfields : typeDefinition.fields? with
       | none =>
-          simp [Schema.lookupField, htype, hfields] at hlookup
+          simp [Schema.lookupDeclaredField, htype, hfields] at hlookup
       | some fields =>
           have hfieldLookup :
               fields.find? (fun field => field.name == fieldName) =
                 some fieldDefinition := by
-            simpa [Schema.lookupField, htype, hfields] using hlookup
+            simpa [Schema.lookupDeclaredField, htype, hfields] using hlookup
           have hfieldMem : fieldDefinition ∈ fields :=
             List.mem_of_find?_eq_some hfieldLookup
           have htypeMemAll : typeDefinition ∈ schema.allTypes := by

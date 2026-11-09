@@ -17,6 +17,19 @@ The presentation starts with ground-type normalization because it exposes the co
 canonicity argument without Boolean branch machinery. Complete normalization then
 lifts that result to the repository's main theorem.
 
+Structural equality up to reordering is not a complete semantic criterion for
+operations containing `__typename`. For `f, g : Person!`, the two operations
+`{ a: f { __typename }, b: g { __typename } }` and
+`{ a: g { __typename }, b: f { __typename } }` have identical responses for every
+resolver and fuel, including counted errors, while their field identities differ.
+The [regression](../../Tests/GraphQL/Theories/NormalForm/Typename.lean) proves
+this equivalence and failure of structural correspondence. The resolver-probe
+uniqueness statements therefore require `operationTypenameFree` for both operands.
+This predicate recursively excludes the actual field name `__typename`, including
+aliased and nested occurrences; ordinary fields may still use `__typename` as a
+response alias. Both normalizers preserve the predicate. Forward reordering
+soundness and normalization soundness do not require this restriction.
+
 ## 1. What The Result Says
 
 Let:
@@ -302,15 +315,19 @@ Already-normal uniqueness is:
 
 ```lean
 def normalOperationsSemanticallyEquivalentEqualUpToReordering
-    (schema : Schema) (left right : Operation) : Prop :=
+    (schema : Schema) (left right : Operation)
+    : Prop :=
   SchemaWellFormedness.schemaWellFormed schema
   -> Validation.operationDefinitionValid schema left
   -> Validation.operationDefinitionValid schema right
   -> operationDirectiveFree left
   -> operationDirectiveFree right
+  -> operationTypenameFree left
+  -> operationTypenameFree right
   -> operationNormal schema left
   -> operationNormal schema right
-  -> variableDefinitionsSyntacticallyEquivalent left.variableDefinitions right.variableDefinitions
+  -> variableDefinitionsSyntacticallyEquivalent left.variableDefinitions
+      right.variableDefinitions
   -> operationsSemanticallyEquivalent schema left right
   -> operationsEqualUpToReorderingWithCoercion schema left right
 ```
@@ -318,20 +335,23 @@ def normalOperationsSemanticallyEquivalentEqualUpToReordering
 Ground-normalization uniqueness is:
 
 ```lean
-def normalizeOperationUniqueUpToReordering
-    (schema : Schema) (left right : Operation) : Prop :=
+def normalizeOperationUniqueUpToReordering (schema : Schema) (left right : Operation)
+    : Prop :=
   SchemaWellFormedness.schemaWellFormed schema
   -> Validation.operationDefinitionValid schema left
   -> Validation.operationDefinitionValid schema right
   -> operationDirectiveFree left
   -> operationDirectiveFree right
+  -> operationTypenameFree left
+  -> operationTypenameFree right
   -> operationFieldsValidInPossibleTypes schema left
   -> operationFieldsValidInPossibleTypes schema right
   -> operationFieldsSameOutputShape schema left
   -> operationFieldsSameOutputShape schema right
   -> operationTypeConditionFeasible schema left
   -> operationTypeConditionFeasible schema right
-  -> variableDefinitionsSyntacticallyEquivalent left.variableDefinitions right.variableDefinitions
+  -> variableDefinitionsSyntacticallyEquivalent left.variableDefinitions
+      right.variableDefinitions
   -> operationsSemanticallyEquivalent schema left right
   -> operationsEqualUpToReorderingWithCoercion schema
       (normalizeOperation schema left) (normalizeOperation schema right)
@@ -425,13 +445,17 @@ The already-normal uniqueness direction is:
 
 ```lean
 def completeNormalOperationsSemanticallyEquivalentEqualUpToReordering
-    (schema : Schema) (left right : Operation) : Prop :=
+    (schema : Schema) (left right : Operation)
+    : Prop :=
   SchemaWellFormedness.schemaWellFormed schema
   -> Validation.operationDefinitionValid schema left
   -> Validation.operationDefinitionValid schema right
+  -> operationTypenameFree left
+  -> operationTypenameFree right
   -> completeNormalOperation schema left
   -> completeNormalOperation schema right
-  -> variableDefinitionsSyntacticallyEquivalent left.variableDefinitions right.variableDefinitions
+  -> variableDefinitionsSyntacticallyEquivalent left.variableDefinitions
+      right.variableDefinitions
   -> operationBoolVarsEquivalent left right
   -> operationsSemanticallyEquivalentForCompleteBoolVars schema
       (operationBoolVars left) left right
@@ -451,17 +475,21 @@ The normalization uniqueness theorem, and the main result of this document, is:
 
 ```lean
 def completeNormalizeOperationUniqueUpToReordering
-    (schema : Schema) (left right : Operation) : Prop :=
+    (schema : Schema) (left right : Operation)
+    : Prop :=
   SchemaWellFormedness.schemaWellFormed schema
   -> Validation.operationDefinitionValid schema left
   -> Validation.operationDefinitionValid schema right
+  -> operationTypenameFree left
+  -> operationTypenameFree right
   -> operationFieldsValidInPossibleTypes schema left
   -> operationFieldsValidInPossibleTypes schema right
   -> operationFieldsSameOutputShape schema left
   -> operationFieldsSameOutputShape schema right
   -> operationBoolTypeConditionFeasible schema left
   -> operationBoolTypeConditionFeasible schema right
-  -> variableDefinitionsSyntacticallyEquivalent left.variableDefinitions right.variableDefinitions
+  -> variableDefinitionsSyntacticallyEquivalent left.variableDefinitions
+      right.variableDefinitions
   -> operationBoolVarsEquivalent left right
   -> operationsSemanticallyEquivalentForCompleteBoolVars schema
       (operationBoolVars left) left right

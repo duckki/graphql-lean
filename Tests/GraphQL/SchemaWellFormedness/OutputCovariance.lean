@@ -120,11 +120,26 @@ private theorem wellFormed (expected implementation : TypeRef)
     split <;> (try split) <;> (try split) <;> decide
   · intro parent object field expectedField hpossible hlookup
     rw [possibleTypes] at hpossible
+    by_cases hmeta : field = "__typename"
+    · subst field
+      have htargets : object = "Query" ∨ object = "Plain" := by
+        split at hpossible
+        · simpa using hpossible
+        · split at hpossible
+          · exact Or.inl (by simpa using hpossible)
+          · split at hpossible
+            · exact Or.inr (by simpa using hpossible)
+            · cases hpossible
+      rcases htargets with rfl | rfl
+      · exact lookupField_typename_implements hlookup ⟨queryType implementation, rfl⟩
+      · exact lookupField_typename_implements hlookup ⟨plainType expected, rfl⟩
+    have hlookup : (schema expected implementation).lookupDeclaredField parent field = some expectedField := by
+      simpa [Schema.lookupField, hmeta] using hlookup
     by_cases hI : parent = "I"
     · subst parent
       simp only [ite_eq_left, List.mem_cons, List.not_mem_nil, or_false] at hpossible
       have hfield : "value" = field ∧ valueField expected = expectedField := by
-        simpa [Schema.lookupField] using hlookup
+        simpa [Schema.lookupField, Schema.lookupDeclaredField] using hlookup
       rcases hfield with ⟨rfl, rfl⟩
       rcases hpossible with rfl | rfl
       · exact ⟨valueField implementation, rfl, hsubtype,
@@ -137,7 +152,7 @@ private theorem wellFormed (expected implementation : TypeRef)
       by_cases hv : field = "value"
       · subst field
         have hfield : valueField implementation = expectedField := by
-          simpa [Schema.lookupField] using hlookup
+          simpa [Schema.lookupField, Schema.lookupDeclaredField] using hlookup
         subst expectedField
         exact ⟨
           valueField implementation,
@@ -148,22 +163,22 @@ private theorem wellFormed (expected implementation : TypeRef)
       by_cases hn : field = "node"
       · subst field
         have hfield : ({ name := "node", outputType := .named "I" } : FieldDefinition)
-            = expectedField := by simpa [Schema.lookupField] using hlookup
+            = expectedField := by simpa [Schema.lookupField, Schema.lookupDeclaredField] using hlookup
         subst expectedField
         exact ⟨_, rfl, outputSubtype_refl _ hi, by simp [argumentDefinitionsImplement]⟩
       by_cases hf : field = "safe"
       · subst field
         have hfield : ({ name := "safe", outputType := .named "String" } : FieldDefinition)
-            = expectedField := by simpa [Schema.lookupField] using hlookup
+            = expectedField := by simpa [Schema.lookupField, Schema.lookupDeclaredField] using hlookup
         subst expectedField
         exact ⟨_, rfl, outputSubtype_refl _ hs, by simp [argumentDefinitionsImplement]⟩
-      simp [Schema.lookupField, beq_iff_eq, Ne.symm hv, Ne.symm hn, Ne.symm hf] at hlookup
+      simp [Schema.lookupDeclaredField, beq_iff_eq, Ne.symm hv, Ne.symm hn, Ne.symm hf] at hlookup
     by_cases hP : parent = "Plain"
     · subst parent
       have hobject : object = "Plain" := by simpa using hpossible
       subst object
       have hfield : "value" = field ∧ valueField expected = expectedField := by
-        simpa [Schema.lookupField] using hlookup
+        simpa [Schema.lookupField, Schema.lookupDeclaredField] using hlookup
       rcases hfield with ⟨rfl, rfl⟩
       exact ⟨valueField expected, rfl, hidentity, by simp [argumentDefinitionsImplement]⟩
     simp [hI, hQ, hP] at hpossible

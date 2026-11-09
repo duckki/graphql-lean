@@ -2543,13 +2543,14 @@ theorem
                         (fuel - leafProbeFuel bodyFieldDefinition.outputType)
                         typeCondition bodyResponseName bodyFieldName bodyArguments
                         bodyChildSelectionSet bodyFieldDefinition)
-      -> ∃ responseFields errors,
-          Execution.executeSelectionSet schema
-            (deepSelectionSetSuccessResolversWithRef schema rootSelectionSet objectRef)
-            variableValues (fuel + 1) runtimeType (.object runtimeType objectRef)
-            selectionSet
-          = .ok (responseFields, errors) := by
-  intro hnonObject hruntimeObject hfree hnormal hbodyReady
+      -> ∀ (_hTypeNames : selectionSetTypenameFree selectionSet := by typename_free),
+          ∃ responseFields errors,
+            Execution.executeSelectionSet schema
+              (deepSelectionSetSuccessResolversWithRef schema rootSelectionSet objectRef)
+              variableValues (fuel + 1) runtimeType (.object runtimeType objectRef)
+              selectionSet
+            = .ok (responseFields, errors) := by
+  intro hnonObject hruntimeObject hfree hnormal hbodyReady hTypeNames
   by_cases hruntimeMem :
       runtimeType ∈ selectionSet.filterMap inlineFragmentTypeCondition?
   · rcases List.mem_filterMap.mp hruntimeMem with
@@ -2731,25 +2732,27 @@ theorem deepFieldSelectionSetReadyWithRef_of_valid_normal_object_promoted_fuel_g
               Selection.field responseName fieldName arguments directives
                   childSelectionSet
                 ∈ selectionSet
-              -> ∃ fieldDefinition,
-                  schema.lookupField parentType fieldName = some fieldDefinition
-                  ∧ leafProbeFuel fieldDefinition.outputType ≤ fuel
-                  ∧ deepFieldSelectionSetExecutionReadyWithRef schema
-                      rootSelectionSet objectRef variableValues
-                      (fuel - leafProbeFuel fieldDefinition.outputType)
-                      parentType responseName fieldName arguments childSelectionSet
-                      fieldDefinition := by
+              -> ∀ (_hTypeNames
+                    : selectionSetTypenameFree selectionSet := by typename_free),
+                  ∃ fieldDefinition,
+                    schema.lookupField parentType fieldName = some fieldDefinition
+                    ∧ leafProbeFuel fieldDefinition.outputType ≤ fuel
+                    ∧ deepFieldSelectionSetExecutionReadyWithRef schema
+                        rootSelectionSet objectRef variableValues
+                        (fuel - leafProbeFuel fieldDefinition.outputType)
+                        parentType responseName fieldName arguments childSelectionSet
+                        fieldDefinition := by
   intro hschema n
   induction n with
   | zero =>
       intro parentType variableDefinitions selectionSet fuel hsize _hfuel
         _hvalid _hcoercion _hfree _hnormal _hobject _hpromote responseName fieldName
-        arguments directives childSelectionSet _hmem
+        arguments directives childSelectionSet _hmem _hTypeNames
       omega
   | succ n ih =>
       intro parentType variableDefinitions selectionSet fuel hsize hfuel
         hvalid hcoercion hfree hnormal hobject hpromote responseName fieldName
-        arguments directives childSelectionSet hmem
+        arguments directives childSelectionSet hmem hTypeNames
       rcases selectionSetValid_field_lookup_of_mem hvalid hmem with
         ⟨fieldDefinition, hlookup, harguments, _hfieldSelectionValid⟩
       have hfieldDirectives : directives = [] :=
@@ -2982,6 +2985,9 @@ theorem deepFieldSelectionSetReadyWithRef_of_valid_normal_object_promoted_fuel_g
                   typeCondition bodySelectionSet :=
               selectionSetValid_inlineFragment_some_child_of_mem hchildValid
                 hinlineMem
+            have hbodyTypes : selectionSetTypenameFree bodySelectionSet :=
+              selectionSetTypenameFree_fragmentChildren
+                (selectionSetTypenameFree_fieldChildren hTypeNames hmem) hinlineMem
             have hbodyFree : selectionSetDirectiveFree bodySelectionSet :=
               selectionSetDirectiveFree_inlineFragment_child_of_mem
                 hchildFree hinlineMem
@@ -3134,19 +3140,21 @@ theorem deepFieldSelectionSetReadyWithRef_of_valid_normal_object_promoted_deepPr
               Selection.field responseName fieldName arguments directives
                   childSelectionSet
                 ∈ selectionSet
-              -> ∃ fieldDefinition,
-                  schema.lookupField parentType fieldName = some fieldDefinition
-                  ∧ leafProbeFuel fieldDefinition.outputType
-                    ≤ selectionSetDeepProbeFuel schema parentType selectionSet
-                  ∧ deepFieldSelectionSetExecutionReadyWithRef schema
-                      rootSelectionSet objectRef variableValues
-                      (selectionSetDeepProbeFuel schema parentType selectionSet
-                        - leafProbeFuel fieldDefinition.outputType)
-                      parentType responseName fieldName arguments childSelectionSet
-                      fieldDefinition := by
+              -> ∀ (_hTypeNames
+                    : selectionSetTypenameFree selectionSet := by typename_free),
+                  ∃ fieldDefinition,
+                    schema.lookupField parentType fieldName = some fieldDefinition
+                    ∧ leafProbeFuel fieldDefinition.outputType
+                      ≤ selectionSetDeepProbeFuel schema parentType selectionSet
+                    ∧ deepFieldSelectionSetExecutionReadyWithRef schema
+                        rootSelectionSet objectRef variableValues
+                        (selectionSetDeepProbeFuel schema parentType selectionSet
+                          - leafProbeFuel fieldDefinition.outputType)
+                        parentType responseName fieldName arguments childSelectionSet
+                        fieldDefinition := by
   intro hschema parentType variableDefinitions selectionSet hvalid hcoercion hfree
     hnormal hobject hpromote responseName fieldName arguments directives
-    childSelectionSet hmem
+    childSelectionSet hmem hTypeNames
   exact deepFieldSelectionSetReadyWithRef_of_valid_normal_object_promoted_fuel_ge_size
     schema rootSelectionSet objectRef variableValues hschema
     (SelectionSet.size selectionSet + 1) parentType variableDefinitions
@@ -3188,18 +3196,19 @@ theorem
                         targetFieldDefinition.outputType.namedType runtimeType
                       = true)
           -> selectionSetDeepProbeFuel schema parentType selectionSet ≤ fuel
-          -> ∃ responseFields errors,
-              Execution.executeSelectionSetAsResponse schema
-                (deepSelectionSetSuccessResolversWithRef schema rootSelectionSet
-                  objectRef)
-                variableValues (fuel + 1) parentType source selectionSet
-              = ({
-                    data := Execution.ResponseValue.object responseFields,
-                    errors := errors
-                  }
-                  : Execution.Response) := by
+          -> ∀ (_hTypeNames : selectionSetTypenameFree selectionSet := by typename_free),
+              ∃ responseFields errors,
+                Execution.executeSelectionSetAsResponse schema
+                  (deepSelectionSetSuccessResolversWithRef schema rootSelectionSet
+                    objectRef)
+                  variableValues (fuel + 1) parentType source selectionSet
+                = ({
+                      data := Execution.ResponseValue.object responseFields,
+                      errors := errors
+                    }
+                    : Execution.Response) := by
   intro hschema parentType variableDefinitions selectionSet fuel source
-    hvalid hcoercion hfree hnormal hobject hsource hpromote hfuel
+    hvalid hcoercion hfree hnormal hobject hsource hpromote hfuel hTypeNames
   have hready :
       ∀ responseName fieldName arguments directives childSelectionSet,
         Selection.field responseName fieldName arguments directives

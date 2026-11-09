@@ -1178,24 +1178,38 @@ theorem
                           rightChildSelectionSet
                         :: rightSuffix))
             - leafProbeFuel fieldDefinition.outputType)
-      -> ¬ selectionSetsDataEquivalent schema parentType
-            (leftPref
-              ++ Selection.field responseName fieldName leftArguments []
-                    leftChildSelectionSet
-                  :: leftSuffix)
-            (rightPref
-              ++ Selection.field responseName fieldName rightArguments []
-                    rightChildSelectionSet
-                  :: rightSuffix) := by
+      -> ∀ (_hTypeNames
+            : selectionSetTypenameFree
+                ((leftPref
+                    ++ Selection.field responseName fieldName leftArguments []
+                          leftChildSelectionSet
+                        :: leftSuffix)
+                  ++ (rightPref
+                      ++ Selection.field responseName fieldName rightArguments []
+                            rightChildSelectionSet
+                          :: rightSuffix)) := by typename_free),
+          ¬ selectionSetsDataEquivalent schema parentType
+              (leftPref
+                ++ Selection.field responseName fieldName leftArguments []
+                      leftChildSelectionSet
+                    :: leftSuffix)
+              (rightPref
+                ++ Selection.field responseName fieldName rightArguments []
+                      rightChildSelectionSet
+                    :: rightSuffix) := by
   intro hschema hleftValid hrightValid hleftCoercion hrightCoercion hlookup hreturnType hleftFree
     hrightFree hleftNormal hrightNormal hparentObject hleftPrefSupported
-    hrightPrefSupported hleftSuffixSupported hrightSuffixSupported hwitness
+    hrightPrefSupported hleftSuffixSupported hrightSuffixSupported hwitness hTypeNames
   let leftSelectionSet :=
     leftPref ++ Selection.field responseName fieldName leftArguments []
       leftChildSelectionSet :: leftSuffix
   let rightSelectionSet :=
     rightPref ++ Selection.field responseName fieldName rightArguments []
       rightChildSelectionSet :: rightSuffix
+  have hleftTypes : selectionSetTypenameFree leftSelectionSet :=
+    selectionSetTypenameFree_append_left hTypeNames
+  have hrightTypes : selectionSetTypenameFree rightSelectionSet :=
+    selectionSetTypenameFree_append_right hTypeNames
   let rootSelectionSet :=
     [Selection.inlineFragment (some parentType) []
       (leftSelectionSet ++ rightSelectionSet)]
@@ -1561,17 +1575,27 @@ theorem
                           rightChildSelectionSet
                         :: rightSuffix))
             - leafProbeFuel fieldDefinition.outputType)
-      -> ¬ selectionSetsDataEquivalent schema parentType
-            (leftPref
-              ++ Selection.field responseName fieldName leftArguments []
-                    leftChildSelectionSet
-                  :: leftSuffix)
-            (rightPref
-              ++ Selection.field responseName fieldName rightArguments []
-                    rightChildSelectionSet
-                  :: rightSuffix) := by
+      -> ∀ (_hTypeNames
+            : selectionSetTypenameFree
+                ((leftPref
+                    ++ Selection.field responseName fieldName leftArguments []
+                          leftChildSelectionSet
+                        :: leftSuffix)
+                  ++ (rightPref
+                      ++ Selection.field responseName fieldName rightArguments []
+                            rightChildSelectionSet
+                          :: rightSuffix)) := by typename_free),
+          ¬ selectionSetsDataEquivalent schema parentType
+              (leftPref
+                ++ Selection.field responseName fieldName leftArguments []
+                      leftChildSelectionSet
+                    :: leftSuffix)
+              (rightPref
+                ++ Selection.field responseName fieldName rightArguments []
+                      rightChildSelectionSet
+                    :: rightSuffix) := by
   intro hschema hleftValid hrightValid hleftCoercion hrightCoercion hlookup hreturnType hleftFree
-    hrightFree hleftNormal hrightNormal hparentObject hwitness
+    hrightFree hleftNormal hrightNormal hparentObject hwitness hTypeNames
   exact not_selectionSetsDataEquivalent_of_valid_normal_object_child_contextualRuntimeDiff_split_focused
     (schema := schema)
     (leftVariableDefinitions := leftVariableDefinitions)
@@ -1725,22 +1749,34 @@ theorem
                     :: supportSelectionSets))
               - leafProbeFuel fieldDefinition.outputType)
             (minFuel - leafProbeFuel fieldDefinition.outputType - 1))
-      -> selectionSetContextualRuntimeDataDiffWitnessWithFuelGe schema
-          parentType parentType
-          (leftPref
-            ++ Selection.field responseName fieldName leftArguments []
-                  leftChildSelectionSet
-                :: leftSuffix)
-          (rightPref
-            ++ Selection.field responseName fieldName rightArguments []
-                  rightChildSelectionSet
-                :: rightSuffix)
-          (variableValues := variableValues)
-          (fun selectionSet => selectionSet ∈ supportSelectionSets)
-          minFuel := by
+      -> ∀ (_hTypeNames
+            : selectionSetTypenameFree
+                (List.flatten
+                  ((leftPref
+                      ++ Selection.field responseName fieldName leftArguments []
+                            leftChildSelectionSet
+                          :: leftSuffix)
+                    :: (rightPref
+                        ++ Selection.field responseName fieldName rightArguments []
+                              rightChildSelectionSet
+                            :: rightSuffix)
+                    :: supportSelectionSets)) := by typename_free),
+          selectionSetContextualRuntimeDataDiffWitnessWithFuelGe schema
+            parentType parentType
+            (leftPref
+              ++ Selection.field responseName fieldName leftArguments []
+                    leftChildSelectionSet
+                  :: leftSuffix)
+            (rightPref
+              ++ Selection.field responseName fieldName rightArguments []
+                    rightChildSelectionSet
+                  :: rightSuffix)
+            (variableValues := variableValues)
+            (fun selectionSet => selectionSet ∈ supportSelectionSets)
+            minFuel := by
   intro hschema hleftValid hrightValid hleftCoercion hrightCoercion hlookup hreturnType hleftFree
     hrightFree hleftNormal hrightNormal hparentObject hsupportValid
-    hwitness
+    hwitness hTypeNames
   let leftSelectionSet :=
     leftPref ++ Selection.field responseName fieldName leftArguments []
       leftChildSelectionSet :: leftSuffix
@@ -1749,6 +1785,7 @@ theorem
       rightChildSelectionSet :: rightSuffix
   let members : List (List Selection) :=
     leftSelectionSet :: rightSelectionSet :: supportSelectionSets
+  have hmemberTypes : selectionSetTypenameFree (List.flatten members) := hTypeNames
   let rootSelectionSet :=
     [Selection.inlineFragment (some parentType) [] (List.flatten members)]
   let childSupport : List Selection -> Prop :=

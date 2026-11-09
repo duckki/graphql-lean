@@ -72,36 +72,7 @@ theorem lookupField_executionCompletionFuel_le
     (hlookup : schema.lookupField parentType fieldName = some fieldDefinition)
     : typeRefExecutionCompletionFuel fieldDefinition.outputType
       ≤ typeDefinitionsExecutionCompletionFuel schema.types := by
-  unfold Schema.lookupField at hlookup
-  cases htype : schema.lookupType parentType with
-  | none => simp [htype] at hlookup
-  | some typeDefinition =>
-      simp only [htype, Option.bind_eq_bind] at hlookup
-      have htypeMem : typeDefinition ∈ schema.allTypes := by
-        exact List.mem_of_find?_eq_some htype
-      unfold Schema.allTypes at htypeMem
-      rcases typeDefinition with scalar | scalar | objectType | interfaceType |
-          unionType | enumType | inputObjectType
-      all_goals simp only [TypeDefinition.fields?] at hlookup
-      · cases hlookup
-      · cases hlookup
-      · have hfield : fieldDefinition ∈ objectType.fields :=
-          List.mem_of_find?_eq_some hlookup
-        have hobject : TypeDefinition.object objectType ∈ schema.types := by
-          simpa [Schema.builtinScalarDefinitions] using htypeMem
-        exact Nat.le_trans
-          (fieldDefinitionsExecutionCompletionFuel_mem hfield)
-          (typeDefinitionsExecutionCompletionFuel_object_mem hobject)
-      · have hfield : fieldDefinition ∈ interfaceType.fields :=
-          List.mem_of_find?_eq_some hlookup
-        have hinterface : TypeDefinition.interface interfaceType ∈ schema.types := by
-          simpa [Schema.builtinScalarDefinitions] using htypeMem
-        exact Nat.le_trans
-          (fieldDefinitionsExecutionCompletionFuel_mem hfield)
-          (typeDefinitionsExecutionCompletionFuel_interface_mem hinterface)
-      · cases hlookup
-      · cases hlookup
-      · cases hlookup
+  exact GraphQL.Execution.lookupField_executionCompletionFuel_le schema hlookup
 
 structure ExecutionBoundary {ObjectRef : Type}
     (schema : Schema) (variableValues : VariableValues) where
@@ -536,7 +507,7 @@ mutual
                             simp [hleftCoerce, hrightCoerce,
                               ArgumentCoercionResult.equivalent] at hcoercedArguments ⊢
                           rw [hfieldName]
-                          exact resolvers.resolve_argumentsEquivalent _ _ _ _ _
+                          exact resolveFieldValue_argumentsEquivalent resolvers _ _ _ _ _
                             hcoercedArguments
                         cases hresolve
                               : coerceAndResolveFieldValue schema resolvers variableValues

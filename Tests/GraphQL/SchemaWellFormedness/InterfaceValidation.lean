@@ -104,10 +104,15 @@ theorem validInheritance_accepted : schemaWellFormed validSchema := by
     next hparent =>
       have hobject : object = "Query" := by simpa using hpossible
       subst object
+      by_cases hmeta : field = "__typename"
+      · subst field
+        exact lookupField_typename_implements hlookup ⟨queryType ["Leaf", "Middle", "Root"], rfl⟩
+      have hlookup : validSchema.lookupDeclaredField parent field = some expected := by
+        simpa [Schema.lookupField, hmeta] using hlookup
       rcases hparent with rfl | rfl | rfl | rfl
       all_goals
         have hfield : "value" = field ∧ valueField = expected := by
-          simpa [validSchema, Schema.lookupField] using hlookup
+          simpa [validSchema, Schema.lookupField, Schema.lookupDeclaredField] using hlookup
         rcases hfield with ⟨rfl, rfl⟩
         refine ⟨valueField, rfl, ?_⟩
         simp [validSchema, fieldDefinitionImplements, argumentDefinitionsImplement,
@@ -168,10 +173,15 @@ theorem diamondInheritance_accepted : schemaWellFormed diamondSchema := by
     next hparent =>
       have hobject : object = "Query" := by simpa using hpossible
       subst object
+      by_cases hmeta : field = "__typename"
+      · subst field
+        exact lookupField_typename_implements hlookup ⟨queryType ["Bottom", "Left", "Right", "Root"], rfl⟩
+      have hlookup : diamondSchema.lookupDeclaredField parent field = some expected := by
+        simpa [Schema.lookupField, hmeta] using hlookup
       rcases hparent with rfl | rfl | rfl | rfl | rfl
       all_goals
         have hfield : "value" = field ∧ valueField = expected := by
-          simpa [diamondSchema, Schema.lookupField] using hlookup
+          simpa [diamondSchema, Schema.lookupField, Schema.lookupDeclaredField] using hlookup
         rcases hfield with ⟨rfl, rfl⟩
         refine ⟨valueField, rfl, ?_⟩
         simp [diamondSchema, fieldDefinitionImplements, argumentDefinitionsImplement,

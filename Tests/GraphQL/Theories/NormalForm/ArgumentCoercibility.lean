@@ -103,15 +103,15 @@ private theorem possibleTypes (typeName : Name)
     Schema.builtinScalarDefinitions, List.find?, TypeDefinition.name, BuiltinScalar.name,
     query, schema, hbInt, hbFloat, hbString, hbBool, hbID, hbQ, hQ]
 
-private theorem lookupQuery (fieldName : Name)
+private theorem lookupQuery (fieldName : Name) (hmeta : fieldName ≠ "__typename")
     : schema.lookupField "Query" fieldName
       = if fieldName = "f" then some field else none := by
   by_cases h : fieldName = "f"
   · subst fieldName; rfl
   · have hb := beq_eq_false_iff_ne.mpr (Ne.symm h)
-    unfold Schema.lookupField
-    rw [show schema.lookupType "Query" = some (.object query) from rfl]
-    simp [TypeDefinition.fields?, query, field, List.find?, hb, h]
+    simp [Schema.lookupField, Schema.lookupDeclaredField, hmeta,
+      show schema.lookupType "Query" = some (.object query) from rfl,
+      TypeDefinition.fields?, query, field, List.find?, hb, h]
 
 private theorem wellFormed : SchemaWellFormedness.schemaWellFormed schema := by
   constructor
@@ -157,7 +157,10 @@ private theorem wellFormed : SchemaWellFormedness.schemaWellFormed schema := by
       subst parentType
       have heq : objectTypeName = "Query" := by simpa using hpossible
       subst objectTypeName
-      rw [lookupQuery] at hlookup
+      by_cases hmeta : fieldName = "__typename"
+      · subst fieldName
+        exact SchemaWellFormedness.lookupField_typename_implements hlookup ⟨query, rfl⟩
+      rw [lookupQuery fieldName hmeta] at hlookup
       split at hlookup
       next heq =>
         subst fieldName

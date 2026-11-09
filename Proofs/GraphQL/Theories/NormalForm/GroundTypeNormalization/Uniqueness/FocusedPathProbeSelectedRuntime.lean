@@ -1491,6 +1491,7 @@ theorem executeField_fieldPairOrDeepSuccess_selectedPathProbe_left_root_response
                             leftInitialSpine)))
                       childSelectionSet)))) := by
   intro harguments hlookup hcoercion hinclude
+  have hfieldName := Schema.lookupField_ne_typename_of_includesObject hlookup hinclude
   rcases Execution.ArgumentCoercionResult.exists_success_of_isSuccess hcoercion with
     ⟨coercedArguments, hcoercionResult⟩
   have hcoercedArguments :
@@ -1534,6 +1535,7 @@ theorem executeField_fieldPairOrDeepSuccess_selectedPathProbe_left_root_response
           fieldDefinition.outputType) := by
     simp only [Execution.coerceAndResolveFieldValue, Execution.resolveFieldValue,
       hcoercionResult]
+    simp only [beq_iff_eq, hfieldName, ↓reduceIte]
     have hroot :=
       fieldPairOrDeepSuccessResolvers_left_root schema rootSelectionSet base
         targetParent leftField rightField leftArguments rightArguments
@@ -1624,6 +1626,7 @@ theorem
                             rightInitialSpine)))
                       childSelectionSet)))) := by
   intro hnotLeft harguments hlookup hcoercion hinclude
+  have hfieldName := Schema.lookupField_ne_typename_of_includesObject hlookup hinclude
   rcases Execution.ArgumentCoercionResult.exists_success_of_isSuccess hcoercion with
     ⟨coercedArguments, hcoercionResult⟩
   have hcoercedArguments :
@@ -1671,6 +1674,7 @@ theorem
           fieldDefinition.outputType) := by
     simp only [Execution.coerceAndResolveFieldValue, Execution.resolveFieldValue,
       hcoercionResult]
+    simp only [beq_iff_eq, hfieldName, ↓reduceIte]
     have hroot :=
       fieldPairOrDeepSuccessResolvers_right_root schema rootSelectionSet base
         targetParent leftField rightField leftArguments rightArguments
@@ -2398,7 +2402,8 @@ theorem executeField_fieldPairSelectedPathProbe_tagged_object_leaf (schema : Sch
       -> leafProbeFuel fieldDefinition.outputType ≤ fuel
       -> (TypeRef.named fieldDefinition.outputType.namedType).isCompositeBool schema
           = false
-      -> Execution.executeField schema
+      -> ∀ (_hfieldName : fieldName ≠ "__typename" := by typename_free),
+          Execution.executeField schema
             (fieldPairSelectedPathProbeResolvers schema leftInitialSelectionSet
               rightInitialSelectionSet leftInitialSpine rightInitialSpine
               targetParent leftField rightField leftArguments rightArguments
@@ -2420,7 +2425,7 @@ theorem executeField_fieldPairSelectedPathProbe_tagged_object_leaf (schema : Sch
                 )],
                 0
               ) := by
-  intro hlookup hcoercion hfuel hleaf
+  intro hlookup hcoercion hfuel hleaf hfieldName
   rcases Execution.ArgumentCoercionResult.exists_success_of_isSuccess hcoercion with
     ⟨coercedArguments, hcoercionResult⟩
   have hresolve :
@@ -2439,6 +2444,7 @@ theorem executeField_fieldPairSelectedPathProbe_tagged_object_leaf (schema : Sch
           fieldDefinition.outputType tag.scalar) := by
     simp only [Execution.coerceAndResolveFieldValue, Execution.resolveFieldValue,
       hcoercionResult]
+    simp only [beq_iff_eq, hfieldName, ↓reduceIte]
     rw [fieldPairSelectedPathProbeResolvers_tagged_object schema
       leftInitialSelectionSet rightInitialSelectionSet currentSelectionSet
       leftInitialSpine rightInitialSpine spine targetParent leftField
@@ -2488,7 +2494,8 @@ theorem executeField_fieldPairOrDeepSuccess_selectedPathProbe_tagged_object_leaf
       -> leafProbeFuel fieldDefinition.outputType ≤ fuel
       -> (TypeRef.named fieldDefinition.outputType.namedType).isCompositeBool schema
           = false
-      -> Execution.executeField schema
+      -> ∀ (_hfieldName : fieldName ≠ "__typename" := by typename_free),
+          Execution.executeField schema
             (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
               (fieldPairSelectedPathProbeResolvers schema leftInitialSelectionSet
                 rightInitialSelectionSet leftInitialSpine rightInitialSpine
@@ -2513,7 +2520,7 @@ theorem executeField_fieldPairOrDeepSuccess_selectedPathProbe_tagged_object_leaf
                 )],
                 0
               ) := by
-  intro hlookup hcoercion hfuel hleaf
+  intro hlookup hcoercion hfuel hleaf hfieldName
   let base :=
     fieldPairSelectedPathProbeResolvers schema leftInitialSelectionSet
       rightInitialSelectionSet leftInitialSpine rightInitialSpine
@@ -2597,6 +2604,8 @@ theorem
                         spine)))
                   childSelectionSet)) := by
   intro hlookup hcoercion hobject hfuel
+  have hfieldName := Schema.lookupField_ne_typename_of_composite hlookup
+    (typeRef_named_isCompositeBool_true_of_objectTypeNameBool hobject)
   rcases Execution.ArgumentCoercionResult.exists_success_of_isSuccess hcoercion with
     ⟨coercedArguments, hcoercionResult⟩
   have hresolve :
@@ -2622,6 +2631,7 @@ theorem
           fieldDefinition.outputType) := by
     simp only [Execution.coerceAndResolveFieldValue, Execution.resolveFieldValue,
       hcoercionResult]
+    simp only [beq_iff_eq, hfieldName, ↓reduceIte]
     rw [fieldPairSelectedPathProbeResolvers_tagged_object schema
       leftInitialSelectionSet rightInitialSelectionSet currentSelectionSet
       leftInitialSpine rightInitialSpine spine targetParent leftField
@@ -2910,6 +2920,7 @@ theorem
                   childSelectionSet)) := by
   intro hlookup hcoercion hcomposite hnonObject hselectedNone hruntime hinclude
     hfuel
+  have hfieldName := Schema.lookupField_ne_typename_of_includesObject hlookup hinclude
   rcases Execution.ArgumentCoercionResult.exists_success_of_isSuccess hcoercion with
     ⟨coercedArguments, hcoercionResult⟩
   have hresolve :
@@ -2931,6 +2942,7 @@ theorem
           fieldDefinition.outputType) := by
     simp only [Execution.coerceAndResolveFieldValue, Execution.resolveFieldValue,
       hcoercionResult]
+    simp only [beq_iff_eq, hfieldName, ↓reduceIte]
     rw [fieldPairSelectedPathProbeResolvers_tagged_object schema
       leftInitialSelectionSet rightInitialSelectionSet currentSelectionSet
       leftInitialSpine rightInitialSpine spine targetParent leftField
@@ -3224,6 +3236,7 @@ theorem
                       tail))
                   childSelectionSet)) := by
   intro hlookup hcoercion hselected hcase hinclude hfuel
+  have hfieldName := Schema.lookupField_ne_typename_of_includesObject hlookup hinclude
   rcases Execution.ArgumentCoercionResult.exists_success_of_isSuccess hcoercion with
     ⟨coercedArguments, hcoercionResult⟩
   have hresolve :
@@ -3245,6 +3258,7 @@ theorem
           fieldDefinition.outputType) := by
     simp only [Execution.coerceAndResolveFieldValue, Execution.resolveFieldValue,
       hcoercionResult]
+    simp only [beq_iff_eq, hfieldName, ↓reduceIte]
     rw [fieldPairSelectedPathProbeResolvers_tagged_object schema
       leftInitialSelectionSet rightInitialSelectionSet currentSelectionSet
       leftInitialSpine rightInitialSpine spine targetParent leftField

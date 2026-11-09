@@ -48,7 +48,7 @@ private theorem collectedChildren (left right : Name)
     leafField, fragments, lookupFragmentAndRestLt?, TypeRef.namedType, schema,
     GraphQL.Tests.Validation.FieldMerge.disjointReturnSchema,
     GraphQL.Tests.Validation.FieldMerge.returnScopeSchema,
-    Schema.lookupField, Schema.lookupType, Schema.allTypes, Schema.builtinScalarDefinitions,
+    Schema.lookupField, Schema.lookupDeclaredField, Schema.lookupType, Schema.allTypes, Schema.builtinScalarDefinitions,
     TypeDefinition.name, TypeDefinition.fields?, BuiltinScalar.name]
 
 theorem sameResponseShape_fragmentSpread_matching
@@ -88,7 +88,7 @@ theorem sameResponseShape_fragmentSpread_nestedMismatch_rejected
           leafField, fragments, lookupFragmentAndRestLt?, TypeRef.namedType, schema,
           GraphQL.Tests.Validation.FieldMerge.disjointReturnSchema,
           GraphQL.Tests.Validation.FieldMerge.returnScopeSchema,
-          Schema.lookupField, Schema.lookupType, Schema.allTypes, Schema.builtinScalarDefinitions,
+          Schema.lookupField, Schema.lookupDeclaredField, Schema.lookupType, Schema.allTypes, Schema.builtinScalarDefinitions,
           TypeDefinition.name, TypeDefinition.fields?, BuiltinScalar.name]
       have hchild := hchildren huser hother (leafField "User" "String" "Other")
         (by rw [hcollect]; simp) (leafField "Other" "Int" "User")

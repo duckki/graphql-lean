@@ -1,3 +1,4 @@
+import Proofs.GraphQL.SchemaWellFormedness.FieldLookup
 import GraphQL.Theories.QueryInclusionSemantics
 import GraphQL.Theories.NormalForm
 
@@ -203,7 +204,7 @@ private theorem queryObjectWellFormed
     subst implemented
     simp [interfaceType]
 
-private theorem lookupI (fieldName : Name)
+private theorem lookupI (fieldName : Name) (hmeta : fieldName ≠ "__typename")
     : exampleSchema.lookupField "I" fieldName
       = if fieldName = "f" then some interfaceField else none := by
   by_cases h : fieldName = "f"
@@ -211,11 +212,11 @@ private theorem lookupI (fieldName : Name)
     rfl
   · have hb : ("f" == fieldName) = false :=
       beq_eq_false_iff_ne.mpr (Ne.symm h)
-    unfold Schema.lookupField
-    rw [show exampleSchema.lookupType "I" = some (.interface interfaceType) from rfl]
-    simp [TypeDefinition.fields?, interfaceType, interfaceField, List.find?, hb, h]
+    simp [Schema.lookupField, Schema.lookupDeclaredField, hmeta,
+      show exampleSchema.lookupType "I" = some (.interface interfaceType) from rfl,
+      TypeDefinition.fields?, interfaceType, interfaceField, List.find?, hb, h]
 
-private theorem lookupQuery (fieldName : Name)
+private theorem lookupQuery (fieldName : Name) (hmeta : fieldName ≠ "__typename")
     : exampleSchema.lookupField "Query" fieldName
       = if fieldName = "f" then some concreteField else none := by
   by_cases h : fieldName = "f"
@@ -223,19 +224,28 @@ private theorem lookupQuery (fieldName : Name)
     rfl
   · have hb : ("f" == fieldName) = false :=
       beq_eq_false_iff_ne.mpr (Ne.symm h)
-    unfold Schema.lookupField
-    rw [show exampleSchema.lookupType "Query" = some (.object queryObject) from rfl]
-    simp [TypeDefinition.fields?, queryObject, concreteField, List.find?, hb, h]
+    simp [Schema.lookupField, Schema.lookupDeclaredField, hmeta,
+      show exampleSchema.lookupType "Query" = some (.object queryObject) from rfl,
+      TypeDefinition.fields?, queryObject, concreteField, List.find?, hb, h]
 
 private theorem possibleObjectFieldsImplement
     : SchemaWellFormedness.possibleObjectFieldDefinitionsImplement exampleSchema := by
   intro parentType objectTypeName fieldName expected hpossible hlookup
+  by_cases hmeta : fieldName = "__typename"
+  · subst fieldName
+    have htarget : objectTypeName = "Query" := by
+      rw [possibleTypes] at hpossible
+      split at hpossible
+      · simpa using hpossible
+      · cases hpossible
+    subst objectTypeName
+    exact SchemaWellFormedness.lookupField_typename_implements hlookup ⟨queryObject, rfl⟩
   have hparent := possibleTypes parentType
   by_cases hI : parentType = "I"
   · subst parentType
     have hobject : objectTypeName = "Query" := by simpa [possibleTypes] using hpossible
     subst objectTypeName
-    rw [lookupI] at hlookup
+    rw [lookupI fieldName hmeta] at hlookup
     by_cases hfield : fieldName = "f"
     · simp [hfield] at hlookup
       subst fieldName
@@ -248,7 +258,7 @@ private theorem possibleObjectFieldsImplement
   · subst parentType
     have hobject : objectTypeName = "Query" := by simpa [possibleTypes] using hpossible
     subst objectTypeName
-    rw [lookupQuery] at hlookup
+    rw [lookupQuery fieldName hmeta] at hlookup
     by_cases hfield : fieldName = "f"
     · simp [hfield] at hlookup
       subst fieldName

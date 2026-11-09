@@ -39,7 +39,8 @@ theorem resolveFieldValue_eq_of_argumentCoercionEquivalent
           fieldDefinition.arguments arguments <;>
     simp [hleft, hright, Execution.ArgumentCoercionResult.equivalent]
       at hcoercion ⊢
-  exact resolvers.resolve_argumentsEquivalent parentType fieldName _ _ source hcoercion
+  exact Execution.resolveFieldValue_argumentsEquivalent resolvers parentType fieldName
+    _ _ source hcoercion
 
 theorem executableFieldListDirectiveFree_append
     {left right : List Execution.ExecutableField}

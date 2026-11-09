@@ -1,4 +1,4 @@
-import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Normality
+import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.TypenameFree
 import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.OperationSemantics
 import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.ReadinessPreservation
 import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Uniqueness.OperationBridge
@@ -21,7 +21,7 @@ theorem normalizeOperation_uniqueUpToReordering_of_normal_operations
         (normalizeOperation schema left) (normalizeOperation schema right)
       -> normalizeOperationUniqueUpToReordering schema left right := by
   intro hnormalUnique hschema hleftValid hrightValid hleftCoercion hrightCoercion
-    hleftFree hrightFree hleftShapes hrightShapes
+    hleftTypes hrightTypes hleftFree hrightFree hleftShapes hrightShapes
     hleftFields hrightFields hdefinitions hsem
   have hleftNormalizedValid :
       Validation.operationDefinitionValid schema
@@ -83,8 +83,10 @@ theorem normalizeOperation_uniqueUpToReordering_of_normal_operations
       using hsem resolvers variableValues fuel source hleftCoercible hrightCoercible
   exact
     hnormalUnique hschema hleftNormalizedValid hrightNormalizedValid
-      hleftNormalizedFree hrightNormalizedFree hleftNormalizedNormal
-      hrightNormalizedNormal hnormalizedDefinitions hnormalizedSem
+      hleftNormalizedFree hrightNormalizedFree
+      (normalizeOperation_typenameFree schema left hleftTypes)
+      (normalizeOperation_typenameFree schema right hrightTypes)
+      hleftNormalizedNormal hrightNormalizedNormal hnormalizedDefinitions hnormalizedSem
 
 end GroundTypeNormalization
 

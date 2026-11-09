@@ -31,6 +31,20 @@ private theorem isSubType_lookupField
             expected.outputType.namedType := by
   rcases hsubtype with rfl | hsubtype
   · exact ⟨expected, hlookup, Or.inl rfl⟩
+  by_cases hmeta : fieldName = "__typename"
+  · subst fieldName
+    rcases Schema.lookupField_eq_some_cases hlookup with ⟨_, rfl, _⟩ | ⟨hne, _⟩
+    · have htargetComposite : schema.isCompositeType targetType := by
+        cases htarget : schema.lookupType targetType <;>
+          cases hparent : schema.lookupType parentType <;>
+          simp only [htarget, hparent] at hsubtype
+        all_goals try contradiction
+        all_goals rename_i target parent
+        all_goals cases target <;> cases parent <;> simp only at hsubtype
+        all_goals try contradiction
+        all_goals exact ⟨_, htarget, trivial⟩
+      exact ⟨_, Schema.lookupField_typename htargetComposite, Or.inl rfl⟩
+    · exact False.elim (hne rfl)
   cases htarget : schema.lookupType targetType <;>
     cases hparent : schema.lookupType parentType <;>
     simp only [htarget, hparent] at hsubtype
@@ -38,7 +52,8 @@ private theorem isSubType_lookupField
   all_goals rename_i target parent
   all_goals cases target <;> cases parent <;> simp only at hsubtype
   all_goals try contradiction
-  all_goals try (simp [Schema.lookupField, hparent, TypeDefinition.fields?] at hlookup)
+  all_goals try (simp [Schema.lookupField, Schema.lookupDeclaredField, hmeta, hparent,
+    TypeDefinition.fields?] at hlookup)
   all_goals rename_i implementationType interfaceDefinition
   all_goals
     have hfieldName : expected.name = fieldName := by
@@ -52,11 +67,11 @@ private theorem isSubType_lookupField
     cases hinterface
     have hmem : expected ∈ interfaceDefinition.fields := by
       exact List.mem_of_find?_eq_some (by
-        simpa [Schema.lookupField, hparent, TypeDefinition.fields?,
+        simpa [Schema.lookupField, Schema.lookupDeclaredField, hmeta, hparent, TypeDefinition.fields?,
           Schema.lookupFieldDefinition] using hlookup)
     rcases hfields expected hmem with ⟨implementation, himplementation, himplements⟩
     exact ⟨implementation, by
-      simpa [Schema.lookupField, htarget, TypeDefinition.fields?,
+      simpa [Schema.lookupField, Schema.lookupDeclaredField, hmeta, htarget, TypeDefinition.fields?,
         Schema.lookupFieldDefinition, hfieldName] using himplementation,
       outputTypeSubtype_namedType himplements.1⟩
 

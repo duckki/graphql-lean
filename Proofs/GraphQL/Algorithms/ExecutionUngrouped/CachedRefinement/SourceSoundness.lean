@@ -1130,7 +1130,7 @@ theorem executableFields_resolve_eq_of_fieldCompatible
               fieldDefinition.arguments later.arguments <;>
         simp [hfirstCoercion, hlaterCoercion,
           ArgumentCoercionResult.equivalent] at hcoercion ⊢
-      exact resolvers.resolve_argumentsEquivalent _ _ _ _ _ hcoercion
+      exact resolveFieldValue_argumentsEquivalent resolvers _ _ _ _ _ hcoercion
 
 theorem executeField_none_result_previousCacheSound_of_executableFields
     {ObjectRef : Type} (schema : Schema) (resolvers : Resolvers ObjectRef)

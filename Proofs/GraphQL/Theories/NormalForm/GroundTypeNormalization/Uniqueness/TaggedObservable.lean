@@ -117,13 +117,14 @@ theorem
           -> schema.lookupField parentType fieldName = some fieldDefinition
           -> (TypeRef.named fieldDefinition.outputType.namedType).isCompositeBool schema
               = false
-          -> taggedSelectionSetResponseDiffWitness schema rootSelectionSet
-              variableValues (fuel + 1) parentType parentType targetParent
-              leftField rightField leftArguments rightArguments selectionSet := by
+          -> ∀ (_hTypeNames : selectionSetTypenameFree selectionSet := by typename_free),
+              taggedSelectionSetResponseDiffWitness schema rootSelectionSet
+                variableValues (fuel + 1) parentType parentType targetParent
+                leftField rightField leftArguments rightArguments selectionSet := by
   intro hschema parentType variableDefinitions selectionSet fuel targetParent
     leftField rightField leftArguments rightArguments responseName fieldName
     arguments directives childSelectionSet fieldDefinition hvalid hcoercion hfree
-    hnormal hobject hpromote hheadPromote hfuel hmem hlookup hleaf
+    hnormal hobject hpromote hheadPromote hfuel hmem hlookup hleaf hTypeNames
   have hinclude :
       schema.typeIncludesObjectBool parentType parentType = true :=
     typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject
@@ -230,14 +231,15 @@ theorem
               variableValues (fuel - leafProbeFuel fieldDefinition.outputType)
               fieldDefinition.outputType.namedType runtimeType targetParent
               leftField rightField leftArguments rightArguments childSelectionSet
-          -> taggedSelectionSetResponseDiffWitness schema rootSelectionSet
-              variableValues (fuel + 1) parentType parentType targetParent
-              leftField rightField leftArguments rightArguments selectionSet := by
+          -> ∀ (_hTypeNames : selectionSetTypenameFree selectionSet := by typename_free),
+              taggedSelectionSetResponseDiffWitness schema rootSelectionSet
+                variableValues (fuel + 1) parentType parentType targetParent
+                leftField rightField leftArguments rightArguments selectionSet := by
   intro hschema parentType variableDefinitions selectionSet fuel targetParent
     leftField rightField leftArguments rightArguments responseName fieldName
     arguments directives childSelectionSet fieldDefinition runtimeType
     hvalid hcoercion hfree hnormal hobject hpromote hheadPromote hfuel hmem hlookup
-    hruntime hchildWitness
+    hruntime hchildWitness hTypeNames
   have hinclude :
       schema.typeIncludesObjectBool parentType parentType = true :=
     typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject
@@ -404,14 +406,15 @@ theorem taggedSelectionSetResponseDiffWitness_of_abstract_inlineFragment_body
           -> taggedSelectionSetResponseDiffWitness schema rootSelectionSet
               variableValues (fuel + 1) runtimeType runtimeType targetParent
               leftField rightField leftArguments rightArguments bodySelectionSet
-          -> taggedSelectionSetResponseDiffWitness schema rootSelectionSet
-              variableValues (fuel + 1) normalParentType runtimeType targetParent
-              leftField rightField leftArguments rightArguments selectionSet := by
+          -> ∀ (_hTypeNames : selectionSetTypenameFree selectionSet := by typename_free),
+              taggedSelectionSetResponseDiffWitness schema rootSelectionSet
+                variableValues (fuel + 1) normalParentType runtimeType targetParent
+                leftField rightField leftArguments rightArguments selectionSet := by
   intro hschema normalParentType variableDefinitions selectionSet fuel
     runtimeType targetParent leftField rightField leftArguments
     rightArguments bodySelectionSet hvalid hcoercion hfree hnormal hnonObject
     hruntimeObject hinclude hpromote hheadPromote hfuel hinlineMem
-    hbodyWitness
+    hbodyWitness hTypeNames
   rcases
       executeSelectionSetAsResponse_fieldPairProbe_tagged_of_valid_normal_promoted_fuel_ge_size
         schema rootSelectionSet variableValues hschema

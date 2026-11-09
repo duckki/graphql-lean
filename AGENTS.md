@@ -12,7 +12,7 @@ The main model's explicit skips include:
 - subscription,
 - custom directives beyond modeled `@skip` and `@include`,
 - coercion, assuming values are already coerced and type-conformant,
-- introspection and meta-fields,
+- schema introspection beyond `__typename`,
 - request errors, detailed execution error maps, response `extensions`, error
   paths, and error locations,
 - response-shape analysis,

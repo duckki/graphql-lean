@@ -1337,7 +1337,7 @@ theorem Resolvers.respectValidArgumentEquivalence
         cases hlater : coerceArgumentValues schema variableValues
               fieldDefinition.arguments laterArguments <;>
         simp [hfirst, hlater, ArgumentCoercionResult.equivalent] at hcoercion ⊢
-      exact resolvers.resolve_argumentsEquivalent _ _ _ _ _ hcoercion
+      exact resolveFieldValue_argumentsEquivalent resolvers _ _ _ _ _ hcoercion
 
 theorem ExecutableFieldsResolveStable.tail
     {ObjectIdentity : Type} (schema : Schema) (resolvers : Resolvers ObjectIdentity)

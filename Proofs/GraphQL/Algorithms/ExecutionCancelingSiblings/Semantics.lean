@@ -370,12 +370,11 @@ private theorem fuelImplementationsAligned
                       cases fieldDefinition.outputType <;>
                         simp [handleFieldError, StrongResultAligned,
                           ErrorPresenceEquivalent]
-                    simpa [executeField, GraphQL.Execution.executeField,
-                      GraphQL.Execution.resolveFieldValue, hlookup, hcoerce]
+                    simpa [executeField, GraphQL.Execution.executeField, hlookup, hcoerce]
                       using StrongResultAligned.singleFieldResult responseName hhandle
                 | success coercedArguments =>
                     cases hresolve
-                          : resolvers.resolve parentType field.fieldName
+                          : resolveFieldValue resolvers parentType field.fieldName
                               coercedArguments source with
                     | none =>
                         have hhandle :
@@ -385,12 +384,12 @@ private theorem fuelImplementationsAligned
                           cases fieldDefinition.outputType <;>
                             simp [handleFieldError, StrongResultAligned,
                               ErrorPresenceEquivalent]
-                        simpa [executeField, GraphQL.Execution.executeField,
-                          GraphQL.Execution.resolveFieldValue, hlookup, hcoerce, hresolve]
+                        simpa [executeField, GraphQL.Execution.executeField, hlookup,
+                          hcoerce, hresolve]
                           using StrongResultAligned.singleFieldResult responseName hhandle
                     | some resolved =>
-                        simpa [executeField, GraphQL.Execution.executeField,
-                          GraphQL.Execution.resolveFieldValue, hlookup, hcoerce, hresolve]
+                        simpa [executeField, GraphQL.Execution.executeField, hlookup,
+                          hcoerce, hresolve]
                           using StrongResultAligned.singleFieldResult responseName
                             (ih.completeValue fieldDefinition.outputType
                               (field :: fields) resolved)

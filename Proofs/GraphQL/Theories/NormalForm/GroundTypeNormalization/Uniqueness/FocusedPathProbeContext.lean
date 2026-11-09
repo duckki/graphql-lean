@@ -2065,35 +2065,36 @@ theorem
       -> ∀ responseName fieldName arguments directives childSelectionSet,
           Selection.field responseName fieldName arguments directives childSelectionSet
             ∈ selectionSet
-          -> ∃ responseValue fieldErrors,
-              Execution.executeField schema
-                (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
-                  (fieldPairPathLocalProbeResolvers schema
-                    leftInitialSelectionSet rightInitialSelectionSet
+          -> ∀ (_hTypeNames : selectionSetTypenameFree selectionSet := by typename_free),
+              ∃ responseValue fieldErrors,
+                Execution.executeField schema
+                  (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
+                    (fieldPairPathLocalProbeResolvers schema
+                      leftInitialSelectionSet rightInitialSelectionSet
+                      targetParent leftField rightField leftArguments
+                      rightArguments leftRuntime rightRuntime)
                     targetParent leftField rightField leftArguments
-                    rightArguments leftRuntime rightRuntime)
-                  targetParent leftField rightField leftArguments
-                  rightArguments)
-                variableValues (fuel + 1)
-                parentType
-                (projectionTargetResolverValue
-                  (.object sourceRuntimeType
-                    (FieldPairPathLocalProbeRef.target tag currentSelectionSet)))
-                responseName
-                [{
-                  fieldName := fieldName
-                  arguments := arguments
-                  selectionSet := childSelectionSet
-                }]
-              = .ok ([(responseName, responseValue)], fieldErrors) := by
+                    rightArguments)
+                  variableValues (fuel + 1)
+                  parentType
+                  (projectionTargetResolverValue
+                    (.object sourceRuntimeType
+                      (FieldPairPathLocalProbeRef.target tag currentSelectionSet)))
+                  responseName
+                  [{
+                    fieldName := fieldName
+                    arguments := arguments
+                    selectionSet := childSelectionSet
+                  }]
+                = .ok ([(responseName, responseValue)], fieldErrors) := by
   intro hsound hchildren
-  refine
-    executeField_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_field_ok_of_field_children
-      schema rootSelectionSet leftInitialSelectionSet
-      rightInitialSelectionSet currentSelectionSet variableValues fuel
-      targetParent leftField rightField parentType sourceRuntimeType
-      leftArguments rightArguments leftRuntime rightRuntime tag
-      selectionSet ?_
+  intro selectedResponse selectedField selectedArguments selectedDirectives selectedChildren selectedMem hTypeNames
+  refine executeField_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_field_ok_of_field_children
+    schema rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
+    currentSelectionSet variableValues fuel targetParent leftField rightField parentType
+    sourceRuntimeType leftArguments rightArguments leftRuntime rightRuntime tag
+    selectionSet ?_ selectedResponse selectedField selectedArguments selectedDirectives
+    selectedChildren selectedMem (by typename_free)
   intro responseName fieldName arguments directives childSelectionSet hmem
   rcases hchildren responseName fieldName arguments directives
       childSelectionSet hmem with
@@ -2183,22 +2184,23 @@ theorem
                                   errors := childErrors
                                 }
                                 : Execution.Response))))
-      -> ∃ responseFields errors,
-          Execution.executeSelectionSetAsResponse schema
-            (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
-              (fieldPairPathLocalProbeResolvers schema
-                leftInitialSelectionSet rightInitialSelectionSet
-                targetParent leftField rightField leftArguments
-                rightArguments leftRuntime rightRuntime)
-              targetParent leftField rightField leftArguments rightArguments)
-            variableValues (fuel + 1) parentType
-            (projectionTargetResolverValue
-              (.object sourceRuntimeType
-                (FieldPairPathLocalProbeRef.target tag currentSelectionSet)))
-            selectionSet
-          = ({ data := Execution.ResponseValue.object responseFields, errors := errors }
-              : Execution.Response) := by
-  intro hfree hnormal hobject hsound hchildren
+      -> ∀ (_hTypeNames : selectionSetTypenameFree selectionSet := by typename_free),
+          ∃ responseFields errors,
+            Execution.executeSelectionSetAsResponse schema
+              (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
+                (fieldPairPathLocalProbeResolvers schema
+                  leftInitialSelectionSet rightInitialSelectionSet
+                  targetParent leftField rightField leftArguments
+                  rightArguments leftRuntime rightRuntime)
+                targetParent leftField rightField leftArguments rightArguments)
+              variableValues (fuel + 1) parentType
+              (projectionTargetResolverValue
+                (.object sourceRuntimeType
+                  (FieldPairPathLocalProbeRef.target tag currentSelectionSet)))
+              selectionSet
+            = ({ data := Execution.ResponseValue.object responseFields, errors := errors }
+                : Execution.Response) := by
+  intro hfree hnormal hobject hsound hchildren hTypeNames
   refine
     executeSelectionSetAsResponse_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_of_field_children
       schema rootSelectionSet leftInitialSelectionSet
@@ -2311,21 +2313,22 @@ theorem
                                       errors := childErrors
                                     }
                                     : Execution.Response))))
-      -> ∃ responseFields errors,
-          Execution.executeSelectionSetAsResponse schema
-            (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
-              (fieldPairPathLocalProbeResolvers schema leftInitialSelectionSet
-                rightInitialSelectionSet targetParent leftField rightField
-                leftArguments rightArguments leftRuntime rightRuntime)
-              targetParent leftField rightField leftArguments rightArguments)
-            variableValues (fuel + 1) runtimeType
-            (projectionTargetResolverValue
-              (.object runtimeType
-                (FieldPairPathLocalProbeRef.target tag currentSelectionSet)))
-            selectionSet
-          = ({ data := Execution.ResponseValue.object responseFields, errors := errors }
-              : Execution.Response) := by
-  intro hnonObject hruntimeObject hfree hnormal hsound hbodyChildren
+      -> ∀ (_hTypeNames : selectionSetTypenameFree selectionSet := by typename_free),
+          ∃ responseFields errors,
+            Execution.executeSelectionSetAsResponse schema
+              (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
+                (fieldPairPathLocalProbeResolvers schema leftInitialSelectionSet
+                  rightInitialSelectionSet targetParent leftField rightField
+                  leftArguments rightArguments leftRuntime rightRuntime)
+                targetParent leftField rightField leftArguments rightArguments)
+              variableValues (fuel + 1) runtimeType
+              (projectionTargetResolverValue
+                (.object runtimeType
+                  (FieldPairPathLocalProbeRef.target tag currentSelectionSet)))
+              selectionSet
+            = ({ data := Execution.ResponseValue.object responseFields, errors := errors }
+                : Execution.Response) := by
+  intro hnonObject hruntimeObject hfree hnormal hsound hbodyChildren hTypeNames
   let resolvers :=
     fieldPairOrDeepSuccessResolvers schema rootSelectionSet
       (fieldPairPathLocalProbeResolvers schema leftInitialSelectionSet
@@ -2546,21 +2549,22 @@ theorem
                                       errors := childErrors
                                     }
                                     : Execution.Response))))
-      -> ∃ responseFields errors,
-          Execution.executeSelectionSetAsResponse schema
-            (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
-              (fieldPairPathLocalProbeResolvers schema leftInitialSelectionSet
-                rightInitialSelectionSet targetParent leftField rightField
-                leftArguments rightArguments leftRuntime rightRuntime)
-              targetParent leftField rightField leftArguments rightArguments)
-            variableValues (fuel + 1) runtimeType
-            (projectionTargetResolverValue
-              (.object runtimeType
-                (FieldPairPathLocalProbeRef.target tag currentSelectionSet)))
-            selectionSet
-          = ({ data := Execution.ResponseValue.object responseFields, errors := errors }
-              : Execution.Response) := by
-  intro hnonObject hruntimeObject hfree hnormal hsound hbodyChildren
+      -> ∀ (_hTypeNames : selectionSetTypenameFree selectionSet := by typename_free),
+          ∃ responseFields errors,
+            Execution.executeSelectionSetAsResponse schema
+              (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
+                (fieldPairPathLocalProbeResolvers schema leftInitialSelectionSet
+                  rightInitialSelectionSet targetParent leftField rightField
+                  leftArguments rightArguments leftRuntime rightRuntime)
+                targetParent leftField rightField leftArguments rightArguments)
+              variableValues (fuel + 1) runtimeType
+              (projectionTargetResolverValue
+                (.object runtimeType
+                  (FieldPairPathLocalProbeRef.target tag currentSelectionSet)))
+              selectionSet
+            = ({ data := Execution.ResponseValue.object responseFields, errors := errors }
+                : Execution.Response) := by
+  intro hnonObject hruntimeObject hfree hnormal hsound hbodyChildren hTypeNames
   let resolvers :=
     fieldPairOrDeepSuccessResolvers schema rootSelectionSet
       (fieldPairPathLocalProbeResolvers schema leftInitialSelectionSet

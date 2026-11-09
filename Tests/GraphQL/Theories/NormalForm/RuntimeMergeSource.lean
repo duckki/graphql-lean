@@ -55,7 +55,7 @@ private def skippedBody : List Selection :=
 private theorem skippedBody_declaredLookupReady
     : selectionSetDeclaredLookupReady returnScopeSchema "Query" skippedBody := by
   simp [skippedBody, returnScopeSchema, selectionSetDeclaredLookupReady,
-    selectionDeclaredLookupReady, Schema.lookupField, Schema.lookupType, Schema.allTypes,
+    selectionDeclaredLookupReady, Schema.lookupField, Schema.lookupDeclaredField, Schema.lookupType, Schema.allTypes,
     Schema.builtinScalarDefinitions, TypeDefinition.name, TypeDefinition.fields?,
     BuiltinScalar.name, TypeRef.namedType]
 
