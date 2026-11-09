@@ -27,6 +27,15 @@ theorem attached_pure {available : List Entry} {entries : α → List Entry}
         (Completion.pure data) :=
   ⟨seeded_pure h, [], .empty, .empty⟩
 
+/-- Counted completed values retain owned paths with empty attachment witnesses. -/
+theorem attached_ok {available : List Entry} {entries : α → List Entry}
+    {paths : α → List ResponsePath} {cursors : α → Cursors}
+    {scope : ResponsePath → Prop} {data : α} (errors : Nat)
+    (h : Owns scope (paths data))
+    : OwnedAttachedCompletion available entries paths cursors scope
+        { result := .ok (data, errors) } :=
+  ⟨seeded_ok errors h, [], .empty, .empty⟩
+
 /-- Combining disjoint completions preserves attachments, by extending both ambient
 contexts and combining their compatible cursor seeds. -/
 theorem attached_combine {available : List Entry} {ea : α → List Entry}

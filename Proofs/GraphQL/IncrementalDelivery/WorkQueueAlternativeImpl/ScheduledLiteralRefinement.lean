@@ -38,6 +38,11 @@ theorem NoStreamRefines.pure (value : α)
     : NoStreamRefines (pure (Completion.pure value)) (pure (Completion.pure value)) :=
   fun _ => ⟨CompletionRefines.pure id value, rfl, rfl⟩
 
+theorem NoStreamRefines.ok (value : α) (errors : Nat)
+    : NoStreamRefines (Pure.pure ({ result := .ok (value, errors) } : Completion α))
+        (Pure.pure { result := .ok (value, errors) }) :=
+  fun _ => ⟨⟨ResultRefines.refl _, .empty⟩, rfl, rfl⟩
+
 theorem NoStreamRefines.error (errors : Nat)
     : NoStreamRefines (Pure.pure (Completion.error errors : Completion α))
         (Pure.pure (Completion.error errors : Completion α)) :=
@@ -104,11 +109,11 @@ mutual
             | scalar scalar =>
                 simp only [ScheduledExecution.completeValue, Execution.completeValue]
                 split
-                · exact NoStreamRefines.error 1
+                · exact NoStreamRefines.ok ResponseValue.null 1
                 · exact NoStreamRefines.pure (ResponseValue.scalar scalar)
             | list values =>
                 simpa only [ScheduledExecution.completeValue, Execution.completeValue]
-                  using NoStreamRefines.error (α := ResponseValue) 1
+                  using NoStreamRefines.ok ResponseValue.null 1
         | list inner =>
             cases literal with
             | null =>
@@ -116,7 +121,7 @@ mutual
                   using NoStreamRefines.pure ResponseValue.null
             | scalar scalar =>
                 simpa only [ScheduledExecution.completeValue, Execution.completeValue]
-                  using NoStreamRefines.error (α := ResponseValue) 1
+                  using NoStreamRefines.ok ResponseValue.null 1
             | @list values known =>
                 simpa only [ScheduledExecution.completeValue, Execution.completeValue,
                   ScheduledExecution.completeListValueWithStream,
@@ -389,11 +394,11 @@ theorem literal_completeValue_withStream_refines (schema : Schema)
           | scalar scalar =>
               simp only [ScheduledExecution.completeValue, Execution.completeValue]
               split
-              · exact (NoStreamRefines.error 1).literal
+              · exact (NoStreamRefines.ok ResponseValue.null 1).literal
               · exact (NoStreamRefines.pure (ResponseValue.scalar scalar)).literal
           | list items =>
               simpa only [ScheduledExecution.completeValue, Execution.completeValue]
-                using (NoStreamRefines.error (α := ResponseValue) 1).literal
+                using (NoStreamRefines.ok ResponseValue.null 1).literal
   | list inner _ =>
       cases fuel with
       | zero =>
@@ -406,7 +411,7 @@ theorem literal_completeValue_withStream_refines (schema : Schema)
                 using (NoStreamRefines.pure ResponseValue.null).literal
           | scalar scalar =>
               simpa only [ScheduledExecution.completeValue, Execution.completeValue]
-                using (NoStreamRefines.error (α := ResponseValue) 1).literal
+                using (NoStreamRefines.ok ResponseValue.null 1).literal
           | @list values known =>
               simpa only [ScheduledExecution.completeValue, Execution.completeValue]
                 using literal_completeListValueWithStream_refines schema resolvers

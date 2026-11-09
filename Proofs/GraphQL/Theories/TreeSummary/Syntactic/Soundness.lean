@@ -460,7 +460,8 @@ private theorem annotatedResponseExecution_related_all
       definition groups _hnamed _hlookup _hwitness _hnonempty
       _hvalid _hgroups _hinherited _hconditions _hcover _hrepresent _hdefinitions
     simpa [completeAnnotatedResponseValue, hcomposite, foldAnnotatedResponseValueResult,
-      foldChildSummaryForValueResult]
+      foldChildSummaryForValueResult, foldAnnotatedResponseValue,
+      foldChildSummaryForValue]
       using soundness.empty_sound
   case case13 =>
     intro fuel typeName fields value hnotComposite runtimeType ref responseName
@@ -663,7 +664,8 @@ private theorem annotatedResponseExecution_related_all
       | false => rfl
       | true => exact False.elim (hnotInclude hvalue)
     simpa [completeAnnotatedResponseValue, hinclude, foldAnnotatedResponseValueResult,
-      foldChildSummaryForValueResult]
+      foldChildSummaryForValueResult, foldAnnotatedResponseValue,
+      foldChildSummaryForValue]
       using soundness.empty_sound
   case case16 =>
     intro fuel inner fields values list_ih runtimeType ref responseName fieldName
@@ -701,14 +703,16 @@ private theorem annotatedResponseExecution_related_all
       groups _hnamed _hlookup _hwitness _hnonempty _hvalid _hgroups
       _hinherited _hconditions _hcover _hrepresent _hdefinitions
     simpa [completeAnnotatedResponseValue, foldAnnotatedResponseValueResult,
-      foldChildSummaryForValueResult]
+      foldChildSummaryForValueResult, foldAnnotatedResponseValue,
+      foldChildSummaryForValue]
       using soundness.empty_sound
   case case18 =>
     intro fuel inner fields value hnotNull hnotList runtimeType ref responseName
       fieldName definition groups _hnamed _hlookup _hwitness _hnonempty
       _hvalid _hgroups _hinherited _hconditions _hcover _hrepresent _hdefinitions
     simpa [completeAnnotatedResponseValue, hnotNull, hnotList,
-      foldAnnotatedResponseValueResult, foldChildSummaryForValueResult]
+      foldAnnotatedResponseValueResult, foldChildSummaryForValueResult,
+      foldAnnotatedResponseValue, foldChildSummaryForValue]
       using soundness.empty_sound
   case case19 =>
     intro fuel itemType fields runtimeType ref responseName fieldName definition

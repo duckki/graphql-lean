@@ -272,16 +272,17 @@ mutual
             | scalar scalar =>
                 simp only [completeValue, GraphQL.Execution.completeValue]
                 split
-                · exact runEnsures_pure _ _ (seeded_error _ _ _ _ (by omega))
+                · exact runEnsures_pure _ _ (seeded_counted _ _ _ ResponseValue.null 1 (by decide))
                 · exact runEnsures_pure _ _ (seeded_pure _ _ _)
             | list data =>
                 simp only [completeValue]
-                exact runEnsures_pure _ _ (seeded_error _ _ _ _ (by omega))
+                exact runEnsures_pure _ _
+                  (seeded_counted _ _ _ ResponseValue.null 1 (by decide))
             | object runtimeType ref =>
                 cases ht : schema.typeIncludesObjectBool parentType runtimeType <;>
                   simp only [completeValue, GraphQL.Execution.completeValue, ht,
                     Bool.not_false, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
-                · exact runEnsures_pure _ _ (seeded_error _ _ _ _ (by omega))
+                · exact runEnsures_pure _ _ (seeded_counted _ _ _ ResponseValue.null 1 (by decide))
                 · refine runEnsures_bind (fun collection => eraseGroups collection.collectedFieldsMap =
                     GraphQL.Execution.collectSubfields schema variables runtimeType (.object runtimeType ref)
                       (selected.map eraseField)) _ _ _ ?_ ?_
@@ -302,10 +303,12 @@ mutual
                 exact runEnsures_pure _ _ (seeded_pure _ _ _)
             | scalar scalar =>
                 simp only [completeValue]
-                exact runEnsures_pure _ _ (seeded_error _ _ _ _ (by omega))
+                exact runEnsures_pure _ _
+                  (seeded_counted _ _ _ ResponseValue.null 1 (by decide))
             | object runtimeType ref =>
                 simp only [completeValue]
-                exact runEnsures_pure _ _ (seeded_error _ _ _ _ (by omega))
+                exact runEnsures_pure _ _
+                  (seeded_counted _ _ _ ResponseValue.null 1 (by decide))
             | list data =>
                 simpa only [completeValue, GraphQL.Execution.completeValue]
                   using completeListValueWithStream_seeded schema resolvers variables fuel

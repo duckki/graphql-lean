@@ -152,13 +152,13 @@ mutual
                   eraseCompletionRun]
             | scalar scalar =>
                 simp only [RecordedExecution.completeValue, ScheduledExecution.completeValue]
-                split <;> simp [eraseCompletionRun, Completion.error]
+                split <;> simp [eraseCompletionRun]
             | list items => simp [RecordedExecution.completeValue,
-                ScheduledExecution.completeValue, eraseCompletionRun, Completion.error]
+                ScheduledExecution.completeValue, eraseCompletionRun]
             | object runtimeType reference =>
                 simp only [RecordedExecution.completeValue, ScheduledExecution.completeValue]
                 split
-                · simp [eraseCompletionRun, Completion.error]
+                · simp [eraseCompletionRun]
                 · simp only [run_bind, StateT.run_pure, id_pure_eq]
                   let collected := (collectSubfields schema variables runtimeType
                     (.object runtimeType reference) fields).run state
@@ -175,9 +175,9 @@ mutual
                 simp [RecordedExecution.completeValue, ScheduledExecution.completeValue,
                   eraseCompletionRun]
             | scalar scalar => simp [RecordedExecution.completeValue,
-                ScheduledExecution.completeValue, eraseCompletionRun, Completion.error]
+                ScheduledExecution.completeValue, eraseCompletionRun]
             | object runtimeType reference => simp [RecordedExecution.completeValue,
-                ScheduledExecution.completeValue, eraseCompletionRun, Completion.error]
+                ScheduledExecution.completeValue, eraseCompletionRun]
             | list items =>
                 simpa only [RecordedExecution.completeValue,
                   ScheduledExecution.completeValue]

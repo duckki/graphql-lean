@@ -670,7 +670,7 @@ private theorem fuelImplementations_canceling_eager_aligned
                         reuseOrCreateObject?]
                         using hvisit.catchVisitBubbleAsNull
                     · simp [completeValue, Eager.completeValue, hincludes,
-                        StrongResultAligned]
+                        StrongResultAligned, ErrorPresenceEquivalent]
                 | some previous =>
                     cases previous with
                     | null =>
@@ -689,14 +689,16 @@ private theorem fuelImplementations_canceling_eager_aligned
                             reuseOrCreateObject?]
                             using hvisit.catchVisitBubbleAsNull
                         · simp [completeValue, Eager.completeValue, hincludes,
-                            StrongResultAligned]
+                            StrongResultAligned, ErrorPresenceEquivalent]
                     | list items =>
-                        simp [completeValue, Eager.completeValue,
-                          reuseOrCreateObject?, StrongResultAligned]
+                        by_cases hincludes :
+                            schema.typeIncludesObjectBool typeName runtimeType = true <;>
+                          simp [completeValue, Eager.completeValue, hincludes,
+                            reuseOrCreateObject?, StrongResultAligned, ErrorPresenceEquivalent]
             | list values =>
                 cases previous with
                 | none =>
-                    simp [completeValue, Eager.completeValue, StrongResultAligned]
+                    simp [completeValue, Eager.completeValue, StrongResultAligned, ErrorPresenceEquivalent]
                 | some previous =>
                     cases previous <;>
                       simp [completeValue, Eager.completeValue, StrongResultAligned,
@@ -716,7 +718,7 @@ private theorem fuelImplementations_canceling_eager_aligned
             | scalar scalar =>
                 cases previous with
                 | none =>
-                    simp [completeValue, Eager.completeValue, StrongResultAligned]
+                    simp [completeValue, Eager.completeValue, StrongResultAligned, ErrorPresenceEquivalent]
                 | some previous =>
                     cases previous <;>
                       simp [completeValue, Eager.completeValue, StrongResultAligned,
@@ -724,7 +726,7 @@ private theorem fuelImplementations_canceling_eager_aligned
             | object runtimeType ref =>
                 cases previous with
                 | none =>
-                    simp [completeValue, Eager.completeValue, StrongResultAligned]
+                    simp [completeValue, Eager.completeValue, StrongResultAligned, ErrorPresenceEquivalent]
                 | some previous =>
                     cases previous <;>
                       simp [completeValue, Eager.completeValue, StrongResultAligned,
@@ -866,9 +868,13 @@ theorem executeRootSelectionSet_canceling_eager_aligned
           simp [VisitResultAligned, visitResult, StrongResultAligned] at haligned
       | error eagerErrors =>
           have hcancelingPositive : 0 < cancelingErrors := by
-            simpa [VisitResultAligned, visitResult, StrongResultAligned] using haligned.1
+            simpa [VisitResultAligned, visitResult, StrongResultAligned,
+              ErrorPresenceEquivalent]
+              using haligned.1
           have heagerPositive : 0 < eagerErrors := by
-            simpa [VisitResultAligned, visitResult, StrongResultAligned] using haligned.2
+            simpa [VisitResultAligned, visitResult, StrongResultAligned,
+              ErrorPresenceEquivalent]
+              using haligned.2
           simpa [executeRootSelectionSet, Eager.executeRootSelectionSet, hcanceling,
             heager, RootSelectionResultAlignedEquivalent]
             using ErrorPresenceEquivalent.of_pos hcancelingPositive heagerPositive
@@ -882,10 +888,14 @@ theorem executeRootSelectionSet_canceling_eager_aligned
           rcases eagerOk with ⟨eagerUnit, eagerErrors⟩
           cases eagerUnit
           have hvalue : cancelingValue = eagerValue := by
-            simpa [VisitResultAligned, visitResult, StrongResultAligned] using haligned.1
+            simpa [VisitResultAligned, visitResult, StrongResultAligned,
+              ErrorPresenceEquivalent]
+              using haligned.1
           have herrors :
               ErrorPresenceEquivalent cancelingErrors eagerErrors := by
-            simpa [VisitResultAligned, visitResult, StrongResultAligned] using haligned.2
+            simpa [VisitResultAligned, visitResult, StrongResultAligned,
+              ErrorPresenceEquivalent]
+              using haligned.2
           subst eagerValue
           cases cancelingValue with
           | object fields =>

@@ -63,6 +63,12 @@ theorem ownsCompletion_pure {containers : Bool} {paths : α → List ResponsePat
     by simpa only [Completion.pure, result, List.flatten_nil, List.append_nil] using h
   ⟩
 
+theorem ownsCompletion_ok {containers : Bool} {paths : α → List ResponsePath}
+    {scope : ResponsePath → Prop} {data : α} (errors : Nat)
+    (h : Owns scope (paths data))
+    : OwnsCompletion containers paths scope { result := .ok (data, errors) } :=
+  ⟨[], .empty, by simpa only [result, List.flatten_nil, List.append_nil] using h⟩
+
 theorem ownsCompletion_combine {containers : Bool} {pa : α → List ResponsePath}
     {pb : β → List ResponsePath} {pc : γ → List ResponsePath} {f : α → β → γ}
     {sa sb sc : ResponsePath → Prop} {left : Completion α} {right : Completion β}

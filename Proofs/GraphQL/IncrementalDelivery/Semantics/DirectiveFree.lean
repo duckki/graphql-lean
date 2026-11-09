@@ -152,14 +152,14 @@ mutual
             | scalar scalar =>
                 cases hc : (TypeRef.named parentType).isCompositeBool schema <;>
                   simp [completeValue, GraphQL.Execution.completeValue, hc, RunMatches,
-                    CompletionMatches, Completion.pure, Completion.error, Work.size]
+                    CompletionMatches, Completion.pure, Work.size]
             | list items =>
                 simp [completeValue, GraphQL.Execution.completeValue, RunMatches,
-              CompletionMatches, Completion.error, Work.size]
+              CompletionMatches, Work.size]
             | object runtimeType ref =>
                 cases hi : schema.typeIncludesObjectBool parentType runtimeType
                 · simp [completeValue, GraphQL.Execution.completeValue, hi, RunMatches,
-                    CompletionMatches, Completion.error, Work.size]
+                    CompletionMatches, Work.size]
                 · simp only [completeValue, GraphQL.Execution.completeValue, hi, Bool.not_true,
                     Bool.false_eq_true, ↓reduceIte]
                   apply runMatches_after_collection _ _ _ _ _
@@ -180,10 +180,10 @@ mutual
               CompletionMatches, Completion.pure, Work.size]
             | scalar scalar =>
                 simp [completeValue, GraphQL.Execution.completeValue, RunMatches,
-              CompletionMatches, Completion.error, Work.size]
+              CompletionMatches, Work.size]
             | object runtimeType ref =>
                 simp [completeValue, GraphQL.Execution.completeValue, RunMatches,
-            CompletionMatches, Completion.error, Work.size]
+            CompletionMatches, Work.size]
             | list items =>
                 simp only [completeValue, GraphQL.Execution.completeValue,
                   completeListValueWithStream]

@@ -967,10 +967,15 @@ mutual
                           (some (.list previousValues))
                           (by intro previous h; cases h; exact hpreviousReady))
                 | named typeName =>
-                    cases value <;>
-                      simp [completeValue, resultValueOrNull,
-                        reuseOrCreateObject?] <;>
-                      exact ResponseMergeReady.null
+                    cases value with
+                    | null | scalar _ | list _ =>
+                        simp [completeValue, resultValueOrNull]
+                        exact ResponseMergeReady.null
+                    | object runtimeType ref =>
+                        cases hincludes : schema.typeIncludesObjectBool typeName runtimeType <;>
+                          simp [completeValue, resultValueOrNull, reuseOrCreateObject?,
+                            hincludes] <;>
+                          exact ResponseMergeReady.null
                 | list inner =>
                     cases value with
                     | list values =>

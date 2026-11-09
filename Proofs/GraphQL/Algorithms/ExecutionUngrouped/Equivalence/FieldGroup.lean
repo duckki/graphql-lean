@@ -163,6 +163,8 @@ theorem mergeResponse_null_right (value : ResponseValue)
     : mergeResponse value .null = .null := by
   cases value <;> simp [mergeResponse]
 
+attribute [local simp] mergeResponse_null_right
+
 def ExecutableFieldsMergedRaw
     {ObjectIdentity : Type}
     (schema : Schema) (resolvers : Resolvers ObjectIdentity)
@@ -788,7 +790,7 @@ theorem completeValue_object_append_result_of_absorbs_errorNeutral
           simp [hfirst, hsecond] at habsorbs herrors
           cases firstStatus with
           | error firstErrors =>
-              simp [completeResolvedValue_previous_null, completeValue, reuseOrCreateObject?, hincludes, hfirst, resultValueOrNull, hsecond, herrors, catchVisitBubbleAsNull, combineVisitStatus, GraphQL.Execution.Result.combine, visitOk, mergeResponse]
+              simp [completeResolvedValue_previous_null, completeValue, reuseOrCreateObject?, hincludes, hfirst, resultValueOrNull, hsecond, herrors, catchVisitBubbleAsNull, combineVisitStatus, GraphQL.Execution.Result.combine, visitOk]
           | ok firstStatusResult =>
               rcases firstStatusResult with ⟨unitValue, firstErrors⟩
               cases unitValue
@@ -864,7 +866,7 @@ theorem completeValue_object_append_result_aligned_of_absorbs
                   simp [completeResolvedValue_previous_null, completeValue,
                     reuseOrCreateObject?, hincludes, hfirst, resultValueOrNull,
                     hsecond, catchVisitBubbleAsNull, combineVisitStatus,
-                    GraphQL.Execution.Result.combine, mergeResponse,
+                    GraphQL.Execution.Result.combine,
                     ResponseValueResultAlignedEquivalent,
                     ErrorPresenceEquivalent]
                   omega
@@ -874,7 +876,7 @@ theorem completeValue_object_append_result_aligned_of_absorbs
                   simp [completeResolvedValue_previous_null, completeValue,
                     reuseOrCreateObject?, hincludes, hfirst, resultValueOrNull,
                     hsecond, catchVisitBubbleAsNull, combineVisitStatus,
-                    GraphQL.Execution.Result.combine, mergeResponse,
+                    GraphQL.Execution.Result.combine,
                     ResponseValueResultAlignedEquivalent,
                     ErrorPresenceEquivalent]
                   omega
@@ -894,7 +896,7 @@ theorem completeValue_object_append_result_aligned_of_absorbs
                     completeValue, reuseOrCreateObject?, hincludes,
                     hparentComposite, hfirst, resultValueOrNull, hsecond,
                     catchVisitBubbleAsNull, combineVisitStatus,
-                    GraphQL.Execution.Result.combine, mergeResponse,
+                    GraphQL.Execution.Result.combine,
                     ResponseValueResultAlignedEquivalent,
                     ErrorPresenceEquivalent]
               | ok secondStatusResult =>
@@ -1068,7 +1070,7 @@ theorem completeValue_named_group_append_one_result_eq_spec
   | succ childDepth =>
       cases resolved with
       | null =>
-          simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_null, resultValueOrNull, GraphQL.Execution.Result.combine, mergeResponse]
+          simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_null, resultValueOrNull, GraphQL.Execution.Result.combine]
       | scalar value =>
           by_cases hcomposite :
               (TypeRef.named parentType).isCompositeBool schema = true
@@ -1331,7 +1333,7 @@ theorem completeValue_named_group_append_one_result_aligned_spec
       cases resolved with
       | null =>
           simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_null,
-            resultValueOrNull, GraphQL.Execution.Result.combine, mergeResponse,
+            resultValueOrNull, GraphQL.Execution.Result.combine,
             ResponseValueResultAlignedEquivalent, ErrorPresenceEquivalent]
       | scalar value =>
           by_cases hcomposite :
@@ -1481,7 +1483,7 @@ theorem completeValue_named_group_append_one_result_aligned_spec_of_contained
       cases resolved with
       | null =>
           simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_null,
-            resultValueOrNull, GraphQL.Execution.Result.combine, mergeResponse,
+            resultValueOrNull, GraphQL.Execution.Result.combine,
             ResponseValueResultAlignedEquivalent, ErrorPresenceEquivalent]
       | scalar value =>
           by_cases hcomposite :
@@ -1625,7 +1627,7 @@ theorem completeValue_named_group_append_one_result_aligned_spec_of_contained_al
       cases resolved with
       | null =>
           simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_null,
-            resultValueOrNull, GraphQL.Execution.Result.combine, mergeResponse,
+            resultValueOrNull, GraphQL.Execution.Result.combine,
             ResponseValueResultAlignedEquivalent, ErrorPresenceEquivalent]
       | scalar value =>
           by_cases hcomposite :
@@ -1843,7 +1845,7 @@ theorem completeValue_named_group_append_one_result_eq_spec_of_contained
   | succ childDepth =>
       cases resolved with
       | null =>
-          simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_null, resultValueOrNull, GraphQL.Execution.Result.combine, mergeResponse]
+          simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_null, resultValueOrNull, GraphQL.Execution.Result.combine]
       | scalar value =>
           by_cases hcomposite :
               (TypeRef.named parentType).isCompositeBool schema = true

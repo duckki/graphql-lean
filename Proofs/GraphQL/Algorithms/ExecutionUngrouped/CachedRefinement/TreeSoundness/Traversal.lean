@@ -1158,12 +1158,15 @@ mutual
                     simp [completeValue, ExecutionUngroupedUncached.completeValue,
                       nonNullCompletion_output, hinner]
                 | named typeName =>
-                    cases value <;>
-                      simp [completeValue,
-                        ExecutionUngroupedUncached.completeValue,
-                        reuseOrCreateObject?,
-                        ExecutionUngroupedUncached.reuseOrCreateObject?,
-                        outputResult]
+                    cases value with
+                    | null | scalar _ | list _ =>
+                        simp [completeValue, ExecutionUngroupedUncached.completeValue,
+                          outputResult]
+                    | object runtimeType ref =>
+                        cases hincludes : schema.typeIncludesObjectBool typeName runtimeType <;>
+                          simp [completeValue, ExecutionUngroupedUncached.completeValue,
+                            reuseOrCreateObject?, ExecutionUngroupedUncached.reuseOrCreateObject?,
+                            outputResult, hincludes, FieldCacheValue.output]
                 | list inner =>
                     cases value with
                     | list newValues =>

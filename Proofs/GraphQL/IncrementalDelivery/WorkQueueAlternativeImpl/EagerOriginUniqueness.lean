@@ -122,7 +122,7 @@ mutual
             | list items =>
                 simpa only [EagerRecordedExecution.completeValue, StateT.run_pure,
                   id_pure_eq]
-                  using fault_scoped route (.error 1 : Result ResponseValue)
+                  using fault_scoped route (.ok (.null, 1) : Result ResponseValue)
             | object runtimeType reference =>
                 simp only [EagerRecordedExecution.completeValue]
                 split
@@ -144,10 +144,10 @@ mutual
             | scalar scalar =>
                 simpa only [EagerRecordedExecution.completeValue, StateT.run_pure,
                   id_pure_eq]
-                  using fault_scoped route (.error 1 : Result ResponseValue)
+                  using fault_scoped route (.ok (.null, 1) : Result ResponseValue)
             | object runtimeType reference =>
                 simpa only [EagerRecordedExecution.completeValue,
-                  StateT.run_pure, id_pure_eq] using fault_scoped route (.error 1 : Result ResponseValue)
+                  StateT.run_pure, id_pure_eq] using fault_scoped route (.ok (.null, 1) : Result ResponseValue)
             | list items =>
                 simpa only [EagerRecordedExecution.completeValue]
                   using (completeListValueWithStream_origins schema resolvers variables

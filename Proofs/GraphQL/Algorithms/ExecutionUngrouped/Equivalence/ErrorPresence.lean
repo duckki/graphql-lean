@@ -227,7 +227,6 @@ mutual
                     by_cases hcomposite :
                         (TypeRef.named typeName).isCompositeBool schema = true
                     · simp [hcomposite] at h
-                      omega
                     · simp [hcomposite] at h
                 | object runtimeType ref =>
                     by_cases hincludes :
@@ -247,10 +246,8 @@ mutual
                             schema.typeIncludesObjectBool typeName runtimeType <;>
                           simp [hmatch] at hincludes ⊢
                       simp [hnotIncludes] at h
-                      omega
                 | list values =>
                     simp at h
-                    omega
             | list inner =>
                 cases value with
                 | list values =>
@@ -265,10 +262,8 @@ mutual
                     simp at h
                 | scalar value =>
                     simp at h
-                    omega
                 | object runtimeType ref =>
                     simp at h
-                    omega
             | nonNull inner =>
                 cases hinner :
                     completeValue schema resolvers variableValues (fuel + 1)
@@ -329,10 +324,8 @@ mutual
                                   runtimeType <;>
                               simp [hmatch] at hincludes ⊢
                           simp [hnotIncludes] at h
-                          omega
                     | list values =>
                         simp at h
-                        omega
                 | list inner =>
                     cases value with
                     | list values =>
@@ -342,10 +335,8 @@ mutual
                         simp at h
                     | scalar value =>
                         simp at h
-                        omega
                     | object runtimeType ref =>
                         simp at h
-                        omega
                 | nonNull inner =>
                     cases hinner :
                         completeValue schema resolvers variableValues (fuel + 1)
@@ -394,10 +385,8 @@ mutual
                                   runtimeType <;>
                               simp [hmatch] at hincludes ⊢
                           simp [hnotIncludes] at h
-                          omega
                     | list values =>
                         simp at h
-                        omega
                 | list inner =>
                     cases value with
                     | list values =>
@@ -412,10 +401,8 @@ mutual
                         simp at h
                     | scalar value =>
                         simp at h
-                        omega
                     | object runtimeType ref =>
                         simp at h
-                        omega
                 | nonNull inner =>
                     cases hinner :
                         completeValue schema resolvers variableValues (fuel + 1)
@@ -673,7 +660,6 @@ mutual
                 by_cases hcomposite :
                     (TypeRef.named typeName).isCompositeBool schema = true
                 · simp [GraphQL.Execution.completeValue, hcomposite] at h
-                  omega
                 · simp [GraphQL.Execution.completeValue, hcomposite] at h
             | object runtimeType ref =>
                 by_cases hincludes :
@@ -696,10 +682,8 @@ mutual
                         schema.typeIncludesObjectBool typeName runtimeType <;>
                       simp [hmatch] at hincludes ⊢
                   simp [GraphQL.Execution.completeValue, hnotIncludes] at h
-                  omega
             | list values =>
                 simp [GraphQL.Execution.completeValue] at h
-                omega
         | list inner =>
             cases value with
             | list values =>
@@ -713,10 +697,8 @@ mutual
                 simp [GraphQL.Execution.completeValue] at h
             | scalar scalarValue =>
                 simp [GraphQL.Execution.completeValue] at h
-                omega
             | object runtimeType ref =>
                 simp [GraphQL.Execution.completeValue] at h
-                omega
 
   theorem specCompleteValueList_error_positive
       (schema : Schema) (resolvers : Resolvers ObjectRef)

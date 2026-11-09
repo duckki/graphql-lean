@@ -388,7 +388,7 @@ mutual
         match previous? with
         | none =>
             if (TypeRef.named typeName).isCompositeBool schema then
-              .error 1
+              .ok (.null, 1)
             else
               .ok (.scalar value, 0)
         | some _ => .error 1
@@ -406,7 +406,7 @@ mutual
               catchVisitBubbleAsNull visited.value visited.status
           | none => .error 1
         else
-          .error 1
+          .ok (.null, 1)
     | fuel + 1, .list inner, selectionSet, .list values, previous? =>
         match reuseOrCreateList? schema inner values previous? with
         | some (sourceValues?, previousValues) =>
@@ -416,9 +416,9 @@ mutual
             catchBubbleAsNull (FieldCacheValue.list sourceValues?) completed
         | none => .error 1
     | _fuel + 1, .named _typeName, _selectionSet, .list _values, _previous? =>
-        .error 1
+        .ok (.null, 1)
     | _fuel + 1, .list _inner, _selectionSet, _value, _previous? =>
-        .error 1
+        .ok (.null, 1)
 
   def completeValueList {ObjectRef : Type}
       (schema : Schema) (resolvers : Resolvers ObjectRef)

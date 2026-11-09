@@ -45,8 +45,7 @@ theorem valueCompletionCoverage_holds (containers : Bool) (schema : Schema)
               | null | scalar _ | object _ _ =>
                   intro state
                   apply ValueCompletionCovered.of_result_eq
-                  simp [completeValue, GraphQL.Execution.completeValue, Completion.pure,
-                    Completion.error]
+                  simp [completeValue, GraphQL.Execution.completeValue, Completion.pure]
               | list values =>
                   simpa only [completeValue, GraphQL.Execution.completeValue]
                     using completeListValueWithStream_entriesCovered_of_values containers

@@ -74,6 +74,9 @@ practical:
   an execution error has bubbled through a non-null response position;
   `.ok (value, n)` means completion produced data and accumulated `n` execution
   errors below it.
+- Runtime output-shape mismatches complete as `null` with one error at the
+  failing nullable position. Non-null wrappers propagate that counted error;
+  nullable list items retain their position without nulling the enclosing list.
 - `Response` models the spec 7.1 execution result as `data` plus a `Nat` count
   standing in for the detailed non-empty `errors` list.
 - Resolver failure is modeled as `none` and handled like a field execution

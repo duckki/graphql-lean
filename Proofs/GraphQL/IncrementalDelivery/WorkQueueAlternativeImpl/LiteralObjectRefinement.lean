@@ -151,8 +151,8 @@ theorem literal_object_run (schema : Schema) (resolvers : Resolvers ObjectRef)
       simp only [ScheduledExecution.completeValue, Execution.completeValue, includes,
         Bool.not_false, ↓reduceIte, StateT.run_pure, id_pure_eq]
       refine ⟨keys, ⟨fun _ _ => rfl, supplies, Nat.le_refl _, Nat.le_refl _, ?_, ?_⟩⟩
-      · simp [Completion.error, allRefs, rootRefs, hiddenRegions]
-      · exact CompletionRefines.error (ResultRefines.refl _)
+      · simp [allRefs, rootRefs, hiddenRegions]
+      · exact ⟨ResultRefines.refl _, .empty⟩
   | true =>
       let collected := (collectSubfields schema variables runtimeType
         (.object runtimeType reference) fields).run left

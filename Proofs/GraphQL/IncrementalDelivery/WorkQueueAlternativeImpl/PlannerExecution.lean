@@ -343,7 +343,9 @@ mutual
                 split <;> exact Refines.pure parents state _ valid chains
             | list items =>
                 simpa only [completeValue, Execution.completeValue]
-                  using Refines.pure parents state (Completion.error 1) valid chains
+                  using Refines.pure parents state
+                    ({ result := .ok (ResponseValue.null, 1) } : Completion ResponseValue)
+                    valid chains
             | object runtimeType ref =>
                 simp only [completeValue, Execution.completeValue]
                 split
@@ -366,10 +368,14 @@ mutual
                     valid chains
             | scalar scalar =>
                 simpa only [completeValue, Execution.completeValue]
-                  using Refines.pure parents state (Completion.error 1) valid chains
+                  using Refines.pure parents state
+                    ({ result := .ok (ResponseValue.null, 1) } : Completion ResponseValue)
+                    valid chains
             | object runtimeType ref =>
                 simpa only [completeValue, Execution.completeValue]
-                  using Refines.pure parents state (Completion.error 1) valid chains
+                  using Refines.pure parents state
+                    ({ result := .ok (ResponseValue.null, 1) } : Completion ResponseValue)
+                    valid chains
             | list items =>
                 simpa only [completeValue, Execution.completeValue]
                   using completeListValueWithStream_refines schema resolvers variables

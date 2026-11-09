@@ -82,13 +82,13 @@ mutual
             | scalar scalar =>
                 simp only [RecordedExecution.completeValue, EagerRecordedExecution.completeValue]
                 split
-                · exact NoStreamOriginsRefine.fault route (.error 1)
+                · exact NoStreamOriginsRefine.fault route (.ok (ResponseValue.null, 1))
                 · exact NoStreamOriginsRefine.pure (ResponseValue.scalar scalar)
             | list items =>
                 simpa only [RecordedExecution.completeValue,
                   EagerRecordedExecution.completeValue]
                   using NoStreamOriginsRefine.fault route
-                    (.error 1 : Result ResponseValue)
+                    (.ok (.null, 1) : Result ResponseValue)
         | list inner =>
             cases literal with
             | null =>
@@ -99,7 +99,7 @@ mutual
                 simpa only [RecordedExecution.completeValue,
                   EagerRecordedExecution.completeValue]
                   using NoStreamOriginsRefine.fault route
-                    (.error 1 : Result ResponseValue)
+                    (.ok (.null, 1) : Result ResponseValue)
             | @list values known =>
                 simpa only [RecordedExecution.completeValue,
                   EagerRecordedExecution.completeValue,
@@ -401,13 +401,13 @@ theorem literal_completeValue_withStream_origins (schema : Schema)
           | scalar scalar =>
               simp only [RecordedExecution.completeValue, EagerRecordedExecution.completeValue]
               split
-              · exact (NoStreamOriginsRefine.fault route (.error 1)).literal
+              · exact (NoStreamOriginsRefine.fault route (.ok (ResponseValue.null, 1))).literal
               · exact (NoStreamOriginsRefine.pure (ResponseValue.scalar scalar)).literal
           | list items =>
               simpa only [RecordedExecution.completeValue,
                 EagerRecordedExecution.completeValue]
                 using (NoStreamOriginsRefine.fault route
-                        (.error 1 : Result ResponseValue)).literal
+                        (.ok (.null, 1) : Result ResponseValue)).literal
   | list inner _ =>
       cases fuel with
       | zero =>
@@ -425,7 +425,7 @@ theorem literal_completeValue_withStream_origins (schema : Schema)
               simpa only [RecordedExecution.completeValue,
                 EagerRecordedExecution.completeValue]
                 using (NoStreamOriginsRefine.fault route
-                        (.error 1 : Result ResponseValue)).literal
+                        (.ok (.null, 1) : Result ResponseValue)).literal
           | @list values known =>
               simpa only [RecordedExecution.completeValue,
                 EagerRecordedExecution.completeValue]

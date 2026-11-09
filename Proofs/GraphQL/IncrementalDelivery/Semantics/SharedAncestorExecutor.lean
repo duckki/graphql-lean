@@ -71,10 +71,12 @@ mutual
                     usages context allowStream).nonNull
     | _ + 1, _, .null => return .pure .null
     | _ + 1, .named typeName, .scalar scalar =>
-        if (TypeRef.named typeName).isCompositeBool schema then return .error 1
+        if (TypeRef.named typeName).isCompositeBool schema then
+          return { result := .ok (.null, 1) }
         return .pure (.scalar scalar)
     | fuel + 1, .named parentType, source@(.object runtimeType _) =>
-        if !schema.typeIncludesObjectBool parentType runtimeType then return .error 1
+        if !schema.typeIncludesObjectBool parentType runtimeType then
+          return { result := .ok (.null, 1) }
         let collection ← collectSubfields schema variables runtimeType source fields
         let plan := buildExecutionPlan collection.collectedFieldsMap usages
         let completed ←
@@ -84,7 +86,7 @@ mutual
     | fuel + 1, .list inner, .list values =>
         completeListValueWithStream schema resolvers variables fuel inner fields values
           path usages context allowStream
-    | _ + 1, _, _ => return .error 1
+    | _ + 1, _, _ => return { result := .ok (.null, 1) }
   termination_by (fuel, 1, sizeOf fieldType, 0)
 
   def completeListValue (schema : Schema) (resolvers : Resolvers ObjectRef)

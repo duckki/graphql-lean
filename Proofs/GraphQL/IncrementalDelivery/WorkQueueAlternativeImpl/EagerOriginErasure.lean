@@ -132,13 +132,13 @@ mutual
                   eraseCompletionRun]
             | scalar scalar =>
                 simp only [EagerRecordedExecution.completeValue, Execution.completeValue]
-                split <;> simp [eraseCompletionRun, Completion.error]
+                split <;> simp [eraseCompletionRun]
             | list items => simp [EagerRecordedExecution.completeValue,
-                Execution.completeValue, eraseCompletionRun, Completion.error]
+                Execution.completeValue, eraseCompletionRun]
             | object runtimeType reference =>
                 simp only [EagerRecordedExecution.completeValue, Execution.completeValue]
                 split
-                · simp [eraseCompletionRun, Completion.error]
+                · simp [eraseCompletionRun]
                 · simp only [run_bind, StateT.run_pure, id_pure_eq]
                   let collected := (collectSubfields schema variables runtimeType
                     (.object runtimeType reference) fields).run state
@@ -155,9 +155,9 @@ mutual
                 simp [EagerRecordedExecution.completeValue, Execution.completeValue,
                   eraseCompletionRun]
             | scalar scalar => simp [EagerRecordedExecution.completeValue,
-                Execution.completeValue, eraseCompletionRun, Completion.error]
+                Execution.completeValue, eraseCompletionRun]
             | object runtimeType reference => simp [EagerRecordedExecution.completeValue,
-                Execution.completeValue, eraseCompletionRun, Completion.error]
+                Execution.completeValue, eraseCompletionRun]
             | list items =>
                 simpa only [EagerRecordedExecution.completeValue, Execution.completeValue]
                   using completeListValueWithStream_erases schema resolvers variables fuel

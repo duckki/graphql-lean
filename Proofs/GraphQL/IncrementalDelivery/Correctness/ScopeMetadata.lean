@@ -216,6 +216,11 @@ theorem Under.mono {base next} {completed : Completion α} (under : Under next c
 theorem pure (base : ResponsePath) (value : α) : Under base (Completion.pure value) :=
   ⟨trivial, trivial⟩
 
+/-- Counted completed values retain no work or scope obligations. -/
+theorem ok (base : ResponsePath) (value : α) (errors : Nat)
+    : Under base { result := .ok (value, errors) } :=
+  ⟨trivial, trivial⟩
+
 /-- Failed completions retain no work or scope obligations. -/
 theorem error (base : ResponsePath) (errors : Nat)
     : Under base (Completion.error errors : Completion α) :=

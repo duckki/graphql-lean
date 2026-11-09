@@ -40,6 +40,10 @@ def Positive (completed : Completion α) : Prop :=
 theorem pure (value : α) : Positive (Completion.pure value) := by
   simp [Positive, Completion.pure, BasicErrors.PositiveFailure, WorkPositive]
 
+/-- A counted completed value has no bubbling failure or child work. -/
+theorem ok (value : α) (errors : Nat) : Positive { result := .ok (value, errors) } := by
+  simp [Positive, BasicErrors.PositiveFailure, WorkPositive]
+
 /-- An explicit positive error satisfies the certificate, with empty child work. -/
 
 theorem error {α : Type} (errors : Nat) (h : 0 < errors)
@@ -270,15 +274,15 @@ mutual
             | scalar scalar =>
                 simp only [completeValue]
                 split
-                · exact runEnsures_pure _ _ (error 1 (by decide))
+                · exact runEnsures_pure _ _ (ok ResponseValue.null 1)
                 · exact runEnsures_pure _ _ (pure _)
             | list items =>
                 simpa only [completeValue]
-                  using runEnsures_pure _ _ (error (α := ResponseValue) 1 (by decide))
+                  using runEnsures_pure _ _ (ok ResponseValue.null 1)
             | object runtimeType ref =>
                 simp only [completeValue]
                 split
-                · exact runEnsures_pure _ _ (error 1 (by decide))
+                · exact runEnsures_pure _ _ (ok ResponseValue.null 1)
                 · refine runEnsures_bind (fun _ : FieldCollection => True) _ _ _
                     (fun _ => trivial) ?_
                   intro collection _
@@ -293,10 +297,10 @@ mutual
                 simpa only [completeValue] using runEnsures_pure _ _ (pure ResponseValue.null)
             | scalar scalar =>
                 simpa only [completeValue]
-                  using runEnsures_pure _ _ (error (α := ResponseValue) 1 (by decide))
+                  using runEnsures_pure _ _ (ok ResponseValue.null 1)
             | object runtimeType ref =>
                 simpa only [completeValue]
-                  using runEnsures_pure _ _ (error (α := ResponseValue) 1 (by decide))
+                  using runEnsures_pure _ _ (ok ResponseValue.null 1)
             | list items =>
                 simpa only [completeValue] using completeListValueWithStream_positive
                   schema resolvers variables fuel inner fields items path usages deferMap

@@ -68,8 +68,8 @@ theorem valueRunConstruction_holds (schema : Schema) (resolvers : Resolvers Obje
                     keys,
                     by
                       simpa only [ScheduledExecution.completeValue,
-                        Execution.completeValue, Completion.error]
-                        using pureResult_run supplies (.error 1)
+                        Execution.completeValue]
+                        using pureResult_run supplies (.ok (ResponseValue.null, 1))
                   ⟩
           | list inner _ =>
               intro fields value path usages context allowStream keys left right supplies
@@ -89,16 +89,16 @@ theorem valueRunConstruction_holds (schema : Schema) (resolvers : Resolvers Obje
                     keys,
                     by
                       simpa only [ScheduledExecution.completeValue,
-                        Execution.completeValue, Completion.error]
-                        using pureResult_run supplies (.error 1)
+                        Execution.completeValue]
+                        using pureResult_run supplies (.ok (ResponseValue.null, 1))
                   ⟩
               | object runtimeType reference =>
                   exact ⟨
                     keys,
                     by
                       simpa only [ScheduledExecution.completeValue,
-                        Execution.completeValue, Completion.error]
-                        using pureResult_run supplies (.error 1)
+                        Execution.completeValue]
+                        using pureResult_run supplies (.ok (ResponseValue.null, 1))
                   ⟩
               | list items =>
                   simpa only [ScheduledExecution.completeValue, Execution.completeValue]

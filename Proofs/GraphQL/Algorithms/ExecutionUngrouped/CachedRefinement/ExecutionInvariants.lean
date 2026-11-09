@@ -611,9 +611,15 @@ mutual
                           (some (.list sourceValues? previousValues))
                           (by intro cached h; cases h; exact hpreviousReady))
                 | named typeName =>
-                    cases value <;>
-                      simp [completeValue, reuseOrCreateObject?, resultValueOrNull] <;>
-                      exact FieldCacheMergeReady.null
+                    cases value with
+                    | null | scalar _ | list _ =>
+                        simp [completeValue, resultValueOrNull]
+                        exact FieldCacheMergeReady.null
+                    | object runtimeType ref =>
+                        cases hincludes : schema.typeIncludesObjectBool typeName runtimeType <;>
+                          simp [completeValue, reuseOrCreateObject?, resultValueOrNull,
+                            hincludes] <;>
+                          exact FieldCacheMergeReady.null
                 | list inner =>
                     cases value with
                     | list values =>

@@ -1375,7 +1375,8 @@ private theorem annotatedResponseExecution_related_all
       definition group _hnamed _hlookup _houtput _hwitness _hexecutionValid
       _hfields _hvalid _hdefinitions
     simpa [completeAnnotatedResponseValue, hcomposite, foldAnnotatedResponseValueResult,
-      foldChildSummaryForValueResult]
+      foldChildSummaryForValueResult, foldAnnotatedResponseValue,
+      foldChildSummaryForValue]
       using soundness.empty_sound
   case case13 =>
     intro fuel typeName fields value hnotComposite runtimeType ref fieldName
@@ -1576,7 +1577,8 @@ private theorem annotatedResponseExecution_related_all
       | false => rfl
       | true => exact False.elim (hnotInclude hvalue)
     simpa [completeAnnotatedResponseValue, hinclude, foldAnnotatedResponseValueResult,
-      foldChildSummaryForValueResult]
+      foldChildSummaryForValueResult, foldAnnotatedResponseValue,
+      foldChildSummaryForValue]
       using soundness.empty_sound
   case case16 =>
     intro fuel inner fields values list_ih runtimeType ref fieldName
@@ -1615,14 +1617,16 @@ private theorem annotatedResponseExecution_related_all
       group _hnamed _hlookup _houtput _hwitness _hexecutionValid _hfields
       _hvalid _hdefinitions
     simpa [completeAnnotatedResponseValue, foldAnnotatedResponseValueResult,
-      foldChildSummaryForValueResult]
+      foldChildSummaryForValueResult, foldAnnotatedResponseValue,
+      foldChildSummaryForValue]
       using soundness.empty_sound
   case case18 =>
     intro fuel inner fields value hnotNull hnotList runtimeType ref fieldName
       definition group _hnamed _hlookup _houtput _hwitness _hexecutionValid
       _hfields _hvalid _hdefinitions
     simpa [completeAnnotatedResponseValue, hnotNull, hnotList,
-      foldAnnotatedResponseValueResult, foldChildSummaryForValueResult]
+      foldAnnotatedResponseValueResult, foldChildSummaryForValueResult,
+      foldAnnotatedResponseValue, foldChildSummaryForValue]
       using soundness.empty_sound
   case case19 =>
     intro fuel itemType fields runtimeType ref fieldName definition group

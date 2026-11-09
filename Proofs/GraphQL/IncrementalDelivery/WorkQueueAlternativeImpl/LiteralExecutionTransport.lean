@@ -103,14 +103,14 @@ mutual
             | scalar scalar =>
                 simp only [Execution.completeValue]
                 split
-                · exact MetadataFreeRun.pure (Completion.error 1 : Completion ResponseValue)
-                    (fun _ => by simp [completion, Completion.error, work])
+                · exact MetadataFreeRun.pure ({ result := .ok (ResponseValue.null, 1) } : Completion ResponseValue)
+                    (fun _ => by simp [completion, work])
                 · exact MetadataFreeRun.pure (.pure (ResponseValue.scalar scalar))
                     (fun _ => by simp [completion, Completion.pure, work])
             | list values =>
                 simp only [Execution.completeValue]
-                exact MetadataFreeRun.pure (Completion.error 1 : Completion ResponseValue)
-                  (fun _ => by simp [completion, Completion.error, work])
+                exact MetadataFreeRun.pure ({ result := .ok (ResponseValue.null, 1) } : Completion ResponseValue)
+                  (fun _ => by simp [completion, work])
         | list inner =>
             cases literal with
             | null =>
@@ -119,8 +119,8 @@ mutual
                   (fun _ => by simp [completion, Completion.pure, work])
             | scalar scalar =>
                 simp only [Execution.completeValue]
-                exact MetadataFreeRun.pure (Completion.error 1 : Completion ResponseValue)
-                  (fun _ => by simp [completion, Completion.error, work])
+                exact MetadataFreeRun.pure ({ result := .ok (ResponseValue.null, 1) } : Completion ResponseValue)
+                  (fun _ => by simp [completion, work])
             | @list values known =>
                 simpa only [Execution.completeValue,
                   Execution.completeListValueWithStream, Bool.false_eq_true, ↓reduceIte]
@@ -296,15 +296,15 @@ theorem literal_value_maps (schema : Schema) (resolvers : Resolvers ObjectRef)
       | succ fuel =>
           cases literal <;> simp only [Execution.completeValue]
           · simp [completion, Completion.pure, work]
-          · split <;> simp [completion, Completion.error, Completion.pure, work]
-          · simp [completion, Completion.error, work]
+          · split <;> simp [completion, Completion.pure, work]
+          · simp [completion, work]
   | list inner _ =>
       cases fuel with
       | zero => simp [Execution.completeValue, completion, work, Completion.error]
       | succ fuel =>
           cases literal with
           | null => simp [Execution.completeValue, completion, Completion.pure, work]
-          | scalar => simp [Execution.completeValue, completion, Completion.error, work]
+          | scalar => simp [Execution.completeValue, completion, work]
           | list values =>
               simpa only [Execution.completeValue]
                 using literal_listWithStream_maps schema resolvers variables fuel inner
