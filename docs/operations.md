@@ -37,6 +37,10 @@ applicability. Variable compatibility includes the nullable-variable exception
 for a non-null default. Root and composite selection sets must be nonempty.
 The modeled value checks are not a full input-coercion implementation.
 
+Custom-scalar arguments accept opaque constant payloads, including object values.
+Variables can supply the entire payload. Scalar-specific acceptance is assumed;
+variables nested inside opaque literal payloads are not modeled.
+
 ## Field merging
 
 Field-merge validation follows the declared type contexts in spec 5.3.2.

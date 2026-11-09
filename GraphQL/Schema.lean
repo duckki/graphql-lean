@@ -534,6 +534,12 @@ def lookupInputObject (schema : Schema) (typeName : Name) : Option InputObjectTy
   | some (.inputObject inputObject) => some inputObject
   | _ => none
 
+-- Spec 3.5 custom scalars retain their identity while value coercion stays abstract.
+def lookupCustomScalar (schema : Schema) (typeName : Name) : Option CustomScalarType := do
+  match schema.lookupType typeName with
+  | some (.customScalar scalar) => some scalar
+  | _ => none
+
 -- Spec 3.7 interface lookup helper for implementation checks and possible types.
 def lookupInterface (schema : Schema) (typeName : Name) : Option InterfaceType := do
   match schema.lookupType typeName with
@@ -731,7 +737,8 @@ def getConstInputObjectField? (fields : List (Name × ConstInputValue)) (name : 
 
 mutual
   -- Spec 3.6.1 / 3.10 default-value validity: constants are checked against input
-  -- object definitions recursively, while scalar coercion details remain out of scope.
+  -- object definitions recursively. Custom-scalar payloads stay opaque, while scalar
+  -- coercion details remain out of scope.
   inductive ConstInputValueIsCorrectType (schema : Schema)
       : ConstInputValue -> TypeRef -> Prop where
     | nullNamed (typeName : Name) (hinput : (TypeRef.named typeName).isInputType schema)
@@ -753,6 +760,12 @@ mutual
       (hinput : (TypeRef.named typeName).isInputType schema)
       (hlookup : schema.lookupInputObject typeName = some inputObject)
       (hfields : ConstInputObjectFieldsValid schema inputObject.inputFields fields)
+      : ConstInputValueIsCorrectType schema
+          (ConstInputValue.object fields) (TypeRef.named typeName)
+    | objectCustomScalar (fields : List (Name × ConstInputValue)) (typeName : Name)
+      (scalar : CustomScalarType)
+      (hinput : (TypeRef.named typeName).isInputType schema)
+      (hlookup : schema.lookupCustomScalar typeName = some scalar)
       : ConstInputValueIsCorrectType schema
           (ConstInputValue.object fields) (TypeRef.named typeName)
     | objectAsListItem (fields : List (Name × ConstInputValue)) (inner : TypeRef)

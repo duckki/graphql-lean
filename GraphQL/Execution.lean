@@ -292,7 +292,15 @@ mutual
         | .error => .error
     | fuel + 1, .named typeName, .object fields =>
         match schema.lookupInputObject typeName with
-        | none => .error
+        | none =>
+            -- Custom-scalar payloads are already coerced opaque constants. Their
+            -- object keys are data, not input-object fields to validate or default.
+            match schema.lookupCustomScalar typeName with
+            | none => .error
+            | some _scalar =>
+                match ConstInputValue.ofInputValue? (.object fields) with
+                | some coerced => .success coerced
+                | none => .error
         | some inputObject =>
             if inputObjectFieldsKnownBool inputObject.inputFields fields then
               match coerceInputObjectFieldsBounded schema variableValues fuel

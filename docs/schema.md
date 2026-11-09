@@ -19,6 +19,10 @@ Object and interface definitions carry field definitions and lists of declared
 interfaces. Field definitions carry output types and argument definitions. Input
 value definitions carry input types and optional constant defaults.
 
+`CustomScalarType` records a scalar's name without coercion rules. Custom scalars
+are valid input and output leaf types; their constant defaults may contain opaque
+object or list payloads. Those payloads do not use input-object field definitions.
+
 Raw syntax remains permissive. Invalid references, duplicate declarations,
 self-implementation, and cycles are representable. Lookup and finite reachability
 helpers do not require a well-formedness proof.

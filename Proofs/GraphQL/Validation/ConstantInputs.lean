@@ -74,7 +74,7 @@ theorem constInputValue_valid_toInputValue (schema : Schema)
       fun fields inputType _ =>
         InputObjectAsListItemValid schema definitions
           (fields.map fun entry => (entry.1, entry.2.toInputValue)) inputType)
-    ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ h
+    ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ h
   · intro name hinput locationDefault
     exact .nullNamed _ _ hinput
   · intro inner hinput locationDefault
@@ -91,6 +91,8 @@ theorem constInputValue_valid_toInputValue (schema : Schema)
   · intro fields name object hinput hlookup _ ih locationDefault
     apply ValueIsCorrectTypeAtLocation.objectNamed _ _ _ object hinput hlookup
     simpa only [objectFieldsToInputFields_eq_map] using ih
+  · intro fields name scalar hinput hlookup locationDefault
+    exact .objectCustomScalar _ _ _ scalar hinput hlookup ⟨.object fields, rfl⟩
   · intro fields inner hinput _ ih locationDefault
     apply ValueIsCorrectTypeAtLocation.objectAsListItem _ _ _ hinput
     simpa only [objectFieldsToInputFields_eq_map] using ih

@@ -387,6 +387,10 @@ theorem valueIsCorrectTypeAtLocation_variable_defined
       exact ihItems item hitem hitemVariable)
     (fun _fields _typeName _locationDefault _inputObject _hinput _hlookup _hfields
         ihFields hvariable => ihFields hvariable)
+    (fun _fields _typeName _locationDefault _scalar _hinput _hlookup hconst hvariable => by
+      rcases hconst with ⟨constValue, heq⟩
+      rw [heq, constInputValue_toInputValue_variables_empty] at hvariable
+      cases hvariable)
     (fun _fields _inner _locationDefault _hinput _hitem ihItem hvariable =>
       ihItem hvariable)
     (fun _value _inner _locationDefault _hinput _hnotList _hnotObject _hnotNull

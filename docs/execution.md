@@ -40,6 +40,12 @@ a bound on finite, user-supplied recursive inputs through nullable or list field
 Schema default and cycle requirements are described in
 [schemas](schema.md#input-object-cycles).
 
+Custom-scalar payloads pass through as opaque constant values, including objects
+and lists. Argument preparation preserves their contents without applying
+input-object field checks or defaults inside the payload. Scalar-specific value
+coercion remains an assumption. Missing arguments, defaults, nullability, and list
+wrappers still use the ordinary input-preparation rules.
+
 Defaulting happens before directive evaluation. The `if` argument of `@skip`
 and `@include` has type `Boolean!`, but spec 5.8.5 permits a nullable Boolean
 variable at that location when its operation definition has a non-null default.

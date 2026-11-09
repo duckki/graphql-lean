@@ -80,7 +80,8 @@ def variableUsageAllowed (schema : Schema)
 mutual
   -- Spec 5.6.1 Values of Correct Type, 5.6.2-5.6.4 input object rules, 5.8.3
   -- variable definition lookup, and 5.8.5 variable usage compatibility. Literal coercion
-  -- remains deliberately shallow, but input-object structure is checked recursively.
+  -- remains deliberately shallow. Input-object structure is checked recursively;
+  -- custom-scalar payloads are opaque constants.
   inductive ValueIsCorrectTypeAtLocation (schema : Schema)
       (variableDefinitions : List VariableDefinition)
       : InputValue -> TypeRef -> Option ConstInputValue -> Prop where
@@ -130,6 +131,16 @@ mutual
       (hfields
         : InputObjectFieldsValid schema variableDefinitions
             inputObject.inputFields fields)
+      : ValueIsCorrectTypeAtLocation schema variableDefinitions
+          (InputValue.object fields) (TypeRef.named typeName) locationDefault
+    | objectCustomScalar (fields : List (Name × InputValue)) (typeName : Name)
+      (locationDefault : Option ConstInputValue)
+      (scalar : CustomScalarType)
+      (hinput : (TypeRef.named typeName).isInputType schema)
+      (hlookup : schema.lookupCustomScalar typeName = some scalar)
+      (hconst
+        : ∃ constValue : ConstInputValue,
+            InputValue.object fields = constValue.toInputValue)
       : ValueIsCorrectTypeAtLocation schema variableDefinitions
           (InputValue.object fields) (TypeRef.named typeName) locationDefault
     | objectAsListItem (fields : List (Name × InputValue)) (inner : TypeRef)

@@ -91,6 +91,12 @@ theorem coerceInputValueBounded_success_of_valid_of_defaults
           obtain ⟨coerced, hcoerced⟩ :=
             coerceInputValueListBounded_success_of_items hcoerceItems
           exact ⟨.list coerced, by simp [coerceInputValueBounded, hcoerced]⟩
+      | objectCustomScalar fields name _ scalar _ hlookup hconst =>
+          obtain ⟨coerced, heq⟩ := hconst
+          refine ⟨coerced, ?_⟩
+          rw [heq]
+          exact coerceInputValueBounded_customScalar_const schema values fuel name scalar
+            coerced hlookup
       | objectNamed fields name _ inputObject _ hlookup hfields =>
           have hobjectWell
               : SchemaWellFormedness.inputObjectTypeWellFormed schema inputObject :=

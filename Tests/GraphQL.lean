@@ -1,4 +1,5 @@
 import Tests.GraphQL.Schema
+import Tests.GraphQL.CustomScalars
 import Tests.GraphQL.Schema.OutputTypeSubtype
 import Tests.GraphQL.SchemaWellFormedness.InterfaceInheritance
 import Tests.GraphQL.SchemaWellFormedness.InterfaceValidation

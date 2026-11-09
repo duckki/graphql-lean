@@ -26,7 +26,8 @@ are documented in [schemas](schema.md), [operations](operations.md),
 - **Named fragments:** a separate fragment-aware layer with syntax, validation,
   execution, and inlining.
 - **Input preparation:** operation-variable defaults, argument materialization,
-  schema argument defaults, and nested input-object defaults.
+  schema argument defaults, nested input-object defaults, and opaque custom-scalar
+  payloads.
 - **Execution:** resolver-parametric field collection and grouped execution,
   nullable/non-null/list completion, null bubbling, ordered response data, and
   execution-error counts.
