@@ -126,3 +126,8 @@ for workflow details.
 - [docs/theories/static-cost.md](docs/theories/static-cost.md): static cost and list-size
   model, cost rule, and tree-summary entry points.
 - [docs/development.md](docs/development.md): developer guide.
+
+## License
+
+This project is licensed under the [GNU General Public License, version 3](LICENSE)
+(SPDX: `GPL-3.0-only`).

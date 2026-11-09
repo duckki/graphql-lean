@@ -1,5 +1,7 @@
 name = "graphql-lean"
 version = "0.1.0"
+license = "GPL-3.0-only"
+licenseFiles = ["LICENSE"]
 defaultTargets = ["GraphQL", "Proofs"]
 lintDriver = "lint"
 
