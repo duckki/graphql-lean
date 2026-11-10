@@ -279,15 +279,18 @@ def selectionSetBoundarySyntacticInclusionShortcutBool (schema : Schema)
   && selectionSetSyntacticallyIncludesAtBoundaryBool schema possibleTypes left right
 
 -- A field's child may have covariant return types across the possible concrete
--- parents. Their union is a conservative context for recursive syntax matching.
+-- parents. Their union is a conservative context for recursive syntax matching. Parents
+-- sharing a return type would otherwise repeat its types, doubling the list at every
+-- level of a recursive descent.
 def syntacticFieldChildPossibleTypes (schema : Schema) (possibleTypes : ObjectTypeNames)
     (fieldName : Name)
     : ObjectTypeNames :=
-  possibleTypes.flatMap
+  (possibleTypes.flatMap
     fun parentType =>
       match schema.lookupField parentType fieldName with
       | none => []
-      | some definition => schema.getPossibleTypes definition.outputType.namedType
+      | some definition => schema.getPossibleTypes definition.outputType.namedType)
+  |>.eraseDups
 
 def syntacticFragmentChildPossibleTypes (schema : Schema)
     (possibleTypes : ObjectTypeNames) (typeCondition : Option Name)
@@ -743,6 +746,44 @@ def guardedFieldGroupLocallyIncludesBool (schema : Schema) (responseFuel : Nat)
   || guardedCompositeFieldIncludesBool schema responseFuel fixedExecutionParentType
       left right regions
 
+-- The child obligations of one type region of a response-name group. The region's first
+-- runtime type selects its active occurrences; every execution parent type in the region
+-- then contributes its matched child tasks.
+def guardedFieldGroupRegionChildTasks? (schema : Schema)
+    (fixedExecutionParentType : Option Name) (variableValues : VariableValues)
+    (left right : GuardedFieldGroup)
+    : ObjectTypeNames -> Option (List InclusionChildTask)
+  | [] => some []
+  | runtimeType :: rest =>
+      let leftFields :=
+        guardedFieldExecutableFields variableValues runtimeType left.entries
+      let rightFields :=
+        guardedFieldExecutableFields variableValues runtimeType right.entries
+      let parentTypes :=
+        match fixedExecutionParentType with
+        | some parentType => [parentType]
+        | none => runtimeType :: rest
+      inclusionChildTasksForParentTypes? schema
+        (executableFieldsAsGroup left.responseName leftFields)
+        (executableFieldsAsGroup right.responseName rightFields) parentTypes
+
+-- The child obligations of every type region of a response-name group. Regions whose
+-- active occurrences merge to equal child selections contribute equal tasks, kept once,
+-- so the caller decides each distinct obligation once rather than once per region.
+def guardedFieldGroupChildTasks? (schema : Schema)
+    (fixedExecutionParentType : Option Name) (variableValues : VariableValues)
+    (left right : GuardedFieldGroup)
+    : List ObjectTypeNames -> Option (List InclusionChildTask)
+  | [] => some []
+  | region :: rest => do
+      let tasks ←
+        guardedFieldGroupRegionChildTasks? schema fixedExecutionParentType variableValues
+          left right region
+      let restTasks ←
+        guardedFieldGroupChildTasks? schema fixedExecutionParentType variableValues left
+          right rest
+      pure <| deduplicateInclusionChildTasks (tasks ++ restTasks)
+
 def guardedFieldChildContributions (entries : List SelectionConditions.ConditionedField)
     : List (List SelectionConditions.BooleanLiteral × List Selection) :=
   entries.map
@@ -833,48 +874,40 @@ mutual
 
   -- Checks one response name for a fixed Boolean assignment over every relevant type
   -- region. Conditions belonging exclusively to other response names never enter this
-  -- search space.
+  -- search space. The child tasks of all regions are collected before any recursion, so
+  -- an obligation shared by several regions is decided once.
   def guardedFieldGroupIncludesForRegionsWithFuel (schema : Schema)
       (responseFuel : Nat) (fixedExecutionParentType : Option Name)
       (variableValues : VariableValues) (left right : GuardedFieldGroup)
       (regions : List ObjectTypeNames)
       : Bool :=
-    regions.all
-      fun region =>
-        match region with
-        | [] => true
-        | runtimeType :: _rest =>
-            let leftFields :=
-              guardedFieldExecutableFields variableValues runtimeType left.entries
-            let rightFields :=
-              guardedFieldExecutableFields variableValues runtimeType right.entries
-            match responseFuel with
-            | 0 => rightFields.isEmpty
-            | responseFuel + 1 =>
-                let parentTypes :=
-                  match fixedExecutionParentType with
-                  | some parentType => [parentType]
-                  | none => region
-                let leftGroups := executableFieldsAsGroup left.responseName leftFields
-                let rightGroups := executableFieldsAsGroup right.responseName rightFields
-                match inclusionChildTasksForParentTypes? schema leftGroups rightGroups
-                        parentTypes with
-                | none => false
-                | some tasks =>
-                    tasks.all
-                      fun task =>
-                        selectionSetSyntacticInclusionShortcutBool schema
-                          responseFuel task.possibleTypes task.leftSelectionSet
-                          task.rightSelectionSet
-                        ||  let leftChildEntries :=
-                              SelectionConditions.ofTypeRegion schema task.possibleTypes
-                                task.leftSelectionSet
-                            let rightChildEntries :=
-                              SelectionConditions.ofTypeRegion schema task.possibleTypes
-                                task.rightSelectionSet
-                            guardedFieldGroupsIncludeWithFuel schema responseFuel none
-                              variableValues (guardedFieldGroups leftChildEntries)
-                              (guardedFieldGroups rightChildEntries)
+    match responseFuel with
+    | 0 =>
+        regions.all
+          fun region =>
+            match region with
+            | [] => true
+            | runtimeType :: _rest =>
+                (guardedFieldExecutableFields variableValues runtimeType
+                  right.entries).isEmpty
+    | responseFuel + 1 =>
+        match guardedFieldGroupChildTasks? schema fixedExecutionParentType variableValues
+                left right regions with
+        | none => false
+        | some tasks =>
+            tasks.all
+              fun task =>
+                selectionSetSyntacticInclusionShortcutBool schema responseFuel
+                  task.possibleTypes task.leftSelectionSet task.rightSelectionSet
+                ||  let leftChildEntries :=
+                      SelectionConditions.ofTypeRegion schema task.possibleTypes
+                        task.leftSelectionSet
+                    let rightChildEntries :=
+                      SelectionConditions.ofTypeRegion schema task.possibleTypes
+                        task.rightSelectionSet
+                    guardedFieldGroupsIncludeWithFuel schema responseFuel none
+                      variableValues (guardedFieldGroups leftChildEntries)
+                      (guardedFieldGroups rightChildEntries)
   termination_by (responseFuel, 0, 0)
   decreasing_by
     all_goals simp_wf
