@@ -1,6 +1,7 @@
 import GraphQL.Theories.QueryInclusion
 import Proofs.GraphQL.Theories.QueryInclusion
 import Tests.GraphQL.Common
+import Tests.GraphQL.Theories.QueryInclusion.GrowingFamilies
 
 namespace GraphQL.Tests.QueryInclusion
 

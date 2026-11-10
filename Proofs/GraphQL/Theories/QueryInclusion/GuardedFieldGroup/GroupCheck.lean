@@ -906,8 +906,6 @@ theorem guardedFieldGroupIncludesWithFuel_sound
       simp only [hremaining] at hcovered hremainingWithin
       rw [guardedFieldGroupIncludesWithFuel.eq_def] at hcheck
       simp only [hremaining] at hcheck
-      rw [guardedFieldGroupIncludesForRegionsWithFuel] at hcheck
-      have hregionCheck := List.all_eq_true.mp hcheck region hregion
       cases region with
       | nil => simp at hruntime
       | cons representativeRuntimeType rest =>
@@ -950,6 +948,8 @@ theorem guardedFieldGroupIncludesWithFuel_sound
               hvariableAgreement]
           cases responseFuel with
           | zero =>
+              rw [guardedFieldGroupIncludesForRegionsWithFuel] at hcheck
+              have hregionCheck := List.all_eq_true.mp hcheck _ hregion
               change baseRightFields.isEmpty = true at hregionCheck
               change targetRightFields.isEmpty = true
               cases hbase : baseRightFields with
@@ -966,24 +966,42 @@ theorem guardedFieldGroupIncludesWithFuel_sound
                 match fixedExecutionParentType with
                 | some parentType => [parentType]
                 | none => representativeRuntimeType :: rest
+              rw [guardedFieldGroupIncludesForRegionsWithFuel] at hcheck
               change
-                (match inclusionChildTasksForParentTypes? schema baseLeftGroups
-                    baseRightGroups parentTypes with
+                (match guardedFieldGroupChildTasks? schema fixedExecutionParentType
+                    checkValues left right
+                    (guardedFieldGroupTypeRegions parentRegion left right) with
                   | none => false
                   | some tasks => tasks.all fun task =>
                       guardedFieldChildIncludesBool schema responseFuel checkValues
                         task.possibleTypes task.leftSelectionSet
-                        task.rightSelectionSet) = true at hregionCheck
-              cases htasks
-                    : inclusionChildTasksForParentTypes? schema baseLeftGroups
-                        baseRightGroups parentTypes with
-              | none => simp [htasks] at hregionCheck
-              | some tasks =>
+                        task.rightSelectionSet) = true at hcheck
+              cases hmerged
+                    : guardedFieldGroupChildTasks? schema fixedExecutionParentType
+                        checkValues left right
+                        (guardedFieldGroupTypeRegions parentRegion left right) with
+              | none => simp [hmerged] at hcheck
+              | some merged =>
+                  have hmergedChecks : merged.all fun task =>
+                      guardedFieldChildIncludesBool schema responseFuel checkValues
+                        task.possibleTypes task.leftSelectionSet
+                        task.rightSelectionSet := by
+                    simpa [hmerged] using hcheck
+                  rcases guardedFieldGroupChildTasks?_contains schema
+                      fixedExecutionParentType checkValues left right hmerged hregion with
+                    ⟨tasks, hregionTasks, hregionCovered⟩
+                  have htasks
+                      : inclusionChildTasksForParentTypes? schema baseLeftGroups
+                          baseRightGroups parentTypes
+                        = some tasks := hregionTasks
                   have htaskChecks : tasks.all fun task =>
                       guardedFieldChildIncludesBool schema responseFuel checkValues
                         task.possibleTypes task.leftSelectionSet
                         task.rightSelectionSet := by
-                    simpa [htasks] using hregionCheck
+                    apply List.all_eq_true.mpr
+                    intro task htask
+                    exact List.all_eq_true.mp hmergedChecks task
+                      (hregionCovered task htask)
                   have hparent : targetExecutionParentType ∈ parentTypes := by
                     cases fixedExecutionParentType with
                     | none =>
@@ -1146,49 +1164,38 @@ theorem guardedFieldGroupIncludesWithFuel_complete
       simp only [hremaining] at hcovered hremainingWithin
       rw [guardedFieldGroupIncludesWithFuel.eq_def]
       simp only
-      rw [guardedFieldGroupIncludesForRegionsWithFuel]
-      apply List.all_eq_true.mpr
-      intro region hregion
-      cases region with
-      | nil => simp
-      | cons representativeRuntimeType rest =>
-          let targetValues :=
-            representativeBooleanValues availableBooleanVariables checkValues
-          have htargetComplete : boolVarsComplete availableBooleanVariables
-              targetValues := representativeBooleanValues_complete _ _
-          have htargetAgrees : BooleanAssignmentsAgree checkValues targetValues :=
-            representativeBooleanValues_agree hknown
-          have hcase := hcases checkValues hknown hbaseAgrees (by
-            intro variableName hvariable
-            rcases hcovered variableName hvariable with hremaining | hvalue
-            · simp at hremaining
-            · exact hvalue) targetValues
-            htargetComplete htargetAgrees
-          let baseLeftFields :=
-            guardedFieldExecutableFields checkValues representativeRuntimeType
-              left.entries
-          let baseRightFields :=
-            guardedFieldExecutableFields checkValues representativeRuntimeType
-              right.entries
-          let baseLeftGroups := executableFieldsAsGroup left.responseName baseLeftFields
-          let baseRightGroups :=
-            executableFieldsAsGroup right.responseName baseRightFields
-          let parentTypes :=
-            match fixedExecutionParentType with
-            | some parentType => [parentType]
-            | none => representativeRuntimeType :: rest
-          have hvariableAgreement : ∀ variableName,
-              variableName ∈ guardedFieldGroupBooleanVariables left right
-              -> inputValueBoolean? checkValues (.variable variableName)
-                  = inputValueBoolean? targetValues (.variable variableName) := by
-            intro variableName hvariable
-            rcases hcovered variableName hvariable with hremaining | hknownValue
-            · simp at hremaining
-            · rcases hknownValue with ⟨value, hvalue⟩
-              exact hvalue.trans (htargetAgrees variableName value hvalue).symm
-          cases responseFuel with
-          | zero =>
-              change baseRightFields.isEmpty = true
+      let targetValues :=
+        representativeBooleanValues availableBooleanVariables checkValues
+      have htargetComplete : boolVarsComplete availableBooleanVariables
+          targetValues := representativeBooleanValues_complete _ _
+      have htargetAgrees : BooleanAssignmentsAgree checkValues targetValues :=
+        representativeBooleanValues_agree hknown
+      have hcase := hcases checkValues hknown hbaseAgrees (by
+        intro variableName hvariable
+        rcases hcovered variableName hvariable with hremaining | hvalue
+        · simp at hremaining
+        · exact hvalue) targetValues
+        htargetComplete htargetAgrees
+      have hvariableAgreement : ∀ variableName,
+          variableName ∈ guardedFieldGroupBooleanVariables left right
+          -> inputValueBoolean? checkValues (.variable variableName)
+              = inputValueBoolean? targetValues (.variable variableName) := by
+        intro variableName hvariable
+        rcases hcovered variableName hvariable with hremaining | hknownValue
+        · simp at hremaining
+        · rcases hknownValue with ⟨value, hvalue⟩
+          exact hvalue.trans (htargetAgrees variableName value hvalue).symm
+      cases responseFuel with
+      | zero =>
+          rw [guardedFieldGroupIncludesForRegionsWithFuel]
+          apply List.all_eq_true.mpr
+          intro region hregion
+          cases region with
+          | nil => simp
+          | cons representativeRuntimeType rest =>
+              change (guardedFieldExecutableFields checkValues representativeRuntimeType
+                        right.entries).isEmpty
+              = true
               have hrepresentative := hcase (representativeRuntimeType :: rest)
                 hregion representativeRuntimeType (by simp)
               change
@@ -1203,94 +1210,134 @@ theorem guardedFieldGroupIncludesWithFuel_complete
                   (by simp) (by simp) hvariableAgreement
               rw [← hfields] at hrepresentative
               exact hrepresentative
-          | succ responseFuel =>
-              change (match inclusionChildTasksForParentTypes? schema baseLeftGroups
-                              baseRightGroups parentTypes with
-                      | none => false
-                      | some tasks =>
-                          tasks.all
-                            fun task =>
-                              guardedFieldChildIncludesBool schema responseFuel
-                                checkValues task.possibleTypes task.leftSelectionSet
-                                task.rightSelectionSet)
-                      = true
-              have hnodup : (baseLeftGroups.map Prod.fst).Nodup := by
-                exact executableFieldsAsGroup_keysNodup _ _
-              have hinclude : ∀ parentType,
-                  parentType ∈ parentTypes
-                  -> executableGroupsIncludeBool schema
-                      parentType
-                      (fun outputType leftSelectionSet rightSelectionSet =>
+      | succ responseFuel =>
+          have hregionTasks : ∀ region,
+              region ∈ guardedFieldGroupTypeRegions parentRegion left right
+              -> ∃ tasks,
+                  guardedFieldGroupRegionChildTasks? schema fixedExecutionParentType
+                      checkValues left right region
+                    = some tasks
+                  ∧ tasks.all
+                      (fun task =>
                         guardedFieldChildIncludesBool schema responseFuel checkValues
-                          (schema.getPossibleTypes outputType.namedType)
-                          leftSelectionSet rightSelectionSet)
-                      baseLeftGroups baseRightGroups
+                          task.possibleTypes task.leftSelectionSet
+                          task.rightSelectionSet)
                     = true := by
-                intro parentType hparent
-                obtain ⟨runtimeType, hruntime, hexecutionParent⟩ :
-                    ∃ runtimeType,
-                      runtimeType ∈ representativeRuntimeType :: rest
-                      ∧ fixedExecutionParentType.getD runtimeType = parentType := by
-                  cases fixedExecutionParentType with
-                  | none => exact ⟨parentType, hparent, rfl⟩
-                  | some fixedParentType =>
-                      have heq : parentType = fixedParentType := by
-                        simpa [parentTypes] using hparent
-                      subst parentType
-                      exact ⟨representativeRuntimeType, by simp, rfl⟩
-                have htargetCase := hcase (representativeRuntimeType :: rest) hregion
-                  runtimeType hruntime
-                let targetLeftFields :=
-                  guardedFieldExecutableFields targetValues runtimeType left.entries
-                let targetRightFields :=
-                  guardedFieldExecutableFields targetValues runtimeType right.entries
-                let targetLeftGroups :=
-                  executableFieldsAsGroup left.responseName targetLeftFields
-                let targetRightGroups :=
-                  executableFieldsAsGroup right.responseName targetRightFields
-                have hleftGroups : baseLeftGroups = targetLeftGroups := by
-                  unfold baseLeftGroups baseLeftFields targetLeftGroups targetLeftFields
-                  rw [guardedFieldExecutableFields_eq_of_region_and_variables
-                    parentRegion left right left (Or.inl rfl) hregion (by simp) hruntime
-                    hvariableAgreement]
-                have hrightGroups : baseRightGroups = targetRightGroups := by
-                  unfold baseRightGroups baseRightFields targetRightGroups targetRightFields
-                  rw [guardedFieldExecutableFields_eq_of_region_and_variables
-                    parentRegion left right right (Or.inr rfl) hregion (by simp) hruntime
-                    hvariableAgreement]
-                simp only [guardedFieldGroupCaseIncludesBool] at htargetCase
-                rw [hexecutionParent] at htargetCase
-                change executableGroupsIncludeBool schema
-                  parentType
-                  (fun outputType leftSelectionSet rightSelectionSet =>
-                    childIncludes checkValues
-                      (schema.getPossibleTypes outputType.namedType) leftSelectionSet
-                      rightSelectionSet)
-                  targetLeftGroups targetRightGroups = true at htargetCase
-                have hconverted := executableGroupsIncludeBool_mono_child schema parentType
-                  (fun outputType leftSelectionSet rightSelectionSet =>
-                    childIncludes checkValues
-                      (schema.getPossibleTypes outputType.namedType) leftSelectionSet
-                      rightSelectionSet)
-                  (fun outputType leftSelectionSet rightSelectionSet =>
-                    guardedFieldChildIncludesBool schema responseFuel checkValues
-                      (schema.getPossibleTypes outputType.namedType)
-                      leftSelectionSet rightSelectionSet)
-                  (by
-                    intro outputType leftSelectionSet rightSelectionSet hchild
-                    exact hchildComplete responseFuel rfl checkValues hknown hbaseAgrees
-                      (schema.getPossibleTypes outputType.namedType) leftSelectionSet
-                      rightSelectionSet hchild)
-                  targetLeftGroups targetRightGroups htargetCase
-                rw [hleftGroups, hrightGroups]
-                exact hconverted
-              rcases inclusionChildTasksForParentTypes?_exists_of_include schema
-                  (fun possibleTypes leftSelectionSet rightSelectionSet =>
-                    guardedFieldChildIncludesBool schema responseFuel checkValues
-                      possibleTypes leftSelectionSet rightSelectionSet)
-                  baseLeftGroups baseRightGroups parentTypes hnodup hinclude with
-                ⟨tasks, htasks, hchildren⟩
-              simp [htasks, hchildren]
+            intro region hregion
+            cases region with
+            | nil => exact ⟨[], rfl, rfl⟩
+            | cons representativeRuntimeType rest =>
+                let baseLeftFields :=
+                  guardedFieldExecutableFields checkValues representativeRuntimeType
+                    left.entries
+                let baseRightFields :=
+                  guardedFieldExecutableFields checkValues representativeRuntimeType
+                    right.entries
+                let baseLeftGroups :=
+                  executableFieldsAsGroup left.responseName baseLeftFields
+                let baseRightGroups :=
+                  executableFieldsAsGroup right.responseName baseRightFields
+                let parentTypes :=
+                  match fixedExecutionParentType with
+                  | some parentType => [parentType]
+                  | none => representativeRuntimeType :: rest
+                have hnodup : (baseLeftGroups.map Prod.fst).Nodup := by
+                  exact executableFieldsAsGroup_keysNodup _ _
+                have hinclude : ∀ parentType,
+                    parentType ∈ parentTypes
+                    -> executableGroupsIncludeBool schema
+                        parentType
+                        (fun outputType leftSelectionSet rightSelectionSet =>
+                          guardedFieldChildIncludesBool schema responseFuel checkValues
+                            (schema.getPossibleTypes outputType.namedType)
+                            leftSelectionSet rightSelectionSet)
+                        baseLeftGroups baseRightGroups
+                      = true := by
+                  intro parentType hparent
+                  obtain ⟨runtimeType, hruntime, hexecutionParent⟩ :
+                      ∃ runtimeType,
+                        runtimeType ∈ representativeRuntimeType :: rest
+                        ∧ fixedExecutionParentType.getD runtimeType = parentType := by
+                    cases fixedExecutionParentType with
+                    | none => exact ⟨parentType, hparent, rfl⟩
+                    | some fixedParentType =>
+                        have heq : parentType = fixedParentType := by
+                          simpa [parentTypes] using hparent
+                        subst parentType
+                        exact ⟨representativeRuntimeType, by simp, rfl⟩
+                  have htargetCase := hcase (representativeRuntimeType :: rest) hregion
+                    runtimeType hruntime
+                  let targetLeftFields :=
+                    guardedFieldExecutableFields targetValues runtimeType left.entries
+                  let targetRightFields :=
+                    guardedFieldExecutableFields targetValues runtimeType right.entries
+                  let targetLeftGroups :=
+                    executableFieldsAsGroup left.responseName targetLeftFields
+                  let targetRightGroups :=
+                    executableFieldsAsGroup right.responseName targetRightFields
+                  have hleftGroups : baseLeftGroups = targetLeftGroups := by
+                    unfold baseLeftGroups baseLeftFields targetLeftGroups targetLeftFields
+                    rw [guardedFieldExecutableFields_eq_of_region_and_variables
+                      parentRegion left right left (Or.inl rfl) hregion (by simp) hruntime
+                      hvariableAgreement]
+                  have hrightGroups : baseRightGroups = targetRightGroups := by
+                    unfold baseRightGroups baseRightFields targetRightGroups targetRightFields
+                    rw [guardedFieldExecutableFields_eq_of_region_and_variables
+                      parentRegion left right right (Or.inr rfl) hregion (by simp) hruntime
+                      hvariableAgreement]
+                  simp only [guardedFieldGroupCaseIncludesBool] at htargetCase
+                  rw [hexecutionParent] at htargetCase
+                  change executableGroupsIncludeBool schema
+                    parentType
+                    (fun outputType leftSelectionSet rightSelectionSet =>
+                      childIncludes checkValues
+                        (schema.getPossibleTypes outputType.namedType) leftSelectionSet
+                        rightSelectionSet)
+                    targetLeftGroups targetRightGroups = true at htargetCase
+                  have hconverted := executableGroupsIncludeBool_mono_child schema parentType
+                    (fun outputType leftSelectionSet rightSelectionSet =>
+                      childIncludes checkValues
+                        (schema.getPossibleTypes outputType.namedType) leftSelectionSet
+                        rightSelectionSet)
+                    (fun outputType leftSelectionSet rightSelectionSet =>
+                      guardedFieldChildIncludesBool schema responseFuel checkValues
+                        (schema.getPossibleTypes outputType.namedType)
+                        leftSelectionSet rightSelectionSet)
+                    (by
+                      intro outputType leftSelectionSet rightSelectionSet hchild
+                      exact hchildComplete responseFuel rfl checkValues hknown hbaseAgrees
+                        (schema.getPossibleTypes outputType.namedType) leftSelectionSet
+                        rightSelectionSet hchild)
+                    targetLeftGroups targetRightGroups htargetCase
+                  rw [hleftGroups, hrightGroups]
+                  exact hconverted
+                rcases inclusionChildTasksForParentTypes?_exists_of_include schema
+                    (fun possibleTypes leftSelectionSet rightSelectionSet =>
+                      guardedFieldChildIncludesBool schema responseFuel checkValues
+                        possibleTypes leftSelectionSet rightSelectionSet)
+                    baseLeftGroups baseRightGroups parentTypes hnodup hinclude with
+                  ⟨tasks, htasks, hchildren⟩
+                exact ⟨tasks, htasks, hchildren⟩
+          rcases guardedFieldGroupChildTasks?_exists_of_regions schema
+              fixedExecutionParentType checkValues left right
+              (fun task =>
+                guardedFieldChildIncludesBool schema responseFuel checkValues
+                  task.possibleTypes task.leftSelectionSet task.rightSelectionSet)
+              (guardedFieldGroupTypeRegions parentRegion left right) hregionTasks with
+            ⟨tasks, htasks, hchildren⟩
+          rw [guardedFieldGroupIncludesForRegionsWithFuel]
+          change (match guardedFieldGroupChildTasks? schema fixedExecutionParentType
+                          checkValues left right
+                          (guardedFieldGroupTypeRegions parentRegion left right) with
+                  | none => false
+                  | some tasks =>
+                      tasks.all
+                        fun task =>
+                          guardedFieldChildIncludesBool schema responseFuel checkValues
+                            task.possibleTypes task.leftSelectionSet
+                            task.rightSelectionSet)
+                  = true
+          simp [htasks, hchildren]
 termination_by (responseFuel, remainingBooleanVariables.length)
 decreasing_by
   all_goals simp_wf
