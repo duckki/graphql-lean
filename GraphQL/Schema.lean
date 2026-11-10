@@ -1,5 +1,5 @@
 /-! GraphQL schema representation
-Spec reference: GraphQL September 2025.
+Spec reference: GraphQL September 2026.
 - 2.1.8 Names: names identify schema and executable elements; this model stores raw
   strings and leaves grammar/reserved-name checks to well-formedness/validation work.
 - 2.10 Input Values and 2.12 Type References: value and type-reference syntax are
@@ -9,8 +9,11 @@ Spec reference: GraphQL September 2025.
   coordinate syntax or introspection surface.
 - 3.3-3.13 Type System: schema and type definitions cover core GraphQL types, wrapping
   types, built-in scalars, and the `@skip`/`@include` scalar dependencies, but omit
-  descriptions, arbitrary directives, extensions, introspection, mutation/subscription
-  roots, and OneOf metadata.
+  descriptions, extensions, introspection, mutation/subscription roots, and OneOf
+  metadata.
+- 3.13 Directives: directive definitions, including the directives applied to them, are
+  represented with the built-in definitions. Directives applied to schema elements other
+  than directive definitions, and directive extensions, are omitted.
 - 5.5.2.3 Fragment Spread Is Possible: possible-object helpers model the spec's
   `GetPossibleTypes` basis for overlap checks.
 -/
@@ -494,11 +497,62 @@ def isOutputType : TypeDefinition -> Prop
 
 end TypeDefinition
 
--- Spec 3.3 `Schema`: partial; only the query root and type list are modeled, omitting
--- mutation/subscription roots, directives, descriptions, extensions, and introspection.
+-- Spec 3.13 `DirectiveLocation`: faithful; the executable and type-system locations,
+-- including `DIRECTIVE_DEFINITION`.
+inductive DirectiveLocation where
+  | query
+  | mutation
+  | subscription
+  | field
+  | fragmentDefinition
+  | fragmentSpread
+  | inlineFragment
+  | variableDefinition
+  | schema
+  | scalar
+  | object
+  | fieldDefinition
+  | argumentDefinition
+  | interface
+  | union
+  | enum
+  | enumValue
+  | inputObject
+  | inputFieldDefinition
+  | directiveDefinition
+deriving Repr, DecidableEq
+
+-- Spec 2.7 `Argument[Const]`: a name/value pair whose value contains no variables.
+structure ConstArgument where
+  name : Name
+  value : ConstInputValue
+deriving Repr
+
+-- Spec 2.13 `Directive[Const]`: a directive applied in the type system, by name with
+-- constant arguments.
+structure ConstDirectiveApplication where
+  name : Name
+  arguments : List ConstArgument := []
+deriving Repr
+
+-- Spec 3.13 `DirectiveDefinition`: partial; name, arguments, applied directives,
+-- repeatability, and locations are represented, but descriptions are omitted.
+-- Directive extensions (3.13.6 `DirectiveExtension`) are outside this syntax.
+structure DirectiveDefinition where
+  name : Name
+  arguments : List InputValueDefinition := []
+  directives : List ConstDirectiveApplication := []
+  isRepeatable : Bool := false
+  locations : List DirectiveLocation
+deriving Repr
+
+-- Spec 3.3 `Schema`: partial; the query root, type list, and directive definitions are
+-- modeled, omitting mutation/subscription roots, schema directives, descriptions,
+-- extensions, and introspection.
 structure Schema where
   queryType : Name
   types : List TypeDefinition
+  directives : List DirectiveDefinition := []
 deriving Repr
 
 namespace Schema
@@ -539,6 +593,69 @@ def lookupInterface (schema : Schema) (typeName : Name) : Option InterfaceType :
   match schema.lookupType typeName with
   | some (.interface interfaceType) => some interfaceType
   | _ => none
+
+-- Spec 3.13 / Appendix D built-in directives: `@skip`, `@include`, `@deprecated` (now
+-- also on `DIRECTIVE_DEFINITION`), `@specifiedBy`, and `@oneOf`, available in every
+-- modeled schema as the built-in scalars are.
+def builtinDirectiveDefinitions : List DirectiveDefinition :=
+  [
+    {
+      name := "skip"
+      arguments := [{ name := "if", inputType := .nonNull (.named "Boolean") }]
+      locations := [.field, .fragmentSpread, .inlineFragment]
+    },
+    {
+      name := "include"
+      arguments := [{ name := "if", inputType := .nonNull (.named "Boolean") }]
+      locations := [.field, .fragmentSpread, .inlineFragment]
+    },
+    {
+      name := "deprecated"
+      arguments :=
+        [{
+          name := "reason"
+          inputType := .nonNull (.named "String")
+          defaultValue := some (.string "No longer supported")
+        }]
+      locations :=
+        [
+          .fieldDefinition,
+          .argumentDefinition,
+          .inputFieldDefinition,
+          .enumValue,
+          .directiveDefinition
+        ]
+    },
+    {
+      name := "specifiedBy"
+      arguments := [{ name := "url", inputType := .nonNull (.named "String") }]
+      locations := [.scalar]
+    },
+    { name := "oneOf", locations := [.inputObject] }
+  ]
+
+-- Spec 3.13 directive availability: built-in directives plus user-provided definitions.
+def allDirectives (schema : Schema) : List DirectiveDefinition :=
+  builtinDirectiveDefinitions ++ schema.directives
+
+-- Spec type-system directive lookup over built-ins and explicit schema definitions.
+def lookupDirective (schema : Schema) (directiveName : Name)
+    : Option DirectiveDefinition :=
+  schema.allDirectives.find? (fun definition => definition.name == directiveName)
+
+-- Spec 3.13 directive self-reference rules: `source` references `target` when its
+-- definition applies `target`, directly or through definitions it applies. Types carry
+-- no directive applications in this model, so no reference passes through a type.
+inductive DirectiveReferences (schema : Schema) : Name -> Name -> Prop where
+  | direct {source : Name} {definition : DirectiveDefinition}
+    {application : ConstDirectiveApplication}
+    : schema.lookupDirective source = some definition
+      -> application ∈ definition.directives
+      -> DirectiveReferences schema source application.name
+  | trans {source middle target : Name}
+    : DirectiveReferences schema source middle
+      -> DirectiveReferences schema middle target
+      -> DirectiveReferences schema source target
 
 -- Spec 3.6 / 3.7 interface implementation transitivity as proof-facing
 -- reachability over declared interface inheritance.

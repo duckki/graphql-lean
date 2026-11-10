@@ -1,7 +1,7 @@
 # graphql-lean
 
 `graphql-lean` is a GraphQL formalization in Lean, based on the [GraphQL September
-2025 Edition](https://spec.graphql.org/September2025/).
+2026 Edition](https://spec.graphql.org/draft/).
 
 Compared with prior theorem-prover formalizations such as
 [GraphCoQL](https://github.com/imfd/GraphCoQL), this development fills important gaps in
@@ -13,7 +13,7 @@ theory.
 ## Highlights
 
 - [GraphQL/](GraphQL/) contains the public formal model of the scoped GraphQL
-  2025 spec: schema syntax and well-formedness, operation syntax, validation,
+  2026 spec: schema syntax and well-formedness, operation syntax, validation,
   execution, named fragments, execution algorithms, and public theory
   definitions.
 - [ExecutionCancelingSiblings](GraphQL/Algorithms/ExecutionCancelingSiblings.lean)

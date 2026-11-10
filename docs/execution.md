@@ -3,7 +3,7 @@
 This guide documents the specification-facing
 [`GraphQL.Execution`](../GraphQL/Execution.lean) model and its shared input and
 response abstractions. The target is the
-[GraphQL September 2025 Edition](https://spec.graphql.org/September2025/).
+[GraphQL September 2026 Edition](https://spec.graphql.org/draft/).
 See the [conformance summary](spec-conformance.md) for coverage and exclusions,
 [algorithms](algorithms.md) for alternative executors, and
 [incremental delivery](incremental-delivery/README.md) for the separate draft model.
@@ -43,7 +43,7 @@ An omitted variable uses that default during field collection.
 
 ## Specification correspondence
 
-`GraphQL.Execution` follows the September 2025 execution algorithm names where
+`GraphQL.Execution` follows the September 2026 execution algorithm names where
 practical:
 
 - `coerceVariableValues` models the default-value portion of spec 6.1.2 before

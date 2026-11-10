@@ -1,7 +1,11 @@
 import GraphQL.NamedFragment.Operation
 import GraphQL.Validation
 
-/-! Validation predicates for fragment-aware operations. -/
+/-! Validation predicates for fragment-aware operations.
+
+Selection sets may be empty (spec 2.5, `{ Selection* }`), read as in `GraphQL.Validation`:
+`[]` is absent on a leaf field and `{}` on a composite field, fragment, or operation.
+-/
 
 namespace GraphQL
 namespace NamedFragment
@@ -144,13 +148,11 @@ mutual
                 fieldDefinition selectionSet
     | .inlineFragment none directives selectionSet =>
         GraphQL.Validation.directivesValid schema variableDefinitions directives
-        ∧ selectionSet ≠ []
         ∧ selectionSetValid schema variableDefinitions fragments parentType selectionSet
     | .inlineFragment (some typeCondition) directives selectionSet =>
         GraphQL.Validation.directivesValid schema variableDefinitions directives
         ∧ schema.isCompositeType typeCondition
         ∧ schema.typesOverlap parentType typeCondition
-        ∧ selectionSet ≠ []
         ∧ selectionSetValid schema variableDefinitions fragments
             typeCondition selectionSet
     | .fragmentSpread fragmentName directives =>
@@ -178,7 +180,6 @@ mutual
     fieldDefinition.outputType.isOutputType schema
     ∧ ((schema.isLeafType returnType ∧ selectionSet = [])
         ∨ (schema.isCompositeType returnType
-            ∧ selectionSet ≠ []
             ∧ selectionSetValid schema variableDefinitions fragments
                 returnType selectionSet))
 end
@@ -189,7 +190,6 @@ def fragmentDefinitionValid (schema : Schema)
     (fragment : FragmentDefinition)
     : Prop :=
   schema.isCompositeType fragment.typeCondition
-  ∧ fragment.selectionSet ≠ []
   ∧ selectionSetValid schema variableDefinitions fragments
       fragment.typeCondition fragment.selectionSet
 
@@ -340,7 +340,6 @@ def operationDefinitionValid (schema : Schema) (operation : Operation) : Prop :=
   ∧ allFragmentDefinitionsUsed operation
   ∧ allFragmentDefinitionsValid schema operation.variableDefinitions
       operation.fragmentDefinitions
-  ∧ operation.selectionSet ≠ []
   ∧ selectionSetValid schema operation.variableDefinitions
       operation.fragmentDefinitions (operation.rootType schema) operation.selectionSet
   ∧ FieldMerge.fieldsInSetCanMerge schema operation.fragmentDefinitions

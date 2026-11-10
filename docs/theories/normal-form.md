@@ -131,8 +131,9 @@ generated case wrappers, while other variables remain in a surviving branch.
 `completeNormalizeOperation_operationVariablesUsed` therefore derives the
 normalized all-variables-used property from input validity and feasibility.
 
-First, GraphQL operation validity rejects syntactically empty selection sets,
-but a syntactically nonempty selection set can be semantically empty for a
+First, GraphQL operation validity admits syntactically empty selection sets,
+`{}`, on composite fields, inline fragments, and the operation root, and a
+syntactically nonempty selection set can also be semantically empty for a
 particular scope. For example, all child selections of a composite field may be
 under infeasible type-condition stacks.
 

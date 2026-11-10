@@ -1,13 +1,17 @@
 import GraphQL.Operation
 
 /-! GraphQL operation validation
-Spec reference: GraphQL September 2025.
+Spec reference: GraphQL September 2026.
 - 5.2 Operations, 5.3 Fields, 5.4 Arguments, 5.5 Fragments, 5.6 Values, 5.7 Directives,
   and 5.8 Variables: this file states operation validity as a proposition over the modeled
   schema and operation syntax.
 - Fidelity note: the model is intentionally partial. It omits document-level
   multi-operation rules, mutation/subscription rules, custom directive definitions, full
   input coercion and literal type checking, fragment-must-be-used, and meta-field rules.
+- 5.3.3 Leaf Field Selections: the spec separates an absent subselection set from a present
+  empty one, `{}`. Field syntax stores `List Selection`, so `[]` reads as absent on a leaf
+  field and as `{}` on a composite field; `leaf {}` and a bare composite field, both
+  invalid, have no representation here.
 -/
 
 namespace GraphQL
@@ -394,13 +398,11 @@ mutual
                 fieldDefinition selectionSet
     | .inlineFragment none directives selectionSet =>
         directivesValid schema variableDefinitions directives
-        ∧ selectionSet ≠ []
         ∧ selectionSetValid schema variableDefinitions parentType selectionSet
     | .inlineFragment (some typeCondition) directives selectionSet =>
         directivesValid schema variableDefinitions directives
         ∧ schema.isCompositeType typeCondition
         ∧ schema.typesOverlap parentType typeCondition
-        ∧ selectionSet ≠ []
         ∧ selectionSetValid schema variableDefinitions typeCondition selectionSet
 
   def selectionSetValid (schema : Schema)
@@ -419,7 +421,6 @@ mutual
     fieldDefinition.outputType.isOutputType schema
     ∧ ((schema.isLeafType returnType ∧ selectionSet = [])
         ∨ (schema.isCompositeType returnType
-            ∧ selectionSet ≠ []
             ∧ selectionSetValid schema variableDefinitions returnType selectionSet))
 end
 
@@ -532,7 +533,6 @@ def operationDefinitionValid (schema : Schema) (operation : Operation) : Prop :=
   operation.operationType = .query
   ∧ schema.isCompositeType (operation.rootType schema)
   ∧ variableDefinitionsValid schema operation.variableDefinitions
-  ∧ operation.selectionSet ≠ []
   ∧ selectionSetValid schema operation.variableDefinitions
       (operation.rootType schema) operation.selectionSet
   ∧ FieldMerge.fieldsInSetCanMerge schema (operation.rootType schema)

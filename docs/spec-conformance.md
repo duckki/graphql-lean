@@ -1,7 +1,8 @@
 # Spec Conformance Summary
 
 The main model targets the
-[GraphQL September 2025 Edition](https://spec.graphql.org/September2025/).
+[GraphQL September 2026 Edition](https://spec.graphql.org/draft/), as drafted at
+[revision 3f1ef84](https://github.com/graphql/graphql-spec/tree/3f1ef846019884a8c9c3a32b65ea03168f24ecff).
 A separate incremental-delivery model targets
 [PR #1110, revision 045e193](https://github.com/graphql/graphql-spec/tree/045e19363c2b55f127960bd3b5e8072a15b29aec).
 
@@ -12,13 +13,15 @@ completion. Representation details and specification mappings are documented in
 ## Main model: covered
 
 - **Schema and types:** objects, interfaces, unions, enums, scalars, input objects,
-  lists, and non-null types; schema well-formedness for names, members, references,
-  defaults, input-object cycles, root types, and interface implementation.
+  lists, and non-null types; directive definitions, including directives applied to
+  them; schema well-formedness for names, members, references, defaults, input-object
+  cycles, root types, interface implementation, and directive definitions.
 - **Query operations:** fields, aliases, arguments, variables and defaults, inline
   fragments, runtime type conditions, and `@skip` / `@include`.
 - **Operation validation:** field and argument validity, required arguments,
-  variable uses and input-type compatibility, selection shape and non-emptiness,
-  fragment applicability, and same-response-name merge compatibility.
+  variable uses and input-type compatibility, leaf and composite selection shape
+  (empty selection sets admitted), fragment applicability, and same-response-name
+  merge compatibility.
 - **Named fragments:** a separate fragment-aware layer with syntax, validation,
   execution, and inlining.
 - **Input preparation:** operation-variable defaults, argument materialization,
@@ -33,11 +36,16 @@ Input values are assumed already coerced and type-conformant where scalar
 semantics matter. Default materialization is covered; full input coercion and
 request-error handling are not. Execution is a finite, pure model with bounded
 recursion. Errors are represented by counts rather than detailed error objects.
+An absent selection set and an empty one, `{}`, share a representation, so a leaf
+field with `{}` and a composite field with no selection set, both invalid, cannot be
+expressed.
 
 Not covered:
 
 - Mutation and subscription execution.
-- Custom directives and directive definitions beyond the modeled built-ins.
+- Custom executable directives beyond `@skip` / `@include`, directives applied to
+  schema elements other than directive definitions, and directive extensions.
+- OneOf input objects.
 - Scalar/enum parsing and coercion details, including result coercion.
 - Introspection and meta-fields.
 - Request errors, detailed execution errors, messages, paths, locations, and
