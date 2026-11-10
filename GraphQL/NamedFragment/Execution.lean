@@ -61,12 +61,12 @@ def mergeExecutableGroups (left right : List (Name × List ExecutableField))
 -- continue with the fragment names visited by earlier selections.
 structure CollectFieldsResult where
   groupedFields : List (Name × List ExecutableField)
-  visitedFragments : List Name
+  visitedFragments : FragmentNames
 deriving Repr
 
 mutual
   def collectSelection (schema : Schema) (variableValues : VariableValues)
-      : List FragmentDefinition -> List Name -> Name -> ResolverValue ObjectRef
+      : List FragmentDefinition -> FragmentNames -> Name -> ResolverValue ObjectRef
         -> Selection -> CollectFieldsResult
     | _fragments,
       visitedFragments,
@@ -150,7 +150,7 @@ mutual
           omega
 
   def collectFields (schema : Schema) (variableValues : VariableValues)
-      : List FragmentDefinition -> List Name -> Name -> ResolverValue ObjectRef
+      : List FragmentDefinition -> FragmentNames -> Name -> ResolverValue ObjectRef
         -> List Selection -> CollectFieldsResult
     | _fragments, visitedFragments, _parentType, _source, [] =>
         { groupedFields := [], visitedFragments := visitedFragments }

@@ -12,14 +12,14 @@ def fragmentNamesUnique (fragments : List FragmentDefinition) : Prop :=
   (fragments.map FragmentDefinition.name).Nodup
 
 mutual
-  def selectionFragmentSpreadNames : Selection -> List Name
+  def selectionFragmentSpreadNames : Selection -> FragmentNames
     | .field _responseName _fieldName _arguments _directives selectionSet =>
         selectionSetFragmentSpreadNames selectionSet
     | .inlineFragment _typeCondition _directives selectionSet =>
         selectionSetFragmentSpreadNames selectionSet
     | .fragmentSpread fragmentName _directives => [fragmentName]
 
-  def selectionSetFragmentSpreadNames : List Selection -> List Name
+  def selectionSetFragmentSpreadNames : List Selection -> FragmentNames
     | [] => []
     | selection :: rest =>
         selectionFragmentSpreadNames selection ++ selectionSetFragmentSpreadNames rest
@@ -47,7 +47,7 @@ def fragmentsAcyclic (fragments : List FragmentDefinition) : Prop :=
   fragmentsAcyclicBool fragments = true
 
 def fragmentSpreadNameReachableFromSelectionSetBool (fragments : List FragmentDefinition)
-    : Nat -> List Name -> Name -> Bool
+    : Nat -> FragmentNames -> Name -> Bool
   | 0, _frontier, _target => false
   | fuel + 1, frontier, target =>
       frontier.any (fun name => name == target)
@@ -75,7 +75,7 @@ mutual
   -- Spec 5.8.4 variable uses in an operation scope. Following a fragment spread
   -- removes the found definition just as inlining does, so this traversal is
   -- structurally terminating and includes transitively referenced fragments.
-  def selectionVariables : List FragmentDefinition -> Selection -> List Name
+  def selectionVariables : List FragmentDefinition -> Selection -> VariableNames
     | fragments,
       .field _responseName _fieldName arguments directives selectionSet =>
         GraphQL.Validation.argumentsVariables arguments
@@ -106,7 +106,7 @@ mutual
           apply Prod.Lex.right
           omega
 
-  def selectionSetVariables : List FragmentDefinition -> List Selection -> List Name
+  def selectionSetVariables : List FragmentDefinition -> List Selection -> VariableNames
     | _fragments, [] => []
     | fragments, selection :: rest =>
         selectionVariables fragments selection ++ selectionSetVariables fragments rest

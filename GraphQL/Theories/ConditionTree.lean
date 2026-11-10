@@ -486,7 +486,7 @@ def ofOperation (schema : Schema) (operation : Operation) : Tree :=
 mutual
   -- Every modeled Boolean variable represented in a condition tree, including variables
   -- in child selection sets that form later extraction boundaries.
-  def conditionTreeBooleanVariables (tree : Tree) : List Name :=
+  def conditionTreeBooleanVariables (tree : Tree) : VariableNames :=
     match tree with
     | { fields, branches, .. } =>
         fields.flatMap
@@ -500,7 +500,8 @@ mutual
       simp_wf
       omega
 
-  def conditionTreeBranchesBooleanVariables (branches : List (Branch Tree)) : List Name :=
+  def conditionTreeBranchesBooleanVariables (branches : List (Branch Tree))
+      : VariableNames :=
     match branches with
     | [] => []
     | { condition, body } :: rest =>

@@ -298,43 +298,43 @@ def variableDefinitionsValid (schema : Schema)
 
 mutual
   -- Spec 5.8.4 variable uses nested within an input value.
-  def inputValueVariables : InputValue -> List Name
+  def inputValueVariables : InputValue -> VariableNames
     | .variable name => [name]
     | .list values => inputValuesVariables values
     | .object fields => inputObjectFieldsVariables fields
     | _ => []
 
-  def inputValuesVariables : List InputValue -> List Name
+  def inputValuesVariables : List InputValue -> VariableNames
     | [] => []
     | value :: rest =>
         inputValueVariables value ++ inputValuesVariables rest
 
-  def inputObjectFieldsVariables : List (Name × InputValue) -> List Name
+  def inputObjectFieldsVariables : List (Name × InputValue) -> VariableNames
     | [] => []
     | (_name, value) :: rest =>
         inputValueVariables value ++ inputObjectFieldsVariables rest
 end
 
-def argumentVariables (argument : Argument) : List Name :=
+def argumentVariables (argument : Argument) : VariableNames :=
   inputValueVariables argument.value
 
-def argumentsVariables : List Argument -> List Name
+def argumentsVariables : List Argument -> VariableNames
   | [] => []
   | argument :: rest =>
       argumentVariables argument ++ argumentsVariables rest
 
-def directiveVariables : DirectiveApplication -> List Name
+def directiveVariables : DirectiveApplication -> VariableNames
   | .skip ifArgument => inputValueVariables ifArgument
   | .include ifArgument => inputValueVariables ifArgument
 
-def directivesVariables : List DirectiveApplication -> List Name
+def directivesVariables : List DirectiveApplication -> VariableNames
   | [] => []
   | directive :: rest =>
       directiveVariables directive ++ directivesVariables rest
 
 mutual
   -- Spec 5.8.4 variable uses in field arguments, directives, and nested selections.
-  def selectionVariables : Selection -> List Name
+  def selectionVariables : Selection -> VariableNames
     | .field _responseName _fieldName arguments directives selectionSet =>
         argumentsVariables arguments
         ++ directivesVariables directives
@@ -342,7 +342,7 @@ mutual
     | .inlineFragment _typeCondition directives selectionSet =>
         directivesVariables directives ++ selectionSetVariables selectionSet
 
-  def selectionSetVariables : List Selection -> List Name
+  def selectionSetVariables : List Selection -> VariableNames
     | [] => []
     | selection :: rest =>
         selectionVariables selection ++ selectionSetVariables rest

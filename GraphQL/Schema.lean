@@ -45,6 +45,19 @@ end SemanticEquivalence
 -- reserved `__` rules.
 abbrev Name := String
 
+/-- Names of named GraphQL types; wrappers are represented separately by `TypeRef`.
+This alias imposes no existence, category, or uniqueness invariant. -/
+abbrev TypeNames := List Name
+
+/-- Names intended to identify object types; well-formedness checks their category. -/
+abbrev ObjectTypeNames := List Name
+
+/-- Names intended to identify interface types; well-formedness checks their category. -/
+abbrev InterfaceTypeNames := List Name
+
+/-- Enum value names, with validity and uniqueness checked by well-formedness. -/
+abbrev EnumValueNames := List Name
+
 -- Spec 2.10 `Value`: partial; literals and variables are represented, but
 -- constant-vs-variable contexts and input coercion are handled elsewhere or omitted.
 inductive InputValue where
@@ -395,7 +408,7 @@ deriving Repr
 structure ObjectType where
   name : Name
   fields : List FieldDefinition
-  interfaces : List Name := []
+  interfaces : InterfaceTypeNames := []
 deriving Repr
 
 -- Spec 3.7 `InterfaceTypeDefinition`: partial; fields and declared implemented interfaces
@@ -404,21 +417,21 @@ deriving Repr
 structure InterfaceType where
   name : Name
   fields : List FieldDefinition
-  interfaces : List Name := []
+  interfaces : InterfaceTypeNames := []
 deriving Repr
 
 -- Spec 3.8 `UnionTypeDefinition`: partial; member object names are represented, but
 -- descriptions, directives, extensions, and reserved-name validation are omitted.
 structure UnionType where
   name : Name
-  members : List Name
+  members : ObjectTypeNames
 deriving Repr, DecidableEq
 
 -- Spec 3.9 `EnumTypeDefinition`: partial; enum values are named but descriptions,
 -- directives, deprecation, and reserved-name validation are omitted.
 structure EnumType where
   name : Name
-  values : List Name
+  values : EnumValueNames
 deriving Repr, DecidableEq
 
 -- Spec 3.10 `InputObjectTypeDefinition`: partial; input fields are represented, but
@@ -609,7 +622,7 @@ def objectTypes (schema : Schema) : List ObjectType :=
 
 -- Spec 5.5.2.3 `GetPossibleTypes` interface case: objects implementing an interface.
 def objectTypesImplementingInterface (schema : Schema) (interfaceName : Name)
-    : List Name :=
+    : ObjectTypeNames :=
   (schema.objectTypes.filter
     (fun objectType =>
       schema.objectTypeImplementsInterfaceBool objectType interfaceName)).map
@@ -655,7 +668,7 @@ def fieldReturnType? (schema : Schema) (parentType fieldName : Name) : Option Na
 
 -- Spec 5.5.2.3 `GetPossibleTypes`: object and union cases are direct; interface cases are
 -- derived from object type declarations in the schema.
-def getPossibleTypes (schema : Schema) (typeName : Name) : List Name :=
+def getPossibleTypes (schema : Schema) (typeName : Name) : ObjectTypeNames :=
   match schema.lookupType typeName with
   | some (.object objectType) => [objectType.name]
   | some (.interface interfaceType) =>

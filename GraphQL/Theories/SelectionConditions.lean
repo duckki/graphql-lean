@@ -29,7 +29,7 @@ def directiveBooleanVariable? : DirectiveApplication -> Option Name
 mutual
   -- Variables are collected through nested field boundaries because a recursive
   -- consumer may analyze each child selection set independently.
-  def selectionBooleanVariables : Selection -> List Name
+  def selectionBooleanVariables : Selection -> VariableNames
     | .field _responseName _fieldName _arguments directives selectionSet =>
         directives.filterMap directiveBooleanVariable?
         ++ selectionSetBooleanVariables selectionSet
@@ -37,7 +37,7 @@ mutual
         directives.filterMap directiveBooleanVariable?
         ++ selectionSetBooleanVariables selectionSet
 
-  def selectionSetBooleanVariables : List Selection -> List Name
+  def selectionSetBooleanVariables : List Selection -> VariableNames
     | [] => []
     | selection :: rest =>
         selectionBooleanVariables selection ++ selectionSetBooleanVariables rest
@@ -49,7 +49,7 @@ end
 
 -- Intersection keeps the left list's order. Starting at the parent type's possible
 -- types therefore gives equivalent intersections identical keys.
-def intersectPossibleTypes (left right : List Name) : List Name :=
+def intersectPossibleTypes (left right : ObjectTypeNames) : ObjectTypeNames :=
   left.filter (fun objectType => right.contains objectType)
 
 -- Boolean literals contributed by modeled conditional directives. `positive x` means
@@ -175,7 +175,7 @@ def literalsForDirectives : List DirectiveApplication -> Option (List BooleanLit
 
 -- The cumulative type and Boolean condition of a source selection.
 structure Condition where
-  possibleTypes : List Name
+  possibleTypes : ObjectTypeNames
   booleanCondition : List BooleanLiteral
 deriving Repr, DecidableEq, BEq, ReflBEq, LawfulBEq
 
@@ -364,7 +364,8 @@ def ofSelectionSet (schema : Schema) (parentType : Name) (selectionSet : List Se
 
 -- Extracts a boundary whose root is an exact possible-object region rather than the
 -- possible objects of one named interface or union.
-def ofTypeRegion (schema : Schema) (region : List Name) (selectionSet : List Selection)
+def ofTypeRegion (schema : Schema) (region : ObjectTypeNames)
+    (selectionSet : List Selection)
     : List ConditionedField :=
   extractFields schema [] { possibleTypes := region, booleanCondition := [] } selectionSet
 
@@ -373,7 +374,7 @@ def ofTypeRegion (schema : Schema) (region : List Name) (selectionSet : List Sel
 -- seed is the current condition, rather than `extractFields`' separate inherited
 -- condition: child directives are conjoined with it and contradictory branches
 -- are discarded in the usual way.
-def ofTypeRegionUnder (schema : Schema) (region : List Name)
+def ofTypeRegionUnder (schema : Schema) (region : ObjectTypeNames)
     (contributions : List (List BooleanLiteral × List Selection))
     : List ConditionedField :=
   contributions.flatMap

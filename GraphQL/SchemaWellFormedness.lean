@@ -96,7 +96,8 @@ def fieldsImplementInterface (schema : Schema)
 
 -- Spec 3.6 `IsValidImplementation`, step 1: every declared interface's own interfaces
 -- must also be declared. Closure under this step includes all transitive ancestors.
-def interfacesIncludeInherited (schema : Schema) (interfaces : List Name) : Prop :=
+def interfacesIncludeInherited (schema : Schema) (interfaces : InterfaceTypeNames)
+    : Prop :=
   ∀ interfaceName,
     interfaceName ∈ interfaces
     -> ∀ interfaceType,
@@ -153,7 +154,7 @@ def nonNullSingularInputObjectTarget? (inputType : TypeRef) : Option Name :=
   | _ => none
 
 def inputObjectHasNonNullSingularCycleFrom (schema : Schema)
-    : Nat -> List Name -> Name -> Bool
+    : Nat -> TypeNames -> Name -> Bool
   | 0, _visited, _current => false
   | fuel + 1, visited, current =>
       if visited.contains current then

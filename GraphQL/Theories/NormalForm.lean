@@ -484,7 +484,7 @@ def operationFieldsValidInPossibleTypes (schema : Schema) (operation : Operation
 -- Type-condition feasibility for one field occurrence: the inline-fragment type
 -- conditions between the field and its nearest parent field/root selection set,
 -- including that parent type itself, have a nonempty possible-object intersection.
-def typeConditionStackFeasible (schema : Schema) (typeConditions : List Name) : Prop :=
+def typeConditionStackFeasible (schema : Schema) (typeConditions : TypeNames) : Prop :=
   ∃ objectType,
     ∀ typeCondition,
       typeCondition ∈ typeConditions -> objectType ∈ schema.getPossibleTypes typeCondition
@@ -495,7 +495,7 @@ def typeConditionStackFeasible (schema : Schema) (typeConditions : List Name) : 
 -- object scope introduced by ground normalization.
 mutual
   def selectionTypeConditionFeasible (schema : Schema)
-      (parentType : Name) (typeConditions : List Name)
+      (parentType : Name) (typeConditions : TypeNames)
       : Selection -> Prop
     | .field _responseName fieldName _arguments _directives selectionSet =>
         typeConditionStackFeasible schema typeConditions
@@ -519,7 +519,7 @@ mutual
           (typeCondition :: typeConditions) selectionSet
 
   def selectionSetTypeConditionFeasible (schema : Schema)
-      (parentType : Name) (typeConditions : List Name)
+      (parentType : Name) (typeConditions : TypeNames)
       : List Selection -> Prop
     | [] => True
     | selection :: rest =>
@@ -1094,7 +1094,7 @@ mutual
   -/
   def selectionBoolTypeConditionFeasible
       (schema : Schema) (parentType : Name)
-      (typeConditions : List Name) (boolCases : List BoolCase)
+      (typeConditions : TypeNames) (boolCases : List BoolCase)
       : Selection -> Prop
     | .field _responseName fieldName _arguments directives selectionSet =>
         let allowedCases :=
@@ -1138,7 +1138,7 @@ mutual
   -/
   def selectionSetBoolTypeConditionFeasible
       (schema : Schema) (parentType : Name)
-      (typeConditions : List Name) (boolCases : List BoolCase)
+      (typeConditions : TypeNames) (boolCases : List BoolCase)
       (selectionSet : List Selection)
       : Prop :=
     (∀ selection,

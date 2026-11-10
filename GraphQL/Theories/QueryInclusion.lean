@@ -47,7 +47,7 @@ def sharedVariableDefinitionsSyntacticallyCompatibleBool
 
 -- The complete Boolean environment for comparing two selection sets is their union.
 -- Occurrence order and duplicate uses do not affect conditional execution.
-def comparisonConditionVariables (left right : List Selection) : List Name :=
+def comparisonConditionVariables (left right : List Selection) : VariableNames :=
   (SelectionConditions.selectionSetBooleanVariables left
     ++ SelectionConditions.selectionSetBooleanVariables right).eraseDups
 
@@ -165,7 +165,7 @@ end
 -- Every total Boolean assignment over the variables that can affect modeled directives.
 -- Because each variable is explicitly present, operation defaults cannot affect field
 -- collection in these cases.
-def booleanVariableAssignments : List Name -> List VariableValues
+def booleanVariableAssignments : VariableNames -> List VariableValues
   | [] => [[]]
   | variableName :: rest =>
       let tailCases : List VariableValues := booleanVariableAssignments rest
@@ -230,8 +230,9 @@ end
 -- A fragment with no directives is transparent for nonempty possibleTypes when its
 -- condition admits every runtime object type there. The nonempty check prevents
 -- an unknown set of possible types from making a condition vacuously transparent.
-def fragmentTransparentForPossibleTypesBool (schema : Schema) (possibleTypes : List Name)
-    (typeCondition : Option Name) (directives : List DirectiveApplication)
+def fragmentTransparentForPossibleTypesBool (schema : Schema)
+    (possibleTypes : ObjectTypeNames) (typeCondition : Option Name)
+    (directives : List DirectiveApplication)
     : Bool :=
   directives.isEmpty
   && match typeCondition with
@@ -243,7 +244,7 @@ def fragmentTransparentForPossibleTypesBool (schema : Schema) (possibleTypes : L
 -- Flatten only fragments transparent at this selection-set boundary. Field
 -- children and narrowing fragments remain untouched; a later response boundary
 -- has its own possible runtime types and can be checked independently.
-def withoutTransparentFragments (schema : Schema) (possibleTypes : List Name)
+def withoutTransparentFragments (schema : Schema) (possibleTypes : ObjectTypeNames)
     : List Selection -> List Selection
   | [] => []
   | .inlineFragment typeCondition directives selectionSet :: rest =>
@@ -263,7 +264,7 @@ decreasing_by
 -- This witness normalizes only the current selection-set boundary. Nested field
 -- selection sets are still compared by the exact syntax matcher above.
 def selectionSetSyntacticallyIncludesAtBoundaryBool (schema : Schema)
-    (possibleTypes : List Name) (left right : List Selection)
+    (possibleTypes : ObjectTypeNames) (left right : List Selection)
     : Bool :=
   selectionSetSyntacticallyIncludesBool
     (withoutTransparentFragments schema possibleTypes left)
@@ -272,16 +273,16 @@ def selectionSetSyntacticallyIncludesAtBoundaryBool (schema : Schema)
 -- The semantic reference checker consumes one fuel unit at every nested response
 -- boundary. Every successful syntax witness must respect its exhaustion behavior.
 def selectionSetBoundarySyntacticInclusionShortcutBool (schema : Schema)
-    (responseFuel : Nat) (possibleTypes : List Name) (left right : List Selection)
+    (responseFuel : Nat) (possibleTypes : ObjectTypeNames) (left right : List Selection)
     : Bool :=
   decide (selectionSetResponseDepth right ≤ responseFuel)
   && selectionSetSyntacticallyIncludesAtBoundaryBool schema possibleTypes left right
 
 -- A field's child may have covariant return types across the possible concrete
 -- parents. Their union is a conservative context for recursive syntax matching.
-def syntacticFieldChildPossibleTypes (schema : Schema) (possibleTypes : List Name)
+def syntacticFieldChildPossibleTypes (schema : Schema) (possibleTypes : ObjectTypeNames)
     (fieldName : Name)
-    : List Name :=
+    : ObjectTypeNames :=
   possibleTypes.flatMap
     fun parentType =>
       match schema.lookupField parentType fieldName with
@@ -289,16 +290,16 @@ def syntacticFieldChildPossibleTypes (schema : Schema) (possibleTypes : List Nam
       | some definition => schema.getPossibleTypes definition.outputType.namedType
 
 def syntacticFragmentChildPossibleTypes (schema : Schema)
-    (possibleTypes : List Name) (typeCondition : Option Name)
-    : List Name :=
+    (possibleTypes : ObjectTypeNames) (typeCondition : Option Name)
+    : ObjectTypeNames :=
   match typeCondition with
   | none => possibleTypes
   | some condition =>
       possibleTypes.filter (schema.typeIncludesObjectBool condition)
 
 def syntacticSelectionIncludesWithChildCheckBool (schema : Schema)
-    (possibleTypes : List Name)
-    (childCheck : List Name -> List Selection -> List Selection -> Bool)
+    (possibleTypes : ObjectTypeNames)
+    (childCheck : ObjectTypeNames -> List Selection -> List Selection -> Bool)
     (left right : Selection)
     : Bool :=
   match left, right with
@@ -324,7 +325,7 @@ def syntacticSelectionIncludesWithChildCheckBool (schema : Schema)
 -- enters a proper right sub-selection, while transparent fragments are flattened
 -- at the current boundary before matching.
 def selectionSetSyntacticallyIncludesRecursivelyAux (schema : Schema)
-    : Nat -> List Name -> List Selection -> List Selection -> Bool
+    : Nat -> ObjectTypeNames -> List Selection -> List Selection -> Bool
   | 0, _possibleTypes, _left, _right => false
   | budget + 1, possibleTypes, left, right =>
       let left := withoutTransparentFragments schema possibleTypes left
@@ -338,13 +339,13 @@ def selectionSetSyntacticallyIncludesRecursivelyAux (schema : Schema)
                 leftSelection rightSelection
 
 def selectionSetSyntacticallyIncludesRecursivelyBool
-    (schema : Schema) (possibleTypes : List Name) (left right : List Selection)
+    (schema : Schema) (possibleTypes : ObjectTypeNames) (left right : List Selection)
     : Bool :=
   selectionSetSyntacticallyIncludesRecursivelyAux schema
     (SelectionSet.size right + 1) possibleTypes left right
 
 def selectionSetRecursiveSyntacticInclusionShortcutBool (schema : Schema)
-    (responseFuel : Nat) (possibleTypes : List Name) (left right : List Selection)
+    (responseFuel : Nat) (possibleTypes : ObjectTypeNames) (left right : List Selection)
     : Bool :=
   decide (selectionSetResponseDepth right ≤ responseFuel)
   && selectionSetSyntacticallyIncludesRecursivelyBool schema possibleTypes left right
@@ -429,7 +430,7 @@ def selectionSetsMayNeedRecursiveSyntaxBool (left right : List Selection) : Bool
 -- The checker first tries the boundary witness, then conditionally tries the
 -- recursive witness when nested fragment packaging could matter.
 def selectionSetSyntacticInclusionShortcutBool (schema : Schema)
-    (responseFuel : Nat) (possibleTypes : List Name) (left right : List Selection)
+    (responseFuel : Nat) (possibleTypes : ObjectTypeNames) (left right : List Selection)
     : Bool :=
   selectionSetBoundarySyntacticInclusionShortcutBool schema responseFuel
     possibleTypes left right
@@ -441,15 +442,15 @@ def selectionSetSyntacticInclusionShortcutBool (schema : Schema)
 -- Condition-region search infrastructure
 -----------------------------------------------------------------------------------------
 
-def splitPossibleTypeRegion (region allowed : List Name) : List (List Name) :=
+def splitPossibleTypeRegion (region allowed : ObjectTypeNames) : List ObjectTypeNames :=
   let included := region.filter allowed.contains
   let excluded := region.filter fun typeName => !allowed.contains typeName
   (if included.isEmpty then [] else [included])
   ++ (if excluded.isEmpty then [] else [excluded])
 
-def refinePossibleTypeRegions (regions : List (List Name))
+def refinePossibleTypeRegions (regions : List ObjectTypeNames)
     (condition : SelectionConditions.Condition)
-    : List (List Name) :=
+    : List ObjectTypeNames :=
   regions.flatMap
     fun region =>
       splitPossibleTypeRegion region condition.possibleTypes
@@ -459,7 +460,7 @@ def refinePossibleTypeRegions (regions : List (List Name))
 -- concrete field definition with these merged child selection sets. It avoids widening
 -- a covariant concrete return to every implementation of its interface.
 structure InclusionChildTask where
-  possibleTypes : List Name
+  possibleTypes : ObjectTypeNames
   leftSelectionSet : List Selection
   rightSelectionSet : List Selection
 deriving Repr
@@ -540,7 +541,7 @@ def deduplicateInclusionChildTasks : List InclusionChildTask -> List InclusionCh
 -- with different possible-type sets remain separate.
 def inclusionChildTasksForParentTypes? (schema : Schema)
     (leftGroups rightGroups : List (Name × List ExecutableField))
-    : List Name -> Option (List InclusionChildTask)
+    : ObjectTypeNames -> Option (List InclusionChildTask)
   | [] => some []
   | parentType :: rest => do
       let tasks ← inclusionChildTasks? schema parentType leftGroups rightGroups
@@ -590,14 +591,14 @@ def guardedFieldGroupConditions (group : GuardedFieldGroup)
     : List SelectionConditions.Condition :=
   group.entries.map SelectionConditions.ConditionedField.condition
 
-def guardedFieldGroupTypeRegions (parentRegion : List Name)
+def guardedFieldGroupTypeRegions (parentRegion : ObjectTypeNames)
     (left right : GuardedFieldGroup)
-    : List (List Name) :=
+    : List ObjectTypeNames :=
   let conditions := guardedFieldGroupConditions left ++ guardedFieldGroupConditions right
   conditions.foldl refinePossibleTypeRegions
     (if parentRegion.isEmpty then [] else [parentRegion])
 
-def guardedFieldGroupBooleanVariables (left right : GuardedFieldGroup) : List Name :=
+def guardedFieldGroupBooleanVariables (left right : GuardedFieldGroup) : VariableNames :=
   ((left.entries ++ right.entries).flatMap
     fun entry =>
       entry.condition.booleanCondition.map
@@ -674,7 +675,7 @@ def guardedScalarFieldIncludesAtRuntimeTypeBool (schema : Schema)
 
 def guardedScalarFieldIncludesBool (schema : Schema) (responseFuel : Nat)
     (fixedExecutionParentType : Option Name) (left right : GuardedFieldGroup)
-    (regions : List (List Name))
+    (regions : List ObjectTypeNames)
     : Bool :=
   match responseFuel with
   | 0 => false
@@ -721,7 +722,7 @@ def guardedCompositeFieldIncludesAtRuntimeTypeBool (schema : Schema)
 
 def guardedCompositeFieldIncludesBool (schema : Schema) (responseFuel : Nat)
     (fixedExecutionParentType : Option Name) (left right : GuardedFieldGroup)
-    (regions : List (List Name))
+    (regions : List ObjectTypeNames)
     : Bool :=
   match responseFuel with
   | 0 => false
@@ -735,7 +736,7 @@ def guardedCompositeFieldIncludesBool (schema : Schema) (responseFuel : Nat)
 
 def guardedFieldGroupLocallyIncludesBool (schema : Schema) (responseFuel : Nat)
     (fixedExecutionParentType : Option Name) (left right : GuardedFieldGroup)
-    (regions : List (List Name))
+    (regions : List ObjectTypeNames)
     : Bool :=
   guardedScalarFieldIncludesBool schema responseFuel fixedExecutionParentType
     left right regions
@@ -752,9 +753,9 @@ def guardedFieldChildContributions (entries : List SelectionConditions.Condition
 -- keeps the local resolver/coverage rule independently testable and proof-friendly.
 def guardedFieldGroupSymbolicallyIncludesAtRuntimeTypeBool (schema : Schema)
     (fixedExecutionParentType : Option Name) (runtimeType : Name)
-    (region : List Name) (left right : GuardedFieldGroup)
+    (region : ObjectTypeNames) (left right : GuardedFieldGroup)
     (childIncludes
-      : List Name
+      : ObjectTypeNames
         -> List (List SelectionConditions.BooleanLiteral × List Selection)
         -> List (List SelectionConditions.BooleanLiteral × List Selection)
         -> Bool)
@@ -800,7 +801,7 @@ mutual
   def guardedFieldGroupSymbolicallyIncludesWithFuel (schema : Schema)
       (responseFuel : Nat) (fixedExecutionParentType : Option Name)
       (variableValues : VariableValues) (left right : GuardedFieldGroup)
-      (regions : List (List Name))
+      (regions : List ObjectTypeNames)
       : Bool :=
     match responseFuel with
     | 0 => false
@@ -836,7 +837,7 @@ mutual
   def guardedFieldGroupIncludesForRegionsWithFuel (schema : Schema)
       (responseFuel : Nat) (fixedExecutionParentType : Option Name)
       (variableValues : VariableValues) (left right : GuardedFieldGroup)
-      (regions : List (List Name))
+      (regions : List ObjectTypeNames)
       : Bool :=
     regions.all
       fun region =>
@@ -886,8 +887,8 @@ mutual
   -- the type regions under each complete assignment.
   def guardedFieldGroupIncludesWithFuel (schema : Schema)
       (responseFuel : Nat) (fixedExecutionParentType : Option Name)
-      (variableValues : VariableValues) (remainingBooleanVariables : List Name)
-      (left right : GuardedFieldGroup) (regions : List (List Name))
+      (variableValues : VariableValues) (remainingBooleanVariables : VariableNames)
+      (left right : GuardedFieldGroup) (regions : List ObjectTypeNames)
       : Bool :=
     match remainingBooleanVariables with
     | variableName :: rest =>

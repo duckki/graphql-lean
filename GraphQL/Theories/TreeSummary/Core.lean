@@ -21,13 +21,13 @@ open GraphQL.ConditionTree.Termination
 universe u v
 
 /-- Possible GraphQL runtime object types. -/
-abbrev PossibleTypes := List Name
+abbrev PossibleTypes := ObjectTypeNames
 
 /-- GraphQL type names used as traversal alternatives. -/
-abbrev TypeNames := List Name
+abbrev TypeNames := GraphQL.TypeNames
 
 /-- Boolean variable names in canonical decision order. -/
-abbrev BooleanVariableNames := List Name
+abbrev BooleanVariableNames := VariableNames
 
 -----------------------------------------------------------------------------------------
 -- Tree summary algebra
