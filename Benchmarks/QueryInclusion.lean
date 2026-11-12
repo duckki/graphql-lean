@@ -1,10 +1,12 @@
 import GraphQL.Theories.QueryInclusion
 import Tests.GraphQL.Common
+import Tests.GraphQL.Theories.QueryInclusion.GrowingFamilies
 
 namespace GraphQL.Benchmarks.QueryInclusion
 
 open GraphQL.QueryInclusion
 open GraphQL.Tests
+open GraphQL.Tests.QueryInclusionGrowingFamilies
 
 def indexedName (namePrefix : String) (index : Nat) : Name :=
   s!"{namePrefix}{index}"
@@ -248,6 +250,20 @@ def runNestedFragmentScenario (iterations : Nat) : IO Unit := do
   timeChecker "different transparent wrappers" iterations true
     fun _ => includesBool sampleSchema left pairedRight
 
+def runComplementaryAncestorsScenario (depth iterations : Nat) : IO Unit := do
+  IO.println s!"\ncomplementary ancestors: depth={depth}"
+  timeChecker "both copies at every level" iterations true
+    fun _ => complementaryAncestorsIncludesBool depth none
+  timeChecker "one level's B copy removed" iterations false
+    fun _ => complementaryAncestorsIncludesBool depth (some (depth / 2))
+
+def runIndependentPairsScenario (pairs iterations : Nat) : IO Unit := do
+  IO.println s!"\nindependent pairs: pairs={pairs}"
+  timeChecker "each pair's field under its C" iterations true
+    fun _ => independentPairsIncludesBool pairs none
+  timeChecker "one pair's field under its D" iterations false
+    fun _ => independentPairsIncludesBool pairs (some (pairs / 2))
+
 def run : IO Unit := do
   runScenario "wide type regions" 96 3 0 0 500
   runScenario "Boolean conditions" 48 3 7 0 200
@@ -255,6 +271,8 @@ def run : IO Unit := do
   runClauseCoverageScenario 18 500
   runSymbolicParentScenario 14 500
   runNestedFragmentScenario 500
+  runComplementaryAncestorsScenario 64 20
+  runIndependentPairsScenario 8 20
 
 end GraphQL.Benchmarks.QueryInclusion
 

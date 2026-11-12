@@ -117,6 +117,13 @@ below a composite field are delayed until the recursive child scope. For every l
 type/Boolean region, active fields are merged before child selections are checked. The two
 conditional source shapes need not match.
 
+Under each Boolean assignment, the child obligations of all type regions of a response
+name are collected before any recursion. An obligation is its possible child types with
+the merged left and right child selections. Regions producing equal obligations share one
+recursive search. Without this, a type condition repeated at every level of a response
+path splits each level into regions with equal obligations, and their searches multiply
+with depth. Obligations that differ between regions are still searched separately.
+
 The checker does not construct condition trees. It consumes the flat conditioned-field
 stream from `GraphQL.SelectionConditions`, groups that stream in one pass by response
 name, and retains each cumulative condition. Resolver lookup remains sensitive to the
@@ -132,8 +139,8 @@ selections recursively. Extra left selections are allowed. If this boundary-only
 witness fails and matched fields contain either bare/fragment packaging differences
 or differing directive-free fragment wrappers with corresponding fields, a recursive
 witness retries inside matched fields and fragments. It unions possible
-return types across concrete parent definitions, then narrows them under matched
-fragment conditions. Both witnesses retain the response-depth guard and have
+return types across concrete parent definitions, keeping each type once, then narrows
+them under matched fragment conditions. Both witnesses retain the response-depth guard and have
 soundness proofs; the complete response-local search remains the fallback.
 
 Scalar response groups also have a symbolic condition shortcut. Cumulative
@@ -175,8 +182,8 @@ every reference-checker case.
 
 The native benchmark includes explicit positive and negative pairs, a reflexive shortcut
 case, a deep missing-field case, symbolic Boolean-clause coverage, a guarded-parent
-case with fourteen independent child guards, and nested transparent-fragment cases
-for bare/wrapped and differently wrapped fields:
+case with fourteen independent child guards, nested transparent-fragment cases
+for bare/wrapped and differently wrapped fields, and the two growing families below:
 
 ```sh
 lake exe query-inclusion-bench
@@ -184,3 +191,22 @@ lake exe query-inclusion-bench
 
 It is a development benchmark rather than a stable performance suite; broader adversarial
 and production-language profiling can be added later.
+
+## Growing Families
+
+`Tests.GraphQL.Theories.QueryInclusion.GrowingFamilies` holds operation families whose
+syntax grows linearly with depth while their type configurations multiply. Each verdict
+is checked at small sizes beside a rejected neighbour.
+
+- **Complementary ancestors.** Every level of an interface chain is an `A` or a `B`. The
+  left selects each level's leaf field twice, under `A` and under `B`; the right asks for
+  all of them at the leaf. Each level's two regions have equal child obligations, so the
+  family is also checked at depth 64, where a search per region would not finish. This
+  check has no timing assertion: it stops terminating if the search enumerates again.
+- **Independent pairs.** Each pair of levels is an `A` over a `C` or a `B` over a `D`.
+  The right asks for a pair's field under `A`; the left selects it under `C` one level
+  down. Which fields the right owes at the leaf depends on every pair's type, so the
+  regions' obligations really differ and the search still doubles with each pair. The
+  family is checked only at small sizes. Avoiding that cost would need type conditions
+  carried into child boundaries, as the symbolic witness carries Boolean guards. Coverage
+  would then follow implications between levels' types read from the schema's return types.

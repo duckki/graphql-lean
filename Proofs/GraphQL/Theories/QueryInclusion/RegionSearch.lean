@@ -1206,6 +1206,103 @@ theorem inclusionChildTasksForParentTypes?_exists_of_include
         simpa [List.all_append, Bool.and_eq_true]
           using And.intro hparentChildren hrestChildren
 
+-- Every region's child tasks survive the deduplication across regions.
+theorem guardedFieldGroupChildTasks?_contains (schema : Schema)
+    (fixedExecutionParentType : Option Name) (variableValues : VariableValues)
+    (left right : GuardedFieldGroup)
+    {regions : List (List Name)} {merged : List InclusionChildTask}
+    (hmatch
+      : guardedFieldGroupChildTasks? schema fixedExecutionParentType variableValues left
+          right regions
+        = some merged)
+    {region : List Name} (hregion : region ∈ regions)
+    : ∃ tasks,
+        guardedFieldGroupRegionChildTasks? schema fixedExecutionParentType variableValues
+            left right region
+          = some tasks
+        ∧ ∀ source, source ∈ tasks -> source ∈ merged := by
+  induction regions generalizing merged with
+  | nil => simp at hregion
+  | cons candidate rest ih =>
+      simp only [guardedFieldGroupChildTasks?] at hmatch
+      cases hcandidate
+            : guardedFieldGroupRegionChildTasks? schema fixedExecutionParentType
+                variableValues left right candidate with
+      | none => simp [hcandidate] at hmatch
+      | some candidateTasks =>
+          cases hrest
+                : guardedFieldGroupChildTasks? schema fixedExecutionParentType
+                    variableValues left right rest with
+          | none => simp [hcandidate, hrest] at hmatch
+          | some restTasks =>
+              simp [hcandidate, hrest] at hmatch
+              subst merged
+              rcases List.mem_cons.mp hregion with heq | hregion
+              · subst region
+                exact ⟨candidateTasks, hcandidate, by
+                  intro source hsource
+                  exact (mem_deduplicateInclusionChildTasks source _).mpr
+                    (List.mem_append_left _ hsource)⟩
+              · rcases ih hrest hregion with ⟨tasks, htasks, hcovered⟩
+                refine ⟨tasks, htasks, ?_⟩
+                intro source hsource
+                exact (mem_deduplicateInclusionChildTasks source _).mpr
+                  (List.mem_append_right _ (hcovered source hsource))
+
+-- Deduplication keeps only tasks of some region, so per-region acceptance carries over.
+theorem guardedFieldGroupChildTasks?_exists_of_regions (schema : Schema)
+    (fixedExecutionParentType : Option Name) (variableValues : VariableValues)
+    (left right : GuardedFieldGroup) (predicate : InclusionChildTask -> Bool)
+    (regions : List (List Name))
+    (hregions
+      : ∀ region,
+          region ∈ regions
+          -> ∃ tasks,
+              guardedFieldGroupRegionChildTasks? schema fixedExecutionParentType
+                  variableValues left right region
+                = some tasks
+              ∧ tasks.all predicate = true)
+    : ∃ tasks,
+        guardedFieldGroupChildTasks? schema fixedExecutionParentType variableValues left
+            right regions
+          = some tasks
+        ∧ tasks.all predicate = true := by
+  induction regions with
+  | nil => exact ⟨[], by simp [guardedFieldGroupChildTasks?]⟩
+  | cons region rest ih =>
+      rcases hregions region (by simp) with ⟨regionTasks, hregionTasks, hregionAll⟩
+      rcases ih (by
+            intro candidate hcandidate
+            exact hregions candidate (by simp [hcandidate])) with
+        ⟨restTasks, hrestTasks, hrestAll⟩
+      refine ⟨deduplicateInclusionChildTasks (regionTasks ++ restTasks), ?_, ?_⟩
+      · simp [guardedFieldGroupChildTasks?, hregionTasks, hrestTasks]
+      · apply deduplicateInclusionChildTasks_all
+        simpa [List.all_append, Bool.and_eq_true] using And.intro hregionAll hrestAll
+
+theorem guardedFieldGroupChildTasks?_congr (schema : Schema)
+    (fixedExecutionParentType : Option Name) (sourceValues targetValues : VariableValues)
+    (left right : GuardedFieldGroup) (regions : List (List Name))
+    (hregions
+      : ∀ region,
+          region ∈ regions
+          -> guardedFieldGroupRegionChildTasks? schema fixedExecutionParentType
+                sourceValues left right region
+              = guardedFieldGroupRegionChildTasks? schema fixedExecutionParentType
+                  targetValues left right region)
+    : guardedFieldGroupChildTasks? schema fixedExecutionParentType sourceValues left right
+        regions
+      = guardedFieldGroupChildTasks? schema fixedExecutionParentType targetValues left
+          right regions := by
+  induction regions with
+  | nil => rfl
+  | cons region rest ih =>
+      simp only [guardedFieldGroupChildTasks?]
+      rw [hregions region (by simp),
+        ih (by
+          intro candidate hcandidate
+          exact hregions candidate (by simp [hcandidate]))]
+
 theorem group_eq_of_mem_of_mem_of_keysNodup {groups : List (Name × List ExecutableField)}
     {left right : Name × List ExecutableField} (hnodup : (groups.map Prod.fst).Nodup)
     (hleft : left ∈ groups) (hright : right ∈ groups) (hkey : left.1 = right.1)
