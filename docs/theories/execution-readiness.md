@@ -90,6 +90,50 @@ execution reaches the field. Arbitrary runtime variable values or resolver resul
 can cause other errors even when both counts are zero. Invalid schemas and
 operations are outside its contract.
 
+## Semantic soundness and necessity
+
+`GraphQL.ExecutionReadinessSound schema operation` states that a well-formed schema
+and valid operation satisfying `operationCompositeFieldTypesInhabited` and
+`operationCoercibleInPossibleTypes` admit an execution with zero counted errors.
+The statement existentially quantifies over the resolver-reference type, resolvers,
+supplied variable values, and root reference. It executes `Execution.executeQuery`
+with an object of the operation's root type, using the standard schema-aware fuel
+bound, and requires the resulting response's `errors` count to be zero.
+
+`GraphQL.executionReadiness_sound`, in
+`Proofs/GraphQL/Theories/ExecutionReadiness/SemanticSoundness.lean`, proves this
+statement independently of the static checker. It constructs non-null supplied
+variable values, derives argument coercibility from concrete defaults, and uses
+`QueryInclusion.supportedResolvers` with `PUnit` object references. The existing
+error-free annotated execution theorem supplies the standard fuel bound; annotation
+erasure gives the ordinary `executeQuery` response. This guarantees one successful
+configuration; arbitrary variable assignments or resolver results may still fail.
+
+Two additional propositions state that neither readiness premise can be dropped
+from the general existence guarantee:
+
+- `ExecutionReadinessNeedsInhabitedOutputs` asks for a well-formed schema and valid
+  operation satisfying `operationCoercibleInPossibleTypes` but failing
+  `operationCompositeFieldTypesInhabited`, for which every execution configuration
+  has a nonzero error count. An unconditionally selected singular non-null field
+  returning an interface with no possible object type supplies the counterexample.
+  `GraphQL.executionReadiness_needsInhabitedOutputs` proves this statement.
+- `ExecutionReadinessNeedsCoercibleArguments` asks for the symmetric counterexample:
+  inhabited composite outputs, a failure of `operationCoercibleInPossibleTypes`,
+  and a nonzero error count for every execution configuration. The omitted required
+  argument whose interface default is absent from the concrete implementation,
+  shown above, supplies the counterexample when selected unconditionally.
+  `GraphQL.executionReadiness_needsCoercibleArguments` proves this statement.
+
+Both necessity witnesses are in
+`Proofs/GraphQL/Theories/ExecutionReadiness/Necessity.lean`. Each proves schema
+well-formedness, operation validity, the retained readiness predicate, failure of
+the omitted predicate, and exactly one counted error for every resolver-reference
+type, resolver environment, supplied-variable environment, and root reference.
+They express necessity for a guarantee covering all valid operations, not a converse for
+each individual operation: variable assignments, inapplicable fragments, null
+parents, and empty lists can prevent a failing field from being executed.
+
 ## Checker correctness
 
 The checker-correctness section of `GraphQL/Theories/ExecutionReadiness.lean`
@@ -130,3 +174,50 @@ it does not enumerate Boolean assignments or run coercion. The result is a pair
 of counters with addition. The tests in
 `Tests/GraphQL/Theories/ExecutionReadiness.lean` give concrete examples and expected
 counts for a Rust port.
+
+## Proposed schema constraints
+
+The proposed-schema section of `GraphQL/Theories/ExecutionReadiness.lean` describes
+two optional strengthenings of schema validation. They supplement the modeled
+September 2025 `schemaWellFormed` predicate.
+
+`schemaInterfaceArgumentDefaultsPreserved` requires object and interface
+implementations to preserve the presence of defaults on inherited field arguments.
+It follows option 3 discussed in
+[graphql-spec issue #1121](https://github.com/graphql/graphql-spec/issues/1121):
+an implementation must supply a default whenever the interface does, but the
+default values may differ. This rule includes nullable arguments, although the
+execution-readiness obstruction concerns omitted non-null arguments. Existing
+schema validation still checks input types and default-value validity.
+`ExecutionReadiness.operationCoercibleInPossibleTypes_of_schema` proves that under
+schema and operation validity, this constraint implies
+`operationCoercibleInPossibleTypes` for every operation. The proof transfers
+interface defaults to the concrete runtime field, using explicit ancestor
+declarations to cover transitive interface inheritance. Additional implementation
+arguments already satisfy the existing rule forbidding required extra arguments.
+
+`schemaCompositeFieldTypesInhabited` checks every declared object and interface
+field. A singular non-null composite output must have a possible runtime object
+type. Uninhabited interfaces can still be declared and used as `Empty`, `[Empty]`,
+`[Empty!]`, `[Empty]!`, or `[Empty!]!`; `Empty!` is rejected. Nullable outputs can
+complete as null, and list outputs can be empty even when their elements are
+non-null. Scalar and enum outputs are unaffected.
+`ExecutionReadiness.operationCompositeFieldTypesInhabited_of_schema` proves that
+this constraint implies `operationCompositeFieldTypesInhabited` for every
+operation, independently of which fields an operation selects. This implication
+does not require schema or operation validity; implicit `__typename` is a scalar
+leaf, and every declared composite field is covered directly by the constraint.
+
+`SchemaExecutionSound schema` states the resulting guarantee: for a well-formed
+schema satisfying both constraints, every valid operation has some resolver
+environment, supplied-variable environment, and root object for which
+`Execution.executeQuery` returns zero counted errors using its standard fuel
+bound. No separate operation-readiness premises appear in this statement. The
+witnesses may depend on the operation; arbitrary resolver results and variable
+values can still fail. `GraphQL.schemaExecution_sound` proves this statement by
+deriving both operation-readiness predicates and applying
+`GraphQL.executionReadiness_sound`. The schema implication proofs and final witness
+are in `Proofs/GraphQL/Theories/ExecutionReadiness/SchemaConstraints.lean`.
+`Tests/GraphQL/Theories/ExecutionReadiness/SchemaConstraints.lean` checks default
+presence, nullable arguments, output wrappers, and inhabited composite outputs,
+and audits the three public witnesses' axiom dependencies.

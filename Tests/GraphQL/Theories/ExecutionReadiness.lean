@@ -1,5 +1,7 @@
 import GraphQL.Theories.ExecutionReadiness
 import Proofs.GraphQL.Theories.ExecutionReadiness.Checker
+import Proofs.GraphQL.Theories.ExecutionReadiness.SemanticSoundness
+import Proofs.GraphQL.Theories.ExecutionReadiness.Necessity
 
 namespace GraphQL.Tests.ExecutionReadiness
 
@@ -276,5 +278,10 @@ example
       ∧ operationCoercibleInPossibleTypes concreteScopeSchema
           { selectionSet := [.inlineFragment (some "I") [] [field "f"]] } := by
   exact checkExecutionError_sound (by cbv)
+
+-- Audit the public semantic witnesses alongside the checker regressions.
+#print axioms GraphQL.executionReadiness_sound
+#print axioms GraphQL.executionReadiness_needsInhabitedOutputs
+#print axioms GraphQL.executionReadiness_needsCoercibleArguments
 
 end GraphQL.Tests.ExecutionReadiness

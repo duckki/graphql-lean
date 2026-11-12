@@ -1,8 +1,10 @@
 import GraphQL.Execution
+import GraphQL.SchemaWellFormedness
 import GraphQL.Theories.SelectionConditions
+import GraphQL.Validation
 
 /-!
-Static execution-readiness definitions shared by theories.
+Execution-readiness definitions shared by theories.
 
 Boolean-support extraction identifies the variables used by conditional execution;
 completeness says that an environment gives every variable in that support a concrete
@@ -10,6 +12,8 @@ Boolean value. The coercion predicates describe argument readiness for one concr
 supplied-variable environment. Concrete argument defaults support constructing
 coercible environments after validation. These conditions supplement operation
 validity: an otherwise valid operation may reject a particular runtime assignment.
+Semantic soundness states that the readiness predicates admit an execution with zero
+counted errors. The separate static checker characterizes those predicates.
 -/
 
 namespace GraphQL
@@ -282,6 +286,58 @@ def operationCoercibleInPossibleTypes (schema : Schema) (operation : Operation) 
       operation.selectionSet
 
 -----------------------------------------------------------------------------------------
+-- Semantic execution-readiness soundness
+-----------------------------------------------------------------------------------------
+
+-- A valid operation satisfying both readiness predicates admits a zero-error execution
+-- under some supplied variables and resolver environment, with a root object, using
+-- executeQuery's schema-aware fuel bound. This is an existential guarantee, not a claim
+-- about arbitrary resolver results. Proof witness: `GraphQL.executionReadiness_sound`
+-- in `Proofs/GraphQL/Theories/ExecutionReadiness/SemanticSoundness.lean`.
+def ExecutionReadinessSound (schema : Schema) (operation : Operation) : Prop :=
+  SchemaWellFormedness.schemaWellFormed schema
+  -> Validation.operationDefinitionValid schema operation
+  -> operationCompositeFieldTypesInhabited schema operation
+  -> operationCoercibleInPossibleTypes schema operation
+  -> ∃ (ObjectRef : Type) (resolvers : Resolvers ObjectRef)
+        (variableValues : VariableValues) (rootRef : ObjectRef),
+      (executeQuery schema resolvers variableValues operation
+        (.object (operation.rootType schema) rootRef)).errors
+      = 0
+
+-- Each readiness premise is indispensable to the general existence guarantee. These
+-- statements assert counterexamples to dropping one premise while retaining the other;
+-- they do not claim that either predicate is necessary for every individual operation
+-- to have some zero-error execution, since a configuration can avoid a failing branch.
+-- Proof witness: `GraphQL.executionReadiness_needsInhabitedOutputs`
+-- in `Proofs/GraphQL/Theories/ExecutionReadiness/Necessity.lean`.
+def ExecutionReadinessNeedsInhabitedOutputs : Prop :=
+  ∃ (schema : Schema) (operation : Operation),
+    SchemaWellFormedness.schemaWellFormed schema
+    ∧ Validation.operationDefinitionValid schema operation
+    ∧ operationCoercibleInPossibleTypes schema operation
+    ∧ ¬ operationCompositeFieldTypesInhabited schema operation
+    ∧ ∀ (ObjectRef : Type) (resolvers : Resolvers ObjectRef)
+        (variableValues : VariableValues) (rootRef : ObjectRef),
+        (executeQuery schema resolvers variableValues operation
+          (.object (operation.rootType schema) rootRef)).errors
+        ≠ 0
+
+-- Proof witness: `GraphQL.executionReadiness_needsCoercibleArguments`
+-- in `Proofs/GraphQL/Theories/ExecutionReadiness/Necessity.lean`.
+def ExecutionReadinessNeedsCoercibleArguments : Prop :=
+  ∃ (schema : Schema) (operation : Operation),
+    SchemaWellFormedness.schemaWellFormed schema
+    ∧ Validation.operationDefinitionValid schema operation
+    ∧ operationCompositeFieldTypesInhabited schema operation
+    ∧ ¬ operationCoercibleInPossibleTypes schema operation
+    ∧ ∀ (ObjectRef : Type) (resolvers : Resolvers ObjectRef)
+        (variableValues : VariableValues) (rootRef : ObjectRef),
+        (executeQuery schema resolvers variableValues operation
+          (.object (operation.rootType schema) rootRef)).errors
+        ≠ 0
+
+-----------------------------------------------------------------------------------------
 -- Static execution-error checker
 -----------------------------------------------------------------------------------------
 
@@ -409,5 +465,90 @@ def CheckExecutionErrorComplete (schema : Schema) (operation : Operation) : Prop
   operationCompositeFieldTypesInhabited schema operation
     ∧ operationCoercibleInPossibleTypes schema operation
   -> (checkExecutionError schema operation).errorCount = 0
+
+-----------------------------------------------------------------------------------------
+-- Proposed schema constraints for error-free execution
+-----------------------------------------------------------------------------------------
+
+-- Proposed strengthening of schema validation, separate from September 2025
+-- schemaWellFormed. An implementation preserves the presence of interface argument
+-- defaults; their values may differ. This applies to nullable and non-null arguments.
+-- Related proposal: https://github.com/graphql/graphql-spec/issues/1121 (option 3).
+def argumentDefaultsPreserved (implementation expected : List InputValueDefinition)
+    : Prop :=
+  ∀ expectedDefinition,
+    expectedDefinition ∈ expected
+    -> expectedDefinition.defaultValue.isSome = true
+    -> ∃ implementationDefinition,
+        Schema.lookupArgumentDefinition implementation expectedDefinition.name
+          = some implementationDefinition
+        ∧ implementationDefinition.defaultValue.isSome = true
+
+def fieldsPreserveInterfaceArgumentDefaults (schema : Schema)
+    (implementationFields : List FieldDefinition) (interfaceName : Name)
+    : Prop :=
+  ∀ interfaceType,
+    schema.lookupInterface interfaceName = some interfaceType
+    -> ∀ interfaceField,
+        interfaceField ∈ interfaceType.fields
+        -> ∃ implementationField,
+            Schema.lookupFieldDefinition implementationFields interfaceField.name
+              = some implementationField
+            ∧ argumentDefaultsPreserved implementationField.arguments
+                interfaceField.arguments
+
+-- Both object and interface implementations must preserve interface argument defaults.
+-- Under schema and operation validity, this implies operationCoercibleInPossibleTypes.
+-- Proof witness: `GraphQL.ExecutionReadiness.operationCoercibleInPossibleTypes_of_schema`
+-- in `Proofs/GraphQL/Theories/ExecutionReadiness/SchemaConstraints.lean`.
+def schemaInterfaceArgumentDefaultsPreserved (schema : Schema) : Prop :=
+  ∀ definition,
+    definition ∈ schema.types
+    -> match definition with
+        | .object objectType =>
+            ∀ interfaceName,
+              interfaceName ∈ objectType.interfaces
+              -> fieldsPreserveInterfaceArgumentDefaults schema objectType.fields
+                  interfaceName
+        | .interface interfaceType =>
+            ∀ interfaceName,
+              interfaceName ∈ interfaceType.interfaces
+              -> fieldsPreserveInterfaceArgumentDefaults schema interfaceType.fields
+                  interfaceName
+        | _ => True
+
+-- Proposed schema-wide restriction on output field types. Uninhabited interfaces may
+-- still be declared and used as nullable or list outputs: Empty, [Empty!], and [Empty!]!
+-- are allowed, but singular Empty! is rejected. Non-null scalar and enum outputs are
+-- unaffected. This implies operationCompositeFieldTypesInhabited for every operation.
+-- Proof witness: `GraphQL.ExecutionReadiness.operationCompositeFieldTypesInhabited_of_schema`
+-- in `Proofs/GraphQL/Theories/ExecutionReadiness/SchemaConstraints.lean`.
+def schemaCompositeFieldTypesInhabited (schema : Schema) : Prop :=
+  ∀ definition,
+    definition ∈ schema.types
+    -> ∀ fields,
+        definition.fields? = some fields
+        -> ∀ field,
+            field ∈ fields
+            -> field.outputType.isCompositeBool schema = true
+            -> nonNullNonListOutputTypeInhabited schema field.outputType
+
+-- Proposed schema-level soundness statement: every valid operation admits some
+-- zero-error executeQuery configuration, without separate operation-readiness premises.
+-- Resolver and variable witnesses may depend on the operation. The schema constraints
+-- remain proposed extensions of September 2025 schema validation.
+-- Proof witness: `GraphQL.schemaExecution_sound`
+-- in `Proofs/GraphQL/Theories/ExecutionReadiness/SchemaConstraints.lean`.
+def SchemaExecutionSound (schema : Schema) : Prop :=
+  SchemaWellFormedness.schemaWellFormed schema
+  -> schemaInterfaceArgumentDefaultsPreserved schema
+  -> schemaCompositeFieldTypesInhabited schema
+  -> ∀ operation,
+      Validation.operationDefinitionValid schema operation
+      -> ∃ (ObjectRef : Type) (resolvers : Resolvers ObjectRef)
+            (variableValues : VariableValues) (rootRef : ObjectRef),
+          (executeQuery schema resolvers variableValues operation
+            (.object (operation.rootType schema) rootRef)).errors
+          = 0
 
 end GraphQL
