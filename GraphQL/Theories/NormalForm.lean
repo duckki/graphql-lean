@@ -342,7 +342,8 @@ mutual
       (selectionSet : List Selection)
       : Prop :=
     ∀ selection,
-      selection ∈ selectionSet -> selectionSubselectionsNonempty schema parentType selection
+      selection ∈ selectionSet
+      -> selectionSubselectionsNonempty schema parentType selection
 end
 
 -- Operation-level wrapper for the September 2025 non-emptiness rule.
@@ -350,9 +351,10 @@ def operationSubselectionsNonempty (schema : Schema) (operation : Operation) : P
   selectionSetSubselectionsNonempty schema (operation.rootType schema)
     operation.selectionSet
 
--- The September 2025 non-emptiness rule, checked again in every possible object scope that
--- ground normalization may place a selection in. This mirrors
--- `selectionValidInPossibleTypes`.
+-- The September 2025 non-emptiness rule for every field, checked again in every possible
+-- object scope that ground normalization may place it in. This mirrors
+-- `selectionValidInPossibleTypes`. Inline fragments outside any field may be empty, since
+-- normalization drops them.
 mutual
   def selectionSubselectionsNonemptyInPossibleTypes (schema : Schema) (parentType : Name)
       : Selection -> Prop
@@ -367,18 +369,16 @@ mutual
                 -> selectionSetSubselectionsNonemptyInPossibleTypes schema objectType
                     selectionSet
     | .inlineFragment none _directives selectionSet =>
-        selectionSet ≠ []
-        ∧ ∀ objectType,
-            objectType ∈ schema.getPossibleTypes parentType
+        ∀ objectType,
+          objectType ∈ schema.getPossibleTypes parentType
+          -> selectionSetSubselectionsNonemptyInPossibleTypes schema objectType
+              selectionSet
+    | .inlineFragment (some typeCondition) _directives selectionSet =>
+        schema.typesOverlapBool parentType typeCondition = true
+        -> ∀ objectType,
+            objectType ∈ schema.getPossibleTypes typeCondition
             -> selectionSetSubselectionsNonemptyInPossibleTypes schema objectType
                 selectionSet
-    | .inlineFragment (some typeCondition) _directives selectionSet =>
-        selectionSet ≠ []
-        ∧ (schema.typesOverlapBool parentType typeCondition = true
-            -> ∀ objectType,
-                objectType ∈ schema.getPossibleTypes typeCondition
-                -> selectionSetSubselectionsNonemptyInPossibleTypes schema objectType
-                    selectionSet)
 
   def selectionSetSubselectionsNonemptyInPossibleTypes (schema : Schema)
       (parentType : Name)
@@ -391,7 +391,8 @@ end
 
 -- Operation-level wrapper for the possible-type form of the September 2025 non-emptiness
 -- rule.
-def operationSubselectionsNonemptyInPossibleTypes (schema : Schema) (operation : Operation)
+def operationSubselectionsNonemptyInPossibleTypes (schema : Schema)
+    (operation : Operation)
     : Prop :=
   selectionSetSubselectionsNonemptyInPossibleTypes schema (operation.rootType schema)
     operation.selectionSet

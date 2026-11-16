@@ -310,10 +310,20 @@ def normalOperationsSemanticallyEquivalentEqualUpToReordering
   -> operationDirectiveFree right
   -> operationNormal schema left
   -> operationNormal schema right
+  -> operationSubselectionsNonempty schema left
+  -> operationSubselectionsNonempty schema right
   -> variableDefinitionsSyntacticallyEquivalent left.variableDefinitions right.variableDefinitions
   -> operationsSemanticallyEquivalent schema left right
   -> operationsEqualUpToReorderingWithCoercion schema left right
 ```
+
+`operationSubselectionsNonempty` is the September 2025 rule that every inline fragment
+and every composite-typed field has a non-empty selection set. The September 2026
+specification allows empty selection sets, and without the premise the statement is
+false: an empty inline fragment is unobservable, so `{ hero { ... on Droid {} } }` and
+`{ hero {} }` are semantically equivalent normal operations that are not equal up to
+reordering. The separation proof also needs every composite field to have an observable
+leaf below it, which empty composite selection sets would break.
 
 Ground-normalization uniqueness is:
 
@@ -329,6 +339,8 @@ def normalizeOperationUniqueUpToReordering
   -> operationFieldsValidInPossibleTypes schema right
   -> operationTypeConditionFeasible schema left
   -> operationTypeConditionFeasible schema right
+  -> operationSubselectionsNonemptyInPossibleTypes schema left
+  -> operationSubselectionsNonemptyInPossibleTypes schema right
   -> variableDefinitionsSyntacticallyEquivalent left.variableDefinitions right.variableDefinitions
   -> operationsSemanticallyEquivalent schema left right
   -> operationsEqualUpToReorderingWithCoercion schema
@@ -427,6 +439,8 @@ def completeNormalOperationsSemanticallyEquivalentEqualUpToReordering
   -> Validation.operationDefinitionValid schema right
   -> completeNormalOperation schema left
   -> completeNormalOperation schema right
+  -> operationSubselectionsNonempty schema left
+  -> operationSubselectionsNonempty schema right
   -> variableDefinitionsSyntacticallyEquivalent left.variableDefinitions right.variableDefinitions
   -> operationBoolVarsEquivalent left right
   -> operationsSemanticallyEquivalentForCompleteBoolVars schema
@@ -455,6 +469,8 @@ def completeNormalizeOperationUniqueUpToReordering
   -> operationFieldsValidInPossibleTypes schema right
   -> operationBoolTypeConditionFeasible schema left
   -> operationBoolTypeConditionFeasible schema right
+  -> operationSubselectionsNonemptyInPossibleTypes schema left
+  -> operationSubselectionsNonemptyInPossibleTypes schema right
   -> variableDefinitionsSyntacticallyEquivalent left.variableDefinitions right.variableDefinitions
   -> operationBoolVarsEquivalent left right
   -> operationsSemanticallyEquivalentForCompleteBoolVars schema
@@ -468,6 +484,14 @@ Its witness is
 `CompleteNormalization.completeNormalizeOperation_uniqueUpToReordering`.
 The possible-type and Boolean/type-condition feasibility assumptions ensure complete
 normalization preserves validity and does not create semantically empty branches.
+`operationSubselectionsNonemptyInPossibleTypes` checks the September 2025 non-emptiness
+rule for every field in each possible object scope, mirroring
+`operationFieldsValidInPossibleTypes`. With the Boolean feasibility assumption it ensures
+that the normalized operations meet `operationSubselectionsNonempty`, which the
+already-normal theorem requires; this is
+`CompleteNormalization.completeNormalizeOperation_subselectionsNonempty`, and
+`GroundTypeNormalization.normalizeOperation_subselectionsNonempty` is the ground
+counterpart.
 The stricter, mode-free feasibility predicate ensures every Boolean condition
 and type-condition path is feasible, so all source field and variable uses
 survive in at least one complete branch. The normalized operations'

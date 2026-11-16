@@ -67,7 +67,9 @@ theorem validNormalObjectSelectionSets_semanticallyEquivalent_equalUpToReorderin
     (hleftFree : selectionSetDirectiveFree left)
     (hrightFree : selectionSetDirectiveFree right)
     (hleftNormal : selectionSetNormal schema parentType left)
+    (hleftSub : selectionSetSubselectionsNonempty schema parentType left)
     (hrightNormal : selectionSetNormal schema parentType right)
+    (hrightSub : selectionSetSubselectionsNonempty schema parentType right)
     (hobject : objectTypeNameBool schema parentType = true)
     (hsem
       : selectionSetsSemanticallyEquivalentAtVariableValues schema
@@ -117,8 +119,8 @@ theorem validNormalObjectSelectionSets_semanticallyEquivalent_equalUpToReorderin
       rcases
           GroundTypeNormalization.selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_coercion_diff
             hschema hleftValid hrightValid hleftCoercionAll hrightCoercionAll
-            hleftFree hrightFree hleftNormal
-            hrightNormal (supportSelectionSets := []) (minFuel := 0)
+            hleftFree hrightFree hleftNormal hleftSub
+            hrightNormal hrightSub (supportSelectionSets := []) (minFuel := 0)
             (by simp) hdiff with
         ⟨runtimeType, hinclude, ObjectRef, resolvers, fuel, ref, _hfuel,
           _hsupport, hnotData⟩

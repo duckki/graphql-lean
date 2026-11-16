@@ -150,8 +150,8 @@ mutual
             -> lookupFragmentAndRestLt? fragmentName fragments
                 = some (fragment, remaining)
             -> GraphQL.NamedFragment.Validation.selectionSetValid schema
-                    variableDefinitions [] fragment.typeCondition
-                    (Inline.inlineSelectionSet remaining.val fragment.selectionSet))
+                variableDefinitions [] fragment.typeCondition
+                (Inline.inlineSelectionSet remaining.val fragment.selectionSet))
           -> GraphQL.NamedFragment.Validation.selectionValid schema
               variableDefinitions fragments parentType selection
           -> GraphQL.NamedFragment.Validation.selectionValid schema
@@ -236,8 +236,8 @@ mutual
             -> lookupFragmentAndRestLt? fragmentName fragments
                 = some (fragment, remaining)
             -> GraphQL.NamedFragment.Validation.selectionSetValid schema
-                    variableDefinitions [] fragment.typeCondition
-                    (Inline.inlineSelectionSet remaining.val fragment.selectionSet))
+                variableDefinitions [] fragment.typeCondition
+                (Inline.inlineSelectionSet remaining.val fragment.selectionSet))
           -> GraphQL.NamedFragment.Validation.selectionSetValid schema
               variableDefinitions fragments parentType selectionSet
           -> GraphQL.NamedFragment.Validation.selectionSetValid schema
@@ -294,8 +294,8 @@ mutual
             -> lookupFragmentAndRestLt? fragmentName fragments
                 = some (fragment, remaining)
             -> GraphQL.NamedFragment.Validation.selectionSetValid schema
-                    variableDefinitions [] fragment.typeCondition
-                    (Inline.inlineSelectionSet remaining.val fragment.selectionSet))
+                variableDefinitions [] fragment.typeCondition
+                (Inline.inlineSelectionSet remaining.val fragment.selectionSet))
           -> GraphQL.NamedFragment.Validation.fieldSelectionSetValid schema
               variableDefinitions fragments fieldDefinition selectionSet
           -> GraphQL.NamedFragment.Validation.fieldSelectionSetValid schema
@@ -330,8 +330,8 @@ mutual
                     // remaining.length < fragments.length }},
             lookupFragmentAndRestLt? fragmentName fragments = some (fragment, remaining)
             -> GraphQL.NamedFragment.Validation.selectionSetValid schema
-                    variableDefinitions [] fragment.typeCondition
-                    (Inline.inlineSelectionSet remaining.val fragment.selectionSet))
+                variableDefinitions [] fragment.typeCondition
+                (Inline.inlineSelectionSet remaining.val fragment.selectionSet))
           -> GraphQL.NamedFragment.Validation.selectionValid schema
               variableDefinitions fragments parentType selection
           -> GraphQL.NamedFragment.Validation.selectionValid schema
@@ -390,8 +390,8 @@ mutual
                     // remaining.length < fragments.length }},
             lookupFragmentAndRestLt? fragmentName fragments = some (fragment, remaining)
             -> GraphQL.NamedFragment.Validation.selectionSetValid schema
-                    variableDefinitions [] fragment.typeCondition
-                    (Inline.inlineSelectionSet remaining.val fragment.selectionSet))
+                variableDefinitions [] fragment.typeCondition
+                (Inline.inlineSelectionSet remaining.val fragment.selectionSet))
           -> GraphQL.NamedFragment.Validation.selectionSetValid schema
               variableDefinitions fragments parentType selectionSet
           -> GraphQL.NamedFragment.Validation.selectionSetValid schema
@@ -432,8 +432,8 @@ mutual
                     // remaining.length < fragments.length }},
             lookupFragmentAndRestLt? fragmentName fragments = some (fragment, remaining)
             -> GraphQL.NamedFragment.Validation.selectionSetValid schema
-                    variableDefinitions [] fragment.typeCondition
-                    (Inline.inlineSelectionSet remaining.val fragment.selectionSet))
+                variableDefinitions [] fragment.typeCondition
+                (Inline.inlineSelectionSet remaining.val fragment.selectionSet))
           -> GraphQL.NamedFragment.Validation.fieldSelectionSetValid schema
               variableDefinitions fragments fieldDefinition selectionSet
           -> GraphQL.NamedFragment.Validation.fieldSelectionSetValid schema

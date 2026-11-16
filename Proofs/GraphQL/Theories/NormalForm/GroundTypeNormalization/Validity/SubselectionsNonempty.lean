@@ -1,0 +1,1224 @@
+import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Validity.Operation
+import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Uniqueness.Validity
+
+/-!
+Ground-type normalization preserves the September 2025 non-emptiness rule.
+
+`normalizeOperation_subselectionsNonempty` shows that normalizing a source operation that
+meets `operationSubselectionsNonemptyInPossibleTypes` produces an operation that meets
+`operationSubselectionsNonempty`.
+-/
+
+namespace GraphQL
+
+namespace NormalForm
+
+namespace GroundTypeNormalization
+
+/-
+Proof-internal invariant for ground normalization: along the object scopes that
+normalization visits, every composite field keeps a non-empty child selection set whose
+inline fragments are non-empty. Unlike `selectionSetSubselectionsNonemptyInPossibleTypes`,
+inline fragments are followed only in the current object scope, so Boolean filtering
+preserves it.
+-/
+mutual
+  def selectionSubselectionsNonemptyOnObjectPaths (schema : Schema) (parentType : Name)
+      : Selection -> Prop
+    | .field _responseName fieldName _arguments _directives selectionSet =>
+        ∀ fieldDefinition,
+          schema.lookupField parentType fieldName = some fieldDefinition
+          -> (schema.isCompositeType fieldDefinition.outputType.namedType
+                -> selectionSet ≠ [])
+              ∧ selectionSetInlineFragmentsNonempty selectionSet
+              ∧ ∀ objectType,
+                  objectType
+                    ∈ schema.getPossibleTypes fieldDefinition.outputType.namedType
+                  -> selectionSetSubselectionsNonemptyOnObjectPaths schema objectType
+                      selectionSet
+    | .inlineFragment none _directives selectionSet =>
+        selectionSetSubselectionsNonemptyOnObjectPaths schema parentType selectionSet
+    | .inlineFragment (some typeCondition) _directives selectionSet =>
+        schema.typesOverlapBool parentType typeCondition = true
+        -> selectionSetSubselectionsNonemptyOnObjectPaths schema parentType selectionSet
+
+  def selectionSetSubselectionsNonemptyOnObjectPaths (schema : Schema) (parentType : Name)
+      : List Selection -> Prop
+    | [] => True
+    | selection :: rest =>
+        selectionSubselectionsNonemptyOnObjectPaths schema parentType selection
+        ∧ selectionSetSubselectionsNonemptyOnObjectPaths schema parentType rest
+end
+
+theorem selectionSetSubselectionsNonemptyOnObjectPaths_nil
+    (schema : Schema)
+    (parentType : Name)
+    : selectionSetSubselectionsNonemptyOnObjectPaths schema parentType [] := by
+  simp [selectionSetSubselectionsNonemptyOnObjectPaths]
+
+theorem selectionSetSubselectionsNonemptyOnObjectPaths_cons
+    {schema : Schema}
+    {parentType : Name} {selection : Selection}
+    {selectionSet : List Selection}
+    : selectionSubselectionsNonemptyOnObjectPaths schema parentType selection
+      -> selectionSetSubselectionsNonemptyOnObjectPaths schema parentType selectionSet
+      -> selectionSetSubselectionsNonemptyOnObjectPaths schema
+          parentType (selection :: selectionSet) := by
+  intro hselection hselectionSet
+  simp [selectionSetSubselectionsNonemptyOnObjectPaths, hselection,
+    hselectionSet]
+
+theorem selectionSetSubselectionsNonemptyOnObjectPaths_head
+    {schema : Schema}
+    {parentType : Name} {selection : Selection}
+    {selectionSet : List Selection}
+    : selectionSetSubselectionsNonemptyOnObjectPaths schema
+        parentType (selection :: selectionSet)
+      -> selectionSubselectionsNonemptyOnObjectPaths schema parentType selection := by
+  intro hvalid
+  simpa [selectionSetSubselectionsNonemptyOnObjectPaths] using hvalid.1
+
+theorem selectionSetSubselectionsNonemptyOnObjectPaths_tail
+    {schema : Schema}
+    {parentType : Name} {selection : Selection}
+    {selectionSet : List Selection}
+    : selectionSetSubselectionsNonemptyOnObjectPaths schema
+        parentType (selection :: selectionSet)
+      -> selectionSetSubselectionsNonemptyOnObjectPaths schema
+          parentType selectionSet := by
+  intro hvalid
+  simpa [selectionSetSubselectionsNonemptyOnObjectPaths] using hvalid.2
+
+theorem selectionSetSubselectionsNonemptyOnObjectPaths_append
+    {schema : Schema}
+    {parentType : Name} {left right : List Selection}
+    : selectionSetSubselectionsNonemptyOnObjectPaths schema parentType left
+      -> selectionSetSubselectionsNonemptyOnObjectPaths schema parentType right
+      -> selectionSetSubselectionsNonemptyOnObjectPaths schema
+          parentType (left ++ right) := by
+  intro hleft hright
+  induction left with
+  | nil =>
+      simpa using hright
+  | cons selection rest ih =>
+      have hhead :=
+        selectionSetSubselectionsNonemptyOnObjectPaths_head hleft
+      have htail :=
+        selectionSetSubselectionsNonemptyOnObjectPaths_tail hleft
+      simp [selectionSetSubselectionsNonemptyOnObjectPaths]
+      exact ⟨hhead, ih htail⟩
+
+theorem
+    selectionSetSubselectionsNonemptyOnObjectPaths_withoutFieldSelectionsWithResponseName
+    (schema : Schema) (responseName : Name)
+    : ∀ parentType selectionSet,
+        selectionSetSubselectionsNonemptyOnObjectPaths schema parentType selectionSet
+        -> selectionSetSubselectionsNonemptyOnObjectPaths schema
+            parentType
+            (withoutFieldSelectionsWithResponseName schema responseName selectionSet)
+  | _parentType, [], _hvalid => by
+      simp [withoutFieldSelectionsWithResponseName,
+        selectionSetSubselectionsNonemptyOnObjectPaths]
+  | parentType, selection :: rest, hvalid => by
+      have hhead :=
+        selectionSetSubselectionsNonemptyOnObjectPaths_head hvalid
+      have htail :=
+        selectionSetSubselectionsNonemptyOnObjectPaths_tail hvalid
+      cases selection with
+      | field fieldResponseName fieldName arguments directives selectionSet =>
+          by_cases hname : (fieldResponseName == responseName) = true
+          · simp [withoutFieldSelectionsWithResponseName, hname]
+            exact
+              selectionSetSubselectionsNonemptyOnObjectPaths_withoutFieldSelectionsWithResponseName
+                schema responseName parentType rest htail
+          · have hfalse : (fieldResponseName == responseName) = false := by
+              cases hmatch : fieldResponseName == responseName
+              · rfl
+              · contradiction
+            simp [withoutFieldSelectionsWithResponseName, hfalse,
+              selectionSetSubselectionsNonemptyOnObjectPaths]
+            exact ⟨hhead,
+              selectionSetSubselectionsNonemptyOnObjectPaths_withoutFieldSelectionsWithResponseName
+                schema responseName parentType rest htail⟩
+      | inlineFragment typeCondition directives selectionSet =>
+          simp [withoutFieldSelectionsWithResponseName,
+            selectionSetSubselectionsNonemptyOnObjectPaths]
+          constructor
+          · cases typeCondition with
+            | none =>
+                have hbody :
+                    selectionSetSubselectionsNonemptyOnObjectPaths schema
+                      parentType selectionSet := by
+                  simpa [selectionSubselectionsNonemptyOnObjectPaths] using hhead
+                exact
+                  selectionSetSubselectionsNonemptyOnObjectPaths_withoutFieldSelectionsWithResponseName
+                    schema responseName parentType selectionSet hbody
+            | some typeCondition =>
+                intro hoverlap
+                have hbody :
+                    selectionSetSubselectionsNonemptyOnObjectPaths schema
+                      parentType selectionSet := by
+                  simpa [selectionSubselectionsNonemptyOnObjectPaths] using
+                    hhead hoverlap
+                exact
+                  selectionSetSubselectionsNonemptyOnObjectPaths_withoutFieldSelectionsWithResponseName
+                    schema responseName parentType selectionSet hbody
+          · exact
+              selectionSetSubselectionsNonemptyOnObjectPaths_withoutFieldSelectionsWithResponseName
+                schema responseName parentType rest htail
+
+theorem selectionSetSubselectionsNonemptyOnObjectPaths_mergeSelectionSets_of_subselections
+    {schema : Schema} {parentType : Name}
+    : ∀ selections,
+        (∀ selection,
+          selection ∈ selections
+          -> selectionSetSubselectionsNonemptyOnObjectPaths schema
+              parentType selection.subselections)
+        -> selectionSetSubselectionsNonemptyOnObjectPaths schema
+            parentType (mergeSelectionSets selections)
+  | [], _hvalid => by
+      simp [mergeSelectionSets,
+        selectionSetSubselectionsNonemptyOnObjectPaths]
+  | selection :: rest, hvalid => by
+      simp [mergeSelectionSets]
+      apply selectionSetSubselectionsNonemptyOnObjectPaths_append
+      · exact hvalid selection (by simp)
+      · exact
+          selectionSetSubselectionsNonemptyOnObjectPaths_mergeSelectionSets_of_subselections
+            rest (by
+              intro candidate hcandidate
+              exact hvalid candidate (by simp [hcandidate]))
+
+theorem
+    selectionSetSubselectionsNonemptyOnObjectPaths_mergeSelectionSets_of_field_subselections
+    {schema : Schema} {parentType responseName : Name} (selections : List Selection)
+    : (∀ selection,
+        selection ∈ selections
+        -> ∃ fieldName arguments directives subselections,
+            selection
+            = Selection.field responseName fieldName arguments directives subselections)
+      -> (∀ fieldName arguments directives subselections,
+            Selection.field responseName fieldName arguments directives subselections
+              ∈ selections
+            -> selectionSetSubselectionsNonemptyOnObjectPaths schema
+                parentType subselections)
+      -> selectionSetSubselectionsNonemptyOnObjectPaths schema
+          parentType (mergeSelectionSets selections) := by
+  intro hshape hfields
+  apply selectionSetSubselectionsNonemptyOnObjectPaths_mergeSelectionSets_of_subselections
+  intro selection hselection
+  rcases hshape selection hselection with
+    ⟨fieldName, arguments, directives, subselections, hselectionShape⟩
+  subst selection
+  simpa [Selection.subselections]
+    using hfields fieldName arguments directives subselections hselection
+
+theorem selectionSubselectionsNonemptyOnObjectPaths_field_child
+    {schema : Schema}
+    {parentType responseName fieldName : Name}
+    {arguments : List Argument} {directives : List DirectiveApplication}
+    {subselections : List Selection} {fieldDefinition : FieldDefinition}
+    {childType : Name}
+    : selectionSubselectionsNonemptyOnObjectPaths schema parentType
+        (Selection.field responseName fieldName arguments directives subselections)
+      -> schema.lookupField parentType fieldName = some fieldDefinition
+      -> childType ∈ schema.getPossibleTypes fieldDefinition.outputType.namedType
+      -> selectionSetSubselectionsNonemptyOnObjectPaths schema
+          childType subselections := by
+  intro hvalid hlookup hchildType
+  simp only [selectionSubselectionsNonemptyOnObjectPaths] at hvalid
+  exact (hvalid fieldDefinition hlookup).2.2 childType hchildType
+
+theorem fieldSelectionsWithResponseNameInScope_field_subselectionsNonemptyOnObjectPaths
+    (schema : Schema) (parentType responseName : Name)
+    : schema.objectType parentType
+      -> ∀ selectionSet,
+          selectionSetSubselectionsNonemptyOnObjectPaths schema parentType selectionSet
+          -> ∀ fieldName arguments directives subselections,
+              Selection.field responseName fieldName arguments directives subselections
+                ∈ fieldSelectionsWithResponseNameInScope schema parentType responseName
+                    selectionSet
+              -> selectionSubselectionsNonemptyOnObjectPaths schema parentType
+                  (Selection.field responseName fieldName arguments directives
+                    subselections)
+  | hobject, [], himplementation, fieldName, arguments, directives,
+      subselections, hfield => by
+      simp [fieldSelectionsWithResponseNameInScope] at hfield
+  | hobject, selection :: rest, himplementation, fieldName, arguments,
+      directives, subselections, hfield => by
+      have hheadImplementation :
+          selectionSubselectionsNonemptyOnObjectPaths schema parentType selection :=
+        selectionSetSubselectionsNonemptyOnObjectPaths_head himplementation
+      have htailImplementation :
+          selectionSetSubselectionsNonemptyOnObjectPaths schema
+            parentType rest :=
+        selectionSetSubselectionsNonemptyOnObjectPaths_tail himplementation
+      cases selection with
+      | field fieldResponseName matchedFieldName matchedArguments
+          matchedDirectives matchedSubselections =>
+          by_cases hname : (fieldResponseName == responseName) = true
+          · have hresponse : fieldResponseName = responseName :=
+              beq_iff_eq.mp hname
+            subst fieldResponseName
+            simp [fieldSelectionsWithResponseNameInScope] at hfield
+            rcases hfield with hhead | htail
+            · rcases hhead with
+                ⟨hfieldName, harguments, hdirectives, hsubselections⟩
+              subst fieldName
+              subst arguments
+              subst directives
+              subst subselections
+              exact hheadImplementation
+            · exact
+                fieldSelectionsWithResponseNameInScope_field_subselectionsNonemptyOnObjectPaths
+                  schema parentType responseName hobject
+                  rest htailImplementation fieldName arguments directives
+                  subselections htail
+          · have hfalse : (fieldResponseName == responseName) = false := by
+              cases hmatch : fieldResponseName == responseName
+              · rfl
+              · contradiction
+            simp [fieldSelectionsWithResponseNameInScope, hfalse] at hfield
+            exact
+              fieldSelectionsWithResponseNameInScope_field_subselectionsNonemptyOnObjectPaths
+                schema parentType responseName hobject
+                rest htailImplementation fieldName arguments directives
+                subselections hfield
+      | inlineFragment typeCondition fragmentDirectives selectionSet =>
+          cases typeCondition with
+          | none =>
+              have hbodyImplementation :
+                  selectionSetSubselectionsNonemptyOnObjectPaths schema
+                    parentType selectionSet := by
+                simpa [selectionSubselectionsNonemptyOnObjectPaths] using
+                  hheadImplementation
+              simp [fieldSelectionsWithResponseNameInScope] at hfield
+              rcases hfield with hbody | htail
+              · exact
+                  fieldSelectionsWithResponseNameInScope_field_subselectionsNonemptyOnObjectPaths
+                    schema parentType responseName
+                    hobject selectionSet hbodyImplementation fieldName
+                    arguments directives subselections hbody
+              · exact
+                  fieldSelectionsWithResponseNameInScope_field_subselectionsNonemptyOnObjectPaths
+                    schema parentType responseName
+                    hobject rest htailImplementation fieldName arguments
+                    directives subselections htail
+          | some typeCondition =>
+              by_cases hoverlap :
+                  schema.typesOverlapBool parentType typeCondition = true
+              · have hbodyImplementation :
+                    selectionSetSubselectionsNonemptyOnObjectPaths schema
+                      parentType selectionSet := by
+                  simpa [selectionSubselectionsNonemptyOnObjectPaths] using
+                    hheadImplementation hoverlap
+                simp [fieldSelectionsWithResponseNameInScope, hoverlap] at hfield
+                rcases hfield with hbody | htail
+                · exact
+                    fieldSelectionsWithResponseNameInScope_field_subselectionsNonemptyOnObjectPaths
+                      schema parentType responseName
+                      hobject selectionSet hbodyImplementation fieldName
+                      arguments directives subselections hbody
+                · exact
+                    fieldSelectionsWithResponseNameInScope_field_subselectionsNonemptyOnObjectPaths
+                      schema parentType responseName
+                      hobject rest htailImplementation fieldName arguments
+                      directives subselections htail
+              · have hfalse :
+                    schema.typesOverlapBool parentType typeCondition =
+                      false := by
+                  cases hmatch :
+                      schema.typesOverlapBool parentType typeCondition
+                  · rfl
+                  · contradiction
+                simp [fieldSelectionsWithResponseNameInScope, hfalse] at hfield
+                exact
+                  fieldSelectionsWithResponseNameInScope_field_subselectionsNonemptyOnObjectPaths
+                    schema parentType responseName
+                    hobject rest htailImplementation fieldName arguments
+                    directives subselections hfield
+
+theorem
+    selectionSetSubselectionsNonemptyOnObjectPaths_mergeSelectionSets_fieldSelectionsWithResponseNameInScope
+    {schema : Schema} {parentType responseName childType : Name}
+    (selectionSet : List Selection)
+    : (∀ fieldName arguments directives subselections,
+        Selection.field responseName fieldName arguments directives subselections
+          ∈ fieldSelectionsWithResponseNameInScope schema parentType responseName
+              selectionSet
+        -> selectionSetSubselectionsNonemptyOnObjectPaths schema childType subselections)
+      -> selectionSetSubselectionsNonemptyOnObjectPaths schema
+          childType
+          (mergeSelectionSets
+            (fieldSelectionsWithResponseNameInScope schema parentType responseName
+              selectionSet)) := by
+  intro hfields
+  apply selectionSetSubselectionsNonemptyOnObjectPaths_mergeSelectionSets_of_field_subselections
+  · intro selection hselection
+    exact fieldSelectionsWithResponseNameInScope_mem_field schema parentType responseName
+      selectionSet selection hselection
+  · intro fieldName arguments directives subselections hselection
+    exact hfields fieldName arguments directives subselections hselection
+
+theorem
+    fieldSelectionsWithResponseNameInScope_matching_subselections_subselectionsNonemptyOnObjectPaths_of_child_object
+    (schema : Schema) (parentType responseName fieldName runtimeType : Name)
+    (arguments : List Argument) (subselections rest : List Selection)
+    (fieldDefinition : FieldDefinition)
+    : schema.objectType parentType
+      -> selectionSetLookupValid schema parentType
+          (Selection.field responseName fieldName arguments [] subselections :: rest)
+      -> selectionSetSubselectionsNonemptyOnObjectPaths schema parentType
+          (Selection.field responseName fieldName arguments [] subselections :: rest)
+      -> FieldMerge.fieldsInSetCanMerge schema parentType
+          (Selection.field responseName fieldName arguments [] subselections :: rest)
+      -> schema.lookupField parentType fieldName = some fieldDefinition
+      -> schema.typeIncludesObjectBool fieldDefinition.outputType.namedType runtimeType
+          = true
+      -> ∀ matchedFieldName matchedArguments matchedDirectives matchedSubselections,
+          Selection.field responseName matchedFieldName matchedArguments
+              matchedDirectives matchedSubselections
+            ∈ fieldSelectionsWithResponseNameInScope schema parentType responseName rest
+          -> selectionSetSubselectionsNonemptyOnObjectPaths schema runtimeType
+              matchedSubselections := by
+  intro hobject hlookupValid hnonempty hmerge hlookup hinclude
+    matchedFieldName matchedArguments matchedDirectives matchedSubselections
+    hmatched
+  have hmatchedNonempty :=
+    fieldSelectionsWithResponseNameInScope_field_subselectionsNonemptyOnObjectPaths
+      schema parentType responseName hobject rest
+      (selectionSetSubselectionsNonemptyOnObjectPaths_tail hnonempty)
+      matchedFieldName matchedArguments matchedDirectives matchedSubselections hmatched
+  have hsame :
+      matchedFieldName = fieldName :=
+    fieldSelectionsWithResponseNameInScope_matching_same_field_of_canMerge_object_lookupValid
+      schema parentType responseName fieldName arguments subselections rest
+      hobject hlookupValid hmerge matchedFieldName matchedArguments
+      matchedDirectives matchedSubselections hmatched
+  subst matchedFieldName
+  exact selectionSubselectionsNonemptyOnObjectPaths_field_child hmatchedNonempty hlookup
+    (List.contains_iff_mem.mp hinclude)
+
+theorem selectionSetSubselectionsNonemptyOnObjectPaths_fieldHead_merged_of_child_object
+    (schema : Schema)
+    (parentType responseName fieldName runtimeType : Name)
+    (arguments : List Argument) (subselections rest : List Selection)
+    (fieldDefinition : FieldDefinition)
+    : schema.objectType parentType
+      -> selectionSetLookupValid schema parentType
+          (Selection.field responseName fieldName arguments [] subselections :: rest)
+      -> selectionSetSubselectionsNonemptyOnObjectPaths schema parentType
+          (Selection.field responseName fieldName arguments [] subselections :: rest)
+      -> FieldMerge.fieldsInSetCanMerge schema parentType
+          (Selection.field responseName fieldName arguments [] subselections :: rest)
+      -> schema.lookupField parentType fieldName = some fieldDefinition
+      -> schema.typeIncludesObjectBool fieldDefinition.outputType.namedType runtimeType
+          = true
+      -> selectionSetSubselectionsNonemptyOnObjectPaths schema runtimeType
+          (subselections
+            ++ mergeSelectionSets
+                (fieldSelectionsWithResponseNameInScope schema parentType responseName
+                  rest)) := by
+  intro hobject hlookupValid hnonempty hmerge hlookup hinclude
+  apply selectionSetSubselectionsNonemptyOnObjectPaths_append
+  · exact selectionSubselectionsNonemptyOnObjectPaths_field_child
+      (selectionSetSubselectionsNonemptyOnObjectPaths_head hnonempty) hlookup
+      (List.contains_iff_mem.mp hinclude)
+  · apply
+      selectionSetSubselectionsNonemptyOnObjectPaths_mergeSelectionSets_fieldSelectionsWithResponseNameInScope
+    intro matchedFieldName matchedArguments matchedDirectives
+      matchedSubselections hmatched
+    exact
+      fieldSelectionsWithResponseNameInScope_matching_subselections_subselectionsNonemptyOnObjectPaths_of_child_object
+        schema parentType responseName fieldName runtimeType arguments subselections rest
+        fieldDefinition hobject hlookupValid hnonempty hmerge hlookup hinclude
+        matchedFieldName matchedArguments matchedDirectives matchedSubselections
+        hmatched
+
+mutual
+  theorem selectionInlineFragmentsNonempty_of_selectionValid_subselectionsNonempty
+      (schema : Schema) (variableDefinitions : List VariableDefinition)
+      : ∀ parentType selection,
+          Validation.selectionValid schema variableDefinitions parentType selection
+          -> selectionSubselectionsNonempty schema parentType selection
+          -> selectionInlineFragmentsNonempty selection
+    | parentType,
+      .field _responseName fieldName _arguments _directives selectionSet,
+      hvalid, hnonempty => by
+        unfold selectionInlineFragmentsNonempty
+        rcases Validation.selectionValid_field_lookup hvalid with
+          ⟨fieldDefinition, hlookup, _harguments, hchild⟩
+        have hchildNonempty :
+            selectionSetSubselectionsNonempty schema
+              fieldDefinition.outputType.namedType selectionSet := by
+          simp only [selectionSubselectionsNonempty, hlookup] at hnonempty
+          exact hnonempty.2
+        simp [Validation.fieldSelectionSetValid] at hchild
+        rcases hchild.2 with hleaf | hcomposite
+        · rw [hleaf.2]
+          unfold selectionSetInlineFragmentsNonempty
+          intro selection hselection
+          cases hselection
+        · exact
+            selectionSetInlineFragmentsNonempty_of_selectionSetValid_subselectionsNonempty
+              schema variableDefinitions
+              fieldDefinition.outputType.namedType selectionSet
+              hcomposite.2 hchildNonempty
+    | parentType,
+      .inlineFragment none _directives selectionSet, hvalid, hnonempty => by
+        unfold selectionInlineFragmentsNonempty
+        have hvalid' := hvalid
+        simp [Validation.selectionValid] at hvalid'
+        simp only [selectionSubselectionsNonempty, Option.getD_none] at hnonempty
+        exact ⟨hnonempty.1,
+          selectionSetInlineFragmentsNonempty_of_selectionSetValid_subselectionsNonempty
+            schema variableDefinitions parentType selectionSet hvalid'.2 hnonempty.2⟩
+    | _parentType,
+      .inlineFragment (some typeCondition) _directives selectionSet,
+      hvalid, hnonempty => by
+        unfold selectionInlineFragmentsNonempty
+        have hvalid' := hvalid
+        simp [Validation.selectionValid] at hvalid'
+        simp only [selectionSubselectionsNonempty, Option.getD_some] at hnonempty
+        exact ⟨hnonempty.1,
+          selectionSetInlineFragmentsNonempty_of_selectionSetValid_subselectionsNonempty
+            schema variableDefinitions typeCondition selectionSet
+            hvalid'.2.2.2 hnonempty.2⟩
+
+  theorem selectionSetInlineFragmentsNonempty_of_selectionSetValid_subselectionsNonempty
+      (schema : Schema) (variableDefinitions : List VariableDefinition)
+      : ∀ parentType selectionSet,
+          Validation.selectionSetValid schema variableDefinitions parentType selectionSet
+          -> selectionSetSubselectionsNonempty schema parentType selectionSet
+          -> selectionSetInlineFragmentsNonempty selectionSet
+    | parentType, selectionSet, hvalid, hnonempty => by
+        unfold selectionSetInlineFragmentsNonempty
+        unfold Validation.selectionSetValid at hvalid
+        intro selection hselection
+        exact selectionInlineFragmentsNonempty_of_selectionValid_subselectionsNonempty
+          schema variableDefinitions parentType selection (hvalid selection hselection)
+          (selectionSetSubselectionsNonempty_of_mem hnonempty hselection)
+end
+
+theorem normalizeSelectionSet_subselectionsNonempty_of_typeConditionFeasible
+    (schema : Schema)
+    (hschema : SchemaWellFormedness.schemaWellFormed schema)
+    : ∀ parentType selectionSet,
+      ∀ typeConditions,
+        schema.objectType parentType
+        -> objectSatisfiesTypeConditionStack schema parentType typeConditions
+        -> selectionSetSemanticsReady schema parentType selectionSet
+        -> FieldMerge.fieldsInSetCanMerge schema parentType selectionSet
+        -> selectionSetDirectiveFree selectionSet
+        -> selectionSetTypeConditionFeasible schema parentType typeConditions selectionSet
+        -> selectionSetSubselectionsNonemptyOnObjectPaths schema parentType selectionSet
+        -> selectionSetSubselectionsNonempty schema parentType
+            (normalizeSelectionSet schema parentType selectionSet) := by
+  intro parentType selectionSet
+  induction parentType, selectionSet using normalizeSelectionSet.induct schema with
+  | case1 parentType =>
+      intro _typeConditions _hobject _hstack _hready
+        _hmerge _hfree _hfeasible _hnonempty
+      simpa [normalizeSelectionSet]
+        using (selectionSetSubselectionsNonempty_nil (schema := schema)
+                (parentType := parentType))
+  | case2 parentType rest responseName fieldName arguments directives
+      subselections hlookup hrest =>
+      intro typeConditions hobject hstack hready hmerge hfree
+        hfeasible hnonempty
+      have htailReady :
+          selectionSetSemanticsReady schema parentType rest :=
+        selectionSetSemanticsReady_tail hready
+      have htailMerge :
+          FieldMerge.fieldsInSetCanMerge schema parentType rest :=
+        fieldsInSetCanMerge_tail schema parentType
+          (Selection.field responseName fieldName arguments directives
+            subselections)
+          rest hmerge
+      have hrestFree :
+          selectionSetDirectiveFree rest :=
+        selectionSetDirectiveFree_tail hfree
+      have hfilteredReady :
+          selectionSetSemanticsReady schema parentType
+            (withoutFieldSelectionsWithResponseName schema responseName rest) :=
+        selectionSetSemanticsReady_withoutFieldSelectionsWithResponseName schema
+          responseName parentType rest htailReady
+      have hfilteredMerge :
+          FieldMerge.fieldsInSetCanMerge schema parentType
+            (withoutFieldSelectionsWithResponseName schema responseName rest) :=
+        fieldsInSetCanMerge_withoutFieldSelectionsWithResponseName schema
+          responseName parentType rest htailMerge
+      have hfilteredFree :
+          selectionSetDirectiveFree
+            (withoutFieldSelectionsWithResponseName schema responseName rest) :=
+        withoutFieldSelectionsWithResponseName_directiveFree schema responseName rest
+          hrestFree
+      have hfilteredFeasible :
+          selectionSetTypeConditionFeasible schema parentType typeConditions
+
+            (withoutFieldSelectionsWithResponseName schema responseName rest) :=
+        selectionSetTypeConditionFeasible_withoutFieldSelectionsWithResponseName
+          schema responseName parentType typeConditions rest
+          (selectionSetTypeConditionFeasible_tail hfeasible)
+      have hfilteredNonempty :=
+        selectionSetSubselectionsNonemptyOnObjectPaths_withoutFieldSelectionsWithResponseName
+          schema responseName parentType rest
+          (selectionSetSubselectionsNonemptyOnObjectPaths_tail hnonempty)
+      simpa [normalizeSelectionSet, hlookup]
+        using hrest typeConditions hobject hstack hfilteredReady
+          hfilteredMerge hfilteredFree hfilteredFeasible
+          hfilteredNonempty
+  | case3 parentType rest responseName fieldName arguments directives
+      subselections fieldDefinition hlookup matching mergedSubselections
+      returnType hrest hmerged hpossible =>
+      intro typeConditions hobject hstack hready hmerge hfree
+        hfeasible hnonempty
+      let normalizedSubselections :=
+        if objectTypeNameBool schema returnType then
+          normalizeSelectionSet schema returnType mergedSubselections
+        else
+          possibleTypeNormalizations schema
+            (schema.getPossibleTypes returnType) mergedSubselections
+      have hselectionFree :=
+        selectionSetDirectiveFree_head hfree
+      have hrestFree :
+          selectionSetDirectiveFree rest :=
+        selectionSetDirectiveFree_tail hfree
+      have hdirectives : directives = [] := hselectionFree.1
+      subst directives
+      have hsubselectionsFree : selectionSetDirectiveFree subselections :=
+        hselectionFree.2
+      have htailReady :
+          selectionSetSemanticsReady schema parentType rest :=
+        selectionSetSemanticsReady_tail hready
+      have htailMerge :
+          FieldMerge.fieldsInSetCanMerge schema parentType rest :=
+        fieldsInSetCanMerge_tail schema parentType
+          (Selection.field responseName fieldName arguments []
+            subselections)
+          rest hmerge
+      have hfilteredReady :
+          selectionSetSemanticsReady schema parentType
+            (withoutFieldSelectionsWithResponseName schema responseName rest) :=
+        selectionSetSemanticsReady_withoutFieldSelectionsWithResponseName schema
+          responseName parentType rest htailReady
+      have hfilteredMerge :
+          FieldMerge.fieldsInSetCanMerge schema parentType
+            (withoutFieldSelectionsWithResponseName schema responseName rest) :=
+        fieldsInSetCanMerge_withoutFieldSelectionsWithResponseName schema
+          responseName parentType rest htailMerge
+      have hfilteredFree :
+          selectionSetDirectiveFree
+            (withoutFieldSelectionsWithResponseName schema responseName rest) :=
+        withoutFieldSelectionsWithResponseName_directiveFree schema responseName rest
+          hrestFree
+      have htailFeasible :
+          selectionSetTypeConditionFeasible schema parentType typeConditions
+             rest :=
+        selectionSetTypeConditionFeasible_tail hfeasible
+      have hfilteredFeasible :
+          selectionSetTypeConditionFeasible schema parentType typeConditions
+
+            (withoutFieldSelectionsWithResponseName schema responseName rest) :=
+        selectionSetTypeConditionFeasible_withoutFieldSelectionsWithResponseName
+          schema responseName parentType typeConditions rest htailFeasible
+      have hnormalizedRest :
+          selectionSetSubselectionsNonempty schema parentType
+            (normalizeSelectionSet schema parentType
+              (withoutFieldSelectionsWithResponseName schema responseName rest)) :=
+        hrest typeConditions hobject hstack hfilteredReady
+        hfilteredMerge hfilteredFree hfilteredFeasible
+          (selectionSetSubselectionsNonemptyOnObjectPaths_withoutFieldSelectionsWithResponseName
+            schema responseName parentType rest
+            (selectionSetSubselectionsNonemptyOnObjectPaths_tail hnonempty))
+      have hlookupValid :
+          selectionSetLookupValid schema parentType
+            (Selection.field responseName fieldName arguments []
+              subselections :: rest) :=
+        selectionSetLookupValid_of_selectionSetSemanticsReady
+          (Selection.field responseName fieldName arguments []
+            subselections :: rest)
+          hready
+      have hmatchingFree :
+          selectionSetDirectiveFree matching := by
+        subst matching
+        exact fieldSelectionsWithResponseNameInScope_directiveFree schema parentType
+          responseName rest hrestFree
+      have hmergedFree :
+          selectionSetDirectiveFree mergedSubselections := by
+        subst mergedSubselections
+        exact selectionSetDirectiveFree_append hsubselectionsFree
+          (selectionSetDirectiveFree_mergeSelectionSets hmatchingFree)
+      have hheadFeasible :
+          selectionTypeConditionFeasible schema parentType typeConditions
+
+            (Selection.field responseName fieldName arguments []
+              subselections) := by
+        simpa [selectionSetTypeConditionFeasible] using hfeasible.1
+      have hmergedFeasible :
+          ∀ objectType,
+            objectType ∈ schema.getPossibleTypes returnType ->
+              selectionSetTypeConditionFeasible schema objectType [objectType]
+                 mergedSubselections := by
+        intro objectType hobjectType
+        have hheadChildFeasible :
+            selectionSetTypeConditionFeasible schema objectType [objectType]
+               subselections :=
+          selectionTypeConditionFeasible_field_child_branch_forObject
+            schema hheadFeasible hstack hlookup
+            (by simpa [returnType] using hobjectType)
+        have hmatchingChildFeasible :
+            selectionSetTypeConditionFeasible schema objectType [objectType]
+               (mergeSelectionSets matching) := by
+          subst matching
+          apply
+            selectionSetTypeConditionFeasible_mergeSelectionSets_fieldSelectionsWithResponseNameInScope
+          intro matchedFieldName matchedArguments matchedDirectives
+            matchedSubselections hmatched
+          have hsame :
+              matchedFieldName = fieldName :=
+            fieldSelectionsWithResponseNameInScope_matching_same_field_of_canMerge_object_lookupValid
+              schema parentType responseName fieldName arguments subselections
+              rest hobject hlookupValid hmerge matchedFieldName
+              matchedArguments matchedDirectives matchedSubselections hmatched
+          subst matchedFieldName
+          exact
+            fieldSelectionsWithResponseNameInScope_field_child_branch_forObject
+              schema parentType responseName hobject hstack rest
+              htailFeasible fieldName matchedArguments matchedDirectives
+              matchedSubselections fieldDefinition objectType hmatched hlookup
+              (by simpa [returnType] using hobjectType)
+        subst mergedSubselections
+        exact selectionSetTypeConditionFeasible_append hheadChildFeasible
+          hmatchingChildFeasible
+      have hheadOnPaths :=
+        selectionSetSubselectionsNonemptyOnObjectPaths_head hnonempty
+      simp only [selectionSubselectionsNonemptyOnObjectPaths] at hheadOnPaths
+      have hheadParts := hheadOnPaths fieldDefinition hlookup
+      have hmergedNonempty :
+          ∀ objectType,
+            objectType ∈ schema.getPossibleTypes returnType ->
+              selectionSetSubselectionsNonemptyOnObjectPaths schema objectType
+                mergedSubselections := by
+        intro objectType hobjectType
+        subst mergedSubselections
+        exact
+          selectionSetSubselectionsNonemptyOnObjectPaths_fieldHead_merged_of_child_object
+            schema parentType responseName fieldName objectType arguments
+            subselections rest fieldDefinition hobject hlookupValid hnonempty hmerge
+            hlookup (List.contains_iff_mem.mpr (by simpa [returnType] using hobjectType))
+      have hnormalizedSubselectionsSub :
+          selectionSetSubselectionsNonempty schema returnType normalizedSubselections := by
+        subst normalizedSubselections
+        by_cases hreturnObject : objectTypeNameBool schema returnType = true
+        · have hreturnObjectType :
+              schema.objectType returnType :=
+            objectType_of_objectTypeNameBool_eq_true schema hreturnObject
+          have hinclude :
+              schema.typeIncludesObjectBool
+                fieldDefinition.outputType.namedType returnType = true := by
+            simpa [returnType]
+              using object_typeIncludesObjectBool_self schema hreturnObjectType
+          have hchildReady :
+              selectionSetSemanticsReady schema returnType
+                mergedSubselections :=
+            selectionSetSemanticsReady_fieldHead_merged_of_child_object
+              schema parentType responseName fieldName returnType arguments
+              subselections rest fieldDefinition hobject hready hlookupValid
+              hmerge hlookup (by simpa [returnType] using hinclude)
+          have hchildMerge :
+              FieldMerge.fieldsInSetCanMerge schema returnType
+                mergedSubselections :=
+            fieldsInSetCanMerge_fieldHead_merged_of_canMerge_object_lookupValid
+              schema parentType responseName fieldName returnType arguments
+              subselections rest fieldDefinition hobject hlookupValid hmerge
+              hlookup
+          have hreturnPossible :
+              returnType ∈ schema.getPossibleTypes returnType := by
+            simpa [returnType]
+              using (List.contains_iff_mem.mp
+                      (object_typeIncludesObjectBool_self schema hreturnObjectType))
+          simpa [hreturnObject]
+            using hmerged [returnType] hreturnObjectType
+              (objectSatisfiesTypeConditionStack_singleton_of_object_forValidity
+                schema hreturnObjectType)
+              hchildReady
+              hchildMerge hmergedFree
+              (hmergedFeasible returnType hreturnPossible)
+              (hmergedNonempty returnType hreturnPossible)
+        · have hreturnObjectFalse :
+              objectTypeNameBool schema returnType = false := by
+            cases hmatch : objectTypeNameBool schema returnType
+            · rfl
+            · contradiction
+          simp only [hreturnObjectFalse, Bool.false_eq_true, ↓reduceIte]
+          refine selectionSetSubselectionsNonempty_iff.mpr ?_
+          intro selection hselectionMem
+          unfold possibleTypeNormalizations at hselectionMem
+          rw [List.mem_filterMap] at hselectionMem
+          rcases hselectionMem with ⟨objectType, hobjectType, hselection⟩
+          have hobjectBranch :
+              schema.objectType objectType :=
+            SchemaWellFormedness.schemaWellFormed_possibleTypesAreObjects
+              hschema returnType objectType hobjectType
+          have hinclude :
+              schema.typeIncludesObjectBool
+                fieldDefinition.outputType.namedType objectType = true :=
+            List.contains_iff_mem.mpr (by simpa [returnType] using hobjectType)
+          have hchildReady :
+              selectionSetSemanticsReady schema objectType
+                mergedSubselections :=
+            selectionSetSemanticsReady_fieldHead_merged_of_child_object
+              schema parentType responseName fieldName objectType arguments
+              subselections rest fieldDefinition hobject hready hlookupValid
+              hmerge hlookup (by simpa [returnType] using hinclude)
+          have hchildMerge :
+              FieldMerge.fieldsInSetCanMerge schema objectType
+                mergedSubselections :=
+            fieldsInSetCanMerge_fieldHead_merged_of_canMerge_object_lookupValid
+              schema parentType responseName fieldName objectType arguments
+              subselections rest fieldDefinition hobject hlookupValid hmerge
+              hlookup
+          have hbranchSub :=
+            hpossible objectType [objectType] hobjectBranch
+              (objectSatisfiesTypeConditionStack_singleton_of_object_forValidity
+                schema hobjectBranch)
+              hchildReady
+              hchildMerge hmergedFree
+              (hmergedFeasible objectType hobjectType)
+              (hmergedNonempty objectType hobjectType)
+          cases hnormalized
+                : normalizeSelectionSet schema objectType mergedSubselections with
+          | nil =>
+              simp [hnormalized] at hselection
+          | cons head tail =>
+              simp [hnormalized] at hselection
+              subst selection
+              simp only [selectionSubselectionsNonempty, Option.getD_some]
+              exact ⟨by simp, by simpa [hnormalized] using hbranchSub⟩
+      have hnormalizedSubselectionsNonempty :
+          schema.isCompositeType fieldDefinition.outputType.namedType ->
+            normalizedSubselections ≠ [] := by
+        intro hcomposite
+        have hsubselectionsNonempty :
+            subselections ≠ [] :=
+          hheadParts.1 hcomposite
+        have hsubselectionsInlineNonempty :
+            selectionSetInlineFragmentsNonempty subselections :=
+          hheadParts.2.1
+        rcases
+            selectionTypeConditionFeasible_field_child_contains_forPossibleType
+              schema hheadFeasible hstack hlookup
+              hsubselectionsNonempty hsubselectionsInlineNonempty with
+          ⟨childObjectType, hchildObjectType, hheadChildContains⟩
+        have hmergedContains :
+            selectionSetContainsTypeConditionFeasibleField schema
+              [childObjectType]
+              mergedSubselections := by
+          subst mergedSubselections
+          exact
+            selectionSetContainsTypeConditionFeasibleField_append_left_forValidity
+              schema [childObjectType] hheadChildContains
+        subst normalizedSubselections
+        by_cases hreturnObject : objectTypeNameBool schema returnType = true
+        · have hreturnObjectType :
+              schema.objectType returnType :=
+            objectType_of_objectTypeNameBool_eq_true schema hreturnObject
+          have hchildObjectEq :
+              childObjectType = returnType :=
+            object_typeIncludesObjectBool_eq_self schema hreturnObjectType
+              (List.contains_iff_mem.mpr
+                (by simpa [returnType] using hchildObjectType))
+          subst childObjectType
+          have hinclude :
+              schema.typeIncludesObjectBool
+                fieldDefinition.outputType.namedType returnType = true := by
+            simpa [returnType]
+              using object_typeIncludesObjectBool_self schema hreturnObjectType
+          have hchildReady :
+              selectionSetSemanticsReady schema returnType
+                mergedSubselections :=
+            selectionSetSemanticsReady_fieldHead_merged_of_child_object
+              schema parentType responseName fieldName returnType arguments
+              subselections rest fieldDefinition hobject hready hlookupValid
+              hmerge hlookup (by simpa [returnType] using hinclude)
+          simpa [hreturnObject]
+            using normalizeSelectionSet_ne_nil_of_contains schema
+              returnType mergedSubselections hreturnObjectType hchildReady
+              hmergedContains
+        · have hreturnObjectFalse :
+              objectTypeNameBool schema returnType = false := by
+            cases hmatch : objectTypeNameBool schema returnType
+            · rfl
+            · contradiction
+          simp [hreturnObjectFalse]
+          have hbranchObject :
+              schema.objectType childObjectType :=
+            SchemaWellFormedness.schemaWellFormed_possibleTypesAreObjects
+              hschema returnType childObjectType
+              (by simpa [returnType] using hchildObjectType)
+          have hinclude :
+              schema.typeIncludesObjectBool
+                fieldDefinition.outputType.namedType childObjectType = true :=
+            List.contains_iff_mem.mpr
+              hchildObjectType
+          have hchildReady :
+              selectionSetSemanticsReady schema childObjectType
+                mergedSubselections :=
+            selectionSetSemanticsReady_fieldHead_merged_of_child_object
+              schema parentType responseName fieldName childObjectType arguments
+              subselections rest fieldDefinition hobject hready hlookupValid
+              hmerge hlookup hinclude
+          exact
+            possibleTypeNormalizations_ne_nil_of_branch_forValidity schema
+              (by simpa [returnType] using hchildObjectType)
+              (normalizeSelectionSet_ne_nil_of_contains schema
+                childObjectType mergedSubselections hbranchObject hchildReady
+                hmergedContains)
+      have hheadResult :
+          selectionSubselectionsNonempty schema parentType
+            (normalizedField schema returnType responseName fieldName arguments []
+              normalizedSubselections) := by
+        simp only [normalizedField, selectionSubselectionsNonempty, hlookup]
+        exact ⟨hnormalizedSubselectionsNonempty,
+          by simpa [returnType] using hnormalizedSubselectionsSub⟩
+      rw [normalizeSelectionSet.eq_2, hlookup]
+      change selectionSetSubselectionsNonempty schema parentType
+        (normalizedFieldWithRest schema returnType responseName fieldName
+          arguments [] normalizedSubselections
+          (normalizeSelectionSet schema parentType
+            (withoutFieldSelectionsWithResponseName schema responseName rest)))
+      refine selectionSetSubselectionsNonempty_iff.mpr ?_
+      intro selection hselection
+      simp only [normalizedFieldWithRest, List.mem_cons] at hselection
+      rcases hselection with hhead | htail
+      · subst selection
+        exact hheadResult
+      · exact selectionSetSubselectionsNonempty_of_mem hnormalizedRest htail
+  | case4 parentType rest directives subselections happend =>
+      intro typeConditions hobject hstack hready hmerge hfree
+        hfeasible hnonempty
+      have hselectionFree :=
+        selectionSetDirectiveFree_head hfree
+      have hdirectives : directives = [] := hselectionFree.1
+      subst directives
+      have hrestFree :=
+        selectionSetDirectiveFree_tail hfree
+      have hbodyReady :
+          selectionSetSemanticsReady schema parentType subselections := by
+        have hhead :
+            selectionSemanticsReady schema parentType
+              (Selection.inlineFragment none [] subselections) := by
+          unfold selectionSetSemanticsReady at hready
+          exact hready _ (by simp)
+        simpa [selectionSemanticsReady] using hhead
+      have htailReady :=
+        selectionSetSemanticsReady_tail hready
+      have hbodyTailReady :
+          selectionSetSemanticsReady schema parentType
+            (subselections ++ rest) :=
+        selectionSetSemanticsReady_append hbodyReady htailReady
+      have hbodyTailMerge :
+          FieldMerge.fieldsInSetCanMerge schema parentType
+            (subselections ++ rest) :=
+        fieldsInSetCanMerge_inlineFragment_none_flatten schema parentType
+          subselections rest hmerge
+      have hbodyTailFree :
+          selectionSetDirectiveFree (subselections ++ rest) :=
+        selectionSetDirectiveFree_append hselectionFree.2 hrestFree
+      have hbodyFeasible :
+          selectionSetTypeConditionFeasible schema parentType typeConditions
+             subselections := by
+        simpa [selectionSetTypeConditionFeasible, selectionTypeConditionFeasible]
+          using hfeasible.1
+      have htailFeasible :
+          selectionSetTypeConditionFeasible schema parentType typeConditions
+             rest :=
+        selectionSetTypeConditionFeasible_tail hfeasible
+      have hbodyTailFeasible :
+          selectionSetTypeConditionFeasible schema parentType typeConditions
+
+            (subselections ++ rest) :=
+        selectionSetTypeConditionFeasible_append hbodyFeasible htailFeasible
+      have hbodyTailNonempty :
+          selectionSetSubselectionsNonemptyOnObjectPaths schema parentType
+            (subselections ++ rest) := by
+        have hhead :=
+          selectionSetSubselectionsNonemptyOnObjectPaths_head hnonempty
+        apply selectionSetSubselectionsNonemptyOnObjectPaths_append
+        · simpa [selectionSubselectionsNonemptyOnObjectPaths] using hhead
+        · exact selectionSetSubselectionsNonemptyOnObjectPaths_tail hnonempty
+      simpa [normalizeSelectionSet]
+        using happend typeConditions hobject hstack hbodyTailReady
+          hbodyTailMerge hbodyTailFree
+          hbodyTailFeasible hbodyTailNonempty
+  | case5 parentType rest typeCondition directives subselections hoverlap
+      _hrest happend =>
+      intro typeConditions hobject hstack hready hmerge hfree
+        hfeasible hnonempty
+      have hselectionFree :=
+        selectionSetDirectiveFree_head hfree
+      have hdirectives : directives = [] := hselectionFree.1
+      subst directives
+      have hrestFree :=
+        selectionSetDirectiveFree_tail hfree
+      have hheadReady :
+          selectionSemanticsReady schema parentType
+            (Selection.inlineFragment (some typeCondition) []
+              subselections) := by
+        unfold selectionSetSemanticsReady at hready
+        exact hready _ (by simp)
+      have hbodyReady :
+          selectionSetSemanticsReady schema parentType subselections := by
+        have hpair :
+            selectionSetLookupValid schema typeCondition subselections
+              ∧ (schema.typesOverlapBool parentType typeCondition = true ->
+                selectionSetSemanticsReady schema parentType subselections) := by
+          simpa [selectionSemanticsReady] using hheadReady
+        exact hpair.2 hoverlap
+      have htailReady :=
+        selectionSetSemanticsReady_tail hready
+      have hbodyTailReady :
+          selectionSetSemanticsReady schema parentType
+            (subselections ++ rest) :=
+        selectionSetSemanticsReady_append hbodyReady htailReady
+      have hlookupBodyType :
+          selectionSetLookupValid schema typeCondition subselections := by
+        have hpair :
+            selectionSetLookupValid schema typeCondition subselections
+              ∧ (schema.typesOverlapBool parentType typeCondition = true ->
+                selectionSetSemanticsReady schema parentType subselections) := by
+          simpa [selectionSemanticsReady] using hheadReady
+        exact hpair.1
+      have hlookupBodyParent :
+          selectionSetLookupValid schema parentType subselections :=
+        selectionSetLookupValid_of_selectionSetSemanticsReady subselections
+          hbodyReady
+      have hlookupRest :
+          selectionSetLookupValid schema parentType rest :=
+        selectionSetLookupValid_of_selectionSetSemanticsReady rest htailReady
+      have hbodyTailMerge :
+          FieldMerge.fieldsInSetCanMerge schema parentType
+            (subselections ++ rest) :=
+        fieldsInSetCanMerge_inlineFragment_some_overlap_flatten_object
+          schema parentType typeCondition subselections rest hschema hobject
+          hoverlap hlookupBodyParent hlookupBodyType hlookupRest hmerge
+      have hbodyTailFree :
+          selectionSetDirectiveFree (subselections ++ rest) :=
+        selectionSetDirectiveFree_append hselectionFree.2 hrestFree
+      have hbodyFeasible :
+          selectionSetTypeConditionFeasible schema parentType
+            (typeCondition :: typeConditions)  subselections := by
+        simpa [selectionSetTypeConditionFeasible, selectionTypeConditionFeasible]
+          using hfeasible.1
+      have htailFeasible :
+          selectionSetTypeConditionFeasible schema parentType typeConditions
+             rest :=
+        selectionSetTypeConditionFeasible_tail hfeasible
+      have hbodyFeasibleInOuterStack :
+          selectionSetTypeConditionFeasible schema parentType typeConditions
+             subselections :=
+        selectionSetTypeConditionFeasible_of_stack_subset schema
+          (fun candidate hcandidate =>
+            List.mem_cons_of_mem typeCondition hcandidate)
+          subselections hbodyFeasible
+      have hbodyTailFeasible :
+          selectionSetTypeConditionFeasible schema parentType typeConditions
+            (subselections ++ rest) :=
+        selectionSetTypeConditionFeasible_append hbodyFeasibleInOuterStack
+          htailFeasible
+      have hbodyTailNonempty :
+          selectionSetSubselectionsNonemptyOnObjectPaths schema parentType
+            (subselections ++ rest) := by
+        have hhead :=
+          selectionSetSubselectionsNonemptyOnObjectPaths_head hnonempty
+        apply selectionSetSubselectionsNonemptyOnObjectPaths_append
+        · simpa [selectionSubselectionsNonemptyOnObjectPaths] using hhead hoverlap
+        · exact selectionSetSubselectionsNonemptyOnObjectPaths_tail hnonempty
+      simpa [normalizeSelectionSet, hoverlap]
+        using happend typeConditions hobject hstack
+          hbodyTailReady hbodyTailMerge
+          hbodyTailFree hbodyTailFeasible hbodyTailNonempty
+  | case6 parentType rest typeCondition directives subselections hoverlap
+      hrest =>
+      intro typeConditions hobject hstack hready hmerge hfree
+        hfeasible hnonempty
+      have htailReady :=
+        selectionSetSemanticsReady_tail hready
+      have htailMerge :
+          FieldMerge.fieldsInSetCanMerge schema parentType rest :=
+        fieldsInSetCanMerge_tail schema parentType
+          (Selection.inlineFragment (some typeCondition) directives
+            subselections)
+          rest hmerge
+      have htailFree :=
+        selectionSetDirectiveFree_tail hfree
+      have htailFeasible :
+          selectionSetTypeConditionFeasible schema parentType typeConditions
+             rest :=
+        selectionSetTypeConditionFeasible_tail hfeasible
+      have hfalse :
+          schema.typesOverlapBool parentType typeCondition = false := by
+        cases hmatch : schema.typesOverlapBool parentType typeCondition
+        · rfl
+        · contradiction
+      simpa [normalizeSelectionSet, hfalse]
+        using hrest typeConditions hobject hstack htailReady
+          htailMerge htailFree htailFeasible
+          (selectionSetSubselectionsNonemptyOnObjectPaths_tail hnonempty)
+
+mutual
+  theorem selectionSubselectionsNonemptyOnObjectPaths_of_inPossibleTypes
+      (schema : Schema) (variableDefinitions : List VariableDefinition)
+      (hschema : SchemaWellFormedness.schemaWellFormed schema)
+      : ∀ parentType selection,
+          schema.objectType parentType
+          -> Validation.selectionValidInPossibleTypes schema variableDefinitions
+              parentType selection
+          -> selectionSubselectionsNonemptyInPossibleTypes schema parentType selection
+          -> selectionSubselectionsNonemptyOnObjectPaths schema parentType selection
+    | parentType,
+      .field responseName fieldName arguments directives selectionSet,
+      _hobject, himplementation, hnonempty => by
+        simp only [selectionSubselectionsNonemptyOnObjectPaths]
+        intro fieldDefinition hlookup
+        have himplementationParts := himplementation
+        simp only [Validation.selectionValidInPossibleTypes] at himplementationParts
+        have hnonemptyParts := hnonempty
+        simp only [selectionSubselectionsNonemptyInPossibleTypes, hlookup]
+          at hnonemptyParts
+        have hplain := hnonemptyParts.1
+        simp only [selectionSubselectionsNonempty, hlookup] at hplain
+        refine ⟨hplain.1, ?_, ?_⟩
+        · rcases Validation.selectionValid_field_lookup himplementationParts.1 with
+            ⟨candidateDefinition, hcandidateLookup, _harguments, hchild⟩
+          have hdefinitionEq : candidateDefinition = fieldDefinition := by
+            rw [hlookup] at hcandidateLookup
+            cases hcandidateLookup
+            rfl
+          subst candidateDefinition
+          have hchildParts := hchild
+          simp [Validation.fieldSelectionSetValid] at hchildParts
+          rcases hchildParts.2 with hleaf | hcomposite
+          · rw [hleaf.2]
+            unfold selectionSetInlineFragmentsNonempty
+            intro selection hselection
+            cases hselection
+          · exact
+              selectionSetInlineFragmentsNonempty_of_selectionSetValid_subselectionsNonempty
+                schema variableDefinitions fieldDefinition.outputType.namedType
+                selectionSet hcomposite.2 hplain.2
+        · intro objectType hobjectType
+          have hchildImplementation := himplementationParts.2
+          rw [hlookup] at hchildImplementation
+          have hchildNonempty := hnonemptyParts.2
+          exact
+            selectionSetSubselectionsNonemptyOnObjectPaths_of_inPossibleTypes schema
+              variableDefinitions hschema objectType selectionSet
+              (SchemaWellFormedness.schemaWellFormed_possibleTypesAreObjects hschema
+                fieldDefinition.outputType.namedType objectType hobjectType)
+              (hchildImplementation objectType hobjectType)
+              (hchildNonempty objectType hobjectType)
+    | parentType, .inlineFragment none directives selectionSet,
+      hobject, himplementation, hnonempty => by
+        simp only [selectionSubselectionsNonemptyOnObjectPaths]
+        have hparentPossible :
+            parentType ∈ schema.getPossibleTypes parentType :=
+          List.contains_iff_mem.mp
+            (object_typeIncludesObjectBool_self schema hobject)
+        simp only [Validation.selectionValidInPossibleTypes] at himplementation
+        simp only [selectionSubselectionsNonemptyInPossibleTypes] at hnonempty
+        exact
+          selectionSetSubselectionsNonemptyOnObjectPaths_of_inPossibleTypes schema
+            variableDefinitions hschema parentType selectionSet hobject
+            (himplementation parentType hparentPossible)
+            (hnonempty parentType hparentPossible)
+    | parentType, .inlineFragment (some typeCondition) directives selectionSet,
+      hobject, himplementation, hnonempty => by
+        simp only [selectionSubselectionsNonemptyOnObjectPaths]
+        intro hoverlap
+        have hparentPossible :
+            parentType ∈ schema.getPossibleTypes typeCondition :=
+          List.contains_iff_mem.mp
+            (typeIncludesObjectBool_of_object_typesOverlapBool schema
+              hobject hoverlap)
+        simp only [Validation.selectionValidInPossibleTypes] at himplementation
+        simp only [selectionSubselectionsNonemptyInPossibleTypes] at hnonempty
+        exact
+          selectionSetSubselectionsNonemptyOnObjectPaths_of_inPossibleTypes schema
+            variableDefinitions hschema parentType selectionSet hobject
+            (himplementation hoverlap parentType hparentPossible)
+            (hnonempty hoverlap parentType hparentPossible)
+
+  theorem selectionSetSubselectionsNonemptyOnObjectPaths_of_inPossibleTypes
+      (schema : Schema) (variableDefinitions : List VariableDefinition)
+      (hschema : SchemaWellFormedness.schemaWellFormed schema)
+      : ∀ parentType selectionSet,
+          schema.objectType parentType
+          -> Validation.selectionSetValidInPossibleTypes schema variableDefinitions
+              parentType selectionSet
+          -> selectionSetSubselectionsNonemptyInPossibleTypes schema parentType
+              selectionSet
+          -> selectionSetSubselectionsNonemptyOnObjectPaths schema parentType selectionSet
+    | _parentType, [], _hobject, _himplementation, _hnonempty => by
+        simp [selectionSetSubselectionsNonemptyOnObjectPaths]
+    | parentType, selection :: rest, hobject, himplementation, hnonempty => by
+        simp only [Validation.selectionSetValidInPossibleTypes] at himplementation
+        simp only [selectionSetSubselectionsNonemptyInPossibleTypes] at hnonempty
+        simp only [selectionSetSubselectionsNonemptyOnObjectPaths]
+        exact ⟨
+          selectionSubselectionsNonemptyOnObjectPaths_of_inPossibleTypes schema
+            variableDefinitions hschema parentType selection hobject
+            himplementation.1 hnonempty.1,
+          selectionSetSubselectionsNonemptyOnObjectPaths_of_inPossibleTypes schema
+            variableDefinitions hschema parentType rest hobject
+            himplementation.2 hnonempty.2⟩
+end
+
+theorem normalizeOperation_subselectionsNonempty (schema : Schema) (operation : Operation)
+    : SchemaWellFormedness.schemaWellFormed schema
+      -> Validation.operationDefinitionValid schema operation
+      -> operationDirectiveFree operation
+      -> operationFieldsValidInPossibleTypes schema operation
+      -> operationTypeConditionFeasible schema operation
+      -> operationSubselectionsNonemptyInPossibleTypes schema operation
+      -> operationSubselectionsNonempty schema (normalizeOperation schema operation) := by
+  intro hschema hvalid hfree himplementation hfeasible hnonempty
+  have hrootEq :
+      (operation.rootType schema) = schema.queryType :=
+    Validation.operationDefinitionValid_rootType_eq hvalid
+  have hrootObject :
+      schema.objectType (operation.rootType schema) := by
+    simpa [hrootEq] using hschema.2.1
+  have hready :
+      selectionSetSemanticsReady schema (operation.rootType schema)
+        operation.selectionSet :=
+    selectionSetSemanticsReady_of_selectionSetValid_object schema
+      operation.variableDefinitions (operation.rootType schema) hschema hrootObject
+      operation.selectionSet (Validation.operationDefinitionValid_selectionSetValid hvalid)
+  have hmerge :
+      FieldMerge.fieldsInSetCanMerge schema (operation.rootType schema)
+        operation.selectionSet :=
+    Validation.operationDefinitionValid_fieldsInSetCanMerge hvalid
+  have hrootStack :
+      objectSatisfiesTypeConditionStack schema (operation.rootType schema)
+        [(operation.rootType schema)] :=
+    objectSatisfiesTypeConditionStack_singleton_of_object_forValidity
+      schema hrootObject
+  have hsourceOnPaths :=
+    selectionSetSubselectionsNonemptyOnObjectPaths_of_inPossibleTypes schema
+      operation.variableDefinitions hschema (operation.rootType schema)
+      operation.selectionSet hrootObject himplementation hnonempty
+  have hnormalized :=
+    normalizeSelectionSet_subselectionsNonempty_of_typeConditionFeasible schema
+      hschema (operation.rootType schema)
+      operation.selectionSet [(operation.rootType schema)] hrootObject hrootStack
+      hready hmerge hfree hfeasible hsourceOnPaths
+  simpa [operationSubselectionsNonempty, normalizeOperation, Operation.rootType]
+    using hnormalized
+
+end GroundTypeNormalization
+
+end NormalForm
+
+end GraphQL

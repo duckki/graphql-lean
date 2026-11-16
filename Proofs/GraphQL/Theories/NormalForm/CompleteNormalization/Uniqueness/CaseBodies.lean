@@ -21,19 +21,22 @@ theorem completeNormalBooleanStem_body_valid_nonempty
     : ∀ {boolCase : BoolCase} {selection : Selection} {body : List Selection},
         completeNormalBooleanStem boolCase selection body
         -> Validation.selectionValid schema variableDefinitions parentType selection
+        -> selectionSubselectionsNonempty schema parentType selection
         -> Validation.selectionSetValid schema variableDefinitions parentType body
             ∧ body ≠ []
-  | [], _selection, _body, hstem, _hvalid => by
+            ∧ selectionSetSubselectionsNonempty schema parentType body
+  | [], _selection, _body, hstem, _hvalid, _hsub => by
       simp [completeNormalBooleanStem] at hstem
   | [(varName, value)],
-      .inlineFragment none [directive] selectionSet, body, hstem, hvalid => by
+      .inlineFragment none [directive] selectionSet, body, hstem, hvalid, hsub => by
       rcases hstem with ⟨hdirective, hbody⟩
       subst directive
       subst selectionSet
       simp [Validation.selectionValid] at hvalid
-      exact ⟨hvalid.2.2, hvalid.2.1⟩
+      simp only [selectionSubselectionsNonempty, Option.getD_none] at hsub
+      exact ⟨hvalid.2, hsub.1, hsub.2⟩
   | (varName, value) :: (nextVar, nextValue) :: rest,
-      .inlineFragment none [directive] [child], body, hstem, hvalid => by
+      .inlineFragment none [directive] [child], body, hstem, hvalid, hsub => by
       rcases hstem with ⟨hdirective, hchildStem⟩
       subst directive
       have hchildValid :
@@ -44,24 +47,27 @@ theorem completeNormalBooleanStem_body_valid_nonempty
             hvalid
         unfold Validation.selectionSetValid at hchildrenValid
         exact hchildrenValid child (by simp)
+      have hchildSub : selectionSubselectionsNonempty schema parentType child := by
+        simp only [selectionSubselectionsNonempty, Option.getD_none] at hsub
+        exact GroundTypeNormalization.selectionSetSubselectionsNonempty_of_mem hsub.2 (by simp)
       exact completeNormalBooleanStem_body_valid_nonempty hchildStem
-        hchildValid
-  | _ :: _ :: _, .field _ _ _ _ _, _body, hstem, _hvalid => by
+        hchildValid hchildSub
+  | _ :: _ :: _, .field _ _ _ _ _, _body, hstem, _hvalid, _hsub => by
       simp [completeNormalBooleanStem] at hstem
-  | _ :: _ :: _, .inlineFragment none [] _, _body, hstem, _hvalid => by
+  | _ :: _ :: _, .inlineFragment none [] _, _body, hstem, _hvalid, _hsub => by
       simp [completeNormalBooleanStem] at hstem
   | _ :: _ :: _, .inlineFragment none (_ :: _ :: _) _, _body, hstem,
-      _hvalid => by
+      _hvalid, _hsub => by
       simp [completeNormalBooleanStem] at hstem
-  | _ :: _ :: _, .inlineFragment (some _) _ _, _body, hstem, _hvalid => by
+  | _ :: _ :: _, .inlineFragment (some _) _ _, _body, hstem, _hvalid, _hsub => by
       simp [completeNormalBooleanStem] at hstem
-  | [_], .field _ _ _ _ _, _body, hstem, _hvalid => by
+  | [_], .field _ _ _ _ _, _body, hstem, _hvalid, _hsub => by
       simp [completeNormalBooleanStem] at hstem
-  | [_], .inlineFragment none [] _, _body, hstem, _hvalid => by
+  | [_], .inlineFragment none [] _, _body, hstem, _hvalid, _hsub => by
       simp [completeNormalBooleanStem] at hstem
-  | [_], .inlineFragment none (_ :: _ :: _) _, _body, hstem, _hvalid => by
+  | [_], .inlineFragment none (_ :: _ :: _) _, _body, hstem, _hvalid, _hsub => by
       simp [completeNormalBooleanStem] at hstem
-  | [_], .inlineFragment (some _) _ _, _body, hstem, _hvalid => by
+  | [_], .inlineFragment (some _) _ _, _body, hstem, _hvalid, _hsub => by
       simp [completeNormalBooleanStem] at hstem
 
 private theorem completeNormalBooleanStem_body_valid_nonempty_of_mem
@@ -70,13 +76,15 @@ private theorem completeNormalBooleanStem_body_valid_nonempty_of_mem
     {boolCase : BoolCase} {selection : Selection} {body : List Selection}
     (hvalid
       : Validation.selectionSetValid schema variableDefinitions parentType selectionSet)
+    (hsub : selectionSetSubselectionsNonempty schema parentType selectionSet)
     (hmem : selection ∈ selectionSet)
     (hstem : completeNormalBooleanStem boolCase selection body)
     : Validation.selectionSetValid schema variableDefinitions parentType body
-      ∧ body ≠ [] := by
+      ∧ body ≠ []
+      ∧ selectionSetSubselectionsNonempty schema parentType body := by
   unfold Validation.selectionSetValid at hvalid
   exact completeNormalBooleanStem_body_valid_nonempty hstem
-    (hvalid selection hmem)
+    (hvalid selection hmem) (GroundTypeNormalization.selectionSetSubselectionsNonempty_of_mem hsub hmem)
 
 private theorem completeNormalBooleanStem_body_argumentsCoercible
     {schema : Schema} {variableValues : Execution.VariableValues}
@@ -543,6 +551,8 @@ theorem completeNormalSelection_has_match
     (hrightValid
       : Validation.selectionSetValid schema
           rightVariableDefinitions parentType rightSelectionSet)
+    (hleftSub : selectionSetSubselectionsNonempty schema parentType leftSelectionSet)
+    (hrightSub : selectionSetSubselectionsNonempty schema parentType rightSelectionSet)
     (hleftRoot : leftOperation.rootType schema = parentType)
     (hrightRoot : rightOperation.rootType schema = parentType)
     (hleftSelectionSet : leftOperation.selectionSet = leftSelectionSet)
@@ -582,10 +592,11 @@ theorem completeNormalSelection_has_match
     ⟨leftCase, leftBody, hleftCase, hleftStem, hleftBodyNormal,
       hleftBodyFree⟩
   have hleftReady :=
-    completeNormalBooleanStem_body_valid_nonempty_of_mem hleftValid
+    completeNormalBooleanStem_body_valid_nonempty_of_mem hleftValid hleftSub
       hleftMem hleftStem
   have hleftBodyValid := hleftReady.1
-  have hleftBodyNonempty := hleftReady.2
+  have hleftBodyNonempty := hleftReady.2.1
+  have hleftBodySub := hleftReady.2.2
   have hleftCaseRight := hcaseTransport leftCase hleftCase
   by_cases hmatch : ∃ rightSelection rightCase rightBody,
       rightSelection ∈ rightSelectionSet
@@ -598,8 +609,9 @@ theorem completeNormalSelection_has_match
       ⟨rightSelection, rightCase, rightBody, hrightMem, hrightCase,
         hrightStem, hequivalent, hrightBodyNormal, hrightBodyFree⟩
     have hrightReady :=
-      completeNormalBooleanStem_body_valid_nonempty_of_mem hrightValid
+      completeNormalBooleanStem_body_valid_nonempty_of_mem hrightValid hrightSub
         hrightMem hrightStem
+    have hrightBodySub := hrightReady.2.2
     have hbodySem :=
       selectedCompleteNormalBodies_semanticallyEquivalent hleftNormal
         hrightNormal hleftMem hrightMem hleftCase hrightCase
@@ -644,7 +656,7 @@ theorem completeNormalSelection_has_match
       exact validNormalObjectSelectionSets_semanticallyEquivalent_equalUpToReordering
         hselected.1 hschema hleftBodyValid hrightReady.1 hleftCoercion
         hrightCoercion hleftBodyFree
-        hrightBodyFree hleftBodyNormal hrightBodyNormal hobject hselected.2
+        hrightBodyFree hleftBodyNormal hleftBodySub hrightBodyNormal hrightBodySub hobject hselected.2
     exact ⟨rightSelection, hrightMem, leftCase, rightCase, leftBody,
       rightBody, hleftCase, hrightCase, hleftStem, hrightStem,
       hleftBodyNormal, hrightBodyNormal, hleftBodyFree, hrightBodyFree,
@@ -711,8 +723,8 @@ theorem completeNormalSelection_has_match
         hselectedNil.1 hschema hleftBodyValid
         (by simp [Validation.selectionSetValid]) hleftCoercion hrightCoercion
         hleftBodyFree
-        selectionSetDirectiveFree_nil hleftBodyNormal
-        (selectionSetNormal_nil schema parentType) hobject hselectedNil.2
+        selectionSetDirectiveFree_nil hleftBodyNormal hleftBodySub
+        (selectionSetNormal_nil schema parentType) GroundTypeNormalization.selectionSetSubselectionsNonempty_nil hobject hselectedNil.2
     exact False.elim
       (hleftBodyNonempty
         (selectionSetEqualUpToReorderingWithCoercion_eq_nil hbodyNilEqual))

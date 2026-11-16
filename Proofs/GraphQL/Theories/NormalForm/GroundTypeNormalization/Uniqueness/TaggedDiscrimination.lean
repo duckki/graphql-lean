@@ -680,7 +680,9 @@ theorem
           -> selectionSetDirectiveFree left
           -> selectionSetDirectiveFree right
           -> selectionSetNormal schema parentType left
+          -> selectionSetSubselectionsNonempty schema parentType left
           -> selectionSetNormal schema parentType right
+          -> selectionSetSubselectionsNonempty schema parentType right
           -> objectTypeNameBool schema parentType = true
           -> schema.typeIncludesObjectBool parentType sourceRuntimeType = true
           -> schema.isCompositeType fieldDefinition.outputType.namedType
@@ -834,7 +836,7 @@ theorem
     leftArguments rightArguments leftDirectives rightDirectives
     leftChildSelectionSet rightChildSelectionSet fieldDefinition runtimeType
     hleftValid hrightValid hleftCoercion hrightCoercion hleftFree hrightFree
-    hleftNormal hrightNormal
+    hleftNormal hleftSub hrightNormal hrightSub
     hobject hinclude hcomposite hleftPromote hrightPromote
     hleftChildPromote hrightChildPromote hleftHeadPromote
     hrightHeadPromote hleftFuel hrightFuel hleftMem
@@ -871,10 +873,20 @@ theorem
         leftChildSelectionSet :=
     selectionSetNormal_field_child_of_mem_lookup hleftNormal hleftMem
       hlookup
+  have hleftChildSub :
+      selectionSetSubselectionsNonempty schema fieldDefinition.outputType.namedType
+        leftChildSelectionSet :=
+    selectionSetSubselectionsNonempty_field_child_of_mem_lookup hleftSub hleftMem
+      hlookup
   have hrightChildNormal :
       selectionSetNormal schema fieldDefinition.outputType.namedType
         rightChildSelectionSet :=
     selectionSetNormal_field_child_of_mem_lookup hrightNormal hrightMem
+      hlookup
+  have hrightChildSub :
+      selectionSetSubselectionsNonempty schema fieldDefinition.outputType.namedType
+        rightChildSelectionSet :=
+    selectionSetSubselectionsNonempty_field_child_of_mem_lookup hrightSub hrightMem
       hlookup
   have hleafFuel :
       leafProbeFuel fieldDefinition.outputType ≤ fuel := by
@@ -940,7 +952,7 @@ theorem
         hleftChildFuel hleftChildValid
         (selectionSetArgumentsCoercible_field_children_of_directiveFree
           hleftCoercion hleftFree hleftMem hlookup)
-        hleftChildFree hleftChildNormal
+        hleftChildFree hleftChildNormal hleftChildSub
         hruntimeInclude hleftChildPromote hleftChildHeadPromote with
     ⟨leftChildFields, leftChildErrors, hleftChildResponseRaw⟩
   rcases
@@ -955,7 +967,7 @@ theorem
         hrightChildFuel hrightChildValid
         (selectionSetArgumentsCoercible_field_children_of_directiveFree
           hrightCoercion hrightFree hrightMem hlookup)
-        hrightChildFree hrightChildNormal
+        hrightChildFree hrightChildNormal hrightChildSub
         hruntimeInclude hrightChildPromote hrightChildHeadPromote with
     ⟨rightChildFields, rightChildErrors, hrightChildResponseRaw⟩
   have hchildFuelEq :
@@ -1023,7 +1035,7 @@ theorem
         schema rootSelectionSet variableValues hschema parentType
         leftVariableDefinitions left fuel sourceRuntimeType targetParent
         leftField rightField targetLeftArguments targetRightArguments
-        FieldPairProbeTag.left hleftFuel hleftValid hleftCoercion hleftFree hleftNormal
+        FieldPairProbeTag.left hleftFuel hleftValid hleftCoercion hleftFree hleftNormal hleftSub
         hobject hinclude hleftPromote hleftHeadPromote
   have hrightFieldOk :
       ∀ responseName fieldName arguments directives childSelectionSet,
@@ -1048,7 +1060,7 @@ theorem
         rightVariableDefinitions right fuel sourceRuntimeType targetParent
         leftField rightField targetLeftArguments targetRightArguments
         FieldPairProbeTag.right hrightFuel hrightValid hrightCoercion hrightFree
-        hrightNormal hobject hinclude hrightPromote hrightHeadPromote
+        hrightNormal hrightSub hobject hinclude hrightPromote hrightHeadPromote
   exact responseData_not_semanticEquivalent_of_tagged_object_child_field_pair_of_field_ok
     schema rootSelectionSet variableValues fuel targetParent leftField
     rightField parentType sourceRuntimeType targetLeftArguments
@@ -1349,6 +1361,7 @@ theorem
           -> selectionSetArgumentsCoercible schema variableValues parentType selectionSet
           -> selectionSetDirectiveFree selectionSet
           -> selectionSetNormal schema parentType selectionSet
+          -> selectionSetSubselectionsNonempty schema parentType selectionSet
           -> objectTypeNameBool schema parentType = true
           -> schema.typeIncludesObjectBool parentType sourceRuntimeType = true
           -> (∀ abstractTargetParent abstractTargetField targetRuntimeType
@@ -1399,7 +1412,7 @@ theorem
   intro hschema parentType variableDefinitions selectionSet
     fuel sourceRuntimeType targetParent leftField rightField leftArguments
     rightArguments responseName fieldName arguments directives
-    childSelectionSet fieldDefinition hvalid hcoercion hfree hnormal hobject
+    childSelectionSet fieldDefinition hvalid hcoercion hfree hnormal hsub hobject
     hinclude hpromote hheadPromote hfuel hmem hlookup hleaf
   let resolvers :=
     fieldPairProbeResolvers schema rootSelectionSet targetParent leftField
@@ -1438,7 +1451,7 @@ theorem
         schema rootSelectionSet variableValues hschema parentType
         variableDefinitions selectionSet fuel sourceRuntimeType targetParent
         leftField rightField leftArguments rightArguments FieldPairProbeTag.left
-        hfuel hvalid hcoercion hfree hnormal hobject hinclude hpromote
+        hfuel hvalid hcoercion hfree hnormal hsub hobject hinclude hpromote
         hheadPromote
   have hrightFieldOk :
       ∀ responseName fieldName arguments directives childSelectionSet,
@@ -1463,7 +1476,7 @@ theorem
         schema rootSelectionSet variableValues hschema parentType
         variableDefinitions selectionSet fuel sourceRuntimeType targetParent
         leftField rightField leftArguments rightArguments FieldPairProbeTag.right
-        hfuel hvalid hcoercion hfree hnormal hobject hinclude hpromote
+        hfuel hvalid hcoercion hfree hnormal hsub hobject hinclude hpromote
         hheadPromote
   have hleftTarget :
       Execution.executeField schema resolvers variableValues (fuel + 1)
@@ -1542,6 +1555,7 @@ theorem
           -> selectionSetArgumentsCoercible schema variableValues parentType selectionSet
           -> selectionSetDirectiveFree selectionSet
           -> selectionSetNormal schema parentType selectionSet
+          -> selectionSetSubselectionsNonempty schema parentType selectionSet
           -> objectTypeNameBool schema parentType = true
           -> schema.typeIncludesObjectBool parentType sourceRuntimeType = true
           -> (∀ abstractTargetParent abstractTargetField targetRuntimeType
@@ -1591,14 +1605,14 @@ theorem
   intro hschema parentType variableDefinitions selectionSet sourceRuntimeType
     targetParent leftField rightField leftArguments rightArguments
     responseName fieldName arguments directives childSelectionSet
-    fieldDefinition hvalid hcoercion hfree hnormal hobject hinclude hpromote
+    fieldDefinition hvalid hcoercion hfree hnormal hsub hobject hinclude hpromote
     hheadPromote hmem hlookup hleaf
   exact responseData_not_semanticEquivalent_of_tagged_object_leaf_field_of_valid_normal_promoted_fuel_ge
     schema rootSelectionSet variableValues hschema parentType variableDefinitions
     selectionSet (selectionSetDeepProbeFuel schema parentType selectionSet)
     sourceRuntimeType targetParent leftField rightField leftArguments rightArguments
-    hvalid hcoercion hfree hnormal hobject hinclude hpromote hheadPromote (by omega) hmem
-    hlookup hleaf
+    hvalid hcoercion hfree hnormal hsub hobject hinclude hpromote hheadPromote (by omega)
+    hmem hlookup hleaf
 
 theorem
     responseData_not_semanticEquivalent_of_tagged_object_left_responseName_diff_of_valid_normal_promoted_fuel_ge
@@ -1617,7 +1631,9 @@ theorem
           -> selectionSetDirectiveFree left
           -> selectionSetDirectiveFree right
           -> selectionSetNormal schema parentType left
+          -> selectionSetSubselectionsNonempty schema parentType left
           -> selectionSetNormal schema parentType right
+          -> selectionSetSubselectionsNonempty schema parentType right
           -> objectTypeNameBool schema parentType = true
           -> schema.typeIncludesObjectBool parentType sourceRuntimeType = true
           -> (∀ abstractTargetParent abstractTargetField targetRuntimeType
@@ -1691,7 +1707,7 @@ theorem
     leftArguments rightArguments responseName fieldName arguments directives
     childSelectionSet hleftValid hrightValid hleftCoercion hrightCoercion
     hleftFree hrightFree
-    hleftNormal hrightNormal hobject hinclude hleftPromote
+    hleftNormal hleftSub hrightNormal hrightSub hobject hinclude hleftPromote
     hleftHeadPromote hrightPromote hrightHeadPromote
     hleftFuel hrightFuel hleftMem hrightNoResponseName
   let resolvers :=
@@ -1720,7 +1736,7 @@ theorem
         schema rootSelectionSet variableValues hschema parentType
         leftVariableDefinitions left fuel sourceRuntimeType targetParent
         leftField rightField leftArguments rightArguments FieldPairProbeTag.left
-        hleftFuel hleftValid hleftCoercion hleftFree hleftNormal hobject hinclude
+        hleftFuel hleftValid hleftCoercion hleftFree hleftNormal hleftSub hobject hinclude
         hleftPromote hleftHeadPromote
   have hrightFieldOk :
       ∀ responseName fieldName arguments directives childSelectionSet,
@@ -1746,7 +1762,7 @@ theorem
         rightVariableDefinitions right fuel sourceRuntimeType targetParent
         leftField rightField leftArguments rightArguments
         FieldPairProbeTag.right hrightFuel hrightValid hrightCoercion hrightFree
-        hrightNormal hobject hinclude hrightPromote hrightHeadPromote
+        hrightNormal hrightSub hobject hinclude hrightPromote hrightHeadPromote
   exact
     SemanticSeparation.responseData_not_semanticEquivalent_of_left_responseName_diff_of_field_ok_sources
       resolvers resolvers variableValues (fuel + 1)
@@ -1772,7 +1788,9 @@ theorem
           -> selectionSetDirectiveFree left
           -> selectionSetDirectiveFree right
           -> selectionSetNormal schema parentType left
+          -> selectionSetSubselectionsNonempty schema parentType left
           -> selectionSetNormal schema parentType right
+          -> selectionSetSubselectionsNonempty schema parentType right
           -> objectTypeNameBool schema parentType = true
           -> schema.typeIncludesObjectBool parentType sourceRuntimeType = true
           -> (∀ abstractTargetParent abstractTargetField targetRuntimeType
@@ -1846,7 +1864,7 @@ theorem
     leftArguments rightArguments responseName fieldName arguments directives
     childSelectionSet hleftValid hrightValid hleftCoercion hrightCoercion
     hleftFree hrightFree
-    hleftNormal hrightNormal hobject hinclude hleftPromote
+    hleftNormal hleftSub hrightNormal hrightSub hobject hinclude hleftPromote
     hleftHeadPromote hrightPromote hrightHeadPromote
     hleftFuel hrightFuel hrightMem hleftNoResponseName
   let resolvers :=
@@ -1875,7 +1893,7 @@ theorem
         schema rootSelectionSet variableValues hschema parentType
         leftVariableDefinitions left fuel sourceRuntimeType targetParent
         leftField rightField leftArguments rightArguments FieldPairProbeTag.left
-        hleftFuel hleftValid hleftCoercion hleftFree hleftNormal hobject hinclude
+        hleftFuel hleftValid hleftCoercion hleftFree hleftNormal hleftSub hobject hinclude
         hleftPromote hleftHeadPromote
   have hrightFieldOk :
       ∀ responseName fieldName arguments directives childSelectionSet,
@@ -1901,7 +1919,7 @@ theorem
         rightVariableDefinitions right fuel sourceRuntimeType targetParent
         leftField rightField leftArguments rightArguments
         FieldPairProbeTag.right hrightFuel hrightValid hrightCoercion hrightFree
-        hrightNormal hobject hinclude hrightPromote hrightHeadPromote
+        hrightNormal hrightSub hobject hinclude hrightPromote hrightHeadPromote
   exact
     SemanticSeparation.responseData_not_semanticEquivalent_of_right_responseName_diff_of_field_ok_sources
       resolvers resolvers variableValues (fuel + 1)
@@ -1930,7 +1948,9 @@ theorem
           -> selectionSetDirectiveFree left
           -> selectionSetDirectiveFree right
           -> selectionSetNormal schema leftParentType left
+          -> selectionSetSubselectionsNonempty schema leftParentType left
           -> selectionSetNormal schema rightParentType right
+          -> selectionSetSubselectionsNonempty schema rightParentType right
           -> objectTypeNameBool schema leftParentType = true
           -> objectTypeNameBool schema rightParentType = true
           -> schema.typeIncludesObjectBool leftParentType leftSourceRuntimeType = true
@@ -2003,7 +2023,7 @@ theorem
     rightArguments responseName fieldName arguments directives
     childSelectionSet hleftValid hrightValid hleftCoercion hrightCoercion
     hleftFree hrightFree
-    hleftNormal hrightNormal hleftObject hrightObject hleftInclude
+    hleftNormal hleftSub hrightNormal hrightSub hleftObject hrightObject hleftInclude
     hrightInclude hleftPromote hleftHeadPromote hrightPromote
     hrightHeadPromote hleftFuel hrightFuel hleftMem hrightNoResponseName
   let resolvers :=
@@ -2031,7 +2051,7 @@ theorem
         schema rootSelectionSet variableValues hschema leftParentType
         leftVariableDefinitions left fuel leftSourceRuntimeType targetParent
         leftField rightField leftArguments rightArguments
-        FieldPairProbeTag.left hleftFuel hleftValid hleftCoercion hleftFree hleftNormal
+        FieldPairProbeTag.left hleftFuel hleftValid hleftCoercion hleftFree hleftNormal hleftSub
         hleftObject hleftInclude hleftPromote hleftHeadPromote
   have hrightFieldOk :
       ∀ responseName fieldName arguments directives childSelectionSet,
@@ -2056,7 +2076,7 @@ theorem
         rightVariableDefinitions right fuel rightSourceRuntimeType
         targetParent leftField rightField leftArguments rightArguments
         FieldPairProbeTag.right hrightFuel hrightValid hrightCoercion hrightFree
-        hrightNormal hrightObject hrightInclude hrightPromote
+        hrightNormal hrightSub hrightObject hrightInclude hrightPromote
         hrightHeadPromote
   exact
     SemanticSeparation.responseData_not_semanticEquivalent_of_left_responseName_diff_of_field_ok_sources_pair
@@ -2086,7 +2106,9 @@ theorem
           -> selectionSetDirectiveFree left
           -> selectionSetDirectiveFree right
           -> selectionSetNormal schema leftParentType left
+          -> selectionSetSubselectionsNonempty schema leftParentType left
           -> selectionSetNormal schema rightParentType right
+          -> selectionSetSubselectionsNonempty schema rightParentType right
           -> objectTypeNameBool schema leftParentType = true
           -> objectTypeNameBool schema rightParentType = true
           -> schema.typeIncludesObjectBool leftParentType leftSourceRuntimeType = true
@@ -2159,7 +2181,7 @@ theorem
     rightArguments responseName fieldName arguments directives
     childSelectionSet hleftValid hrightValid hleftCoercion hrightCoercion
     hleftFree hrightFree
-    hleftNormal hrightNormal hleftObject hrightObject hleftInclude
+    hleftNormal hleftSub hrightNormal hrightSub hleftObject hrightObject hleftInclude
     hrightInclude hleftPromote hleftHeadPromote hrightPromote
     hrightHeadPromote hleftFuel hrightFuel hrightMem hleftNoResponseName
   let resolvers :=
@@ -2187,7 +2209,7 @@ theorem
         schema rootSelectionSet variableValues hschema leftParentType
         leftVariableDefinitions left fuel leftSourceRuntimeType targetParent
         leftField rightField leftArguments rightArguments
-        FieldPairProbeTag.left hleftFuel hleftValid hleftCoercion hleftFree hleftNormal
+        FieldPairProbeTag.left hleftFuel hleftValid hleftCoercion hleftFree hleftNormal hleftSub
         hleftObject hleftInclude hleftPromote hleftHeadPromote
   have hrightFieldOk :
       ∀ responseName fieldName arguments directives childSelectionSet,
@@ -2212,7 +2234,7 @@ theorem
         rightVariableDefinitions right fuel rightSourceRuntimeType
         targetParent leftField rightField leftArguments rightArguments
         FieldPairProbeTag.right hrightFuel hrightValid hrightCoercion hrightFree
-        hrightNormal hrightObject hrightInclude hrightPromote
+        hrightNormal hrightSub hrightObject hrightInclude hrightPromote
         hrightHeadPromote
   exact
     SemanticSeparation.responseData_not_semanticEquivalent_of_right_responseName_diff_of_field_ok_sources_pair
@@ -2243,7 +2265,9 @@ theorem
           -> selectionSetDirectiveFree left
           -> selectionSetDirectiveFree right
           -> selectionSetNormal schema leftParentType left
+          -> selectionSetSubselectionsNonempty schema leftParentType left
           -> selectionSetNormal schema rightParentType right
+          -> selectionSetSubselectionsNonempty schema rightParentType right
           -> objectTypeNameBool schema leftParentType = true
           -> objectTypeNameBool schema rightParentType = true
           -> schema.typeIncludesObjectBool leftParentType leftSourceRuntimeType = true
@@ -2316,7 +2340,7 @@ theorem
     rightField leftArguments rightArguments responseName fieldName arguments
     directives childSelectionSet hleftValid hrightValid hleftCoercion
     hrightCoercion hleftFree hrightFree
-    hleftNormal hrightNormal hleftObject hrightObject hleftInclude
+    hleftNormal hleftSub hrightNormal hrightSub hleftObject hrightObject hleftInclude
     hrightInclude hleftPromote hleftHeadPromote hrightPromote
     hrightHeadPromote hleftFuel hrightFuel hleftMem hrightNoResponseName
   let resolvers :=
@@ -2345,7 +2369,7 @@ theorem
         schema rootSelectionSet variableValues hschema leftParentType
         leftVariableDefinitions left leftFuel leftSourceRuntimeType
         targetParent leftField rightField leftArguments rightArguments
-        FieldPairProbeTag.left hleftFuel hleftValid hleftCoercion hleftFree hleftNormal
+        FieldPairProbeTag.left hleftFuel hleftValid hleftCoercion hleftFree hleftNormal hleftSub
         hleftObject hleftInclude hleftPromote hleftHeadPromote
   have hrightFieldOk :
       ∀ responseName fieldName arguments directives childSelectionSet,
@@ -2371,7 +2395,7 @@ theorem
         rightVariableDefinitions right rightFuel rightSourceRuntimeType
         targetParent leftField rightField leftArguments rightArguments
         FieldPairProbeTag.right hrightFuel hrightValid hrightCoercion hrightFree
-        hrightNormal hrightObject hrightInclude hrightPromote
+        hrightNormal hrightSub hrightObject hrightInclude hrightPromote
         hrightHeadPromote
   exact
     SemanticSeparation.responseData_not_semanticEquivalent_of_left_responseName_diff_of_field_ok_sources_pair_fuels
@@ -2402,7 +2426,9 @@ theorem
           -> selectionSetDirectiveFree left
           -> selectionSetDirectiveFree right
           -> selectionSetNormal schema leftParentType left
+          -> selectionSetSubselectionsNonempty schema leftParentType left
           -> selectionSetNormal schema rightParentType right
+          -> selectionSetSubselectionsNonempty schema rightParentType right
           -> objectTypeNameBool schema leftParentType = true
           -> objectTypeNameBool schema rightParentType = true
           -> schema.typeIncludesObjectBool leftParentType leftSourceRuntimeType = true
@@ -2475,7 +2501,7 @@ theorem
     rightField leftArguments rightArguments responseName fieldName arguments
     directives childSelectionSet hleftValid hrightValid hleftCoercion
     hrightCoercion hleftFree hrightFree
-    hleftNormal hrightNormal hleftObject hrightObject hleftInclude
+    hleftNormal hleftSub hrightNormal hrightSub hleftObject hrightObject hleftInclude
     hrightInclude hleftPromote hleftHeadPromote hrightPromote
     hrightHeadPromote hleftFuel hrightFuel hrightMem hleftNoResponseName
   let resolvers :=
@@ -2504,7 +2530,7 @@ theorem
         schema rootSelectionSet variableValues hschema leftParentType
         leftVariableDefinitions left leftFuel leftSourceRuntimeType
         targetParent leftField rightField leftArguments rightArguments
-        FieldPairProbeTag.left hleftFuel hleftValid hleftCoercion hleftFree hleftNormal
+        FieldPairProbeTag.left hleftFuel hleftValid hleftCoercion hleftFree hleftNormal hleftSub
         hleftObject hleftInclude hleftPromote hleftHeadPromote
   have hrightFieldOk :
       ∀ responseName fieldName arguments directives childSelectionSet,
@@ -2530,7 +2556,7 @@ theorem
         rightVariableDefinitions right rightFuel rightSourceRuntimeType
         targetParent leftField rightField leftArguments rightArguments
         FieldPairProbeTag.right hrightFuel hrightValid hrightCoercion hrightFree
-        hrightNormal hrightObject hrightInclude hrightPromote
+        hrightNormal hrightSub hrightObject hrightInclude hrightPromote
         hrightHeadPromote
   exact
     SemanticSeparation.responseData_not_semanticEquivalent_of_right_responseName_diff_of_field_ok_sources_pair_fuels
@@ -2561,7 +2587,9 @@ theorem
           -> selectionSetDirectiveFree left
           -> selectionSetDirectiveFree right
           -> selectionSetNormal schema leftParentType left
+          -> selectionSetSubselectionsNonempty schema leftParentType left
           -> selectionSetNormal schema rightParentType right
+          -> selectionSetSubselectionsNonempty schema rightParentType right
           -> objectTypeNameBool schema leftParentType = true
           -> objectTypeNameBool schema rightParentType = true
           -> schema.typeIncludesObjectBool leftParentType leftSourceRuntimeType = true
@@ -2636,7 +2664,7 @@ theorem
     rightField leftArguments rightArguments responseName fieldName arguments
     directives childSelectionSet hleftValid hrightValid hleftCoercion
     hrightCoercion hleftFree hrightFree
-    hleftNormal hrightNormal hleftObject hrightObject hleftInclude
+    hleftNormal hleftSub hrightNormal hrightSub hleftObject hrightObject hleftInclude
     hrightInclude hleftPromote hleftHeadPromote hrightPromote
     hrightHeadPromote hleftFuel hrightFuel hleftMem hrightNoResponseName
   let leftResolvers :=
@@ -2668,7 +2696,7 @@ theorem
         schema leftRootSelectionSet variableValues hschema leftParentType
         leftVariableDefinitions left leftFuel leftSourceRuntimeType
         targetParent leftField rightField leftArguments rightArguments
-        FieldPairProbeTag.left hleftFuel hleftValid hleftCoercion hleftFree hleftNormal
+        FieldPairProbeTag.left hleftFuel hleftValid hleftCoercion hleftFree hleftNormal hleftSub
         hleftObject hleftInclude hleftPromote hleftHeadPromote
   have hrightFieldOk :
       ∀ responseName fieldName arguments directives childSelectionSet,
@@ -2694,7 +2722,7 @@ theorem
         rightVariableDefinitions right rightFuel rightSourceRuntimeType
         targetParent leftField rightField leftArguments rightArguments
         FieldPairProbeTag.right hrightFuel hrightValid hrightCoercion hrightFree
-        hrightNormal hrightObject hrightInclude hrightPromote
+        hrightNormal hrightSub hrightObject hrightInclude hrightPromote
         hrightHeadPromote
   exact
     SemanticSeparation.responseData_not_semanticEquivalent_of_left_responseName_diff_of_field_ok_sources_pair_fuels
@@ -2726,7 +2754,9 @@ theorem
           -> selectionSetDirectiveFree left
           -> selectionSetDirectiveFree right
           -> selectionSetNormal schema leftParentType left
+          -> selectionSetSubselectionsNonempty schema leftParentType left
           -> selectionSetNormal schema rightParentType right
+          -> selectionSetSubselectionsNonempty schema rightParentType right
           -> objectTypeNameBool schema leftParentType = true
           -> objectTypeNameBool schema rightParentType = true
           -> schema.typeIncludesObjectBool leftParentType leftSourceRuntimeType = true
@@ -2801,7 +2831,7 @@ theorem
     rightField leftArguments rightArguments responseName fieldName arguments
     directives childSelectionSet hleftValid hrightValid hleftCoercion
     hrightCoercion hleftFree hrightFree
-    hleftNormal hrightNormal hleftObject hrightObject hleftInclude
+    hleftNormal hleftSub hrightNormal hrightSub hleftObject hrightObject hleftInclude
     hrightInclude hleftPromote hleftHeadPromote hrightPromote
     hrightHeadPromote hleftFuel hrightFuel hrightMem hleftNoResponseName
   let leftResolvers :=
@@ -2833,7 +2863,7 @@ theorem
         schema leftRootSelectionSet variableValues hschema leftParentType
         leftVariableDefinitions left leftFuel leftSourceRuntimeType
         targetParent leftField rightField leftArguments rightArguments
-        FieldPairProbeTag.left hleftFuel hleftValid hleftCoercion hleftFree hleftNormal
+        FieldPairProbeTag.left hleftFuel hleftValid hleftCoercion hleftFree hleftNormal hleftSub
         hleftObject hleftInclude hleftPromote hleftHeadPromote
   have hrightFieldOk :
       ∀ responseName fieldName arguments directives childSelectionSet,
@@ -2859,7 +2889,7 @@ theorem
         rightVariableDefinitions right rightFuel rightSourceRuntimeType
         targetParent leftField rightField leftArguments rightArguments
         FieldPairProbeTag.right hrightFuel hrightValid hrightCoercion hrightFree
-        hrightNormal hrightObject hrightInclude hrightPromote
+        hrightNormal hrightSub hrightObject hrightInclude hrightPromote
         hrightHeadPromote
   exact
     SemanticSeparation.responseData_not_semanticEquivalent_of_right_responseName_diff_of_field_ok_sources_pair_fuels
@@ -2892,7 +2922,9 @@ theorem
           -> selectionSetDirectiveFree left
           -> selectionSetDirectiveFree right
           -> selectionSetNormal schema leftParentType left
+          -> selectionSetSubselectionsNonempty schema leftParentType left
           -> selectionSetNormal schema rightParentType right
+          -> selectionSetSubselectionsNonempty schema rightParentType right
           -> objectTypeNameBool schema leftParentType = true
           -> objectTypeNameBool schema rightParentType = true
           -> schema.typeIncludesObjectBool leftParentType leftSourceRuntimeType = true
@@ -2977,7 +3009,7 @@ theorem
     rightFieldName leftArguments rightArguments leftDirectives
     rightDirectives leftChildSelectionSet rightChildSelectionSet
     leftFieldDefinition rightFieldDefinition hleftValid hrightValid
-    hleftCoercion hrightCoercion hleftFree hrightFree hleftNormal hrightNormal
+    hleftCoercion hrightCoercion hleftFree hrightFree hleftNormal hleftSub hrightNormal hrightSub
     hleftObject hrightObject
     hleftInclude hrightInclude hleftPromote hleftHeadPromote hrightPromote
     hrightHeadPromote hleftFuel hrightFuel hleftMem hrightMem hleftLookup
@@ -3023,7 +3055,7 @@ theorem
         schema rootSelectionSet variableValues hschema leftParentType
         leftVariableDefinitions left fuel leftSourceRuntimeType targetParent
         leftField rightField targetLeftArguments targetRightArguments
-        FieldPairProbeTag.left hleftFuel hleftValid hleftCoercion hleftFree hleftNormal
+        FieldPairProbeTag.left hleftFuel hleftValid hleftCoercion hleftFree hleftNormal hleftSub
         hleftObject hleftInclude hleftPromote hleftHeadPromote
   have hrightFieldOk :
       ∀ responseName fieldName arguments directives childSelectionSet,
@@ -3048,7 +3080,7 @@ theorem
         rightVariableDefinitions right fuel rightSourceRuntimeType
         targetParent leftField rightField targetLeftArguments
         targetRightArguments FieldPairProbeTag.right hrightFuel hrightValid hrightCoercion
-        hrightFree hrightNormal hrightObject hrightInclude hrightPromote
+        hrightFree hrightNormal hrightSub hrightObject hrightInclude hrightPromote
         hrightHeadPromote
   have hleftTarget :
       Execution.executeField schema resolvers variableValues (fuel + 1)
@@ -3133,7 +3165,9 @@ theorem
           -> selectionSetDirectiveFree left
           -> selectionSetDirectiveFree right
           -> selectionSetNormal schema leftParentType left
+          -> selectionSetSubselectionsNonempty schema leftParentType left
           -> selectionSetNormal schema rightParentType right
+          -> selectionSetSubselectionsNonempty schema rightParentType right
           -> objectTypeNameBool schema leftParentType = true
           -> objectTypeNameBool schema rightParentType = true
           -> schema.typeIncludesObjectBool leftParentType leftSourceRuntimeType = true
@@ -3219,7 +3253,7 @@ theorem
     leftDirectives rightDirectives leftChildSelectionSet
     rightChildSelectionSet leftFieldDefinition rightFieldDefinition
     hleftValid hrightValid hleftCoercion hrightCoercion hleftFree hrightFree
-    hleftNormal hrightNormal
+    hleftNormal hleftSub hrightNormal hrightSub
     hleftObject hrightObject hleftInclude hrightInclude hleftPromote
     hleftHeadPromote hrightPromote hrightHeadPromote hleftFuel
     hrightFuel hleftMem hrightMem hleftLookup hrightLookup hleftLeaf
@@ -3267,7 +3301,7 @@ theorem
         leftVariableDefinitions left leftFuel leftSourceRuntimeType
         targetParent leftField rightField targetLeftArguments
         targetRightArguments FieldPairProbeTag.left hleftFuel hleftValid hleftCoercion
-        hleftFree hleftNormal hleftObject hleftInclude hleftPromote
+        hleftFree hleftNormal hleftSub hleftObject hleftInclude hleftPromote
         hleftHeadPromote
   have hrightFieldOk :
       ∀ responseName fieldName arguments directives childSelectionSet,
@@ -3293,7 +3327,7 @@ theorem
         rightVariableDefinitions right rightFuel rightSourceRuntimeType
         targetParent leftField rightField targetLeftArguments
         targetRightArguments FieldPairProbeTag.right hrightFuel hrightValid hrightCoercion
-        hrightFree hrightNormal hrightObject hrightInclude hrightPromote
+        hrightFree hrightNormal hrightSub hrightObject hrightInclude hrightPromote
         hrightHeadPromote
   have hleftTarget :
       Execution.executeField schema resolvers variableValues
@@ -3381,7 +3415,9 @@ theorem
           -> selectionSetDirectiveFree left
           -> selectionSetDirectiveFree right
           -> selectionSetNormal schema leftParentType left
+          -> selectionSetSubselectionsNonempty schema leftParentType left
           -> selectionSetNormal schema rightParentType right
+          -> selectionSetSubselectionsNonempty schema rightParentType right
           -> objectTypeNameBool schema leftParentType = true
           -> objectTypeNameBool schema rightParentType = true
           -> schema.typeIncludesObjectBool leftParentType leftSourceRuntimeType = true
@@ -3467,7 +3503,7 @@ theorem
     leftDirectives rightDirectives leftChildSelectionSet
     rightChildSelectionSet leftFieldDefinition rightFieldDefinition
     hleftValid hrightValid hleftCoercion hrightCoercion hleftFree hrightFree
-    hleftNormal hrightNormal
+    hleftNormal hleftSub hrightNormal hrightSub
     hleftObject hrightObject hleftInclude hrightInclude hleftPromote
     hleftHeadPromote hrightPromote hrightHeadPromote hleftFuel
     hrightFuel hleftMem hrightMem hleftLookup hrightLookup hleftLeaf
@@ -3518,7 +3554,7 @@ theorem
         leftVariableDefinitions left leftFuel leftSourceRuntimeType
         targetParent leftField rightField targetLeftArguments
         targetRightArguments FieldPairProbeTag.left hleftFuel hleftValid hleftCoercion
-        hleftFree hleftNormal hleftObject hleftInclude hleftPromote
+        hleftFree hleftNormal hleftSub hleftObject hleftInclude hleftPromote
         hleftHeadPromote
   have hrightFieldOk :
       ∀ responseName fieldName arguments directives childSelectionSet,
@@ -3544,7 +3580,7 @@ theorem
         rightVariableDefinitions right rightFuel rightSourceRuntimeType
         targetParent leftField rightField targetLeftArguments
         targetRightArguments FieldPairProbeTag.right hrightFuel hrightValid hrightCoercion
-        hrightFree hrightNormal hrightObject hrightInclude hrightPromote
+        hrightFree hrightNormal hrightSub hrightObject hrightInclude hrightPromote
         hrightHeadPromote
   have hleftTarget :
       Execution.executeField schema leftResolvers variableValues

@@ -671,14 +671,15 @@ theorem normalSelectionSetResponsePath_of_valid_normal_nonempty
     {parentType : Name} {selectionSet : List Selection}
     : Validation.selectionSetValid schema variableDefinitions parentType selectionSet
       -> selectionSetNormal schema parentType selectionSet
+      -> selectionSetSubselectionsNonempty schema parentType selectionSet
       -> selectionSet ≠ []
       -> ∃ responsePath,
           NormalSelectionSetResponsePath schema parentType selectionSet responsePath := by
-  intro hvalid hnormal hnonempty
+  intro hvalid hnormal hsub hnonempty
   exact
     normalSelectionSetResponsePath_of_observableLeaf
       (normalSelectionSetObservableLeaf_of_valid_normal_nonempty schema
-        parentType variableDefinitions selectionSet hvalid hnormal hnonempty)
+        parentType variableDefinitions selectionSet hvalid hnormal hsub hnonempty)
 
 theorem normalSelectionSetResponsePath_of_valid_normal_composite_field_mem
     {schema : Schema} {variableDefinitions : List VariableDefinition}
@@ -688,6 +689,7 @@ theorem normalSelectionSetResponsePath_of_valid_normal_composite_field_mem
     {fieldDefinition : FieldDefinition}
     : Validation.selectionSetValid schema variableDefinitions parentType selectionSet
       -> selectionSetNormal schema parentType selectionSet
+      -> selectionSetSubselectionsNonempty schema parentType selectionSet
       -> Selection.field responseName fieldName arguments directives childSelectionSet
           ∈ selectionSet
       -> schema.lookupField parentType fieldName = some fieldDefinition
@@ -697,8 +699,8 @@ theorem normalSelectionSetResponsePath_of_valid_normal_composite_field_mem
           NormalSelectionSetResponsePath schema
             fieldDefinition.outputType.namedType childSelectionSet
             responsePath := by
-  intro hvalid hnormal hmem hlookup hcomposite
-  rcases selectionSetValid_field_lookup_leaf_or_composite_child hvalid
+  intro hvalid hnormal hsub hmem hlookup hcomposite
+  rcases selectionSetValid_field_lookup_leaf_or_composite_child hvalid hsub
       hmem with
     ⟨candidateDefinition, hcandidateLookup, hkind⟩
   have hcandidateEq : candidateDefinition = fieldDefinition := by
@@ -712,9 +714,13 @@ theorem normalSelectionSetResponsePath_of_valid_normal_composite_field_mem
         selectionSetNormal schema fieldDefinition.outputType.namedType
           childSelectionSet :=
       selectionSetNormal_field_child_of_mem_lookup hnormal hmem hlookup
+    have hchildSub :
+        selectionSetSubselectionsNonempty schema fieldDefinition.outputType.namedType
+          childSelectionSet :=
+      selectionSetSubselectionsNonempty_field_child_of_mem_lookup hsub hmem hlookup
     exact
       normalSelectionSetResponsePath_of_valid_normal_nonempty
-        hcompositeKind.2.2 hchildNormal hcompositeKind.2.1
+        hcompositeKind.2.2 hchildNormal hchildSub hcompositeKind.2.1
 
 theorem normalSelectionSetObservableResponsePath_of_valid_normal_composite_field_mem
     {schema : Schema} {variableDefinitions : List VariableDefinition}
@@ -724,6 +730,7 @@ theorem normalSelectionSetObservableResponsePath_of_valid_normal_composite_field
     {fieldDefinition : FieldDefinition}
     : Validation.selectionSetValid schema variableDefinitions parentType selectionSet
       -> selectionSetNormal schema parentType selectionSet
+      -> selectionSetSubselectionsNonempty schema parentType selectionSet
       -> Selection.field responseName fieldName arguments directives childSelectionSet
           ∈ selectionSet
       -> schema.lookupField parentType fieldName = some fieldDefinition
@@ -733,8 +740,8 @@ theorem normalSelectionSetObservableResponsePath_of_valid_normal_composite_field
           NormalSelectionSetObservableResponsePath schema
             fieldDefinition.outputType.namedType childSelectionSet
             responsePath := by
-  intro hvalid hnormal hmem hlookup hcomposite
-  rcases selectionSetValid_field_lookup_leaf_or_composite_child hvalid
+  intro hvalid hnormal hsub hmem hlookup hcomposite
+  rcases selectionSetValid_field_lookup_leaf_or_composite_child hvalid hsub
       hmem with
     ⟨candidateDefinition, hcandidateLookup, hkind⟩
   have hcandidateEq : candidateDefinition = fieldDefinition := by
@@ -748,11 +755,15 @@ theorem normalSelectionSetObservableResponsePath_of_valid_normal_composite_field
         selectionSetNormal schema fieldDefinition.outputType.namedType
           childSelectionSet :=
       selectionSetNormal_field_child_of_mem_lookup hnormal hmem hlookup
+    have hchildSub :
+        selectionSetSubselectionsNonempty schema fieldDefinition.outputType.namedType
+          childSelectionSet :=
+      selectionSetSubselectionsNonempty_field_child_of_mem_lookup hsub hmem hlookup
     exact
       normalSelectionSetObservableResponsePath_of_observableLeaf
         (normalSelectionSetObservableLeaf_of_valid_normal_nonempty schema
           fieldDefinition.outputType.namedType variableDefinitions
-          childSelectionSet hcompositeKind.2.2 hchildNormal
+          childSelectionSet hcompositeKind.2.2 hchildNormal hchildSub
           hcompositeKind.2.1)
 
 theorem normalSelectionSetResponsePath_of_valid_normal_fieldName_composite_mem
@@ -766,7 +777,9 @@ theorem normalSelectionSetResponsePath_of_valid_normal_fieldName_composite_mem
     : Validation.selectionSetValid schema leftVariableDefinitions parentType left
       -> Validation.selectionSetValid schema rightVariableDefinitions parentType right
       -> selectionSetNormal schema parentType left
+      -> selectionSetSubselectionsNonempty schema parentType left
       -> selectionSetNormal schema parentType right
+      -> selectionSetSubselectionsNonempty schema parentType right
       -> Selection.field responseName leftFieldName leftArguments leftDirectives
             leftChildSelectionSet
           ∈ left
@@ -788,17 +801,17 @@ theorem normalSelectionSetResponsePath_of_valid_normal_fieldName_composite_mem
               NormalSelectionSetResponsePath schema
                 rightFieldDefinition.outputType.namedType rightChildSelectionSet
                 responsePath) := by
-  intro hleftValid hrightValid hleftNormal hrightNormal hleftMem hrightMem
+  intro hleftValid hrightValid hleftNormal hleftSub hrightNormal hrightSub hleftMem hrightMem
     hleftLookup hrightLookup hcomposite
   rcases hcomposite with hleftComposite | hrightComposite
   · exact
       Or.inl
         (normalSelectionSetResponsePath_of_valid_normal_composite_field_mem
-          hleftValid hleftNormal hleftMem hleftLookup hleftComposite)
+          hleftValid hleftNormal hleftSub hleftMem hleftLookup hleftComposite)
   · exact
       Or.inr
         (normalSelectionSetResponsePath_of_valid_normal_composite_field_mem
-          hrightValid hrightNormal hrightMem hrightLookup hrightComposite)
+          hrightValid hrightNormal hrightSub hrightMem hrightLookup hrightComposite)
 
 theorem normalSelectionSetResponsePath_pair_of_valid_normal_arguments_composite_mem
     {schema : Schema}
@@ -811,7 +824,9 @@ theorem normalSelectionSetResponsePath_pair_of_valid_normal_arguments_composite_
     : Validation.selectionSetValid schema leftVariableDefinitions parentType left
       -> Validation.selectionSetValid schema rightVariableDefinitions parentType right
       -> selectionSetNormal schema parentType left
+      -> selectionSetSubselectionsNonempty schema parentType left
       -> selectionSetNormal schema parentType right
+      -> selectionSetSubselectionsNonempty schema parentType right
       -> Selection.field responseName fieldName leftArguments leftDirectives
             leftChildSelectionSet
           ∈ left
@@ -829,13 +844,13 @@ theorem normalSelectionSetResponsePath_pair_of_valid_normal_arguments_composite_
               NormalSelectionSetResponsePath schema
                 fieldDefinition.outputType.namedType rightChildSelectionSet
                 responsePath) := by
-  intro hleftValid hrightValid hleftNormal hrightNormal hleftMem hrightMem
+  intro hleftValid hrightValid hleftNormal hleftSub hrightNormal hrightSub hleftMem hrightMem
     hlookup hcomposite
   exact ⟨
     normalSelectionSetResponsePath_of_valid_normal_composite_field_mem
-      hleftValid hleftNormal hleftMem hlookup hcomposite,
+      hleftValid hleftNormal hleftSub hleftMem hlookup hcomposite,
     normalSelectionSetResponsePath_of_valid_normal_composite_field_mem
-      hrightValid hrightNormal hrightMem hlookup hcomposite
+      hrightValid hrightNormal hrightSub hrightMem hlookup hcomposite
   ⟩
 
 theorem NormalSelectionSetResponsePath.append_context
@@ -931,15 +946,16 @@ theorem normalSelectionSetObservableLeaf_of_responsePath_valid_normal
     {responsePath : List Name}
     : Validation.selectionSetValid schema variableDefinitions parentType selectionSet
       -> selectionSetNormal schema parentType selectionSet
+      -> selectionSetSubselectionsNonempty schema parentType selectionSet
       -> NormalSelectionSetResponsePath schema parentType selectionSet responsePath
       -> NormalSelectionSetObservableLeaf schema parentType selectionSet := by
-  intro hvalid hnormal hpath
+  intro hvalid hnormal hsub hpath
   induction hpath with
   | objectHere hobject hmem =>
       rename_i _pathParentType _responseName _fieldName _arguments _directives
         childSelectionSet _pathSelectionSet
       rcases
-          selectionSetValid_field_lookup_leaf_or_composite_child hvalid hmem
+          selectionSetValid_field_lookup_leaf_or_composite_child hvalid hsub hmem
         with
         ⟨fieldDefinition, hlookup, hkind⟩
       rcases hkind with hleaf | hcomposite
@@ -950,12 +966,16 @@ theorem normalSelectionSetObservableLeaf_of_responsePath_valid_normal
             selectionSetNormal schema fieldDefinition.outputType.namedType
               childSelectionSet :=
           selectionSetNormal_field_child_of_mem_lookup hnormal hmem hlookup
+        have hchildSub :
+            selectionSetSubselectionsNonempty schema fieldDefinition.outputType.namedType
+              childSelectionSet :=
+          selectionSetSubselectionsNonempty_field_child_of_mem_lookup hsub hmem hlookup
         have hchildLeaf :
             NormalSelectionSetObservableLeaf schema
               fieldDefinition.outputType.namedType childSelectionSet :=
           normalSelectionSetObservableLeaf_of_valid_normal_nonempty schema
             fieldDefinition.outputType.namedType variableDefinitions
-            childSelectionSet hcomposite.2.2 hchildNormal hcomposite.2.1
+            childSelectionSet hcomposite.2.2 hchildNormal hchildSub hcomposite.2.1
         exact
           NormalSelectionSetObservableLeaf.objectChild hobject hmem hlookup
             hcomposite.1 hchildLeaf
@@ -965,7 +985,7 @@ theorem normalSelectionSetObservableLeaf_of_responsePath_valid_normal
       have hchildNonempty : childSelectionSet ≠ [] :=
         normalSelectionSetResponsePath_selectionSet_nonempty hchildPath
       rcases
-          selectionSetValid_field_lookup_leaf_or_composite_child hvalid hmem
+          selectionSetValid_field_lookup_leaf_or_composite_child hvalid hsub hmem
         with
         ⟨candidateDefinition, hcandidateLookup, hkind⟩
       have hcandidateEq : candidateDefinition = fieldDefinition := by
@@ -976,12 +996,16 @@ theorem normalSelectionSetObservableLeaf_of_responsePath_valid_normal
           selectionSetNormal schema fieldDefinition.outputType.namedType
             childSelectionSet :=
         selectionSetNormal_field_child_of_mem_lookup hnormal hmem hlookup
+      have hchildSub :
+          selectionSetSubselectionsNonempty schema fieldDefinition.outputType.namedType
+            childSelectionSet :=
+        selectionSetSubselectionsNonempty_field_child_of_mem_lookup hsub hmem hlookup
       rcases hkind with hleaf | hcomposite
       · exact False.elim (hchildNonempty hleaf.2)
       · have hchildLeaf :
             NormalSelectionSetObservableLeaf schema
               fieldDefinition.outputType.namedType childSelectionSet :=
-          ih hcomposite.2.2 hchildNormal
+          ih hcomposite.2.2 hchildNormal hchildSub
         exact
           NormalSelectionSetObservableLeaf.objectChild hobject hmem hlookup
             hcomposite.1 hchildLeaf
@@ -995,10 +1019,13 @@ theorem normalSelectionSetObservableLeaf_of_responsePath_valid_normal
       have hchildNormal :
           selectionSetNormal schema typeCondition childSelectionSet :=
         (selectionSetNormal_inlineFragment_child_of_mem hnormal hmem).2
+      have hchildSub :
+          selectionSetSubselectionsNonempty schema typeCondition childSelectionSet :=
+        (selectionSetSubselectionsNonempty_inlineFragment_child_pair_of_mem hsub hmem).2
       have hchildLeaf :
           NormalSelectionSetObservableLeaf schema typeCondition
             childSelectionSet :=
-        ih hchildValid hchildNormal
+        ih hchildValid hchildNormal hchildSub
       exact
         NormalSelectionSetObservableLeaf.abstractInlineFragment hnonObject
           hmem hchildLeaf
@@ -1129,21 +1156,23 @@ theorem normalSelectionSetObservableLeaf_left_or_right_of_diffTrace_valid_normal
     : Validation.selectionSetValid schema leftVariableDefinitions parentType left
       -> Validation.selectionSetValid schema rightVariableDefinitions parentType right
       -> selectionSetNormal schema parentType left
+      -> selectionSetSubselectionsNonempty schema parentType left
       -> selectionSetNormal schema parentType right
+      -> selectionSetSubselectionsNonempty schema parentType right
       -> NormalSelectionSetDiffTrace schema parentType left right responsePath
       -> NormalSelectionSetObservableLeaf schema parentType left
           ∨ NormalSelectionSetObservableLeaf schema parentType right := by
-  intro hleftValid hrightValid hleftNormal hrightNormal htrace
+  intro hleftValid hrightValid hleftNormal hleftSub hrightNormal hrightSub htrace
   rcases normalSelectionSetResponsePath_left_or_right_of_diffTrace htrace with
     hleftPath | hrightPath
   · exact
       Or.inl
         (normalSelectionSetObservableLeaf_of_responsePath_valid_normal
-          hleftValid hleftNormal hleftPath)
+          hleftValid hleftNormal hleftSub hleftPath)
   · exact
       Or.inr
         (normalSelectionSetObservableLeaf_of_responsePath_valid_normal
-          hrightValid hrightNormal hrightPath)
+          hrightValid hrightNormal hrightSub hrightPath)
 
 theorem normalSelectionSetDiffTrace_left_or_right_nonempty
     {schema : Schema} {parentType : Name} {left right : List Selection}
@@ -1163,11 +1192,13 @@ theorem normalSelectionSetDiffTrace_of_valid_normal_diff
     : Validation.selectionSetValid schema leftVariableDefinitions parentType left
       -> Validation.selectionSetValid schema rightVariableDefinitions parentType right
       -> selectionSetNormal schema parentType left
+      -> selectionSetSubselectionsNonempty schema parentType left
       -> selectionSetNormal schema parentType right
+      -> selectionSetSubselectionsNonempty schema parentType right
       -> NormalSelectionSetDiff schema parentType left right
       -> ∃ responsePath,
           NormalSelectionSetDiffTrace schema parentType left right responsePath := by
-  intro hleftValid hrightValid hleftNormal hrightNormal hdiff
+  intro hleftValid hrightValid hleftNormal hleftSub hrightNormal hrightSub hdiff
   revert leftVariableDefinitions rightVariableDefinitions
   induction hdiff with
   | objectLeftResponseName hobject hleftMem hrightNoResponseName =>
@@ -1216,6 +1247,8 @@ theorem normalSelectionSetDiffTrace_of_valid_normal_diff
           selectionSetNormal_field_child_of_mem_with_returnType hleftNormal
             hleftMem with
         ⟨leftReturnType, hleftReturnType, hleftChildNormal⟩
+      have hleftChildSub :=
+        selectionSetSubselectionsNonempty_field_child_of_mem_returnType hleftSub hleftMem hleftReturnType
       have hleftReturnTypeEq : leftReturnType = returnType := by
         rw [hreturnType] at hleftReturnType
         exact Option.some.inj hleftReturnType.symm
@@ -1224,12 +1257,14 @@ theorem normalSelectionSetDiffTrace_of_valid_normal_diff
           selectionSetNormal_field_child_of_mem_with_returnType hrightNormal
             hrightMem with
         ⟨rightReturnType, hrightReturnType, hrightChildNormal⟩
+      have hrightChildSub :=
+        selectionSetSubselectionsNonempty_field_child_of_mem_returnType hrightSub hrightMem hrightReturnType
       have hrightReturnTypeEq : rightReturnType = returnType := by
         rw [hreturnType] at hrightReturnType
         exact Option.some.inj hrightReturnType.symm
       subst rightReturnType
       rcases
-          ih hleftChildNormal hrightChildNormal hleftChildValid
+          ih hleftChildNormal hleftChildSub hrightChildNormal hrightChildSub hleftChildValid
             hrightChildValid with
         ⟨childPath, hchildTrace⟩
       exact ⟨
@@ -1249,11 +1284,13 @@ theorem normalSelectionSetDiffTrace_of_valid_normal_diff
           selectionSetNormal_inlineFragment_child_of_mem hleftNormal
             hleftMem with
         ⟨_htypeObject, hchildNormal⟩
+      have hchildSub :=
+        selectionSetSubselectionsNonempty_inlineFragment_some_child_of_mem hleftSub hleftMem
       rcases
           normalSelectionSetResponsePath_of_valid_normal_nonempty hchildValid
-            hchildNormal
-            (selectionSetValid_inlineFragment_some_child_nonempty_of_mem
-              hleftValid hleftMem) with
+            hchildNormal hchildSub
+            (selectionSetSubselectionsNonempty_inlineFragment_child_nonempty_of_mem
+              hleftSub hleftMem) with
         ⟨childPath, hchildPath⟩
       exact ⟨
         childPath,
@@ -1272,11 +1309,13 @@ theorem normalSelectionSetDiffTrace_of_valid_normal_diff
           selectionSetNormal_inlineFragment_child_of_mem hrightNormal
             hrightMem with
         ⟨_htypeObject, hchildNormal⟩
+      have hchildSub :=
+        selectionSetSubselectionsNonempty_inlineFragment_some_child_of_mem hrightSub hrightMem
       rcases
           normalSelectionSetResponsePath_of_valid_normal_nonempty hchildValid
-            hchildNormal
-            (selectionSetValid_inlineFragment_some_child_nonempty_of_mem
-              hrightValid hrightMem) with
+            hchildNormal hchildSub
+            (selectionSetSubselectionsNonempty_inlineFragment_child_nonempty_of_mem
+              hrightSub hrightMem) with
         ⟨childPath, hchildPath⟩
       exact ⟨
         childPath,
@@ -1298,12 +1337,20 @@ theorem normalSelectionSetDiffTrace_of_valid_normal_diff
           selectionSetNormal schema _ _ :=
         (selectionSetNormal_inlineFragment_child_of_mem hleftNormal
           hleftMem).2
+      have hleftChildSub :
+          selectionSetSubselectionsNonempty schema _ _ :=
+        (selectionSetSubselectionsNonempty_inlineFragment_child_pair_of_mem hleftSub
+          hleftMem).2
       have hrightChildNormal :
           selectionSetNormal schema _ _ :=
         (selectionSetNormal_inlineFragment_child_of_mem hrightNormal
           hrightMem).2
+      have hrightChildSub :
+          selectionSetSubselectionsNonempty schema _ _ :=
+        (selectionSetSubselectionsNonempty_inlineFragment_child_pair_of_mem hrightSub
+          hrightMem).2
       rcases
-          ih hleftChildNormal hrightChildNormal hleftChildValid
+          ih hleftChildNormal hleftChildSub hrightChildNormal hrightChildSub hleftChildValid
             hrightChildValid with
         ⟨childPath, hchildTrace⟩
       exact ⟨
@@ -1319,12 +1366,14 @@ theorem normalSelectionSetDiffObservableTrace_of_valid_normal_diff
     : Validation.selectionSetValid schema leftVariableDefinitions parentType left
       -> Validation.selectionSetValid schema rightVariableDefinitions parentType right
       -> selectionSetNormal schema parentType left
+      -> selectionSetSubselectionsNonempty schema parentType left
       -> selectionSetNormal schema parentType right
+      -> selectionSetSubselectionsNonempty schema parentType right
       -> NormalSelectionSetDiff schema parentType left right
       -> ∃ responsePath,
           NormalSelectionSetDiffObservableTrace schema parentType left right
             responsePath := by
-  intro hleftValid hrightValid hleftNormal hrightNormal hdiff
+  intro hleftValid hrightValid hleftNormal hleftSub hrightNormal hrightSub hdiff
   revert leftVariableDefinitions rightVariableDefinitions
   induction hdiff with
   | objectLeftResponseName hobject hleftMem hrightNoResponseName =>
@@ -1377,7 +1426,7 @@ theorem normalSelectionSetDiffObservableTrace_of_valid_normal_diff
               simp [h] at hrightLeaf ⊢
           rcases
               normalSelectionSetObservableResponsePath_of_valid_normal_composite_field_mem
-                hrightValid hrightNormal hrightMem hrightLookup
+                hrightValid hrightNormal hrightSub hrightMem hrightLookup
                 hrightComposite with
             ⟨childPath, hchildPath⟩
           exact ⟨
@@ -1397,7 +1446,7 @@ theorem normalSelectionSetDiffObservableTrace_of_valid_normal_diff
             simp [h] at hleftLeaf ⊢
         rcases
             normalSelectionSetObservableResponsePath_of_valid_normal_composite_field_mem
-              hleftValid hleftNormal hleftMem hleftLookup
+              hleftValid hleftNormal hleftSub hleftMem hleftLookup
               hleftComposite with
           ⟨childPath, hchildPath⟩
         exact ⟨
@@ -1429,7 +1478,7 @@ theorem normalSelectionSetDiffObservableTrace_of_valid_normal_diff
             simp [h] at hleaf ⊢
         rcases
             normalSelectionSetObservableResponsePath_of_valid_normal_composite_field_mem
-              hleftValid hleftNormal hleftMem hlookup hcomposite with
+              hleftValid hleftNormal hleftSub hleftMem hlookup hcomposite with
           ⟨childPath, hchildPath⟩
         exact ⟨
           _ :: childPath,
@@ -1452,6 +1501,8 @@ theorem normalSelectionSetDiffObservableTrace_of_valid_normal_diff
           selectionSetNormal_field_child_of_mem_with_returnType hleftNormal
             hleftMem with
         ⟨leftReturnType, hleftReturnType, hleftChildNormal⟩
+      have hleftChildSub :=
+        selectionSetSubselectionsNonempty_field_child_of_mem_returnType hleftSub hleftMem hleftReturnType
       have hleftReturnTypeEq : leftReturnType = returnType := by
         rw [hreturnType] at hleftReturnType
         exact Option.some.inj hleftReturnType.symm
@@ -1460,12 +1511,14 @@ theorem normalSelectionSetDiffObservableTrace_of_valid_normal_diff
           selectionSetNormal_field_child_of_mem_with_returnType hrightNormal
             hrightMem with
         ⟨rightReturnType, hrightReturnType, hrightChildNormal⟩
+      have hrightChildSub :=
+        selectionSetSubselectionsNonempty_field_child_of_mem_returnType hrightSub hrightMem hrightReturnType
       have hrightReturnTypeEq : rightReturnType = returnType := by
         rw [hreturnType] at hrightReturnType
         exact Option.some.inj hrightReturnType.symm
       subst rightReturnType
       rcases
-          ih hleftChildNormal hrightChildNormal hleftChildValid
+          ih hleftChildNormal hleftChildSub hrightChildNormal hrightChildSub hleftChildValid
             hrightChildValid with
         ⟨childPath, hchildTrace⟩
       exact ⟨
@@ -1485,12 +1538,14 @@ theorem normalSelectionSetDiffObservableTrace_of_valid_normal_diff
           selectionSetNormal_inlineFragment_child_of_mem hleftNormal
             hleftMem with
         ⟨_htypeObject, hchildNormal⟩
+      have hchildSub :=
+        selectionSetSubselectionsNonempty_inlineFragment_some_child_of_mem hleftSub hleftMem
       rcases
           normalSelectionSetObservableResponsePath_of_observableLeaf
             (normalSelectionSetObservableLeaf_of_valid_normal_nonempty schema
-              _ leftVariableDefinitions _ hchildValid hchildNormal
-              (selectionSetValid_inlineFragment_some_child_nonempty_of_mem
-                hleftValid hleftMem)) with
+              _ leftVariableDefinitions _ hchildValid hchildNormal hchildSub
+              (selectionSetSubselectionsNonempty_inlineFragment_child_nonempty_of_mem
+                hleftSub hleftMem)) with
         ⟨childPath, hchildPath⟩
       exact ⟨
         childPath,
@@ -1509,12 +1564,14 @@ theorem normalSelectionSetDiffObservableTrace_of_valid_normal_diff
           selectionSetNormal_inlineFragment_child_of_mem hrightNormal
             hrightMem with
         ⟨_htypeObject, hchildNormal⟩
+      have hchildSub :=
+        selectionSetSubselectionsNonempty_inlineFragment_some_child_of_mem hrightSub hrightMem
       rcases
           normalSelectionSetObservableResponsePath_of_observableLeaf
             (normalSelectionSetObservableLeaf_of_valid_normal_nonempty schema
-              _ rightVariableDefinitions _ hchildValid hchildNormal
-              (selectionSetValid_inlineFragment_some_child_nonempty_of_mem
-                hrightValid hrightMem)) with
+              _ rightVariableDefinitions _ hchildValid hchildNormal hchildSub
+              (selectionSetSubselectionsNonempty_inlineFragment_child_nonempty_of_mem
+                hrightSub hrightMem)) with
         ⟨childPath, hchildPath⟩
       exact ⟨
         childPath,
@@ -1536,12 +1593,20 @@ theorem normalSelectionSetDiffObservableTrace_of_valid_normal_diff
           selectionSetNormal schema _ _ :=
         (selectionSetNormal_inlineFragment_child_of_mem hleftNormal
           hleftMem).2
+      have hleftChildSub :
+          selectionSetSubselectionsNonempty schema _ _ :=
+        (selectionSetSubselectionsNonempty_inlineFragment_child_pair_of_mem hleftSub
+          hleftMem).2
       have hrightChildNormal :
           selectionSetNormal schema _ _ :=
         (selectionSetNormal_inlineFragment_child_of_mem hrightNormal
           hrightMem).2
+      have hrightChildSub :
+          selectionSetSubselectionsNonempty schema _ _ :=
+        (selectionSetSubselectionsNonempty_inlineFragment_child_pair_of_mem hrightSub
+          hrightMem).2
       rcases
-          ih hleftChildNormal hrightChildNormal hleftChildValid
+          ih hleftChildNormal hleftChildSub hrightChildNormal hrightChildSub hleftChildValid
             hrightChildValid with
         ⟨childPath, hchildTrace⟩
       exact ⟨

@@ -729,8 +729,8 @@ theorem fragmentInlineSelectionSetValid_after_reachable_removals_aux
         -> GraphQL.NamedFragment.lookupFragment? original fragmentName = some fragment
         -> lookupFragmentAndRestLt? fragmentName current = some (fragment, remaining)
         -> GraphQL.NamedFragment.Validation.selectionSetValid schema
-                variableDefinitions [] fragment.typeCondition
-                (Inline.inlineSelectionSet remaining.val fragment.selectionSet) := by
+            variableDefinitions [] fragment.typeCondition
+            (Inline.inlineSelectionSet remaining.val fragment.selectionSet) := by
   intro n
   induction n with
   | zero =>
@@ -779,45 +779,43 @@ theorem fragmentInlineSelectionSetValid_after_reachable_removals_aux
             fragment.selectionSet :=
         selectionSetValid_after_fragment_removal hlookup hnoFragmentName
           hselectionSetValidCurrent
-      exact
-        selectionSetValid_inlineSelectionSet_of_localFragmentBodiesValid
-          (fun {childName} {childFragment} {childRemaining} hchildSpread
-              hchildLookup => by
-            have hchildMemRemaining : childFragment ∈ remaining.val :=
-              GraphQL.NamedFragment.Validation.lookupFragmentAndRestLt?_found_mem
-                hchildLookup
-            have hchildMemCurrent : childFragment ∈ current :=
-              GraphQL.NamedFragment.Validation.lookupFragmentAndRestLt?_remaining_mem
-                hlookup childFragment hchildMemRemaining
-            have hchildMemOriginal : childFragment ∈ original :=
-              ReachableAncestorRemovals.mem_original hremovals hchildMemCurrent
-            have hchildName : childFragment.name = childName :=
-              GraphQL.NamedFragment.Validation.lookupFragmentAndRestLt?_found_name
-                hchildLookup
-            have hchildLookupOriginal :
+      exact selectionSetValid_inlineSelectionSet_of_localFragmentBodiesValid
+        (fun {childName} {childFragment} {childRemaining} hchildSpread hchildLookup => by
+          have hchildMemRemaining : childFragment ∈ remaining.val :=
+            GraphQL.NamedFragment.Validation.lookupFragmentAndRestLt?_found_mem
+              hchildLookup
+          have hchildMemCurrent : childFragment ∈ current :=
+            GraphQL.NamedFragment.Validation.lookupFragmentAndRestLt?_remaining_mem
+              hlookup childFragment hchildMemRemaining
+          have hchildMemOriginal : childFragment ∈ original :=
+            ReachableAncestorRemovals.mem_original hremovals hchildMemCurrent
+          have hchildName : childFragment.name = childName :=
+            GraphQL.NamedFragment.Validation.lookupFragmentAndRestLt?_found_name
+              hchildLookup
+          have hchildLookupOriginal :
+              GraphQL.NamedFragment.lookupFragment? original
+                  childName =
+                some childFragment := by
+            have hlookupByOwnName :
                 GraphQL.NamedFragment.lookupFragment? original
-                    childName =
-                  some childFragment := by
-              have hlookupByOwnName :
-                  GraphQL.NamedFragment.lookupFragment? original
-                      childFragment.name =
-                    some childFragment :=
-                GraphQL.NamedFragment.Validation.lookupFragment?_eq_some_of_mem_unique
-                  hunique hchildMemOriginal
-              simpa [hchildName] using hlookupByOwnName
-            have hchildRemovals :
-                ReachableAncestorRemovals original childName remaining.val
-                  remaining.val :=
-              ReachableAncestorRemovals.child hremovals
-                hfragmentMemOriginal hlookupOriginal hlookup hchildSpread
-            have hremainingLength : remaining.val.length ≤ n := by
-              have hremainingLt :
-                  remaining.val.length < current.length :=
-                lookupFragmentAndRestLt?_remaining_length_lt hlookup
-              omega
-            exact ih hremainingLength hchildRemovals
-              hchildLookupOriginal hchildLookup)
-          hselectionSetValidRemaining
+                    childFragment.name =
+                  some childFragment :=
+              GraphQL.NamedFragment.Validation.lookupFragment?_eq_some_of_mem_unique
+                hunique hchildMemOriginal
+            simpa [hchildName] using hlookupByOwnName
+          have hchildRemovals :
+              ReachableAncestorRemovals original childName remaining.val
+                remaining.val :=
+            ReachableAncestorRemovals.child hremovals
+              hfragmentMemOriginal hlookupOriginal hlookup hchildSpread
+          have hremainingLength : remaining.val.length ≤ n := by
+            have hremainingLt :
+                remaining.val.length < current.length :=
+              lookupFragmentAndRestLt?_remaining_length_lt hlookup
+            omega
+          exact ih hremainingLength hchildRemovals
+            hchildLookupOriginal hchildLookup)
+        hselectionSetValidRemaining
 
 theorem fragmentInlineSelectionSetValid_after_reachable_removals
     {schema : Schema} {variableDefinitions : List VariableDefinition}
@@ -835,8 +833,8 @@ theorem fragmentInlineSelectionSetValid_after_reachable_removals
       : GraphQL.NamedFragment.lookupFragment? original fragmentName = some fragment)
     (hlookup : lookupFragmentAndRestLt? fragmentName current = some (fragment, remaining))
     : GraphQL.NamedFragment.Validation.selectionSetValid schema
-          variableDefinitions [] fragment.typeCondition
-          (Inline.inlineSelectionSet remaining.val fragment.selectionSet) := by
+        variableDefinitions [] fragment.typeCondition
+        (Inline.inlineSelectionSet remaining.val fragment.selectionSet) := by
   exact fragmentInlineSelectionSetValid_after_reachable_removals_aux
     hunique hacyclic hall current.length (Nat.le_refl current.length)
     hremovals hlookupOriginal hlookup
@@ -862,11 +860,11 @@ theorem fragmentInlineSelectionSetValid_after_lookup_removal_of_fragmentBodiesVa
           lookupFragmentAndRestLt? nextName remaining.val
             = some (nextFragment, nextRemaining)
           -> GraphQL.NamedFragment.Validation.selectionSetValid schema
-                  variableDefinitions [] nextFragment.typeCondition
-                  (Inline.inlineSelectionSet nextRemaining.val nextFragment.selectionSet))
+              variableDefinitions [] nextFragment.typeCondition
+              (Inline.inlineSelectionSet nextRemaining.val nextFragment.selectionSet))
     : GraphQL.NamedFragment.Validation.selectionSetValid schema
-          variableDefinitions [] fragment.typeCondition
-          (Inline.inlineSelectionSet remaining.val fragment.selectionSet) := by
+        variableDefinitions [] fragment.typeCondition
+        (Inline.inlineSelectionSet remaining.val fragment.selectionSet) := by
   have hfragmentValid :
       GraphQL.NamedFragment.Validation.fragmentDefinitionValid schema
         variableDefinitions fragments fragment :=
@@ -906,11 +904,11 @@ theorem fragmentInlineSelectionSetValid_after_lookup_removal_of_localFragmentBod
           -> lookupFragmentAndRestLt? nextName remaining.val
               = some (nextFragment, nextRemaining)
           -> GraphQL.NamedFragment.Validation.selectionSetValid schema
-                  variableDefinitions [] nextFragment.typeCondition
-                  (Inline.inlineSelectionSet nextRemaining.val nextFragment.selectionSet))
+              variableDefinitions [] nextFragment.typeCondition
+              (Inline.inlineSelectionSet nextRemaining.val nextFragment.selectionSet))
     : GraphQL.NamedFragment.Validation.selectionSetValid schema
-          variableDefinitions [] fragment.typeCondition
-          (Inline.inlineSelectionSet remaining.val fragment.selectionSet) := by
+        variableDefinitions [] fragment.typeCondition
+        (Inline.inlineSelectionSet remaining.val fragment.selectionSet) := by
   have hfragmentValid :
       GraphQL.NamedFragment.Validation.fragmentDefinitionValid schema
         variableDefinitions fragments fragment :=
@@ -947,11 +945,11 @@ theorem operationFragmentInlineSelectionSetValid_after_lookup_removal
           -> lookupFragmentAndRestLt? nextName remaining.val
               = some (nextFragment, nextRemaining)
           -> GraphQL.NamedFragment.Validation.selectionSetValid schema
-                  operation.variableDefinitions [] nextFragment.typeCondition
-                  (Inline.inlineSelectionSet nextRemaining.val nextFragment.selectionSet))
+              operation.variableDefinitions [] nextFragment.typeCondition
+              (Inline.inlineSelectionSet nextRemaining.val nextFragment.selectionSet))
     : GraphQL.NamedFragment.Validation.selectionSetValid schema
-          operation.variableDefinitions [] fragment.typeCondition
-          (Inline.inlineSelectionSet remaining.val fragment.selectionSet) := by
+        operation.variableDefinitions [] fragment.typeCondition
+        (Inline.inlineSelectionSet remaining.val fragment.selectionSet) := by
   rcases hvalid with
     ⟨_hroot, _hrootComposite, _hvariables, huniqueFragments,
       hfragmentsAcyclic, _hfragmentDefinitionsUsed,
@@ -995,11 +993,11 @@ theorem
           -> lookupFragmentAndRestLt? nextName childRemaining.val
               = some (nextFragment, nextRemaining)
           -> GraphQL.NamedFragment.Validation.selectionSetValid schema
-                  variableDefinitions [] nextFragment.typeCondition
-                  (Inline.inlineSelectionSet nextRemaining.val nextFragment.selectionSet))
+              variableDefinitions [] nextFragment.typeCondition
+              (Inline.inlineSelectionSet nextRemaining.val nextFragment.selectionSet))
     : GraphQL.NamedFragment.Validation.selectionSetValid schema
-          variableDefinitions [] child.typeCondition
-          (Inline.inlineSelectionSet childRemaining.val child.selectionSet) := by
+        variableDefinitions [] child.typeCondition
+        (Inline.inlineSelectionSet childRemaining.val child.selectionSet) := by
   have hsourceMem : source ∈ fragments :=
     GraphQL.NamedFragment.Validation.lookupFragmentAndRestLt?_found_mem
       hsourceLookup
@@ -1107,11 +1105,11 @@ theorem
           -> lookupFragmentAndRestLt? nextName targetRemaining.val
               = some (nextFragment, nextRemaining)
           -> GraphQL.NamedFragment.Validation.selectionSetValid schema
-                  variableDefinitions [] nextFragment.typeCondition
-                  (Inline.inlineSelectionSet nextRemaining.val nextFragment.selectionSet))
+              variableDefinitions [] nextFragment.typeCondition
+              (Inline.inlineSelectionSet nextRemaining.val nextFragment.selectionSet))
     : GraphQL.NamedFragment.Validation.selectionSetValid schema
-          variableDefinitions [] target.typeCondition
-          (Inline.inlineSelectionSet targetRemaining.val target.selectionSet) := by
+        variableDefinitions [] target.typeCondition
+        (Inline.inlineSelectionSet targetRemaining.val target.selectionSet) := by
   have htargetMemRemaining : target ∈ remaining.val :=
     GraphQL.NamedFragment.Validation.lookupFragmentAndRestLt?_found_mem
       htargetLookup
@@ -1211,11 +1209,11 @@ theorem
           -> lookupFragmentAndRestLt? nextName targetRemaining.val
               = some (nextFragment, nextRemaining)
           -> GraphQL.NamedFragment.Validation.selectionSetValid schema
-                  variableDefinitions [] nextFragment.typeCondition
-                  (Inline.inlineSelectionSet nextRemaining.val nextFragment.selectionSet))
+              variableDefinitions [] nextFragment.typeCondition
+              (Inline.inlineSelectionSet nextRemaining.val nextFragment.selectionSet))
     : GraphQL.NamedFragment.Validation.selectionSetValid schema
-          variableDefinitions [] target.typeCondition
-          (Inline.inlineSelectionSet targetRemaining.val target.selectionSet) := by
+        variableDefinitions [] target.typeCondition
+        (Inline.inlineSelectionSet targetRemaining.val target.selectionSet) := by
   have htargetMemAfterSecond : target ∈ afterSecond.val :=
     GraphQL.NamedFragment.Validation.lookupFragmentAndRestLt?_found_mem
       htargetLookup

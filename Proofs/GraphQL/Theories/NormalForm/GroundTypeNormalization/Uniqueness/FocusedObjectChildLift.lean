@@ -215,6 +215,7 @@ theorem focusedSelectionSetTargetChildSelectionSets_child_valid_free_normal
     : Validation.selectionSetValid schema variableDefinitions parentType selectionSet
       -> selectionSetDirectiveFree selectionSet
       -> selectionSetNormal schema parentType selectionSet
+      -> selectionSetSubselectionsNonempty schema parentType selectionSet
       -> schema.lookupField parentType targetField = some fieldDefinition
       -> fieldDefinition.outputType.namedType = returnType
       -> schema.isCompositeType fieldDefinition.outputType.namedType
@@ -224,8 +225,9 @@ theorem focusedSelectionSetTargetChildSelectionSets_child_valid_free_normal
       -> Validation.selectionSetValid schema variableDefinitions returnType
             childSelectionSet
           ∧ selectionSetDirectiveFree childSelectionSet
-          ∧ selectionSetNormal schema returnType childSelectionSet := by
-  intro hvalid hfree hnormal hlookup hreturnType hcomposite hmem
+          ∧ selectionSetNormal schema returnType childSelectionSet
+          ∧ selectionSetSubselectionsNonempty schema returnType childSelectionSet := by
+  intro hvalid hfree hnormal hsub hlookup hreturnType hcomposite hmem
   rcases focusedSelectionSetTargetChildSelectionSets_mem hmem with
     ⟨responseName, arguments, directives, hfieldMem⟩
   rcases selectionSetValid_field_lookup_of_mem hvalid hfieldMem with
@@ -243,6 +245,8 @@ theorem focusedSelectionSetTargetChildSelectionSets_child_valid_free_normal
   rcases selectionSetNormal_field_child_of_mem_with_returnType hnormal
       hfieldMem with
     ⟨candidateReturnType, hcandidateReturnType, hchildNormal⟩
+  have hchildSub :=
+    selectionSetSubselectionsNonempty_field_child_of_mem_returnType hsub hfieldMem hcandidateReturnType
   have hcandidateReturnEq : candidateReturnType = returnType := by
     simp [Schema.fieldReturnType?, hlookup, hreturnType] at hcandidateReturnType
     exact hcandidateReturnType.symm
@@ -251,7 +255,7 @@ theorem focusedSelectionSetTargetChildSelectionSets_child_valid_free_normal
       Validation.selectionSetValid schema variableDefinitions returnType
         childSelectionSet := by
     simpa [hreturnType] using hchildValid
-  exact ⟨hchildValidReturn, hchildFree, hchildNormal⟩
+  exact ⟨hchildValidReturn, hchildFree, hchildNormal, hchildSub⟩
 
 theorem
     focusedSelectionSetTargetChildSelectionSets_child_valid_free_normal_of_field_subset
@@ -268,6 +272,7 @@ theorem
       -> Validation.selectionSetValid schema variableDefinitions parentType whole
       -> selectionSetDirectiveFree whole
       -> selectionSetNormal schema parentType whole
+      -> selectionSetSubselectionsNonempty schema parentType whole
       -> schema.lookupField parentType targetField = some fieldDefinition
       -> fieldDefinition.outputType.namedType = returnType
       -> schema.isCompositeType fieldDefinition.outputType.namedType
@@ -277,8 +282,9 @@ theorem
       -> Validation.selectionSetValid schema variableDefinitions returnType
             childSelectionSet
           ∧ selectionSetDirectiveFree childSelectionSet
-          ∧ selectionSetNormal schema returnType childSelectionSet := by
-  intro hfieldSubset hvalid hfree hnormal hlookup hreturnType hcomposite
+          ∧ selectionSetNormal schema returnType childSelectionSet
+          ∧ selectionSetSubselectionsNonempty schema returnType childSelectionSet := by
+  intro hfieldSubset hvalid hfree hnormal hsub hlookup hreturnType hcomposite
     hmem
   rcases focusedSelectionSetTargetChildSelectionSets_mem hmem with
     ⟨responseName, arguments, directives, hfieldMem⟩
@@ -302,6 +308,8 @@ theorem
   rcases selectionSetNormal_field_child_of_mem_with_returnType hnormal
       hwholeMem with
     ⟨candidateReturnType, hcandidateReturnType, hchildNormal⟩
+  have hchildSub :=
+    selectionSetSubselectionsNonempty_field_child_of_mem_returnType hsub hwholeMem hcandidateReturnType
   have hcandidateReturnEq : candidateReturnType = returnType := by
     simp [Schema.fieldReturnType?, hlookup, hreturnType] at hcandidateReturnType
     exact hcandidateReturnType.symm
@@ -310,7 +318,7 @@ theorem
       Validation.selectionSetValid schema variableDefinitions returnType
         childSelectionSet := by
     simpa [hreturnType] using hchildValid
-  exact ⟨hchildValidReturn, hchildFree, hchildNormal⟩
+  exact ⟨hchildValidReturn, hchildFree, hchildNormal, hchildSub⟩
 
 theorem
     focusedSelectionSetTargetChildSelectionSets_child_ready_valid_free_normal_of_field_subset
@@ -328,6 +336,7 @@ theorem
       -> selectionSetArgumentsCoercible schema variableValues parentType whole
       -> selectionSetDirectiveFree whole
       -> selectionSetNormal schema parentType whole
+      -> selectionSetSubselectionsNonempty schema parentType whole
       -> schema.lookupField parentType targetField = some fieldDefinition
       -> fieldDefinition.outputType.namedType = returnType
       -> schema.isCompositeType fieldDefinition.outputType.namedType
@@ -339,13 +348,14 @@ theorem
           ∧ selectionSetArgumentsCoercibleInPossibleTypes schema variableValues
               returnType childSelectionSet
           ∧ selectionSetDirectiveFree childSelectionSet
-          ∧ selectionSetNormal schema returnType childSelectionSet := by
-  intro hfieldSubset hvalid hcoercion hfree hnormal hlookup hreturnType
+          ∧ selectionSetNormal schema returnType childSelectionSet
+          ∧ selectionSetSubselectionsNonempty schema returnType childSelectionSet := by
+  intro hfieldSubset hvalid hcoercion hfree hnormal hsub hlookup hreturnType
     hcomposite hmem
   rcases
       focusedSelectionSetTargetChildSelectionSets_child_valid_free_normal_of_field_subset
-        hfieldSubset hvalid hfree hnormal hlookup hreturnType hcomposite hmem with
-    ⟨hchildValid, hchildFree, hchildNormal⟩
+        hfieldSubset hvalid hfree hnormal hsub hlookup hreturnType hcomposite hmem with
+    ⟨hchildValid, hchildFree, hchildNormal, hchildSub⟩
   rcases focusedSelectionSetTargetChildSelectionSets_mem hmem with
     ⟨responseName, arguments, directives, hfieldMem⟩
   have hwholeMem :=
@@ -357,7 +367,7 @@ theorem
       selectionSetArgumentsCoercibleInPossibleTypes schema variableValues
         returnType childSelectionSet := by
     simpa [hreturnType] using hchildCoercion
-  exact ⟨hchildValid, hchildCoercionReturn, hchildFree, hchildNormal⟩
+  exact ⟨hchildValid, hchildCoercionReturn, hchildFree, hchildNormal, hchildSub⟩
 
 theorem focusedSupportTargetChildSelectionSets_child_exists_valid_free_normal
     {schema : Schema}
@@ -375,7 +385,8 @@ theorem focusedSupportTargetChildSelectionSets_child_exists_valid_free_normal
             ∧ selectionSetArgumentsCoercible schema variableValues parentType
                 supportSelectionSet
             ∧ selectionSetDirectiveFree supportSelectionSet
-            ∧ selectionSetNormal schema parentType supportSelectionSet)
+            ∧ selectionSetNormal schema parentType supportSelectionSet
+            ∧ selectionSetSubselectionsNonempty schema parentType supportSelectionSet)
       -> schema.lookupField parentType fieldName = some fieldDefinition
       -> fieldDefinition.outputType.namedType = returnType
       -> schema.isCompositeType fieldDefinition.outputType.namedType
@@ -388,7 +399,8 @@ theorem focusedSupportTargetChildSelectionSets_child_exists_valid_free_normal
           ∧ selectionSetArgumentsCoercibleInPossibleTypes schema variableValues
               returnType childSelectionSet
           ∧ selectionSetDirectiveFree childSelectionSet
-          ∧ selectionSetNormal schema returnType childSelectionSet := by
+          ∧ selectionSetNormal schema returnType childSelectionSet
+          ∧ selectionSetSubselectionsNonempty schema returnType childSelectionSet := by
   intro hsupportValid hlookup hreturnType hcomposite hmem
   induction supportSelectionSets with
   | nil =>
@@ -397,7 +409,7 @@ theorem focusedSupportTargetChildSelectionSets_child_exists_valid_free_normal
       simp [focusedSupportTargetChildSelectionSets] at hmem
       rcases hmem with hhead | htail
       · rcases hsupportValid head (by simp) with
-          ⟨variableDefinitions, hvalid, hcoercion, hfree, hnormal⟩
+          ⟨variableDefinitions, hvalid, hcoercion, hfree, hnormal, hsub⟩
         rcases
             focusedSelectionSetTargetChildSelectionSets_child_ready_valid_free_normal_of_field_subset
               (schema := schema)
@@ -408,11 +420,11 @@ theorem focusedSupportTargetChildSelectionSets_child_exists_valid_free_normal
               (whole := head) (selectionSet := head)
               (childSelectionSet := childSelectionSet)
               (fieldDefinition := fieldDefinition)
-              (fun _ _ _ _ hmem => hmem) hvalid hcoercion hfree hnormal
+              (fun _ _ _ _ hmem => hmem) hvalid hcoercion hfree hnormal hsub
               hlookup hreturnType hcomposite hhead with
-          ⟨hchildValid, hchildCoercion, hchildFree, hchildNormal⟩
+          ⟨hchildValid, hchildCoercion, hchildFree, hchildNormal, hchildSub⟩
         exact ⟨variableDefinitions, hchildValid, hchildCoercion, hchildFree,
-          hchildNormal⟩
+          hchildNormal, hchildSub⟩
       · have hrestValid :
             ∀ supportSelectionSet,
               supportSelectionSet ∈ rest ->
@@ -422,7 +434,8 @@ theorem focusedSupportTargetChildSelectionSets_child_exists_valid_free_normal
                   ∧ selectionSetArgumentsCoercible schema variableValues
                       parentType supportSelectionSet
                   ∧ selectionSetDirectiveFree supportSelectionSet
-                  ∧ selectionSetNormal schema parentType supportSelectionSet := by
+                  ∧ selectionSetNormal schema parentType supportSelectionSet
+                  ∧ selectionSetSubselectionsNonempty schema parentType supportSelectionSet := by
           intro supportSelectionSet hsupport
           exact hsupportValid supportSelectionSet
             (List.mem_cons_of_mem head hsupport)
@@ -472,7 +485,17 @@ theorem focusedSplitTargetChildSelectionSets_child_exists_valid_free_normal
             ++ Selection.field responseName fieldName leftArguments []
                   leftChildSelectionSet
                 :: leftSuffix)
+      -> selectionSetSubselectionsNonempty schema parentType
+          (leftPref
+            ++ Selection.field responseName fieldName leftArguments []
+                  leftChildSelectionSet
+                :: leftSuffix)
       -> selectionSetNormal schema parentType
+          (rightPref
+            ++ Selection.field responseName fieldName rightArguments []
+                  rightChildSelectionSet
+                :: rightSuffix)
+      -> selectionSetSubselectionsNonempty schema parentType
           (rightPref
             ++ Selection.field responseName fieldName rightArguments []
                   rightChildSelectionSet
@@ -489,10 +512,11 @@ theorem focusedSplitTargetChildSelectionSets_child_exists_valid_free_normal
           ∧ selectionSetArgumentsCoercibleInPossibleTypes schema variableValues
               returnType childSelectionSet
           ∧ selectionSetDirectiveFree childSelectionSet
-          ∧ selectionSetNormal schema returnType childSelectionSet := by
+          ∧ selectionSetNormal schema returnType childSelectionSet
+          ∧ selectionSetSubselectionsNonempty schema returnType childSelectionSet := by
   intro hleftValid hrightValid hleftCoercion hrightCoercion
-    hleftFree hrightFree hleftNormal
-    hrightNormal hlookup hreturnType hcomposite hmem
+    hleftFree hrightFree hleftNormal hleftSub
+    hrightNormal hrightSub hlookup hreturnType hcomposite hmem
   simp [focusedSplitTargetChildSelectionSets] at hmem
   rcases hmem with hleftPref | hrightPref | hleftSuffix | hrightSuffix
   · rcases
@@ -512,10 +536,10 @@ theorem focusedSplitTargetChildSelectionSets_child_exists_valid_free_normal
             intro currentResponseName arguments directives currentChild
               hcurrent
             exact List.mem_append_left _ hcurrent)
-          hleftValid hleftCoercion hleftFree hleftNormal hlookup hreturnType hcomposite
+          hleftValid hleftCoercion hleftFree hleftNormal hleftSub hlookup hreturnType hcomposite
           hleftPref with
-      ⟨hvalid, hcoercion, hfree, hnormal⟩
-    exact ⟨leftVariableDefinitions, hvalid, hcoercion, hfree, hnormal⟩
+      ⟨hvalid, hcoercion, hfree, hnormal, hsub⟩
+    exact ⟨leftVariableDefinitions, hvalid, hcoercion, hfree, hnormal, hsub⟩
   · rcases
         focusedSelectionSetTargetChildSelectionSets_child_ready_valid_free_normal_of_field_subset
           (schema := schema)
@@ -534,10 +558,10 @@ theorem focusedSplitTargetChildSelectionSets_child_exists_valid_free_normal
             intro currentResponseName arguments directives currentChild
               hcurrent
             exact List.mem_append_left _ hcurrent)
-          hrightValid hrightCoercion hrightFree hrightNormal hlookup hreturnType hcomposite
+          hrightValid hrightCoercion hrightFree hrightNormal hrightSub hlookup hreturnType hcomposite
           hrightPref with
-      ⟨hvalid, hcoercion, hfree, hnormal⟩
-    exact ⟨rightVariableDefinitions, hvalid, hcoercion, hfree, hnormal⟩
+      ⟨hvalid, hcoercion, hfree, hnormal, hsub⟩
+    exact ⟨rightVariableDefinitions, hvalid, hcoercion, hfree, hnormal, hsub⟩
   · rcases
         focusedSelectionSetTargetChildSelectionSets_child_ready_valid_free_normal_of_field_subset
           (schema := schema)
@@ -559,10 +583,10 @@ theorem focusedSplitTargetChildSelectionSets_child_exists_valid_free_normal
                 (List.mem_cons_of_mem
                   (Selection.field responseName fieldName leftArguments []
                     leftChildSelectionSet) hcurrent))
-          hleftValid hleftCoercion hleftFree hleftNormal hlookup hreturnType hcomposite
+          hleftValid hleftCoercion hleftFree hleftNormal hleftSub hlookup hreturnType hcomposite
           hleftSuffix with
-      ⟨hvalid, hcoercion, hfree, hnormal⟩
-    exact ⟨leftVariableDefinitions, hvalid, hcoercion, hfree, hnormal⟩
+      ⟨hvalid, hcoercion, hfree, hnormal, hsub⟩
+    exact ⟨leftVariableDefinitions, hvalid, hcoercion, hfree, hnormal, hsub⟩
   · rcases
         focusedSelectionSetTargetChildSelectionSets_child_ready_valid_free_normal_of_field_subset
           (schema := schema)
@@ -585,10 +609,10 @@ theorem focusedSplitTargetChildSelectionSets_child_exists_valid_free_normal
                 (List.mem_cons_of_mem
                   (Selection.field responseName fieldName rightArguments []
                     rightChildSelectionSet) hcurrent))
-          hrightValid hrightCoercion hrightFree hrightNormal hlookup hreturnType hcomposite
+          hrightValid hrightCoercion hrightFree hrightNormal hrightSub hlookup hreturnType hcomposite
           hrightSuffix with
-      ⟨hvalid, hcoercion, hfree, hnormal⟩
-    exact ⟨rightVariableDefinitions, hvalid, hcoercion, hfree, hnormal⟩
+      ⟨hvalid, hcoercion, hfree, hnormal, hsub⟩
+    exact ⟨rightVariableDefinitions, hvalid, hcoercion, hfree, hnormal, hsub⟩
 
 theorem focusedObjectChildSupportSelectionSets_child_exists_valid_free_normal
     {schema : Schema}
@@ -635,7 +659,17 @@ theorem focusedObjectChildSupportSelectionSets_child_exists_valid_free_normal
             ++ Selection.field responseName fieldName leftArguments []
                   leftChildSelectionSet
                 :: leftSuffix)
+      -> selectionSetSubselectionsNonempty schema parentType
+          (leftPref
+            ++ Selection.field responseName fieldName leftArguments []
+                  leftChildSelectionSet
+                :: leftSuffix)
       -> selectionSetNormal schema parentType
+          (rightPref
+            ++ Selection.field responseName fieldName rightArguments []
+                  rightChildSelectionSet
+                :: rightSuffix)
+      -> selectionSetSubselectionsNonempty schema parentType
           (rightPref
             ++ Selection.field responseName fieldName rightArguments []
                   rightChildSelectionSet
@@ -648,7 +682,8 @@ theorem focusedObjectChildSupportSelectionSets_child_exists_valid_free_normal
                 ∧ selectionSetArgumentsCoercible schema variableValues parentType
                     supportSelectionSet
                 ∧ selectionSetDirectiveFree supportSelectionSet
-                ∧ selectionSetNormal schema parentType supportSelectionSet)
+                ∧ selectionSetNormal schema parentType supportSelectionSet
+                ∧ selectionSetSubselectionsNonempty schema parentType supportSelectionSet)
       -> schema.lookupField parentType fieldName = some fieldDefinition
       -> fieldDefinition.outputType.namedType = returnType
       -> schema.isCompositeType fieldDefinition.outputType.namedType
@@ -662,10 +697,11 @@ theorem focusedObjectChildSupportSelectionSets_child_exists_valid_free_normal
           ∧ selectionSetArgumentsCoercibleInPossibleTypes schema variableValues
               returnType childSelectionSet
           ∧ selectionSetDirectiveFree childSelectionSet
-          ∧ selectionSetNormal schema returnType childSelectionSet := by
+          ∧ selectionSetNormal schema returnType childSelectionSet
+          ∧ selectionSetSubselectionsNonempty schema returnType childSelectionSet := by
   intro hleftValid hrightValid hleftCoercion hrightCoercion
-    hleftFree hrightFree hleftNormal
-    hrightNormal hsupportValid hlookup hreturnType hcomposite hmem
+    hleftFree hrightFree hleftNormal hleftSub
+    hrightNormal hrightSub hsupportValid hlookup hreturnType hcomposite hmem
   simp [focusedObjectChildSupportSelectionSets] at hmem
   rcases hmem with hsplit | hsupport
   · exact
@@ -683,8 +719,8 @@ theorem focusedObjectChildSupportSelectionSets_child_exists_valid_free_normal
         (childSelectionSet := childSelectionSet)
         (fieldDefinition := fieldDefinition)
         hleftValid hrightValid hleftCoercion hrightCoercion
-        hleftFree hrightFree hleftNormal
-        hrightNormal hlookup hreturnType hcomposite hsplit
+        hleftFree hrightFree hleftNormal hleftSub
+        hrightNormal hrightSub hlookup hreturnType hcomposite hsplit
   · exact
       focusedSupportTargetChildSelectionSets_child_exists_valid_free_normal
         (schema := schema) (parentType := parentType)
@@ -1149,7 +1185,17 @@ theorem
             ++ Selection.field responseName fieldName leftArguments []
                   leftChildSelectionSet
                 :: leftSuffix)
+      -> selectionSetSubselectionsNonempty schema parentType
+          (leftPref
+            ++ Selection.field responseName fieldName leftArguments []
+                  leftChildSelectionSet
+                :: leftSuffix)
       -> selectionSetNormal schema parentType
+          (rightPref
+            ++ Selection.field responseName fieldName rightArguments []
+                  rightChildSelectionSet
+                :: rightSuffix)
+      -> selectionSetSubselectionsNonempty schema parentType
           (rightPref
             ++ Selection.field responseName fieldName rightArguments []
                   rightChildSelectionSet
@@ -1186,7 +1232,7 @@ theorem
                     rightChildSelectionSet
                   :: rightSuffix) := by
   intro hschema hleftValid hrightValid hleftCoercion hrightCoercion hlookup hreturnType hleftFree
-    hrightFree hleftNormal hrightNormal hparentObject hleftPrefSupported
+    hrightFree hleftNormal hleftSub hrightNormal hrightSub hparentObject hleftPrefSupported
     hrightPrefSupported hleftSuffixSupported hrightSuffixSupported hwitness
   let leftSelectionSet :=
     leftPref ++ Selection.field responseName fieldName leftArguments []
@@ -1310,7 +1356,9 @@ theorem
               (by simpa [leftSelectionSet] using hleftFree)
               (by simpa [rightSelectionSet] using hrightFree)
               (by simpa [leftSelectionSet] using hleftNormal)
+              (by simpa [leftSelectionSet] using hleftSub)
               (by simpa [rightSelectionSet] using hrightNormal)
+              (by simpa [rightSelectionSet] using hrightSub)
               hparentObject hparentFuelGe otherResponseName
               otherFieldName arguments directives childSelectionSet
               (hsubset otherResponseName otherFieldName arguments
@@ -1400,7 +1448,9 @@ theorem
               (by simpa [leftSelectionSet] using hleftFree)
               (by simpa [rightSelectionSet] using hrightFree)
               (by simpa [leftSelectionSet] using hleftNormal)
+              (by simpa [leftSelectionSet] using hleftSub)
               (by simpa [rightSelectionSet] using hrightNormal)
+              (by simpa [rightSelectionSet] using hrightSub)
               hparentObject hparentFuelGe otherResponseName
               otherFieldName arguments directives childSelectionSet
               (hsubset otherResponseName otherFieldName arguments
@@ -1536,7 +1586,17 @@ theorem
             ++ Selection.field responseName fieldName leftArguments []
                   leftChildSelectionSet
                 :: leftSuffix)
+      -> selectionSetSubselectionsNonempty schema parentType
+          (leftPref
+            ++ Selection.field responseName fieldName leftArguments []
+                  leftChildSelectionSet
+                :: leftSuffix)
       -> selectionSetNormal schema parentType
+          (rightPref
+            ++ Selection.field responseName fieldName rightArguments []
+                  rightChildSelectionSet
+                :: rightSuffix)
+      -> selectionSetSubselectionsNonempty schema parentType
           (rightPref
             ++ Selection.field responseName fieldName rightArguments []
                   rightChildSelectionSet
@@ -1569,7 +1629,7 @@ theorem
                     rightChildSelectionSet
                   :: rightSuffix) := by
   intro hschema hleftValid hrightValid hleftCoercion hrightCoercion hlookup hreturnType hleftFree
-    hrightFree hleftNormal hrightNormal hparentObject hwitness
+    hrightFree hleftNormal hleftSub hrightNormal hrightSub hparentObject hwitness
   exact not_selectionSetsDataEquivalent_of_valid_normal_object_child_contextualRuntimeDiff_split_focused
     (schema := schema)
     (leftVariableDefinitions := leftVariableDefinitions)
@@ -1594,7 +1654,7 @@ theorem
         ∈ focusedSplitTargetChildSelectionSets fieldName leftArguments
             rightArguments leftPref rightPref leftSuffix rightSuffix)
     hschema hleftValid hrightValid hleftCoercion hrightCoercion hlookup hreturnType
-    hleftFree hrightFree hleftNormal hrightNormal hparentObject
+    hleftFree hrightFree hleftNormal hleftSub hrightNormal hrightSub hparentObject
     (by
       intro currentResponseName arguments directives childSelectionSet
         hmem
@@ -1686,7 +1746,17 @@ theorem
             ++ Selection.field responseName fieldName leftArguments []
                   leftChildSelectionSet
                 :: leftSuffix)
+      -> selectionSetSubselectionsNonempty schema parentType
+          (leftPref
+            ++ Selection.field responseName fieldName leftArguments []
+                  leftChildSelectionSet
+                :: leftSuffix)
       -> selectionSetNormal schema parentType
+          (rightPref
+            ++ Selection.field responseName fieldName rightArguments []
+                  rightChildSelectionSet
+                :: rightSuffix)
+      -> selectionSetSubselectionsNonempty schema parentType
           (rightPref
             ++ Selection.field responseName fieldName rightArguments []
                   rightChildSelectionSet
@@ -1700,7 +1770,8 @@ theorem
                 ∧ selectionSetArgumentsCoercible schema variableValues parentType
                     supportSelectionSet
                 ∧ selectionSetDirectiveFree supportSelectionSet
-                ∧ selectionSetNormal schema parentType supportSelectionSet)
+                ∧ selectionSetNormal schema parentType supportSelectionSet
+                ∧ selectionSetSubselectionsNonempty schema parentType supportSelectionSet)
       -> selectionSetContextualRuntimeDataDiffWitnessWithFuelGe schema returnType
           runtimeType leftChildSelectionSet rightChildSelectionSet
           (variableValues := variableValues)
@@ -1737,7 +1808,7 @@ theorem
           (fun selectionSet => selectionSet ∈ supportSelectionSets)
           minFuel := by
   intro hschema hleftValid hrightValid hleftCoercion hrightCoercion hlookup hreturnType hleftFree
-    hrightFree hleftNormal hrightNormal hparentObject hsupportValid
+    hrightFree hleftNormal hleftSub hrightNormal hrightSub hparentObject hsupportValid
     hwitness
   let leftSelectionSet :=
     leftPref ++ Selection.field responseName fieldName leftArguments []
@@ -1797,15 +1868,16 @@ theorem
             ∧ selectionSetArgumentsCoercible schema variableValues parentType
                 memberSelectionSet
             ∧ selectionSetDirectiveFree memberSelectionSet
-            ∧ selectionSetNormal schema parentType memberSelectionSet := by
+            ∧ selectionSetNormal schema parentType memberSelectionSet
+            ∧ selectionSetSubselectionsNonempty schema parentType memberSelectionSet := by
     intro memberSelectionSet hmember
     simp [members, leftSelectionSet, rightSelectionSet] at hmember
     rcases hmember with hleft | hright | hsupport
     · subst memberSelectionSet
-      exact ⟨leftVariableDefinitions, hleftValid, hleftCoercion, hleftFree, hleftNormal⟩
+      exact ⟨leftVariableDefinitions, hleftValid, hleftCoercion, hleftFree, hleftNormal, hleftSub⟩
     · subst memberSelectionSet
       exact ⟨rightVariableDefinitions, hrightValid, hrightCoercion, hrightFree,
-        hrightNormal⟩
+        hrightNormal, hrightSub⟩
     · exact hsupportValid memberSelectionSet hsupport
   have hleftPrefSupported :
       focusedSelectionSetTargetChildrenSupported fieldName leftArguments
@@ -1974,7 +2046,7 @@ theorem
       selectionSetArgumentCoercionSucceeds schema variableValues parentType
         selectionSet := by
     rcases hmembers wholeSelectionSet hmember with
-      ⟨variableDefinitions, hvalid, hcoercion, hfree, _hnormal⟩
+      ⟨variableDefinitions, hvalid, hcoercion, hfree, _hnormal, _hsub⟩
     intro currentResponseName currentFieldName arguments directives
       childSelectionSet hmem
     exact
@@ -2106,7 +2178,7 @@ theorem
   · intro supportSelectionSet hsupport
     rcases hsupportValid supportSelectionSet hsupport with
       ⟨_supportVariableDefinitions, _hsupportValid, _hsupportCoercion, hsupportFree,
-        hsupportNormal⟩
+        hsupportNormal, hsupportSub⟩
     have hsupportMember : supportSelectionSet ∈ members := by
       simp [members, hsupport]
     have hsupportFieldsOk :

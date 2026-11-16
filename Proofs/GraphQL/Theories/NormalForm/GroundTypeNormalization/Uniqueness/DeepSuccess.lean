@@ -167,6 +167,7 @@ theorem
               parentType selectionSet
           -> selectionSetDirectiveFree selectionSet
           -> selectionSetNormal schema parentType selectionSet
+          -> selectionSetSubselectionsNonempty schema parentType selectionSet
           -> schema.typeIncludesObjectBool parentType sourceRuntimeType = true
           -> (∀ abstractTargetParent abstractTargetField targetRuntimeType
                 targetFieldDefinition,
@@ -203,11 +204,11 @@ theorem
   induction n with
   | zero =>
       intro parentType variableDefinitions selectionSet fuel sourceRuntimeType
-        hsize _hfuel _hvalid _hcoercion _hfree _hnormal _hinclude _hpromote
+        hsize _hfuel _hvalid _hcoercion _hfree _hnormal _hsub _hinclude _hpromote
       omega
   | succ n ih =>
       intro parentType variableDefinitions selectionSet fuel sourceRuntimeType
-        hsize hfuel hvalid hcoercion hfree hnormal hinclude hpromote
+        hsize hfuel hvalid hcoercion hfree hnormal hsub hinclude hpromote
       have hsourceObject :
           objectTypeNameBool schema sourceRuntimeType = true :=
         objectTypeNameBool_of_typeIncludesObjectBool hschema hinclude
@@ -230,7 +231,7 @@ theorem
             schema rootSelectionSet objectRef variableValues hschema
             parentType variableDefinitions selectionSet fuel
             (.object parentType objectRef) hvalid
-            (hcoercion parentType hinclude) hfree hnormal
+            (hcoercion parentType hinclude) hfree hnormal hsub
             hparentObject hsource hpromote hfuel
       · have hparentNonObject :
             objectTypeNameBool schema parentType = false := by
@@ -277,6 +278,8 @@ theorem
                       selectionSetNormal_inlineFragment_child_of_mem hnormal
                         hinlineMem with
                     ⟨htypeObject, hbodyNormal⟩
+                  have hbodySub :=
+                    selectionSetSubselectionsNonempty_inlineFragment_some_child_of_mem hsub hinlineMem
                   have hbodyCoercion :
                       selectionSetArgumentsCoercible schema variableValues
                         sourceRuntimeType bodySelectionSet :=
@@ -321,7 +324,7 @@ theorem
                       htargetComposite htargetNonObject hbodyRuntime
                     rcases
                         abstractRuntimeForFieldDeep?_inlineFragment_child_promote_some_of_valid_normal
-                          hvalid hfree hnormal hinlineMem htargetLookup
+                          hvalid hfree hnormal hsub hinlineMem htargetLookup
                           htargetComposite htargetNonObject hbodyRuntime with
                       ⟨childRuntimeType, hchildRuntime, _hchildInclude⟩
                     exact
@@ -333,8 +336,8 @@ theorem
                         schema rootSelectionSet objectRef variableValues
                         fuel hparentNonObject hsourceObject hfree hnormal
                         hinlineMem
-                        (selectionSetValid_inlineFragment_some_child_nonempty_of_mem
-                          hvalid hinlineMem)
+                        (selectionSetSubselectionsNonempty_inlineFragment_child_nonempty_of_mem
+                          hsub hinlineMem)
                         (by
                           intro bodyResponseName bodyFieldName bodyArguments
                             bodyDirectives bodyChildSelectionSet hbodyFieldMem
@@ -369,7 +372,7 @@ theorem
                               (SelectionSet.size bodySelectionSet + 1)
                               sourceRuntimeType variableDefinitions
                               bodySelectionSet fuel (by omega) hbodyFuel
-                              hbodyValid hbodyCoercion hbodyFree hbodyNormal
+                              hbodyValid hbodyCoercion hbodyFree hbodyNormal hbodySub
                               hsourceObject hbodyPromote bodyResponseName
                               bodyFieldName bodyArguments bodyDirectives
                               bodyChildSelectionSet hbodyFieldMem with
@@ -413,6 +416,7 @@ theorem
               parentType selectionSet
           -> selectionSetDirectiveFree selectionSet
           -> selectionSetNormal schema parentType selectionSet
+          -> selectionSetSubselectionsNonempty schema parentType selectionSet
           -> schema.typeIncludesObjectBool parentType sourceRuntimeType = true
           -> (∀ abstractTargetParent abstractTargetField targetRuntimeType
                 targetFieldDefinition,
@@ -448,12 +452,12 @@ theorem
                   }
                   : Execution.Response) := by
   intro hschema parentType variableDefinitions selectionSet sourceRuntimeType
-    hvalid hcoercion hfree hnormal hinclude hpromote
+    hvalid hcoercion hfree hnormal hsub hinclude hpromote
   exact executeSelectionSetAsResponse_deepSelectionSetSuccessWithRef_valid_normal_promoted_fuel_ge_size
     schema rootSelectionSet objectRef variableValues hschema
     (SelectionSet.size selectionSet + 1) parentType variableDefinitions selectionSet
     (selectionSetDeepProbeFuel schema parentType selectionSet) sourceRuntimeType
-    (by omega) (by omega) hvalid hcoercion hfree hnormal hinclude hpromote
+    (by omega) (by omega) hvalid hcoercion hfree hnormal hsub hinclude hpromote
 
 end GroundTypeNormalization
 

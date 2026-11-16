@@ -35,7 +35,9 @@ theorem
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema parentType left
+      -> selectionSetSubselectionsNonempty schema parentType left
       -> selectionSetNormal schema parentType right
+      -> selectionSetSubselectionsNonempty schema parentType right
       -> objectTypeNameBool schema parentType = true
       -> selectionSetDeepProbeFuel schema parentType left ≤ fuel
       -> selectionSetDeepProbeFuel schema parentType right ≤ fuel
@@ -95,8 +97,8 @@ theorem
             :: rightChildSpine)
           left right := by
   intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
-    hleftFree hrightFree hleftNormal
-    hrightNormal hobject hleftFuel hrightFuel hleftChildSpineValid
+    hleftFree hrightFree hleftNormal hleftSub
+    hrightNormal hrightSub hobject hleftFuel hrightFuel hleftChildSpineValid
     hrightChildSpineValid hleftSupport hrightSupport hleftContext
     hrightContext hleftMem hrightMem hlookup hobjectOutput hchildWitness
   let leftSpine : List NormalSelectionSetObservableFieldStep :=
@@ -180,9 +182,9 @@ theorem
         variableValues fuel targetParent leftProbeField rightProbeField parentType
         targetLeftArguments targetRightArguments leftRuntime rightRuntime hschema
         hleftValid hrightValid hleftCoercion hrightCoercion hleftFree hrightFree
-        hleftNormal hrightNormal hobject hleftFuel hrightFuel hleftSpineValid
-        hrightSpineValid hleftSupport hrightSupport hleftContext hrightContext hleftMem
-        hrightMem hlookup hobjectOutput hchildWitnessTail
+        hleftNormal hleftSub hrightNormal hrightSub hobject hleftFuel hrightFuel
+        hleftSpineValid hrightSpineValid hleftSupport hrightSupport hleftContext
+        hrightContext hleftMem hrightMem hlookup hobjectOutput hchildWitnessTail
 
 theorem
     responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_left_observable_leaf_right_normal_object_outputs_of_valid_normal_runtimeSpine
@@ -209,7 +211,9 @@ theorem
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema leftParentType left
+      -> selectionSetSubselectionsNonempty schema leftParentType left
       -> selectionSetNormal schema rightParentType right
+      -> selectionSetSubselectionsNonempty schema rightParentType right
       -> objectTypeNameBool schema leftParentType = true
       -> objectTypeNameBool schema rightParentType = true
       -> selectionSetDeepProbeFuel schema leftParentType left ≤ fuel
@@ -270,8 +274,8 @@ theorem
                     rightCurrentSelectionSet rightSpine)))
               right).data := by
   intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
-    hleftFree hrightFree hleftNormal
-    hrightNormal hleftObject hrightObject hleftFuel hrightFuel
+    hleftFree hrightFree hleftNormal hleftSub
+    hrightNormal hrightSub hleftObject hrightObject hleftFuel hrightFuel
     hleftSpineValid hrightSpineValid hleftSupport hrightSupport
     hleftContext hrightContext hleftObservable hrightCompositeObject
   by_cases hrightResponseName :
@@ -301,7 +305,7 @@ theorem
           targetLeftArguments targetRightArguments leftRuntime
           rightRuntime hschema hleftValid hrightValid hleftCoercion
           hrightCoercion hleftFree
-          hrightFree hleftNormal hrightNormal hleftObject hrightObject
+          hrightFree hleftNormal hleftSub hrightNormal hrightSub hleftObject hrightObject
           hleftFuel hrightFuel hleftSpineValid hrightSpineValid
           hleftSupport hrightSupport hleftContext hrightContext
           hleftObservable hrightMem hrightLookup hrightLeaf
@@ -338,7 +342,7 @@ theorem
           targetLeftArguments targetRightArguments leftRuntime
           rightRuntime hschema hleftValid hrightValid hleftCoercion
           hrightCoercion hleftFree
-          hrightFree hleftNormal hrightNormal hleftObject hrightObject
+          hrightFree hleftNormal hleftSub hrightNormal hrightSub hleftObject hrightObject
           hleftFuel hrightFuel hleftSpineValid hrightSpineValid
           hleftSupport hrightSupport hleftContext hrightContext
           hleftMem hrightMem hleftLookup hrightLookup hleftLeaf
@@ -356,7 +360,7 @@ theorem
         rightSourceRuntimeType targetLeftArguments targetRightArguments
         leftRuntime rightRuntime hschema hleftValid hrightValid hleftCoercion
         hrightCoercion hleftFree
-        hrightFree hleftNormal hrightNormal hleftObject hrightObject
+        hrightFree hleftNormal hleftSub hrightNormal hrightSub hleftObject hrightObject
         hleftFuel hrightFuel hleftSpineValid hrightSpineValid
         hleftSupport hrightSupport hleftContext hrightContext
         (by simpa using hleftObservable) hrightResponseName
@@ -386,7 +390,9 @@ theorem
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema leftParentType left
+      -> selectionSetSubselectionsNonempty schema leftParentType left
       -> selectionSetNormal schema rightParentType right
+      -> selectionSetSubselectionsNonempty schema rightParentType right
       -> objectTypeNameBool schema leftParentType = true
       -> objectTypeNameBool schema rightParentType = true
       -> selectionSetDeepProbeFuel schema leftParentType left ≤ fuel
@@ -434,8 +440,8 @@ theorem
                     rightCurrentSelectionSet rightSpine)))
               right).data := by
   intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
-    hleftFree hrightFree hleftNormal
-    hrightNormal hleftObject hrightObject hleftFuel hrightFuel
+    hleftFree hrightFree hleftNormal hleftSub
+    hrightNormal hrightSub hleftObject hrightObject hleftFuel hrightFuel
     hleftSpineValid hrightSpineValid hleftSupport hrightSupport
     hleftContext hrightContext hleftObservable
   by_cases hrightResponseName :
@@ -465,7 +471,7 @@ theorem
           targetLeftArguments targetRightArguments leftRuntime
           rightRuntime hschema hleftValid hrightValid hleftCoercion
           hrightCoercion hleftFree
-          hrightFree hleftNormal hrightNormal hleftObject hrightObject
+          hrightFree hleftNormal hleftSub hrightNormal hrightSub hleftObject hrightObject
           hleftFuel hrightFuel hleftSpineValid hrightSpineValid
           hleftSupport hrightSupport hleftContext hrightContext
           hleftObservable hrightMem hrightLookup hrightLeaf
@@ -498,7 +504,7 @@ theorem
           targetLeftArguments targetRightArguments leftRuntime
           rightRuntime hschema hleftValid hrightValid hleftCoercion
           hrightCoercion hleftFree
-          hrightFree hleftNormal hrightNormal hleftObject hrightObject
+          hrightFree hleftNormal hleftSub hrightNormal hrightSub hleftObject hrightObject
           hleftFuel hrightFuel hleftSpineValid hrightSpineValid
           hleftSupport hrightSupport hleftContext hrightContext
           hleftMem hrightMem hleftLookup hrightLookup hleftLeaf
@@ -516,7 +522,7 @@ theorem
         rightSourceRuntimeType targetLeftArguments targetRightArguments
         leftRuntime rightRuntime hschema hleftValid hrightValid hleftCoercion
         hrightCoercion hleftFree
-        hrightFree hleftNormal hrightNormal hleftObject hrightObject
+        hrightFree hleftNormal hleftSub hrightNormal hrightSub hleftObject hrightObject
         hleftFuel hrightFuel hleftSpineValid hrightSpineValid
         hleftSupport hrightSupport hleftContext hrightContext
         (by simpa using hleftObservable) hrightResponseName
@@ -546,7 +552,9 @@ theorem
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema leftParentType left
+      -> selectionSetSubselectionsNonempty schema leftParentType left
       -> selectionSetNormal schema rightParentType right
+      -> selectionSetSubselectionsNonempty schema rightParentType right
       -> objectTypeNameBool schema leftParentType = true
       -> objectTypeNameBool schema rightParentType = true
       -> selectionSetDeepProbeFuel schema leftParentType left ≤ leftFuel
@@ -594,8 +602,8 @@ theorem
                     rightCurrentSelectionSet rightSpine)))
               right).data := by
   intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
-    hleftFree hrightFree hleftNormal
-    hrightNormal hleftObject hrightObject hleftFuel hrightFuel
+    hleftFree hrightFree hleftNormal hleftSub
+    hrightNormal hrightSub hleftObject hrightObject hleftFuel hrightFuel
     hleftSpineValid hrightSpineValid hleftSupport hrightSupport
     hleftContext hrightContext hleftObservable
   by_cases hrightResponseName :
@@ -625,7 +633,7 @@ theorem
           targetLeftArguments targetRightArguments leftRuntime
           rightRuntime hschema hleftValid hrightValid hleftCoercion
           hrightCoercion hleftFree
-          hrightFree hleftNormal hrightNormal hleftObject hrightObject
+          hrightFree hleftNormal hleftSub hrightNormal hrightSub hleftObject hrightObject
           hleftFuel hrightFuel hleftSpineValid hrightSpineValid
           hleftSupport hrightSupport hleftContext hrightContext
           hleftObservable hrightMem hrightLookup hrightLeaf
@@ -658,7 +666,7 @@ theorem
           targetLeftArguments targetRightArguments leftRuntime
           rightRuntime hschema hleftValid hrightValid hleftCoercion
           hrightCoercion hleftFree
-          hrightFree hleftNormal hrightNormal hleftObject hrightObject
+          hrightFree hleftNormal hleftSub hrightNormal hrightSub hleftObject hrightObject
           hleftFuel hrightFuel hleftSpineValid hrightSpineValid
           hleftSupport hrightSupport hleftContext hrightContext
           hleftMem hrightMem hleftLookup hrightLookup hleftLeaf
@@ -676,7 +684,7 @@ theorem
         rightSourceRuntimeType targetLeftArguments targetRightArguments
         leftRuntime rightRuntime hschema hleftValid hrightValid hleftCoercion
         hrightCoercion hleftFree
-        hrightFree hleftNormal hrightNormal hleftObject hrightObject
+        hrightFree hleftNormal hleftSub hrightNormal hrightSub hleftObject hrightObject
         hleftFuel hrightFuel hleftSpineValid hrightSpineValid
         hleftSupport hrightSupport hleftContext hrightContext
         (by simpa using hleftObservable) hrightResponseName
@@ -702,7 +710,9 @@ theorem
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema leftParentType left
+      -> selectionSetSubselectionsNonempty schema leftParentType left
       -> selectionSetNormal schema rightParentType right
+      -> selectionSetSubselectionsNonempty schema rightParentType right
       -> objectTypeNameBool schema leftParentType = true
       -> objectTypeNameBool schema rightParentType = true
       -> selectionSetDeepProbeFuel schema leftParentType left ≤ leftFuel
@@ -752,8 +762,8 @@ theorem
                         rightSpine)))
                   right).data := by
   intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
-    hleftFree hrightFree hleftNormal
-    hrightNormal hleftObject hrightObject hleftFuel hrightFuel
+    hleftFree hrightFree hleftNormal hleftSub
+    hrightNormal hrightSub hleftObject hrightObject hleftFuel hrightFuel
     hleftSupport hrightSupport hleftContext hrightContext hleftObservable
     hrightNonempty
   rcases
@@ -772,7 +782,7 @@ theorem
       hleftLeaf
   rcases
       selectedFieldSpineRuntimeValid_exists_of_valid_normal_object_nonempty
-        hrightValid hrightNormal hrightObject hrightNonempty with
+        hrightValid hrightNormal hrightSub hrightObject hrightNonempty with
     ⟨rightSpine, hrightSpineValid, _hrightObservableSpine⟩
   refine ⟨leftSpine, rightSpine, hleftSpineValid, hrightSpineValid, ?_⟩
   exact
@@ -787,7 +797,7 @@ theorem
       rightParentType leftParentType rightParentType targetLeftArguments
       targetRightArguments leftRuntime rightRuntime hschema hleftValid
       hrightValid hleftCoercion hrightCoercion hleftFree hrightFree
-      hleftNormal hrightNormal
+      hleftNormal hleftSub hrightNormal hrightSub
       hleftObject hrightObject hleftFuel hrightFuel hleftSpineValid
       hrightSpineValid hleftSupport hrightSupport hleftContext
       hrightContext hleftObservable
@@ -814,7 +824,9 @@ theorem
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema leftParentType left
+      -> selectionSetSubselectionsNonempty schema leftParentType left
       -> selectionSetNormal schema rightParentType right
+      -> selectionSetSubselectionsNonempty schema rightParentType right
       -> objectTypeNameBool schema leftParentType = true
       -> objectTypeNameBool schema rightParentType = true
       -> selectionSetDeepProbeFuel schema leftParentType left ≤ leftFuel
@@ -865,13 +877,13 @@ theorem
                         rightSpine)))
                   right).data := by
   intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
-    hleftFree hrightFree hleftNormal
-    hrightNormal hleftObject hrightObject hleftFuel hrightFuel
+    hleftFree hrightFree hleftNormal hleftSub
+    hrightNormal hrightSub hleftObject hrightObject hleftFuel hrightFuel
     hleftSupport hrightSupport hleftContext hrightContext hleftObservable
     hrightNoResponseName hrightNonempty
   rcases
       selectedFieldSpineRuntimeValid_exists_of_observableResponsePath_valid_normal
-        hleftObservable hleftValid hleftNormal with
+        hleftObservable hleftValid hleftNormal hleftSub with
     ⟨leftRuntimeType, leftSpine, hleftInclude, hleftSpineValid,
       _hleftObservableSpine⟩
   have hleftRuntimeEq : leftRuntimeType = leftParentType :=
@@ -880,7 +892,7 @@ theorem
   subst leftRuntimeType
   rcases
       selectedFieldSpineRuntimeValid_exists_of_valid_normal_object_nonempty
-        hrightValid hrightNormal hrightObject hrightNonempty with
+        hrightValid hrightNormal hrightSub hrightObject hrightNonempty with
     ⟨rightSpine, hrightSpineValid, _hrightObservableSpine⟩
   refine ⟨leftSpine, rightSpine, hleftSpineValid, hrightSpineValid, ?_⟩
   exact responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_left_observable_responseName_absent_fuels
@@ -891,10 +903,10 @@ theorem
     variableValues leftFuel rightFuel targetParent leftProbeField rightProbeField
     leftParentType rightParentType leftParentType rightParentType targetLeftArguments
     targetRightArguments leftRuntime rightRuntime hschema hleftValid hrightValid
-    hleftCoercion hrightCoercion hleftFree hrightFree hleftNormal hrightNormal hleftObject
-    hrightObject hleftFuel hrightFuel hleftSpineValid hrightSpineValid hleftSupport
-    hrightSupport hleftContext hrightContext (by simpa using hleftObservable)
-    hrightNoResponseName
+    hleftCoercion hrightCoercion hleftFree hrightFree hleftNormal hleftSub hrightNormal
+    hrightSub hleftObject hrightObject hleftFuel hrightFuel hleftSpineValid
+    hrightSpineValid hleftSupport hrightSupport hleftContext hrightContext
+    (by simpa using hleftObservable) hrightNoResponseName
 
 theorem
     responseData_not_semanticEquivalent_existsSpine_of_fieldPairOrDeepSuccess_selectedPathProbe_left_observable_composite_right_leaf_valid_normal_fuels
@@ -922,7 +934,9 @@ theorem
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema leftParentType left
+      -> selectionSetSubselectionsNonempty schema leftParentType left
       -> selectionSetNormal schema rightParentType right
+      -> selectionSetSubselectionsNonempty schema rightParentType right
       -> objectTypeNameBool schema leftParentType = true
       -> objectTypeNameBool schema rightParentType = true
       -> selectionSetDeepProbeFuel schema leftParentType left ≤ leftFuel
@@ -983,13 +997,13 @@ theorem
                         rightSpine)))
                   right).data := by
   intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
-    hleftFree hrightFree hleftNormal
-    hrightNormal hleftObject hrightObject hleftFuel hrightFuel
+    hleftFree hrightFree hleftNormal hleftSub
+    hrightNormal hrightSub hleftObject hrightObject hleftFuel hrightFuel
     hleftSupport hrightSupport hleftContext hrightContext hleftObservable
     hleftMem hrightMem hleftLookup hrightLookup hleftComposite hrightLeaf
   rcases
       selectedFieldSpineRuntimeValid_exists_of_observableResponsePath_valid_normal
-        hleftObservable hleftValid hleftNormal with
+        hleftObservable hleftValid hleftNormal hleftSub with
     ⟨leftRuntimeType, leftSpine, hleftInclude, hleftSpineValid,
       _hleftObservableSpine⟩
   have hleftRuntimeEq : leftRuntimeType = leftParentType :=
@@ -1017,7 +1031,7 @@ theorem
       rightParentType leftParentType rightParentType targetLeftArguments
       targetRightArguments leftRuntime rightRuntime hschema hleftValid
       hrightValid hleftCoercion hrightCoercion hleftFree hrightFree
-      hleftNormal hrightNormal
+      hleftNormal hleftSub hrightNormal hrightSub
       hleftObject hrightObject hleftFuel hrightFuel hleftSpineValid
       hrightSpineValid hleftSupport hrightSupport hleftContext
       hrightContext hleftMem hrightMem hleftLookup hrightLookup
@@ -1044,7 +1058,9 @@ theorem
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema parentType left
+      -> selectionSetSubselectionsNonempty schema parentType left
       -> selectionSetNormal schema parentType right
+      -> selectionSetSubselectionsNonempty schema parentType right
       -> objectTypeNameBool schema parentType = true
       -> selectionSetDeepProbeFuel schema parentType left ≤ fuel
       -> selectionSetDeepProbeFuel schema parentType right ≤ fuel
@@ -1075,8 +1091,8 @@ theorem
           leftCurrentSelectionSet rightCurrentSelectionSet leftSpine rightSpine
           left right := by
   intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
-    hleftFree hrightFree hleftNormal
-    hrightNormal hobject hleftFuel hrightFuel hleftSpineValid
+    hleftFree hrightFree hleftNormal hleftSub
+    hrightNormal hrightSub hobject hleftFuel hrightFuel hleftSpineValid
     hrightSpineValid hleftSupport hrightSupport hleftContext
     hrightContext hleftObservable hrightCompositeObject
   rcases
@@ -1091,7 +1107,7 @@ theorem
         hleftValid
         (selectionSetArgumentsCoercibleInPossibleTypes_of_object
           hobject hleftCoercion)
-        hleftFree hleftNormal hleftSpineValid hleftSupport
+        hleftFree hleftNormal hleftSub hleftSpineValid hleftSupport
         (fun _hobject => hleftContext)
         (fun hnonObject => by
           rw [hobject] at hnonObject
@@ -1109,7 +1125,7 @@ theorem
         hrightValid
         (selectionSetArgumentsCoercibleInPossibleTypes_of_object
           hobject hrightCoercion)
-        hrightFree hrightNormal hrightSpineValid hrightSupport
+        hrightFree hrightNormal hrightSub hrightSpineValid hrightSupport
         (fun _hobject => hrightContext)
         (fun hnonObject => by
           rw [hobject] at hnonObject
@@ -1158,7 +1174,7 @@ theorem
       parentType parentType targetLeftArguments targetRightArguments
       leftRuntime rightRuntime hschema hleftValid hrightValid hleftCoercion
       hrightCoercion hleftFree
-      hrightFree hleftNormal hrightNormal hobject hobject hleftFuel
+      hrightFree hleftNormal hleftSub hrightNormal hrightSub hobject hobject hleftFuel
       hrightFuel hleftSpineValid hrightSpineValid hleftSupport
       hrightSupport hleftContext hrightContext hleftObservable
       hrightCompositeObject
@@ -1196,7 +1212,9 @@ theorem
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema parentType left
+      -> selectionSetSubselectionsNonempty schema parentType left
       -> selectionSetNormal schema parentType right
+      -> selectionSetSubselectionsNonempty schema parentType right
       -> objectTypeNameBool schema parentType = true
       -> selectionSetDeepProbeFuel schema parentType left ≤ fuel
       -> selectionSetDeepProbeFuel schema parentType right ≤ fuel
@@ -1215,8 +1233,8 @@ theorem
           leftCurrentSelectionSet rightCurrentSelectionSet leftSpine rightSpine
           left right := by
   intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
-    hleftFree hrightFree hleftNormal
-    hrightNormal hobject hleftFuel hrightFuel hleftSpineValid
+    hleftFree hrightFree hleftNormal hleftSub
+    hrightNormal hrightSub hobject hleftFuel hrightFuel hleftSpineValid
     hrightSpineValid hleftSupport hrightSupport hleftContext
     hrightContext hleftObservable
   rcases
@@ -1231,7 +1249,7 @@ theorem
         hleftValid
         (selectionSetArgumentsCoercibleInPossibleTypes_of_object
           hobject hleftCoercion)
-        hleftFree hleftNormal hleftSpineValid hleftSupport
+        hleftFree hleftNormal hleftSub hleftSpineValid hleftSupport
         (fun _hobject => hleftContext)
         (fun hnonObject => by
           rw [hobject] at hnonObject
@@ -1249,7 +1267,7 @@ theorem
         hrightValid
         (selectionSetArgumentsCoercibleInPossibleTypes_of_object
           hobject hrightCoercion)
-        hrightFree hrightNormal hrightSpineValid hrightSupport
+        hrightFree hrightNormal hrightSub hrightSpineValid hrightSupport
         (fun _hobject => hrightContext)
         (fun hnonObject => by
           rw [hobject] at hnonObject
@@ -1298,7 +1316,7 @@ theorem
       parentType parentType targetLeftArguments targetRightArguments
       leftRuntime rightRuntime hschema hleftValid hrightValid hleftCoercion
       hrightCoercion hleftFree
-      hrightFree hleftNormal hrightNormal hobject hobject hleftFuel
+      hrightFree hleftNormal hleftSub hrightNormal hrightSub hobject hobject hleftFuel
       hrightFuel hleftSpineValid hrightSpineValid hleftSupport
       hrightSupport hleftContext hrightContext hleftObservable
   refine ⟨
@@ -1334,7 +1352,9 @@ theorem
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema parentType left
+      -> selectionSetSubselectionsNonempty schema parentType left
       -> selectionSetNormal schema parentType right
+      -> selectionSetSubselectionsNonempty schema parentType right
       -> objectTypeNameBool schema parentType = true
       -> selectionSetDeepProbeFuel schema parentType left ≤ fuel
       -> selectionSetDeepProbeFuel schema parentType right ≤ fuel
@@ -1357,8 +1377,8 @@ theorem
               leftCurrentSelectionSet rightCurrentSelectionSet leftSpine
               rightSpine left right := by
   intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
-    hleftFree hrightFree hleftNormal
-    hrightNormal hobject hleftFuel hrightFuel hleftSupport
+    hleftFree hrightFree hleftNormal hleftSub
+    hrightNormal hrightSub hobject hleftFuel hrightFuel hleftSupport
     hrightSupport hleftContext hrightContext hleftPath hrightPath
   rcases
       selectedFieldSpineRuntimeValid_exists_of_objectOutputObservableResponsePath_valid_normal
@@ -1380,8 +1400,8 @@ theorem
       targetParent leftProbeField rightProbeField parentType
       targetLeftArguments targetRightArguments leftRuntime rightRuntime
       hschema hleftValid hrightValid hleftCoercion hrightCoercion
-      hleftFree hrightFree hleftNormal
-      hrightNormal hobject hleftFuel hrightFuel hleftSpineValid
+      hleftFree hrightFree hleftNormal hleftSub
+      hrightNormal hrightSub hobject hleftFuel hrightFuel hleftSpineValid
       hrightSpineValid hleftSupport hrightSupport hleftContext
       hrightContext hleftPath.to_observable
 
@@ -1409,7 +1429,9 @@ theorem
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema parentType left
+      -> selectionSetSubselectionsNonempty schema parentType left
       -> selectionSetNormal schema parentType right
+      -> selectionSetSubselectionsNonempty schema parentType right
       -> objectTypeNameBool schema parentType = true
       -> selectionSetDeepProbeFuel schema parentType left ≤ fuel
       -> selectionSetDeepProbeFuel schema parentType right ≤ fuel
@@ -1459,8 +1481,8 @@ theorem
               leftCurrentSelectionSet rightCurrentSelectionSet leftSpine
               rightSpine left right := by
   intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
-    hleftFree hrightFree hleftNormal
-    hrightNormal hobject hleftFuel hrightFuel hleftSupport
+    hleftFree hrightFree hleftNormal hleftSub
+    hrightNormal hrightSub hobject hleftFuel hrightFuel hleftSupport
     hrightSupport hleftContext hrightContext hleftMem hrightMem hlookup
     hobjectOutput hchildExists
   rcases hchildExists with
@@ -1501,9 +1523,9 @@ theorem
         rightChildSpine variableValues fuel targetParent leftProbeField rightProbeField
         parentType targetLeftArguments targetRightArguments leftRuntime rightRuntime
         hschema hleftValid hrightValid hleftCoercion hrightCoercion hleftFree hrightFree
-        hleftNormal hrightNormal hobject hleftFuel hrightFuel hleftChildSpineValid
-        hrightChildSpineValid hleftSupport hrightSupport hleftContext hrightContext
-        hleftMem hrightMem hlookup hobjectOutput hchildWitness
+        hleftNormal hleftSub hrightNormal hrightSub hobject hleftFuel hrightFuel
+        hleftChildSpineValid hrightChildSpineValid hleftSupport hrightSupport hleftContext
+        hrightContext hleftMem hrightMem hlookup hobjectOutput hchildWitness
 
 theorem
     selectedPathTaggedSelectionSetsResponseDiffWitness_of_objectOutput_sameField_childLeafPath_valid_normal
@@ -1530,7 +1552,9 @@ theorem
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema parentType left
+      -> selectionSetSubselectionsNonempty schema parentType left
       -> selectionSetNormal schema parentType right
+      -> selectionSetSubselectionsNonempty schema parentType right
       -> objectTypeNameBool schema parentType = true
       -> selectionSetDeepProbeFuel schema parentType left ≤ fuel
       -> selectionSetDeepProbeFuel schema parentType right ≤ fuel
@@ -1563,8 +1587,8 @@ theorem
               leftCurrentSelectionSet rightCurrentSelectionSet leftSpine
               rightSpine left right := by
   intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
-    hleftFree hrightFree hleftNormal
-    hrightNormal hobject hleftFuel hrightFuel hleftSupport
+    hleftFree hrightFree hleftNormal hleftSub
+    hrightNormal hrightSub hobject hleftFuel hrightFuel hleftSupport
     hrightSupport hleftContext hrightContext hleftMem hrightMem hlookup
     hobjectOutput hleftChildPath hrightChildPath
   let childFuel := fuel - leafProbeFuel fieldDefinition.outputType - 1
@@ -1587,10 +1611,20 @@ theorem
         leftChildSelectionSet :=
     selectionSetNormal_field_child_of_mem_lookup hleftNormal hleftMem
       hlookup
+  have hleftChildSub :
+      selectionSetSubselectionsNonempty schema fieldDefinition.outputType.namedType
+        leftChildSelectionSet :=
+    selectionSetSubselectionsNonempty_field_child_of_mem_lookup hleftSub hleftMem
+      hlookup
   have hrightChildNormal :
       selectionSetNormal schema fieldDefinition.outputType.namedType
         rightChildSelectionSet :=
     selectionSetNormal_field_child_of_mem_lookup hrightNormal hrightMem
+      hlookup
+  have hrightChildSub :
+      selectionSetSubselectionsNonempty schema fieldDefinition.outputType.namedType
+        rightChildSelectionSet :=
+    selectionSetSubselectionsNonempty_field_child_of_mem_lookup hrightSub hrightMem
       hlookup
   have hleftChildSupport :
       PathLocalSupportValidNormal schema
@@ -1710,8 +1744,8 @@ theorem
         (typeIncludesObjectBool_self_of_objectTypeNameBool schema
           hobjectOutput))
       hleftChildFree
-      hrightChildFree hleftChildNormal
-      hrightChildNormal hobjectOutput hleftChildFuel hrightChildFuel
+      hrightChildFree hleftChildNormal hleftChildSub
+      hrightChildNormal hrightChildSub hobjectOutput hleftChildFuel hrightChildFuel
       hleftChildSupport hrightChildSupport hleftChildContext
       hrightChildContext hleftChildPath hrightChildPath
   have hchildExists :
@@ -1750,7 +1784,7 @@ theorem
       rightProbeField parentType targetLeftArguments targetRightArguments
       leftRuntime rightRuntime hschema hleftValid hrightValid hleftCoercion
       hrightCoercion hleftFree
-      hrightFree hleftNormal hrightNormal hobject hleftFuel hrightFuel
+      hrightFree hleftNormal hleftSub hrightNormal hrightSub hobject hleftFuel hrightFuel
       hleftSupport hrightSupport hleftContext hrightContext hleftMem
       hrightMem hlookup hobjectOutput hchildExists
 
@@ -1779,7 +1813,9 @@ theorem
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema parentType left
+      -> selectionSetSubselectionsNonempty schema parentType left
       -> selectionSetNormal schema parentType right
+      -> selectionSetSubselectionsNonempty schema parentType right
       -> objectTypeNameBool schema parentType = true
       -> selectionSetDeepProbeFuel schema parentType left ≤ fuel
       -> selectionSetDeepProbeFuel schema parentType right ≤ fuel
@@ -1810,8 +1846,8 @@ theorem
               leftCurrentSelectionSet rightCurrentSelectionSet leftSpine
               rightSpine left right := by
   intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
-    hleftFree hrightFree hleftNormal
-    hrightNormal hobject hleftFuel hrightFuel hleftSupport
+    hleftFree hrightFree hleftNormal hleftSub
+    hrightNormal hrightSub hobject hleftFuel hrightFuel hleftSupport
     hrightSupport hleftContext hrightContext hleftMem hrightMem hlookup
     hobjectOutput hleftObservable hrightNoResponseName
   let childFuel := fuel - leafProbeFuel fieldDefinition.outputType - 1
@@ -1834,10 +1870,20 @@ theorem
         leftChildSelectionSet :=
     selectionSetNormal_field_child_of_mem_lookup hleftNormal hleftMem
       hlookup
+  have hleftChildSub :
+      selectionSetSubselectionsNonempty schema fieldDefinition.outputType.namedType
+        leftChildSelectionSet :=
+    selectionSetSubselectionsNonempty_field_child_of_mem_lookup hleftSub hleftMem
+      hlookup
   have hrightChildNormal :
       selectionSetNormal schema fieldDefinition.outputType.namedType
         rightChildSelectionSet :=
     selectionSetNormal_field_child_of_mem_lookup hrightNormal hrightMem
+      hlookup
+  have hrightChildSub :
+      selectionSetSubselectionsNonempty schema fieldDefinition.outputType.namedType
+        rightChildSelectionSet :=
+    selectionSetSubselectionsNonempty_field_child_of_mem_lookup hrightSub hrightMem
       hlookup
   have hleftChildSupport :
       PathLocalSupportValidNormal schema
@@ -1931,7 +1977,7 @@ theorem
     omega
   rcases
       pathLocalSelectionSetObservableFieldSpineAtSelectedRuntime_of_observableResponsePath_valid_normal
-        hleftObservable hleftChildValid hleftChildNormal with
+        hleftObservable hleftChildValid hleftChildNormal hleftChildSub with
     ⟨childRuntime, childSpine, hinclude, hobservableSpine⟩
   have hchildRuntimeEq :
       childRuntime = fieldDefinition.outputType.namedType :=
@@ -1990,8 +2036,8 @@ theorem
         (typeIncludesObjectBool_self_of_objectTypeNameBool schema
           hobjectOutput))
       hleftChildFree
-      hrightChildFree hleftChildNormal
-      hrightChildNormal hobjectOutput hleftChildFuel hrightChildFuel
+      hrightChildFree hleftChildNormal hleftChildSub
+      hrightChildNormal hrightChildSub hobjectOutput hleftChildFuel hrightChildFuel
       hchildSpineValid hchildSpineValid hleftChildSupport
       hrightChildSupport hleftChildContext hrightChildContext
       hleftObservable hrightNoResponseName
@@ -2037,7 +2083,7 @@ theorem
       rightProbeField parentType targetLeftArguments targetRightArguments
       leftRuntime rightRuntime hschema hleftValid hrightValid hleftCoercion
       hrightCoercion hleftFree
-      hrightFree hleftNormal hrightNormal hobject hleftFuel hrightFuel
+      hrightFree hleftNormal hleftSub hrightNormal hrightSub hobject hleftFuel hrightFuel
       hleftSupport hrightSupport hleftContext hrightContext hleftMem
       hrightMem hlookup hobjectOutput hchildExists
 
@@ -2065,7 +2111,9 @@ theorem
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema parentType left
+      -> selectionSetSubselectionsNonempty schema parentType left
       -> selectionSetNormal schema parentType right
+      -> selectionSetSubselectionsNonempty schema parentType right
       -> objectTypeNameBool schema parentType = true
       -> selectionSetDeepProbeFuel schema parentType left ≤ fuel
       -> selectionSetDeepProbeFuel schema parentType right ≤ fuel
@@ -2096,8 +2144,8 @@ theorem
               leftCurrentSelectionSet rightCurrentSelectionSet leftSpine
               rightSpine left right := by
   intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
-    hleftFree hrightFree hleftNormal
-    hrightNormal hobject hleftFuel hrightFuel hleftSupport
+    hleftFree hrightFree hleftNormal hleftSub
+    hrightNormal hrightSub hobject hleftFuel hrightFuel hleftSupport
     hrightSupport hleftContext hrightContext hleftMem hrightMem hlookup
     hobjectOutput hleftObservable hrightNoResponseName
   let childFuel := fuel - leafProbeFuel fieldDefinition.outputType - 1
@@ -2120,10 +2168,20 @@ theorem
         leftChildSelectionSet :=
     selectionSetNormal_field_child_of_mem_lookup hleftNormal hleftMem
       hlookup
+  have hleftChildSub :
+      selectionSetSubselectionsNonempty schema fieldDefinition.outputType.namedType
+        leftChildSelectionSet :=
+    selectionSetSubselectionsNonempty_field_child_of_mem_lookup hleftSub hleftMem
+      hlookup
   have hrightChildNormal :
       selectionSetNormal schema fieldDefinition.outputType.namedType
         rightChildSelectionSet :=
     selectionSetNormal_field_child_of_mem_lookup hrightNormal hrightMem
+      hlookup
+  have hrightChildSub :
+      selectionSetSubselectionsNonempty schema fieldDefinition.outputType.namedType
+        rightChildSelectionSet :=
+    selectionSetSubselectionsNonempty_field_child_of_mem_lookup hrightSub hrightMem
       hlookup
   have hleftChildSupport :
       PathLocalSupportValidNormal schema
@@ -2217,7 +2275,7 @@ theorem
     omega
   rcases
       pathLocalSelectionSetObservableFieldSpineAtSelectedRuntime_of_observableResponsePath_valid_normal
-        hleftObservable hleftChildValid hleftChildNormal with
+        hleftObservable hleftChildValid hleftChildNormal hleftChildSub with
     ⟨childRuntime, childSpine, hinclude, hobservableSpine⟩
   have hchildRuntimeEq :
       childRuntime = fieldDefinition.outputType.namedType :=
@@ -2300,8 +2358,8 @@ theorem
         (typeIncludesObjectBool_self_of_objectTypeNameBool schema
           hobjectOutput))
       hleftChildFree
-      hrightChildFree hleftChildNormal
-      hrightChildNormal hobjectOutput hleftChildFuel hrightChildFuel
+      hrightChildFree hleftChildNormal hleftChildSub
+      hrightChildNormal hrightChildSub hobjectOutput hleftChildFuel hrightChildFuel
       hchildSpineValid hchildSpineValid hleftChildSupport
       hrightChildSupport hleftChildContext hrightChildContext
       hleftObservable hrightNoResponseName
@@ -2341,9 +2399,9 @@ theorem
           variableValues fuel targetParent leftProbeField rightProbeField parentType
           targetLeftArguments targetRightArguments leftRuntime rightRuntime hschema
           hleftValid hrightValid hleftCoercion hrightCoercion hleftFree hrightFree
-          hleftNormal hrightNormal hobject hleftFuel hrightFuel hchildSpineValid
-          hchildSpineValid hleftSupport hrightSupport hleftContext hrightContext hleftMem
-          hrightMem hlookup hobjectOutput hchildWitness
+          hleftNormal hleftSub hrightNormal hrightSub hobject hleftFuel hrightFuel
+          hchildSpineValid hchildSpineValid hleftSupport hrightSupport hleftContext
+          hrightContext hleftMem hrightMem hlookup hobjectOutput hchildWitness
   exact ⟨leftSpine, rightSpine, hleftSpineValid, hrightSpineValid,
     hwitness⟩
 
@@ -2368,7 +2426,9 @@ theorem
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema parentType left
+      -> selectionSetSubselectionsNonempty schema parentType left
       -> selectionSetNormal schema parentType right
+      -> selectionSetSubselectionsNonempty schema parentType right
       -> objectTypeNameBool schema parentType = true
       -> selectionSetDeepProbeFuel schema parentType left ≤ fuel
       -> selectionSetDeepProbeFuel schema parentType right ≤ fuel
@@ -2389,8 +2449,8 @@ theorem
               leftCurrentSelectionSet rightCurrentSelectionSet leftSpine
               rightSpine left right := by
   intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
-    hleftFree hrightFree hleftNormal
-    hrightNormal hobject hleftFuel hrightFuel hleftSupport
+    hleftFree hrightFree hleftNormal hleftSub
+    hrightNormal hrightSub hobject hleftFuel hrightFuel hleftSupport
     hrightSupport hleftContext hrightContext hpath
   induction hpath generalizing leftVariableDefinitions
       rightVariableDefinitions leftCurrentSelectionSet rightCurrentSelectionSet
@@ -2420,7 +2480,7 @@ theorem
           rightProbeField pathParentType targetLeftArguments
           targetRightArguments leftRuntime rightRuntime hschema hleftValid
           hrightValid hleftCoercion hrightCoercion hleftFree hrightFree
-          hleftNormal hrightNormal
+          hleftNormal hleftSub hrightNormal hrightSub
           hobject hleftFuel hrightFuel hleftSupport hrightSupport
           hleftContext hrightContext hleftPath hrightPath
   | child hobjectPath hleftMem hrightMem hlookup hcomposite
@@ -2450,10 +2510,20 @@ theorem
             leftChildSelectionSet :=
         selectionSetNormal_field_child_of_mem_lookup hleftNormal
           hleftMem hlookup
+      have hleftChildSub :
+          selectionSetSubselectionsNonempty schema fieldDefinition.outputType.namedType
+            leftChildSelectionSet :=
+        selectionSetSubselectionsNonempty_field_child_of_mem_lookup hleftSub
+          hleftMem hlookup
       have hrightChildNormal :
           selectionSetNormal schema fieldDefinition.outputType.namedType
             rightChildSelectionSet :=
         selectionSetNormal_field_child_of_mem_lookup hrightNormal
+          hrightMem hlookup
+      have hrightChildSub :
+          selectionSetSubselectionsNonempty schema fieldDefinition.outputType.namedType
+            rightChildSelectionSet :=
+        selectionSetSubselectionsNonempty_field_child_of_mem_lookup hrightSub
           hrightMem hlookup
       have hleftChildSupport :
           PathLocalSupportValidNormal schema
@@ -2572,7 +2642,7 @@ theorem
             (typeIncludesObjectBool_self_of_objectTypeNameBool schema
               hobjectOutput))
           hleftChildFree hrightChildFree
-          hleftChildNormal hrightChildNormal hobjectOutput
+          hleftChildNormal hleftChildSub hrightChildNormal hrightChildSub hobjectOutput
           hleftChildFuel hrightChildFuel hleftChildSupport
           hrightChildSupport hleftChildContext hrightChildContext
       have hchildExists :
@@ -2612,7 +2682,7 @@ theorem
           rightProbeField pathParentType targetLeftArguments
           targetRightArguments leftRuntime rightRuntime hschema hleftValid
           hrightValid hleftCoercion hrightCoercion hleftFree hrightFree
-          hleftNormal hrightNormal
+          hleftNormal hleftSub hrightNormal hrightSub
           hobject hleftFuel hrightFuel hleftSupport hrightSupport
           hleftContext hrightContext hleftMem hrightMem hlookup
           hobjectOutput hchildExists
@@ -2642,7 +2712,9 @@ theorem
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema leftParentType left
+      -> selectionSetSubselectionsNonempty schema leftParentType left
       -> selectionSetNormal schema rightParentType right
+      -> selectionSetSubselectionsNonempty schema rightParentType right
       -> objectTypeNameBool schema leftParentType = true
       -> objectTypeNameBool schema rightParentType = true
       -> selectionSetDeepProbeFuel schema leftParentType left ≤ fuel
@@ -2702,8 +2774,8 @@ theorem
                     rightCurrentSelectionSet rightSpine)))
               right).data := by
   intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
-    hleftFree hrightFree hleftNormal
-    hrightNormal hleftObject hrightObject hleftFuel hrightFuel
+    hleftFree hrightFree hleftNormal hleftSub
+    hrightNormal hrightSub hleftObject hrightObject hleftFuel hrightFuel
     hleftSpineValid hrightSpineValid hleftSupport hrightSupport
     hleftContext hrightContext hrightObservable hleftCompositeObject
   by_cases hleftResponseName :
@@ -2733,7 +2805,7 @@ theorem
           targetLeftArguments targetRightArguments leftRuntime
           rightRuntime hschema hleftValid hrightValid hleftCoercion
           hrightCoercion hleftFree
-          hrightFree hleftNormal hrightNormal hleftObject hrightObject
+          hrightFree hleftNormal hleftSub hrightNormal hrightSub hleftObject hrightObject
           hleftFuel hrightFuel hleftSpineValid hrightSpineValid
           hleftSupport hrightSupport hleftContext hrightContext
           hleftMem hleftLookup hleftLeaf hrightObservable
@@ -2770,7 +2842,7 @@ theorem
           targetLeftArguments targetRightArguments leftRuntime
           rightRuntime hschema hleftValid hrightValid hleftCoercion
           hrightCoercion hleftFree
-          hrightFree hleftNormal hrightNormal hleftObject hrightObject
+          hrightFree hleftNormal hleftSub hrightNormal hrightSub hleftObject hrightObject
           hleftFuel hrightFuel hleftSpineValid hrightSpineValid
           hleftSupport hrightSupport hleftContext hrightContext
           hleftMem hrightMem hleftLookup hrightLookup hleftObjectOutput
@@ -2788,7 +2860,7 @@ theorem
         rightSourceRuntimeType targetLeftArguments targetRightArguments
       leftRuntime rightRuntime hschema hleftValid hrightValid hleftCoercion
       hrightCoercion hleftFree
-        hrightFree hleftNormal hrightNormal hleftObject hrightObject
+        hrightFree hleftNormal hleftSub hrightNormal hrightSub hleftObject hrightObject
         hleftFuel hrightFuel hleftSpineValid hrightSpineValid
         hleftSupport hrightSupport hleftContext hrightContext
         (by simpa using hrightObservable) hleftResponseName
@@ -2814,7 +2886,9 @@ theorem
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema leftParentType left
+      -> selectionSetSubselectionsNonempty schema leftParentType left
       -> selectionSetNormal schema rightParentType right
+      -> selectionSetSubselectionsNonempty schema rightParentType right
       -> objectTypeNameBool schema leftParentType = true
       -> objectTypeNameBool schema rightParentType = true
       -> selectionSetDeepProbeFuel schema leftParentType left ≤ leftFuel
@@ -2864,13 +2938,13 @@ theorem
                         rightSpine)))
                   right).data := by
   intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
-    hleftFree hrightFree hleftNormal
-    hrightNormal hleftObject hrightObject hleftFuel hrightFuel
+    hleftFree hrightFree hleftNormal hleftSub
+    hrightNormal hrightSub hleftObject hrightObject hleftFuel hrightFuel
     hleftSupport hrightSupport hleftContext hrightContext hrightObservable
     hleftNonempty
   rcases
       selectedFieldSpineRuntimeValid_exists_of_valid_normal_object_nonempty
-        hleftValid hleftNormal hleftObject hleftNonempty with
+        hleftValid hleftNormal hleftSub hleftObject hleftNonempty with
     ⟨leftSpine, hleftSpineValid, _hleftObservableSpine⟩
   rcases
       field_leaf_of_object_normalSelectionSetObservableResponsePath_single
@@ -2914,7 +2988,7 @@ theorem
           targetLeftArguments targetRightArguments leftRuntime
           rightRuntime hschema hleftValid hrightValid hleftCoercion
           hrightCoercion hleftFree
-          hrightFree hleftNormal hrightNormal hleftObject hrightObject
+          hrightFree hleftNormal hleftSub hrightNormal hrightSub hleftObject hrightObject
           hleftFuel hrightFuel hleftSpineValid hrightSpineValid
           hleftSupport hrightSupport hleftContext hrightContext
           hleftMem hleftLookup hleftLeaf hrightObservable
@@ -2941,7 +3015,7 @@ theorem
           targetLeftArguments targetRightArguments leftRuntime
           rightRuntime hschema hleftValid hrightValid hleftCoercion
           hrightCoercion hleftFree
-          hrightFree hleftNormal hrightNormal hleftObject hrightObject
+          hrightFree hleftNormal hleftSub hrightNormal hrightSub hleftObject hrightObject
           hleftFuel hrightFuel hleftSpineValid hrightSpineValid
           hleftSupport hrightSupport hleftContext hrightContext
           hleftMem _hrightMem hleftLookup hrightLookup hleftComposite
@@ -2958,7 +3032,7 @@ theorem
         rightParentType leftParentType rightParentType targetLeftArguments
         targetRightArguments leftRuntime rightRuntime hschema hleftValid
           hrightValid hleftCoercion hrightCoercion hleftFree hrightFree
-          hleftNormal hrightNormal
+          hleftNormal hleftSub hrightNormal hrightSub
         hleftObject hrightObject hleftFuel hrightFuel hleftSpineValid
         hrightSpineValid hleftSupport hrightSupport hleftContext
         hrightContext (by simpa using hrightObservable) hleftResponseName
@@ -2985,7 +3059,9 @@ theorem
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema leftParentType left
+      -> selectionSetSubselectionsNonempty schema leftParentType left
       -> selectionSetNormal schema rightParentType right
+      -> selectionSetSubselectionsNonempty schema rightParentType right
       -> objectTypeNameBool schema leftParentType = true
       -> objectTypeNameBool schema rightParentType = true
       -> selectionSetDeepProbeFuel schema leftParentType left ≤ leftFuel
@@ -3036,17 +3112,17 @@ theorem
                         rightSpine)))
                   right).data := by
   intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
-    hleftFree hrightFree hleftNormal
-    hrightNormal hleftObject hrightObject hleftFuel hrightFuel
+    hleftFree hrightFree hleftNormal hleftSub
+    hrightNormal hrightSub hleftObject hrightObject hleftFuel hrightFuel
     hleftSupport hrightSupport hleftContext hrightContext hrightObservable
     hleftNoResponseName hleftNonempty
   rcases
       selectedFieldSpineRuntimeValid_exists_of_valid_normal_object_nonempty
-        hleftValid hleftNormal hleftObject hleftNonempty with
+        hleftValid hleftNormal hleftSub hleftObject hleftNonempty with
     ⟨leftSpine, hleftSpineValid, _hleftObservableSpine⟩
   rcases
       selectedFieldSpineRuntimeValid_exists_of_observableResponsePath_valid_normal
-        hrightObservable hrightValid hrightNormal with
+        hrightObservable hrightValid hrightNormal hrightSub with
     ⟨rightRuntimeType, rightSpine, hrightInclude, hrightSpineValid,
       _hrightObservableSpine⟩
   have hrightRuntimeEq : rightRuntimeType = rightParentType :=
@@ -3062,10 +3138,10 @@ theorem
     variableValues leftFuel rightFuel targetParent leftProbeField rightProbeField
     leftParentType rightParentType leftParentType rightParentType targetLeftArguments
     targetRightArguments leftRuntime rightRuntime hschema hleftValid hrightValid
-    hleftCoercion hrightCoercion hleftFree hrightFree hleftNormal hrightNormal hleftObject
-    hrightObject hleftFuel hrightFuel hleftSpineValid hrightSpineValid hleftSupport
-    hrightSupport hleftContext hrightContext (by simpa using hrightObservable)
-    hleftNoResponseName
+    hleftCoercion hrightCoercion hleftFree hrightFree hleftNormal hleftSub hrightNormal
+    hrightSub hleftObject hrightObject hleftFuel hrightFuel hleftSpineValid
+    hrightSpineValid hleftSupport hrightSupport hleftContext hrightContext
+    (by simpa using hrightObservable) hleftNoResponseName
 
 theorem
     responseData_not_semanticEquivalent_existsSpine_of_fieldPairOrDeepSuccess_selectedPathProbe_left_leaf_right_observable_composite_valid_normal_fuels
@@ -3093,7 +3169,9 @@ theorem
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema leftParentType left
+      -> selectionSetSubselectionsNonempty schema leftParentType left
       -> selectionSetNormal schema rightParentType right
+      -> selectionSetSubselectionsNonempty schema rightParentType right
       -> objectTypeNameBool schema leftParentType = true
       -> objectTypeNameBool schema rightParentType = true
       -> selectionSetDeepProbeFuel schema leftParentType left ≤ leftFuel
@@ -3154,8 +3232,8 @@ theorem
                         rightSpine)))
                   right).data := by
   intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
-    hleftFree hrightFree hleftNormal
-    hrightNormal hleftObject hrightObject hleftFuel hrightFuel
+    hleftFree hrightFree hleftNormal hleftSub
+    hrightNormal hrightSub hleftObject hrightObject hleftFuel hrightFuel
     hleftSupport hrightSupport hleftContext hrightContext hrightObservable
     hleftMem hrightMem hleftLookup hrightLookup hleftLeaf hrightComposite
   let leftSpine : List NormalSelectionSetObservableFieldStep :=
@@ -3168,7 +3246,7 @@ theorem
       hleftLeaf
   rcases
       selectedFieldSpineRuntimeValid_exists_of_observableResponsePath_valid_normal
-        hrightObservable hrightValid hrightNormal with
+        hrightObservable hrightValid hrightNormal hrightSub with
     ⟨rightRuntimeType, rightSpine, hrightInclude, hrightSpineValid,
       _hrightObservableSpine⟩
   have hrightRuntimeEq : rightRuntimeType = rightParentType :=
@@ -3188,7 +3266,7 @@ theorem
       rightParentType leftParentType rightParentType targetLeftArguments
       targetRightArguments leftRuntime rightRuntime hschema hleftValid
       hrightValid hleftCoercion hrightCoercion hleftFree hrightFree
-      hleftNormal hrightNormal
+      hleftNormal hleftSub hrightNormal hrightSub
       hleftObject hrightObject hleftFuel hrightFuel hleftSpineValid
       hrightSpineValid hleftSupport hrightSupport hleftContext
       hrightContext hleftMem hrightMem hleftLookup hrightLookup hleftLeaf
@@ -3215,7 +3293,9 @@ theorem
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema parentType left
+      -> selectionSetSubselectionsNonempty schema parentType left
       -> selectionSetNormal schema parentType right
+      -> selectionSetSubselectionsNonempty schema parentType right
       -> objectTypeNameBool schema parentType = true
       -> selectionSetDeepProbeFuel schema parentType left ≤ fuel
       -> selectionSetDeepProbeFuel schema parentType right ≤ fuel
@@ -3246,8 +3326,8 @@ theorem
           leftCurrentSelectionSet rightCurrentSelectionSet leftSpine rightSpine
           left right := by
   intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
-    hleftFree hrightFree hleftNormal
-    hrightNormal hobject hleftFuel hrightFuel hleftSpineValid
+    hleftFree hrightFree hleftNormal hleftSub
+    hrightNormal hrightSub hobject hleftFuel hrightFuel hleftSpineValid
     hrightSpineValid hleftSupport hrightSupport hleftContext
     hrightContext hrightObservable hleftCompositeObject
   rcases
@@ -3262,7 +3342,7 @@ theorem
         hleftValid
         (selectionSetArgumentsCoercibleInPossibleTypes_of_object
           hobject hleftCoercion)
-        hleftFree hleftNormal hleftSpineValid hleftSupport
+        hleftFree hleftNormal hleftSub hleftSpineValid hleftSupport
         (fun _hobject => hleftContext)
         (fun hnonObject => by
           rw [hobject] at hnonObject
@@ -3280,7 +3360,7 @@ theorem
         hrightValid
         (selectionSetArgumentsCoercibleInPossibleTypes_of_object
           hobject hrightCoercion)
-        hrightFree hrightNormal hrightSpineValid hrightSupport
+        hrightFree hrightNormal hrightSub hrightSpineValid hrightSupport
         (fun _hobject => hrightContext)
         (fun hnonObject => by
           rw [hobject] at hnonObject
@@ -3329,7 +3409,7 @@ theorem
       parentType parentType targetLeftArguments targetRightArguments
       leftRuntime rightRuntime hschema hleftValid hrightValid hleftCoercion
       hrightCoercion hleftFree
-      hrightFree hleftNormal hrightNormal hobject hobject hleftFuel
+      hrightFree hleftNormal hleftSub hrightNormal hrightSub hobject hobject hleftFuel
       hrightFuel hleftSpineValid hrightSpineValid hleftSupport
       hrightSupport hleftContext hrightContext hrightObservable
       hleftCompositeObject
@@ -3368,7 +3448,9 @@ theorem
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema parentType left
+      -> selectionSetSubselectionsNonempty schema parentType left
       -> selectionSetNormal schema parentType right
+      -> selectionSetSubselectionsNonempty schema parentType right
       -> objectTypeNameBool schema parentType = true
       -> selectionSetDeepProbeFuel schema parentType left ≤ fuel
       -> selectionSetDeepProbeFuel schema parentType right ≤ fuel
@@ -3388,8 +3470,8 @@ theorem
               leftCurrentSelectionSet rightCurrentSelectionSet leftSpine
               rightSpine left right := by
   intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
-    hleftFree hrightFree hleftNormal
-    hrightNormal hobject hleftFuel hrightFuel hleftSupport
+    hleftFree hrightFree hleftNormal hleftSub
+    hrightNormal hrightSub hobject hleftFuel hrightFuel hleftSupport
     hrightSupport hleftContext hrightContext hpath
   induction hpath generalizing leftVariableDefinitions
       rightVariableDefinitions leftCurrentSelectionSet rightCurrentSelectionSet
@@ -3442,8 +3524,8 @@ theorem
           variableValues fuel targetParent leftProbeField rightProbeField
           pathParentType targetLeftArguments targetRightArguments
           leftRuntime rightRuntime hschema hleftValid hrightValid
-          hleftCoercion hrightCoercion hleftFree hrightFree hleftNormal
-          hrightNormal hobjectPath
+          hleftCoercion hrightCoercion hleftFree hrightFree hleftNormal hleftSub
+          hrightNormal hrightSub hobjectPath
           hleftFuel hrightFuel hleftSpineValid hrightSpineValid
           hleftSupport hrightSupport hleftContext hrightContext hleftPath
       exact ⟨hleftSpineValid, hrightSpineValid, hwitness⟩
@@ -3475,10 +3557,20 @@ theorem
             leftChildSelectionSet :=
         selectionSetNormal_field_child_of_mem_lookup hleftNormal
           hleftMem hlookup
+      have hleftChildSub :
+          selectionSetSubselectionsNonempty schema fieldDefinition.outputType.namedType
+            leftChildSelectionSet :=
+        selectionSetSubselectionsNonempty_field_child_of_mem_lookup hleftSub
+          hleftMem hlookup
       have hrightChildNormal :
           selectionSetNormal schema fieldDefinition.outputType.namedType
             rightChildSelectionSet :=
         selectionSetNormal_field_child_of_mem_lookup hrightNormal
+          hrightMem hlookup
+      have hrightChildSub :
+          selectionSetSubselectionsNonempty schema fieldDefinition.outputType.namedType
+            rightChildSelectionSet :=
+        selectionSetSubselectionsNonempty_field_child_of_mem_lookup hrightSub
           hrightMem hlookup
       have hleftChildSupport :
           PathLocalSupportValidNormal schema
@@ -3598,7 +3690,7 @@ theorem
               hlookup
               (typeIncludesObjectBool_self_of_objectTypeNameBool schema
                 hobjectOutput))
-            hleftChildFree hrightChildFree hleftChildNormal hrightChildNormal
+            hleftChildFree hrightChildFree hleftChildNormal hleftChildSub hrightChildNormal hrightChildSub
             hobjectOutput hleftChildFuel hrightChildFuel
             hleftChildSupport hrightChildSupport hleftChildContext
             hrightChildContext with
@@ -3667,7 +3759,7 @@ theorem
           rightProbeField pathParentType targetLeftArguments
           targetRightArguments leftRuntime rightRuntime hschema hleftValid
           hrightValid hleftCoercion hrightCoercion hleftFree hrightFree
-          hleftNormal hrightNormal
+          hleftNormal hleftSub hrightNormal hrightSub
           hobjectPath hleftFuel hrightFuel hleftChildSpineValid
           hrightChildSpineValid hleftSupport hrightSupport hleftContext
           hrightContext hleftMem hrightMem hlookup hobjectOutput
@@ -3694,7 +3786,9 @@ theorem
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema parentType left
+      -> selectionSetSubselectionsNonempty schema parentType left
       -> selectionSetNormal schema parentType right
+      -> selectionSetSubselectionsNonempty schema parentType right
       -> objectTypeNameBool schema parentType = true
       -> selectionSetDeepProbeFuel schema parentType left ≤ fuel
       -> selectionSetDeepProbeFuel schema parentType right ≤ fuel
@@ -3715,8 +3809,8 @@ theorem
               leftCurrentSelectionSet rightCurrentSelectionSet leftSpine
               rightSpine left right := by
   intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
-    hleftFree hrightFree hleftNormal
-    hrightNormal hobject hleftFuel hrightFuel hleftSupport
+    hleftFree hrightFree hleftNormal hleftSub
+    hrightNormal hrightSub hobject hleftFuel hrightFuel hleftSupport
     hrightSupport hleftContext hrightContext hpath
   rcases
       normalSelectionSetObjectOutputSameFieldSpinePath_exists_of_responsePath
@@ -3730,8 +3824,8 @@ theorem
         targetParent leftProbeField rightProbeField parentType
         targetLeftArguments targetRightArguments leftRuntime rightRuntime
       hschema hleftValid hrightValid hleftCoercion hrightCoercion
-      hleftFree hrightFree hleftNormal
-        hrightNormal hobject hleftFuel hrightFuel hleftSupport
+      hleftFree hrightFree hleftNormal hleftSub
+        hrightNormal hrightSub hobject hleftFuel hrightFuel hleftSupport
         hrightSupport hleftContext hrightContext hspinePath with
     ⟨hleftSpineValid, hrightSpineValid, hwitness⟩
   exact ⟨leftSpine, rightSpine, hleftSpineValid, hrightSpineValid,
@@ -3758,7 +3852,9 @@ theorem
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema parentType left
+      -> selectionSetSubselectionsNonempty schema parentType left
       -> selectionSetNormal schema parentType right
+      -> selectionSetSubselectionsNonempty schema parentType right
       -> objectTypeNameBool schema parentType = true
       -> selectionSetDeepProbeFuel schema parentType left ≤ fuel
       -> selectionSetDeepProbeFuel schema parentType right ≤ fuel
@@ -3780,8 +3876,8 @@ theorem
               leftCurrentSelectionSet rightCurrentSelectionSet leftSpine
               rightSpine left right := by
   intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
-    hleftFree hrightFree hleftNormal
-    hrightNormal hobject hleftFuel hrightFuel hleftSupport hrightSupport
+    hleftFree hrightFree hleftNormal hleftSub
+    hrightNormal hrightSub hobject hleftFuel hrightFuel hleftSupport hrightSupport
     hleftContext hrightContext hleftPath hrightNoResponseName
   rcases
       selectedFieldSpineRuntimeValid_exists_of_objectOutputObservableResponsePath_valid_normal
@@ -3799,8 +3895,8 @@ theorem
       targetParent leftProbeField rightProbeField parentType
       targetLeftArguments targetRightArguments leftRuntime rightRuntime
       hschema hleftValid hrightValid hleftCoercion hrightCoercion
-      hleftFree hrightFree hleftNormal
-      hrightNormal hobject hleftFuel hrightFuel hspineValid hspineValid
+      hleftFree hrightFree hleftNormal hleftSub
+      hrightNormal hrightSub hobject hleftFuel hrightFuel hspineValid hspineValid
       hleftSupport hrightSupport hleftContext hrightContext
       hleftPath.to_observable hrightNoResponseName
 

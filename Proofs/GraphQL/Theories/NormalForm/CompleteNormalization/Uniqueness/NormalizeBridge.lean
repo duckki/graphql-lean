@@ -88,7 +88,8 @@ theorem completeNormalizeOperation_uniqueUpToReordering
     {schema : Schema} {left right : Operation}
     : completeNormalizeOperationUniqueUpToReordering schema left right := by
   intro hschema hleftValid hrightValid hleftFields hrightFields
-    hleftBoolFeasible hrightBoolFeasible hdefinitions hvariables hsem
+    hleftBoolFeasible hrightBoolFeasible hleftSourceSub hrightSourceSub hdefinitions
+    hvariables hsem
   have hleftNormalizedValid :
       Validation.operationDefinitionValid schema
         (completeNormalizeOperation schema left) :=
@@ -107,6 +108,14 @@ theorem completeNormalizeOperation_uniqueUpToReordering
       completeNormalOperation schema
         (completeNormalizeOperation schema right) :=
     completeNormalizeOperation_normal schema right hschema hrightValid
+  have hleftNormalizedSub :
+      operationSubselectionsNonempty schema (completeNormalizeOperation schema left) :=
+    completeNormalizeOperation_subselectionsNonempty schema left hschema hleftValid
+      hleftFields hleftBoolFeasible hleftSourceSub
+  have hrightNormalizedSub :
+      operationSubselectionsNonempty schema (completeNormalizeOperation schema right) :=
+    completeNormalizeOperation_subselectionsNonempty schema right hschema hrightValid
+      hrightFields hrightBoolFeasible hrightSourceSub
   have hleftVariables :=
     completeNormalizeOperation_boolVarsEquivalent schema left hschema
       hleftValid hleftBoolFeasible
@@ -164,7 +173,8 @@ theorem completeNormalizeOperation_uniqueUpToReordering
   exact
     complete_normal_operations_equalUpToReordering_of_complete_bool_vars_semantics
       hschema hleftNormalizedValid hrightNormalizedValid
-      hleftNormalizedNormal hrightNormalizedNormal hnormalizedVariables
+      hleftNormalizedNormal hrightNormalizedNormal hleftNormalizedSub
+      hrightNormalizedSub hnormalizedVariables
       hnormalizedDefinitions hnormalizedSemantics
 
 end CompleteNormalization

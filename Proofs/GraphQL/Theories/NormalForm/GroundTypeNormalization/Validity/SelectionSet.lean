@@ -551,8 +551,7 @@ theorem normalizeSelectionSet_normalizedValid_of_typeConditionFeasible
               (normalizeSelectionSet schema parentType
                 (withoutFieldSelectionsWithResponseName schema responseName
                   rest))) := by
-        simpa [normalizedFieldWithRest, normalizedField]
-          using hconsNormalizedValid
+        simpa [normalizedFieldWithRest, normalizedField] using hconsNormalizedValid
       rw [normalizeSelectionSet.eq_2, hlookup]
       change NormalizedSelectionSetValid schema variableDefinitions parentType
         (normalizedFieldWithRest schema returnType responseName fieldName

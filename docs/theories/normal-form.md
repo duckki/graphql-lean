@@ -261,9 +261,14 @@ it intentionally does not compare variable types.
   It concludes `operationsEqualUpToReorderingWithCoercion`, comparing
   directive-free ground-normal siblings up to reordering for every supplied variable
   environment.
+  Both operations must satisfy `operationSubselectionsNonempty`, the September 2025 rule
+  that inline fragments and composite fields have non-empty selection sets; without it,
+  an empty inline fragment makes two different normal operations equivalent.
 - `NormalForm.normalizeOperationUniqueUpToReordering` is witnessed by
   `GraphQL.NormalForm.GroundTypeNormalization.normalizeOperation_uniqueUpToReordering`
   in `Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization`.
+  Its sources must satisfy `operationSubselectionsNonemptyInPossibleTypes`, which makes
+  the normalized operations satisfy `operationSubselectionsNonempty`.
 - `NormalForm.completeNormalOperationsSemanticallyEquivalentEqualUpToReordering` is
   witnessed by `complete_normal_operations_semanticallyEquivalent_equalUpToReordering`
   in `Proofs.GraphQL.Theories.NormalForm.CompleteNormalization`.
@@ -273,6 +278,7 @@ it intentionally does not compare variable types.
   Boolean-support equivalence is an explicit premise: an unresolvable condition
   variable behaves like `false` during field collection, so execution equivalence
   alone cannot detect a one-sided support variable whose branch bodies coincide.
+  As in the ground case, both operations must satisfy `operationSubselectionsNonempty`.
   Its semantic premise is likewise restricted to complete Boolean environments.
   Ordinary validity and complete normality imply possible-type field validity,
   which supplies joint argument-coercion witnesses for every Boolean case. No
@@ -290,8 +296,8 @@ it intentionally does not compare variable types.
   `GraphQL.NormalForm.CompleteNormalization.completeNormalizeOperation_uniqueUpToReordering`
   in `Proofs.GraphQL.Theories.NormalForm.CompleteNormalization`.
   It uses the same possible-type and Boolean/type-condition feasibility assumptions as
-  complete-normalization validity, and compares operations with equivalent Boolean
-  variable support. Its semantic premise is restricted to complete Boolean
+  complete-normalization validity, plus `operationSubselectionsNonemptyInPossibleTypes`,
+  and compares operations with equivalent Boolean variable support. Its semantic premise is restricted to complete Boolean
   environments, matching the soundness conclusion, so the two directions together
   characterize exactly that fragment of the semantics. Joint Boolean-case argument
   coercibility is derived from possible-type field validity and equivalent variable

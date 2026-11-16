@@ -19,8 +19,8 @@ theorem inlineOperation_selectionSetValid_of_fragmentBodiesValid
           lookupFragmentAndRestLt? fragmentName operation.fragmentDefinitions
             = some (fragment, remaining)
           -> GraphQL.NamedFragment.Validation.selectionSetValid schema
-                  operation.variableDefinitions [] fragment.typeCondition
-                  (Inline.inlineSelectionSet remaining.val fragment.selectionSet))
+              operation.variableDefinitions [] fragment.typeCondition
+              (Inline.inlineSelectionSet remaining.val fragment.selectionSet))
     : GraphQL.NamedFragment.Validation.selectionSetValid schema
         (Inline.inlineOperation operation).variableDefinitions
         (Inline.inlineOperation operation).fragmentDefinitions
@@ -51,8 +51,8 @@ theorem inlineOperation_valid_of_fragmentBodiesValid
           lookupFragmentAndRestLt? fragmentName operation.fragmentDefinitions
             = some (fragment, remaining)
           -> GraphQL.NamedFragment.Validation.selectionSetValid schema
-                  operation.variableDefinitions [] fragment.typeCondition
-                  (Inline.inlineSelectionSet remaining.val fragment.selectionSet))
+              operation.variableDefinitions [] fragment.typeCondition
+              (Inline.inlineSelectionSet remaining.val fragment.selectionSet))
     : GraphQL.NamedFragment.Validation.operationDefinitionValid schema
         (Inline.inlineOperation operation) := by
   exact inlineOperation_valid_of_selectionSetValid hvalid
@@ -73,8 +73,8 @@ theorem inlineOperation_selectionSetValid_of_localFragmentBodiesValid
           -> lookupFragmentAndRestLt? fragmentName operation.fragmentDefinitions
               = some (fragment, remaining)
           -> GraphQL.NamedFragment.Validation.selectionSetValid schema
-                  operation.variableDefinitions [] fragment.typeCondition
-                  (Inline.inlineSelectionSet remaining.val fragment.selectionSet))
+              operation.variableDefinitions [] fragment.typeCondition
+              (Inline.inlineSelectionSet remaining.val fragment.selectionSet))
     : GraphQL.NamedFragment.Validation.selectionSetValid schema
         (Inline.inlineOperation operation).variableDefinitions
         (Inline.inlineOperation operation).fragmentDefinitions
@@ -107,8 +107,8 @@ theorem inlineOperation_valid_of_localFragmentBodiesValid
           -> lookupFragmentAndRestLt? fragmentName operation.fragmentDefinitions
               = some (fragment, remaining)
           -> GraphQL.NamedFragment.Validation.selectionSetValid schema
-                  operation.variableDefinitions [] fragment.typeCondition
-                  (Inline.inlineSelectionSet remaining.val fragment.selectionSet))
+              operation.variableDefinitions [] fragment.typeCondition
+              (Inline.inlineSelectionSet remaining.val fragment.selectionSet))
     : GraphQL.NamedFragment.Validation.operationDefinitionValid schema
         (Inline.inlineOperation operation) := by
   exact inlineOperation_valid_of_selectionSetValid hvalid
@@ -243,8 +243,8 @@ theorem inlineOperation_specValidAndExecutionEquivalent_of_fragmentBodiesValid
           lookupFragmentAndRestLt? fragmentName operation.fragmentDefinitions
             = some (fragment, remaining)
           -> GraphQL.NamedFragment.Validation.selectionSetValid schema
-                  operation.variableDefinitions [] fragment.typeCondition
-                  (Inline.inlineSelectionSet remaining.val fragment.selectionSet))
+              operation.variableDefinitions [] fragment.typeCondition
+              (Inline.inlineSelectionSet remaining.val fragment.selectionSet))
     : GraphQL.Validation.operationDefinitionValid schema
         (Translate.reduceOperation (Inline.inlineOperation operation))
       ∧ ∀ {ObjectRef : Type} (resolvers : Execution.Resolvers ObjectRef)
@@ -273,8 +273,8 @@ theorem inlineOperation_specValidAndExecutionEquivalent_of_localFragmentBodiesVa
           -> lookupFragmentAndRestLt? fragmentName operation.fragmentDefinitions
               = some (fragment, remaining)
           -> GraphQL.NamedFragment.Validation.selectionSetValid schema
-                  operation.variableDefinitions [] fragment.typeCondition
-                  (Inline.inlineSelectionSet remaining.val fragment.selectionSet))
+              operation.variableDefinitions [] fragment.typeCondition
+              (Inline.inlineSelectionSet remaining.val fragment.selectionSet))
     : GraphQL.Validation.operationDefinitionValid schema
         (Translate.reduceOperation (Inline.inlineOperation operation))
       ∧ ∀ {ObjectRef : Type} (resolvers : Execution.Resolvers ObjectRef)
