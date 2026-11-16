@@ -1999,29 +1999,11 @@ theorem completeNormalizationPreservesUngroupedExecution_of_normalizeOperation
               (NormalForm.completeNormalizeOperation schema
                 (NormalForm.normalizeOperation schema operation)) depth source := by
   intro hschema hvalid hfields hfree hfeasibleAll hvariablesUsed
-  have hrootObject : schema.objectType (operation.rootType schema) := by
-    have hrootEq := Validation.operationDefinitionValid_rootType_eq hvalid
-    rw [hrootEq]
-    exact hschema.2.1
-  have hready :
-      NormalForm.selectionSetSemanticsReady schema (operation.rootType schema)
-        operation.selectionSet :=
-    NormalForm.selectionSetSemanticsReady_of_selectionSetValid_object schema
-      operation.variableDefinitions (operation.rootType schema) hschema hrootObject
-      operation.selectionSet
-      (Validation.operationDefinitionValid_selectionSetValid hvalid)
-  have hnormalizedNonempty :
-      NormalForm.normalizeSelectionSet schema (operation.rootType schema)
-        operation.selectionSet ≠ [] :=
-    NormalForm.GroundTypeNormalization.normalizeSelectionSet_ne_nil_of_everyNormalizerScope
-      schema hfeasibleAll (operation.rootType schema) operation.selectionSet hrootObject
-      hready (Validation.operationDefinitionValid_selectionSet_nonempty hvalid)
   have hnormalizedValid :
       Validation.operationDefinitionValid schema
         (NormalForm.normalizeOperation schema operation) :=
     NormalForm.GroundTypeNormalization.normalizeOperation_valid_of_operationFieldsValid schema
-      operation hschema hvalid hfields hfree hfeasibleAll hnormalizedNonempty
-      hvariablesUsed
+      operation hschema hvalid hfields hfree hfeasibleAll hvariablesUsed
   have hnormalizedFree :
       NormalForm.operationDirectiveFree
         (NormalForm.normalizeOperation schema operation) :=
@@ -2056,29 +2038,11 @@ theorem normalizeThenCompleteUngroupedExecution_semanticsPreserved
           = Execution.executeQueryWithFuel schema resolvers variableValues operation
               depth source := by
   intro hschema hvalid hfields hfree hfeasibleAll hvariablesUsed
-  have hrootObject : schema.objectType (operation.rootType schema) := by
-    have hrootEq := Validation.operationDefinitionValid_rootType_eq hvalid
-    rw [hrootEq]
-    exact hschema.2.1
-  have hready :
-      NormalForm.selectionSetSemanticsReady schema (operation.rootType schema)
-        operation.selectionSet :=
-    NormalForm.selectionSetSemanticsReady_of_selectionSetValid_object schema
-      operation.variableDefinitions (operation.rootType schema) hschema hrootObject
-      operation.selectionSet
-      (Validation.operationDefinitionValid_selectionSetValid hvalid)
-  have hnormalizedNonempty :
-      NormalForm.normalizeSelectionSet schema (operation.rootType schema)
-        operation.selectionSet ≠ [] :=
-    NormalForm.GroundTypeNormalization.normalizeSelectionSet_ne_nil_of_everyNormalizerScope
-      schema hfeasibleAll (operation.rootType schema) operation.selectionSet hrootObject
-      hready (Validation.operationDefinitionValid_selectionSet_nonempty hvalid)
   have hnormalizedValid :
       Validation.operationDefinitionValid schema
         (NormalForm.normalizeOperation schema operation) :=
     NormalForm.GroundTypeNormalization.normalizeOperation_valid_of_operationFieldsValid schema
-      operation hschema hvalid hfields hfree hfeasibleAll hnormalizedNonempty
-      hvariablesUsed
+      operation hschema hvalid hfields hfree hfeasibleAll hvariablesUsed
   have hnormalizedFree :
       NormalForm.operationDirectiveFree
         (NormalForm.normalizeOperation schema operation) :=

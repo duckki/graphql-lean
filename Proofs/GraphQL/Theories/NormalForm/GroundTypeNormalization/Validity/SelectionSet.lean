@@ -444,143 +444,7 @@ theorem normalizeSelectionSet_normalizedValid_of_typeConditionFeasible
               hchildReady
               hchildImplementation hchildMerge hmergedFree
               (hmergedFeasible branchType hbranchType)
-      have hsubselectionsNonemptyOfComposite :
-          schema.isCompositeType fieldDefinition.outputType.namedType ->
-            subselections ≠ [] := by
-        intro hcomposite
-        have hsourceImplementation :
-            Validation.selectionValidInPossibleTypes schema variableDefinitions
-              parentType
-              (Selection.field responseName fieldName arguments []
-                subselections) :=
-          selectionSetValidInPossibleTypes_head himplementation
-        have hsourceSelection :
-            Validation.selectionValid schema variableDefinitions parentType
-              (Selection.field responseName fieldName arguments []
-                subselections) := by
-          simpa [Validation.selectionValidInPossibleTypes, hlookup]
-            using hsourceImplementation.1
-        rcases Validation.selectionValid_field_lookup hsourceSelection with
-          ⟨sourceDefinition, hsourceLookup, _harguments, hsourceChild⟩
-        have hdefinitionEq : sourceDefinition = fieldDefinition := by
-          rw [hlookup] at hsourceLookup
-          cases hsourceLookup
-          rfl
-        subst sourceDefinition
-        have hsubselectionsNonempty : subselections ≠ [] := by
-          simp [Validation.fieldSelectionSetValid] at hsourceChild
-          rcases hsourceChild.2 with hleaf | hcompositeChild
-          · exact False.elim
-              (isLeafType_not_isCompositeType hleaf.1 hcomposite)
-          · exact hcompositeChild.2.1
-        exact hsubselectionsNonempty
-      have hmergedNonemptyOfComposite :
-          schema.isCompositeType fieldDefinition.outputType.namedType ->
-            mergedSubselections ≠ [] := by
-        intro hcomposite hnil
-        have hsubselectionsNonempty :
-            subselections ≠ [] :=
-          hsubselectionsNonemptyOfComposite hcomposite
-        subst mergedSubselections
-        cases subselections with
-        | nil =>
-            exact hsubselectionsNonempty rfl
-        | cons selection rest =>
-            simp at hnil
-      have hnormalizedSubselectionsNonempty :
-          schema.isCompositeType fieldDefinition.outputType.namedType ->
-            normalizedSubselections ≠ [] := by
-        intro hcomposite
-        have hmergedNonempty :
-            mergedSubselections ≠ [] :=
-          hmergedNonemptyOfComposite hcomposite
-        have hsubselectionsNonempty :
-            subselections ≠ [] :=
-          hsubselectionsNonemptyOfComposite hcomposite
-        have hsubselectionsInlineNonempty :
-            selectionSetInlineFragmentsNonempty subselections := by
-          have hsourceImplementation :=
-            selectionSetValidInPossibleTypes_head himplementation
-          have hheadInline :=
-            selectionInlineFragmentsNonempty_of_selectionValid schema
-              variableDefinitions parentType
-              (Selection.field responseName fieldName arguments []
-                subselections)
-              hsourceImplementation.1
-          simpa [selectionInlineFragmentsNonempty] using hheadInline
-        rcases
-            selectionTypeConditionFeasible_field_child_contains_forPossibleType
-              schema hheadFeasible hstack hlookup
-              hsubselectionsNonempty hsubselectionsInlineNonempty with
-          ⟨childObjectType, hchildObjectType, hheadChildContains⟩
-        have hmergedContains :
-            selectionSetContainsTypeConditionFeasibleField schema
-              [childObjectType]
-              mergedSubselections := by
-          subst mergedSubselections
-          exact
-            selectionSetContainsTypeConditionFeasibleField_append_left_forValidity
-              schema [childObjectType] hheadChildContains
-        subst normalizedSubselections
-        by_cases hreturnObject : objectTypeNameBool schema returnType = true
-        · have hreturnObjectType :
-              schema.objectType returnType :=
-            objectType_of_objectTypeNameBool_eq_true schema hreturnObject
-          have hchildObjectEq :
-              childObjectType = returnType :=
-            object_typeIncludesObjectBool_eq_self schema hreturnObjectType
-              (List.contains_iff_mem.mpr
-                (by simpa [returnType] using hchildObjectType))
-          subst childObjectType
-          have hinclude :
-              schema.typeIncludesObjectBool
-                fieldDefinition.outputType.namedType returnType = true := by
-            simpa [returnType]
-              using object_typeIncludesObjectBool_self schema hreturnObjectType
-          have hchildReady :
-              selectionSetSemanticsReady schema returnType
-                mergedSubselections :=
-            selectionSetSemanticsReady_fieldHead_merged_of_child_object
-              schema parentType responseName fieldName returnType arguments
-              subselections rest fieldDefinition hobject hready hlookupValid
-              hmerge hlookup (by simpa [returnType] using hinclude)
-          simpa [hreturnObject]
-            using normalizeSelectionSet_ne_nil_of_contains schema
-              returnType mergedSubselections hreturnObjectType hchildReady
-              hmergedContains
-        · have hreturnObjectFalse :
-              objectTypeNameBool schema returnType = false := by
-            cases hmatch : objectTypeNameBool schema returnType
-            · rfl
-            · contradiction
-          simp [hreturnObjectFalse]
-          have hbranchObject :
-              schema.objectType childObjectType :=
-            SchemaWellFormedness.schemaWellFormed_possibleTypesAreObjects
-              hschema returnType childObjectType
-              (by simpa [returnType] using hchildObjectType)
-          have hinclude :
-              schema.typeIncludesObjectBool
-                fieldDefinition.outputType.namedType childObjectType = true :=
-            List.contains_iff_mem.mpr
-              hchildObjectType
-          have hchildReady :
-              selectionSetSemanticsReady schema childObjectType
-                mergedSubselections :=
-            selectionSetSemanticsReady_fieldHead_merged_of_child_object
-              schema parentType responseName fieldName childObjectType arguments
-              subselections rest fieldDefinition hobject hready hlookupValid
-              hmerge hlookup hinclude
-          exact
-            possibleTypeNormalizations_ne_nil_of_branch_forValidity schema
-              (by simpa [returnType] using hchildObjectType)
-              (normalizeSelectionSet_ne_nil_of_contains schema
-                childObjectType mergedSubselections hbranchObject hchildReady
-                hmergedContains)
-      have hconsNormalizedValid
-          (hnonempty :
-            schema.isCompositeType fieldDefinition.outputType.namedType ->
-              normalizedSubselections ≠ []) :
+      have hconsNormalizedValid :
           NormalizedSelectionSetValid schema variableDefinitions parentType
             (Selection.field responseName fieldName arguments []
                 normalizedSubselections ::
@@ -595,7 +459,6 @@ theorem normalizeSelectionSet_normalizedValid_of_typeConditionFeasible
           normalizedField_selectionValidInPossibleTypes
             (selectionSetValidInPossibleTypes_head himplementation)
             hlookup hnormalizedSubselectionsValid.selectionSetValid
-            hnonempty
             hnormalizedSubselectionsValid.validInPossibleTypes
             hnormalizedSubselectionsPossible
             hnilIfLeaf
@@ -689,7 +552,7 @@ theorem normalizeSelectionSet_normalizedValid_of_typeConditionFeasible
                 (withoutFieldSelectionsWithResponseName schema responseName
                   rest))) := by
         simpa [normalizedFieldWithRest, normalizedField]
-          using hconsNormalizedValid hnormalizedSubselectionsNonempty
+          using hconsNormalizedValid
       rw [normalizeSelectionSet.eq_2, hlookup]
       change NormalizedSelectionSetValid schema variableDefinitions parentType
         (normalizedFieldWithRest schema returnType responseName fieldName

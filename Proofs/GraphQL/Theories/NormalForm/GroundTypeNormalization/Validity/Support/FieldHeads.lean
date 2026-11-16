@@ -385,7 +385,7 @@ theorem selectionSetLookupValid_of_fieldSelectionSetValid_namedType
   · simpa [hleaf.2]
       using selectionSetLookupValid_nil schema fieldDefinition.outputType.namedType
   · exact selectionSetLookupValid_of_selectionSetValid selectionSet
-      hcomposite.2.2
+      hcomposite.2
 
 theorem fieldSelectionsWithResponseNameInScope_field_validInPossibleTypes
     (schema : Schema) (variableDefinitions : List VariableDefinition)

@@ -16,20 +16,6 @@ theorem inlineSelectionSet_nonempty
   | cons selection rest =>
       simp [Inline.inlineSelectionSet]
 
-theorem inlineOperation_selectionSet_nonempty_of_valid
-    {schema : Schema} {operation : Operation}
-    (hvalid : GraphQL.NamedFragment.Validation.operationDefinitionValid schema operation)
-    : (Inline.inlineOperation operation).selectionSet ≠ [] := by
-  rcases hvalid with
-    ⟨_hroot, _hrootComposite, _hvariables, _huniqueFragments,
-      _hfragmentsAcyclic, _hfragmentDefinitionsUsed,
-      _hfragmentDefinitionsValid, hselectionNonempty, _hselectionValid, _hmerge,
-      _hvariablesUsed⟩
-  cases operation with
-  | mk name operationType variableDefinitions fragmentDefinitions selectionSet =>
-      simp [Inline.inlineOperation]
-      exact inlineSelectionSet_nonempty hselectionNonempty
-
 end Semantics
 end NamedFragment
 end GraphQL

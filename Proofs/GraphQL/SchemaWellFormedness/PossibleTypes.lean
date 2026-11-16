@@ -31,7 +31,7 @@ theorem schemaWellFormed_possibleTypesNodup {schema : Schema}
 theorem schemaWellFormed_possibleObjectFieldDefinitionsImplement {schema : Schema}
     : schemaWellFormed schema -> possibleObjectFieldDefinitionsImplement schema := by
   intro hschema
-  exact hschema.2.2.2.2.2.2
+  exact hschema.2.2.2.2.2.2.1
 
 theorem schemaWellFormed_possibleObject_lookupField_implements
     {schema : Schema} {parentType objectTypeName fieldName : Name}

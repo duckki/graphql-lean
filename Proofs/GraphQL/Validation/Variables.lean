@@ -480,7 +480,7 @@ mutual
           · rw [hleaf.2] at hchildren
             cases hchildren
           · exact selectionSetValid_variable_defined selectionSet
-              hcomposite.2.2 hchildren
+              hcomposite.2 hchildren
     | inlineFragment typeCondition directives selectionSet =>
         simp only [selectionVariables, List.mem_append] at hvariable
         cases typeCondition with
@@ -488,13 +488,13 @@ mutual
             simp only [selectionValid] at hvalid
             rcases hvariable with hdirectives | hchildren
             · exact directivesValid_variable_defined hvalid.1 hdirectives
-            · exact selectionSetValid_variable_defined selectionSet hvalid.2.2
+            · exact selectionSetValid_variable_defined selectionSet hvalid.2
                 hchildren
         | some typeCondition =>
             simp only [selectionValid] at hvalid
             rcases hvariable with hdirectives | hchildren
             · exact directivesValid_variable_defined hvalid.1 hdirectives
-            · exact selectionSetValid_variable_defined selectionSet hvalid.2.2.2.2
+            · exact selectionSetValid_variable_defined selectionSet hvalid.2.2.2
                 hchildren
 
   theorem selectionSetValid_variable_defined

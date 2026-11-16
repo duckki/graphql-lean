@@ -120,7 +120,6 @@ mutual
                         ∧ selectionSet = [])
                   ∨ (schema.isCompositeType
                       fieldDefinition.outputType.namedType
-                    ∧ selectionSet ≠ []
                     ∧ Validation.selectionSetValid schema
                       variableDefinitions
                       fieldDefinition.outputType.namedType selectionSet)) := by
@@ -131,7 +130,7 @@ mutual
           · exact directiveIfArgumentValid_of_selectionSetBooleanVariables
               schema variableDefinitions varName
               fieldDefinition.outputType.namedType selectionSet hchild
-              hcomposite.2.2
+              hcomposite.2
     | parentType, .inlineFragment none directives selectionSet,
       hmem, hvalid => by
         simp [selectionBooleanVariables] at hmem
@@ -231,15 +230,13 @@ theorem wrapWithBoolCase_selectionSetValid
         Validation.operationDefinitionValid schema operation
         -> (∀ varName,
               varName ∈ boolCase.map Prod.fst -> varName ∈ operationBoolVars operation)
-        -> selectionSet ≠ []
         -> Validation.selectionSetValid schema operation.variableDefinitions
             parentType selectionSet
         -> Validation.selectionSetValid schema operation.variableDefinitions
             parentType (wrapWithBoolCase boolCase selectionSet)
-  | [], selectionSet, _hoperation, _hvars, _hne, hvalid => by
+  | [], selectionSet, _hoperation, _hvars, hvalid => by
       simpa [wrapWithBoolCase] using hvalid
-  | (varName, value) :: rest, selectionSet, hoperation, hvars, hne,
-    hvalid => by
+  | (varName, value) :: rest, selectionSet, hoperation, hvars, hvalid => by
       have hchildValid :
           Validation.selectionSetValid schema operation.variableDefinitions
             parentType (wrapWithBoolCase rest selectionSet) :=
@@ -248,10 +245,7 @@ theorem wrapWithBoolCase_selectionSetValid
           (by
             intro candidate hcandidate
             exact hvars candidate (by simp [hcandidate]))
-          hne hvalid
-      have hchildNonempty :
-          wrapWithBoolCase rest selectionSet ≠ [] :=
-        wrapWithBoolCase_ne_nil rest selectionSet hne
+          hvalid
       unfold Validation.selectionSetValid
       intro selection hselection
       simp [wrapWithBoolCase] at hselection
@@ -260,7 +254,6 @@ theorem wrapWithBoolCase_selectionSetValid
       exact ⟨
         directiveForBit_directivesValid_of_operationBoolVars
           schema operation hoperation (hvars varName (by simp)),
-        hchildNonempty,
         hchildValid⟩
 
 theorem wrapWithBoolCase_selectionSetValidInPossibleTypes

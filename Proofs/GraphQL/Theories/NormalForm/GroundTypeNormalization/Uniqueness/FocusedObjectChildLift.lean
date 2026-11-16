@@ -235,9 +235,8 @@ theorem focusedSelectionSetTargetChildSelectionSets_child_valid_free_normal
     rw [hlookup] at hcandidateLookup
     exact Option.some.inj hcandidateLookup.symm
   subst candidateFieldDefinition
-  rcases fieldSelectionSetValid_child_of_composite hfieldSelectionValid
-      hcomposite with
-    ⟨_hchildNonempty, hchildValid⟩
+  have hchildValid :=
+    fieldSelectionSetValid_child_of_composite hfieldSelectionValid hcomposite
   have hchildFree :
       selectionSetDirectiveFree childSelectionSet :=
     selectionSetDirectiveFree_field_child_of_mem hfree hfieldMem
@@ -295,9 +294,8 @@ theorem
     rw [hlookup] at hcandidateLookup
     exact Option.some.inj hcandidateLookup.symm
   subst candidateFieldDefinition
-  rcases fieldSelectionSetValid_child_of_composite hfieldSelectionValid
-      hcomposite with
-    ⟨_hchildNonempty, hchildValid⟩
+  have hchildValid :=
+    fieldSelectionSetValid_child_of_composite hfieldSelectionValid hcomposite
   have hchildFree :
       selectionSetDirectiveFree childSelectionSet :=
     selectionSetDirectiveFree_field_child_of_mem hfree hwholeMem

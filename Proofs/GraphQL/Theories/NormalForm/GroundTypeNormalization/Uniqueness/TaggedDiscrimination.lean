@@ -856,12 +856,10 @@ theorem
     rw [hlookup] at hrightCandidateLookup
     exact Option.some.inj hrightCandidateLookup.symm
   subst rightCandidateDefinition
-  rcases fieldSelectionSetValid_child_of_composite hleftFieldValid
-      hcomposite with
-    ⟨_hleftChildNonempty, hleftChildValid⟩
-  rcases fieldSelectionSetValid_child_of_composite hrightFieldValid
-      hcomposite with
-    ⟨_hrightChildNonempty, hrightChildValid⟩
+  have hleftChildValid :=
+    fieldSelectionSetValid_child_of_composite hleftFieldValid hcomposite
+  have hrightChildValid :=
+    fieldSelectionSetValid_child_of_composite hrightFieldValid hcomposite
   have hleftChildFree :
       selectionSetDirectiveFree leftChildSelectionSet :=
     selectionSetDirectiveFree_field_child_of_mem hleftFree hleftMem

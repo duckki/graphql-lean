@@ -374,7 +374,7 @@ theorem selectionSetValid_object_field_child_of_mem_lookup
       schema.isCompositeType fieldDefinition.outputType.namedType :=
     objectType_isCompositeType
       (objectType_of_objectTypeNameBool_eq_true schema hobject)
-  exact (fieldSelectionSetValid_child_of_composite hfieldValid hcomposite).2
+  exact fieldSelectionSetValid_child_of_composite hfieldValid hcomposite
 
 theorem selectionSetNormal_field_child_of_mem_lookup
     {schema : Schema} {parentType responseName fieldName : Name}

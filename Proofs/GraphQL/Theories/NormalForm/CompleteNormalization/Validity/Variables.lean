@@ -526,8 +526,10 @@ theorem completeNormalizeOperation_operationVariablesUsed
           (operation.rootType schema) operation.selectionSet)
   by_cases hboolean :
       variableDefinition.name ∈ operationBoolVars operation
-  · have hselectionSetNonempty : operation.selectionSet ≠ [] :=
-      Validation.operationDefinitionValid_selectionSet_nonempty hoperation
+  · have hselectionSetNonempty : operation.selectionSet ≠ [] := by
+      intro hselectionSet
+      simp [operationBoolVars, hselectionSet, selectionSetBooleanVariables,
+        dedupBoolVars] at hboolean
     have hselectionSetCons :
         ∃ selection rest, operation.selectionSet = selection :: rest := by
       cases hselectionSet : operation.selectionSet with

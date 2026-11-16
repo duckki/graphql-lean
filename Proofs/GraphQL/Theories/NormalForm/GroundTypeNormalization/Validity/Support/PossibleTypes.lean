@@ -471,13 +471,11 @@ theorem fieldSelectionSetValid_normalized_of_source
         fieldDefinition sourceSubselections
       -> Validation.selectionSetValid schema variableDefinitions
           fieldDefinition.outputType.namedType normalizedSubselections
-      -> (schema.isCompositeType fieldDefinition.outputType.namedType
-          -> normalizedSubselections ≠ [])
       -> (leafTypeNameBool schema fieldDefinition.outputType.namedType = true
           -> normalizedSubselections = [])
       -> Validation.fieldSelectionSetValid schema variableDefinitions
           fieldDefinition normalizedSubselections := by
-  intro hsource hnormalizedValid hnormalizedNonempty hnilIfLeaf
+  intro hsource hnormalizedValid hnilIfLeaf
   have houtput :
       fieldDefinition.outputType.isOutputType schema :=
     Validation.fieldSelectionSetValid_outputType hsource
@@ -493,8 +491,7 @@ theorem fieldSelectionSetValid_normalized_of_source
       exact Or.inl
         ⟨hsourceLeaf.1, hnilIfLeaf hleafBool⟩
     · exact Or.inr
-        ⟨hsourceComposite.1, hnormalizedNonempty hsourceComposite.1,
-          hnormalizedValid⟩
+        ⟨hsourceComposite.1, hnormalizedValid⟩
 
 theorem normalizedField_selectionValidInPossibleTypes
     {schema : Schema} {variableDefinitions : List VariableDefinition}
@@ -508,8 +505,6 @@ theorem normalizedField_selectionValidInPossibleTypes
       -> schema.lookupField parentType fieldName = some fieldDefinition
       -> Validation.selectionSetValid schema variableDefinitions
           fieldDefinition.outputType.namedType normalizedSubselections
-      -> (schema.isCompositeType fieldDefinition.outputType.namedType
-          -> normalizedSubselections ≠ [])
       -> Validation.selectionSetValidInPossibleTypes schema variableDefinitions
           fieldDefinition.outputType.namedType normalizedSubselections
       -> (∀ objectType,
@@ -522,8 +517,8 @@ theorem normalizedField_selectionValidInPossibleTypes
           parentType
           (Selection.field responseName fieldName arguments []
             normalizedSubselections) := by
-  intro hsourceImplementation hlookup hnormalizedValid hnormalizedNonempty
-    hnormalizedImplementation hnormalizedPossible hnilIfLeaf
+  intro hsourceImplementation hlookup hnormalizedValid hnormalizedImplementation
+    hnormalizedPossible hnilIfLeaf
   have hsourceSelection :
       Validation.selectionValid schema variableDefinitions parentType
         (Selection.field responseName fieldName arguments []
@@ -542,7 +537,7 @@ theorem normalizedField_selectionValidInPossibleTypes
   · simp [Validation.selectionValid, Validation.directivesValid, hlookup]
     exact ⟨harguments,
       fieldSelectionSetValid_normalized_of_source
-        hsourceChild hnormalizedValid hnormalizedNonempty hnilIfLeaf⟩
+        hsourceChild hnormalizedValid hnilIfLeaf⟩
   · exact hnormalizedPossible
 
 end GroundTypeNormalization

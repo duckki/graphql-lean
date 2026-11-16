@@ -30,21 +30,19 @@ mutual
     | schema, variableDefinitions, fragments, parentType,
         .inlineFragment none directives selectionSet, hvalid, hinlined => by
         simp [GraphQL.NamedFragment.Validation.selectionValid] at hvalid
-        rcases hvalid with ⟨hdirectives, hnonempty, hselectionSet⟩
+        rcases hvalid with ⟨hdirectives, hselectionSet⟩
         simp [selectionInlined] at hinlined
         simp [GraphQL.NamedFragment.Validation.selectionValid]
-        exact ⟨hdirectives, hnonempty,
-          selectionSetValid_changeFragments_of_inlined hselectionSet hinlined⟩
+        exact ⟨hdirectives, selectionSetValid_changeFragments_of_inlined hselectionSet hinlined⟩
     | schema, variableDefinitions, fragments, parentType,
         .inlineFragment (some typeCondition) directives selectionSet,
         hvalid, hinlined => by
         simp [GraphQL.NamedFragment.Validation.selectionValid] at hvalid
         rcases hvalid with
-          ⟨hdirectives, hcomposite, hoverlap, hnonempty, hselectionSet⟩
+          ⟨hdirectives, hcomposite, hoverlap, hselectionSet⟩
         simp [selectionInlined] at hinlined
         simp [GraphQL.NamedFragment.Validation.selectionValid]
-        exact ⟨hdirectives, hcomposite, hoverlap, hnonempty,
-          selectionSetValid_changeFragments_of_inlined hselectionSet hinlined⟩
+        exact ⟨hdirectives, hcomposite, hoverlap, selectionSetValid_changeFragments_of_inlined hselectionSet hinlined⟩
     | _schema, _variableDefinitions, _fragments, _parentType,
         .fragmentSpread _fragmentName _directives, _hvalid, hinlined => by
         simp [selectionInlined] at hinlined
@@ -102,9 +100,8 @@ mutual
             exact Or.inl hleaf
         | inr hcomposite =>
             rcases hcomposite with
-              ⟨hcompositeType, hnonempty, hselectionSetValid⟩
-            exact Or.inr ⟨hcompositeType, hnonempty,
-              selectionSetValid_changeFragments_of_inlined hselectionSetValid
+              ⟨hcompositeType, hselectionSetValid⟩
+            exact Or.inr ⟨hcompositeType, selectionSetValid_changeFragments_of_inlined hselectionSetValid
                 hinlined⟩
 end
 
@@ -152,8 +149,7 @@ mutual
               ∈ GraphQL.NamedFragment.Validation.selectionFragmentSpreadNames selection
             -> lookupFragmentAndRestLt? fragmentName fragments
                 = some (fragment, remaining)
-            -> fragment.selectionSet ≠ []
-                ∧ GraphQL.NamedFragment.Validation.selectionSetValid schema
+            -> GraphQL.NamedFragment.Validation.selectionSetValid schema
                     variableDefinitions [] fragment.typeCondition
                     (Inline.inlineSelectionSet remaining.val fragment.selectionSet))
           -> GraphQL.NamedFragment.Validation.selectionValid schema
@@ -182,11 +178,10 @@ mutual
         .inlineFragment none directives selectionSet, hfragmentBodies,
         hvalid => by
         simp [GraphQL.NamedFragment.Validation.selectionValid] at hvalid
-        rcases hvalid with ⟨hdirectives, hnonempty, hselectionSet⟩
+        rcases hvalid with ⟨hdirectives, hselectionSet⟩
         simp [Inline.inlineSelection,
           GraphQL.NamedFragment.Validation.selectionValid]
-        exact ⟨hdirectives, inlineSelectionSet_nonempty hnonempty,
-          selectionSetValid_inlineSelectionSet_of_localFragmentBodiesValid
+        exact ⟨hdirectives, selectionSetValid_inlineSelectionSet_of_localFragmentBodiesValid
             (fun hmem hlookup =>
               hfragmentBodies
                 (by
@@ -199,11 +194,10 @@ mutual
         hfragmentBodies, hvalid => by
         simp [GraphQL.NamedFragment.Validation.selectionValid] at hvalid
         rcases hvalid with
-          ⟨hdirectives, hcomposite, hoverlap, hnonempty, hselectionSet⟩
+          ⟨hdirectives, hcomposite, hoverlap, hselectionSet⟩
         simp [Inline.inlineSelection,
           GraphQL.NamedFragment.Validation.selectionValid]
         exact ⟨hdirectives, hcomposite, hoverlap,
-          inlineSelectionSet_nonempty hnonempty,
           selectionSetValid_inlineSelectionSet_of_localFragmentBodiesValid
             (fun hmem hlookup =>
               hfragmentBodies
@@ -222,11 +216,11 @@ mutual
             (by
               simp [GraphQL.NamedFragment.Validation.selectionFragmentSpreadNames])
             hlookup with
-          ⟨hnonempty, hselectionSet⟩
+          hselectionSet
         simp [Inline.inlineSelection, hlookup,
           GraphQL.NamedFragment.Validation.selectionValid]
         exact ⟨hdirectives, hcomposite, hoverlap,
-          inlineSelectionSet_nonempty hnonempty, hselectionSet⟩
+          hselectionSet⟩
 
   theorem selectionSetValid_inlineSelectionSet_of_localFragmentBodiesValid
       : ∀ {schema : Schema} {variableDefinitions : List VariableDefinition}
@@ -241,8 +235,7 @@ mutual
                   selectionSet
             -> lookupFragmentAndRestLt? fragmentName fragments
                 = some (fragment, remaining)
-            -> fragment.selectionSet ≠ []
-                ∧ GraphQL.NamedFragment.Validation.selectionSetValid schema
+            -> GraphQL.NamedFragment.Validation.selectionSetValid schema
                     variableDefinitions [] fragment.typeCondition
                     (Inline.inlineSelectionSet remaining.val fragment.selectionSet))
           -> GraphQL.NamedFragment.Validation.selectionSetValid schema
@@ -300,8 +293,7 @@ mutual
                   selectionSet
             -> lookupFragmentAndRestLt? fragmentName fragments
                 = some (fragment, remaining)
-            -> fragment.selectionSet ≠ []
-                ∧ GraphQL.NamedFragment.Validation.selectionSetValid schema
+            -> GraphQL.NamedFragment.Validation.selectionSetValid schema
                     variableDefinitions [] fragment.typeCondition
                     (Inline.inlineSelectionSet remaining.val fragment.selectionSet))
           -> GraphQL.NamedFragment.Validation.fieldSelectionSetValid schema
@@ -321,9 +313,8 @@ mutual
               simp [hselectionSetEmpty]⟩
         | inr hcomposite =>
             rcases hcomposite with
-              ⟨hcompositeType, hnonempty, hselectionSetValid⟩
+              ⟨hcompositeType, hselectionSetValid⟩
             exact Or.inr ⟨hcompositeType,
-              inlineSelectionSet_nonempty hnonempty,
               selectionSetValid_inlineSelectionSet_of_localFragmentBodiesValid
                 hfragmentBodies hselectionSetValid⟩
 end
@@ -338,8 +329,7 @@ mutual
                 : { remaining : List FragmentDefinition
                     // remaining.length < fragments.length }},
             lookupFragmentAndRestLt? fragmentName fragments = some (fragment, remaining)
-            -> fragment.selectionSet ≠ []
-                ∧ GraphQL.NamedFragment.Validation.selectionSetValid schema
+            -> GraphQL.NamedFragment.Validation.selectionSetValid schema
                     variableDefinitions [] fragment.typeCondition
                     (Inline.inlineSelectionSet remaining.val fragment.selectionSet))
           -> GraphQL.NamedFragment.Validation.selectionValid schema
@@ -362,22 +352,20 @@ mutual
         .inlineFragment none directives selectionSet, hfragmentBodies,
         hvalid => by
         simp [GraphQL.NamedFragment.Validation.selectionValid] at hvalid
-        rcases hvalid with ⟨hdirectives, hnonempty, hselectionSet⟩
+        rcases hvalid with ⟨hdirectives, hselectionSet⟩
         simp [Inline.inlineSelection,
           GraphQL.NamedFragment.Validation.selectionValid]
-        exact ⟨hdirectives, inlineSelectionSet_nonempty hnonempty,
-          selectionSetValid_inlineSelectionSet_of_fragmentBodiesValid
+        exact ⟨hdirectives, selectionSetValid_inlineSelectionSet_of_fragmentBodiesValid
             hfragmentBodies hselectionSet⟩
     | schema, variableDefinitions, fragments, parentType,
         .inlineFragment (some typeCondition) directives selectionSet,
         hfragmentBodies, hvalid => by
         simp [GraphQL.NamedFragment.Validation.selectionValid] at hvalid
         rcases hvalid with
-          ⟨hdirectives, hcomposite, hoverlap, hnonempty, hselectionSet⟩
+          ⟨hdirectives, hcomposite, hoverlap, hselectionSet⟩
         simp [Inline.inlineSelection,
           GraphQL.NamedFragment.Validation.selectionValid]
         exact ⟨hdirectives, hcomposite, hoverlap,
-          inlineSelectionSet_nonempty hnonempty,
           selectionSetValid_inlineSelectionSet_of_fragmentBodiesValid
             hfragmentBodies hselectionSet⟩
     | schema, variableDefinitions, fragments, parentType,
@@ -386,11 +374,11 @@ mutual
         rcases GraphQL.NamedFragment.Validation.selectionValid_fragmentSpread_lookupFragmentAndRestLt?
             hvalid with
           ⟨hdirectives, fragment, remaining, hlookup, hcomposite, hoverlap⟩
-        rcases hfragmentBodies hlookup with ⟨hnonempty, hselectionSet⟩
+        rcases hfragmentBodies hlookup with hselectionSet
         simp [Inline.inlineSelection, hlookup,
           GraphQL.NamedFragment.Validation.selectionValid]
         exact ⟨hdirectives, hcomposite, hoverlap,
-          inlineSelectionSet_nonempty hnonempty, hselectionSet⟩
+          hselectionSet⟩
 
   theorem selectionSetValid_inlineSelectionSet_of_fragmentBodiesValid
       : ∀ {schema : Schema} {variableDefinitions : List VariableDefinition}
@@ -401,8 +389,7 @@ mutual
                 : { remaining : List FragmentDefinition
                     // remaining.length < fragments.length }},
             lookupFragmentAndRestLt? fragmentName fragments = some (fragment, remaining)
-            -> fragment.selectionSet ≠ []
-                ∧ GraphQL.NamedFragment.Validation.selectionSetValid schema
+            -> GraphQL.NamedFragment.Validation.selectionSetValid schema
                     variableDefinitions [] fragment.typeCondition
                     (Inline.inlineSelectionSet remaining.val fragment.selectionSet))
           -> GraphQL.NamedFragment.Validation.selectionSetValid schema
@@ -444,8 +431,7 @@ mutual
                 : { remaining : List FragmentDefinition
                     // remaining.length < fragments.length }},
             lookupFragmentAndRestLt? fragmentName fragments = some (fragment, remaining)
-            -> fragment.selectionSet ≠ []
-                ∧ GraphQL.NamedFragment.Validation.selectionSetValid schema
+            -> GraphQL.NamedFragment.Validation.selectionSetValid schema
                     variableDefinitions [] fragment.typeCondition
                     (Inline.inlineSelectionSet remaining.val fragment.selectionSet))
           -> GraphQL.NamedFragment.Validation.fieldSelectionSetValid schema
@@ -465,9 +451,8 @@ mutual
               simp [hselectionSetEmpty]⟩
         | inr hcomposite =>
             rcases hcomposite with
-              ⟨hcompositeType, hnonempty, hselectionSetValid⟩
+              ⟨hcompositeType, hselectionSetValid⟩
             exact Or.inr ⟨hcompositeType,
-              inlineSelectionSet_nonempty hnonempty,
               selectionSetValid_inlineSelectionSet_of_fragmentBodiesValid
                 hfragmentBodies hselectionSetValid⟩
 end
@@ -490,7 +475,7 @@ mutual
     | schema, variableDefinitions, parentType,
         .inlineFragment none directives selectionSet, hvalid => by
         simp [GraphQL.NamedFragment.Validation.selectionValid] at hvalid
-        rcases hvalid with ⟨_hdirectives, _hnonempty, hselectionSet⟩
+        rcases hvalid with ⟨_hdirectives, hselectionSet⟩
         simp [selectionInlined]
         exact selectionSetValid_emptyFragments_inlined hselectionSet
     | schema, variableDefinitions, parentType,
@@ -498,8 +483,7 @@ mutual
         hvalid => by
         simp [GraphQL.NamedFragment.Validation.selectionValid] at hvalid
         rcases hvalid with
-          ⟨_hdirectives, _hcomposite, _hoverlap, _hnonempty,
-            hselectionSet⟩
+          ⟨_hdirectives, _hcomposite, _hoverlap, hselectionSet⟩
         simp [selectionInlined]
         exact selectionSetValid_emptyFragments_inlined hselectionSet
     | _schema, _variableDefinitions, _parentType,
@@ -547,7 +531,7 @@ mutual
             simp [hselectionSetEmpty, selectionSetInlined]
         | inr hcomposite =>
             rcases hcomposite with
-              ⟨_hcomposite, _hnonempty, hselectionSetValid⟩
+              ⟨_hcomposite, hselectionSetValid⟩
             exact selectionSetValid_emptyFragments_inlined hselectionSetValid
 end
 

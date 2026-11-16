@@ -28,7 +28,7 @@ theorem fieldSelectionSetValid_child_of_nonempty
   simp [Validation.fieldSelectionSetValid] at hvalid
   rcases hvalid with ⟨_houtput, hleaf | hcomposite⟩
   · exact False.elim (hnonempty hleaf.2)
-  · exact ⟨hcomposite.1, hcomposite.2.2⟩
+  · exact ⟨hcomposite.1, hcomposite.2⟩
 
 theorem fieldSelectionSetValid_child_of_composite
     {schema : Schema} {variableDefinitions : List VariableDefinition}
@@ -36,14 +36,13 @@ theorem fieldSelectionSetValid_child_of_composite
     : Validation.fieldSelectionSetValid schema variableDefinitions
         fieldDefinition selectionSet
       -> schema.isCompositeType fieldDefinition.outputType.namedType
-      -> selectionSet ≠ []
-          ∧ Validation.selectionSetValid schema variableDefinitions
-              fieldDefinition.outputType.namedType selectionSet := by
+      -> Validation.selectionSetValid schema variableDefinitions
+          fieldDefinition.outputType.namedType selectionSet := by
   intro hvalid hcomposite
   simp [Validation.fieldSelectionSetValid] at hvalid
   rcases hvalid with ⟨_houtput, hleaf | hchild⟩
   · exact False.elim (isLeafType_not_isCompositeType hleaf.1 hcomposite)
-  · exact ⟨hchild.2.1, hchild.2.2⟩
+  · exact hchild.2
 
 theorem fieldDefinition_namedType_eq_of_fieldReturnType?
     {schema : Schema} {parentType fieldName returnType : Name}
@@ -172,12 +171,10 @@ theorem selectionSetValid_field_children_of_diff {schema : Schema}
     rcases hnonempty with hleftNonempty | hrightNonempty
     · exact (fieldSelectionSetValid_child_of_nonempty hleftFieldValid hleftNonempty).1
     · exact (fieldSelectionSetValid_child_of_nonempty hrightFieldValid hrightNonempty).1
-  rcases fieldSelectionSetValid_child_of_composite hleftFieldValid
-      hcomposite with
-    ⟨_hleftNonempty, hleftChildValid⟩
-  rcases fieldSelectionSetValid_child_of_composite hrightFieldValid
-      hcomposite with
-    ⟨_hrightNonempty, hrightChildValid⟩
+  have hleftChildValid :=
+    fieldSelectionSetValid_child_of_composite hleftFieldValid hcomposite
+  have hrightChildValid :=
+    fieldSelectionSetValid_child_of_composite hrightFieldValid hcomposite
   refine ⟨fieldDefinition, hlookup, hnamedType, ?_, ?_⟩
   · simpa [hnamedType] using hleftChildValid
   · simpa [hnamedType] using hrightChildValid

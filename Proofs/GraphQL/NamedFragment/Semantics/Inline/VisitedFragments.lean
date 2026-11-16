@@ -559,7 +559,7 @@ mutual
         | inr hcomposite =>
             simp only [Inline.inlineSelection]
             rw [inlineSelectionSet_eq_of_spreadContext hunique hacyclic hall current
-              fieldDefinition.outputType.namedType selectionSet hcomposite.2.2
+              fieldDefinition.outputType.namedType selectionSet hcomposite.2
               (hcontext.subset (by
                 intro fragmentName hname
                 simpa [GraphQL.NamedFragment.Validation.selectionSetFragmentSpreadNames,
@@ -571,7 +571,7 @@ mutual
         simp [GraphQL.NamedFragment.Validation.selectionValid] at hvalid
         simp only [Inline.inlineSelection]
         rw [inlineSelectionSet_eq_of_spreadContext hunique hacyclic hall current
-          parentType selectionSet hvalid.2.2
+          parentType selectionSet hvalid.2
           (hcontext.subset (by
             intro fragmentName hname
             simpa [GraphQL.NamedFragment.Validation.selectionSetFragmentSpreadNames,
@@ -583,7 +583,7 @@ mutual
         simp [GraphQL.NamedFragment.Validation.selectionValid] at hvalid
         simp only [Inline.inlineSelection]
         rw [inlineSelectionSet_eq_of_spreadContext hunique hacyclic hall current
-          typeCondition selectionSet hvalid.2.2.2.2
+          typeCondition selectionSet hvalid.2.2.2
           (hcontext.subset (by
             intro fragmentName hname
             simpa [GraphQL.NamedFragment.Validation.selectionSetFragmentSpreadNames,
@@ -673,9 +673,9 @@ mutual
         cases hshape with
         | inl hleaf => exact Or.inl hleaf
         | inr hcomposite =>
-            exact Or.inr ⟨hcomposite.1, hcomposite.2.1,
+            exact Or.inr ⟨hcomposite.1,
               selectionSetValid_of_spreadContext current
-                fieldDefinition.outputType.namedType selectionSet hcomposite.2.2
+                fieldDefinition.outputType.namedType selectionSet hcomposite.2
                 (hcontext.subset (by
                   intro fragmentName hname
                   simpa [GraphQL.NamedFragment.Validation.selectionSetFragmentSpreadNames,
@@ -685,8 +685,8 @@ mutual
         .inlineFragment none directives selectionSet,
         hvalid, hcontext => by
         simp [GraphQL.NamedFragment.Validation.selectionValid] at hvalid ⊢
-        exact ⟨hvalid.1, hvalid.2.1,
-          selectionSetValid_of_spreadContext current parentType selectionSet hvalid.2.2
+        exact ⟨hvalid.1,
+          selectionSetValid_of_spreadContext current parentType selectionSet hvalid.2
             (hcontext.subset (by
               intro fragmentName hname
               simpa [GraphQL.NamedFragment.Validation.selectionSetFragmentSpreadNames,
@@ -696,9 +696,9 @@ mutual
         .inlineFragment (some typeCondition) directives selectionSet,
         hvalid, hcontext => by
         simp [GraphQL.NamedFragment.Validation.selectionValid] at hvalid ⊢
-        exact ⟨hvalid.1, hvalid.2.1, hvalid.2.2.1, hvalid.2.2.2.1,
+        exact ⟨hvalid.1, hvalid.2.1, hvalid.2.2.1,
           selectionSetValid_of_spreadContext current typeCondition selectionSet
-            hvalid.2.2.2.2
+            hvalid.2.2.2
             (hcontext.subset (by
               intro fragmentName hname
               simpa [GraphQL.NamedFragment.Validation.selectionSetFragmentSpreadNames,
@@ -878,7 +878,7 @@ theorem collectFields_firstOccurrences_aux
                     collectFields_firstOccurrences_aux variableValues hunique hacyclic
                       hall current visited validationParentType parentType source nested
                       leftPrefix rightPrefix hcurrentUnique
-                      hnestedValid.2.2
+                      hnestedValid.2
                       hnestedContext hprefixes hleftNodup hvisited
               | some condition =>
                   have hnestedValid := hvalidPair.1
@@ -900,7 +900,7 @@ theorem collectFields_firstOccurrences_aux
                       collectFields_firstOccurrences_aux variableValues hunique hacyclic
                         hall current visited condition parentType source nested leftPrefix
                         rightPrefix hcurrentUnique
-                        hnestedValid.2.2.2.2 hnestedContext hprefixes hleftNodup
+                        hnestedValid.2.2.2 hnestedContext hprefixes hleftNodup
                         hvisited
                   · have happlyFalse :
                         GraphQL.Execution.doesFragmentTypeApplyBool schema parentType
@@ -1414,7 +1414,7 @@ mutual
                 rw [hleaf.2]
                 simp [GraphQL.NamedFragment.Validation.selectionSetValid]⟩
           | inr hcomposite =>
-              exact ⟨fieldDefinition.outputType.namedType, hcomposite.2.2⟩
+              exact ⟨fieldDefinition.outputType.namedType, hcomposite.2⟩
         by_cases hallows :
             GraphQL.Execution.selectionDirectivesAllowBool variableValues directives
               = true
@@ -1447,7 +1447,7 @@ mutual
         · simpa [Execution.collectSelection, hallows] using
             collectFields_validContext hunique hacyclic hall variableValues current
               visited validationParentType parentType source selectionSet
-              hcurrentUnique hvalid.2.2
+              hcurrentUnique hvalid.2
               (hcontext.subset (by
                 intro fragmentName hname
                 simpa [GraphQL.NamedFragment.Validation.selectionSetFragmentSpreadNames,
@@ -1475,7 +1475,7 @@ mutual
           · simpa [Execution.collectSelection, hallows, happly] using
               collectFields_validContext hunique hacyclic hall variableValues current
                 visited condition parentType source selectionSet hcurrentUnique
-                hvalid.2.2.2.2
+                hvalid.2.2.2
                 (hcontext.subset (by
                   intro fragmentName hname
                   simpa [GraphQL.NamedFragment.Validation.selectionSetFragmentSpreadNames,

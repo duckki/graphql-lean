@@ -69,7 +69,7 @@ mutual
           · rw [hleaf.2] at hchildren
             cases hchildren
           · exact Or.inr
-              (validSelectionSetBooleanVariable_isModeled hcomposite.2.2 hchildren)
+              (validSelectionSetBooleanVariable_isModeled hcomposite.2 hchildren)
     | inlineFragment typeCondition directives selectionSet =>
         simp only [NormalForm.selectionBooleanVariables, List.mem_append] at hvariable
         simp only [SelectionConditions.selectionBooleanVariables, List.mem_append]
@@ -80,14 +80,14 @@ mutual
             · exact Or.inl (validDirectivesBooleanVariable_isModeled directives
                 variableName hvalid.1 hdirectives)
             · exact Or.inr
-                (validSelectionSetBooleanVariable_isModeled hvalid.2.2 hchildren)
+                (validSelectionSetBooleanVariable_isModeled hvalid.2 hchildren)
         | some typeCondition =>
             simp only [Validation.selectionValid] at hvalid
             rcases hvariable with hdirectives | hchildren
             · exact Or.inl (validDirectivesBooleanVariable_isModeled directives
                 variableName hvalid.1 hdirectives)
             · exact Or.inr
-                (validSelectionSetBooleanVariable_isModeled hvalid.2.2.2.2 hchildren)
+                (validSelectionSetBooleanVariable_isModeled hvalid.2.2.2 hchildren)
 
   private theorem validSelectionSetBooleanVariable_isModeled
       {schema : Schema} {variableDefinitions : List VariableDefinition}

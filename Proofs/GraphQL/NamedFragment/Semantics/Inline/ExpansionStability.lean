@@ -61,7 +61,7 @@ theorem fragmentSelectionSetValid_after_reachable_lookup_removal
     (by
       intro hspread
       exact hnoSelf (by simpa [hfragmentName] using hspread))
-    hfragmentValidCurrent.2.2
+    hfragmentValidCurrent.2
 
 theorem fragmentInlineSelectionSet_eq_of_reachable_contexts_aux
     {schema : Schema} {variableDefinitions : List VariableDefinition}
@@ -177,13 +177,15 @@ theorem fragmentInlineSelectionSet_eq_of_reachable_contexts_aux
                           simp [Inline.inlineSelection]
                       | inr hcompositeLeft =>
                           rcases hcompositeLeft with
-                            ⟨_hcompositeLeft, hnonemptyLeft, hnestedLeft⟩
+                            ⟨_hcompositeLeft, hnestedLeft⟩
                           cases hshapeRight with
                           | inl hleafRight =>
-                              exact False.elim (hnonemptyLeft hleafRight.2)
+                              have hnil : nested = [] := hleafRight.2
+                              subst nested
+                              simp [Inline.inlineSelection]
                           | inr hcompositeRight =>
                               rcases hcompositeRight with
-                                ⟨_hcompositeRight, _hnonemptyRight, hnestedRight⟩
+                                ⟨_hcompositeRight, hnestedRight⟩
                               simp [Inline.inlineSelection]
                               apply ihSize
                               · simp at hsize
@@ -203,8 +205,8 @@ theorem fragmentInlineSelectionSet_eq_of_reachable_contexts_aux
                           apply ihSize
                           · simp at hsize
                             omega
-                          · exact hleftPair.1.2.2
-                          · exact hrightPair.1.2.2
+                          · exact hleftPair.1.2
+                          · exact hrightPair.1.2
                           · intro candidate hcandidate
                             apply hselectionWithin candidate
                             simp [GraphQL.NamedFragment.Validation.selectionFragmentSpreadNames,
@@ -216,8 +218,8 @@ theorem fragmentInlineSelectionSet_eq_of_reachable_contexts_aux
                           apply ihSize
                           · simp at hsize
                             omega
-                          · exact hleftPair.1.2.2.2.2
-                          · exact hrightPair.1.2.2.2.2
+                          · exact hleftPair.1.2.2.2
+                          · exact hrightPair.1.2.2.2
                           · intro candidate hcandidate
                             apply hselectionWithin candidate
                             simp [GraphQL.NamedFragment.Validation.selectionFragmentSpreadNames,

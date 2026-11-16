@@ -298,7 +298,12 @@ private theorem schemaWellFormed
     by_cases h : typeName = "I" ∨ typeName = "Query"
     · simp [h]
     · simp [h]
+  constructor
   · exact possibleObjectFieldsImplement
+  · constructor
+    · simp [SchemaWellFormedness.namesAreUnique, Schema.allDirectives,
+        Schema.builtinDirectiveDefinitions, exampleSchema]
+    · simp [exampleSchema]
 
 private theorem operationValid (responseName : Name)
     : Validation.operationDefinitionValid exampleSchema
@@ -310,8 +315,6 @@ private theorem operationValid (responseName : Name)
   · exact ⟨.object queryObject, rfl, trivial⟩
   constructor
   · simp [Validation.variableDefinitionsValid, exampleOperation]
-  constructor
-  · cbv <;> simp
   constructor
   · unfold Validation.selectionSetValid
     intro selection hmem
@@ -325,8 +328,6 @@ private theorem operationValid (responseName : Name)
     constructor
     · exact ⟨"Query", by exact List.mem_cons_self,
       by exact List.mem_cons_self⟩
-    constructor
-    · cbv <;> simp
     unfold Validation.selectionSetValid
     intro field hfield
     simp only [List.mem_singleton] at hfield

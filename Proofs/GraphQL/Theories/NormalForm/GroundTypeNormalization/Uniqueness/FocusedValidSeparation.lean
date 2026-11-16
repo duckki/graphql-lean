@@ -400,12 +400,10 @@ theorem
         · exact (fieldSelectionSetValid_child_of_nonempty hleftFieldValid hleftNonempty).1
         · exact (fieldSelectionSetValid_child_of_nonempty hrightFieldValid
                   hrightNonempty).1
-      rcases fieldSelectionSetValid_child_of_composite hleftFieldValid
-          hcomposite with
-        ⟨_hleftChildNonempty, hleftChildValidRaw⟩
-      rcases fieldSelectionSetValid_child_of_composite hrightFieldValid
-          hcomposite with
-        ⟨_hrightChildNonempty, hrightChildValidRaw⟩
+      have hleftChildValidRaw :=
+        fieldSelectionSetValid_child_of_composite hleftFieldValid hcomposite
+      have hrightChildValidRaw :=
+        fieldSelectionSetValid_child_of_composite hrightFieldValid hcomposite
       have hleftChildValid :
           Validation.selectionSetValid schema leftVariableDefinitions
             returnType leftChildSelectionSet := by

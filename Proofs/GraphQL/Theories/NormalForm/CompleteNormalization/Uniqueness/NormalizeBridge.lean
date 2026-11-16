@@ -68,6 +68,10 @@ theorem completeNormalizeOperation_boolVarsEquivalent
         simpa [hvariables]
           using completeNormalizeRootSelectionSet_ne_nil_of_boolTypeFeasible schema
             operation hschema hvalid hboolFeasible
+            (by
+              intro hselectionSet
+              simp [operationBoolVars, hselectionSet, selectionSetBooleanVariables,
+                dedupBoolVars] at hvariables)
       have hnormalizedIff :=
         operationBoolVars_mem_iff_of_completeNormalSelectionSet_cons hnormal
           hnormalizedNonempty candidate

@@ -965,7 +965,7 @@ theorem CollectedFieldGroup.mergedSelectionSet_validForImplementation
     · rw [hleaf.2] at hchild'
       simp at hchild'
     · unfold Validation.selectionSetValid at hcomposite
-      exact hcomposite.2.2 selection hchild'
+      exact hcomposite.2 selection hchild'
   refine ⟨expectedDefinition.outputType.namedType,
     SelectionSourceValid.of_selectionValid hselectionValid, ?_⟩
   intro childRuntime hchildRuntime

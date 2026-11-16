@@ -155,8 +155,7 @@ theorem variableOnlyInUnusedFragmentOperationRejected
   rcases hvalid with
     ⟨_hroot, _hrootComposite, _hvariables, _huniqueFragments,
       _hfragmentsAcyclic, _hfragmentDefinitionsUsed,
-      _hfragmentDefinitionsValid, _hselectionNonempty, _hselectionValid,
-      _hmerge, hvariablesUsed⟩
+      _hfragmentDefinitionsValid, _hselectionValid, _hmerge, hvariablesUsed⟩
   exact variableUseInUnreferencedFragmentDoesNotCount hvariablesUsed
 
 def cyclicFragments : List GraphQL.NamedFragment.FragmentDefinition :=
@@ -192,8 +191,7 @@ theorem undefinedFragmentOperationRejectedSmoke
   rcases hvalid with
     ⟨_hroot, _hrootComposite, _hvariables, _huniqueFragments,
       _hfragmentsAcyclic, _hfragmentDefinitionsUsed,
-      _hfragmentDefinitionsValid, _hselectionNonempty, hselectionValid, _hmerge,
-      _hvariablesUsed⟩
+      _hfragmentDefinitionsValid, hselectionValid, _hmerge, _hvariablesUsed⟩
   have hrootFieldValid
       : GraphQL.NamedFragment.Validation.selectionValid Execution.sampleSchema
           undefinedFragmentOperation.variableDefinitions

@@ -131,7 +131,7 @@ theorem fieldSelectionSetValid_child_of_possibleType
       possibleTypes_eq_nil_of_isLeafType schema hleaf
     rw [hnil] at hpossible
     cases hpossible
-  · exact hcomposite.2.2
+  · exact hcomposite.2
 
 end NormalForm
 

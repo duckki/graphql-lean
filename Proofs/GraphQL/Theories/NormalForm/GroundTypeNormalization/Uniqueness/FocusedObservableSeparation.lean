@@ -98,12 +98,10 @@ theorem selectionSetValid_field_children_of_observable_trace {schema : Schema}
     rcases hnonempty with hleftNonempty | hrightNonempty
     · exact (fieldSelectionSetValid_child_of_nonempty hleftFieldValid hleftNonempty).1
     · exact (fieldSelectionSetValid_child_of_nonempty hrightFieldValid hrightNonempty).1
-  rcases fieldSelectionSetValid_child_of_composite hleftFieldValid
-      hcomposite with
-    ⟨_hleftNonempty, hleftChildValid⟩
-  rcases fieldSelectionSetValid_child_of_composite hrightFieldValid
-      hcomposite with
-    ⟨_hrightNonempty, hrightChildValid⟩
+  have hleftChildValid :=
+    fieldSelectionSetValid_child_of_composite hleftFieldValid hcomposite
+  have hrightChildValid :=
+    fieldSelectionSetValid_child_of_composite hrightFieldValid hcomposite
   refine ⟨fieldDefinition, hlookup, hnamedType, ?_, ?_⟩
   · simpa [hnamedType] using hleftChildValid
   · simpa [hnamedType] using hrightChildValid

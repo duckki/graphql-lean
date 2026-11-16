@@ -1655,10 +1655,10 @@ theorem selectionSetLookupValid_fieldHead_merged_of_filteredReturnLookup
     exact (hmatchedField fieldDefinition hlookup).1
 
 /-
-Proof-internal nonemptiness invariant for boolean-filtered branches. It is
-conditioned on the current type-condition stack: a filtered composite field is
-required to keep a child only when that stack is feasible, which is exactly the
-situation where ground normalization can process that field.
+Proof-internal invariant for boolean-filtered branches: a filtered field that keeps a
+child selection set contains a feasible field in every possible object scope. It is
+conditioned on the current type-condition stack, which is exactly the situation where
+ground normalization can process that field.
 -/
 mutual
   def selectionFilteredCompositeChildrenNonempty (schema : Schema)
@@ -1666,25 +1666,21 @@ mutual
       : Selection -> Prop
     | .field _responseName fieldName _arguments _directives selectionSet =>
         typeConditionStackFeasible schema typeConditions
-        -> (∀ fieldDefinition,
-              schema.lookupField parentType fieldName = some fieldDefinition
-              -> schema.isCompositeType fieldDefinition.outputType.namedType
-              -> selectionSet ≠ [])
-            ∧ match selectionSet with
-              | [] => True
-              | _ :: _ =>
-                  match schema.lookupField parentType fieldName with
-                  | none => False
-                  | some fieldDefinition =>
-                      let possibleTypes :=
-                        schema.getPossibleTypes fieldDefinition.outputType.namedType
-                      possibleTypes ≠ []
-                      ∧ ∀ objectType,
-                          objectType ∈ possibleTypes
-                          -> selectionSetContainsTypeConditionFeasibleField schema
-                                [objectType] selectionSet
-                              ∧ selectionSetFilteredCompositeChildrenNonempty schema
-                                  objectType [objectType] selectionSet
+        -> match selectionSet with
+            | [] => True
+            | _ :: _ =>
+                match schema.lookupField parentType fieldName with
+                | none => False
+                | some fieldDefinition =>
+                    let possibleTypes :=
+                      schema.getPossibleTypes fieldDefinition.outputType.namedType
+                    possibleTypes ≠ []
+                    ∧ ∀ objectType,
+                        objectType ∈ possibleTypes
+                        -> selectionSetContainsTypeConditionFeasibleField schema
+                              [objectType] selectionSet
+                            ∧ selectionSetFilteredCompositeChildrenNonempty schema
+                                objectType [objectType] selectionSet
     | .inlineFragment none _directives selectionSet =>
         selectionSetFilteredCompositeChildrenNonempty schema parentType
           typeConditions selectionSet
@@ -2164,7 +2160,7 @@ theorem
   | nil =>
       simp [selectionSetFilteredCompositeChildrenNonempty]
   | cons child children =>
-      have hchildren := hparts.2
+      have hchildren := hparts
       rw [hlookup] at hchildren
       exact (hchildren.2 runtimeType hpossible).2
 
@@ -2208,7 +2204,7 @@ theorem selectionSetFilteredCompositeChildrenNonempty_fieldHead_merged_of_child_
     | nil =>
         simp [selectionSetFilteredCompositeChildrenNonempty]
     | cons child children =>
-        have hchildren := hparts.2
+        have hchildren := hparts
         rw [hlookup] at hchildren
         exact (hchildren.2 runtimeType hpossible).2
   · apply
@@ -2233,8 +2229,6 @@ theorem normalizedField_selectionValidInPossibleTypes_of_currentScope
       -> schema.lookupField parentType fieldName = some fieldDefinition
       -> Validation.selectionSetValid schema variableDefinitions
           fieldDefinition.outputType.namedType normalizedSubselections
-      -> (schema.isCompositeType fieldDefinition.outputType.namedType
-          -> normalizedSubselections ≠ [])
       -> Validation.selectionSetValidInPossibleTypes schema variableDefinitions
           fieldDefinition.outputType.namedType normalizedSubselections
       -> (∀ objectType,
@@ -2247,7 +2241,7 @@ theorem normalizedField_selectionValidInPossibleTypes_of_currentScope
           parentType
           (Selection.field responseName fieldName arguments []
             normalizedSubselections) := by
-  intro hsourceCurrent hlookup hnormalizedValid hnormalizedNonempty
+  intro hsourceCurrent hlookup hnormalizedValid
     hnormalizedImplementation hnormalizedPossible hnilIfLeaf
   have hsourceParts :
       Validation.selectionValid schema variableDefinitions parentType
@@ -2274,7 +2268,7 @@ theorem normalizedField_selectionValidInPossibleTypes_of_currentScope
   · simp [Validation.selectionValid, Validation.directivesValid, hlookup]
     exact ⟨harguments,
       GroundTypeNormalization.fieldSelectionSetValid_normalized_of_source
-        hsourceChild hnormalizedValid hnormalizedNonempty hnilIfLeaf⟩
+        hsourceChild hnormalizedValid hnilIfLeaf⟩
   · exact hnormalizedPossible
 
 theorem normalizedField_selectionValidInPossibleTypes_of_directedSource
@@ -2289,8 +2283,6 @@ theorem normalizedField_selectionValidInPossibleTypes_of_directedSource
       -> schema.lookupField parentType fieldName = some fieldDefinition
       -> Validation.selectionSetValid schema variableDefinitions
           fieldDefinition.outputType.namedType normalizedSubselections
-      -> (schema.isCompositeType fieldDefinition.outputType.namedType
-          -> normalizedSubselections ≠ [])
       -> Validation.selectionSetValidInPossibleTypes schema variableDefinitions
           fieldDefinition.outputType.namedType normalizedSubselections
       -> (∀ objectType,
@@ -2303,11 +2295,11 @@ theorem normalizedField_selectionValidInPossibleTypes_of_directedSource
           parentType
           (Selection.field responseName fieldName arguments []
             normalizedSubselections) := by
-  intro hsource hlookup hnormalizedValid hnormalizedNonempty
+  intro hsource hlookup hnormalizedValid
     hnormalizedImplementation hnormalizedPossible hnilIfLeaf
   exact GroundTypeNormalization.normalizedField_selectionValidInPossibleTypes
     (selectionValidInPossibleTypes_field_clear_directives hsource)
-    hlookup hnormalizedValid hnormalizedNonempty hnormalizedImplementation
+    hlookup hnormalizedValid hnormalizedImplementation
     hnormalizedPossible hnilIfLeaf
 
 theorem normalizedField_selectionValidInPossibleTypes_of_filteredCurrentSource
@@ -2321,8 +2313,6 @@ theorem normalizedField_selectionValidInPossibleTypes_of_filteredCurrentSource
       -> schema.lookupField parentType fieldName = some fieldDefinition
       -> Validation.selectionSetValid schema variableDefinitions
           fieldDefinition.outputType.namedType normalizedSubselections
-      -> (schema.isCompositeType fieldDefinition.outputType.namedType
-          -> normalizedSubselections ≠ [])
       -> Validation.selectionSetValidInPossibleTypes schema variableDefinitions
           fieldDefinition.outputType.namedType normalizedSubselections
       -> (∀ objectType,
@@ -2335,7 +2325,7 @@ theorem normalizedField_selectionValidInPossibleTypes_of_filteredCurrentSource
           parentType
           (Selection.field responseName fieldName arguments []
             normalizedSubselections) := by
-  intro hsource hlookup hnormalizedValid hnormalizedNonempty
+  intro hsource hlookup hnormalizedValid
     hnormalizedImplementation hnormalizedPossible hnilIfLeaf
   have hparts :
       ([] : List DirectiveApplication) = []
@@ -2360,7 +2350,7 @@ theorem normalizedField_selectionValidInPossibleTypes_of_filteredCurrentSource
     rfl
   subst sourceDefinition
   exact normalizedField_selectionValidInPossibleTypes_of_directedSource
-    hsourceValid hlookup hnormalizedValid hnormalizedNonempty
+    hsourceValid hlookup hnormalizedValid
     hnormalizedImplementation hnormalizedPossible hnilIfLeaf
 
 theorem fieldSelectionsWithResponseNameInScope_field_validInCurrentScope
@@ -4332,25 +4322,6 @@ mutual
               simp [filterSelectionSetBoolCase, hallow,
                 selectionSetFilteredCompositeChildrenNonempty,
                 selectionFilteredCompositeChildrenNonempty]
-              intro _hstack
-              intro fieldDefinition hlookup hcomposite
-              have hdefinitionEq : sourceDefinition = fieldDefinition := by
-                rw [hlookup] at hsourceLookup
-                cases hsourceLookup
-                rfl
-              subst sourceDefinition
-              have hsourceChildrenParts :
-                  fieldDefinition.outputType.isOutputType schema
-                    ∧ schema.isLeafType
-                      fieldDefinition.outputType.namedType := by
-                simpa [Validation.fieldSelectionSetValid] using
-                  hsourceChildren
-              have hleaf :
-                  schema.isLeafType fieldDefinition.outputType.namedType :=
-                hsourceChildrenParts.2
-              exact
-                GroundTypeNormalization.isLeafType_not_isCompositeType
-                  hleaf hcomposite
           | cons child children =>
               cases hchild :
                   filterSelectionSetBoolCase boolCase (child :: children) with
@@ -4358,13 +4329,6 @@ mutual
                   simp [filterSelectionSetBoolCase, hallow, hchild,
                     selectionSetFilteredCompositeChildrenNonempty,
                     selectionFilteredCompositeChildrenNonempty]
-                  intro hstack
-                  intro _fieldDefinition _hlookup _hcomposite
-                  exact False.elim
-                    ((fieldFilteredCompositeChild_empty_of_boolTypeConditionFeasible_all
-                      schema boolCase parentType typeConditions responseName
-                      fieldName arguments directives child children
-                      hfeasible hallow hchild) hstack)
               | cons filteredChild filteredChildren =>
                   simp [filterSelectionSetBoolCase, hallow, hchild,
                     selectionSetFilteredCompositeChildrenNonempty,
@@ -4832,8 +4796,6 @@ theorem normalizeSelectionSet_normalizedValid_of_filteredCurrentSource
         -> FieldMerge.fieldsInSetCanMerge schema parentType selectionSet
         -> selectionSetDirectiveFree selectionSet
         -> selectionSetTypeConditionFeasible schema parentType typeConditions selectionSet
-        -> selectionSetFilteredCompositeChildrenNonempty schema parentType
-            typeConditions selectionSet
         -> GroundTypeNormalization.NormalizedSelectionSetValid schema
             variableDefinitions parentType
             (normalizeSelectionSet schema parentType selectionSet) := by
@@ -4841,14 +4803,14 @@ theorem normalizeSelectionSet_normalizedValid_of_filteredCurrentSource
   induction parentType, selectionSet using normalizeSelectionSet.induct schema with
   | case1 parentType =>
       intro _typeConditions _hobject _hstack _hparent _hready _hsource
-        _hreturnLookup _hmerge _hfree _hfeasible _hnonempty
+        _hreturnLookup _hmerge _hfree _hfeasible
       simpa [normalizeSelectionSet]
         using GroundTypeNormalization.normalizedSelectionSetValid_nil schema
           variableDefinitions parentType
   | case2 parentType rest responseName fieldName arguments directives
       subselections hlookup hrest =>
       intro typeConditions hobject hstack hparent hready hsource hreturnLookup
-        hmerge hfree hfeasible hnonempty
+        hmerge hfree hfeasible
       have htailSource :
           selectionSetFilteredCurrentSourceValid schema variableDefinitions
             parentType rest :=
@@ -4900,25 +4862,14 @@ theorem normalizeSelectionSet_normalizedValid_of_filteredCurrentSource
         selectionSetTypeConditionFeasible_withoutFieldSelectionsWithResponseName
           schema responseName parentType typeConditions rest
           (selectionSetTypeConditionFeasible_tail hfeasible)
-      have htailNonempty :
-          selectionSetFilteredCompositeChildrenNonempty schema parentType
-            typeConditions rest :=
-        selectionSetFilteredCompositeChildrenNonempty_tail hnonempty
-      have hfilteredNonempty :
-          selectionSetFilteredCompositeChildrenNonempty schema parentType
-            typeConditions
-            (withoutFieldSelectionsWithResponseName schema responseName rest) :=
-        selectionSetFilteredCompositeChildrenNonempty_withoutFieldSelectionsWithResponseName
-          schema responseName parentType typeConditions rest htailNonempty
       simpa [normalizeSelectionSet, hlookup]
         using hrest typeConditions hobject hstack hparent hfilteredReady hfilteredSource
           hfilteredReturnLookup hfilteredMerge hfilteredFree hfilteredFeasible
-          hfilteredNonempty
   | case3 parentType rest responseName fieldName arguments directives
       subselections fieldDefinition hlookup matching mergedSubselections
       returnType hrest hmerged hpossible =>
       intro typeConditions hobject hstack hparent hready hsource hreturnLookup
-        hmerge hfree hfeasible hnonempty
+        hmerge hfree hfeasible
       let normalizedSubselections :=
         if objectTypeNameBool schema returnType then
           normalizeSelectionSet schema returnType mergedSubselections
@@ -4984,16 +4935,6 @@ theorem normalizeSelectionSet_normalizedValid_of_filteredCurrentSource
             (withoutFieldSelectionsWithResponseName schema responseName rest) :=
         selectionSetTypeConditionFeasible_withoutFieldSelectionsWithResponseName
           schema responseName parentType typeConditions rest htailFeasible
-      have htailNonempty :
-          selectionSetFilteredCompositeChildrenNonempty schema parentType
-            typeConditions rest :=
-        selectionSetFilteredCompositeChildrenNonempty_tail hnonempty
-      have hfilteredNonempty :
-          selectionSetFilteredCompositeChildrenNonempty schema parentType
-            typeConditions
-            (withoutFieldSelectionsWithResponseName schema responseName rest) :=
-        selectionSetFilteredCompositeChildrenNonempty_withoutFieldSelectionsWithResponseName
-          schema responseName parentType typeConditions rest htailNonempty
       have hnormalizedRest :
           GroundTypeNormalization.NormalizedSelectionSetValid schema
             variableDefinitions parentType
@@ -5001,7 +4942,6 @@ theorem normalizeSelectionSet_normalizedValid_of_filteredCurrentSource
               (withoutFieldSelectionsWithResponseName schema responseName rest)) :=
         hrest typeConditions hobject hstack hparent hfilteredReady hfilteredSource
           hfilteredReturnLookup hfilteredMerge hfilteredFree hfilteredFeasible
-          hfilteredNonempty
       have hlookupValid :
           selectionSetLookupValid schema parentType
             (Selection.field responseName fieldName arguments []
@@ -5071,19 +5011,6 @@ theorem normalizeSelectionSet_normalizedValid_of_filteredCurrentSource
             objectType arguments subselections rest fieldDefinition hobject
             hlookupValid hsource hmerge hlookup
             (by simpa [returnType] using hobjectType)
-      have hchildNonempty :
-          ∀ objectType,
-            objectType ∈ schema.getPossibleTypes returnType ->
-              selectionSetFilteredCompositeChildrenNonempty schema objectType
-                [objectType] mergedSubselections := by
-        intro objectType hobjectType
-        subst mergedSubselections
-        exact
-          selectionSetFilteredCompositeChildrenNonempty_fieldHead_merged_of_child_object
-            schema parentType responseName fieldName objectType arguments
-            subselections rest fieldDefinition typeConditions hobject hstack
-            hlookupValid hnonempty hmerge hlookup
-            (by simpa [returnType] using hobjectType)
       have hchildReturnLookup :
           ∀ objectType,
             objectType ∈ schema.getPossibleTypes returnType ->
@@ -5145,12 +5072,6 @@ theorem normalizeSelectionSet_normalizedValid_of_filteredCurrentSource
                     using (List.contains_iff_mem.mp
                             (object_typeIncludesObjectBool_self schema
                               hreturnObjectType))))
-              (hchildNonempty returnType
-                (by
-                  simpa [returnType]
-                    using (List.contains_iff_mem.mp
-                            (object_typeIncludesObjectBool_self schema
-                              hreturnObjectType))))
         · have hreturnObjectFalse :
               objectTypeNameBool schema returnType = false := by
             cases hmatch : objectTypeNameBool schema returnType
@@ -5195,7 +5116,6 @@ theorem normalizeSelectionSet_normalizedValid_of_filteredCurrentSource
                 hlookup)
               hmergedFree
               (hmergedFeasible objectType hobjectType)
-              (hchildNonempty objectType hobjectType)
           · have hreturnLookup :
                 selectionSetLookupValid schema returnType
                   mergedSubselections := by
@@ -5325,142 +5245,7 @@ theorem normalizeSelectionSet_normalizedValid_of_filteredCurrentSource
               (hchildReturnLookup branchType hbranchType)
               hchildMerge hmergedFree
               (hmergedFeasible branchType hbranchType)
-              (hchildNonempty branchType hbranchType)
-      have hsubselectionsNonemptyOfComposite :
-          schema.isCompositeType fieldDefinition.outputType.namedType ->
-            subselections ≠ [] := by
-        intro hcomposite
-        have hheadNonempty :
-            selectionFilteredCompositeChildrenNonempty schema parentType
-              typeConditions
-              (Selection.field responseName fieldName arguments []
-                subselections) :=
-          selectionSetFilteredCompositeChildrenNonempty_head hnonempty
-        have hstackFeasible :
-            typeConditionStackFeasible schema typeConditions :=
-          GroundTypeNormalization.typeConditionStackFeasible_of_objectSatisfies_forValidity
-            hstack
-        exact (hheadNonempty hstackFeasible).1 fieldDefinition hlookup hcomposite
-      have hmergedNonemptyOfComposite :
-          schema.isCompositeType fieldDefinition.outputType.namedType ->
-            mergedSubselections ≠ [] := by
-        intro hcomposite hnil
-        have hsubselectionsNonempty :
-            subselections ≠ [] :=
-          hsubselectionsNonemptyOfComposite hcomposite
-        subst mergedSubselections
-        cases subselections with
-        | nil =>
-            exact hsubselectionsNonempty rfl
-        | cons selection rest =>
-            simp at hnil
-      have hnormalizedSubselectionsNonempty :
-          schema.isCompositeType fieldDefinition.outputType.namedType ->
-            normalizedSubselections ≠ [] := by
-        intro hcomposite
-        have hmergedNonempty :
-            mergedSubselections ≠ [] :=
-          hmergedNonemptyOfComposite hcomposite
-        have hsubselectionsNonempty :
-            subselections ≠ [] :=
-          hsubselectionsNonemptyOfComposite hcomposite
-        have hheadNonempty :
-            selectionFilteredCompositeChildrenNonempty schema parentType
-              typeConditions
-              (Selection.field responseName fieldName arguments []
-                subselections) :=
-          selectionSetFilteredCompositeChildrenNonempty_head hnonempty
-        have hstackFeasible :
-            typeConditionStackFeasible schema typeConditions :=
-          GroundTypeNormalization.typeConditionStackFeasible_of_objectSatisfies_forValidity
-            hstack
-        have hchildWitness :
-            ∃ objectType,
-              objectType ∈ schema.getPossibleTypes returnType
-              ∧ selectionSetContainsTypeConditionFeasibleField schema
-                  [objectType] subselections := by
-          have hparts := hheadNonempty hstackFeasible
-          cases subselections with
-          | nil =>
-              exact False.elim (hsubselectionsNonempty rfl)
-          | cons child children =>
-              have hchildren := hparts.2
-              rw [hlookup] at hchildren
-              rcases List.exists_mem_of_ne_nil _ hchildren.1 with
-                ⟨objectType, hobjectType⟩
-              exact ⟨
-                objectType,
-                by simpa [returnType] using hobjectType,
-                (hchildren.2 objectType hobjectType).1
-              ⟩
-        rcases hchildWitness with
-          ⟨childObjectType, hchildObjectType, hheadChildContains⟩
-        have hmergedContains :
-            selectionSetContainsTypeConditionFeasibleField schema
-              [childObjectType]
-              mergedSubselections := by
-          subst mergedSubselections
-          exact
-            selectionSetContainsTypeConditionFeasibleField_append_left_forValidity
-              schema [childObjectType] hheadChildContains
-        subst normalizedSubselections
-        by_cases hreturnObject : objectTypeNameBool schema returnType = true
-        · have hreturnObjectType :
-              schema.objectType returnType :=
-            objectType_of_objectTypeNameBool_eq_true schema hreturnObject
-          have hchildObjectEq :
-              childObjectType = returnType :=
-            object_typeIncludesObjectBool_eq_self schema hreturnObjectType
-              (List.contains_iff_mem.mpr hchildObjectType)
-          subst childObjectType
-          have hinclude :
-              schema.typeIncludesObjectBool
-                fieldDefinition.outputType.namedType returnType = true := by
-            simpa [returnType]
-              using object_typeIncludesObjectBool_self schema hreturnObjectType
-          have hchildReady :
-              selectionSetSemanticsReady schema returnType
-                mergedSubselections :=
-            selectionSetSemanticsReady_fieldHead_merged_of_child_object
-              schema parentType responseName fieldName returnType arguments
-              subselections rest fieldDefinition hobject hready hlookupValid
-              hmerge hlookup (by simpa [returnType] using hinclude)
-          simpa [hreturnObject]
-            using normalizeSelectionSet_ne_nil_of_contains schema
-              returnType mergedSubselections hreturnObjectType hchildReady
-              hmergedContains
-        · have hreturnObjectFalse :
-              objectTypeNameBool schema returnType = false := by
-            cases hmatch : objectTypeNameBool schema returnType
-            · rfl
-            · contradiction
-          simp [hreturnObjectFalse]
-          have hbranchObject :
-              schema.objectType childObjectType :=
-            SchemaWellFormedness.schemaWellFormed_possibleTypesAreObjects
-              hschema returnType childObjectType hchildObjectType
-          have hinclude :
-              schema.typeIncludesObjectBool
-                fieldDefinition.outputType.namedType childObjectType = true :=
-            List.contains_iff_mem.mpr
-              (by simpa [returnType] using hchildObjectType)
-          have hchildReady :
-              selectionSetSemanticsReady schema childObjectType
-                mergedSubselections :=
-            selectionSetSemanticsReady_fieldHead_merged_of_child_object
-              schema parentType responseName fieldName childObjectType arguments
-              subselections rest fieldDefinition hobject hready hlookupValid
-              hmerge hlookup (by simpa [returnType] using hinclude)
-          exact
-            possibleTypeNormalizations_ne_nil_of_branch_forValidity schema
-              hchildObjectType
-              (normalizeSelectionSet_ne_nil_of_contains schema
-                childObjectType mergedSubselections hbranchObject hchildReady
-                hmergedContains)
-      have hconsNormalizedValid
-          (hnonemptyField :
-            schema.isCompositeType fieldDefinition.outputType.namedType ->
-              normalizedSubselections ≠ []) :
+      have hconsNormalizedValid :
           GroundTypeNormalization.NormalizedSelectionSetValid schema
             variableDefinitions parentType
             (Selection.field responseName fieldName arguments []
@@ -5476,7 +5261,6 @@ theorem normalizeSelectionSet_normalizedValid_of_filteredCurrentSource
           normalizedField_selectionValidInPossibleTypes_of_filteredCurrentSource
             (selectionSetFilteredCurrentSourceValid_head hsource)
             hlookup hnormalizedSubselectionsValid.selectionSetValid
-            hnonemptyField
             hnormalizedSubselectionsValid.validInPossibleTypes
             hnormalizedSubselectionsPossible
             hnilIfLeaf
@@ -5571,7 +5355,7 @@ theorem normalizeSelectionSet_normalizedValid_of_filteredCurrentSource
                 (withoutFieldSelectionsWithResponseName schema responseName
                   rest))) := by
         simpa [normalizedFieldWithRest, normalizedField]
-          using hconsNormalizedValid hnormalizedSubselectionsNonempty
+          using hconsNormalizedValid
       rw [normalizeSelectionSet.eq_2, hlookup]
       change GroundTypeNormalization.NormalizedSelectionSetValid schema
         variableDefinitions parentType
@@ -5582,7 +5366,7 @@ theorem normalizeSelectionSet_normalizedValid_of_filteredCurrentSource
       exact hfinal
   | case4 parentType rest directives subselections happend =>
       intro typeConditions hobject hstack hparent hready hsource hreturnLookup
-        hmerge hfree hfeasible hnonempty
+        hmerge hfree hfeasible
       have hselectionFree :=
         selectionSetDirectiveFree_head hfree
       have hdirectives : directives = [] := hselectionFree.1
@@ -5647,27 +5431,14 @@ theorem normalizeSelectionSet_normalizedValid_of_filteredCurrentSource
           selectionSetTypeConditionFeasible schema parentType typeConditions
             (subselections ++ rest) :=
         selectionSetTypeConditionFeasible_append hbodyFeasible htailFeasible
-      have hheadNonempty :=
-        selectionSetFilteredCompositeChildrenNonempty_head hnonempty
-      have hbodyNonempty :
-          selectionSetFilteredCompositeChildrenNonempty schema parentType
-            typeConditions subselections := by
-        simpa [selectionFilteredCompositeChildrenNonempty] using hheadNonempty
-      have htailNonempty :=
-        selectionSetFilteredCompositeChildrenNonempty_tail hnonempty
-      have hbodyTailNonempty :
-          selectionSetFilteredCompositeChildrenNonempty schema parentType
-            typeConditions (subselections ++ rest) :=
-        selectionSetFilteredCompositeChildrenNonempty_append hbodyNonempty
-          htailNonempty
       simpa [normalizeSelectionSet]
         using happend typeConditions hobject hstack hparent hbodyTailReady
           hbodyTailSource hbodyTailReturnLookup hbodyTailMerge
-          hbodyTailFree hbodyTailFeasible hbodyTailNonempty
+          hbodyTailFree hbodyTailFeasible
   | case5 parentType rest typeCondition directives subselections hoverlap
       _hrest happend =>
       intro typeConditions hobject hstack hparent hready hsource hreturnLookup
-        hmerge hfree hfeasible hnonempty
+        hmerge hfree hfeasible
       have hselectionFree :=
         selectionSetDirectiveFree_head hfree
       have hdirectives : directives = [] := hselectionFree.1
@@ -5773,36 +5544,15 @@ theorem normalizeSelectionSet_normalizedValid_of_filteredCurrentSource
             parentType (typeCondition :: typeConditions) :=
         GroundTypeNormalization.objectSatisfiesTypeConditionStack_cons_of_overlap_forValidity
           schema hobject hstack hoverlap
-      have hheadNonempty :=
-        selectionSetFilteredCompositeChildrenNonempty_head hnonempty
-      have hbodyNonempty :
-          selectionSetFilteredCompositeChildrenNonempty schema parentType
-            (typeCondition :: typeConditions) subselections := by
-        simpa [selectionFilteredCompositeChildrenNonempty] using hheadNonempty hoverlap
-      have htailNonempty :=
-        selectionSetFilteredCompositeChildrenNonempty_tail hnonempty
-      have htailNonemptyInBodyStack :
-          selectionSetFilteredCompositeChildrenNonempty schema parentType
-            (typeCondition :: typeConditions) rest :=
-        selectionSetFilteredCompositeChildrenNonempty_of_stack_subset
-          schema parentType
-          (fun candidate hcandidate =>
-            List.mem_cons_of_mem typeCondition hcandidate)
-          rest htailNonempty
-      have hbodyTailNonempty :
-          selectionSetFilteredCompositeChildrenNonempty schema parentType
-            (typeCondition :: typeConditions) (subselections ++ rest) :=
-        selectionSetFilteredCompositeChildrenNonempty_append hbodyNonempty
-          htailNonemptyInBodyStack
       simpa [normalizeSelectionSet, hoverlap]
         using happend (typeCondition :: typeConditions) hobject hstackBody
           (List.mem_cons_of_mem typeCondition hparent)
           hbodyTailReady hbodyTailSource hbodyTailReturnLookup
-          hbodyTailMerge hbodyTailFree hbodyTailFeasible hbodyTailNonempty
+          hbodyTailMerge hbodyTailFree hbodyTailFeasible
   | case6 parentType rest typeCondition directives subselections hoverlap
       hrest =>
       intro typeConditions hobject hstack hparent hready hsource hreturnLookup
-        hmerge hfree hfeasible hnonempty
+        hmerge hfree hfeasible
       have htailReady :=
         selectionSetSemanticsReady_tail hready
       have htailSource :=
@@ -5820,10 +5570,6 @@ theorem normalizeSelectionSet_normalizedValid_of_filteredCurrentSource
       have htailFeasible :
           selectionSetTypeConditionFeasible schema parentType typeConditions rest :=
         selectionSetTypeConditionFeasible_tail hfeasible
-      have htailNonempty :
-          selectionSetFilteredCompositeChildrenNonempty schema parentType
-            typeConditions rest :=
-        selectionSetFilteredCompositeChildrenNonempty_tail hnonempty
       have hfalse :
           schema.typesOverlapBool parentType typeCondition = false := by
         cases hmatch : schema.typesOverlapBool parentType typeCondition
@@ -5832,7 +5578,6 @@ theorem normalizeSelectionSet_normalizedValid_of_filteredCurrentSource
       simpa [normalizeSelectionSet, hfalse]
         using hrest typeConditions hobject hstack hparent htailReady htailSource
           htailReturnLookup htailMerge htailFree htailFeasible
-          htailNonempty
 
 /-
 Source witness for a field collected from a normalized Boolean-filtered branch.
@@ -7197,7 +6942,7 @@ theorem normalizeSelectionSets_fieldsInSetCanMerge_filteredCurrentSource_anyPare
     normalizeSelectionSet_normalizedValid_of_filteredCurrentSource
       schema variableDefinitions hschema parentType leftSet [parentType]
       hobject hstack (by simp) hleftReady hleftSource hleftReturnLookup
-      hleftMerge hleftFree hleftFeasible hleftNonempty
+      hleftMerge hleftFree hleftFeasible
   have hrightValid :
       GroundTypeNormalization.NormalizedSelectionSetValid schema
         variableDefinitions parentType
@@ -7205,7 +6950,7 @@ theorem normalizeSelectionSets_fieldsInSetCanMerge_filteredCurrentSource_anyPare
     normalizeSelectionSet_normalizedValid_of_filteredCurrentSource
       schema variableDefinitions hschema parentType rightSet [parentType]
       hobject hstack (by simp) hrightReady hrightSource hrightReturnLookup
-      hrightMerge hrightFree hrightFeasible hrightNonempty
+      hrightMerge hrightFree hrightFeasible
   apply fieldsInSetCanMerge_append_of_pairwise
       schema mergeParent
       (normalizeSelectionSet schema parentType leftSet)
@@ -7440,8 +7185,6 @@ theorem normalizeSelectionSets_fieldsInSetCanMerge_filteredCurrentSource_anyPare
                 hleftChildMerge leftGroup.childDirectiveFree
                 (leftGroup.childFeasible leftType
                   (by dsimp [returnType] at hleftType; exact hleftType))
-                (leftGroup.childNonempty leftType
-                  (by dsimp [returnType] at hleftType; exact hleftType))
             exact
               GroundTypeNormalization.normalizedBranchFieldsCanMerge_of_normalizedValid
                 hleftValidBranch hleftBranchField hrightBranchField
@@ -7540,8 +7283,6 @@ theorem normalizeSelectionSets_fieldsInSetCanMerge_filteredCurrentSource_anyPare
                   (by simpa [← hrightReturn] using hleftType))
                 hrightChildMerge rightGroup.childDirectiveFree
                 (rightGroup.childFeasible leftType
-                  (by simpa [← hrightReturn] using hleftType))
-                (rightGroup.childNonempty leftType
                   (by simpa [← hrightReturn] using hleftType))
             exact
               GroundTypeNormalization.normalizedBranchFieldsCanMerge_of_normalizedValid
@@ -7770,19 +7511,13 @@ theorem normalizeSelectionSet_filterSelectionSetBoolCase_normalizedValid
       selectionSetTypeConditionFeasible schema parentType [parentType] (filterSelectionSetBoolCase boolCase selectionSet) :=
     selectionSetTypeConditionFeasible_filterSelectionSetBoolCase schema
       boolCase parentType [parentType] selectionSet hboolFeasible
-  have hfilteredNonempty :
-      selectionSetFilteredCompositeChildrenNonempty schema parentType
-        [parentType] (filterSelectionSetBoolCase boolCase selectionSet) :=
-    selectionSetFilteredCompositeChildrenNonempty_filterSelectionSetBoolCase
-      schema variableDefinitions hschema boolCase parentType [parentType]
-      hobject selectionSet himplementation hboolFeasible
   exact normalizeSelectionSet_normalizedValid_of_filteredCurrentSource schema
     variableDefinitions hschema parentType
     (filterSelectionSetBoolCase boolCase selectionSet) [parentType] hobject
     (GroundTypeNormalization.objectSatisfiesTypeConditionStack_singleton_of_object_forValidity
       schema hobject)
     (by simp) hfilteredReady hfilteredSource hfilteredReturnLookup hfilteredMerge
-    hfilteredFree hfilteredFeasible hfilteredNonempty
+    hfilteredFree hfilteredFeasible
 
 theorem completeNormalizeBranches_selectionSetValid_of_normalizedBranches
     (schema : Schema) (operation : Operation)
@@ -7856,7 +7591,7 @@ theorem completeNormalizeBranches_selectionSetValid_of_normalizedBranches
                   (selection :: normalizedRest)) :=
             wrapWithBoolCase_selectionSetValid schema operation
               (operation.rootType schema) boolCase (selection :: normalizedRest)
-              hoperation hvars (by simp) hbranchValid.selectionSetValid
+              hoperation hvars hbranchValid.selectionSetValid
           simpa [hnormalized] using
             Validation.selectionSetValid_append hwrapped hrest
 
