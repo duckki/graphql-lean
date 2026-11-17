@@ -1,7 +1,7 @@
 # graphql-lean
 
 `graphql-lean` is a GraphQL formalization in Lean, based on the [GraphQL September
-2026 Edition](https://spec.graphql.org/draft/).
+2026 Edition](https://spec.graphql.org/September2026/).
 
 Compared with prior theorem-prover formalizations such as
 [GraphCoQL](https://github.com/imfd/GraphCoQL), this development fills important gaps in

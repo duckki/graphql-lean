@@ -3,7 +3,7 @@
 This guide documents the specification-facing
 [`GraphQL.Execution`](../GraphQL/Execution.lean) model and its shared input and
 response abstractions. The target is the
-[GraphQL September 2026 Edition](https://spec.graphql.org/draft/).
+[GraphQL September 2026 Edition](https://spec.graphql.org/September2026/).
 Schema and operation representation and validity are documented in
 [schemas](schema.md) and [operations](operations.md).
 See the [conformance summary](spec-conformance.md) for coverage and exclusions,

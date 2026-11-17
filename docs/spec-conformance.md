@@ -1,7 +1,7 @@
 # Spec Conformance Summary
 
 The main model targets the
-[GraphQL September 2026 Edition](https://spec.graphql.org/draft/), as drafted at
+[GraphQL September 2026 Edition](https://spec.graphql.org/September2026/), as drafted at
 [revision 3f1ef84](https://github.com/graphql/graphql-spec/tree/3f1ef846019884a8c9c3a32b65ea03168f24ecff).
 A separate incremental-delivery model targets
 [PR #1110, revision 045e193](https://github.com/graphql/graphql-spec/tree/045e19363c2b55f127960bd3b5e8072a15b29aec).
